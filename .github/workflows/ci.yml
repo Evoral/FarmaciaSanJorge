@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    name: typecheck, lint, unit tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - run: npm run typecheck
+
+      - run: npm run lint
+
+      - run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          # env validation is lazy (see shared/env.ts) so `next build` does
+          # not need real DB credentials -- these are placeholders only to
+          # document the shape, not to connect to anything.
+          NODE_ENV: production
+
+  # db-tests job intentionally removed: there is only ONE Supabase database
+  # (the real one) -- no dedicated test/staging project exists yet, so DB
+  # tests must never run unattended in CI against production credentials.
+  # `npm run test:db` is safe to run locally (every test rolls back its own
+  # transaction -- see tests/db/helpers.ts#inRollbackTx and the warning in
+  # tests/db/global-setup.ts), but CI does not wire DATABASE_URL/DIRECT_URL
+  # here on purpose. Revisit before production go-live: provision a
+  # dedicated test/staging Supabase project and reinstate this job pointed
+  # at it, never at production secrets.

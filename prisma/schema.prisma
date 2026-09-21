@@ -1,0 +1,1195 @@
+// Prisma schema for Farmacia San Jose.
+//
+// FASE 1 (points 1.1-1.5): tenancy/parametros, usuarios/roles/permisos,
+// registro_auditoria, credenciales/sesiones, designacion_director_tecnico.
+// Every model lives in the dedicated `fsj` Postgres schema (never
+// `public`), per docs/architecture.md.
+//
+// SOURCE OF TRUTH: the hand-written SQL under prisma/migrations/ (triggers,
+// RLS policies, grants, the EXCLUDE constraint, deferred constraint
+// triggers -- none of which Prisma's schema language can express). This
+// file is kept IN SYNC with those migrations for type-safe queries, but a
+// migration.sql diff always wins over this file if they ever disagree.
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  // Both `url` and `directUrl` live in prisma.config.ts (see that file).
+  schemas    = ["fsj"]
+  extensions = [pgcrypto(schema: "extensions"), citext(schema: "extensions"), btreeGist(map: "btree_gist", schema: "extensions")]
+}
+
+// ============================================================================
+// Enums
+// ============================================================================
+
+/// DP-01 RESUELTA.
+enum EstadoUsuario {
+  PENDIENTE_ACTIVACION
+  ACTIVO
+  SUSPENDIDO
+  BAJA
+
+  @@map("estado_usuario")
+  @@schema("fsj")
+}
+
+enum ParametroTipo {
+  TEXTO
+  NUMERO
+  BOOLEANO
+
+  @@map("parametro_tipo")
+  @@schema("fsj")
+}
+
+enum TipoAccion {
+  CREAR
+  MODIFICAR
+  BAJA
+  REACTIVAR
+  ANULAR
+  AUTORIZAR
+  FIRMAR
+  CONFIRMAR
+  DESCARTAR
+  CAMBIAR_ESTADO
+  ASIGNAR_ROL
+  QUITAR_ROL
+  SUSPENDER
+  RESTABLECER_CREDENCIAL
+  ACTIVAR_CUENTA
+  LOGIN_FALLIDO_BLOQUEO
+  CORREGIR_FOLIO
+  INUTILIZAR_FOJAS
+  DESTRUIR
+  IMPRIMIR_CIERRE
+
+  @@map("tipo_accion")
+  @@schema("fsj")
+}
+
+enum MotivoEmisionCredencial {
+  ALTA
+  RESTABLECIMIENTO
+
+  @@map("motivo_emision_credencial")
+  @@schema("fsj")
+}
+
+enum CaracterDesignacionDt {
+  TITULAR
+  SUPLENTE
+
+  @@map("caracter_designacion_dt")
+  @@schema("fsj")
+}
+
+/// DP-07 PARCIALMENTE RESUELTA: only the unambiguous magnitudes are
+/// modeled. See migration 0006 header.
+enum TipoMagnitud {
+  MASA
+  VOLUMEN
+  UNIDADES
+
+  @@map("tipo_magnitud")
+  @@schema("fsj")
+}
+
+enum TipoControl {
+  NINGUNO
+  PSICOTROPICO
+  ESTUPEFACIENTE
+
+  @@map("tipo_control")
+  @@schema("fsj")
+}
+
+enum TipoMovimiento {
+  INGRESO_COMPRA
+  EGRESO_PREPARACION
+  AJUSTE
+
+  @@map("tipo_movimiento")
+  @@schema("fsj")
+}
+
+enum MotivoAjuste {
+  ROTURA
+  DERRAME
+  VENCIMIENTO
+  PREPARACION_DESCARTADA
+  DIFERENCIA_ARQUEO
+
+  @@map("motivo_ajuste")
+  @@schema("fsj")
+}
+
+/// M09. PRESENCIAL|DIGITAL_PDF|DIGITAL_FOTO.
+enum OrigenReceta {
+  PRESENCIAL
+  DIGITAL_PDF
+  DIGITAL_FOTO
+
+  @@map("origen_receta")
+  @@schema("fsj")
+}
+
+/// M09. docs/specs/libro-recetario-y-contralor.md section 1 (state machine).
+enum EstadoReceta {
+  PENDIENTE_PREPARACION
+  EN_PREPARACION
+  PREPARADA
+  LISTA_PARA_RETIRAR
+  ENVIADA_PEND_FIRMA
+  ENTREGADA
+  ANULADA
+
+  @@map("estado_receta")
+  @@schema("fsj")
+}
+
+/// PROPUESTA (migration 0011 header) -- CAPSULA/COMPRIMIDO are special-cased
+/// by the ficha calculator (modules/elaboracion/domain/calcular-ficha-tecnica.ts).
+enum FormaFarmaceutica {
+  CAPSULA
+  COMPRIMIDO
+  CREMA
+  GEL
+  UNGUENTO
+  JARABE
+  SOLUCION
+  SUSPENSION
+  POLVO
+  OVULO
+  SUPOSITORIO
+  LOCION
+
+  @@map("forma_farmaceutica")
+  @@schema("fsj")
+}
+
+/// docs/specs/ficha-tecnica.md. REPLACES the diagram's es_cantidad_suficiente boolean.
+enum ModoExpresion {
+  TOTAL
+  POR_DOSIS
+  CS
+  CSP
+
+  @@map("modo_expresion")
+  @@schema("fsj")
+}
+
+/// M11.
+enum EstadoPreparacion {
+  INICIADA
+  CONFIRMADA
+  DESCARTADA
+
+  @@map("estado_preparacion")
+  @@schema("fsj")
+}
+
+// ============================================================================
+// M00 -- tenancy
+// ============================================================================
+
+/// Global table (M00): one row per pharmacy tenant. No tenant_id, no RLS.
+model Tenant {
+  id                String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  razonSocial       String    @map("razon_social")
+  nombreFantasia    String?   @map("nombre_fantasia")
+  cuit              String    @unique
+  domicilio         String?
+  matriculaFarmacia String?   @map("matricula_farmacia")
+  zonaHoraria       String    @default("America/Argentina/Mendoza") @map("zona_horaria")
+  fechaBaja         DateTime? @map("fecha_baja") @db.Timestamptz(6)
+  creadoEn          DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
+  /// M12/spec section 4 (DP-33). NULL = contralor libros kept by hand. INV-L17: never changes once set (migration 0014).
+  fechaActivacionContralor DateTime? @map("fecha_activacion_contralor") @db.Timestamptz(6)
+
+  parametros           Parametro[]
+  usuarios             Usuario[]
+  recetaNumeroContador RecetaNumeroContador?
+  librosRubricados     LibroRubricado[]
+
+  @@map("tenant")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped typed key/value parameters (M00). PK (tenant_id, clave).
+model Parametro {
+  tenantId      String        @map("tenant_id") @db.Uuid
+  clave         String
+  tipo          ParametroTipo
+  valor         String
+  descripcion   String?
+  actualizadoEn DateTime      @default(now()) @map("actualizado_en") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@id([tenantId, clave])
+  @@map("parametro")
+  @@schema("fsj")
+}
+
+// ============================================================================
+// M03 -- usuarios, roles, permisos
+// ============================================================================
+
+/// Global catalog (M03): the 5 assignable roles + the internal SISTEMA role
+/// (see migration 0002 comment for why SISTEMA has a row here).
+model Rol {
+  id          String  @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  codigo      String  @unique
+  nombre      String
+  descripcion String?
+
+  permisos     RolPermiso[]
+  asignaciones UsuarioRol[]
+
+  @@map("rol")
+  @@schema("fsj")
+}
+
+/// Global catalog (M03): permission codes.
+model Permiso {
+  id          String  @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  codigo      String  @unique
+  descripcion String?
+
+  roles RolPermiso[]
+
+  @@map("permiso")
+  @@schema("fsj")
+}
+
+/// Global catalog (M03): role -> permission matrix.
+model RolPermiso {
+  rolId     String @map("rol_id") @db.Uuid
+  permisoId String @map("permiso_id") @db.Uuid
+
+  rol     Rol     @relation(fields: [rolId], references: [id])
+  permiso Permiso @relation(fields: [permisoId], references: [id])
+
+  @@id([rolId, permisoId])
+  @@map("rol_permiso")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped user account (M03). DP-40: email is globally unique. DP-41: one tenant per user.
+model Usuario {
+  id               String        @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId         String        @map("tenant_id") @db.Uuid
+  /// citext (case-insensitive), globally unique across ALL tenants -- DP-40.
+  email            String        @unique @db.Citext
+  nombre           String
+  apellido         String
+  dni              String
+  estado           EstadoUsuario @default(PENDIENTE_ACTIVACION)
+  passwordHash     String?       @map("password_hash")
+  esTecnico        Boolean       @default(false) @map("es_tecnico")
+  intentosFallidos Int           @default(0) @map("intentos_fallidos")
+  bloqueadoHasta   DateTime?     @map("bloqueado_hasta") @db.Timestamptz(6)
+  creadoPorId      String        @map("creado_por_id") @db.Uuid
+  creadoEn         DateTime      @default(now()) @map("creado_en") @db.Timestamptz(6)
+  ultimoAcceso     DateTime?     @map("ultimo_acceso") @db.Timestamptz(6)
+  numeroMatricula  String?       @map("numero_matricula")
+  fechaBaja        DateTime?     @map("fecha_baja") @db.Timestamptz(6)
+  motivoBaja       String?       @map("motivo_baja")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // Self-referencing composite FK (tenant_id, creado_por_id) -> (tenant_id, id).
+  // Prisma cannot express a *composite* self-relation with a clean field
+  // name here without an extra scalar; represented for read/type purposes
+  // as a plain scalar (`creadoPorId`) -- see migration 0002 for the actual
+  // FK, which Prisma will not manage (hand-written SQL is the source of truth).
+
+  rolesAsignados                UsuarioRol[]                 @relation("UsuarioRolUsuario")
+  rolesAsignadosPorMi           UsuarioRol[]                 @relation("UsuarioRolAsignadoPor")
+  historialEstados              UsuarioEstadoHistorial[]     @relation("HistorialUsuario")
+  historialEstadosCambiadoPorMi UsuarioEstadoHistorial[]     @relation("HistorialCambiadoPor")
+  registrosAuditoria            RegistroAuditoria[]          @relation("AuditoriaUsuario")
+  registrosAutorizadosPorMi     RegistroAuditoria[]          @relation("AuditoriaAutorizadoPor")
+  credencialesActivacion        CredencialActivacion[]       @relation("CredencialUsuario")
+  credencialesEmitidasPorMi     CredencialActivacion[]       @relation("CredencialEmitidaPor")
+  sesiones                      Sesion[]
+  designacionesDt               DesignacionDirectorTecnico[] @relation("DesignacionUsuario")
+  designacionesRegistradasPorMi DesignacionDirectorTecnico[] @relation("DesignacionRegistradoPor")
+  movimientosRegistrados        MovimientoStock[]            @relation("MovimientoRegistradoPor")
+  movimientosAutorizadosPorMi   MovimientoStock[]            @relation("MovimientoAutorizadoPor")
+  recetasRegistradas            Receta[]                     @relation("RecetaRegistradaPor")
+  recetasFisicaRecibidaPorMi    Receta[]                     @relation("RecetaFisicaRecibidaPor")
+  fichasTecnicasGeneradas       FichaTecnica[]
+  preparacionesIniciadas        Preparacion[]                @relation("PreparacionIniciadaPor")
+  preparacionesPreparadas       Preparacion[]                @relation("PreparacionPreparadaPor")
+  preparacionesDescartadas      Preparacion[]                @relation("PreparacionDescartadaPor")
+  etiquetasImpresas             Etiqueta[]
+  librosRubricadosRegistrados   LibroRubricado[]
+  asientosRecetarioRegistrados  AsientoRecetario[]
+  anulacionesAutorizadas        AnulacionAsiento[]           @relation("AnulacionAutorizadoPor")
+  anulacionesRealizadas         AnulacionAsiento[]           @relation("AnulacionAnuladoPor")
+  asientosHistoricosDigitalizados AsientoHistorico[]
+  asientosContralorRegistrados  AsientoContralor[]
+  cierresFirmados               CierreDiario[]               @relation("CierreDirectorTecnico")
+  cierresImpresos               CierreDiario[]                @relation("CierreImpresoPor")
+  entregasRegistradas           Entrega[]
+  lotesArchivoRegistrados       LoteArchivoRecetas[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, dni])
+  @@map("usuario")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped role assignment (M03). INV-U02 (>=1 role) is enforced by a
+/// deferred constraint trigger -- see migration 0002.
+model UsuarioRol {
+  id            String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  usuarioId     String   @map("usuario_id") @db.Uuid
+  rolId         String   @map("rol_id") @db.Uuid
+  asignadoPorId String   @map("asignado_por_id") @db.Uuid
+  asignadoEn    DateTime @default(now()) @map("asignado_en") @db.Timestamptz(6)
+
+  usuario     Usuario @relation("UsuarioRolUsuario", fields: [usuarioId], references: [id])
+  asignadoPor Usuario @relation("UsuarioRolAsignadoPor", fields: [asignadoPorId], references: [id])
+  rol         Rol     @relation(fields: [rolId], references: [id])
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, usuarioId, rolId])
+  @@map("usuario_rol")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped, append-only history of usuario.estado changes (M03).
+model UsuarioEstadoHistorial {
+  id             String         @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId       String         @map("tenant_id") @db.Uuid
+  usuarioId      String         @map("usuario_id") @db.Uuid
+  estadoAnterior EstadoUsuario? @map("estado_anterior")
+  estadoNuevo    EstadoUsuario  @map("estado_nuevo")
+  motivo         String?
+  cambiadoPorId  String         @map("cambiado_por_id") @db.Uuid
+  cambiadoEn     DateTime       @default(now()) @map("cambiado_en") @db.Timestamptz(6)
+
+  usuario     Usuario @relation("HistorialUsuario", fields: [usuarioId], references: [id])
+  cambiadoPor Usuario @relation("HistorialCambiadoPor", fields: [cambiadoPorId], references: [id])
+
+  @@unique([tenantId, id])
+  @@map("usuario_estado_historial")
+  @@schema("fsj")
+}
+
+// ============================================================================
+// M01 -- auditoria
+// ============================================================================
+
+/// Tenant-scoped, fully immutable audit log (M01). INV-A02/A03.
+model RegistroAuditoria {
+  id              String     @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId        String     @map("tenant_id") @db.Uuid
+  usuarioId       String     @map("usuario_id") @db.Uuid
+  entidad         String
+  entidadId       String     @map("entidad_id") @db.Uuid
+  accion          TipoAccion
+  valorAnterior   Json?      @map("valor_anterior") @db.JsonB
+  valorNuevo      Json?      @map("valor_nuevo") @db.JsonB
+  motivo          String?
+  autorizadoPorId String?    @map("autorizado_por_id") @db.Uuid
+  contexto        Json?      @db.JsonB
+  ip              String?    @db.Inet
+  ocurridoEn      DateTime   @default(now()) @map("ocurrido_en") @db.Timestamptz(6)
+
+  usuario       Usuario  @relation("AuditoriaUsuario", fields: [usuarioId], references: [id])
+  autorizadoPor Usuario? @relation("AuditoriaAutorizadoPor", fields: [autorizadoPorId], references: [id])
+
+  @@unique([tenantId, id])
+  @@map("registro_auditoria")
+  @@schema("fsj")
+}
+
+// ============================================================================
+// M02 -- credenciales y sesiones
+// ============================================================================
+
+/// Tenant-scoped, one-use activation/reset credential (M02).
+model CredencialActivacion {
+  id            String                  @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId      String                  @map("tenant_id") @db.Uuid
+  usuarioId     String                  @map("usuario_id") @db.Uuid
+  tokenHash     String                  @unique @map("token_hash")
+  emitidaPorId  String                  @map("emitida_por_id") @db.Uuid
+  emitidaEn     DateTime                @default(now()) @map("emitida_en") @db.Timestamptz(6)
+  venceEn       DateTime                @map("vence_en") @db.Timestamptz(6)
+  usadaEn       DateTime?               @map("usada_en") @db.Timestamptz(6)
+  revocadaEn    DateTime?               @map("revocada_en") @db.Timestamptz(6)
+  motivoEmision MotivoEmisionCredencial @map("motivo_emision")
+
+  usuario    Usuario @relation("CredencialUsuario", fields: [usuarioId], references: [id])
+  emitidaPor Usuario @relation("CredencialEmitidaPor", fields: [emitidaPorId], references: [id])
+
+  @@unique([tenantId, id])
+  @@map("credencial_activacion")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped opaque session (M02).
+model Sesion {
+  id              String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  usuarioId       String    @map("usuario_id") @db.Uuid
+  tokenHash       String    @unique @map("token_hash")
+  creadaEn        DateTime  @default(now()) @map("creada_en") @db.Timestamptz(6)
+  ultimoUsoEn     DateTime  @default(now()) @map("ultimo_uso_en") @db.Timestamptz(6)
+  expiraEn        DateTime  @map("expira_en") @db.Timestamptz(6)
+  revocadaEn      DateTime? @map("revocada_en") @db.Timestamptz(6)
+  ip              String?   @db.Inet
+  userAgent       String?   @map("user_agent")
+  reautenticadaEn DateTime? @map("reautenticada_en") @db.Timestamptz(6)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@unique([tenantId, id])
+  @@map("sesion")
+  @@schema("fsj")
+}
+
+// ============================================================================
+// M04 -- designacion de director tecnico
+// ============================================================================
+
+/// Tenant-scoped DT designation (M04). INV-DT-001..003.
+model DesignacionDirectorTecnico {
+  id                    String                @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId              String                @map("tenant_id") @db.Uuid
+  usuarioId             String                @map("usuario_id") @db.Uuid
+  caracter              CaracterDesignacionDt
+  matricula             String
+  expedienteDesignacion String?               @map("expediente_designacion")
+  vigenteDesde          DateTime              @map("vigente_desde") @db.Date
+  vigenteHasta          DateTime?             @map("vigente_hasta") @db.Date
+  motivoCese            String?               @map("motivo_cese")
+  registradoPorId       String                @map("registrado_por_id") @db.Uuid
+  registradoEn          DateTime              @default(now()) @map("registrado_en") @db.Timestamptz(6)
+
+  usuario       Usuario @relation("DesignacionUsuario", fields: [usuarioId], references: [id])
+  registradoPor Usuario @relation("DesignacionRegistradoPor", fields: [registradoPorId], references: [id])
+  cierres       CierreDiario[]
+
+  @@unique([tenantId, id])
+  @@map("designacion_director_tecnico")
+  @@schema("fsj")
+}
+
+// ============================================================================
+// M05 -- unidades de medida
+// ============================================================================
+
+/// GLOBAL catalog (M05, DP-39 RESUELTA): no tenant_id, no RLS, shared by
+/// every tenant. See migration 0006 for INV-M01..M04 and fsj.convertir().
+model UnidadMedida {
+  id           String       @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  codigo       String       @unique
+  nombre       String
+  simbolo      String
+  tipoMagnitud TipoMagnitud @map("tipo_magnitud")
+  factorABase  Decimal      @map("factor_a_base") @db.Decimal(20, 10)
+  esBase       Boolean      @default(false) @map("es_base")
+  /// INV-M04 usage marker -- written only by fsj.unidad_medida_marcar_usada().
+  usada        Boolean      @default(false)
+  fechaBaja    DateTime?    @map("fecha_baja") @db.Timestamptz(6)
+  motivoBaja   String?      @map("motivo_baja")
+
+  drogas                Droga[]
+  itemsRecetaTotal      ItemReceta[]
+  componentesItemReceta ComponenteItemReceta[]
+  lineasPesaje          LineaPesaje[]
+  asientosContralor     AsientoContralor[]
+
+  @@map("unidad_medida")
+  @@schema("fsj")
+}
+
+// ============================================================================
+// M06 -- drogas, proveedores, medicos, pacientes
+// ============================================================================
+
+/// Tenant-scoped (M06). No stock column (INV-S01) -- see fsj.v_stock_droga
+/// (migration 0008). INV-DRG-001 (unidad_base_id/tipo_control immutable
+/// once used) is NOT enforced -- DP-12 unresolved.
+model Droga {
+  id           String      @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId     String      @map("tenant_id") @db.Uuid
+  nombre       String      @db.Citext
+  unidadBaseId String      @map("unidad_base_id") @db.Uuid
+  /// PROPUESTA (DP-06b unresolved) -- not consumed by fsj.convertir().
+  densidad     Decimal?    @db.Decimal
+  esControlada Boolean     @default(false) @map("es_controlada")
+  tipoControl  TipoControl @default(NINGUNO) @map("tipo_control")
+  stockMinimo  Decimal     @default(0) @map("stock_minimo") @db.Decimal
+  fechaBaja    DateTime?   @map("fecha_baja") @db.Timestamptz(6)
+  motivoBaja   String?     @map("motivo_baja")
+
+  // unidad_base_id references the GLOBAL unidad_medida catalog directly
+  // (not a composite FK -- unidad_medida has no tenant_id, DP-39).
+  unidadBase            UnidadMedida           @relation(fields: [unidadBaseId], references: [id])
+  partidas              Partida[]
+  componentesItemReceta ComponenteItemReceta[]
+  lineasPesaje          LineaPesaje[]
+  asientosContralor     AsientoContralor[]
+
+  @@unique([tenantId, id])
+  @@map("droga")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (M06). cuit format only -- check-digit validation is
+/// application-layer (zod, FASE 4).
+model Proveedor {
+  id          String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  razonSocial String    @map("razon_social")
+  cuit        String
+  fechaBaja   DateTime? @map("fecha_baja") @db.Timestamptz(6)
+
+  partidas Partida[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, cuit])
+  @@map("proveedor")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (M06). matricula uniqueness scoped to active rows per
+/// tenant -- DP-23 (jurisdiction?) unresolved.
+model Medico {
+  id                  String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  nombre              String
+  apellido            String
+  matricula           String
+  especialidad        String?
+  telefono            String?
+  direccionRegistrada String?   @map("direccion_registrada")
+  fechaBaja           DateTime? @map("fecha_baja") @db.Timestamptz(6)
+
+  recetas Receta[]
+
+  @@unique([tenantId, id])
+  @@map("medico")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (M06). Health-adjacent data (DP-24) -- access restriction
+/// and log redaction are [APP] concerns, not enforced in DDL.
+model Paciente {
+  id              String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  cuil            String?   @db.VarChar(11)
+  dni             String?   @db.VarChar(8)
+  nombre          String
+  apellido        String
+  telefono        String?
+  email           String?
+  fechaNacimiento DateTime? @map("fecha_nacimiento") @db.Date
+  nroCredencial   String?   @map("nro_credencial")
+  sexo            String?
+  fechaBaja       DateTime? @map("fecha_baja") @db.Timestamptz(6)
+
+  recetas Receta[]
+
+  @@unique([tenantId, id])
+  @@map("paciente")
+  @@schema("fsj")
+}
+
+// ============================================================================
+// M07 -- stock y partidas
+// ============================================================================
+
+/// Tenant-scoped (M07). cantidad_disponible is written ONLY by
+/// fsj.movimiento_stock_aplicar() (INV-S01/S04) -- see migration 0008.
+model Partida {
+  id                      String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId                String    @map("tenant_id") @db.Uuid
+  drogaId                 String    @map("droga_id") @db.Uuid
+  proveedorId             String    @map("proveedor_id") @db.Uuid
+  lote                    String
+  costoUnitario           Decimal   @map("costo_unitario") @db.Decimal
+  cantidadInicial         Decimal   @map("cantidad_inicial") @db.Decimal
+  /// INV-S01/S04: read-only from the app's perspective -- see migration 0008.
+  cantidadDisponible      Decimal   @default(0) @map("cantidad_disponible") @db.Decimal
+  fechaIngreso            DateTime  @default(now()) @map("fecha_ingreso") @db.Timestamptz(6)
+  fechaVencimiento        DateTime  @map("fecha_vencimiento") @db.Date
+  /// INV-S16/S17: read-only from the app's perspective -- see migration 0008.
+  fechaApertura           DateTime? @map("fecha_apertura") @db.Timestamptz(6)
+  motivoAperturaAdicional String?   @map("motivo_apertura_adicional")
+
+  droga       Droga             @relation(fields: [drogaId], references: [id])
+  proveedor   Proveedor         @relation(fields: [proveedorId], references: [id])
+  movimientos MovimientoStock[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, drogaId, proveedorId, lote])
+  @@map("partida")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped, fully immutable (M07, INV-S06). DP-21b RESUELTA: AJUSTE
+/// always subtracts -- see fsj.movimiento_stock_aplicar() (migration 0008).
+model MovimientoStock {
+  id              String         @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId        String         @map("tenant_id") @db.Uuid
+  partidaId       String         @map("partida_id") @db.Uuid
+  tipo            TipoMovimiento
+  cantidad        Decimal        @db.Decimal
+  /// No FK yet -- fsj.preparacion arrives in migration 1.11.
+  preparacionId   String?        @map("preparacion_id") @db.Uuid
+  motivoAjuste    MotivoAjuste?  @map("motivo_ajuste")
+  observacion     String?
+  registradoPorId String         @map("registrado_por_id") @db.Uuid
+  autorizadoPorId String?        @map("autorizado_por_id") @db.Uuid
+  desvioPropuesta Boolean        @default(false) @map("desvio_propuesta")
+  registradoEn    DateTime       @default(now()) @map("registrado_en") @db.Timestamptz(6)
+  /// M12, migration 0014. Required for INGRESO_COMPRA of a controlled droga once the tenant's contralor is active (INV-L16).
+  numeroValeAdquisicion String? @map("numero_vale_adquisicion")
+  /// S12/S13/S19/S20 (revised), migration 0014. Required for EGRESO_PREPARACION.
+  lineaPesajeId   String?        @map("linea_pesaje_id") @db.Uuid
+
+  partida       Partida      @relation(fields: [partidaId], references: [id])
+  registradoPor Usuario      @relation("MovimientoRegistradoPor", fields: [registradoPorId], references: [id])
+  autorizadoPor Usuario?     @relation("MovimientoAutorizadoPor", fields: [autorizadoPorId], references: [id])
+  preparacion   Preparacion? @relation(fields: [preparacionId], references: [id])
+  lineaPesaje   LineaPesaje? @relation(fields: [lineaPesajeId], references: [id])
+  asientoContralor AsientoContralor?
+
+  @@unique([tenantId, id])
+  @@map("movimiento_stock")
+  @@schema("fsj")
+}
+
+// ============================================================================
+// M09 -- recetas, items, componentes
+// ============================================================================
+
+/// Backs receta.numero_interno (per-tenant, gaps acceptable). Migration 0011.
+model RecetaNumeroContador {
+  tenantId    String @id @map("tenant_id") @db.Uuid
+  ultimoValor BigInt @default(0) @map("ultimo_valor")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("receta_numero_contador")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (M09). Source of truth for the state machine:
+/// docs/specs/libro-recetario-y-contralor.md section 1. numero_interno is
+/// assigned by fsj.receta_asignar_numero_interno() -- never set by the app.
+model Receta {
+  id                        String       @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId                  String       @map("tenant_id") @db.Uuid
+  numeroInterno             BigInt       @map("numero_interno")
+  pacienteId                String       @map("paciente_id") @db.Uuid
+  medicoId                  String       @map("medico_id") @db.Uuid
+  fechaCreada               DateTime     @default(now()) @map("fecha_creada") @db.Timestamptz(6)
+  fechaPrescripcion         DateTime     @map("fecha_prescripcion") @db.Date
+  fechaValidaDesde          DateTime?    @map("fecha_valida_desde") @db.Date
+  fechaIngreso              DateTime     @default(now()) @map("fecha_ingreso") @db.Timestamptz(6)
+  origen                    OrigenReceta
+  estado                    EstadoReceta @default(PENDIENTE_PREPARACION)
+  archivoAdjuntoUrl         String?      @map("archivo_adjunto_url")
+  recetaFisicaRecibida      Boolean      @default(false) @map("receta_fisica_recibida")
+  recetaFisicaRecibidaEn    DateTime?    @map("receta_fisica_recibida_en") @db.Timestamptz(6)
+  recetaFisicaRecibidaPorId String?      @map("receta_fisica_recibida_por_id") @db.Uuid
+  registradaPorId           String       @map("registrada_por_id") @db.Uuid
+  motivoAnulacion           String?      @map("motivo_anulacion")
+  /// M15, deferred from migration 0011, added in migration 0016. INV-ARC-006: only settable once ENTREGADA/ANULADA + receta_fisica_recibida; frozen once set.
+  loteArchivoId             String?      @map("lote_archivo_id") @db.Uuid
+
+  paciente                Paciente     @relation(fields: [pacienteId], references: [id])
+  medico                  Medico       @relation(fields: [medicoId], references: [id])
+  registradaPor           Usuario      @relation("RecetaRegistradaPor", fields: [registradaPorId], references: [id])
+  recetaFisicaRecibidaPor Usuario?     @relation("RecetaFisicaRecibidaPor", fields: [recetaFisicaRecibidaPorId], references: [id])
+  items                   ItemReceta[]
+  loteArchivo             LoteArchivoRecetas? @relation(fields: [loteArchivoId], references: [id])
+  entrega                 Entrega?
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, numeroInterno])
+  @@map("receta")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (M09) / docs/specs/ficha-tecnica.md "ItemReceta". No
+/// standalone unidad_medida_id -- see migration 0011 header (spec wins over
+/// the plan's M09 table).
+model ItemReceta {
+  id                     String            @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId               String            @map("tenant_id") @db.Uuid
+  recetaId               String            @map("receta_id") @db.Uuid
+  descripcion            String?
+  formaFarmaceutica      FormaFarmaceutica @map("forma_farmaceutica")
+  cantidadUnidades       Int               @map("cantidad_unidades")
+  fraccionDosisPorUnidad Decimal           @default(1) @map("fraccion_dosis_por_unidad") @db.Decimal
+  cantidadTotal          Decimal?          @map("cantidad_total") @db.Decimal
+  unidadTotalId          String?           @map("unidad_total_id") @db.Uuid
+  observaciones          String?
+
+  receta      Receta                 @relation(fields: [recetaId], references: [id])
+  unidadTotal UnidadMedida?          @relation(fields: [unidadTotalId], references: [id])
+  componentes ComponenteItemReceta[]
+  fichas      FichaTecnica[]
+
+  @@unique([tenantId, id])
+  @@map("item_receta")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (M09) / docs/specs/ficha-tecnica.md "ComponenteItemReceta".
+/// modo_expresion REPLACES es_cantidad_suficiente (binding decision).
+model ComponenteItemReceta {
+  id                String        @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId          String        @map("tenant_id") @db.Uuid
+  itemRecetaId      String        @map("item_receta_id") @db.Uuid
+  drogaId           String        @map("droga_id") @db.Uuid
+  cantidad          Decimal?      @db.Decimal
+  unidadMedidaId    String        @map("unidad_medida_id") @db.Uuid
+  modoExpresion     ModoExpresion @map("modo_expresion")
+  esPrincipioActivo Boolean       @default(false) @map("es_principio_activo")
+  orden             Int
+
+  itemReceta   ItemReceta   @relation(fields: [itemRecetaId], references: [id])
+  droga        Droga        @relation(fields: [drogaId], references: [id])
+  unidadMedida UnidadMedida @relation(fields: [unidadMedidaId], references: [id])
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, itemRecetaId, orden])
+  @@map("componente_item_receta")
+  @@schema("fsj")
+}
+
+// ============================================================================
+// M10 -- ficha tecnica, linea de pesaje (cotizacion OUT OF SCOPE -- DP-09)
+// ============================================================================
+
+/// Tenant-scoped, fully immutable (M10). Versioned: INV-R05.
+model FichaTecnica {
+  id            String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  itemRecetaId  String   @map("item_receta_id") @db.Uuid
+  version       Int
+  generadaEn    DateTime @default(now()) @map("generada_en") @db.Timestamptz(6)
+  generadaPorId String   @map("generada_por_id") @db.Uuid
+
+  itemReceta    ItemReceta    @relation(fields: [itemRecetaId], references: [id])
+  generadaPor   Usuario       @relation(fields: [generadaPorId], references: [id])
+  lineas        LineaPesaje[]
+  preparaciones Preparacion[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, itemRecetaId, version])
+  @@map("ficha_tecnica")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped, fully immutable (M10) / docs/specs/ficha-tecnica.md
+/// "LineaPesaje". Revised INV-R04 (task binding decision).
+model LineaPesaje {
+  id              String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  fichaTecnicaId  String   @map("ficha_tecnica_id") @db.Uuid
+  drogaId         String   @map("droga_id") @db.Uuid
+  drogaNombre     String   @map("droga_nombre")
+  cantidadTeorica Decimal? @map("cantidad_teorica") @db.Decimal
+  excesoAplicado  Decimal  @default(0) @map("exceso_aplicado") @db.Decimal
+  cantidadAPesar  Decimal? @map("cantidad_a_pesar") @db.Decimal
+  unidadMedidaId  String   @map("unidad_medida_id") @db.Uuid
+  esEnraseManual  Boolean  @default(false) @map("es_enrase_manual")
+  orden           Int
+
+  fichaTecnica FichaTecnica @relation(fields: [fichaTecnicaId], references: [id])
+  droga        Droga        @relation(fields: [drogaId], references: [id])
+  unidadMedida UnidadMedida @relation(fields: [unidadMedidaId], references: [id])
+  movimientos  MovimientoStock[]
+  detalles     DetalleAsiento[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, fichaTecnicaId, orden])
+  @@map("linea_pesaje")
+  @@schema("fsj")
+}
+
+// ============================================================================
+// M11 -- preparacion, etiqueta
+// ============================================================================
+
+/// Tenant-scoped (M11). item_receta_id is denormalized/trigger-set -- see
+/// migration 0013 header.
+model Preparacion {
+  id              String            @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId        String            @map("tenant_id") @db.Uuid
+  fichaTecnicaId  String            @map("ficha_tecnica_id") @db.Uuid
+  itemRecetaId    String            @map("item_receta_id") @db.Uuid
+  estado          EstadoPreparacion @default(INICIADA)
+  iniciadaEn      DateTime          @default(now()) @map("iniciada_en") @db.Timestamptz(6)
+  iniciadaPorId   String            @map("iniciada_por_id") @db.Uuid
+  confirmadaEn    DateTime?         @map("confirmada_en") @db.Timestamptz(6)
+  preparadaPorId  String?           @map("preparada_por_id") @db.Uuid
+  motivoDescarte  String?           @map("motivo_descarte")
+  descartadaEn    DateTime?         @map("descartada_en") @db.Timestamptz(6)
+  descartadaPorId String?           @map("descartada_por_id") @db.Uuid
+
+  fichaTecnica  FichaTecnica      @relation(fields: [fichaTecnicaId], references: [id])
+  iniciadaPor   Usuario           @relation("PreparacionIniciadaPor", fields: [iniciadaPorId], references: [id])
+  preparadaPor  Usuario?          @relation("PreparacionPreparadaPor", fields: [preparadaPorId], references: [id])
+  descartadaPor Usuario?          @relation("PreparacionDescartadaPor", fields: [descartadaPorId], references: [id])
+  movimientos   MovimientoStock[]
+  etiqueta      Etiqueta?
+  /// At most one SISTEMA asiento per preparacion (partial unique index in the DB -- see AsientoRecetario.preparacionId).
+  asientosRecetario AsientoRecetario[]
+
+  @@unique([tenantId, id])
+  @@map("preparacion")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (M11). DP-28 (content rules) open -- contenido is free text.
+model Etiqueta {
+  id            String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  preparacionId String    @unique @map("preparacion_id") @db.Uuid
+  contenido     String
+  generadaEn    DateTime  @default(now()) @map("generada_en") @db.Timestamptz(6)
+  impresa       Boolean   @default(false)
+  impresaEn     DateTime? @map("impresa_en") @db.Timestamptz(6)
+  impresaPorId  String?   @map("impresa_por_id") @db.Uuid
+
+  preparacion Preparacion @relation(fields: [preparacionId], references: [id])
+  impresaPor  Usuario?    @relation(fields: [impresaPorId], references: [id])
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, preparacionId])
+  @@map("etiqueta")
+  @@schema("fsj")
+}
+
+// ============================================================================
+// M12 -- libro recetario, contralor (docs/specs/libro-recetario-y-contralor.md)
+// M13a -- cierre diario y firma
+// M14/M15 -- entrega, archivo de recetas
+// FASE 1, points 1.12-1.15. See prisma/migrations/.../0014-0017 for the
+// hand-written triggers/functions (hash chain, gapless counter,
+// fsj.cierre_diario_firmar, etc.) that make these tables' invariants hold
+// -- this file only mirrors columns/relations for type-safe queries.
+// ============================================================================
+
+enum TipoLibro {
+  RECETARIO
+  PSICOTROPICO
+  ESTUPEFACIENTE
+
+  @@map("tipo_libro")
+  @@schema("fsj")
+}
+
+enum OrigenAsiento {
+  SISTEMA
+  RECTIFICATIVO
+
+  @@map("origen_asiento")
+  @@schema("fsj")
+}
+
+enum EstadoAsiento {
+  VIGENTE
+  ANULADO
+
+  @@map("estado_asiento")
+  @@schema("fsj")
+}
+
+enum TipoMovimientoContralor {
+  APERTURA
+  INGRESO
+  EGRESO
+  AJUSTE
+
+  @@map("tipo_movimiento_contralor")
+  @@schema("fsj")
+}
+
+/// PROPUESTA (DP-34 unresolved) -- plan's own suggested values.
+enum ModalidadEntrega {
+  RETIRO_PRESENCIAL
+  ENVIO
+
+  @@map("modalidad_entrega")
+  @@schema("fsj")
+}
+
+enum EstadoLoteArchivo {
+  EN_ARCHIVO
+  PLAZO_CUMPLIDO
+  DESTRUCCION_SOLICITADA
+  DESTRUCCION_AUTORIZADA
+  DESTRUIDO
+
+  @@map("estado_lote_archivo")
+  @@schema("fsj")
+}
+
+/// M12/M13b minimal model (spec [CONFLICTO], DP-38 open). No folios. At most one OPEN book per (tenant, tipo).
+/// numero/fechaRubrica/expedienteRubrica are official rubric data: created NULL, set once (NULL -> value) when actually issued, never invented (DP-38, migration 0018 B3).
+model LibroRubricado {
+  id                 String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  tipo               TipoLibro
+  numero             String?
+  fechaRubrica       DateTime? @map("fecha_rubrica") @db.Date
+  expedienteRubrica  String?   @map("expediente_rubrica")
+  fechaCierre        DateTime? @map("fecha_cierre") @db.Date
+  registradoPorId    String    @map("registrado_por_id") @db.Uuid
+  registradoEn       DateTime  @default(now()) @map("registrado_en") @db.Timestamptz(6)
+
+  tenant          Tenant               @relation(fields: [tenantId], references: [id])
+  registradoPor   Usuario              @relation(fields: [registradoPorId], references: [id])
+  contador        ContadorCorrelativo?
+  asientosRecetario AsientoRecetario[]
+  asientosContralor AsientoContralor[]
+
+  @@unique([tenantId, id])
+  @@map("libro_rubricado")
+  @@schema("fsj")
+}
+
+/// DP-31: gapless counter, one row per (tenant, libro). Written ONLY by fsj.contador_correlativo_tomar() -- fsj_app has no direct grant.
+model ContadorCorrelativo {
+  tenantId    String @map("tenant_id") @db.Uuid
+  libroId     String @map("libro_id") @db.Uuid
+  ultimoValor BigInt @default(0) @map("ultimo_valor")
+  ultimoHash  String @map("ultimo_hash")
+
+  libro LibroRubricado @relation(fields: [libroId], references: [id])
+
+  @@id([tenantId, libroId])
+  @@unique([libroId])
+  @@map("contador_correlativo")
+  @@schema("fsj")
+}
+
+/// M12. Fully immutable except cierre_diario_id (once) and estado VIGENTE->ANULADO. Hash chain + numero_correlativo assigned by trigger (migration 0014).
+model AsientoRecetario {
+  id                  String        @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId            String        @map("tenant_id") @db.Uuid
+  libroId             String        @map("libro_id") @db.Uuid
+  numeroCorrelativo   BigInt        @map("numero_correlativo")
+  fechaAsiento        DateTime      @map("fecha_asiento") @db.Date
+  origen              OrigenAsiento
+  /// NOT @unique: the DB only has the PARTIAL unique index uq_asiento_recetario_preparacion (tenant_id, preparacion_id) WHERE origen = 'SISTEMA' (migration 0014), which Prisma cannot express.
+  preparacionId       String?       @map("preparacion_id") @db.Uuid
+  asientoOriginalId   String?       @map("asiento_original_id") @db.Uuid
+  pacienteTexto       String        @map("paciente_texto")
+  medicoTexto         String        @map("medico_texto")
+  formulaTexto        String        @map("formula_texto")
+  cierreDiarioId      String?       @map("cierre_diario_id") @db.Uuid
+  estado              EstadoAsiento @default(VIGENTE)
+  hashIntegridad      String        @map("hash_integridad")
+  hashAnterior        String        @map("hash_anterior")
+  registradoPorId     String        @map("registrado_por_id") @db.Uuid
+  registradoEn        DateTime      @default(now()) @map("registrado_en") @db.Timestamptz(6)
+
+  libro           LibroRubricado     @relation(fields: [libroId], references: [id])
+  preparacion     Preparacion?       @relation(fields: [preparacionId], references: [id])
+  asientoOriginal AsientoRecetario?  @relation("Rectificativo", fields: [asientoOriginalId], references: [id])
+  rectificativos  AsientoRecetario[] @relation("Rectificativo")
+  cierreDiario    CierreDiario?      @relation(fields: [cierreDiarioId], references: [id])
+  registradoPor   Usuario            @relation(fields: [registradoPorId], references: [id])
+  detalles        DetalleAsiento[]
+  anulacion       AnulacionAsiento?
+  asientosContralor AsientoContralor[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, libroId, numeroCorrelativo])
+  @@map("asiento_recetario")
+  @@schema("fsj")
+}
+
+/// M12. Immutable. cantidad is cantidad_a_pesar (non-manual) or the real registered quantity (manual-enrase) -- docs/specs/ficha-tecnica.md.
+model DetalleAsiento {
+  id                  String  @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId            String  @map("tenant_id") @db.Uuid
+  asientoRecetarioId  String  @map("asiento_recetario_id") @db.Uuid
+  lineaPesajeId       String? @map("linea_pesaje_id") @db.Uuid
+  descripcion         String
+  cantidad            Decimal @db.Decimal
+  unidadTexto         String  @map("unidad_texto")
+  orden               Int
+
+  asiento     AsientoRecetario @relation(fields: [asientoRecetarioId], references: [id])
+  lineaPesaje LineaPesaje?     @relation(fields: [lineaPesajeId], references: [id])
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, asientoRecetarioId, orden])
+  @@map("detalle_asiento")
+  @@schema("fsj")
+}
+
+/// M12, DP-16/DP-16c. Immutable. INSERT validated by trigger (INV-L02/U05); propagates estado=ANULADO onto the asiento (INV-L09).
+model AnulacionAsiento {
+  id                String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  asientoId         String   @unique @map("asiento_id") @db.Uuid
+  motivo            String
+  autorizadoPorId   String   @map("autorizado_por_id") @db.Uuid
+  anuladoPorId      String   @map("anulado_por_id") @db.Uuid
+  anuladoEn         DateTime @default(now()) @map("anulado_en") @db.Timestamptz(6)
+
+  asiento       AsientoRecetario @relation(fields: [asientoId], references: [id])
+  autorizadoPor Usuario          @relation("AnulacionAutorizadoPor", fields: [autorizadoPorId], references: [id])
+  anuladoPor    Usuario          @relation("AnulacionAnuladoPor", fields: [anuladoPorId], references: [id])
+
+  @@unique([tenantId, id])
+  @@map("anulacion_asiento")
+  @@schema("fsj")
+}
+
+/// DP-17, spec section 2: digitized entries from the PHYSICAL book, reference only. Outside the correlativo/hash chain/cierres. Immutable.
+model AsientoHistorico {
+  id                  String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  tipoLibro           TipoLibro @map("tipo_libro")
+  numeroAsientoFisico String    @map("numero_asiento_fisico")
+  fechaAsiento        DateTime  @map("fecha_asiento") @db.Date
+  pacienteTexto       String?   @map("paciente_texto")
+  medicoTexto         String?   @map("medico_texto")
+  formulaTexto        String    @map("formula_texto")
+  observaciones       String?
+  digitalizadoPorId   String    @map("digitalizado_por_id") @db.Uuid
+  digitalizadoEn      DateTime  @default(now()) @map("digitalizado_en") @db.Timestamptz(6)
+
+  digitalizadoPor Usuario @relation(fields: [digitalizadoPorId], references: [id])
+
+  @@unique([tenantId, id])
+  @@map("asiento_historico")
+  @@schema("fsj")
+}
+
+/// M12, spec section 4. Fully immutable except cierre_diario_id. saldo/correlativo/hash assigned by trigger (migration 0014).
+model AsientoContralor {
+  id                      String                   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId                String                   @map("tenant_id") @db.Uuid
+  libroId                 String                   @map("libro_id") @db.Uuid
+  numeroCorrelativo       BigInt                   @map("numero_correlativo")
+  fechaAsiento            DateTime                 @map("fecha_asiento") @db.Date
+  tipoMovimiento          TipoMovimientoContralor  @map("tipo_movimiento")
+  drogaId                 String                   @map("droga_id") @db.Uuid
+  drogaDescripcion        String                   @map("droga_descripcion")
+  cantidad                Decimal                  @db.Decimal
+  unidadMedidaId          String                   @map("unidad_medida_id") @db.Uuid
+  saldoAnterior           Decimal                  @map("saldo_anterior") @db.Decimal
+  saldoPosterior          Decimal                  @map("saldo_posterior") @db.Decimal
+  movimientoStockId       String?                  @unique @map("movimiento_stock_id") @db.Uuid
+  asientoRecetarioId      String?                  @map("asiento_recetario_id") @db.Uuid
+  numeroValeAdquisicion   String?                  @map("numero_vale_adquisicion")
+  cierreDiarioId          String?                  @map("cierre_diario_id") @db.Uuid
+  estado                  EstadoAsiento            @default(VIGENTE)
+  hashIntegridad          String                   @map("hash_integridad")
+  hashAnterior            String                   @map("hash_anterior")
+  registradoPorId         String                   @map("registrado_por_id") @db.Uuid
+  registradoEn            DateTime                 @default(now()) @map("registrado_en") @db.Timestamptz(6)
+
+  libro            LibroRubricado    @relation(fields: [libroId], references: [id])
+  droga            Droga             @relation(fields: [drogaId], references: [id])
+  unidadMedida     UnidadMedida      @relation(fields: [unidadMedidaId], references: [id])
+  movimientoStock  MovimientoStock?  @relation(fields: [movimientoStockId], references: [id])
+  asientoRecetario AsientoRecetario? @relation(fields: [asientoRecetarioId], references: [id])
+  cierreDiario     CierreDiario?     @relation(fields: [cierreDiarioId], references: [id])
+  registradoPor    Usuario           @relation(fields: [registradoPorId], references: [id])
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, libroId, numeroCorrelativo])
+  @@map("asiento_contralor")
+  @@schema("fsj")
+}
+
+/// M13a. Immutable except fecha_impresion/impreso_por_id. Rows created EXCLUSIVELY by fsj.cierre_diario_firmar() (migration 0015) -- fsj_app has no direct INSERT grant.
+model CierreDiario {
+  id                  String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  fecha               DateTime  @db.Date
+  directorTecnicoId   String    @map("director_tecnico_id") @db.Uuid
+  designacionId       String    @map("designacion_id") @db.Uuid
+  matriculaDt         String    @map("matricula_dt")
+  cantidadAsientos    Int       @map("cantidad_asientos")
+  hashLote            String    @map("hash_lote")
+  selloTiempo         DateTime  @default(now()) @map("sello_tiempo") @db.Timestamptz(6)
+  mecanismoFirma      String    @default("CREDENCIALES_DT") @map("mecanismo_firma")
+  versionFormato      Int       @default(1) @map("version_formato")
+  fechaImpresion      DateTime? @map("fecha_impresion") @db.Timestamptz(6)
+  impresoPorId        String?   @map("impreso_por_id") @db.Uuid
+  fechaFirma          DateTime  @default(now()) @map("fecha_firma") @db.Timestamptz(6)
+  fueraDeTermino      Boolean   @map("fuera_de_termino")
+  motivoDemora        String?   @map("motivo_demora")
+  motivoDemoraDetalle String?   @map("motivo_demora_detalle")
+
+  directorTecnico  Usuario                     @relation("CierreDirectorTecnico", fields: [directorTecnicoId], references: [id])
+  designacion      DesignacionDirectorTecnico  @relation(fields: [designacionId], references: [id])
+  impresoPor       Usuario?                    @relation("CierreImpresoPor", fields: [impresoPorId], references: [id])
+  asientosRecetario AsientoRecetario[]
+  asientosContralor AsientoContralor[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, fecha])
+  @@map("cierre_diario")
+  @@schema("fsj")
+}
+
+/// M14. One row per receta. Mutable (firma_recibida/firma_recibida_en only).
+model Entrega {
+  id                  String           @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId            String           @map("tenant_id") @db.Uuid
+  recetaId            String           @unique @map("receta_id") @db.Uuid
+  modalidad           ModalidadEntrega
+  entregadaPorId      String           @map("entregada_por_id") @db.Uuid
+  entregadaEn         DateTime         @default(now()) @map("entregada_en") @db.Timestamptz(6)
+  firmaRecibida       Boolean          @default(false) @map("firma_recibida")
+  firmaRecibidaEn     DateTime?        @map("firma_recibida_en") @db.Timestamptz(6)
+  fechaArchivoReceta  DateTime?        @map("fecha_archivo_receta") @db.Date
+
+  receta        Receta  @relation(fields: [recetaId], references: [id])
+  entregadaPor  Usuario @relation(fields: [entregadaPorId], references: [id])
+
+  @@unique([tenantId, id])
+  @@map("entrega")
+  @@schema("fsj")
+}
+
+/// M15. Linear state machine EN_ARCHIVO -> ... -> DESTRUIDO (trigger-enforced). Immutable once DESTRUIDO (INV-D05).
+model LoteArchivoRecetas {
+  id                      String            @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId                String            @map("tenant_id") @db.Uuid
+  periodoDesde            DateTime          @map("periodo_desde") @db.Date
+  periodoHasta            DateTime          @map("periodo_hasta") @db.Date
+  ubicacion               String
+  incluyeControladas      Boolean           @default(false) @map("incluye_controladas")
+  estado                  EstadoLoteArchivo @default(EN_ARCHIVO)
+  expedienteAutorizacion  String?           @map("expediente_autorizacion")
+  fechaAutorizacion       DateTime?         @map("fecha_autorizacion") @db.Date
+  fechaDestruccion        DateTime?         @map("fecha_destruccion") @db.Date
+  registradoPorId         String            @map("registrado_por_id") @db.Uuid
+  registradoEn            DateTime          @default(now()) @map("registrado_en") @db.Timestamptz(6)
+
+  registradoPor Usuario  @relation(fields: [registradoPorId], references: [id])
+  recetas       Receta[]
+
+  @@unique([tenantId, id])
+  @@map("lote_archivo_recetas")
+  @@schema("fsj")
+}
