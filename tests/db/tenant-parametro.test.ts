@@ -21,6 +21,7 @@ import { randomUUID } from "node:crypto";
 import { describe, it, expect } from "vitest";
 import { dbTestSkipReason } from "./env";
 import { asApp, asOwner, inRollbackTx, withTenant, expectInvariantViolation, expectDbRejection } from "./helpers";
+import { insertTenant } from "./fixtures";
 
 describe.skipIf(dbTestSkipReason() !== null)("0001_tenant_parametro_multi_tenant_infra migration (fsj schema)", () => {
   it("fsj.tenant: cuit is unique", async () => {
@@ -59,12 +60,28 @@ describe.skipIf(dbTestSkipReason() !== null)("0001_tenant_parametro_multi_tenant
         await tx.query(`GRANT SELECT ON fsj.tenant TO fsj_app`); // already granted by migration; explicit for clarity
 
         await tx.query("SET LOCAL ROLE fsj_app");
-        await tx.query(`UPDATE fsj.tenant SET razon_social = 'B' WHERE id = $1`, [tenantId]);
-        await expectDbRejection(
-          tx,
-          () => tx.query(`UPDATE fsj.tenant SET cuit = '99-99999999-9' WHERE id = $1`, [tenantId]),
-          "42501",
-        );
+        // FIX (migration 0020, FASE 3 point 3.10): 0020 added a BEFORE
+        // UPDATE trigger (trg_tenant_forbid_cross_tenant_update) that
+        // rejects ANY fsj_app UPDATE of fsj.tenant -- regardless of which
+        // columns change -- unless app.tenant_id matches the row being
+        // updated (INV-PL-004). This test previously ran the UPDATE below
+        // with NO app.tenant_id set at all, which passed only because 0020
+        // did not exist yet; post-0020 that same UPDATE now fails with
+        // INV-PL-004 instead of exercising what this test is actually
+        // about (the column-level GRANT). `withTenant` sets app.tenant_id
+        // the same way shared/db/transaction.ts#withTenantTransaction does
+        // in production, which is what makes the razon_social UPDATE below
+        // succeed again. See the new "0020_tenant_datos_editables" describe
+        // block below for the narrowed-grant/cross-tenant-trigger tests
+        // themselves.
+        await withTenant(tx, tenantId, async (c) => {
+          await c.query(`UPDATE fsj.tenant SET razon_social = 'B' WHERE id = $1`, [tenantId]);
+          await expectDbRejection(
+            c,
+            () => c.query(`UPDATE fsj.tenant SET cuit = '99-99999999-9' WHERE id = $1`, [tenantId]),
+            "42501",
+          );
+        });
       }),
     );
   });
@@ -248,6 +265,115 @@ describe.skipIf(dbTestSkipReason() !== null)("0001_tenant_parametro_multi_tenant
             ),
           "23505",
         );
+      }),
+    );
+  });
+});
+
+describe.skipIf(dbTestSkipReason() !== null)("0020_tenant_datos_editables migration (fsj schema, FASE 3 point 3.10)", () => {
+  it("fsj_app can UPDATE all 4 editable columns on its OWN tenant row", async () => {
+    await asOwner((client) =>
+      inRollbackTx(client, async (tx) => {
+        const tenantId = await insertTenant(tx, "0020a");
+        await tx.query("SET LOCAL ROLE fsj_app");
+        await withTenant(tx, tenantId, async (c) => {
+          await c.query(
+            `UPDATE fsj.tenant SET razon_social = 'B', nombre_fantasia = 'Fantasia', domicilio = 'Calle 1', matricula_farmacia = 'MAT-1' WHERE id = $1`,
+            [tenantId],
+          );
+          const result = await c.query(`SELECT razon_social, nombre_fantasia, domicilio, matricula_farmacia FROM fsj.tenant WHERE id = $1`, [
+            tenantId,
+          ]);
+          expect(result.rows[0]).toMatchObject({
+            razon_social: "B",
+            nombre_fantasia: "Fantasia",
+            domicilio: "Calle 1",
+            matricula_farmacia: "MAT-1",
+          });
+        });
+      }),
+    );
+  });
+
+  // cuit was NEVER granted to fsj_app (not even by migration 0001) -- this
+  // is not a NEW restriction from 0020, but it is part of the task's
+  // required (b) coverage: fsj_app UPDATE of cuit fails with 42501. If the
+  // GRANT statement in migration 0001/0020 were changed to include cuit,
+  // this test would start failing (the UPDATE would unexpectedly succeed),
+  // which is exactly how it proves the grant is what's enforcing this.
+  it("fsj_app UPDATE of cuit fails with SQLSTATE 42501 (never granted)", async () => {
+    await asOwner((client) =>
+      inRollbackTx(client, async (tx) => {
+        const tenantId = await insertTenant(tx, "0020b1");
+        await tx.query("SET LOCAL ROLE fsj_app");
+        await withTenant(tx, tenantId, async (c) => {
+          await expectDbRejection(c, () => c.query(`UPDATE fsj.tenant SET cuit = '99-99999999-9' WHERE id = $1`, [tenantId]), "42501");
+        });
+      }),
+    );
+  });
+
+  // zona_horaria IS the narrowed-grant case migration 0020 introduces:
+  // migration 0001 originally granted UPDATE on zona_horaria too: this test
+  // would fail (the UPDATE would unexpectedly succeed) if 0020's
+  // `REVOKE UPDATE ON fsj.tenant FROM fsj_app; GRANT UPDATE (razon_social,
+  // nombre_fantasia, domicilio, matricula_farmacia) ...` were reverted to
+  // 0001's original (wider) grant -- proving this test actually exercises
+  // 0020's narrowing, not just a grant that always excluded it.
+  it("fsj_app UPDATE of zona_horaria fails with SQLSTATE 42501 (excluded by migration 0020's narrowed grant)", async () => {
+    await asOwner((client) =>
+      inRollbackTx(client, async (tx) => {
+        const tenantId = await insertTenant(tx, "0020b2");
+        await tx.query("SET LOCAL ROLE fsj_app");
+        await withTenant(tx, tenantId, async (c) => {
+          await expectDbRejection(
+            c,
+            () => c.query(`UPDATE fsj.tenant SET zona_horaria = 'Etc/GMT+12' WHERE id = $1`, [tenantId]),
+            "42501",
+          );
+        });
+      }),
+    );
+  });
+
+  // If trg_tenant_forbid_cross_tenant_update (migration 0020) were dropped,
+  // this UPDATE would succeed: razon_social IS a granted column, fsj.tenant
+  // has no tenant_id column and no RLS (it IS the tenant boundary), so
+  // nothing else in the schema would stop fsj_app from editing a tenant
+  // other than the one set on the current session. This is exactly the
+  // hole INV-PL-004 closes.
+  it("fsj_app UPDATE targeting a DIFFERENT tenant's row fails with INV-PL-004, even for an allowed column", async () => {
+    await asOwner((client) =>
+      inRollbackTx(client, async (tx) => {
+        const tenantAId = await insertTenant(tx, "0020c-a");
+        const tenantBId = await insertTenant(tx, "0020c-b");
+        await tx.query("SET LOCAL ROLE fsj_app");
+        await withTenant(tx, tenantAId, async (c) => {
+          await expectInvariantViolation(
+            c,
+            () => c.query(`UPDATE fsj.tenant SET razon_social = 'Hijacked' WHERE id = $1`, [tenantBId]),
+            "INV-PL-004",
+          );
+        });
+      }),
+    );
+  });
+
+  // Sanity-checks the trigger's `current_user = 'fsj_app'` scoping
+  // (migration 0020's own doc comment: "fsj_owner is intentionally NOT
+  // restricted by this trigger"). No SET LOCAL ROLE fsj_app here at all --
+  // still connected as the migration owner, with no app.tenant_id set
+  // either, which is exactly the scenario migrations/seed scripts/
+  // scripts/create-tenant.ts run in. If the trigger's `current_user`
+  // check were removed (checking fsj.current_tenant_id() unconditionally),
+  // this owner UPDATE would start failing with INV-PL-004 too.
+  it("fsj_owner is NOT blocked by the INV-PL-004 trigger", async () => {
+    await asOwner((client) =>
+      inRollbackTx(client, async (tx) => {
+        const tenantId = await insertTenant(tx, "0020d");
+        await tx.query(`UPDATE fsj.tenant SET razon_social = 'Owner edit' WHERE id = $1`, [tenantId]);
+        const result = await tx.query(`SELECT razon_social FROM fsj.tenant WHERE id = $1`, [tenantId]);
+        expect(result.rows[0].razon_social).toBe("Owner edit");
       }),
     );
   });

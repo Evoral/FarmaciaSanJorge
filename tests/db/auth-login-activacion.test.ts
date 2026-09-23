@@ -293,10 +293,19 @@ describe.skipIf(dbTestSkipReason() !== null)("activation credential atomic consu
         const sistema = await createSistemaUser(tx, tenantId);
         const usuario = await createUsuario(tx, tenantId, sistema, "exp", { estado: "PENDIENTE_ACTIVACION" });
         const { tokenHash } = rawTokenHash();
+        // emitida_por_id is sistema, NOT usuario.id -- INV-U07 (migration
+        // 0023) requires the issuer to be ACTIVO, and this test's own
+        // subject is deliberately PENDIENTE_ACTIVACION (that's what's being
+        // activated). Every other insertCredencial call in this file
+        // already passes sistema as the issuer; this one raw INSERT had
+        // sloppily reused $2 (usuario.id) as a placeholder for both usuario_id
+        // AND emitida_por_id, which never reflected real app behavior
+        // (crearUsuario/restablecerCredencial always issue as an ACTIVO
+        // admin or sistema, never as the (possibly inactive) subject).
         await tx.query(
           `INSERT INTO fsj.credencial_activacion (tenant_id, usuario_id, token_hash, emitida_por_id, emitida_en, vence_en, motivo_emision)
-           VALUES ($1, $2, $3, $2, now() - interval '96 hours', now() - interval '24 hours', 'ALTA')`,
-          [tenantId, usuario.id, tokenHash],
+           VALUES ($1, $2, $3, $4, now() - interval '96 hours', now() - interval '24 hours', 'ALTA')`,
+          [tenantId, usuario.id, tokenHash, sistema],
         );
 
         const consumed = await consumeCredencial(tx, usuario.id, tokenHash);

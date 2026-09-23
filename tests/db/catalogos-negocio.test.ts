@@ -150,7 +150,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0007_drogas_proveedores_medicos_pa
     );
   });
 
-  it("proveedor: cuit must match the CUIT format (11 digits, optionally hyphenated)", async () => {
+  it("proveedor: cuit must match the CUIT format (exactly 11 digits, no dashes -- migration 0028/B1 tightened this from '11 digits, optionally hyphenated')", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const tenantId = await insertTenant(tx, "prov-cuit");
@@ -164,10 +164,23 @@ describe.skipIf(dbTestSkipReason() !== null)("0007_drogas_proveedores_medicos_pa
           "23514",
         );
 
-        const ok = await tx.query(
-          `INSERT INTO fsj.proveedor (tenant_id, razon_social, cuit) VALUES ($1, 'X', '20-12345678-9') RETURNING id`,
-          [tenantId],
+        // migration 0028/B1: a DASHED cuit used to be ACCEPTED here (the
+        // original CHECK allowed "##-########-#" OR 11 bare digits, which
+        // let the same real CUIT exist twice, dashed vs. not, invisible to
+        // the unique index). It is now REJECTED at the DB -- normalization
+        // to plain digits happens at the application layer
+        // (modules/proveedores/domain/proveedor.ts's cuitString transform)
+        // before any INSERT reaches this table. See tests/db/catalogos-guards.test.ts
+        // for the full migration 0028 coverage.
+        await expectDbRejection(
+          tx,
+          () => tx.query(`INSERT INTO fsj.proveedor (tenant_id, razon_social, cuit) VALUES ($1, 'X', '20-12345678-9') RETURNING id`, [tenantId]),
+          "23514",
         );
+
+        const ok = await tx.query(`INSERT INTO fsj.proveedor (tenant_id, razon_social, cuit) VALUES ($1, 'X', '20123456789') RETURNING id`, [
+          tenantId,
+        ]);
         expect(ok.rows).toHaveLength(1);
       }),
     );

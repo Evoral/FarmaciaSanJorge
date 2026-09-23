@@ -1,7 +1,9 @@
 "use server";
 
-/** Server Action for `/cuenta` (M02, FASE 2 point 2.4). */
+/** Server Actions for `/cuenta` (M02, FASE 2 point 2.4; PIN actions added by the PIN re-auth feature, user decision 2026-09-23). */
 import { cambiarPassword } from "@/modules/auth/application/cambiar-password";
+import { configurarPin } from "@/modules/auth/application/configurar-pin";
+import { eliminarPin } from "@/modules/auth/application/eliminar-pin";
 import { AppError } from "@/shared/errors";
 
 export interface CambiarPasswordFormState {
@@ -27,5 +29,40 @@ export async function cambiarPasswordAction(_prevState: CambiarPasswordFormState
       return { message: error.message, success: false };
     }
     return { message: "No se pudo actualizar la contraseña.", success: false };
+  }
+}
+
+export interface PinFormState {
+  message: string | null;
+  success: boolean;
+}
+
+export async function configurarPinAction(_prevState: PinFormState, formData: FormData): Promise<PinFormState> {
+  const passwordActual = String(formData.get("passwordActual") ?? "");
+  const pin = String(formData.get("pin") ?? "");
+  const pinRepeat = String(formData.get("pinRepeat") ?? "");
+
+  try {
+    await configurarPin(passwordActual, pin, pinRepeat);
+    return { message: "PIN actualizado.", success: true };
+  } catch (error) {
+    if (error instanceof AppError) {
+      return { message: error.message, success: false };
+    }
+    return { message: "No se pudo actualizar el PIN.", success: false };
+  }
+}
+
+export async function eliminarPinAction(_prevState: PinFormState, formData: FormData): Promise<PinFormState> {
+  const passwordActual = String(formData.get("passwordActualEliminar") ?? "");
+
+  try {
+    await eliminarPin(passwordActual);
+    return { message: "PIN eliminado.", success: true };
+  } catch (error) {
+    if (error instanceof AppError) {
+      return { message: error.message, success: false };
+    }
+    return { message: "No se pudo eliminar el PIN.", success: false };
   }
 }

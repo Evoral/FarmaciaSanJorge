@@ -164,6 +164,48 @@ export function mapDbError(e: unknown): AppError {
       return new NotFoundError("The requested resource was not found.", { cause: e });
     }
 
+    // Postgres EXCLUDE constraint violation, SQLSTATE 23P01 (FASE 3.9,
+    // INV-DT-002: designacion_dt_titular_no_solapa -- migration 0005,
+    // currently the ONLY EXCLUDE constraint in this schema). Prisma 7's
+    // client engine (pg driver adapter) has no native P2xxx code for this
+    // constraint type: it wraps it as the generic `P2039` ("Database
+    // error") code, with the ORIGINAL SQLSTATE surfacing in two places --
+    // `e.meta.driverAdapterError.cause.code` (structured, checked first)
+    // and embedded as literal text in `e.message` ("Code: `23P01`.",
+    // checked as a fallback in case a future Prisma version reshapes
+    // `meta` but keeps the message text). Verified empirically against
+    // Prisma 7.10.0 + @prisma/adapter-pg by inserting two overlapping
+    // TITULAR designations and inspecting the thrown error's real shape
+    // (see modules/directores-tecnicos/application/designar-director-tecnico.ts's
+    // doc comment). If a second EXCLUDE constraint is ever added elsewhere,
+    // revisit this to also check the constraint name (available at the
+    // same nested meta path) instead of mapping every 23P01 to this one
+    // Spanish message.
+    if (
+      e.code === "P2039" &&
+      (e.message.includes("23P01") ||
+        (e.meta as { driverAdapterError?: { cause?: { code?: string } } } | undefined)?.driverAdapterError?.cause?.code === "23P01")
+    ) {
+      return new ConflictError("Ya existe una designación TITULAR vigente que se superpone con ese período.", { cause: e });
+    }
+
+    // Postgres deadlock_detected (40P01) / serialization_failure (40001) --
+    // raw SQLSTATE codes, surfaced either directly (the `pg` driver adapter
+    // behind $queryRaw/$executeRaw does not always wrap them in a Prisma
+    // Pxxxx code) or as Prisma's own P2034 ("Transaction failed due to a
+    // write conflict or a deadlock. Please retry your transaction").
+    // FASE 3 M3 (usuarios): the ordered `FOR UPDATE` lock in
+    // `lockUsuarioYAdministradoresActivos` (admin-guard.ts) makes an actual
+    // deadlock between two of these commands very unlikely, but not
+    // impossible under adversarial timing/retries -- map it to a
+    // `ConflictError` with a Spanish, retry-shaped message instead of the
+    // generic INTERNAL_ERROR, so the UI can show something actionable.
+    if (e.code === "40P01" || e.code === "40001" || e.code === "P2034") {
+      return new ConflictError("La operación no se pudo completar por una actualización concurrente. Volvé a intentarlo.", {
+        cause: e,
+      });
+    }
+
     return new AppError("INTERNAL_ERROR", "A database error occurred.", { cause: e });
   }
 

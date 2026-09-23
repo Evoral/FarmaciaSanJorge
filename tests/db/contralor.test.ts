@@ -119,12 +119,20 @@ async function crearEgresoPreparacion(
   );
   const movimientoId = movimientoResult.rows[0].id as string;
 
-  const asientoResult = await tx.query(
-    `INSERT INTO fsj.asiento_recetario (tenant_id, origen, preparacion_id, paciente_texto, medico_texto, formula_texto, registrado_por_id)
-     VALUES ($1, 'SISTEMA', $2, 'Paciente', 'Medico - MAT-1', 'Formula', $3) RETURNING id`,
-    [input.tenantId, preparacionId, input.sistema],
+  // D4 (migration 0034): detalle_asiento BEFORE its asiento_recetario, against
+  // an app-generated id -- INV-L22/L23. See fixtures.ts#insertAsientoSistema.
+  const asientoId = randomUUID();
+  await tx.query(
+    `INSERT INTO fsj.detalle_asiento (tenant_id, asiento_recetario_id, linea_pesaje_id, descripcion, cantidad, unidad_texto, orden)
+     VALUES ($1, $2, $3, 'Droga', $4, 'g', 0)`,
+    [input.tenantId, asientoId, lineaPesajeId, input.cantidad],
   );
-  const asientoId = asientoResult.rows[0].id as string;
+  const asientoResult = await tx.query(
+    `INSERT INTO fsj.asiento_recetario (id, tenant_id, origen, preparacion_id, paciente_texto, medico_texto, formula_texto, registrado_por_id)
+     VALUES ($1, $2, 'SISTEMA', $3, 'Paciente', 'Medico - MAT-1', 'Formula', $4) RETURNING id`,
+    [asientoId, input.tenantId, preparacionId, input.sistema],
+  );
+  void asientoResult;
 
   await tx.query(`UPDATE fsj.preparacion SET estado = 'CONFIRMADA', confirmada_en = now(), preparada_por_id = $1 WHERE id = $2`, [
     input.sistema,

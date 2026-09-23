@@ -82,16 +82,70 @@ export interface UsuarioEmailRow {
   id: string;
   email: string;
   passwordHash: string | null;
+  /** PIN re-auth feature: `null` when the usuario has no PIN configured. Included here so `cambiarPassword`/PIN commands, which already load this row to verify the current password, don't need a second round trip. */
+  pinHash: string | null;
 }
 
-/** Loads the minimum needed to verify/change a usuario's own password (FASE 2 point 2.4/2.5), inside an already-open tenant transaction. */
+/** Loads the minimum needed to verify/change a usuario's own password (FASE 2 point 2.4/2.5) or PIN (PIN re-auth feature), inside an already-open tenant transaction. */
 export async function loadUsuarioParaPassword(tx: Prisma.TransactionClient, usuarioId: string): Promise<UsuarioEmailRow | null> {
-  return tx.usuario.findUnique({ where: { id: usuarioId }, select: { id: true, email: true, passwordHash: true } });
+  return tx.usuario.findUnique({ where: { id: usuarioId }, select: { id: true, email: true, passwordHash: true, pinHash: true } });
 }
 
 /** Sets a new password hash (FASE 2 point 2.4, `cambiarPassword`). Never touches `estado`. */
 export async function updatePasswordHash(tx: Prisma.TransactionClient, usuarioId: string, passwordHash: string): Promise<void> {
   await tx.usuario.update({ where: { id: usuarioId }, data: { passwordHash } });
+}
+
+// ============================================================================
+// PIN re-auth feature (user decision, 2026-09-23)
+// ============================================================================
+
+export interface PinEstado {
+  pinHash: string | null;
+  pinBloqueado: boolean;
+  pinIntentosFallidos: number;
+}
+
+/** Loads the PIN fields needed by `reautenticar()`'s PIN branch, inside an already-open tenant transaction. */
+export async function loadPinEstado(tx: Prisma.TransactionClient, usuarioId: string): Promise<PinEstado | null> {
+  return tx.usuario.findUnique({
+    where: { id: usuarioId },
+    select: { pinHash: true, pinBloqueado: true, pinIntentosFallidos: true },
+  });
+}
+
+/** Sets/changes the PIN (`configurarPin`): stores the new hash and resets the failed-attempt counter/block -- a freshly (re)set PIN starts clean. */
+export async function setPinHash(tx: Prisma.TransactionClient, usuarioId: string, pinHash: string, now: Date): Promise<void> {
+  await tx.usuario.update({
+    where: { id: usuarioId },
+    data: { pinHash, pinIntentosFallidos: 0, pinBloqueado: false, pinActualizadoEn: now },
+  });
+}
+
+/** Removes the PIN entirely (`eliminarPin`, and the shared clearing done on ADM credential reset / suspensión / baja -- see modules/usuarios/infrastructure/usuario-repository.ts#cambiarEstadoUsuario). */
+export async function clearPin(tx: Prisma.TransactionClient, usuarioId: string, now: Date): Promise<void> {
+  await tx.usuario.update({
+    where: { id: usuarioId },
+    data: { pinHash: null, pinIntentosFallidos: 0, pinBloqueado: false, pinActualizadoEn: now },
+  });
+}
+
+/** A successful PASSWORD re-auth resets the PIN counter AND unblocks it (task's binding decision) -- called unconditionally on the password branch's success path, never read-then-write (idempotent regardless of prior state). */
+export async function resetPinLockout(tx: Prisma.TransactionClient, usuarioId: string): Promise<void> {
+  await tx.usuario.update({ where: { id: usuarioId }, data: { pinIntentosFallidos: 0, pinBloqueado: false } });
+}
+
+export interface PinFailureUpdate {
+  pinIntentosFallidos: number;
+  pinBloqueado: boolean;
+}
+
+/** Persists a failed PIN attempt (and the block, once the threshold is reached) -- caller (`reautenticar.ts`) computes both via `AUTH_POLICY.maxFailedPinAttempts`. */
+export async function recordPinFailure(tx: Prisma.TransactionClient, usuarioId: string, update: PinFailureUpdate): Promise<void> {
+  await tx.usuario.update({
+    where: { id: usuarioId },
+    data: { pinIntentosFallidos: update.pinIntentosFallidos, pinBloqueado: update.pinBloqueado },
+  });
 }
 
 /**

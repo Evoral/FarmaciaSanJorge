@@ -39,8 +39,40 @@ async function main(): Promise<void> {
     // interpolated unescaped and never logged.
     const escapedPassword = client.escapeLiteral(password!);
 
-    await client.query(`ALTER ROLE fsj_app WITH LOGIN PASSWORD ${escapedPassword};`);
+    // Set the password only on first bootstrap (role still NOLOGIN) or on an
+    // explicit rotation. Re-setting it -- even to the SAME value -- makes
+    // Postgres store a new SCRAM secret (new salt), and the Supabase pooler
+    // then rejects the app's pooled connections ("Authentication credentials
+    // are invalid") until it re-authenticates. Re-running this script must
+    // never take the running app offline.
+    const role = await client.query<{ rolcanlogin: boolean }>(`SELECT rolcanlogin FROM pg_roles WHERE rolname = 'fsj_app'`);
+    const rotate = process.env.FSJ_APP_ROTATE_PASSWORD === "yes";
+    if (!role.rows[0]?.rolcanlogin || rotate) {
+      await client.query(`ALTER ROLE fsj_app WITH LOGIN PASSWORD ${escapedPassword};`);
+      console.log(rotate ? "db-bootstrap: fsj_app password rotated." : "db-bootstrap: fsj_app login enabled.");
+    } else {
+      console.log("db-bootstrap: fsj_app already has LOGIN; password left unchanged (set FSJ_APP_ROTATE_PASSWORD=yes to rotate).");
+    }
     await client.query(`ALTER ROLE fsj_app SET search_path = fsj, extensions;`);
+
+    // Fail-fast defaults for the runtime role. Without them, a client that
+    // drops mid-transaction (closed tab, lost wifi) leaves its server-side
+    // transaction open forever -- the Supabase pooler keeps the backend
+    // alive and the cluster default idle_in_transaction_session_timeout is
+    // 0 (disabled) -- still holding its row locks. A preparación
+    // confirmation holds the libro recetario's gapless counter row
+    // FOR UPDATE, so one abandoned transaction would block every later
+    // confirmation until someone killed the backend by hand.
+    //   idle_in_transaction_session_timeout: abandoned transactions are
+    //     terminated and their locks released.
+    //   lock_timeout: a waiter gets a clear error (55P03) instead of hanging.
+    //   statement_timeout: no statement runs unbounded.
+    // Role defaults apply to every new backend, including those opened by
+    // the Supabase transaction pooler. Migrations run as the owner, not
+    // fsj_app, so they are unaffected.
+    await client.query(`ALTER ROLE fsj_app SET idle_in_transaction_session_timeout = '30s';`);
+    await client.query(`ALTER ROLE fsj_app SET lock_timeout = '10s';`);
+    await client.query(`ALTER ROLE fsj_app SET statement_timeout = '60s';`);
 
     // The migration owner must be able to `SET ROLE fsj_app` so the DB test
     // harness can exercise the runtime role's privileges (RLS, column

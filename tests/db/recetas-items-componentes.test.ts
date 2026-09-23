@@ -504,7 +504,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
     );
   });
 
-  it("no DELETE grant on receta/item_receta/componente_item_receta for fsj_app", async () => {
+  it("no DELETE grant on receta for fsj_app (item_receta/componente_item_receta gained a CONDITIONAL grant in migration 0030 -- see tests/db/recetas-edicion-delete-guard.test.ts)", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const tenantId = await insertTenant(tx, "nodelete");

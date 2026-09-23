@@ -1,15 +1,18 @@
 /**
  * DB tests for prisma/migrations/.../0015_cierre_diario (M13a). See
  * tests/db/helpers.ts for the rollback-transaction safety model and
- * tests/db/fixtures.ts for the shared seed helpers. The zona_horaria-jump
- * technique used to get a second, strictly-later jornada without waiting
- * for real time to pass is explained in tests/db/libro-recetario.test.ts.
+ * tests/db/fixtures.ts for the shared seed helpers. A second, strictly-later
+ * jornada is obtained by pinning explicit instants via `setRelojPrueba`
+ * (prisma/migrations/.../0024_jornada_reloj_de_prueba) rather than waiting
+ * for real time to pass -- see tests/db/helpers.ts#setRelojPrueba for why
+ * (replaces a zona_horaria-jump technique that used to be here and was
+ * non-deterministic near UTC day boundaries).
  */
 import { randomUUID } from "node:crypto";
 import type { Client } from "pg";
 import { describe, it, expect } from "vitest";
 import { dbTestSkipReason } from "./env";
-import { asOwner, inRollbackTx, expectInvariantViolation, expectDbRejection } from "./helpers";
+import { asOwner, inRollbackTx, expectInvariantViolation, expectDbRejection, setRelojPrueba } from "./helpers";
 import {
   insertTenant,
   createSistemaUser,
@@ -17,6 +20,7 @@ import {
   createUserWithRole,
   designarDt,
   seedAsientoSistema,
+  insertAsientoSistema,
   hashV2,
   type AsientoSistemaResult,
 } from "./fixtures";
@@ -47,12 +51,15 @@ async function insertPreparacionAdicional(tx: Client, seed: AsientoSistemaResult
 
 async function insertAsientoSistemaAdicional(tx: Client, seed: AsientoSistemaResult): Promise<string> {
   const preparacionId = await insertPreparacionAdicional(tx, seed);
-  const result = await tx.query(
-    `INSERT INTO fsj.asiento_recetario (tenant_id, origen, preparacion_id, paciente_texto, medico_texto, formula_texto, registrado_por_id)
-     VALUES ($1, 'SISTEMA', $2, 'Paciente', 'Medico - MAT-1', 'Formula', $3) RETURNING id`,
-    [seed.tenantId, preparacionId, seed.sistema],
-  );
-  return result.rows[0].id as string;
+  const result = await insertAsientoSistema(tx, {
+    tenantId: seed.tenantId,
+    preparacionId,
+    registradoPorId: seed.sistema,
+    pacienteTexto: "Paciente",
+    medicoTexto: "Medico - MAT-1",
+    formulaTexto: "Formula",
+  });
+  return result.id;
 }
 
 async function crearDtVigente(tx: Client, seed: AsientoSistemaResult, vigenteDesde = "2000-01-01"): Promise<{ dtId: string; designacionId: string }> {
@@ -170,8 +177,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
         const dtId = await createUserWithRole(tx, tenantId, "DIRECTOR_TECNICO", sistema, "c19contralor");
         const { designacionId } = await designarDt(tx, tenantId, dtId, sistema);
 
-        // Day D: ONLY a contralor movement (the zona_horaria jump technique -- see libro-recetario.test.ts).
-        await tx.query(`UPDATE fsj.tenant SET zona_horaria = 'Etc/GMT+12' WHERE id = $1`, [tenantId]);
+        // Day D: ONLY a contralor movement.
+        await setRelojPrueba(tx, "2026-06-15T12:00:00-03:00");
         const apertura = await tx.query(
           `INSERT INTO fsj.asiento_contralor (tenant_id, tipo_movimiento, droga_id, droga_descripcion, cantidad, unidad_medida_id, registrado_por_id)
            VALUES ($1, 'APERTURA', $2, 'D', 100, $3, $4) RETURNING id, fecha_asiento::text`,
@@ -182,7 +189,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
         expect(recetarioD.rows[0].n).toBe(0);
 
         // Day D+1.
-        await tx.query(`UPDATE fsj.tenant SET zona_horaria = 'Pacific/Kiritimati' WHERE id = $1`, [tenantId]);
+        await setRelojPrueba(tx, "2026-06-16T12:00:00-03:00");
         const fechaD1 = (await tx.query(`SELECT fsj.jornada_actual($1)::text AS j`, [tenantId])).rows[0].j as string;
         expect(fechaD1 > fechaD).toBe(true);
 
@@ -253,13 +260,13 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
   it("INV-C19: signing out of chronological order is rejected -- an earlier unsigned jornada blocks signing a later one", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
+        await setRelojPrueba(tx, "2026-06-15T12:00:00-03:00");
         const seed = await seedAsientoSistema(tx, "c19");
-        await tx.query(`UPDATE fsj.tenant SET zona_horaria = 'Etc/GMT+12' WHERE id = $1`, [seed.tenantId]);
         const { dtId, designacionId } = await crearDtVigente(tx, seed);
         const fechaD = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
 
-        // Jump forward and create a SECOND, later jornada's asiento -- day D stays unsigned.
-        await tx.query(`UPDATE fsj.tenant SET zona_horaria = 'Pacific/Kiritimati' WHERE id = $1`, [seed.tenantId]);
+        // Move forward and create a SECOND, later jornada's asiento -- day D stays unsigned.
+        await setRelojPrueba(tx, "2026-06-16T12:00:00-03:00");
         const asiento2 = await insertAsientoSistemaAdicional(tx, seed);
         const fechaD1 = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [asiento2]);
         expect(fechaD1.rows[0].fecha_asiento > fechaD.rows[0].fecha_asiento).toBe(true);
@@ -302,13 +309,13 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
   it("INV-C18: signing a jornada that has already passed (fuera_de_termino) requires motivo_demora", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
+        await setRelojPrueba(tx, "2026-06-15T12:00:00-03:00");
         const seed = await seedAsientoSistema(tx, "c18");
-        await tx.query(`UPDATE fsj.tenant SET zona_horaria = 'Etc/GMT+12' WHERE id = $1`, [seed.tenantId]);
         const { dtId, designacionId } = await crearDtVigente(tx, seed);
         const fecha = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
 
-        // Jump the tenant's jornada forward so `fecha` is now in the past.
-        await tx.query(`UPDATE fsj.tenant SET zona_horaria = 'Pacific/Kiritimati' WHERE id = $1`, [seed.tenantId]);
+        // Move "now" forward so `fecha` is now in the past.
+        await setRelojPrueba(tx, "2026-06-16T12:00:00-03:00");
 
         await expectInvariantViolation(
           tx,
@@ -347,6 +354,33 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
         const dtId = await createUserWithRole(tx, seed.tenantId, "DIRECTOR_TECNICO", seed.sistema, "u04dt");
         const future = await tx.query(`SELECT ($1::date + 1)::text AS f`, [fecha.rows[0].fecha_asiento]);
         const { designacionId } = await designarDt(tx, seed.tenantId, dtId, seed.sistema, future.rows[0].f);
+
+        await expectInvariantViolation(
+          tx,
+          () =>
+            tx.query(`SELECT fsj.cierre_diario_firmar($1, $2, $3, $4)`, [seed.tenantId, fecha.rows[0].fecha_asiento, dtId, designacionId]),
+          "INV-U04",
+        );
+      }),
+    );
+  });
+
+  it("INV-U04 (migration 0022, FASE 3 point 3.9 M1): signing as a SUSPENDIDO DT (a vigente designation, but not ACTIVO) is rejected", async () => {
+    await asOwner((client) =>
+      inRollbackTx(client, async (tx) => {
+        const seed = await seedAsientoSistema(tx, "u04susp");
+        const fecha = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
+
+        // Designate while ACTIVO (INV-DT-005 requires ACTIVO at INSERT
+        // time -- a SUSPENDIDO user could never even be designated), THEN
+        // suspend (a valid ACTIVO -> SUSPENDIDO transition, INV-USR-006).
+        // The designation itself is untouched and still covers fecha --
+        // before migration 0022 this was accepted regardless, since
+        // cierre_diario_firmar's own INV-U04 query only checked the
+        // designation period, never usuario.estado.
+        const dtId = await createUserWithRole(tx, seed.tenantId, "DIRECTOR_TECNICO", seed.sistema, "u04susp");
+        const { designacionId } = await designarDt(tx, seed.tenantId, dtId, seed.sistema);
+        await tx.query(`UPDATE fsj.usuario SET estado = 'SUSPENDIDO' WHERE id = $1`, [dtId]);
 
         await expectInvariantViolation(
           tx,

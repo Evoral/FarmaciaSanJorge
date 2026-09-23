@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { describe, it, expect } from "vitest";
 import type { Client } from "pg";
 import { dbTestSkipReason } from "./env";
-import { asOwner, inRollbackTx, withTenant, expectInvariantViolation, expectDbRejection } from "./helpers";
+import { asOwner, inRollbackTx, withTenant, expectInvariantViolation, expectDbRejection, setRelojPrueba } from "./helpers";
 
 async function insertTenant(tx: Client, suffix: string): Promise<string> {
   const result = await tx.query(`INSERT INTO fsj.tenant (razon_social, cuit) VALUES ('Test', $1) RETURNING id`, [
@@ -33,11 +33,25 @@ async function createSistemaUser(tx: Client, tenantId: string): Promise<string> 
   return id;
 }
 
-async function createUserWithRole(tx: Client, tenantId: string, rolCodigo: string, sistema: string, suffix: string): Promise<string> {
+/**
+ * `estado` defaults to `ACTIVO` -- NOT the schema's own DEFAULT
+ * (`PENDIENTE_ACTIVACION`, migration 0002). See the identical helper in
+ * tests/db/fixtures.ts for why. Pass `estado` explicitly for a test that
+ * specifically needs a non-active DT (INV-U05 now also requires it via
+ * fsj.es_dt_vigente, migration 0022).
+ */
+async function createUserWithRole(
+  tx: Client,
+  tenantId: string,
+  rolCodigo: string,
+  sistema: string,
+  suffix: string,
+  estado: "PENDIENTE_ACTIVACION" | "ACTIVO" | "SUSPENDIDO" | "BAJA" = "ACTIVO",
+): Promise<string> {
   const id = randomUUID();
   await tx.query(
-    `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, creado_por_id) VALUES ($1,$2,$3,'N','A',$4,$5)`,
-    [id, tenantId, `${suffix}-${Date.now()}@example.com`, `DNI-${suffix}-${Date.now()}`, sistema],
+    `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, estado, creado_por_id) VALUES ($1,$2,$3,'N','A',$4,$5,$6)`,
+    [id, tenantId, `${suffix}-${Date.now()}@example.com`, `DNI-${suffix}-${Date.now()}`, estado, sistema],
   );
   const rol = await tx.query(`SELECT id FROM fsj.rol WHERE codigo = $1`, [rolCodigo]);
   await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1,$2,$3,$4)`, [
@@ -551,6 +565,47 @@ describe.skipIf(dbTestSkipReason() !== null)("0008_partidas_movimientos_stock mi
     );
   });
 
+  it("INV-U05 (migration 0022, FASE 3 point 3.9 M1): AJUSTE authorized by a SUSPENDIDO DT (a vigente designation, but not ACTIVO) is rejected", async () => {
+    await asOwner((client) =>
+      inRollbackTx(client, async (tx) => {
+        const tenantId = await insertTenant(tx, "ajustesusp");
+        const sistema = await createSistemaUser(tx, tenantId);
+        const unidadId = await insertUnidad(tx, "ajustesusp");
+        const drogaId = await insertDroga(tx, tenantId, unidadId);
+        const proveedorId = await insertProveedor(tx, tenantId);
+        const partidaId = await crearPartidaConIngreso(tx, {
+          tenantId,
+          drogaId,
+          proveedorId,
+          registradoPorId: sistema,
+          cantidadInicial: 100,
+          fechaVencimiento: FUTURO,
+        });
+        // Designate while ACTIVO (INV-DT-005 requires ACTIVO at INSERT
+        // time -- a SUSPENDIDO user could never even be designated), THEN
+        // suspend (a valid ACTIVO -> SUSPENDIDO transition, INV-USR-006).
+        // The designation itself is untouched and still covers today --
+        // before migration 0022 this was accepted regardless, since
+        // fsj.es_dt_vigente only checked the designation period, never
+        // usuario.estado.
+        const dt = await createUserWithRole(tx, tenantId, "DIRECTOR_TECNICO", sistema, "ajustesusp");
+        await designarDtVigente(tx, tenantId, dt, sistema);
+        await tx.query(`UPDATE fsj.usuario SET estado = 'SUSPENDIDO' WHERE id = $1`, [dt]);
+
+        await expectInvariantViolation(
+          tx,
+          () =>
+            tx.query(
+              `INSERT INTO fsj.movimiento_stock (tenant_id, partida_id, tipo, cantidad, motivo_ajuste, registrado_por_id, autorizado_por_id)
+               VALUES ($1, $2, 'AJUSTE', 5, 'ROTURA', $3, $4)`,
+              [tenantId, partidaId, sistema, dt],
+            ),
+          "INV-U05",
+        );
+      }),
+    );
+  });
+
   it("INV-S09: EGRESO_PREPARACION without preparacion_id is rejected", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
@@ -726,6 +781,52 @@ describe.skipIf(dbTestSkipReason() !== null)("0008_partidas_movimientos_stock mi
       }),
     );
   });
+
+  it(
+    "fsj.v_stock_droga: a partida expiring on D is still available at 23:30 Mendoza time on D, and excluded at 00:30 " +
+      "Mendoza time on D+1 (migration 0025 -- uses the tenant's jornada, not CURRENT_DATE/server date)",
+    async () => {
+      await asOwner((client) =>
+        inRollbackTx(client, async (tx) => {
+          const tenantId = await insertTenant(tx, "vistaJornada");
+          const sistema = await createSistemaUser(tx, tenantId);
+          const unidadId = await insertUnidad(tx, "vistaJornada");
+          const drogaId = await insertDroga(tx, tenantId, unidadId);
+          const proveedorId = await insertProveedor(tx, tenantId);
+
+          await crearPartidaConIngreso(tx, {
+            tenantId,
+            drogaId,
+            proveedorId,
+            registradoPorId: sistema,
+            cantidadInicial: 40,
+            fechaVencimiento: "2026-06-15", // day D
+          });
+
+          // 23:30 Mendoza (UTC-3) on D: jornada is still D (Mendoza midnight
+          // is 03:00 UTC, see tests/db/libro-recetario.test.ts's "puts the
+          // Mendoza day boundary at 03:00Z" test) -- partida not expired yet.
+          await setRelojPrueba(tx, "2026-06-15T23:30:00-03:00");
+          const antes = await tx.query(`SELECT stock_disponible FROM fsj.v_stock_droga WHERE droga_id = $1`, [drogaId]);
+          expect(Number(antes.rows[0].stock_disponible)).toBe(40);
+
+          // 00:30 Mendoza on D+1: jornada has rolled to D+1 -- the partida
+          // (fecha_vencimiento = D) is now expired and excluded. Both the
+          // OLD (CURRENT_DATE/UTC) and NEW (jornada_actual) behavior agree
+          // here (UTC has also rolled to D+1 by this point) -- it's the
+          // FIRST assertion above (23:30 Mendoza on D, still UTC D+1
+          // already at 02:30 UTC since Mendoza is UTC-3) that is the actual
+          // regression check: under the pre-0025 CURRENT_DATE filter that
+          // instant would have wrongly computed CURRENT_DATE = D+1 and
+          // excluded the partida (stock_disponible = 0) a full 3h30m before
+          // the tenant's own jornada says it expired.
+          await setRelojPrueba(tx, "2026-06-16T00:30:00-03:00");
+          const despues = await tx.query(`SELECT stock_disponible FROM fsj.v_stock_droga WHERE droga_id = $1`, [drogaId]);
+          expect(Number(despues.rows[0].stock_disponible)).toBe(0);
+        }),
+      );
+    },
+  );
 
   it("property: balance = cantidad_inicial - sum(egresos) - sum(ajustes) after a mixed sequence of movements", async () => {
     await asOwner((client) =>

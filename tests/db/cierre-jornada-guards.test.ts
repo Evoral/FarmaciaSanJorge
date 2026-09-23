@@ -12,15 +12,16 @@
  *   header).
  *
  * See tests/db/helpers.ts for the rollback-transaction safety model and
- * tests/db/fixtures.ts for the shared seed helpers. The zona_horaria-jump
- * technique used to get a second, strictly-later jornada without waiting
- * for real time to pass is explained in tests/db/libro-recetario.test.ts.
+ * tests/db/fixtures.ts for the shared seed helpers. A second, strictly-later
+ * jornada is obtained by pinning explicit instants via `setRelojPrueba`
+ * (prisma/migrations/.../0024_jornada_reloj_de_prueba) rather than waiting
+ * for real time to pass -- see tests/db/helpers.ts#setRelojPrueba.
  */
 import { randomUUID } from "node:crypto";
 import type { Client } from "pg";
 import { describe, it, expect } from "vitest";
 import { dbTestSkipReason } from "./env";
-import { asOwner, inRollbackTx, expectInvariantViolation } from "./helpers";
+import { asOwner, inRollbackTx, expectInvariantViolation, setRelojPrueba } from "./helpers";
 import {
   insertTenant,
   createSistemaUser,
@@ -28,6 +29,7 @@ import {
   createUserWithRole,
   designarDt,
   seedAsientoSistema,
+  insertAsientoSistema,
   type AsientoSistemaResult,
 } from "./fixtures";
 
@@ -57,12 +59,15 @@ async function insertPreparacionAdicional(tx: Client, seed: AsientoSistemaResult
 
 async function insertAsientoSistemaAdicional(tx: Client, seed: AsientoSistemaResult): Promise<{ id: string; fechaAsiento: string }> {
   const preparacionId = await insertPreparacionAdicional(tx, seed);
-  const result = await tx.query(
-    `INSERT INTO fsj.asiento_recetario (tenant_id, origen, preparacion_id, paciente_texto, medico_texto, formula_texto, registrado_por_id)
-     VALUES ($1, 'SISTEMA', $2, 'Paciente', 'Medico - MAT-1', 'Formula', $3) RETURNING id, fecha_asiento::text`,
-    [seed.tenantId, preparacionId, seed.sistema],
-  );
-  return { id: result.rows[0].id as string, fechaAsiento: result.rows[0].fecha_asiento as string };
+  const result = await insertAsientoSistema(tx, {
+    tenantId: seed.tenantId,
+    preparacionId,
+    registradoPorId: seed.sistema,
+    pacienteTexto: "Paciente",
+    medicoTexto: "Medico - MAT-1",
+    formulaTexto: "Formula",
+  });
+  return { id: result.id, fechaAsiento: result.fechaAsiento };
 }
 
 async function crearDtVigente(tx: Client, seed: AsientoSistemaResult, vigenteDesde = "2000-01-01"): Promise<{ dtId: string; designacionId: string }> {
@@ -105,15 +110,23 @@ describe.skipIf(dbTestSkipReason() !== null)("0019_cierre_jornada_guards (fsj sc
 
         // Now signed: a THIRD SISTEMA asiento for the same jornada must be rejected.
         // If trg_asiento_recetario_validar_jornada_cerrada is removed, this
-        // insert succeeds and the assertion below fails.
+        // insert succeeds and the assertion below fails. A detalle_asiento
+        // row is inserted first (INV-L22, migration 0034) so the insert
+        // gets far enough to hit INV-C03, not fail earlier on INV-L22.
         await expectInvariantViolation(
           tx,
           async () => {
             const preparacionId = await insertPreparacionAdicional(tx, seed);
+            const asientoId = randomUUID();
+            await tx.query(
+              `INSERT INTO fsj.detalle_asiento (tenant_id, asiento_recetario_id, descripcion, cantidad, unidad_texto, orden)
+               VALUES ($1, $2, 'Droga', 5, 'g', 0)`,
+              [seed.tenantId, asientoId],
+            );
             return tx.query(
-              `INSERT INTO fsj.asiento_recetario (tenant_id, origen, preparacion_id, paciente_texto, medico_texto, formula_texto, registrado_por_id)
-               VALUES ($1, 'SISTEMA', $2, 'Paciente', 'Medico - MAT-1', 'Formula', $3)`,
-              [seed.tenantId, preparacionId, seed.sistema],
+              `INSERT INTO fsj.asiento_recetario (id, tenant_id, origen, preparacion_id, paciente_texto, medico_texto, formula_texto, registrado_por_id)
+               VALUES ($1, $2, 'SISTEMA', $3, 'Paciente', 'Medico - MAT-1', 'Formula', $4)`,
+              [asientoId, seed.tenantId, preparacionId, seed.sistema],
             );
           },
           "INV-C03",
@@ -174,16 +187,16 @@ describe.skipIf(dbTestSkipReason() !== null)("0019_cierre_jornada_guards (fsj sc
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         // Day D: two SISTEMA asientos, both to be signed together.
+        await setRelojPrueba(tx, "2026-06-15T12:00:00-03:00");
         const seed = await seedAsientoSistema(tx, "c03rectif");
-        await tx.query(`UPDATE fsj.tenant SET zona_horaria = 'Etc/GMT+12' WHERE id = $1`, [seed.tenantId]);
         const { dtId, designacionId } = await crearDtVigente(tx, seed);
         const asiento2 = await insertAsientoSistemaAdicional(tx, seed);
         const fechaD = asiento2.fechaAsiento;
 
         await firmar(tx, seed.tenantId, fechaD, dtId, designacionId);
 
-        // Jump forward: TODAY is now D+1, strictly later, unsigned.
-        await tx.query(`UPDATE fsj.tenant SET zona_horaria = 'Pacific/Kiritimati' WHERE id = $1`, [seed.tenantId]);
+        // Move forward: TODAY is now D+1, strictly later, unsigned.
+        await setRelojPrueba(tx, "2026-06-16T12:00:00-03:00");
         const fechaD1 = (await tx.query(`SELECT fsj.jornada_actual($1)::text AS j`, [seed.tenantId])).rows[0].j as string;
         expect(fechaD1 > fechaD).toBe(true);
 
@@ -244,15 +257,14 @@ describe.skipIf(dbTestSkipReason() !== null)("0019_cierre_jornada_guards (fsj sc
   it("HOLE 2 / INV-C21: a PAST jornada can still be signed (only FUTURE dates are blocked)", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
-        // Day D, then jump the tenant's jornada forward so D becomes a PAST
-        // jornada relative to "today" -- same zona_horaria-jump technique as
-        // tests/db/libro-recetario.test.ts's rectificativo test.
+        // Day D, then move "now" forward so D becomes a PAST jornada
+        // relative to "today".
+        await setRelojPrueba(tx, "2026-06-15T12:00:00-03:00");
         const seed = await seedAsientoSistema(tx, "c21past");
-        await tx.query(`UPDATE fsj.tenant SET zona_horaria = 'Etc/GMT+12' WHERE id = $1`, [seed.tenantId]);
         const { dtId, designacionId } = await crearDtVigente(tx, seed);
         const fechaD = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
 
-        await tx.query(`UPDATE fsj.tenant SET zona_horaria = 'Pacific/Kiritimati' WHERE id = $1`, [seed.tenantId]);
+        await setRelojPrueba(tx, "2026-06-16T12:00:00-03:00");
         const hoy = (await tx.query(`SELECT fsj.jornada_actual($1)::text AS j`, [seed.tenantId])).rows[0].j as string;
         expect(hoy > fechaD.rows[0].fecha_asiento).toBe(true);
 

@@ -9,8 +9,10 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { requireSession, clearSessionCookie } from "@/shared/auth/session";
+import { can } from "@/shared/auth/authorize";
 import { AuthenticationError } from "@/shared/errors";
 import { logout } from "@/modules/auth/application/logout";
+import { HeaderNav } from "./header-nav";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   let session;
@@ -30,12 +32,37 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     redirect("/login");
   }
 
+  // FASE 4 points 4.2-4.5: same priority order as
+  // app/(app)/catalogos/catalogos-nav.tsx's link list -- the first section
+  // this session can actually reach, so the header's "Catálogos" link
+  // never sends a médicos/pacientes-only role (ATENCION_PUBLICO) into a
+  // /catalogos/drogas layout guard that would just redirect it back out.
+  const catalogosHref = can(session, "drogas.editar")
+    ? "/catalogos/drogas"
+    : can(session, "proveedores.gestionar")
+      ? "/catalogos/proveedores"
+      : can(session, "medicos.gestionar")
+        ? "/catalogos/medicos"
+        : can(session, "pacientes.gestionar")
+          ? "/catalogos/pacientes"
+          : null;
+
   return (
     <div className="min-h-screen">
       <header className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-        <span className="text-sm text-zinc-600 dark:text-zinc-400">
-          {session.usuario.nombre} {session.usuario.apellido}
-        </span>
+        <div className="flex items-center gap-6">
+          <span className="text-sm text-zinc-600 dark:text-zinc-400">
+            {session.usuario.nombre} {session.usuario.apellido}
+          </span>
+          <HeaderNav
+            puedeAuditoria={can(session, "auditoria.ver")}
+            catalogosHref={catalogosHref}
+            puedeStock={can(session, "stock.ver")}
+            puedeRecetas={can(session, "recetas.crear")}
+            puedePreparaciones={can(session, "preparaciones.iniciar")}
+            puedeLibro={can(session, "libro.ver")}
+          />
+        </div>
         <form action={logoutAction}>
           <button type="submit" className="text-sm underline">
             Cerrar sesión

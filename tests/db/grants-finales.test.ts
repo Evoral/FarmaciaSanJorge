@@ -40,6 +40,10 @@ const LEGAL: Record<string, GrantRule> = {
   asiento_historico: { insert: true, update: [] },
   asiento_contralor: { insert: true, update: [] },
   cierre_diario: { insert: false, update: ["fecha_impresion", "impreso_por_id"] },
+  // M10 FASE 7.4 (migration 0031): fully insert-only, same shape as
+  // ficha_tecnica/linea_pesaje above -- not part of the libro recetario
+  // legal core, but immutable the same way.
+  cotizacion: { insert: true, update: [] },
 };
 
 /**
@@ -59,6 +63,10 @@ const PROTEGIDAS_NO_LEGALES = [
   "paciente",
   "partida",
   "proveedor",
+  // M08 (migration 0031): forbid_delete only (never a forbid_update_delete
+  // table) -- mutable via the vigente_hasta "close" write, same shape as
+  // designacion_director_tecnico's cese above.
+  "regla_precio",
   "unidad_medida",
   "usuario",
   "usuario_estado_historial",

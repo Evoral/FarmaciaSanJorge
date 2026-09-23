@@ -1,22 +1,150 @@
 "use client";
 
-/** `/cuenta` (M02, FASE 2 point 2.4) -- change your own password. */
+/**
+ * `/cuenta` (M02, FASE 2 point 2.4 -- change your own password; PIN
+ * section added by the PIN re-auth feature, user decision 2026-09-23).
+ */
 import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
-import { cambiarPasswordAction, type CambiarPasswordFormState } from "./actions";
+import { cambiarPasswordAction, configurarPinAction, eliminarPinAction, type CambiarPasswordFormState, type PinFormState } from "./actions";
 
 const initialState: CambiarPasswordFormState = { message: null, success: false };
+const initialPinState: PinFormState = { message: null, success: false };
 
-function SubmitButton() {
+function SubmitButton({ label, pendingLabel, className }: { label: string; pendingLabel?: string; className?: string }) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
       disabled={pending}
-      className="w-full rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+      className={className ?? "w-full rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"}
     >
-      {pending ? "Guardando…" : "Cambiar contraseña"}
+      {pending ? (pendingLabel ?? "Guardando…") : label}
     </button>
+  );
+}
+
+function PinSection() {
+  const [configurarState, configurarFormAction] = useActionState(configurarPinAction, initialPinState);
+  const [eliminarState, eliminarFormAction] = useActionState(eliminarPinAction, initialPinState);
+  const configurarMessageRef = useRef<HTMLParagraphElement>(null);
+  const configurarFormRef = useRef<HTMLFormElement>(null);
+  const eliminarMessageRef = useRef<HTMLParagraphElement>(null);
+  const eliminarFormRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (configurarState.message) {
+      configurarMessageRef.current?.focus();
+      if (configurarState.success) configurarFormRef.current?.reset();
+    }
+  }, [configurarState.message, configurarState.success]);
+
+  useEffect(() => {
+    if (eliminarState.message) {
+      eliminarMessageRef.current?.focus();
+      if (eliminarState.success) eliminarFormRef.current?.reset();
+    }
+  }, [eliminarState.message, eliminarState.success]);
+
+  return (
+    <div className="mt-10">
+      <h2 className="mb-1 text-lg font-medium">PIN de reautenticación rápida</h2>
+      <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+        Un PIN de 6 dígitos para confirmar acciones sensibles sin escribir tu contraseña completa. Nunca sirve para iniciar sesión.
+      </p>
+
+      <form ref={configurarFormRef} action={configurarFormAction} noValidate className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="passwordActual" className="text-sm font-medium">
+            Contraseña actual
+          </label>
+          <input
+            id="passwordActual"
+            name="passwordActual"
+            type="password"
+            required
+            autoComplete="current-password"
+            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="pin" className="text-sm font-medium">
+            Nuevo PIN (6 dígitos)
+          </label>
+          <input
+            id="pin"
+            name="pin"
+            type="password"
+            inputMode="numeric"
+            pattern="\d{6}"
+            maxLength={6}
+            required
+            autoComplete="off"
+            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="pinRepeat" className="text-sm font-medium">
+            Repetir PIN
+          </label>
+          <input
+            id="pinRepeat"
+            name="pinRepeat"
+            type="password"
+            inputMode="numeric"
+            pattern="\d{6}"
+            maxLength={6}
+            required
+            autoComplete="off"
+            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+          />
+        </div>
+
+        {configurarState.message ? (
+          <p
+            ref={configurarMessageRef}
+            role={configurarState.success ? "status" : "alert"}
+            tabIndex={-1}
+            className={`text-sm outline-none ${configurarState.success ? "text-green-700 dark:text-green-400" : "text-red-600"}`}
+          >
+            {configurarState.message}
+          </p>
+        ) : null}
+
+        <SubmitButton label="Guardar PIN" />
+      </form>
+
+      <form ref={eliminarFormRef} action={eliminarFormAction} noValidate className="mt-6 flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="passwordActualEliminar" className="text-sm font-medium">
+            Contraseña actual (para eliminar el PIN)
+          </label>
+          <input
+            id="passwordActualEliminar"
+            name="passwordActualEliminar"
+            type="password"
+            required
+            autoComplete="current-password"
+            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+          />
+        </div>
+
+        {eliminarState.message ? (
+          <p
+            ref={eliminarMessageRef}
+            role={eliminarState.success ? "status" : "alert"}
+            tabIndex={-1}
+            className={`text-sm outline-none ${eliminarState.success ? "text-green-700 dark:text-green-400" : "text-red-600"}`}
+          >
+            {eliminarState.message}
+          </p>
+        ) : null}
+
+        <SubmitButton label="Eliminar PIN" className="w-full rounded border border-red-600 px-4 py-2 text-sm font-medium text-red-600 disabled:opacity-50" />
+      </form>
+    </div>
   );
 }
 
@@ -93,8 +221,10 @@ export default function CuentaPage() {
           </p>
         ) : null}
 
-        <SubmitButton />
+        <SubmitButton label="Cambiar contraseña" />
       </form>
+
+      <PinSection />
     </div>
   );
 }

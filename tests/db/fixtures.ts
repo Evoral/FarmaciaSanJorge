@@ -31,6 +31,73 @@ export function hashV2(campos: ReadonlyArray<string | null>): string {
   return createHash("sha256").update(campos.map(campoV2).join(""), "utf8").digest("hex");
 }
 
+/**
+ * D4 (migration 0034, hash V3): a SISTEMA asiento_recetario requires at
+ * least one detalle_asiento row ALREADY inserted under its own id
+ * (INV-L22) -- and detalle_asiento can no longer be inserted once its
+ * asiento exists (INV-L23). Every test that used to `INSERT INTO
+ * fsj.asiento_recetario (...) VALUES (...)` for a SISTEMA row directly
+ * must go through this helper instead: it pre-generates the asiento id,
+ * inserts ONE detalle_asiento row against it, THEN inserts the asiento
+ * itself with that id explicit (bypassing the `gen_random_uuid()` column
+ * default) -- same order `modules/preparaciones/infrastructure/preparacion-repository.ts#insertAsientoRecetario`
+ * now uses.
+ */
+export async function insertAsientoSistema(
+  tx: Client,
+  input: {
+    tenantId: string;
+    preparacionId: string;
+    registradoPorId: string;
+    lineaPesajeId?: string | null;
+    descripcion?: string;
+    cantidad?: number;
+    unidadTexto?: string;
+    pacienteTexto?: string;
+    medicoTexto?: string;
+    formulaTexto?: string;
+    numeroCorrelativoForzado?: number;
+  },
+): Promise<{ id: string; numeroCorrelativo: string; libroId: string; hashIntegridad: string; hashAnterior: string; fechaAsiento: string }> {
+  const asientoId = randomUUID();
+
+  await tx.query(
+    `INSERT INTO fsj.detalle_asiento (tenant_id, asiento_recetario_id, linea_pesaje_id, descripcion, cantidad, unidad_texto, orden)
+     VALUES ($1, $2, $3, $4, $5, $6, 0)`,
+    [input.tenantId, asientoId, input.lineaPesajeId ?? null, input.descripcion ?? "Detalle de prueba", input.cantidad ?? 5, input.unidadTexto ?? "g"],
+  );
+
+  const cols = ["id", "tenant_id", "origen", "preparacion_id", "paciente_texto", "medico_texto", "formula_texto", "registrado_por_id"];
+  const vals: unknown[] = [
+    asientoId,
+    input.tenantId,
+    "SISTEMA",
+    input.preparacionId,
+    input.pacienteTexto ?? "Paciente Test",
+    input.medicoTexto ?? "Medico Test - MAT-1",
+    input.formulaTexto ?? "Formula de prueba",
+    input.registradoPorId,
+  ];
+  if (input.numeroCorrelativoForzado !== undefined) {
+    cols.push("numero_correlativo");
+    vals.push(input.numeroCorrelativoForzado);
+  }
+  const placeholders = vals.map((_, i) => `$${i + 1}`).join(", ");
+  const result = await tx.query(
+    `INSERT INTO fsj.asiento_recetario (${cols.join(", ")}) VALUES (${placeholders})
+     RETURNING id, numero_correlativo, libro_id, hash_integridad, hash_anterior, fecha_asiento::text`,
+    vals,
+  );
+  return {
+    id: result.rows[0].id as string,
+    numeroCorrelativo: String(result.rows[0].numero_correlativo),
+    libroId: result.rows[0].libro_id as string,
+    hashIntegridad: result.rows[0].hash_integridad as string,
+    hashAnterior: result.rows[0].hash_anterior as string,
+    fechaAsiento: result.rows[0].fecha_asiento as string,
+  };
+}
+
 export async function insertTenant(tx: Client, suffix: string): Promise<string> {
   const result = await tx.query(`INSERT INTO fsj.tenant (razon_social, cuit) VALUES ('Test', $1) RETURNING id`, [
     `20-${Date.now()}-${suffix}-${Math.random().toString(36).slice(2, 6)}`,
@@ -54,17 +121,30 @@ export async function createSistemaUser(tx: Client, tenantId: string): Promise<s
   return id;
 }
 
+/**
+ * `estado` defaults to `ACTIVO` -- NOT the schema's own DEFAULT
+ * (`PENDIENTE_ACTIVACION`, migration 0002). Every existing caller of this
+ * helper needs an ACTIVO user (it's what "a DIRECTOR_TECNICO who can act"
+ * means for the AJUSTE/anulacion/cierre_diario_firmar tests that consume
+ * it), and none of them was ever testing PENDIENTE_ACTIVACION/SUSPENDIDO/
+ * BAJA behavior -- `estado` simply didn't matter before migration 0022
+ * (FASE 3 point 3.9 finding M1) added ACTIVO-vigency checks (INV-DT-005,
+ * fsj.es_dt_vigente, fsj.cierre_diario_firmar). Pass `estado` explicitly
+ * (e.g. `"SUSPENDIDO"`) for a test that specifically needs a non-active
+ * user -- see tests/db/designacion-dt.test.ts's INV-DT-005 tests.
+ */
 export async function createUserWithRole(
   tx: Client,
   tenantId: string,
   rolCodigo: string,
   sistema: string,
   suffix: string,
+  estado: "PENDIENTE_ACTIVACION" | "ACTIVO" | "SUSPENDIDO" | "BAJA" = "ACTIVO",
 ): Promise<string> {
   const id = randomUUID();
   await tx.query(
-    `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, creado_por_id) VALUES ($1,$2,$3,'N','A',$4,$5)`,
-    [id, tenantId, `${suffix}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}@example.com`, `DNI-${suffix}-${Date.now()}`, sistema],
+    `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, estado, creado_por_id) VALUES ($1,$2,$3,'N','A',$4,$5,$6)`,
+    [id, tenantId, `${suffix}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}@example.com`, `DNI-${suffix}-${Date.now()}`, estado, sistema],
   );
   const rol = await tx.query(`SELECT id FROM fsj.rol WHERE codigo = $1`, [rolCodigo]);
   await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1,$2,$3,$4)`, [
@@ -423,12 +503,14 @@ export async function seedAsientoSistema(tx: Client, suffix: string, cantidadAPe
   );
   const movimientoId = movimientoResult.rows[0].id as string;
 
-  const asientoResult = await tx.query(
-    `INSERT INTO fsj.asiento_recetario (tenant_id, origen, preparacion_id, paciente_texto, medico_texto, formula_texto, registrado_por_id)
-     VALUES ($1, 'SISTEMA', $2, 'Paciente Test', 'Medico Test - MAT-1', 'Formula de prueba', $3) RETURNING id`,
-    [tenantId, preparacionId, sistema],
-  );
-  const asientoId = asientoResult.rows[0].id as string;
+  const asientoResult = await insertAsientoSistema(tx, {
+    tenantId,
+    preparacionId,
+    registradoPorId: sistema,
+    lineaPesajeId,
+    cantidad: cantidadAPesar,
+  });
+  const asientoId = asientoResult.id;
 
   await tx.query(`UPDATE fsj.preparacion SET estado = 'CONFIRMADA', confirmada_en = now(), preparada_por_id = $1 WHERE id = $2`, [
     sistema,

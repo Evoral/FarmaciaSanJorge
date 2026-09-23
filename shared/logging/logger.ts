@@ -7,7 +7,8 @@
 import pino from "pino";
 import { getEnv } from "@/shared/env";
 
-const REDACT_PATHS = [
+/** Exported so tests/unit/logger.test.ts (which builds its own pino instance to avoid the pino-pretty transport) and tests/unit/pacientes-logging-redaccion.test.ts can assert against the REAL list instead of a hand-duplicated copy that could silently drift from it. */
+export const REDACT_PATHS = [
   "password",
   "*.password",
   "*.*.password",
@@ -24,6 +25,32 @@ const REDACT_PATHS = [
   "*.DATABASE_URL",
   "DIRECT_URL",
   "*.DIRECT_URL",
+  // FASE 4 point 4.5 (pacientes, Ley 25.326 / DP-24): patient fields must
+  // never appear in logs. modules/pacientes/** never passes a paciente
+  // object (or its individual fields) to the logger in the first place --
+  // this is defense-in-depth for the accidental case (e.g. an error object
+  // that embeds the input it failed on). "dni"/"cuil" are unique enough
+  // keys across this schema's other entities to redact unconditionally;
+  // "nombre"/"apellido"/"telefono"/"email" collide with non-sensitive
+  // fields elsewhere (drogas, proveedores, usuarios), so those are only
+  // redacted when nested under a "paciente" key, matching the shape a
+  // caller would actually log a patient record under.
+  "dni",
+  "*.dni",
+  "*.*.dni",
+  "cuil",
+  "*.cuil",
+  "*.*.cuil",
+  "paciente.nombre",
+  "*.paciente.nombre",
+  "paciente.apellido",
+  "*.paciente.apellido",
+  "paciente.telefono",
+  "*.paciente.telefono",
+  "paciente.email",
+  "*.paciente.email",
+  "paciente.nroCredencial",
+  "*.paciente.nroCredencial",
 ];
 
 let instance: pino.Logger | undefined;

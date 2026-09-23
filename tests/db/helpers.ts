@@ -77,6 +77,16 @@ async function connectionFor(key: "owner" | "app", connectionString: string): Pr
   client.on("error", evict);
   client.on("end", evict);
   await client.connect();
+  if (key === "owner") {
+    // The owner connection goes through the Supabase SESSION pooler, so a
+    // session-level SET sticks. If this client drops mid-test, the server
+    // keeps the backend (and its open transaction and locks) alive; with
+    // this timeout Postgres terminates it after 20s, before the next test's
+    // wait on those locks reaches the 30s test timeout. The app connection
+    // (transaction pooler) gets the same protection from fsj_app's role
+    // defaults set by scripts/db-bootstrap.ts.
+    await client.query("SET idle_in_transaction_session_timeout = '20s'");
+  }
   cachedClients.set(key, client);
   return client;
 }
@@ -88,14 +98,65 @@ export async function closeTestConnections(): Promise<void> {
   await Promise.all(clients.map((client) => client.end()));
 }
 
+/**
+ * Connection-level failures only: the Supabase pooler dropping the socket,
+ * or timing out the auth handshake on reconnect. These say nothing about
+ * the schema under test. Assertion failures and database errors raised by
+ * our own invariants (SQLSTATE P0001, 23xxx, 42501, ...) are deliberately
+ * NOT in this list, so they are never retried.
+ */
+export function isConnectionError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const code = (error as { code?: unknown }).code;
+  if (typeof code === "string" && (/^08/.test(code) || code === "57P01" || code === "ECONNRESET" || code === "ETIMEDOUT" || code === "EPIPE")) {
+    return true;
+  }
+  return (
+    /EAUTHTIMEOUT/.test(error.message) ||
+    /Client has encountered a connection error and is not queryable/.test(error.message) ||
+    /Connection terminated/.test(error.message) ||
+    /Client was closed and is not queryable/.test(error.message)
+  );
+}
+
+/**
+ * Runs `fn` on the cached connection for `key`. If it fails with a
+ * CONNECTION error, the dead client is evicted and `fn` runs exactly once
+ * more on a fresh connection.
+ *
+ * Why retrying is safe: every DB test does all its work inside
+ * `inRollbackTx`, so nothing from the failed attempt persists and the
+ * second attempt starts from the same clean state. Why it cannot hide a
+ * real bug: only connection-class errors are retried (see
+ * `isConnectionError`); a test that fails because an invariant is wrong
+ * fails on the first attempt and is reported as a failure. A retry is
+ * logged loudly so repeated pooler trouble stays visible.
+ */
+async function runWithConnectionRetry<T>(
+  key: "owner" | "app",
+  connectionString: string,
+  fn: (client: Client) => Promise<T>,
+): Promise<T> {
+  try {
+    return await fn(await connectionFor(key, connectionString));
+  } catch (error) {
+    if (!isConnectionError(error)) throw error;
+    const stale = cachedClients.get(key);
+    cachedClients.delete(key);
+    await stale?.end().catch(() => undefined);
+    console.warn(`[tests/db] ${key} connection failed (${(error as Error).message}); retrying the test once on a fresh connection`);
+    return fn(await connectionFor(key, connectionString));
+  }
+}
+
 export async function asOwner<T>(fn: (client: Client) => Promise<T>): Promise<T> {
   const { directUrl } = requireDbTestEnv();
-  return fn(await connectionFor("owner", directUrl));
+  return runWithConnectionRetry("owner", directUrl, fn);
 }
 
 export async function asApp<T>(fn: (client: Client) => Promise<T>): Promise<T> {
   const { databaseUrl } = requireDbTestEnv();
-  return fn(await connectionFor("app", databaseUrl));
+  return runWithConnectionRetry("app", databaseUrl, fn);
 }
 
 /** Runs `fn` with a client connected as the runtime role (DATABASE_URL, fsj_app). */
@@ -159,6 +220,36 @@ export async function withTenant<T>(
 ): Promise<T> {
   await client.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
   return fn(client);
+}
+
+/**
+ * Pins "now" for `fsj.jornada_actual()` (prisma/migrations/.../0024_jornada_reloj_de_prueba)
+ * to `isoInstant` for the CURRENT transaction only -- `set_config(..., true)`
+ * is transaction-local, so it is automatically undone by `inRollbackTx`'s
+ * ROLLBACK, exactly like everything else a DB test does.
+ *
+ * Replaces the old "jump tenant.zona_horaria between extreme IANA zones"
+ * technique (Etc/GMT+12 <-> Pacific/Kiritimati) that used to fake "yesterday
+ * vs. today": the calendar distance between those zones' local dates
+ * depends on the UTC hour the test happens to run at, which made every test
+ * using it non-deterministic near UTC day boundaries. Pin explicit instants
+ * instead, e.g.:
+ *   await setRelojPrueba(tx, "2026-06-15T12:00:00-03:00"); // day D
+ *   ... create/sign things for day D ...
+ *   await setRelojPrueba(tx, "2026-06-16T12:00:00-03:00"); // day D+1
+ *   ... day D is now in the past ...
+ *
+ * SECURITY: this override only takes effect for a session whose
+ * session_user is NOT `fsj_app` (see migration 0024's header for the full
+ * argument) -- it works here because `asOwner` connects as the owner
+ * (`postgres`), and `SET LOCAL ROLE fsj_app` (used by `withTenant`-adjacent
+ * tests to exercise RLS/grants) changes `current_user` but never
+ * `session_user`. A genuine `asApp`/DATABASE_URL connection (session_user
+ * IS `fsj_app`) always ignores this override -- see
+ * tests/db/jornada-reloj-prueba.test.ts.
+ */
+export async function setRelojPrueba(client: Client, isoInstant: string): Promise<void> {
+  await client.query("SELECT set_config('fsj.reloj_prueba', $1, true)", [isoInstant]);
 }
 
 /**

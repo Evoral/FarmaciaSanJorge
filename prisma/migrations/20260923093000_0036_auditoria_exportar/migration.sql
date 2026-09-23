@@ -1,0 +1,13 @@
+-- 0036_auditoria_exportar
+--
+-- D6 (user decision, 2026-09-23): DP-27 RESOLVED -- exports of the libro
+-- recetario (CSV and PDF) are now audited. This migration ONLY adds the
+-- new enum value; it MUST stay alone (Postgres forbids using a
+-- newly-added enum value in the SAME transaction that added it, and
+-- Prisma applies every migration.sql in its own transaction), so nothing
+-- else touches fsj.tipo_accion in this file. The application code that
+-- USES TipoAccion.EXPORTAR (modules/libro/application/exportar-libro.ts,
+-- app/api/libro/export/{csv,pdf}/route.ts) is a separate, later change --
+-- see docs/plan-implementacion.md's DP-27 line and
+-- docs/specs/libro-recetario-y-contralor.md.
+ALTER TYPE fsj.tipo_accion ADD VALUE IF NOT EXISTS 'EXPORTAR';

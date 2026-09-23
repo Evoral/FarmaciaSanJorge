@@ -1,30 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { Writable } from "node:stream";
 import pino from "pino";
+import { REDACT_PATHS } from "@/shared/logging/logger";
 
 // We build a logger with the exact same redact config as
-// shared/logging/logger.ts rather than importing getLogger() directly,
-// because getLogger() is wired to pino-pretty (a transport, i.e. a worker
-// thread) in development, which is awkward to capture synchronously in a
-// unit test. The redact paths themselves are what we're testing.
-const REDACT_PATHS = [
-  "password",
-  "*.password",
-  "*.*.password",
-  "token",
-  "*.token",
-  "*.*.token",
-  "cookie",
-  "*.cookie",
-  "req.headers.cookie",
-  "req.headers.authorization",
-  "*.authorization",
-  "*.*.authorization",
-  "DATABASE_URL",
-  "*.DATABASE_URL",
-  "DIRECT_URL",
-  "*.DIRECT_URL",
-];
+// shared/logging/logger.ts (imported directly, so this can never drift from
+// the real list -- see tests/unit/pacientes-logging-redaccion.test.ts for
+// the FASE 4 point 4.5 patient-field additions) rather than importing
+// getLogger() directly, because getLogger() is wired to pino-pretty (a
+// transport, i.e. a worker thread) in development, which is awkward to
+// capture synchronously in a unit test.
 
 function captureLogLine(logFn: (logger: pino.Logger) => void): Record<string, unknown> {
   let captured = "";

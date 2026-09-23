@@ -220,9 +220,21 @@ describe.skipIf(dbTestSkipReason() !== null)("session lifecycle raw data shapes 
       inRollbackTx(client, async (tx) => {
         const tenantId = await insertTenant(tx, "suspendido-shape");
         const sistema = await createSistemaUser(tx, tenantId);
-        const usuarioId = await createUsuario(tx, tenantId, sistema, "susp", "SUSPENDIDO");
+        // The session is opened while ACTIVO (INV-U07, migration 0023: a
+        // session can only ever be INSERTed for an ACTIVO usuario --
+        // decideLogin's 'OK' branch is the only caller of insertSesionInTx
+        // and it already requires estado === 'ACTIVO'), then the usuario is
+        // suspended AFTERWARDS, same as every other "still-open session
+        // outlives its owner's suspension" scenario in this codebase
+        // (tests/db/designacion-dt.test.ts, cierre-diario.test.ts,
+        // libro-recetario.test.ts, partidas-movimientos-stock.test.ts all
+        // designate/authorize while ACTIVO, then suspend). This is exactly
+        // what requireSession needs to reject on the NEXT request, not
+        // something login() could ever produce directly.
+        const usuarioId = await createUsuario(tx, tenantId, sistema, "susp", "ACTIVO");
         const { tokenHash } = rawTokenHash();
         await insertSesion(tx, tenantId, usuarioId, tokenHash);
+        await tx.query(`UPDATE fsj.usuario SET estado = 'SUSPENDIDO' WHERE id = $1`, [usuarioId]);
 
         const row = await tx.query(
           `SELECT u.estado FROM fsj.sesion s JOIN fsj.usuario u ON u.id = s.usuario_id WHERE s.token_hash = $1`,

@@ -69,6 +69,8 @@ enum TipoAccion {
   INUTILIZAR_FOJAS
   DESTRUIR
   IMPRIMIR_CIERRE
+  /// D6 (migration 0036). Every libro recetario export (CSV/PDF) is audited.
+  EXPORTAR
 
   @@map("tipo_accion")
   @@schema("fsj")
@@ -201,15 +203,15 @@ enum EstadoPreparacion {
 
 /// Global table (M00): one row per pharmacy tenant. No tenant_id, no RLS.
 model Tenant {
-  id                String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  razonSocial       String    @map("razon_social")
-  nombreFantasia    String?   @map("nombre_fantasia")
-  cuit              String    @unique
-  domicilio         String?
-  matriculaFarmacia String?   @map("matricula_farmacia")
-  zonaHoraria       String    @default("America/Argentina/Mendoza") @map("zona_horaria")
-  fechaBaja         DateTime? @map("fecha_baja") @db.Timestamptz(6)
-  creadoEn          DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
+  id                       String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  razonSocial              String    @map("razon_social")
+  nombreFantasia           String?   @map("nombre_fantasia")
+  cuit                     String    @unique
+  domicilio                String?
+  matriculaFarmacia        String?   @map("matricula_farmacia")
+  zonaHoraria              String    @default("America/Argentina/Mendoza") @map("zona_horaria")
+  fechaBaja                DateTime? @map("fecha_baja") @db.Timestamptz(6)
+  creadoEn                 DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
   /// M12/spec section 4 (DP-33). NULL = contralor libros kept by hand. INV-L17: never changes once set (migration 0014).
   fechaActivacionContralor DateTime? @map("fecha_activacion_contralor") @db.Timestamptz(6)
 
@@ -296,6 +298,13 @@ model Usuario {
   esTecnico        Boolean       @default(false) @map("es_tecnico")
   intentosFallidos Int           @default(0) @map("intentos_fallidos")
   bloqueadoHasta   DateTime?     @map("bloqueado_hasta") @db.Timestamptz(6)
+  /// PIN re-auth feature (migration 0037): argon2id hash of the 6-digit "clave rápida", same hasher as password_hash. NEVER valid for login/activation/password-change/credential-reset/DT co-firma -- only for the logged-in user's own step-up re-auth (see modules/auth/application/reautenticar.ts).
+  pinHash             String?   @map("pin_hash")
+  /// Own counter, separate from `intentos_fallidos` (INV: PIN brute-forcing must never lock the account itself).
+  pinIntentosFallidos Int       @default(0) @map("pin_intentos_fallidos")
+  /// Set once `pinIntentosFallidos` reaches AUTH_POLICY.maxFailedPinAttempts. Cleared by a successful PASSWORD re-auth (never by a successful PIN attempt alone reaching it -- that can't happen, PIN success requires NOT being blocked).
+  pinBloqueado        Boolean   @default(false) @map("pin_bloqueado")
+  pinActualizadoEn    DateTime? @map("pin_actualizado_en") @db.Timestamptz(6)
   creadoPorId      String        @map("creado_por_id") @db.Uuid
   creadoEn         DateTime      @default(now()) @map("creado_en") @db.Timestamptz(6)
   ultimoAcceso     DateTime?     @map("ultimo_acceso") @db.Timestamptz(6)
@@ -310,36 +319,40 @@ model Usuario {
   // as a plain scalar (`creadoPorId`) -- see migration 0002 for the actual
   // FK, which Prisma will not manage (hand-written SQL is the source of truth).
 
-  rolesAsignados                UsuarioRol[]                 @relation("UsuarioRolUsuario")
-  rolesAsignadosPorMi           UsuarioRol[]                 @relation("UsuarioRolAsignadoPor")
-  historialEstados              UsuarioEstadoHistorial[]     @relation("HistorialUsuario")
-  historialEstadosCambiadoPorMi UsuarioEstadoHistorial[]     @relation("HistorialCambiadoPor")
-  registrosAuditoria            RegistroAuditoria[]          @relation("AuditoriaUsuario")
-  registrosAutorizadosPorMi     RegistroAuditoria[]          @relation("AuditoriaAutorizadoPor")
-  credencialesActivacion        CredencialActivacion[]       @relation("CredencialUsuario")
-  credencialesEmitidasPorMi     CredencialActivacion[]       @relation("CredencialEmitidaPor")
-  sesiones                      Sesion[]
-  designacionesDt               DesignacionDirectorTecnico[] @relation("DesignacionUsuario")
-  designacionesRegistradasPorMi DesignacionDirectorTecnico[] @relation("DesignacionRegistradoPor")
-  movimientosRegistrados        MovimientoStock[]            @relation("MovimientoRegistradoPor")
-  movimientosAutorizadosPorMi   MovimientoStock[]            @relation("MovimientoAutorizadoPor")
-  recetasRegistradas            Receta[]                     @relation("RecetaRegistradaPor")
-  recetasFisicaRecibidaPorMi    Receta[]                     @relation("RecetaFisicaRecibidaPor")
-  fichasTecnicasGeneradas       FichaTecnica[]
-  preparacionesIniciadas        Preparacion[]                @relation("PreparacionIniciadaPor")
-  preparacionesPreparadas       Preparacion[]                @relation("PreparacionPreparadaPor")
-  preparacionesDescartadas      Preparacion[]                @relation("PreparacionDescartadaPor")
-  etiquetasImpresas             Etiqueta[]
-  librosRubricadosRegistrados   LibroRubricado[]
-  asientosRecetarioRegistrados  AsientoRecetario[]
-  anulacionesAutorizadas        AnulacionAsiento[]           @relation("AnulacionAutorizadoPor")
-  anulacionesRealizadas         AnulacionAsiento[]           @relation("AnulacionAnuladoPor")
+  rolesAsignados                  UsuarioRol[]                 @relation("UsuarioRolUsuario")
+  rolesAsignadosPorMi             UsuarioRol[]                 @relation("UsuarioRolAsignadoPor")
+  historialEstados                UsuarioEstadoHistorial[]     @relation("HistorialUsuario")
+  historialEstadosCambiadoPorMi   UsuarioEstadoHistorial[]     @relation("HistorialCambiadoPor")
+  registrosAuditoria              RegistroAuditoria[]          @relation("AuditoriaUsuario")
+  registrosAutorizadosPorMi       RegistroAuditoria[]          @relation("AuditoriaAutorizadoPor")
+  credencialesActivacion          CredencialActivacion[]       @relation("CredencialUsuario")
+  credencialesEmitidasPorMi       CredencialActivacion[]       @relation("CredencialEmitidaPor")
+  sesiones                        Sesion[]
+  designacionesDt                 DesignacionDirectorTecnico[] @relation("DesignacionUsuario")
+  designacionesRegistradasPorMi   DesignacionDirectorTecnico[] @relation("DesignacionRegistradoPor")
+  movimientosRegistrados          MovimientoStock[]            @relation("MovimientoRegistradoPor")
+  movimientosAutorizadosPorMi     MovimientoStock[]            @relation("MovimientoAutorizadoPor")
+  recetasRegistradas              Receta[]                     @relation("RecetaRegistradaPor")
+  recetasFisicaRecibidaPorMi      Receta[]                     @relation("RecetaFisicaRecibidaPor")
+  fichasTecnicasGeneradas         FichaTecnica[]
+  preparacionesIniciadas          Preparacion[]                @relation("PreparacionIniciadaPor")
+  preparacionesPreparadas         Preparacion[]                @relation("PreparacionPreparadaPor")
+  preparacionesDescartadas        Preparacion[]                @relation("PreparacionDescartadaPor")
+  etiquetasImpresas               Etiqueta[]
+  librosRubricadosRegistrados     LibroRubricado[]
+  asientosRecetarioRegistrados    AsientoRecetario[]
+  anulacionesAutorizadas          AnulacionAsiento[]           @relation("AnulacionAutorizadoPor")
+  anulacionesRealizadas           AnulacionAsiento[]           @relation("AnulacionAnuladoPor")
+  rectificacionesAutorizadas      RectificacionAsiento[]       @relation("RectificacionAutorizadoPor")
+  rectificacionesRegistradas      RectificacionAsiento[]       @relation("RectificacionRegistradoPor")
   asientosHistoricosDigitalizados AsientoHistorico[]
-  asientosContralorRegistrados  AsientoContralor[]
-  cierresFirmados               CierreDiario[]               @relation("CierreDirectorTecnico")
-  cierresImpresos               CierreDiario[]                @relation("CierreImpresoPor")
-  entregasRegistradas           Entrega[]
-  lotesArchivoRegistrados       LoteArchivoRecetas[]
+  asientosContralorRegistrados    AsientoContralor[]
+  cierresFirmados                 CierreDiario[]               @relation("CierreDirectorTecnico")
+  cierresImpresos                 CierreDiario[]               @relation("CierreImpresoPor")
+  entregasRegistradas             Entrega[]
+  lotesArchivoRegistrados         LoteArchivoRecetas[]
+  reglasPrecioCreadas             ReglaPrecio[]
+  cotizacionesCalculadas          Cotizacion[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, dni])
@@ -478,8 +491,8 @@ model DesignacionDirectorTecnico {
   registradoPorId       String                @map("registrado_por_id") @db.Uuid
   registradoEn          DateTime              @default(now()) @map("registrado_en") @db.Timestamptz(6)
 
-  usuario       Usuario @relation("DesignacionUsuario", fields: [usuarioId], references: [id])
-  registradoPor Usuario @relation("DesignacionRegistradoPor", fields: [registradoPorId], references: [id])
+  usuario       Usuario        @relation("DesignacionUsuario", fields: [usuarioId], references: [id])
+  registradoPor Usuario        @relation("DesignacionRegistradoPor", fields: [registradoPorId], references: [id])
   cierres       CierreDiario[]
 
   @@unique([tenantId, id])
@@ -557,6 +570,8 @@ model Proveedor {
   razonSocial String    @map("razon_social")
   cuit        String
   fechaBaja   DateTime? @map("fecha_baja") @db.Timestamptz(6)
+  /// FASE 4 point 4.3 / migration 0027 -- same convenience column as droga.motivoBaja / unidadMedida.motivoBaja.
+  motivoBaja  String?   @map("motivo_baja")
 
   partidas Partida[]
 
@@ -567,7 +582,9 @@ model Proveedor {
 }
 
 /// Tenant-scoped (M06). matricula uniqueness scoped to active rows per
-/// tenant -- DP-23 (jurisdiction?) unresolved.
+/// tenant -- DP-23 (jurisdiction?) unresolved. matricula normalization
+/// (trim/collapse-whitespace/uppercase) is application-layer only (no DB
+/// CHECK) -- see migration 0029's header comment for why.
 model Medico {
   id                  String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
   tenantId            String    @map("tenant_id") @db.Uuid
@@ -578,6 +595,8 @@ model Medico {
   telefono            String?
   direccionRegistrada String?   @map("direccion_registrada")
   fechaBaja           DateTime? @map("fecha_baja") @db.Timestamptz(6)
+  /// FASE 4 point 4.4 / migration 0029 -- same convenience column as proveedor.motivoBaja (migration 0027).
+  motivoBaja          String?   @map("motivo_baja")
 
   recetas Receta[]
 
@@ -587,7 +606,8 @@ model Medico {
 }
 
 /// Tenant-scoped (M06). Health-adjacent data (DP-24) -- access restriction
-/// and log redaction are [APP] concerns, not enforced in DDL.
+/// and log redaction are [APP] concerns, not enforced in DDL. cuil/dni
+/// format (not check-digit) enforced by migration 0029's CHECKs.
 model Paciente {
   id              String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
   tenantId        String    @map("tenant_id") @db.Uuid
@@ -601,6 +621,8 @@ model Paciente {
   nroCredencial   String?   @map("nro_credencial")
   sexo            String?
   fechaBaja       DateTime? @map("fecha_baja") @db.Timestamptz(6)
+  /// FASE 4 point 4.5 / migration 0029 (INV-G01) -- same convenience column as proveedor.motivoBaja (migration 0027).
+  motivoBaja      String?   @map("motivo_baja")
 
   recetas Receta[]
 
@@ -644,29 +666,29 @@ model Partida {
 /// Tenant-scoped, fully immutable (M07, INV-S06). DP-21b RESUELTA: AJUSTE
 /// always subtracts -- see fsj.movimiento_stock_aplicar() (migration 0008).
 model MovimientoStock {
-  id              String         @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId        String         @map("tenant_id") @db.Uuid
-  partidaId       String         @map("partida_id") @db.Uuid
-  tipo            TipoMovimiento
-  cantidad        Decimal        @db.Decimal
+  id                    String         @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId              String         @map("tenant_id") @db.Uuid
+  partidaId             String         @map("partida_id") @db.Uuid
+  tipo                  TipoMovimiento
+  cantidad              Decimal        @db.Decimal
   /// No FK yet -- fsj.preparacion arrives in migration 1.11.
-  preparacionId   String?        @map("preparacion_id") @db.Uuid
-  motivoAjuste    MotivoAjuste?  @map("motivo_ajuste")
-  observacion     String?
-  registradoPorId String         @map("registrado_por_id") @db.Uuid
-  autorizadoPorId String?        @map("autorizado_por_id") @db.Uuid
-  desvioPropuesta Boolean        @default(false) @map("desvio_propuesta")
-  registradoEn    DateTime       @default(now()) @map("registrado_en") @db.Timestamptz(6)
+  preparacionId         String?        @map("preparacion_id") @db.Uuid
+  motivoAjuste          MotivoAjuste?  @map("motivo_ajuste")
+  observacion           String?
+  registradoPorId       String         @map("registrado_por_id") @db.Uuid
+  autorizadoPorId       String?        @map("autorizado_por_id") @db.Uuid
+  desvioPropuesta       Boolean        @default(false) @map("desvio_propuesta")
+  registradoEn          DateTime       @default(now()) @map("registrado_en") @db.Timestamptz(6)
   /// M12, migration 0014. Required for INGRESO_COMPRA of a controlled droga once the tenant's contralor is active (INV-L16).
-  numeroValeAdquisicion String? @map("numero_vale_adquisicion")
+  numeroValeAdquisicion String?        @map("numero_vale_adquisicion")
   /// S12/S13/S19/S20 (revised), migration 0014. Required for EGRESO_PREPARACION.
-  lineaPesajeId   String?        @map("linea_pesaje_id") @db.Uuid
+  lineaPesajeId         String?        @map("linea_pesaje_id") @db.Uuid
 
-  partida       Partida      @relation(fields: [partidaId], references: [id])
-  registradoPor Usuario      @relation("MovimientoRegistradoPor", fields: [registradoPorId], references: [id])
-  autorizadoPor Usuario?     @relation("MovimientoAutorizadoPor", fields: [autorizadoPorId], references: [id])
-  preparacion   Preparacion? @relation(fields: [preparacionId], references: [id])
-  lineaPesaje   LineaPesaje? @relation(fields: [lineaPesajeId], references: [id])
+  partida          Partida           @relation(fields: [partidaId], references: [id])
+  registradoPor    Usuario           @relation("MovimientoRegistradoPor", fields: [registradoPorId], references: [id])
+  autorizadoPor    Usuario?          @relation("MovimientoAutorizadoPor", fields: [autorizadoPorId], references: [id])
+  preparacion      Preparacion?      @relation(fields: [preparacionId], references: [id])
+  lineaPesaje      LineaPesaje?      @relation(fields: [lineaPesajeId], references: [id])
   asientoContralor AsientoContralor?
 
   @@unique([tenantId, id])
@@ -713,10 +735,10 @@ model Receta {
   /// M15, deferred from migration 0011, added in migration 0016. INV-ARC-006: only settable once ENTREGADA/ANULADA + receta_fisica_recibida; frozen once set.
   loteArchivoId             String?      @map("lote_archivo_id") @db.Uuid
 
-  paciente                Paciente     @relation(fields: [pacienteId], references: [id])
-  medico                  Medico       @relation(fields: [medicoId], references: [id])
-  registradaPor           Usuario      @relation("RecetaRegistradaPor", fields: [registradaPorId], references: [id])
-  recetaFisicaRecibidaPor Usuario?     @relation("RecetaFisicaRecibidaPor", fields: [recetaFisicaRecibidaPorId], references: [id])
+  paciente                Paciente            @relation(fields: [pacienteId], references: [id])
+  medico                  Medico              @relation(fields: [medicoId], references: [id])
+  registradaPor           Usuario             @relation("RecetaRegistradaPor", fields: [registradaPorId], references: [id])
+  recetaFisicaRecibidaPor Usuario?            @relation("RecetaFisicaRecibidaPor", fields: [recetaFisicaRecibidaPorId], references: [id])
   items                   ItemReceta[]
   loteArchivo             LoteArchivoRecetas? @relation(fields: [loteArchivoId], references: [id])
   entrega                 Entrega?
@@ -742,10 +764,11 @@ model ItemReceta {
   unidadTotalId          String?           @map("unidad_total_id") @db.Uuid
   observaciones          String?
 
-  receta      Receta                 @relation(fields: [recetaId], references: [id])
-  unidadTotal UnidadMedida?          @relation(fields: [unidadTotalId], references: [id])
-  componentes ComponenteItemReceta[]
-  fichas      FichaTecnica[]
+  receta       Receta                 @relation(fields: [recetaId], references: [id])
+  unidadTotal  UnidadMedida?          @relation(fields: [unidadTotalId], references: [id])
+  componentes  ComponenteItemReceta[]
+  fichas       FichaTecnica[]
+  cotizaciones Cotizacion[]
 
   @@unique([tenantId, id])
   @@map("item_receta")
@@ -814,15 +837,67 @@ model LineaPesaje {
   esEnraseManual  Boolean  @default(false) @map("es_enrase_manual")
   orden           Int
 
-  fichaTecnica FichaTecnica @relation(fields: [fichaTecnicaId], references: [id])
-  droga        Droga        @relation(fields: [drogaId], references: [id])
-  unidadMedida UnidadMedida @relation(fields: [unidadMedidaId], references: [id])
+  fichaTecnica FichaTecnica      @relation(fields: [fichaTecnicaId], references: [id])
+  droga        Droga             @relation(fields: [drogaId], references: [id])
+  unidadMedida UnidadMedida      @relation(fields: [unidadMedidaId], references: [id])
   movimientos  MovimientoStock[]
   detalles     DetalleAsiento[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, fichaTecnicaId, orden])
   @@map("linea_pesaje")
+  @@schema("fsj")
+}
+
+// ============================================================================
+// M08 -- reglas de precio (DP-09 RESUELTA) / M10 FASE 7.4 -- cotizacion
+// ============================================================================
+
+/// Tenant-scoped (M08). Versioned + immutable except the vigente_hasta
+/// close (INV-PR-001, migration 0031). margen is a PERCENTAGE:
+/// precioFinal = costoInsumos * margen / 100 (DP-09: "costo x margen%", no
+/// fixed fee, no variation by forma farmaceutica).
+model ReglaPrecio {
+  id           String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  margen       Decimal   @db.Decimal
+  vigenteDesde DateTime  @default(now()) @map("vigente_desde") @db.Timestamptz(6)
+  vigenteHasta DateTime? @map("vigente_hasta") @db.Timestamptz(6)
+  creadoPorId  String    @map("creado_por_id") @db.Uuid
+  creadoEn     DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
+
+  creadoPor    Usuario      @relation(fields: [creadoPorId], references: [id])
+  cotizaciones Cotizacion[]
+
+  @@unique([tenantId, id])
+  @@map("regla_precio")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (M10 FASE 7.4), fully insert-only (no UPDATE/DELETE grant
+/// -- migration 0031). "Vigente" = max(calculadaEn) per itemRecetaId
+/// (INV-R06, [APP] rule). NOT audited (INV-A01 excludes cotizaciones).
+model Cotizacion {
+  id             String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  itemRecetaId   String   @map("item_receta_id") @db.Uuid
+  costoInsumos   Decimal  @map("costo_insumos") @db.Decimal
+  margenAplicado Decimal  @map("margen_aplicado") @db.Decimal
+  precioFinal    Decimal  @map("precio_final") @db.Decimal
+  reglaPrecioId  String   @map("regla_precio_id") @db.Uuid
+  esParcial      Boolean  @default(false) @map("es_parcial")
+  esIncompleta   Boolean  @default(false) @map("es_incompleta")
+  /// Per-linea breakdown -- see modules/precios/domain/calcular-cotizacion.ts.
+  detalle        Json
+  calculadaEn    DateTime @default(now()) @map("calculada_en") @db.Timestamptz(6)
+  calculadaPorId String   @map("calculada_por_id") @db.Uuid
+
+  itemReceta   ItemReceta  @relation(fields: [itemRecetaId], references: [id])
+  reglaPrecio  ReglaPrecio @relation(fields: [reglaPrecioId], references: [id])
+  calculadaPor Usuario     @relation(fields: [calculadaPorId], references: [id])
+
+  @@unique([tenantId, id])
+  @@map("cotizacion")
   @@schema("fsj")
 }
 
@@ -846,12 +921,12 @@ model Preparacion {
   descartadaEn    DateTime?         @map("descartada_en") @db.Timestamptz(6)
   descartadaPorId String?           @map("descartada_por_id") @db.Uuid
 
-  fichaTecnica  FichaTecnica      @relation(fields: [fichaTecnicaId], references: [id])
-  iniciadaPor   Usuario           @relation("PreparacionIniciadaPor", fields: [iniciadaPorId], references: [id])
-  preparadaPor  Usuario?          @relation("PreparacionPreparadaPor", fields: [preparadaPorId], references: [id])
-  descartadaPor Usuario?          @relation("PreparacionDescartadaPor", fields: [descartadaPorId], references: [id])
-  movimientos   MovimientoStock[]
-  etiqueta      Etiqueta?
+  fichaTecnica      FichaTecnica       @relation(fields: [fichaTecnicaId], references: [id])
+  iniciadaPor       Usuario            @relation("PreparacionIniciadaPor", fields: [iniciadaPorId], references: [id])
+  preparadaPor      Usuario?           @relation("PreparacionPreparadaPor", fields: [preparadaPorId], references: [id])
+  descartadaPor     Usuario?           @relation("PreparacionDescartadaPor", fields: [descartadaPorId], references: [id])
+  movimientos       MovimientoStock[]
+  etiqueta          Etiqueta?
   /// At most one SISTEMA asiento per preparacion (partial unique index in the DB -- see AsientoRecetario.preparacionId).
   asientosRecetario AsientoRecetario[]
 
@@ -948,19 +1023,19 @@ enum EstadoLoteArchivo {
 /// M12/M13b minimal model (spec [CONFLICTO], DP-38 open). No folios. At most one OPEN book per (tenant, tipo).
 /// numero/fechaRubrica/expedienteRubrica are official rubric data: created NULL, set once (NULL -> value) when actually issued, never invented (DP-38, migration 0018 B3).
 model LibroRubricado {
-  id                 String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId           String    @map("tenant_id") @db.Uuid
-  tipo               TipoLibro
-  numero             String?
-  fechaRubrica       DateTime? @map("fecha_rubrica") @db.Date
-  expedienteRubrica  String?   @map("expediente_rubrica")
-  fechaCierre        DateTime? @map("fecha_cierre") @db.Date
-  registradoPorId    String    @map("registrado_por_id") @db.Uuid
-  registradoEn       DateTime  @default(now()) @map("registrado_en") @db.Timestamptz(6)
+  id                String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  tipo              TipoLibro
+  numero            String?
+  fechaRubrica      DateTime? @map("fecha_rubrica") @db.Date
+  expedienteRubrica String?   @map("expediente_rubrica")
+  fechaCierre       DateTime? @map("fecha_cierre") @db.Date
+  registradoPorId   String    @map("registrado_por_id") @db.Uuid
+  registradoEn      DateTime  @default(now()) @map("registrado_en") @db.Timestamptz(6)
 
-  tenant          Tenant               @relation(fields: [tenantId], references: [id])
-  registradoPor   Usuario              @relation(fields: [registradoPorId], references: [id])
-  contador        ContadorCorrelativo?
+  tenant            Tenant               @relation(fields: [tenantId], references: [id])
+  registradoPor     Usuario              @relation(fields: [registradoPorId], references: [id])
+  contador          ContadorCorrelativo?
   asientosRecetario AsientoRecetario[]
   asientosContralor AsientoContralor[]
 
@@ -986,33 +1061,37 @@ model ContadorCorrelativo {
 
 /// M12. Fully immutable except cierre_diario_id (once) and estado VIGENTE->ANULADO. Hash chain + numero_correlativo assigned by trigger (migration 0014).
 model AsientoRecetario {
-  id                  String        @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId            String        @map("tenant_id") @db.Uuid
-  libroId             String        @map("libro_id") @db.Uuid
-  numeroCorrelativo   BigInt        @map("numero_correlativo")
-  fechaAsiento        DateTime      @map("fecha_asiento") @db.Date
-  origen              OrigenAsiento
+  id                String        @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId          String        @map("tenant_id") @db.Uuid
+  libroId           String        @map("libro_id") @db.Uuid
+  numeroCorrelativo BigInt        @map("numero_correlativo")
+  fechaAsiento      DateTime      @map("fecha_asiento") @db.Date
+  origen            OrigenAsiento
   /// NOT @unique: the DB only has the PARTIAL unique index uq_asiento_recetario_preparacion (tenant_id, preparacion_id) WHERE origen = 'SISTEMA' (migration 0014), which Prisma cannot express.
-  preparacionId       String?       @map("preparacion_id") @db.Uuid
-  asientoOriginalId   String?       @map("asiento_original_id") @db.Uuid
-  pacienteTexto       String        @map("paciente_texto")
-  medicoTexto         String        @map("medico_texto")
-  formulaTexto        String        @map("formula_texto")
-  cierreDiarioId      String?       @map("cierre_diario_id") @db.Uuid
-  estado              EstadoAsiento @default(VIGENTE)
-  hashIntegridad      String        @map("hash_integridad")
-  hashAnterior        String        @map("hash_anterior")
-  registradoPorId     String        @map("registrado_por_id") @db.Uuid
-  registradoEn        DateTime      @default(now()) @map("registrado_en") @db.Timestamptz(6)
+  preparacionId     String?       @map("preparacion_id") @db.Uuid
+  asientoOriginalId String?       @map("asiento_original_id") @db.Uuid
+  pacienteTexto     String        @map("paciente_texto")
+  medicoTexto       String        @map("medico_texto")
+  formulaTexto      String        @map("formula_texto")
+  cierreDiarioId    String?       @map("cierre_diario_id") @db.Uuid
+  estado            EstadoAsiento @default(VIGENTE)
+  /// D4 (migration 0034). 1/2/3 -- which serialization produced hash_integridad. Existing rows = 2; every new insert is pinned to 3 by the DB trigger.
+  versionHash       Int           @default(2) @map("version_hash") @db.SmallInt
+  hashIntegridad    String        @map("hash_integridad")
+  hashAnterior      String        @map("hash_anterior")
+  registradoPorId   String        @map("registrado_por_id") @db.Uuid
+  registradoEn      DateTime      @default(now()) @map("registrado_en") @db.Timestamptz(6)
 
-  libro           LibroRubricado     @relation(fields: [libroId], references: [id])
-  preparacion     Preparacion?       @relation(fields: [preparacionId], references: [id])
-  asientoOriginal AsientoRecetario?  @relation("Rectificativo", fields: [asientoOriginalId], references: [id])
-  rectificativos  AsientoRecetario[] @relation("Rectificativo")
-  cierreDiario    CierreDiario?      @relation(fields: [cierreDiarioId], references: [id])
-  registradoPor   Usuario            @relation(fields: [registradoPorId], references: [id])
-  detalles        DetalleAsiento[]
-  anulacion       AnulacionAsiento?
+  libro             LibroRubricado        @relation(fields: [libroId], references: [id])
+  preparacion       Preparacion?          @relation(fields: [preparacionId], references: [id])
+  asientoOriginal   AsientoRecetario?     @relation("Rectificativo", fields: [asientoOriginalId], references: [id])
+  rectificativos    AsientoRecetario[]    @relation("Rectificativo")
+  cierreDiario      CierreDiario?         @relation(fields: [cierreDiarioId], references: [id])
+  registradoPor     Usuario               @relation(fields: [registradoPorId], references: [id])
+  detalles          DetalleAsiento[]
+  anulacion         AnulacionAsiento?
+  /// D1 (migration 0033). Present iff origen = RECTIFICATIVO (INV-L21).
+  rectificacion     RectificacionAsiento?
   asientosContralor AsientoContralor[]
 
   @@unique([tenantId, id])
@@ -1023,14 +1102,14 @@ model AsientoRecetario {
 
 /// M12. Immutable. cantidad is cantidad_a_pesar (non-manual) or the real registered quantity (manual-enrase) -- docs/specs/ficha-tecnica.md.
 model DetalleAsiento {
-  id                  String  @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId            String  @map("tenant_id") @db.Uuid
-  asientoRecetarioId  String  @map("asiento_recetario_id") @db.Uuid
-  lineaPesajeId       String? @map("linea_pesaje_id") @db.Uuid
-  descripcion         String
-  cantidad            Decimal @db.Decimal
-  unidadTexto         String  @map("unidad_texto")
-  orden               Int
+  id                 String  @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId           String  @map("tenant_id") @db.Uuid
+  asientoRecetarioId String  @map("asiento_recetario_id") @db.Uuid
+  lineaPesajeId      String? @map("linea_pesaje_id") @db.Uuid
+  descripcion        String
+  cantidad           Decimal @db.Decimal
+  unidadTexto        String  @map("unidad_texto")
+  orden              Int
 
   asiento     AsientoRecetario @relation(fields: [asientoRecetarioId], references: [id])
   lineaPesaje LineaPesaje?     @relation(fields: [lineaPesajeId], references: [id])
@@ -1043,13 +1122,13 @@ model DetalleAsiento {
 
 /// M12, DP-16/DP-16c. Immutable. INSERT validated by trigger (INV-L02/U05); propagates estado=ANULADO onto the asiento (INV-L09).
 model AnulacionAsiento {
-  id                String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId          String   @map("tenant_id") @db.Uuid
-  asientoId         String   @unique @map("asiento_id") @db.Uuid
-  motivo            String
-  autorizadoPorId   String   @map("autorizado_por_id") @db.Uuid
-  anuladoPorId      String   @map("anulado_por_id") @db.Uuid
-  anuladoEn         DateTime @default(now()) @map("anulado_en") @db.Timestamptz(6)
+  id              String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  asientoId       String   @unique @map("asiento_id") @db.Uuid
+  motivo          String
+  autorizadoPorId String   @map("autorizado_por_id") @db.Uuid
+  anuladoPorId    String   @map("anulado_por_id") @db.Uuid
+  anuladoEn       DateTime @default(now()) @map("anulado_en") @db.Timestamptz(6)
 
   asiento       AsientoRecetario @relation(fields: [asientoId], references: [id])
   autorizadoPor Usuario          @relation("AnulacionAutorizadoPor", fields: [autorizadoPorId], references: [id])
@@ -1057,6 +1136,25 @@ model AnulacionAsiento {
 
   @@unique([tenantId, id])
   @@map("anulacion_asiento")
+  @@schema("fsj")
+}
+
+/// D1 (migration 0033). Authorization record for a RECTIFICATIVO asiento_recetario -- the "jornada firmada" correction path, mirroring AnulacionAsiento for the "jornada abierta" path. Immutable. INV-L21: every RECTIFICATIVO asiento has exactly one row here (bidirectional, one side deferred -- see migration 0033).
+model RectificacionAsiento {
+  id                     String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId               String   @map("tenant_id") @db.Uuid
+  asientoRectificativoId String   @unique @map("asiento_rectificativo_id") @db.Uuid
+  motivo                 String
+  autorizadoPorId        String   @map("autorizado_por_id") @db.Uuid
+  registradoPorId        String   @map("registrado_por_id") @db.Uuid
+  registradoEn           DateTime @default(now()) @map("registrado_en") @db.Timestamptz(6)
+
+  asientoRectificativo AsientoRecetario @relation(fields: [asientoRectificativoId], references: [id])
+  autorizadoPor        Usuario          @relation("RectificacionAutorizadoPor", fields: [autorizadoPorId], references: [id])
+  registradoPor        Usuario          @relation("RectificacionRegistradoPor", fields: [registradoPorId], references: [id])
+
+  @@unique([tenantId, id])
+  @@map("rectificacion_asiento")
   @@schema("fsj")
 }
 
@@ -1077,33 +1175,35 @@ model AsientoHistorico {
   digitalizadoPor Usuario @relation(fields: [digitalizadoPorId], references: [id])
 
   @@unique([tenantId, id])
+  /// D5 (migration 0035). A physical book entry is digitized at most once (no separate "libro fisico" column exists -- tipoLibro + numeroAsientoFisico is the natural key).
+  @@unique([tenantId, tipoLibro, numeroAsientoFisico])
   @@map("asiento_historico")
   @@schema("fsj")
 }
 
 /// M12, spec section 4. Fully immutable except cierre_diario_id. saldo/correlativo/hash assigned by trigger (migration 0014).
 model AsientoContralor {
-  id                      String                   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId                String                   @map("tenant_id") @db.Uuid
-  libroId                 String                   @map("libro_id") @db.Uuid
-  numeroCorrelativo       BigInt                   @map("numero_correlativo")
-  fechaAsiento            DateTime                 @map("fecha_asiento") @db.Date
-  tipoMovimiento          TipoMovimientoContralor  @map("tipo_movimiento")
-  drogaId                 String                   @map("droga_id") @db.Uuid
-  drogaDescripcion        String                   @map("droga_descripcion")
-  cantidad                Decimal                  @db.Decimal
-  unidadMedidaId          String                   @map("unidad_medida_id") @db.Uuid
-  saldoAnterior           Decimal                  @map("saldo_anterior") @db.Decimal
-  saldoPosterior          Decimal                  @map("saldo_posterior") @db.Decimal
-  movimientoStockId       String?                  @unique @map("movimiento_stock_id") @db.Uuid
-  asientoRecetarioId      String?                  @map("asiento_recetario_id") @db.Uuid
-  numeroValeAdquisicion   String?                  @map("numero_vale_adquisicion")
-  cierreDiarioId          String?                  @map("cierre_diario_id") @db.Uuid
-  estado                  EstadoAsiento            @default(VIGENTE)
-  hashIntegridad          String                   @map("hash_integridad")
-  hashAnterior            String                   @map("hash_anterior")
-  registradoPorId         String                   @map("registrado_por_id") @db.Uuid
-  registradoEn            DateTime                 @default(now()) @map("registrado_en") @db.Timestamptz(6)
+  id                    String                  @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId              String                  @map("tenant_id") @db.Uuid
+  libroId               String                  @map("libro_id") @db.Uuid
+  numeroCorrelativo     BigInt                  @map("numero_correlativo")
+  fechaAsiento          DateTime                @map("fecha_asiento") @db.Date
+  tipoMovimiento        TipoMovimientoContralor @map("tipo_movimiento")
+  drogaId               String                  @map("droga_id") @db.Uuid
+  drogaDescripcion      String                  @map("droga_descripcion")
+  cantidad              Decimal                 @db.Decimal
+  unidadMedidaId        String                  @map("unidad_medida_id") @db.Uuid
+  saldoAnterior         Decimal                 @map("saldo_anterior") @db.Decimal
+  saldoPosterior        Decimal                 @map("saldo_posterior") @db.Decimal
+  movimientoStockId     String?                 @unique @map("movimiento_stock_id") @db.Uuid
+  asientoRecetarioId    String?                 @map("asiento_recetario_id") @db.Uuid
+  numeroValeAdquisicion String?                 @map("numero_vale_adquisicion")
+  cierreDiarioId        String?                 @map("cierre_diario_id") @db.Uuid
+  estado                EstadoAsiento           @default(VIGENTE)
+  hashIntegridad        String                  @map("hash_integridad")
+  hashAnterior          String                  @map("hash_anterior")
+  registradoPorId       String                  @map("registrado_por_id") @db.Uuid
+  registradoEn          DateTime                @default(now()) @map("registrado_en") @db.Timestamptz(6)
 
   libro            LibroRubricado    @relation(fields: [libroId], references: [id])
   droga            Droga             @relation(fields: [drogaId], references: [id])
@@ -1139,9 +1239,9 @@ model CierreDiario {
   motivoDemora        String?   @map("motivo_demora")
   motivoDemoraDetalle String?   @map("motivo_demora_detalle")
 
-  directorTecnico  Usuario                     @relation("CierreDirectorTecnico", fields: [directorTecnicoId], references: [id])
-  designacion      DesignacionDirectorTecnico  @relation(fields: [designacionId], references: [id])
-  impresoPor       Usuario?                    @relation("CierreImpresoPor", fields: [impresoPorId], references: [id])
+  directorTecnico   Usuario                    @relation("CierreDirectorTecnico", fields: [directorTecnicoId], references: [id])
+  designacion       DesignacionDirectorTecnico @relation(fields: [designacionId], references: [id])
+  impresoPor        Usuario?                   @relation("CierreImpresoPor", fields: [impresoPorId], references: [id])
   asientosRecetario AsientoRecetario[]
   asientosContralor AsientoContralor[]
 
@@ -1153,18 +1253,18 @@ model CierreDiario {
 
 /// M14. One row per receta. Mutable (firma_recibida/firma_recibida_en only).
 model Entrega {
-  id                  String           @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId            String           @map("tenant_id") @db.Uuid
-  recetaId            String           @unique @map("receta_id") @db.Uuid
-  modalidad           ModalidadEntrega
-  entregadaPorId      String           @map("entregada_por_id") @db.Uuid
-  entregadaEn         DateTime         @default(now()) @map("entregada_en") @db.Timestamptz(6)
-  firmaRecibida       Boolean          @default(false) @map("firma_recibida")
-  firmaRecibidaEn     DateTime?        @map("firma_recibida_en") @db.Timestamptz(6)
-  fechaArchivoReceta  DateTime?        @map("fecha_archivo_receta") @db.Date
+  id                 String           @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId           String           @map("tenant_id") @db.Uuid
+  recetaId           String           @unique @map("receta_id") @db.Uuid
+  modalidad          ModalidadEntrega
+  entregadaPorId     String           @map("entregada_por_id") @db.Uuid
+  entregadaEn        DateTime         @default(now()) @map("entregada_en") @db.Timestamptz(6)
+  firmaRecibida      Boolean          @default(false) @map("firma_recibida")
+  firmaRecibidaEn    DateTime?        @map("firma_recibida_en") @db.Timestamptz(6)
+  fechaArchivoReceta DateTime?        @map("fecha_archivo_receta") @db.Date
 
-  receta        Receta  @relation(fields: [recetaId], references: [id])
-  entregadaPor  Usuario @relation(fields: [entregadaPorId], references: [id])
+  receta       Receta  @relation(fields: [recetaId], references: [id])
+  entregadaPor Usuario @relation(fields: [entregadaPorId], references: [id])
 
   @@unique([tenantId, id])
   @@map("entrega")
@@ -1173,18 +1273,18 @@ model Entrega {
 
 /// M15. Linear state machine EN_ARCHIVO -> ... -> DESTRUIDO (trigger-enforced). Immutable once DESTRUIDO (INV-D05).
 model LoteArchivoRecetas {
-  id                      String            @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId                String            @map("tenant_id") @db.Uuid
-  periodoDesde            DateTime          @map("periodo_desde") @db.Date
-  periodoHasta            DateTime          @map("periodo_hasta") @db.Date
-  ubicacion               String
-  incluyeControladas      Boolean           @default(false) @map("incluye_controladas")
-  estado                  EstadoLoteArchivo @default(EN_ARCHIVO)
-  expedienteAutorizacion  String?           @map("expediente_autorizacion")
-  fechaAutorizacion       DateTime?         @map("fecha_autorizacion") @db.Date
-  fechaDestruccion        DateTime?         @map("fecha_destruccion") @db.Date
-  registradoPorId         String            @map("registrado_por_id") @db.Uuid
-  registradoEn            DateTime          @default(now()) @map("registrado_en") @db.Timestamptz(6)
+  id                     String            @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId               String            @map("tenant_id") @db.Uuid
+  periodoDesde           DateTime          @map("periodo_desde") @db.Date
+  periodoHasta           DateTime          @map("periodo_hasta") @db.Date
+  ubicacion              String
+  incluyeControladas     Boolean           @default(false) @map("incluye_controladas")
+  estado                 EstadoLoteArchivo @default(EN_ARCHIVO)
+  expedienteAutorizacion String?           @map("expediente_autorizacion")
+  fechaAutorizacion      DateTime?         @map("fecha_autorizacion") @db.Date
+  fechaDestruccion       DateTime?         @map("fecha_destruccion") @db.Date
+  registradoPorId        String            @map("registrado_por_id") @db.Uuid
+  registradoEn           DateTime          @default(now()) @map("registrado_en") @db.Timestamptz(6)
 
   registradoPor Usuario  @relation(fields: [registradoPorId], references: [id])
   recetas       Receta[]

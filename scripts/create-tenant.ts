@@ -171,15 +171,20 @@ async function main(): Promise<void> {
     );
 
     // Per-tenant weighing parameters (M10, FASE 1 point 1.10 --
-    // docs/specs/ficha-tecnica.md "ParametrosPesaje"). Also backfilled for
-    // pre-existing tenants by migration 0012 -- kept here so BOTH paths
-    // (a brand-new tenant via this script, and a tenant that already
-    // existed when 0012 ran) end up with the same two rows.
+    // docs/specs/ficha-tecnica.md "ParametrosPesaje") + the stock
+    // vencimiento-alert window (M07, FASE 5 point 5.7, DP-14). Also
+    // backfilled for pre-existing tenants by migration 0012 (the first two)
+    // -- kept here so every path (a brand-new tenant via this script, and a
+    // tenant that already existed when 0012 ran) ends up with the same
+    // rows. `dias_alerta_vencimiento_partida` needs no migration/backfill:
+    // modules/stock/infrastructure/partida-repository.ts#getDiasAlertaVencimiento
+    // falls back to the same default (30) for any tenant without this row.
     await client.query(
       `INSERT INTO fsj.parametro (tenant_id, clave, tipo, valor, descripcion)
        VALUES
          ($1, 'precision_balanza', 'NUMERO', '0.001', 'Precision de la balanza para redondeo de linea_pesaje (GRAMO) -- docs/specs/ficha-tecnica.md R8'),
-         ($1, 'exceso_pesada_porcentaje', 'NUMERO', '0', 'Porcentaje de exceso de pesada aplicado a lineas no manuales -- docs/specs/ficha-tecnica.md R7')
+         ($1, 'exceso_pesada_porcentaje', 'NUMERO', '0', 'Porcentaje de exceso de pesada aplicado a lineas no manuales -- docs/specs/ficha-tecnica.md R7'),
+         ($1, 'dias_alerta_vencimiento_partida', 'NUMERO', '30', 'Dias de anticipacion para la alerta de partidas por vencer -- DP-14, FASE 5 punto 5.7')
        ON CONFLICT (tenant_id, clave) DO NOTHING`,
       [tenantId],
     );
