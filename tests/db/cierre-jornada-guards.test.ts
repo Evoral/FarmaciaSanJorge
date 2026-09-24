@@ -270,7 +270,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0019_cierre_jornada_guards (fsj sc
 
         // D is in the past now: INV-C21 must NOT block it (INV-C18 requires
         // a motivo_demora since it is also fuera_de_termino -- orthogonal).
-        const cierreD = await firmar(tx, seed.tenantId, fechaD.rows[0].fecha_asiento, dtId, designacionId, "firmado con retraso");
+        const cierreD = await firmar(tx, seed.tenantId, fechaD.rows[0].fecha_asiento, dtId, designacionId, "FALLA_SISTEMA");
         expect(cierreD).toBeTruthy();
       }),
     );

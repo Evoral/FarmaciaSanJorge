@@ -200,7 +200,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
         );
 
         // Signing D first works (late -> motivo required, INV-C18) and links the contralor row.
-        const cierreD = await tx.query(`SELECT id FROM fsj.cierre_diario_firmar($1, $2, $3, $4, 'firma tardia', NULL)`, [
+        const cierreD = await tx.query(`SELECT id FROM fsj.cierre_diario_firmar($1, $2, $3, $4, 'FALLA_SISTEMA', NULL)`, [
           tenantId,
           fechaD,
           dtId,
@@ -288,14 +288,14 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
           fechaD.rows[0].fecha_asiento,
           dtId,
           designacionId,
-          "firmado con retraso, dia D",
+          "FALLA_SISTEMA",
         ]);
         expect(cierreD.rows[0].id).toBeTruthy();
 
         // Now D+1 can be signed. It will be reported fuera_de_termino (D
         // already passed) -- see the dedicated INV-C18 test below for that
         // requirement; pass a motivo here so this test stays focused on C19.
-        const cierreD1 = await tx.query(`SELECT id FROM fsj.cierre_diario_firmar($1, $2, $3, $4, 'demora de prueba', NULL)`, [
+        const cierreD1 = await tx.query(`SELECT id FROM fsj.cierre_diario_firmar($1, $2, $3, $4, 'FALLA_SISTEMA', NULL)`, [
           seed.tenantId,
           fechaD1.rows[0].fecha_asiento,
           dtId,
@@ -328,10 +328,10 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
           fecha.rows[0].fecha_asiento,
           dtId,
           designacionId,
-          "conexion caida",
+          "FALLA_SISTEMA",
         ]);
         expect(cierre.rows[0].fuera_de_termino).toBe(true);
-        expect(cierre.rows[0].motivo_demora).toBe("conexion caida");
+        expect(cierre.rows[0].motivo_demora).toBe("FALLA_SISTEMA");
       }),
     );
   });

@@ -1020,6 +1020,17 @@ enum EstadoLoteArchivo {
   @@schema("fsj")
 }
 
+/// M13a. DP-18c RESUELTA (migration 0039). Reasons a cierre_diario signature can be fuera_de_termino (INV-C18). OTRO requires motivoDemoraDetalle.
+enum MotivoDemora {
+  AUSENCIA_DT
+  FALLA_SISTEMA
+  FARMACIA_CERRADA
+  OTRO
+
+  @@map("motivo_demora")
+  @@schema("fsj")
+}
+
 /// M12/M13b minimal model (spec [CONFLICTO], DP-38 open). No folios. At most one OPEN book per (tenant, tipo).
 /// numero/fechaRubrica/expedienteRubrica are official rubric data: created NULL, set once (NULL -> value) when actually issued, never invented (DP-38, migration 0018 B3).
 model LibroRubricado {
@@ -1235,9 +1246,9 @@ model CierreDiario {
   fechaImpresion      DateTime? @map("fecha_impresion") @db.Timestamptz(6)
   impresoPorId        String?   @map("impreso_por_id") @db.Uuid
   fechaFirma          DateTime  @default(now()) @map("fecha_firma") @db.Timestamptz(6)
-  fueraDeTermino      Boolean   @map("fuera_de_termino")
-  motivoDemora        String?   @map("motivo_demora")
-  motivoDemoraDetalle String?   @map("motivo_demora_detalle")
+  fueraDeTermino      Boolean       @map("fuera_de_termino")
+  motivoDemora        MotivoDemora? @map("motivo_demora")
+  motivoDemoraDetalle String?       @map("motivo_demora_detalle")
 
   directorTecnico   Usuario                    @relation("CierreDirectorTecnico", fields: [directorTecnicoId], references: [id])
   designacion       DesignacionDirectorTecnico @relation(fields: [designacionId], references: [id])

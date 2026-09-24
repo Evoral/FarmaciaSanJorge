@@ -28,7 +28,12 @@
  */
 import { Decimal } from "decimal.js";
 
-export const PARAMETRO_CLAVES = ["precision_balanza", "exceso_pesada_porcentaje", "dias_alerta_vencimiento_partida"] as const;
+export const PARAMETRO_CLAVES = [
+  "precision_balanza",
+  "exceso_pesada_porcentaje",
+  "dias_alerta_vencimiento_partida",
+  "plazo_firma_dias",
+] as const;
 
 export type ParametroClave = (typeof PARAMETRO_CLAVES)[number];
 
@@ -96,6 +101,22 @@ function validarDiasAlertaVencimientoPartida(valorRaw: string): ValidacionParame
   return { ok: true, valor };
 }
 
+/**
+ * `plazo_firma_dias` (DP-18 RESUELTA, FASE 10 point 10.1): an integer >= 0
+ * -- days of grace, from the jornada's own date, within which signing it is
+ * still "en término" (INV-C18, `fsj.cierre_diario_calcular_fuera_de_termino`,
+ * migration 0038). Zero (the default) reproduces the original rule: only
+ * the SAME jornada counts as on time.
+ */
+function validarPlazoFirmaDias(valorRaw: string): ValidacionParametro {
+  const valor = parseDecimalOrNull(valorRaw);
+  if (!valor) return { ok: false, error: "Debe ser un número válido." };
+  if (!valor.isInteger() || valor.lessThan(0)) {
+    return { ok: false, error: "Debe ser un número entero mayor o igual que cero." };
+  }
+  return { ok: true, valor };
+}
+
 export interface ParametroDefinicion {
   clave: ParametroClave;
   tipo: "NUMERO";
@@ -136,5 +157,16 @@ export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = 
       "en la alerta de \"próximas a vencer\" (DP-14, FASE 5 punto 5.7). Debe ser un entero mayor que cero.",
     valorPorDefecto: "30",
     validar: validarDiasAlertaVencimientoPartida,
+  },
+  plazo_firma_dias: {
+    clave: "plazo_firma_dias",
+    tipo: "NUMERO",
+    label: "Plazo de firma del cierre diario",
+    descripcion:
+      "Cantidad de días corridos desde la fecha de la jornada dentro de los cuales firmar el cierre diario se " +
+      "considera en término (DP-18, FASE 10 punto 10.1). En 0 (valor por defecto), solo la firma en la misma " +
+      "jornada se considera en término. Debe ser un entero mayor o igual que cero.",
+    valorPorDefecto: "0",
+    validar: validarPlazoFirmaDias,
   },
 };

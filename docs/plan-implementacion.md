@@ -810,7 +810,7 @@ Un punto está TERMINADO solo si:
 | INV-L21 (rectificacion_asiento 1↔1) | M12 | 1.12, 9.2 | db: falta rectificacion al commit; rectificacion contra asiento no-RECTIFICATIVO | Implementado (D1, migración 0033) |
 | INV-L22 (SISTEMA ⇒ ≥1 detalle al insertar) | M12 | 1.12, 9.1 | db: asiento SISTEMA sin detalle previo falla | Implementado (D4, migración 0034) |
 | INV-L23 (detalle congelado tras el asiento) | M12 | 1.12, 9.1 | db: INSERT detalle tardío falla | Implementado (D4, migración 0034) |
-| INV-C01–C07, C17–C20 | M13a | 1.13, 10.1–10.5 | db + concurrencia | Planificado (DP-18, DP-33) |
+| INV-C01–C07, C17–C20 | M13a | 1.13, 10.1–10.5 | db + concurrencia | Implementado (FASE 10, 2026-09-24) |
 | INV-C08–C15 | M13b | 10.B | — | SUJETO A VALIDACIÓN (DP-38) |
 | INV-C16 (fojas inutilizadas) | — | — | — | QUITADO por decisión del usuario |
 | INV-A01–A03 | M01 | 1.3, 2.7, cada caso de uso | db + int por caso | Planificado |
@@ -822,9 +822,9 @@ Un punto está TERMINADO solo si:
 | HU4 Alerta plazo | M15 | 12.2 | int job | Planificado |
 | HU5 Destrucción | M15 | 12.3 | int | Planificado |
 | HU6 Inutilizar fojas | — | — | — | QUITADO por decisión del usuario |
-| HU7 Alerta cierres | M13a | 10.3 | int | Planificado |
-| HU8 Firma fuera de término | M13a | 10.1 | db + int | Planificado (DP-18c) |
-| HU9 Reporte cumplimiento | M13a | 10.4 | int | Planificado |
+| HU7 Alerta cierres | M13a | 10.3 | int | Implementado (FASE 10, 2026-09-24) |
+| HU8 Firma fuera de término | M13a | 10.1 | db + int | Implementado (FASE 10, 2026-09-24, DP-18c) |
+| HU9 Reporte cumplimiento | M13a | 10.4 | int | Implementado (FASE 10, 2026-09-24) |
 
 Cobertura de entidades (responsable / CRUD / permisos / auditoría / UI / tests): todas las tablas de §10 tienen módulo dueño en §9 y punto en §16. Entidades sin UI propia (a propósito): `contador_correlativo`, `sesion`, `rol_permiso` (según DP-03), `detalle_asiento` (se ve dentro del asiento).
 
@@ -863,13 +863,13 @@ Cobertura de entidades (responsable / CRUD / permisos / auditoría / UI / tests)
 - **DP-16b** Preparación confirmada y luego descartada: ¿se anula también el asiento o solo se ajusta el stock? · M11/M12.
 - **DP-16c RESUELTA**: jornada firmada ⇒ el asiento original NO se toca; se hace un **asiento rectificativo nuevo** en la jornada en curso. Jornada abierta ⇒ el original pasa a ANULADO. Ver spec §1.
 - **DP-17 RESUELTA**: los asientos históricos son solo control, con el formato y la numeración del libro físico, en una tabla aparte. No entran en correlativo, hash ni cierres. Ver spec §2.
-- **DP-18** Plazo de firma "en término" (¿misma jornada hasta 23:59? ¿siguiente día hábil?). · INV-C18.
+- **DP-18 RESUELTA (2026-09-24, FASE 10 punto 10.1)**: "en término" = firmar dentro de `plazo_firma_dias` días corridos desde la fecha de la jornada -- nuevo parámetro por tenant (`fsj.parametro`, clave `plazo_firma_dias`, entero ≥ 0, default 0 -- 0 reproduce la regla anterior de "solo la misma jornada"), editable por ADM en `/admin/parametros`. Migración 0038: `CREATE OR REPLACE fsj.cierre_diario_calcular_fuera_de_termino` lee el parámetro (COALESCE a 0 si falta). Ver spec §5.
 - **DP-18b RESUELTA**: el DT puede firmar la jornada en curso (cierra el negocio y firma el día completo). Desde la firma, INV-C03 rechaza todo registro con fecha de hoy. La UI de firma debe advertirlo y mostrar las preparaciones INICIADAS. Firmar una fecha futura se rechaza (INV-C21).
-- **DP-18c** Valores del enum `motivoDemora` ("una opción"). · M13.
-- **DP-18d** Jornadas sin asientos: ¿requieren cierre (en cero) para cumplir INV-C19, o se saltean? · M13.
-- **DP-19** ¿Se requiere `DIGITAL_CERTIFICADA` y sello de tiempo de tercero (TSA)? `selloTiempo` = hora del servidor por ahora. · M13.
+- **DP-18c RESUELTA (2026-09-24, FASE 10 punto 10.1)**: enum `fsj.motivo_demora` = `AUSENCIA_DT`, `FALLA_SISTEMA`, `FARMACIA_CERRADA`, `OTRO` (migración 0039; `OTRO` exige `motivo_demora_detalle` no vacío, CHECK en BD). Datos preexistentes que no matcheaban una etiqueta real pasan a `OTRO`, preservando el texto original en `motivo_demora_detalle` cuando estaba vacío.
+- **DP-18d RESUELTA (2026-09-24, FASE 10 punto 10.1)**: una jornada sin ningún asiento (recetario ni contralor) NO requiere firma y no aparece en el listado/alerta de pendientes; firmarla igual (en cero) sigue siendo posible, solo que nunca se exige. Ver spec §5.
+- **DP-19 RESUELTA (2026-09-24)**: no se implementa `DIGITAL_CERTIFICADA` ni sello de tiempo de tercero (TSA) en este alcance. `mecanismo_firma` queda en `CREDENCIALES_DT` y `sello_tiempo`/`fecha_firma` son la hora del servidor (`now()`, INV-C20). El enum/columna quedan preparados para una futura integración TSA sin migrar de nuevo.
 - **DP-20** Política de sesión y contraseñas: timeout inactividad/absoluto, intentos antes de bloqueo, complejidad, ventana de re-autenticación (propuesta: 30 min / 12 h / 5 intentos / 12 caracteres / reauth en el acto). Re-autenticación con PIN de 6 dígitos (clave rápida) además de contraseña; nunca válido para login ni co-firma DT. · M02.
-- **DP-21** Formato del comprobante de cierre: ¿cuántos asientos por foja? ¿Se imprime en hoja A4 adherida o directo sobre el libro? Define el cálculo de folios. · BLOQUEA 10.2.
+- **DP-21 RESUELTA (2026-09-24, FASE 10 punto 10.2)**: comprobante en hoja A4 (`shared/pdf/pdf-document.ts`, `modules/cierres/infrastructure/cierre-pdf.ts`), no ligado al cálculo de folios (M13b sigue diferido, DP-38). Contenido: datos de la farmacia, fecha de la jornada, DT (nombre + matrícula), listado de asientos recetario (Nº, paciente, médico, fórmula, estado visual) y de contralor (Nº, libro, droga, movimiento, cantidad, saldo) de esa jornada, `cantidad_asientos`, `hash_lote`, `sello_tiempo`/`fecha_firma`, fuera de término + motivo, y un área en blanco para "Firma y sello del Director Técnico". Ruta `app/api/cierres/[id]/pdf`, permiso `cierres.imprimir`; la primera impresión fija `fecha_impresion`/`impreso_por_id`; toda impresión se audita (`TipoAccion.IMPRIMIR_CIERRE`).
 - **DP-21b RESUELTA**: **NO existen ajustes positivos**. Todo `AJUSTE` descuenta saldo. Un sobrante se registra como partida nueva. [BD] check: los movimientos siempre restan salvo `INGRESO_COMPRA`.
 - **DP-22** Umbral de folios para alerta. · M13.
 - **DP-23** Unicidad de matrícula de médico (¿provincial/nacional? ¿matrícula + jurisdicción?). · M06.
@@ -918,7 +918,7 @@ Cobertura de entidades (responsable / CRUD / permisos / auditoría / UI / tests)
 **Antes de FASE 2–3:** DP-02, DP-03, DP-05, DP-20.
 **Antes de FASE 4–5:** DP-06, DP-06b, DP-07, DP-08, DP-08b, DP-09, DP-10, DP-11, DP-12, DP-23, DP-24.
 **Antes de FASE 7–8:** DP-06c, DP-16b, DP-28.
-**Antes de FASE 10–15:** DP-18, DP-18b, DP-18c, DP-18d, DP-19, DP-21, DP-22, DP-26, DP-29, DP-34, DP-35.
+**Antes de FASE 10–15:** DP-22, DP-26, DP-29, DP-34, DP-35 (DP-18/18b/18c/18d/19/21 resueltas, FASE 10, 2026-09-24).
 
 La FASE 0 y los puntos 1.1–1.8 pueden empezar apenas se confirmen DP-01, DP-04, DP-21b, DP-39, DP-40, DP-41. M13b (libro rubricado) espera a DP-38.
 

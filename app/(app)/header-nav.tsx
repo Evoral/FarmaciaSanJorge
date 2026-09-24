@@ -34,12 +34,14 @@ export interface HeaderNavProps {
   puedePreparaciones: boolean;
   /** M12, FASE 9: `libro.ver` (FAR/DT/SOLO_CONSULTA) -- `true` shows a "Libro" link to `/libro`. */
   puedeLibro: boolean;
+  /** M13a, FASE 10: `cierres.ver` (DT/FAR/SOLO_CONSULTA) -- `true` shows a "Cierres" link to `/cierres`. */
+  puedeCierres: boolean;
 }
 
-export function HeaderNav({ puedeAuditoria, catalogosHref, puedeStock, puedeRecetas, puedePreparaciones, puedeLibro }: HeaderNavProps) {
+export function HeaderNav({ puedeAuditoria, catalogosHref, puedeStock, puedeRecetas, puedePreparaciones, puedeLibro, puedeCierres }: HeaderNavProps) {
   const pathname = usePathname();
 
-  if (!puedeAuditoria && !catalogosHref && !puedeStock && !puedeRecetas && !puedePreparaciones && !puedeLibro) return null;
+  if (!puedeAuditoria && !catalogosHref && !puedeStock && !puedeRecetas && !puedePreparaciones && !puedeLibro && !puedeCierres) return null;
 
   const auditoriaActiva = pathname === "/auditoria" || pathname.startsWith("/auditoria/");
   const catalogosActivos = pathname.startsWith("/catalogos");
@@ -47,6 +49,7 @@ export function HeaderNav({ puedeAuditoria, catalogosHref, puedeStock, puedeRece
   const recetasActivo = pathname.startsWith("/recetas");
   const preparacionesActivo = pathname.startsWith("/preparaciones");
   const libroActivo = pathname.startsWith("/libro");
+  const cierresActivo = pathname.startsWith("/cierres");
 
   return (
     <nav aria-label="Navegación principal" className="flex items-center gap-4">
@@ -93,6 +96,15 @@ export function HeaderNav({ puedeAuditoria, catalogosHref, puedeStock, puedeRece
           className={libroActivo ? "text-sm font-medium underline" : "text-sm text-zinc-600 hover:underline dark:text-zinc-400"}
         >
           Libro
+        </Link>
+      ) : null}
+      {puedeCierres ? (
+        <Link
+          href="/cierres"
+          aria-current={cierresActivo ? "page" : undefined}
+          className={cierresActivo ? "text-sm font-medium underline" : "text-sm text-zinc-600 hover:underline dark:text-zinc-400"}
+        >
+          Cierres
         </Link>
       ) : null}
       {puedeAuditoria ? (
