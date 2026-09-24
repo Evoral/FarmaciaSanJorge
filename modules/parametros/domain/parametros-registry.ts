@@ -33,6 +33,7 @@ export const PARAMETRO_CLAVES = [
   "exceso_pesada_porcentaje",
   "dias_alerta_vencimiento_partida",
   "plazo_firma_dias",
+  "plazo_regularizacion_dias",
 ] as const;
 
 export type ParametroClave = (typeof PARAMETRO_CLAVES)[number];
@@ -117,6 +118,21 @@ function validarPlazoFirmaDias(valorRaw: string): ValidacionParametro {
   return { ok: true, valor };
 }
 
+/**
+ * `plazo_regularizacion_dias` (DP-15 RESUELTA, FASE 11 punto 11.3): an
+ * integer >= 0 -- days of grace, from the oldest asiento of a receta
+ * without receta física recibida, within which it is not yet shown as
+ * "vencida" in /regularizacion (INV-R10).
+ */
+function validarPlazoRegularizacionDias(valorRaw: string): ValidacionParametro {
+  const valor = parseDecimalOrNull(valorRaw);
+  if (!valor) return { ok: false, error: "Debe ser un número válido." };
+  if (!valor.isInteger() || valor.lessThan(0)) {
+    return { ok: false, error: "Debe ser un número entero mayor o igual que cero." };
+  }
+  return { ok: true, valor };
+}
+
 export interface ParametroDefinicion {
   clave: ParametroClave;
   tipo: "NUMERO";
@@ -168,5 +184,16 @@ export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = 
       "jornada se considera en término. Debe ser un entero mayor o igual que cero.",
     valorPorDefecto: "0",
     validar: validarPlazoFirmaDias,
+  },
+  plazo_regularizacion_dias: {
+    clave: "plazo_regularizacion_dias",
+    tipo: "NUMERO",
+    label: "Plazo de regularización de receta física",
+    descripcion:
+      "Cantidad de días corridos, contados desde el asiento más antiguo de la receta, dentro de los cuales una " +
+      "receta sin receta física recibida todavía no se muestra como \"vencida\" en /regularizacion (DP-15, FASE 11 " +
+      "punto 11.3, INV-R10). Debe ser un entero mayor o igual que cero.",
+    valorPorDefecto: "7",
+    validar: validarPlazoRegularizacionDias,
   },
 };

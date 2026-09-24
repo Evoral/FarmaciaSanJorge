@@ -162,6 +162,13 @@ describe.skipIf(dbTestSkipReason() !== null)("0016_entrega_archivo migration (fs
         );
 
         await avanzarHastaListaParaRetirar(tx, tenantId, recetaId, sistema);
+        // migration 0040's INV-ENT-002 now requires a matching entrega row
+        // before estado can become ENTREGADA -- insert one (RETIRO_PRESENCIAL)
+        // first, same as the "entregaOk" test above.
+        await tx.query(
+          `INSERT INTO fsj.entrega (tenant_id, receta_id, modalidad, entregada_por_id) VALUES ($1, $2, 'RETIRO_PRESENCIAL', $3)`,
+          [tenantId, recetaId, sistema],
+        );
         await tx.query(`UPDATE fsj.receta SET estado = 'ENTREGADA' WHERE tenant_id = $1 AND id = $2`, [tenantId, recetaId]);
 
         await tx.query(`UPDATE fsj.receta SET lote_archivo_id = $1 WHERE id = $2`, [loteId, recetaId]);

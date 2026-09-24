@@ -802,7 +802,7 @@ Un punto está TERMINADO solo si:
 | INV-S16, S17 | M07 | 1.8 | db | Planificado |
 | INV-S21 | M07, M11 | 5.4, 8.3 | int: insuficiente ⇒ rollback | Planificado |
 | INV-R01–R06 | M09, M10 | 1.9, 1.10, 7.* | db + int "sin efectos" | Bloqueado parcial (DP-06c, DP-09) |
-| INV-R07–R10 | M09, M14 | 1.9, 6.4, 11.* | db + int | Planificado |
+| INV-R07–R10 | M09, M14 | 1.9, 6.4, 11.* | db + int | Implementado (FASE 11, 2026-09-24) |
 | INV-D01–D05 | M15 | 1.14, 12.* | db + int | Planificado (plazos DP-26) |
 | INV-P01–P06 | M11 | 1.11, 1.12, 8.* | db + fallo por paso | Planificado |
 | INV-L01–L09 | M12 | 1.12, 9.* | db por invariante + cadena | Planificado (DP-31, DP-32) |
@@ -858,7 +858,7 @@ Cobertura de entidades (responsable / CRUD / permisos / auditoría / UI / tests)
 - **DP-12** ¿Puede cambiar `esControlada`/`tipoControl`/unidad base de una droga con partidas? · M06.
 - **DP-13** Quién corrige costo de partida y si afecta algo más que reportes. · M07.
 - **DP-14** Días de anticipación para alertar vencimiento de partidas. · M07.
-- **DP-15** Plazo de regularización de receta física (INV-R10). · M14.
+- **DP-15 RESUELTA** (2026-09-24): parámetro por tenant `plazo_regularizacion_dias` (entero ≥ 0, default 7; migración 0040 + `scripts/create-tenant.ts` + `modules/parametros/domain/parametros-registry.ts`) -- una receta se marca "vencida" en `/regularizacion` cuando la antigüedad de su asiento más antiguo supera ese plazo.
 - **DP-16 RESUELTA** → `docs/specs/libro-recetario-y-contralor.md` §1. Se puede dejar sin efecto, nunca deshacer: el egreso de stock se mantiene, el preparado se descarta, con controlada se segrega.
 - **DP-16b** Preparación confirmada y luego descartada: ¿se anula también el asiento o solo se ajusta el stock? · M11/M12.
 - **DP-16c RESUELTA**: jornada firmada ⇒ el asiento original NO se toca; se hace un **asiento rectificativo nuevo** en la jornada en curso. Jornada abierta ⇒ el original pasa a ANULADO. Ver spec §1.
@@ -883,7 +883,7 @@ Cobertura de entidades (responsable / CRUD / permisos / auditoría / UI / tests)
 - **DP-31 CONFIRMADA**: correlativo con contador transaccional (FOR UPDATE), no SEQUENCE.
 - **DP-32 CONFIRMADA**: hash calculado en la base (trigger + pgcrypto), encadenado por libro.
 - **DP-33 RESUELTA** → spec §4: contralor activable por tenant (`fechaActivacionContralor`), registra APERTURA/INGRESO/EGRESO/AJUSTE con saldos, INV-L08 e INV-L11 a INV-L17.
-- **DP-34** Valores de `ModalidadEntrega` y qué es la "firma recibida" (¿firma del paciente en papel?). · M14.
+- **DP-34 RESUELTA** (2026-09-24): `ModalidadEntrega` = `RETIRO_PRESENCIAL`/`ENVIO` (ya seedeadas por migración 0016). "Firma recibida" = la constancia firmada por el paciente que el repartidor trae de vuelta JUNTO con la receta física original; `entregas.firma.confirmar` (`modules/entregas/application/confirmar-firma-recibida.ts`) registra ambas cosas y pasa la receta a ENTREGADA en una sola transacción atómica. Mientras la receta está ENVIADA_PEND_FIRMA, el 6.4 aislado (`registrarRecepcionFisica`) se rechaza (app-level, más INV-ENT-003 [BD] de refuerzo); INV-ENT-002 [BD] exige una fila `entrega` antes de permitir ENTREGADA (migración 0040).
 - **DP-35** Hosting/despliegue (servidor local en la farmacia vs nube), backups y disponibilidad sin internet. · FASE 14.
 - **DP-37** **Operador de plataforma**: ¿quién da de alta tenants y su primer ADM? ¿Existe una consola de plataforma o se hace por CLI/soporte? ¿El operador puede ver algo de un tenant (no, recomendado)? · M00, 3.12.
 - **DP-38** **Libro rubricado** (consultar con la Asociación de Farmacias): ¿el comprobante del cierre se imprime y adhiere al libro o se asienta a mano? ¿Cuántos asientos por foja? ¿Los libros de contralor tienen su propio libro rubricado? ¿Qué se hace con fojas dañadas, ya que no se registran fojas inutilizadas? ¿Hace falta registrar folios en el sistema? · BLOQUEA M13b / 10.B.
@@ -918,7 +918,7 @@ Cobertura de entidades (responsable / CRUD / permisos / auditoría / UI / tests)
 **Antes de FASE 2–3:** DP-02, DP-03, DP-05, DP-20.
 **Antes de FASE 4–5:** DP-06, DP-06b, DP-07, DP-08, DP-08b, DP-09, DP-10, DP-11, DP-12, DP-23, DP-24.
 **Antes de FASE 7–8:** DP-06c, DP-16b, DP-28.
-**Antes de FASE 10–15:** DP-22, DP-26, DP-29, DP-34, DP-35 (DP-18/18b/18c/18d/19/21 resueltas, FASE 10, 2026-09-24).
+**Antes de FASE 10–15:** DP-22, DP-26, DP-29, DP-35 (DP-18/18b/18c/18d/19/21 resueltas, FASE 10, 2026-09-24; DP-15/DP-34 resueltas, FASE 11, 2026-09-24).
 
 La FASE 0 y los puntos 1.1–1.8 pueden empezar apenas se confirmen DP-01, DP-04, DP-21b, DP-39, DP-40, DP-41. M13b (libro rubricado) espera a DP-38.
 

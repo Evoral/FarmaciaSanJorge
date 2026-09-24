@@ -175,9 +175,10 @@ async function main(): Promise<void> {
     // vencimiento-alert window (M07, FASE 5 point 5.7, DP-14) + the cierre
     // diario firma-plazo (M13a, FASE 10 point 10.1, DP-18 RESUELTA). Also
     // backfilled for pre-existing tenants by migration 0012 (the first two)
-    // and migration 0038 (plazo_firma_dias) -- kept here so every path (a
-    // brand-new tenant via this script, and a tenant that already existed
-    // when those migrations ran) ends up with the same rows.
+    // and migration 0038 (plazo_firma_dias) and migration 0040
+    // (plazo_regularizacion_dias) -- kept here so every path (a brand-new
+    // tenant via this script, and a tenant that already existed when those
+    // migrations ran) ends up with the same rows.
     // `dias_alerta_vencimiento_partida` needs no migration/backfill:
     // modules/stock/infrastructure/partida-repository.ts#getDiasAlertaVencimiento
     // falls back to the same default (30) for any tenant without this row.
@@ -187,7 +188,8 @@ async function main(): Promise<void> {
          ($1, 'precision_balanza', 'NUMERO', '0.001', 'Precision de la balanza para redondeo de linea_pesaje (GRAMO) -- docs/specs/ficha-tecnica.md R8'),
          ($1, 'exceso_pesada_porcentaje', 'NUMERO', '0', 'Porcentaje de exceso de pesada aplicado a lineas no manuales -- docs/specs/ficha-tecnica.md R7'),
          ($1, 'dias_alerta_vencimiento_partida', 'NUMERO', '30', 'Dias de anticipacion para la alerta de partidas por vencer -- DP-14, FASE 5 punto 5.7'),
-         ($1, 'plazo_firma_dias', 'NUMERO', '0', 'Plazo en dias corridos para firmar el cierre diario en termino -- DP-18, FASE 10 punto 10.1')
+         ($1, 'plazo_firma_dias', 'NUMERO', '0', 'Plazo en dias corridos para firmar el cierre diario en termino -- DP-18, FASE 10 punto 10.1'),
+         ($1, 'plazo_regularizacion_dias', 'NUMERO', '7', 'Plazo en dias corridos, desde el asiento mas antiguo sin receta fisica recibida, para considerar vencida una receta en /regularizacion -- DP-15, FASE 11 punto 11.3')
        ON CONFLICT (tenant_id, clave) DO NOTHING`,
       [tenantId],
     );

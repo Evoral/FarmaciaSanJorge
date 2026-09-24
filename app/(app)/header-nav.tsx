@@ -36,12 +36,14 @@ export interface HeaderNavProps {
   puedeLibro: boolean;
   /** M13a, FASE 10: `cierres.ver` (DT/FAR/SOLO_CONSULTA) -- `true` shows a "Cierres" link to `/cierres`. */
   puedeCierres: boolean;
+  /** M14, FASE 11: the FIRST section this session can reach for the "Entregas" entry -- `/entregas` (entregas.registrar) or `/regularizacion` (regularizacion.ver only), or `null` if neither. Same priority-order reasoning as `catalogosHref` (app/(app)/layout.tsx's doc comment). */
+  entregasHref: string | null;
 }
 
-export function HeaderNav({ puedeAuditoria, catalogosHref, puedeStock, puedeRecetas, puedePreparaciones, puedeLibro, puedeCierres }: HeaderNavProps) {
+export function HeaderNav({ puedeAuditoria, catalogosHref, puedeStock, puedeRecetas, puedePreparaciones, puedeLibro, puedeCierres, entregasHref }: HeaderNavProps) {
   const pathname = usePathname();
 
-  if (!puedeAuditoria && !catalogosHref && !puedeStock && !puedeRecetas && !puedePreparaciones && !puedeLibro && !puedeCierres) return null;
+  if (!puedeAuditoria && !catalogosHref && !puedeStock && !puedeRecetas && !puedePreparaciones && !puedeLibro && !puedeCierres && !entregasHref) return null;
 
   const auditoriaActiva = pathname === "/auditoria" || pathname.startsWith("/auditoria/");
   const catalogosActivos = pathname.startsWith("/catalogos");
@@ -50,6 +52,7 @@ export function HeaderNav({ puedeAuditoria, catalogosHref, puedeStock, puedeRece
   const preparacionesActivo = pathname.startsWith("/preparaciones");
   const libroActivo = pathname.startsWith("/libro");
   const cierresActivo = pathname.startsWith("/cierres");
+  const entregasActivo = pathname.startsWith("/entregas") || pathname.startsWith("/regularizacion");
 
   return (
     <nav aria-label="Navegación principal" className="flex items-center gap-4">
@@ -105,6 +108,15 @@ export function HeaderNav({ puedeAuditoria, catalogosHref, puedeStock, puedeRece
           className={cierresActivo ? "text-sm font-medium underline" : "text-sm text-zinc-600 hover:underline dark:text-zinc-400"}
         >
           Cierres
+        </Link>
+      ) : null}
+      {entregasHref ? (
+        <Link
+          href={entregasHref}
+          aria-current={entregasActivo ? "page" : undefined}
+          className={entregasActivo ? "text-sm font-medium underline" : "text-sm text-zinc-600 hover:underline dark:text-zinc-400"}
+        >
+          Entregas
         </Link>
       ) : null}
       {puedeAuditoria ? (
