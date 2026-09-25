@@ -25,9 +25,9 @@
  *
  * Usage:
  *   npx tsx scripts/create-tenant.ts \
- *     --tenant-razon-social="Farmacia San Jose S.R.L." \
+ *     --tenant-razon-social="Farmacia San Jorge S.R.L." \
  *     --tenant-cuit="30-12345678-9" \
- *     --tenant-nombre-fantasia="Farmacia San Jose" \
+ *     --tenant-nombre-fantasia="Farmacia San Jorge" \
  *     --tenant-domicilio="..." \
  *     --tenant-matricula-farmacia="..." \
  *     --tenant-zona-horaria="America/Argentina/Mendoza" \

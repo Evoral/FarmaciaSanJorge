@@ -27,13 +27,13 @@ export default async function EditarRecetaPage({ params }: EditarRecetaPageProps
   const unidades = await listUnidadesParaReceta();
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-2">
         <Link href={`/recetas/${id}`} className="text-sm underline">
           ← Volver al detalle
         </Link>
       </div>
-      <h1 className="mb-6 text-xl font-semibold">Editar receta Nº {receta.numeroInterno}</h1>
+      <h1 className="mb-6 text-2xl font-semibold">Editar receta Nº {receta.numeroInterno}</h1>
       <RecetaForm
         mode="editar"
         unidades={unidades}

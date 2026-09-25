@@ -35,17 +35,17 @@ export default async function StockPage({ searchParams }: StockPageProps) {
   }
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Stock</h1>
+        <h1 className="text-2xl font-semibold">Stock</h1>
         <div className="flex gap-2">
           {puedeAjustar ? (
-            <Link href="/stock/ajustes/nuevo" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+            <Link href="/stock/ajustes/nuevo" className="btn btn-secondary">
               Registrar ajuste
             </Link>
           ) : null}
           {puedeIngresar ? (
-            <Link href="/stock/ingresar" className="rounded bg-zinc-900 px-3 py-2 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900">
+            <Link href="/stock/ingresar" className="btn btn-primary">
               Ingresar partida
             </Link>
           ) : null}
@@ -82,13 +82,13 @@ export default async function StockPage({ searchParams }: StockPageProps) {
           <label htmlFor="q" className="text-sm font-medium">
             Buscar droga
           </label>
-          <input id="q" name="q" type="search" defaultValue={params.q ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="q" name="q" type="search" defaultValue={params.q ?? ""} className="input" />
         </div>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="bajoMinimo" value="1" defaultChecked={soloBajoMinimo} />
           Solo bajo mínimo
         </label>
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
       </form>
@@ -97,9 +97,9 @@ export default async function StockPage({ searchParams }: StockPageProps) {
         {stock.total} droga{stock.total === 1 ? "" : "s"} encontrada{stock.total === 1 ? "" : "s"}.
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Droga</th>
               <th scope="col" className="px-3 py-2 font-medium">Stock disponible</th>
@@ -118,7 +118,7 @@ export default async function StockPage({ searchParams }: StockPageProps) {
               stock.items.map((item) => {
                 const bajoMinimo = Number(item.stockDisponible) < Number(item.stockMinimo);
                 return (
-                  <tr key={item.drogaId} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                  <tr key={item.drogaId}>
                     <td className="px-3 py-2">
                       <Link href={`/stock/partidas?drogaId=${item.drogaId}`} className="font-medium underline-offset-2 hover:underline">
                         {item.drogaNombre}

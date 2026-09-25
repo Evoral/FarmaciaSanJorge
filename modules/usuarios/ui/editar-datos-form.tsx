@@ -30,28 +30,28 @@ export function EditarDatosForm({ usuario, disabled }: EditarDatosFormProps) {
         <label htmlFor="edit-nombre" className="text-sm font-medium">
           Nombre
         </label>
-        <input id="edit-nombre" name="nombre" defaultValue={usuario.nombre} required disabled={disabled} className="rounded border border-zinc-300 px-3 py-2 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900" />
+        <input id="edit-nombre" name="nombre" defaultValue={usuario.nombre} required disabled={disabled} className="input" />
       </div>
 
       <div className="flex flex-col gap-1">
         <label htmlFor="edit-apellido" className="text-sm font-medium">
           Apellido
         </label>
-        <input id="edit-apellido" name="apellido" defaultValue={usuario.apellido} required disabled={disabled} className="rounded border border-zinc-300 px-3 py-2 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900" />
+        <input id="edit-apellido" name="apellido" defaultValue={usuario.apellido} required disabled={disabled} className="input" />
       </div>
 
       <div className="flex flex-col gap-1">
         <label htmlFor="edit-email" className="text-sm font-medium">
           Email
         </label>
-        <input id="edit-email" name="email" type="email" defaultValue={usuario.email} required disabled={disabled} className="rounded border border-zinc-300 px-3 py-2 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900" />
+        <input id="edit-email" name="email" type="email" defaultValue={usuario.email} required disabled={disabled} className="input" />
       </div>
 
       <div className="flex flex-col gap-1">
         <label htmlFor="edit-dni" className="text-sm font-medium">
           DNI
         </label>
-        <input id="edit-dni" name="dni" defaultValue={usuario.dni} required disabled={disabled} className="rounded border border-zinc-300 px-3 py-2 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900" />
+        <input id="edit-dni" name="dni" defaultValue={usuario.dni} required disabled={disabled} className="input" />
       </div>
 
       <div className="flex flex-col gap-1">
@@ -63,7 +63,7 @@ export function EditarDatosForm({ usuario, disabled }: EditarDatosFormProps) {
           name="numeroMatricula"
           defaultValue={usuario.numeroMatricula ?? ""}
           disabled={disabled}
-          className="rounded border border-zinc-300 px-3 py-2 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
       </div>
     </ReauthAwareForm>

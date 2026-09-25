@@ -12,9 +12,9 @@ export default async function RegularizacionPage() {
   const result = await listRegularizacion({ soloVencidas: false, page: 1, pageSize: PAGE_SIZE });
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Regularización</h1>
+        <h1 className="text-2xl font-semibold">Regularización</h1>
         {can(session, "entregas.registrar") ? (
           <Link href="/entregas" className="text-sm underline">
             Ver entregas

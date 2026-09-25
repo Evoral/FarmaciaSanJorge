@@ -92,7 +92,7 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
 
   return (
     <div>
-      <h1 className="mb-6 text-xl font-semibold">Auditoría</h1>
+      <h1 className="mb-6 text-2xl font-semibold">Auditoría</h1>
 
       <form method="get" className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de auditoría">
         <div className="flex flex-col gap-1">
@@ -105,7 +105,7 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
             type="text"
             defaultValue={params.entidad ?? ""}
             placeholder="usuario, receta, ..."
-            className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 
@@ -119,7 +119,7 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
             type="text"
             defaultValue={params.entidadId ?? ""}
             placeholder="UUID"
-            className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 
@@ -131,7 +131,7 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
             id="usuarioId"
             name="usuarioId"
             defaultValue={usuarioId ?? ""}
-            className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           >
             <option value="">Todos</option>
             {usuariosFiltro.map((usuario) => (
@@ -150,7 +150,7 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
             id="accion"
             name="accion"
             defaultValue={accion ?? ""}
-            className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           >
             <option value="">Todas</option>
             {ACCION_VALUES.map((codigo) => (
@@ -170,7 +170,7 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
             name="desde"
             type="date"
             defaultValue={params.desde ?? ""}
-            className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 
@@ -183,11 +183,11 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
             name="hasta"
             type="date"
             defaultValue={params.hasta ?? ""}
-            className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
         {hasFilters ? (
@@ -197,9 +197,9 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
         ) : null}
       </form>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">
                 Fecha
@@ -250,7 +250,7 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
 
       {result.nextCursor ? (
         <div className="mt-4">
-          <Link href={loadMoreHref(result.nextCursor)} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+          <Link href={loadMoreHref(result.nextCursor)} className="btn btn-secondary">
             Cargar más
           </Link>
         </div>

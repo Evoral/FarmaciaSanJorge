@@ -50,7 +50,7 @@ export default async function EntregaDetallePage({ params }: EntregaDetallePageP
   const mostrarConfirmarFirma = puedeAccionConfirmarFirma && puedeConfirmarFirmaRecibida(receta.estado);
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-2">
         <Link href="/entregas" className="text-sm underline">
           ← Volver al listado
@@ -58,7 +58,7 @@ export default async function EntregaDetallePage({ params }: EntregaDetallePageP
       </div>
 
       <div className="mb-6">
-        <h1 className="text-xl font-semibold">Entrega — Receta Nº {receta.numeroInterno}</h1>
+        <h1 className="text-2xl font-semibold">Entrega — Receta Nº {receta.numeroInterno}</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           {receta.pacienteApellido}, {receta.pacienteNombre} — Dr./Dra. {receta.medicoApellido}, {receta.medicoNombre}
         </p>

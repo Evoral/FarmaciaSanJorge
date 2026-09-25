@@ -54,7 +54,7 @@ export default async function UsuarioDetallePage({ params, searchParams }: Usuar
 
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">
+          <h1 className="text-2xl font-semibold">
             {usuario.apellido}, {usuario.nombre}
           </h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -137,9 +137,9 @@ async function HistorialAuditoria({ usuarioId }: { usuarioId: string }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-      <table className="w-full text-left text-sm">
-        <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="table-wrap">
+      <table className="data-table">
+        <thead>
           <tr>
             <th scope="col" className="px-3 py-2 font-medium">Fecha</th>
             <th scope="col" className="px-3 py-2 font-medium">Acción</th>

@@ -42,11 +42,11 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Unidades de medida</h1>
+          <h1 className="text-2xl font-semibold">Unidades de medida</h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">Catálogo global: compartido por todas las farmacias.</p>
         </div>
         {puedeCrear ? (
-          <Link href="/admin/unidades?nueva=1" className="rounded bg-zinc-900 px-3 py-2 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900">
+          <Link href="/admin/unidades?nueva=1" className="btn btn-primary">
             Nueva unidad
           </Link>
         ) : null}
@@ -63,13 +63,13 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
           <label htmlFor="q" className="text-sm font-medium">
             Buscar
           </label>
-          <input id="q" name="q" type="search" defaultValue={params.q ?? ""} placeholder="Código, nombre o símbolo" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="q" name="q" type="search" defaultValue={params.q ?? ""} placeholder="Código, nombre o símbolo" className="input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="magnitud" className="text-sm font-medium">
             Magnitud
           </label>
-          <select id="magnitud" name="magnitud" defaultValue={tipoMagnitud ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <select id="magnitud" name="magnitud" defaultValue={tipoMagnitud ?? ""} className="input">
             <option value="">Todas</option>
             {TIPOS_MAGNITUD.map((tipo) => (
               <option key={tipo} value={tipo}>
@@ -82,13 +82,13 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
           <label htmlFor="estado" className="text-sm font-medium">
             Estado
           </label>
-          <select id="estado" name="estado" defaultValue={params.estado ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <select id="estado" name="estado" defaultValue={params.estado ?? ""} className="input">
             <option value="">Todas</option>
             <option value="vigente">Vigentes</option>
             <option value="baja">Dadas de baja</option>
           </select>
         </div>
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
         {params.q || tipoMagnitud || params.estado ? (
@@ -102,9 +102,9 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
         {result.total} unidad{result.total === 1 ? "" : "es"} encontrada{result.total === 1 ? "" : "s"}.
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Código</th>
               <th scope="col" className="px-3 py-2 font-medium">Nombre</th>
@@ -124,7 +124,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
               </tr>
             ) : (
               result.items.map((unidad) => (
-                <tr key={unidad.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={unidad.id}>
                   <td className="px-3 py-2">
                     <Link href={`/admin/unidades/${unidad.id}`} className="font-medium underline-offset-2 hover:underline">
                       {unidad.codigo}

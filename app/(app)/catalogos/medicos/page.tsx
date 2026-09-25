@@ -33,9 +33,9 @@ export default async function MedicosPage({ searchParams }: MedicosPageProps) {
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Médicos</h1>
+        <h1 className="text-2xl font-semibold">Médicos</h1>
         {puedeCrear ? (
-          <Link href="/catalogos/medicos?nuevo=1" className="rounded bg-zinc-900 px-3 py-2 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900">
+          <Link href="/catalogos/medicos?nuevo=1" className="btn btn-primary">
             Nuevo médico
           </Link>
         ) : null}
@@ -52,19 +52,19 @@ export default async function MedicosPage({ searchParams }: MedicosPageProps) {
           <label htmlFor="q" className="text-sm font-medium">
             Buscar
           </label>
-          <input id="q" name="q" type="search" defaultValue={params.q ?? ""} placeholder="Apellido o matrícula" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="q" name="q" type="search" defaultValue={params.q ?? ""} placeholder="Apellido o matrícula" className="input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="estado" className="text-sm font-medium">
             Estado
           </label>
-          <select id="estado" name="estado" defaultValue={params.estado ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <select id="estado" name="estado" defaultValue={params.estado ?? ""} className="input">
             <option value="">Todos</option>
             <option value="vigente">Vigentes</option>
             <option value="baja">Dados de baja</option>
           </select>
         </div>
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
         {params.q || params.estado ? (
@@ -78,9 +78,9 @@ export default async function MedicosPage({ searchParams }: MedicosPageProps) {
         {result.total} médico{result.total === 1 ? "" : "s"} encontrado{result.total === 1 ? "" : "s"}.
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Apellido y nombre</th>
               <th scope="col" className="px-3 py-2 font-medium">Matrícula</th>
@@ -97,7 +97,7 @@ export default async function MedicosPage({ searchParams }: MedicosPageProps) {
               </tr>
             ) : (
               result.items.map((medico) => (
-                <tr key={medico.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={medico.id}>
                   <td className="px-3 py-2">
                     <Link href={`/catalogos/medicos/${medico.id}`} className="font-medium underline-offset-2 hover:underline">
                       {medico.apellido}, {medico.nombre}

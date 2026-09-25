@@ -13,7 +13,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="w-full rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+      className="w-full btn btn-primary"
     >
       {pending ? "Activando…" : "Activar cuenta"}
     </button>
@@ -31,8 +31,8 @@ export default function ActivarPage() {
   }, [state.message]);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-4">
-      <h1 className="mb-2 text-xl font-semibold">Activar cuenta</h1>
+    <main>
+      <h1 className="mb-2 text-2xl font-semibold">Activar cuenta</h1>
       <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">
         Ingresá el email y el código que te dio el administrador, y elegí tu contraseña. El código vence a las
         72 horas de haber sido emitido.
@@ -58,7 +58,7 @@ export default function ActivarPage() {
               required
               autoComplete="username"
               autoFocus
-              className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+              className="input"
             />
           </div>
 
@@ -72,7 +72,7 @@ export default function ActivarPage() {
               type="text"
               required
               autoComplete="one-time-code"
-              className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+              className="input"
             />
           </div>
 
@@ -86,7 +86,7 @@ export default function ActivarPage() {
               type="password"
               required
               autoComplete="new-password"
-              className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+              className="input"
             />
           </div>
 
@@ -100,7 +100,7 @@ export default function ActivarPage() {
               type="password"
               required
               autoComplete="new-password"
-              className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+              className="input"
             />
           </div>
 

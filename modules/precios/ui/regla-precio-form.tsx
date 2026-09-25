@@ -10,7 +10,7 @@ export interface ReglaPrecioFormProps {
 
 export function ReglaPrecioForm({ margenActual }: ReglaPrecioFormProps) {
   return (
-    <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
+    <div className="card p-4">
       <h2 className="mb-1 text-base font-semibold">{margenActual === null ? "Configurar margen" : "Nueva versión del margen"}</h2>
       <p className="mb-3 text-xs text-zinc-500">
         Precio final = costo de insumos + el margen aplicado sobre ese costo (margen 150 = costo × 2,5). Sin honorario fijo, sin variación por forma farmacéutica (DP-09). Guardar acá NO modifica la regla
@@ -28,7 +28,7 @@ export function ReglaPrecioForm({ margenActual }: ReglaPrecioFormProps) {
             inputMode="decimal"
             required
             placeholder="Ej: 300"
-            className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
       </SimpleForm>

@@ -19,7 +19,7 @@ export function ProveedorForm({ mode, proveedor, disabled }: ProveedorFormProps)
   const action = mode === "crear" ? crearProveedorAction : editarProveedorAction;
 
   return (
-    <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
+    <div className="card p-4">
       <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear proveedor" : "Guardar cambios"} className="flex max-w-md flex-col gap-3">
         {mode === "editar" && proveedor ? (
           <>
@@ -33,7 +33,7 @@ export function ProveedorForm({ mode, proveedor, disabled }: ProveedorFormProps)
           <label htmlFor="razonSocial" className="text-sm font-medium">
             Razón social
           </label>
-          <input id="razonSocial" name="razonSocial" defaultValue={proveedor?.razonSocial ?? ""} required disabled={disabled} className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="razonSocial" name="razonSocial" defaultValue={proveedor?.razonSocial ?? ""} required disabled={disabled} className="input" />
         </div>
 
         <div className="flex flex-col gap-1">
@@ -47,7 +47,7 @@ export function ProveedorForm({ mode, proveedor, disabled }: ProveedorFormProps)
             required
             disabled={disabled}
             placeholder="20-12345678-6"
-            className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
       </SimpleForm>

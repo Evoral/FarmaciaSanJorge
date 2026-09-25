@@ -4,6 +4,7 @@ import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listRecetas } from "@/modules/recetas/application/list-recetas";
 import { ESTADOS_RECETA } from "@/modules/recetas/domain/receta";
+import { StatusBadge } from "@/shared/ui/status-badge";
 
 const PAGE_SIZE = 20;
 
@@ -40,17 +41,17 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
   }
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Recetas</h1>
+        <h1 className="text-2xl font-semibold">Recetas</h1>
         <div className="flex gap-3">
           {puedeFisica ? (
-            <Link href="/recetas/pendientes-fisica" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+            <Link href="/recetas/pendientes-fisica" className="btn btn-secondary">
               Pendientes de receta física
             </Link>
           ) : null}
           {puedeCrear ? (
-            <Link href="/recetas/nuevo" className="rounded bg-zinc-900 px-3 py-2 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900">
+            <Link href="/recetas/nuevo" className="btn btn-primary">
               Nueva receta
             </Link>
           ) : null}
@@ -62,7 +63,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
           <label htmlFor="estado" className="text-sm font-medium">
             Estado
           </label>
-          <select id="estado" name="estado" defaultValue={estado} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <select id="estado" name="estado" defaultValue={estado} className="input">
             <option value="">Todos</option>
             {ESTADOS_RECETA.map((e) => (
               <option key={e} value={e}>
@@ -75,21 +76,21 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
           <label htmlFor="numero" className="text-sm font-medium">
             Nº interno
           </label>
-          <input id="numero" name="numero" type="text" defaultValue={params.numero ?? ""} className="w-28 rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="numero" name="numero" type="text" defaultValue={params.numero ?? ""} className="w-28 input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="desde" className="text-sm font-medium">
             Desde
           </label>
-          <input id="desde" name="desde" type="date" defaultValue={params.desde ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="desde" name="desde" type="date" defaultValue={params.desde ?? ""} className="input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="hasta" className="text-sm font-medium">
             Hasta
           </label>
-          <input id="hasta" name="hasta" type="date" defaultValue={params.hasta ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="hasta" name="hasta" type="date" defaultValue={params.hasta ?? ""} className="input" />
         </div>
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
         <Link href="/recetas" className="text-sm underline">
@@ -101,9 +102,9 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
         {result.total} receta{result.total === 1 ? "" : "s"} encontrada{result.total === 1 ? "" : "s"}.
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">
                 Nº
@@ -134,7 +135,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
               </tr>
             ) : (
               result.items.map((r) => (
-                <tr key={r.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={r.id}>
                   <td className="px-3 py-2">
                     <Link href={`/recetas/${r.id}`} className="font-medium underline-offset-2 hover:underline">
                       {r.numeroInterno}
@@ -147,7 +148,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
                     {r.medicoApellido}, {r.medicoNombre}
                   </td>
                   <td className="px-3 py-2">{r.fechaPrescripcion.toISOString().slice(0, 10)}</td>
-                  <td className="px-3 py-2">{r.estado}</td>
+                  <td className="px-3 py-2"><StatusBadge estado={r.estado} /></td>
                   <td className="px-3 py-2">{r.recetaFisicaRecibida ? "Sí" : "No"}</td>
                 </tr>
               ))

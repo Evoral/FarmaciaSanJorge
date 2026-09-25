@@ -31,7 +31,7 @@ export function DrogaForm({ mode, unidades, droga, disabled }: DrogaFormProps) {
   const clasificacionDisabled = disabled || (mode === "editar" && (droga?.tienePartidas ?? false));
 
   return (
-    <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
+    <div className="card p-4">
       <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear droga" : "Guardar cambios"} className="flex max-w-md flex-col gap-3">
         {mode === "editar" && droga ? (
           <>
@@ -48,7 +48,7 @@ export function DrogaForm({ mode, unidades, droga, disabled }: DrogaFormProps) {
           <label htmlFor="nombre" className="text-sm font-medium">
             Nombre
           </label>
-          <input id="nombre" name="nombre" defaultValue={droga?.nombre ?? ""} required disabled={disabled} className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="nombre" name="nombre" defaultValue={droga?.nombre ?? ""} required disabled={disabled} className="input" />
         </div>
 
         <div className="flex flex-col gap-1">
@@ -61,7 +61,7 @@ export function DrogaForm({ mode, unidades, droga, disabled }: DrogaFormProps) {
             defaultValue={droga?.unidadBaseId ?? ""}
             required
             disabled={clasificacionDisabled}
-            className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           >
             <option value="" disabled>
               Elegí una unidad
@@ -90,7 +90,7 @@ export function DrogaForm({ mode, unidades, droga, disabled }: DrogaFormProps) {
             name="tipoControl"
             defaultValue={droga?.tipoControl ?? "NINGUNO"}
             disabled={clasificacionDisabled}
-            className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           >
             {TIPOS_CONTROL.map((tipo) => (
               <option key={tipo} value={tipo}>
@@ -107,7 +107,7 @@ export function DrogaForm({ mode, unidades, droga, disabled }: DrogaFormProps) {
           <label htmlFor="stockMinimo" className="text-sm font-medium">
             Stock mínimo
           </label>
-          <input id="stockMinimo" name="stockMinimo" defaultValue={droga?.stockMinimo ?? "0"} required disabled={disabled} inputMode="decimal" className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="stockMinimo" name="stockMinimo" defaultValue={droga?.stockMinimo ?? "0"} required disabled={disabled} inputMode="decimal" className="input" />
         </div>
       </SimpleForm>
     </div>

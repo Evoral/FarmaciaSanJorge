@@ -17,7 +17,7 @@ export function HistoricoForm() {
         <label htmlFor="tipoLibro" className="text-sm font-medium">
           Libro
         </label>
-        <select id="tipoLibro" name="tipoLibro" required className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+        <select id="tipoLibro" name="tipoLibro" required className="input">
           {TIPOS.map((t) => (
             <option key={t.value} value={t.value}>
               {t.label}
@@ -30,42 +30,42 @@ export function HistoricoForm() {
         <label htmlFor="numeroAsientoFisico" className="text-sm font-medium">
           Número de asiento (libro físico)
         </label>
-        <input id="numeroAsientoFisico" name="numeroAsientoFisico" type="text" required className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+        <input id="numeroAsientoFisico" name="numeroAsientoFisico" type="text" required className="input" />
       </div>
 
       <div className="flex flex-col gap-1">
         <label htmlFor="fechaAsiento" className="text-sm font-medium">
           Fecha del asiento
         </label>
-        <input id="fechaAsiento" name="fechaAsiento" type="date" required className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+        <input id="fechaAsiento" name="fechaAsiento" type="date" required className="input" />
       </div>
 
       <div className="flex flex-col gap-1">
         <label htmlFor="pacienteTexto" className="text-sm font-medium">
           Paciente (si figura)
         </label>
-        <input id="pacienteTexto" name="pacienteTexto" type="text" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+        <input id="pacienteTexto" name="pacienteTexto" type="text" className="input" />
       </div>
 
       <div className="flex flex-col gap-1">
         <label htmlFor="medicoTexto" className="text-sm font-medium">
           Médico (si figura)
         </label>
-        <input id="medicoTexto" name="medicoTexto" type="text" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+        <input id="medicoTexto" name="medicoTexto" type="text" className="input" />
       </div>
 
       <div className="flex flex-col gap-1">
         <label htmlFor="formulaTexto" className="text-sm font-medium">
           Fórmula
         </label>
-        <textarea id="formulaTexto" name="formulaTexto" required rows={2} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+        <textarea id="formulaTexto" name="formulaTexto" required rows={2} className="input" />
       </div>
 
       <div className="flex flex-col gap-1">
         <label htmlFor="observaciones" className="text-sm font-medium">
           Observaciones
         </label>
-        <textarea id="observaciones" name="observaciones" rows={2} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+        <textarea id="observaciones" name="observaciones" rows={2} className="input" />
       </div>
     </SimpleForm>
   );

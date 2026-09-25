@@ -29,5 +29,5 @@ export default async function DirectoresTecnicosLayout({ children }: { children:
     redirect("/");
   }
 
-  return <div className="mx-auto max-w-5xl px-4 py-8">{children}</div>;
+  return <div>{children}</div>;
 }

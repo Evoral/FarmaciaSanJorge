@@ -42,7 +42,7 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
   const puedeIniciarPreparacion = can(session, "preparaciones.iniciar");
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-2">
         <Link href={`/recetas/${recetaId}`} className="text-sm underline">
           ← Volver a la receta
@@ -50,7 +50,7 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
       </div>
 
       <div className="mb-6">
-        <h1 className="text-xl font-semibold">Ficha técnica</h1>
+        <h1 className="text-2xl font-semibold">Ficha técnica</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           Receta Nº {receta.numeroInterno} — {item.descripcion ?? item.formaFarmaceutica} ({item.formaFarmaceutica}) — {item.cantidadUnidades} unidad
           {item.cantidadUnidades === 1 ? "" : "es"}
@@ -75,7 +75,7 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
         ) : (
           <div className="flex flex-col gap-3">
             {versiones.map((v) => (
-              <div key={v.id} className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
+              <div key={v.id} className="card p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="text-sm font-medium">
@@ -99,7 +99,7 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
                         href={`/api/fichas-tecnicas/${v.id}/pdf`}
                         target="_blank"
                         rel="noreferrer"
-                        className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+                        className="btn btn-secondary"
                       >
                         Imprimir PDF
                       </a>

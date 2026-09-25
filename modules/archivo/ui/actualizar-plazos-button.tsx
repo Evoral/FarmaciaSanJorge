@@ -10,7 +10,7 @@ export function ActualizarPlazosButton() {
       action={actualizarPlazosAction}
       submitLabel="Actualizar plazos"
       pendingLabel="Actualizando…"
-      submitClassName="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+      submitClassName="btn btn-secondary"
       className="inline"
     >
       {null}

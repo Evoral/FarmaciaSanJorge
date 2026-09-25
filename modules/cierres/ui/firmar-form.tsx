@@ -31,7 +31,7 @@ export function FirmarForm({ fecha, fueraDeTermino, esJornadaActual, preparacion
   const [confirmaAdvertencia, setConfirmaAdvertencia] = useState(!esJornadaActual);
 
   return (
-    <div className="rounded border border-zinc-300 p-4 dark:border-zinc-700">
+    <div className="card p-4">
       <h3 className="mb-2 text-sm font-semibold">Firmar jornada {fecha}</h3>
 
       {esJornadaActual ? (
@@ -79,7 +79,7 @@ export function FirmarForm({ fecha, fueraDeTermino, esJornadaActual, preparacion
                 required
                 value={motivoDemora}
                 onChange={(e) => setMotivoDemora(e.target.value)}
-                className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                className="input"
               >
                 <option value="">Seleccioná un motivo</option>
                 {MOTIVO_DEMORA_VALUES.map((value) => (
@@ -99,7 +99,7 @@ export function FirmarForm({ fecha, fueraDeTermino, esJornadaActual, preparacion
                   name="motivoDemoraDetalle"
                   required
                   rows={2}
-                  className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                  className="input"
                 />
               </div>
             ) : null}
@@ -116,7 +116,7 @@ export function FirmarForm({ fecha, fueraDeTermino, esJornadaActual, preparacion
             type="password"
             autoComplete="off"
             required
-            className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
           <p className="text-xs text-zinc-500">Se requiere tu contraseña completa. El PIN no es válido para firmar.</p>
         </div>

@@ -17,7 +17,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="w-full rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+      className="w-full btn btn-primary"
     >
       {pending ? "Ingresando…" : "Ingresar"}
     </button>
@@ -35,8 +35,8 @@ export default function LoginPage() {
   }, [state.message]);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-4">
-      <h1 className="mb-6 text-xl font-semibold">Iniciar sesión</h1>
+    <main>
+      <h1 className="mb-6 text-2xl font-semibold">Iniciar sesión</h1>
 
       <form action={formAction} noValidate className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
@@ -50,7 +50,7 @@ export default function LoginPage() {
             required
             autoComplete="username"
             autoFocus
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 
@@ -64,7 +64,7 @@ export default function LoginPage() {
             type="password"
             required
             autoComplete="current-password"
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 
@@ -77,7 +77,7 @@ export default function LoginPage() {
         <SubmitButton />
       </form>
 
-      <p className="mt-6 text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="mt-6 text-xs leading-relaxed text-zinc-500">
         ¿No podés ingresar o te olvidaste la contraseña? Contactá al administrador de tu farmacia: no hay
         autoregistro ni recuperación automática de contraseña.
       </p>

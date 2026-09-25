@@ -17,7 +17,7 @@ import { resumenJornadasPendientes } from "@/modules/cierres/application/list-jo
 import { resumenRegularizacion } from "@/modules/entregas/application/list-regularizacion";
 import { resumenDestruccion } from "@/modules/archivo/application/resumen-destruccion";
 import { getLogger } from "@/shared/logging/logger";
-import { HeaderNav } from "./header-nav";
+import { SidebarNav } from "./sidebar-nav";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   let session;
@@ -127,63 +127,39 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     can(session, "reportes.usuarios");
 
   return (
-    <div className="min-h-screen">
-      <header className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-        <div className="flex items-center gap-6">
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">
-            {session.usuario.nombre} {session.usuario.apellido}
-          </span>
-          <HeaderNav
-            puedeAuditoria={can(session, "auditoria.ver")}
-            puedeReportes={puedeReportes}
-            catalogosHref={catalogosHref}
-            puedeStock={can(session, "stock.ver")}
-            puedeRecetas={can(session, "recetas.crear")}
-            puedePreparaciones={can(session, "preparaciones.iniciar")}
-            puedeLibro={can(session, "libro.ver")}
-            puedeCierres={puedeCierres}
-            entregasHref={entregasHref}
-            puedeArchivo={puedeArchivo}
-          />
-        </div>
-        <form action={logoutAction}>
-          <button type="submit" className="text-sm underline">
-            Cerrar sesión
-          </button>
-        </form>
-      </header>
+    <div className="min-h-screen lg:pl-60">
+      <SidebarNav
+        usuario={`${session.usuario.nombre} ${session.usuario.apellido}`}
+        logoutAction={logoutAction}
+        cierresPendientes={resumenCierres?.cantidad ?? 0}
+        puedeAuditoria={can(session, "auditoria.ver")}
+        puedeReportes={puedeReportes}
+        catalogosHref={catalogosHref}
+        puedeStock={can(session, "stock.ver")}
+        puedeRecetas={can(session, "recetas.crear")}
+        puedePreparaciones={can(session, "preparaciones.iniciar")}
+        puedeLibro={can(session, "libro.ver")}
+        puedeCierres={puedeCierres}
+        entregasHref={entregasHref}
+        puedeArchivo={puedeArchivo}
+      />
       {resumenCierres && resumenCierres.cantidad > 0 ? (
-        <div
-          role="status"
-          className={
-            resumenCierres.masAntigua?.fueraDeTermino
-              ? "border-b border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200"
-              : "border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
-          }
-        >
-          {resumenCierres.cantidad} jornada{resumenCierres.cantidad === 1 ? "" : "s"} pendiente{resumenCierres.cantidad === 1 ? "" : "s"} de firma
-          {resumenCierres.masAntigua ? ` (la más antigua: ${resumenCierres.masAntigua.fecha}, ${resumenCierres.masAntigua.antiguedadDias} día${resumenCierres.masAntigua.antiguedadDias === 1 ? "" : "s"})` : ""}
-          {resumenCierres.masAntigua?.fueraDeTermino ? " — fuera de término" : ""}.{" "}
-          <Link href="/cierres" className="underline">
-            Ver cierres
-          </Link>
-        </div>
+        <AlertBanner tone={resumenCierres.masAntigua?.fueraDeTermino ? "danger" : "warn"} href="/cierres" linkLabel="Ver cierres">
+          <b className="font-semibold">
+            {resumenCierres.cantidad} jornada{resumenCierres.cantidad === 1 ? "" : "s"}
+          </b>{" "}
+          pendiente{resumenCierres.cantidad === 1 ? "" : "s"} de firma
+          {resumenCierres.masAntigua ? ` · la más antigua: ${resumenCierres.masAntigua.fecha} (${resumenCierres.masAntigua.antiguedadDias} día${resumenCierres.masAntigua.antiguedadDias === 1 ? "" : "s"})` : ""}
+          {resumenCierres.masAntigua?.fueraDeTermino ? " — fuera de término" : ""}
+        </AlertBanner>
       ) : null}
       {resumenRegulariz && resumenRegulariz.cantidad > 0 ? (
-        <div
-          role="status"
-          className={
-            resumenRegulariz.vencidas > 0
-              ? "border-b border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200"
-              : "border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
-          }
-        >
-          {resumenRegulariz.cantidad} receta{resumenRegulariz.cantidad === 1 ? "" : "s"} pendiente{resumenRegulariz.cantidad === 1 ? "" : "s"} de
-          regularizar ({resumenRegulariz.vencidas} vencida{resumenRegulariz.vencidas === 1 ? "" : "s"}).{" "}
-          <Link href="/regularizacion" className="underline">
-            Ver regularización
-          </Link>
-        </div>
+        <AlertBanner tone={resumenRegulariz.vencidas > 0 ? "danger" : "warn"} href="/regularizacion" linkLabel="Ver regularización">
+          <b className="font-semibold">
+            {resumenRegulariz.cantidad} receta{resumenRegulariz.cantidad === 1 ? "" : "s"}
+          </b>{" "}
+          pendiente{resumenRegulariz.cantidad === 1 ? "" : "s"} de regularizar · {resumenRegulariz.vencidas} vencida{resumenRegulariz.vencidas === 1 ? "" : "s"}
+        </AlertBanner>
       ) : null}
       {/*
         The link below only makes sense for a session that can actually
@@ -196,14 +172,31 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         in practice yet).
       */}
       {resumenDestruccionArchivo && resumenDestruccionArchivo.cantidad > 0 && can(session, "archivo.lotes.gestionar") ? (
-        <div role="status" className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-          {resumenDestruccionArchivo.cantidad} lote{resumenDestruccionArchivo.cantidad === 1 ? "" : "s"} con plazo cumplido pendiente{resumenDestruccionArchivo.cantidad === 1 ? "" : "s"} de destrucción.{" "}
-          <Link href="/archivo" className="underline">
-            Ver archivo
-          </Link>
-        </div>
+        <AlertBanner tone="warn" href="/archivo" linkLabel="Ver archivo">
+          <b className="font-semibold">
+            {resumenDestruccionArchivo.cantidad} lote{resumenDestruccionArchivo.cantidad === 1 ? "" : "s"}
+          </b>{" "}
+          con plazo cumplido pendiente{resumenDestruccionArchivo.cantidad === 1 ? "" : "s"} de destrucción
+        </AlertBanner>
       ) : null}
       <main>{children}</main>
+    </div>
+  );
+}
+
+const BANNER_TONES = {
+  warn: { box: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200", dot: "bg-amber-600" },
+  danger: { box: "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200", dot: "bg-red-600" },
+} as const;
+
+function AlertBanner({ tone, href, linkLabel, children }: { tone: keyof typeof BANNER_TONES; href: string; linkLabel: string; children: ReactNode }) {
+  return (
+    <div role="status" className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b px-4 py-2.5 text-sm sm:px-8 ${BANNER_TONES[tone].box}`}>
+      <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${BANNER_TONES[tone].dot}`} />
+      <span>{children}</span>
+      <Link href={href} className="ml-auto font-medium underline">
+        {linkLabel}
+      </Link>
     </div>
   );
 }

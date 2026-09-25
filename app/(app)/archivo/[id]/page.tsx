@@ -7,6 +7,7 @@ import { NotFoundError } from "@/shared/errors";
 import { getLoteArchivoDetalle } from "@/modules/archivo/application/list-lotes";
 import { ESTADO_LOTE_ARCHIVO_LABELS } from "@/modules/archivo/domain/lote-archivo";
 import { SolicitarDestruccionForm, AutorizarDestruccionForm, RegistrarDestruccionForm } from "@/modules/archivo/ui/destruccion-forms";
+import { StatusBadge } from "@/shared/ui/status-badge";
 
 interface LoteDetallePageProps {
   params: Promise<{ id: string }>;
@@ -27,7 +28,7 @@ export default async function LoteDetallePage({ params }: LoteDetallePageProps) 
   const puedeDestruccion = can(session, "archivo.destruccion.gestionar");
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-4">
         <Link href="/archivo" className="text-sm underline">
           ← Volver al archivo
@@ -35,7 +36,7 @@ export default async function LoteDetallePage({ params }: LoteDetallePageProps) 
       </div>
 
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Lote Nº {lote.numero}</h1>
+        <h1 className="text-2xl font-semibold">Lote Nº {lote.numero}</h1>
         <span className="rounded bg-zinc-100 px-2 py-1 text-sm dark:bg-zinc-800">{ESTADO_LOTE_ARCHIVO_LABELS[lote.estado]}</span>
       </div>
 
@@ -91,15 +92,15 @@ export default async function LoteDetallePage({ params }: LoteDetallePageProps) 
       {puedeDestruccion && lote.puedeAutorizarDestruccion ? <AutorizarDestruccionForm loteId={lote.id} /> : null}
       {puedeDestruccion && lote.puedeRegistrarDestruccion ? <RegistrarDestruccionForm loteId={lote.id} /> : null}
       {lote.estaDestruido ? (
-        <p className="mb-6 rounded border border-zinc-300 p-3 text-sm dark:border-zinc-700">
+        <p className="card mb-6 p-4 text-sm">
           Este lote fue destruido el {lote.fechaDestruccion}. Solo se destruyeron las recetas en papel; los registros digitales se conservan.
         </p>
       ) : null}
 
       <h2 className="mb-2 mt-6 text-base font-semibold">Recetas ({lote.recetas.length})</h2>
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Nº</th>
               <th scope="col" className="px-3 py-2 font-medium">Paciente</th>
@@ -115,10 +116,10 @@ export default async function LoteDetallePage({ params }: LoteDetallePageProps) 
               </tr>
             ) : (
               lote.recetas.map((r) => (
-                <tr key={r.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={r.id}>
                   <td className="px-3 py-2 font-medium">{r.numeroInterno}</td>
                   <td className="px-3 py-2">{r.pacienteApellido}, {r.pacienteNombre}</td>
-                  <td className="px-3 py-2">{r.estado}</td>
+                  <td className="px-3 py-2"><StatusBadge estado={r.estado} /></td>
                 </tr>
               ))
             )}

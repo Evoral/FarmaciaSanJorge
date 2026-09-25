@@ -22,7 +22,7 @@ export function IngresarPartidaForm({ drogas, proveedores, unidades }: IngresarP
         <label htmlFor="drogaId" className="text-sm font-medium">
           Droga
         </label>
-        <select id="drogaId" name="drogaId" required className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+        <select id="drogaId" name="drogaId" required className="input">
           <option value="">Seleccioná una droga</option>
           {drogas.map((droga) => (
             <option key={droga.id} value={droga.id}>
@@ -36,7 +36,7 @@ export function IngresarPartidaForm({ drogas, proveedores, unidades }: IngresarP
         <label htmlFor="proveedorId" className="text-sm font-medium">
           Proveedor
         </label>
-        <select id="proveedorId" name="proveedorId" required className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+        <select id="proveedorId" name="proveedorId" required className="input">
           <option value="">Seleccioná un proveedor</option>
           {proveedores.map((proveedor) => (
             <option key={proveedor.id} value={proveedor.id}>
@@ -50,7 +50,7 @@ export function IngresarPartidaForm({ drogas, proveedores, unidades }: IngresarP
         <label htmlFor="lote" className="text-sm font-medium">
           Lote
         </label>
-        <input id="lote" name="lote" required className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+        <input id="lote" name="lote" required className="input" />
       </div>
 
       <div className="flex flex-col gap-1">
@@ -62,7 +62,7 @@ export function IngresarPartidaForm({ drogas, proveedores, unidades }: IngresarP
           name="fechaVencimiento"
           type="date"
           required
-          className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
       </div>
 
@@ -77,14 +77,14 @@ export function IngresarPartidaForm({ drogas, proveedores, unidades }: IngresarP
             type="text"
             inputMode="decimal"
             required
-            className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
         <div className="flex flex-1 flex-col gap-1">
           <label htmlFor="unidadCompraId" className="text-sm font-medium">
             Unidad de compra
           </label>
-          <select id="unidadCompraId" name="unidadCompraId" required className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <select id="unidadCompraId" name="unidadCompraId" required className="input">
             <option value="">Unidad</option>
             {unidades.map((unidad) => (
               <option key={unidad.id} value={unidad.id}>
@@ -106,7 +106,7 @@ export function IngresarPartidaForm({ drogas, proveedores, unidades }: IngresarP
           type="text"
           inputMode="decimal"
           required
-          className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
       </div>
 
@@ -117,7 +117,7 @@ export function IngresarPartidaForm({ drogas, proveedores, unidades }: IngresarP
         <input
           id="numeroValeAdquisicion"
           name="numeroValeAdquisicion"
-          className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
       </div>
     </SimpleForm>

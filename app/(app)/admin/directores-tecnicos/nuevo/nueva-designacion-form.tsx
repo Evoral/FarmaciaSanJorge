@@ -32,7 +32,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+      className="btn btn-primary"
     >
       {pending ? "Registrando…" : "Registrar designación"}
     </button>
@@ -82,7 +82,7 @@ export function NuevaDesignacionForm({ usuarios }: NuevaDesignacionFormProps) {
             name="usuarioId"
             required
             defaultValue=""
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           >
             <option value="" disabled>
               Seleccioná un usuario
@@ -107,7 +107,7 @@ export function NuevaDesignacionForm({ usuarios }: NuevaDesignacionFormProps) {
             name="caracter"
             required
             defaultValue="TITULAR"
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           >
             {CARACTERES_DESIGNACION.map((caracter) => (
               <option key={caracter} value={caracter}>
@@ -124,7 +124,7 @@ export function NuevaDesignacionForm({ usuarios }: NuevaDesignacionFormProps) {
           <label htmlFor="matricula" className="text-sm font-medium">
             Matrícula
           </label>
-          <input id="matricula" name="matricula" required className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="matricula" name="matricula" required className="input" />
         </div>
 
         <div className="flex flex-col gap-1">
@@ -134,7 +134,7 @@ export function NuevaDesignacionForm({ usuarios }: NuevaDesignacionFormProps) {
           <input
             id="expedienteDesignacion"
             name="expedienteDesignacion"
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 
@@ -147,7 +147,7 @@ export function NuevaDesignacionForm({ usuarios }: NuevaDesignacionFormProps) {
             name="vigenteDesde"
             type="date"
             required
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 

@@ -48,22 +48,22 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
   }
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-2">
         <Link href="/reportes" className="text-sm underline">
           ← Volver a reportes
         </Link>
       </div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Recetas por estado</h1>
-        <a href={exportHref()} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <h1 className="text-2xl font-semibold">Recetas por estado</h1>
+        <a href={exportHref()} className="btn btn-secondary">
           Exportar CSV
         </a>
       </div>
 
       <section aria-label="Conteo por estado" className="mb-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {conteos.map((c) => (
-          <div key={c.estado} className="rounded border border-zinc-200 p-3 text-sm dark:border-zinc-800">
+          <div key={c.estado} className="card p-4 text-sm">
             <p className="text-zinc-500">{ESTADO_LABELS[c.estado] ?? c.estado}</p>
             <p className="text-lg font-semibold">{c.cantidad}</p>
           </div>
@@ -75,7 +75,7 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
           <label htmlFor="estado" className="text-sm font-medium">
             Estado
           </label>
-          <select id="estado" name="estado" defaultValue={params.estado ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <select id="estado" name="estado" defaultValue={params.estado ?? ""} className="input">
             <option value="">Todos</option>
             {Object.entries(ESTADO_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
@@ -88,15 +88,15 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
           <label htmlFor="ingresoDesde" className="text-sm font-medium">
             Ingreso desde
           </label>
-          <input id="ingresoDesde" name="ingresoDesde" type="date" defaultValue={params.ingresoDesde ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="ingresoDesde" name="ingresoDesde" type="date" defaultValue={params.ingresoDesde ?? ""} className="input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="ingresoHasta" className="text-sm font-medium">
             Ingreso hasta
           </label>
-          <input id="ingresoHasta" name="ingresoHasta" type="date" defaultValue={params.ingresoHasta ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="ingresoHasta" name="ingresoHasta" type="date" defaultValue={params.ingresoHasta ?? ""} className="input" />
         </div>
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
         <Link href="/reportes/recetas" className="text-sm underline">
@@ -108,9 +108,9 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
         {result.total} receta{result.total === 1 ? "" : "s"} encontrada{result.total === 1 ? "" : "s"}.
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Nº</th>
               <th scope="col" className="px-3 py-2 font-medium">Ingreso</th>
@@ -129,7 +129,7 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
               </tr>
             ) : (
               result.items.map((r) => (
-                <tr key={r.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={r.id}>
                   <td className="px-3 py-2">{r.numeroInterno}</td>
                   <td className="px-3 py-2">{new Date(r.fechaIngreso).toLocaleDateString("es-AR")}</td>
                   <td className="px-3 py-2">

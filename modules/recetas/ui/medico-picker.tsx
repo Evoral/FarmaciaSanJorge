@@ -9,7 +9,7 @@ import { IDLE_BUSCAR_PERSONA_STATE, IDLE_CREAR_PERSONA_STATE } from "./action-st
 function BuscarButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-zinc-700">
+    <button type="submit" disabled={pending} className="btn btn-secondary">
       {pending ? "Buscando…" : label}
     </button>
   );
@@ -18,7 +18,7 @@ function BuscarButton({ label }: { label: string }) {
 function CrearButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className="rounded bg-zinc-900 px-3 py-2 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900">
+    <button type="submit" disabled={pending} className="btn btn-primary">
       {pending ? "Creando…" : label}
     </button>
   );
@@ -46,7 +46,7 @@ export function MedicoPicker({ selectedId, selectedLabel, onSelect, disabled }: 
   }, [crearState]);
 
   return (
-    <fieldset className="rounded border border-zinc-300 p-3 dark:border-zinc-700" disabled={disabled}>
+    <fieldset className="card p-4" disabled={disabled}>
       <legend className="px-1 text-sm font-medium">Médico</legend>
 
       {selectedId ? (
@@ -74,7 +74,7 @@ export function MedicoPicker({ selectedId, selectedLabel, onSelect, disabled }: 
                   <label htmlFor="medico-q" className="text-sm">
                     Apellido o matrícula
                   </label>
-                  <input id="medico-q" name="q" type="text" className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                  <input id="medico-q" name="q" type="text" className="input input-sm" />
                 </div>
                 <BuscarButton label="Buscar" />
               </form>
@@ -89,7 +89,7 @@ export function MedicoPicker({ selectedId, selectedLabel, onSelect, disabled }: 
                     <label htmlFor={selectId} className="text-sm">
                       Resultados
                     </label>
-                    <select id={selectId} size={Math.min(6, buscarState.items.length)} value={elegido} onChange={(e) => setElegido(e.target.value)} className="min-w-64 rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                    <select id={selectId} size={Math.min(6, buscarState.items.length)} value={elegido} onChange={(e) => setElegido(e.target.value)} className="min-w-64 input input-sm">
                       {buscarState.items.map((m) => (
                         <option key={m.id} value={m.id}>
                           {m.apellido}, {m.nombre}
@@ -104,7 +104,7 @@ export function MedicoPicker({ selectedId, selectedLabel, onSelect, disabled }: 
                       const m = buscarState.items.find((x) => x.id === elegido);
                       if (m) onSelect(m.id, `${m.apellido}, ${m.nombre}`);
                     }}
-                    className="rounded bg-zinc-900 px-3 py-2 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+                    className="btn btn-primary"
                   >
                     Seleccionar
                   </button>
@@ -117,19 +117,19 @@ export function MedicoPicker({ selectedId, selectedLabel, onSelect, disabled }: 
                 <label htmlFor="medico-nombre" className="text-sm">
                   Nombre
                 </label>
-                <input id="medico-nombre" name="nombre" required className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                <input id="medico-nombre" name="nombre" required className="input input-sm" />
               </div>
               <div className="flex flex-col gap-1">
                 <label htmlFor="medico-apellido" className="text-sm">
                   Apellido
                 </label>
-                <input id="medico-apellido" name="apellido" required className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                <input id="medico-apellido" name="apellido" required className="input input-sm" />
               </div>
               <div className="flex flex-col gap-1">
                 <label htmlFor="medico-matricula" className="text-sm">
                   Matrícula
                 </label>
-                <input id="medico-matricula" name="matricula" required className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                <input id="medico-matricula" name="matricula" required className="input input-sm" />
               </div>
               <CrearButton label="Crear médico" />
               {crearState.status === "error" ? (

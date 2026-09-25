@@ -52,15 +52,15 @@ export default async function DirectoresTecnicosPage({ searchParams }: Directore
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Directores técnicos</h1>
+        <h1 className="text-2xl font-semibold">Directores técnicos</h1>
         {puedeDesignar ? (
-          <Link href="/admin/directores-tecnicos/nuevo" className="rounded bg-zinc-900 px-3 py-2 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900">
+          <Link href="/admin/directores-tecnicos/nuevo" className="btn btn-primary">
             Nueva designación
           </Link>
         ) : null}
       </div>
 
-      <section className="mb-6 rounded border border-zinc-200 p-4 dark:border-zinc-800">
+      <section className="mb-6 card p-4">
         <h2 className="mb-2 text-sm font-medium text-zinc-600 dark:text-zinc-400">DT vigente hoy</h2>
         {vigenteHoy.titular ? (
           <p className="text-sm">
@@ -83,13 +83,13 @@ export default async function DirectoresTecnicosPage({ searchParams }: Directore
           <label htmlFor="vigencia" className="text-sm font-medium">
             Estado
           </label>
-          <select id="vigencia" name="vigencia" defaultValue={vigencia} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <select id="vigencia" name="vigencia" defaultValue={vigencia} className="input">
             <option value="todas">Todas</option>
             <option value="vigentes">Vigentes (sin cese)</option>
             <option value="historicas">Históricas (con cese)</option>
           </select>
         </div>
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
       </form>
@@ -98,9 +98,9 @@ export default async function DirectoresTecnicosPage({ searchParams }: Directore
         {listado.total} designación{listado.total === 1 ? "" : "es"} encontrada{listado.total === 1 ? "" : "s"}.
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Usuario</th>
               <th scope="col" className="px-3 py-2 font-medium">Carácter</th>

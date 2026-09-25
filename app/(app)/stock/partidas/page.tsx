@@ -20,7 +20,7 @@ export default async function PartidasPage({ searchParams }: PartidasPageProps) 
 
   if (!drogaId) {
     return (
-      <div className="p-6">
+      <div className="page">
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           Elegí una droga desde <Link href="/stock" className="underline">Stock</Link> para ver sus partidas.
         </p>
@@ -32,9 +32,9 @@ export default async function PartidasPage({ searchParams }: PartidasPageProps) 
   const totalPages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Partidas</h1>
+        <h1 className="text-2xl font-semibold">Partidas</h1>
         <Link href="/stock" className="text-sm underline">
           Volver a stock
         </Link>
@@ -46,7 +46,7 @@ export default async function PartidasPage({ searchParams }: PartidasPageProps) 
           <input type="checkbox" name="soloConSaldo" value="1" defaultChecked={soloConSaldo} />
           Solo con saldo disponible
         </label>
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
       </form>
@@ -55,9 +55,9 @@ export default async function PartidasPage({ searchParams }: PartidasPageProps) 
         {result.total} partida{result.total === 1 ? "" : "s"} encontrada{result.total === 1 ? "" : "s"}.
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Lote</th>
               <th scope="col" className="px-3 py-2 font-medium">Proveedor</th>
@@ -76,7 +76,7 @@ export default async function PartidasPage({ searchParams }: PartidasPageProps) 
               </tr>
             ) : (
               result.items.map((partida) => (
-                <tr key={partida.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={partida.id}>
                   <td className="px-3 py-2">
                     <Link href={`/stock/partidas/${partida.id}`} className="font-medium underline-offset-2 hover:underline">
                       {partida.lote}

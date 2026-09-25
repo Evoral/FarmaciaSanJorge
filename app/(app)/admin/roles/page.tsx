@@ -15,14 +15,14 @@ export default async function RolesPage() {
           ← Volver a usuarios
         </Link>
       </div>
-      <h1 className="mb-2 text-xl font-semibold">Roles y permisos</h1>
+      <h1 className="mb-2 text-2xl font-semibold">Roles y permisos</h1>
       <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">
         Catálogo de solo lectura. La asignación de permisos a cada rol está fija por ahora.
       </p>
 
       <div className="flex flex-col gap-6">
         {roles.map((rol) => (
-          <section key={rol.codigo} className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
+          <section key={rol.codigo} className="card p-4">
             <h2 className="text-base font-semibold">{rol.nombre}</h2>
             {rol.descripcion ? <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">{rol.descripcion}</p> : null}
             <ul className="flex flex-wrap gap-2">

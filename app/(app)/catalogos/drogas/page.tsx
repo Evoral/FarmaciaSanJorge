@@ -46,9 +46,9 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Drogas</h1>
+        <h1 className="text-2xl font-semibold">Drogas</h1>
         {puedeCrear ? (
-          <Link href="/catalogos/drogas?nueva=1" className="rounded bg-zinc-900 px-3 py-2 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900">
+          <Link href="/catalogos/drogas?nueva=1" className="btn btn-primary">
             Nueva droga
           </Link>
         ) : null}
@@ -65,13 +65,13 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
           <label htmlFor="q" className="text-sm font-medium">
             Buscar
           </label>
-          <input id="q" name="q" type="search" defaultValue={params.q ?? ""} placeholder="Nombre" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="q" name="q" type="search" defaultValue={params.q ?? ""} placeholder="Nombre" className="input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="estado" className="text-sm font-medium">
             Estado
           </label>
-          <select id="estado" name="estado" defaultValue={params.estado ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <select id="estado" name="estado" defaultValue={params.estado ?? ""} className="input">
             <option value="">Todas</option>
             <option value="vigente">Vigentes</option>
             <option value="baja">Dadas de baja</option>
@@ -85,7 +85,7 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
           <input type="checkbox" name="bajoMinimo" value="1" defaultChecked={bajoMinimo} />
           Bajo mínimo
         </label>
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
         {params.q || soloControladas || bajoMinimo || params.estado ? (
@@ -99,9 +99,9 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
         {result.total} droga{result.total === 1 ? "" : "s"} encontrada{result.total === 1 ? "" : "s"}.
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Nombre</th>
               <th scope="col" className="px-3 py-2 font-medium">Unidad</th>
@@ -122,7 +122,7 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
               result.items.map((droga) => {
                 const bajoElMinimo = Number(droga.stockDisponible) < Number(droga.stockMinimo);
                 return (
-                  <tr key={droga.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                  <tr key={droga.id}>
                     <td className="px-3 py-2">
                       <Link href={`/catalogos/drogas/${droga.id}`} className="font-medium underline-offset-2 hover:underline">
                         {droga.nombre}

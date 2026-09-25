@@ -15,7 +15,7 @@ export default async function ParametrosPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-xl font-semibold">Parámetros de la farmacia</h1>
+      <h1 className="mb-1 text-2xl font-semibold">Parámetros de la farmacia</h1>
       <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">
         Estos parámetros afectan el cálculo de las líneas de pesaje de las fichas técnicas. Un cambio acá aplica SOLO a las
         fichas técnicas generadas DESPUÉS del cambio -- las fichas ya generadas quedan congeladas con los valores vigentes al

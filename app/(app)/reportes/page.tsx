@@ -39,8 +39,8 @@ export default async function ReportesPage() {
   }
 
   return (
-    <div className="p-6">
-      <h1 className="mb-6 text-xl font-semibold">Reportes</h1>
+    <div className="page">
+      <h1 className="mb-6 text-2xl font-semibold">Reportes</h1>
 
       {entries.length === 0 ? (
         <p className="text-sm text-zinc-600 dark:text-zinc-400">No tenés permisos para ver ningún reporte.</p>
@@ -50,7 +50,7 @@ export default async function ReportesPage() {
             <Link
               key={entry.href}
               href={entry.href}
-              className="rounded border border-zinc-200 p-4 transition-colors hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-600"
+              className="card p-4 transition-colors hover:border-zinc-400 dark:hover:border-zinc-600"
             >
               <p className="font-medium">{entry.titulo}</p>
               <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{entry.descripcion}</p>

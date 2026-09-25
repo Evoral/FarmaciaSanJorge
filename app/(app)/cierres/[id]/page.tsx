@@ -27,7 +27,7 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
   const motivoLabel = cierre.motivoDemora ? MOTIVO_DEMORA_LABELS[cierre.motivoDemora as MotivoDemoraValue] ?? cierre.motivoDemora : null;
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-4">
         <Link href="/cierres" className="text-sm underline">
           ← Volver a cierres
@@ -35,9 +35,9 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
       </div>
 
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Cierre de la jornada {cierre.fecha}</h1>
+        <h1 className="text-2xl font-semibold">Cierre de la jornada {cierre.fecha}</h1>
         {puedeImprimir ? (
-          <a href={`/api/cierres/${cierre.id}/pdf`} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+          <a href={`/api/cierres/${cierre.id}/pdf`} className="btn btn-secondary">
             Imprimir comprobante
           </a>
         ) : null}
@@ -74,9 +74,9 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
       </dl>
 
       <h2 className="mb-2 text-base font-semibold">Libro recetario</h2>
-      <div className="mb-6 overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="mb-6 table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Nº</th>
               <th scope="col" className="px-3 py-2 font-medium">Estado</th>
@@ -94,7 +94,7 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
               </tr>
             ) : (
               cierre.asientosRecetario.map((a) => (
-                <tr key={a.numeroCorrelativo} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={a.numeroCorrelativo}>
                   <td className="px-3 py-2 font-medium">{a.numeroCorrelativo}</td>
                   <td className="px-3 py-2">{a.estadoVisual}</td>
                   <td className="px-3 py-2">{a.pacienteTexto}</td>
@@ -108,9 +108,9 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
       </div>
 
       <h2 className="mb-2 text-base font-semibold">Libros contralor</h2>
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Nº</th>
               <th scope="col" className="px-3 py-2 font-medium">Libro</th>
@@ -129,7 +129,7 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
               </tr>
             ) : (
               cierre.asientosContralor.map((a, i) => (
-                <tr key={`${a.tipoLibro}-${a.numeroCorrelativo}-${i}`} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={`${a.tipoLibro}-${a.numeroCorrelativo}-${i}`}>
                   <td className="px-3 py-2 font-medium">{a.numeroCorrelativo}</td>
                   <td className="px-3 py-2">{a.tipoLibro}</td>
                   <td className="px-3 py-2">{a.drogaDescripcion}</td>

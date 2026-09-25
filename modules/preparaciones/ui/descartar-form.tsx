@@ -16,7 +16,7 @@ export function DescartarPreparacionForm({ preparacionId }: DescartarPreparacion
         <label htmlFor="motivo" className="text-sm font-medium">
           Motivo del descarte
         </label>
-        <textarea id="motivo" name="motivo" required rows={2} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+        <textarea id="motivo" name="motivo" required rows={2} className="input" />
         <p className="text-xs text-zinc-500">Descartar una preparación INICIADA no afecta el stock: todavía no se descontó nada.</p>
       </div>
     </SimpleForm>

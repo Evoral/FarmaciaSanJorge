@@ -37,16 +37,16 @@ export function AnularAsientoForm({ asientoId, numeroCorrelativo, dts }: AnularA
           <label htmlFor="motivo" className="text-sm font-medium">
             Motivo
           </label>
-          <textarea id="motivo" name="motivo" required rows={2} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <textarea id="motivo" name="motivo" required rows={2} className="input" />
         </div>
 
-        <fieldset className="rounded border border-zinc-300 p-3 dark:border-zinc-700">
+        <fieldset className="card p-4">
           <legend className="px-1 text-sm font-medium">Co-firma del Director Técnico</legend>
           <div className="flex flex-col gap-1">
             <label htmlFor="dtUsuarioId" className="text-sm font-medium">
               Director Técnico
             </label>
-            <select id="dtUsuarioId" name="dtUsuarioId" required className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <select id="dtUsuarioId" name="dtUsuarioId" required className="input">
               <option value="">Seleccioná el DT que autoriza</option>
               {dts.map((dt) => (
                 <option key={dt.id} value={dt.id}>
@@ -65,7 +65,7 @@ export function AnularAsientoForm({ asientoId, numeroCorrelativo, dts }: AnularA
               type="password"
               autoComplete="off"
               required
-              className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              className="input"
             />
           </div>
         </fieldset>

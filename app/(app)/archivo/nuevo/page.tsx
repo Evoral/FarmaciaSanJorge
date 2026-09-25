@@ -8,6 +8,7 @@ import { can } from "@/shared/auth/authorize";
 import { redirect } from "next/navigation";
 import { listRecetasElegiblesArchivo } from "@/modules/archivo/application/conformar-lote";
 import { ConformarLoteForm } from "@/modules/archivo/ui/conformar-lote-form";
+import { StatusBadge } from "@/shared/ui/status-badge";
 
 interface ArchivoNuevoPageProps {
   searchParams: Promise<{ periodoDesde?: string; periodoHasta?: string; ubicacion?: string }>;
@@ -34,29 +35,29 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
   }
 
   return (
-    <div className="p-6">
-      <h1 className="mb-6 text-xl font-semibold">Conformar lote de archivo</h1>
+    <div className="page">
+      <h1 className="mb-6 text-2xl font-semibold">Conformar lote de archivo</h1>
 
       <form method="get" className="mb-6 flex flex-wrap items-end gap-3" aria-label="Período y ubicación del lote">
         <div className="flex flex-col gap-1">
           <label htmlFor="periodoDesde" className="text-sm font-medium">
             Período desde
           </label>
-          <input id="periodoDesde" name="periodoDesde" type="date" required defaultValue={periodoDesde} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="periodoDesde" name="periodoDesde" type="date" required defaultValue={periodoDesde} className="input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="periodoHasta" className="text-sm font-medium">
             Período hasta
           </label>
-          <input id="periodoHasta" name="periodoHasta" type="date" required defaultValue={periodoHasta} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="periodoHasta" name="periodoHasta" type="date" required defaultValue={periodoHasta} className="input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="ubicacion" className="text-sm font-medium">
             Ubicación
           </label>
-          <input id="ubicacion" name="ubicacion" type="text" required defaultValue={ubicacion} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="ubicacion" name="ubicacion" type="text" required defaultValue={ubicacion} className="input" />
         </div>
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Buscar elegibles
         </button>
       </form>
@@ -76,9 +77,9 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
             Elegibles: ENTREGADA o ANULADA, con la receta física recibida, sin lote asignado. Las recetas ANULADAS sin receta física nunca son archivables.
           </p>
 
-          <div className="mb-6 overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="mb-6 table-wrap">
+            <table className="data-table">
+              <thead>
                 <tr>
                   <th scope="col" className="px-3 py-2 font-medium">Nº</th>
                   <th scope="col" className="px-3 py-2 font-medium">Paciente</th>
@@ -95,10 +96,10 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
                   </tr>
                 ) : (
                   elegibles.map((r) => (
-                    <tr key={r.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                    <tr key={r.id}>
                       <td className="px-3 py-2 font-medium">{r.numeroInterno}</td>
                       <td className="px-3 py-2">{r.pacienteApellido}, {r.pacienteNombre}</td>
-                      <td className="px-3 py-2">{r.estado}</td>
+                      <td className="px-3 py-2"><StatusBadge estado={r.estado} /></td>
                       <td className="px-3 py-2">{r.fechaIngreso}</td>
                     </tr>
                   ))

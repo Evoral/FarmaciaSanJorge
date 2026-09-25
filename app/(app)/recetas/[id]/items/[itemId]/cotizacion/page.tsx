@@ -38,7 +38,7 @@ export default async function CotizacionPage({ params }: CotizacionPageProps) {
   const { vigente, historial } = await getCotizacionItem({ itemRecetaId: itemId });
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-2">
         <Link href={`/recetas/${recetaId}`} className="text-sm underline">
           ← Volver a la receta
@@ -46,7 +46,7 @@ export default async function CotizacionPage({ params }: CotizacionPageProps) {
       </div>
 
       <div className="mb-6">
-        <h1 className="text-xl font-semibold">Cotización</h1>
+        <h1 className="text-2xl font-semibold">Cotización</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           Receta Nº {receta.numeroInterno} — {item.descripcion ?? item.formaFarmaceutica} ({item.formaFarmaceutica})
         </p>
@@ -74,9 +74,9 @@ export default async function CotizacionPage({ params }: CotizacionPageProps) {
       {historial.length > 1 ? (
         <section>
           <h2 className="mb-3 text-lg font-medium">Historial</h2>
-          <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
                 <tr>
                   <th scope="col" className="px-3 py-2 font-medium">Calculada</th>
                   <th scope="col" className="px-3 py-2 font-medium">Costo insumos</th>
@@ -87,7 +87,7 @@ export default async function CotizacionPage({ params }: CotizacionPageProps) {
               </thead>
               <tbody>
                 {historial.slice(1).map((c) => (
-                  <tr key={c.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                  <tr key={c.id}>
                     <td className="px-3 py-2">{fechaHora(c.calculadaEn)}</td>
                     <td className="px-3 py-2">${c.costoInsumos}</td>
                     <td className="px-3 py-2">{c.margenAplicado}%</td>

@@ -32,7 +32,7 @@ export function AjusteForm({ partidaId, drogaNombre, lote, cantidadDisponible, d
     <SimpleForm action={registrarAjusteAction} submitLabel="Registrar ajuste" className="flex max-w-lg flex-col gap-4">
       <input type="hidden" name="partidaId" value={partidaId} />
 
-      <div className="rounded border border-zinc-200 p-3 text-sm dark:border-zinc-800">
+      <div className="card p-4 text-sm">
         <p className="font-medium">{drogaNombre}</p>
         <p className="text-zinc-600 dark:text-zinc-400">
           Lote {lote} · Saldo disponible: {cantidadDisponible}
@@ -43,7 +43,7 @@ export function AjusteForm({ partidaId, drogaNombre, lote, cantidadDisponible, d
         <label htmlFor="cantidad" className="text-sm font-medium">
           Cantidad a descontar
         </label>
-        <input id="cantidad" name="cantidad" type="text" inputMode="decimal" required className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+        <input id="cantidad" name="cantidad" type="text" inputMode="decimal" required className="input" />
         <p className="text-xs text-zinc-500">Todo ajuste descuenta del saldo (DP-21b) -- no existen ajustes positivos.</p>
       </div>
 
@@ -51,7 +51,7 @@ export function AjusteForm({ partidaId, drogaNombre, lote, cantidadDisponible, d
         <label htmlFor="motivoAjuste" className="text-sm font-medium">
           Motivo
         </label>
-        <select id="motivoAjuste" name="motivoAjuste" required className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+        <select id="motivoAjuste" name="motivoAjuste" required className="input">
           <option value="">Seleccioná un motivo</option>
           {MOTIVOS_AJUSTE.map((motivo) => (
             <option key={motivo} value={motivo}>
@@ -65,10 +65,10 @@ export function AjusteForm({ partidaId, drogaNombre, lote, cantidadDisponible, d
         <label htmlFor="observacion" className="text-sm font-medium">
           Observación
         </label>
-        <textarea id="observacion" name="observacion" required rows={2} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+        <textarea id="observacion" name="observacion" required rows={2} className="input" />
       </div>
 
-      <fieldset className="rounded border border-zinc-300 p-3 dark:border-zinc-700">
+      <fieldset className="card p-4">
         <legend className="px-1 text-sm font-medium">Co-firma del Director Técnico</legend>
         {operadorEsDt ? (
           <p className="mb-2 text-xs text-zinc-500">
@@ -79,7 +79,7 @@ export function AjusteForm({ partidaId, drogaNombre, lote, cantidadDisponible, d
           <label htmlFor="dtUsuarioId" className="text-sm font-medium">
             Director Técnico
           </label>
-          <select id="dtUsuarioId" name="dtUsuarioId" required className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <select id="dtUsuarioId" name="dtUsuarioId" required className="input">
             <option value="">Seleccioná el DT que autoriza</option>
             {dts.map((dt) => (
               <option key={dt.id} value={dt.id}>
@@ -98,7 +98,7 @@ export function AjusteForm({ partidaId, drogaNombre, lote, cantidadDisponible, d
             type="password"
             autoComplete="off"
             required
-            className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
       </fieldset>

@@ -17,7 +17,7 @@ function SubmitButton({ label, pendingLabel, className }: { label: string; pendi
     <button
       type="submit"
       disabled={pending}
-      className={className ?? "w-full rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"}
+      className={className ?? "w-full btn btn-primary"}
     >
       {pending ? (pendingLabel ?? "Guardando…") : label}
     </button>
@@ -64,7 +64,7 @@ function PinSection() {
             type="password"
             required
             autoComplete="current-password"
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 
@@ -81,7 +81,7 @@ function PinSection() {
             maxLength={6}
             required
             autoComplete="off"
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 
@@ -98,7 +98,7 @@ function PinSection() {
             maxLength={6}
             required
             autoComplete="off"
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 
@@ -127,7 +127,7 @@ function PinSection() {
             type="password"
             required
             autoComplete="current-password"
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 
@@ -142,7 +142,7 @@ function PinSection() {
           </p>
         ) : null}
 
-        <SubmitButton label="Eliminar PIN" className="w-full rounded border border-red-600 px-4 py-2 text-sm font-medium text-red-600 disabled:opacity-50" />
+        <SubmitButton label="Eliminar PIN" className="btn btn-danger w-full" />
       </form>
     </div>
   );
@@ -163,8 +163,8 @@ export default function CuentaPage() {
   }, [state.message, state.success]);
 
   return (
-    <div className="mx-auto max-w-sm px-4 py-10">
-      <h1 className="mb-6 text-xl font-semibold">Mi cuenta</h1>
+    <div className="page max-w-sm">
+      <h1 className="mb-6 text-2xl font-semibold">Mi cuenta</h1>
       <h2 className="mb-4 text-lg font-medium">Cambiar contraseña</h2>
 
       <form ref={formRef} action={formAction} noValidate className="flex flex-col gap-4">
@@ -178,7 +178,7 @@ export default function CuentaPage() {
             type="password"
             required
             autoComplete="current-password"
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 
@@ -192,7 +192,7 @@ export default function CuentaPage() {
             type="password"
             required
             autoComplete="new-password"
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 
@@ -206,7 +206,7 @@ export default function CuentaPage() {
             type="password"
             required
             autoComplete="new-password"
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 

@@ -49,15 +49,15 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
   }
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-2">
         <Link href="/reportes" className="text-sm underline">
           ← Volver a reportes
         </Link>
       </div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Kardex de movimientos</h1>
-        <a href={exportHref()} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <h1 className="text-2xl font-semibold">Kardex de movimientos</h1>
+        <a href={exportHref()} className="btn btn-secondary">
           Exportar CSV
         </a>
       </div>
@@ -67,13 +67,13 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
           <label htmlFor="drogaId" className="text-sm font-medium">
             Droga (ID)
           </label>
-          <input id="drogaId" name="drogaId" type="text" defaultValue={params.drogaId ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="drogaId" name="drogaId" type="text" defaultValue={params.drogaId ?? ""} className="input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="tipo" className="text-sm font-medium">
             Tipo
           </label>
-          <select id="tipo" name="tipo" defaultValue={params.tipo ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <select id="tipo" name="tipo" defaultValue={params.tipo ?? ""} className="input">
             <option value="">Todos</option>
             {Object.entries(TIPO_MOVIMIENTO_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
@@ -86,15 +86,15 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
           <label htmlFor="desde" className="text-sm font-medium">
             Desde
           </label>
-          <input id="desde" name="desde" type="date" defaultValue={params.desde ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="desde" name="desde" type="date" defaultValue={params.desde ?? ""} className="input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="hasta" className="text-sm font-medium">
             Hasta
           </label>
-          <input id="hasta" name="hasta" type="date" defaultValue={params.hasta ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="hasta" name="hasta" type="date" defaultValue={params.hasta ?? ""} className="input" />
         </div>
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
         <Link href="/reportes/kardex" className="text-sm underline">
@@ -106,9 +106,9 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
         {result.total} movimiento{result.total === 1 ? "" : "s"} encontrado{result.total === 1 ? "" : "s"}.
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Fecha</th>
               <th scope="col" className="px-3 py-2 font-medium">Droga</th>
@@ -128,7 +128,7 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
               </tr>
             ) : (
               result.items.map((mov) => (
-                <tr key={mov.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={mov.id}>
                   <td className="px-3 py-2">{new Date(mov.registradoEn).toLocaleString("es-AR")}</td>
                   <td className="px-3 py-2">{mov.drogaNombre}</td>
                   <td className="px-3 py-2">{mov.lote}</td>

@@ -51,9 +51,9 @@ export default async function UsuariosPage({ searchParams }: UsuariosPageProps) 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Usuarios</h1>
+        <h1 className="text-2xl font-semibold">Usuarios</h1>
         {can(session, "usuarios.crear") ? (
-          <Link href="/admin/usuarios/nuevo" className="rounded bg-zinc-900 px-3 py-2 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900">
+          <Link href="/admin/usuarios/nuevo" className="btn btn-primary">
             Nuevo usuario
           </Link>
         ) : null}
@@ -70,7 +70,7 @@ export default async function UsuariosPage({ searchParams }: UsuariosPageProps) 
             type="search"
             defaultValue={params.q ?? ""}
             placeholder="Nombre, apellido, email o DNI"
-            className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 
@@ -78,7 +78,7 @@ export default async function UsuariosPage({ searchParams }: UsuariosPageProps) 
           <label htmlFor="estado" className="text-sm font-medium">
             Estado
           </label>
-          <select id="estado" name="estado" defaultValue={estado ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <select id="estado" name="estado" defaultValue={estado ?? ""} className="input">
             <option value="">Todos</option>
             {Object.entries(ESTADO_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
@@ -92,7 +92,7 @@ export default async function UsuariosPage({ searchParams }: UsuariosPageProps) 
           <label htmlFor="rol" className="text-sm font-medium">
             Rol
           </label>
-          <select id="rol" name="rol" defaultValue={rol ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <select id="rol" name="rol" defaultValue={rol ?? ""} className="input">
             <option value="">Todos</option>
             {ROLES_ASIGNABLES.map((codigo) => (
               <option key={codigo} value={codigo}>
@@ -102,7 +102,7 @@ export default async function UsuariosPage({ searchParams }: UsuariosPageProps) 
           </select>
         </div>
 
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
         {(params.q || estado || rol) ? (
@@ -116,9 +116,9 @@ export default async function UsuariosPage({ searchParams }: UsuariosPageProps) 
         {result.total} usuario{result.total === 1 ? "" : "s"} encontrado{result.total === 1 ? "" : "s"}.
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Nombre</th>
               <th scope="col" className="px-3 py-2 font-medium">Email</th>
@@ -137,7 +137,7 @@ export default async function UsuariosPage({ searchParams }: UsuariosPageProps) 
               </tr>
             ) : (
               result.items.map((usuario) => (
-                <tr key={usuario.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={usuario.id}>
                   <td className="px-3 py-2">
                     <Link href={`/admin/usuarios/${usuario.id}`} className="font-medium underline-offset-2 hover:underline">
                       {usuario.apellido}, {usuario.nombre}

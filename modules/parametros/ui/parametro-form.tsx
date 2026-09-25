@@ -16,7 +16,7 @@ export function ParametroForm({ clave, label, descripcion, valor, disabled }: Pa
   const inputId = `parametro-valor-${clave}`;
 
   return (
-    <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
+    <div className="card p-4">
       <h3 className="text-base font-medium">{label}</h3>
       <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">{descripcion}</p>
 
@@ -31,7 +31,7 @@ export function ParametroForm({ clave, label, descripcion, valor, disabled }: Pa
           defaultValue={valor}
           required
           disabled={disabled}
-          className="rounded border border-zinc-300 px-3 py-2 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
       </ReauthAwareForm>
     </div>

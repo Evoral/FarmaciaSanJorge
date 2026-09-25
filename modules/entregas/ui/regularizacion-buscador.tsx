@@ -7,11 +7,12 @@ import { useFormStatus } from "react-dom";
 import { buscarRegularizacionAction } from "./buscar-regularizacion-action";
 import type { BuscarRegularizacionState } from "./buscar-regularizacion-action";
 import type { RegularizacionListItem } from "@/modules/entregas/application/list-regularizacion";
+import { StatusBadge } from "@/shared/ui/status-badge";
 
 function BuscarButton() {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-zinc-700">
+    <button type="submit" disabled={pending} className="btn btn-secondary">
       {pending ? "Buscando…" : "Buscar"}
     </button>
   );
@@ -34,7 +35,7 @@ export function RegularizacionBuscador({ itemsIniciales, totalInicial, plazoRegu
           <label htmlFor="q" className="text-sm font-medium">
             Buscar por paciente
           </label>
-          <input id="q" name="q" type="text" placeholder="Apellido o nombre" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="q" name="q" type="text" placeholder="Apellido o nombre" className="input" />
         </div>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="soloVencidas" />
@@ -54,9 +55,9 @@ export function RegularizacionBuscador({ itemsIniciales, totalInicial, plazoRegu
         {state.plazoRegularizacionDias === 1 ? "" : "s"}).
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Nº</th>
               <th scope="col" className="px-3 py-2 font-medium">Paciente</th>
@@ -88,7 +89,7 @@ export function RegularizacionBuscador({ itemsIniciales, totalInicial, plazoRegu
                     </Link>
                   </td>
                   <td className="px-3 py-2">{r.pacienteApellido}, {r.pacienteNombre}</td>
-                  <td className="px-3 py-2">{r.estado}</td>
+                  <td className="px-3 py-2"><StatusBadge estado={r.estado} /></td>
                   <td className="px-3 py-2">{r.fechaAsientoMasAntiguo}</td>
                   <td className="px-3 py-2">
                     {r.antiguedadDias} día{r.antiguedadDias === 1 ? "" : "s"}

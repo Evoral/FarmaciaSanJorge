@@ -34,9 +34,9 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Proveedores</h1>
+        <h1 className="text-2xl font-semibold">Proveedores</h1>
         {puedeCrear ? (
-          <Link href="/catalogos/proveedores?nuevo=1" className="rounded bg-zinc-900 px-3 py-2 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900">
+          <Link href="/catalogos/proveedores?nuevo=1" className="btn btn-primary">
             Nuevo proveedor
           </Link>
         ) : null}
@@ -53,19 +53,19 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
           <label htmlFor="q" className="text-sm font-medium">
             Buscar
           </label>
-          <input id="q" name="q" type="search" defaultValue={params.q ?? ""} placeholder="Razón social o CUIT" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="q" name="q" type="search" defaultValue={params.q ?? ""} placeholder="Razón social o CUIT" className="input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="estado" className="text-sm font-medium">
             Estado
           </label>
-          <select id="estado" name="estado" defaultValue={params.estado ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <select id="estado" name="estado" defaultValue={params.estado ?? ""} className="input">
             <option value="">Todos</option>
             <option value="vigente">Vigentes</option>
             <option value="baja">Dados de baja</option>
           </select>
         </div>
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
         {params.q || params.estado ? (
@@ -79,9 +79,9 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
         {result.total} proveedor{result.total === 1 ? "" : "es"} encontrado{result.total === 1 ? "" : "s"}.
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Razón social</th>
               <th scope="col" className="px-3 py-2 font-medium">CUIT</th>
@@ -97,7 +97,7 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
               </tr>
             ) : (
               result.items.map((proveedor) => (
-                <tr key={proveedor.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={proveedor.id}>
                   <td className="px-3 py-2">
                     <Link href={`/catalogos/proveedores/${proveedor.id}`} className="font-medium underline-offset-2 hover:underline">
                       {proveedor.razonSocial}

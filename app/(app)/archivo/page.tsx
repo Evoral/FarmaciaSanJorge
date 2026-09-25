@@ -44,13 +44,13 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
   }
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Archivo de recetas</h1>
+        <h1 className="text-2xl font-semibold">Archivo de recetas</h1>
         <div className="flex items-center gap-3">
           {puedeConformar ? <ActualizarPlazosButton /> : null}
           {puedeConformar ? (
-            <Link href="/archivo/nuevo" className="rounded bg-zinc-900 px-3 py-2 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900">
+            <Link href="/archivo/nuevo" className="btn btn-primary">
               Conformar lote
             </Link>
           ) : null}
@@ -66,7 +66,7 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
           <label htmlFor="estado" className="text-sm font-medium">
             Estado
           </label>
-          <select id="estado" name="estado" defaultValue={estado ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <select id="estado" name="estado" defaultValue={estado ?? ""} className="input">
             <option value="">Todos</option>
             {ESTADOS_LOTE_ARCHIVO.map((value) => (
               <option key={value} value={value}>
@@ -79,15 +79,15 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
           <label htmlFor="periodoDesde" className="text-sm font-medium">
             Período desde
           </label>
-          <input id="periodoDesde" name="periodoDesde" type="date" defaultValue={params.periodoDesde ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="periodoDesde" name="periodoDesde" type="date" defaultValue={params.periodoDesde ?? ""} className="input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="periodoHasta" className="text-sm font-medium">
             Período hasta
           </label>
-          <input id="periodoHasta" name="periodoHasta" type="date" defaultValue={params.periodoHasta ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="periodoHasta" name="periodoHasta" type="date" defaultValue={params.periodoHasta ?? ""} className="input" />
         </div>
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
         <Link href="/archivo" className="text-sm underline">
@@ -99,9 +99,9 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
         {resultado.total} lote{resultado.total === 1 ? "" : "s"} encontrado{resultado.total === 1 ? "" : "s"}.
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Nº</th>
               <th scope="col" className="px-3 py-2 font-medium">Período</th>
@@ -120,7 +120,7 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
               </tr>
             ) : (
               resultado.items.map((item) => (
-                <tr key={item.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={item.id}>
                   <td className="px-3 py-2">
                     <Link href={`/archivo/${item.id}`} className="font-medium underline-offset-2 hover:underline">
                       Lote Nº {item.numero}

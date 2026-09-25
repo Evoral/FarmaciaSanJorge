@@ -33,7 +33,7 @@ export default async function DrogaDetallePage({ params }: DrogaDetallePageProps
         </Link>
       </div>
 
-      <h1 className="mb-1 text-xl font-semibold">{droga.nombre}</h1>
+      <h1 className="mb-1 text-2xl font-semibold">{droga.nombre}</h1>
       <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">{droga.fechaBaja ? "Dada de baja" : "Vigente"}</p>
 
       <div className="flex flex-col gap-8">
@@ -56,7 +56,7 @@ export default async function DrogaDetallePage({ params }: DrogaDetallePageProps
               label="Dar de baja"
               pendingLabel="Dando de baja…"
               helpText="Esta droga deja de ofrecerse para nuevas recetas, pero sigue resolviendo en históricos."
-              submitClassName="rounded border border-red-300 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:text-red-400"
+              submitClassName="btn btn-danger"
             />
           ) : null}
         </section>

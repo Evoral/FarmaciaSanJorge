@@ -38,19 +38,19 @@ export default async function StockValorizadoPage({ searchParams }: StockValoriz
   let drogaAnterior: string | null = null;
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-2">
         <Link href="/reportes" className="text-sm underline">
           ← Volver a reportes
         </Link>
       </div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Stock valorizado</h1>
+        <h1 className="text-2xl font-semibold">Stock valorizado</h1>
         <div className="flex gap-2">
-          <a href={exportHref("csv")} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+          <a href={exportHref("csv")} className="btn btn-secondary">
             Exportar CSV
           </a>
-          <a href={exportHref("pdf")} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+          <a href={exportHref("pdf")} className="btn btn-secondary">
             Exportar PDF
           </a>
         </div>
@@ -65,7 +65,7 @@ export default async function StockValorizadoPage({ searchParams }: StockValoriz
           <label htmlFor="search" className="text-sm font-medium">
             Droga
           </label>
-          <input id="search" name="search" type="search" defaultValue={params.search ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="search" name="search" type="search" defaultValue={params.search ?? ""} className="input" />
         </div>
         <div className="flex items-center gap-2 pb-2">
           <input id="incluirVencidas" name="incluirVencidas" type="checkbox" value="1" defaultChecked={incluirVencidas} className="h-4 w-4" />
@@ -79,7 +79,7 @@ export default async function StockValorizadoPage({ searchParams }: StockValoriz
             Solo con saldo
           </label>
         </div>
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
         <Link href="/reportes/stock-valorizado" className="text-sm underline">
@@ -91,9 +91,9 @@ export default async function StockValorizadoPage({ searchParams }: StockValoriz
         {result.total} partida{result.total === 1 ? "" : "s"} encontrada{result.total === 1 ? "" : "s"}. Total general: {result.granTotal}.
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Droga</th>
               <th scope="col" className="px-3 py-2 font-medium">Lote</th>
@@ -125,7 +125,7 @@ export default async function StockValorizadoPage({ searchParams }: StockValoriz
                 }
                 drogaAnterior = item.drogaId;
                 filas.push(
-                  <tr key={item.partidaId} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                  <tr key={item.partidaId}>
                     <td className="px-3 py-2">{item.drogaNombre}</td>
                     <td className="px-3 py-2">{item.lote}</td>
                     <td className="px-3 py-2">{item.fechaVencimiento}</td>

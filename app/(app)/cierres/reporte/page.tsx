@@ -32,7 +32,7 @@ export default async function ReporteCumplimientoPage({ searchParams }: ReporteC
   }
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-4">
         <Link href="/cierres" className="text-sm underline">
           ← Volver a cierres
@@ -40,8 +40,8 @@ export default async function ReporteCumplimientoPage({ searchParams }: ReporteC
       </div>
 
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Reporte de cumplimiento de firma</h1>
-        <a href={exportHref()} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <h1 className="text-2xl font-semibold">Reporte de cumplimiento de firma</h1>
+        <a href={exportHref()} className="btn btn-secondary">
           Exportar CSV
         </a>
       </div>
@@ -51,15 +51,15 @@ export default async function ReporteCumplimientoPage({ searchParams }: ReporteC
           <label htmlFor="fechaDesde" className="text-sm font-medium">
             Desde
           </label>
-          <input id="fechaDesde" name="fechaDesde" type="date" defaultValue={params.fechaDesde ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="fechaDesde" name="fechaDesde" type="date" defaultValue={params.fechaDesde ?? ""} className="input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="fechaHasta" className="text-sm font-medium">
             Hasta
           </label>
-          <input id="fechaHasta" name="fechaHasta" type="date" defaultValue={params.fechaHasta ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="fechaHasta" name="fechaHasta" type="date" defaultValue={params.fechaHasta ?? ""} className="input" />
         </div>
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
         <Link href="/cierres/reporte" className="text-sm underline">
@@ -71,9 +71,9 @@ export default async function ReporteCumplimientoPage({ searchParams }: ReporteC
         {items.length} cierre{items.length === 1 ? "" : "s"} encontrado{items.length === 1 ? "" : "s"}.
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Fecha</th>
               <th scope="col" className="px-3 py-2 font-medium">Fecha de firma</th>
@@ -92,7 +92,7 @@ export default async function ReporteCumplimientoPage({ searchParams }: ReporteC
               </tr>
             ) : (
               items.map((item) => (
-                <tr key={item.fecha} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={item.fecha}>
                   <td className="px-3 py-2 font-medium">{item.fecha}</td>
                   <td className="px-3 py-2">{new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(item.fechaFirma)}</td>
                   <td className="px-3 py-2">{item.demoraDias}</td>

@@ -55,7 +55,7 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
   }
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-4">
         <Link href="/libro" className="text-sm underline">
           ← Volver al libro recetario
@@ -63,13 +63,13 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
       </div>
 
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Libros contralor</h1>
+        <h1 className="text-2xl font-semibold">Libros contralor</h1>
         {puedeExportar ? (
           <div className="flex gap-2">
-            <a href={exportHref("csv")} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+            <a href={exportHref("csv")} className="btn btn-secondary">
               Exportar CSV
             </a>
-            <a href={exportHref("pdf")} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+            <a href={exportHref("pdf")} className="btn btn-secondary">
               Exportar PDF
             </a>
           </div>
@@ -87,7 +87,7 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
           <label htmlFor="tipoLibro" className="text-sm font-medium">
             Libro
           </label>
-          <select id="tipoLibro" name="tipoLibro" defaultValue={params.tipoLibro ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <select id="tipoLibro" name="tipoLibro" defaultValue={params.tipoLibro ?? ""} className="input">
             <option value="">Todos</option>
             <option value="PSICOTROPICO">Psicotrópicos</option>
             <option value="ESTUPEFACIENTE">Estupefacientes</option>
@@ -97,22 +97,22 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
           <label htmlFor="fechaDesde" className="text-sm font-medium">
             Desde
           </label>
-          <input id="fechaDesde" name="fechaDesde" type="date" defaultValue={params.fechaDesde ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="fechaDesde" name="fechaDesde" type="date" defaultValue={params.fechaDesde ?? ""} className="input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="fechaHasta" className="text-sm font-medium">
             Hasta
           </label>
-          <input id="fechaHasta" name="fechaHasta" type="date" defaultValue={params.fechaHasta ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="fechaHasta" name="fechaHasta" type="date" defaultValue={params.fechaHasta ?? ""} className="input" />
         </div>
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
       </form>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Nº</th>
               <th scope="col" className="px-3 py-2 font-medium">Fecha</th>
@@ -134,7 +134,7 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
               </tr>
             ) : (
               result.items.map((item) => (
-                <tr key={item.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={item.id}>
                   <td className="px-3 py-2">{item.numeroCorrelativo}</td>
                   <td className="px-3 py-2">{item.fechaAsiento}</td>
                   <td className="px-3 py-2">{TIPO_MOVIMIENTO_LABELS[item.tipoMovimiento] ?? item.tipoMovimiento}</td>

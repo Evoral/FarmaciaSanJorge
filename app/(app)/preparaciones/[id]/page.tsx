@@ -25,14 +25,14 @@ export default async function PreparacionPage({ params }: PreparacionPageProps) 
   }
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-4">
         <Link href="/preparaciones" className="text-sm underline">
           ← Volver a preparaciones
         </Link>
       </div>
 
-      <h1 className="mb-4 text-xl font-semibold">Preparación — {pantalla.estado}</h1>
+      <h1 className="mb-4 text-2xl font-semibold">Preparación — {pantalla.estado}</h1>
 
       {pantalla.estado === "INICIADA" ? (
         <>
@@ -68,7 +68,7 @@ async function EtiquetaSeccion({ preparacionId }: { preparacionId: string }) {
           href={`/api/preparaciones/${preparacionId}/etiqueta/pdf`}
           target="_blank"
           rel="noreferrer"
-          className="inline-block rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+          className="inline-block btn btn-secondary"
         >
           Imprimir etiqueta
         </a>

@@ -66,7 +66,7 @@ export function ConfirmarPreparacionForm({ pantalla }: ConfirmarPreparacionFormP
 
         <div className="flex flex-col gap-4">
           {pantalla.lineas.map((linea) => (
-            <fieldset key={linea.id} className="rounded border border-zinc-300 p-3 dark:border-zinc-700">
+            <fieldset key={linea.id} className="card p-4">
               <input type="hidden" name="lineaIds" value={linea.id} />
               <legend className="px-1 text-sm font-medium">
                 {linea.orden + 1}. {linea.drogaNombre}
@@ -84,7 +84,7 @@ export function ConfirmarPreparacionForm({ pantalla }: ConfirmarPreparacionFormP
                     type="text"
                     inputMode="decimal"
                     required
-                    className="w-40 rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                    className="w-40 input"
                   />
                 </div>
               ) : linea.stockInsuficiente ? (
@@ -123,7 +123,7 @@ export function ConfirmarPreparacionForm({ pantalla }: ConfirmarPreparacionFormP
                   id={`motivoApertura_${linea.id}`}
                   name={`motivoApertura_${linea.id}`}
                   type="text"
-                  className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                  className="input"
                 />
               </div>
             </fieldset>

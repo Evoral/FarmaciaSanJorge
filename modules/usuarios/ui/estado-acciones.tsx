@@ -41,21 +41,21 @@ function MotivoForm({
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className={submitClassName ?? "rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"}>
+      <button type="button" onClick={() => setOpen(true)} className={submitClassName ?? "btn btn-secondary"}>
         {label}
       </button>
     );
   }
 
   return (
-    <div className="rounded border border-zinc-300 p-3 dark:border-zinc-700">
+    <div className="card p-4">
       {helpText ? <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400">{helpText}</p> : null}
       <ReauthAwareForm action={action} submitLabel={label} pendingLabel={pendingLabel} submitClassName={submitClassName} onSuccess={() => setOpen(false)}>
         <input type="hidden" name="usuarioId" value={usuarioId} />
         <label htmlFor={motivoId} className="text-sm font-medium">
           Motivo
         </label>
-        <textarea id={motivoId} name="motivo" required rows={2} className="mt-1 w-full rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+        <textarea id={motivoId} name="motivo" required rows={2} className="mt-1 w-full input" />
       </ReauthAwareForm>
       <button type="button" onClick={() => setOpen(false)} className="mt-2 text-sm underline">
         Cancelar
@@ -96,7 +96,7 @@ export function EstadoAcciones({ usuarioId, estado, puedeSuspender, puedeReactiv
           label="Dar de baja"
           pendingLabel="Dando de baja…"
           helpText="Definitivo: no se puede reactivar después. Se cierran todas las sesiones y credenciales pendientes."
-          submitClassName="rounded border border-red-300 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:text-red-400"
+          submitClassName="btn btn-danger"
         />
       ) : null}
     </div>

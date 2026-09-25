@@ -13,13 +13,13 @@ export default async function NuevaRecetaPage() {
   const unidades = await listUnidadesParaReceta();
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-2">
         <Link href="/recetas" className="text-sm underline">
           ← Volver al listado
         </Link>
       </div>
-      <h1 className="mb-6 text-xl font-semibold">Nueva receta</h1>
+      <h1 className="mb-6 text-2xl font-semibold">Nueva receta</h1>
       <RecetaForm mode="crear" unidades={unidades} disabled={false} />
     </div>
   );

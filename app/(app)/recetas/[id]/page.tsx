@@ -8,6 +8,7 @@ import { esEstadoEditable, esEstadoTerminal, puedeAnular } from "@/modules/recet
 import { registrarRecepcionFisicaAction, anularRecetaAction } from "@/modules/recetas/ui/actions";
 import { ConfirmarForm } from "@/modules/recetas/ui/confirmar-form";
 import { MotivoForm } from "@/modules/recetas/ui/motivo-form";
+import { StatusBadge } from "@/shared/ui/status-badge";
 
 interface RecetaDetallePageProps {
   params: Promise<{ id: string }>;
@@ -31,7 +32,7 @@ export default async function RecetaDetallePage({ params }: RecetaDetallePagePro
   const puedeVerCotizacion = can(session, "cotizaciones.calcular") || can(session, "cotizaciones.ver");
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-2">
         <Link href="/recetas" className="text-sm underline">
           ← Volver al listado
@@ -40,13 +41,13 @@ export default async function RecetaDetallePage({ params }: RecetaDetallePagePro
 
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Receta Nº {receta.numeroInterno}</h1>
+          <h1 className="text-2xl font-semibold">Receta Nº {receta.numeroInterno}</h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             {receta.pacienteApellido}, {receta.pacienteNombre} — Dr./Dra. {receta.medicoApellido}, {receta.medicoNombre} (matrícula {receta.medicoMatricula})
           </p>
         </div>
         {puedeEditar ? (
-          <Link href={`/recetas/${receta.id}/editar`} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+          <Link href={`/recetas/${receta.id}/editar`} className="btn btn-secondary">
             Editar
           </Link>
         ) : null}
@@ -55,7 +56,7 @@ export default async function RecetaDetallePage({ params }: RecetaDetallePagePro
       <dl className="mb-6 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
         <div>
           <dt className="text-zinc-500">Estado</dt>
-          <dd className="font-medium">{receta.estado}</dd>
+          <dd><StatusBadge estado={receta.estado} /></dd>
         </div>
         <div>
           <dt className="text-zinc-500">Origen</dt>
@@ -92,7 +93,7 @@ export default async function RecetaDetallePage({ params }: RecetaDetallePagePro
         <h2 className="mb-3 text-lg font-medium">Ítems</h2>
         <div className="flex flex-col gap-4">
           {receta.items.map((item, idx) => (
-            <div key={item.id} className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
+            <div key={item.id} className="card p-4">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-medium">
                   Ítem {idx + 1}: {item.descripcion ?? item.formaFarmaceutica} ({item.formaFarmaceutica}) — {item.cantidadUnidades} unidad
@@ -117,7 +118,7 @@ export default async function RecetaDetallePage({ params }: RecetaDetallePagePro
                   ) : null}
                 </div>
               </div>
-              <table className="w-full text-left text-sm">
+              <table className="data-table">
                 <thead className="border-b border-zinc-200 dark:border-zinc-800">
                   <tr>
                     <th scope="col" className="py-1 font-medium">
@@ -136,7 +137,7 @@ export default async function RecetaDetallePage({ params }: RecetaDetallePagePro
                 </thead>
                 <tbody>
                   {item.componentes.map((c) => (
-                    <tr key={c.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                    <tr key={c.id}>
                       <td className="py-1">{c.drogaNombre}</td>
                       <td className="py-1">{c.cantidad ? `${c.cantidad} ${c.unidadMedidaSimbolo}` : "—"}</td>
                       <td className="py-1">{c.modoExpresion}</td>
@@ -167,7 +168,7 @@ export default async function RecetaDetallePage({ params }: RecetaDetallePagePro
               label="Anular receta"
               pendingLabel="Anulando…"
               helpText="Si ya se confirmó una preparación para algún ítem de esta receta, la anulación NO revierte el stock consumido ni genera un asiento de reversión: la corrección a nivel asiento es responsabilidad de FASE 9 (docs/specs/libro-recetario-y-contralor.md §1). La receta queda ANULADA de todas formas."
-              submitClassName="rounded border border-red-300 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:text-red-400"
+              submitClassName="btn btn-danger"
             />
           </div>
         ) : null}

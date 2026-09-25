@@ -30,7 +30,7 @@ export default async function UnidadDetallePage({ params }: UnidadDetallePagePro
         </Link>
       </div>
 
-      <h1 className="mb-1 text-xl font-semibold">
+      <h1 className="mb-1 text-2xl font-semibold">
         {unidad.nombre} ({unidad.simbolo})
       </h1>
       <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">
@@ -61,7 +61,7 @@ export default async function UnidadDetallePage({ params }: UnidadDetallePagePro
                   ? `Esta unidad deja de ofrecerse para nuevas drogas, en cualquier farmacia, pero sigue resolviendo en históricos. Actualmente la usan ${unidad.drogasQueLaUsan} droga${unidad.drogasQueLaUsan === 1 ? "" : "s"} (en todas las farmacias del sistema).`
                   : "Esta unidad deja de ofrecerse para nuevas drogas, en cualquier farmacia, pero sigue resolviendo en históricos."
               }
-              submitClassName="rounded border border-red-300 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:text-red-400"
+              submitClassName="btn btn-danger"
             />
           ) : null}
         </section>

@@ -20,5 +20,5 @@ export default async function AuditoriaLayout({ children }: { children: ReactNod
     redirect("/");
   }
 
-  return <div className="mx-auto max-w-5xl px-4 py-8">{children}</div>;
+  return <div className="page">{children}</div>;
 }

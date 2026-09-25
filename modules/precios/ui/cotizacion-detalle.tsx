@@ -7,7 +7,7 @@ function fechaHora(iso: string): string {
 
 export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionItemOutput }) {
   return (
-    <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
+    <div className="card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-zinc-500">
           Calculada el {fechaHora(cotizacion.calculadaEn)} por {cotizacion.calculadaPorApellido}, {cotizacion.calculadaPorNombre}
@@ -42,7 +42,7 @@ export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionIt
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
+        <table className="data-table">
           <thead className="border-b border-zinc-200 dark:border-zinc-800">
             <tr>
               <th scope="col" className="py-1 pr-3 font-medium">Droga</th>

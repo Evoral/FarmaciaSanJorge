@@ -13,7 +13,7 @@ import { buscarDrogasParaRecetaAction } from "./actions";
 function BuscarButton() {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className="rounded border border-zinc-300 px-2 py-1 text-sm disabled:opacity-50 dark:border-zinc-700">
+    <button type="submit" disabled={pending} className="btn btn-secondary btn-sm">
       {pending ? "Buscando…" : "Buscar"}
     </button>
   );
@@ -50,7 +50,7 @@ export function DrogaPicker({ label, selectedId, selectedLabel, onSelect, disabl
               <label htmlFor={inputId} className="text-xs">
                 Buscar droga
               </label>
-              <input id={inputId} name="q" type="text" disabled={disabled} className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+              <input id={inputId} name="q" type="text" disabled={disabled} className="input input-sm" />
             </div>
             <BuscarButton />
           </form>
@@ -65,7 +65,7 @@ export function DrogaPicker({ label, selectedId, selectedLabel, onSelect, disabl
                 <label htmlFor={selectId} className="text-xs">
                   Resultados
                 </label>
-                <select id={selectId} size={Math.min(6, state.items.length)} value={elegido} onChange={(e) => setElegido(e.target.value)} className="min-w-56 rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <select id={selectId} size={Math.min(6, state.items.length)} value={elegido} onChange={(e) => setElegido(e.target.value)} className="min-w-56 input input-sm">
                   {state.items.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.nombre} ({d.unidadBaseSimbolo})
@@ -80,7 +80,7 @@ export function DrogaPicker({ label, selectedId, selectedLabel, onSelect, disabl
                   const d = state.items.find((x) => x.id === elegido);
                   if (d) onSelect(d.id, d.nombre, d.unidadBaseId, d.unidadBaseSimbolo);
                 }}
-                className="rounded border border-zinc-300 px-2 py-1 text-sm disabled:opacity-50 dark:border-zinc-700"
+                className="btn btn-secondary btn-sm"
               >
                 Elegir
               </button>

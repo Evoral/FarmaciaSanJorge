@@ -17,8 +17,8 @@ export default async function HistoricoPage() {
   const result = await listHistorico({ page: 1, pageSize: 50 });
 
   return (
-    <div className="p-6">
-      <h1 className="mb-6 text-xl font-semibold">Asientos históricos</h1>
+    <div className="page">
+      <h1 className="mb-6 text-2xl font-semibold">Asientos históricos</h1>
       <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">
         Solo para relevamiento de datos del libro físico -- no forman parte del libro digital, no consumen correlativo ni cadena de hash, no generan movimientos de stock (DP-17).
       </p>
@@ -30,9 +30,9 @@ export default async function HistoricoPage() {
         </div>
       ) : null}
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Libro</th>
               <th scope="col" className="px-3 py-2 font-medium">Nº físico</th>
@@ -51,7 +51,7 @@ export default async function HistoricoPage() {
               </tr>
             ) : (
               result.items.map((item) => (
-                <tr key={item.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={item.id}>
                   <td className="px-3 py-2">{TIPO_LABELS[item.tipoLibro] ?? item.tipoLibro}</td>
                   <td className="px-3 py-2">{item.numeroAsientoFisico}</td>
                   <td className="px-3 py-2">{item.fechaAsiento}</td>

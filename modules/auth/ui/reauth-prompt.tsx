@@ -96,7 +96,7 @@ export function ReauthPrompt({ onReauthenticated, onCancel }: ReauthPromptProps)
               required
               autoComplete="off"
               autoFocus
-              className="mb-2 w-full rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800"
+              className="input mb-2 w-full"
             />
           </>
         ) : (
@@ -111,7 +111,7 @@ export function ReauthPrompt({ onReauthenticated, onCancel }: ReauthPromptProps)
               required
               autoComplete="current-password"
               autoFocus
-              className="mb-2 w-full rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800"
+              className="input mb-2 w-full"
             />
           </>
         )}
@@ -135,7 +135,7 @@ export function ReauthPrompt({ onReauthenticated, onCancel }: ReauthPromptProps)
           <button
             type="submit"
             disabled={pending}
-            className="rounded bg-zinc-900 px-3 py-2 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+            className="btn btn-critical"
           >
             {pending ? "Verificando…" : "Confirmar"}
           </button>

@@ -46,9 +46,9 @@ export default async function PacientesPage({ searchParams }: PacientesPageProps
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Pacientes</h1>
+        <h1 className="text-2xl font-semibold">Pacientes</h1>
         {puedeCrear ? (
-          <Link href="/catalogos/pacientes?nuevo=1" className="rounded bg-zinc-900 px-3 py-2 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900">
+          <Link href="/catalogos/pacientes?nuevo=1" className="btn btn-primary">
             Nuevo paciente
           </Link>
         ) : null}
@@ -65,13 +65,13 @@ export default async function PacientesPage({ searchParams }: PacientesPageProps
           <label htmlFor="estado" className="text-sm font-medium">
             Estado
           </label>
-          <select id="estado" name="estado" defaultValue={estado} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <select id="estado" name="estado" defaultValue={estado} className="input">
             <option value="">Todos</option>
             <option value="vigente">Vigentes</option>
             <option value="baja">Dados de baja</option>
           </select>
         </div>
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
         {estado ? (

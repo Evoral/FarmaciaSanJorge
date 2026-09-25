@@ -46,9 +46,9 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
   }
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Cierres diarios</h1>
+        <h1 className="text-2xl font-semibold">Cierres diarios</h1>
         <Link href="/cierres/reporte" className="text-sm underline">
           Reporte de cumplimiento
         </Link>
@@ -60,9 +60,9 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
           <p className="text-sm text-zinc-600 dark:text-zinc-400">No hay jornadas pendientes de firma.</p>
         ) : (
           <>
-            <div className="mb-4 overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="mb-4 table-wrap">
+              <table className="data-table">
+                <thead>
                   <tr>
                     <th scope="col" className="px-3 py-2 font-medium">Fecha</th>
                     <th scope="col" className="px-3 py-2 font-medium">Antigüedad</th>
@@ -73,7 +73,7 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
                 </thead>
                 <tbody>
                   {pendientes.map((p) => (
-                    <tr key={p.fecha} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                    <tr key={p.fecha}>
                       <td className="px-3 py-2 font-medium">{p.fecha}</td>
                       <td className="px-3 py-2">{p.antiguedadDias} día{p.antiguedadDias === 1 ? "" : "s"}</td>
                       <td className="px-3 py-2">{p.cantidadRecetario}</td>
@@ -106,15 +106,15 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
             <label htmlFor="fechaDesde" className="text-sm font-medium">
               Desde
             </label>
-            <input id="fechaDesde" name="fechaDesde" type="date" defaultValue={params.fechaDesde ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            <input id="fechaDesde" name="fechaDesde" type="date" defaultValue={params.fechaDesde ?? ""} className="input" />
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="fechaHasta" className="text-sm font-medium">
               Hasta
             </label>
-            <input id="fechaHasta" name="fechaHasta" type="date" defaultValue={params.fechaHasta ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            <input id="fechaHasta" name="fechaHasta" type="date" defaultValue={params.fechaHasta ?? ""} className="input" />
           </div>
-          <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+          <button type="submit" className="btn btn-secondary">
             Filtrar
           </button>
           <Link href="/cierres" className="text-sm underline">
@@ -126,9 +126,9 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
           {historial.total} cierre{historial.total === 1 ? "" : "s"} encontrado{historial.total === 1 ? "" : "s"}.
         </p>
 
-        <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
               <tr>
                 <th scope="col" className="px-3 py-2 font-medium">Fecha</th>
                 <th scope="col" className="px-3 py-2 font-medium">Director Técnico</th>
@@ -146,7 +146,7 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
                 </tr>
               ) : (
                 historial.items.map((item) => (
-                  <tr key={item.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                  <tr key={item.id}>
                     <td className="px-3 py-2">
                       <Link href={`/cierres/${item.id}`} className="font-medium underline-offset-2 hover:underline">
                         {item.fecha}

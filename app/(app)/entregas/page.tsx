@@ -20,9 +20,9 @@ export default async function EntregasPage({ searchParams }: EntregasPageProps) 
   const totalPages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Entregas</h1>
+        <h1 className="text-2xl font-semibold">Entregas</h1>
         {can(session, "regularizacion.ver") ? (
           <Link href="/regularizacion" className="text-sm underline">
             Ver regularización

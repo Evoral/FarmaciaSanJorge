@@ -1,4 +1,4 @@
-# PLAN DE IMPLEMENTACIÓN — Farmacia San José (Laboratorio Magistral)
+# PLAN DE IMPLEMENTACIÓN — Farmacia San Jorge (Laboratorio Magistral)
 
 > Fuentes analizadas: `Farm SJ-Ejecución.txt` (invariantes + historias), `FarmaciaSJ.drawio` (49 clases/enums, 44 relaciones, 6 notas), proyecto `M:\Projects\farmacia-san-jose` (Next.js 16.3.5 recién creado, App Router, sin `src/`, alias `@/*`, Tailwind 4, TS strict, sin BD/ORM/tests).
 > Convención de marcas: **[CONFIRMADO]** = sale de la documentación. **[PROPUESTA TÉCNICA]** = decisión técnica mía, revisable. **DECISIÓN PENDIENTE (DP-xx)** = decisión de negocio faltante (sección 21). Nada marcado como DP se implementa hasta resolverse; los puntos afectados lo indican.

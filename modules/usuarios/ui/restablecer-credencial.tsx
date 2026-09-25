@@ -18,7 +18,7 @@ const initialState: RestablecerCredencialState = { status: "idle" };
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-zinc-700">
+    <button type="submit" disabled={pending} className="btn btn-secondary">
       {pending ? "Restableciendo…" : "Restablecer credencial"}
     </button>
   );

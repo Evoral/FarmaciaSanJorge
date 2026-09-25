@@ -21,7 +21,7 @@ export default async function NuevoAjustePage({ searchParams }: NuevoAjustePageP
   const { partidaId } = await searchParams;
   if (!partidaId) {
     return (
-      <div className="p-6">
+      <div className="page">
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           Elegí una partida desde su detalle para registrar un ajuste, o buscá una droga en{" "}
           <Link href="/stock" className="underline">
@@ -45,8 +45,8 @@ export default async function NuevoAjustePage({ searchParams }: NuevoAjustePageP
   const operadorEsDt = dts.some((dt) => dt.usuarioId === session.usuario.id);
 
   return (
-    <div className="p-6">
-      <h1 className="mb-6 text-xl font-semibold">Registrar ajuste / merma</h1>
+    <div className="page">
+      <h1 className="mb-6 text-2xl font-semibold">Registrar ajuste / merma</h1>
       <AjusteForm
         partidaId={partida.id}
         drogaNombre={partida.drogaNombre}

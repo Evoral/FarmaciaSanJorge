@@ -27,7 +27,7 @@ export function EditarDatosTenantForm({ tenant, disabled }: EditarDatosTenantFor
           defaultValue={tenant.razonSocial}
           required
           disabled={disabled}
-          className="rounded border border-zinc-300 px-3 py-2 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
       </div>
 
@@ -40,7 +40,7 @@ export function EditarDatosTenantForm({ tenant, disabled }: EditarDatosTenantFor
           name="nombreFantasia"
           defaultValue={tenant.nombreFantasia ?? ""}
           disabled={disabled}
-          className="rounded border border-zinc-300 px-3 py-2 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
       </div>
 
@@ -53,7 +53,7 @@ export function EditarDatosTenantForm({ tenant, disabled }: EditarDatosTenantFor
           name="domicilio"
           defaultValue={tenant.domicilio ?? ""}
           disabled={disabled}
-          className="rounded border border-zinc-300 px-3 py-2 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
       </div>
 
@@ -66,7 +66,7 @@ export function EditarDatosTenantForm({ tenant, disabled }: EditarDatosTenantFor
           name="matriculaFarmacia"
           defaultValue={tenant.matriculaFarmacia ?? ""}
           disabled={disabled}
-          className="rounded border border-zinc-300 px-3 py-2 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
+          className="input"
         />
       </div>
     </ReauthAwareForm>

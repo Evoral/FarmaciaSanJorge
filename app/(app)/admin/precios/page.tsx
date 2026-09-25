@@ -16,7 +16,7 @@ export default async function PreciosPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-xl font-semibold">Reglas de precio</h1>
+        <h1 className="text-2xl font-semibold">Reglas de precio</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           Precio de un ítem = costo de los insumos × margen (DP-09). Versionado: cada cambio de margen cierra la regla vigente y crea una nueva (INV-PR-001).
         </p>
@@ -31,9 +31,9 @@ export default async function PreciosPage() {
         {historial.length === 0 ? (
           <p className="text-sm text-zinc-500">Todavía no se configuró ninguna regla de precio.</p>
         ) : (
-          <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
                 <tr>
                   <th scope="col" className="px-3 py-2 font-medium">Margen (%)</th>
                   <th scope="col" className="px-3 py-2 font-medium">Vigente desde</th>
@@ -43,7 +43,7 @@ export default async function PreciosPage() {
               </thead>
               <tbody>
                 {historial.map((r) => (
-                  <tr key={r.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                  <tr key={r.id}>
                     <td className="px-3 py-2 font-medium">{r.margen}</td>
                     <td className="px-3 py-2">{fechaHora(r.vigenteDesde)}</td>
                     <td className="px-3 py-2">{r.vigenteHasta ? fechaHora(r.vigenteHasta) : <span className="text-emerald-600 dark:text-emerald-400">Vigente</span>}</td>

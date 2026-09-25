@@ -19,7 +19,7 @@ import { IDLE_STATE } from "./action-state";
 function SubmitButton({ label, pendingLabel, className, disabled }: { label: string; pendingLabel: string; className?: string; disabled?: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending || disabled} className={className ?? "rounded bg-red-700 px-4 py-2 text-sm text-white disabled:opacity-50"}>
+    <button type="submit" disabled={pending || disabled} className={className ?? "btn btn-danger-solid"}>
       {pending ? pendingLabel : label}
     </button>
   );

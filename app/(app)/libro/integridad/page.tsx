@@ -12,14 +12,14 @@ export default async function IntegridadPage() {
   const resultados = await verificarCadenaLibros();
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-4">
         <Link href="/libro" className="text-sm underline">
           ← Volver al libro recetario
         </Link>
       </div>
 
-      <h1 className="mb-6 text-xl font-semibold">Verificación de integridad</h1>
+      <h1 className="mb-6 text-2xl font-semibold">Verificación de integridad</h1>
 
       <div className="flex flex-col gap-3">
         {resultados.map((r) => (

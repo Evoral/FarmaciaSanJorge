@@ -18,7 +18,7 @@ import { IDLE_BUSCAR_PERSONA_STATE, IDLE_CREAR_PERSONA_STATE } from "./action-st
 function BuscarButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-zinc-700">
+    <button type="submit" disabled={pending} className="btn btn-secondary">
       {pending ? "Buscando…" : label}
     </button>
   );
@@ -27,7 +27,7 @@ function BuscarButton({ label }: { label: string }) {
 function CrearButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className="rounded bg-zinc-900 px-3 py-2 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900">
+    <button type="submit" disabled={pending} className="btn btn-primary">
       {pending ? "Creando…" : label}
     </button>
   );
@@ -55,7 +55,7 @@ export function PacientePicker({ selectedId, selectedLabel, onSelect, disabled }
   }, [crearState]);
 
   return (
-    <fieldset className="rounded border border-zinc-300 p-3 dark:border-zinc-700" disabled={disabled}>
+    <fieldset className="card p-4" disabled={disabled}>
       <legend className="px-1 text-sm font-medium">Paciente</legend>
 
       {selectedId ? (
@@ -83,7 +83,7 @@ export function PacientePicker({ selectedId, selectedLabel, onSelect, disabled }
                   <label htmlFor="paciente-q" className="text-sm">
                     Apellido o DNI
                   </label>
-                  <input id="paciente-q" name="q" type="text" className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                  <input id="paciente-q" name="q" type="text" className="input input-sm" />
                 </div>
                 <BuscarButton label="Buscar" />
               </form>
@@ -98,7 +98,7 @@ export function PacientePicker({ selectedId, selectedLabel, onSelect, disabled }
                     <label htmlFor={selectId} className="text-sm">
                       Resultados
                     </label>
-                    <select id={selectId} size={Math.min(6, buscarState.items.length)} value={elegido} onChange={(e) => setElegido(e.target.value)} className="min-w-64 rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                    <select id={selectId} size={Math.min(6, buscarState.items.length)} value={elegido} onChange={(e) => setElegido(e.target.value)} className="min-w-64 input input-sm">
                       {buscarState.items.map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.apellido}, {p.nombre}
@@ -113,7 +113,7 @@ export function PacientePicker({ selectedId, selectedLabel, onSelect, disabled }
                       const p = buscarState.items.find((x) => x.id === elegido);
                       if (p) onSelect(p.id, `${p.apellido}, ${p.nombre}`);
                     }}
-                    className="rounded bg-zinc-900 px-3 py-2 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+                    className="btn btn-primary"
                   >
                     Seleccionar
                   </button>
@@ -126,19 +126,19 @@ export function PacientePicker({ selectedId, selectedLabel, onSelect, disabled }
                 <label htmlFor="paciente-nombre" className="text-sm">
                   Nombre
                 </label>
-                <input id="paciente-nombre" name="nombre" required className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                <input id="paciente-nombre" name="nombre" required className="input input-sm" />
               </div>
               <div className="flex flex-col gap-1">
                 <label htmlFor="paciente-apellido" className="text-sm">
                   Apellido
                 </label>
-                <input id="paciente-apellido" name="apellido" required className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                <input id="paciente-apellido" name="apellido" required className="input input-sm" />
               </div>
               <div className="flex flex-col gap-1">
                 <label htmlFor="paciente-dni" className="text-sm">
                   DNI (opcional)
                 </label>
-                <input id="paciente-dni" name="dni" className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                <input id="paciente-dni" name="dni" className="input input-sm" />
               </div>
               <CrearButton label="Crear paciente" />
               {crearState.status === "error" ? (

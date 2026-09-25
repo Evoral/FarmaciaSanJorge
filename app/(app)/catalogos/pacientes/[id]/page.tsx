@@ -33,7 +33,7 @@ export default async function PacienteDetallePage({ params }: PacienteDetallePag
         </Link>
       </div>
 
-      <h1 className="mb-1 text-xl font-semibold">
+      <h1 className="mb-1 text-2xl font-semibold">
         {paciente.apellido}, {paciente.nombre}
       </h1>
       <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">{paciente.fechaBaja ? "Dado de baja" : "Vigente"}</p>
@@ -73,7 +73,7 @@ export default async function PacienteDetallePage({ params }: PacienteDetallePag
               label="Dar de baja"
               pendingLabel="Dando de baja…"
               helpText="Este paciente deja de ofrecerse para nuevas recetas, pero sigue resolviendo en históricos."
-              submitClassName="rounded border border-red-300 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:text-red-400"
+              submitClassName="btn btn-danger"
             />
           ) : null}
         </section>

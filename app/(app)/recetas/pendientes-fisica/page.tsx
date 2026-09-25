@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listRecetasPendientesFisica } from "@/modules/recetas/application/list-recetas-pendientes-fisica";
+import { StatusBadge } from "@/shared/ui/status-badge";
 
 const PAGE_SIZE = 20;
 
@@ -21,20 +22,20 @@ export default async function PendientesFisicaPage({ searchParams }: PendientesF
   const totalPages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-2">
         <Link href="/recetas" className="text-sm underline">
           ← Volver al listado
         </Link>
       </div>
-      <h1 className="mb-1 text-xl font-semibold">Pendientes de receta física</h1>
+      <h1 className="mb-1 text-2xl font-semibold">Pendientes de receta física</h1>
       <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">
         Recetas no anuladas que todavía no tienen registrada la recepción de la receta física (INV-R10), ordenadas de más a menos antiguas.
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">
                 Nº
@@ -62,7 +63,7 @@ export default async function PendientesFisicaPage({ searchParams }: PendientesF
               </tr>
             ) : (
               result.items.map((r) => (
-                <tr key={r.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={r.id}>
                   <td className="px-3 py-2">
                     <Link href={`/recetas/${r.id}`} className="font-medium underline-offset-2 hover:underline">
                       {r.numeroInterno}
@@ -74,7 +75,7 @@ export default async function PendientesFisicaPage({ searchParams }: PendientesF
                   <td className="px-3 py-2">
                     {r.medicoApellido}, {r.medicoNombre}
                   </td>
-                  <td className="px-3 py-2">{r.estado}</td>
+                  <td className="px-3 py-2"><StatusBadge estado={r.estado} /></td>
                   <td className="px-3 py-2">
                     {r.antiguedadDias} día{r.antiguedadDias === 1 ? "" : "s"}
                   </td>

@@ -33,7 +33,7 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
   const classificacionDisabled = disabled || (mode === "editar" && (unidad?.usada ?? false));
 
   return (
-    <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
+    <div className="card p-4">
       <p role="note" className="mb-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
         {GLOBAL_WARNING}
       </p>
@@ -54,21 +54,21 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
           <label htmlFor="codigo" className="text-sm font-medium">
             Código
           </label>
-          <input id="codigo" name="codigo" defaultValue={unidad?.codigo ?? ""} required disabled={disabled} className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="codigo" name="codigo" defaultValue={unidad?.codigo ?? ""} required disabled={disabled} className="input" />
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="nombre" className="text-sm font-medium">
             Nombre
           </label>
-          <input id="nombre" name="nombre" defaultValue={unidad?.nombre ?? ""} required disabled={disabled} className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="nombre" name="nombre" defaultValue={unidad?.nombre ?? ""} required disabled={disabled} className="input" />
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="simbolo" className="text-sm font-medium">
             Símbolo
           </label>
-          <input id="simbolo" name="simbolo" defaultValue={unidad?.simbolo ?? ""} required disabled={disabled} className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="simbolo" name="simbolo" defaultValue={unidad?.simbolo ?? ""} required disabled={disabled} className="input" />
         </div>
 
         <div className="flex flex-col gap-1">
@@ -80,7 +80,7 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
             name="tipoMagnitud"
             defaultValue={unidad?.tipoMagnitud ?? TIPOS_MAGNITUD[0]}
             disabled={classificacionDisabled}
-            className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           >
             {TIPOS_MAGNITUD.map((tipo) => (
               <option key={tipo} value={tipo}>
@@ -110,7 +110,7 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
             required
             disabled={classificacionDisabled}
             inputMode="decimal"
-            className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
+            className="input"
           />
         </div>
 

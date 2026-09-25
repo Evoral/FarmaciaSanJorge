@@ -20,8 +20,8 @@ export default async function IngresarPartidaPage() {
   ]);
 
   return (
-    <div className="p-6">
-      <h1 className="mb-6 text-xl font-semibold">Ingresar partida</h1>
+    <div className="page">
+      <h1 className="mb-6 text-2xl font-semibold">Ingresar partida</h1>
       <IngresarPartidaForm
         drogas={drogas.items.map((droga) => ({ id: droga.id, label: droga.nombre }))}
         proveedores={proveedores.items.map((proveedor) => ({ id: proveedor.id, label: proveedor.razonSocial }))}

@@ -111,6 +111,6 @@ export const config = {
     // assets, image optimization, and well-known metadata files. Everything
     // else runs through `proxy()` above, which itself exempts /login and
     // /activar from the redirect (but NOT from the CSP header).
-    "/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|logo.png|sitemap.xml|robots.txt).*)",
   ],
 };

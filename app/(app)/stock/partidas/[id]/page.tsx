@@ -39,18 +39,18 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
   const puedeAjustar = can(session, "stock.ajuste.registrar");
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-1 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{partida.drogaNombre}</h1>
+        <h1 className="text-2xl font-semibold">{partida.drogaNombre}</h1>
         {puedeAjustar ? (
-          <Link href={`/stock/ajustes/nuevo?partidaId=${partida.id}`} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+          <Link href={`/stock/ajustes/nuevo?partidaId=${partida.id}`} className="btn btn-secondary">
             Registrar ajuste
           </Link>
         ) : null}
       </div>
       <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">Lote {partida.lote} · {partida.proveedorRazonSocial}</p>
 
-      <dl className="mb-6 grid grid-cols-2 gap-4 rounded border border-zinc-200 p-4 text-sm sm:grid-cols-4 dark:border-zinc-800">
+      <dl className="card mb-6 grid grid-cols-2 gap-4 p-4 text-sm sm:grid-cols-4">
         <div>
           <dt className="text-zinc-500">Saldo disponible</dt>
           <dd className="font-medium">{partida.cantidadDisponible}</dd>
@@ -84,9 +84,9 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
       ) : null}
 
       <h2 className="mb-3 text-base font-semibold">Kardex de movimientos</h2>
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Fecha</th>
               <th scope="col" className="px-3 py-2 font-medium">Tipo</th>
@@ -105,7 +105,7 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
               </tr>
             ) : (
               kardex.items.map((mov) => (
-                <tr key={mov.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={mov.id}>
                   <td className="px-3 py-2">{formatFecha(mov.registradoEn)}</td>
                   <td className="px-3 py-2">{TIPO_MOVIMIENTO_LABELS[mov.tipo] ?? mov.tipo}</td>
                   <td className="px-3 py-2">{mov.cantidad}</td>

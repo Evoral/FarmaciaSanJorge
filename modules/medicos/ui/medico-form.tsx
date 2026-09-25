@@ -22,7 +22,7 @@ export function MedicoForm({ mode, medico, disabled }: MedicoFormProps) {
   const action = mode === "crear" ? crearMedicoAction : editarMedicoAction;
 
   return (
-    <div className="rounded border border-zinc-200 p-4 dark:border-zinc-800">
+    <div className="card p-4">
       <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear médico" : "Guardar cambios"} className="flex max-w-md flex-col gap-3">
         {mode === "editar" && medico ? (
           <>
@@ -40,42 +40,42 @@ export function MedicoForm({ mode, medico, disabled }: MedicoFormProps) {
           <label htmlFor="nombre" className="text-sm font-medium">
             Nombre
           </label>
-          <input id="nombre" name="nombre" defaultValue={medico?.nombre ?? ""} required disabled={disabled} className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="nombre" name="nombre" defaultValue={medico?.nombre ?? ""} required disabled={disabled} className="input" />
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="apellido" className="text-sm font-medium">
             Apellido
           </label>
-          <input id="apellido" name="apellido" defaultValue={medico?.apellido ?? ""} required disabled={disabled} className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="apellido" name="apellido" defaultValue={medico?.apellido ?? ""} required disabled={disabled} className="input" />
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="matricula" className="text-sm font-medium">
             Matrícula
           </label>
-          <input id="matricula" name="matricula" defaultValue={medico?.matricula ?? ""} required disabled={disabled} className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="matricula" name="matricula" defaultValue={medico?.matricula ?? ""} required disabled={disabled} className="input" />
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="especialidad" className="text-sm font-medium">
             Especialidad
           </label>
-          <input id="especialidad" name="especialidad" defaultValue={medico?.especialidad ?? ""} disabled={disabled} className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="especialidad" name="especialidad" defaultValue={medico?.especialidad ?? ""} disabled={disabled} className="input" />
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="telefono" className="text-sm font-medium">
             Teléfono
           </label>
-          <input id="telefono" name="telefono" defaultValue={medico?.telefono ?? ""} disabled={disabled} className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="telefono" name="telefono" defaultValue={medico?.telefono ?? ""} disabled={disabled} className="input" />
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="direccionRegistrada" className="text-sm font-medium">
             Dirección registrada
           </label>
-          <input id="direccionRegistrada" name="direccionRegistrada" defaultValue={medico?.direccionRegistrada ?? ""} disabled={disabled} className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="direccionRegistrada" name="direccionRegistrada" defaultValue={medico?.direccionRegistrada ?? ""} disabled={disabled} className="input" />
         </div>
       </SimpleForm>
     </div>

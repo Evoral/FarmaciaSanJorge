@@ -71,7 +71,7 @@ function nuevoItem(): ItemState {
 function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className="rounded bg-zinc-900 px-4 py-2 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900">
+    <button type="submit" disabled={pending} className="btn btn-primary">
       {pending ? "Guardando…" : label}
     </button>
   );
@@ -217,7 +217,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial }: Rece
           <label htmlFor={fechaId} className="text-sm font-medium">
             Fecha de prescripción
           </label>
-          <input id={fechaId} type="date" required disabled={disabled} value={fechaPrescripcion} onChange={(e) => setFechaPrescripcion(e.target.value)} max={new Date().toISOString().slice(0, 10)} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id={fechaId} type="date" required disabled={disabled} value={fechaPrescripcion} onChange={(e) => setFechaPrescripcion(e.target.value)} max={new Date().toISOString().slice(0, 10)} className="input" />
         </div>
 
         <div className="flex flex-col gap-1">
@@ -240,13 +240,13 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial }: Rece
           <h2 id="items-heading" className="text-lg font-medium">
             Ítems
           </h2>
-          <button type="button" onClick={agregarItem} disabled={disabled} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+          <button type="button" onClick={agregarItem} disabled={disabled} className="btn btn-secondary">
             + Agregar ítem
           </button>
         </div>
 
         {items.map((item, itemIdx) => (
-          <fieldset key={itemIdx} className="rounded border border-zinc-300 p-4 dark:border-zinc-700" disabled={disabled}>
+          <fieldset key={itemIdx} className="card p-4" disabled={disabled}>
             <legend className="px-1 text-sm font-medium">Ítem {itemIdx + 1}</legend>
 
             <div className="mb-3 flex flex-wrap gap-3">
@@ -254,14 +254,14 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial }: Rece
                 <label htmlFor={`item-${itemIdx}-desc`} className="text-sm">
                   Descripción
                 </label>
-                <input id={`item-${itemIdx}-desc`} value={item.descripcion} onChange={(e) => actualizarItem(itemIdx, { descripcion: e.target.value })} className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                <input id={`item-${itemIdx}-desc`} value={item.descripcion} onChange={(e) => actualizarItem(itemIdx, { descripcion: e.target.value })} className="input input-sm" />
               </div>
 
               <div className="flex flex-col gap-1">
                 <label htmlFor={`item-${itemIdx}-forma`} className="text-sm">
                   Forma farmacéutica
                 </label>
-                <select id={`item-${itemIdx}-forma`} value={item.formaFarmaceutica} onChange={(e) => actualizarItem(itemIdx, { formaFarmaceutica: e.target.value as FormaFarmaceutica })} className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <select id={`item-${itemIdx}-forma`} value={item.formaFarmaceutica} onChange={(e) => actualizarItem(itemIdx, { formaFarmaceutica: e.target.value as FormaFarmaceutica })} className="input input-sm">
                   {FORMAS_FARMACEUTICAS.map((f) => (
                     <option key={f} value={f}>
                       {f}
@@ -274,28 +274,28 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial }: Rece
                 <label htmlFor={`item-${itemIdx}-cu`} className="text-sm">
                   Cantidad de unidades
                 </label>
-                <input id={`item-${itemIdx}-cu`} type="number" min={1} step={1} value={item.cantidadUnidades} onChange={(e) => actualizarItem(itemIdx, { cantidadUnidades: e.target.value })} className="w-24 rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                <input id={`item-${itemIdx}-cu`} type="number" min={1} step={1} value={item.cantidadUnidades} onChange={(e) => actualizarItem(itemIdx, { cantidadUnidades: e.target.value })} className="w-24 input input-sm" />
               </div>
 
               <div className="flex flex-col gap-1">
                 <label htmlFor={`item-${itemIdx}-frac`} className="text-sm">
                   Fracción de dosis por unidad
                 </label>
-                <input id={`item-${itemIdx}-frac`} type="text" inputMode="decimal" value={item.fraccionDosisPorUnidad} onChange={(e) => actualizarItem(itemIdx, { fraccionDosisPorUnidad: e.target.value })} className="w-24 rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                <input id={`item-${itemIdx}-frac`} type="text" inputMode="decimal" value={item.fraccionDosisPorUnidad} onChange={(e) => actualizarItem(itemIdx, { fraccionDosisPorUnidad: e.target.value })} className="w-24 input input-sm" />
               </div>
 
               <div className="flex flex-col gap-1">
                 <label htmlFor={`item-${itemIdx}-total`} className="text-sm">
                   Cantidad total (para csp)
                 </label>
-                <input id={`item-${itemIdx}-total`} type="text" inputMode="decimal" value={item.cantidadTotal} onChange={(e) => actualizarItem(itemIdx, { cantidadTotal: e.target.value })} className="w-28 rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                <input id={`item-${itemIdx}-total`} type="text" inputMode="decimal" value={item.cantidadTotal} onChange={(e) => actualizarItem(itemIdx, { cantidadTotal: e.target.value })} className="w-28 input input-sm" />
               </div>
 
               <div className="flex flex-col gap-1">
                 <label htmlFor={`item-${itemIdx}-unidad-total`} className="text-sm">
                   Unidad del total
                 </label>
-                <select id={`item-${itemIdx}-unidad-total`} value={item.unidadTotalId} onChange={(e) => actualizarItem(itemIdx, { unidadTotalId: e.target.value })} className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <select id={`item-${itemIdx}-unidad-total`} value={item.unidadTotalId} onChange={(e) => actualizarItem(itemIdx, { unidadTotalId: e.target.value })} className="input input-sm">
                   <option value="">—</option>
                   {unidades.map((u) => (
                     <option key={u.id} value={u.id}>
@@ -309,18 +309,18 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial }: Rece
                 <label htmlFor={`item-${itemIdx}-obs`} className="text-sm">
                   Observaciones
                 </label>
-                <input id={`item-${itemIdx}-obs`} value={item.observaciones} onChange={(e) => actualizarItem(itemIdx, { observaciones: e.target.value })} className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                <input id={`item-${itemIdx}-obs`} value={item.observaciones} onChange={(e) => actualizarItem(itemIdx, { observaciones: e.target.value })} className="input input-sm" />
               </div>
             </div>
 
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-sm font-medium">Componentes</h3>
               <div className="flex gap-2">
-                <button type="button" onClick={() => agregarComponente(itemIdx)} className="rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700">
+                <button type="button" onClick={() => agregarComponente(itemIdx)} className="btn btn-secondary btn-sm">
                   + Agregar componente
                 </button>
                 {items.length > 1 ? (
-                  <button type="button" onClick={() => quitarItem(itemIdx)} className="rounded border border-red-300 px-2 py-1 text-xs text-red-700 dark:border-red-800 dark:text-red-400">
+                  <button type="button" onClick={() => quitarItem(itemIdx)} className="btn btn-danger btn-sm">
                     Quitar ítem
                   </button>
                 ) : null}
@@ -329,7 +329,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial }: Rece
 
             <ol className="flex flex-col gap-3">
               {item.componentes.map((c, compIdx) => (
-                <li key={compIdx} className="rounded border border-zinc-200 p-3 dark:border-zinc-800">
+                <li key={compIdx} className="card p-4">
                   <div className="mb-2 flex flex-wrap items-end gap-3">
                     <DrogaPicker
                       label={`Componente ${compIdx + 1}: droga`}
@@ -348,7 +348,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial }: Rece
                         id={`item-${itemIdx}-comp-${compIdx}-modo`}
                         value={c.modoExpresion}
                         onChange={(e) => actualizarComponente(itemIdx, compIdx, { modoExpresion: e.target.value as ModoExpresion, cantidad: e.target.value === "CS" || e.target.value === "CSP" ? "" : c.cantidad })}
-                        className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                        className="input input-sm"
                       >
                         {MODOS_EXPRESION.map((m) => (
                           <option key={m} value={m}>
@@ -363,7 +363,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial }: Rece
                         <label htmlFor={`item-${itemIdx}-comp-${compIdx}-cant`} className="text-xs">
                           Cantidad
                         </label>
-                        <input id={`item-${itemIdx}-comp-${compIdx}-cant`} type="text" inputMode="decimal" value={c.cantidad} onChange={(e) => actualizarComponente(itemIdx, compIdx, { cantidad: e.target.value })} className="w-24 rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                        <input id={`item-${itemIdx}-comp-${compIdx}-cant`} type="text" inputMode="decimal" value={c.cantidad} onChange={(e) => actualizarComponente(itemIdx, compIdx, { cantidad: e.target.value })} className="w-24 input input-sm" />
                       </div>
                     ) : null}
 
@@ -371,7 +371,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial }: Rece
                       <label htmlFor={`item-${itemIdx}-comp-${compIdx}-unidad`} className="text-xs">
                         Unidad
                       </label>
-                      <select id={`item-${itemIdx}-comp-${compIdx}-unidad`} value={c.unidadMedidaId} onChange={(e) => actualizarComponente(itemIdx, compIdx, { unidadMedidaId: e.target.value })} className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                      <select id={`item-${itemIdx}-comp-${compIdx}-unidad`} value={c.unidadMedidaId} onChange={(e) => actualizarComponente(itemIdx, compIdx, { unidadMedidaId: e.target.value })} className="input input-sm">
                         <option value="">—</option>
                         {unidades.map((u) => (
                           <option key={u.id} value={u.id}>
@@ -387,14 +387,14 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial }: Rece
                     </label>
 
                     <div className="flex gap-1">
-                      <button type="button" aria-label={`Mover componente ${compIdx + 1} hacia arriba`} disabled={compIdx === 0} onClick={() => moverComponente(itemIdx, compIdx, -1)} className="rounded border border-zinc-300 px-2 py-1 text-xs disabled:opacity-40 dark:border-zinc-700">
+                      <button type="button" aria-label={`Mover componente ${compIdx + 1} hacia arriba`} disabled={compIdx === 0} onClick={() => moverComponente(itemIdx, compIdx, -1)} className="btn btn-secondary btn-sm">
                         ↑
                       </button>
-                      <button type="button" aria-label={`Mover componente ${compIdx + 1} hacia abajo`} disabled={compIdx === item.componentes.length - 1} onClick={() => moverComponente(itemIdx, compIdx, 1)} className="rounded border border-zinc-300 px-2 py-1 text-xs disabled:opacity-40 dark:border-zinc-700">
+                      <button type="button" aria-label={`Mover componente ${compIdx + 1} hacia abajo`} disabled={compIdx === item.componentes.length - 1} onClick={() => moverComponente(itemIdx, compIdx, 1)} className="btn btn-secondary btn-sm">
                         ↓
                       </button>
                       {item.componentes.length > 1 ? (
-                        <button type="button" aria-label={`Quitar componente ${compIdx + 1}`} onClick={() => quitarComponente(itemIdx, compIdx)} className="rounded border border-red-300 px-2 py-1 text-xs text-red-700 dark:border-red-800 dark:text-red-400">
+                        <button type="button" aria-label={`Quitar componente ${compIdx + 1}`} onClick={() => quitarComponente(itemIdx, compIdx)} className="btn btn-danger btn-sm">
                           Quitar
                         </button>
                       ) : null}

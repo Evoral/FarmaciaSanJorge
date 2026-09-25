@@ -63,15 +63,15 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
   }
 
   return (
-    <div className="p-6">
+    <div className="page">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Libro recetario</h1>
+        <h1 className="text-2xl font-semibold">Libro recetario</h1>
         {puedeExportar ? (
           <div className="flex gap-2">
-            <a href={exportHref("csv")} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+            <a href={exportHref("csv")} className="btn btn-secondary">
               Exportar CSV
             </a>
-            <a href={exportHref("pdf")} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+            <a href={exportHref("pdf")} className="btn btn-secondary">
               Exportar PDF
             </a>
           </div>
@@ -83,31 +83,31 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
           <label htmlFor="fechaDesde" className="text-sm font-medium">
             Desde
           </label>
-          <input id="fechaDesde" name="fechaDesde" type="date" defaultValue={params.fechaDesde ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="fechaDesde" name="fechaDesde" type="date" defaultValue={params.fechaDesde ?? ""} className="input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="fechaHasta" className="text-sm font-medium">
             Hasta
           </label>
-          <input id="fechaHasta" name="fechaHasta" type="date" defaultValue={params.fechaHasta ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="fechaHasta" name="fechaHasta" type="date" defaultValue={params.fechaHasta ?? ""} className="input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="numeroDesde" className="text-sm font-medium">
             Nº desde
           </label>
-          <input id="numeroDesde" name="numeroDesde" type="number" min={1} defaultValue={params.numeroDesde ?? ""} className="w-24 rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="numeroDesde" name="numeroDesde" type="number" min={1} defaultValue={params.numeroDesde ?? ""} className="w-24 input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="numeroHasta" className="text-sm font-medium">
             Nº hasta
           </label>
-          <input id="numeroHasta" name="numeroHasta" type="number" min={1} defaultValue={params.numeroHasta ?? ""} className="w-24 rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="numeroHasta" name="numeroHasta" type="number" min={1} defaultValue={params.numeroHasta ?? ""} className="w-24 input" />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="estado" className="text-sm font-medium">
             Estado
           </label>
-          <select id="estado" name="estado" defaultValue={params.estado ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <select id="estado" name="estado" defaultValue={params.estado ?? ""} className="input">
             <option value="">Todos</option>
             <option value="VIGENTE">Vigente</option>
             <option value="ANULADO">Anulado</option>
@@ -117,9 +117,9 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
           <label htmlFor="texto" className="text-sm font-medium">
             Paciente / médico
           </label>
-          <input id="texto" name="texto" type="search" defaultValue={params.texto ?? ""} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="texto" name="texto" type="search" defaultValue={params.texto ?? ""} className="input" />
         </div>
-        <button type="submit" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+        <button type="submit" className="btn btn-secondary">
           Filtrar
         </button>
         <Link href="/libro" className="text-sm underline">
@@ -131,9 +131,9 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
         {result.total} asiento{result.total === 1 ? "" : "s"} encontrado{result.total === 1 ? "" : "s"}.
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Nº</th>
               <th scope="col" className="px-3 py-2 font-medium">Fecha</th>
@@ -158,7 +158,7 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
                   rectificativoNumeroCorrelativo: item.rectificativoNumeroCorrelativo,
                 });
                 return (
-                  <tr key={item.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                  <tr key={item.id}>
                     <td className="px-3 py-2">
                       <Link href={`/libro/${item.id}`} className="font-medium underline-offset-2 hover:underline">
                         {item.numeroCorrelativo}

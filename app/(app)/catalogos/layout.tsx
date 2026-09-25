@@ -24,7 +24,7 @@ export default async function CatalogosLayout({ children }: { children: ReactNod
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
+    <div className="page">
       <CatalogosNav puedeDrogas={puedeDrogas} puedeProveedores={puedeProveedores} puedeMedicos={puedeMedicos} puedePacientes={puedePacientes} />
       {children}
     </div>

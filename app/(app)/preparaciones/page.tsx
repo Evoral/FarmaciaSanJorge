@@ -16,8 +16,8 @@ export default async function PreparacionesPage() {
   const resultados = await Promise.all(SECCIONES.map((s) => listPreparaciones({ estado: s.estado, page: 1, pageSize: 20 })));
 
   return (
-    <div className="p-6">
-      <h1 className="mb-6 text-xl font-semibold">Preparaciones</h1>
+    <div className="page">
+      <h1 className="mb-6 text-2xl font-semibold">Preparaciones</h1>
 
       {SECCIONES.map((seccion, idx) => {
         const resultado = resultados[idx]!;
@@ -34,7 +34,7 @@ export default async function PreparacionesPage() {
                   <Link
                     key={p.id}
                     href={`/preparaciones/${p.id}`}
-                    className="rounded border border-zinc-200 p-3 text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                    className="card p-4 text-sm transition-colors hover:border-zinc-400 dark:hover:border-zinc-600"
                   >
                     <p className="font-medium">
                       Receta Nº {p.recetaNumeroInterno} — {p.itemDescripcion ?? p.formaFarmaceutica} ({p.formaFarmaceutica})

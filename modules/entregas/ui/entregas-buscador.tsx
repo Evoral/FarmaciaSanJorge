@@ -17,7 +17,7 @@ const ETIQUETA_ESTADO: Record<string, string> = {
 function BuscarButton() {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className="rounded border border-zinc-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-zinc-700">
+    <button type="submit" disabled={pending} className="btn btn-secondary">
       {pending ? "Buscando…" : "Buscar"}
     </button>
   );
@@ -39,7 +39,7 @@ export function EntregasBuscador({ itemsIniciales, totalInicial }: EntregasBusca
           <label htmlFor="q" className="text-sm font-medium">
             Buscar por paciente
           </label>
-          <input id="q" name="q" type="text" placeholder="Apellido o nombre" className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="q" name="q" type="text" placeholder="Apellido o nombre" className="input" />
         </div>
         <BuscarButton />
       </form>
@@ -54,9 +54,9 @@ export function EntregasBuscador({ itemsIniciales, totalInicial }: EntregasBusca
         {state.total} receta{state.total === 1 ? "" : "s"} pendiente{state.total === 1 ? "" : "s"} de entrega.
       </p>
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Nº</th>
               <th scope="col" className="px-3 py-2 font-medium">Paciente</th>
@@ -73,7 +73,7 @@ export function EntregasBuscador({ itemsIniciales, totalInicial }: EntregasBusca
               </tr>
             ) : (
               state.items.map((r) => (
-                <tr key={r.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr key={r.id}>
                   <td className="px-3 py-2">
                     <Link href={`/entregas/${r.id}`} className="font-medium underline-offset-2 hover:underline">
                       {r.numeroInterno}

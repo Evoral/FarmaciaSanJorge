@@ -145,26 +145,41 @@ export default async function HomePage() {
     });
   }
 
-  const toneClasses: Record<Card["tono"], string> = {
-    neutral: "border-zinc-200 dark:border-zinc-800",
-    amber: "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950",
-    red: "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950",
+  const toneClasses: Record<Card["tono"], { dot: string; label: string | null }> = {
+    neutral: { dot: "bg-emerald-500", label: null },
+    amber: { dot: "bg-amber-600", label: "Requiere atención" },
+    red: { dot: "bg-red-600", label: "Urgente" },
   };
 
   return (
-    <div className="p-6">
-      <h1 className="mb-6 text-xl font-semibold">Inicio</h1>
+    <div className="page">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold">Inicio</h1>
+        <p className="mt-1 text-sm text-zinc-500">Resumen del laboratorio según tus permisos.</p>
+      </div>
 
       {cards.length === 0 ? (
         <p className="text-sm text-zinc-600 dark:text-zinc-400">No hay información para mostrar con tus permisos actuales.</p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {cards.map((card) => (
-            <Link key={card.href + card.titulo} href={card.href} className={`rounded border p-4 text-sm transition-colors hover:opacity-90 ${toneClasses[card.tono]}`}>
-              <p className="font-medium">{card.titulo}</p>
-              <p className="mt-1 text-zinc-700 dark:text-zinc-300">{card.cuerpo}</p>
-            </Link>
-          ))}
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {cards.map((card) => {
+            const tone = toneClasses[card.tono];
+            return (
+              <Link
+                key={card.href + card.titulo}
+                href={card.href}
+                className="card group flex flex-col gap-2 p-5 text-sm transition-[border-color,box-shadow] hover:border-zinc-300 hover:shadow-sm dark:hover:border-zinc-700"
+              >
+                <div className="flex items-center gap-2">
+                  <span aria-hidden="true" className={`size-2 rounded-full ${tone.dot}`} />
+                  <p className="font-medium text-zinc-900 dark:text-zinc-100">{card.titulo}</p>
+                  {tone.label ? <span className={`badge ml-auto ${card.tono === "red" ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300"}`}>{tone.label}</span> : null}
+                </div>
+                <p className="text-zinc-600 dark:text-zinc-400">{card.cuerpo}</p>
+                <span className="mt-auto pt-1 text-xs font-medium text-emerald-700 group-hover:underline dark:text-emerald-400">Ver detalle →</span>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

@@ -20,7 +20,7 @@ export default async function NuevaDesignacionPage() {
 
   return (
     <div className="mx-auto max-w-lg">
-      <h1 className="mb-6 text-xl font-semibold">Nueva designación</h1>
+      <h1 className="mb-6 text-2xl font-semibold">Nueva designación</h1>
 
       {usuarios.length === 0 ? (
         <p className="text-sm text-zinc-600 dark:text-zinc-400">

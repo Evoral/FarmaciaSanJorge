@@ -28,7 +28,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+      className="btn btn-primary"
     >
       {pending ? "Creando…" : "Crear usuario"}
     </button>
@@ -52,7 +52,7 @@ export default function NuevoUsuarioPage() {
   if (state.status === "success" && state.credencial) {
     return (
       <div className="mx-auto max-w-lg">
-        <h1 className="mb-4 text-xl font-semibold">Usuario creado</h1>
+        <h1 className="mb-4 text-2xl font-semibold">Usuario creado</h1>
         <div
           ref={alertRef}
           role="alert"
@@ -83,7 +83,7 @@ export default function NuevoUsuarioPage() {
 
   return (
     <div className="mx-auto max-w-lg">
-      <h1 className="mb-6 text-xl font-semibold">Nuevo usuario</h1>
+      <h1 className="mb-6 text-2xl font-semibold">Nuevo usuario</h1>
       <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
         El usuario queda pendiente de activación. Vas a ver la credencial de un solo uso apenas se cree; no hay autorregistro ni
         envío automático (contactalo/a vos mismo/a).
@@ -94,35 +94,35 @@ export default function NuevoUsuarioPage() {
           <label htmlFor="nombre" className="text-sm font-medium">
             Nombre
           </label>
-          <input id="nombre" name="nombre" required className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="nombre" name="nombre" required className="input" />
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="apellido" className="text-sm font-medium">
             Apellido
           </label>
-          <input id="apellido" name="apellido" required className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="apellido" name="apellido" required className="input" />
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="email" className="text-sm font-medium">
             Email
           </label>
-          <input id="email" name="email" type="email" required className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="email" name="email" type="email" required className="input" />
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="dni" className="text-sm font-medium">
             DNI
           </label>
-          <input id="dni" name="dni" required className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="dni" name="dni" required className="input" />
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="numeroMatricula" className="text-sm font-medium">
             Matrícula (opcional)
           </label>
-          <input id="numeroMatricula" name="numeroMatricula" className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900" />
+          <input id="numeroMatricula" name="numeroMatricula" className="input" />
         </div>
 
         <fieldset className="flex flex-col gap-2">

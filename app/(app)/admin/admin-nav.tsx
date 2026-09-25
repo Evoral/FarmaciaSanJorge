@@ -48,7 +48,7 @@ export function AdminNav({ puedeUsuarios, puedeRoles, puedeDirectoresTecnicos, p
   return (
     <nav
       aria-label="Secciones de administración"
-      className="mb-6 flex flex-wrap gap-4 border-b border-zinc-200 pb-3 text-sm dark:border-zinc-800"
+      className="mb-6 flex flex-wrap gap-x-5 border-b border-zinc-200 text-sm dark:border-zinc-800"
     >
       {links.map((link) => {
         const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
@@ -57,7 +57,7 @@ export function AdminNav({ puedeUsuarios, puedeRoles, puedeDirectoresTecnicos, p
             key={link.href}
             href={link.href}
             aria-current={isActive ? "page" : undefined}
-            className={isActive ? "font-medium underline" : "text-zinc-600 hover:underline dark:text-zinc-400"}
+            className={isActive ? "-mb-px border-b-2 border-emerald-600 pb-2.5 font-medium text-zinc-900 dark:border-emerald-400 dark:text-zinc-100" : "-mb-px border-b-2 border-transparent pb-2.5 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"}
           >
             {link.label}
           </Link>
