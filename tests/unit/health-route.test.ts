@@ -11,7 +11,7 @@ const getPrismaClientMock = vi.fn(() => ({ $queryRaw: queryRawMock }));
 const errorLogMock = vi.fn();
 
 vi.mock("@/shared/db/client", () => ({
-  getPrismaClient: (...args: unknown[]) => getPrismaClientMock(...args),
+  getPrismaClient: () => getPrismaClientMock(),
 }));
 vi.mock("@/shared/logging/logger", () => ({
   loggerForRequest: () => ({ error: errorLogMock }),
