@@ -27,6 +27,16 @@ const envSchema = z.object({
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
+  // FASE 12 point 12.2 (M15): shared secret for `POST /api/jobs/plazos-archivo`
+  // (the daily job that moves EN_ARCHIVO lotes to PLAZO_CUMPLIDO). Optional
+  // -- when unset, the route handler answers 503 instead of ever comparing
+  // against an empty/undefined secret. Never logged. An empty or
+  // whitespace-only value is treated the SAME as unset (`undefined`) --
+  // without this, `CRON_SECRET=""` in a deployment's env would otherwise
+  // pass `z.string().min(1).optional()`'s `undefined` check but fail
+  // `.min(1)`, throwing out of `getEnv()` and breaking every other env
+  // read app-wide (`getEnv()` validates the WHOLE schema at once).
+  CRON_SECRET: z.preprocess((value) => (typeof value === "string" && value.trim().length === 0 ? undefined : value), z.string().min(1).optional()),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -57,6 +67,7 @@ export function getEnv(): Env {
     DATABASE_URL: process.env.DATABASE_URL,
     DIRECT_URL: process.env.DIRECT_URL,
     LOG_LEVEL: process.env.LOG_LEVEL,
+    CRON_SECRET: process.env.CRON_SECRET,
   });
 
   if (!parsed.success) {

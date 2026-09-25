@@ -38,12 +38,14 @@ export interface HeaderNavProps {
   puedeCierres: boolean;
   /** M14, FASE 11: the FIRST section this session can reach for the "Entregas" entry -- `/entregas` (entregas.registrar) or `/regularizacion` (regularizacion.ver only), or `null` if neither. Same priority-order reasoning as `catalogosHref` (app/(app)/layout.tsx's doc comment). */
   entregasHref: string | null;
+  /** M15, FASE 12: `archivo.lotes.gestionar` ONLY -- same permiso `/archivo`'s layout guard requires, so this link never sends a `archivo.destruccion.gestionar`-only session into a guard that would just redirect it back out. `true` shows an "Archivo" link to `/archivo`. */
+  puedeArchivo: boolean;
 }
 
-export function HeaderNav({ puedeAuditoria, catalogosHref, puedeStock, puedeRecetas, puedePreparaciones, puedeLibro, puedeCierres, entregasHref }: HeaderNavProps) {
+export function HeaderNav({ puedeAuditoria, catalogosHref, puedeStock, puedeRecetas, puedePreparaciones, puedeLibro, puedeCierres, entregasHref, puedeArchivo }: HeaderNavProps) {
   const pathname = usePathname();
 
-  if (!puedeAuditoria && !catalogosHref && !puedeStock && !puedeRecetas && !puedePreparaciones && !puedeLibro && !puedeCierres && !entregasHref) return null;
+  if (!puedeAuditoria && !catalogosHref && !puedeStock && !puedeRecetas && !puedePreparaciones && !puedeLibro && !puedeCierres && !entregasHref && !puedeArchivo) return null;
 
   const auditoriaActiva = pathname === "/auditoria" || pathname.startsWith("/auditoria/");
   const catalogosActivos = pathname.startsWith("/catalogos");
@@ -53,6 +55,7 @@ export function HeaderNav({ puedeAuditoria, catalogosHref, puedeStock, puedeRece
   const libroActivo = pathname.startsWith("/libro");
   const cierresActivo = pathname.startsWith("/cierres");
   const entregasActivo = pathname.startsWith("/entregas") || pathname.startsWith("/regularizacion");
+  const archivoActivo = pathname.startsWith("/archivo");
 
   return (
     <nav aria-label="Navegación principal" className="flex items-center gap-4">
@@ -117,6 +120,15 @@ export function HeaderNav({ puedeAuditoria, catalogosHref, puedeStock, puedeRece
           className={entregasActivo ? "text-sm font-medium underline" : "text-sm text-zinc-600 hover:underline dark:text-zinc-400"}
         >
           Entregas
+        </Link>
+      ) : null}
+      {puedeArchivo ? (
+        <Link
+          href="/archivo"
+          aria-current={archivoActivo ? "page" : undefined}
+          className={archivoActivo ? "text-sm font-medium underline" : "text-sm text-zinc-600 hover:underline dark:text-zinc-400"}
+        >
+          Archivo
         </Link>
       ) : null}
       {puedeAuditoria ? (

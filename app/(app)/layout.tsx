@@ -15,6 +15,7 @@ import { AuthenticationError } from "@/shared/errors";
 import { logout } from "@/modules/auth/application/logout";
 import { resumenJornadasPendientes } from "@/modules/cierres/application/list-jornadas-pendientes";
 import { resumenRegularizacion } from "@/modules/entregas/application/list-regularizacion";
+import { resumenDestruccion } from "@/modules/archivo/application/resumen-destruccion";
 import { getLogger } from "@/shared/logging/logger";
 import { HeaderNav } from "./header-nav";
 
@@ -84,6 +85,27 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     }
   }
 
+  // FASE 12 point 12.2: same fail-soft, cheap-aggregate discipline as the
+  // cierres/regularizacion banners above, gated on the exact permiso the
+  // underlying query enforces (`archivo.destruccion.gestionar`).
+  const puedeDestruccionArchivo = can(session, "archivo.destruccion.gestionar");
+  let resumenDestruccionArchivo: Awaited<ReturnType<typeof resumenDestruccion>> | null = null;
+  if (puedeDestruccionArchivo) {
+    try {
+      resumenDestruccionArchivo = await resumenDestruccion();
+    } catch (error) {
+      getLogger().error({ error }, "Failed to load archivo destruccion-pendiente banner summary");
+      resumenDestruccionArchivo = null;
+    }
+  }
+
+  // FASE 12 nav entry: "Archivo" is visible ONLY to archivo.lotes.gestionar
+  // -- same permiso `app/(app)/archivo/layout.tsx`'s guard requires, so the
+  // link never sends a destruccion.gestionar-only session into a layout
+  // guard that would just redirect it back out (both permisos are
+  // DIRECTOR_TECNICO-only today regardless).
+  const puedeArchivo = can(session, "archivo.lotes.gestionar");
+
   // FASE 11 nav entry: "Entregas" is visible to entregas.registrar OR
   // regularizacion.ver (task's explicit rule) but the two lead to
   // different routes -- same priority-order pattern as `catalogosHref`
@@ -107,6 +129,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             puedeLibro={can(session, "libro.ver")}
             puedeCierres={puedeCierres}
             entregasHref={entregasHref}
+            puedeArchivo={puedeArchivo}
           />
         </div>
         <form action={logoutAction}>
@@ -145,6 +168,24 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           regularizar ({resumenRegulariz.vencidas} vencida{resumenRegulariz.vencidas === 1 ? "" : "s"}).{" "}
           <Link href="/regularizacion" className="underline">
             Ver regularización
+          </Link>
+        </div>
+      ) : null}
+      {/*
+        The link below only makes sense for a session that can actually
+        open `/archivo` (`archivo.lotes.gestionar`, same permiso
+        `app/(app)/archivo/layout.tsx`'s guard requires) -- a session with
+        ONLY `archivo.destruccion.gestionar` would otherwise see a "Ver
+        archivo" link that redirects it straight back out. Hide the whole
+        banner in that case instead of showing a dead link (both permisos
+        are DIRECTOR_TECNICO-only today regardless, so this never fires
+        in practice yet).
+      */}
+      {resumenDestruccionArchivo && resumenDestruccionArchivo.cantidad > 0 && can(session, "archivo.lotes.gestionar") ? (
+        <div role="status" className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          {resumenDestruccionArchivo.cantidad} lote{resumenDestruccionArchivo.cantidad === 1 ? "" : "s"} con plazo cumplido pendiente{resumenDestruccionArchivo.cantidad === 1 ? "" : "s"} de destrucción.{" "}
+          <Link href="/archivo" className="underline">
+            Ver archivo
           </Link>
         </div>
       ) : null}

@@ -803,7 +803,7 @@ Un punto está TERMINADO solo si:
 | INV-S21 | M07, M11 | 5.4, 8.3 | int: insuficiente ⇒ rollback | Planificado |
 | INV-R01–R06 | M09, M10 | 1.9, 1.10, 7.* | db + int "sin efectos" | Bloqueado parcial (DP-06c, DP-09) |
 | INV-R07–R10 | M09, M14 | 1.9, 6.4, 11.* | db + int | Implementado (FASE 11, 2026-09-24) |
-| INV-D01–D05 | M15 | 1.14, 12.* | db + int | Planificado (plazos DP-26) |
+| INV-D01–D05, INV-ARC-005/006/007 | M15 | 1.14, 12.* | db + int | Implementado (FASE 12, 2026-09-24, plazos DP-26 PARCIAL) |
 | INV-P01–P06 | M11 | 1.11, 1.12, 8.* | db + fallo por paso | Planificado |
 | INV-L01–L09 | M12 | 1.12, 9.* | db por invariante + cadena | Planificado (DP-31, DP-32) |
 | INV-L18–L20 (rectificativo, jornada firmada) | M12 | 1.12, 9.2 | db por invariante | Implementado (D1, 2026-09-23) |
@@ -875,7 +875,7 @@ Cobertura de entidades (responsable / CRUD / permisos / auditoría / UI / tests)
 - **DP-23** Unicidad de matrícula de médico (¿provincial/nacional? ¿matrícula + jurisdicción?). · M06.
 - **DP-24** Política de datos de pacientes (Ley 25.326): retención, baja lógica, quién ve qué. · M06.
 - **DP-25** Formato de `numeroInterno` de receta. · M09.
-- **DP-26** Plazos de conservación aplicables en Mendoza (la doc lo marca pendiente). · M15.
+- **DP-26 PARCIAL (2026-09-24, FASE 12)**: plazos parametrizables por tenant (`plazo_archivo_comun_anios`=2, `plazo_archivo_controladas_anios`=3 por defecto, migración 0042) a confirmar con la normativa de Mendoza; el sistema conserva lo digital para siempre -- "destrucción" es únicamente de las recetas en PAPEL (`lote_archivo_recetas.estado` llegando a `DESTRUIDO`), nunca de `receta`/`asiento`/adjuntos. · M15.
 - **DP-27** RESUELTA (2026-09-23, D6): se auditan las exportaciones (CSV/PDF) del libro recetario -- `TipoAccion.EXPORTAR` (migración 0036), `modules/libro/application/exportar-libro.ts`. · M01.
 - **DP-28** Contenido obligatorio de la etiqueta e impresora usada. · M11.
 - **DP-29** Almacenamiento de adjuntos de recetas digitales (disco local vs objeto S3), tamaño máximo y retención. · M09.
@@ -918,7 +918,7 @@ Cobertura de entidades (responsable / CRUD / permisos / auditoría / UI / tests)
 **Antes de FASE 2–3:** DP-02, DP-03, DP-05, DP-20.
 **Antes de FASE 4–5:** DP-06, DP-06b, DP-07, DP-08, DP-08b, DP-09, DP-10, DP-11, DP-12, DP-23, DP-24.
 **Antes de FASE 7–8:** DP-06c, DP-16b, DP-28.
-**Antes de FASE 10–15:** DP-22, DP-26, DP-29, DP-35 (DP-18/18b/18c/18d/19/21 resueltas, FASE 10, 2026-09-24; DP-15/DP-34 resueltas, FASE 11, 2026-09-24).
+**Antes de FASE 10–15:** DP-22, DP-29, DP-35 (DP-18/18b/18c/18d/19/21 resueltas, FASE 10, 2026-09-24; DP-15/DP-34 resueltas, FASE 11, 2026-09-24; DP-26 PARCIAL, FASE 12, 2026-09-24).
 
 La FASE 0 y los puntos 1.1–1.8 pueden empezar apenas se confirmen DP-01, DP-04, DP-21b, DP-39, DP-40, DP-41. M13b (libro rubricado) espera a DP-38.
 

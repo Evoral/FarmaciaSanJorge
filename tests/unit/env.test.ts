@@ -62,4 +62,33 @@ describe("getEnv", () => {
     // Still cached -- does not re-validate (and therefore does not throw).
     expect(getEnv()).toBe(first);
   });
+
+  it("treats an empty CRON_SECRET the same as unset instead of throwing", () => {
+    setEnv({
+      DATABASE_URL: "postgresql://fsj_app.ref:pw@host:6543/postgres?pgbouncer=true",
+      DIRECT_URL: "postgresql://postgres:pw@host:5432/postgres",
+      CRON_SECRET: "",
+    });
+    expect(() => getEnv()).not.toThrow();
+    expect(getEnv().CRON_SECRET).toBeUndefined();
+  });
+
+  it("treats a whitespace-only CRON_SECRET the same as unset instead of throwing", () => {
+    setEnv({
+      DATABASE_URL: "postgresql://fsj_app.ref:pw@host:6543/postgres?pgbouncer=true",
+      DIRECT_URL: "postgresql://postgres:pw@host:5432/postgres",
+      CRON_SECRET: "   ",
+    });
+    expect(() => getEnv()).not.toThrow();
+    expect(getEnv().CRON_SECRET).toBeUndefined();
+  });
+
+  it("keeps a real CRON_SECRET value untouched", () => {
+    setEnv({
+      DATABASE_URL: "postgresql://fsj_app.ref:pw@host:6543/postgres?pgbouncer=true",
+      DIRECT_URL: "postgresql://postgres:pw@host:5432/postgres",
+      CRON_SECRET: "s3cr3t",
+    });
+    expect(getEnv().CRON_SECRET).toBe("s3cr3t");
+  });
 });

@@ -34,6 +34,8 @@ export const PARAMETRO_CLAVES = [
   "dias_alerta_vencimiento_partida",
   "plazo_firma_dias",
   "plazo_regularizacion_dias",
+  "plazo_archivo_comun_anios",
+  "plazo_archivo_controladas_anios",
 ] as const;
 
 export type ParametroClave = (typeof PARAMETRO_CLAVES)[number];
@@ -133,6 +135,25 @@ function validarPlazoRegularizacionDias(valorRaw: string): ValidacionParametro {
   return { ok: true, valor };
 }
 
+/**
+ * `plazo_archivo_comun_anios` / `plazo_archivo_controladas_anios` (DP-26
+ * PARCIAL, FASE 12 point 12.1): years of physical retention counted from a
+ * lote's `periodo_hasta` (`vencimiento = periodo_hasta + N años`) before it
+ * is eligible for destruction. Both must be integers >= 1 -- a lote is
+ * always kept AT LEAST one full year, and "controladas" must plausibly stay
+ * >= "comun" at the UI/business level, but that cross-field relationship is
+ * NOT enforced here (each parametro is edited independently, same as every
+ * other entry in this registry) -- only the individual bound.
+ */
+function validarPlazoArchivoAnios(valorRaw: string): ValidacionParametro {
+  const valor = parseDecimalOrNull(valorRaw);
+  if (!valor) return { ok: false, error: "Debe ser un número válido." };
+  if (!valor.isInteger() || valor.lessThan(1)) {
+    return { ok: false, error: "Debe ser un número entero mayor o igual que uno." };
+  }
+  return { ok: true, valor };
+}
+
 export interface ParametroDefinicion {
   clave: ParametroClave;
   tipo: "NUMERO";
@@ -195,5 +216,27 @@ export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = 
       "punto 11.3, INV-R10). Debe ser un entero mayor o igual que cero.",
     valorPorDefecto: "7",
     validar: validarPlazoRegularizacionDias,
+  },
+  plazo_archivo_comun_anios: {
+    clave: "plazo_archivo_comun_anios",
+    tipo: "NUMERO",
+    label: "Plazo de archivo (recetas comunes)",
+    descripcion:
+      "Cantidad de años de conservación en archivo físico, contados desde el fin del período del lote, para lotes SIN " +
+      "recetas controladas (DP-26 PARCIAL, a confirmar con normativa de Mendoza, FASE 12 punto 12.1). Debe ser un " +
+      "entero mayor o igual que uno.",
+    valorPorDefecto: "2",
+    validar: validarPlazoArchivoAnios,
+  },
+  plazo_archivo_controladas_anios: {
+    clave: "plazo_archivo_controladas_anios",
+    tipo: "NUMERO",
+    label: "Plazo de archivo (recetas controladas)",
+    descripcion:
+      "Cantidad de años de conservación en archivo físico, contados desde el fin del período del lote, para lotes con " +
+      "al menos una receta controlada (DP-26 PARCIAL, a confirmar con normativa de Mendoza, FASE 12 punto 12.1). Debe " +
+      "ser un entero mayor o igual que uno.",
+    valorPorDefecto: "3",
+    validar: validarPlazoArchivoAnios,
   },
 };

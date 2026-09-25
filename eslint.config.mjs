@@ -58,7 +58,18 @@ const eslintConfig = defineConfig([
   // login and session validation legitimately run BEFORE a session exists.
   {
     files: ["app/**/*.{ts,tsx}", "modules/**/*.ts"],
-    ignores: ["modules/auth/**"],
+    // modules/auth/**: login/session validation legitimately runs BEFORE a
+    // session exists. modules/archivo/application/actualizar-plazos.ts:
+    // FASE 12 point 12.2's daily job (app/api/jobs/plazos-archivo) has the
+    // SAME structural exemption -- it has no authenticated session either
+    // (it iterates every tenant itself, protected by a shared secret
+    // instead of a session cookie), so its ONE job-runner function
+    // (`runActualizarPlazosJob`) is the only place in modules/archivo
+    // allowed to open withPlatformTransaction/withTenantTransaction
+    // directly. Every OTHER export in that same file (`actualizarPlazos`,
+    // the DT's session-driven "Actualizar plazos" button) still goes
+    // through defineCommand normally.
+    ignores: ["modules/auth/**", "modules/archivo/application/actualizar-plazos.ts"],
     rules: {
       "no-restricted-imports": [
         "error",

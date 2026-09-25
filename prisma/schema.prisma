@@ -215,10 +215,11 @@ model Tenant {
   /// M12/spec section 4 (DP-33). NULL = contralor libros kept by hand. INV-L17: never changes once set (migration 0014).
   fechaActivacionContralor DateTime? @map("fecha_activacion_contralor") @db.Timestamptz(6)
 
-  parametros           Parametro[]
-  usuarios             Usuario[]
-  recetaNumeroContador RecetaNumeroContador?
-  librosRubricados     LibroRubricado[]
+  parametros                Parametro[]
+  usuarios                  Usuario[]
+  recetaNumeroContador      RecetaNumeroContador?
+  librosRubricados          LibroRubricado[]
+  loteArchivoNumeroContador LoteArchivoNumeroContador?
 
   @@map("tenant")
   @@schema("fsj")
@@ -1286,6 +1287,8 @@ model Entrega {
 model LoteArchivoRecetas {
   id                     String            @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
   tenantId               String            @map("tenant_id") @db.Uuid
+  /// M15, migration 0042. Per-tenant correlative assigned by fsj.lote_archivo_recetas_asignar_numero() -- never set by the app. Displayed as "Lote Nro X".
+  numero                 BigInt
   periodoDesde           DateTime          @map("periodo_desde") @db.Date
   periodoHasta           DateTime          @map("periodo_hasta") @db.Date
   ubicacion              String
@@ -1301,6 +1304,18 @@ model LoteArchivoRecetas {
   recetas       Receta[]
 
   @@unique([tenantId, id])
+  @@unique([tenantId, numero])
   @@map("lote_archivo_recetas")
+  @@schema("fsj")
+}
+
+/// M15, migration 0042. Backs LoteArchivoRecetas.numero -- own copy of RecetaNumeroContador's shape (gap-tolerant per-tenant counter).
+model LoteArchivoNumeroContador {
+  tenantId    String @id @map("tenant_id") @db.Uuid
+  ultimoValor BigInt @default(0) @map("ultimo_valor")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("lote_archivo_numero_contador")
   @@schema("fsj")
 }
