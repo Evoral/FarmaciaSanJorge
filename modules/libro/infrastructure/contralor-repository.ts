@@ -89,6 +89,31 @@ export async function listAsientosContralor(tx: Prisma.TransactionClient, tenant
   return { items: rows.map(toItem), total, page: filtro.page, pageSize: filtro.pageSize };
 }
 
+/**
+ * Walks every matching row in pages (export path, FASE 13 point 13.3) --
+ * same async-generator shape as
+ * `modules/libro/infrastructure/asiento-repository.ts#iterarAsientosParaExportar`.
+ * `filtro` here never carries `page`/`pageSize` (the caller supplies its
+ * own `pageSize` for the walk).
+ */
+export async function* iterarAsientosContralorParaExportar(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  filtro: Pick<ListContralorFiltro, "tipoLibro" | "drogaId" | "fechaDesde" | "fechaHasta">,
+  pageSize: number,
+): AsyncGenerator<ContralorListItem[]> {
+  const libroId = filtro.tipoLibro ? (await getLibroContralorId(tx, tenantId, filtro.tipoLibro)) ?? undefined : undefined;
+  const where = whereDeFiltro(tenantId, filtro.tipoLibro ? libroId ?? "00000000-0000-0000-0000-000000000000" : undefined, filtro);
+  let skip = 0;
+  for (;;) {
+    const rows = await tx.asientoContralor.findMany({ where, select: SELECT, orderBy: { numeroCorrelativo: "asc" }, skip, take: pageSize });
+    if (rows.length === 0) return;
+    yield rows.map(toItem);
+    if (rows.length < pageSize) return;
+    skip += pageSize;
+  }
+}
+
 /** `tenant.fecha_activacion_contralor` -- `null` means both contralor libros are kept by hand (spec §4). Own small copy per module (module boundary: cannot import modules/preparaciones/infrastructure). */
 export async function getFechaActivacionContralor(tx: Prisma.TransactionClient, tenantId: string): Promise<Date | null> {
   const row = await tx.tenant.findUnique({ where: { id: tenantId }, select: { fechaActivacionContralor: true } });

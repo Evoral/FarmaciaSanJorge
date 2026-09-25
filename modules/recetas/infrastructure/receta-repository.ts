@@ -688,6 +688,95 @@ export async function listRecetas(tx: Prisma.TransactionClient, filter: ListRece
   };
 }
 
+// ============================================================================
+// FASE 13 point 13.4: recetas-por-estado report (`reportes.ver`). Filters by
+// `fecha_ingreso` (the receta's system-entry timestamp) -- deliberately
+// DIFFERENT from `listRecetas`'s `desde`/`hasta` (which filter
+// `fecha_prescripcion`, the doctor's date on the paper) -- the task asks
+// for "fecha ingreso range" specifically for this report.
+// ============================================================================
+
+export interface CountRecetasPorEstadoItem {
+  estado: EstadoReceta;
+  cantidad: number;
+}
+
+/** One row per `EstadoReceta` value that has at least one receta -- states with zero recetas are simply absent (the caller fills them in as 0). */
+export async function countRecetasPorEstado(tx: Prisma.TransactionClient, tenantId: string): Promise<CountRecetasPorEstadoItem[]> {
+  const rows = await tx.receta.groupBy({ by: ["estado"], where: { tenantId }, _count: { _all: true } });
+  return rows.map((row) => ({ estado: row.estado, cantidad: row._count._all }));
+}
+
+export interface ListRecetasPorEstadoFilter {
+  tenantId: string;
+  estado?: EstadoReceta;
+  ingresoDesde?: string; // fecha_ingreso >=
+  ingresoHasta?: string; // fecha_ingreso <=
+  page: number;
+  pageSize: number;
+}
+
+function buildWherePorEstado(filter: Pick<ListRecetasPorEstadoFilter, "tenantId" | "estado" | "ingresoDesde" | "ingresoHasta">): Prisma.RecetaWhereInput {
+  const where: Prisma.RecetaWhereInput = { tenantId: filter.tenantId };
+  if (filter.estado) where.estado = filter.estado;
+  if (filter.ingresoDesde || filter.ingresoHasta) {
+    where.fechaIngreso = {
+      ...(filter.ingresoDesde ? { gte: new Date(`${filter.ingresoDesde}T00:00:00Z`) } : {}),
+      ...(filter.ingresoHasta ? { lte: new Date(`${filter.ingresoHasta}T23:59:59.999Z`) } : {}),
+    };
+  }
+  return where;
+}
+
+/** Filtered receta list for the report (estado + fecha_ingreso range), same row shape as `listRecetas` (`RecetaListItem`) plus `fechaIngreso` -- reuses the SAME data exposure as `/recetas` (paciente/médico names), per the task's explicit "follow its data exposure" instruction. */
+export async function listRecetasPorEstado(
+  tx: Prisma.TransactionClient,
+  filter: ListRecetasPorEstadoFilter,
+): Promise<{ items: (RecetaListItem & { fechaIngreso: Date })[]; total: number; page: number; pageSize: number }> {
+  const where = buildWherePorEstado(filter);
+  const skip = (filter.page - 1) * filter.pageSize;
+
+  const [total, rows] = await Promise.all([
+    tx.receta.count({ where }),
+    tx.receta.findMany({
+      where,
+      orderBy: [{ fechaIngreso: "desc" }],
+      skip,
+      take: filter.pageSize,
+      select: {
+        id: true,
+        numeroInterno: true,
+        fechaPrescripcion: true,
+        fechaIngreso: true,
+        origen: true,
+        estado: true,
+        recetaFisicaRecibida: true,
+        paciente: { select: { nombre: true, apellido: true } },
+        medico: { select: { nombre: true, apellido: true } },
+      },
+    }),
+  ]);
+
+  return {
+    items: rows.map((r) => ({
+      id: r.id,
+      numeroInterno: r.numeroInterno.toString(),
+      pacienteNombre: r.paciente.nombre,
+      pacienteApellido: r.paciente.apellido,
+      medicoNombre: r.medico.nombre,
+      medicoApellido: r.medico.apellido,
+      fechaPrescripcion: r.fechaPrescripcion,
+      fechaIngreso: r.fechaIngreso,
+      origen: r.origen,
+      estado: r.estado,
+      recetaFisicaRecibida: r.recetaFisicaRecibida,
+    })),
+    total,
+    page: filter.page,
+    pageSize: filter.pageSize,
+  };
+}
+
 /** 6.6 "pending physical prescription" (INV-R10): recetas not yet ANULADA with receta_fisica_recibida = false, oldest first (biggest "antigüedad" = most urgent to chase). ENTREGADA is excluded implicitly -- INV-R07 makes ENTREGADA + recetaFisicaRecibida=false impossible. */
 export interface RecetaPendienteFisica {
   id: string;

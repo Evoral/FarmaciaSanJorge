@@ -45,6 +45,7 @@ export const PERMISO_CODES = [
   "pacientes.gestionar",
   "precios.reglas.editar",
   "stock.ver",
+  "stock.valorizado.ver",
   "stock.partida.ingresar",
   "stock.partida.costo.corregir",
   "stock.ajuste.registrar",

@@ -113,6 +113,19 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // `/entregas`'s own layout guard (which redirects it back out).
   const entregasHref = can(session, "entregas.registrar") ? "/entregas" : puedeRegularizacion ? "/regularizacion" : null;
 
+  // FASE 13 point 13.1/13.4 (user decision 5): "Reportes" is shown if the
+  // session holds ANY of the report-ish permisos the /reportes hub links
+  // to. Deliberately does NOT include `archivo.lotes.gestionar`/
+  // `entregas.registrar`/`preparaciones.iniciar` (those already have their
+  // own dedicated nav entries, not report entries).
+  const puedeReportes =
+    can(session, "reportes.ver") ||
+    can(session, "stock.valorizado.ver") ||
+    can(session, "stock.ver") ||
+    can(session, "cierres.reporte") ||
+    can(session, "reportes.auditoria") ||
+    can(session, "reportes.usuarios");
+
   return (
     <div className="min-h-screen">
       <header className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
@@ -122,6 +135,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           </span>
           <HeaderNav
             puedeAuditoria={can(session, "auditoria.ver")}
+            puedeReportes={puedeReportes}
             catalogosHref={catalogosHref}
             puedeStock={can(session, "stock.ver")}
             puedeRecetas={can(session, "recetas.crear")}

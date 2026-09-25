@@ -8,7 +8,7 @@ import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { uuid } from "@/shared/validation";
 import { ESTADOS_RECETA } from "../domain/receta";
-import { listRecetas as listRecetasRepo } from "../infrastructure/receta-repository";
+import { listRecetas as listRecetasRepo, countRecetasPorEstado } from "../infrastructure/receta-repository";
 import type { ListRecetasResult } from "../infrastructure/receta-repository";
 
 export type { ListRecetasResult };
@@ -49,4 +49,32 @@ export const listRecetasQuery = defineQuery({
 
 export async function listRecetas(input: ListRecetasInput): Promise<ListRecetasResult> {
   return listRecetasQuery.execute(input);
+}
+
+/**
+ * Cheap counts-by-estado summary for the home dashboard (FASE 13 point
+ * 13.1, user decision 1: "recetas por estado counts (recetas read permiso
+ * used by /recetas)") -- same permiso as `listRecetasQuery`
+ * (`recetas.crear`), deliberately NOT `reportes.ver` (that's the separate,
+ * broader recetas report at `/reportes/recetas`, gated differently --
+ * see `modules/recetas/application/reporte-recetas.ts`).
+ */
+export interface ResumenRecetasPorEstado {
+  estado: (typeof ESTADOS_RECETA)[number];
+  cantidad: number;
+}
+
+export const resumenRecetasPorEstadoQuery = defineQuery({
+  name: "recetas.resumenPorEstado",
+  permiso: "recetas.crear",
+  input: z.object({}),
+  handler: async ({ tx, session }): Promise<ResumenRecetasPorEstado[]> => {
+    const rows = await countRecetasPorEstado(tx, session.tenantId);
+    const porEstado = new Map(rows.map((r) => [r.estado, r.cantidad]));
+    return ESTADOS_RECETA.map((estado) => ({ estado, cantidad: porEstado.get(estado) ?? 0 }));
+  },
+});
+
+export async function resumenRecetasPorEstado(): Promise<ResumenRecetasPorEstado[]> {
+  return resumenRecetasPorEstadoQuery.execute({});
 }

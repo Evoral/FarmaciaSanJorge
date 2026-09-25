@@ -585,6 +585,7 @@ Modelo **tentativo** según el diagrama y la doc, a revisar con la Asociación d
 - Reportes: stock valorizado por partida (costo real), kardex, libro recetario, libros contralor, cumplimiento de firma, auditoría, recetas por estado.
 - Solo lectura; paginados; exportación CSV/PDF; permisos por reporte. No auditados salvo exportación del libro (DP-27).
 - **DoD**: cada reporte con filtros, permisos, test de consulta y de autorización.
+- **IMPLEMENTADO (FASE 13, 2026-09-25)**: tablero en `/` (dashboard por cards, gateadas por permiso, sin hardcodear por rol -- `shared/dashboard/cards.ts`), `/reportes` (hub); reporte de stock valorizado (`/reportes/stock-valorizado`, permiso nuevo `stock.valorizado.ver` -- migración 0043, ADM/DT/FAR); kardex report (`/reportes/kardex`, `stock.ver`); recetas por estado (`/reportes/recetas`, `reportes.ver`); export CSV/PDF de libros contralor (`libro.exportar`, mismo patrón D6 que el libro recetario). **Decisión revisada**: TODAS las exportaciones quedan auditadas (`TipoAccion.EXPORTAR`) -- no solo la del libro recetario (DP-27 original); el payload de auditoría nunca lleva texto de paciente/médico, solo resumen de filtros + cantidad de filas.
 
 ---
 

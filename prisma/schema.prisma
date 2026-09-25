@@ -660,6 +660,8 @@ model Partida {
 
   @@unique([tenantId, id])
   @@unique([tenantId, drogaId, proveedorId, lote])
+  /// FASE 13 point 13.2 (migration 0043): supports the stock valorizado report's per-droga grouping/filtering.
+  @@index([tenantId, drogaId])
   @@map("partida")
   @@schema("fsj")
 }
@@ -693,6 +695,8 @@ model MovimientoStock {
   asientoContralor AsientoContralor?
 
   @@unique([tenantId, id])
+  /// FASE 13 point 13.2 (migration 0043): supports the kardex report's filter by (tenant_id, partida_id) + ORDER BY registrado_en DESC.
+  @@index([tenantId, partidaId, registradoEn(sort: Desc)])
   @@map("movimiento_stock")
   @@schema("fsj")
 }

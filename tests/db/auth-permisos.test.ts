@@ -58,6 +58,7 @@ const EXPECTED_ROL_PERMISOS: Record<string, string[]> = {
     "reportes.usuarios",
     "roles.ver",
     "stock.partida.costo.corregir",
+    "stock.valorizado.ver",
     "stock.ver",
     "unidades.baja",
     "unidades.crear",
@@ -122,6 +123,7 @@ const EXPECTED_ROL_PERMISOS: Record<string, string[]> = {
     "stock.ajuste.registrar",
     "stock.partida.costo.corregir",
     "stock.partida.ingresar",
+    "stock.valorizado.ver",
     "stock.ver",
     "usuarios.auditoria.ver",
   ].sort(),
@@ -162,6 +164,7 @@ const EXPECTED_ROL_PERMISOS: Record<string, string[]> = {
     "reportes.ver",
     "stock.ajuste.registrar",
     "stock.partida.ingresar",
+    "stock.valorizado.ver",
     "stock.ver",
   ].sort(),
   ATENCION_PUBLICO: [

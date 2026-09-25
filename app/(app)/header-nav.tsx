@@ -12,6 +12,8 @@ import { usePathname } from "next/navigation";
 
 export interface HeaderNavProps {
   puedeAuditoria: boolean;
+  /** FASE 13 point 13.1/13.4 (user decision 5): `true` when the session holds ANY report permiso (`reportes.ver`, `stock.valorizado.ver`, `stock.ver`, `cierres.reporte`, `reportes.auditoria`, `reportes.usuarios`) -- shows a "Reportes" link to the `/reportes` hub, which itself re-checks each entry's own permiso. */
+  puedeReportes: boolean;
   /**
    * FASE 4 points 4.2-4.5: the FIRST `/catalogos/**` section this session
    * can actually reach, or `null` if none. Deliberately NOT a plain
@@ -42,11 +44,11 @@ export interface HeaderNavProps {
   puedeArchivo: boolean;
 }
 
-export function HeaderNav({ puedeAuditoria, catalogosHref, puedeStock, puedeRecetas, puedePreparaciones, puedeLibro, puedeCierres, entregasHref, puedeArchivo }: HeaderNavProps) {
+export function HeaderNav({ puedeAuditoria, puedeReportes, catalogosHref, puedeStock, puedeRecetas, puedePreparaciones, puedeLibro, puedeCierres, entregasHref, puedeArchivo }: HeaderNavProps) {
   const pathname = usePathname();
 
-  if (!puedeAuditoria && !catalogosHref && !puedeStock && !puedeRecetas && !puedePreparaciones && !puedeLibro && !puedeCierres && !entregasHref && !puedeArchivo) return null;
-
+  const inicioActivo = pathname === "/";
+  const reportesActivo = pathname.startsWith("/reportes");
   const auditoriaActiva = pathname === "/auditoria" || pathname.startsWith("/auditoria/");
   const catalogosActivos = pathname.startsWith("/catalogos");
   const stockActivo = pathname.startsWith("/stock");
@@ -59,6 +61,22 @@ export function HeaderNav({ puedeAuditoria, catalogosHref, puedeStock, puedeRece
 
   return (
     <nav aria-label="Navegación principal" className="flex items-center gap-4">
+      <Link
+        href="/"
+        aria-current={inicioActivo ? "page" : undefined}
+        className={inicioActivo ? "text-sm font-medium underline" : "text-sm text-zinc-600 hover:underline dark:text-zinc-400"}
+      >
+        Inicio
+      </Link>
+      {puedeReportes ? (
+        <Link
+          href="/reportes"
+          aria-current={reportesActivo ? "page" : undefined}
+          className={reportesActivo ? "text-sm font-medium underline" : "text-sm text-zinc-600 hover:underline dark:text-zinc-400"}
+        >
+          Reportes
+        </Link>
+      ) : null}
       {puedeRecetas ? (
         <Link
           href="/recetas"

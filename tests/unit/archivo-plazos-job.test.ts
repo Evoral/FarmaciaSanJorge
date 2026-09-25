@@ -101,7 +101,7 @@ describe("runActualizarPlazosJob", () => {
   });
 });
 
-describe("POST /api/jobs/plazos-archivo -- constant-time secret check", () => {
+describe("POST /api/jobs/plazos-archivo -- constant-time secret check (x-cron-secret)", () => {
   async function loadRouteWithSecret(secret: string | undefined) {
     vi.resetModules();
     vi.doMock("@/shared/env", () => ({ getEnv: () => ({ CRON_SECRET: secret }) }));
@@ -136,5 +136,63 @@ describe("POST /api/jobs/plazos-archivo -- constant-time secret check", () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body).toEqual({ tenantsProcesados: 2, lotesMovidos: 1, tenantsConError: 0 });
+  });
+});
+
+describe("GET /api/jobs/plazos-archivo -- constant-time secret check (Vercel Cron: Authorization Bearer)", () => {
+  async function loadRouteWithSecret(secret: string | undefined) {
+    vi.resetModules();
+    vi.doMock("@/shared/env", () => ({ getEnv: () => ({ CRON_SECRET: secret }) }));
+    vi.doMock("@/modules/archivo/application/actualizar-plazos", () => ({
+      runActualizarPlazosJob: vi.fn(async () => ({ tenantsProcesados: 2, lotesMovidos: 1, tenantsConError: 0, detalle: [] })),
+    }));
+    vi.doMock("@/shared/logging/logger", () => ({ getLogger: () => ({ error: vi.fn() }) }));
+    return import("@/app/api/jobs/plazos-archivo/route");
+  }
+
+  it("CRON_SECRET not configured -> 503", async () => {
+    const { GET } = await loadRouteWithSecret(undefined);
+    const response = await GET(new Request("http://localhost/api/jobs/plazos-archivo", { method: "GET" }));
+    expect(response.status).toBe(503);
+  });
+
+  it("missing Authorization header -> 404", async () => {
+    const { GET } = await loadRouteWithSecret("s3cr3t");
+    const response = await GET(new Request("http://localhost/api/jobs/plazos-archivo", { method: "GET" }));
+    expect(response.status).toBe(404);
+  });
+
+  it("wrong bearer token -> 404", async () => {
+    const { GET } = await loadRouteWithSecret("s3cr3t");
+    const response = await GET(
+      new Request("http://localhost/api/jobs/plazos-archivo", { method: "GET", headers: { authorization: "Bearer wrong" } }),
+    );
+    expect(response.status).toBe(404);
+  });
+
+  it("Authorization header without the Bearer prefix -> 404 (not treated as a raw secret)", async () => {
+    const { GET } = await loadRouteWithSecret("s3cr3t");
+    const response = await GET(
+      new Request("http://localhost/api/jobs/plazos-archivo", { method: "GET", headers: { authorization: "s3cr3t" } }),
+    );
+    expect(response.status).toBe(404);
+  });
+
+  it("correct Bearer token -> 200 with a counts-only JSON summary", async () => {
+    const { GET } = await loadRouteWithSecret("s3cr3t");
+    const response = await GET(
+      new Request("http://localhost/api/jobs/plazos-archivo", { method: "GET", headers: { authorization: "Bearer s3cr3t" } }),
+    );
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toEqual({ tenantsProcesados: 2, lotesMovidos: 1, tenantsConError: 0 });
+  });
+
+  it("also accepts the legacy x-cron-secret header on GET (same credential, either transport)", async () => {
+    const { GET } = await loadRouteWithSecret("s3cr3t");
+    const response = await GET(
+      new Request("http://localhost/api/jobs/plazos-archivo", { method: "GET", headers: { "x-cron-secret": "s3cr3t" } }),
+    );
+    expect(response.status).toBe(200);
   });
 });

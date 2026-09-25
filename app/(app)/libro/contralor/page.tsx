@@ -1,5 +1,7 @@
-/** `/libro/contralor` (FASE 9, M12 point 9.4, DP-33). Consulta de los libros contralor (psicotrópicos / estupefacientes). */
+/** `/libro/contralor` (FASE 9, M12 point 9.4, DP-33; export buttons added FASE 13 point 13.3). Consulta de los libros contralor (psicotrópicos / estupefacientes). */
 import Link from "next/link";
+import { requireSession } from "@/shared/auth/session";
+import { can } from "@/shared/auth/authorize";
 import { listContralor } from "@/modules/libro/application/list-contralor";
 
 const PAGE_SIZE = 25;
@@ -16,6 +18,7 @@ const TIPO_MOVIMIENTO_LABELS: Record<string, string> = {
 };
 
 export default async function ContralorPage({ searchParams }: ContralorPageProps) {
+  const session = await requireSession();
   const params = await searchParams;
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
@@ -30,6 +33,7 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
     pageSize: PAGE_SIZE,
   });
   const totalPages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
+  const puedeExportar = can(session, "libro.exportar");
 
   function pageHref(targetPage: number): string {
     const qs = new URLSearchParams();
@@ -41,6 +45,15 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
     return `/libro/contralor?${qs.toString()}`;
   }
 
+  function exportHref(kind: "csv" | "pdf"): string {
+    const qs = new URLSearchParams();
+    if (params.tipoLibro) qs.set("tipoLibro", params.tipoLibro);
+    if (params.drogaId) qs.set("drogaId", params.drogaId);
+    if (params.fechaDesde) qs.set("fechaDesde", params.fechaDesde);
+    if (params.fechaHasta) qs.set("fechaHasta", params.fechaHasta);
+    return `/api/libro/export/contralor/${kind}?${qs.toString()}`;
+  }
+
   return (
     <div className="p-6">
       <div className="mb-4">
@@ -49,7 +62,19 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
         </Link>
       </div>
 
-      <h1 className="mb-4 text-xl font-semibold">Libros contralor</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Libros contralor</h1>
+        {puedeExportar ? (
+          <div className="flex gap-2">
+            <a href={exportHref("csv")} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+              Exportar CSV
+            </a>
+            <a href={exportHref("pdf")} className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">
+              Exportar PDF
+            </a>
+          </div>
+        ) : null}
+      </div>
 
       {result.fechaActivacionContralor === null ? (
         <p className="mb-6 rounded border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950">
