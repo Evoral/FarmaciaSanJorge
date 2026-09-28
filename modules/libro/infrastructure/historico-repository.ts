@@ -72,10 +72,8 @@ export async function listAsientosHistoricos(tx: Prisma.TransactionClient, tenan
     digitalizadoPor: { select: { nombre: true, apellido: true } },
   } satisfies Prisma.AsientoHistoricoSelect;
 
-  const [rows, total] = await Promise.all([
-    tx.asientoHistorico.findMany({ where, select, orderBy: { fechaAsiento: "desc" }, skip: (filtro.page - 1) * filtro.pageSize, take: filtro.pageSize }),
-    tx.asientoHistorico.count({ where }),
-  ]);
+  const rows = await tx.asientoHistorico.findMany({ where, select, orderBy: { fechaAsiento: "desc" }, skip: (filtro.page - 1) * filtro.pageSize, take: filtro.pageSize });
+  const total = await tx.asientoHistorico.count({ where });
 
   return {
     items: rows.map((r) => ({

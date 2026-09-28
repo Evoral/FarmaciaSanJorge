@@ -40,7 +40,8 @@ export const getReglasPrecioQuery = defineQuery({
   permiso: "precios.reglas.editar",
   input: getReglasPrecioInput,
   handler: async ({ tx, session }) => {
-    const [vigente, historial] = await Promise.all([getReglaVigente(tx, session.tenantId), listHistorialReglas(tx, session.tenantId)]);
+    const vigente = await getReglaVigente(tx, session.tenantId);
+    const historial = await listHistorialReglas(tx, session.tenantId);
 
     return {
       vigente: vigente

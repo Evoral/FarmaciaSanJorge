@@ -38,11 +38,9 @@ export const listJornadasPendientesQuery = defineQuery({
   permiso: "cierres.ver",
   input: z.object({}),
   handler: async ({ tx, session }): Promise<JornadaPendienteItem[]> => {
-    const [rows, jornadaActual, plazoFirmaDias] = await Promise.all([
-      listJornadasPendientesDb(tx, session.tenantId),
-      jornadaActualTenant(tx, session.tenantId),
-      getPlazoFirmaDias(tx, session.tenantId),
-    ]);
+    const rows = await listJornadasPendientesDb(tx, session.tenantId);
+    const jornadaActual = await jornadaActualTenant(tx, session.tenantId);
+    const plazoFirmaDias = await getPlazoFirmaDias(tx, session.tenantId);
 
     const pendientes = filtrarJornadasQueRequierenFirma(rows);
 
@@ -84,10 +82,8 @@ export const resumenJornadasPendientesQuery = defineQuery({
       return { cantidad: resumen.cantidad, masAntigua: null };
     }
 
-    const [jornadaActual, plazoFirmaDias] = await Promise.all([
-      jornadaActualTenant(tx, session.tenantId),
-      getPlazoFirmaDias(tx, session.tenantId),
-    ]);
+    const jornadaActual = await jornadaActualTenant(tx, session.tenantId);
+    const plazoFirmaDias = await getPlazoFirmaDias(tx, session.tenantId);
 
     return {
       cantidad: resumen.cantidad,

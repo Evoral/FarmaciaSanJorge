@@ -66,10 +66,8 @@ export const reporteValorizadoQuery = defineQuery({
   input: reporteValorizadoFiltro,
   handler: async ({ tx, session, input }): Promise<ReporteValorizadoResultado> => {
     const filtro = toRepoFilter(session.tenantId, input);
-    const [{ items, total }, subtotales] = await Promise.all([
-      listValorizado(tx, filtro, input.page, input.pageSize),
-      subtotalesValorizado(tx, filtro),
-    ]);
+    const { items, total } = await listValorizado(tx, filtro, input.page, input.pageSize);
+    const subtotales = await subtotalesValorizado(tx, filtro);
     return { items, total, page: input.page, pageSize: input.pageSize, subtotales, granTotal: sumarValores(subtotales.map((s) => s.valorSubtotal)) };
   },
 });

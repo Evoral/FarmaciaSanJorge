@@ -59,16 +59,14 @@ export async function listPacientes(tx: Prisma.TransactionClient, filter: ListPa
   const where = buildWhere(filter);
   const skip = (filter.page - 1) * filter.pageSize;
 
-  const [total, rows] = await Promise.all([
-    tx.paciente.count({ where }),
-    tx.paciente.findMany({
-      where,
-      orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
-      skip,
-      take: filter.pageSize,
-      select: { id: true, nombre: true, apellido: true, dni: true, fechaBaja: true, motivoBaja: true },
-    }),
-  ]);
+  const total = await tx.paciente.count({ where });
+  const rows = await tx.paciente.findMany({
+    where,
+    orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
+    skip,
+    take: filter.pageSize,
+    select: { id: true, nombre: true, apellido: true, dni: true, fechaBaja: true, motivoBaja: true },
+  });
 
   return { items: rows, total, page: filter.page, pageSize: filter.pageSize };
 }

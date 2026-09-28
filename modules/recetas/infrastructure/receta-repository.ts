@@ -649,25 +649,23 @@ export async function listRecetas(tx: Prisma.TransactionClient, filter: ListRece
   const where = buildWhere(filter);
   const skip = (filter.page - 1) * filter.pageSize;
 
-  const [total, rows] = await Promise.all([
-    tx.receta.count({ where }),
-    tx.receta.findMany({
-      where,
-      orderBy: [{ fechaIngreso: "desc" }],
-      skip,
-      take: filter.pageSize,
-      select: {
-        id: true,
-        numeroInterno: true,
-        fechaPrescripcion: true,
-        origen: true,
-        estado: true,
-        recetaFisicaRecibida: true,
-        paciente: { select: { nombre: true, apellido: true } },
-        medico: { select: { nombre: true, apellido: true } },
-      },
-    }),
-  ]);
+  const total = await tx.receta.count({ where });
+  const rows = await tx.receta.findMany({
+    where,
+    orderBy: [{ fechaIngreso: "desc" }],
+    skip,
+    take: filter.pageSize,
+    select: {
+      id: true,
+      numeroInterno: true,
+      fechaPrescripcion: true,
+      origen: true,
+      estado: true,
+      recetaFisicaRecibida: true,
+      paciente: { select: { nombre: true, apellido: true } },
+      medico: { select: { nombre: true, apellido: true } },
+    },
+  });
 
   return {
     items: rows.map((r) => ({
@@ -736,26 +734,24 @@ export async function listRecetasPorEstado(
   const where = buildWherePorEstado(filter);
   const skip = (filter.page - 1) * filter.pageSize;
 
-  const [total, rows] = await Promise.all([
-    tx.receta.count({ where }),
-    tx.receta.findMany({
-      where,
-      orderBy: [{ fechaIngreso: "desc" }],
-      skip,
-      take: filter.pageSize,
-      select: {
-        id: true,
-        numeroInterno: true,
-        fechaPrescripcion: true,
-        fechaIngreso: true,
-        origen: true,
-        estado: true,
-        recetaFisicaRecibida: true,
-        paciente: { select: { nombre: true, apellido: true } },
-        medico: { select: { nombre: true, apellido: true } },
-      },
-    }),
-  ]);
+  const total = await tx.receta.count({ where });
+  const rows = await tx.receta.findMany({
+    where,
+    orderBy: [{ fechaIngreso: "desc" }],
+    skip,
+    take: filter.pageSize,
+    select: {
+      id: true,
+      numeroInterno: true,
+      fechaPrescripcion: true,
+      fechaIngreso: true,
+      origen: true,
+      estado: true,
+      recetaFisicaRecibida: true,
+      paciente: { select: { nombre: true, apellido: true } },
+      medico: { select: { nombre: true, apellido: true } },
+    },
+  });
 
   return {
     items: rows.map((r) => ({
@@ -799,23 +795,21 @@ export async function listRecetasPendientesFisica(
   const where: Prisma.RecetaWhereInput = { tenantId, recetaFisicaRecibida: false, estado: { not: "ANULADA" } };
   const skip = (page - 1) * pageSize;
 
-  const [total, rows] = await Promise.all([
-    tx.receta.count({ where }),
-    tx.receta.findMany({
-      where,
-      orderBy: [{ fechaIngreso: "asc" }],
-      skip,
-      take: pageSize,
-      select: {
-        id: true,
-        numeroInterno: true,
-        estado: true,
-        fechaIngreso: true,
-        paciente: { select: { nombre: true, apellido: true } },
-        medico: { select: { nombre: true, apellido: true } },
-      },
-    }),
-  ]);
+  const total = await tx.receta.count({ where });
+  const rows = await tx.receta.findMany({
+    where,
+    orderBy: [{ fechaIngreso: "asc" }],
+    skip,
+    take: pageSize,
+    select: {
+      id: true,
+      numeroInterno: true,
+      estado: true,
+      fechaIngreso: true,
+      paciente: { select: { nombre: true, apellido: true } },
+      medico: { select: { nombre: true, apellido: true } },
+    },
+  });
 
   const ahora = Date.now();
   return {

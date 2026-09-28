@@ -118,16 +118,14 @@ export async function listDrogas(tx: Prisma.TransactionClient, filter: ListDroga
   }
 
   const skip = (filter.page - 1) * filter.pageSize;
-  const [total, rows] = await Promise.all([
-    tx.droga.count({ where }),
-    tx.droga.findMany({
-      where,
-      orderBy: [{ nombre: "asc" }],
-      skip,
-      take: filter.pageSize,
-      select: { id: true, nombre: true, unidadBaseId: true, esControlada: true, tipoControl: true, stockMinimo: true, fechaBaja: true, motivoBaja: true, unidadBase: { select: { simbolo: true } } },
-    }),
-  ]);
+  const total = await tx.droga.count({ where });
+  const rows = await tx.droga.findMany({
+    where,
+    orderBy: [{ nombre: "asc" }],
+    skip,
+    take: filter.pageSize,
+    select: { id: true, nombre: true, unidadBaseId: true, esControlada: true, tipoControl: true, stockMinimo: true, fechaBaja: true, motivoBaja: true, unidadBase: { select: { simbolo: true } } },
+  });
 
   return {
     items: rows.map((row) => ({

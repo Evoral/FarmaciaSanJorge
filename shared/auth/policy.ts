@@ -61,26 +61,64 @@ export const MAX_PASSWORD_LENGTH = 256;
 
 /**
  * Password policy validation (FASE 2 points 2.3/2.4: shared by activation
- * and change-password). Checks ONLY the values already resolved in
- * `AUTH_POLICY` above (`minPasswordLength`) plus the technical ceiling
- * `MAX_PASSWORD_LENGTH` -- DP-20 is unresolved for anything beyond length
- * (character-class rules, breach-list checks, etc.), so this deliberately
- * does NOT invent additional requirements the plan does not specify.
+ * and change-password). Checks `AUTH_POLICY.minPasswordLength`, at least
+ * one uppercase letter (user decision, 2026-09-28), and the technical
+ * guards `MAX_PASSWORD_LENGTH` / not-blank (internal: enforced, not listed
+ * in the checklist). Other DP-20 rules (breach-list checks, etc.) remain
+ * unresolved and are deliberately not invented here. The rules apply
+ * whenever a password is SET -- existing passwords are not re-validated.
  *
  * Returns every violated rule (not just the first), so the caller can show
  * a single, complete "lo que falta" message instead of a frustrating
  * one-error-at-a-time loop.
+ *
+ * `PASSWORD_REQUIREMENTS` is the single source of truth: the server-side
+ * check below AND the live checklist every password form renders
+ * (modules/auth/ui/new-password-fields.tsx) both iterate it, so a rule
+ * added here is enforced and displayed everywhere at once. This file must
+ * stay free of server-only imports -- it is bundled into client code.
  */
+export interface PasswordRequirement {
+  id: string;
+  /** Shown in the live checklist. */
+  label: string;
+  /** Returned by `validatePassword` when the rule is not met. */
+  error: string;
+  test: (password: string) => boolean;
+  /** Enforced (server + submit gating) but not listed in the checklist -- technical guards no real user ever hits. */
+  internal?: boolean;
+}
+
+export const PASSWORD_REQUIREMENTS: readonly PasswordRequirement[] = [
+  {
+    id: "min-length",
+    label: `Al menos ${AUTH_POLICY.minPasswordLength} caracteres`,
+    error: `Debe tener al menos ${AUTH_POLICY.minPasswordLength} caracteres.`,
+    test: (password) => password.length >= AUTH_POLICY.minPasswordLength,
+  },
+  {
+    id: "uppercase",
+    label: "Al menos una letra mayúscula",
+    error: "Debe tener al menos una letra mayúscula.",
+    // \p{Lu}: any uppercase letter, including Ñ and accented ones.
+    test: (password) => /\p{Lu}/u.test(password),
+  },
+  {
+    id: "max-length",
+    label: `Como máximo ${MAX_PASSWORD_LENGTH} caracteres`,
+    error: `No puede superar los ${MAX_PASSWORD_LENGTH} caracteres.`,
+    test: (password) => password.length <= MAX_PASSWORD_LENGTH,
+    internal: true,
+  },
+  {
+    id: "not-blank",
+    label: "No puede ser solo espacios",
+    error: "No puede estar vacía.",
+    test: (password) => password.trim().length > 0,
+    internal: true,
+  },
+];
+
 export function validatePassword(password: string): string[] {
-  const errors: string[] = [];
-  if (password.length < AUTH_POLICY.minPasswordLength) {
-    errors.push(`Debe tener al menos ${AUTH_POLICY.minPasswordLength} caracteres.`);
-  }
-  if (password.length > MAX_PASSWORD_LENGTH) {
-    errors.push(`No puede superar los ${MAX_PASSWORD_LENGTH} caracteres.`);
-  }
-  if (password.trim().length === 0) {
-    errors.push("No puede estar vacía.");
-  }
-  return errors;
+  return PASSWORD_REQUIREMENTS.filter((requirement) => !requirement.test(password)).map((requirement) => requirement.error);
 }

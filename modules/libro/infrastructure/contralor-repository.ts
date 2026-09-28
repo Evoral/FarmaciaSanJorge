@@ -82,10 +82,8 @@ export async function listAsientosContralor(tx: Prisma.TransactionClient, tenant
   // A tipoLibro filter with no open libro (should not happen) must return
   // zero rows, never "no filter" -- an impossible libroId does that.
   const where = whereDeFiltro(tenantId, filtro.tipoLibro ? libroId ?? "00000000-0000-0000-0000-000000000000" : undefined, filtro);
-  const [rows, total] = await Promise.all([
-    tx.asientoContralor.findMany({ where, select: SELECT, orderBy: { numeroCorrelativo: "asc" }, skip: (filtro.page - 1) * filtro.pageSize, take: filtro.pageSize }),
-    tx.asientoContralor.count({ where }),
-  ]);
+  const rows = await tx.asientoContralor.findMany({ where, select: SELECT, orderBy: { numeroCorrelativo: "asc" }, skip: (filtro.page - 1) * filtro.pageSize, take: filtro.pageSize });
+  const total = await tx.asientoContralor.count({ where });
   return { items: rows.map(toItem), total, page: filtro.page, pageSize: filtro.pageSize };
 }
 

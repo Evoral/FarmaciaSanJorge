@@ -142,27 +142,25 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
   }
 
   const skip = (filter.page - 1) * filter.pageSize;
-  const [total, rows] = await Promise.all([
-    tx.partida.count({ where }),
-    tx.partida.findMany({
-      where,
-      orderBy: [{ fechaVencimiento: "asc" }],
-      skip,
-      take: filter.pageSize,
-      select: {
-        id: true,
-        lote: true,
-        proveedorId: true,
-        costoUnitario: true,
-        cantidadInicial: true,
-        cantidadDisponible: true,
-        fechaIngreso: true,
-        fechaVencimiento: true,
-        fechaApertura: true,
-        proveedor: { select: { razonSocial: true } },
-      },
-    }),
-  ]);
+  const total = await tx.partida.count({ where });
+  const rows = await tx.partida.findMany({
+    where,
+    orderBy: [{ fechaVencimiento: "asc" }],
+    skip,
+    take: filter.pageSize,
+    select: {
+      id: true,
+      lote: true,
+      proveedorId: true,
+      costoUnitario: true,
+      cantidadInicial: true,
+      cantidadDisponible: true,
+      fechaIngreso: true,
+      fechaVencimiento: true,
+      fechaApertura: true,
+      proveedor: { select: { razonSocial: true } },
+    },
+  });
 
   return {
     items: rows.map((row) => ({
@@ -460,27 +458,25 @@ export async function kardexMovimientos(tx: Prisma.TransactionClient, filter: Ka
   }
 
   const skip = (filter.page - 1) * filter.pageSize;
-  const [total, rows] = await Promise.all([
-    tx.movimientoStock.count({ where }),
-    tx.movimientoStock.findMany({
-      where,
-      orderBy: [{ registradoEn: "desc" }],
-      skip,
-      take: filter.pageSize,
-      select: {
-        id: true,
-        partidaId: true,
-        tipo: true,
-        cantidad: true,
-        motivoAjuste: true,
-        observacion: true,
-        registradoEn: true,
-        partida: { select: { lote: true, droga: { select: { nombre: true } } } },
-        registradoPor: { select: { nombre: true, apellido: true } },
-        autorizadoPor: { select: { nombre: true, apellido: true } },
-      },
-    }),
-  ]);
+  const total = await tx.movimientoStock.count({ where });
+  const rows = await tx.movimientoStock.findMany({
+    where,
+    orderBy: [{ registradoEn: "desc" }],
+    skip,
+    take: filter.pageSize,
+    select: {
+      id: true,
+      partidaId: true,
+      tipo: true,
+      cantidad: true,
+      motivoAjuste: true,
+      observacion: true,
+      registradoEn: true,
+      partida: { select: { lote: true, droga: { select: { nombre: true } } } },
+      registradoPor: { select: { nombre: true, apellido: true } },
+      autorizadoPor: { select: { nombre: true, apellido: true } },
+    },
+  });
 
   return {
     items: rows.map((row) => ({

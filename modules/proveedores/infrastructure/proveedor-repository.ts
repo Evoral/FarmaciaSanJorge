@@ -53,16 +53,14 @@ export async function listProveedores(tx: Prisma.TransactionClient, filter: List
   const where = buildWhere(filter);
   const skip = (filter.page - 1) * filter.pageSize;
 
-  const [total, rows] = await Promise.all([
-    tx.proveedor.count({ where }),
-    tx.proveedor.findMany({
-      where,
-      orderBy: [{ razonSocial: "asc" }],
-      skip,
-      take: filter.pageSize,
-      select: { id: true, razonSocial: true, cuit: true, fechaBaja: true, motivoBaja: true },
-    }),
-  ]);
+  const total = await tx.proveedor.count({ where });
+  const rows = await tx.proveedor.findMany({
+    where,
+    orderBy: [{ razonSocial: "asc" }],
+    skip,
+    take: filter.pageSize,
+    select: { id: true, razonSocial: true, cuit: true, fechaBaja: true, motivoBaja: true },
+  });
 
   return { items: rows, total, page: filter.page, pageSize: filter.pageSize };
 }

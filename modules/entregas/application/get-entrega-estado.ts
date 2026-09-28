@@ -38,10 +38,8 @@ export const getEntregaEstadoQuery = defineQuery({
     const receta = await getRecetaParaEntrega(tx, session.tenantId, input.recetaId);
     if (!receta) throw new NotFoundError("Receta no encontrada.");
 
-    const [items, entrega] = await Promise.all([
-      getItemsParaEntrega(tx, session.tenantId, input.recetaId),
-      getEntregaPorReceta(tx, session.tenantId, input.recetaId),
-    ]);
+    const items = await getItemsParaEntrega(tx, session.tenantId, input.recetaId);
+    const entrega = await getEntregaPorReceta(tx, session.tenantId, input.recetaId);
     const { entregables, excluidos } = calcularItemsEntregables(items);
 
     return {

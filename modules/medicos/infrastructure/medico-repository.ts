@@ -55,16 +55,14 @@ export async function listMedicos(tx: Prisma.TransactionClient, filter: ListMedi
   const where = buildWhere(filter);
   const skip = (filter.page - 1) * filter.pageSize;
 
-  const [total, rows] = await Promise.all([
-    tx.medico.count({ where }),
-    tx.medico.findMany({
-      where,
-      orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
-      skip,
-      take: filter.pageSize,
-      select: { id: true, nombre: true, apellido: true, matricula: true, especialidad: true, fechaBaja: true, motivoBaja: true },
-    }),
-  ]);
+  const total = await tx.medico.count({ where });
+  const rows = await tx.medico.findMany({
+    where,
+    orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
+    skip,
+    take: filter.pageSize,
+    select: { id: true, nombre: true, apellido: true, matricula: true, especialidad: true, fechaBaja: true, motivoBaja: true },
+  });
 
   return { items: rows, total, page: filter.page, pageSize: filter.pageSize };
 }

@@ -155,27 +155,25 @@ export async function listDesignaciones(tx: Prisma.TransactionClient, filter: Li
 
   const skip = (filter.page - 1) * filter.pageSize;
 
-  const [total, rows] = await Promise.all([
-    tx.designacionDirectorTecnico.count({ where }),
-    tx.designacionDirectorTecnico.findMany({
-      where,
-      orderBy: [{ vigenteDesde: "desc" }],
-      skip,
-      take: filter.pageSize,
-      select: {
-        id: true,
-        usuarioId: true,
-        caracter: true,
-        matricula: true,
-        expedienteDesignacion: true,
-        vigenteDesde: true,
-        vigenteHasta: true,
-        motivoCese: true,
-        registradoEn: true,
-        usuario: { select: { nombre: true, apellido: true } },
-      },
-    }),
-  ]);
+  const total = await tx.designacionDirectorTecnico.count({ where });
+  const rows = await tx.designacionDirectorTecnico.findMany({
+    where,
+    orderBy: [{ vigenteDesde: "desc" }],
+    skip,
+    take: filter.pageSize,
+    select: {
+      id: true,
+      usuarioId: true,
+      caracter: true,
+      matricula: true,
+      expedienteDesignacion: true,
+      vigenteDesde: true,
+      vigenteHasta: true,
+      motivoCese: true,
+      registradoEn: true,
+      usuario: { select: { nombre: true, apellido: true } },
+    },
+  });
 
   return {
     items: rows.map((row) => ({

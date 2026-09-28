@@ -304,17 +304,15 @@ export async function listLotes(tx: Prisma.TransactionClient, filter: ListLotesF
   };
   const skip = (filter.page - 1) * filter.pageSize;
 
-  const [total, rows, plazos] = await Promise.all([
-    tx.loteArchivoRecetas.count({ where }),
-    tx.loteArchivoRecetas.findMany({
-      where,
-      orderBy: [{ numero: "desc" }],
-      skip,
-      take: filter.pageSize,
-      select: { id: true, numero: true, periodoDesde: true, periodoHasta: true, ubicacion: true, incluyeControladas: true, estado: true, registradoEn: true },
-    }),
-    getPlazosArchivo(tx, filter.tenantId),
-  ]);
+  const total = await tx.loteArchivoRecetas.count({ where });
+  const rows = await tx.loteArchivoRecetas.findMany({
+    where,
+    orderBy: [{ numero: "desc" }],
+    skip,
+    take: filter.pageSize,
+    select: { id: true, numero: true, periodoDesde: true, periodoHasta: true, ubicacion: true, incluyeControladas: true, estado: true, registradoEn: true },
+  });
+  const plazos = await getPlazosArchivo(tx, filter.tenantId);
 
   const vencimientos = await fetchVencimientos(tx, filter.tenantId, rows.map((r) => r.id), plazos);
 

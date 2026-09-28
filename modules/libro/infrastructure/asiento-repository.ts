@@ -107,16 +107,14 @@ function toListItem(row: AsientoRow): AsientoListItem {
 
 export async function listAsientosRecetario(tx: Prisma.TransactionClient, tenantId: string, filtro: ListAsientosRecetarioFiltro): Promise<AsientoListResult> {
   const where = whereDeFiltro(tenantId, filtro);
-  const [rows, total] = await Promise.all([
-    tx.asientoRecetario.findMany({
-      where,
-      select: LIST_SELECT,
-      orderBy: { numeroCorrelativo: "asc" },
-      skip: (filtro.page - 1) * filtro.pageSize,
-      take: filtro.pageSize,
-    }),
-    tx.asientoRecetario.count({ where }),
-  ]);
+  const rows = await tx.asientoRecetario.findMany({
+    where,
+    select: LIST_SELECT,
+    orderBy: { numeroCorrelativo: "asc" },
+    skip: (filtro.page - 1) * filtro.pageSize,
+    take: filtro.pageSize,
+  });
+  const total = await tx.asientoRecetario.count({ where });
   return { items: rows.map(toListItem), total, page: filtro.page, pageSize: filtro.pageSize };
 }
 

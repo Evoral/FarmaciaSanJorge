@@ -297,25 +297,23 @@ export async function listCierres(tx: Prisma.TransactionClient, filter: ListCier
   }
   const skip = (filter.page - 1) * filter.pageSize;
 
-  const [total, rows] = await Promise.all([
-    tx.cierreDiario.count({ where }),
-    tx.cierreDiario.findMany({
-      where,
-      orderBy: [{ fecha: "desc" }],
-      skip,
-      take: filter.pageSize,
-      select: {
-        id: true,
-        fecha: true,
-        matriculaDt: true,
-        cantidadAsientos: true,
-        fueraDeTermino: true,
-        fechaFirma: true,
-        fechaImpresion: true,
-        directorTecnico: { select: { nombre: true, apellido: true } },
-      },
-    }),
-  ]);
+  const total = await tx.cierreDiario.count({ where });
+  const rows = await tx.cierreDiario.findMany({
+    where,
+    orderBy: [{ fecha: "desc" }],
+    skip,
+    take: filter.pageSize,
+    select: {
+      id: true,
+      fecha: true,
+      matriculaDt: true,
+      cantidadAsientos: true,
+      fueraDeTermino: true,
+      fechaFirma: true,
+      fechaImpresion: true,
+      directorTecnico: { select: { nombre: true, apellido: true } },
+    },
+  });
 
   return {
     total,

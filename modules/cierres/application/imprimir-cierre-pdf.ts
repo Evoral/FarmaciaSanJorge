@@ -32,7 +32,8 @@ const getCierreParaImprimirQuery = defineQuery({
   permiso: "cierres.imprimir",
   input: getCierreParaImprimirInput,
   handler: async ({ tx, session, input }): Promise<CierreParaImprimir> => {
-    const [cierre, tenant] = await Promise.all([getCierreDetalleDb(tx, session.tenantId, input.id), getTenantDatosComprobante(tx, session.tenantId)]);
+    const cierre = await getCierreDetalleDb(tx, session.tenantId, input.id);
+    const tenant = await getTenantDatosComprobante(tx, session.tenantId);
     if (!cierre) throw new NotFoundError("El cierre no fue encontrado.");
     return { cierre, tenant };
   },

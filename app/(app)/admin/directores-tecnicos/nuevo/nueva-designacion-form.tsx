@@ -15,12 +15,14 @@
 import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
-import { designarDirectorTecnicoAction, initialDesignarDirectorTecnicoState } from "./actions";
+import { designarDirectorTecnicoAction, type DesignarDirectorTecnicoFormState } from "./actions";
 import { CARACTERES_DESIGNACION, CARACTER_LABELS } from "@/modules/directores-tecnicos/domain/designacion";
 import { ReauthPrompt } from "@/modules/auth/ui/reauth-prompt";
 import type { listUsuariosElegiblesDt } from "@/modules/directores-tecnicos/application/list-usuarios-elegibles";
 
 type UsuarioElegible = Awaited<ReturnType<typeof listUsuariosElegiblesDt>>[number];
+
+const initialDesignarDirectorTecnicoState: DesignarDirectorTecnicoFormState = { status: "idle", message: null };
 
 export interface NuevaDesignacionFormProps {
   usuarios: UsuarioElegible[];

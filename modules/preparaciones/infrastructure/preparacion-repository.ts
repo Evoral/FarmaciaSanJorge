@@ -638,33 +638,31 @@ export async function listPreparaciones(tx: Prisma.TransactionClient, filter: Li
   if (filter.estado) where.estado = filter.estado;
   const skip = (filter.page - 1) * filter.pageSize;
 
-  const [total, rows] = await Promise.all([
-    tx.preparacion.count({ where }),
-    tx.preparacion.findMany({
-      where,
-      orderBy: [{ iniciadaEn: "desc" }],
-      skip,
-      take: filter.pageSize,
-      select: {
-        id: true,
-        estado: true,
-        fichaTecnicaId: true,
-        iniciadaEn: true,
-        confirmadaEn: true,
-        fichaTecnica: {
-          select: {
-            itemReceta: {
-              select: {
-                descripcion: true,
-                formaFarmaceutica: true,
-                receta: { select: { numeroInterno: true, paciente: { select: { nombre: true, apellido: true } } } },
-              },
+  const total = await tx.preparacion.count({ where });
+  const rows = await tx.preparacion.findMany({
+    where,
+    orderBy: [{ iniciadaEn: "desc" }],
+    skip,
+    take: filter.pageSize,
+    select: {
+      id: true,
+      estado: true,
+      fichaTecnicaId: true,
+      iniciadaEn: true,
+      confirmadaEn: true,
+      fichaTecnica: {
+        select: {
+          itemReceta: {
+            select: {
+              descripcion: true,
+              formaFarmaceutica: true,
+              receta: { select: { numeroInterno: true, paciente: { select: { nombre: true, apellido: true } } } },
             },
           },
         },
       },
-    }),
-  ]);
+    },
+  });
 
   return {
     total,

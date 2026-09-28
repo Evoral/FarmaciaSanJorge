@@ -15,10 +15,8 @@ export const listContralorQuery = defineQuery({
   permiso: "libro.ver",
   input: listContralorFiltro,
   handler: async ({ tx, session, input }): Promise<ListContralorResult> => {
-    const [resultado, fechaActivacion] = await Promise.all([
-      listAsientosContralor(tx, session.tenantId, input),
-      getFechaActivacionContralor(tx, session.tenantId),
-    ]);
+    const resultado = await listAsientosContralor(tx, session.tenantId, input);
+    const fechaActivacion = await getFechaActivacionContralor(tx, session.tenantId);
     return { ...resultado, fechaActivacionContralor: fechaActivacion ? fechaActivacion.toISOString() : null };
   },
 });

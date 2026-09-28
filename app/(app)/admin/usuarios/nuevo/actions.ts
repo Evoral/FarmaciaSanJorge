@@ -26,9 +26,6 @@ export interface CrearUsuarioFormState {
   usuarioId?: string;
 }
 
-const initialCrearUsuarioState: CrearUsuarioFormState = { status: "idle", message: null };
-export { initialCrearUsuarioState };
-
 export async function crearUsuarioAction(_prevState: CrearUsuarioFormState, formData: FormData): Promise<CrearUsuarioFormState> {
   const roles = formData.getAll("roles").map(String).filter((value) => (ROLES_ASIGNABLES as readonly string[]).includes(value));
 

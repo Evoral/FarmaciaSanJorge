@@ -4,19 +4,20 @@
  * `/cuenta` (M02, FASE 2 point 2.4 -- change your own password; PIN
  * section added by the PIN re-auth feature, user decision 2026-09-23).
  */
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { cambiarPasswordAction, configurarPinAction, eliminarPinAction, type CambiarPasswordFormState, type PinFormState } from "./actions";
+import { NewPasswordFields } from "@/modules/auth/ui/new-password-fields";
 
 const initialState: CambiarPasswordFormState = { message: null, success: false };
 const initialPinState: PinFormState = { message: null, success: false };
 
-function SubmitButton({ label, pendingLabel, className }: { label: string; pendingLabel?: string; className?: string }) {
+function SubmitButton({ label, pendingLabel, className, disabled = false }: { label: string; pendingLabel?: string; className?: string; disabled?: boolean }) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={pending || disabled}
       className={className ?? "w-full btn btn-primary"}
     >
       {pending ? (pendingLabel ?? "Guardando…") : label}
@@ -149,25 +150,32 @@ function PinSection() {
 }
 
 export default function CuentaPage() {
-  const [state, formAction] = useActionState(cambiarPasswordAction, initialState);
+  // Controlled fields (NewPasswordFields too) so a rejected change keeps what the user typed; cleared only on success.
+  const [actual, setActual] = useState("");
+  const [fieldsKey, setFieldsKey] = useState(0);
+  const [passwordValid, setPasswordValid] = useState(false);
+  const [state, formAction] = useActionState(async (prevState: CambiarPasswordFormState, formData: FormData) => {
+    const result = await cambiarPasswordAction(prevState, formData);
+    if (result.success) {
+      setActual("");
+      setFieldsKey((key) => key + 1);
+    }
+    return result;
+  }, initialState);
   const messageRef = useRef<HTMLParagraphElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (state.message) {
       messageRef.current?.focus();
-      if (state.success) {
-        formRef.current?.reset();
-      }
     }
-  }, [state.message, state.success]);
+  }, [state]);
 
   return (
     <div className="page max-w-sm">
       <h1 className="mb-6 text-2xl font-semibold">Mi cuenta</h1>
       <h2 className="mb-4 text-lg font-medium">Cambiar contraseña</h2>
 
-      <form ref={formRef} action={formAction} noValidate className="flex flex-col gap-4">
+      <form action={formAction} noValidate className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <label htmlFor="actual" className="text-sm font-medium">
             Contraseña actual
@@ -178,37 +186,19 @@ export default function CuentaPage() {
             type="password"
             required
             autoComplete="current-password"
+            value={actual}
+            onChange={(event) => setActual(event.target.value)}
             className="input"
           />
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="nueva" className="text-sm font-medium">
-            Nueva contraseña
-          </label>
-          <input
-            id="nueva"
-            name="nueva"
-            type="password"
-            required
-            autoComplete="new-password"
-            className="input"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="nuevaRepeat" className="text-sm font-medium">
-            Repetir nueva contraseña
-          </label>
-          <input
-            id="nuevaRepeat"
-            name="nuevaRepeat"
-            type="password"
-            required
-            autoComplete="new-password"
-            className="input"
-          />
-        </div>
+        <NewPasswordFields
+          key={fieldsKey}
+          name="nueva"
+          repeatName="nuevaRepeat"
+          repeatLabel="Repetir nueva contraseña"
+          onValidityChange={setPasswordValid}
+        />
 
         {state.message ? (
           <p
@@ -221,7 +211,7 @@ export default function CuentaPage() {
           </p>
         ) : null}
 
-        <SubmitButton label="Cambiar contraseña" />
+        <SubmitButton label="Cambiar contraseña" disabled={actual.length === 0 || !passwordValid} />
       </form>
 
       <PinSection />

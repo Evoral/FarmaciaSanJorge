@@ -42,24 +42,22 @@ export const listUsuarioAuditoriaQuery = defineQuery({
     const where = { entidad: "usuario", entidadId: input.usuarioId } as const;
     const skip = (input.page - 1) * input.pageSize;
 
-    const [total, rows] = await Promise.all([
-      tx.registroAuditoria.count({ where }),
-      tx.registroAuditoria.findMany({
-        where,
-        orderBy: { ocurridoEn: "desc" },
-        skip,
-        take: input.pageSize,
-        select: {
-          id: true,
-          accion: true,
-          valorAnterior: true,
-          valorNuevo: true,
-          motivo: true,
-          ocurridoEn: true,
-          usuario: { select: { id: true, nombre: true, apellido: true } },
-        },
-      }),
-    ]);
+    const total = await tx.registroAuditoria.count({ where });
+    const rows = await tx.registroAuditoria.findMany({
+      where,
+      orderBy: { ocurridoEn: "desc" },
+      skip,
+      take: input.pageSize,
+      select: {
+        id: true,
+        accion: true,
+        valorAnterior: true,
+        valorNuevo: true,
+        motivo: true,
+        ocurridoEn: true,
+        usuario: { select: { id: true, nombre: true, apellido: true } },
+      },
+    });
 
     return { items: rows, total, page: input.page, pageSize: input.pageSize };
   },

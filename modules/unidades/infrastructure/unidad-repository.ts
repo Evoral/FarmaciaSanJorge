@@ -71,16 +71,14 @@ export async function listUnidades(tx: Prisma.TransactionClient, filter: ListUni
   const where = buildWhere(filter);
   const skip = (filter.page - 1) * filter.pageSize;
 
-  const [total, rows] = await Promise.all([
-    tx.unidadMedida.count({ where }),
-    tx.unidadMedida.findMany({
-      where,
-      orderBy: [{ tipoMagnitud: "asc" }, { nombre: "asc" }],
-      skip,
-      take: filter.pageSize,
-      select: { id: true, codigo: true, nombre: true, simbolo: true, tipoMagnitud: true, factorABase: true, esBase: true, usada: true, fechaBaja: true, motivoBaja: true },
-    }),
-  ]);
+  const total = await tx.unidadMedida.count({ where });
+  const rows = await tx.unidadMedida.findMany({
+    where,
+    orderBy: [{ tipoMagnitud: "asc" }, { nombre: "asc" }],
+    skip,
+    take: filter.pageSize,
+    select: { id: true, codigo: true, nombre: true, simbolo: true, tipoMagnitud: true, factorABase: true, esBase: true, usada: true, fechaBaja: true, motivoBaja: true },
+  });
 
   return {
     items: rows.map((row) => ({ ...row, factorABase: row.factorABase.toString() })),

@@ -1,18 +1,21 @@
 "use client";
 
 /** `/activar` (M02, FASE 2 point 2.3). Public path (see proxy.ts). */
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
+import Link from "next/link";
+import { CircleCheck } from "lucide-react";
 import { activarAction, type ActivarFormState } from "./actions";
+import { NewPasswordFields } from "@/modules/auth/ui/new-password-fields";
 
 const initialState: ActivarFormState = { message: null, success: false };
 
-function SubmitButton() {
+function SubmitButton({ disabled }: { disabled: boolean }) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={pending || disabled}
       className="w-full btn btn-primary"
     >
       {pending ? "Activando…" : "Activar cuenta"}
@@ -23,12 +26,39 @@ function SubmitButton() {
 export default function ActivarPage() {
   const [state, formAction] = useActionState(activarAction, initialState);
   const messageRef = useRef<HTMLParagraphElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // Controlled so a rejected activation (wrong code, expired, ...) keeps what the user typed.
+  const [email, setEmail] = useState("");
+  const [codigo, setCodigo] = useState("");
+  const [passwordValid, setPasswordValid] = useState(false);
 
   useEffect(() => {
     if (state.message) {
-      messageRef.current?.focus();
+      (state.success ? headingRef : messageRef).current?.focus();
     }
-  }, [state.message]);
+  }, [state]);
+
+  const canSubmit = email.trim().length > 0 && codigo.trim().length > 0 && passwordValid;
+
+  if (state.success) {
+    // Replaces the whole form view -- the activation instructions would only confuse at this point.
+    return (
+      <main className="flex flex-col items-center text-center">
+        <span className="mb-4 flex size-16 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-950">
+          <CircleCheck aria-hidden className="size-9 text-emerald-600 dark:text-emerald-400" />
+        </span>
+        <h1 ref={headingRef} tabIndex={-1} className="mb-2 text-3xl font-semibold outline-none">
+          Cuenta activada
+        </h1>
+        <p role="status" className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">
+          Ya podés iniciar sesión.
+        </p>
+        <Link href="/login" className="w-full btn btn-primary">
+          Ir a iniciar sesión
+        </Link>
+      </main>
+    );
+  }
 
   return (
     <main>
@@ -38,81 +68,50 @@ export default function ActivarPage() {
         72 horas de haber sido emitido.
       </p>
 
-      {state.success ? (
-        <p ref={messageRef} role="status" tabIndex={-1} className="text-sm text-green-700 outline-none dark:text-green-400">
-          {state.message}{" "}
-          <a href="/login" className="underline">
-            Ir a iniciar sesión
-          </a>
-        </p>
-      ) : (
-        <form action={formAction} noValidate className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="email" className="text-sm font-medium">
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="username"
-              autoFocus
-              className="input"
-            />
-          </div>
+      <form action={formAction} noValidate className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="email" className="text-sm font-medium">
+            Email
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            autoComplete="username"
+            autoFocus
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            className="input"
+          />
+        </div>
 
-          <div className="flex flex-col gap-1">
-            <label htmlFor="codigo" className="text-sm font-medium">
-              Código de activación
-            </label>
-            <input
-              id="codigo"
-              name="codigo"
-              type="text"
-              required
-              autoComplete="one-time-code"
-              className="input"
-            />
-          </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="codigo" className="text-sm font-medium">
+            Código de activación
+          </label>
+          <input
+            id="codigo"
+            name="codigo"
+            type="text"
+            required
+            autoComplete="one-time-code"
+            value={codigo}
+            onChange={(event) => setCodigo(event.target.value)}
+            className="input"
+          />
+        </div>
 
-          <div className="flex flex-col gap-1">
-            <label htmlFor="password" className="text-sm font-medium">
-              Nueva contraseña
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              autoComplete="new-password"
-              className="input"
-            />
-          </div>
+        <NewPasswordFields name="password" repeatName="passwordRepeat" onValidityChange={setPasswordValid} />
 
-          <div className="flex flex-col gap-1">
-            <label htmlFor="passwordRepeat" className="text-sm font-medium">
-              Repetir contraseña
-            </label>
-            <input
-              id="passwordRepeat"
-              name="passwordRepeat"
-              type="password"
-              required
-              autoComplete="new-password"
-              className="input"
-            />
-          </div>
+        {state.message ? (
+          <p ref={messageRef} role="alert" tabIndex={-1} className="text-sm text-red-600 outline-none">
+            {state.message}
+          </p>
+        ) : null}
 
-          {state.message ? (
-            <p ref={messageRef} role="alert" tabIndex={-1} className="text-sm text-red-600 outline-none">
-              {state.message}
-            </p>
-          ) : null}
-
-          <SubmitButton />
-        </form>
-      )}
+        <SubmitButton disabled={!canSubmit} />
+      </form>
     </main>
   );
 }

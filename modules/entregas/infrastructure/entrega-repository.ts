@@ -209,23 +209,21 @@ export async function listEntregasPendientes(tx: Prisma.TransactionClient, filte
   };
   const skip = (filter.page - 1) * filter.pageSize;
 
-  const [total, rows] = await Promise.all([
-    tx.receta.count({ where }),
-    tx.receta.findMany({
-      where,
-      orderBy: [{ fechaIngreso: "asc" }],
-      skip,
-      take: filter.pageSize,
-      select: {
-        id: true,
-        numeroInterno: true,
-        estado: true,
-        fechaIngreso: true,
-        paciente: { select: { nombre: true, apellido: true } },
-        medico: { select: { nombre: true, apellido: true } },
-      },
-    }),
-  ]);
+  const total = await tx.receta.count({ where });
+  const rows = await tx.receta.findMany({
+    where,
+    orderBy: [{ fechaIngreso: "asc" }],
+    skip,
+    take: filter.pageSize,
+    select: {
+      id: true,
+      numeroInterno: true,
+      estado: true,
+      fechaIngreso: true,
+      paciente: { select: { nombre: true, apellido: true } },
+      medico: { select: { nombre: true, apellido: true } },
+    },
+  });
 
   return {
     items: rows.map((r) => ({

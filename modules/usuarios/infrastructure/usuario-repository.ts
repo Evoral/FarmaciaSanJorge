@@ -78,25 +78,23 @@ export async function listUsuarios(tx: Prisma.TransactionClient, filter: ListUsu
   const where = buildListWhere(filter);
   const skip = (filter.page - 1) * filter.pageSize;
 
-  const [total, rows] = await Promise.all([
-    tx.usuario.count({ where }),
-    tx.usuario.findMany({
-      where,
-      orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
-      skip,
-      take: filter.pageSize,
-      select: {
-        id: true,
-        nombre: true,
-        apellido: true,
-        email: true,
-        dni: true,
-        estado: true,
-        ultimoAcceso: true,
-        rolesAsignados: { select: { rol: { select: { codigo: true } } } },
-      },
-    }),
-  ]);
+  const total = await tx.usuario.count({ where });
+  const rows = await tx.usuario.findMany({
+    where,
+    orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
+    skip,
+    take: filter.pageSize,
+    select: {
+      id: true,
+      nombre: true,
+      apellido: true,
+      email: true,
+      dni: true,
+      estado: true,
+      ultimoAcceso: true,
+      rolesAsignados: { select: { rol: { select: { codigo: true } } } },
+    },
+  });
 
   return {
     items: rows.map((row) => ({

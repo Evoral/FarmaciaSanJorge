@@ -11,8 +11,6 @@ export interface DesignarDirectorTecnicoFormState {
   designacionId?: string;
 }
 
-export const initialDesignarDirectorTecnicoState: DesignarDirectorTecnicoFormState = { status: "idle", message: null };
-
 export async function designarDirectorTecnicoAction(
   _prevState: DesignarDirectorTecnicoFormState,
   formData: FormData,

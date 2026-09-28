@@ -7,6 +7,7 @@
  */
 import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
+import Link from "next/link";
 import { loginAction, type LoginFormState } from "./actions";
 
 const initialState: LoginFormState = { message: null };
@@ -77,7 +78,14 @@ export default function LoginPage() {
         <SubmitButton />
       </form>
 
-      <p className="mt-6 text-xs leading-relaxed text-zinc-500">
+      <p className="mt-6 text-sm">
+        ¿Primera vez o te dieron un código de activación?{" "}
+        <Link href="/activar" className="underline">
+          Activá tu cuenta
+        </Link>
+      </p>
+
+      <p className="mt-4 text-xs leading-relaxed text-zinc-500">
         ¿No podés ingresar o te olvidaste la contraseña? Contactá al administrador de tu farmacia: no hay
         autoregistro ni recuperación automática de contraseña.
       </p>

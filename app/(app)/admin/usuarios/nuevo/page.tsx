@@ -18,9 +18,11 @@
 import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
-import { crearUsuarioAction, initialCrearUsuarioState } from "./actions";
+import { crearUsuarioAction, type CrearUsuarioFormState } from "./actions";
 import { ROLES_ASIGNABLES, ROL_LABELS } from "@/modules/usuarios/domain/roles";
 import { ReauthPrompt } from "@/modules/auth/ui/reauth-prompt";
+
+const initialCrearUsuarioState: CrearUsuarioFormState = { status: "idle", message: null };
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -68,6 +70,11 @@ export default function NuevoUsuarioPage() {
             detalle del usuario.
           </p>
           <code className="block break-all rounded bg-white px-3 py-2 text-sm dark:bg-zinc-900">{state.credencial}</code>
+          <p className="mt-3 text-sm text-amber-900 dark:text-amber-200">
+            No es una contraseña: la persona lo ingresa junto con su email en <span className="font-mono">/activar</span> (link
+            &quot;Activá tu cuenta&quot; en la pantalla de inicio de sesión) para elegir su contraseña. Recién después puede iniciar
+            sesión.
+          </p>
         </div>
         <div className="mt-4 flex gap-4">
           <Link href={`/admin/usuarios/${state.usuarioId}`} className="text-sm underline">

@@ -66,10 +66,8 @@ export const getCotizacionItemQuery = defineQuery({
   permiso: "cotizaciones.ver",
   input: getCotizacionItemInput,
   handler: async ({ tx, session, input }) => {
-    const [vigente, historial] = await Promise.all([
-      getCotizacionVigente(tx, session.tenantId, input.itemRecetaId),
-      listHistorialCotizaciones(tx, session.tenantId, input.itemRecetaId),
-    ]);
+    const vigente = await getCotizacionVigente(tx, session.tenantId, input.itemRecetaId);
+    const historial = await listHistorialCotizaciones(tx, session.tenantId, input.itemRecetaId);
 
     return {
       vigente: vigente ? toOutput(vigente) : null,

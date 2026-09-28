@@ -32,11 +32,9 @@ export const alertasStockQuery = defineQuery({
   input: alertasStockInput,
   handler: async ({ tx, session }): Promise<AlertasStockResult> => {
     const diasAlertaVencimiento = await getDiasAlertaVencimiento(tx, session.tenantId);
-    const [bajoMinimo, porVencer, vencidasConSaldo] = await Promise.all([
-      alertasBajoMinimo(tx, session.tenantId),
-      alertasPorVencer(tx, session.tenantId, diasAlertaVencimiento),
-      alertasVencidasConSaldo(tx, session.tenantId),
-    ]);
+    const bajoMinimo = await alertasBajoMinimo(tx, session.tenantId);
+    const porVencer = await alertasPorVencer(tx, session.tenantId, diasAlertaVencimiento);
+    const vencidasConSaldo = await alertasVencidasConSaldo(tx, session.tenantId);
     return { bajoMinimo, porVencer, vencidasConSaldo, diasAlertaVencimiento };
   },
 });

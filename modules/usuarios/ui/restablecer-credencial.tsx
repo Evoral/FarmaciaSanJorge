@@ -42,6 +42,10 @@ export function RestablecerCredencial({ usuarioId }: { usuarioId: string }) {
           &quot;Pendiente de activación&quot; y se cerraron sus sesiones y credenciales anteriores.
         </p>
         <code className="block break-all rounded bg-white px-3 py-2 text-sm dark:bg-zinc-900">{state.credencial}</code>
+        <p className="mt-3 text-sm text-amber-900 dark:text-amber-200">
+          No es una contraseña: la persona lo ingresa junto con su email en <span className="font-mono">/activar</span> (link
+          &quot;Activá tu cuenta&quot; en la pantalla de inicio de sesión) para elegir una contraseña nueva.
+        </p>
       </div>
     );
   }
