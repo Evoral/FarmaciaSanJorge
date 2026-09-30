@@ -207,7 +207,7 @@ export async function getAsientoRecetario(tx: Prisma.TransactionClient, tenantId
  * `SELECT`, which needs only the SELECT privilege `fsj_app` already has).
  */
 export async function lockAsientoParaAnular(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<boolean> {
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended('asiento_recetario:' || ${tenantId} || ':' || ${id}, 0))`;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('asiento_recetario:' || ${tenantId} || ':' || ${id}, 0))`;
   const rows = await tx.$queryRaw<{ id: string }[]>`
     SELECT id FROM fsj.asiento_recetario WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid
   `;

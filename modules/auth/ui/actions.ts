@@ -7,7 +7,7 @@
  */
 import { reautenticar } from "@/modules/auth/application/reautenticar";
 import { pinDisponible } from "@/modules/auth/application/pin-status";
-import { AppError } from "@/shared/errors";
+import { actionErrorMessage } from "@/shared/ui/action-error";
 
 export interface ReautenticarActionResult {
   ok: boolean;
@@ -20,10 +20,7 @@ export async function reautenticarAction(credential: { password: string } | { pi
     await reautenticar(credential);
     return { ok: true, message: "" };
   } catch (error) {
-    if (error instanceof AppError) {
-      return { ok: false, message: error.message };
-    }
-    return { ok: false, message: "No se pudo confirmar la credencial." };
+    return { ok: false, message: actionErrorMessage(error, "No se pudo confirmar la credencial.") };
   }
 }
 

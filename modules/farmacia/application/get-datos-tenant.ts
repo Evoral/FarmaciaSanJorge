@@ -3,8 +3,11 @@
  * record of the current session's tenant -- including the 4 non-editable
  * fields (cuit, zonaHoraria, fechaBaja, fechaActivacionContralor) -- so the
  * UI can show them read-only with an explanation instead of hiding them.
- * `config.ver` is granted to ALL FIVE roles (migration 0002), so this is
- * intentionally a wide-open read.
+ * Gated on `config.ver`, which migration 0046 (user decision 2026-09-28)
+ * narrowed to ADMINISTRADOR only -- it was granted to all five roles by
+ * migration 0002. Other flows that need tenant fields (labels, jornada /
+ * time zone) read them through their own repositories and use cases, not
+ * through this query, so they are unaffected.
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";

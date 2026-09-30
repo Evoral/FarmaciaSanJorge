@@ -2,7 +2,9 @@
 
 /** Crear/editar médico form (FASE 4 point 4.4). */
 import { crearMedicoAction, editarMedicoAction } from "./actions";
-import { SimpleForm } from "./simple-form";
+import { SimpleForm } from "@/shared/ui/simple-form";
+import { JURISDICCIONES_MATRICULA, JURISDICCION_MATRICULA_LABELS } from "../domain/medico";
+import type { JurisdiccionMatricula } from "../domain/medico";
 
 export interface MedicoFormProps {
   mode: "crear" | "editar";
@@ -11,6 +13,7 @@ export interface MedicoFormProps {
     nombre: string;
     apellido: string;
     matricula: string;
+    matriculaJurisdiccion: JurisdiccionMatricula;
     especialidad: string | null;
     telefono: string | null;
     direccionRegistrada: string | null;
@@ -23,13 +26,14 @@ export function MedicoForm({ mode, medico, disabled }: MedicoFormProps) {
 
   return (
     <div className="card p-4">
-      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear médico" : "Guardar cambios"} className="flex max-w-md flex-col gap-3">
+      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear médico" : "Guardar cambios"} className="max-w-md">
         {mode === "editar" && medico ? (
           <>
             <input type="hidden" name="id" value={medico.id} />
             <input type="hidden" name="versionNombre" value={medico.nombre} />
             <input type="hidden" name="versionApellido" value={medico.apellido} />
             <input type="hidden" name="versionMatricula" value={medico.matricula} />
+            <input type="hidden" name="versionMatriculaJurisdiccion" value={medico.matriculaJurisdiccion} />
             <input type="hidden" name="versionEspecialidad" value={medico.especialidad ?? ""} />
             <input type="hidden" name="versionTelefono" value={medico.telefono ?? ""} />
             <input type="hidden" name="versionDireccionRegistrada" value={medico.direccionRegistrada ?? ""} />
@@ -55,6 +59,19 @@ export function MedicoForm({ mode, medico, disabled }: MedicoFormProps) {
             Matrícula
           </label>
           <input id="matricula" name="matricula" defaultValue={medico?.matricula ?? ""} required disabled={disabled} className="input" />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="matriculaJurisdiccion" className="text-sm font-medium">
+            Jurisdicción de la matrícula
+          </label>
+          <select id="matriculaJurisdiccion" name="matriculaJurisdiccion" defaultValue={medico?.matriculaJurisdiccion ?? "PROVINCIAL"} required disabled={disabled} className="input">
+            {JURISDICCIONES_MATRICULA.map((j) => (
+              <option key={j} value={j}>
+                {JURISDICCION_MATRICULA_LABELS[j]}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="flex flex-col gap-1">

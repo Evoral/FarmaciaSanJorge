@@ -4,6 +4,8 @@ import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listAsientosRecetario } from "@/modules/libro/application/list-asientos-recetario";
 import { resolverEstadoVisualAsiento, etiquetaEstadoVisual } from "@/modules/libro/domain/estado-visual";
+import { DateInput } from "@/shared/ui/date-input";
+import { FilterForm } from "@/shared/ui/filter-form";
 
 const PAGE_SIZE = 25;
 
@@ -78,18 +80,22 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
         ) : null}
       </div>
 
-      <form method="get" className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros del libro recetario">
+      <FilterForm
+        className="mb-6 flex flex-wrap items-end gap-3"
+        aria-label="Filtros del libro recetario"
+        hasActiveFilters={Boolean(params.fechaDesde || params.fechaHasta || params.numeroDesde || params.numeroHasta || params.estado || params.texto)}
+      >
         <div className="flex flex-col gap-1">
           <label htmlFor="fechaDesde" className="text-sm font-medium">
             Desde
           </label>
-          <input id="fechaDesde" name="fechaDesde" type="date" defaultValue={params.fechaDesde ?? ""} className="input" />
+          <DateInput id="fechaDesde" name="fechaDesde" defaultValue={params.fechaDesde ?? ""} />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="fechaHasta" className="text-sm font-medium">
             Hasta
           </label>
-          <input id="fechaHasta" name="fechaHasta" type="date" defaultValue={params.fechaHasta ?? ""} className="input" />
+          <DateInput id="fechaHasta" name="fechaHasta" defaultValue={params.fechaHasta ?? ""} />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="numeroDesde" className="text-sm font-medium">
@@ -119,13 +125,7 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
           </label>
           <input id="texto" name="texto" type="search" defaultValue={params.texto ?? ""} className="input" />
         </div>
-        <button type="submit" className="btn btn-secondary">
-          Filtrar
-        </button>
-        <Link href="/libro" className="text-sm underline">
-          Limpiar filtros
-        </Link>
-      </form>
+      </FilterForm>
 
       <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
         {result.total} asiento{result.total === 1 ? "" : "s"} encontrado{result.total === 1 ? "" : "s"}.

@@ -11,12 +11,11 @@
  */
 import { useActionState } from "react";
 import Link from "next/link";
-import { useFormStatus } from "react-dom";
 import { buscarPacientesAction } from "./buscar-pacientes-action";
 import type { BuscarPacientesState, PacienteListItem } from "./buscar-pacientes-action";
+import { useFormSubmit } from "@/shared/ui/use-form-submit";
 
-function BuscarButton() {
-  const { pending } = useFormStatus();
+function BuscarButton({ pending }: { pending: boolean }) {
   return (
     <button type="submit" disabled={pending} className="btn btn-secondary">
       {pending ? "Buscando…" : "Buscar"}
@@ -32,11 +31,13 @@ export interface PacientesBuscadorProps {
 
 export function PacientesBuscador({ itemsIniciales, totalInicial, estado }: PacientesBuscadorProps) {
   const initialState: BuscarPacientesState = { status: "idle", items: itemsIniciales, total: totalInicial };
-  const [state, formAction] = useActionState(buscarPacientesAction, initialState);
+  const [state, formAction, isPending] = useActionState(buscarPacientesAction, initialState);
+  // Not reset on success: the search criteria stay next to their results.
+  const { onSubmit } = useFormSubmit(formAction);
 
   return (
     <div>
-      <form action={formAction} className="mb-6 flex flex-wrap items-end gap-3" aria-label="Buscar pacientes">
+      <form action={formAction} onSubmit={onSubmit} className="mb-6 flex flex-wrap items-end gap-3" aria-label="Buscar pacientes">
         <div className="flex flex-col gap-1">
           <label htmlFor="q" className="text-sm font-medium">
             Buscar (apellido o DNI)
@@ -44,7 +45,7 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado }: Paci
           <input id="q" name="q" type="text" placeholder="Apellido o DNI" className="input" />
         </div>
         <input type="hidden" name="estado" value={estado} />
-        <BuscarButton />
+        <BuscarButton pending={isPending} />
       </form>
 
       {state.status === "error" ? (
@@ -61,7 +62,7 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado }: Paci
         <table className="data-table">
           <thead>
             <tr>
-              <th scope="col" className="px-3 py-2 font-medium">Apellido y nombre</th>
+              <th scope="col" className="px-3 py-2 font-medium">Nombre y apellido</th>
               <th scope="col" className="px-3 py-2 font-medium">DNI</th>
               <th scope="col" className="px-3 py-2 font-medium">Estado</th>
             </tr>
@@ -78,7 +79,7 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado }: Paci
                 <tr key={paciente.id}>
                   <td className="px-3 py-2">
                     <Link href={`/catalogos/pacientes/${paciente.id}`} className="font-medium underline-offset-2 hover:underline">
-                      {paciente.apellido}, {paciente.nombre}
+                      {paciente.nombre} {paciente.apellido}
                     </Link>
                   </td>
                   <td className="px-3 py-2">{paciente.dni ?? "—"}</td>

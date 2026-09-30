@@ -1,8 +1,11 @@
 /**
  * `listParametros` (FASE 3 point 3.10b): the tenant's current values for
  * every known parameter, joined with the domain registry's metadata
- * (label, description, validation rule reference). `config.ver` is granted
- * to ALL FIVE roles (migration 0002).
+ * (label, description, validation rule reference). Gated on `config.ver`,
+ * ADMINISTRADOR-only since migration 0046 (user decision 2026-09-28; it was
+ * granted to all five roles by migration 0002). Operational flows that need
+ * a parametro value read `fsj.parametro` through their own repositories,
+ * not through this query.
  *
  * Defensive fallback: if a known clave's row does not exist yet for this
  * tenant (should not happen post migration-0012/create-tenant.ts seeding,

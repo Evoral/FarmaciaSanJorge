@@ -113,7 +113,7 @@ const anularAsientoInternalCommand = defineCommand({
           entidadId: input.asientoId,
           motivo: input.motivo,
           autorizadoPorId: input.autorizadoPorId,
-          valorNuevo: { asientoId: input.asientoId, motivo: input.motivo },
+          valorNuevo: { asientoId: input.asientoId, asiento: `Nº ${asiento.numeroCorrelativo}`, motivo: input.motivo },
         },
       };
     } catch (e) {
@@ -124,7 +124,7 @@ const anularAsientoInternalCommand = defineCommand({
       // Spanish DomainError before it leaves this command.
       const mapped = mapDbError(e);
       if (mapped instanceof InvariantViolationError) {
-        throw new DomainError(mensajeParaInvarianteAnulacion(mapped.invariantCode));
+        throw new DomainError(mensajeParaInvarianteAnulacion(mapped.invariantCode), { cause: mapped });
       }
       throw mapped;
     }

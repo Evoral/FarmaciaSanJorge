@@ -60,7 +60,7 @@ export default async function EntregaDetallePage({ params }: EntregaDetallePageP
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">Entrega — Receta Nº {receta.numeroInterno}</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          {receta.pacienteApellido}, {receta.pacienteNombre} — Dr./Dra. {receta.medicoApellido}, {receta.medicoNombre}
+          {receta.pacienteNombre} {receta.pacienteApellido} — Dr./Dra. {receta.medicoApellido}, {receta.medicoNombre}
         </p>
       </div>
 

@@ -11,7 +11,7 @@
  * session holds `libro.anulacion.solicitar` (see `app/(app)/libro/[id]/page.tsx`).
  */
 import { anularAsientoAction } from "./actions";
-import { ReauthAwareForm } from "./reauth-aware-form";
+import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 
 export interface DtOpcion {
   id: string;
@@ -28,9 +28,9 @@ export function AnularAsientoForm({ asientoId, numeroCorrelativo, dts }: AnularA
   return (
     <div className="rounded border border-red-300 p-4 dark:border-red-800">
       <h3 className="mb-2 text-sm font-semibold text-red-800 dark:text-red-300">Anular asiento Nº {numeroCorrelativo}</h3>
-      <p className="mb-3 text-xs text-zinc-600 dark:text-zinc-400">Esta acción es irreversible. El asiento queda ANULADO; su egreso de stock se mantiene (INV-L20).</p>
+      <p className="mb-3 text-xs text-zinc-600 dark:text-zinc-400">Esta acción es irreversible. El asiento queda ANULADO; su egreso de stock se mantiene.</p>
 
-      <ReauthAwareForm action={anularAsientoAction} submitLabel="Anular asiento" pendingLabel="Anulando…" className="flex max-w-lg flex-col gap-4">
+      <ReauthAwareForm action={anularAsientoAction} submitLabel="Anular asiento" pendingLabel="Anulando…" submitVariant="danger-solid" className="max-w-lg">
         <input type="hidden" name="asientoId" value={asientoId} />
 
         <div className="flex flex-col gap-1">

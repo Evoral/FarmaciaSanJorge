@@ -1,31 +1,30 @@
 /**
- * Layout guard for `/catalogos/**` (FASE 4 points 4.2/4.3). Unlike
- * `/admin/**` (ADM-only), these catalogs (drogas, proveedores) are shared by
- * FAR/DT/ADM (plan §7) -- allows anyone who can reach AT LEAST ONE nested
- * section through. The real, per-action boundary is still each use case's
- * own `authorize(permiso)`.
+ * Layout guard + tab nav for `/catalogos/**` (FASE 4 points 4.1-4.5). These
+ * catalogs are shared across roles (drogas/proveedores by FAR/DT/ADM,
+ * médicos/pacientes also by ATENCION_PUBLICO, unidades de medida by
+ * `unidades.editar` holders -- plan §7) -- allows anyone who can reach AT
+ * LEAST ONE nested section through; each section keeps its own nested
+ * guard. The tab list comes from `../nav-sections.ts`, which uses exactly
+ * the permiso each section's own guard checks. The real, per-action
+ * boundary is still each use case's own `authorize(permiso)`.
  */
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
-import { can } from "@/shared/auth/authorize";
-import { CatalogosNav } from "./catalogos-nav";
+import { catalogosSections } from "../nav-sections";
+import { SectionTabs } from "../section-tabs";
 
 export default async function CatalogosLayout({ children }: { children: ReactNode }) {
   const session = await requireSession();
+  const links = catalogosSections(session);
 
-  const puedeDrogas = can(session, "drogas.editar");
-  const puedeProveedores = can(session, "proveedores.gestionar");
-  const puedeMedicos = can(session, "medicos.gestionar");
-  const puedePacientes = can(session, "pacientes.gestionar");
-
-  if (!puedeDrogas && !puedeProveedores && !puedeMedicos && !puedePacientes) {
+  if (links.length === 0) {
     redirect("/");
   }
 
   return (
     <div className="page">
-      <CatalogosNav puedeDrogas={puedeDrogas} puedeProveedores={puedeProveedores} puedeMedicos={puedeMedicos} puedePacientes={puedePacientes} />
+      <SectionTabs ariaLabel="Secciones de catálogos" links={links} />
       {children}
     </div>
   );

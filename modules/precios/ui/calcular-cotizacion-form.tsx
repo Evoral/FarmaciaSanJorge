@@ -2,7 +2,7 @@
 
 /** `/recetas/[id]/items/[itemId]/cotizacion`'s "calcular" button (FASE 7 point 7.4). */
 import { calcularCotizacionAction } from "./actions";
-import { SimpleForm } from "./simple-form";
+import { SimpleForm } from "@/shared/ui/simple-form";
 
 export interface CalcularCotizacionFormProps {
   itemRecetaId: string;

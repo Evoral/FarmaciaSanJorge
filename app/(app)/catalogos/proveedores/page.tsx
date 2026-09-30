@@ -5,6 +5,7 @@ import { can } from "@/shared/auth/authorize";
 import { listProveedores } from "@/modules/proveedores/application/list-proveedores";
 import { ProveedorForm } from "@/modules/proveedores/ui/proveedor-form";
 import { formatCuit } from "@/modules/proveedores/domain/proveedor";
+import { FilterForm } from "@/shared/ui/filter-form";
 
 const PAGE_SIZE = 20;
 
@@ -48,7 +49,7 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
         </div>
       ) : null}
 
-      <form method="get" className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de búsqueda de proveedores">
+      <FilterForm className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de búsqueda de proveedores" hasActiveFilters={Boolean(params.q || params.estado)}>
         <div className="flex flex-col gap-1">
           <label htmlFor="q" className="text-sm font-medium">
             Buscar
@@ -65,15 +66,7 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
             <option value="baja">Dados de baja</option>
           </select>
         </div>
-        <button type="submit" className="btn btn-secondary">
-          Filtrar
-        </button>
-        {params.q || params.estado ? (
-          <Link href="/catalogos/proveedores" className="text-sm underline">
-            Limpiar filtros
-          </Link>
-        ) : null}
-      </form>
+      </FilterForm>
 
       <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
         {result.total} proveedor{result.total === 1 ? "" : "es"} encontrado{result.total === 1 ? "" : "s"}.

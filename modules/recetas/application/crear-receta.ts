@@ -4,9 +4,10 @@
  * paciente + médico (already existing rows -- quick-create is a SEPARATE
  * use case, modules/pacientes'/modules/medicos' own `crearPaciente`/
  * `crearMedico`, reused directly by modules/recetas/ui/actions.ts) +
- * fecha de prescripción (not future) + origen (PRESENCIAL only for now,
- * DP-29/point 6.2 excluded) + one or more ítems, each with >= 1
- * componente. Everything in ONE transaction (insertRecetaConItems).
+ * fecha de prescripción (not future) + origen (PRESENCIAL: a digital
+ * receta only enters through the PDF import, see domain/receta.ts's
+ * `validarOrigenCargaManual`) + optional diagnóstico (CIE-10) + one or more
+ * ítems, each with >= 1 componente (optional posología/duración). Everything in ONE transaction (insertRecetaConItems).
  *
  * V1-V9 (minus V5, see domain/receta.ts's doc comment) are enforced here
  * BEFORE the DB, with clear Spanish messages; the DB's CHECKs/deferred
@@ -20,19 +21,31 @@ import {
   FORMAS_FARMACEUTICAS,
   MODOS_EXPRESION,
   ORIGENES_RECETA,
+  diagnosticoCodigoOpcional,
+  duracionTratamientoDiasOpcional,
   esFechaPrescripcionValida,
+  resumirItemsReceta,
   validarItemsReceta,
-  validarOrigenHabilitado,
+  validarOrigenCargaManual,
 } from "../domain/receta";
 import type { ComponenteInput, ItemInput } from "../domain/receta";
 import {
   drogasInvalidas,
   getMedicoRefParaReceta,
+  getNombresParaResumen,
   getPacienteRefParaReceta,
   insertRecetaConItems,
   jornadaActualTenant,
   unidadesInvalidas,
 } from "../infrastructure/receta-repository";
+
+/** Shared with importar-receta.ts. */
+export const textoOpcional = z
+  .string()
+  .trim()
+  .optional()
+  .nullable()
+  .transform((v) => (v && v.length > 0 ? v : null));
 
 const decimalOpcional = z
   .string()
@@ -49,26 +62,21 @@ const componenteInput = z.object({
   esPrincipioActivo: z.boolean().default(false),
 });
 
-const itemInput = z.object({
-  descripcion: z
-    .string()
-    .trim()
-    .optional()
-    .transform((v) => (v && v.length > 0 ? v : null)),
+/** One ítem of the receta (with its componentes) -- shared with importar-receta.ts. */
+export const itemInput = z.object({
+  descripcion: textoOpcional,
   formaFarmaceutica: z.enum(FORMAS_FARMACEUTICAS),
   cantidadUnidades: z.number().int(),
   fraccionDosisPorUnidad: z.string().trim().min(1).default("1"),
   cantidadTotal: decimalOpcional,
   unidadTotalId: uuid.optional().nullable(),
-  observaciones: z
-    .string()
-    .trim()
-    .optional()
-    .transform((v) => (v && v.length > 0 ? v : null)),
+  observaciones: textoOpcional,
+  posologia: textoOpcional,
+  duracionTratamientoDias: duracionTratamientoDiasOpcional,
   componentes: z.array(componenteInput).min(1, "Cada ítem debe tener al menos un componente."),
 });
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha en formato AAAA-MM-DD.");
+export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha en formato AAAA-MM-DD.");
 
 const crearRecetaInput = z.object({
   pacienteId: uuid,
@@ -76,6 +84,8 @@ const crearRecetaInput = z.object({
   fechaPrescripcion: isoDate,
   origen: z.enum(ORIGENES_RECETA),
   recetaFisicaRecibida: z.boolean().default(false),
+  diagnosticoCodigo: diagnosticoCodigoOpcional,
+  diagnosticoDescripcion: textoOpcional,
   items: z.array(itemInput).min(1, "La receta debe tener al menos un ítem."),
 });
 
@@ -92,6 +102,8 @@ function toItemsInput(items: CrearRecetaInput["items"]): ItemInput[] {
     cantidadTotal: item.cantidadTotal,
     unidadTotalId: item.unidadTotalId ?? null,
     observaciones: item.observaciones,
+    posologia: item.posologia,
+    duracionTratamientoDias: item.duracionTratamientoDias,
     componentes: item.componentes.map(
       (c): ComponenteInput => ({
         drogaId: c.drogaId,
@@ -110,7 +122,7 @@ export const crearRecetaCommand = defineCommand({
   input: crearRecetaInput,
   audit: { entidad: "receta", accion: TipoAccion.CREAR },
   handler: async ({ tx, session, input }) => {
-    validarOrigenHabilitado(input.origen);
+    validarOrigenCargaManual(input.origen, null);
 
     const paciente = await getPacienteRefParaReceta(tx, session.tenantId, input.pacienteId);
     if (!paciente) throw new NotFoundError("Paciente no encontrado.");
@@ -151,6 +163,8 @@ export const crearRecetaCommand = defineCommand({
       origen: input.origen,
       recetaFisicaRecibida: input.recetaFisicaRecibida,
       registradaPorId: session.usuario.id,
+      diagnosticoCodigo: input.diagnosticoCodigo,
+      diagnosticoDescripcion: input.diagnosticoDescripcion,
       items: input.items.map((item) => ({
         descripcion: item.descripcion,
         formaFarmaceutica: item.formaFarmaceutica,
@@ -159,6 +173,8 @@ export const crearRecetaCommand = defineCommand({
         cantidadTotal: item.cantidadTotal,
         unidadTotalId: item.unidadTotalId ?? null,
         observaciones: item.observaciones,
+        posologia: item.posologia,
+        duracionTratamientoDias: item.duracionTratamientoDias,
         componentes: item.componentes.map((c) => ({
           drogaId: c.drogaId,
           cantidad: c.cantidad,
@@ -169,18 +185,25 @@ export const crearRecetaCommand = defineCommand({
       })),
     });
 
+    const nombres = await getNombresParaResumen(tx, session.tenantId, drogaIds, unidadIds);
+
     return {
       output: { id: nueva.id, numeroInterno: nueva.numeroInterno },
       audit: {
         entidadId: nueva.id,
         valorNuevo: {
           pacienteId: input.pacienteId,
+          paciente: `${paciente.apellido}, ${paciente.nombre}`,
           medicoId: input.medicoId,
+          medico: `${medico.apellido}, ${medico.nombre} — matrícula ${medico.matricula}`,
           fechaPrescripcion: input.fechaPrescripcion,
           origen: input.origen,
           recetaFisicaRecibida: input.recetaFisicaRecibida,
+          diagnosticoCodigo: input.diagnosticoCodigo,
+          diagnosticoDescripcion: input.diagnosticoDescripcion,
           numeroInterno: nueva.numeroInterno,
           items: input.items,
+          itemsResumen: resumirItemsReceta(itemsDominio, nombres),
         },
       },
     };

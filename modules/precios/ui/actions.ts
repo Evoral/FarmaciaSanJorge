@@ -1,21 +1,20 @@
 "use server";
 
-/** Server Actions for `/admin/precios` (FASE 4 point 4.6) and `/recetas/[id]/items/[itemId]/cotizacion` (FASE 7 point 7.4). */
+/** Server Actions for `/admin/configuracion/precios` (FASE 4 point 4.6) and `/recetas/[id]/items/[itemId]/cotizacion` (FASE 7 point 7.4). */
 import { revalidatePath } from "next/cache";
 import { guardarReglaPrecio } from "@/modules/precios/application/guardar-regla-precio";
 import { calcularCotizacionItem } from "@/modules/precios/application/calcular-cotizacion";
-import { AppError } from "@/shared/errors";
+import { actionError } from "@/shared/ui/action-error";
 import type { PreciosActionState } from "./action-state";
 
 function fromError(error: unknown, fallback: string): PreciosActionState {
-  if (error instanceof AppError) return { status: "error", message: error.message };
-  return { status: "error", message: fallback };
+  return actionError(error, fallback);
 }
 
 export async function guardarReglaPrecioAction(_prevState: PreciosActionState, formData: FormData): Promise<PreciosActionState> {
   try {
     await guardarReglaPrecio({ margen: String(formData.get("margen") ?? "") });
-    revalidatePath("/admin/precios");
+    revalidatePath("/admin/configuracion/precios");
     return { status: "success", message: "Regla de precio guardada." };
   } catch (error) {
     return fromError(error, "No se pudo guardar la regla de precio.");

@@ -1,7 +1,7 @@
 /**
  * `listUsuariosElegiblesDt` (M04, FASE 3 point 3.9). Read-only: usuarios
  * eligible to be designated (role DIRECTOR_TECNICO, estado ACTIVO, current
- * tenant) -- feeds the usuario picker on `/admin/directores-tecnicos/nuevo`.
+ * tenant) -- feeds the usuario picker on `/admin/accesos/directores-tecnicos/nuevo`.
  * A thin `defineQuery` wrapper around the repository is required here (not
  * just the repository function) because `app/**` may not import a
  * module's `infrastructure/` layer directly (eslint.config.mjs's

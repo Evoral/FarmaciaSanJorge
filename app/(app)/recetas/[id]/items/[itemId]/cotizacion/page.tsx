@@ -9,6 +9,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getReceta } from "@/modules/recetas/application/get-receta";
+import { FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
 import { getCotizacionItem } from "@/modules/precios/application/get-cotizacion-item";
 import { CalcularCotizacionForm } from "@/modules/precios/ui/calcular-cotizacion-form";
 import { CotizacionDetalleView } from "@/modules/precios/ui/cotizacion-detalle";
@@ -48,7 +49,7 @@ export default async function CotizacionPage({ params }: CotizacionPageProps) {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">Cotización</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Receta Nº {receta.numeroInterno} — {item.descripcion ?? item.formaFarmaceutica} ({item.formaFarmaceutica})
+          Receta Nº {receta.numeroInterno} — {item.descripcion ?? FORMA_FARMACEUTICA_LABELS[item.formaFarmaceutica]} ({FORMA_FARMACEUTICA_LABELS[item.formaFarmaceutica]})
         </p>
       </div>
 
@@ -56,7 +57,7 @@ export default async function CotizacionPage({ params }: CotizacionPageProps) {
         <section className="mb-6">
           <CalcularCotizacionForm itemRecetaId={itemId} recetaId={recetaId} label={vigente ? "Recalcular cotización" : "Calcular cotización"} />
           <p className="mt-2 text-xs text-zinc-500">
-            Calcular una cotización no descuenta stock, no asienta en el libro recetario ni reserva nada (INV-R02): solo estima el costo con la ficha
+            Calcular una cotización no descuenta stock, no asienta en el libro recetario ni reserva nada: solo estima el costo con la ficha
             técnica vigente. Requiere que el ítem tenga una ficha técnica generada.
           </p>
         </section>

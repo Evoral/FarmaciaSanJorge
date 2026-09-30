@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { anularAsiento } from "@/modules/libro/application/anular-asiento";
 import { rectificarAsiento } from "@/modules/libro/application/rectificar-asiento";
 import { crearAsientoHistorico } from "@/modules/libro/application/crear-asiento-historico";
-import { AppError, StepUpRequiredError } from "@/shared/errors";
+import { StepUpRequiredError } from "@/shared/errors";
+import { actionError } from "@/shared/ui/action-error";
 import type { LibroActionState } from "./action-state";
 
 /**
@@ -36,8 +37,7 @@ export async function anularAsientoAction(_prevState: LibroActionState, formData
     if (error instanceof StepUpRequiredError) {
       return { status: "reauth-required" };
     }
-    const message = error instanceof AppError ? error.message : "No se pudo anular el asiento.";
-    return { status: "error", message };
+    return actionError(error, "No se pudo anular el asiento.");
   }
 }
 
@@ -65,8 +65,7 @@ export async function rectificarAsientoAction(_prevState: LibroActionState, form
     if (error instanceof StepUpRequiredError) {
       return { status: "reauth-required" };
     }
-    const message = error instanceof AppError ? error.message : "No se pudo generar el asiento rectificativo.";
-    return { status: "error", message };
+    return actionError(error, "No se pudo generar el asiento rectificativo.");
   }
 }
 
@@ -84,7 +83,6 @@ export async function crearAsientoHistoricoAction(_prevState: LibroActionState, 
     revalidatePath("/libro/historico");
     return { status: "success", message: "Asiento histórico digitalizado." };
   } catch (error) {
-    const message = error instanceof AppError ? error.message : "No se pudo digitalizar el asiento.";
-    return { status: "error", message };
+    return actionError(error, "No se pudo digitalizar el asiento.");
   }
 }

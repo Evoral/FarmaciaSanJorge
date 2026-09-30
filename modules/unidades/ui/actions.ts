@@ -1,17 +1,16 @@
 "use server";
 
-/** Server Actions for `/admin/unidades` (FASE 4 point 4.1). */
+/** Server Actions for `/catalogos/unidades` (FASE 4 point 4.1). */
 import { revalidatePath } from "next/cache";
 import { crearUnidad } from "@/modules/unidades/application/crear-unidad";
 import { editarUnidad } from "@/modules/unidades/application/editar-unidad";
 import { darDeBajaUnidad } from "@/modules/unidades/application/dar-de-baja-unidad";
 import { reactivarUnidad } from "@/modules/unidades/application/reactivar-unidad";
-import { AppError } from "@/shared/errors";
+import { actionError } from "@/shared/ui/action-error";
 import type { UnidadActionState } from "./action-state";
 
 function fromError(error: unknown, fallback: string): UnidadActionState {
-  if (error instanceof AppError) return { status: "error", message: error.message };
-  return { status: "error", message: fallback };
+  return actionError(error, fallback);
 }
 
 export async function crearUnidadAction(_prevState: UnidadActionState, formData: FormData): Promise<UnidadActionState> {
@@ -24,7 +23,7 @@ export async function crearUnidadAction(_prevState: UnidadActionState, formData:
       factorABase: String(formData.get("factorABase") ?? ""),
       esBase: formData.get("esBase") === "on",
     });
-    revalidatePath("/admin/unidades");
+    revalidatePath("/catalogos/unidades");
     return { status: "success", message: "Unidad creada." };
   } catch (error) {
     return fromError(error, "No se pudo crear la unidad.");
@@ -48,7 +47,7 @@ export async function editarUnidadAction(_prevState: UnidadActionState, formData
         factorABase: String(formData.get("versionFactorABase") ?? ""),
       },
     });
-    revalidatePath("/admin/unidades");
+    revalidatePath("/catalogos/unidades");
     return { status: "success", message: "Unidad actualizada." };
   } catch (error) {
     return fromError(error, "No se pudieron guardar los cambios.");
@@ -58,7 +57,7 @@ export async function editarUnidadAction(_prevState: UnidadActionState, formData
 export async function darDeBajaUnidadAction(_prevState: UnidadActionState, formData: FormData): Promise<UnidadActionState> {
   try {
     await darDeBajaUnidad({ id: String(formData.get("id") ?? ""), motivo: String(formData.get("motivo") ?? "") });
-    revalidatePath("/admin/unidades");
+    revalidatePath("/catalogos/unidades");
     return { status: "success", message: "Unidad dada de baja." };
   } catch (error) {
     return fromError(error, "No se pudo dar de baja la unidad.");
@@ -68,7 +67,7 @@ export async function darDeBajaUnidadAction(_prevState: UnidadActionState, formD
 export async function reactivarUnidadAction(_prevState: UnidadActionState, formData: FormData): Promise<UnidadActionState> {
   try {
     await reactivarUnidad({ id: String(formData.get("id") ?? ""), motivo: String(formData.get("motivo") ?? "") });
-    revalidatePath("/admin/unidades");
+    revalidatePath("/catalogos/unidades");
     return { status: "success", message: "Unidad reactivada." };
   } catch (error) {
     return fromError(error, "No se pudo reactivar la unidad.");

@@ -9,7 +9,7 @@
  */
 import { listEntregasPendientes } from "@/modules/entregas/application/list-entregas-pendientes";
 import type { EntregaPendienteItem } from "@/modules/entregas/application/list-entregas-pendientes";
-import { AppError } from "@/shared/errors";
+import { actionErrorMessage } from "@/shared/ui/action-error";
 
 const RESULTADOS_BUSQUEDA = 50;
 
@@ -24,7 +24,7 @@ export async function buscarEntregasAction(prevState: BuscarEntregasState, formD
     const result = await listEntregasPendientes({ search: q.length > 0 ? q : undefined, page: 1, pageSize: RESULTADOS_BUSQUEDA });
     return { status: "success", items: result.items, total: result.total };
   } catch (error) {
-    const message = error instanceof AppError ? error.message : "No se pudo buscar entregas pendientes.";
+    const message = actionErrorMessage(error, "No se pudo buscar entregas pendientes.");
     return { status: "error", message, items: prevState.items, total: prevState.total };
   }
 }

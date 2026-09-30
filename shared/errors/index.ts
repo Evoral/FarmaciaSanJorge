@@ -7,7 +7,16 @@
  * recognizes that shape and turns it into an `InvariantViolationError`; everything else
  * becomes a generic, safe error. Nothing here ever leaks SQL text, stack
  * traces, or raw driver error objects to a caller outside the server.
+ *
+ * Every message a class or `mapDbError` produces by default is Spanish,
+ * because it may reach the UI. What the user finally sees is decided by
+ * `userMessageFor` (INV codes translated via ./mensajes-invariantes.ts);
+ * the raw text is logged by `logErrorForDiagnostics`.
  */
+import { getLogger } from "@/shared/logging/logger";
+import { MENSAJE_INVARIANTE_GENERICO, mensajeParaInvariante } from "./mensajes-invariantes";
+
+export { MENSAJES_INVARIANTES, MENSAJE_INVARIANTE_GENERICO, mensajeParaInvariante, mensajeGlobalParaInvariante } from "./mensajes-invariantes";
 
 export type AppErrorCode =
   | "DOMAIN_ERROR"
@@ -20,20 +29,36 @@ export type AppErrorCode =
   | "STEP_UP_REQUIRED"
   | "INTERNAL_ERROR";
 
+export interface AppErrorOptions {
+  cause?: unknown;
+  /**
+   * Names of the form fields (top-level input keys, i.e. the `name` of the
+   * submitted control) the error is about, so the UI can mark exactly those
+   * fields -- see `shared/ui/action-error.ts` and `shared/ui/field-errors.ts`.
+   * Omitted when the error is about the input as a whole. Of the
+   * subclasses, only `ValidationError` and `DomainError` accept it.
+   */
+  fields?: readonly string[];
+}
+
 /** Base class for all errors the application raises deliberately. */
 export class AppError extends Error {
   readonly code: AppErrorCode;
+  readonly fields?: readonly string[];
 
-  constructor(code: AppErrorCode, message: string, options?: { cause?: unknown }) {
-    super(message, options);
+  constructor(code: AppErrorCode, message: string, options?: AppErrorOptions) {
+    super(message, options && "cause" in options ? { cause: options.cause } : undefined);
     this.code = code;
     this.name = new.target.name;
+    if (options?.fields && options.fields.length > 0) {
+      this.fields = options.fields;
+    }
   }
 }
 
 /** A business rule was violated (application-level check, not a DB invariant). */
 export class DomainError extends AppError {
-  constructor(message: string, options?: { cause?: unknown }) {
+  constructor(message: string, options?: AppErrorOptions) {
     super("DOMAIN_ERROR", message, options);
   }
 }
@@ -46,14 +71,14 @@ export class DomainError extends AppError {
  * can't do this" (403-shaped).
  */
 export class AuthenticationError extends AppError {
-  constructor(message = "Authentication is required to perform this action.", options?: { cause?: unknown }) {
+  constructor(message = "Tu sesión no es válida o expiró. Iniciá sesión nuevamente.", options?: { cause?: unknown }) {
     super("AUTHENTICATION_ERROR", message, options);
   }
 }
 
 /** The current session is not allowed to perform the requested action. */
 export class AuthorizationError extends AppError {
-  constructor(message = "You are not authorized to perform this action.", options?: { cause?: unknown }) {
+  constructor(message = "No tenés permiso para realizar esta acción.", options?: { cause?: unknown }) {
     super("AUTHORIZATION_ERROR", message, options);
   }
 }
@@ -69,21 +94,21 @@ export class AuthorizationError extends AppError {
  * boundary.
  */
 export class StepUpRequiredError extends AppError {
-  constructor(message = "This action requires a recent re-authentication.", options?: { cause?: unknown }) {
+  constructor(message = "Esta acción requiere que vuelvas a confirmar tu identidad.", options?: { cause?: unknown }) {
     super("STEP_UP_REQUIRED", message, options);
   }
 }
 
 /** The requested entity does not exist (or is invisible to this tenant). */
 export class NotFoundError extends AppError {
-  constructor(message = "The requested resource was not found.", options?: { cause?: unknown }) {
+  constructor(message = "No se encontró el registro solicitado.", options?: { cause?: unknown }) {
     super("NOT_FOUND", message, options);
   }
 }
 
 /** Input failed validation (normally a zod parse failure at the server edge). */
 export class ValidationError extends AppError {
-  constructor(message: string, options?: { cause?: unknown }) {
+  constructor(message: string, options?: AppErrorOptions) {
     super("VALIDATION_ERROR", message, options);
   }
 }
@@ -153,15 +178,15 @@ export function mapDbError(e: unknown): AppError {
 
     // Prisma known error codes: https://pris.ly/d/error-reference
     if (e.code === "P2002") {
-      return new ConflictError("A record with the same unique value already exists.", { cause: e });
+      return new ConflictError("Ya existe un registro con esos mismos datos.", { cause: e });
     }
     if (e.code === "P2003") {
-      return new ConflictError("The operation references a record that does not exist or is not visible.", {
+      return new ConflictError("La operación hace referencia a un registro que no existe o no está disponible.", {
         cause: e,
       });
     }
     if (e.code === "P2025") {
-      return new NotFoundError("The requested resource was not found.", { cause: e });
+      return new NotFoundError(undefined, { cause: e });
     }
 
     // Postgres EXCLUDE constraint violation, SQLSTATE 23P01 (FASE 3.9,
@@ -206,7 +231,7 @@ export function mapDbError(e: unknown): AppError {
       });
     }
 
-    return new AppError("INTERNAL_ERROR", "A database error occurred.", { cause: e });
+    return new AppError("INTERNAL_ERROR", "Ocurrió un error en la base de datos.", { cause: e });
   }
 
   if (e instanceof Error) {
@@ -214,10 +239,82 @@ export function mapDbError(e: unknown): AppError {
     if (invCode) {
       return new InvariantViolationError(invCode, e.message, { cause: e });
     }
-    return new AppError("INTERNAL_ERROR", "An unexpected error occurred.", { cause: e });
+    return new AppError("INTERNAL_ERROR", "Ocurrió un error inesperado.", { cause: e });
   }
 
-  return new AppError("INTERNAL_ERROR", "An unexpected error occurred.", { cause: e });
+  return new AppError("INTERNAL_ERROR", "Ocurrió un error inesperado.", { cause: e });
+}
+
+/**
+ * The Spanish message an end user may see for `error` -- the single place
+ * that decides it, used by `actionError` (Server Actions) and `toSafeError`
+ * (route handlers). Never returns a raw DB/driver text or an `INV-XXX`
+ * code:
+ *
+ * - `InvariantViolationError`: the global translation table
+ *   (`./mensajes-invariantes.ts`). Module tables have already turned the
+ *   codes they know into a `DomainError` inside their own use case, so they
+ *   take precedence without any extra wiring here.
+ * - `AuthenticationError` / `AuthorizationError`: fixed messages (the raw
+ *   ones may carry internal detail, e.g. the missing permiso code).
+ * - `INTERNAL_ERROR` and anything that is not an `AppError`: `fallback`
+ *   (the caller's own "No se pudo ..." for that operation).
+ * - Every other `AppError` (DomainError, ValidationError, ConflictError,
+ *   NotFoundError, StepUpRequiredError): authored for the user, shown as
+ *   is -- unless it still embeds an `INV-XXX` token, in which case that
+ *   code is translated instead (defense in depth).
+ */
+export function userMessageFor(error: unknown, fallback: string): string {
+  if (!(error instanceof AppError)) return fallback;
+  if (error instanceof InvariantViolationError) return mensajeParaInvariante(error.invariantCode);
+
+  switch (error.code) {
+    case "AUTHENTICATION_ERROR":
+      return MENSAJES_SEGUROS.AUTHENTICATION_ERROR;
+    case "AUTHORIZATION_ERROR":
+      return MENSAJES_SEGUROS.AUTHORIZATION_ERROR;
+    case "INTERNAL_ERROR":
+      return fallback;
+    case "INVARIANT_VIOLATION":
+      // A bare `AppError("INVARIANT_VIOLATION", ...)` without the subclass.
+      return mensajeParaInvariante(extractInvariantCode(error.message) ?? "");
+    default: {
+      const embedded = extractInvariantCode(error.message);
+      return embedded ? mensajeParaInvariante(embedded) : error.message;
+    }
+  }
+}
+
+/**
+ * Logs `error` server-side with its RAW message, code, `invariantCode` and
+ * `cause` chain (pino's `err` serializer), so replacing what the user sees
+ * with a translated message never loses diagnostics. Only errors worth a
+ * look are logged: unexpected ones (`INTERNAL_ERROR`, non-`AppError`) at
+ * `error`; invariant violations, authorization denials and any `AppError`
+ * wrapping a lower-level `cause` (e.g. a module's `DomainError` built from
+ * an `InvariantViolationError`, a `ConflictError` from a DB constraint) at
+ * `warn`. Plain user errors (validation, not found, ...) are not logged.
+ * Best-effort: a logging failure never changes the caller's outcome.
+ */
+export function logErrorForDiagnostics(error: unknown, context?: Record<string, unknown>): void {
+  const level = diagnosticLevel(error);
+  if (!level) return;
+  try {
+    const details =
+      error instanceof AppError
+        ? { code: error.code, ...(error instanceof InvariantViolationError ? { invariantCode: error.invariantCode } : {}) }
+        : {};
+    getLogger()[level]({ err: error, ...details, ...context }, "Error replaced by a user-facing message");
+  } catch {
+    // Logger unavailable (e.g. env not configured in a unit test): never mask the original error.
+  }
+}
+
+function diagnosticLevel(error: unknown): "error" | "warn" | null {
+  if (!(error instanceof AppError) || error.code === "INTERNAL_ERROR") return "error";
+  if (error instanceof InvariantViolationError || error.code === "AUTHORIZATION_ERROR") return "warn";
+  if (error.cause !== undefined) return "warn";
+  return null;
 }
 
 /** What a caller outside the server process is allowed to see. */
@@ -227,45 +324,45 @@ export interface SafeError {
   requestId: string;
 }
 
-const SAFE_MESSAGES: Record<AppErrorCode, string> = {
-  DOMAIN_ERROR: "The operation could not be completed.",
-  AUTHENTICATION_ERROR: "Authentication is required to perform this action.",
-  AUTHORIZATION_ERROR: "You are not authorized to perform this action.",
-  NOT_FOUND: "The requested resource was not found.",
-  VALIDATION_ERROR: "The provided input is invalid.",
-  CONFLICT: "The operation conflicts with the current state.",
-  INVARIANT_VIOLATION: "The operation violates a system rule.",
-  STEP_UP_REQUIRED: "This action requires a recent re-authentication.",
-  INTERNAL_ERROR: "An unexpected error occurred. Please try again.",
+const MENSAJES_SEGUROS: Record<AppErrorCode, string> = {
+  DOMAIN_ERROR: "No se pudo completar la operación.",
+  AUTHENTICATION_ERROR: "Tu sesión no es válida o expiró. Iniciá sesión nuevamente.",
+  AUTHORIZATION_ERROR: "No tenés permiso para realizar esta acción.",
+  NOT_FOUND: "No se encontró el registro solicitado.",
+  VALIDATION_ERROR: "Los datos ingresados no son válidos.",
+  CONFLICT: "La operación entra en conflicto con el estado actual de los datos. Actualizá la página y volvé a intentarlo.",
+  INVARIANT_VIOLATION: MENSAJE_INVARIANTE_GENERICO,
+  STEP_UP_REQUIRED: "Esta acción requiere que vuelvas a confirmar tu identidad.",
+  INTERNAL_ERROR: "Ocurrió un error inesperado. Volvé a intentarlo.",
 };
 
 /**
- * Converts any error into a `SafeError` fit for a client response: fixed,
- * generic messages per category (never the raw exception message, which
- * may embed SQL or internal identifiers), plus a request id for support
- * correlation with server logs.
+ * Converts any error into a `SafeError` fit for a client response (route
+ * handlers): a Spanish message (never the raw exception message, which may
+ * embed SQL or internal identifiers), the error CATEGORY as `code` (never
+ * an `INV-XXX` token), plus a request id for support correlation with the
+ * server log line this function writes (`logErrorForDiagnostics`, which
+ * keeps the raw message and the `invariantCode`).
  */
 export function toSafeError(e: unknown, requestId: string): SafeError {
   const appError = e instanceof AppError ? e : mapDbError(e);
+  logErrorForDiagnostics(appError, { requestId });
 
   if (appError instanceof InvariantViolationError) {
-    return {
-      code: appError.invariantCode,
-      message: SAFE_MESSAGES.INVARIANT_VIOLATION,
-      requestId,
-    };
+    return { code: appError.code, message: mensajeParaInvariante(appError.invariantCode), requestId };
   }
 
   // DomainError and ValidationError messages are authored by us (not by
   // the DB driver) specifically to be shown to the end user, so they pass
-  // through. Everything else uses the fixed generic message for its code.
+  // through (via userMessageFor, which still strips an embedded INV code).
+  // Everything else uses the fixed generic message for its code.
   if (appError instanceof DomainError || appError instanceof ValidationError) {
-    return { code: appError.code, message: appError.message, requestId };
+    return { code: appError.code, message: userMessageFor(appError, MENSAJES_SEGUROS[appError.code]), requestId };
   }
 
   return {
     code: appError.code,
-    message: SAFE_MESSAGES[appError.code],
+    message: MENSAJES_SEGUROS[appError.code],
     requestId,
   };
 }

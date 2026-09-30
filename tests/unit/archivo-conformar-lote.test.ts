@@ -30,7 +30,7 @@ const RECETA_IDS = ["11111111-1111-4111-a111-111111111111", "22222222-2222-4222-
 
 const listRecetasElegiblesMock = vi.fn(async (...args: unknown[]) => {
   void args;
-  return RECETA_IDS.map((id, i) => ({ id, numeroInterno: String(i + 1), pacienteNombre: "N", pacienteApellido: "A", estado: "ENTREGADA" as const, fechaIngreso: "2024-06-15" }));
+  return RECETA_IDS.map((id, i) => ({ id, numeroInterno: String(i + 1), pacienteNombre: "N", pacienteApellido: "A", estado: "ENTREGADA" as const, origen: "PRESENCIAL" as const, fechaIngreso: "2024-06-15" }));
 });
 const lockRecetasParaArchivoMock = vi.fn(async (...args: unknown[]) => {
   void args;

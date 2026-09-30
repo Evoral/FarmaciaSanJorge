@@ -45,13 +45,17 @@ const { listRegisteredUseCasesForTests } = await import("@/shared/usecase");
 const ROLES = ["ADMINISTRADOR", "DIRECTOR_TECNICO", "FARMACEUTICO", "ATENCION_PUBLICO", "SOLO_CONSULTA"] as const;
 type Rol = (typeof ROLES)[number];
 
-/** Verbatim from migration 0002's rol_permiso seed. */
+/**
+ * Migration 0002's rol_permiso seed as amended by migration 0046 (user
+ * decision 2026-09-28): `config.ver` is ADMINISTRADOR-only now -- the other
+ * four roles no longer reach Farmacia/Parámetros at all, not even read-only.
+ */
 const SEED_GRANTS: Record<Rol, readonly Permiso[]> = {
   ADMINISTRADOR: ["config.ver", "config.editar"],
-  DIRECTOR_TECNICO: ["config.ver"],
-  FARMACEUTICO: ["config.ver"],
-  ATENCION_PUBLICO: ["config.ver"],
-  SOLO_CONSULTA: ["config.ver"],
+  DIRECTOR_TECNICO: [],
+  FARMACEUTICO: [],
+  ATENCION_PUBLICO: [],
+  SOLO_CONSULTA: [],
 };
 
 const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> = [

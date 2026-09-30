@@ -3,14 +3,13 @@
 /** Search box (paciente + "solo vencidas") + results table for `/regularizacion` (FASE 11 point 11.3, DP-24 discipline -- see buscar-regularizacion-action.ts). */
 import { useActionState } from "react";
 import Link from "next/link";
-import { useFormStatus } from "react-dom";
 import { buscarRegularizacionAction } from "./buscar-regularizacion-action";
 import type { BuscarRegularizacionState } from "./buscar-regularizacion-action";
 import type { RegularizacionListItem } from "@/modules/entregas/application/list-regularizacion";
 import { StatusBadge } from "@/shared/ui/status-badge";
+import { useFormSubmit } from "@/shared/ui/use-form-submit";
 
-function BuscarButton() {
-  const { pending } = useFormStatus();
+function BuscarButton({ pending }: { pending: boolean }) {
   return (
     <button type="submit" disabled={pending} className="btn btn-secondary">
       {pending ? "Buscando…" : "Buscar"}
@@ -26,11 +25,13 @@ export interface RegularizacionBuscadorProps {
 
 export function RegularizacionBuscador({ itemsIniciales, totalInicial, plazoRegularizacionDias }: RegularizacionBuscadorProps) {
   const initialState: BuscarRegularizacionState = { status: "idle", items: itemsIniciales, total: totalInicial, plazoRegularizacionDias };
-  const [state, formAction] = useActionState(buscarRegularizacionAction, initialState);
+  const [state, formAction, isPending] = useActionState(buscarRegularizacionAction, initialState);
+  // Not reset on success: the search criteria stay next to their results.
+  const { onSubmit } = useFormSubmit(formAction);
 
   return (
     <div>
-      <form action={formAction} className="mb-4 flex flex-wrap items-end gap-3" aria-label="Buscar recetas pendientes de regularizar">
+      <form action={formAction} onSubmit={onSubmit} className="mb-4 flex flex-wrap items-end gap-3" aria-label="Buscar recetas pendientes de regularizar">
         <div className="flex flex-col gap-1">
           <label htmlFor="q" className="text-sm font-medium">
             Buscar por paciente
@@ -41,7 +42,7 @@ export function RegularizacionBuscador({ itemsIniciales, totalInicial, plazoRegu
           <input type="checkbox" name="soloVencidas" />
           Solo vencidas
         </label>
-        <BuscarButton />
+        <BuscarButton pending={isPending} />
       </form>
 
       {state.status === "error" ? (
@@ -88,7 +89,7 @@ export function RegularizacionBuscador({ itemsIniciales, totalInicial, plazoRegu
                       {r.numeroInterno}
                     </Link>
                   </td>
-                  <td className="px-3 py-2">{r.pacienteApellido}, {r.pacienteNombre}</td>
+                  <td className="px-3 py-2">{r.pacienteNombre} {r.pacienteApellido}</td>
                   <td className="px-3 py-2"><StatusBadge estado={r.estado} /></td>
                   <td className="px-3 py-2">{r.fechaAsientoMasAntiguo}</td>
                   <td className="px-3 py-2">

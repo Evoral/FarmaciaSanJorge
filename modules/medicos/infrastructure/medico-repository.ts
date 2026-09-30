@@ -8,6 +8,7 @@
  * this module's only column beyond migration 0007's original set.
  */
 import type { Prisma } from "@/generated/prisma/client";
+import type { JurisdiccionMatricula } from "../domain/medico";
 
 // ============================================================================
 // Listing (4.4: search by apellido/matrícula + soloVigentes + pagination)
@@ -26,6 +27,7 @@ export interface MedicoListItem {
   nombre: string;
   apellido: string;
   matricula: string;
+  matriculaJurisdiccion: JurisdiccionMatricula;
   especialidad: string | null;
   fechaBaja: Date | null;
   motivoBaja: string | null;
@@ -61,7 +63,7 @@ export async function listMedicos(tx: Prisma.TransactionClient, filter: ListMedi
     orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
     skip,
     take: filter.pageSize,
-    select: { id: true, nombre: true, apellido: true, matricula: true, especialidad: true, fechaBaja: true, motivoBaja: true },
+    select: { id: true, nombre: true, apellido: true, matricula: true, matriculaJurisdiccion: true, especialidad: true, fechaBaja: true, motivoBaja: true },
   });
 
   return { items: rows, total, page: filter.page, pageSize: filter.pageSize };
@@ -76,6 +78,7 @@ export interface MedicoParaAccion {
   nombre: string;
   apellido: string;
   matricula: string;
+  matriculaJurisdiccion: JurisdiccionMatricula;
   especialidad: string | null;
   telefono: string | null;
   direccionRegistrada: string | null;
@@ -88,6 +91,7 @@ const SELECT_PARA_ACCION = {
   nombre: true,
   apellido: true,
   matricula: true,
+  matriculaJurisdiccion: true,
   especialidad: true,
   telefono: true,
   direccionRegistrada: true,
@@ -117,10 +121,16 @@ export async function lockMedicoParaAccion(tx: Prisma.TransactionClient, tenantI
   return rows.length === 1;
 }
 
-/** `true` if some OTHER médico VIGENTE in the SAME tenant already has this (normalized) matrícula -- mirrors migration 0007's partial unique index (`WHERE fecha_baja IS NULL`). */
-export async function existeMatriculaVigente(tx: Prisma.TransactionClient, tenantId: string, matricula: string, excludeId?: string): Promise<boolean> {
+/** `true` if some OTHER médico VIGENTE in the SAME tenant already has this (normalized) matrícula in the SAME jurisdiction -- mirrors migration 0049's `uq_medico_matricula_vigente` (`(tenant_id, matricula_jurisdiccion, matricula) WHERE fecha_baja IS NULL`). */
+export async function existeMatriculaVigente(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  matriculaJurisdiccion: JurisdiccionMatricula,
+  matricula: string,
+  excludeId?: string,
+): Promise<boolean> {
   const row = await tx.medico.findFirst({
-    where: { tenantId, matricula, fechaBaja: null, ...(excludeId ? { id: { not: excludeId } } : {}) },
+    where: { tenantId, matriculaJurisdiccion, matricula, fechaBaja: null, ...(excludeId ? { id: { not: excludeId } } : {}) },
     select: { id: true },
   });
   return row !== null;
@@ -135,6 +145,7 @@ export interface NuevoMedicoInput {
   nombre: string;
   apellido: string;
   matricula: string;
+  matriculaJurisdiccion: JurisdiccionMatricula;
   especialidad?: string | null;
   telefono?: string | null;
   direccionRegistrada?: string | null;
@@ -147,6 +158,7 @@ export async function insertMedico(tx: Prisma.TransactionClient, input: NuevoMed
       nombre: input.nombre,
       apellido: input.apellido,
       matricula: input.matricula,
+      matriculaJurisdiccion: input.matriculaJurisdiccion,
       especialidad: input.especialidad ?? null,
       telefono: input.telefono ?? null,
       direccionRegistrada: input.direccionRegistrada ?? null,
@@ -160,6 +172,7 @@ export interface EditarMedicoInput {
   nombre: string;
   apellido: string;
   matricula: string;
+  matriculaJurisdiccion: JurisdiccionMatricula;
   especialidad: string | null;
   telefono: string | null;
   direccionRegistrada: string | null;
@@ -169,6 +182,7 @@ export interface EditarMedicoVersion {
   nombre: string;
   apellido: string;
   matricula: string;
+  matriculaJurisdiccion: JurisdiccionMatricula;
   especialidad: string | null;
   telefono: string | null;
   direccionRegistrada: string | null;
@@ -187,6 +201,7 @@ export async function updateMedicoDatos(
       nombre: version.nombre,
       apellido: version.apellido,
       matricula: version.matricula,
+      matriculaJurisdiccion: version.matriculaJurisdiccion,
       especialidad: version.especialidad,
       telefono: version.telefono,
       direccionRegistrada: version.direccionRegistrada,
@@ -195,6 +210,7 @@ export async function updateMedicoDatos(
       nombre: input.nombre,
       apellido: input.apellido,
       matricula: input.matricula,
+      matriculaJurisdiccion: input.matriculaJurisdiccion,
       especialidad: input.especialidad,
       telefono: input.telefono,
       direccionRegistrada: input.direccionRegistrada,

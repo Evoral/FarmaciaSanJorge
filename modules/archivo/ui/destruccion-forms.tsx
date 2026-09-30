@@ -10,7 +10,8 @@
  */
 import { useState } from "react";
 import { solicitarDestruccionAction, autorizarDestruccionAction, registrarDestruccionAction } from "./actions";
-import { SimpleForm } from "./simple-form";
+import { SimpleForm } from "@/shared/ui/simple-form";
+import { DateInput } from "@/shared/ui/date-input";
 
 function PasswordField() {
   return (
@@ -29,7 +30,7 @@ export function SolicitarDestruccionForm({ loteId }: { loteId: string }) {
     <div className="card p-4">
       <h3 className="mb-2 text-sm font-semibold">Solicitar destrucción</h3>
       <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">El plazo de conservación de este lote está cumplido. Se destruyen solo las recetas en papel; los registros digitales se conservan.</p>
-      <SimpleForm action={solicitarDestruccionAction} submitLabel="Solicitar destrucción" pendingLabel="Solicitando…" className="flex max-w-lg flex-col gap-4">
+      <SimpleForm action={solicitarDestruccionAction} submitLabel="Solicitar destrucción" pendingLabel="Solicitando…" className="max-w-lg">
         <input type="hidden" name="id" value={loteId} />
         <PasswordField />
       </SimpleForm>
@@ -41,7 +42,7 @@ export function AutorizarDestruccionForm({ loteId }: { loteId: string }) {
   return (
     <div className="card p-4">
       <h3 className="mb-2 text-sm font-semibold">Autorizar destrucción</h3>
-      <SimpleForm action={autorizarDestruccionAction} submitLabel="Autorizar destrucción" pendingLabel="Autorizando…" className="flex max-w-lg flex-col gap-4">
+      <SimpleForm action={autorizarDestruccionAction} submitLabel="Autorizar destrucción" pendingLabel="Autorizando…" className="max-w-lg">
         <input type="hidden" name="id" value={loteId} />
         <div className="flex flex-col gap-1">
           <label htmlFor="expedienteAutorizacion" className="text-sm font-medium">
@@ -53,7 +54,7 @@ export function AutorizarDestruccionForm({ loteId }: { loteId: string }) {
           <label htmlFor="fechaAutorizacion" className="text-sm font-medium">
             Fecha de autorización
           </label>
-          <input id="fechaAutorizacion" name="fechaAutorizacion" type="date" required className="input" />
+          <DateInput id="fechaAutorizacion" name="fechaAutorizacion" required />
         </div>
         <PasswordField />
       </SimpleForm>
@@ -74,13 +75,13 @@ export function RegistrarDestruccionForm({ loteId }: { loteId: string }) {
           Confirmo que las recetas en papel de este lote fueron destruidas.
         </label>
       </div>
-      <SimpleForm action={registrarDestruccionAction} submitLabel="Registrar destrucción" pendingLabel="Registrando…" submitDisabled={!confirma} className="flex max-w-lg flex-col gap-4">
+      <SimpleForm action={registrarDestruccionAction} submitLabel="Registrar destrucción" pendingLabel="Registrando…" submitDisabled={!confirma} className="max-w-lg">
         <input type="hidden" name="id" value={loteId} />
         <div className="flex flex-col gap-1">
           <label htmlFor="fechaDestruccion" className="text-sm font-medium">
             Fecha de destrucción
           </label>
-          <input id="fechaDestruccion" name="fechaDestruccion" type="date" required className="input" />
+          <DateInput id="fechaDestruccion" name="fechaDestruccion" required />
         </div>
         <PasswordField />
       </SimpleForm>

@@ -3,7 +3,16 @@
  * raw SCREAMING_SNAKE_CASE estado to a tone and a readable label; unknown
  * estados fall back to the neutral tone so new states never break a page.
  */
+import { ESTADO_PREPARACION_LABELS, ESTADO_RECETA_LABELS, ESTADO_USUARIO_LABELS } from "@/shared/labels/enum-labels";
+
 type Tone = "success" | "warn" | "danger" | "neutral";
+
+/** Estados with a proper Spanish label (shared/labels/enum-labels.ts); anything else is humanized. */
+const LABEL_BY_ESTADO: Readonly<Record<string, string>> = {
+  ...ESTADO_USUARIO_LABELS,
+  ...ESTADO_PREPARACION_LABELS,
+  ...ESTADO_RECETA_LABELS,
+};
 
 const TONE_BY_ESTADO: Record<string, Tone> = {
   PREPARADA: "success",
@@ -41,7 +50,7 @@ export function StatusBadge({ estado }: { estado: string }) {
   const tone = TONE_BY_ESTADO[estado] ?? "neutral";
   return (
     <span className={`badge ${TONE_CLASSES[tone]}`} title={estado}>
-      {humanize(estado)}
+      {Object.hasOwn(LABEL_BY_ESTADO, estado) ? LABEL_BY_ESTADO[estado] : humanize(estado)}
     </span>
   );
 }

@@ -1,22 +1,27 @@
 "use client";
 
 /**
- * `/admin/usuarios/[id]` "Restablecer credencial" action (M03, FASE 3
+ * `/admin/accesos/usuarios/[id]` "Restablecer credencial" action (M03, FASE 3
  * point 3.6, INV-U08). Same one-time-display discipline as the creation
- * flow (`app/(app)/admin/usuarios/nuevo/page.tsx`): the credential is
+ * flow (`app/(app)/admin/accesos/usuarios/nuevo/page.tsx`): the credential is
  * shown inline, exactly once, with an explicit expiry/one-shot notice, and
  * is never put in a URL.
+ *
+ * Re-authentication retry: `resubmit()` from
+ * `modules/auth/ui/use-reauth-form-submit.ts` re-dispatches the FormData
+ * captured on the original submit (React 19 auto-resets a `<form action>`
+ * on every submit, so re-reading the DOM with `requestSubmit()` would
+ * send an already-reset form).
  */
-import { useActionState, useRef } from "react";
-import { useFormStatus } from "react-dom";
+import { useActionState } from "react";
 import { restablecerCredencialAction } from "./actions";
 import type { RestablecerCredencialState } from "./actions";
 import { ReauthPrompt } from "@/modules/auth/ui/reauth-prompt";
+import { useReauthFormSubmit } from "@/modules/auth/ui/use-reauth-form-submit";
 
 const initialState: RestablecerCredencialState = { status: "idle" };
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
+function SubmitButton({ pending }: { pending: boolean }) {
   return (
     <button type="submit" disabled={pending} className="btn btn-secondary">
       {pending ? "Restableciendo…" : "Restablecer credencial"}
@@ -25,8 +30,8 @@ function SubmitButton() {
 }
 
 export function RestablecerCredencial({ usuarioId }: { usuarioId: string }) {
-  const [state, formAction] = useActionState(restablecerCredencialAction, initialState);
-  const formRef = useRef<HTMLFormElement>(null);
+  const [state, formAction, isPending] = useActionState(restablecerCredencialAction, initialState);
+  const { onSubmit, resubmit } = useReauthFormSubmit(formAction);
 
   // Deliberately no router.refresh() on success: the credential must stay
   // visible on screen. The estado badge above will be stale until the
@@ -52,17 +57,17 @@ export function RestablecerCredencial({ usuarioId }: { usuarioId: string }) {
 
   return (
     <>
-      <form ref={formRef} action={formAction}>
+      <form action={formAction} onSubmit={onSubmit}>
         <input type="hidden" name="usuarioId" value={usuarioId} />
         {state.status === "error" ? (
           <p role="alert" className="mb-2 text-sm text-red-600">
             {state.message}
           </p>
         ) : null}
-        <SubmitButton />
+        <SubmitButton pending={isPending} />
       </form>
       {state.status === "reauth-required" ? (
-        <ReauthPrompt onReauthenticated={() => formRef.current?.requestSubmit()} onCancel={() => undefined} />
+        <ReauthPrompt onReauthenticated={resubmit} onCancel={() => undefined} />
       ) : null}
     </>
   );

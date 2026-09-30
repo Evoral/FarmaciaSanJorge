@@ -4,10 +4,13 @@
  * (DP-24): this handler's `audit` write is the ONLY place paciente fields
  * are ever persisted outside `fsj.paciente` itself -- `fsj.registro_auditoria`
  * is access-restricted to `auditoria.ver` (ADM, DT). Nothing here is ever
- * passed to a logger.
+ * passed to a logger. The receta flow's quick-create is a separate command
+ * with this same input and handler but `recetas.crear` as its permiso
+ * (crear-paciente-desde-receta.ts).
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
+import type { CommandHandlerArgs, CommandHandlerResult } from "@/shared/usecase";
 import { ValidationError } from "@/shared/errors";
 import { nonEmptyString } from "@/shared/validation";
 import { cuilOpcional, dniOpcional } from "../domain/paciente";
@@ -33,7 +36,7 @@ const fechaOpcional = z
     return date;
   });
 
-const crearPacienteInput = z.object({
+export const crearPacienteInput = z.object({
   nombre: nonEmptyString,
   apellido: nonEmptyString,
   cuil: cuilOpcional,
@@ -49,47 +52,50 @@ export type CrearPacienteInput = z.infer<typeof crearPacienteInput>;
 /** Pre-transform wire shape (what a Server Action hands in from raw `FormData` -- everything as `string | undefined`, not yet normalized/validated) -- see modules/auditoria/application/list-registro-auditoria.ts's `WireInput` convention. */
 export type CrearPacienteWireInput = z.input<typeof crearPacienteInput>;
 
+/** Shared by `pacientes.crear` and the receta flow's `pacientes.crear-desde-receta` -- only the permiso differs. */
+export async function crearPacienteHandler({ tx, session, input }: CommandHandlerArgs<CrearPacienteInput>): Promise<CommandHandlerResult<{ id: string }>> {
+  if (input.cuil && (await existeCuil(tx, session.tenantId, input.cuil))) {
+    throw new ValidationError("Ya existe un paciente con ese CUIL.");
+  }
+
+  const nuevo = await insertPaciente(tx, {
+    tenantId: session.tenantId,
+    nombre: input.nombre,
+    apellido: input.apellido,
+    cuil: input.cuil,
+    dni: input.dni,
+    telefono: input.telefono,
+    email: input.email,
+    fechaNacimiento: input.fechaNacimiento,
+    nroCredencial: input.nroCredencial,
+    sexo: input.sexo,
+  });
+
+  return {
+    output: { id: nuevo.id },
+    audit: {
+      entidadId: nuevo.id,
+      valorNuevo: {
+        nombre: input.nombre,
+        apellido: input.apellido,
+        cuil: input.cuil,
+        dni: input.dni,
+        telefono: input.telefono,
+        email: input.email,
+        fechaNacimiento: input.fechaNacimiento ? input.fechaNacimiento.toISOString() : null,
+        nroCredencial: input.nroCredencial,
+        sexo: input.sexo,
+      },
+    },
+  };
+}
+
 export const crearPacienteCommand = defineCommand({
   name: "pacientes.crear",
   permiso: "pacientes.gestionar",
   input: crearPacienteInput,
   audit: { entidad: "paciente", accion: TipoAccion.CREAR },
-  handler: async ({ tx, session, input }) => {
-    if (input.cuil && (await existeCuil(tx, session.tenantId, input.cuil))) {
-      throw new ValidationError("Ya existe un paciente con ese CUIL.");
-    }
-
-    const nuevo = await insertPaciente(tx, {
-      tenantId: session.tenantId,
-      nombre: input.nombre,
-      apellido: input.apellido,
-      cuil: input.cuil,
-      dni: input.dni,
-      telefono: input.telefono,
-      email: input.email,
-      fechaNacimiento: input.fechaNacimiento,
-      nroCredencial: input.nroCredencial,
-      sexo: input.sexo,
-    });
-
-    return {
-      output: { id: nuevo.id },
-      audit: {
-        entidadId: nuevo.id,
-        valorNuevo: {
-          nombre: input.nombre,
-          apellido: input.apellido,
-          cuil: input.cuil,
-          dni: input.dni,
-          telefono: input.telefono,
-          email: input.email,
-          fechaNacimiento: input.fechaNacimiento ? input.fechaNacimiento.toISOString() : null,
-          nroCredencial: input.nroCredencial,
-          sexo: input.sexo,
-        },
-      },
-    };
-  },
+  handler: crearPacienteHandler,
 });
 
 export async function crearPaciente(input: CrearPacienteWireInput): Promise<{ id: string }> {

@@ -195,30 +195,52 @@
     opacity: 0.55;
     cursor: not-allowed;
   }
+  /* Tactile press: an instant 1px drop (transform only, never animated). */
+  .btn:active:not(:disabled):not([aria-disabled="true"]) {
+    transform: translateY(1px);
+  }
+  /*
+   * "Liquid glass", kept very subtle: a top specular gradient plus inset
+   * highlight/shade. Static paint only -- no backdrop-filter or SVG filters
+   * on buttons, so tables full of actions cost nothing extra. Hover rules
+   * set background-color (not the shorthand) so the gloss survives.
+   */
   .btn-primary {
-    background: var(--color-primary);
+    background-color: var(--color-primary);
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0) 60%);
     color: #fff;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.22),
+      inset 0 -1px 0 rgb(0 0 0 / 0.14),
+      0 1px 2px rgb(2 95 72 / 0.22);
   }
   .btn-primary:hover:not(:disabled) {
-    background: var(--color-primary-hover);
+    background-color: var(--color-primary-hover);
   }
   .btn-secondary {
-    background: var(--surface);
+    background-color: var(--surface);
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0) 45%, rgb(15 26 23 / 0.025));
     border-color: var(--color-zinc-300);
     color: var(--color-zinc-900);
+    box-shadow:
+      inset 0 1px 0 #fff,
+      0 1px 2px rgb(15 26 23 / 0.05);
   }
   .btn-secondary:hover:not(:disabled) {
-    background: var(--color-zinc-50);
+    background-color: var(--color-zinc-50);
     border-color: var(--color-zinc-400);
   }
   /* Irreversible, signed actions (cierres, re-authentication). */
   .btn-critical {
-    background: var(--color-ink);
+    background-color: var(--color-ink);
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.09), rgb(255 255 255 / 0) 60%);
     color: #fff;
-    box-shadow: inset 0 -2px 0 var(--color-brand);
+    box-shadow:
+      inset 0 -2px 0 var(--color-brand),
+      inset 0 1px 0 rgb(255 255 255 / 0.12);
   }
   .btn-critical:hover:not(:disabled) {
-    background: var(--color-zinc-800);
+    background-color: var(--color-zinc-800);
   }
   .btn-sm {
     padding: 0.25rem 0.5rem;
@@ -226,20 +248,28 @@
     line-height: 1rem;
   }
   .btn-danger {
-    background: var(--surface);
+    background-color: var(--surface);
     border-color: var(--color-red-300);
     color: var(--color-red-700);
+    box-shadow:
+      inset 0 1px 0 #fff,
+      0 1px 2px rgb(15 26 23 / 0.05);
   }
   .btn-danger:hover:not(:disabled) {
-    background: var(--color-red-50);
+    background-color: var(--color-red-50);
     border-color: var(--color-red-400);
   }
   .btn-danger-solid {
-    background: var(--color-danger);
+    background-color: var(--color-danger);
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0) 60%);
     color: #fff;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.2),
+      inset 0 -1px 0 rgb(0 0 0 / 0.14),
+      0 1px 2px rgb(116 25 17 / 0.22);
   }
   .btn-danger-solid:hover:not(:disabled) {
-    background: var(--color-red-700);
+    background-color: var(--color-red-700);
   }
 
   /* Form controls. */
@@ -320,7 +350,8 @@
   .data-table tbody tr:hover {
     background: rgb(245 247 247 / 0.7);
   }
-  .data-table td a {
+  /* Plain links only: a link styled as .btn keeps its own button colors. */
+  .data-table td a:not(.btn) {
     color: var(--color-primary);
   }
 
@@ -335,5 +366,385 @@
     font-weight: 500;
     line-height: 1rem;
     white-space: nowrap;
+  }
+
+  /*
+   * Glass surfaces (sidebar panel, mobile top bar). Pure CSS; the blur only
+   * runs on these fixed/sticky strips over a static backdrop. Falls back to
+   * an opaque surface when backdrop-filter is unsupported or the user asks
+   * for less transparency.
+   */
+  /* Green glow behind the floating sidebar panel (and its gutter); page content stays white. */
+  .app-backdrop {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(16rem 20rem at 0% 0%, rgb(3 179 134 / 0.42), transparent 70%),
+      radial-gradient(15rem 20rem at 10% 100%, rgb(3 122 92 / 0.34), transparent 70%),
+      radial-gradient(11rem 15rem at 100% 50%, rgb(102 198 165 / 0.3), transparent 70%),
+      linear-gradient(90deg, rgb(3 179 134 / 0.1), rgb(3 179 134 / 0.02));
+    -webkit-mask-image: linear-gradient(90deg, #000 70%, transparent);
+    mask-image: linear-gradient(90deg, #000 70%, transparent);
+  }
+  .glass {
+    background-color: rgb(255 255 255 / 0.6);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    backdrop-filter: blur(16px) saturate(160%);
+  }
+  :where(.dark) .glass {
+    background-color: rgb(10 17 15 / 0.6);
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass {
+      background-color: rgb(255 255 255 / 0.94);
+    }
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .glass {
+      background-color: var(--surface);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  /*
+   * Floating sidebar panel material (macOS/visionOS-like): mint-tinted
+   * frosted glass, a specular top edge, an inner light rim, a hairline and
+   * a wide soft shadow. The tint lives in the panel itself, so it still
+   * reads as a distinct surface when blur is off (see fallback below).
+   */
+  .glass-panel {
+    border-radius: 18px;
+    background-image: linear-gradient(180deg, rgb(244 251 248 / 0.66), rgb(226 243 236 / 0.5));
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.95),
+      inset 0 0 0 1px rgb(255 255 255 / 0.5),
+      0 0 0 1px rgb(3 60 45 / 0.07),
+      0 20px 44px -20px rgb(3 60 45 / 0.38),
+      0 2px 6px -2px rgb(3 60 45 / 0.08);
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-panel {
+      background-image:
+        radial-gradient(120% 50% at 0% 0%, rgb(255 255 255 / 0.7), transparent 60%),
+        linear-gradient(170deg, #eef8f4, #e0f0e9);
+    }
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .glass-panel {
+      background-image:
+        radial-gradient(120% 50% at 0% 0%, rgb(255 255 255 / 0.7), transparent 60%),
+        linear-gradient(170deg, #eef8f4, #e0f0e9);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  /* Liquid-glass pill for the active nav item and glass controls: static highlight, no filters. */
+  .glass-pill {
+    background-color: rgb(255 255 255 / 0.72);
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.9), rgb(255 255 255 / 0.35));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.95),
+      inset 0 0 0 1px rgb(15 26 23 / 0.06),
+      0 1px 2px rgb(15 26 23 / 0.05),
+      0 3px 10px -4px rgb(3 122 92 / 0.22);
+  }
+  :where(.dark) .glass-pill {
+    background-color: rgb(255 255 255 / 0.06);
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.08),
+      inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  }
+
+  /* Small square icon button on glass (menu, collapse, logout). */
+  .glass-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-lg);
+    padding: 0.375rem;
+    color: var(--color-zinc-500);
+    transition:
+      background-color 100ms ease,
+      color 100ms ease;
+  }
+  .glass-icon-btn:hover {
+    background-color: rgb(255 255 255 / 0.65);
+    color: var(--color-zinc-900);
+  }
+  .glass-icon-btn:active {
+    transform: translateY(1px);
+  }
+  :where(.dark) .glass-icon-btn:hover {
+    background-color: rgb(255 255 255 / 0.06);
+    color: var(--color-zinc-100);
+  }
+
+  /* Boolean-filters dropdown (shared/ui/filter-multi-select.tsx): native <details>, opaque like the calendar. */
+  .filter-select {
+    position: relative;
+  }
+  .filter-select-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+  .filter-select-button::-webkit-details-marker {
+    display: none;
+  }
+  .filter-select-button > svg {
+    color: var(--color-zinc-400);
+    transition: transform 120ms ease;
+  }
+  .filter-select[open] > .filter-select-button {
+    border-color: var(--color-primary);
+  }
+  .filter-select[open] > .filter-select-button > svg {
+    transform: rotate(180deg);
+  }
+  .filter-select-menu {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 6px);
+    left: 0;
+    display: flex;
+    min-width: 15rem;
+    flex-direction: column;
+    gap: 0.125rem;
+    border: 1px solid var(--color-zinc-200);
+    border-radius: 10px;
+    background-color: var(--surface);
+    padding: 0.375rem;
+    box-shadow:
+      0 14px 32px -10px rgb(15 26 23 / 0.25),
+      0 4px 12px -6px rgb(3 122 92 / 0.2);
+  }
+  .filter-select-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: var(--radius-lg);
+    padding: 0.375rem 0.5rem;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .filter-select-option:hover {
+    background-color: var(--color-zinc-100);
+  }
+
+  /* Display option rendered as a switch (a real checkbox, role="switch"). */
+  .toggle-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.375rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+  .toggle-switch > input {
+    position: relative;
+    width: 2.25rem;
+    height: 1.25rem;
+    flex: none;
+    appearance: none;
+    border-radius: 999px;
+    background-color: var(--color-zinc-300);
+    cursor: pointer;
+    transition: background-color 120ms ease;
+  }
+  .toggle-switch > input::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 999px;
+    background-color: #fff;
+    box-shadow: 0 1px 2px rgb(15 26 23 / 0.25);
+    transition: transform 120ms ease;
+  }
+  .toggle-switch > input:checked {
+    background-color: var(--color-primary);
+  }
+  .toggle-switch > input:checked::before {
+    transform: translateX(1rem);
+  }
+
+  /* Date field + calendar popover (shared/ui/date-input.tsx). */
+  .date-input {
+    position: relative;
+    display: inline-flex;
+    width: 10.5rem;
+  }
+  .date-input > .input {
+    width: 100%;
+    padding-right: 2.25rem;
+  }
+  .date-input-trigger {
+    position: absolute;
+    top: 50%;
+    right: 0.375rem;
+    translate: 0 -50%;
+    display: inline-flex;
+    border-radius: var(--radius-lg);
+    padding: 0.25rem;
+    color: var(--color-zinc-400);
+    transition:
+      background-color 100ms ease,
+      color 100ms ease;
+  }
+  .date-input-trigger:hover:not(:disabled),
+  .date-input-trigger[aria-expanded="true"] {
+    background-color: var(--color-emerald-50);
+    color: var(--color-primary);
+  }
+  .date-input-trigger:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  /* Opaque on purpose: a see-through popover over tables made the days hard to read. */
+  .calendar {
+    position: fixed;
+    z-index: 60;
+    width: 17rem;
+    border: 1px solid var(--color-zinc-200);
+    border-radius: 10px;
+    background-color: var(--surface);
+    padding: 0.625rem;
+    box-shadow:
+      0 14px 32px -10px rgb(15 26 23 / 0.25),
+      0 4px 12px -6px rgb(3 122 92 / 0.2);
+    animation: calendar-in 120ms ease-out;
+  }
+  .calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.375rem;
+  }
+  .calendar .glass-icon-btn:hover {
+    background-color: var(--color-zinc-100);
+  }
+  .calendar-title {
+    border-radius: var(--radius-lg);
+    padding: 0.25rem 0.625rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-zinc-900);
+    transition:
+      background-color 100ms ease,
+      color 100ms ease;
+  }
+  button.calendar-title:hover {
+    background-color: var(--color-zinc-100);
+    color: var(--color-primary);
+  }
+  .calendar-week {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    margin-top: 2px;
+  }
+  .calendar-weekday {
+    padding: 0.25rem 0;
+    text-align: center;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-zinc-500);
+  }
+  .calendar-cells {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.25rem;
+  }
+  .calendar-cells .calendar-day {
+    height: 2.5rem;
+  }
+  .calendar-day {
+    width: 100%;
+    height: 2rem;
+    border-radius: var(--radius-lg);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-zinc-800);
+    transition:
+      background-color 100ms ease,
+      color 100ms ease;
+  }
+  .calendar-day:hover:not(:disabled) {
+    background-color: var(--color-zinc-100);
+    color: var(--color-zinc-900);
+  }
+  .calendar-day[aria-current="date"] {
+    font-weight: 600;
+    color: var(--color-primary);
+    box-shadow: inset 0 0 0 1px rgb(3 122 92 / 0.35);
+  }
+  .calendar-day[aria-pressed="true"],
+  .calendar-day[aria-pressed="true"]:hover:not(:disabled) {
+    background-color: var(--color-primary);
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.18), rgb(255 255 255 / 0) 60%);
+    font-weight: 600;
+    color: #fff;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.25),
+      inset 0 -1px 0 rgb(0 0 0 / 0.14),
+      0 1px 3px rgb(2 95 72 / 0.3);
+  }
+  .calendar-day:disabled {
+    color: var(--color-zinc-300);
+    cursor: not-allowed;
+  }
+  .calendar-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    border-top: 1px solid var(--color-zinc-200);
+    padding-top: 0.5rem;
+  }
+  .calendar-link {
+    border-radius: var(--radius-lg);
+    padding: 0.25rem 0.625rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-primary);
+    transition: background-color 100ms ease;
+  }
+  .calendar-link:hover:not(:disabled) {
+    background-color: var(--color-zinc-100);
+  }
+  .calendar-link:first-child {
+    color: var(--color-zinc-600);
+  }
+  .calendar-link:disabled {
+    color: var(--color-zinc-300);
+    cursor: not-allowed;
+  }
+}
+
+@keyframes calendar-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar {
+    animation: none;
   }
 }

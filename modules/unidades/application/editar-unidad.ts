@@ -99,7 +99,7 @@ export const editarUnidadCommand = defineCommand({
     // which would still be safe against the trigger but is clearer intent).
     const puedeCambiarClasificacion = !actual.usada;
     if (!puedeCambiarClasificacion && (input.tipoMagnitud !== actual.tipoMagnitud || !input.factorABase.equals(actual.factorABase))) {
-      throw new ValidationError("La magnitud y el factor no se pueden modificar: esta unidad ya fue usada (INV-M04).");
+      throw new ValidationError("La magnitud y el factor no se pueden modificar: esta unidad ya fue usada.");
     }
 
     const updated = await updateUnidadDatos(

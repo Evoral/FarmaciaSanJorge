@@ -1,26 +1,41 @@
-/** `/reportes/stock-valorizado` (FASE 13 point 13.2). Stock valorizado por partida, con subtotales por droga y total general. */
+/**
+ * `/reportes/stock-valorizado` (FASE 13 point 13.2). Stock valorizado por
+ * partida, con subtotales por droga y total general. "Excluir vencidas"
+ * (`excluirVencidas=1`) replaces the old `incluirVencidas=0` (still honored
+ * for old links): a checkbox that is ON by default cannot be turned off
+ * through a GET form, since an unchecked box sends nothing. The export API
+ * keeps its own `incluirVencidas=0` contract.
+ */
 import Link from "next/link";
 import { reporteValorizado } from "@/modules/stock/application/reporte-valorizado";
+import { getCatalogoUnidades } from "@/modules/unidades/application/catalogo-unidades";
+import { formatCantidad } from "@/shared/format/cantidad";
+import { Cantidad } from "@/shared/ui/cantidad";
+import { FilterForm } from "@/shared/ui/filter-form";
+import { FilterMultiSelect } from "@/shared/ui/filter-multi-select";
 
 const PAGE_SIZE = 25;
 
 interface StockValorizadoPageProps {
-  searchParams: Promise<{ search?: string; incluirVencidas?: string; soloConSaldo?: string; page?: string }>;
+  searchParams: Promise<{ search?: string; excluirVencidas?: string; incluirVencidas?: string; soloConSaldo?: string; page?: string }>;
 }
 
 export default async function StockValorizadoPage({ searchParams }: StockValorizadoPageProps) {
   const params = await searchParams;
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
-  const incluirVencidas = params.incluirVencidas !== "0";
+  const incluirVencidas = !(params.excluirVencidas === "1" || params.incluirVencidas === "0");
   const soloConSaldo = params.soloConSaldo === "1";
 
-  const result = await reporteValorizado({ search: params.search || undefined, incluirVencidas, soloConSaldo, page, pageSize: PAGE_SIZE });
+  const [result, { catalogo }] = await Promise.all([
+    reporteValorizado({ search: params.search || undefined, incluirVencidas, soloConSaldo, page, pageSize: PAGE_SIZE }),
+    getCatalogoUnidades(),
+  ]);
   const totalPages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
 
   function pageHref(targetPage: number): string {
     const qs = new URLSearchParams();
     if (params.search) qs.set("search", params.search);
-    if (!incluirVencidas) qs.set("incluirVencidas", "0");
+    if (!incluirVencidas) qs.set("excluirVencidas", "1");
     if (soloConSaldo) qs.set("soloConSaldo", "1");
     qs.set("page", String(targetPage));
     return `/reportes/stock-valorizado?${qs.toString()}`;
@@ -60,32 +75,20 @@ export default async function StockValorizadoPage({ searchParams }: StockValoriz
         Valorizado al costo actual de cada partida (no hay historial de costos).
       </p>
 
-      <form method="get" className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de stock valorizado">
+      <FilterForm className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de stock valorizado" hasActiveFilters={Boolean(params.search || !incluirVencidas || soloConSaldo)}>
         <div className="flex flex-col gap-1">
           <label htmlFor="search" className="text-sm font-medium">
             Droga
           </label>
           <input id="search" name="search" type="search" defaultValue={params.search ?? ""} className="input" />
         </div>
-        <div className="flex items-center gap-2 pb-2">
-          <input id="incluirVencidas" name="incluirVencidas" type="checkbox" value="1" defaultChecked={incluirVencidas} className="h-4 w-4" />
-          <label htmlFor="incluirVencidas" className="text-sm">
-            Incluir vencidas
-          </label>
-        </div>
-        <div className="flex items-center gap-2 pb-2">
-          <input id="soloConSaldo" name="soloConSaldo" type="checkbox" value="1" defaultChecked={soloConSaldo} className="h-4 w-4" />
-          <label htmlFor="soloConSaldo" className="text-sm">
-            Solo con saldo
-          </label>
-        </div>
-        <button type="submit" className="btn btn-secondary">
-          Filtrar
-        </button>
-        <Link href="/reportes/stock-valorizado" className="text-sm underline">
-          Limpiar filtros
-        </Link>
-      </form>
+        <FilterMultiSelect
+          options={[
+            { name: "excluirVencidas", label: "Excluir vencidas", checked: !incluirVencidas },
+            { name: "soloConSaldo", label: "Solo con saldo", checked: soloConSaldo },
+          ]}
+        />
+      </FilterForm>
 
       <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
         {result.total} partida{result.total === 1 ? "" : "s"} encontrada{result.total === 1 ? "" : "s"}. Total general: {result.granTotal}.
@@ -130,7 +133,7 @@ export default async function StockValorizadoPage({ searchParams }: StockValoriz
                     <td className="px-3 py-2">{item.lote}</td>
                     <td className="px-3 py-2">{item.fechaVencimiento}</td>
                     <td className="px-3 py-2">
-                      {item.cantidadDisponible} {item.unidadSimbolo}
+                      <Cantidad valor={formatCantidad(item.cantidadDisponible, { id: item.unidadId, simbolo: item.unidadSimbolo }, catalogo)} />
                     </td>
                     <td className="px-3 py-2">{item.costoUnitario}</td>
                     <td className="px-3 py-2">{item.valor}</td>

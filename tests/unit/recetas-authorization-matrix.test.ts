@@ -8,6 +8,11 @@
  * modules/recetas/application/get-receta.ts's doc comment) -- same role set
  * as the writes, so this file does not duplicate those cases beyond
  * confirming the DECLARED permiso.
+ *
+ * The receta flow's paciente/médico quick-create commands live in
+ * modules/pacientes / modules/medicos but are gated on `recetas.crear`
+ * (docs/specs/importacion-receta-pdf.md "Permisos"), so they are covered
+ * here, with the recetas role set.
  */
 import { describe, it, expect, vi } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
@@ -40,6 +45,10 @@ await import("@/modules/recetas/application/list-recetas");
 await import("@/modules/recetas/application/list-recetas-pendientes-fisica");
 await import("@/modules/recetas/application/list-drogas-para-receta");
 await import("@/modules/recetas/application/list-unidades-para-receta");
+await import("@/modules/pacientes/application/crear-paciente-desde-receta");
+await import("@/modules/medicos/application/crear-medico-desde-receta");
+await import("@/modules/recetas/application/leer-receta-pdf");
+await import("@/modules/recetas/application/importar-receta");
 
 const { listRegisteredUseCasesForTests } = await import("@/shared/usecase");
 
@@ -94,6 +103,15 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
   { name: "recetas.pendientes-fisica.listar", permiso: "recetas.fisica.registrar", input: {} },
   { name: "recetas.drogas.listar", permiso: "recetas.crear", input: {} },
   { name: "recetas.unidades.listar", permiso: "recetas.crear", input: {} },
+  { name: "pacientes.crear-desde-receta", permiso: "recetas.crear", input: { nombre: "N", apellido: "A" } },
+  // PDF import (docs/specs/importacion-receta-pdf.md "Permisos"): both steps on recetas.crear.
+  { name: "recetas.importar.leer", permiso: "recetas.crear", input: { archivo: null } },
+  { name: "recetas.importar", permiso: "recetas.crear", input: {} },
+  {
+    name: "medicos.crear-desde-receta",
+    permiso: "recetas.crear",
+    input: { nombre: "N", apellido: "A", matricula: "MAT-1", matriculaJurisdiccion: "PROVINCIAL" },
+  },
 ];
 
 function sessionForRol(rol: Rol): AuthenticatedSession {

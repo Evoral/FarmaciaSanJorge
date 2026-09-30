@@ -26,7 +26,7 @@ import { getParametroTenant, updateParametroValor } from "../infrastructure/para
 
 const editarParametroInput = z.object({
   clave: z.enum(PARAMETRO_CLAVES),
-  valor: z.string().trim().min(1, "This field cannot be empty."),
+  valor: z.string().trim().min(1, "Este campo no puede estar vacío."),
 });
 
 export type EditarParametroInput = z.infer<typeof editarParametroInput>;

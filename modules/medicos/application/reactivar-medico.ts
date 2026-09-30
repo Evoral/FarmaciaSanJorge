@@ -35,7 +35,7 @@ export const reactivarMedicoCommand = defineCommand({
       throw new DomainError("Este médico no está dado de baja.");
     }
 
-    if (await existeMatriculaVigente(tx, session.tenantId, actual.matricula, input.id)) {
+    if (await existeMatriculaVigente(tx, session.tenantId, actual.matriculaJurisdiccion, actual.matricula, input.id)) {
       throw new ValidationError("Ya existe otro médico vigente con esa matrícula -- no se puede reactivar.");
     }
 

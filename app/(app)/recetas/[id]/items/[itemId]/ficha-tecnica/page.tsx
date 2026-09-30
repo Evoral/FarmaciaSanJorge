@@ -11,6 +11,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getReceta } from "@/modules/recetas/application/get-receta";
+import { ESTADO_PREPARACION_LABELS, FORMA_FARMACEUTICA_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 import { listVersionesFicha } from "@/modules/elaboracion/application/list-versiones-ficha";
 import { GenerarFichaForm } from "@/modules/elaboracion/ui/generar-ficha-form";
 import { IniciarPreparacionForm } from "@/modules/preparaciones/ui/iniciar-form";
@@ -40,6 +41,9 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
   const puedeGenerar = can(session, "fichas.generar");
   const puedeImprimir = can(session, "fichas.imprimir");
   const puedeIniciarPreparacion = can(session, "preparaciones.iniciar");
+  // One preparación per item at a time: while one is INICIADA (any version) it is continued, not started again; once one is
+  // CONFIRMADA the item is done (same rule as the /recetas list -- modules/recetas/domain/accion-preparacion.ts).
+  const itemEnCurso = versiones.some((v) => v.preparacionActual?.estado === "INICIADA" || v.preparacionActual?.estado === "CONFIRMADA");
 
   return (
     <div className="page">
@@ -52,7 +56,7 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">Ficha técnica</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Receta Nº {receta.numeroInterno} — {item.descripcion ?? item.formaFarmaceutica} ({item.formaFarmaceutica}) — {item.cantidadUnidades} unidad
+          Receta Nº {receta.numeroInterno} — {item.descripcion ?? FORMA_FARMACEUTICA_LABELS[item.formaFarmaceutica]} ({FORMA_FARMACEUTICA_LABELS[item.formaFarmaceutica]}) — {item.cantidadUnidades} unidad
           {item.cantidadUnidades === 1 ? "" : "es"}
           {item.cantidadTotal ? `, total ${item.cantidadTotal} ${item.unidadTotalSimbolo ?? ""}` : ""}
         </p>
@@ -62,7 +66,7 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
         <section className="mb-6">
           <GenerarFichaForm itemRecetaId={itemId} recetaId={recetaId} label={versiones.length === 0 ? "Generar ficha técnica" : "Generar nueva versión"} />
           <p className="mt-2 text-xs text-zinc-500">
-            Generar una ficha técnica no descuenta stock ni asienta en el libro recetario (INV-R02): es solo el cálculo de las líneas de pesaje. Siempre
+            Generar una ficha técnica no descuenta stock ni asienta en el libro recetario: es solo el cálculo de las líneas de pesaje. Siempre
             crea una versión nueva; no modifica ni reemplaza las anteriores.
           </p>
         </section>
@@ -88,7 +92,7 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
                       <p className="text-xs text-amber-600 dark:text-amber-400">
                         Preparación asociada:{" "}
                         <Link href={`/preparaciones/${v.preparacionActual.id}`} className="underline">
-                          {v.preparacionActual.estado}
+                          {etiquetaDe(ESTADO_PREPARACION_LABELS, v.preparacionActual.estado)}
                         </Link>
                       </p>
                     ) : null}
@@ -104,7 +108,13 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
                         Imprimir PDF
                       </a>
                     ) : null}
-                    {puedeIniciarPreparacion && !v.preparacionActual ? <IniciarPreparacionForm fichaTecnicaId={v.id} /> : null}
+                    {puedeIniciarPreparacion && v.preparacionActual?.estado === "INICIADA" ? (
+                      <Link href={`/preparaciones/${v.preparacionActual.id}`} className="btn btn-primary">
+                        Continuar preparación
+                      </Link>
+                    ) : puedeIniciarPreparacion && !v.preparacionActual && !itemEnCurso ? (
+                      <IniciarPreparacionForm fichaTecnicaId={v.id} />
+                    ) : null}
                   </div>
                 </div>
               </div>

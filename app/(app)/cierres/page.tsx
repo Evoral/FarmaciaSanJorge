@@ -11,6 +11,8 @@ import { listJornadasPendientes, getJornadaActualCierres } from "@/modules/cierr
 import { listPreparacionesIniciadas } from "@/modules/cierres/application/list-preparaciones-iniciadas";
 import { listCierres } from "@/modules/cierres/application/list-cierres";
 import { FirmarForm } from "@/modules/cierres/ui/firmar-form";
+import { DateInput } from "@/shared/ui/date-input";
+import { FilterForm } from "@/shared/ui/filter-form";
 
 const PAGE_SIZE = 20;
 
@@ -101,26 +103,20 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
 
       <section>
         <h2 className="mb-3 text-base font-semibold">Historial</h2>
-        <form method="get" className="mb-4 flex flex-wrap items-end gap-3" aria-label="Filtros del historial de cierres">
+        <FilterForm className="mb-4 flex flex-wrap items-end gap-3" aria-label="Filtros del historial de cierres" hasActiveFilters={Boolean(params.fechaDesde || params.fechaHasta)}>
           <div className="flex flex-col gap-1">
             <label htmlFor="fechaDesde" className="text-sm font-medium">
               Desde
             </label>
-            <input id="fechaDesde" name="fechaDesde" type="date" defaultValue={params.fechaDesde ?? ""} className="input" />
+            <DateInput id="fechaDesde" name="fechaDesde" defaultValue={params.fechaDesde ?? ""} />
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="fechaHasta" className="text-sm font-medium">
               Hasta
             </label>
-            <input id="fechaHasta" name="fechaHasta" type="date" defaultValue={params.fechaHasta ?? ""} className="input" />
+            <DateInput id="fechaHasta" name="fechaHasta" defaultValue={params.fechaHasta ?? ""} />
           </div>
-          <button type="submit" className="btn btn-secondary">
-            Filtrar
-          </button>
-          <Link href="/cierres" className="text-sm underline">
-            Limpiar filtros
-          </Link>
-        </form>
+        </FilterForm>
 
         <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
           {historial.total} cierre{historial.total === 1 ? "" : "s"} encontrado{historial.total === 1 ? "" : "s"}.

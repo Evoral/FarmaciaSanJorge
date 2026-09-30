@@ -14,7 +14,6 @@ import {
   formatearMedicoTexto,
   formatearPacienteTexto,
   formatearFormulaTexto,
-  formatearContenidoEtiqueta,
 } from "@/modules/preparaciones/domain/preparacion";
 import type { PartidaConEstadoApertura } from "@/modules/preparaciones/domain/preparacion";
 
@@ -127,41 +126,5 @@ describe("snapshot text formatters (INV-L05)", () => {
       { drogaNombre: "Vaselina", cantidad: "27", unidadSimbolo: "g", esEnraseManual: true },
     ]);
     expect(texto).toBe("Ácido salicílico: 3 g; Vaselina: 27 g (enrase manual)");
-  });
-});
-
-describe("formatearContenidoEtiqueta", () => {
-  it("includes every field and the asiento number when present", () => {
-    const contenido = formatearContenidoEtiqueta({
-      itemDescripcion: "Crema x 30g",
-      formaFarmaceutica: "CREMA",
-      cantidadUnidades: 1,
-      pacienteTexto: "Pérez, Juan",
-      medicoTexto: "Gómez, Ana — matrícula MAT-123",
-      formulaTexto: "Ácido salicílico: 3 g",
-      preparadaPorNombre: "Lucía",
-      preparadaPorApellido: "Farmacéutica",
-      confirmadaEn: new Date("2026-06-15T12:00:00Z"),
-      asientoNumeroCorrelativo: "42",
-    });
-    expect(contenido).toContain("Crema x 30g");
-    expect(contenido).toContain("Pérez, Juan");
-    expect(contenido).toContain("Asiento libro recetario Nº 42");
-  });
-
-  it("omits the asiento line when there is none", () => {
-    const contenido = formatearContenidoEtiqueta({
-      itemDescripcion: null,
-      formaFarmaceutica: "CREMA",
-      cantidadUnidades: 1,
-      pacienteTexto: "Pérez, Juan",
-      medicoTexto: "Gómez, Ana — matrícula MAT-123",
-      formulaTexto: "x",
-      preparadaPorNombre: "Lucía",
-      preparadaPorApellido: "Farmacéutica",
-      confirmadaEn: new Date("2026-06-15T12:00:00Z"),
-      asientoNumeroCorrelativo: null,
-    });
-    expect(contenido).not.toContain("Asiento libro recetario");
   });
 });

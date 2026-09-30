@@ -7,7 +7,7 @@
  * clearly in the UI before confirming").
  */
 import { crearUnidadAction, editarUnidadAction } from "./actions";
-import { SimpleForm } from "./simple-form";
+import { SimpleForm } from "@/shared/ui/simple-form";
 import { TIPOS_MAGNITUD, TIPO_MAGNITUD_LABELS } from "@/modules/unidades/domain/unidad";
 
 const GLOBAL_WARNING = "Esta acción afecta a TODAS las farmacias del sistema: las unidades de medida son un catálogo global compartido.";
@@ -38,7 +38,7 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
         {GLOBAL_WARNING}
       </p>
 
-      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear unidad" : "Guardar cambios"} className="flex max-w-md flex-col gap-3">
+      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear unidad" : "Guardar cambios"} className="max-w-md">
         {mode === "editar" && unidad ? (
           <>
             <input type="hidden" name="id" value={unidad.id} />
@@ -94,7 +94,7 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
               {unidad && unidad.drogasQueLaUsan !== undefined
                 ? `${unidad.drogasQueLaUsan} droga${unidad.drogasQueLaUsan === 1 ? "" : "s"} (en todas las farmacias)`
                 : "alguna droga"}
-              : la magnitud y el factor no se pueden modificar (INV-M04).
+              : la magnitud y el factor no se pueden modificar.
             </p>
           ) : null}
         </div>

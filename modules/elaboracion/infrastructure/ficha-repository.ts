@@ -19,6 +19,7 @@
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { TipoMagnitud, UnidadMedidaRef, LineaPesajeCalculada, FormaFarmaceutica, ModoExpresion } from "../domain/calcular-ficha-tecnica";
+import type { LineaPesajeGuardada } from "../domain/ficha-no-generable";
 
 // ============================================================================
 // Read: item_receta + componentes (calculator inputs)
@@ -120,16 +121,55 @@ export async function getComponentesParaFicha(tx: Prisma.TransactionClient, tena
  * returned record, which `generarFichaTecnica` treats as a hard
  * configuration error if a componente/total actually needs it).
  */
-export async function getUnidadesBase(tx: Prisma.TransactionClient): Promise<Partial<Record<TipoMagnitud, UnidadMedidaRef>>> {
+/** A base unit, plus its símbolo (the cotización labels each costed line with it). */
+export type UnidadBase = UnidadMedidaRef & { simbolo: string };
+
+export async function getUnidadesBase(tx: Prisma.TransactionClient): Promise<Partial<Record<TipoMagnitud, UnidadBase>>> {
   const rows = await tx.unidadMedida.findMany({
     where: { esBase: true },
-    select: { id: true, tipoMagnitud: true, factorABase: true },
+    select: { id: true, tipoMagnitud: true, factorABase: true, simbolo: true },
   });
-  const result: Partial<Record<TipoMagnitud, UnidadMedidaRef>> = {};
+  const result: Partial<Record<TipoMagnitud, UnidadBase>> = {};
   for (const r of rows) {
-    result[r.tipoMagnitud as TipoMagnitud] = { id: r.id, tipoMagnitud: r.tipoMagnitud as TipoMagnitud, factorABase: r.factorABase.toString() };
+    result[r.tipoMagnitud as TipoMagnitud] = { id: r.id, tipoMagnitud: r.tipoMagnitud as TipoMagnitud, factorABase: r.factorABase.toString(), simbolo: r.simbolo };
   }
   return result;
+}
+
+// ============================================================================
+// Read: an in-progress receta draft's references (docs/specs/presupuesto-receta.md)
+// -- the same fields getItemParaFicha/getComponentesParaFicha read from saved
+// rows, looked up by id for a formula that is not saved yet.
+// ============================================================================
+
+export interface UnidadParaBorrador {
+  ref: UnidadMedidaRef;
+  vigente: boolean;
+}
+
+/** GLOBAL unidad_medida catalog (DP-39) by id. */
+export async function getUnidadesParaBorrador(tx: Prisma.TransactionClient, ids: readonly string[]): Promise<Map<string, UnidadParaBorrador>> {
+  if (ids.length === 0) return new Map();
+  const rows = await tx.unidadMedida.findMany({
+    where: { id: { in: [...new Set(ids)] } },
+    select: { id: true, tipoMagnitud: true, factorABase: true, fechaBaja: true },
+  });
+  return new Map(
+    rows.map((r) => [
+      r.id,
+      { ref: { id: r.id, tipoMagnitud: r.tipoMagnitud as TipoMagnitud, factorABase: r.factorABase.toString() }, vigente: r.fechaBaja === null },
+    ]),
+  );
+}
+
+export async function getDrogasParaBorrador(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  ids: readonly string[],
+): Promise<Map<string, { nombre: string; vigente: boolean }>> {
+  if (ids.length === 0) return new Map();
+  const rows = await tx.droga.findMany({ where: { tenantId, id: { in: [...new Set(ids)] } }, select: { id: true, nombre: true, fechaBaja: true } });
+  return new Map(rows.map((r) => [r.id, { nombre: r.nombre, vigente: r.fechaBaja === null }]));
 }
 
 /**
@@ -158,6 +198,39 @@ export async function getParametrosPesaje(
 // ============================================================================
 // Version assignment + insert (7.2)
 // ============================================================================
+
+/** The lines of the item's LATEST ficha (highest version), or `null` when it has none -- to tell whether a regeneration would only duplicate it. */
+export async function getLineasUltimaFicha(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  itemRecetaId: string,
+): Promise<{ id: string; version: number; lineas: LineaPesajeGuardada[] } | null> {
+  const ficha = await tx.fichaTecnica.findFirst({
+    where: { tenantId, itemRecetaId },
+    orderBy: { version: "desc" },
+    select: {
+      id: true,
+      version: true,
+      lineas: {
+        select: { drogaId: true, cantidadTeorica: true, excesoAplicado: true, cantidadAPesar: true, unidadMedidaId: true, esEnraseManual: true, orden: true },
+      },
+    },
+  });
+  if (!ficha) return null;
+  return {
+    id: ficha.id,
+    version: ficha.version,
+    lineas: ficha.lineas.map((l) => ({
+      drogaId: l.drogaId,
+      cantidadTeorica: l.cantidadTeorica ? l.cantidadTeorica.toString() : null,
+      excesoAplicado: l.excesoAplicado.toString(),
+      cantidadAPesar: l.cantidadAPesar ? l.cantidadAPesar.toString() : null,
+      unidadMedidaId: l.unidadMedidaId,
+      esEnraseManual: l.esEnraseManual,
+      orden: l.orden,
+    })),
+  };
+}
 
 /** `COALESCE(MAX(version), 0)` for the item -- `generarFichaTecnica` uses `+ 1`. MUST be called AFTER `lockItemRecetaParaFicha` in the same transaction (see module doc comment). */
 export async function getMaxVersionFicha(tx: Prisma.TransactionClient, tenantId: string, itemRecetaId: string): Promise<number> {

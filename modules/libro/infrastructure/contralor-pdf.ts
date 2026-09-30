@@ -5,6 +5,7 @@
  */
 import { renderPdf } from "@/shared/pdf/pdf-document";
 import type { ContralorListItem } from "./contralor-repository";
+import { TIPO_MOVIMIENTO_CONTRALOR_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 
 const MARGIN = 40;
 const PAGE_HEIGHT = 842; // A4 in points
@@ -20,12 +21,6 @@ const COLS = [
   { label: "Vale", width: 45 },
 ];
 
-const TIPO_MOVIMIENTO_LABELS: Record<string, string> = {
-  APERTURA: "Apertura",
-  INGRESO: "Ingreso",
-  EGRESO: "Egreso",
-  AJUSTE: "Ajuste",
-};
 
 export interface ContralorPdfOptions {
   filtroResumen: string;
@@ -66,7 +61,7 @@ export function buildContralorPdf(items: ContralorListItem[], options: Contralor
       const values = [
         item.numeroCorrelativo,
         item.fechaAsiento,
-        TIPO_MOVIMIENTO_LABELS[item.tipoMovimiento] ?? item.tipoMovimiento,
+        etiquetaDe(TIPO_MOVIMIENTO_CONTRALOR_LABELS, item.tipoMovimiento),
         item.drogaDescripcion,
         `${item.cantidad} ${item.unidadSimbolo}`,
         item.saldoAnterior,

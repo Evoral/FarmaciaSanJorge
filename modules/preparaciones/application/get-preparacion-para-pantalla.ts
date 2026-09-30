@@ -29,8 +29,8 @@ const getPreparacionParaPantallaInput = z.object({ preparacionId: uuid });
 
 export interface LineaPantalla extends LineaParaPantalla {
   partidasElegibles: PartidaElegible[];
-  /** The system's own default split, `null` for manual-enrase lines (no fixed quantity to split yet) or when stock is insufficient. */
-  propuesta: PropuestaLinea[] | null;
+  /** The system's own default split, `null` for manual-enrase lines (no fixed quantity to split yet) or when stock is insufficient. `cantidad` is a decimal string: this crosses into a Client Component, which only accepts plain values. */
+  propuesta: { partidaId: string; cantidad: string }[] | null;
   stockInsuficiente: boolean;
   faltante: string | null;
 }
@@ -70,7 +70,7 @@ export const getPreparacionParaPantallaQuery = defineQuery({
       );
 
       if (resultado.ok) {
-        lineas.push({ ...linea, partidasElegibles, propuesta: resultado.lineas as PropuestaLinea[], stockInsuficiente: false, faltante: null });
+        lineas.push({ ...linea, partidasElegibles, propuesta: resultado.lineas.map((p: PropuestaLinea) => ({ partidaId: p.partidaId, cantidad: p.cantidad.toString() })), stockInsuficiente: false, faltante: null });
       } else {
         lineas.push({ ...linea, partidasElegibles, propuesta: null, stockInsuficiente: true, faltante: resultado.faltante.toString() });
       }

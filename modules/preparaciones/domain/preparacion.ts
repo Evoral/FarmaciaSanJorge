@@ -120,38 +120,4 @@ export function formatearFormulaTexto(lineas: readonly LineaFormulaTexto[]): str
     .join("; ");
 }
 
-// ============================================================================
-// 8.5: etiqueta -- content per M11 (plan glossary: "rótulo impreso del
-// preparado"). DP-28 (exact label content rules) is OPEN -- kept
-// deliberately minimal: what M11's own historia already implies
-// (preparado, paciente, fecha, quien preparó, trazabilidad al asiento).
-// Anything beyond this (dosage instructions, expiry-after-opening, storage
-// conditions, warnings) is an OPEN POINT, not invented here.
-// ============================================================================
-
-export interface DatosEtiqueta {
-  itemDescripcion: string | null;
-  formaFarmaceutica: string;
-  cantidadUnidades: number;
-  pacienteTexto: string;
-  medicoTexto: string;
-  formulaTexto: string;
-  preparadaPorNombre: string;
-  preparadaPorApellido: string;
-  confirmadaEn: Date;
-  asientoNumeroCorrelativo: string | null;
-}
-
-/** Plain-text content persisted to `etiqueta.contenido` -- the PDF layout (infrastructure/etiqueta-pdf.ts) renders the SAME data, not this string. */
-export function formatearContenidoEtiqueta(datos: DatosEtiqueta): string {
-  const lineas = [
-    `Preparado: ${datos.itemDescripcion ?? datos.formaFarmaceutica} (${datos.formaFarmaceutica}) — ${datos.cantidadUnidades} unidad${datos.cantidadUnidades === 1 ? "" : "es"}`,
-    `Paciente: ${datos.pacienteTexto}`,
-    `Prescriptor: ${datos.medicoTexto}`,
-    `Fórmula: ${datos.formulaTexto}`,
-    `Preparado por: ${datos.preparadaPorApellido}, ${datos.preparadaPorNombre}`,
-    `Fecha de preparación: ${datos.confirmadaEn.toISOString()}`,
-    datos.asientoNumeroCorrelativo ? `Asiento libro recetario Nº ${datos.asientoNumeroCorrelativo}` : null,
-  ];
-  return lineas.filter((l): l is string => l !== null).join("\n");
-}
+// 8.5: etiqueta content lives in ./etiqueta.ts.

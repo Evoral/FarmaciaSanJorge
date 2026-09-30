@@ -22,6 +22,8 @@
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import type { EstadoPreparacion, EstadoReceta, TipoMovimientoContralor } from "@/generated/prisma/enums";
+import { jornadaDe, rangoDeJornadas } from "@/shared/time/jornada";
+import type { DatosEtiqueta } from "../domain/etiqueta";
 
 const PLACEHOLDER_UUID = "00000000-0000-0000-0000-000000000000";
 const PLACEHOLDER_DATE = new Date(0);
@@ -44,8 +46,10 @@ export async function jornadaActualTenant(tx: Prisma.TransactionClient, tenantId
 
 export interface FichaParaIniciar {
   id: string;
+  version: number;
   itemRecetaId: string;
   recetaId: string;
+  recetaNumeroInterno: string;
   recetaEstado: EstadoReceta;
 }
 
@@ -63,7 +67,7 @@ export interface FichaParaIniciar {
  * `SELECT`, which only needs the SELECT privilege `fsj_app` already has).
  */
 export async function lockFichaTecnicaParaIniciar(tx: Prisma.TransactionClient, tenantId: string, fichaTecnicaId: string): Promise<boolean> {
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended('ficha_tecnica:' || ${tenantId} || ':' || ${fichaTecnicaId}, 0))`;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('ficha_tecnica:' || ${tenantId} || ':' || ${fichaTecnicaId}, 0))`;
   const rows = await tx.$queryRaw<{ id: string }[]>`
     SELECT id FROM fsj.ficha_tecnica WHERE id = ${fichaTecnicaId}::uuid AND tenant_id = ${tenantId}::uuid
   `;
@@ -73,10 +77,17 @@ export async function lockFichaTecnicaParaIniciar(tx: Prisma.TransactionClient, 
 export async function getFichaParaIniciar(tx: Prisma.TransactionClient, tenantId: string, fichaTecnicaId: string): Promise<FichaParaIniciar | null> {
   const ficha = await tx.fichaTecnica.findUnique({
     where: { id: fichaTecnicaId, tenantId },
-    select: { id: true, itemRecetaId: true, itemReceta: { select: { recetaId: true, receta: { select: { estado: true } } } } },
+    select: { id: true, version: true, itemRecetaId: true, itemReceta: { select: { recetaId: true, receta: { select: { estado: true, numeroInterno: true } } } } },
   });
   if (!ficha) return null;
-  return { id: ficha.id, itemRecetaId: ficha.itemRecetaId, recetaId: ficha.itemReceta.recetaId, recetaEstado: ficha.itemReceta.receta.estado };
+  return {
+    id: ficha.id,
+    version: ficha.version,
+    itemRecetaId: ficha.itemRecetaId,
+    recetaId: ficha.itemReceta.recetaId,
+    recetaNumeroInterno: ficha.itemReceta.receta.numeroInterno.toString(),
+    recetaEstado: ficha.itemReceta.receta.estado,
+  };
 }
 
 /** INV-P02's app-level pre-check (the partial unique index is the real backstop) -- any preparación for this ficha that is NOT DESCARTADA. */
@@ -510,19 +521,17 @@ export async function updatePreparacionConfirmada(
 // 8.5: etiqueta
 // ============================================================================
 
-export interface PreparacionParaEtiqueta {
+/** Everything the etiqueta shows (domain/etiqueta.ts's `DatosEtiqueta`), plus the fields the audit and the libro snapshot use. */
+export interface PreparacionParaEtiqueta extends DatosEtiqueta {
   id: string;
   confirmadaEn: Date;
   preparadaPorNombre: string;
   preparadaPorApellido: string;
   itemDescripcion: string | null;
-  formaFarmaceutica: string;
-  cantidadUnidades: number;
-  /** Snapshot texts (INV-L05) from the preparación's own SISTEMA asiento_recetario -- the label reflects what was legally recorded, not a live re-join to paciente/médico. */
+  /** Snapshot texts (INV-L05) from the preparación's own SISTEMA asiento_recetario. */
   pacienteTexto: string;
   medicoTexto: string;
   formulaTexto: string;
-  asientoNumeroCorrelativo: string | null;
   tenantRazonSocial: string;
   tenantNombreFantasia: string | null;
   tenantMatriculaFarmacia: string | null;
@@ -538,7 +547,30 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
       preparadaPor: { select: { nombre: true, apellido: true } },
       fichaTecnica: {
         select: {
-          itemReceta: { select: { descripcion: true, formaFarmaceutica: true, cantidadUnidades: true } },
+          itemReceta: {
+            select: {
+              descripcion: true,
+              formaFarmaceutica: true,
+              cantidadUnidades: true,
+              componentes: {
+                orderBy: { orden: "asc" },
+                select: {
+                  cantidad: true,
+                  modoExpresion: true,
+                  esPrincipioActivo: true,
+                  orden: true,
+                  droga: { select: { nombre: true } },
+                  unidadMedida: { select: { simbolo: true } },
+                },
+              },
+              receta: {
+                select: {
+                  numeroInterno: true,
+                  medico: { select: { nombre: true, apellido: true, matricula: true, matriculaJurisdiccion: true } },
+                },
+              },
+            },
+          },
         },
       },
       asientosRecetario: {
@@ -554,10 +586,12 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
 
   const tenant = await tx.tenant.findUniqueOrThrow({
     where: { id: tenantId },
-    select: { razonSocial: true, nombreFantasia: true, matriculaFarmacia: true },
+    select: { razonSocial: true, nombreFantasia: true, matriculaFarmacia: true, domicilio: true, zonaHoraria: true },
   });
+  const directorTecnico = await getDtVigenteEnJornada(tx, tenantId, jornadaDe(prep.confirmadaEn, tenant.zonaHoraria));
 
   const item = prep.fichaTecnica.itemReceta;
+  const medico = item.receta.medico;
   return {
     id: prep.id,
     confirmadaEn: prep.confirmadaEn,
@@ -566,6 +600,20 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
     itemDescripcion: item.descripcion,
     formaFarmaceutica: item.formaFarmaceutica,
     cantidadUnidades: item.cantidadUnidades,
+    componentes: item.componentes.map((c) => ({
+      drogaNombre: c.droga.nombre,
+      cantidad: c.cantidad === null ? null : c.cantidad.toString(),
+      unidadSimbolo: c.unidadMedida.simbolo,
+      modoExpresion: c.modoExpresion,
+      esPrincipioActivo: c.esPrincipioActivo,
+      orden: c.orden,
+    })),
+    recetaNumeroInterno: item.receta.numeroInterno.toString(),
+    medicoNombre: medico.nombre,
+    medicoApellido: medico.apellido,
+    medicoMatricula: medico.matricula,
+    medicoJurisdiccion: medico.matriculaJurisdiccion,
+    directorTecnico,
     pacienteTexto: asiento.pacienteTexto,
     medicoTexto: asiento.medicoTexto,
     formulaTexto: asiento.formulaTexto,
@@ -573,7 +621,30 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
     tenantRazonSocial: tenant.razonSocial,
     tenantNombreFantasia: tenant.nombreFantasia,
     tenantMatriculaFarmacia: tenant.matriculaFarmacia,
+    tenantDomicilio: tenant.domicilio,
   };
+}
+
+/**
+ * The director técnico vigente on `jornada` (`YYYY-MM-DD`): the TITULAR,
+ * else a SUPLENTE. Same WHERE as modules/directores-tecnicos'
+ * `dtVigenteHoy`, but for a given date -- read here, against the shared
+ * `tx`, because modules only reach their own infrastructure/ (the libro
+ * and stock co-firma repositories do the same).
+ */
+export async function getDtVigenteEnJornada(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  jornada: string,
+): Promise<{ nombre: string; apellido: string; matricula: string } | null> {
+  const fecha = new Date(`${jornada}T00:00:00.000Z`); // @db.Date columns compare as UTC midnight.
+  const rows = await tx.designacionDirectorTecnico.findMany({
+    where: { tenantId, vigenteDesde: { lte: fecha }, OR: [{ vigenteHasta: null }, { vigenteHasta: { gte: fecha } }] },
+    orderBy: [{ vigenteDesde: "desc" }],
+    select: { caracter: true, matricula: true, usuario: { select: { nombre: true, apellido: true } } },
+  });
+  const dt = rows.find((r) => r.caracter === "TITULAR") ?? rows[0];
+  return dt ? { nombre: dt.usuario.nombre, apellido: dt.usuario.apellido, matricula: dt.matricula } : null;
 }
 
 export async function getEtiquetaExistente(tx: Prisma.TransactionClient, tenantId: string, preparacionId: string): Promise<{ id: string } | null> {
@@ -621,21 +692,61 @@ export interface PreparacionListItem {
   confirmadaEn: Date | null;
   itemDescripcion: string | null;
   formaFarmaceutica: string;
+  recetaId: string;
   recetaNumeroInterno: string;
   pacienteNombre: string;
   pacienteApellido: string;
+  /** `null` when no etiqueta was generated yet (domain/listado.ts's `estadoEtiqueta`). */
+  etiqueta: { impresa: boolean } | null;
 }
 
 export interface ListPreparacionesFilter {
   tenantId: string;
   estado?: EstadoPreparacion;
+  /** Nº interno de la receta (digits). */
+  numeroInterno?: string;
+  /** `YYYY-MM-DD` on `iniciada_en`, as the tenant's calendar day. */
+  desde?: string;
+  hasta?: string;
+  /** Only CONFIRMADA ones whose etiqueta is missing or never printed. */
+  sinEtiquetaImpresa?: boolean;
   page: number;
   pageSize: number;
 }
 
-export async function listPreparaciones(tx: Prisma.TransactionClient, filter: ListPreparacionesFilter): Promise<{ items: PreparacionListItem[]; total: number }> {
+export type FiltroComunPreparaciones = Pick<ListPreparacionesFilter, "tenantId" | "numeroInterno" | "desde" | "hasta">;
+
+async function zonaHorariaTenant(tx: Prisma.TransactionClient, tenantId: string): Promise<string> {
+  const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { zonaHoraria: true } });
+  return tenant.zonaHoraria;
+}
+
+/** The filters every tab shares (número, fechas) -- `zonaHoraria` turns the calendar days into instants. */
+function whereComun(filter: FiltroComunPreparaciones, zonaHoraria: string): Prisma.PreparacionWhereInput {
   const where: Prisma.PreparacionWhereInput = { tenantId: filter.tenantId };
-  if (filter.estado) where.estado = filter.estado;
+  if (filter.numeroInterno) {
+    where.fichaTecnica = { itemReceta: { receta: { numeroInterno: BigInt(filter.numeroInterno) } } };
+  }
+  if (filter.desde || filter.hasta) {
+    const { desde, hastaExclusivo } = rangoDeJornadas(filter.desde, filter.hasta, zonaHoraria);
+    where.iniciadaEn = { ...(desde ? { gte: desde } : {}), ...(hastaExclusivo ? { lt: hastaExclusivo } : {}) };
+  }
+  return where;
+}
+
+const SIN_ETIQUETA_IMPRESA: Prisma.PreparacionWhereInput = { OR: [{ etiqueta: { is: null } }, { etiqueta: { is: { impresa: false } } }] };
+
+function wherePestana(comun: Prisma.PreparacionWhereInput, estado: EstadoPreparacion, sinEtiquetaImpresa: boolean): Prisma.PreparacionWhereInput {
+  return estado === "CONFIRMADA" && sinEtiquetaImpresa ? { AND: [comun, { estado }, SIN_ETIQUETA_IMPRESA] } : { AND: [comun, { estado }] };
+}
+
+export async function listPreparaciones(
+  tx: Prisma.TransactionClient,
+  filter: ListPreparacionesFilter,
+): Promise<{ items: PreparacionListItem[]; total: number; zonaHoraria: string }> {
+  const zonaHoraria = await zonaHorariaTenant(tx, filter.tenantId);
+  const comun = whereComun(filter, zonaHoraria);
+  const where = filter.estado ? wherePestana(comun, filter.estado, filter.sinEtiquetaImpresa ?? false) : comun;
   const skip = (filter.page - 1) * filter.pageSize;
 
   const total = await tx.preparacion.count({ where });
@@ -650,13 +761,15 @@ export async function listPreparaciones(tx: Prisma.TransactionClient, filter: Li
       fichaTecnicaId: true,
       iniciadaEn: true,
       confirmadaEn: true,
+      // Etiqueta state in the SAME query (relationJoins): no N+1.
+      etiqueta: { select: { impresa: true } },
       fichaTecnica: {
         select: {
           itemReceta: {
             select: {
               descripcion: true,
               formaFarmaceutica: true,
-              receta: { select: { numeroInterno: true, paciente: { select: { nombre: true, apellido: true } } } },
+              receta: { select: { id: true, numeroInterno: true, paciente: { select: { nombre: true, apellido: true } } } },
             },
           },
         },
@@ -666,6 +779,7 @@ export async function listPreparaciones(tx: Prisma.TransactionClient, filter: Li
 
   return {
     total,
+    zonaHoraria,
     items: rows.map((r) => ({
       id: r.id,
       estado: r.estado,
@@ -674,9 +788,11 @@ export async function listPreparaciones(tx: Prisma.TransactionClient, filter: Li
       confirmadaEn: r.confirmadaEn,
       itemDescripcion: r.fichaTecnica.itemReceta.descripcion,
       formaFarmaceutica: r.fichaTecnica.itemReceta.formaFarmaceutica,
+      recetaId: r.fichaTecnica.itemReceta.receta.id,
       recetaNumeroInterno: r.fichaTecnica.itemReceta.receta.numeroInterno.toString(),
       pacienteNombre: r.fichaTecnica.itemReceta.receta.paciente.nombre,
       pacienteApellido: r.fichaTecnica.itemReceta.receta.paciente.apellido,
+      etiqueta: r.etiqueta ? { impresa: r.etiqueta.impresa } : null,
     })),
   };
 }

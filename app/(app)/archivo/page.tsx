@@ -5,6 +5,8 @@ import { can } from "@/shared/auth/authorize";
 import { listLotesArchivo } from "@/modules/archivo/application/list-lotes";
 import { ESTADOS_LOTE_ARCHIVO, ESTADO_LOTE_ARCHIVO_LABELS, type EstadoLoteArchivoValue } from "@/modules/archivo/domain/lote-archivo";
 import { ActualizarPlazosButton } from "@/modules/archivo/ui/actualizar-plazos-button";
+import { DateInput } from "@/shared/ui/date-input";
+import { FilterForm } from "@/shared/ui/filter-form";
 
 const PAGE_SIZE = 20;
 
@@ -61,7 +63,7 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
         Se destruyen solo las recetas en papel; los registros digitales se conservan siempre.
       </p>
 
-      <form method="get" className="mb-4 flex flex-wrap items-end gap-3" aria-label="Filtros del archivo">
+      <FilterForm className="mb-4 flex flex-wrap items-end gap-3" aria-label="Filtros del archivo" hasActiveFilters={Boolean(estado || params.periodoDesde || params.periodoHasta)}>
         <div className="flex flex-col gap-1">
           <label htmlFor="estado" className="text-sm font-medium">
             Estado
@@ -79,21 +81,15 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
           <label htmlFor="periodoDesde" className="text-sm font-medium">
             Período desde
           </label>
-          <input id="periodoDesde" name="periodoDesde" type="date" defaultValue={params.periodoDesde ?? ""} className="input" />
+          <DateInput id="periodoDesde" name="periodoDesde" defaultValue={params.periodoDesde ?? ""} />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="periodoHasta" className="text-sm font-medium">
             Período hasta
           </label>
-          <input id="periodoHasta" name="periodoHasta" type="date" defaultValue={params.periodoHasta ?? ""} className="input" />
+          <DateInput id="periodoHasta" name="periodoHasta" defaultValue={params.periodoHasta ?? ""} />
         </div>
-        <button type="submit" className="btn btn-secondary">
-          Filtrar
-        </button>
-        <Link href="/archivo" className="text-sm underline">
-          Limpiar filtros
-        </Link>
-      </form>
+      </FilterForm>
 
       <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
         {resultado.total} lote{resultado.total === 1 ? "" : "s"} encontrado{resultado.total === 1 ? "" : "s"}.

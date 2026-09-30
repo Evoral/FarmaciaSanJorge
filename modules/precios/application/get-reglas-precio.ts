@@ -1,6 +1,6 @@
 /**
  * `getReglasPrecio` (M08, FASE 4 point 4.6). Read of the tenant's current
- * margin + full version history, for `/admin/precios`. Same permiso as
+ * margin + full version history, for `/admin/configuracion/precios`. Same permiso as
  * editing (`precios.reglas.editar`) -- there is no dedicated
  * `precios.reglas.ver` in plan §7's matrix, so, same convention as
  * `unidades.editar` doubling as "may enter the section"

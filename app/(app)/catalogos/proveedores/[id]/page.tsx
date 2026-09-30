@@ -6,7 +6,7 @@ import { can } from "@/shared/auth/authorize";
 import { getProveedor } from "@/modules/proveedores/application/get-proveedor";
 import { formatCuit } from "@/modules/proveedores/domain/proveedor";
 import { ProveedorForm } from "@/modules/proveedores/ui/proveedor-form";
-import { MotivoForm } from "@/modules/proveedores/ui/motivo-form";
+import { MotivoForm } from "@/shared/ui/motivo-form";
 import { darDeBajaProveedorAction, reactivarProveedorAction } from "@/modules/proveedores/ui/actions";
 
 interface ProveedorDetallePageProps {
@@ -55,7 +55,7 @@ export default async function ProveedorDetallePage({ params }: ProveedorDetalleP
               label="Dar de baja"
               pendingLabel="Dando de baja…"
               helpText="Este proveedor deja de ofrecerse para nuevas partidas, pero sigue resolviendo en históricos."
-              submitClassName="btn btn-danger"
+              variant="danger"
             />
           ) : null}
         </section>

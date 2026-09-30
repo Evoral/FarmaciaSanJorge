@@ -54,8 +54,19 @@
  * gets delivered -- see the one-line note added to
  * `docs/plan-implementacion.md` under FASE 11.
  */
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { TipoAccion, record as auditRecord } from "@/shared/audit";
+
+/**
+ * D2 REVISED's "sin efecto", for a SISTEMA asiento_recetario aliased `a`:
+ * ANULADO, or already corrected by a RECTIFICATIVO. The ONE definition,
+ * used both by `todosLosItemsSinEfecto` (auto-anulación of the receta) and
+ * `asientosEnEfectoDeReceta` (what blocks a direct receta anulación).
+ */
+const ASIENTO_SIN_EFECTO = Prisma.sql`(
+  a.estado = 'ANULADO'
+  OR EXISTS (SELECT 1 FROM fsj.asiento_recetario r WHERE r.tenant_id = a.tenant_id AND r.asiento_original_id = a.id)
+)`;
 
 /** Mirrors modules/recetas/domain/receta.ts#ESTADOS_TERMINALES -- see module doc comment for why this is a local copy, not an import. */
 const ESTADOS_TERMINALES_RECETA: ReadonlySet<string> = new Set(["ENTREGADA", "ANULADA"]);
@@ -118,18 +129,40 @@ async function todosLosItemsSinEfecto(tx: Prisma.TransactionClient, tenantId: st
         JOIN fsj.preparacion p ON p.tenant_id = ir.tenant_id AND p.item_receta_id = ir.id AND p.estado = 'CONFIRMADA'
         JOIN fsj.asiento_recetario a ON a.tenant_id = p.tenant_id AND a.preparacion_id = p.id AND a.origen = 'SISTEMA'
         WHERE ir.tenant_id = ${tenantId}::uuid AND ir.receta_id = ${recetaId}::uuid
-          AND (
-            a.estado = 'ANULADO'
-            OR EXISTS (
-              SELECT 1 FROM fsj.asiento_recetario r
-              WHERE r.tenant_id = a.tenant_id AND r.asiento_original_id = a.id
-            )
-          )
+          AND ${ASIENTO_SIN_EFECTO}
       ) AS sin_efecto
   `;
   const row = rows[0];
   if (!row) return false;
   return row.total > 0 && row.total === row.sin_efecto;
+}
+
+export interface AsientoEnEfecto {
+  itemRecetaId: string;
+  asientoId: string;
+  numeroCorrelativo: string;
+}
+
+/**
+ * The receta's SISTEMA asientos that are still IN EFFECT: the item's
+ * preparación is CONFIRMADA and its asiento is NOT "sin efecto" (the same
+ * `ASIENTO_SIN_EFECTO` definition D2 uses). While any exists, the receta
+ * must not be anulled directly -- the libro would keep recording a
+ * preparación of an ANULADA receta; the asiento has to be anulled or
+ * rectified from the Libro, and D2 then anulls the receta
+ * (modules/recetas/application/anular-receta.ts).
+ */
+export async function asientosEnEfectoDeReceta(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<AsientoEnEfecto[]> {
+  const rows = await tx.$queryRaw<{ item_receta_id: string; asiento_id: string; numero_correlativo: string }[]>`
+    SELECT ir.id AS item_receta_id, a.id AS asiento_id, a.numero_correlativo::text AS numero_correlativo
+    FROM fsj.item_receta ir
+    JOIN fsj.preparacion p ON p.tenant_id = ir.tenant_id AND p.item_receta_id = ir.id AND p.estado = 'CONFIRMADA'
+    JOIN fsj.asiento_recetario a ON a.tenant_id = p.tenant_id AND a.preparacion_id = p.id AND a.origen = 'SISTEMA'
+    WHERE ir.tenant_id = ${tenantId}::uuid AND ir.receta_id = ${recetaId}::uuid
+      AND NOT ${ASIENTO_SIN_EFECTO}
+    ORDER BY a.numero_correlativo
+  `;
+  return rows.map((r) => ({ itemRecetaId: r.item_receta_id, asientoId: r.asiento_id, numeroCorrelativo: r.numero_correlativo }));
 }
 
 /**

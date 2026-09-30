@@ -6,6 +6,7 @@ import { can } from "@/shared/auth/authorize";
 import { NotFoundError } from "@/shared/errors";
 import { getCierreDetalle } from "@/modules/cierres/application/get-cierre-detalle";
 import { MOTIVO_DEMORA_LABELS, type MotivoDemoraValue } from "@/modules/cierres/domain/motivo-demora";
+import { TIPO_LIBRO_LABELS, TIPO_MOVIMIENTO_CONTRALOR_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 
 interface CierreDetallePageProps {
   params: Promise<{ id: string }>;
@@ -131,9 +132,9 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
               cierre.asientosContralor.map((a, i) => (
                 <tr key={`${a.tipoLibro}-${a.numeroCorrelativo}-${i}`}>
                   <td className="px-3 py-2 font-medium">{a.numeroCorrelativo}</td>
-                  <td className="px-3 py-2">{a.tipoLibro}</td>
+                  <td className="px-3 py-2">{etiquetaDe(TIPO_LIBRO_LABELS, a.tipoLibro)}</td>
                   <td className="px-3 py-2">{a.drogaDescripcion}</td>
-                  <td className="px-3 py-2">{a.tipoMovimiento}</td>
+                  <td className="px-3 py-2">{etiquetaDe(TIPO_MOVIMIENTO_CONTRALOR_LABELS, a.tipoMovimiento)}</td>
                   <td className="px-3 py-2">{a.cantidad}</td>
                   <td className="px-3 py-2">{a.saldoPosterior}</td>
                 </tr>

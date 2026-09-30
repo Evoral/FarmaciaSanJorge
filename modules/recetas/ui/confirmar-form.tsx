@@ -1,7 +1,7 @@
 "use client";
 
-/** One-click confirm action (recepción física, 6.4) -- no motivo needed, unlike modules/recetas/ui/motivo-form.tsx (anulación). */
-import { SimpleForm } from "./simple-form";
+/** One-click confirm action (recepción física, 6.4) -- no motivo needed, unlike the shared `MotivoForm` used for anulación (shared/ui/motivo-form.tsx). */
+import { SimpleForm } from "@/shared/ui/simple-form";
 import type { RecetaActionState } from "./action-state";
 
 export interface ConfirmarFormProps {
@@ -10,14 +10,13 @@ export interface ConfirmarFormProps {
   label: string;
   pendingLabel: string;
   helpText?: string;
-  submitClassName?: string;
 }
 
-export function ConfirmarForm({ action, id, label, pendingLabel, helpText, submitClassName }: ConfirmarFormProps) {
+export function ConfirmarForm({ action, id, label, pendingLabel, helpText }: ConfirmarFormProps) {
   return (
     <div>
       {helpText ? <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400">{helpText}</p> : null}
-      <SimpleForm action={action} submitLabel={label} pendingLabel={pendingLabel} submitClassName={submitClassName}>
+      <SimpleForm action={action} submitLabel={label} pendingLabel={pendingLabel}>
         <input type="hidden" name="id" value={id} />
       </SimpleForm>
     </div>

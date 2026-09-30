@@ -3,17 +3,22 @@
 /**
  * `/cuenta` (M02, FASE 2 point 2.4 -- change your own password; PIN
  * section added by the PIN re-auth feature, user decision 2026-09-23).
+ *
+ * All three forms submit through `shared/ui/use-form-submit.ts` (bypasses
+ * React 19's automatic form reset), so a rejected submit keeps everything
+ * the user typed -- password/PIN fields included, consistent with the
+ * existing "cleared only on success" design below; each form is cleared
+ * explicitly on success only.
  */
 import { useActionState, useEffect, useRef, useState } from "react";
-import { useFormStatus } from "react-dom";
 import { cambiarPasswordAction, configurarPinAction, eliminarPinAction, type CambiarPasswordFormState, type PinFormState } from "./actions";
 import { NewPasswordFields } from "@/modules/auth/ui/new-password-fields";
+import { useFormSubmit } from "@/shared/ui/use-form-submit";
 
 const initialState: CambiarPasswordFormState = { message: null, success: false };
 const initialPinState: PinFormState = { message: null, success: false };
 
-function SubmitButton({ label, pendingLabel, className, disabled = false }: { label: string; pendingLabel?: string; className?: string; disabled?: boolean }) {
-  const { pending } = useFormStatus();
+function SubmitButton({ label, pendingLabel, pending, className, disabled = false }: { label: string; pendingLabel?: string; pending: boolean; className?: string; disabled?: boolean }) {
   return (
     <button
       type="submit"
@@ -26,8 +31,10 @@ function SubmitButton({ label, pendingLabel, className, disabled = false }: { la
 }
 
 function PinSection() {
-  const [configurarState, configurarFormAction] = useActionState(configurarPinAction, initialPinState);
-  const [eliminarState, eliminarFormAction] = useActionState(eliminarPinAction, initialPinState);
+  const [configurarState, configurarFormAction, configurarPending] = useActionState(configurarPinAction, initialPinState);
+  const [eliminarState, eliminarFormAction, eliminarPending] = useActionState(eliminarPinAction, initialPinState);
+  const { onSubmit: onConfigurarSubmit } = useFormSubmit(configurarFormAction);
+  const { onSubmit: onEliminarSubmit } = useFormSubmit(eliminarFormAction);
   const configurarMessageRef = useRef<HTMLParagraphElement>(null);
   const configurarFormRef = useRef<HTMLFormElement>(null);
   const eliminarMessageRef = useRef<HTMLParagraphElement>(null);
@@ -38,14 +45,14 @@ function PinSection() {
       configurarMessageRef.current?.focus();
       if (configurarState.success) configurarFormRef.current?.reset();
     }
-  }, [configurarState.message, configurarState.success]);
+  }, [configurarState]);
 
   useEffect(() => {
     if (eliminarState.message) {
       eliminarMessageRef.current?.focus();
       if (eliminarState.success) eliminarFormRef.current?.reset();
     }
-  }, [eliminarState.message, eliminarState.success]);
+  }, [eliminarState]);
 
   return (
     <div className="mt-10">
@@ -54,7 +61,7 @@ function PinSection() {
         Un PIN de 6 dígitos para confirmar acciones sensibles sin escribir tu contraseña completa. Nunca sirve para iniciar sesión.
       </p>
 
-      <form ref={configurarFormRef} action={configurarFormAction} noValidate className="flex flex-col gap-4">
+      <form ref={configurarFormRef} action={configurarFormAction} onSubmit={onConfigurarSubmit} noValidate className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <label htmlFor="passwordActual" className="text-sm font-medium">
             Contraseña actual
@@ -114,10 +121,10 @@ function PinSection() {
           </p>
         ) : null}
 
-        <SubmitButton label="Guardar PIN" />
+        <SubmitButton label="Guardar PIN" pending={configurarPending} />
       </form>
 
-      <form ref={eliminarFormRef} action={eliminarFormAction} noValidate className="mt-6 flex flex-col gap-4">
+      <form ref={eliminarFormRef} action={eliminarFormAction} onSubmit={onEliminarSubmit} noValidate className="mt-6 flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <label htmlFor="passwordActualEliminar" className="text-sm font-medium">
             Contraseña actual (para eliminar el PIN)
@@ -143,7 +150,7 @@ function PinSection() {
           </p>
         ) : null}
 
-        <SubmitButton label="Eliminar PIN" className="btn btn-danger w-full" />
+        <SubmitButton label="Eliminar PIN" pending={eliminarPending} className="btn btn-danger w-full" />
       </form>
     </div>
   );
@@ -154,7 +161,7 @@ export default function CuentaPage() {
   const [actual, setActual] = useState("");
   const [fieldsKey, setFieldsKey] = useState(0);
   const [passwordValid, setPasswordValid] = useState(false);
-  const [state, formAction] = useActionState(async (prevState: CambiarPasswordFormState, formData: FormData) => {
+  const [state, formAction, isPending] = useActionState(async (prevState: CambiarPasswordFormState, formData: FormData) => {
     const result = await cambiarPasswordAction(prevState, formData);
     if (result.success) {
       setActual("");
@@ -162,6 +169,7 @@ export default function CuentaPage() {
     }
     return result;
   }, initialState);
+  const { onSubmit } = useFormSubmit(formAction);
   const messageRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
@@ -175,7 +183,7 @@ export default function CuentaPage() {
       <h1 className="mb-6 text-2xl font-semibold">Mi cuenta</h1>
       <h2 className="mb-4 text-lg font-medium">Cambiar contraseña</h2>
 
-      <form action={formAction} noValidate className="flex flex-col gap-4">
+      <form action={formAction} onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <label htmlFor="actual" className="text-sm font-medium">
             Contraseña actual
@@ -211,7 +219,7 @@ export default function CuentaPage() {
           </p>
         ) : null}
 
-        <SubmitButton label="Cambiar contraseña" disabled={actual.length === 0 || !passwordValid} />
+        <SubmitButton label="Cambiar contraseña" pending={isPending} disabled={actual.length === 0 || !passwordValid} />
       </form>
 
       <PinSection />

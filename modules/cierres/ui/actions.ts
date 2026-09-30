@@ -3,7 +3,7 @@
 /** Server Actions for `/cierres/**` (FASE 10). */
 import { revalidatePath } from "next/cache";
 import { firmarCierre } from "@/modules/cierres/application/firmar-cierre";
-import { AppError } from "@/shared/errors";
+import { actionError } from "@/shared/ui/action-error";
 import type { CierresActionState } from "./action-state";
 import { MOTIVO_DEMORA_VALUES } from "../domain/motivo-demora";
 
@@ -25,7 +25,6 @@ export async function firmarCierreAction(_prevState: CierresActionState, formDat
     revalidatePath(`/cierres/${resultado.id}`);
     return { status: "success", message: `Jornada ${resultado.fecha} firmada (${resultado.cantidadAsientos} asiento${resultado.cantidadAsientos === 1 ? "" : "s"}).` };
   } catch (error) {
-    const message = error instanceof AppError ? error.message : "No se pudo firmar el cierre.";
-    return { status: "error", message };
+    return actionError(error, "No se pudo firmar el cierre.");
   }
 }

@@ -1,6 +1,11 @@
 import { defineConfig } from "vitest/config";
 import path from "node:path";
 
+// `import "server-only"` (modules/*/infrastructure/*.server.ts) is resolved
+// by Next's own bundler, not by an npm package -- give Vitest the same
+// empty module Next compiles it to on the server.
+const serverOnlyAlias = { "server-only": path.resolve(__dirname, "node_modules/next/dist/compiled/server-only/empty.js") };
+
 // Two projects, run independently:
 // - `unit`: fast, no I/O, safe to run always (npm test / CI unit job).
 // - `db`: hits the ONE real Supabase database, every test inside a
@@ -10,6 +15,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "."),
+      ...serverOnlyAlias,
     },
   },
   test: {
@@ -18,6 +24,7 @@ export default defineConfig({
         resolve: {
           alias: {
             "@": path.resolve(__dirname, "."),
+            ...serverOnlyAlias,
           },
         },
         test: {
@@ -31,6 +38,7 @@ export default defineConfig({
         resolve: {
           alias: {
             "@": path.resolve(__dirname, "."),
+            ...serverOnlyAlias,
           },
         },
         test: {

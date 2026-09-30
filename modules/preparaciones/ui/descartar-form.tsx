@@ -1,7 +1,7 @@
 "use client";
 
 /** "Descartar preparación" form (M11, FASE 8 point 8.1) -- motivo obligatorio, no toca stock. */
-import { SimpleForm } from "./simple-form";
+import { SimpleForm } from "@/shared/ui/simple-form";
 import { descartarPreparacionAction } from "./actions";
 
 export interface DescartarPreparacionFormProps {
@@ -10,7 +10,7 @@ export interface DescartarPreparacionFormProps {
 
 export function DescartarPreparacionForm({ preparacionId }: DescartarPreparacionFormProps) {
   return (
-    <SimpleForm action={descartarPreparacionAction} submitLabel="Descartar preparación" pendingLabel="Descartando…" submitClassName="rounded bg-red-700 px-3 py-2 text-sm text-white disabled:opacity-50">
+    <SimpleForm action={descartarPreparacionAction} submitLabel="Descartar preparación" pendingLabel="Descartando…" submitVariant="danger-solid">
       <input type="hidden" name="preparacionId" value={preparacionId} />
       <div className="flex flex-col gap-1">
         <label htmlFor="motivo" className="text-sm font-medium">

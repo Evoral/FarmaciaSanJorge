@@ -1,6 +1,6 @@
 /**
  * `getUnidad` (M05, FASE 4 point 4.1): single-row read for
- * `/admin/unidades/[id]`. Same permiso reuse as list-unidades.ts.
+ * `/catalogos/unidades/[id]`. Same permiso reuse as list-unidades.ts.
  *
  * m1 (review finding, DP-39): also returns `drogasQueLaUsan`, the TRUE
  * cross-tenant count of drogas referencing this unidad (via migration

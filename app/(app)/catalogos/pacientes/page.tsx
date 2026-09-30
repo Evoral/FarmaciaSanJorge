@@ -17,6 +17,7 @@ import { can } from "@/shared/auth/authorize";
 import { listPacientes } from "@/modules/pacientes/application/list-pacientes";
 import { PacienteForm } from "@/modules/pacientes/ui/paciente-form";
 import { PacientesBuscador } from "@/modules/pacientes/ui/pacientes-buscador";
+import { FilterForm } from "@/shared/ui/filter-form";
 
 const PAGE_SIZE = 20;
 
@@ -60,7 +61,7 @@ export default async function PacientesPage({ searchParams }: PacientesPageProps
         </div>
       ) : null}
 
-      <form method="get" className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtro de estado de pacientes">
+      <FilterForm className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtro de estado de pacientes" hasActiveFilters={Boolean(estado)}>
         <div className="flex flex-col gap-1">
           <label htmlFor="estado" className="text-sm font-medium">
             Estado
@@ -71,15 +72,7 @@ export default async function PacientesPage({ searchParams }: PacientesPageProps
             <option value="baja">Dados de baja</option>
           </select>
         </div>
-        <button type="submit" className="btn btn-secondary">
-          Filtrar
-        </button>
-        {estado ? (
-          <Link href="/catalogos/pacientes" className="text-sm underline">
-            Limpiar filtro
-          </Link>
-        ) : null}
-      </form>
+      </FilterForm>
 
       <PacientesBuscador itemsIniciales={result.items} totalInicial={result.total} estado={estado} />
 

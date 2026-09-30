@@ -35,20 +35,33 @@
  * Also fixes M3 for this command: a droga given de baja concurrently is
  * now detected (see the check right after the fresh read) instead of the
  * compare-and-swap silently ignoring fechaBaja/motivoBaja.
+ *
+ * The clasificación fields are OPTIONAL: when omitted (e.g. the form locks
+ * them because the droga has partidas), the stored values are kept, taken
+ * from the fresh locked read -- never from the client. `esControlada`, when
+ * omitted, is derived from the effective `tipoControl` (same rule as
+ * `tipoControlValido` / the DB CHECK).
  */
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { ConflictError, DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { nonEmptyString, uuid } from "@/shared/validation";
-import { TIPOS_CONTROL, tipoControlValido, puedeCambiarClasificacion, nonNegativeDecimalString } from "../domain/droga";
-import { existeNombreVigente, getDrogaParaAccion, lockDrogaParaAccion, tieneAlgunaPartida, updateDrogaDatos } from "../infrastructure/droga-repository";
+import { TIPOS_CONTROL, tipoControlValido, puedeCambiarClasificacion, nonNegativeDecimalString, type TipoControl } from "../domain/droga";
+import {
+  existeNombreVigente,
+  getDrogaParaAccion,
+  getEtiquetasUnidades,
+  lockDrogaParaAccion,
+  tieneAlgunaPartida,
+  updateDrogaDatos,
+} from "../infrastructure/droga-repository";
 
 const editarDrogaInput = z.object({
   id: uuid,
   nombre: nonEmptyString,
-  unidadBaseId: uuid,
-  esControlada: z.boolean(),
-  tipoControl: z.enum(TIPOS_CONTROL),
+  unidadBaseId: uuid.optional(),
+  esControlada: z.boolean().optional(),
+  tipoControl: z.enum(TIPOS_CONTROL).optional(),
   stockMinimo: nonNegativeDecimalString,
   version: z.object({
     nombre: z.string(),
@@ -63,9 +76,9 @@ const editarDrogaInput = z.object({
 export interface EditarDrogaInput {
   id: string;
   nombre: string;
-  unidadBaseId: string;
-  esControlada: boolean;
-  tipoControl: string;
+  unidadBaseId?: string;
+  esControlada?: boolean;
+  tipoControl?: string;
   stockMinimo: string;
   version: { nombre: string; unidadBaseId: string; esControlada: boolean; tipoControl: string; stockMinimo: string };
 }
@@ -100,7 +113,11 @@ export const editarDrogaCommand = defineCommand({
       throw new ConflictError(CONCURRENCY_MESSAGE);
     }
 
-    if (!tipoControlValido(input.esControlada, input.tipoControl)) {
+    const unidadBaseId = input.unidadBaseId ?? actual.unidadBaseId;
+    const tipoControl = input.tipoControl ?? (actual.tipoControl as TipoControl);
+    const esControlada = input.esControlada ?? tipoControl !== "NINGUNO";
+
+    if (!tipoControlValido(esControlada, tipoControl)) {
       throw new ValidationError('El tipo de control debe ser "Ninguno" si y solo si la droga no es controlada.');
     }
 
@@ -109,13 +126,13 @@ export const editarDrogaCommand = defineCommand({
     }
 
     const cambiaClasificacion =
-      input.unidadBaseId !== actual.unidadBaseId || input.esControlada !== actual.esControlada || input.tipoControl !== actual.tipoControl;
+      unidadBaseId !== actual.unidadBaseId || esControlada !== actual.esControlada || tipoControl !== actual.tipoControl;
 
     if (cambiaClasificacion) {
       const tienePartidas = await tieneAlgunaPartida(tx, session.tenantId, input.id);
       if (!puedeCambiarClasificacion(tienePartidas)) {
         throw new DomainError(
-          "No se puede cambiar la unidad base, si es controlada o el tipo de control de una droga que ya tiene partidas (DP-12): afectaría la continuidad del libro de contralor.",
+          "No se puede cambiar la unidad base, si es controlada o el tipo de control de una droga que ya tiene partidas: afectaría la continuidad del libro de contralor.",
         );
       }
     }
@@ -127,7 +144,7 @@ export const editarDrogaCommand = defineCommand({
         id: input.id,
         nombre: input.nombre,
         stockMinimo: input.stockMinimo.toString(),
-        ...(cambiaClasificacion ? { clasificacion: { unidadBaseId: input.unidadBaseId, esControlada: input.esControlada, tipoControl: input.tipoControl } } : {}),
+        ...(cambiaClasificacion ? { clasificacion: { unidadBaseId, esControlada, tipoControl } } : {}),
       },
       {
         nombre: actual.nombre,
@@ -139,16 +156,29 @@ export const editarDrogaCommand = defineCommand({
     );
     if (!updated) throw new ConflictError(CONCURRENCY_MESSAGE);
 
+    const unidadBaseNueva = cambiaClasificacion ? unidadBaseId : actual.unidadBaseId;
+    // Readable names for the audit row, taken NOW: later renames must not rewrite history.
+    const unidades = await getEtiquetasUnidades(tx, [actual.unidadBaseId, unidadBaseNueva]);
+    const etiquetaUnidad = (id: string) => unidades.get(id) ?? null;
+
     return {
       output: { id: input.id },
       audit: {
         entidadId: input.id,
-        valorAnterior: { nombre: actual.nombre, unidadBaseId: actual.unidadBaseId, esControlada: actual.esControlada, tipoControl: actual.tipoControl, stockMinimo: actual.stockMinimo },
+        valorAnterior: {
+          nombre: actual.nombre,
+          unidadBaseId: actual.unidadBaseId,
+          unidadBase: etiquetaUnidad(actual.unidadBaseId),
+          esControlada: actual.esControlada,
+          tipoControl: actual.tipoControl,
+          stockMinimo: actual.stockMinimo,
+        },
         valorNuevo: {
           nombre: input.nombre,
-          unidadBaseId: cambiaClasificacion ? input.unidadBaseId : actual.unidadBaseId,
-          esControlada: cambiaClasificacion ? input.esControlada : actual.esControlada,
-          tipoControl: cambiaClasificacion ? input.tipoControl : actual.tipoControl,
+          unidadBaseId: unidadBaseNueva,
+          unidadBase: etiquetaUnidad(unidadBaseNueva),
+          esControlada: cambiaClasificacion ? esControlada : actual.esControlada,
+          tipoControl: cambiaClasificacion ? tipoControl : actual.tipoControl,
           stockMinimo: input.stockMinimo.toString(),
         },
       },

@@ -1,13 +1,14 @@
 "use server";
 
-/** Server Actions for `/admin/usuarios/[id]` (M03, FASE 3 points 3.3-3.6). */
+/** Server Actions for `/admin/accesos/usuarios/[id]` (M03, FASE 3 points 3.3-3.6). */
 import { editarUsuario } from "@/modules/usuarios/application/editar-usuario";
 import { cambiarRoles } from "@/modules/usuarios/application/cambiar-roles";
 import { suspenderUsuario } from "@/modules/usuarios/application/suspender-usuario";
 import { reactivarUsuario } from "@/modules/usuarios/application/reactivar-usuario";
 import { darDeBajaUsuario } from "@/modules/usuarios/application/dar-de-baja-usuario";
 import { restablecerCredencial } from "@/modules/usuarios/application/restablecer-credencial";
-import { AppError, StepUpRequiredError } from "@/shared/errors";
+import { StepUpRequiredError } from "@/shared/errors";
+import { actionError } from "@/shared/ui/action-error";
 import { ROLES_ASIGNABLES } from "@/modules/usuarios/domain/roles";
 import type { UsuarioActionState } from "@/modules/usuarios/ui/action-state";
 
@@ -19,16 +20,13 @@ import type { UsuarioActionState } from "@/modules/usuarios/ui/action-state";
  * with only an optional `message`) that `RestablecerCredencialState`
  * deliberately does not have.
  */
-type FailureState = { status: "reauth-required" } | { status: "error"; message: string };
+type FailureState = { status: "reauth-required" } | { status: "error"; message: string; fields?: string[] };
 
 function fromError(error: unknown, fallback: string): FailureState {
   if (error instanceof StepUpRequiredError) {
     return { status: "reauth-required" };
   }
-  if (error instanceof AppError) {
-    return { status: "error", message: error.message };
-  }
-  return { status: "error", message: fallback };
+  return actionError(error, fallback);
 }
 
 export async function editarUsuarioAction(_prevState: UsuarioActionState, formData: FormData): Promise<UsuarioActionState> {
@@ -93,7 +91,7 @@ export async function darDeBajaUsuarioAction(_prevState: UsuarioActionState, for
 
 export type RestablecerCredencialState =
   | { status: "idle" }
-  | { status: "error"; message: string }
+  | { status: "error"; message: string; fields?: string[] }
   | { status: "reauth-required" }
   | { status: "success"; credencial: string; credencialVenceEn: string };
 

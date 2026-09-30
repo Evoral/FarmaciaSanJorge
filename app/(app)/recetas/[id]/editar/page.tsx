@@ -41,11 +41,13 @@ export default async function EditarRecetaPage({ params }: EditarRecetaPageProps
         recetaId={receta.id}
         inicial={{
           pacienteId: receta.pacienteId,
-          pacienteLabel: `${receta.pacienteApellido}, ${receta.pacienteNombre}`,
+          pacienteLabel: `${receta.pacienteNombre} ${receta.pacienteApellido}`,
           medicoId: receta.medicoId,
           medicoLabel: `${receta.medicoApellido}, ${receta.medicoNombre}`,
           fechaPrescripcion: receta.fechaPrescripcion.toISOString().slice(0, 10),
           origen: receta.origen,
+          diagnosticoCodigo: receta.diagnosticoCodigo ?? "",
+          diagnosticoDescripcion: receta.diagnosticoDescripcion ?? "",
           items: receta.items.map((item) => ({
             id: item.id,
             descripcion: item.descripcion ?? "",
@@ -55,6 +57,8 @@ export default async function EditarRecetaPage({ params }: EditarRecetaPageProps
             cantidadTotal: item.cantidadTotal ?? "",
             unidadTotalId: item.unidadTotalId ?? "",
             observaciones: item.observaciones ?? "",
+            posologia: item.posologia ?? "",
+            duracionTratamientoDias: item.duracionTratamientoDias !== null ? String(item.duracionTratamientoDias) : "",
             componentes: item.componentes.map((c) => ({
               id: c.id,
               drogaId: c.drogaId,

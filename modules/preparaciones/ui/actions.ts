@@ -7,7 +7,8 @@ import { descartarPreparacion } from "@/modules/preparaciones/application/descar
 import { confirmarPreparacion } from "@/modules/preparaciones/application/confirmar-preparacion";
 import type { ConfirmarPreparacionLineaInput } from "@/modules/preparaciones/application/confirmar-preparacion";
 import { generarEtiqueta } from "@/modules/preparaciones/application/generar-etiqueta";
-import { AppError, StepUpRequiredError } from "@/shared/errors";
+import { StepUpRequiredError } from "@/shared/errors";
+import { actionError } from "@/shared/ui/action-error";
 import type { PreparacionActionState } from "./action-state";
 
 export async function iniciarPreparacionAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
@@ -16,8 +17,7 @@ export async function iniciarPreparacionAction(_prevState: PreparacionActionStat
     revalidatePath("/preparaciones");
     return { status: "success", message: "Preparación iniciada.", id: nueva.id };
   } catch (error) {
-    const message = error instanceof AppError ? error.message : "No se pudo iniciar la preparación.";
-    return { status: "error", message };
+    return actionError(error, "No se pudo iniciar la preparación.");
   }
 }
 
@@ -30,8 +30,7 @@ export async function descartarPreparacionAction(_prevState: PreparacionActionSt
     revalidatePath("/preparaciones");
     return { status: "success", message: "Preparación descartada." };
   } catch (error) {
-    const message = error instanceof AppError ? error.message : "No se pudo descartar la preparación.";
-    return { status: "error", message };
+    return actionError(error, "No se pudo descartar la preparación.");
   }
 }
 
@@ -70,8 +69,7 @@ export async function confirmarPreparacionAction(_prevState: PreparacionActionSt
     if (error instanceof StepUpRequiredError) {
       return { status: "reauth-required" };
     }
-    const message = error instanceof AppError ? error.message : "No se pudo confirmar la preparación.";
-    return { status: "error", message };
+    return actionError(error, "No se pudo confirmar la preparación.");
   }
 }
 
@@ -82,7 +80,6 @@ export async function generarEtiquetaAction(_prevState: PreparacionActionState, 
     revalidatePath(`/preparaciones/${preparacionId}`);
     return { status: "success", message: "Etiqueta generada." };
   } catch (error) {
-    const message = error instanceof AppError ? error.message : "No se pudo generar la etiqueta.";
-    return { status: "error", message };
+    return actionError(error, "No se pudo generar la etiqueta.");
   }
 }

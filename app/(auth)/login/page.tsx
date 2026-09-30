@@ -4,16 +4,20 @@
  * `/login` (M02, FASE 2 point 2.2). Public path (see proxy.ts's
  * PUBLIC_PATHS). No tenant selector (DP-40 RESUELTA): email + password
  * only.
+ *
+ * A rejected login keeps the email (submits go through
+ * `shared/ui/use-form-submit.ts`, bypassing React 19's automatic form
+ * reset) but deliberately clears the password field: it is a secret, and
+ * after a failed attempt it has to be retyped anyway.
  */
 import { useActionState, useEffect, useRef } from "react";
-import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { loginAction, type LoginFormState } from "./actions";
+import { useFormSubmit } from "@/shared/ui/use-form-submit";
 
 const initialState: LoginFormState = { message: null };
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
+function SubmitButton({ pending }: { pending: boolean }) {
   return (
     <button
       type="submit"
@@ -26,20 +30,23 @@ function SubmitButton() {
 }
 
 export default function LoginPage() {
-  const [state, formAction] = useActionState(loginAction, initialState);
+  const [state, formAction, isPending] = useActionState(loginAction, initialState);
+  const { onSubmit } = useFormSubmit(formAction);
   const errorRef = useRef<HTMLParagraphElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (state.message) {
+      if (passwordRef.current) passwordRef.current.value = "";
       errorRef.current?.focus();
     }
-  }, [state.message]);
+  }, [state]);
 
   return (
     <main>
       <h1 className="mb-6 text-2xl font-semibold">Iniciar sesión</h1>
 
-      <form action={formAction} noValidate className="flex flex-col gap-4">
+      <form action={formAction} onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <label htmlFor="email" className="text-sm font-medium">
             Email
@@ -60,6 +67,7 @@ export default function LoginPage() {
             Contraseña
           </label>
           <input
+            ref={passwordRef}
             id="password"
             name="password"
             type="password"
@@ -75,7 +83,7 @@ export default function LoginPage() {
           </p>
         ) : null}
 
-        <SubmitButton />
+        <SubmitButton pending={isPending} />
       </form>
 
       <p className="mt-6 text-sm">

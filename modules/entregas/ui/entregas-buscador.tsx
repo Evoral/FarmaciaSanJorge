@@ -3,10 +3,10 @@
 /** Search box + results table for `/entregas` (FASE 11, DP-24 discipline -- see buscar-entregas-action.ts's doc comment). Own copy per module, same shape as modules/pacientes/ui/pacientes-buscador.tsx. */
 import { useActionState } from "react";
 import Link from "next/link";
-import { useFormStatus } from "react-dom";
 import { buscarEntregasAction } from "./buscar-entregas-action";
 import type { BuscarEntregasState } from "./buscar-entregas-action";
 import type { EntregaPendienteItem } from "@/modules/entregas/application/list-entregas-pendientes";
+import { useFormSubmit } from "@/shared/ui/use-form-submit";
 
 const ETIQUETA_ESTADO: Record<string, string> = {
   PREPARADA: "Preparada",
@@ -14,8 +14,7 @@ const ETIQUETA_ESTADO: Record<string, string> = {
   ENVIADA_PEND_FIRMA: "Enviada, pendiente de firma",
 };
 
-function BuscarButton() {
-  const { pending } = useFormStatus();
+function BuscarButton({ pending }: { pending: boolean }) {
   return (
     <button type="submit" disabled={pending} className="btn btn-secondary">
       {pending ? "Buscando…" : "Buscar"}
@@ -30,18 +29,20 @@ export interface EntregasBuscadorProps {
 
 export function EntregasBuscador({ itemsIniciales, totalInicial }: EntregasBuscadorProps) {
   const initialState: BuscarEntregasState = { status: "idle", items: itemsIniciales, total: totalInicial };
-  const [state, formAction] = useActionState(buscarEntregasAction, initialState);
+  const [state, formAction, isPending] = useActionState(buscarEntregasAction, initialState);
+  // Not reset on success: the search criteria stay next to their results.
+  const { onSubmit } = useFormSubmit(formAction);
 
   return (
     <div>
-      <form action={formAction} className="mb-4 flex flex-wrap items-end gap-3" aria-label="Buscar entregas pendientes">
+      <form action={formAction} onSubmit={onSubmit} className="mb-4 flex flex-wrap items-end gap-3" aria-label="Buscar entregas pendientes">
         <div className="flex flex-col gap-1">
           <label htmlFor="q" className="text-sm font-medium">
             Buscar por paciente
           </label>
           <input id="q" name="q" type="text" placeholder="Apellido o nombre" className="input" />
         </div>
-        <BuscarButton />
+        <BuscarButton pending={isPending} />
       </form>
 
       {state.status === "error" ? (
@@ -79,7 +80,7 @@ export function EntregasBuscador({ itemsIniciales, totalInicial }: EntregasBusca
                       {r.numeroInterno}
                     </Link>
                   </td>
-                  <td className="px-3 py-2">{r.pacienteApellido}, {r.pacienteNombre}</td>
+                  <td className="px-3 py-2">{r.pacienteNombre} {r.pacienteApellido}</td>
                   <td className="px-3 py-2">{r.medicoApellido}, {r.medicoNombre}</td>
                   <td className="px-3 py-2">{ETIQUETA_ESTADO[r.estado] ?? r.estado}</td>
                 </tr>

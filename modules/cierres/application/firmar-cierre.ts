@@ -106,7 +106,7 @@ const firmarCierreInternalCommand = defineCommand({
       // is mapped explicitly here into a clear Spanish DomainError.
       const mapped = mapDbError(e);
       if (mapped instanceof InvariantViolationError) {
-        throw new DomainError(mensajeParaInvarianteFirma(mapped.invariantCode));
+        throw new DomainError(mensajeParaInvarianteFirma(mapped.invariantCode), { cause: mapped });
       }
       throw mapped;
     }

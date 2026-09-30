@@ -7,16 +7,15 @@ import { getPartida } from "@/modules/stock/application/get-partida";
 import { kardexMovimientos } from "@/modules/stock/application/kardex-movimientos";
 import { NotFoundError } from "@/shared/errors";
 import { CorregirCostoForm } from "@/modules/stock/ui/corregir-costo-form";
+import { getCatalogoUnidades } from "@/modules/unidades/application/catalogo-unidades";
+import { formatCantidad, formatCantidadesFila } from "@/shared/format/cantidad";
+import { Cantidad } from "@/shared/ui/cantidad";
+import { TIPO_MOVIMIENTO_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 
 function formatFecha(fecha: Date): string {
   return new Intl.DateTimeFormat("es-AR", { timeZone: "UTC", dateStyle: "short", timeStyle: "short" }).format(fecha);
 }
 
-const TIPO_MOVIMIENTO_LABELS: Record<string, string> = {
-  INGRESO_COMPRA: "Ingreso de compra",
-  EGRESO_PREPARACION: "Egreso por preparación",
-  AJUSTE: "Ajuste",
-};
 
 interface PartidaDetallePageProps {
   params: Promise<{ id: string }>;
@@ -34,7 +33,10 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
     throw error;
   }
 
-  const kardex = await kardexMovimientos({ partidaId: id, page: 1, pageSize: 50 });
+  const [kardex, { catalogo }] = await Promise.all([kardexMovimientos({ partidaId: id, page: 1, pageSize: 50 }), getCatalogoUnidades()]);
+  const unidad = { id: partida.unidadBaseId, simbolo: partida.unidadBaseSimbolo };
+  // Saldo and cantidad inicial side by side: one unit for both.
+  const [disponible, inicial] = formatCantidadesFila([partida.cantidadDisponible, partida.cantidadInicial], unidad, catalogo);
   const puedeCorregirCosto = can(session, "stock.partida.costo.corregir");
   const puedeAjustar = can(session, "stock.ajuste.registrar");
 
@@ -53,11 +55,15 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
       <dl className="card mb-6 grid grid-cols-2 gap-4 p-4 text-sm sm:grid-cols-4">
         <div>
           <dt className="text-zinc-500">Saldo disponible</dt>
-          <dd className="font-medium">{partida.cantidadDisponible}</dd>
+          <dd className="font-medium">
+            <Cantidad valor={disponible!} />
+          </dd>
         </div>
         <div>
           <dt className="text-zinc-500">Cantidad inicial</dt>
-          <dd className="font-medium">{partida.cantidadInicial}</dd>
+          <dd className="font-medium">
+            <Cantidad valor={inicial!} />
+          </dd>
         </div>
         <div>
           <dt className="text-zinc-500">Costo unitario</dt>
@@ -107,8 +113,10 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
               kardex.items.map((mov) => (
                 <tr key={mov.id}>
                   <td className="px-3 py-2">{formatFecha(mov.registradoEn)}</td>
-                  <td className="px-3 py-2">{TIPO_MOVIMIENTO_LABELS[mov.tipo] ?? mov.tipo}</td>
-                  <td className="px-3 py-2">{mov.cantidad}</td>
+                  <td className="px-3 py-2">{etiquetaDe(TIPO_MOVIMIENTO_LABELS, mov.tipo)}</td>
+                  <td className="px-3 py-2">
+                    <Cantidad valor={formatCantidad(mov.cantidad, { id: mov.unidadId, simbolo: mov.unidadSimbolo }, catalogo)} />
+                  </td>
                   <td className="px-3 py-2">{mov.motivoAjuste ?? mov.observacion ?? "—"}</td>
                   <td className="px-3 py-2">
                     {mov.registradoPorNombre} {mov.registradoPorApellido}

@@ -11,7 +11,7 @@ import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
-import { formatearContenidoEtiqueta } from "../domain/preparacion";
+import { armarContenidoEtiqueta, formatearContenidoEtiqueta } from "../domain/etiqueta";
 import { getPreparacionParaEtiqueta, getEtiquetaExistente, insertEtiqueta } from "../infrastructure/preparacion-repository";
 
 const generarEtiquetaInput = z.object({ preparacionId: uuid });
@@ -39,12 +39,18 @@ export const generarEtiquetaCommand = defineCommand({
       throw new NotFoundError("La preparación no existe o no está CONFIRMADA: solo se puede generar la etiqueta de una preparación confirmada.");
     }
 
-    const contenido = formatearContenidoEtiqueta(datos);
+    const contenido = formatearContenidoEtiqueta(armarContenidoEtiqueta(datos));
     const etiqueta = await insertEtiqueta(tx, session.tenantId, input.preparacionId, contenido);
 
     return {
       output: { id: etiqueta.id },
-      audit: { entidadId: etiqueta.id, valorNuevo: { preparacionId: input.preparacionId } },
+      audit: {
+        entidadId: etiqueta.id,
+        valorNuevo: {
+          preparacionId: input.preparacionId,
+          preparacion: `${datos.itemDescripcion ?? datos.formaFarmaceutica}${datos.asientoNumeroCorrelativo ? ` — asiento Nº ${datos.asientoNumeroCorrelativo}` : ""}`,
+        },
+      },
     };
   },
 });

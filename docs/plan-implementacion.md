@@ -142,7 +142,7 @@ Un Usuario puede tener varios roles (UsuarioRol 1..*) **[CONFIRMADO]**. Permisos
 | Usuarios | `usuarios.auditoria.ver` | ADM, DT(lectura) | — |
 | Designación DT | `dt.designar`, `dt.cesar` | ADM | Usuario con rol DT; matrícula; DP-11 |
 | Roles/Permisos | `roles.ver` | ADM | — ; edición según DP-03 |
-| Farmacia/Parámetros | `config.ver/editar` | ADM (editar), todos (ver datos institucionales) | Auditado |
+| Farmacia/Parámetros | `config.ver/editar` | ADM (ver y editar). Desde la migración 0046 (decisión 2026-09-28) `config.ver` es solo ADM; el DT entra a "Configuración" únicamente por Reglas de precio (`precios.reglas.editar`) | Auditado |
 | Unidades | `unidades.crear/baja/editar` | ADM | INV-M02/M03/M04 |
 | Drogas | `drogas.crear/editar/baja/reactivar` | FAR, DT, ADM | INV-F03/F05 |
 | Proveedores | `proveedores.*` | FAR, DT, ADM | — |
@@ -259,7 +259,7 @@ Orden de presentación = orden de dependencias. Cada módulo lista invariantes p
   - INV-PL-002 Las fechas de negocio (fechaAsiento, jornada, fechaFirma, registradoEn) las fija el servidor/BD, nunca el cliente. [BD + APP] (`DEFAULT now()` y triggers que sobreescriben).
   - INV-PL-003 Cantidades y montos son `numeric` en BD y `Decimal` en aplicación. [BD + APP]
 - **Parámetros iniciales** (tabla `parametro` clave/valor tipado, auditados): `plazo_regularizacion_receta_dias` (DP-15), `umbral_folios_alerta` (DP-22), `plazo_archivo_comun_anios`=2, `plazo_archivo_controladas_anios`=3 (DP-26), `vencimiento_credencial_horas`=72, `plazo_firma_jornada` (DP-18), `dias_alerta_vencimiento_partida` (DP-14), `session_idle_minutes`, `session_absolute_hours` (DP-20).
-- **API/UI**: `/admin/farmacia` (datos del propio tenant), `/admin/parametros` (ADM); `/plataforma/tenants` (operador, DP-37).
+- **API/UI**: `/admin/configuracion/farmacia` (datos del propio tenant), `/admin/configuracion/parametros` (ADM); `/plataforma/tenants` (operador, DP-37).
 - **Auditoría**: edición de datos del tenant y parámetros (valor anterior/nuevo); alta/baja de tenant.
 - **Errores**: errores de BD nunca se exponen crudos; se mapean a mensaje seguro + código + request-id.
 - **Tests**: jornada en bordes (23:59/00:00 Mendoza, cambios de UTC), mapeo de errores, parámetros tipados; **aislamiento**: con dos tenants sembrados, cada consulta de cada repositorio como tenant A nunca devuelve filas de B; INSERT con FK hacia fila de otro tenant falla; UPDATE de `tenant_id` falla; transacción sin `app.tenant_id` no ve filas.
@@ -347,7 +347,7 @@ Orden de presentación = orden de dependencias. Cada módulo lista invariantes p
   7. Ver detalle con estado, roles, último acceso, historial.
   8. Ver catálogo de roles y sus permisos (lectura; edición según DP-03).
 - **API**: `usuarios.listar/obtener/crear/editar/cambiarRoles/suspender/reactivar/darDeBaja/restablecerCredencial`. `authorize(sesion, permiso)` y `can()` para ocultar UI.
-- **UI**: `/admin/usuarios`, `/admin/usuarios/nuevo`, `/admin/usuarios/[id]`, `/admin/roles`.
+- **UI**: `/admin/accesos/usuarios`, `/admin/accesos/usuarios/nuevo`, `/admin/accesos/usuarios/[id]`, `/admin/accesos/roles`.
 - **Auditoría**: alta, edición, cambio de rol, suspensión, reactivación, baja, restablecimiento [CONFIRMADO].
 - **Errores**: email duplicado; intento de dejar sin roles; último ADM; auto-baja; concurrencia de edición (`updated_at` como versión optimista ⇒ "el registro cambió, recargá").
 - **Concurrencia**: dos ADM restableciendo a la vez ⇒ índice único parcial de credencial activa + lock de fila `usuario FOR UPDATE`.
@@ -368,7 +368,7 @@ Orden de presentación = orden de dependencias. Cada módulo lista invariantes p
 - **Relación con "MatriculaProfesional"** de INV-U04: se modela con la matrícula de la designación (DP-10).
 - **Tests**: vigencia en bordes de fecha; solapamiento; firma de fecha pasada con DT vigente entonces y no hoy (debe permitirse según INV-U04).
 - **NO HACER**: no evaluar vigencia contra la fecha actual cuando la regla dice `cierre.fecha`; no borrar designaciones; no inferir DT solo por el rol.
-- **DoD**: tabla + exclusión; `esDTVigente(usuarioId, fecha)` usado por M08/M10/M11; UI `/admin/directores-tecnicos`; tests.
+- **DoD**: tabla + exclusión; `esDTVigente(usuarioId, fecha)` usado por M08/M10/M11; UI `/admin/accesos/directores-tecnicos`; tests.
 
 ### M05. Catálogos: Unidades de medida
 
@@ -378,7 +378,7 @@ Orden de presentación = orden de dependencias. Cada módulo lista invariantes p
 - **Invariantes**: INV-M01 [BD + APP] (función SQL `convertir(valor, origen, destino)` que falla si magnitudes difieren), INV-M02 [BD] (índice único parcial `(tipo_magnitud) WHERE es_base` + check `NOT es_base OR factor_a_base = 1`), INV-M03 [BD] (FK `ON DELETE RESTRICT` + sin grant DELETE), INV-M04 [BD] (trigger: si `usada` ⇒ `factor_a_base` y `tipo_magnitud` inmutables; solo ADM edita), INV-G01 baja con `fecha_baja`.
 - **Historias** [CONFIRMADO]: ADM da de alta unidad con magnitud y factor; ADM da de baja unidad en desuso sin afectar históricos. + reactivar con motivo (INV-G01).
 - **NO HACER**: no convertir peso↔volumen por factor; no editar factor de una unidad usada (baja + nueva); no borrar.
-- **DoD**: CRUD ADM, conversión testeada con todos los pares, UI `/admin/unidades`.
+- **DoD**: CRUD ADM, conversión testeada con todos los pares, UI `/catalogos/unidades`.
 
 ### M06. Catálogos: Drogas, Proveedores, Médicos, Pacientes
 
@@ -869,7 +869,7 @@ Cobertura de entidades (responsable / CRUD / permisos / auditoría / UI / tests)
 - **DP-16b** Preparación confirmada y luego descartada: ¿se anula también el asiento o solo se ajusta el stock? · M11/M12.
 - **DP-16c RESUELTA**: jornada firmada ⇒ el asiento original NO se toca; se hace un **asiento rectificativo nuevo** en la jornada en curso. Jornada abierta ⇒ el original pasa a ANULADO. Ver spec §1.
 - **DP-17 RESUELTA**: los asientos históricos son solo control, con el formato y la numeración del libro físico, en una tabla aparte. No entran en correlativo, hash ni cierres. Ver spec §2.
-- **DP-18 RESUELTA (2026-09-24, FASE 10 punto 10.1)**: "en término" = firmar dentro de `plazo_firma_dias` días corridos desde la fecha de la jornada -- nuevo parámetro por tenant (`fsj.parametro`, clave `plazo_firma_dias`, entero ≥ 0, default 0 -- 0 reproduce la regla anterior de "solo la misma jornada"), editable por ADM en `/admin/parametros`. Migración 0038: `CREATE OR REPLACE fsj.cierre_diario_calcular_fuera_de_termino` lee el parámetro (COALESCE a 0 si falta). Ver spec §5.
+- **DP-18 RESUELTA (2026-09-24, FASE 10 punto 10.1)**: "en término" = firmar dentro de `plazo_firma_dias` días corridos desde la fecha de la jornada -- nuevo parámetro por tenant (`fsj.parametro`, clave `plazo_firma_dias`, entero ≥ 0, default 0 -- 0 reproduce la regla anterior de "solo la misma jornada"), editable por ADM en `/admin/configuracion/parametros`. Migración 0038: `CREATE OR REPLACE fsj.cierre_diario_calcular_fuera_de_termino` lee el parámetro (COALESCE a 0 si falta). Ver spec §5.
 - **DP-18b RESUELTA**: el DT puede firmar la jornada en curso (cierra el negocio y firma el día completo). Desde la firma, INV-C03 rechaza todo registro con fecha de hoy. La UI de firma debe advertirlo y mostrar las preparaciones INICIADAS. Firmar una fecha futura se rechaza (INV-C21).
 - **DP-18c RESUELTA (2026-09-24, FASE 10 punto 10.1)**: enum `fsj.motivo_demora` = `AUSENCIA_DT`, `FALLA_SISTEMA`, `FARMACIA_CERRADA`, `OTRO` (migración 0039; `OTRO` exige `motivo_demora_detalle` no vacío, CHECK en BD). Datos preexistentes que no matcheaban una etiqueta real pasan a `OTRO`, preservando el texto original en `motivo_demora_detalle` cuando estaba vacío.
 - **DP-18d RESUELTA (2026-09-24, FASE 10 punto 10.1)**: una jornada sin ningún asiento (recetario ni contralor) NO requiere firma y no aparece en el listado/alerta de pendientes; firmarla igual (en cero) sigue siendo posible, solo que nunca se exige. Ver spec §5.
@@ -878,13 +878,20 @@ Cobertura de entidades (responsable / CRUD / permisos / auditoría / UI / tests)
 - **DP-21 RESUELTA (2026-09-24, FASE 10 punto 10.2)**: comprobante en hoja A4 (`shared/pdf/pdf-document.ts`, `modules/cierres/infrastructure/cierre-pdf.ts`), no ligado al cálculo de folios (M13b sigue diferido, DP-38). Contenido: datos de la farmacia, fecha de la jornada, DT (nombre + matrícula), listado de asientos recetario (Nº, paciente, médico, fórmula, estado visual) y de contralor (Nº, libro, droga, movimiento, cantidad, saldo) de esa jornada, `cantidad_asientos`, `hash_lote`, `sello_tiempo`/`fecha_firma`, fuera de término + motivo, y un área en blanco para "Firma y sello del Director Técnico". Ruta `app/api/cierres/[id]/pdf`, permiso `cierres.imprimir`; la primera impresión fija `fecha_impresion`/`impreso_por_id`; toda impresión se audita (`TipoAccion.IMPRIMIR_CIERRE`).
 - **DP-21b RESUELTA**: **NO existen ajustes positivos**. Todo `AJUSTE` descuenta saldo. Un sobrante se registra como partida nueva. [BD] check: los movimientos siempre restan salvo `INGRESO_COMPRA`.
 - **DP-22** Umbral de folios para alerta. · M13.
-- **DP-23** Unicidad de matrícula de médico (¿provincial/nacional? ¿matrícula + jurisdicción?). · M06.
+- **DP-23 RESUELTA (2026-09-29)**: `medico.matricula_jurisdiccion` (`NACIONAL`/`PROVINCIAL`, backfill `PROVINCIAL`); unicidad de matrícula vigente por `(tenant, jurisdicción, matrícula)`. Ver `docs/specs/importacion-receta-pdf.md`. · M06.
 - **DP-24** Política de datos de pacientes (Ley 25.326): retención, baja lógica, quién ve qué. · M06.
 - **DP-25** Formato de `numeroInterno` de receta. · M09.
 - **DP-26 PARCIAL (2026-09-24, FASE 12)**: plazos parametrizables por tenant (`plazo_archivo_comun_anios`=2, `plazo_archivo_controladas_anios`=3 por defecto, migración 0042) a confirmar con la normativa de Mendoza; el sistema conserva lo digital para siempre -- "destrucción" es únicamente de las recetas en PAPEL (`lote_archivo_recetas.estado` llegando a `DESTRUIDO`), nunca de `receta`/`asiento`/adjuntos. · M15.
 - **DP-27** RESUELTA (2026-09-23, D6): se auditan las exportaciones (CSV/PDF) del libro recetario -- `TipoAccion.EXPORTAR` (migración 0036), `modules/libro/application/exportar-libro.ts`. · M01.
-- **DP-28** Contenido obligatorio de la etiqueta e impresora usada. · M11.
-- **DP-29** Almacenamiento de adjuntos de recetas digitales (disco local vs objeto S3), tamaño máximo y retención. · M09.
+- **DP-28** Contenido obligatorio de la etiqueta e impresora usada. · M11. Diseño basado en la etiqueta real de la farmacia (2026-09-30); valores por defecto implementados, a confirmar con el farmacéutico (cada uno en una constante/función de `modules/preparaciones/domain/etiqueta.ts` o `infrastructure/etiqueta-pdf.ts`):
+  - **Número de receta**: "Receta N" = número del asiento del libro recetario; si no hay, `receta.numero_interno` (`numeroRecetaEtiqueta`).
+  - **Vencimiento**: no hay dato; se imprime "Vence: ______" para completar a mano (`VENCE_ETIQUETA`).
+  - **Vía**: derivada de la forma (cápsula/comprimido/jarabe/polvo → oral; crema/gel/ungüento/loción → uso externo; óvulo → vaginal; supositorio → rectal; solución/suspensión → sin vía) (`viaDeAdministracion`).
+  - **Rp/**: solo los componentes marcados como principio activo; si no hay ninguno, todos salvo CS/CSP. El tamaño de letra baja con la cantidad de renglones (`componentesRp`, `tamanoFuenteRp`).
+  - **Paciente**: no figura en la etiqueta (la real no lo muestra) (`MOSTRAR_PACIENTE_EN_ETIQUETA`).
+  - **Tamaño/impresora**: 100 × 42 mm apaisada; impresora desconocida (`ETIQUETA_TAMANO_MM`).
+  - **Teléfonos de la farmacia**: la etiqueta real los muestra, pero `tenant` no tiene campos de teléfono fijo/celular; hoy se omiten. Requiere agregarlos a la farmacia.
+- **DP-29 RESUELTA (2026-09-29)**: por ahora **no se almacenan** adjuntos. El PDF se lee y se descarta; el respaldo de una receta digital es `nro_receta_emisor` (obligatorio) + `emisor` y, si viene, `url_verificacion`. `receta_adjunto_digital_check` acepta archivo **o** número del emisor. Riesgo aceptado: el respaldo depende de la plataforma emisora; confirmar con el DT la normativa de conservación. · M09.
 - **DP-30** Obras sociales/credencial del paciente: ¿solo dato o hay validación/facturación? · Alcance.
 - **DP-31 CONFIRMADA**: correlativo con contador transaccional (FOR UPDATE), no SEQUENCE.
 - **DP-32 CONFIRMADA**: hash calculado en la base (trigger + pgcrypto), encadenado por libro.
@@ -896,6 +903,7 @@ Cobertura de entidades (responsable / CRUD / permisos / auditoría / UI / tests)
 - **DP-39 RESUELTA**: `unidad_medida` es **catálogo GLOBAL** (sin `tenant_id`, sin RLS, compartido por todos los tenants). Consecuencia a tener presente: un alta o baja hecha por un ADM impacta a todos los tenants; INV-M04 (factor inmutable si la unidad fue usada) pasa a evaluarse sobre el uso en CUALQUIER tenant.
 - **DP-40 RESUELTA**: email **único global**; el login es solo email + contraseña, sin elegir tenant. El tenant se deduce del usuario y se fija en la sesión.
 - **DP-41 RESUELTA**: un Usuario pertenece a **un solo tenant**. Quien trabaje en dos farmacias necesita otra cuenta y, por DP-40 (email único global), **otro email**.
+- **DP-42 RESUELTA (2026-09-29)** → `docs/specs/importacion-receta-pdf.md`: importación de receta digital desde PDF (precarga + confirmación), alta de paciente/médico desde la receta con permiso `recetas.crear`, receta digital firmada cuenta como física (INV-R07) y queda fuera del archivo físico, campos de diagnóstico CIE-10, posología/duración por ítem y tabla `droga_alias`. "Media dosis" = `fraccionDosisPorUnidad` 0.5.
 
 ## 22. Riesgos técnicos
 

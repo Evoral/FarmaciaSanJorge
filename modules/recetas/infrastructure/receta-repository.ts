@@ -10,6 +10,8 @@
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { EstadoReceta, FormaFarmaceutica, ModoExpresion, OrigenReceta } from "../domain/receta";
+import type { ItemParaPreparar } from "../domain/accion-preparacion";
+import { rangoDeJornadas } from "@/shared/time/jornada";
 
 // ============================================================================
 // Tenant jornada (fecha_prescripcion <= hoy check) -- own copy per module,
@@ -77,6 +79,18 @@ export async function unidadesInvalidas(tx: Prisma.TransactionClient, unidadIds:
   const vigentes = await tx.unidadMedida.findMany({ where: { id: { in: unicos }, fechaBaja: null }, select: { id: true } });
   const vigentesSet = new Set(vigentes.map((u) => u.id));
   return unicos.filter((id) => !vigentesSet.has(id));
+}
+
+/** Names for the audit trail's readable item summary (recetas/domain#resumirItemsReceta): droga id -> nombre, unidad id -> símbolo. Includes drogas/unidades given de baja (history must still resolve). */
+export async function getNombresParaResumen(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  drogaIds: string[],
+  unidadIds: string[],
+): Promise<{ drogas: Map<string, string>; unidades: Map<string, string> }> {
+  const drogas = drogaIds.length === 0 ? [] : await tx.droga.findMany({ where: { tenantId, id: { in: [...new Set(drogaIds)] } }, select: { id: true, nombre: true } });
+  const unidades = unidadIds.length === 0 ? [] : await tx.unidadMedida.findMany({ where: { id: { in: [...new Set(unidadIds)] } }, select: { id: true, simbolo: true } });
+  return { drogas: new Map(drogas.map((d) => [d.id, d.nombre])), unidades: new Map(unidades.map((u) => [u.id, u.simbolo])) };
 }
 
 // ============================================================================
@@ -147,6 +161,8 @@ export interface NuevoItemInput {
   cantidadTotal: string | null;
   unidadTotalId: string | null;
   observaciones: string | null;
+  posologia: string | null;
+  duracionTratamientoDias: number | null;
   componentes: NuevoComponenteInput[];
 }
 
@@ -158,6 +174,13 @@ export interface NuevaRecetaInput {
   origen: OrigenReceta;
   recetaFisicaRecibida: boolean;
   registradaPorId: string;
+  diagnosticoCodigo: string | null;
+  diagnosticoDescripcion: string | null;
+  /** PDF import only (migration 0049): the emisor's provenance and the "Válida desde" date. */
+  emisor?: string | null;
+  nroRecetaEmisor?: string | null;
+  urlVerificacion?: string | null;
+  fechaValidaDesde?: string | null; // YYYY-MM-DD
   items: NuevoItemInput[];
 }
 
@@ -197,6 +220,12 @@ export async function insertRecetaConItems(tx: Prisma.TransactionClient, input: 
       recetaFisicaRecibidaEn: input.recetaFisicaRecibida ? new Date() : null,
       recetaFisicaRecibidaPorId: input.recetaFisicaRecibida ? input.registradaPorId : null,
       registradaPorId: input.registradaPorId,
+      diagnosticoCodigo: input.diagnosticoCodigo,
+      diagnosticoDescripcion: input.diagnosticoDescripcion,
+      emisor: input.emisor ?? null,
+      nroRecetaEmisor: input.nroRecetaEmisor ?? null,
+      urlVerificacion: input.urlVerificacion ?? null,
+      fechaValidaDesde: input.fechaValidaDesde ? new Date(`${input.fechaValidaDesde}T00:00:00Z`) : null,
     },
     select: { id: true, numeroInterno: true },
   });
@@ -213,6 +242,8 @@ export async function insertRecetaConItems(tx: Prisma.TransactionClient, input: 
         cantidadTotal: item.cantidadTotal,
         unidadTotalId: item.unidadTotalId,
         observaciones: item.observaciones,
+        posologia: item.posologia,
+        duracionTratamientoDias: item.duracionTratamientoDias,
       },
       select: { id: true },
     });
@@ -235,6 +266,8 @@ export interface RecetaParaAccion {
   estado: EstadoReceta;
   recetaFisicaRecibida: boolean;
   motivoAnulacion: string | null;
+  diagnosticoCodigo: string | null;
+  diagnosticoDescripcion: string | null;
 }
 
 const SELECT_PARA_ACCION = {
@@ -246,6 +279,8 @@ const SELECT_PARA_ACCION = {
   estado: true,
   recetaFisicaRecibida: true,
   motivoAnulacion: true,
+  diagnosticoCodigo: true,
+  diagnosticoDescripcion: true,
 } as const;
 
 export async function getRecetaParaAccion(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<RecetaParaAccion | null> {
@@ -303,6 +338,8 @@ export interface ItemDetalle {
   unidadTotalId: string | null;
   unidadTotalSimbolo: string | null;
   observaciones: string | null;
+  posologia: string | null;
+  duracionTratamientoDias: number | null;
   componentes: ComponenteDetalle[];
   /**
    * D2 REVISED (FASE 9, per-item rule, 2026-09-23): "PENDIENTE" (no
@@ -364,6 +401,12 @@ export interface RecetaDetalle {
   recetaFisicaRecibidaPorNombre: string | null;
   motivoAnulacion: string | null;
   registradaPorNombre: string;
+  diagnosticoCodigo: string | null;
+  diagnosticoDescripcion: string | null;
+  /** Digital provenance (migration 0049) -- all three `null` for a receta loaded by hand. */
+  emisor: string | null;
+  nroRecetaEmisor: string | null;
+  urlVerificacion: string | null;
   items: ItemDetalle[];
 }
 
@@ -412,6 +455,11 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
       : null,
     motivoAnulacion: receta.motivoAnulacion,
     registradaPorNombre: `${receta.registradaPor.apellido}, ${receta.registradaPor.nombre}`,
+    diagnosticoCodigo: receta.diagnosticoCodigo,
+    diagnosticoDescripcion: receta.diagnosticoDescripcion,
+    emisor: receta.emisor,
+    nroRecetaEmisor: receta.nroRecetaEmisor,
+    urlVerificacion: receta.urlVerificacion,
     items: receta.items.map((item) => ({
       id: item.id,
       descripcion: item.descripcion,
@@ -422,6 +470,8 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
       unidadTotalId: item.unidadTotalId,
       unidadTotalSimbolo: item.unidadTotal?.simbolo ?? null,
       observaciones: item.observaciones,
+      posologia: item.posologia,
+      duracionTratamientoDias: item.duracionTratamientoDias,
       estadoAsiento: estadoAsientoPorItem.get(item.id) ?? "PENDIENTE",
       componentes: item.componentes.map((c) => ({
         id: c.id,
@@ -449,6 +499,8 @@ export interface EditarRecetaHeaderInput {
   medicoId: string;
   fechaPrescripcion: string;
   origen: OrigenReceta;
+  diagnosticoCodigo: string | null;
+  diagnosticoDescripcion: string | null;
 }
 
 export interface EditarRecetaHeaderVersion {
@@ -456,6 +508,8 @@ export interface EditarRecetaHeaderVersion {
   medicoId: string;
   fechaPrescripcion: string; // YYYY-MM-DD, compared as a date slice
   origen: OrigenReceta;
+  diagnosticoCodigo: string | null;
+  diagnosticoDescripcion: string | null;
 }
 
 export async function updateRecetaHeader(
@@ -472,15 +526,32 @@ export async function updateRecetaHeader(
       medicoId: version.medicoId,
       fechaPrescripcion: new Date(`${version.fechaPrescripcion}T00:00:00Z`),
       origen: version.origen,
+      diagnosticoCodigo: version.diagnosticoCodigo,
+      diagnosticoDescripcion: version.diagnosticoDescripcion,
     },
     data: {
       pacienteId: input.pacienteId,
       medicoId: input.medicoId,
       fechaPrescripcion: new Date(`${input.fechaPrescripcion}T00:00:00Z`),
       origen: input.origen,
+      diagnosticoCodigo: input.diagnosticoCodigo,
+      diagnosticoDescripcion: input.diagnosticoDescripcion,
     },
   });
   return result.count === 1;
+}
+
+/**
+ * Which of `itemIds` already have a ficha_tecnica or a cotización. Such an
+ * item can no longer be removed: both tables reference item_receta with no
+ * ON DELETE and are insert-only (migrations 0012/0031) -- see
+ * modules/recetas/application/editar-receta.ts.
+ */
+export async function itemsConFichaOCotizacion(tx: Prisma.TransactionClient, tenantId: string, itemIds: string[]): Promise<Set<string>> {
+  if (itemIds.length === 0) return new Set();
+  const fichas = await tx.fichaTecnica.findMany({ where: { tenantId, itemRecetaId: { in: itemIds } }, select: { itemRecetaId: true }, distinct: ["itemRecetaId"] });
+  const cotizaciones = await tx.cotizacion.findMany({ where: { tenantId, itemRecetaId: { in: itemIds } }, select: { itemRecetaId: true }, distinct: ["itemRecetaId"] });
+  return new Set([...fichas, ...cotizaciones].map((r) => r.itemRecetaId));
 }
 
 /** The current item ids of a receta (used to detect a concurrent add/remove race -- see modules/recetas/application/editar-receta.ts). */
@@ -498,6 +569,8 @@ export interface ItemDeseado {
   cantidadTotal: string | null;
   unidadTotalId: string | null;
   observaciones: string | null;
+  posologia: string | null;
+  duracionTratamientoDias: number | null;
   componentes: NuevoComponenteInput[];
 }
 
@@ -547,6 +620,8 @@ export async function reemplazarItemsReceta(tx: Prisma.TransactionClient, tenant
           cantidadTotal: item.cantidadTotal,
           unidadTotalId: item.unidadTotalId,
           observaciones: item.observaciones,
+          posologia: item.posologia,
+          duracionTratamientoDias: item.duracionTratamientoDias,
         },
       });
       itemId = item.id;
@@ -563,6 +638,8 @@ export async function reemplazarItemsReceta(tx: Prisma.TransactionClient, tenant
           cantidadTotal: item.cantidadTotal,
           unidadTotalId: item.unidadTotalId,
           observaciones: item.observaciones,
+          posologia: item.posologia,
+          duracionTratamientoDias: item.duracionTratamientoDias,
         },
         select: { id: true },
       });
@@ -586,6 +663,17 @@ export async function registrarRecepcionFisica(tx: Prisma.TransactionClient, ten
 // ============================================================================
 // 6.5: anulación
 // ============================================================================
+
+/** Items of the receta with a preparación still INICIADA (own read of fsj.preparacion, same convention as `getEstadoAsientoPorItem`) -- see domain/anulacion.ts. */
+export async function itemsConPreparacionIniciada(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<string[]> {
+  const rows = await tx.$queryRaw<{ item_receta_id: string }[]>`
+    SELECT DISTINCT p.item_receta_id
+    FROM fsj.preparacion p
+    JOIN fsj.item_receta ir ON ir.tenant_id = p.tenant_id AND ir.id = p.item_receta_id
+    WHERE p.tenant_id = ${tenantId}::uuid AND ir.receta_id = ${recetaId}::uuid AND p.estado = 'INICIADA'
+  `;
+  return rows.map((r) => r.item_receta_id);
+}
 
 export async function anularReceta(tx: Prisma.TransactionClient, tenantId: string, id: string, motivo: string): Promise<void> {
   await tx.receta.update({ where: { id, tenantId }, data: { estado: "ANULADA", motivoAnulacion: motivo } });
@@ -620,11 +708,73 @@ export interface RecetaListItem {
   recetaFisicaRecibida: boolean;
 }
 
+export interface RecetaListadoItem extends RecetaListItem {
+  fechaIngreso: Date;
+  /**
+   * Same rule as /recetas/[id]/editar and `editarReceta` (minus the
+   * permiso, which the page adds): PENDIENTE_PREPARACION and no ficha
+   * técnica with a preparación.
+   */
+  editable: boolean;
+  /** Per item (detail-page order), what the "Preparar" action needs -- domain/accion-preparacion.ts. Empty for terminal recetas. */
+  itemsParaPreparar: ItemParaPreparar[];
+}
+
 export interface ListRecetasResult {
-  items: RecetaListItem[];
+  items: RecetaListadoItem[];
   total: number;
   page: number;
   pageSize: number;
+  /** The tenant's zona horaria, to show `fechaIngreso` (a timestamptz) as the farmacia's calendar day. */
+  zonaHoraria: string;
+}
+
+/**
+ * For the "Preparar" action: every item of `recetaIds` with its latest
+ * ficha and whether it has a preparación INICIADA / CONFIRMADA (any ficha
+ * version) -- ONE query for a whole page of the list (relationJoins).
+ * Items come in the same unordered read as `getRecetaConItems`, so "ítem N"
+ * matches the detail page.
+ */
+async function itemsParaPrepararDe(tx: Prisma.TransactionClient, tenantId: string, recetaIds: string[]): Promise<Map<string, ItemParaPreparar[]>> {
+  const porReceta = new Map<string, ItemParaPreparar[]>();
+  if (recetaIds.length === 0) return porReceta;
+  const items = await tx.itemReceta.findMany({
+    where: { tenantId, recetaId: { in: recetaIds } },
+    select: {
+      id: true,
+      recetaId: true,
+      fichas: {
+        orderBy: { version: "desc" },
+        select: { id: true, preparaciones: { where: { estado: { in: ["INICIADA", "CONFIRMADA"] } }, select: { id: true, estado: true } } },
+      },
+    },
+  });
+  for (const item of items) {
+    const preparaciones = item.fichas.flatMap((f) => f.preparaciones);
+    const lista = porReceta.get(item.recetaId) ?? [];
+    lista.push({
+      itemRecetaId: item.id,
+      fichaVigenteId: item.fichas[0]?.id ?? null,
+      preparacionIniciadaId: preparaciones.find((p) => p.estado === "INICIADA")?.id ?? null,
+      tieneConfirmada: preparaciones.some((p) => p.estado === "CONFIRMADA"),
+    });
+    porReceta.set(item.recetaId, lista);
+  }
+  return porReceta;
+}
+
+/** Which of `recetaIds` have a ficha técnica with a preparación -- ONE query for a whole page of the list (no N+1). Same join as `existeFichaConPreparacionParaReceta`. */
+async function recetasConFichaConPreparacion(tx: Prisma.TransactionClient, tenantId: string, recetaIds: string[]): Promise<Set<string>> {
+  if (recetaIds.length === 0) return new Set();
+  const rows = await tx.$queryRaw<{ receta_id: string }[]>`
+    SELECT DISTINCT ir.receta_id
+    FROM fsj.ficha_tecnica ft
+    JOIN fsj.item_receta ir ON ir.tenant_id = ft.tenant_id AND ir.id = ft.item_receta_id
+    JOIN fsj.preparacion p ON p.tenant_id = ft.tenant_id AND p.ficha_tecnica_id = ft.id
+    WHERE ft.tenant_id = ${tenantId}::uuid AND ir.receta_id = ANY(${recetaIds}::uuid[])
+  `;
+  return new Set(rows.map((r) => r.receta_id));
 }
 
 function buildWhere(filter: ListRecetasFilter): Prisma.RecetaWhereInput {
@@ -659,6 +809,7 @@ export async function listRecetas(tx: Prisma.TransactionClient, filter: ListRece
       id: true,
       numeroInterno: true,
       fechaPrescripcion: true,
+      fechaIngreso: true,
       origen: true,
       estado: true,
       recetaFisicaRecibida: true,
@@ -666,6 +817,12 @@ export async function listRecetas(tx: Prisma.TransactionClient, filter: ListRece
       medico: { select: { nombre: true, apellido: true } },
     },
   });
+
+  const pendientes = rows.filter((r) => r.estado === "PENDIENTE_PREPARACION").map((r) => r.id);
+  const conPreparacion = await recetasConFichaConPreparacion(tx, filter.tenantId, pendientes);
+  const noTerminales = rows.filter((r) => r.estado !== "ENTREGADA" && r.estado !== "ANULADA").map((r) => r.id);
+  const paraPreparar = await itemsParaPrepararDe(tx, filter.tenantId, noTerminales);
+  const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: filter.tenantId }, select: { zonaHoraria: true } });
 
   return {
     items: rows.map((r) => ({
@@ -676,13 +833,17 @@ export async function listRecetas(tx: Prisma.TransactionClient, filter: ListRece
       medicoNombre: r.medico.nombre,
       medicoApellido: r.medico.apellido,
       fechaPrescripcion: r.fechaPrescripcion,
+      fechaIngreso: r.fechaIngreso,
       origen: r.origen,
       estado: r.estado,
       recetaFisicaRecibida: r.recetaFisicaRecibida,
+      editable: r.estado === "PENDIENTE_PREPARACION" && !conPreparacion.has(r.id),
+      itemsParaPreparar: paraPreparar.get(r.id) ?? [],
     })),
     total,
     page: filter.page,
     pageSize: filter.pageSize,
+    zonaHoraria: tenant.zonaHoraria,
   };
 }
 
@@ -708,19 +869,25 @@ export async function countRecetasPorEstado(tx: Prisma.TransactionClient, tenant
 export interface ListRecetasPorEstadoFilter {
   tenantId: string;
   estado?: EstadoReceta;
-  ingresoDesde?: string; // fecha_ingreso >=
-  ingresoHasta?: string; // fecha_ingreso <=
+  ingresoDesde?: string; // YYYY-MM-DD, jornada in the tenant's time zone (inclusive)
+  ingresoHasta?: string; // YYYY-MM-DD, jornada in the tenant's time zone (inclusive)
   page: number;
   pageSize: number;
 }
 
-function buildWherePorEstado(filter: Pick<ListRecetasPorEstadoFilter, "tenantId" | "estado" | "ingresoDesde" | "ingresoHasta">): Prisma.RecetaWhereInput {
+async function buildWherePorEstado(
+  tx: Prisma.TransactionClient,
+  filter: Pick<ListRecetasPorEstadoFilter, "tenantId" | "estado" | "ingresoDesde" | "ingresoHasta">,
+): Promise<Prisma.RecetaWhereInput> {
   const where: Prisma.RecetaWhereInput = { tenantId: filter.tenantId };
   if (filter.estado) where.estado = filter.estado;
   if (filter.ingresoDesde || filter.ingresoHasta) {
+    // Calendar days in the pharmacy's time zone, not UTC (fecha_ingreso is a timestamptz).
+    const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: filter.tenantId }, select: { zonaHoraria: true } });
+    const { desde, hastaExclusivo } = rangoDeJornadas(filter.ingresoDesde, filter.ingresoHasta, tenant.zonaHoraria);
     where.fechaIngreso = {
-      ...(filter.ingresoDesde ? { gte: new Date(`${filter.ingresoDesde}T00:00:00Z`) } : {}),
-      ...(filter.ingresoHasta ? { lte: new Date(`${filter.ingresoHasta}T23:59:59.999Z`) } : {}),
+      ...(desde ? { gte: desde } : {}),
+      ...(hastaExclusivo ? { lt: hastaExclusivo } : {}),
     };
   }
   return where;
@@ -731,7 +898,7 @@ export async function listRecetasPorEstado(
   tx: Prisma.TransactionClient,
   filter: ListRecetasPorEstadoFilter,
 ): Promise<{ items: (RecetaListItem & { fechaIngreso: Date })[]; total: number; page: number; pageSize: number }> {
-  const where = buildWherePorEstado(filter);
+  const where = await buildWherePorEstado(tx, filter);
   const skip = (filter.page - 1) * filter.pageSize;
 
   const total = await tx.receta.count({ where });

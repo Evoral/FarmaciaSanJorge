@@ -13,7 +13,7 @@
  * method="get">` navigation.
  */
 import { listPacientes } from "@/modules/pacientes/application/list-pacientes";
-import { AppError } from "@/shared/errors";
+import { actionErrorMessage } from "@/shared/ui/action-error";
 import type { ListPacientesResult } from "@/modules/pacientes/application/list-pacientes";
 
 /** Derived from the application layer's own result shape (never `infrastructure/` directly -- ui/** may only reach into a module's application/ layer, per eslint.config.mjs's appBoundaryPatterns, which also covers modules/**\/*.ts). Exported as a type-only export so this stays valid under this file's `"use server"` directive (which only permits async function value exports). */
@@ -35,7 +35,7 @@ export async function buscarPacientesAction(prevState: BuscarPacientesState, for
     const result = await listPacientes({ search: q.length > 0 ? q : undefined, soloVigentes, page: 1, pageSize: PAGE_SIZE });
     return { status: "success", items: result.items, total: result.total };
   } catch (error) {
-    const message = error instanceof AppError ? error.message : "No se pudo buscar pacientes.";
+    const message = actionErrorMessage(error, "No se pudo buscar pacientes.");
     return { status: "error", message, items: prevState.items, total: prevState.total };
   }
 }

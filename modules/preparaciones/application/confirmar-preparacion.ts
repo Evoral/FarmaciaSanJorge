@@ -343,7 +343,12 @@ export const confirmarPreparacionCommand = defineCommand({
         output: { id: input.preparacionId, asientoId: asiento.id, numeroCorrelativo: asiento.numeroCorrelativo },
         audit: {
           entidadId: input.preparacionId,
-          valorNuevo: { estado: "CONFIRMADA", asientoRecetarioId: asiento.id, numeroCorrelativo: asiento.numeroCorrelativo },
+          valorNuevo: {
+            estado: "CONFIRMADA",
+            asientoRecetarioId: asiento.id,
+            asientoRecetario: `Nº ${asiento.numeroCorrelativo}`,
+            numeroCorrelativo: asiento.numeroCorrelativo,
+          },
         },
       };
     } catch (e) {
@@ -355,7 +360,7 @@ export const confirmarPreparacionCommand = defineCommand({
       // never a raw driver message.
       const mapped = mapDbError(e);
       if (mapped instanceof InvariantViolationError) {
-        throw new DomainError(mensajeParaInvariante(mapped.invariantCode));
+        throw new DomainError(mensajeParaInvariante(mapped.invariantCode), { cause: mapped });
       }
       throw mapped;
     }

@@ -72,7 +72,10 @@ export const iniciarPreparacionCommand = defineCommand({
 
     return {
       output: { id: preparacion.id },
-      audit: { entidadId: preparacion.id, valorNuevo: { fichaTecnicaId: input.fichaTecnicaId } },
+      audit: {
+        entidadId: preparacion.id,
+        valorNuevo: { fichaTecnicaId: input.fichaTecnicaId, fichaTecnica: `Receta Nº ${ficha.recetaNumeroInterno} · versión ${ficha.version}` },
+      },
     };
   },
 });

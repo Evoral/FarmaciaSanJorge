@@ -13,22 +13,21 @@
  * NOT audited: plan §14 explicitly excludes cotizaciones from
  * registro_auditoria (INV-A01) -- see the `audit: { skip: true, ... }`
  * declaration below.
+ *
+ * The costing itself (jornada + partidas + pure calculator) is
+ * `cotizarLineas`, shared with the in-memory presupuesto of a receta draft
+ * (docs/specs/presupuesto-receta.md); the "no ficha" / "no regla" errors
+ * are `CotizacionNoCalculableError` (same messages, plus a stable code).
  */
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { defineCommand } from "@/shared/usecase";
-import { DomainError, NotFoundError } from "@/shared/errors";
+import { NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
-import { calcularCotizacion } from "../domain/calcular-cotizacion";
-import type { LineaCosteoInput, PartidaCosteo } from "../domain/calcular-cotizacion";
-import {
-  getItemParaCotizar,
-  getUltimaFichaConLineas,
-  getPartidasElegiblesDeDroga,
-  jornadaActualTenant,
-  insertCotizacion,
-} from "../infrastructure/cotizacion-repository";
+import type { LineaCosteoInput } from "../domain/calcular-cotizacion";
+import { getItemParaCotizar, getUltimaFichaConLineas, insertCotizacion } from "../infrastructure/cotizacion-repository";
 import { getReglaVigente } from "../infrastructure/regla-precio-repository";
+import { CotizacionNoCalculableError, cotizarLineas } from "./cotizar-lineas";
 
 const calcularCotizacionInput = z.object({ itemRecetaId: uuid });
 
@@ -61,20 +60,15 @@ export const calcularCotizacionCommand = defineCommand({
 
     const ficha = await getUltimaFichaConLineas(tx, session.tenantId, input.itemRecetaId);
     if (!ficha) {
-      throw new DomainError("Este ítem no tiene ficha técnica generada todavía. Generá la ficha técnica antes de cotizar.");
+      throw new CotizacionNoCalculableError("SIN_FICHA", "Este ítem no tiene ficha técnica generada todavía. Generá la ficha técnica antes de cotizar.");
     }
 
     const regla = await getReglaVigente(tx, session.tenantId);
     if (!regla) {
-      throw new DomainError("No hay una regla de precio configurada. Pedile a un administrador que configure el margen antes de cotizar.");
-    }
-
-    const jornadaActual = await jornadaActualTenant(tx, session.tenantId);
-
-    const drogaIds = [...new Set(ficha.lineas.filter((l) => !l.esEnraseManual).map((l) => l.drogaId))];
-    const partidasPorDrogaMap = new Map<string, PartidaCosteo[]>();
-    for (const drogaId of drogaIds) {
-      partidasPorDrogaMap.set(drogaId, await getPartidasElegiblesDeDroga(tx, session.tenantId, drogaId));
+      throw new CotizacionNoCalculableError(
+        "SIN_REGLA_PRECIO",
+        "No hay una regla de precio configurada. Pedile a un administrador que configure el margen antes de cotizar.",
+      );
     }
 
     const lineasInput: LineaCosteoInput[] = ficha.lineas.map((l) => ({
@@ -86,12 +80,7 @@ export const calcularCotizacionCommand = defineCommand({
       orden: l.orden,
     }));
 
-    const resultado = calcularCotizacion(
-      lineasInput,
-      (drogaId) => partidasPorDrogaMap.get(drogaId) ?? [],
-      jornadaActual,
-      regla.margen,
-    );
+    const resultado = await cotizarLineas(tx, session.tenantId, lineasInput, regla.margen);
 
     const nueva = await insertCotizacion(tx, {
       tenantId: session.tenantId,

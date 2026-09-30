@@ -118,7 +118,7 @@ export default async function LoteDetallePage({ params }: LoteDetallePageProps) 
               lote.recetas.map((r) => (
                 <tr key={r.id}>
                   <td className="px-3 py-2 font-medium">{r.numeroInterno}</td>
-                  <td className="px-3 py-2">{r.pacienteApellido}, {r.pacienteNombre}</td>
+                  <td className="px-3 py-2">{r.pacienteNombre} {r.pacienteApellido}</td>
                   <td className="px-3 py-2"><StatusBadge estado={r.estado} /></td>
                 </tr>
               ))

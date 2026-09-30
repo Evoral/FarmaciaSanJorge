@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
-import { ConflictError, DomainError, NotFoundError } from "@/shared/errors";
+import { ConflictError, DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 
 vi.mock("@/shared/audit", () => ({
   record: vi.fn(async () => undefined),
@@ -80,6 +80,21 @@ const updateRecetaHeaderMock = vi.fn(async (...args: unknown[]) => {
   void args;
   return true;
 });
+const itemsConPreparacionIniciadaMock = vi.fn(async (...args: unknown[]) => {
+  void args;
+  return [] as string[];
+});
+const asientosEnEfectoMock = vi.fn(async (...args: unknown[]) => {
+  void args;
+  return [] as { itemRecetaId: string; asientoId: string; numeroCorrelativo: string }[];
+});
+vi.mock("@/modules/libro/application/asientos-en-efecto", () => ({
+  listAsientosEnEfectoDeReceta: (...args: unknown[]) => asientosEnEfectoMock(...args),
+}));
+const itemsConFichaOCotizacionMock = vi.fn(async (...args: unknown[]) => {
+  void args;
+  return new Set<string>();
+});
 const reemplazarItemsRecetaMock = vi.fn(async (...args: unknown[]) => {
   void args;
   return undefined;
@@ -98,10 +113,13 @@ vi.mock("@/modules/recetas/infrastructure/receta-repository", () => ({
   getRecetaParaAccion: (...args: unknown[]) => getRecetaParaAccionMock(...args),
   existeFichaConPreparacionParaReceta: (...args: unknown[]) => existeFichaConPreparacionMock(...args),
   listItemIds: (...args: unknown[]) => listItemIdsMock(...args),
+  itemsConFichaOCotizacion: (...args: unknown[]) => itemsConFichaOCotizacionMock(...args),
+  itemsConPreparacionIniciada: (...args: unknown[]) => itemsConPreparacionIniciadaMock(...args),
   getPacienteRefParaReceta: (...args: unknown[]) => getPacienteRefMock(...args),
   getMedicoRefParaReceta: (...args: unknown[]) => getMedicoRefMock(...args),
   drogasInvalidas: (...args: unknown[]) => drogasInvalidasMock(...args),
   unidadesInvalidas: (...args: unknown[]) => unidadesInvalidasMock(...args),
+  getNombresParaResumen: async () => ({ drogas: new Map<string, string>(), unidades: new Map<string, string>() }),
   updateRecetaHeader: (...args: unknown[]) => updateRecetaHeaderMock(...args),
   reemplazarItemsReceta: (...args: unknown[]) => reemplazarItemsRecetaMock(...args),
   registrarRecepcionFisica: (...args: unknown[]) => registrarRecepcionFisicaMock(...args),
@@ -121,6 +139,8 @@ const recetaPendiente = {
   estado: "PENDIENTE_PREPARACION" as const,
   recetaFisicaRecibida: false,
   motivoAnulacion: null,
+  diagnosticoCodigo: null,
+  diagnosticoDescripcion: null,
 };
 
 const itemValido = {
@@ -143,10 +163,73 @@ function resetMocks() {
   drogasInvalidasMock.mockReset().mockResolvedValue([]);
   unidadesInvalidasMock.mockReset().mockResolvedValue([]);
   updateRecetaHeaderMock.mockReset().mockResolvedValue(true);
+  itemsConFichaOCotizacionMock.mockReset().mockResolvedValue(new Set<string>());
+  itemsConPreparacionIniciadaMock.mockReset().mockResolvedValue([]);
+  asientosEnEfectoMock.mockReset().mockResolvedValue([]);
   reemplazarItemsRecetaMock.mockClear();
   registrarRecepcionFisicaMock.mockClear();
   anularRecetaMock.mockClear();
 }
+
+// Item removal vs. fichas (docs/specs/presupuesto-receta.md, "Edición"): an item with a ficha
+// técnica (or cotización) cannot be removed; editing its content still can.
+describe("editar-receta: items that already have a ficha técnica", () => {
+  beforeEach(resetMocks);
+
+  const ITEM_1 = "55555555-5555-4555-a555-555555555555";
+  const ITEM_2 = "66666666-6666-4666-a666-666666666666";
+
+  function editar(items: unknown[]) {
+    return editarRecetaCommand.execute(
+      {
+        id: RECETA_ID,
+        pacienteId: PACIENTE_ID,
+        medicoId: MEDICO_ID,
+        fechaPrescripcion: "2026-01-01",
+        origen: "PRESENCIAL",
+        items,
+        version: { pacienteId: PACIENTE_ID, medicoId: MEDICO_ID, fechaPrescripcion: "2026-01-01", origen: "PRESENCIAL" },
+        itemsVersion: [ITEM_1, ITEM_2],
+      },
+      { session: fakeSession("recetas.editar") },
+    );
+  }
+
+  it("refuses to remove an item that has a ficha, naming it by its position, and changes nothing", async () => {
+    getRecetaParaAccionMock.mockResolvedValue(recetaPendiente);
+    listItemIdsMock.mockResolvedValue([ITEM_1, ITEM_2]);
+    itemsConFichaOCotizacionMock.mockResolvedValue(new Set([ITEM_2]));
+
+    await expect(editar([{ ...itemValido, id: ITEM_1 }])).rejects.toThrow(
+      new ValidationError("No se puede quitar el ítem 2 porque ya tiene ficha técnica. Si la receta se cargó mal, anulala y cargala de nuevo."),
+    );
+    expect(itemsConFichaOCotizacionMock).toHaveBeenCalledWith(expect.anything(), expect.any(String), [ITEM_2]);
+    expect(updateRecetaHeaderMock).not.toHaveBeenCalled();
+    expect(reemplazarItemsRecetaMock).not.toHaveBeenCalled();
+  });
+
+  it("still allows editing the content of items that have a ficha (none removed)", async () => {
+    getRecetaParaAccionMock.mockResolvedValue(recetaPendiente);
+    listItemIdsMock.mockResolvedValue([ITEM_1, ITEM_2]);
+    itemsConFichaOCotizacionMock.mockResolvedValue(new Set([ITEM_1, ITEM_2]));
+
+    await editar([
+      { ...itemValido, id: ITEM_1, cantidadUnidades: 2 },
+      { ...itemValido, id: ITEM_2, fraccionDosisPorUnidad: "0.5" },
+    ]);
+    expect(itemsConFichaOCotizacionMock).not.toHaveBeenCalled();
+    expect(reemplazarItemsRecetaMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows removing an item without a ficha", async () => {
+    getRecetaParaAccionMock.mockResolvedValue(recetaPendiente);
+    listItemIdsMock.mockResolvedValue([ITEM_1, ITEM_2]);
+    itemsConFichaOCotizacionMock.mockResolvedValue(new Set());
+
+    await editar([{ ...itemValido, id: ITEM_1 }]);
+    expect(reemplazarItemsRecetaMock).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("editar-receta: lock BEFORE the fresh estado/version read", () => {
   beforeEach(resetMocks);
@@ -391,5 +474,52 @@ describe("anular-receta: lock BEFORE the fresh estado read, rejects a terminal e
     }
     expect(caught).toBeInstanceOf(NotFoundError);
     expect(getRecetaParaAccionMock).not.toHaveBeenCalled();
+  });
+});
+
+// Direct anulación vs. the libro recetario (modules/recetas/domain/anulacion.ts).
+describe("anular-receta: refused while the libro still records a preparación", () => {
+  beforeEach(resetMocks);
+
+  const ITEM_1 = "55555555-5555-4555-a555-555555555555";
+  const ITEM_2 = "66666666-6666-4666-a666-666666666666";
+
+  it("refuses when an item's SISTEMA asiento is still in effect, and anulls nothing", async () => {
+    getRecetaParaAccionMock.mockResolvedValue({ ...recetaPendiente, estado: "LISTA_PARA_RETIRAR" as const });
+    listItemIdsMock.mockResolvedValue([ITEM_1, ITEM_2]);
+    asientosEnEfectoMock.mockResolvedValue([{ itemRecetaId: ITEM_2, asientoId: "a-1", numeroCorrelativo: "15" }]);
+
+    await expect(anularRecetaCommand.execute({ id: RECETA_ID, motivo: "x" }, { session: fakeSession("recetas.anular") })).rejects.toThrow(
+      new ValidationError(
+        "Esta receta ya tiene preparaciones registradas en el libro recetario. Para anularla, dejá sin efecto esos asientos desde el Libro recetario (requiere autorización del Director Técnico). La receta se anulará automáticamente.",
+      ),
+    );
+    expect(asientosEnEfectoMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, RECETA_ID);
+    expect(anularRecetaMock).not.toHaveBeenCalled();
+  });
+
+  it("allows it with no preparación at all", async () => {
+    getRecetaParaAccionMock.mockResolvedValue(recetaPendiente);
+    listItemIdsMock.mockResolvedValue([ITEM_1]);
+    await anularRecetaCommand.execute({ id: RECETA_ID, motivo: "x" }, { session: fakeSession("recetas.anular") });
+    expect(anularRecetaMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows it when every asiento is already sin efecto (none in effect)", async () => {
+    getRecetaParaAccionMock.mockResolvedValue({ ...recetaPendiente, estado: "PREPARADA" as const });
+    listItemIdsMock.mockResolvedValue([ITEM_1, ITEM_2]);
+    asientosEnEfectoMock.mockResolvedValue([]);
+    await anularRecetaCommand.execute({ id: RECETA_ID, motivo: "x" }, { session: fakeSession("recetas.anular") });
+    expect(anularRecetaMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses while a preparación is still INICIADA (confirming it later would create the asiento)", async () => {
+    getRecetaParaAccionMock.mockResolvedValue({ ...recetaPendiente, estado: "EN_PREPARACION" as const });
+    listItemIdsMock.mockResolvedValue([ITEM_1, ITEM_2]);
+    itemsConPreparacionIniciadaMock.mockResolvedValue([ITEM_2]);
+    await expect(anularRecetaCommand.execute({ id: RECETA_ID, motivo: "x" }, { session: fakeSession("recetas.anular") })).rejects.toThrow(
+      "el ítem 2 tiene una preparación en curso",
+    );
+    expect(anularRecetaMock).not.toHaveBeenCalled();
   });
 });

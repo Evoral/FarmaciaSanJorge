@@ -18,6 +18,7 @@
  */
 import type { Prisma } from "@/generated/prisma/client";
 import { TipoAccion } from "@/generated/prisma/client";
+import { getRequestContext } from "./request-context";
 
 export { TipoAccion };
 
@@ -43,13 +44,36 @@ export interface AuditRecordInput {
   motivo?: string;
   /** Set only when a second user authorized the action on behalf of/for the acting user (e.g. DT authorizing an adjustment). */
   autorizadoPorId?: string;
-  /** Free-form context (request id, user-agent, etc.) -- never secrets. */
+  /** Extra free-form context -- never secrets. Merged over the automatic request context (see `record`). */
   contexto?: Prisma.InputJsonValue;
+  /** Overrides the IP taken from the current request. */
   ip?: string;
 }
 
-/** Writes one immutable audit row inside `tx`. */
+function esObjetoPlano(value: unknown): value is Record<string, Prisma.InputJsonValue> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Writes one immutable audit row inside `tx`. The request's client IP, user
+ * agent and request id (./request-context.ts) are added automatically, so
+ * every row answers "from where" without each caller having to pass it;
+ * explicit `ip`/`contexto` from the caller win over them.
+ */
 export async function record(tx: Prisma.TransactionClient, input: AuditRecordInput): Promise<void> {
+  const request = await getRequestContext();
+  const automatico: Record<string, string> = {};
+  if (request.requestId) automatico.requestId = request.requestId;
+  if (request.userAgent) automatico.userAgent = request.userAgent;
+  const contexto: Prisma.InputJsonValue | undefined =
+    input.contexto === undefined
+      ? Object.keys(automatico).length > 0
+        ? automatico
+        : undefined
+      : esObjetoPlano(input.contexto)
+        ? { ...automatico, ...input.contexto }
+        : { ...automatico, datos: input.contexto };
+
   await tx.registroAuditoria.create({
     data: {
       tenantId: input.tenantId,
@@ -61,8 +85,8 @@ export async function record(tx: Prisma.TransactionClient, input: AuditRecordInp
       valorNuevo: input.valorNuevo ?? undefined,
       motivo: input.motivo,
       autorizadoPorId: input.autorizadoPorId,
-      contexto: input.contexto ?? undefined,
-      ip: input.ip,
+      contexto,
+      ip: input.ip ?? request.ip ?? undefined,
     },
   });
 }

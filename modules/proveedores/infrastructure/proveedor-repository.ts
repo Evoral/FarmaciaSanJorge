@@ -65,6 +65,20 @@ export async function listProveedores(tx: Prisma.TransactionClient, filter: List
   return { items: rows, total, page: filter.page, pageSize: filter.pageSize };
 }
 
+export interface ProveedorOpcion {
+  id: string;
+  razonSocial: string;
+}
+
+/** Every vigente proveedor of the tenant, id + razón social only -- feeds `<select>` pickers (no pagination: see list-proveedores-opciones.ts). */
+export async function listProveedoresOpciones(tx: Prisma.TransactionClient, tenantId: string): Promise<ProveedorOpcion[]> {
+  return tx.proveedor.findMany({
+    where: { tenantId, fechaBaja: null },
+    orderBy: [{ razonSocial: "asc" }],
+    select: { id: true, razonSocial: true },
+  });
+}
+
 // ============================================================================
 // Read for action handlers
 // ============================================================================

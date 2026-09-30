@@ -87,12 +87,20 @@ vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => (
     tenantRazonSocial: "Farmacia",
     tenantNombreFantasia: null,
     tenantMatriculaFarmacia: null,
+    tenantDomicilio: null,
+    componentes: [],
+    recetaNumeroInterno: "1",
+    medicoNombre: "N",
+    medicoApellido: "A",
+    medicoMatricula: "MAT-1",
+    medicoJurisdiccion: "PROVINCIAL",
+    directorTecnico: null,
   })),
   getEtiquetaExistente: vi.fn(async () => null),
   insertEtiqueta: vi.fn(async () => ({ id: ETIQUETA_ID })),
   getEtiquetaParaImprimir: vi.fn(async () => ({ id: ETIQUETA_ID, preparacionId: PREPARACION_ID, contenido: "x", generadaEn: new Date(), impresa: false })),
   marcarEtiquetaImpresa: vi.fn(async () => undefined),
-  listPreparaciones: vi.fn(async () => ({ items: [], total: 0 })),
+  listPreparaciones: vi.fn(async () => ({ items: [], total: 0, zonaHoraria: "UTC" })),
 }));
 
 await import("@/modules/preparaciones/application/iniciar-preparacion");

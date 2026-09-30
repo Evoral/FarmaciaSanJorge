@@ -10,7 +10,7 @@
  * inserts the lote (see that command's doc comment).
  */
 import { conformarLoteAction } from "./actions";
-import { SimpleForm } from "./simple-form";
+import { SimpleForm } from "@/shared/ui/simple-form";
 
 export interface ConformarLoteFormProps {
   periodoDesde: string;
@@ -21,7 +21,7 @@ export interface ConformarLoteFormProps {
 
 export function ConformarLoteForm({ periodoDesde, periodoHasta, ubicacion, cantidadElegibles }: ConformarLoteFormProps) {
   return (
-    <SimpleForm action={conformarLoteAction} submitLabel="Confirmar y conformar lote" pendingLabel="Conformando…" submitDisabled={cantidadElegibles === 0} className="flex max-w-lg flex-col gap-2">
+    <SimpleForm action={conformarLoteAction} submitLabel="Confirmar y conformar lote" pendingLabel="Conformando…" submitDisabled={cantidadElegibles === 0} className="max-w-lg">
       <input type="hidden" name="periodoDesde" value={periodoDesde} />
       <input type="hidden" name="periodoHasta" value={periodoHasta} />
       <input type="hidden" name="ubicacion" value={ubicacion} />

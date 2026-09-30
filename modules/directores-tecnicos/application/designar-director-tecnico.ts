@@ -45,7 +45,7 @@ import { AUTH_POLICY } from "@/shared/auth/policy";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid, nonEmptyString } from "@/shared/validation";
 import { CARACTERES_DESIGNACION, isoDate } from "../domain/designacion";
-import { insertDesignacion, getUsuarioEstado } from "../infrastructure/designacion-repository";
+import { insertDesignacion, getUsuarioParaDesignar } from "../infrastructure/designacion-repository";
 
 /** Exported for tests/unit/directores-tecnicos-validacion.test.ts -- same convention as modules/farmacia/application/editar-datos-tenant.ts's `editarDatosTenantInput`. */
 export const designarDirectorTecnicoInput = z.object({
@@ -73,9 +73,9 @@ export const designarDirectorTecnicoCommand = defineCommand({
     // review finding M1: UX-only pre-check, mirrors modules/usuarios'
     // suspender-usuario.ts style Spanish message. INV-DT-005 (migration
     // 0022) is the real guarantee regardless of this check.
-    const estado = await getUsuarioEstado(tx, session.tenantId, input.usuarioId);
-    if (estado === null) throw new NotFoundError("Usuario no encontrado.");
-    if (estado !== "ACTIVO") {
+    const usuario = await getUsuarioParaDesignar(tx, session.tenantId, input.usuarioId);
+    if (usuario === null) throw new NotFoundError("Usuario no encontrado.");
+    if (usuario.estado !== "ACTIVO") {
       throw new DomainError("Solo se puede designar como Director Técnico a un usuario ACTIVO.");
     }
 
@@ -95,6 +95,7 @@ export const designarDirectorTecnicoCommand = defineCommand({
         entidadId: nueva.id,
         valorNuevo: {
           usuarioId: input.usuarioId,
+          usuario: `${usuario.nombre} ${usuario.apellido}`,
           caracter: input.caracter,
           matricula: input.matricula,
           expedienteDesignacion: input.expedienteDesignacion ?? null,

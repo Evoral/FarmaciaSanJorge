@@ -9,6 +9,7 @@ import { redirect } from "next/navigation";
 import { listRecetasElegiblesArchivo } from "@/modules/archivo/application/conformar-lote";
 import { ConformarLoteForm } from "@/modules/archivo/ui/conformar-lote-form";
 import { StatusBadge } from "@/shared/ui/status-badge";
+import { DateInput } from "@/shared/ui/date-input";
 
 interface ArchivoNuevoPageProps {
   searchParams: Promise<{ periodoDesde?: string; periodoHasta?: string; ubicacion?: string }>;
@@ -43,13 +44,13 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
           <label htmlFor="periodoDesde" className="text-sm font-medium">
             Período desde
           </label>
-          <input id="periodoDesde" name="periodoDesde" type="date" required defaultValue={periodoDesde} className="input" />
+          <DateInput id="periodoDesde" name="periodoDesde" required defaultValue={periodoDesde} />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="periodoHasta" className="text-sm font-medium">
             Período hasta
           </label>
-          <input id="periodoHasta" name="periodoHasta" type="date" required defaultValue={periodoHasta} className="input" />
+          <DateInput id="periodoHasta" name="periodoHasta" required defaultValue={periodoHasta} />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="ubicacion" className="text-sm font-medium">
@@ -98,7 +99,7 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
                   elegibles.map((r) => (
                     <tr key={r.id}>
                       <td className="px-3 py-2 font-medium">{r.numeroInterno}</td>
-                      <td className="px-3 py-2">{r.pacienteApellido}, {r.pacienteNombre}</td>
+                      <td className="px-3 py-2">{r.pacienteNombre} {r.pacienteApellido}</td>
                       <td className="px-3 py-2"><StatusBadge estado={r.estado} /></td>
                       <td className="px-3 py-2">{r.fechaIngreso}</td>
                     </tr>

@@ -2,7 +2,8 @@
 
 /** `/libro/historico` digitalización form (FASE 9, M12 point 9.5, DT only). */
 import { crearAsientoHistoricoAction } from "./actions";
-import { SimpleForm } from "./simple-form";
+import { SimpleForm } from "@/shared/ui/simple-form";
+import { DateInput } from "@/shared/ui/date-input";
 
 const TIPOS = [
   { value: "RECETARIO", label: "Recetario" },
@@ -12,7 +13,7 @@ const TIPOS = [
 
 export function HistoricoForm() {
   return (
-    <SimpleForm action={crearAsientoHistoricoAction} submitLabel="Digitalizar asiento" className="flex max-w-lg flex-col gap-4">
+    <SimpleForm action={crearAsientoHistoricoAction} submitLabel="Digitalizar asiento" className="max-w-lg">
       <div className="flex flex-col gap-1">
         <label htmlFor="tipoLibro" className="text-sm font-medium">
           Libro
@@ -37,7 +38,7 @@ export function HistoricoForm() {
         <label htmlFor="fechaAsiento" className="text-sm font-medium">
           Fecha del asiento
         </label>
-        <input id="fechaAsiento" name="fechaAsiento" type="date" required className="input" />
+        <DateInput id="fechaAsiento" name="fechaAsiento" required />
       </div>
 
       <div className="flex flex-col gap-1">

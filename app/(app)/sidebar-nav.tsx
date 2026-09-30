@@ -5,17 +5,25 @@
  * Auditoría link in the main header, shown only when can() allows it,
  * mark the current section with aria-current"). Same "small client island
  * for usePathname() only, visibility computed server-side" pattern as
- * `app/(app)/admin/admin-nav.tsx` -- see that file's doc comment.
+ * `app/(app)/section-tabs.tsx` -- see that file's doc comment.
  *
  * Visual identity 1a: fixed sidebar grouped by workflow (operación,
- * registro legal, gestión). Below `lg` it collapses into a top bar with a
- * menu button that opens the same sidebar as a drawer.
+ * registro legal, gestión, administración). Below `lg` it collapses into a
+ * top bar with a menu button that opens the same sidebar as a drawer.
+ * Entries backed by tabbed sub-sections (Catálogos, Usuarios y accesos,
+ * Configuración) link to the FIRST sub-section the session can reach,
+ * computed server-side from `app/(app)/nav-sections.ts`.
+ *
+ * On desktop the sidebar can be collapsed into a slim rail; the state is
+ * owned by `./app-shell.tsx` (which also moves the content gutter). The
+ * glass look is pure CSS (`.glass-panel`, `.glass-pill` in globals.css): no JS,
+ * no SVG filters, and only `translate`/`visibility` are animated.
  */
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { LogOut, Menu, X } from "lucide-react";
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 
 export interface SidebarNavProps {
   /** Display name of the signed-in usuario. */
@@ -25,7 +33,7 @@ export interface SidebarNavProps {
   /** Jornadas pending signature (0 hides the badge on "Cierres"). */
   cierresPendientes: number;
   puedeAuditoria: boolean;
-  /** FASE 13 point 13.1/13.4 (user decision 5): `true` when the session holds ANY report permiso (`reportes.ver`, `stock.valorizado.ver`, `stock.ver`, `cierres.reporte`, `reportes.auditoria`, `reportes.usuarios`) -- shows a "Reportes" link to the `/reportes` hub, which itself re-checks each entry's own permiso. */
+  /** FASE 13 point 13.1/13.4 (user decision 5): `true` when the session holds ANY report permiso (`reportes.ver`, `stock.valorizado.ver`, `stock.ver`, `cierres.reporte`, `reportes.auditoria`) -- shows a "Reportes" link to the `/reportes` hub, which itself re-checks each entry's own permiso. */
   puedeReportes: boolean;
   /**
    * FASE 4 points 4.2-4.5: the FIRST `/catalogos/**` section this session
@@ -37,11 +45,16 @@ export interface SidebarNavProps {
    * `/catalogos/drogas` link would have sent that role straight into
    * `app/(app)/catalogos/drogas/layout.tsx`'s own permiso guard, which
    * redirects to `/` -- i.e. the link would have been silently broken for
-   * that role. The caller (`app/(app)/layout.tsx`) computes this in the
-   * SAME priority order as `app/(app)/catalogos/catalogos-nav.tsx`.
+   * that role. The caller (`app/(app)/layout.tsx`) computes this from
+   * `app/(app)/nav-sections.ts#catalogosSections`, the same list (and
+   * priority order) that drives the `/catalogos` tab nav and guards.
    */
   catalogosHref: string | null;
-  /** M07, FASE 5: `stock.ver` (granted to every role) -- `true` shows a "Stock" link to `/stock`. */
+  /** "Administración › Usuarios y accesos": the FIRST `/admin/accesos/**` section (usuarios, roles, directores técnicos) this session can reach, or `null` to hide the entry. Same reasoning as `catalogosHref`, from `nav-sections.ts#accesosSections`. */
+  accesosHref: string | null;
+  /** "Administración › Configuración": the FIRST `/admin/configuracion/**` section (farmacia, parámetros, reglas de precio) this session can reach, or `null` to hide the entry. Same reasoning as `catalogosHref`, from `nav-sections.ts#configuracionSections`. */
+  configuracionHref: string | null;
+  /** M07, FASE 5: `stock.ver` (granted to every role) -- `true` shows the "Stock" link to `/stock` and, right below it, "Ajustes" to `/stock/ajustes` (same permiso: its list query and the `/stock/**` layout guard both check `stock.ver`). */
   puedeStock: boolean;
   /** M09, FASE 6: `recetas.crear` (ATP/FAR/DT) -- `true` shows a "Recetas" link to `/recetas`. */
   puedeRecetas: boolean;
@@ -55,6 +68,9 @@ export interface SidebarNavProps {
   entregasHref: string | null;
   /** M15, FASE 12: `archivo.lotes.gestionar` ONLY -- same permiso `/archivo`'s layout guard requires, so this link never sends a `archivo.destruccion.gestionar`-only session into a guard that would just redirect it back out. */
   puedeArchivo: boolean;
+  /** Desktop only: `true` hides the sidebar behind a slim rail. Owned by `./app-shell.tsx`. */
+  collapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
 }
 
 interface NavItem {
@@ -82,23 +98,37 @@ export function SidebarNav(props: SidebarNavProps) {
   return (
     <>
       {/* Mobile top bar */}
-      <div className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-zinc-200 bg-white px-4 lg:hidden dark:border-zinc-800 dark:bg-zinc-950">
-        <button type="button" onClick={() => setOpen(true)} aria-label="Abrir menú" aria-expanded={open} aria-controls="app-sidebar" className="-ml-1.5 rounded-md p-1.5 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
+      <div className="glass sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-zinc-200/70 px-4 lg:hidden dark:border-zinc-800/70">
+        <button type="button" onClick={() => setOpen(true)} aria-label="Abrir menú" aria-expanded={open} aria-controls="app-sidebar" className="glass-icon-btn -ml-1.5">
           <Menu className="size-5" aria-hidden />
         </button>
         <Brand />
       </div>
 
-      {open ? <div className="fixed inset-0 z-40 bg-zinc-900/40 lg:hidden" onClick={() => setOpen(false)} aria-hidden /> : null}
+      {open ? <div className="fixed inset-0 z-40 bg-zinc-900/30 lg:hidden" onClick={() => setOpen(false)} aria-hidden /> : null}
+
+      {/* Desktop collapsed rail: keeps the expand control in its own gutter so it never overlaps page content. */}
+      {props.collapsed ? (
+        <div className="glass-panel fixed inset-y-3 left-3 z-40 hidden w-12 flex-col items-center lg:flex">
+          <div className="flex h-14 items-center">
+            <button type="button" onClick={() => props.onCollapsedChange(false)} aria-label="Expandir barra lateral" title="Expandir barra lateral" aria-expanded={false} aria-controls="app-sidebar" className="glass-pill glass-icon-btn text-zinc-700">
+              <PanelLeftOpen className="size-4" aria-hidden />
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <aside
         id="app-sidebar"
-        className={`fixed inset-y-0 left-0 z-50 flex w-60 flex-col border-r border-zinc-200 bg-white transition-transform duration-200 lg:translate-x-0 dark:border-zinc-800 dark:bg-zinc-950 ${open ? "translate-x-0" : "-translate-x-full"}`}
+        className={`glass-panel fixed inset-y-2 left-2 z-50 flex w-60 flex-col transition-[translate,visibility] duration-200 ease-out motion-reduce:transition-none lg:inset-y-3 lg:left-3 ${open ? "visible translate-x-0" : "invisible -translate-x-[calc(100%+1rem)]"} ${props.collapsed ? "lg:invisible lg:-translate-x-[calc(100%+1rem)]" : "lg:visible lg:translate-x-0"}`}
       >
         <div className="flex h-14 shrink-0 items-center justify-between px-4">
           <Brand />
-          <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar menú" className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 lg:hidden dark:hover:bg-zinc-800">
+          <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar menú" className="glass-icon-btn -mr-1.5 lg:hidden">
             <X className="size-5" aria-hidden />
+          </button>
+          <button type="button" onClick={() => props.onCollapsedChange(true)} aria-label="Contraer barra lateral" title="Contraer barra lateral" aria-expanded aria-controls="app-sidebar" className="glass-icon-btn -mr-1.5 hidden lg:inline-flex">
+            <PanelLeftClose className="size-4" aria-hidden />
           </button>
         </div>
 
@@ -117,12 +147,12 @@ export function SidebarNav(props: SidebarNavProps) {
           ))}
         </nav>
 
-        <div className="shrink-0 border-t border-zinc-200 p-3 dark:border-zinc-800">
+        <div className="shrink-0 border-t border-emerald-900/[0.07] p-3 shadow-[inset_0_1px_0_rgb(255_255_255/0.55)] dark:border-zinc-800">
           <div className="flex items-center gap-2.5 px-1.5">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-xs font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">{initials(props.usuario)}</span>
+            <span className="glass-pill flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-emerald-800 dark:text-emerald-300">{initials(props.usuario)}</span>
             <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-800 dark:text-zinc-200">{props.usuario}</span>
             <form action={props.logoutAction}>
-              <button type="submit" aria-label="Cerrar sesión" title="Cerrar sesión" className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
+              <button type="submit" aria-label="Cerrar sesión" title="Cerrar sesión" className="glass-icon-btn">
                 <LogOut className="size-4" aria-hidden />
               </button>
             </form>
@@ -154,8 +184,8 @@ function NavLink({ item }: { item: NavItem }) {
       aria-current={item.active ? "page" : undefined}
       className={
         item.active
-          ? "flex items-center gap-2 rounded bg-emerald-50 px-2.5 py-1.5 text-sm font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-          : "flex items-center gap-2 rounded px-2.5 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+          ? "glass-pill flex items-center gap-2 rounded-[10px] px-2.5 py-1.5 text-sm font-medium text-emerald-800 dark:text-emerald-300"
+          : "flex items-center gap-2 rounded-[10px] px-2.5 py-1.5 text-sm text-zinc-600 transition-colors duration-100 hover:bg-white/60 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-zinc-100"
       }
     >
       <span className="flex-1 truncate">{item.label}</span>
@@ -172,23 +202,33 @@ function buildGroups(p: SidebarNavProps, pathname: string): NavGroup[] {
   const operacion: NavItem[] = [{ href: "/", label: "Inicio", active: pathname === "/" }];
   if (p.puedeRecetas) operacion.push({ href: "/recetas", label: "Recetas", active: pathname.startsWith("/recetas") });
   if (p.puedePreparaciones) operacion.push({ href: "/preparaciones", label: "Preparaciones", active: pathname.startsWith("/preparaciones") });
-  if (p.puedeStock) operacion.push({ href: "/stock", label: "Stock", active: pathname.startsWith("/stock") });
+  if (p.puedeStock) {
+    // `/stock/ajustes/**` has its own entry, so it must not light up "Stock" too.
+    const enAjustes = pathname === "/stock/ajustes" || pathname.startsWith("/stock/ajustes/");
+    operacion.push({ href: "/stock", label: "Stock", active: pathname.startsWith("/stock") && !enAjustes });
+    operacion.push({ href: "/stock/ajustes", label: "Ajustes", active: enAjustes });
+  }
   if (p.entregasHref) operacion.push({ href: p.entregasHref, label: "Entregas", active: pathname.startsWith("/entregas") || pathname.startsWith("/regularizacion") });
 
   const registro: NavItem[] = [];
   if (p.puedeCierres) registro.push({ href: "/cierres", label: "Cierres", active: pathname.startsWith("/cierres"), badge: p.cierresPendientes });
   if (p.puedeLibro) registro.push({ href: "/libro", label: "Libro Recetario", active: pathname.startsWith("/libro") });
-  if (p.puedeArchivo) registro.push({ href: "/archivo", label: "Archivo", active: pathname.startsWith("/archivo") });
+  if (p.puedeArchivo) registro.push({ href: "/archivo", label: "Archivo de recetas", active: pathname.startsWith("/archivo") });
 
   const gestion: NavItem[] = [];
   if (p.catalogosHref) gestion.push({ href: p.catalogosHref, label: "Catálogos", active: pathname.startsWith("/catalogos") });
   if (p.puedeReportes) gestion.push({ href: "/reportes", label: "Reportes", active: pathname.startsWith("/reportes") });
   if (p.puedeAuditoria) gestion.push({ href: "/auditoria", label: "Auditoría", active: pathname === "/auditoria" || pathname.startsWith("/auditoria/") });
 
+  const administracion: NavItem[] = [];
+  if (p.accesosHref) administracion.push({ href: p.accesosHref, label: "Usuarios y accesos", active: pathname.startsWith("/admin/accesos") });
+  if (p.configuracionHref) administracion.push({ href: p.configuracionHref, label: "Configuración", active: pathname.startsWith("/admin/configuracion") });
+
   return [
     { label: "Operación", items: operacion },
     { label: "Registro legal", items: registro },
     { label: "Gestión", items: gestion },
+    { label: "Administración", items: administracion },
   ].filter((group) => group.items.length > 0);
 }
 

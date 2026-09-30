@@ -55,10 +55,19 @@
  *     file actually tests -- the step-up behavior itself has its own
  *     dedicated regression test (tests/unit/usuarios-usecase-registry.test.ts's
  *     M2 case), which deliberately uses the REAL step-up policy instead.
+ *
+ * The same discovered registry also backs a second cross-module guarantee
+ * (last describe block): every field name any registered use case accepts
+ * has a human label in shared/labels/field-labels.ts, so a validation
+ * error never shows the user a raw code key. It lives here, not in its own
+ * file, because it needs exactly this glob + these mocks to populate the
+ * registry -- a second copy would be the same 40 lines drifting apart.
  */
 import { describe, it, expect, vi } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
+import type { z } from "zod";
 import { AuthorizationError } from "@/shared/errors";
+import { FIELD_LABELS } from "@/shared/labels/field-labels";
 
 vi.mock("next/headers", () => ({
   cookies: async () => {
@@ -123,7 +132,7 @@ describe("every modules/*/application/**/*.ts file is discovered", () => {
 });
 
 describe("every registered use case (any module) is structurally forced through authorize()", () => {
-  it("rejects a permissionless session for EVERY registered use case in the codebase, before touching a transaction", async () => {
+  it("rejects a permissionless session for EVERY registered use case in the codebase, running nothing but the denial audit", async () => {
     const registered = listRegisteredUseCasesForTests();
     // Sanity floor: at least the FASE 2 (auth) + FASE 3 (usuarios) use
     // cases known at the time this test was written -- guards against the
@@ -143,7 +152,96 @@ describe("every registered use case (any module) is structurally forced through 
       ).rejects.toBeInstanceOf(AuthorizationError);
     }
 
-    expect(withTenantTransactionMock).not.toHaveBeenCalled();
-    expect(auditRecordMock).not.toHaveBeenCalled();
+    // The operation itself never ran: the ONLY write each denial produced is its own ACCESO_DENEGADO audit row.
+    expect(auditRecordMock).toHaveBeenCalledTimes(registered.length);
+    expect(withTenantTransactionMock).toHaveBeenCalledTimes(registered.length);
+    registered.forEach((entry, i) => {
+      expect(auditRecordMock.mock.calls[i]![1]).toMatchObject({
+        accion: "ACCESO_DENEGADO",
+        entidad: "acceso",
+        valorNuevo: { casoDeUso: entry.name, permiso: entry.permiso },
+      });
+    });
+  });
+});
+
+/**
+ * Every object key reachable from `schema`, via zod 4's internal `_zod.def`
+ * (the same structure zod's own JSON-schema generator walks). Wrappers are
+ * unwrapped to their inner type; a `pipe` contributes both ends (`in` is
+ * what the user submitted, `out` may be a stricter re-parse); `lazy` is
+ * skipped (no recursive input schemas exist, and following one blindly
+ * could loop). Leaf types (string, enum, custom, ...) contribute nothing.
+ */
+function collectObjectKeys(schema: z.core.$ZodType, into: Set<string>, seen = new Set<z.core.$ZodType>()): void {
+  if (seen.has(schema)) return;
+  seen.add(schema);
+  const def = schema._zod.def as z.core.$ZodTypeDef & Record<string, unknown>;
+  const walk = (child: unknown) => collectObjectKeys(child as z.core.$ZodType, into, seen);
+  switch (def.type) {
+    case "object":
+      for (const [key, child] of Object.entries(def.shape as Record<string, unknown>)) {
+        into.add(key);
+        walk(child);
+      }
+      if (def.catchall) walk(def.catchall);
+      break;
+    case "optional":
+    case "nullable":
+    case "default":
+    case "prefault":
+    case "readonly":
+    case "catch":
+    case "nonoptional":
+    case "success":
+      walk(def.innerType);
+      break;
+    case "array":
+      walk(def.element);
+      break;
+    case "pipe":
+      walk(def.in);
+      walk(def.out);
+      break;
+    case "union":
+      for (const option of def.options as unknown[]) walk(option);
+      break;
+    case "intersection":
+      walk(def.left);
+      walk(def.right);
+      break;
+    case "record":
+      walk(def.valueType);
+      break;
+    case "tuple":
+      for (const item of def.items as unknown[]) walk(item);
+      if (def.rest) walk(def.rest);
+      break;
+    default:
+      break;
+  }
+}
+
+describe("every input field of every registered use case has a human label", () => {
+  it("maps every object key reachable from any registered input schema in FIELD_LABELS (shared/labels/field-labels.ts)", () => {
+    const registered = listRegisteredUseCasesForTests();
+    expect(registered.length).toBeGreaterThanOrEqual(11);
+
+    const missing = new Map<string, string[]>();
+    let totalKeys = 0;
+    for (const entry of registered) {
+      const keys = new Set<string>();
+      collectObjectKeys(entry.input, keys);
+      totalKeys += keys.size;
+      for (const key of keys) {
+        if (!Object.hasOwn(FIELD_LABELS, key)) missing.set(key, [...(missing.get(key) ?? []), entry.name]);
+      }
+    }
+    // Guards against the walker silently matching nothing (e.g. a zod
+    // internals change) and this test passing vacuously.
+    expect(totalKeys).toBeGreaterThan(0);
+
+    const report = [...missing].map(([key, useCases]) => `${key} (${useCases.join(", ")})`).sort();
+    expect(report, "input keys with no entry in FIELD_LABELS -- add a Spanish label for each").toEqual([]);
   });
 });

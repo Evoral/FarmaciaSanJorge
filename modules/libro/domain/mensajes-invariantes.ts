@@ -5,6 +5,8 @@
  * discipline as `modules/preparaciones/domain/mensajes-invariantes.ts` --
  * see that file's doc comment.
  */
+import { mensajeGlobalParaInvariante } from "@/shared/errors/mensajes-invariantes";
+
 export const MENSAJES_INVARIANTES_ANULACION: Readonly<Record<string, string>> = {
   "INV-L02": "La jornada del asiento ya está firmada; corresponde un asiento rectificativo.",
   "INV-L09": "El asiento ya no está vigente: no se puede anular de nuevo.",
@@ -14,7 +16,7 @@ export const MENSAJES_INVARIANTES_ANULACION: Readonly<Record<string, string>> = 
 const MENSAJE_GENERICO = "No se pudo anular el asiento: se violó una regla del sistema. Contactá al administrador si el problema persiste.";
 
 export function mensajeParaInvarianteAnulacion(codigo: string): string {
-  return MENSAJES_INVARIANTES_ANULACION[codigo] ?? MENSAJE_GENERICO;
+  return MENSAJES_INVARIANTES_ANULACION[codigo] ?? mensajeGlobalParaInvariante(codigo) ?? MENSAJE_GENERICO;
 }
 
 /**
@@ -32,5 +34,5 @@ const MENSAJE_GENERICO_RECTIFICACION =
   "No se pudo generar el asiento rectificativo: se violó una regla del sistema. Contactá al administrador si el problema persiste.";
 
 export function mensajeParaInvarianteRectificacion(codigo: string): string {
-  return MENSAJES_INVARIANTES_RECTIFICACION[codigo] ?? MENSAJE_GENERICO_RECTIFICACION;
+  return MENSAJES_INVARIANTES_RECTIFICACION[codigo] ?? mensajeGlobalParaInvariante(codigo) ?? MENSAJE_GENERICO_RECTIFICACION;
 }

@@ -16,7 +16,7 @@ import { existeNombreVigente, insertDroga } from "../infrastructure/droga-reposi
 const crearDrogaInput = z.object({
   nombre: nonEmptyString,
   unidadBaseId: uuid,
-  esControlada: z.boolean().default(false),
+  esControlada: z.boolean().optional(),
   tipoControl: z.enum(TIPOS_CONTROL).default("NINGUNO"),
   stockMinimo: nonNegativeDecimalString,
 });
@@ -36,11 +36,13 @@ export const crearDrogaCommand = defineCommand({
   input: crearDrogaInput,
   audit: { entidad: "droga", accion: TipoAccion.CREAR },
   handler: async ({ tx, session, input }) => {
-    if (!tipoControlValido(input.esControlada, input.tipoControl)) {
+    // When omitted, derived from tipoControl (same rule as the DB CHECK).
+    const esControlada = input.esControlada ?? input.tipoControl !== "NINGUNO";
+    if (!tipoControlValido(esControlada, input.tipoControl)) {
       throw new ValidationError('El tipo de control debe ser "Ninguno" si y solo si la droga no es controlada.');
     }
 
-    const unidad = await tx.unidadMedida.findUnique({ where: { id: input.unidadBaseId }, select: { id: true, fechaBaja: true } });
+    const unidad = await tx.unidadMedida.findUnique({ where: { id: input.unidadBaseId }, select: { id: true, nombre: true, simbolo: true, fechaBaja: true } });
     if (!unidad) throw new NotFoundError("Unidad de medida no encontrada.");
     if (unidad.fechaBaja !== null) throw new DomainError("La unidad de medida elegida está dada de baja.");
 
@@ -52,7 +54,7 @@ export const crearDrogaCommand = defineCommand({
       tenantId: session.tenantId,
       nombre: input.nombre,
       unidadBaseId: input.unidadBaseId,
-      esControlada: input.esControlada,
+      esControlada,
       tipoControl: input.tipoControl,
       stockMinimo: input.stockMinimo.toString(),
     });
@@ -64,7 +66,8 @@ export const crearDrogaCommand = defineCommand({
         valorNuevo: {
           nombre: input.nombre,
           unidadBaseId: input.unidadBaseId,
-          esControlada: input.esControlada,
+          unidadBase: `${unidad.nombre} (${unidad.simbolo})`,
+          esControlada,
           tipoControl: input.tipoControl,
           stockMinimo: input.stockMinimo.toString(),
         },

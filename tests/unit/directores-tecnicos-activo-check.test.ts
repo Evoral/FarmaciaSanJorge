@@ -7,7 +7,7 @@
  * that side is covered by tests/db/designacion-dt.test.ts. This is a
  * stubbed-tx unit test in the same style as
  * tests/unit/usuarios-crear-usuario-audit.test.ts: the repository
- * (`getUsuarioEstado`/`insertDesignacion`) is mocked so the handler runs
+ * (`getUsuarioParaDesignar`/`insertDesignacion`) is mocked so the handler runs
  * with no real database at all -- what this proves is that the handler
  * actually performs the check, in the right order, with the right message,
  * BEFORE ever calling insertDesignacion.
@@ -42,7 +42,10 @@ const insertDesignacionMock = vi.fn(async (...args: unknown[]) => {
   return { id: "designacion-1" };
 });
 vi.mock("@/modules/directores-tecnicos/infrastructure/designacion-repository", () => ({
-  getUsuarioEstado: (...args: unknown[]) => getUsuarioEstadoMock(...args),
+  getUsuarioParaDesignar: async (...args: unknown[]) => {
+    const estado = await getUsuarioEstadoMock(...args);
+    return estado === null ? null : { estado, nombre: "Ana", apellido: "Gil" };
+  },
   insertDesignacion: (...args: unknown[]) => insertDesignacionMock(...args),
 }));
 
@@ -109,7 +112,7 @@ describe("M1: designarDirectorTecnico's app-level ACTIVO pre-check", () => {
     expect(insertDesignacionMock).not.toHaveBeenCalled();
   });
 
-  it("usuario not found (getUsuarioEstado returns null): rejected with NotFoundError, insertDesignacion never called", async () => {
+  it("usuario not found (getUsuarioParaDesignar returns null): rejected with NotFoundError, insertDesignacion never called", async () => {
     getUsuarioEstadoMock.mockResolvedValue(null);
 
     let caught: unknown;

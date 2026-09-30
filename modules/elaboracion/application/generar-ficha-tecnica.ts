@@ -58,34 +58,48 @@
  * exposes each version's `preparacionActual` so the UI can surface this
  * context to the farmacéutico instead of silently hiding it.
  * ============================================================================
+ *
+ * The lines themselves come from `calcularLineasFicha` (shared with the
+ * in-memory presupuesto, docs/specs/presupuesto-receta.md), which throws
+ * `FichaNoGenerableError` (a DomainError: same Spanish message as always,
+ * plus a stable code). `soloSiDesactualizada` (used by the automatic
+ * regeneration after a receta edit) skips the insert when the lines are
+ * exactly the latest version's -- `generada: false` then reports that
+ * latest version instead of creating a duplicate one.
  */
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
-import { DomainError, NotFoundError } from "@/shared/errors";
+import { NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
-import { calcularFichaTecnica, FichaTecnicaValidationError } from "../domain/calcular-ficha-tecnica";
-import type { ComponenteInput, ItemRecetaInput, LineaPesajeCalculada, TipoMagnitud, UnidadMedidaRef } from "../domain/calcular-ficha-tecnica";
-import { mensajeParaCodigoValidacion } from "../domain/mensajes-validacion";
+import type { ComponenteInput, ItemRecetaInput } from "../domain/calcular-ficha-tecnica";
+import { mismasLineasPesaje } from "../domain/ficha-no-generable";
 import { siguienteVersionFicha } from "../domain/version";
 import {
   lockItemRecetaParaFicha,
   getItemParaFicha,
   getComponentesParaFicha,
-  getUnidadesBase,
-  getParametrosPesaje,
+  getLineasUltimaFicha,
   getMaxVersionFicha,
   insertFichaConLineas,
 } from "../infrastructure/ficha-repository";
+import { calcularLineasFicha } from "./calcular-lineas-ficha";
 
-const generarFichaTecnicaInput = z.object({ itemRecetaId: uuid });
+const generarFichaTecnicaInput = z.object({
+  itemRecetaId: uuid,
+  soloSiDesactualizada: z.boolean().default(false),
+});
 
 export interface GenerarFichaTecnicaInput {
   itemRecetaId: string;
+  /** Skip the insert when the latest version already has exactly these lines (see module doc comment). */
+  soloSiDesactualizada?: boolean;
 }
 
 export interface GenerarFichaTecnicaOutput {
   id: string;
   version: number;
+  /** `false` only with `soloSiDesactualizada` and an unchanged formula: `id`/`version` are then the existing latest ficha's. */
+  generada: boolean;
   lineas: Array<{
     drogaId: string;
     drogaNombre: string;
@@ -95,13 +109,6 @@ export interface GenerarFichaTecnicaOutput {
     esEnraseManual: boolean;
     orden: number;
   }>;
-}
-
-/** Every `TipoMagnitud` a componente or the item's total actually needs, so a MISSING base unit produces one clear error instead of a `TypeError` deep inside the calculator. */
-function magnitudesRequeridas(item: ItemRecetaInput, componentes: ComponenteInput[]): Set<TipoMagnitud> {
-  const magnitudes = new Set<TipoMagnitud>(componentes.map((c) => c.unidadMedida.tipoMagnitud));
-  if (item.unidadTotal) magnitudes.add(item.unidadTotal.tipoMagnitud);
-  return magnitudes;
 }
 
 export const generarFichaTecnicaCommand = defineCommand({
@@ -145,31 +152,13 @@ export const generarFichaTecnicaCommand = defineCommand({
       orden: c.orden,
     }));
 
-    const unidadesBaseParciales = await getUnidadesBase(tx);
-    const requeridas = magnitudesRequeridas(itemInput, componentesInput);
-    const faltante = [...requeridas].find((m) => !unidadesBaseParciales[m]);
-    if (faltante) {
-      throw new DomainError(
-        `No hay una unidad de medida base configurada para la magnitud ${faltante}: pedile a un administrador que revise el catálogo de unidades antes de generar la ficha.`,
-      );
-    }
-    // Safe: every magnitud actually referenced by `itemInput`/`componentesInput`
-    // (the only keys the calculator ever indexes with) was just confirmed
-    // present above -- a magnitud with no base unit configured would have
-    // already thrown. Magnitudes NOT referenced may legitimately be absent
-    // from `unidadesBaseParciales`.
-    const unidadesBase = unidadesBaseParciales as Record<TipoMagnitud, UnidadMedidaRef>;
+    const lineas = await calcularLineasFicha(tx, session.tenantId, itemInput, componentesInput);
 
-    const parametros = await getParametrosPesaje(tx, session.tenantId);
-
-    let lineas: LineaPesajeCalculada[];
-    try {
-      lineas = calcularFichaTecnica(itemInput, componentesInput, parametros, unidadesBase);
-    } catch (e) {
-      if (e instanceof FichaTecnicaValidationError) {
-        throw new DomainError(mensajeParaCodigoValidacion(e.validationCode));
+    if (input.soloSiDesactualizada) {
+      const ultima = await getLineasUltimaFicha(tx, session.tenantId, input.itemRecetaId);
+      if (ultima && mismasLineasPesaje(lineas, ultima.lineas)) {
+        return { output: { id: ultima.id, version: ultima.version, generada: false, lineas: aSalida(lineas) } };
       }
-      throw e;
     }
 
     const maxVersion = await getMaxVersionFicha(tx, session.tenantId, input.itemRecetaId);
@@ -181,23 +170,21 @@ export const generarFichaTecnicaCommand = defineCommand({
       lineas,
     });
 
-    return {
-      output: {
-        id: nueva.id,
-        version: nueva.version,
-        lineas: lineas.map((l) => ({
-          drogaId: l.drogaId,
-          drogaNombre: l.drogaNombre,
-          cantidadTeorica: l.cantidadTeorica ? l.cantidadTeorica.toString() : null,
-          excesoAplicado: l.excesoAplicado.toString(),
-          cantidadAPesar: l.cantidadAPesar ? l.cantidadAPesar.toString() : null,
-          esEnraseManual: l.esEnraseManual,
-          orden: l.orden,
-        })),
-      },
-    };
+    return { output: { id: nueva.id, version: nueva.version, generada: true, lineas: aSalida(lineas) } };
   },
 });
+
+function aSalida(lineas: Awaited<ReturnType<typeof calcularLineasFicha>>): GenerarFichaTecnicaOutput["lineas"] {
+  return lineas.map((l) => ({
+    drogaId: l.drogaId,
+    drogaNombre: l.drogaNombre,
+    cantidadTeorica: l.cantidadTeorica ? l.cantidadTeorica.toString() : null,
+    excesoAplicado: l.excesoAplicado.toString(),
+    cantidadAPesar: l.cantidadAPesar ? l.cantidadAPesar.toString() : null,
+    esEnraseManual: l.esEnraseManual,
+    orden: l.orden,
+  }));
+}
 
 export async function generarFichaTecnica(input: GenerarFichaTecnicaInput): Promise<GenerarFichaTecnicaOutput> {
   return generarFichaTecnicaCommand.execute(input);

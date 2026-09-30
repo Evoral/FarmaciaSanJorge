@@ -11,10 +11,10 @@ import { Decimal } from "decimal.js";
 export const nonEmptyString = z
   .string()
   .trim()
-  .min(1, "This field cannot be empty.");
+  .min(1, "Este campo no puede estar vacío.");
 
 /** A v4 UUID (Postgres `uuid` columns / `gen_random_uuid()`). */
-export const uuid = z.string().uuid("Must be a valid UUID.");
+export const uuid = z.string().uuid("Debe ser un identificador válido.");
 
 /**
  * An email address, normalized (trimmed + lowercased) before validation --
@@ -26,7 +26,7 @@ export const email = z
   .string()
   .trim()
   .toLowerCase()
-  .email("Must be a valid email address.");
+  .email("Debe ser un email válido.");
 
 /**
  * A string that parses to a valid, finite `Decimal` -- used for quantity
@@ -36,17 +36,17 @@ export const email = z
 export const decimalString = z
   .string()
   .trim()
-  .min(1, "This field cannot be empty.")
+  .min(1, "Este campo no puede estar vacío.")
   .transform((value, ctx) => {
     let parsed: Decimal;
     try {
       parsed = new Decimal(value);
     } catch {
-      ctx.addIssue({ code: "custom", message: "Must be a valid decimal number." });
+      ctx.addIssue({ code: "custom", message: "Debe ser un número decimal válido." });
       return z.NEVER;
     }
     if (!parsed.isFinite()) {
-      ctx.addIssue({ code: "custom", message: "Must be a finite decimal number." });
+      ctx.addIssue({ code: "custom", message: "Debe ser un número decimal finito." });
       return z.NEVER;
     }
     return parsed;
@@ -54,5 +54,5 @@ export const decimalString = z
 
 /** `decimalString` restricted to values > 0. */
 export const positiveDecimalString = decimalString.refine((value) => value.greaterThan(0), {
-  message: "Must be greater than zero.",
+  message: "Debe ser mayor que cero.",
 });

@@ -7,7 +7,7 @@
  * (eslint.config.mjs's `appBoundaryPatterns` block forbids any
  * `modules/**\/*.ts` from reaching into another module's `infrastructure/`
  * layer, not just `app/**`), so this is a deliberate duplication, the same
- * pattern `modules/directores-tecnicos/infrastructure/designacion-repository.ts#getUsuarioEstado`
+ * pattern `modules/directores-tecnicos/infrastructure/designacion-repository.ts#getUsuarioParaDesignar`
  * and `modules/preparaciones/infrastructure/preparacion-repository.ts`'s
  * "Receta state transitions" section already establish for this codebase.
  * The pure decision table (`decideCoFirma`/`estaBloqueado`) has NO such

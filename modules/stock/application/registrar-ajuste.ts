@@ -30,20 +30,37 @@
  * reads the partida via a FRESH statement AFTER the lock, never from a
  * pre-lock read -- two concurrent ajustes on the same partida serialize
  * instead of both approving against the same stale balance.
+ *
+ * Unit of the entered quantity: `unidadId` (optional, defaults to the
+ * droga's unidad base) must pass `rechazoUnidadAjuste`
+ * (modules/stock/domain/partida.ts) and is converted to the unidad base
+ * via `fsj.convertir` (same as ingresar-partida.ts) AFTER the lock + fresh
+ * read and BEFORE the saldo check, so the check and the stored AJUSTE
+ * movement are always in the unidad base. Only the saldo-exceeded message
+ * and the audit row also carry the quantity as entered.
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import type { ExecuteOptions } from "@/shared/usecase";
-import { DomainError, NotFoundError } from "@/shared/errors";
+import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { uuid, nonEmptyString } from "@/shared/validation";
-import { MOTIVOS_AJUSTE, positiveDecimalString, ajusteExcedeSaldo } from "../domain/partida";
+import { MOTIVOS_AJUSTE, positiveDecimalString, ajusteExcedeSaldo, rechazoUnidadAjuste, type RechazoUnidadAjuste } from "../domain/partida";
 import { dec } from "@/shared/decimal";
-import { lockPartidaParaAccion, getPartidaParaAccion, insertAjuste } from "../infrastructure/partida-repository";
+import { formatCantidadExacta } from "@/shared/format/cantidad";
+import {
+  lockPartidaParaAccion,
+  getPartidaParaAccion,
+  getUnidadesParaConversion,
+  convertirUnidad,
+  insertAjuste,
+} from "../infrastructure/partida-repository";
 import { verificarCoFirmaDtCommand } from "./verificar-co-firma-dt";
 
 const registrarAjusteInternalInput = z.object({
   partidaId: uuid,
   cantidad: positiveDecimalString,
+  /** Unit `cantidad` is entered in; omitted = the droga's unidad base. */
+  unidadId: uuid.optional(),
   motivoAjuste: z.enum(MOTIVOS_AJUSTE),
   observacion: nonEmptyString,
   /** The id `verificarCoFirmaDtCommand` returned -- NEVER trust this from raw client input, see this module's doc comment. Set ONLY by `registrarAjusteStock`, below. */
@@ -54,11 +71,19 @@ const registrarAjusteInternalInput = z.object({
 export interface RegistrarAjusteInput {
   partidaId: string;
   cantidad: string;
+  /** Unit `cantidad` is entered in; omitted = the droga's unidad base. */
+  unidadId?: string;
   motivoAjuste: (typeof MOTIVOS_AJUSTE)[number];
   observacion: string;
   dtUsuarioId: string;
   dtPassword: string;
 }
+
+const MENSAJES_RECHAZO_UNIDAD: Record<RechazoUnidadAjuste, (simbolo: string, simboloBase: string) => string> = {
+  BAJA: (simbolo) => `La unidad ${simbolo} está dada de baja. Elegí otra unidad.`,
+  OTRA_MAGNITUD: (simbolo, simboloBase) => `La unidad ${simbolo} no corresponde a esta droga, que se mide en ${simboloBase}.`,
+  NO_HABILITADA: (simbolo) => `La unidad ${simbolo} no está habilitada para ajustes de esta droga. Elegí una de las unidades ofrecidas.`,
+};
 
 /** NOT exported -- see this module's doc comment (FIX 4). The only way to reach this is through `registrarAjusteStock`, below. */
 const registrarAjusteInternalCommand = defineCommand({
@@ -73,16 +98,32 @@ const registrarAjusteInternalCommand = defineCommand({
     const partida = await getPartidaParaAccion(tx, session.tenantId, input.partidaId);
     if (!partida) throw new NotFoundError("Partida no encontrada.");
 
-    const cantidad = dec(input.cantidad.toString());
+    const unidadId = input.unidadId ?? partida.unidadBaseId;
+    const unidades = await getUnidadesParaConversion(tx, [unidadId, partida.unidadBaseId]);
+    const unidadBase = unidades.get(partida.unidadBaseId);
+    if (!unidadBase) throw new Error(`registrarAjuste: unidad base ${partida.unidadBaseId} not found`);
+    const unidad = unidades.get(unidadId);
+    if (!unidad) throw new ValidationError("La unidad elegida no existe.", { fields: ["unidadId"] });
+    const rechazo = rechazoUnidadAjuste(unidad, unidadBase);
+    if (rechazo) {
+      throw new ValidationError(MENSAJES_RECHAZO_UNIDAD[rechazo](unidad.simbolo, unidadBase.simbolo), { fields: ["unidadId"] });
+    }
+
+    const cantidadIngresada = input.cantidad.toFixed();
+    const cantidadBase = dec(await convertirUnidad(tx, cantidadIngresada, unidad.id, unidadBase.id)).toFixed();
     const disponible = dec(partida.cantidadDisponible);
-    if (ajusteExcedeSaldo(cantidad, disponible)) {
-      throw new DomainError(`La cantidad del ajuste (${cantidad.toString()}) supera el saldo disponible de la partida (${disponible.toString()}).`);
+    if (ajusteExcedeSaldo(dec(cantidadBase), disponible)) {
+      const disponibleEnUnidad = await convertirUnidad(tx, partida.cantidadDisponible, unidadBase.id, unidad.id);
+      throw new DomainError(
+        `La cantidad a descontar (${formatCantidadExacta(cantidadIngresada, unidad.simbolo)}) supera el saldo disponible de la partida (${formatCantidadExacta(disponibleEnUnidad, unidad.simbolo)}).`,
+        { fields: ["cantidad"] },
+      );
     }
 
     const movimiento = await insertAjuste(tx, {
       tenantId: session.tenantId,
       partidaId: input.partidaId,
-      cantidad: input.cantidad.toString(),
+      cantidad: cantidadBase,
       motivoAjuste: input.motivoAjuste,
       observacion: input.observacion,
       registradoPorId: session.usuario.id,
@@ -95,7 +136,11 @@ const registrarAjusteInternalCommand = defineCommand({
         entidadId: movimiento.id,
         valorNuevo: {
           partidaId: input.partidaId,
-          cantidad: input.cantidad.toString(),
+          partida: `${partida.drogaNombre} · lote ${partida.lote}`,
+          cantidad: cantidadBase,
+          unidadBase: unidadBase.simbolo,
+          cantidadIngresada,
+          unidadIngresada: unidad.simbolo,
           motivoAjuste: input.motivoAjuste,
           observacion: input.observacion,
         },
@@ -123,6 +168,7 @@ export async function registrarAjusteStock(input: RegistrarAjusteInput, options?
     {
       partidaId: input.partidaId,
       cantidad: input.cantidad,
+      unidadId: input.unidadId,
       motivoAjuste: input.motivoAjuste,
       observacion: input.observacion,
       autorizadoPorId: coFirma.dtUsuarioId,

@@ -56,24 +56,24 @@ export function decodeCursor(raw: string): AuditoriaCursor {
   try {
     parsed = JSON.parse(Buffer.from(raw, "base64url").toString("utf8"));
   } catch {
-    throw new ValidationError("Invalid pagination cursor.");
+    throw new ValidationError("Cursor de paginación inválido.");
   }
 
   if (typeof parsed !== "object" || parsed === null) {
-    throw new ValidationError("Invalid pagination cursor.");
+    throw new ValidationError("Cursor de paginación inválido.");
   }
 
   const { ocurridoEn, id } = parsed as Record<string, unknown>;
   if (typeof ocurridoEn !== "string" || typeof id !== "string") {
-    throw new ValidationError("Invalid pagination cursor.");
+    throw new ValidationError("Cursor de paginación inválido.");
   }
 
   const date = new Date(ocurridoEn);
   if (Number.isNaN(date.getTime())) {
-    throw new ValidationError("Invalid pagination cursor.");
+    throw new ValidationError("Cursor de paginación inválido.");
   }
   if (!UUID_PATTERN.test(id)) {
-    throw new ValidationError("Invalid pagination cursor.");
+    throw new ValidationError("Cursor de paginación inválido.");
   }
 
   return { ocurridoEn: date, id };

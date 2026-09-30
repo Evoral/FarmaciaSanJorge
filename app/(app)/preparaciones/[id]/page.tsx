@@ -6,8 +6,9 @@ import { getPreparacionParaPantalla } from "@/modules/preparaciones/application/
 import { getEtiquetaParaImprimir } from "@/modules/preparaciones/application/get-etiqueta-para-imprimir";
 import { ConfirmarPreparacionForm } from "@/modules/preparaciones/ui/confirmar-form";
 import { DescartarPreparacionForm } from "@/modules/preparaciones/ui/descartar-form";
-import { SimpleForm } from "@/modules/preparaciones/ui/simple-form";
+import { SimpleForm } from "@/shared/ui/simple-form";
 import { generarEtiquetaAction } from "@/modules/preparaciones/ui/actions";
+import { ESTADO_PREPARACION_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 
 interface PreparacionPageProps {
   params: Promise<{ id: string }>;
@@ -32,7 +33,7 @@ export default async function PreparacionPage({ params }: PreparacionPageProps) 
         </Link>
       </div>
 
-      <h1 className="mb-4 text-2xl font-semibold">Preparación — {pantalla.estado}</h1>
+      <h1 className="mb-4 text-2xl font-semibold">Preparación — {etiquetaDe(ESTADO_PREPARACION_LABELS, pantalla.estado).toLowerCase()}</h1>
 
       {pantalla.estado === "INICIADA" ? (
         <>

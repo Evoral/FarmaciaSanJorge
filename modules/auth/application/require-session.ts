@@ -23,12 +23,12 @@ import { validateSession } from "./validate-session";
 export async function requireSession(): Promise<AuthenticatedSession> {
   const rawToken = await readSessionCookie();
   if (!rawToken) {
-    throw new AuthenticationError("No session cookie present.");
+    throw new AuthenticationError("No hay una sesión iniciada. Iniciá sesión para continuar.");
   }
 
   const session = await validateSession(rawToken);
   if (!session) {
-    throw new AuthenticationError("Session is missing, expired, revoked, or no longer eligible.");
+    throw new AuthenticationError("Tu sesión expiró o ya no es válida. Iniciá sesión nuevamente.");
   }
 
   return session;

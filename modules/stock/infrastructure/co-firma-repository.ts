@@ -5,7 +5,7 @@
  * because a module cannot reach into another module's infrastructure layer
  * -- see modules/usuarios/infrastructure/admin-guard.ts's header comment
  * and modules/directores-tecnicos/infrastructure/designacion-repository.ts's
- * `getUsuarioEstado` (same pattern, same justification).
+ * `getUsuarioParaDesignar` (same pattern, same justification).
  *
  * Rate limiting reuses `usuario.intentos_fallidos`/`bloqueado_hasta` --
  * the SAME columns/policy (`AUTH_POLICY.maxFailedLoginAttempts`/

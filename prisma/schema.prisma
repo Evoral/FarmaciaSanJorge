@@ -14,7 +14,13 @@
 generator client {
   provider        = "prisma-client"
   output          = "../generated/prisma"
-  previewFeatures = ["postgresqlExtensions"]
+  // relationJoins: load relations in ONE SQL statement (LATERAL joins)
+  // instead of sibling child queries fired with Promise.all. Every use case
+  // runs in an interactive transaction pinned to ONE pg client, so those
+  // child queries were concurrent on it -- queued by pg 8 (deprecation
+  // warning), rejected by pg@9. Guarded by
+  // tests/db/prisma-relation-loading-concurrency.test.ts.
+  previewFeatures = ["postgresqlExtensions", "relationJoins"]
 }
 
 datasource db {
@@ -71,6 +77,8 @@ enum TipoAccion {
   IMPRIMIR_CIERRE
   /// D6 (migration 0036). Every libro recetario export (CSV/PDF) is audited.
   EXPORTAR
+  /// Migration 0045. A use case rejected by authorize() -- see shared/usecase.ts#registrarAccesoDenegado.
+  ACCESO_DENEGADO
 
   @@map("tipo_accion")
   @@schema("fsj")
@@ -139,6 +147,15 @@ enum OrigenReceta {
   DIGITAL_FOTO
 
   @@map("origen_receta")
+  @@schema("fsj")
+}
+
+/// DP-23, migration 0049 (docs/specs/importacion-receta-pdf.md).
+enum JurisdiccionMatricula {
+  NACIONAL
+  PROVINCIAL
+
+  @@map("jurisdiccion_matricula")
   @@schema("fsj")
 }
 
@@ -354,6 +371,7 @@ model Usuario {
   lotesArchivoRegistrados         LoteArchivoRecetas[]
   reglasPrecioCreadas             ReglaPrecio[]
   cotizacionesCalculadas          Cotizacion[]
+  drogaAliasCreados               DrogaAlias[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, dni])
@@ -424,6 +442,9 @@ model RegistroAuditoria {
   autorizadoPor Usuario? @relation("AuditoriaAutorizadoPor", fields: [autorizadoPorId], references: [id])
 
   @@unique([tenantId, id])
+  /// Migration 0044: keyset pagination of /auditoria (ORDER BY ocurrido_en DESC, id DESC) -- unfiltered/date-range view and entidad filter.
+  @@index([tenantId, ocurridoEn(sort: Desc), id(sort: Desc)], map: "idx_registro_auditoria_tenant_fecha")
+  @@index([tenantId, entidad, ocurridoEn(sort: Desc), id(sort: Desc)], map: "idx_registro_auditoria_tenant_entidad_fecha")
   @@map("registro_auditoria")
   @@schema("fsj")
 }
@@ -557,9 +578,30 @@ model Droga {
   componentesItemReceta ComponenteItemReceta[]
   lineasPesaje          LineaPesaje[]
   asientosContralor     AsientoContralor[]
+  alias                 DrogaAlias[]
 
   @@unique([tenantId, id])
   @@map("droga")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped, append-only for fsj_app (migration 0049,
+/// docs/specs/importacion-receta-pdf.md "Pieza 4"). aliasNormalizado is
+/// written already normalized (modules/recetas/domain/normalizar.ts).
+model DrogaAlias {
+  id               String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  drogaId          String   @map("droga_id") @db.Uuid
+  aliasNormalizado String   @map("alias_normalizado")
+  creadoPorId      String   @map("creado_por_id") @db.Uuid
+  creadoEn         DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+
+  droga     Droga   @relation(fields: [drogaId], references: [id])
+  creadoPor Usuario @relation(fields: [creadoPorId], references: [id])
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, aliasNormalizado])
+  @@map("droga_alias")
   @@schema("fsj")
 }
 
@@ -582,22 +624,25 @@ model Proveedor {
   @@schema("fsj")
 }
 
-/// Tenant-scoped (M06). matricula uniqueness scoped to active rows per
-/// tenant -- DP-23 (jurisdiction?) unresolved. matricula normalization
+/// Tenant-scoped (M06). matricula uniqueness scoped to (jurisdiccion,
+/// matricula) among active rows per tenant -- DP-23 resolved in migration
+/// 0049 (uq_medico_matricula_vigente). matricula normalization
 /// (trim/collapse-whitespace/uppercase) is application-layer only (no DB
 /// CHECK) -- see migration 0029's header comment for why.
 model Medico {
-  id                  String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId            String    @map("tenant_id") @db.Uuid
-  nombre              String
-  apellido            String
-  matricula           String
-  especialidad        String?
-  telefono            String?
-  direccionRegistrada String?   @map("direccion_registrada")
-  fechaBaja           DateTime? @map("fecha_baja") @db.Timestamptz(6)
+  id                    String                @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId              String                @map("tenant_id") @db.Uuid
+  nombre                String
+  apellido              String
+  matricula             String
+  /// Migration 0049 (DP-23). Existing rows backfilled to PROVINCIAL.
+  matriculaJurisdiccion JurisdiccionMatricula @default(PROVINCIAL) @map("matricula_jurisdiccion")
+  especialidad          String?
+  telefono              String?
+  direccionRegistrada   String?               @map("direccion_registrada")
+  fechaBaja             DateTime?             @map("fecha_baja") @db.Timestamptz(6)
   /// FASE 4 point 4.4 / migration 0029 -- same convenience column as proveedor.motivoBaja (migration 0027).
-  motivoBaja          String?   @map("motivo_baja")
+  motivoBaja            String?               @map("motivo_baja")
 
   recetas Receta[]
 
@@ -739,6 +784,14 @@ model Receta {
   motivoAnulacion           String?      @map("motivo_anulacion")
   /// M15, deferred from migration 0011, added in migration 0016. INV-ARC-006: only settable once ENTREGADA/ANULADA + receta_fisica_recibida; frozen once set.
   loteArchivoId             String?      @map("lote_archivo_id") @db.Uuid
+  /// Migration 0049 (docs/specs/importacion-receta-pdf.md). Digital platform code (e.g. RCTA); set together with nroRecetaEmisor. No UPDATE grant -- provenance, written once at import.
+  emisor                    String?
+  /// Migration 0049. Unique per (tenant, emisor) among non-ANULADA recetas (partial unique index uq_receta_emisor_nro_vigente, not expressible here).
+  nroRecetaEmisor           String?      @map("nro_receta_emisor")
+  urlVerificacion           String?      @map("url_verificacion")
+  /// Migration 0049. CIE-10 code, format CHECKed in the DB.
+  diagnosticoCodigo         String?      @map("diagnostico_codigo") @db.VarChar(10)
+  diagnosticoDescripcion    String?      @map("diagnostico_descripcion")
 
   paciente                Paciente            @relation(fields: [pacienteId], references: [id])
   medico                  Medico              @relation(fields: [medicoId], references: [id])
@@ -758,16 +811,20 @@ model Receta {
 /// standalone unidad_medida_id -- see migration 0011 header (spec wins over
 /// the plan's M09 table).
 model ItemReceta {
-  id                     String            @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId               String            @map("tenant_id") @db.Uuid
-  recetaId               String            @map("receta_id") @db.Uuid
-  descripcion            String?
-  formaFarmaceutica      FormaFarmaceutica @map("forma_farmaceutica")
-  cantidadUnidades       Int               @map("cantidad_unidades")
-  fraccionDosisPorUnidad Decimal           @default(1) @map("fraccion_dosis_por_unidad") @db.Decimal
-  cantidadTotal          Decimal?          @map("cantidad_total") @db.Decimal
-  unidadTotalId          String?           @map("unidad_total_id") @db.Uuid
-  observaciones          String?
+  id                      String            @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId                String            @map("tenant_id") @db.Uuid
+  recetaId                String            @map("receta_id") @db.Uuid
+  descripcion             String?
+  formaFarmaceutica       FormaFarmaceutica @map("forma_farmaceutica")
+  cantidadUnidades        Int               @map("cantidad_unidades")
+  fraccionDosisPorUnidad  Decimal           @default(1) @map("fraccion_dosis_por_unidad") @db.Decimal
+  cantidadTotal           Decimal?          @map("cantidad_total") @db.Decimal
+  unidadTotalId           String?           @map("unidad_total_id") @db.Uuid
+  observaciones           String?
+  /// Migration 0049. Free-text dosage instruction as prescribed.
+  posologia               String?
+  /// Migration 0049. CHECK > 0.
+  duracionTratamientoDias Int?              @map("duracion_tratamiento_dias")
 
   receta       Receta                 @relation(fields: [recetaId], references: [id])
   unidadTotal  UnidadMedida?          @relation(fields: [unidadTotalId], references: [id])

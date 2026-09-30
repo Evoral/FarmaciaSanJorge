@@ -16,8 +16,14 @@ import { z } from "zod";
 import { defineQuery, TipoAccion } from "@/shared/usecase";
 import { uuid } from "@/shared/validation";
 import { decodeCursor } from "../domain/cursor";
-import { listRegistroAuditoria as listRegistroAuditoriaRepo } from "../infrastructure/auditoria-repository";
+import { rangoDeJornadas } from "@/shared/time/jornada";
+import { getZonaHorariaTenant, listRegistroAuditoria as listRegistroAuditoriaRepo } from "../infrastructure/auditoria-repository";
 import type { AuditoriaListResult } from "../infrastructure/auditoria-repository";
+
+/** `zonaHoraria`: the tenant's time zone, so the page formats dates in pharmacy time, not the server's (UTC on Vercel). */
+export type ListRegistroAuditoriaResult = AuditoriaListResult & { zonaHoraria: string };
+
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha en formato AAAA-MM-DD.");
 
 const listRegistroAuditoriaInput = z
   .object({
@@ -25,39 +31,43 @@ const listRegistroAuditoriaInput = z
     entidadId: uuid.optional(),
     usuarioId: uuid.optional(),
     accion: z.nativeEnum(TipoAccion).optional(),
-    desde: z.coerce.date().optional(),
-    hasta: z.coerce.date().optional(),
+    /** Calendar days (YYYY-MM-DD) in the tenant's time zone, both inclusive. */
+    desde: isoDate.optional(),
+    hasta: isoDate.optional(),
     cursor: z.string().min(1).optional(),
     pageSize: z.number().int().min(1).max(100).default(50),
   })
   .refine((value) => !value.desde || !value.hasta || value.desde <= value.hasta, {
-    message: "'desde' must not be after 'hasta'.",
+    message: "La fecha desde no puede ser posterior a la fecha hasta.",
     path: ["desde"],
   });
 
 export type ListRegistroAuditoriaInput = z.infer<typeof listRegistroAuditoriaInput>;
-/** Pre-coercion wire shape (`desde`/`hasta` as the raw strings a GET query string or a Server Action hands in) -- `z.infer`/`z.output` above already reflects the POST-`z.coerce.date()` shape, which is what a caller receives back from `execute()`, not what it may validly send in. */
+/** Pre-parse wire shape (`pageSize` optional, defaulted by zod) -- what a caller may validly send in, as opposed to `z.infer`'s post-parse shape. */
 export type ListRegistroAuditoriaWireInput = z.input<typeof listRegistroAuditoriaInput>;
 
 export const listRegistroAuditoriaQuery = defineQuery({
   name: "auditoria.ver",
   permiso: "auditoria.ver",
   input: listRegistroAuditoriaInput,
-  handler: async ({ tx, session, input }): Promise<AuditoriaListResult> => {
-    return listRegistroAuditoriaRepo(tx, {
+  handler: async ({ tx, session, input }): Promise<ListRegistroAuditoriaResult> => {
+    const zonaHoraria = await getZonaHorariaTenant(tx, session.tenantId);
+    const rango = rangoDeJornadas(input.desde, input.hasta, zonaHoraria);
+    const result = await listRegistroAuditoriaRepo(tx, {
       tenantId: session.tenantId,
       entidad: input.entidad,
       entidadId: input.entidadId,
       usuarioId: input.usuarioId,
       accion: input.accion,
-      desde: input.desde,
-      hasta: input.hasta,
+      desde: rango.desde,
+      hastaExclusivo: rango.hastaExclusivo,
       cursor: input.cursor ? decodeCursor(input.cursor) : undefined,
       pageSize: input.pageSize,
     });
+    return { ...result, zonaHoraria };
   },
 });
 
-export async function listRegistroAuditoria(input: ListRegistroAuditoriaWireInput): Promise<AuditoriaListResult> {
+export async function listRegistroAuditoria(input: ListRegistroAuditoriaWireInput): Promise<ListRegistroAuditoriaResult> {
   return listRegistroAuditoriaQuery.execute(input);
 }

@@ -3,6 +3,9 @@ import Link from "next/link";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listContralor } from "@/modules/libro/application/list-contralor";
+import { DateInput } from "@/shared/ui/date-input";
+import { FilterForm } from "@/shared/ui/filter-form";
+import { formatCantidadExacta } from "@/shared/format/cantidad";
 
 const PAGE_SIZE = 25;
 
@@ -78,11 +81,17 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
 
       {result.fechaActivacionContralor === null ? (
         <p className="mb-6 rounded border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950">
-          Libros contralor llevados en forma manual: este tenant no activó el contralor digital, así que el sistema no genera asientos.
+          Libros contralor llevados en forma manual: esta farmacia no activó el contralor digital, así que el sistema no genera asientos.
         </p>
       ) : null}
 
-      <form method="get" className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de libros contralor">
+      <FilterForm
+        className="mb-6 flex flex-wrap items-end gap-3"
+        aria-label="Filtros de libros contralor"
+        hasActiveFilters={Boolean(params.tipoLibro || params.fechaDesde || params.fechaHasta)}
+      >
+        {/* Set by links from other screens (no field for it here): kept across filter changes and "Limpiar filtros". */}
+        {params.drogaId ? <input type="hidden" name="drogaId" value={params.drogaId} /> : null}
         <div className="flex flex-col gap-1">
           <label htmlFor="tipoLibro" className="text-sm font-medium">
             Libro
@@ -97,18 +106,15 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
           <label htmlFor="fechaDesde" className="text-sm font-medium">
             Desde
           </label>
-          <input id="fechaDesde" name="fechaDesde" type="date" defaultValue={params.fechaDesde ?? ""} className="input" />
+          <DateInput id="fechaDesde" name="fechaDesde" defaultValue={params.fechaDesde ?? ""} />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="fechaHasta" className="text-sm font-medium">
             Hasta
           </label>
-          <input id="fechaHasta" name="fechaHasta" type="date" defaultValue={params.fechaHasta ?? ""} className="input" />
+          <DateInput id="fechaHasta" name="fechaHasta" defaultValue={params.fechaHasta ?? ""} />
         </div>
-        <button type="submit" className="btn btn-secondary">
-          Filtrar
-        </button>
-      </form>
+      </FilterForm>
 
       <div className="table-wrap">
         <table className="data-table">
@@ -139,9 +145,10 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
                   <td className="px-3 py-2">{item.fechaAsiento}</td>
                   <td className="px-3 py-2">{TIPO_MOVIMIENTO_LABELS[item.tipoMovimiento] ?? item.tipoMovimiento}</td>
                   <td className="px-3 py-2">{item.drogaDescripcion}</td>
-                  <td className="px-3 py-2">{item.cantidad} {item.unidadSimbolo}</td>
-                  <td className="px-3 py-2">{item.saldoAnterior}</td>
-                  <td className="px-3 py-2">{item.saldoPosterior}</td>
+                  {/* Legal record: exact quantities in the recorded unit (only trailing zeros stripped), never converted or rounded. */}
+                  <td className="whitespace-nowrap px-3 py-2">{formatCantidadExacta(item.cantidad, item.unidadSimbolo)}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{formatCantidadExacta(item.saldoAnterior, "")}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{formatCantidadExacta(item.saldoPosterior, "")}</td>
                   <td className="px-3 py-2">{item.numeroValeAdquisicion ?? "—"}</td>
                   <td className="px-3 py-2">
                     {item.asientoRecetarioId ? (

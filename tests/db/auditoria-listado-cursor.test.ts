@@ -55,7 +55,7 @@ async function insertRegistro(
  */
 async function queryPage(
   tx: Client,
-  args: { tenantId: string; entidad?: string; accion?: string; desde?: string; hasta?: string; cursor?: string; pageSize: number },
+  args: { tenantId: string; entidad?: string; accion?: string; desde?: string; hastaExclusivo?: string; cursor?: string; pageSize: number },
 ): Promise<{ items: RawRow[]; nextCursor: string | null }> {
   const conditions: string[] = ["tenant_id = $1"];
   const values: unknown[] = [args.tenantId];
@@ -72,9 +72,9 @@ async function queryPage(
     values.push(args.desde);
     conditions.push(`ocurrido_en >= $${values.length}`);
   }
-  if (args.hasta) {
-    values.push(args.hasta);
-    conditions.push(`ocurrido_en <= $${values.length}`);
+  if (args.hastaExclusivo) {
+    values.push(args.hastaExclusivo);
+    conditions.push(`ocurrido_en < $${values.length}`);
   }
   if (args.cursor) {
     const decoded = decodeCursor(args.cursor);
@@ -208,7 +208,7 @@ describe.skipIf(dbTestSkipReason() !== null)("registro_auditoria cursor (keyset)
         const byRange = await queryPage(tx, {
           tenantId,
           desde: "2026-01-15T00:00:00.000Z",
-          hasta: "2026-02-20T00:00:00.000Z",
+          hastaExclusivo: "2026-02-20T00:00:00.000Z",
           pageSize: 10,
         });
         expect(byRange.items).toHaveLength(2); // the 02-01 usuario row + the 02-15 receta row
@@ -246,5 +246,19 @@ describe.skipIf(dbTestSkipReason() !== null)("registro_auditoria cursor (keyset)
         expect(page2.nextCursor).toBeNull(); // exactly 4 rows, pageSize 2 -> last page has no "extra" row
       }),
     );
+  });
+
+  it("has the migration 0044 indexes that back the keyset ORDER BY (unfiltered and by entidad)", async () => {
+    await asOwner(async (client) => {
+      const result = await client.query<{ indexname: string; indexdef: string }>(
+        `SELECT indexname, indexdef FROM pg_indexes
+         WHERE schemaname = 'fsj' AND tablename = 'registro_auditoria'
+           AND indexname IN ('idx_registro_auditoria_tenant_fecha', 'idx_registro_auditoria_tenant_entidad_fecha')
+         ORDER BY indexname`,
+      );
+      expect(result.rows.map((r) => r.indexname)).toEqual(["idx_registro_auditoria_tenant_entidad_fecha", "idx_registro_auditoria_tenant_fecha"]);
+      expect(result.rows[0].indexdef).toContain("(tenant_id, entidad, ocurrido_en DESC, id DESC)");
+      expect(result.rows[1].indexdef).toContain("(tenant_id, ocurrido_en DESC, id DESC)");
+    });
   });
 });

@@ -2,18 +2,12 @@
 import Link from "next/link";
 import { reporteRecetasPorEstado, listRecetasReporte } from "@/modules/recetas/application/reporte-recetas";
 import { ESTADOS_RECETA } from "@/modules/recetas/domain/receta";
+import { DateInput } from "@/shared/ui/date-input";
+import { FilterForm } from "@/shared/ui/filter-form";
+import { ESTADO_RECETA_LABELS } from "@/shared/labels/enum-labels";
 
 const PAGE_SIZE = 25;
 
-const ESTADO_LABELS: Record<(typeof ESTADOS_RECETA)[number], string> = {
-  PENDIENTE_PREPARACION: "Pendiente de preparación",
-  EN_PREPARACION: "En preparación",
-  PREPARADA: "Preparada",
-  LISTA_PARA_RETIRAR: "Lista para retirar",
-  ENVIADA_PEND_FIRMA: "Enviada, pendiente de firma",
-  ENTREGADA: "Entregada",
-  ANULADA: "Anulada",
-};
 
 interface ReporteRecetasPageProps {
   searchParams: Promise<{ estado?: string; ingresoDesde?: string; ingresoHasta?: string; page?: string }>;
@@ -64,20 +58,24 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
       <section aria-label="Conteo por estado" className="mb-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {conteos.map((c) => (
           <div key={c.estado} className="card p-4 text-sm">
-            <p className="text-zinc-500">{ESTADO_LABELS[c.estado] ?? c.estado}</p>
+            <p className="text-zinc-500">{ESTADO_RECETA_LABELS[c.estado]}</p>
             <p className="text-lg font-semibold">{c.cantidad}</p>
           </div>
         ))}
       </section>
 
-      <form method="get" className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de recetas por estado">
+      <FilterForm
+        className="mb-6 flex flex-wrap items-end gap-3"
+        aria-label="Filtros de recetas por estado"
+        hasActiveFilters={Boolean(params.estado || params.ingresoDesde || params.ingresoHasta)}
+      >
         <div className="flex flex-col gap-1">
           <label htmlFor="estado" className="text-sm font-medium">
             Estado
           </label>
           <select id="estado" name="estado" defaultValue={params.estado ?? ""} className="input">
             <option value="">Todos</option>
-            {Object.entries(ESTADO_LABELS).map(([value, label]) => (
+            {Object.entries(ESTADO_RECETA_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
@@ -88,21 +86,15 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
           <label htmlFor="ingresoDesde" className="text-sm font-medium">
             Ingreso desde
           </label>
-          <input id="ingresoDesde" name="ingresoDesde" type="date" defaultValue={params.ingresoDesde ?? ""} className="input" />
+          <DateInput id="ingresoDesde" name="ingresoDesde" defaultValue={params.ingresoDesde ?? ""} />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="ingresoHasta" className="text-sm font-medium">
             Ingreso hasta
           </label>
-          <input id="ingresoHasta" name="ingresoHasta" type="date" defaultValue={params.ingresoHasta ?? ""} className="input" />
+          <DateInput id="ingresoHasta" name="ingresoHasta" defaultValue={params.ingresoHasta ?? ""} />
         </div>
-        <button type="submit" className="btn btn-secondary">
-          Filtrar
-        </button>
-        <Link href="/reportes/recetas" className="text-sm underline">
-          Limpiar filtros
-        </Link>
-      </form>
+      </FilterForm>
 
       <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
         {result.total} receta{result.total === 1 ? "" : "s"} encontrada{result.total === 1 ? "" : "s"}.
@@ -133,12 +125,12 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
                   <td className="px-3 py-2">{r.numeroInterno}</td>
                   <td className="px-3 py-2">{new Date(r.fechaIngreso).toLocaleDateString("es-AR")}</td>
                   <td className="px-3 py-2">
-                    {r.pacienteApellido}, {r.pacienteNombre}
+                    {r.pacienteNombre} {r.pacienteApellido}
                   </td>
                   <td className="px-3 py-2">
                     {r.medicoApellido}, {r.medicoNombre}
                   </td>
-                  <td className="px-3 py-2">{ESTADO_LABELS[r.estado] ?? r.estado}</td>
+                  <td className="px-3 py-2">{ESTADO_RECETA_LABELS[r.estado]}</td>
                   <td className="px-3 py-2">{r.recetaFisicaRecibida ? "Sí" : "No"}</td>
                 </tr>
               ))

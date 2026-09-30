@@ -12,7 +12,7 @@ import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { ConflictError, NotFoundError, ValidationError } from "@/shared/errors";
 import { nonEmptyString, uuid } from "@/shared/validation";
-import { matriculaString } from "../domain/medico";
+import { JURISDICCIONES_MATRICULA, jurisdiccionMatricula, matriculaString } from "../domain/medico";
 import { existeMatriculaVigente, getMedicoParaAccion, lockMedicoParaAccion, updateMedicoDatos } from "../infrastructure/medico-repository";
 
 const optionalField = z
@@ -26,6 +26,7 @@ const editarMedicoInput = z.object({
   nombre: nonEmptyString,
   apellido: nonEmptyString,
   matricula: matriculaString,
+  matriculaJurisdiccion: jurisdiccionMatricula,
   especialidad: optionalField,
   telefono: optionalField,
   direccionRegistrada: optionalField,
@@ -33,6 +34,7 @@ const editarMedicoInput = z.object({
     nombre: z.string(),
     apellido: z.string(),
     matricula: z.string(),
+    matriculaJurisdiccion: z.enum(JURISDICCIONES_MATRICULA),
     especialidad: z.string().nullable(),
     telefono: z.string().nullable(),
     direccionRegistrada: z.string().nullable(),
@@ -65,6 +67,7 @@ export const editarMedicoCommand = defineCommand({
       actual.nombre !== input.version.nombre ||
       actual.apellido !== input.version.apellido ||
       actual.matricula !== input.version.matricula ||
+      actual.matriculaJurisdiccion !== input.version.matriculaJurisdiccion ||
       actual.especialidad !== input.version.especialidad ||
       actual.telefono !== input.version.telefono ||
       actual.direccionRegistrada !== input.version.direccionRegistrada
@@ -72,14 +75,16 @@ export const editarMedicoCommand = defineCommand({
       throw new ConflictError(CONCURRENCY_MESSAGE);
     }
 
-    if (input.matricula !== actual.matricula && (await existeMatriculaVigente(tx, session.tenantId, input.matricula, input.id))) {
-      throw new ValidationError("Ya existe un médico vigente con esa matrícula.");
+    const cambiaMatricula = input.matricula !== actual.matricula || input.matriculaJurisdiccion !== actual.matriculaJurisdiccion;
+    if (cambiaMatricula && (await existeMatriculaVigente(tx, session.tenantId, input.matriculaJurisdiccion, input.matricula, input.id))) {
+      throw new ValidationError("Ya existe un médico vigente con esa matrícula en esa jurisdicción.");
     }
 
     const nuevoValor = {
       nombre: input.nombre,
       apellido: input.apellido,
       matricula: input.matricula,
+      matriculaJurisdiccion: input.matriculaJurisdiccion,
       especialidad: input.especialidad,
       telefono: input.telefono,
       direccionRegistrada: input.direccionRegistrada,
@@ -88,6 +93,7 @@ export const editarMedicoCommand = defineCommand({
       nombre: actual.nombre,
       apellido: actual.apellido,
       matricula: actual.matricula,
+      matriculaJurisdiccion: actual.matriculaJurisdiccion,
       especialidad: actual.especialidad,
       telefono: actual.telefono,
       direccionRegistrada: actual.direccionRegistrada,

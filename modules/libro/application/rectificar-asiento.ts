@@ -135,14 +135,19 @@ const rectificarAsientoInternalCommand = defineCommand({
           entidadId: rectificativo.id,
           motivo: input.motivo,
           autorizadoPorId: input.autorizadoPorId,
-          valorNuevo: { asientoOriginalId: input.asientoOriginalId, motivo: input.motivo },
+          valorNuevo: {
+            asientoOriginalId: input.asientoOriginalId,
+            asientoOriginal: `Nº ${original.numeroCorrelativo}`,
+            numeroCorrelativo: rectificativo.numeroCorrelativo,
+            motivo: input.motivo,
+          },
         },
       };
     } catch (e) {
       // Same discipline as anular-asiento.ts/confirmar-preparacion.ts.
       const mapped = mapDbError(e);
       if (mapped instanceof InvariantViolationError) {
-        throw new DomainError(mensajeParaInvarianteRectificacion(mapped.invariantCode));
+        throw new DomainError(mensajeParaInvarianteRectificacion(mapped.invariantCode), { cause: mapped });
       }
       throw mapped;
     }

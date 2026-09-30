@@ -11,7 +11,7 @@
  */
 import { useState } from "react";
 import { firmarCierreAction } from "./actions";
-import { SimpleForm } from "./simple-form";
+import { SimpleForm } from "@/shared/ui/simple-form";
 import { MOTIVO_DEMORA_VALUES, MOTIVO_DEMORA_LABELS } from "../domain/motivo-demora";
 
 export interface PreparacionIniciadaResumen {
@@ -38,7 +38,7 @@ export function FirmarForm({ fecha, fueraDeTermino, esJornadaActual, preparacion
         <div className="mb-4 rounded border border-amber-400 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
           <p className="mb-2 font-medium">Esta es la jornada de hoy.</p>
           <p className="mb-2">
-            Una vez firmada, no se van a poder registrar más preparaciones, ajustes ni asientos con fecha de hoy (INV-C03). Lo que falte
+            Una vez firmada, no se van a poder registrar más preparaciones, ajustes ni asientos con fecha de hoy. Lo que falte
             queda para la jornada siguiente.
           </p>
           {preparacionesIniciadas.length > 0 ? (
@@ -64,7 +64,7 @@ export function FirmarForm({ fecha, fueraDeTermino, esJornadaActual, preparacion
         <p className="mb-3 text-sm text-red-700 dark:text-red-400">Esta firma queda fuera de término: indicá el motivo de la demora.</p>
       ) : null}
 
-      <SimpleForm action={firmarCierreAction} submitLabel="Firmar cierre" pendingLabel="Firmando…" submitDisabled={!confirmaAdvertencia} className="flex max-w-lg flex-col gap-4">
+      <SimpleForm action={firmarCierreAction} submitLabel="Firmar cierre" pendingLabel="Firmando…" submitVariant="critical" submitDisabled={!confirmaAdvertencia} className="max-w-lg">
         <input type="hidden" name="fecha" value={fecha} />
 
         {fueraDeTermino ? (

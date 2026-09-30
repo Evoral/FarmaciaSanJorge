@@ -5,6 +5,8 @@
  * discipline as `modules/libro/domain/mensajes-invariantes.ts` -- see that
  * file's doc comment.
  */
+import { mensajeGlobalParaInvariante } from "@/shared/errors/mensajes-invariantes";
+
 export const MENSAJES_INVARIANTES_FIRMA: Readonly<Record<string, string>> = {
   "INV-C01": "Esa jornada ya fue firmada.",
   "INV-C18": "La firma quedaría fuera de término: indicá el motivo de la demora.",
@@ -17,5 +19,5 @@ const MENSAJE_GENERICO_FIRMA =
   "No se pudo firmar el cierre: se violó una regla del sistema. Contactá al administrador si el problema persiste.";
 
 export function mensajeParaInvarianteFirma(codigo: string): string {
-  return MENSAJES_INVARIANTES_FIRMA[codigo] ?? MENSAJE_GENERICO_FIRMA;
+  return MENSAJES_INVARIANTES_FIRMA[codigo] ?? mensajeGlobalParaInvariante(codigo) ?? MENSAJE_GENERICO_FIRMA;
 }

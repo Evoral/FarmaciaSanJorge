@@ -1,10 +1,10 @@
-/** `/recetas/nuevo` (FASE 6 point 6.1). */
+/** `/recetas/nuevo` (FASE 6 point 6.1): carga manual o importación desde el PDF de una receta digital (docs/specs/importacion-receta-pdf.md). */
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listUnidadesParaReceta } from "@/modules/recetas/application/list-unidades-para-receta";
-import { RecetaForm } from "@/modules/recetas/ui/receta-form";
+import { NuevaReceta } from "@/modules/recetas/ui/nueva-receta";
 
 export default async function NuevaRecetaPage() {
   const session = await requireSession();
@@ -20,7 +20,7 @@ export default async function NuevaRecetaPage() {
         </Link>
       </div>
       <h1 className="mb-6 text-2xl font-semibold">Nueva receta</h1>
-      <RecetaForm mode="crear" unidades={unidades} disabled={false} />
+      <NuevaReceta unidades={unidades} puedePresupuestar={can(session, "cotizaciones.calcular")} />
     </div>
   );
 }

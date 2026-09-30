@@ -2,17 +2,24 @@
  * Unit tests for `modules/recetas/domain/receta.ts` (FASE 6 points
  * 6.1/6.3/6.5): V1-V9 (minus V5, deliberately out of scope -- see that
  * file's doc comment), the state machine helpers (mirroring migration
- * 0011's DB trigger), the fecha_prescripcion check, and the origen gate
- * (DP-29/point 6.2 excluded -- only PRESENCIAL is accepted for now).
+ * 0011's DB trigger), the fecha_prescripcion check, the origen gates
+ * (DP-29: DIGITAL_PDF enabled via the PDF import, DIGITAL_FOTO still out
+ * of scope -- docs/specs/importacion-receta-pdf.md), the diagnóstico
+ * (CIE-10) format and the item's duración del tratamiento.
  */
 import { describe, it, expect } from "vitest";
 import {
   ORIGENES_HABILITADOS,
+  diagnosticoCodigoOpcional,
+  duracionTratamientoDiasOpcional,
+  esDiagnosticoCodigoValido,
   esEstadoEditable,
   esEstadoTerminal,
   esFechaPrescripcionValida,
+  etiquetaRecepcionReceta,
   puedeAnular,
   validarItemsReceta,
+  validarOrigenCargaManual,
   validarOrigenHabilitado,
 } from "@/modules/recetas/domain/receta";
 import type { ComponenteInput, ItemInput } from "@/modules/recetas/domain/receta";
@@ -55,14 +62,14 @@ describe("validarItemsReceta -- INV-R01 (receta sin items)", () => {
 
 describe("validarItemsReceta -- V1 (item sin componentes)", () => {
   it("rejects an item with zero componentes", () => {
-    expect(() => validarItemsReceta([item({}, [])])).toThrow(/V1/);
+    expect(() => validarItemsReceta([item({}, [])])).toThrow(expect.objectContaining({ regla: "V1" }));
   });
 });
 
 describe("validarItemsReceta -- V2 (mas de un CSP)", () => {
   it("rejects two CSP componentes in the same item", () => {
     const csp = componente({ modoExpresion: "CSP", cantidad: null });
-    expect(() => validarItemsReceta([item({}, [csp, { ...csp }])])).toThrow(/V2/);
+    expect(() => validarItemsReceta([item({}, [csp, { ...csp }])])).toThrow(expect.objectContaining({ regla: "V2" }));
   });
 
   it("accepts exactly one CSP componente", () => {
@@ -76,7 +83,7 @@ describe("validarItemsReceta -- V3 (CSP debe ser el ultimo)", () => {
   it("rejects a CSP componente that is NOT last in the list", () => {
     const csp = componente({ modoExpresion: "CSP", cantidad: null });
     const total = componente({ modoExpresion: "TOTAL", cantidad: "5" });
-    expect(() => validarItemsReceta([item({ formaFarmaceutica: "CAPSULA" }, [csp, total])])).toThrow(/V3/);
+    expect(() => validarItemsReceta([item({ formaFarmaceutica: "CAPSULA" }, [csp, total])])).toThrow(expect.objectContaining({ regla: "V3" }));
   });
 
   it("accepts a CSP componente that IS last", () => {
@@ -92,7 +99,7 @@ describe("validarItemsReceta -- V4 (CSP en forma no capsular requiere total)", (
     const csp = componente({ modoExpresion: "CSP", cantidad: null });
     expect(() =>
       validarItemsReceta([item({ formaFarmaceutica: "CREMA", cantidadTotal: null, unidadTotalId: null }, [total, csp])]),
-    ).toThrow(/V4/);
+    ).toThrow(expect.objectContaining({ regla: "V4" }));
   });
 
   it("accepts a CSP on a non-capsular form WITH cantidadTotal/unidadTotalId", () => {
@@ -116,16 +123,16 @@ describe("validarItemsReceta -- V4 (CSP en forma no capsular requiere total)", (
 
 describe("validarItemsReceta -- V6/V7 (cantidad segun modoExpresion)", () => {
   it("V6: rejects TOTAL/POR_DOSIS with cantidad null", () => {
-    expect(() => validarItemsReceta([item({}, [componente({ modoExpresion: "TOTAL", cantidad: null })])])).toThrow(/V6/);
-    expect(() => validarItemsReceta([item({}, [componente({ modoExpresion: "POR_DOSIS", cantidad: null })])])).toThrow(/V6/);
+    expect(() => validarItemsReceta([item({}, [componente({ modoExpresion: "TOTAL", cantidad: null })])])).toThrow(expect.objectContaining({ regla: "V6" }));
+    expect(() => validarItemsReceta([item({}, [componente({ modoExpresion: "POR_DOSIS", cantidad: null })])])).toThrow(expect.objectContaining({ regla: "V6" }));
   });
 
   it("V6: rejects TOTAL with cantidad <= 0", () => {
-    expect(() => validarItemsReceta([item({}, [componente({ modoExpresion: "TOTAL", cantidad: "0" })])])).toThrow(/V6/);
+    expect(() => validarItemsReceta([item({}, [componente({ modoExpresion: "TOTAL", cantidad: "0" })])])).toThrow(expect.objectContaining({ regla: "V6" }));
   });
 
   it("V7: rejects CS with a non-null cantidad", () => {
-    expect(() => validarItemsReceta([item({}, [componente({ modoExpresion: "CS", cantidad: "5" })])])).toThrow(/V7/);
+    expect(() => validarItemsReceta([item({}, [componente({ modoExpresion: "CS", cantidad: "5" })])])).toThrow(expect.objectContaining({ regla: "V7" }));
   });
 
   it("accepts CS with cantidad null", () => {
@@ -135,11 +142,11 @@ describe("validarItemsReceta -- V6/V7 (cantidad segun modoExpresion)", () => {
 
 describe("validarItemsReceta -- V8 (fraccionDosisPorUnidad en (0,1])", () => {
   it("rejects 0", () => {
-    expect(() => validarItemsReceta([item({ fraccionDosisPorUnidad: "0" })])).toThrow(/V8/);
+    expect(() => validarItemsReceta([item({ fraccionDosisPorUnidad: "0" })])).toThrow(expect.objectContaining({ regla: "V8" }));
   });
 
   it("rejects > 1", () => {
-    expect(() => validarItemsReceta([item({ fraccionDosisPorUnidad: "1.5" })])).toThrow(/V8/);
+    expect(() => validarItemsReceta([item({ fraccionDosisPorUnidad: "1.5" })])).toThrow(expect.objectContaining({ regla: "V8" }));
   });
 
   it("accepts exactly 1 and 0.5", () => {
@@ -150,11 +157,11 @@ describe("validarItemsReceta -- V8 (fraccionDosisPorUnidad en (0,1])", () => {
 
 describe("validarItemsReceta -- V9 (cantidadUnidades entero > 0)", () => {
   it("rejects 0", () => {
-    expect(() => validarItemsReceta([item({ cantidadUnidades: 0 })])).toThrow(/V9/);
+    expect(() => validarItemsReceta([item({ cantidadUnidades: 0 })])).toThrow(expect.objectContaining({ regla: "V9" }));
   });
 
   it("rejects a non-integer", () => {
-    expect(() => validarItemsReceta([item({ cantidadUnidades: 1.5 })])).toThrow(/V9/);
+    expect(() => validarItemsReceta([item({ cantidadUnidades: 1.5 })])).toThrow(expect.objectContaining({ regla: "V9" }));
   });
 
   it("accepts a positive integer", () => {
@@ -205,20 +212,85 @@ describe("esFechaPrescripcionValida", () => {
   });
 });
 
-describe("validarOrigenHabilitado -- point 6.2 (adjuntos) excluded", () => {
-  it("PRESENCIAL is the only habilitado origen", () => {
-    expect(ORIGENES_HABILITADOS).toEqual(["PRESENCIAL"]);
+describe("validarOrigenHabilitado -- DP-29: DIGITAL_PDF enabled, DIGITAL_FOTO still out of scope", () => {
+  it("PRESENCIAL and DIGITAL_PDF are the habilitados origenes", () => {
+    expect(ORIGENES_HABILITADOS).toEqual(["PRESENCIAL", "DIGITAL_PDF"]);
   });
 
-  it("does not throw for PRESENCIAL", () => {
+  it("does not throw for PRESENCIAL nor DIGITAL_PDF", () => {
     expect(() => validarOrigenHabilitado("PRESENCIAL")).not.toThrow();
+    expect(() => validarOrigenHabilitado("DIGITAL_PDF")).not.toThrow();
   });
 
-  it("rejects DIGITAL_PDF with a 'pendiente: carga de adjuntos' message", () => {
-    expect(() => validarOrigenHabilitado("DIGITAL_PDF")).toThrow(/pendiente: carga de adjuntos/);
+  it("rejects DIGITAL_FOTO with a ValidationError", () => {
+    expect(() => validarOrigenHabilitado("DIGITAL_FOTO")).toThrow(ValidationError);
+    expect(() => validarOrigenHabilitado("DIGITAL_FOTO")).toThrow(/foto/);
+  });
+});
+
+describe("validarOrigenCargaManual -- digital recetas only come from the PDF import", () => {
+  it("accepts a PRESENCIAL alta", () => {
+    expect(() => validarOrigenCargaManual("PRESENCIAL", null)).not.toThrow();
   });
 
-  it("rejects DIGITAL_FOTO with a 'pendiente: carga de adjuntos' message", () => {
-    expect(() => validarOrigenHabilitado("DIGITAL_FOTO")).toThrow(/pendiente: carga de adjuntos/);
+  it("rejects a DIGITAL_PDF alta by hand (it would have no emisor receta number)", () => {
+    expect(() => validarOrigenCargaManual("DIGITAL_PDF", null)).toThrow(/importando su PDF/);
+  });
+
+  it("lets an edit keep the receta's own origen, including DIGITAL_PDF", () => {
+    expect(() => validarOrigenCargaManual("DIGITAL_PDF", "DIGITAL_PDF")).not.toThrow();
+    expect(() => validarOrigenCargaManual("PRESENCIAL", "PRESENCIAL")).not.toThrow();
+  });
+
+  it("rejects switching a digital receta to PRESENCIAL and a PRESENCIAL one to digital", () => {
+    expect(() => validarOrigenCargaManual("PRESENCIAL", "DIGITAL_PDF")).toThrow(/no se puede cambiar/);
+    expect(() => validarOrigenCargaManual("DIGITAL_PDF", "PRESENCIAL")).toThrow(ValidationError);
+  });
+
+  it("still rejects DIGITAL_FOTO first", () => {
+    expect(() => validarOrigenCargaManual("DIGITAL_FOTO", null)).toThrow(/foto/);
+  });
+});
+
+describe("etiquetaRecepcionReceta -- INV-R07 wording per origen", () => {
+  it("digital origen reads as a signed digital receta, presencial as physical", () => {
+    expect(etiquetaRecepcionReceta("DIGITAL_PDF")).toBe("Receta digital firmada");
+    expect(etiquetaRecepcionReceta("PRESENCIAL")).toBe("Receta física recibida");
+  });
+});
+
+describe("diagnóstico CIE-10 (migration 0049's receta_diagnostico_codigo_check)", () => {
+  it("accepts category and subcategory codes", () => {
+    for (const codigo of ["E66", "E66.0", "J45.909", "U07.1"]) {
+      expect(esDiagnosticoCodigoValido(codigo), codigo).toBe(true);
+    }
+  });
+
+  it("rejects malformed codes", () => {
+    for (const codigo of ["e66.0", "66.0", "E6", "E66.", "E66.00000", "E66-0"]) {
+      expect(esDiagnosticoCodigoValido(codigo), codigo).toBe(false);
+    }
+  });
+
+  it("the zod field normalizes case/spaces, maps empty to null and rejects an invalid code", () => {
+    expect(diagnosticoCodigoOpcional.parse(" e66.0 ")).toBe("E66.0");
+    expect(diagnosticoCodigoOpcional.parse("")).toBeNull();
+    expect(diagnosticoCodigoOpcional.parse(undefined)).toBeNull();
+    expect(diagnosticoCodigoOpcional.safeParse("obesidad").success).toBe(false);
+  });
+});
+
+describe("duración del tratamiento", () => {
+  it("the zod field maps absent to null and rejects non-positive or fractional days", () => {
+    expect(duracionTratamientoDiasOpcional.parse(undefined)).toBeNull();
+    expect(duracionTratamientoDiasOpcional.parse(null)).toBeNull();
+    expect(duracionTratamientoDiasOpcional.parse(30)).toBe(30);
+    expect(duracionTratamientoDiasOpcional.safeParse(0).success).toBe(false);
+    expect(duracionTratamientoDiasOpcional.safeParse(1.5).success).toBe(false);
+  });
+
+  it("validarItemsReceta accepts posología/duración and rejects a non-positive duración", () => {
+    expect(() => validarItemsReceta([item({ posologia: "Media dosis cada 12 horas", duracionTratamientoDias: 30 })])).not.toThrow();
+    expect(() => validarItemsReceta([item({ duracionTratamientoDias: 0 })])).toThrow(/duración del tratamiento/);
   });
 });

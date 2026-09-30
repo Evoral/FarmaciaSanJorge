@@ -4,7 +4,7 @@
 import { cambiarPassword } from "@/modules/auth/application/cambiar-password";
 import { configurarPin } from "@/modules/auth/application/configurar-pin";
 import { eliminarPin } from "@/modules/auth/application/eliminar-pin";
-import { AppError } from "@/shared/errors";
+import { actionErrorMessage } from "@/shared/ui/action-error";
 
 export interface CambiarPasswordFormState {
   message: string | null;
@@ -25,10 +25,7 @@ export async function cambiarPasswordAction(_prevState: CambiarPasswordFormState
       success: true,
     };
   } catch (error) {
-    if (error instanceof AppError) {
-      return { message: error.message, success: false };
-    }
-    return { message: "No se pudo actualizar la contraseña.", success: false };
+    return { message: actionErrorMessage(error, "No se pudo actualizar la contraseña."), success: false };
   }
 }
 
@@ -46,10 +43,7 @@ export async function configurarPinAction(_prevState: PinFormState, formData: Fo
     await configurarPin(passwordActual, pin, pinRepeat);
     return { message: "PIN actualizado.", success: true };
   } catch (error) {
-    if (error instanceof AppError) {
-      return { message: error.message, success: false };
-    }
-    return { message: "No se pudo actualizar el PIN.", success: false };
+    return { message: actionErrorMessage(error, "No se pudo actualizar el PIN."), success: false };
   }
 }
 
@@ -60,9 +54,6 @@ export async function eliminarPinAction(_prevState: PinFormState, formData: Form
     await eliminarPin(passwordActual);
     return { message: "PIN eliminado.", success: true };
   } catch (error) {
-    if (error instanceof AppError) {
-      return { message: error.message, success: false };
-    }
-    return { message: "No se pudo eliminar el PIN.", success: false };
+    return { message: actionErrorMessage(error, "No se pudo eliminar el PIN."), success: false };
   }
 }

@@ -1,0 +1,14 @@
+-- 0045_auditoria_acceso_denegado
+--
+-- Audit point 4 (user decision, 2026-09-28): a use case invoked by a
+-- session that lacks its permiso is now audited (OWASP Logging Cheat
+-- Sheet: log access-control failures). The UI already hides every action
+-- a session cannot perform (can() gating), so a denial only happens on a
+-- tampered request, a forged URL, or a bug -- exactly the events worth a
+-- trace. See shared/usecase.ts#registrarAccesoDenegado.
+--
+-- This migration ONLY adds the enum value and MUST stay alone: Postgres
+-- forbids using a newly-added enum value in the SAME transaction that
+-- added it, and Prisma runs each migration.sql in its own transaction
+-- (same constraint as migration 0036).
+ALTER TYPE fsj.tipo_accion ADD VALUE IF NOT EXISTS 'ACCESO_DENEGADO';

@@ -97,9 +97,14 @@ export function proxy(request: NextRequest): NextResponse {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", csp);
+  // Correlates audit rows (shared/audit/request-context.ts) with server logs. Always server-generated:
+  // a client-supplied x-request-id is overwritten, never trusted.
+  const requestId = crypto.randomUUID();
+  requestHeaders.set("x-request-id", requestId);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);
+  response.headers.set("x-request-id", requestId);
   return response;
 }
 

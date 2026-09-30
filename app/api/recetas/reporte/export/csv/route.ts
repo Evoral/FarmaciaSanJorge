@@ -47,7 +47,7 @@ export async function GET(request: Request): Promise<Response> {
       item.fechaPrescripcion.toISOString().slice(0, 10),
       item.estado,
       item.origen,
-      `${item.pacienteApellido}, ${item.pacienteNombre}`,
+      `${item.pacienteNombre} ${item.pacienteApellido}`,
       `${item.medicoApellido}, ${item.medicoNombre}`,
       item.recetaFisicaRecibida ? "SI" : "NO",
     ]);

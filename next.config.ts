@@ -30,6 +30,29 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // unpdf ships a serverless pdf.js build (no worker) and loads it with a
+  // dynamic `import("unpdf/pdfjs")`; keeping the package out of the server
+  // bundle lets Node resolve that import natively instead of relying on the
+  // bundler to follow it (modules/recetas/infrastructure/receta-pdf.server.ts).
+  serverExternalPackages: ["unpdf"],
+  // The etiqueta PDF draws public/logo.png, read from disk at request time
+  // (modules/preparaciones/infrastructure/etiqueta-pdf.ts): trace it into
+  // that route's serverless bundle.
+  outputFileTracingIncludes: {
+    "/api/preparaciones/\\[id\\]/etiqueta/pdf": ["./public/logo.png"],
+  },
+  experimental: {
+    serverActions: {
+      // docs/specs/importacion-receta-pdf.md: the receta PDF may weigh up to
+      // MAX_PDF_BYTES (1 MiB); the raw multipart body adds framing on top,
+      // so the limit is that plus MULTIPART_MARGIN_BYTES (32 KiB). Must equal
+      // SERVER_ACTIONS_BODY_SIZE_LIMIT_BYTES in
+      // modules/recetas/domain/archivo-receta-pdf.ts (asserted by
+      // tests/unit/archivo-receta-pdf.test.ts) -- a literal here rather than
+      // an import, to keep this config free of app-module imports.
+      bodySizeLimit: 1_081_344,
+    },
+  },
   async headers() {
     return [
       {

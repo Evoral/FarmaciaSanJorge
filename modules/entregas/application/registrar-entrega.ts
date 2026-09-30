@@ -16,6 +16,7 @@
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, InvariantViolationError, NotFoundError, mapDbError } from "@/shared/errors";
+import { mensajeGlobalParaInvariante } from "@/shared/errors/mensajes-invariantes";
 import { uuid } from "@/shared/validation";
 import { MODALIDADES_ENTREGA, puedeRegistrarEntrega, estadoDestinoEntrega, requiereRegistrarRecepcionFisicaAhora, validarTieneItemsEntregables } from "../domain/entrega";
 import {
@@ -40,7 +41,7 @@ export type RegistrarEntregaInput = z.infer<typeof registrarEntregaInput>;
 function mensajeParaInvariante(codigo: string): string {
   if (codigo === "INV-R07") return "No se puede registrar el retiro presencial sin la receta física recibida.";
   if (codigo === "INV-ENT-002") return "No se pudo registrar la entrega: falta el registro de entrega correspondiente.";
-  return "No se pudo registrar la entrega.";
+  return mensajeGlobalParaInvariante(codigo) ?? "No se pudo registrar la entrega.";
 }
 
 export const registrarEntregaCommand = defineCommand({
@@ -94,7 +95,7 @@ export const registrarEntregaCommand = defineCommand({
     } catch (e) {
       const mapped = mapDbError(e);
       if (mapped instanceof InvariantViolationError) {
-        throw new DomainError(mensajeParaInvariante(mapped.invariantCode));
+        throw new DomainError(mensajeParaInvariante(mapped.invariantCode), { cause: mapped });
       }
       throw mapped;
     }

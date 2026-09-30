@@ -30,7 +30,7 @@ export default async function PendientesFisicaPage({ searchParams }: PendientesF
       </div>
       <h1 className="mb-1 text-2xl font-semibold">Pendientes de receta física</h1>
       <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">
-        Recetas no anuladas que todavía no tienen registrada la recepción de la receta física (INV-R10), ordenadas de más a menos antiguas.
+        Recetas no anuladas que todavía no tienen registrada la recepción de la receta física, ordenadas de más a menos antiguas.
       </p>
 
       <div className="table-wrap">
@@ -70,7 +70,7 @@ export default async function PendientesFisicaPage({ searchParams }: PendientesF
                     </Link>
                   </td>
                   <td className="px-3 py-2">
-                    {r.pacienteApellido}, {r.pacienteNombre}
+                    {r.pacienteNombre} {r.pacienteApellido}
                   </td>
                   <td className="px-3 py-2">
                     {r.medicoApellido}, {r.medicoNombre}

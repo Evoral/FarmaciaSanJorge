@@ -35,8 +35,12 @@ async function rolPermisoCodes(tx: Client, rolCodigo: string): Promise<string[]>
 /**
  * Expected role -> permission-code matrix, transcribed 1:1 from migration
  * 0002's `INSERT INTO fsj.rol_permiso (...) SELECT ... FROM (VALUES ...)`
- * block (plan §7's implementation). Kept sorted for a readable diff
- * against the DB's own `ORDER BY p.codigo` result.
+ * block (plan §7's implementation) PLUS every later migration that edits
+ * the matrix: 0043 grants `stock.valorizado.ver` (ADM/DT/FAR) and 0046
+ * revokes `config.ver` from every role except ADMINISTRADOR (user decision
+ * 2026-09-28: "Configuración" is admin-only, DT keeps only
+ * `precios.reglas.editar`). Kept sorted for a readable diff against the
+ * DB's own `ORDER BY p.codigo` result.
  */
 const EXPECTED_ROL_PERMISOS: Record<string, string[]> = {
   ADMINISTRADOR: [
@@ -86,7 +90,6 @@ const EXPECTED_ROL_PERMISOS: Record<string, string[]> = {
     "cierres.imprimir",
     "cierres.reporte",
     "cierres.ver",
-    "config.ver",
     "cotizaciones.calcular",
     "cotizaciones.ver",
     "drogas.baja",
@@ -134,7 +137,6 @@ const EXPECTED_ROL_PERMISOS: Record<string, string[]> = {
     "cierres.imprimir",
     "cierres.reporte",
     "cierres.ver",
-    "config.ver",
     "cotizaciones.calcular",
     "cotizaciones.ver",
     "drogas.baja",
@@ -171,7 +173,6 @@ const EXPECTED_ROL_PERMISOS: Record<string, string[]> = {
     "auth.login",
     "auth.logout",
     "auth.password.cambiar",
-    "config.ver",
     "cotizaciones.calcular",
     "cotizaciones.ver",
     "entregas.firma.confirmar",
@@ -190,7 +191,6 @@ const EXPECTED_ROL_PERMISOS: Record<string, string[]> = {
     "auth.password.cambiar",
     "cierres.reporte",
     "cierres.ver",
-    "config.ver",
     "libro.exportar",
     "libro.ver",
     "reportes.ver",

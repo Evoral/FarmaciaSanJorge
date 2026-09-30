@@ -5,6 +5,8 @@ import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { reporteCumplimiento } from "@/modules/cierres/application/reporte-cumplimiento";
 import { MOTIVO_DEMORA_LABELS, type MotivoDemoraValue } from "@/modules/cierres/domain/motivo-demora";
+import { DateInput } from "@/shared/ui/date-input";
+import { FilterForm } from "@/shared/ui/filter-form";
 
 interface ReporteCumplimientoPageProps {
   searchParams: Promise<{ fechaDesde?: string; fechaHasta?: string }>;
@@ -46,26 +48,20 @@ export default async function ReporteCumplimientoPage({ searchParams }: ReporteC
         </a>
       </div>
 
-      <form method="get" className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros del reporte de cumplimiento">
+      <FilterForm className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros del reporte de cumplimiento" hasActiveFilters={Boolean(params.fechaDesde || params.fechaHasta)}>
         <div className="flex flex-col gap-1">
           <label htmlFor="fechaDesde" className="text-sm font-medium">
             Desde
           </label>
-          <input id="fechaDesde" name="fechaDesde" type="date" defaultValue={params.fechaDesde ?? ""} className="input" />
+          <DateInput id="fechaDesde" name="fechaDesde" defaultValue={params.fechaDesde ?? ""} />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="fechaHasta" className="text-sm font-medium">
             Hasta
           </label>
-          <input id="fechaHasta" name="fechaHasta" type="date" defaultValue={params.fechaHasta ?? ""} className="input" />
+          <DateInput id="fechaHasta" name="fechaHasta" defaultValue={params.fechaHasta ?? ""} />
         </div>
-        <button type="submit" className="btn btn-secondary">
-          Filtrar
-        </button>
-        <Link href="/cierres/reporte" className="text-sm underline">
-          Limpiar filtros
-        </Link>
-      </form>
+      </FilterForm>
 
       <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
         {items.length} cierre{items.length === 1 ? "" : "s"} encontrado{items.length === 1 ? "" : "s"}.

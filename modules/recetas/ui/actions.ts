@@ -4,7 +4,9 @@
  * Server Actions for `/recetas` (FASE 6, points 6.1/6.3/6.4/6.5). Paciente
  * and médico search/quick-create REUSE modules/pacientes' and
  * modules/medicos' own application-layer use cases directly (`listPacientes`/
- * `crearPaciente`, `listMedicos`/`crearMedico`) -- not their `ui/actions.ts`
+ * `crearPacienteDesdeReceta`, `listMedicos`/`crearMedicoDesdeReceta` -- the
+ * quick-creates are gated on `recetas.crear`, docs/specs/importacion-receta-pdf.md
+ * "Permisos") -- not their `ui/actions.ts`
  * (which don't return the created id, needed here to auto-select the new
  * paciente/médico in the receta form) and not their `infrastructure/`
  * (forbidden by eslint's appBoundaryPatterns even for modules/**\/*.ts, and
@@ -13,56 +15,70 @@
  */
 import { revalidatePath } from "next/cache";
 import { crearReceta } from "@/modules/recetas/application/crear-receta";
+import { leerRecetaPdf } from "@/modules/recetas/application/leer-receta-pdf";
+import { importarReceta } from "@/modules/recetas/application/importar-receta";
+import { presupuestarReceta } from "@/modules/recetas/application/presupuestar-receta";
+import { generarFichasYCotizaciones } from "@/modules/recetas/application/generar-fichas-y-cotizaciones";
+import { urlTrasEditar, urlTrasRegistrar } from "@/modules/recetas/domain/avisos-generacion";
 import { editarReceta } from "@/modules/recetas/application/editar-receta";
 import { registrarRecepcionFisica } from "@/modules/recetas/application/registrar-recepcion-fisica";
 import { anularReceta } from "@/modules/recetas/application/anular-receta";
 import { listDrogasParaReceta } from "@/modules/recetas/application/list-drogas-para-receta";
 import type { DrogaOpcion } from "@/modules/recetas/application/list-drogas-para-receta";
 import { listPacientes } from "@/modules/pacientes/application/list-pacientes";
-import { crearPaciente } from "@/modules/pacientes/application/crear-paciente";
+import { crearPacienteDesdeReceta } from "@/modules/pacientes/application/crear-paciente-desde-receta";
 import { listMedicos } from "@/modules/medicos/application/list-medicos";
-import { crearMedico } from "@/modules/medicos/application/crear-medico";
-import { AppError } from "@/shared/errors";
-import type { RecetaActionState, BuscarPersonaState, CrearPersonaRapidaState } from "./action-state";
+import { crearMedicoDesdeReceta } from "@/modules/medicos/application/crear-medico-desde-receta";
+import type { JurisdiccionMatricula } from "@/modules/medicos/domain/medico";
+import { actionError, actionErrorMessage } from "@/shared/ui/action-error";
+import type { RecetaActionState, BuscarPersonaState, CrearPersonaRapidaState, LeerRecetaPdfState, PresupuestoState } from "./action-state";
 
 function fromError(error: unknown, fallback: string): RecetaActionState {
-  if (error instanceof AppError) return { status: "error", message: error.message };
-  return { status: "error", message: fallback };
+  return actionError(error, fallback);
 }
 
 // ============================================================================
-// 6.1 / 6.3: alta y edición
+// 6.1 / 6.3: alta y edición. Once the receta COMMITTED, its fichas técnicas
+// and cotizaciones are generated as separate use cases
+// (application/generar-fichas-y-cotizaciones.ts, never throws): a failure
+// there leaves the receta saved and becomes a notice on its detail page.
 // ============================================================================
 
 export async function crearRecetaAction(_prevState: RecetaActionState, formData: FormData): Promise<RecetaActionState> {
+  let nueva: { id: string; numeroInterno: string };
   try {
     const items = JSON.parse(String(formData.get("itemsJson") ?? "[]"));
-    const nueva = await crearReceta({
+    nueva = await crearReceta({
       pacienteId: String(formData.get("pacienteId") ?? ""),
       medicoId: String(formData.get("medicoId") ?? ""),
       fechaPrescripcion: String(formData.get("fechaPrescripcion") ?? ""),
       origen: String(formData.get("origen") ?? "PRESENCIAL") as "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO",
       recetaFisicaRecibida: formData.get("recetaFisicaRecibida") === "on",
+      diagnosticoCodigo: String(formData.get("diagnosticoCodigo") ?? ""),
+      diagnosticoDescripcion: String(formData.get("diagnosticoDescripcion") ?? ""),
       items,
     });
     revalidatePath("/recetas");
-    return { status: "success", message: "Receta creada.", id: nueva.id, numeroInterno: nueva.numeroInterno };
   } catch (error) {
     return fromError(error, "No se pudo crear la receta.");
   }
+  const avisos = await generarFichasYCotizaciones(nueva.id, { soloSiDesactualizadas: false });
+  return { status: "success", message: "Receta creada.", id: nueva.id, numeroInterno: nueva.numeroInterno, redirigirA: urlTrasRegistrar(nueva.id, avisos) };
 }
 
 export async function editarRecetaAction(_prevState: RecetaActionState, formData: FormData): Promise<RecetaActionState> {
+  const id = String(formData.get("id") ?? "");
   try {
     const items = JSON.parse(String(formData.get("itemsJson") ?? "[]"));
     const itemsVersion = JSON.parse(String(formData.get("itemsVersionJson") ?? "[]"));
-    const id = String(formData.get("id") ?? "");
     await editarReceta({
       id,
       pacienteId: String(formData.get("pacienteId") ?? ""),
       medicoId: String(formData.get("medicoId") ?? ""),
       fechaPrescripcion: String(formData.get("fechaPrescripcion") ?? ""),
       origen: String(formData.get("origen") ?? "PRESENCIAL") as "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO",
+      diagnosticoCodigo: String(formData.get("diagnosticoCodigo") ?? ""),
+      diagnosticoDescripcion: String(formData.get("diagnosticoDescripcion") ?? ""),
       items,
       itemsVersion,
       version: {
@@ -70,14 +86,58 @@ export async function editarRecetaAction(_prevState: RecetaActionState, formData
         medicoId: String(formData.get("versionMedicoId") ?? ""),
         fechaPrescripcion: String(formData.get("versionFechaPrescripcion") ?? ""),
         origen: String(formData.get("versionOrigen") ?? "PRESENCIAL") as "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO",
+        diagnosticoCodigo: formData.get("versionDiagnosticoCodigo") ? String(formData.get("versionDiagnosticoCodigo")) : null,
+        diagnosticoDescripcion: formData.get("versionDiagnosticoDescripcion") ? String(formData.get("versionDiagnosticoDescripcion")) : null,
       },
     });
     revalidatePath("/recetas");
     revalidatePath(`/recetas/${id}`);
-    return { status: "success", message: "Receta actualizada.", id };
   } catch (error) {
     return fromError(error, "No se pudieron guardar los cambios.");
   }
+  // Only items whose formula changed get a new ficha version (and cotización).
+  const avisos = await generarFichasYCotizaciones(id, { soloSiDesactualizadas: true });
+  return { status: "success", message: "Receta actualizada.", id, redirigirA: urlTrasEditar(id, avisos) };
+}
+
+/**
+ * Live presupuesto of the receta being loaded (docs/specs/presupuesto-receta.md):
+ * called from the form (debounced), not a `<form action>`. Writes nothing.
+ */
+export async function presupuestarRecetaAction(itemsJson: string): Promise<PresupuestoState> {
+  try {
+    const presupuesto = await presupuestarReceta({ items: JSON.parse(itemsJson) });
+    return { status: "success", presupuesto };
+  } catch (error) {
+    return { status: "error", message: actionErrorMessage(error, "No se pudo calcular el presupuesto.") };
+  }
+}
+
+// ============================================================================
+// Importación desde PDF (docs/specs/importacion-receta-pdf.md): read (a
+// query -- nothing is saved) and confirm (`recetas.importar`). The file
+// travels only in this POST's multipart body and lives in memory.
+// ============================================================================
+
+export async function leerRecetaPdfAction(_prevState: LeerRecetaPdfState, formData: FormData): Promise<LeerRecetaPdfState> {
+  try {
+    const vistaPrevia = await leerRecetaPdf(formData.get("archivo"));
+    return { status: "success", vistaPrevia };
+  } catch (error) {
+    return { status: "error", message: actionErrorMessage(error, "No se pudo leer el PDF.") };
+  }
+}
+
+export async function importarRecetaAction(_prevState: RecetaActionState, formData: FormData): Promise<RecetaActionState> {
+  let nueva: { id: string; numeroInterno: string };
+  try {
+    nueva = await importarReceta(JSON.parse(String(formData.get("importacionJson") ?? "{}")));
+    revalidatePath("/recetas");
+  } catch (error) {
+    return fromError(error, "No se pudo importar la receta.");
+  }
+  const avisos = await generarFichasYCotizaciones(nueva.id, { soloSiDesactualizadas: false });
+  return { status: "success", message: "Receta importada.", id: nueva.id, numeroInterno: nueva.numeroInterno, redirigirA: urlTrasRegistrar(nueva.id, avisos) };
 }
 
 // ============================================================================
@@ -125,7 +185,7 @@ export async function buscarPacientesParaRecetaAction(prevState: BuscarPersonaSt
     const result = await listPacientes({ search: q.length > 0 ? q : undefined, soloVigentes: true, page: 1, pageSize: 10 });
     return { status: "success", items: result.items.map((p) => ({ id: p.id, nombre: p.nombre, apellido: p.apellido })) };
   } catch (error) {
-    const message = error instanceof AppError ? error.message : "No se pudo buscar pacientes.";
+    const message = actionErrorMessage(error, "No se pudo buscar pacientes.");
     return { status: "error", message, items: prevState.items };
   }
 }
@@ -135,11 +195,10 @@ export async function crearPacienteRapidoAction(_prevState: CrearPersonaRapidaSt
     const nombre = String(formData.get("nombre") ?? "");
     const apellido = String(formData.get("apellido") ?? "");
     const dniRaw = String(formData.get("dni") ?? "").trim();
-    const nueva = await crearPaciente({ nombre, apellido, dni: dniRaw.length > 0 ? dniRaw : undefined });
+    const nueva = await crearPacienteDesdeReceta({ nombre, apellido, dni: dniRaw.length > 0 ? dniRaw : undefined });
     return { status: "success", persona: { id: nueva.id, nombre, apellido } };
   } catch (error) {
-    const message = error instanceof AppError ? error.message : "No se pudo crear el paciente.";
-    return { status: "error", message };
+    return actionError(error, "No se pudo crear el paciente.");
   }
 }
 
@@ -153,7 +212,7 @@ export async function buscarMedicosParaRecetaAction(prevState: BuscarPersonaStat
     const result = await listMedicos({ search: q.length > 0 ? q : undefined, soloVigentes: true, page: 1, pageSize: 10 });
     return { status: "success", items: result.items.map((m) => ({ id: m.id, nombre: m.nombre, apellido: m.apellido })) };
   } catch (error) {
-    const message = error instanceof AppError ? error.message : "No se pudo buscar médicos.";
+    const message = actionErrorMessage(error, "No se pudo buscar médicos.");
     return { status: "error", message, items: prevState.items };
   }
 }
@@ -163,11 +222,11 @@ export async function crearMedicoRapidoAction(_prevState: CrearPersonaRapidaStat
     const nombre = String(formData.get("nombre") ?? "");
     const apellido = String(formData.get("apellido") ?? "");
     const matricula = String(formData.get("matricula") ?? "");
-    const nuevo = await crearMedico({ nombre, apellido, matricula });
+    const matriculaJurisdiccion = String(formData.get("matriculaJurisdiccion") ?? "") as JurisdiccionMatricula;
+    const nuevo = await crearMedicoDesdeReceta({ nombre, apellido, matricula, matriculaJurisdiccion });
     return { status: "success", persona: { id: nuevo.id, nombre, apellido } };
   } catch (error) {
-    const message = error instanceof AppError ? error.message : "No se pudo crear el médico.";
-    return { status: "error", message };
+    return actionError(error, "No se pudo crear el médico.");
   }
 }
 
@@ -187,7 +246,7 @@ export async function buscarDrogasParaRecetaAction(prevState: BuscarDrogasState,
     const items = await listDrogasParaReceta(q.length > 0 ? q : undefined);
     return { status: "success", items };
   } catch (error) {
-    const message = error instanceof AppError ? error.message : "No se pudo buscar drogas.";
+    const message = actionErrorMessage(error, "No se pudo buscar drogas.");
     return { status: "error", message, items: prevState.items };
   }
 }

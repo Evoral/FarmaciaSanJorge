@@ -2,7 +2,8 @@
 
 /** Crear/editar paciente form (FASE 4 point 4.5). HEALTH-ADJACENT DATA (DP-24): rendered only when the caller already checked `can(session, "pacientes.gestionar")` -- see app/(app)/catalogos/pacientes/**. */
 import { crearPacienteAction, editarPacienteAction } from "./actions";
-import { SimpleForm } from "./simple-form";
+import { SimpleForm } from "@/shared/ui/simple-form";
+import { DateInput } from "@/shared/ui/date-input";
 
 export interface PacienteFormProps {
   mode: "crear" | "editar";
@@ -26,7 +27,7 @@ export function PacienteForm({ mode, paciente, disabled }: PacienteFormProps) {
 
   return (
     <div className="card p-4">
-      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear paciente" : "Guardar cambios"} className="flex max-w-md flex-col gap-3">
+      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear paciente" : "Guardar cambios"} className="max-w-md">
         {mode === "editar" && paciente ? (
           <>
             <input type="hidden" name="id" value={paciente.id} />
@@ -88,7 +89,7 @@ export function PacienteForm({ mode, paciente, disabled }: PacienteFormProps) {
           <label htmlFor="fechaNacimiento" className="text-sm font-medium">
             Fecha de nacimiento
           </label>
-          <input id="fechaNacimiento" name="fechaNacimiento" type="date" defaultValue={paciente?.fechaNacimiento ?? ""} disabled={disabled} className="input" />
+          <DateInput id="fechaNacimiento" name="fechaNacimiento" defaultValue={paciente?.fechaNacimiento ?? ""} disabled={disabled} />
         </div>
 
         <div className="flex flex-col gap-1">

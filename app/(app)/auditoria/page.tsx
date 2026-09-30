@@ -1,9 +1,11 @@
 /**
  * `/auditoria` (M03, FASE 3 point 3.11). READ-ONLY, tenant-scoped audit log
  * viewer over `fsj.registro_auditoria`. Server component: filters are
- * plain GET query params (a native `<form method="get">`, no client JS
- * needed) -- same convention as `/admin/usuarios`
- * (app/(app)/admin/usuarios/page.tsx). Pagination is CURSOR-based
+ * plain GET query params, applied as they change by `FilterForm`
+ * (shared/ui/filter-form.tsx; still a native `<form method="get">`
+ * without JS) -- same convention as `/admin/accesos/usuarios`
+ * (app/(app)/admin/accesos/usuarios/page.tsx). A filter change drops
+ * `cursor` (back to the first page). Pagination is CURSOR-based
  * ("cargar más" driven by `nextCursor`), never numbered/offset pages --
  * the audit log grows forever and is never purged, so `OFFSET n` degrades
  * badly at scale (see
@@ -17,36 +19,17 @@ import { TipoAccion } from "@/generated/prisma/enums";
 import { listRegistroAuditoria } from "@/modules/auditoria/application/list-registro-auditoria";
 import { listUsuariosParaFiltro } from "@/modules/auditoria/application/list-usuarios-para-filtro";
 import { AuditoriaDiff } from "@/modules/auditoria/ui/auditoria-diff";
+import { ACCION_LABELS, ENTIDADES, describirRegistro, etiquetaEntidad, formatearFechaHora } from "@/modules/auditoria/domain/presentacion";
+import { DateInput } from "@/shared/ui/date-input";
+import { FilterForm } from "@/shared/ui/filter-form";
 
 const PAGE_SIZE = 50;
 
 const ACCION_VALUES = Object.values(TipoAccion);
-
-/** Neutral, professional Spanish labels (UI copy) -- no established mapping exists elsewhere for TipoAccion, this is local to the auditoria screen. */
-const ACCION_LABELS: Record<string, string> = {
-  CREAR: "Creación",
-  MODIFICAR: "Modificación",
-  BAJA: "Baja",
-  REACTIVAR: "Reactivación",
-  ANULAR: "Anulación",
-  AUTORIZAR: "Autorización",
-  FIRMAR: "Firma",
-  CONFIRMAR: "Confirmación",
-  DESCARTAR: "Descarte",
-  CAMBIAR_ESTADO: "Cambio de estado",
-  ASIGNAR_ROL: "Asignación de rol",
-  QUITAR_ROL: "Quitar rol",
-  SUSPENDER: "Suspensión",
-  RESTABLECER_CREDENCIAL: "Restablecimiento de credencial",
-  ACTIVAR_CUENTA: "Activación de cuenta",
-  LOGIN_FALLIDO_BLOQUEO: "Bloqueo por intentos fallidos",
-  CORREGIR_FOLIO: "Corrección de folio",
-  INUTILIZAR_FOJAS: "Inutilización de fojas",
-  DESTRUIR: "Destrucción",
-  IMPRIMIR_CIERRE: "Impresión de cierre",
-};
+const ENTIDAD_VALUES = Object.keys(ENTIDADES).sort((a, b) => etiquetaEntidad(a).localeCompare(etiquetaEntidad(b), "es"));
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 interface AuditoriaPageProps {
   searchParams: Promise<{
@@ -63,16 +46,21 @@ interface AuditoriaPageProps {
 export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps) {
   const params = await searchParams;
 
-  const entidad = params.entidad?.trim() || undefined;
+  const entidad = params.entidad && params.entidad in ENTIDADES ? params.entidad : undefined;
   const entidadId = params.entidadId && UUID_PATTERN.test(params.entidadId) ? params.entidadId : undefined;
   const usuarioId = params.usuarioId && UUID_PATTERN.test(params.usuarioId) ? params.usuarioId : undefined;
   const accion = params.accion && (ACCION_VALUES as readonly string[]).includes(params.accion) ? (params.accion as TipoAccion) : undefined;
-  const desde = params.desde || undefined;
-  const hasta = params.hasta || undefined;
+  const desde = params.desde && ISO_DATE_PATTERN.test(params.desde) ? params.desde : undefined;
+  const hasta = params.hasta && ISO_DATE_PATTERN.test(params.hasta) ? params.hasta : undefined;
   const cursor = params.cursor || undefined;
 
+  // ISO dates compare correctly as strings. Checked here so an inverted range shows a message instead of the use case's ValidationError.
+  const rangoInvalido = Boolean(desde && hasta && desde > hasta);
+
   const [result, usuariosFiltro] = await Promise.all([
-    listRegistroAuditoria({ entidad, entidadId, usuarioId, accion, desde, hasta, cursor, pageSize: PAGE_SIZE }),
+    rangoInvalido
+      ? Promise.resolve({ items: [], nextCursor: null, zonaHoraria: "America/Argentina/Mendoza" })
+      : listRegistroAuditoria({ entidad, entidadId, usuarioId, accion, desde, hasta, cursor, pageSize: PAGE_SIZE }),
     listUsuariosParaFiltro(),
   ]);
 
@@ -94,19 +82,19 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
     <div>
       <h1 className="mb-6 text-2xl font-semibold">Auditoría</h1>
 
-      <form method="get" className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de auditoría">
+      <FilterForm className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de auditoría" hasActiveFilters={hasFilters || Boolean(params.entidadId)}>
         <div className="flex flex-col gap-1">
           <label htmlFor="entidad" className="text-sm font-medium">
             Entidad
           </label>
-          <input
-            id="entidad"
-            name="entidad"
-            type="text"
-            defaultValue={params.entidad ?? ""}
-            placeholder="usuario, receta, ..."
-            className="input"
-          />
+          <select id="entidad" name="entidad" defaultValue={entidad ?? ""} className="input">
+            <option value="">Todas</option>
+            {ENTIDAD_VALUES.map((codigo) => (
+              <option key={codigo} value={codigo}>
+                {etiquetaEntidad(codigo)}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="flex flex-col gap-1">
@@ -165,12 +153,10 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
           <label htmlFor="desde" className="text-sm font-medium">
             Desde
           </label>
-          <input
+          <DateInput
             id="desde"
             name="desde"
-            type="date"
             defaultValue={params.desde ?? ""}
-            className="input"
           />
         </div>
 
@@ -178,24 +164,20 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
           <label htmlFor="hasta" className="text-sm font-medium">
             Hasta
           </label>
-          <input
+          <DateInput
             id="hasta"
             name="hasta"
-            type="date"
             defaultValue={params.hasta ?? ""}
-            className="input"
           />
         </div>
 
-        <button type="submit" className="btn btn-secondary">
-          Filtrar
-        </button>
-        {hasFilters ? (
-          <Link href="/auditoria" className="text-sm underline">
-            Limpiar filtros
-          </Link>
-        ) : null}
-      </form>
+      </FilterForm>
+
+      {rangoInvalido ? (
+        <p role="alert" className="mb-4 text-sm text-red-600">
+          La fecha &quot;Desde&quot; no puede ser posterior a la fecha &quot;Hasta&quot;.
+        </p>
+      ) : null}
 
       <div className="table-wrap">
         <table className="data-table">
@@ -205,41 +187,51 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
                 Fecha
               </th>
               <th scope="col" className="px-3 py-2 font-medium">
-                Usuario
+                Qué pasó
               </th>
               <th scope="col" className="px-3 py-2 font-medium">
-                Entidad
-              </th>
-              <th scope="col" className="px-3 py-2 font-medium">
-                Acción
-              </th>
-              <th scope="col" className="px-3 py-2 font-medium">
-                Detalle
+                Cambios
               </th>
             </tr>
           </thead>
           <tbody>
             {result.items.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-zinc-500">
+                <td colSpan={3} className="px-3 py-6 text-center text-zinc-500">
                   No se encontraron registros con estos filtros.
                 </td>
               </tr>
             ) : (
               result.items.map((registro) => (
                 <tr key={registro.id} className="border-b border-zinc-100 align-top last:border-0 dark:border-zinc-900">
-                  <td className="whitespace-nowrap px-3 py-2">{new Date(registro.ocurridoEn).toLocaleString("es-AR")}</td>
-                  <td className="px-3 py-2">
-                    {registro.usuario.apellido}, {registro.usuario.nombre}
+                  <td className="whitespace-nowrap px-3 py-2">{formatearFechaHora(registro.ocurridoEn, result.zonaHoraria)}</td>
+                  <td className="min-w-[16rem] px-3 py-2">
+                    <p className="font-medium">
+                      {describirRegistro(`${registro.usuario.nombre} ${registro.usuario.apellido}`, registro.accion, registro.entidad)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{ACCION_LABELS[registro.accion] ?? registro.accion}</p>
+                    {registro.motivo ? (
+                      <p className="mt-1 text-sm">
+                        <span className="text-zinc-500 dark:text-zinc-400">Motivo:</span> {registro.motivo}
+                      </p>
+                    ) : null}
+                    {registro.autorizadoPor ? (
+                      <p className="mt-1 text-sm">
+                        <span className="text-zinc-500 dark:text-zinc-400">Autorizó:</span> {registro.autorizadoPor.nombre}{" "}
+                        {registro.autorizadoPor.apellido}
+                      </p>
+                    ) : null}
                   </td>
-                  <td className="px-3 py-2">
-                    <div>{registro.entidad}</div>
-                    <div className="text-xs text-zinc-500">{registro.entidadId}</div>
-                  </td>
-                  <td className="px-3 py-2">{ACCION_LABELS[registro.accion] ?? registro.accion}</td>
                   <td className="min-w-[20rem] px-3 py-2">
-                    {registro.motivo ? <p className="mb-2 text-sm">{registro.motivo}</p> : null}
-                    <AuditoriaDiff valorAnterior={registro.valorAnterior} valorNuevo={registro.valorNuevo} />
+                    <AuditoriaDiff
+                      entidad={registro.entidad}
+                      entidadId={registro.entidadId}
+                      valorAnterior={registro.valorAnterior}
+                      valorNuevo={registro.valorNuevo}
+                      zonaHoraria={result.zonaHoraria}
+                      ip={registro.ip}
+                      contexto={registro.contexto}
+                    />
                   </td>
                 </tr>
               ))

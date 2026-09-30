@@ -6,7 +6,7 @@ import { can } from "@/shared/auth/authorize";
 import { getDroga } from "@/modules/drogas/application/get-droga";
 import { listUnidadesVigentesParaDroga } from "@/modules/drogas/application/list-unidades-vigentes";
 import { DrogaForm } from "@/modules/drogas/ui/droga-form";
-import { MotivoForm } from "@/modules/drogas/ui/motivo-form";
+import { MotivoForm } from "@/shared/ui/motivo-form";
 import { darDeBajaDrogaAction, reactivarDrogaAction } from "@/modules/drogas/ui/actions";
 
 interface DrogaDetallePageProps {
@@ -56,7 +56,7 @@ export default async function DrogaDetallePage({ params }: DrogaDetallePageProps
               label="Dar de baja"
               pendingLabel="Dando de baja…"
               helpText="Esta droga deja de ofrecerse para nuevas recetas, pero sigue resolviendo en históricos."
-              submitClassName="btn btn-danger"
+              variant="danger"
             />
           ) : null}
         </section>

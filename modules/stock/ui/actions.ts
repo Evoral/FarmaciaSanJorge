@@ -6,12 +6,11 @@ import { ingresarPartida } from "@/modules/stock/application/ingresar-partida";
 import { registrarAjusteStock } from "@/modules/stock/application/registrar-ajuste";
 import { corregirCostoPartida } from "@/modules/stock/application/corregir-costo-partida";
 import type { MotivoAjuste } from "@/modules/stock/domain/partida";
-import { AppError } from "@/shared/errors";
+import { actionError } from "@/shared/ui/action-error";
 import type { StockActionState } from "./action-state";
 
 function fromError(error: unknown, fallback: string): StockActionState {
-  if (error instanceof AppError) return { status: "error", message: error.message };
-  return { status: "error", message: fallback };
+  return actionError(error, fallback);
 }
 
 export async function ingresarPartidaAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
@@ -48,12 +47,14 @@ export async function registrarAjusteAction(_prevState: StockActionState, formDa
     await registrarAjusteStock({
       partidaId: String(formData.get("partidaId") ?? ""),
       cantidad: String(formData.get("cantidad") ?? ""),
+      unidadId: (formData.get("unidadId") as string | null) || undefined,
       motivoAjuste: String(formData.get("motivoAjuste") ?? "") as MotivoAjuste,
       observacion: String(formData.get("observacion") ?? ""),
       dtUsuarioId: String(formData.get("dtUsuarioId") ?? ""),
       dtPassword: String(formData.get("dtPassword") ?? ""),
     });
     revalidatePath("/stock");
+    revalidatePath("/stock/ajustes");
     return { status: "success", message: "Ajuste registrado." };
   } catch (error) {
     return fromError(error, "No se pudo registrar el ajuste.");

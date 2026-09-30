@@ -18,7 +18,7 @@ import type { TipoControl as PrismaTipoControl } from "@/generated/prisma/enums"
 
 async function loadStockPorDroga(tx: Prisma.TransactionClient, tenantId: string): Promise<Map<string, string>> {
   const rows = await tx.$queryRaw<{ droga_id: string; stock_disponible: string }[]>`
-    SELECT droga_id, stock_disponible FROM fsj.v_stock_droga WHERE tenant_id = ${tenantId}::uuid
+    SELECT droga_id, stock_disponible::text FROM fsj.v_stock_droga WHERE tenant_id = ${tenantId}::uuid
   `;
   return new Map(rows.map((row) => [row.droga_id, row.stock_disponible]));
 }
@@ -303,4 +303,28 @@ export async function listUnidadesVigentes(tx: Prisma.TransactionClient): Promis
     select: { id: true, nombre: true, simbolo: true, tipoMagnitud: true },
   });
   return rows;
+}
+
+export interface DrogaOpcion {
+  id: string;
+  nombre: string;
+  unidadBaseId: string;
+  /** `tipo_magnitud` of the unidad base: lets a unit picker (e.g. `/stock/ingresar`'s "Unidad de compra") offer only convertible units. */
+  tipoMagnitud: string;
+}
+
+/** Every vigente droga of the tenant, with its unidad base -- feeds `<select>` pickers (no pagination, no stock join: see list-drogas-opciones.ts). */
+export async function listDrogasOpciones(tx: Prisma.TransactionClient, tenantId: string): Promise<DrogaOpcion[]> {
+  const rows = await tx.droga.findMany({
+    where: { tenantId, fechaBaja: null },
+    orderBy: [{ nombre: "asc" }],
+    select: { id: true, nombre: true, unidadBaseId: true, unidadBase: { select: { tipoMagnitud: true } } },
+  });
+  return rows.map((row) => ({ id: row.id, nombre: row.nombre, unidadBaseId: row.unidadBaseId, tipoMagnitud: row.unidadBase.tipoMagnitud }));
+}
+
+/** unidad id -> "gramo (g)", for audit rows. Global catalog (DP-39): no tenant filter; includes unidades given de baja. */
+export async function getEtiquetasUnidades(tx: Prisma.TransactionClient, unidadIds: string[]): Promise<Map<string, string>> {
+  const rows = await tx.unidadMedida.findMany({ where: { id: { in: [...new Set(unidadIds)] } }, select: { id: true, nombre: true, simbolo: true } });
+  return new Map(rows.map((u) => [u.id, `${u.nombre} (${u.simbolo})`]));
 }

@@ -8,6 +8,7 @@ import {
   InvariantViolationError,
   mapDbError,
   toSafeError,
+  MENSAJES_INVARIANTES,
 } from "@/shared/errors";
 
 describe("mapDbError", () => {
@@ -60,10 +61,12 @@ describe("toSafeError", () => {
     expect(safe.requestId).toBe("req-123");
   });
 
-  it("never leaks SQL text for an invariant violation, only the INV code", () => {
+  it("never leaks SQL text nor the INV code for an invariant violation: category code + translated Spanish message", () => {
     const raw = { code: "P2010", message: "Raw query failed. Code: `P0001`. Message: `INV-T03: tenant_id cannot be changed on table receta`" };
     const safe = toSafeError(raw, "req-456");
-    expect(safe.code).toBe("INV-T03");
+    expect(safe.code).toBe("INVARIANT_VIOLATION");
+    expect(safe.message).toBe(MENSAJES_INVARIANTES["INV-T03"]);
+    expect(safe.message).not.toContain("INV-");
     expect(safe.message).not.toContain("receta");
     expect(safe.message).not.toContain("SELECT");
   });

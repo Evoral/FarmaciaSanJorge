@@ -60,17 +60,17 @@ export function puedeCambiarClasificacion(tienePartidas: boolean): boolean {
 export const nonNegativeDecimalString = z
   .string()
   .trim()
-  .min(1, "This field cannot be empty.")
+  .min(1, "Este campo no puede estar vacío.")
   .transform((value, ctx) => {
     let parsed: Decimal;
     try {
       parsed = new Decimal(value);
     } catch {
-      ctx.addIssue({ code: "custom", message: "Must be a valid decimal number." });
+      ctx.addIssue({ code: "custom", message: "Debe ser un número decimal válido." });
       return z.NEVER;
     }
     if (!parsed.isFinite() || parsed.isNegative()) {
-      ctx.addIssue({ code: "custom", message: "Must be zero or greater." });
+      ctx.addIssue({ code: "custom", message: "Debe ser cero o mayor." });
       return z.NEVER;
     }
     return parsed;

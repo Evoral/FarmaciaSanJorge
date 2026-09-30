@@ -7,7 +7,7 @@
  */
 export type PreparacionActionState =
   | { status: "idle" }
-  | { status: "error"; message: string }
+  | { status: "error"; message: string; fields?: string[] }
   | { status: "reauth-required" }
   | { status: "success"; message?: string; id?: string };
 

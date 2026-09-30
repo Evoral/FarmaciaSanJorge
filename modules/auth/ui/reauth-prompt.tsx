@@ -15,8 +15,8 @@
  * PIN MODE: on mount, checks `pinDisponibleAction()` (whether the CURRENT
  * usuario has an active, non-blocked PIN) and, if so, defaults to a 6-digit
  * PIN input with a "Usar contraseña" toggle -- every OTHER existing caller
- * of this component (there are several `reauth-aware-form.tsx` variants
- * across modules) needs no changes: this check happens internally, not via
+ * of this component (`./reauth-aware-form.tsx` and the inline reauth
+ * forms) needs no changes: this check happens internally, not via
  * a new required prop.
  */
 import { useEffect, useRef, useState, useTransition } from "react";

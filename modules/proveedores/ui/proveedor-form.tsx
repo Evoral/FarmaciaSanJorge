@@ -2,7 +2,7 @@
 
 /** Crear/editar proveedor form (FASE 4 point 4.3). */
 import { crearProveedorAction, editarProveedorAction } from "./actions";
-import { SimpleForm } from "./simple-form";
+import { SimpleForm } from "@/shared/ui/simple-form";
 import { formatCuit } from "@/modules/proveedores/domain/proveedor";
 
 export interface ProveedorFormProps {
@@ -20,7 +20,7 @@ export function ProveedorForm({ mode, proveedor, disabled }: ProveedorFormProps)
 
   return (
     <div className="card p-4">
-      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear proveedor" : "Guardar cambios"} className="flex max-w-md flex-col gap-3">
+      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear proveedor" : "Guardar cambios"} className="max-w-md">
         {mode === "editar" && proveedor ? (
           <>
             <input type="hidden" name="id" value={proveedor.id} />

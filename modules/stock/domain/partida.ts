@@ -7,6 +7,7 @@
  */
 import { z } from "zod";
 import { Decimal } from "decimal.js";
+import { CADENAS_CONVERTIBLES, UNIDADES_PRACTICAS } from "@/shared/format/cantidad";
 
 // ============================================================================
 // motivo_ajuste (5.4, DP-21b: every AJUSTE subtracts)
@@ -36,17 +37,17 @@ export const MOTIVO_AJUSTE_LABELS: Record<MotivoAjuste, string> = {
 export const positiveDecimalString = z
   .string()
   .trim()
-  .min(1, "This field cannot be empty.")
+  .min(1, "Este campo no puede estar vacío.")
   .transform((value, ctx) => {
     let parsed: Decimal;
     try {
       parsed = new Decimal(value);
     } catch {
-      ctx.addIssue({ code: "custom", message: "Must be a valid decimal number." });
+      ctx.addIssue({ code: "custom", message: "Debe ser un número decimal válido." });
       return z.NEVER;
     }
     if (!parsed.isFinite() || !parsed.greaterThan(0)) {
-      ctx.addIssue({ code: "custom", message: "Must be greater than zero." });
+      ctx.addIssue({ code: "custom", message: "Debe ser mayor que cero." });
       return z.NEVER;
     }
     return parsed;
@@ -56,24 +57,24 @@ export const positiveDecimalString = z
 export const nonNegativeDecimalString = z
   .string()
   .trim()
-  .min(1, "This field cannot be empty.")
+  .min(1, "Este campo no puede estar vacío.")
   .transform((value, ctx) => {
     let parsed: Decimal;
     try {
       parsed = new Decimal(value);
     } catch {
-      ctx.addIssue({ code: "custom", message: "Must be a valid decimal number." });
+      ctx.addIssue({ code: "custom", message: "Debe ser un número decimal válido." });
       return z.NEVER;
     }
     if (!parsed.isFinite() || parsed.isNegative()) {
-      ctx.addIssue({ code: "custom", message: "Must be zero or greater." });
+      ctx.addIssue({ code: "custom", message: "Debe ser cero o mayor." });
       return z.NEVER;
     }
     return parsed;
   });
 
 /** `YYYY-MM-DD`, matching migration 0008's `fecha_vencimiento date`. */
-export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be a date in YYYY-MM-DD format.");
+export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha con formato AAAA-MM-DD.");
 
 /**
  * Ingreso de partida (5.1): `fecha_vencimiento` must be STRICTLY in the
@@ -98,6 +99,37 @@ export function ajusteExcedeSaldo(cantidadAjuste: Decimal, cantidadDisponible: D
   return cantidadAjuste.greaterThan(cantidadDisponible);
 }
 
+/** The `fsj.unidad_medida` fields the ajuste unit rule needs. */
+export interface UnidadParaAjuste {
+  id: string;
+  codigo: string;
+  tipoMagnitud: string;
+  fechaBaja: Date | null;
+}
+
+export type RechazoUnidadAjuste = "BAJA" | "OTRA_MAGNITUD" | "NO_HABILITADA";
+
+/**
+ * Ajustes (5.4): the unit the quantity to subtract may be ENTERED in (the
+ * server converts it to the droga's unidad base before the saldo check).
+ * Allowed:
+ *   - the droga's unidad base itself, always (no conversion; also the
+ *     default when a caller sends no unit);
+ *   - when the unidad base is convertible (`CADENAS_CONVERTIBLES`): any
+ *     vigente unit of `UNIDADES_PRACTICAS` of the SAME magnitude (mg/g/kg,
+ *     mL/L -- never mcg/mcL, never another magnitude).
+ * A non-convertible unidad base (UNIDAD, UI, GOTA, %) allows only itself.
+ * Returns `null` when allowed, else why not.
+ */
+export function rechazoUnidadAjuste(unidad: UnidadParaAjuste, unidadBase: UnidadParaAjuste): RechazoUnidadAjuste | null {
+  if (unidad.id === unidadBase.id) return null;
+  if (unidad.tipoMagnitud !== unidadBase.tipoMagnitud) return "OTRA_MAGNITUD";
+  if (unidad.fechaBaja !== null) return "BAJA";
+  const baseConvertible = CADENAS_CONVERTIBLES[unidadBase.tipoMagnitud]?.includes(unidadBase.codigo) ?? false;
+  const practica = UNIDADES_PRACTICAS[unidadBase.tipoMagnitud]?.includes(unidad.codigo) ?? false;
+  return baseConvertible && practica ? null : "NO_HABILITADA";
+}
+
 /**
  * FASE 5 point 5.7 (alertas de vencimiento): default number of days ahead
  * of the tenant's jornada that counts as "próxima a vencer", used ONLY as a
@@ -112,3 +144,18 @@ export function ajusteExcedeSaldo(cantidadAjuste: Decimal, cantidadDisponible: D
  * copy of logic.
  */
 export const DIAS_ALERTA_VENCIMIENTO_PARTIDA_DEFAULT = "30";
+
+// ============================================================================
+// /stock listing order (5.2)
+// ============================================================================
+
+/** `stock` compares in each magnitude's base unit (`stock_disponible * factor_a_base`); `vencimiento` = earliest expiry among partidas with balance, NULLS LAST. Ties always fall back to the droga's name. */
+export const ORDENES_STOCK_DROGAS = ["nombre", "stock", "vencimiento"] as const;
+export type OrdenStockDrogas = (typeof ORDENES_STOCK_DROGAS)[number];
+
+/** Neutral, professional Spanish -- UI copy. */
+export const ORDEN_STOCK_DROGAS_LABELS: Record<OrdenStockDrogas, string> = {
+  nombre: "Nombre",
+  stock: "Stock disponible",
+  vencimiento: "Próximo vencimiento",
+};

@@ -139,7 +139,7 @@ export default async function HomePage() {
     const suspendidos = usuariosSuspendidos?.total ?? 0;
     cards.push({
       titulo: "Usuarios",
-      href: "/admin/usuarios",
+      href: "/admin/accesos/usuarios",
       cuerpo: pendientes === 0 && suspendidos === 0 ? "Sin usuarios pendientes ni suspendidos." : `${pendientes} pendiente${pendientes === 1 ? "" : "s"} de activación · ${suspendidos} suspendido${suspendidos === 1 ? "" : "s"}.`,
       tono: pendientes === 0 && suspendidos === 0 ? "neutral" : "amber",
     });

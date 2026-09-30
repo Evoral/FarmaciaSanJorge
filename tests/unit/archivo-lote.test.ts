@@ -19,7 +19,7 @@ import {
 // covered by that file's own tests/DB test instead of here.
 
 describe("esRecetaElegibleParaArchivo", () => {
-  const base = { estado: "ENTREGADA", recetaFisicaRecibida: true, loteArchivoId: null, fechaIngreso: "2024-06-15" };
+  const base = { estado: "ENTREGADA", origen: "PRESENCIAL", recetaFisicaRecibida: true, loteArchivoId: null, fechaIngreso: "2024-06-15" };
 
   it("eligible: ENTREGADA/ANULADA, receta fisica recibida, sin lote, dentro del periodo", () => {
     expect(esRecetaElegibleParaArchivo(base, "2024-06-01", "2024-06-30")).toBe(true);
@@ -40,6 +40,11 @@ describe("esRecetaElegibleParaArchivo", () => {
 
   it("not eligible: fecha_ingreso outside the periodo", () => {
     expect(esRecetaElegibleParaArchivo(base, "2024-07-01", "2024-07-31")).toBe(false);
+  });
+
+  it("not eligible: DIGITAL_PDF (no paper to archive), even ENTREGADA with recepción registrada (P10)", () => {
+    expect(esRecetaElegibleParaArchivo({ ...base, origen: "DIGITAL_PDF" }, "2024-06-01", "2024-06-30")).toBe(false);
+    expect(esRecetaElegibleParaArchivo({ ...base, origen: "DIGITAL_PDF", estado: "ANULADA" }, "2024-06-01", "2024-06-30")).toBe(false);
   });
 });
 

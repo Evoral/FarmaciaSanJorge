@@ -13,6 +13,8 @@
  * purpose: this transaction is exactly the legal-core case the task calls
  * out for a CLEAR message, not a fixed generic one.
  */
+import { mensajeGlobalParaInvariante } from "@/shared/errors/mensajes-invariantes";
+
 export const MENSAJES_INVARIANTES_CONFIRMACION: Readonly<Record<string, string>> = {
   "INV-S02": "La partida seleccionada quedaría con saldo negativo: revisá las cantidades.",
   "INV-S03": "La partida seleccionada superaría su cantidad inicial: revisá las cantidades.",
@@ -36,5 +38,5 @@ const MENSAJE_GENERICO = "No se pudo confirmar la preparación: se violó una re
 
 /** Maps an `InvariantViolationError.invariantCode` (e.g. `"INV-S10"`) to its Spanish message. Falls back to a generic message for a code not listed above. */
 export function mensajeParaInvariante(codigo: string): string {
-  return MENSAJES_INVARIANTES_CONFIRMACION[codigo] ?? MENSAJE_GENERICO;
+  return MENSAJES_INVARIANTES_CONFIRMACION[codigo] ?? mensajeGlobalParaInvariante(codigo) ?? MENSAJE_GENERICO;
 }

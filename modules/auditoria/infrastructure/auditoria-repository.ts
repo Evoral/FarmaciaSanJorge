@@ -19,6 +19,11 @@
  * know whether there is a next page, instead of a separate `count()` --
  * a COUNT on an ever-growing table has the exact same scaling problem as
  * OFFSET pagination, so this UI never exposes a "total".
+ *
+ * The keyset only stays cheap if an index matches the sort: migration 0044
+ * adds `(tenant_id, ocurrido_en DESC, id DESC)` (unfiltered / date-only
+ * view) and `(tenant_id, entidad, ocurrido_en DESC, id DESC)` (entidad
+ * filter). The usuario/accion filters use migration 0003's indexes.
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { TipoAccion } from "@/generated/prisma/enums";
@@ -31,8 +36,10 @@ export interface AuditoriaFiltro {
   entidadId?: string;
   usuarioId?: string;
   accion?: TipoAccion;
+  /** Inclusive lower bound (start of the "Desde" jornada). */
   desde?: Date;
-  hasta?: Date;
+  /** EXCLUSIVE upper bound (start of the day after the "Hasta" jornada) -- see shared/time/jornada.ts#rangoDeJornadas. */
+  hastaExclusivo?: Date;
   cursor?: AuditoriaCursor;
   pageSize: number;
 }
@@ -46,8 +53,13 @@ export interface AuditoriaRow {
   valorNuevo: Prisma.JsonValue | null;
   motivo: string | null;
   autorizadoPorId: string | null;
+  /** Client IP of the request that produced the row (audit point 4) -- null for rows written before it, or outside a request. */
+  ip: string | null;
+  /** Request context (requestId, userAgent) -- see shared/audit/request-context.ts. */
+  contexto: Prisma.JsonValue | null;
   ocurridoEn: Date;
   usuario: { id: string; nombre: string; apellido: string };
+  autorizadoPor: { nombre: string; apellido: string } | null;
 }
 
 export interface AuditoriaListResult {
@@ -72,7 +84,7 @@ function buildWhere(filtro: AuditoriaFiltro): Prisma.RegistroAuditoriaWhereInput
   if (filtro.usuarioId) conditions.push({ usuarioId: filtro.usuarioId });
   if (filtro.accion) conditions.push({ accion: filtro.accion });
   if (filtro.desde) conditions.push({ ocurridoEn: { gte: filtro.desde } });
-  if (filtro.hasta) conditions.push({ ocurridoEn: { lte: filtro.hasta } });
+  if (filtro.hastaExclusivo) conditions.push({ ocurridoEn: { lt: filtro.hastaExclusivo } });
 
   if (filtro.cursor) {
     const { ocurridoEn, id } = filtro.cursor;
@@ -98,8 +110,11 @@ export async function listRegistroAuditoria(tx: Prisma.TransactionClient, filtro
       valorNuevo: true,
       motivo: true,
       autorizadoPorId: true,
+      ip: true,
+      contexto: true,
       ocurridoEn: true,
       usuario: { select: { id: true, nombre: true, apellido: true } },
+      autorizadoPor: { select: { nombre: true, apellido: true } },
     },
   });
 
@@ -109,6 +124,12 @@ export async function listRegistroAuditoria(tx: Prisma.TransactionClient, filtro
   const nextCursor = hasMore && last ? encodeCursor({ ocurridoEn: last.ocurridoEn, id: last.id }) : null;
 
   return { items, nextCursor };
+}
+
+/** The tenant's `zona_horaria` -- the "Desde"/"Hasta" filters are calendar days in the pharmacy's local time, not UTC. */
+export async function getZonaHorariaTenant(tx: Prisma.TransactionClient, tenantId: string): Promise<string> {
+  const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { zonaHoraria: true } });
+  return tenant.zonaHoraria;
 }
 
 export interface UsuarioFiltroOption {

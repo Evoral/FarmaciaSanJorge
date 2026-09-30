@@ -7,7 +7,7 @@ import { actualizarPlazos } from "@/modules/archivo/application/actualizar-plazo
 import { solicitarDestruccion } from "@/modules/archivo/application/solicitar-destruccion";
 import { autorizarDestruccion } from "@/modules/archivo/application/autorizar-destruccion";
 import { registrarDestruccion } from "@/modules/archivo/application/registrar-destruccion";
-import { AppError } from "@/shared/errors";
+import { actionError } from "@/shared/ui/action-error";
 import type { ArchivoActionState } from "./action-state";
 
 export async function conformarLoteAction(_prevState: ArchivoActionState, formData: FormData): Promise<ArchivoActionState> {
@@ -21,8 +21,7 @@ export async function conformarLoteAction(_prevState: ArchivoActionState, formDa
     revalidatePath(`/archivo/${resultado.id}`);
     return { status: "success", message: `Lote Nº ${resultado.numero} conformado con ${resultado.cantidadRecetas} receta${resultado.cantidadRecetas === 1 ? "" : "s"}.` };
   } catch (error) {
-    const message = error instanceof AppError ? error.message : "No se pudo conformar el lote.";
-    return { status: "error", message };
+    return actionError(error, "No se pudo conformar el lote.");
   }
 }
 
@@ -34,8 +33,7 @@ export async function actualizarPlazosAction(_prevState: ArchivoActionState, _fo
     revalidatePath("/archivo");
     return { status: "success", message: resultado.cantidad === 0 ? "No hay lotes que hayan cumplido el plazo." : `${resultado.cantidad} lote${resultado.cantidad === 1 ? "" : "s"} pasaron a Plazo cumplido.` };
   } catch (error) {
-    const message = error instanceof AppError ? error.message : "No se pudieron actualizar los plazos.";
-    return { status: "error", message };
+    return actionError(error, "No se pudieron actualizar los plazos.");
   }
 }
 
@@ -47,8 +45,7 @@ export async function solicitarDestruccionAction(_prevState: ArchivoActionState,
     revalidatePath("/archivo");
     return { status: "success", message: "Destrucción solicitada." };
   } catch (error) {
-    const message = error instanceof AppError ? error.message : "No se pudo solicitar la destrucción.";
-    return { status: "error", message };
+    return actionError(error, "No se pudo solicitar la destrucción.");
   }
 }
 
@@ -65,8 +62,7 @@ export async function autorizarDestruccionAction(_prevState: ArchivoActionState,
     revalidatePath("/archivo");
     return { status: "success", message: "Destrucción autorizada." };
   } catch (error) {
-    const message = error instanceof AppError ? error.message : "No se pudo autorizar la destrucción.";
-    return { status: "error", message };
+    return actionError(error, "No se pudo autorizar la destrucción.");
   }
 }
 
@@ -82,7 +78,6 @@ export async function registrarDestruccionAction(_prevState: ArchivoActionState,
     revalidatePath("/archivo");
     return { status: "success", message: "Destrucción registrada. Se destruyeron solo las recetas en papel de este lote; los registros digitales se conservan." };
   } catch (error) {
-    const message = error instanceof AppError ? error.message : "No se pudo registrar la destrucción.";
-    return { status: "error", message };
+    return actionError(error, "No se pudo registrar la destrucción.");
   }
 }

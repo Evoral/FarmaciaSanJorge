@@ -1,7 +1,7 @@
 /** Shared Server Action result shape for `/libro/**` (FASE 9). Own copy per module -- see modules/preparaciones/ui/action-state.ts. */
 export type LibroActionState =
   | { status: "idle" }
-  | { status: "error"; message: string }
+  | { status: "error"; message: string; fields?: string[] }
   | { status: "reauth-required" }
   | { status: "success"; message?: string };
 

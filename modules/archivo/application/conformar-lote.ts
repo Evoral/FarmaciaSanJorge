@@ -38,6 +38,7 @@ export interface RecetaElegibleItem {
   pacienteNombre: string;
   pacienteApellido: string;
   estado: "ENTREGADA" | "ANULADA";
+  origen: "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO";
   fechaIngreso: string;
 }
 
@@ -50,7 +51,13 @@ export const listRecetasElegiblesArchivoQuery = defineQuery({
     // Defensive double check (same discipline as list-jornadas-pendientes.ts):
     // the repository query already filters in SQL, this re-asserts it in
     // the pure domain function.
-    return rows.filter((r) => esRecetaElegibleParaArchivo({ estado: r.estado, recetaFisicaRecibida: true, loteArchivoId: null, fechaIngreso: r.fechaIngreso }, input.periodoDesde, input.periodoHasta));
+    return rows.filter((r) =>
+      esRecetaElegibleParaArchivo(
+        { estado: r.estado, origen: r.origen, recetaFisicaRecibida: true, loteArchivoId: null, fechaIngreso: r.fechaIngreso },
+        input.periodoDesde,
+        input.periodoHasta,
+      ),
+    );
   },
 });
 
@@ -124,7 +131,7 @@ export const conformarLoteCommand = defineCommand({
       // Spanish DomainError instead of letting the raw error escape.
       const mapped = mapDbError(e);
       if (mapped instanceof InvariantViolationError) {
-        throw new DomainError(mensajeParaInvarianteArchivo(mapped.invariantCode));
+        throw new DomainError(mensajeParaInvarianteArchivo(mapped.invariantCode), { cause: mapped });
       }
       throw mapped;
     }

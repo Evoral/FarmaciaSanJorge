@@ -20,7 +20,7 @@ export default async function HistoricoPage() {
     <div className="page">
       <h1 className="mb-6 text-2xl font-semibold">Asientos históricos</h1>
       <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">
-        Solo para relevamiento de datos del libro físico -- no forman parte del libro digital, no consumen correlativo ni cadena de hash, no generan movimientos de stock (DP-17).
+        Solo para relevamiento de datos del libro físico -- no forman parte del libro digital, no consumen correlativo ni cadena de hash, no generan movimientos de stock.
       </p>
 
       {puedeDigitalizar ? (

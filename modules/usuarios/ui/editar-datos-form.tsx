@@ -1,8 +1,8 @@
 "use client";
 
-/** `/admin/usuarios/[id]` "Datos" tab form (M03, FASE 3 point 3.3). Carries the loaded snapshot as hidden `version*` fields for optimistic concurrency -- see editarUsuario's doc comment. */
+/** `/admin/accesos/usuarios/[id]` "Datos" tab form (M03, FASE 3 point 3.3). Carries the loaded snapshot as hidden `version*` fields for optimistic concurrency -- see editarUsuario's doc comment. */
 import { editarUsuarioAction } from "./actions";
-import { ReauthAwareForm } from "./reauth-aware-form";
+import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 
 export interface EditarDatosFormProps {
   usuario: {
@@ -18,7 +18,7 @@ export interface EditarDatosFormProps {
 
 export function EditarDatosForm({ usuario, disabled }: EditarDatosFormProps) {
   return (
-    <ReauthAwareForm action={editarUsuarioAction} submitLabel="Guardar cambios" pendingLabel="Guardando…" className="flex max-w-md flex-col gap-4">
+    <ReauthAwareForm action={editarUsuarioAction} submitLabel="Guardar cambios" pendingLabel="Guardando…" className="max-w-md">
       <input type="hidden" name="id" value={usuario.id} />
       <input type="hidden" name="versionNombre" value={usuario.nombre} />
       <input type="hidden" name="versionApellido" value={usuario.apellido} />

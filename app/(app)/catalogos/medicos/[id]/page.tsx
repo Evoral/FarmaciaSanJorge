@@ -5,7 +5,8 @@ import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getMedico } from "@/modules/medicos/application/get-medico";
 import { MedicoForm } from "@/modules/medicos/ui/medico-form";
-import { MotivoForm } from "@/modules/medicos/ui/motivo-form";
+import { formatMatricula } from "@/modules/medicos/domain/medico";
+import { MotivoForm } from "@/shared/ui/motivo-form";
 import { darDeBajaMedicoAction, reactivarMedicoAction } from "@/modules/medicos/ui/actions";
 
 interface MedicoDetallePageProps {
@@ -33,7 +34,7 @@ export default async function MedicoDetallePage({ params }: MedicoDetallePagePro
         {medico.apellido}, {medico.nombre}
       </h1>
       <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">
-        Matrícula {medico.matricula} · {medico.fechaBaja ? "Dado de baja" : "Vigente"}
+        Matrícula {formatMatricula(medico.matriculaJurisdiccion, medico.matricula)} · {medico.fechaBaja ? "Dado de baja" : "Vigente"}
       </p>
 
       <div className="flex flex-col gap-8">
@@ -56,7 +57,7 @@ export default async function MedicoDetallePage({ params }: MedicoDetallePagePro
               label="Dar de baja"
               pendingLabel="Dando de baja…"
               helpText="Este médico deja de ofrecerse para nuevas recetas, pero sigue resolviendo en históricos."
-              submitClassName="btn btn-danger"
+              variant="danger"
             />
           ) : null}
         </section>

@@ -55,13 +55,17 @@
  * independent backstop regardless -- it re-checks DT vigency on the INSERT
  * itself.
  *
- * D7 (user decision, 2026-09-23): `requireRecentReauth` runs BEFORE the
- * handler evaluates any DT credential -- an operator whose OWN step-up has
- * expired can no longer spend the DT's password attempts by calling this
- * command over and over (the final `registrarAjusteStockCommand` already
- * required the requester's re-auth, but only AFTER this command had
- * already run and possibly locked out the DT). Same fix applied in
- * lockstep to `modules/libro/application/verificar-co-firma-dt.ts`.
+ * D7 REVERTED FOR STOCK (user decision, 2026-09-29): D7 (2026-09-23) made
+ * this command require the operator's OWN recent re-auth before evaluating
+ * any DT credential. For stock ajustes the user dropped it: the DT's
+ * password in the same act is the authorization that matters, and asking
+ * the operator for a second credential was confusing (the ajuste form had
+ * no re-auth prompt either, so an expired step-up just blocked the
+ * operator). Accepted tradeoff: from an unattended open session someone
+ * could spend the DT's password attempts and temporarily lock the DT out
+ * (shared login counters, see RATE LIMITING below) -- the lockout is
+ * time-bound. `modules/libro/application/verificar-co-firma-dt.ts` KEEPS
+ * D7 (anular/rectificar asiento are legal-record changes).
  *
  * RATE LIMITING (task-required): reuses `usuario.intentos_fallidos`/
  * `bloqueado_hasta` and `AUTH_POLICY.maxFailedLoginAttempts`/
@@ -114,9 +118,8 @@ export const verificarCoFirmaDtCommand = defineCommand<VerificarCoFirmaDtInput, 
   // caller with a different permiso (e.g. FASE 9 anulaciones) needs its own
   // defineCommand instance rather than a parameter here.
   permiso: "stock.ajuste.registrar",
-  // D7 (2026-09-23): the requester's OWN step-up, checked BEFORE any DT
-  // credential is evaluated -- see this file's module doc comment.
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
+  // No `requireRecentReauth`: D7 was reverted for stock (2026-09-29) -- see
+  // this file's module doc comment.
   input: verificarCoFirmaDtInput,
   audit: { skip: true, reason: "Audits CONDITIONALLY (failed attempts only) via a manual auditRecord call -- see this file's module doc comment." },
   handler: async ({ tx, session, input }) => {

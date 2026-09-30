@@ -11,6 +11,7 @@
  */
 import { getEtiquetaParaImprimir } from "./get-etiqueta-para-imprimir";
 import { marcarEtiquetaImpresa } from "./marcar-etiqueta-impresa";
+import { armarContenidoEtiqueta } from "../domain/etiqueta";
 import { buildEtiquetaPdf } from "../infrastructure/etiqueta-pdf";
 
 export interface EtiquetaPdfResult {
@@ -21,6 +22,6 @@ export interface EtiquetaPdfResult {
 export async function imprimirEtiquetaPdf(preparacionId: string): Promise<EtiquetaPdfResult> {
   const datos = await getEtiquetaParaImprimir(preparacionId);
   await marcarEtiquetaImpresa(datos.etiquetaId);
-  const pdf = await buildEtiquetaPdf(datos);
+  const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta(datos));
   return { preparacionId, pdf };
 }

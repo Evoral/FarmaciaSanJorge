@@ -5,12 +5,11 @@ import { revalidatePath } from "next/cache";
 import { marcarListaParaRetirar } from "@/modules/entregas/application/marcar-lista-para-retirar";
 import { registrarEntrega } from "@/modules/entregas/application/registrar-entrega";
 import { confirmarFirmaRecibida } from "@/modules/entregas/application/confirmar-firma-recibida";
-import { AppError } from "@/shared/errors";
+import { actionError } from "@/shared/ui/action-error";
 import type { EntregaActionState } from "./action-state";
 
 function fromError(error: unknown, fallback: string): EntregaActionState {
-  if (error instanceof AppError) return { status: "error", message: error.message };
-  return { status: "error", message: fallback };
+  return actionError(error, fallback);
 }
 
 function revalidarEntregas(recetaId: string): void {

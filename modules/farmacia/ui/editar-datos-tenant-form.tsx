@@ -1,8 +1,8 @@
 "use client";
 
-/** `/admin/farmacia` edit form (FASE 3 point 3.10a). Only the 4 editable fields -- see modules/farmacia/application/editar-datos-tenant.ts for why the other 4 tenant fields are never even parsed as input. */
+/** `/admin/configuracion/farmacia` edit form (FASE 3 point 3.10a). Only the 4 editable fields -- see modules/farmacia/application/editar-datos-tenant.ts for why the other 4 tenant fields are never even parsed as input. */
 import { editarDatosTenantAction } from "./actions";
-import { ReauthAwareForm } from "./reauth-aware-form";
+import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 
 export interface EditarDatosTenantFormProps {
   tenant: {
@@ -16,7 +16,7 @@ export interface EditarDatosTenantFormProps {
 
 export function EditarDatosTenantForm({ tenant, disabled }: EditarDatosTenantFormProps) {
   return (
-    <ReauthAwareForm action={editarDatosTenantAction} submitLabel="Guardar cambios" pendingLabel="Guardando…" className="flex max-w-md flex-col gap-4">
+    <ReauthAwareForm action={editarDatosTenantAction} submitLabel="Guardar cambios" pendingLabel="Guardando…" className="max-w-md">
       <div className="flex flex-col gap-1">
         <label htmlFor="tenant-razon-social" className="text-sm font-medium">
           Razón social

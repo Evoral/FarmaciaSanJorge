@@ -1,5 +1,12 @@
 /** Shared Server Action result shapes for `/recetas` (FASE 6). Own copy per module -- see modules/pacientes/ui/action-state.ts. */
-export type RecetaActionState = { status: "idle" } | { status: "error"; message: string } | { status: "success"; message?: string; id?: string; numeroInterno?: string };
+import type { VistaPreviaImportacion } from "../domain/importacion-receta";
+import type { Presupuesto } from "../domain/presupuesto";
+
+export type RecetaActionState =
+  | { status: "idle" }
+  | { status: "error"; message: string; fields?: string[] }
+  /** `redirigirA`: where the form navigates on success, with the automatic ficha/cotización notices (codes only) -- domain/avisos-generacion.ts. */
+  | { status: "success"; message?: string; id?: string; numeroInterno?: string; redirigirA?: string };
 
 export const IDLE_STATE: RecetaActionState = { status: "idle" };
 
@@ -18,7 +25,15 @@ export const IDLE_BUSCAR_PERSONA_STATE: BuscarPersonaState = { status: "idle", i
 
 export type CrearPersonaRapidaState =
   | { status: "idle" }
-  | { status: "error"; message: string }
+  | { status: "error"; message: string; fields?: string[] }
   | { status: "success"; persona: PersonaOpcion };
 
 export const IDLE_CREAR_PERSONA_STATE: CrearPersonaRapidaState = { status: "idle" };
+
+/** Result of reading a receta PDF: the preview travels back only in this POST response (DP-24), never in a URL. */
+export type LeerRecetaPdfState = { status: "idle" } | { status: "error"; message: string } | { status: "success"; vistaPrevia: VistaPreviaImportacion };
+
+export const IDLE_LEER_PDF_STATE: LeerRecetaPdfState = { status: "idle" };
+
+/** Result of the live presupuesto (docs/specs/presupuesto-receta.md). */
+export type PresupuestoState = { status: "success"; presupuesto: Presupuesto } | { status: "error"; message: string };

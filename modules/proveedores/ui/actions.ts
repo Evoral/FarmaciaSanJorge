@@ -6,12 +6,11 @@ import { crearProveedor } from "@/modules/proveedores/application/crear-proveedo
 import { editarProveedor } from "@/modules/proveedores/application/editar-proveedor";
 import { darDeBajaProveedor } from "@/modules/proveedores/application/dar-de-baja-proveedor";
 import { reactivarProveedor } from "@/modules/proveedores/application/reactivar-proveedor";
-import { AppError } from "@/shared/errors";
+import { actionError } from "@/shared/ui/action-error";
 import type { ProveedorActionState } from "./action-state";
 
 function fromError(error: unknown, fallback: string): ProveedorActionState {
-  if (error instanceof AppError) return { status: "error", message: error.message };
-  return { status: "error", message: fallback };
+  return actionError(error, fallback);
 }
 
 export async function crearProveedorAction(_prevState: ProveedorActionState, formData: FormData): Promise<ProveedorActionState> {

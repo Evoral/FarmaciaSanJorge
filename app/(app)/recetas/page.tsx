@@ -1,16 +1,32 @@
-/** `/recetas` (FASE 6 point 6.6): listado con filtros por estado/fecha/número, server-side. */
+/**
+ * `/recetas`: listado con filtros por estado/fecha/número, server-side.
+ * After creating a receta the form lands here (`?registrada=<id>`, plus the
+ * automatic ficha/cotización notices as codes -- modules/recetas/domain/avisos-generacion.ts).
+ */
 import Link from "next/link";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listRecetas } from "@/modules/recetas/application/list-recetas";
+import type { ListRecetasResult } from "@/modules/recetas/application/list-recetas";
 import { ESTADOS_RECETA } from "@/modules/recetas/domain/receta";
+import { getReceta } from "@/modules/recetas/application/get-receta";
+import { PARAM_AVISO, PARAM_REGISTRADA, decodificarAvisos } from "@/modules/recetas/domain/avisos-generacion";
+import { AvisosGeneracion } from "@/modules/recetas/ui/avisos-generacion";
+import { decidirAccionPreparacion } from "@/modules/recetas/domain/accion-preparacion";
+import { IniciarPreparacionForm } from "@/modules/preparaciones/ui/iniciar-form";
+import { ESTADO_RECETA_LABELS } from "@/shared/labels/enum-labels";
+import { formatFecha } from "@/shared/format/fecha";
 import { StatusBadge } from "@/shared/ui/status-badge";
+import { DateInput } from "@/shared/ui/date-input";
+import { FilterForm } from "@/shared/ui/filter-form";
 
 const PAGE_SIZE = 20;
 
 interface RecetasPageProps {
-  searchParams: Promise<{ estado?: string; numero?: string; desde?: string; hasta?: string; page?: string }>;
+  searchParams: Promise<{ estado?: string; numero?: string; desde?: string; hasta?: string; page?: string; registrada?: string; aviso?: string | string[] }>;
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function RecetasPage({ searchParams }: RecetasPageProps) {
   const session = await requireSession();
@@ -29,6 +45,13 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
   const totalPages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
   const puedeCrear = can(session, "recetas.crear");
   const puedeFisica = can(session, "recetas.fisica.registrar");
+  const puedeEditar = can(session, "recetas.editar");
+  const puedeIniciar = can(session, "preparaciones.iniciar");
+
+  // The receta just created (read again: the URL only carries its id and the notice codes).
+  const idRegistrada = params[PARAM_REGISTRADA];
+  const registrada = idRegistrada && UUID.test(idRegistrada) ? await getReceta(idRegistrada) : null;
+  const avisos = registrada ? decodificarAvisos(params[PARAM_AVISO], registrada.items.length) : [];
 
   function pageHref(targetPage: number): string {
     const qs = new URLSearchParams();
@@ -58,7 +81,19 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
         </div>
       </div>
 
-      <form method="get" className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de recetas">
+      {registrada ? (
+        <AvisosGeneracion
+          exito={`Receta Nº ${registrada.numeroInterno} registrada.`}
+          avisos={avisos}
+          accion={
+            <Link href={`/recetas/${registrada.id}`} className="underline">
+              Ir a la receta Nº {registrada.numeroInterno}
+            </Link>
+          }
+        />
+      ) : null}
+
+      <FilterForm className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de recetas" hasActiveFilters={Boolean(params.estado || params.numero || params.desde || params.hasta)}>
         <div className="flex flex-col gap-1">
           <label htmlFor="estado" className="text-sm font-medium">
             Estado
@@ -67,7 +102,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
             <option value="">Todos</option>
             {ESTADOS_RECETA.map((e) => (
               <option key={e} value={e}>
-                {e}
+                {ESTADO_RECETA_LABELS[e]}
               </option>
             ))}
           </select>
@@ -82,21 +117,15 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
           <label htmlFor="desde" className="text-sm font-medium">
             Desde
           </label>
-          <input id="desde" name="desde" type="date" defaultValue={params.desde ?? ""} className="input" />
+          <DateInput id="desde" name="desde" defaultValue={params.desde ?? ""} />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="hasta" className="text-sm font-medium">
             Hasta
           </label>
-          <input id="hasta" name="hasta" type="date" defaultValue={params.hasta ?? ""} className="input" />
+          <DateInput id="hasta" name="hasta" defaultValue={params.hasta ?? ""} />
         </div>
-        <button type="submit" className="btn btn-secondary">
-          Filtrar
-        </button>
-        <Link href="/recetas" className="text-sm underline">
-          Limpiar filtros
-        </Link>
-      </form>
+      </FilterForm>
 
       <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400">
         {result.total} receta{result.total === 1 ? "" : "s"} encontrada{result.total === 1 ? "" : "s"}.
@@ -113,16 +142,16 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
                 Paciente
               </th>
               <th scope="col" className="px-3 py-2 font-medium">
-                Médico
+                Prescripción
               </th>
               <th scope="col" className="px-3 py-2 font-medium">
-                Fecha prescripción
+                Ingreso
               </th>
               <th scope="col" className="px-3 py-2 font-medium">
                 Estado
               </th>
               <th scope="col" className="px-3 py-2 font-medium">
-                Receta física
+                <span className="sr-only">Acciones</span>
               </th>
             </tr>
           </thead>
@@ -142,14 +171,21 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
                     </Link>
                   </td>
                   <td className="px-3 py-2">
-                    {r.pacienteApellido}, {r.pacienteNombre}
+                    {r.pacienteNombre} {r.pacienteApellido}
                   </td>
-                  <td className="px-3 py-2">
-                    {r.medicoApellido}, {r.medicoNombre}
-                  </td>
-                  <td className="px-3 py-2">{r.fechaPrescripcion.toISOString().slice(0, 10)}</td>
+                  <td className="px-3 py-2">{formatFecha(r.fechaPrescripcion)}</td>
+                  <td className="px-3 py-2">{formatFecha(r.fechaIngreso, result.zonaHoraria)}</td>
                   <td className="px-3 py-2"><StatusBadge estado={r.estado} /></td>
-                  <td className="px-3 py-2">{r.recetaFisicaRecibida ? "Sí" : "No"}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <AccionPreparar receta={r} puedeIniciar={puedeIniciar} />
+                      {puedeEditar && r.editable ? (
+                        <Link href={`/recetas/${r.id}/editar`} className="btn btn-secondary btn-sm" aria-label={`Editar receta Nº ${r.numeroInterno}`}>
+                          Editar
+                        </Link>
+                      ) : null}
+                    </div>
+                  </td>
                 </tr>
               ))
             )}
@@ -172,4 +208,27 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
       ) : null}
     </div>
   );
+}
+
+/** "Preparar" / "Continuar" for the receta's first pending item (modules/recetas/domain/accion-preparacion.ts); the start itself is the existing `preparaciones.iniciar` form, whose errors show inline. */
+function AccionPreparar({ receta, puedeIniciar }: { receta: ListRecetasResult["items"][number]; puedeIniciar: boolean }) {
+  const accion = decidirAccionPreparacion({ estado: receta.estado, items: receta.itemsParaPreparar, puedeIniciar });
+  switch (accion.tipo) {
+    case "preparar":
+      return <IniciarPreparacionForm fichaTecnicaId={accion.fichaTecnicaId} label={accion.etiqueta} size="sm" />;
+    case "continuar":
+      return (
+        <Link href={`/preparaciones/${accion.preparacionId}`} className="btn btn-primary btn-sm">
+          {accion.etiqueta}
+        </Link>
+      );
+    case "generar-ficha":
+      return (
+        <Link href={`/recetas/${receta.id}`} className="text-xs text-zinc-500 underline">
+          {accion.etiqueta}
+        </Link>
+      );
+    default:
+      return null;
+  }
 }

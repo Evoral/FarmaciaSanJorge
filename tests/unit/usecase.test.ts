@@ -118,9 +118,35 @@ describe("defineCommand", () => {
     expect(requireSessionMock).toHaveBeenCalledTimes(1);
   });
 
-  it("throws AuthorizationError before opening a transaction when the session lacks the permission", async () => {
+  it("throws AuthorizationError without running the handler, and audits the denial (ACCESO_DENEGADO) in its own transaction", async () => {
+    const handler = vi.fn(async () => ({ output: null }));
     const cmd = defineCommand({
       name: "test.denied",
+      permiso: "usuarios.crear",
+      input: z.object({}),
+      audit: { skip: true, reason: "pipeline fixture: asserts ordering, writes nothing" },
+      handler,
+    });
+
+    const session = fakeSession([]);
+    await expect(cmd.execute({}, { session })).rejects.toBeInstanceOf(AuthorizationError);
+    expect(handler).not.toHaveBeenCalled();
+    expect(withTenantTransactionMock).toHaveBeenCalledTimes(1);
+    expect(auditRecordMock).toHaveBeenCalledTimes(1);
+    expect(auditRecordMock.mock.calls[0]![1]).toMatchObject({
+      tenantId: session.tenantId,
+      usuarioId: session.usuario.id,
+      entidad: "acceso",
+      entidadId: session.usuario.id,
+      accion: "ACCESO_DENEGADO",
+      valorNuevo: { casoDeUso: "test.denied", permiso: "usuarios.crear" },
+    });
+  });
+
+  it("a failure to write the denial audit never masks the AuthorizationError", async () => {
+    auditRecordMock.mockRejectedValueOnce(new Error("invalid input value for enum fsj.tipo_accion"));
+    const cmd = defineCommand({
+      name: "test.denied-audit-fails",
       permiso: "usuarios.crear",
       input: z.object({}),
       audit: { skip: true, reason: "pipeline fixture: asserts ordering, writes nothing" },
@@ -128,8 +154,6 @@ describe("defineCommand", () => {
     });
 
     await expect(cmd.execute({}, { session: fakeSession([]) })).rejects.toBeInstanceOf(AuthorizationError);
-    expect(withTenantTransactionMock).not.toHaveBeenCalled();
-    expect(auditRecordMock).not.toHaveBeenCalled();
   });
 
   it("maps a zod parse failure to ValidationError (not a raw ZodError), after authorize but before opening a transaction", async () => {
@@ -143,6 +167,53 @@ describe("defineCommand", () => {
 
     await expect(cmd.execute({ nombre: "" }, { session: fakeSession(["usuarios.crear"]) })).rejects.toBeInstanceOf(ValidationError);
     expect(withTenantTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("the ValidationError message names each field by its human label (never the raw key), and root issues get no prefix", async () => {
+    const cmd = defineCommand({
+      name: "test.validate-labels",
+      permiso: "usuarios.crear",
+      input: z
+        .object({
+          numeroMatricula: z.string().min(1, "Este campo no puede estar vacío."),
+          roles: z.array(z.string()).min(1, "Elegí al menos un rol."),
+        })
+        .refine(() => false, "Revisá los datos ingresados."),
+      audit: { skip: true, reason: "pipeline fixture: asserts message format, writes nothing" },
+      handler: async () => ({ output: null }),
+    });
+
+    await expect(cmd.execute({ numeroMatricula: "", roles: [] }, { session: fakeSession(["usuarios.crear"]) })).rejects.toThrow(
+      "Datos inválidos: Matrícula: Este campo no puede estar vacío.; Roles: Elegí al menos un rol.",
+    );
+    // A refine on the root object only runs once the shape itself is valid.
+    await expect(cmd.execute({ numeroMatricula: "MP-1", roles: ["ADMIN"] }, { session: fakeSession(["usuarios.crear"]) })).rejects.toThrow(
+      /^Datos inválidos: Revisá los datos ingresados\.$/,
+    );
+  });
+
+  it("the ValidationError carries the distinct top-level field names with an issue (root issues add none)", async () => {
+    const cmd = defineCommand({
+      name: "test.validate-fields",
+      permiso: "usuarios.crear",
+      input: z
+        .object({
+          numeroMatricula: z.string().min(1).max(3),
+          version: z.object({ nombre: z.string().min(1), apellido: z.string().min(1) }),
+          roles: z.array(z.string()),
+        })
+        .refine(() => false, "Revisá los datos ingresados."),
+      audit: { skip: true, reason: "pipeline fixture: asserts error fields, writes nothing" },
+      handler: async () => ({ output: null }),
+    });
+
+    const shapeError = await cmd.execute({ numeroMatricula: "", version: { nombre: "", apellido: "" }, roles: [] }, { session: fakeSession(["usuarios.crear"]) }).catch((e: unknown) => e);
+    expect(shapeError).toBeInstanceOf(ValidationError);
+    expect((shapeError as ValidationError).fields).toEqual(["numeroMatricula", "version"]);
+
+    const rootError = await cmd.execute({ numeroMatricula: "MP", version: { nombre: "a", apellido: "b" }, roles: [] }, { session: fakeSession(["usuarios.crear"]) }).catch((e: unknown) => e);
+    expect(rootError).toBeInstanceOf(ValidationError);
+    expect((rootError as ValidationError).fields).toBeUndefined();
   });
 
   it("throws if audit is declared but the handler omits audit data -- forgetting auditing cannot slip through silently", async () => {
@@ -237,8 +308,11 @@ describe("every registered use case is structurally forced through authorize()",
       ).rejects.toBeInstanceOf(AuthorizationError);
     }
 
-    // None of the enumerated use cases should have reached the transaction/audit steps.
-    expect(withTenantTransactionMock).not.toHaveBeenCalled();
-    expect(auditRecordMock).not.toHaveBeenCalled();
+    // None of the enumerated use cases ran: the only writes are their ACCESO_DENEGADO audit rows.
+    expect(auditRecordMock).toHaveBeenCalledTimes(registered.length);
+    expect(withTenantTransactionMock).toHaveBeenCalledTimes(registered.length);
+    for (const call of auditRecordMock.mock.calls) {
+      expect(call[1]).toMatchObject({ accion: "ACCESO_DENEGADO", entidad: "acceso" });
+    }
   });
 });

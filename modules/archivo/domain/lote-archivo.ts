@@ -63,6 +63,8 @@ export type EstadoRecetaArchivable = "ENTREGADA" | "ANULADA";
 
 export interface RecetaCandidataArchivo {
   estado: string;
+  /** M09 `OrigenReceta`. DIGITAL_PDF recetas have no paper to archive (docs/specs/importacion-receta-pdf.md, "INV-R07 y archivo físico"). */
+  origen: string;
   recetaFisicaRecibida: boolean;
   loteArchivoId: string | null;
   /** `YYYY-MM-DD` (fecha_ingreso's date part in the tenant's zona_horaria -- computed by the repository, never by `new Date()` here). */
@@ -74,9 +76,13 @@ export interface RecetaCandidataArchivo {
  * not already archived, and `fecha_ingreso` within the lote's período.
  * ANULADA recetas that never received their physical copy are excluded by
  * the SAME `recetaFisicaRecibida` check -- "nothing to archive" (task's own
- * note) -- no separate branch needed.
+ * note) -- no separate branch needed. DIGITAL_PDF recetas are never
+ * eligible: an imported digital receta counts as "física recibida"
+ * (INV-R07) but there is no paper to archive or destroy
+ * (docs/specs/importacion-receta-pdf.md).
  */
 export function esRecetaElegibleParaArchivo(receta: RecetaCandidataArchivo, periodoDesde: string, periodoHasta: string): boolean {
+  if (receta.origen === "DIGITAL_PDF") return false;
   if (receta.loteArchivoId !== null) return false;
   if (!receta.recetaFisicaRecibida) return false;
   if (receta.estado !== "ENTREGADA" && receta.estado !== "ANULADA") return false;

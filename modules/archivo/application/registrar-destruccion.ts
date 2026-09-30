@@ -58,7 +58,7 @@ const registrarDestruccionInternalCommand = defineCommand({
     } catch (e) {
       const mapped = mapDbError(e);
       if (mapped instanceof InvariantViolationError) {
-        throw new DomainError(mensajeParaInvarianteArchivo(mapped.invariantCode));
+        throw new DomainError(mensajeParaInvarianteArchivo(mapped.invariantCode), { cause: mapped });
       }
       throw mapped;
     }

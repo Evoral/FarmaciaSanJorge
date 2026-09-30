@@ -7,7 +7,7 @@
  * and with no rectificativo yet (see `app/(app)/libro/[id]/page.tsx`).
  */
 import { rectificarAsientoAction } from "./actions";
-import { ReauthAwareForm } from "./reauth-aware-form";
+import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 import type { DtOpcion } from "./anular-asiento-form";
 
 export interface RectificarAsientoFormProps {
@@ -21,10 +21,10 @@ export function RectificarAsientoForm({ asientoOriginalId, numeroCorrelativo, dt
     <div className="rounded border border-amber-300 p-4 dark:border-amber-800">
       <h3 className="mb-2 text-sm font-semibold text-amber-800 dark:text-amber-300">Rectificar asiento Nº {numeroCorrelativo}</h3>
       <p className="mb-3 text-xs text-zinc-600 dark:text-zinc-400">
-        La jornada de este asiento ya está firmada: no se puede anular. Se generará un asiento rectificativo nuevo, en la jornada de hoy, que deja este asiento &quot;sin efecto&quot; -- el original NO se modifica ni se borra (INV-L01/L18).
+        La jornada de este asiento ya está firmada: no se puede anular. Se generará un asiento rectificativo nuevo, en la jornada de hoy, que deja este asiento &quot;sin efecto&quot; -- el original NO se modifica ni se borra.
       </p>
 
-      <ReauthAwareForm action={rectificarAsientoAction} submitLabel="Generar rectificativo" pendingLabel="Generando…" className="flex max-w-lg flex-col gap-4">
+      <ReauthAwareForm action={rectificarAsientoAction} submitLabel="Generar rectificativo" pendingLabel="Generando…" submitVariant="danger-solid" className="max-w-lg">
         <input type="hidden" name="asientoOriginalId" value={asientoOriginalId} />
 
         <div className="flex flex-col gap-1">

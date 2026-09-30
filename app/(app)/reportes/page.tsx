@@ -2,8 +2,10 @@
  * `/reportes` (FASE 13 point 13.1/13.4, user decision 5). Hub listing every
  * report the session can access -- each entry gated by the SAME permiso its
  * target page/query enforces, no hardcoded per-role list. ADM deliberately
- * has no `reportes.ver` (no patient data), so it sees only the
- * usuarios/auditoría entries it already has permisos for.
+ * has no `reportes.ver` (no patient data), so it sees only the auditoría
+ * entry it already has permisos for. The usuarios listing is NOT a report
+ * entry: it lives under the sidebar's "Administración › Usuarios y
+ * accesos" (`/admin/accesos/usuarios`).
  */
 import Link from "next/link";
 import { requireSession } from "@/shared/auth/session";
@@ -32,10 +34,7 @@ export default async function ReportesPage() {
     entries.push({ href: "/cierres/reporte", titulo: "Cumplimiento de firma de cierres", descripcion: "Demora, fuera de término y motivo por jornada firmada." });
   }
   if (can(session, "reportes.auditoria") || can(session, "auditoria.ver")) {
-    entries.push({ href: "/auditoria", titulo: "Auditoría", descripcion: "Registro de acciones auditadas del tenant." });
-  }
-  if (can(session, "reportes.usuarios") || can(session, "usuarios.listar")) {
-    entries.push({ href: "/admin/usuarios", titulo: "Usuarios", descripcion: "Listado de usuarios, estados y roles." });
+    entries.push({ href: "/auditoria", titulo: "Auditoría", descripcion: "Registro de acciones auditadas de la farmacia." });
   }
 
   return (

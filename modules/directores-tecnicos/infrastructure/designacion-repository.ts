@@ -18,8 +18,9 @@ import type { CaracterDesignacion } from "../domain/designacion";
 
 // ============================================================================
 // Read: fresh usuario.estado, for designarDirectorTecnico's app-level
-// ACTIVO pre-check (FASE 3 point 3.9 review finding M1). A thin, scoped
-// read of exactly the column that check needs -- this module cannot import
+// ACTIVO pre-check (FASE 3 point 3.9 review finding M1), plus the name for
+// the audit row. A thin, scoped read of exactly what that command needs --
+// this module cannot import
 // modules/usuarios/infrastructure (eslint.config.mjs's appBoundaryPatterns
 // forbids any modules/**/*.ts from reaching into another module's
 // infrastructure/ layer, not just app/**), so it reads fsj.usuario itself
@@ -27,12 +28,15 @@ import type { CaracterDesignacion } from "../domain/designacion";
 // ============================================================================
 
 /** `null` if the usuario does not exist (or belongs to another tenant). */
-export async function getUsuarioEstado(tx: Prisma.TransactionClient, tenantId: string, usuarioId: string): Promise<PrismaEstadoUsuario | null> {
-  const row = await tx.usuario.findUnique({
+export async function getUsuarioParaDesignar(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  usuarioId: string,
+): Promise<{ estado: PrismaEstadoUsuario; nombre: string; apellido: string } | null> {
+  return tx.usuario.findUnique({
     where: { id: usuarioId, tenantId },
-    select: { estado: true },
+    select: { estado: true, nombre: true, apellido: true },
   });
-  return row?.estado ?? null;
 }
 
 // ============================================================================

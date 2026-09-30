@@ -1,8 +1,8 @@
 "use client";
 
-/** `/admin/parametros` per-parameter edit form (FASE 3 point 3.10b). */
+/** `/admin/configuracion/parametros` per-parameter edit form (FASE 3 point 3.10b). */
 import { editarParametroAction } from "./actions";
-import { ReauthAwareForm } from "./reauth-aware-form";
+import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 
 export interface ParametroFormProps {
   clave: string;
@@ -20,19 +20,14 @@ export function ParametroForm({ clave, label, descripcion, valor, disabled }: Pa
       <h3 className="text-base font-medium">{label}</h3>
       <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">{descripcion}</p>
 
-      <ReauthAwareForm action={editarParametroAction} submitLabel="Guardar" pendingLabel="Guardando…" className="flex max-w-xs flex-col gap-2">
+      <ReauthAwareForm action={editarParametroAction} submitLabel="Guardar" pendingLabel="Guardando…" className="max-w-xs">
         <input type="hidden" name="clave" value={clave} />
-        <label htmlFor={inputId} className="text-sm font-medium">
-          Valor actual
-        </label>
-        <input
-          id={inputId}
-          name="valor"
-          defaultValue={valor}
-          required
-          disabled={disabled}
-          className="input"
-        />
+        <div className="flex flex-col gap-1">
+          <label htmlFor={inputId} className="text-sm font-medium">
+            Valor actual
+          </label>
+          <input id={inputId} name="valor" defaultValue={valor} required disabled={disabled} className="input" />
+        </div>
       </ReauthAwareForm>
     </div>
   );

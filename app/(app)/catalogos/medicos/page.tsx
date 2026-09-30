@@ -4,6 +4,8 @@ import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listMedicos } from "@/modules/medicos/application/list-medicos";
 import { MedicoForm } from "@/modules/medicos/ui/medico-form";
+import { formatMatricula } from "@/modules/medicos/domain/medico";
+import { FilterForm } from "@/shared/ui/filter-form";
 
 const PAGE_SIZE = 20;
 
@@ -47,7 +49,7 @@ export default async function MedicosPage({ searchParams }: MedicosPageProps) {
         </div>
       ) : null}
 
-      <form method="get" className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de búsqueda de médicos">
+      <FilterForm className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de búsqueda de médicos" hasActiveFilters={Boolean(params.q || params.estado)}>
         <div className="flex flex-col gap-1">
           <label htmlFor="q" className="text-sm font-medium">
             Buscar
@@ -64,15 +66,7 @@ export default async function MedicosPage({ searchParams }: MedicosPageProps) {
             <option value="baja">Dados de baja</option>
           </select>
         </div>
-        <button type="submit" className="btn btn-secondary">
-          Filtrar
-        </button>
-        {params.q || params.estado ? (
-          <Link href="/catalogos/medicos" className="text-sm underline">
-            Limpiar filtros
-          </Link>
-        ) : null}
-      </form>
+      </FilterForm>
 
       <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
         {result.total} médico{result.total === 1 ? "" : "s"} encontrado{result.total === 1 ? "" : "s"}.
@@ -103,7 +97,7 @@ export default async function MedicosPage({ searchParams }: MedicosPageProps) {
                       {medico.apellido}, {medico.nombre}
                     </Link>
                   </td>
-                  <td className="px-3 py-2">{medico.matricula}</td>
+                  <td className="px-3 py-2">{formatMatricula(medico.matriculaJurisdiccion, medico.matricula)}</td>
                   <td className="px-3 py-2">{medico.especialidad ?? "—"}</td>
                   <td className="px-3 py-2">{medico.fechaBaja ? "Baja" : "Vigente"}</td>
                 </tr>

@@ -8,6 +8,7 @@
  */
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { requireSession, clearSessionCookie } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
@@ -17,7 +18,9 @@ import { resumenJornadasPendientes } from "@/modules/cierres/application/list-jo
 import { resumenRegularizacion } from "@/modules/entregas/application/list-regularizacion";
 import { resumenDestruccion } from "@/modules/archivo/application/resumen-destruccion";
 import { getLogger } from "@/shared/logging/logger";
-import { SidebarNav } from "./sidebar-nav";
+import { AppShell } from "./app-shell";
+import { SIDEBAR_COLLAPSED_COOKIE } from "./sidebar-state";
+import { accesosSections, catalogosSections, configuracionSections, firstSectionHref } from "./nav-sections";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   let session;
@@ -37,20 +40,16 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     redirect("/login");
   }
 
-  // FASE 4 points 4.2-4.5: same priority order as
-  // app/(app)/catalogos/catalogos-nav.tsx's link list -- the first section
-  // this session can actually reach, so the header's "Catálogos" link
-  // never sends a médicos/pacientes-only role (ATENCION_PUBLICO) into a
-  // /catalogos/drogas layout guard that would just redirect it back out.
-  const catalogosHref = can(session, "drogas.editar")
-    ? "/catalogos/drogas"
-    : can(session, "proveedores.gestionar")
-      ? "/catalogos/proveedores"
-      : can(session, "medicos.gestionar")
-        ? "/catalogos/medicos"
-        : can(session, "pacientes.gestionar")
-          ? "/catalogos/pacientes"
-          : null;
+  // FASE 4 points 4.1-4.5: the first section this session can actually
+  // reach, from the SAME list (and priority order) that drives each
+  // section's layout guard and tab nav (./nav-sections.ts) -- so the
+  // sidebar's "Catálogos" link never sends a médicos/pacientes-only role
+  // (ATENCION_PUBLICO) into a /catalogos/drogas layout guard that would
+  // just redirect it back out. Same rule for the "Administración" group's
+  // "Usuarios y accesos" and "Configuración" entries.
+  const catalogosHref = firstSectionHref(catalogosSections(session));
+  const accesosHref = firstSectionHref(accesosSections(session));
+  const configuracionHref = firstSectionHref(configuracionSections(session));
 
   // FASE 10 point 10.3: cheap banner for anyone who can see or sign
   // cierres. Gated on exactly the permiso the underlying query enforces
@@ -117,32 +116,40 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // session holds ANY of the report-ish permisos the /reportes hub links
   // to. Deliberately does NOT include `archivo.lotes.gestionar`/
   // `entregas.registrar`/`preparaciones.iniciar` (those already have their
-  // own dedicated nav entries, not report entries).
+  // own dedicated nav entries, not report entries) nor
+  // `reportes.usuarios`: the usuarios listing lives under "Administración
+  // › Usuarios y accesos" now, not in the /reportes hub (ADM still gets
+  // Reportes through `reportes.auditoria`).
   const puedeReportes =
     can(session, "reportes.ver") ||
     can(session, "stock.valorizado.ver") ||
     can(session, "stock.ver") ||
     can(session, "cierres.reporte") ||
-    can(session, "reportes.auditoria") ||
-    can(session, "reportes.usuarios");
+    can(session, "reportes.auditoria");
+
+  const sidebarCollapsed = (await cookies()).get(SIDEBAR_COLLAPSED_COOKIE)?.value === "1";
 
   return (
-    <div className="min-h-screen lg:pl-60">
-      <SidebarNav
-        usuario={`${session.usuario.nombre} ${session.usuario.apellido}`}
-        logoutAction={logoutAction}
-        cierresPendientes={resumenCierres?.cantidad ?? 0}
-        puedeAuditoria={can(session, "auditoria.ver")}
-        puedeReportes={puedeReportes}
-        catalogosHref={catalogosHref}
-        puedeStock={can(session, "stock.ver")}
-        puedeRecetas={can(session, "recetas.crear")}
-        puedePreparaciones={can(session, "preparaciones.iniciar")}
-        puedeLibro={can(session, "libro.ver")}
-        puedeCierres={puedeCierres}
-        entregasHref={entregasHref}
-        puedeArchivo={puedeArchivo}
-      />
+    <AppShell
+      initialCollapsed={sidebarCollapsed}
+      nav={{
+        usuario: `${session.usuario.nombre} ${session.usuario.apellido}`,
+        logoutAction,
+        cierresPendientes: resumenCierres?.cantidad ?? 0,
+        puedeAuditoria: can(session, "auditoria.ver"),
+        puedeReportes,
+        catalogosHref,
+        accesosHref,
+        configuracionHref,
+        puedeStock: can(session, "stock.ver"),
+        puedeRecetas: can(session, "recetas.crear"),
+        puedePreparaciones: can(session, "preparaciones.iniciar"),
+        puedeLibro: can(session, "libro.ver"),
+        puedeCierres,
+        entregasHref,
+        puedeArchivo,
+      }}
+    >
       {resumenCierres && resumenCierres.cantidad > 0 ? (
         <AlertBanner tone={resumenCierres.masAntigua?.fueraDeTermino ? "danger" : "warn"} href="/cierres" linkLabel="Ver cierres">
           <b className="font-semibold">
@@ -180,7 +187,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         </AlertBanner>
       ) : null}
       <main>{children}</main>
-    </div>
+    </AppShell>
   );
 }
 

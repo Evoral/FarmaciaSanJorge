@@ -89,6 +89,34 @@ export async function listUnidades(tx: Prisma.TransactionClient, filter: ListUni
 }
 
 // ============================================================================
+// Whole catalog for display formatting (shared/format/cantidad.ts)
+// ============================================================================
+
+export interface UnidadCatalogoItem {
+  id: string;
+  codigo: string;
+  simbolo: string;
+  tipoMagnitud: PrismaTipoMagnitud;
+  factorABase: string;
+  esBase: boolean;
+  /** `false` once dada de baja: still formats old quantities, but is never offered in a picker. */
+  vigente: boolean;
+}
+
+/**
+ * EVERY unidad, dadas de baja included (a quantity recorded before a baja
+ * still has to render with its unit). One small query: the catalog is a
+ * handful of global rows.
+ */
+export async function listCatalogoUnidades(tx: Prisma.TransactionClient): Promise<UnidadCatalogoItem[]> {
+  const rows = await tx.unidadMedida.findMany({
+    orderBy: [{ tipoMagnitud: "asc" }, { factorABase: "asc" }],
+    select: { id: true, codigo: true, simbolo: true, tipoMagnitud: true, factorABase: true, esBase: true, fechaBaja: true },
+  });
+  return rows.map(({ fechaBaja, ...row }) => ({ ...row, factorABase: row.factorABase.toString(), vigente: fechaBaja === null }));
+}
+
+// ============================================================================
 // Read for action handlers (crear/editar/baja/reactivar)
 // ============================================================================
 

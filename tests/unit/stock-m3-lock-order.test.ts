@@ -12,6 +12,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 import { ConflictError, DomainError, NotFoundError, ValidationError } from "@/shared/errors";
+import { Decimal } from "@/shared/decimal";
 
 vi.mock("@/shared/audit", () => ({
   record: vi.fn(async () => undefined),
@@ -37,6 +38,26 @@ const PROVEEDOR_ID = "44444444-4444-4444-a444-444444444444";
 const DT_ID = "55555555-5555-4555-a555-555555555555";
 const UNIDAD_COMPRA_ID = "66666666-6666-4666-a666-666666666666";
 const UNIDAD_BASE_ID = "77777777-7777-4777-a777-777777777777";
+
+// Unit catalog for the ajuste unit tests (UNIDAD_BASE_ID = gramo, the droga's unidad base).
+const MG_ID = "88888888-8888-4888-a888-000000000001";
+const MCG_ID = "88888888-8888-4888-a888-000000000002";
+const KG_ID = "88888888-8888-4888-a888-000000000003";
+const LITRO_ID = "88888888-8888-4888-a888-000000000004";
+const UNIDAD_U_ID = "88888888-8888-4888-a888-000000000005";
+const MG_BAJA_ID = "88888888-8888-4888-a888-000000000006";
+const UNIDADES_TEST = new Map(
+  [
+    { id: UNIDAD_BASE_ID, codigo: "GRAMO", simbolo: "g", tipoMagnitud: "MASA", factor: "1", fechaBaja: null as Date | null },
+    { id: MG_ID, codigo: "MILIGRAMO", simbolo: "mg", tipoMagnitud: "MASA", factor: "0.001", fechaBaja: null },
+    { id: MCG_ID, codigo: "MICROGRAMO", simbolo: "mcg", tipoMagnitud: "MASA", factor: "0.000001", fechaBaja: null },
+    { id: KG_ID, codigo: "KILOGRAMO", simbolo: "kg", tipoMagnitud: "MASA", factor: "1000", fechaBaja: null },
+    { id: LITRO_ID, codigo: "LITRO", simbolo: "L", tipoMagnitud: "VOLUMEN", factor: "1000", fechaBaja: null },
+    { id: UNIDAD_U_ID, codigo: "UNIDAD", simbolo: "u", tipoMagnitud: "UNIDADES", factor: "1", fechaBaja: null },
+    { id: UNIDAD_COMPRA_ID, codigo: "KILOGRAMO", simbolo: "kg", tipoMagnitud: "MASA", factor: "1000", fechaBaja: null },
+    { id: MG_BAJA_ID, codigo: "MILIGRAMO", simbolo: "mg", tipoMagnitud: "MASA", factor: "0.001", fechaBaja: new Date("2026-01-01") },
+  ].map((u) => [u.id, u]),
+);
 
 function fakeSession(permiso: string): AuthenticatedSession {
   return {
@@ -81,6 +102,18 @@ const insertPartidaConIngresoMock = vi.fn(async (...args: unknown[]) => {
   void args;
   return { id: "partida-nueva" };
 });
+const getUnidadesParaConversionMock = vi.fn(async (...args: unknown[]) => {
+  const [, ids] = args as [unknown, string[]];
+  return new Map(ids.filter((id) => UNIDADES_TEST.has(id)).map((id) => [id, UNIDADES_TEST.get(id)!]));
+});
+/** `fsj.convertir` semantics over UNIDADES_TEST (raises across magnitudes, like INV-M01). */
+async function convertirConFactores(...args: unknown[]): Promise<string> {
+  const [, valor, origen, destino] = args as [unknown, string, string, string];
+  const o = UNIDADES_TEST.get(origen)!;
+  const d = UNIDADES_TEST.get(destino)!;
+  if (o.tipoMagnitud !== d.tipoMagnitud) throw new Error("INV-M01: different tipo_magnitud");
+  return new Decimal(valor).times(o.factor).div(d.factor).toFixed(10);
+}
 
 vi.mock("@/modules/stock/infrastructure/partida-repository", () => ({
   lockPartidaParaAccion: (...args: unknown[]) => lockPartidaMock(...args),
@@ -90,8 +123,10 @@ vi.mock("@/modules/stock/infrastructure/partida-repository", () => ({
   getDrogaParaIngreso: (...args: unknown[]) => getDrogaParaIngresoMock(...args),
   getProveedorParaIngreso: (...args: unknown[]) => getProveedorParaIngresoMock(...args),
   getFechaActivacionContralor: (...args: unknown[]) => getFechaActivacionContralorMock(...args),
+  getEtiquetaUnidad: async () => "gramo (g)",
   jornadaActualTenant: (...args: unknown[]) => jornadaActualTenantMock(...args),
   convertirUnidad: (...args: unknown[]) => convertirUnidadMock(...args),
+  getUnidadesParaConversion: (...args: unknown[]) => getUnidadesParaConversionMock(...args),
   insertPartidaConIngreso: (...args: unknown[]) => insertPartidaConIngresoMock(...args),
 }));
 
@@ -116,6 +151,8 @@ const partidaVigente = {
   id: PARTIDA_ID,
   drogaId: DROGA_ID,
   drogaNombre: "Droga X",
+  unidadBaseId: UNIDAD_BASE_ID,
+  unidadBaseSimbolo: "g",
   proveedorId: PROVEEDOR_ID,
   proveedorRazonSocial: "Prov X",
   lote: "L1",
@@ -213,6 +250,80 @@ describe("registrar-ajuste: lock BEFORE the fresh balance read", () => {
   });
 });
 
+describe("registrar-ajuste: the quantity is entered in a chosen unit and converted to the unidad base", () => {
+  const base = { partidaId: PARTIDA_ID, motivoAjuste: "ROTURA" as const, observacion: "obs", dtUsuarioId: DT_ID, dtPassword: "correcta" };
+  const session = () => ({ session: fakeSession("stock.ajuste.registrar") });
+
+  async function rechazo(promesa: Promise<unknown>): Promise<unknown> {
+    try {
+      await promesa;
+    } catch (error) {
+      return error;
+    }
+    throw new Error("expected a rejection");
+  }
+
+  beforeEach(() => {
+    lockPartidaMock.mockClear();
+    getPartidaParaAccionMock.mockReset().mockResolvedValue({ ...partidaVigente, cantidadDisponible: "500" }); // 500 g
+    insertAjusteMock.mockClear();
+    convertirUnidadMock.mockReset().mockImplementation(convertirConFactores);
+    verificarCoFirmaExecuteMock.mockReset().mockResolvedValue({ ok: true, dtUsuarioId: DT_ID });
+  });
+
+  it("converts a practical unit (mg) to the unidad base (g) before the saldo check and the insert", async () => {
+    await registrarAjusteStock({ ...base, cantidad: "250000", unidadId: MG_ID }, session());
+
+    expect(convertirUnidadMock).toHaveBeenCalledWith(expect.anything(), "250000", MG_ID, UNIDAD_BASE_ID);
+    expect(insertAjusteMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ cantidad: "250" }));
+  });
+
+  it("defaults to the unidad base when no unit is sent (existing callers keep working)", async () => {
+    await registrarAjusteStock({ ...base, cantidad: "20" }, session());
+
+    expect(insertAjusteMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ cantidad: "20" }));
+  });
+
+  it.each([
+    ["another magnitude (L for a gram-based droga)", LITRO_ID, "no corresponde a esta droga, que se mide en g"],
+    ["a non-practical unit (mcg)", MCG_ID, "no está habilitada"],
+    ["a unit dada de baja", MG_BAJA_ID, "dada de baja"],
+    ["a unit that does not exist", "99999999-9999-4999-a999-999999999999", "no existe"],
+  ])("rejects %s on unidadId, before converting or inserting", async (_caso, unidadId, mensaje) => {
+    const error = await rechazo(registrarAjusteStock({ ...base, cantidad: "1", unidadId }, session()));
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).message).toContain(mensaje);
+    expect((error as ValidationError).fields).toEqual(["unidadId"]);
+    expect(convertirUnidadMock).not.toHaveBeenCalled();
+    expect(insertAjusteMock).not.toHaveBeenCalled();
+  });
+
+  it("only accepts the unidad base itself when it is not convertible (UNIDAD)", async () => {
+    getPartidaParaAccionMock.mockResolvedValue({ ...partidaVigente, unidadBaseId: UNIDAD_U_ID, unidadBaseSimbolo: "u", cantidadDisponible: "10" });
+
+    const error = await rechazo(registrarAjusteStock({ ...base, cantidad: "1", unidadId: UNIDAD_BASE_ID }, session()));
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).fields).toEqual(["unidadId"]);
+
+    await registrarAjusteStock({ ...base, cantidad: "3", unidadId: UNIDAD_U_ID }, session());
+    expect(insertAjusteMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ cantidad: "3" }));
+  });
+
+  it.each([
+    ["g", UNIDAD_BASE_ID, "600", "La cantidad a descontar (600 g) supera el saldo disponible de la partida (500 g)."],
+    ["kg", KG_ID, "0.6", "La cantidad a descontar (0,6 kg) supera el saldo disponible de la partida (0,5 kg)."],
+    ["mg", MG_ID, "500001", "La cantidad a descontar (500.001 mg) supera el saldo disponible de la partida (500.000 mg)."],
+  ])("reports an exceeded saldo in the ENTERED unit (%s), on the cantidad field", async (_simbolo, unidadId, cantidad, mensaje) => {
+    const error = await rechazo(registrarAjusteStock({ ...base, cantidad, unidadId }, session()));
+
+    expect(error).toBeInstanceOf(DomainError);
+    expect((error as DomainError).message).toBe(mensaje);
+    expect((error as DomainError).fields).toEqual(["cantidad"]);
+    expect(insertAjusteMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("corregir-costo-partida: lock BEFORE the fresh optimistic-version read", () => {
   beforeEach(() => {
     callOrder.length = 0;
@@ -288,6 +399,31 @@ describe("ingresar-partida: converts the purchased quantity to the droga's unida
       expect.anything(),
       expect.objectContaining({ cantidadInicialBase: "5000" }),
     );
+  });
+
+  it("rejects a purchase unit of another magnitude on unidadCompraId BEFORE calling fsj.convertir", async () => {
+    let caught: unknown;
+    try {
+      await ingresarPartidaCommand.execute(
+        {
+          drogaId: DROGA_ID,
+          proveedorId: PROVEEDOR_ID,
+          lote: "L1",
+          fechaVencimiento: "2027-01-01",
+          cantidadCompra: "5",
+          unidadCompraId: LITRO_ID,
+          costoUnitario: "10",
+        },
+        { session: fakeSession("stock.partida.ingresar") },
+      );
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(ValidationError);
+    expect((caught as ValidationError).fields).toEqual(["unidadCompraId"]);
+    expect((caught as ValidationError).message).toContain("no corresponde a esta droga, que se mide en g");
+    expect(convertirUnidadMock).not.toHaveBeenCalled();
+    expect(insertPartidaConIngresoMock).not.toHaveBeenCalled();
   });
 
   it("rejects a fechaVencimiento that is not strictly in the future (relative to the tenant's jornada)", async () => {

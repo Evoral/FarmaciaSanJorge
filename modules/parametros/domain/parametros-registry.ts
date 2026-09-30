@@ -191,7 +191,7 @@ export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = 
     label: "Días de alerta de vencimiento de partidas",
     descripcion:
       "Cantidad de días, contados desde la jornada actual, dentro de los cuales una partida con saldo se muestra " +
-      "en la alerta de \"próximas a vencer\" (DP-14, FASE 5 punto 5.7). Debe ser un entero mayor que cero.",
+      "en la alerta de \"próximas a vencer\". Debe ser un entero mayor que cero.",
     valorPorDefecto: "30",
     validar: validarDiasAlertaVencimientoPartida,
   },
@@ -201,7 +201,7 @@ export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = 
     label: "Plazo de firma del cierre diario",
     descripcion:
       "Cantidad de días corridos desde la fecha de la jornada dentro de los cuales firmar el cierre diario se " +
-      "considera en término (DP-18, FASE 10 punto 10.1). En 0 (valor por defecto), solo la firma en la misma " +
+      "considera en término. En 0 (valor por defecto), solo la firma en la misma " +
       "jornada se considera en término. Debe ser un entero mayor o igual que cero.",
     valorPorDefecto: "0",
     validar: validarPlazoFirmaDias,
@@ -212,8 +212,7 @@ export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = 
     label: "Plazo de regularización de receta física",
     descripcion:
       "Cantidad de días corridos, contados desde el asiento más antiguo de la receta, dentro de los cuales una " +
-      "receta sin receta física recibida todavía no se muestra como \"vencida\" en /regularizacion (DP-15, FASE 11 " +
-      "punto 11.3, INV-R10). Debe ser un entero mayor o igual que cero.",
+      "receta sin receta física recibida todavía no se muestra como \"vencida\" en /regularizacion. Debe ser un entero mayor o igual que cero.",
     valorPorDefecto: "7",
     validar: validarPlazoRegularizacionDias,
   },
@@ -223,7 +222,7 @@ export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = 
     label: "Plazo de archivo (recetas comunes)",
     descripcion:
       "Cantidad de años de conservación en archivo físico, contados desde el fin del período del lote, para lotes SIN " +
-      "recetas controladas (DP-26 PARCIAL, a confirmar con normativa de Mendoza, FASE 12 punto 12.1). Debe ser un " +
+      "recetas controladas (a confirmar con la normativa de Mendoza). Debe ser un " +
       "entero mayor o igual que uno.",
     valorPorDefecto: "2",
     validar: validarPlazoArchivoAnios,
@@ -234,7 +233,7 @@ export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = 
     label: "Plazo de archivo (recetas controladas)",
     descripcion:
       "Cantidad de años de conservación en archivo físico, contados desde el fin del período del lote, para lotes con " +
-      "al menos una receta controlada (DP-26 PARCIAL, a confirmar con normativa de Mendoza, FASE 12 punto 12.1). Debe " +
+      "al menos una receta controlada (a confirmar con la normativa de Mendoza). Debe " +
       "ser un entero mayor o igual que uno.",
     valorPorDefecto: "3",
     validar: validarPlazoArchivoAnios,

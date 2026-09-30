@@ -2,7 +2,7 @@
 
 /** Crear/editar droga form (FASE 4 point 4.2, DP-12). */
 import { crearDrogaAction, editarDrogaAction } from "./actions";
-import { SimpleForm } from "./simple-form";
+import { SimpleForm } from "@/shared/ui/simple-form";
 import { TIPOS_CONTROL, TIPO_CONTROL_LABELS } from "@/modules/drogas/domain/droga";
 
 export interface UnidadOpcion {
@@ -32,7 +32,7 @@ export function DrogaForm({ mode, unidades, droga, disabled }: DrogaFormProps) {
 
   return (
     <div className="card p-4">
-      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear droga" : "Guardar cambios"} className="flex max-w-md flex-col gap-3">
+      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear droga" : "Guardar cambios"} className="max-w-md">
         {mode === "editar" && droga ? (
           <>
             <input type="hidden" name="id" value={droga.id} />
@@ -72,13 +72,10 @@ export function DrogaForm({ mode, unidades, droga, disabled }: DrogaFormProps) {
               </option>
             ))}
           </select>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <input id="esControlada" name="esControlada" type="checkbox" defaultChecked={droga?.esControlada ?? false} disabled={clasificacionDisabled} className="rounded border-zinc-300" />
-          <label htmlFor="esControlada" className="text-sm font-medium">
-            Es controlada (psicotrópico o estupefaciente)
-          </label>
+          <p className="text-xs text-zinc-500">
+            Unidad en la que se utiliza la droga en el laboratorio. El stock y el libro contralor se registran en esta unidad; las compras se convierten
+            automáticamente, independientemente de la unidad indicada en la factura.
+          </p>
         </div>
 
         <div className="flex flex-col gap-1">
@@ -99,7 +96,7 @@ export function DrogaForm({ mode, unidades, droga, disabled }: DrogaFormProps) {
             ))}
           </select>
           {clasificacionDisabled && mode === "editar" ? (
-            <p className="text-xs text-zinc-500">Esta droga ya tiene partidas: la unidad base, si es controlada y el tipo de control no se pueden modificar (DP-12).</p>
+            <p className="text-xs text-zinc-500">Esta droga ya tiene partidas: la unidad base y el tipo de control no se pueden modificar.</p>
           ) : null}
         </div>
 

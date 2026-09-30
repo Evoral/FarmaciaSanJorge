@@ -40,6 +40,8 @@ vi.mock("@/modules/stock/infrastructure/partida-repository", () => ({
     id: "p1",
     drogaId: "d1",
     drogaNombre: "D",
+    unidadBaseId: "u1",
+    unidadBaseSimbolo: "g",
     proveedorId: "pv1",
     proveedorRazonSocial: "P",
     lote: "L1",
@@ -54,11 +56,16 @@ vi.mock("@/modules/stock/infrastructure/partida-repository", () => ({
   getDrogaParaIngreso: vi.fn(async () => ({ id: "d1", unidadBaseId: "u1", tipoControl: "NINGUNO", fechaBaja: null })),
   getProveedorParaIngreso: vi.fn(async () => ({ id: "pv1", fechaBaja: null })),
   convertirUnidad: vi.fn(async () => "100"),
+  getUnidadesParaConversion: vi.fn(
+    async (_tx: unknown, ids: string[]) =>
+      new Map(ids.map((id) => [id, { id, codigo: "GRAMO", simbolo: "g", tipoMagnitud: "MASA", fechaBaja: null }])),
+  ),
   getFechaActivacionContralor: vi.fn(async () => null),
   insertPartidaConIngreso: vi.fn(async () => ({ id: "p-new" })),
   insertAjuste: vi.fn(async () => ({ id: "mov-1" })),
   updateCostoPartida: vi.fn(async () => true),
   kardexMovimientos: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 20 })),
+  listAjustes: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 20, zonaHoraria: "America/Argentina/Mendoza" })),
   alertasBajoMinimo: vi.fn(async () => []),
   alertasPorVencer: vi.fn(async () => []),
   alertasVencidasConSaldo: vi.fn(async () => []),
@@ -78,6 +85,7 @@ await import("@/modules/stock/application/list-stock-drogas");
 await import("@/modules/stock/application/list-partidas-droga");
 await import("@/modules/stock/application/get-partida");
 await import("@/modules/stock/application/kardex-movimientos");
+await import("@/modules/stock/application/list-ajustes");
 await import("@/modules/stock/application/registrar-ajuste");
 await import("@/modules/stock/application/corregir-costo-partida");
 await import("@/modules/stock/application/alertas-stock");
@@ -121,6 +129,7 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
   { name: "stock.partidas.listar", permiso: "stock.ver", input: { drogaId: DROGA_ID } },
   { name: "stock.partida.ver", permiso: "stock.ver", input: { id: PARTIDA_ID } },
   { name: "stock.kardex.listar", permiso: "stock.ver", input: {} },
+  { name: "stock.ajustes.listar", permiso: "stock.ver", input: { motivoAjuste: "ROTURA", desde: "2026-06-01", hasta: "2026-06-30" } },
   { name: "stock.alertas.listar", permiso: "stock.ver", input: {} },
   {
     name: "stock.ajuste.registrar",

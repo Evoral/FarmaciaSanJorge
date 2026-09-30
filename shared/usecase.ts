@@ -20,6 +20,11 @@
  * shared/db/transaction.ts), so even a pure read needs a transaction scope
  * to see any tenant-scoped row at all. Queries never call `audit.record`.
  *
+ * A session that lacks the use case's permiso is rejected by `authorize()`
+ * before anything else runs -- and that rejection is itself audited
+ * (`ACCESO_DENEGADO`, in its own short transaction, best-effort), see
+ * `authorizeAuditado` below.
+ *
  * Every entry created this way is pushed to an in-process registry
  * (`listRegisteredUseCases`), which is what makes "every registered use
  * case calls authorize" a real, executable test
@@ -33,8 +38,16 @@ import type { AuthenticatedSession } from "@/shared/auth/session";
 import { authorize } from "@/shared/auth/authorize";
 import type { Permiso } from "@/shared/auth/authorize";
 import { withTenantTransaction } from "@/shared/db/transaction";
-import { ValidationError } from "@/shared/errors";
+import { AuthorizationError, ValidationError } from "@/shared/errors";
 import { record as auditRecord } from "@/shared/audit";
+import { getLogger } from "@/shared/logging/logger";
+import { formatIssuePath } from "@/shared/labels/field-labels";
+
+// zod's built-in messages (enum, max length, type mismatches...) surface to
+// the UI through `parseInput` below, so they must be Spanish like the custom
+// ones in shared/validation. Global config, set here because every command
+// and query parses its input through this file.
+z.config(z.locales.es());
 
 export { TipoAccion };
 
@@ -118,9 +131,20 @@ export interface RegisteredUseCase {
   permiso: Permiso;
 }
 
-/** Internal registry entry: same as `RegisteredUseCase` plus the callable `execute`, so a test can actually INVOKE every registered use case (not just inspect its metadata) -- see `listRegisteredUseCasesForTests`. */
+/**
+ * Internal registry entry: same as `RegisteredUseCase` plus the callable
+ * `execute`, so a test can actually INVOKE every registered use case (not
+ * just inspect its metadata) -- see `listRegisteredUseCasesForTests` -- and
+ * the zod `input` schema, so a test can walk every field name a use case
+ * accepts and prove each one has a human label in
+ * shared/labels/field-labels.ts (the completeness guard in
+ * tests/unit/usecase-registry-all-modules.test.ts). Deliberately NOT part
+ * of the public `RegisteredUseCase` metadata: nothing outside tests has a
+ * reason to reach into another use case's schema.
+ */
 interface InternalRegistryEntry extends RegisteredUseCase {
   execute: (rawInput: unknown, options?: ExecuteOptions) => Promise<unknown>;
+  input: z.ZodType;
 }
 
 let registry: InternalRegistryEntry[] = [];
@@ -147,11 +171,27 @@ export function resetUsecaseRegistryForTests(): void {
   registry = [];
 }
 
+/**
+ * The `ValidationError` message is shown verbatim in the UI, so each issue
+ * is prefixed with the field's human label (`Matrícula: ...`), never the
+ * raw code key (`numeroMatricula: ...`) -- see
+ * shared/labels/field-labels.ts. Issues about the input as a whole
+ * (empty path, e.g. a cross-field `superRefine` on the root object) get no
+ * prefix: their message already stands on its own.
+ *
+ * The error also carries `fields`: the distinct top-level input keys with
+ * an issue (`issue.path[0]`), which match the submitted form controls'
+ * `name`s, so the UI can mark exactly those fields (shared/ui/field-errors.ts).
+ */
 function parseInput<TInput>(schema: z.ZodType<TInput>, rawInput: unknown): TInput {
   const result = schema.safeParse(rawInput);
   if (!result.success) {
-    const issues = result.error.issues.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`);
-    throw new ValidationError(`Invalid input: ${issues.join("; ")}`);
+    const issues = result.error.issues.map((issue) => {
+      const label = formatIssuePath(issue.path);
+      return label ? `${label}: ${issue.message}` : issue.message;
+    });
+    const fields = [...new Set(result.error.issues.filter((issue) => issue.path.length > 0).map((issue) => String(issue.path[0])))];
+    throw new ValidationError(`Datos inválidos: ${issues.join("; ")}`, { fields });
   }
   return result.data;
 }
@@ -172,6 +212,43 @@ async function resolveSession(options?: ExecuteOptions): Promise<AuthenticatedSe
   return requireSession();
 }
 
+/**
+ * `authorize()`, auditing a rejection before re-throwing it (OWASP: log
+ * access-control failures). The UI hides every action a session cannot
+ * perform, so a denial here means a tampered request, a forged URL or a
+ * bug. The audit row is written in its OWN transaction (the operation
+ * itself never starts) and best-effort: if it cannot be written, the
+ * failure is logged and the caller still gets the original
+ * AuthorizationError -- auditing must never change what the user sees.
+ */
+async function authorizeAuditado(session: AuthenticatedSession, casoDeUso: string, permiso: Permiso): Promise<void> {
+  try {
+    authorize(session, permiso);
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      try {
+        await withTenantTransaction(session.tenantId, (tx) =>
+          auditRecord(tx, {
+            tenantId: session.tenantId,
+            usuarioId: session.usuario.id,
+            entidad: "acceso",
+            entidadId: session.usuario.id,
+            accion: TipoAccion.ACCESO_DENEGADO,
+            valorNuevo: { casoDeUso, permiso },
+          }),
+        );
+      } catch (auditError) {
+        try {
+          getLogger().warn({ error: auditError, casoDeUso, permiso }, "Could not audit a denied access attempt");
+        } catch {
+          // Logging itself unavailable (e.g. logger env not configured): still surface the ORIGINAL denial below.
+        }
+      }
+    }
+    throw error;
+  }
+}
+
 /** Fails at module load (not at call time) if an audit opt-out carries no real reason. */
 function assertAuditDeclaration(name: string, audit: AuditDeclaration): void {
   if ("skip" in audit && audit.reason.trim().length < 10) {
@@ -186,7 +263,7 @@ export function defineCommand<TInput, TOutput>(config: DefineCommandConfig<TInpu
   assertAuditDeclaration(config.name, config.audit);
   async function execute(rawInput: unknown, options?: ExecuteOptions): Promise<TOutput> {
     const session = await resolveSession(options);
-    authorize(session, config.permiso);
+    await authorizeAuditado(session, config.name, config.permiso);
     if (config.requireRecentReauth) {
       requireRecentReauth(session, config.requireRecentReauth.maxAgeMinutes);
     }
@@ -222,7 +299,13 @@ export function defineCommand<TInput, TOutput>(config: DefineCommandConfig<TInpu
     });
   }
 
-  registry.push({ kind: "command", name: config.name, permiso: config.permiso, execute: execute as InternalRegistryEntry["execute"] });
+  registry.push({
+    kind: "command",
+    name: config.name,
+    permiso: config.permiso,
+    execute: execute as InternalRegistryEntry["execute"],
+    input: config.input,
+  });
 
   return { name: config.name, permiso: config.permiso, execute };
 }
@@ -231,13 +314,19 @@ export function defineCommand<TInput, TOutput>(config: DefineCommandConfig<TInpu
 export function defineQuery<TInput, TOutput>(config: DefineQueryConfig<TInput, TOutput>): DefinedUseCase<TOutput> {
   async function execute(rawInput: unknown, options?: ExecuteOptions): Promise<TOutput> {
     const session = await resolveSession(options);
-    authorize(session, config.permiso);
+    await authorizeAuditado(session, config.name, config.permiso);
     const input = parseInput(config.input, rawInput);
 
     return withTenantTransaction(session.tenantId, (tx) => config.handler({ tx, session, input }));
   }
 
-  registry.push({ kind: "query", name: config.name, permiso: config.permiso, execute: execute as InternalRegistryEntry["execute"] });
+  registry.push({
+    kind: "query",
+    name: config.name,
+    permiso: config.permiso,
+    execute: execute as InternalRegistryEntry["execute"],
+    input: config.input,
+  });
 
   return { name: config.name, permiso: config.permiso, execute };
 }

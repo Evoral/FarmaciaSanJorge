@@ -29,6 +29,8 @@ export interface ValorizadoItem {
   lote: string;
   fechaVencimiento: string; // YYYY-MM-DD
   cantidadDisponible: string;
+  /** The droga unidad base (`cantidadDisponible` is recorded in it). */
+  unidadId: string;
   unidadSimbolo: string;
   costoUnitario: string;
   /** `cantidad_disponible * costo_unitario`, computed in SQL -- see module doc comment. */
@@ -55,6 +57,7 @@ function toItem(row: {
   lote: string;
   fecha_vencimiento: Date;
   cantidad_disponible: string;
+  unidad_id: string;
   unidad_simbolo: string;
   costo_unitario: string;
   valor: string;
@@ -66,6 +69,7 @@ function toItem(row: {
     lote: row.lote,
     fechaVencimiento: row.fecha_vencimiento.toISOString().slice(0, 10),
     cantidadDisponible: row.cantidad_disponible,
+    unidadId: row.unidad_id,
     unidadSimbolo: row.unidad_simbolo,
     costoUnitario: row.costo_unitario,
     valor: row.valor,
@@ -89,6 +93,7 @@ export async function listValorizado(
       lote: string;
       fecha_vencimiento: Date;
       cantidad_disponible: string;
+      unidad_id: string;
       unidad_simbolo: string;
       costo_unitario: string;
       valor: string;
@@ -101,6 +106,7 @@ export async function listValorizado(
       p.lote,
       p.fecha_vencimiento,
       p.cantidad_disponible::text AS cantidad_disponible,
+      u.id AS unidad_id,
       u.simbolo AS unidad_simbolo,
       p.costo_unitario::text AS costo_unitario,
       (p.cantidad_disponible * p.costo_unitario)::text AS valor

@@ -22,8 +22,8 @@ export default async function RegularizacionPage() {
         ) : null}
       </div>
       <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-        Recetas con al menos un asiento (ya dispensadas) que todavía no tienen registrada la recepción de la receta física
-        (INV-R10), ordenadas de más a menos antiguas. Se marcan &quot;vencidas&quot; una vez superado el plazo de regularización.
+        Recetas con al menos un asiento (ya dispensadas) que todavía no tienen registrada la recepción de la receta física,
+        ordenadas de más a menos antiguas. Se marcan &quot;vencidas&quot; una vez superado el plazo de regularización.
       </p>
 
       <RegularizacionBuscador itemsIniciales={result.items} totalInicial={result.total} plazoRegularizacionDias={result.plazoRegularizacionDias} />

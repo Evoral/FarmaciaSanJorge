@@ -129,6 +129,7 @@ describe("médicos M3: lock-then-fresh-read", () => {
     nombre: "N",
     apellido: "A",
     matricula: "MAT-1",
+    matriculaJurisdiccion: "PROVINCIAL" as const,
     especialidad: null,
     telefono: null,
     direccionRegistrada: null,
@@ -159,7 +160,8 @@ describe("médicos M3: lock-then-fresh-read", () => {
           nombre: "N (renombrado)",
           apellido: "A",
           matricula: "MAT-1",
-          version: { nombre: "N", apellido: "A", matricula: "MAT-1", especialidad: null, telefono: null, direccionRegistrada: null },
+          matriculaJurisdiccion: "PROVINCIAL",
+          version: { nombre: "N", apellido: "A", matricula: "MAT-1", matriculaJurisdiccion: "PROVINCIAL", especialidad: null, telefono: null, direccionRegistrada: null },
         },
         { session: fakeSession("medicos.gestionar") },
       );
@@ -184,13 +186,35 @@ describe("médicos M3: lock-then-fresh-read", () => {
         nombre: "N (renombrado)",
         apellido: "A",
         matricula: "MAT-1",
-        version: { nombre: "N", apellido: "A", matricula: "MAT-1", especialidad: null, telefono: null, direccionRegistrada: null },
+        matriculaJurisdiccion: "PROVINCIAL",
+        version: { nombre: "N", apellido: "A", matricula: "MAT-1", matriculaJurisdiccion: "PROVINCIAL", especialidad: null, telefono: null, direccionRegistrada: null },
       },
       { session: fakeSession("medicos.gestionar") },
     );
 
     expect(medicoCallOrder).toEqual(["lock", "read"]);
     expect(updateMedicoDatosMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("editarMedico: a jurisdiction-only change re-checks uniqueness for the NEW (jurisdicción, matrícula) pair", async () => {
+    getMedicoParaAccionMock.mockImplementation(async () => {
+      medicoCallOrder.push("read");
+      return vigente;
+    });
+
+    await editarMedicoCommand.execute(
+      {
+        id: TARGET_ID,
+        nombre: "N",
+        apellido: "A",
+        matricula: "MAT-1",
+        matriculaJurisdiccion: "NACIONAL",
+        version: { nombre: "N", apellido: "A", matricula: "MAT-1", matriculaJurisdiccion: "PROVINCIAL", especialidad: null, telefono: null, direccionRegistrada: null },
+      },
+      { session: fakeSession("medicos.gestionar") },
+    );
+
+    expect(existeMatriculaVigenteMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, "NACIONAL", "MAT-1", TARGET_ID);
   });
 
   it("darDeBajaMedico: locks BEFORE reading the current state", async () => {

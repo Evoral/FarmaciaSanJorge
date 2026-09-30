@@ -35,6 +35,8 @@ await import("@/modules/precios/application/guardar-regla-precio");
 await import("@/modules/precios/application/get-reglas-precio");
 await import("@/modules/precios/application/calcular-cotizacion");
 await import("@/modules/precios/application/get-cotizacion-item");
+// Presupuesto of a receta draft (docs/specs/presupuesto-receta.md): lives in modules/recetas, gated on cotizaciones.calcular.
+await import("@/modules/recetas/application/presupuestar-receta");
 
 const { listRegisteredUseCasesForTests } = await import("@/shared/usecase");
 
@@ -56,6 +58,7 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
   { name: "precios.reglas.consultar", permiso: "precios.reglas.editar", input: {} },
   { name: "cotizaciones.calcular", permiso: "cotizaciones.calcular", input: { itemRecetaId: TARGET_ID } },
   { name: "cotizaciones.item.consultar", permiso: "cotizaciones.ver", input: { itemRecetaId: TARGET_ID } },
+  { name: "recetas.presupuestar", permiso: "cotizaciones.calcular", input: { items: [] } },
 ];
 
 function sessionForRol(rol: Rol): AuthenticatedSession {

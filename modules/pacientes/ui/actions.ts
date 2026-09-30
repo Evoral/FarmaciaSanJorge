@@ -6,12 +6,11 @@ import { crearPaciente } from "@/modules/pacientes/application/crear-paciente";
 import { editarPaciente } from "@/modules/pacientes/application/editar-paciente";
 import { darDeBajaPaciente } from "@/modules/pacientes/application/dar-de-baja-paciente";
 import { reactivarPaciente } from "@/modules/pacientes/application/reactivar-paciente";
-import { AppError } from "@/shared/errors";
+import { actionError } from "@/shared/ui/action-error";
 import type { PacienteActionState } from "./action-state";
 
 function fromError(error: unknown, fallback: string): PacienteActionState {
-  if (error instanceof AppError) return { status: "error", message: error.message };
-  return { status: "error", message: fallback };
+  return actionError(error, fallback);
 }
 
 function optional(formData: FormData, key: string): string | undefined {

@@ -6,12 +6,21 @@ import { crearDroga } from "@/modules/drogas/application/crear-droga";
 import { editarDroga } from "@/modules/drogas/application/editar-droga";
 import { darDeBajaDroga } from "@/modules/drogas/application/dar-de-baja-droga";
 import { reactivarDroga } from "@/modules/drogas/application/reactivar-droga";
-import { AppError } from "@/shared/errors";
+import { actionError } from "@/shared/ui/action-error";
 import type { DrogaActionState } from "./action-state";
 
+/**
+ * Disabled fields are not submitted: a missing field is sent as `undefined`
+ * so the command keeps the stored value. `esControlada` is never read from
+ * the form -- the command derives it from `tipoControl`.
+ */
+function optionalField(formData: FormData, name: string): string | undefined {
+  const value = formData.get(name);
+  return value === null ? undefined : String(value);
+}
+
 function fromError(error: unknown, fallback: string): DrogaActionState {
-  if (error instanceof AppError) return { status: "error", message: error.message };
-  return { status: "error", message: fallback };
+  return actionError(error, fallback);
 }
 
 export async function crearDrogaAction(_prevState: DrogaActionState, formData: FormData): Promise<DrogaActionState> {
@@ -19,8 +28,7 @@ export async function crearDrogaAction(_prevState: DrogaActionState, formData: F
     await crearDroga({
       nombre: String(formData.get("nombre") ?? ""),
       unidadBaseId: String(formData.get("unidadBaseId") ?? ""),
-      esControlada: formData.get("esControlada") === "on",
-      tipoControl: String(formData.get("tipoControl") ?? "NINGUNO") as never,
+      tipoControl: optionalField(formData, "tipoControl"),
       stockMinimo: String(formData.get("stockMinimo") ?? "0"),
     });
     revalidatePath("/catalogos/drogas");
@@ -35,9 +43,8 @@ export async function editarDrogaAction(_prevState: DrogaActionState, formData: 
     await editarDroga({
       id: String(formData.get("id") ?? ""),
       nombre: String(formData.get("nombre") ?? ""),
-      unidadBaseId: String(formData.get("unidadBaseId") ?? ""),
-      esControlada: formData.get("esControlada") === "on",
-      tipoControl: String(formData.get("tipoControl") ?? "NINGUNO") as never,
+      unidadBaseId: optionalField(formData, "unidadBaseId"),
+      tipoControl: optionalField(formData, "tipoControl"),
       stockMinimo: String(formData.get("stockMinimo") ?? "0"),
       version: {
         nombre: String(formData.get("versionNombre") ?? ""),

@@ -4,6 +4,8 @@
  * `InvariantViolationError.invariantCode`. Same "one translation table per
  * module" discipline as `modules/cierres/domain/mensajes-invariantes.ts`.
  */
+import { mensajeGlobalParaInvariante } from "@/shared/errors/mensajes-invariantes";
+
 export const MENSAJES_INVARIANTES_ARCHIVO: Readonly<Record<string, string>> = {
   "INV-ARC-005": "Ese lote no puede pasar a ese estado desde su estado actual.",
   "INV-ARC-006": "Esa receta no puede archivarse: debe estar ENTREGADA o ANULADA, con la receta física recibida, y no haber sido archivada antes.",
@@ -16,5 +18,5 @@ const MENSAJE_GENERICO_ARCHIVO =
   "No se pudo completar la operación: se violó una regla del sistema. Contactá al administrador si el problema persiste.";
 
 export function mensajeParaInvarianteArchivo(codigo: string): string {
-  return MENSAJES_INVARIANTES_ARCHIVO[codigo] ?? MENSAJE_GENERICO_ARCHIVO;
+  return MENSAJES_INVARIANTES_ARCHIVO[codigo] ?? mensajeGlobalParaInvariante(codigo) ?? MENSAJE_GENERICO_ARCHIVO;
 }

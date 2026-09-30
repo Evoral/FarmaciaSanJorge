@@ -218,3 +218,55 @@ export function calcularCotizacion(
     detalle: { lineas: detalleLineas },
   };
 }
+
+// ============================================================================
+// Several items of ONE receta against the SAME stock (docs/specs/presupuesto-receta.md)
+// ============================================================================
+
+/**
+ * `fechaApertura` given to a partida the simulation starts consuming: it
+ * would be opened by that preparación, so `proponerReparto` must treat it
+ * as ABIERTA for the next item -- and as the most recently opened one.
+ */
+const APERTURA_SIMULADA = "9999-12-31T23:59:59.999Z";
+
+/**
+ * Costs the items of one receta in order, each against what the previous
+ * ones left: the first item takes from the eligible balances exactly as
+ * `calcularCotizacion` would, its consumption (partida by partida, as
+ * `proponerReparto` split it) is subtracted, and the next item sees only
+ * the remainder -- so faltantes, `esIncompleta` and costs reflect the
+ * receta as a whole. The ordering/eligibility rules are NOT restated
+ * here: every split still comes from `calcularCotizacion` ->
+ * `proponerReparto`. Pure; the caller's partidas are never mutated.
+ */
+export function calcularCotizacionesAcumuladas(
+  items: readonly (readonly LineaCosteoInput[])[],
+  partidasPorDroga: (drogaId: string) => readonly PartidaCosteo[],
+  jornadaActual: string,
+  margenPorcentaje: Decimal | string,
+): CotizacionCalculada[] {
+  const saldos = new Map<string, PartidaCosteo[]>();
+  const partidasDe = (drogaId: string): PartidaCosteo[] => {
+    let partidas = saldos.get(drogaId);
+    if (!partidas) {
+      partidas = partidasPorDroga(drogaId).map((p) => ({ ...p }));
+      saldos.set(drogaId, partidas);
+    }
+    return partidas;
+  };
+
+  return items.map((lineas) => {
+    const cotizacion = calcularCotizacion(lineas, partidasDe, jornadaActual, margenPorcentaje);
+    for (const linea of cotizacion.detalle.lineas) {
+      const partidas = partidasDe(linea.drogaId);
+      for (const usada of linea.partidas) {
+        const partida = partidas.find((p) => p.id === usada.partidaId);
+        if (!partida) continue;
+        partida.cantidadDisponible = dec(partida.cantidadDisponible).minus(dec(usada.cantidad)).toString();
+        if (partida.fechaApertura === null) partida.fechaApertura = APERTURA_SIMULADA;
+      }
+    }
+    return cotizacion;
+  });
+}

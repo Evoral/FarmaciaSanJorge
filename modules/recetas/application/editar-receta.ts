@@ -17,17 +17,36 @@
  * receta's CURRENT item set (post-lock) differs, someone else added/removed
  * an item concurrently -> ConflictError, instead of silently clobbering
  * their change.
+ *
+ * Removing an item that already has a ficha técnica (or a cotización) is
+ * refused with a ValidationError (docs/specs/presupuesto-receta.md, "Edición"):
+ * fichas/cotizaciones are insert-only and reference the item, and since
+ * confirming a receta generates them automatically, almost every item has
+ * one. Editing an existing item's content is unaffected (a new ficha
+ * version is generated afterwards).
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { ConflictError, DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
-import { FORMAS_FARMACEUTICAS, MODOS_EXPRESION, ORIGENES_RECETA, esEstadoEditable, validarItemsReceta, validarOrigenHabilitado } from "../domain/receta";
+import {
+  FORMAS_FARMACEUTICAS,
+  MODOS_EXPRESION,
+  ORIGENES_RECETA,
+  diagnosticoCodigoOpcional,
+  duracionTratamientoDiasOpcional,
+  esEstadoEditable,
+  resumirItemsReceta,
+  validarItemsReceta,
+  validarOrigenCargaManual,
+} from "../domain/receta";
 import type { ComponenteInput, ItemInput } from "../domain/receta";
 import {
   drogasInvalidas,
   existeFichaConPreparacionParaReceta,
   getMedicoRefParaReceta,
+  itemsConFichaOCotizacion,
+  getNombresParaResumen,
   getPacienteRefParaReceta,
   getRecetaParaAccion,
   listItemIds,
@@ -36,6 +55,13 @@ import {
   unidadesInvalidas,
   updateRecetaHeader,
 } from "../infrastructure/receta-repository";
+
+const textoOpcional = z
+  .string()
+  .trim()
+  .optional()
+  .nullable()
+  .transform((v) => (v && v.length > 0 ? v : null));
 
 const decimalOpcional = z
   .string()
@@ -69,6 +95,8 @@ const itemInput = z.object({
     .trim()
     .optional()
     .transform((v) => (v && v.length > 0 ? v : null)),
+  posologia: textoOpcional,
+  duracionTratamientoDias: duracionTratamientoDiasOpcional,
   componentes: z.array(componenteInput).min(1, "Cada ítem debe tener al menos un componente."),
 });
 
@@ -80,12 +108,16 @@ const editarRecetaInput = z.object({
   medicoId: uuid,
   fechaPrescripcion: isoDate,
   origen: z.enum(ORIGENES_RECETA),
+  diagnosticoCodigo: diagnosticoCodigoOpcional,
+  diagnosticoDescripcion: textoOpcional,
   items: z.array(itemInput).min(1, "La receta debe tener al menos un ítem."),
   version: z.object({
     pacienteId: uuid,
     medicoId: uuid,
     fechaPrescripcion: isoDate,
     origen: z.enum(ORIGENES_RECETA),
+    diagnosticoCodigo: z.string().nullable().default(null),
+    diagnosticoDescripcion: z.string().nullable().default(null),
   }),
   /** ids of the items the client started editing from (existing items only) -- see module doc comment. */
   itemsVersion: z.array(uuid),
@@ -105,6 +137,8 @@ function toItemsInput(items: EditarRecetaInput["items"]): ItemInput[] {
     cantidadTotal: item.cantidadTotal,
     unidadTotalId: item.unidadTotalId ?? null,
     observaciones: item.observaciones,
+    posologia: item.posologia,
+    duracionTratamientoDias: item.duracionTratamientoDias,
     componentes: item.componentes.map(
       (c): ComponenteInput => ({
         drogaId: c.drogaId,
@@ -147,7 +181,9 @@ export const editarRecetaCommand = defineCommand({
       actual.pacienteId === input.version.pacienteId &&
       actual.medicoId === input.version.medicoId &&
       actualFechaISO === input.version.fechaPrescripcion &&
-      actual.origen === input.version.origen;
+      actual.origen === input.version.origen &&
+      actual.diagnosticoCodigo === input.version.diagnosticoCodigo &&
+      actual.diagnosticoDescripcion === input.version.diagnosticoDescripcion;
     if (!versionMatches) {
       throw new ConflictError(CONCURRENCY_MESSAGE);
     }
@@ -157,7 +193,20 @@ export const editarRecetaCommand = defineCommand({
       throw new ConflictError(CONCURRENCY_MESSAGE);
     }
 
-    validarOrigenHabilitado(input.origen);
+    // "Ítem N" = position in the receta as its detail page lists it (same unordered-by-column read as getRecetaConItems).
+    const idsEnviados = new Set(input.items.flatMap((item) => (item.id ? [item.id] : [])));
+    const aQuitar = idsActuales.filter((id) => !idsEnviados.has(id));
+    if (aQuitar.length > 0) {
+      const conFicha = await itemsConFichaOCotizacion(tx, session.tenantId, aQuitar);
+      const primero = idsActuales.findIndex((id) => conFicha.has(id));
+      if (primero >= 0) {
+        throw new ValidationError(
+          `No se puede quitar el ítem ${primero + 1} porque ya tiene ficha técnica. Si la receta se cargó mal, anulala y cargala de nuevo.`,
+        );
+      }
+    }
+
+    validarOrigenCargaManual(input.origen, actual.origen);
 
     const paciente = await getPacienteRefParaReceta(tx, session.tenantId, input.pacienteId);
     if (!paciente) throw new NotFoundError("Paciente no encontrado.");
@@ -185,7 +234,15 @@ export const editarRecetaCommand = defineCommand({
     const headerUpdated = await updateRecetaHeader(
       tx,
       session.tenantId,
-      { id: input.id, pacienteId: input.pacienteId, medicoId: input.medicoId, fechaPrescripcion: input.fechaPrescripcion, origen: input.origen },
+      {
+        id: input.id,
+        pacienteId: input.pacienteId,
+        medicoId: input.medicoId,
+        fechaPrescripcion: input.fechaPrescripcion,
+        origen: input.origen,
+        diagnosticoCodigo: input.diagnosticoCodigo,
+        diagnosticoDescripcion: input.diagnosticoDescripcion,
+      },
       input.version,
     );
     if (!headerUpdated) throw new ConflictError(CONCURRENCY_MESSAGE);
@@ -203,6 +260,8 @@ export const editarRecetaCommand = defineCommand({
         cantidadTotal: item.cantidadTotal,
         unidadTotalId: item.unidadTotalId ?? null,
         observaciones: item.observaciones,
+        posologia: item.posologia,
+        duracionTratamientoDias: item.duracionTratamientoDias,
         componentes: item.componentes.map((c) => ({
           drogaId: c.drogaId,
           cantidad: c.cantidad,
@@ -213,12 +272,40 @@ export const editarRecetaCommand = defineCommand({
       })),
     );
 
+    // Readable names for the audit row, taken NOW: later renames must not rewrite history.
+    const pacienteAnterior = actual.pacienteId === paciente.id ? paciente : await getPacienteRefParaReceta(tx, session.tenantId, actual.pacienteId);
+    const medicoAnterior = actual.medicoId === medico.id ? medico : await getMedicoRefParaReceta(tx, session.tenantId, actual.medicoId);
+    const nombrePaciente = (p: { nombre: string; apellido: string } | null) => (p ? `${p.apellido}, ${p.nombre}` : null);
+    const nombreMedico = (m: { nombre: string; apellido: string; matricula: string } | null) =>
+      m ? `${m.apellido}, ${m.nombre} — matrícula ${m.matricula}` : null;
+    const nombres = await getNombresParaResumen(tx, session.tenantId, drogaIds, unidadIds);
+
     return {
       output: { id: input.id },
       audit: {
         entidadId: input.id,
-        valorAnterior: { pacienteId: actual.pacienteId, medicoId: actual.medicoId, fechaPrescripcion: actualFechaISO, origen: actual.origen },
-        valorNuevo: { pacienteId: input.pacienteId, medicoId: input.medicoId, fechaPrescripcion: input.fechaPrescripcion, origen: input.origen, items: input.items },
+        valorAnterior: {
+          pacienteId: actual.pacienteId,
+          paciente: nombrePaciente(pacienteAnterior),
+          medicoId: actual.medicoId,
+          medico: nombreMedico(medicoAnterior),
+          fechaPrescripcion: actualFechaISO,
+          origen: actual.origen,
+          diagnosticoCodigo: actual.diagnosticoCodigo,
+          diagnosticoDescripcion: actual.diagnosticoDescripcion,
+        },
+        valorNuevo: {
+          pacienteId: input.pacienteId,
+          paciente: nombrePaciente(paciente),
+          medicoId: input.medicoId,
+          medico: nombreMedico(medico),
+          fechaPrescripcion: input.fechaPrescripcion,
+          origen: input.origen,
+          diagnosticoCodigo: input.diagnosticoCodigo,
+          diagnosticoDescripcion: input.diagnosticoDescripcion,
+          items: input.items,
+          itemsResumen: resumirItemsReceta(itemsDominio, nombres),
+        },
       },
     };
   },

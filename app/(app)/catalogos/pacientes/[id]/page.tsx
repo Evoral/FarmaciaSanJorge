@@ -5,7 +5,7 @@ import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getPaciente } from "@/modules/pacientes/application/get-paciente";
 import { PacienteForm } from "@/modules/pacientes/ui/paciente-form";
-import { MotivoForm } from "@/modules/pacientes/ui/motivo-form";
+import { MotivoForm } from "@/shared/ui/motivo-form";
 import { darDeBajaPacienteAction, reactivarPacienteAction } from "@/modules/pacientes/ui/actions";
 
 interface PacienteDetallePageProps {
@@ -34,7 +34,7 @@ export default async function PacienteDetallePage({ params }: PacienteDetallePag
       </div>
 
       <h1 className="mb-1 text-2xl font-semibold">
-        {paciente.apellido}, {paciente.nombre}
+        {paciente.nombre} {paciente.apellido}
       </h1>
       <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">{paciente.fechaBaja ? "Dado de baja" : "Vigente"}</p>
 
@@ -73,7 +73,7 @@ export default async function PacienteDetallePage({ params }: PacienteDetallePag
               label="Dar de baja"
               pendingLabel="Dando de baja…"
               helpText="Este paciente deja de ofrecerse para nuevas recetas, pero sigue resolviendo en históricos."
-              submitClassName="btn btn-danger"
+              variant="danger"
             />
           ) : null}
         </section>

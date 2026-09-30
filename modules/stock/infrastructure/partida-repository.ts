@@ -10,9 +10,10 @@
  * "NO HACER" (plan §9 M07): stock is NEVER summed in application code --
  * every stock read here goes through `fsj.v_stock_droga`.
  */
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import type { TipoMovimiento, MotivoAjuste as PrismaMotivoAjuste } from "@/generated/prisma/enums";
-import { DIAS_ALERTA_VENCIMIENTO_PARTIDA_DEFAULT } from "../domain/partida";
+import { DIAS_ALERTA_VENCIMIENTO_PARTIDA_DEFAULT, type OrdenStockDrogas } from "../domain/partida";
+import { rangoDeJornadas } from "@/shared/time/jornada";
 
 // ============================================================================
 // jornada helper (fsj.jornada_actual(tenantId)) -- see migration 0014.
@@ -34,16 +35,30 @@ export async function jornadaActualTenant(tx: Prisma.TransactionClient, tenantId
 export interface StockDrogaItem {
   drogaId: string;
   drogaNombre: string;
+  unidadId: string;
   unidadSimbolo: string;
   stockMinimo: string;
   stockDisponible: string;
-  esControlada: boolean;
+  /** `stock_disponible < stock_minimo`, compared in SQL (numeric). */
+  bajoMinimo: boolean;
+  /** Earliest `fecha_vencimiento` among partidas with balance (YYYY-MM-DD), `null` when none has balance. */
+  proximoVencimiento: string | null;
 }
 
 export interface ListStockDrogasFilter {
   tenantId: string;
   search?: string;
   soloBajoMinimo?: boolean;
+  /** stock disponible = 0. */
+  soloSinStock?: boolean;
+  /** Has a partida with balance expiring within `[jornada, jornada + diasAlertaVencimiento]` (same window as `alertasPorVencer`). */
+  conPartidasPorVencer?: boolean;
+  /** Has an already-expired partida that still carries balance (same rule as `alertasVencidasConSaldo`). */
+  conPartidasVencidas?: boolean;
+  soloControladas?: boolean;
+  /** Required when `conPartidasPorVencer` -- see `getDiasAlertaVencimiento`. */
+  diasAlertaVencimiento: number;
+  orden?: OrdenStockDrogas;
   page: number;
   pageSize: number;
 }
@@ -58,46 +73,132 @@ export interface ListStockDrogasResult {
 /**
  * Joins `fsj.droga` (vigentes only -- a baja droga has nothing left to
  * stock-manage) with `fsj.v_stock_droga` in ONE query -- the view already
- * does the SUM, this only joins/filters/paginates. `soloBajoMinimo` cannot
- * be expressed as a plain WHERE (the comparison is between two columns from
- * different relations after aggregation), so it's a HAVING-shaped raw query.
+ * does the SUM; this query only joins, filters, orders and paginates, ALL
+ * in SQL (numeric comparisons included -- never `Number()` in JS).
+ *
+ * `total` comes from the same statement: `(SELECT count(*) FROM filtradas)`
+ * LEFT JOINed to the page, so a page past the end still reports the real
+ * total (the page side is then a single all-NULL row, dropped below).
+ *
+ * The "por vencer" / "vencidas con saldo" filters mirror
+ * `alertasPorVencer` / `alertasVencidasConSaldo` below exactly (same
+ * `fsj.jornada_actual` window): a droga is listed exactly when it has a
+ * partida counted by that alert card.
+ *
+ * The statement itself is built by `listStockDrogasSql` so
+ * tests/db/stock-drogas-filtros.test.ts runs this EXACT SQL on its raw `pg`
+ * connection (Prisma cannot see that test's uncommitted rows).
  */
 export async function listStockDrogas(tx: Prisma.TransactionClient, filter: ListStockDrogasFilter): Promise<ListStockDrogasResult> {
-  const search = filter.search?.trim();
-  const skip = (filter.page - 1) * filter.pageSize;
-
-  const rows = await tx.$queryRaw<
-    { droga_id: string; nombre: string; simbolo: string; stock_minimo: string; stock_disponible: string; es_controlada: boolean }[]
-  >`
-    SELECT d.id AS droga_id, d.nombre, u.simbolo, d.stock_minimo::text, coalesce(v.stock_disponible, 0)::text AS stock_disponible, d.es_controlada
-    FROM fsj.droga d
-    JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
-    LEFT JOIN fsj.v_stock_droga v ON v.tenant_id = d.tenant_id AND v.droga_id = d.id
-    WHERE d.tenant_id = ${filter.tenantId}::uuid
-      AND d.fecha_baja IS NULL
-      AND (${search ?? null}::text IS NULL OR d.nombre ILIKE '%' || ${search ?? null}::text || '%')
-    ORDER BY d.nombre ASC
-  `;
-
-  const filtered = filter.soloBajoMinimo
-    ? rows.filter((row) => Number(row.stock_disponible) < Number(row.stock_minimo))
-    : rows;
-
-  const page = filtered.slice(skip, skip + filter.pageSize);
+  const rows = await tx.$queryRaw<ListStockDrogasRow[]>(listStockDrogasSql(filter));
 
   return {
-    items: page.map((row) => ({
-      drogaId: row.droga_id,
-      drogaNombre: row.nombre,
-      unidadSimbolo: row.simbolo,
-      stockMinimo: row.stock_minimo,
-      stockDisponible: row.stock_disponible,
-      esControlada: row.es_controlada,
-    })),
-    total: filtered.length,
+    items: rows
+      .filter((row) => row.droga_id !== null)
+      .map((row) => ({
+        drogaId: row.droga_id!,
+        drogaNombre: row.nombre!,
+        unidadId: row.unidad_id!,
+        unidadSimbolo: row.simbolo!,
+        stockMinimo: row.stock_minimo!,
+        stockDisponible: row.stock_disponible!,
+        bajoMinimo: row.bajo_minimo === true,
+        proximoVencimiento: row.proximo_vencimiento,
+      })),
+    total: rows[0]?.total ?? 0,
     page: filter.page,
     pageSize: filter.pageSize,
   };
+}
+
+/** One row of `listStockDrogasSql`: every page column is NULL on the single row of an empty page. */
+export interface ListStockDrogasRow {
+  total: number;
+  droga_id: string | null;
+  nombre: string | null;
+  unidad_id: string | null;
+  simbolo: string | null;
+  stock_minimo: string | null;
+  stock_disponible: string | null;
+  bajo_minimo: boolean | null;
+  proximo_vencimiento: string | null;
+}
+
+export function listStockDrogasSql(filter: ListStockDrogasFilter): Prisma.Sql {
+  const search = filter.search?.trim() || null;
+  const skip = (filter.page - 1) * filter.pageSize;
+  const orden = filter.orden ?? "nombre";
+
+  return Prisma.sql`
+    WITH filtradas AS (
+      SELECT
+        d.id AS droga_id,
+        d.nombre,
+        u.id AS unidad_id,
+        u.simbolo,
+        d.stock_minimo,
+        coalesce(v.stock_disponible, 0) AS stock_disponible,
+        coalesce(v.stock_disponible, 0) * u.factor_a_base AS stock_en_base,
+        (
+          SELECT min(p.fecha_vencimiento)
+          FROM fsj.partida p
+          WHERE p.tenant_id = d.tenant_id AND p.droga_id = d.id AND p.cantidad_disponible > 0
+        ) AS proximo_vencimiento
+      FROM fsj.droga d
+      JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
+      LEFT JOIN fsj.v_stock_droga v ON v.tenant_id = d.tenant_id AND v.droga_id = d.id
+      WHERE d.tenant_id = ${filter.tenantId}::uuid
+        AND d.fecha_baja IS NULL
+        AND (${search}::text IS NULL OR d.nombre ILIKE '%' || ${search}::text || '%')
+        AND (NOT ${filter.soloControladas ?? false}::boolean OR d.es_controlada)
+        AND (NOT ${filter.soloBajoMinimo ?? false}::boolean OR coalesce(v.stock_disponible, 0) < d.stock_minimo)
+        AND (NOT ${filter.soloSinStock ?? false}::boolean OR coalesce(v.stock_disponible, 0) = 0)
+        AND (
+          NOT ${filter.conPartidasPorVencer ?? false}::boolean
+          OR EXISTS (
+            SELECT 1
+            FROM fsj.partida p
+            WHERE p.tenant_id = d.tenant_id
+              AND p.droga_id = d.id
+              AND p.cantidad_disponible > 0
+              AND p.fecha_vencimiento >= fsj.jornada_actual(${filter.tenantId}::uuid)
+              AND p.fecha_vencimiento <= (fsj.jornada_actual(${filter.tenantId}::uuid) + (${filter.diasAlertaVencimiento}::int || ' days')::interval)
+          )
+        )
+        AND (
+          NOT ${filter.conPartidasVencidas ?? false}::boolean
+          OR EXISTS (
+            SELECT 1
+            FROM fsj.partida p
+            WHERE p.tenant_id = d.tenant_id
+              AND p.droga_id = d.id
+              AND p.cantidad_disponible > 0
+              AND p.fecha_vencimiento < fsj.jornada_actual(${filter.tenantId}::uuid)
+          )
+        )
+    )
+    SELECT
+      t.total,
+      f.droga_id,
+      f.nombre,
+      f.unidad_id,
+      f.simbolo,
+      f.stock_minimo::text AS stock_minimo,
+      f.stock_disponible::text AS stock_disponible,
+      f.stock_disponible < f.stock_minimo AS bajo_minimo,
+      f.proximo_vencimiento::text AS proximo_vencimiento
+    FROM (SELECT count(*)::int AS total FROM filtradas) t
+    LEFT JOIN LATERAL (
+      SELECT *
+      FROM filtradas
+      ORDER BY
+        CASE WHEN ${orden}::text = 'stock' THEN stock_en_base END ASC,
+        CASE WHEN ${orden}::text = 'vencimiento' THEN proximo_vencimiento END ASC NULLS LAST,
+        nombre ASC,
+        droga_id ASC
+      LIMIT ${filter.pageSize}::int OFFSET ${skip}::int
+    ) f ON true
+  `;
 }
 
 // ============================================================================
@@ -127,6 +228,8 @@ export interface ListPartidasDrogaFilter {
 }
 
 export interface ListPartidasDrogaResult {
+  /** The droga the partidas belong to (its quantities are all in its unidad base); `null` if it does not exist in this tenant. */
+  droga: { nombre: string; unidadBaseId: string; unidadBaseSimbolo: string } | null;
   items: PartidaListItem[];
   total: number;
   page: number;
@@ -142,6 +245,10 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
   }
 
   const skip = (filter.page - 1) * filter.pageSize;
+  const droga = await tx.droga.findUnique({
+    where: { id: filter.drogaId, tenantId: filter.tenantId },
+    select: { nombre: true, unidadBaseId: true, unidadBase: { select: { simbolo: true } } },
+  });
   const total = await tx.partida.count({ where });
   const rows = await tx.partida.findMany({
     where,
@@ -163,6 +270,7 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
   });
 
   return {
+    droga: droga ? { nombre: droga.nombre, unidadBaseId: droga.unidadBaseId, unidadBaseSimbolo: droga.unidadBase.simbolo } : null,
     items: rows.map((row) => ({
       id: row.id,
       lote: row.lote,
@@ -191,6 +299,9 @@ export interface PartidaParaAccion {
   id: string;
   drogaId: string;
   drogaNombre: string;
+  /** The droga unidad base -- every quantity of the partida is recorded in it. */
+  unidadBaseId: string;
+  unidadBaseSimbolo: string;
   proveedorId: string;
   proveedorRazonSocial: string;
   lote: string;
@@ -216,7 +327,7 @@ export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantI
       fechaIngreso: true,
       fechaVencimiento: true,
       fechaApertura: true,
-      droga: { select: { nombre: true } },
+      droga: { select: { nombre: true, unidadBaseId: true, unidadBase: { select: { simbolo: true } } } },
       proveedor: { select: { razonSocial: true } },
     },
   });
@@ -225,6 +336,8 @@ export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantI
     id: row.id,
     drogaId: row.drogaId,
     drogaNombre: row.droga.nombre,
+    unidadBaseId: row.droga.unidadBaseId,
+    unidadBaseSimbolo: row.droga.unidadBase.simbolo,
     proveedorId: row.proveedorId,
     proveedorRazonSocial: row.proveedor.razonSocial,
     lote: row.lote,
@@ -277,6 +390,7 @@ export interface NuevaPartidaInput {
 /** Reads what `ingresar-partida.ts` needs to decide unit conversion + INV-L16 (numero_vale_adquisicion), in one round trip. */
 export interface DrogaParaIngreso {
   id: string;
+  nombre: string;
   unidadBaseId: string;
   tipoControl: string;
   fechaBaja: Date | null;
@@ -285,18 +399,43 @@ export interface DrogaParaIngreso {
 export async function getDrogaParaIngreso(tx: Prisma.TransactionClient, tenantId: string, drogaId: string): Promise<DrogaParaIngreso | null> {
   const row = await tx.droga.findUnique({
     where: { id: drogaId, tenantId },
-    select: { id: true, unidadBaseId: true, tipoControl: true, fechaBaja: true },
+    select: { id: true, nombre: true, unidadBaseId: true, tipoControl: true, fechaBaja: true },
   });
   return row;
 }
 
 export interface ProveedorParaIngreso {
   id: string;
+  razonSocial: string;
   fechaBaja: Date | null;
 }
 
 export async function getProveedorParaIngreso(tx: Prisma.TransactionClient, tenantId: string, proveedorId: string): Promise<ProveedorParaIngreso | null> {
-  return tx.proveedor.findUnique({ where: { id: proveedorId, tenantId }, select: { id: true, fechaBaja: true } });
+  return tx.proveedor.findUnique({ where: { id: proveedorId, tenantId }, select: { id: true, razonSocial: true, fechaBaja: true } });
+}
+
+/** "gramo (g)" -- readable unidad name for audit rows (global catalog, DP-39). `null` if it does not exist. */
+export async function getEtiquetaUnidad(tx: Prisma.TransactionClient, unidadId: string): Promise<string | null> {
+  const unidad = await tx.unidadMedida.findUnique({ where: { id: unidadId }, select: { nombre: true, simbolo: true } });
+  return unidad ? `${unidad.nombre} (${unidad.simbolo})` : null;
+}
+
+/** What `ingresar-partida.ts` / `registrar-ajuste.ts` check about a unit BEFORE `fsj.convertir` (clear Spanish messages instead of INV-M01's). */
+export interface UnidadParaConversion {
+  id: string;
+  codigo: string;
+  simbolo: string;
+  tipoMagnitud: string;
+  fechaBaja: Date | null;
+}
+
+/** unidad id -> its row, for the given ids (global catalog, DP-39: no tenant filter; bajas included). Missing ids are absent from the map. */
+export async function getUnidadesParaConversion(tx: Prisma.TransactionClient, unidadIds: readonly string[]): Promise<Map<string, UnidadParaConversion>> {
+  const rows = await tx.unidadMedida.findMany({
+    where: { id: { in: [...new Set(unidadIds)] } },
+    select: { id: true, codigo: true, simbolo: true, tipoMagnitud: true, fechaBaja: true },
+  });
+  return new Map(rows.map((row) => [row.id, row]));
 }
 
 /** `fsj.convertir(valor, origen, destino)` -- INV-M01. Never converts across `tipo_magnitud` (raises INV-M01, mapped by `mapDbError`). */
@@ -415,6 +554,9 @@ export interface KardexItem {
   id: string;
   partidaId: string;
   drogaNombre: string;
+  /** The droga unidad base (`cantidad` is recorded in it). */
+  unidadId: string;
+  unidadSimbolo: string;
   lote: string;
   tipo: TipoMovimiento;
   cantidad: string;
@@ -432,8 +574,8 @@ export interface KardexFilter {
   partidaId?: string;
   drogaId?: string;
   tipo?: TipoMovimiento;
-  desde?: string; // YYYY-MM-DD
-  hasta?: string; // YYYY-MM-DD
+  desde?: string; // YYYY-MM-DD, jornada in the tenant's time zone (inclusive)
+  hasta?: string; // YYYY-MM-DD, jornada in the tenant's time zone (inclusive)
   page: number;
   pageSize: number;
 }
@@ -445,15 +587,22 @@ export interface KardexResult {
   pageSize: number;
 }
 
+async function getZonaHorariaTenant(tx: Prisma.TransactionClient, tenantId: string): Promise<string> {
+  const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { zonaHoraria: true } });
+  return tenant.zonaHoraria;
+}
+
 export async function kardexMovimientos(tx: Prisma.TransactionClient, filter: KardexFilter): Promise<KardexResult> {
   const where: Prisma.MovimientoStockWhereInput = { tenantId: filter.tenantId };
   if (filter.partidaId) where.partidaId = filter.partidaId;
   if (filter.drogaId) where.partida = { drogaId: filter.drogaId };
   if (filter.tipo) where.tipo = filter.tipo;
   if (filter.desde || filter.hasta) {
+    // Calendar days in the pharmacy's time zone, not UTC (registrado_en is a timestamptz).
+    const { desde, hastaExclusivo } = rangoDeJornadas(filter.desde, filter.hasta, await getZonaHorariaTenant(tx, filter.tenantId));
     where.registradoEn = {
-      ...(filter.desde ? { gte: new Date(`${filter.desde}T00:00:00Z`) } : {}),
-      ...(filter.hasta ? { lte: new Date(`${filter.hasta}T23:59:59.999Z`) } : {}),
+      ...(desde ? { gte: desde } : {}),
+      ...(hastaExclusivo ? { lt: hastaExclusivo } : {}),
     };
   }
 
@@ -472,7 +621,7 @@ export async function kardexMovimientos(tx: Prisma.TransactionClient, filter: Ka
       motivoAjuste: true,
       observacion: true,
       registradoEn: true,
-      partida: { select: { lote: true, droga: { select: { nombre: true } } } },
+      partida: { select: { lote: true, droga: { select: { nombre: true, unidadBaseId: true, unidadBase: { select: { simbolo: true } } } } } },
       registradoPor: { select: { nombre: true, apellido: true } },
       autorizadoPor: { select: { nombre: true, apellido: true } },
     },
@@ -483,6 +632,8 @@ export async function kardexMovimientos(tx: Prisma.TransactionClient, filter: Ka
       id: row.id,
       partidaId: row.partidaId,
       drogaNombre: row.partida.droga.nombre,
+      unidadId: row.partida.droga.unidadBaseId,
+      unidadSimbolo: row.partida.droga.unidadBase.simbolo,
       lote: row.partida.lote,
       tipo: row.tipo,
       cantidad: row.cantidad.toString(),
@@ -497,6 +648,181 @@ export async function kardexMovimientos(tx: Prisma.TransactionClient, filter: Ka
     total,
     page: filter.page,
     pageSize: filter.pageSize,
+  };
+}
+
+// ============================================================================
+// `/stock/ajustes`: listado de ajustes (AJUSTE movements, newest first).
+// Filters, order and pagination run in SQL. The date filter is on the
+// movement's jornada -- `fsj.jornada_de(registrado_en, tenant.zona_horaria)`,
+// the same business-date rule as every other legal date in this codebase --
+// never on the UTC calendar day of `registrado_en`.
+// ============================================================================
+
+export interface AjusteListItem {
+  id: string;
+  registradoEn: Date;
+  partidaId: string;
+  lote: string;
+  drogaId: string;
+  drogaNombre: string;
+  /** The droga unidad base (`cantidad` is recorded in it). */
+  unidadId: string;
+  unidadSimbolo: string;
+  cantidad: string;
+  motivoAjuste: PrismaMotivoAjuste;
+  observacion: string | null;
+  registradoPorNombre: string;
+  registradoPorApellido: string;
+  autorizadoPorNombre: string | null;
+  autorizadoPorApellido: string | null;
+}
+
+export interface ListAjustesFilter {
+  tenantId: string;
+  /** Case-insensitive substring of the droga name or the lote. */
+  search?: string;
+  motivoAjuste?: PrismaMotivoAjuste;
+  desde?: string; // YYYY-MM-DD, jornada in the tenant's time zone (inclusive)
+  hasta?: string; // YYYY-MM-DD, jornada in the tenant's time zone (inclusive)
+  page: number;
+  pageSize: number;
+}
+
+export interface ListAjustesResult {
+  items: AjusteListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  /** The tenant's time zone, so the page shows `registradoEn` in pharmacy time (the server runs in UTC). */
+  zonaHoraria: string;
+}
+
+/** One row of `listAjustesSql`: every page column is NULL on the single row of an empty page. */
+export interface ListAjustesRow {
+  total: number;
+  zona_horaria: string;
+  id: string | null;
+  registrado_en: Date | null;
+  partida_id: string | null;
+  lote: string | null;
+  droga_id: string | null;
+  droga_nombre: string | null;
+  unidad_id: string | null;
+  unidad_simbolo: string | null;
+  cantidad: string | null;
+  motivo_ajuste: PrismaMotivoAjuste | null;
+  observacion: string | null;
+  registrado_por_nombre: string | null;
+  registrado_por_apellido: string | null;
+  autorizado_por_nombre: string | null;
+  autorizado_por_apellido: string | null;
+}
+
+/**
+ * Built separately (like `listStockDrogasSql`) so tests/db/stock-ajustes-listado.test.ts
+ * runs this EXACT statement on its raw `pg` connection. Same total-plus-page
+ * shape as `listStockDrogasSql`: a page past the end still reports the real total.
+ */
+export function listAjustesSql(filter: ListAjustesFilter): Prisma.Sql {
+  const search = filter.search?.trim() || null;
+  const motivo = filter.motivoAjuste ?? null;
+  const desde = filter.desde ?? null;
+  const hasta = filter.hasta ?? null;
+  const skip = (filter.page - 1) * filter.pageSize;
+
+  return Prisma.sql`
+    WITH filtrados AS (
+      SELECT
+        m.id,
+        m.registrado_en,
+        m.partida_id,
+        p.lote,
+        d.id AS droga_id,
+        d.nombre AS droga_nombre,
+        u.id AS unidad_id,
+        u.simbolo AS unidad_simbolo,
+        m.cantidad,
+        m.motivo_ajuste,
+        m.observacion,
+        r.nombre AS registrado_por_nombre,
+        r.apellido AS registrado_por_apellido,
+        a.nombre AS autorizado_por_nombre,
+        a.apellido AS autorizado_por_apellido
+      FROM fsj.movimiento_stock m
+      JOIN fsj.tenant tn ON tn.id = m.tenant_id
+      JOIN fsj.partida p ON p.id = m.partida_id AND p.tenant_id = m.tenant_id
+      JOIN fsj.droga d ON d.id = p.droga_id AND d.tenant_id = p.tenant_id
+      JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
+      JOIN fsj.usuario r ON r.id = m.registrado_por_id
+      LEFT JOIN fsj.usuario a ON a.id = m.autorizado_por_id
+      WHERE m.tenant_id = ${filter.tenantId}::uuid
+        AND m.tipo = 'AJUSTE'
+        AND (${search}::text IS NULL OR d.nombre ILIKE '%' || ${search}::text || '%' OR p.lote ILIKE '%' || ${search}::text || '%')
+        AND (${motivo}::text IS NULL OR m.motivo_ajuste::text = ${motivo}::text)
+        AND (${desde}::date IS NULL OR fsj.jornada_de(m.registrado_en, tn.zona_horaria) >= ${desde}::date)
+        AND (${hasta}::date IS NULL OR fsj.jornada_de(m.registrado_en, tn.zona_horaria) <= ${hasta}::date)
+    )
+    SELECT
+      t.total,
+      t.zona_horaria,
+      f.id,
+      f.registrado_en,
+      f.partida_id,
+      f.lote,
+      f.droga_id,
+      f.droga_nombre,
+      f.unidad_id,
+      f.unidad_simbolo,
+      f.cantidad::text AS cantidad,
+      f.motivo_ajuste::text AS motivo_ajuste,
+      f.observacion,
+      f.registrado_por_nombre,
+      f.registrado_por_apellido,
+      f.autorizado_por_nombre,
+      f.autorizado_por_apellido
+    FROM (
+      SELECT
+        (SELECT count(*)::int FROM filtrados) AS total,
+        (SELECT zona_horaria FROM fsj.tenant WHERE id = ${filter.tenantId}::uuid) AS zona_horaria
+    ) t
+    LEFT JOIN LATERAL (
+      SELECT *
+      FROM filtrados
+      ORDER BY registrado_en DESC, id DESC
+      LIMIT ${filter.pageSize}::int OFFSET ${skip}::int
+    ) f ON true
+  `;
+}
+
+export async function listAjustes(tx: Prisma.TransactionClient, filter: ListAjustesFilter): Promise<ListAjustesResult> {
+  const rows = await tx.$queryRaw<ListAjustesRow[]>(listAjustesSql(filter));
+  if (!rows[0]) throw new Error(`listAjustes: no row for tenant ${filter.tenantId}`);
+
+  return {
+    items: rows
+      .filter((row) => row.id !== null)
+      .map((row) => ({
+        id: row.id!,
+        registradoEn: row.registrado_en!,
+        partidaId: row.partida_id!,
+        lote: row.lote!,
+        drogaId: row.droga_id!,
+        drogaNombre: row.droga_nombre!,
+        unidadId: row.unidad_id!,
+        unidadSimbolo: row.unidad_simbolo!,
+        cantidad: row.cantidad!,
+        motivoAjuste: row.motivo_ajuste!,
+        observacion: row.observacion,
+        registradoPorNombre: row.registrado_por_nombre!,
+        registradoPorApellido: row.registrado_por_apellido!,
+        autorizadoPorNombre: row.autorizado_por_nombre,
+        autorizadoPorApellido: row.autorizado_por_apellido,
+      })),
+    total: rows[0].total,
+    page: filter.page,
+    pageSize: filter.pageSize,
+    zonaHoraria: rows[0].zona_horaria,
   };
 }
 

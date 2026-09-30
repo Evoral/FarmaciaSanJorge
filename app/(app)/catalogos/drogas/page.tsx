@@ -1,7 +1,7 @@
 /**
  * `/catalogos/drogas` (M06, FASE 4 point 4.2). Search + soloControladas +
  * bajoMinimo + vigente/baja filters, plain GET query params (same pattern
- * as app/(app)/admin/usuarios/page.tsx). Stock shown from
+ * as app/(app)/admin/accesos/usuarios/page.tsx). Stock shown from
  * `fsj.v_stock_droga` (INV-S01: never a stored column).
  */
 import Link from "next/link";
@@ -11,6 +11,12 @@ import { listDrogas } from "@/modules/drogas/application/list-drogas";
 import { listUnidadesVigentesParaDroga } from "@/modules/drogas/application/list-unidades-vigentes";
 import { TIPO_CONTROL_LABELS } from "@/modules/drogas/domain/droga";
 import { DrogaForm } from "@/modules/drogas/ui/droga-form";
+import { FilterForm } from "@/shared/ui/filter-form";
+import { FilterMultiSelect } from "@/shared/ui/filter-multi-select";
+import { getCatalogoUnidades } from "@/modules/unidades/application/catalogo-unidades";
+import { formatCantidadesFila } from "@/shared/format/cantidad";
+import { Decimal } from "@/shared/decimal";
+import { Cantidad } from "@/shared/ui/cantidad";
 
 const PAGE_SIZE = 20;
 
@@ -27,7 +33,10 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
   const bajoMinimo = params.bajoMinimo === "1" ? true : undefined;
   const soloVigentes = params.estado === "baja" ? false : params.estado === "vigente" ? true : undefined;
 
-  const result = await listDrogas({ search: params.q, soloControladas, bajoMinimo, soloVigentes, page, pageSize: PAGE_SIZE });
+  const [result, { catalogo }] = await Promise.all([
+    listDrogas({ search: params.q, soloControladas, bajoMinimo, soloVigentes, page, pageSize: PAGE_SIZE }),
+    getCatalogoUnidades(),
+  ]);
   const totalPages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
   const puedeCrear = can(session, "drogas.crear");
 
@@ -60,7 +69,7 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
         </div>
       ) : null}
 
-      <form method="get" className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de búsqueda de drogas">
+      <FilterForm className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de búsqueda de drogas" hasActiveFilters={Boolean(params.q || soloControladas || bajoMinimo || params.estado)}>
         <div className="flex flex-col gap-1">
           <label htmlFor="q" className="text-sm font-medium">
             Buscar
@@ -77,23 +86,13 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
             <option value="baja">Dadas de baja</option>
           </select>
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="controladas" value="1" defaultChecked={soloControladas} />
-          Solo controladas
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="bajoMinimo" value="1" defaultChecked={bajoMinimo} />
-          Bajo mínimo
-        </label>
-        <button type="submit" className="btn btn-secondary">
-          Filtrar
-        </button>
-        {params.q || soloControladas || bajoMinimo || params.estado ? (
-          <Link href="/catalogos/drogas" className="text-sm underline">
-            Limpiar filtros
-          </Link>
-        ) : null}
-      </form>
+        <FilterMultiSelect
+          options={[
+            { name: "controladas", label: "Solo controladas", checked: Boolean(soloControladas) },
+            { name: "bajoMinimo", label: "Bajo mínimo", checked: Boolean(bajoMinimo) },
+          ]}
+        />
+      </FilterForm>
 
       <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
         {result.total} droga{result.total === 1 ? "" : "s"} encontrada{result.total === 1 ? "" : "s"}.
@@ -120,7 +119,8 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
               </tr>
             ) : (
               result.items.map((droga) => {
-                const bajoElMinimo = Number(droga.stockDisponible) < Number(droga.stockMinimo);
+                const bajoElMinimo = new Decimal(droga.stockDisponible).lessThan(droga.stockMinimo);
+                const [disponible, minimo] = formatCantidadesFila([droga.stockDisponible, droga.stockMinimo], { id: droga.unidadBaseId, simbolo: droga.unidadBaseSimbolo }, catalogo);
                 return (
                   <tr key={droga.id}>
                     <td className="px-3 py-2">
@@ -130,8 +130,12 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
                     </td>
                     <td className="px-3 py-2">{droga.unidadBaseSimbolo}</td>
                     <td className="px-3 py-2">{TIPO_CONTROL_LABELS[droga.tipoControl as keyof typeof TIPO_CONTROL_LABELS] ?? droga.tipoControl}</td>
-                    <td className={`px-3 py-2 ${bajoElMinimo ? "font-medium text-red-600 dark:text-red-400" : ""}`}>{droga.stockDisponible}</td>
-                    <td className="px-3 py-2">{droga.stockMinimo}</td>
+                    <td className={`px-3 py-2 ${bajoElMinimo ? "font-medium text-red-600 dark:text-red-400" : ""}`}>
+                      <Cantidad valor={disponible!} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <Cantidad valor={minimo!} />
+                    </td>
                     <td className="px-3 py-2">{droga.fechaBaja ? "Baja" : "Vigente"}</td>
                   </tr>
                 );

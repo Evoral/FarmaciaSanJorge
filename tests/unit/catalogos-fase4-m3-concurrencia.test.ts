@@ -100,6 +100,7 @@ vi.mock("@/modules/drogas/infrastructure/droga-repository", () => ({
   existeNombreVigente: (...args: unknown[]) => existeNombreVigenteMock(...args),
   updateDrogaDatos: (...args: unknown[]) => updateDrogaDatosMock(...args),
   cambiarBajaDroga: (...args: unknown[]) => cambiarBajaDrogaMock(...args),
+  getEtiquetasUnidades: async () => new Map<string, string>(),
 }));
 
 const { editarDrogaCommand } = await import("@/modules/drogas/application/editar-droga");

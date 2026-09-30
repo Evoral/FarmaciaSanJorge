@@ -14,7 +14,7 @@
  * required.
  */
 import { useState } from "react";
-import { ReauthAwareForm } from "./reauth-aware-form";
+import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 import { confirmarPreparacionAction } from "./actions";
 import type { PreparacionParaPantalla } from "@/modules/preparaciones/application/get-preparacion-para-pantalla";
 
@@ -64,71 +64,69 @@ export function ConfirmarPreparacionForm({ pantalla }: ConfirmarPreparacionFormP
       <ReauthAwareForm action={confirmarPreparacionAction} submitLabel="Confirmar preparación" pendingLabel="Confirmando…" submitDisabled={hayStockInsuficiente}>
         <input type="hidden" name="preparacionId" value={pantalla.id} />
 
-        <div className="flex flex-col gap-4">
-          {pantalla.lineas.map((linea) => (
-            <fieldset key={linea.id} className="card p-4">
-              <input type="hidden" name="lineaIds" value={linea.id} />
-              <legend className="px-1 text-sm font-medium">
-                {linea.orden + 1}. {linea.drogaNombre}
-                {linea.esEnraseManual ? " (enrase manual)" : ` — ${linea.cantidadAPesar} ${linea.unidadSimbolo}`}
-              </legend>
+        {pantalla.lineas.map((linea) => (
+          <fieldset key={linea.id} className="card p-4">
+            <input type="hidden" name="lineaIds" value={linea.id} />
+            <legend className="px-1 text-sm font-medium">
+              {linea.orden + 1}. {linea.drogaNombre}
+              {linea.esEnraseManual ? " (enrase manual)" : ` — ${linea.cantidadAPesar} ${linea.unidadSimbolo}`}
+            </legend>
 
-              {linea.esEnraseManual ? (
-                <div className="mb-2 flex flex-col gap-1">
-                  <label htmlFor={`cantidadManual_${linea.id}`} className="text-sm font-medium">
-                    Cantidad real registrada ({linea.unidadSimbolo})
-                  </label>
-                  <input
-                    id={`cantidadManual_${linea.id}`}
-                    name={`cantidadManual_${linea.id}`}
-                    type="text"
-                    inputMode="decimal"
-                    required
-                    className="w-40 input"
-                  />
-                </div>
-              ) : linea.stockInsuficiente ? (
-                <p className="mb-2 text-sm text-red-600">Stock insuficiente: faltan {linea.faltante} {linea.unidadSimbolo}.</p>
-              ) : null}
-
-              <p className="mb-1 text-xs text-zinc-500">Partidas (elegí de cuáles descontar -- los montos los calcula el sistema):</p>
-              <div className="flex flex-col gap-1">
-                {linea.partidasElegibles.map((partida) => {
-                  const propuesta = linea.propuesta?.find((p) => p.partidaId === partida.id);
-                  return (
-                    <label key={partida.id} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        name={`partida_${linea.id}`}
-                        value={partida.id}
-                        checked={checked[linea.id]?.has(partida.id) ?? false}
-                        onChange={() => toggle(linea.id, partida.id)}
-                      />
-                      <span>
-                        Lote {partida.lote} — disponible {partida.cantidadDisponible} — vence {fechaCorta(partida.fechaVencimiento)}
-                        {partida.fechaApertura ? " — abierta" : ""}
-                        {propuesta ? ` — propuesto: ${propuesta.cantidad.toString()}` : ""}
-                      </span>
-                    </label>
-                  );
-                })}
-                {linea.partidasElegibles.length === 0 ? <p className="text-sm text-red-600">No hay partidas con saldo para esta droga.</p> : null}
-              </div>
-
-              <div className="mt-2 flex flex-col gap-1">
-                <label htmlFor={`motivoApertura_${linea.id}`} className="text-xs text-zinc-500">
-                  Motivo de apertura adicional (solo si abrís una partida nueva teniendo otra abierta con saldo)
+            {linea.esEnraseManual ? (
+              <div className="mb-2 flex flex-col gap-1">
+                <label htmlFor={`cantidadManual_${linea.id}`} className="text-sm font-medium">
+                  Cantidad real registrada ({linea.unidadSimbolo})
                 </label>
                 <input
-                  id={`motivoApertura_${linea.id}`}
-                  name={`motivoApertura_${linea.id}`}
+                  id={`cantidadManual_${linea.id}`}
+                  name={`cantidadManual_${linea.id}`}
                   type="text"
-                  className="input"
+                  inputMode="decimal"
+                  required
+                  className="w-40 input"
                 />
               </div>
-            </fieldset>
-          ))}
-        </div>
+            ) : linea.stockInsuficiente ? (
+              <p className="mb-2 text-sm text-red-600">Stock insuficiente: faltan {linea.faltante} {linea.unidadSimbolo}.</p>
+            ) : null}
+
+            <p className="mb-1 text-xs text-zinc-500">Partidas (elegí de cuáles descontar -- los montos los calcula el sistema):</p>
+            <div className="flex flex-col gap-1">
+              {linea.partidasElegibles.map((partida) => {
+                const propuesta = linea.propuesta?.find((p) => p.partidaId === partida.id);
+                return (
+                  <label key={partida.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      name={`partida_${linea.id}`}
+                      value={partida.id}
+                      checked={checked[linea.id]?.has(partida.id) ?? false}
+                      onChange={() => toggle(linea.id, partida.id)}
+                    />
+                    <span>
+                      Lote {partida.lote} — disponible {partida.cantidadDisponible} — vence {fechaCorta(partida.fechaVencimiento)}
+                      {partida.fechaApertura ? " — abierta" : ""}
+                      {propuesta ? ` — propuesto: ${propuesta.cantidad.toString()}` : ""}
+                    </span>
+                  </label>
+                );
+              })}
+              {linea.partidasElegibles.length === 0 ? <p className="text-sm text-red-600">No hay partidas con saldo para esta droga.</p> : null}
+            </div>
+
+            <div className="mt-2 flex flex-col gap-1">
+              <label htmlFor={`motivoApertura_${linea.id}`} className="text-xs text-zinc-500">
+                Motivo de apertura adicional (solo si abrís una partida nueva teniendo otra abierta con saldo)
+              </label>
+              <input
+                id={`motivoApertura_${linea.id}`}
+                name={`motivoApertura_${linea.id}`}
+                type="text"
+                className="input"
+              />
+            </div>
+          </fieldset>
+        ))}
       </ReauthAwareForm>
     </div>
   );

@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { uuid } from "@/shared/validation";
+import type { TipoAccion } from "@/generated/prisma/enums";
 
 const listUsuarioAuditoriaInput = z.object({
   usuarioId: uuid,
@@ -19,7 +20,7 @@ export type ListUsuarioAuditoriaInput = z.infer<typeof listUsuarioAuditoriaInput
 
 export interface AuditoriaUsuarioRow {
   id: string;
-  accion: string;
+  accion: TipoAccion;
   valorAnterior: unknown;
   valorNuevo: unknown;
   motivo: string | null;
@@ -32,13 +33,15 @@ export interface ListUsuarioAuditoriaResult {
   total: number;
   page: number;
   pageSize: number;
+  /** The tenant's time zone -- dates must be formatted in pharmacy time, not the server's (UTC on Vercel). */
+  zonaHoraria: string;
 }
 
 export const listUsuarioAuditoriaQuery = defineQuery({
   name: "usuarios.auditoria.ver",
   permiso: "usuarios.auditoria.ver",
   input: listUsuarioAuditoriaInput,
-  handler: async ({ tx, input }): Promise<ListUsuarioAuditoriaResult> => {
+  handler: async ({ tx, session, input }): Promise<ListUsuarioAuditoriaResult> => {
     const where = { entidad: "usuario", entidadId: input.usuarioId } as const;
     const skip = (input.page - 1) * input.pageSize;
 
@@ -59,7 +62,9 @@ export const listUsuarioAuditoriaQuery = defineQuery({
       },
     });
 
-    return { items: rows, total, page: input.page, pageSize: input.pageSize };
+    const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: session.tenantId }, select: { zonaHoraria: true } });
+
+    return { items: rows, total, page: input.page, pageSize: input.pageSize, zonaHoraria: tenant.zonaHoraria };
   },
 });
 

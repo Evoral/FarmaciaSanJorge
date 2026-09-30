@@ -61,7 +61,11 @@ export const registrarRecepcionFisicaCommand = defineCommand({
       audit: {
         entidadId: input.id,
         valorAnterior: { recetaFisicaRecibida: false },
-        valorNuevo: { recetaFisicaRecibida: true, recetaFisicaRecibidaPorId: session.usuario.id },
+        valorNuevo: {
+          recetaFisicaRecibida: true,
+          recetaFisicaRecibidaPorId: session.usuario.id,
+          recetaFisicaRecibidaPor: `${session.usuario.nombre} ${session.usuario.apellido}`,
+        },
       },
     };
   },

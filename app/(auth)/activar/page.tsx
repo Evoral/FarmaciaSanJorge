@@ -1,17 +1,21 @@
 "use client";
 
-/** `/activar` (M02, FASE 2 point 2.3). Public path (see proxy.ts). */
+/**
+ * `/activar` (M02, FASE 2 point 2.3). Public path (see proxy.ts). A
+ * rejected activation (wrong code, expired, ...) keeps everything the user
+ * typed, including the chosen password: submits go through
+ * `shared/ui/use-form-submit.ts`, bypassing React 19's automatic form reset.
+ */
 import { useActionState, useEffect, useRef, useState } from "react";
-import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { CircleCheck } from "lucide-react";
 import { activarAction, type ActivarFormState } from "./actions";
 import { NewPasswordFields } from "@/modules/auth/ui/new-password-fields";
+import { useFormSubmit } from "@/shared/ui/use-form-submit";
 
 const initialState: ActivarFormState = { message: null, success: false };
 
-function SubmitButton({ disabled }: { disabled: boolean }) {
-  const { pending } = useFormStatus();
+function SubmitButton({ pending, disabled }: { pending: boolean; disabled: boolean }) {
   return (
     <button
       type="submit"
@@ -24,7 +28,8 @@ function SubmitButton({ disabled }: { disabled: boolean }) {
 }
 
 export default function ActivarPage() {
-  const [state, formAction] = useActionState(activarAction, initialState);
+  const [state, formAction, isPending] = useActionState(activarAction, initialState);
+  const { onSubmit } = useFormSubmit(formAction);
   const messageRef = useRef<HTMLParagraphElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   // Controlled so a rejected activation (wrong code, expired, ...) keeps what the user typed.
@@ -68,7 +73,7 @@ export default function ActivarPage() {
         72 horas de haber sido emitido.
       </p>
 
-      <form action={formAction} noValidate className="flex flex-col gap-4">
+      <form action={formAction} onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <label htmlFor="email" className="text-sm font-medium">
             Email
@@ -110,7 +115,7 @@ export default function ActivarPage() {
           </p>
         ) : null}
 
-        <SubmitButton disabled={!canSubmit} />
+        <SubmitButton pending={isPending} disabled={!canSubmit} />
       </form>
     </main>
   );
