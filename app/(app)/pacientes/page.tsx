@@ -1,5 +1,5 @@
 /**
- * `/catalogos/pacientes` (M06, FASE 4 point 4.5). HEALTH-ADJACENT DATA
+ * `/pacientes` (M06, FASE 4 point 4.5). HEALTH-ADJACENT DATA
  * (DP-24, Ley 25.326): unlike proveedores/medicos, this page's GET
  * `searchParams` ONLY ever reads `estado` ("vigente"/"baja"/"todos", not
  * identifying), `page` (a plain integer) and `nuevo` (a flag) -- there is
@@ -18,6 +18,7 @@ import { listPacientes } from "@/modules/pacientes/application/list-pacientes";
 import { PacienteForm } from "@/modules/pacientes/ui/paciente-form";
 import { PacientesBuscador } from "@/modules/pacientes/ui/pacientes-buscador";
 import { FilterForm } from "@/shared/ui/filter-form";
+import { PacientesTabs } from "./pacientes-tabs";
 
 const PAGE_SIZE = 20;
 
@@ -41,7 +42,7 @@ export default async function PacientesPage({ searchParams }: PacientesPageProps
     const qs = new URLSearchParams();
     if (estado) qs.set("estado", estado);
     qs.set("page", String(targetPage));
-    return `/catalogos/pacientes?${qs.toString()}`;
+    return `/pacientes?${qs.toString()}`;
   }
 
   return (
@@ -49,11 +50,13 @@ export default async function PacientesPage({ searchParams }: PacientesPageProps
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Pacientes</h1>
         {puedeCrear ? (
-          <Link href="/catalogos/pacientes?nuevo=1" className="btn btn-primary">
+          <Link href="/pacientes?nuevo=1" className="btn btn-primary">
             Nuevo paciente
           </Link>
         ) : null}
       </div>
+
+      <PacientesTabs />
 
       {puedeCrear && params.nuevo ? (
         <div className="mb-6">

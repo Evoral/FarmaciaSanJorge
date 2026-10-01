@@ -1,6 +1,6 @@
 "use client";
 
-/** Crear/editar paciente form (FASE 4 point 4.5). HEALTH-ADJACENT DATA (DP-24): rendered only when the caller already checked `can(session, "pacientes.gestionar")` -- see app/(app)/catalogos/pacientes/**. */
+/** Crear/editar paciente form (FASE 4 point 4.5). HEALTH-ADJACENT DATA (DP-24): rendered only when the caller already checked `can(session, "pacientes.gestionar")` -- see app/(app)/pacientes/**. */
 import { crearPacienteAction, editarPacienteAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { DateInput } from "@/shared/ui/date-input";
@@ -18,6 +18,7 @@ export interface PacienteFormProps {
     fechaNacimiento: string | null;
     nroCredencial: string | null;
     sexo: string | null;
+    aceptaRecordatoriosWhatsapp: boolean;
   };
   disabled: boolean;
 }
@@ -40,6 +41,7 @@ export function PacienteForm({ mode, paciente, disabled }: PacienteFormProps) {
             <input type="hidden" name="versionFechaNacimiento" value={paciente.fechaNacimiento ?? ""} />
             <input type="hidden" name="versionNroCredencial" value={paciente.nroCredencial ?? ""} />
             <input type="hidden" name="versionSexo" value={paciente.sexo ?? ""} />
+            <input type="hidden" name="versionAceptaRecordatoriosWhatsapp" value={paciente.aceptaRecordatoriosWhatsapp ? "true" : "false"} />
           </>
         ) : null}
 
@@ -104,6 +106,21 @@ export function PacienteForm({ mode, paciente, disabled }: PacienteFormProps) {
             Sexo
           </label>
           <input id="sexo" name="sexo" defaultValue={paciente?.sexo ?? ""} disabled={disabled} autoComplete="off" className="input" />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="aceptaRecordatoriosWhatsapp" className="flex items-center gap-2 text-sm font-medium">
+            <input
+              id="aceptaRecordatoriosWhatsapp"
+              name="aceptaRecordatoriosWhatsapp"
+              type="checkbox"
+              defaultChecked={paciente?.aceptaRecordatoriosWhatsapp ?? false}
+              disabled={disabled}
+              aria-describedby="aceptaRecordatoriosWhatsapp-ayuda"
+            />
+            Acepta recordatorios por WhatsApp
+          </label>
+          <p id="aceptaRecordatoriosWhatsapp-ayuda" className="text-xs text-zinc-500">Solo si el paciente lo aceptó. Permite avisarle cuando se acerca la fecha de una preparación que pide seguido.</p>
         </div>
       </SimpleForm>
     </div>

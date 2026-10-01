@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Search box + results table for `/catalogos/pacientes` (FASE 4 point 4.5,
+ * Search box + results table for `/pacientes` (FASE 4 point 4.5,
  * DP-24). Submits via `useActionState` (a Server Action RPC call, NOT a
  * `<form method="get">` page navigation) so the search term (apellido or
  * DNI -- both identifying) never appears in the URL/query string. Starts
@@ -65,12 +65,15 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado }: Paci
               <th scope="col" className="px-3 py-2 font-medium">Nombre y apellido</th>
               <th scope="col" className="px-3 py-2 font-medium">DNI</th>
               <th scope="col" className="px-3 py-2 font-medium">Estado</th>
+              <th scope="col" className="px-3 py-2 font-medium">
+                <span className="sr-only">Acciones</span>
+              </th>
             </tr>
           </thead>
           <tbody>
             {state.items.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-3 py-6 text-center text-zinc-500">
+                <td colSpan={4} className="px-3 py-6 text-center text-zinc-500">
                   No se encontraron pacientes con estos filtros.
                 </td>
               </tr>
@@ -78,12 +81,17 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado }: Paci
               state.items.map((paciente) => (
                 <tr key={paciente.id}>
                   <td className="px-3 py-2">
-                    <Link href={`/catalogos/pacientes/${paciente.id}`} className="font-medium underline-offset-2 hover:underline">
+                    <Link href={`/pacientes/${paciente.id}`} className="font-medium underline-offset-2 hover:underline">
                       {paciente.nombre} {paciente.apellido}
                     </Link>
                   </td>
                   <td className="px-3 py-2">{paciente.dni ?? "—"}</td>
                   <td className="px-3 py-2">{paciente.fechaBaja ? "Baja" : "Vigente"}</td>
+                  <td className="px-3 py-2 text-right">
+                    <Link href={`/pacientes/${paciente.id}/trayectoria`} className="btn btn-secondary btn-sm" aria-label={`Ver trayectoria de ${paciente.nombre} ${paciente.apellido}`}>
+                      Trayectoria
+                    </Link>
+                  </td>
                 </tr>
               ))
             )}

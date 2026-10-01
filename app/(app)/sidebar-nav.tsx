@@ -50,6 +50,8 @@ export interface SidebarNavProps {
    * priority order) that drives the `/catalogos` tab nav and guards.
    */
   catalogosHref: string | null;
+  /** M06, FASE 4 point 4.5: `pacientes.gestionar` -- `true` shows "Gestión › Pacientes" to `/pacientes` (its own section, formerly a `/catalogos` tab). Same permiso `app/(app)/pacientes/layout.tsx`'s guard requires. */
+  puedePacientes: boolean;
   /** "Administración › Usuarios y accesos": the FIRST `/admin/accesos/**` section (usuarios, roles, directores técnicos) this session can reach, or `null` to hide the entry. Same reasoning as `catalogosHref`, from `nav-sections.ts#accesosSections`. */
   accesosHref: string | null;
   /** "Administración › Configuración": the FIRST `/admin/configuracion/**` section (farmacia, parámetros, reglas de precio) this session can reach, or `null` to hide the entry. Same reasoning as `catalogosHref`, from `nav-sections.ts#configuracionSections`. */
@@ -217,6 +219,7 @@ function buildGroups(p: SidebarNavProps, pathname: string): NavGroup[] {
 
   const gestion: NavItem[] = [];
   if (p.catalogosHref) gestion.push({ href: p.catalogosHref, label: "Catálogos", active: pathname.startsWith("/catalogos") });
+  if (p.puedePacientes) gestion.push({ href: "/pacientes", label: "Pacientes", active: pathname.startsWith("/pacientes") });
   if (p.puedeReportes) gestion.push({ href: "/reportes", label: "Reportes", active: pathname.startsWith("/reportes") });
   if (p.puedeAuditoria) gestion.push({ href: "/auditoria", label: "Auditoría", active: pathname === "/auditoria" || pathname.startsWith("/auditoria/") });
 

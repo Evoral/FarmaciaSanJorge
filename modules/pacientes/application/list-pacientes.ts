@@ -2,7 +2,7 @@
  * `listPacientes` (M06, FASE 4 point 4.5). Read-only, gated on
  * `pacientes.gestionar` (plan §7: "pacientes.*"). HEALTH-ADJACENT DATA
  * (DP-24): the UI layer is responsible for never putting `search` in a
- * URL/query string (see app/(app)/catalogos/pacientes/page.tsx's doc
+ * URL/query string (see app/(app)/pacientes/page.tsx's doc
  * comment) -- this query itself has no opinion on transport, only that the
  * caller already passed authorization.
  */

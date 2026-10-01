@@ -27,25 +27,28 @@ import { can } from "@/shared/auth/authorize";
 export interface SectionLink {
   href: string;
   label: string;
+  /** Active ONLY on this exact path, not on its sub-paths (a tab whose href is a prefix of a sibling tab's, e.g. `/pacientes/[id]` vs `/pacientes/[id]/trayectoria`). */
+  exact?: boolean;
 }
 
 function visible(entries: ReadonlyArray<SectionLink & { visible: boolean }>): SectionLink[] {
-  return entries.filter((entry) => entry.visible).map(({ href, label }) => ({ href, label }));
+  return entries.filter((entry) => entry.visible).map(({ href, label, exact }) => (exact === undefined ? { href, label } : { href, label, exact }));
 }
 
 /**
- * `/catalogos/**` (FASE 4 points 4.1-4.5). Unidades de medida (FASE 4
+ * `/catalogos/**` (FASE 4 points 4.1-4.4). Unidades de medida (FASE 4
  * point 4.1, formerly under `/admin`) goes last so the existing landing
  * section for every role is unchanged: there is no dedicated
  * `unidades.ver`, `unidades.editar` doubles as "may enter the section"
- * (see `catalogos/unidades/layout.tsx`).
+ * (see `catalogos/unidades/layout.tsx`). Pacientes (point 4.5) is NOT a
+ * tab here anymore: it is its own sidebar entry under "Gestión"
+ * (`/pacientes`, gated on `pacientes.gestionar`).
  */
 export function catalogosSections(session: AuthenticatedSession): SectionLink[] {
   return visible([
     { href: "/catalogos/drogas", label: "Drogas", visible: can(session, "drogas.editar") },
     { href: "/catalogos/proveedores", label: "Proveedores", visible: can(session, "proveedores.gestionar") },
     { href: "/catalogos/medicos", label: "Médicos", visible: can(session, "medicos.gestionar") },
-    { href: "/catalogos/pacientes", label: "Pacientes", visible: can(session, "pacientes.gestionar") },
     { href: "/catalogos/unidades", label: "Unidades de medida", visible: can(session, "unidades.editar") },
   ]);
 }

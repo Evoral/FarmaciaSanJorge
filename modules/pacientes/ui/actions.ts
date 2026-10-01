@@ -1,6 +1,6 @@
 "use server";
 
-/** Server Actions for `/catalogos/pacientes` (FASE 4 point 4.5). HEALTH-ADJACENT DATA (DP-24): none of these ever call a logger with paciente fields. */
+/** Server Actions for `/pacientes` (FASE 4 point 4.5). HEALTH-ADJACENT DATA (DP-24): none of these ever call a logger with paciente fields. */
 import { revalidatePath } from "next/cache";
 import { crearPaciente } from "@/modules/pacientes/application/crear-paciente";
 import { editarPaciente } from "@/modules/pacientes/application/editar-paciente";
@@ -25,6 +25,16 @@ function optionalOrNull(formData: FormData, key: string): string | null {
   return value ?? null;
 }
 
+/** A checkbox only submits when checked (value "on"), so absence means `false` -- an unchecked box must be sent explicitly as `false`, never omitted. */
+function checkbox(formData: FormData, key: string): boolean {
+  return formData.get(key) === "on";
+}
+
+/** The hidden `version*` copy of a boolean field is serialized as "true"/"false". */
+function versionBoolean(formData: FormData, key: string): boolean {
+  return formData.get(key) === "true";
+}
+
 export async function crearPacienteAction(_prevState: PacienteActionState, formData: FormData): Promise<PacienteActionState> {
   try {
     await crearPaciente({
@@ -37,8 +47,9 @@ export async function crearPacienteAction(_prevState: PacienteActionState, formD
       fechaNacimiento: optional(formData, "fechaNacimiento"),
       nroCredencial: optional(formData, "nroCredencial"),
       sexo: optional(formData, "sexo"),
+      aceptaRecordatoriosWhatsapp: checkbox(formData, "aceptaRecordatoriosWhatsapp"),
     });
-    revalidatePath("/catalogos/pacientes");
+    revalidatePath("/pacientes");
     return { status: "success", message: "Paciente creado." };
   } catch (error) {
     return fromError(error, "No se pudo crear el paciente.");
@@ -58,6 +69,7 @@ export async function editarPacienteAction(_prevState: PacienteActionState, form
       fechaNacimiento: optional(formData, "fechaNacimiento"),
       nroCredencial: optional(formData, "nroCredencial"),
       sexo: optional(formData, "sexo"),
+      aceptaRecordatoriosWhatsapp: checkbox(formData, "aceptaRecordatoriosWhatsapp"),
       version: {
         nombre: String(formData.get("versionNombre") ?? ""),
         apellido: String(formData.get("versionApellido") ?? ""),
@@ -68,9 +80,11 @@ export async function editarPacienteAction(_prevState: PacienteActionState, form
         fechaNacimiento: optionalOrNull(formData, "versionFechaNacimiento"),
         nroCredencial: optionalOrNull(formData, "versionNroCredencial"),
         sexo: optionalOrNull(formData, "versionSexo"),
+        aceptaRecordatoriosWhatsapp: versionBoolean(formData, "versionAceptaRecordatoriosWhatsapp"),
       },
     });
-    revalidatePath("/catalogos/pacientes");
+    revalidatePath("/pacientes");
+    revalidatePath("/pacientes/recurrentes");
     return { status: "success", message: "Paciente actualizado." };
   } catch (error) {
     return fromError(error, "No se pudieron guardar los cambios.");
@@ -80,7 +94,7 @@ export async function editarPacienteAction(_prevState: PacienteActionState, form
 export async function darDeBajaPacienteAction(_prevState: PacienteActionState, formData: FormData): Promise<PacienteActionState> {
   try {
     await darDeBajaPaciente({ id: String(formData.get("id") ?? ""), motivo: String(formData.get("motivo") ?? "") });
-    revalidatePath("/catalogos/pacientes");
+    revalidatePath("/pacientes");
     return { status: "success", message: "Paciente dado de baja." };
   } catch (error) {
     return fromError(error, "No se pudo dar de baja al paciente.");
@@ -90,7 +104,7 @@ export async function darDeBajaPacienteAction(_prevState: PacienteActionState, f
 export async function reactivarPacienteAction(_prevState: PacienteActionState, formData: FormData): Promise<PacienteActionState> {
   try {
     await reactivarPaciente({ id: String(formData.get("id") ?? ""), motivo: String(formData.get("motivo") ?? "") });
-    revalidatePath("/catalogos/pacientes");
+    revalidatePath("/pacientes");
     return { status: "success", message: "Paciente reactivado." };
   } catch (error) {
     return fromError(error, "No se pudo reactivar al paciente.");

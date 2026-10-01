@@ -654,20 +654,22 @@ model Medico {
 /// and log redaction are [APP] concerns, not enforced in DDL. cuil/dni
 /// format (not check-digit) enforced by migration 0029's CHECKs.
 model Paciente {
-  id              String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId        String    @map("tenant_id") @db.Uuid
-  cuil            String?   @db.VarChar(11)
-  dni             String?   @db.VarChar(8)
-  nombre          String
-  apellido        String
-  telefono        String?
-  email           String?
-  fechaNacimiento DateTime? @map("fecha_nacimiento") @db.Date
-  nroCredencial   String?   @map("nro_credencial")
-  sexo            String?
-  fechaBaja       DateTime? @map("fecha_baja") @db.Timestamptz(6)
+  id                          String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId                    String    @map("tenant_id") @db.Uuid
+  cuil                        String?   @db.VarChar(11)
+  dni                         String?   @db.VarChar(8)
+  nombre                      String
+  apellido                    String
+  telefono                    String?
+  email                       String?
+  fechaNacimiento             DateTime? @map("fecha_nacimiento") @db.Date
+  nroCredencial               String?   @map("nro_credencial")
+  sexo                        String?
+  fechaBaja                   DateTime? @map("fecha_baja") @db.Timestamptz(6)
   /// FASE 4 point 4.5 / migration 0029 (INV-G01) -- same convenience column as proveedor.motivoBaja (migration 0027).
-  motivoBaja      String?   @map("motivo_baja")
+  motivoBaja                  String?   @map("motivo_baja")
+  /// Migration 0055 (docs/specs/pacientes-recurrentes.md): opt-in for WhatsApp reminders. Default false = no consent assumed. Column-level UPDATE grant for fsj_app.
+  aceptaRecordatoriosWhatsapp Boolean   @default(false) @map("acepta_recordatorios_whatsapp")
 
   recetas Receta[]
 
@@ -798,6 +800,8 @@ model Receta {
 
   @@unique([tenantId, id])
   @@unique([tenantId, numeroInterno])
+  /// Migration 0051: Trayectoria del paciente -- a paciente's recetas, newest first.
+  @@index([tenantId, pacienteId, fechaIngreso(sort: Desc)], map: "idx_receta_tenant_paciente_ingreso")
   @@map("receta")
   @@schema("fsj")
 }
@@ -828,6 +832,8 @@ model ItemReceta {
   cotizaciones Cotizacion[]
 
   @@unique([tenantId, id])
+  /// Migration 0051: Trayectoria del paciente -- items of a set of recetas.
+  @@index([tenantId, recetaId], map: "idx_item_receta_tenant_receta")
   @@map("item_receta")
   @@schema("fsj")
 }
@@ -1016,6 +1022,8 @@ model Preparacion {
   asientosRecetario AsientoRecetario[]
 
   @@unique([tenantId, id])
+  /// Migration 0051: Trayectoria del paciente -- every preparacion (any estado) of a set of items (the item_receta partial unique index only covers CONFIRMADA).
+  @@index([tenantId, itemRecetaId], map: "idx_preparacion_tenant_item_receta")
   @@map("preparacion")
   @@schema("fsj")
 }

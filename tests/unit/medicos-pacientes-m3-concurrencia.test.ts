@@ -257,6 +257,7 @@ describe("pacientes M3: lock-then-fresh-read", () => {
     fechaNacimiento: null,
     nroCredencial: null,
     sexo: null,
+    aceptaRecordatoriosWhatsapp: false,
     fechaBaja: null,
     motivoBaja: null,
   };
@@ -282,8 +283,9 @@ describe("pacientes M3: lock-then-fresh-read", () => {
         {
           id: TARGET_ID,
           nombre: "N (renombrado)",
+          aceptaRecordatoriosWhatsapp: false,
           apellido: "A",
-          version: { nombre: "N", apellido: "A", cuil: null, dni: null, telefono: null, email: null, fechaNacimiento: null, nroCredencial: null, sexo: null },
+          version: { nombre: "N", apellido: "A", cuil: null, dni: null, telefono: null, email: null, fechaNacimiento: null, nroCredencial: null, sexo: null, aceptaRecordatoriosWhatsapp: false },
         },
         { session: fakeSession("pacientes.gestionar") },
       );
@@ -306,8 +308,9 @@ describe("pacientes M3: lock-then-fresh-read", () => {
       {
         id: TARGET_ID,
         nombre: "N (renombrado)",
+        aceptaRecordatoriosWhatsapp: false,
         apellido: "A",
-        version: { nombre: "N", apellido: "A", cuil: null, dni: null, telefono: null, email: null, fechaNacimiento: null, nroCredencial: null, sexo: null },
+        version: { nombre: "N", apellido: "A", cuil: null, dni: null, telefono: null, email: null, fechaNacimiento: null, nroCredencial: null, sexo: null, aceptaRecordatoriosWhatsapp: false },
       },
       { session: fakeSession("pacientes.gestionar") },
     );

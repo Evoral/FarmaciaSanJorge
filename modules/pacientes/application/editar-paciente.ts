@@ -47,6 +47,8 @@ const editarPacienteInput = z.object({
   fechaNacimiento: fechaOpcional,
   nroCredencial: textoOpcional,
   sexo: textoOpcional,
+  /** Required (no default): an omitted value must never silently revoke an existing consent. */
+  aceptaRecordatoriosWhatsapp: z.boolean(),
   version: z.object({
     nombre: z.string(),
     apellido: z.string(),
@@ -57,6 +59,7 @@ const editarPacienteInput = z.object({
     fechaNacimiento: z.string().nullable(),
     nroCredencial: z.string().nullable(),
     sexo: z.string().nullable(),
+    aceptaRecordatoriosWhatsapp: z.boolean(),
   }),
 });
 
@@ -81,7 +84,8 @@ function versionMatches(actual: PacienteParaAccion, version: EditarPacienteInput
     actual.email === version.email &&
     fechaToISODate(actual.fechaNacimiento) === version.fechaNacimiento &&
     actual.nroCredencial === version.nroCredencial &&
-    actual.sexo === version.sexo
+    actual.sexo === version.sexo &&
+    actual.aceptaRecordatoriosWhatsapp === version.aceptaRecordatoriosWhatsapp
   );
 }
 
@@ -119,6 +123,7 @@ export const editarPacienteCommand = defineCommand({
       fechaNacimiento: input.fechaNacimiento,
       nroCredencial: input.nroCredencial,
       sexo: input.sexo,
+      aceptaRecordatoriosWhatsapp: input.aceptaRecordatoriosWhatsapp,
     };
     const valorAnterior = {
       nombre: actual.nombre,
@@ -130,6 +135,7 @@ export const editarPacienteCommand = defineCommand({
       fechaNacimiento: actual.fechaNacimiento,
       nroCredencial: actual.nroCredencial,
       sexo: actual.sexo,
+      aceptaRecordatoriosWhatsapp: actual.aceptaRecordatoriosWhatsapp,
     };
 
     const updated = await updatePacienteDatos(tx, session.tenantId, { id: input.id, ...nuevoValor }, valorAnterior);
