@@ -91,7 +91,9 @@ export default async function CotizacionPage({ params }: CotizacionPageProps) {
                   <tr key={c.id}>
                     <td className="px-3 py-2">{fechaHora(c.calculadaEn)}</td>
                     <td className="px-3 py-2">${c.costoInsumos}</td>
-                    <td className="px-3 py-2">{c.margenAplicado}%</td>
+                    <td className="px-3 py-2">
+                      {c.margenAplicado}%{c.precioMinimoAplicado ? " (precio mínimo aplicado)" : ""}
+                    </td>
                     <td className="px-3 py-2">${c.precioFinal}</td>
                     <td className="px-3 py-2">
                       {c.esParcial ? "Parcial " : ""}

@@ -48,6 +48,7 @@ import { Decimal, dec } from "@/shared/decimal";
 import { proponerReparto } from "@/modules/stock/domain/reparto";
 import type { PartidaDisponible } from "@/modules/stock/domain/reparto";
 import { calcularPrecioFinal } from "./regla-precio";
+import type { ReglasPrecio } from "./regla-precio";
 
 export interface PartidaCosteo extends PartidaDisponible {
   costoUnitario: Decimal | string;
@@ -89,7 +90,12 @@ export interface CotizacionDetalle {
 
 export interface CotizacionCalculada {
   costoInsumos: Decimal;
+  /** The markup of the tramo `costoInsumos` fell into (regla-precio.ts#calcularPrecioFinal). */
   margenAplicado: Decimal;
+  /** 0-based index of that tramo in the regla's `tramos`. */
+  tramoAplicado: number;
+  /** The tramo price was below the regla's `precioMinimo`, so the floor was used. */
+  precioMinimoAplicado: boolean;
   precioFinal: Decimal;
   esParcial: boolean;
   esIncompleta: boolean;
@@ -171,13 +177,13 @@ function costearLinea(
  * @param lineas every non-descartada linea_pesaje of the item's LATEST ficha tecnica, in `orden`.
  * @param partidasPorDroga eligible-or-not partidas for a given drogaId (this function itself applies eligibility filtering -- callers may pass every partida of that droga, expired or not, with or without balance).
  * @param jornadaActual `YYYY-MM-DD`, from `fsj.jornada_actual(tenantId)` -- never `new Date()` (INV-PL-002).
- * @param margenPorcentaje the OPEN regla_precio's `margen` at calculation time.
+ * @param reglas the OPEN regla_precio's precioMinimo + tramos at calculation time -- priced on THIS item's cost alone (each item / cotización independently).
  */
 export function calcularCotizacion(
   lineas: readonly LineaCosteoInput[],
   partidasPorDroga: (drogaId: string) => readonly PartidaCosteo[],
   jornadaActual: string,
-  margenPorcentaje: Decimal | string,
+  reglas: ReglasPrecio,
 ): CotizacionCalculada {
   let costoInsumos = new Decimal(0);
   let esParcial = false;
@@ -207,12 +213,14 @@ export function calcularCotizacion(
     detalleLineas.push(detalle);
   }
 
-  const precioFinal = calcularPrecioFinal(costoInsumos, margenPorcentaje);
+  const precio = calcularPrecioFinal(costoInsumos, reglas);
 
   return {
     costoInsumos,
-    margenAplicado: dec(margenPorcentaje),
-    precioFinal,
+    margenAplicado: precio.margenAplicado,
+    tramoAplicado: precio.tramoAplicado,
+    precioMinimoAplicado: precio.precioMinimoAplicado,
+    precioFinal: precio.precioFinal,
     esParcial,
     esIncompleta,
     detalle: { lineas: detalleLineas },
@@ -236,7 +244,8 @@ const APERTURA_SIMULADA = "9999-12-31T23:59:59.999Z";
  * `calcularCotizacion` would, its consumption (partida by partida, as
  * `proponerReparto` split it) is subtracted, and the next item sees only
  * the remainder -- so faltantes, `esIncompleta` and costs reflect the
- * receta as a whole. The ordering/eligibility rules are NOT restated
+ * receta as a whole. Each item is still PRICED on its own cost (tramo and
+ * floor per item, never on the receta's total). The ordering/eligibility rules are NOT restated
  * here: every split still comes from `calcularCotizacion` ->
  * `proponerReparto`. Pure; the caller's partidas are never mutated.
  */
@@ -244,7 +253,7 @@ export function calcularCotizacionesAcumuladas(
   items: readonly (readonly LineaCosteoInput[])[],
   partidasPorDroga: (drogaId: string) => readonly PartidaCosteo[],
   jornadaActual: string,
-  margenPorcentaje: Decimal | string,
+  reglas: ReglasPrecio,
 ): CotizacionCalculada[] {
   const saldos = new Map<string, PartidaCosteo[]>();
   const partidasDe = (drogaId: string): PartidaCosteo[] => {
@@ -257,7 +266,7 @@ export function calcularCotizacionesAcumuladas(
   };
 
   return items.map((lineas) => {
-    const cotizacion = calcularCotizacion(lineas, partidasDe, jornadaActual, margenPorcentaje);
+    const cotizacion = calcularCotizacion(lineas, partidasDe, jornadaActual, reglas);
     for (const linea of cotizacion.detalle.lineas) {
       const partidas = partidasDe(linea.drogaId);
       for (const usada of linea.partidas) {

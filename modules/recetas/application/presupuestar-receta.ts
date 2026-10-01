@@ -6,8 +6,9 @@
  *
  * Per item, entirely in memory: the ficha's lines with the SAME code path
  * `fichas.generar` uses (`calcularLineasFicha`: base units, weighing
- * parameters, pure calculator). Then all items' costs at the open regla's
- * margen, CUMULATIVELY in item order (`cotizarItemsAcumulado`, same
+ * parameters, pure calculator). Then all items' costs CUMULATIVELY in
+ * item order, each item priced on its own cost with the open regla's
+ * precio mínimo + tramos (`cotizarItemsAcumulado`, same
  * reparto rules as `cotizaciones.calcular`): each item sees only the stock
  * the previous ones left, so two items needing the same droga cannot both
  * look covered, and a droga the whole receta needs more of than exists is
@@ -90,13 +91,13 @@ export async function presupuestar(tx: Prisma.TransactionClient, tenantId: strin
     tx,
     tenantId,
     porItem.flatMap((p) => (p.ok ? [p.lineas] : [])),
-    regla.margen,
+    regla,
   );
   let siguiente = 0;
   const resultado: PresupuestoItem[] = porItem.map((p, i) =>
     p.ok ? presupuestoItemDesdeCotizacion(i + 1, cotizaciones[siguiente++]!) : { indice: i + 1, ok: false, mensaje: p.mensaje },
   );
-  return armarPresupuesto(regla.margen, resultado, faltantesDeReceta(cotizaciones));
+  return armarPresupuesto(resultado, faltantesDeReceta(cotizaciones));
 }
 
 export const presupuestarRecetaQuery = defineQuery({

@@ -441,6 +441,7 @@ Orden de presentación = orden de dependencias. Cada módulo lista invariantes p
 - Invariante INV-PR-001 Una regla usada por una cotización no se modifica (nueva versión). [BD]
 - Auditoría: toda modificación [CONFIRMADO].
 - **Bloqueado por DP-09** para la fórmula exacta de precio.
+- **Actualización (decisión del usuario, 2026-10-01; `docs/specs/reglas-precio.md`, migración 0052):** el margen único de DP-09 queda reemplazado por tramos de margen según el costo de cada preparación (margen sobre todo el costo, no escalonado; la caída de precio en el límite es intencional) + precio mínimo: `precio = max(costo × (1 + margenTramo/100), precioMinimo)`. Nueva tabla `regla_precio_tramo` (INV-PR-002: tramos sin superposición ni huecos), `regla_precio.precio_minimo`, `regla_precio.margen` obsoleta, `cotizacion.precio_minimo_aplicado`. Permiso sin cambios (`precios.reglas.editar`).
 
 ### M09. Recetas
 

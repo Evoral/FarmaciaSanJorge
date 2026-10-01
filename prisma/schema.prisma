@@ -911,23 +911,49 @@ model LineaPesaje {
 // ============================================================================
 
 /// Tenant-scoped (M08). Versioned + immutable except the vigente_hasta
-/// close (INV-PR-001, migration 0031). margen is a PERCENTAGE:
-/// precioFinal = costoInsumos * margen / 100 (DP-09: "costo x margen%", no
-/// fixed fee, no variation by forma farmaceutica).
+/// close (INV-PR-001, migration 0031). Since migration 0052 a version is
+/// precioMinimo + its ordered tramos (ReglaPrecioTramo): precioFinal =
+/// max(costo * (1 + margenTramo / 100), precioMinimo) -- see
+/// modules/precios/domain/regla-precio.ts#calcularPrecioFinal.
 model ReglaPrecio {
   id           String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
   tenantId     String    @map("tenant_id") @db.Uuid
-  margen       Decimal   @db.Decimal
+  /// DEPRECATED (migration 0052): DP-09's single global markup. NULL for
+  /// every version created after 0052; never read by the app.
+  margen       Decimal?  @db.Decimal
+  precioMinimo Decimal   @default(0) @map("precio_minimo") @db.Decimal
   vigenteDesde DateTime  @default(now()) @map("vigente_desde") @db.Timestamptz(6)
   vigenteHasta DateTime? @map("vigente_hasta") @db.Timestamptz(6)
   creadoPorId  String    @map("creado_por_id") @db.Uuid
   creadoEn     DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
 
-  creadoPor    Usuario      @relation(fields: [creadoPorId], references: [id])
+  creadoPor    Usuario            @relation(fields: [creadoPorId], references: [id])
   cotizaciones Cotizacion[]
+  tramos       ReglaPrecioTramo[]
 
   @@unique([tenantId, id])
   @@map("regla_precio")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (migration 0052), fully immutable after insert. Margin
+/// tramo of one ReglaPrecio version: covers costs in (previous costoHasta,
+/// costoHasta] (the first starts at 0 inclusive); costoHasta NULL only on
+/// the last tramo (no upper limit). The margen applies to the WHOLE cost
+/// (not progressive). Valid set enforced by INV-PR-002 (deferred trigger).
+model ReglaPrecioTramo {
+  id            String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  reglaPrecioId String   @map("regla_precio_id") @db.Uuid
+  orden         Int
+  costoHasta    Decimal? @map("costo_hasta") @db.Decimal
+  margen        Decimal  @db.Decimal
+
+  reglaPrecio ReglaPrecio @relation(fields: [reglaPrecioId], references: [id])
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reglaPrecioId, orden])
+  @@map("regla_precio_tramo")
   @@schema("fsj")
 }
 
@@ -935,19 +961,21 @@ model ReglaPrecio {
 /// -- migration 0031). "Vigente" = max(calculadaEn) per itemRecetaId
 /// (INV-R06, [APP] rule). NOT audited (INV-A01 excludes cotizaciones).
 model Cotizacion {
-  id             String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId       String   @map("tenant_id") @db.Uuid
-  itemRecetaId   String   @map("item_receta_id") @db.Uuid
-  costoInsumos   Decimal  @map("costo_insumos") @db.Decimal
-  margenAplicado Decimal  @map("margen_aplicado") @db.Decimal
-  precioFinal    Decimal  @map("precio_final") @db.Decimal
-  reglaPrecioId  String   @map("regla_precio_id") @db.Uuid
-  esParcial      Boolean  @default(false) @map("es_parcial")
-  esIncompleta   Boolean  @default(false) @map("es_incompleta")
+  id                   String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId             String   @map("tenant_id") @db.Uuid
+  itemRecetaId         String   @map("item_receta_id") @db.Uuid
+  costoInsumos         Decimal  @map("costo_insumos") @db.Decimal
+  margenAplicado       Decimal  @map("margen_aplicado") @db.Decimal
+  precioFinal          Decimal  @map("precio_final") @db.Decimal
+  /// The floor (ReglaPrecio.precioMinimo) raised the price (migration 0052).
+  precioMinimoAplicado Boolean  @default(false) @map("precio_minimo_aplicado")
+  reglaPrecioId        String   @map("regla_precio_id") @db.Uuid
+  esParcial            Boolean  @default(false) @map("es_parcial")
+  esIncompleta         Boolean  @default(false) @map("es_incompleta")
   /// Per-linea breakdown -- see modules/precios/domain/calcular-cotizacion.ts.
-  detalle        Json
-  calculadaEn    DateTime @default(now()) @map("calculada_en") @db.Timestamptz(6)
-  calculadaPorId String   @map("calculada_por_id") @db.Uuid
+  detalle              Json
+  calculadaEn          DateTime @default(now()) @map("calculada_en") @db.Timestamptz(6)
+  calculadaPorId       String   @map("calculada_por_id") @db.Uuid
 
   itemReceta   ItemReceta  @relation(fields: [itemRecetaId], references: [id])
   reglaPrecio  ReglaPrecio @relation(fields: [reglaPrecioId], references: [id])

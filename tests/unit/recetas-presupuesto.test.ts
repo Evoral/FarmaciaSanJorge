@@ -98,7 +98,14 @@ async function presupuestar(items: unknown[]) {
 }
 
 beforeEach(() => {
-  getReglaVigente.mockReset().mockResolvedValue({ id: "r1", margen: "50", vigenteDesde: new Date(), creadoPorNombre: "N", creadoPorApellido: "A" });
+  getReglaVigente.mockReset().mockResolvedValue({
+    id: "r1",
+    precioMinimo: "0",
+    tramos: [{ costoHasta: null, margen: "50" }],
+    vigenteDesde: new Date(),
+    creadoPorNombre: "N",
+    creadoPorApellido: "A",
+  });
   partidas.clear();
   partidas.set(D_UREA, [{ id: "p-urea", cantidadDisponible: "100", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "2" }]);
   partidas.set(D_MAZINDOL, [{ id: "p-maz", cantidadDisponible: "1", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "100" }]);
@@ -111,7 +118,6 @@ describe("recetas.presupuestar", () => {
     const p = await presupuestar([cremaUrea]);
     expect(p).toEqual({
       ok: true,
-      margen: "50",
       total: "30",
       totalCompleto: true,
       items: [{ indice: 1, ok: true, precioFinal: "30", costoInsumos: "20", esParcial: false, enraseManual: [], esIncompleta: false, faltantes: [] }],
@@ -172,6 +178,27 @@ describe("recetas.presupuestar", () => {
     expect(p.items[0]).toMatchObject({ ok: true, esIncompleta: true, faltantes: [{ drogaNombre: "Urea", cantidad: "6", unidadSimbolo: "g" }], precioFinal: "12" });
   });
 
+  it("each item is priced on its OWN cost: tramo and floor per item, not on the receta's total", async () => {
+    // Each item costs $20 (10 g x $2): tramo "<= 30 -> +50%" for each, although the receta's $40 would be in "> 30 -> +10%".
+    // Floor $35 raises each $30 item to $35.
+    partidas.set(D_UREA, [{ id: "p-urea", cantidadDisponible: "100", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "2" }]);
+    getReglaVigente.mockResolvedValue({
+      id: "r2",
+      precioMinimo: "35",
+      tramos: [
+        { costoHasta: "30", margen: "50" },
+        { costoHasta: null, margen: "10" },
+      ],
+      vigenteDesde: new Date(),
+      creadoPorNombre: "N",
+      creadoPorApellido: "A",
+    });
+    const p = await presupuestar([cremaUrea, cremaUrea]);
+    if (!p.ok) throw new Error(p.mensaje);
+    expect(p.items.map((i) => (i.ok ? i.precioFinal : null))).toEqual(["35", "35"]);
+    expect(p.total).toBe("70");
+  });
+
   it("without a price rule: one clear message, nothing priced", async () => {
     getReglaVigente.mockResolvedValue(null);
     expect(await presupuestar([cremaUrea])).toEqual({ ok: false, mensaje: expect.stringContaining("No hay regla de precios configurada") });
@@ -202,7 +229,7 @@ describe("recetas.presupuestar", () => {
 
 describe("domain/presupuesto", () => {
   it("armarPresupuesto sums only the priced items", () => {
-    const p = armarPresupuesto("50", [
+    const p = armarPresupuesto([
       { indice: 1, ok: true, precioFinal: "10.5", costoInsumos: "7", esParcial: false, enraseManual: [], esIncompleta: false, faltantes: [] },
       { indice: 2, ok: false, mensaje: "x" },
       { indice: 3, ok: true, precioFinal: "0.25", costoInsumos: "1", esParcial: false, enraseManual: [], esIncompleta: false, faltantes: [] },

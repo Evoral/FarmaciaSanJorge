@@ -23,7 +23,7 @@ export interface FaltanteStockReceta {
   mensaje: string;
 }
 
-export const MENSAJE_SIN_REGLA_PRECIO = "No hay regla de precios configurada. Pedile a un administrador que configure el margen para ver el presupuesto.";
+export const MENSAJE_SIN_REGLA_PRECIO = "No hay regla de precios configurada. Pedile a un administrador que configure las reglas de precio para ver el presupuesto.";
 
 export interface FaltanteStock {
   drogaNombre: string;
@@ -51,7 +51,6 @@ export type PresupuestoItem =
 export type Presupuesto =
   | {
       ok: true;
-      margen: string;
       /** Sum of the items that could be priced. */
       total: string;
       /** `false` when some item could not be priced (its message says why): the total leaves it out. */
@@ -79,9 +78,9 @@ export function presupuestoItemDesdeCotizacion(indice: number, cotizacion: Cotiz
   };
 }
 
-export function armarPresupuesto(margen: string, items: PresupuestoItem[], faltantesReceta: FaltanteStockReceta[] = []): Presupuesto {
+export function armarPresupuesto(items: PresupuestoItem[], faltantesReceta: FaltanteStockReceta[] = []): Presupuesto {
   const total = items.reduce((suma, item) => (item.ok ? suma.plus(dec(item.precioFinal)) : suma), new Decimal(0));
-  return { ok: true, margen, total: total.toString(), totalCompleto: items.every((i) => i.ok), items, faltantesReceta };
+  return { ok: true, total: total.toString(), totalCompleto: items.every((i) => i.ok), items, faltantesReceta };
 }
 
 /** es-AR with 3 decimals, for quantities in a sentence ("3.000,500"). */

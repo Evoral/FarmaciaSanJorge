@@ -13,11 +13,19 @@ function fromError(error: unknown, fallback: string): PreciosActionState {
 
 export async function guardarReglaPrecioAction(_prevState: PreciosActionState, formData: FormData): Promise<PreciosActionState> {
   try {
-    await guardarReglaPrecio({ margen: String(formData.get("margen") ?? "") });
+    // One row per tramo, in order: `tramoCostoHasta` is "" for the open-ended
+    // last tramo (rendered as a hidden input) -- "" anywhere means "sin tope",
+    // and the use case rejects it on any tramo but the last.
+    const costosHasta = formData.getAll("tramoCostoHasta").map((v) => String(v).trim());
+    const margenes = formData.getAll("tramoMargen").map((v) => String(v));
+    await guardarReglaPrecio({
+      precioMinimo: String(formData.get("precioMinimo") ?? ""),
+      tramos: margenes.map((margen, i) => ({ costoHasta: costosHasta[i] ? costosHasta[i]! : null, margen })),
+    });
     revalidatePath("/admin/configuracion/precios");
-    return { status: "success", message: "Regla de precio guardada." };
+    return { status: "success", message: "Reglas de precio guardadas." };
   } catch (error) {
-    return fromError(error, "No se pudo guardar la regla de precio.");
+    return fromError(error, "No se pudieron guardar las reglas de precio.");
   }
 }
 

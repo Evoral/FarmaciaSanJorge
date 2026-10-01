@@ -1,6 +1,6 @@
 /**
  * `getReglasPrecio` (M08, FASE 4 point 4.6). Read of the tenant's current
- * margin + full version history, for `/admin/configuracion/precios`. Same permiso as
+ * price rule set (precio mínimo + tramos, migration 0052) + full version history, for `/admin/configuracion/precios`. Same permiso as
  * editing (`precios.reglas.editar`) -- there is no dedicated
  * `precios.reglas.ver` in plan §7's matrix, so, same convention as
  * `unidades.editar` doubling as "may enter the section"
@@ -10,12 +10,16 @@
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { getReglaVigente, listHistorialReglas } from "../infrastructure/regla-precio-repository";
+import type { TramoGuardado } from "../infrastructure/regla-precio-repository";
+
+export type { TramoGuardado };
 
 const getReglasPrecioInput = z.object({});
 
 export interface ReglaPrecioVigenteOutput {
   id: string;
-  margen: string;
+  precioMinimo: string;
+  tramos: TramoGuardado[];
   vigenteDesde: string;
   creadoPorNombre: string;
   creadoPorApellido: string;
@@ -23,7 +27,8 @@ export interface ReglaPrecioVigenteOutput {
 
 export interface ReglaPrecioHistorialItemOutput {
   id: string;
-  margen: string;
+  precioMinimo: string;
+  tramos: TramoGuardado[];
   vigenteDesde: string;
   vigenteHasta: string | null;
   creadoPorNombre: string;
@@ -47,7 +52,8 @@ export const getReglasPrecioQuery = defineQuery({
       vigente: vigente
         ? {
             id: vigente.id,
-            margen: vigente.margen,
+            precioMinimo: vigente.precioMinimo,
+            tramos: vigente.tramos,
             vigenteDesde: vigente.vigenteDesde.toISOString(),
             creadoPorNombre: vigente.creadoPorNombre,
             creadoPorApellido: vigente.creadoPorApellido,
@@ -55,7 +61,8 @@ export const getReglasPrecioQuery = defineQuery({
         : null,
       historial: historial.map((r) => ({
         id: r.id,
-        margen: r.margen,
+        precioMinimo: r.precioMinimo,
+        tramos: r.tramos,
         vigenteDesde: r.vigenteDesde.toISOString(),
         vigenteHasta: r.vigenteHasta ? r.vigenteHasta.toISOString() : null,
         creadoPorNombre: r.creadoPorNombre,

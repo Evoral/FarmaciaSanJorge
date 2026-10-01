@@ -1,6 +1,7 @@
 /**
  * DB tests for prisma/migrations/.../0031_regla_precio_cotizacion (M08
- * FASE 4 point 4.6, M10 FASE 7 point 7.4). See tests/db/helpers.ts for the
+ * FASE 4 point 4.6, M10 FASE 7 point 7.4) and 0052_regla_precio_tramos
+ * (margin tramos by cost + precio mínimo, INV-PR-002). See tests/db/helpers.ts for the
  * rollback-transaction safety model and tests/db/fixtures.ts for the
  * shared seed helpers. Mirrors tests/db/fichas-tecnicas-lineas-pesaje.test.ts
  * and tests/db/fichas-tecnicas-generacion.test.ts's structure/style.
@@ -25,12 +26,28 @@ import {
   crearPartidaConIngreso,
 } from "./fixtures";
 
-async function insertRegla(tx: Client, tenantId: string, creadoPorId: string, margen = "300"): Promise<string> {
+/** Header only (the deprecated `margen` left NULL, as the app writes it since 0052) -- no tramo. */
+async function insertCabeceraRegla(tx: Client, tenantId: string, creadoPorId: string, precioMinimo = "0"): Promise<string> {
   const result = await tx.query(
-    `INSERT INTO fsj.regla_precio (tenant_id, margen, creado_por_id) VALUES ($1, $2, $3) RETURNING id`,
-    [tenantId, margen, creadoPorId],
+    `INSERT INTO fsj.regla_precio (tenant_id, precio_minimo, creado_por_id) VALUES ($1, $2, $3) RETURNING id`,
+    [tenantId, precioMinimo, creadoPorId],
   );
   return result.rows[0].id as string;
+}
+
+async function insertTramo(tx: Client, input: { tenantId: string; reglaPrecioId: string; orden: number; costoHasta: string | null; margen: string }): Promise<string> {
+  const result = await tx.query(
+    `INSERT INTO fsj.regla_precio_tramo (tenant_id, regla_precio_id, orden, costo_hasta, margen) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [input.tenantId, input.reglaPrecioId, input.orden, input.costoHasta, input.margen],
+  );
+  return result.rows[0].id as string;
+}
+
+/** A valid version: header + one open-ended tramo at `margen` (INV-PR-002 holds). */
+async function insertRegla(tx: Client, tenantId: string, creadoPorId: string, margen = "300"): Promise<string> {
+  const id = await insertCabeceraRegla(tx, tenantId, creadoPorId);
+  await insertTramo(tx, { tenantId, reglaPrecioId: id, orden: 1, costoHasta: null, margen });
+  return id;
 }
 
 async function seedTenantConSistema(tx: Client, suffix: string): Promise<{ tenantId: string; sistema: string }> {
@@ -196,6 +213,150 @@ describe.skipIf(dbTestSkipReason() !== null)("0031_regla_precio_cotizacion migra
             () => tx.query(`INSERT INTO fsj.regla_precio (tenant_id, margen, creado_por_id) VALUES ($1, -1, $2)`, [tenantId, sistema]),
             "23514",
           );
+        }),
+      );
+    });
+  });
+
+  describe("regla_precio_tramo + precio_minimo (migration 0052)", () => {
+    it("INV-PR-002: a version with NO tramo fails when constraints are checked (deferred)", async () => {
+      await asOwner((client) =>
+        inRollbackTx(client, async (tx) => {
+          const { tenantId, sistema } = await seedTenantConSistema(tx, "sintramos");
+          await insertCabeceraRegla(tx, tenantId, sistema);
+          await expectInvariantViolation(tx, () => tx.query("SET CONSTRAINTS ALL IMMEDIATE"), "INV-PR-002");
+        }),
+      );
+    });
+
+    it("INV-PR-002: the user's example (<= 100000 -> 100%, open -> 70%, floor 20000) passes when constraints are checked", async () => {
+      await asOwner((client) =>
+        inRollbackTx(client, async (tx) => {
+          const { tenantId, sistema } = await seedTenantConSistema(tx, "tramosok");
+          const id = await insertCabeceraRegla(tx, tenantId, sistema, "20000");
+          await insertTramo(tx, { tenantId, reglaPrecioId: id, orden: 1, costoHasta: "100000", margen: "100" });
+          await insertTramo(tx, { tenantId, reglaPrecioId: id, orden: 2, costoHasta: null, margen: "70" });
+          await tx.query("SET CONSTRAINTS ALL IMMEDIATE");
+        }),
+      );
+    });
+
+    it("INV-PR-002: costo_hasta must be strictly increasing (an equal tope overlaps)", async () => {
+      await asOwner((client) =>
+        inRollbackTx(client, async (tx) => {
+          const { tenantId, sistema } = await seedTenantConSistema(tx, "tramosiguales");
+          const id = await insertCabeceraRegla(tx, tenantId, sistema);
+          await insertTramo(tx, { tenantId, reglaPrecioId: id, orden: 1, costoHasta: "1000", margen: "10" });
+          await insertTramo(tx, { tenantId, reglaPrecioId: id, orden: 2, costoHasta: "1000", margen: "10" });
+          await insertTramo(tx, { tenantId, reglaPrecioId: id, orden: 3, costoHasta: null, margen: "10" });
+          await expectInvariantViolation(tx, () => tx.query("SET CONSTRAINTS ALL IMMEDIATE"), "INV-PR-002");
+        }),
+      );
+    });
+
+    it("INV-PR-002: only the last tramo may be open-ended, and the last one must be", async () => {
+      await asOwner((client) =>
+        inRollbackTx(client, async (tx) => {
+          const { tenantId, sistema } = await seedTenantConSistema(tx, "tramonulo");
+          const id = await insertCabeceraRegla(tx, tenantId, sistema);
+          await insertTramo(tx, { tenantId, reglaPrecioId: id, orden: 1, costoHasta: null, margen: "10" });
+          await insertTramo(tx, { tenantId, reglaPrecioId: id, orden: 2, costoHasta: "5000", margen: "10" });
+          await expectInvariantViolation(tx, () => tx.query("SET CONSTRAINTS ALL IMMEDIATE"), "INV-PR-002");
+        }),
+      );
+    });
+
+    it("a second open-ended tramo in the same version is rejected immediately (partial unique index)", async () => {
+      await asOwner((client) =>
+        inRollbackTx(client, async (tx) => {
+          const { tenantId, sistema } = await seedTenantConSistema(tx, "dosabiertos");
+          const id = await insertRegla(tx, tenantId, sistema, "10");
+          await expectDbRejection(tx, () => insertTramo(tx, { tenantId, reglaPrecioId: id, orden: 2, costoHasta: null, margen: "10" }), "23505");
+        }),
+      );
+    });
+
+    it("INV-PR-002: orden must be contiguous from 1", async () => {
+      await asOwner((client) =>
+        inRollbackTx(client, async (tx) => {
+          const { tenantId, sistema } = await seedTenantConSistema(tx, "ordenhueco");
+          const id = await insertCabeceraRegla(tx, tenantId, sistema);
+          await insertTramo(tx, { tenantId, reglaPrecioId: id, orden: 2, costoHasta: null, margen: "10" });
+          await expectInvariantViolation(tx, () => tx.query("SET CONSTRAINTS ALL IMMEDIATE"), "INV-PR-002");
+        }),
+      );
+    });
+
+    it("CHECKs: negative tramo margen, costo_hasta <= 0 and negative precio_minimo are rejected", async () => {
+      await asOwner((client) =>
+        inRollbackTx(client, async (tx) => {
+          const { tenantId, sistema } = await seedTenantConSistema(tx, "tramochecks");
+          const id = await insertCabeceraRegla(tx, tenantId, sistema);
+          await expectDbRejection(tx, () => insertTramo(tx, { tenantId, reglaPrecioId: id, orden: 1, costoHasta: null, margen: "-1" }), "23514");
+          await expectDbRejection(tx, () => insertTramo(tx, { tenantId, reglaPrecioId: id, orden: 1, costoHasta: "0", margen: "10" }), "23514");
+          await expectDbRejection(tx, () => insertCabeceraRegla(tx, tenantId, sistema, "-1"), "23514");
+        }),
+      );
+    });
+
+    it("tramos are immutable: the trigger rejects UPDATE/DELETE even for the owner, and fsj_app has no grant", async () => {
+      await asOwner((client) =>
+        inRollbackTx(client, async (tx) => {
+          const { tenantId, sistema } = await seedTenantConSistema(tx, "tramoinmutable");
+          const reglaId = await insertCabeceraRegla(tx, tenantId, sistema);
+          const tramoId = await insertTramo(tx, { tenantId, reglaPrecioId: reglaId, orden: 1, costoHasta: null, margen: "10" });
+
+          await expectInvariantViolation(tx, () => tx.query(`UPDATE fsj.regla_precio_tramo SET margen = 999 WHERE id = $1`, [tramoId]), "INV-IMMUTABLE");
+          await expectInvariantViolation(tx, () => tx.query(`DELETE FROM fsj.regla_precio_tramo WHERE id = $1`, [tramoId]), "INV-IMMUTABLE");
+
+          await tx.query("SET LOCAL ROLE fsj_app");
+          await expectDbRejection(tx, () => tx.query(`UPDATE fsj.regla_precio_tramo SET margen = 999 WHERE id = $1`, [tramoId]), "42501");
+          await expectDbRejection(tx, () => tx.query(`DELETE FROM fsj.regla_precio_tramo WHERE id = $1`, [tramoId]), "42501");
+        }),
+      );
+    });
+
+    it("INV-PR-001 also covers precio_minimo: it cannot be modified", async () => {
+      await asOwner((client) =>
+        inRollbackTx(client, async (tx) => {
+          const { tenantId, sistema } = await seedTenantConSistema(tx, "minimoinmutable");
+          const id = await insertRegla(tx, tenantId, sistema);
+          await expectInvariantViolation(tx, () => tx.query(`UPDATE fsj.regla_precio SET precio_minimo = 1 WHERE id = $1`, [id]), "INV-PR-001");
+        }),
+      );
+    });
+
+    it("tenant B never sees tenant A's tramos", async () => {
+      await asOwner((client) =>
+        inRollbackTx(client, async (tx) => {
+          const { tenantId: tenantA, sistema } = await seedTenantConSistema(tx, "tramoisoA");
+          const reglaId = await insertRegla(tx, tenantA, sistema);
+          const tenantB = await insertTenant(tx, "tramoisoB");
+
+          await tx.query("SET LOCAL ROLE fsj_app");
+          await withTenant(tx, tenantB, async (scoped) => {
+            const tramos = await scoped.query(`SELECT id FROM fsj.regla_precio_tramo WHERE regla_precio_id = $1`, [reglaId]);
+            expect(tramos.rows).toHaveLength(0);
+          });
+        }),
+      );
+    });
+
+    it("cotizacion.precio_minimo_aplicado defaults to false and records the floor when sent", async () => {
+      await asOwner((client) =>
+        inRollbackTx(client, async (tx) => {
+          const { tenantId, sistema, itemRecetaId, reglaId } = await seedItemConFichaYRegla(tx, "cotpiso");
+          const sinPiso = await insertCotizacion(tx, { tenantId, itemRecetaId, reglaPrecioId: reglaId, calculadaPorId: sistema });
+          const conPiso = await tx.query(
+            `INSERT INTO fsj.cotizacion (tenant_id, item_receta_id, costo_insumos, margen_aplicado, precio_final, precio_minimo_aplicado, regla_precio_id, detalle, calculada_por_id)
+             VALUES ($1, $2, 5000, 100, 20000, true, $3, $4, $5) RETURNING id`,
+            [tenantId, itemRecetaId, reglaId, JSON.stringify({ lineas: [] }), sistema],
+          );
+          const conPisoId = conPiso.rows[0].id as string;
+          const filas = await tx.query(`SELECT id, precio_minimo_aplicado FROM fsj.cotizacion WHERE id = ANY($1::uuid[])`, [[sinPiso, conPisoId]]);
+          const porId = new Map(filas.rows.map((r) => [r.id as string, r.precio_minimo_aplicado as boolean]));
+          expect(porId.get(sinPiso)).toBe(false);
+          expect(porId.get(conPisoId)).toBe(true);
         }),
       );
     });

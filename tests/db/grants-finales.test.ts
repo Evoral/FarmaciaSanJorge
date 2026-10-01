@@ -44,6 +44,9 @@ const LEGAL: Record<string, GrantRule> = {
   // ficha_tecnica/linea_pesaje above -- not part of the libro recetario
   // legal core, but immutable the same way.
   cotizacion: { insert: true, update: [] },
+  // Migration 0052: a regla_precio version's margin tramos -- insert-only,
+  // a change is a new version (same shape as cotizacion above).
+  regla_precio_tramo: { insert: true, update: [] },
 };
 
 /**

@@ -21,6 +21,8 @@ export interface CotizacionItemOutput {
   id: string;
   costoInsumos: string;
   margenAplicado: string;
+  /** The regla's precio mínimo raised the price (migration 0052; always false before it). */
+  precioMinimoAplicado: boolean;
   precioFinal: string;
   esParcial: boolean;
   esIncompleta: boolean;
@@ -39,6 +41,7 @@ function toOutput(row: {
   id: string;
   costoInsumos: string;
   margenAplicado: string;
+  precioMinimoAplicado: boolean;
   precioFinal: string;
   esParcial: boolean;
   esIncompleta: boolean;
@@ -51,6 +54,7 @@ function toOutput(row: {
     id: row.id,
     costoInsumos: row.costoInsumos,
     margenAplicado: row.margenAplicado,
+    precioMinimoAplicado: row.precioMinimoAplicado,
     precioFinal: row.precioFinal,
     esParcial: row.esParcial,
     esIncompleta: row.esIncompleta,

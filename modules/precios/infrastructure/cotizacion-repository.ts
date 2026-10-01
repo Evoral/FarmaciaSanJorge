@@ -131,6 +131,7 @@ export interface NuevaCotizacionInput {
   itemRecetaId: string;
   costoInsumos: string;
   margenAplicado: string;
+  precioMinimoAplicado: boolean;
   precioFinal: string;
   reglaPrecioId: string;
   esParcial: boolean;
@@ -146,6 +147,7 @@ export async function insertCotizacion(tx: Prisma.TransactionClient, input: Nuev
       itemRecetaId: input.itemRecetaId,
       costoInsumos: input.costoInsumos,
       margenAplicado: input.margenAplicado,
+      precioMinimoAplicado: input.precioMinimoAplicado,
       precioFinal: input.precioFinal,
       reglaPrecioId: input.reglaPrecioId,
       esParcial: input.esParcial,
@@ -162,6 +164,7 @@ export interface CotizacionItem {
   id: string;
   costoInsumos: string;
   margenAplicado: string;
+  precioMinimoAplicado: boolean;
   precioFinal: string;
   esParcial: boolean;
   esIncompleta: boolean;
@@ -175,6 +178,7 @@ const COTIZACION_SELECT = {
   id: true,
   costoInsumos: true,
   margenAplicado: true,
+  precioMinimoAplicado: true,
   precioFinal: true,
   esParcial: true,
   esIncompleta: true,
@@ -187,6 +191,7 @@ function mapCotizacion(row: {
   id: string;
   costoInsumos: Prisma.Decimal;
   margenAplicado: Prisma.Decimal;
+  precioMinimoAplicado: boolean;
   precioFinal: Prisma.Decimal;
   esParcial: boolean;
   esIncompleta: boolean;
@@ -198,6 +203,7 @@ function mapCotizacion(row: {
     id: row.id,
     costoInsumos: row.costoInsumos.toString(),
     margenAplicado: row.margenAplicado.toString(),
+    precioMinimoAplicado: row.precioMinimoAplicado,
     precioFinal: row.precioFinal.toString(),
     esParcial: row.esParcial,
     esIncompleta: row.esIncompleta,

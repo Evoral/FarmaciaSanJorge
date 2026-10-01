@@ -21,7 +21,7 @@ Fuera de alcance: reservar stock, guardar presupuestos, presupuesto en la edici�
 En memoria:
 
 1. **Ficha de cada ítem**: el mismo cálculo que `fichas.generar` (unidades base, parámetros de pesaje del tenant y calculadora pura de `ficha-tecnica.md`).
-2. **Costo de la receta completa**: el mismo cálculo que `cotizaciones.calcular` (jornada del tenant, partidas elegibles, reparto y calculadora pura) con el margen de la regla de precio vigente, pero **acumulado por droga en el orden de los ítems**: el primer ítem consume de los saldos elegibles y el siguiente ve solo lo que queda. Así, dos ítems que usan la misma droga no pueden aparecer ambos cubiertos.
+2. **Costo de la receta completa**: el mismo cálculo que `cotizaciones.calcular` (jornada del tenant, partidas elegibles, reparto y calculadora pura) con la regla de precio vigente (tramos de margen por costo y precio mínimo, `reglas-precio.md`; cada ítem se cotiza con su propio costo), pero **acumulado por droga en el orden de los ítems**: el primer ítem consume de los saldos elegibles y el siguiente ve solo lo que queda. Así, dos ítems que usan la misma droga no pueden aparecer ambos cubiertos.
 
 Ambos pasos comparten el código con los comandos existentes (`calcularLineasFicha`; `calcularCotizacion` y su reparto), de modo que el presupuesto y la cotización posterior aplican las mismas reglas.
 
@@ -72,7 +72,7 @@ Los accesos manuales «Ficha técnica» y «Cotización» del detalle se mantien
 
 ## Casos de prueba
 
-- **PR1** — Ítem normal: precio = costo × (1 + margen/100).
+- **PR1** — Ítem normal: precio = max(costo × (1 + margen del tramo/100), precio mínimo) — ver `reglas-precio.md`.
 - **PR2** — Cápsulas con excipiente CSP: resultado **Parcial**, el excipiente figura como «se completa al preparar».
 - **PR3** — Stock insuficiente: resultado **Incompleta**, con el faltante por droga.
 - **PR4** — Sin regla de precio: mensaje único, sin precios.

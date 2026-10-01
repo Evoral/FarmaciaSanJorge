@@ -1,4 +1,4 @@
-/** Read-only breakdown of one cotización (FASE 7 point 7.4): línea, droga, cantidad, partida, costo unitario, subtotal, margen, precio final, flags parcial/incompleta. Server Component (no interactivity). */
+/** Read-only breakdown of one cotización (FASE 7 point 7.4): línea, droga, cantidad, partida, costo unitario, subtotal, margen del tramo aplicado, precio final (and whether the precio mínimo raised it), flags parcial/incompleta. Server Component (no interactivity). */
 import type { CotizacionItemOutput } from "@/modules/precios/application/get-cotizacion-item";
 
 function fechaHora(iso: string): string {
@@ -32,12 +32,13 @@ export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionIt
           <dd className="text-base font-semibold">${cotizacion.costoInsumos}</dd>
         </div>
         <div>
-          <dt className="text-zinc-500">Margen aplicado</dt>
+          <dt className="text-zinc-500">Margen del tramo</dt>
           <dd className="text-base font-semibold">{cotizacion.margenAplicado}%</dd>
         </div>
         <div>
           <dt className="text-zinc-500">Precio final</dt>
           <dd className="text-base font-semibold">${cotizacion.precioFinal}</dd>
+          {cotizacion.precioMinimoAplicado ? <dd className="text-xs text-zinc-500">Precio mínimo aplicado (el costo + margen quedaba por debajo)</dd> : null}
         </div>
       </div>
 

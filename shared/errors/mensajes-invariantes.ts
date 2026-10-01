@@ -91,9 +91,12 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
 
   // Precios
   "INV-PR-001": "Una regla de precio no se puede editar: cerrala e ingresá una nueva versión.",
+  "INV-PR-002":
+    "Los tramos de margen no son válidos: debe haber al menos uno, cada tope debe ser mayor que el anterior y solo el último tramo puede quedar sin tope.",
 
   // Recetas
   "INV-R01": "La receta debe tener al menos un ítem.",
+  // INV-R07's trigger/CHECK were dropped by migration 0051; kept because the scan covers 0016.
   "INV-R07": "No se puede registrar el retiro presencial sin haber recibido la receta física.",
   "INV-R08": "La receta no admite ese cambio de estado desde su estado actual.",
   // INV-R07's trigger/CHECK were dropped by migration 0051; kept because the scan covers 0016.

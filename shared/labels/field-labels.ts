@@ -98,11 +98,14 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   esBase: "Unidad base",
   esControlada: "Controlada",
   factorABase: "Factor de conversión",
+  costoHasta: "Costo hasta",
   margen: "Margen (%)",
+  precioMinimo: "Precio mínimo",
   simbolo: "Símbolo",
   stockMinimo: "Stock mínimo",
   tipoControl: "Tipo de control",
   tipoMagnitud: "Magnitud",
+  tramos: "Tramos de margen",
   valor: "Valor",
 
   // Recetas, ítems and componentes.

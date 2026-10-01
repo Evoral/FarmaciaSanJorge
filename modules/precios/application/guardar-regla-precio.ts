@@ -1,9 +1,13 @@
 /**
  * `guardarReglaPrecio` (M08, FASE 4 point 4.6, DP-09 RESUELTA). ADM, DT
- * (plan §7: `precios.reglas.editar`). Sets a new margin.
+ * (plan §7: `precios.reglas.editar`). Saves a new version of the price
+ * rule set: precio mínimo + margin tramos by cost (2026-10-01 rule,
+ * docs/specs/reglas-precio.md). The input is validated by the pure
+ * `validarReglasPrecio` (the DB re-checks the tramo set at COMMIT,
+ * INV-PR-002 -- migration 0052).
  *
  * INV-PR-001 (versioned + immutable): this command NEVER updates an
- * existing regla_precio's margen. If an OPEN row exists, it is CLOSED
+ * existing regla_precio or its tramos. If an OPEN row exists, it is CLOSED
  * (vigente_hasta = server "now") and a NEW row is INSERTed with
  * vigente_desde = that SAME instant, in this ONE transaction -- so a
  * cotizacion that already referenced the closed version keeps meaning
@@ -17,21 +21,39 @@
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { decimalString } from "@/shared/validation";
+import { describirTramos, validarReglasPrecio } from "../domain/regla-precio";
 import { lockReglaAbierta, ahoraServidor, cerrarReglaAbierta, insertReglaPrecio } from "../infrastructure/regla-precio-repository";
+import type { TramoGuardado } from "../infrastructure/regla-precio-repository";
 
-const margenInput = decimalString.refine((v) => v.greaterThanOrEqualTo(0), {
-  message: "El margen debe ser mayor o igual a 0.",
+const tramoInput = z.object({
+  /** `null` = no upper limit (only the last tramo). */
+  costoHasta: decimalString.nullable(),
+  margen: decimalString,
 });
 
-const guardarReglaPrecioInput = z.object({ margen: margenInput });
+const guardarReglaPrecioInput = z
+  .object({
+    precioMinimo: decimalString,
+    tramos: z.array(tramoInput),
+  })
+  .superRefine((input, ctx) => {
+    for (const problema of validarReglasPrecio(input)) {
+      const path =
+        problema.campo === "precioMinimo" ? ["precioMinimo"] : problema.indiceTramo === undefined ? ["tramos"] : ["tramos", problema.indiceTramo, problema.campo];
+      ctx.addIssue({ code: "custom", message: problema.mensaje, path });
+    }
+  });
 
 export interface GuardarReglaPrecioInput {
-  margen: string;
+  precioMinimo: string;
+  /** In cost order; the last one with `costoHasta: null`. */
+  tramos: { costoHasta: string | null; margen: string }[];
 }
 
 export interface GuardarReglaPrecioOutput {
   id: string;
-  margen: string;
+  precioMinimo: string;
+  tramos: TramoGuardado[];
   vigenteDesde: string;
 }
 
@@ -50,17 +72,20 @@ export const guardarReglaPrecioCommand = defineCommand({
 
     const nueva = await insertReglaPrecio(tx, {
       tenantId: session.tenantId,
-      margen: input.margen.toString(),
+      precioMinimo: input.precioMinimo.toString(),
+      tramos: input.tramos.map((t) => ({ costoHasta: t.costoHasta === null ? null : t.costoHasta.toString(), margen: t.margen.toString() })),
       vigenteDesde: ahora,
       creadoPorId: session.usuario.id,
     });
 
     return {
-      output: { id: nueva.id, margen: nueva.margen, vigenteDesde: nueva.vigenteDesde.toISOString() },
+      output: { id: nueva.id, precioMinimo: nueva.precioMinimo, tramos: nueva.tramos, vigenteDesde: nueva.vigenteDesde.toISOString() },
       audit: {
         entidadId: nueva.id,
-        valorAnterior: abierta ? { margen: abierta.margen, vigenteDesde: abierta.vigenteDesde.toISOString(), vigenteHasta: null } : null,
-        valorNuevo: { margen: nueva.margen, vigenteDesde: nueva.vigenteDesde.toISOString() },
+        valorAnterior: abierta
+          ? { precioMinimo: abierta.precioMinimo, tramos: describirTramos(abierta.tramos), vigenteDesde: abierta.vigenteDesde.toISOString(), vigenteHasta: null }
+          : null,
+        valorNuevo: { precioMinimo: nueva.precioMinimo, tramos: describirTramos(nueva.tramos), vigenteDesde: nueva.vigenteDesde.toISOString() },
       },
     };
   },

@@ -6,10 +6,25 @@
  */
 import { describe, it, expect } from "vitest";
 import { Decimal } from "decimal.js";
-import { calcularCotizacion } from "@/modules/precios/domain/calcular-cotizacion";
+import { calcularCotizacion, calcularCotizacionesAcumuladas } from "@/modules/precios/domain/calcular-cotizacion";
 import type { LineaCosteoInput, PartidaCosteo } from "@/modules/precios/domain/calcular-cotizacion";
+import type { ReglasPrecio } from "@/modules/precios/domain/regla-precio";
 
 const HOY = "2026-06-15";
+
+/** One open-ended tramo, no floor: the pre-2026-10-01 single-margen behavior. */
+function margenUnico(margen: string): ReglasPrecio {
+  return { precioMinimo: "0", tramos: [{ costoHasta: null, margen }] };
+}
+
+/** The user's example rules (2026-10-01): <= 100000 -> +100%, > 100000 -> +70%, floor 20000. */
+const REGLAS_EJEMPLO: ReglasPrecio = {
+  precioMinimo: "20000",
+  tramos: [
+    { costoHasta: "100000", margen: "100" },
+    { costoHasta: null, margen: "70" },
+  ],
+};
 
 function linea(overrides: Partial<LineaCosteoInput>): LineaCosteoInput {
   return {
@@ -39,7 +54,7 @@ describe("calcularCotizacion", () => {
     const lineas = [linea({ cantidadAPesar: "10" })];
     const partidas = { "droga-1": [partida({ costoUnitario: "5" })] };
 
-    const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, "200");
+    const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, margenUnico("200"));
 
     expect(resultado.costoInsumos.toString()).toBe("50"); // 10 * 5
     expect(resultado.margenAplicado.toString()).toBe("200");
@@ -54,7 +69,7 @@ describe("calcularCotizacion", () => {
     const lineas = [linea({ cantidadAPesar: "10" })];
     const partidas = { "droga-1": [partida({ costoUnitario: "5" })] };
 
-    const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, "0");
+    const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, margenUnico("0"));
 
     expect(resultado.costoInsumos.toString()).toBe("50");
     expect(resultado.precioFinal.toString()).toBe("50");
@@ -67,7 +82,7 @@ describe("calcularCotizacion", () => {
     ];
     const partidas = { activo: [partida({ id: "PA", costoUnitario: "10" })] };
 
-    const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, "150");
+    const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, margenUnico("150"));
 
     expect(resultado.costoInsumos.toString()).toBe("30"); // only the active line: 3 * 10
     expect(resultado.esParcial).toBe(true);
@@ -84,7 +99,7 @@ describe("calcularCotizacion", () => {
     // Only 4 available, 10 requested.
     const partidas = { "droga-1": [partida({ id: "P1", cantidadDisponible: "4", costoUnitario: "5" })] };
 
-    const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, "100");
+    const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, margenUnico("100"));
 
     expect(resultado.esIncompleta).toBe(true);
     expect(resultado.costoInsumos.toString()).toBe("20"); // 4 * 5 -- cost what exists
@@ -97,7 +112,7 @@ describe("calcularCotizacion", () => {
   it("insufficient stock with ZERO eligible partidas (droga with no stock at all): costoInsumos 0 for that linea, faltante = full requested quantity", () => {
     const lineas = [linea({ cantidadAPesar: "7" })];
 
-    const resultado = calcularCotizacion(lineas, () => [], HOY, "100");
+    const resultado = calcularCotizacion(lineas, () => [], HOY, margenUnico("100"));
 
     expect(resultado.esIncompleta).toBe(true);
     expect(resultado.costoInsumos.toString()).toBe("0");
@@ -114,7 +129,7 @@ describe("calcularCotizacion", () => {
       ],
     };
 
-    const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, "100");
+    const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, margenUnico("100"));
 
     expect(resultado.esIncompleta).toBe(false);
     expect(resultado.detalle.lineas[0].partidas).toEqual([{ partidaId: "VIGENTE", cantidad: "10", costoUnitario: "9", subtotal: "90" }]);
@@ -131,7 +146,7 @@ describe("calcularCotizacion", () => {
       ],
     };
 
-    const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, "100");
+    const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, margenUnico("100"));
 
     expect(resultado.detalle.lineas[0].partidas).toEqual([
       { partidaId: "ABIERTA", cantidad: "5", costoUnitario: "2", subtotal: "10" },
@@ -150,7 +165,7 @@ describe("calcularCotizacion", () => {
       b: [partida({ id: "PB", costoUnitario: "100" })],
     };
 
-    const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, "100");
+    const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, margenUnico("100"));
 
     expect(resultado.costoInsumos.toString()).toBe("320"); // (2*10) + (3*100)
   });
@@ -159,10 +174,42 @@ describe("calcularCotizacion", () => {
     const lineas = [linea({ cantidadAPesar: "0.1" })];
     const partidas = { "droga-1": [partida({ costoUnitario: "0.2" })] };
 
-    const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, "100");
+    const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, margenUnico("100"));
 
     // 0.1 * 0.2 = 0.02 exactly under Decimal; float arithmetic would give 0.020000000000000004.
     expect(resultado.costoInsumos.equals(new Decimal("0.02"))).toBe(true);
     expect(resultado.costoInsumos.toString()).toBe("0.02");
+  });
+});
+
+describe("calcularCotizacion -- price rules by tramo + floor (2026-10-01)", () => {
+  const costo = (total: string) => ({ lineas: [linea({ cantidadAPesar: total })], partidas: [partida({ costoUnitario: "1", cantidadDisponible: "1000000" })] });
+
+  it("records the tramo markup actually used and the tramo index", () => {
+    const { lineas, partidas } = costo("100001");
+    const resultado = calcularCotizacion(lineas, () => partidas, HOY, REGLAS_EJEMPLO);
+    expect(resultado.costoInsumos.toString()).toBe("100001");
+    expect(resultado.margenAplicado.toString()).toBe("70");
+    expect(resultado.tramoAplicado).toBe(1);
+    expect(resultado.precioMinimoAplicado).toBe(false);
+    expect(resultado.precioFinal.toString()).toBe("170001.7");
+  });
+
+  it("flags the floor when it raised the price, keeping the tramo markup as margenAplicado", () => {
+    const { lineas, partidas } = costo("5000");
+    const resultado = calcularCotizacion(lineas, () => partidas, HOY, REGLAS_EJEMPLO);
+    expect(resultado.margenAplicado.toString()).toBe("100");
+    expect(resultado.precioMinimoAplicado).toBe(true);
+    expect(resultado.precioFinal.toString()).toBe("20000");
+  });
+
+  it("calcularCotizacionesAcumuladas prices EACH item on its own cost (never on the receta's total)", () => {
+    const lineas = [linea({ cantidadAPesar: "60000" })];
+    const partidas = [partida({ costoUnitario: "1", cantidadDisponible: "1000000" })];
+    const [primero, segundo] = calcularCotizacionesAcumuladas([lineas, lineas], () => partidas, HOY, REGLAS_EJEMPLO);
+    // 60000 + 60000 = 120000 would fall in the 70% tramo; each item alone is in the 100% tramo.
+    expect(primero!.precioFinal.toString()).toBe("120000");
+    expect(segundo!.precioFinal.toString()).toBe("120000");
+    expect(segundo!.margenAplicado.toString()).toBe("100");
   });
 });

@@ -39,6 +39,7 @@ export interface CalcularCotizacionOutput {
   id: string;
   costoInsumos: string;
   margenAplicado: string;
+  precioMinimoAplicado: boolean;
   precioFinal: string;
   esParcial: boolean;
   esIncompleta: boolean;
@@ -67,7 +68,7 @@ export const calcularCotizacionCommand = defineCommand({
     if (!regla) {
       throw new CotizacionNoCalculableError(
         "SIN_REGLA_PRECIO",
-        "No hay una regla de precio configurada. Pedile a un administrador que configure el margen antes de cotizar.",
+        "No hay una regla de precio configurada. Pedile a un administrador que configure las reglas de precio antes de cotizar.",
       );
     }
 
@@ -80,13 +81,14 @@ export const calcularCotizacionCommand = defineCommand({
       orden: l.orden,
     }));
 
-    const resultado = await cotizarLineas(tx, session.tenantId, lineasInput, regla.margen);
+    const resultado = await cotizarLineas(tx, session.tenantId, lineasInput, regla);
 
     const nueva = await insertCotizacion(tx, {
       tenantId: session.tenantId,
       itemRecetaId: input.itemRecetaId,
       costoInsumos: resultado.costoInsumos.toString(),
       margenAplicado: resultado.margenAplicado.toString(),
+      precioMinimoAplicado: resultado.precioMinimoAplicado,
       precioFinal: resultado.precioFinal.toString(),
       reglaPrecioId: regla.id,
       esParcial: resultado.esParcial,
@@ -105,6 +107,7 @@ export const calcularCotizacionCommand = defineCommand({
         id: nueva.id,
         costoInsumos: resultado.costoInsumos.toString(),
         margenAplicado: resultado.margenAplicado.toString(),
+        precioMinimoAplicado: resultado.precioMinimoAplicado,
         precioFinal: resultado.precioFinal.toString(),
         esParcial: resultado.esParcial,
         esIncompleta: resultado.esIncompleta,

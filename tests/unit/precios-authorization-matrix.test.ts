@@ -54,7 +54,7 @@ const SEED_GRANTS: Record<Rol, readonly Permiso[]> = {
 const TARGET_ID = "33333333-3333-4333-a333-333333333333";
 
 const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> = [
-  { name: "precios.reglas.editar", permiso: "precios.reglas.editar", input: { margen: "300" } },
+  { name: "precios.reglas.editar", permiso: "precios.reglas.editar", input: { precioMinimo: "0", tramos: [{ costoHasta: null, margen: "300" }] } },
   { name: "precios.reglas.consultar", permiso: "precios.reglas.editar", input: {} },
   { name: "cotizaciones.calcular", permiso: "cotizaciones.calcular", input: { itemRecetaId: TARGET_ID } },
   { name: "cotizaciones.item.consultar", permiso: "cotizaciones.ver", input: { itemRecetaId: TARGET_ID } },
