@@ -53,10 +53,10 @@ const nextConfig: NextConfig = {
       bodySizeLimit: 1_081_344,
     },
   },
-  // Pacientes left the Catálogos tabs to become its own section under
-  // "Gestión": keep old bookmarks/links working. `:path*` also matches the
-  // bare `/catalogos/pacientes` (zero segments); query strings pass through.
-  // Deliberately NOT permanent (307, not 308): this move may be rolled back
+  // Pacientes and Proveedores left the Catálogos tabs to become their own
+  // sections under "Gestión": keep old bookmarks/links working. `:path*`
+  // also matches the bare paths (zero segments); query strings pass through.
+  // Deliberately NOT permanent (307, not 308): these moves may be rolled back
   // (docs/rollbacks/trayectoria-paciente.md) and browsers cache a 308
   // indefinitely, which would keep sending them to a removed route.
   async redirects() {
@@ -64,6 +64,11 @@ const nextConfig: NextConfig = {
       {
         source: "/catalogos/pacientes/:path*",
         destination: "/pacientes/:path*",
+        permanent: false,
+      },
+      {
+        source: "/catalogos/proveedores/:path*",
+        destination: "/proveedores/:path*",
         permanent: false,
       },
     ];

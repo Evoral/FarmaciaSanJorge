@@ -709,6 +709,8 @@ model Partida {
   @@unique([tenantId, drogaId, proveedorId, lote])
   /// FASE 13 point 13.2 (migration 0043): supports the stock valorizado report's per-droga grouping/filtering.
   @@index([tenantId, drogaId])
+  /// Migration 0056: Trayectoria del proveedor -- the partidas of one proveedor, newest first (fecha_ingreso DESC). Performance only.
+  @@index([tenantId, proveedorId, fechaIngreso(sort: Desc)], map: "idx_partida_tenant_proveedor_ingreso")
   @@map("partida")
   @@schema("fsj")
 }

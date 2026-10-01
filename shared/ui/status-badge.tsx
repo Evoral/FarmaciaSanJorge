@@ -33,6 +33,9 @@ const TONE_BY_ESTADO: Record<string, Tone> = {
   ANULADA: "danger",
   ANULADO: "danger",
   VENCIDA: "danger",
+  POR_VENCER: "warn",
+  AGOTADA: "neutral",
+  ABIERTA: "neutral",
   SUSPENDIDO: "danger",
   BAJA: "danger",
 };

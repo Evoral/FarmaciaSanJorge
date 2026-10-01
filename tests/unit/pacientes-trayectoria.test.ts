@@ -16,8 +16,8 @@ import {
   estadoPasoEntrega,
   estadoPasoLibro,
   estadoPasoPreparacion,
-  formatearMonto,
 } from "@/modules/pacientes/domain/trayectoria";
+import { formatearMonto } from "@/shared/format/monto";
 import type {
   AccesoTrayectoria,
   AsientoItemTrayectoria,

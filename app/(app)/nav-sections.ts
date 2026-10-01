@@ -36,18 +36,18 @@ function visible(entries: ReadonlyArray<SectionLink & { visible: boolean }>): Se
 }
 
 /**
- * `/catalogos/**` (FASE 4 points 4.1-4.4). Unidades de medida (FASE 4
+ * `/catalogos/**` (FASE 4 points 4.1, 4.2, 4.4). Unidades de medida (FASE 4
  * point 4.1, formerly under `/admin`) goes last so the existing landing
  * section for every role is unchanged: there is no dedicated
  * `unidades.ver`, `unidades.editar` doubles as "may enter the section"
- * (see `catalogos/unidades/layout.tsx`). Pacientes (point 4.5) is NOT a
- * tab here anymore: it is its own sidebar entry under "Gestión"
- * (`/pacientes`, gated on `pacientes.gestionar`).
+ * (see `catalogos/unidades/layout.tsx`). Proveedores (point 4.3) and
+ * Pacientes (point 4.5) are NOT tabs here anymore: each is its own sidebar
+ * entry under "Gestión" (`/proveedores` gated on `proveedores.gestionar`,
+ * `/pacientes` gated on `pacientes.gestionar`).
  */
 export function catalogosSections(session: AuthenticatedSession): SectionLink[] {
   return visible([
     { href: "/catalogos/drogas", label: "Drogas", visible: can(session, "drogas.editar") },
-    { href: "/catalogos/proveedores", label: "Proveedores", visible: can(session, "proveedores.gestionar") },
     { href: "/catalogos/medicos", label: "Médicos", visible: can(session, "medicos.gestionar") },
     { href: "/catalogos/unidades", label: "Unidades de medida", visible: can(session, "unidades.editar") },
   ]);

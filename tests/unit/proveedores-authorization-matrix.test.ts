@@ -30,6 +30,7 @@ await import("@/modules/proveedores/application/dar-de-baja-proveedor");
 await import("@/modules/proveedores/application/reactivar-proveedor");
 await import("@/modules/proveedores/application/list-proveedores");
 await import("@/modules/proveedores/application/get-proveedor");
+const { accesoTrayectoriaProveedor } = await import("@/modules/proveedores/application/get-trayectoria-proveedor");
 
 const { listRegisteredUseCasesForTests } = await import("@/shared/usecase");
 
@@ -58,6 +59,7 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
   { name: "proveedores.reactivar", permiso: "proveedores.gestionar", input: { id: TARGET_ID, motivo: "Motivo de prueba." } },
   { name: "proveedores.listar", permiso: "proveedores.gestionar", input: {} },
   { name: "proveedores.ver", permiso: "proveedores.gestionar", input: { id: TARGET_ID } },
+  { name: "proveedores.trayectoria", permiso: "proveedores.gestionar", input: { proveedorId: TARGET_ID } },
 ];
 
 function sessionForRol(rol: Rol): AuthenticatedSession {
@@ -104,4 +106,34 @@ describe("FASE 4 point 4.3 (proveedores) authorization matrix -- role x permiso,
       });
     }
   }
+});
+
+describe("proveedores.trayectoria -- optional blocks and links follow the session's OTHER permisos (can(), no extra defineQuery)", () => {
+  function sessionWith(permisos: Permiso[]): AuthenticatedSession {
+    return { ...sessionForRol("FARMACEUTICO"), permisos: new Set(permisos) as AuthenticatedSession["permisos"] };
+  }
+
+  it("a session with only proveedores.gestionar sees the base blocks and no money, link or optional block", () => {
+    expect(accesoTrayectoriaProveedor(sessionWith(["proveedores.gestionar"]))).toEqual({
+      costos: false,
+      preparaciones: false,
+      contralor: false,
+      correcciones: false,
+      linkPartida: false,
+    });
+  });
+
+  it("each flag is exactly the permiso of its block / target page", () => {
+    const cases: ReadonlyArray<[Permiso, keyof ReturnType<typeof accesoTrayectoriaProveedor>]> = [
+      ["stock.valorizado.ver", "costos"],
+      ["preparaciones.iniciar", "preparaciones"],
+      ["libro.ver", "contralor"],
+      ["auditoria.ver", "correcciones"],
+      ["stock.ver", "linkPartida"],
+    ];
+    for (const [permiso, flag] of cases) {
+      const acceso = accesoTrayectoriaProveedor(sessionWith(["proveedores.gestionar", permiso]));
+      for (const [, other] of cases) expect(acceso[other], `${permiso} -> ${String(other)}`).toBe(other === flag);
+    }
+  });
 });

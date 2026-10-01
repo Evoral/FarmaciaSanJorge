@@ -1,7 +1,15 @@
 /**
- * One receta of the Trayectoria as a card: header, the 5-step journey, a
- * per-item table (items, presupuesto, preparación, libro) and the receta-level
- * facts (entrega, receta física, archivo, presupuesto total). Server component.
+ * One receta of the Trayectoria as a collapsible card (native
+ * `<details>`/`<summary>`: no client JS, keyboard and screen-reader friendly,
+ * closed by default). The summary shows the key facts (número, estado, fecha
+ * de ingreso, first item, médico, presupuesto total, current step); the body
+ * holds the 5-step journey, a per-item table (items, presupuesto,
+ * preparación, libro) and the receta-level facts (entrega, archivo,
+ * presupuesto total). Server component.
+ *
+ * The summary carries no links on purpose (interactive content inside
+ * `<summary>` is an accessibility anti-pattern); the link to the receta lives
+ * in the body.
  *
  * Optional blocks and links follow `acceso` (docs/specs/trayectoria-paciente.md,
  * "Visibility per role"): a block the session cannot see is omitted, and a
@@ -13,8 +21,9 @@ import Link from "next/link";
 import { ESTADO_LOTE_ARCHIVO_LABELS } from "@/modules/archivo/domain/lote-archivo";
 import { FORMA_FARMACEUTICA_LABELS, ORIGEN_RECETA_LABELS } from "@/shared/labels/enum-labels";
 import { formatFecha, formatFechaHora } from "@/shared/format/fecha";
+import { formatearMonto } from "@/shared/format/monto";
 import { StatusBadge } from "@/shared/ui/status-badge";
-import { MODALIDAD_ENTREGA_LABELS, formatearMonto } from "../domain/trayectoria";
+import { ESTADO_PASO_LABELS, MODALIDAD_ENTREGA_LABELS, PASO_JORNADA_LABELS, etapaActual, resumenItems } from "../domain/trayectoria";
 import type { AccesoTrayectoria, ItemTrayectoria, PresupuestoTrayectoria, RecetaTrayectoria } from "../domain/trayectoria";
 import { TrayectoriaPasos } from "./trayectoria-pasos";
 
@@ -178,90 +187,131 @@ function TextoPresupuestoTotal({ presupuesto }: { presupuesto: PresupuestoTrayec
   );
 }
 
+/** "Cápsulas ×60 · Minoxidil 2,5 mg (+1 ítem)" -- the collapsed-summary line of what the receta asks for. */
+function TextoQuePide({ items }: { items: ItemTrayectoria[] }) {
+  const resumen = resumenItems(items);
+  if (!resumen) return <span className="text-zinc-500">Sin ítems</span>;
+  const { primero, restantes } = resumen;
+  return (
+    <span>
+      {FORMA_FARMACEUTICA_LABELS[primero.formaFarmaceutica]} ×{primero.cantidadUnidades}
+      {primero.drogas.length > 0 ? ` · ${primero.drogas.join(", ")}` : ""}
+      {restantes > 0 ? <span className="text-zinc-500"> (+{restantes} ítem{restantes === 1 ? "" : "s"})</span> : null}
+    </span>
+  );
+}
+
+function TextoEtapa({ receta }: { receta: RecetaTrayectoria }) {
+  const etapa = etapaActual(receta.pasos);
+  if (!etapa) return <span>Etapa: Completa</span>;
+  return (
+    <span>
+      Etapa: {PASO_JORNADA_LABELS[etapa.paso]}, {ESTADO_PASO_LABELS[etapa.estado].toLowerCase()}
+    </span>
+  );
+}
+
 export function TrayectoriaRecetaCard({ receta, acceso, zonaHoraria }: RecetaCardProps) {
   const titulo = `Receta Nº ${receta.numeroInterno}`;
   const { entrega, lote } = receta;
 
   return (
-    <article className="card p-4" aria-labelledby={`receta-${receta.id}`}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 id={`receta-${receta.id}`} className="text-base font-semibold">
-            {acceso.linkReceta ? (
-              <Link href={`/recetas/${receta.id}`} className="underline-offset-2 hover:underline">
-                {titulo}
-              </Link>
-            ) : (
-              titulo
-            )}
-          </h3>
-          <StatusBadge estado={receta.estado} />
-        </div>
-        <p className="text-sm text-zinc-500">Ingreso: {formatFecha(receta.fechaIngreso, zonaHoraria)}</p>
-      </div>
-
-      <dl className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <Dato etiqueta="Fecha de prescripción">{formatFecha(receta.fechaPrescripcion)}</Dato>
-        <Dato etiqueta="Médico">{receta.medico}</Dato>
-        <Dato etiqueta="Origen">{ORIGEN_RECETA_LABELS[receta.origen]}</Dato>
-      </dl>
-
-      <div className="mb-4">
-        <TrayectoriaPasos pasos={receta.pasos} />
-      </div>
-
-      {receta.estado === "ANULADA" ? (
-        <p className="mb-4 text-sm text-red-700 dark:text-red-300">Motivo de anulación: {receta.motivoAnulacion ?? "—"}</p>
-      ) : null}
-
-      <div className="mb-4">
-        <TablaItems items={receta.items} acceso={acceso} zonaHoraria={zonaHoraria} />
-      </div>
-
-      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {acceso.presupuesto ? (
-          <Dato etiqueta="Presupuesto vigente">
-            <TextoPresupuestoTotal presupuesto={receta.presupuesto} />
-          </Dato>
-        ) : null}
-        <Dato etiqueta="Entrega">
-          {entrega ? (
-            <span className="flex flex-col gap-0.5">
-              <span>
-                {acceso.linkEntrega ? (
-                  <Link href={`/entregas/${receta.id}`} className="underline-offset-2 hover:underline">
-                    {MODALIDAD_ENTREGA_LABELS[entrega.modalidad]}
-                  </Link>
-                ) : (
-                  MODALIDAD_ENTREGA_LABELS[entrega.modalidad]
-                )}{" "}
-                · {formatFechaHora(entrega.entregadaEn, zonaHoraria)}
-              </span>
-              <span className="text-xs text-zinc-500">
-                {entrega.firmaRecibida
-                  ? `Firma recibida${entrega.firmaRecibidaEn ? ` el ${formatFecha(entrega.firmaRecibidaEn, zonaHoraria)}` : ""}`
-                  : "Firma pendiente"}
-              </span>
+    <details className="card group" aria-labelledby={`receta-${receta.id}`}>
+      <summary className="flex cursor-pointer list-none items-start gap-3 p-4 [&::-webkit-details-marker]:hidden">
+        <span aria-hidden="true" className="mt-0.5 text-zinc-400 transition-transform group-open:rotate-90">
+          ▸
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span id={`receta-${receta.id}`} className="text-base font-semibold">
+              {titulo}
             </span>
-          ) : (
-            <span className="text-zinc-500">Sin entrega registrada</span>
-          )}
-        </Dato>
-        {acceso.archivo ? (
-          <Dato etiqueta="Archivo">
-            {lote ? (
-              <span className="flex flex-wrap items-center gap-2">
-                <Link href={`/archivo/${lote.id}`} className="underline-offset-2 hover:underline">
-                  Lote Nº {lote.numero}
-                </Link>
-                <span className="text-xs text-zinc-500">{ESTADO_LOTE_ARCHIVO_LABELS[lote.estado]}</span>
+            <StatusBadge estado={receta.estado} />
+            <span className="text-sm text-zinc-500">{formatFecha(receta.fechaIngreso, zonaHoraria)}</span>
+            {acceso.presupuesto && receta.presupuesto ? <span className="text-sm font-medium">$ {formatearMonto(receta.presupuesto.total)}</span> : null}
+          </span>
+          <span className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
+            <TextoQuePide items={receta.items} />
+            <span className="text-zinc-500">{receta.medico}</span>
+            <span className="text-zinc-500">
+              <TextoEtapa receta={receta} />
+            </span>
+          </span>
+        </span>
+      </summary>
+
+      <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">
+        {acceso.linkReceta ? (
+          <p className="mb-3 text-sm">
+            <Link href={`/recetas/${receta.id}`} className="underline underline-offset-2">
+              Ver receta
+            </Link>
+          </p>
+        ) : null}
+
+        <dl className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Dato etiqueta="Fecha de prescripción">{formatFecha(receta.fechaPrescripcion)}</Dato>
+          <Dato etiqueta="Médico">{receta.medico}</Dato>
+          <Dato etiqueta="Origen">{ORIGEN_RECETA_LABELS[receta.origen]}</Dato>
+        </dl>
+
+        <div className="mb-4">
+          <TrayectoriaPasos pasos={receta.pasos} />
+        </div>
+
+        {receta.estado === "ANULADA" ? (
+          <p className="mb-4 text-sm text-red-700 dark:text-red-300">Motivo de anulación: {receta.motivoAnulacion ?? "—"}</p>
+        ) : null}
+
+        <div className="mb-4">
+          <TablaItems items={receta.items} acceso={acceso} zonaHoraria={zonaHoraria} />
+        </div>
+
+        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {acceso.presupuesto ? (
+            <Dato etiqueta="Presupuesto vigente">
+              <TextoPresupuestoTotal presupuesto={receta.presupuesto} />
+            </Dato>
+          ) : null}
+          <Dato etiqueta="Entrega">
+            {entrega ? (
+              <span className="flex flex-col gap-0.5">
+                <span>
+                  {acceso.linkEntrega ? (
+                    <Link href={`/entregas/${receta.id}`} className="underline-offset-2 hover:underline">
+                      {MODALIDAD_ENTREGA_LABELS[entrega.modalidad]}
+                    </Link>
+                  ) : (
+                    MODALIDAD_ENTREGA_LABELS[entrega.modalidad]
+                  )}{" "}
+                  · {formatFechaHora(entrega.entregadaEn, zonaHoraria)}
+                </span>
+                <span className="text-xs text-zinc-500">
+                  {entrega.firmaRecibida
+                    ? `Firma recibida${entrega.firmaRecibidaEn ? ` el ${formatFecha(entrega.firmaRecibidaEn, zonaHoraria)}` : ""}`
+                    : "Firma pendiente"}
+                </span>
               </span>
             ) : (
-              <span className="text-zinc-500">Sin archivar</span>
+              <span className="text-zinc-500">Sin entrega registrada</span>
             )}
           </Dato>
-        ) : null}
-      </dl>
-    </article>
+          {acceso.archivo ? (
+            <Dato etiqueta="Archivo">
+              {lote ? (
+                <span className="flex flex-wrap items-center gap-2">
+                  <Link href={`/archivo/${lote.id}`} className="underline-offset-2 hover:underline">
+                    Lote Nº {lote.numero}
+                  </Link>
+                  <span className="text-xs text-zinc-500">{ESTADO_LOTE_ARCHIVO_LABELS[lote.estado]}</span>
+                </span>
+              ) : (
+                <span className="text-zinc-500">Sin archivar</span>
+              )}
+            </Dato>
+          ) : null}
+        </dl>
+      </div>
+    </details>
   );
 }
