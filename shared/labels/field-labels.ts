@@ -54,6 +54,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   razonSocial: "Razón social",
   sexo: "Sexo",
   telefono: "Teléfono",
+  aceptaRecordatoriosWhatsapp: "Acepta recordatorios por WhatsApp",
 
   // Credentials and step-up.
   actual: "Contraseña actual",
@@ -213,6 +214,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   texto: "Paciente / médico",
   tipo: "Tipo",
   truncated: "Resultado recortado",
+  ventana: "Ventana",
 
   // Keys that only appear in audit diffs (valorAnterior/valorNuevo), not in
   // any use-case input: readable siblings of reference ids written next to

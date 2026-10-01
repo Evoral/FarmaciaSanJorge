@@ -34,6 +34,8 @@ await import("@/modules/pacientes/application/dar-de-baja-paciente");
 await import("@/modules/pacientes/application/reactivar-paciente");
 await import("@/modules/pacientes/application/list-pacientes");
 await import("@/modules/pacientes/application/get-paciente");
+const { accesoTrayectoria } = await import("@/modules/pacientes/application/get-trayectoria-paciente");
+await import("@/modules/pacientes/application/list-pacientes-recurrentes");
 
 const { listRegisteredUseCasesForTests } = await import("@/shared/usecase");
 
@@ -59,13 +61,27 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
       id: TARGET_ID,
       nombre: "N",
       apellido: "A",
-      version: { nombre: "N", apellido: "A", cuil: null, dni: null, telefono: null, email: null, fechaNacimiento: null, nroCredencial: null, sexo: null },
+      aceptaRecordatoriosWhatsapp: false,
+      version: {
+        nombre: "N",
+        apellido: "A",
+        cuil: null,
+        dni: null,
+        telefono: null,
+        email: null,
+        fechaNacimiento: null,
+        nroCredencial: null,
+        sexo: null,
+        aceptaRecordatoriosWhatsapp: false,
+      },
     },
   },
   { name: "pacientes.baja", permiso: "pacientes.gestionar", input: { id: TARGET_ID, motivo: "Motivo de prueba." } },
   { name: "pacientes.reactivar", permiso: "pacientes.gestionar", input: { id: TARGET_ID, motivo: "Motivo de prueba." } },
   { name: "pacientes.listar", permiso: "pacientes.gestionar", input: {} },
   { name: "pacientes.ver", permiso: "pacientes.gestionar", input: { id: TARGET_ID } },
+  { name: "pacientes.trayectoria", permiso: "pacientes.gestionar", input: { pacienteId: TARGET_ID } },
+  { name: "pacientes.recurrentes", permiso: "pacientes.gestionar", input: {} },
 ];
 
 function sessionForRol(rol: Rol): AuthenticatedSession {
@@ -112,4 +128,36 @@ describe("FASE 4 point 4.5 (pacientes) authorization matrix -- role x permiso, e
       });
     }
   }
+});
+
+describe("pacientes.trayectoria -- optional blocks and links follow the session's OTHER permisos (can(), no extra defineQuery)", () => {
+  function sessionWith(permisos: Permiso[]): AuthenticatedSession {
+    return { ...sessionForRol("FARMACEUTICO"), permisos: new Set(permisos) as AuthenticatedSession["permisos"] };
+  }
+
+  it("a session with only pacientes.gestionar sees the base blocks and no link or optional block", () => {
+    expect(accesoTrayectoria(sessionWith(["pacientes.gestionar"]))).toEqual({
+      presupuesto: false,
+      preparacion: false,
+      libro: false,
+      archivo: false,
+      linkReceta: false,
+      linkEntrega: false,
+    });
+  });
+
+  it("each flag is exactly the permiso of its block / target page", () => {
+    const cases: ReadonlyArray<[Permiso, keyof ReturnType<typeof accesoTrayectoria>]> = [
+      ["cotizaciones.ver", "presupuesto"],
+      ["preparaciones.iniciar", "preparacion"],
+      ["libro.ver", "libro"],
+      ["archivo.lotes.gestionar", "archivo"],
+      ["recetas.crear", "linkReceta"],
+      ["entregas.registrar", "linkEntrega"],
+    ];
+    for (const [permiso, flag] of cases) {
+      const acceso = accesoTrayectoria(sessionWith(["pacientes.gestionar", permiso]));
+      for (const [, other] of cases) expect(acceso[other], `${permiso} -> ${String(other)}`).toBe(other === flag);
+    }
+  });
 });

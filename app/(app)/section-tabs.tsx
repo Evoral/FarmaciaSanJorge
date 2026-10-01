@@ -30,7 +30,7 @@ export function SectionTabs({ ariaLabel, links }: SectionTabsProps) {
   return (
     <nav aria-label={ariaLabel} className="mb-6 flex flex-wrap gap-x-5 border-b border-zinc-200 text-sm dark:border-zinc-800">
       {links.map((link) => {
-        const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
+        const isActive = pathname === link.href || (!link.exact && pathname.startsWith(`${link.href}/`));
         return (
           <Link
             key={link.href}

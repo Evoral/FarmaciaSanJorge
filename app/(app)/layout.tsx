@@ -43,7 +43,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // FASE 4 points 4.1-4.5: the first section this session can actually
   // reach, from the SAME list (and priority order) that drives each
   // section's layout guard and tab nav (./nav-sections.ts) -- so the
-  // sidebar's "Catálogos" link never sends a médicos/pacientes-only role
+  // sidebar's "Catálogos" link never sends a médicos-only role
   // (ATENCION_PUBLICO) into a /catalogos/drogas layout guard that would
   // just redirect it back out. Same rule for the "Administración" group's
   // "Usuarios y accesos" and "Configuración" entries.
@@ -139,6 +139,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         puedeAuditoria: can(session, "auditoria.ver"),
         puedeReportes,
         catalogosHref,
+        puedePacientes: can(session, "pacientes.gestionar"),
         accesosHref,
         configuracionHref,
         puedeStock: can(session, "stock.ver"),

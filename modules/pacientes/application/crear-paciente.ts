@@ -52,8 +52,35 @@ export type CrearPacienteInput = z.infer<typeof crearPacienteInput>;
 /** Pre-transform wire shape (what a Server Action hands in from raw `FormData` -- everything as `string | undefined`, not yet normalized/validated) -- see modules/auditoria/application/list-registro-auditoria.ts's `WireInput` convention. */
 export type CrearPacienteWireInput = z.input<typeof crearPacienteInput>;
 
-/** Shared by `pacientes.crear` and the receta flow's `pacientes.crear-desde-receta` -- only the permiso differs. */
-export async function crearPacienteHandler({ tx, session, input }: CommandHandlerArgs<CrearPacienteInput>): Promise<CommandHandlerResult<{ id: string }>> {
+/**
+ * `pacientes.crear` (the pacientes form) is the ONLY entry point that can record
+ * the consent for WhatsApp reminders (docs/specs/pacientes-recurrentes.md). It is
+ * a separate schema ON PURPOSE: `crearPacienteInput` (also reused by the receta
+ * PDF import, `recetas/application/importar-receta.ts`, on client-supplied JSON)
+ * keeps its original shape and has no consent field, so a user holding only
+ * `recetas.crear` cannot record an opt-in through the receta flow -- zod strips
+ * the unknown key and the handler below stores `false`.
+ */
+export const crearPacienteConConsentimientoInput = crearPacienteInput.extend({
+  aceptaRecordatoriosWhatsapp: z.boolean().default(false),
+});
+
+export type CrearPacienteConConsentimientoInput = z.infer<typeof crearPacienteConConsentimientoInput>;
+export type CrearPacienteConConsentimientoWireInput = z.input<typeof crearPacienteConConsentimientoInput>;
+
+/**
+ * Shared by `pacientes.crear` and the receta flow's `pacientes.crear-desde-receta` /
+ * PDF import -- only the permiso differs. NEVER records a consent: a patient
+ * created from the receta flow starts without it (`false`).
+ */
+export async function crearPacienteHandler(args: CommandHandlerArgs<CrearPacienteInput>): Promise<CommandHandlerResult<{ id: string }>> {
+  return crearPacienteConConsentimiento(args, false);
+}
+
+async function crearPacienteConConsentimiento(
+  { tx, session, input }: CommandHandlerArgs<CrearPacienteInput>,
+  aceptaRecordatoriosWhatsapp: boolean,
+): Promise<CommandHandlerResult<{ id: string }>> {
   if (input.cuil && (await existeCuil(tx, session.tenantId, input.cuil))) {
     throw new ValidationError("Ya existe un paciente con ese CUIL.");
   }
@@ -69,6 +96,7 @@ export async function crearPacienteHandler({ tx, session, input }: CommandHandle
     fechaNacimiento: input.fechaNacimiento,
     nroCredencial: input.nroCredencial,
     sexo: input.sexo,
+    aceptaRecordatoriosWhatsapp,
   });
 
   return {
@@ -85,6 +113,7 @@ export async function crearPacienteHandler({ tx, session, input }: CommandHandle
         fechaNacimiento: input.fechaNacimiento ? input.fechaNacimiento.toISOString() : null,
         nroCredencial: input.nroCredencial,
         sexo: input.sexo,
+        aceptaRecordatoriosWhatsapp,
       },
     },
   };
@@ -93,11 +122,11 @@ export async function crearPacienteHandler({ tx, session, input }: CommandHandle
 export const crearPacienteCommand = defineCommand({
   name: "pacientes.crear",
   permiso: "pacientes.gestionar",
-  input: crearPacienteInput,
+  input: crearPacienteConConsentimientoInput,
   audit: { entidad: "paciente", accion: TipoAccion.CREAR },
-  handler: crearPacienteHandler,
+  handler: (args) => crearPacienteConConsentimiento(args, args.input.aceptaRecordatoriosWhatsapp),
 });
 
-export async function crearPaciente(input: CrearPacienteWireInput): Promise<{ id: string }> {
+export async function crearPaciente(input: CrearPacienteConConsentimientoWireInput): Promise<{ id: string }> {
   return crearPacienteCommand.execute(input);
 }

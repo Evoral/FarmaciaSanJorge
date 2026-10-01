@@ -13,7 +13,7 @@ import type { Prisma } from "@/generated/prisma/client";
 
 // ============================================================================
 // Listing (4.5: search by apellido/dni + soloVigentes + pagination). The
-// UI layer (app/(app)/catalogos/pacientes/**) is responsible for NEVER
+// UI layer (app/(app)/pacientes/**) is responsible for NEVER
 // putting the `search` term in a URL/query string (DP-24) -- this function
 // itself is agnostic to how the caller obtained `search`.
 // ============================================================================
@@ -86,6 +86,7 @@ export interface PacienteParaAccion {
   fechaNacimiento: Date | null;
   nroCredencial: string | null;
   sexo: string | null;
+  aceptaRecordatoriosWhatsapp: boolean;
   fechaBaja: Date | null;
   motivoBaja: string | null;
 }
@@ -101,6 +102,7 @@ const SELECT_PARA_ACCION = {
   fechaNacimiento: true,
   nroCredencial: true,
   sexo: true,
+  aceptaRecordatoriosWhatsapp: true,
   fechaBaja: true,
   motivoBaja: true,
 } as const;
@@ -148,6 +150,7 @@ export interface NuevoPacienteInput {
   fechaNacimiento: Date | null;
   nroCredencial: string | null;
   sexo: string | null;
+  aceptaRecordatoriosWhatsapp: boolean;
 }
 
 export async function insertPaciente(tx: Prisma.TransactionClient, input: NuevoPacienteInput): Promise<{ id: string }> {
@@ -163,6 +166,7 @@ export async function insertPaciente(tx: Prisma.TransactionClient, input: NuevoP
       fechaNacimiento: input.fechaNacimiento,
       nroCredencial: input.nroCredencial,
       sexo: input.sexo,
+      aceptaRecordatoriosWhatsapp: input.aceptaRecordatoriosWhatsapp,
     },
     select: { id: true },
   });
@@ -179,6 +183,7 @@ export interface EditarPacienteInput {
   fechaNacimiento: Date | null;
   nroCredencial: string | null;
   sexo: string | null;
+  aceptaRecordatoriosWhatsapp: boolean;
 }
 
 export interface EditarPacienteVersion {
@@ -191,6 +196,7 @@ export interface EditarPacienteVersion {
   fechaNacimiento: Date | null;
   nroCredencial: string | null;
   sexo: string | null;
+  aceptaRecordatoriosWhatsapp: boolean;
 }
 
 export async function updatePacienteDatos(
@@ -212,6 +218,7 @@ export async function updatePacienteDatos(
       fechaNacimiento: version.fechaNacimiento,
       nroCredencial: version.nroCredencial,
       sexo: version.sexo,
+      aceptaRecordatoriosWhatsapp: version.aceptaRecordatoriosWhatsapp,
     },
     data: {
       nombre: input.nombre,
@@ -223,6 +230,7 @@ export async function updatePacienteDatos(
       fechaNacimiento: input.fechaNacimiento,
       nroCredencial: input.nroCredencial,
       sexo: input.sexo,
+      aceptaRecordatoriosWhatsapp: input.aceptaRecordatoriosWhatsapp,
     },
   });
   return result.count === 1;

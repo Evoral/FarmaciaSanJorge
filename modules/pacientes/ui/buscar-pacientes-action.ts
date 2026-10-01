@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * Search Server Action for `/catalogos/pacientes` (FASE 4 point 4.5,
+ * Search Server Action for `/pacientes` (FASE 4 point 4.5,
  * DP-24). Deliberately SEPARATE from `page.tsx`'s GET `searchParams` (which
  * only ever reads the non-identifying `estado`/`page`/`nuevo` params -- see
  * that file's doc comment) -- the search term itself (apellido or DNI, both

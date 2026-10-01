@@ -1,10 +1,10 @@
-/** `/catalogos/pacientes/[id]` (M06, FASE 4 point 4.5): edit + baja/reactivar. HEALTH-ADJACENT DATA (DP-24) -- `[id]` in the path is an opaque UUID, not a patient-identifying value. */
-import Link from "next/link";
+/** `/pacientes/[id]` (M06, FASE 4 point 4.5): edit + baja/reactivar. HEALTH-ADJACENT DATA (DP-24) -- `[id]` in the path is an opaque UUID, not a patient-identifying value. */
 import { notFound } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getPaciente } from "@/modules/pacientes/application/get-paciente";
 import { PacienteForm } from "@/modules/pacientes/ui/paciente-form";
+import { uuid } from "@/shared/validation";
 import { MotivoForm } from "@/shared/ui/motivo-form";
 import { darDeBajaPacienteAction, reactivarPacienteAction } from "@/modules/pacientes/ui/actions";
 
@@ -19,6 +19,7 @@ function fechaNacimientoISODate(d: Date | null): string | null {
 export default async function PacienteDetallePage({ params }: PacienteDetallePageProps) {
   const session = await requireSession();
   const { id } = await params;
+  if (!uuid.safeParse(id).success) notFound();
 
   const paciente = await getPaciente(id);
   if (!paciente) notFound();
@@ -27,12 +28,6 @@ export default async function PacienteDetallePage({ params }: PacienteDetallePag
 
   return (
     <div>
-      <div className="mb-2">
-        <Link href="/catalogos/pacientes" className="text-sm underline">
-          ← Volver al listado
-        </Link>
-      </div>
-
       <h1 className="mb-1 text-2xl font-semibold">
         {paciente.nombre} {paciente.apellido}
       </h1>
@@ -54,6 +49,7 @@ export default async function PacienteDetallePage({ params }: PacienteDetallePag
               fechaNacimiento: fechaNacimientoISODate(paciente.fechaNacimiento),
               nroCredencial: paciente.nroCredencial,
               sexo: paciente.sexo,
+              aceptaRecordatoriosWhatsapp: paciente.aceptaRecordatoriosWhatsapp,
             }}
             disabled={!puedeGestionar}
           />

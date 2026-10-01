@@ -1,4 +1,4 @@
-/** `getPaciente` (M06, FASE 4 point 4.5): single-row read for `/catalogos/pacientes/[id]`. HEALTH-ADJACENT DATA (DP-24) -- gated on `pacientes.gestionar`, never logged. */
+/** `getPaciente` (M06, FASE 4 point 4.5): single-row read for `/pacientes/[id]`. HEALTH-ADJACENT DATA (DP-24) -- gated on `pacientes.gestionar`, never logged. */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { uuid } from "@/shared/validation";
