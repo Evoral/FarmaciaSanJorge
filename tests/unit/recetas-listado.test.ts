@@ -16,7 +16,6 @@ function fila(id: string, estado: string) {
     fechaIngreso: new Date("2026-09-30T02:30:00Z"),
     origen: "PRESENCIAL",
     estado,
-    recetaFisicaRecibida: false,
     paciente: { nombre: "Ana", apellido: "Suárez" },
     medico: { nombre: "Martín", apellido: "Ríos" },
   };

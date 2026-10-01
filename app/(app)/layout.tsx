@@ -15,7 +15,6 @@ import { can } from "@/shared/auth/authorize";
 import { AuthenticationError } from "@/shared/errors";
 import { logout } from "@/modules/auth/application/logout";
 import { resumenJornadasPendientes } from "@/modules/cierres/application/list-jornadas-pendientes";
-import { resumenRegularizacion } from "@/modules/entregas/application/list-regularizacion";
 import { resumenDestruccion } from "@/modules/archivo/application/resumen-destruccion";
 import { getLogger } from "@/shared/logging/logger";
 import { AppShell } from "./app-shell";
@@ -70,22 +69,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     }
   }
 
-  // FASE 11 point 11.3: same fail-soft, cheap-aggregate discipline as the
-  // cierres banner above, gated on the exact permiso the underlying query
-  // enforces (`regularizacion.ver`).
-  const puedeRegularizacion = can(session, "regularizacion.ver");
-  let resumenRegulariz: Awaited<ReturnType<typeof resumenRegularizacion>> | null = null;
-  if (puedeRegularizacion) {
-    try {
-      resumenRegulariz = await resumenRegularizacion();
-    } catch (error) {
-      getLogger().error({ error }, "Failed to load regularizacion pending-recetas banner summary");
-      resumenRegulariz = null;
-    }
-  }
-
   // FASE 12 point 12.2: same fail-soft, cheap-aggregate discipline as the
-  // cierres/regularizacion banners above, gated on the exact permiso the
+  // cierres banner above, gated on the exact permiso the
   // underlying query enforces (`archivo.destruccion.gestionar`).
   const puedeDestruccionArchivo = can(session, "archivo.destruccion.gestionar");
   let resumenDestruccionArchivo: Awaited<ReturnType<typeof resumenDestruccion>> | null = null;
@@ -105,12 +90,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // DIRECTOR_TECNICO-only today regardless).
   const puedeArchivo = can(session, "archivo.lotes.gestionar");
 
-  // FASE 11 nav entry: "Entregas" is visible to entregas.registrar OR
-  // regularizacion.ver (task's explicit rule) but the two lead to
-  // different routes -- same priority-order pattern as `catalogosHref`
-  // above, so the link never sends a regularizacion.ver-only session into
-  // `/entregas`'s own layout guard (which redirects it back out).
-  const entregasHref = can(session, "entregas.registrar") ? "/entregas" : puedeRegularizacion ? "/regularizacion" : null;
+  // FASE 11 nav entry: "Entregas" is visible to entregas.registrar -- the
+  // same permiso `/entregas`'s own layout guard requires.
+  const entregasHref = can(session, "entregas.registrar") ? "/entregas" : null;
 
   // FASE 13 point 13.1/13.4 (user decision 5): "Reportes" is shown if the
   // session holds ANY of the report-ish permisos the /reportes hub links
@@ -158,14 +140,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           pendiente{resumenCierres.cantidad === 1 ? "" : "s"} de firma
           {resumenCierres.masAntigua ? ` · la más antigua: ${resumenCierres.masAntigua.fecha} (${resumenCierres.masAntigua.antiguedadDias} día${resumenCierres.masAntigua.antiguedadDias === 1 ? "" : "s"})` : ""}
           {resumenCierres.masAntigua?.fueraDeTermino ? " — fuera de término" : ""}
-        </AlertBanner>
-      ) : null}
-      {resumenRegulariz && resumenRegulariz.cantidad > 0 ? (
-        <AlertBanner tone={resumenRegulariz.vencidas > 0 ? "danger" : "warn"} href="/regularizacion" linkLabel="Ver regularización">
-          <b className="font-semibold">
-            {resumenRegulariz.cantidad} receta{resumenRegulariz.cantidad === 1 ? "" : "s"}
-          </b>{" "}
-          pendiente{resumenRegulariz.cantidad === 1 ? "" : "s"} de regularizar · {resumenRegulariz.vencidas} vencida{resumenRegulariz.vencidas === 1 ? "" : "s"}
         </AlertBanner>
       ) : null}
       {/*

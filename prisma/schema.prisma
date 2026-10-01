@@ -304,31 +304,31 @@ model RolPermiso {
 
 /// Tenant-scoped user account (M03). DP-40: email is globally unique. DP-41: one tenant per user.
 model Usuario {
-  id               String        @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId         String        @map("tenant_id") @db.Uuid
+  id                  String        @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId            String        @map("tenant_id") @db.Uuid
   /// citext (case-insensitive), globally unique across ALL tenants -- DP-40.
-  email            String        @unique @db.Citext
-  nombre           String
-  apellido         String
-  dni              String
-  estado           EstadoUsuario @default(PENDIENTE_ACTIVACION)
-  passwordHash     String?       @map("password_hash")
-  esTecnico        Boolean       @default(false) @map("es_tecnico")
-  intentosFallidos Int           @default(0) @map("intentos_fallidos")
-  bloqueadoHasta   DateTime?     @map("bloqueado_hasta") @db.Timestamptz(6)
+  email               String        @unique @db.Citext
+  nombre              String
+  apellido            String
+  dni                 String
+  estado              EstadoUsuario @default(PENDIENTE_ACTIVACION)
+  passwordHash        String?       @map("password_hash")
+  esTecnico           Boolean       @default(false) @map("es_tecnico")
+  intentosFallidos    Int           @default(0) @map("intentos_fallidos")
+  bloqueadoHasta      DateTime?     @map("bloqueado_hasta") @db.Timestamptz(6)
   /// PIN re-auth feature (migration 0037): argon2id hash of the 6-digit "clave rápida", same hasher as password_hash. NEVER valid for login/activation/password-change/credential-reset/DT co-firma -- only for the logged-in user's own step-up re-auth (see modules/auth/application/reautenticar.ts).
-  pinHash             String?   @map("pin_hash")
+  pinHash             String?       @map("pin_hash")
   /// Own counter, separate from `intentos_fallidos` (INV: PIN brute-forcing must never lock the account itself).
-  pinIntentosFallidos Int       @default(0) @map("pin_intentos_fallidos")
+  pinIntentosFallidos Int           @default(0) @map("pin_intentos_fallidos")
   /// Set once `pinIntentosFallidos` reaches AUTH_POLICY.maxFailedPinAttempts. Cleared by a successful PASSWORD re-auth (never by a successful PIN attempt alone reaching it -- that can't happen, PIN success requires NOT being blocked).
-  pinBloqueado        Boolean   @default(false) @map("pin_bloqueado")
-  pinActualizadoEn    DateTime? @map("pin_actualizado_en") @db.Timestamptz(6)
-  creadoPorId      String        @map("creado_por_id") @db.Uuid
-  creadoEn         DateTime      @default(now()) @map("creado_en") @db.Timestamptz(6)
-  ultimoAcceso     DateTime?     @map("ultimo_acceso") @db.Timestamptz(6)
-  numeroMatricula  String?       @map("numero_matricula")
-  fechaBaja        DateTime?     @map("fecha_baja") @db.Timestamptz(6)
-  motivoBaja       String?       @map("motivo_baja")
+  pinBloqueado        Boolean       @default(false) @map("pin_bloqueado")
+  pinActualizadoEn    DateTime?     @map("pin_actualizado_en") @db.Timestamptz(6)
+  creadoPorId         String        @map("creado_por_id") @db.Uuid
+  creadoEn            DateTime      @default(now()) @map("creado_en") @db.Timestamptz(6)
+  ultimoAcceso        DateTime?     @map("ultimo_acceso") @db.Timestamptz(6)
+  numeroMatricula     String?       @map("numero_matricula")
+  fechaBaja           DateTime?     @map("fecha_baja") @db.Timestamptz(6)
+  motivoBaja          String?       @map("motivo_baja")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   // Self-referencing composite FK (tenant_id, creado_por_id) -> (tenant_id, id).
@@ -351,7 +351,6 @@ model Usuario {
   movimientosRegistrados          MovimientoStock[]            @relation("MovimientoRegistradoPor")
   movimientosAutorizadosPorMi     MovimientoStock[]            @relation("MovimientoAutorizadoPor")
   recetasRegistradas              Receta[]                     @relation("RecetaRegistradaPor")
-  recetasFisicaRecibidaPorMi      Receta[]                     @relation("RecetaFisicaRecibidaPor")
   fichasTecnicasGeneradas         FichaTecnica[]
   preparacionesIniciadas          Preparacion[]                @relation("PreparacionIniciadaPor")
   preparacionesPreparadas         Preparacion[]                @relation("PreparacionPreparadaPor")
@@ -765,41 +764,37 @@ model RecetaNumeroContador {
 /// docs/specs/libro-recetario-y-contralor.md section 1. numero_interno is
 /// assigned by fsj.receta_asignar_numero_interno() -- never set by the app.
 model Receta {
-  id                        String       @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId                  String       @map("tenant_id") @db.Uuid
-  numeroInterno             BigInt       @map("numero_interno")
-  pacienteId                String       @map("paciente_id") @db.Uuid
-  medicoId                  String       @map("medico_id") @db.Uuid
-  fechaCreada               DateTime     @default(now()) @map("fecha_creada") @db.Timestamptz(6)
-  fechaPrescripcion         DateTime     @map("fecha_prescripcion") @db.Date
-  fechaValidaDesde          DateTime?    @map("fecha_valida_desde") @db.Date
-  fechaIngreso              DateTime     @default(now()) @map("fecha_ingreso") @db.Timestamptz(6)
-  origen                    OrigenReceta
-  estado                    EstadoReceta @default(PENDIENTE_PREPARACION)
-  archivoAdjuntoUrl         String?      @map("archivo_adjunto_url")
-  recetaFisicaRecibida      Boolean      @default(false) @map("receta_fisica_recibida")
-  recetaFisicaRecibidaEn    DateTime?    @map("receta_fisica_recibida_en") @db.Timestamptz(6)
-  recetaFisicaRecibidaPorId String?      @map("receta_fisica_recibida_por_id") @db.Uuid
-  registradaPorId           String       @map("registrada_por_id") @db.Uuid
-  motivoAnulacion           String?      @map("motivo_anulacion")
-  /// M15, deferred from migration 0011, added in migration 0016. INV-ARC-006: only settable once ENTREGADA/ANULADA + receta_fisica_recibida; frozen once set.
-  loteArchivoId             String?      @map("lote_archivo_id") @db.Uuid
+  id                     String       @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId               String       @map("tenant_id") @db.Uuid
+  numeroInterno          BigInt       @map("numero_interno")
+  pacienteId             String       @map("paciente_id") @db.Uuid
+  medicoId               String       @map("medico_id") @db.Uuid
+  fechaCreada            DateTime     @default(now()) @map("fecha_creada") @db.Timestamptz(6)
+  fechaPrescripcion      DateTime     @map("fecha_prescripcion") @db.Date
+  fechaValidaDesde       DateTime?    @map("fecha_valida_desde") @db.Date
+  fechaIngreso           DateTime     @default(now()) @map("fecha_ingreso") @db.Timestamptz(6)
+  origen                 OrigenReceta
+  estado                 EstadoReceta @default(PENDIENTE_PREPARACION)
+  archivoAdjuntoUrl      String?      @map("archivo_adjunto_url")
+  registradaPorId        String       @map("registrada_por_id") @db.Uuid
+  motivoAnulacion        String?      @map("motivo_anulacion")
+  /// M15, deferred from migration 0011, added in migration 0016. INV-ARC-006: only settable once ENTREGADA/ANULADA; frozen once set.
+  loteArchivoId          String?      @map("lote_archivo_id") @db.Uuid
   /// Migration 0049 (docs/specs/importacion-receta-pdf.md). Digital platform code (e.g. RCTA); set together with nroRecetaEmisor. No UPDATE grant -- provenance, written once at import.
-  emisor                    String?
+  emisor                 String?
   /// Migration 0049. Unique per (tenant, emisor) among non-ANULADA recetas (partial unique index uq_receta_emisor_nro_vigente, not expressible here).
-  nroRecetaEmisor           String?      @map("nro_receta_emisor")
-  urlVerificacion           String?      @map("url_verificacion")
+  nroRecetaEmisor        String?      @map("nro_receta_emisor")
+  urlVerificacion        String?      @map("url_verificacion")
   /// Migration 0049. CIE-10 code, format CHECKed in the DB.
-  diagnosticoCodigo         String?      @map("diagnostico_codigo") @db.VarChar(10)
-  diagnosticoDescripcion    String?      @map("diagnostico_descripcion")
+  diagnosticoCodigo      String?      @map("diagnostico_codigo") @db.VarChar(10)
+  diagnosticoDescripcion String?      @map("diagnostico_descripcion")
 
-  paciente                Paciente            @relation(fields: [pacienteId], references: [id])
-  medico                  Medico              @relation(fields: [medicoId], references: [id])
-  registradaPor           Usuario             @relation("RecetaRegistradaPor", fields: [registradaPorId], references: [id])
-  recetaFisicaRecibidaPor Usuario?            @relation("RecetaFisicaRecibidaPor", fields: [recetaFisicaRecibidaPorId], references: [id])
-  items                   ItemReceta[]
-  loteArchivo             LoteArchivoRecetas? @relation(fields: [loteArchivoId], references: [id])
-  entrega                 Entrega?
+  paciente      Paciente            @relation(fields: [pacienteId], references: [id])
+  medico        Medico              @relation(fields: [medicoId], references: [id])
+  registradaPor Usuario             @relation("RecetaRegistradaPor", fields: [registradaPorId], references: [id])
+  items         ItemReceta[]
+  loteArchivo   LoteArchivoRecetas? @relation(fields: [loteArchivoId], references: [id])
+  entrega       Entrega?
 
   @@unique([tenantId, id])
   @@unique([tenantId, numeroInterno])
@@ -1294,20 +1289,20 @@ model AsientoContralor {
 
 /// M13a. Immutable except fecha_impresion/impreso_por_id. Rows created EXCLUSIVELY by fsj.cierre_diario_firmar() (migration 0015) -- fsj_app has no direct INSERT grant.
 model CierreDiario {
-  id                  String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId            String    @map("tenant_id") @db.Uuid
-  fecha               DateTime  @db.Date
-  directorTecnicoId   String    @map("director_tecnico_id") @db.Uuid
-  designacionId       String    @map("designacion_id") @db.Uuid
-  matriculaDt         String    @map("matricula_dt")
-  cantidadAsientos    Int       @map("cantidad_asientos")
-  hashLote            String    @map("hash_lote")
-  selloTiempo         DateTime  @default(now()) @map("sello_tiempo") @db.Timestamptz(6)
-  mecanismoFirma      String    @default("CREDENCIALES_DT") @map("mecanismo_firma")
-  versionFormato      Int       @default(1) @map("version_formato")
-  fechaImpresion      DateTime? @map("fecha_impresion") @db.Timestamptz(6)
-  impresoPorId        String?   @map("impreso_por_id") @db.Uuid
-  fechaFirma          DateTime  @default(now()) @map("fecha_firma") @db.Timestamptz(6)
+  id                  String        @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId            String        @map("tenant_id") @db.Uuid
+  fecha               DateTime      @db.Date
+  directorTecnicoId   String        @map("director_tecnico_id") @db.Uuid
+  designacionId       String        @map("designacion_id") @db.Uuid
+  matriculaDt         String        @map("matricula_dt")
+  cantidadAsientos    Int           @map("cantidad_asientos")
+  hashLote            String        @map("hash_lote")
+  selloTiempo         DateTime      @default(now()) @map("sello_tiempo") @db.Timestamptz(6)
+  mecanismoFirma      String        @default("CREDENCIALES_DT") @map("mecanismo_firma")
+  versionFormato      Int           @default(1) @map("version_formato")
+  fechaImpresion      DateTime?     @map("fecha_impresion") @db.Timestamptz(6)
+  impresoPorId        String?       @map("impreso_por_id") @db.Uuid
+  fechaFirma          DateTime      @default(now()) @map("fecha_firma") @db.Timestamptz(6)
   fueraDeTermino      Boolean       @map("fuera_de_termino")
   motivoDemora        MotivoDemora? @map("motivo_demora")
   motivoDemoraDetalle String?       @map("motivo_demora_detalle")

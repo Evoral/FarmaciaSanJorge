@@ -104,15 +104,6 @@ export function validarOrigenCargaManual(origen: OrigenReceta, origenActual: Ori
   }
 }
 
-/**
- * INV-R07 / docs/specs/importacion-receta-pdf.md: a digital receta signed
- * by the médico counts as the physical receta received, so the same flag
- * (`recetaFisicaRecibida`) is shown with a wording that fits its origen.
- */
-export function etiquetaRecepcionReceta(origen: OrigenReceta): string {
-  return esOrigenDigital(origen) ? "Receta digital firmada" : "Receta física recibida";
-}
-
 /** CIE-10 code, same pattern as migration 0049's `receta_diagnostico_codigo_check` (e.g. "E66.0"). */
 export const DIAGNOSTICO_CODIGO_REGEX = /^[A-Z][0-9]{2}(\.[0-9A-Z]{1,4})?$/;
 

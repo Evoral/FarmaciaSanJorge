@@ -28,12 +28,11 @@ describe("visibleDashboardCards", () => {
     expect(visibleDashboardCards(canFrom(allPermisos))).toEqual(DASHBOARD_CARD_IDS);
   });
 
-  it("DIRECTOR_TECNICO-shaped grants show cierres/archivo/regularizacion/stock/preparaciones/entregas/recetas but NOT usuarios (usuarios.listar is ADM-only)", () => {
+  it("DIRECTOR_TECNICO-shaped grants show cierres/archivo/stock/preparaciones/entregas/recetas but NOT usuarios (usuarios.listar is ADM-only)", () => {
     const dtPermisos: Permiso[] = [
       "cierres.ver",
       "archivo.lotes.gestionar",
       "archivo.destruccion.gestionar",
-      "regularizacion.ver",
       "stock.ver",
       "preparaciones.iniciar",
       "entregas.registrar",
@@ -42,7 +41,6 @@ describe("visibleDashboardCards", () => {
     expect(visibleDashboardCards(canFrom(dtPermisos))).toEqual([
       "cierresPendientes",
       "archivoPlazoCumplido",
-      "regularizacion",
       "stockAlertas",
       "preparacionesIniciadas",
       "entregasPendientes",
@@ -50,7 +48,7 @@ describe("visibleDashboardCards", () => {
     ]);
   });
 
-  it("ADMINISTRADOR-shaped grants show only usuariosPendientes (no cierres/archivo/regularizacion/stock/preparaciones/entregas/recetas permisos)", () => {
+  it("ADMINISTRADOR-shaped grants show only usuariosPendientes (no cierres/archivo/stock/preparaciones/entregas/recetas permisos)", () => {
     expect(visibleDashboardCards(canFrom(["usuarios.listar"]))).toEqual(["usuariosPendientes"]);
   });
 

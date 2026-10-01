@@ -132,7 +132,7 @@ export interface RecetaElegibleRow {
   fechaIngreso: string;
 }
 
-/** User decision 4: estado ENTREGADA/ANULADA, receta_fisica_recibida, sin lote asignado, fecha_ingreso (date part, tenant zona_horaria) dentro del período. DIGITAL_PDF recetas are excluded (no paper to archive -- docs/specs/importacion-receta-pdf.md). `fecha_ingreso` is cast to the TENANT's own zona_horaria, never UTC/server-local -- same discipline `fsj.jornada_actual()` uses server-side. */
+/** User decision 4: estado ENTREGADA/ANULADA, sin lote asignado, fecha_ingreso (date part, tenant zona_horaria) dentro del período. DIGITAL_PDF recetas are excluded (no paper to archive -- docs/specs/importacion-receta-pdf.md). `fecha_ingreso` is cast to the TENANT's own zona_horaria, never UTC/server-local -- same discipline `fsj.jornada_actual()` uses server-side. */
 export async function listRecetasElegibles(tx: Prisma.TransactionClient, tenantId: string, periodoDesde: string, periodoHasta: string): Promise<RecetaElegibleRow[]> {
   const rows = await tx.$queryRaw<
     {
@@ -158,7 +158,6 @@ export async function listRecetasElegibles(tx: Prisma.TransactionClient, tenantI
     JOIN fsj.tenant t ON t.id = r.tenant_id
     WHERE r.tenant_id = ${tenantId}::uuid
       AND r.estado IN ('ENTREGADA', 'ANULADA')
-      AND r.receta_fisica_recibida = true
       AND r.origen <> 'DIGITAL_PDF'
       AND r.lote_archivo_id IS NULL
       AND (r.fecha_ingreso AT TIME ZONE 'UTC' AT TIME ZONE t.zona_horaria)::date BETWEEN ${periodoDesde}::date AND ${periodoHasta}::date
@@ -195,7 +194,7 @@ export async function derivarIncluyeControladas(tx: Prisma.TransactionClient, te
 /** Locks every candidate receta (`SELECT ... FOR UPDATE`) -- `fsj.receta` has an UPDATE grant (multiple columns, migrations 0011/0016/0040), so `fsj_app` CAN take this lock (verified against this task's own gotcha note: `lote_archivo_recetas` also has column UPDATE grants, but the lock point is the receta row, same as `modules/entregas/infrastructure/entrega-repository.ts#lockRecetaParaAccion`). Prevents two concurrent `conformarLote` calls from racing over the same eligible receta -- migration 0016/0042's INV-ARC-006 trigger is the hard backstop regardless.
  *
  * NOTE this only locks rows that still EXIST for this tenant/id set -- it does
- * NOT re-check `estado`/`receta_fisica_recibida`/`lote_archivo_id`. A receta
+ * NOT re-check `estado`/`lote_archivo_id`. A receta
  * committed to a DIFFERENT lote by a concurrent transaction between this
  * handler's initial `listRecetasElegibles` read and this lock would still be
  * found and locked here (same row, new `lote_archivo_id`). Callers MUST
@@ -213,7 +212,7 @@ export async function lockRecetasParaArchivo(tx: Prisma.TransactionClient, tenan
  * Re-checks eligibility of already-LOCKED recetas (must run right after
  * `lockRecetasParaArchivo` in the same transaction). `lockRecetasParaArchivo`
  * only verifies the rows still EXIST for this tenant/id set -- it does not
- * re-read `estado`/`receta_fisica_recibida`/`lote_archivo_id`, so a receta a
+ * re-read `estado`/`lote_archivo_id`, so a receta a
  * CONCURRENT transaction committed to a different lote between this
  * handler's initial read and this lock would otherwise be silently
  * archived into BOTH lotes' displayed recetas (the DB itself would reject
@@ -232,7 +231,6 @@ export async function recheckRecetasElegibles(tx: Prisma.TransactionClient, tena
     WHERE tenant_id = ${tenantId}::uuid
       AND id = ANY(${recetaIds}::uuid[])
       AND estado IN ('ENTREGADA', 'ANULADA')
-      AND receta_fisica_recibida = true
       AND origen <> 'DIGITAL_PDF'
       AND lote_archivo_id IS NULL
   `;

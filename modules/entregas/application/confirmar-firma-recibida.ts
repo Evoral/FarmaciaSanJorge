@@ -1,16 +1,15 @@
 /**
  * `confirmarFirmaRecibida` -- FASE 11 point 11.2 (M14). User decision 1
- * (2026-09-24): the courier returns the patient's signed constancia
- * TOGETHER WITH the receta's physical original. This command, ATOMICALLY
- * in ONE transaction: sets receta_fisica_recibida (+ _en/_por_id, only if
- * not already set), entrega.firma_recibida = true + firma_recibida_en, and
- * receta -> ENTREGADA. Permiso `entregas.firma.confirmar`, audited.
+ * (2026-09-24): the courier brings back the patient's signed constancia.
+ * This command, ATOMICALLY in ONE transaction: entrega.firma_recibida
+ * = true + firma_recibida_en, and receta -> ENTREGADA. Permiso
+ * `entregas.firma.confirmar`, audited. (Before migration 0051 it also set
+ * the receta física attribute, which no longer exists.)
  *
  * Write order (see `modules/entregas/infrastructure/entrega-repository.ts`'s
  * `confirmarFirmaYEntregar` and migration 0040's header comment): entrega
- * UPDATE first, receta UPDATE (receta_fisica_recibida + estado, in ONE
- * statement) second -- so both migration 0040 triggers (INV-ENT-002,
- * INV-ENT-003) see the right state at the right time.
+ * UPDATE first, receta estado UPDATE second -- so migration 0040's
+ * INV-ENT-002 trigger sees the right state at the right time.
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
@@ -48,19 +47,14 @@ export const confirmarFirmaRecibidaCommand = defineCommand({
     }
 
     try {
-      await confirmarFirmaYEntregar(tx, session.tenantId, {
-        recetaId: input.recetaId,
-        entregaId: entrega.id,
-        usuarioId: session.usuario.id,
-        recetaFisicaYaRecibida: receta.recetaFisicaRecibida,
-      });
+      await confirmarFirmaYEntregar(tx, session.tenantId, { recetaId: input.recetaId, entregaId: entrega.id });
 
       return {
         output: { id: entrega.id, recetaId: input.recetaId },
         audit: {
           entidadId: entrega.id,
           valorAnterior: { firmaRecibida: false, estadoReceta: "ENVIADA_PEND_FIRMA" },
-          valorNuevo: { firmaRecibida: true, estadoReceta: "ENTREGADA", recetaFisicaRecibida: true },
+          valorNuevo: { firmaRecibida: true, estadoReceta: "ENTREGADA" },
         },
       };
     } catch (e) {

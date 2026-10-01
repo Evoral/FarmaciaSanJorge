@@ -1,6 +1,6 @@
 /**
  * Prisma-backed access to `fsj.receta` / `fsj.item_receta` /
- * `fsj.componente_item_receta` for M09 (FASE 6 points 6.1/6.3/6.4/6.5/6.6).
+ * `fsj.componente_item_receta` for M09 (FASE 6 points 6.1/6.3/6.5).
  * Every function runs inside an ALREADY OPEN tenant transaction. The DB
  * remains authoritative for the state machine (INV-R08), INV-R01/V1/V2/V3
  * (deferred constraint triggers), V6/V7/V8/V9 (CHECKs) and, since migration
@@ -172,7 +172,6 @@ export interface NuevaRecetaInput {
   medicoId: string;
   fechaPrescripcion: string; // YYYY-MM-DD
   origen: OrigenReceta;
-  recetaFisicaRecibida: boolean;
   registradaPorId: string;
   diagnosticoCodigo: string | null;
   diagnosticoDescripcion: string | null;
@@ -216,9 +215,6 @@ export async function insertRecetaConItems(tx: Prisma.TransactionClient, input: 
       medicoId: input.medicoId,
       fechaPrescripcion: new Date(`${input.fechaPrescripcion}T00:00:00Z`),
       origen: input.origen,
-      recetaFisicaRecibida: input.recetaFisicaRecibida,
-      recetaFisicaRecibidaEn: input.recetaFisicaRecibida ? new Date() : null,
-      recetaFisicaRecibidaPorId: input.recetaFisicaRecibida ? input.registradaPorId : null,
       registradaPorId: input.registradaPorId,
       diagnosticoCodigo: input.diagnosticoCodigo,
       diagnosticoDescripcion: input.diagnosticoDescripcion,
@@ -264,7 +260,6 @@ export interface RecetaParaAccion {
   fechaPrescripcion: Date;
   origen: OrigenReceta;
   estado: EstadoReceta;
-  recetaFisicaRecibida: boolean;
   motivoAnulacion: string | null;
   diagnosticoCodigo: string | null;
   diagnosticoDescripcion: string | null;
@@ -277,7 +272,6 @@ const SELECT_PARA_ACCION = {
   fechaPrescripcion: true,
   origen: true,
   estado: true,
-  recetaFisicaRecibida: true,
   motivoAnulacion: true,
   diagnosticoCodigo: true,
   diagnosticoDescripcion: true,
@@ -291,7 +285,7 @@ export async function getRecetaParaAccion(tx: Prisma.TransactionClient, tenantId
  * Locks the target receta row (`SELECT ... FOR UPDATE`) BEFORE any caller
  * reads its current state -- same M3 discipline as every other module's
  * `lockXParaAccion` (e.g. modules/pacientes/infrastructure/paciente-repository.ts).
- * Every editar/anular/registrar-recepcion-fisica command in this module
+ * Every editar/anular command in this module
  * calls this FIRST, then re-reads via a FRESH statement. Returns `false`
  * when no row matches.
  */
@@ -396,9 +390,6 @@ export interface RecetaDetalle {
   fechaIngreso: Date;
   origen: OrigenReceta;
   estado: EstadoReceta;
-  recetaFisicaRecibida: boolean;
-  recetaFisicaRecibidaEn: Date | null;
-  recetaFisicaRecibidaPorNombre: string | null;
   motivoAnulacion: string | null;
   registradaPorNombre: string;
   diagnosticoCodigo: string | null;
@@ -417,7 +408,6 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
       paciente: { select: { nombre: true, apellido: true } },
       medico: { select: { nombre: true, apellido: true, matricula: true } },
       registradaPor: { select: { nombre: true, apellido: true } },
-      recetaFisicaRecibidaPor: { select: { nombre: true, apellido: true } },
       items: {
         include: {
           unidadTotal: { select: { simbolo: true } },
@@ -448,11 +438,6 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
     fechaIngreso: receta.fechaIngreso,
     origen: receta.origen,
     estado: receta.estado,
-    recetaFisicaRecibida: receta.recetaFisicaRecibida,
-    recetaFisicaRecibidaEn: receta.recetaFisicaRecibidaEn,
-    recetaFisicaRecibidaPorNombre: receta.recetaFisicaRecibidaPor
-      ? `${receta.recetaFisicaRecibidaPor.apellido}, ${receta.recetaFisicaRecibidaPor.nombre}`
-      : null,
     motivoAnulacion: receta.motivoAnulacion,
     registradaPorNombre: `${receta.registradaPor.apellido}, ${receta.registradaPor.nombre}`,
     diagnosticoCodigo: receta.diagnosticoCodigo,
@@ -650,17 +635,6 @@ export async function reemplazarItemsReceta(tx: Prisma.TransactionClient, tenant
 }
 
 // ============================================================================
-// 6.4: recepción física
-// ============================================================================
-
-export async function registrarRecepcionFisica(tx: Prisma.TransactionClient, tenantId: string, id: string, usuarioId: string): Promise<void> {
-  await tx.receta.update({
-    where: { id, tenantId },
-    data: { recetaFisicaRecibida: true, recetaFisicaRecibidaEn: new Date(), recetaFisicaRecibidaPorId: usuarioId },
-  });
-}
-
-// ============================================================================
 // 6.5: anulación
 // ============================================================================
 
@@ -705,7 +679,6 @@ export interface RecetaListItem {
   fechaPrescripcion: Date;
   origen: OrigenReceta;
   estado: EstadoReceta;
-  recetaFisicaRecibida: boolean;
 }
 
 export interface RecetaListadoItem extends RecetaListItem {
@@ -812,7 +785,6 @@ export async function listRecetas(tx: Prisma.TransactionClient, filter: ListRece
       fechaIngreso: true,
       origen: true,
       estado: true,
-      recetaFisicaRecibida: true,
       paciente: { select: { nombre: true, apellido: true } },
       medico: { select: { nombre: true, apellido: true } },
     },
@@ -836,7 +808,6 @@ export async function listRecetas(tx: Prisma.TransactionClient, filter: ListRece
       fechaIngreso: r.fechaIngreso,
       origen: r.origen,
       estado: r.estado,
-      recetaFisicaRecibida: r.recetaFisicaRecibida,
       editable: r.estado === "PENDIENTE_PREPARACION" && !conPreparacion.has(r.id),
       itemsParaPreparar: paraPreparar.get(r.id) ?? [],
     })),
@@ -914,7 +885,6 @@ export async function listRecetasPorEstado(
       fechaIngreso: true,
       origen: true,
       estado: true,
-      recetaFisicaRecibida: true,
       paciente: { select: { nombre: true, apellido: true } },
       medico: { select: { nombre: true, apellido: true } },
     },
@@ -932,67 +902,9 @@ export async function listRecetasPorEstado(
       fechaIngreso: r.fechaIngreso,
       origen: r.origen,
       estado: r.estado,
-      recetaFisicaRecibida: r.recetaFisicaRecibida,
     })),
     total,
     page: filter.page,
     pageSize: filter.pageSize,
-  };
-}
-
-/** 6.6 "pending physical prescription" (INV-R10): recetas not yet ANULADA with receta_fisica_recibida = false, oldest first (biggest "antigüedad" = most urgent to chase). ENTREGADA is excluded implicitly -- INV-R07 makes ENTREGADA + recetaFisicaRecibida=false impossible. */
-export interface RecetaPendienteFisica {
-  id: string;
-  numeroInterno: string;
-  pacienteNombre: string;
-  pacienteApellido: string;
-  medicoNombre: string;
-  medicoApellido: string;
-  estado: EstadoReceta;
-  fechaIngreso: Date;
-  antiguedadDias: number;
-}
-
-export async function listRecetasPendientesFisica(
-  tx: Prisma.TransactionClient,
-  tenantId: string,
-  page: number,
-  pageSize: number,
-): Promise<{ items: RecetaPendienteFisica[]; total: number; page: number; pageSize: number }> {
-  const where: Prisma.RecetaWhereInput = { tenantId, recetaFisicaRecibida: false, estado: { not: "ANULADA" } };
-  const skip = (page - 1) * pageSize;
-
-  const total = await tx.receta.count({ where });
-  const rows = await tx.receta.findMany({
-    where,
-    orderBy: [{ fechaIngreso: "asc" }],
-    skip,
-    take: pageSize,
-    select: {
-      id: true,
-      numeroInterno: true,
-      estado: true,
-      fechaIngreso: true,
-      paciente: { select: { nombre: true, apellido: true } },
-      medico: { select: { nombre: true, apellido: true } },
-    },
-  });
-
-  const ahora = Date.now();
-  return {
-    items: rows.map((r) => ({
-      id: r.id,
-      numeroInterno: r.numeroInterno.toString(),
-      pacienteNombre: r.paciente.nombre,
-      pacienteApellido: r.paciente.apellido,
-      medicoNombre: r.medico.nombre,
-      medicoApellido: r.medico.apellido,
-      estado: r.estado,
-      fechaIngreso: r.fechaIngreso,
-      antiguedadDias: Math.max(0, Math.floor((ahora - r.fechaIngreso.getTime()) / (24 * 60 * 60 * 1000))),
-    })),
-    total,
-    page,
-    pageSize,
   };
 }

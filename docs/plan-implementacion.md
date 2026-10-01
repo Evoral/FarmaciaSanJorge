@@ -156,7 +156,7 @@ Un Usuario puede tener varios roles (UsuarioRol 1..*) **[CONFIRMADO]**. Permisos
 | Stock | `stock.ajuste.autorizar` | DT vigente | Designación DT vigente hoy |
 | Recetas | `recetas.crear/editar` | ATP, FAR, DT | Editar solo en PENDIENTE_PREPARACION sin fichas con preparación |
 | Recetas | `recetas.anular` | FAR, DT | Motivo; efectos según DP-16 |
-| Recetas | `recetas.fisica.registrar` | ATP, FAR, DT | — |
+| Recetas | ~~`recetas.fisica.registrar`~~ | — | Eliminado (decisión del cliente 2026-10-01, migración 0051) |
 | Ficha técnica | `fichas.generar/imprimir` | FAR, DT | Sin efecto sobre stock/libro |
 | Cotización | `cotizaciones.calcular/ver` | ATP, FAR, DT | Sin efecto sobre stock/libro |
 | Preparación | `preparaciones.iniciar/descartar` | FAR, DT | — |
@@ -172,8 +172,8 @@ Un Usuario puede tener varios roles (UsuarioRol 1..*) **[CONFIRMADO]**. Permisos
 | Cierre diario | `cierres.folio.corregir` | DT | Motivo opcional; sin solapamiento |
 | Libros rubricados | `libros.crear/cerrar` | DT | Sujeto a validación (DP-38) |
 | Plataforma | `tenants.crear/editar/baja` | Operador de plataforma | Fuera de tenant (DP-37) |
-| Entregas | `entregas.registrar`, `entregas.firma.confirmar` | ATP, FAR, DT | recetaFisicaRecibida = true |
-| Regularización | `regularizacion.ver` | ATP, FAR, DT | — |
+| Entregas | `entregas.registrar`, `entregas.firma.confirmar` | ATP, FAR, DT | — |
+| Regularización | ~~`regularizacion.ver`~~ | — | Eliminado (decisión del cliente 2026-10-01, migración 0051) |
 | Archivo | `archivo.lotes.*`, `archivo.destruccion.*` | DT | INV-D02 |
 | Reportes | `reportes.*` | DT, FAR, SC (ADM: usuarios/auditoría) | — |
 | Auditoría | `auditoria.ver` | ADM, DT | Solo lectura; nunca editable |
@@ -864,7 +864,8 @@ Cobertura de entidades (responsable / CRUD / permisos / auditoría / UI / tests)
 - **DP-12** ¿Puede cambiar `esControlada`/`tipoControl`/unidad base de una droga con partidas? · M06.
 - **DP-13** Quién corrige costo de partida y si afecta algo más que reportes. · M07.
 - **DP-14** Días de anticipación para alertar vencimiento de partidas. · M07.
-- **DP-15 RESUELTA** (2026-09-24): parámetro por tenant `plazo_regularizacion_dias` (entero ≥ 0, default 7; migración 0040 + `scripts/create-tenant.ts` + `modules/parametros/domain/parametros-registry.ts`) -- una receta se marca "vencida" en `/regularizacion` cuando la antigüedad de su asiento más antiguo supera ese plazo.
+- **DP-15 SUPERADA** (2026-10-01, ver la decisión del cliente debajo). Antes, RESUELTA (2026-09-24): parámetro por tenant `plazo_regularizacion_dias` (entero ≥ 0, default 7; migración 0040 + `scripts/create-tenant.ts` + `modules/parametros/domain/parametros-registry.ts`) -- una receta se marca "vencida" en `/regularizacion` cuando la antigüedad de su asiento más antiguo supera ese plazo.
+- **Decisión del cliente (2026-10-01): se elimina el atributo "receta física recibida".** `fsj.receta` pierde `receta_fisica_recibida`/`_en`/`_por_id` (migración 0051, sin backfill: datos de prueba). INV-R07 queda superado y se eliminan INV-R10/DP-15: `/recetas/pendientes-fisica`, la acción "Registrar recepción física" (6.4), `/regularizacion` (11.3) con su banner/tarjeta, el checkbox "Recibí la receta física original" de la entrega presencial, el parámetro `plazo_regularizacion_dias`, los permisos `recetas.fisica.registrar`/`regularizacion.ver`, INV-ENT-003 y el INV-R07 del alta de entrega. "Confirmar firma recibida" (envío) se mantiene. Archivo: elegibles = ENTREGADA o ANULADA sin lote (excepto `DIGITAL_PDF`); una ANULADA ya no queda excluida por falta de física.
 - **DP-16 RESUELTA** → `docs/specs/libro-recetario-y-contralor.md` §1. Se puede dejar sin efecto, nunca deshacer: el egreso de stock se mantiene, el preparado se descarta, con controlada se segrega.
 - **DP-16b** Preparación confirmada y luego descartada: ¿se anula también el asiento o solo se ajusta el stock? · M11/M12.
 - **DP-16c RESUELTA**: jornada firmada ⇒ el asiento original NO se toca; se hace un **asiento rectificativo nuevo** en la jornada en curso. Jornada abierta ⇒ el original pasa a ANULADO. Ver spec §1.

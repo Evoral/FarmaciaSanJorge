@@ -1,7 +1,7 @@
 /**
- * Authorization matrix test for FASE 11 (M14, entregas/regularización), per
- * plan §7 / migration 0002's seed grants:
- *   - entregas.registrar / entregas.firma.confirmar / regularizacion.ver:
+ * Authorization matrix test for FASE 11 (M14, entregas), per plan §7 /
+ * migration 0002's seed grants (regularizacion.ver removed by migration 0051):
+ *   - entregas.registrar / entregas.firma.confirmar:
  *     ATENCION_PUBLICO, FARMACEUTICO, DIRECTOR_TECNICO.
  * Same shape as tests/unit/recetas-authorization-matrix.test.ts.
  */
@@ -31,7 +31,6 @@ await import("@/modules/entregas/application/registrar-entrega");
 await import("@/modules/entregas/application/marcar-lista-para-retirar");
 await import("@/modules/entregas/application/confirmar-firma-recibida");
 await import("@/modules/entregas/application/list-entregas-pendientes");
-await import("@/modules/entregas/application/list-regularizacion");
 await import("@/modules/entregas/application/get-entrega-estado");
 
 const { listRegisteredUseCasesForTests } = await import("@/shared/usecase");
@@ -41,9 +40,9 @@ type Rol = (typeof ROLES)[number];
 
 const SEED_GRANTS: Record<Rol, readonly Permiso[]> = {
   ADMINISTRADOR: [],
-  DIRECTOR_TECNICO: ["entregas.registrar", "entregas.firma.confirmar", "regularizacion.ver"],
-  FARMACEUTICO: ["entregas.registrar", "entregas.firma.confirmar", "regularizacion.ver"],
-  ATENCION_PUBLICO: ["entregas.registrar", "entregas.firma.confirmar", "regularizacion.ver"],
+  DIRECTOR_TECNICO: ["entregas.registrar", "entregas.firma.confirmar"],
+  FARMACEUTICO: ["entregas.registrar", "entregas.firma.confirmar"],
+  ATENCION_PUBLICO: ["entregas.registrar", "entregas.firma.confirmar"],
   SOLO_CONSULTA: [],
 };
 
@@ -55,8 +54,6 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
   { name: "entregas.firma.confirmar", permiso: "entregas.firma.confirmar", input: { recetaId: RECETA_ID } },
   { name: "entregas.pendientes.listar", permiso: "entregas.registrar", input: {} },
   { name: "entregas.estado.ver", permiso: "entregas.registrar", input: { recetaId: RECETA_ID } },
-  { name: "regularizacion.listar", permiso: "regularizacion.ver", input: {} },
-  { name: "regularizacion.resumen", permiso: "regularizacion.ver", input: {} },
 ];
 
 function sessionForRol(rol: Rol): AuthenticatedSession {
@@ -69,7 +66,7 @@ function sessionForRol(rol: Rol): AuthenticatedSession {
   };
 }
 
-describe("FASE 11 (entregas/regularizacion) authorization matrix -- every use case's DECLARED permiso matches plan §7", () => {
+describe("FASE 11 (entregas) authorization matrix -- every use case's DECLARED permiso matches plan §7", () => {
   for (const { name, permiso } of CASES) {
     it(`the use case registered as "${name}" declares permiso "${permiso}"`, () => {
       const entry = listRegisteredUseCasesForTests().find((e) => e.name === name);
@@ -79,7 +76,7 @@ describe("FASE 11 (entregas/regularizacion) authorization matrix -- every use ca
   }
 });
 
-describe("FASE 11 (entregas/regularizacion) authorization matrix -- role x permiso, exercised through the REAL execute() path", () => {
+describe("FASE 11 (entregas) authorization matrix -- role x permiso, exercised through the REAL execute() path", () => {
   for (const rol of ROLES) {
     for (const { name, permiso, input } of CASES) {
       const expectedAllowed = SEED_GRANTS[rol].includes(permiso);

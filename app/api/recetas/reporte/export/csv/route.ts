@@ -39,7 +39,7 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json(safe, { status });
   }
 
-  const writer = new CsvWriter(["NumeroInterno", "FechaIngreso", "FechaPrescripcion", "Estado", "Origen", "Paciente", "Medico", "RecetaFisicaRecibida"]);
+  const writer = new CsvWriter(["NumeroInterno", "FechaIngreso", "FechaPrescripcion", "Estado", "Origen", "Paciente", "Medico"]);
   for (const item of resultado.items) {
     writer.push([
       item.numeroInterno,
@@ -49,7 +49,6 @@ export async function GET(request: Request): Promise<Response> {
       item.origen,
       `${item.pacienteNombre} ${item.pacienteApellido}`,
       `${item.medicoApellido}, ${item.medicoNombre}`,
-      item.recetaFisicaRecibida ? "SI" : "NO",
     ]);
   }
   if (resultado.truncated) {

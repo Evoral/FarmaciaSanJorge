@@ -14,7 +14,6 @@ import type { Permiso } from "@/modules/auth/domain/permisos";
 export const DASHBOARD_CARD_IDS = [
   "cierresPendientes",
   "archivoPlazoCumplido",
-  "regularizacion",
   "stockAlertas",
   "preparacionesIniciadas",
   "entregasPendientes",
@@ -34,7 +33,6 @@ export type DashboardCardId = (typeof DASHBOARD_CARD_IDS)[number];
 export const CARD_PERMISO: Record<DashboardCardId, readonly Permiso[]> = {
   cierresPendientes: ["cierres.ver"],
   archivoPlazoCumplido: ["archivo.destruccion.gestionar", "archivo.lotes.gestionar"],
-  regularizacion: ["regularizacion.ver"],
   stockAlertas: ["stock.ver"],
   preparacionesIniciadas: ["preparaciones.iniciar"],
   entregasPendientes: ["entregas.registrar"],

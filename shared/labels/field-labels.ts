@@ -134,7 +134,6 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   origen: "Origen",
   pacienteTexto: "Paciente (si figura)",
   posologia: "Posología",
-  recetaFisicaRecibida: "Receta física recibida",
   version: "Versión",
   soloSiDesactualizada: "Solo si la ficha está desactualizada",
 
@@ -142,7 +141,6 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   cantidad: "Cantidad",
   cantidadCompra: "Cantidad comprada",
   cantidadManual: "Cantidad real registrada",
-  confirmaRecepcionFisica: "Recepción de la receta física original",
   costoUnitario: "Costo unitario",
   costoUnitarioNuevo: "Costo unitario nuevo",
   fechaVencimiento: "Fecha de vencimiento",
@@ -230,7 +228,6 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   partida: "Partida",
   preparacion: "Preparación",
   proveedor: "Proveedor",
-  recetaFisicaRecibidaPor: "Receta física recibida por",
   unidadBase: "Unidad base",
   unidadCompra: "Unidad de compra",
   unidadIngresada: "Unidad ingresada",
@@ -249,8 +246,6 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   numero: "Número",
   numeroCorrelativo: "Nº de asiento",
   primeraImpresion: "Primera impresión",
-  recetaFisicaRecibidaPorId: "Receta física recibida por",
-  recetaFisicaRegistradaAhora: "Receta física registrada en este acto",
   rol: "Rol",
 };
 

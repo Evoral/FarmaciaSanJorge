@@ -85,7 +85,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
     );
   });
 
-  it("INV-R08: valid receta state machine chain PENDIENTE_PREPARACION -> EN_PREPARACION -> PREPARADA -> LISTA_PARA_RETIRAR -> ENTREGADA (with receta_fisica_recibida)", async () => {
+  it("INV-R08: valid receta state machine chain PENDIENTE_PREPARACION -> EN_PREPARACION -> PREPARADA -> LISTA_PARA_RETIRAR -> ENTREGADA", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const tenantId = await insertTenant(tx, "chain");
@@ -97,9 +97,6 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
         for (const estado of ["EN_PREPARACION", "PREPARADA", "LISTA_PARA_RETIRAR"]) {
           await tx.query(`UPDATE fsj.receta SET estado = $1 WHERE id = $2`, [estado, recetaId]);
         }
-        await tx.query(`UPDATE fsj.receta SET receta_fisica_recibida = true, receta_fisica_recibida_en = now() WHERE id = $1`, [
-          recetaId,
-        ]);
         await tx.query(`UPDATE fsj.receta SET estado = 'ENTREGADA' WHERE id = $1`, [recetaId]);
 
         const result = await tx.query(`SELECT estado FROM fsj.receta WHERE id = $1`, [recetaId]);
@@ -141,9 +138,6 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
         );
         await tx.query(`UPDATE fsj.receta SET estado = 'PREPARADA' WHERE id = $1`, [recetaId]);
         await tx.query(`UPDATE fsj.receta SET estado = 'LISTA_PARA_RETIRAR' WHERE id = $1`, [recetaId]);
-        await tx.query(`UPDATE fsj.receta SET receta_fisica_recibida = true, receta_fisica_recibida_en = now() WHERE id = $1`, [
-          recetaId,
-        ]);
         await tx.query(`UPDATE fsj.receta SET estado = 'ENTREGADA' WHERE id = $1`, [recetaId]);
 
         await expectInvariantViolation(
@@ -192,24 +186,16 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
     );
   });
 
-  it("INV-R07: ENTREGADA requires receta_fisica_recibida (CHECK)", async () => {
+  it("0051: the receta física attribute is gone -- no column, and no fsj function body still references it (plpgsql is not dependency-tracked)", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
-        const tenantId = await insertTenant(tx, "sinfisica");
-        const sistema = await createSistemaUser(tx, tenantId);
-        const pacienteId = await insertPaciente(tx, tenantId);
-        const medicoId = await insertMedico(tx, tenantId);
-        const recetaId = await insertReceta(tx, { tenantId, pacienteId, medicoId, registradaPorId: sistema });
-
-        await tx.query(`UPDATE fsj.receta SET estado = 'EN_PREPARACION' WHERE id = $1`, [recetaId]);
-        await tx.query(`UPDATE fsj.receta SET estado = 'PREPARADA' WHERE id = $1`, [recetaId]);
-        await tx.query(`UPDATE fsj.receta SET estado = 'LISTA_PARA_RETIRAR' WHERE id = $1`, [recetaId]);
-
-        await expectDbRejection(
-          tx,
-          () => tx.query(`UPDATE fsj.receta SET estado = 'ENTREGADA' WHERE id = $1`, [recetaId]),
-          "23514",
+        const columnas = await tx.query(
+          `SELECT column_name FROM information_schema.columns WHERE table_schema = 'fsj' AND table_name = 'receta' AND column_name LIKE 'receta_fisica%'`,
         );
+        expect(columnas.rows).toEqual([]);
+
+        const funciones = await tx.query(`SELECT proname FROM pg_proc WHERE pronamespace = 'fsj'::regnamespace AND prosrc LIKE '%receta_fisica%'`);
+        expect(funciones.rows).toEqual([]);
       }),
     );
   });

@@ -64,7 +64,7 @@ export interface SidebarNavProps {
   puedeLibro: boolean;
   /** M13a, FASE 10: `cierres.ver` (DT/FAR/SOLO_CONSULTA) -- `true` shows a "Cierres" link to `/cierres`. */
   puedeCierres: boolean;
-  /** M14, FASE 11: the FIRST section this session can reach for the "Entregas" entry -- `/entregas` (entregas.registrar) or `/regularizacion` (regularizacion.ver only), or `null` if neither. Same priority-order reasoning as `catalogosHref`. */
+  /** M14, FASE 11: `/entregas` when the session holds `entregas.registrar` (the permiso its layout guard requires), or `null` to hide the "Entregas" entry. */
   entregasHref: string | null;
   /** M15, FASE 12: `archivo.lotes.gestionar` ONLY -- same permiso `/archivo`'s layout guard requires, so this link never sends a `archivo.destruccion.gestionar`-only session into a guard that would just redirect it back out. */
   puedeArchivo: boolean;
@@ -208,7 +208,7 @@ function buildGroups(p: SidebarNavProps, pathname: string): NavGroup[] {
     operacion.push({ href: "/stock", label: "Stock", active: pathname.startsWith("/stock") && !enAjustes });
     operacion.push({ href: "/stock/ajustes", label: "Ajustes", active: enAjustes });
   }
-  if (p.entregasHref) operacion.push({ href: p.entregasHref, label: "Entregas", active: pathname.startsWith("/entregas") || pathname.startsWith("/regularizacion") });
+  if (p.entregasHref) operacion.push({ href: p.entregasHref, label: "Entregas", active: pathname.startsWith("/entregas") });
 
   const registro: NavItem[] = [];
   if (p.puedeCierres) registro.push({ href: "/cierres", label: "Cierres", active: pathname.startsWith("/cierres"), badge: p.cierresPendientes });

@@ -7,10 +7,8 @@
  *      empty fields with the PDF's data (never overwrite);
  *   2. receta with origen DIGITAL_PDF + emisor/nro/url/diagnóstico + items,
  *      under the same V1-V9 validation as the manual alta;
- *   3. recetaFisicaRecibida = true / en = now / por = the user (INV-R07:
- *      a digital receta signed by the médico counts as the physical one);
- *   4. the droga aliases the user chose to remember;
- *   5. one audit row per alta/modificación (INV-A01).
+ *   3. the droga aliases the user chose to remember;
+ *   4. one audit row per alta/modificación (INV-A01).
  *
  * The client only sends back what the preview showed plus the user's
  * choices; everything is re-derived here: the paciente/médico are matched
@@ -235,8 +233,6 @@ export const importarRecetaCommand = defineCommand({
       medicoId: medico.id,
       fechaPrescripcion: input.fechaPrescripcion,
       origen: "DIGITAL_PDF",
-      // INV-R07: the digital receta signed by the médico counts as received, now, by this user.
-      recetaFisicaRecibida: true,
       registradaPorId: session.usuario.id,
       diagnosticoCodigo: input.diagnosticoCodigo,
       diagnosticoDescripcion: input.diagnosticoDescripcion,
@@ -272,7 +268,6 @@ export const importarRecetaCommand = defineCommand({
         urlVerificacion: input.urlVerificacion,
         diagnosticoCodigo: input.diagnosticoCodigo,
         diagnosticoDescripcion: input.diagnosticoDescripcion,
-        recetaFisicaRecibida: true,
         numeroInterno: nueva.numeroInterno,
         items: input.items,
         itemsResumen: resumirItemsReceta(itemsDominio, nombres),

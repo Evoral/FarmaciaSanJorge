@@ -99,10 +99,6 @@ const reemplazarItemsRecetaMock = vi.fn(async (...args: unknown[]) => {
   void args;
   return undefined;
 });
-const registrarRecepcionFisicaMock = vi.fn(async (...args: unknown[]) => {
-  void args;
-  return undefined;
-});
 const anularRecetaMock = vi.fn(async (...args: unknown[]) => {
   void args;
   return undefined;
@@ -122,12 +118,10 @@ vi.mock("@/modules/recetas/infrastructure/receta-repository", () => ({
   getNombresParaResumen: async () => ({ drogas: new Map<string, string>(), unidades: new Map<string, string>() }),
   updateRecetaHeader: (...args: unknown[]) => updateRecetaHeaderMock(...args),
   reemplazarItemsReceta: (...args: unknown[]) => reemplazarItemsRecetaMock(...args),
-  registrarRecepcionFisica: (...args: unknown[]) => registrarRecepcionFisicaMock(...args),
   anularReceta: (...args: unknown[]) => anularRecetaMock(...args),
 }));
 
 const { editarRecetaCommand } = await import("@/modules/recetas/application/editar-receta");
-const { registrarRecepcionFisicaCommand } = await import("@/modules/recetas/application/registrar-recepcion-fisica");
 const { anularRecetaCommand } = await import("@/modules/recetas/application/anular-receta");
 
 const recetaPendiente = {
@@ -137,7 +131,6 @@ const recetaPendiente = {
   fechaPrescripcion: new Date("2026-01-01T00:00:00Z"),
   origen: "PRESENCIAL" as const,
   estado: "PENDIENTE_PREPARACION" as const,
-  recetaFisicaRecibida: false,
   motivoAnulacion: null,
   diagnosticoCodigo: null,
   diagnosticoDescripcion: null,
@@ -167,7 +160,6 @@ function resetMocks() {
   itemsConPreparacionIniciadaMock.mockReset().mockResolvedValue([]);
   asientosEnEfectoMock.mockReset().mockResolvedValue([]);
   reemplazarItemsRecetaMock.mockClear();
-  registrarRecepcionFisicaMock.mockClear();
   anularRecetaMock.mockClear();
 }
 
@@ -393,48 +385,6 @@ describe("editar-receta: lock BEFORE the fresh estado/version read", () => {
   });
 });
 
-describe("registrar-recepcion-fisica: lock BEFORE the fresh read, rejects a double registration", () => {
-  beforeEach(resetMocks);
-
-  it("locks BEFORE reading, and registers when not already received", async () => {
-    getRecetaParaAccionMock.mockImplementation(async () => {
-      callOrder.push("read");
-      return recetaPendiente;
-    });
-
-    await registrarRecepcionFisicaCommand.execute({ id: RECETA_ID }, { session: fakeSession("recetas.fisica.registrar") });
-
-    expect(callOrder).toEqual(["lock", "read"]);
-    expect(registrarRecepcionFisicaMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, RECETA_ID, USUARIO_ID);
-  });
-
-  it("rejects with DomainError when already registered (INV-R09: idempotent-safe, not a silent no-op)", async () => {
-    getRecetaParaAccionMock.mockResolvedValue({ ...recetaPendiente, recetaFisicaRecibida: true });
-
-    let caught: unknown;
-    try {
-      await registrarRecepcionFisicaCommand.execute({ id: RECETA_ID }, { session: fakeSession("recetas.fisica.registrar") });
-    } catch (error) {
-      caught = error;
-    }
-    expect(caught).toBeInstanceOf(DomainError);
-    expect(registrarRecepcionFisicaMock).not.toHaveBeenCalled();
-  });
-
-  it("404s when the locked target does not exist", async () => {
-    lockRecetaMock.mockImplementationOnce(async () => false);
-
-    let caught: unknown;
-    try {
-      await registrarRecepcionFisicaCommand.execute({ id: RECETA_ID }, { session: fakeSession("recetas.fisica.registrar") });
-    } catch (error) {
-      caught = error;
-    }
-    expect(caught).toBeInstanceOf(NotFoundError);
-    expect(getRecetaParaAccionMock).not.toHaveBeenCalled();
-  });
-});
-
 describe("anular-receta: lock BEFORE the fresh estado read, rejects a terminal estado", () => {
   beforeEach(resetMocks);
 
@@ -451,7 +401,7 @@ describe("anular-receta: lock BEFORE the fresh estado read, rejects a terminal e
   });
 
   it("rejects with DomainError when the FRESH estado is already terminal (ENTREGADA/ANULADA)", async () => {
-    getRecetaParaAccionMock.mockResolvedValue({ ...recetaPendiente, estado: "ENTREGADA" as const, recetaFisicaRecibida: true });
+    getRecetaParaAccionMock.mockResolvedValue({ ...recetaPendiente, estado: "ENTREGADA" as const });
 
     let caught: unknown;
     try {

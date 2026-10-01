@@ -1,15 +1,14 @@
-/** `/recetas/[id]` (FASE 6 points 6.3/6.4/6.5/6.6): detalle, recepción física, anulación, link a edición. */
+/** `/recetas/[id]` (FASE 6 points 6.3/6.5): detalle, anulación, link a edición. */
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getReceta } from "@/modules/recetas/application/get-receta";
-import { ORIGEN_RECETA_LABELS, esEstadoEditable, esEstadoTerminal, esOrigenDigital, etiquetaRecepcionReceta, puedeAnular } from "@/modules/recetas/domain/receta";
-import { registrarRecepcionFisicaAction, anularRecetaAction } from "@/modules/recetas/ui/actions";
+import { ORIGEN_RECETA_LABELS, esEstadoEditable, esEstadoTerminal, puedeAnular } from "@/modules/recetas/domain/receta";
+import { anularRecetaAction } from "@/modules/recetas/ui/actions";
 import { PARAM_AVISO, decodificarAvisos } from "@/modules/recetas/domain/avisos-generacion";
 import { AvisosGeneracion } from "@/modules/recetas/ui/avisos-generacion";
 import { AYUDA_ANULACION_PERMITIDA, MENSAJE_ANULACION_BLOQUEADA_POR_LIBRO, decidirAnulacion, mensajePreparacionEnCurso } from "@/modules/recetas/domain/anulacion";
-import { ConfirmarForm } from "@/modules/recetas/ui/confirmar-form";
 import { MotivoForm } from "@/shared/ui/motivo-form";
 import { StatusBadge } from "@/shared/ui/status-badge";
 import { ESTADO_RECETA_LABELS, FORMA_FARMACEUTICA_LABELS, MODO_EXPRESION_LABELS } from "@/shared/labels/enum-labels";
@@ -34,7 +33,6 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
   const avisos = decodificarAvisos((await searchParams)[PARAM_AVISO], receta.items.length);
 
   const puedeEditar = can(session, "recetas.editar") && esEstadoEditable(receta.estado);
-  const puedeRegistrarFisica = can(session, "recetas.fisica.registrar") && !receta.recetaFisicaRecibida;
   const puedeAnularReceta = can(session, "recetas.anular") && puedeAnular(receta.estado);
   // Same decision the anular command enforces (domain/anulacion.ts): the libro may forbid a direct anulación.
   const anulacion = decidirAnulacion({
@@ -105,13 +103,6 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
         <div>
           <dt className="text-zinc-500">Fecha de ingreso</dt>
           <dd>{fecha(receta.fechaIngreso)}</dd>
-        </div>
-        <div>
-          <dt className="text-zinc-500">{etiquetaRecepcionReceta(receta.origen)}</dt>
-          <dd>
-            {receta.recetaFisicaRecibida ? `Sí${receta.recetaFisicaRecibidaPorNombre ? ` — ${receta.recetaFisicaRecibidaPorNombre}` : ""}` : "No"}
-            {receta.recetaFisicaRecibidaEn ? ` (${fecha(receta.recetaFisicaRecibidaEn)})` : ""}
-          </dd>
         </div>
         <div>
           <dt className="text-zinc-500">Registrada por</dt>
@@ -201,13 +192,6 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
       </section>
 
       <section className="flex flex-col gap-6">
-        {puedeRegistrarFisica ? (
-          <div>
-            <h2 className="mb-2 text-lg font-medium">{esOrigenDigital(receta.origen) ? "Receta digital firmada" : "Recepción física"}</h2>
-            <ConfirmarForm action={registrarRecepcionFisicaAction} id={receta.id} label={esOrigenDigital(receta.origen) ? "Registrar receta digital firmada" : "Registrar recepción física"} pendingLabel="Registrando…" helpText="No bloquea la preparación de la receta, pero es obligatoria antes de poder entregarla." />
-          </div>
-        ) : null}
-
         {puedeAnularReceta ? (
           <div>
             <h2 className="mb-2 text-lg font-medium">Anulación</h2>
@@ -245,7 +229,7 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
           </div>
         ) : null}
 
-        {esEstadoTerminal(receta.estado) && !puedeRegistrarFisica && !puedeAnularReceta ? <p className="text-sm text-zinc-500">La receta está {ESTADO_RECETA_LABELS[receta.estado].toLowerCase()}; no admite más cambios.</p> : null}
+        {esEstadoTerminal(receta.estado) && !puedeAnularReceta ? <p className="text-sm text-zinc-500">La receta está {ESTADO_RECETA_LABELS[receta.estado].toLowerCase()}; no admite más cambios.</p> : null}
       </section>
     </div>
   );

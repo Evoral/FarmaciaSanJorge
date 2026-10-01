@@ -1,7 +1,6 @@
 /**
  * `getEntregaEstado` -- backs `/entregas/[recetaId]`'s action panel. Reads
- * the receta's own delivery-relevant state (estado, receta_fisica_recibida,
- * items with `estadoAsiento`) plus its `entrega` row if one already exists
+ * the receta's own delivery-relevant state (estado, items with `estadoAsiento`) plus its `entrega` row if one already exists
  * (ENVIO awaiting firma). The full receta/paciente/médico/ítem DISPLAY data
  * itself is fetched by the page directly from
  * `modules/recetas/application/get-receta.ts` (application-layer imports
@@ -24,7 +23,6 @@ const getEntregaEstadoInput = z.object({ recetaId: uuid });
 export interface EntregaEstado {
   recetaId: string;
   estado: EstadoReceta;
-  recetaFisicaRecibida: boolean;
   itemsEntregables: number;
   itemsExcluidos: number;
   entrega: EntregaRow | null;
@@ -45,7 +43,6 @@ export const getEntregaEstadoQuery = defineQuery({
     return {
       recetaId: receta.id,
       estado: receta.estado,
-      recetaFisicaRecibida: receta.recetaFisicaRecibida,
       itemsEntregables: entregables.length,
       itemsExcluidos: excluidos.length,
       entrega,

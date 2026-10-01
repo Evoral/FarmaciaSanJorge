@@ -120,19 +120,18 @@ Una transacción, permiso `recetas.crear`:
 
 1. Alta de paciente y/o médico nuevos, o completado de campos vacíos de los existentes.
 2. Alta de la receta con `origen = DIGITAL_PDF`, `emisor`, `nroRecetaEmisor`, `urlVerificacion`, diagnóstico e ítems. Se aplican las mismas validaciones V1–V9 que en la carga manual.
-3. `recetaFisicaRecibida = true`, `recetaFisicaRecibidaEn = now()`, `recetaFisicaRecibidaPorId = usuario` (ver INV-R07 abajo).
-4. Alta de los alias de drogas marcados para recordar.
-5. Auditoría: una entrada por cada alta o modificación (paciente, médico, receta, alias), según INV-A01.
+3. Alta de los alias de drogas marcados para recordar.
+4. Auditoría: una entrada por cada alta o modificación (paciente, médico, receta, alias), según INV-A01.
 
 ## Permisos
 
 `recetas.crear` habilita el alta de pacientes y médicos **dentro del flujo de recetas**: tanto la importación como el alta rápida existente de los pickers. No habilita editar ni dar de baja (eso sigue en `pacientes.gestionar` / `medicos.gestionar`).
 
-## INV-R07 y archivo físico
+## Archivo físico
 
-Una receta digital firmada por el médico **cuenta como receta física recibida**. La importación marca `recetaFisicaRecibida = true` en el acto, por lo que `receta_entregada_fisica_check`, la entrega y la regularización funcionan sin cambios.
+> **Decisión del cliente (2026-10-01):** se eliminó el atributo "receta física recibida" (`recetaFisicaRecibida`/`_en`/`_por_id`) de toda receta, manual o importada; INV-R07 queda superado y la regularización (INV-R10/DP-15) se eliminó. Ver `docs/plan-implementacion.md` §21 y la migración 0051.
 
-Las recetas `DIGITAL_PDF` **no entran** en lotes de archivo físico ni en destrucción (no hay papel): se excluyen en la selección de recetas elegibles de `modules/archivo`. En la UI, para origen digital, la etiqueta "Receta física recibida" se muestra como "Receta digital firmada".
+Las recetas `DIGITAL_PDF` **no entran** en lotes de archivo físico ni en destrucción (no hay papel): se excluyen en la selección de recetas elegibles de `modules/archivo`.
 
 ## Cambios de esquema (una migración)
 

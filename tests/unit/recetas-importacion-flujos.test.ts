@@ -7,7 +7,7 @@
  *     (duplicate -> error with the existing número interno; the lookup
  *     ignores ANULADA recetas);
  *   - `recetas.importar`: input schema, alta vs. completion of
- *     paciente/médico, DIGITAL_PDF + recepción registrada, aliases, one
+ *     paciente/médico, DIGITAL_PDF, aliases, one
  *     audit row per affected entity, and the "data changed since reading"
  *     conflicts;
  *   - P10: the archive's eligibility query excludes DIGITAL_PDF.
@@ -334,7 +334,7 @@ describe("recetas.importar -- input schema", () => {
 });
 
 describe("recetas.importar -- confirmation", () => {
-  it("completes the existing paciente's empty fields, creates the médico, the DIGITAL_PDF receta (recibida) and the alias -- one audit row each", async () => {
+  it("completes the existing paciente's empty fields, creates the médico, the DIGITAL_PDF receta and the alias -- one audit row each", async () => {
     repo.buscarPacientePorIdentificacion.mockResolvedValue(PACIENTE_EXISTENTE);
 
     const out = await importarRecetaCommand.execute(payload(), { session: CON_PERMISO });
@@ -352,7 +352,6 @@ describe("recetas.importar -- confirmation", () => {
         pacienteId: PACIENTE_ID,
         medicoId: "44444444-4444-4444-a444-444444444444",
         origen: "DIGITAL_PDF",
-        recetaFisicaRecibida: true,
         registradaPorId: "u-1",
         emisor: "RCTA",
         nroRecetaEmisor: "0200012345678",

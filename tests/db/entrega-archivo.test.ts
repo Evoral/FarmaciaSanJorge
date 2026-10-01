@@ -9,15 +9,11 @@ import { dbTestSkipReason } from "./env";
 import { asOwner, inRollbackTx, expectInvariantViolation, expectDbRejection } from "./helpers";
 import { insertTenant, createSistemaUser, insertPaciente, insertMedico, insertReceta, insertItemReceta, insertComponente, insertUnidad, insertDroga } from "./fixtures";
 
-/** Steps a receta through PENDIENTE_PREPARACION -> ... -> LISTA_PARA_RETIRAR, with receta_fisica_recibida set. Stops one step before ENTREGADA so callers can exercise the entrega itself. */
-async function avanzarHastaListaParaRetirar(tx: Client, tenantId: string, recetaId: string, sistema: string): Promise<void> {
+/** Steps a receta through PENDIENTE_PREPARACION -> ... -> LISTA_PARA_RETIRAR. Stops one step before ENTREGADA so callers can exercise the entrega itself. */
+async function avanzarHastaListaParaRetirar(tx: Client, tenantId: string, recetaId: string): Promise<void> {
   await tx.query(`UPDATE fsj.receta SET estado = 'EN_PREPARACION' WHERE tenant_id = $1 AND id = $2`, [tenantId, recetaId]);
   await tx.query(`UPDATE fsj.receta SET estado = 'PREPARADA' WHERE tenant_id = $1 AND id = $2`, [tenantId, recetaId]);
-  await tx.query(
-    `UPDATE fsj.receta SET estado = 'LISTA_PARA_RETIRAR', receta_fisica_recibida = true, receta_fisica_recibida_en = now(), receta_fisica_recibida_por_id = $3
-     WHERE tenant_id = $1 AND id = $2`,
-    [tenantId, recetaId, sistema],
-  );
+  await tx.query(`UPDATE fsj.receta SET estado = 'LISTA_PARA_RETIRAR' WHERE tenant_id = $1 AND id = $2`, [tenantId, recetaId]);
 }
 
 async function seedReceta(tx: Client, suffix: string): Promise<{ tenantId: string; sistema: string; recetaId: string }> {
@@ -43,30 +39,11 @@ async function insertLoteArchivo(tx: Client, tenantId: string, sistema: string):
 }
 
 describe.skipIf(dbTestSkipReason() !== null)("0016_entrega_archivo migration (fsj schema)", () => {
-  it("INV-R07: a RETIRO_PRESENCIAL entrega requires receta_fisica_recibida (defense in depth)", async () => {
-    await asOwner((client) =>
-      inRollbackTx(client, async (tx) => {
-        const { tenantId, sistema, recetaId } = await seedReceta(tx, "r07");
-        // Force receta_fisica_recibida back to false via a fresh receta that
-        // never went through avanzarHastaListaParaRetirar (stays PENDIENTE_PREPARACION).
-        await expectInvariantViolation(
-          tx,
-          () =>
-            tx.query(
-              `INSERT INTO fsj.entrega (tenant_id, receta_id, modalidad, entregada_por_id) VALUES ($1, $2, 'RETIRO_PRESENCIAL', $3)`,
-              [tenantId, recetaId, sistema],
-            ),
-          "INV-R07",
-        );
-      }),
-    );
-  });
-
-  it("entrega succeeds once receta_fisica_recibida is true, is UNIQUE per receta, and firma_recibida cannot revert to false", async () => {
+  it("entrega succeeds, is UNIQUE per receta, and firma_recibida cannot revert to false", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const { tenantId, sistema, recetaId } = await seedReceta(tx, "entregaOk");
-        await avanzarHastaListaParaRetirar(tx, tenantId, recetaId, sistema);
+        await avanzarHastaListaParaRetirar(tx, tenantId, recetaId);
 
         const entrega = await tx.query(
           `INSERT INTO fsj.entrega (tenant_id, receta_id, modalidad, entregada_por_id) VALUES ($1, $2, 'RETIRO_PRESENCIAL', $3) RETURNING id`,
@@ -91,19 +68,6 @@ describe.skipIf(dbTestSkipReason() !== null)("0016_entrega_archivo migration (fs
           () => tx.query(`UPDATE fsj.entrega SET firma_recibida = false, firma_recibida_en = NULL WHERE id = $1`, [entrega.rows[0].id]),
           "INV-ENT-001",
         );
-      }),
-    );
-  });
-
-  it("an ENVIO entrega does not require receta_fisica_recibida up front (INV-R07 only gates RETIRO_PRESENCIAL)", async () => {
-    await asOwner((client) =>
-      inRollbackTx(client, async (tx) => {
-        const { tenantId, sistema, recetaId } = await seedReceta(tx, "envio");
-        const entrega = await tx.query(
-          `INSERT INTO fsj.entrega (tenant_id, receta_id, modalidad, entregada_por_id) VALUES ($1, $2, 'ENVIO', $3) RETURNING id`,
-          [tenantId, recetaId, sistema],
-        );
-        expect(entrega.rows[0].id).toBeTruthy();
       }),
     );
   });
@@ -148,7 +112,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0016_entrega_archivo migration (fs
     );
   });
 
-  it("INV-ARC-006: receta.lote_archivo_id can only be set when ENTREGADA/ANULADA and receta_fisica_recibida, and is frozen once set", async () => {
+  it("INV-ARC-006: receta.lote_archivo_id can only be set when ENTREGADA/ANULADA, and is frozen once set", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const { tenantId, sistema, recetaId } = await seedReceta(tx, "arc006");
@@ -161,7 +125,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0016_entrega_archivo migration (fs
           "INV-ARC-006",
         );
 
-        await avanzarHastaListaParaRetirar(tx, tenantId, recetaId, sistema);
+        await avanzarHastaListaParaRetirar(tx, tenantId, recetaId);
         // migration 0040's INV-ENT-002 now requires a matching entrega row
         // before estado can become ENTREGADA -- insert one (RETIRO_PRESENCIAL)
         // first, same as the "entregaOk" test above.
@@ -189,7 +153,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0016_entrega_archivo migration (fs
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const { tenantId, sistema, recetaId } = await seedReceta(tx, "nodelete");
-        await avanzarHastaListaParaRetirar(tx, tenantId, recetaId, sistema);
+        await avanzarHastaListaParaRetirar(tx, tenantId, recetaId);
         const entrega = await tx.query(
           `INSERT INTO fsj.entrega (tenant_id, receta_id, modalidad, entregada_por_id) VALUES ($1, $2, 'RETIRO_PRESENCIAL', $3) RETURNING id`,
           [tenantId, recetaId, sistema],

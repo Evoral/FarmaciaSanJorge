@@ -11,9 +11,7 @@ import {
   puedeConfirmarFirmaRecibida,
   calcularItemsEntregables,
   validarTieneItemsEntregables,
-  requiereRegistrarRecepcionFisicaAhora,
   estadoDestinoEntrega,
-  esVencidaRegularizacion,
 } from "@/modules/entregas/domain/entrega";
 
 describe("puedeRegistrarEntrega / puedeMarcarListaParaRetirar / puedeConfirmarFirmaRecibida", () => {
@@ -59,37 +57,9 @@ describe("calcularItemsEntregables / validarTieneItemsEntregables", () => {
   });
 });
 
-describe("requiereRegistrarRecepcionFisicaAhora (user decision 5, RETIRO_PRESENCIAL + INV-R07)", () => {
-  it("false for ENVIO regardless of the checkbox", () => {
-    expect(requiereRegistrarRecepcionFisicaAhora("ENVIO", false, false)).toBe(false);
-    expect(requiereRegistrarRecepcionFisicaAhora("ENVIO", false, true)).toBe(false);
-  });
-
-  it("false for RETIRO_PRESENCIAL when receta_fisica_recibida is already true", () => {
-    expect(requiereRegistrarRecepcionFisicaAhora("RETIRO_PRESENCIAL", true, false)).toBe(false);
-  });
-
-  it("throws for RETIRO_PRESENCIAL + not yet recibida + checkbox NOT ticked", () => {
-    expect(() => requiereRegistrarRecepcionFisicaAhora("RETIRO_PRESENCIAL", false, false)).toThrow(ValidationError);
-  });
-
-  it("true for RETIRO_PRESENCIAL + not yet recibida + checkbox ticked", () => {
-    expect(requiereRegistrarRecepcionFisicaAhora("RETIRO_PRESENCIAL", false, true)).toBe(true);
-  });
-});
-
 describe("estadoDestinoEntrega", () => {
   it("RETIRO_PRESENCIAL -> ENTREGADA, ENVIO -> ENVIADA_PEND_FIRMA", () => {
     expect(estadoDestinoEntrega("RETIRO_PRESENCIAL")).toBe("ENTREGADA");
     expect(estadoDestinoEntrega("ENVIO")).toBe("ENVIADA_PEND_FIRMA");
-  });
-});
-
-describe("esVencidaRegularizacion (DP-15)", () => {
-  it("vencida only when antiguedad STRICTLY exceeds the plazo", () => {
-    expect(esVencidaRegularizacion(7, 7)).toBe(false);
-    expect(esVencidaRegularizacion(8, 7)).toBe(true);
-    expect(esVencidaRegularizacion(0, 0)).toBe(false);
-    expect(esVencidaRegularizacion(1, 0)).toBe(true);
   });
 });

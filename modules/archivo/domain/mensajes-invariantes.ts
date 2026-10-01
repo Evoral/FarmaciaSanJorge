@@ -8,7 +8,7 @@ import { mensajeGlobalParaInvariante } from "@/shared/errors/mensajes-invariante
 
 export const MENSAJES_INVARIANTES_ARCHIVO: Readonly<Record<string, string>> = {
   "INV-ARC-005": "Ese lote no puede pasar a ese estado desde su estado actual.",
-  "INV-ARC-006": "Esa receta no puede archivarse: debe estar ENTREGADA o ANULADA, con la receta física recibida, y no haber sido archivada antes.",
+  "INV-ARC-006": "Esa receta no puede archivarse: debe estar ENTREGADA o ANULADA y no haber sido archivada antes.",
   "INV-ARC-007": "Esa receta usa una droga controlada y no puede asignarse a un lote que no incluye controladas.",
   "INV-D02": "Para marcar un lote como DESTRUIDO hace falta el expediente y la fecha de autorización.",
   "INV-D05": "Ese lote ya fue destruido: sus datos son inmutables.",

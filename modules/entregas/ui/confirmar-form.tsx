@@ -1,6 +1,6 @@
 "use client";
 
-/** One-click confirm action (marcar lista para retirar / confirmar firma recibida) -- own copy per module, see modules/recetas/ui/confirmar-form.tsx. */
+/** One-click confirm action (marcar lista para retirar / confirmar firma recibida) -- same `shared/ui/simple-form.tsx`-wrapping shape as shared/ui/motivo-form.tsx. */
 import { SimpleForm } from "@/shared/ui/simple-form";
 import type { EntregaActionState } from "./action-state";
 

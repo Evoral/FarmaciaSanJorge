@@ -1,6 +1,6 @@
 /**
  * `anularReceta` (M09, FASE 6 point 6.5). ONLY FAR/DT hold
- * `recetas.anular` (migration 0002's seed -- unlike crear/editar/fisica,
+ * `recetas.anular` (migration 0002's seed -- unlike crear/editar,
  * which ATP also holds). The state machine allows ANULADA from any
  * non-terminal estado (INV-R08, DB trigger), but a DIRECT anulación is
  * refused (domain/anulacion.ts, checked after the lock on a fresh read):

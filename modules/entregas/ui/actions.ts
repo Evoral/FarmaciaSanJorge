@@ -1,6 +1,6 @@
 "use server";
 
-/** Server Actions for `/entregas` and `/regularizacion` (FASE 11, M14, points 11.1-11.3). */
+/** Server Actions for `/entregas` (FASE 11, M14, points 11.1-11.2). */
 import { revalidatePath } from "next/cache";
 import { marcarListaParaRetirar } from "@/modules/entregas/application/marcar-lista-para-retirar";
 import { registrarEntrega } from "@/modules/entregas/application/registrar-entrega";
@@ -15,7 +15,6 @@ function fromError(error: unknown, fallback: string): EntregaActionState {
 function revalidarEntregas(recetaId: string): void {
   revalidatePath("/entregas");
   revalidatePath(`/entregas/${recetaId}`);
-  revalidatePath("/regularizacion");
   revalidatePath(`/recetas/${recetaId}`);
 }
 
@@ -34,8 +33,7 @@ export async function registrarEntregaAction(_prevState: EntregaActionState, for
   try {
     const recetaId = String(formData.get("recetaId") ?? "");
     const modalidad = String(formData.get("modalidad") ?? "") as "RETIRO_PRESENCIAL" | "ENVIO";
-    const confirmaRecepcionFisica = formData.get("confirmaRecepcionFisica") === "on";
-    await registrarEntrega({ recetaId, modalidad, confirmaRecepcionFisica });
+    await registrarEntrega({ recetaId, modalidad });
     revalidarEntregas(recetaId);
     const mensaje = modalidad === "RETIRO_PRESENCIAL" ? "Entrega registrada." : "Envío registrado: pendiente de confirmar firma recibida.";
     return { status: "success", message: mensaje, id: recetaId };

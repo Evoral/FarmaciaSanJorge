@@ -194,7 +194,6 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   // Manual alta is always PRESENCIAL; an edit keeps the receta's own origen (domain/receta.ts's validarOrigenCargaManual);
   // an import is DIGITAL_PDF.
   const origen: OrigenReceta = importacion ? "DIGITAL_PDF" : (inicial?.origen ?? "PRESENCIAL");
-  const [recetaFisicaRecibida, setRecetaFisicaRecibida] = useState(false);
   const [items, setItems] = useState<ItemState[]>(() => (importacion ? itemsDesdeVistaPrevia(importacion) : (inicial?.items ?? [nuevoItem()])));
   // `importar` mode: the people to create (only used when the preview found no existing one).
   const [pacienteNuevo, setPacienteNuevo] = useState(() => ({
@@ -214,7 +213,6 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   const fechaId = useId();
   const personaIdBase = useId();
   const diagnosticoCodigoId = useId();
-  const recetaFisicaAyudaId = useId();
   const diagnosticoDescripcionId = useId();
 
   useEffect(() => {
@@ -517,27 +515,6 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
             className="input"
           />
         </div>
-
-        {mode === "crear" ? (
-          // Same switch as the list filters (globals.css `.toggle-switch`). Not shown when importing: a digital receta is always received.
-          <div className="flex flex-col gap-1">
-            <label className="toggle-switch font-medium">
-              <input
-                type="checkbox"
-                role="switch"
-                name="recetaFisicaRecibida"
-                checked={recetaFisicaRecibida}
-                onChange={(e) => setRecetaFisicaRecibida(e.target.checked)}
-                disabled={disabled}
-                aria-describedby={recetaFisicaAyudaId}
-              />
-              Receta física recibida
-            </label>
-            <p id={recetaFisicaAyudaId} className="max-w-xs text-xs text-zinc-600 dark:text-zinc-400">
-              Marcalo si el paciente entregó la receta en papel. Si llega después, registralo desde la receta.
-            </p>
-          </div>
-        ) : null}
       </div>
 
       <section aria-labelledby="items-heading" className="flex flex-col gap-4">

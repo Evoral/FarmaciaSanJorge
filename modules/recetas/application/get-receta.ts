@@ -1,7 +1,7 @@
 /**
- * `getReceta` (M09, FASE 6 points 6.1/6.3/6.6). Read-only, gated on
+ * `getReceta` (M09, FASE 6 points 6.1/6.3). Read-only, gated on
  * `recetas.crear` -- no dedicated `recetas.ver` in plan §7's matrix, and
- * every recetas.* permiso the write side needs (crear/editar/fisica) shares
+ * every recetas.* permiso the write side needs (crear/editar) shares
  * the SAME role set (ATP/FAR/DT); reusing the broadest one for reads is the
  * same precedent as modules/drogas/application/list-drogas.ts (reusing
  * `drogas.editar`) and modules/pacientes/medicos (reusing `.gestionar`).

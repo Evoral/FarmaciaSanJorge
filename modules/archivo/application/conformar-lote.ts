@@ -53,7 +53,7 @@ export const listRecetasElegiblesArchivoQuery = defineQuery({
     // the pure domain function.
     return rows.filter((r) =>
       esRecetaElegibleParaArchivo(
-        { estado: r.estado, origen: r.origen, recetaFisicaRecibida: true, loteArchivoId: null, fechaIngreso: r.fechaIngreso },
+        { estado: r.estado, origen: r.origen, loteArchivoId: null, fechaIngreso: r.fechaIngreso },
         input.periodoDesde,
         input.periodoHasta,
       ),

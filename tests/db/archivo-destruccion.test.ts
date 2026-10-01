@@ -36,13 +36,8 @@ async function seedRecetaConDroga(tx: Client, suffix: string, esControlada: bool
   const recetaId = await insertReceta(tx, { tenantId, pacienteId, medicoId, registradaPorId: sistema });
   const itemRecetaId = await insertItemReceta(tx, { tenantId, recetaId });
   await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId });
-  // Make the receta archivable: ANULADA (requires motivo_anulacion, INV-R08)
-  // + receta_fisica_recibida.
-  await tx.query(
-    `UPDATE fsj.receta SET estado = 'ANULADA', motivo_anulacion = 'Test', receta_fisica_recibida = true, receta_fisica_recibida_en = now(), receta_fisica_recibida_por_id = $2
-     WHERE tenant_id = $1 AND id = $3`,
-    [tenantId, sistema, recetaId],
-  );
+  // Make the receta archivable: ANULADA (requires motivo_anulacion, INV-R08).
+  await tx.query(`UPDATE fsj.receta SET estado = 'ANULADA', motivo_anulacion = 'Test' WHERE tenant_id = $1 AND id = $2`, [tenantId, recetaId]);
   return { tenantId, sistema, recetaId };
 }
 

@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * Server Actions for `/recetas` (FASE 6, points 6.1/6.3/6.4/6.5). Paciente
+ * Server Actions for `/recetas` (FASE 6, points 6.1/6.3/6.5). Paciente
  * and médico search/quick-create REUSE modules/pacientes' and
  * modules/medicos' own application-layer use cases directly (`listPacientes`/
  * `crearPacienteDesdeReceta`, `listMedicos`/`crearMedicoDesdeReceta` -- the
@@ -21,7 +21,6 @@ import { presupuestarReceta } from "@/modules/recetas/application/presupuestar-r
 import { generarFichasYCotizaciones } from "@/modules/recetas/application/generar-fichas-y-cotizaciones";
 import { urlTrasEditar, urlTrasRegistrar } from "@/modules/recetas/domain/avisos-generacion";
 import { editarReceta } from "@/modules/recetas/application/editar-receta";
-import { registrarRecepcionFisica } from "@/modules/recetas/application/registrar-recepcion-fisica";
 import { anularReceta } from "@/modules/recetas/application/anular-receta";
 import { listDrogasParaReceta } from "@/modules/recetas/application/list-drogas-para-receta";
 import type { DrogaOpcion } from "@/modules/recetas/application/list-drogas-para-receta";
@@ -53,7 +52,6 @@ export async function crearRecetaAction(_prevState: RecetaActionState, formData:
       medicoId: String(formData.get("medicoId") ?? ""),
       fechaPrescripcion: String(formData.get("fechaPrescripcion") ?? ""),
       origen: String(formData.get("origen") ?? "PRESENCIAL") as "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO",
-      recetaFisicaRecibida: formData.get("recetaFisicaRecibida") === "on",
       diagnosticoCodigo: String(formData.get("diagnosticoCodigo") ?? ""),
       diagnosticoDescripcion: String(formData.get("diagnosticoDescripcion") ?? ""),
       items,
@@ -138,23 +136,6 @@ export async function importarRecetaAction(_prevState: RecetaActionState, formDa
   }
   const avisos = await generarFichasYCotizaciones(nueva.id, { soloSiDesactualizadas: false });
   return { status: "success", message: "Receta importada.", id: nueva.id, numeroInterno: nueva.numeroInterno, redirigirA: urlTrasRegistrar(nueva.id, avisos) };
-}
-
-// ============================================================================
-// 6.4: recepción física
-// ============================================================================
-
-export async function registrarRecepcionFisicaAction(_prevState: RecetaActionState, formData: FormData): Promise<RecetaActionState> {
-  try {
-    const id = String(formData.get("id") ?? "");
-    await registrarRecepcionFisica({ id });
-    revalidatePath("/recetas");
-    revalidatePath(`/recetas/${id}`);
-    revalidatePath("/recetas/pendientes-fisica");
-    return { status: "success", message: "Recepción física registrada.", id };
-  } catch (error) {
-    return fromError(error, "No se pudo registrar la recepción física.");
-  }
 }
 
 // ============================================================================

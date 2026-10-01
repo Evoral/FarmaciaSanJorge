@@ -16,7 +16,6 @@ import {
   esEstadoEditable,
   esEstadoTerminal,
   esFechaPrescripcionValida,
-  etiquetaRecepcionReceta,
   puedeAnular,
   validarItemsReceta,
   validarOrigenCargaManual,
@@ -249,13 +248,6 @@ describe("validarOrigenCargaManual -- digital recetas only come from the PDF imp
 
   it("still rejects DIGITAL_FOTO first", () => {
     expect(() => validarOrigenCargaManual("DIGITAL_FOTO", null)).toThrow(/foto/);
-  });
-});
-
-describe("etiquetaRecepcionReceta -- INV-R07 wording per origen", () => {
-  it("digital origen reads as a signed digital receta, presencial as physical", () => {
-    expect(etiquetaRecepcionReceta("DIGITAL_PDF")).toBe("Receta digital firmada");
-    expect(etiquetaRecepcionReceta("PRESENCIAL")).toBe("Receta física recibida");
   });
 });
 

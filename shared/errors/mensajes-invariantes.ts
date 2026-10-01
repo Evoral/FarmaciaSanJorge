@@ -25,7 +25,7 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   // Archivo de recetas / destrucción (M15)
   "INV-ARC-005": "El lote de archivo no puede pasar a ese estado desde su estado actual.",
   "INV-ARC-006":
-    "La receta no puede archivarse: debe estar entregada o anulada, con la receta física recibida, y una vez asignada a un lote no puede cambiar de lote.",
+    "La receta no puede archivarse: debe estar entregada o anulada, y una vez asignada a un lote no puede cambiar de lote.",
   "INV-ARC-007": "La receta usa una droga controlada y no puede asignarse a un lote que no incluye controladas.",
   "INV-D05": "Los datos del lote de archivo no se pueden modificar, y un lote ya destruido no admite ningún cambio.",
 
@@ -55,6 +55,7 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   // Entregas (M14)
   "INV-ENT-001": "Una entrega registrada no se puede modificar, salvo confirmar la firma recibida, que no se puede revertir.",
   "INV-ENT-002": "La receta no puede marcarse como entregada sin una entrega registrada (retiro presencial, o envío con la firma recibida).",
+  // INV-ENT-003's trigger was dropped by migration 0051 (receta física attribute removed); kept because the scan covers 0040/0041.
   "INV-ENT-003": "La receta fue enviada y está pendiente de firma: confirmá la firma recibida en lugar de registrar solo la recepción física.",
 
   // Preparaciones / etiquetas / fichas técnicas
@@ -95,6 +96,7 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   "INV-R01": "La receta debe tener al menos un ítem.",
   "INV-R07": "No se puede registrar el retiro presencial sin haber recibido la receta física.",
   "INV-R08": "La receta no admite ese cambio de estado desde su estado actual.",
+  // INV-R07's trigger/CHECK were dropped by migration 0051; kept because the scan covers 0016.
   "INV-R11": "La receta ya no se puede editar: solo se editan recetas pendientes de preparación y sin preparaciones iniciadas.",
   "INV-R12":
     "Esta receta ya tiene preparaciones registradas en el libro recetario. Para anularla, dejá sin efecto esos asientos desde el Libro recetario (requiere autorización del Director Técnico). La receta se anulará automáticamente.",

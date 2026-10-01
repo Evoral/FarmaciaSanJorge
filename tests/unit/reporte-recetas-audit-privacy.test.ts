@@ -56,7 +56,6 @@ vi.mock("@/modules/recetas/infrastructure/receta-repository", () => ({
         fechaIngreso: new Date("2026-01-02"),
         origen: "SISTEMA",
         estado: "ENTREGADA",
-        recetaFisicaRecibida: true,
       },
     ],
     total: 1,

@@ -9,21 +9,21 @@
  * discipline, same as every other recetas-adjacent command).
  *
  * Write order inside the transaction (see migration 0040's header comment
- * for why): [registrar recepción física, IF the checkbox path applies] ->
- * [receta: PREPARADA -> LISTA_PARA_RETIRAR, IF needed] -> INSERT entrega ->
- * receta: -> (ENTREGADA | ENVIADA_PEND_FIRMA).
+ * for why): [receta: PREPARADA -> LISTA_PARA_RETIRAR, IF needed] -> INSERT
+ * entrega -> receta: -> (ENTREGADA | ENVIADA_PEND_FIRMA). No receta física
+ * step: the attribute and INV-R07 were removed (client decision 2026-10-01,
+ * migration 0051).
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, InvariantViolationError, NotFoundError, mapDbError } from "@/shared/errors";
 import { mensajeGlobalParaInvariante } from "@/shared/errors/mensajes-invariantes";
 import { uuid } from "@/shared/validation";
-import { MODALIDADES_ENTREGA, puedeRegistrarEntrega, estadoDestinoEntrega, requiereRegistrarRecepcionFisicaAhora, validarTieneItemsEntregables } from "../domain/entrega";
+import { MODALIDADES_ENTREGA, puedeRegistrarEntrega, estadoDestinoEntrega, validarTieneItemsEntregables } from "../domain/entrega";
 import {
   lockRecetaParaAccion,
   getRecetaParaEntrega,
   getItemsParaEntrega,
-  marcarRecepcionFisica,
   actualizarEstadoReceta,
   insertEntrega,
 } from "../infrastructure/entrega-repository";
@@ -31,15 +31,12 @@ import {
 const registrarEntregaInput = z.object({
   recetaId: uuid,
   modalidad: z.enum(MODALIDADES_ENTREGA),
-  /** Required (checked by domain logic) only for RETIRO_PRESENCIAL when receta_fisica_recibida is still false -- user decision 5. */
-  confirmaRecepcionFisica: z.boolean().optional().default(false),
 });
 
 export type RegistrarEntregaInput = z.infer<typeof registrarEntregaInput>;
 
-/** Human-readable message for the two M14 invariants that can still slip past the pre-checks below under a race (INV-R07, INV-ENT-002) -- mirrors `modules/cierres/application/firmar-cierre.ts`'s `mapDbError`-in-its-own-try/catch discipline (the pipeline's own mapping, in `withTenantTransaction`, only runs once the WHOLE handler throws, too late for a clear message here). */
+/** Human-readable message for the M14 invariant that can still slip past the pre-checks below under a race (INV-ENT-002) -- mirrors `modules/cierres/application/firmar-cierre.ts`'s `mapDbError`-in-its-own-try/catch discipline (the pipeline's own mapping, in `withTenantTransaction`, only runs once the WHOLE handler throws, too late for a clear message here). */
 function mensajeParaInvariante(codigo: string): string {
-  if (codigo === "INV-R07") return "No se puede registrar el retiro presencial sin la receta física recibida.";
   if (codigo === "INV-ENT-002") return "No se pudo registrar la entrega: falta el registro de entrega correspondiente.";
   return mensajeGlobalParaInvariante(codigo) ?? "No se pudo registrar la entrega.";
 }
@@ -63,13 +60,7 @@ export const registrarEntregaCommand = defineCommand({
     const items = await getItemsParaEntrega(tx, session.tenantId, input.recetaId);
     validarTieneItemsEntregables(items);
 
-    const debeRegistrarFisicaAhora = requiereRegistrarRecepcionFisicaAhora(input.modalidad, receta.recetaFisicaRecibida, input.confirmaRecepcionFisica);
-
     try {
-      if (debeRegistrarFisicaAhora) {
-        await marcarRecepcionFisica(tx, session.tenantId, input.recetaId, session.usuario.id);
-      }
-
       if (receta.estado === "PREPARADA") {
         await actualizarEstadoReceta(tx, session.tenantId, input.recetaId, "LISTA_PARA_RETIRAR");
       }
@@ -89,7 +80,7 @@ export const registrarEntregaCommand = defineCommand({
         audit: {
           entidadId: entrega.id,
           valorAnterior: { estadoReceta: receta.estado },
-          valorNuevo: { modalidad: input.modalidad, estadoReceta: estadoDestino, recetaFisicaRegistradaAhora: debeRegistrarFisicaAhora },
+          valorNuevo: { modalidad: input.modalidad, estadoReceta: estadoDestino },
         },
       };
     } catch (e) {

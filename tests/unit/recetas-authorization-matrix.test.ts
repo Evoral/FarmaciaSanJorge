@@ -1,10 +1,11 @@
 /**
  * Authorization matrix test for FASE 6 (M09, recetas), per plan §7 /
  * migration 0002's seed grants:
- *   - recetas.crear / recetas.editar / recetas.fisica.registrar: ATP, FAR, DT
- *   - recetas.anular: FAR, DT ONLY (unlike the other three -- ATP cannot anular)
- * Reads (recetas.ver/listar/pendientes-fisica.listar/drogas.listar/
- * unidades.listar) reuse `recetas.crear`/`recetas.fisica.registrar` (see
+ *   - recetas.crear / recetas.editar: ATP, FAR, DT
+ *   - recetas.anular: FAR, DT ONLY (unlike the other two -- ATP cannot anular)
+ * (`recetas.fisica.registrar` was removed by migration 0051.)
+ * Reads (recetas.ver/listar/drogas.listar/unidades.listar) reuse
+ * `recetas.crear` (see
  * modules/recetas/application/get-receta.ts's doc comment) -- same role set
  * as the writes, so this file does not duplicate those cases beyond
  * confirming the DECLARED permiso.
@@ -38,11 +39,9 @@ vi.mock("@/shared/auth/session", () => ({
 
 await import("@/modules/recetas/application/crear-receta");
 await import("@/modules/recetas/application/editar-receta");
-await import("@/modules/recetas/application/registrar-recepcion-fisica");
 await import("@/modules/recetas/application/anular-receta");
 await import("@/modules/recetas/application/get-receta");
 await import("@/modules/recetas/application/list-recetas");
-await import("@/modules/recetas/application/list-recetas-pendientes-fisica");
 await import("@/modules/recetas/application/list-drogas-para-receta");
 await import("@/modules/recetas/application/list-unidades-para-receta");
 await import("@/modules/pacientes/application/crear-paciente-desde-receta");
@@ -57,9 +56,9 @@ type Rol = (typeof ROLES)[number];
 
 const SEED_GRANTS: Record<Rol, readonly Permiso[]> = {
   ADMINISTRADOR: [],
-  DIRECTOR_TECNICO: ["recetas.crear", "recetas.editar", "recetas.anular", "recetas.fisica.registrar"],
-  FARMACEUTICO: ["recetas.crear", "recetas.editar", "recetas.anular", "recetas.fisica.registrar"],
-  ATENCION_PUBLICO: ["recetas.crear", "recetas.editar", "recetas.fisica.registrar"],
+  DIRECTOR_TECNICO: ["recetas.crear", "recetas.editar", "recetas.anular"],
+  FARMACEUTICO: ["recetas.crear", "recetas.editar", "recetas.anular"],
+  ATENCION_PUBLICO: ["recetas.crear", "recetas.editar"],
   SOLO_CONSULTA: [],
 };
 
@@ -96,11 +95,9 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
       itemsVersion: [],
     },
   },
-  { name: "recetas.fisica.registrar", permiso: "recetas.fisica.registrar", input: { id: TARGET_ID } },
   { name: "recetas.anular", permiso: "recetas.anular", input: { id: TARGET_ID, motivo: "Motivo de prueba." } },
   { name: "recetas.ver", permiso: "recetas.crear", input: { id: TARGET_ID } },
   { name: "recetas.listar", permiso: "recetas.crear", input: {} },
-  { name: "recetas.pendientes-fisica.listar", permiso: "recetas.fisica.registrar", input: {} },
   { name: "recetas.drogas.listar", permiso: "recetas.crear", input: {} },
   { name: "recetas.unidades.listar", permiso: "recetas.crear", input: {} },
   { name: "pacientes.crear-desde-receta", permiso: "recetas.crear", input: { nombre: "N", apellido: "A" } },

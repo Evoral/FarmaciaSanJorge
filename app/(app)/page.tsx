@@ -10,7 +10,7 @@
  * permiso its own query requires -- no hardcoded per-role dashboards (the
  * gating table is `shared/dashboard/cards.ts#CARD_PERMISO`, unit-tested
  * directly). Each card's fetch is independently try/caught (fail-soft,
- * same discipline as the three banners in `app/(app)/layout.tsx`) so one
+ * same discipline as the banners in `app/(app)/layout.tsx`) so one
  * failing card never breaks the rest of the page.
  */
 import Link from "next/link";
@@ -20,7 +20,6 @@ import { getLogger } from "@/shared/logging/logger";
 import { visibleDashboardCards } from "@/shared/dashboard/cards";
 import { resumenJornadasPendientes } from "@/modules/cierres/application/list-jornadas-pendientes";
 import { resumenDestruccion } from "@/modules/archivo/application/resumen-destruccion";
-import { resumenRegularizacion } from "@/modules/entregas/application/list-regularizacion";
 import { alertasStock } from "@/modules/stock/application/alertas-stock";
 import { listPreparaciones } from "@/modules/preparaciones/application/list-preparaciones";
 import { listEntregasPendientes } from "@/modules/entregas/application/list-entregas-pendientes";
@@ -34,7 +33,7 @@ interface Card {
   tono: "neutral" | "amber" | "red";
 }
 
-/** Runs `fetch()` only when `visible` is true, swallowing any error into `null` (fail-soft) -- same shape as the three banners in `app/(app)/layout.tsx`. */
+/** Runs `fetch()` only when `visible` is true, swallowing any error into `null` (fail-soft) -- same shape as the banners in `app/(app)/layout.tsx`. */
 async function fetchSoft<T>(visible: boolean, label: string, fetch: () => Promise<T>): Promise<T | null> {
   if (!visible) return null;
   try {
@@ -49,10 +48,9 @@ export default async function HomePage() {
   const session = await requireSession();
   const visible = new Set(visibleDashboardCards((permiso) => can(session, permiso)));
 
-  const [cierres, archivo, regularizacion, stock, preparaciones, entregas, recetas, usuariosPendientes, usuariosSuspendidos] = await Promise.all([
+  const [cierres, archivo, stock, preparaciones, entregas, recetas, usuariosPendientes, usuariosSuspendidos] = await Promise.all([
     fetchSoft(visible.has("cierresPendientes"), "cierresPendientes", () => resumenJornadasPendientes()),
     fetchSoft(visible.has("archivoPlazoCumplido"), "archivoPlazoCumplido", () => resumenDestruccion()),
-    fetchSoft(visible.has("regularizacion"), "regularizacion", () => resumenRegularizacion()),
     fetchSoft(visible.has("stockAlertas"), "stockAlertas", () => alertasStock()),
     fetchSoft(visible.has("preparacionesIniciadas"), "preparacionesIniciadas", () => listPreparaciones({ estado: "INICIADA", page: 1, pageSize: 1 })),
     fetchSoft(visible.has("entregasPendientes"), "entregasPendientes", () => listEntregasPendientes({ page: 1, pageSize: 1 })),
@@ -78,18 +76,6 @@ export default async function HomePage() {
       href: "/archivo",
       cuerpo: archivo.cantidad === 0 ? "Sin lotes con plazo cumplido." : `${archivo.cantidad} lote${archivo.cantidad === 1 ? "" : "s"} con plazo cumplido pendiente de destrucción.`,
       tono: archivo.cantidad === 0 ? "neutral" : "amber",
-    });
-  }
-
-  if (regularizacion) {
-    cards.push({
-      titulo: "Recetas pendientes de regularización",
-      href: "/regularizacion",
-      cuerpo:
-        regularizacion.cantidad === 0
-          ? "Sin recetas pendientes de regularizar."
-          : `${regularizacion.cantidad} pendiente${regularizacion.cantidad === 1 ? "" : "s"} (${regularizacion.vencidas} vencida${regularizacion.vencidas === 1 ? "" : "s"}).`,
-      tono: regularizacion.cantidad === 0 ? "neutral" : regularizacion.vencidas > 0 ? "red" : "amber",
     });
   }
 

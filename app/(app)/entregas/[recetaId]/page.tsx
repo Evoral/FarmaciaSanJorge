@@ -69,10 +69,6 @@ export default async function EntregaDetallePage({ params }: EntregaDetallePageP
           <dt className="text-zinc-500">Estado</dt>
           <dd className="font-medium">{ETIQUETA_ESTADO[receta.estado] ?? receta.estado}</dd>
         </div>
-        <div>
-          <dt className="text-zinc-500">Receta física recibida</dt>
-          <dd>{receta.recetaFisicaRecibida ? `Sí (${receta.recetaFisicaRecibidaEn ? fecha(receta.recetaFisicaRecibidaEn) : ""})` : "No"}</dd>
-        </div>
         {entregaEstado.entrega ? (
           <>
             <div>
@@ -124,7 +120,7 @@ export default async function EntregaDetallePage({ params }: EntregaDetallePageP
         {mostrarRegistrarEntrega ? (
           <div>
             <h2 className="mb-2 text-lg font-medium">Registrar entrega</h2>
-            <RegistrarEntregaForm action={registrarEntregaAction} recetaId={receta.id} recetaFisicaRecibida={receta.recetaFisicaRecibida} />
+            <RegistrarEntregaForm action={registrarEntregaAction} recetaId={receta.id} />
           </div>
         ) : null}
 
@@ -136,7 +132,7 @@ export default async function EntregaDetallePage({ params }: EntregaDetallePageP
               recetaId={receta.id}
               label="Confirmar firma recibida"
               pendingLabel="Confirmando…"
-              helpText="Confirma que el repartidor trajo la constancia firmada por el paciente junto con la receta física original. Marca la receta física como recibida y pasa la receta a ENTREGADA."
+              helpText="Confirma que el repartidor trajo la constancia firmada por el paciente y pasa la receta a ENTREGADA."
             />
           </div>
         ) : null}

@@ -19,19 +19,15 @@ import {
 // covered by that file's own tests/DB test instead of here.
 
 describe("esRecetaElegibleParaArchivo", () => {
-  const base = { estado: "ENTREGADA", origen: "PRESENCIAL", recetaFisicaRecibida: true, loteArchivoId: null, fechaIngreso: "2024-06-15" };
+  const base = { estado: "ENTREGADA", origen: "PRESENCIAL", loteArchivoId: null, fechaIngreso: "2024-06-15" };
 
-  it("eligible: ENTREGADA/ANULADA, receta fisica recibida, sin lote, dentro del periodo", () => {
+  it("eligible: ENTREGADA/ANULADA (an ANULADA receta too, migration 0051), sin lote, dentro del periodo", () => {
     expect(esRecetaElegibleParaArchivo(base, "2024-06-01", "2024-06-30")).toBe(true);
     expect(esRecetaElegibleParaArchivo({ ...base, estado: "ANULADA" }, "2024-06-01", "2024-06-30")).toBe(true);
   });
 
   it("not eligible: already has a lote assigned", () => {
     expect(esRecetaElegibleParaArchivo({ ...base, loteArchivoId: "lote-1" }, "2024-06-01", "2024-06-30")).toBe(false);
-  });
-
-  it("not eligible: receta fisica not received (even if ANULADA)", () => {
-    expect(esRecetaElegibleParaArchivo({ ...base, estado: "ANULADA", recetaFisicaRecibida: false }, "2024-06-01", "2024-06-30")).toBe(false);
   });
 
   it("not eligible: wrong estado", () => {

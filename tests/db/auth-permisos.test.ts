@@ -39,7 +39,9 @@ async function rolPermisoCodes(tx: Client, rolCodigo: string): Promise<string[]>
  * the matrix: 0043 grants `stock.valorizado.ver` (ADM/DT/FAR) and 0046
  * revokes `config.ver` from every role except ADMINISTRADOR (user decision
  * 2026-09-28: "Configuración" is admin-only, DT keeps only
- * `precios.reglas.editar`). Kept sorted for a readable diff against the
+ * `precios.reglas.editar`), and 0051 deletes `recetas.fisica.registrar` and
+ * `regularizacion.ver` altogether (client decision 2026-10-01: a receta is
+ * never pendiente de receta física). Kept sorted for a readable diff against the
  * DB's own `ORDER BY p.codigo` result.
  */
 const EXPECTED_ROL_PERMISOS: Record<string, string[]> = {
@@ -119,8 +121,6 @@ const EXPECTED_ROL_PERMISOS: Record<string, string[]> = {
     "recetas.anular",
     "recetas.crear",
     "recetas.editar",
-    "recetas.fisica.registrar",
-    "regularizacion.ver",
     "reportes.ver",
     "stock.ajuste.autorizar",
     "stock.ajuste.registrar",
@@ -161,8 +161,6 @@ const EXPECTED_ROL_PERMISOS: Record<string, string[]> = {
     "recetas.anular",
     "recetas.crear",
     "recetas.editar",
-    "recetas.fisica.registrar",
-    "regularizacion.ver",
     "reportes.ver",
     "stock.ajuste.registrar",
     "stock.partida.ingresar",
@@ -181,8 +179,6 @@ const EXPECTED_ROL_PERMISOS: Record<string, string[]> = {
     "pacientes.gestionar",
     "recetas.crear",
     "recetas.editar",
-    "recetas.fisica.registrar",
-    "regularizacion.ver",
     "stock.ver",
   ].sort(),
   SOLO_CONSULTA: [

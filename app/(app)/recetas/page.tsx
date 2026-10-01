@@ -44,7 +44,6 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
   });
   const totalPages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
   const puedeCrear = can(session, "recetas.crear");
-  const puedeFisica = can(session, "recetas.fisica.registrar");
   const puedeEditar = can(session, "recetas.editar");
   const puedeIniciar = can(session, "preparaciones.iniciar");
 
@@ -68,11 +67,6 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Recetas</h1>
         <div className="flex gap-3">
-          {puedeFisica ? (
-            <Link href="/recetas/pendientes-fisica" className="btn btn-secondary">
-              Pendientes de receta física
-            </Link>
-          ) : null}
           {puedeCrear ? (
             <Link href="/recetas/nuevo" className="btn btn-primary">
               Nueva receta

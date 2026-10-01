@@ -75,7 +75,7 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
             {elegibles.length} receta{elegibles.length === 1 ? "" : "s"} elegible{elegibles.length === 1 ? "" : "s"} en este período.
           </p>
           <p className="mb-4 text-xs text-zinc-500">
-            Elegibles: ENTREGADA o ANULADA, con la receta física recibida, sin lote asignado. Las recetas ANULADAS sin receta física nunca son archivables.
+            Elegibles: ENTREGADA o ANULADA, sin lote asignado. Las recetas importadas desde PDF no se archivan (no tienen papel).
           </p>
 
           <div className="mb-6 table-wrap">

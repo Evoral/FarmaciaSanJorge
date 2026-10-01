@@ -109,13 +109,12 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
               <th scope="col" className="px-3 py-2 font-medium">Paciente</th>
               <th scope="col" className="px-3 py-2 font-medium">Médico</th>
               <th scope="col" className="px-3 py-2 font-medium">Estado</th>
-              <th scope="col" className="px-3 py-2 font-medium">Receta física</th>
             </tr>
           </thead>
           <tbody>
             {result.items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-zinc-500">
+                <td colSpan={5} className="px-3 py-6 text-center text-zinc-500">
                   No se encontraron recetas con estos filtros.
                 </td>
               </tr>
@@ -131,7 +130,6 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
                     {r.medicoApellido}, {r.medicoNombre}
                   </td>
                   <td className="px-3 py-2">{ESTADO_RECETA_LABELS[r.estado]}</td>
-                  <td className="px-3 py-2">{r.recetaFisicaRecibida ? "Sí" : "No"}</td>
                 </tr>
               ))
             )}
