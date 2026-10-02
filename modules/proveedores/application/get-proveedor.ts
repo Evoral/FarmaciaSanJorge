@@ -1,4 +1,4 @@
-/** `getProveedor` (M06, FASE 4 point 4.3): single-row read for `/catalogos/proveedores/[id]`. */
+/** `getProveedor` (M06, FASE 4 point 4.3): single-row read for `/proveedores/[id]`. */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { uuid } from "@/shared/validation";

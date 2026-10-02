@@ -1,4 +1,9 @@
-/** Layout guard for `/catalogos/proveedores/**` (FASE 4 point 4.3). */
+/**
+ * Layout guard for `/proveedores/**` (FASE 4 point 4.3). Its own sidebar
+ * section under "Gestión" (formerly a `/catalogos` tab -- `next.config.ts`
+ * redirects the old `/catalogos/proveedores/**` paths here), so it also
+ * provides the `.page` wrapper that `catalogos/layout.tsx` used to.
+ */
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
@@ -11,5 +16,5 @@ export default async function ProveedoresLayout({ children }: { children: ReactN
     redirect("/");
   }
 
-  return <>{children}</>;
+  return <div className="page">{children}</div>;
 }

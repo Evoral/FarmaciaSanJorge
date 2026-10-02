@@ -1,7 +1,15 @@
 /**
- * One receta of the Trayectoria as a card: header, the 5-step journey, a
- * per-item table (items, presupuesto, preparación, libro) and the receta-level
- * facts (entrega, receta física, archivo, presupuesto total). Server component.
+ * One receta of the Trayectoria as a row of the recetas table. Two server
+ * components feed `shared/ui/fila-desplegable.tsx` (the only client piece,
+ * which just holds the open/closed state): `TrayectoriaRecetaCeldas` renders
+ * the summary cells (número, ingreso, qué pide, médico, estado, etapa and,
+ * with `acceso.presupuesto`, the presupuesto total) and
+ * `TrayectoriaRecetaDetalle` renders the expanded body (the 5-step journey, a
+ * per-item table with presupuesto / preparación / libro, and the receta-level
+ * facts: entrega, archivo, presupuesto vigente).
+ *
+ * The summary cells carry no links on purpose (the whole row toggles on
+ * click); the link to the receta lives in the detail.
  *
  * Optional blocks and links follow `acceso` (docs/specs/trayectoria-paciente.md,
  * "Visibility per role"): a block the session cannot see is omitted, and a
@@ -13,15 +21,26 @@ import Link from "next/link";
 import { ESTADO_LOTE_ARCHIVO_LABELS } from "@/modules/archivo/domain/lote-archivo";
 import { FORMA_FARMACEUTICA_LABELS, ORIGEN_RECETA_LABELS } from "@/shared/labels/enum-labels";
 import { formatFecha, formatFechaHora } from "@/shared/format/fecha";
+import { formatearMonto } from "@/shared/format/monto";
 import { StatusBadge } from "@/shared/ui/status-badge";
-import { MODALIDAD_ENTREGA_LABELS, formatearMonto } from "../domain/trayectoria";
+import { ESTADO_PASO_LABELS, MODALIDAD_ENTREGA_LABELS, PASO_JORNADA_LABELS, etapaActual, resumenItems } from "../domain/trayectoria";
 import type { AccesoTrayectoria, ItemTrayectoria, PresupuestoTrayectoria, RecetaTrayectoria } from "../domain/trayectoria";
 import { TrayectoriaPasos } from "./trayectoria-pasos";
 
-interface RecetaCardProps {
+interface RecetaFilaProps {
   receta: RecetaTrayectoria;
   acceso: AccesoTrayectoria;
   zonaHoraria: string;
+}
+
+/** Accessible name of a receta row (completes the toggle button's label). */
+export function etiquetaReceta(receta: RecetaTrayectoria): string {
+  return `Receta Nº ${receta.numeroInterno}`;
+}
+
+/** Total column count of the recetas table: toggle + 6 fixed columns + presupuesto (only with `acceso.presupuesto`). */
+export function columnasTablaRecetas(acceso: AccesoTrayectoria): number {
+  return acceso.presupuesto ? 8 : 7;
 }
 
 function Dato({ etiqueta, children }: { etiqueta: string; children: ReactNode }) {
@@ -178,27 +197,69 @@ function TextoPresupuestoTotal({ presupuesto }: { presupuesto: PresupuestoTrayec
   );
 }
 
-export function TrayectoriaRecetaCard({ receta, acceso, zonaHoraria }: RecetaCardProps) {
-  const titulo = `Receta Nº ${receta.numeroInterno}`;
+/** "Cápsulas ×60 · Minoxidil 2,5 mg (+1 ítem)" -- the "Qué pide" cell: the first item plus how many more the receta has. */
+function TextoQuePide({ items }: { items: ItemTrayectoria[] }) {
+  const resumen = resumenItems(items);
+  if (!resumen) return <span className="text-zinc-500">Sin ítems</span>;
+  const { primero, restantes } = resumen;
+  return (
+    <span>
+      {FORMA_FARMACEUTICA_LABELS[primero.formaFarmaceutica]} ×{primero.cantidadUnidades}
+      {primero.drogas.length > 0 ? ` · ${primero.drogas.join(", ")}` : ""}
+      {restantes > 0 ? <span className="text-zinc-500"> (+{restantes} ítem{restantes === 1 ? "" : "s"})</span> : null}
+    </span>
+  );
+}
+
+/** "Libro, en curso" / "Completa" -- the first step of the journey that is not done yet. */
+function TextoEtapa({ receta }: { receta: RecetaTrayectoria }) {
+  const etapa = etapaActual(receta.pasos);
+  if (!etapa) return <span>Completa</span>;
+  return (
+    <span>
+      {PASO_JORNADA_LABELS[etapa.paso]}, {ESTADO_PASO_LABELS[etapa.estado].toLowerCase()}
+    </span>
+  );
+}
+
+/** The summary `<td>`s of a receta row, in the table's column order (after the toggle cell). */
+export function TrayectoriaRecetaCeldas({ receta, acceso, zonaHoraria }: RecetaFilaProps) {
+  return (
+    <>
+      <td className="px-3 py-2 font-medium whitespace-nowrap">{receta.numeroInterno}</td>
+      <td className="px-3 py-2 whitespace-nowrap">{formatFecha(receta.fechaIngreso, zonaHoraria)}</td>
+      <td className="px-3 py-2">
+        <TextoQuePide items={receta.items} />
+      </td>
+      <td className="px-3 py-2">{receta.medico}</td>
+      <td className="px-3 py-2">
+        <StatusBadge estado={receta.estado} />
+      </td>
+      <td className="px-3 py-2">
+        <TextoEtapa receta={receta} />
+      </td>
+      {acceso.presupuesto ? (
+        <td className="px-3 py-2 whitespace-nowrap">
+          {receta.presupuesto ? `$ ${formatearMonto(receta.presupuesto.total)}` : <span className="text-zinc-500">Sin cotización</span>}
+        </td>
+      ) : null}
+    </>
+  );
+}
+
+/** The expanded body of a receta row. */
+export function TrayectoriaRecetaDetalle({ receta, acceso, zonaHoraria }: RecetaFilaProps) {
   const { entrega, lote } = receta;
 
   return (
-    <article className="card p-4" aria-labelledby={`receta-${receta.id}`}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 id={`receta-${receta.id}`} className="text-base font-semibold">
-            {acceso.linkReceta ? (
-              <Link href={`/recetas/${receta.id}`} className="underline-offset-2 hover:underline">
-                {titulo}
-              </Link>
-            ) : (
-              titulo
-            )}
-          </h3>
-          <StatusBadge estado={receta.estado} />
-        </div>
-        <p className="text-sm text-zinc-500">Ingreso: {formatFecha(receta.fechaIngreso, zonaHoraria)}</p>
-      </div>
+    <div>
+      {acceso.linkReceta ? (
+        <p className="mb-3 text-sm">
+          <Link href={`/recetas/${receta.id}`} className="underline underline-offset-2">
+            Ver receta
+          </Link>
+        </p>
+      ) : null}
 
       <dl className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Dato etiqueta="Fecha de prescripción">{formatFecha(receta.fechaPrescripcion)}</Dato>
@@ -262,6 +323,6 @@ export function TrayectoriaRecetaCard({ receta, acceso, zonaHoraria }: RecetaCar
           </Dato>
         ) : null}
       </dl>
-    </article>
+    </div>
   );
 }

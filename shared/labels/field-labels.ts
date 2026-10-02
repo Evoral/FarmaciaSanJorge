@@ -76,6 +76,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   autorizadoPorId: "Autorizado por",
   designacionId: "Designación",
   drogaId: "Droga",
+  drogaIds: "Drogas",
   dtUsuarioId: "Director Técnico",
   etiquetaId: "Etiqueta",
   fichaTecnicaId: "Ficha técnica",
@@ -204,6 +205,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   orden: "Ordenar por",
   page: "Página",
   pageSize: "Tamaño de página",
+  periodo: "Período",
   periodoDesde: "Período desde",
   periodoHasta: "Período hasta",
   search: "Búsqueda",
@@ -217,6 +219,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   texto: "Paciente / médico",
   tipo: "Tipo",
   truncated: "Resultado recortado",
+  unidad: "Mostrar costo por",
   ventana: "Ventana",
 
   // Keys that only appear in audit diffs (valorAnterior/valorNuevo), not in

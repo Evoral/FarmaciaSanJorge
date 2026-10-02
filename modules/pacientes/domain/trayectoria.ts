@@ -383,14 +383,6 @@ export function calcularPresupuesto(itemIds: readonly string[], cotizaciones: re
   return { total: total.toString(), itemsCotizados: cotizados, itemsSinCotizar: itemIds.length - cotizados, esParcial, esIncompleta };
 }
 
-/** "1234.5" -> "1.234,50" (es-AR, 2 decimals, no float round-trip). */
-export function formatearMonto(valor: string): string {
-  const [entero, fraccion] = dec(valor).toFixed(2).split(".");
-  const signo = entero!.startsWith("-") ? "-" : "";
-  const digitos = signo ? entero!.slice(1) : entero!;
-  return `${signo}${digitos.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${fraccion}`;
-}
-
 // ============================================================================
 // Journey steps
 // ============================================================================
@@ -550,4 +542,20 @@ export function armarTrayectoria(cruda: TrayectoriaCruda, acceso: AccesoTrayecto
     paginacion: calcularPaginacion(resumen.total, cruda.page),
     zonaHoraria: cruda.zonaHoraria,
   };
+}
+
+/**
+ * The step a receta is currently at, for the collapsed summary of its card:
+ * the first step that is neither COMPLETO nor NO_APLICA (SIN_EFECTO counts --
+ * it needs attention). `null` when every visible step is done, i.e. the
+ * journey is complete. Only the steps the session may see are considered.
+ */
+export function etapaActual(pasos: readonly PasoTrayectoria[]): PasoTrayectoria | null {
+  return pasos.find((p) => p.estado !== "COMPLETO" && p.estado !== "NO_APLICA") ?? null;
+}
+
+/** First item of a receta plus how many more there are, for the collapsed summary. `null` when it has no items. */
+export function resumenItems(items: readonly ItemTrayectoria[]): { primero: ItemTrayectoria; restantes: number } | null {
+  const [primero] = items;
+  return primero ? { primero, restantes: items.length - 1 } : null;
 }

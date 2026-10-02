@@ -1,6 +1,6 @@
-/** `/catalogos/proveedores/[id]` (M06, FASE 4 point 4.3): edit + baja/reactivar. */
-import Link from "next/link";
+/** `/proveedores/[id]` (M06, FASE 4 point 4.3): edit + baja/reactivar. The back link and the Datos/Trayectoria tabs live in `[id]/layout.tsx`. */
 import { notFound } from "next/navigation";
+import { uuid } from "@/shared/validation";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getProveedor } from "@/modules/proveedores/application/get-proveedor";
@@ -16,6 +16,8 @@ interface ProveedorDetallePageProps {
 export default async function ProveedorDetallePage({ params }: ProveedorDetallePageProps) {
   const session = await requireSession();
   const { id } = await params;
+  // The layout already 404s a malformed id; the page guards on its own too (same as pacientes/[id]/page.tsx).
+  if (!uuid.safeParse(id).success) notFound();
 
   const proveedor = await getProveedor(id);
   if (!proveedor) notFound();
@@ -24,12 +26,6 @@ export default async function ProveedorDetallePage({ params }: ProveedorDetalleP
 
   return (
     <div>
-      <div className="mb-2">
-        <Link href="/catalogos/proveedores" className="text-sm underline">
-          ← Volver al listado
-        </Link>
-      </div>
-
       <h1 className="mb-1 text-2xl font-semibold">{proveedor.razonSocial}</h1>
       <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">
         {formatCuit(proveedor.cuit)} · {proveedor.fechaBaja ? "Dado de baja" : "Vigente"}

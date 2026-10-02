@@ -28,7 +28,9 @@ system, receta by receta, in one screen. Read-only.
    total, en curso (not ENTREGADA/ANULADA), entregadas, anuladas,
    última atención (max `fechaIngreso`).
 3. **Recetas**: newest first (`fechaIngreso desc`), paginated (`?page=`,
-   page size 10). Each receta is a card showing its journey:
+   page size 10). Each receta is an expandable row of a `table.data-table` (summary: número,
+   ingreso, qué pide, médico, estado, etapa, presupuesto; the expanded detail
+   shows its journey):
 
    **Ingreso -> Preparación -> Libro -> Entrega -> Archivo**
 
@@ -94,7 +96,7 @@ shared DB, not part of this repo) dropped `fsj.receta.receta_fisica_recibida`,
 `receta_fisica_recibida_en`, `receta_fisica_recibida_por_id` and the permisos
 `recetas.fisica.registrar` / `regularizacion.ver`. Consequences here:
 
-- No "Receta física" data in the receta card, no "recetas físicas adeudadas"
+- No "Receta física" data in the receta row, no "recetas físicas adeudadas"
   counter (nor its days-pending value), no use of `etiquetaRecepcionReceta`.
 - The journey is Ingreso -> Preparación -> Libro -> Entrega -> Archivo.
   Archivo is COMPLETO with a lote, PENDIENTE otherwise; Entrega "en curso" only

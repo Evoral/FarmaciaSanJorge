@@ -1,4 +1,4 @@
-/** `/catalogos/proveedores` (M06, FASE 4 point 4.3). Search + vigente/baja filter, plain GET query params. */
+/** `/proveedores` (M06, FASE 4 point 4.3). Search + vigente/baja filter, plain GET query params. */
 import Link from "next/link";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
@@ -29,7 +29,7 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
     if (params.q) qs.set("q", params.q);
     if (params.estado) qs.set("estado", params.estado);
     qs.set("page", String(targetPage));
-    return `/catalogos/proveedores?${qs.toString()}`;
+    return `/proveedores?${qs.toString()}`;
   }
 
   return (
@@ -37,7 +37,7 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Proveedores</h1>
         {puedeCrear ? (
-          <Link href="/catalogos/proveedores?nuevo=1" className="btn btn-primary">
+          <Link href="/proveedores?nuevo=1" className="btn btn-primary">
             Nuevo proveedor
           </Link>
         ) : null}
@@ -79,12 +79,15 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
               <th scope="col" className="px-3 py-2 font-medium">Razón social</th>
               <th scope="col" className="px-3 py-2 font-medium">CUIT</th>
               <th scope="col" className="px-3 py-2 font-medium">Estado</th>
+              <th scope="col" className="px-3 py-2 font-medium">
+                <span className="sr-only">Acciones</span>
+              </th>
             </tr>
           </thead>
           <tbody>
             {result.items.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-3 py-6 text-center text-zinc-500">
+                <td colSpan={4} className="px-3 py-6 text-center text-zinc-500">
                   No se encontraron proveedores con estos filtros.
                 </td>
               </tr>
@@ -92,12 +95,17 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
               result.items.map((proveedor) => (
                 <tr key={proveedor.id}>
                   <td className="px-3 py-2">
-                    <Link href={`/catalogos/proveedores/${proveedor.id}`} className="font-medium underline-offset-2 hover:underline">
+                    <Link href={`/proveedores/${proveedor.id}`} className="font-medium underline-offset-2 hover:underline">
                       {proveedor.razonSocial}
                     </Link>
                   </td>
                   <td className="px-3 py-2">{formatCuit(proveedor.cuit)}</td>
                   <td className="px-3 py-2">{proveedor.fechaBaja ? "Baja" : "Vigente"}</td>
+                  <td className="px-3 py-2 text-right">
+                    <Link href={`/proveedores/${proveedor.id}/trayectoria`} className="btn btn-secondary btn-sm" aria-label={`Ver trayectoria de ${proveedor.razonSocial}`}>
+                      Trayectoria
+                    </Link>
+                  </td>
                 </tr>
               ))
             )}
@@ -107,15 +115,27 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
 
       {totalPages > 1 ? (
         <nav aria-label="Paginación de proveedores" className="mt-4 flex items-center gap-2 text-sm">
-          <Link href={pageHref(Math.max(1, page - 1))} aria-disabled={page <= 1} className={page <= 1 ? "pointer-events-none text-zinc-400" : "underline"}>
-            Anterior
-          </Link>
+          {page <= 1 ? (
+            <span aria-disabled="true" className="text-zinc-400">
+              Anterior
+            </span>
+          ) : (
+            <Link href={pageHref(page - 1)} className="underline">
+              Anterior
+            </Link>
+          )}
           <span>
             Página {page} de {totalPages}
           </span>
-          <Link href={pageHref(Math.min(totalPages, page + 1))} aria-disabled={page >= totalPages} className={page >= totalPages ? "pointer-events-none text-zinc-400" : "underline"}>
-            Siguiente
-          </Link>
+          {page >= totalPages ? (
+            <span aria-disabled="true" className="text-zinc-400">
+              Siguiente
+            </span>
+          ) : (
+            <Link href={pageHref(page + 1)} className="underline">
+              Siguiente
+            </Link>
+          )}
         </nav>
       ) : null}
     </div>

@@ -1,6 +1,6 @@
 /**
- * Layout guard + tab nav for `/catalogos/**` (FASE 4 points 4.1-4.4). These
- * catalogs are shared across roles (drogas/proveedores by FAR/DT/ADM,
+ * Layout guard + tab nav for `/catalogos/**` (FASE 4 points 4.1, 4.2, 4.4).
+ * These catalogs are shared across roles (drogas by FAR/DT/ADM,
  * médicos also by ATENCION_PUBLICO, unidades de medida by
  * `unidades.editar` holders -- plan §7) -- allows anyone who can reach AT
  * LEAST ONE nested section through; each section keeps its own nested
