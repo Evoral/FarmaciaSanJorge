@@ -28,7 +28,8 @@ export default async function PreparacionPage({ params }: PreparacionPageProps) 
   return (
     <div className="page">
       <div className="mb-4">
-        <Link href="/preparaciones" className="text-sm underline">
+        {/* Back to the receta's toma workspace while it has ítems to confirm, else the tab that lists this preparación. */}
+        <Link href={pantalla.hrefVolver} className="text-sm underline">
           ← Volver a preparaciones
         </Link>
       </div>

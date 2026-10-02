@@ -19,7 +19,7 @@ import { leerRecetaPdf } from "@/modules/recetas/application/leer-receta-pdf";
 import { importarReceta } from "@/modules/recetas/application/importar-receta";
 import { presupuestarReceta } from "@/modules/recetas/application/presupuestar-receta";
 import { generarFichasYCotizaciones } from "@/modules/recetas/application/generar-fichas-y-cotizaciones";
-import { urlTrasEditar, urlTrasRegistrar } from "@/modules/recetas/domain/avisos-generacion";
+import { retornoDeEdicion, urlTrasEditar, urlTrasRegistrar } from "@/modules/recetas/domain/avisos-generacion";
 import { editarReceta } from "@/modules/recetas/application/editar-receta";
 import { anularReceta } from "@/modules/recetas/application/anular-receta";
 import { listDrogasParaReceta } from "@/modules/recetas/application/list-drogas-para-receta";
@@ -66,6 +66,8 @@ export async function crearRecetaAction(_prevState: RecetaActionState, formData:
 
 export async function editarRecetaAction(_prevState: RecetaActionState, formData: FormData): Promise<RecetaActionState> {
   const id = String(formData.get("id") ?? "");
+  // Set when the form is embedded in another screen (the /preparaciones toma workspace); anything else is ignored.
+  const volverA = retornoDeEdicion(formData.get("volverA"));
   try {
     const items = JSON.parse(String(formData.get("itemsJson") ?? "[]"));
     const itemsVersion = JSON.parse(String(formData.get("itemsVersionJson") ?? "[]"));
@@ -95,7 +97,8 @@ export async function editarRecetaAction(_prevState: RecetaActionState, formData
   }
   // Only items whose formula changed get a new ficha version (and cotización).
   const avisos = await generarFichasYCotizaciones(id, { soloSiDesactualizadas: true });
-  return { status: "success", message: "Receta actualizada.", id, redirigirA: urlTrasEditar(id, avisos) };
+  if (volverA) revalidatePath(volverA);
+  return { status: "success", message: "Receta actualizada.", id, redirigirA: urlTrasEditar(id, avisos, volverA) };
 }
 
 /**

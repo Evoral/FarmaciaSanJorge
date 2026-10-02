@@ -1,25 +1,31 @@
 "use client";
 
-/** "Preparar" button (M11): starts a preparación on a ficha técnica (`preparaciones.iniciar`), from the ficha técnica screen or the /recetas list. On success, navigates straight to the new preparación's screen; an error shows inline. */
+/**
+ * Starts a preparación on a ficha técnica (`preparaciones.iniciar`): the "Preparar" button of the ficha técnica screen and
+ * the "Confirmar terminación" button of the toma workspace (/preparaciones/recetas/[recetaId]). On success, navigates
+ * straight to the new preparación's screen (partidas, enrase, confirmation); an error shows inline.
+ */
 import { useRouter } from "next/navigation";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { iniciarPreparacionAction } from "./actions";
 
 export interface IniciarPreparacionFormProps {
   fichaTecnicaId: string;
-  /** Default "Preparar"; the list uses "Preparar ítem N de M". */
+  /** Default "Preparar"; the toma workspace uses "Confirmar terminación". */
   label?: string;
-  /** `"sm"` in the /recetas table rows. */
+  /** Default "Preparando…". */
+  pendingLabel?: string;
+  /** `"sm"` in table rows. */
   size?: "sm";
 }
 
-export function IniciarPreparacionForm({ fichaTecnicaId, label = "Preparar", size }: IniciarPreparacionFormProps) {
+export function IniciarPreparacionForm({ fichaTecnicaId, label = "Preparar", pendingLabel = "Preparando…", size }: IniciarPreparacionFormProps) {
   const router = useRouter();
   return (
     <SimpleForm
       action={iniciarPreparacionAction}
       submitLabel={label}
-      pendingLabel="Preparando…"
+      pendingLabel={pendingLabel}
       submitSize={size}
       layout="inline"
       onSuccess={(state) => {

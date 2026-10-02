@@ -3,6 +3,8 @@
 /** Server Actions for `/preparaciones/**` (FASE 8). */
 import { revalidatePath } from "next/cache";
 import { iniciarPreparacion } from "@/modules/preparaciones/application/iniciar-preparacion";
+import { tomarReceta } from "@/modules/preparaciones/application/tomar-receta";
+import { cancelarToma } from "@/modules/preparaciones/application/cancelar-toma";
 import { descartarPreparacion } from "@/modules/preparaciones/application/descartar-preparacion";
 import { confirmarPreparacion } from "@/modules/preparaciones/application/confirmar-preparacion";
 import type { ConfirmarPreparacionLineaInput } from "@/modules/preparaciones/application/confirmar-preparacion";
@@ -15,9 +17,35 @@ export async function iniciarPreparacionAction(_prevState: PreparacionActionStat
   try {
     const nueva = await iniciarPreparacion({ fichaTecnicaId: String(formData.get("fichaTecnicaId") ?? "") });
     revalidatePath("/preparaciones");
+    // The receta may have moved PENDIENTE_PREPARACION -> EN_PREPARACION.
+    revalidatePath("/recetas");
     return { status: "success", message: "Preparación iniciada.", id: nueva.id };
   } catch (error) {
     return actionError(error, "No se pudo iniciar la preparación.");
+  }
+}
+
+/** The lab takes a receta from the Pendientes queue (domain/toma.ts); the form then opens its toma workspace. */
+export async function tomarRecetaAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
+  try {
+    const tomada = await tomarReceta({ recetaId: String(formData.get("recetaId") ?? "") });
+    revalidatePath("/preparaciones");
+    revalidatePath("/recetas");
+    return { status: "success", message: "Receta tomada.", id: tomada.id };
+  } catch (error) {
+    return actionError(error, "No se pudo tomar la receta.");
+  }
+}
+
+/** Reverts a toma: the receta goes back to Pendientes. */
+export async function cancelarTomaAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
+  try {
+    const receta = await cancelarToma({ recetaId: String(formData.get("recetaId") ?? "") });
+    revalidatePath("/preparaciones");
+    revalidatePath("/recetas");
+    return { status: "success", message: "Toma cancelada. La receta volvió a Pendientes.", id: receta.id };
+  } catch (error) {
+    return actionError(error, "No se pudo cancelar la toma.");
   }
 }
 

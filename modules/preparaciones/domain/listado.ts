@@ -1,25 +1,38 @@
 /**
- * The /preparaciones list: its tabs (one per estado), its filters as they
- * travel in the URL, and a confirmed preparación's etiqueta state. Pure, no
- * I/O.
+ * The /preparaciones list: its tabs (Pendientes, then one per preparación
+ * estado), its filters as they travel in the URL, and a confirmed
+ * preparación's etiqueta state. Pure, no I/O.
+ *
+ * "Pendientes" (the default tab) is the lab's queue: recetas nobody took
+ * yet that still need a preparación, oldest first. "En curso" lists the
+ * recetas the lab took (domain/toma.ts) that still have ítems to confirm --
+ * its URL key stays `estado=INICIADA` so existing links keep working.
+ * Confirmadas and Descartadas list preparaciones by estado.
  *
  * No paciente filter: the URL must never carry personal data (DP-24) -- the
- * filters are the receta number and the start date range, plus "sin
- * etiqueta impresa" on the Confirmadas tab.
+ * filters are the receta number and a date range (the receta's ingreso on
+ * Pendientes, the toma on En curso, the preparación's start on the others),
+ * plus "sin etiqueta impresa" on the Confirmadas tab.
  */
 import type { EstadoPreparacion } from "@/generated/prisma/enums";
 
-export const PESTANAS_PREPARACIONES: ReadonlyArray<{ estado: EstadoPreparacion; titulo: string }> = [
+/** A /preparaciones tab: the pending queue, the taken recetas (`INICIADA`, "En curso"), or the preparaciones in one estado. */
+export type PestanaPreparaciones = "PENDIENTE" | EstadoPreparacion;
+
+export const PESTANA_PREPARACIONES_POR_DEFECTO: PestanaPreparaciones = "PENDIENTE";
+
+export const PESTANAS_PREPARACIONES: ReadonlyArray<{ estado: PestanaPreparaciones; titulo: string }> = [
+  { estado: "PENDIENTE", titulo: "Pendientes" },
   { estado: "INICIADA", titulo: "En curso" },
   { estado: "CONFIRMADA", titulo: "Confirmadas" },
   { estado: "DESCARTADA", titulo: "Descartadas" },
 ];
 
 export interface FiltrosPreparaciones {
-  estado: EstadoPreparacion;
+  estado: PestanaPreparaciones;
   /** Nº interno de la receta, digits only. */
   numero?: string;
-  /** `YYYY-MM-DD`, on the start date (tenant's calendar day). */
+  /** `YYYY-MM-DD` (tenant's calendar day): the receta's ingreso on Pendientes, the toma on En curso, the start date on the other tabs. */
   desde?: string;
   hasta?: string;
   /** Confirmadas tab only. */
@@ -36,10 +49,10 @@ function uno(valor: string | string[] | undefined): string | undefined {
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
-/** Anything unknown or malformed is dropped (default tab: En curso). */
+/** Anything unknown or malformed is dropped (default tab: Pendientes). */
 export function parsearFiltrosPreparaciones(params: SearchParams): FiltrosPreparaciones {
   const estadoCrudo = uno(params.estado);
-  const estado = PESTANAS_PREPARACIONES.find((p) => p.estado === estadoCrudo)?.estado ?? "INICIADA";
+  const estado = PESTANAS_PREPARACIONES.find((p) => p.estado === estadoCrudo)?.estado ?? PESTANA_PREPARACIONES_POR_DEFECTO;
   const numero = uno(params.numero)?.replace(/\D/g, "");
   const desde = uno(params.desde);
   const hasta = uno(params.hasta);
@@ -67,7 +80,7 @@ export function hrefPreparaciones(filtros: FiltrosPreparaciones, cambios: Partia
     ...cambios,
   };
   const qs = new URLSearchParams();
-  if (f.estado !== "INICIADA") qs.set("estado", f.estado);
+  if (f.estado !== PESTANA_PREPARACIONES_POR_DEFECTO) qs.set("estado", f.estado);
   if (f.numero) qs.set("numero", f.numero);
   if (f.desde) qs.set("desde", f.desde);
   if (f.hasta) qs.set("hasta", f.hasta);

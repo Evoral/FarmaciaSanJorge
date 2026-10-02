@@ -14,6 +14,7 @@ import { getReceta } from "@/modules/recetas/application/get-receta";
 import { ESTADO_PREPARACION_LABELS, FORMA_FARMACEUTICA_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 import { listVersionesFicha } from "@/modules/elaboracion/application/list-versiones-ficha";
 import { GenerarFichaForm } from "@/modules/elaboracion/ui/generar-ficha-form";
+import { FichaVersionResumen } from "@/modules/elaboracion/ui/ficha-version-resumen";
 import { IniciarPreparacionForm } from "@/modules/preparaciones/ui/iniciar-form";
 
 interface FichaTecnicaPageProps {
@@ -42,7 +43,8 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
   const puedeImprimir = can(session, "fichas.imprimir");
   const puedeIniciarPreparacion = can(session, "preparaciones.iniciar");
   // One preparación per item at a time: while one is INICIADA (any version) it is continued, not started again; once one is
-  // CONFIRMADA the item is done (same rule as the /recetas list -- modules/recetas/domain/accion-preparacion.ts).
+  // CONFIRMADA the item is done (an asiento later dejado "sin efecto" keeps its CONFIRMADA preparación, so it stays done); only a
+  // DESCARTADA one lets it start again. Same rule as the /preparaciones "Pendientes" tab.
   const itemEnCurso = versiones.some((v) => v.preparacionActual?.estado === "INICIADA" || v.preparacionActual?.estado === "CONFIRMADA");
 
   return (
@@ -80,43 +82,33 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
           <div className="flex flex-col gap-3">
             {versiones.map((v) => (
               <div key={v.id} className="card p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-medium">
-                      Versión {v.version} — {v.cantidadLineas} línea{v.cantidadLineas === 1 ? "" : "s"} de pesaje
-                    </p>
-                    <p className="text-xs text-zinc-500">
-                      Generada el {fechaHora(v.generadaEn)} por {v.generadaPorNombre}
-                    </p>
-                    {v.preparacionActual ? (
+                <FichaVersionResumen
+                  fichaTecnicaId={v.id}
+                  version={v.version}
+                  cantidadLineas={v.cantidadLineas}
+                  generadaEnTexto={fechaHora(v.generadaEn)}
+                  generadaPorNombre={v.generadaPorNombre}
+                  puedeImprimir={puedeImprimir}
+                  detalle={
+                    v.preparacionActual ? (
                       <p className="text-xs text-amber-600 dark:text-amber-400">
                         Preparación asociada:{" "}
                         <Link href={`/preparaciones/${v.preparacionActual.id}`} className="underline">
                           {etiquetaDe(ESTADO_PREPARACION_LABELS, v.preparacionActual.estado)}
                         </Link>
                       </p>
-                    ) : null}
-                  </div>
-                  <div className="flex gap-2">
-                    {puedeImprimir ? (
-                      <a
-                        href={`/api/fichas-tecnicas/${v.id}/pdf`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="btn btn-secondary"
-                      >
-                        Imprimir PDF
-                      </a>
-                    ) : null}
-                    {puedeIniciarPreparacion && v.preparacionActual?.estado === "INICIADA" ? (
+                    ) : null
+                  }
+                  acciones={
+                    puedeIniciarPreparacion && v.preparacionActual?.estado === "INICIADA" ? (
                       <Link href={`/preparaciones/${v.preparacionActual.id}`} className="btn btn-primary">
                         Continuar preparación
                       </Link>
                     ) : puedeIniciarPreparacion && !v.preparacionActual && !itemEnCurso ? (
                       <IniciarPreparacionForm fichaTecnicaId={v.id} />
-                    ) : null}
-                  </div>
-                </div>
+                    ) : null
+                  }
+                />
               </div>
             ))}
           </div>

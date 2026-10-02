@@ -139,6 +139,8 @@ export interface RecetaFormProps {
   vistaPrevia?: VistaPreviaImportacion;
   /** `cotizaciones.calcular`: show the live presupuesto (crear/importar only -- docs/specs/presupuesto-receta.md). */
   puedePresupuestar?: boolean;
+  /** `editar` mode only: where to come back after saving when the form is embedded in another screen (an internal /preparaciones path, re-validated by the action -- domain/avisos-generacion.ts#retornoDeEdicion). */
+  volverA?: string;
 }
 
 /** The receta form's starting state for an imported PDF: the draft's data plus the catalog matches. */
@@ -175,7 +177,7 @@ function opcional(valor: string | null | undefined): string | undefined {
   return valor ?? undefined;
 }
 
-export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaPrevia, puedePresupuestar = false }: RecetaFormProps) {
+export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaPrevia, puedePresupuestar = false, volverA }: RecetaFormProps) {
   const importacion = mode === "importar" ? (vistaPrevia ?? null) : null;
   const action = mode === "crear" ? crearRecetaAction : mode === "editar" ? editarRecetaAction : importarRecetaAction;
   const [state, formAction, isPending] = useActionState(action, IDLE_STATE);
@@ -365,6 +367,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   return (
     <form ref={formRef} action={formAction} onSubmit={handleSubmit} noValidate className="flex flex-col gap-6">
       {mode === "editar" && recetaId ? <input type="hidden" name="id" value={recetaId} /> : null}
+      {mode === "editar" && volverA ? <input type="hidden" name="volverA" value={volverA} /> : null}
       <input type="hidden" name="pacienteId" value={pacienteId} />
       <input type="hidden" name="medicoId" value={medicoId} />
       <input type="hidden" name="origen" value={origen} />

@@ -7,13 +7,10 @@ import Link from "next/link";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listRecetas } from "@/modules/recetas/application/list-recetas";
-import type { ListRecetasResult } from "@/modules/recetas/application/list-recetas";
 import { ESTADOS_RECETA } from "@/modules/recetas/domain/receta";
 import { getReceta } from "@/modules/recetas/application/get-receta";
 import { PARAM_AVISO, PARAM_REGISTRADA, decodificarAvisos } from "@/modules/recetas/domain/avisos-generacion";
 import { AvisosGeneracion } from "@/modules/recetas/ui/avisos-generacion";
-import { decidirAccionPreparacion } from "@/modules/recetas/domain/accion-preparacion";
-import { IniciarPreparacionForm } from "@/modules/preparaciones/ui/iniciar-form";
 import { ESTADO_RECETA_LABELS } from "@/shared/labels/enum-labels";
 import { formatFecha } from "@/shared/format/fecha";
 import { StatusBadge } from "@/shared/ui/status-badge";
@@ -45,7 +42,6 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
   const totalPages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
   const puedeCrear = can(session, "recetas.crear");
   const puedeEditar = can(session, "recetas.editar");
-  const puedeIniciar = can(session, "preparaciones.iniciar");
 
   // The receta just created (read again: the URL only carries its id and the notice codes).
   const idRegistrada = params[PARAM_REGISTRADA];
@@ -172,7 +168,6 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
                   <td className="px-3 py-2"><StatusBadge estado={r.estado} /></td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap items-center justify-end gap-2">
-                      <AccionPreparar receta={r} puedeIniciar={puedeIniciar} />
                       {puedeEditar && r.editable ? (
                         <Link href={`/recetas/${r.id}/editar`} className="btn btn-secondary btn-sm" aria-label={`Editar receta Nº ${r.numeroInterno}`}>
                           Editar
@@ -202,27 +197,4 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
       ) : null}
     </div>
   );
-}
-
-/** "Preparar" / "Continuar" for the receta's first pending item (modules/recetas/domain/accion-preparacion.ts); the start itself is the existing `preparaciones.iniciar` form, whose errors show inline. */
-function AccionPreparar({ receta, puedeIniciar }: { receta: ListRecetasResult["items"][number]; puedeIniciar: boolean }) {
-  const accion = decidirAccionPreparacion({ estado: receta.estado, items: receta.itemsParaPreparar, puedeIniciar });
-  switch (accion.tipo) {
-    case "preparar":
-      return <IniciarPreparacionForm fichaTecnicaId={accion.fichaTecnicaId} label={accion.etiqueta} size="sm" />;
-    case "continuar":
-      return (
-        <Link href={`/preparaciones/${accion.preparacionId}`} className="btn btn-primary btn-sm">
-          {accion.etiqueta}
-        </Link>
-      );
-    case "generar-ficha":
-      return (
-        <Link href={`/recetas/${receta.id}`} className="text-xs text-zinc-500 underline">
-          {accion.etiqueta}
-        </Link>
-      );
-    default:
-      return null;
-  }
 }

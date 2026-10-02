@@ -9,6 +9,9 @@
  * only WHICH partidas to draw from can be changed (INV-S15), which
  * `confirmarPreparacion` recomputes server-side regardless of what this
  * query shows.
+ *
+ * Also where the screen's "Volver" goes (domain/toma.ts#hrefVolverDePreparacion):
+ * the receta's toma workspace while it still has ítems to confirm.
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
@@ -17,8 +20,10 @@ import { uuid } from "@/shared/validation";
 import { dec } from "@/shared/decimal";
 import { proponerReparto } from "@/modules/stock/domain/reparto";
 import type { PropuestaLinea } from "@/modules/stock/domain/reparto";
+import { hrefVolverDePreparacion } from "../domain/toma";
 import {
   getPreparacionParaAccion,
+  getRecetaDePreparacion,
   getLineasParaPreparacion,
   listPartidasElegiblesDroga,
   jornadaActualTenant,
@@ -41,6 +46,8 @@ export interface PreparacionParaPantalla {
   fichaTecnicaId: string;
   jornadaActual: string;
   lineas: LineaPantalla[];
+  /** "← Volver": the receta's toma workspace or the list tab. */
+  hrefVolver: string;
 }
 
 export const getPreparacionParaPantallaQuery = defineQuery({
@@ -76,7 +83,15 @@ export const getPreparacionParaPantallaQuery = defineQuery({
       }
     }
 
-    return { id: preparacion.id, estado: preparacion.estado, fichaTecnicaId: preparacion.fichaTecnicaId, jornadaActual: jornada, lineas };
+    const receta = await getRecetaDePreparacion(tx, session.tenantId, preparacion.itemRecetaId);
+    return {
+      id: preparacion.id,
+      estado: preparacion.estado,
+      fichaTecnicaId: preparacion.fichaTecnicaId,
+      jornadaActual: jornada,
+      lineas,
+      hrefVolver: hrefVolverDePreparacion(preparacion.estado, receta),
+    };
   },
 });
 

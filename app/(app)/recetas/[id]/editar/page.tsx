@@ -7,6 +7,7 @@ import { getReceta } from "@/modules/recetas/application/get-receta";
 import { listUnidadesParaReceta } from "@/modules/recetas/application/list-unidades-para-receta";
 import { esEstadoEditable } from "@/modules/recetas/domain/receta";
 import { RecetaForm } from "@/modules/recetas/ui/receta-form";
+import { inicialDesdeReceta } from "@/modules/recetas/ui/receta-form-inicial";
 
 interface EditarRecetaPageProps {
   params: Promise<{ id: string }>;
@@ -39,37 +40,7 @@ export default async function EditarRecetaPage({ params }: EditarRecetaPageProps
         unidades={unidades}
         disabled={false}
         recetaId={receta.id}
-        inicial={{
-          pacienteId: receta.pacienteId,
-          pacienteLabel: `${receta.pacienteNombre} ${receta.pacienteApellido}`,
-          medicoId: receta.medicoId,
-          medicoLabel: `${receta.medicoApellido}, ${receta.medicoNombre}`,
-          fechaPrescripcion: receta.fechaPrescripcion.toISOString().slice(0, 10),
-          origen: receta.origen,
-          diagnosticoCodigo: receta.diagnosticoCodigo ?? "",
-          diagnosticoDescripcion: receta.diagnosticoDescripcion ?? "",
-          items: receta.items.map((item) => ({
-            id: item.id,
-            descripcion: item.descripcion ?? "",
-            formaFarmaceutica: item.formaFarmaceutica,
-            cantidadUnidades: String(item.cantidadUnidades),
-            fraccionDosisPorUnidad: item.fraccionDosisPorUnidad,
-            cantidadTotal: item.cantidadTotal ?? "",
-            unidadTotalId: item.unidadTotalId ?? "",
-            observaciones: item.observaciones ?? "",
-            posologia: item.posologia ?? "",
-            duracionTratamientoDias: item.duracionTratamientoDias !== null ? String(item.duracionTratamientoDias) : "",
-            componentes: item.componentes.map((c) => ({
-              id: c.id,
-              drogaId: c.drogaId,
-              drogaNombre: c.drogaNombre,
-              cantidad: c.cantidad ?? "",
-              unidadMedidaId: c.unidadMedidaId,
-              modoExpresion: c.modoExpresion,
-              esPrincipioActivo: c.esPrincipioActivo,
-            })),
-          })),
-        }}
+        inicial={inicialDesdeReceta(receta)}
       />
     </div>
   );

@@ -11,6 +11,13 @@
  * trigger, migration 0011, only allows PENDIENTE_PREPARACION ->
  * EN_PREPARACION once anyway). A terminal receta (ENTREGADA/ANULADA) can
  * never start a new preparación.
+ *
+ * The toma (migration 0056, domain/toma.ts): the toma workspace's
+ * "Confirmar terminación" runs this on a receta its user already took. When
+ * it runs on a receta nobody took (the ficha técnica screen's "Preparar"),
+ * the starter takes it here too, so a receta with a preparación INICIADA is
+ * always listed under En curso. Same receta lock as the estado move (always
+ * taken now, after the ficha's advisory lock -- same order as before).
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
@@ -25,6 +32,8 @@ import {
   lockRecetaParaTransicion,
   getRecetaEstado,
   updateRecetaEstado,
+  getTomaDeReceta,
+  setTomaDeReceta,
 } from "../infrastructure/preparacion-repository";
 
 const iniciarPreparacionInput = z.object({ fichaTecnicaId: uuid });
@@ -60,13 +69,17 @@ export const iniciarPreparacionCommand = defineCommand({
       iniciadaPorId: session.usuario.id,
     });
 
-    if (ficha.recetaEstado === "PENDIENTE_PREPARACION") {
-      const recetaLocked = await lockRecetaParaTransicion(tx, session.tenantId, ficha.recetaId);
-      if (recetaLocked) {
-        const estadoFresco = await getRecetaEstado(tx, session.tenantId, ficha.recetaId);
-        if (estadoFresco === "PENDIENTE_PREPARACION") {
-          await updateRecetaEstado(tx, session.tenantId, ficha.recetaId, "EN_PREPARACION");
-        }
+    let tomadaPor: string | null = null;
+    const recetaLocked = await lockRecetaParaTransicion(tx, session.tenantId, ficha.recetaId);
+    if (recetaLocked) {
+      const estadoFresco = await getRecetaEstado(tx, session.tenantId, ficha.recetaId);
+      if (estadoFresco === "PENDIENTE_PREPARACION") {
+        await updateRecetaEstado(tx, session.tenantId, ficha.recetaId, "EN_PREPARACION");
+      }
+      const toma = await getTomaDeReceta(tx, session.tenantId, ficha.recetaId);
+      if (toma && toma.tomadaPorId === null) {
+        await setTomaDeReceta(tx, session.tenantId, ficha.recetaId, session.usuario.id);
+        tomadaPor = `${session.usuario.apellido}, ${session.usuario.nombre}`;
       }
     }
 
@@ -74,7 +87,12 @@ export const iniciarPreparacionCommand = defineCommand({
       output: { id: preparacion.id },
       audit: {
         entidadId: preparacion.id,
-        valorNuevo: { fichaTecnicaId: input.fichaTecnicaId, fichaTecnica: `Receta Nº ${ficha.recetaNumeroInterno} · versión ${ficha.version}` },
+        valorNuevo: {
+          fichaTecnicaId: input.fichaTecnicaId,
+          fichaTecnica: `Receta Nº ${ficha.recetaNumeroInterno} · versión ${ficha.version}`,
+          // Only when this start also took the receta (see the module doc comment).
+          ...(tomadaPor ? { tomadaPor } : {}),
+        },
       },
     };
   },

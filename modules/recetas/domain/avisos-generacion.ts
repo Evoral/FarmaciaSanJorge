@@ -15,7 +15,11 @@
  * Where it lands: after CREATING a receta (alta manual or PDF import), the
  * list `/recetas?registrada=<id>&aviso=...` (a success banner with the
  * notices and a link to the receta); after EDITING, the receta's own
- * detail page `/recetas/<id>?aviso=...`.
+ * detail page `/recetas/<id>?aviso=...` -- or, when the edit form was
+ * embedded in another screen (the /preparaciones toma workspace), back to
+ * that screen: `<volverA>?guardada=1&aviso=...`. `volverA` comes from the
+ * form, so it is validated against a closed shape (`retornoDeEdicion`):
+ * only an internal /preparaciones path, never an open redirect.
  */
 import { CODIGOS_FICHA_NO_GENERABLE } from "@/modules/elaboracion/domain/ficha-no-generable";
 import type { CodigoFichaNoGenerable } from "@/modules/elaboracion/domain/ficha-no-generable";
@@ -24,6 +28,16 @@ import { mensajeParaCodigoValidacion } from "@/modules/elaboracion/domain/mensaj
 export const PARAM_AVISO = "aviso";
 /** `/recetas?registrada=<receta id>`: the receta just created (an id, never personal data). */
 export const PARAM_REGISTRADA = "registrada";
+/** `?guardada=1`: the receta was just edited from a screen that embeds the edit form. */
+export const PARAM_GUARDADA = "guardada";
+
+/** Absolute internal path under /preparaciones: plain segments only -- no `//`, `..`, `\`, scheme, query or fragment. */
+const RETORNO_EDICION = /^\/preparaciones(?:\/[A-Za-z0-9_-]+)+$/;
+
+/** The edit form's `volverA` when it is a valid return path (see the module doc comment), else `null`. */
+export function retornoDeEdicion(valor: unknown): string | null {
+  return typeof valor === "string" && valor.length <= 200 && RETORNO_EDICION.test(valor) ? valor : null;
+}
 
 export type TipoAviso = "ficha" | "cotizacion";
 export type CodigoAviso = CodigoFichaNoGenerable | "SIN_REGLA_PRECIO" | "SIN_FICHA" | "ERROR";
@@ -58,8 +72,9 @@ export function urlTrasRegistrar(recetaId: string, avisos: readonly AvisoGenerac
   return `/recetas?${agregarAvisos(params, avisos).toString()}`;
 }
 
-/** Where to go after editing a receta: its detail page, with the notices. */
-export function urlTrasEditar(recetaId: string, avisos: readonly AvisoGeneracion[]): string {
+/** Where to go after editing a receta: its detail page with the notices, or back to `volverA` (already validated by `retornoDeEdicion`). */
+export function urlTrasEditar(recetaId: string, avisos: readonly AvisoGeneracion[], volverA: string | null = null): string {
+  if (volverA) return `${volverA}?${agregarAvisos(new URLSearchParams({ [PARAM_GUARDADA]: "1" }), avisos).toString()}`;
   return `/recetas/${recetaId}${codificarAvisos(avisos)}`;
 }
 

@@ -20,7 +20,7 @@
  * INSERT statement supplied).
  */
 import { randomUUID } from "node:crypto";
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import type { EstadoPreparacion, EstadoReceta, TipoMovimientoContralor } from "@/generated/prisma/enums";
 import { jornadaDe, rangoDeJornadas } from "@/shared/time/jornada";
 import type { DatosEtiqueta } from "../domain/etiqueta";
@@ -794,5 +794,766 @@ export async function listPreparaciones(
       pacienteApellido: r.fichaTecnica.itemReceta.receta.paciente.apellido,
       etiqueta: r.etiqueta ? { impresa: r.etiqueta.impresa } : null,
     })),
+  };
+}
+
+// ============================================================================
+// Pendientes: recetas waiting for the lab to take them (one row per receta)
+// ============================================================================
+
+/**
+ * The SQL condition "this ítem still needs a preparación": none of its
+ * fichas (any version) has a preparación INICIADA or CONFIRMADA -- a
+ * DESCARTADA one puts it back in the queue; an ítem whose asiento was later
+ * dejado "sin efecto" keeps its CONFIRMADA preparación, so it is done.
+ * (`preparacion.item_receta_id` is trigger-copied from the ficha, so it
+ * covers every version.) `ir` must be the `fsj.item_receta` row's alias.
+ */
+const ITEM_SIN_PREPARACION_ACTIVA = Prisma.sql`
+  NOT EXISTS (
+    SELECT 1
+    FROM fsj.preparacion p
+    WHERE p.tenant_id = ir.tenant_id AND p.item_receta_id = ir.id AND p.estado IN ('INICIADA', 'CONFIRMADA')
+  )
+`;
+
+export interface RecetaPendienteFila {
+  recetaId: string;
+  recetaNumeroInterno: string;
+  recetaFechaIngreso: Date;
+  pacienteNombre: string;
+  pacienteApellido: string;
+}
+
+export interface ListRecetasPendientesFilter {
+  tenantId: string;
+  /** Nº interno de la receta (digits). */
+  numeroInterno?: string;
+  /** `YYYY-MM-DD` on the receta's `fecha_ingreso`, as the tenant's calendar day (inclusive). */
+  desde?: string;
+  hasta?: string;
+  page: number;
+  pageSize: number;
+}
+
+/** One row of `listRecetasPendientesSql`: every page column is NULL on the single row of an empty page. */
+export interface ListRecetasPendientesRow {
+  total: number;
+  zona_horaria: string;
+  receta_id: string | null;
+  receta_numero_interno: string | null;
+  receta_fecha_ingreso: Date | null;
+  paciente_nombre: string | null;
+  paciente_apellido: string | null;
+}
+
+/**
+ * The /preparaciones "Pendientes" tab: recetas PENDIENTE_PREPARACION or
+ * EN_PREPARACION that nobody took (`tomada_por_id IS NULL`, migration 0056)
+ * and that still have at least one ítem needing a preparación
+ * (`ITEM_SIN_PREPARACION_ACTIVA`). A receta without a ficha técnica is
+ * listed too (the toma workspace lets the lab generate it).
+ *
+ * Oldest first, so none is skipped: `fecha_ingreso`, then receta Nº.
+ *
+ * Built separately (like stock's `listAjustesSql`) so
+ * tests/db/preparaciones-pendientes.test.ts runs this EXACT statement on its
+ * raw `pg` connection. A page past the end still reports the real total.
+ */
+export function listRecetasPendientesSql(filter: ListRecetasPendientesFilter): Prisma.Sql {
+  const numero = filter.numeroInterno?.replace(/\D/g, "") || null;
+  const desde = filter.desde ?? null;
+  const hasta = filter.hasta ?? null;
+  const skip = (filter.page - 1) * filter.pageSize;
+
+  return Prisma.sql`
+    WITH filtradas AS (
+      SELECT
+        r.id AS receta_id,
+        r.numero_interno,
+        r.fecha_ingreso,
+        pa.nombre AS paciente_nombre,
+        pa.apellido AS paciente_apellido
+      FROM fsj.receta r
+      JOIN fsj.tenant tn ON tn.id = r.tenant_id
+      JOIN fsj.paciente pa ON pa.tenant_id = r.tenant_id AND pa.id = r.paciente_id
+      WHERE r.tenant_id = ${filter.tenantId}::uuid
+        AND r.estado IN ('PENDIENTE_PREPARACION', 'EN_PREPARACION')
+        AND r.tomada_por_id IS NULL
+        AND (${numero}::bigint IS NULL OR r.numero_interno = ${numero}::bigint)
+        AND (${desde}::date IS NULL OR fsj.jornada_de(r.fecha_ingreso, tn.zona_horaria) >= ${desde}::date)
+        AND (${hasta}::date IS NULL OR fsj.jornada_de(r.fecha_ingreso, tn.zona_horaria) <= ${hasta}::date)
+        AND EXISTS (
+          SELECT 1
+          FROM fsj.item_receta ir
+          WHERE ir.tenant_id = r.tenant_id AND ir.receta_id = r.id AND ${ITEM_SIN_PREPARACION_ACTIVA}
+        )
+    )
+    SELECT
+      t.total,
+      t.zona_horaria,
+      f.receta_id,
+      f.numero_interno::text AS receta_numero_interno,
+      f.fecha_ingreso AS receta_fecha_ingreso,
+      f.paciente_nombre,
+      f.paciente_apellido
+    FROM (
+      SELECT
+        (SELECT count(*)::int FROM filtradas) AS total,
+        (SELECT zona_horaria FROM fsj.tenant WHERE id = ${filter.tenantId}::uuid) AS zona_horaria
+    ) t
+    LEFT JOIN LATERAL (
+      SELECT *
+      FROM filtradas
+      ORDER BY fecha_ingreso ASC, numero_interno ASC
+      LIMIT ${filter.pageSize}::int OFFSET ${skip}::int
+    ) f ON true
+  `;
+}
+
+export async function listRecetasPendientes(
+  tx: Prisma.TransactionClient,
+  filter: ListRecetasPendientesFilter,
+): Promise<{ items: RecetaPendienteFila[]; total: number; zonaHoraria: string }> {
+  const rows = await tx.$queryRaw<ListRecetasPendientesRow[]>(listRecetasPendientesSql(filter));
+  if (!rows[0]) throw new Error(`listRecetasPendientes: no row for tenant ${filter.tenantId}`);
+
+  return {
+    total: rows[0].total,
+    zonaHoraria: rows[0].zona_horaria,
+    items: rows
+      .filter((row) => row.receta_id !== null)
+      .map((row) => ({
+        recetaId: row.receta_id!,
+        recetaNumeroInterno: row.receta_numero_interno!,
+        recetaFechaIngreso: row.receta_fecha_ingreso!,
+        pacienteNombre: row.paciente_nombre!,
+        pacienteApellido: row.paciente_apellido!,
+      })),
+  };
+}
+
+/** A pending ítem of a listed receta: what the "Ver" preview shows (as on the receta detail page); `cantidadTotal` is the Decimal as text. */
+export interface ItemPendienteFila {
+  recetaId: string;
+  itemRecetaId: string;
+  itemDescripcion: string | null;
+  formaFarmaceutica: string;
+  cantidadUnidades: number;
+  cantidadTotal: string | null;
+  unidadTotalSimbolo: string | null;
+  posologia: string | null;
+  duracionTratamientoDias: number | null;
+  /** 1-based position of the ítem in its receta (detail-page order) and the receta's ítem count, for "(ítem N de M)". */
+  posicion: number;
+  totalItems: number;
+}
+
+/** One row of `listItemsPendientesDeRecetasSql`. */
+export interface ListItemsPendientesRow {
+  receta_id: string;
+  item_receta_id: string;
+  item_descripcion: string | null;
+  forma_farmaceutica: string;
+  cantidad_unidades: number;
+  cantidad_total: string | null;
+  unidad_total_simbolo: string | null;
+  posologia: string | null;
+  duracion_tratamiento_dias: number | null;
+  posicion: number;
+  total_items: number;
+}
+
+/**
+ * The pending ítems of a page of recetas, in ONE statement (no N+1),
+ * ordered by receta then position. `item_receta` has no order column: the
+ * receta detail page reads a receta's ítems without ORDER BY, which
+ * Postgres returns in physical (ctid) order for a scan of one receta's rows
+ * (seq scan, or the (tenant_id, receta_id) index, whose duplicates are kept
+ * in heap-TID order) -- ordering by ctid reproduces that deterministically.
+ * The position is computed over ALL the receta's ítems, before dropping the
+ * ones already taken care of. Built separately for tests/db.
+ */
+export function listItemsPendientesDeRecetasSql(tenantId: string, recetaIds: string[]): Prisma.Sql {
+  return Prisma.sql`
+    WITH items AS (
+      SELECT
+        ir.id,
+        ir.tenant_id,
+        ir.receta_id,
+        ir.descripcion,
+        ir.forma_farmaceutica,
+        ir.cantidad_unidades,
+        ir.cantidad_total,
+        ir.unidad_total_id,
+        ir.posologia,
+        ir.duracion_tratamiento_dias,
+        row_number() OVER (PARTITION BY ir.receta_id ORDER BY ir.ctid)::int AS posicion,
+        count(*) OVER (PARTITION BY ir.receta_id)::int AS total_items
+      FROM fsj.item_receta ir
+      WHERE ir.tenant_id = ${tenantId}::uuid AND ir.receta_id = ANY(${recetaIds}::uuid[])
+    )
+    SELECT
+      ir.receta_id,
+      ir.id AS item_receta_id,
+      ir.descripcion AS item_descripcion,
+      ir.forma_farmaceutica::text AS forma_farmaceutica,
+      ir.cantidad_unidades,
+      ir.cantidad_total::text AS cantidad_total,
+      ut.simbolo AS unidad_total_simbolo,
+      ir.posologia,
+      ir.duracion_tratamiento_dias,
+      ir.posicion,
+      ir.total_items
+    FROM items ir
+    LEFT JOIN fsj.unidad_medida ut ON ut.id = ir.unidad_total_id
+    WHERE ${ITEM_SIN_PREPARACION_ACTIVA}
+    ORDER BY ir.receta_id, ir.posicion ASC
+  `;
+}
+
+/** Pending ítems by receta id, each receta's in position order; no query for an empty page. */
+export async function listItemsPendientesDeRecetas(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  recetaIds: string[],
+): Promise<Map<string, ItemPendienteFila[]>> {
+  const porReceta = new Map<string, ItemPendienteFila[]>();
+  if (recetaIds.length === 0) return porReceta;
+  const rows = await tx.$queryRaw<ListItemsPendientesRow[]>(listItemsPendientesDeRecetasSql(tenantId, recetaIds));
+  for (const row of rows) {
+    const items = porReceta.get(row.receta_id) ?? [];
+    items.push({
+      recetaId: row.receta_id,
+      itemRecetaId: row.item_receta_id,
+      itemDescripcion: row.item_descripcion,
+      formaFarmaceutica: row.forma_farmaceutica,
+      cantidadUnidades: row.cantidad_unidades,
+      cantidadTotal: row.cantidad_total,
+      unidadTotalSimbolo: row.unidad_total_simbolo,
+      posologia: row.posologia,
+      duracionTratamientoDias: row.duracion_tratamiento_dias,
+      posicion: row.posicion,
+      totalItems: row.total_items,
+    });
+    porReceta.set(row.receta_id, items);
+  }
+  return porReceta;
+}
+
+/** One componente of an ítem (the "Ver" preview's and the workspace's table), as on the receta detail page; `cantidad` is the Decimal as text. */
+export interface ComponenteDePendiente {
+  id: string;
+  drogaNombre: string;
+  cantidad: string | null;
+  unidadMedidaSimbolo: string;
+  modoExpresion: string;
+  esPrincipioActivo: boolean;
+}
+
+/** One row of `listComponentesDePendientesSql`. */
+export interface ListComponentesDePendientesRow {
+  item_receta_id: string;
+  id: string;
+  droga_nombre: string;
+  cantidad: string | null;
+  unidad_medida_simbolo: string;
+  modo_expresion: string;
+  es_principio_activo: boolean;
+}
+
+/**
+ * The componentes of a page of pending ítems, in ONE statement (no N+1):
+ * tenant-scoped, each ítem's in `orden`. Built separately so
+ * tests/db/preparaciones-pendientes.test.ts runs this EXACT statement on its
+ * raw `pg` connection. `unidad_medida` is global (no tenant_id).
+ */
+export function listComponentesDePendientesSql(tenantId: string, itemIds: string[]): Prisma.Sql {
+  return Prisma.sql`
+    SELECT
+      c.item_receta_id,
+      c.id,
+      d.nombre AS droga_nombre,
+      c.cantidad::text AS cantidad,
+      um.simbolo AS unidad_medida_simbolo,
+      c.modo_expresion::text AS modo_expresion,
+      c.es_principio_activo
+    FROM fsj.componente_item_receta c
+    JOIN fsj.droga d ON d.tenant_id = c.tenant_id AND d.id = c.droga_id
+    JOIN fsj.unidad_medida um ON um.id = c.unidad_medida_id
+    WHERE c.tenant_id = ${tenantId}::uuid AND c.item_receta_id = ANY(${itemIds}::uuid[])
+    ORDER BY c.item_receta_id, c.orden ASC
+  `;
+}
+
+/** Componentes by ítem id; an ítem without componentes is absent from the map. No query for an empty page. */
+export async function listComponentesDePendientes(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  itemIds: string[],
+): Promise<Map<string, ComponenteDePendiente[]>> {
+  const porItem = new Map<string, ComponenteDePendiente[]>();
+  if (itemIds.length === 0) return porItem;
+  const rows = await tx.$queryRaw<ListComponentesDePendientesRow[]>(listComponentesDePendientesSql(tenantId, itemIds));
+  for (const row of rows) {
+    const componentes = porItem.get(row.item_receta_id) ?? [];
+    componentes.push({
+      id: row.id,
+      drogaNombre: row.droga_nombre,
+      cantidad: row.cantidad,
+      unidadMedidaSimbolo: row.unidad_medida_simbolo,
+      modoExpresion: row.modo_expresion,
+      esPrincipioActivo: row.es_principio_activo,
+    });
+    porItem.set(row.item_receta_id, componentes);
+  }
+  return porItem;
+}
+
+// ============================================================================
+// En curso: recetas taken by the lab that still have ítems to confirm
+// ============================================================================
+
+export interface RecetaEnCursoFila {
+  recetaId: string;
+  recetaNumeroInterno: string;
+  pacienteNombre: string;
+  pacienteApellido: string;
+  /** "Apellido, Nombre". */
+  tomadaPorNombre: string;
+  tomadaEn: Date;
+  totalItems: number;
+  itemsConfirmados: number;
+}
+
+export interface ListRecetasEnCursoFilter {
+  tenantId: string;
+  /** Nº interno de la receta (digits). */
+  numeroInterno?: string;
+  /** `YYYY-MM-DD` on `tomada_en`, as the tenant's calendar day (inclusive). */
+  desde?: string;
+  hasta?: string;
+  page: number;
+  pageSize: number;
+}
+
+/** One row of `listRecetasEnCursoSql`: every page column is NULL on the single row of an empty page. */
+export interface ListRecetasEnCursoRow {
+  total: number;
+  zona_horaria: string;
+  receta_id: string | null;
+  receta_numero_interno: string | null;
+  paciente_nombre: string | null;
+  paciente_apellido: string | null;
+  tomada_por_nombre: string | null;
+  tomada_por_apellido: string | null;
+  tomada_en: Date | null;
+  total_items: number | null;
+  items_confirmados: number | null;
+}
+
+/**
+ * The /preparaciones "En curso" tab: recetas taken by the lab (migration
+ * 0056) that are still PENDIENTE_PREPARACION or EN_PREPARACION and have at
+ * least one ítem without a CONFIRMADA preparación (once every ítem is
+ * confirmed the receta is PREPARADA anyway). The `tomada_por_id`/estado
+ * predicates match the partial index idx_receta_tenant_tomada_en_curso.
+ * Oldest toma first. Built separately for tests/db.
+ */
+export function listRecetasEnCursoSql(filter: ListRecetasEnCursoFilter): Prisma.Sql {
+  const numero = filter.numeroInterno?.replace(/\D/g, "") || null;
+  const desde = filter.desde ?? null;
+  const hasta = filter.hasta ?? null;
+  const skip = (filter.page - 1) * filter.pageSize;
+
+  return Prisma.sql`
+    WITH filtradas AS (
+      SELECT
+        r.id AS receta_id,
+        r.numero_interno,
+        r.tomada_en,
+        pa.nombre AS paciente_nombre,
+        pa.apellido AS paciente_apellido,
+        u.nombre AS tomada_por_nombre,
+        u.apellido AS tomada_por_apellido,
+        avance.total_items,
+        avance.items_confirmados
+      FROM fsj.receta r
+      JOIN fsj.tenant tn ON tn.id = r.tenant_id
+      JOIN fsj.paciente pa ON pa.tenant_id = r.tenant_id AND pa.id = r.paciente_id
+      JOIN fsj.usuario u ON u.tenant_id = r.tenant_id AND u.id = r.tomada_por_id
+      CROSS JOIN LATERAL (
+        SELECT
+          count(*)::int AS total_items,
+          (count(*) FILTER (
+            WHERE EXISTS (
+              SELECT 1 FROM fsj.preparacion p
+              WHERE p.tenant_id = ir.tenant_id AND p.item_receta_id = ir.id AND p.estado = 'CONFIRMADA'
+            )
+          ))::int AS items_confirmados
+        FROM fsj.item_receta ir
+        WHERE ir.tenant_id = r.tenant_id AND ir.receta_id = r.id
+      ) avance
+      WHERE r.tenant_id = ${filter.tenantId}::uuid
+        AND r.tomada_por_id IS NOT NULL
+        AND r.estado IN ('PENDIENTE_PREPARACION', 'EN_PREPARACION')
+        AND avance.items_confirmados < avance.total_items
+        AND (${numero}::bigint IS NULL OR r.numero_interno = ${numero}::bigint)
+        AND (${desde}::date IS NULL OR fsj.jornada_de(r.tomada_en, tn.zona_horaria) >= ${desde}::date)
+        AND (${hasta}::date IS NULL OR fsj.jornada_de(r.tomada_en, tn.zona_horaria) <= ${hasta}::date)
+    )
+    SELECT
+      t.total,
+      t.zona_horaria,
+      f.receta_id,
+      f.numero_interno::text AS receta_numero_interno,
+      f.paciente_nombre,
+      f.paciente_apellido,
+      f.tomada_por_nombre,
+      f.tomada_por_apellido,
+      f.tomada_en,
+      f.total_items,
+      f.items_confirmados
+    FROM (
+      SELECT
+        (SELECT count(*)::int FROM filtradas) AS total,
+        (SELECT zona_horaria FROM fsj.tenant WHERE id = ${filter.tenantId}::uuid) AS zona_horaria
+    ) t
+    LEFT JOIN LATERAL (
+      SELECT *
+      FROM filtradas
+      ORDER BY tomada_en ASC, numero_interno ASC
+      LIMIT ${filter.pageSize}::int OFFSET ${skip}::int
+    ) f ON true
+  `;
+}
+
+export async function listRecetasEnCurso(
+  tx: Prisma.TransactionClient,
+  filter: ListRecetasEnCursoFilter,
+): Promise<{ items: RecetaEnCursoFila[]; total: number; zonaHoraria: string }> {
+  const rows = await tx.$queryRaw<ListRecetasEnCursoRow[]>(listRecetasEnCursoSql(filter));
+  if (!rows[0]) throw new Error(`listRecetasEnCurso: no row for tenant ${filter.tenantId}`);
+
+  return {
+    total: rows[0].total,
+    zonaHoraria: rows[0].zona_horaria,
+    items: rows
+      .filter((row) => row.receta_id !== null)
+      .map((row) => ({
+        recetaId: row.receta_id!,
+        recetaNumeroInterno: row.receta_numero_interno!,
+        pacienteNombre: row.paciente_nombre!,
+        pacienteApellido: row.paciente_apellido!,
+        tomadaPorNombre: `${row.tomada_por_apellido!}, ${row.tomada_por_nombre!}`,
+        tomadaEn: row.tomada_en!,
+        totalItems: row.total_items!,
+        itemsConfirmados: row.items_confirmados!,
+      })),
+  };
+}
+
+// ============================================================================
+// Toma (migration 0056): who took a receta from the queue, and when
+// ============================================================================
+
+export interface TomaDeReceta {
+  id: string;
+  numeroInterno: string;
+  estado: EstadoReceta;
+  tomadaPorId: string | null;
+  /** "Apellido, Nombre"; `null` when not taken. */
+  tomadaPorNombre: string | null;
+  tomadaEn: Date | null;
+  zonaHoraria: string;
+}
+
+/** Fresh read of the receta's toma -- call AFTER `lockRecetaParaTransicion` (M3). */
+export async function getTomaDeReceta(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<TomaDeReceta | null> {
+  const receta = await tx.receta.findUnique({
+    where: { id: recetaId, tenantId },
+    select: { id: true, numeroInterno: true, estado: true, tomadaPorId: true, tomadaEn: true, tomadaPor: { select: { nombre: true, apellido: true } } },
+  });
+  if (!receta) return null;
+  return {
+    id: receta.id,
+    numeroInterno: receta.numeroInterno.toString(),
+    estado: receta.estado,
+    tomadaPorId: receta.tomadaPorId,
+    tomadaPorNombre: receta.tomadaPor ? `${receta.tomadaPor.apellido}, ${receta.tomadaPor.nombre}` : null,
+    tomadaEn: receta.tomadaEn,
+    zonaHoraria: await zonaHorariaTenant(tx, tenantId),
+  };
+}
+
+/** Where each ítem of a receta stands, in detail-page order (ctid -- see `listItemsPendientesDeRecetasSql`). */
+export interface AvanceDeItem {
+  itemRecetaId: string;
+  /** 1-based. */
+  posicion: number;
+  iniciada: boolean;
+  confirmada: boolean;
+}
+
+export async function getAvanceItemsDeReceta(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<AvanceDeItem[]> {
+  const rows = await tx.$queryRaw<{ item_receta_id: string; posicion: number; iniciada: boolean; confirmada: boolean }[]>`
+    SELECT
+      ir.id AS item_receta_id,
+      row_number() OVER (ORDER BY ir.ctid)::int AS posicion,
+      EXISTS (SELECT 1 FROM fsj.preparacion p WHERE p.tenant_id = ir.tenant_id AND p.item_receta_id = ir.id AND p.estado = 'INICIADA') AS iniciada,
+      EXISTS (SELECT 1 FROM fsj.preparacion p WHERE p.tenant_id = ir.tenant_id AND p.item_receta_id = ir.id AND p.estado = 'CONFIRMADA') AS confirmada
+    FROM fsj.item_receta ir
+    WHERE ir.tenant_id = ${tenantId}::uuid AND ir.receta_id = ${recetaId}::uuid
+    ORDER BY posicion
+  `;
+  return rows.map((r) => ({ itemRecetaId: r.item_receta_id, posicion: r.posicion, iniciada: r.iniciada, confirmada: r.confirmada }));
+}
+
+/** Records the toma: `tomada_por_id` + `tomada_en = now()` (the transaction's time). Returns the stored instant. */
+export async function setTomaDeReceta(tx: Prisma.TransactionClient, tenantId: string, recetaId: string, usuarioId: string): Promise<Date> {
+  const rows = await tx.$queryRaw<{ tomada_en: Date }[]>`
+    UPDATE fsj.receta
+    SET tomada_por_id = ${usuarioId}::uuid, tomada_en = now()
+    WHERE id = ${recetaId}::uuid AND tenant_id = ${tenantId}::uuid
+    RETURNING tomada_en
+  `;
+  if (!rows[0]) throw new Error(`setTomaDeReceta: no receta ${recetaId}`);
+  return rows[0].tomada_en;
+}
+
+export async function clearTomaDeReceta(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<void> {
+  await tx.$executeRaw`
+    UPDATE fsj.receta
+    SET tomada_por_id = NULL, tomada_en = NULL
+    WHERE id = ${recetaId}::uuid AND tenant_id = ${tenantId}::uuid
+  `;
+}
+
+/** What `/preparaciones/[id]`'s "Volver" needs about the preparación's receta (domain/toma.ts#hrefVolverDePreparacion). */
+export interface RecetaDePreparacion {
+  recetaId: string;
+  estado: EstadoReceta;
+  tomada: boolean;
+  /** Ítems without a CONFIRMADA preparación. */
+  itemsSinConfirmar: number;
+}
+
+export async function getRecetaDePreparacion(tx: Prisma.TransactionClient, tenantId: string, itemRecetaId: string): Promise<RecetaDePreparacion | null> {
+  const rows = await tx.$queryRaw<{ receta_id: string; estado: EstadoReceta; tomada: boolean; items_sin_confirmar: number }[]>`
+    SELECT
+      r.id AS receta_id,
+      r.estado::text AS estado,
+      (r.tomada_por_id IS NOT NULL) AS tomada,
+      (
+        SELECT count(*)::int
+        FROM fsj.item_receta ir
+        WHERE ir.tenant_id = r.tenant_id AND ir.receta_id = r.id
+          AND NOT EXISTS (
+            SELECT 1 FROM fsj.preparacion p
+            WHERE p.tenant_id = ir.tenant_id AND p.item_receta_id = ir.id AND p.estado = 'CONFIRMADA'
+          )
+      ) AS items_sin_confirmar
+    FROM fsj.item_receta i
+    JOIN fsj.receta r ON r.tenant_id = i.tenant_id AND r.id = i.receta_id
+    WHERE i.tenant_id = ${tenantId}::uuid AND i.id = ${itemRecetaId}::uuid
+  `;
+  const row = rows[0];
+  return row ? { recetaId: row.receta_id, estado: row.estado, tomada: row.tomada, itemsSinConfirmar: row.items_sin_confirmar } : null;
+}
+
+// ============================================================================
+// Toma workspace (/preparaciones/recetas/[recetaId]): the receta, each ítem's
+// latest ficha técnica and its preparación
+// ============================================================================
+
+export interface LineaDeFichaToma {
+  drogaNombre: string;
+  cantidadTeorica: string | null;
+  excesoAplicado: string;
+  cantidadAPesar: string | null;
+  unidadSimbolo: string;
+  esEnraseManual: boolean;
+  orden: number;
+}
+
+export interface FichaDeItemToma {
+  id: string;
+  version: number;
+  generadaEn: Date;
+  generadaPorNombre: string;
+  lineas: LineaDeFichaToma[];
+}
+
+export interface ItemDeToma {
+  id: string;
+  descripcion: string | null;
+  formaFarmaceutica: string;
+  cantidadUnidades: number;
+  cantidadTotal: string | null;
+  unidadTotalSimbolo: string | null;
+  posologia: string | null;
+  duracionTratamientoDias: number | null;
+  componentes: ComponenteDePendiente[];
+  /** Latest version; `null` when none was generated. */
+  ultimaFicha: FichaDeItemToma | null;
+  /** The ítem's CONFIRMADA (first) or INICIADA preparación, on any ficha version; `null` when none (or only DESCARTADA ones). */
+  preparacion: { id: string; estado: "INICIADA" | "CONFIRMADA" } | null;
+}
+
+export interface RecetaDeToma {
+  id: string;
+  numeroInterno: string;
+  estado: EstadoReceta;
+  origen: string;
+  fechaPrescripcion: Date;
+  fechaIngreso: Date;
+  diagnosticoCodigo: string | null;
+  diagnosticoDescripcion: string | null;
+  pacienteNombre: string;
+  pacienteApellido: string;
+  medicoNombre: string;
+  medicoApellido: string;
+  medicoMatricula: string;
+  tomadaPorId: string | null;
+  tomadaPorNombre: string | null;
+  tomadaEn: Date | null;
+  zonaHoraria: string;
+  /** Same (unordered-by-column) read as the receta detail page, so "Ítem N" matches it. */
+  items: ItemDeToma[];
+}
+
+export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<RecetaDeToma | null> {
+  const receta = await tx.receta.findUnique({
+    where: { id: recetaId, tenantId },
+    select: {
+      id: true,
+      numeroInterno: true,
+      estado: true,
+      origen: true,
+      fechaPrescripcion: true,
+      fechaIngreso: true,
+      diagnosticoCodigo: true,
+      diagnosticoDescripcion: true,
+      tomadaPorId: true,
+      tomadaEn: true,
+      tomadaPor: { select: { nombre: true, apellido: true } },
+      paciente: { select: { nombre: true, apellido: true } },
+      medico: { select: { nombre: true, apellido: true, matricula: true } },
+      items: {
+        select: {
+          id: true,
+          descripcion: true,
+          formaFarmaceutica: true,
+          cantidadUnidades: true,
+          cantidadTotal: true,
+          unidadTotal: { select: { simbolo: true } },
+          posologia: true,
+          duracionTratamientoDias: true,
+          componentes: {
+            orderBy: { orden: "asc" },
+            select: {
+              id: true,
+              cantidad: true,
+              modoExpresion: true,
+              esPrincipioActivo: true,
+              droga: { select: { nombre: true } },
+              unidadMedida: { select: { simbolo: true } },
+            },
+          },
+          fichas: {
+            orderBy: { version: "desc" },
+            take: 1,
+            select: {
+              id: true,
+              version: true,
+              generadaEn: true,
+              generadaPor: { select: { nombre: true, apellido: true } },
+              lineas: {
+                orderBy: { orden: "asc" },
+                select: {
+                  drogaNombre: true,
+                  cantidadTeorica: true,
+                  excesoAplicado: true,
+                  cantidadAPesar: true,
+                  esEnraseManual: true,
+                  orden: true,
+                  unidadMedida: { select: { simbolo: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!receta) return null;
+
+  const preparaciones = await tx.preparacion.findMany({
+    where: { tenantId, itemRecetaId: { in: receta.items.map((i) => i.id) }, estado: { in: ["INICIADA", "CONFIRMADA"] } },
+    select: { id: true, estado: true, itemRecetaId: true },
+  });
+  const preparacionDe = (itemId: string): ItemDeToma["preparacion"] => {
+    const delItem = preparaciones.filter((p) => p.itemRecetaId === itemId);
+    const elegida = delItem.find((p) => p.estado === "CONFIRMADA") ?? delItem.find((p) => p.estado === "INICIADA");
+    return elegida ? { id: elegida.id, estado: elegida.estado === "CONFIRMADA" ? "CONFIRMADA" : "INICIADA" } : null;
+  };
+
+  return {
+    id: receta.id,
+    numeroInterno: receta.numeroInterno.toString(),
+    estado: receta.estado,
+    origen: receta.origen,
+    fechaPrescripcion: receta.fechaPrescripcion,
+    fechaIngreso: receta.fechaIngreso,
+    diagnosticoCodigo: receta.diagnosticoCodigo,
+    diagnosticoDescripcion: receta.diagnosticoDescripcion,
+    pacienteNombre: receta.paciente.nombre,
+    pacienteApellido: receta.paciente.apellido,
+    medicoNombre: receta.medico.nombre,
+    medicoApellido: receta.medico.apellido,
+    medicoMatricula: receta.medico.matricula,
+    tomadaPorId: receta.tomadaPorId,
+    tomadaPorNombre: receta.tomadaPor ? `${receta.tomadaPor.apellido}, ${receta.tomadaPor.nombre}` : null,
+    tomadaEn: receta.tomadaEn,
+    zonaHoraria: await zonaHorariaTenant(tx, tenantId),
+    items: receta.items.map((item) => {
+      const ficha = item.fichas[0];
+      return {
+        id: item.id,
+        descripcion: item.descripcion,
+        formaFarmaceutica: item.formaFarmaceutica,
+        cantidadUnidades: item.cantidadUnidades,
+        cantidadTotal: item.cantidadTotal ? item.cantidadTotal.toString() : null,
+        unidadTotalSimbolo: item.unidadTotal?.simbolo ?? null,
+        posologia: item.posologia,
+        duracionTratamientoDias: item.duracionTratamientoDias,
+        componentes: item.componentes.map((c) => ({
+          id: c.id,
+          drogaNombre: c.droga.nombre,
+          cantidad: c.cantidad ? c.cantidad.toString() : null,
+          unidadMedidaSimbolo: c.unidadMedida.simbolo,
+          modoExpresion: c.modoExpresion,
+          esPrincipioActivo: c.esPrincipioActivo,
+        })),
+        ultimaFicha: ficha
+          ? {
+              id: ficha.id,
+              version: ficha.version,
+              generadaEn: ficha.generadaEn,
+              generadaPorNombre: `${ficha.generadaPor.apellido}, ${ficha.generadaPor.nombre}`,
+              lineas: ficha.lineas.map((l) => ({
+                drogaNombre: l.drogaNombre,
+                cantidadTeorica: l.cantidadTeorica ? l.cantidadTeorica.toString() : null,
+                excesoAplicado: l.excesoAplicado.toString(),
+                cantidadAPesar: l.cantidadAPesar ? l.cantidadAPesar.toString() : null,
+                unidadSimbolo: l.unidadMedida.simbolo,
+                esEnraseManual: l.esEnraseManual,
+                orden: l.orden,
+              })),
+            }
+          : null,
+        preparacion: preparacionDe(item.id),
+      };
+    }),
   };
 }

@@ -10,7 +10,6 @@
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { EstadoReceta, FormaFarmaceutica, ModoExpresion, OrigenReceta } from "../domain/receta";
-import type { ItemParaPreparar } from "../domain/accion-preparacion";
 import { rangoDeJornadas } from "@/shared/time/jornada";
 
 // ============================================================================
@@ -689,8 +688,6 @@ export interface RecetaListadoItem extends RecetaListItem {
    * técnica with a preparación.
    */
   editable: boolean;
-  /** Per item (detail-page order), what the "Preparar" action needs -- domain/accion-preparacion.ts. Empty for terminal recetas. */
-  itemsParaPreparar: ItemParaPreparar[];
 }
 
 export interface ListRecetasResult {
@@ -700,41 +697,6 @@ export interface ListRecetasResult {
   pageSize: number;
   /** The tenant's zona horaria, to show `fechaIngreso` (a timestamptz) as the farmacia's calendar day. */
   zonaHoraria: string;
-}
-
-/**
- * For the "Preparar" action: every item of `recetaIds` with its latest
- * ficha and whether it has a preparación INICIADA / CONFIRMADA (any ficha
- * version) -- ONE query for a whole page of the list (relationJoins).
- * Items come in the same unordered read as `getRecetaConItems`, so "ítem N"
- * matches the detail page.
- */
-async function itemsParaPrepararDe(tx: Prisma.TransactionClient, tenantId: string, recetaIds: string[]): Promise<Map<string, ItemParaPreparar[]>> {
-  const porReceta = new Map<string, ItemParaPreparar[]>();
-  if (recetaIds.length === 0) return porReceta;
-  const items = await tx.itemReceta.findMany({
-    where: { tenantId, recetaId: { in: recetaIds } },
-    select: {
-      id: true,
-      recetaId: true,
-      fichas: {
-        orderBy: { version: "desc" },
-        select: { id: true, preparaciones: { where: { estado: { in: ["INICIADA", "CONFIRMADA"] } }, select: { id: true, estado: true } } },
-      },
-    },
-  });
-  for (const item of items) {
-    const preparaciones = item.fichas.flatMap((f) => f.preparaciones);
-    const lista = porReceta.get(item.recetaId) ?? [];
-    lista.push({
-      itemRecetaId: item.id,
-      fichaVigenteId: item.fichas[0]?.id ?? null,
-      preparacionIniciadaId: preparaciones.find((p) => p.estado === "INICIADA")?.id ?? null,
-      tieneConfirmada: preparaciones.some((p) => p.estado === "CONFIRMADA"),
-    });
-    porReceta.set(item.recetaId, lista);
-  }
-  return porReceta;
 }
 
 /** Which of `recetaIds` have a ficha técnica with a preparación -- ONE query for a whole page of the list (no N+1). Same join as `existeFichaConPreparacionParaReceta`. */
@@ -792,8 +754,6 @@ export async function listRecetas(tx: Prisma.TransactionClient, filter: ListRece
 
   const pendientes = rows.filter((r) => r.estado === "PENDIENTE_PREPARACION").map((r) => r.id);
   const conPreparacion = await recetasConFichaConPreparacion(tx, filter.tenantId, pendientes);
-  const noTerminales = rows.filter((r) => r.estado !== "ENTREGADA" && r.estado !== "ANULADA").map((r) => r.id);
-  const paraPreparar = await itemsParaPrepararDe(tx, filter.tenantId, noTerminales);
   const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: filter.tenantId }, select: { zonaHoraria: true } });
 
   return {
@@ -809,7 +769,6 @@ export async function listRecetas(tx: Prisma.TransactionClient, filter: ListRece
       origen: r.origen,
       estado: r.estado,
       editable: r.estado === "PENDIENTE_PREPARACION" && !conPreparacion.has(r.id),
-      itemsParaPreparar: paraPreparar.get(r.id) ?? [],
     })),
     total,
     page: filter.page,

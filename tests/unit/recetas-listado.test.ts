@@ -33,15 +33,6 @@ describe("listRecetas (repository)", () => {
         findMany: vi.fn(async () => [fila("r1", "PENDIENTE_PREPARACION"), fila("r2", "PENDIENTE_PREPARACION"), fila("r3", "PREPARADA")]),
       },
       tenant: { findUniqueOrThrow: vi.fn(async () => ({ zonaHoraria: "America/Argentina/Mendoza" })) },
-      itemReceta: {
-        findMany: vi.fn(async () => [
-          // r1: item 1 already confirmed (on its first ficha), item 2 has an INICIADA preparación on its latest ficha.
-          { id: "i1", recetaId: "r1", fichas: [{ id: "f1b", preparaciones: [] }, { id: "f1a", preparaciones: [{ id: "p1", estado: "CONFIRMADA" }] }] },
-          { id: "i2", recetaId: "r1", fichas: [{ id: "f2", preparaciones: [{ id: "p2", estado: "INICIADA" }] }] },
-          // r3: one item without ficha.
-          { id: "i3", recetaId: "r3", fichas: [] },
-        ]),
-      },
       $queryRaw: queryRaw,
     };
 
@@ -56,28 +47,6 @@ describe("listRecetas (repository)", () => {
     // Only the PENDIENTE_PREPARACION ids are checked.
     expect(queryRaw.mock.calls[0]).toContainEqual(["r1", "r2"]);
     expect(result.zonaHoraria).toBe("America/Argentina/Mendoza");
-  });
-
-  it("hands each receta its items for the Preparar action (latest ficha, INICIADA / CONFIRMADA on any version), in one query", async () => {
-    const itemFindMany = vi.fn(async () => [
-      { id: "i1", recetaId: "r1", fichas: [{ id: "f1b", preparaciones: [] }, { id: "f1a", preparaciones: [{ id: "p1", estado: "CONFIRMADA" }] }] },
-      { id: "i2", recetaId: "r1", fichas: [{ id: "f2", preparaciones: [{ id: "p2", estado: "INICIADA" }] }] },
-    ]);
-    const tx = {
-      receta: { count: vi.fn(async () => 2), findMany: vi.fn(async () => [fila("r1", "EN_PREPARACION"), fila("r9", "ENTREGADA")]) },
-      tenant: { findUniqueOrThrow: vi.fn(async () => ({ zonaHoraria: "UTC" })) },
-      itemReceta: { findMany: itemFindMany },
-      $queryRaw: vi.fn(async () => []),
-    };
-    const result = await listRecetas(tx as never, { tenantId: "t1", page: 1, pageSize: 20 });
-    expect(itemFindMany).toHaveBeenCalledTimes(1);
-    // Terminal recetas are not even looked up.
-    expect(itemFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { tenantId: "t1", recetaId: { in: ["r1"] } } }));
-    expect(result.items[0]!.itemsParaPreparar).toEqual([
-      { itemRecetaId: "i1", fichaVigenteId: "f1b", preparacionIniciadaId: null, tieneConfirmada: true },
-      { itemRecetaId: "i2", fichaVigenteId: "f2", preparacionIniciadaId: "p2", tieneConfirmada: false },
-    ]);
-    expect(result.items[1]!.itemsParaPreparar).toEqual([]);
   });
 });
 

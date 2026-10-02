@@ -67,6 +67,8 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   pinRepeat: "Repetir PIN",
   roles: "Roles",
   rolCodigo: "Rol",
+  rolId: "Rol",
+  permisos: "Permisos",
 
   // References to other entities (pickers or hidden ids in the UI).
   asientoId: "Asiento",
@@ -252,6 +254,8 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   numeroCorrelativo: "Nº de asiento",
   primeraImpresion: "Primera impresión",
   rol: "Rol",
+  tomadaEn: "Tomada el",
+  tomadaPor: "Tomada por",
 };
 
 /** "fechaVencimiento" -> "Fecha vencimiento"; "laboratorioId" -> "Laboratorio"; "campo_nuevo" -> "Campo nuevo". Fallback only -- see the module doc comment. */

@@ -101,12 +101,14 @@ vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => (
   getEtiquetaParaImprimir: vi.fn(async () => ({ id: ETIQUETA_ID, preparacionId: PREPARACION_ID, contenido: "x", generadaEn: new Date(), impresa: false })),
   marcarEtiquetaImpresa: vi.fn(async () => undefined),
   listPreparaciones: vi.fn(async () => ({ items: [], total: 0, zonaHoraria: "UTC" })),
+  listPendientesDePreparacion: vi.fn(async () => ({ items: [], total: 0, zonaHoraria: "UTC" })),
 }));
 
 await import("@/modules/preparaciones/application/iniciar-preparacion");
 await import("@/modules/preparaciones/application/descartar-preparacion");
 await import("@/modules/preparaciones/application/confirmar-preparacion");
 await import("@/modules/preparaciones/application/list-preparaciones");
+await import("@/modules/preparaciones/application/list-pendientes-de-preparacion");
 await import("@/modules/preparaciones/application/get-preparacion-para-pantalla");
 await import("@/modules/preparaciones/application/generar-etiqueta");
 await import("@/modules/preparaciones/application/get-etiqueta-para-imprimir");
@@ -135,6 +137,7 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
     input: { preparacionId: PREPARACION_ID, lineas: [{ lineaPesajeId: LINEA_ID, partidaIds: [PARTIDA_ID] }] },
   },
   { name: "preparaciones.listar", permiso: "preparaciones.iniciar", input: {} },
+  { name: "preparaciones.listarPendientes", permiso: "preparaciones.iniciar", input: {} },
   { name: "preparaciones.pantalla", permiso: "preparaciones.iniciar", input: { preparacionId: PREPARACION_ID } },
   { name: "etiquetas.generar", permiso: "etiquetas.generar", input: { preparacionId: PREPARACION_ID } },
   { name: "etiquetas.imprimir.datos", permiso: "etiquetas.imprimir", input: { preparacionId: PREPARACION_ID } },

@@ -21,7 +21,7 @@ import { visibleDashboardCards } from "@/shared/dashboard/cards";
 import { resumenJornadasPendientes } from "@/modules/cierres/application/list-jornadas-pendientes";
 import { resumenDestruccion } from "@/modules/archivo/application/resumen-destruccion";
 import { alertasStock } from "@/modules/stock/application/alertas-stock";
-import { listPreparaciones } from "@/modules/preparaciones/application/list-preparaciones";
+import { listRecetasEnCurso } from "@/modules/preparaciones/application/list-recetas-en-curso";
 import { listEntregasPendientes } from "@/modules/entregas/application/list-entregas-pendientes";
 import { resumenRecetasPorEstado } from "@/modules/recetas/application/list-recetas";
 import { listUsuarios } from "@/modules/usuarios/application/list-usuarios";
@@ -52,7 +52,7 @@ export default async function HomePage() {
     fetchSoft(visible.has("cierresPendientes"), "cierresPendientes", () => resumenJornadasPendientes()),
     fetchSoft(visible.has("archivoPlazoCumplido"), "archivoPlazoCumplido", () => resumenDestruccion()),
     fetchSoft(visible.has("stockAlertas"), "stockAlertas", () => alertasStock()),
-    fetchSoft(visible.has("preparacionesIniciadas"), "preparacionesIniciadas", () => listPreparaciones({ estado: "INICIADA", page: 1, pageSize: 1 })),
+    fetchSoft(visible.has("preparacionesIniciadas"), "preparacionesIniciadas", () => listRecetasEnCurso({ page: 1, pageSize: 1 })),
     fetchSoft(visible.has("entregasPendientes"), "entregasPendientes", () => listEntregasPendientes({ page: 1, pageSize: 1 })),
     fetchSoft(visible.has("recetasPorEstado"), "recetasPorEstado", () => resumenRecetasPorEstado()),
     fetchSoft(visible.has("usuariosPendientes"), "usuariosPendientes", () => listUsuarios({ estado: "PENDIENTE_ACTIVACION", page: 1, pageSize: 1 })),
@@ -94,9 +94,9 @@ export default async function HomePage() {
 
   if (preparaciones) {
     cards.push({
-      titulo: "Preparaciones iniciadas",
-      href: "/preparaciones",
-      cuerpo: preparaciones.total === 0 ? "Sin preparaciones iniciadas." : `${preparaciones.total} preparación${preparaciones.total === 1 ? "" : "es"} iniciada${preparaciones.total === 1 ? "" : "s"}.`,
+      titulo: "Recetas en curso",
+      href: "/preparaciones?estado=INICIADA",
+      cuerpo: preparaciones.total === 0 ? "Sin recetas en curso en el laboratorio." : `${preparaciones.total} receta${preparaciones.total === 1 ? "" : "s"} en curso en el laboratorio.`,
       tono: preparaciones.total === 0 ? "neutral" : "amber",
     });
   }

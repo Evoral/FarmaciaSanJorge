@@ -79,6 +79,10 @@ enum TipoAccion {
   EXPORTAR
   /// Migration 0045. A use case rejected by authorize() -- see shared/usecase.ts#registrarAccesoDenegado.
   ACCESO_DENEGADO
+  /// Migration 0053 (DP-03). Role catalog writes (modules/usuarios/application/{crear,editar,eliminar}-rol.ts).
+  CREAR_ROL
+  EDITAR_ROL
+  ELIMINAR_ROL
 
   @@map("tipo_accion")
   @@schema("fsj")
@@ -234,6 +238,7 @@ model Tenant {
 
   parametros                Parametro[]
   usuarios                  Usuario[]
+  roles                     Rol[]
   recetaNumeroContador      RecetaNumeroContador?
   librosRubricados          LibroRubricado[]
   loteArchivoNumeroContador LoteArchivoNumeroContador?
@@ -262,26 +267,39 @@ model Parametro {
 // M03 -- usuarios, roles, permisos
 // ============================================================================
 
-/// Global catalog (M03): the 5 assignable roles + the internal SISTEMA role
-/// (see migration 0002 comment for why SISTEMA has a row here).
+/// Tenant-scoped role (M03). Per tenant since migration 0054 (DP-03 RESUELTA:
+/// editable per tenant + audited). Seeded per tenant by fsj.seed_roles_tenant.
+/// `codigo` is immutable (INV-ROL-001); ADMINISTRADOR (`esAdministrador`, locked)
+/// and SISTEMA are untouchable (INV-ROL-002); DIRECTOR_TECNICO cannot be
+/// deleted (INV-ROL-003); an assigned role cannot be deleted (INV-ROL-004).
+/// `nombre` is also unique per tenant, case-insensitive (functional index
+/// rol_tenant_nombre_key -- not expressible here, see migration 0054).
 model Rol {
-  id          String  @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  codigo      String  @unique
-  nombre      String
-  descripcion String?
+  id               String  @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId         String  @map("tenant_id") @db.Uuid
+  codigo           String
+  nombre           String
+  descripcion      String?
+  /// true ONLY for ADMINISTRADOR (CHECK rol_es_administrador_solo_admin): it holds every `consulta`/`gestion` permiso of the catalog (never `operativo`), including future ones, without rol_permiso rows.
+  esAdministrador Boolean @default(false) @map("es_administrador")
 
+  tenant       Tenant       @relation(fields: [tenantId], references: [id])
   permisos     RolPermiso[]
   asignaciones UsuarioRol[]
 
+  @@unique([tenantId, id])
+  @@unique([tenantId, codigo])
   @@map("rol")
   @@schema("fsj")
 }
 
-/// Global catalog (M03): permission codes.
+/// Global catalog (M03): permission codes, mirrored by modules/auth/domain/permisos.ts#PERMISO_CODES.
 model Permiso {
   id          String  @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
   codigo      String  @unique
   descripcion String?
+  /// Migration 0054 (DP-03): operativo | consulta | gestion | sistema (CHECK permiso_categoria_valida). Mirrors modules/auth/domain/permisos.ts#PERMISO_CATALOGO.
+  categoria   String
 
   roles RolPermiso[]
 
@@ -289,12 +307,13 @@ model Permiso {
   @@schema("fsj")
 }
 
-/// Global catalog (M03): role -> permission matrix.
+/// Tenant-scoped role -> permission pair (M03, per tenant since migration 0054).
 model RolPermiso {
+  tenantId  String @map("tenant_id") @db.Uuid
   rolId     String @map("rol_id") @db.Uuid
   permisoId String @map("permiso_id") @db.Uuid
 
-  rol     Rol     @relation(fields: [rolId], references: [id])
+  rol     Rol     @relation(fields: [tenantId, rolId], references: [tenantId, id], onDelete: Cascade, map: "rol_permiso_rol_fkey")
   permiso Permiso @relation(fields: [permisoId], references: [id])
 
   @@id([rolId, permisoId])
@@ -351,6 +370,7 @@ model Usuario {
   movimientosRegistrados          MovimientoStock[]            @relation("MovimientoRegistradoPor")
   movimientosAutorizadosPorMi     MovimientoStock[]            @relation("MovimientoAutorizadoPor")
   recetasRegistradas              Receta[]                     @relation("RecetaRegistradaPor")
+  recetasTomadas                  Receta[]                     @relation("RecetaTomadaPor")
   fichasTecnicasGeneradas         FichaTecnica[]
   preparacionesIniciadas          Preparacion[]                @relation("PreparacionIniciadaPor")
   preparacionesPreparadas         Preparacion[]                @relation("PreparacionPreparadaPor")
@@ -390,10 +410,12 @@ model UsuarioRol {
 
   usuario     Usuario @relation("UsuarioRolUsuario", fields: [usuarioId], references: [id])
   asignadoPor Usuario @relation("UsuarioRolAsignadoPor", fields: [asignadoPorId], references: [id])
-  rol         Rol     @relation(fields: [rolId], references: [id])
+  /// Composite FK (tenant_id, rol_id) since migration 0054: only roles of the usuario's own tenant.
+  rol         Rol     @relation(fields: [tenantId, rolId], references: [tenantId, id], map: "usuario_rol_rol_fkey")
 
   @@unique([tenantId, id])
   @@unique([tenantId, usuarioId, rolId])
+  @@index([tenantId, rolId], map: "idx_usuario_rol_tenant_rol")
   @@map("usuario_rol")
   @@schema("fsj")
 }
@@ -790,10 +812,14 @@ model Receta {
   /// Migration 0049. CIE-10 code, format CHECKed in the DB.
   diagnosticoCodigo      String?      @map("diagnostico_codigo") @db.VarChar(10)
   diagnosticoDescripcion String?      @map("diagnostico_descripcion")
+  /// Migration 0056: the lab's "toma" -- who took the receta from the /preparaciones queue and when. Both set or both null (receta_toma_pair_check); cleared by "Cancelar toma". Partial index idx_receta_tenant_tomada_en_curso (not expressible here).
+  tomadaPorId            String?      @map("tomada_por_id") @db.Uuid
+  tomadaEn               DateTime?    @map("tomada_en") @db.Timestamptz(6)
 
   paciente      Paciente            @relation(fields: [pacienteId], references: [id])
   medico        Medico              @relation(fields: [medicoId], references: [id])
   registradaPor Usuario             @relation("RecetaRegistradaPor", fields: [registradaPorId], references: [id])
+  tomadaPor     Usuario?            @relation("RecetaTomadaPor", fields: [tomadaPorId], references: [id])
   items         ItemReceta[]
   loteArchivo   LoteArchivoRecetas? @relation(fields: [loteArchivoId], references: [id])
   entrega       Entrega?

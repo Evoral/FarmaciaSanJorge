@@ -11,7 +11,8 @@ import { AvisosGeneracion } from "@/modules/recetas/ui/avisos-generacion";
 import { AYUDA_ANULACION_PERMITIDA, MENSAJE_ANULACION_BLOQUEADA_POR_LIBRO, decidirAnulacion, mensajePreparacionEnCurso } from "@/modules/recetas/domain/anulacion";
 import { MotivoForm } from "@/shared/ui/motivo-form";
 import { StatusBadge } from "@/shared/ui/status-badge";
-import { ESTADO_RECETA_LABELS, FORMA_FARMACEUTICA_LABELS, MODO_EXPRESION_LABELS } from "@/shared/labels/enum-labels";
+import { ESTADO_RECETA_LABELS, FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
+import { ComponentesTabla } from "@/modules/recetas/ui/componentes-tabla";
 
 interface RecetaDetallePageProps {
   params: Promise<{ id: string }>;
@@ -158,34 +159,7 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
                   {item.duracionTratamientoDias ? `Tratamiento por ${item.duracionTratamientoDias} día${item.duracionTratamientoDias === 1 ? "" : "s"}` : ""}
                 </p>
               ) : null}
-              <table className="data-table">
-                <thead className="border-b border-zinc-200 dark:border-zinc-800">
-                  <tr>
-                    <th scope="col" className="py-1 font-medium">
-                      Droga
-                    </th>
-                    <th scope="col" className="py-1 font-medium">
-                      Cantidad
-                    </th>
-                    <th scope="col" className="py-1 font-medium">
-                      Modo
-                    </th>
-                    <th scope="col" className="py-1 font-medium">
-                      Principio activo
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {item.componentes.map((c) => (
-                    <tr key={c.id}>
-                      <td className="py-1">{c.drogaNombre}</td>
-                      <td className="py-1">{c.cantidad ? `${c.cantidad} ${c.unidadMedidaSimbolo}` : "—"}</td>
-                      <td className="py-1">{MODO_EXPRESION_LABELS[c.modoExpresion]}</td>
-                      <td className="py-1">{c.esPrincipioActivo ? "Sí" : "No"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <ComponentesTabla componentes={item.componentes} />
             </div>
           ))}
         </div>
