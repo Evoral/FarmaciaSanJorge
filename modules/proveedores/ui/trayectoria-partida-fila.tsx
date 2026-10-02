@@ -1,13 +1,15 @@
 /**
- * One partida (= one ingreso from the proveedor) of the Trayectoria as a
- * collapsible card (native `<details>`/`<summary>`: no client JS, keyboard and
- * screen-reader friendly, closed by default). The summary shows the key facts
- * (droga, lote, fecha de ingreso, cantidad inicial -> disponible, vencimiento
- * + derived estado, costo unitario); the body holds the latest movements and
- * the optional blocks. Server component.
+ * One partida (= one ingreso from the proveedor) of the Trayectoria as a row
+ * of the partidas table. Two server components feed
+ * `shared/ui/fila-desplegable.tsx` (the only client piece, which just holds
+ * the open/closed state): `TrayectoriaPartidaCeldas` renders the summary cells
+ * (droga, lote, ingreso, cantidad inicial -> disponible, vencimiento, derived
+ * estado and, with `acceso.costos`, the costo unitario) and
+ * `TrayectoriaPartidaDetalle` renders the expanded body (the latest movements
+ * and the optional blocks).
  *
- * The summary carries no links on purpose (interactive content inside
- * `<summary>` is an accessibility anti-pattern); the links live in the body.
+ * The summary cells carry no links on purpose (the whole row toggles on
+ * click); the links live in the detail.
  *
  * Optional blocks follow `acceso` (docs/specs/trayectoria-proveedor.md,
  * "Permissions"): a block the session cannot see is omitted, and a link to a
@@ -28,18 +30,35 @@ import { StatusBadge } from "@/shared/ui/status-badge";
 import type {
   AccesoTrayectoriaProveedor,
   ContralorTrayectoria,
-  CorreccionCostoTrayectoria,
+  CorreccionesTrayectoria,
   ListaAcotada,
   MovimientoTrayectoria,
   PartidaTrayectoria,
   PreparacionTrayectoria,
 } from "../domain/trayectoria";
 
-interface PartidaCardProps {
+interface PartidaFilaProps {
   partida: PartidaTrayectoria;
   acceso: AccesoTrayectoriaProveedor;
   zonaHoraria: string;
   catalogo: CatalogoUnidades;
+}
+
+/** Accessible name of a partida row (completes the toggle button's label). */
+export function etiquetaPartida(partida: PartidaTrayectoria): string {
+  return `Partida lote ${partida.lote} de ${partida.drogaNombre}`;
+}
+
+/** Total column count of the partidas table: toggle + 6 fixed columns + costo (only with `acceso.costos`). */
+export function columnasTablaPartidas(acceso: AccesoTrayectoriaProveedor): number {
+  return acceso.costos ? 8 : 7;
+}
+
+/** Cantidad inicial and disponible side by side: one unit for both. */
+function cantidadesPartida(partida: PartidaTrayectoria, catalogo: CatalogoUnidades) {
+  const unidad = { id: partida.unidadBaseId, simbolo: partida.unidadBaseSimbolo };
+  const [inicial, disponible] = formatCantidadesFila([partida.cantidadInicial, partida.cantidadDisponible], unidad, catalogo);
+  return { inicial: inicial!, disponible: disponible! };
 }
 
 function Dato({ etiqueta, children }: { etiqueta: string; children: ReactNode }) {
@@ -53,7 +72,7 @@ function Dato({ etiqueta, children }: { etiqueta: string; children: ReactNode })
 
 function Bloque({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
-    <section className="mb-4">
+    <section className="mb-4 last:mb-0">
       <h3 className="mb-2 text-sm font-semibold">{titulo}</h3>
       {children}
     </section>
@@ -164,103 +183,121 @@ function DatosContralor({ contralor }: { contralor: ContralorTrayectoria }) {
   );
 }
 
-function ListaCorrecciones({ correcciones, zonaHoraria, conCostos }: { correcciones: CorreccionCostoTrayectoria[]; zonaHoraria: string; conCostos: boolean }) {
-  if (correcciones.length === 0) return <p className="text-sm text-zinc-500">Sin correcciones de costo.</p>;
+function ListaCorrecciones({
+  correcciones,
+  zonaHoraria,
+  conCostos,
+  unidadSimbolo,
+}: {
+  correcciones: CorreccionesTrayectoria;
+  zonaHoraria: string;
+  conCostos: boolean;
+  unidadSimbolo: string;
+}) {
+  if (correcciones.items.length === 0) return <p className="text-sm text-zinc-500">Sin correcciones de costo.</p>;
   return (
-    <ul className="flex flex-col gap-2">
-      {correcciones.map((c) => (
-        <li key={c.id} className="flex flex-col gap-0.5 text-sm">
-          <span>
-            {conCostos ? (
-              <>
-                $ {c.costoAnterior !== null ? formatearCostoUnitario(c.costoAnterior) : "—"} → $ {c.costoNuevo !== null ? formatearCostoUnitario(c.costoNuevo) : "—"}
-              </>
-            ) : (
-              "Costo unitario corregido"
-            )}
-          </span>
-          <span className="text-xs text-zinc-500">
-            {c.quien} · {formatFechaHora(c.cuando, zonaHoraria)}
-            {c.motivo ? ` · Motivo: ${c.motivo}` : ""}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="flex flex-col gap-2">
+        {correcciones.items.map((c) => (
+          <li key={c.id} className="flex flex-col gap-0.5 text-sm">
+            <span>
+              {conCostos ? (
+                <>
+                  $ {c.costoAnterior !== null ? formatearCostoUnitario(c.costoAnterior) : "—"} / {unidadSimbolo} → $ {c.costoNuevo !== null ? formatearCostoUnitario(c.costoNuevo) : "—"} / {unidadSimbolo}
+                </>
+              ) : (
+                "Costo unitario corregido"
+              )}
+            </span>
+            <span className="text-xs text-zinc-500">
+              {c.quien} · {formatFechaHora(c.cuando, zonaHoraria)}
+              {c.motivo ? ` · Motivo: ${c.motivo}` : ""}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {correcciones.hayMas ? (
+        <p className="mt-2 text-xs text-zinc-500">Hay más correcciones de costo anteriores: se muestran las últimas {correcciones.items.length}. El resto está en la auditoría.</p>
+      ) : null}
+    </>
   );
 }
 
-export function TrayectoriaPartidaCard({ partida, acceso, zonaHoraria, catalogo }: PartidaCardProps) {
-  const unidad = { id: partida.unidadBaseId, simbolo: partida.unidadBaseSimbolo };
-  // Cantidad inicial and disponible side by side: one unit for both.
-  const [inicial, disponible] = formatCantidadesFila([partida.cantidadInicial, partida.cantidadDisponible], unidad, catalogo);
+/** The summary `<td>`s of a partida row, in the table's column order (after the toggle cell). */
+export function TrayectoriaPartidaCeldas({ partida, acceso, zonaHoraria, catalogo }: PartidaFilaProps) {
+  const { inicial, disponible } = cantidadesPartida(partida, catalogo);
 
   return (
-    <details className="card group" aria-labelledby={`partida-${partida.id}`}>
-      <summary className="flex cursor-pointer list-none items-start gap-3 p-4 [&::-webkit-details-marker]:hidden">
-        <span aria-hidden="true" className="mt-0.5 text-zinc-400 transition-transform group-open:rotate-90">
-          ▸
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span id={`partida-${partida.id}`} className="text-base font-semibold">
-              {partida.drogaNombre}
-            </span>
-            <span className="text-sm text-zinc-500">Lote {partida.lote}</span>
-            <span className="text-sm text-zinc-500">Ingreso {formatFecha(partida.fechaIngreso, zonaHoraria)}</span>
-            <StatusBadge estado={partida.estado} />
-          </span>
-          <span className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
-            <span>
-              <Cantidad valor={inicial!} /> → <Cantidad valor={disponible!} />
-            </span>
-            <span className="text-zinc-500">Vence {formatFecha(partida.fechaVencimiento)}</span>
-            {partida.costoUnitario !== null ? <span className="text-zinc-500">$ {formatearCostoUnitario(partida.costoUnitario)} c/u</span> : null}
-          </span>
-        </span>
-      </summary>
+    <>
+      <td className="px-3 py-2 font-medium">{partida.drogaNombre}</td>
+      <td className="px-3 py-2 whitespace-nowrap">{partida.lote}</td>
+      <td className="px-3 py-2 whitespace-nowrap">{formatFecha(partida.fechaIngreso, zonaHoraria)}</td>
+      <td className="px-3 py-2">
+        <Cantidad valor={inicial} /> → <Cantidad valor={disponible} />
+      </td>
+      <td className="px-3 py-2 whitespace-nowrap">{formatFecha(partida.fechaVencimiento)}</td>
+      <td className="px-3 py-2">
+        <StatusBadge estado={partida.estado} />
+      </td>
+      {acceso.costos ? (
+        <td className="px-3 py-2 whitespace-nowrap">
+          {partida.costoUnitario !== null ? (
+            `$ ${formatearCostoUnitario(partida.costoUnitario)} / ${partida.unidadBaseSimbolo}`
+          ) : (
+            <span className="text-zinc-500">—</span>
+          )}
+        </td>
+      ) : null}
+    </>
+  );
+}
 
-      <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">
-        {acceso.linkPartida ? (
-          <p className="mb-3 text-sm">
-            <Link href={`/stock/partidas/${partida.id}`} className="underline underline-offset-2">
-              Ver partida en stock
-            </Link>
-          </p>
-        ) : null}
+/** The expanded body of a partida row. */
+export function TrayectoriaPartidaDetalle({ partida, acceso, zonaHoraria, catalogo }: PartidaFilaProps) {
+  const { inicial, disponible } = cantidadesPartida(partida, catalogo);
 
-        <dl className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Dato etiqueta="Cantidad inicial">
-            <Cantidad valor={inicial!} />
-          </Dato>
-          <Dato etiqueta="Saldo disponible">
-            <Cantidad valor={disponible!} />
-          </Dato>
-          <Dato etiqueta="Vencimiento">{formatFecha(partida.fechaVencimiento)}</Dato>
-          <Dato etiqueta="Apertura">{partida.fechaApertura ? formatFecha(partida.fechaApertura, zonaHoraria) : "Cerrada"}</Dato>
-        </dl>
+  return (
+    <div>
+      {acceso.linkPartida ? (
+        <p className="mb-3 text-sm">
+          <Link href={`/stock/partidas/${partida.id}`} className="underline underline-offset-2">
+            Ver partida en stock
+          </Link>
+        </p>
+      ) : null}
 
-        <Bloque titulo="Movimientos">
-          <TablaMovimientos movimientos={partida.movimientos} partida={partida} acceso={acceso} zonaHoraria={zonaHoraria} catalogo={catalogo} />
+      <dl className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Dato etiqueta="Cantidad inicial">
+          <Cantidad valor={inicial} />
+        </Dato>
+        <Dato etiqueta="Saldo disponible">
+          <Cantidad valor={disponible} />
+        </Dato>
+        <Dato etiqueta="Vencimiento">{formatFecha(partida.fechaVencimiento)}</Dato>
+        <Dato etiqueta="Apertura">{partida.fechaApertura ? formatFecha(partida.fechaApertura, zonaHoraria) : "Cerrada"}</Dato>
+      </dl>
+
+      <Bloque titulo="Movimientos">
+        <TablaMovimientos movimientos={partida.movimientos} partida={partida} acceso={acceso} zonaHoraria={zonaHoraria} catalogo={catalogo} />
+      </Bloque>
+
+      {partida.preparaciones ? (
+        <Bloque titulo="Preparaciones que la consumieron">
+          <ListaPreparaciones preparaciones={partida.preparaciones} zonaHoraria={zonaHoraria} />
         </Bloque>
+      ) : null}
 
-        {partida.preparaciones ? (
-          <Bloque titulo="Preparaciones que la consumieron">
-            <ListaPreparaciones preparaciones={partida.preparaciones} zonaHoraria={zonaHoraria} />
-          </Bloque>
-        ) : null}
+      {partida.contralor ? (
+        <Bloque titulo="Contralor">
+          <DatosContralor contralor={partida.contralor} />
+        </Bloque>
+      ) : null}
 
-        {partida.contralor ? (
-          <Bloque titulo="Contralor">
-            <DatosContralor contralor={partida.contralor} />
-          </Bloque>
-        ) : null}
-
-        {partida.correcciones ? (
-          <Bloque titulo="Correcciones de costo">
-            <ListaCorrecciones correcciones={partida.correcciones} zonaHoraria={zonaHoraria} conCostos={acceso.costos} />
-          </Bloque>
-        ) : null}
-      </div>
-    </details>
+      {partida.correcciones ? (
+        <Bloque titulo="Correcciones de costo">
+          <ListaCorrecciones correcciones={partida.correcciones} zonaHoraria={zonaHoraria} conCostos={acceso.costos} unidadSimbolo={partida.unidadBaseSimbolo} />
+        </Bloque>
+      ) : null}
+    </div>
   );
 }

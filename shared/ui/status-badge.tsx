@@ -3,9 +3,10 @@
  * raw SCREAMING_SNAKE_CASE estado to a tone and a readable label; unknown
  * estados fall back to the neutral tone so new states never break a page.
  */
+import type { ReactNode } from "react";
 import { ESTADO_PREPARACION_LABELS, ESTADO_RECETA_LABELS, ESTADO_USUARIO_LABELS } from "@/shared/labels/enum-labels";
 
-type Tone = "success" | "warn" | "danger" | "neutral";
+export type BadgeTone = "success" | "warn" | "danger" | "neutral";
 
 /** Estados with a proper Spanish label (shared/labels/enum-labels.ts); anything else is humanized. */
 const LABEL_BY_ESTADO: Readonly<Record<string, string>> = {
@@ -14,7 +15,7 @@ const LABEL_BY_ESTADO: Readonly<Record<string, string>> = {
   ...ESTADO_RECETA_LABELS,
 };
 
-const TONE_BY_ESTADO: Record<string, Tone> = {
+const TONE_BY_ESTADO: Record<string, BadgeTone> = {
   PREPARADA: "success",
   CONFIRMADA: "success",
   LISTA_PARA_RETIRAR: "success",
@@ -40,7 +41,7 @@ const TONE_BY_ESTADO: Record<string, Tone> = {
   BAJA: "danger",
 };
 
-const TONE_CLASSES: Record<Tone, string> = {
+const TONE_CLASSES: Record<BadgeTone, string> = {
   success: "bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
   warn: "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
   danger: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
@@ -57,6 +58,18 @@ export function StatusBadge({ estado }: { estado: string }) {
   return (
     <span className={`badge ${TONE_CLASSES[tone]}`} title={estado}>
       {Object.hasOwn(LABEL_BY_ESTADO, estado) ? LABEL_BY_ESTADO[estado] : humanize(estado)}
+    </span>
+  );
+}
+
+/**
+ * The same pill as `StatusBadge` for a flag that is not a workflow estado
+ * ("Más barato", "Revisar"...): the caller picks the tone and the text.
+ */
+export function ToneBadge({ tone, title, children }: { tone: BadgeTone; title?: string; children: ReactNode }) {
+  return (
+    <span className={`badge ${TONE_CLASSES[tone]}`} title={title}>
+      {children}
     </span>
   );
 }

@@ -141,6 +141,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         catalogosHref,
         puedePacientes: can(session, "pacientes.gestionar"),
         puedeProveedores: can(session, "proveedores.gestionar"),
+        puedeComparadorCostos: can(session, "stock.valorizado.ver"),
         accesosHref,
         configuracionHref,
         puedeStock: can(session, "stock.ver"),

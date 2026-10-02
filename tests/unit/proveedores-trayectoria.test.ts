@@ -6,13 +6,20 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  CORRECCIONES_POR_PARTIDA_MAX,
+  DIAS_ALERTA_MAX,
+  DROGAS_FILTRO_MAX,
   ESTADOS_PARTIDA,
   armarTrayectoriaProveedor,
   calcularPaginacion,
   correccionDeCosto,
   derivarEstadoPartida,
+  drogasRestantes,
+  drogasSeleccionadas,
   fechaCalendario,
+  filtrarDrogasDelProveedor,
   parseDiasAlertaVencimiento,
+  parsearDrogaIds,
   sumarDiasAJornada,
 } from "@/modules/proveedores/domain/trayectoria";
 import type {
@@ -124,6 +131,14 @@ describe("sumarDiasAJornada / parseDiasAlertaVencimiento", () => {
     expect(sumarDiasAJornada("2026-10-01", 0)).toBe("2026-10-01");
   });
 
+  it("never throws on an absurd window: it is clamped to [0, DIAS_ALERTA_MAX] (non-finite counts as 0)", () => {
+    expect(() => sumarDiasAJornada("2026-10-01", Number.MAX_SAFE_INTEGER)).not.toThrow();
+    expect(sumarDiasAJornada("2026-10-01", Number.MAX_SAFE_INTEGER)).toBe(sumarDiasAJornada("2026-10-01", DIAS_ALERTA_MAX));
+    expect(sumarDiasAJornada("2026-10-01", Number.POSITIVE_INFINITY)).toBe("2026-10-01");
+    expect(sumarDiasAJornada("2026-10-01", Number.NaN)).toBe("2026-10-01");
+    expect(sumarDiasAJornada("2026-10-01", -5)).toBe("2026-10-01");
+  });
+
   it("parses the parametro like the stock alerts do: positive integer, else 30", () => {
     expect(parseDiasAlertaVencimiento("45")).toBe(45);
     expect(parseDiasAlertaVencimiento(null)).toBe(30);
@@ -131,6 +146,13 @@ describe("sumarDiasAJornada / parseDiasAlertaVencimiento", () => {
     expect(parseDiasAlertaVencimiento("0")).toBe(30);
     expect(parseDiasAlertaVencimiento("-5")).toBe(30);
     expect(parseDiasAlertaVencimiento("abc")).toBe(30);
+  });
+
+  it("clamps a huge window (this view only: the stock parser is unchanged) so it cannot overflow ::int", () => {
+    expect(parseDiasAlertaVencimiento("3650")).toBe(3650);
+    expect(parseDiasAlertaVencimiento("3651")).toBe(DIAS_ALERTA_MAX);
+    expect(parseDiasAlertaVencimiento("99999999999999")).toBe(DIAS_ALERTA_MAX);
+    expect(parseDiasAlertaVencimiento("99999999999999")).toBeLessThan(2 ** 31);
   });
 });
 
@@ -227,6 +249,15 @@ const audit = (id: string, partidaId: string, valorAnterior: unknown, valorNuevo
   usuarioApellido: "Gómez",
 });
 
+const DROGA_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const DROGA_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const DROGA_C = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const DISPONIBLES = [
+  { id: DROGA_A, nombre: "Ácido hialurónico" },
+  { id: DROGA_B, nombre: "Minoxidil" },
+  { id: DROGA_C, nombre: "Urea" },
+];
+
 function cruda(extra: Partial<TrayectoriaProveedorCruda> = {}): TrayectoriaProveedorCruda {
   return {
     proveedor: { id: "pv1", razonSocial: "Droguería Sur", cuit: "20123456786", fechaBaja: null, motivoBaja: null },
@@ -235,6 +266,9 @@ function cruda(extra: Partial<TrayectoriaProveedorCruda> = {}): TrayectoriaProve
     diasAlerta: 30,
     resumen: { partidas: 2, drogasDistintas: 1, ultimoIngreso: new Date("2026-09-20T15:00:00Z"), vencidasConSaldo: 0, porVencer: 1 },
     totales: { totalComprado: "12500.5", stockValorizado: "4000" },
+    drogasDisponibles: [{ id: DROGA_A, nombre: "Minoxidil" }],
+    drogaIds: [],
+    totalFiltrado: 2,
     page: 1,
     partidas: [partida("p1"), partida("p2", { esControlada: true, cantidadDisponible: "0" })],
     movimientos: [mov("m1", "p1"), mov("m2", "p1", { tipo: "INGRESO_COMPRA", autorizadoPorId: "u2" }), mov("m3", "p2", { totalDePartida: 31 })],
@@ -284,8 +318,9 @@ describe("armarTrayectoriaProveedor", () => {
     expect(p1.contralor).toBeNull(); // not a controlled droga
     expect(p2.contralor).toEqual({ numeroValeAdquisicion: "V-77", numeroAsiento: "412" });
     // only the audit row that touches costoUnitario survives
-    expect(p1.correcciones).toHaveLength(1);
-    expect(p1.correcciones![0]).toMatchObject({ id: "a1", costoAnterior: "10", costoNuevo: "12.5", motivo: "Factura corregida", quien: "Ana Gómez" });
+    expect(p1.correcciones!.items).toHaveLength(1);
+    expect(p1.correcciones!.hayMas).toBe(false);
+    expect(p1.correcciones!.items[0]).toMatchObject({ id: "a1", costoAnterior: "10", costoNuevo: "12.5", motivo: "Factura corregida", quien: "Ana Gómez" });
   });
 
   it("without any optional permiso every optional block is null/absent, even if rows were handed in", () => {
@@ -304,8 +339,18 @@ describe("armarTrayectoriaProveedor", () => {
 
   it("auditoria.ver without stock.valorizado.ver shows THAT a cost was corrected, never the amounts", () => {
     const t = armarTrayectoriaProveedor(cruda(), { ...ACCESO_BASE, correcciones: true });
-    expect(t.partidas[0]!.correcciones).toHaveLength(1);
-    expect(t.partidas[0]!.correcciones![0]).toMatchObject({ costoAnterior: null, costoNuevo: null, quien: "Ana Gómez" });
+    expect(t.partidas[0]!.correcciones!.items).toHaveLength(1);
+    expect(t.partidas[0]!.correcciones!.items[0]).toMatchObject({ costoAnterior: null, costoNuevo: null, quien: "Ana Gómez" });
+  });
+
+  it("caps the cost corrections per partida and says there are more", () => {
+    const filas = Array.from({ length: CORRECCIONES_POR_PARTIDA_MAX + 1 }, (_, i) => audit(`a${i}`, "p1", { costoUnitario: String(i) }, { costoUnitario: String(i + 1) }));
+    const p1 = armarTrayectoriaProveedor(cruda({ auditoria: filas }), ACCESO_TOTAL).partidas[0]!;
+    expect(p1.correcciones!.items).toHaveLength(CORRECCIONES_POR_PARTIDA_MAX);
+    expect(p1.correcciones!.hayMas).toBe(true);
+    // exactly the cap: nothing left out
+    const exacto = armarTrayectoriaProveedor(cruda({ auditoria: filas.slice(0, CORRECCIONES_POR_PARTIDA_MAX) }), ACCESO_TOTAL).partidas[0]!;
+    expect(exacto.correcciones!.hayMas).toBe(false);
   });
 
   it("a controlled partida with libro.ver but no asiento shows the vale and no asiento number", () => {
@@ -316,9 +361,21 @@ describe("armarTrayectoriaProveedor", () => {
     expect(t.partidas[1]!.contralor).toEqual({ numeroValeAdquisicion: null, numeroAsiento: null });
   });
 
-  it("paginates over ALL the proveedor's partidas (the resumen count), clamping the page", () => {
-    const t = armarTrayectoriaProveedor(cruda({ resumen: { partidas: 23, drogasDistintas: 3, ultimoIngreso: null, vencidasConSaldo: 0, porVencer: 0 }, page: 99 }), ACCESO_BASE);
+  it("paginates over the (filtered) partidas count, clamping the page", () => {
+    const t = armarTrayectoriaProveedor(
+      cruda({ resumen: { partidas: 23, drogasDistintas: 3, ultimoIngreso: null, vencidasConSaldo: 0, porVencer: 0 }, totalFiltrado: 23, page: 99 }),
+      ACCESO_BASE,
+    );
     expect(t.paginacion).toEqual({ page: 3, pageSize: 10, total: 23, totalPages: 3 });
+  });
+
+  it("with a droga filter: the pagination follows the FILTERED total, the resumen stays proveedor-wide, and the filter is echoed", () => {
+    const resumen = { partidas: 23, drogasDistintas: 3, ultimoIngreso: null, vencidasConSaldo: 4, porVencer: 5 };
+    const t = armarTrayectoriaProveedor(cruda({ resumen, drogasDisponibles: DISPONIBLES, drogaIds: [DROGA_B], totalFiltrado: 11, page: 2 }), ACCESO_BASE);
+    expect(t.paginacion).toEqual({ page: 2, pageSize: 10, total: 11, totalPages: 2 });
+    expect(t.resumen).toMatchObject({ partidas: 23, drogasDistintas: 3, vencidasConSaldo: 4, porVencer: 5 });
+    expect(t.drogasDisponibles).toEqual(DISPONIBLES);
+    expect(t.drogaIds).toEqual([DROGA_B]);
   });
 
   it("derives the estado with the jornada and window read by the repository", () => {
@@ -327,6 +384,58 @@ describe("armarTrayectoriaProveedor", () => {
       ACCESO_BASE,
     );
     expect(t.partidas.map((p) => p.estado)).toEqual(["POR_VENCER", "VIGENTE"]);
+  });
+});
+
+// ----------------------------------------------------------------------------
+// Filter by droga
+// ----------------------------------------------------------------------------
+
+describe("parsearDrogaIds", () => {
+  it("accepts a single value, a repeated param and nothing at all", () => {
+    expect(parsearDrogaIds(undefined)).toEqual([]);
+    expect(parsearDrogaIds(DROGA_A)).toEqual([DROGA_A]);
+    expect(parsearDrogaIds([DROGA_A, DROGA_B])).toEqual([DROGA_A, DROGA_B]);
+    expect(parsearDrogaIds([])).toEqual([]);
+  });
+
+  it("drops anything that is not a uuid, silently", () => {
+    expect(parsearDrogaIds(["", "nope", "123", DROGA_A, "'; DROP TABLE partida; --", `${DROGA_B}x`])).toEqual([DROGA_A]);
+    expect(parsearDrogaIds("not-a-uuid")).toEqual([]);
+  });
+
+  it("deduplicates in first-seen order and lowercases (ids are compared as strings)", () => {
+    expect(parsearDrogaIds([DROGA_B, DROGA_A, DROGA_B, DROGA_A.toUpperCase()])).toEqual([DROGA_B, DROGA_A]);
+  });
+
+  it("caps the selection at DROGAS_FILTRO_MAX distinct valid ids", () => {
+    const uuidN = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+    const muchos = Array.from({ length: DROGAS_FILTRO_MAX + 15 }, (_, i) => uuidN(i));
+    const ids = parsearDrogaIds(["basura", ...muchos]);
+    expect(ids).toHaveLength(DROGAS_FILTRO_MAX);
+    expect(ids[0]).toBe(uuidN(0));
+    // duplicates and garbage do not eat into the cap
+    expect(parsearDrogaIds([...muchos.slice(0, 3), ...muchos.slice(0, 3), "x"])).toHaveLength(3);
+  });
+});
+
+describe("filtrarDrogasDelProveedor / drogasSeleccionadas / drogasRestantes", () => {
+  it("ignores ids that are not one of the proveedor's drogas (never trusted)", () => {
+    const ajena = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    expect(filtrarDrogasDelProveedor([DROGA_C, ajena, DROGA_A], DISPONIBLES)).toEqual([DROGA_C, DROGA_A]);
+    expect(filtrarDrogasDelProveedor([ajena], DISPONIBLES)).toEqual([]);
+    expect(filtrarDrogasDelProveedor([DROGA_A], [])).toEqual([]);
+  });
+
+  it("selected drogas come back in the options' (alphabetical) order, whatever the order of the ids", () => {
+    expect(drogasSeleccionadas(DISPONIBLES, [DROGA_C, DROGA_A]).map((d) => d.nombre)).toEqual(["Ácido hialurónico", "Urea"]);
+    expect(drogasSeleccionadas(DISPONIBLES, [])).toEqual([]);
+  });
+
+  it("the remaining options exclude the selected ones and keep the order", () => {
+    expect(drogasRestantes(DISPONIBLES, [DROGA_B]).map((d) => d.id)).toEqual([DROGA_A, DROGA_C]);
+    expect(drogasRestantes(DISPONIBLES, [])).toEqual(DISPONIBLES);
+    expect(drogasRestantes(DISPONIBLES, [DROGA_A, DROGA_B, DROGA_C])).toEqual([]);
   });
 });
 
@@ -346,7 +455,10 @@ describe("formatearMonto / formatearCostoUnitario", () => {
   it("formatearCostoUnitario: at least two decimals, up to six, so a sub-cent cost never reads as 0,00", () => {
     expect(formatearCostoUnitario("12.5")).toBe("12,50");
     expect(formatearCostoUnitario("0.0035")).toBe("0,0035");
-    expect(formatearCostoUnitario("0.0000004")).toBe("0,00");
+    expect(formatearCostoUnitario("0.0000005")).toBe("0,000001"); // rounds half up to the smallest shown step
+    expect(formatearCostoUnitario("0.0000004")).toBe("< 0,000001"); // non-zero but below it: never "free"
+    expect(formatearCostoUnitario("1e-12")).toBe("< 0,000001");
+    expect(formatearCostoUnitario("-0.0000004")).toBe("> -0,000001");
     expect(formatearCostoUnitario("1234.123456789")).toBe("1.234,123457");
     expect(formatearCostoUnitario("0")).toBe("0,00");
   });

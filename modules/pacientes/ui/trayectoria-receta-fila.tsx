@@ -1,15 +1,15 @@
 /**
- * One receta of the Trayectoria as a collapsible card (native
- * `<details>`/`<summary>`: no client JS, keyboard and screen-reader friendly,
- * closed by default). The summary shows the key facts (número, estado, fecha
- * de ingreso, first item, médico, presupuesto total, current step); the body
- * holds the 5-step journey, a per-item table (items, presupuesto,
- * preparación, libro) and the receta-level facts (entrega, archivo,
- * presupuesto total). Server component.
+ * One receta of the Trayectoria as a row of the recetas table. Two server
+ * components feed `shared/ui/fila-desplegable.tsx` (the only client piece,
+ * which just holds the open/closed state): `TrayectoriaRecetaCeldas` renders
+ * the summary cells (número, ingreso, qué pide, médico, estado, etapa and,
+ * with `acceso.presupuesto`, the presupuesto total) and
+ * `TrayectoriaRecetaDetalle` renders the expanded body (the 5-step journey, a
+ * per-item table with presupuesto / preparación / libro, and the receta-level
+ * facts: entrega, archivo, presupuesto vigente).
  *
- * The summary carries no links on purpose (interactive content inside
- * `<summary>` is an accessibility anti-pattern); the link to the receta lives
- * in the body.
+ * The summary cells carry no links on purpose (the whole row toggles on
+ * click); the link to the receta lives in the detail.
  *
  * Optional blocks and links follow `acceso` (docs/specs/trayectoria-paciente.md,
  * "Visibility per role"): a block the session cannot see is omitted, and a
@@ -27,10 +27,20 @@ import { ESTADO_PASO_LABELS, MODALIDAD_ENTREGA_LABELS, PASO_JORNADA_LABELS, etap
 import type { AccesoTrayectoria, ItemTrayectoria, PresupuestoTrayectoria, RecetaTrayectoria } from "../domain/trayectoria";
 import { TrayectoriaPasos } from "./trayectoria-pasos";
 
-interface RecetaCardProps {
+interface RecetaFilaProps {
   receta: RecetaTrayectoria;
   acceso: AccesoTrayectoria;
   zonaHoraria: string;
+}
+
+/** Accessible name of a receta row (completes the toggle button's label). */
+export function etiquetaReceta(receta: RecetaTrayectoria): string {
+  return `Receta Nº ${receta.numeroInterno}`;
+}
+
+/** Total column count of the recetas table: toggle + 6 fixed columns + presupuesto (only with `acceso.presupuesto`). */
+export function columnasTablaRecetas(acceso: AccesoTrayectoria): number {
+  return acceso.presupuesto ? 8 : 7;
 }
 
 function Dato({ etiqueta, children }: { etiqueta: string; children: ReactNode }) {
@@ -187,7 +197,7 @@ function TextoPresupuestoTotal({ presupuesto }: { presupuesto: PresupuestoTrayec
   );
 }
 
-/** "Cápsulas ×60 · Minoxidil 2,5 mg (+1 ítem)" -- the collapsed-summary line of what the receta asks for. */
+/** "Cápsulas ×60 · Minoxidil 2,5 mg (+1 ítem)" -- the "Qué pide" cell: the first item plus how many more the receta has. */
 function TextoQuePide({ items }: { items: ItemTrayectoria[] }) {
   const resumen = resumenItems(items);
   if (!resumen) return <span className="text-zinc-500">Sin ítems</span>;
@@ -201,117 +211,118 @@ function TextoQuePide({ items }: { items: ItemTrayectoria[] }) {
   );
 }
 
+/** "Libro, en curso" / "Completa" -- the first step of the journey that is not done yet. */
 function TextoEtapa({ receta }: { receta: RecetaTrayectoria }) {
   const etapa = etapaActual(receta.pasos);
-  if (!etapa) return <span>Etapa: Completa</span>;
+  if (!etapa) return <span>Completa</span>;
   return (
     <span>
-      Etapa: {PASO_JORNADA_LABELS[etapa.paso]}, {ESTADO_PASO_LABELS[etapa.estado].toLowerCase()}
+      {PASO_JORNADA_LABELS[etapa.paso]}, {ESTADO_PASO_LABELS[etapa.estado].toLowerCase()}
     </span>
   );
 }
 
-export function TrayectoriaRecetaCard({ receta, acceso, zonaHoraria }: RecetaCardProps) {
-  const titulo = `Receta Nº ${receta.numeroInterno}`;
+/** The summary `<td>`s of a receta row, in the table's column order (after the toggle cell). */
+export function TrayectoriaRecetaCeldas({ receta, acceso, zonaHoraria }: RecetaFilaProps) {
+  return (
+    <>
+      <td className="px-3 py-2 font-medium whitespace-nowrap">{receta.numeroInterno}</td>
+      <td className="px-3 py-2 whitespace-nowrap">{formatFecha(receta.fechaIngreso, zonaHoraria)}</td>
+      <td className="px-3 py-2">
+        <TextoQuePide items={receta.items} />
+      </td>
+      <td className="px-3 py-2">{receta.medico}</td>
+      <td className="px-3 py-2">
+        <StatusBadge estado={receta.estado} />
+      </td>
+      <td className="px-3 py-2">
+        <TextoEtapa receta={receta} />
+      </td>
+      {acceso.presupuesto ? (
+        <td className="px-3 py-2 whitespace-nowrap">
+          {receta.presupuesto ? `$ ${formatearMonto(receta.presupuesto.total)}` : <span className="text-zinc-500">Sin cotización</span>}
+        </td>
+      ) : null}
+    </>
+  );
+}
+
+/** The expanded body of a receta row. */
+export function TrayectoriaRecetaDetalle({ receta, acceso, zonaHoraria }: RecetaFilaProps) {
   const { entrega, lote } = receta;
 
   return (
-    <details className="card group" aria-labelledby={`receta-${receta.id}`}>
-      <summary className="flex cursor-pointer list-none items-start gap-3 p-4 [&::-webkit-details-marker]:hidden">
-        <span aria-hidden="true" className="mt-0.5 text-zinc-400 transition-transform group-open:rotate-90">
-          ▸
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span id={`receta-${receta.id}`} className="text-base font-semibold">
-              {titulo}
-            </span>
-            <StatusBadge estado={receta.estado} />
-            <span className="text-sm text-zinc-500">{formatFecha(receta.fechaIngreso, zonaHoraria)}</span>
-            {acceso.presupuesto && receta.presupuesto ? <span className="text-sm font-medium">$ {formatearMonto(receta.presupuesto.total)}</span> : null}
-          </span>
-          <span className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
-            <TextoQuePide items={receta.items} />
-            <span className="text-zinc-500">{receta.medico}</span>
-            <span className="text-zinc-500">
-              <TextoEtapa receta={receta} />
-            </span>
-          </span>
-        </span>
-      </summary>
+    <div>
+      {acceso.linkReceta ? (
+        <p className="mb-3 text-sm">
+          <Link href={`/recetas/${receta.id}`} className="underline underline-offset-2">
+            Ver receta
+          </Link>
+        </p>
+      ) : null}
 
-      <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">
-        {acceso.linkReceta ? (
-          <p className="mb-3 text-sm">
-            <Link href={`/recetas/${receta.id}`} className="underline underline-offset-2">
-              Ver receta
-            </Link>
-          </p>
+      <dl className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Dato etiqueta="Fecha de prescripción">{formatFecha(receta.fechaPrescripcion)}</Dato>
+        <Dato etiqueta="Médico">{receta.medico}</Dato>
+        <Dato etiqueta="Origen">{ORIGEN_RECETA_LABELS[receta.origen]}</Dato>
+      </dl>
+
+      <div className="mb-4">
+        <TrayectoriaPasos pasos={receta.pasos} />
+      </div>
+
+      {receta.estado === "ANULADA" ? (
+        <p className="mb-4 text-sm text-red-700 dark:text-red-300">Motivo de anulación: {receta.motivoAnulacion ?? "—"}</p>
+      ) : null}
+
+      <div className="mb-4">
+        <TablaItems items={receta.items} acceso={acceso} zonaHoraria={zonaHoraria} />
+      </div>
+
+      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {acceso.presupuesto ? (
+          <Dato etiqueta="Presupuesto vigente">
+            <TextoPresupuestoTotal presupuesto={receta.presupuesto} />
+          </Dato>
         ) : null}
-
-        <dl className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Dato etiqueta="Fecha de prescripción">{formatFecha(receta.fechaPrescripcion)}</Dato>
-          <Dato etiqueta="Médico">{receta.medico}</Dato>
-          <Dato etiqueta="Origen">{ORIGEN_RECETA_LABELS[receta.origen]}</Dato>
-        </dl>
-
-        <div className="mb-4">
-          <TrayectoriaPasos pasos={receta.pasos} />
-        </div>
-
-        {receta.estado === "ANULADA" ? (
-          <p className="mb-4 text-sm text-red-700 dark:text-red-300">Motivo de anulación: {receta.motivoAnulacion ?? "—"}</p>
-        ) : null}
-
-        <div className="mb-4">
-          <TablaItems items={receta.items} acceso={acceso} zonaHoraria={zonaHoraria} />
-        </div>
-
-        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {acceso.presupuesto ? (
-            <Dato etiqueta="Presupuesto vigente">
-              <TextoPresupuestoTotal presupuesto={receta.presupuesto} />
-            </Dato>
-          ) : null}
-          <Dato etiqueta="Entrega">
-            {entrega ? (
-              <span className="flex flex-col gap-0.5">
-                <span>
-                  {acceso.linkEntrega ? (
-                    <Link href={`/entregas/${receta.id}`} className="underline-offset-2 hover:underline">
-                      {MODALIDAD_ENTREGA_LABELS[entrega.modalidad]}
-                    </Link>
-                  ) : (
-                    MODALIDAD_ENTREGA_LABELS[entrega.modalidad]
-                  )}{" "}
-                  · {formatFechaHora(entrega.entregadaEn, zonaHoraria)}
-                </span>
-                <span className="text-xs text-zinc-500">
-                  {entrega.firmaRecibida
-                    ? `Firma recibida${entrega.firmaRecibidaEn ? ` el ${formatFecha(entrega.firmaRecibidaEn, zonaHoraria)}` : ""}`
-                    : "Firma pendiente"}
-                </span>
+        <Dato etiqueta="Entrega">
+          {entrega ? (
+            <span className="flex flex-col gap-0.5">
+              <span>
+                {acceso.linkEntrega ? (
+                  <Link href={`/entregas/${receta.id}`} className="underline-offset-2 hover:underline">
+                    {MODALIDAD_ENTREGA_LABELS[entrega.modalidad]}
+                  </Link>
+                ) : (
+                  MODALIDAD_ENTREGA_LABELS[entrega.modalidad]
+                )}{" "}
+                · {formatFechaHora(entrega.entregadaEn, zonaHoraria)}
+              </span>
+              <span className="text-xs text-zinc-500">
+                {entrega.firmaRecibida
+                  ? `Firma recibida${entrega.firmaRecibidaEn ? ` el ${formatFecha(entrega.firmaRecibidaEn, zonaHoraria)}` : ""}`
+                  : "Firma pendiente"}
+              </span>
+            </span>
+          ) : (
+            <span className="text-zinc-500">Sin entrega registrada</span>
+          )}
+        </Dato>
+        {acceso.archivo ? (
+          <Dato etiqueta="Archivo">
+            {lote ? (
+              <span className="flex flex-wrap items-center gap-2">
+                <Link href={`/archivo/${lote.id}`} className="underline-offset-2 hover:underline">
+                  Lote Nº {lote.numero}
+                </Link>
+                <span className="text-xs text-zinc-500">{ESTADO_LOTE_ARCHIVO_LABELS[lote.estado]}</span>
               </span>
             ) : (
-              <span className="text-zinc-500">Sin entrega registrada</span>
+              <span className="text-zinc-500">Sin archivar</span>
             )}
           </Dato>
-          {acceso.archivo ? (
-            <Dato etiqueta="Archivo">
-              {lote ? (
-                <span className="flex flex-wrap items-center gap-2">
-                  <Link href={`/archivo/${lote.id}`} className="underline-offset-2 hover:underline">
-                    Lote Nº {lote.numero}
-                  </Link>
-                  <span className="text-xs text-zinc-500">{ESTADO_LOTE_ARCHIVO_LABELS[lote.estado]}</span>
-                </span>
-              ) : (
-                <span className="text-zinc-500">Sin archivar</span>
-              )}
-            </Dato>
-          ) : null}
-        </dl>
-      </div>
-    </details>
+        ) : null}
+      </dl>
+    </div>
   );
 }

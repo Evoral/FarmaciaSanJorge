@@ -27,7 +27,10 @@ Trayectoria added on top of it.
 - `modules/proveedores/application/get-trayectoria-proveedor.ts` (use case `proveedores.trayectoria`, permiso `proveedores.gestionar`)
 - `modules/proveedores/ui/trayectoria-encabezado.tsx`
 - `modules/proveedores/ui/trayectoria-resumen.tsx`
-- `modules/proveedores/ui/trayectoria-partida-card.tsx`
+- `modules/proveedores/ui/trayectoria-partida-fila.tsx`
+- `modules/proveedores/ui/trayectoria-filtro-drogas.tsx` ("Filtro por droga", see the section below)
+- `shared/ui/fila-desplegable.tsx` (client component shared with the Pacientes Trayectoria; delete only if that one is reverted too. Do NOT delete it while the Comparador de costos uses it: see `docs/rollbacks/comparador-costos.md`. Likewise, `trayectoria-repository.ts` exports `readJornadaActual`, which the comparador's repository imports)
+- `tests/unit/fila-desplegable.test.ts`
 - `app/(app)/proveedores/[id]/layout.tsx` (back link + Datos/Trayectoria tabs + uuid guard)
 - `app/(app)/proveedores/[id]/trayectoria/page.tsx`
 - `shared/format/monto.ts` (`formatearMonto`, moved out of pacientes, and `formatearCostoUnitario`; see the "Shared formatter" note below before deleting it)
@@ -37,13 +40,40 @@ Trayectoria added on top of it.
 - `prisma/rollbacks/0056_trayectoria_proveedor_indices.down.sql` and this file, once the revert is done (optional: keeping them is harmless)
 
 ### Edited files (revert only the Trayectoria hunks)
-- `app/(app)/proveedores/page.tsx`: the "Trayectoria" action column (an extra `<th>` with `sr-only` "Acciones", `colSpan` 3 -> 4 in the empty row, and the `<td>` with the `Link` to `/proveedores/${id}/trayectoria`). **This file is untracked** (it is the moved copy of `app/(app)/catalogos/proveedores/page.tsx` at HEAD), so there is no HEAD version of it to `git checkout`: remove those three hunks by hand.
-- `app/(app)/proveedores/[id]/page.tsx`: the "Volver al listado" link block and its `import Link from "next/link"` moved to `[id]/layout.tsx`. **Untracked as well**: re-add the `Link` import and the `<div className="mb-2"> ... ← Volver al listado ... </div>` block above the `<h1>` by hand (and update the file's doc comment).
+- `app/(app)/proveedores/page.tsx`: the "Trayectoria" action column (an extra `<th>` with `sr-only` "Acciones", `colSpan` 3 -> 4 in the empty row, and the `<td>` with the `Link` to `/proveedores/${id}/trayectoria`), plus the pagination bounds (a `<span aria-disabled="true">` instead of a `Link` at the first / last page; harmless to keep). Revert the feature hunks BY HAND. Do NOT `git checkout` this path: since 9e78085 it exists only as the moved file, and its pre-feature version lives at the OLD path (`git show 771829a:"app/(app)/catalogos/proveedores/page.tsx"`), whose hrefs and `revalidatePath` calls still point at `/catalogos/proveedores`: restoring it would also undo the route move. Use that old copy only as a reference for the hunks (or when undoing the move on purpose, see the Pacientes rollback B).
+- `app/(app)/proveedores/[id]/page.tsx`: the "Volver al listado" link block and its `import Link from "next/link"` moved to `[id]/layout.tsx` (re-add both above the `<h1>`, and the doc comment), plus the page's own uuid guard (`import { uuid }` and `if (!uuid.safeParse(id).success) notFound();`; remove if the layout guard is enough). Same caveat: revert by hunk, not with `git checkout 771829a --`, whose version of this file lives at `app/(app)/catalogos/proveedores/[id]/page.tsx`.
 - `shared/ui/status-badge.tsx`: tones for `POR_VENCER` (warn), `AGOTADA` (neutral) and `ABIERTA` (neutral) in `TONE_BY_ESTADO`. Labels are not touched (the badge humanizes unknown estados). The file uses CRLF line endings: keep them.
 - `modules/pacientes/domain/trayectoria.ts`: the `formatearMonto` function was **removed** (moved to `shared/format/monto.ts`).
-- `modules/pacientes/ui/trayectoria-receta-card.tsx`: `formatearMonto` is now imported from `@/shared/format/monto` instead of `../domain/trayectoria`.
+- `modules/pacientes/ui/trayectoria-receta-fila.tsx`: `formatearMonto` is now imported from `@/shared/format/monto` instead of `../domain/trayectoria`.
 - `tests/unit/pacientes-trayectoria.test.ts`: the `formatearMonto` import now points to `@/shared/format/monto`.
 - `tests/unit/proveedores-authorization-matrix.test.ts`: the `get-trayectoria-proveedor` import, the `proveedores.trayectoria` case in `CASES`, and the last `describe` block.
+
+### Filtro por droga (added on top of the feature; reverts independently)
+New file: `modules/proveedores/ui/trayectoria-filtro-drogas.tsx`. Edited hunks:
+- `shared/ui/filter-form.tsx`: `params.append(name, ...)` in `buildQuery` goes back to
+  `params.set(name, ...)` (and drop the "repeated name" bullet of the doc comment). Only revert
+  it together with the filter: no other form relies on `append`, and it is a no-op for them.
+- `shared/labels/field-labels.ts`: the `drogaIds: "Drogas"` entry (the label-completeness test
+  requires it only while the use case input has that key).
+- `modules/proveedores/domain/trayectoria.ts`: `import { uuid }`, `DROGAS_FILTRO_MAX`, `DrogaOpcion`,
+  `drogasDisponibles` / `drogaIds` / `totalFiltrado` in `TrayectoriaProveedorCruda`, `drogasDisponibles`
+  / `drogaIds` in `TrayectoriaProveedor`, the `Filter by droga` section (`parsearDrogaIds`,
+  `filtrarDrogasDelProveedor`, `drogasSeleccionadas`, `drogasRestantes`) and `paginacion` computed from
+  `cruda.totalFiltrado` instead of `cruda.resumen.partidas`.
+- `modules/proveedores/infrastructure/trayectoria-repository.ts`: `partidasWhere`,
+  `readDrogasDisponibles`, `countPartidasFiltradas`, the `drogaIds` parameter of
+  `readPartidasPagina`, the `drogaIdsSolicitados` parameter and the filter block in
+  `getTrayectoriaProveedorCruda` (pagination back over `resumen.partidas`).
+- `modules/proveedores/application/get-trayectoria-proveedor.ts`: `drogaIds` in the input schema and
+  the extra argument to the repository.
+- `app/(app)/proveedores/[id]/trayectoria/page.tsx`: `droga` in `searchParams`, `parsearDrogaIds`, the
+  `<TrayectoriaFiltroDrogas>` block, the "{n} de {total} partidas." / empty-state wording and the
+  `pageHref` that keeps every `droga` param.
+- `tests/unit/proveedores-trayectoria.test.ts` and `tests/unit/proveedores-trayectoria-repository.test.ts`:
+  the droga fixtures, the new `cruda()` fields, the `parsearDrogaIds` / `filtrar...` describe blocks
+  and the "filtro por droga" repository describe (fake `tx` gained `droga.findMany` and
+  `partida.count`).
+No database object, permiso or parameter is involved.
 
 ### Shared formatter note
 `shared/format/monto.ts` is used by BOTH Trayectorias. Rolling back only the
@@ -62,6 +92,17 @@ export function formatearMonto(valor: string): string {
   return `${signo}${digitos.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${fraccion}`;
 }
 ```
+
+## Review fixes (same feature, no new files)
+A later review changed these files only (all already listed above, revert them
+together with the feature): the movimientos / preparaciones / cost-corrections
+queries in `trayectoria-repository.ts` (bounded LATERAL reads, audit filtered in
+SQL), `CORRECCIONES_POR_PARTIDA_MAX` / `DIAS_ALERTA_MAX` and the clamps in
+`domain/trayectoria.ts`, the `$ X / <unidad base>` labels and the "hay más
+correcciones" notice in `trayectoria-partida-fila.tsx`, the "< 0,000001" case in
+`shared/format/monto.ts`, the pagination bounds and the uuid guard in the pages
+listed above, and the migration header / spec wording. No database object was
+added by them: the only database change remains the 0056 index.
 
 ## Steps
 The code and the index revert independently: the app works with or without the

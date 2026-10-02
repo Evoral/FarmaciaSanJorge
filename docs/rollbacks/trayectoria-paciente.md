@@ -32,7 +32,8 @@ working tree. They are **independent**, so there are two rollbacks:
 - `modules/pacientes/ui/trayectoria-encabezado.tsx`
 - `modules/pacientes/ui/trayectoria-resumen.tsx`
 - `modules/pacientes/ui/trayectoria-pasos.tsx`
-- `modules/pacientes/ui/trayectoria-receta-card.tsx`
+- `modules/pacientes/ui/trayectoria-receta-fila.tsx`
+- `shared/ui/fila-desplegable.tsx` (shared with the Proveedores Trayectoria; delete only if that one is reverted too. Do NOT delete it while the Comparador de costos uses it: see `docs/rollbacks/comparador-costos.md`)
 - `app/(app)/pacientes/[id]/layout.tsx` (tabs + back link + id guard)
 - `app/(app)/pacientes/[id]/trayectoria/page.tsx`
 - `tests/unit/pacientes-trayectoria.test.ts`

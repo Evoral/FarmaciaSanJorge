@@ -14,8 +14,10 @@
  *      with `stock.valorizado.ver`), computed in SQL `numeric`,
  *   4. ONE query for the requested page of partidas (newest first),
  *   5. one batched query per block over the page's partida ids: movimientos
- *      (window function, capped per partida), usuarios, preparaciones,
- *      contralor, audit.
+ *      (LATERAL ... LIMIT per partida, so the cost does not grow with a
+ *      partida's history, plus a grouped count for the totals), usuarios,
+ *      preparaciones (same shape), contralor, cost corrections (filtered in
+ *      SQL, capped per partida).
  * The optional blocks are queried ONLY when the caller says the session may
  * see them -- they are not fetched and then hidden. Queries run sequentially:
  * they share one interactive transaction (one connection).
@@ -35,11 +37,19 @@
  * counters and money are SQL aggregates.
  */
 import type { Prisma } from "@/generated/prisma/client";
-import { MOVIMIENTOS_POR_PARTIDA_MAX, PREPARACIONES_POR_PARTIDA_MAX, calcularPaginacion, parseDiasAlertaVencimiento } from "../domain/trayectoria";
+import {
+  CORRECCIONES_POR_PARTIDA_MAX,
+  MOVIMIENTOS_POR_PARTIDA_MAX,
+  PREPARACIONES_POR_PARTIDA_MAX,
+  calcularPaginacion,
+  filtrarDrogasDelProveedor,
+  parseDiasAlertaVencimiento,
+} from "../domain/trayectoria";
 import type {
   AccesoTrayectoriaProveedor,
   AuditoriaCostoCruda,
   ContralorCrudo,
+  DrogaOpcion,
   MovimientoCrudo,
   PartidaCruda,
   PreparacionCruda,
@@ -53,9 +63,6 @@ import type {
 
 /** Which optional blocks to read: the subset of `AccesoTrayectoriaProveedor` that is about data (not links). */
 export type BloquesTrayectoriaProveedor = Pick<AccesoTrayectoriaProveedor, "costos" | "preparaciones" | "contralor" | "correcciones">;
-
-/** Safety bound on audit rows read for one page (only cost corrections write MODIFICAR on a partida, so this is generous). */
-export const AUDITORIA_COSTO_MAX = 200;
 
 export async function readProveedor(tx: Prisma.TransactionClient, tenantId: string, proveedorId: string): Promise<ProveedorTrayectoria | null> {
   return tx.proveedor.findUnique({
@@ -129,6 +136,34 @@ export async function readTotalesCosto(tx: Prisma.TransactionClient, tenantId: s
   return { totalComprado: r?.total_comprado ?? "0", stockValorizado: r?.stock_valorizado ?? "0" };
 }
 
+/**
+ * The proveedor's partidas narrowed by the droga filter: always tenant +
+ * proveedor, plus `drogaId IN (...)` only when the filter is not empty (one
+ * droga per partida, so several selected drogas combine with OR). Shared by
+ * the page query and its count so both always agree.
+ */
+function partidasWhere(tenantId: string, proveedorId: string, drogaIds: readonly string[]) {
+  return { tenantId, proveedorId, ...(drogaIds.length > 0 ? { drogaId: { in: [...drogaIds] } } : {}) } satisfies Prisma.PartidaWhereInput;
+}
+
+/**
+ * The distinct drogas the proveedor has partidas of, by name: the options of
+ * the "filtrar por droga" control. Tenant + proveedor scoped (relation filter),
+ * explicit select (id and name only), NOT narrowed by any selected filter.
+ */
+export async function readDrogasDisponibles(tx: Prisma.TransactionClient, tenantId: string, proveedorId: string): Promise<DrogaOpcion[]> {
+  return tx.droga.findMany({
+    where: { tenantId, partidas: { some: { tenantId, proveedorId } } },
+    orderBy: [{ nombre: "asc" }, { id: "asc" }],
+    select: { id: true, nombre: true },
+  });
+}
+
+/** Partidas of the proveedor matching the droga filter (the pagination's total when a filter is active). */
+export async function countPartidasFiltradas(tx: Prisma.TransactionClient, tenantId: string, proveedorId: string, drogaIds: readonly string[]): Promise<number> {
+  return tx.partida.count({ where: partidasWhere(tenantId, proveedorId, drogaIds) });
+}
+
 /** The select of the partidas page. `costoUnitario` is added ONLY with `stock.valorizado.ver`. */
 function partidaSelect(costos: boolean) {
   return {
@@ -151,9 +186,10 @@ export async function readPartidasPagina(
   page: number,
   pageSize: number,
   costos: boolean,
+  drogaIds: readonly string[] = [],
 ): Promise<PartidaCruda[]> {
   const rows = await tx.partida.findMany({
-    where: { tenantId, proveedorId },
+    where: partidasWhere(tenantId, proveedorId, drogaIds),
     // `id` as tie-break keeps pages stable when two partidas share a fechaIngreso.
     orderBy: [{ fechaIngreso: "desc" }, { id: "desc" }],
     skip: (page - 1) * pageSize,
@@ -178,10 +214,12 @@ export async function readPartidasPagina(
 
 /**
  * The latest `MOVIMIENTOS_POR_PARTIDA_MAX` movements of EACH partida of the
- * page in ONE query (window function, no N+1), plus the partida's total count
- * (`COUNT(*) OVER`) so the UI can say "mostrando 20 de N". The window scans
- * only the movements of the page's (<= 10) partidas, through
- * idx_movimiento_stock_tenant_partida_fecha (0043).
+ * page, in ONE statement: `unnest(page ids) CROSS JOIN LATERAL (... ORDER BY
+ * registrado_en DESC, id DESC LIMIT n)`. Each partida is a bounded backward
+ * range scan of idx_movimiento_stock_tenant_partida_fecha (0043): the cost no
+ * longer grows with the partida's history. The partida's TOTAL (for "mostrando
+ * 20 de N") is a second, grouped `count(*)`, an index-only count that returns
+ * one row per partida.
  */
 export async function readMovimientos(tx: Prisma.TransactionClient, tenantId: string, partidaIds: string[]): Promise<MovimientoCrudo[]> {
   const rows = await tx.$queryRaw<
@@ -195,11 +233,11 @@ export async function readMovimientos(tx: Prisma.TransactionClient, tenantId: st
       registrado_en: Date;
       registrado_por_id: string;
       autorizado_por_id: string | null;
-      total: number;
     }[]
   >`
-    SELECT m.id, m.partida_id, m.tipo, m.cantidad, m.motivo_ajuste, m.observacion, m.registrado_en, m.registrado_por_id, m.autorizado_por_id, m.total
-    FROM (
+    SELECT m.id, m.partida_id, m.tipo, m.cantidad, m.motivo_ajuste, m.observacion, m.registrado_en, m.registrado_por_id, m.autorizado_por_id
+    FROM unnest(${partidaIds}::uuid[]) AS p(id)
+    CROSS JOIN LATERAL (
       SELECT
         ms.id,
         ms.partida_id,
@@ -209,15 +247,23 @@ export async function readMovimientos(tx: Prisma.TransactionClient, tenantId: st
         ms.observacion,
         ms.registrado_en,
         ms.registrado_por_id,
-        ms.autorizado_por_id,
-        ROW_NUMBER() OVER (PARTITION BY ms.partida_id ORDER BY ms.registrado_en DESC, ms.id DESC) AS rn,
-        (COUNT(*) OVER (PARTITION BY ms.partida_id))::int AS total
+        ms.autorizado_por_id
       FROM fsj.movimiento_stock ms
-      WHERE ms.tenant_id = ${tenantId}::uuid AND ms.partida_id = ANY(${partidaIds}::uuid[])
+      WHERE ms.tenant_id = ${tenantId}::uuid AND ms.partida_id = p.id
+      ORDER BY ms.registrado_en DESC, ms.id DESC
+      LIMIT ${MOVIMIENTOS_POR_PARTIDA_MAX}::int
     ) m
-    WHERE m.rn <= ${MOVIMIENTOS_POR_PARTIDA_MAX}::int
-    ORDER BY m.partida_id, m.rn
+    ORDER BY m.partida_id, m.registrado_en DESC, m.id DESC
   `;
+  if (rows.length === 0) return [];
+
+  const totales = await tx.$queryRaw<{ partida_id: string; total: number }[]>`
+    SELECT ms.partida_id, count(*)::int AS total
+    FROM fsj.movimiento_stock ms
+    WHERE ms.tenant_id = ${tenantId}::uuid AND ms.partida_id = ANY(${partidaIds}::uuid[])
+    GROUP BY ms.partida_id
+  `;
+  const totalPorPartida = new Map(totales.map((t) => [t.partida_id, t.total]));
   return rows.map((r) => ({
     id: r.id,
     partidaId: r.partida_id,
@@ -228,7 +274,7 @@ export async function readMovimientos(tx: Prisma.TransactionClient, tenantId: st
     registradoEn: r.registrado_en,
     registradoPorId: r.registrado_por_id,
     autorizadoPorId: r.autorizado_por_id,
-    totalDePartida: r.total,
+    totalDePartida: totalPorPartida.get(r.partida_id) ?? rows.filter((x) => x.partida_id === r.partida_id).length,
   }));
 }
 
@@ -243,10 +289,15 @@ export async function readUsuarios(tx: Prisma.TransactionClient, tenantId: strin
 
 /**
  * The preparaciones that consumed each partida, reached through
- * `movimiento_stock.preparacion_id` (distinct per partida), capped per partida
- * with a window function. Selects ONLY id, estado and the three dates of
- * `fsj.preparacion`: the join stops there, it never reaches item_receta,
- * receta or paciente, and the free-text `motivo_descarte` is not read.
+ * `movimiento_stock.preparacion_id`. Bounded like the movimientos: a LATERAL
+ * takes the latest `PREPARACIONES_POR_PARTIDA_MAX` movements of each partida
+ * that carry a preparacion (a bounded backward scan of the same index), and
+ * the distinct preparaciones of those are joined (a preparación may have
+ * consumed the partida in more than one movement, so there can be fewer than
+ * the cap). The partida's total of distinct preparaciones is a second grouped
+ * count. Selects ONLY id, estado and the three dates of `fsj.preparacion`: the
+ * join stops there, it never reaches item_receta, receta or paciente, and the
+ * free-text `motivo_descarte` is not read.
  */
 export async function readPreparaciones(tx: Prisma.TransactionClient, tenantId: string, partidaIds: string[]): Promise<PreparacionCruda[]> {
   const rows = await tx.$queryRaw<
@@ -257,32 +308,33 @@ export async function readPreparaciones(tx: Prisma.TransactionClient, tenantId: 
       iniciada_en: Date;
       confirmada_en: Date | null;
       descartada_en: Date | null;
-      total: number;
     }[]
   >`
-    SELECT r.partida_id, r.id, r.estado, r.iniciada_en, r.confirmada_en, r.descartada_en, r.total
+    SELECT r.partida_id, pr.id, pr.estado::text AS estado, pr.iniciada_en, pr.confirmada_en, pr.descartada_en
     FROM (
-      SELECT
-        pp.partida_id,
-        pr.id,
-        pr.estado::text AS estado,
-        pr.iniciada_en,
-        pr.confirmada_en,
-        pr.descartada_en,
-        ROW_NUMBER() OVER (PARTITION BY pp.partida_id ORDER BY pr.iniciada_en DESC, pr.id DESC) AS rn,
-        (COUNT(*) OVER (PARTITION BY pp.partida_id))::int AS total
-      FROM (
-        SELECT DISTINCT ms.partida_id, ms.preparacion_id
+      SELECT x.partida_id, x.preparacion_id, max(x.registrado_en) AS ultimo
+      FROM unnest(${partidaIds}::uuid[]) AS p(id)
+      CROSS JOIN LATERAL (
+        SELECT ms.partida_id, ms.preparacion_id, ms.registrado_en
         FROM fsj.movimiento_stock ms
-        WHERE ms.tenant_id = ${tenantId}::uuid
-          AND ms.partida_id = ANY(${partidaIds}::uuid[])
-          AND ms.preparacion_id IS NOT NULL
-      ) pp
-      JOIN fsj.preparacion pr ON pr.tenant_id = ${tenantId}::uuid AND pr.id = pp.preparacion_id
+        WHERE ms.tenant_id = ${tenantId}::uuid AND ms.partida_id = p.id AND ms.preparacion_id IS NOT NULL
+        ORDER BY ms.registrado_en DESC, ms.id DESC
+        LIMIT ${PREPARACIONES_POR_PARTIDA_MAX}::int
+      ) x
+      GROUP BY x.partida_id, x.preparacion_id
     ) r
-    WHERE r.rn <= ${PREPARACIONES_POR_PARTIDA_MAX}::int
-    ORDER BY r.partida_id, r.rn
+    JOIN fsj.preparacion pr ON pr.tenant_id = ${tenantId}::uuid AND pr.id = r.preparacion_id
+    ORDER BY r.partida_id, r.ultimo DESC, pr.id DESC
   `;
+  if (rows.length === 0) return [];
+
+  const totales = await tx.$queryRaw<{ partida_id: string; total: number }[]>`
+    SELECT ms.partida_id, count(DISTINCT ms.preparacion_id)::int AS total
+    FROM fsj.movimiento_stock ms
+    WHERE ms.tenant_id = ${tenantId}::uuid AND ms.partida_id = ANY(${partidaIds}::uuid[]) AND ms.preparacion_id IS NOT NULL
+    GROUP BY ms.partida_id
+  `;
+  const totalPorPartida = new Map(totales.map((t) => [t.partida_id, t.total]));
   return rows.map((r) => ({
     partidaId: r.partida_id,
     id: r.id,
@@ -290,7 +342,7 @@ export async function readPreparaciones(tx: Prisma.TransactionClient, tenantId: 
     iniciadaEn: r.iniciada_en,
     confirmadaEn: r.confirmada_en,
     descartadaEn: r.descartada_en,
-    totalDePartida: r.total,
+    totalDePartida: totalPorPartida.get(r.partida_id) ?? rows.filter((x) => x.partida_id === r.partida_id).length,
   }));
 }
 
@@ -313,42 +365,64 @@ export async function readContralor(tx: Prisma.TransactionClient, tenantId: stri
 }
 
 /**
- * The audit rows of the page's partidas that MAY be cost corrections: entidad
- * `partida`, accion MODIFICAR (the shape `corregirCostoPartida` writes). The
- * domain then keeps only those whose diff actually touches `costoUnitario`.
- * Explicit select: no `ip`, no `contexto`.
+ * The cost corrections of the page's partidas, filtered IN SQL: audit rows of
+ * entidad `partida`, accion MODIFICAR whose diff carries a `costoUnitario` key
+ * (`corregirCostoPartida` writes `{ costoUnitario }` in BOTH `valor_anterior` and
+ * `valor_nuevo`). One LATERAL per partida reads at most
+ * `CORRECCIONES_POR_PARTIDA_MAX + 1` rows (the extra one only tells the UI
+ * there are more), newest first, through idx_registro_auditoria_entidad
+ * (0003: tenant_id, entidad, entidad_id, ocurrido_en). `jsonb_exists` is the
+ * function behind the `?` operator (kept out of the template to avoid any
+ * placeholder ambiguity). Explicit columns: no `ip`, no `contexto`. The domain
+ * re-checks the diff (`correccionDeCosto`) as defense in depth.
  */
 export async function readAuditoriaCosto(tx: Prisma.TransactionClient, tenantId: string, partidaIds: string[]): Promise<AuditoriaCostoCruda[]> {
-  const rows = await tx.registroAuditoria.findMany({
-    where: { tenantId, entidad: "partida", entidadId: { in: partidaIds }, accion: "MODIFICAR" },
-    orderBy: [{ ocurridoEn: "desc" }, { id: "desc" }],
-    take: AUDITORIA_COSTO_MAX,
-    select: {
-      id: true,
-      entidadId: true,
-      valorAnterior: true,
-      valorNuevo: true,
-      motivo: true,
-      ocurridoEn: true,
-      usuario: { select: { nombre: true, apellido: true } },
-    },
-  });
+  const rows = await tx.$queryRaw<
+    {
+      id: string;
+      partida_id: string;
+      valor_anterior: unknown;
+      valor_nuevo: unknown;
+      motivo: string | null;
+      ocurrido_en: Date;
+      nombre: string;
+      apellido: string;
+    }[]
+  >`
+    SELECT a.id, a.entidad_id AS partida_id, a.valor_anterior, a.valor_nuevo, a.motivo, a.ocurrido_en, u.nombre, u.apellido
+    FROM unnest(${partidaIds}::uuid[]) AS p(id)
+    CROSS JOIN LATERAL (
+      SELECT ra.id, ra.entidad_id, ra.usuario_id, ra.valor_anterior, ra.valor_nuevo, ra.motivo, ra.ocurrido_en
+      FROM fsj.registro_auditoria ra
+      WHERE ra.tenant_id = ${tenantId}::uuid
+        AND ra.entidad = 'partida'
+        AND ra.entidad_id = p.id
+        AND ra.accion = 'MODIFICAR'
+        AND (jsonb_exists(ra.valor_nuevo, 'costoUnitario') OR jsonb_exists(ra.valor_anterior, 'costoUnitario'))
+      ORDER BY ra.ocurrido_en DESC, ra.id DESC
+      LIMIT ${CORRECCIONES_POR_PARTIDA_MAX + 1}::int
+    ) a
+    JOIN fsj.usuario u ON u.tenant_id = ${tenantId}::uuid AND u.id = a.usuario_id
+    ORDER BY a.entidad_id, a.ocurrido_en DESC, a.id DESC
+  `;
   return rows.map((r) => ({
     id: r.id,
-    partidaId: r.entidadId,
-    valorAnterior: r.valorAnterior,
-    valorNuevo: r.valorNuevo,
+    partidaId: r.partida_id,
+    valorAnterior: r.valor_anterior,
+    valorNuevo: r.valor_nuevo,
     motivo: r.motivo,
-    ocurridoEn: r.ocurridoEn,
-    usuarioNombre: r.usuario.nombre,
-    usuarioApellido: r.usuario.apellido,
+    ocurridoEn: r.ocurrido_en,
+    usuarioNombre: r.nombre,
+    usuarioApellido: r.apellido,
   }));
 }
 
 /**
  * The raw Trayectoria of one proveedor: header, counters, one page of partidas
  * and the requested blocks. `null` when the proveedor does not exist in the
- * tenant. `page` is clamped to the last page.
+ * tenant. `page` is clamped to the last page. `drogaIdsSolicitados` is the
+ * (already parsed) droga filter: ids that are not one of the proveedor's drogas
+ * are ignored, and the filter never reaches the resumen counters / money.
  */
 export async function getTrayectoriaProveedorCruda(
   tx: Prisma.TransactionClient,
@@ -357,6 +431,7 @@ export async function getTrayectoriaProveedorCruda(
   page: number,
   pageSize: number,
   bloques: BloquesTrayectoriaProveedor,
+  drogaIdsSolicitados: readonly string[] = [],
 ): Promise<TrayectoriaProveedorCruda | null> {
   const proveedor = await readProveedor(tx, tenantId, proveedorId);
   if (!proveedor) return null;
@@ -366,9 +441,15 @@ export async function getTrayectoriaProveedorCruda(
   const diasAlerta = await readDiasAlerta(tx, tenantId);
   const resumen = await readResumen(tx, tenantId, proveedorId, jornada, diasAlerta);
   const totales = bloques.costos ? await readTotalesCosto(tx, tenantId, proveedorId) : null;
-  const paginacion = calcularPaginacion(resumen.partidas, page, pageSize);
 
-  const partidas = resumen.partidas === 0 ? [] : await readPartidasPagina(tx, tenantId, proveedorId, paginacion.page, pageSize, bloques.costos);
+  // The droga filter only narrows the partidas list (and its pagination); the resumen above stays proveedor-wide.
+  // The requested ids are never trusted: only those that are one of the proveedor's own drogas are applied.
+  const drogasDisponibles = resumen.partidas === 0 ? [] : await readDrogasDisponibles(tx, tenantId, proveedorId);
+  const drogaIds = filtrarDrogasDelProveedor(drogaIdsSolicitados, drogasDisponibles);
+  const totalFiltrado = drogaIds.length === 0 ? resumen.partidas : await countPartidasFiltradas(tx, tenantId, proveedorId, drogaIds);
+  const paginacion = calcularPaginacion(totalFiltrado, page, pageSize);
+
+  const partidas = totalFiltrado === 0 ? [] : await readPartidasPagina(tx, tenantId, proveedorId, paginacion.page, pageSize, bloques.costos, drogaIds);
   const partidaIds = partidas.map((p) => p.id);
   const controladasIds = partidas.filter((p) => p.esControlada).map((p) => p.id);
 
@@ -386,6 +467,9 @@ export async function getTrayectoriaProveedorCruda(
     diasAlerta,
     resumen,
     totales,
+    drogasDisponibles,
+    drogaIds,
+    totalFiltrado,
     page: paginacion.page,
     partidas,
     movimientos,

@@ -8,6 +8,10 @@
  * 1) and never leaves `?q=&estado=` noise behind. `router.replace` keeps
  * the search input mounted (and focused) across the navigation.
  *
+ * - A name shared by several controls (e.g. checked chips plus an "add"
+ *   select, all `name="droga"`) is serialized as a REPEATED param
+ *   (`?droga=a&droga=b`, DOM order): values are appended, never overwritten.
+ *   Pages read it back as `string | string[] | undefined`.
  * - Listens to NATIVE `input`/`change` events (not React's `onChange`), so
  *   composite widgets that submit through a hidden input can apply the
  *   form by dispatching a bubbling `change` on it -- `./date-input.tsx`
@@ -46,7 +50,8 @@ function isTextLike(field: Field): boolean {
 function buildQuery(form: HTMLFormElement): string {
   const params = new URLSearchParams();
   for (const [name, value] of new FormData(form)) {
-    if (typeof value === "string" && value.trim() !== "") params.set(name, value.trim());
+    // `append`, not `set`: a repeated name (checked chips + an "add" select sharing one `name`) must keep EVERY value.
+    if (typeof value === "string" && value.trim() !== "") params.append(name, value.trim());
   }
   return params.toString();
 }

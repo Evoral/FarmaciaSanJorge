@@ -21,12 +21,16 @@ export function formatearMonto(valor: string): string {
 
 /**
  * A UNIT cost: at least 2 decimals, up to 6, trailing zeros beyond the second
- * dropped ("1234.5" -> "1.234,50", "0.0035" -> "0,0035"). Costs are recorded
+ * dropped ("1234.5" -> "1.234,50", "0.0035" -> "0,0035"; a non-zero cost below
+ * 0,0000005 -> "< 0,000001"). Costs are recorded
  * per unidad base (mg, mL...) and can be far below one cent, where
  * `formatearMonto`'s fixed 2 decimals would read as "0,00".
  */
 export function formatearCostoUnitario(valor: string): string {
-  const [entero, fraccion] = dec(valor).toFixed(6).split(".");
+  const numero = dec(valor);
+  const [entero, fraccion] = numero.toFixed(6).split(".");
+  // A non-zero cost that still rounds to zero at 6 decimals must not read as free.
+  if (!numero.isZero() && dec(numero.toFixed(6)).isZero()) return numero.isNegative() ? "> -0,000001" : "< 0,000001";
   const recortada = fraccion!.replace(/0+$/, "").padEnd(2, "0");
   return agruparEsAr(entero!, recortada);
 }

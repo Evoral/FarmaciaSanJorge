@@ -6,15 +6,18 @@
  * `page` (a plain integer) -- nothing identifying goes in the URL. Access is
  * the parent layout's `pacientes.gestionar` guard; the optional blocks and
  * links are decided by the use case from the session's other permisos.
+ * Recetas render as a `table.data-table` (same look as the other lists) whose
+ * rows expand to the full journey (`FilaDesplegable`).
  */
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTrayectoriaPaciente } from "@/modules/pacientes/application/get-trayectoria-paciente";
 import { PAGE_MAX_TRAYECTORIA } from "@/modules/pacientes/domain/trayectoria";
 import { TrayectoriaEncabezado } from "@/modules/pacientes/ui/trayectoria-encabezado";
-import { TrayectoriaRecetaCard } from "@/modules/pacientes/ui/trayectoria-receta-card";
+import { TrayectoriaRecetaCeldas, TrayectoriaRecetaDetalle, columnasTablaRecetas, etiquetaReceta } from "@/modules/pacientes/ui/trayectoria-receta-fila";
 import { TrayectoriaResumen } from "@/modules/pacientes/ui/trayectoria-resumen";
 import { uuid } from "@/shared/validation";
+import { FilaDesplegable } from "@/shared/ui/fila-desplegable";
 
 interface TrayectoriaPageProps {
   params: Promise<{ id: string }>;
@@ -34,6 +37,7 @@ export default async function TrayectoriaPacientePage({ params, searchParams }: 
   if (!trayectoria) notFound();
 
   const { paciente, acceso, resumen, recetas, paginacion, zonaHoraria } = trayectoria;
+  const colSpan = columnasTablaRecetas(acceso);
   const pageHref = (target: number) => `/pacientes/${id}/trayectoria?page=${target}`;
 
   return (
@@ -46,35 +50,74 @@ export default async function TrayectoriaPacientePage({ params, searchParams }: 
           Recetas
         </h2>
 
-        {recetas.length === 0 ? (
-          <div className="card p-6 text-center text-sm text-zinc-500">Este paciente todavía no tiene recetas registradas.</div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            {recetas.map((receta) => (
-              <TrayectoriaRecetaCard key={receta.id} receta={receta} acceso={acceso} zonaHoraria={zonaHoraria} />
-            ))}
-          </div>
-        )}
+        <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
+          {paginacion.total} receta{paginacion.total === 1 ? "" : "s"}.
+        </p>
+
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th scope="col" className="px-3 py-2 font-medium">
+                  <span className="sr-only">Detalle</span>
+                </th>
+                <th scope="col" className="px-3 py-2 font-medium">Receta Nº</th>
+                <th scope="col" className="px-3 py-2 font-medium">Ingreso</th>
+                <th scope="col" className="px-3 py-2 font-medium">Qué pide</th>
+                <th scope="col" className="px-3 py-2 font-medium">Médico</th>
+                <th scope="col" className="px-3 py-2 font-medium">Estado</th>
+                <th scope="col" className="px-3 py-2 font-medium">Etapa</th>
+                {acceso.presupuesto ? (
+                  <th scope="col" className="px-3 py-2 font-medium">Presupuesto</th>
+                ) : null}
+              </tr>
+            </thead>
+            <tbody>
+              {recetas.length === 0 ? (
+                <tr>
+                  <td colSpan={colSpan} className="px-3 py-6 text-center text-zinc-500">
+                    Este paciente todavía no tiene recetas registradas.
+                  </td>
+                </tr>
+              ) : (
+                recetas.map((receta) => (
+                  <FilaDesplegable
+                    key={receta.id}
+                    id={receta.id}
+                    etiqueta={etiquetaReceta(receta)}
+                    colSpan={colSpan}
+                    celdas={<TrayectoriaRecetaCeldas receta={receta} acceso={acceso} zonaHoraria={zonaHoraria} />}
+                    detalle={<TrayectoriaRecetaDetalle receta={receta} acceso={acceso} zonaHoraria={zonaHoraria} />}
+                  />
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
         {paginacion.totalPages > 1 ? (
           <nav aria-label="Paginación de recetas del paciente" className="mt-4 flex items-center gap-2 text-sm">
-            <Link
-              href={pageHref(Math.max(1, paginacion.page - 1))}
-              aria-disabled={paginacion.page <= 1}
-              className={paginacion.page <= 1 ? "pointer-events-none text-zinc-400" : "underline"}
-            >
-              Anterior
-            </Link>
+            {paginacion.page <= 1 ? (
+              <span aria-disabled="true" className="text-zinc-400">
+                Anterior
+              </span>
+            ) : (
+              <Link href={pageHref(paginacion.page - 1)} className="underline">
+                Anterior
+              </Link>
+            )}
             <span>
               Página {paginacion.page} de {paginacion.totalPages}
             </span>
-            <Link
-              href={pageHref(Math.min(paginacion.totalPages, paginacion.page + 1))}
-              aria-disabled={paginacion.page >= paginacion.totalPages}
-              className={paginacion.page >= paginacion.totalPages ? "pointer-events-none text-zinc-400" : "underline"}
-            >
-              Siguiente
-            </Link>
+            {paginacion.page >= paginacion.totalPages ? (
+              <span aria-disabled="true" className="text-zinc-400">
+                Siguiente
+              </span>
+            ) : (
+              <Link href={pageHref(paginacion.page + 1)} className="underline">
+                Siguiente
+              </Link>
+            )}
           </nav>
         ) : null}
       </section>

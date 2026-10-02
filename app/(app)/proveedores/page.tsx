@@ -115,15 +115,27 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
 
       {totalPages > 1 ? (
         <nav aria-label="Paginación de proveedores" className="mt-4 flex items-center gap-2 text-sm">
-          <Link href={pageHref(Math.max(1, page - 1))} aria-disabled={page <= 1} className={page <= 1 ? "pointer-events-none text-zinc-400" : "underline"}>
-            Anterior
-          </Link>
+          {page <= 1 ? (
+            <span aria-disabled="true" className="text-zinc-400">
+              Anterior
+            </span>
+          ) : (
+            <Link href={pageHref(page - 1)} className="underline">
+              Anterior
+            </Link>
+          )}
           <span>
             Página {page} de {totalPages}
           </span>
-          <Link href={pageHref(Math.min(totalPages, page + 1))} aria-disabled={page >= totalPages} className={page >= totalPages ? "pointer-events-none text-zinc-400" : "underline"}>
-            Siguiente
-          </Link>
+          {page >= totalPages ? (
+            <span aria-disabled="true" className="text-zinc-400">
+              Siguiente
+            </span>
+          ) : (
+            <Link href={pageHref(page + 1)} className="underline">
+              Siguiente
+            </Link>
+          )}
         </nav>
       ) : null}
     </div>

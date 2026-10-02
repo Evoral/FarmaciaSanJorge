@@ -1,5 +1,6 @@
 /** `/proveedores/[id]` (M06, FASE 4 point 4.3): edit + baja/reactivar. The back link and the Datos/Trayectoria tabs live in `[id]/layout.tsx`. */
 import { notFound } from "next/navigation";
+import { uuid } from "@/shared/validation";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getProveedor } from "@/modules/proveedores/application/get-proveedor";
@@ -15,6 +16,8 @@ interface ProveedorDetallePageProps {
 export default async function ProveedorDetallePage({ params }: ProveedorDetallePageProps) {
   const session = await requireSession();
   const { id } = await params;
+  // The layout already 404s a malformed id; the page guards on its own too (same as pacientes/[id]/page.tsx).
+  if (!uuid.safeParse(id).success) notFound();
 
   const proveedor = await getProveedor(id);
   if (!proveedor) notFound();

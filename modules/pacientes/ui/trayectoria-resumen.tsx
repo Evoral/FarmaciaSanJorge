@@ -8,9 +8,9 @@ import type { ResumenTrayectoria } from "../domain/trayectoria";
 
 function Dato({ etiqueta, valor }: { etiqueta: string; valor: string | number }) {
   return (
-    <div className="card p-4">
+    <div className="card min-w-0 p-4">
       <dt className="text-xs text-zinc-500">{etiqueta}</dt>
-      <dd className="mt-1 text-2xl font-semibold">{valor}</dd>
+      <dd className="mt-1 text-2xl font-semibold tabular-nums [overflow-wrap:anywhere]">{valor}</dd>
     </div>
   );
 }

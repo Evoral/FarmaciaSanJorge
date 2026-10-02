@@ -18,6 +18,7 @@
  */
 import { Decimal, dec } from "@/shared/decimal";
 import { DIAS_ALERTA_VENCIMIENTO_PARTIDA_DEFAULT } from "@/modules/stock/domain/partida";
+import { uuid } from "@/shared/validation";
 
 // ============================================================================
 // Constants
@@ -34,6 +35,15 @@ export const MOVIMIENTOS_POR_PARTIDA_MAX = 20;
 
 /** Latest preparaciones shown per partida. */
 export const PREPARACIONES_POR_PARTIDA_MAX = 20;
+
+/** Latest cost corrections shown per partida (the repository reads one more to know whether there are more). */
+export const CORRECCIONES_POR_PARTIDA_MAX = 20;
+
+/** Most drogas the partidas filter accepts at once (the URL parsing and the use case input are both capped to it). */
+export const DROGAS_FILTRO_MAX = 20;
+
+/** Upper bound of the alert window this view accepts (days). Keeps `::int` and `Date.UTC` far from overflow; ~10 years is already absurd for a vencimiento alert. */
+export const DIAS_ALERTA_MAX = 3650;
 
 // ============================================================================
 // Derived estado of a partida
@@ -60,17 +70,26 @@ export const ESTADO_PARTIDA_LABELS: Readonly<Record<EstadoPartida, string>> = {
  * (the source of the /stock alerts): missing row -> the stock module's default
  * ("30"); anything that is not a positive integer -> 30. Mirrored here, not
  * imported, because a module may not reach into another module's
- * infrastructure layer.
+ * infrastructure layer. UNLIKE the stock parser, a huge value is clamped to
+ * `DIAS_ALERTA_MAX` so it can neither overflow the SQL `::int` cast nor make
+ * the date arithmetic throw (a window that wide is "everything" anyway).
  */
 export function parseDiasAlertaVencimiento(raw: string | null | undefined): number {
   const parsed = Number.parseInt(raw ?? DIAS_ALERTA_VENCIMIENTO_PARTIDA_DEFAULT, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
+  if (!Number.isFinite(parsed) || parsed <= 0) return 30;
+  return Math.min(parsed, DIAS_ALERTA_MAX);
 }
 
-/** `jornada` (YYYY-MM-DD) plus `dias` calendar days, as YYYY-MM-DD. Calendar arithmetic in UTC: no DST drift. */
+/**
+ * `jornada` (YYYY-MM-DD) plus `dias` calendar days, as YYYY-MM-DD. Calendar
+ * arithmetic in UTC: no DST drift. `dias` is clamped to [0, DIAS_ALERTA_MAX]
+ * (non-finite counts as 0) so an absurd window can never produce an Invalid
+ * Date and a RangeError from `toISOString`.
+ */
 export function sumarDiasAJornada(jornada: string, dias: number): string {
   const [anio, mes, dia] = jornada.split("-").map(Number) as [number, number, number];
-  return new Date(Date.UTC(anio, mes - 1, dia + dias)).toISOString().slice(0, 10);
+  const acotados = Number.isFinite(dias) ? Math.min(Math.max(Math.trunc(dias), 0), DIAS_ALERTA_MAX) : 0;
+  return new Date(Date.UTC(anio, mes - 1, dia + acotados)).toISOString().slice(0, 10);
 }
 
 /** A Postgres `date` arrives as UTC midnight: its calendar day is the UTC one (never the server's zone). */
@@ -168,6 +187,12 @@ export interface TotalesCostoCrudos {
   stockValorizado: string;
 }
 
+/** A droga the proveedor has partidas of: one option of the "filtrar por droga" control. */
+export interface DrogaOpcion {
+  id: string;
+  nombre: string;
+}
+
 export interface PartidaCruda {
   id: string;
   drogaNombre: string;
@@ -244,6 +269,12 @@ export interface TrayectoriaProveedorCruda {
   resumen: ResumenCrudo;
   /** `null` unless `acceso.costos`. */
   totales: TotalesCostoCrudos | null;
+  /** Drogas this proveedor has partidas of (distinct), sorted by name. Empty when it has no partidas. */
+  drogasDisponibles: DrogaOpcion[];
+  /** The droga filter actually applied: the requested ids that belong to `drogasDisponibles`. Empty = no filter. */
+  drogaIds: string[];
+  /** Partidas matching the filter (= `resumen.partidas` without a filter). Drives the pagination. */
+  totalFiltrado: number;
   /** Requested page, already clamped to the last real page. */
   page: number;
   partidas: PartidaCruda[];
@@ -292,6 +323,12 @@ export interface ContralorTrayectoria {
   numeroAsiento: string | null;
 }
 
+/** The corrections shown for a partida (latest first) and whether older ones were left out. */
+export interface CorreccionesTrayectoria {
+  items: CorreccionCostoTrayectoria[];
+  hayMas: boolean;
+}
+
 export interface CorreccionCostoTrayectoria {
   id: string;
   /** Decimal strings; `null` when that side of the diff has no `costoUnitario`. */
@@ -329,7 +366,7 @@ export interface PartidaTrayectoria {
   /** `null` without `libro.ver`, or when the droga is not controlled. */
   contralor: ContralorTrayectoria | null;
   /** `null` without `auditoria.ver`. */
-  correcciones: CorreccionCostoTrayectoria[] | null;
+  correcciones: CorreccionesTrayectoria | null;
 }
 
 export interface PaginacionTrayectoriaProveedor {
@@ -344,7 +381,12 @@ export interface TrayectoriaProveedor {
   acceso: AccesoTrayectoriaProveedor;
   zonaHoraria: string;
   resumen: ResumenTrayectoriaProveedor;
+  /** Drogas the proveedor has partidas of, sorted by name (the filter's options). */
+  drogasDisponibles: DrogaOpcion[];
+  /** The droga filter in effect (ids that belong to `drogasDisponibles`); empty = no filter. The resumen ignores it. */
+  drogaIds: string[];
   partidas: PartidaTrayectoria[];
+  /** Over the FILTERED partidas (`total`); the proveedor-wide count is `resumen.partidas`. */
   paginacion: PaginacionTrayectoriaProveedor;
 }
 
@@ -356,6 +398,47 @@ export interface TrayectoriaProveedor {
 export function calcularPaginacion(total: number, page: number, pageSize: number = PAGE_SIZE_TRAYECTORIA_PROVEEDOR): PaginacionTrayectoriaProveedor {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   return { page: Math.min(Math.max(1, page), totalPages), pageSize, total, totalPages };
+}
+
+// ============================================================================
+// Filter by droga
+// ============================================================================
+
+/**
+ * The `droga` search param (`string | string[] | undefined`; one entry per
+ * repeated `?droga=a&droga=b`) as a clean id list: only valid uuids (the shared
+ * zod `uuid`), lowercased (Postgres prints uuids in lowercase and ids are
+ * compared as strings), deduplicated in first-seen order and capped to
+ * `DROGAS_FILTRO_MAX`. Anything else is dropped silently, never an error.
+ * Whether an id belongs to the proveedor is NOT decided here
+ * (see `filtrarDrogasDelProveedor`).
+ */
+export function parsearDrogaIds(raw: string | readonly string[] | undefined): string[] {
+  const lista = raw === undefined ? [] : typeof raw === "string" ? [raw] : raw;
+  const ids = new Set<string>();
+  for (const valor of lista) {
+    if (ids.size >= DROGAS_FILTRO_MAX) break;
+    if (typeof valor === "string" && uuid.safeParse(valor).success) ids.add(valor.toLowerCase());
+  }
+  return [...ids];
+}
+
+/** Keeps only the requested ids that are one of the proveedor's own drogas: the filter is never trusted, an unknown id is ignored. */
+export function filtrarDrogasDelProveedor(ids: readonly string[], disponibles: readonly DrogaOpcion[]): string[] {
+  const propias = new Set(disponibles.map((d) => d.id));
+  return ids.filter((id) => propias.has(id));
+}
+
+/** The selected drogas in the order of `disponibles` (by name), so the chips never reshuffle when the URL's order changes. */
+export function drogasSeleccionadas(disponibles: readonly DrogaOpcion[], ids: readonly string[]): DrogaOpcion[] {
+  const elegidas = new Set(ids);
+  return disponibles.filter((d) => elegidas.has(d.id));
+}
+
+/** What the "Agregar droga" select still offers: the available drogas minus the already selected ones. */
+export function drogasRestantes(disponibles: readonly DrogaOpcion[], ids: readonly string[]): DrogaOpcion[] {
+  const elegidas = new Set(ids);
+  return disponibles.filter((d) => !elegidas.has(d.id));
 }
 
 // ============================================================================
@@ -411,6 +494,26 @@ function acotar<T>(items: T[], total: number): ListaAcotada<T> {
   return { items, total, hayMas: total > items.length };
 }
 
+/** Cost corrections of ONE partida: only audit rows whose diff touches `costoUnitario`, capped, with a "hay más" flag. Amounts only with `costos`. */
+function armarCorrecciones(filas: readonly AuditoriaCostoCruda[], costos: boolean): CorreccionesTrayectoria {
+  const todas = filas.flatMap((a) => {
+    const diff = correccionDeCosto(a.valorAnterior, a.valorNuevo);
+    return diff
+      ? [
+          {
+            id: a.id,
+            costoAnterior: costos ? diff.costoAnterior : null,
+            costoNuevo: costos ? diff.costoNuevo : null,
+            motivo: a.motivo,
+            quien: `${a.usuarioNombre} ${a.usuarioApellido}`,
+            cuando: a.ocurridoEn,
+          },
+        ]
+      : [];
+  });
+  return { items: todas.slice(0, CORRECCIONES_POR_PARTIDA_MAX), hayMas: todas.length > CORRECCIONES_POR_PARTIDA_MAX };
+}
+
 /**
  * Shapes the raw rows into the view model. Each optional block is built ONLY
  * when `acceso` allows it, even if the caller handed in rows for it (defense in
@@ -462,23 +565,7 @@ export function armarTrayectoriaProveedor(cruda: TrayectoriaProveedorCruda, acce
         : null,
       contralor:
         acceso.contralor && p.esControlada ? { numeroValeAdquisicion: asiento?.numeroValeAdquisicion ?? null, numeroAsiento: asiento?.numeroAsiento ?? null } : null,
-      correcciones: acceso.correcciones
-        ? (correcciones.get(p.id) ?? []).flatMap((a) => {
-            const diff = correccionDeCosto(a.valorAnterior, a.valorNuevo);
-            return diff
-              ? [
-                  {
-                    id: a.id,
-                    costoAnterior: acceso.costos ? diff.costoAnterior : null,
-                    costoNuevo: acceso.costos ? diff.costoNuevo : null,
-                    motivo: a.motivo,
-                    quien: `${a.usuarioNombre} ${a.usuarioApellido}`,
-                    cuando: a.ocurridoEn,
-                  },
-                ]
-              : [];
-          })
-        : null,
+      correcciones: acceso.correcciones ? armarCorrecciones(correcciones.get(p.id) ?? [], acceso.costos) : null,
     };
   });
 
@@ -494,7 +581,9 @@ export function armarTrayectoriaProveedor(cruda: TrayectoriaProveedorCruda, acce
       porVencer: cruda.resumen.porVencer,
       totales: acceso.costos ? cruda.totales : null,
     },
+    drogasDisponibles: cruda.drogasDisponibles,
+    drogaIds: cruda.drogaIds,
     partidas,
-    paginacion: calcularPaginacion(cruda.resumen.partidas, cruda.page),
+    paginacion: calcularPaginacion(cruda.totalFiltrado, cruda.page),
   };
 }

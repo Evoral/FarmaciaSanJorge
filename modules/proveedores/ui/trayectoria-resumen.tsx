@@ -9,11 +9,21 @@ import { formatFecha } from "@/shared/format/fecha";
 import { formatearMonto } from "@/shared/format/monto";
 import type { ResumenTrayectoriaProveedor } from "../domain/trayectoria";
 
-function Dato({ etiqueta, valor }: { etiqueta: string; valor: string | number }) {
+/**
+ * `min-w-0` lets the grid cell shrink below its content's width (grid items
+ * default to `min-width: auto`, which made long values spill into the next
+ * card).
+ *
+ * Amounts are NEVER wrapped (splitting "265.872.439.326.000,00" across lines
+ * is unreadable): they live in their own, wider row (see below) and use
+ * `whitespace-nowrap`; if one is still wider than its card it scrolls inside
+ * the card instead of breaking.
+ */
+function Dato({ etiqueta, valor, monto = false }: { etiqueta: string; valor: string | number; monto?: boolean }) {
   return (
-    <div className="card p-4">
+    <div className="card min-w-0 p-4">
       <dt className="text-xs text-zinc-500">{etiqueta}</dt>
-      <dd className="mt-1 text-2xl font-semibold">{valor}</dd>
+      <dd className={`mt-1 font-semibold tabular-nums ${monto ? "overflow-x-auto whitespace-nowrap text-lg sm:text-xl" : "text-2xl [overflow-wrap:anywhere]"}`}>{valor}</dd>
     </div>
   );
 }
@@ -31,9 +41,13 @@ export function TrayectoriaResumen({ resumen, zonaHoraria }: { resumen: ResumenT
         <Dato etiqueta="Último ingreso" valor={resumen.ultimoIngreso ? formatFecha(resumen.ultimoIngreso, zonaHoraria) : "—"} />
         <Dato etiqueta="Vencidas con saldo" valor={resumen.vencidasConSaldo} />
         <Dato etiqueta="Por vencer" valor={resumen.porVencer} />
-        {totales ? <Dato etiqueta="Total comprado" valor={`$ ${formatearMonto(totales.totalComprado)}`} /> : null}
-        {totales ? <Dato etiqueta="Stock valorizado actual" valor={`$ ${formatearMonto(totales.stockValorizado)}`} /> : null}
       </dl>
+      {totales ? (
+        <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Dato etiqueta="Total comprado" valor={`$ ${formatearMonto(totales.totalComprado)}`} monto />
+          <Dato etiqueta="Stock valorizado actual" valor={`$ ${formatearMonto(totales.stockValorizado)}`} monto />
+        </dl>
+      ) : null}
       {totales ? (
         <p className="mt-2 text-xs text-zinc-500">
           Ambos importes usan el costo unitario ACTUAL de cada partida: el sistema no guarda historial de costos (las correcciones quedan en la auditoría).
