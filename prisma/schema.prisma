@@ -814,7 +814,7 @@ model Receta {
   /// Migration 0049. CIE-10 code, format CHECKed in the DB.
   diagnosticoCodigo      String?      @map("diagnostico_codigo") @db.VarChar(10)
   diagnosticoDescripcion String?      @map("diagnostico_descripcion")
-  /// Migration 0056: the lab's "toma" -- who took the receta from the /preparaciones queue and when. Both set or both null (receta_toma_pair_check); cleared by "Cancelar toma". Partial index idx_receta_tenant_tomada_en_curso (not expressible here).
+  /// Migration 0057: the lab's "toma" -- who took the receta from the /preparaciones queue and when. Both set or both null (receta_toma_pair_check); cleared by "Cancelar toma". Partial index idx_receta_tenant_tomada_en_curso (not expressible here).
   tomadaPorId            String?      @map("tomada_por_id") @db.Uuid
   tomadaEn               DateTime?    @map("tomada_en") @db.Timestamptz(6)
 

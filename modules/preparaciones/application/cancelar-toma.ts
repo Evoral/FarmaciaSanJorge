@@ -1,7 +1,7 @@
 /**
  * `cancelarToma` (M11, /preparaciones design "B"): reverts a toma -- the
  * receta goes back to the Pendientes queue (`tomada_por_id`/`tomada_en`
- * cleared, migration 0056). Refused while an ítem has a preparación
+ * cleared, migration 0057). Refused while an ítem has a preparación
  * INICIADA: it must be discarded first, from its own screen (domain/toma.ts).
  * Any user with `preparaciones.iniciar` may cancel, not only whoever took
  * it (the lab shares the queue); the audit records who did.

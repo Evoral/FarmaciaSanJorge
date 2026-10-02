@@ -1,7 +1,7 @@
 /**
  * `tomarReceta` (M11, /preparaciones design "B"): the lab takes a receta
  * from the Pendientes queue. Only records WHO took it and WHEN
- * (`receta.tomada_por_id` / `tomada_en`, migration 0056) -- no preparación
+ * (`receta.tomada_por_id` / `tomada_en`, migration 0057) -- no preparación
  * is created and the receta's estado does not change, so a
  * PENDIENTE_PREPARACION receta stays editable. Rules: domain/toma.ts.
  *

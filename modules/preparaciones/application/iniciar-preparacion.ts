@@ -12,7 +12,7 @@
  * EN_PREPARACION once anyway). A terminal receta (ENTREGADA/ANULADA) can
  * never start a new preparación.
  *
- * The toma (migration 0056, domain/toma.ts): the toma workspace's
+ * The toma (migration 0057, domain/toma.ts): the toma workspace's
  * "Confirmar terminación" runs this on a receta its user already took. When
  * it runs on a receta nobody took (the ficha técnica screen's "Preparar"),
  * the starter takes it here too, so a receta with a preparación INICIADA is

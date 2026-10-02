@@ -1,4 +1,4 @@
--- Rollback of 0056_toma_receta. Prisma has no "down": apply this as the body
+-- Rollback of 0057_toma_receta. Prisma has no "down": apply this as the body
 -- of a NEW forward migration (next free number).
 --
 -- DATA LOSS: dropping the columns discards who took each receta and when.

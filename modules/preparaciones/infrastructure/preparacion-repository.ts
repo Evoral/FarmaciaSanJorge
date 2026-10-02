@@ -849,7 +849,7 @@ export interface ListRecetasPendientesRow {
 
 /**
  * The /preparaciones "Pendientes" tab: recetas PENDIENTE_PREPARACION or
- * EN_PREPARACION that nobody took (`tomada_por_id IS NULL`, migration 0056)
+ * EN_PREPARACION that nobody took (`tomada_por_id IS NULL`, migration 0057)
  * and that still have at least one ítem needing a preparación
  * (`ITEM_SIN_PREPARACION_ACTIVA`). A receta without a ficha técnica is
  * listed too (the toma workspace lets the lab generate it).
@@ -1154,7 +1154,7 @@ export interface ListRecetasEnCursoRow {
 
 /**
  * The /preparaciones "En curso" tab: recetas taken by the lab (migration
- * 0056) that are still PENDIENTE_PREPARACION or EN_PREPARACION and have at
+ * 0057) that are still PENDIENTE_PREPARACION or EN_PREPARACION and have at
  * least one ítem without a CONFIRMADA preparación (once every ítem is
  * confirmed the receta is PREPARADA anyway). The `tomada_por_id`/estado
  * predicates match the partial index idx_receta_tenant_tomada_en_curso.
@@ -1254,7 +1254,7 @@ export async function listRecetasEnCurso(
 }
 
 // ============================================================================
-// Toma (migration 0056): who took a receta from the queue, and when
+// Toma (migration 0057): who took a receta from the queue, and when
 // ============================================================================
 
 export interface TomaDeReceta {

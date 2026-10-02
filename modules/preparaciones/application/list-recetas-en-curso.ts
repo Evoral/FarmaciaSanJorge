@@ -1,6 +1,6 @@
 /**
  * `listRecetasEnCurso` (M11): the /preparaciones "En curso" tab -- recetas
- * the lab took (domain/toma.ts, migration 0056) that still have ítems to
+ * the lab took (domain/toma.ts, migration 0057) that still have ítems to
  * confirm, oldest toma first (rule:
  * modules/preparaciones/infrastructure/preparacion-repository.ts#listRecetasEnCursoSql).
  * Each row opens the receta's toma workspace. Also the home dashboard's

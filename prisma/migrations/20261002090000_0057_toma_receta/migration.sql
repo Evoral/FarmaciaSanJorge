@@ -1,4 +1,4 @@
--- 0056_toma_receta
+-- 0057_toma_receta
 --
 -- The lab's "toma" of a receta (/preparaciones, design "B"): taking a receta
 -- from the Pendientes queue only records WHO took it and WHEN. It creates no
@@ -53,8 +53,8 @@
 -- the highest at the time of writing; the collaborator may add migrations in
 -- parallel -- re-check the number and timestamp before applying.
 --
--- *** APPLY 0056 BEFORE DEPLOYING THE CODE THAT USES IT. ***
--- Rollback: prisma/rollbacks/0056_toma_receta.down.sql (as a NEW forward
+-- *** APPLY 0057 BEFORE DEPLOYING THE CODE THAT USES IT. ***
+-- Rollback: prisma/rollbacks/0057_toma_receta.down.sql (as a NEW forward
 -- migration).
 
 -- ============================================================================
@@ -69,10 +69,10 @@ ALTER TABLE fsj.receta
   ADD CONSTRAINT receta_toma_pair_check CHECK ((tomada_por_id IS NULL) = (tomada_en IS NULL));
 
 COMMENT ON COLUMN fsj.receta.tomada_por_id IS
-  '0056. Who took the receta from the /preparaciones queue (the lab''s "toma"). Set together with tomada_en (receta_toma_pair_check); cleared again by "Cancelar toma" while no preparación is INICIADA. Kept once the receta leaves the lab, as history.';
+  '0057. Who took the receta from the /preparaciones queue (the lab''s "toma"). Set together with tomada_en (receta_toma_pair_check); cleared again by "Cancelar toma" while no preparación is INICIADA. Kept once the receta leaves the lab, as history.';
 
 COMMENT ON COLUMN fsj.receta.tomada_en IS
-  '0056. When the receta was taken (see tomada_por_id).';
+  '0057. When the receta was taken (see tomada_por_id).';
 
 GRANT UPDATE (tomada_por_id, tomada_en) ON fsj.receta TO fsj_app;
 

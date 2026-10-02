@@ -1,5 +1,5 @@
 /**
- * The lab's "toma" of a receta (migration 0056, /preparaciones design "B").
+ * The lab's "toma" of a receta (migration 0057, /preparaciones design "B").
  * Pure, no I/O.
  *
  * Taking a receta from the Pendientes queue only records who took it and
