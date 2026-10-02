@@ -9,7 +9,7 @@
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
-import { ROLES_ASIGNABLES } from "../domain/roles";
+import { codigoRolAsignableSchema } from "../domain/roles";
 import { listUsuarios as listUsuariosRepo } from "../infrastructure/usuario-repository";
 import type { ListUsuariosResult } from "../infrastructure/usuario-repository";
 
@@ -18,7 +18,7 @@ const ESTADOS = ["PENDIENTE_ACTIVACION", "ACTIVO", "SUSPENDIDO", "BAJA"] as cons
 const listUsuariosInput = z.object({
   search: z.string().trim().max(200).optional(),
   estado: z.enum(ESTADOS).optional(),
-  rolCodigo: z.enum(ROLES_ASIGNABLES).optional(),
+  rolCodigo: codigoRolAsignableSchema.optional(),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(100).default(20),
 });

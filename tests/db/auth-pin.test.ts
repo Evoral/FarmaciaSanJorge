@@ -32,7 +32,7 @@ async function createSistemaUser(tx: import("pg").Client, tenantId: string): Pro
      VALUES ($1, $2, $3, 'Sistema', 'Tecnico', $4, 'ACTIVO', true, $1)`,
     [id, tenantId, `sistema+${id}@internal.local`, `SISTEMA-${id}`],
   );
-  const sistemaRol = await tx.query(`SELECT id FROM fsj.rol WHERE codigo = 'SISTEMA'`);
+  const sistemaRol = await tx.query(`SELECT id FROM fsj.rol WHERE tenant_id = $1 AND codigo = 'SISTEMA'`, [tenantId]);
   await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1, $2, $3, $2)`, [
     tenantId,
     id,
@@ -48,7 +48,7 @@ async function createUsuarioActivo(tx: import("pg").Client, tenantId: string, si
     `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, creado_por_id) VALUES ($1,$2,$3,'N','A',$4,$5)`,
     [id, tenantId, email, `D-${suffix}-${Math.random().toString(36).slice(2, 6)}`, sistemaId],
   );
-  const rolId = await tx.query(`SELECT id FROM fsj.rol WHERE codigo = 'FARMACEUTICO'`);
+  const rolId = await tx.query(`SELECT id FROM fsj.rol WHERE tenant_id = $1 AND codigo = 'FARMACEUTICO'`, [tenantId]);
   await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1,$2,$3,$4)`, [
     tenantId,
     id,

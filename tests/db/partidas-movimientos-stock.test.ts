@@ -24,7 +24,7 @@ async function createSistemaUser(tx: Client, tenantId: string): Promise<string> 
      VALUES ($1, $2, $3, 'Sistema', 'Tecnico', $4, 'ACTIVO', true, $1)`,
     [id, tenantId, `sistema+${id}@internal.local`, `SISTEMA-${id}`],
   );
-  const sistemaRol = await tx.query(`SELECT id FROM fsj.rol WHERE codigo = 'SISTEMA'`);
+  const sistemaRol = await tx.query(`SELECT id FROM fsj.rol WHERE tenant_id = $1 AND codigo = 'SISTEMA'`, [tenantId]);
   await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1, $2, $3, $2)`, [
     tenantId,
     id,
@@ -53,7 +53,7 @@ async function createUserWithRole(
     `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, estado, creado_por_id) VALUES ($1,$2,$3,'N','A',$4,$5,$6)`,
     [id, tenantId, `${suffix}-${Date.now()}@example.com`, `DNI-${suffix}-${Date.now()}`, estado, sistema],
   );
-  const rol = await tx.query(`SELECT id FROM fsj.rol WHERE codigo = $1`, [rolCodigo]);
+  const rol = await tx.query(`SELECT id FROM fsj.rol WHERE tenant_id = $1 AND codigo = $2`, [tenantId, rolCodigo]);
   await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1,$2,$3,$4)`, [
     tenantId,
     id,

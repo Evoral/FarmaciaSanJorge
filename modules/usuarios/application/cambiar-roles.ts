@@ -12,6 +12,14 @@
  * called directly, per-role, inside the handler instead: `defineCommand`'s
  * built-in `audit` option only writes ONE row per invocation, which cannot
  * express "N rows, one per changed role" on its own.
+ *
+ * DP-03 (migration 0054): roles are per-tenant data, so `roles` is a list
+ * of format-checked codes (SISTEMA rejected by zod) and the roles being
+ * ADDED are resolved against the session's tenant
+ * (`resolverRolesAAsignar`): an unknown code is a validation error, and a
+ * role whose permisos exceed the actor's own cannot be granted (escalation
+ * rule). The last-admin / own-admin / designated-DT rules below keep keying
+ * on the fixed ADMINISTRADOR / DIRECTOR_TECNICO codes.
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
@@ -19,14 +27,15 @@ import { record as auditRecord } from "@/shared/audit";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { AUTH_POLICY } from "@/shared/auth/policy";
-import { ROLES_ASIGNABLES } from "../domain/roles";
+import { codigoRolAsignableSchema, ROL_ADMINISTRADOR, ROL_DIRECTOR_TECNICO } from "../domain/roles";
+import { resolverRolesAAsignar } from "./roles-asignables";
 import { esAccionSobreSiMismo, quedariaSinAdministradores } from "../domain/reglas-admin";
 import { lockUsuarioYAdministradoresActivos } from "../infrastructure/admin-guard";
 import { loadUsuarioParaAccion, insertUsuarioRol, deleteUsuarioRol, tieneDesignacionDtVigente } from "../infrastructure/usuario-repository";
 
 const cambiarRolesInput = z.object({
   usuarioId: uuid,
-  roles: z.array(z.enum(ROLES_ASIGNABLES)).min(1, "El usuario debe conservar al menos un rol."),
+  roles: z.array(codigoRolAsignableSchema).min(1, "El usuario debe conservar al menos un rol.").max(50),
 });
 
 export type CambiarRolesInput = z.infer<typeof cambiarRolesInput>;
@@ -50,14 +59,16 @@ export const cambiarRolesCommand = defineCommand({
 
     const actuales = new Set<string>(actual.roles);
     const deseados = new Set<string>(input.roles);
-    const aAgregar = input.roles.filter((codigo) => !actuales.has(codigo));
+    const aAgregar = [...deseados].filter((codigo) => !actuales.has(codigo));
     const aQuitar = actual.roles.filter((codigo) => !deseados.has(codigo));
 
     if (aAgregar.length === 0 && aQuitar.length === 0) {
       throw new DomainError("No hay cambios de roles para aplicar.");
     }
 
-    if (aQuitar.includes("ADMINISTRADOR")) {
+    await resolverRolesAAsignar(tx, session, aAgregar);
+
+    if (aQuitar.includes(ROL_ADMINISTRADOR)) {
       if (esAccionSobreSiMismo(session.usuario.id, input.usuarioId)) {
         throw new DomainError("No podés quitarte tu propio rol de Administrador.");
       }
@@ -68,7 +79,7 @@ export const cambiarRolesCommand = defineCommand({
       }
     }
 
-    if (aQuitar.includes("DIRECTOR_TECNICO")) {
+    if (aQuitar.includes(ROL_DIRECTOR_TECNICO)) {
       if (await tieneDesignacionDtVigente(tx, session.tenantId, input.usuarioId)) {
         throw new DomainError("Este usuario tiene una designación de Director Técnico vigente. Cesá la designación antes de quitar el rol.");
       }

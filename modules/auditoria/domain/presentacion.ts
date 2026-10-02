@@ -47,6 +47,7 @@ export const ENTIDADES: Readonly<Record<string, EntidadInfo>> = {
   receta: { nombre: "receta", articulo: "la" },
   receta_reporte: { nombre: "reporte de recetas", articulo: "el" },
   regla_precio: { nombre: "regla de precio", articulo: "la" },
+  rol: { nombre: "rol", articulo: "el" },
   stock_kardex_reporte: { nombre: "reporte de kardex", articulo: "el" },
   stock_valorizado_reporte: { nombre: "reporte de stock valorizado", articulo: "el" },
   tenant: { nombre: "datos de la farmacia", articulo: "los" },
@@ -84,6 +85,9 @@ export const ACCION_LABELS: Readonly<Record<TipoAccion, string>> = {
   IMPRIMIR_CIERRE: "Impresión de cierre",
   EXPORTAR: "Exportación",
   ACCESO_DENEGADO: "Acceso denegado",
+  CREAR_ROL: "Creación de rol",
+  EDITAR_ROL: "Modificación de rol",
+  ELIMINAR_ROL: "Eliminación de rol",
 };
 
 /** Past-tense verb phrase for the sentence. A trailing " de"/" a" contracts with "el" ("del"/"al"). */
@@ -110,6 +114,9 @@ const ACCION_VERBOS: Readonly<Record<TipoAccion, string>> = {
   IMPRIMIR_CIERRE: "imprimió",
   EXPORTAR: "exportó",
   ACCESO_DENEGADO: "intentó realizar",
+  CREAR_ROL: "creó",
+  EDITAR_ROL: "modificó",
+  ELIMINAR_ROL: "eliminó",
 };
 
 /** "María López modificó la droga", "Juan Pérez cambió el estado del usuario". */

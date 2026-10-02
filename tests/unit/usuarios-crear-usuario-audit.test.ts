@@ -56,6 +56,14 @@ vi.mock("@/modules/usuarios/infrastructure/usuario-repository", () => ({
   insertCredencialActivacion: vi.fn(async () => undefined),
 }));
 
+// DP-03: crearUsuario resolves the submitted codes against the tenant's roles first (roles-asignables.ts).
+vi.mock("@/modules/usuarios/infrastructure/rol-repository", () => ({
+  findRolesPorCodigo: vi.fn(async (_tx: unknown, _tenantId: string, codigos: string[]) =>
+    codigos.map((codigo) => ({ id: `rol-${codigo}`, codigo, nombre: codigo, esAdministrador: false, permisos: [] })),
+  ),
+  codigosDeRolesDelUsuario: vi.fn(async () => ["ADMINISTRADOR"]),
+}));
+
 const { crearUsuarioCommand } = await import("@/modules/usuarios/application/crear-usuario");
 
 function fakeSession(): AuthenticatedSession {

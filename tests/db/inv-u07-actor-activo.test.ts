@@ -363,7 +363,7 @@ describe.skipIf(dbTestSkipReason() !== null)("INV-U07 (migration 0023): actor co
              VALUES ($1, $2, $3, 'Sistema', 'Tecnico', $4, 'ACTIVO', true, $1)`,
             [sistemaId, tenantId, `sistema+${sistemaId}@internal.local`, `SISTEMA-${sistemaId}`],
           );
-          const sistemaRol = await tx.query(`SELECT id FROM fsj.rol WHERE codigo = 'SISTEMA'`);
+          const sistemaRol = await tx.query(`SELECT id FROM fsj.rol WHERE tenant_id = $1 AND codigo = 'SISTEMA'`, [tenantId]);
           await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1, $2, $3, $2)`, [
             tenantId,
             sistemaId,
@@ -376,7 +376,7 @@ describe.skipIf(dbTestSkipReason() !== null)("INV-U07 (migration 0023): actor co
              VALUES ($1, $2, $3, 'Admin', 'Uno', $4, 'PENDIENTE_ACTIVACION', false, $5)`,
             [adminId, tenantId, `admin+${adminId}@example.com`, `DNI-${adminId}`, sistemaId],
           );
-          const adminRol = await tx.query(`SELECT id FROM fsj.rol WHERE codigo = 'ADMINISTRADOR'`);
+          const adminRol = await tx.query(`SELECT id FROM fsj.rol WHERE tenant_id = $1 AND codigo = 'ADMINISTRADOR'`, [tenantId]);
           await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1, $2, $3, $4)`, [
             tenantId,
             adminId,

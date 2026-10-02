@@ -98,7 +98,7 @@ export async function lockUsuarioYAdministradoresActivos(
     SELECT u.id,
            (u.estado = 'ACTIVO' AND EXISTS (
              SELECT 1 FROM fsj.usuario_rol ur
-             JOIN fsj.rol r ON r.id = ur.rol_id
+             JOIN fsj.rol r ON r.tenant_id = ur.tenant_id AND r.id = ur.rol_id
              WHERE ur.usuario_id = u.id AND ur.tenant_id = u.tenant_id AND r.codigo = 'ADMINISTRADOR'
            )) AS es_admin_activo
     FROM fsj.usuario u
@@ -107,7 +107,7 @@ export async function lockUsuarioYAdministradoresActivos(
         u.id = ${usuarioId}::uuid
         OR (u.estado = 'ACTIVO' AND EXISTS (
           SELECT 1 FROM fsj.usuario_rol ur
-          JOIN fsj.rol r ON r.id = ur.rol_id
+          JOIN fsj.rol r ON r.tenant_id = ur.tenant_id AND r.id = ur.rol_id
           WHERE ur.usuario_id = u.id AND ur.tenant_id = u.tenant_id AND r.codigo = 'ADMINISTRADOR'
         ))
       )
@@ -131,7 +131,7 @@ export async function lockUsuarioYAdministradoresActivos(
       AND u.estado = 'ACTIVO'
       AND EXISTS (
         SELECT 1 FROM fsj.usuario_rol ur
-        JOIN fsj.rol r ON r.id = ur.rol_id
+        JOIN fsj.rol r ON r.tenant_id = ur.tenant_id AND r.id = ur.rol_id
         WHERE ur.usuario_id = u.id AND ur.tenant_id = u.tenant_id AND r.codigo = 'ADMINISTRADOR'
       )
     ORDER BY u.id

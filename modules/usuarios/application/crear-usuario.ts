@@ -29,6 +29,10 @@
  * could mint itself a fresh ADMINISTRADOR account without ever having to
  * prove the password again, even though `cambiarRoles` already requires
  * exactly that step-up to grant the SAME role to an EXISTING user.
+ *
+ * DP-03 (migration 0054): `roles` are codes of the session's TENANT roles,
+ * resolved and escalation-checked by `resolverRolesAAsignar` before the
+ * usuario is inserted (see cambiar-roles.ts).
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
@@ -37,7 +41,8 @@ import { ValidationError } from "@/shared/errors";
 import { email as emailSchema, nonEmptyString } from "@/shared/validation";
 import { AUTH_POLICY } from "@/shared/auth/policy";
 import { generateOpaqueToken, hashToken } from "@/modules/auth/domain/token";
-import { ROLES_ASIGNABLES } from "../domain/roles";
+import { codigoRolAsignableSchema } from "../domain/roles";
+import { resolverRolesAAsignar } from "./roles-asignables";
 import { existeEmail, existeDni, insertUsuario, insertUsuarioRol, insertCredencialActivacion } from "../infrastructure/usuario-repository";
 
 const crearUsuarioInput = z.object({
@@ -46,7 +51,11 @@ const crearUsuarioInput = z.object({
   email: emailSchema,
   dni: nonEmptyString,
   numeroMatricula: z.string().trim().max(100).optional(),
-  roles: z.array(z.enum(ROLES_ASIGNABLES)).min(1, "Elegí al menos un rol."),
+  roles: z
+    .array(codigoRolAsignableSchema)
+    .min(1, "Elegí al menos un rol.")
+    .max(50)
+    .transform((roles) => [...new Set(roles)]),
 });
 
 export type CrearUsuarioInput = z.infer<typeof crearUsuarioInput>;
@@ -76,6 +85,8 @@ export const crearUsuarioCommand = defineCommand({
     if (await existeDni(tx, session.tenantId, input.dni)) {
       throw new ValidationError("Ya existe un usuario con ese DNI en esta farmacia.");
     }
+
+    await resolverRolesAAsignar(tx, session, input.roles);
 
     const nuevo = await insertUsuario(tx, {
       tenantId: session.tenantId,

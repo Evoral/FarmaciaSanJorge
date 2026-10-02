@@ -112,6 +112,13 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   "INV-S17": "La fecha de apertura de la partida ya fue registrada y no se puede cambiar.",
   "INV-STK-002": "No se pudo registrar el ingreso de la partida: la cantidad ingresada no coincide con su cantidad inicial. Volvé a intentarlo.",
 
+  // Roles (migration 0054, DP-03)
+  "INV-ROL-001": "El código de un rol no se puede cambiar.",
+  "INV-ROL-002": "El rol Administrador y el rol interno del sistema no se pueden modificar ni eliminar.",
+  "INV-ROL-003": "El rol Director Técnico no se puede eliminar.",
+  "INV-ROL-004": "El rol está asignado a uno o más usuarios: quitáselo antes de eliminarlo.",
+  "INV-ROL-005": "El rol interno del sistema no se puede asignar a un usuario.",
+
   // Usuarios
   "INV-U02": "El usuario debe tener al menos un rol.",
   "INV-U04": "No hay una designación de Director Técnico vigente para esa fecha.",

@@ -17,7 +17,6 @@
 import { crearUsuario } from "@/modules/usuarios/application/crear-usuario";
 import { StepUpRequiredError } from "@/shared/errors";
 import { actionError } from "@/shared/ui/action-error";
-import { ROLES_ASIGNABLES } from "@/modules/usuarios/domain/roles";
 
 export interface CrearUsuarioFormState {
   status: "idle" | "error" | "reauth-required" | "success";
@@ -30,7 +29,8 @@ export interface CrearUsuarioFormState {
 }
 
 export async function crearUsuarioAction(_prevState: CrearUsuarioFormState, formData: FormData): Promise<CrearUsuarioFormState> {
-  const roles = formData.getAll("roles").map(String).filter((value) => (ROLES_ASIGNABLES as readonly string[]).includes(value));
+  // Passed through raw: crearUsuario validates each code against the session tenant's roles (DP-03).
+  const roles = formData.getAll("roles").map(String);
 
   try {
     const result = await crearUsuario({
@@ -39,8 +39,7 @@ export async function crearUsuarioAction(_prevState: CrearUsuarioFormState, form
       email: String(formData.get("email") ?? ""),
       dni: String(formData.get("dni") ?? ""),
       numeroMatricula: String(formData.get("numeroMatricula") ?? "").trim() || undefined,
-      // zod validates membership/min-length server-side regardless of the filter above.
-      roles: roles as (typeof ROLES_ASIGNABLES)[number][],
+      roles,
     });
 
     return {

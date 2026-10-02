@@ -17,6 +17,7 @@ import { uuid, nonEmptyString } from "@/shared/validation";
 import { AUTH_POLICY } from "@/shared/auth/policy";
 import { revokeAllSesionesForUsuarioInTx } from "@/modules/auth/application/revoke-session";
 import { esAccionSobreSiMismo, quedariaSinAdministradores } from "../domain/reglas-admin";
+import { ROL_ADMINISTRADOR } from "../domain/roles";
 import { lockUsuarioYAdministradoresActivos } from "../infrastructure/admin-guard";
 import { loadUsuarioParaAccion, cambiarEstadoUsuario, revokeCredencialesActivas } from "../infrastructure/usuario-repository";
 
@@ -49,7 +50,7 @@ export const darDeBajaUsuarioCommand = defineCommand({
       throw new DomainError("El usuario ya está dado de baja.");
     }
 
-    if (actual.roles.includes("ADMINISTRADOR") && actual.estado === "ACTIVO") {
+    if (actual.roles.includes(ROL_ADMINISTRADOR) && actual.estado === "ACTIVO") {
       if (quedariaSinAdministradores(idsAdminsActivos, input.usuarioId)) {
         throw new DomainError("Debe existir al menos un administrador activo; no se puede dar de baja a este usuario.");
       }

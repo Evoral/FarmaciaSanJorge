@@ -22,7 +22,7 @@ import { z } from "zod";
 export const CARACTERES_DESIGNACION = ["TITULAR", "SUPLENTE"] as const;
 export type CaracterDesignacion = (typeof CARACTERES_DESIGNACION)[number];
 
-/** Neutral, professional Spanish -- UI copy (same convention as modules/usuarios/domain/roles.ts's ROL_LABELS). */
+/** Neutral, professional Spanish -- UI copy (same convention as modules/usuarios/domain/roles.ts's GRUPO_PERMISO_LABELS). */
 export const CARACTER_LABELS: Record<CaracterDesignacion, string> = {
   TITULAR: "Titular",
   SUPLENTE: "Suplente",

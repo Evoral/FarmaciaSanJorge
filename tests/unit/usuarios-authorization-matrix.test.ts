@@ -91,6 +91,8 @@ const SEED_GRANTS: Record<Rol, readonly Permiso[]> = {
     "usuarios.credencial.restablecer",
     "usuarios.auditoria.ver",
     "roles.ver",
+    // Migration 0054 (DP-03): ADMINISTRADOR is locked with every role-assignable permiso, roles.gestionar included.
+    "roles.gestionar",
   ],
   DIRECTOR_TECNICO: ["usuarios.auditoria.ver"],
   FARMACEUTICO: [],

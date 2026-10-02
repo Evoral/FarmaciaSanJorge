@@ -39,8 +39,9 @@ async function insertTenant(tx: Client, suffix: string): Promise<string> {
   return result.rows[0].id as string;
 }
 
-async function rolId(tx: Client, codigo: string): Promise<string> {
-  const result = await tx.query(`SELECT id FROM fsj.rol WHERE codigo = $1`, [codigo]);
+/** Roles are per-tenant since migration 0054 (DP-03): always look one up within its tenant. */
+async function rolId(tx: Client, tenantId: string, codigo: string): Promise<string> {
+  const result = await tx.query(`SELECT id FROM fsj.rol WHERE tenant_id = $1 AND codigo = $2`, [tenantId, codigo]);
   return result.rows[0].id as string;
 }
 
@@ -51,7 +52,7 @@ async function createSistemaUser(tx: Client, tenantId: string): Promise<string> 
      VALUES ($1, $2, $3, 'Sistema', 'Tecnico', $4, 'ACTIVO', true, $1)`,
     [id, tenantId, `sistema+${id}@internal.local`, `SISTEMA-${id}`],
   );
-  const sistemaRolId = await rolId(tx, "SISTEMA");
+  const sistemaRolId = await rolId(tx, tenantId, "SISTEMA");
   await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1, $2, $3, $2)`, [
     tenantId,
     id,
@@ -67,7 +68,7 @@ async function createUsuarioActivo(tx: Client, tenantId: string, sistemaId: stri
     `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, creado_por_id) VALUES ($1,$2,$3,'N','A',$4,$5)`,
     [id, tenantId, `${suffix}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}@example.com`, `D-${suffix}-${Math.random().toString(36).slice(2, 6)}`, sistemaId],
   );
-  const targetRolId = await rolId(tx, rolCodigo);
+  const targetRolId = await rolId(tx, tenantId, rolCodigo);
   await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1,$2,$3,$4)`, [
     tenantId,
     id,
@@ -98,7 +99,7 @@ describe.skipIf(dbTestSkipReason() !== null)("FASE 3 usuarios admin -- full life
           `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, creado_por_id) VALUES ($1,$2,$3,'N','A','LC1',$4)`,
           [userId, tenantId, `lc-${Date.now()}@example.com`, admin],
         );
-        const farRolId = await rolId(tx, "FARMACEUTICO");
+        const farRolId = await rolId(tx, tenantId, "FARMACEUTICO");
         await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1,$2,$3,$4)`, [
           tenantId,
           userId,
@@ -284,7 +285,7 @@ describe.skipIf(dbTestSkipReason() !== null)("FASE 3 usuarios admin -- audit row
         );
         const roles = ["FARMACEUTICO", "ATENCION_PUBLICO"] as const;
         for (const rolCodigo of roles) {
-          const targetRolId = await rolId(tx, rolCodigo);
+          const targetRolId = await rolId(tx, tenantId, rolCodigo);
           await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1,$2,$3,$4)`, [
             tenantId,
             nuevoId,

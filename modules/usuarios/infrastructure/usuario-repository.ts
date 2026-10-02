@@ -7,14 +7,13 @@
  * or imports `shared/db/transaction` (that import is ESLint-forbidden
  * outside `modules/auth`, see eslint.config.mjs).
  *
- * `es_tecnico = true` (the per-tenant SISTEMA user) and the `SISTEMA` role
- * are filtered out of every read here -- the task requires that user and
+ * `es_tecnico = true` (the per-tenant SISTEMA user) is filtered out of every
+ * read here (the `SISTEMA` role is handled by rol-repository.ts) -- the task requires that user and
  * role to never appear in any admin listing/picker/action (plan §9 M03
  * "NO HACER": roles/usuarios never exposes the technical user).
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { EstadoUsuario as PrismaEstadoUsuario } from "@/generated/prisma/enums";
-import type { RolAsignable } from "../domain/roles";
 
 // ============================================================================
 // Listing / detail (3.1, 3.7)
@@ -24,7 +23,8 @@ export interface ListUsuariosFilter {
   tenantId: string;
   search?: string;
   estado?: PrismaEstadoUsuario;
-  rolCodigo?: RolAsignable;
+  /** A role codigo of the tenant (format-validated by the use case; an unknown one simply matches no usuario). */
+  rolCodigo?: string;
   page: number;
   pageSize: number;
 }
@@ -37,7 +37,8 @@ export interface UsuarioListItem {
   dni: string;
   estado: PrismaEstadoUsuario;
   ultimoAcceso: Date | null;
-  roles: string[];
+  /** The usuario's roles, by display name (rol.nombre is per-tenant data since migration 0054). */
+  roles: { codigo: string; nombre: string }[];
 }
 
 export interface ListUsuariosResult {
@@ -68,7 +69,7 @@ function buildListWhere(filter: ListUsuariosFilter): Prisma.UsuarioWhereInput {
   }
 
   if (filter.rolCodigo) {
-    where.rolesAsignados = { some: { rol: { codigo: filter.rolCodigo } } };
+    where.rolesAsignados = { some: { rol: { tenantId: filter.tenantId, codigo: filter.rolCodigo } } };
   }
 
   return where;
@@ -92,7 +93,7 @@ export async function listUsuarios(tx: Prisma.TransactionClient, filter: ListUsu
       dni: true,
       estado: true,
       ultimoAcceso: true,
-      rolesAsignados: { select: { rol: { select: { codigo: true } } } },
+      rolesAsignados: { select: { rol: { select: { codigo: true, nombre: true } } }, orderBy: { rol: { nombre: "asc" } } },
     },
   });
 
@@ -105,7 +106,7 @@ export async function listUsuarios(tx: Prisma.TransactionClient, filter: ListUsu
       dni: row.dni,
       estado: row.estado,
       ultimoAcceso: row.ultimoAcceso,
-      roles: row.rolesAsignados.map((asignacion) => asignacion.rol.codigo),
+      roles: row.rolesAsignados.map((asignacion) => ({ codigo: asignacion.rol.codigo, nombre: asignacion.rol.nombre })),
     })),
     total,
     page: filter.page,
@@ -286,10 +287,20 @@ export interface AsignarRolInput {
   asignadoPorId: string;
 }
 
+/**
+ * Assigns the tenant's role `rolCodigo` (codes are unique PER TENANT since
+ * migration 0054). The use case has already checked that the role exists
+ * in the tenant and is assignable (`findRolesPorCodigo`,
+ * modules/usuarios/infrastructure/rol-repository.ts); the composite FK
+ * (tenant_id, rol_id) and INV-ROL-005 are the DB backstops.
+ */
 export async function insertUsuarioRol(tx: Prisma.TransactionClient, input: AsignarRolInput): Promise<void> {
-  const rol = await tx.rol.findUnique({ where: { codigo: input.rolCodigo }, select: { id: true } });
+  const rol = await tx.rol.findUnique({
+    where: { tenantId_codigo: { tenantId: input.tenantId, codigo: input.rolCodigo } },
+    select: { id: true },
+  });
   if (!rol) {
-    throw new Error(`insertUsuarioRol: unknown rol codigo "${input.rolCodigo}" -- this should have been rejected by zod's ROLES_ASIGNABLES enum before reaching the repository.`);
+    throw new Error(`insertUsuarioRol: unknown rol codigo "${input.rolCodigo}" in this tenant -- the use case should have rejected it before reaching the repository.`);
   }
   await tx.usuarioRol.create({
     data: { tenantId: input.tenantId, usuarioId: input.usuarioId, rolId: rol.id, asignadoPorId: input.asignadoPorId },
@@ -297,7 +308,7 @@ export async function insertUsuarioRol(tx: Prisma.TransactionClient, input: Asig
 }
 
 export async function deleteUsuarioRol(tx: Prisma.TransactionClient, tenantId: string, usuarioId: string, rolCodigo: string): Promise<void> {
-  const rol = await tx.rol.findUnique({ where: { codigo: rolCodigo }, select: { id: true } });
+  const rol = await tx.rol.findUnique({ where: { tenantId_codigo: { tenantId, codigo: rolCodigo } }, select: { id: true } });
   if (!rol) return;
   await tx.usuarioRol.deleteMany({ where: { tenantId, usuarioId, rolId: rol.id } });
 }
@@ -474,37 +485,6 @@ export async function revokeCredencialesActivas(
     data: { revocadaEn: now },
   });
   return result.count;
-}
-
-// ============================================================================
-// Roles catalog (3.8 -- read-only)
-// ============================================================================
-
-export interface RolConPermisos {
-  codigo: string;
-  nombre: string;
-  descripcion: string | null;
-  permisos: string[];
-}
-
-/** Excludes SISTEMA (never shown -- plan's binding decision). */
-export async function listRolesConPermisos(tx: Prisma.TransactionClient): Promise<RolConPermisos[]> {
-  const rows = await tx.rol.findMany({
-    where: { codigo: { not: "SISTEMA" } },
-    orderBy: { nombre: "asc" },
-    select: {
-      codigo: true,
-      nombre: true,
-      descripcion: true,
-      permisos: { select: { permiso: { select: { codigo: true } } } },
-    },
-  });
-  return rows.map((row) => ({
-    codigo: row.codigo,
-    nombre: row.nombre,
-    descripcion: row.descripcion,
-    permisos: row.permisos.map((p) => p.permiso.codigo).sort(),
-  }));
 }
 
 // ============================================================================

@@ -362,7 +362,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0014_libro_recetario_contralor mig
           [seed.tenantId, `dt-${randomUUID()}@example.com`, `DNI-${randomUUID()}`, seed.sistema],
         );
         const dtId = dtUser.rows[0].id as string;
-        const rolResult = await tx.query(`SELECT id FROM fsj.rol WHERE codigo = 'DIRECTOR_TECNICO'`);
+        const rolResult = await tx.query(`SELECT id FROM fsj.rol WHERE tenant_id = $1 AND codigo = 'DIRECTOR_TECNICO'`, [seed.tenantId]);
         await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1,$2,$3,$4)`, [
           seed.tenantId,
           dtId,
@@ -470,7 +470,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0014_libro_recetario_contralor mig
           [seed.tenantId, `dt-${randomUUID()}@example.com`, `DNI-${randomUUID()}`, seed.sistema],
         );
         const dtId = dtUser.rows[0].id as string;
-        const rolResult = await tx.query(`SELECT id FROM fsj.rol WHERE codigo = 'DIRECTOR_TECNICO'`);
+        const rolResult = await tx.query(`SELECT id FROM fsj.rol WHERE tenant_id = $1 AND codigo = 'DIRECTOR_TECNICO'`, [seed.tenantId]);
         await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1,$2,$3,$4)`, [
           seed.tenantId,
           dtId,
@@ -518,7 +518,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0014_libro_recetario_contralor mig
           [seed.tenantId, `dt-${randomUUID()}@example.com`, `DNI-${randomUUID()}`, seed.sistema],
         );
         const dtId = dtUser.rows[0].id as string;
-        const rolResult = await tx.query(`SELECT id FROM fsj.rol WHERE codigo = 'DIRECTOR_TECNICO'`);
+        const rolResult = await tx.query(`SELECT id FROM fsj.rol WHERE tenant_id = $1 AND codigo = 'DIRECTOR_TECNICO'`, [seed.tenantId]);
         await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1,$2,$3,$4)`, [
           seed.tenantId,
           dtId,
@@ -1204,7 +1204,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0033_rectificacion_asiento -- INV-
       [seed.tenantId, `dt-${randomUUID()}@example.com`, `DNI-${randomUUID()}`, seed.sistema],
     );
     const dtId = dtUser.rows[0].id as string;
-    const rolResult = await tx.query(`SELECT id FROM fsj.rol WHERE codigo = 'DIRECTOR_TECNICO'`);
+    const rolResult = await tx.query(`SELECT id FROM fsj.rol WHERE tenant_id = $1 AND codigo = 'DIRECTOR_TECNICO'`, [seed.tenantId]);
     await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1,$2,$3,$4)`, [
       seed.tenantId,
       dtId,

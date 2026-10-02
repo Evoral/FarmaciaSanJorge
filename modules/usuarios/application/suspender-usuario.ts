@@ -22,6 +22,7 @@ import { uuid, nonEmptyString } from "@/shared/validation";
 import { AUTH_POLICY } from "@/shared/auth/policy";
 import { revokeAllSesionesForUsuarioInTx } from "@/modules/auth/application/revoke-session";
 import { esAccionSobreSiMismo, quedariaSinAdministradores } from "../domain/reglas-admin";
+import { ROL_ADMINISTRADOR } from "../domain/roles";
 import { explicarTransicionInvalida } from "../domain/estado-usuario";
 import { lockUsuarioYAdministradoresActivos } from "../infrastructure/admin-guard";
 import { loadUsuarioParaAccion, cambiarEstadoUsuario, revokeCredencialesActivas } from "../infrastructure/usuario-repository";
@@ -56,7 +57,7 @@ export const suspenderUsuarioCommand = defineCommand({
       throw new DomainError(actual.estado === "ACTIVO" ? transicionInvalida : "Solo se puede suspender un usuario ACTIVO.");
     }
 
-    if (actual.roles.includes("ADMINISTRADOR")) {
+    if (actual.roles.includes(ROL_ADMINISTRADOR)) {
       if (quedariaSinAdministradores(idsAdminsActivos, input.usuarioId)) {
         throw new DomainError("Debe existir al menos un administrador activo; no se puede suspender a este usuario.");
       }

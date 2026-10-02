@@ -21,8 +21,9 @@ async function insertTenant(tx: Client, suffix: string): Promise<string> {
   return result.rows[0].id as string;
 }
 
-async function rolId(tx: Client, codigo: string): Promise<string> {
-  const result = await tx.query(`SELECT id FROM fsj.rol WHERE codigo = $1`, [codigo]);
+/** Roles are per-tenant since migration 0054 (DP-03): always look one up within its tenant. */
+async function rolId(tx: Client, tenantId: string, codigo: string): Promise<string> {
+  const result = await tx.query(`SELECT id FROM fsj.rol WHERE tenant_id = $1 AND codigo = $2`, [tenantId, codigo]);
   return result.rows[0].id as string;
 }
 
@@ -34,7 +35,7 @@ async function createSistemaUser(tx: Client, tenantId: string): Promise<string> 
      VALUES ($1, $2, $3, 'Sistema', 'Tecnico', $4, 'ACTIVO', true, $1)`,
     [id, tenantId, `sistema+${id}@internal.local`, `SISTEMA-${id}`],
   );
-  const sistemaRolId = await rolId(tx, "SISTEMA");
+  const sistemaRolId = await rolId(tx, tenantId, "SISTEMA");
   await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1, $2, $3, $2)`, [
     tenantId,
     id,
@@ -44,40 +45,42 @@ async function createSistemaUser(tx: Client, tenantId: string): Promise<string> 
 }
 
 describe.skipIf(dbTestSkipReason() !== null)("0002_usuarios_roles_permisos migration (fsj schema)", () => {
-  it("seeds the 5 assignable roles plus the internal SISTEMA role", async () => {
+  it("every new tenant gets the 5 default roles plus the internal SISTEMA role (fsj.seed_roles_tenant via trg_tenant_seed_roles, migration 0054)", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
-        const result = await tx.query(`SELECT codigo FROM fsj.rol ORDER BY codigo`);
-        const codes = result.rows.map((r) => r.codigo as string);
-        for (const expected of [
+        const tenantId = await insertTenant(tx, "seed");
+        const result = await tx.query(`SELECT codigo FROM fsj.rol WHERE tenant_id = $1 ORDER BY codigo`, [tenantId]);
+        expect(result.rows.map((r) => r.codigo as string)).toEqual([
           "ADMINISTRADOR",
           "ATENCION_PUBLICO",
           "DIRECTOR_TECNICO",
           "FARMACEUTICO",
           "SISTEMA",
           "SOLO_CONSULTA",
-        ]) {
-          expect(codes).toContain(expected);
-        }
+        ]);
       }),
     );
   });
 
-  it("seeds a non-empty rol_permiso matrix for ADMINISTRADOR", async () => {
+  it("ADMINISTRADOR is the only es_administrador role and has no rol_permiso rows (locked, migration 0054)", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
+        const tenantId = await insertTenant(tx, "adm-locked");
+        const flags = await tx.query(`SELECT codigo FROM fsj.rol WHERE tenant_id = $1 AND es_administrador`, [tenantId]);
+        expect(flags.rows.map((r) => r.codigo)).toEqual(["ADMINISTRADOR"]);
         const result = await tx.query(
-          `SELECT count(*)::int AS n FROM fsj.rol_permiso rp JOIN fsj.rol r ON r.id = rp.rol_id WHERE r.codigo = 'ADMINISTRADOR'`,
+          `SELECT count(*)::int AS n FROM fsj.rol_permiso rp JOIN fsj.rol r ON r.tenant_id = rp.tenant_id AND r.id = rp.rol_id WHERE r.tenant_id = $1 AND r.codigo = 'ADMINISTRADOR'`,
+          [tenantId],
         );
-        expect(result.rows[0].n).toBeGreaterThan(0);
+        expect(result.rows[0].n).toBe(0);
       }),
     );
   });
 
-  it("fsj_app cannot INSERT into the global catalogs (rol/permiso/rol_permiso are read-only)", async () => {
+  it("fsj_app cannot write the global permiso catalog", async () => {
     await asApp((client) =>
       inRollbackTx(client, async (tx) => {
-        await expectDbRejection(tx, () => tx.query(`INSERT INTO fsj.rol (codigo, nombre) VALUES ('X_TEST', 'X')`), "42501");
+        await expectDbRejection(tx, () => tx.query(`INSERT INTO fsj.permiso (codigo) VALUES ('x.test')`), "42501");
       }),
     );
   });
@@ -125,7 +128,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0002_usuarios_roles_permisos migra
           `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, creado_por_id) VALUES ($1,$2,$3,'N','A','D3',$4)`,
           [userId, tenantId, `u02b-${Date.now()}@example.com`, sistema],
         );
-        const farmaceuticoId = await rolId(tx, "FARMACEUTICO");
+        const farmaceuticoId = await rolId(tx, tenantId, "FARMACEUTICO");
         await tx.query(
           `INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1,$2,$3,$4)`,
           [tenantId, userId, farmaceuticoId, sistema],
@@ -146,7 +149,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0002_usuarios_roles_permisos migra
           `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, creado_por_id) VALUES ($1,$2,$3,'N','A','D4',$4)`,
           [userId, tenantId, `u02c-${Date.now()}@example.com`, sistema],
         );
-        const farmaceuticoId = await rolId(tx, "FARMACEUTICO");
+        const farmaceuticoId = await rolId(tx, tenantId, "FARMACEUTICO");
         const assignment = await tx.query(
           `INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1,$2,$3,$4) RETURNING id`,
           [tenantId, userId, farmaceuticoId, sistema],
@@ -167,8 +170,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0002_usuarios_roles_permisos migra
           `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, creado_por_id) VALUES ($1,$2,$3,'N','A','D4b',$4)`,
           [userId, tenantId, `u02d-${Date.now()}@example.com`, sistema],
         );
-        const farmaceuticoId = await rolId(tx, "FARMACEUTICO");
-        const atpId = await rolId(tx, "ATENCION_PUBLICO");
+        const farmaceuticoId = await rolId(tx, tenantId, "FARMACEUTICO");
+        const atpId = await rolId(tx, tenantId, "ATENCION_PUBLICO");
         await tx.query(
           `INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1,$2,$3,$4)`,
           [tenantId, userId, farmaceuticoId, sistema],

@@ -10,8 +10,9 @@
  *
  * Enums whose map already lived in their module's domain keep it there
  * (TIPO_MAGNITUD_LABELS, TIPO_CONTROL_LABELS, MOTIVO_AJUSTE_LABELS,
- * MOTIVO_DEMORA_LABELS, ESTADO_LOTE_ARCHIVO_LABELS, JURISDICCION_MATRICULA_LABELS,
- * ROL_LABELS); this file holds the ones that were missing or duplicated.
+ * MOTIVO_DEMORA_LABELS, ESTADO_LOTE_ARCHIVO_LABELS, JURISDICCION_MATRICULA_LABELS;
+ * role names are per-tenant data, `rol.nombre`, since migration 0054); this file
+ * holds the ones that were missing or duplicated.
  */
 import type {
   EstadoPreparacion,

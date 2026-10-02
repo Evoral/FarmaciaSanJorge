@@ -9,7 +9,6 @@ import { darDeBajaUsuario } from "@/modules/usuarios/application/dar-de-baja-usu
 import { restablecerCredencial } from "@/modules/usuarios/application/restablecer-credencial";
 import { StepUpRequiredError } from "@/shared/errors";
 import { actionError } from "@/shared/ui/action-error";
-import { ROLES_ASIGNABLES } from "@/modules/usuarios/domain/roles";
 import type { UsuarioActionState } from "@/modules/usuarios/ui/action-state";
 
 /**
@@ -53,9 +52,10 @@ export async function editarUsuarioAction(_prevState: UsuarioActionState, formDa
 }
 
 export async function cambiarRolesAction(_prevState: UsuarioActionState, formData: FormData): Promise<UsuarioActionState> {
-  const roles = formData.getAll("roles").map(String).filter((value) => (ROLES_ASIGNABLES as readonly string[]).includes(value));
+  // Passed through raw: cambiarRoles validates each code against the session tenant's roles (DP-03).
+  const roles = formData.getAll("roles").map(String);
   try {
-    await cambiarRoles({ usuarioId: String(formData.get("usuarioId") ?? ""), roles: roles as (typeof ROLES_ASIGNABLES)[number][] });
+    await cambiarRoles({ usuarioId: String(formData.get("usuarioId") ?? ""), roles });
     return { status: "success", message: "Roles actualizados." };
   } catch (error) {
     return fromError(error, "No se pudieron actualizar los roles.");

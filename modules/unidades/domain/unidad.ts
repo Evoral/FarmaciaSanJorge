@@ -20,7 +20,7 @@ export function esTipoMagnitud(value: string): value is TipoMagnitud {
   return TIPOS_MAGNITUD_SET.has(value);
 }
 
-/** Neutral, professional Spanish -- UI copy (same convention as modules/usuarios/domain/roles.ts's ROL_LABELS). */
+/** Neutral, professional Spanish -- UI copy (same convention as modules/usuarios/domain/roles.ts's GRUPO_PERMISO_LABELS). */
 export const TIPO_MAGNITUD_LABELS: Record<TipoMagnitud, string> = {
   MASA: "Masa",
   VOLUMEN: "Volumen",

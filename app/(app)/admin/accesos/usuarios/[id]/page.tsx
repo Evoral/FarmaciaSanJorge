@@ -14,6 +14,7 @@ import { AuditoriaDiff } from "@/modules/auditoria/ui/auditoria-diff";
 import { ACCION_LABELS, describirRegistro, formatearFechaHora } from "@/modules/auditoria/domain/presentacion";
 import { EditarDatosForm } from "@/modules/usuarios/ui/editar-datos-form";
 import { RolesForm } from "@/modules/usuarios/ui/roles-form";
+import { listRolesAsignables } from "@/modules/usuarios/application/list-roles-asignables";
 import { EstadoAcciones } from "@/modules/usuarios/ui/estado-acciones";
 import { RestablecerCredencial } from "@/modules/usuarios/ui/restablecer-credencial";
 
@@ -116,7 +117,12 @@ export default async function UsuarioDetallePage({ params, searchParams }: Usuar
       {tab === "roles" ? (
         <section>
           <h2 className="mb-3 text-lg font-medium">Roles</h2>
-          <RolesForm usuarioId={usuario.id} rolesActuales={usuario.roles} disabled={!can(session, "usuarios.roles.modificar")} />
+          <RolesForm
+            usuarioId={usuario.id}
+            rolesActuales={usuario.roles}
+            opciones={await listRolesAsignables()}
+            disabled={!can(session, "usuarios.roles.modificar")}
+          />
         </section>
       ) : null}
 

@@ -131,6 +131,12 @@ async function main(): Promise<void> {
     );
     const tenantId = tenantResult.rows[0]!.id;
 
+    // Default roles of the tenant (DP-03, migration 0054): roles are
+    // per-tenant rows. The AFTER INSERT trigger on fsj.tenant already ran
+    // this same function; calling it explicitly keeps the dependency visible
+    // here and is a no-op on a tenant that already has its roles.
+    await client.query(`SELECT fsj.seed_roles_tenant($1)`, [tenantId]);
+
     // SISTEMA: self-created (creado_por_id = its own id), one per tenant,
     // es_tecnico = true. Gets the internal SISTEMA role (see migration
     // 0002 comment on fsj.rol for why that role exists at all).
@@ -142,7 +148,7 @@ async function main(): Promise<void> {
     );
     await client.query(
       `INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id)
-       SELECT $1, $2, r.id, $2 FROM fsj.rol r WHERE r.codigo = 'SISTEMA'`,
+       SELECT $1, $2, r.id, $2 FROM fsj.rol r WHERE r.tenant_id = $1 AND r.codigo = 'SISTEMA'`,
       [tenantId, sistemaId],
     );
 
@@ -155,7 +161,7 @@ async function main(): Promise<void> {
     );
     await client.query(
       `INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id)
-       SELECT $1, $2, r.id, $3 FROM fsj.rol r WHERE r.codigo = 'ADMINISTRADOR'`,
+       SELECT $1, $2, r.id, $3 FROM fsj.rol r WHERE r.tenant_id = $1 AND r.codigo = 'ADMINISTRADOR'`,
       [tenantId, adminId, sistemaId],
     );
 

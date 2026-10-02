@@ -141,7 +141,7 @@ Un Usuario puede tener varios roles (UsuarioRol 1..*) **[CONFIRMADO]**. Permisos
 | Usuarios | `usuarios.credencial.restablecer` | ADM | No sobre sí mismo (**PROPUESTA**); motivo |
 | Usuarios | `usuarios.auditoria.ver` | ADM, DT(lectura) | — |
 | Designación DT | `dt.designar`, `dt.cesar` | ADM | Usuario con rol DT; matrícula; DP-11 |
-| Roles/Permisos | `roles.ver` | ADM | — ; edición según DP-03 |
+| Roles/Permisos | `roles.ver` / `roles.gestionar` | ADM | edición por tenant, auditada (DP-03 RESUELTA) |
 | Farmacia/Parámetros | `config.ver/editar` | ADM (ver y editar). Desde la migración 0046 (decisión 2026-09-28) `config.ver` es solo ADM; el DT entra a "Configuración" únicamente por Reglas de precio (`precios.reglas.editar`) | Auditado |
 | Unidades | `unidades.crear/baja/editar` | ADM | INV-M02/M03/M04 |
 | Drogas | `drogas.crear/editar/baja/reactivar` | FAR, DT, ADM | INV-F03/F05 |
@@ -838,8 +838,8 @@ Cobertura de entidades (responsable / CRUD / permisos / auditoría / UI / tests)
 ## 20. Checklist anti-omisiones
 
 **Autenticación**: [x] Login 2.2 · [x] Logout 2.2 · [x] Alta (administrativa, sin registro público) 3.2 · [x] Activación 2.3 · [x] Forgot Password → N/A autoservicio; restablecimiento por ADM 3.6 · [x] Reset 3.6+2.3 · [x] Cambio de contraseña 2.4 · [x] Sesiones 2.1 · [x] Estados 1.2.
-**Usuarios**: [x] Alta · [x] Listado · [x] Búsqueda · [x] Edición · [x] Activación · [x] Desactivación (suspender/baja) · [x] Roles · [x] Permisos (lectura; edición DP-03) · [x] Recuperación de acceso · [x] Auditoría.
-**Administración**: [x] Panel `/admin` · [x] Configuración (farmacia) · [x] Catálogos (unidades, reglas de precio) · [x] Parámetros · [x] Usuarios · [x] Roles · [~] Permisos (DP-03) · [x] Operaciones especiales (designación DT, reset, alta de tenant) · [~] Libros rubricados (DP-38) · [—] Fojas inutilizadas (quitado).
+**Usuarios**: [x] Alta · [x] Listado · [x] Búsqueda · [x] Edición · [x] Activación · [x] Desactivación (suspender/baja) · [x] Roles · [x] Permisos (edición por tenant, DP-03 RESUELTA) · [x] Recuperación de acceso · [x] Auditoría.
+**Administración**: [x] Panel `/admin` · [x] Configuración (farmacia) · [x] Catálogos (unidades, reglas de precio) · [x] Parámetros · [x] Usuarios · [x] Roles · [x] Permisos (DP-03 RESUELTA) · [x] Operaciones especiales (designación DT, reset, alta de tenant) · [~] Libros rubricados (DP-38) · [—] Fojas inutilizadas (quitado).
 **Multi-tenant**: [x] Tenant en todas las tablas de negocio · [x] RLS · [x] FK compuestas · [x] tenant_id inmutable · [x] Tenant desde la sesión · [x] Unicidades por tenant · [x] Contadores/hash por tenant · [x] Jobs por tenant · [x] Tests de aislamiento.
 **Negocio** (por módulo M05–M15): crear/consultar/modificar/baja/estados/validaciones/permisos/auditoría/historial/excepciones/errores/concurrencia cubiertos en cada ficha de módulo; integraciones N/A salvo DP.
 **Plataforma**: [x] Configuración · [x] Variables de entorno · [x] Seguridad · [x] Logging · [x] Auditoría · [x] Manejo de errores · [x] Migraciones · [x] Seeders (roles, permisos, unidades, SISTEMA, primer ADM) · [x] Tests · [x] Documentación (README arquitectura + runbook) · [~] Deploy (DP-35) · [x] Observabilidad (14.4).
@@ -850,7 +850,7 @@ Cobertura de entidades (responsable / CRUD / permisos / auditoría / UI / tests)
 
 - **DP-01 RESUELTA**: se agrega `PENDIENTE_ACTIVACION` a `EstadoUsuario` (valores: PENDIENTE_ACTIVACION, ACTIVO, SUSPENDIDO, BAJA).
 - **DP-02** ¿Una BAJA de usuario es reversible? INV-G01 sugiere reactivación con motivo. · M03. · (a) BAJA→PENDIENTE con motivo; (b) BAJA terminal.
-- **DP-03** ¿El ADM puede editar la asignación permiso↔rol, o es fija por seed? · M03, 3.8. · (a) fija (recomendado: más seguro y auditable); (b) editable y auditada.
+- **DP-03 RESUELTA** (2026-10-01): opción **(b) editable por tenant y auditada, con ADMINISTRADOR bloqueado** → `docs/specs/roles-personalizables.md`. Los roles pasan a ser por tenant (migraciones 0053/0054: `rol`/`rol_permiso` con `tenant_id` + RLS forzada, plantilla `fsj.seed_roles_tenant`); el ADM crea, edita y elimina roles con el permiso nuevo `roles.gestionar` (re-autenticación + auditoría `CREAR_ROL`/`EDITAR_ROL`/`ELIMINAR_ROL`). Cada permiso tiene una categoría (operativo / consulta / gestión / sistema). ADMINISTRADOR tiene siempre todos los permisos de consulta y gestión (incluidos los futuros), nunca los operativos, y no se puede tocar; sí puede otorgar permisos operativos a otros roles. DIRECTOR_TECNICO no se puede eliminar; SISTEMA queda oculto. Nadie otorga permisos fuera de lo que puede otorgar ni gestiona un rol que tiene asignado.
 - **DP-04 RESUELTA** (sí, como se propuso): creación del **primer ADM de cada tenant** (INV-U01 exige `creadoPorId`): · 1.2, 3.12. · Lo crea el operador de plataforma (DP-37) con `creado_por_id = SISTEMA` del tenant y credencial de activación de un uso; en desarrollo, vía CLI de seed.
 - **DP-05** Canal de entrega de la credencial de activación: · M03. · (a) solo pantalla, se entrega en persona (recomendado, sin integración); (b) email.
 - **DP-06** `Droga.factorConversion`: ¿qué convierte, si la unidad base ya tiene `factorABase`? · M06. · (a) eliminar; (b) redefinir como densidad.

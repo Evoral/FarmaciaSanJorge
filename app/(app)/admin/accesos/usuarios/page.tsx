@@ -12,7 +12,7 @@ import { Pencil } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listUsuarios } from "@/modules/usuarios/application/list-usuarios";
-import { ROLES_ASIGNABLES, ROL_LABELS } from "@/modules/usuarios/domain/roles";
+import { listRolesAsignables } from "@/modules/usuarios/application/list-roles-asignables";
 import { FilterForm } from "@/shared/ui/filter-form";
 
 const ESTADOS = ["PENDIENTE_ACTIVACION", "ACTIVO", "SUSPENDIDO", "BAJA"] as const;
@@ -37,7 +37,9 @@ export default async function UsuariosPage({ searchParams }: UsuariosPageProps) 
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
   const estado = params.estado && (ESTADOS as readonly string[]).includes(params.estado) ? (params.estado as EstadoFiltro) : undefined;
-  const rol = params.rol && (ROLES_ASIGNABLES as readonly string[]).includes(params.rol) ? (params.rol as (typeof ROLES_ASIGNABLES)[number]) : undefined;
+  // Roles are per-tenant data (DP-03): the filter only accepts a code of one of the tenant's own roles.
+  const rolesOpciones = await listRolesAsignables();
+  const rol = params.rol && rolesOpciones.some((opcion) => opcion.codigo === params.rol) ? params.rol : undefined;
 
   const result = await listUsuarios({ search: params.q, estado, rolCodigo: rol, page, pageSize: PAGE_SIZE });
   const totalPages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
@@ -97,9 +99,9 @@ export default async function UsuariosPage({ searchParams }: UsuariosPageProps) 
           </label>
           <select id="rol" name="rol" defaultValue={rol ?? ""} className="input">
             <option value="">Todos</option>
-            {ROLES_ASIGNABLES.map((codigo) => (
-              <option key={codigo} value={codigo}>
-                {ROL_LABELS[codigo]}
+            {rolesOpciones.map((opcion) => (
+              <option key={opcion.codigo} value={opcion.codigo}>
+                {opcion.nombre}
               </option>
             ))}
           </select>
@@ -143,7 +145,7 @@ export default async function UsuariosPage({ searchParams }: UsuariosPageProps) 
                   <td className="px-3 py-2">{usuario.dni}</td>
                   <td className="px-3 py-2">{ESTADO_LABELS[usuario.estado] ?? usuario.estado}</td>
                   <td className="px-3 py-2">
-                    {usuario.roles.map((codigo) => ROL_LABELS[codigo as keyof typeof ROL_LABELS] ?? codigo).join(", ")}
+                    {usuario.roles.map((asignado) => asignado.nombre).join(", ")}
                   </td>
                   <td className="px-3 py-2">{usuario.ultimoAcceso ? new Date(usuario.ultimoAcceso).toLocaleString("es-AR") : "—"}</td>
                   <td className="px-3 py-2 text-right">

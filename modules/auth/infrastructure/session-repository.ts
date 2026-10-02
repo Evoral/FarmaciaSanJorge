@@ -8,7 +8,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { getPrismaClient } from "@/shared/db/client";
 import { withTenantTransaction } from "@/shared/db/transaction";
-import { isPermiso, type Permiso } from "../domain/permisos";
+import { isPermiso, PERMISOS_DE_ADMINISTRADOR, type Permiso } from "../domain/permisos";
 
 export interface NewSesionRow {
   tenantId: string;
@@ -92,7 +92,16 @@ export interface UsuarioConPermisos {
   permisos: ReadonlySet<Permiso>;
 }
 
-/** Loads a usuario plus the UNION of permissions across every role assigned to them (M03 §7), inside an already-open tenant transaction. */
+/**
+ * Loads a usuario plus the UNION of permissions across every role assigned
+ * to them (M03 §7), inside an already-open tenant transaction. A role with
+ * `esAdministrador` (the locked ADMINISTRADOR, migration 0054 / DP-03)
+ * contributes every `consulta`/`gestion` permiso of the CATALOG
+ * (`PERMISOS_DE_ADMINISTRADOR` -- never an `operativo` one) instead of its
+ * (always empty) rol_permiso rows, so a non-operativo permiso added to the
+ * catalog later reaches it with no data change. Operativo permisos come
+ * only from roles that list them explicitly.
+ */
 export async function loadUsuarioConPermisos(
   tx: Prisma.TransactionClient,
   usuarioId: string,
@@ -109,6 +118,7 @@ export async function loadUsuarioConPermisos(
         select: {
           rol: {
             select: {
+              esAdministrador: true,
               permisos: { select: { permiso: { select: { codigo: true } } } },
             },
           },
@@ -120,6 +130,10 @@ export async function loadUsuarioConPermisos(
 
   const permisos = new Set<Permiso>();
   for (const asignacion of usuario.rolesAsignados) {
+    if (asignacion.rol.esAdministrador) {
+      for (const codigo of PERMISOS_DE_ADMINISTRADOR) permisos.add(codigo);
+      continue;
+    }
     for (const rolPermiso of asignacion.rol.permisos) {
       const { codigo } = rolPermiso.permiso;
       // The DB catalog is guaranteed to match PERMISO_CODES exactly (see
