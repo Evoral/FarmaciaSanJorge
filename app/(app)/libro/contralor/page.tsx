@@ -1,13 +1,23 @@
 /** `/libro/contralor` (FASE 9, M12 point 9.4, DP-33; export buttons added FASE 13 point 13.3). Consulta de los libros contralor (psicotrópicos / estupefacientes). */
 import Link from "next/link";
+import { BookOpen, Download, SearchX, TriangleAlert, X } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listContralor } from "@/modules/libro/application/list-contralor";
+import { LibroNav } from "@/modules/libro/ui/libro-nav";
+import { DrogaContralorBuscador } from "@/modules/libro/ui/droga-contralor-buscador";
 import { DateInput } from "@/shared/ui/date-input";
 import { FilterForm } from "@/shared/ui/filter-form";
 import { formatCantidadExacta } from "@/shared/format/cantidad";
+import { formatFechaIso } from "@/shared/format/fecha";
+import { PageHeader } from "@/shared/ui/page-header";
+import { EmptyState } from "@/shared/ui/empty-state";
+import { Pagination } from "@/shared/ui/pagination";
+import { ToneBadge } from "@/shared/ui/status-badge";
 
 const PAGE_SIZE = 25;
+
+type ParamContralor = "tipoLibro" | "drogaId" | "fechaDesde" | "fechaHasta";
 
 interface ContralorPageProps {
   searchParams: Promise<{ tipoLibro?: string; drogaId?: string; fechaDesde?: string; fechaHasta?: string; page?: string }>;
@@ -19,6 +29,21 @@ const TIPO_MOVIMIENTO_LABELS: Record<string, string> = {
   EGRESO: "Egreso",
   AJUSTE: "Ajuste",
 };
+
+const TIPO_LIBRO_LABELS: Record<string, string> = {
+  PSICOTROPICO: "Psicotrópicos",
+  ESTUPEFACIENTE: "Estupefacientes",
+};
+
+const numberFormat = new Intl.NumberFormat("es-AR");
+
+function Vacio({ label }: { label: string }) {
+  return (
+    <span className="text-zinc-400">
+      -<span className="sr-only">{label}</span>
+    </span>
+  );
+}
 
 export default async function ContralorPage({ searchParams }: ContralorPageProps) {
   const session = await requireSession();
@@ -35,7 +60,6 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
     page,
     pageSize: PAGE_SIZE,
   });
-  const totalPages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
   const puedeExportar = can(session, "libro.exportar");
 
   function pageHref(targetPage: number): string {
@@ -57,128 +81,190 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
     return `/api/libro/export/contralor/${kind}?${qs.toString()}`;
   }
 
-  return (
-    <div className="page">
-      <div className="mb-4">
-        <Link href="/libro" className="text-sm underline">
-          ← Volver al libro recetario
-        </Link>
-      </div>
+  function sinFiltroHref(param: ParamContralor): string {
+    const qs = new URLSearchParams();
+    for (const key of ["tipoLibro", "drogaId", "fechaDesde", "fechaHasta"] as const) if (key !== param && params[key]) qs.set(key, params[key]!);
+    const query = qs.toString();
+    return query ? `/libro/contralor?${query}` : "/libro/contralor";
+  }
 
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Libros contralor</h1>
-        {puedeExportar ? (
-          <div className="flex gap-2">
-            <a href={exportHref("csv")} className="btn btn-secondary">
-              Exportar CSV
-            </a>
-            <a href={exportHref("pdf")} className="btn btn-secondary">
-              Exportar PDF
-            </a>
-          </div>
-        ) : null}
-      </div>
+  // The filtered droga's name is the one printed in its own rows (the autocomplete shows it; no chip needed).
+  const drogaActualNombre = result.items[0]?.drogaDescripcion ?? "Droga seleccionada";
+  const chips: { key: ParamContralor; label: string; value: string }[] = [];
+  if (params.tipoLibro) chips.push({ key: "tipoLibro", label: "Libro", value: TIPO_LIBRO_LABELS[params.tipoLibro] ?? params.tipoLibro });
+  if (params.fechaDesde) chips.push({ key: "fechaDesde", label: "Desde", value: formatFechaIso(params.fechaDesde) });
+  if (params.fechaHasta) chips.push({ key: "fechaHasta", label: "Hasta", value: formatFechaIso(params.fechaHasta) });
+  const hayFiltros = chips.length > 0 || Boolean(params.drogaId);
+
+  return (
+    <div className="page list-view">
+      <PageHeader
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Libro", href: "/libro" }, { label: "Libros contralor" }]}
+        title="Libros contralor"
+        description="Psicotrópicos y estupefacientes. Cantidades exactas, en la unidad registrada."
+        actions={
+          puedeExportar ? (
+            <>
+              <a href={exportHref("csv")} className="btn btn-secondary">
+                <Download className="size-4" aria-hidden />
+                CSV
+              </a>
+              <a href={exportHref("pdf")} className="btn btn-secondary">
+                <Download className="size-4" aria-hidden />
+                PDF
+              </a>
+            </>
+          ) : null
+        }
+      />
+
+      <LibroNav actual="contralor" />
 
       {result.fechaActivacionContralor === null ? (
-        <p className="mb-6 rounded border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950">
-          Libros contralor llevados en forma manual: esta farmacia no activó el contralor digital, así que el sistema no genera asientos.
-        </p>
+        <div role="note" className="alert alert-warn mb-4">
+          <TriangleAlert aria-hidden />
+          <p>Libros contralor llevados en forma manual: esta farmacia no activó el contralor digital, así que el sistema no genera asientos.</p>
+        </div>
       ) : null}
 
-      <FilterForm
-        className="mb-6 flex flex-wrap items-end gap-3"
-        aria-label="Filtros de libros contralor"
-        hasActiveFilters={Boolean(params.tipoLibro || params.fechaDesde || params.fechaHasta)}
-      >
-        {/* Set by links from other screens (no field for it here): kept across filter changes and "Limpiar filtros". */}
-        {params.drogaId ? <input type="hidden" name="drogaId" value={params.drogaId} /> : null}
-        <div className="flex flex-col gap-1">
-          <label htmlFor="tipoLibro" className="text-sm font-medium">
-            Libro
-          </label>
-          <select id="tipoLibro" name="tipoLibro" defaultValue={params.tipoLibro ?? ""} className="input">
-            <option value="">Todos</option>
-            <option value="PSICOTROPICO">Psicotrópicos</option>
-            <option value="ESTUPEFACIENTE">Estupefacientes</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="fechaDesde" className="text-sm font-medium">
-            Desde
-          </label>
-          <DateInput id="fechaDesde" name="fechaDesde" defaultValue={params.fechaDesde ?? ""} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="fechaHasta" className="text-sm font-medium">
-            Hasta
-          </label>
-          <DateInput id="fechaHasta" name="fechaHasta" defaultValue={params.fechaHasta ?? ""} />
-        </div>
-      </FilterForm>
+      <section aria-label="Filtros" className="mb-4">
+        <FilterForm className="filter-bar" aria-label="Filtros de libros contralor" hasActiveFilters={false}>
+          {/* The droga lives in the autocomplete (outside the form's own fields): keep it while other filters change. */}
+          <input type="hidden" name="drogaId" value={params.drogaId ?? ""} />
+          <div className="min-w-0 flex-1 md:w-72 md:flex-none">
+            <DrogaContralorBuscador listaHref={sinFiltroHref("drogaId")} drogaActual={params.drogaId ? { id: params.drogaId, nombre: drogaActualNombre } : undefined} />
+          </div>
+          <div className="field">
+            <label htmlFor="tipoLibro" className="field-label">
+              Libro
+            </label>
+            <select id="tipoLibro" name="tipoLibro" defaultValue={params.tipoLibro ?? ""} className="input">
+              <option value="">Todos</option>
+              <option value="PSICOTROPICO">Psicotrópicos</option>
+              <option value="ESTUPEFACIENTE">Estupefacientes</option>
+            </select>
+          </div>
+          <div className="field">
+            <span id="contralor-fecha-label" className="field-label">
+              Fecha
+            </span>
+            <div className="range-field" role="group" aria-labelledby="contralor-fecha-label">
+              <label htmlFor="fechaDesde" className="sr-only">
+                Desde
+              </label>
+              <DateInput id="fechaDesde" name="fechaDesde" defaultValue={params.fechaDesde ?? ""} />
+              <span className="range-field-sep" aria-hidden>
+                a
+              </span>
+              <label htmlFor="fechaHasta" className="sr-only">
+                Hasta
+              </label>
+              <DateInput id="fechaHasta" name="fechaHasta" defaultValue={params.fechaHasta ?? ""} />
+            </div>
+          </div>
+        </FilterForm>
 
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th scope="col" className="px-3 py-2 font-medium">Nº</th>
-              <th scope="col" className="px-3 py-2 font-medium">Fecha</th>
-              <th scope="col" className="px-3 py-2 font-medium">Movimiento</th>
-              <th scope="col" className="px-3 py-2 font-medium">Droga</th>
-              <th scope="col" className="px-3 py-2 font-medium">Cantidad</th>
-              <th scope="col" className="px-3 py-2 font-medium">Saldo anterior</th>
-              <th scope="col" className="px-3 py-2 font-medium">Saldo posterior</th>
-              <th scope="col" className="px-3 py-2 font-medium">Vale</th>
-              <th scope="col" className="px-3 py-2 font-medium">Asiento recetario</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.items.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="px-3 py-6 text-center text-zinc-500">
-                  No se encontraron asientos con estos filtros.
-                </td>
-              </tr>
+        {chips.length > 0 ? (
+          <div className="filter-chips" role="group" aria-label="Filtros activos">
+            {chips.map((chip) => (
+              <span key={chip.key} className="chip">
+                {chip.label}: <strong>{chip.value}</strong>
+                <Link href={sinFiltroHref(chip.key)} scroll={false} className="chip-remove" aria-label={`Quitar filtro ${chip.label}`}>
+                  <X className="size-3" aria-hidden />
+                </Link>
+              </span>
+            ))}
+            {chips.length > 1 ? (
+              <Link href="/libro/contralor" scroll={false} className="btn btn-ghost btn-sm">
+                Limpiar filtros
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+
+      <div className="list-region">
+        <span className="link-pending" aria-hidden />
+        <div className="list-panel">
+          <div className="list-toolbar">
+            <p role="status">
+              <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(result.total)}</span> {result.total === 1 ? "asiento" : "asientos"}
+            </p>
+          </div>
+
+          {result.items.length === 0 ? (
+            hayFiltros ? (
+              <EmptyState icon={<SearchX className="size-5" />} title="Sin resultados" description="Ningún asiento coincide con los filtros aplicados." />
             ) : (
-              result.items.map((item) => (
-                <tr key={item.id}>
-                  <td className="px-3 py-2">{item.numeroCorrelativo}</td>
-                  <td className="px-3 py-2">{item.fechaAsiento}</td>
-                  <td className="px-3 py-2">{TIPO_MOVIMIENTO_LABELS[item.tipoMovimiento] ?? item.tipoMovimiento}</td>
-                  <td className="px-3 py-2">{item.drogaDescripcion}</td>
-                  {/* Legal record: exact quantities in the recorded unit (only trailing zeros stripped), never converted or rounded. */}
-                  <td className="whitespace-nowrap px-3 py-2">{formatCantidadExacta(item.cantidad, item.unidadSimbolo)}</td>
-                  <td className="whitespace-nowrap px-3 py-2">{formatCantidadExacta(item.saldoAnterior, "")}</td>
-                  <td className="whitespace-nowrap px-3 py-2">{formatCantidadExacta(item.saldoPosterior, "")}</td>
-                  <td className="px-3 py-2">{item.numeroValeAdquisicion ?? "—"}</td>
-                  <td className="px-3 py-2">
-                    {item.asientoRecetarioId ? (
-                      <Link href={`/libro/${item.asientoRecetarioId}`} className="underline">
-                        Nº {item.asientoRecetarioNumero}
-                      </Link>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              <EmptyState icon={<BookOpen className="size-5" />} title="Todavía no hay asientos de contralor" />
+            )
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col" className="px-3 py-2">
+                      Nº
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      Fecha
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      Movimiento
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      Droga
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-right">
+                      Cantidad
+                    </th>
+                    <th scope="col" className="hidden px-3 py-2 text-right lg:table-cell">
+                      Saldo anterior
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-right">
+                      Saldo
+                    </th>
+                    <th scope="col" className="hidden px-3 py-2 xl:table-cell">
+                      Vale
+                    </th>
+                    <th scope="col" className="hidden px-3 py-2 md:table-cell">
+                      Asiento recetario
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.items.map((item) => (
+                    <tr key={item.id}>
+                      <td className="px-3 py-2.5 font-mono font-semibold text-zinc-900 tabular-nums">{item.numeroCorrelativo}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">{formatFechaIso(item.fechaAsiento)}</td>
+                      <td className="px-3 py-2.5">
+                        <ToneBadge tone="neutral">{TIPO_MOVIMIENTO_LABELS[item.tipoMovimiento] ?? item.tipoMovimiento}</ToneBadge>
+                      </td>
+                      <td className="px-3 py-2.5 text-zinc-900">{item.drogaDescripcion}</td>
+                      {/* Legal record: exact quantities in the recorded unit (only trailing zeros stripped), never converted or rounded. */}
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">{formatCantidadExacta(item.cantidad, item.unidadSimbolo)}</td>
+                      <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono text-zinc-500 tabular-nums lg:table-cell">{formatCantidadExacta(item.saldoAnterior, "")}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">{formatCantidadExacta(item.saldoPosterior, "")}</td>
+                      <td className="hidden px-3 py-2.5 font-mono xl:table-cell">{item.numeroValeAdquisicion ?? <Vacio label="Sin vale" />}</td>
+                      <td className="hidden px-3 py-2.5 md:table-cell">
+                        {item.asientoRecetarioId ? (
+                          <Link href={`/libro/${item.asientoRecetarioId}`} className="font-mono underline-offset-2 hover:underline">
+                            Nº {item.asientoRecetarioNumero}
+                          </Link>
+                        ) : (
+                          <Vacio label="Sin asiento de recetario" />
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-      {totalPages > 1 ? (
-        <nav aria-label="Paginación de libros contralor" className="mt-4 flex items-center gap-2 text-sm">
-          <Link href={pageHref(Math.max(1, page - 1))} aria-disabled={page <= 1} className={page <= 1 ? "pointer-events-none text-zinc-400" : "underline"}>
-            Anterior
-          </Link>
-          <span>
-            Página {page} de {totalPages}
-          </span>
-          <Link href={pageHref(Math.min(totalPages, page + 1))} aria-disabled={page >= totalPages} className={page >= totalPages ? "pointer-events-none text-zinc-400" : "underline"}>
-            Siguiente
-          </Link>
-        </nav>
-      ) : null}
+          <Pagination page={page} pageSize={PAGE_SIZE} total={result.total} hrefFor={pageHref} label="Paginación de libros contralor" />
+        </div>
+      </div>
     </div>
   );
 }

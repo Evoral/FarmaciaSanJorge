@@ -21,12 +21,19 @@ export interface ConformarLoteFormProps {
 
 export function ConformarLoteForm({ periodoDesde, periodoHasta, ubicacion, cantidadElegibles }: ConformarLoteFormProps) {
   return (
-    <SimpleForm action={conformarLoteAction} submitLabel="Confirmar y conformar lote" pendingLabel="Conformando…" submitDisabled={cantidadElegibles === 0} className="max-w-lg">
+    <SimpleForm action={conformarLoteAction} submitLabel="Confirmar y conformar lote" pendingLabel="Conformando…" submitDisabled={cantidadElegibles === 0}>
       <input type="hidden" name="periodoDesde" value={periodoDesde} />
       <input type="hidden" name="periodoHasta" value={periodoHasta} />
       <input type="hidden" name="ubicacion" value={ubicacion} />
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
-        Se van a archivar {cantidadElegibles} receta{cantidadElegibles === 1 ? "" : "s"} en <strong>{ubicacion}</strong>.
+      <p className="text-[0.8125rem] leading-relaxed text-zinc-600">
+        {cantidadElegibles === 0 ? (
+          "No hay recetas para archivar en este período."
+        ) : (
+          <>
+            Se van a archivar <strong className="text-zinc-900">{cantidadElegibles}</strong> {cantidadElegibles === 1 ? "receta" : "recetas"} en{" "}
+            <strong className="text-zinc-900">{ubicacion}</strong>.
+          </>
+        )}
       </p>
     </SimpleForm>
   );

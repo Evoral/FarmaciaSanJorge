@@ -1,6 +1,6 @@
 "use client";
 
-/** Crear/editar médico form (FASE 4 point 4.4). */
+/** Crear/editar médico form (FASE 4 point 4.4). The page provides the surrounding panel. */
 import { crearMedicoAction, editarMedicoAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { JURISDICCIONES_MATRICULA, JURISDICCION_MATRICULA_LABELS } from "../domain/medico";
@@ -25,44 +25,41 @@ export function MedicoForm({ mode, medico, disabled }: MedicoFormProps) {
   const action = mode === "crear" ? crearMedicoAction : editarMedicoAction;
 
   return (
-    <div className="card p-4">
-      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear médico" : "Guardar cambios"} className="max-w-md">
-        {mode === "editar" && medico ? (
-          <>
-            <input type="hidden" name="id" value={medico.id} />
-            <input type="hidden" name="versionNombre" value={medico.nombre} />
-            <input type="hidden" name="versionApellido" value={medico.apellido} />
-            <input type="hidden" name="versionMatricula" value={medico.matricula} />
-            <input type="hidden" name="versionMatriculaJurisdiccion" value={medico.matriculaJurisdiccion} />
-            <input type="hidden" name="versionEspecialidad" value={medico.especialidad ?? ""} />
-            <input type="hidden" name="versionTelefono" value={medico.telefono ?? ""} />
-            <input type="hidden" name="versionDireccionRegistrada" value={medico.direccionRegistrada ?? ""} />
-          </>
-        ) : null}
+    <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear médico" : "Guardar cambios"}>
+      {mode === "editar" && medico ? (
+        <>
+          <input type="hidden" name="id" value={medico.id} />
+          <input type="hidden" name="versionNombre" value={medico.nombre} />
+          <input type="hidden" name="versionApellido" value={medico.apellido} />
+          <input type="hidden" name="versionMatricula" value={medico.matricula} />
+          <input type="hidden" name="versionMatriculaJurisdiccion" value={medico.matriculaJurisdiccion} />
+          <input type="hidden" name="versionEspecialidad" value={medico.especialidad ?? ""} />
+          <input type="hidden" name="versionTelefono" value={medico.telefono ?? ""} />
+          <input type="hidden" name="versionDireccionRegistrada" value={medico.direccionRegistrada ?? ""} />
+        </>
+      ) : null}
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="nombre" className="text-sm font-medium">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="field">
+          <label htmlFor="nombre" className="field-label">
             Nombre
           </label>
           <input id="nombre" name="nombre" defaultValue={medico?.nombre ?? ""} required disabled={disabled} className="input" />
         </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="apellido" className="text-sm font-medium">
+        <div className="field">
+          <label htmlFor="apellido" className="field-label">
             Apellido
           </label>
           <input id="apellido" name="apellido" defaultValue={medico?.apellido ?? ""} required disabled={disabled} className="input" />
         </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="matricula" className="text-sm font-medium">
+        <div className="field">
+          <label htmlFor="matricula" className="field-label">
             Matrícula
           </label>
-          <input id="matricula" name="matricula" defaultValue={medico?.matricula ?? ""} required disabled={disabled} className="input" />
+          <input id="matricula" name="matricula" defaultValue={medico?.matricula ?? ""} required disabled={disabled} className="input font-mono" />
         </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="matriculaJurisdiccion" className="text-sm font-medium">
+        <div className="field">
+          <label htmlFor="matriculaJurisdiccion" className="field-label">
             Jurisdicción de la matrícula
           </label>
           <select id="matriculaJurisdiccion" name="matriculaJurisdiccion" defaultValue={medico?.matriculaJurisdiccion ?? "PROVINCIAL"} required disabled={disabled} className="input">
@@ -73,28 +70,26 @@ export function MedicoForm({ mode, medico, disabled }: MedicoFormProps) {
             ))}
           </select>
         </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="especialidad" className="text-sm font-medium">
+        <div className="field">
+          <label htmlFor="especialidad" className="field-label">
             Especialidad
           </label>
           <input id="especialidad" name="especialidad" defaultValue={medico?.especialidad ?? ""} disabled={disabled} className="input" />
         </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="telefono" className="text-sm font-medium">
+        <div className="field">
+          <label htmlFor="telefono" className="field-label">
             Teléfono
           </label>
-          <input id="telefono" name="telefono" defaultValue={medico?.telefono ?? ""} disabled={disabled} className="input" />
+          <input id="telefono" name="telefono" type="tel" defaultValue={medico?.telefono ?? ""} disabled={disabled} className="input" />
         </div>
+      </div>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="direccionRegistrada" className="text-sm font-medium">
-            Dirección registrada
-          </label>
-          <input id="direccionRegistrada" name="direccionRegistrada" defaultValue={medico?.direccionRegistrada ?? ""} disabled={disabled} className="input" />
-        </div>
-      </SimpleForm>
-    </div>
+      <div className="field">
+        <label htmlFor="direccionRegistrada" className="field-label">
+          Dirección registrada
+        </label>
+        <input id="direccionRegistrada" name="direccionRegistrada" defaultValue={medico?.direccionRegistrada ?? ""} disabled={disabled} className="input" />
+      </div>
+    </SimpleForm>
   );
 }

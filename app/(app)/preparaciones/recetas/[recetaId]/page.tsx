@@ -30,7 +30,7 @@ import { can } from "@/shared/auth/authorize";
 import { ValidationError } from "@/shared/errors";
 import { getTomaReceta } from "@/modules/preparaciones/application/get-toma-receta";
 import type { ItemDeToma, RecetaDeToma } from "@/modules/preparaciones/application/get-toma-receta";
-import { ESTADOS_RECETA_EN_LABORATORIO, ESTADO_ITEM_TOMA_LABELS, HREF_EN_CURSO, estadoItemToma, hrefToma } from "@/modules/preparaciones/domain/toma";
+import { ESTADOS_RECETA_EN_LABORATORIO, ESTADO_ITEM_TOMA_LABELS, HREF_EN_CURSO, estadoItemToma, etiquetaProgreso, hrefToma } from "@/modules/preparaciones/domain/toma";
 import type { EstadoItemToma } from "@/modules/preparaciones/domain/toma";
 import { CancelarTomaForm } from "@/modules/preparaciones/ui/cancelar-toma-form";
 import { IniciarPreparacionForm } from "@/modules/preparaciones/ui/iniciar-form";
@@ -46,7 +46,10 @@ import { FichaVersionResumen } from "@/modules/elaboracion/ui/ficha-version-resu
 import { GenerarFichaForm } from "@/modules/elaboracion/ui/generar-ficha-form";
 import { FORMA_FARMACEUTICA_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 import { formatFecha, formatFechaHora } from "@/shared/format/fecha";
-import { StatusBadge } from "@/shared/ui/status-badge";
+import { StatusBadge, ToneBadge, type BadgeTone } from "@/shared/ui/status-badge";
+import { PageHeader } from "@/shared/ui/page-header";
+import { Avatar } from "@/shared/ui/avatar";
+import { CircleCheck, FlaskConical, Lock, Stethoscope } from "lucide-react";
 
 interface TomaRecetaPageProps {
   params: Promise<{ recetaId: string }>;
@@ -54,10 +57,10 @@ interface TomaRecetaPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-const TONO_ESTADO_ITEM: Record<EstadoItemToma, string> = {
-  PENDIENTE: "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
-  EN_CONFIRMACION: "bg-sky-50 text-sky-800 dark:bg-sky-950 dark:text-sky-300",
-  CONFIRMADA: "bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+const TONO_ESTADO_ITEM: Record<EstadoItemToma, BadgeTone> = {
+  PENDIENTE: "neutral",
+  EN_CONFIRMACION: "warn",
+  CONFIRMADA: "success",
 };
 
 async function leerReceta(recetaId: string): Promise<RecetaDeToma> {
@@ -92,67 +95,96 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
   const puedeImprimirFicha = can(session, "fichas.imprimir");
   const confirmacionEnCurso = receta.items.findIndex((item) => item.preparacion?.estado === "INICIADA");
 
+  const estados = receta.items.map((item) => estadoItemToma(item.preparacion));
+  const confirmados = estados.filter((estado) => estado === "CONFIRMADA").length;
+  const paciente = `${receta.pacienteNombre} ${receta.pacienteApellido}`;
+
   return (
     <div className="page">
-      <div className="mb-2">
-        <Link href={HREF_EN_CURSO} className="text-sm underline">
-          ← Volver a preparaciones
-        </Link>
-      </div>
-
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Receta Nº {receta.numeroInterno}</h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            {receta.pacienteNombre} {receta.pacienteApellido} — Dr./Dra. {receta.medicoApellido}, {receta.medicoNombre} (matrícula {receta.medicoMatricula})
-          </p>
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+      <PageHeader
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Preparaciones", href: HREF_EN_CURSO }, { label: `Receta Nº ${receta.numeroInterno}` }]}
+        title={
+          <span className="flex flex-wrap items-center gap-3">
+            Receta Nº <span className="font-mono">{receta.numeroInterno}</span>
             <StatusBadge estado={receta.estado} />
-            <span>
-              Tomada por {receta.tomadaPorNombre} el {receta.tomadaEn ? formatFechaHora(receta.tomadaEn, receta.zonaHoraria) : "—"}
-            </span>
-          </p>
-        </div>
-        <div className="max-w-sm">
-          {confirmacionEnCurso >= 0 ? (
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          </span>
+        }
+        description={
+          <>
+            Tomada por <strong className="font-medium text-zinc-900">{receta.tomadaPorNombre}</strong>
+            {receta.tomadaEn ? <> el {formatFechaHora(receta.tomadaEn, receta.zonaHoraria)}</> : null}
+          </>
+        }
+        actions={
+          confirmacionEnCurso >= 0 ? (
+            <p className="flex max-w-xs items-start gap-2 text-xs text-zinc-500">
+              <Lock className="mt-0.5 size-3.5 flex-none" aria-hidden />
               Para cancelar la toma, primero hay que descartar la preparación en curso del ítem {confirmacionEnCurso + 1}.
             </p>
           ) : (
             <CancelarTomaForm recetaId={receta.id} />
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       <AvisosGeneracion exito={guardada ? "Receta actualizada." : undefined} avisos={avisos} />
 
-      <section className="mb-8">
-        <h2 className="mb-3 text-lg font-medium">Receta</h2>
+      <section aria-label="Resumen de la toma" className="panel mb-8">
+        <div className="grid gap-5 p-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="person-block">
+            <Avatar name={paciente} />
+            <div className="min-w-0">
+              <p className="text-xs text-zinc-500">Paciente</p>
+              <p className="truncate font-medium text-zinc-900">{paciente}</p>
+            </div>
+          </div>
+          <div className="person-block">
+            <span className="tone-tile" aria-hidden>
+              <Stethoscope />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs text-zinc-500">Médico</p>
+              <p className="truncate font-medium text-zinc-900">
+                {receta.medicoApellido}, {receta.medicoNombre}
+              </p>
+              <p className="text-xs text-zinc-500">
+                Matrícula <span className="font-mono">{receta.medicoMatricula}</span>
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col justify-center gap-2">
+            <p className="text-xs text-zinc-500">Avance</p>
+            {receta.items.length <= 12 ? (
+              <span className="steps" aria-hidden>
+                {estados.map((estado, i) => (
+                  <span key={i} data-done={estado === "CONFIRMADA" || undefined} />
+                ))}
+              </span>
+            ) : null}
+            <p className="text-sm font-medium text-zinc-900">{etiquetaProgreso(confirmados, receta.items.length)}</p>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="receta-heading" className="mb-10">
+        <div className="section-heading">
+          <h2 id="receta-heading">Receta</h2>
+          {edicion ? <span className="text-xs text-zinc-500">Todavía se puede corregir. Al guardar, las fichas técnicas se recalculan.</span> : null}
+        </div>
         {edicion ? (
-          <>
-            <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-              Todavía se puede corregir. Al guardar, las fichas técnicas se recalculan con los datos nuevos.
-            </p>
-            <RecetaForm
-              key={edicion.version}
-              mode="editar"
-              unidades={edicion.unidades}
-              disabled={false}
-              recetaId={receta.id}
-              inicial={edicion.inicial}
-              volverA={hrefToma(receta.id)}
-            />
-          </>
+          <RecetaForm key={edicion.version} mode="editar" unidades={edicion.unidades} disabled={false} recetaId={receta.id} inicial={edicion.inicial} volverA={hrefToma(receta.id)} />
         ) : (
           <RecetaSoloLectura receta={receta} />
         )}
       </section>
 
-      <section>
-        <h2 className="mb-1 text-lg font-medium">Ítems</h2>
-        <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
-          Una vez que empieza la confirmación de un ítem, la receta ya no se puede editar.
-        </p>
+      <section aria-labelledby="items-heading">
+        <div className="section-heading">
+          <h2 id="items-heading" className="flex items-center gap-2">
+            Ítems <span className="tab-count">{receta.items.length}</span>
+          </h2>
+          <span className="text-xs text-zinc-500">Una vez que empieza la confirmación de un ítem, la receta ya no se puede editar.</span>
+        </div>
         <div className="flex flex-col gap-4">
           {receta.items.map((item, idx) => (
             <ItemToma
@@ -181,27 +213,30 @@ async function datosEdicion(recetaId: string) {
 }
 
 function RecetaSoloLectura({ receta }: { receta: RecetaDeToma }) {
+  const diagnostico = [receta.diagnosticoCodigo, receta.diagnosticoDescripcion].filter(Boolean).join(" - ");
   return (
-    <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
-      <div>
-        <dt className="text-zinc-500">Origen</dt>
-        <dd>{etiquetaDe(ORIGEN_RECETA_LABELS, receta.origen)}</dd>
-      </div>
-      <div>
-        <dt className="text-zinc-500">Fecha de prescripción</dt>
-        <dd>{formatFecha(receta.fechaPrescripcion)}</dd>
-      </div>
-      <div>
-        <dt className="text-zinc-500">Fecha de ingreso</dt>
-        <dd>{formatFecha(receta.fechaIngreso, receta.zonaHoraria)}</dd>
-      </div>
-      {receta.diagnosticoCodigo || receta.diagnosticoDescripcion ? (
-        <div className="col-span-full">
-          <dt className="text-zinc-500">Diagnóstico</dt>
-          <dd>{[receta.diagnosticoCodigo, receta.diagnosticoDescripcion].filter(Boolean).join(" - ")}</dd>
+    <div className="panel">
+      <dl className="grid gap-x-8 gap-y-4 p-5 text-sm sm:grid-cols-3">
+        <div>
+          <dt className="text-xs text-zinc-500">Origen</dt>
+          <dd className="text-zinc-900">{etiquetaDe(ORIGEN_RECETA_LABELS, receta.origen)}</dd>
         </div>
-      ) : null}
-    </dl>
+        <div>
+          <dt className="text-xs text-zinc-500">Prescripción</dt>
+          <dd className="text-zinc-900 tabular-nums">{formatFecha(receta.fechaPrescripcion)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-zinc-500">Ingreso</dt>
+          <dd className="text-zinc-900 tabular-nums">{formatFecha(receta.fechaIngreso, receta.zonaHoraria)}</dd>
+        </div>
+        {diagnostico ? (
+          <div className="sm:col-span-3">
+            <dt className="text-xs text-zinc-500">Diagnóstico</dt>
+            <dd className="text-zinc-900">{diagnostico}</dd>
+          </div>
+        ) : null}
+      </dl>
+    </div>
   );
 }
 
@@ -228,87 +263,126 @@ function ItemToma({
   const nombre = item.descripcion ?? etiquetaDe(FORMA_FARMACEUTICA_LABELS, item.formaFarmaceutica);
 
   return (
-    <article className="card p-4" aria-label={`Ítem ${numero}`}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-medium">
-          Ítem {numero}: {nombre}
+    <article className="group-card" aria-labelledby={`item-toma-${item.id}`}>
+      <div className="group-card-header">
+        <span className="index-badge" aria-hidden>
+          {numero}
+        </span>
+        <h3 id={`item-toma-${item.id}`} className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-900">
+          <span className="sr-only">Ítem {numero}: </span>
+          {nombre}
         </h3>
-        <span className={`badge ${TONO_ESTADO_ITEM[estado]}`}>{ESTADO_ITEM_TOMA_LABELS[estado]}</span>
+        <ToneBadge tone={TONO_ESTADO_ITEM[estado]}>{ESTADO_ITEM_TOMA_LABELS[estado]}</ToneBadge>
       </div>
 
-      {mostrarDatos ? (
-        <div className="mb-4">
-          <ItemDatos item={item} />
-        </div>
-      ) : null}
+      <div className="flex flex-col gap-5 p-4 sm:p-5">
+        {mostrarDatos ? <ItemDatos item={item} /> : null}
 
-      <div className="mb-4 border-t border-zinc-200 pt-3 dark:border-zinc-800">
-        <h4 className="mb-2 text-sm font-medium">Ficha técnica</h4>
-        {ficha ? (
-          <>
-            <FichaVersionResumen
-              fichaTecnicaId={ficha.id}
-              version={ficha.version}
-              cantidadLineas={ficha.lineas.length}
-              generadaEnTexto={formatFechaHora(ficha.generadaEn, zonaHoraria)}
-              generadaPorNombre={ficha.generadaPorNombre}
-              puedeImprimir={puedeImprimirFicha}
-            />
-            <div className="table-wrap mt-2">
-              <table className="data-table">
-                <thead className="border-b border-zinc-200 dark:border-zinc-800">
-                  <tr>
-                    <th scope="col" className="py-1 font-medium">Droga</th>
-                    <th scope="col" className="py-1 font-medium">Teórica</th>
-                    <th scope="col" className="py-1 font-medium">Exceso %</th>
-                    <th scope="col" className="py-1 font-medium">A pesar</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ficha.lineas.map((linea) => (
-                    <tr key={linea.orden}>
-                      <td className="py-1">{linea.drogaNombre}</td>
-                      <td className="py-1">{linea.cantidadTeorica ? `${linea.cantidadTeorica} ${linea.unidadSimbolo}` : "—"}</td>
-                      <td className="py-1">{linea.excesoAplicado}</td>
-                      <td className="py-1">
-                        {linea.esEnraseManual ? "Enrase manual (se registra al confirmar)" : linea.cantidadAPesar ? `${linea.cantidadAPesar} ${linea.unidadSimbolo}` : "—"}
-                      </td>
+        <div className={mostrarDatos ? "border-t border-zinc-100 pt-4" : undefined}>
+          <h4 className="mb-3 text-sm font-semibold text-zinc-900">Ficha técnica</h4>
+          {ficha ? (
+            <div className="flex flex-col gap-3">
+              <FichaVersionResumen
+                fichaTecnicaId={ficha.id}
+                version={ficha.version}
+                cantidadLineas={ficha.lineas.length}
+                generadaEnTexto={formatFechaHora(ficha.generadaEn, zonaHoraria)}
+                generadaPorNombre={ficha.generadaPorNombre}
+                puedeImprimir={puedeImprimirFicha}
+              />
+              <div className="table-wrap">
+                <table className="data-table">
+                  <caption className="sr-only">Líneas de pesaje</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col" className="px-3 py-2">
+                        Droga
+                      </th>
+                      <th scope="col" className="px-3 py-2 text-right">
+                        Teórica
+                      </th>
+                      <th scope="col" className="px-3 py-2 text-right">
+                        Exceso %
+                      </th>
+                      <th scope="col" className="px-3 py-2 text-right">
+                        A pesar
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {ficha.lineas.map((linea) => (
+                      <tr key={linea.orden}>
+                        <td className="px-3 py-2 font-medium text-zinc-900">{linea.drogaNombre}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">
+                          {linea.cantidadTeorica ? (
+                            <>
+                              {linea.cantidadTeorica} <span className="text-zinc-500">{linea.unidadSimbolo}</span>
+                            </>
+                          ) : (
+                            <Vacio />
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">{linea.excesoAplicado}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right font-mono font-semibold text-zinc-900 tabular-nums">
+                          {linea.esEnraseManual ? (
+                            <span className="font-sans font-normal text-zinc-500">Enrase manual (se registra al confirmar)</span>
+                          ) : linea.cantidadAPesar ? (
+                            <>
+                              {linea.cantidadAPesar} <span className="font-normal text-zinc-500">{linea.unidadSimbolo}</span>
+                            </>
+                          ) : (
+                            <Vacio />
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </>
-        ) : (
-          <p className="text-sm text-zinc-500">Todavía no se generó la ficha técnica de este ítem.</p>
-        )}
-        {puedeGenerarFicha && estado === "PENDIENTE" ? (
-          <div className="mt-3">
-            <GenerarFichaForm itemRecetaId={item.id} recetaId={recetaId} label={ficha ? "Generar nueva versión" : "Generar ficha técnica"} />
-          </div>
-        ) : null}
+          ) : (
+            <p className="text-sm text-zinc-500">Todavía no se generó la ficha técnica de este ítem.</p>
+          )}
+          {puedeGenerarFicha && estado === "PENDIENTE" ? (
+            <div className="mt-3">
+              <GenerarFichaForm itemRecetaId={item.id} recetaId={recetaId} label={ficha ? "Generar nueva versión" : "Generar ficha técnica"} />
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-zinc-100 bg-zinc-50/60 px-4 py-3 sm:px-5">
         {estado === "CONFIRMADA" && item.preparacion ? (
           <>
-            <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Confirmada</span>
-            <Link href={`/preparaciones/${item.preparacion.id}`} className="text-sm underline">
+            <span className="mr-auto flex items-center gap-1.5 text-sm font-medium text-emerald-700">
+              <CircleCheck className="size-4" aria-hidden />
+              Confirmada
+            </span>
+            <Link href={`/preparaciones/${item.preparacion.id}`} className="btn btn-secondary btn-sm">
               Ver preparación
             </Link>
           </>
         ) : estado === "EN_CONFIRMACION" && item.preparacion ? (
           <Link href={`/preparaciones/${item.preparacion.id}`} className="btn btn-primary">
+            <FlaskConical className="size-4" aria-hidden />
             Continuar confirmación
           </Link>
         ) : ficha ? (
           <IniciarPreparacionForm fichaTecnicaId={ficha.id} label="Confirmar terminación" pendingLabel="Iniciando…" />
         ) : (
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mr-auto text-sm text-zinc-600">
             {puedeGenerarFicha ? "Generá la ficha técnica para poder confirmar la terminación." : "Falta generar la ficha técnica de este ítem para poder confirmar la terminación."}
           </p>
         )}
       </div>
     </article>
+  );
+}
+
+function Vacio() {
+  return (
+    <span className="text-zinc-400">
+      -<span className="sr-only">Sin dato</span>
+    </span>
   );
 }

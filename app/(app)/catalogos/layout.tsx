@@ -23,7 +23,7 @@ export default async function CatalogosLayout({ children }: { children: ReactNod
   }
 
   return (
-    <div className="page">
+    <div className="page list-view">
       <SectionTabs ariaLabel="Secciones de catálogos" links={links} />
       {children}
     </div>

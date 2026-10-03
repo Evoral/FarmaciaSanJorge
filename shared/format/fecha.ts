@@ -10,6 +10,15 @@ export function formatFecha(fecha: Date, timeZone = "UTC"): string {
   return new Intl.DateTimeFormat("es-AR", { timeZone, day: "2-digit", month: "2-digit", year: "numeric" }).format(fecha);
 }
 
+/**
+ * A calendar day already given as `YYYY-MM-DD` (a jornada, a filter value) as dd/mm/aaaa. Anything that is not in
+ * that shape is returned unchanged, so a display never throws on unexpected input.
+ */
+export function formatFechaIso(iso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : iso;
+}
+
 /** An instant as dd/mm/aaaa hh:mm (24 h), in the farmacia's zona horaria. */
 export function formatFechaHora(fecha: Date, timeZone: string): string {
   const partes = new Intl.DateTimeFormat("es-AR", {

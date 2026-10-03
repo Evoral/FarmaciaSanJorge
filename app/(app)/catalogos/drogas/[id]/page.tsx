@@ -1,5 +1,4 @@
-/** `/catalogos/drogas/[id]` (M06, FASE 4 point 4.2): edit + baja/reactivar. */
-import Link from "next/link";
+/** `/catalogos/drogas/[id]` (M06, FASE 4 point 4.2): edit + baja/reactivar. Layout: the data form in the main column; the estado and its baja/reactivar action in the aside. */
 import { notFound } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
@@ -8,6 +7,8 @@ import { listUnidadesVigentesParaDroga } from "@/modules/drogas/application/list
 import { DrogaForm } from "@/modules/drogas/ui/droga-form";
 import { MotivoForm } from "@/shared/ui/motivo-form";
 import { darDeBajaDrogaAction, reactivarDrogaAction } from "@/modules/drogas/ui/actions";
+import { PageHeader } from "@/shared/ui/page-header";
+import { ToneBadge } from "@/shared/ui/status-badge";
 
 interface DrogaDetallePageProps {
   params: Promise<{ id: string }>;
@@ -26,41 +27,65 @@ export default async function DrogaDetallePage({ params }: DrogaDetallePageProps
   const puedeReactivar = can(session, "drogas.reactivar");
 
   return (
-    <div>
-      <div className="mb-2">
-        <Link href="/catalogos/drogas" className="text-sm underline">
-          ← Volver al listado
-        </Link>
-      </div>
+    <>
+      <PageHeader
+        breadcrumbs={[{ label: "Catálogos" }, { label: "Drogas", href: "/catalogos/drogas" }, { label: droga.nombre }]}
+        title={
+          <span className="flex flex-wrap items-center gap-3">
+            {droga.nombre}
+            <ToneBadge tone={droga.fechaBaja ? "neutral" : "success"}>{droga.fechaBaja ? "Dada de baja" : "Vigente"}</ToneBadge>
+          </span>
+        }
+      />
 
-      <h1 className="mb-1 text-2xl font-semibold">{droga.nombre}</h1>
-      <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">{droga.fechaBaja ? "Dada de baja" : "Vigente"}</p>
-
-      <div className="flex flex-col gap-8">
-        <section>
-          <h2 className="mb-3 text-lg font-medium">Datos</h2>
-          <DrogaForm mode="editar" unidades={unidades} droga={droga} disabled={!puedeEditar} />
+      <div className="split-layout">
+        <section aria-labelledby="datos-heading" className="panel min-w-0">
+          <div className="panel-header">
+            <h2 id="datos-heading">Datos</h2>
+            {!puedeEditar ? <p>Solo lectura: no tenés permiso para editar drogas.</p> : null}
+          </div>
+          <div className="panel-body">
+            <DrogaForm mode="editar" unidades={unidades} droga={droga} disabled={!puedeEditar} />
+          </div>
         </section>
 
-        <section>
-          <h2 className="mb-3 text-lg font-medium">Estado</h2>
-          {droga.fechaBaja ? (
-            <div className="flex flex-col gap-2">
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">Motivo de baja: {droga.motivoBaja ?? "—"}</p>
-              {puedeReactivar ? <MotivoForm action={reactivarDrogaAction} id={droga.id} label="Reactivar" pendingLabel="Reactivando…" /> : null}
+        <aside className="split-aside" aria-label="Estado de la droga">
+          <section className="panel" aria-labelledby="estado-heading">
+            <div className="panel-header">
+              <h2 id="estado-heading">Estado</h2>
             </div>
-          ) : puedeBaja ? (
-            <MotivoForm
-              action={darDeBajaDrogaAction}
-              id={droga.id}
-              label="Dar de baja"
-              pendingLabel="Dando de baja…"
-              helpText="Esta droga deja de ofrecerse para nuevas recetas, pero sigue resolviendo en históricos."
-              variant="danger"
-            />
-          ) : null}
-        </section>
+            <div className="panel-body flex flex-col gap-3">
+              {droga.fechaBaja ? (
+                <>
+                  <dl className="summary-dl">
+                    <dt>Estado</dt>
+                    <dd>Dada de baja</dd>
+                    <dt>Motivo</dt>
+                    <dd data-empty={!droga.motivoBaja || undefined} title={droga.motivoBaja ?? undefined}>
+                      {droga.motivoBaja ?? "Sin motivo"}
+                    </dd>
+                  </dl>
+                  {puedeReactivar ? <MotivoForm action={reactivarDrogaAction} id={droga.id} label="Reactivar" pendingLabel="Reactivando…" /> : null}
+                </>
+              ) : (
+                <>
+                  <p className="text-[0.8125rem] text-zinc-600">Vigente: se ofrece en recetas nuevas.</p>
+                  {puedeBaja ? (
+                    <MotivoForm
+                      action={darDeBajaDrogaAction}
+                      id={droga.id}
+                      label="Dar de baja"
+                      pendingLabel="Dando de baja…"
+                      helpText="Esta droga deja de ofrecerse para nuevas recetas, pero sigue resolviendo en históricos."
+                      variant="danger"
+                    />
+                  ) : null}
+                </>
+              )}
+            </div>
+          </section>
+        </aside>
       </div>
-    </div>
+    </>
   );
 }

@@ -48,6 +48,11 @@ const TONE_CLASSES: Record<BadgeTone, string> = {
   neutral: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
 };
 
+/** The tone `StatusBadge` paints `estado` with, for legends and meters that must match the pill. */
+export function estadoTone(estado: string): BadgeTone {
+  return TONE_BY_ESTADO[estado] ?? "neutral";
+}
+
 function humanize(estado: string): string {
   const text = estado.replaceAll("_", " ").toLowerCase().replace(/\bpend\b/, "pend.");
   return text.charAt(0).toUpperCase() + text.slice(1);

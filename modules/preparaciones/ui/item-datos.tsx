@@ -19,20 +19,37 @@ export interface ItemDatosVista {
 
 export function ItemDatos({ item }: { item: ItemDatosVista }) {
   return (
-    <>
-      <p className="mb-2 text-sm font-medium">
-        {etiquetaDe(FORMA_FARMACEUTICA_LABELS, item.formaFarmaceutica)} — {item.cantidadUnidades} unidad
-        {item.cantidadUnidades === 1 ? "" : "es"}
-        {item.cantidadTotal ? `, total ${item.cantidadTotal} ${item.unidadTotalSimbolo ?? ""}` : ""}
+    <div className="flex flex-col gap-3">
+      <p className="meta-line">
+        <span className="font-medium text-zinc-900">{etiquetaDe(FORMA_FARMACEUTICA_LABELS, item.formaFarmaceutica)}</span>
+        <span className="tabular-nums">
+          {item.cantidadUnidades} {item.cantidadUnidades === 1 ? "unidad" : "unidades"}
+        </span>
+        {item.cantidadTotal ? (
+          <span className="tabular-nums">
+            Total {item.cantidadTotal} {item.unidadTotalSimbolo ?? ""}
+          </span>
+        ) : null}
       </p>
       {item.posologia || item.duracionTratamientoDias ? (
-        <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400">
-          {item.posologia ? `Posología: ${item.posologia}` : ""}
-          {item.posologia && item.duracionTratamientoDias ? " · " : ""}
-          {item.duracionTratamientoDias ? `Tratamiento por ${item.duracionTratamientoDias} día${item.duracionTratamientoDias === 1 ? "" : "s"}` : ""}
-        </p>
+        <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+          {item.posologia ? (
+            <div>
+              <dt className="text-xs text-zinc-500">Posología</dt>
+              <dd className="text-zinc-900">{item.posologia}</dd>
+            </div>
+          ) : null}
+          {item.duracionTratamientoDias ? (
+            <div>
+              <dt className="text-xs text-zinc-500">Tratamiento</dt>
+              <dd className="text-zinc-900 tabular-nums">
+                {item.duracionTratamientoDias} {item.duracionTratamientoDias === 1 ? "día" : "días"}
+              </dd>
+            </div>
+          ) : null}
+        </dl>
       ) : null}
       <ComponentesTabla componentes={item.componentes} />
-    </>
+    </div>
   );
 }

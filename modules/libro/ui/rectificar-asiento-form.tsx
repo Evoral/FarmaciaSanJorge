@@ -6,8 +6,10 @@
  * for a SISTEMA asiento whose jornada is ALREADY signed, still VIGENTE,
  * and with no rectificativo yet (see `app/(app)/libro/[id]/page.tsx`).
  */
+import { TriangleAlert } from "lucide-react";
 import { rectificarAsientoAction } from "./actions";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
+import { CoFirmaDt } from "@/shared/ui/co-firma-dt";
 import type { DtOpcion } from "./anular-asiento-form";
 
 export interface RectificarAsientoFormProps {
@@ -18,52 +20,29 @@ export interface RectificarAsientoFormProps {
 
 export function RectificarAsientoForm({ asientoOriginalId, numeroCorrelativo, dts }: RectificarAsientoFormProps) {
   return (
-    <div className="rounded border border-amber-300 p-4 dark:border-amber-800">
-      <h3 className="mb-2 text-sm font-semibold text-amber-800 dark:text-amber-300">Rectificar asiento Nº {numeroCorrelativo}</h3>
-      <p className="mb-3 text-xs text-zinc-600 dark:text-zinc-400">
-        La jornada de este asiento ya está firmada: no se puede anular. Se generará un asiento rectificativo nuevo, en la jornada de hoy, que deja este asiento &quot;sin efecto&quot; -- el original NO se modifica ni se borra.
-      </p>
-
-      <ReauthAwareForm action={rectificarAsientoAction} submitLabel="Generar rectificativo" pendingLabel="Generando…" submitVariant="danger-solid" className="max-w-lg">
-        <input type="hidden" name="asientoOriginalId" value={asientoOriginalId} />
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="motivo-rectificar" className="text-sm font-medium">
-            Motivo
-          </label>
-          <textarea id="motivo-rectificar" name="motivo" required rows={2} className="input" />
+    <section className="panel" data-tone="danger" aria-labelledby="rectificar-heading">
+      <div className="panel-header">
+        <h2 id="rectificar-heading">Rectificar asiento Nº {numeroCorrelativo}</h2>
+      </div>
+      <div className="panel-body flex flex-col gap-4">
+        <div className="alert alert-warn">
+          <TriangleAlert aria-hidden />
+          <p>
+            La jornada de este asiento ya está firmada: no se puede anular. Se genera un asiento rectificativo nuevo, en la jornada de hoy, que deja este
+            asiento &quot;sin efecto&quot;. El original no se modifica ni se borra.
+          </p>
         </div>
-
-        <fieldset className="card p-4">
-          <legend className="px-1 text-sm font-medium">Co-firma del Director Técnico</legend>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="dtUsuarioId-rectificar" className="text-sm font-medium">
-              Director Técnico
+        <ReauthAwareForm action={rectificarAsientoAction} submitLabel="Generar rectificativo" pendingLabel="Generando…" submitVariant="danger-solid">
+          <input type="hidden" name="asientoOriginalId" value={asientoOriginalId} />
+          <div className="field">
+            <label htmlFor="motivo-rectificar" className="field-label">
+              Motivo
             </label>
-            <select id="dtUsuarioId-rectificar" name="dtUsuarioId" required className="input">
-              <option value="">Seleccioná el DT que autoriza</option>
-              {dts.map((dt) => (
-                <option key={dt.id} value={dt.id}>
-                  {dt.label}
-                </option>
-              ))}
-            </select>
+            <textarea id="motivo-rectificar" name="motivo" required rows={2} className="input" />
           </div>
-          <div className="mt-2 flex flex-col gap-1">
-            <label htmlFor="dtPassword-rectificar" className="text-sm font-medium">
-              Contraseña del Director Técnico
-            </label>
-            <input
-              id="dtPassword-rectificar"
-              name="dtPassword"
-              type="password"
-              autoComplete="off"
-              required
-              className="input"
-            />
-          </div>
-        </fieldset>
-      </ReauthAwareForm>
-    </div>
+          <CoFirmaDt dts={dts} idSuffix="-rectificar" />
+        </ReauthAwareForm>
+      </div>
+    </section>
   );
 }

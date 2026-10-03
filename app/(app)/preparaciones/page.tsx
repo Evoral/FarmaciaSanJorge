@@ -1,13 +1,15 @@
 /**
  * `/preparaciones` (M11): the lab's screen. Tabs (`?estado=`): Pendientes
  * (the default) · En curso · Confirmadas · Descartadas, one paginated table
- * per tab; only the active tab's list is queried.
+ * per tab; only the active tab's list is queried (so only the active tab
+ * shows a count).
  *
  * Pendientes is the lab's queue, one row per receta: recetas loaded at the
  * front desk that nobody took yet and that still need a preparación, oldest
- * first so none is skipped. "Ver" previews what has to be prepared (every
- * pending ítem: forma, cantidades and componentes, read with the page) in a
- * read-only dialog. "Tomar receta" only records who took it and when
+ * first so none is skipped (no re-sorting in the UI on purpose). "Ver"
+ * previews what has to be prepared (every pending ítem: forma, cantidades
+ * and componentes, read with the page) in a read-only dialog. "Tomar
+ * receta" only records who took it and when
  * (modules/preparaciones/domain/toma.ts) and opens the receta's toma
  * workspace (/preparaciones/recetas/[recetaId]), where the receta can still
  * be edited and each ítem's confirmation is started.
@@ -26,8 +28,14 @@
  * Pendientes, the toma on En curso, the preparación's start on the others --
  * and "Sin etiqueta impresa" on Confirmadas. No paciente filter: DP-24
  * forbids personal data in URLs.
+ *
+ * Responsive: the tables keep their client forms (Ver, Tomar, Generar
+ * etiqueta) in ONE place; on small screens secondary columns hide and
+ * their data stacks under the receta Nº instead of duplicating the rows.
  */
 import Link from "next/link";
+import { CircleCheck, CircleOff, Eye, FlaskConical, Hourglass, Inbox, Printer, SearchX, X } from "lucide-react";
+import type { ReactNode } from "react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listPreparaciones } from "@/modules/preparaciones/application/list-preparaciones";
@@ -44,7 +52,7 @@ import {
   hrefPreparaciones,
   parsearFiltrosPreparaciones,
 } from "@/modules/preparaciones/domain/listado";
-import type { EstadoEtiqueta } from "@/modules/preparaciones/domain/listado";
+import type { EstadoEtiqueta, FiltrosPreparaciones } from "@/modules/preparaciones/domain/listado";
 import { etiquetaProgreso, hrefToma, resumenItemsPendientes } from "@/modules/preparaciones/domain/toma";
 import { generarEtiquetaAction } from "@/modules/preparaciones/ui/actions";
 import { TomarRecetaForm } from "@/modules/preparaciones/ui/tomar-receta-form";
@@ -53,7 +61,15 @@ import { FORMA_FARMACEUTICA_LABELS, etiquetaDe } from "@/shared/labels/enum-labe
 import { formatFecha, formatFechaHora } from "@/shared/format/fecha";
 import { DateInput } from "@/shared/ui/date-input";
 import { FilterForm } from "@/shared/ui/filter-form";
+import { FilterDrawer } from "@/shared/ui/filter-drawer";
+import { SearchField } from "@/shared/ui/search-field";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { PageHeader } from "@/shared/ui/page-header";
+import { TabNav } from "@/shared/ui/tab-nav";
+import { EmptyState } from "@/shared/ui/empty-state";
+import { Pagination } from "@/shared/ui/pagination";
+import { Avatar } from "@/shared/ui/avatar";
+import { ToneBadge, type BadgeTone } from "@/shared/ui/status-badge";
 
 const PAGE_SIZE = 20;
 
@@ -61,10 +77,11 @@ interface PreparacionesPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-const TONO_ETIQUETA: Record<EstadoEtiqueta, string> = {
-  PENDIENTE: "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
-  GENERADA: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-  IMPRESA: "bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+/** Same colors as before (the StatusBadge tones). */
+const TONO_ETIQUETA: Record<EstadoEtiqueta, BadgeTone> = {
+  PENDIENTE: "warn",
+  GENERADA: "neutral",
+  IMPRESA: "success",
 };
 
 type Lista =
@@ -79,6 +96,22 @@ const ETIQUETA_FECHAS: Record<Lista["pestana"], string> = {
   DESCARTADA: "Iniciada",
 };
 
+/** Empty state per tab when no filter narrows the list. */
+const VACIO: Record<Lista["pestana"], { icon: ReactNode; title: string; description: string }> = {
+  PENDIENTE: { icon: <Inbox className="size-5" />, title: "No hay recetas esperando", description: "Las recetas cargadas en mostrador aparecen acá para tomarlas, la más antigua primero." },
+  INICIADA: { icon: <Hourglass className="size-5" />, title: "No hay recetas en curso", description: "Al tomar una receta pendiente, aparece acá hasta que se confirmen todos sus ítems." },
+  CONFIRMADA: { icon: <CircleCheck className="size-5" />, title: "Todavía no hay preparaciones confirmadas", description: "Las preparaciones confirmadas aparecen acá para generar e imprimir su etiqueta." },
+  DESCARTADA: { icon: <CircleOff className="size-5" />, title: "No hay preparaciones descartadas", description: "Las preparaciones descartadas quedan registradas acá." },
+};
+
+const numberFormat = new Intl.NumberFormat("es-AR");
+
+/** `2026-09-01` -> `01/09/2026` (filters are already validated as ISO dates). */
+function isoToDisplay(value: string): string {
+  const [y, m, d] = value.split("-");
+  return `${d}/${m}/${y}`;
+}
+
 export default async function PreparacionesPage({ searchParams }: PreparacionesPageProps) {
   const session = await requireSession();
   const filtros = parsearFiltrosPreparaciones(await searchParams);
@@ -92,108 +125,172 @@ export default async function PreparacionesPage({ searchParams }: PreparacionesP
     lista = { pestana: filtros.estado, result: await listPreparaciones({ ...comunes, estado: filtros.estado, sinEtiquetaImpresa: filtros.sinEtiquetaImpresa }) };
   }
   const total = lista.result.total;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const esConfirmadas = filtros.estado === "CONFIRMADA";
   const etiquetaFechas = ETIQUETA_FECHAS[lista.pestana];
+  const hasActiveFilters = Boolean(filtros.numero || filtros.desde || filtros.hasta || filtros.sinEtiquetaImpresa);
+
+  const chips: { key: string; label: string; value?: string; remove: Partial<FiltrosPreparaciones> }[] = [];
+  if (filtros.numero) chips.push({ key: "numero", label: "Nº de receta", value: filtros.numero, remove: { numero: undefined } });
+  if (filtros.desde) chips.push({ key: "desde", label: `${etiquetaFechas} desde`, value: isoToDisplay(filtros.desde), remove: { desde: undefined } });
+  if (filtros.hasta) chips.push({ key: "hasta", label: `${etiquetaFechas} hasta`, value: isoToDisplay(filtros.hasta), remove: { hasta: undefined } });
+  if (filtros.sinEtiquetaImpresa) chips.push({ key: "sinEtiqueta", label: "Sin etiqueta impresa", remove: { sinEtiquetaImpresa: false } });
+  const sinFiltrosHref = hrefPreparaciones(filtros, { numero: undefined, desde: undefined, hasta: undefined, sinEtiquetaImpresa: false, page: 1 });
+
+  const resumen =
+    lista.pestana === "PENDIENTE"
+      ? total === 1
+        ? "receta pendiente de preparación"
+        : "recetas pendientes de preparación"
+      : lista.pestana === "INICIADA"
+        ? total === 1
+          ? "receta en curso"
+          : "recetas en curso"
+        : total === 1
+          ? "preparación encontrada"
+          : "preparaciones encontradas";
+
+  const vacio = VACIO[lista.pestana];
+  const empty =
+    total > 0 ? (
+      <EmptyState
+        icon={<SearchX className="size-5" />}
+        title="Esta página no tiene resultados"
+        description="Hay resultados, pero en páginas anteriores."
+        action={
+          <Link href={hrefPreparaciones(filtros, { page: 1 })} className="btn btn-secondary">
+            Ir a la primera página
+          </Link>
+        }
+      />
+    ) : hasActiveFilters ? (
+      <EmptyState
+        icon={<SearchX className="size-5" />}
+        title="Sin resultados"
+        description="Nada coincide con los filtros aplicados en esta pestaña."
+        action={
+          <Link href={sinFiltrosHref} scroll={false} className="btn btn-secondary">
+            Limpiar filtros
+          </Link>
+        }
+      />
+    ) : (
+      <EmptyState icon={vacio.icon} title={vacio.title} description={vacio.description} />
+    );
 
   return (
-    <div className="page">
-      <h1 className="mb-4 text-2xl font-semibold">Preparaciones</h1>
+    <div className="page list-view">
+      <PageHeader
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Preparaciones" }]}
+        title="Preparaciones"
+        description="La cola del laboratorio: recetas por tomar, en curso y preparaciones terminadas."
+      />
 
-      <nav aria-label="Estado de las preparaciones" className="mb-6 flex flex-wrap gap-x-5 border-b border-zinc-200 text-sm dark:border-zinc-800">
-        {PESTANAS_PREPARACIONES.map((p) => {
-          const activa = p.estado === filtros.estado;
-          return (
-            <Link
-              key={p.estado}
-              href={hrefPreparaciones(filtros, { estado: p.estado })}
-              aria-current={activa ? "page" : undefined}
-              className={
-                activa
-                  ? "-mb-px border-b-2 border-emerald-600 pb-2.5 font-medium text-zinc-900 dark:border-emerald-400 dark:text-zinc-100"
-                  : "-mb-px border-b-2 border-transparent pb-2.5 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-              }
-            >
-              {p.titulo}
-            </Link>
-          );
-        })}
-      </nav>
+      <TabNav
+        label="Estado de las preparaciones"
+        items={PESTANAS_PREPARACIONES.map((p) => ({
+          key: p.estado,
+          label: p.titulo,
+          href: hrefPreparaciones(filtros, { estado: p.estado }),
+          active: p.estado === filtros.estado,
+          // Only the active tab is queried, so only it has a count.
+          count: p.estado === filtros.estado ? total : undefined,
+        }))}
+      />
 
-      <FilterForm
-        className="mb-6 flex flex-wrap items-end gap-3"
-        aria-label="Filtros de preparaciones"
-        hasActiveFilters={Boolean(filtros.numero || filtros.desde || filtros.hasta || filtros.sinEtiquetaImpresa)}
-      >
-        {filtros.estado !== PESTANA_PREPARACIONES_POR_DEFECTO ? <input type="hidden" name="estado" value={filtros.estado} /> : null}
-        <div className="flex flex-col gap-1">
-          <label htmlFor="numero" className="text-sm font-medium">
-            Nº de receta
-          </label>
-          <input id="numero" name="numero" type="text" inputMode="numeric" defaultValue={filtros.numero ?? ""} className="w-28 input" />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="desde" className="text-sm font-medium">
-            {etiquetaFechas} desde
-          </label>
-          <DateInput id="desde" name="desde" defaultValue={filtros.desde ?? ""} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="hasta" className="text-sm font-medium">
-            {etiquetaFechas} hasta
-          </label>
-          <DateInput id="hasta" name="hasta" defaultValue={filtros.hasta ?? ""} />
-        </div>
-        {esConfirmadas ? (
-          <label className="toggle-switch">
-            <input type="checkbox" role="switch" name="sinEtiqueta" value="1" defaultChecked={filtros.sinEtiquetaImpresa} />
-            Sin etiqueta impresa
-          </label>
+      <section aria-label="Búsqueda y filtros" className="mb-4">
+        <FilterForm className="filter-bar" aria-label="Filtros de preparaciones" hasActiveFilters={false}>
+          {filtros.estado !== PESTANA_PREPARACIONES_POR_DEFECTO ? <input type="hidden" name="estado" value={filtros.estado} /> : null}
+          <SearchField
+            id="numero"
+            name="numero"
+            label="Nº de receta"
+            hideLabel
+            defaultValue={filtros.numero ?? ""}
+            placeholder="Buscar por Nº de receta"
+            inputMode="numeric"
+            className="min-w-0 flex-1 md:w-64 md:flex-none"
+          />
+          <FilterDrawer activeCount={(filtros.desde ? 1 : 0) + (filtros.hasta ? 1 : 0) + (filtros.sinEtiquetaImpresa ? 1 : 0)}>
+            <div className="field">
+              <span id="fechas-label" className="field-label">
+                {etiquetaFechas}
+              </span>
+              <div className="range-field" role="group" aria-labelledby="fechas-label">
+                <label htmlFor="desde" className="sr-only">
+                  {etiquetaFechas} desde
+                </label>
+                <DateInput id="desde" name="desde" defaultValue={filtros.desde ?? ""} />
+                <span className="range-field-sep" aria-hidden>
+                  a
+                </span>
+                <label htmlFor="hasta" className="sr-only">
+                  {etiquetaFechas} hasta
+                </label>
+                <DateInput id="hasta" name="hasta" defaultValue={filtros.hasta ?? ""} />
+              </div>
+            </div>
+            {esConfirmadas ? (
+              <label className="toggle-switch">
+                <input type="checkbox" role="switch" name="sinEtiqueta" value="1" defaultChecked={filtros.sinEtiquetaImpresa} />
+                Sin etiqueta impresa
+              </label>
+            ) : null}
+          </FilterDrawer>
+        </FilterForm>
+
+        {chips.length > 0 ? (
+          <div className="filter-chips" role="group" aria-label="Filtros activos">
+            {chips.map((chip) => (
+              <span key={chip.key} className="chip">
+                {chip.value ? (
+                  <>
+                    {chip.label}: <strong>{chip.value}</strong>
+                  </>
+                ) : (
+                  <strong>{chip.label}</strong>
+                )}
+                <Link href={hrefPreparaciones(filtros, { ...chip.remove, page: 1 })} scroll={false} className="chip-remove" aria-label={`Quitar filtro ${chip.label}`}>
+                  <X className="size-3" aria-hidden />
+                </Link>
+              </span>
+            ))}
+            {chips.length > 1 ? (
+              <Link href={sinFiltrosHref} scroll={false} className="btn btn-ghost btn-sm">
+                Limpiar filtros
+              </Link>
+            ) : null}
+          </div>
         ) : null}
-      </FilterForm>
+      </section>
 
-      <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
-        {lista.pestana === "PENDIENTE"
-          ? `${total} receta${total === 1 ? " pendiente" : "s pendientes"} de preparación.`
-          : lista.pestana === "INICIADA"
-            ? `${total} receta${total === 1 ? "" : "s"} en curso.`
-            : `${total} preparaci${total === 1 ? "ón encontrada" : "ones encontradas"}.`}
-      </p>
+      <div className="list-region">
+        <span className="link-pending" aria-hidden />
+        <div className="list-panel">
+          <div className="list-toolbar">
+            <p role="status">
+              <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(total)}</span> {resumen}
+            </p>
+            {lista.pestana === "PENDIENTE" && lista.result.items.length > 0 ? <p className="text-xs">La más antigua primero</p> : null}
+          </div>
 
-      {lista.pestana === "PENDIENTE" ? (
-        <TablaPendientes result={lista.result} puedeTomar={can(session, "preparaciones.iniciar")} />
-      ) : lista.pestana === "INICIADA" ? (
-        <TablaEnCurso result={lista.result} />
-      ) : (
-        <TablaPreparaciones
-          result={lista.result}
-          esConfirmadas={esConfirmadas}
-          puedeGenerarEtiqueta={can(session, "etiquetas.generar")}
-          puedeImprimirEtiqueta={can(session, "etiquetas.imprimir")}
-        />
-      )}
+          {lista.result.items.length === 0 ? (
+            empty
+          ) : lista.pestana === "PENDIENTE" ? (
+            <TablaPendientes result={lista.result} puedeTomar={can(session, "preparaciones.iniciar")} />
+          ) : lista.pestana === "INICIADA" ? (
+            <TablaEnCurso result={lista.result} />
+          ) : (
+            <TablaPreparaciones
+              result={lista.result}
+              esConfirmadas={esConfirmadas}
+              puedeGenerarEtiqueta={can(session, "etiquetas.generar")}
+              puedeImprimirEtiqueta={can(session, "etiquetas.imprimir")}
+            />
+          )}
 
-      {totalPages > 1 ? (
-        <nav aria-label="Paginación de preparaciones" className="mt-4 flex items-center gap-2 text-sm">
-          <Link
-            href={hrefPreparaciones(filtros, { page: Math.max(1, filtros.page - 1) })}
-            aria-disabled={filtros.page <= 1}
-            className={filtros.page <= 1 ? "pointer-events-none text-zinc-400" : "underline"}
-          >
-            Anterior
-          </Link>
-          <span>
-            Página {filtros.page} de {totalPages}
-          </span>
-          <Link
-            href={hrefPreparaciones(filtros, { page: Math.min(totalPages, filtros.page + 1) })}
-            aria-disabled={filtros.page >= totalPages}
-            className={filtros.page >= totalPages ? "pointer-events-none text-zinc-400" : "underline"}
-          >
-            Siguiente
-          </Link>
-        </nav>
-      ) : null}
+          <Pagination page={filtros.page} pageSize={PAGE_SIZE} total={total} hrefFor={(page) => hrefPreparaciones(filtros, { page })} label="Paginación de preparaciones" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -203,71 +300,107 @@ function nombreItem(item: Pick<ItemPendiente, "itemDescripcion" | "formaFarmaceu
   return item.itemDescripcion ?? etiquetaDe(FORMA_FARMACEUTICA_LABELS, item.formaFarmaceutica);
 }
 
+/** Receta Nº cell: the number plus, on small screens, the data of the hidden columns. */
+function CeldaReceta({ recetaId, numero, paciente, extra }: { recetaId: string; numero: string; paciente: string; extra?: ReactNode }) {
+  return (
+    <td className="px-3 py-2.5">
+      <Link href={`/recetas/${recetaId}`} className="font-mono font-semibold underline-offset-2 hover:underline">
+        {numero}
+      </Link>
+      <span className="block truncate text-xs text-zinc-600 md:hidden">{paciente}</span>
+      {extra ? <span className="block text-xs text-zinc-500 tabular-nums lg:hidden">{extra}</span> : null}
+    </td>
+  );
+}
+
+function CeldaPaciente({ nombre }: { nombre: string }) {
+  return (
+    <td className="hidden px-3 py-2.5 md:table-cell">
+      <span className="flex items-center gap-2.5">
+        <Avatar name={nombre} />
+        <span className="truncate font-medium text-zinc-900">{nombre}</span>
+      </span>
+    </td>
+  );
+}
+
+function Th({ children, className }: { children?: ReactNode; className?: string }) {
+  return (
+    <th scope="col" className={`px-3 py-2 ${className ?? ""}`}>
+      {children}
+    </th>
+  );
+}
+
 function TablaPendientes({ result, puedeTomar }: { result: ListRecetasPendientesOutput; puedeTomar: boolean }) {
   return (
     <div className="table-wrap">
       <table className="data-table">
         <thead>
           <tr>
-            <th scope="col" className="px-3 py-2 font-medium">Receta Nº</th>
-            <th scope="col" className="px-3 py-2 font-medium">Ítems</th>
-            <th scope="col" className="px-3 py-2 font-medium">Paciente</th>
-            <th scope="col" className="px-3 py-2 font-medium">Ingresada</th>
-            <th scope="col" className="px-3 py-2 font-medium">
+            <Th>Receta Nº</Th>
+            <Th>Ítems</Th>
+            <Th className="hidden md:table-cell">Paciente</Th>
+            <Th className="hidden lg:table-cell">Ingresada</Th>
+            <Th>
               <span className="sr-only">Acciones</span>
-            </th>
+            </Th>
           </tr>
         </thead>
         <tbody>
-          {result.items.length === 0 ? (
-            <tr>
-              <td colSpan={5} className="px-3 py-6 text-center text-zinc-500">
-                No hay recetas pendientes de preparación con estos filtros.
-              </td>
-            </tr>
-          ) : (
-            result.items.map((receta) => {
-              const totalItems = receta.items[0]?.totalItems ?? receta.items.length;
-              return (
-                <tr key={receta.recetaId}>
-                  <td className="px-3 py-2">
-                    <Link href={`/recetas/${receta.recetaId}`} className="font-medium underline-offset-2 hover:underline">
-                      {receta.recetaNumeroInterno}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2">{resumenItemsPendientes(receta.items.map(nombreItem), totalItems)}</td>
-                  <td className="px-3 py-2">
-                    {receta.pacienteNombre} {receta.pacienteApellido}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2">{formatFecha(receta.recetaFechaIngreso, result.zonaHoraria)}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-start justify-end gap-2">
-                      <VerRecetaPendienteDialog
-                        receta={{
-                          recetaNumeroInterno: receta.recetaNumeroInterno,
-                          items: receta.items.map((item) => ({
-                            itemRecetaId: item.itemRecetaId,
-                            nombre: item.totalItems > 1 ? `${nombreItem(item)} (ítem ${item.posicion} de ${item.totalItems})` : nombreItem(item),
-                            formaFarmaceutica: item.formaFarmaceutica,
-                            cantidadUnidades: item.cantidadUnidades,
-                            cantidadTotal: item.cantidadTotal,
-                            unidadTotalSimbolo: item.unidadTotalSimbolo,
-                            posologia: item.posologia,
-                            duracionTratamientoDias: item.duracionTratamientoDias,
-                            componentes: item.componentes,
-                          })),
-                        }}
-                      />
-                      {puedeTomar ? <TomarRecetaForm recetaId={receta.recetaId} /> : null}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })
-          )}
+          {result.items.map((receta) => {
+            const totalItems = receta.items[0]?.totalItems ?? receta.items.length;
+            const paciente = `${receta.pacienteNombre} ${receta.pacienteApellido}`;
+            const ingresada = formatFecha(receta.recetaFechaIngreso, result.zonaHoraria);
+            return (
+              <tr key={receta.recetaId}>
+                <CeldaReceta recetaId={receta.recetaId} numero={receta.recetaNumeroInterno} paciente={paciente} extra={`Ingresada ${ingresada}`} />
+                <td className="max-w-[32ch] px-3 py-2.5 text-zinc-700">{resumenItemsPendientes(receta.items.map(nombreItem), totalItems)}</td>
+                <CeldaPaciente nombre={paciente} />
+                <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums lg:table-cell">{ingresada}</td>
+                <td className="px-3 py-2.5">
+                  <div className="flex flex-wrap items-start justify-end gap-2">
+                    <VerRecetaPendienteDialog
+                      receta={{
+                        recetaNumeroInterno: receta.recetaNumeroInterno,
+                        items: receta.items.map((item) => ({
+                          itemRecetaId: item.itemRecetaId,
+                          nombre: item.totalItems > 1 ? `${nombreItem(item)} (ítem ${item.posicion} de ${item.totalItems})` : nombreItem(item),
+                          formaFarmaceutica: item.formaFarmaceutica,
+                          cantidadUnidades: item.cantidadUnidades,
+                          cantidadTotal: item.cantidadTotal,
+                          unidadTotalSimbolo: item.unidadTotalSimbolo,
+                          posologia: item.posologia,
+                          duracionTratamientoDias: item.duracionTratamientoDias,
+                          componentes: item.componentes,
+                        })),
+                      }}
+                    />
+                    {puedeTomar ? <TomarRecetaForm recetaId={receta.recetaId} /> : null}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** One segment per ítem (when they fit) plus the textual progress. */
+function Progreso({ confirmados, total }: { confirmados: number; total: number }) {
+  return (
+    <span className="flex flex-col gap-1.5">
+      {total > 0 && total <= 12 ? (
+        <span className="steps" aria-hidden>
+          {Array.from({ length: total }, (_, i) => (
+            <span key={i} data-done={i < confirmados || undefined} />
+          ))}
+        </span>
+      ) : null}
+      <span className="text-xs text-zinc-600">{etiquetaProgreso(confirmados, total)}</span>
+    </span>
   );
 }
 
@@ -277,47 +410,45 @@ function TablaEnCurso({ result }: { result: ListRecetasEnCursoOutput }) {
       <table className="data-table">
         <thead>
           <tr>
-            <th scope="col" className="px-3 py-2 font-medium">Receta Nº</th>
-            <th scope="col" className="px-3 py-2 font-medium">Progreso</th>
-            <th scope="col" className="px-3 py-2 font-medium">Paciente</th>
-            <th scope="col" className="px-3 py-2 font-medium">Tomada por</th>
-            <th scope="col" className="px-3 py-2 font-medium">Tomada</th>
-            <th scope="col" className="px-3 py-2 font-medium">
+            <Th>Receta Nº</Th>
+            <Th>Progreso</Th>
+            <Th className="hidden md:table-cell">Paciente</Th>
+            <Th className="hidden lg:table-cell">Tomada por</Th>
+            <Th className="hidden lg:table-cell">Tomada</Th>
+            <Th>
               <span className="sr-only">Acciones</span>
-            </th>
+            </Th>
           </tr>
         </thead>
         <tbody>
-          {result.items.length === 0 ? (
-            <tr>
-              <td colSpan={6} className="px-3 py-6 text-center text-zinc-500">
-                No hay recetas en curso con estos filtros.
-              </td>
-            </tr>
-          ) : (
-            result.items.map((receta) => (
+          {result.items.map((receta) => {
+            const paciente = `${receta.pacienteNombre} ${receta.pacienteApellido}`;
+            const tomada = formatFechaHora(receta.tomadaEn, result.zonaHoraria);
+            return (
               <tr key={receta.recetaId}>
-                <td className="px-3 py-2">
-                  <Link href={`/recetas/${receta.recetaId}`} className="font-medium underline-offset-2 hover:underline">
-                    {receta.recetaNumeroInterno}
-                  </Link>
+                <CeldaReceta recetaId={receta.recetaId} numero={receta.recetaNumeroInterno} paciente={paciente} extra={`Tomada por ${receta.tomadaPorNombre}, ${tomada}`} />
+                <td className="px-3 py-2.5">
+                  <Progreso confirmados={receta.itemsConfirmados} total={receta.totalItems} />
                 </td>
-                <td className="px-3 py-2">{etiquetaProgreso(receta.itemsConfirmados, receta.totalItems)}</td>
-                <td className="px-3 py-2">
-                  {receta.pacienteNombre} {receta.pacienteApellido}
+                <CeldaPaciente nombre={paciente} />
+                <td className="hidden px-3 py-2.5 lg:table-cell">
+                  <span className="flex items-center gap-2">
+                    <Avatar name={receta.tomadaPorNombre} />
+                    {receta.tomadaPorNombre}
+                  </span>
                 </td>
-                <td className="px-3 py-2">{receta.tomadaPorNombre}</td>
-                <td className="whitespace-nowrap px-3 py-2">{formatFechaHora(receta.tomadaEn, result.zonaHoraria)}</td>
-                <td className="px-3 py-2">
+                <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums lg:table-cell">{tomada}</td>
+                <td className="px-3 py-2.5">
                   <div className="flex justify-end">
                     <Link href={hrefToma(receta.recetaId)} className="btn btn-primary btn-sm">
+                      <FlaskConical className="size-3.5" aria-hidden />
                       Abrir
                     </Link>
                   </div>
                 </td>
               </tr>
-            ))
-          )}
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -335,62 +466,61 @@ function TablaPreparaciones({
   puedeGenerarEtiqueta: boolean;
   puedeImprimirEtiqueta: boolean;
 }) {
-  const columnas = 5 + (esConfirmadas ? 2 : 0);
   return (
     <div className="table-wrap">
       <table className="data-table">
         <thead>
           <tr>
-            <th scope="col" className="px-3 py-2 font-medium">Receta Nº</th>
-            <th scope="col" className="px-3 py-2 font-medium">Ítem</th>
-            <th scope="col" className="px-3 py-2 font-medium">Paciente</th>
-            <th scope="col" className="px-3 py-2 font-medium">Iniciada</th>
-            {esConfirmadas ? <th scope="col" className="px-3 py-2 font-medium">Confirmada</th> : null}
-            {esConfirmadas ? <th scope="col" className="px-3 py-2 font-medium">Etiqueta</th> : null}
-            <th scope="col" className="px-3 py-2 font-medium">
+            <Th>Receta Nº</Th>
+            <Th>Ítem</Th>
+            <Th className="hidden md:table-cell">Paciente</Th>
+            <Th className="hidden lg:table-cell">Iniciada</Th>
+            {esConfirmadas ? <Th className="hidden lg:table-cell">Confirmada</Th> : null}
+            {esConfirmadas ? <Th>Etiqueta</Th> : null}
+            <Th>
               <span className="sr-only">Acciones</span>
-            </th>
+            </Th>
           </tr>
         </thead>
         <tbody>
-          {result.items.length === 0 ? (
-            <tr>
-              <td colSpan={columnas} className="px-3 py-6 text-center text-zinc-500">
-                No hay preparaciones con estos filtros.
-              </td>
-            </tr>
-          ) : (
-            result.items.map((p) => {
-              const etiqueta = estadoEtiqueta(p.etiqueta);
-              return (
-                <tr key={p.id}>
-                  <td className="px-3 py-2">
-                    <Link href={`/recetas/${p.recetaId}`} className="font-medium underline-offset-2 hover:underline">
-                      {p.recetaNumeroInterno}
-                    </Link>
+          {result.items.map((p) => {
+            const etiqueta = estadoEtiqueta(p.etiqueta);
+            const paciente = `${p.pacienteNombre} ${p.pacienteApellido}`;
+            const iniciada = formatFechaHora(p.iniciadaEn, result.zonaHoraria);
+            const confirmada = p.confirmadaEn ? formatFechaHora(p.confirmadaEn, result.zonaHoraria) : null;
+            return (
+              <tr key={p.id}>
+                <CeldaReceta
+                  recetaId={p.recetaId}
+                  numero={p.recetaNumeroInterno}
+                  paciente={paciente}
+                  extra={esConfirmadas && confirmada ? `Confirmada ${confirmada}` : `Iniciada ${iniciada}`}
+                />
+                <td className="max-w-[32ch] px-3 py-2.5 text-zinc-700">{p.itemDescripcion ?? etiquetaDe(FORMA_FARMACEUTICA_LABELS, p.formaFarmaceutica)}</td>
+                <CeldaPaciente nombre={paciente} />
+                <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums lg:table-cell">{iniciada}</td>
+                {esConfirmadas ? (
+                  <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums lg:table-cell">
+                    {confirmada ?? (
+                      <span className="text-zinc-400">
+                        -<span className="sr-only">Sin fecha de confirmación</span>
+                      </span>
+                    )}
                   </td>
-                  <td className="px-3 py-2">{p.itemDescripcion ?? etiquetaDe(FORMA_FARMACEUTICA_LABELS, p.formaFarmaceutica)}</td>
-                  <td className="px-3 py-2">
-                    {p.pacienteNombre} {p.pacienteApellido}
+                ) : null}
+                {esConfirmadas ? (
+                  <td className="px-3 py-2.5">
+                    <ToneBadge tone={TONO_ETIQUETA[etiqueta]}>{ESTADO_ETIQUETA_LABELS[etiqueta]}</ToneBadge>
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2">{formatFechaHora(p.iniciadaEn, result.zonaHoraria)}</td>
-                  {esConfirmadas ? (
-                    <td className="whitespace-nowrap px-3 py-2">{p.confirmadaEn ? formatFechaHora(p.confirmadaEn, result.zonaHoraria) : "—"}</td>
-                  ) : null}
-                  {esConfirmadas ? (
-                    <td className="px-3 py-2">
-                      <span className={`badge ${TONO_ETIQUETA[etiqueta]}`}>{ESTADO_ETIQUETA_LABELS[etiqueta]}</span>
-                    </td>
-                  ) : null}
-                  <td className="px-3 py-2">
-                    <div className="flex justify-end">
-                      <AccionFila preparacion={p} puedeGenerarEtiqueta={puedeGenerarEtiqueta} puedeImprimirEtiqueta={puedeImprimirEtiqueta} />
-                    </div>
-                  </td>
-                </tr>
-              );
-            })
-          )}
+                ) : null}
+                <td className="px-3 py-2.5">
+                  <div className="flex justify-end">
+                    <AccionFila preparacion={p} puedeGenerarEtiqueta={puedeGenerarEtiqueta} puedeImprimirEtiqueta={puedeImprimirEtiqueta} />
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -409,6 +539,7 @@ function AccionFila({
   if (preparacion.estado !== "CONFIRMADA") {
     return (
       <Link href={`/preparaciones/${preparacion.id}`} className="btn btn-secondary btn-sm">
+        <Eye className="size-3.5" aria-hidden />
         Ver
       </Link>
     );
@@ -416,6 +547,7 @@ function AccionFila({
   if (preparacion.etiqueta) {
     return puedeImprimirEtiqueta ? (
       <a href={`/api/preparaciones/${preparacion.id}/etiqueta/pdf`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">
+        <Printer className="size-3.5" aria-hidden />
         Imprimir etiqueta
       </a>
     ) : null;

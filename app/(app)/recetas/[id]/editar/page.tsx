@@ -1,5 +1,4 @@
 /** `/recetas/[id]/editar` (FASE 6 point 6.3): solo mientras PENDIENTE_PREPARACION y sin ficha con preparación (validado también en el servidor por editarReceta). */
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
@@ -8,6 +7,7 @@ import { listUnidadesParaReceta } from "@/modules/recetas/application/list-unida
 import { esEstadoEditable } from "@/modules/recetas/domain/receta";
 import { RecetaForm } from "@/modules/recetas/ui/receta-form";
 import { inicialDesdeReceta } from "@/modules/recetas/ui/receta-form-inicial";
+import { PageHeader } from "@/shared/ui/page-header";
 
 interface EditarRecetaPageProps {
   params: Promise<{ id: string }>;
@@ -29,19 +29,21 @@ export default async function EditarRecetaPage({ params }: EditarRecetaPageProps
 
   return (
     <div className="page">
-      <div className="mb-2">
-        <Link href={`/recetas/${id}`} className="text-sm underline">
-          ← Volver al detalle
-        </Link>
-      </div>
-      <h1 className="mb-6 text-2xl font-semibold">Editar receta Nº {receta.numeroInterno}</h1>
-      <RecetaForm
-        mode="editar"
-        unidades={unidades}
-        disabled={false}
-        recetaId={receta.id}
-        inicial={inicialDesdeReceta(receta)}
+      <PageHeader
+        breadcrumbs={[
+          { label: "Inicio", href: "/" },
+          { label: "Recetas", href: "/recetas" },
+          { label: `Nº ${receta.numeroInterno}`, href: `/recetas/${id}` },
+          { label: "Editar" },
+        ]}
+        title={
+          <>
+            Editar receta Nº <span className="font-mono">{receta.numeroInterno}</span>
+          </>
+        }
+        description="Se puede corregir mientras está pendiente de preparación. Al guardar, las fichas técnicas se recalculan."
       />
+      <RecetaForm mode="editar" unidades={unidades} disabled={false} recetaId={receta.id} inicial={inicialDesdeReceta(receta)} />
     </div>
   );
 }

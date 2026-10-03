@@ -1,6 +1,6 @@
 "use client";
 
-/** `/libro/historico` digitalización form (FASE 9, M12 point 9.5, DT only). */
+/** `/libro/historico` digitalización form (FASE 9, M12 point 9.5, DT only). Paciente/médico are transcribed as printed in the physical book (free text, not a pick). */
 import { crearAsientoHistoricoAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { DateInput } from "@/shared/ui/date-input";
@@ -13,57 +13,59 @@ const TIPOS = [
 
 export function HistoricoForm() {
   return (
-    <SimpleForm action={crearAsientoHistoricoAction} submitLabel="Digitalizar asiento" className="max-w-lg">
-      <div className="flex flex-col gap-1">
-        <label htmlFor="tipoLibro" className="text-sm font-medium">
-          Libro
-        </label>
-        <select id="tipoLibro" name="tipoLibro" required className="input">
-          {TIPOS.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
+    <SimpleForm action={crearAsientoHistoricoAction} submitLabel="Digitalizar asiento">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="field">
+          <label htmlFor="tipoLibro" className="field-label">
+            Libro
+          </label>
+          <select id="tipoLibro" name="tipoLibro" required className="input">
+            {TIPOS.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="numeroAsientoFisico" className="field-label">
+            Nº de asiento (libro físico)
+          </label>
+          <input id="numeroAsientoFisico" name="numeroAsientoFisico" type="text" required className="input font-mono" />
+        </div>
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="numeroAsientoFisico" className="text-sm font-medium">
-          Número de asiento (libro físico)
-        </label>
-        <input id="numeroAsientoFisico" name="numeroAsientoFisico" type="text" required className="input" />
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label htmlFor="fechaAsiento" className="text-sm font-medium">
+      <div className="field">
+        <label htmlFor="fechaAsiento" className="field-label">
           Fecha del asiento
         </label>
         <DateInput id="fechaAsiento" name="fechaAsiento" required />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="pacienteTexto" className="text-sm font-medium">
-          Paciente (si figura)
-        </label>
-        <input id="pacienteTexto" name="pacienteTexto" type="text" className="input" />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="field">
+          <label htmlFor="pacienteTexto" className="field-label">
+            Paciente (si figura)
+          </label>
+          <input id="pacienteTexto" name="pacienteTexto" type="text" className="input" />
+        </div>
+        <div className="field">
+          <label htmlFor="medicoTexto" className="field-label">
+            Médico (si figura)
+          </label>
+          <input id="medicoTexto" name="medicoTexto" type="text" className="input" />
+        </div>
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="medicoTexto" className="text-sm font-medium">
-          Médico (si figura)
-        </label>
-        <input id="medicoTexto" name="medicoTexto" type="text" className="input" />
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label htmlFor="formulaTexto" className="text-sm font-medium">
+      <div className="field">
+        <label htmlFor="formulaTexto" className="field-label">
           Fórmula
         </label>
-        <textarea id="formulaTexto" name="formulaTexto" required rows={2} className="input" />
+        <textarea id="formulaTexto" name="formulaTexto" required rows={3} className="input font-mono" />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="observaciones" className="text-sm font-medium">
+      <div className="field">
+        <label htmlFor="observaciones" className="field-label">
           Observaciones
         </label>
         <textarea id="observaciones" name="observaciones" rows={2} className="input" />

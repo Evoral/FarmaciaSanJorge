@@ -4,8 +4,9 @@
  * Crear/editar unidad de medida form (FASE 4 point 4.1). DP-39 RESUELTA:
  * this catalog is GLOBAL -- a create/edit here affects EVERY tenant, so a
  * warning banner is always shown (task's binding decision: "Show that
- * clearly in the UI before confirming").
+ * clearly in the UI before confirming"). The page provides the surrounding panel.
  */
+import { Globe } from "lucide-react";
 import { crearUnidadAction, editarUnidadAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { TIPOS_MAGNITUD, TIPO_MAGNITUD_LABELS } from "@/modules/unidades/domain/unidad";
@@ -33,12 +34,13 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
   const classificacionDisabled = disabled || (mode === "editar" && (unidad?.usada ?? false));
 
   return (
-    <div className="card p-4">
-      <p role="note" className="mb-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-        {GLOBAL_WARNING}
-      </p>
+    <div className="flex flex-col gap-4">
+      <div role="note" className="alert alert-warn">
+        <Globe aria-hidden />
+        <p>{GLOBAL_WARNING}</p>
+      </div>
 
-      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear unidad" : "Guardar cambios"} className="max-w-md">
+      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear unidad" : "Guardar cambios"}>
         {mode === "editar" && unidad ? (
           <>
             <input type="hidden" name="id" value={unidad.id} />
@@ -50,77 +52,60 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
           </>
         ) : null}
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="codigo" className="text-sm font-medium">
-            Código
-          </label>
-          <input id="codigo" name="codigo" defaultValue={unidad?.codigo ?? ""} required disabled={disabled} className="input" />
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
+          <div className="field">
+            <label htmlFor="codigo" className="field-label">
+              Código
+            </label>
+            <input id="codigo" name="codigo" defaultValue={unidad?.codigo ?? ""} required disabled={disabled} className="input font-mono" />
+          </div>
+          <div className="field">
+            <label htmlFor="nombre" className="field-label">
+              Nombre
+            </label>
+            <input id="nombre" name="nombre" defaultValue={unidad?.nombre ?? ""} required disabled={disabled} className="input" />
+          </div>
+          <div className="field">
+            <label htmlFor="simbolo" className="field-label">
+              Símbolo
+            </label>
+            <input id="simbolo" name="simbolo" defaultValue={unidad?.simbolo ?? ""} required disabled={disabled} className="input font-mono" />
+          </div>
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="nombre" className="text-sm font-medium">
-            Nombre
-          </label>
-          <input id="nombre" name="nombre" defaultValue={unidad?.nombre ?? ""} required disabled={disabled} className="input" />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="field">
+            <label htmlFor="tipoMagnitud" className="field-label">
+              Magnitud
+            </label>
+            <select id="tipoMagnitud" name="tipoMagnitud" defaultValue={unidad?.tipoMagnitud ?? TIPOS_MAGNITUD[0]} disabled={classificacionDisabled} className="input">
+              {TIPOS_MAGNITUD.map((tipo) => (
+                <option key={tipo} value={tipo}>
+                  {TIPO_MAGNITUD_LABELS[tipo]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="factorABase" className="field-label">
+              Factor respecto de la unidad base
+            </label>
+            <input id="factorABase" name="factorABase" defaultValue={unidad?.factorABase ?? ""} required disabled={classificacionDisabled} inputMode="decimal" className="input font-mono" />
+          </div>
         </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="simbolo" className="text-sm font-medium">
-            Símbolo
-          </label>
-          <input id="simbolo" name="simbolo" defaultValue={unidad?.simbolo ?? ""} required disabled={disabled} className="input" />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="tipoMagnitud" className="text-sm font-medium">
-            Magnitud
-          </label>
-          <select
-            id="tipoMagnitud"
-            name="tipoMagnitud"
-            defaultValue={unidad?.tipoMagnitud ?? TIPOS_MAGNITUD[0]}
-            disabled={classificacionDisabled}
-            className="input"
-          >
-            {TIPOS_MAGNITUD.map((tipo) => (
-              <option key={tipo} value={tipo}>
-                {TIPO_MAGNITUD_LABELS[tipo]}
-              </option>
-            ))}
-          </select>
-          {classificacionDisabled && mode === "editar" ? (
-            <p className="text-xs text-zinc-500">
-              Ya fue usada por{" "}
-              {unidad && unidad.drogasQueLaUsan !== undefined
-                ? `${unidad.drogasQueLaUsan} droga${unidad.drogasQueLaUsan === 1 ? "" : "s"} (en todas las farmacias)`
-                : "alguna droga"}
-              : la magnitud y el factor no se pueden modificar.
-            </p>
-          ) : null}
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="factorABase" className="text-sm font-medium">
-            Factor respecto de la unidad base
-          </label>
-          <input
-            id="factorABase"
-            name="factorABase"
-            defaultValue={unidad?.factorABase ?? ""}
-            required
-            disabled={classificacionDisabled}
-            inputMode="decimal"
-            className="input"
-          />
-        </div>
+        {classificacionDisabled && mode === "editar" ? (
+          <p className="field-help -mt-1">
+            Ya fue usada por{" "}
+            {unidad && unidad.drogasQueLaUsan !== undefined ? `${unidad.drogasQueLaUsan} droga${unidad.drogasQueLaUsan === 1 ? "" : "s"} (en todas las farmacias)` : "alguna droga"}: la magnitud y el factor
+            no se pueden modificar.
+          </p>
+        ) : null}
 
         {mode === "crear" ? (
-          <div className="flex items-center gap-2">
-            <input id="esBase" name="esBase" type="checkbox" disabled={disabled} className="rounded border-zinc-300" />
-            <label htmlFor="esBase" className="text-sm font-medium">
-              Es la unidad base de su magnitud (factor 1)
-            </label>
-          </div>
+          <label htmlFor="esBase" className="flex items-center gap-2 text-sm text-zinc-800">
+            <input id="esBase" name="esBase" type="checkbox" disabled={disabled} />
+            Es la unidad base de su magnitud (factor 1)
+          </label>
         ) : null}
       </SimpleForm>
     </div>

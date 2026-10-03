@@ -14,8 +14,8 @@ export interface ConfirmarFormProps {
 
 export function ConfirmarForm({ action, recetaId, label, pendingLabel, helpText }: ConfirmarFormProps) {
   return (
-    <div>
-      {helpText ? <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400">{helpText}</p> : null}
+    <div className="flex flex-col gap-3">
+      {helpText ? <p className="text-[0.8125rem] leading-relaxed text-zinc-600">{helpText}</p> : null}
       <SimpleForm action={action} submitLabel={label} pendingLabel={pendingLabel}>
         <input type="hidden" name="recetaId" value={recetaId} />
       </SimpleForm>

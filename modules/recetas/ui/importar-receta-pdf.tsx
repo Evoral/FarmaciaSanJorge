@@ -9,6 +9,7 @@
  * trust boundary (domain/archivo-receta-pdf.ts) is the real check.
  */
 import { useActionState, useEffect, useId, useState, type ChangeEvent } from "react";
+import { AlertCircle, FileUp } from "lucide-react";
 import { leerRecetaPdfAction } from "./actions";
 import { IDLE_LEER_PDF_STATE } from "./action-state";
 import { MAX_PDF_BYTES, MENSAJES_ARCHIVO_PDF } from "../domain/archivo-receta-pdf";
@@ -46,16 +47,21 @@ export function ImportarRecetaPdf({ onLeida, onDescartar, importando }: Importar
   }
 
   return (
-    <section aria-labelledby="importar-pdf-heading" className="card p-4">
-      <h2 id="importar-pdf-heading" className="mb-1 text-lg font-medium">
-        Importar desde PDF
-      </h2>
-      <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
-        Subí el PDF de una receta digital para precargar el formulario. Revisá la vista previa antes de confirmar: no se guarda nada hasta que confirmes, y el PDF no se almacena.
-      </p>
-      <form action={formAction} onSubmit={onSubmit} className="flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1">
-          <label htmlFor={inputId} className="text-sm font-medium">
+    <section aria-labelledby="importar-pdf-heading" className="panel">
+      <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:px-5">
+        <span className="tone-tile" data-tone={importando ? "success" : "neutral"} aria-hidden>
+          <FileUp />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 id="importar-pdf-heading" className="text-sm font-semibold text-zinc-900">
+            {importando ? "Receta importada desde PDF" : "¿Es una receta digital? Importá el PDF"}
+          </h2>
+          <p className="mt-0.5 text-[0.8125rem] text-zinc-500">
+            Precarga el formulario. No se guarda nada hasta que confirmes, y el PDF no se almacena.
+          </p>
+        </div>
+        <form action={formAction} onSubmit={onSubmit} className="flex flex-wrap items-center gap-2">
+          <label htmlFor={inputId} className="sr-only">
             PDF de la receta
           </label>
           <input
@@ -65,28 +71,28 @@ export function ImportarRecetaPdf({ onLeida, onDescartar, importando }: Importar
             accept="application/pdf,.pdf"
             required
             onChange={handleChange}
-            className="cursor-pointer text-sm text-zinc-600 file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-zinc-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-zinc-800 hover:file:bg-zinc-50 dark:text-zinc-400"
+            className="max-w-full cursor-pointer text-sm text-zinc-600 file:mr-3 file:cursor-pointer file:rounded file:border file:border-zinc-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-zinc-900 hover:file:border-zinc-400 hover:file:bg-zinc-50"
           />
+          {isPending ? (
+            <p role="status" className="flex items-center gap-2 text-sm text-zinc-600">
+              <span className="spinner" aria-hidden />
+              Leyendo…
+            </p>
+          ) : null}
+          {importando ? (
+            <button type="button" onClick={onDescartar} className="btn btn-ghost btn-sm">
+              Descartar importación
+            </button>
+          ) : null}
+        </form>
+      </div>
+      {clientError || state.status === "error" ? (
+        <div className="px-4 pb-4 sm:px-5">
+          <div role="alert" className="alert alert-danger">
+            <AlertCircle aria-hidden />
+            <p>{clientError ?? (state.status === "error" ? state.message : null)}</p>
+          </div>
         </div>
-        {isPending ? (
-          <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-            Leyendo…
-          </p>
-        ) : null}
-        {importando ? (
-          <button type="button" onClick={onDescartar} className="btn btn-secondary">
-            Descartar importación
-          </button>
-        ) : null}
-      </form>
-      {clientError ? (
-        <p role="alert" className="mt-2 text-sm text-red-600">
-          {clientError}
-        </p>
-      ) : state.status === "error" ? (
-        <p role="alert" className="mt-2 text-sm text-red-600">
-          {state.message}
-        </p>
       ) : null}
     </section>
   );

@@ -87,6 +87,35 @@ export async function listAsientosContralor(tx: Prisma.TransactionClient, tenant
   return { items: rows.map(toItem), total, page: filtro.page, pageSize: filtro.pageSize };
 }
 
+export interface DrogaContralorOpcion {
+  drogaId: string;
+  drogaDescripcion: string;
+}
+
+/**
+ * The drogas that appear in the tenant's contralor asientos (both libros), for the `/libro/contralor` droga
+ * autocomplete: distinct by droga, matched on the printed description, alphabetical, at most `limite`. Read-only.
+ * A droga recorded with more than one description (snapshots taken at different times) is listed once, under the
+ * first description in alphabetical order.
+ */
+export async function listDrogasContralor(tx: Prisma.TransactionClient, tenantId: string, filtro: { search?: string; limite: number }): Promise<DrogaContralorOpcion[]> {
+  const rows = await tx.asientoContralor.groupBy({
+    by: ["drogaId", "drogaDescripcion"],
+    where: { tenantId, drogaDescripcion: filtro.search ? { contains: filtro.search, mode: "insensitive" } : undefined },
+    orderBy: { drogaDescripcion: "asc" },
+    take: filtro.limite * 2,
+  });
+  const vistas = new Set<string>();
+  const opciones: DrogaContralorOpcion[] = [];
+  for (const row of rows) {
+    if (vistas.has(row.drogaId)) continue;
+    vistas.add(row.drogaId);
+    opciones.push({ drogaId: row.drogaId, drogaDescripcion: row.drogaDescripcion });
+    if (opciones.length === filtro.limite) break;
+  }
+  return opciones;
+}
+
 /**
  * Walks every matching row in pages (export path, FASE 13 point 13.3) --
  * same async-generator shape as

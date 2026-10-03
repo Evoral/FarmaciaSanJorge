@@ -28,7 +28,7 @@ export function SectionTabs({ ariaLabel, links }: SectionTabsProps) {
   if (links.length === 0) return null;
 
   return (
-    <nav aria-label={ariaLabel} className="mb-6 flex flex-wrap gap-x-5 border-b border-zinc-200 text-sm dark:border-zinc-800">
+    <nav aria-label={ariaLabel} className="tab-nav">
       {links.map((link) => {
         const isActive = pathname === link.href || (!link.exact && pathname.startsWith(`${link.href}/`));
         return (
@@ -36,7 +36,7 @@ export function SectionTabs({ ariaLabel, links }: SectionTabsProps) {
             key={link.href}
             href={link.href}
             aria-current={isActive ? "page" : undefined}
-            className={isActive ? "-mb-px border-b-2 border-emerald-600 pb-2.5 font-medium text-zinc-900 dark:border-emerald-400 dark:text-zinc-100" : "-mb-px border-b-2 border-transparent pb-2.5 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"}
+            className="tab"
           >
             {link.label}
           </Link>

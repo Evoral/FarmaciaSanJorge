@@ -1,6 +1,6 @@
 "use client";
 
-/** Crear/editar droga form (FASE 4 point 4.2, DP-12). */
+/** Crear/editar droga form (FASE 4 point 4.2, DP-12). The page provides the surrounding panel. */
 import { crearDrogaAction, editarDrogaAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { TIPOS_CONTROL, TIPO_CONTROL_LABELS } from "@/modules/drogas/domain/droga";
@@ -31,38 +31,31 @@ export function DrogaForm({ mode, unidades, droga, disabled }: DrogaFormProps) {
   const clasificacionDisabled = disabled || (mode === "editar" && (droga?.tienePartidas ?? false));
 
   return (
-    <div className="card p-4">
-      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear droga" : "Guardar cambios"} className="max-w-md">
-        {mode === "editar" && droga ? (
-          <>
-            <input type="hidden" name="id" value={droga.id} />
-            <input type="hidden" name="versionNombre" value={droga.nombre} />
-            <input type="hidden" name="versionUnidadBaseId" value={droga.unidadBaseId} />
-            <input type="hidden" name="versionEsControlada" value={String(droga.esControlada)} />
-            <input type="hidden" name="versionTipoControl" value={droga.tipoControl} />
-            <input type="hidden" name="versionStockMinimo" value={droga.stockMinimo} />
-          </>
-        ) : null}
+    <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear droga" : "Guardar cambios"}>
+      {mode === "editar" && droga ? (
+        <>
+          <input type="hidden" name="id" value={droga.id} />
+          <input type="hidden" name="versionNombre" value={droga.nombre} />
+          <input type="hidden" name="versionUnidadBaseId" value={droga.unidadBaseId} />
+          <input type="hidden" name="versionEsControlada" value={String(droga.esControlada)} />
+          <input type="hidden" name="versionTipoControl" value={droga.tipoControl} />
+          <input type="hidden" name="versionStockMinimo" value={droga.stockMinimo} />
+        </>
+      ) : null}
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="nombre" className="text-sm font-medium">
-            Nombre
-          </label>
-          <input id="nombre" name="nombre" defaultValue={droga?.nombre ?? ""} required disabled={disabled} className="input" />
-        </div>
+      <div className="field">
+        <label htmlFor="nombre" className="field-label">
+          Nombre
+        </label>
+        <input id="nombre" name="nombre" defaultValue={droga?.nombre ?? ""} required disabled={disabled} className="input" />
+      </div>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="unidadBaseId" className="text-sm font-medium">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="field">
+          <label htmlFor="unidadBaseId" className="field-label">
             Unidad base
           </label>
-          <select
-            id="unidadBaseId"
-            name="unidadBaseId"
-            defaultValue={droga?.unidadBaseId ?? ""}
-            required
-            disabled={clasificacionDisabled}
-            className="input"
-          >
+          <select id="unidadBaseId" name="unidadBaseId" defaultValue={droga?.unidadBaseId ?? ""} required disabled={clasificacionDisabled} className="input">
             <option value="" disabled>
               Elegí una unidad
             </option>
@@ -72,41 +65,35 @@ export function DrogaForm({ mode, unidades, droga, disabled }: DrogaFormProps) {
               </option>
             ))}
           </select>
-          <p className="text-xs text-zinc-500">
-            Unidad en la que se utiliza la droga en el laboratorio. El stock y el libro contralor se registran en esta unidad; las compras se convierten
-            automáticamente, independientemente de la unidad indicada en la factura.
-          </p>
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="tipoControl" className="text-sm font-medium">
+        <div className="field">
+          <label htmlFor="tipoControl" className="field-label">
             Tipo de control
           </label>
-          <select
-            id="tipoControl"
-            name="tipoControl"
-            defaultValue={droga?.tipoControl ?? "NINGUNO"}
-            disabled={clasificacionDisabled}
-            className="input"
-          >
+          <select id="tipoControl" name="tipoControl" defaultValue={droga?.tipoControl ?? "NINGUNO"} disabled={clasificacionDisabled} className="input">
             {TIPOS_CONTROL.map((tipo) => (
               <option key={tipo} value={tipo}>
                 {TIPO_CONTROL_LABELS[tipo]}
               </option>
             ))}
           </select>
-          {clasificacionDisabled && mode === "editar" ? (
-            <p className="text-xs text-zinc-500">Esta droga ya tiene partidas: la unidad base y el tipo de control no se pueden modificar.</p>
-          ) : null}
         </div>
+      </div>
+      <p className="field-help -mt-1">
+        Unidad en la que se utiliza la droga en el laboratorio. El stock y el libro contralor se registran en esta unidad; las compras se convierten automáticamente,
+        independientemente de la unidad indicada en la factura.
+      </p>
+      {clasificacionDisabled && mode === "editar" ? (
+        <p className="field-help -mt-1">Esta droga ya tiene partidas: la unidad base y el tipo de control no se pueden modificar.</p>
+      ) : null}
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="stockMinimo" className="text-sm font-medium">
-            Stock mínimo
-          </label>
-          <input id="stockMinimo" name="stockMinimo" defaultValue={droga?.stockMinimo ?? "0"} required disabled={disabled} inputMode="decimal" className="input" />
-        </div>
-      </SimpleForm>
-    </div>
+      <div className="field sm:max-w-[50%]">
+        <label htmlFor="stockMinimo" className="field-label">
+          Stock mínimo
+        </label>
+        <input id="stockMinimo" name="stockMinimo" defaultValue={droga?.stockMinimo ?? "0"} required disabled={disabled} inputMode="decimal" className="input font-mono" />
+      </div>
+    </SimpleForm>
   );
 }

@@ -20,8 +20,8 @@ import { buttonClassName, type ButtonVariant, type FormActionState } from "./for
 export function MotivoField({ name = "motivo", label = "Motivo" }: { name?: string; label?: string }) {
   const motivoId = useId();
   return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={motivoId} className="text-sm font-medium">
+    <div className="field">
+      <label htmlFor={motivoId} className="field-label">
         {label}
       </label>
       <textarea id={motivoId} name={name} required rows={2} className="input" />
@@ -59,8 +59,8 @@ export function CollapsibleActionCard({ label, helpText, variant, className, chi
   );
 
   return (
-    <div className={className ? `card p-4 ${className}` : "card p-4"}>
-      {helpText ? <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400">{helpText}</p> : null}
+    <div className={className ? `subpanel ${className}` : "subpanel"}>
+      {helpText ? <p className="mb-3 text-[0.8125rem] leading-relaxed text-zinc-600">{helpText}</p> : null}
       {children({ close, cancelButton })}
     </div>
   );

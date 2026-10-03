@@ -8,57 +8,72 @@
  * server-side by `application/list-lotes.ts`). Every step requires the
  * DT's OWN FULL PASSWORD -- the PIN is never accepted here.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { TriangleAlert } from "lucide-react";
 import { solicitarDestruccionAction, autorizarDestruccionAction, registrarDestruccionAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { DateInput } from "@/shared/ui/date-input";
 
 function PasswordField() {
   return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor="password" className="text-sm font-medium">
+    <div className="field">
+      <label htmlFor="password" className="field-label">
         Tu contraseña
       </label>
-      <input id="password" name="password" type="password" autoComplete="off" required className="input" />
-      <p className="text-xs text-zinc-500">Se requiere tu contraseña completa. El PIN no es válido para este trámite.</p>
+      <input id="password" name="password" type="password" autoComplete="off" required aria-describedby="password-ayuda" className="input" />
+      <p id="password-ayuda" className="field-help">
+        Se requiere tu contraseña completa. El PIN no es válido para este trámite.
+      </p>
     </div>
+  );
+}
+
+/** The panel every destrucción step lives in; `danger` for the last, irreversible one. */
+function PasoPanel({ id, titulo, tono, children }: { id: string; titulo: string; tono?: "danger"; children: ReactNode }) {
+  return (
+    <section className="panel" data-tone={tono} aria-labelledby={id}>
+      <div className="panel-header">
+        <h2 id={id}>{titulo}</h2>
+      </div>
+      <div className="panel-body flex flex-col gap-4">{children}</div>
+    </section>
   );
 }
 
 export function SolicitarDestruccionForm({ loteId }: { loteId: string }) {
   return (
-    <div className="card p-4">
-      <h3 className="mb-2 text-sm font-semibold">Solicitar destrucción</h3>
-      <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">El plazo de conservación de este lote está cumplido. Se destruyen solo las recetas en papel; los registros digitales se conservan.</p>
-      <SimpleForm action={solicitarDestruccionAction} submitLabel="Solicitar destrucción" pendingLabel="Solicitando…" className="max-w-lg">
+    <PasoPanel id="solicitar-destruccion-heading" titulo="Solicitar destrucción">
+      <p className="text-[0.8125rem] leading-relaxed text-zinc-600">
+        El plazo de conservación de este lote está cumplido. Se destruyen solo las recetas en papel; los registros digitales se conservan.
+      </p>
+      <SimpleForm action={solicitarDestruccionAction} submitLabel="Solicitar destrucción" pendingLabel="Solicitando…">
         <input type="hidden" name="id" value={loteId} />
         <PasswordField />
       </SimpleForm>
-    </div>
+    </PasoPanel>
   );
 }
 
 export function AutorizarDestruccionForm({ loteId }: { loteId: string }) {
   return (
-    <div className="card p-4">
-      <h3 className="mb-2 text-sm font-semibold">Autorizar destrucción</h3>
-      <SimpleForm action={autorizarDestruccionAction} submitLabel="Autorizar destrucción" pendingLabel="Autorizando…" className="max-w-lg">
+    <PasoPanel id="autorizar-destruccion-heading" titulo="Autorizar destrucción">
+      <SimpleForm action={autorizarDestruccionAction} submitLabel="Autorizar destrucción" pendingLabel="Autorizando…">
         <input type="hidden" name="id" value={loteId} />
-        <div className="flex flex-col gap-1">
-          <label htmlFor="expedienteAutorizacion" className="text-sm font-medium">
+        <div className="field">
+          <label htmlFor="expedienteAutorizacion" className="field-label">
             Número de expediente
           </label>
-          <input id="expedienteAutorizacion" name="expedienteAutorizacion" type="text" required className="input" />
+          <input id="expedienteAutorizacion" name="expedienteAutorizacion" type="text" required className="input font-mono" />
         </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="fechaAutorizacion" className="text-sm font-medium">
+        <div className="field">
+          <label htmlFor="fechaAutorizacion" className="field-label">
             Fecha de autorización
           </label>
           <DateInput id="fechaAutorizacion" name="fechaAutorizacion" required />
         </div>
         <PasswordField />
       </SimpleForm>
-    </div>
+    </PasoPanel>
   );
 }
 
@@ -66,25 +81,27 @@ export function RegistrarDestruccionForm({ loteId }: { loteId: string }) {
   const [confirma, setConfirma] = useState(false);
 
   return (
-    <div className="card p-4">
-      <h3 className="mb-2 text-sm font-semibold">Registrar destrucción</h3>
-      <div className="mb-3 rounded border border-amber-400 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
-        <p className="mb-2">Se destruyen solo las recetas en papel de este lote. Los registros digitales (recetas, asientos, adjuntos) se conservan sin cambios y esta acción no se puede revertir.</p>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={confirma} onChange={(e) => setConfirma(e.target.checked)} />
-          Confirmo que las recetas en papel de este lote fueron destruidas.
-        </label>
+    <PasoPanel id="registrar-destruccion-heading" titulo="Registrar destrucción" tono="danger">
+      <div className="alert alert-warn">
+        <TriangleAlert aria-hidden />
+        <div className="flex flex-col gap-2">
+          <p>Se destruyen solo las recetas en papel de este lote. Los registros digitales (recetas, asientos, adjuntos) se conservan sin cambios y esta acción no se puede revertir.</p>
+          <label className="flex items-start gap-2 font-medium">
+            <input type="checkbox" className="mt-0.5" checked={confirma} onChange={(e) => setConfirma(e.target.checked)} />
+            Confirmo que las recetas en papel de este lote fueron destruidas.
+          </label>
+        </div>
       </div>
-      <SimpleForm action={registrarDestruccionAction} submitLabel="Registrar destrucción" pendingLabel="Registrando…" submitDisabled={!confirma} className="max-w-lg">
+      <SimpleForm action={registrarDestruccionAction} submitLabel="Registrar destrucción" pendingLabel="Registrando…" submitDisabled={!confirma}>
         <input type="hidden" name="id" value={loteId} />
-        <div className="flex flex-col gap-1">
-          <label htmlFor="fechaDestruccion" className="text-sm font-medium">
+        <div className="field">
+          <label htmlFor="fechaDestruccion" className="field-label">
             Fecha de destrucción
           </label>
           <DateInput id="fechaDestruccion" name="fechaDestruccion" required />
         </div>
         <PasswordField />
       </SimpleForm>
-    </div>
+    </PasoPanel>
   );
 }

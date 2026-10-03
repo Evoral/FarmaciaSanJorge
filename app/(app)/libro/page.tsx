@@ -1,25 +1,31 @@
 /** `/libro` (FASE 9, M12 point 9.1). Consulta del libro recetario: filtros por rango de fechas/números, estado, texto paciente/médico, paginación. */
 import Link from "next/link";
+import { BookOpen, ChevronRight, Download, SearchX, X } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listAsientosRecetario } from "@/modules/libro/application/list-asientos-recetario";
 import { resolverEstadoVisualAsiento, etiquetaEstadoVisual } from "@/modules/libro/domain/estado-visual";
+import { LibroNav, tonoEstadoAsiento } from "@/modules/libro/ui/libro-nav";
 import { DateInput } from "@/shared/ui/date-input";
 import { FilterForm } from "@/shared/ui/filter-form";
+import { FilterDrawer } from "@/shared/ui/filter-drawer";
+import { AsientoBuscador } from "@/modules/libro/ui/asiento-buscador";
+import { PageHeader } from "@/shared/ui/page-header";
+import { EmptyState } from "@/shared/ui/empty-state";
+import { Pagination } from "@/shared/ui/pagination";
+import { ToneBadge } from "@/shared/ui/status-badge";
+import { formatFechaIso } from "@/shared/format/fecha";
 
 const PAGE_SIZE = 25;
 
+type ParamLibro = "fechaDesde" | "fechaHasta" | "numeroDesde" | "numeroHasta" | "estado" | "texto";
+const PARAMS_FILTRO: readonly ParamLibro[] = ["fechaDesde", "fechaHasta", "numeroDesde", "numeroHasta", "estado", "texto"];
+
 interface LibroPageProps {
-  searchParams: Promise<{
-    fechaDesde?: string;
-    fechaHasta?: string;
-    numeroDesde?: string;
-    numeroHasta?: string;
-    estado?: string;
-    texto?: string;
-    page?: string;
-  }>;
+  searchParams: Promise<Partial<Record<ParamLibro | "page", string>>>;
 }
+
+const numberFormat = new Intl.NumberFormat("es-AR");
 
 export default async function LibroPage({ searchParams }: LibroPageProps) {
   const session = await requireSession();
@@ -38,7 +44,6 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
   };
 
   const result = await listAsientosRecetario(filtro);
-  const totalPages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
   const puedeExportar = can(session, "libro.exportar");
 
   function pageHref(targetPage: number): string {
@@ -64,143 +69,211 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
     return `/api/libro/export/${kind}?${qs.toString()}`;
   }
 
+  function sinFiltroHref(param: ParamLibro): string {
+    const qs = new URLSearchParams();
+    for (const key of PARAMS_FILTRO) if (key !== param && params[key]) qs.set(key, params[key]!);
+    const query = qs.toString();
+    return query ? `/libro?${query}` : "/libro";
+  }
+
+  const chips: { key: ParamLibro; label: string; value: string }[] = [];
+  if (params.texto) chips.push({ key: "texto", label: "Paciente / médico", value: params.texto });
+  if (params.estado) chips.push({ key: "estado", label: "Estado", value: params.estado === "ANULADO" ? "Anulado" : params.estado === "VIGENTE" ? "Vigente" : params.estado });
+  if (params.fechaDesde) chips.push({ key: "fechaDesde", label: "Desde", value: formatFechaIso(params.fechaDesde) });
+  if (params.fechaHasta) chips.push({ key: "fechaHasta", label: "Hasta", value: formatFechaIso(params.fechaHasta) });
+  if (params.numeroDesde) chips.push({ key: "numeroDesde", label: "Nº desde", value: params.numeroDesde });
+  if (params.numeroHasta) chips.push({ key: "numeroHasta", label: "Nº hasta", value: params.numeroHasta });
+  const hayFiltros = chips.length > 0;
+  const filtrosEnPanel = chips.filter((chip) => chip.key !== "texto").length;
+
   return (
-    <div className="page">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Libro recetario</h1>
-        {puedeExportar ? (
-          <div className="flex gap-2">
-            <a href={exportHref("csv")} className="btn btn-secondary">
-              Exportar CSV
-            </a>
-            <a href={exportHref("pdf")} className="btn btn-secondary">
-              Exportar PDF
-            </a>
+    <div className="page list-view">
+      <PageHeader
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Libro" }]}
+        title="Libro recetario"
+        description="Asientos del libro digital, en orden correlativo. Cada asiento queda encadenado por hash."
+        actions={
+          puedeExportar ? (
+            <>
+              <a href={exportHref("csv")} className="btn btn-secondary">
+                <Download className="size-4" aria-hidden />
+                CSV
+              </a>
+              <a href={exportHref("pdf")} className="btn btn-secondary">
+                <Download className="size-4" aria-hidden />
+                PDF
+              </a>
+            </>
+          ) : null
+        }
+      />
+
+      <LibroNav actual="recetario" />
+
+      <section aria-label="Búsqueda y filtros" className="mb-4">
+        <FilterForm className="filter-bar" aria-label="Filtros del libro recetario" hasActiveFilters={false}>
+          {/* The search lives in the autocomplete (outside the form's own fields): keep it while other filters change. */}
+          <input type="hidden" name="texto" value={params.texto ?? ""} />
+          <div className="min-w-0 flex-1 md:w-96 md:flex-none">
+            <AsientoBuscador listaHref={sinFiltroHref("texto")} busquedaActual={params.texto} />
+          </div>
+          <FilterDrawer activeCount={filtrosEnPanel}>
+            <div className="field">
+              <label htmlFor="estado" className="field-label">
+                Estado
+              </label>
+              <select id="estado" name="estado" defaultValue={params.estado ?? ""} className="input">
+                <option value="">Todos</option>
+                <option value="VIGENTE">Vigente</option>
+                <option value="ANULADO">Anulado</option>
+              </select>
+            </div>
+            <div className="field">
+              <span id="libro-fecha-label" className="field-label">
+                Fecha
+              </span>
+              <div className="range-field" role="group" aria-labelledby="libro-fecha-label">
+                <label htmlFor="fechaDesde" className="sr-only">
+                  Desde
+                </label>
+                <DateInput id="fechaDesde" name="fechaDesde" defaultValue={params.fechaDesde ?? ""} />
+                <span className="range-field-sep" aria-hidden>
+                  a
+                </span>
+                <label htmlFor="fechaHasta" className="sr-only">
+                  Hasta
+                </label>
+                <DateInput id="fechaHasta" name="fechaHasta" defaultValue={params.fechaHasta ?? ""} />
+              </div>
+            </div>
+            <div className="field">
+              <span id="libro-numero-label" className="field-label">
+                Nº de asiento
+              </span>
+              <div className="range-field" role="group" aria-labelledby="libro-numero-label">
+                <label htmlFor="numeroDesde" className="sr-only">
+                  Nº desde
+                </label>
+                <input id="numeroDesde" name="numeroDesde" type="number" min={1} defaultValue={params.numeroDesde ?? ""} placeholder="Desde" className="input w-24 font-mono" />
+                <span className="range-field-sep" aria-hidden>
+                  a
+                </span>
+                <label htmlFor="numeroHasta" className="sr-only">
+                  Nº hasta
+                </label>
+                <input id="numeroHasta" name="numeroHasta" type="number" min={1} defaultValue={params.numeroHasta ?? ""} placeholder="Hasta" className="input w-24 font-mono" />
+              </div>
+            </div>
+          </FilterDrawer>
+        </FilterForm>
+
+        {hayFiltros ? (
+          <div className="filter-chips" role="group" aria-label="Filtros activos">
+            {chips.map((chip) => (
+              <span key={chip.key} className="chip">
+                {chip.label}: <strong>{chip.value}</strong>
+                <Link href={sinFiltroHref(chip.key)} scroll={false} className="chip-remove" aria-label={`Quitar filtro ${chip.label}`}>
+                  <X className="size-3" aria-hidden />
+                </Link>
+              </span>
+            ))}
+            {chips.length > 1 ? (
+              <Link href="/libro" scroll={false} className="btn btn-ghost btn-sm">
+                Limpiar filtros
+              </Link>
+            ) : null}
           </div>
         ) : null}
-      </div>
+      </section>
 
-      <FilterForm
-        className="mb-6 flex flex-wrap items-end gap-3"
-        aria-label="Filtros del libro recetario"
-        hasActiveFilters={Boolean(params.fechaDesde || params.fechaHasta || params.numeroDesde || params.numeroHasta || params.estado || params.texto)}
-      >
-        <div className="flex flex-col gap-1">
-          <label htmlFor="fechaDesde" className="text-sm font-medium">
-            Desde
-          </label>
-          <DateInput id="fechaDesde" name="fechaDesde" defaultValue={params.fechaDesde ?? ""} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="fechaHasta" className="text-sm font-medium">
-            Hasta
-          </label>
-          <DateInput id="fechaHasta" name="fechaHasta" defaultValue={params.fechaHasta ?? ""} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="numeroDesde" className="text-sm font-medium">
-            Nº desde
-          </label>
-          <input id="numeroDesde" name="numeroDesde" type="number" min={1} defaultValue={params.numeroDesde ?? ""} className="w-24 input" />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="numeroHasta" className="text-sm font-medium">
-            Nº hasta
-          </label>
-          <input id="numeroHasta" name="numeroHasta" type="number" min={1} defaultValue={params.numeroHasta ?? ""} className="w-24 input" />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="estado" className="text-sm font-medium">
-            Estado
-          </label>
-          <select id="estado" name="estado" defaultValue={params.estado ?? ""} className="input">
-            <option value="">Todos</option>
-            <option value="VIGENTE">Vigente</option>
-            <option value="ANULADO">Anulado</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="texto" className="text-sm font-medium">
-            Paciente / médico
-          </label>
-          <input id="texto" name="texto" type="search" defaultValue={params.texto ?? ""} className="input" />
-        </div>
-      </FilterForm>
+      <div className="list-region">
+        <span className="link-pending" aria-hidden />
+        <div className="list-panel">
+          <div className="list-toolbar">
+            <p role="status">
+              <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(result.total)}</span> {result.total === 1 ? "asiento" : "asientos"}
+            </p>
+          </div>
 
-      <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
-        {result.total} asiento{result.total === 1 ? "" : "s"} encontrado{result.total === 1 ? "" : "s"}.
-      </p>
-
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th scope="col" className="px-3 py-2 font-medium">Nº</th>
-              <th scope="col" className="px-3 py-2 font-medium">Fecha</th>
-              <th scope="col" className="px-3 py-2 font-medium">Origen</th>
-              <th scope="col" className="px-3 py-2 font-medium">Paciente</th>
-              <th scope="col" className="px-3 py-2 font-medium">Médico</th>
-              <th scope="col" className="px-3 py-2 font-medium">Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.items.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-zinc-500">
-                  No se encontraron asientos con estos filtros.
-                </td>
-              </tr>
+          {result.items.length === 0 ? (
+            hayFiltros ? (
+              <EmptyState
+                icon={<SearchX className="size-5" />}
+                title="Sin resultados"
+                description="Ningún asiento coincide con los filtros aplicados."
+                action={
+                  <Link href="/libro" scroll={false} className="btn btn-secondary">
+                    Limpiar filtros
+                  </Link>
+                }
+              />
             ) : (
-              result.items.map((item) => {
-                const estadoVisual = resolverEstadoVisualAsiento({
-                  estado: item.estado,
-                  anulacion: item.anulacion,
-                  rectificativoNumeroCorrelativo: item.rectificativoNumeroCorrelativo,
-                });
-                return (
-                  <tr key={item.id}>
-                    <td className="px-3 py-2">
-                      <Link href={`/libro/${item.id}`} className="font-medium underline-offset-2 hover:underline">
-                        {item.numeroCorrelativo}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-2">{item.fechaAsiento}</td>
-                    <td className="px-3 py-2">{item.origen === "RECTIFICATIVO" ? `Rectifica Nº ${item.asientoOriginalNumeroCorrelativo}` : "Sistema"}</td>
-                    <td className="px-3 py-2">{item.pacienteTexto}</td>
-                    <td className="px-3 py-2">{item.medicoTexto}</td>
-                    <td className={`px-3 py-2 ${estadoVisual.kind !== "VIGENTE" ? "text-amber-700 dark:text-amber-400" : ""}`}>{etiquetaEstadoVisual(estadoVisual)}</td>
+              <EmptyState icon={<BookOpen className="size-5" />} title="Todavía no hay asientos" description="Los asientos se generan al confirmar cada preparación." />
+            )
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col" className="px-3 py-2">
+                      Nº
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      Fecha
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      Paciente
+                    </th>
+                    <th scope="col" className="hidden px-3 py-2 md:table-cell">
+                      Médico
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      Estado
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      <span className="sr-only">Acciones</span>
+                    </th>
                   </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                </thead>
+                <tbody>
+                  {result.items.map((item) => {
+                    const estadoVisual = resolverEstadoVisualAsiento({
+                      estado: item.estado,
+                      anulacion: item.anulacion,
+                      rectificativoNumeroCorrelativo: item.rectificativoNumeroCorrelativo,
+                    });
+                    return (
+                      <tr key={item.id}>
+                        <td className="px-3 py-2.5">
+                          <Link href={`/libro/${item.id}`} className="font-mono font-semibold underline-offset-2 hover:underline">
+                            {item.numeroCorrelativo}
+                          </Link>
+                          {item.origen === "RECTIFICATIVO" ? <span className="block text-xs text-zinc-500">Rectifica Nº {item.asientoOriginalNumeroCorrelativo}</span> : null}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">{formatFechaIso(item.fechaAsiento)}</td>
+                        <td className="px-3 py-2.5 text-zinc-900">
+                          {item.pacienteTexto}
+                          <span className="block text-xs text-zinc-500 md:hidden">{item.medicoTexto}</span>
+                        </td>
+                        <td className="hidden px-3 py-2.5 md:table-cell">{item.medicoTexto}</td>
+                        <td className="px-3 py-2.5">
+                          <ToneBadge tone={tonoEstadoAsiento(estadoVisual.kind)}>{etiquetaEstadoVisual(estadoVisual)}</ToneBadge>
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <Link href={`/libro/${item.id}`} aria-label={`Ver el asiento Nº ${item.numeroCorrelativo}`} className="btn btn-ghost btn-sm btn-icon">
+                            <ChevronRight className="size-4" aria-hidden />
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-      {totalPages > 1 ? (
-        <nav aria-label="Paginación del libro recetario" className="mt-4 flex items-center gap-2 text-sm">
-          <Link href={pageHref(Math.max(1, page - 1))} aria-disabled={page <= 1} className={page <= 1 ? "pointer-events-none text-zinc-400" : "underline"}>
-            Anterior
-          </Link>
-          <span>
-            Página {page} de {totalPages}
-          </span>
-          <Link href={pageHref(Math.min(totalPages, page + 1))} aria-disabled={page >= totalPages} className={page >= totalPages ? "pointer-events-none text-zinc-400" : "underline"}>
-            Siguiente
-          </Link>
-        </nav>
-      ) : null}
-
-      <div className="mt-6 flex gap-4 text-sm">
-        <Link href="/libro/integridad" className="underline">
-          Verificar integridad de la cadena
-        </Link>
-        <Link href="/libro/contralor" className="underline">
-          Libros contralor
-        </Link>
-        <Link href="/libro/historico" className="underline">
-          Asientos históricos
-        </Link>
+          <Pagination page={page} pageSize={PAGE_SIZE} total={result.total} hrefFor={pageHref} label="Paginación del libro recetario" />
+        </div>
       </div>
     </div>
   );

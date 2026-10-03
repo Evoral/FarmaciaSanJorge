@@ -5,12 +5,17 @@
  * display option as `/stock`'s "Unificar unidades".
  */
 import Link from "next/link";
+import { ChevronRight, PackageSearch, SearchX } from "lucide-react";
 import { listPartidasDroga } from "@/modules/stock/application/list-partidas-droga";
 import { getCatalogoUnidades } from "@/modules/unidades/application/catalogo-unidades";
 import { formatCantidadesFila, type ModoCantidad } from "@/shared/format/cantidad";
 import { Cantidad } from "@/shared/ui/cantidad";
 import { FilterForm } from "@/shared/ui/filter-form";
 import { FilterMultiSelect } from "@/shared/ui/filter-multi-select";
+import { PageHeader } from "@/shared/ui/page-header";
+import { EmptyState } from "@/shared/ui/empty-state";
+import { Pagination } from "@/shared/ui/pagination";
+import { ToneBadge } from "@/shared/ui/status-badge";
 
 const PAGE_SIZE = 20;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -24,6 +29,8 @@ function formatFecha(fecha: Date): string {
   return new Intl.DateTimeFormat("es-AR", { timeZone: "UTC" }).format(fecha);
 }
 
+const numberFormat = new Intl.NumberFormat("es-AR");
+
 export default async function PartidasPage({ searchParams }: PartidasPageProps) {
   const params = await searchParams;
   const drogaId = params.drogaId && UUID_PATTERN.test(params.drogaId) ? params.drogaId : "";
@@ -35,9 +42,19 @@ export default async function PartidasPage({ searchParams }: PartidasPageProps) 
   if (!drogaId) {
     return (
       <div className="page">
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Elegí una droga desde <Link href="/stock" className="underline">Stock</Link> para ver sus partidas.
-        </p>
+        <PageHeader breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Stock", href: "/stock" }, { label: "Partidas" }]} title="Partidas" />
+        <div className="list-panel">
+          <EmptyState
+            icon={<PackageSearch className="size-5" />}
+            title="Elegí una droga"
+            description="Las partidas se ven por droga. Elegila desde el listado de stock."
+            action={
+              <Link href="/stock" className="btn btn-secondary">
+                Ir a Stock
+              </Link>
+            }
+          />
+        </div>
       </div>
     );
   }
@@ -46,7 +63,6 @@ export default async function PartidasPage({ searchParams }: PartidasPageProps) 
     listPartidasDroga({ drogaId, soloConSaldo: !incluirAgotadas, soloVencidas, page, pageSize: PAGE_SIZE }),
     getCatalogoUnidades(),
   ]);
-  const totalPages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
   const unidad = result.droga ? { id: result.droga.unidadBaseId, simbolo: result.droga.unidadBaseSimbolo } : null;
 
   function pageHref(targetPage: number): string {
@@ -58,98 +74,124 @@ export default async function PartidasPage({ searchParams }: PartidasPageProps) 
     return `/stock/partidas?${qs.toString()}`;
   }
 
+  const hasActiveFilters = incluirAgotadas || soloVencidas;
+  const nombre = result.droga?.nombre;
+
   return (
-    <div className="page">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Partidas{result.droga ? ` de ${result.droga.nombre}` : ""}</h1>
-        <Link href="/stock" className="text-sm underline">
-          Volver a stock
-        </Link>
-      </div>
+    <div className="page list-view">
+      <PageHeader
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Stock", href: "/stock" }, { label: nombre ?? "Partidas" }]}
+        title={nombre ? `Partidas de ${nombre}` : "Partidas"}
+        description={incluirAgotadas ? "Todas las partidas, incluidas las agotadas." : "Partidas con saldo disponible."}
+      />
 
-      <FilterForm className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de partidas" hasActiveFilters={incluirAgotadas || soloVencidas}>
-        <input type="hidden" name="drogaId" value={drogaId} />
-        <FilterMultiSelect
-          options={[
-            { name: "agotadas", label: "Incluir agotadas (sin saldo)", checked: incluirAgotadas },
-            { name: "vencidas", label: "Solo vencidas", checked: soloVencidas },
-          ]}
-        />
-        <label className="toggle-switch">
-          <input type="checkbox" role="switch" name="unidades" value="base" defaultChecked={modo === "base"} data-preserve-on-clear="" />
-          Unificar unidades
-        </label>
-      </FilterForm>
+      <section aria-label="Filtros" className="mb-4">
+        <FilterForm className="filter-bar" aria-label="Filtros de partidas" hasActiveFilters={hasActiveFilters}>
+          <input type="hidden" name="drogaId" value={drogaId} />
+          <FilterMultiSelect
+            options={[
+              { name: "agotadas", label: "Incluir agotadas (sin saldo)", checked: incluirAgotadas },
+              { name: "vencidas", label: "Solo vencidas", checked: soloVencidas },
+            ]}
+          />
+          <label className="toggle-switch">
+            <input type="checkbox" role="switch" name="unidades" value="base" defaultChecked={modo === "base"} data-preserve-on-clear="" />
+            Unificar unidades
+          </label>
+        </FilterForm>
+      </section>
 
-      <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
-        {result.total} partida{result.total === 1 ? "" : "s"} encontrada{result.total === 1 ? "" : "s"}.
-      </p>
+      <div className="list-region">
+        <span className="link-pending" aria-hidden />
+        <div className="list-panel">
+          <div className="list-toolbar">
+            <p role="status">
+              <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(result.total)}</span> {result.total === 1 ? "partida" : "partidas"}
+            </p>
+          </div>
 
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th scope="col" className="px-3 py-2 font-medium">Lote</th>
-              <th scope="col" className="px-3 py-2 font-medium">Proveedor</th>
-              <th scope="col" className="px-3 py-2 font-medium">Vencimiento</th>
-              <th scope="col" className="px-3 py-2 font-medium">Saldo / inicial</th>
-              <th scope="col" className="px-3 py-2 font-medium">Costo unitario</th>
-              <th scope="col" className="px-3 py-2 font-medium">Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.items.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-zinc-500">
-                  No se encontraron partidas con estos filtros.
-                </td>
-              </tr>
-            ) : (
-              result.items.map((partida) => {
-                const [disponible, inicial] = unidad
-                  ? formatCantidadesFila([partida.cantidadDisponible, partida.cantidadInicial], unidad, catalogo, modo)
-                  : [null, null];
-                return (
-                  <tr key={partida.id}>
-                    <td className="px-3 py-2">
-                      <Link href={`/stock/partidas/${partida.id}`} className="font-medium underline-offset-2 hover:underline">
-                        {partida.lote}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-2">{partida.proveedorRazonSocial}</td>
-                    <td className="px-3 py-2">{formatFecha(partida.fechaVencimiento)}</td>
-                    <td className="px-3 py-2">
-                      {disponible && inicial ? (
-                        <>
-                          <Cantidad valor={disponible} /> / <Cantidad valor={inicial} />
-                        </>
-                      ) : (
-                        `${partida.cantidadDisponible} / ${partida.cantidadInicial}`
-                      )}
-                    </td>
-                    <td className="px-3 py-2">{partida.costoUnitario}</td>
-                    <td className="px-3 py-2">{partida.fechaApertura ? "Abierta" : "Cerrada"}</td>
+          {result.items.length === 0 ? (
+            <EmptyState
+              icon={<SearchX className="size-5" />}
+              title={hasActiveFilters ? "Sin resultados" : "No hay partidas con saldo"}
+              description={hasActiveFilters ? "Ninguna partida coincide con los filtros aplicados." : "Incluí las agotadas para ver el historial de partidas de esta droga."}
+            />
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col" className="px-3 py-2">
+                      Lote
+                    </th>
+                    <th scope="col" className="hidden px-3 py-2 md:table-cell">
+                      Proveedor
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      Vencimiento
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-right">
+                      Saldo
+                    </th>
+                    <th scope="col" className="hidden px-3 py-2 text-right lg:table-cell">
+                      Costo unitario
+                    </th>
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">
+                      Estado
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      <span className="sr-only">Acciones</span>
+                    </th>
                   </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                </thead>
+                <tbody>
+                  {result.items.map((partida) => {
+                    const [disponible, inicial] = unidad ? formatCantidadesFila([partida.cantidadDisponible, partida.cantidadInicial], unidad, catalogo, modo) : [null, null];
+                    return (
+                      <tr key={partida.id}>
+                        <td className="px-3 py-2.5">
+                          <Link href={`/stock/partidas/${partida.id}`} className="font-mono font-semibold underline-offset-2 hover:underline">
+                            {partida.lote}
+                          </Link>
+                          <span className="block truncate text-xs text-zinc-500 md:hidden">{partida.proveedorRazonSocial}</span>
+                        </td>
+                        <td className="hidden px-3 py-2.5 md:table-cell">{partida.proveedorRazonSocial}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">{formatFecha(partida.fechaVencimiento)}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">
+                          {disponible && inicial ? (
+                            <>
+                              <span className="font-medium text-zinc-900">
+                                <Cantidad valor={disponible} />
+                              </span>
+                              <span className="text-zinc-400"> / </span>
+                              <span className="text-zinc-500">
+                                <Cantidad valor={inicial} />
+                              </span>
+                            </>
+                          ) : (
+                            `${partida.cantidadDisponible} / ${partida.cantidadInicial}`
+                          )}
+                        </td>
+                        <td className="hidden px-3 py-2.5 text-right font-mono tabular-nums lg:table-cell">{partida.costoUnitario}</td>
+                        <td className="hidden px-3 py-2.5 sm:table-cell">
+                          <ToneBadge tone="neutral">{partida.fechaApertura ? "Abierta" : "Cerrada"}</ToneBadge>
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <Link href={`/stock/partidas/${partida.id}`} aria-label={`Ver la partida ${partida.lote}`} className="btn btn-ghost btn-sm btn-icon">
+                            <ChevronRight className="size-4" aria-hidden />
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-      {totalPages > 1 ? (
-        <nav aria-label="Paginación de partidas" className="mt-4 flex items-center gap-2 text-sm">
-          <Link href={pageHref(Math.max(1, page - 1))} aria-disabled={page <= 1} className={page <= 1 ? "pointer-events-none text-zinc-400" : "underline"}>
-            Anterior
-          </Link>
-          <span>
-            Página {page} de {totalPages}
-          </span>
-          <Link href={pageHref(Math.min(totalPages, page + 1))} aria-disabled={page >= totalPages} className={page >= totalPages ? "pointer-events-none text-zinc-400" : "underline"}>
-            Siguiente
-          </Link>
-        </nav>
-      ) : null}
+          <Pagination page={page} pageSize={PAGE_SIZE} total={result.total} hrefFor={pageHref} label="Paginación de partidas" />
+        </div>
+      </div>
     </div>
   );
 }

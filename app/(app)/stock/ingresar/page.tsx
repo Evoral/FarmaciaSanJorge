@@ -6,6 +6,7 @@ import { listDrogasOpciones } from "@/modules/drogas/application/list-drogas-opc
 import { listProveedoresOpciones } from "@/modules/proveedores/application/list-proveedores-opciones";
 import { listUnidadesVigentesParaDroga } from "@/modules/drogas/application/list-unidades-vigentes";
 import { IngresarPartidaForm } from "@/modules/stock/ui/ingresar-partida-form";
+import { PageHeader } from "@/shared/ui/page-header";
 
 export default async function IngresarPartidaPage() {
   const session = await requireSession();
@@ -21,12 +22,20 @@ export default async function IngresarPartidaPage() {
 
   return (
     <div className="page">
-      <h1 className="mb-6 text-2xl font-semibold">Ingresar partida</h1>
-      <IngresarPartidaForm
-        drogas={drogas.map((droga) => ({ id: droga.id, label: droga.nombre, tipoMagnitud: droga.tipoMagnitud }))}
-        proveedores={proveedores.map((proveedor) => ({ id: proveedor.id, label: proveedor.razonSocial }))}
-        unidades={unidades.map((unidad) => ({ id: unidad.id, label: `${unidad.nombre} (${unidad.simbolo})`, tipoMagnitud: unidad.tipoMagnitud }))}
+      <PageHeader
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Stock", href: "/stock" }, { label: "Ingresar partida" }]}
+        title="Ingresar partida"
+        description="Registrá una compra: la cantidad se suma al stock de la droga como una partida nueva."
       />
+      <div className="panel max-w-3xl">
+        <div className="panel-body">
+          <IngresarPartidaForm
+            drogas={drogas.map((droga) => ({ id: droga.id, label: droga.nombre, tipoMagnitud: droga.tipoMagnitud }))}
+            proveedores={proveedores.map((proveedor) => ({ id: proveedor.id, label: proveedor.razonSocial }))}
+            unidades={unidades.map((unidad) => ({ id: unidad.id, label: `${unidad.nombre} (${unidad.simbolo})`, tipoMagnitud: unidad.tipoMagnitud }))}
+          />
+        </div>
+      </div>
     </div>
   );
 }

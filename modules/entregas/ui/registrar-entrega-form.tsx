@@ -2,11 +2,13 @@
 
 /**
  * Entrega registration form (11.1/11.2): modalidad radio (RETIRO_PRESENCIAL
- * / ENVIO). No receta física checkbox: the attribute was removed (client
- * decision 2026-10-01, migration 0051). See shared/ui/motivo-form.tsx for the
- * same `shared/ui/simple-form.tsx`-wrapping shape.
+ * / ENVIO), shown as two selectable cards. No receta física checkbox: the
+ * attribute was removed (client decision 2026-10-01, migration 0051). See
+ * shared/ui/motivo-form.tsx for the same `shared/ui/simple-form.tsx`-wrapping
+ * shape.
  */
 import { useState } from "react";
+import { Store, Truck } from "lucide-react";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import type { EntregaActionState } from "./action-state";
 
@@ -22,27 +24,28 @@ export function RegistrarEntregaForm({ action, recetaId }: RegistrarEntregaFormP
     <SimpleForm action={action} submitLabel="Registrar entrega" pendingLabel="Registrando…">
       <input type="hidden" name="recetaId" value={recetaId} />
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium">Modalidad</legend>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="radio"
-            name="modalidad"
-            value="RETIRO_PRESENCIAL"
-            checked={modalidad === "RETIRO_PRESENCIAL"}
-            onChange={() => setModalidad("RETIRO_PRESENCIAL")}
-          />
-          Retiro presencial
+        <legend className="mb-2 text-xs font-medium text-zinc-600">Modalidad</legend>
+        <label className="choice-row">
+          <input type="radio" name="modalidad" value="RETIRO_PRESENCIAL" checked={modalidad === "RETIRO_PRESENCIAL"} onChange={() => setModalidad("RETIRO_PRESENCIAL")} />
+          <Store className="size-4 flex-none text-zinc-500" aria-hidden />
+          <span className="min-w-0">
+            <span className="block font-medium text-zinc-900">Retiro presencial</span>
+            <span className="block text-xs text-zinc-500">El paciente la retira en el mostrador.</span>
+          </span>
         </label>
-        <label className="flex items-center gap-2 text-sm">
+        <label className="choice-row">
           <input type="radio" name="modalidad" value="ENVIO" checked={modalidad === "ENVIO"} onChange={() => setModalidad("ENVIO")} />
-          Envío
+          <Truck className="size-4 flex-none text-zinc-500" aria-hidden />
+          <span className="min-w-0">
+            <span className="block font-medium text-zinc-900">Envío</span>
+            <span className="block text-xs text-zinc-500">Queda pendiente hasta confirmar la firma recibida.</span>
+          </span>
         </label>
       </fieldset>
 
       {modalidad === "ENVIO" ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          El envío queda pendiente de firma: la receta pasa a &quot;Enviada, pendiente de firma&quot; hasta confirmar que el
-          repartidor trajo la constancia firmada por el paciente.
+        <p className="text-[0.8125rem] leading-relaxed text-zinc-600">
+          La receta pasa a &quot;Enviada, pendiente de firma&quot; hasta confirmar que el repartidor trajo la constancia firmada por el paciente.
         </p>
       ) : null}
     </SimpleForm>

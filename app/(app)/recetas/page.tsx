@@ -2,20 +2,35 @@
  * `/recetas`: listado con filtros por estado/fecha/número, server-side.
  * After creating a receta the form lands here (`?registrada=<id>`, plus the
  * automatic ficha/cotización notices as codes -- modules/recetas/domain/avisos-generacion.ts).
+ *
+ * Layout: the per-estado summary doubles as the estado filter
+ * (same `?estado=` param), the rest of the filters stay in `FilterForm`,
+ * and the rows render through `RecetasTable`. Data, permisos and queries
+ * are the same as before; `resumenRecetasPorEstado` is the existing
+ * read-only count already used by the home dashboard.
  */
 import Link from "next/link";
+import { ChartColumn, ClipboardList, Plus, SearchX, X } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
-import { listRecetas } from "@/modules/recetas/application/list-recetas";
-import { ESTADOS_RECETA } from "@/modules/recetas/domain/receta";
+import { listRecetas, resumenRecetasPorEstado } from "@/modules/recetas/application/list-recetas";
+import { ESTADOS_RECETA, esEstadoTerminal, puedeAnular } from "@/modules/recetas/domain/receta";
 import { getReceta } from "@/modules/recetas/application/get-receta";
 import { PARAM_AVISO, PARAM_REGISTRADA, decodificarAvisos } from "@/modules/recetas/domain/avisos-generacion";
 import { AvisosGeneracion } from "@/modules/recetas/ui/avisos-generacion";
-import { ESTADO_RECETA_LABELS } from "@/shared/labels/enum-labels";
+import { RecetasTable, type RecetaRow } from "@/modules/recetas/ui/recetas-table";
+import { ESTADO_RECETA_LABELS, ORIGEN_RECETA_LABELS } from "@/shared/labels/enum-labels";
 import { formatFecha } from "@/shared/format/fecha";
-import { StatusBadge } from "@/shared/ui/status-badge";
+import { estadoTone } from "@/shared/ui/status-badge";
 import { DateInput } from "@/shared/ui/date-input";
 import { FilterForm } from "@/shared/ui/filter-form";
+import { FilterDrawer } from "@/shared/ui/filter-drawer";
+import { SearchField } from "@/shared/ui/search-field";
+import { PageHeader } from "@/shared/ui/page-header";
+import { StatusSummary } from "@/shared/ui/status-summary";
+import { EmptyState } from "@/shared/ui/empty-state";
+import { Pagination } from "@/shared/ui/pagination";
+import { Toaster } from "@/shared/ui/toast";
 
 const PAGE_SIZE = 20;
 
@@ -24,24 +39,38 @@ interface RecetasPageProps {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+type FilterParam = "estado" | "numero" | "desde" | "hasta";
+
+/** `2026-09-01` -> `01/09/2026` (display only; anything else is shown as typed). */
+function isoToDisplay(value: string): string {
+  const match = ISO_DATE.exec(value);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+}
 
 export default async function RecetasPage({ searchParams }: RecetasPageProps) {
   const session = await requireSession();
   const params = await searchParams;
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
   const estado = params.estado ?? "";
+  const estadoValido = ESTADOS_RECETA.includes(estado as (typeof ESTADOS_RECETA)[number]) ? (estado as (typeof ESTADOS_RECETA)[number]) : undefined;
 
-  const result = await listRecetas({
-    estado: ESTADOS_RECETA.includes(estado as (typeof ESTADOS_RECETA)[number]) ? (estado as (typeof ESTADOS_RECETA)[number]) : undefined,
-    numeroInterno: params.numero,
-    desde: params.desde,
-    hasta: params.hasta,
-    page,
-    pageSize: PAGE_SIZE,
-  });
-  const totalPages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
+  const [result, resumen] = await Promise.all([
+    listRecetas({
+      estado: estadoValido,
+      numeroInterno: params.numero,
+      desde: params.desde,
+      hasta: params.hasta,
+      page,
+      pageSize: PAGE_SIZE,
+    }),
+    resumenRecetasPorEstado(),
+  ]);
   const puedeCrear = can(session, "recetas.crear");
   const puedeEditar = can(session, "recetas.editar");
+  const puedeAnularPermiso = can(session, "recetas.anular");
+  const puedeVerReporte = can(session, "reportes.ver");
 
   // The receta just created (read again: the URL only carries its id and the notice codes).
   const idRegistrada = params[PARAM_REGISTRADA];
@@ -58,18 +87,109 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
     return `/recetas?${qs.toString()}`;
   }
 
-  return (
-    <div className="page">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Recetas</h1>
-        <div className="flex gap-3">
-          {puedeCrear ? (
+  /** The current filters with some replaced or removed (`""`), back on page 1. */
+  function filtersHref(overrides: Partial<Record<FilterParam, string>>): string {
+    const qs = new URLSearchParams();
+    for (const key of ["estado", "numero", "desde", "hasta"] as const) {
+      const value = key in overrides ? overrides[key] : params[key];
+      if (value) qs.set(key, value);
+    }
+    const query = qs.toString();
+    return query ? `/recetas?${query}` : "/recetas";
+  }
+
+  const hasActiveFilters = Boolean(params.estado || params.numero || params.desde || params.hasta);
+  const hasNarrowingFilters = Boolean(params.numero || params.desde || params.hasta);
+
+  // Status summary: global counts per estado; terminal estados are history, the rest is work in progress.
+  const totalRegistradas = resumen.reduce((sum, r) => sum + r.cantidad, 0);
+  const enCurso = resumen.filter((r) => !esEstadoTerminal(r.estado)).reduce((sum, r) => sum + r.cantidad, 0);
+
+  const chips: { key: FilterParam; label: string; value: string }[] = [];
+  if (estadoValido) chips.push({ key: "estado", label: "Estado", value: ESTADO_RECETA_LABELS[estadoValido] });
+  if (params.numero) chips.push({ key: "numero", label: "Nº interno", value: params.numero });
+  if (params.desde) chips.push({ key: "desde", label: "Prescripción desde", value: isoToDisplay(params.desde) });
+  if (params.hasta) chips.push({ key: "hasta", label: "Prescripción hasta", value: isoToDisplay(params.hasta) });
+
+  const rows: RecetaRow[] = result.items.map((r) => ({
+    id: r.id,
+    numero: r.numeroInterno,
+    paciente: `${r.pacienteNombre} ${r.pacienteApellido}`,
+    medico: `${r.medicoApellido}, ${r.medicoNombre}`,
+    origen: r.origen,
+    origenLabel: ORIGEN_RECETA_LABELS[r.origen],
+    prescripcion: formatFecha(r.fechaPrescripcion),
+    prescripcionKey: r.fechaPrescripcion.toISOString(),
+    ingreso: formatFecha(r.fechaIngreso, result.zonaHoraria),
+    ingresoKey: r.fechaIngreso.toISOString(),
+    estado: r.estado,
+    estadoOrden: ESTADOS_RECETA.indexOf(r.estado),
+    editable: puedeEditar && r.editable,
+    anulable: puedeAnularPermiso && puedeAnular(r.estado),
+  }));
+
+  const empty =
+    result.total > 0 ? (
+      <EmptyState
+        icon={<SearchX className="size-5" />}
+        title="Esta página no tiene recetas"
+        description="Hay resultados, pero en páginas anteriores."
+        action={
+          <Link href={pageHref(1)} className="btn btn-secondary">
+            Ir a la primera página
+          </Link>
+        }
+      />
+    ) : hasActiveFilters ? (
+      <EmptyState
+        icon={<SearchX className="size-5" />}
+        title="Sin resultados"
+        description="Ninguna receta coincide con los filtros aplicados."
+        action={
+          <Link href="/recetas" scroll={false} className="btn btn-secondary">
+            Limpiar filtros
+          </Link>
+        }
+      />
+    ) : (
+      <EmptyState
+        icon={<ClipboardList className="size-5" />}
+        title="Todavía no hay recetas"
+        description="Las recetas registradas aparecen acá, con su estado de preparación."
+        action={
+          puedeCrear ? (
             <Link href="/recetas/nuevo" className="btn btn-primary">
+              <Plus className="size-4" aria-hidden />
               Nueva receta
             </Link>
-          ) : null}
-        </div>
-      </div>
+          ) : null
+        }
+      />
+    );
+
+  return (
+    <div className="page list-view">
+      <PageHeader
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Recetas" }]}
+        title="Recetas"
+        description="Seguimiento de cada receta desde el ingreso hasta la entrega."
+        actions={
+          <>
+            {puedeVerReporte ? (
+              <Link href="/reportes/recetas" className="btn btn-secondary">
+                <ChartColumn className="size-4" aria-hidden />
+                Reporte
+              </Link>
+            ) : null}
+            {puedeCrear ? (
+              <Link href="/recetas/nuevo" className="btn btn-primary">
+                <Plus className="size-4" aria-hidden />
+                Nueva receta
+              </Link>
+            ) : null}
+          </>
+        }
+      />
 
       {registrada ? (
         <AvisosGeneracion
@@ -83,118 +203,94 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
         />
       ) : null}
 
-      <FilterForm className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de recetas" hasActiveFilters={Boolean(params.estado || params.numero || params.desde || params.hasta)}>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="estado" className="text-sm font-medium">
-            Estado
-          </label>
-          <select id="estado" name="estado" defaultValue={estado} className="input">
-            <option value="">Todos</option>
-            {ESTADOS_RECETA.map((e) => (
-              <option key={e} value={e}>
-                {ESTADO_RECETA_LABELS[e]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="numero" className="text-sm font-medium">
-            Nº interno
-          </label>
-          <input id="numero" name="numero" type="text" defaultValue={params.numero ?? ""} className="w-28 input" />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="desde" className="text-sm font-medium">
-            Desde
-          </label>
-          <DateInput id="desde" name="desde" defaultValue={params.desde ?? ""} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="hasta" className="text-sm font-medium">
-            Hasta
-          </label>
-          <DateInput id="hasta" name="hasta" defaultValue={params.hasta ?? ""} />
-        </div>
-      </FilterForm>
+      <StatusSummary
+        label="Filtrar por estado"
+        unit={["receta", "recetas"]}
+        headline={{
+          value: enCurso,
+          label: enCurso === 1 ? "receta en curso" : "recetas en curso",
+          caption: `de ${new Intl.NumberFormat("es-AR").format(totalRegistradas)} registradas`,
+        }}
+        note={hasNarrowingFilters ? "Los totales por estado no aplican la búsqueda ni las fechas." : undefined}
+        all={{ label: "Todas", count: totalRegistradas, href: filtersHref({ estado: "" }), active: !estadoValido }}
+        items={resumen.map((r) => ({
+          key: r.estado,
+          label: ESTADO_RECETA_LABELS[r.estado],
+          count: r.cantidad,
+          // Clicking the active estado again clears it.
+          href: filtersHref({ estado: r.estado === estadoValido ? "" : r.estado }),
+          active: r.estado === estadoValido,
+          tone: estadoTone(r.estado),
+          secondary: esEstadoTerminal(r.estado),
+        }))}
+      />
 
-      <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400">
-        {result.total} receta{result.total === 1 ? "" : "s"} encontrada{result.total === 1 ? "" : "s"}.
-      </p>
-
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th scope="col" className="px-3 py-2 font-medium">
-                Nº
-              </th>
-              <th scope="col" className="px-3 py-2 font-medium">
-                Paciente
-              </th>
-              <th scope="col" className="px-3 py-2 font-medium">
+      <section aria-label="Búsqueda y filtros" className="mb-4">
+        {/* The estado is chosen in the summary above; this hidden field keeps it while the other filters change. */}
+        <FilterForm className="filter-bar" aria-label="Filtros de recetas" hasActiveFilters={false}>
+          <input type="hidden" name="estado" value={estadoValido ?? ""} />
+          <SearchField
+            id="numero"
+            name="numero"
+            label="Nº interno"
+            hideLabel
+            defaultValue={params.numero ?? ""}
+            placeholder="Buscar por Nº interno"
+            inputMode="search"
+            className="min-w-0 flex-1 md:w-64 md:flex-none"
+          />
+          <FilterDrawer activeCount={(params.desde ? 1 : 0) + (params.hasta ? 1 : 0)}>
+            <div className="field">
+              <span id="prescripcion-label" className="field-label">
                 Prescripción
-              </th>
-              <th scope="col" className="px-3 py-2 font-medium">
-                Ingreso
-              </th>
-              <th scope="col" className="px-3 py-2 font-medium">
-                Estado
-              </th>
-              <th scope="col" className="px-3 py-2 font-medium">
-                <span className="sr-only">Acciones</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.items.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-zinc-500">
-                  No se encontraron recetas con estos filtros.
-                </td>
-              </tr>
-            ) : (
-              result.items.map((r) => (
-                <tr key={r.id}>
-                  <td className="px-3 py-2">
-                    <Link href={`/recetas/${r.id}`} className="font-medium underline-offset-2 hover:underline">
-                      {r.numeroInterno}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2">
-                    {r.pacienteNombre} {r.pacienteApellido}
-                  </td>
-                  <td className="px-3 py-2">{formatFecha(r.fechaPrescripcion)}</td>
-                  <td className="px-3 py-2">{formatFecha(r.fechaIngreso, result.zonaHoraria)}</td>
-                  <td className="px-3 py-2"><StatusBadge estado={r.estado} /></td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      {puedeEditar && r.editable ? (
-                        <Link href={`/recetas/${r.id}/editar`} className="btn btn-secondary btn-sm" aria-label={`Editar receta Nº ${r.numeroInterno}`}>
-                          Editar
-                        </Link>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              </span>
+              <div className="range-field" role="group" aria-labelledby="prescripcion-label">
+                <label htmlFor="desde" className="sr-only">
+                  Prescripción desde
+                </label>
+                <DateInput id="desde" name="desde" defaultValue={params.desde ?? ""} />
+                <span className="range-field-sep" aria-hidden>
+                  a
+                </span>
+                <label htmlFor="hasta" className="sr-only">
+                  Prescripción hasta
+                </label>
+                <DateInput id="hasta" name="hasta" defaultValue={params.hasta ?? ""} />
+              </div>
+            </div>
+          </FilterDrawer>
+        </FilterForm>
+
+        {chips.length > 0 ? (
+          <div className="filter-chips" role="group" aria-label="Filtros activos">
+            {chips.map((chip) => (
+              <span key={chip.key} className="chip">
+                {chip.label}: <strong>{chip.value}</strong>
+                <Link href={filtersHref({ [chip.key]: "" } as Partial<Record<FilterParam, string>>)} scroll={false} className="chip-remove" aria-label={`Quitar filtro ${chip.label}`}>
+                  <X className="size-3" aria-hidden />
+                </Link>
+              </span>
+            ))}
+            {chips.length > 1 ? (
+              <Link href="/recetas" scroll={false} className="btn btn-ghost btn-sm">
+                Limpiar filtros
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+
+      <div className="list-region">
+        <span className="link-pending" aria-hidden />
+        <RecetasTable
+          rows={rows}
+          total={result.total}
+          empty={empty}
+          footer={<Pagination page={page} pageSize={PAGE_SIZE} total={result.total} hrefFor={pageHref} label="Paginación de recetas" />}
+        />
       </div>
 
-      {totalPages > 1 ? (
-        <nav aria-label="Paginación de recetas" className="mt-4 flex items-center gap-2 text-sm">
-          <Link href={pageHref(Math.max(1, page - 1))} aria-disabled={page <= 1} className={page <= 1 ? "pointer-events-none text-zinc-400" : "underline"}>
-            Anterior
-          </Link>
-          <span>
-            Página {page} de {totalPages}
-          </span>
-          <Link href={pageHref(Math.min(totalPages, page + 1))} aria-disabled={page >= totalPages} className={page >= totalPages ? "pointer-events-none text-zinc-400" : "underline"}>
-            Siguiente
-          </Link>
-        </nav>
-      ) : null}
+      <Toaster />
     </div>
   );
 }

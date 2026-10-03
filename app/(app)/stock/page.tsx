@@ -4,10 +4,11 @@
  * boolean filters grouped in the "Filtros" dropdown, and order.
  * "Unificar unidades" (`unidades=base`) is a display option, not a filter:
  * quantities in their magnitude's base unit instead of the readable auto
- * unit (shared/format/cantidad.ts). Each alert card links to the list with
+ * unit (shared/format/cantidad.ts). Each alert tab links to the list with
  * its matching filter applied.
  */
 import Link from "next/link";
+import { ChevronRight, PackagePlus, PackageSearch, SearchX, SlidersHorizontal, X } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listStockDrogas } from "@/modules/stock/application/list-stock-drogas";
@@ -18,6 +19,13 @@ import { formatCantidadesFila, type ModoCantidad } from "@/shared/format/cantida
 import { Cantidad } from "@/shared/ui/cantidad";
 import { FilterForm } from "@/shared/ui/filter-form";
 import { FilterMultiSelect } from "@/shared/ui/filter-multi-select";
+import { FilterDrawer } from "@/shared/ui/filter-drawer";
+import { DrogaBuscador } from "@/modules/stock/ui/droga-buscador";
+import { PageHeader } from "@/shared/ui/page-header";
+import { StatusSummary } from "@/shared/ui/status-summary";
+import { EmptyState } from "@/shared/ui/empty-state";
+import { Pagination } from "@/shared/ui/pagination";
+import { ToneBadge } from "@/shared/ui/status-badge";
 
 const PAGE_SIZE = 20;
 
@@ -39,6 +47,8 @@ interface StockPageProps {
 function formatFecha(iso: string): string {
   return new Intl.DateTimeFormat("es-AR", { timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
 }
+
+const numberFormat = new Intl.NumberFormat("es-AR");
 
 export default async function StockPage({ searchParams }: StockPageProps) {
   const session = await requireSession();
@@ -66,7 +76,6 @@ export default async function StockPage({ searchParams }: StockPageProps) {
     getCatalogoUnidades(),
   ]);
 
-  const totalPages = Math.max(1, Math.ceil(stock.total / PAGE_SIZE));
   const puedeIngresar = can(session, "stock.partida.ingresar");
 
   /** Current filters (normalized), without `page`. */
@@ -82,161 +91,265 @@ export default async function StockPage({ searchParams }: StockPageProps) {
     return `/stock?${qs.toString()}`;
   }
 
-  /** An alert card shows exactly its filter's list (other filters cleared; the display option is kept). */
+  /** An alert tab shows exactly its filter's list (other filters cleared; the display option is kept). */
   function alertaHref(filtro: FiltroName): string {
     const qs = new URLSearchParams({ [filtro]: "1" });
     if (modo === "base") qs.set("unidades", "base");
     return `/stock?${qs.toString()}`;
   }
 
+  /** The current list without one filter (back to page 1). */
+  function sinFiltroHref(param: string): string {
+    const qs = new URLSearchParams(actuales);
+    qs.delete(param);
+    const query = qs.toString();
+    return query ? `/stock?${query}` : "/stock";
+  }
+
+  /** No filters at all; the display options (orden, unidades) stay. */
+  const sinFiltrosQs = new URLSearchParams();
+  if (orden !== "nombre") sinFiltrosQs.set("orden", orden);
+  if (modo === "base") sinFiltrosQs.set("unidades", "base");
+  const sinFiltrosHref = sinFiltrosQs.toString() ? `/stock?${sinFiltrosQs.toString()}` : "/stock";
+
   const hasActiveFilters = Boolean(q || FILTROS.some((f) => activos[f.name]));
-  const cardClass = "block rounded border p-3 text-sm transition-colors";
+  const filtrosBooleanosActivos = FILTROS.filter((f) => activos[f.name]).length;
+  const chips = [...(q ? [{ key: "q", label: "Búsqueda", value: q }] : []), ...FILTROS.filter((f) => activos[f.name]).map((f) => ({ key: f.name, label: f.label, value: undefined }))];
 
   return (
-    <div className="page">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Stock</h1>
-        <div className="flex gap-2">
-          {puedeIngresar ? (
-            <Link href="/stock/ingresar" className="btn btn-primary">
-              Ingresar partida
+    <div className="page list-view">
+      <PageHeader
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Stock" }]}
+        title="Stock"
+        description="Existencias por droga, con alertas de stock mínimo y vencimientos."
+        actions={
+          <>
+            <Link href="/stock/ajustes" className="btn btn-secondary">
+              <SlidersHorizontal className="size-4" aria-hidden />
+              Ajustes
             </Link>
-          ) : null}
-        </div>
-      </div>
+            {puedeIngresar ? (
+              <Link href="/stock/ingresar" className="btn btn-primary">
+                <PackagePlus className="size-4" aria-hidden />
+                Ingresar partida
+              </Link>
+            ) : null}
+          </>
+        }
+      />
 
-      {alertas.bajoMinimo.length > 0 || alertas.porVencer.length > 0 || alertas.vencidasConSaldo.length > 0 ? (
-        <section aria-label="Alertas de stock" className="mb-6 grid gap-3 sm:grid-cols-3">
-          {alertas.bajoMinimo.length > 0 ? (
-            <Link
-              href={alertaHref("bajoMinimo")}
-              aria-current={activos.bajoMinimo ? "true" : undefined}
-              className={`${cardClass} border-amber-300 bg-amber-50 hover:border-amber-500 dark:border-amber-800 dark:bg-amber-950`}
-            >
-              <span className="block font-medium">Bajo stock mínimo</span>
-              <span className="block">{alertas.bajoMinimo.length} droga(s) por debajo del stock mínimo.</span>
-            </Link>
-          ) : null}
-          {alertas.porVencer.length > 0 ? (
-            <Link
-              href={alertaHref("porVencer")}
-              aria-current={activos.porVencer ? "true" : undefined}
-              className={`${cardClass} border-amber-300 bg-amber-50 hover:border-amber-500 dark:border-amber-800 dark:bg-amber-950`}
-            >
-              <span className="block font-medium">Próximas a vencer</span>
-              <span className="block">
-                {alertas.porVencer.length} partida(s) vencen en los próximos {alertas.diasAlertaVencimiento} días.
-              </span>
-            </Link>
-          ) : null}
-          {alertas.vencidasConSaldo.length > 0 ? (
-            <Link
-              href={alertaHref("vencidas")}
-              aria-current={activos.vencidas ? "true" : undefined}
-              className={`${cardClass} border-red-300 bg-red-50 hover:border-red-500 dark:border-red-800 dark:bg-red-950`}
-            >
-              <span className="block font-medium">Vencidas con saldo</span>
-              <span className="block">
-                {alertas.vencidasConSaldo.length} partida(s) vencidas todavía tienen saldo. Se sugiere un ajuste por vencimiento.
-              </span>
-            </Link>
-          ) : null}
-        </section>
-      ) : null}
+      <StatusSummary
+        label="Alertas de stock"
+        unit={["droga", "drogas"]}
+        all={{ label: "Todas las drogas", href: sinFiltrosHref, active: !hasActiveFilters }}
+        items={[
+          { key: "bajoMinimo", label: "Bajo stock mínimo", count: alertas.bajoMinimo.length, href: alertaHref("bajoMinimo"), active: activos.bajoMinimo, tone: "warn" },
+          {
+            key: "porVencer",
+            label: `Vencen en ${alertas.diasAlertaVencimiento} días`,
+            count: alertas.porVencer.length,
+            href: alertaHref("porVencer"),
+            active: activos.porVencer,
+            tone: "warn",
+            unit: ["partida", "partidas"],
+          },
+          {
+            key: "vencidas",
+            label: "Vencidas con saldo",
+            count: alertas.vencidasConSaldo.length,
+            href: alertaHref("vencidas"),
+            active: activos.vencidas,
+            tone: "danger",
+            unit: ["partida", "partidas"],
+          },
+        ]}
+        note={
+          alertas.vencidasConSaldo.length > 0
+            ? `${numberFormat.format(alertas.vencidasConSaldo.length)} ${alertas.vencidasConSaldo.length === 1 ? "partida vencida todavía tiene" : "partidas vencidas todavía tienen"} saldo. Se sugiere un ajuste por vencimiento.`
+            : undefined
+        }
+      />
 
-      <FilterForm className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de stock" hasActiveFilters={hasActiveFilters}>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="q" className="text-sm font-medium">
-            Buscar droga
-          </label>
-          <input id="q" name="q" type="search" defaultValue={q ?? ""} className="input" />
-        </div>
-        <FilterMultiSelect options={FILTROS.map((f) => ({ name: f.name, label: f.label, checked: activos[f.name] }))} />
-        <div className="flex flex-col gap-1">
-          <label htmlFor="orden" className="text-sm font-medium">
-            Ordenar por
-          </label>
-          <select id="orden" name="orden" defaultValue={orden === "nombre" ? "" : orden} className="input" data-preserve-on-clear="">
-            {ORDENES_STOCK_DROGAS.map((o) => (
-              <option key={o} value={o === "nombre" ? "" : o}>
-                {ORDEN_STOCK_DROGAS_LABELS[o]}
-              </option>
+      <section aria-label="Búsqueda y filtros" className="mb-4">
+        <FilterForm className="filter-bar" aria-label="Filtros de stock" hasActiveFilters={false}>
+          {/* The search lives in the autocomplete (outside the form's own fields): keep it while other filters change. */}
+          <input type="hidden" name="q" value={q ?? ""} />
+          <div className="min-w-0 flex-1 md:w-80 md:flex-none">
+            <DrogaBuscador
+              id="q-buscar"
+              label="Buscar droga"
+              hideLabel
+              placeholder="Buscar droga"
+              busquedaActual={q}
+              alElegir={{ href: modo === "base" ? "/stock/partidas?unidades=base" : "/stock/partidas", param: "drogaId", valor: "id" }}
+              alBuscar={{ href: sinFiltroHref("q"), param: "q", texto: "Buscar “{q}” en la lista", textoSinBusqueda: "Ver todas las drogas" }}
+            />
+          </div>
+          <FilterDrawer activeCount={filtrosBooleanosActivos}>
+            <FilterMultiSelect options={FILTROS.map((f) => ({ name: f.name, label: f.label, checked: activos[f.name] }))} />
+            <div className="field">
+              <label htmlFor="orden" className="field-label">
+                Ordenar por
+              </label>
+              <select id="orden" name="orden" defaultValue={orden === "nombre" ? "" : orden} className="input" data-preserve-on-clear="">
+                {ORDENES_STOCK_DROGAS.map((o) => (
+                  <option key={o} value={o === "nombre" ? "" : o}>
+                    {ORDEN_STOCK_DROGAS_LABELS[o]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <label className="toggle-switch">
+              <input type="checkbox" role="switch" name="unidades" value="base" defaultChecked={modo === "base"} data-preserve-on-clear="" />
+              Unificar unidades
+            </label>
+          </FilterDrawer>
+        </FilterForm>
+
+        {chips.length > 0 ? (
+          <div className="filter-chips" role="group" aria-label="Filtros activos">
+            {chips.map((chip) => (
+              <span key={chip.key} className="chip">
+                {chip.value ? (
+                  <>
+                    {chip.label}: <strong>{chip.value}</strong>
+                  </>
+                ) : (
+                  <strong>{chip.label}</strong>
+                )}
+                <Link href={sinFiltroHref(chip.key)} scroll={false} className="chip-remove" aria-label={`Quitar filtro ${chip.label}`}>
+                  <X className="size-3" aria-hidden />
+                </Link>
+              </span>
             ))}
-          </select>
-        </div>
-        <label className="toggle-switch">
-          <input type="checkbox" role="switch" name="unidades" value="base" defaultChecked={modo === "base"} data-preserve-on-clear="" />
-          Unificar unidades
-        </label>
-      </FilterForm>
+            {chips.length > 1 ? (
+              <Link href={sinFiltrosHref} scroll={false} className="btn btn-ghost btn-sm">
+                Limpiar filtros
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
 
-      <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
-        {stock.total} droga{stock.total === 1 ? "" : "s"} encontrada{stock.total === 1 ? "" : "s"}.
-      </p>
+      <div className="list-region">
+        <span className="link-pending" aria-hidden />
+        <div className="list-panel">
+          <div className="list-toolbar">
+            <p role="status">
+              <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(stock.total)}</span> {stock.total === 1 ? "droga" : "drogas"}
+            </p>
+            {modo === "base" ? <p className="text-xs">Cantidades en la unidad base de cada magnitud</p> : null}
+          </div>
 
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th scope="col" className="px-3 py-2 font-medium">Droga</th>
-              <th scope="col" className="px-3 py-2 font-medium">Stock disponible</th>
-              <th scope="col" className="px-3 py-2 font-medium">Stock mínimo</th>
-              <th scope="col" className="px-3 py-2 font-medium">Próximo vencimiento</th>
-              <th scope="col" className="px-3 py-2 font-medium">
-                <span className="sr-only">Acciones</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {stock.items.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-zinc-500">
-                  No se encontraron drogas con estos filtros.
-                </td>
-              </tr>
+          {stock.items.length === 0 ? (
+            stock.total > 0 ? (
+              <EmptyState
+                icon={<SearchX className="size-5" />}
+                title="Esta página no tiene resultados"
+                description="Hay resultados, pero en páginas anteriores."
+                action={
+                  <Link href={pageHref(1)} className="btn btn-secondary">
+                    Ir a la primera página
+                  </Link>
+                }
+              />
+            ) : hasActiveFilters ? (
+              <EmptyState
+                icon={<SearchX className="size-5" />}
+                title="Sin resultados"
+                description="Ninguna droga coincide con los filtros aplicados."
+                action={
+                  <Link href={sinFiltrosHref} scroll={false} className="btn btn-secondary">
+                    Limpiar filtros
+                  </Link>
+                }
+              />
             ) : (
-              stock.items.map((item) => {
-                const [disponible, minimo] = formatCantidadesFila([item.stockDisponible, item.stockMinimo], { id: item.unidadId, simbolo: item.unidadSimbolo }, catalogo, modo);
-                return (
-                  <tr key={item.drogaId}>
-                    <td className="px-3 py-2 font-medium">{item.drogaNombre}</td>
-                    <td className={`px-3 py-2 ${item.bajoMinimo ? "font-semibold text-red-600" : ""}`}>
-                      <Cantidad valor={disponible!} />
-                    </td>
-                    <td className="px-3 py-2">
-                      <Cantidad valor={minimo!} />
-                    </td>
-                    <td className="px-3 py-2">{item.proximoVencimiento ? formatFecha(item.proximoVencimiento) : "—"}</td>
-                    <td className="px-3 py-2 text-right">
-                      <Link
-                        href={`/stock/partidas?drogaId=${item.drogaId}${modo === "base" ? "&unidades=base" : ""}`}
-                        aria-label={`Ver detalle de ${item.drogaNombre}`}
-                        className="whitespace-nowrap text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400"
-                      >
-                        Ver detalle →
-                      </Link>
-                    </td>
+              <EmptyState
+                icon={<PackageSearch className="size-5" />}
+                title="Todavía no hay stock"
+                description="Las drogas aparecen acá cuando se ingresa su primera partida."
+                action={
+                  puedeIngresar ? (
+                    <Link href="/stock/ingresar" className="btn btn-primary">
+                      <PackagePlus className="size-4" aria-hidden />
+                      Ingresar partida
+                    </Link>
+                  ) : null
+                }
+              />
+            )
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col" className="px-3 py-2">
+                      Droga
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-right">
+                      Disponible
+                    </th>
+                    <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
+                      Mínimo
+                    </th>
+                    <th scope="col" className="hidden px-3 py-2 md:table-cell">
+                      Próximo vencimiento
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      <span className="sr-only">Acciones</span>
+                    </th>
                   </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                </thead>
+                <tbody>
+                  {stock.items.map((item) => {
+                    const [disponible, minimo] = formatCantidadesFila([item.stockDisponible, item.stockMinimo], { id: item.unidadId, simbolo: item.unidadSimbolo }, catalogo, modo);
+                    const partidasHref = `/stock/partidas?drogaId=${item.drogaId}${modo === "base" ? "&unidades=base" : ""}`;
+                    return (
+                      <tr key={item.drogaId}>
+                        <td className="px-3 py-2.5">
+                          <span className="flex flex-wrap items-center gap-2">
+                            <Link href={partidasHref} className="font-medium text-zinc-900 underline-offset-2 hover:underline">
+                              {item.drogaNombre}
+                            </Link>
+                            {item.bajoMinimo ? <ToneBadge tone="warn">Bajo mínimo</ToneBadge> : null}
+                          </span>
+                          {item.proximoVencimiento ? (
+                            <span className="block text-xs text-zinc-500 tabular-nums md:hidden">Vence {formatFecha(item.proximoVencimiento)}</span>
+                          ) : null}
+                        </td>
+                        <td className={`px-3 py-2.5 text-right font-mono tabular-nums ${item.bajoMinimo ? "font-semibold text-red-700" : "text-zinc-900"}`}>
+                          <Cantidad valor={disponible!} />
+                        </td>
+                        <td className="hidden px-3 py-2.5 text-right font-mono text-zinc-500 tabular-nums sm:table-cell">
+                          <Cantidad valor={minimo!} />
+                        </td>
+                        <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums md:table-cell">
+                          {item.proximoVencimiento ? (
+                            formatFecha(item.proximoVencimiento)
+                          ) : (
+                            <span className="text-zinc-400">
+                              -<span className="sr-only">Sin vencimientos</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <Link href={partidasHref} aria-label={`Ver partidas de ${item.drogaNombre}`} className="btn btn-ghost btn-sm">
+                            <span className="hidden sm:inline">Partidas</span>
+                            <ChevronRight className="size-3.5" aria-hidden />
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-      {totalPages > 1 ? (
-        <nav aria-label="Paginación de stock" className="mt-4 flex items-center gap-2 text-sm">
-          <Link href={pageHref(Math.max(1, page - 1))} aria-disabled={page <= 1} className={page <= 1 ? "pointer-events-none text-zinc-400" : "underline"}>
-            Anterior
-          </Link>
-          <span>
-            Página {page} de {totalPages}
-          </span>
-          <Link href={pageHref(Math.min(totalPages, page + 1))} aria-disabled={page >= totalPages} className={page >= totalPages ? "pointer-events-none text-zinc-400" : "underline"}>
-            Siguiente
-          </Link>
-        </nav>
-      ) : null}
+          <Pagination page={page} pageSize={PAGE_SIZE} total={stock.total} hrefFor={pageHref} label="Paginación de stock" />
+        </div>
+      </div>
     </div>
   );
 }

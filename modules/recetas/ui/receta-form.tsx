@@ -31,8 +31,11 @@
  * "recordar esta equivalencia", and the submit goes to `recetas.importar`,
  * which re-derives and re-validates everything server-side.
  */
-import { useActionState, useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useActionState, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { AlertCircle, ArrowDown, ArrowUp, Plus, Save, Trash2 } from "lucide-react";
+import { ToneBadge } from "@/shared/ui/status-badge";
 import { crearRecetaAction, editarRecetaAction, importarRecetaAction } from "./actions";
 import { IDLE_STATE } from "./action-state";
 import { PacientePicker } from "./paciente-picker";
@@ -103,10 +106,30 @@ function nuevoItem(): ItemState {
 
 function SubmitButton({ label, pending }: { label: string; pending: boolean }) {
   return (
-    <button type="submit" disabled={pending} className="btn btn-primary">
+    <button type="submit" disabled={pending} className="btn btn-primary w-full">
+      {pending ? <span className="spinner border-white/40 border-t-white" aria-hidden /> : <Save className="size-4" aria-hidden />}
       {pending ? "Guardando…" : label}
     </button>
   );
+}
+
+/** A titled block of the form. */
+function FormSection({ title, description, children, id }: { title: string; description?: string; children: ReactNode; id: string }) {
+  return (
+    <section aria-labelledby={id} className="panel">
+      <div className="panel-header">
+        <h2 id={id}>{title}</h2>
+        {description ? <p>{description}</p> : null}
+      </div>
+      <div className="panel-body">{children}</div>
+    </section>
+  );
+}
+
+/** `2026-09-01` -> `01/09/2026` for the summary (empty stays empty). */
+function fechaVisible(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return y && m && d ? `${d}/${m}/${y}` : "";
 }
 
 function moveItem<T>(arr: T[], index: number, dir: -1 | 1): T[] {
@@ -364,8 +387,23 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
     onSubmit(e);
   }
 
+  // Summary (aside): what will be saved, readable at a glance before submitting.
+  const pacienteResumen = importacion
+    ? importacion.paciente.existente
+      ? `${importacion.paciente.existente.nombre} ${importacion.paciente.existente.apellido}`
+      : `${pacienteNuevo.nombre} ${pacienteNuevo.apellido}`.trim()
+    : pacienteLabel;
+  const medicoResumen = importacion
+    ? importacion.medico.existente
+      ? `${importacion.medico.existente.apellido}, ${importacion.medico.existente.nombre}`
+      : [medicoNuevo.apellido, medicoNuevo.nombre].filter((parte) => parte.trim()).join(", ")
+    : medicoLabel;
+  const totalComponentes = items.reduce((sum, it) => sum + it.componentes.length, 0);
+  const cancelarHref = mode !== "editar" ? "/recetas" : !volverA && recetaId ? `/recetas/${recetaId}` : null;
+  const errorVisible = clientError ?? (state.status === "error" ? state.message : null);
+
   return (
-    <form ref={formRef} action={formAction} onSubmit={handleSubmit} noValidate className="flex flex-col gap-6">
+    <form ref={formRef} action={formAction} onSubmit={handleSubmit} noValidate className="split-layout">
       {mode === "editar" && recetaId ? <input type="hidden" name="id" value={recetaId} /> : null}
       {mode === "editar" && volverA ? <input type="hidden" name="volverA" value={volverA} /> : null}
       <input type="hidden" name="pacienteId" value={pacienteId} />
@@ -385,299 +423,258 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
         </>
       ) : null}
 
-      {importacion ? (
-        <>
-          <ResumenImportacion vistaPrevia={importacion} />
-          <AdvertenciasImportacion advertencias={importacion.advertencias} />
-          <PanelPersona
-            titulo="Paciente"
-            existente={importacion.paciente.existente ? `${importacion.paciente.existente.nombre} ${importacion.paciente.existente.apellido}` : null}
-            dadoDeBaja={importacion.paciente.existente?.dadoDeBaja}
-            completar={importacion.paciente.completar}
-            datos={[
-              { etiqueta: "DNI", valor: importacion.borrador.paciente.dni },
-              { etiqueta: "CUIL", valor: importacion.borrador.paciente.cuil },
-              { etiqueta: "Sexo", valor: importacion.borrador.paciente.sexo },
-              { etiqueta: "Nacimiento", valor: importacion.borrador.paciente.fechaNacimiento },
-              { etiqueta: "Credencial", valor: importacion.borrador.paciente.nroCredencial },
-            ]}
-          >
-            {importacion.paciente.existente ? null : (
-              <NombreAConfirmar
-                idBase={`${personaIdBase}-paciente`}
-                quien="paciente"
-                nombreCompleto={importacion.borrador.paciente.nombre?.nombreCompleto ?? null}
-                requiereConfirmacion={importacion.borrador.paciente.nombre?.requiereConfirmacion ?? false}
-                valor={pacienteNuevo}
-                onChange={(patch) => setPacienteNuevo((prev) => ({ ...prev, ...patch }))}
-              />
-            )}
-          </PanelPersona>
-          <PanelPersona
-            titulo="Médico"
-            existente={importacion.medico.existente ? `${importacion.medico.existente.nombre} ${importacion.medico.existente.apellido} (matrícula ${importacion.medico.existente.matricula})` : null}
-            completar={importacion.medico.completar}
-            datos={[
-              { etiqueta: "Especialidad", valor: importacion.borrador.medico.especialidad },
-              { etiqueta: "Teléfono", valor: importacion.borrador.medico.telefono },
-              { etiqueta: "Dirección", valor: importacion.borrador.medico.direccionRegistrada },
-            ]}
-          >
-            {importacion.medico.existente ? null : (
-              <>
+      <div className="flex min-w-0 flex-col gap-6">
+        {importacion ? (
+          <>
+            <ResumenImportacion vistaPrevia={importacion} />
+            <AdvertenciasImportacion advertencias={importacion.advertencias} />
+            <PanelPersona
+              titulo="Paciente"
+              existente={importacion.paciente.existente ? `${importacion.paciente.existente.nombre} ${importacion.paciente.existente.apellido}` : null}
+              dadoDeBaja={importacion.paciente.existente?.dadoDeBaja}
+              completar={importacion.paciente.completar}
+              datos={[
+                { etiqueta: "DNI", valor: importacion.borrador.paciente.dni },
+                { etiqueta: "CUIL", valor: importacion.borrador.paciente.cuil },
+                { etiqueta: "Sexo", valor: importacion.borrador.paciente.sexo },
+                { etiqueta: "Nacimiento", valor: importacion.borrador.paciente.fechaNacimiento },
+                { etiqueta: "Credencial", valor: importacion.borrador.paciente.nroCredencial },
+              ]}
+            >
+              {importacion.paciente.existente ? null : (
                 <NombreAConfirmar
-                  idBase={`${personaIdBase}-medico`}
-                  quien="médico"
-                  nombreCompleto={importacion.borrador.medico.nombre?.nombreCompleto ?? null}
-                  requiereConfirmacion={importacion.borrador.medico.nombre?.requiereConfirmacion ?? false}
-                  valor={medicoNuevo}
-                  onChange={(patch) => setMedicoNuevo((prev) => ({ ...prev, ...patch }))}
+                  idBase={`${personaIdBase}-paciente`}
+                  quien="paciente"
+                  nombreCompleto={importacion.borrador.paciente.nombre?.nombreCompleto ?? null}
+                  requiereConfirmacion={importacion.borrador.paciente.nombre?.requiereConfirmacion ?? false}
+                  valor={pacienteNuevo}
+                  onChange={(patch) => setPacienteNuevo((prev) => ({ ...prev, ...patch }))}
                 />
-                <div className="mt-2 flex flex-wrap gap-3">
-                  <div className="flex flex-col gap-1">
-                    <label htmlFor={`${personaIdBase}-medico-matricula`} className="text-sm">
-                      Matrícula
-                    </label>
-                    <input
-                      id={`${personaIdBase}-medico-matricula`}
-                      value={medicoNuevo.matricula}
-                      readOnly={importacion.borrador.medico.matricula !== null}
-                      onChange={(e) => setMedicoNuevo((prev) => ({ ...prev, matricula: e.target.value }))}
-                      className="input input-sm"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label htmlFor={`${personaIdBase}-medico-jurisdiccion`} className="text-sm">
-                      Jurisdicción
-                    </label>
-                    <select
-                      id={`${personaIdBase}-medico-jurisdiccion`}
-                      value={medicoNuevo.matriculaJurisdiccion}
-                      disabled={importacion.borrador.medico.matriculaJurisdiccion !== null}
-                      onChange={(e) => setMedicoNuevo((prev) => ({ ...prev, matriculaJurisdiccion: e.target.value as JurisdiccionMatricula }))}
-                      className="input input-sm"
-                    >
-                      {JURISDICCIONES_MATRICULA.map((j) => (
-                        <option key={j} value={j}>
-                          {JURISDICCION_MATRICULA_LABELS[j]}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </>
-            )}
-          </PanelPersona>
-        </>
-      ) : (
-        <>
-          <PacientePicker selectedId={pacienteId} selectedLabel={pacienteLabel} onSelect={(id, label) => { setPacienteId(id); setPacienteLabel(label); }} disabled={disabled} />
-          <MedicoPicker selectedId={medicoId} selectedLabel={medicoLabel} onSelect={(id, label) => { setMedicoId(id); setMedicoLabel(label); }} disabled={disabled} />
-        </>
-      )}
-
-      <div className="flex flex-wrap gap-4">
-        <div className="flex flex-col gap-1">
-          <label htmlFor={fechaId} className="text-sm font-medium">
-            Fecha de prescripción
-          </label>
-          <DateInput id={fechaId} name="fechaPrescripcion" required disabled={disabled} value={fechaPrescripcion} onValueChange={setFechaPrescripcion} max={jornadaDe(new Date())} />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <span className="text-sm font-medium">Origen</span>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">{ORIGEN_RECETA_LABELS[origen]}</p>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor={diagnosticoCodigoId} className="text-sm font-medium">
-            Diagnóstico (código CIE-10)
-          </label>
-          <input
-            id={diagnosticoCodigoId}
-            name="diagnosticoCodigo"
-            value={diagnosticoCodigo}
-            onChange={(e) => setDiagnosticoCodigo(e.target.value)}
-            disabled={disabled}
-            placeholder="Ej.: E66.0"
-            maxLength={10}
-            className="w-32 input"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor={diagnosticoDescripcionId} className="text-sm font-medium">
-            Diagnóstico (descripción)
-          </label>
-          <input
-            id={diagnosticoDescripcionId}
-            name="diagnosticoDescripcion"
-            value={diagnosticoDescripcion}
-            onChange={(e) => setDiagnosticoDescripcion(e.target.value)}
-            disabled={disabled}
-            className="input"
-          />
-        </div>
-      </div>
-
-      <section aria-labelledby="items-heading" className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 id="items-heading" className="text-lg font-medium">
-            Ítems
-          </h2>
-          <button type="button" onClick={agregarItem} disabled={disabled} className="btn btn-secondary">
-            + Agregar ítem
-          </button>
-        </div>
-
-        {items.map((item, itemIdx) => (
-          <fieldset key={itemIdx} className="card p-4" disabled={disabled}>
-            <legend className="px-1 text-sm font-medium">Ítem {itemIdx + 1}</legend>
-
-            <div className="mb-3 flex flex-wrap gap-3">
-              <div className="flex flex-col gap-1">
-                <label htmlFor={`item-${itemIdx}-desc`} className="text-sm">
-                  Descripción
-                </label>
-                <input id={`item-${itemIdx}-desc`} value={item.descripcion} onChange={(e) => actualizarItem(itemIdx, { descripcion: e.target.value })} className="input input-sm" />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label htmlFor={`item-${itemIdx}-forma`} className="text-sm">
-                  Forma farmacéutica
-                </label>
-                <select id={`item-${itemIdx}-forma`} value={item.formaFarmaceutica} onChange={(e) => actualizarItem(itemIdx, { formaFarmaceutica: e.target.value as FormaFarmaceutica })} className="input input-sm">
-                  {FORMAS_FARMACEUTICAS.map((f) => (
-                    <option key={f} value={f}>
-                      {FORMA_FARMACEUTICA_LABELS[f]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label htmlFor={`item-${itemIdx}-cu`} className="text-sm">
-                  Cantidad de unidades
-                </label>
-                <input id={`item-${itemIdx}-cu`} type="number" min={1} step={1} value={item.cantidadUnidades} onChange={(e) => actualizarItem(itemIdx, { cantidadUnidades: e.target.value })} className="w-24 input input-sm" />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label htmlFor={`item-${itemIdx}-frac`} className="text-sm">
-                  Fracción de dosis por unidad
-                </label>
-                <input id={`item-${itemIdx}-frac`} type="text" inputMode="decimal" value={item.fraccionDosisPorUnidad} onChange={(e) => actualizarItem(itemIdx, { fraccionDosisPorUnidad: e.target.value })} className="w-24 input input-sm" />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label htmlFor={`item-${itemIdx}-total`} className="text-sm">
-                  Cantidad total (para csp)
-                </label>
-                <input id={`item-${itemIdx}-total`} type="text" inputMode="decimal" value={item.cantidadTotal} onChange={(e) => actualizarItem(itemIdx, { cantidadTotal: e.target.value })} className="w-28 input input-sm" />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label htmlFor={`item-${itemIdx}-unidad-total`} className="text-sm">
-                  Unidad del total
-                </label>
-                <select id={`item-${itemIdx}-unidad-total`} value={item.unidadTotalId} onChange={(e) => actualizarItem(itemIdx, { unidadTotalId: e.target.value })} className="input input-sm">
-                  <option value="">—</option>
-                  {unidades.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.nombre} ({u.simbolo})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label htmlFor={`item-${itemIdx}-obs`} className="text-sm">
-                  Observaciones
-                </label>
-                <input id={`item-${itemIdx}-obs`} value={item.observaciones} onChange={(e) => actualizarItem(itemIdx, { observaciones: e.target.value })} className="input input-sm" />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label htmlFor={`item-${itemIdx}-posologia`} className="text-sm">
-                  Posología
-                </label>
-                <input id={`item-${itemIdx}-posologia`} value={item.posologia} onChange={(e) => actualizarItem(itemIdx, { posologia: e.target.value })} placeholder="Ej.: 1 cada 12 horas" className="input input-sm" />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label htmlFor={`item-${itemIdx}-duracion`} className="text-sm">
-                  Duración del tratamiento (días)
-                </label>
-                <input id={`item-${itemIdx}-duracion`} type="number" min={1} step={1} value={item.duracionTratamientoDias} onChange={(e) => actualizarItem(itemIdx, { duracionTratamientoDias: e.target.value })} className="w-24 input input-sm" />
-              </div>
-            </div>
-
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-medium">Componentes</h3>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => agregarComponente(itemIdx)} className="btn btn-secondary btn-sm">
-                  + Agregar componente
-                </button>
-                {items.length > 1 ? (
-                  <button type="button" onClick={() => quitarItem(itemIdx)} className="btn btn-danger btn-sm">
-                    Quitar ítem
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
-            <ol className="flex flex-col gap-3">
-              {item.componentes.map((c, compIdx) => (
-                <li key={compIdx} className="card p-4">
-                  <div className="mb-2 flex flex-wrap items-end gap-3">
-                    {importacion && c.drogaTexto ? (
-                      <p className="w-full text-xs text-zinc-600 dark:text-zinc-400">
-                        En la receta: «{c.drogaTexto}»
-                        {c.sinMatch ? " — sin coincidencia en el catálogo: elegí la droga." : ""}
-                      </p>
-                    ) : null}
-                    <DrogaPicker
-                      label={`Componente ${compIdx + 1}: droga`}
-                      selectedId={c.drogaId}
-                      selectedLabel={c.drogaNombre}
-                      onSelect={(id, nombre, unidadBaseId) =>
-                        actualizarComponente(itemIdx, compIdx, { drogaId: id, drogaNombre: nombre, unidadMedidaId: id ? c.unidadMedidaId || unidadBaseId : "" })
-                      }
-                    />
-
-                    <div className="flex flex-col gap-1">
-                      <label htmlFor={`item-${itemIdx}-comp-${compIdx}-modo`} className="text-xs">
-                        Modo de expresión
+              )}
+            </PanelPersona>
+            <PanelPersona
+              titulo="Médico"
+              existente={importacion.medico.existente ? `${importacion.medico.existente.nombre} ${importacion.medico.existente.apellido} (matrícula ${importacion.medico.existente.matricula})` : null}
+              completar={importacion.medico.completar}
+              datos={[
+                { etiqueta: "Especialidad", valor: importacion.borrador.medico.especialidad },
+                { etiqueta: "Teléfono", valor: importacion.borrador.medico.telefono },
+                { etiqueta: "Dirección", valor: importacion.borrador.medico.direccionRegistrada },
+              ]}
+            >
+              {importacion.medico.existente ? null : (
+                <>
+                  <NombreAConfirmar
+                    idBase={`${personaIdBase}-medico`}
+                    quien="médico"
+                    nombreCompleto={importacion.borrador.medico.nombre?.nombreCompleto ?? null}
+                    requiereConfirmacion={importacion.borrador.medico.nombre?.requiereConfirmacion ?? false}
+                    valor={medicoNuevo}
+                    onChange={(patch) => setMedicoNuevo((prev) => ({ ...prev, ...patch }))}
+                  />
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="field">
+                      <label htmlFor={`${personaIdBase}-medico-matricula`} className="field-label">
+                        Matrícula
+                      </label>
+                      <input
+                        id={`${personaIdBase}-medico-matricula`}
+                        value={medicoNuevo.matricula}
+                        readOnly={importacion.borrador.medico.matricula !== null}
+                        onChange={(e) => setMedicoNuevo((prev) => ({ ...prev, matricula: e.target.value }))}
+                        className="input"
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`${personaIdBase}-medico-jurisdiccion`} className="field-label">
+                        Jurisdicción
                       </label>
                       <select
-                        id={`item-${itemIdx}-comp-${compIdx}-modo`}
-                        value={c.modoExpresion}
-                        onChange={(e) => actualizarComponente(itemIdx, compIdx, { modoExpresion: e.target.value as ModoExpresion, cantidad: e.target.value === "CS" || e.target.value === "CSP" ? "" : c.cantidad })}
-                        className="input input-sm"
+                        id={`${personaIdBase}-medico-jurisdiccion`}
+                        value={medicoNuevo.matriculaJurisdiccion}
+                        disabled={importacion.borrador.medico.matriculaJurisdiccion !== null}
+                        onChange={(e) => setMedicoNuevo((prev) => ({ ...prev, matriculaJurisdiccion: e.target.value as JurisdiccionMatricula }))}
+                        className="input"
                       >
-                        {MODOS_EXPRESION.map((m) => (
-                          <option key={m} value={m}>
-                            {MODO_EXPRESION_LABELS[m]}
+                        {JURISDICCIONES_MATRICULA.map((j) => (
+                          <option key={j} value={j}>
+                            {JURISDICCION_MATRICULA_LABELS[j]}
                           </option>
                         ))}
                       </select>
                     </div>
+                  </div>
+                </>
+              )}
+            </PanelPersona>
+          </>
+        ) : (
+          <FormSection id={`${personaIdBase}-personas`} title="Paciente y médico" description="Escribí para buscar. Si no existe, lo creás desde la misma lista.">
+            <div className="grid gap-5 md:grid-cols-2">
+              <PacientePicker
+                selectedId={pacienteId}
+                selectedLabel={pacienteLabel}
+                onSelect={(id, label) => {
+                  setPacienteId(id);
+                  setPacienteLabel(label);
+                }}
+                disabled={disabled}
+              />
+              <MedicoPicker
+                selectedId={medicoId}
+                selectedLabel={medicoLabel}
+                onSelect={(id, label) => {
+                  setMedicoId(id);
+                  setMedicoLabel(label);
+                }}
+                disabled={disabled}
+              />
+            </div>
+          </FormSection>
+        )}
 
-                    {c.modoExpresion === "TOTAL" || c.modoExpresion === "POR_DOSIS" ? (
-                      <div className="flex flex-col gap-1">
-                        <label htmlFor={`item-${itemIdx}-comp-${compIdx}-cant`} className="text-xs">
-                          Cantidad
-                        </label>
-                        <input id={`item-${itemIdx}-comp-${compIdx}-cant`} type="text" inputMode="decimal" value={c.cantidad} onChange={(e) => actualizarComponente(itemIdx, compIdx, { cantidad: e.target.value })} className="w-24 input input-sm" />
-                      </div>
-                    ) : null}
+        <FormSection id={`${personaIdBase}-datos`} title="Datos de la receta">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[auto_minmax(0,1fr)_8rem_minmax(0,2fr)]">
+            <div className="field">
+              <label htmlFor={fechaId} className="field-label">
+                Fecha de prescripción
+              </label>
+              <DateInput id={fechaId} name="fechaPrescripcion" required disabled={disabled} value={fechaPrescripcion} onValueChange={setFechaPrescripcion} max={jornadaDe(new Date())} />
+            </div>
 
-                    <div className="flex flex-col gap-1">
-                      <label htmlFor={`item-${itemIdx}-comp-${compIdx}-unidad`} className="text-xs">
-                        Unidad
+            <div className="field">
+              <span className="field-label">Origen</span>
+              <p className="flex min-h-[2.375rem] items-center text-sm text-zinc-700">{ORIGEN_RECETA_LABELS[origen]}</p>
+            </div>
+
+            <div className="field">
+              <label htmlFor={diagnosticoCodigoId} className="field-label">
+                CIE-10
+              </label>
+              <input
+                id={diagnosticoCodigoId}
+                name="diagnosticoCodigo"
+                value={diagnosticoCodigo}
+                onChange={(e) => setDiagnosticoCodigo(e.target.value)}
+                disabled={disabled}
+                placeholder="Ej.: E66.0"
+                maxLength={10}
+                aria-label="Diagnóstico (código CIE-10)"
+                className="input w-full font-mono"
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor={diagnosticoDescripcionId} className="field-label">
+                Diagnóstico
+              </label>
+              <input
+                id={diagnosticoDescripcionId}
+                name="diagnosticoDescripcion"
+                value={diagnosticoDescripcion}
+                onChange={(e) => setDiagnosticoDescripcion(e.target.value)}
+                disabled={disabled}
+                aria-label="Diagnóstico (descripción)"
+                className="input w-full"
+              />
+            </div>
+          </div>
+        </FormSection>
+
+        <section aria-labelledby="items-heading" className="flex flex-col gap-4">
+          <div className="section-heading mb-0">
+            <h2 id="items-heading" className="flex items-center gap-2">
+              Ítems <span className="tab-count">{items.length}</span>
+            </h2>
+          </div>
+
+          {items.map((item, itemIdx) => (
+            <fieldset key={itemIdx} className="group-card" disabled={disabled}>
+              <legend className="sr-only">Ítem {itemIdx + 1}</legend>
+              <div className="group-card-header">
+                <span className="index-badge" aria-hidden>
+                  {itemIdx + 1}
+                </span>
+                <p className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-900">
+                  {item.descripcion.trim() || FORMA_FARMACEUTICA_LABELS[item.formaFarmaceutica]}
+                  <span className="ml-2 font-normal text-zinc-500">
+                    {item.componentes.length} {item.componentes.length === 1 ? "componente" : "componentes"}
+                  </span>
+                </p>
+                {items.length > 1 ? (
+                  <button type="button" onClick={() => quitarItem(itemIdx)} className="btn btn-danger-ghost btn-sm" aria-label={`Quitar ítem ${itemIdx + 1}`}>
+                    <Trash2 className="size-3.5" aria-hidden />
+                    <span className="hidden sm:inline">Quitar ítem</span>
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="flex flex-col gap-6 p-4 sm:p-5">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="field sm:col-span-2">
+                    <label htmlFor={`item-${itemIdx}-desc`} className="field-label">
+                      Descripción
+                    </label>
+                    <input id={`item-${itemIdx}-desc`} value={item.descripcion} onChange={(e) => actualizarItem(itemIdx, { descripcion: e.target.value })} placeholder="Opcional" className="input" />
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor={`item-${itemIdx}-forma`} className="field-label">
+                      Forma farmacéutica
+                    </label>
+                    <select id={`item-${itemIdx}-forma`} value={item.formaFarmaceutica} onChange={(e) => actualizarItem(itemIdx, { formaFarmaceutica: e.target.value as FormaFarmaceutica })} className="input">
+                      {FORMAS_FARMACEUTICAS.map((f) => (
+                        <option key={f} value={f}>
+                          {FORMA_FARMACEUTICA_LABELS[f]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor={`item-${itemIdx}-duracion`} className="field-label">
+                      Duración (días)
+                    </label>
+                    <input
+                      id={`item-${itemIdx}-duracion`}
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={item.duracionTratamientoDias}
+                      onChange={(e) => actualizarItem(itemIdx, { duracionTratamientoDias: e.target.value })}
+                      aria-label="Duración del tratamiento (días)"
+                      className="input"
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor={`item-${itemIdx}-cu`} className="field-label">
+                      Cantidad de unidades
+                    </label>
+                    <input id={`item-${itemIdx}-cu`} type="number" min={1} step={1} value={item.cantidadUnidades} onChange={(e) => actualizarItem(itemIdx, { cantidadUnidades: e.target.value })} className="input" />
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor={`item-${itemIdx}-frac`} className="field-label">
+                      Fracción de dosis por unidad
+                    </label>
+                    <input id={`item-${itemIdx}-frac`} type="text" inputMode="decimal" value={item.fraccionDosisPorUnidad} onChange={(e) => actualizarItem(itemIdx, { fraccionDosisPorUnidad: e.target.value })} className="input" />
+                  </div>
+
+                  <div className="field sm:col-span-2">
+                    <span id={`item-${itemIdx}-total-label`} className="field-label">
+                      Cantidad total (para csp)
+                    </span>
+                    <div className="flex gap-2" role="group" aria-labelledby={`item-${itemIdx}-total-label`}>
+                      <label htmlFor={`item-${itemIdx}-total`} className="sr-only">
+                        Cantidad total (para csp)
                       </label>
-                      <select id={`item-${itemIdx}-comp-${compIdx}-unidad`} value={c.unidadMedidaId} onChange={(e) => actualizarComponente(itemIdx, compIdx, { unidadMedidaId: e.target.value })} className="input input-sm">
-                        <option value="">—</option>
+                      <input id={`item-${itemIdx}-total`} type="text" inputMode="decimal" value={item.cantidadTotal} onChange={(e) => actualizarItem(itemIdx, { cantidadTotal: e.target.value })} className="input w-28 flex-none" />
+                      <label htmlFor={`item-${itemIdx}-unidad-total`} className="sr-only">
+                        Unidad del total
+                      </label>
+                      <select id={`item-${itemIdx}-unidad-total`} value={item.unidadTotalId} onChange={(e) => actualizarItem(itemIdx, { unidadTotalId: e.target.value })} className="input min-w-0 flex-1">
+                        <option value="">Sin unidad</option>
                         {unidades.map((u) => (
                           <option key={u.id} value={u.id}>
                             {u.nombre} ({u.simbolo})
@@ -685,56 +682,208 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                         ))}
                       </select>
                     </div>
-
-                    <label className="flex items-center gap-2 text-xs">
-                      <input type="checkbox" checked={c.esPrincipioActivo} onChange={(e) => actualizarComponente(itemIdx, compIdx, { esPrincipioActivo: e.target.checked })} />
-                      Principio activo
-                    </label>
-
-                    {importacion && c.sinMatch && c.drogaTexto ? (
-                      <label className="flex items-center gap-2 text-xs">
-                        <input type="checkbox" checked={c.recordar ?? false} disabled={!c.drogaId} onChange={(e) => actualizarComponente(itemIdx, compIdx, { recordar: e.target.checked })} />
-                        Recordar esta equivalencia («{c.drogaTexto}» = droga elegida)
-                      </label>
-                    ) : null}
-
-                    <div className="flex gap-1">
-                      <button type="button" aria-label={`Mover componente ${compIdx + 1} hacia arriba`} disabled={compIdx === 0} onClick={() => moverComponente(itemIdx, compIdx, -1)} className="btn btn-secondary btn-sm">
-                        ↑
-                      </button>
-                      <button type="button" aria-label={`Mover componente ${compIdx + 1} hacia abajo`} disabled={compIdx === item.componentes.length - 1} onClick={() => moverComponente(itemIdx, compIdx, 1)} className="btn btn-secondary btn-sm">
-                        ↓
-                      </button>
-                      {item.componentes.length > 1 ? (
-                        <button type="button" aria-label={`Quitar componente ${compIdx + 1}`} onClick={() => quitarComponente(itemIdx, compIdx)} className="btn btn-danger btn-sm">
-                          Quitar
-                        </button>
-                      ) : null}
-                    </div>
                   </div>
-                </li>
-              ))}
-            </ol>
-          </fieldset>
-        ))}
-      </section>
 
-      {clientError ? (
-        <p role="alert" className="text-sm text-red-600">
-          {clientError}
-        </p>
-      ) : null}
-      {state.status === "error" ? (
-        <p role="alert" className="text-sm text-red-600">
-          {state.message}
-        </p>
-      ) : null}
+                  <div className="field sm:col-span-2">
+                    <label htmlFor={`item-${itemIdx}-posologia`} className="field-label">
+                      Posología
+                    </label>
+                    <input id={`item-${itemIdx}-posologia`} value={item.posologia} onChange={(e) => actualizarItem(itemIdx, { posologia: e.target.value })} placeholder="Ej.: 1 cada 12 horas" className="input" />
+                  </div>
 
-      {puedePresupuestar && mode !== "editar" ? <PresupuestoPanel items={itemsParaEnvio()} /> : null}
+                  <div className="field sm:col-span-2">
+                    <label htmlFor={`item-${itemIdx}-obs`} className="field-label">
+                      Observaciones
+                    </label>
+                    <input id={`item-${itemIdx}-obs`} value={item.observaciones} onChange={(e) => actualizarItem(itemIdx, { observaciones: e.target.value })} className="input" />
+                  </div>
+                </div>
 
-      <div>
-        <SubmitButton label={mode === "crear" ? "Crear receta" : mode === "editar" ? "Guardar cambios" : "Confirmar importación"} pending={isPending} />
+                <div>
+                  <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2 border-b border-zinc-200 pb-2">
+                    <h3 className="text-sm font-semibold text-zinc-900">Componentes</h3>
+                    <p className="text-xs text-zinc-500">El orden se guarda tal cual: el componente csp va último.</p>
+                  </div>
+
+                  <ol>
+                    {item.componentes.map((c, compIdx) => (
+                      <li key={compIdx} className="repeat-row">
+                        {importacion && c.drogaTexto ? (
+                          <p className="flex w-full flex-wrap items-center gap-2 text-xs text-zinc-600">
+                            En la receta: «{c.drogaTexto}»
+                            {c.sinMatch ? <ToneBadge tone="warn">Sin coincidencia en el catálogo: elegí la droga</ToneBadge> : null}
+                          </p>
+                        ) : null}
+
+                        <span className="index-badge mb-2" data-size="sm" aria-hidden>
+                          {compIdx + 1}
+                        </span>
+
+                        <div className="min-w-[14rem] flex-[2_1_14rem]">
+                          <DrogaPicker
+                            label={`Componente ${compIdx + 1}: droga`}
+                            selectedId={c.drogaId}
+                            selectedLabel={c.drogaNombre}
+                            onSelect={(id, nombre, unidadBaseId) =>
+                              actualizarComponente(itemIdx, compIdx, { drogaId: id, drogaNombre: nombre, unidadMedidaId: id ? c.unidadMedidaId || unidadBaseId : "" })
+                            }
+                          />
+                        </div>
+
+                        <div className="field w-36">
+                          <label htmlFor={`item-${itemIdx}-comp-${compIdx}-modo`} className="field-label">
+                            Modo
+                          </label>
+                          <select
+                            id={`item-${itemIdx}-comp-${compIdx}-modo`}
+                            value={c.modoExpresion}
+                            onChange={(e) => actualizarComponente(itemIdx, compIdx, { modoExpresion: e.target.value as ModoExpresion, cantidad: e.target.value === "CS" || e.target.value === "CSP" ? "" : c.cantidad })}
+                            aria-label={`Componente ${compIdx + 1}: modo de expresión`}
+                            className="input input-sm"
+                          >
+                            {MODOS_EXPRESION.map((m) => (
+                              <option key={m} value={m}>
+                                {MODO_EXPRESION_LABELS[m]}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {c.modoExpresion === "TOTAL" || c.modoExpresion === "POR_DOSIS" ? (
+                          <div className="field w-24">
+                            <label htmlFor={`item-${itemIdx}-comp-${compIdx}-cant`} className="field-label">
+                              Cantidad
+                            </label>
+                            <input
+                              id={`item-${itemIdx}-comp-${compIdx}-cant`}
+                              type="text"
+                              inputMode="decimal"
+                              value={c.cantidad}
+                              onChange={(e) => actualizarComponente(itemIdx, compIdx, { cantidad: e.target.value })}
+                              aria-label={`Componente ${compIdx + 1}: cantidad`}
+                              className="input input-sm font-mono"
+                            />
+                          </div>
+                        ) : null}
+
+                        <div className="field w-36">
+                          <label htmlFor={`item-${itemIdx}-comp-${compIdx}-unidad`} className="field-label">
+                            Unidad
+                          </label>
+                          <select
+                            id={`item-${itemIdx}-comp-${compIdx}-unidad`}
+                            value={c.unidadMedidaId}
+                            onChange={(e) => actualizarComponente(itemIdx, compIdx, { unidadMedidaId: e.target.value })}
+                            aria-label={`Componente ${compIdx + 1}: unidad`}
+                            className="input input-sm"
+                          >
+                            <option value="">Elegir unidad</option>
+                            {unidades.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.nombre} ({u.simbolo})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <label className="flex min-h-[2rem] items-center gap-2 text-xs text-zinc-700">
+                          <input type="checkbox" checked={c.esPrincipioActivo} onChange={(e) => actualizarComponente(itemIdx, compIdx, { esPrincipioActivo: e.target.checked })} />
+                          Principio activo
+                        </label>
+
+                        <div className="ml-auto flex items-center gap-0.5">
+                          <button type="button" aria-label={`Mover componente ${compIdx + 1} hacia arriba`} disabled={compIdx === 0} onClick={() => moverComponente(itemIdx, compIdx, -1)} className="btn btn-ghost btn-sm btn-icon">
+                            <ArrowUp className="size-3.5" aria-hidden />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Mover componente ${compIdx + 1} hacia abajo`}
+                            disabled={compIdx === item.componentes.length - 1}
+                            onClick={() => moverComponente(itemIdx, compIdx, 1)}
+                            className="btn btn-ghost btn-sm btn-icon"
+                          >
+                            <ArrowDown className="size-3.5" aria-hidden />
+                          </button>
+                          {item.componentes.length > 1 ? (
+                            <button type="button" aria-label={`Quitar componente ${compIdx + 1}`} onClick={() => quitarComponente(itemIdx, compIdx)} className="btn btn-danger-ghost btn-sm btn-icon">
+                              <Trash2 className="size-3.5" aria-hidden />
+                            </button>
+                          ) : null}
+                        </div>
+
+                        {importacion && c.sinMatch && c.drogaTexto ? (
+                          <label className="flex w-full items-center gap-2 text-xs text-zinc-700">
+                            <input type="checkbox" checked={c.recordar ?? false} disabled={!c.drogaId} onChange={(e) => actualizarComponente(itemIdx, compIdx, { recordar: e.target.checked })} />
+                            Recordar esta equivalencia («{c.drogaTexto}» = droga elegida)
+                          </label>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ol>
+
+                  <button type="button" onClick={() => agregarComponente(itemIdx)} className="btn btn-ghost btn-sm mt-2">
+                    <Plus className="size-3.5" aria-hidden />
+                    Agregar componente
+                  </button>
+                </div>
+              </div>
+            </fieldset>
+          ))}
+
+          <button type="button" onClick={agregarItem} disabled={disabled} className="add-row-button">
+            <Plus className="size-4" aria-hidden />
+            Agregar ítem
+          </button>
+        </section>
       </div>
+
+      <aside className="split-aside flex flex-col gap-4" aria-label="Resumen y guardado">
+        {puedePresupuestar && mode !== "editar" ? <PresupuestoPanel items={itemsParaEnvio()} /> : null}
+
+        <div className="panel">
+          <div className="panel-header">
+            <h2>Resumen</h2>
+          </div>
+          <div className="panel-body flex flex-col gap-4">
+            <dl className="summary-dl">
+              <dt>Paciente</dt>
+              <dd data-empty={!pacienteResumen || undefined} title={pacienteResumen || undefined}>
+                {pacienteResumen || "Sin elegir"}
+              </dd>
+              <dt>Médico</dt>
+              <dd data-empty={!medicoResumen || undefined} title={medicoResumen || undefined}>
+                {medicoResumen || "Sin elegir"}
+              </dd>
+              <dt>Prescripción</dt>
+              <dd data-empty={!fechaPrescripcion || undefined} className="tabular-nums">
+                {fechaVisible(fechaPrescripcion) || "Sin fecha"}
+              </dd>
+              <dt>Origen</dt>
+              <dd>{ORIGEN_RECETA_LABELS[origen]}</dd>
+              <dt>Ítems</dt>
+              <dd className="tabular-nums">
+                {items.length} ({totalComponentes} {totalComponentes === 1 ? "componente" : "componentes"})
+              </dd>
+            </dl>
+
+            {errorVisible ? (
+              <div role="alert" className="alert alert-danger">
+                <AlertCircle aria-hidden />
+                <p>{errorVisible}</p>
+              </div>
+            ) : null}
+
+            <div className="flex flex-col gap-2">
+              <SubmitButton label={mode === "crear" ? "Crear receta" : mode === "editar" ? "Guardar cambios" : "Confirmar importación"} pending={isPending} />
+              {cancelarHref ? (
+                <Link href={cancelarHref} className="btn btn-ghost w-full">
+                  Cancelar
+                </Link>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </aside>
     </form>
   );
 }
@@ -756,28 +905,28 @@ interface NombreAConfirmarProps {
  */
 function NombreAConfirmar({ idBase, quien, nombreCompleto, requiereConfirmacion, valor, onChange }: NombreAConfirmarProps) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       {nombreCompleto ? (
-        <p className="text-sm">
-          En la receta: <strong>{nombreCompleto}</strong>
+        <p className="text-sm text-zinc-700">
+          En la receta: <strong className="text-zinc-900">{nombreCompleto}</strong>
         </p>
       ) : null}
-      <div className="flex flex-wrap gap-3">
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${idBase}-nombre`} className="text-sm">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="field">
+          <label htmlFor={`${idBase}-nombre`} className="field-label">
             Nombre
           </label>
-          <input id={`${idBase}-nombre`} value={valor.nombre} onChange={(e) => onChange({ nombre: e.target.value })} className="input input-sm" />
+          <input id={`${idBase}-nombre`} value={valor.nombre} onChange={(e) => onChange({ nombre: e.target.value })} className="input" />
         </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${idBase}-apellido`} className="text-sm">
+        <div className="field">
+          <label htmlFor={`${idBase}-apellido`} className="field-label">
             Apellido
           </label>
-          <input id={`${idBase}-apellido`} value={valor.apellido} onChange={(e) => onChange({ apellido: e.target.value })} className="input input-sm" />
+          <input id={`${idBase}-apellido`} value={valor.apellido} onChange={(e) => onChange({ apellido: e.target.value })} className="input" />
         </div>
       </div>
       {requiereConfirmacion ? (
-        <label className="flex items-center gap-2 text-sm font-medium">
+        <label className="flex items-center gap-2 text-sm font-medium text-zinc-900">
           <input type="checkbox" checked={valor.confirmado} onChange={(e) => onChange({ confirmado: e.target.checked })} />
           Confirmo el nombre y el apellido del {quien}
         </label>

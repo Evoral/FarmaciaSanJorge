@@ -4,9 +4,13 @@
  * first lets the user pick the partida: search a droga (`q`), pick it
  * (`drogaId`), then pick one of its partidas with balance. Once saved, the
  * form goes to `/stock/ajustes?registrado=1` (modules/stock/ui/ajuste-form.tsx).
+ *
+ * The three steps are shown as a stepper. Step 1 is a droga autocomplete
+ * (picking goes straight to step 2); the list below browses the matches.
  */
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
+import { ChevronRight, PackageSearch, SearchX } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getPartida } from "@/modules/stock/application/get-partida";
@@ -18,11 +22,12 @@ import { listPartidasDroga } from "@/modules/stock/application/list-partidas-dro
 import { getCatalogoUnidades } from "@/modules/unidades/application/catalogo-unidades";
 import { equivalenciasPracticas, formatCantidad, unidadesPracticas } from "@/shared/format/cantidad";
 import { Cantidad } from "@/shared/ui/cantidad";
-import { FilterForm } from "@/shared/ui/filter-form";
+import { DrogaBuscador } from "@/modules/stock/ui/droga-buscador";
+import { PageHeader } from "@/shared/ui/page-header";
+import { EmptyState } from "@/shared/ui/empty-state";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SELECCION_PAGE_SIZE = 20;
-const ACTION_LINK_CLASS = "text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400";
 
 interface NuevoAjustePageProps {
   searchParams: Promise<{ partidaId?: string; drogaId?: string; q?: string }>;
@@ -30,6 +35,39 @@ interface NuevoAjustePageProps {
 
 function formatFecha(fecha: Date): string {
   return new Intl.DateTimeFormat("es-AR", { timeZone: "UTC" }).format(fecha);
+}
+
+const BREADCRUMBS = [
+  { label: "Inicio", href: "/" },
+  { label: "Stock", href: "/stock" },
+  { label: "Ajustes", href: "/stock/ajustes" },
+  { label: "Registrar" },
+];
+
+type Paso = 1 | 2 | 3;
+
+/** The flow's position; finished steps link back (step 2 only when its droga is known). */
+function Pasos({ actual, pasoUnoHref, pasoDosHref }: { actual: Paso; pasoUnoHref: string; pasoDosHref?: string }) {
+  const pasos: { n: Paso; label: string; href?: string }[] = [
+    { n: 1, label: "Droga", href: pasoUnoHref },
+    { n: 2, label: "Partida", href: pasoDosHref },
+    { n: 3, label: "Ajuste" },
+  ];
+  return (
+    <ol className="stepper" aria-label="Pasos para registrar el ajuste">
+      {pasos.map((paso) => {
+        const done = paso.n < actual;
+        return (
+          <li key={paso.n} data-state={done ? "done" : undefined} aria-current={paso.n === actual ? "step" : undefined}>
+            <span className="stepper-dot" aria-hidden>
+              {paso.n}
+            </span>
+            {done && paso.href ? <Link href={paso.href}>{paso.label}</Link> : paso.label}
+          </li>
+        );
+      })}
+    </ol>
+  );
 }
 
 export default async function NuevoAjustePage({ searchParams }: NuevoAjustePageProps) {
@@ -62,12 +100,8 @@ export default async function NuevoAjustePage({ searchParams }: NuevoAjustePageP
 
   return (
     <div className="page">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Registrar ajuste / merma</h1>
-        <Link href="/stock/ajustes" className="text-sm underline">
-          Volver a ajustes
-        </Link>
-      </div>
+      <PageHeader breadcrumbs={BREADCRUMBS} title="Registrar ajuste / merma" description="Se descuenta del saldo de la partida y queda registrado con la co-firma del Director Técnico." />
+      <Pasos actual={3} pasoUnoHref="/stock/ajustes/nuevo" />
       <AjusteForm
         partidaId={partida.id}
         drogaNombre={partida.drogaNombre}
@@ -88,18 +122,15 @@ type Catalogo = Awaited<ReturnType<typeof getCatalogoUnidades>>["catalogo"];
 /** Step before the form: droga search -> partidas with balance of the chosen droga. */
 async function SeleccionPartida({ q, drogaId }: { q: string; drogaId: string }) {
   const { catalogo } = await getCatalogoUnidades();
+  const pasoUnoHref = q ? `/stock/ajustes/nuevo?${new URLSearchParams({ q }).toString()}` : "/stock/ajustes/nuevo";
 
   return (
-    <div className="page">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Registrar ajuste / merma</h1>
-        <Link href="/stock/ajustes" className="text-sm underline">
-          Volver a ajustes
-        </Link>
+    <div className="page list-view">
+      <PageHeader breadcrumbs={BREADCRUMBS} title="Registrar ajuste / merma" description="Elegí la droga y luego la partida sobre la que se registra el ajuste." />
+      <Pasos actual={drogaId ? 2 : 1} pasoUnoHref={pasoUnoHref} />
+      <div className="max-w-3xl">
+        {drogaId ? <PartidasConSaldo drogaId={drogaId} pasoUnoHref={pasoUnoHref} catalogo={catalogo} /> : <DrogasParaAjuste q={q} catalogo={catalogo} />}
       </div>
-      <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">Elegí la droga y luego la partida sobre la que se registra el ajuste.</p>
-
-      {drogaId ? <PartidasConSaldo drogaId={drogaId} q={q} catalogo={catalogo} /> : <DrogasParaAjuste q={q} catalogo={catalogo} />}
     </div>
   );
 }
@@ -109,121 +140,98 @@ async function DrogasParaAjuste({ q, catalogo }: { q: string; catalogo: Catalogo
 
   return (
     <>
-      <FilterForm className="mb-4 flex flex-wrap items-end gap-3" aria-label="Buscar droga para el ajuste" hasActiveFilters={Boolean(q)}>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="q" className="text-sm font-medium">
-            Buscar droga
-          </label>
-          <input id="q" name="q" type="search" defaultValue={q} className="input" />
-        </div>
-      </FilterForm>
+      <div className="mb-4">
+        <DrogaBuscador
+          id="droga-ajuste"
+          label="Droga"
+          placeholder="Escribí el nombre de la droga"
+          busquedaActual={q || undefined}
+          alElegir={{ href: q ? `/stock/ajustes/nuevo?${new URLSearchParams({ q }).toString()}` : "/stock/ajustes/nuevo", param: "drogaId", valor: "id" }}
+          alBuscar={{ href: "/stock/ajustes/nuevo", param: "q", texto: "Ver todas las coincidencias de “{q}”", textoSinBusqueda: "Ver todas las drogas" }}
+        />
+      </div>
 
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th scope="col" className="px-3 py-2 font-medium">Droga</th>
-              <th scope="col" className="px-3 py-2 font-medium">Stock disponible</th>
-              <th scope="col" className="px-3 py-2 font-medium">
-                <span className="sr-only">Acciones</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {stock.items.length === 0 ? (
-              <tr>
-                <td colSpan={3} className="px-3 py-6 text-center text-zinc-500">
-                  No se encontraron drogas.
-                </td>
-              </tr>
-            ) : (
-              stock.items.map((item) => {
+      <div className="list-region">
+        <span className="link-pending" aria-hidden />
+        <div className="list-panel">
+          {stock.items.length === 0 ? (
+            <EmptyState icon={<SearchX className="size-5" />} title="No se encontraron drogas" description={q ? `Nada coincide con “${q}”.` : undefined} />
+          ) : (
+            <ul aria-label="Drogas">
+              {stock.items.map((item) => {
                 const qs = new URLSearchParams({ drogaId: item.drogaId });
                 if (q) qs.set("q", q);
                 return (
-                  <tr key={item.drogaId}>
-                    <td className="px-3 py-2 font-medium">{item.drogaNombre}</td>
-                    <td className="px-3 py-2">
-                      <Cantidad valor={formatCantidad(item.stockDisponible, { id: item.unidadId, simbolo: item.unidadSimbolo }, catalogo)} />
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <Link href={`/stock/ajustes/nuevo?${qs.toString()}`} className={ACTION_LINK_CLASS} aria-label={`Elegir partida de ${item.drogaNombre}`}>
-                        Elegir partida →
-                      </Link>
-                    </td>
-                  </tr>
+                  <li key={item.drogaId}>
+                    <Link href={`/stock/ajustes/nuevo?${qs.toString()}`} className="pick-row" aria-label={`Elegir partida de ${item.drogaNombre}`}>
+                      <span className="min-w-0 flex-1 truncate font-medium text-zinc-900">{item.drogaNombre}</span>
+                      <span className="text-right">
+                        <span className="block text-xs text-zinc-500">Disponible</span>
+                        <span className="font-mono text-zinc-900 tabular-nums">
+                          <Cantidad valor={formatCantidad(item.stockDisponible, { id: item.unidadId, simbolo: item.unidadSimbolo }, catalogo)} />
+                        </span>
+                      </span>
+                      <ChevronRight className="summary-row-chevron size-4 flex-none" aria-hidden />
+                    </Link>
+                  </li>
                 );
-              })
-            )}
-          </tbody>
-        </table>
+              })}
+            </ul>
+          )}
+          {stock.total > stock.items.length ? (
+            <p className="border-t border-zinc-100 px-4 py-2.5 text-xs text-zinc-500">
+              Se muestran {stock.items.length} de {stock.total} drogas. Refiná la búsqueda para encontrar otra.
+            </p>
+          ) : null}
+        </div>
       </div>
-      {stock.total > stock.items.length ? (
-        <p className="mt-2 text-xs text-zinc-500">
-          Se muestran {stock.items.length} de {stock.total} drogas. Refiná la búsqueda para encontrar otra.
-        </p>
-      ) : null}
     </>
   );
 }
 
-async function PartidasConSaldo({ drogaId, q, catalogo }: { drogaId: string; q: string; catalogo: Catalogo }) {
+async function PartidasConSaldo({ drogaId, pasoUnoHref, catalogo }: { drogaId: string; pasoUnoHref: string; catalogo: Catalogo }) {
   const result = await listPartidasDroga({ drogaId, soloConSaldo: true, page: 1, pageSize: 100 });
   const unidad = result.droga ? { id: result.droga.unidadBaseId, simbolo: result.droga.unidadBaseSimbolo } : null;
-  const volverHref = q ? `/stock/ajustes/nuevo?${new URLSearchParams({ q }).toString()}` : "/stock/ajustes/nuevo";
 
   return (
-    <>
-      <div className="mb-4 flex items-center gap-3">
-        <h2 className="text-lg font-semibold">{result.droga ? `Partidas con saldo de ${result.droga.nombre}` : "Droga no encontrada"}</h2>
-        <Link href={volverHref} className="text-sm underline">
+    <div className="list-panel">
+      <div className="list-toolbar">
+        <p className="font-medium text-zinc-900">{result.droga ? `Partidas con saldo de ${result.droga.nombre}` : "Droga no encontrada"}</p>
+        <Link href={pasoUnoHref} className="btn btn-ghost btn-sm">
           Cambiar droga
         </Link>
       </div>
-
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th scope="col" className="px-3 py-2 font-medium">Lote</th>
-              <th scope="col" className="px-3 py-2 font-medium">Proveedor</th>
-              <th scope="col" className="px-3 py-2 font-medium">Vencimiento</th>
-              <th scope="col" className="px-3 py-2 font-medium">Saldo</th>
-              <th scope="col" className="px-3 py-2 font-medium">
-                <span className="sr-only">Acciones</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.items.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-zinc-500">
-                  Esta droga no tiene partidas con saldo.
-                </td>
-              </tr>
-            ) : (
-              result.items.map((partida) => (
-                <tr key={partida.id}>
-                  <td className="px-3 py-2 font-medium">{partida.lote}</td>
-                  <td className="px-3 py-2">{partida.proveedorRazonSocial}</td>
-                  <td className="px-3 py-2">{formatFecha(partida.fechaVencimiento)}</td>
-                  <td className="px-3 py-2">
+      {result.items.length === 0 ? (
+        <EmptyState icon={<PackageSearch className="size-5" />} title="Esta droga no tiene partidas con saldo" description="No hay nada para descontar. Elegí otra droga." />
+      ) : (
+        <ul aria-label="Partidas con saldo">
+          {result.items.map((partida) => (
+            <li key={partida.id}>
+              <Link href={`/stock/ajustes/nuevo?partidaId=${partida.id}`} className="pick-row" aria-label={`Registrar ajuste del lote ${partida.lote}`}>
+                <span className="min-w-0 flex-1">
+                  <span className="block">
+                    <span className="text-zinc-500">Lote </span>
+                    <span className="font-mono font-semibold text-zinc-900">{partida.lote}</span>
+                  </span>
+                  <span className="block truncate text-xs text-zinc-500">
+                    {partida.proveedorRazonSocial} · vence <span className="tabular-nums">{formatFecha(partida.fechaVencimiento)}</span>
+                  </span>
+                </span>
+                <span className="text-right">
+                  <span className="block text-xs text-zinc-500">Saldo</span>
+                  <span className="font-mono text-zinc-900 tabular-nums">
                     {unidad ? <Cantidad valor={formatCantidad(partida.cantidadDisponible, unidad, catalogo)} /> : partida.cantidadDisponible}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <Link href={`/stock/ajustes/nuevo?partidaId=${partida.id}`} className={ACTION_LINK_CLASS} aria-label={`Registrar ajuste del lote ${partida.lote}`}>
-                      Registrar ajuste →
-                    </Link>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+                  </span>
+                </span>
+                <ChevronRight className="summary-row-chevron size-4 flex-none" aria-hidden />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
       {result.total > result.items.length ? (
-        <p className="mt-2 text-xs text-zinc-500">Se muestran {result.items.length} de {result.total} partidas con saldo.</p>
+        <p className="border-t border-zinc-100 px-4 py-2.5 text-xs text-zinc-500">Se muestran {result.items.length} de {result.total} partidas con saldo.</p>
       ) : null}
-    </>
+    </div>
   );
 }

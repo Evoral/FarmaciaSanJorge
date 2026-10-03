@@ -6,14 +6,20 @@
  * (`app/(auth)/login/actions.ts`'s `redirect("/")`), and this route is
  * covered by `app/(app)/layout.tsx`'s `requireSession()` guard.
  *
- * Single page of cards; each card renders ONLY if the session holds the
- * permiso its own query requires -- no hardcoded per-role dashboards (the
- * gating table is `shared/dashboard/cards.ts#CARD_PERMISO`, unit-tested
- * directly). Each card's fetch is independently try/caught (fail-soft,
- * same discipline as the banners in `app/(app)/layout.tsx`) so one
- * failing card never breaks the rest of the page.
+ * Each block renders ONLY if the session holds the permiso its own query
+ * requires -- no hardcoded per-role dashboards (the gating table is
+ * `shared/dashboard/cards.ts#CARD_PERMISO`, unit-tested directly). Each
+ * fetch is independently try/caught (fail-soft, same discipline as the
+ * banners in `app/(app)/layout.tsx`) so one failing block never breaks
+ * the rest of the page.
+ *
+ * Layout: what needs action first (urgent before pending, with its count),
+ * what is fine in a quiet column beside it, then the recetas overview
+ * (the same per-estado summary as /recetas, linking into its filter).
  */
 import Link from "next/link";
+import { Archive, CircleCheck, FlaskConical, Inbox, Package, PackageCheck, PenLine, Users } from "lucide-react";
+import type { ReactNode } from "react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getLogger } from "@/shared/logging/logger";
@@ -24,13 +30,26 @@ import { alertasStock } from "@/modules/stock/application/alertas-stock";
 import { listRecetasEnCurso } from "@/modules/preparaciones/application/list-recetas-en-curso";
 import { listEntregasPendientes } from "@/modules/entregas/application/list-entregas-pendientes";
 import { resumenRecetasPorEstado } from "@/modules/recetas/application/list-recetas";
+import { esEstadoTerminal } from "@/modules/recetas/domain/receta";
 import { listUsuarios } from "@/modules/usuarios/application/list-usuarios";
+import { ESTADO_RECETA_LABELS } from "@/shared/labels/enum-labels";
+import { estadoTone } from "@/shared/ui/status-badge";
+import { PageHeader } from "@/shared/ui/page-header";
+import { StatusSummary } from "@/shared/ui/status-summary";
+import { SummaryList, type SummaryBreakdown, type SummaryListItem } from "@/shared/ui/summary-list";
+import { EmptyState } from "@/shared/ui/empty-state";
 
 interface Card {
   titulo: string;
   href: string;
+  /** Shown when the card needs attention (the count carries the number). */
+  detalle?: string;
+  /** Shown when the card is fine ("Sin ..."). */
   cuerpo: string;
+  cantidad: number;
   tono: "neutral" | "amber" | "red";
+  icon: ReactNode;
+  desglose?: SummaryBreakdown[];
 }
 
 /** Runs `fetch()` only when `visible` is true, swallowing any error into `null` (fail-soft) -- same shape as the banners in `app/(app)/layout.tsx`. */
@@ -43,6 +62,9 @@ async function fetchSoft<T>(visible: boolean, label: string, fetch: () => Promis
     return null;
   }
 }
+
+const TONE_BY_TONO = { neutral: "success", amber: "warn", red: "danger" } as const;
+const URGENCIA = { red: 0, amber: 1, neutral: 2 } as const;
 
 export default async function HomePage() {
   const session = await requireSession();
@@ -62,11 +84,15 @@ export default async function HomePage() {
   const cards: Card[] = [];
 
   if (cierres) {
+    const fueraDeTermino = Boolean(cierres.masAntigua?.fueraDeTermino);
     cards.push({
       titulo: "Jornadas pendientes de firma",
       href: "/cierres",
-      cuerpo: cierres.cantidad === 0 ? "Sin jornadas pendientes." : `${cierres.cantidad} jornada${cierres.cantidad === 1 ? "" : "s"} pendiente${cierres.cantidad === 1 ? "" : "s"} de firma.`,
-      tono: cierres.cantidad === 0 ? "neutral" : cierres.masAntigua?.fueraDeTermino ? "red" : "amber",
+      cuerpo: "Sin jornadas pendientes.",
+      detalle: fueraDeTermino ? "La más antigua está fuera de término." : "Jornadas cerradas a la espera de firma.",
+      cantidad: cierres.cantidad,
+      tono: cierres.cantidad === 0 ? "neutral" : fueraDeTermino ? "red" : "amber",
+      icon: <PenLine />,
     });
   }
 
@@ -74,8 +100,11 @@ export default async function HomePage() {
     cards.push({
       titulo: "Lotes con plazo cumplido",
       href: "/archivo",
-      cuerpo: archivo.cantidad === 0 ? "Sin lotes con plazo cumplido." : `${archivo.cantidad} lote${archivo.cantidad === 1 ? "" : "s"} con plazo cumplido pendiente de destrucción.`,
+      cuerpo: "Sin lotes con plazo cumplido.",
+      detalle: "Pendientes de destrucción.",
+      cantidad: archivo.cantidad,
       tono: archivo.cantidad === 0 ? "neutral" : "amber",
+      icon: <Archive />,
     });
   }
 
@@ -84,20 +113,27 @@ export default async function HomePage() {
     cards.push({
       titulo: "Alertas de stock",
       href: "/stock",
-      cuerpo:
-        total === 0
-          ? "Sin alertas de stock."
-          : `${stock.bajoMinimo.length} bajo mínimo · ${stock.porVencer.length} por vencer · ${stock.vencidasConSaldo.length} vencidas con saldo.`,
+      cuerpo: "Sin alertas de stock.",
+      cantidad: total,
       tono: total === 0 ? "neutral" : stock.vencidasConSaldo.length > 0 ? "red" : "amber",
+      icon: <Package />,
+      desglose: [
+        { label: "bajo mínimo", value: stock.bajoMinimo.length, tone: "warn" as const },
+        { label: "por vencer", value: stock.porVencer.length, tone: "warn" as const },
+        { label: "vencidas con saldo", value: stock.vencidasConSaldo.length, tone: "danger" as const },
+      ].filter((part) => part.value > 0),
     });
   }
 
   if (preparaciones) {
     cards.push({
-      titulo: "Recetas en curso",
+      titulo: "Recetas en curso en el laboratorio",
       href: "/preparaciones?estado=INICIADA",
-      cuerpo: preparaciones.total === 0 ? "Sin recetas en curso en el laboratorio." : `${preparaciones.total} receta${preparaciones.total === 1 ? "" : "s"} en curso en el laboratorio.`,
+      cuerpo: "Sin recetas en curso en el laboratorio.",
+      detalle: "Preparaciones iniciadas.",
+      cantidad: preparaciones.total,
       tono: preparaciones.total === 0 ? "neutral" : "amber",
+      icon: <FlaskConical />,
     });
   }
 
@@ -105,18 +141,11 @@ export default async function HomePage() {
     cards.push({
       titulo: "Entregas pendientes",
       href: "/entregas",
-      cuerpo: entregas.total === 0 ? "Sin entregas pendientes." : `${entregas.total} receta${entregas.total === 1 ? "" : "s"} lista${entregas.total === 1 ? "" : "s"} para retirar o pendiente${entregas.total === 1 ? "" : "s"} de firma.`,
+      cuerpo: "Sin entregas pendientes.",
+      detalle: "Listas para retirar o pendientes de firma.",
+      cantidad: entregas.total,
       tono: entregas.total === 0 ? "neutral" : "amber",
-    });
-  }
-
-  if (recetas) {
-    const activas = recetas.filter((r) => r.estado !== "ENTREGADA" && r.estado !== "ANULADA").reduce((acc, r) => acc + r.cantidad, 0);
-    cards.push({
-      titulo: "Recetas por estado",
-      href: "/recetas",
-      cuerpo: `${activas} receta${activas === 1 ? "" : "s"} activa${activas === 1 ? "" : "s"} (no entregadas ni anuladas).`,
-      tono: "neutral",
+      icon: <PackageCheck />,
     });
   }
 
@@ -126,48 +155,113 @@ export default async function HomePage() {
     cards.push({
       titulo: "Usuarios",
       href: "/admin/accesos/usuarios",
-      cuerpo: pendientes === 0 && suspendidos === 0 ? "Sin usuarios pendientes ni suspendidos." : `${pendientes} pendiente${pendientes === 1 ? "" : "s"} de activación · ${suspendidos} suspendido${suspendidos === 1 ? "" : "s"}.`,
+      cuerpo: "Sin usuarios pendientes ni suspendidos.",
+      cantidad: pendientes + suspendidos,
       tono: pendientes === 0 && suspendidos === 0 ? "neutral" : "amber",
+      icon: <Users />,
+      desglose: [
+        { label: pendientes === 1 ? "pendiente de activación" : "pendientes de activación", value: pendientes, tone: "warn" as const },
+        { label: suspendidos === 1 ? "suspendido" : "suspendidos", value: suspendidos, tone: "danger" as const },
+      ].filter((part) => part.value > 0),
     });
   }
 
-  const toneClasses: Record<Card["tono"], { dot: string; label: string | null }> = {
-    neutral: { dot: "bg-emerald-500", label: null },
-    amber: { dot: "bg-amber-600", label: "Requiere atención" },
-    red: { dot: "bg-red-600", label: "Urgente" },
-  };
+  const pendientes: SummaryListItem[] = cards
+    .filter((card) => card.tono !== "neutral")
+    .sort((a, b) => URGENCIA[a.tono] - URGENCIA[b.tono])
+    .map((card) => ({
+      key: card.titulo,
+      title: card.titulo,
+      href: card.href,
+      tone: TONE_BY_TONO[card.tono],
+      icon: card.icon,
+      description: card.desglose ? undefined : card.detalle,
+      count: card.cantidad,
+      flag: card.tono === "red" ? "Urgente" : undefined,
+      breakdown: card.desglose,
+    }));
+
+  const alDia: SummaryListItem[] = cards
+    .filter((card) => card.tono === "neutral")
+    .map((card) => ({ key: card.titulo, title: card.titulo, href: card.href, tone: "success", icon: card.icon, description: card.cuerpo }));
+
+  // Recetas overview: "en curso" = not ENTREGADA nor ANULADA (the terminal estados), same count as before.
+  const totalRecetas = recetas ? recetas.reduce((acc, r) => acc + r.cantidad, 0) : 0;
+  const activas = recetas ? recetas.filter((r) => r.estado !== "ENTREGADA" && r.estado !== "ANULADA").reduce((acc, r) => acc + r.cantidad, 0) : 0;
+  const numberFormat = new Intl.NumberFormat("es-AR");
 
   return (
     <div className="page">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold">Inicio</h1>
-        <p className="mt-1 text-sm text-zinc-500">Resumen del laboratorio según tus permisos.</p>
-      </div>
+      <PageHeader title="Inicio" description="Lo pendiente del laboratorio, según tus permisos." />
 
-      {cards.length === 0 ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">No hay información para mostrar con tus permisos actuales.</p>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {cards.map((card) => {
-            const tone = toneClasses[card.tono];
-            return (
-              <Link
-                key={card.href + card.titulo}
-                href={card.href}
-                className="card group flex flex-col gap-2 p-5 text-sm transition-[border-color,box-shadow] hover:border-zinc-300 hover:shadow-sm dark:hover:border-zinc-700"
-              >
-                <div className="flex items-center gap-2">
-                  <span aria-hidden="true" className={`size-2 rounded-full ${tone.dot}`} />
-                  <p className="font-medium text-zinc-900 dark:text-zinc-100">{card.titulo}</p>
-                  {tone.label ? <span className={`badge ml-auto ${card.tono === "red" ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300"}`}>{tone.label}</span> : null}
-                </div>
-                <p className="text-zinc-600 dark:text-zinc-400">{card.cuerpo}</p>
-                <span className="mt-auto pt-1 text-xs font-medium text-emerald-700 group-hover:underline dark:text-emerald-400">Ver detalle →</span>
-              </Link>
-            );
-          })}
+      {cards.length === 0 && !recetas ? (
+        <div className="list-panel">
+          <EmptyState icon={<Inbox className="size-5" />} title="Nada para mostrar" description="No hay información para mostrar con tus permisos actuales." />
         </div>
-      )}
+      ) : null}
+
+      {cards.length > 0 ? (
+        <div className={`grid gap-6 ${alDia.length > 0 ? "lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" : ""}`}>
+          <section aria-labelledby="pendientes-heading">
+            <div className="section-heading">
+              <h2 id="pendientes-heading">Requiere atención</h2>
+              {pendientes.length > 0 ? (
+                <span className="text-xs text-zinc-500">
+                  {pendientes.length} {pendientes.length === 1 ? "tema" : "temas"}
+                </span>
+              ) : null}
+            </div>
+            <div className="list-panel">
+              {pendientes.length > 0 ? (
+                <SummaryList items={pendientes} />
+              ) : (
+                <EmptyState icon={<CircleCheck className="size-5" />} title="Todo al día" description="No hay pendientes que requieran atención." />
+              )}
+            </div>
+          </section>
+
+          {alDia.length > 0 ? (
+            <section aria-labelledby="al-dia-heading">
+              <div className="section-heading">
+                <h2 id="al-dia-heading">Al día</h2>
+              </div>
+              <div className="list-panel">
+                <SummaryList items={alDia} variant="compact" />
+              </div>
+            </section>
+          ) : null}
+        </div>
+      ) : null}
+
+      {recetas ? (
+        <section aria-labelledby="recetas-heading" className={cards.length > 0 ? "mt-8" : undefined}>
+          <div className="section-heading">
+            <h2 id="recetas-heading">Recetas</h2>
+            <Link href="/recetas" className="section-link">
+              Ver recetas
+            </Link>
+          </div>
+          <StatusSummary
+            label="Recetas por estado"
+            unit={["receta", "recetas"]}
+            headline={{
+              value: activas,
+              label: activas === 1 ? "receta activa" : "recetas activas",
+              caption: `No entregadas ni anuladas, de ${numberFormat.format(totalRecetas)} registradas`,
+            }}
+            all={{ label: "Todas", count: totalRecetas, href: "/recetas", active: false }}
+            items={recetas.map((r) => ({
+              key: r.estado,
+              label: ESTADO_RECETA_LABELS[r.estado],
+              count: r.cantidad,
+              href: `/recetas?estado=${r.estado}`,
+              active: false,
+              tone: estadoTone(r.estado),
+              secondary: esEstadoTerminal(r.estado),
+            }))}
+          />
+        </section>
+      ) : null}
     </div>
   );
 }
