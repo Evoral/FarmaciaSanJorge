@@ -171,8 +171,20 @@ function hayDato(valor: unknown): boolean {
   return !esObjetoVacio(valor);
 }
 
-/** The most the notice echoes of the source `notas`. */
-const MAX_NOTAS_AVISO = 200;
+/** The most a notice echoes of any source text (notas, a leading or an unrecognized line). */
+const MAX_TEXTO_AVISO = 200;
+
+/** The most notices a receta produces; past it the last slot says there are more. */
+const MAX_AVISOS = 50;
+const AVISO_HAY_MAS: AdvertenciaParser = { codigo: "DATO_FALTANTE", mensaje: "Hay más avisos que no se muestran." };
+
+const acotar = (texto: string): string => (texto.length > MAX_TEXTO_AVISO ? `${texto.slice(0, MAX_TEXTO_AVISO)}…` : texto);
+
+/** The parser echoes the whole line: swap in the capped text, in the message and in `texto`. */
+function acotarRenglonParser(a: AdvertenciaParser): AdvertenciaParser {
+  if (a.codigo !== "RENGLON_NO_RECONOCIDO" || a.texto === undefined || a.texto.length <= MAX_TEXTO_AVISO) return a;
+  return { ...a, mensaje: a.mensaje.replace(`«${a.texto}»`, () => `«${acotar(a.texto!)}»`), texto: acotar(a.texto) };
+}
 
 /** Names the item in a multi-item receta, before the message's final period. */
 function conItem(mensaje: string, numero: number, total: number): string {
@@ -204,11 +216,11 @@ function mapearItem(item: ItemRcta, numero: number, total: number, avisados: Set
     if (i >= inicio || RE_TOKEN_UNIDAD_DOSIS.test(texto)) return void cuerpo.push(texto);
     if (avisados.has(texto)) return;
     avisados.add(texto);
-    advertencias.push({ codigo: "RENGLON_INFORMATIVO", mensaje: `Texto al inicio de la receta (informativo, no se guarda): «${texto}»`, texto });
+    advertencias.push({ codigo: "RENGLON_INFORMATIVO", mensaje: `Texto al inicio de la receta (informativo, no se guarda): «${acotar(texto)}»`, texto: acotar(texto) });
   });
 
   const parseado = parsearCuerpo(cuerpo);
-  advertencias.push(...parseado.advertencias.map((a) => ({ ...a, mensaje: conItem(a.mensaje, numero, total) })));
+  for (const a of parseado.advertencias.map(acotarRenglonParser)) advertencias.push({ ...a, mensaje: conItem(a.mensaje, numero, total) });
 
   const avisar = (codigo: "DATO_FALTANTE" | "DATO_NO_IMPORTADO", mensaje: string) => advertencias.push({ codigo, mensaje: conItem(mensaje, numero, total) });
   if (parseado.item.componentes.length === 0) avisar("DATO_FALTANTE", "No se encontraron componentes con su dosis.");
@@ -216,7 +228,7 @@ function mapearItem(item: ItemRcta, numero: number, total: number, avisados: Set
 
   if (typeof item.notas === "string" && item.notas.trim() !== "") {
     const notas = colapsar(item.notas);
-    avisar("DATO_NO_IMPORTADO", `La receta trae notas que no se importan: «${notas.length > MAX_NOTAS_AVISO ? `${notas.slice(0, MAX_NOTAS_AVISO)}…` : notas}».`);
+    avisar("DATO_NO_IMPORTADO", `La receta trae notas que no se importan: «${acotar(notas)}».`);
   } else if (hayDato(item.notas)) avisar("DATO_NO_IMPORTADO", "La receta trae notas que no se importan.");
   if (hayDato(item.codPractica)) avisar("DATO_NO_IMPORTADO", "La receta trae un código de práctica que no se importa.");
   if (hayDato(item.nroCUIR)) avisar("DATO_NO_IMPORTADO", "La receta trae un número CUIR que no se importa.");
@@ -281,6 +293,6 @@ export function mapearRecetaRcta(json: unknown, hash: string): ResultadoLecturaQ
       medico,
       items,
     },
-    advertencias,
+    advertencias: advertencias.length > MAX_AVISOS ? [...advertencias.slice(0, MAX_AVISOS - 1), AVISO_HAY_MAS] : advertencias,
   };
 }

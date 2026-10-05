@@ -510,3 +510,52 @@ describe("P38-P39: diagnóstico", () => {
     expect(sin.advertencias.some((a) => a.mensaje.includes("diagnóstico"))).toBe(false);
   });
 });
+
+describe("bounded echoed text in notices", () => {
+  const largo = "x".repeat(250);
+  const recortado = `${"x".repeat(200)}…`;
+
+  it("a leading informational line is echoed at 200 characters plus an ellipsis; the stored draft never has it", () => {
+    const r = leer(conTexto(`${largo}\nMazindol 1,5 mg\n30 cápsulas`));
+    const [aviso] = clasePorCodigo(r, "RENGLON_INFORMATIVO");
+    expect(aviso!.texto).toBe(recortado);
+    expect(aviso!.mensaje).toBe(`Texto al inicio de la receta (informativo, no se guarda): «${recortado}»`);
+  });
+
+  it("an unrecognized line is echoed at 200 characters in both the message and the texto", () => {
+    const r = leer(conTexto(`Mazindol 1,5 mg\n${largo}\n30 cápsulas`));
+    const [aviso] = clasePorCodigo(r, "RENGLON_NO_RECONOCIDO");
+    expect(aviso!.texto).toBe(recortado);
+    expect(aviso!.mensaje).toBe(`No se reconoció el renglón «${recortado}». Revisalo y cargalo a mano si corresponde.`);
+  });
+
+  it("lines of up to 200 characters are echoed untouched", () => {
+    const justo = "y".repeat(200);
+    const r = leer(conTexto(`${justo}\nMazindol 1,5 mg\n${justo}z\n30 cápsulas`));
+    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO")[0]!.texto).toBe(justo);
+    expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO")[0]!.texto).toBe(`${justo}…`);
+  });
+
+  it("a `$` in an echoed line is kept literally", () => {
+    const r = leer(conTexto("Mazindol 1,5 mg\nprecio $& $1 raro\n30 cápsulas"));
+    expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO")[0]!.mensaje).toContain("«precio $& $1 raro»");
+  });
+
+  it("at most 50 notices come back: the first 49 plus a final 'more notices' warning", () => {
+    const muchos = Array.from({ length: 60 }, (_, i) => `linea rara ${i}`).join("\n");
+    const r = leer(conTexto(`Mazindol 1,5 mg\n${muchos}\n30 cápsulas`));
+    expect(r.advertencias).toHaveLength(50);
+    expect(r.advertencias[49]).toEqual({ codigo: "DATO_FALTANTE", mensaje: "Hay más avisos que no se muestran." });
+    expect(r.advertencias[48]!.mensaje).not.toBe("Hay más avisos que no se muestran.");
+    expect(r.advertencias.filter((a) => a.codigo === "RENGLON_NO_RECONOCIDO")).toHaveLength(48);
+  });
+
+  it("exactly 50 notices are all kept and a normal receta has no overflow notice", () => {
+    const base = leer(conTexto("Mazindol 1,5 mg\n30 cápsulas")).advertencias.length;
+    const lineas = Array.from({ length: 50 - base }, (_, i) => `linea rara ${i}`).join("\n");
+    const r = leer(conTexto(`Mazindol 1,5 mg\n${lineas}\n30 cápsulas`));
+    const avisos = r.advertencias.filter((a) => a.codigo === "RENGLON_NO_RECONOCIDO");
+    expect(avisos.length).toBe(50 - base);
+    expect(r.advertencias.some((a) => a.mensaje === "Hay más avisos que no se muestran.")).toBe(false);
+  });
+});
