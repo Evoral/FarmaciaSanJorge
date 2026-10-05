@@ -9,7 +9,7 @@ En `/recetas/nuevo`, junto al panel "Importar desde PDF", hay un panel "Importar
 
 Solo hay una importación activa: leer otra receta (por PDF o por QR) reemplaza la anterior. "Descartar importación" vuelve al formulario manual.
 
-Fuera de alcance de este documento: lectura con cámara (segunda etapa, casos P58–P63 de la especificación; pendiente) y otros emisores.
+La cámara del dispositivo es una segunda forma de ingresar el mismo código (ver "Lectura con la cámara"). Fuera de alcance de este documento: otros emisores.
 
 ## Flujo
 
@@ -84,6 +84,18 @@ Configuración del lector:
 - **Sufijo Tab.** Un lector configurado con sufijo Tab mueve el foco al siguiente control **sin enviar** el formulario. Configurarlo para que envíe **Enter**.
 - **Prefijos.** Un prefijo del lector pegado directamente a un hash solo (sin link) puede invalidarlo: si el prefijo termina en un carácter hexadecimal (cifra o a–f) quedan más de 64 caracteres hexadecimales seguidos y el código se rechaza. Preferir escanear el QR completo, cuyo link tiene el hash separado por `/` o `-`.
 
+## Lectura con la cámara
+
+El botón "Escanear con la cámara" del panel abre la cámara, lee el QR y manda el texto leído **por el mismo camino que un código escrito**: lo pone en el mismo campo y envía el mismo formulario (`requestSubmit`), con la misma Server Action y las mismas validaciones. La cámara no valida nada por su cuenta.
+
+- **Requisito: HTTPS.** Los navegadores solo dan la cámara a una página segura (HTTPS o `localhost`). Un celular que abre un servidor de desarrollo por la red local con `http://192.168.x.x:3000` **no puede usar la cámara**: el botón queda deshabilitado y explica que hace falta HTTPS (en producción no hay problema). Para probar en un celular, usar un túnel HTTPS o un certificado local.
+- **Lector según el navegador.** Chrome en Android usa el detector nativo (`BarcodeDetector`, formato `qr_code`). Safari en iOS y Firefox no lo tienen y usan **jsQR** (dependencia `jsqr` 1.4.0, JavaScript puro sin dependencias propias, licencia Apache-2.0), que se carga solo en ese caso y lee los fotogramas desde un `canvas` (ancho máximo 640 px, unas 8 lecturas por segundo). Ninguno usa workers ni WebAssembly.
+- **Qué se acepta.** El primer QR que contiene un hash de receta detiene la cámara y se envía. Un QR sin hash (cualquier otro código a la vista) se ignora y se avisa "Ese QR no es de una receta. Seguí buscando."; el mismo texto repetido en menos de 3 s no se reevalúa, para que un mismo QR no se envíe dos veces ni el aviso se repita en cada fotograma.
+- **Permisos y errores.** Permiso denegado (`NotAllowedError`, `SecurityError`): se pide permitirlo en el navegador. Sin cámara (`NotFoundError`, `OverconstrainedError`) y cámara en uso por otra aplicación (`NotReadableError`) tienen su mensaje. En todos los casos el campo manual sigue funcionando.
+- **Apagado de la cámara.** Todas las pistas del `MediaStream` se detienen al leer un QR, al presionar "Cerrar cámara", al desmontar el componente, al ocultarse la pestaña (la cámara se cierra y se avisa) y si el permiso se concede cuando ya se había cerrado. El video tiene `aria-label`; los estados se anuncian en la región `role="status"` del panel.
+- **Política de permisos y navegación completa.** `next.config.ts` mantiene `Permissions-Policy: camera=()` en toda la aplicación y solo `/recetas/nuevo` recibe `camera=(self)` (una entrada posterior de `headers()`: la última que coincide gana). La política **se fija en cada carga de documento**: una navegación suave (`<Link>`, `router.push`) hacia `/recetas/nuevo` conserva el `camera=()` de la página de origen. Por eso los accesos a esa ruta son enlaces `<a href>` comunes (carga completa; hoy, los dos de `/recetas`), y una prueba de código fuente (`tests/unit/recetas-nuevo-navegacion-completa.test.ts`) impide agregar un `<Link>` o `router.push` a esa ruta. Si aun así se llegó con una navegación suave (o un enlace guardado), la cámara muestra "Recargá la página" con un botón que la recarga (`window.location.reload()`).
+- **CSP.** `proxy.ts` no necesita cambios: el video recibe un `MediaStream` por `srcObject` (no es una carga de URL), el fragmento de jsQR se carga como cualquier otro bajo `strict-dynamic`, y no hay workers ni WebAssembly.
+
 ## Origen y auditoría
 
 - La receta se guarda con `origen = DIGITAL_PDF`; el rótulo pasó a **"Digital (PDF o QR)"** en toda la aplicación (no hay cambio de enumeración ni de base de datos).
@@ -109,6 +121,10 @@ Configuración del lector:
 - **P52–P53** — La vista previa es la misma que la del PDF; confirmar no vuelve a consultar.
 - **P54** — Descartar no guarda nada. **Verificación manual** (es solo de interfaz).
 - **P55–P57** — Enter envía una sola vez el texto escrito; el campo vacío no consulta; el panel PDF no cambia y el campo QR tiene el foco al cargar. **Verificación manual**: vitest corre en node, sin DOM, y el componente no se puede renderizar en las pruebas automáticas. Lo que sí está automatizado es la Server Action (`tests/unit/recetas-actions-leer-qr.test.ts`: el campo `codigo`, el éxito, la traducción de errores y la marca `campo: "codigo"` que decide `aria-invalid`), el texto de la región de estado (`tests/unit/recetas-anuncio-lectura.test.ts`) y la decisión pura de devolver el foco tras un error (`tests/unit/recetas-foco-lectura.test.ts`).
+- **P58–P59** — Detector nativo cuando soporta `qr_code`; jsQR en caso contrario. Automatizado: la elección del lector (`tests/unit/camara-qr.test.ts`). **Verificación manual** de la lectura real: P58 en Chrome de Android y P59 en Safari de iOS o Firefox, siempre sobre HTTPS.
+- **P60–P61** — Permiso denegado, sin cámara, cámara en uso, contexto inseguro y sin API: mensaje claro y el campo manual sigue funcionando. Automatizado: la clasificación de errores y los mensajes (`tests/unit/camara-qr.test.ts`). **Verificación manual** de que el botón se deshabilita con su explicación sobre `http://` en la red local.
+- **P62** — Todas las pistas del `MediaStream` se detienen al leer, cerrar, desmontar u ocultar la pestaña. **Verificación manual** (en el navegador, la luz de la cámara se apaga); no se puede automatizar sin DOM ni cámara.
+- **P63** — `Permissions-Policy`: `camera=()` en toda ruta salvo `/recetas/nuevo`, que recibe `camera=(self)` (`tests/unit/next-config-headers.test.ts`); los accesos a esa ruta son carga completa (`tests/unit/recetas-nuevo-navegacion-completa.test.ts`). **Verificación manual**: llegar desde `/recetas` con el botón "Nueva receta" y abrir la cámara sin recargar.
 - **P64–P66** — El hash, la URL y el cuerpo no aparecen en logs ni mensajes de error; los fixtures son ficticios.
 - **P67** — Verificación de despliegue (manual, ver "Operación y riesgos").
 - **P68–P70** — Rótulo "Digital (PDF o QR)"; la auditoría registra `fuente` PDF o QR.

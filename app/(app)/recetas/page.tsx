@@ -34,6 +34,14 @@ import { Toaster } from "@/shared/ui/toast";
 
 const PAGE_SIZE = 20;
 
+/**
+ * Link to the receta form. It MUST be a plain `<a>` (a full page load), not a `<Link>`:
+ * Permissions-Policy is fixed per document load, so a soft navigation from here would keep
+ * this page's `camera=()` and the QR import could not use the camera
+ * (next.config.ts, docs/specs/importacion-receta-qr.md). Any new link to this route needs the same.
+ */
+const HREF_NUEVA_RECETA = "/recetas/nuevo";
+
 interface RecetasPageProps {
   searchParams: Promise<{ estado?: string; numero?: string; desde?: string; hasta?: string; page?: string; registrada?: string; aviso?: string | string[] }>;
 }
@@ -158,10 +166,10 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
         description="Las recetas registradas aparecen acá, con su estado de preparación."
         action={
           puedeCrear ? (
-            <Link href="/recetas/nuevo" className="btn btn-primary">
+            <a href={HREF_NUEVA_RECETA} className="btn btn-primary">
               <Plus className="size-4" aria-hidden />
               Nueva receta
-            </Link>
+            </a>
           ) : null
         }
       />
@@ -182,10 +190,10 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
               </Link>
             ) : null}
             {puedeCrear ? (
-              <Link href="/recetas/nuevo" className="btn btn-primary">
+              <a href={HREF_NUEVA_RECETA} className="btn btn-primary">
                 <Plus className="size-4" aria-hidden />
                 Nueva receta
-              </Link>
+              </a>
             ) : null}
           </>
         }
