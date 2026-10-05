@@ -158,6 +158,36 @@ export interface AdvertenciaImportacion {
   texto?: string;
 }
 
+/** How the preview shows a notice: a warning to review, or plain information (nothing to fix). */
+export type SeveridadAdvertencia = "advertencia" | "informativa";
+
+/** Exhaustive on purpose: a new notice code does not compile until someone decides how it is shown. */
+export const SEVERIDAD_ADVERTENCIA: Readonly<Record<CodigoAdvertenciaImportacion, SeveridadAdvertencia>> = {
+  RENGLON_NO_RECONOCIDO: "advertencia",
+  UNIDADES_VS_DURACION: "advertencia",
+  MAS_DE_UN_ITEM: "advertencia",
+  DATO_FALTANTE: "advertencia",
+  MATRICULA_DISTINTA: "advertencia",
+  RENGLON_INFORMATIVO: "informativa",
+  DATO_NO_IMPORTADO: "advertencia",
+  PACIENTE_DADO_DE_BAJA: "advertencia",
+  DIFERENCIA_DATOS: "advertencia",
+  DROGA_SIN_MATCH: "advertencia",
+  UNIDAD_SIN_MATCH: "advertencia",
+};
+
+/** Splits the notices by severity, keeping the order inside each group. */
+export function separarPorSeveridad<A extends AdvertenciaImportacion>(lista: readonly A[]): { advertencias: A[]; informativas: A[] } {
+  const advertencias: A[] = [];
+  const informativas: A[] = [];
+  for (const a of lista) (SEVERIDAD_ADVERTENCIA[a.codigo] === "informativa" ? informativas : advertencias).push(a);
+  return { advertencias, informativas };
+}
+
+/** Where the receta was read from: the PDF upload or the QR/link of the receta. Audit-only. */
+export const FUENTES_IMPORTACION = ["PDF", "QR"] as const;
+export type FuenteImportacion = (typeof FUENTES_IMPORTACION)[number];
+
 export interface PersonaExistente {
   id: string;
   nombre: string;
@@ -181,6 +211,8 @@ export interface ComponenteVistaPrevia {
 }
 
 export interface VistaPreviaImportacion {
+  /** Set by the server when it reads the receta; the client echoes it back on confirmation (audit only). */
+  fuente: FuenteImportacion;
   borrador: BorradorReceta;
   advertencias: AdvertenciaImportacion[];
   paciente: PacienteVistaPrevia;
@@ -196,7 +228,7 @@ export function mensajeRecetaYaImportada(numeroInterno: string): string {
   return `Esta receta ya fue cargada (receta interna Nº ${numeroInterno}).`;
 }
 
-export const MENSAJE_CAMBIOS_DESDE_LECTURA = "Los datos cambiaron desde que se leyó el PDF. Volvé a leerlo.";
+export const MENSAJE_CAMBIOS_DESDE_LECTURA = "Los datos cambiaron desde que se leyó la receta. Volvé a leerla.";
 
 /** One warning per differing field, naming whose data it is. */
 export function advertenciasDeDiferencias(quien: "paciente" | "médico", diferencias: readonly DiferenciaDato[]): AdvertenciaImportacion[] {

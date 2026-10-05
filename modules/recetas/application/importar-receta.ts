@@ -17,6 +17,9 @@
  * the reading and the user must read the PDF again; the receta is checked
  * again for a previous import; drogas/unidades are checked vigentes.
  *
+ * `fuente` ("PDF" | "QR", default "PDF") says where the receta was read
+ * from; it is audit-only and rides in every audit row's `contexto`.
+ *
  * Audit: `defineCommand`'s built-in `audit` writes exactly ONE row, and
  * this command writes one per affected entity -- so, like
  * modules/usuarios/application/crear-usuario.ts, it declares
@@ -39,12 +42,14 @@ import { normalizarTexto } from "../domain/normalizar";
 import {
   CAMPOS_MEDICO_IMPORTABLES,
   CAMPOS_PACIENTE_IMPORTABLES,
+  FUENTES_IMPORTACION,
   MENSAJE_CAMBIOS_DESDE_LECTURA,
   MENSAJE_PACIENTE_DADO_DE_BAJA,
   calcularCompletado,
   mensajeRecetaYaImportada,
   valoresACompletar,
 } from "../domain/importacion-receta";
+import type { FuenteImportacion } from "../domain/importacion-receta";
 import { drogasInvalidas, getNombresParaResumen, insertRecetaConItems, jornadaActualTenant, unidadesInvalidas } from "../infrastructure/receta-repository";
 import {
   buscarMedicoVigentePorMatricula,
@@ -68,6 +73,8 @@ const urlVerificacionOpcional = z
 export const importarRecetaInput = z
   .object({
     emisor: z.enum(CODIGOS_EMISOR),
+    /** Where the receta was read from (audit only); PDF for clients that do not say. */
+    fuente: z.enum(FUENTES_IMPORTACION).default("PDF"),
     nroRecetaEmisor: z.string().trim().regex(/^\d{10,}$/, "Debe ser el número de receta del emisor (solo dígitos, al menos 10)."),
     urlVerificacion: urlVerificacionOpcional,
     fechaPrescripcion: isoDate,
@@ -92,8 +99,6 @@ export const importarRecetaInput = z
 
 export type ImportarRecetaInput = z.infer<typeof importarRecetaInput>;
 export type ImportarRecetaWireInput = z.input<typeof importarRecetaInput>;
-
-const CONTEXTO_IMPORTACION = { origen: "importacion_receta_pdf" } as const;
 
 function toItemsInput(items: ImportarRecetaInput["items"]): ItemInput[] {
   return items.map((item) => ({
@@ -121,16 +126,18 @@ function toItemsInput(items: ImportarRecetaInput["items"]): ItemInput[] {
 interface Contexto {
   tx: Prisma.TransactionClient;
   session: AuthenticatedSession;
+  /** Recorded as `contexto.fuente` on every audit row of the import. */
+  fuente: FuenteImportacion;
 }
 
 async function auditar(
-  { tx, session }: Contexto,
+  { tx, session, fuente }: Contexto,
   entidad: string,
   entidadId: string,
   accion: TipoAccion,
   valores: { valorAnterior?: Prisma.InputJsonValue; valorNuevo: Prisma.InputJsonValue },
 ): Promise<void> {
-  await auditRecord(tx, { tenantId: session.tenantId, usuarioId: session.usuario.id, entidad, entidadId, accion, contexto: CONTEXTO_IMPORTACION, ...valores });
+  await auditRecord(tx, { tenantId: session.tenantId, usuarioId: session.usuario.id, entidad, entidadId, accion, contexto: { origen: "importacion_receta_pdf", fuente }, ...valores });
 }
 
 /** Alta or completion of the paciente; returns its id and a readable name for the receta's audit row. */
@@ -198,7 +205,7 @@ export const importarRecetaCommand = defineCommand({
     reason: "Writes one audit row per affected entity (paciente, médico, receta, each droga alias) itself, via audit.record in the same transaction -- see the module doc comment.",
   },
   handler: async ({ tx, session, input }) => {
-    const ctx: Contexto = { tx, session };
+    const ctx: Contexto = { tx, session, fuente: input.fuente };
     validarOrigenHabilitado("DIGITAL_PDF");
 
     const numeroExistente = await buscarRecetaImportada(tx, session.tenantId, input.emisor, input.nroRecetaEmisor);

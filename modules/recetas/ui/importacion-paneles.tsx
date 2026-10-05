@@ -10,7 +10,7 @@
  * `children` by the form, which owns their state.
  */
 import type { ReactNode } from "react";
-import { ETIQUETAS_CAMPOS_IMPORTABLES } from "../domain/importacion-receta";
+import { ETIQUETAS_CAMPOS_IMPORTABLES, separarPorSeveridad } from "../domain/importacion-receta";
 import type { AdvertenciaImportacion, CampoMedicoImportable, CampoPacienteImportable, VistaPreviaImportacion } from "../domain/importacion-receta";
 
 export function ResumenImportacion({ vistaPrevia }: { vistaPrevia: VistaPreviaImportacion }) {
@@ -33,19 +33,37 @@ export function ResumenImportacion({ vistaPrevia }: { vistaPrevia: VistaPreviaIm
   );
 }
 
+/** Warnings to review (amber box) and, apart, plain information about the receta (neutral box: nothing to fix, nothing is stored). */
 export function AdvertenciasImportacion({ advertencias }: { advertencias: readonly AdvertenciaImportacion[] }) {
-  if (advertencias.length === 0) return null;
+  const { advertencias: avisos, informativas } = separarPorSeveridad(advertencias);
+  if (avisos.length === 0 && informativas.length === 0) return null;
   return (
-    <section aria-labelledby="advertencias-importacion" className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-      <h2 id="advertencias-importacion" className="mb-1 font-medium">
-        Advertencias ({advertencias.length})
-      </h2>
-      <ul className="list-disc pl-5">
-        {advertencias.map((a, i) => (
-          <li key={i}>{a.mensaje}</li>
-        ))}
-      </ul>
-    </section>
+    <>
+      {avisos.length > 0 ? (
+        <section aria-labelledby="advertencias-importacion" className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          <h2 id="advertencias-importacion" className="mb-1 font-medium">
+            Advertencias ({avisos.length})
+          </h2>
+          <ul className="list-disc pl-5">
+            {avisos.map((a, i) => (
+              <li key={i}>{a.mensaje}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {informativas.length > 0 ? (
+        <section aria-labelledby="informacion-importacion" className="rounded border border-zinc-300 bg-zinc-50 p-3 text-sm text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+          <h2 id="informacion-importacion" className="mb-1 font-medium">
+            Información de la receta (no se guarda)
+          </h2>
+          <ul className="list-disc pl-5">
+            {informativas.map((a, i) => (
+              <li key={i}>{a.mensaje}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </>
   );
 }
 

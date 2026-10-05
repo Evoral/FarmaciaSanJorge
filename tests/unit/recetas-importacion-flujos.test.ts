@@ -97,7 +97,7 @@ vi.mock("@/modules/medicos/infrastructure/medico-repository", () => ({
   insertMedico: (...a: unknown[]) => insertMedicoMock(...a),
 }));
 
-const { leerRecetaPdfQuery } = await import("@/modules/recetas/application/leer-receta-pdf");
+const { leerRecetaPdfQuery, construirVistaPrevia } = await import("@/modules/recetas/application/leer-receta-pdf");
 const { importarRecetaCommand, importarRecetaInput } = await import("@/modules/recetas/application/importar-receta");
 
 const TENANT_ID = "11111111-1111-1111-1111-111111111111";
@@ -194,6 +194,17 @@ describe("recetas.importar.leer -- trust boundary order (P8)", () => {
     extraerMock.mockResolvedValue({ ...recetaExtraida(), links: [] });
     await expect(leerRecetaPdfQuery.execute({ archivo: pdfFile() }, { session: CON_PERMISO })).rejects.toThrow("Formato de receta no reconocido.");
     expect(repo.buscarRecetaImportada).not.toHaveBeenCalled();
+  });
+});
+
+describe("recetas.importar.leer -- fuente of the preview", () => {
+  it("a PDF read is tagged PDF; construirVistaPrevia tags what its caller says (QR) and defaults to PDF", async () => {
+    const vista = await leerRecetaPdfQuery.execute({ archivo: pdfFile() }, { session: CON_PERMISO });
+    expect(vista.fuente).toBe("PDF");
+
+    const borrador = vista.borrador;
+    expect((await construirVistaPrevia(FAKE_TX as never, TENANT_ID, borrador, [], "QR")).fuente).toBe("QR");
+    expect((await construirVistaPrevia(FAKE_TX as never, TENANT_ID, borrador, [])).fuente).toBe("PDF");
   });
 });
 
@@ -326,6 +337,14 @@ describe("recetas.importar -- input schema", () => {
     expect(importarRecetaInput.safeParse(payload({ urlVerificacion: null })).success).toBe(true);
   });
 
+  it("P69/P70: fuente is PDF or QR, and PDF when the payload does not say (older clients)", () => {
+    const sin = importarRecetaInput.safeParse(payload());
+    expect(sin.success && sin.data.fuente).toBe("PDF");
+    const qr = importarRecetaInput.safeParse(payload({ fuente: "QR" }));
+    expect(qr.success && qr.data.fuente).toBe("QR");
+    expect(importarRecetaInput.safeParse(payload({ fuente: "FOTO" })).success).toBe(false);
+  });
+
   it("rejects an unknown emisor, a short emisor number and an invalid CIE-10 code", () => {
     expect(importarRecetaInput.safeParse(payload({ emisor: "OTRO" })).success).toBe(false);
     expect(importarRecetaInput.safeParse(payload({ nroRecetaEmisor: "123" })).success).toBe(false);
@@ -367,6 +386,22 @@ describe("recetas.importar -- confirmation", () => {
       return `${r.entidad}:${r.accion}`;
     });
     expect(auditadas).toEqual(["paciente:MODIFICAR", "medico:CREAR", "receta:CREAR", "droga_alias:CREAR"]);
+  });
+
+  it("P69: every audit row of a PDF import carries contexto.fuente = PDF (and keeps the origen key)", async () => {
+    repo.buscarPacientePorIdentificacion.mockResolvedValue(PACIENTE_EXISTENTE);
+    await importarRecetaCommand.execute(payload(), { session: CON_PERMISO });
+    const contextos = auditRecordMock.mock.calls.map(([, row]) => (row as { contexto: unknown }).contexto);
+    expect(contextos).toHaveLength(4);
+    for (const contexto of contextos) expect(contexto).toEqual({ origen: "importacion_receta_pdf", fuente: "PDF" });
+  });
+
+  it("P70: an import from a QR records fuente = QR on every audit row, one row per entity as before", async () => {
+    repo.buscarPacientePorIdentificacion.mockResolvedValue(PACIENTE_EXISTENTE);
+    await importarRecetaCommand.execute(payload({ fuente: "QR" }), { session: CON_PERMISO });
+    const filas = auditRecordMock.mock.calls.map(([, row]) => row as { entidad: string; accion: string; contexto: unknown });
+    expect(filas.map((r) => `${r.entidad}:${r.accion}`)).toEqual(["paciente:MODIFICAR", "medico:CREAR", "receta:CREAR", "droga_alias:CREAR"]);
+    for (const fila of filas) expect(fila.contexto).toEqual({ origen: "importacion_receta_pdf", fuente: "QR" });
   });
 
   it("a new paciente is created through the pacientes module's own handler", async () => {

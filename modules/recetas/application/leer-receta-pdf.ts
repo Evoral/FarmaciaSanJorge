@@ -11,10 +11,12 @@
  * domain/archivo-receta-pdf.ts, first thing in the handler. The PDF only
  * lives in memory for the duration of this call and is never logged.
  *
- * Trade-off, deliberate: extraction runs inside the query's transaction
- * (the pipeline has no "authorize without a transaction" entry point, by
- * design -- shared/usecase.ts). It is bounded: 1 MiB, at most
- * MAX_PDF_PAGINAS pages, ~150 ms for a real one-page receta.
+ * Trade-off, deliberate: extraction runs inside the query's transaction.
+ * It is bounded (1 MiB, at most MAX_PDF_PAGINAS pages, ~150 ms for a real
+ * one-page receta), so it is cheap enough to hold a connection for. Slow
+ * network I/O does NOT belong here: a query's opt-in `prepare` step
+ * (shared/usecase.ts) runs after authorize + parse but outside any
+ * transaction, which is where the QR import does its external fetch.
  */
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
@@ -36,7 +38,14 @@ import {
   resolverDroga,
   resolverUnidad,
 } from "../domain/importacion-receta";
-import type { AdvertenciaImportacion, ComponenteVistaPrevia, MedicoVistaPrevia, PacienteVistaPrevia, VistaPreviaImportacion } from "../domain/importacion-receta";
+import type {
+  AdvertenciaImportacion,
+  ComponenteVistaPrevia,
+  FuenteImportacion,
+  MedicoVistaPrevia,
+  PacienteVistaPrevia,
+  VistaPreviaImportacion,
+} from "../domain/importacion-receta";
 import { extraerTextoRecetaPdf } from "../infrastructure/receta-pdf.server";
 import {
   buscarMedicoVigentePorMatricula,
@@ -63,12 +72,13 @@ export function datosMedicoPdf(borrador: BorradorReceta) {
   return { especialidad: m.especialidad, telefono: m.telefono, direccionRegistrada: m.direccionRegistrada };
 }
 
-/** The match step (spec "Pieza 4"): duplicate check, paciente, médico, drogas, unidades. Exported for tests; only `leerRecetaPdfQuery` calls it. */
+/** The match step (spec "Pieza 4"): duplicate check, paciente, médico, drogas, unidades. Shared by every source of recetas (`fuente` tags the preview). */
 export async function construirVistaPrevia(
   tx: Prisma.TransactionClient,
   tenantId: string,
   borrador: BorradorReceta,
   advertenciasParser: readonly AdvertenciaParser[],
+  fuente: FuenteImportacion = "PDF",
 ): Promise<VistaPreviaImportacion> {
   const numeroExistente = await buscarRecetaImportada(tx, tenantId, borrador.emisor, borrador.nroRecetaEmisor);
   if (numeroExistente !== null) throw new DomainError(mensajeRecetaYaImportada(numeroExistente));
@@ -138,7 +148,7 @@ export async function construirVistaPrevia(
     }),
   );
 
-  return { borrador, advertencias, paciente, medico, componentes };
+  return { fuente, borrador, advertencias, paciente, medico, componentes };
 }
 
 export const leerRecetaPdfQuery = defineQuery({

@@ -72,7 +72,7 @@ export const ESTADO_USUARIO_LABELS: Readonly<Record<EstadoUsuario, string>> = {
 
 export const ORIGEN_RECETA_LABELS: Readonly<Record<OrigenReceta, string>> = {
   PRESENCIAL: "Presencial",
-  DIGITAL_PDF: "Digital (PDF)",
+  DIGITAL_PDF: "Digital (PDF o QR)",
   DIGITAL_FOTO: "Digital (foto)",
 };
 

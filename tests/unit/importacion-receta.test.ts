@@ -8,14 +8,18 @@ import { describe, it, expect } from "vitest";
 import {
   CAMPOS_MEDICO_IMPORTABLES,
   CAMPOS_PACIENTE_IMPORTABLES,
+  MENSAJE_CAMBIOS_DESDE_LECTURA,
+  SEVERIDAD_ADVERTENCIA,
   advertenciasDeDiferencias,
   calcularCompletado,
   diferenciaDeNombre,
   mensajeRecetaYaImportada,
   resolverDroga,
   resolverUnidad,
+  separarPorSeveridad,
   valoresACompletar,
 } from "@/modules/recetas/domain/importacion-receta";
+import type { CodigoAdvertenciaImportacion } from "@/modules/recetas/domain/importacion-receta";
 
 const CAFEINA = { id: "d-cafeina", nombre: "Cafeína" };
 const CLORURO = { id: "d-cloruro", nombre: "Cloruro de potasio" };
@@ -103,5 +107,46 @@ describe("P9: calcularCompletado (existing paciente/médico)", () => {
 describe("P6: duplicate message", () => {
   it("names the existing receta's número interno", () => {
     expect(mensajeRecetaYaImportada("123")).toBe("Esta receta ya fue cargada (receta interna Nº 123).");
+  });
+});
+
+describe("SEVERIDAD_ADVERTENCIA (what the preview shows as a warning vs. as plain information)", () => {
+  const TODOS: CodigoAdvertenciaImportacion[] = [
+    "RENGLON_NO_RECONOCIDO",
+    "UNIDADES_VS_DURACION",
+    "MAS_DE_UN_ITEM",
+    "DATO_FALTANTE",
+    "MATRICULA_DISTINTA",
+    "RENGLON_INFORMATIVO",
+    "DATO_NO_IMPORTADO",
+    "PACIENTE_DADO_DE_BAJA",
+    "DIFERENCIA_DATOS",
+    "DROGA_SIN_MATCH",
+    "UNIDAD_SIN_MATCH",
+  ];
+
+  it("classifies every notice code, and only RENGLON_INFORMATIVO is informational", () => {
+    expect(Object.keys(SEVERIDAD_ADVERTENCIA).sort()).toEqual([...TODOS].sort());
+    expect(TODOS.filter((c) => SEVERIDAD_ADVERTENCIA[c] === "informativa")).toEqual(["RENGLON_INFORMATIVO"]);
+    expect(SEVERIDAD_ADVERTENCIA.DATO_NO_IMPORTADO).toBe("advertencia");
+  });
+
+  it("separarPorSeveridad splits the list keeping each group's order", () => {
+    const lista = [
+      { codigo: "DATO_FALTANTE", mensaje: "a" },
+      { codigo: "RENGLON_INFORMATIVO", mensaje: "b" },
+      { codigo: "DROGA_SIN_MATCH", mensaje: "c" },
+      { codigo: "RENGLON_INFORMATIVO", mensaje: "d" },
+    ] as const;
+    const { advertencias, informativas } = separarPorSeveridad(lista);
+    expect(advertencias.map((a) => a.mensaje)).toEqual(["a", "c"]);
+    expect(informativas.map((a) => a.mensaje)).toEqual(["b", "d"]);
+    expect(separarPorSeveridad([])).toEqual({ advertencias: [], informativas: [] });
+  });
+});
+
+describe("MENSAJE_CAMBIOS_DESDE_LECTURA", () => {
+  it("does not name the source (the same message serves the PDF and the QR import)", () => {
+    expect(MENSAJE_CAMBIOS_DESDE_LECTURA).toBe("Los datos cambiaron desde que se leyó la receta. Volvé a leerla.");
   });
 });

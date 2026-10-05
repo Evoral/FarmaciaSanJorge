@@ -309,6 +309,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
     const b = importacion.borrador;
     return {
       emisor: b.emisor,
+      fuente: importacion.fuente,
       nroRecetaEmisor: b.nroRecetaEmisor,
       urlVerificacion: b.urlVerificacion,
       fechaPrescripcion,

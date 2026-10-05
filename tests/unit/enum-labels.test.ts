@@ -64,6 +64,12 @@ describe("enum label maps", () => {
     expect(ESTADO_RECETA_LABELS.PENDIENTE_PREPARACION).toBe("Pendiente de preparación");
   });
 
+  it("P68: DIGITAL_PDF covers both digital sources (PDF and QR); DIGITAL_FOTO is unchanged", () => {
+    expect(ORIGEN_RECETA_LABELS.DIGITAL_PDF).toBe("Digital (PDF o QR)");
+    expect(ORIGEN_RECETA_LABELS.DIGITAL_FOTO).toBe("Digital (foto)");
+    expect(ORIGEN_RECETA_LABELS.PRESENCIAL).toBe("Presencial");
+  });
+
   it("etiquetaDe falls back to the raw value only outside the enum", () => {
     expect(etiquetaDe(ESTADO_PREPARACION_LABELS, "INICIADA")).toBe("Iniciada");
     expect(etiquetaDe(ESTADO_PREPARACION_LABELS, "OTRO")).toBe("OTRO");
