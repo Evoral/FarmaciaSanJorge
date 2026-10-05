@@ -13,16 +13,25 @@
  * `fields` the server's per-row errors carry, so the right one is marked.
  * Picking a droga for one lote applies it to the other lotes of the same
  * product; "Recordar" saves the invoice's text as an alias of that droga.
+ *
+ * Insumos (migration 0063): a product missing from the catalog can be
+ * created right here ("Crear «…»", with the clase suggested from its name,
+ * modules/drogas/domain/sugerir-clase.ts), and any lote can be marked "No
+ * ingresar al stock" -- it is simply not sent; the invoice is still
+ * recorded whole.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { TriangleAlert } from "lucide-react";
-import { importarFacturaCompraAction } from "./actions";
+import { crearProductoDesdeFacturaAction, importarFacturaCompraAction } from "./actions";
 import type { OpcionConMagnitud, OpcionSimple } from "./ingresar-partida-form";
 import { formatearComprobante } from "../domain/importacion-factura-compra";
 import type { VistaPreviaFactura } from "../domain/importacion-factura-compra";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { DateInput } from "@/shared/ui/date-input";
 import { Combobox, filtrarOpciones, type ComboboxOption } from "@/shared/ui/combobox";
+import { ToneBadge } from "@/shared/ui/status-badge";
+import { CLASES_DROGA, CLASE_DROGA_LABELS, type ClaseDroga } from "@/modules/drogas/domain/droga";
+import { sugerirClase } from "@/modules/drogas/domain/sugerir-clase";
 
 const LETRAS = ["A", "B", "C", "M"] as const;
 
@@ -44,6 +53,17 @@ interface LineaEditable {
   potenciaDeclarada: string;
   numeroValeAdquisicion: string;
   recordar: boolean;
+  /** "No ingresar al stock": the lote is not sent. */
+  omitir: boolean;
+}
+
+/** The inline "Crear «…»" panel of one lote. */
+interface AltaProducto {
+  indice: number;
+  nombre: string;
+  clase: ClaseDroga;
+  unidadBaseId: string;
+  error: string | null;
 }
 
 export interface ImportarFacturaFormProps {
@@ -51,6 +71,8 @@ export interface ImportarFacturaFormProps {
   drogas: OpcionConMagnitud[];
   proveedores: OpcionSimple[];
   unidades: OpcionConMagnitud[];
+  /** `drogas.crear`: offer "Crear «…»" for products missing from the catalog. */
+  puedeCrearProducto: boolean;
   onImportada: () => void;
 }
 
@@ -58,7 +80,11 @@ function formatearMonto(valor: number): string {
   return valor.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function ImportarFacturaForm({ vistaPrevia, drogas, proveedores, unidades, onImportada }: ImportarFacturaFormProps) {
+export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, proveedores, unidades, puedeCrearProducto, onImportada }: ImportarFacturaFormProps) {
+  // Products created from this form join the local catalog right away.
+  const [drogas, setDrogas] = useState(drogasIniciales);
+  const [alta, setAlta] = useState<AltaProducto | null>(null);
+  const [creando, startCreando] = useTransition();
   const { comprobante } = vistaPrevia;
   const [proveedor, setProveedor] = useState<ComboboxOption | null>(
     vistaPrevia.proveedor ? { value: vistaPrevia.proveedor.id, label: vistaPrevia.proveedor.razonSocial } : null,
@@ -85,6 +111,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas, proveedores, unidades
       potenciaDeclarada: "",
       numeroValeAdquisicion: "",
       recordar: true,
+      omitir: false,
     })),
   );
 
@@ -109,7 +136,33 @@ export function ImportarFacturaForm({ vistaPrevia, drogas, proveedores, unidades
     );
   }
 
-  const incompletas = lineas.filter((l) => !l.droga || !l.unidadCompraId).length;
+  function abrirAlta(indice: number, texto: string) {
+    const nombre = texto.trim() || lineas[indice]!.drogaTexto;
+    setAlta({ indice, nombre, clase: sugerirClase(nombre)?.clase ?? "DROGA", unidadBaseId: "", error: null });
+  }
+
+  function crearProducto() {
+    if (!alta) return;
+    const { indice, nombre, clase, unidadBaseId } = alta;
+    const unidad = unidades.find((u) => u.id === unidadBaseId);
+    if (!nombre.trim() || !unidad) {
+      setAlta({ ...alta, error: "Completá el nombre y la unidad base." });
+      return;
+    }
+    startCreando(async () => {
+      const resultado = await crearProductoDesdeFacturaAction({ nombre: nombre.trim(), unidadBaseId, clase });
+      if (resultado.status === "error") {
+        setAlta((actual) => (actual ? { ...actual, error: resultado.message } : actual));
+        return;
+      }
+      setDrogas((actuales) => [...actuales, { id: resultado.id, label: nombre.trim(), tipoMagnitud: unidad.tipoMagnitud, clase }]);
+      setAlta(null);
+      elegirDroga(indice, { value: resultado.id, label: nombre.trim() });
+    });
+  }
+
+  const activas = lineas.filter((l) => !l.omitir);
+  const incompletas = activas.filter((l) => !l.droga || !l.unidadCompraId).length;
   const faltaEncabezado = !proveedor || !letra;
   const totalLineas = lineas.reduce((suma, l) => suma + (Number(l.cantidad) || 0) * (Number(l.precioUnitario) || 0), 0);
   const subtotalFactura = comprobante.subtotal === null ? null : Number(comprobante.subtotal);
@@ -117,7 +170,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas, proveedores, unidades
 
   function payload() {
     const equivalencias = new Map<string, string>();
-    for (const l of lineas) {
+    for (const l of activas) {
       if (!l.matcheada && l.recordar && l.droga) equivalencias.set(l.drogaTexto, l.droga.value);
     }
     return {
@@ -130,7 +183,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas, proveedores, unidades
       subtotal: comprobante.subtotal,
       iva: comprobante.iva,
       total: comprobante.total,
-      lineas: lineas.map((l) => ({
+      lineas: activas.map((l) => ({
         drogaId: l.droga?.value ?? "",
         lote: l.lote,
         fechaVencimiento: l.fechaVencimiento,
@@ -149,9 +202,9 @@ export function ImportarFacturaForm({ vistaPrevia, drogas, proveedores, unidades
   return (
     <SimpleForm
       action={importarFacturaCompraAction}
-      submitLabel={lineas.length === 1 ? "Ingresar 1 partida" : `Ingresar ${lineas.length} partidas`}
+      submitLabel={activas.length === 1 ? "Ingresar 1 partida" : `Ingresar ${activas.length} partidas`}
       pendingLabel="Ingresando…"
-      submitDisabled={incompletas > 0 || faltaEncabezado}
+      submitDisabled={incompletas > 0 || faltaEncabezado || activas.length === 0 || alta !== null}
       onSuccess={onImportada}
     >
       <input type="hidden" name="facturaJson" value={JSON.stringify(payload())} />
@@ -237,142 +290,236 @@ export function ImportarFacturaForm({ vistaPrevia, drogas, proveedores, unidades
           const magnitud = magnitudDe(l.droga?.value);
           const unidadesDeLaDroga = magnitud === null ? [] : unidades.filter((u) => u.tipoMagnitud === magnitud);
           const primeraDelProducto = lineas.findIndex((otra) => otra.codigo === l.codigo) === i;
+          const clase = drogas.find((d) => d.id === l.droga?.value)?.clase as ClaseDroga | undefined;
+          const sugerencia = l.droga ? null : sugerirClase(l.drogaTexto);
           return (
-            <div key={i} className="flex flex-col gap-4 rounded border border-zinc-200 p-4">
+            <div key={i} className={`flex flex-col gap-4 rounded border p-4 ${l.omitir ? "border-dashed border-zinc-200 bg-zinc-50" : "border-zinc-200"}`}>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className="text-sm font-medium text-zinc-900">
+                <p className={`text-sm font-medium ${l.omitir ? "text-zinc-500 line-through" : "text-zinc-900"}`}>
                   <span className="font-mono text-zinc-500">{l.codigo}</span> {l.descripcion}
                 </p>
-                <p className="text-[0.8125rem] text-zinc-500">
-                  {[l.despacho ? `Despacho ${l.despacho}` : null, l.paisOrigen ? `Origen ${l.paisOrigen}` : null].filter(Boolean).join(" · ")}
-                </p>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="flex flex-col gap-2">
-                  <Combobox
-                    id={`lineas.${i}.drogaId-buscar`}
-                    label="Droga"
-                    placeholder="Buscar droga"
-                    name={`lineas.${i}.drogaId`}
-                    search={buscarDrogas}
-                    value={l.droga}
-                    onChange={(droga) => elegirDroga(i, droga)}
-                  />
-                  {!l.matcheada && l.droga && primeraDelProducto ? (
-                    <label className="flex items-center gap-2 text-[0.8125rem] text-zinc-600">
-                      <input type="checkbox" checked={l.recordar} onChange={(e) => actualizar(i, { recordar: e.target.checked })} />
-                      Recordar «{l.drogaTexto}» como esta droga
-                    </label>
-                  ) : null}
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="field">
-                    <label htmlFor={`lineas.${i}.lote`} className="field-label">
-                      Lote
-                    </label>
-                    <input id={`lineas.${i}.lote`} name={`lineas.${i}.lote`} required value={l.lote} onChange={(e) => actualizar(i, { lote: e.target.value })} className="input font-mono" />
-                  </div>
-                  <div className="field">
-                    <label htmlFor={`lineas.${i}.fechaVencimiento`} className="field-label">
-                      Vencimiento
-                    </label>
-                    <DateInput
-                      id={`lineas.${i}.fechaVencimiento`}
-                      name={`lineas.${i}.fechaVencimiento`}
-                      value={l.fechaVencimiento}
-                      onValueChange={(fechaVencimiento) => actualizar(i, { fechaVencimiento })}
-                      required
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="text-[0.8125rem] text-zinc-500">
+                    {[l.despacho ? `Despacho ${l.despacho}` : null, l.paisOrigen ? `Origen ${l.paisOrigen}` : null].filter(Boolean).join(" · ")}
+                  </p>
+                  <label className="flex items-center gap-2 text-[0.8125rem] text-zinc-600">
+                    <input
+                      type="checkbox"
+                      checked={l.omitir}
+                      onChange={(e) => {
+                        actualizar(i, { omitir: e.target.checked });
+                        if (e.target.checked && alta?.indice === i) setAlta(null);
+                      }}
                     />
+                    No ingresar al stock
+                  </label>
+                </div>
+              </div>
+              {l.omitir ? null : (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-2">
+                      <Combobox
+                        id={`lineas.${i}.drogaId-buscar`}
+                        label="Droga"
+                        placeholder="Buscar droga"
+                        name={`lineas.${i}.drogaId`}
+                        search={buscarDrogas}
+                        value={l.droga}
+                        onChange={(droga) => elegirDroga(i, droga)}
+                        actionOption={puedeCrearProducto ? { label: (q) => `Crear «${q || l.drogaTexto}»`, onSelect: (q) => abrirAlta(i, q) } : undefined}
+                      />
+                      {clase && clase !== "DROGA" ? (
+                        <p className="text-[0.8125rem] text-zinc-600">
+                          <ToneBadge tone="neutral">{CLASE_DROGA_LABELS[clase]}</ToneBadge> Lleva stock y costo; no va al libro recetario.
+                        </p>
+                      ) : null}
+                      {sugerencia && alta?.indice !== i ? (
+                        <p className="text-[0.8125rem] text-zinc-600">
+                          Parece un {CLASE_DROGA_LABELS[sugerencia.clase].toLowerCase()} («{sugerencia.motivo}»).
+                          {puedeCrearProducto ? (
+                            <>
+                              {" "}
+                              <button type="button" onClick={() => abrirAlta(i, l.drogaTexto)} className="btn btn-ghost btn-sm">
+                                Crear «{l.drogaTexto}»
+                              </button>
+                            </>
+                          ) : null}
+                        </p>
+                      ) : null}
+                      {!l.matcheada && l.droga && primeraDelProducto ? (
+                        <label className="flex items-center gap-2 text-[0.8125rem] text-zinc-600">
+                          <input type="checkbox" checked={l.recordar} onChange={(e) => actualizar(i, { recordar: e.target.checked })} />
+                          Recordar «{l.drogaTexto}» como esta droga
+                        </label>
+                      ) : null}
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="field">
+                        <label htmlFor={`lineas.${i}.lote`} className="field-label">
+                          Lote
+                        </label>
+                        <input id={`lineas.${i}.lote`} name={`lineas.${i}.lote`} required value={l.lote} onChange={(e) => actualizar(i, { lote: e.target.value })} className="input font-mono" />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`lineas.${i}.fechaVencimiento`} className="field-label">
+                          Vencimiento
+                        </label>
+                        <DateInput
+                          id={`lineas.${i}.fechaVencimiento`}
+                          name={`lineas.${i}.fechaVencimiento`}
+                          value={l.fechaVencimiento}
+                          onValueChange={(fechaVencimiento) => actualizar(i, { fechaVencimiento })}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-5">
+                    <div className="field">
+                      <label htmlFor={`lineas.${i}.cantidadCompra`} className="field-label">
+                        Cantidad
+                      </label>
+                      <input
+                        id={`lineas.${i}.cantidadCompra`}
+                        name={`lineas.${i}.cantidadCompra`}
+                        required
+                        inputMode="decimal"
+                        value={l.cantidad}
+                        onChange={(e) => actualizar(i, { cantidad: e.target.value })}
+                        className="input font-mono"
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`lineas.${i}.unidadCompraId`} className="field-label">
+                        Unidad
+                      </label>
+                      <select
+                        id={`lineas.${i}.unidadCompraId`}
+                        name={`lineas.${i}.unidadCompraId`}
+                        required
+                        disabled={magnitud === null}
+                        value={l.unidadCompraId}
+                        onChange={(e) => actualizar(i, { unidadCompraId: e.target.value })}
+                        className="input"
+                      >
+                        <option value="">{magnitud === null ? "Elegí la droga" : `Unidad (${l.unidadTexto})`}</option>
+                        {unidadesDeLaDroga.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`lineas.${i}.precioUnitario`} className="field-label">
+                        Precio unitario
+                      </label>
+                      <input
+                        id={`lineas.${i}.precioUnitario`}
+                        name={`lineas.${i}.precioUnitario`}
+                        required
+                        inputMode="decimal"
+                        value={l.precioUnitario}
+                        onChange={(e) => actualizar(i, { precioUnitario: e.target.value })}
+                        aria-describedby="precioUnitario-ayuda"
+                        className="input font-mono"
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`lineas.${i}.potenciaDeclarada`} className="field-label">
+                        Pureza (%)<span className="font-normal text-zinc-500"> (opc.)</span>
+                      </label>
+                      <input
+                        id={`lineas.${i}.potenciaDeclarada`}
+                        name={`lineas.${i}.potenciaDeclarada`}
+                        inputMode="decimal"
+                        value={l.potenciaDeclarada}
+                        onChange={(e) => actualizar(i, { potenciaDeclarada: e.target.value })}
+                        className="input font-mono"
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`lineas.${i}.numeroValeAdquisicion`} className="field-label">
+                        Vale<span className="font-normal text-zinc-500"> (controladas)</span>
+                      </label>
+                      <input
+                        id={`lineas.${i}.numeroValeAdquisicion`}
+                        name={`lineas.${i}.numeroValeAdquisicion`}
+                        value={l.numeroValeAdquisicion}
+                        onChange={(e) => actualizar(i, { numeroValeAdquisicion: e.target.value })}
+                        className="input font-mono"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+              {alta?.indice === i ? (
+                <div role="group" aria-label="Crear producto" className="flex flex-col gap-3 rounded border border-zinc-200 bg-zinc-50 p-3">
+                  <p className="text-sm font-semibold text-zinc-900">Nuevo producto del catálogo</p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="field">
+                      <label htmlFor={`alta-${i}-nombre`} className="field-label">
+                        Nombre
+                      </label>
+                      <input id={`alta-${i}-nombre`} value={alta.nombre} onChange={(e) => setAlta({ ...alta, nombre: e.target.value, error: null })} className="input" />
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`alta-${i}-clase`} className="field-label">
+                        Clase
+                      </label>
+                      <select id={`alta-${i}-clase`} value={alta.clase} onChange={(e) => setAlta({ ...alta, clase: e.target.value as ClaseDroga, error: null })} className="input">
+                        {CLASES_DROGA.map((c) => (
+                          <option key={c} value={c}>
+                            {CLASE_DROGA_LABELS[c]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`alta-${i}-unidad`} className="field-label">
+                        Unidad base
+                      </label>
+                      <select id={`alta-${i}-unidad`} value={alta.unidadBaseId} onChange={(e) => setAlta({ ...alta, unidadBaseId: e.target.value, error: null })} className="input">
+                        <option value="">Elegí la unidad</option>
+                        {unidades.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <p className="field-help">
+                    {sugerirClase(alta.nombre) ? `Clase sugerida por «${sugerirClase(alta.nombre)!.motivo}» en el nombre. ` : ""}
+                    La unidad base es la que usa el laboratorio; las compras se convierten solas. Se crea sin control (tipo Ninguno).
+                  </p>
+                  {alta.error ? (
+                    <p role="alert" className="text-sm text-red-600">
+                      {alta.error}
+                    </p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={crearProducto} disabled={creando} className="btn btn-secondary btn-sm">
+                      {creando ? "Creando…" : "Crear y usar"}
+                    </button>
+                    <button type="button" onClick={() => setAlta(null)} disabled={creando} className="btn btn-ghost btn-sm">
+                      Cancelar
+                    </button>
                   </div>
                 </div>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-5">
-                <div className="field">
-                  <label htmlFor={`lineas.${i}.cantidadCompra`} className="field-label">
-                    Cantidad
-                  </label>
-                  <input
-                    id={`lineas.${i}.cantidadCompra`}
-                    name={`lineas.${i}.cantidadCompra`}
-                    required
-                    inputMode="decimal"
-                    value={l.cantidad}
-                    onChange={(e) => actualizar(i, { cantidad: e.target.value })}
-                    className="input font-mono"
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor={`lineas.${i}.unidadCompraId`} className="field-label">
-                    Unidad
-                  </label>
-                  <select
-                    id={`lineas.${i}.unidadCompraId`}
-                    name={`lineas.${i}.unidadCompraId`}
-                    required
-                    disabled={magnitud === null}
-                    value={l.unidadCompraId}
-                    onChange={(e) => actualizar(i, { unidadCompraId: e.target.value })}
-                    className="input"
-                  >
-                    <option value="">{magnitud === null ? "Elegí la droga" : `Unidad (${l.unidadTexto})`}</option>
-                    {unidadesDeLaDroga.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field">
-                  <label htmlFor={`lineas.${i}.precioUnitario`} className="field-label">
-                    Precio unitario
-                  </label>
-                  <input
-                    id={`lineas.${i}.precioUnitario`}
-                    name={`lineas.${i}.precioUnitario`}
-                    required
-                    inputMode="decimal"
-                    value={l.precioUnitario}
-                    onChange={(e) => actualizar(i, { precioUnitario: e.target.value })}
-                    aria-describedby="precioUnitario-ayuda"
-                    className="input font-mono"
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor={`lineas.${i}.potenciaDeclarada`} className="field-label">
-                    Pureza (%)<span className="font-normal text-zinc-500"> (opc.)</span>
-                  </label>
-                  <input
-                    id={`lineas.${i}.potenciaDeclarada`}
-                    name={`lineas.${i}.potenciaDeclarada`}
-                    inputMode="decimal"
-                    value={l.potenciaDeclarada}
-                    onChange={(e) => actualizar(i, { potenciaDeclarada: e.target.value })}
-                    className="input font-mono"
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor={`lineas.${i}.numeroValeAdquisicion`} className="field-label">
-                    Vale<span className="font-normal text-zinc-500"> (controladas)</span>
-                  </label>
-                  <input
-                    id={`lineas.${i}.numeroValeAdquisicion`}
-                    name={`lineas.${i}.numeroValeAdquisicion`}
-                    value={l.numeroValeAdquisicion}
-                    onChange={(e) => actualizar(i, { numeroValeAdquisicion: e.target.value })}
-                    className="input font-mono"
-                  />
-                </div>
-              </div>
+              ) : null}
             </div>
           );
         })}
         <p id="precioUnitario-ayuda" className="field-help">
           Precio por unidad de compra, sin IVA, como figura en la factura: se convierte solo a costo por unidad base. Pureza vacía = 100 %.
         </p>
-        {incompletas > 0 || faltaEncabezado ? (
+        {incompletas > 0 || faltaEncabezado || activas.length === 0 ? (
           <p className="field-help">
             {faltaEncabezado ? "Elegí el proveedor y la letra del comprobante. " : ""}
-            {incompletas > 0 ? `Falta elegir droga o unidad en ${incompletas === 1 ? "1 lote" : `${incompletas} lotes`}.` : ""}
+            {incompletas > 0 ? `Falta elegir droga o unidad en ${incompletas === 1 ? "1 lote" : `${incompletas} lotes`}. ` : ""}
+            {activas.length === 0 ? "Todos los lotes están marcados para no ingresar." : ""}
           </p>
         ) : null}
       </fieldset>

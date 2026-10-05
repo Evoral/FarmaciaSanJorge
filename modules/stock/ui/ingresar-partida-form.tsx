@@ -23,6 +23,8 @@ export interface OpcionSimple {
 /** A droga or a unit, with the `tipo_magnitud` that pairs them. */
 export interface OpcionConMagnitud extends OpcionSimple {
   tipoMagnitud: string;
+  /** Drogas only (migration 0063): DROGA | EXCIPIENTE | MATERIAL. */
+  clase?: string;
 }
 
 export interface IngresarPartidaFormProps {

@@ -67,7 +67,7 @@ async function construirVistaPrevia(
   const lineas: LineaFacturaVistaPrevia[] = items.flatMap((item) => {
     const droga = resolverDroga(item.drogaTexto, aliases, drogas);
     const unidad = resolverUnidad(item.unidadTexto, unidades);
-    if (!droga) advertencias.push({ codigo: "DROGA_SIN_MATCH", mensaje: `No se encontró la droga «${item.drogaTexto}» en el catálogo: elegila.` });
+    if (!droga) advertencias.push({ codigo: "DROGA_SIN_MATCH", mensaje: `No se encontró la droga «${item.drogaTexto}» en el catálogo: elegila, creala o marcala para no ingresar.` });
     if (!unidad) advertencias.push({ codigo: "UNIDAD_SIN_MATCH", mensaje: `No se reconoció la unidad «${item.unidadTexto}» de «${item.drogaTexto}».` });
     return item.lotes.map((lote) => ({
       codigo: item.codigo,

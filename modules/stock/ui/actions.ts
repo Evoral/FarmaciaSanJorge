@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { ingresarPartida } from "@/modules/stock/application/ingresar-partida";
 import { registrarAjusteStock } from "@/modules/stock/application/registrar-ajuste";
 import { corregirCostoPartida } from "@/modules/stock/application/corregir-costo-partida";
+import { crearDroga } from "@/modules/drogas/application/crear-droga";
 import { leerFacturaCompraPdf } from "@/modules/stock/application/leer-factura-compra-pdf";
 import { importarFacturaCompra } from "@/modules/stock/application/importar-factura-compra";
 import type { MotivoAjuste } from "@/modules/stock/domain/partida";
@@ -52,6 +53,24 @@ export async function importarFacturaCompraAction(_prevState: StockActionState, 
     return { status: "success", message: partidas === 1 ? "Factura importada: 1 partida ingresada." : `Factura importada: ${partidas} partidas ingresadas.` };
   } catch (error) {
     return fromError(error, "No se pudo importar la factura.");
+  }
+}
+
+export type CrearProductoFacturaState = { status: "success"; id: string } | { status: "error"; message: string; fields?: string[] };
+
+/**
+ * "Crear «texto de la factura»" from the invoice import: alta of a droga or
+ * insumo (migration 0063) without leaving the form. Called directly (not a
+ * form submit -- it lives inside the import form). `drogas.crear` is
+ * checked by the command itself; the form only offers it when allowed.
+ */
+export async function crearProductoDesdeFacturaAction(input: { nombre: string; unidadBaseId: string; clase: string }): Promise<CrearProductoFacturaState> {
+  try {
+    const { id } = await crearDroga({ nombre: input.nombre, unidadBaseId: input.unidadBaseId, clase: input.clase, stockMinimo: "0" });
+    revalidatePath("/catalogos/drogas");
+    return { status: "success", id };
+  } catch (error) {
+    return actionError(error, "No se pudo crear el producto.");
   }
 }
 

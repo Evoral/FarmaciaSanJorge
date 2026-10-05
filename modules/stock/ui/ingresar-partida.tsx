@@ -13,7 +13,7 @@ import { ImportarFacturaForm } from "./importar-factura-form";
 import { IngresarPartidaForm, type IngresarPartidaFormProps } from "./ingresar-partida-form";
 import type { VistaPreviaFactura } from "../domain/importacion-factura-compra";
 
-export function IngresarPartida(props: IngresarPartidaFormProps) {
+export function IngresarPartida({ puedeCrearProducto, ...props }: IngresarPartidaFormProps & { puedeCrearProducto: boolean }) {
   const [vistaPrevia, setVistaPrevia] = useState<VistaPreviaFactura | null>(null);
   const [lecturas, setLecturas] = useState(0);
 
@@ -30,7 +30,7 @@ export function IngresarPartida(props: IngresarPartidaFormProps) {
       <div className="panel">
         <div className="panel-body">
           {vistaPrevia ? (
-            <ImportarFacturaForm key={lecturas} vistaPrevia={vistaPrevia} {...props} onImportada={() => setVistaPrevia(null)} />
+            <ImportarFacturaForm key={lecturas} vistaPrevia={vistaPrevia} {...props} puedeCrearProducto={puedeCrearProducto} onImportada={() => setVistaPrevia(null)} />
           ) : (
             <IngresarPartidaForm {...props} />
           )}
