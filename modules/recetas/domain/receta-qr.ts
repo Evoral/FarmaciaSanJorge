@@ -26,30 +26,37 @@ export type ResultadoLecturaQr =
 const HOST_EMISOR = "verumrp.com.ar";
 /** A hex run that is neither preceded nor followed by another hex character. */
 const RE_HASH = /(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])/gi;
+/** A real URL prefix ("https://"); anything else is treated as scanner noise, not as a link. */
+const RE_ESQUEMA_URL = /^[a-z][a-z0-9+.-]*:\/\//i;
 
 function esHostDelEmisor(hostname: string): boolean {
-  const host = hostname.toLowerCase();
+  // An absolute host ("verumrp.com.ar.") is the same host.
+  const host = hostname.toLowerCase().replace(/\.$/, "");
   return host === HOST_EMISOR || host.endsWith(`.${HOST_EMISOR}`);
 }
 
 /**
  * The receta hash found in `texto` (lowercase), or `null` when there is none,
- * the candidates disagree (two DIFFERENT 64-hex runs), or the text is a URL
- * on a host other than the emisor's. Lenient on purpose about everything
- * else -- case and the punctuation a scanner with the wrong keyboard layout
- * garbles ("https;--verumrp.com.ar-prescripcion-<hash>").
+ * the candidates disagree (two DIFFERENT 64-hex runs), or the text is a
+ * well-formed URL (scheme + "//") on a host other than the emisor's. Lenient
+ * on purpose about everything else -- case and the punctuation a scanner with
+ * the wrong keyboard layout garbles ("https;--verumrp.com.ar-prescripcion-<hash>",
+ * "https:--verumrp.com.ar-..."): without a real "scheme://" prefix the text is
+ * not host-checked and only the 64-hex scan applies.
  */
 export function extraerHashRcta(texto: string): string | null {
   const limpio = texto.trim();
   if (limpio.length === 0) return null;
 
-  let url: URL | null = null;
-  try {
-    url = new URL(limpio);
-  } catch {
-    // Not a parseable URL (a bare hash, or a garbled link): fall through to the hash scan.
+  if (RE_ESQUEMA_URL.test(limpio)) {
+    let url: URL | null = null;
+    try {
+      url = new URL(limpio);
+    } catch {
+      // Looks like a link but does not parse: fall through to the hash scan.
+    }
+    if (url !== null && url.hostname.length > 0 && !esHostDelEmisor(url.hostname)) return null;
   }
-  if (url !== null && url.hostname.length > 0 && !esHostDelEmisor(url.hostname)) return null;
 
   const hashes = new Set((limpio.match(RE_HASH) ?? []).map((h) => h.toLowerCase()));
   if (hashes.size !== 1) return null;

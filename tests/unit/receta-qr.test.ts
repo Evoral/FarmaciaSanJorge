@@ -65,6 +65,32 @@ describe("P17: foreign hosts are rejected before any network call", () => {
     expect(extraerHashRcta(`https://notverumrp.com.ar/prescripcion/${HASH}`)).toBeNull();
   });
 
+  it("userinfo tricks: the real host is what follows the @", () => {
+    expect(extraerHashRcta(`https://verumrp.com.ar@evil.com/prescripcion/${HASH}`)).toBeNull();
+    expect(extraerHashRcta(`https://evil.com@verumrp.com.ar/prescripcion/${HASH}`)).toBe(HASH);
+  });
+
+  it("look-alike hosts are rejected regardless of case", () => {
+    expect(extraerHashRcta(`HTTPS://VERUMRP.COM.AR.EVIL.COM/prescripcion/${HASH}`)).toBeNull();
+    expect(extraerHashRcta(`https://evilverumrp.com.ar/prescripcion/${HASH}`)).toBeNull();
+  });
+
+  it("a trailing-dot (absolute) emisor host is still the emisor", () => {
+    expect(extraerHashRcta(`https://verumrp.com.ar./prescripcion/${HASH}`)).toBe(HASH);
+  });
+
+  it("only text that starts with a real scheme and a double slash is host-checked", () => {
+    // A scanner that turns the slashes into dashes leaves "https:" parseable as a URL whose
+    // "host" is the whole garbled remainder; that must not read as a foreign host.
+    expect(extraerHashRcta(`https:--verumrp.com.ar-prescripcion-${HASH}`)).toBe(HASH);
+    expect(extraerHashRcta(`HTTPS:--VERUMRP.COM.AR-PRESCRIPCION-${HASH.toUpperCase()}`)).toBe(HASH);
+  });
+
+  it("a hash next to non-hex letters is still the only 64-hex run", () => {
+    expect(extraerHashRcta(`prescripcion-${HASH}-g`)).toBe(HASH);
+    expect(extraerHashRcta(`xyz${HASH}xyz`)).toBe(HASH);
+  });
+
   it("the rejection message is the generic one", () => {
     expect(MENSAJES_LECTURA_QR.QR_INVALIDO).toBe("QR no válido o receta no encontrada");
   });
