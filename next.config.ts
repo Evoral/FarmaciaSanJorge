@@ -71,6 +71,18 @@ const nextConfig: NextConfig = {
         destination: "/proveedores/:path*",
         permanent: false,
       },
+      // Renamed for a more professional wording: Trayectoria -> Historial,
+      // Recurrentes -> Seguimiento. Same 307 reasoning as above.
+      {
+        source: "/pacientes/recurrentes",
+        destination: "/pacientes/seguimiento",
+        permanent: false,
+      },
+      {
+        source: "/pacientes/:id/trayectoria",
+        destination: "/pacientes/:id/historial",
+        permanent: false,
+      },
     ];
   },
   async headers() {

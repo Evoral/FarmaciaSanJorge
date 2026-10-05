@@ -1,5 +1,5 @@
 /**
- * Table of `/pacientes/recurrentes` (docs/specs/pacientes-recurrentes.md).
+ * Table of `/pacientes/seguimiento` (docs/specs/pacientes-recurrentes.md).
  * Server component. HEALTH-ADJACENT DATA (DP-24): internal hrefs carry only the
  * opaque paciente id. The one external link, "WhatsApp" (`wa.me` with phone +
  * message), is built by the use case on purpose: it is the link the person
@@ -112,10 +112,10 @@ export function RecurrentesTabla({ filas, zonaHoraria }: RecurrentesTablaProps) 
                       </Link>
                     )}
                     <Link
-                      href={`/pacientes/${fila.pacienteId}/trayectoria`}
+                      href={`/pacientes/${fila.pacienteId}/historial`}
                       className="btn btn-ghost btn-sm btn-icon"
-                      aria-label={`Ver la trayectoria de ${fila.nombre} ${fila.apellido}`}
-                      title="Trayectoria"
+                      aria-label={`Ver el historial de ${fila.nombre} ${fila.apellido}`}
+                      title="Historial"
                     >
                       <ChevronRight className="size-4" aria-hidden />
                     </Link>

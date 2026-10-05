@@ -186,8 +186,8 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
                       </td>
                       <td className="px-3 py-2.5">
                         <span className="flex items-center justify-end gap-1">
-                          <Link href={`/pacientes/${paciente.id}/trayectoria`} className="btn btn-ghost btn-sm" aria-label={`Ver la trayectoria de ${paciente.nombre} ${paciente.apellido}`}>
-                            <span className="hidden sm:inline">Trayectoria</span>
+                          <Link href={`/pacientes/${paciente.id}/historial`} className="btn btn-ghost btn-sm" aria-label={`Ver el historial de ${paciente.nombre} ${paciente.apellido}`}>
+                            <span className="hidden sm:inline">Historial</span>
                             <span className="sm:hidden">Ver</span>
                           </Link>
                           <Link href={`/pacientes/${paciente.id}`} aria-label={`Ver los datos de ${paciente.nombre} ${paciente.apellido}`} className="btn btn-ghost btn-sm btn-icon">

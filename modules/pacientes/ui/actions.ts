@@ -84,7 +84,7 @@ export async function editarPacienteAction(_prevState: PacienteActionState, form
       },
     });
     revalidatePath("/pacientes");
-    revalidatePath("/pacientes/recurrentes");
+    revalidatePath("/pacientes/seguimiento");
     return { status: "success", message: "Paciente actualizado." };
   } catch (error) {
     return fromError(error, "No se pudieron guardar los cambios.");
