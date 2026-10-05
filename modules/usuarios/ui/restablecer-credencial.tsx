@@ -18,6 +18,7 @@ import { restablecerCredencialAction } from "./actions";
 import type { RestablecerCredencialState } from "./actions";
 import { ReauthPrompt } from "@/modules/auth/ui/reauth-prompt";
 import { useReauthFormSubmit } from "@/modules/auth/ui/use-reauth-form-submit";
+import { CredencialActivacion } from "./credencial-activacion";
 
 const initialState: RestablecerCredencialState = { status: "idle" };
 
@@ -40,18 +41,9 @@ export function RestablecerCredencial({ usuarioId }: { usuarioId: string }) {
 
   if (state.status === "success" && state.credencial) {
     return (
-      <div role="alert" className="rounded border-2 border-amber-500 bg-amber-50 p-4 dark:bg-amber-950">
-        <p className="mb-2 font-semibold text-amber-900 dark:text-amber-200">Nueva credencial — se muestra una sola vez</p>
-        <p className="mb-3 text-sm text-amber-900 dark:text-amber-200">
-          Entregásela en mano. Vence el {new Date(state.credencialVenceEn!).toLocaleString("es-AR")} (72 horas). El usuario pasó a
-          &quot;Pendiente de activación&quot; y se cerraron sus sesiones y credenciales anteriores.
-        </p>
-        <code className="block break-all rounded bg-white px-3 py-2 text-sm dark:bg-zinc-900">{state.credencial}</code>
-        <p className="mt-3 text-sm text-amber-900 dark:text-amber-200">
-          No es una contraseña: la persona lo ingresa junto con su email en <span className="font-mono">/activar</span> (link
-          &quot;Activá tu cuenta&quot; en la pantalla de inicio de sesión) para elegir una contraseña nueva.
-        </p>
-      </div>
+      <CredencialActivacion titulo="Nueva credencial: se muestra una sola vez" credencial={state.credencial} venceEn={state.credencialVenceEn!}>
+        Entregásela en mano. El usuario pasó a «Pendiente de activación» y se cerraron sus sesiones y credenciales anteriores.
+      </CredencialActivacion>
     );
   }
 
@@ -60,7 +52,7 @@ export function RestablecerCredencial({ usuarioId }: { usuarioId: string }) {
       <form action={formAction} onSubmit={onSubmit}>
         <input type="hidden" name="usuarioId" value={usuarioId} />
         {state.status === "error" ? (
-          <p role="alert" className="mb-2 text-sm text-red-600">
+          <p role="alert" className="alert alert-danger mb-3">
             {state.message}
           </p>
         ) : null}

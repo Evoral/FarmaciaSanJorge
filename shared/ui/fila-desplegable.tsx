@@ -17,6 +17,7 @@
  * or two `<tr>`s. `colSpan` is the TOTAL column count, toggle column included.
  */
 import { useState, type MouseEvent, type ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
 
 export interface FilaDesplegableProps {
   /** Stable id (e.g. the entity's uuid); used to build the detail row id and the `aria-controls` link. */
@@ -52,7 +53,7 @@ export function FilaDesplegable({ id, celdas, detalle, colSpan, etiqueta }: Fila
 
   return (
     <>
-      <tr className="cursor-pointer align-top" onClick={alternarDesdeFila}>
+      <tr className={`cursor-pointer align-top ${abierto ? "bg-zinc-50" : ""}`} onClick={alternarDesdeFila}>
         <td className="w-8 px-3 py-2">
           <button
             type="button"
@@ -60,18 +61,16 @@ export function FilaDesplegable({ id, celdas, detalle, colSpan, etiqueta }: Fila
             aria-expanded={abierto}
             aria-controls={detalleId}
             aria-label={`${abierto ? "Ocultar" : "Ver"} detalle de ${etiqueta}`}
-            className="inline-flex h-6 w-6 items-center justify-center rounded text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+            className="inline-flex size-6 items-center justify-center rounded text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
           >
-            <span aria-hidden="true" className={`transition-transform ${abierto ? "rotate-90" : ""}`}>
-              ▸
-            </span>
+            <ChevronRight aria-hidden className={`size-4 transition-transform duration-(--duration-base) ease-(--ease-out-expo) ${abierto ? "rotate-90" : ""}`} />
           </button>
         </td>
         {celdas}
       </tr>
       {abierto ? (
         <tr id={detalleId}>
-          <td colSpan={colSpan} className="border-t border-zinc-200 bg-zinc-50 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900">
+          <td colSpan={colSpan} className="border-t border-zinc-100 bg-zinc-50 px-4 py-4 sm:px-5">
             {detalle}
           </td>
         </tr>

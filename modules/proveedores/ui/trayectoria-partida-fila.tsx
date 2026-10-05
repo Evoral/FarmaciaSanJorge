@@ -19,6 +19,7 @@
  */
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 import { MOTIVO_AJUSTE_LABELS } from "@/modules/stock/domain/partida";
 import { formatCantidad, formatCantidadesFila } from "@/shared/format/cantidad";
 import type { CatalogoUnidades } from "@/shared/format/cantidad";
@@ -65,15 +66,15 @@ function Dato({ etiqueta, children }: { etiqueta: string; children: ReactNode })
   return (
     <div>
       <dt className="text-xs text-zinc-500">{etiqueta}</dt>
-      <dd className="text-sm">{children}</dd>
+      <dd className="mt-0.5 text-sm text-zinc-900">{children}</dd>
     </div>
   );
 }
 
 function Bloque({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
-    <section className="mb-4 last:mb-0">
-      <h3 className="mb-2 text-sm font-semibold">{titulo}</h3>
+    <section>
+      <h3 className="mb-2 text-[0.8125rem] font-semibold text-zinc-900">{titulo}</h3>
       {children}
     </section>
   );
@@ -103,24 +104,24 @@ function TablaMovimientos({
               <th scope="col" className="px-3 py-2 font-medium">Fecha</th>
               <th scope="col" className="px-3 py-2 font-medium">Tipo</th>
               <th scope="col" className="px-3 py-2 font-medium">Cantidad</th>
-              <th scope="col" className="px-3 py-2 font-medium">Motivo</th>
-              <th scope="col" className="px-3 py-2 font-medium">Observación</th>
-              <th scope="col" className="px-3 py-2 font-medium">Registrado por</th>
-              <th scope="col" className="px-3 py-2 font-medium">Autorizado por</th>
+              <th scope="col" className="hidden px-3 py-2 font-medium md:table-cell">Motivo</th>
+              <th scope="col" className="hidden px-3 py-2 font-medium lg:table-cell">Observación</th>
+              <th scope="col" className="hidden px-3 py-2 font-medium sm:table-cell">Registrado por</th>
+              <th scope="col" className="hidden px-3 py-2 font-medium lg:table-cell">Autorizado por</th>
             </tr>
           </thead>
           <tbody>
             {movimientos.items.map((m) => (
               <tr key={m.id} className="align-top">
-                <td className="px-3 py-2 whitespace-nowrap">{formatFechaHora(m.registradoEn, zonaHoraria)}</td>
+                <td className="whitespace-nowrap px-3 py-2 font-mono tabular-nums">{formatFechaHora(m.registradoEn, zonaHoraria)}</td>
                 <td className="px-3 py-2">{etiquetaDe(TIPO_MOVIMIENTO_LABELS, m.tipo)}</td>
                 <td className="px-3 py-2">
                   <Cantidad valor={formatCantidad(m.cantidad, unidad, catalogo)} />
                 </td>
-                <td className="px-3 py-2">{m.motivoAjuste ? etiquetaDe(MOTIVO_AJUSTE_LABELS, m.motivoAjuste) : "—"}</td>
-                <td className="px-3 py-2">{m.observacion ?? "—"}</td>
-                <td className="px-3 py-2">{m.registradoPor}</td>
-                <td className="px-3 py-2">{m.autorizadoPor ?? "—"}</td>
+                <td className="hidden px-3 py-2 md:table-cell">{m.motivoAjuste ? etiquetaDe(MOTIVO_AJUSTE_LABELS, m.motivoAjuste) : "—"}</td>
+                <td className="hidden px-3 py-2 lg:table-cell">{m.observacion ?? "—"}</td>
+                <td className="hidden px-3 py-2 sm:table-cell">{m.registradoPor}</td>
+                <td className="hidden px-3 py-2 lg:table-cell">{m.autorizadoPor ?? "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -229,22 +230,31 @@ export function TrayectoriaPartidaCeldas({ partida, acceso, zonaHoraria, catalog
 
   return (
     <>
-      <td className="px-3 py-2 font-medium">{partida.drogaNombre}</td>
-      <td className="px-3 py-2 whitespace-nowrap">{partida.lote}</td>
-      <td className="px-3 py-2 whitespace-nowrap">{formatFecha(partida.fechaIngreso, zonaHoraria)}</td>
-      <td className="px-3 py-2">
-        <Cantidad valor={inicial} /> → <Cantidad valor={disponible} />
+      <td className="px-3 py-2.5">
+        <span className="font-medium text-zinc-900">{partida.drogaNombre}</span>
+        <span className="block font-mono text-xs text-zinc-500 sm:hidden">Lote {partida.lote}</span>
       </td>
-      <td className="px-3 py-2 whitespace-nowrap">{formatFecha(partida.fechaVencimiento)}</td>
-      <td className="px-3 py-2">
+      <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono sm:table-cell">{partida.lote}</td>
+      <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono tabular-nums lg:table-cell">{formatFecha(partida.fechaIngreso, zonaHoraria)}</td>
+      <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums md:table-cell">
+        <span className="text-zinc-500">
+          <Cantidad valor={inicial} />
+        </span>{" "}
+        <span aria-hidden className="text-zinc-400">
+          →
+        </span>
+        <span className="sr-only">, disponible</span> <Cantidad valor={disponible} />
+      </td>
+      <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono tabular-nums sm:table-cell">{formatFecha(partida.fechaVencimiento)}</td>
+      <td className="px-3 py-2.5">
         <StatusBadge estado={partida.estado} />
       </td>
       {acceso.costos ? (
-        <td className="px-3 py-2 whitespace-nowrap">
+        <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums lg:table-cell">
           {partida.costoUnitario !== null ? (
             `$ ${formatearCostoUnitario(partida.costoUnitario)} / ${partida.unidadBaseSimbolo}`
           ) : (
-            <span className="text-zinc-500">—</span>
+            <span className="text-zinc-400">-</span>
           )}
         </td>
       ) : null}
@@ -257,25 +267,25 @@ export function TrayectoriaPartidaDetalle({ partida, acceso, zonaHoraria, catalo
   const { inicial, disponible } = cantidadesPartida(partida, catalogo);
 
   return (
-    <div>
-      {acceso.linkPartida ? (
-        <p className="mb-3 text-sm">
-          <Link href={`/stock/partidas/${partida.id}`} className="underline underline-offset-2">
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <dl className="grid flex-1 grid-cols-2 gap-3 lg:grid-cols-4">
+          <Dato etiqueta="Cantidad inicial">
+            <Cantidad valor={inicial} />
+          </Dato>
+          <Dato etiqueta="Saldo disponible">
+            <Cantidad valor={disponible} />
+          </Dato>
+          <Dato etiqueta="Vencimiento">{formatFecha(partida.fechaVencimiento)}</Dato>
+          <Dato etiqueta="Apertura">{partida.fechaApertura ? formatFecha(partida.fechaApertura, zonaHoraria) : "Cerrada"}</Dato>
+        </dl>
+        {acceso.linkPartida ? (
+          <Link href={`/stock/partidas/${partida.id}`} className="btn btn-secondary btn-sm">
             Ver partida en stock
+            <ArrowUpRight className="size-3.5" aria-hidden />
           </Link>
-        </p>
-      ) : null}
-
-      <dl className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Dato etiqueta="Cantidad inicial">
-          <Cantidad valor={inicial} />
-        </Dato>
-        <Dato etiqueta="Saldo disponible">
-          <Cantidad valor={disponible} />
-        </Dato>
-        <Dato etiqueta="Vencimiento">{formatFecha(partida.fechaVencimiento)}</Dato>
-        <Dato etiqueta="Apertura">{partida.fechaApertura ? formatFecha(partida.fechaApertura, zonaHoraria) : "Cerrada"}</Dato>
-      </dl>
+        ) : null}
+      </div>
 
       <Bloque titulo="Movimientos">
         <TablaMovimientos movimientos={partida.movimientos} partida={partida} acceso={acceso} zonaHoraria={zonaHoraria} catalogo={catalogo} />

@@ -1,6 +1,6 @@
 "use client";
 
-/** `/admin/configuracion/parametros` per-parameter edit form (FASE 3 point 3.10b). */
+/** `/admin/configuracion/parametros` per-parameter edit form (FASE 3 point 3.10b), one panel per parameter. */
 import { editarParametroAction } from "./actions";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 
@@ -16,19 +16,24 @@ export function ParametroForm({ clave, label, descripcion, valor, disabled }: Pa
   const inputId = `parametro-valor-${clave}`;
 
   return (
-    <div className="card p-4">
-      <h3 className="text-base font-medium">{label}</h3>
-      <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">{descripcion}</p>
-
-      <ReauthAwareForm action={editarParametroAction} submitLabel="Guardar" pendingLabel="Guardando…" className="max-w-xs">
-        <input type="hidden" name="clave" value={clave} />
-        <div className="flex flex-col gap-1">
-          <label htmlFor={inputId} className="text-sm font-medium">
-            Valor actual
-          </label>
-          <input id={inputId} name="valor" defaultValue={valor} required disabled={disabled} className="input" />
-        </div>
-      </ReauthAwareForm>
-    </div>
+    <section className="panel" aria-labelledby={`${inputId}-titulo`}>
+      <div className="panel-header">
+        <h3 id={`${inputId}-titulo`} className="text-[0.9375rem] font-semibold">
+          {label}
+        </h3>
+        <p className="mt-0.5 text-[0.8125rem] text-zinc-500">{descripcion}</p>
+      </div>
+      <div className="panel-body">
+        <ReauthAwareForm action={editarParametroAction} submitLabel="Guardar" pendingLabel="Guardando…" className="max-w-xs">
+          <input type="hidden" name="clave" value={clave} />
+          <div className="field">
+            <label htmlFor={inputId} className="field-label">
+              Valor actual
+            </label>
+            <input id={inputId} name="valor" defaultValue={valor} required disabled={disabled} className="input font-mono" />
+          </div>
+        </ReauthAwareForm>
+      </div>
+    </section>
   );
 }

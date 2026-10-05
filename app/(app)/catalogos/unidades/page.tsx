@@ -17,6 +17,8 @@ import { FilterForm } from "@/shared/ui/filter-form";
 import { FilterDrawer } from "@/shared/ui/filter-drawer";
 import { BuscadorNavegable } from "@/shared/ui/buscador-navegable";
 import { PageHeader } from "@/shared/ui/page-header";
+import { SectionTabs } from "../../section-tabs";
+import { catalogosSections } from "../../nav-sections";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
 import { ToneBadge } from "@/shared/ui/status-badge";
@@ -69,6 +71,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
   return (
     <>
       <PageHeader
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Catálogos" }, { label: "Unidades de medida" }]}
         title="Unidades de medida"
         description={
           <span className="inline-flex items-center gap-1.5">
@@ -85,6 +88,8 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
           ) : null
         }
       />
+
+      <SectionTabs ariaLabel="Secciones de catálogos" links={catalogosSections(session)} />
 
       {puedeCrear && params.nueva ? (
         <section className="panel mb-6 max-w-3xl" aria-labelledby="nueva-unidad-heading">

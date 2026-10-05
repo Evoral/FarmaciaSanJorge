@@ -7,14 +7,19 @@
  * entry: it lives under the sidebar's "Administración › Usuarios y
  * accesos" (`/admin/accesos/usuarios`).
  */
-import Link from "next/link";
+import { ArrowLeftRight, ClipboardList, Coins, FileSignature, FileText, ShieldCheck } from "lucide-react";
+import type { ReactNode } from "react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
+import { PageHeader } from "@/shared/ui/page-header";
+import { EmptyState } from "@/shared/ui/empty-state";
+import { SummaryList } from "@/shared/ui/summary-list";
 
 interface ReporteEntry {
   href: string;
   titulo: string;
   descripcion: string;
+  icon: ReactNode;
 }
 
 export default async function ReportesPage() {
@@ -22,41 +27,34 @@ export default async function ReportesPage() {
 
   const entries: ReporteEntry[] = [];
   if (can(session, "reportes.ver")) {
-    entries.push({ href: "/reportes/recetas", titulo: "Recetas por estado", descripcion: "Conteos por estado y listado filtrado por fecha de ingreso." });
+    entries.push({ href: "/reportes/recetas", titulo: "Recetas por estado", descripcion: "Conteos por estado y listado filtrado por fecha de ingreso.", icon: <ClipboardList /> });
   }
   if (can(session, "stock.valorizado.ver")) {
-    entries.push({ href: "/reportes/stock-valorizado", titulo: "Stock valorizado", descripcion: "Valorizado al costo actual de cada partida, con subtotales por droga." });
+    entries.push({ href: "/reportes/stock-valorizado", titulo: "Stock valorizado", descripcion: "Valorizado al costo actual de cada partida, con subtotales por droga.", icon: <Coins /> });
   }
   if (can(session, "stock.ver")) {
-    entries.push({ href: "/reportes/kardex", titulo: "Kardex de movimientos", descripcion: "Movimientos de stock filtrables por droga, tipo y rango de fechas." });
+    entries.push({ href: "/reportes/kardex", titulo: "Kardex de movimientos", descripcion: "Movimientos de stock filtrables por droga, tipo y rango de fechas.", icon: <ArrowLeftRight /> });
   }
   if (can(session, "cierres.reporte")) {
-    entries.push({ href: "/cierres/reporte", titulo: "Cumplimiento de firma de cierres", descripcion: "Demora, fuera de término y motivo por jornada firmada." });
+    entries.push({ href: "/cierres/reporte", titulo: "Cumplimiento de firma de cierres", descripcion: "Demora, fuera de término y motivo por jornada firmada.", icon: <FileSignature /> });
   }
   if (can(session, "reportes.auditoria") || can(session, "auditoria.ver")) {
-    entries.push({ href: "/auditoria", titulo: "Auditoría", descripcion: "Registro de acciones auditadas de la farmacia." });
+    entries.push({ href: "/auditoria", titulo: "Auditoría", descripcion: "Registro de acciones auditadas de la farmacia.", icon: <ShieldCheck /> });
   }
 
   return (
     <div className="page">
-      <h1 className="mb-6 text-2xl font-semibold">Reportes</h1>
+      <PageHeader breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Reportes" }]} title="Reportes" description="Consultas y exportaciones de la farmacia." />
 
-      {entries.length === 0 ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">No tenés permisos para ver ningún reporte.</p>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {entries.map((entry) => (
-            <Link
-              key={entry.href}
-              href={entry.href}
-              className="card p-4 transition-colors hover:border-zinc-400 dark:hover:border-zinc-600"
-            >
-              <p className="font-medium">{entry.titulo}</p>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{entry.descripcion}</p>
-            </Link>
-          ))}
-        </div>
-      )}
+      <div className="list-panel max-w-3xl">
+        {entries.length === 0 ? (
+          <EmptyState icon={<FileText className="size-5" />} title="Sin reportes disponibles" description="No tenés permisos para ver ningún reporte." />
+        ) : (
+          <SummaryList
+            items={entries.map((entry) => ({ key: entry.href, title: entry.titulo, description: entry.descripcion, href: entry.href, tone: "neutral", icon: entry.icon }))}
+          />
+        )}
+      </div>
     </div>
   );
 }

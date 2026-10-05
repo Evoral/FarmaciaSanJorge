@@ -20,5 +20,5 @@ export default async function AuditoriaLayout({ children }: { children: ReactNod
     redirect("/");
   }
 
-  return <div className="page">{children}</div>;
+  return <div className="page list-view">{children}</div>;
 }

@@ -19,17 +19,21 @@ export function RolesForm({ usuarioId, rolesActuales, opciones, disabled }: Role
   return (
     <ReauthAwareForm action={cambiarRolesAction} submitLabel="Guardar roles" pendingLabel="Guardando…">
       <input type="hidden" name="usuarioId" value={usuarioId} />
-      <div className="flex flex-col gap-2">
-        <fieldset className="flex flex-col gap-2" disabled={disabled}>
-          <legend className="text-sm font-medium">Roles (al menos uno)</legend>
-          {opciones.map((rol) => (
-            <label key={rol.codigo} className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="roles" value={rol.codigo} defaultChecked={rolesActuales.includes(rol.codigo)} className="h-4 w-4" />
-              {rol.nombre}
-            </label>
-          ))}
+      <div className="flex flex-col gap-3">
+        <fieldset disabled={disabled}>
+          <legend className="field-label mb-2">
+            Roles <span className="font-normal text-zinc-500">(al menos uno)</span>
+          </legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {opciones.map((rol) => (
+              <label key={rol.codigo} className="choice-row">
+                <input type="checkbox" name="roles" value={rol.codigo} defaultChecked={rolesActuales.includes(rol.codigo)} className="size-4" />
+                <span className="font-medium text-zinc-900">{rol.nombre}</span>
+              </label>
+            ))}
+          </div>
         </fieldset>
-        <p className="text-xs text-zinc-500">
+        <p className="field-help">
           Para quitarle el acceso a alguien, suspendé o dá de baja la cuenta -- no lo hagas quitando todos los roles.
         </p>
       </div>

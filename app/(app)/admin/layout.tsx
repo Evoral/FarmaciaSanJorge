@@ -33,5 +33,5 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     redirect("/");
   }
 
-  return <div className="page">{children}</div>;
+  return <div className="page list-view">{children}</div>;
 }

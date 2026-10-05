@@ -24,6 +24,8 @@ import { formatCantidadesFila } from "@/shared/format/cantidad";
 import { Decimal } from "@/shared/decimal";
 import { Cantidad } from "@/shared/ui/cantidad";
 import { PageHeader } from "@/shared/ui/page-header";
+import { SectionTabs } from "../../section-tabs";
+import { catalogosSections } from "../../nav-sections";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
 import { ToneBadge } from "@/shared/ui/status-badge";
@@ -85,6 +87,7 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
   return (
     <>
       <PageHeader
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Catálogos" }, { label: "Drogas" }]}
         title="Drogas"
         description="Materias primas del laboratorio, su unidad base, su control y su stock."
         actions={
@@ -96,6 +99,8 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
           ) : null
         }
       />
+
+      <SectionTabs ariaLabel="Secciones de catálogos" links={catalogosSections(session)} />
 
       {puedeCrear && params.nueva ? (
         <section className="panel mb-6 max-w-3xl" aria-labelledby="nueva-droga-heading">

@@ -17,5 +17,5 @@ export default async function ComparadorCostosLayout({ children }: { children: R
     redirect("/");
   }
 
-  return <div className="page">{children}</div>;
+  return <div className="page list-view">{children}</div>;
 }

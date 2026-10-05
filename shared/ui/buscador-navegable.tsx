@@ -4,7 +4,8 @@
  * Generic list-search autocomplete for catalog-like lists: typing shows matching records (from a read-only Server
  * Action the page passes in), picking one opens its detail, and the last row applies the typed text as the list's
  * own search param instead. Clearing the box removes that search. One component for drogas, médicos, unidades...: the
- * page decides the source, the detail URL and the list URL.
+ * page decides the source, the detail URL and the list URL. Without `detalleHref` (a report with no detail page),
+ * picking a suggestion applies its label as the list's search.
  */
 import { ListFilter } from "lucide-react";
 import { useCallback } from "react";
@@ -25,8 +26,8 @@ export interface BuscadorNavegableProps {
   placeholder: string;
   /** Read-only Server Action: the term in, at most a handful of suggestions out. */
   buscar: (busqueda: string) => Promise<SugerenciaNavegable[]>;
-  /** Detail URL with `{id}` (e.g. "/catalogos/drogas/{id}"). */
-  detalleHref: string;
+  /** Detail URL with `{id}` (e.g. "/catalogos/drogas/{id}"). Omitted: a pick filters the list by its label. */
+  detalleHref?: string;
   /** The list's URL without the search param (the other filters kept). */
   listaHref: string;
   /** Query param of the list's search. Defaults to "q". */
@@ -61,7 +62,8 @@ export function BuscadorNavegable({ id, label, placeholder, buscar, detalleHref,
           if (busquedaActual) router.push(hrefConParam(listaHref, param, ""), { scroll: false });
           return;
         }
-        router.push(detalleHref.replace("{id}", encodeURIComponent(option.value)));
+        if (detalleHref) router.push(detalleHref.replace("{id}", encodeURIComponent(option.value)));
+        else router.push(hrefConParam(listaHref, param, option.label), { scroll: false });
       }}
       actionOption={{
         label: (q) => (q ? `Filtrar la lista por “${q}”` : textoVerTodos),

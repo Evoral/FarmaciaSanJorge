@@ -26,21 +26,23 @@
  */
 import { useActionState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { CircleAlert } from "lucide-react";
 import { crearUsuarioAction, type CrearUsuarioFormState } from "./actions";
 import { ReauthPrompt } from "@/modules/auth/ui/reauth-prompt";
 import { useReauthFormSubmit } from "@/modules/auth/ui/use-reauth-form-submit";
+import { CredencialActivacion } from "@/modules/usuarios/ui/credencial-activacion";
 import { errorFieldsOf } from "@/shared/ui/form-parts";
 import { useFieldErrors } from "@/shared/ui/field-errors";
+import { PageHeader } from "@/shared/ui/page-header";
 
 const initialCrearUsuarioState: CrearUsuarioFormState = { status: "idle", message: null };
 
+const BREADCRUMBS = [{ label: "Inicio", href: "/" }, { label: "Usuarios y accesos" }, { label: "Usuarios", href: "/admin/accesos/usuarios" }];
+
 function SubmitButton({ pending }: { pending: boolean }) {
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="btn btn-primary"
-    >
+    <button type="submit" disabled={pending} className="btn btn-primary">
+      {pending ? <span className="spinner" aria-hidden /> : null}
       {pending ? "Creando…" : "Crear usuario"}
     </button>
   );
@@ -66,34 +68,17 @@ export function NuevoUsuarioForm({ roles }: { roles: readonly { codigo: string; 
 
   if (state.status === "success" && state.credencial) {
     return (
-      <div className="mx-auto max-w-lg">
-        <h1 className="mb-4 text-2xl font-semibold">Usuario creado</h1>
-        <div
-          ref={alertRef}
-          role="alert"
-          tabIndex={-1}
-          className="rounded border-2 border-amber-500 bg-amber-50 p-4 outline-none dark:bg-amber-950"
-        >
-          <p className="mb-2 font-semibold text-amber-900 dark:text-amber-200">
-            Credencial de activación — se muestra una sola vez
-          </p>
-          <p className="mb-3 text-sm text-amber-900 dark:text-amber-200">
-            Entregásela a la persona en mano. Vence el {new Date(state.credencialVenceEn!).toLocaleString("es-AR")} (72 horas). No
-            queda guardada en ningún lado ni se puede volver a mostrar: si se pierde, usá &quot;Restablecer credencial&quot; desde el
-            detalle del usuario.
-          </p>
-          <code className="block break-all rounded bg-white px-3 py-2 text-sm dark:bg-zinc-900">{state.credencial}</code>
-          <p className="mt-3 text-sm text-amber-900 dark:text-amber-200">
-            No es una contraseña: la persona lo ingresa junto con su email en <span className="font-mono">/activar</span> (link
-            &quot;Activá tu cuenta&quot; en la pantalla de inicio de sesión) para elegir su contraseña. Recién después puede iniciar
-            sesión.
-          </p>
-        </div>
-        <div className="mt-4 flex gap-4">
-          <Link href={`/admin/accesos/usuarios/${state.usuarioId}`} className="text-sm underline">
+      <div className="max-w-2xl">
+        <PageHeader breadcrumbs={[...BREADCRUMBS, { label: "Usuario creado" }]} title="Usuario creado" description="Queda pendiente de activación hasta que la persona use esta credencial." />
+        <CredencialActivacion ref={alertRef} titulo="Credencial de activación: se muestra una sola vez" credencial={state.credencial} venceEn={state.credencialVenceEn!}>
+          Entregásela a la persona en mano. No queda guardada en ningún lado ni se puede volver a mostrar: si se pierde, usá «Restablecer credencial» desde el detalle del
+          usuario.
+        </CredencialActivacion>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link href={`/admin/accesos/usuarios/${state.usuarioId}`} className="btn btn-primary">
             Ver detalle del usuario
           </Link>
-          <Link href="/admin/accesos/usuarios" className="text-sm underline">
+          <Link href="/admin/accesos/usuarios" className="btn btn-secondary">
             Volver al listado
           </Link>
         </div>
@@ -102,71 +87,79 @@ export function NuevoUsuarioForm({ roles }: { roles: readonly { codigo: string; 
   }
 
   return (
-    <div className="mx-auto max-w-lg">
-      <h1 className="mb-6 text-2xl font-semibold">Nuevo usuario</h1>
-      <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-        El usuario queda pendiente de activación. Vas a ver la credencial de un solo uso apenas se cree; no hay autorregistro ni
-        envío automático (contactalo/a vos mismo/a).
-      </p>
+    <div className="max-w-3xl">
+      <PageHeader
+        breadcrumbs={[...BREADCRUMBS, { label: "Nuevo usuario" }]}
+        title="Nuevo usuario"
+        description="Queda pendiente de activación. Vas a ver la credencial de un solo uso apenas se cree; no hay autorregistro ni envío automático (contactalo/a vos mismo/a)."
+      />
 
-      <form ref={formRef} action={formAction} onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="nombre" className="text-sm font-medium">
-            Nombre
-          </label>
-          <input id="nombre" name="nombre" required className="input" />
+      <form ref={formRef} action={formAction} onSubmit={onSubmit} noValidate className="panel">
+        <div className="panel-header">
+          <h2>Datos de la persona</h2>
         </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="apellido" className="text-sm font-medium">
-            Apellido
-          </label>
-          <input id="apellido" name="apellido" required className="input" />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="email" className="text-sm font-medium">
-            Email
-          </label>
-          <input id="email" name="email" type="email" required className="input" />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="dni" className="text-sm font-medium">
-            DNI
-          </label>
-          <input id="dni" name="dni" required className="input" />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="numeroMatricula" className="text-sm font-medium">
-            Matrícula (opcional)
-          </label>
-          <input id="numeroMatricula" name="numeroMatricula" className="input" />
-        </div>
-
-        <fieldset className="flex flex-col gap-2">
-          <legend className="text-sm font-medium">Roles (al menos uno)</legend>
-          {roles.map((rol) => (
-            <label key={rol.codigo} className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="roles" value={rol.codigo} className="h-4 w-4" />
-              {rol.nombre}
-            </label>
-          ))}
-        </fieldset>
-
-        {state.status === "error" ? (
-          <div ref={alertRef} role="alert" tabIndex={-1} className="text-sm text-red-600 outline-none">
-            {state.message}
+        <div className="panel-body flex flex-col gap-5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="field">
+              <label htmlFor="nombre" className="field-label">
+                Nombre
+              </label>
+              <input id="nombre" name="nombre" required className="input" />
+            </div>
+            <div className="field">
+              <label htmlFor="apellido" className="field-label">
+                Apellido
+              </label>
+              <input id="apellido" name="apellido" required className="input" />
+            </div>
+            <div className="field">
+              <label htmlFor="email" className="field-label">
+                Email
+              </label>
+              <input id="email" name="email" type="email" required className="input" />
+            </div>
+            <div className="field">
+              <label htmlFor="dni" className="field-label">
+                DNI
+              </label>
+              <input id="dni" name="dni" required className="input font-mono" />
+            </div>
+            <div className="field">
+              <label htmlFor="numeroMatricula" className="field-label">
+                Matrícula <span className="font-normal text-zinc-500">(opcional)</span>
+              </label>
+              <input id="numeroMatricula" name="numeroMatricula" className="input font-mono" />
+            </div>
           </div>
-        ) : null}
 
-        <SubmitButton pending={isPending} />
+          <fieldset className="flex flex-col gap-2">
+            <legend className="field-label mb-2">
+              Roles <span className="font-normal text-zinc-500">(al menos uno)</span>
+            </legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {roles.map((rol) => (
+                <label key={rol.codigo} className="choice-row">
+                  <input type="checkbox" name="roles" value={rol.codigo} className="size-4" />
+                  <span className="font-medium text-zinc-900">{rol.nombre}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          {state.status === "error" ? (
+            <div ref={alertRef} role="alert" tabIndex={-1} className="alert alert-danger outline-none">
+              <CircleAlert aria-hidden />
+              <span>{state.message}</span>
+            </div>
+          ) : null}
+
+          <div>
+            <SubmitButton pending={isPending} />
+          </div>
+        </div>
       </form>
 
-      {state.status === "reauth-required" ? (
-        <ReauthPrompt onReauthenticated={resubmit} onCancel={() => undefined} />
-      ) : null}
+      {state.status === "reauth-required" ? <ReauthPrompt onReauthenticated={resubmit} onCancel={() => undefined} /> : null}
     </div>
   );
 }

@@ -12,33 +12,46 @@
  * unavailable and what to do about it, not just see an empty select.
  */
 import Link from "next/link";
+import { UserX } from "lucide-react";
 import { listUsuariosElegiblesDt } from "@/modules/directores-tecnicos/application/list-usuarios-elegibles";
+import { PageHeader } from "@/shared/ui/page-header";
+import { EmptyState } from "@/shared/ui/empty-state";
 import { NuevaDesignacionForm } from "./nueva-designacion-form";
 
 export default async function NuevaDesignacionPage() {
   const usuarios = await listUsuariosElegiblesDt();
 
   return (
-    <div className="mx-auto max-w-lg">
-      <h1 className="mb-6 text-2xl font-semibold">Nueva designación</h1>
+    <div className="max-w-3xl">
+      <PageHeader
+        breadcrumbs={[
+          { label: "Inicio", href: "/" },
+          { label: "Usuarios y accesos" },
+          { label: "Directores técnicos", href: "/admin/accesos/directores-tecnicos" },
+          { label: "Nueva designación" },
+        ]}
+        title="Nueva designación"
+        description="Designá a un Director Técnico titular o suplente desde una fecha."
+      />
 
-      {usuarios.length === 0 ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          No hay usuarios ACTIVOS con el rol Director Técnico disponibles para designar. Asigná primero el rol desde{" "}
-          <Link href="/admin/accesos/usuarios" className="underline">
-            Usuarios
-          </Link>
-          .
-        </p>
-      ) : (
-        <NuevaDesignacionForm usuarios={usuarios} />
-      )}
-
-      <p className="mt-6">
-        <Link href="/admin/accesos/directores-tecnicos" className="text-sm underline">
-          Volver al listado
-        </Link>
-      </p>
+      <section className="panel" aria-label="Datos de la designación">
+        {usuarios.length === 0 ? (
+          <EmptyState
+            icon={<UserX className="size-5" />}
+            title="No hay usuarios para designar"
+            description="No hay usuarios ACTIVOS con el rol Director Técnico disponibles. Asigná primero el rol desde Usuarios."
+            action={
+              <Link href="/admin/accesos/usuarios" className="btn btn-secondary">
+                Ir a Usuarios
+              </Link>
+            }
+          />
+        ) : (
+          <div className="panel-body">
+            <NuevaDesignacionForm usuarios={usuarios} />
+          </div>
+        )}
+      </section>
     </div>
   );
 }

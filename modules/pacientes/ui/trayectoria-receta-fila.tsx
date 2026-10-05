@@ -22,7 +22,8 @@ import { ESTADO_LOTE_ARCHIVO_LABELS } from "@/modules/archivo/domain/lote-archiv
 import { FORMA_FARMACEUTICA_LABELS, ORIGEN_RECETA_LABELS } from "@/shared/labels/enum-labels";
 import { formatFecha, formatFechaHora } from "@/shared/format/fecha";
 import { formatearMonto } from "@/shared/format/monto";
-import { StatusBadge } from "@/shared/ui/status-badge";
+import { ArrowUpRight } from "lucide-react";
+import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
 import { ESTADO_PASO_LABELS, MODALIDAD_ENTREGA_LABELS, PASO_JORNADA_LABELS, etapaActual, resumenItems } from "../domain/trayectoria";
 import type { AccesoTrayectoria, ItemTrayectoria, PresupuestoTrayectoria, RecetaTrayectoria } from "../domain/trayectoria";
 import { TrayectoriaPasos } from "./trayectoria-pasos";
@@ -47,7 +48,7 @@ function Dato({ etiqueta, children }: { etiqueta: string; children: ReactNode })
   return (
     <div>
       <dt className="text-xs text-zinc-500">{etiqueta}</dt>
-      <dd className="text-sm">{children}</dd>
+      <dd className="mt-0.5 text-sm text-zinc-900">{children}</dd>
     </div>
   );
 }
@@ -55,16 +56,16 @@ function Dato({ etiqueta, children }: { etiqueta: string; children: ReactNode })
 function AvisosCotizacion({ esParcial, esIncompleta }: { esParcial: boolean; esIncompleta: boolean }) {
   if (!esParcial && !esIncompleta) return null;
   return (
-    <span className="ml-1 inline-flex flex-wrap gap-1">
+    <span className="ml-1.5 inline-flex flex-wrap gap-1 align-middle">
       {esParcial ? (
-        <span className="badge bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300" title="Algún componente se completa durante la preparación.">
+        <ToneBadge tone="warn" title="Algún componente se completa durante la preparación.">
           Parcial
-        </span>
+        </ToneBadge>
       ) : null}
       {esIncompleta ? (
-        <span className="badge bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300" title="Stock insuficiente al momento de cotizar.">
+        <ToneBadge tone="warn" title="Stock insuficiente al momento de cotizar.">
           Incompleta
-        </span>
+        </ToneBadge>
       ) : null}
     </span>
   );
@@ -226,21 +227,21 @@ function TextoEtapa({ receta }: { receta: RecetaTrayectoria }) {
 export function TrayectoriaRecetaCeldas({ receta, acceso, zonaHoraria }: RecetaFilaProps) {
   return (
     <>
-      <td className="px-3 py-2 font-medium whitespace-nowrap">{receta.numeroInterno}</td>
-      <td className="px-3 py-2 whitespace-nowrap">{formatFecha(receta.fechaIngreso, zonaHoraria)}</td>
-      <td className="px-3 py-2">
+      <td className="whitespace-nowrap px-3 py-2.5 font-mono font-semibold">{receta.numeroInterno}</td>
+      <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono tabular-nums sm:table-cell">{formatFecha(receta.fechaIngreso, zonaHoraria)}</td>
+      <td className="px-3 py-2.5">
         <TextoQuePide items={receta.items} />
       </td>
-      <td className="px-3 py-2">{receta.medico}</td>
-      <td className="px-3 py-2">
+      <td className="hidden px-3 py-2.5 md:table-cell">{receta.medico}</td>
+      <td className="px-3 py-2.5">
         <StatusBadge estado={receta.estado} />
       </td>
-      <td className="px-3 py-2">
+      <td className="hidden px-3 py-2.5 lg:table-cell">
         <TextoEtapa receta={receta} />
       </td>
       {acceso.presupuesto ? (
-        <td className="px-3 py-2 whitespace-nowrap">
-          {receta.presupuesto ? `$ ${formatearMonto(receta.presupuesto.total)}` : <span className="text-zinc-500">Sin cotización</span>}
+        <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums lg:table-cell">
+          {receta.presupuesto ? `$ ${formatearMonto(receta.presupuesto.total)}` : <span className="font-sans text-zinc-500">Sin cotización</span>}
         </td>
       ) : null}
     </>
@@ -252,32 +253,30 @@ export function TrayectoriaRecetaDetalle({ receta, acceso, zonaHoraria }: Receta
   const { entrega, lote } = receta;
 
   return (
-    <div>
-      {acceso.linkReceta ? (
-        <p className="mb-3 text-sm">
-          <Link href={`/recetas/${receta.id}`} className="underline underline-offset-2">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <dl className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
+          <Dato etiqueta="Fecha de prescripción">{formatFecha(receta.fechaPrescripcion)}</Dato>
+          <Dato etiqueta="Médico">{receta.medico}</Dato>
+          <Dato etiqueta="Origen">{ORIGEN_RECETA_LABELS[receta.origen]}</Dato>
+        </dl>
+        {acceso.linkReceta ? (
+          <Link href={`/recetas/${receta.id}`} className="btn btn-secondary btn-sm">
             Ver receta
+            <ArrowUpRight className="size-3.5" aria-hidden />
           </Link>
+        ) : null}
+      </div>
+
+      <TrayectoriaPasos pasos={receta.pasos} />
+
+      {receta.estado === "ANULADA" ? (
+        <p role="note" className="alert alert-danger">
+          Motivo de anulación: {receta.motivoAnulacion ?? "sin motivo"}
         </p>
       ) : null}
 
-      <dl className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <Dato etiqueta="Fecha de prescripción">{formatFecha(receta.fechaPrescripcion)}</Dato>
-        <Dato etiqueta="Médico">{receta.medico}</Dato>
-        <Dato etiqueta="Origen">{ORIGEN_RECETA_LABELS[receta.origen]}</Dato>
-      </dl>
-
-      <div className="mb-4">
-        <TrayectoriaPasos pasos={receta.pasos} />
-      </div>
-
-      {receta.estado === "ANULADA" ? (
-        <p className="mb-4 text-sm text-red-700 dark:text-red-300">Motivo de anulación: {receta.motivoAnulacion ?? "—"}</p>
-      ) : null}
-
-      <div className="mb-4">
-        <TablaItems items={receta.items} acceso={acceso} zonaHoraria={zonaHoraria} />
-      </div>
+      <TablaItems items={receta.items} acceso={acceso} zonaHoraria={zonaHoraria} />
 
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {acceso.presupuesto ? (

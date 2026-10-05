@@ -1,5 +1,5 @@
 /**
- * Layout guard + tab nav for `/admin/configuracion/**` ("Configuración" in
+ * Layout guard for `/admin/configuracion/**` ("Configuración" in
  * the sidebar's "Administración" group): Farmacia and Parámetros
  * (`config.ver`, ADMINISTRADOR-only since migration 0046; editing is further
  * gated per-action on `config.editar`) and Reglas de precio
@@ -14,7 +14,6 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
 import { configuracionSections } from "../../nav-sections";
-import { SectionTabs } from "../../section-tabs";
 
 export default async function ConfiguracionLayout({ children }: { children: ReactNode }) {
   const session = await requireSession();
@@ -24,10 +23,6 @@ export default async function ConfiguracionLayout({ children }: { children: Reac
     redirect("/");
   }
 
-  return (
-    <>
-      <SectionTabs ariaLabel="Secciones de configuración" links={links} />
-      {children}
-    </>
-  );
+  // Each section's main page renders the tab nav under its own header (detail pages use breadcrumbs instead).
+  return <>{children}</>;
 }

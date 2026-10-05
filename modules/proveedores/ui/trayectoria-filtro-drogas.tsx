@@ -1,70 +1,84 @@
+"use client";
+
 /**
- * "Filtrar por droga" control of the proveedor Trayectoria partidas table
- * (docs/specs/trayectoria-proveedor.md, "Filtro por droga"): the system's
- * standard `FilterForm` (auto-applying GET form) around two things that share
- * `name="droga"`:
- *
- *   - an "Agregar droga" select with the proveedor's drogas that are NOT
- *     selected yet (empty first option, so it always reads as "pick one");
- *   - one CHECKED checkbox per selected droga, drawn as a chip. Unchecking it
- *     applies the form and removes the droga; "Limpiar filtros" unchecks all.
- *
- * `FilterForm` serializes the repeated name as `?droga=a&droga=b` (it appends,
- * never overwrites) and drops `page`. The checkboxes are real form controls, so
- * the control also works without JS (Enter submits the form). Server
- * component: the options and the selection come from the use case (already
- * restricted to the proveedor's own drogas), never from the raw URL.
+ * "Filtrar por droga" control of the proveedor Trayectoria partidas table (docs/specs/trayectoria-proveedor.md, "Filtro
+ * por droga"). An AUTOCOMPLETE over the proveedor's drogas that are NOT selected yet (typing narrows them; picking one
+ * adds it), plus one chip per selected droga (its × drops that droga). Same URL contract as before: repeated
+ * `?droga=a&droga=b`, `page` dropped on every change. The options and the selection come from the use case (already
+ * restricted to the proveedor's own drogas, split by the page with the domain helpers), never from the raw URL.
  */
-import { FilterForm } from "@/shared/ui/filter-form";
-import { drogasRestantes, drogasSeleccionadas } from "../domain/trayectoria";
+import { useMemo } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
+import { Combobox, filtrarOpciones } from "@/shared/ui/combobox";
 import type { DrogaOpcion } from "../domain/trayectoria";
 
 export interface TrayectoriaFiltroDrogasProps {
-  /** Every droga the proveedor has partidas of, sorted by name. */
-  disponibles: readonly DrogaOpcion[];
-  /** Ids of the drogas currently filtered (a subset of `disponibles`). */
-  seleccionadas: readonly string[];
+  /** The proveedor's drogas currently filtered (`drogasSeleccionadas`). */
+  elegidas: readonly DrogaOpcion[];
+  /** The proveedor's drogas not filtered yet (`drogasRestantes`), sorted by name. */
+  restantes: readonly DrogaOpcion[];
+  /** The trayectoria's URL without query string. */
+  baseHref: string;
 }
 
-export function TrayectoriaFiltroDrogas({ disponibles, seleccionadas }: TrayectoriaFiltroDrogasProps) {
-  const elegidas = drogasSeleccionadas(disponibles, seleccionadas);
-  const restantes = drogasRestantes(disponibles, seleccionadas);
+function hrefConDrogas(baseHref: string, ids: readonly string[]): string {
+  const qs = new URLSearchParams();
+  for (const id of ids) qs.append("droga", id);
+  const query = qs.toString();
+  return query ? `${baseHref}?${query}` : baseHref;
+}
+
+export function TrayectoriaFiltroDrogas({ elegidas, restantes, baseHref }: TrayectoriaFiltroDrogasProps) {
+  const router = useRouter();
+  const seleccionadas = elegidas.map((d) => d.id);
+  const search = useMemo(() => filtrarOpciones(restantes.map((d) => ({ value: d.id, label: d.nombre }))), [restantes]);
 
   return (
-    <FilterForm className="mb-4 flex flex-wrap items-end gap-3" aria-label="Filtro de partidas por droga" hasActiveFilters={elegidas.length > 0}>
+    <div className="flex flex-wrap items-center gap-2">
       {restantes.length > 0 ? (
-        <div className="flex flex-col gap-1">
-          <label htmlFor="trayectoria-droga" className="text-sm font-medium">
-            Filtrar por droga
-          </label>
-          <select id="trayectoria-droga" name="droga" defaultValue="" className="input">
-            <option value="">Agregar droga…</option>
-            {restantes.map((droga) => (
-              <option key={droga.id} value={droga.id}>
-                {droga.nombre}
-              </option>
-            ))}
-          </select>
+        <div className="w-full min-w-0 sm:w-72">
+          <Combobox
+            id="trayectoria-droga"
+            label="Filtrar por droga"
+            hideLabel
+            size="sm"
+            placeholder={elegidas.length > 0 ? "Agregar otra droga…" : "Filtrar por droga…"}
+            search={search}
+            value={null}
+            onChange={(option) => {
+              if (option) router.push(hrefConDrogas(baseHref, [...seleccionadas, option.value]), { scroll: false });
+            }}
+          />
         </div>
       ) : null}
 
       {elegidas.length > 0 ? (
-        <div role="group" aria-label="Drogas seleccionadas" className="flex flex-wrap items-center gap-2 pb-1">
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Drogas seleccionadas">
           {elegidas.map((droga) => (
-            <label
-              key={droga.id}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-zinc-300 bg-zinc-100 px-3 py-1 text-sm text-zinc-800 hover:bg-zinc-200 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-(--color-brand) dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
-            >
-              <input type="checkbox" name="droga" value={droga.id} defaultChecked className="sr-only" />
-              <span className="sr-only">Quitar filtro </span>
-              {droga.nombre}
-              <span aria-hidden="true" className="text-zinc-500">
-                ✕
-              </span>
-            </label>
+            <span key={droga.id} className="chip">
+              <strong>{droga.nombre}</strong>
+              <Link
+                href={hrefConDrogas(
+                  baseHref,
+                  seleccionadas.filter((id) => id !== droga.id),
+                )}
+                scroll={false}
+                className="chip-remove"
+                aria-label={`Quitar filtro ${droga.nombre}`}
+              >
+                <X className="size-3" aria-hidden />
+              </Link>
+            </span>
           ))}
+          {elegidas.length > 1 ? (
+            <Link href={baseHref} scroll={false} className="btn btn-ghost btn-sm">
+              Limpiar
+            </Link>
+          ) : null}
         </div>
       ) : null}
-    </FilterForm>
+    </div>
   );
 }

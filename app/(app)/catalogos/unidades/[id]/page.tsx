@@ -26,7 +26,7 @@ export default async function UnidadDetallePage({ params }: UnidadDetallePagePro
   return (
     <>
       <PageHeader
-        breadcrumbs={[{ label: "Catálogos" }, { label: "Unidades de medida", href: "/catalogos/unidades" }, { label: unidad.nombre }]}
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Catálogos" }, { label: "Unidades de medida", href: "/catalogos/unidades" }, { label: unidad.nombre }]}
         title={
           <span className="flex flex-wrap items-center gap-3">
             {unidad.nombre} <span className="font-mono text-zinc-500">({unidad.simbolo})</span>

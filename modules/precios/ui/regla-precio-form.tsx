@@ -10,6 +10,7 @@
  * pure `validarReglasPrecio`); its message is shown by `SimpleForm`.
  */
 import { useState } from "react";
+import { Info, Plus, Trash2 } from "lucide-react";
 import { guardarReglaPrecioAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
 
@@ -41,95 +42,111 @@ export function ReglaPrecioForm({ vigente }: ReglaPrecioFormProps) {
     });
 
   return (
-    <div className="card p-4">
-      <h2 className="mb-1 text-base font-semibold">{vigente === null ? "Configurar reglas de precio" : "Nueva versión de las reglas de precio"}</h2>
-      <p className="mb-3 text-xs text-zinc-500">
-        Cada preparación se cotiza sola: su costo de insumos cae en un tramo y se le suma el margen de ese tramo sobre <strong>todo</strong> el costo (no es escalonado). Si el resultado
-        queda por debajo del precio mínimo, se cobra el precio mínimo. Un costo igual al tope de un tramo pertenece a ese tramo. Guardar acá NO modifica la regla actual: cierra la
-        vigente y crea una versión nueva -- las cotizaciones ya calculadas mantienen la regla con la que se calcularon.
-      </p>
-      <SimpleForm action={guardarReglaPrecioAction} submitLabel="Guardar nueva versión" className="max-w-2xl">
-        <div className="flex max-w-xs flex-col gap-1">
-          <label htmlFor="precioMinimo" className="text-sm font-medium">
-            Precio mínimo ($)
-          </label>
-          <input
-            id="precioMinimo"
-            name="precioMinimo"
-            type="text"
-            inputMode="decimal"
-            required
-            placeholder="Ej: 20000"
-            className="input"
-            value={precioMinimo}
-            onChange={(e) => setPrecioMinimo(e.target.value)}
-          />
-          <p className="text-xs text-zinc-500">0 = sin precio mínimo.</p>
-        </div>
+    <section className="panel" aria-labelledby="regla-precio-heading">
+      <div className="panel-header">
+        <h2 id="regla-precio-heading">{vigente === null ? "Configurar reglas de precio" : "Nueva versión de las reglas de precio"}</h2>
+        <p>
+          Cada preparación se cotiza sola: su costo de insumos cae en un tramo y se le suma el margen de ese tramo sobre <strong>todo</strong> el costo (no es escalonado). Si el resultado
+          queda por debajo del precio mínimo, se cobra el precio mínimo. Un costo igual al tope de un tramo pertenece a ese tramo.
+        </p>
+      </div>
+      <div className="panel-body">
+        <SimpleForm action={guardarReglaPrecioAction} submitLabel="Guardar nueva versión" className="max-w-2xl">
+          <p role="note" className="alert alert-info">
+            <Info aria-hidden />
+            <span>
+              Guardar acá NO modifica la regla actual: cierra la vigente y crea una versión nueva. Las cotizaciones ya calculadas mantienen la regla con la que se calcularon.
+            </span>
+          </p>
 
-        <fieldset className="flex flex-col gap-2">
-          <legend className="mb-1 text-sm font-medium">Tramos de margen por costo de la preparación</legend>
-          {filas.map((fila, i) => {
-            const esUltima = i === filas.length - 1;
-            const desde = i === 0 ? null : filas[i - 1]!.costoHasta.trim();
-            const rango = i === 0 ? "Desde $0" : `Más de $${desde || "…"}`;
-            return (
-              <div key={fila.key} className="flex flex-wrap items-end gap-2">
-                <span className="w-32 pb-2 text-sm text-zinc-600 dark:text-zinc-400">{rango}</span>
-                {esUltima ? (
-                  <>
-                    <input type="hidden" name="tramoCostoHasta" value="" />
-                    <span className="w-40 pb-2 text-sm text-zinc-600 dark:text-zinc-400">sin tope</span>
-                  </>
-                ) : (
-                  <div className="flex w-40 flex-col gap-1">
-                    <label htmlFor={`tramoCostoHasta-${fila.key}`} className="text-xs font-medium">
-                      Hasta ($, inclusive)
-                    </label>
-                    <input
-                      id={`tramoCostoHasta-${fila.key}`}
-                      name="tramoCostoHasta"
-                      type="text"
-                      inputMode="decimal"
-                      required
-                      placeholder="Ej: 100000"
-                      className="input"
-                      value={fila.costoHasta}
-                      onChange={(e) => actualizar(fila.key, { costoHasta: e.target.value })}
-                    />
+          <div className="field max-w-xs">
+            <label htmlFor="precioMinimo" className="field-label">
+              Precio mínimo ($)
+            </label>
+            <input
+              id="precioMinimo"
+              name="precioMinimo"
+              type="text"
+              inputMode="decimal"
+              required
+              placeholder="Ej: 20000"
+              className="input font-mono"
+              value={precioMinimo}
+              onChange={(e) => setPrecioMinimo(e.target.value)}
+            />
+            <p className="field-help">0 = sin precio mínimo.</p>
+          </div>
+
+          <fieldset className="flex flex-col">
+            <legend className="field-label mb-1">Tramos de margen por costo de la preparación</legend>
+            <div className="flex flex-col">
+              {filas.map((fila, i) => {
+                const esUltima = i === filas.length - 1;
+                const desde = i === 0 ? null : filas[i - 1]!.costoHasta.trim();
+                const rango = i === 0 ? "Desde $0" : `Más de $${desde || "…"}`;
+                return (
+                  <div key={fila.key} className="repeat-row">
+                    <span className="flex w-36 items-center gap-2 pb-2 text-[0.8125rem] text-zinc-600">
+                      <span className="index-badge" data-size="sm" aria-hidden>
+                        {i + 1}
+                      </span>
+                      <span className="font-mono">{rango}</span>
+                    </span>
+                    {esUltima ? (
+                      <>
+                        <input type="hidden" name="tramoCostoHasta" value="" />
+                        <span className="w-40 pb-2 text-[0.8125rem] text-zinc-500">sin tope</span>
+                      </>
+                    ) : (
+                      <div className="field w-40">
+                        <label htmlFor={`tramoCostoHasta-${fila.key}`} className="field-label">
+                          Hasta ($, inclusive)
+                        </label>
+                        <input
+                          id={`tramoCostoHasta-${fila.key}`}
+                          name="tramoCostoHasta"
+                          type="text"
+                          inputMode="decimal"
+                          required
+                          placeholder="Ej: 100000"
+                          className="input font-mono"
+                          value={fila.costoHasta}
+                          onChange={(e) => actualizar(fila.key, { costoHasta: e.target.value })}
+                        />
+                      </div>
+                    )}
+                    <div className="field w-32">
+                      <label htmlFor={`tramoMargen-${fila.key}`} className="field-label">
+                        Margen (%)
+                      </label>
+                      <input
+                        id={`tramoMargen-${fila.key}`}
+                        name="tramoMargen"
+                        type="text"
+                        inputMode="decimal"
+                        required
+                        placeholder="Ej: 100"
+                        className="input font-mono"
+                        value={fila.margen}
+                        onChange={(e) => actualizar(fila.key, { margen: e.target.value })}
+                      />
+                    </div>
+                    {filas.length > 1 ? (
+                      <button type="button" className="btn btn-danger-ghost btn-sm btn-icon mb-1" onClick={() => quitar(fila.key)} aria-label={`Quitar tramo ${i + 1}`} title="Quitar tramo">
+                        <Trash2 className="size-4" aria-hidden />
+                      </button>
+                    ) : null}
                   </div>
-                )}
-                <div className="flex w-32 flex-col gap-1">
-                  <label htmlFor={`tramoMargen-${fila.key}`} className="text-xs font-medium">
-                    Margen (%)
-                  </label>
-                  <input
-                    id={`tramoMargen-${fila.key}`}
-                    name="tramoMargen"
-                    type="text"
-                    inputMode="decimal"
-                    required
-                    placeholder="Ej: 100"
-                    className="input"
-                    value={fila.margen}
-                    onChange={(e) => actualizar(fila.key, { margen: e.target.value })}
-                  />
-                </div>
-                {filas.length > 1 ? (
-                  <button type="button" className="btn btn-secondary btn-sm mb-1" onClick={() => quitar(fila.key)} aria-label={`Quitar tramo ${i + 1}`}>
-                    Quitar
-                  </button>
-                ) : null}
-              </div>
-            );
-          })}
-          <div>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={agregar}>
+                );
+              })}
+            </div>
+            <button type="button" className="add-row-button mt-3" onClick={agregar}>
+              <Plus className="size-4" aria-hidden />
               Agregar tramo
             </button>
-          </div>
-        </fieldset>
-      </SimpleForm>
-    </div>
+          </fieldset>
+        </SimpleForm>
+      </div>
+    </section>
   );
 }

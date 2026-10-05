@@ -14,6 +14,8 @@ import { formatMatricula } from "@/modules/medicos/domain/medico";
 import { FilterForm } from "@/shared/ui/filter-form";
 import { BuscadorNavegable } from "@/shared/ui/buscador-navegable";
 import { PageHeader } from "@/shared/ui/page-header";
+import { SectionTabs } from "../../section-tabs";
+import { catalogosSections } from "../../nav-sections";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
 import { ToneBadge } from "@/shared/ui/status-badge";
@@ -60,6 +62,7 @@ export default async function MedicosPage({ searchParams }: MedicosPageProps) {
   return (
     <>
       <PageHeader
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Catálogos" }, { label: "Médicos" }]}
         title="Médicos"
         description="Prescriptores con su matrícula y jurisdicción."
         actions={
@@ -71,6 +74,8 @@ export default async function MedicosPage({ searchParams }: MedicosPageProps) {
           ) : null
         }
       />
+
+      <SectionTabs ariaLabel="Secciones de catálogos" links={catalogosSections(session)} />
 
       {puedeCrear && params.nuevo ? (
         <section className="panel mb-6 max-w-3xl" aria-labelledby="nuevo-medico-heading">

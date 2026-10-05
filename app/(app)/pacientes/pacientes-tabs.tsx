@@ -19,3 +19,20 @@ export function PacientesTabs() {
     />
   );
 }
+
+/**
+ * "Datos | Trayectoria" tabs of ONE paciente (`/pacientes/[id]/**`). Rendered by each page right under its header
+ * (the header needs the paciente's data, which the layout does not load). "Datos" is an exact match because its href
+ * is a prefix of the Trayectoria one. `id` is an opaque uuid (DP-24).
+ */
+export function PacienteTabs({ id }: { id: string }) {
+  return (
+    <SectionTabs
+      ariaLabel="Secciones del paciente"
+      links={[
+        { href: `/pacientes/${id}`, label: "Datos", exact: true },
+        { href: `/pacientes/${id}/trayectoria`, label: "Trayectoria" },
+      ]}
+    />
+  );
+}

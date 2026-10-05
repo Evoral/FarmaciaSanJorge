@@ -8,21 +8,30 @@
  * `modules/pacientes/ui/recurrentes-tabla.tsx`). Access is the parent layout's
  * `pacientes.gestionar` guard (and the use case's own).
  *
+ * The ventana filter is a strip of tabs with the use case's own per-window
+ * counts (`conteo`): the number the user reads is the tab they click.
+ *
  * `/pacientes/recurrentes` is a STATIC segment next to the dynamic
  * `/pacientes/[id]`: Next.js matches static segments first, so `recurrentes` is
  * never read as an `[id]` (and never reaches that layout's uuid guard).
  */
 import Link from "next/link";
+import { CalendarClock, Repeat } from "lucide-react";
 import { listPacientesRecurrentes } from "@/modules/pacientes/application/list-pacientes-recurrentes";
 import { OCURRENCIAS_MINIMAS, PAGE_MAX_RECURRENTES, VENTANA_MESES } from "@/modules/pacientes/domain/recurrentes";
 import type { VentanaRecurrentes } from "@/modules/pacientes/domain/recurrentes";
 import { RecurrentesTabla } from "@/modules/pacientes/ui/recurrentes-tabla";
-import { FilterForm } from "@/shared/ui/filter-form";
+import { PageHeader } from "@/shared/ui/page-header";
+import { StatusSummary } from "@/shared/ui/status-summary";
+import { EmptyState } from "@/shared/ui/empty-state";
+import { Pagination } from "@/shared/ui/pagination";
 import { PacientesTabs } from "../pacientes-tabs";
 
 interface RecurrentesPageProps {
   searchParams: Promise<{ ventana?: string; page?: string }>;
 }
+
+const numberFormat = new Intl.NumberFormat("es-AR");
 
 export default async function PacientesRecurrentesPage({ searchParams }: RecurrentesPageProps) {
   const params = await searchParams;
@@ -42,58 +51,68 @@ export default async function PacientesRecurrentesPage({ searchParams }: Recurre
 
   const regla = `Aparecen los pacientes que pidieron la misma fórmula ${OCURRENCIAS_MINIMAS} o más veces en los últimos ${VENTANA_MESES} meses.`;
   const masAdelante = conteo.todos - conteo.proximos;
-  const mensajeVacio =
-    ventana === "proximos" && masAdelante > 0
-      ? `No hay pacientes con el pedido atrasado o previsto para esta semana. ${masAdelante} más con fecha posterior: seleccione «Todos» en el filtro. ${regla}`
-      : regla;
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Pacientes</h1>
-      </div>
+    <>
+      <PageHeader
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Pacientes", href: "/pacientes" }, { label: "Recurrentes" }]}
+        title="Pacientes"
+        description="Datos de contacto de cada paciente y el recorrido de sus recetas."
+      />
 
       <PacientesTabs />
 
-      <FilterForm className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtro de pacientes recurrentes" hasActiveFilters={ventana === "todos"}>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="ventana" className="text-sm font-medium">
-            Mostrar
-          </label>
-          <select id="ventana" name="ventana" defaultValue={ventana === "todos" ? "todos" : ""} className="input">
-            <option value="">Próximos (atrasados y de esta semana)</option>
-            <option value="todos">Todos (incluye fechas posteriores)</option>
-          </select>
+      <div className="mb-4">
+        <StatusSummary
+          label="Filtrar por fecha del próximo pedido"
+          unit={["pedido", "pedidos"]}
+          all={{ label: "Todos", count: conteo.todos, href: "/pacientes/recurrentes?ventana=todos", active: ventana === "todos" }}
+          items={[
+            {
+              key: "proximos",
+              label: "Próximos",
+              count: conteo.proximos,
+              href: "/pacientes/recurrentes",
+              active: ventana === "proximos",
+              tone: "warn",
+            },
+          ]}
+          note={regla}
+        />
+      </div>
+
+      <div className="list-panel">
+        <div className="list-toolbar">
+          <p role="status">
+            <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(paginacion.total)}</span>{" "}
+            {paginacion.total === 1 ? "pedido recurrente" : "pedidos recurrentes"}
+            <span className="text-zinc-500">{ventana === "proximos" ? " atrasados o de esta semana" : ""}</span>
+          </p>
+          <p className="hidden text-xs text-zinc-500 md:block">WhatsApp solo para quienes aceptaron recordatorios y tienen un teléfono válido.</p>
         </div>
-      </FilterForm>
 
-      <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
-        {paginacion.total} pedido{paginacion.total === 1 ? "" : "s"} recurrente{paginacion.total === 1 ? "" : "s"}. El WhatsApp solo se ofrece a quienes aceptaron recordatorios y tienen un teléfono válido.
-      </p>
+        {filas.length === 0 ? (
+          ventana === "proximos" && masAdelante > 0 ? (
+            <EmptyState
+              icon={<CalendarClock className="size-5" />}
+              title="Nada atrasado ni previsto para esta semana"
+              description={`${numberFormat.format(masAdelante)} ${masAdelante === 1 ? "pedido más tiene" : "pedidos más tienen"} fecha posterior.`}
+              action={
+                <Link href="/pacientes/recurrentes?ventana=todos" scroll={false} className="btn btn-secondary">
+                  Ver todos
+                </Link>
+              }
+            />
+          ) : (
+            <EmptyState icon={<Repeat className="size-5" />} title="Todavía no hay pedidos recurrentes" description={regla} />
+          )
+        ) : (
+          <RecurrentesTabla filas={filas} zonaHoraria={zonaHoraria} />
+        )}
 
-      <RecurrentesTabla filas={filas} zonaHoraria={zonaHoraria} mensajeVacio={mensajeVacio} />
-
-      {paginacion.totalPages > 1 ? (
-        <nav aria-label="Paginación de pacientes recurrentes" className="mt-4 flex items-center gap-2 text-sm">
-          <Link
-            href={pageHref(Math.max(1, paginacion.page - 1))}
-            aria-disabled={paginacion.page <= 1}
-            className={paginacion.page <= 1 ? "pointer-events-none text-zinc-400" : "underline"}
-          >
-            Anterior
-          </Link>
-          <span>
-            Página {paginacion.page} de {paginacion.totalPages}
-          </span>
-          <Link
-            href={pageHref(Math.min(paginacion.totalPages, paginacion.page + 1))}
-            aria-disabled={paginacion.page >= paginacion.totalPages}
-            className={paginacion.page >= paginacion.totalPages ? "pointer-events-none text-zinc-400" : "underline"}
-          >
-            Siguiente
-          </Link>
-        </nav>
-      ) : null}
-    </div>
+        <p className="border-t border-zinc-100 px-4 py-2.5 text-xs text-zinc-500 md:hidden">WhatsApp solo para quienes aceptaron recordatorios y tienen un teléfono válido.</p>
+        <Pagination page={paginacion.page} pageSize={paginacion.pageSize} total={paginacion.total} hrefFor={pageHref} label="Paginación de pacientes recurrentes" />
+      </div>
+    </>
   );
 }

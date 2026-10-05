@@ -9,7 +9,7 @@ import type { ReactNode } from "react";
 
 export interface Breadcrumb {
   label: string;
-  /** Omitted for the current page (the last crumb). */
+  /** Omitted for the current page (the last crumb) and for a grouping with no page of its own (e.g. "Catálogos"). */
   href?: string;
 }
 
@@ -34,7 +34,7 @@ export function PageHeader({ title, description, breadcrumbs, actions }: PageHea
                   {crumb.href ? (
                     <Link href={crumb.href}>{crumb.label}</Link>
                   ) : (
-                    <span aria-current="page" className="text-zinc-700">
+                    <span aria-current={i === breadcrumbs.length - 1 ? "page" : undefined} className={i === breadcrumbs.length - 1 ? "text-zinc-700" : undefined}>
                       {crumb.label}
                     </span>
                   )}

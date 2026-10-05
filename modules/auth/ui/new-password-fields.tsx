@@ -53,8 +53,8 @@ export function NewPasswordFields({
 
   return (
     <>
-      <div className="flex flex-col gap-1">
-        <label htmlFor={name} className="text-sm font-medium">
+      <div className="field">
+        <label htmlFor={name} className="field-label">
           {label}
         </label>
         <input
@@ -70,8 +70,8 @@ export function NewPasswordFields({
         />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor={repeatName} className="text-sm font-medium">
+      <div className="field">
+        <label htmlFor={repeatName} className="field-label">
           {repeatLabel}
         </label>
         <input
@@ -88,13 +88,13 @@ export function NewPasswordFields({
       </div>
 
       {started ? (
-        <ul id={checklistId} aria-live="polite" className="flex flex-col gap-1 text-sm">
+        <ul id={checklistId} aria-live="polite" className="flex flex-col gap-1 text-xs">
           {visibleChecks.map((check) => (
             <li
               key={check.id}
-              className={`flex items-center gap-2 ${check.ok ? "text-green-700 dark:text-green-400" : "text-zinc-500 dark:text-zinc-400"}`}
+              className={`flex items-center gap-2 ${check.ok ? "text-emerald-700" : "text-zinc-500"}`}
             >
-              {check.ok ? <Check aria-hidden className="h-4 w-4 shrink-0" /> : <X aria-hidden className="h-4 w-4 shrink-0" />}
+              {check.ok ? <Check aria-hidden className="size-3.5 shrink-0" /> : <X aria-hidden className="size-3.5 shrink-0" />}
               <span>
                 {check.label}
                 <span className="sr-only">{check.ok ? " (cumplido)" : " (pendiente)"}</span>

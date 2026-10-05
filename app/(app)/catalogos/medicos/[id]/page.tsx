@@ -27,7 +27,7 @@ export default async function MedicoDetallePage({ params }: MedicoDetallePagePro
   return (
     <>
       <PageHeader
-        breadcrumbs={[{ label: "Catálogos" }, { label: "Médicos", href: "/catalogos/medicos" }, { label: nombre }]}
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Catálogos" }, { label: "Médicos", href: "/catalogos/medicos" }, { label: nombre }]}
         title={
           <span className="flex flex-wrap items-center gap-3">
             {nombre}

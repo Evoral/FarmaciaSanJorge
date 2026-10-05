@@ -1,17 +1,31 @@
-/** `/reportes/recetas` (FASE 13 point 13.4). Recetas por estado: conteos + listado filtrado (estado, fecha de ingreso), con exportación CSV auditada. */
+/**
+ * `/reportes/recetas` (FASE 13 point 13.4). Recetas por estado: conteos + listado filtrado (estado, fecha de ingreso),
+ * con exportación CSV auditada. The per-estado counts are the estado filter itself (`StatusSummary` tabs, same as
+ * `/recetas`); the fecha de ingreso range lives in the filter bar.
+ */
 import Link from "next/link";
+import { ClipboardList, Download, SearchX, X } from "lucide-react";
 import { reporteRecetasPorEstado, listRecetasReporte } from "@/modules/recetas/application/reporte-recetas";
-import { ESTADOS_RECETA } from "@/modules/recetas/domain/receta";
+import { ESTADOS_RECETA, esEstadoTerminal } from "@/modules/recetas/domain/receta";
 import { DateInput } from "@/shared/ui/date-input";
 import { FilterForm } from "@/shared/ui/filter-form";
 import { ESTADO_RECETA_LABELS } from "@/shared/labels/enum-labels";
+import { formatFechaIso } from "@/shared/format/fecha";
+import { PageHeader } from "@/shared/ui/page-header";
+import { StatusSummary } from "@/shared/ui/status-summary";
+import { StatusBadge, estadoTone } from "@/shared/ui/status-badge";
+import { EmptyState } from "@/shared/ui/empty-state";
+import { Pagination } from "@/shared/ui/pagination";
 
 const PAGE_SIZE = 25;
 
+type FilterParam = "estado" | "ingresoDesde" | "ingresoHasta";
 
 interface ReporteRecetasPageProps {
   searchParams: Promise<{ estado?: string; ingresoDesde?: string; ingresoHasta?: string; page?: string }>;
 }
+
+const numberFormat = new Intl.NumberFormat("es-AR");
 
 export default async function ReporteRecetasPage({ searchParams }: ReporteRecetasPageProps) {
   const params = await searchParams;
@@ -22,7 +36,16 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
     reporteRecetasPorEstado(),
     listRecetasReporte({ estado, ingresoDesde: params.ingresoDesde || undefined, ingresoHasta: params.ingresoHasta || undefined, page, pageSize: PAGE_SIZE }),
   ]);
-  const totalPages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
+  const totalRecetas = conteos.reduce((sum, c) => sum + c.cantidad, 0);
+
+  /** The report's URL with some params replaced ("" removes one); `page` always resets. */
+  function filtersHref(cambios: Partial<Record<FilterParam, string>>): string {
+    const actuales: Record<FilterParam, string> = { estado: params.estado ?? "", ingresoDesde: params.ingresoDesde ?? "", ingresoHasta: params.ingresoHasta ?? "" };
+    const qs = new URLSearchParams();
+    for (const [key, value] of Object.entries({ ...actuales, ...cambios })) if (value) qs.set(key, value);
+    const query = qs.toString();
+    return query ? `/reportes/recetas?${query}` : "/reportes/recetas";
+  }
 
   function pageHref(targetPage: number): string {
     const qs = new URLSearchParams();
@@ -41,115 +64,161 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
     return `/api/recetas/reporte/export/csv?${qs.toString()}`;
   }
 
-  return (
-    <div className="page">
-      <div className="mb-2">
-        <Link href="/reportes" className="text-sm underline">
-          ← Volver a reportes
-        </Link>
-      </div>
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Recetas por estado</h1>
-        <a href={exportHref()} className="btn btn-secondary">
-          Exportar CSV
-        </a>
-      </div>
+  const chips: { key: FilterParam; label: string; value: string }[] = [];
+  if (params.ingresoDesde) chips.push({ key: "ingresoDesde", label: "Ingreso desde", value: formatFechaIso(params.ingresoDesde) });
+  if (params.ingresoHasta) chips.push({ key: "ingresoHasta", label: "Ingreso hasta", value: formatFechaIso(params.ingresoHasta) });
+  const hayFiltros = Boolean(estado) || chips.length > 0;
 
-      <section aria-label="Conteo por estado" className="mb-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {conteos.map((c) => (
-          <div key={c.estado} className="card p-4 text-sm">
-            <p className="text-zinc-500">{ESTADO_RECETA_LABELS[c.estado]}</p>
-            <p className="text-lg font-semibold">{c.cantidad}</p>
+  return (
+    <div className="page list-view">
+      <PageHeader
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Reportes", href: "/reportes" }, { label: "Recetas por estado" }]}
+        title="Recetas por estado"
+        description="Cuántas recetas hay en cada estado y el listado filtrado por fecha de ingreso."
+        actions={
+          <a href={exportHref()} className="btn btn-secondary">
+            <Download className="size-4" aria-hidden />
+            Exportar CSV
+          </a>
+        }
+      />
+
+      <StatusSummary
+        label="Filtrar por estado"
+        unit={["receta", "recetas"]}
+        note={chips.length > 0 ? "Los totales por estado no aplican las fechas." : undefined}
+        all={{ label: "Todas", count: totalRecetas, href: filtersHref({ estado: "" }), active: !estado }}
+        items={conteos.map((c) => ({
+          key: c.estado,
+          label: ESTADO_RECETA_LABELS[c.estado],
+          count: c.cantidad,
+          // Clicking the active estado again clears it.
+          href: filtersHref({ estado: c.estado === estado ? "" : c.estado }),
+          active: c.estado === estado,
+          tone: estadoTone(c.estado),
+          secondary: esEstadoTerminal(c.estado),
+        }))}
+      />
+
+      <section aria-label="Filtros" className="mb-4">
+        {/* The estado is chosen in the summary above; this hidden field keeps it while the dates change. */}
+        <FilterForm className="filter-bar" aria-label="Filtros de recetas por estado" hasActiveFilters={false}>
+          <input type="hidden" name="estado" value={estado ?? ""} />
+          <div className="field">
+            <span id="ingreso-label" className="field-label">
+              Fecha de ingreso
+            </span>
+            <div className="range-field" role="group" aria-labelledby="ingreso-label">
+              <label htmlFor="ingresoDesde" className="sr-only">
+                Ingreso desde
+              </label>
+              <DateInput id="ingresoDesde" name="ingresoDesde" defaultValue={params.ingresoDesde ?? ""} />
+              <span className="range-field-sep" aria-hidden>
+                a
+              </span>
+              <label htmlFor="ingresoHasta" className="sr-only">
+                Ingreso hasta
+              </label>
+              <DateInput id="ingresoHasta" name="ingresoHasta" defaultValue={params.ingresoHasta ?? ""} />
+            </div>
           </div>
-        ))}
+        </FilterForm>
+
+        {chips.length > 0 ? (
+          <div className="filter-chips" role="group" aria-label="Filtros activos">
+            {chips.map((chip) => (
+              <span key={chip.key} className="chip">
+                {chip.label}: <strong>{chip.value}</strong>
+                <Link href={filtersHref({ [chip.key]: "" })} scroll={false} className="chip-remove" aria-label={`Quitar filtro ${chip.label}`}>
+                  <X className="size-3" aria-hidden />
+                </Link>
+              </span>
+            ))}
+            {hayFiltros ? (
+              <Link href="/reportes/recetas" scroll={false} className="btn btn-ghost btn-sm">
+                Limpiar filtros
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
-      <FilterForm
-        className="mb-6 flex flex-wrap items-end gap-3"
-        aria-label="Filtros de recetas por estado"
-        hasActiveFilters={Boolean(params.estado || params.ingresoDesde || params.ingresoHasta)}
-      >
-        <div className="flex flex-col gap-1">
-          <label htmlFor="estado" className="text-sm font-medium">
-            Estado
-          </label>
-          <select id="estado" name="estado" defaultValue={params.estado ?? ""} className="input">
-            <option value="">Todos</option>
-            {Object.entries(ESTADO_RECETA_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="ingresoDesde" className="text-sm font-medium">
-            Ingreso desde
-          </label>
-          <DateInput id="ingresoDesde" name="ingresoDesde" defaultValue={params.ingresoDesde ?? ""} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="ingresoHasta" className="text-sm font-medium">
-            Ingreso hasta
-          </label>
-          <DateInput id="ingresoHasta" name="ingresoHasta" defaultValue={params.ingresoHasta ?? ""} />
-        </div>
-      </FilterForm>
+      <div className="list-region">
+        <span className="link-pending" aria-hidden />
+        <div className="list-panel">
+          <div className="list-toolbar">
+            <p role="status">
+              <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(result.total)}</span> {result.total === 1 ? "receta" : "recetas"}
+              {estado ? <span className="text-zinc-500"> · {ESTADO_RECETA_LABELS[estado]}</span> : null}
+            </p>
+          </div>
 
-      <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
-        {result.total} receta{result.total === 1 ? "" : "s"} encontrada{result.total === 1 ? "" : "s"}.
-      </p>
-
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th scope="col" className="px-3 py-2 font-medium">Nº</th>
-              <th scope="col" className="px-3 py-2 font-medium">Ingreso</th>
-              <th scope="col" className="px-3 py-2 font-medium">Paciente</th>
-              <th scope="col" className="px-3 py-2 font-medium">Médico</th>
-              <th scope="col" className="px-3 py-2 font-medium">Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.items.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-zinc-500">
-                  No se encontraron recetas con estos filtros.
-                </td>
-              </tr>
+          {result.items.length === 0 ? (
+            hayFiltros ? (
+              <EmptyState
+                icon={<SearchX className="size-5" />}
+                title="Sin resultados"
+                description="Ninguna receta coincide con los filtros aplicados."
+                action={
+                  <Link href="/reportes/recetas" scroll={false} className="btn btn-secondary">
+                    Limpiar filtros
+                  </Link>
+                }
+              />
             ) : (
-              result.items.map((r) => (
-                <tr key={r.id}>
-                  <td className="px-3 py-2">{r.numeroInterno}</td>
-                  <td className="px-3 py-2">{new Date(r.fechaIngreso).toLocaleDateString("es-AR")}</td>
-                  <td className="px-3 py-2">
-                    {r.pacienteNombre} {r.pacienteApellido}
-                  </td>
-                  <td className="px-3 py-2">
-                    {r.medicoApellido}, {r.medicoNombre}
-                  </td>
-                  <td className="px-3 py-2">{ESTADO_RECETA_LABELS[r.estado]}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              <EmptyState icon={<ClipboardList className="size-5" />} title="Todavía no hay recetas" />
+            )
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col" className="px-3 py-2">
+                      Nº
+                    </th>
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">
+                      Ingreso
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      Paciente
+                    </th>
+                    <th scope="col" className="hidden px-3 py-2 md:table-cell">
+                      Médico
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      Estado
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.items.map((r) => (
+                    <tr key={r.id}>
+                      <td className="whitespace-nowrap px-3 py-2.5 font-mono font-semibold">{r.numeroInterno}</td>
+                      <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono tabular-nums sm:table-cell">{new Date(r.fechaIngreso).toLocaleDateString("es-AR")}</td>
+                      <td className="px-3 py-2.5">
+                        <span className="font-medium text-zinc-900">
+                          {r.pacienteNombre} {r.pacienteApellido}
+                        </span>
+                        <span className="block text-xs text-zinc-500 md:hidden">
+                          {r.medicoApellido}, {r.medicoNombre}
+                        </span>
+                      </td>
+                      <td className="hidden px-3 py-2.5 md:table-cell">
+                        {r.medicoApellido}, {r.medicoNombre}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <StatusBadge estado={r.estado} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-      {totalPages > 1 ? (
-        <nav aria-label="Paginación de recetas por estado" className="mt-4 flex items-center gap-2 text-sm">
-          <Link href={pageHref(Math.max(1, page - 1))} aria-disabled={page <= 1} className={page <= 1 ? "pointer-events-none text-zinc-400" : "underline"}>
-            Anterior
-          </Link>
-          <span>
-            Página {page} de {totalPages}
-          </span>
-          <Link href={pageHref(Math.min(totalPages, page + 1))} aria-disabled={page >= totalPages} className={page >= totalPages ? "pointer-events-none text-zinc-400" : "underline"}>
-            Siguiente
-          </Link>
-        </nav>
-      ) : null}
+          <Pagination page={page} pageSize={PAGE_SIZE} total={result.total} hrefFor={pageHref} label="Paginación de recetas por estado" />
+        </div>
+      </div>
     </div>
   );
 }

@@ -7,10 +7,11 @@
  * the parent layout's `pacientes.gestionar` guard; the optional blocks and
  * links are decided by the use case from the session's other permisos.
  * Recetas render as a `table.data-table` (same look as the other lists) whose
- * rows expand to the full journey (`FilaDesplegable`).
+ * rows expand to the full journey (`FilaDesplegable`). The paciente's "Datos |
+ * Trayectoria" tabs sit right under the header (`PacienteTabs`).
  */
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FileText } from "lucide-react";
 import { getTrayectoriaPaciente } from "@/modules/pacientes/application/get-trayectoria-paciente";
 import { PAGE_MAX_TRAYECTORIA } from "@/modules/pacientes/domain/trayectoria";
 import { TrayectoriaEncabezado } from "@/modules/pacientes/ui/trayectoria-encabezado";
@@ -18,11 +19,16 @@ import { TrayectoriaRecetaCeldas, TrayectoriaRecetaDetalle, columnasTablaRecetas
 import { TrayectoriaResumen } from "@/modules/pacientes/ui/trayectoria-resumen";
 import { uuid } from "@/shared/validation";
 import { FilaDesplegable } from "@/shared/ui/fila-desplegable";
+import { EmptyState } from "@/shared/ui/empty-state";
+import { Pagination } from "@/shared/ui/pagination";
+import { PacienteTabs } from "../../pacientes-tabs";
 
 interface TrayectoriaPageProps {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ page?: string }>;
 }
+
+const numberFormat = new Intl.NumberFormat("es-AR");
 
 export default async function TrayectoriaPacientePage({ params, searchParams }: TrayectoriaPageProps) {
   const { id } = await params;
@@ -41,46 +47,59 @@ export default async function TrayectoriaPacientePage({ params, searchParams }: 
   const pageHref = (target: number) => `/pacientes/${id}/trayectoria?page=${target}`;
 
   return (
-    <div>
+    <>
       <TrayectoriaEncabezado paciente={paciente} />
+      <PacienteTabs id={id} />
       <TrayectoriaResumen resumen={resumen} zonaHoraria={zonaHoraria} />
 
-      <section aria-labelledby="trayectoria-recetas">
-        <h2 id="trayectoria-recetas" className="mb-3 text-lg font-medium">
-          Recetas
-        </h2>
+      <section aria-labelledby="trayectoria-recetas" className="list-panel">
+        <div className="list-toolbar">
+          <h2 id="trayectoria-recetas" className="text-[0.9375rem] font-semibold text-zinc-900">
+            Recetas
+          </h2>
+          <p role="status" className="text-xs">
+            <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(paginacion.total)}</span> {paginacion.total === 1 ? "receta" : "recetas"}
+            <span className="hidden sm:inline"> · tocá una fila para ver su recorrido</span>
+          </p>
+        </div>
 
-        <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
-          {paginacion.total} receta{paginacion.total === 1 ? "" : "s"}.
-        </p>
-
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  <span className="sr-only">Detalle</span>
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">Receta Nº</th>
-                <th scope="col" className="px-3 py-2 font-medium">Ingreso</th>
-                <th scope="col" className="px-3 py-2 font-medium">Qué pide</th>
-                <th scope="col" className="px-3 py-2 font-medium">Médico</th>
-                <th scope="col" className="px-3 py-2 font-medium">Estado</th>
-                <th scope="col" className="px-3 py-2 font-medium">Etapa</th>
-                {acceso.presupuesto ? (
-                  <th scope="col" className="px-3 py-2 font-medium">Presupuesto</th>
-                ) : null}
-              </tr>
-            </thead>
-            <tbody>
-              {recetas.length === 0 ? (
+        {recetas.length === 0 ? (
+          <EmptyState icon={<FileText className="size-5" />} title="Sin recetas" description="Este paciente todavía no tiene recetas registradas." />
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <td colSpan={colSpan} className="px-3 py-6 text-center text-zinc-500">
-                    Este paciente todavía no tiene recetas registradas.
-                  </td>
+                  <th scope="col" className="w-8 px-3 py-2">
+                    <span className="sr-only">Detalle</span>
+                  </th>
+                  <th scope="col" className="px-3 py-2">
+                    Nº
+                  </th>
+                  <th scope="col" className="hidden px-3 py-2 sm:table-cell">
+                    Ingreso
+                  </th>
+                  <th scope="col" className="px-3 py-2">
+                    Qué pide
+                  </th>
+                  <th scope="col" className="hidden px-3 py-2 md:table-cell">
+                    Médico
+                  </th>
+                  <th scope="col" className="px-3 py-2">
+                    Estado
+                  </th>
+                  <th scope="col" className="hidden px-3 py-2 lg:table-cell">
+                    Etapa
+                  </th>
+                  {acceso.presupuesto ? (
+                    <th scope="col" className="hidden px-3 py-2 text-right lg:table-cell">
+                      Presupuesto
+                    </th>
+                  ) : null}
                 </tr>
-              ) : (
-                recetas.map((receta) => (
+              </thead>
+              <tbody>
+                {recetas.map((receta) => (
                   <FilaDesplegable
                     key={receta.id}
                     id={receta.id}
@@ -89,38 +108,14 @@ export default async function TrayectoriaPacientePage({ params, searchParams }: 
                     celdas={<TrayectoriaRecetaCeldas receta={receta} acceso={acceso} zonaHoraria={zonaHoraria} />}
                     detalle={<TrayectoriaRecetaDetalle receta={receta} acceso={acceso} zonaHoraria={zonaHoraria} />}
                   />
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-        {paginacion.totalPages > 1 ? (
-          <nav aria-label="Paginación de recetas del paciente" className="mt-4 flex items-center gap-2 text-sm">
-            {paginacion.page <= 1 ? (
-              <span aria-disabled="true" className="text-zinc-400">
-                Anterior
-              </span>
-            ) : (
-              <Link href={pageHref(paginacion.page - 1)} className="underline">
-                Anterior
-              </Link>
-            )}
-            <span>
-              Página {paginacion.page} de {paginacion.totalPages}
-            </span>
-            {paginacion.page >= paginacion.totalPages ? (
-              <span aria-disabled="true" className="text-zinc-400">
-                Siguiente
-              </span>
-            ) : (
-              <Link href={pageHref(paginacion.page + 1)} className="underline">
-                Siguiente
-              </Link>
-            )}
-          </nav>
-        ) : null}
+        <Pagination page={paginacion.page} pageSize={paginacion.pageSize} total={paginacion.total} hrefFor={pageHref} label="Paginación de recetas del paciente" />
       </section>
-    </div>
+    </>
   );
 }

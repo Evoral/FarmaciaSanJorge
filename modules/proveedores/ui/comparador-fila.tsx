@@ -17,6 +17,7 @@
  * `formatearCostoUnitario` only formats them.
  */
 import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 import { formatCantidad, formatNumero } from "@/shared/format/cantidad";
 import type { CatalogoUnidades } from "@/shared/format/cantidad";
 import { formatFecha } from "@/shared/format/fecha";
@@ -37,7 +38,7 @@ export function etiquetaProveedorComparador(fila: FilaProveedorComparador): stri
 const dinero = (valor: string) => `$\u00a0${formatearCostoUnitario(valor)}`;
 
 function Sin() {
-  return <span className="text-zinc-500">—</span>;
+  return <span className="text-zinc-400">-</span>;
 }
 
 function InsigniasProveedor({ fila }: { fila: FilaProveedorComparador }) {
@@ -69,52 +70,53 @@ function InsigniasProveedor({ fila }: { fila: FilaProveedorComparador }) {
 
 function BarraCosto({ porcentaje, deBaja }: { porcentaje: string; deBaja: boolean }) {
   return (
-    <div aria-hidden="true" className="mt-1 h-1.5 w-full min-w-24 overflow-hidden rounded bg-zinc-100 dark:bg-zinc-800">
-      <div className={`h-full rounded ${deBaja ? "bg-zinc-400 dark:bg-zinc-600" : "bg-(--color-brand)"}`} style={{ width: `${porcentaje}%` }} />
+    <div aria-hidden="true" className="mt-1.5 h-1 w-full min-w-24 overflow-hidden rounded-full bg-zinc-100">
+      <div className={`h-full rounded-full ${deBaja ? "bg-zinc-300" : "bg-(--color-brand)"}`} style={{ width: `${porcentaje}%` }} />
     </div>
   );
 }
 
 /** The summary `<td>`s of a proveedor row, in the table's column order (after the toggle cell). */
 export function ComparadorCeldas({ fila, zonaHoraria }: { fila: FilaProveedorComparador; zonaHoraria: string }) {
-  const apagada = fila.deBaja ? "text-zinc-500 dark:text-zinc-500" : "";
+  const apagada = fila.deBaja ? "text-zinc-500" : "";
   const diferencia = fila.diferencia;
 
   return (
     <>
-      <td className={`min-w-0 px-3 py-2 ${apagada}`}>
+      <td className={`min-w-0 px-3 py-2.5 ${apagada}`}>
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="min-w-0 font-medium break-words">{fila.razonSocial}</span>
+          <span className={`min-w-0 break-words font-medium ${fila.deBaja ? "" : "text-zinc-900"}`}>{fila.razonSocial}</span>
           <InsigniasProveedor fila={fila} />
         </div>
       </td>
-      <td className={`px-3 py-2 ${apagada}`}>
+      <td className={`px-3 py-2.5 text-right ${apagada}`}>
         {fila.ultimoCosto !== null ? (
           <>
-            <span className="whitespace-nowrap font-medium">{dinero(fila.ultimoCosto)}</span>
+            <span className="whitespace-nowrap font-mono font-semibold tabular-nums">{dinero(fila.ultimoCosto)}</span>
             {fila.barraPorcentaje !== null ? <BarraCosto porcentaje={fila.barraPorcentaje} deBaja={fila.deBaja} /> : null}
           </>
         ) : (
           <Sin />
         )}
       </td>
-      <td className={`px-3 py-2 whitespace-nowrap ${apagada}`}>{fila.ultimaCompra ? formatFecha(fila.ultimaCompra, zonaHoraria) : <Sin />}</td>
-      <td className={`px-3 py-2 whitespace-nowrap ${apagada}`}>
+      <td className={`hidden whitespace-nowrap px-3 py-2.5 font-mono tabular-nums sm:table-cell ${apagada}`}>{fila.ultimaCompra ? formatFecha(fila.ultimaCompra, zonaHoraria) : <Sin />}</td>
+      <td className={`hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums md:table-cell ${apagada}`}>
         {diferencia ? (
           <>
-            +{dinero(diferencia.monto)} <span className="text-zinc-500">(+{formatNumero(diferencia.porcentaje, 2)} %)</span>
+            <span>+{dinero(diferencia.monto)}</span>{" "}
+            <span className="text-xs text-zinc-500">(+{formatNumero(diferencia.porcentaje, 2)} %)</span>
           </>
         ) : (
           <Sin />
         )}
       </td>
-      <td className={`px-3 py-2 whitespace-nowrap ${apagada}`}>{fila.promedioPonderado !== null ? dinero(fila.promedioPonderado) : <Sin />}</td>
-      <td className={`px-3 py-2 whitespace-nowrap ${apagada}`}>
+      <td className={`hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums lg:table-cell ${apagada}`}>{fila.promedioPonderado !== null ? dinero(fila.promedioPonderado) : <Sin />}</td>
+      <td className={`hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums xl:table-cell ${apagada}`}>
         {fila.costoMin !== null && fila.costoMax !== null ? `${dinero(fila.costoMin)} – ${dinero(fila.costoMax)}` : <Sin />}
       </td>
-      <td className={`px-3 py-2 whitespace-nowrap ${apagada}`}>
+      <td className={`hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums sm:table-cell ${apagada}`}>
         {fila.partidasTotal}
-        {fila.partidasCostoCero > 0 ? <span className="block text-xs text-zinc-500">{fila.partidasCostoCero} con costo $&nbsp;0</span> : null}
+        {fila.partidasCostoCero > 0 ? <span className="block font-sans text-xs text-zinc-500">{fila.partidasCostoCero} con costo <span className="block text-xs text-zinc-500">{fila.partidasCostoCero} con costo $&nbsp;0</span>nbsp;0</span> : null}
       </td>
     </>
   );
@@ -136,16 +138,16 @@ export function ComparadorDetalle({
 
   return (
     <div className="min-w-0">
-      <h3 className="mb-2 text-sm font-semibold">Partidas de {fila.razonSocial}</h3>
+      <h3 className="mb-2 text-[0.8125rem] font-semibold text-zinc-900">Partidas de {fila.razonSocial}</h3>
       <div className="table-wrap">
         <table className="data-table">
           <thead>
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Ingreso</th>
               <th scope="col" className="px-3 py-2 font-medium">Lote</th>
-              <th scope="col" className="px-3 py-2 font-medium">Cantidad inicial</th>
-              <th scope="col" className="px-3 py-2 font-medium">Costo por {comparacion.unidadMostrada.simbolo}</th>
-              <th scope="col" className="px-3 py-2 font-medium">Observación</th>
+              <th scope="col" className="hidden px-3 py-2 text-right font-medium sm:table-cell">Cantidad inicial</th>
+              <th scope="col" className="px-3 py-2 text-right font-medium">Costo por {comparacion.unidadMostrada.simbolo}</th>
+              <th scope="col" className="hidden px-3 py-2 font-medium md:table-cell">Observación</th>
               {linkPartida ? (
                 <th scope="col" className="px-3 py-2 font-medium">
                   <span className="sr-only">Partida</span>
@@ -156,13 +158,13 @@ export function ComparadorDetalle({
           <tbody>
             {fila.partidas.map((partida) => (
               <tr key={partida.id} className="align-top">
-                <td className="px-3 py-2 whitespace-nowrap">{formatFecha(partida.fechaIngreso, comparacion.zonaHoraria)}</td>
-                <td className="px-3 py-2 whitespace-nowrap">{partida.lote}</td>
-                <td className="px-3 py-2">
+                <td className="whitespace-nowrap px-3 py-2 font-mono tabular-nums">{formatFecha(partida.fechaIngreso, comparacion.zonaHoraria)}</td>
+                <td className="whitespace-nowrap px-3 py-2 font-mono">{partida.lote}</td>
+                <td className="hidden whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums sm:table-cell">
                   <Cantidad valor={formatCantidad(partida.cantidadInicial, unidadBase, catalogo)} />
                 </td>
-                <td className="px-3 py-2 whitespace-nowrap">{dinero(partida.costo)}</td>
-                <td className="px-3 py-2">
+                <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">{dinero(partida.costo)}</td>
+                <td className="hidden px-3 py-2 md:table-cell">
                   <span className="flex flex-wrap items-center gap-1">
                     {partida.atipica ? (
                       <ToneBadge tone="warn" title="Costo muy distinto de la mediana de la droga en el período">
@@ -175,8 +177,9 @@ export function ComparadorDetalle({
                 </td>
                 {linkPartida ? (
                   <td className="px-3 py-2 text-right whitespace-nowrap">
-                    <Link href={`/stock/partidas/${partida.id}`} className="underline underline-offset-2" aria-label={`Ver partida lote ${partida.lote}`}>
-                      Ver partida
+                    <Link href={`/stock/partidas/${partida.id}`} className="btn btn-ghost btn-sm" aria-label={`Ver partida lote ${partida.lote}`}>
+                      <span className="hidden sm:inline">Ver partida</span>
+                      <ArrowUpRight className="size-3.5" aria-hidden />
                     </Link>
                   </td>
                 ) : null}

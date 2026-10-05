@@ -1,27 +1,45 @@
 /**
  * `/reportes/kardex` (FASE 13 point 13.2). Kardex de movimientos de stock,
  * filtrable por droga/tipo/rango de fechas, con exportación CSV auditada.
- * The filters auto-apply while typing, so a half-typed droga ID is expected:
- * it shows a prompt instead of querying (the use case only accepts a full
- * UUID).
+ * The droga is picked in an autocomplete (`KardexDrogaFiltro`) that writes its
+ * uuid to `drogaId`; a hand-edited, incomplete id in the URL still shows a
+ * prompt instead of querying (the use case only accepts a full UUID).
  */
 import Link from "next/link";
+import { ArrowLeftRight, CircleAlert, Download, SearchX, X } from "lucide-react";
 import { kardexMovimientos } from "@/modules/stock/application/kardex-movimientos";
+import { KardexDrogaFiltro } from "@/modules/stock/ui/kardex-droga-filtro";
+import { MOTIVO_AJUSTE_LABELS } from "@/modules/stock/domain/partida";
 import { getCatalogoUnidades } from "@/modules/unidades/application/catalogo-unidades";
 import { formatCantidad } from "@/shared/format/cantidad";
+import { formatFechaIso } from "@/shared/format/fecha";
 import { Cantidad } from "@/shared/ui/cantidad";
 import { DateInput } from "@/shared/ui/date-input";
 import { FilterForm } from "@/shared/ui/filter-form";
 import { TIPO_MOVIMIENTO_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
+import { PageHeader } from "@/shared/ui/page-header";
+import { EmptyState } from "@/shared/ui/empty-state";
+import { Pagination } from "@/shared/ui/pagination";
+import { ToneBadge } from "@/shared/ui/status-badge";
+import type { BadgeTone } from "@/shared/ui/status-badge";
 
 const PAGE_SIZE = 30;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+type FilterParam = "drogaId" | "tipo" | "desde" | "hasta";
+
+const TONO_TIPO: Record<string, BadgeTone> = {
+  INGRESO_COMPRA: "success",
+  EGRESO_PREPARACION: "neutral",
+  AJUSTE: "warn",
+};
 
 interface ReporteKardexPageProps {
   searchParams: Promise<{ drogaId?: string; tipo?: string; desde?: string; hasta?: string; page?: string }>;
 }
+
+const numberFormat = new Intl.NumberFormat("es-AR");
 
 export default async function ReporteKardexPage({ searchParams }: ReporteKardexPageProps) {
   const params = await searchParams;
@@ -38,7 +56,15 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
       : kardexMovimientos({ drogaId: drogaIdTexto || undefined, tipo, desde, hasta, page, pageSize: PAGE_SIZE }),
     getCatalogoUnidades(),
   ]);
-  const totalPages = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
+
+  /** The kardex URL with some params replaced ("" removes one); `page` always resets. */
+  function filtersHref(cambios: Partial<Record<FilterParam, string>> = {}): string {
+    const actuales: Record<FilterParam, string> = { drogaId: params.drogaId ?? "", tipo: params.tipo ?? "", desde: params.desde ?? "", hasta: params.hasta ?? "" };
+    const qs = new URLSearchParams();
+    for (const [key, value] of Object.entries({ ...actuales, ...cambios })) if (value) qs.set(key, value);
+    const query = qs.toString();
+    return query ? `/reportes/kardex?${query}` : "/reportes/kardex";
+  }
 
   function pageHref(targetPage: number): string {
     const qs = new URLSearchParams();
@@ -59,118 +85,179 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
     return `/api/stock/kardex/export/csv?${qs.toString()}`;
   }
 
-  return (
-    <div className="page">
-      <div className="mb-2">
-        <Link href="/reportes" className="text-sm underline">
-          ← Volver a reportes
-        </Link>
-      </div>
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Kardex de movimientos</h1>
-        <a href={exportHref()} className="btn btn-secondary">
-          Exportar CSV
-        </a>
-      </div>
+  // The filtered droga's name comes from its own movements (every row is that droga); without rows it is unknown.
+  const drogaFiltrada = drogaIdTexto && !drogaIdIncompleto ? { id: drogaIdTexto, nombre: result.items[0]?.drogaNombre ?? "Droga seleccionada" } : null;
 
-      <FilterForm className="mb-6 flex flex-wrap items-end gap-3" aria-label="Filtros de kardex" hasActiveFilters={Boolean(drogaIdTexto || params.tipo || params.desde || params.hasta)}>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="drogaId" className="text-sm font-medium">
-            Droga (ID)
-          </label>
-          <input id="drogaId" name="drogaId" type="text" defaultValue={params.drogaId ?? ""} className="input" />
+  const chips: { key: FilterParam; label: string; value: string }[] = [];
+  if (tipo) chips.push({ key: "tipo", label: "Tipo", value: etiquetaDe(TIPO_MOVIMIENTO_LABELS, tipo) });
+  if (params.desde) chips.push({ key: "desde", label: "Desde", value: formatFechaIso(params.desde) });
+  if (params.hasta) chips.push({ key: "hasta", label: "Hasta", value: formatFechaIso(params.hasta) });
+  const hayFiltros = Boolean(drogaIdTexto) || chips.length > 0;
+
+  return (
+    <div className="page list-view">
+      <PageHeader
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Reportes", href: "/reportes" }, { label: "Kardex de movimientos" }]}
+        title="Kardex de movimientos"
+        description="Ingresos, consumos y ajustes de stock, partida por partida."
+        actions={
+          <a href={exportHref()} className="btn btn-secondary">
+            <Download className="size-4" aria-hidden />
+            Exportar CSV
+          </a>
+        }
+      />
+
+      <section aria-label="Filtros" className="mb-4">
+        <div className="filter-bar">
+          <div className="min-w-0 flex-1 md:w-80 md:flex-none">
+            <KardexDrogaFiltro href={filtersHref()} seleccion={drogaFiltrada} />
+          </div>
+          <FilterForm className="flex flex-wrap items-end gap-3" aria-label="Filtros de kardex" hasActiveFilters={false}>
+            {/* The droga is chosen in the autocomplete; this keeps it while the other filters change. */}
+            <input type="hidden" name="drogaId" value={params.drogaId ?? ""} />
+            <div className="field">
+              <label htmlFor="tipo" className="sr-only">
+                Tipo
+              </label>
+              <select id="tipo" name="tipo" defaultValue={params.tipo ?? ""} className="input">
+                <option value="">Todos los tipos</option>
+                {Object.entries(TIPO_MOVIMIENTO_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="range-field" role="group" aria-label="Rango de fechas">
+              <label htmlFor="desde" className="sr-only">
+                Desde
+              </label>
+              <DateInput id="desde" name="desde" defaultValue={params.desde ?? ""} />
+              <span className="range-field-sep" aria-hidden>
+                a
+              </span>
+              <label htmlFor="hasta" className="sr-only">
+                Hasta
+              </label>
+              <DateInput id="hasta" name="hasta" defaultValue={params.hasta ?? ""} />
+            </div>
+          </FilterForm>
         </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="tipo" className="text-sm font-medium">
-            Tipo
-          </label>
-          <select id="tipo" name="tipo" defaultValue={params.tipo ?? ""} className="input">
-            <option value="">Todos</option>
-            {Object.entries(TIPO_MOVIMIENTO_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
+
+        {chips.length > 0 || drogaFiltrada ? (
+          <div className="filter-chips" role="group" aria-label="Filtros activos">
+            {chips.map((chip) => (
+              <span key={chip.key} className="chip">
+                {chip.label}: <strong>{chip.value}</strong>
+                <Link href={filtersHref({ [chip.key]: "" })} scroll={false} className="chip-remove" aria-label={`Quitar filtro ${chip.label}`}>
+                  <X className="size-3" aria-hidden />
+                </Link>
+              </span>
             ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="desde" className="text-sm font-medium">
-            Desde
-          </label>
-          <DateInput id="desde" name="desde" defaultValue={params.desde ?? ""} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="hasta" className="text-sm font-medium">
-            Hasta
-          </label>
-          <DateInput id="hasta" name="hasta" defaultValue={params.hasta ?? ""} />
-        </div>
-      </FilterForm>
+            {chips.length + (drogaFiltrada ? 1 : 0) > 1 ? (
+              <Link href="/reportes/kardex" scroll={false} className="btn btn-ghost btn-sm">
+                Limpiar filtros
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
 
       {drogaIdIncompleto ? (
-        <p role="status" className="mb-4 text-sm text-amber-700 dark:text-amber-400">
-          Ingresá el ID completo de la droga para filtrar por ella.
+        <p role="status" className="alert alert-warn mb-4">
+          <CircleAlert aria-hidden />
+          <span>
+            El ID de droga del enlace está incompleto.{" "}
+            <Link href={filtersHref({ drogaId: "" })} className="font-medium underline">
+              Quitar ese filtro
+            </Link>{" "}
+            o elegí la droga en el buscador.
+          </span>
         </p>
       ) : null}
 
-      <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
-        {result.total} movimiento{result.total === 1 ? "" : "s"} encontrado{result.total === 1 ? "" : "s"}.
-      </p>
+      <div className="list-region">
+        <span className="link-pending" aria-hidden />
+        <div className="list-panel">
+          <div className="list-toolbar">
+            <p role="status">
+              <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(result.total)}</span> {result.total === 1 ? "movimiento" : "movimientos"}
+            </p>
+          </div>
 
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th scope="col" className="px-3 py-2 font-medium">Fecha</th>
-              <th scope="col" className="px-3 py-2 font-medium">Droga</th>
-              <th scope="col" className="px-3 py-2 font-medium">Lote</th>
-              <th scope="col" className="px-3 py-2 font-medium">Tipo</th>
-              <th scope="col" className="px-3 py-2 font-medium">Cantidad</th>
-              <th scope="col" className="px-3 py-2 font-medium">Motivo</th>
-              <th scope="col" className="px-3 py-2 font-medium">Registrado por</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.items.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-3 py-6 text-center text-zinc-500">
-                  No se encontraron movimientos con estos filtros.
-                </td>
-              </tr>
+          {result.items.length === 0 ? (
+            hayFiltros ? (
+              <EmptyState
+                icon={<SearchX className="size-5" />}
+                title="Sin resultados"
+                description="Ningún movimiento coincide con los filtros aplicados."
+                action={
+                  <Link href="/reportes/kardex" scroll={false} className="btn btn-secondary">
+                    Limpiar filtros
+                  </Link>
+                }
+              />
             ) : (
-              result.items.map((mov) => (
-                <tr key={mov.id}>
-                  <td className="px-3 py-2">{new Date(mov.registradoEn).toLocaleString("es-AR")}</td>
-                  <td className="px-3 py-2">{mov.drogaNombre}</td>
-                  <td className="px-3 py-2">{mov.lote}</td>
-                  <td className="px-3 py-2">{etiquetaDe(TIPO_MOVIMIENTO_LABELS, mov.tipo)}</td>
-                  <td className="px-3 py-2">
-                    <Cantidad valor={formatCantidad(mov.cantidad, { id: mov.unidadId, simbolo: mov.unidadSimbolo }, catalogo)} />
-                  </td>
-                  <td className="px-3 py-2">{mov.motivoAjuste ?? mov.observacion ?? "—"}</td>
-                  <td className="px-3 py-2">
-                    {mov.registradoPorNombre} {mov.registradoPorApellido}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              <EmptyState icon={<ArrowLeftRight className="size-5" />} title="Todavía no hay movimientos de stock" />
+            )
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col" className="px-3 py-2">
+                      Fecha
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      Droga
+                    </th>
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">
+                      Lote
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      Tipo
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-right">
+                      Cantidad
+                    </th>
+                    <th scope="col" className="hidden px-3 py-2 lg:table-cell">
+                      Motivo
+                    </th>
+                    <th scope="col" className="hidden px-3 py-2 md:table-cell">
+                      Registrado por
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.items.map((mov) => (
+                    <tr key={mov.id}>
+                      <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs tabular-nums">{new Date(mov.registradoEn).toLocaleString("es-AR")}</td>
+                      <td className="px-3 py-2.5">
+                        <span className="font-medium text-zinc-900">{mov.drogaNombre}</span>
+                        <span className="block font-mono text-xs text-zinc-500 sm:hidden">Lote {mov.lote}</span>
+                      </td>
+                      <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono sm:table-cell">{mov.lote}</td>
+                      <td className="px-3 py-2.5">
+                        <ToneBadge tone={TONO_TIPO[mov.tipo] ?? "neutral"}>{etiquetaDe(TIPO_MOVIMIENTO_LABELS, mov.tipo)}</ToneBadge>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">
+                        <Cantidad valor={formatCantidad(mov.cantidad, { id: mov.unidadId, simbolo: mov.unidadSimbolo }, catalogo)} />
+                      </td>
+                      <td className="hidden px-3 py-2.5 lg:table-cell">{mov.motivoAjuste ? etiquetaDe(MOTIVO_AJUSTE_LABELS, mov.motivoAjuste) : (mov.observacion ?? <span className="text-zinc-400">-</span>)}</td>
+                      <td className="hidden px-3 py-2.5 md:table-cell">
+                        {mov.registradoPorNombre} {mov.registradoPorApellido}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-      {totalPages > 1 ? (
-        <nav aria-label="Paginación de kardex" className="mt-4 flex items-center gap-2 text-sm">
-          <Link href={pageHref(Math.max(1, page - 1))} aria-disabled={page <= 1} className={page <= 1 ? "pointer-events-none text-zinc-400" : "underline"}>
-            Anterior
-          </Link>
-          <span>
-            Página {page} de {totalPages}
-          </span>
-          <Link href={pageHref(Math.min(totalPages, page + 1))} aria-disabled={page >= totalPages} className={page >= totalPages ? "pointer-events-none text-zinc-400" : "underline"}>
-            Siguiente
-          </Link>
-        </nav>
-      ) : null}
+          <Pagination page={page} pageSize={PAGE_SIZE} total={result.total} hrefFor={pageHref} label="Paginación de kardex" />
+        </div>
+      </div>
     </div>
   );
 }

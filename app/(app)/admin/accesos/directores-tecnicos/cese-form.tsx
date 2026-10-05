@@ -26,7 +26,7 @@ export function CeseForm({ designacionId }: CeseFormProps) {
       label="Registrar cese"
       helpText="Definitivo: una vez registrado, el cese no se puede modificar ni deshacer."
       variant="danger"
-      className="w-64"
+      className="w-64 text-left"
     >
       {({ close, cancelButton }) => (
         <ReauthAwareForm

@@ -16,5 +16,5 @@ export default async function ProveedoresLayout({ children }: { children: ReactN
     redirect("/");
   }
 
-  return <div className="page">{children}</div>;
+  return <div className="page list-view">{children}</div>;
 }

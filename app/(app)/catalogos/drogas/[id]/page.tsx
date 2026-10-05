@@ -29,7 +29,7 @@ export default async function DrogaDetallePage({ params }: DrogaDetallePageProps
   return (
     <>
       <PageHeader
-        breadcrumbs={[{ label: "Catálogos" }, { label: "Drogas", href: "/catalogos/drogas" }, { label: droga.nombre }]}
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Catálogos" }, { label: "Drogas", href: "/catalogos/drogas" }, { label: droga.nombre }]}
         title={
           <span className="flex flex-wrap items-center gap-3">
             {droga.nombre}

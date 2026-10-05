@@ -29,5 +29,5 @@ export default async function DirectoresTecnicosLayout({ children }: { children:
     redirect("/");
   }
 
-  return <div>{children}</div>;
+  return <>{children}</>;
 }

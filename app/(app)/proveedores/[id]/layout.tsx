@@ -1,16 +1,12 @@
 /**
- * Layout for `/proveedores/[id]/**`: back link + the two tabs of a proveedor,
- * "Datos" (edit / baja / reactivar) and "Trayectoria" (read-only history of
- * its partidas). The access guard (`proveedores.gestionar`) is the parent
- * `proveedores/layout.tsx`. `[id]` is an opaque UUID: a malformed one is a 404
- * here, before any page runs. "Datos" is an exact match because its href is a
- * prefix of the Trayectoria one.
+ * Layout for `/proveedores/[id]/**`: only the uuid guard (a malformed id is a 404 here, before any page runs). Each
+ * page renders its own header (breadcrumbs back to the list) and the proveedor's "Datos | Trayectoria" tabs
+ * (`ProveedorTabs`, ../proveedor-tabs.tsx), so the tabs sit under the proveedor's name. The access guard
+ * (`proveedores.gestionar`) is the parent `proveedores/layout.tsx`.
  */
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { uuid } from "@/shared/validation";
-import { SectionTabs } from "../../section-tabs";
 
 interface ProveedorIdLayoutProps {
   children: ReactNode;
@@ -21,21 +17,5 @@ export default async function ProveedorIdLayout({ children, params }: ProveedorI
   const { id } = await params;
   if (!uuid.safeParse(id).success) notFound();
 
-  return (
-    <div>
-      <div className="mb-2">
-        <Link href="/proveedores" className="text-sm underline">
-          ← Volver al listado
-        </Link>
-      </div>
-      <SectionTabs
-        ariaLabel="Secciones del proveedor"
-        links={[
-          { href: `/proveedores/${id}`, label: "Datos", exact: true },
-          { href: `/proveedores/${id}/trayectoria`, label: "Trayectoria" },
-        ]}
-      />
-      {children}
-    </div>
-  );
+  return <>{children}</>;
 }

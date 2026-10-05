@@ -1,5 +1,5 @@
 /**
- * Layout guard + tab nav for `/admin/accesos/**` ("Usuarios y accesos" in
+ * Layout guard for `/admin/accesos/**` ("Usuarios y accesos" in
  * the sidebar's "Administración" group): Usuarios (`usuarios.listar`),
  * Roles (`roles.ver`) and Directores técnicos (`dt.designar`). Admits a
  * session that can reach AT LEAST ONE of them; each section keeps its own
@@ -13,7 +13,6 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
 import { accesosSections } from "../../nav-sections";
-import { SectionTabs } from "../../section-tabs";
 
 export default async function AccesosLayout({ children }: { children: ReactNode }) {
   const session = await requireSession();
@@ -23,10 +22,6 @@ export default async function AccesosLayout({ children }: { children: ReactNode 
     redirect("/");
   }
 
-  return (
-    <>
-      <SectionTabs ariaLabel="Secciones de usuarios y accesos" links={links} />
-      {children}
-    </>
-  );
+  // Each section's main page renders the tab nav under its own header (detail pages use breadcrumbs instead).
+  return <>{children}</>;
 }

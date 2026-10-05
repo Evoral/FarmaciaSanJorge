@@ -1,16 +1,12 @@
 /**
- * Layout for `/pacientes/[id]/**`: back link + the two tabs of a paciente,
- * "Datos" (edit / baja / reactivar) and "Trayectoria" (read-only history).
- * The access guard (`pacientes.gestionar`) is the parent `pacientes/layout.tsx`.
- * HEALTH-ADJACENT DATA (DP-24): `[id]` is an opaque UUID, nothing identifying
- * goes in these hrefs. "Datos" is an exact match because its href is a prefix
- * of the Trayectoria one.
+ * Layout for `/pacientes/[id]/**`: only the uuid guard. Each page renders its own header (breadcrumbs back to the
+ * list) and the paciente's "Datos | Trayectoria" tabs (`PacienteTabs`, ../pacientes-tabs.tsx), so the tabs sit under
+ * the paciente's name. The access guard (`pacientes.gestionar`) is the parent `pacientes/layout.tsx`.
+ * HEALTH-ADJACENT DATA (DP-24): `[id]` is an opaque UUID, nothing identifying goes in these hrefs.
  */
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { uuid } from "@/shared/validation";
-import { SectionTabs } from "../../section-tabs";
 
 interface PacienteIdLayoutProps {
   children: ReactNode;
@@ -21,21 +17,5 @@ export default async function PacienteIdLayout({ children, params }: PacienteIdL
   const { id } = await params;
   if (!uuid.safeParse(id).success) notFound();
 
-  return (
-    <div>
-      <div className="mb-2">
-        <Link href="/pacientes" className="text-sm underline">
-          ← Volver al listado
-        </Link>
-      </div>
-      <SectionTabs
-        ariaLabel="Secciones del paciente"
-        links={[
-          { href: `/pacientes/${id}`, label: "Datos", exact: true },
-          { href: `/pacientes/${id}/trayectoria`, label: "Trayectoria" },
-        ]}
-      />
-      {children}
-    </div>
-  );
+  return <>{children}</>;
 }
