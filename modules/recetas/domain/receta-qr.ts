@@ -26,7 +26,12 @@ export type ResultadoLecturaQr =
 const HOST_EMISOR = "verumrp.com.ar";
 /** A hex run that is neither preceded nor followed by another hex character. */
 const RE_HASH = /(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])/gi;
-/** A real URL prefix ("https://"); anything else is treated as scanner noise, not as a link. */
+/**
+ * A real URL prefix ("https://"); anything else is treated as scanner noise, not as a link.
+ * Deliberate narrowing of spec P17: "https:evil.com/<hash>" or "https:/evil.com/<hash>"
+ * (no "//") is NOT host-checked and yields the hash. Harmless: the text is never a fetch
+ * target; only the hash is used, always against the constant endpoint.
+ */
 const RE_ESQUEMA_URL = /^[a-z][a-z0-9+.-]*:\/\//i;
 
 function esHostDelEmisor(hostname: string): boolean {

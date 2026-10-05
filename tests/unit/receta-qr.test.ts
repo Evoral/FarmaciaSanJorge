@@ -86,6 +86,14 @@ describe("P17: foreign hosts are rejected before any network call", () => {
     expect(extraerHashRcta(`HTTPS:--VERUMRP.COM.AR-PRESCRIPCION-${HASH.toUpperCase()}`)).toBe(HASH);
   });
 
+  it("deliberate narrowing of P17: a foreign host WITHOUT scheme:// is not host-checked", () => {
+    // Harmless: only the hash is ever used, and always against the constant endpoint.
+    expect(extraerHashRcta(`https:evil.com/prescripcion/${HASH}`)).toBe(HASH);
+    expect(extraerHashRcta(`https:/evil.com/${HASH}`)).toBe(HASH);
+    // With the full scheme:// the same foreign host IS rejected.
+    expect(extraerHashRcta(`https://evil.com/${HASH}`)).toBeNull();
+  });
+
   it("a hash next to non-hex letters is still the only 64-hex run", () => {
     expect(extraerHashRcta(`prescripcion-${HASH}-g`)).toBe(HASH);
     expect(extraerHashRcta(`xyz${HASH}xyz`)).toBe(HASH);
