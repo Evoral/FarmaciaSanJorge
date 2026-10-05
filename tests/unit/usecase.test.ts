@@ -12,7 +12,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { z } from "zod";
-import { AuthorizationError, ValidationError } from "@/shared/errors";
+import { AppError, AuthorizationError, DomainError, ValidationError } from "@/shared/errors";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 
 const auditRecordMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
@@ -373,7 +373,7 @@ describe("defineQuery prepare step (opt-in, runs outside any transaction)", () =
     expect(withTenantTransactionMock).not.toHaveBeenCalled();
   });
 
-  it("a throwing prepare propagates its error, never runs the handler and opens no transaction", async () => {
+  it("a throwing prepare is mapped like a handler error (raw Error -> INTERNAL_ERROR AppError), never runs the handler and opens no transaction", async () => {
     const handler = vi.fn(async () => "never");
     const query = defineQuery({
       name: "test.prepare-throws",
@@ -385,8 +385,27 @@ describe("defineQuery prepare step (opt-in, runs outside any transaction)", () =
       handler,
     });
 
-    await expect(query.execute({}, { session: fakeSession(["recetas.crear"]) })).rejects.toThrow("upstream unavailable");
+    const error = await query.execute({}, { session: fakeSession(["recetas.crear"]) }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(AppError);
+    expect((error as AppError).code).toBe("INTERNAL_ERROR");
+    expect((error as AppError).cause).toBeInstanceOf(Error);
     expect(handler).not.toHaveBeenCalled();
+    expect(withTenantTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("an AppError subclass thrown by prepare passes through unchanged", async () => {
+    const thrown = new DomainError("Receta no disponible");
+    const query = defineQuery({
+      name: "test.prepare-throws-app-error",
+      permiso: "recetas.crear",
+      input: z.object({}),
+      prepare: async () => {
+        throw thrown;
+      },
+      handler: async () => "never",
+    });
+
+    await expect(query.execute({}, { session: fakeSession(["recetas.crear"]) })).rejects.toBe(thrown);
     expect(withTenantTransactionMock).not.toHaveBeenCalled();
   });
 

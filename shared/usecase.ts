@@ -1,8 +1,9 @@
 /**
  * The use-case pipeline (plan §8 / docs/architecture.md, FASE 2 point 2.7):
- * `requireSession -> authorize -> zod.parse -> transaction -> audit ->
- * mapDbError`. `defineCommand`/`defineQuery` are the ONLY way to build a
- * use case in this codebase -- there is no lower-level escape hatch -- so
+ * `requireSession -> authorize -> zod.parse -> [prepare, queries only,
+ * opt-in] -> transaction -> audit -> mapDbError`. `defineCommand`/
+ * `defineQuery` are the ONLY way to build a use case in this codebase --
+ * there is no lower-level escape hatch -- so
  * the pipeline order is structurally guaranteed, not just documented
  * convention: a Server Action that wants to touch the database has
  * nothing to call except the `execute()` this file hands back, and that
@@ -19,10 +20,14 @@
  * for RLS (`set_config(..., true)` is transaction-local, see
  * shared/db/transaction.ts), so even a pure read needs a transaction scope
  * to see any tenant-scoped row at all. Queries never call `audit.record`.
+ *
  * A query may also declare an opt-in `prepare` step (same prefix, then
  * `prepare`, then the transaction): it runs after authorize + parse but
  * OUTSIDE any transaction, so network I/O never holds a pooled connection,
- * and its result reaches the handler as `prepared`.
+ * and its result reaches the handler as `prepared`. Errors thrown by
+ * `prepare` are mapped like handler errors (an `AppError` passes through,
+ * anything else becomes `INTERNAL_ERROR`), and `prepare` must be declared
+ * BEFORE `handler` in the config literal so TypeScript can infer `prepared`.
  *
  * A session that lacks the use case's permiso is rejected by `authorize()`
  * before anything else runs -- and that rejection is itself audited
@@ -42,7 +47,7 @@ import type { AuthenticatedSession } from "@/shared/auth/session";
 import { authorize } from "@/shared/auth/authorize";
 import type { Permiso } from "@/shared/auth/authorize";
 import { withTenantTransaction } from "@/shared/db/transaction";
-import { AuthorizationError, ValidationError } from "@/shared/errors";
+import { AuthorizationError, ValidationError, mapDbError } from "@/shared/errors";
 import { record as auditRecord } from "@/shared/audit";
 import { getLogger } from "@/shared/logging/logger";
 import { formatIssuePath } from "@/shared/labels/field-labels";
@@ -330,6 +335,18 @@ export function defineCommand<TInput, TOutput>(config: DefineCommandConfig<TInpu
   return { name: config.name, permiso: config.permiso, execute };
 }
 
+/** Runs a query's `prepare` and maps whatever it throws like a handler error (`withTenantTransaction` does the same): an `AppError` passes through, anything else becomes `INTERNAL_ERROR`. */
+async function runPrepare<TInput, TPrepared>(
+  prepare: (args: QueryPrepareArgs<TInput>) => Promise<TPrepared>,
+  args: QueryPrepareArgs<TInput>,
+): Promise<TPrepared> {
+  try {
+    return await prepare(args);
+  } catch (e) {
+    throw mapDbError(e);
+  }
+}
+
 /** Reads. See the module doc comment for why queries still open a tenant transaction. */
 export function defineQuery<TInput, TOutput, TPrepared = undefined>(
   config: DefineQueryConfig<TInput, TOutput, TPrepared>,
@@ -338,7 +355,7 @@ export function defineQuery<TInput, TOutput, TPrepared = undefined>(
     const session = await resolveSession(options);
     await authorizeAuditado(session, config.name, config.permiso);
     const input = parseInput(config.input, rawInput);
-    const prepared = config.prepare ? await config.prepare({ session, input }) : (undefined as TPrepared);
+    const prepared = config.prepare ? await runPrepare(config.prepare, { session, input }) : (undefined as TPrepared);
 
     return withTenantTransaction(session.tenantId, (tx) => config.handler({ tx, session, input, prepared }));
   }

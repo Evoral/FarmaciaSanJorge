@@ -60,12 +60,20 @@ action(input)
   -> requireSession()                 // shared/auth, FASE 2.1
   -> authorize(permiso)               // shared/auth, FASE 2.6
   -> zod.parse(input)                 // shared/validation
+  -> prepare(session, input)          // OPTIONAL, queries only: network I/O outside the transaction
   -> withTenantTransaction(tenantId, tx => {
        // business rules + writes
        // audit.record(tx, ...)       // shared/audit, FASE 2.7 -- same transaction, not after it
      })
   -> mapDbError(e) on failure         // shared/errors
 ```
+
+`prepare` is an opt-in step of `defineQuery` (not `defineCommand`). It runs
+after authorize + parse and before the transaction, so slow external calls
+never hold a pooled connection; its result reaches the handler as
+`prepared`. Errors it throws are mapped like handler errors (an `AppError`
+passes through, anything else becomes `INTERNAL_ERROR`). Declare `prepare`
+before `handler` in the config literal so TypeScript infers `prepared`.
 
 The audit record is written **inside** the same transaction as the
 operation it audits -- if the transaction rolls back, so does the audit
