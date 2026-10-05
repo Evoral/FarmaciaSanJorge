@@ -452,6 +452,13 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
                       />
                     </div>
                   </div>
+                  {/* Always computed from the form's own cantidad x precio (never the PDF's importe): a scale error shows here at once. */}
+                  <p className="text-sm text-zinc-600">
+                    Importe del lote:{" "}
+                    <span className="font-mono font-semibold text-zinc-900">
+                      {Number.isFinite(Number(l.cantidad) * Number(l.precioUnitario)) ? `$ ${formatearMonto(Number(l.cantidad) * Number(l.precioUnitario))}` : "—"}
+                    </span>
+                  </p>
                 </>
               )}
               {alta?.indice === i ? (

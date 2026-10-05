@@ -20,6 +20,12 @@
  * for the user to check. Then the totals block and, optionally,
  * "Faltantes:" (items ordered but not delivered -- never ingresados).
  *
+ * Count units sold by the hundred or thousand ("Mi" = millar: 5.000 Mi at
+ * 20,085.00 = 5 thousand capsules at 20,085.00 per thousand) are converted
+ * to plain units ("u": 5000 at 20.085 each) and flagged, since the catalog
+ * has no millar unit. Quantities and prices come out normalized ("5", not
+ * "5.000", which reads as five thousand in Argentina).
+ *
  * Numbers use "," for thousands and "." for decimals ("23,175.00",
  * "1.000" = one); the other convention ("23.175,00") is also accepted.
  */
@@ -83,7 +89,7 @@ export interface BorradorFactura {
   items: ItemFacturaBorrador[];
 }
 
-export type CodigoAdvertenciaParserFactura = "ITEM_SIN_LOTE" | "CANTIDAD_REPARTIDA" | "FALTANTES";
+export type CodigoAdvertenciaParserFactura = "ITEM_SIN_LOTE" | "CANTIDAD_REPARTIDA" | "FALTANTES" | "UNIDAD_CONVERTIDA";
 
 export interface AdvertenciaParserFactura {
   codigo: CodigoAdvertenciaParserFactura;
@@ -98,6 +104,17 @@ const MISMA_FILA_PT = 4;
 const RE_CODIGO_PRODUCTO = /^\d{3,6}\/\d{1,4}$/;
 const RE_FECHA = /^(\d{2})\/(\d{2})\/(\d{4})$/;
 const RE_PRESENTACION = /\s+X\s+[\d.,]+\s*$/i;
+/** Supplier marks printed after the description ("(*)", "**"). */
+const RE_MARCAS = /(\s+(\(\*+\)|\*+))+\s*$/;
+
+/** Count units priced per hundred / thousand -> factor to plain units ("u", migration 0006's UNIDAD). */
+const MULTIPLOS_UNIDAD: Readonly<Record<string, { factor: number; nombre: string }>> = {
+  mi: { factor: 1000, nombre: "millar" },
+  mil: { factor: 1000, nombre: "millar" },
+  millar: { factor: 1000, nombre: "millar" },
+  ci: { factor: 100, nombre: "ciento" },
+  ciento: { factor: 100, nombre: "ciento" },
+};
 
 /** "23,175.00" -> "23175.00"; "1.000" -> "1.000"; "23.175,00" -> "23175.00". `null` if it is not a number. */
 export function numeroFactura(texto: string): string | null {
@@ -173,15 +190,36 @@ function leerFilaLote(texto: string): LoteLeido | null {
 }
 
 /** Product row: code first, then description, unit, cantidad, precio, importe (the last three numeric). */
-function leerFilaProducto(fila: Fila): Omit<ItemFacturaBorrador, "lotes"> | null {
-  const textos = fila.map((i) => i.str.trim());
+function leerFilaProducto(fila: Fila, advertencias: AdvertenciaParserFactura[]): Omit<ItemFacturaBorrador, "lotes"> | null {
+  // Marker-only tokens ("**") are a column of their own: never part of the description.
+  const textos = fila.map((i) => i.str.trim()).filter((t) => !/^\*+$/.test(t));
   if (!RE_CODIGO_PRODUCTO.test(textos[0] ?? "") || textos.length < 5) return null;
-  const [cantidad, precioUnitario] = textos.slice(-3).map(numeroFactura);
-  if (!cantidad || !precioUnitario) return null;
-  const unidadTexto = textos.at(-4) ?? "";
+  const [cantidadLeida, precioLeido] = textos.slice(-3).map(numeroFactura);
+  if (!cantidadLeida || !precioLeido) return null;
+  const unidadLeida = textos.at(-4) ?? "";
   const descripcion = textos.slice(1, -4).join(" ").replace(/\s+/g, " ").replace(/,$/, "").trim();
-  if (descripcion.length === 0 || numeroFactura(unidadTexto) !== null) return null;
-  return { codigo: textos[0]!, descripcion, drogaTexto: descripcion.replace(RE_PRESENTACION, "").trim(), unidadTexto, cantidad, precioUnitario };
+  if (descripcion.length === 0 || numeroFactura(unidadLeida) !== null) return null;
+  const drogaTexto = descripcion.replace(RE_MARCAS, "").replace(RE_PRESENTACION, "").trim();
+
+  const multiplo = MULTIPLOS_UNIDAD[unidadLeida.toLowerCase().replace(/\.$/, "")];
+  let cantidad = new Decimal(cantidadLeida);
+  let precio = new Decimal(precioLeido);
+  if (multiplo) {
+    cantidad = cantidad.times(multiplo.factor);
+    precio = precio.dividedBy(multiplo.factor);
+    advertencias.push({
+      codigo: "UNIDAD_CONVERTIDA",
+      mensaje: `«${drogaTexto}» viene por ${multiplo.nombre} (${unidadLeida}): se cargó como ${cantidad.toString()} u a ${precio.toString()} c/u. Verificá el importe.`,
+    });
+  }
+  return {
+    codigo: textos[0]!,
+    descripcion,
+    drogaTexto,
+    unidadTexto: multiplo ? "u" : unidadLeida,
+    cantidad: cantidad.toString(),
+    precioUnitario: precio.toDecimalPlaces(6).toString(),
+  };
 }
 
 /** Splits `cantidad` among the lotes by container (row) count; the last lote takes the rounding remainder. */
@@ -190,10 +228,10 @@ function repartirPorEnvases(cantidad: string, envases: readonly number[]): strin
   const decimales = Math.max(3, cantidad.split(".")[1]?.length ?? 0);
   let asignado = new Decimal(0);
   return envases.map((n, i) => {
-    if (i === envases.length - 1) return new Decimal(cantidad).minus(asignado).toFixed(decimales);
+    if (i === envases.length - 1) return new Decimal(cantidad).minus(asignado).toString();
     const parte = new Decimal(cantidad).times(n).dividedBy(total).toDecimalPlaces(decimales, Decimal.ROUND_DOWN);
     asignado = asignado.plus(parte);
-    return parte.toFixed(decimales);
+    return parte.toString();
   });
 }
 
@@ -208,7 +246,7 @@ function leerItems(pages: readonly TextoPdfItem[][], advertencias: AdvertenciaPa
     const cuerpo = page.filter((i) => i.y > encabezado.y + MISMA_FILA_PT && (!fin || i.y < fin.y - MISMA_FILA_PT));
 
     for (const fila of agruparFilas(cuerpo)) {
-      const producto = leerFilaProducto(fila);
+      const producto = leerFilaProducto(fila, advertencias);
       if (producto) {
         items.push({ ...producto, lotes: [] });
         lotesPorItem.push([]);
