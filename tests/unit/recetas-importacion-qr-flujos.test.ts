@@ -207,10 +207,23 @@ describe("recetas.importar.leerQr -- the final preview's notices are bounded", (
     expect(sinMatch.length).toBeGreaterThan(40);
     expect(sinMatch.length).toBeLessThan(50);
     for (const a of vista.advertencias) {
-      expect(puntos(a.mensaje)).toBeLessThanOrEqual(201);
+      expect(puntos(a.mensaje)).toBeLessThanOrEqual(600);
       expect(puntos(a.texto ?? "")).toBeLessThanOrEqual(201);
     }
     expect(sinMatch[0]!.texto).toBe(`${"Z".repeat(200)}…`);
+    // The message keeps its structure: only the echoed drug name is cut, the closing mark and the advice stay.
+    expect(sinMatch[0]!.mensaje).toBe(`No se encontró la droga «${"Z".repeat(200)}…» en el catálogo.`);
+  });
+
+  it("a flood of unrecognized lines does not push out the 'paciente dado de baja' notice", async () => {
+    const lineas = Array.from({ length: 60 }, (_, i) => `Renglon libre ${i} sin dosis`).join("\n");
+    fetchMock.mockImplementation(async () => respuestaJson({ ...RECETA_JSON, prescripcion: [{ prescripcion: `Amoxicilina 500 mg\n30 comprimidos\n${lineas}` }] }));
+    repo.buscarPacientePorIdentificacion.mockResolvedValue({ id: "22222222-2222-4222-a222-222222222222", nombre: "Ana", apellido: "Suárez", dni: null, cuil: null, sexo: null, fechaNacimiento: null, nroCredencial: null, fechaBaja: new Date("2025-01-01") });
+    const vista = await leer(HASH);
+    expect(vista.advertencias).toHaveLength(50);
+    expect(vista.advertencias[49]!.codigo).toBe("AVISOS_OMITIDOS");
+    expect(vista.advertencias.filter((a) => a.codigo === "RENGLON_NO_RECONOCIDO").length).toBeGreaterThan(40);
+    expect(vista.advertencias.filter((a) => a.codigo === "PACIENTE_DADO_DE_BAJA")).toHaveLength(1);
   });
 
   it("a normal receta is untouched by the bound (no overflow notice, no truncation)", async () => {

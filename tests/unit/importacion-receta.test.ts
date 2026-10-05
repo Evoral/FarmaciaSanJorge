@@ -153,10 +153,36 @@ describe("acotarAvisos (the bound on the notices of the final QR preview)", () =
     expect(SEVERIDAD_ADVERTENCIA.AVISOS_OMITIDOS).toBe("advertencia");
   });
 
-  it("truncates mensaje and texto to 200 characters plus an ellipsis; exactly 200 is untouched", () => {
-    const [largo, justo] = acotarAvisos([aviso("DROGA_SIN_MATCH", largos(250), largos(300)), aviso("DROGA_SIN_MATCH", largos(200), largos(200))]);
-    expect(largo).toEqual({ codigo: "DROGA_SIN_MATCH", mensaje: `${largos(200)}…`, texto: `${largos(200)}…` });
-    expect(justo).toEqual({ codigo: "DROGA_SIN_MATCH", mensaje: largos(200), texto: largos(200) });
+  const sinMatchDroga = (droga: string) => aviso("DROGA_SIN_MATCH", `No se encontró la droga «${droga}» en el catálogo.`, droga);
+
+  it("truncates the echoed fragment (inside the guillemets) and texto to 200 characters plus an ellipsis; the message structure survives; exactly 200 is untouched", () => {
+    const [largo, justo] = acotarAvisos([sinMatchDroga(largos(300)), sinMatchDroga(largos(200))]);
+    expect(largo).toEqual({ codigo: "DROGA_SIN_MATCH", mensaje: `No se encontró la droga «${largos(200)}…» en el catálogo.`, texto: `${largos(200)}…` });
+    expect(justo).toEqual({ codigo: "DROGA_SIN_MATCH", mensaje: `No se encontró la droga «${largos(200)}» en el catálogo.`, texto: largos(200) });
+  });
+
+  it("every echoed fragment is cut on its own, so the closing marks, the advice and the item suffix survive", () => {
+    const [unidad, diferencia, notas] = acotarAvisos([
+      aviso("UNIDAD_SIN_MATCH", `No se reconoció la unidad «${largos(250)}» de «${largos(300)}».`, largos(250)),
+      aviso("DIFERENCIA_DATOS", `Domicilio del paciente: la receta dice «${largos(300)}», el sistema tiene «${largos(300)}». Se conserva el del sistema.`),
+      aviso("DATO_NO_IMPORTADO", `La receta trae notas que no se importan: «${largos(900)}». (ítem 2)`),
+    ]);
+    expect(unidad!.mensaje).toBe(`No se reconoció la unidad «${largos(200)}…» de «${largos(200)}…».`);
+    expect(diferencia!.mensaje).toBe(`Domicilio del paciente: la receta dice «${largos(200)}…», el sistema tiene «${largos(200)}…». Se conserva el del sistema.`);
+    expect(notas!.mensaje).toBe(`La receta trae notas que no se importan: «${largos(200)}…». (ítem 2)`);
+  });
+
+  it("an echoed fragment that itself contains a closing guillemet is still cut (texto is replaced as a whole first)", () => {
+    const droga = `${largos(150)}»${largos(150)}`;
+    const [a] = acotarAvisos([sinMatchDroga(droga)]);
+    expect(a!.mensaje).toBe(`No se encontró la droga «${droga.slice(0, 200)}…» en el catálogo.`);
+    expect(a!.texto).toBe(`${droga.slice(0, 200)}…`);
+  });
+
+  it("a final safety bound of 600 code points cuts a message that is still too long (no echo to blame); shorter ones are untouched", () => {
+    const [largo, justo] = acotarAvisos([aviso("PACIENTE_DADO_DE_BAJA", largos(700)), aviso("PACIENTE_DADO_DE_BAJA", largos(600))]);
+    expect(largo!.mensaje).toBe(`${largos(600)}…`);
+    expect(justo!.mensaje).toBe(largos(600));
   });
 
   it("a notice without texto stays without a texto key", () => {
@@ -167,21 +193,21 @@ describe("acotarAvisos (the bound on the notices of the final QR preview)", () =
   it("never splits a surrogate pair at the cut", () => {
     // 199 BMP characters + 2 emoji = 201 code points, and the cut falls right between the emoji's UTF-16 halves.
     const texto = `${largos(199)}😀😀`;
-    const [a] = acotarAvisos([aviso("UNIDAD_SIN_MATCH", texto, texto)]);
-    expect(a!.mensaje).toBe(`${largos(199)}😀…`);
+    const [a] = acotarAvisos([sinMatchDroga(texto)]);
+    expect(a!.mensaje).toBe(`No se encontró la droga «${largos(199)}😀…» en el catálogo.`);
     expect(a!.texto).toBe(`${largos(199)}😀…`);
     expect(sinSurrogadoSuelto(a!.mensaje)).toBe(true);
     // Length is counted in code points, not UTF-16 units: 150 emoji are well under the cap.
     const emojis = "😀".repeat(150);
-    expect(acotarAvisos([aviso("UNIDAD_SIN_MATCH", emojis)])[0]!.mensaje).toBe(emojis);
+    expect(acotarAvisos([sinMatchDroga(emojis)])[0]!.mensaje).toBe(`No se encontró la droga «${emojis}» en el catálogo.`);
   });
 
   it("is idempotent: text already cut by an earlier layer does not get a second ellipsis", () => {
-    const una = acotarAvisos([aviso("DROGA_SIN_MATCH", largos(250), largos(250))]);
+    const una = acotarAvisos([sinMatchDroga(largos(250))]);
     const dos = acotarAvisos(una);
     expect(dos).toEqual(una);
-    expect(dos[0]!.mensaje.endsWith("……")).toBe(false);
-    expect(puntos(dos[0]!.mensaje)).toBe(201);
+    expect(dos[0]!.mensaje.includes("……")).toBe(false);
+    expect(puntos(dos[0]!.texto ?? "")).toBe(201);
   });
 
   it("up to 50 notices come back whole, in order, as new objects", () => {
@@ -222,9 +248,48 @@ describe("acotarAvisos (the bound on the notices of the final QR preview)", () =
   });
 
   it("truncates the kept notices too, and an empty list stays empty", () => {
-    const r = acotarAvisos(Array.from({ length: 60 }, () => aviso("DROGA_SIN_MATCH", largos(500), largos(500))));
-    expect(r.every((a) => puntos(a.mensaje) <= 201 && puntos(a.texto ?? "") <= 201)).toBe(true);
+    const r = acotarAvisos(Array.from({ length: 60 }, () => sinMatchDroga(largos(500))));
+    expect(r).toHaveLength(50);
+    expect(r.slice(0, 49).every((a) => a.mensaje === `No se encontró la droga «${largos(200)}…» en el catálogo.` && a.texto === `${largos(200)}…`)).toBe(true);
     expect(acotarAvisos([])).toEqual([]);
+  });
+
+  describe("overflow priority: actionable match-step notices, then other warnings, then informational ones", () => {
+    const CODIGOS_DEL_CRUCE = ["PACIENTE_DADO_DE_BAJA", "DIFERENCIA_DATOS", "DROGA_SIN_MATCH", "UNIDAD_SIN_MATCH"] as const;
+
+    it("60 unrecognized lines + 1 dado de baja: the baja notice survives (it is not cut with the noise)", () => {
+      const ruido = Array.from({ length: 60 }, (_, i) => aviso("RENGLON_NO_RECONOCIDO", `No se reconoció el renglón «linea ${i}».`));
+      const baja = aviso("PACIENTE_DADO_DE_BAJA", "El paciente de la receta está dado de baja.");
+      const r = acotarAvisos([...ruido, baja]);
+      expect(r).toHaveLength(50);
+      expect(r[49]).toEqual(OMITIDOS);
+      expect(r.filter((a) => a.codigo === "PACIENTE_DADO_DE_BAJA")).toEqual([baja]);
+      // Survivors keep their original relative order: the 48 first unrecognized lines, then the baja notice, then the overflow notice.
+      expect(r.slice(0, 48).map((a) => a.mensaje)).toEqual(ruido.slice(0, 48).map((a) => a.mensaje));
+      expect(r[48]).toEqual(baja);
+    });
+
+    it("each match-step code outranks other warnings, and other warnings outrank informational ones", () => {
+      for (const codigo of CODIGOS_DEL_CRUCE) {
+        const lista = [
+          ...Array.from({ length: 30 }, (_, i) => aviso("RENGLON_INFORMATIVO", `info ${i}`)),
+          ...Array.from({ length: 60 }, (_, i) => aviso("DATO_NO_IMPORTADO", `otra ${i}`)),
+          aviso(codigo, "accionable"),
+        ];
+        const r = acotarAvisos(lista);
+        expect(r).toHaveLength(50);
+        expect(r.filter((a) => a.codigo === codigo)).toHaveLength(1);
+        expect(r.filter((a) => a.codigo === "DATO_NO_IMPORTADO")).toHaveLength(48);
+        expect(r.some((a) => a.codigo === "RENGLON_INFORMATIVO")).toBe(false);
+      }
+    });
+
+    it("inside a group the original order decides who stays: the first of 60 match-step notices, never a later one", () => {
+      const lista = Array.from({ length: 60 }, (_, i) => aviso(CODIGOS_DEL_CRUCE[i % 4]!, `cruce ${i}`));
+      const r = acotarAvisos(lista);
+      expect(r.slice(0, 49).map((a) => a.mensaje)).toEqual(Array.from({ length: 49 }, (_, i) => `cruce ${i}`));
+      expect(r[49]).toEqual(OMITIDOS);
+    });
   });
 
   it("does not mutate the input, and the overflow notice is a fresh object every time", () => {
