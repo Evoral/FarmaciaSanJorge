@@ -10,11 +10,11 @@
  * logs; the hash and the bodies are patient-adjacent data and never leave it.
  *
  * Classification (the decrypter answers an unknown hash with HTTP 500 and
- * `{"error":"Recipe does not exists"}`, so a status alone cannot tell "not
- * found" from "down"):
+ * `{"error":"Recipe does not exists"}`, so a 404 means the endpoint moved, not
+ * "no such receta"):
  *   - 2xx: not JSON / over the cap / unparseable -> FORMATO_INESPERADO; an empty body -> QR_INVALIDO
- *   - 500 whose JSON body matches /recipe does not exist/i, and any other 4xx except 401/403/408/429 -> QR_INVALIDO
- *   - 401, 403 (an IP block, a WAF or a future auth requirement is an outage, not an invalid QR), 408, 429,
+ *   - 500 whose JSON body matches /recipe does not exist/i, and ONLY 400 and 422 -> QR_INVALIDO
+ *   - every other 4xx (401/403: an IP block, a WAF or a future auth requirement; 404, 405, 410, 451, 408, 429, ...),
  *     any other 5xx or status, network error, timeout, redirect -> RCTA_NO_DISPONIBLE
  */
 import "server-only";
@@ -30,6 +30,8 @@ export type ResultadoConsultaRcta = { ok: true; json: unknown } | { ok: false; c
 const RE_HASH = /^[0-9a-f]{64}$/;
 const RE_CONTENT_TYPE_JSON = /^application\/(?:[a-z0-9.+-]+\+)?json\s*(?:;|$)/i;
 const RE_RECETA_INEXISTENTE = /recipe does not exist/i;
+/** The only statuses that mean "the API judged the hash itself bad"; every other 4xx (404, 410, 451, ...) says the endpoint moved or is blocked. */
+const STATUS_HASH_RECHAZADO: ReadonlySet<number> = new Set([400, 422]);
 
 const fallo = (codigo: CodigoErrorQr): ResultadoConsultaRcta => ({ ok: false, codigo });
 
@@ -64,11 +66,6 @@ const descartarCuerpo = (respuesta: Response): Promise<void> => (respuesta.body?
 
 async function clasificar(respuesta: Response): Promise<ResultadoConsultaRcta> {
   const { status } = respuesta;
-  if (status === 401 || status === 403 || status === 408 || status === 429) {
-    await descartarCuerpo(respuesta);
-    return fallo("RCTA_NO_DISPONIBLE");
-  }
-
   if (status >= 200 && status < 300) {
     if (!esJson(respuesta)) {
       await descartarCuerpo(respuesta);
@@ -89,7 +86,7 @@ async function clasificar(respuesta: Response): Promise<ResultadoConsultaRcta> {
     return fallo(texto !== null && RE_RECETA_INEXISTENTE.test(texto) ? "QR_INVALIDO" : "RCTA_NO_DISPONIBLE");
   }
   await descartarCuerpo(respuesta);
-  return fallo(status >= 400 && status < 500 ? "QR_INVALIDO" : "RCTA_NO_DISPONIBLE");
+  return fallo(STATUS_HASH_RECHAZADO.has(status) ? "QR_INVALIDO" : "RCTA_NO_DISPONIBLE");
 }
 
 /** `hash` must already be a validated lowercase 64-hex hash (re-checked here: it is the only thing that varies in the request). */

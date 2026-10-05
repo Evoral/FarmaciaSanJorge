@@ -69,10 +69,21 @@ describe("P19-P20: the receta does not exist", () => {
     expect(await consultarRecetaRcta(HASH)).toEqual({ ok: true, json: null });
   });
 
-  it("P20: 404 and any other 4xx (except auth errors, 408 and 429) are QR_INVALIDO", async () => {
-    for (const estado of [400, 404, 410, 422]) {
+  it("P20: ONLY 400 and 422 are QR_INVALIDO (the API rejects the hash itself)", async () => {
+    for (const estado of [400, 422]) {
       fetchMock.mockResolvedValueOnce(respuesta("nada", estado, { "content-type": "text/plain" }));
       expect(await consultarRecetaRcta(HASH)).toEqual(NO_ENCONTRADA);
+      fetchMock.mockResolvedValueOnce(json({ error: "Bad request" }, estado));
+      expect(await consultarRecetaRcta(HASH)).toEqual(NO_ENCONTRADA);
+    }
+  });
+
+  it("P20: any other 4xx (404, 405, 407, 410, 421, 451, ...) means the endpoint moved or is blocked: RCTA_NO_DISPONIBLE, not 'invalid QR'", async () => {
+    for (const estado of [404, 405, 407, 410, 421, 451]) {
+      fetchMock.mockResolvedValueOnce(respuesta("nada", estado, { "content-type": "text/plain" }));
+      expect(await consultarRecetaRcta(HASH)).toEqual(NO_DISPONIBLE);
+      fetchMock.mockResolvedValueOnce(json({ error: "Not found" }, estado));
+      expect(await consultarRecetaRcta(HASH)).toEqual(NO_DISPONIBLE);
     }
   });
 
