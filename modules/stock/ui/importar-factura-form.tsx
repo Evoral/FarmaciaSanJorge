@@ -164,6 +164,14 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
   const activas = lineas.filter((l) => !l.omitir);
   const incompletas = activas.filter((l) => !l.droga || !l.unidadCompraId).length;
   const faltaEncabezado = !proveedor || !letra;
+  /** Why "Ingresar" is disabled -- shown floating over the button. */
+  const bloqueos = [
+    !proveedor ? "Elegí el proveedor." : null,
+    !letra ? "Elegí la letra del comprobante." : null,
+    incompletas > 0 ? `Falta elegir droga o unidad en ${incompletas === 1 ? "1 lote" : `${incompletas} lotes`}.` : null,
+    activas.length === 0 ? "Todos los lotes están marcados para no ingresar." : null,
+    alta !== null ? "Terminá o cancelá el alta del producto nuevo." : null,
+  ].filter((b): b is string => b !== null);
   const totalLineas = lineas.reduce((suma, l) => suma + (Number(l.cantidad) || 0) * (Number(l.precioUnitario) || 0), 0);
   const subtotalFactura = comprobante.subtotal === null ? null : Number(comprobante.subtotal);
   const difiereDelSubtotal = subtotalFactura !== null && Math.abs(totalLineas - subtotalFactura) > 0.05;
@@ -204,7 +212,14 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
       action={importarFacturaCompraAction}
       submitLabel={activas.length === 1 ? "Ingresar 1 partida" : `Ingresar ${activas.length} partidas`}
       pendingLabel="Ingresando…"
-      submitDisabled={incompletas > 0 || faltaEncabezado || activas.length === 0 || alta !== null}
+      submitDisabled={bloqueos.length > 0}
+      submitDisabledReason={
+        <ul className="flex flex-col gap-1">
+          {bloqueos.map((b) => (
+            <li key={b}>{b}</li>
+          ))}
+        </ul>
+      }
       onSuccess={onImportada}
     >
       <input type="hidden" name="facturaJson" value={JSON.stringify(payload())} />

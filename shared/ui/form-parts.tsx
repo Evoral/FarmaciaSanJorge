@@ -5,7 +5,7 @@
  * and the success/error message. Change the look of every form's button,
  * spacing or feedback HERE -- never per call site.
  */
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 /**
  * Base shape every module's `ui/action-state.ts` union conforms to. Module
@@ -56,13 +56,33 @@ export interface SubmitButtonProps {
   variant?: ButtonVariant;
   /** `"sm"` for buttons inside table rows, next to other `btn-sm` actions. */
   size?: "sm";
+  /**
+   * Why the button is disabled, shown as a floating note on hover/focus.
+   * A disabled button gets no pointer or focus events, so the wrapper takes
+   * them: it is focusable and the button ignores the pointer.
+   */
+  disabledReason?: ReactNode;
 }
 
-export function SubmitButton({ label, pendingLabel, pending, disabled, variant, size }: SubmitButtonProps) {
-  return (
+export function SubmitButton({ label, pendingLabel, pending, disabled, variant, size, disabledReason }: SubmitButtonProps) {
+  const reasonId = useId();
+  const button = (
     <button type="submit" disabled={pending || disabled} className={buttonClassName(variant, size)}>
       {pending ? pendingLabel : label}
     </button>
+  );
+  if (!disabled || pending || !disabledReason) return button;
+  return (
+    <span tabIndex={0} aria-describedby={reasonId} className="group relative inline-flex cursor-not-allowed [&>button]:pointer-events-none">
+      {button}
+      <span
+        role="tooltip"
+        id={reasonId}
+        className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 hidden w-max max-w-xs rounded-md bg-zinc-900 px-3 py-2 text-[0.8125rem] text-white shadow-lg group-hover:block group-focus:block"
+      >
+        {disabledReason}
+      </span>
+    </span>
   );
 }
 
