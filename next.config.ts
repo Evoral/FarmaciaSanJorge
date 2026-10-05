@@ -83,6 +83,11 @@ const nextConfig: NextConfig = {
         destination: "/pacientes/:id/historial",
         permanent: false,
       },
+      {
+        source: "/proveedores/:id/trayectoria",
+        destination: "/proveedores/:id/historial",
+        permanent: false,
+      },
     ];
   },
   async headers() {

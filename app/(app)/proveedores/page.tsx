@@ -198,8 +198,8 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
                       </td>
                       <td className="px-3 py-2.5">
                         <span className="flex items-center justify-end gap-1">
-                          <Link href={`/proveedores/${proveedor.id}/trayectoria`} className="btn btn-ghost btn-sm" aria-label={`Ver la trayectoria de ${proveedor.razonSocial}`}>
-                            <span className="hidden sm:inline">Trayectoria</span>
+                          <Link href={`/proveedores/${proveedor.id}/historial`} className="btn btn-ghost btn-sm" aria-label={`Ver el historial de ${proveedor.razonSocial}`}>
+                            <span className="hidden sm:inline">Historial</span>
                             <span className="sm:hidden">Ver</span>
                           </Link>
                           <Link href={`/proveedores/${proveedor.id}`} aria-label={`Ver los datos de ${proveedor.razonSocial}`} className="btn btn-ghost btn-sm btn-icon">

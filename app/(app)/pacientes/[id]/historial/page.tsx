@@ -8,7 +8,7 @@
  * links are decided by the use case from the session's other permisos.
  * Recetas render as a `table.data-table` (same look as the other lists) whose
  * rows expand to the full journey (`FilaDesplegable`). The paciente's "Datos |
- * Trayectoria" tabs sit right under the header (`PacienteTabs`).
+ * Historial" tabs sit right under the header (`PacienteTabs`).
  */
 import { notFound } from "next/navigation";
 import { FileText } from "lucide-react";
