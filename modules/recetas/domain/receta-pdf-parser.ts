@@ -131,7 +131,19 @@ export interface BorradorReceta {
   items: BorradorItem[];
 }
 
-export type CodigoAdvertencia = "RENGLON_NO_RECONOCIDO" | "UNIDADES_VS_DURACION" | "MAS_DE_UN_ITEM" | "DATO_FALTANTE" | "MATRICULA_DISTINTA";
+/**
+ * `RENGLON_INFORMATIVO` (a neutral note, not a problem) and `DATO_NO_IMPORTADO`
+ * (a source field the import deliberately does not store) are only emitted by
+ * the QR import; the PDF never produces either one.
+ */
+export type CodigoAdvertencia =
+  | "RENGLON_NO_RECONOCIDO"
+  | "UNIDADES_VS_DURACION"
+  | "MAS_DE_UN_ITEM"
+  | "DATO_FALTANTE"
+  | "MATRICULA_DISTINTA"
+  | "RENGLON_INFORMATIVO"
+  | "DATO_NO_IMPORTADO";
 
 /** A visible, non-blocking warning for the preview. `texto` carries the literal line when the warning is about one. */
 export interface AdvertenciaParser {
@@ -183,7 +195,7 @@ function mediana(valores: number[]): number {
   return ordenados.length % 2 === 1 ? ordenados[medio]! : (ordenados[medio - 1]! + ordenados[medio]!) / 2;
 }
 
-function colapsar(texto: string): string {
+export function colapsar(texto: string): string {
   return texto.replace(/\s+/g, " ").trim();
 }
 
@@ -378,13 +390,17 @@ export function clasificarRenglonCuerpo(texto: string): ClaseRenglon {
   return { clase: "otro" };
 }
 
-interface ResultadoCuerpo {
+export interface ResultadoCuerpo {
   item: BorradorItem;
   advertencias: AdvertenciaParser[];
 }
 
-/** Builds the (single) item from the body lines found between `Rp./` and `Diagnóstico:`. */
-function parsearCuerpo(lineas: readonly string[]): ResultadoCuerpo {
+/**
+ * Builds ONE item from its body lines (for the PDF, the lines found between
+ * `Rp./` and `Diagnóstico:`). Shared by every source of recetas: the PDF-only
+ * "- " first-line rule lives in the PDF strategy, not here.
+ */
+export function parsearCuerpo(lineas: readonly string[]): ResultadoCuerpo {
   const item: BorradorItem = {
     formaFarmaceutica: null,
     cantidadUnidades: null,
@@ -405,10 +421,7 @@ function parsearCuerpo(lineas: readonly string[]): ResultadoCuerpo {
     });
   };
 
-  lineas.forEach((texto, idx) => {
-    // Spec: a first line starting with "- " right after Rp./ is dropped silently (meaning unknown).
-    if (idx === 0 && /^-\s/.test(texto)) return;
-
+  lineas.forEach((texto) => {
     const c = clasificarRenglonCuerpo(texto);
     switch (c.clase) {
       case "componente":
@@ -479,6 +492,13 @@ export interface EstrategiaEmisor {
 }
 
 const RE_REGISTRO_EMISOR = /\bRL-\d{4}-\d{9}\b/;
+const RE_CONTACTO_MEDICO = /^(.+?)\s+Tel[ée]fono:?\s*([\d\s()+-]*\d)/i;
+
+/** "`<dirección>` Teléfono `<número>`" (the footer of the PDF, the QR's `lugarAtencion`) -> its two parts, or `null` without a phone. */
+export function separarContactoMedico(texto: string): { direccion: string; telefono: string } | null {
+  const m = RE_CONTACTO_MEDICO.exec(texto);
+  return m ? { direccion: colapsar(m[1]!), telefono: colapsar(m[2]!) } : null;
+}
 
 /** `true` if `uri` is an http(s) URL on `host` (or a subdomain) whose path starts with `prefijoPath`. */
 function esLinkDe(uri: string, host: string, prefijoPath: string): boolean {
@@ -528,6 +548,12 @@ export function esUrlVerificacionDeEmisor(emisor: CodigoEmisor, uri: string): bo
       return esLinkDe(uri, RCTA_HOST, RCTA_PATH);
   }
 }
+
+/** The emisor's verification link for a receta hash (the QR carries the hash; the PDF carries this link). */
+export function urlVerificacionRcta(hash: string): string {
+  return `https://${RCTA_HOST}${RCTA_PATH}${hash}`;
+}
+
 /** RCTA's own number in the national registry of electronic recetarios, as printed on its recetas. */
 const RCTA_REGISTROS: readonly string[] = ["RL-2024-100292307"];
 
@@ -649,21 +675,26 @@ function parsearRcta(ctx: ContextoParser): ResultadoParserReceta {
       }
       lineas.push(texto);
     }
-    const cuerpo = parsearCuerpo(lineas);
+    // Spec: a first line starting with "- " right after Rp./ is dropped silently (meaning unknown). PDF only.
+    const cuerpo = parsearCuerpo(/^-\s/.test(lineas[0] ?? "") ? lineas.slice(1) : lineas);
     item = cuerpo.item;
     advertencias.push(...cuerpo.advertencias);
   }
 
   // --- Pie: dirección y teléfono del médico. ---
-  const contacto = primerMatch(textosDe(renglones.slice(finCuerpo)), /^(.+?)\s+Tel[ée]fono:?\s*([\d\s()+-]*\d)/i);
+  let contacto: ReturnType<typeof separarContactoMedico> = null;
+  for (const texto of textosDe(renglones.slice(finCuerpo))) {
+    contacto = separarContactoMedico(texto);
+    if (contacto) break;
+  }
 
   const medico: BorradorMedico = {
     nombre: medicoNombre,
     especialidad,
     matricula,
     matriculaJurisdiccion,
-    direccionRegistrada: contacto ? colapsar(contacto[1]!) : null,
-    telefono: contacto ? colapsar(contacto[2]!) : null,
+    direccionRegistrada: contacto?.direccion ?? null,
+    telefono: contacto?.telefono ?? null,
   };
 
   const itemFinal: BorradorItem = item ?? {

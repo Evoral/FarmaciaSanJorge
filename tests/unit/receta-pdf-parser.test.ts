@@ -11,11 +11,16 @@ import { describe, it, expect } from "vitest";
 import {
   agruparRenglones,
   clasificarRenglonCuerpo,
+  colapsar,
   controlarUnidadesVsDuracion,
+  esUrlVerificacionDeEmisor,
+  parsearCuerpo,
   parsearDecimalEsAr,
   parsearFechaDdMmAaaa,
   parsearRecetaPdf,
+  separarContactoMedico,
   separarNombre,
+  urlVerificacionRcta,
 } from "@/modules/recetas/domain/receta-pdf-parser";
 import type { LinkLite, RecetaPdfInput, TextItemLite } from "@/modules/recetas/domain/receta-pdf-parser";
 import { coincideNormalizado, normalizarTexto } from "@/modules/recetas/domain/normalizar";
@@ -400,5 +405,72 @@ describe("consistency and other warnings", () => {
       matricula: "98765",
       matriculaJurisdiccion: "NACIONAL",
     });
+  });
+});
+
+// ============================================================================
+// Pieces shared with the QR import (importacion-receta-qr spec, PDF delta P71)
+// ============================================================================
+
+describe("parsearCuerpo (shared by the PDF and the QR import)", () => {
+  it("does NOT apply the PDF-only '- ' rule: a first '- ...' line is reported like any unrecognized line", () => {
+    const { item, advertencias } = parsearCuerpo(["- Belgrano 250 Godoy Cruz", "Fluoxetina 20 mg", "30 comprimidos"]);
+    expect(advertencias).toEqual([
+      {
+        codigo: "RENGLON_NO_RECONOCIDO",
+        mensaje: "No se reconoció el renglón «- Belgrano 250 Godoy Cruz». Revisalo y cargalo a mano si corresponde.",
+        texto: "- Belgrano 250 Godoy Cruz",
+      },
+    ]);
+    expect(item.componentes).toHaveLength(1);
+    expect(item.cantidadUnidades).toBe(30);
+  });
+
+  it("classifies the same lines the PDF does (same item and warnings)", () => {
+    const { item, advertencias } = parsearCuerpo(["Mazindol 1,5 mg", "30 cápsulas", "Media dosis cada 12 horas", "Tratamiento por 30 días"]);
+    expect(item).toEqual({
+      formaFarmaceutica: "CAPSULA",
+      cantidadUnidades: 30,
+      fraccionDosisPorUnidad: "0.5",
+      posologia: "Media dosis cada 12 horas",
+      duracionTratamientoDias: 30,
+      componentes: [{ drogaTexto: "Mazindol", cantidad: "1.5", unidadTexto: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: true }],
+    });
+    expect(advertencias.map((a) => a.codigo)).toEqual(["UNIDADES_VS_DURACION"]);
+  });
+
+  it("the PDF flow still drops the leading '- ' line silently (rule moved into the PDF strategy)", () => {
+    const sinGuion = parsearOk(recetaRcta({ cuerpo: CUERPO_P1.slice(1) }));
+    const conGuion = parsearOk(recetaRcta());
+    expect(conGuion.borrador).toEqual(sinGuion.borrador);
+    expect(conGuion.advertencias).toEqual(sinGuion.advertencias);
+  });
+});
+
+describe("colapsar", () => {
+  it("collapses runs of whitespace and trims", () => {
+    expect(colapsar("  Ana \n  Suárez\t")).toBe("Ana Suárez");
+    expect(colapsar("")).toBe("");
+  });
+});
+
+describe("separarContactoMedico", () => {
+  it("splits the address from the phone (with or without colon after Teléfono)", () => {
+    expect(separarContactoMedico("San Martín 456 Ciudad Mendoza Teléfono 261 5550000")).toEqual({ direccion: "San Martín 456 Ciudad Mendoza", telefono: "261 5550000" });
+    expect(separarContactoMedico("Belgrano 250 Godoy Cruz Telefono: (261) 555-0000")).toEqual({ direccion: "Belgrano 250 Godoy Cruz", telefono: "(261) 555-0000" });
+  });
+
+  it("returns null when there is no phone", () => {
+    expect(separarContactoMedico("San Martín 456 Ciudad Mendoza")).toBeNull();
+    expect(separarContactoMedico("")).toBeNull();
+  });
+});
+
+describe("urlVerificacionRcta", () => {
+  it("rebuilds the emisor's verification URL from the hash, and the emisor accepts it as its own", () => {
+    const hash = "0123456789abcdef".repeat(4);
+    const url = urlVerificacionRcta(hash);
+    expect(url).toBe(`https://verumrp.com.ar/prescripcion/${hash}`);
+    expect(esUrlVerificacionDeEmisor("RCTA", url)).toBe(true);
   });
 });
