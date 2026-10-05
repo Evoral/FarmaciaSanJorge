@@ -10,6 +10,8 @@ En `/recetas/nuevo`, el usuario sube el PDF de una receta digital. El sistema lo
 
 El PDF **no se almacena**: vive en memoria durante la lectura y se descarta.
 
+La misma vista previa y confirmación también se alimentan desde el QR o link de la receta: ver `docs/specs/importacion-receta-qr.md`. El rótulo del origen `DIGITAL_PDF` es "Digital (PDF o QR)".
+
 Fuera de alcance: recetas escaneadas (sin capa de texto), `DIGITAL_FOTO`, obras sociales (DP-30), OCR y LLM.
 
 ## Arquitectura (4 piezas)
