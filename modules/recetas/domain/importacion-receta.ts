@@ -150,7 +150,8 @@ export type CodigoAdvertenciaImportacion =
   | "PACIENTE_DADO_DE_BAJA"
   | "DIFERENCIA_DATOS"
   | "DROGA_SIN_MATCH"
-  | "UNIDAD_SIN_MATCH";
+  | "UNIDAD_SIN_MATCH"
+  | "AVISOS_OMITIDOS";
 
 export interface AdvertenciaImportacion {
   codigo: CodigoAdvertenciaImportacion;
@@ -174,6 +175,7 @@ export const SEVERIDAD_ADVERTENCIA: Readonly<Record<CodigoAdvertenciaImportacion
   DIFERENCIA_DATOS: "advertencia",
   DROGA_SIN_MATCH: "advertencia",
   UNIDAD_SIN_MATCH: "advertencia",
+  AVISOS_OMITIDOS: "advertencia",
 };
 
 /** Splits the notices by severity, keeping the order inside each group. */
@@ -182,6 +184,38 @@ export function separarPorSeveridad<A extends AdvertenciaImportacion>(lista: rea
   const informativas: A[] = [];
   for (const a of lista) (SEVERIDAD_ADVERTENCIA[a.codigo] === "informativa" ? informativas : advertencias).push(a);
   return { advertencias, informativas };
+}
+
+/** The most characters (code points) a notice's `mensaje` or `texto` carries; longer text is cut and ends in an ellipsis. */
+export const MAX_CARACTERES_AVISO = 200;
+/** The most notices a preview carries, the overflow notice included. */
+export const MAX_AVISOS_VISTA_PREVIA = 50;
+export const MENSAJE_AVISOS_OMITIDOS = "Hay más avisos que no se muestran.";
+
+/** Cut by code points, so a surrogate pair (an emoji) is never split into a lone, invalid half. */
+function acotarTexto(texto: string): string {
+  if (texto.length <= MAX_CARACTERES_AVISO) return texto; // UTF-16 units >= code points: it cannot be over the cap
+  const puntos = Array.from(texto);
+  return puntos.length > MAX_CARACTERES_AVISO ? `${puntos.slice(0, MAX_CARACTERES_AVISO).join("")}…` : texto;
+}
+
+/**
+ * The final bound on a preview's notices: they echo text that is not ours (the
+ * receta's own lines, drug names) and several stages add them, so the bound is
+ * applied once, to the finished list. Every `mensaje` and `texto` is cut to
+ * `MAX_CARACTERES_AVISO`; past `MAX_AVISOS_VISTA_PREVIA` notices, warnings are
+ * kept before informational ones (original order inside each group) and the last
+ * slot says that more exist. Pure: returns new objects and leaves the input alone.
+ */
+export function acotarAvisos(lista: readonly AdvertenciaImportacion[]): AdvertenciaImportacion[] {
+  const acotadas = lista.map((a) => (a.texto === undefined ? { ...a, mensaje: acotarTexto(a.mensaje) } : { ...a, mensaje: acotarTexto(a.mensaje), texto: acotarTexto(a.texto) }));
+  if (acotadas.length <= MAX_AVISOS_VISTA_PREVIA) return acotadas;
+
+  const advertencias: number[] = [];
+  const informativas: number[] = [];
+  acotadas.forEach((a, i) => (SEVERIDAD_ADVERTENCIA[a.codigo] === "informativa" ? informativas : advertencias).push(i));
+  const conservadas = new Set([...advertencias, ...informativas].slice(0, MAX_AVISOS_VISTA_PREVIA - 1));
+  return [...acotadas.filter((_, i) => conservadas.has(i)), { codigo: "AVISOS_OMITIDOS", mensaje: MENSAJE_AVISOS_OMITIDOS }];
 }
 
 /** Where the receta was read from: the PDF upload or the QR/link of the receta. Audit-only. */

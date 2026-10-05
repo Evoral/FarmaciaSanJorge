@@ -20,7 +20,7 @@
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { DomainError, ValidationError } from "@/shared/errors";
-import type { VistaPreviaImportacion } from "../domain/importacion-receta";
+import { acotarAvisos, type VistaPreviaImportacion } from "../domain/importacion-receta";
 import { extraerHashRcta, MENSAJES_LECTURA_QR } from "../domain/receta-qr";
 import { mapearRecetaRcta } from "../domain/receta-rcta-json";
 import { consultarRecetaRcta } from "../infrastructure/receta-rcta-api.server";
@@ -47,8 +47,11 @@ export const leerRecetaQrQuery = defineQuery({
     if (!lectura.ok) throw errorDeLectura(lectura.codigo);
     return lectura;
   },
-  handler: async ({ tx, session, prepared }): Promise<VistaPreviaImportacion> =>
-    construirVistaPrevia(tx, session.tenantId, prepared.borrador, prepared.advertencias, "QR"),
+  handler: async ({ tx, session, prepared }): Promise<VistaPreviaImportacion> => {
+    const vista = await construirVistaPrevia(tx, session.tenantId, prepared.borrador, prepared.advertencias, "QR");
+    // The match step adds its own notices (unmatched drugs and units, differences) echoing the receta's text: bound the finished list.
+    return { ...vista, advertencias: acotarAvisos(vista.advertencias) };
+  },
 });
 
 export async function leerRecetaQr(codigo: unknown): Promise<VistaPreviaImportacion> {

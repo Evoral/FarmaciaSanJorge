@@ -10,6 +10,7 @@ import {
   CAMPOS_PACIENTE_IMPORTABLES,
   MENSAJE_CAMBIOS_DESDE_LECTURA,
   SEVERIDAD_ADVERTENCIA,
+  acotarAvisos,
   advertenciasDeDiferencias,
   calcularCompletado,
   diferenciaDeNombre,
@@ -19,7 +20,7 @@ import {
   separarPorSeveridad,
   valoresACompletar,
 } from "@/modules/recetas/domain/importacion-receta";
-import type { CodigoAdvertenciaImportacion } from "@/modules/recetas/domain/importacion-receta";
+import type { AdvertenciaImportacion, CodigoAdvertenciaImportacion } from "@/modules/recetas/domain/importacion-receta";
 
 const CAFEINA = { id: "d-cafeina", nombre: "Cafeína" };
 const CLORURO = { id: "d-cloruro", nombre: "Cloruro de potasio" };
@@ -138,5 +139,102 @@ describe("SEVERIDAD_ADVERTENCIA (what the preview shows as a warning vs. as plai
 describe("MENSAJE_CAMBIOS_DESDE_LECTURA", () => {
   it("does not name the source (the same message serves the PDF and the QR import)", () => {
     expect(MENSAJE_CAMBIOS_DESDE_LECTURA).toBe("Los datos cambiaron desde que se leyó la receta. Volvé a leerla.");
+  });
+});
+
+describe("acotarAvisos (the bound on the notices of the final QR preview)", () => {
+  const largos = (n: number) => "x".repeat(n);
+  const aviso = (codigo: CodigoAdvertenciaImportacion, mensaje: string, texto?: string): AdvertenciaImportacion => (texto === undefined ? { codigo, mensaje } : { codigo, mensaje, texto });
+  const puntos = (s: string) => Array.from(s).length;
+  const sinSurrogadoSuelto = (s: string) => Array.from(s).every((c) => c.length === 2 || c.charCodeAt(0) < 0xd800 || c.charCodeAt(0) > 0xdfff);
+  const OMITIDOS = { codigo: "AVISOS_OMITIDOS", mensaje: "Hay más avisos que no se muestran." };
+
+  it("AVISOS_OMITIDOS is a regular warning in the severity map", () => {
+    expect(SEVERIDAD_ADVERTENCIA.AVISOS_OMITIDOS).toBe("advertencia");
+  });
+
+  it("truncates mensaje and texto to 200 characters plus an ellipsis; exactly 200 is untouched", () => {
+    const [largo, justo] = acotarAvisos([aviso("DROGA_SIN_MATCH", largos(250), largos(300)), aviso("DROGA_SIN_MATCH", largos(200), largos(200))]);
+    expect(largo).toEqual({ codigo: "DROGA_SIN_MATCH", mensaje: `${largos(200)}…`, texto: `${largos(200)}…` });
+    expect(justo).toEqual({ codigo: "DROGA_SIN_MATCH", mensaje: largos(200), texto: largos(200) });
+  });
+
+  it("a notice without texto stays without a texto key", () => {
+    const [a] = acotarAvisos([aviso("PACIENTE_DADO_DE_BAJA", largos(260))]);
+    expect(Object.keys(a!)).toEqual(["codigo", "mensaje"]);
+  });
+
+  it("never splits a surrogate pair at the cut", () => {
+    // 199 BMP characters + 2 emoji = 201 code points, and the cut falls right between the emoji's UTF-16 halves.
+    const texto = `${largos(199)}😀😀`;
+    const [a] = acotarAvisos([aviso("UNIDAD_SIN_MATCH", texto, texto)]);
+    expect(a!.mensaje).toBe(`${largos(199)}😀…`);
+    expect(a!.texto).toBe(`${largos(199)}😀…`);
+    expect(sinSurrogadoSuelto(a!.mensaje)).toBe(true);
+    // Length is counted in code points, not UTF-16 units: 150 emoji are well under the cap.
+    const emojis = "😀".repeat(150);
+    expect(acotarAvisos([aviso("UNIDAD_SIN_MATCH", emojis)])[0]!.mensaje).toBe(emojis);
+  });
+
+  it("is idempotent: text already cut by an earlier layer does not get a second ellipsis", () => {
+    const una = acotarAvisos([aviso("DROGA_SIN_MATCH", largos(250), largos(250))]);
+    const dos = acotarAvisos(una);
+    expect(dos).toEqual(una);
+    expect(dos[0]!.mensaje.endsWith("……")).toBe(false);
+    expect(puntos(dos[0]!.mensaje)).toBe(201);
+  });
+
+  it("up to 50 notices come back whole, in order, as new objects", () => {
+    const lista = Array.from({ length: 50 }, (_, i) => aviso(i % 2 === 0 ? "DROGA_SIN_MATCH" : "RENGLON_INFORMATIVO", `aviso ${i}`));
+    const r = acotarAvisos(lista);
+    expect(r).toEqual(lista);
+    expect(r).not.toBe(lista);
+    r.forEach((a, i) => expect(a).not.toBe(lista[i]));
+  });
+
+  it("past 50 it keeps 49 plus the AVISOS_OMITIDOS notice, ALL warnings before any informational one", () => {
+    const informativas = Array.from({ length: 30 }, (_, i) => aviso("RENGLON_INFORMATIVO", `info ${i}`));
+    const advertencias = Array.from({ length: 60 }, (_, i) => aviso("DROGA_SIN_MATCH", `adv ${i}`));
+    const r = acotarAvisos([...informativas, ...advertencias]);
+    expect(r).toHaveLength(50);
+    expect(r[49]).toEqual(OMITIDOS);
+    expect(r.slice(0, 49).map((a) => a.mensaje)).toEqual(advertencias.slice(0, 49).map((a) => a.mensaje));
+    expect(r.some((a) => a.codigo === "RENGLON_INFORMATIVO")).toBe(false);
+  });
+
+  it("when the warnings fit, informational notices fill the rest, each group in its original order", () => {
+    const lista = [
+      ...Array.from({ length: 40 }, (_, i) => aviso("RENGLON_INFORMATIVO", `info ${i}`)),
+      ...Array.from({ length: 20 }, (_, i) => aviso("DIFERENCIA_DATOS", `adv ${i}`)),
+    ];
+    const r = acotarAvisos(lista);
+    expect(r).toHaveLength(50);
+    expect(r[49]).toEqual(OMITIDOS);
+    expect(r.filter((a) => a.codigo === "DIFERENCIA_DATOS").map((a) => a.mensaje)).toEqual(Array.from({ length: 20 }, (_, i) => `adv ${i}`));
+    expect(r.filter((a) => a.codigo === "RENGLON_INFORMATIVO").map((a) => a.mensaje)).toEqual(Array.from({ length: 29 }, (_, i) => `info ${i}`));
+  });
+
+  it("51 notices already overflow (49 kept + the overflow notice)", () => {
+    const r = acotarAvisos(Array.from({ length: 51 }, (_, i) => aviso("DATO_FALTANTE", `a ${i}`)));
+    expect(r).toHaveLength(50);
+    expect(r[48]!.mensaje).toBe("a 48");
+    expect(r[49]).toEqual(OMITIDOS);
+  });
+
+  it("truncates the kept notices too, and an empty list stays empty", () => {
+    const r = acotarAvisos(Array.from({ length: 60 }, () => aviso("DROGA_SIN_MATCH", largos(500), largos(500))));
+    expect(r.every((a) => puntos(a.mensaje) <= 201 && puntos(a.texto ?? "") <= 201)).toBe(true);
+    expect(acotarAvisos([])).toEqual([]);
+  });
+
+  it("does not mutate the input, and the overflow notice is a fresh object every time", () => {
+    const lista = Object.freeze(Array.from({ length: 60 }, (_, i) => Object.freeze(aviso("DROGA_SIN_MATCH", largos(300), `t${i}`))));
+    const copia = JSON.stringify(lista);
+    const a = acotarAvisos(lista);
+    const b = acotarAvisos(lista);
+    expect(JSON.stringify(lista)).toBe(copia);
+    expect(a[49]).not.toBe(b[49]);
+    (a[49] as { mensaje: string }).mensaje = "alterado";
+    expect(acotarAvisos(lista)[49]).toEqual(OMITIDOS);
   });
 });

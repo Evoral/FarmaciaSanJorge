@@ -192,6 +192,34 @@ describe("recetas.importar.leerQr -- preview and duplicate (P48-P50)", () => {
   });
 });
 
+describe("recetas.importar.leerQr -- the final preview's notices are bounded", () => {
+  const puntos = (s: string) => Array.from(s).length;
+  const componentes = (n: number) => Array.from({ length: n }, (_, i) => `${"Z".repeat(300)}${i} 50 mg`).join("\n");
+
+  it("many unmatched drugs with a huge name give at most 50 notices of at most 200 characters (+ ellipsis), the last one being the overflow notice", async () => {
+    fetchMock.mockImplementation(async () => respuestaJson({ ...RECETA_JSON, prescripcion: [{ prescripcion: `${componentes(70)}\n30 comprimidos` }] }));
+    repo.listDrogasVigentesParaMatch.mockResolvedValue([]);
+    const vista = await leer(HASH);
+    expect(vista.componentes[0]!.length).toBeGreaterThan(60);
+    expect(vista.advertencias).toHaveLength(50);
+    expect(vista.advertencias[49]).toEqual({ codigo: "AVISOS_OMITIDOS", mensaje: "Hay más avisos que no se muestran." });
+    const sinMatch = vista.advertencias.filter((a) => a.codigo === "DROGA_SIN_MATCH");
+    expect(sinMatch.length).toBeGreaterThan(40);
+    expect(sinMatch.length).toBeLessThan(50);
+    for (const a of vista.advertencias) {
+      expect(puntos(a.mensaje)).toBeLessThanOrEqual(201);
+      expect(puntos(a.texto ?? "")).toBeLessThanOrEqual(201);
+    }
+    expect(sinMatch[0]!.texto).toBe(`${"Z".repeat(200)}…`);
+  });
+
+  it("a normal receta is untouched by the bound (no overflow notice, no truncation)", async () => {
+    const vista = await leer(HASH);
+    expect(vista.advertencias.some((a) => a.codigo === "AVISOS_OMITIDOS")).toBe(false);
+    expect(vista.advertencias.length).toBeLessThan(50);
+  });
+});
+
 describe("recetas.importar.leerQr -- RCTA failures become user errors, never INTERNAL_ERROR", () => {
   const casos: Array<[string, () => Promise<Response> | Response, string, typeof ValidationError | typeof DomainError]> = [
     ["unknown hash (500 + 'Recipe does not exists')", () => respuestaJson({ error: "Recipe does not exists" }, 500), MENSAJES_LECTURA_QR.QR_INVALIDO, ValidationError],
