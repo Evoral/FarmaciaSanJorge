@@ -25,14 +25,17 @@
  * What the camera decodes goes into the SAME input and through the SAME form submit
  * (`requestSubmit`), so the camera is only another way to type the code. Where the
  * camera cannot work (an insecure page, no camera API) the button is disabled and says why.
- * The scanner's status texts use this panel's live region too.
+ * The scanner's status texts use this panel's live region too. A reading that starts (typed or
+ * scanned) closes the scanner; a camera decode that arrives while a reading is in flight is
+ * announced, never dropped silently. A reading that came from the camera does not move the focus
+ * (it would open the on-screen keyboard of a phone over the preview).
  */
 import { useActionState, useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { AlertCircle, Camera, QrCode } from "lucide-react";
 import { leerRecetaQrAction } from "./actions";
 import { IDLE_LEER_RECETA_STATE } from "./action-state";
 import { MENSAJE_ANUNCIO_LEYENDO, textoAnuncioLectura } from "./anuncio-lectura";
-import { MENSAJE_CAMARA_CERRADA, mensajeEstadoCamara, soporteCamara } from "./camara-qr";
+import { MENSAJE_CAMARA_CERRADA, MENSAJE_CAMARA_LECTURA_EN_CURSO, enviarFormulario, mensajeEstadoCamara, soporteCamara } from "./camara-qr";
 import { EscanerQrCamara, leerEntornoCamara } from "./escaner-qr-camara";
 import { debeRecuperarFoco } from "./foco-lectura";
 import type { VistaPreviaImportacion } from "../domain/importacion-receta";
@@ -66,6 +69,9 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
   );
   /** Set on submit, cleared when a result arrives: closes the gap before `isPending` turns true. */
   const enVuelo = useRef(false);
+  /** Who started the reading in flight, and who starts the next one (set only around the camera's own submit). */
+  const origenLectura = useRef<"camara" | "teclado">("teclado");
+  const origenSiguiente = useRef<"camara" | "teclado">("teclado");
   const inputId = useId();
   const errorId = useId();
   const avisoCamaraId = useId();
@@ -79,7 +85,7 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
     if (state.status === "idle") return;
     enVuelo.current = false;
     // A late error must not steal the focus from the manual form the user moved on to.
-    if (debeRecuperarFoco({ status: state.status, activo: document.activeElement, cuerpo: document.body, panel: panelRef.current })) enfocarYSeleccionar();
+    if (debeRecuperarFoco({ status: state.status, activo: document.activeElement, cuerpo: document.body, panel: panelRef.current, origen: origenLectura.current })) enfocarYSeleccionar();
     if (state.status === "success") onLeida(state.vistaPrevia);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -92,7 +98,10 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
       return;
     }
     enVuelo.current = true;
+    origenLectura.current = origenSiguiente.current;
     setAnuncioCamara("");
+    // Whatever started the reading, the scanner has nothing left to do: it must not keep the camera on.
+    setCamaraAbierta(false);
     onSubmit(event);
   };
 
@@ -101,8 +110,19 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
   // What the camera decoded takes the same path as a typed code: into the input, then the form's own submit.
   const alLeerConCamara = (texto: string) => {
     setCamaraAbierta(false);
+    // A reading is already running: its result comes first, and the user is told to scan again.
+    if (isPending || enVuelo.current) {
+      setAnuncioCamara(MENSAJE_CAMARA_LECTURA_EN_CURSO);
+      return;
+    }
     if (inputRef.current) inputRef.current.value = texto;
-    formRef.current?.requestSubmit();
+    if (!formRef.current) return;
+    origenSiguiente.current = "camara";
+    try {
+      enviarFormulario(formRef.current);
+    } finally {
+      origenSiguiente.current = "teclado";
+    }
   };
 
   // `mensaje` is set when the scanner closed itself (tab hidden); a click on "Cerrar cámara" gives the focus back to the button.

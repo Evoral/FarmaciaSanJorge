@@ -10,27 +10,36 @@
  * Decoder: the native `BarcodeDetector` when it knows QR codes (Android Chrome),
  * otherwise jsQR over a canvas copy of the frame (iOS Safari, Firefox), loaded
  * only then. Frames are read on a throttled loop with an in-flight guard, never
- * faster than the decoder answers.
+ * faster than the decoder answers. A native detector that throws on several frames
+ * in a row hands over to jsQR; jsQR failing the same way ends in an error message.
  *
  * The camera is a privacy-sensitive device: EVERY MediaStream track is stopped on
- * a decoded QR, on "Cerrar cámara", on unmount, when the tab is hidden, and when
- * the permission request resolves after the scanner was already closed.
+ * a decoded QR, on "Cerrar cámara", on unmount, when the tab is hidden (also when the
+ * permission only resolves after that), when the camera disconnects, and when the
+ * permission request resolves after the scanner was already closed.
  *
- * It is mounted only while the camera is open, so there is one run per mount.
+ * One run per mount and per "Reintentar" (the `intento` counter restarts the effect).
  * What the user must be told is announced through the panel's live region
  * (`onAnunciar`) and shown as text next to the video.
  */
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, X } from "lucide-react";
+import { AlertCircle, RefreshCw, X } from "lucide-react";
 import {
   MENSAJE_CAMARA_CERRADA_AL_SALIR,
   MENSAJE_CAMARA_ESCANEANDO,
   MENSAJE_CAMARA_NO_ES_RECETA,
   MENSAJE_CAMARA_SOLICITANDO,
+  RESTRICCIONES_CAMARA,
+  accionTrasFallos,
+  accionTrasObtenerCamara,
   claseErrorCamara,
+  dimensionesFrame,
+  esQrNoReceta,
+  estadoPermiteReintentar,
   evaluarLecturaQr,
   mensajeEstadoCamara,
   motorLectura,
+  pistaVigente,
   soporteCamara,
   type EntornoCamara,
   type EstadoMensajeCamara,
@@ -87,8 +96,10 @@ async function detectorNativoParaQr(): Promise<DetectorDeCodigos | null> {
 export function EscanerQrCamara({ onLeido, onCerrar, onAnunciar }: EscanerQrCamaraProps) {
   const [estado, setEstado] = useState<EstadoEscaner>({ tipo: "solicitando" });
   const [pistaNoEsReceta, setPistaNoEsReceta] = useState(false);
+  const [intento, setIntento] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
-  // The callbacks are read through refs so the camera effect runs once per mount, not on every parent render.
+  const botonCerrarRef = useRef<HTMLButtonElement>(null);
+  // The callbacks are read through refs so the camera effect runs once per attempt, not on every parent render.
   const callbacks = useRef({ onLeido, onCerrar, onAnunciar });
   useEffect(() => {
     callbacks.current = { onLeido, onCerrar, onAnunciar };
@@ -115,10 +126,21 @@ export function EscanerQrCamara({ onLeido, onCerrar, onAnunciar }: EscanerQrCama
       callbacks.current.onAnunciar(mensajeEstadoCamara(mensajeEstado));
     };
 
+    /** Stops everything and says why: a scanner that cannot read must not keep a camera open. */
+    const terminarConMensaje = (mensajeEstado: EstadoMensajeCamara) => {
+      detener();
+      mostrarMensaje(mensajeEstado);
+    };
+
     const alOcultarse = () => {
       if (document.visibilityState !== "hidden" || terminado) return;
       detener();
       callbacks.current.onCerrar(MENSAJE_CAMARA_CERRADA_AL_SALIR);
+    };
+
+    // Unplugged, revoked or taken by another app: the loop would read a frozen frame forever.
+    const alDesconectarse = () => {
+      if (!terminado) terminarConMensaje("desconectada");
     };
 
     async function iniciar() {
@@ -130,7 +152,7 @@ export function EscanerQrCamara({ onLeido, onCerrar, onAnunciar }: EscanerQrCama
       if (soporte !== "ok") return mostrarMensaje(soporte);
 
       try {
-        const obtenido = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+        const obtenido = await navigator.mediaDevices.getUserMedia(RESTRICCIONES_CAMARA);
         // Closed (or unmounted) while the permission prompt was open: do not keep a camera nobody is looking at.
         if (terminado) return obtenido.getTracks().forEach((pista) => pista.stop());
         stream = obtenido;
@@ -138,6 +160,11 @@ export function EscanerQrCamara({ onLeido, onCerrar, onAnunciar }: EscanerQrCama
         if (!terminado) mostrarMensaje(claseErrorCamara(error, politicaPermiteCamara));
         return;
       }
+
+      // The user may have left the tab while the permission prompt was open (before any `visibilitychange` we listen to).
+      if (accionTrasObtenerCamara(document.visibilityState) === "pausar") return terminarConMensaje("pausada");
+      stream.addEventListener("inactive", alDesconectarse);
+      stream.getTracks().forEach((pista) => pista.addEventListener("ended", alDesconectarse));
 
       const video = videoRef.current;
       if (!video) return detener();
@@ -151,39 +178,71 @@ export function EscanerQrCamara({ onLeido, onCerrar, onAnunciar }: EscanerQrCama
       setEstado({ tipo: "escaneando" });
       callbacks.current.onAnunciar(MENSAJE_CAMARA_ESCANEANDO);
 
+      let motor: "barcode-detector" | "jsqr" = motorLectura(entorno) === "barcode-detector" && detector ? "barcode-detector" : "jsqr";
       let leerFrame: () => Promise<string[]>;
       try {
-        leerFrame = await crearLectorDeFrames(video, detector, entorno);
+        leerFrame = await crearLectorDeFrames(motor, video, detector);
       } catch {
-        // The jsQR chunk failed to load (offline, deploy in between): without a decoder the camera is useless.
-        if (!terminado) {
-          detener();
-          mostrarMensaje("error");
-        }
+        // The jsQR chunk failed to load (offline, deploy in between) or there is no 2D canvas: without a decoder the camera is useless.
+        if (!terminado) terminarConMensaje("error");
         return;
       }
       if (terminado) return;
 
+      let fallos = 0;
+      let pistaDesde: number | null = null;
+      let pistaVisible = false;
+
       const ciclo = async () => {
         let textos: string[] = [];
+        let fallo = false;
         try {
           textos = await leerFrame();
+          fallos = 0;
         } catch {
-          // A frame that cannot be decoded is just a frame without a QR.
+          // One frame that cannot be decoded is just a frame without a QR; a decoder that keeps throwing is broken.
+          fallo = true;
+          fallos += 1;
         }
         if (terminado) return;
+        if (fallo) {
+          const accion = accionTrasFallos(fallos, motor);
+          if (accion === "error") return terminarConMensaje("error");
+          if (accion === "usar-jsqr") {
+            try {
+              leerFrame = await crearLectorDeFrames("jsqr", video, null);
+              motor = "jsqr";
+              fallos = 0;
+            } catch {
+              if (!terminado) terminarConMensaje("error");
+              return;
+            }
+            if (terminado) return;
+          }
+        }
+        const ahora = Date.now();
         for (const texto of textos) {
-          const resultado = evaluarLecturaQr(texto, Date.now(), ultima);
+          const resultado = evaluarLecturaQr(texto, ahora, ultima);
           ultima = resultado.ultima;
           if (resultado.veredicto === "receta") {
             detener();
             callbacks.current.onLeido(texto.trim());
             return;
           }
-          if (resultado.veredicto === "no-receta") {
-            setPistaNoEsReceta(true);
-            callbacks.current.onAnunciar(MENSAJE_CAMARA_NO_ES_RECETA);
+          // The hint lives while that QR stays in view (the dedupe ignores its repeats, this does not).
+          if (esQrNoReceta(texto)) {
+            pistaDesde = ahora;
+            if (!pistaVisible) {
+              pistaVisible = true;
+              setPistaNoEsReceta(true);
+              callbacks.current.onAnunciar(MENSAJE_CAMARA_NO_ES_RECETA);
+            }
           }
+        }
+        if (pistaVisible && !pistaVigente(pistaDesde, ahora)) {
+          pistaVisible = false;
+          pistaDesde = null;
+          setPistaNoEsReceta(false);
         }
         temporizador = setTimeout(ciclo, INTERVALO_LECTURA_MS);
       };
@@ -196,12 +255,20 @@ export function EscanerQrCamara({ onLeido, onCerrar, onAnunciar }: EscanerQrCama
       document.removeEventListener("visibilitychange", alOcultarse);
       detener();
     };
-  }, []);
+  }, [intento]);
+
+  const reintentar = () => {
+    setPistaNoEsReceta(false);
+    setEstado({ tipo: "solicitando" });
+    setIntento((n) => n + 1);
+    botonCerrarRef.current?.focus();
+  };
 
   const mensaje =
     estado.tipo === "mensaje" ? mensajeEstadoCamara(estado.estado) : estado.tipo === "escaneando" ? MENSAJE_CAMARA_ESCANEANDO : MENSAJE_CAMARA_SOLICITANDO;
   const esProblema = estado.tipo === "mensaje";
   const necesitaRecarga = estado.tipo === "mensaje" && estado.estado === "bloqueada-politica";
+  const puedeReintentar = estado.tipo === "mensaje" && estadoPermiteReintentar(estado.estado);
 
   return (
     <div className="flex flex-col gap-3 sm:max-w-sm">
@@ -224,7 +291,13 @@ export function EscanerQrCamara({ onLeido, onCerrar, onAnunciar }: EscanerQrCama
             Recargar la página
           </button>
         ) : null}
-        <button type="button" onClick={() => callbacks.current.onCerrar()} className="btn btn-secondary btn-sm">
+        {puedeReintentar ? (
+          <button type="button" onClick={reintentar} className="btn btn-primary btn-sm">
+            <RefreshCw className="size-4" aria-hidden />
+            Reintentar
+          </button>
+        ) : null}
+        <button ref={botonCerrarRef} type="button" onClick={() => callbacks.current.onCerrar()} className="btn btn-secondary btn-sm">
           <X className="size-4" aria-hidden />
           Cerrar cámara
         </button>
@@ -233,22 +306,29 @@ export function EscanerQrCamara({ onLeido, onCerrar, onAnunciar }: EscanerQrCama
   );
 }
 
-/** Builds the function that reads the texts of one frame with the decoder `motorLectura` picked. */
-async function crearLectorDeFrames(video: HTMLVideoElement, detector: DetectorDeCodigos | null, entorno: EntornoCamara): Promise<() => Promise<string[]>> {
-  if (motorLectura(entorno) === "barcode-detector" && detector) {
+/**
+ * Builds the function that reads the texts of one frame with the given decoder. Throws when the
+ * decoder cannot be built (the jsQR chunk does not load, the canvas has no 2D context).
+ */
+async function crearLectorDeFrames(motor: "barcode-detector" | "jsqr", video: HTMLVideoElement, detector: DetectorDeCodigos | null): Promise<() => Promise<string[]>> {
+  if (motor === "barcode-detector" && detector) {
     return async () => (await detector.detect(video)).map((codigo) => codigo.rawValue);
   }
 
   const { default: jsQR } = await import("jsqr");
   const lienzo = document.createElement("canvas");
   const contexto = lienzo.getContext("2d", { willReadFrequently: true });
+  if (!contexto) throw new Error("canvas without a 2D context");
   return async () => {
-    if (!contexto || video.readyState < 2 || video.videoWidth === 0) return [];
-    const escala = Math.min(1, ANCHO_MAXIMO_FRAME / video.videoWidth);
-    lienzo.width = Math.round(video.videoWidth * escala);
-    lienzo.height = Math.round(video.videoHeight * escala);
-    contexto.drawImage(video, 0, 0, lienzo.width, lienzo.height);
-    const { data, width, height } = contexto.getImageData(0, 0, lienzo.width, lienzo.height);
+    if (video.readyState < 2 || video.videoWidth === 0) return [];
+    const { ancho, alto } = dimensionesFrame(video.videoWidth, video.videoHeight, ANCHO_MAXIMO_FRAME);
+    // Assigning width/height reallocates the bitmap: do it only when the video size changed.
+    if (lienzo.width !== ancho || lienzo.height !== alto) {
+      lienzo.width = ancho;
+      lienzo.height = alto;
+    }
+    contexto.drawImage(video, 0, 0, ancho, alto);
+    const { data, width, height } = contexto.getImageData(0, 0, ancho, alto);
     const codigo = jsQR(data, width, height, { inversionAttempts: "dontInvert" });
     return codigo ? [codigo.data] : [];
   };

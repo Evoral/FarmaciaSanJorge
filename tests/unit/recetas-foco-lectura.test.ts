@@ -37,4 +37,18 @@ describe("debeRecuperarFoco", () => {
     expect(debeRecuperarFoco({ status: "error", activo: campoDelFormulario, cuerpo, panel: null })).toBe(false);
     expect(debeRecuperarFoco({ status: "error", activo: cuerpo, cuerpo, panel: null })).toBe(true);
   });
+
+  it("a reading that came from the camera never takes the focus (no on-screen keyboard over the preview), success or error", () => {
+    for (const status of ["success", "error"] as const) {
+      for (const activo of [cuerpo, null, inputDelPanel]) {
+        expect(debeRecuperarFoco({ status, activo, cuerpo, panel, origen: "camara" })).toBe(false);
+      }
+    }
+  });
+
+  it("a typed or scanner-wedge reading keeps the existing rules when the origin is explicit", () => {
+    expect(debeRecuperarFoco({ status: "success", activo: campoDelFormulario, cuerpo, panel, origen: "teclado" })).toBe(true);
+    expect(debeRecuperarFoco({ status: "error", activo: campoDelFormulario, cuerpo, panel, origen: "teclado" })).toBe(false);
+    expect(debeRecuperarFoco({ status: "error", activo: inputDelPanel, cuerpo, panel, origen: "teclado" })).toBe(true);
+  });
 });
