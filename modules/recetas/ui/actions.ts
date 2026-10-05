@@ -16,6 +16,7 @@
 import { revalidatePath } from "next/cache";
 import { crearReceta } from "@/modules/recetas/application/crear-receta";
 import { leerRecetaPdf } from "@/modules/recetas/application/leer-receta-pdf";
+import { leerRecetaQr } from "@/modules/recetas/application/leer-receta-qr";
 import { importarReceta } from "@/modules/recetas/application/importar-receta";
 import { presupuestarReceta } from "@/modules/recetas/application/presupuestar-receta";
 import { generarFichasYCotizaciones } from "@/modules/recetas/application/generar-fichas-y-cotizaciones";
@@ -30,7 +31,7 @@ import { listMedicos } from "@/modules/medicos/application/list-medicos";
 import { crearMedicoDesdeReceta } from "@/modules/medicos/application/crear-medico-desde-receta";
 import type { JurisdiccionMatricula } from "@/modules/medicos/domain/medico";
 import { actionError, actionErrorMessage } from "@/shared/ui/action-error";
-import type { RecetaActionState, BuscarPersonaState, CrearPersonaRapidaState, LeerRecetaPdfState, PresupuestoState } from "./action-state";
+import type { RecetaActionState, BuscarPersonaState, CrearPersonaRapidaState, LeerRecetaState, PresupuestoState } from "./action-state";
 
 function fromError(error: unknown, fallback: string): RecetaActionState {
   return actionError(error, fallback);
@@ -120,12 +121,26 @@ export async function presupuestarRecetaAction(itemsJson: string): Promise<Presu
 // travels only in this POST's multipart body and lives in memory.
 // ============================================================================
 
-export async function leerRecetaPdfAction(_prevState: LeerRecetaPdfState, formData: FormData): Promise<LeerRecetaPdfState> {
+export async function leerRecetaPdfAction(_prevState: LeerRecetaState, formData: FormData): Promise<LeerRecetaState> {
   try {
     const vistaPrevia = await leerRecetaPdf(formData.get("archivo"));
     return { status: "success", vistaPrevia };
   } catch (error) {
     return { status: "error", message: actionErrorMessage(error, "No se pudo leer el PDF.") };
+  }
+}
+
+/**
+ * Same read for a QR or link typed or scanned (a USB scanner types the text
+ * and presses Enter). The text lives only in this POST's body -- never in a
+ * URL of this app -- and the use case validates it before any network call.
+ */
+export async function leerRecetaQrAction(_prevState: LeerRecetaState, formData: FormData): Promise<LeerRecetaState> {
+  try {
+    const vistaPrevia = await leerRecetaQr(formData.get("codigo"));
+    return { status: "success", vistaPrevia };
+  } catch (error) {
+    return { status: "error", message: actionErrorMessage(error, "No se pudo leer el QR.") };
   }
 }
 

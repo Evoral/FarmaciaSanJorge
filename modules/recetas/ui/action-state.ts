@@ -30,10 +30,14 @@ export type CrearPersonaRapidaState =
 
 export const IDLE_CREAR_PERSONA_STATE: CrearPersonaRapidaState = { status: "idle" };
 
-/** Result of reading a receta PDF: the preview travels back only in this POST response (DP-24), never in a URL. */
-export type LeerRecetaPdfState = { status: "idle" } | { status: "error"; message: string } | { status: "success"; vistaPrevia: VistaPreviaImportacion };
+/** Result of reading a receta (PDF or QR): the preview travels back only in this POST response (DP-24), never in a URL. */
+export type LeerRecetaState = { status: "idle" } | { status: "error"; message: string } | { status: "success"; vistaPrevia: VistaPreviaImportacion };
 
-export const IDLE_LEER_PDF_STATE: LeerRecetaPdfState = { status: "idle" };
+export const IDLE_LEER_RECETA_STATE: LeerRecetaState = { status: "idle" };
+
+/** The PDF import's original names. */
+export type LeerRecetaPdfState = LeerRecetaState;
+export const IDLE_LEER_PDF_STATE = IDLE_LEER_RECETA_STATE;
 
 /** Result of the live presupuesto (docs/specs/presupuesto-receta.md). */
 export type PresupuestoState = { status: "success"; presupuesto: Presupuesto } | { status: "error"; message: string };
