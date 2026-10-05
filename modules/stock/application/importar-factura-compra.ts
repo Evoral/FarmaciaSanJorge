@@ -17,6 +17,9 @@
  * validated again here. Errors on a row point at that row's control
  * (`lineas.<i>.<campo>`).
  *
+ * The same command saves an invoice typed by hand (`origen: "manual"`, no
+ * PDF): only the audit context differs.
+ *
  * Audit: one row per created entity (comprobante, each partida, each
  * alias), recorded with `audit.record` in the same transaction -- the
  * pipeline's built-in audit writes exactly one, so this command opts out
@@ -34,7 +37,7 @@ import { formatearComprobante, mensajeFacturaYaImportada } from "../domain/impor
 import { buscarComprobanteImportado, getDrogaAlias, insertComprobanteCompra, insertDrogaAlias } from "../infrastructure/factura-compra-repository";
 import { registrarPartidaCompra } from "./ingresar-partida";
 
-const CONTEXTO_IMPORTACION = { origen: "importacion_factura_pdf" } as const;
+const CONTEXTOS = { pdf: { origen: "importacion_factura_pdf" }, manual: { origen: "factura_manual" } } as const;
 
 const textoOpcional = z
   .string()
@@ -60,6 +63,7 @@ const lineaInput = z.object({
 });
 
 const importarFacturaCompraInput = z.object({
+  origen: z.enum(["pdf", "manual"]).default("pdf"),
   proveedorId: uuid,
   letra: z.enum(["A", "B", "C", "M"]),
   puntoVenta: z.string().trim().regex(/^\d{1,5}$/, "Punto de venta inválido.").transform((v) => v.replace(/^0+(?=\d)/, "")),
@@ -86,7 +90,7 @@ export const importarFacturaCompraCommand = defineCommand({
   },
   handler: async ({ tx, session, input }) => {
     const auditar = (entidad: string, entidadId: string, valorNuevo: Prisma.InputJsonValue) =>
-      auditRecord(tx, { tenantId: session.tenantId, usuarioId: session.usuario.id, entidad, entidadId, accion: TipoAccion.CREAR, contexto: CONTEXTO_IMPORTACION, valorNuevo });
+      auditRecord(tx, { tenantId: session.tenantId, usuarioId: session.usuario.id, entidad, entidadId, accion: TipoAccion.CREAR, contexto: CONTEXTOS[input.origen], valorNuevo });
 
     const comprobante = formatearComprobante(input.letra, input.puntoVenta, input.numero);
     const clave = { proveedorId: input.proveedorId, letra: input.letra, puntoVenta: input.puntoVenta, numero: input.numero };

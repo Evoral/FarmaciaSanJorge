@@ -19,11 +19,15 @@
  * modules/drogas/domain/sugerir-clase.ts), and any lote can be marked "No
  * ingresar al stock" -- it is simply not sent; the invoice is still
  * recorded whole.
+ *
+ * Manual mode (`manual`, no PDF): the same form starts empty -- the invoice
+ * header is typed once and lotes are added with "Agregar lote" (and removed
+ * with "Quitar"); everything is saved as one comprobante, exactly as an
+ * imported invoice. Prices are per unidad de compra in both modes.
  */
 import { useMemo, useState, useTransition } from "react";
-import { TriangleAlert } from "lucide-react";
+import { Plus, Trash2, TriangleAlert } from "lucide-react";
 import { crearProductoDesdeFacturaAction, importarFacturaCompraAction } from "./actions";
-import type { OpcionConMagnitud, OpcionSimple } from "./ingresar-partida-form";
 import { formatearComprobante } from "../domain/importacion-factura-compra";
 import type { VistaPreviaFactura } from "../domain/importacion-factura-compra";
 import { SimpleForm } from "@/shared/ui/simple-form";
@@ -34,6 +38,28 @@ import { CLASES_DROGA, CLASE_DROGA_LABELS, type ClaseDroga } from "@/modules/dro
 import { sugerirClase } from "@/modules/drogas/domain/sugerir-clase";
 
 const LETRAS = ["A", "B", "C", "M"] as const;
+
+export interface OpcionSimple {
+  id: string;
+  label: string;
+}
+
+/** A droga or a unit, with the `tipo_magnitud` that pairs them. */
+export interface OpcionConMagnitud extends OpcionSimple {
+  tipoMagnitud: string;
+  /** Drogas only (migration 0063): DROGA | EXCIPIENTE | MATERIAL. */
+  clase?: string;
+  /** Units only: "kg", "mL"... */
+  simbolo?: string;
+}
+
+/** The starting point of a manual invoice: empty header, no lote (the form starts with one blank lote). */
+export const VISTA_PREVIA_MANUAL: VistaPreviaFactura = {
+  comprobante: { emisorCuit: null, letra: null, puntoVenta: "", numero: "", fechaEmision: "", cae: null, subtotal: null, iva: null, total: null },
+  proveedor: null,
+  lineas: [],
+  advertencias: [],
+};
 
 interface LineaEditable {
   codigo: string;
@@ -57,6 +83,32 @@ interface LineaEditable {
   omitir: boolean;
 }
 
+let siguienteLoteManual = 0;
+
+/** A blank lote of a manual invoice. Its own `codigo`, so picking its droga never touches another lote; nothing to remember as an alias. */
+function loteManual(): LineaEditable {
+  siguienteLoteManual += 1;
+  return {
+    codigo: `manual-${siguienteLoteManual}`,
+    descripcion: "",
+    drogaTexto: "",
+    unidadTexto: "",
+    despacho: null,
+    paisOrigen: null,
+    matcheada: true,
+    droga: null,
+    unidadCompraId: "",
+    cantidad: "",
+    precioUnitario: "",
+    lote: "",
+    fechaVencimiento: "",
+    potenciaDeclarada: "",
+    numeroValeAdquisicion: "",
+    recordar: false,
+    omitir: false,
+  };
+}
+
 /** The inline "Crear «…»" panel of one lote. */
 interface AltaProducto {
   indice: number;
@@ -73,6 +125,8 @@ export interface ImportarFacturaFormProps {
   unidades: OpcionConMagnitud[];
   /** `drogas.crear`: offer "Crear «…»" for products missing from the catalog. */
   puedeCrearProducto: boolean;
+  /** Typed by hand (no PDF): see the module doc comment. */
+  manual?: boolean;
   onImportada: () => void;
 }
 
@@ -80,7 +134,7 @@ function formatearMonto(valor: number): string {
   return valor.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, proveedores, unidades, puedeCrearProducto, onImportada }: ImportarFacturaFormProps) {
+export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, proveedores, unidades, puedeCrearProducto, manual = false, onImportada }: ImportarFacturaFormProps) {
   // Products created from this form join the local catalog right away.
   const [drogas, setDrogas] = useState(drogasIniciales);
   const [alta, setAlta] = useState<AltaProducto | null>(null);
@@ -94,7 +148,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
   const [numero, setNumero] = useState(comprobante.numero);
   const [fechaEmision, setFechaEmision] = useState(comprobante.fechaEmision);
   const [lineas, setLineas] = useState<LineaEditable[]>(() =>
-    vistaPrevia.lineas.map((l) => ({
+    manual ? [loteManual()] : vistaPrevia.lineas.map((l) => ({
       codigo: l.codigo,
       descripcion: l.descripcion,
       drogaTexto: l.drogaTexto,
@@ -118,6 +172,22 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
   const buscarDrogas = useMemo(() => filtrarOpciones(drogas.map((d) => ({ value: d.id, label: d.label }))), [drogas]);
   const buscarProveedores = useMemo(() => filtrarOpciones(proveedores.map((p) => ({ value: p.id, label: p.label }))), [proveedores]);
   const magnitudDe = (drogaId: string | undefined) => drogas.find((d) => d.id === drogaId)?.tipoMagnitud ?? null;
+
+  function quitarLote(indice: number) {
+    setLineas((actuales) => actuales.filter((_, i) => i !== indice));
+    setAlta((actual) => (actual === null || actual.indice === indice ? null : actual.indice > indice ? { ...actual, indice: actual.indice - 1 } : actual));
+  }
+
+  /** Manual mode, after saving: a blank invoice again (the success message stays visible). */
+  function reiniciar() {
+    setProveedor(null);
+    setLetra("");
+    setPuntoVenta("");
+    setNumero("");
+    setFechaEmision("");
+    setLineas([loteManual()]);
+    setAlta(null);
+  }
 
   function actualizar(indice: number, cambios: Partial<LineaEditable>) {
     setLineas((actuales) => actuales.map((l, i) => (i === indice ? { ...l, ...cambios } : l)));
@@ -185,6 +255,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
       if (!l.matcheada && l.recordar && l.droga) equivalencias.set(l.drogaTexto, l.droga.value);
     }
     return {
+      origen: manual ? "manual" : "pdf",
       proveedorId: proveedor?.value ?? "",
       letra,
       puntoVenta,
@@ -223,7 +294,10 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
           ))}
         </ul>
       }
-      onSuccess={onImportada}
+      onSuccess={() => {
+        if (manual) reiniciar();
+        onImportada();
+      }}
     >
       <input type="hidden" name="facturaJson" value={JSON.stringify(payload())} />
 
@@ -240,7 +314,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
 
       <fieldset className="flex flex-col gap-4">
         <legend className="mb-3 text-sm font-semibold text-zinc-900">
-          Comprobante {formatearComprobante(letra || null, puntoVenta, numero)}
+          {manual && !puntoVenta && !numero ? "Datos de la factura" : `Comprobante ${formatearComprobante(letra || null, puntoVenta, numero)}`}
         </legend>
         <div className="grid gap-4 sm:grid-cols-2">
           <Combobox id="proveedorId-buscar" label="Proveedor" placeholder="Buscar proveedor" name="proveedorId" search={buscarProveedores} value={proveedor} onChange={setProveedor} />
@@ -278,20 +352,23 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
             <input id="numero" name="numero" required inputMode="numeric" value={numero} onChange={(e) => setNumero(e.target.value)} className="input font-mono" />
           </div>
         </div>
-        <dl className="grid grid-cols-3 gap-4 text-sm">
-          <div>
-            <dt className="text-zinc-500">Subtotal (neto)</dt>
-            <dd className="font-mono">{comprobante.subtotal === null ? "—" : formatearMonto(Number(comprobante.subtotal))}</dd>
-          </div>
-          <div>
-            <dt className="text-zinc-500">IVA</dt>
-            <dd className="font-mono">{comprobante.iva === null ? "—" : formatearMonto(Number(comprobante.iva))}</dd>
-          </div>
-          <div>
-            <dt className="text-zinc-500">Total</dt>
-            <dd className="font-mono">{comprobante.total === null ? "—" : formatearMonto(Number(comprobante.total))}</dd>
-          </div>
-        </dl>
+        {/* A manual invoice has no totals read from a PDF. */}
+        {manual ? null : (
+          <dl className="grid grid-cols-3 gap-4 text-sm">
+            <div>
+              <dt className="text-zinc-500">Subtotal (neto)</dt>
+              <dd className="font-mono">{comprobante.subtotal === null ? "—" : formatearMonto(Number(comprobante.subtotal))}</dd>
+            </div>
+            <div>
+              <dt className="text-zinc-500">IVA</dt>
+              <dd className="font-mono">{comprobante.iva === null ? "—" : formatearMonto(Number(comprobante.iva))}</dd>
+            </div>
+            <div>
+              <dt className="text-zinc-500">Total</dt>
+              <dd className="font-mono">{comprobante.total === null ? "—" : formatearMonto(Number(comprobante.total))}</dd>
+            </div>
+          </dl>
+        )}
         {difiereDelSubtotal ? (
           <p className="field-help">
             Cantidad × precio de los lotes suma {formatearMonto(totalLineas)}, distinto del subtotal de la factura. Revisá cantidades y precios.
@@ -311,32 +388,57 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
           const clase = drogas.find((d) => d.id === l.droga?.value)?.clase as ClaseDroga | undefined;
           const sugerencia = l.droga ? null : sugerirClase(l.drogaTexto);
           return (
-            <div key={i} className={`flex flex-col gap-4 rounded border p-4 ${l.omitir ? "border-dashed border-zinc-200 bg-zinc-50" : "border-zinc-200"}`}>
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className={`text-sm font-medium ${l.omitir ? "text-zinc-500 line-through" : "text-zinc-900"}`}>
-                  <span className="font-mono text-zinc-500">{l.codigo}</span> {l.descripcion}
-                </p>
-                <div className="flex flex-wrap items-center gap-3">
-                  <p className="text-[0.8125rem] text-zinc-500">
-                    {[l.despacho ? `Despacho ${l.despacho}` : null, l.paisOrigen ? `Origen ${l.paisOrigen}` : null].filter(Boolean).join(" · ")}
-                  </p>
-                  <label className="flex items-center gap-2 text-[0.8125rem] text-zinc-600">
-                    <input
-                      type="checkbox"
-                      checked={l.omitir}
-                      onChange={(e) => {
-                        actualizar(i, { omitir: e.target.checked });
-                        if (e.target.checked && alta?.indice === i) setAlta(null);
-                      }}
-                    />
-                    No ingresar al stock
-                  </label>
+            <div key={manual ? l.codigo : i} className={`flex flex-col gap-4 rounded border p-4 ${l.omitir ? "border-dashed border-zinc-200 bg-zinc-50" : "border-zinc-200"}`}>
+              {manual ? (
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-zinc-900">Lote {i + 1}</p>
+                  {lineas.length > 1 ? (
+                    <button type="button" onClick={() => quitarLote(i)} className="btn btn-ghost btn-sm">
+                      <Trash2 className="size-4" aria-hidden />
+                      Quitar
+                    </button>
+                  ) : null}
                 </div>
-              </div>
+              ) : (
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className={`text-sm font-medium ${l.omitir ? "text-zinc-500 line-through" : "text-zinc-900"}`}>
+                    <span className="font-mono text-zinc-500">{l.codigo}</span> {l.descripcion}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <p className="text-[0.8125rem] text-zinc-500">
+                      {[l.despacho ? `Despacho ${l.despacho}` : null, l.paisOrigen ? `Origen ${l.paisOrigen}` : null].filter(Boolean).join(" · ")}
+                    </p>
+                    <label className="flex items-center gap-2 text-[0.8125rem] text-zinc-600">
+                      <input
+                        type="checkbox"
+                        checked={l.omitir}
+                        onChange={(e) => {
+                          actualizar(i, { omitir: e.target.checked });
+                          if (e.target.checked && alta?.indice === i) setAlta(null);
+                        }}
+                      />
+                      No ingresar al stock
+                    </label>
+                  </div>
+                </div>
+              )}
               {l.omitir ? null : (
                 <>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="flex flex-col gap-2">
+                      {sugerencia && alta?.indice !== i ? (
+                        <div className="flex flex-wrap items-center gap-2 text-[0.8125rem] text-zinc-600">
+                          {puedeCrearProducto ? (
+                            <button type="button" onClick={() => abrirAlta(i, l.drogaTexto)} className="btn btn-secondary btn-sm">
+                              <Plus className="size-4" aria-hidden />
+                              Crear «{l.drogaTexto}»
+                            </button>
+                          ) : null}
+                          <span>
+                            Parece un {CLASE_DROGA_LABELS[sugerencia.clase].toLowerCase()} («{sugerencia.motivo}»).
+                          </span>
+                        </div>
+                      ) : null}
                       <Combobox
                         id={`lineas.${i}.drogaId-buscar`}
                         label="Droga"
@@ -350,19 +452,6 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
                       {clase && clase !== "DROGA" ? (
                         <p className="text-[0.8125rem] text-zinc-600">
                           <ToneBadge tone="neutral">{CLASE_DROGA_LABELS[clase]}</ToneBadge> Lleva stock y costo; no va al libro recetario.
-                        </p>
-                      ) : null}
-                      {sugerencia && alta?.indice !== i ? (
-                        <p className="text-[0.8125rem] text-zinc-600">
-                          Parece un {CLASE_DROGA_LABELS[sugerencia.clase].toLowerCase()} («{sugerencia.motivo}»).
-                          {puedeCrearProducto ? (
-                            <>
-                              {" "}
-                              <button type="button" onClick={() => abrirAlta(i, l.drogaTexto)} className="btn btn-ghost btn-sm">
-                                Crear «{l.drogaTexto}»
-                              </button>
-                            </>
-                          ) : null}
                         </p>
                       ) : null}
                       {!l.matcheada && l.droga && primeraDelProducto ? (
@@ -421,7 +510,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
                         onChange={(e) => actualizar(i, { unidadCompraId: e.target.value })}
                         className="input"
                       >
-                        <option value="">{magnitud === null ? "Elegí la droga" : `Unidad (${l.unidadTexto})`}</option>
+                        <option value="">{magnitud === null ? "Elegí la droga" : l.unidadTexto ? `Unidad (${l.unidadTexto})` : "Unidad"}</option>
                         {unidadesDeLaDroga.map((u) => (
                           <option key={u.id} value={u.id}>
                             {u.label}
@@ -431,7 +520,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
                     </div>
                     <div className="field">
                       <label htmlFor={`lineas.${i}.precioUnitario`} className="field-label">
-                        Precio unitario
+                        Precio por {unidades.find((u) => u.id === l.unidadCompraId)?.simbolo ?? "unidad"}
                       </label>
                       <input
                         id={`lineas.${i}.precioUnitario`}
@@ -537,8 +626,15 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
             </div>
           );
         })}
+        {manual ? (
+          <button type="button" className="add-row-button" onClick={() => setLineas((actuales) => [...actuales, loteManual()])}>
+            <Plus className="size-4" aria-hidden />
+            Agregar lote
+          </button>
+        ) : null}
         <p id="precioUnitario-ayuda" className="field-help">
-          Precio por unidad de compra, sin IVA, como figura en la factura: se convierte solo a costo por unidad base. Pureza vacía = 100 %.
+          Precio por unidad de compra, sin IVA, como figura en la factura (ej.: $ 50.000 el kg: elegí kg e ingresá 50000); se convierte solo a costo por unidad base. Pureza
+          vacía = 100 %.
         </p>
         {incompletas > 0 || faltaEncabezado || activas.length === 0 ? (
           <p className="field-help">

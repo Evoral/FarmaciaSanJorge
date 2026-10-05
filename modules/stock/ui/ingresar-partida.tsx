@@ -1,19 +1,19 @@
 "use client";
 
 /**
- * `/stock/ingresar`: "Importar factura" plus the manual partida form. A read
- * invoice swaps the manual form for the import form, prefilled with the
- * preview; discarding it -- or confirming it -- goes back to the manual
- * form. Each new reading remounts the import form (`key`), so no state from
- * a previous PDF survives. Same shape as modules/recetas/ui/nueva-receta.tsx.
+ * `/stock/ingresar`: "Importar factura" plus the invoice form. Without a PDF
+ * the form is empty (manual mode: the invoice is typed by hand, lote by
+ * lote); a read invoice swaps it for the same form prefilled with the
+ * preview, and discarding it -- or confirming it -- goes back to the manual
+ * one. Each new reading remounts the form (`key`), so no state from a
+ * previous PDF survives. Same shape as modules/recetas/ui/nueva-receta.tsx.
  */
 import { useState } from "react";
 import { ImportarFacturaPdf } from "./importar-factura-pdf";
-import { ImportarFacturaForm } from "./importar-factura-form";
-import { IngresarPartidaForm, type IngresarPartidaFormProps } from "./ingresar-partida-form";
+import { ImportarFacturaForm, VISTA_PREVIA_MANUAL, type ImportarFacturaFormProps } from "./importar-factura-form";
 import type { VistaPreviaFactura } from "../domain/importacion-factura-compra";
 
-export function IngresarPartida({ puedeCrearProducto, ...props }: IngresarPartidaFormProps & { puedeCrearProducto: boolean }) {
+export function IngresarPartida(props: Pick<ImportarFacturaFormProps, "drogas" | "proveedores" | "unidades" | "puedeCrearProducto">) {
   const [vistaPrevia, setVistaPrevia] = useState<VistaPreviaFactura | null>(null);
   const [lecturas, setLecturas] = useState(0);
 
@@ -30,9 +30,9 @@ export function IngresarPartida({ puedeCrearProducto, ...props }: IngresarPartid
       <div className="panel">
         <div className="panel-body">
           {vistaPrevia ? (
-            <ImportarFacturaForm key={lecturas} vistaPrevia={vistaPrevia} {...props} puedeCrearProducto={puedeCrearProducto} onImportada={() => setVistaPrevia(null)} />
+            <ImportarFacturaForm key={lecturas} vistaPrevia={vistaPrevia} {...props} onImportada={() => setVistaPrevia(null)} />
           ) : (
-            <IngresarPartidaForm {...props} />
+            <ImportarFacturaForm key="manual" vistaPrevia={VISTA_PREVIA_MANUAL} manual {...props} onImportada={() => {}} />
           )}
         </div>
       </div>

@@ -2,7 +2,6 @@
 
 /** Server Actions for `/stock/**` (FASE 5). */
 import { revalidatePath } from "next/cache";
-import { ingresarPartida } from "@/modules/stock/application/ingresar-partida";
 import { registrarAjusteStock } from "@/modules/stock/application/registrar-ajuste";
 import { corregirCostoPartida } from "@/modules/stock/application/corregir-costo-partida";
 import { crearDroga } from "@/modules/drogas/application/crear-droga";
@@ -14,26 +13,6 @@ import type { LeerFacturaPdfState, StockActionState } from "./action-state";
 
 function fromError(error: unknown, fallback: string): StockActionState {
   return actionError(error, fallback);
-}
-
-export async function ingresarPartidaAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
-  try {
-    await ingresarPartida({
-      drogaId: String(formData.get("drogaId") ?? ""),
-      proveedorId: String(formData.get("proveedorId") ?? ""),
-      lote: String(formData.get("lote") ?? ""),
-      fechaVencimiento: (formData.get("fechaVencimiento") as string | null)?.trim() || undefined,
-      cantidadCompra: String(formData.get("cantidadCompra") ?? ""),
-      unidadCompraId: String(formData.get("unidadCompraId") ?? ""),
-      costoUnitario: String(formData.get("costoUnitario") ?? ""),
-      numeroValeAdquisicion: (formData.get("numeroValeAdquisicion") as string | null)?.trim() || undefined,
-      potenciaDeclarada: (formData.get("potenciaDeclarada") as string | null)?.trim() || undefined,
-    });
-    revalidatePath("/stock");
-    return { status: "success", message: "Partida ingresada." };
-  } catch (error) {
-    return fromError(error, "No se pudo ingresar la partida.");
-  }
 }
 
 /** Reads a supplier invoice PDF into the import preview -- writes nothing (the file is read in memory and discarded). */
@@ -50,7 +29,7 @@ export async function importarFacturaCompraAction(_prevState: StockActionState, 
   try {
     const { partidas } = await importarFacturaCompra(JSON.parse(String(formData.get("facturaJson") ?? "{}")));
     revalidatePath("/stock");
-    return { status: "success", message: partidas === 1 ? "Factura importada: 1 partida ingresada." : `Factura importada: ${partidas} partidas ingresadas.` };
+    return { status: "success", message: partidas === 1 ? "Factura registrada: 1 partida ingresada." : `Factura registrada: ${partidas} partidas ingresadas.` };
   } catch (error) {
     return fromError(error, "No se pudo importar la factura.");
   }
