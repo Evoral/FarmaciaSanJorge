@@ -18,10 +18,17 @@ import type { NextConfig } from "next";
  */
 const isProd = process.env.NODE_ENV === "production";
 
+/**
+ * The whole app denies the camera; only `/recetas/nuevo` (the receta QR import,
+ * docs/specs/importacion-receta-qr.md) allows it for its own origin. The two
+ * values differ ONLY in the camera directive.
+ */
+const permissionsPolicy = (camera: "()" | "(self)") => `camera=${camera}, microphone=(), geolocation=()`;
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  { key: "Permissions-Policy", value: permissionsPolicy("()") },
   // Superseded by CSP's `frame-ancestors 'none'` (set in proxy.ts) in
   // modern browsers, but kept for the older browsers/contexts that only
   // understand this header (also required explicitly by FASE 14 point 14.1).
@@ -85,6 +92,15 @@ const nextConfig: NextConfig = {
       {
         source: "/(.*)",
         headers: securityHeaders,
+      },
+      // MUST stay AFTER the global entry: when several entries match a path and set
+      // the same key, the last one wins (node_modules/next/dist/docs/01-app/
+      // 03-api-reference/05-config/01-next-config-js/headers.md, "Header Overriding
+      // Behavior"). The policy is fixed per document load, so the pages that lead here
+      // use a full navigation (app/(app)/recetas/page.tsx).
+      {
+        source: "/recetas/nuevo",
+        headers: [{ key: "Permissions-Policy", value: permissionsPolicy("(self)") }],
       },
     ];
   },
