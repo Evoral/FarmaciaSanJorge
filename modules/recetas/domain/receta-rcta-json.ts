@@ -38,10 +38,8 @@ const itemRctaSchema = z.looseObject({
 
 export const recetaRctaJsonSchema = z.looseObject({
   emisor: z.literal("RCTA"),
-  numeroReceta: z
-    .union([z.string(), z.number()])
-    .transform((valor) => String(valor).trim())
-    .pipe(z.string().regex(/^\d{10,}$/)),
+  /** A STRING only: a JSON number would have lost the number's leading zeros. */
+  numeroReceta: z.string().trim().regex(/^\d{10,}$/),
   /** dd/mm/aaaa, "Creada" on the PDF. */
   fechaConfeccion: texto,
   /** dd/mm/aaaa, "Vigencia desde" on the PDF. */
@@ -68,7 +66,7 @@ export const recetaRctaJsonSchema = z.looseObject({
       matricula: z.looseObject({ tipo: texto, numero: texto }).nullish(),
     })
     .nullish(),
-  prescripcion: z.array(itemRctaSchema).min(1).max(20),
+  prescripcion: z.array(itemRctaSchema).min(1),
 });
 
 export type RecetaRctaJson = z.infer<typeof recetaRctaJsonSchema>;
@@ -153,18 +151,26 @@ function mapearMedico(json: RecetaRctaJson, advertencias: AdvertenciaParser[]): 
   };
 }
 
-/** The top-level diagnóstico wins when it has a code or a description; otherwise the first item's is used. */
+/** Same limit as the confirm input (`diagnosticoDescripcion` in importar-receta.ts). */
+const MAX_DIAGNOSTICO_DESCRIPCION = 2000;
+
+/**
+ * Merged PER FIELD: the top-level code (or description) wins when it is non-empty,
+ * otherwise the first item's. The real response keeps both at the top level and
+ * leaves the item's blank, but either may be the one that is filled.
+ */
 function mapearDiagnostico(json: RecetaRctaJson, advertencias: AdvertenciaParser[]): Pick<BorradorReceta, "diagnosticoCodigo" | "diagnosticoDescripcion"> {
-  const arriba = json.codDiagnostico !== null || json.diagnostico !== null;
-  const origen = arriba ? json : json.prescripcion[0]!;
-  const codigo = origen.codDiagnostico === null ? null : normalizarCodigoDiagnostico(origen.codDiagnostico);
-  if (origen.codDiagnostico !== null && codigo === null) {
+  const item = json.prescripcion[0]!;
+  const codigoCrudo = json.codDiagnostico ?? item.codDiagnostico;
+  const descripcion = json.diagnostico ?? item.diagnostico;
+  const codigo = codigoCrudo === null ? null : normalizarCodigoDiagnostico(codigoCrudo);
+  if (codigoCrudo !== null && codigo === null) {
     advertencias.push({
       codigo: "DATO_FALTANTE",
       mensaje: "El código de diagnóstico de la receta no tiene formato CIE-10: se conserva solo la descripción.",
     });
   }
-  return { diagnosticoCodigo: codigo, diagnosticoDescripcion: origen.diagnostico };
+  return { diagnosticoCodigo: codigo, diagnosticoDescripcion: descripcion?.slice(0, MAX_DIAGNOSTICO_DESCRIPCION) ?? null };
 }
 
 /**

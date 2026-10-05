@@ -47,6 +47,46 @@ const conPaciente = (c: Json) => receta({ paciente: { ...PACIENTE, ...c } });
 const conMedico = (c: Json) => receta({ medico: { ...MEDICO, ...c } });
 const conItem = (c: Json) => receta({ prescripcion: [{ ...ITEM, ...c }] });
 
+/**
+ * Shaped exactly like a real decrypter response (FICTITIOUS values): the item's own
+ * code/diagnóstico are blank, the diagnóstico lives at the top level, the item text
+ * is one multi-line string whose first line is the practice's address, and the
+ * response carries many extra top-level keys the import ignores.
+ */
+const RECETA_REAL: Json = {
+  emisor: "RCTA",
+  numeroReceta: "1234567890123",
+  fechaConfeccion: "03/02/2026",
+  fechaEmision: "04/02/2026",
+  codDiagnostico: "E660",
+  diagnostico: "Obesidad debida a exceso de calorias",
+  paciente: PACIENTE,
+  medico: MEDICO,
+  prescripcion: [
+    {
+      codDiagnostico: "",
+      diagnostico: null,
+      prescripcion: "Calle Falsa 123 Ciudad \n\nMazindol 1,5 mg \n\n30 cápsulas \nMedia dosis cada 12 horas\nTratamiento por 30 días",
+      notas: "",
+      codPractica: null,
+      cantidad: 1,
+      nroCUIR: null,
+    },
+  ],
+  practica: null,
+  horario: null,
+  diasAtencion: null,
+  datosContacto: null,
+  nombreConsultorio: null,
+  direccionConsultorio: null,
+  email: "consultorio@example.com",
+  imprimirDiagnostico: "S",
+  informacionAdicional: null,
+  nroPrestador: null,
+  clienteAppId: 156,
+  hash: "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op",
+};
+
 function leer(json: unknown) {
   const r = mapearRecetaRcta(json, HASH);
   if (!r.ok) throw new Error(`expected ok, got ${r.codigo}`);
@@ -62,10 +102,14 @@ describe("P26: what is not a valid receta", () => {
   });
 
   it("a body that fails the schema is an unexpected format, and the message never echoes the data", () => {
-    const casos = [receta({ emisor: "OTRO" }), receta({ numeroReceta: undefined }), receta({ numeroReceta: "123" }), receta({ prescripcion: "Mazindol" }), receta({ prescripcion: [] }), "texto", [receta()]];
+    const casos = [receta({ emisor: "OTRO" }), receta({ numeroReceta: undefined }), receta({ numeroReceta: "123" }), receta({ numeroReceta: 1234567890123 }), receta({ prescripcion: "Mazindol" }), receta({ prescripcion: [] }), "texto", [receta()]];
     for (const caso of casos) {
       expect(mapearRecetaRcta(caso, HASH)).toEqual({ ok: false, codigo: "FORMATO_INESPERADO", mensaje: MENSAJES_LECTURA_QR.FORMATO_INESPERADO });
     }
+  });
+
+  it("does not cap the number of prescripcion elements (the adapter's body cap bounds the size)", () => {
+    expect(leer(receta({ prescripcion: Array.from({ length: 21 }, () => ITEM) })).borrador.nroRecetaEmisor).toBe("1234567890123");
   });
 
   it("is tolerant: unknown keys are ignored and absent or null optional blocks do not fail", () => {
@@ -76,10 +120,27 @@ describe("P26: what is not a valid receta", () => {
   });
 });
 
+describe("regression: a response shaped like the real one", () => {
+  it("maps header, paciente, médico and the top-level diagnóstico; the extra keys and the blank item diagnóstico are harmless", () => {
+    const r = leer(RECETA_REAL);
+    expect(r.borrador).toMatchObject({
+      emisor: "RCTA",
+      nroRecetaEmisor: "1234567890123",
+      urlVerificacion: `https://verumrp.com.ar/prescripcion/${HASH}`,
+      fechaPrescripcion: "2026-02-03",
+      diagnosticoCodigo: "E66.0",
+      diagnosticoDescripcion: "Obesidad debida a exceso de calorias",
+    });
+    expect(r.borrador.paciente).toMatchObject({ dni: "11222333", sexo: "Femenino" });
+    expect(r.borrador.medico).toMatchObject({ matricula: "4321", matriculaJurisdiccion: "PROVINCIAL" });
+    expect(r.advertencias.some((a) => a.mensaje.includes("CIE-10"))).toBe(false);
+  });
+});
+
 describe("P27-P29: identification and dates", () => {
-  it("P27: the receta number (string or number) is the emisor's number", () => {
+  it("P27: the receta number is the emisor's number, and only a string (a JSON number would lose leading zeros)", () => {
     expect(leer(receta()).borrador).toMatchObject({ emisor: "RCTA", nroRecetaEmisor: "1234567890123" });
-    expect(leer(receta({ numeroReceta: 9876543210987 })).borrador.nroRecetaEmisor).toBe("9876543210987");
+    expect(leer(receta({ numeroReceta: "0012345678901" })).borrador.nroRecetaEmisor).toBe("0012345678901");
   });
 
   it("P28: the verification URL is rebuilt from the hash and passes the issuer check", () => {
@@ -181,6 +242,20 @@ describe("P38-P39: diagnóstico", () => {
       expect(r.borrador).toMatchObject({ diagnosticoCodigo: null, diagnosticoDescripcion: "Obesidad por exceso de calorias" });
       expect(r.advertencias).toContainEqual(faltante("El código de diagnóstico de la receta no tiene formato CIE-10: se conserva solo la descripción."));
     }
+  });
+
+  it("P39: the diagnóstico is merged PER FIELD: a blank top-level code falls back to the item's code, keeping the top-level description", () => {
+    const r = leer(receta({ codDiagnostico: "", diagnostico: "Obesidad (texto de arriba)", prescripcion: [{ ...ITEM, codDiagnostico: "E660", diagnostico: "texto del item" }] }));
+    expect(r.borrador).toMatchObject({ diagnosticoCodigo: "E66.0", diagnosticoDescripcion: "Obesidad (texto de arriba)" });
+    // And the other way round: top-level code, description only on the item.
+    const inverso = leer(receta({ codDiagnostico: "J450", diagnostico: null, prescripcion: [{ ...ITEM, codDiagnostico: "E660", diagnostico: "Asma del item" }] }));
+    expect(inverso.borrador).toMatchObject({ diagnosticoCodigo: "J45.0", diagnosticoDescripcion: "Asma del item" });
+  });
+
+  it("P38: the description is capped at the confirm input's 2000 characters", () => {
+    const largo = "a".repeat(2500);
+    expect(leer(receta({ diagnostico: largo })).borrador.diagnosticoDescripcion).toBe("a".repeat(2000));
+    expect(leer(receta({ diagnostico: "corto" })).borrador.diagnosticoDescripcion).toBe("corto");
   });
 
   it("P39: the first item's diagnóstico is used when the top level has none; the top-level one wins when both exist", () => {
