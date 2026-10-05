@@ -8,7 +8,7 @@
  * top of RLS everywhere (same discipline as usuario-repository.ts).
  */
 import type { Prisma } from "@/generated/prisma/client";
-import type { TipoControl as PrismaTipoControl } from "@/generated/prisma/enums";
+import type { ClaseDroga as PrismaClaseDroga, TipoControl as PrismaTipoControl } from "@/generated/prisma/enums";
 
 // ============================================================================
 // Stock (fsj.v_stock_droga, migration 0008/0025) -- read-only, NOT a Prisma
@@ -31,6 +31,8 @@ export interface ListDrogasFilter {
   tenantId: string;
   search?: string;
   soloControladas?: boolean;
+  /** Migration 0063. */
+  clase?: PrismaClaseDroga;
   /** `true` = only drogas whose stock_disponible < stock_minimo. */
   bajoMinimo?: boolean;
   soloVigentes?: boolean;
@@ -45,6 +47,7 @@ export interface DrogaListItem {
   unidadBaseSimbolo: string;
   esControlada: boolean;
   tipoControl: PrismaTipoControl;
+  clase: PrismaClaseDroga;
   stockMinimo: string;
   stockDisponible: string;
   fechaBaja: Date | null;
@@ -65,6 +68,7 @@ function buildWhere(filter: ListDrogasFilter): Prisma.DrogaWhereInput {
     where.nombre = { contains: filter.search.trim(), mode: "insensitive" };
   }
   if (filter.soloControladas === true) where.esControlada = true;
+  if (filter.clase) where.clase = filter.clase;
   if (filter.soloVigentes === true) where.fechaBaja = null;
   else if (filter.soloVigentes === false) where.fechaBaja = { not: null };
 
@@ -88,7 +92,7 @@ export async function listDrogas(tx: Prisma.TransactionClient, filter: ListDroga
     const rows = await tx.droga.findMany({
       where,
       orderBy: [{ nombre: "asc" }],
-      select: { id: true, nombre: true, unidadBaseId: true, esControlada: true, tipoControl: true, stockMinimo: true, fechaBaja: true, motivoBaja: true, unidadBase: { select: { simbolo: true } } },
+      select: { id: true, nombre: true, unidadBaseId: true, esControlada: true, tipoControl: true, clase: true, stockMinimo: true, fechaBaja: true, motivoBaja: true, unidadBase: { select: { simbolo: true } } },
     });
     const withStock = rows
       .map((row) => ({ row, disponible: Number(stock.get(row.id) ?? "0") }))
@@ -106,6 +110,7 @@ export async function listDrogas(tx: Prisma.TransactionClient, filter: ListDroga
         unidadBaseSimbolo: row.unidadBase.simbolo,
         esControlada: row.esControlada,
         tipoControl: row.tipoControl,
+        clase: row.clase,
         stockMinimo: row.stockMinimo.toString(),
         stockDisponible: stock.get(row.id) ?? "0",
         fechaBaja: row.fechaBaja,
@@ -124,7 +129,7 @@ export async function listDrogas(tx: Prisma.TransactionClient, filter: ListDroga
     orderBy: [{ nombre: "asc" }],
     skip,
     take: filter.pageSize,
-    select: { id: true, nombre: true, unidadBaseId: true, esControlada: true, tipoControl: true, stockMinimo: true, fechaBaja: true, motivoBaja: true, unidadBase: { select: { simbolo: true } } },
+    select: { id: true, nombre: true, unidadBaseId: true, esControlada: true, tipoControl: true, clase: true, stockMinimo: true, fechaBaja: true, motivoBaja: true, unidadBase: { select: { simbolo: true } } },
   });
 
   return {
@@ -135,6 +140,7 @@ export async function listDrogas(tx: Prisma.TransactionClient, filter: ListDroga
       unidadBaseSimbolo: row.unidadBase.simbolo,
       esControlada: row.esControlada,
       tipoControl: row.tipoControl,
+      clase: row.clase,
       stockMinimo: row.stockMinimo.toString(),
       stockDisponible: stock.get(row.id) ?? "0",
       fechaBaja: row.fechaBaja,
@@ -157,6 +163,7 @@ export interface DrogaParaAccion {
   densidad: string | null;
   esControlada: boolean;
   tipoControl: PrismaTipoControl;
+  clase: PrismaClaseDroga;
   stockMinimo: string;
   fechaBaja: Date | null;
   motivoBaja: string | null;
@@ -165,7 +172,7 @@ export interface DrogaParaAccion {
 export async function getDrogaParaAccion(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<DrogaParaAccion | null> {
   const row = await tx.droga.findUnique({
     where: { id, tenantId },
-    select: { id: true, nombre: true, unidadBaseId: true, densidad: true, esControlada: true, tipoControl: true, stockMinimo: true, fechaBaja: true, motivoBaja: true },
+    select: { id: true, nombre: true, unidadBaseId: true, densidad: true, esControlada: true, tipoControl: true, clase: true, stockMinimo: true, fechaBaja: true, motivoBaja: true },
   });
   if (!row) return null;
   return { ...row, densidad: row.densidad?.toString() ?? null, stockMinimo: row.stockMinimo.toString() };
@@ -216,6 +223,7 @@ export interface NuevaDrogaInput {
   unidadBaseId: string;
   esControlada: boolean;
   tipoControl: PrismaTipoControl;
+  clase: PrismaClaseDroga;
   stockMinimo: string;
 }
 
@@ -227,6 +235,7 @@ export async function insertDroga(tx: Prisma.TransactionClient, input: NuevaDrog
       unidadBaseId: input.unidadBaseId,
       esControlada: input.esControlada,
       tipoControl: input.tipoControl,
+      clase: input.clase,
       stockMinimo: input.stockMinimo,
     },
     select: { id: true },
@@ -237,6 +246,8 @@ export interface EditarDrogaInput {
   id: string;
   nombre: string;
   stockMinimo: string;
+  /** Migration 0063: editable at any time (not part of DP-12's classification). */
+  clase: PrismaClaseDroga;
   /** Present only when DP-12 allows the change (no partidas yet) -- see editar-droga.ts. */
   clasificacion?: { unidadBaseId: string; esControlada: boolean; tipoControl: PrismaTipoControl };
 }
@@ -246,6 +257,7 @@ export interface EditarDrogaVersion {
   unidadBaseId: string;
   esControlada: boolean;
   tipoControl: PrismaTipoControl;
+  clase: PrismaClaseDroga;
   stockMinimo: string;
 }
 
@@ -258,10 +270,12 @@ export async function updateDrogaDatos(tx: Prisma.TransactionClient, tenantId: s
       unidadBaseId: version.unidadBaseId,
       esControlada: version.esControlada,
       tipoControl: version.tipoControl,
+      clase: version.clase,
       stockMinimo: version.stockMinimo,
     },
     data: {
       nombre: input.nombre,
+      clase: input.clase,
       stockMinimo: input.stockMinimo,
       ...(input.clasificacion
         ? { unidadBaseId: input.clasificacion.unidadBaseId, esControlada: input.clasificacion.esControlada, tipoControl: input.clasificacion.tipoControl }
@@ -311,6 +325,7 @@ export interface DrogaOpcion {
   unidadBaseId: string;
   /** `tipo_magnitud` of the unidad base: lets a unit picker (e.g. `/stock/ingresar`'s "Unidad de compra") offer only convertible units. */
   tipoMagnitud: string;
+  clase: PrismaClaseDroga;
 }
 
 /** Every vigente droga of the tenant, with its unidad base -- feeds `<select>` pickers (no pagination, no stock join: see list-drogas-opciones.ts). */
@@ -318,9 +333,9 @@ export async function listDrogasOpciones(tx: Prisma.TransactionClient, tenantId:
   const rows = await tx.droga.findMany({
     where: { tenantId, fechaBaja: null },
     orderBy: [{ nombre: "asc" }],
-    select: { id: true, nombre: true, unidadBaseId: true, unidadBase: { select: { tipoMagnitud: true } } },
+    select: { id: true, nombre: true, unidadBaseId: true, clase: true, unidadBase: { select: { tipoMagnitud: true } } },
   });
-  return rows.map((row) => ({ id: row.id, nombre: row.nombre, unidadBaseId: row.unidadBaseId, tipoMagnitud: row.unidadBase.tipoMagnitud }));
+  return rows.map((row) => ({ id: row.id, nombre: row.nombre, unidadBaseId: row.unidadBaseId, tipoMagnitud: row.unidadBase.tipoMagnitud, clase: row.clase }));
 }
 
 /** unidad id -> "gramo (g)", for audit rows. Global catalog (DP-39): no tenant filter; includes unidades given de baja. */

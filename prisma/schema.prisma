@@ -124,6 +124,16 @@ enum TipoControl {
   @@schema("fsj")
 }
 
+/// Migration 0063. Non-DROGA rows keep stock and cost but never reach the libro recetario.
+enum ClaseDroga {
+  DROGA
+  EXCIPIENTE
+  MATERIAL
+
+  @@map("clase_droga")
+  @@schema("fsj")
+}
+
 enum TipoMovimiento {
   INGRESO_COMPRA
   EGRESO_PREPARACION
@@ -588,6 +598,8 @@ model Droga {
   densidad     Decimal?    @db.Decimal
   esControlada Boolean     @default(false) @map("es_controlada")
   tipoControl  TipoControl @default(NINGUNO) @map("tipo_control")
+  /// Migration 0063: DROGA | EXCIPIENTE | MATERIAL. Only a DROGA can be controlled (droga_clase_no_controlada_check). Column-level UPDATE grant.
+  clase        ClaseDroga  @default(DROGA)
   stockMinimo  Decimal     @default(0) @map("stock_minimo") @db.Decimal
   fechaBaja    DateTime?   @map("fecha_baja") @db.Timestamptz(6)
   motivoBaja   String?     @map("motivo_baja")

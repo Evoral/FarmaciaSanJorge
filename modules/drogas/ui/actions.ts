@@ -29,6 +29,7 @@ export async function crearDrogaAction(_prevState: DrogaActionState, formData: F
       nombre: String(formData.get("nombre") ?? ""),
       unidadBaseId: String(formData.get("unidadBaseId") ?? ""),
       tipoControl: optionalField(formData, "tipoControl"),
+      clase: optionalField(formData, "clase"),
       stockMinimo: String(formData.get("stockMinimo") ?? "0"),
     });
     revalidatePath("/catalogos/drogas");
@@ -45,12 +46,14 @@ export async function editarDrogaAction(_prevState: DrogaActionState, formData: 
       nombre: String(formData.get("nombre") ?? ""),
       unidadBaseId: optionalField(formData, "unidadBaseId"),
       tipoControl: optionalField(formData, "tipoControl"),
+      clase: optionalField(formData, "clase"),
       stockMinimo: String(formData.get("stockMinimo") ?? "0"),
       version: {
         nombre: String(formData.get("versionNombre") ?? ""),
         unidadBaseId: String(formData.get("versionUnidadBaseId") ?? ""),
         esControlada: String(formData.get("versionEsControlada") ?? "") === "true",
         tipoControl: String(formData.get("versionTipoControl") ?? "") as never,
+        clase: String(formData.get("versionClase") ?? ""),
         stockMinimo: String(formData.get("versionStockMinimo") ?? ""),
       },
     });

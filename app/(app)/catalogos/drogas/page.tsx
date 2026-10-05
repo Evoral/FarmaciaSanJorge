@@ -12,7 +12,7 @@ import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listDrogas } from "@/modules/drogas/application/list-drogas";
 import { listUnidadesVigentesParaDroga } from "@/modules/drogas/application/list-unidades-vigentes";
-import { TIPO_CONTROL_LABELS } from "@/modules/drogas/domain/droga";
+import { CLASES_DROGA, CLASE_DROGA_LABELS, TIPO_CONTROL_LABELS, type ClaseDroga } from "@/modules/drogas/domain/droga";
 import { DrogaForm } from "@/modules/drogas/ui/droga-form";
 import { buscarDrogasCatalogoAction } from "@/modules/drogas/ui/buscar-drogas-catalogo-action";
 import { FilterForm } from "@/shared/ui/filter-form";
@@ -32,10 +32,10 @@ import { ToneBadge } from "@/shared/ui/status-badge";
 
 const PAGE_SIZE = 20;
 
-type ParamDrogas = "q" | "controladas" | "bajoMinimo" | "estado";
+type ParamDrogas = "q" | "clase" | "controladas" | "bajoMinimo" | "estado";
 
 interface DrogasPageProps {
-  searchParams: Promise<{ q?: string; controladas?: string; bajoMinimo?: string; estado?: string; page?: string; nueva?: string }>;
+  searchParams: Promise<{ q?: string; clase?: string; controladas?: string; bajoMinimo?: string; estado?: string; page?: string; nueva?: string }>;
 }
 
 const numberFormat = new Intl.NumberFormat("es-AR");
@@ -46,11 +46,12 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
   const soloControladas = params.controladas === "1" ? true : undefined;
+  const clase = (CLASES_DROGA as readonly string[]).includes(params.clase ?? "") ? (params.clase as ClaseDroga) : undefined;
   const bajoMinimo = params.bajoMinimo === "1" ? true : undefined;
   const soloVigentes = params.estado === "baja" ? false : params.estado === "vigente" ? true : undefined;
 
   const [result, { catalogo }] = await Promise.all([
-    listDrogas({ search: params.q, soloControladas, bajoMinimo, soloVigentes, page, pageSize: PAGE_SIZE }),
+    listDrogas({ search: params.q, clase, soloControladas, bajoMinimo, soloVigentes, page, pageSize: PAGE_SIZE }),
     getCatalogoUnidades(),
   ]);
   const puedeCrear = can(session, "drogas.crear");
@@ -58,6 +59,7 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
   function pageHref(targetPage: number): string {
     const qs = new URLSearchParams();
     if (params.q) qs.set("q", params.q);
+    if (clase) qs.set("clase", clase);
     if (soloControladas) qs.set("controladas", "1");
     if (bajoMinimo) qs.set("bajoMinimo", "1");
     if (params.estado) qs.set("estado", params.estado);
@@ -68,6 +70,7 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
   function sinFiltroHref(param: ParamDrogas): string {
     const qs = new URLSearchParams();
     if (params.q && param !== "q") qs.set("q", params.q);
+    if (clase && param !== "clase") qs.set("clase", clase);
     if (soloControladas && param !== "controladas") qs.set("controladas", "1");
     if (bajoMinimo && param !== "bajoMinimo") qs.set("bajoMinimo", "1");
     if (params.estado && param !== "estado") qs.set("estado", params.estado);
@@ -80,6 +83,7 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
   const chips: { key: ParamDrogas; label: string; value?: string }[] = [];
   if (params.q) chips.push({ key: "q", label: "Búsqueda", value: params.q });
   if (params.estado === "vigente" || params.estado === "baja") chips.push({ key: "estado", label: params.estado === "vigente" ? "Vigentes" : "Dadas de baja" });
+  if (clase) chips.push({ key: "clase", label: "Clase", value: CLASE_DROGA_LABELS[clase] });
   if (soloControladas) chips.push({ key: "controladas", label: "Solo controladas" });
   if (bajoMinimo) chips.push({ key: "bajoMinimo", label: "Bajo mínimo" });
   const hayFiltros = chips.length > 0;
@@ -89,7 +93,7 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
       <PageHeader
         breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Catálogos" }, { label: "Drogas" }]}
         title="Drogas"
-        description="Materias primas del laboratorio, su unidad base, su control y su stock."
+        description="Materias primas e insumos del laboratorio (excipientes, materiales), su unidad base, su control y su stock."
         actions={
           puedeCrear ? (
             <Link href="/catalogos/drogas?nueva=1" className="btn btn-primary">
@@ -132,7 +136,7 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
               textoVerTodos="Ver todas las drogas"
             />
           </div>
-          <FilterDrawer activeCount={(params.estado ? 1 : 0) + (soloControladas ? 1 : 0) + (bajoMinimo ? 1 : 0)}>
+          <FilterDrawer activeCount={(params.estado ? 1 : 0) + (clase ? 1 : 0) + (soloControladas ? 1 : 0) + (bajoMinimo ? 1 : 0)}>
             <div className="field">
               <label htmlFor="estado" className="field-label">
                 Estado
@@ -141,6 +145,19 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
                 <option value="">Todas</option>
                 <option value="vigente">Vigentes</option>
                 <option value="baja">Dadas de baja</option>
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="clase" className="field-label">
+                Clase
+              </label>
+              <select id="clase" name="clase" defaultValue={clase ?? ""} className="input">
+                <option value="">Todas</option>
+                {CLASES_DROGA.map((c) => (
+                  <option key={c} value={c}>
+                    {CLASE_DROGA_LABELS[c]}
+                  </option>
+                ))}
               </select>
             </div>
             <FilterMultiSelect
@@ -240,6 +257,12 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
                           <Link href={`/catalogos/drogas/${droga.id}`} className="font-medium text-zinc-900 underline-offset-2 hover:underline">
                             {droga.nombre}
                           </Link>
+                          {droga.clase !== "DROGA" ? (
+                            <>
+                              {" "}
+                              <ToneBadge tone="neutral">{CLASE_DROGA_LABELS[droga.clase]}</ToneBadge>
+                            </>
+                          ) : null}
                           {droga.tipoControl !== "NINGUNO" ? <span className="block text-xs text-zinc-500 md:hidden">{control}</span> : null}
                         </td>
                         <td className="hidden px-3 py-2.5 font-mono sm:table-cell">{droga.unidadBaseSimbolo}</td>
