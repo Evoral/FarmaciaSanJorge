@@ -1,9 +1,14 @@
 /**
- * `leerRecetaQrAction` (importacion-receta-qr spec, R6 -- P55/P56): the Server
- * Action behind the "QR o link" input. The text travels in the form field
- * `codigo` (the use case's input name); the action hands it over untouched,
- * returns the preview in its own POST response and turns every failure into
- * a user message. Use cases mocked; all values are fictitious.
+ * `leerRecetaQrAction` (importacion-receta-qr spec, R6): the Server Action
+ * behind the "QR o link" input. The text travels in the form field `codigo`
+ * (the use case's input name); the action hands it over untouched, returns the
+ * preview in its own POST response and turns every failure into a user
+ * message. Use cases mocked; all values are fictitious.
+ *
+ * NOT covered here: P55-P57 (Enter submits once, an empty field does not query,
+ * the PDF panel is unchanged and the QR input is focused on load). They are UI
+ * behavior and vitest runs in node without a DOM, so they are verified by hand
+ * (docs/specs/importacion-receta-qr.md).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DomainError, ValidationError } from "@/shared/errors";
