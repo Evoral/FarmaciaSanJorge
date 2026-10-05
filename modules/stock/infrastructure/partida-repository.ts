@@ -311,6 +311,8 @@ export interface PartidaParaAccion {
   fechaIngreso: Date;
   fechaVencimiento: Date;
   fechaApertura: Date | null;
+  /** Migration 0058: declared purity (percent), `null` = 100%. */
+  potenciaDeclarada: string | null;
 }
 
 export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<PartidaParaAccion | null> {
@@ -327,6 +329,7 @@ export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantI
       fechaIngreso: true,
       fechaVencimiento: true,
       fechaApertura: true,
+      potenciaDeclarada: true,
       droga: { select: { nombre: true, unidadBaseId: true, unidadBase: { select: { simbolo: true } } } },
       proveedor: { select: { razonSocial: true } },
     },
@@ -347,6 +350,7 @@ export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantI
     fechaIngreso: row.fechaIngreso,
     fechaVencimiento: row.fechaVencimiento,
     fechaApertura: row.fechaApertura,
+    potenciaDeclarada: row.potenciaDeclarada?.toString() ?? null,
   };
 }
 
@@ -385,6 +389,8 @@ export interface NuevaPartidaInput {
   fechaVencimiento: string; // YYYY-MM-DD
   registradoPorId: string;
   numeroValeAdquisicion: string | null;
+  /** Migration 0058: the lot's purity (%), `null` = 100%. */
+  potenciaDeclarada: string | null;
 }
 
 /** Reads what `ingresar-partida.ts` needs to decide unit conversion + INV-L16 (numero_vale_adquisicion), in one round trip. */
@@ -473,6 +479,7 @@ export async function insertPartidaConIngreso(tx: Prisma.TransactionClient, inpu
       costoUnitario: input.costoUnitario,
       cantidadInicial: input.cantidadInicialBase,
       fechaVencimiento: new Date(`${input.fechaVencimiento}T00:00:00Z`),
+      potenciaDeclarada: input.potenciaDeclarada,
     },
     select: { id: true },
   });

@@ -17,6 +17,7 @@
 import { Decimal } from "@/shared/decimal";
 import { ValidationError } from "@/shared/errors";
 import type { PartidaDisponible } from "@/modules/stock/domain/reparto";
+import { activoDesdeFisico } from "./potencia";
 
 // ============================================================================
 // Manual-enrase line: the real quantity, typed by the pharmacist at
@@ -65,6 +66,8 @@ export function esDesvioPropuesta(propuestas: readonly string[], elegidas: reado
 export interface PartidaConEstadoApertura extends PartidaDisponible {
   /** `true` when this partida is included in the CHOSEN split for the línea. */
   elegida: boolean;
+  /** `partida.potencia_declarada` (percent, `null`/omitted = 100%). When given, balances are compared in ACTIVE terms (domain/potencia.ts). */
+  potenciaDeclarada?: string | null;
 }
 
 /**
@@ -72,6 +75,8 @@ export interface PartidaConEstadoApertura extends PartidaDisponible {
  * already open, WHILE the already-open partida(s) for this droga (not
  * vencidas, per INV-S10) alone had enough balance to cover `cantidadRequerida`.
  * In that case the caller must collect a `motivoAperturaAdicional`.
+ * `cantidadRequerida` and the balances are compared in ACTIVE terms when the
+ * partidas carry `potenciaDeclarada` (pass none for manual-enrase lines).
  */
 export function requiereMotivoAperturaAdicional(
   partidas: readonly PartidaConEstadoApertura[],
@@ -82,7 +87,7 @@ export function requiereMotivoAperturaAdicional(
 
   const saldoAbiertasVigentes = partidas
     .filter((p) => p.fechaApertura !== null && vigentes(p))
-    .reduce((acc, p) => acc.plus(p.cantidadDisponible), new Decimal(0));
+    .reduce((acc, p) => acc.plus(activoDesdeFisico(p.cantidadDisponible, p.potenciaDeclarada)), new Decimal(0));
 
   if (saldoAbiertasVigentes.lessThan(cantidadRequerida)) {
     // The already-open supply alone would NOT have covered the requirement

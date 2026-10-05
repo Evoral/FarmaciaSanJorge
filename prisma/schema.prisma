@@ -591,6 +591,7 @@ model Droga {
   stockMinimo  Decimal     @default(0) @map("stock_minimo") @db.Decimal
   fechaBaja    DateTime?   @map("fecha_baja") @db.Timestamptz(6)
   motivoBaja   String?     @map("motivo_baja")
+  /// Migration 0058: when true, every NEW partida of this droga must declare potenciaDeclarada (app-level, modules/stock/application/ingresar-partida.ts). Column-level UPDATE grant for fsj_app.
 
   // unidad_base_id references the GLOBAL unidad_medida catalog directly
   // (not a composite FK -- unidad_medida has no tenant_id, DP-39).
@@ -721,6 +722,8 @@ model Partida {
   /// INV-S16/S17: read-only from the app's perspective -- see migration 0008.
   fechaApertura           DateTime? @map("fecha_apertura") @db.Timestamptz(6)
   motivoAperturaAdicional String?   @map("motivo_apertura_adicional")
+  /// Migration 0058: the lot's declared purity, in percent (0 < p <= 100, partida_potencia_declarada_check). NULL = 100% (no correction). Insert-only (no UPDATE grant).
+  potenciaDeclarada       Decimal?  @map("potencia_declarada") @db.Decimal
 
   droga       Droga             @relation(fields: [drogaId], references: [id])
   proveedor   Proveedor         @relation(fields: [proveedorId], references: [id])
@@ -756,6 +759,8 @@ model MovimientoStock {
   numeroValeAdquisicion String?        @map("numero_vale_adquisicion")
   /// S12/S13/S19/S20 (revised), migration 0014. Required for EGRESO_PREPARACION.
   lineaPesajeId         String?        @map("linea_pesaje_id") @db.Uuid
+  /// Migration 0058: snapshot of the purity (percent) used to compute this EGRESO_PREPARACION's physical quantity (100 = partida without declared purity). NULL for every other movement and for manual-enrase lines (no correction).
+  potenciaAplicada      Decimal?       @map("potencia_aplicada") @db.Decimal
 
   partida          Partida           @relation(fields: [partidaId], references: [id])
   registradoPor    Usuario           @relation("MovimientoRegistradoPor", fields: [registradoPorId], references: [id])

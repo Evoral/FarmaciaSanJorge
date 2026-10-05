@@ -20,7 +20,13 @@ import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { nonEmptyString, uuid } from "@/shared/validation";
-import { isoDate, positiveDecimalString, nonNegativeDecimalString, esFechaVencimientoFutura } from "../domain/partida";
+import {
+  isoDate,
+  positiveDecimalString,
+  nonNegativeDecimalString,
+  potenciaDeclaradaString,
+  esFechaVencimientoFutura,
+} from "../domain/partida";
 import {
   getDrogaParaIngreso,
   getProveedorParaIngreso,
@@ -41,6 +47,8 @@ const ingresarPartidaInput = z.object({
   unidadCompraId: uuid,
   costoUnitario: nonNegativeDecimalString,
   numeroValeAdquisicion: z.string().trim().min(1).optional(),
+  /** Migration 0058: the lot's purity (%). Optional, unless the droga requiere corrección por pureza. */
+  potenciaDeclarada: potenciaDeclaradaString.optional(),
 });
 
 export interface IngresarPartidaInput {
@@ -52,6 +60,7 @@ export interface IngresarPartidaInput {
   unidadCompraId: string;
   costoUnitario: string;
   numeroValeAdquisicion?: string;
+  potenciaDeclarada?: string;
 }
 
 export const ingresarPartidaCommand = defineCommand({
@@ -113,6 +122,7 @@ export const ingresarPartidaCommand = defineCommand({
       fechaVencimiento: input.fechaVencimiento,
       registradoPorId: session.usuario.id,
       numeroValeAdquisicion: input.numeroValeAdquisicion ?? null,
+      potenciaDeclarada: input.potenciaDeclarada?.toString() ?? null,
     });
 
     return {
@@ -132,6 +142,7 @@ export const ingresarPartidaCommand = defineCommand({
           cantidadInicialBase,
           costoUnitario: input.costoUnitario.toString(),
           numeroValeAdquisicion: input.numeroValeAdquisicion ?? null,
+          potenciaDeclarada: input.potenciaDeclarada?.toString() ?? null,
         },
       },
     };

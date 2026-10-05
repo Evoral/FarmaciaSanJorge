@@ -2,9 +2,10 @@
  * `getPreparacionParaPantalla` (M11, FASE 8 point 8.2). Read-only,
  * `preparaciones.iniciar` (see list-preparaciones.ts's doc comment for why
  * this module has no dedicated read permiso). For every non-manual línea,
- * computes the system's OWN proposal via `proponerReparto`
- * (modules/stock/domain/reparto.ts, reused verbatim -- NOT reimplemented)
- * so the farmacéutico sees exactly what the confirmation would draw from
+ * computes the system's OWN proposal via `proponerRepartoActivo`
+ * (domain/potencia.ts: `proponerReparto`'s order, in ACTIVE terms -- the
+ * SAME function `confirmarPreparacion` uses; amounts are PHYSICAL, after the
+ * partida's purity correction) so the farmacéutico sees exactly what the confirmation would draw from
  * by default; the amounts shown here are NEVER editable (INV-S13/S20) --
  * only WHICH partidas to draw from can be changed (INV-S15), which
  * `confirmarPreparacion` recomputes server-side regardless of what this
@@ -18,8 +19,7 @@ import { defineQuery } from "@/shared/usecase";
 import { NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { dec } from "@/shared/decimal";
-import { proponerReparto } from "@/modules/stock/domain/reparto";
-import type { PropuestaLinea } from "@/modules/stock/domain/reparto";
+import { proponerRepartoActivo } from "../domain/potencia";
 import { hrefVolverDePreparacion } from "../domain/toma";
 import {
   getPreparacionParaAccion,
@@ -34,9 +34,10 @@ const getPreparacionParaPantallaInput = z.object({ preparacionId: uuid });
 
 export interface LineaPantalla extends LineaParaPantalla {
   partidasElegibles: PartidaElegible[];
-  /** The system's own default split, `null` for manual-enrase lines (no fixed quantity to split yet) or when stock is insufficient. `cantidad` is a decimal string: this crosses into a Client Component, which only accepts plain values. */
+  /** The system's own default split, `null` for manual-enrase lines (no fixed quantity to split yet) or when stock is insufficient. `cantidad` (PHYSICAL, purity-corrected) is a decimal string: this crosses into a Client Component, which only accepts plain values. */
   propuesta: { partidaId: string; cantidad: string }[] | null;
   stockInsuficiente: boolean;
+  /** In ACTIVE terms (same unit as cantidadAPesar). */
   faltante: string | null;
 }
 
@@ -70,14 +71,10 @@ export const getPreparacionParaPantallaQuery = defineQuery({
         continue;
       }
 
-      const resultado = proponerReparto(
-        partidasElegibles.map((p) => ({ id: p.id, cantidadDisponible: p.cantidadDisponible, fechaVencimiento: p.fechaVencimiento, fechaApertura: p.fechaApertura })),
-        dec(linea.cantidadAPesar),
-        jornada,
-      );
+      const resultado = proponerRepartoActivo(partidasElegibles, dec(linea.cantidadAPesar), jornada);
 
       if (resultado.ok) {
-        lineas.push({ ...linea, partidasElegibles, propuesta: resultado.lineas.map((p: PropuestaLinea) => ({ partidaId: p.partidaId, cantidad: p.cantidad.toString() })), stockInsuficiente: false, faltante: null });
+        lineas.push({ ...linea, partidasElegibles, propuesta: resultado.lineas.map((p) => ({ partidaId: p.partidaId, cantidad: p.cantidad.toString() })), stockInsuficiente: false, faltante: null });
       } else {
         lineas.push({ ...linea, partidasElegibles, propuesta: null, stockInsuficiente: true, faltante: resultado.faltante.toString() });
       }

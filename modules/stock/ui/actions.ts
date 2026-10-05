@@ -24,6 +24,7 @@ export async function ingresarPartidaAction(_prevState: StockActionState, formDa
       unidadCompraId: String(formData.get("unidadCompraId") ?? ""),
       costoUnitario: String(formData.get("costoUnitario") ?? ""),
       numeroValeAdquisicion: (formData.get("numeroValeAdquisicion") as string | null)?.trim() || undefined,
+      potenciaDeclarada: (formData.get("potenciaDeclarada") as string | null)?.trim() || undefined,
     });
     revalidatePath("/stock");
     return { status: "success", message: "Partida ingresada." };

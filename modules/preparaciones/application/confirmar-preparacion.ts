@@ -30,7 +30,13 @@
  *         the ficha's frozen `cantidadAPesar`, NEVER client input),
  *         recompute the split via `proponerReparto` over the CHOSEN
  *         partidas' FRESH (post-lock) balances (the amounts are ALWAYS
- *         system-computed, whatever partidas were chosen -- INV-S13/S20),
+ *         system-computed, whatever partidas were chosen -- INV-S13/S20;
+ *         non-manual líneas split in ACTIVE terms via
+ *         `proponerRepartoActivo`, domain/potencia.ts: `cantidadAPesar` is
+ *         the active ingredient required, each partida contributes
+ *         physical x potencia / 100, stock moves in PHYSICAL units and each
+ *         movimiento records `potencia_aplicada`; manual-enrase líneas get
+ *         no purity correction),
  *         reject an expired chosen partida or insufficient stock with a
  *         clear message, detect INV-S15 deviation + INV-S18's
  *         motivo-required case, then INSERT one `EGRESO_PREPARACION` per
@@ -63,7 +69,8 @@ import { AUTH_POLICY } from "@/shared/auth/policy";
 import { DomainError, NotFoundError, InvariantViolationError, mapDbError } from "@/shared/errors";
 import { uuid, nonEmptyString, decimalString } from "@/shared/validation";
 import { dec, Decimal } from "@/shared/decimal";
-import { proponerReparto } from "@/modules/stock/domain/reparto";
+import { proponerReparto, type PartidaDisponible } from "@/modules/stock/domain/reparto";
+import { proponerRepartoActivo, tieneCorreccion, type PartidaConPotencia, type RepartoActivoLinea } from "../domain/potencia";
 import {
   validarCantidadManual,
   esDesvioPropuesta,
@@ -217,14 +224,20 @@ export const confirmarPreparacionCommand = defineCommand({
           throw new DomainError(`La partida ${vencida.lote} (${linea.drogaNombre}) está vencida: no se puede descontar stock de una partida vencida.`);
         }
 
-        const resultado = proponerReparto(
-          elegidasFrescas.map((p) => ({ id: p.id, cantidadDisponible: p.cantidadDisponible, fechaVencimiento: p.fechaVencimiento, fechaApertura: p.fechaApertura })),
-          cantidadRequerida,
-          jornada,
-        );
+        // Non-manual: split in ACTIVE terms (purity per partida,
+        // domain/potencia.ts). Manual enrase: the typed quantity is
+        // physical, no purity correction (potenciaAplicada stays NULL).
+        const repartir = (partidas: readonly PartidaConPotencia[]) =>
+          linea.esEnraseManual
+            ? repartoSinCorreccion(partidas, cantidadRequerida, jornada)
+            : proponerRepartoActivo(partidas, cantidadRequerida, jornada);
+
+        const resultado = repartir(elegidasFrescas);
         if (!resultado.ok) {
           throw new DomainError(
-            `Stock insuficiente de ${linea.drogaNombre} en las partidas elegidas: faltan ${resultado.faltante.toString()} ${linea.unidadSimbolo}.`,
+            `Stock insuficiente de ${linea.drogaNombre} en las partidas elegidas: faltan ${resultado.faltante.toString()} ${linea.unidadSimbolo}${
+              !linea.esEnraseManual && elegidasFrescas.some((p) => tieneCorreccion(p.potenciaDeclarada)) ? " de principio activo" : ""
+            }.`,
           );
         }
 
@@ -232,16 +245,16 @@ export const confirmarPreparacionCommand = defineCommand({
         // proposal over ALL eligible partidas for this droga (not just the
         // chosen subset).
         const todasElegibles = await listPartidasElegiblesDroga(tx, session.tenantId, linea.drogaId);
-        const propuestaCanonica = proponerReparto(
-          todasElegibles.map((p) => ({ id: p.id, cantidadDisponible: p.cantidadDisponible, fechaVencimiento: p.fechaVencimiento, fechaApertura: p.fechaApertura })),
-          cantidadRequerida,
-          jornada,
-        );
+        const propuestaCanonica = repartir(todasElegibles);
         const esDesvio =
           !propuestaCanonica.ok || esDesvioPropuesta(propuestaCanonica.lineas.map((l) => l.partidaId), elegido.partidaIds);
 
         // INV-S18 [PROPUESTA TÉCNICA -- ver domain/preparacion.ts].
-        const partidasConEstado = todasElegibles.map((p) => ({ ...p, elegida: elegido.partidaIds.includes(p.id) }));
+        const partidasConEstado = todasElegibles.map((p) => ({
+          ...p,
+          potenciaDeclarada: linea.esEnraseManual ? null : p.potenciaDeclarada,
+          elegida: elegido.partidaIds.includes(p.id),
+        }));
         if (requiereMotivoAperturaAdicional(partidasConEstado, cantidadRequerida, jornada) && !elegido.motivoAperturaAdicional) {
           throw new DomainError(
             `La línea ${linea.orden + 1} (${linea.drogaNombre}) abre una partida nueva mientras hay otra ya abierta con saldo suficiente: indicá el motivo.`,
@@ -261,6 +274,7 @@ export const confirmarPreparacionCommand = defineCommand({
             lineaPesajeId: linea.id,
             registradoPorId: session.usuario.id,
             desvioPropuesta: esDesvio,
+            potenciaAplicada: split.potenciaAplicada?.toString() ?? null,
           });
 
           if (contralorActivo && droga) {
@@ -274,10 +288,12 @@ export const confirmarPreparacionCommand = defineCommand({
           }
         }
 
+        // The libro records the REAL weighed (physical) amount: equal to
+        // cantidadRequerida unless a partida's purity corrected it.
         detalles.push({
           lineaPesajeId: linea.id,
           descripcion: linea.drogaNombre,
-          cantidad: cantidadRequerida.toString(),
+          cantidad: resultado.totalFisico.toString(),
           unidadTexto: linea.unidadSimbolo,
           orden: linea.orden,
         });
@@ -366,6 +382,27 @@ export const confirmarPreparacionCommand = defineCommand({
     }
   },
 });
+
+/**
+ * Manual-enrase líneas: `proponerReparto` over the typed (physical)
+ * quantity, shaped like `proponerRepartoActivo`'s result with no purity
+ * correction (`potenciaAplicada: null`, activo = physical).
+ */
+function repartoSinCorreccion(
+  partidas: readonly PartidaDisponible[],
+  cantidad: Decimal,
+  jornada: string,
+):
+  | { ok: true; lineas: readonly (Omit<RepartoActivoLinea, "potenciaAplicada"> & { potenciaAplicada: null })[]; totalFisico: Decimal }
+  | { ok: false; faltante: Decimal } {
+  const resultado = proponerReparto(partidas, cantidad, jornada);
+  if (!resultado.ok) return { ok: false, faltante: resultado.faltante };
+  return {
+    ok: true,
+    lineas: resultado.lineas.map((l) => ({ partidaId: l.partidaId, cantidad: l.cantidad, activo: l.cantidad, potenciaAplicada: null })),
+    totalFisico: cantidad,
+  };
+}
 
 export async function confirmarPreparacion(input: ConfirmarPreparacionInput): Promise<{ id: string; asientoId: string; numeroCorrelativo: string }> {
   return confirmarPreparacionCommand.execute(input);
