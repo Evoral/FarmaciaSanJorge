@@ -93,6 +93,22 @@ describe("P19-P20: the receta does not exist", () => {
     fetchMock.mockResolvedValueOnce(json({ error: "recipe does not exist" }, 500));
     expect(await consultarRecetaRcta(HASH)).toEqual(NO_ENCONTRADA);
   });
+
+  it("insurance if RCTA switches to 404: a 404 with the same JSON 'does not exist' body is QR_INVALIDO", async () => {
+    fetchMock.mockResolvedValueOnce(json({ error: "Recipe does not exists" }, 404));
+    expect(await consultarRecetaRcta(HASH)).toEqual(NO_ENCONTRADA);
+    fetchMock.mockResolvedValueOnce(json({ error: "recipe does not exist" }, 404));
+    expect(await consultarRecetaRcta(HASH)).toEqual(NO_ENCONTRADA);
+  });
+
+  it("a 404 WITHOUT that body (other JSON, no body, or a non-JSON content-type) stays RCTA_NO_DISPONIBLE", async () => {
+    fetchMock.mockResolvedValueOnce(json({ error: "Not found" }, 404));
+    expect(await consultarRecetaRcta(HASH)).toEqual(NO_DISPONIBLE);
+    fetchMock.mockResolvedValueOnce(respuesta("", 404));
+    expect(await consultarRecetaRcta(HASH)).toEqual(NO_DISPONIBLE);
+    fetchMock.mockResolvedValueOnce(respuesta("Recipe does not exists", 404, { "content-type": "text/html" }));
+    expect(await consultarRecetaRcta(HASH)).toEqual(NO_DISPONIBLE);
+  });
 });
 
 describe("P21-P23: RCTA is not available", () => {

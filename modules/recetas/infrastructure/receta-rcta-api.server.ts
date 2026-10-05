@@ -10,11 +10,11 @@
  * logs; the hash and the bodies are patient-adjacent data and never leave it.
  *
  * Classification (the decrypter answers an unknown hash with HTTP 500 and
- * `{"error":"Recipe does not exists"}`, so a 404 means the endpoint moved, not
- * "no such receta"):
+ * `{"error":"Recipe does not exists"}`, so a bare 404 means the endpoint moved, not
+ * "no such receta"; a 404 carrying that same JSON body is read as "no such receta"):
  *   - 2xx: not JSON / over the cap / unparseable -> FORMATO_INESPERADO; an empty body -> QR_INVALIDO
- *   - 500 whose JSON body matches /recipe does not exist/i, and ONLY 400 and 422 -> QR_INVALIDO
- *   - every other 4xx (401/403: an IP block, a WAF or a future auth requirement; 404, 405, 410, 451, 408, 429, ...),
+ *   - 500 or 404 whose JSON body matches /recipe does not exist/i, and ONLY 400 and 422 -> QR_INVALIDO
+ *   - every other 4xx (401/403: an IP block, a WAF or a future auth requirement; any other 404, 405, 410, 451, 408, 429, ...),
  *     any other 5xx or status, network error, timeout, redirect -> RCTA_NO_DISPONIBLE
  */
 import "server-only";
@@ -32,6 +32,8 @@ const RE_CONTENT_TYPE_JSON = /^application\/(?:[a-z0-9.+-]+\+)?json\s*(?:;|$)/i;
 const RE_RECETA_INEXISTENTE = /recipe does not exist/i;
 /** The only statuses that mean "the API judged the hash itself bad"; every other 4xx (404, 410, 451, ...) says the endpoint moved or is blocked. */
 const STATUS_HASH_RECHAZADO: ReadonlySet<number> = new Set([400, 422]);
+/** The statuses whose JSON body is inspected for the "does not exist" error: the real 500, plus 404 as insurance if RCTA switches to it. */
+const STATUS_CON_CUERPO_RECETA_INEXISTENTE: ReadonlySet<number> = new Set([500, 404]);
 
 const fallo = (codigo: CodigoErrorQr): ResultadoConsultaRcta => ({ ok: false, codigo });
 
@@ -81,7 +83,7 @@ async function clasificar(respuesta: Response): Promise<ResultadoConsultaRcta> {
     }
   }
 
-  if (status === 500 && esJson(respuesta)) {
+  if (STATUS_CON_CUERPO_RECETA_INEXISTENTE.has(status) && esJson(respuesta)) {
     const texto = await leerCuerpoAcotado(respuesta);
     return fallo(texto !== null && RE_RECETA_INEXISTENTE.test(texto) ? "QR_INVALIDO" : "RCTA_NO_DISPONIBLE");
   }
