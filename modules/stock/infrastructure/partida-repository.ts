@@ -391,6 +391,16 @@ export interface NuevaPartidaInput {
   numeroValeAdquisicion: string | null;
   /** Migration 0058: the lot's purity (%), `null` = 100%. */
   potenciaDeclarada: string | null;
+  /** Migration 0062: set only by the invoice import (`null` for a manual alta). */
+  comprobanteCompraId?: string | null;
+  despachoImportacion?: string | null;
+  paisOrigen?: string | null;
+}
+
+/** `uq (tenant, droga, proveedor, lote)` pre-check, for a clear message on the lote field instead of a generic unique violation. */
+export async function existePartidaLote(tx: Prisma.TransactionClient, tenantId: string, drogaId: string, proveedorId: string, lote: string): Promise<boolean> {
+  const row = await tx.partida.findFirst({ where: { tenantId, drogaId, proveedorId, lote }, select: { id: true } });
+  return row !== null;
 }
 
 /** Reads what `ingresar-partida.ts` needs to decide unit conversion + INV-L16 (numero_vale_adquisicion), in one round trip. */
@@ -480,6 +490,9 @@ export async function insertPartidaConIngreso(tx: Prisma.TransactionClient, inpu
       cantidadInicial: input.cantidadInicialBase,
       fechaVencimiento: new Date(`${input.fechaVencimiento}T00:00:00Z`),
       potenciaDeclarada: input.potenciaDeclarada,
+      comprobanteCompraId: input.comprobanteCompraId ?? null,
+      despachoImportacion: input.despachoImportacion ?? null,
+      paisOrigen: input.paisOrigen ?? null,
     },
     select: { id: true },
   });

@@ -15,8 +15,17 @@
  * `costoUnitario` is entered directly
  * per unidad base (`fsj.partida.costo_unitario`'s own definition, plan §9
  * M07), so it needs no conversion.
+ *
+ * The rules live in `registrarPartidaCompra`, shared with the supplier
+ * invoice import (./importar-factura-compra.ts, one call per lote): there
+ * the cost comes per unidad de compra (the invoice's price) and is divided
+ * by the same `fsj.convertir` factor, and `campo` prefixes each error's
+ * field with the lote's row so the right input is marked.
  */
 import { z } from "zod";
+import Decimal from "decimal.js";
+import type { Prisma } from "@/generated/prisma/client";
+import type { AuthenticatedSession } from "@/shared/auth/session";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { nonEmptyString, uuid } from "@/shared/validation";
@@ -36,6 +45,7 @@ import {
   convertirUnidad,
   jornadaActualTenant,
   insertPartidaConIngreso,
+  existePartidaLote,
 } from "../infrastructure/partida-repository";
 
 const ingresarPartidaInput = z.object({
@@ -47,7 +57,7 @@ const ingresarPartidaInput = z.object({
   unidadCompraId: uuid,
   costoUnitario: nonNegativeDecimalString,
   numeroValeAdquisicion: z.string().trim().min(1).optional(),
-  /** Migration 0058: the lot's purity (%). Optional, unless the droga requiere corrección por pureza. */
+  /** Migration 0058: the lot's purity (%). Optional: empty = 100 %. */
   potenciaDeclarada: potenciaDeclaradaString.optional(),
 });
 
@@ -63,89 +73,145 @@ export interface IngresarPartidaInput {
   potenciaDeclarada?: string;
 }
 
+/** One purchase lote, every value already validated by the caller's zod schema (decimals as strings). */
+export interface PartidaCompraInput {
+  drogaId: string;
+  proveedorId: string;
+  lote: string;
+  fechaVencimiento: string;
+  cantidadCompra: string;
+  unidadCompraId: string;
+  /** Per unidad base (manual alta) or per unidad de compra (invoice price, converted here). */
+  costo: { porUnidadBase: string } | { porUnidadCompra: string };
+  numeroValeAdquisicion?: string;
+  potenciaDeclarada?: string;
+  /** Migration 0062 -- invoice import only. */
+  comprobanteCompraId?: string;
+  despachoImportacion?: string | null;
+  paisOrigen?: string | null;
+}
+
+/**
+ * Validates and inserts one partida with its INGRESO_COMPRA movement;
+ * returns its id and the audit `valorNuevo`. `campo` maps a field name to
+ * the form's control name (errors point at it).
+ */
+export async function registrarPartidaCompra(
+  tx: Prisma.TransactionClient,
+  session: AuthenticatedSession,
+  input: PartidaCompraInput,
+  campo: (nombre: string) => string = (nombre) => nombre,
+): Promise<{ id: string; valorNuevo: Prisma.InputJsonObject }> {
+  const droga = await getDrogaParaIngreso(tx, session.tenantId, input.drogaId);
+  if (!droga) throw new NotFoundError("Droga no encontrada.");
+  if (droga.fechaBaja !== null) throw new DomainError(`La droga ${droga.nombre} está dada de baja.`, { fields: [campo("drogaId")] });
+
+  const proveedor = await getProveedorParaIngreso(tx, session.tenantId, input.proveedorId);
+  if (!proveedor) throw new NotFoundError("Proveedor no encontrado.");
+  if (proveedor.fechaBaja !== null) throw new DomainError("El proveedor está dado de baja.", { fields: ["proveedorId"] });
+
+  if (await existePartidaLote(tx, session.tenantId, input.drogaId, input.proveedorId, input.lote)) {
+    throw new ValidationError(`Ya existe una partida de ${droga.nombre} con el lote ${input.lote} de este proveedor.`, { fields: [campo("lote")] });
+  }
+
+  const jornadaActual = await jornadaActualTenant(tx, session.tenantId);
+  if (!esFechaVencimientoFutura(input.fechaVencimiento, jornadaActual)) {
+    throw new ValidationError("La fecha de vencimiento debe ser posterior a la fecha actual.", { fields: [campo("fechaVencimiento")] });
+  }
+
+  // INV-L16 pre-check (mirrors migration 0014's
+  // fsj.movimiento_stock_validar_vale -- this is a fast app-level check
+  // for a clear Spanish message; the DB trigger is the real invariant).
+  const fechaActivacionContralor = await getFechaActivacionContralor(tx, session.tenantId);
+  const requiereVale = droga.tipoControl !== "NINGUNO" && fechaActivacionContralor !== null;
+  if (requiereVale && !input.numeroValeAdquisicion) {
+    throw new ValidationError(`${droga.nombre} es controlada y el contralor está activo: el número de vale de adquisición es obligatorio.`, {
+      fields: [campo("numeroValeAdquisicion")],
+    });
+  }
+
+  if (input.unidadCompraId !== droga.unidadBaseId) {
+    const unidades = await getUnidadesParaConversion(tx, [input.unidadCompraId, droga.unidadBaseId]);
+    const unidadCompra = unidades.get(input.unidadCompraId);
+    const unidadBase = unidades.get(droga.unidadBaseId);
+    if (!unidadCompra) throw new ValidationError("La unidad de compra elegida no existe.", { fields: [campo("unidadCompraId")] });
+    if (unidadBase && unidadCompra.tipoMagnitud !== unidadBase.tipoMagnitud) {
+      throw new ValidationError(
+        `La unidad de compra (${unidadCompra.simbolo}) no corresponde a ${droga.nombre}, que se mide en ${unidadBase.simbolo}. Elegí una unidad de la misma magnitud.`,
+        { fields: [campo("unidadCompraId")] },
+      );
+    }
+    if (unidadCompra.fechaBaja !== null) {
+      throw new ValidationError(`La unidad de compra (${unidadCompra.simbolo}) está dada de baja. Elegí otra unidad.`, { fields: [campo("unidadCompraId")] });
+    }
+  }
+
+  const cantidadInicialBase = await convertirUnidad(tx, input.cantidadCompra, input.unidadCompraId, droga.unidadBaseId);
+  const costoUnitario =
+    "porUnidadBase" in input.costo
+      ? input.costo.porUnidadBase
+      : new Decimal(input.costo.porUnidadCompra)
+          .dividedBy(await convertirUnidad(tx, "1", input.unidadCompraId, droga.unidadBaseId))
+          .toDecimalPlaces(6)
+          .toString();
+
+  const nueva = await insertPartidaConIngreso(tx, {
+    tenantId: session.tenantId,
+    drogaId: input.drogaId,
+    proveedorId: input.proveedorId,
+    lote: input.lote,
+    costoUnitario,
+    cantidadInicialBase,
+    fechaVencimiento: input.fechaVencimiento,
+    registradoPorId: session.usuario.id,
+    numeroValeAdquisicion: input.numeroValeAdquisicion ?? null,
+    potenciaDeclarada: input.potenciaDeclarada ?? null,
+    comprobanteCompraId: input.comprobanteCompraId ?? null,
+    despachoImportacion: input.despachoImportacion ?? null,
+    paisOrigen: input.paisOrigen ?? null,
+  });
+
+  return {
+    id: nueva.id,
+    valorNuevo: {
+      drogaId: input.drogaId,
+      droga: droga.nombre,
+      proveedorId: input.proveedorId,
+      proveedor: proveedor.razonSocial,
+      lote: input.lote,
+      fechaVencimiento: input.fechaVencimiento,
+      cantidadCompra: input.cantidadCompra,
+      unidadCompraId: input.unidadCompraId,
+      unidadCompra: await getEtiquetaUnidad(tx, input.unidadCompraId),
+      cantidadInicialBase,
+      costoUnitario,
+      numeroValeAdquisicion: input.numeroValeAdquisicion ?? null,
+      potenciaDeclarada: input.potenciaDeclarada ?? null,
+      ...(input.comprobanteCompraId
+        ? { comprobanteCompraId: input.comprobanteCompraId, despachoImportacion: input.despachoImportacion ?? null, paisOrigen: input.paisOrigen ?? null }
+        : {}),
+    },
+  };
+}
+
 export const ingresarPartidaCommand = defineCommand({
   name: "stock.partida.ingresar",
   permiso: "stock.partida.ingresar",
   input: ingresarPartidaInput,
   audit: { entidad: "partida", accion: TipoAccion.CREAR },
   handler: async ({ tx, session, input }) => {
-    const droga = await getDrogaParaIngreso(tx, session.tenantId, input.drogaId);
-    if (!droga) throw new NotFoundError("Droga no encontrada.");
-    if (droga.fechaBaja !== null) throw new DomainError("La droga está dada de baja.", { fields: ["drogaId"] });
-
-    const proveedor = await getProveedorParaIngreso(tx, session.tenantId, input.proveedorId);
-    if (!proveedor) throw new NotFoundError("Proveedor no encontrado.");
-    if (proveedor.fechaBaja !== null) throw new DomainError("El proveedor está dado de baja.", { fields: ["proveedorId"] });
-
-    const jornadaActual = await jornadaActualTenant(tx, session.tenantId);
-    if (!esFechaVencimientoFutura(input.fechaVencimiento, jornadaActual)) {
-      throw new ValidationError("La fecha de vencimiento debe ser posterior a la fecha actual.", { fields: ["fechaVencimiento"] });
-    }
-
-    // INV-L16 pre-check (mirrors migration 0014's
-    // fsj.movimiento_stock_validar_vale -- this is a fast app-level check
-    // for a clear Spanish message; the DB trigger is the real invariant).
-    const fechaActivacionContralor = await getFechaActivacionContralor(tx, session.tenantId);
-    const requiereVale = droga.tipoControl !== "NINGUNO" && fechaActivacionContralor !== null;
-    if (requiereVale && !input.numeroValeAdquisicion) {
-      throw new ValidationError(
-        "Esta droga es controlada y el contralor está activo: el número de vale de adquisición es obligatorio.",
-        { fields: ["numeroValeAdquisicion"] },
-      );
-    }
-
-    if (input.unidadCompraId !== droga.unidadBaseId) {
-      const unidades = await getUnidadesParaConversion(tx, [input.unidadCompraId, droga.unidadBaseId]);
-      const unidadCompra = unidades.get(input.unidadCompraId);
-      const unidadBase = unidades.get(droga.unidadBaseId);
-      if (!unidadCompra) throw new ValidationError("La unidad de compra elegida no existe.", { fields: ["unidadCompraId"] });
-      if (unidadBase && unidadCompra.tipoMagnitud !== unidadBase.tipoMagnitud) {
-        throw new ValidationError(
-          `La unidad de compra (${unidadCompra.simbolo}) no corresponde a esta droga, que se mide en ${unidadBase.simbolo}. Elegí una unidad de la misma magnitud.`,
-          { fields: ["unidadCompraId"] },
-        );
-      }
-      if (unidadCompra.fechaBaja !== null) {
-        throw new ValidationError(`La unidad de compra (${unidadCompra.simbolo}) está dada de baja. Elegí otra unidad.`, { fields: ["unidadCompraId"] });
-      }
-    }
-
-    const cantidadInicialBase = await convertirUnidad(tx, input.cantidadCompra.toString(), input.unidadCompraId, droga.unidadBaseId);
-
-    const nueva = await insertPartidaConIngreso(tx, {
-      tenantId: session.tenantId,
+    const { id, valorNuevo } = await registrarPartidaCompra(tx, session, {
       drogaId: input.drogaId,
       proveedorId: input.proveedorId,
       lote: input.lote,
-      costoUnitario: input.costoUnitario.toString(),
-      cantidadInicialBase,
       fechaVencimiento: input.fechaVencimiento,
-      registradoPorId: session.usuario.id,
-      numeroValeAdquisicion: input.numeroValeAdquisicion ?? null,
-      potenciaDeclarada: input.potenciaDeclarada?.toString() ?? null,
+      cantidadCompra: input.cantidadCompra.toString(),
+      unidadCompraId: input.unidadCompraId,
+      costo: { porUnidadBase: input.costoUnitario.toString() },
+      numeroValeAdquisicion: input.numeroValeAdquisicion,
+      potenciaDeclarada: input.potenciaDeclarada?.toString(),
     });
-
-    return {
-      output: { id: nueva.id },
-      audit: {
-        entidadId: nueva.id,
-        valorNuevo: {
-          drogaId: input.drogaId,
-          droga: droga.nombre,
-          proveedorId: input.proveedorId,
-          proveedor: proveedor.razonSocial,
-          lote: input.lote,
-          fechaVencimiento: input.fechaVencimiento,
-          cantidadCompra: input.cantidadCompra.toString(),
-          unidadCompraId: input.unidadCompraId,
-          unidadCompra: await getEtiquetaUnidad(tx, input.unidadCompraId),
-          cantidadInicialBase,
-          costoUnitario: input.costoUnitario.toString(),
-          numeroValeAdquisicion: input.numeroValeAdquisicion ?? null,
-          potenciaDeclarada: input.potenciaDeclarada?.toString() ?? null,
-        },
-      },
-    };
+    return { output: { id }, audit: { entidadId: id, valorNuevo } };
   },
 });
 

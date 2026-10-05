@@ -1,11 +1,11 @@
-/** `/stock/ingresar` (M07, FASE 5 point 5.1). */
+/** `/stock/ingresar` (M07, FASE 5 point 5.1): alta manual o importación desde el PDF de la factura del proveedor (migration 0062). */
 import { redirect } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listDrogasOpciones } from "@/modules/drogas/application/list-drogas-opciones";
 import { listProveedoresOpciones } from "@/modules/proveedores/application/list-proveedores-opciones";
 import { listUnidadesVigentesParaDroga } from "@/modules/drogas/application/list-unidades-vigentes";
-import { IngresarPartidaForm } from "@/modules/stock/ui/ingresar-partida-form";
+import { IngresarPartida } from "@/modules/stock/ui/ingresar-partida";
 import { PageHeader } from "@/shared/ui/page-header";
 
 export default async function IngresarPartidaPage() {
@@ -25,16 +25,14 @@ export default async function IngresarPartidaPage() {
       <PageHeader
         breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Stock", href: "/stock" }, { label: "Ingresar partida" }]}
         title="Ingresar partida"
-        description="Registrá una compra: la cantidad se suma al stock de la droga como una partida nueva."
+        description="Registrá una compra a mano o importá la factura del proveedor: cada lote se suma al stock como una partida nueva."
       />
-      <div className="panel max-w-3xl">
-        <div className="panel-body">
-          <IngresarPartidaForm
-            drogas={drogas.map((droga) => ({ id: droga.id, label: droga.nombre, tipoMagnitud: droga.tipoMagnitud }))}
-            proveedores={proveedores.map((proveedor) => ({ id: proveedor.id, label: proveedor.razonSocial }))}
-            unidades={unidades.map((unidad) => ({ id: unidad.id, label: `${unidad.nombre} (${unidad.simbolo})`, tipoMagnitud: unidad.tipoMagnitud }))}
-          />
-        </div>
+      <div className="max-w-4xl">
+        <IngresarPartida
+          drogas={drogas.map((droga) => ({ id: droga.id, label: droga.nombre, tipoMagnitud: droga.tipoMagnitud }))}
+          proveedores={proveedores.map((proveedor) => ({ id: proveedor.id, label: proveedor.razonSocial }))}
+          unidades={unidades.map((unidad) => ({ id: unidad.id, label: `${unidad.nombre} (${unidad.simbolo})`, tipoMagnitud: unidad.tipoMagnitud }))}
+        />
       </div>
     </div>
   );
