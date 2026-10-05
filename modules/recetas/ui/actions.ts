@@ -140,7 +140,8 @@ export async function leerRecetaQrAction(_prevState: LeerRecetaState, formData: 
     const vistaPrevia = await leerRecetaQr(formData.get("codigo"));
     return { status: "success", vistaPrevia };
   } catch (error) {
-    return { status: "error", message: actionErrorMessage(error, "No se pudo leer el QR.") };
+    const { message, fields } = actionError(error, "No se pudo leer el QR.");
+    return fields?.includes("codigo") ? { status: "error", message, campo: "codigo" } : { status: "error", message };
   }
 }
 

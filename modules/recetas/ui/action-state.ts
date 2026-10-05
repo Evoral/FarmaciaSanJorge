@@ -31,7 +31,11 @@ export type CrearPersonaRapidaState =
 export const IDLE_CREAR_PERSONA_STATE: CrearPersonaRapidaState = { status: "idle" };
 
 /** Result of reading a receta (PDF or QR): the preview travels back only in this POST response (DP-24), never in a URL. */
-export type LeerRecetaState = { status: "idle" } | { status: "error"; message: string } | { status: "success"; vistaPrevia: VistaPreviaImportacion };
+export type LeerRecetaState =
+  | { status: "idle" }
+  /** `campo: "codigo"`: the error is about the typed QR/link itself (not an outage or a permission error), so the QR input is marked invalid. */
+  | { status: "error"; message: string; campo?: "codigo" }
+  | { status: "success"; vistaPrevia: VistaPreviaImportacion };
 
 export const IDLE_LEER_RECETA_STATE: LeerRecetaState = { status: "idle" };
 

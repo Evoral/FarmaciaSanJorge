@@ -9,20 +9,24 @@
  * It is a plain text input on purpose: a USB scanner types the code and
  * presses Enter, and a link can be pasted. The input is focused on load (unless
  * the parent says a receta was already read), and focused and selected again
- * after every reading and after discarding the import, so the next scan
- * REPLACES the previous text instead of being appended to it.
+ * after a successful reading and after discarding the import, so the next scan
+ * REPLACES the previous text instead of being appended to it. After an ERROR it
+ * only takes the focus back when nothing else has it (the body, or this panel):
+ * a late error must not pull the user away from the manual form.
  *
  * Feedback for assistive technology: a persistent `role="status"` region (always
  * rendered, only its text changes) announces the reading and its success; an
- * error is a `role="alert"` linked to the input (`aria-invalid` +
- * `aria-describedby`). The alert is removed while a new reading is pending and
- * inserted again with its result, so the SAME error twice in a row is announced twice.
+ * error is a `role="alert"` linked to the input by `aria-describedby`
+ * (plus `aria-invalid` when the error is about the typed code itself). The
+ * alert is removed while a new reading is pending and inserted again with its
+ * result, so the SAME error twice in a row is announced twice.
  */
 import { useActionState, useEffect, useId, useRef, type FormEvent } from "react";
 import { AlertCircle, QrCode } from "lucide-react";
 import { leerRecetaQrAction } from "./actions";
 import { IDLE_LEER_RECETA_STATE } from "./action-state";
 import { MENSAJE_ANUNCIO_LEYENDO, textoAnuncioLectura } from "./anuncio-lectura";
+import { debeRecuperarFoco } from "./foco-lectura";
 import type { VistaPreviaImportacion } from "../domain/importacion-receta";
 import { useFormSubmit } from "@/shared/ui/use-form-submit";
 
@@ -38,6 +42,9 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
   const [state, formAction, isPending] = useActionState(leerRecetaQrAction, IDLE_LEER_RECETA_STATE);
   const { onSubmit } = useFormSubmit(formAction);
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  /** Set on submit, cleared when a result arrives: closes the gap before `isPending` turns true. */
+  const enVuelo = useRef(false);
   const inputId = useId();
   const errorId = useId();
 
@@ -48,18 +55,21 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
 
   useEffect(() => {
     if (state.status === "idle") return;
-    enfocarYSeleccionar();
+    enVuelo.current = false;
+    // A late error must not steal the focus from the manual form the user moved on to.
+    if (debeRecuperarFoco({ status: state.status, activo: document.activeElement, cuerpo: document.body, panel: panelRef.current })) enfocarYSeleccionar();
     if (state.status === "success") onLeida(state.vistaPrevia);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
   // A scanner that sends Enter twice would otherwise start a second reading while the first is in flight.
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    if (isPending) {
+    if (isPending || enVuelo.current) {
       event.preventDefault();
       event.stopPropagation();
       return;
     }
+    enVuelo.current = true;
     onSubmit(event);
   };
 
@@ -69,10 +79,12 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
   };
 
   const mostrarError = state.status === "error" && !isPending;
+  // Only a problem with the typed code marks the input invalid; an outage or a permission error is not the input's fault.
+  const entradaInvalida = mostrarError && state.campo === "codigo";
   const anuncio = textoAnuncioLectura({ isPending, status: state.status, importando });
 
   return (
-    <section aria-labelledby="importar-qr-heading" className="panel">
+    <section ref={panelRef} aria-labelledby="importar-qr-heading" className="panel">
       <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:px-5">
         <span className="tone-tile" data-tone={importando ? "success" : "neutral"} aria-hidden>
           <QrCode />
@@ -100,7 +112,7 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
             spellCheck={false}
             enterKeyHint="go"
             readOnly={isPending}
-            aria-invalid={mostrarError ? true : undefined}
+            aria-invalid={entradaInvalida ? true : undefined}
             aria-describedby={mostrarError ? errorId : undefined}
             placeholder="Escaneá el QR o pegá el link"
             className="input w-full sm:w-72"

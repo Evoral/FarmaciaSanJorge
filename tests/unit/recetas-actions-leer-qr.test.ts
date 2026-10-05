@@ -11,7 +11,7 @@
  * (docs/specs/importacion-receta-qr.md).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { DomainError, ValidationError } from "@/shared/errors";
+import { AuthorizationError, DomainError, ValidationError } from "@/shared/errors";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
@@ -67,9 +67,23 @@ describe("leerRecetaQrAction", () => {
 
   it("a validation error and a domain error come back as their own user message", async () => {
     leerRecetaQrMock.mockRejectedValueOnce(new ValidationError("QR no válido o receta no encontrada", { fields: ["codigo"] }));
-    expect(await leerRecetaQrAction(IDLE_LEER_RECETA_STATE, form({ codigo: "" }))).toEqual({ status: "error", message: "QR no válido o receta no encontrada" });
+    expect(await leerRecetaQrAction(IDLE_LEER_RECETA_STATE, form({ codigo: "" }))).toMatchObject({ status: "error", message: "QR no válido o receta no encontrada" });
     leerRecetaQrMock.mockRejectedValueOnce(new DomainError("No se pudo consultar RCTA, importá el PDF"));
     expect(await leerRecetaQrAction(IDLE_LEER_RECETA_STATE, form({ codigo: CODIGO }))).toEqual({ status: "error", message: "No se pudo consultar RCTA, importá el PDF" });
+  });
+
+  it("flags `campo: 'codigo'` ONLY when the error targets the typed code (an input problem), so the input is marked invalid for those and not for outages", async () => {
+    leerRecetaQrMock.mockRejectedValueOnce(new ValidationError("QR no válido o receta no encontrada", { fields: ["codigo"] }));
+    expect(await leerRecetaQrAction(IDLE_LEER_RECETA_STATE, form({ codigo: "x" }))).toStrictEqual({ status: "error", message: "QR no válido o receta no encontrada", campo: "codigo" });
+    // An outage (DomainError), a permission error and a validation error on another field carry no `campo`.
+    leerRecetaQrMock.mockRejectedValueOnce(new DomainError("No se pudo consultar RCTA, importá el PDF"));
+    expect(await leerRecetaQrAction(IDLE_LEER_RECETA_STATE, form({ codigo: CODIGO }))).toStrictEqual({ status: "error", message: "No se pudo consultar RCTA, importá el PDF" });
+    leerRecetaQrMock.mockRejectedValueOnce(new ValidationError("Dato inválido", { fields: ["otro"] }));
+    expect(await leerRecetaQrAction(IDLE_LEER_RECETA_STATE, form({ codigo: CODIGO }))).toStrictEqual({ status: "error", message: "Dato inválido" });
+    leerRecetaQrMock.mockRejectedValueOnce(new AuthorizationError());
+    expect(await leerRecetaQrAction(IDLE_LEER_RECETA_STATE, form({ codigo: CODIGO }))).not.toHaveProperty("campo");
+    leerRecetaQrMock.mockRejectedValueOnce(new Error("socket hang up"));
+    expect(await leerRecetaQrAction(IDLE_LEER_RECETA_STATE, form({ codigo: CODIGO }))).toStrictEqual({ status: "error", message: "No se pudo leer el QR." });
   });
 
   it("an unexpected error gets the generic fallback, never the raw error text", async () => {
