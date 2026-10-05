@@ -30,6 +30,13 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  logging: {
+    // In development Next prints every Server Function call WITH its arguments.
+    // The receta QR import (docs/specs/importacion-receta-qr.md) sends the scanned
+    // code, which holds the receta's hash (a bearer capability), as an argument:
+    // keep it out of the terminal.
+    serverFunctions: false,
+  },
   // unpdf ships a serverless pdf.js build (no worker) and loads it with a
   // dynamic `import("unpdf/pdfjs")`; keeping the package out of the server
   // bundle lets Node resolve that import natively instead of relying on the
