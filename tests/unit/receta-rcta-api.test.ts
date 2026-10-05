@@ -69,8 +69,8 @@ describe("P19-P20: the receta does not exist", () => {
     expect(await consultarRecetaRcta(HASH)).toEqual({ ok: true, json: null });
   });
 
-  it("P20: 404 and any other 4xx are QR_INVALIDO", async () => {
-    for (const estado of [400, 401, 403, 404, 410, 422]) {
+  it("P20: 404 and any other 4xx (except auth errors, 408 and 429) are QR_INVALIDO", async () => {
+    for (const estado of [400, 404, 410, 422]) {
       fetchMock.mockResolvedValueOnce(respuesta("nada", estado, { "content-type": "text/plain" }));
       expect(await consultarRecetaRcta(HASH)).toEqual(NO_ENCONTRADA);
     }
@@ -99,6 +99,15 @@ describe("P21-P23: RCTA is not available", () => {
   it("408 and 429 are transient: RCTA_NO_DISPONIBLE, not 'not found'", async () => {
     for (const estado of [408, 429]) {
       fetchMock.mockResolvedValueOnce(respuesta("", estado));
+      expect(await consultarRecetaRcta(HASH)).toEqual(NO_DISPONIBLE);
+    }
+  });
+
+  it("401 and 403 (an IP block, a WAF or an auth requirement in the future) are an outage, not an invalid QR", async () => {
+    for (const estado of [401, 403]) {
+      fetchMock.mockResolvedValueOnce(respuesta("nada", estado, { "content-type": "text/plain" }));
+      expect(await consultarRecetaRcta(HASH)).toEqual(NO_DISPONIBLE);
+      fetchMock.mockResolvedValueOnce(json({ error: "Forbidden" }, estado));
       expect(await consultarRecetaRcta(HASH)).toEqual(NO_DISPONIBLE);
     }
   });
@@ -161,6 +170,48 @@ describe("P24-P25: an unexpected response", () => {
 
   it("the error body of a 500 is bounded by the same cap: an oversize one is RCTA_NO_DISPONIBLE", async () => {
     fetchMock.mockResolvedValueOnce(respuesta(`{"error":"Recipe does not exists"}${" ".repeat(MAX_BYTES_RESPUESTA_RCTA)}`, 500));
+    expect(await consultarRecetaRcta(HASH)).toEqual(NO_DISPONIBLE);
+  });
+});
+
+describe("unread bodies are released", () => {
+  /** A response whose body stream reports when it is cancelled. */
+  function conCuerpoVigilado(estado: number, headers: Record<string, string>) {
+    const cancelado = vi.fn();
+    const cuerpo = new ReadableStream<Uint8Array>({ pull: (c) => c.enqueue(new Uint8Array(8)), cancel: cancelado });
+    return { cancelado, respuesta: respuesta(cuerpo, estado, headers) };
+  }
+
+  it("408 and 429 cancel the unread body", async () => {
+    for (const estado of [408, 429]) {
+      const { cancelado, respuesta: r } = conCuerpoVigilado(estado, JSON_CT);
+      fetchMock.mockResolvedValueOnce(r);
+      expect(await consultarRecetaRcta(HASH)).toEqual(NO_DISPONIBLE);
+      expect(cancelado).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("a 2xx without a JSON content-type cancels the unread body", async () => {
+    for (const headers of [{ "content-type": "text/html" }, {}] as Record<string, string>[]) {
+      const { cancelado, respuesta: r } = conCuerpoVigilado(200, headers);
+      fetchMock.mockResolvedValueOnce(r);
+      expect(await consultarRecetaRcta(HASH)).toEqual(FORMATO);
+      expect(cancelado).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("a 4xx and an unexpected 5xx without a JSON body still cancel it (existing behavior)", async () => {
+    for (const estado of [404, 502]) {
+      const { cancelado, respuesta: r } = conCuerpoVigilado(estado, { "content-type": "text/plain" });
+      fetchMock.mockResolvedValueOnce(r);
+      await consultarRecetaRcta(HASH);
+      expect(cancelado).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("a cancel that rejects does not change the result", async () => {
+    const cuerpo = new ReadableStream<Uint8Array>({ cancel: () => Promise.reject(new Error("boom")) });
+    fetchMock.mockResolvedValueOnce(respuesta(cuerpo, 429));
     expect(await consultarRecetaRcta(HASH)).toEqual(NO_DISPONIBLE);
   });
 });

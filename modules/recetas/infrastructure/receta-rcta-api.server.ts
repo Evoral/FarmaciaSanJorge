@@ -13,8 +13,9 @@
  * `{"error":"Recipe does not exists"}`, so a status alone cannot tell "not
  * found" from "down"):
  *   - 2xx: not JSON / over the cap / unparseable -> FORMATO_INESPERADO; an empty body -> QR_INVALIDO
- *   - 500 whose JSON body matches /recipe does not exist/i, and any other 4xx except 408/429 -> QR_INVALIDO
- *   - 408, 429, any other 5xx or status, network error, timeout, redirect -> RCTA_NO_DISPONIBLE
+ *   - 500 whose JSON body matches /recipe does not exist/i, and any other 4xx except 401/403/408/429 -> QR_INVALIDO
+ *   - 401, 403 (an IP block, a WAF or a future auth requirement is an outage, not an invalid QR), 408, 429,
+ *     any other 5xx or status, network error, timeout, redirect -> RCTA_NO_DISPONIBLE
  */
 import "server-only";
 import type { CodigoErrorQr } from "../domain/receta-qr";
@@ -58,12 +59,21 @@ async function leerCuerpoAcotado(respuesta: Response): Promise<string | null> {
 
 const esJson = (respuesta: Response): boolean => RE_CONTENT_TYPE_JSON.test(respuesta.headers.get("content-type")?.trim() ?? "");
 
+/** Releases the connection of a body that will not be read. */
+const descartarCuerpo = (respuesta: Response): Promise<void> => (respuesta.body?.cancel() ?? Promise.resolve()).catch(() => undefined);
+
 async function clasificar(respuesta: Response): Promise<ResultadoConsultaRcta> {
   const { status } = respuesta;
-  if (status === 408 || status === 429) return fallo("RCTA_NO_DISPONIBLE");
+  if (status === 401 || status === 403 || status === 408 || status === 429) {
+    await descartarCuerpo(respuesta);
+    return fallo("RCTA_NO_DISPONIBLE");
+  }
 
   if (status >= 200 && status < 300) {
-    if (!esJson(respuesta)) return fallo("FORMATO_INESPERADO");
+    if (!esJson(respuesta)) {
+      await descartarCuerpo(respuesta);
+      return fallo("FORMATO_INESPERADO");
+    }
     const texto = await leerCuerpoAcotado(respuesta);
     if (texto === null) return fallo("FORMATO_INESPERADO");
     if (texto.trim() === "") return fallo("QR_INVALIDO");
@@ -78,7 +88,7 @@ async function clasificar(respuesta: Response): Promise<ResultadoConsultaRcta> {
     const texto = await leerCuerpoAcotado(respuesta);
     return fallo(texto !== null && RE_RECETA_INEXISTENTE.test(texto) ? "QR_INVALIDO" : "RCTA_NO_DISPONIBLE");
   }
-  await respuesta.body?.cancel().catch(() => undefined);
+  await descartarCuerpo(respuesta);
   return fallo(status >= 400 && status < 500 ? "QR_INVALIDO" : "RCTA_NO_DISPONIBLE");
 }
 
