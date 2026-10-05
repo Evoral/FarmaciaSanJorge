@@ -85,7 +85,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
     );
   });
 
-  it("INV-R08: valid receta state machine chain PENDIENTE_PREPARACION -> EN_PREPARACION -> PREPARADA -> LISTA_PARA_RETIRAR -> ENTREGADA", async () => {
+  it("INV-R08: valid receta state machine chain PENDIENTE_PREPARACION -> EN_PREPARACION -> PREPARADA -> ENTREGADA", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const tenantId = await insertTenant(tx, "chain");
@@ -94,7 +94,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
         const medicoId = await insertMedico(tx, tenantId);
         const recetaId = await insertReceta(tx, { tenantId, pacienteId, medicoId, registradaPorId: sistema });
 
-        for (const estado of ["EN_PREPARACION", "PREPARADA", "LISTA_PARA_RETIRAR"]) {
+        for (const estado of ["EN_PREPARACION", "PREPARADA"]) {
           await tx.query(`UPDATE fsj.receta SET estado = $1 WHERE id = $2`, [estado, recetaId]);
         }
         await tx.query(`UPDATE fsj.receta SET estado = 'ENTREGADA' WHERE id = $1`, [recetaId]);
@@ -137,7 +137,6 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
           [recetaId],
         );
         await tx.query(`UPDATE fsj.receta SET estado = 'PREPARADA' WHERE id = $1`, [recetaId]);
-        await tx.query(`UPDATE fsj.receta SET estado = 'LISTA_PARA_RETIRAR' WHERE id = $1`, [recetaId]);
         await tx.query(`UPDATE fsj.receta SET estado = 'ENTREGADA' WHERE id = $1`, [recetaId]);
 
         await expectInvariantViolation(

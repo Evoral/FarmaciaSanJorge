@@ -97,10 +97,10 @@ function resetMocks() {
   confirmarFirmaYEntregarMock.mockClear();
 }
 
-describe("registrarEntrega -- write order and PREPARADA -> LISTA_PARA_RETIRAR -> destino", () => {
+describe("registrarEntrega -- write order and PREPARADA -> destino", () => {
   beforeEach(resetMocks);
 
-  it("from PREPARADA + RETIRO_PRESENCIAL: lock -> read -> items -> estado:LISTA_PARA_RETIRAR -> insertEntrega -> estado:ENTREGADA", async () => {
+  it("from PREPARADA + RETIRO_PRESENCIAL: lock -> read -> items -> insertEntrega -> estado:ENTREGADA", async () => {
     getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA" });
 
     await registrarEntregaCommand.execute(
@@ -108,11 +108,11 @@ describe("registrarEntrega -- write order and PREPARADA -> LISTA_PARA_RETIRAR ->
       { session: fakeSession("entregas.registrar") },
     );
 
-    expect(callOrder).toEqual(["lock", "estado:LISTA_PARA_RETIRAR", "insertEntrega", "estado:ENTREGADA"]);
+    expect(callOrder).toEqual(["lock", "insertEntrega", "estado:ENTREGADA"]);
   });
 
-  it("from LISTA_PARA_RETIRAR + ENVIO: no LISTA_PARA_RETIRAR re-transition, insertEntrega before estado:ENVIADA_PEND_FIRMA", async () => {
-    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "LISTA_PARA_RETIRAR" });
+  it("from PREPARADA + ENVIO: insertEntrega before estado:ENVIADA_PEND_FIRMA", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA" });
 
     await registrarEntregaCommand.execute(
       { recetaId: RECETA_ID, modalidad: "ENVIO" },
@@ -180,7 +180,7 @@ describe("confirmarFirmaRecibida -- envío -> confirmar firma atomic path (user 
   });
 
   it("rejects when the receta is not ENVIADA_PEND_FIRMA", async () => {
-    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "LISTA_PARA_RETIRAR" });
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA" });
 
     await expect(confirmarFirmaRecibidaCommand.execute({ recetaId: RECETA_ID }, { session: fakeSession("entregas.firma.confirmar") })).rejects.toBeInstanceOf(
       DomainError,

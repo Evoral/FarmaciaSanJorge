@@ -6,7 +6,7 @@
  * file never risks drifting from the real state machine.
  *
  * Source of truth for the state machine itself: migration 0011's
- * `fsj.receta_validar_transicion_estado` (mirrored in
+ * `fsj.receta_validar_transicion_estado` (last redefined by 0061; mirrored in
  * modules/recetas/domain/receta.ts). Source of truth for the M14-specific
  * invariants: migration 0016 (INV-ENT-001) and migration 0040 (INV-ENT-002;
  * INV-R07 was superseded by migration 0051) -- the helpers below are fast, clear-message
@@ -19,18 +19,11 @@ export type ModalidadEntrega = "RETIRO_PRESENCIAL" | "ENVIO";
 export const MODALIDADES_ENTREGA = ["RETIRO_PRESENCIAL", "ENVIO"] as const satisfies readonly ModalidadEntrega[];
 
 /**
- * User decision 2 (2026-09-24): registering an entrega directly from
- * PREPARADA is allowed -- the command performs
- * PREPARADA -> LISTA_PARA_RETIRAR -> (ENTREGADA | ENVIADA_PEND_FIRMA) in
- * the same transaction. LISTA_PARA_RETIRAR is also accepted directly (the
- * receta already went through "marcar lista para retirar").
+ * An entrega is registered directly from PREPARADA: the command moves the
+ * receta PREPARADA -> (ENTREGADA | ENVIADA_PEND_FIRMA) in a single UPDATE
+ * (LISTA_PARA_RETIRAR was removed, migration 0061).
  */
 export function puedeRegistrarEntrega(estado: EstadoReceta): boolean {
-  return estado === "PREPARADA" || estado === "LISTA_PARA_RETIRAR";
-}
-
-/** User decision 2: "Marcar lista para retirar" is only valid from PREPARADA. */
-export function puedeMarcarListaParaRetirar(estado: EstadoReceta): boolean {
   return estado === "PREPARADA";
 }
 
@@ -44,7 +37,7 @@ export function puedeConfirmarFirmaRecibida(estado: EstadoReceta): boolean {
  * asiento is VIGENTE (`estadoAsiento`, same three-value shape as
  * `modules/recetas/infrastructure/receta-repository.ts`'s `ItemDetalle.estadoAsiento`).
  * SIN_EFECTO items are excluded ("Excluido — no se entrega"); PENDIENTE
- * should not occur once the receta reached PREPARADA/LISTA_PARA_RETIRAR
+ * should not occur once the receta reached PREPARADA
  * (every item needs a CONFIRMADA preparación to get there), but is treated
  * as non-deliverable too, defensively.
  */

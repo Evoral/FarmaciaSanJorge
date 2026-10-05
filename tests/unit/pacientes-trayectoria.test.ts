@@ -131,7 +131,7 @@ describe("journey steps", () => {
   const asiento = (estadoVisual: AsientoItemTrayectoria["estadoVisual"]) => ({ estadoVisual }) as AsientoItemTrayectoria;
 
   it("preparacion: COMPLETO only when every item is confirmed, EN_CURSO for partial or iniciada, PENDIENTE otherwise", () => {
-    expect(estadoPasoPreparacion("LISTA_PARA_RETIRAR", [{ preparaciones: prep("CONFIRMADA") }, { preparaciones: prep("CONFIRMADA") }])).toBe("COMPLETO");
+    expect(estadoPasoPreparacion("PREPARADA", [{ preparaciones: prep("CONFIRMADA") }, { preparaciones: prep("CONFIRMADA") }])).toBe("COMPLETO");
     expect(estadoPasoPreparacion("EN_PREPARACION", [{ preparaciones: prep("CONFIRMADA") }, { preparaciones: [] }])).toBe("EN_CURSO");
     expect(estadoPasoPreparacion("EN_PREPARACION", [{ preparaciones: prep("INICIADA") }])).toBe("EN_CURSO");
     expect(estadoPasoPreparacion("PENDIENTE_PREPARACION", [{ preparaciones: [] }])).toBe("PENDIENTE");
