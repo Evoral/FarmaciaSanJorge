@@ -15,6 +15,7 @@ import {
   colapsar,
   parsearCuerpo,
   parsearFechaDdMmAaaa,
+  RE_TOKEN_UNIDAD_DOSIS,
   separarContactoMedico,
   urlVerificacionRcta,
   type AdvertenciaParser,
@@ -162,40 +163,64 @@ function mapearMedico(json: RecetaRctaJson, advertencias: AdvertenciaParser[]): 
 
 type ItemRcta = RecetaRctaJson["prescripcion"][number];
 
-/** A source value is "present" unless it is absent, `null` or blank text. */
-const hayDato = (valor: unknown): boolean => valor !== null && valor !== undefined && !(typeof valor === "string" && valor.trim() === "");
+/** A source value is "present" unless it is absent, `null`, blank text, an empty array or an empty object. */
+function hayDato(valor: unknown): boolean {
+  if (valor === null || valor === undefined) return false;
+  if (typeof valor === "string") return valor.trim() !== "";
+  if (Array.isArray(valor)) return valor.length > 0;
+  return !esObjetoVacio(valor);
+}
+
+/** The most the notice echoes of the source `notas`. */
+const MAX_NOTAS_AVISO = 200;
+
+/** Names the item in a multi-item receta, before the message's final period. */
+function conItem(mensaje: string, numero: number, total: number): string {
+  if (total <= 1) return mensaje;
+  const sufijo = ` (ítem ${numero})`;
+  return mensaje.endsWith(".") ? `${mensaje.slice(0, -1)}${sufijo}.` : `${mensaje}${sufijo}`;
+}
+
+/** A leading "- " bullet is a list marker, not text; a line that was only a bullet becomes empty. */
+const sinViñeta = (linea: string): string => linea.replace(/^-(?:\s+|$)/, "");
 
 /**
  * One item per `prescripcion[]` element. Its text goes through the SAME body
  * parser as the PDF, with one QR-only rule: unclassifiable lines BEFORE the
- * first component (the practice's address, for instance) are shown as
- * informational notices, deduped across items, and never stored; unclassifiable
- * lines after it keep the parser's RENGLON_NO_RECONOCIDO warning. `cantidad` is
- * ignored (as in the PDF flow).
+ * first component that carry no dose unit (the practice's address, for
+ * instance) are shown as informational notices, deduped across items, and never
+ * stored. A leading line WITH a dose unit ("Amoxicilina 500 mg/5 ml") is more
+ * likely a drug in a format the parser does not know, so it stays in the body
+ * and gets the parser's RENGLON_NO_RECONOCIDO warning like any later line.
+ * `cantidad` is ignored (as in the PDF flow). In a multi-item receta every
+ * item-scoped notice names its item.
  */
 function mapearItem(item: ItemRcta, numero: number, total: number, avisados: Set<string>, advertencias: AdvertenciaParser[]): BorradorItem {
-  const lineas = (item.prescripcion ?? "").split(/\r?\n/).map(colapsar).filter((linea) => linea.length > 0);
+  const lineas = (item.prescripcion ?? "").split(/\r\n|\r|\n/).map((linea) => sinViñeta(colapsar(linea))).filter((linea) => linea.length > 0);
   const clases = lineas.map((linea) => clasificarRenglonCuerpo(linea).clase);
   const inicio = clases.includes("componente") ? clases.findIndex((clase) => clase !== "otro") : 0;
-  for (const texto of lineas.slice(0, inicio)) {
-    if (avisados.has(texto)) continue;
+  const cuerpo: string[] = [];
+  lineas.forEach((texto, i) => {
+    if (i >= inicio || RE_TOKEN_UNIDAD_DOSIS.test(texto)) return void cuerpo.push(texto);
+    if (avisados.has(texto)) return;
     avisados.add(texto);
     advertencias.push({ codigo: "RENGLON_INFORMATIVO", mensaje: `Texto al inicio de la receta (informativo, no se guarda): «${texto}»`, texto });
-  }
+  });
 
-  const cuerpo = parsearCuerpo(lineas.slice(inicio));
-  advertencias.push(...cuerpo.advertencias);
+  const parseado = parsearCuerpo(cuerpo);
+  advertencias.push(...parseado.advertencias.map((a) => ({ ...a, mensaje: conItem(a.mensaje, numero, total) })));
 
-  const sufijo = total > 1 ? ` (ítem ${numero})` : "";
-  if (cuerpo.item.componentes.length === 0) advertencias.push({ codigo: "DATO_FALTANTE", mensaje: `No se encontraron componentes con su dosis${sufijo}.` });
-  if (cuerpo.item.cantidadUnidades === null) advertencias.push({ codigo: "DATO_FALTANTE", mensaje: `No se encontró la cantidad de unidades (por ejemplo, «30 comprimidos»)${sufijo}.` });
+  const avisar = (codigo: "DATO_FALTANTE" | "DATO_NO_IMPORTADO", mensaje: string) => advertencias.push({ codigo, mensaje: conItem(mensaje, numero, total) });
+  if (parseado.item.componentes.length === 0) avisar("DATO_FALTANTE", "No se encontraron componentes con su dosis.");
+  if (parseado.item.cantidadUnidades === null) avisar("DATO_FALTANTE", "No se encontró la cantidad de unidades (por ejemplo, «30 comprimidos»).");
 
-  const noImportado = (mensaje: string) => advertencias.push({ codigo: "DATO_NO_IMPORTADO", mensaje: `${mensaje}${sufijo}` });
-  if (typeof item.notas === "string" && item.notas.trim() !== "") noImportado(`La receta trae notas que no se importan: «${colapsar(item.notas)}».`);
-  else if (hayDato(item.notas)) noImportado("La receta trae notas que no se importan.");
-  if (hayDato(item.codPractica)) noImportado("La receta trae un código de práctica que no se importa.");
-  if (hayDato(item.nroCUIR)) noImportado("La receta trae un número CUIR que no se importa.");
-  return cuerpo.item;
+  if (typeof item.notas === "string" && item.notas.trim() !== "") {
+    const notas = colapsar(item.notas);
+    avisar("DATO_NO_IMPORTADO", `La receta trae notas que no se importan: «${notas.length > MAX_NOTAS_AVISO ? `${notas.slice(0, MAX_NOTAS_AVISO)}…` : notas}».`);
+  } else if (hayDato(item.notas)) avisar("DATO_NO_IMPORTADO", "La receta trae notas que no se importan.");
+  if (hayDato(item.codPractica)) avisar("DATO_NO_IMPORTADO", "La receta trae un código de práctica que no se importa.");
+  if (hayDato(item.nroCUIR)) avisar("DATO_NO_IMPORTADO", "La receta trae un número CUIR que no se importa.");
+  return parseado.item;
 }
 
 /** Same limit as the confirm input (`diagnosticoDescripcion` in importar-receta.ts). */

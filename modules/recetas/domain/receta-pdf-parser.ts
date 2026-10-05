@@ -325,6 +325,8 @@ function formatearNumeroEsAr(valor: number): string {
 
 const UNIDADES_COMPONENTE = "mg|g|mcg|µg|μg|ml|ui|%";
 const RE_COMPONENTE = new RegExp(`^(.+?)\\s+(\\d+(?:[.,]\\d+)*)\\s*(${UNIDADES_COMPONENTE})$`, "i");
+/** A dose unit ("mg", "ml", "%"...) anywhere in a line as a whole token: a line that has one probably names a drug, even if `RE_COMPONENTE` did not match it. */
+export const RE_TOKEN_UNIDAD_DOSIS = new RegExp(`(?<![\\p{L}\\d])(?:${UNIDADES_COMPONENTE})(?![\\p{L}\\d])`, "iu");
 
 /** Presentation lexicon (normalized, singular/plural) -> FormaFarmaceutica. Only the unit-count forms a "N <forma>" line can express. */
 const LEXICO_PRESENTACION: ReadonlyArray<{ patron: RegExp; forma: FormaFarmaceutica }> = [

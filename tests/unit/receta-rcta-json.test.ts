@@ -338,6 +338,141 @@ describe("P44-P45: lines that are not part of the prescription", () => {
   });
 });
 
+describe("P44 refinement: a leading line with a dose unit is never dropped", () => {
+  it("a leading drug line with an unusual dose format keeps the amber warning instead of vanishing", () => {
+    const r = leer(conTexto("Amoxicilina 500 mg/5 ml\nIbuprofeno 400 mg\n30 comprimidos"));
+    expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO").map((a) => a.texto)).toEqual(["Amoxicilina 500 mg/5 ml"]);
+    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO")).toEqual([]);
+    expect(r.borrador.items[0]!.componentes.map((c) => c.drogaTexto)).toEqual(["Ibuprofeno"]);
+  });
+
+  it("an address with digits but no dose unit stays informational", () => {
+    const r = leer(conTexto("Calle Falsa 123 Ciudad\nMazindol 1,5 mg\n30 cápsulas"));
+    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO").map((a) => a.texto)).toEqual(["Calle Falsa 123 Ciudad"]);
+    expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO")).toEqual([]);
+  });
+
+  it("decides line by line: the unit-less line is informational and the dose-like one is a warning, in their order", () => {
+    const r = leer(conTexto("Calle Falsa 123\nVitamina D 2000 UI/gota\nMazindol 1,5 mg\n30 cápsulas"));
+    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO").map((a) => a.texto)).toEqual(["Calle Falsa 123"]);
+    expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO").map((a) => a.texto)).toEqual(["Vitamina D 2000 UI/gota"]);
+  });
+
+  it("unit tokens are whole words, case-insensitive: 'Magnolia 12' stays informational; '5 ML', '10 %' and '5 µg' are doses", () => {
+    expect(clasePorCodigo(leer(conTexto("Magnolia 12 Ciudad\nMazindol 1,5 mg")), "RENGLON_INFORMATIVO")).toHaveLength(1);
+    for (const linea of ["Jarabe 5 ML cada 8", "Crema 10 % x 30", "Levotiroxina 50 µg/dia"]) {
+      const r = leer(conTexto(`${linea}\nMazindol 1,5 mg`));
+      expect(clasePorCodigo(r, "RENGLON_INFORMATIVO")).toEqual([]);
+      expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO").map((a) => a.texto)).toEqual([linea]);
+    }
+  });
+});
+
+describe("QR body lines", () => {
+  it("a leading '- ' bullet is stripped before classifying: '- Ibuprofeno 400 mg' is the drug Ibuprofeno", () => {
+    const r = leer(conTexto("- Ibuprofeno 400 mg\n- 20 comprimidos"));
+    expect(r.borrador.items[0]).toMatchObject({ cantidadUnidades: 20, formaFarmaceutica: "COMPRIMIDO" });
+    expect(r.borrador.items[0]!.componentes.map((c) => c.drogaTexto)).toEqual(["Ibuprofeno"]);
+    expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO")).toEqual([]);
+  });
+
+  it("a bulleted leading address is informational, shown without the bullet; a lone '-' line is dropped", () => {
+    const r = leer(conTexto("- Calle Falsa 12\n-\nIbuprofeno 400 mg"));
+    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO").map((a) => a.texto)).toEqual(["Calle Falsa 12"]);
+    expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO")).toEqual([]);
+  });
+
+  it("a hyphen inside a line is kept: only a leading '- ' is a bullet", () => {
+    const r = leer(conTexto("Mazindol 1,5 mg\nuso por-vez raro"));
+    expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO").map((a) => a.texto)).toEqual(["uso por-vez raro"]);
+  });
+
+  it("a lone '\\r' separates lines like '\\n' and '\\r\\n'", () => {
+    const r = leer(conTexto("Ibuprofeno 400 mg\r20 comprimidos\rCada 8 horas"));
+    expect(r.borrador.items[0]).toMatchObject({ cantidadUnidades: 20, posologia: "Cada 8 horas" });
+    expect(r.borrador.items[0]!.componentes.map((c) => c.drogaTexto)).toEqual(["Ibuprofeno"]);
+  });
+
+  it("a leading indicación or presentación line stays in the draft (it is not unclassifiable)", () => {
+    const indicacion = leer(conTexto("Cada 8 horas\nIbuprofeno 400 mg\n20 comprimidos"));
+    expect(indicacion.borrador.items[0]).toMatchObject({ posologia: "Cada 8 horas", cantidadUnidades: 20 });
+    expect(clasePorCodigo(indicacion, "RENGLON_INFORMATIVO")).toEqual([]);
+    const presentacion = leer(conTexto("20 comprimidos\nIbuprofeno 400 mg"));
+    expect(presentacion.borrador.items[0]).toMatchObject({ cantidadUnidades: 20, formaFarmaceutica: "COMPRIMIDO" });
+    expect(clasePorCodigo(presentacion, "RENGLON_INFORMATIVO")).toEqual([]);
+  });
+
+  it("two drugs in one element warn MAS_DE_UN_ITEM and keep one item", () => {
+    const r = leer(conTexto("Ibuprofeno 400 mg\n20 comprimidos\nParacetamol 500 mg"));
+    expect(r.borrador.items).toHaveLength(1);
+    expect(clasePorCodigo(r, "MAS_DE_UN_ITEM").map((a) => a.texto)).toEqual(["Paracetamol 500 mg"]);
+  });
+});
+
+describe("(ítem N) suffix on item-scoped notices", () => {
+  const dos = (a: string, b: string, extra: Json = {}) => receta({ prescripcion: [{ ...ITEM, prescripcion: a, ...extra }, { ...ITEM, prescripcion: b }] });
+  const mensajes = (r: ReturnType<typeof leer>, codigo: string) => clasePorCodigo(r, codigo).map((a) => a.mensaje);
+
+  it("every item-scoped notice of the second item names it; the first item's too", () => {
+    const r = leer(dos(
+      "Mazindol 1,5 mg\nrenglon raro uno\n30 cápsulas\nMedia dosis cada 12 horas\nTratamiento por 30 días",
+      "Ibuprofeno 400 mg\n20 comprimidos\nParacetamol 500 mg\nrenglon raro dos\nCada 8 horas\nTratamiento por 3 días",
+    ));
+    expect(mensajes(r, "RENGLON_NO_RECONOCIDO")).toEqual([
+      "No se reconoció el renglón «renglon raro uno». Revisalo y cargalo a mano si corresponde (ítem 1).",
+      "No se reconoció el renglón «renglon raro dos». Revisalo y cargalo a mano si corresponde (ítem 2).",
+    ]);
+    expect(mensajes(r, "MAS_DE_UN_ITEM")).toEqual(["La receta parece tener más de un ítem (renglón «Paracetamol 500 mg»). Se carga un único ítem: revisá los ítems (ítem 2)."]);
+    expect(mensajes(r, "UNIDADES_VS_DURACION")).toEqual([
+      "Las unidades alcanzan para 15 días; la receta indica 30 (ítem 1).",
+      "Las unidades alcanzan para 6,67 días; la receta indica 3 (ítem 2).",
+    ]);
+  });
+
+  it("DATO_FALTANTE and DATO_NO_IMPORTADO keep the suffix before the final period", () => {
+    const r = leer(dos("Mazindol 1,5 mg", "texto suelto", { notas: "Tomar con agua", codPractica: "420101", nroCUIR: "CUIR-1" }));
+    expect(mensajes(r, "DATO_FALTANTE")).toContain("No se encontró la cantidad de unidades (por ejemplo, «30 comprimidos») (ítem 1).");
+    expect(mensajes(r, "DATO_FALTANTE")).toContain("No se encontraron componentes con su dosis (ítem 2).");
+    expect(mensajes(r, "DATO_NO_IMPORTADO")).toEqual([
+      "La receta trae notas que no se importan: «Tomar con agua» (ítem 1).",
+      "La receta trae un código de práctica que no se importa (ítem 1).",
+      "La receta trae un número CUIR que no se importa (ítem 1).",
+    ]);
+  });
+
+  it("a single-item receta has no suffix at all (PDF parity), and the deduped leading notice has none either", () => {
+    const una = leer(conTexto("Calle Falsa 123\nMazindol 1,5 mg\nrenglon raro\n30 cápsulas", { notas: "x" }));
+    expect(una.advertencias.some((a) => a.mensaje.includes("(ítem"))).toBe(false);
+    const r = leer(dos("Calle Falsa 123\nMazindol 1,5 mg\n30 cápsulas", "Calle Falsa 123\nIbuprofeno 400 mg\n20 comprimidos"));
+    expect(mensajes(r, "RENGLON_INFORMATIVO")).toEqual(["Texto al inicio de la receta (informativo, no se guarda): «Calle Falsa 123»"]);
+  });
+});
+
+describe("P43 refinement: what counts as 'present'", () => {
+  it("empty arrays, empty objects and whitespace strings are absent: no DATO_NO_IMPORTADO", () => {
+    const r = leer(conTexto("Mazindol 1,5 mg\n30 cápsulas", { notas: [], codPractica: {}, nroCUIR: " " }));
+    expect(clasePorCodigo(r, "DATO_NO_IMPORTADO")).toEqual([]);
+    for (const vacio of [{}, [], "  "]) {
+      expect(clasePorCodigo(leer(receta({ practica: vacio })), "DATO_NO_IMPORTADO")).toEqual([]);
+    }
+    expect(clasePorCodigo(leer(conTexto("Mazindol 1,5 mg", { notas: [], codPractica: [] })), "DATO_NO_IMPORTADO")).toEqual([]);
+  });
+
+  it("non-empty arrays and objects are still present", () => {
+    const r = leer(conTexto("Mazindol 1,5 mg\n30 cápsulas", { notas: ["una"], codPractica: { id: 1 } }));
+    expect(clasePorCodigo(r, "DATO_NO_IMPORTADO")).toHaveLength(2);
+    expect(clasePorCodigo(leer(receta({ practica: [1] })), "DATO_NO_IMPORTADO")).toHaveLength(1);
+  });
+
+  it("the echoed notas text is capped at 200 characters plus an ellipsis; shorter text is untouched", () => {
+    const largo = "n".repeat(250);
+    const [aviso] = clasePorCodigo(leer(conTexto("Mazindol 1,5 mg\n30 cápsulas", { notas: largo })), "DATO_NO_IMPORTADO");
+    expect(aviso!.mensaje).toBe(`La receta trae notas que no se importan: «${"n".repeat(200)}…».`);
+    const justo = "n".repeat(200);
+    expect(clasePorCodigo(leer(conTexto("Mazindol 1,5 mg\n30 cápsulas", { notas: justo })), "DATO_NO_IMPORTADO")[0]!.mensaje).toBe(`La receta trae notas que no se importan: «${justo}».`);
+  });
+});
+
 describe("P38-P39: diagnóstico", () => {
   it("P38: a CIE-10 code without its dot gets it; one that already has it, or has none to add, is kept", () => {
     expect(leer(receta()).borrador).toMatchObject({ diagnosticoCodigo: "E66.0", diagnosticoDescripcion: "Obesidad por exceso de calorias" });
