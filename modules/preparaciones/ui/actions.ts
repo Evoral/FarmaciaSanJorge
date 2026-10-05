@@ -2,6 +2,8 @@
 
 /** Server Actions for `/preparaciones/**` (FASE 8). */
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { hrefToma } from "@/modules/preparaciones/domain/toma";
 import { iniciarPreparacion } from "@/modules/preparaciones/application/iniciar-preparacion";
 import { tomarReceta } from "@/modules/preparaciones/application/tomar-receta";
 import { cancelarToma } from "@/modules/preparaciones/application/cancelar-toma";
@@ -25,16 +27,21 @@ export async function iniciarPreparacionAction(_prevState: PreparacionActionStat
   }
 }
 
-/** The lab takes a receta from the Pendientes queue (domain/toma.ts); the form then opens its toma workspace. */
+/**
+ * The lab takes a receta from the Pendientes queue (domain/toma.ts) and lands on its toma workspace.
+ * Redirects server-side: the revalidated list moves the row to "En curso", unmounting the form before
+ * a client-side `onSuccess` could navigate. `redirect` throws, so it stays outside the try/catch.
+ */
 export async function tomarRecetaAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
+  let recetaId: string;
   try {
-    const tomada = await tomarReceta({ recetaId: String(formData.get("recetaId") ?? "") });
+    recetaId = (await tomarReceta({ recetaId: String(formData.get("recetaId") ?? "") })).id;
     revalidatePath("/preparaciones");
     revalidatePath("/recetas");
-    return { status: "success", message: "Receta tomada.", id: tomada.id };
   } catch (error) {
     return actionError(error, "No se pudo tomar la receta.");
   }
+  redirect(hrefToma(recetaId));
 }
 
 /** Reverts a toma: the receta goes back to Pendientes. */

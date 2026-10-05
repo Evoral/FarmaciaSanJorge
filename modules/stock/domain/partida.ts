@@ -73,6 +73,26 @@ export const nonNegativeDecimalString = z
     return parsed;
   });
 
+/** `partida.potencia_declarada` (migration 0058's `partida_potencia_declarada_check`): the lot's purity, in percent, 0 < p <= 100. */
+export const potenciaDeclaradaString = z
+  .string()
+  .trim()
+  .min(1, "Este campo no puede estar vacío.")
+  .transform((value, ctx) => {
+    let parsed: Decimal;
+    try {
+      parsed = new Decimal(value);
+    } catch {
+      ctx.addIssue({ code: "custom", message: "Debe ser un número decimal válido." });
+      return z.NEVER;
+    }
+    if (!parsed.isFinite() || !parsed.greaterThan(0) || parsed.greaterThan(100)) {
+      ctx.addIssue({ code: "custom", message: "La pureza debe ser mayor que 0 y como máximo 100 %." });
+      return z.NEVER;
+    }
+    return parsed;
+  });
+
 /** `YYYY-MM-DD`, matching migration 0008's `fecha_vencimiento date`. */
 export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha con formato AAAA-MM-DD.");
 

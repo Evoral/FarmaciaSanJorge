@@ -23,13 +23,14 @@
  * detail page.
  */
 import { createHash } from "node:crypto";
+import { Fragment } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { ValidationError } from "@/shared/errors";
 import { getTomaReceta } from "@/modules/preparaciones/application/get-toma-receta";
-import type { ItemDeToma, RecetaDeToma } from "@/modules/preparaciones/application/get-toma-receta";
+import type { ItemDeToma, LineaDeFichaToma, RecetaDeToma } from "@/modules/preparaciones/application/get-toma-receta";
 import { ESTADOS_RECETA_EN_LABORATORIO, ESTADO_ITEM_TOMA_LABELS, HREF_EN_CURSO, estadoItemToma, etiquetaProgreso, hrefToma } from "@/modules/preparaciones/domain/toma";
 import type { EstadoItemToma } from "@/modules/preparaciones/domain/toma";
 import { CancelarTomaForm } from "@/modules/preparaciones/ui/cancelar-toma-form";
@@ -46,6 +47,7 @@ import { FichaVersionResumen } from "@/modules/elaboracion/ui/ficha-version-resu
 import { GenerarFichaForm } from "@/modules/elaboracion/ui/generar-ficha-form";
 import { FORMA_FARMACEUTICA_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 import { formatFecha, formatFechaHora } from "@/shared/format/fecha";
+import { formatNumero } from "@/shared/format/cantidad";
 import { StatusBadge, ToneBadge, type BadgeTone } from "@/shared/ui/status-badge";
 import { PageHeader } from "@/shared/ui/page-header";
 import { Avatar } from "@/shared/ui/avatar";
@@ -311,30 +313,39 @@ function ItemToma({
                   </thead>
                   <tbody>
                     {ficha.lineas.map((linea) => (
-                      <tr key={linea.orden}>
-                        <td className="px-3 py-2 font-medium text-zinc-900">{linea.drogaNombre}</td>
-                        <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">
-                          {linea.cantidadTeorica ? (
-                            <>
-                              {linea.cantidadTeorica} <span className="text-zinc-500">{linea.unidadSimbolo}</span>
-                            </>
-                          ) : (
-                            <Vacio />
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">{linea.excesoAplicado}</td>
-                        <td className="whitespace-nowrap px-3 py-2 text-right font-mono font-semibold text-zinc-900 tabular-nums">
-                          {linea.esEnraseManual ? (
-                            <span className="font-sans font-normal text-zinc-500">Enrase manual (se registra al confirmar)</span>
-                          ) : linea.cantidadAPesar ? (
-                            <>
-                              {linea.cantidadAPesar} <span className="font-normal text-zinc-500">{linea.unidadSimbolo}</span>
-                            </>
-                          ) : (
-                            <Vacio />
-                          )}
-                        </td>
-                      </tr>
+                      <Fragment key={linea.orden}>
+                        <tr>
+                          <td className="px-3 py-2 font-medium text-zinc-900">{linea.drogaNombre}</td>
+                          <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">
+                            {linea.cantidadTeorica ? (
+                              <>
+                                {linea.cantidadTeorica} <span className="text-zinc-500">{linea.unidadSimbolo}</span>
+                              </>
+                            ) : (
+                              <Vacio />
+                            )}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">{linea.excesoAplicado}</td>
+                          <td className="whitespace-nowrap px-3 py-2 text-right font-mono font-semibold text-zinc-900 tabular-nums">
+                            {linea.esEnraseManual ? (
+                              <span className="font-sans font-normal text-zinc-500">Enrase manual (se registra al confirmar)</span>
+                            ) : linea.cantidadAPesar ? (
+                              <>
+                                {linea.cantidadAPesar} <span className="font-normal text-zinc-500">{linea.unidadSimbolo}</span>
+                              </>
+                            ) : (
+                              <Vacio />
+                            )}
+                          </td>
+                        </tr>
+                        {linea.partidas ? (
+                          <tr>
+                            <td colSpan={4} className="px-3 pb-3 pt-0">
+                              <PartidasDeLinea linea={linea} />
+                            </td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -365,7 +376,7 @@ function ItemToma({
         ) : estado === "EN_CONFIRMACION" && item.preparacion ? (
           <Link href={`/preparaciones/${item.preparacion.id}`} className="btn btn-primary">
             <FlaskConical className="size-4" aria-hidden />
-            Continuar confirmación
+            Confirmar preparación
           </Link>
         ) : ficha ? (
           <IniciarPreparacionForm fichaTecnicaId={ficha.id} label="Confirmar terminación" pendingLabel="Iniciando…" />
@@ -376,6 +387,65 @@ function ItemToma({
         )}
       </div>
     </article>
+  );
+}
+
+/**
+ * The partidas the confirmation would draw this línea from (same candidates
+ * and order). With no declared purity, one compact line of lotes; otherwise
+ * what to weigh from each one: cantidadAPesar (active) x 100 / pureza.
+ */
+function PartidasDeLinea({ linea }: { linea: LineaDeFichaToma }) {
+  const partidas = linea.partidas ?? [];
+  if (partidas.length === 0) {
+    return <p className="text-xs text-zinc-500">Sin partidas con saldo para esta droga.</p>;
+  }
+
+  if (!partidas.some((p) => p.potenciaDeclarada !== null)) {
+    return (
+      <p className="text-xs text-zinc-500">
+        Lotes:{" "}
+        {partidas.map((p, i) => (
+          <span key={p.id}>
+            {i > 0 ? " · " : null}
+            <span className="font-mono text-zinc-700">{p.lote}</span> ({formatNumero(p.cantidadDisponible)} {linea.unidadSimbolo} disp.)
+          </span>
+        ))}
+      </p>
+    );
+  }
+
+  return (
+    <div className="rounded-md border border-zinc-100 bg-zinc-50/60 px-3 py-2">
+      <p className="mb-1 text-xs text-zinc-500">A pesar según la pureza de cada partida</p>
+      <ul className="flex flex-col gap-1 text-xs">
+        {partidas.map((p) => (
+          <li key={p.id} className="grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1fr)]">
+            <span className="truncate">
+              <span className="text-zinc-500">Lote </span>
+              <span className="font-mono font-medium text-zinc-900">{p.lote}</span>
+            </span>
+            <span className="truncate text-zinc-600">{p.proveedorNombre}</span>
+            <span className="tabular-nums">
+              <span className="text-zinc-500">Pureza </span>
+              {p.potenciaDeclarada !== null ? <span className="font-mono text-zinc-900">{formatNumero(p.potenciaDeclarada)} %</span> : <span className="font-mono text-zinc-400">100 %</span>}
+            </span>
+            <span className="tabular-nums">
+              <span className="text-zinc-500">Disp. </span>
+              <span className="font-mono text-zinc-900">
+                {formatNumero(p.cantidadDisponible)} {linea.unidadSimbolo}
+              </span>
+            </span>
+            <span className="tabular-nums sm:text-right">
+              <span className="text-zinc-500">Pesar </span>
+              <span className="font-mono font-semibold text-zinc-900">
+                {formatNumero(p.cantidadAPesar)} {linea.unidadSimbolo}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

@@ -18,7 +18,6 @@ const LABEL_BY_ESTADO: Readonly<Record<string, string>> = {
 const TONE_BY_ESTADO: Record<string, BadgeTone> = {
   PREPARADA: "success",
   CONFIRMADA: "success",
-  LISTA_PARA_RETIRAR: "success",
   ENTREGADA: "neutral",
   DESCARTADA: "neutral",
   ACTIVO: "success",

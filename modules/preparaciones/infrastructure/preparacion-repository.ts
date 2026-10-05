@@ -243,27 +243,42 @@ export async function getLineasParaPreparacion(tx: Prisma.TransactionClient, ten
 export interface PartidaElegible {
   id: string;
   lote: string;
+  proveedorNombre: string;
   cantidadDisponible: string;
   fechaVencimiento: string; // YYYY-MM-DD
   fechaApertura: string | null; // ISO instant
+  /** Migration 0058: declared purity (percent), `null` = 100%. */
+  potenciaDeclarada: string | null;
 }
 
 /** Every partida of `drogaId` with balance, ordered by id (S11 determinism) -- `proponerReparto` (reparto.ts) does the vencida/FEFO filtering, this just loads candidates. */
 export async function listPartidasElegiblesDroga(tx: Prisma.TransactionClient, tenantId: string, drogaId: string): Promise<PartidaElegible[]> {
   const rows = await tx.$queryRaw<
-    { id: string; lote: string; cantidad_disponible: string; fecha_vencimiento: string; fecha_apertura: string | null }[]
+    {
+      id: string;
+      lote: string;
+      proveedor_nombre: string;
+      cantidad_disponible: string;
+      fecha_vencimiento: string;
+      fecha_apertura: string | null;
+      potencia_declarada: string | null;
+    }[]
   >`
-    SELECT id, lote, cantidad_disponible::text, fecha_vencimiento::text, fecha_apertura::text
-    FROM fsj.partida
-    WHERE tenant_id = ${tenantId}::uuid AND droga_id = ${drogaId}::uuid AND cantidad_disponible > 0
-    ORDER BY id ASC
+    SELECT p.id, p.lote, pr.razon_social AS proveedor_nombre, p.cantidad_disponible::text, p.fecha_vencimiento::text, p.fecha_apertura::text,
+      p.potencia_declarada::text
+    FROM fsj.partida p
+    JOIN fsj.proveedor pr ON pr.tenant_id = p.tenant_id AND pr.id = p.proveedor_id
+    WHERE p.tenant_id = ${tenantId}::uuid AND p.droga_id = ${drogaId}::uuid AND p.cantidad_disponible > 0
+    ORDER BY p.id ASC
   `;
   return rows.map((r) => ({
     id: r.id,
     lote: r.lote,
+    proveedorNombre: r.proveedor_nombre,
     cantidadDisponible: r.cantidad_disponible,
     fechaVencimiento: r.fecha_vencimiento,
     fechaApertura: r.fecha_apertura,
+    potenciaDeclarada: r.potencia_declarada,
   }));
 }
 
@@ -340,15 +355,25 @@ export interface PartidaFresca {
   cantidadDisponible: string;
   fechaVencimiento: string; // YYYY-MM-DD
   fechaApertura: string | null;
+  /** Migration 0058: declared purity (percent), `null` = 100%. */
+  potenciaDeclarada: string | null;
 }
 
 /** Fresh read AFTER `lockPartidasParaConfirmacion` -- M3 discipline (never decide from a pre-lock snapshot). */
 export async function getPartidasFrescas(tx: Prisma.TransactionClient, tenantId: string, partidaIds: readonly string[]): Promise<PartidaFresca[]> {
   if (partidaIds.length === 0) return [];
   const rows = await tx.$queryRaw<
-    { id: string; droga_id: string; lote: string; cantidad_disponible: string; fecha_vencimiento: string; fecha_apertura: string | null }[]
+    {
+      id: string;
+      droga_id: string;
+      lote: string;
+      cantidad_disponible: string;
+      fecha_vencimiento: string;
+      fecha_apertura: string | null;
+      potencia_declarada: string | null;
+    }[]
   >`
-    SELECT id, droga_id, lote, cantidad_disponible::text, fecha_vencimiento::text, fecha_apertura::text
+    SELECT id, droga_id, lote, cantidad_disponible::text, fecha_vencimiento::text, fecha_apertura::text, potencia_declarada::text
     FROM fsj.partida
     WHERE tenant_id = ${tenantId}::uuid AND id = ANY(${partidaIds as string[]}::uuid[])
   `;
@@ -359,6 +384,7 @@ export async function getPartidasFrescas(tx: Prisma.TransactionClient, tenantId:
     cantidadDisponible: r.cantidad_disponible,
     fechaVencimiento: r.fecha_vencimiento,
     fechaApertura: r.fecha_apertura,
+    potenciaDeclarada: r.potencia_declarada,
   }));
 }
 
@@ -370,6 +396,8 @@ export interface NuevoEgresoInput {
   lineaPesajeId: string;
   registradoPorId: string;
   desvioPropuesta: boolean;
+  /** Migration 0058: purity snapshot (percent) used for this consumption; `null` for manual-enrase lines (no correction). */
+  potenciaAplicada: string | null;
 }
 
 export async function insertEgresoPreparacion(tx: Prisma.TransactionClient, input: NuevoEgresoInput): Promise<{ id: string }> {
@@ -383,6 +411,7 @@ export async function insertEgresoPreparacion(tx: Prisma.TransactionClient, inpu
       lineaPesajeId: input.lineaPesajeId,
       registradoPorId: input.registradoPorId,
       desvioPropuesta: input.desvioPropuesta,
+      potenciaAplicada: input.potenciaAplicada,
     },
     select: { id: true },
   });
@@ -1367,6 +1396,7 @@ export async function getRecetaDePreparacion(tx: Prisma.TransactionClient, tenan
 // ============================================================================
 
 export interface LineaDeFichaToma {
+  drogaId: string;
   drogaNombre: string;
   cantidadTeorica: string | null;
   excesoAplicado: string;
@@ -1471,6 +1501,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
               lineas: {
                 orderBy: { orden: "asc" },
                 select: {
+                  drogaId: true,
                   drogaNombre: true,
                   cantidadTeorica: true,
                   excesoAplicado: true,
@@ -1542,6 +1573,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
               generadaEn: ficha.generadaEn,
               generadaPorNombre: `${ficha.generadaPor.apellido}, ${ficha.generadaPor.nombre}`,
               lineas: ficha.lineas.map((l) => ({
+                drogaId: l.drogaId,
                 drogaNombre: l.drogaNombre,
                 cantidadTeorica: l.cantidadTeorica ? l.cantidadTeorica.toString() : null,
                 excesoAplicado: l.excesoAplicado.toString(),

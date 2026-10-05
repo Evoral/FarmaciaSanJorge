@@ -168,7 +168,6 @@ enum EstadoReceta {
   PENDIENTE_PREPARACION
   EN_PREPARACION
   PREPARADA
-  LISTA_PARA_RETIRAR
   ENVIADA_PEND_FIRMA
   ENTREGADA
   ANULADA
@@ -391,6 +390,7 @@ model Usuario {
   reglasPrecioCreadas             ReglaPrecio[]
   cotizacionesCalculadas          Cotizacion[]
   drogaAliasCreados               DrogaAlias[]
+  comprobantesCompraRegistrados   ComprobanteCompra[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, dni])
@@ -591,6 +591,7 @@ model Droga {
   stockMinimo  Decimal     @default(0) @map("stock_minimo") @db.Decimal
   fechaBaja    DateTime?   @map("fecha_baja") @db.Timestamptz(6)
   motivoBaja   String?     @map("motivo_baja")
+  /// Migration 0058: when true, every NEW partida of this droga must declare potenciaDeclarada (app-level, modules/stock/application/ingresar-partida.ts). Column-level UPDATE grant for fsj_app.
 
   // unidad_base_id references the GLOBAL unidad_medida catalog directly
   // (not a composite FK -- unidad_medida has no tenant_id, DP-39).
@@ -637,7 +638,8 @@ model Proveedor {
   /// FASE 4 point 4.3 / migration 0027 -- same convenience column as droga.motivoBaja / unidadMedida.motivoBaja.
   motivoBaja  String?   @map("motivo_baja")
 
-  partidas Partida[]
+  partidas           Partida[]
+  comprobantesCompra ComprobanteCompra[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, cuit])
@@ -721,10 +723,18 @@ model Partida {
   /// INV-S16/S17: read-only from the app's perspective -- see migration 0008.
   fechaApertura           DateTime? @map("fecha_apertura") @db.Timestamptz(6)
   motivoAperturaAdicional String?   @map("motivo_apertura_adicional")
+  /// Migration 0058: the lot's declared purity, in percent (0 < p <= 100, partida_potencia_declarada_check). NULL = 100% (no correction). Insert-only (no UPDATE grant).
+  potenciaDeclarada       Decimal?  @map("potencia_declarada") @db.Decimal
+  /// Migration 0062: the supplier invoice the lot was imported from (NULL = manual alta). Insert-only.
+  comprobanteCompraId     String?   @map("comprobante_compra_id") @db.Uuid
+  /// Migration 0062: import traceability printed under the lot on the invoice. Insert-only.
+  despachoImportacion     String?   @map("despacho_importacion")
+  paisOrigen              String?   @map("pais_origen")
 
-  droga       Droga             @relation(fields: [drogaId], references: [id])
-  proveedor   Proveedor         @relation(fields: [proveedorId], references: [id])
-  movimientos MovimientoStock[]
+  droga             Droga              @relation(fields: [drogaId], references: [id])
+  proveedor         Proveedor          @relation(fields: [proveedorId], references: [id])
+  comprobanteCompra ComprobanteCompra? @relation(fields: [comprobanteCompraId], references: [id])
+  movimientos       MovimientoStock[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, drogaId, proveedorId, lote])
@@ -733,6 +743,34 @@ model Partida {
   /// Migration 0056: Trayectoria del proveedor -- the partidas of one proveedor, newest first (fecha_ingreso DESC). Performance only.
   @@index([tenantId, proveedorId, fechaIngreso(sort: Desc)], map: "idx_partida_tenant_proveedor_ingreso")
   @@map("partida")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped, append-only for fsj_app (migration 0062). A supplier
+/// invoice imported from its PDF (/stock/ingresar); one partida per (droga,
+/// lote) points back to it. puntoVenta/numero without leading zeros.
+model ComprobanteCompra {
+  id              String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  proveedorId     String   @map("proveedor_id") @db.Uuid
+  letra           String
+  puntoVenta      String   @map("punto_venta")
+  numero          String
+  fechaEmision    DateTime @map("fecha_emision") @db.Date
+  cae             String?
+  subtotal        Decimal? @db.Decimal
+  iva             Decimal? @db.Decimal
+  total           Decimal? @db.Decimal
+  registradoPorId String   @map("registrado_por_id") @db.Uuid
+  registradoEn    DateTime @default(now()) @map("registrado_en") @db.Timestamptz(6)
+
+  proveedor     Proveedor @relation(fields: [proveedorId], references: [id])
+  registradoPor Usuario   @relation(fields: [registradoPorId], references: [id])
+  partidas      Partida[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, proveedorId, letra, puntoVenta, numero])
+  @@map("comprobante_compra")
   @@schema("fsj")
 }
 
@@ -756,6 +794,8 @@ model MovimientoStock {
   numeroValeAdquisicion String?        @map("numero_vale_adquisicion")
   /// S12/S13/S19/S20 (revised), migration 0014. Required for EGRESO_PREPARACION.
   lineaPesajeId         String?        @map("linea_pesaje_id") @db.Uuid
+  /// Migration 0058: snapshot of the purity (percent) used to compute this EGRESO_PREPARACION's physical quantity (100 = partida without declared purity). NULL for every other movement and for manual-enrase lines (no correction).
+  potenciaAplicada      Decimal?       @map("potencia_aplicada") @db.Decimal
 
   partida          Partida           @relation(fields: [partidaId], references: [id])
   registradoPor    Usuario           @relation("MovimientoRegistradoPor", fields: [registradoPorId], references: [id])

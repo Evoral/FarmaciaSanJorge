@@ -28,7 +28,6 @@ vi.mock("@/shared/auth/session", () => ({
 }));
 
 await import("@/modules/entregas/application/registrar-entrega");
-await import("@/modules/entregas/application/marcar-lista-para-retirar");
 await import("@/modules/entregas/application/confirmar-firma-recibida");
 await import("@/modules/entregas/application/list-entregas-pendientes");
 await import("@/modules/entregas/application/get-entrega-estado");
@@ -50,7 +49,6 @@ const RECETA_ID = "22222222-2222-4222-a222-222222222222";
 
 const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> = [
   { name: "entregas.registrar", permiso: "entregas.registrar", input: { recetaId: RECETA_ID, modalidad: "RETIRO_PRESENCIAL" } },
-  { name: "entregas.listaParaRetirar.marcar", permiso: "entregas.registrar", input: { recetaId: RECETA_ID } },
   { name: "entregas.firma.confirmar", permiso: "entregas.firma.confirmar", input: { recetaId: RECETA_ID } },
   { name: "entregas.pendientes.listar", permiso: "entregas.registrar", input: {} },
   { name: "entregas.estado.ver", permiso: "entregas.registrar", input: { recetaId: RECETA_ID } },

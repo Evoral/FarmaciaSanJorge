@@ -16,6 +16,7 @@
 import { useState } from "react";
 import { CircleAlert, TriangleAlert } from "lucide-react";
 import { ToneBadge } from "@/shared/ui/status-badge";
+import { formatNumero } from "@/shared/format/cantidad";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 import { confirmarPreparacionAction } from "./actions";
 import type { PreparacionParaPantalla } from "@/modules/preparaciones/application/get-preparacion-para-pantalla";
@@ -150,7 +151,7 @@ export function ConfirmarPreparacionForm({ pantalla }: ConfirmarPreparacionFormP
                         </span>
                         <span className="tabular-nums">
                           <span className="text-zinc-500">Disponible </span>
-                          <span className="font-mono text-zinc-900">{partida.cantidadDisponible}</span>
+                          <span className="font-mono text-zinc-900">{formatNumero(partida.cantidadDisponible)}</span>
                         </span>
                         <span className="tabular-nums">
                           <span className="text-zinc-500">Vence </span>
@@ -159,6 +160,7 @@ export function ConfirmarPreparacionForm({ pantalla }: ConfirmarPreparacionFormP
                       </span>
                       <span className="flex flex-none flex-wrap justify-end gap-1.5">
                         {partida.fechaApertura ? <ToneBadge tone="neutral">Abierta</ToneBadge> : null}
+                        {partida.potenciaDeclarada && !linea.esEnraseManual ? <ToneBadge tone="neutral">Pureza {formatNumero(partida.potenciaDeclarada)} %</ToneBadge> : null}
                         {propuesta ? <ToneBadge tone="success">Propuesto: {propuesta.cantidad.toString()}</ToneBadge> : null}
                       </span>
                     </label>

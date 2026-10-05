@@ -1,4 +1,4 @@
-/** `/entregas` (FASE 11 points 11.1/11.2): recetas PREPARADA/LISTA_PARA_RETIRAR (listas para entregar) y ENVIADA_PEND_FIRMA (esperando firma). Paciente search goes through `EntregasBuscador` (POST Server Action, DP-24 -- never a URL/query string); the page-number pagination below carries no identifying data, so a plain GET `?page=` is fine (same distinction `modules/pacientes/ui/pacientes-buscador.tsx` documents). */
+/** `/entregas` (FASE 11 points 11.1/11.2): recetas PREPARADA (listas para entregar) y ENVIADA_PEND_FIRMA (esperando firma). Paciente search goes through `EntregasBuscador` (POST Server Action, DP-24 -- never a URL/query string); the page-number pagination below carries no identifying data, so a plain GET `?page=` is fine (same distinction `modules/pacientes/ui/pacientes-buscador.tsx` documents). */
 import { requireSession } from "@/shared/auth/session";
 import { listEntregasPendientes } from "@/modules/entregas/application/list-entregas-pendientes";
 import { EntregasBuscador } from "@/modules/entregas/ui/entregas-buscador";
@@ -23,7 +23,7 @@ export default async function EntregasPage({ searchParams }: EntregasPageProps) 
       <PageHeader
         breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Entregas" }]}
         title="Entregas"
-        description="Recetas listas para entregar (preparadas o marcadas como listas para retirar) y envíos a la espera de la firma recibida."
+        description="Recetas preparadas para entregar y envíos a la espera de la firma recibida."
       />
 
       <EntregasBuscador itemsIniciales={result.items} totalInicial={result.total} />

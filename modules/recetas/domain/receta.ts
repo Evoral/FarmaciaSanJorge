@@ -144,7 +144,6 @@ export type EstadoReceta =
   | "PENDIENTE_PREPARACION"
   | "EN_PREPARACION"
   | "PREPARADA"
-  | "LISTA_PARA_RETIRAR"
   | "ENVIADA_PEND_FIRMA"
   | "ENTREGADA"
   | "ANULADA";
@@ -153,7 +152,6 @@ export const ESTADOS_RECETA = [
   "PENDIENTE_PREPARACION",
   "EN_PREPARACION",
   "PREPARADA",
-  "LISTA_PARA_RETIRAR",
   "ENVIADA_PEND_FIRMA",
   "ENTREGADA",
   "ANULADA",
@@ -161,7 +159,7 @@ export const ESTADOS_RECETA = [
 
 export const ESTADOS_TERMINALES: ReadonlySet<EstadoReceta> = new Set(["ENTREGADA", "ANULADA"]);
 
-/** INV-R08. Mirrors fsj.receta_validar_transicion_estado exactly (migration 0011). */
+/** INV-R08. Mirrors fsj.receta_validar_transicion_estado exactly (migration 0011, last redefined by 0061). */
 export function esEstadoTerminal(estado: EstadoReceta): boolean {
   return ESTADOS_TERMINALES.has(estado);
 }

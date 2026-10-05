@@ -178,13 +178,12 @@ describe("esEstadoTerminal / puedeAnular / esEstadoEditable -- INV-R08 mirror", 
     expect(esEstadoTerminal("PENDIENTE_PREPARACION")).toBe(false);
     expect(esEstadoTerminal("EN_PREPARACION")).toBe(false);
     expect(esEstadoTerminal("PREPARADA")).toBe(false);
-    expect(esEstadoTerminal("LISTA_PARA_RETIRAR")).toBe(false);
     expect(esEstadoTerminal("ENVIADA_PEND_FIRMA")).toBe(false);
   });
 
   it("puedeAnular is the negation of esEstadoTerminal (ANULADA reachable from any non-terminal state)", () => {
     expect(puedeAnular("PENDIENTE_PREPARACION")).toBe(true);
-    expect(puedeAnular("LISTA_PARA_RETIRAR")).toBe(true);
+    expect(puedeAnular("PREPARADA")).toBe(true);
     expect(puedeAnular("ENTREGADA")).toBe(false);
     expect(puedeAnular("ANULADA")).toBe(false);
   });

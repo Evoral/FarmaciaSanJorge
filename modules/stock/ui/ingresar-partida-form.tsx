@@ -7,7 +7,7 @@
  * "Unidad de compra" only lists the vigente units of the chosen droga's
  * magnitude (its unidad base included): the server converts the quantity
  * with `fsj.convertir`, which cannot cross magnitudes. Disabled until a
- * droga is chosen.
+ * droga is chosen. "Pureza (%)" (migration 0058) is optional: empty = 100 %.
  */
 import { useMemo, useState } from "react";
 import { ingresarPartidaAction } from "./actions";
@@ -112,6 +112,26 @@ export function IngresarPartidaForm({ drogas, proveedores, unidades }: IngresarP
         <p className="field-help -mt-1">
           {magnitud === null ? "Elegí la droga para ver las unidades de compra disponibles." : "La cantidad se convierte automáticamente a la unidad base de la droga."}
         </p>
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-4 border-t border-zinc-100 pt-5">
+        <legend className="sr-only">Pureza</legend>
+        <div className="field sm:max-w-sm">
+          <label htmlFor="potenciaDeclarada" className="field-label">
+            Pureza (%)<span className="font-normal text-zinc-500"> (opcional)</span>
+          </label>
+          <input
+            id="potenciaDeclarada"
+            name="potenciaDeclarada"
+            type="text"
+            inputMode="decimal"
+            aria-describedby="potenciaDeclarada-ayuda"
+            className="input font-mono"
+          />
+          <p id="potenciaDeclarada-ayuda" className="field-help">
+            La declarada en el certificado del lote. Si la dejás vacía, se toma como 100 %.
+          </p>
+        </div>
       </fieldset>
 
       <fieldset className="flex flex-col gap-4 border-t border-zinc-100 pt-5">

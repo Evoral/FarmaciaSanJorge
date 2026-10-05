@@ -435,7 +435,7 @@ describe("anular-receta: refused while the libro still records a preparación", 
   const ITEM_2 = "66666666-6666-4666-a666-666666666666";
 
   it("refuses when an item's SISTEMA asiento is still in effect, and anulls nothing", async () => {
-    getRecetaParaAccionMock.mockResolvedValue({ ...recetaPendiente, estado: "LISTA_PARA_RETIRAR" as const });
+    getRecetaParaAccionMock.mockResolvedValue({ ...recetaPendiente, estado: "PREPARADA" as const });
     listItemIdsMock.mockResolvedValue([ITEM_1, ITEM_2]);
     asientosEnEfectoMock.mockResolvedValue([{ itemRecetaId: ITEM_2, asientoId: "a-1", numeroCorrelativo: "15" }]);
 

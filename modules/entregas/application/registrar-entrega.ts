@@ -1,18 +1,15 @@
 /**
- * `registrarEntrega` -- FASE 11 points 11.1/11.2 (M14). User decision 2
- * (2026-09-24): valid from PREPARADA or LISTA_PARA_RETIRAR -- when starting
- * at PREPARADA, this command performs
- * PREPARADA -> LISTA_PARA_RETIRAR -> (ENTREGADA | ENVIADA_PEND_FIRMA) in
- * the SAME transaction (two receta.estado UPDATEs; migration 0011's state
- * machine trigger validates each one individually -- a single UPDATE
- * cannot skip the intermediate value). Lock BEFORE the fresh read (M3
- * discipline, same as every other recetas-adjacent command).
+ * `registrarEntrega` -- FASE 11 points 11.1/11.2 (M14). Valid from PREPARADA
+ * only: the receta goes PREPARADA -> (ENTREGADA | ENVIADA_PEND_FIRMA) in a
+ * single receta.estado UPDATE (LISTA_PARA_RETIRAR was removed, migration
+ * 0061; the state machine trigger, migration 0011/0061, validates it). Lock
+ * BEFORE the fresh read (M3 discipline, same as every other
+ * recetas-adjacent command).
  *
- * Write order inside the transaction (see migration 0040's header comment
- * for why): [receta: PREPARADA -> LISTA_PARA_RETIRAR, IF needed] -> INSERT
- * entrega -> receta: -> (ENTREGADA | ENVIADA_PEND_FIRMA). No receta física
- * step: the attribute and INV-R07 were removed (client decision 2026-10-01,
- * migration 0051).
+ * Write order inside the transaction (INV-ENT-002, migration 0040, needs the
+ * entrega row first): INSERT entrega -> receta: PREPARADA -> (ENTREGADA |
+ * ENVIADA_PEND_FIRMA). No receta física step: the attribute and INV-R07 were
+ * removed (client decision 2026-10-01, migration 0051).
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
@@ -61,10 +58,6 @@ export const registrarEntregaCommand = defineCommand({
     validarTieneItemsEntregables(items);
 
     try {
-      if (receta.estado === "PREPARADA") {
-        await actualizarEstadoReceta(tx, session.tenantId, input.recetaId, "LISTA_PARA_RETIRAR");
-      }
-
       const entrega = await insertEntrega(tx, {
         tenantId: session.tenantId,
         recetaId: input.recetaId,

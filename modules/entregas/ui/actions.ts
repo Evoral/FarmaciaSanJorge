@@ -2,7 +2,6 @@
 
 /** Server Actions for `/entregas` (FASE 11, M14, points 11.1-11.2). */
 import { revalidatePath } from "next/cache";
-import { marcarListaParaRetirar } from "@/modules/entregas/application/marcar-lista-para-retirar";
 import { registrarEntrega } from "@/modules/entregas/application/registrar-entrega";
 import { confirmarFirmaRecibida } from "@/modules/entregas/application/confirmar-firma-recibida";
 import { actionError } from "@/shared/ui/action-error";
@@ -16,17 +15,6 @@ function revalidarEntregas(recetaId: string): void {
   revalidatePath("/entregas");
   revalidatePath(`/entregas/${recetaId}`);
   revalidatePath(`/recetas/${recetaId}`);
-}
-
-export async function marcarListaParaRetirarAction(_prevState: EntregaActionState, formData: FormData): Promise<EntregaActionState> {
-  try {
-    const recetaId = String(formData.get("recetaId") ?? "");
-    await marcarListaParaRetirar({ recetaId });
-    revalidarEntregas(recetaId);
-    return { status: "success", message: "Receta marcada como lista para retirar.", id: recetaId };
-  } catch (error) {
-    return fromError(error, "No se pudo marcar la receta como lista para retirar.");
-  }
 }
 
 export async function registrarEntregaAction(_prevState: EntregaActionState, formData: FormData): Promise<EntregaActionState> {

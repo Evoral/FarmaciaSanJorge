@@ -7,32 +7,24 @@ import { describe, it, expect } from "vitest";
 import { ValidationError } from "@/shared/errors";
 import {
   puedeRegistrarEntrega,
-  puedeMarcarListaParaRetirar,
   puedeConfirmarFirmaRecibida,
   calcularItemsEntregables,
   validarTieneItemsEntregables,
   estadoDestinoEntrega,
 } from "@/modules/entregas/domain/entrega";
 
-describe("puedeRegistrarEntrega / puedeMarcarListaParaRetirar / puedeConfirmarFirmaRecibida", () => {
-  it("registrar entrega is valid from PREPARADA or LISTA_PARA_RETIRAR only", () => {
+describe("puedeRegistrarEntrega / puedeConfirmarFirmaRecibida", () => {
+  it("registrar entrega is valid from PREPARADA only", () => {
     expect(puedeRegistrarEntrega("PREPARADA")).toBe(true);
-    expect(puedeRegistrarEntrega("LISTA_PARA_RETIRAR")).toBe(true);
     expect(puedeRegistrarEntrega("EN_PREPARACION")).toBe(false);
     expect(puedeRegistrarEntrega("ENVIADA_PEND_FIRMA")).toBe(false);
     expect(puedeRegistrarEntrega("ENTREGADA")).toBe(false);
     expect(puedeRegistrarEntrega("ANULADA")).toBe(false);
   });
 
-  it("marcar lista para retirar is valid ONLY from PREPARADA", () => {
-    expect(puedeMarcarListaParaRetirar("PREPARADA")).toBe(true);
-    expect(puedeMarcarListaParaRetirar("LISTA_PARA_RETIRAR")).toBe(false);
-    expect(puedeMarcarListaParaRetirar("EN_PREPARACION")).toBe(false);
-  });
-
   it("confirmar firma recibida is valid ONLY from ENVIADA_PEND_FIRMA", () => {
     expect(puedeConfirmarFirmaRecibida("ENVIADA_PEND_FIRMA")).toBe(true);
-    expect(puedeConfirmarFirmaRecibida("LISTA_PARA_RETIRAR")).toBe(false);
+    expect(puedeConfirmarFirmaRecibida("PREPARADA")).toBe(false);
     expect(puedeConfirmarFirmaRecibida("ENTREGADA")).toBe(false);
   });
 });

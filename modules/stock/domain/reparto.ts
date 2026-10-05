@@ -62,6 +62,31 @@ function estaVencida(fechaVencimiento: string, jornadaActual: string): boolean {
 }
 
 /**
+ * The consumption order `proponerReparto` uses: drops vencidas (INV-S10) and
+ * partidas without balance, then abiertas first (oldest fechaApertura
+ * first), then cerradas FEFO. Exported so a caller that splits in other
+ * terms (modules/preparaciones/domain/potencia.ts, active-ingredient terms)
+ * drains partidas in EXACTLY the same order.
+ */
+export function ordenarParaConsumo<T extends PartidaDisponible>(partidas: readonly T[], jornadaActual: string): T[] {
+  const elegibles = partidas.filter(
+    (p) => !estaVencida(p.fechaVencimiento, jornadaActual) && dec(p.cantidadDisponible).greaterThan(0),
+  );
+
+  const abiertas = elegibles
+    .filter((p) => p.fechaApertura !== null)
+    .slice()
+    .sort((a, b) => (a.fechaApertura! < b.fechaApertura! ? -1 : a.fechaApertura! > b.fechaApertura! ? 1 : 0));
+
+  const cerradas = elegibles
+    .filter((p) => p.fechaApertura === null)
+    .slice()
+    .sort((a, b) => (a.fechaVencimiento < b.fechaVencimiento ? -1 : a.fechaVencimiento > b.fechaVencimiento ? 1 : 0));
+
+  return [...abiertas, ...cerradas];
+}
+
+/**
  * Proposes how to split `cantidadRequerida` (in the droga's unidad base)
  * across `partidas`. `partidas` should already be scoped to ONE droga --
  * this function does not filter by droga (it has no droga id to filter on),
@@ -77,21 +102,7 @@ export function proponerReparto(
     throw new RangeError("proponerReparto: cantidadRequerida must be greater than zero.");
   }
 
-  const elegibles = partidas.filter(
-    (p) => !estaVencida(p.fechaVencimiento, jornadaActual) && dec(p.cantidadDisponible).greaterThan(0),
-  );
-
-  const abiertas = elegibles
-    .filter((p) => p.fechaApertura !== null)
-    .slice()
-    .sort((a, b) => (a.fechaApertura! < b.fechaApertura! ? -1 : a.fechaApertura! > b.fechaApertura! ? 1 : 0));
-
-  const cerradas = elegibles
-    .filter((p) => p.fechaApertura === null)
-    .slice()
-    .sort((a, b) => (a.fechaVencimiento < b.fechaVencimiento ? -1 : a.fechaVencimiento > b.fechaVencimiento ? 1 : 0));
-
-  const ordenDeConsumo = [...abiertas, ...cerradas];
+  const ordenDeConsumo = ordenarParaConsumo(partidas, jornadaActual);
 
   const lineas: PropuestaLinea[] = [];
   let restante = requerida;

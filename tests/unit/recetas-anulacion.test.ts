@@ -23,7 +23,7 @@ describe("decidirAnulacion", () => {
   it("blocked by the asientos still in effect, each with its item number (detail-page order)", () => {
     expect(
       decidirAnulacion({
-        estado: "LISTA_PARA_RETIRAR",
+        estado: "PREPARADA",
         itemIds: [I1, I2],
         asientosEnEfecto: [
           { itemRecetaId: I2, asientoId: "a-2", numeroCorrelativo: "31" },

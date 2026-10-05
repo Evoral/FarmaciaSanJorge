@@ -69,7 +69,7 @@ export async function getItemsParaEntrega(tx: Prisma.TransactionClient, tenantId
   return rows.map((r) => ({ id: r.item_id, estadoAsiento: r.estado }));
 }
 
-/** A single receta.estado UPDATE (the state machine trigger, migration 0011, validates each individual transition). Callers issue TWO of these in sequence for the PREPARADA -> LISTA_PARA_RETIRAR -> {ENTREGADA|ENVIADA_PEND_FIRMA} path -- a single UPDATE cannot skip the intermediate value (see migration 0040's header comment). */
+/** A single receta.estado UPDATE (the state machine trigger, migration 0011/0061, validates the transition). `registrarEntrega` issues one, PREPARADA -> {ENTREGADA|ENVIADA_PEND_FIRMA}, after inserting the entrega row (INV-ENT-002, migration 0040). */
 export async function actualizarEstadoReceta(tx: Prisma.TransactionClient, tenantId: string, id: string, estado: EstadoReceta): Promise<void> {
   await tx.receta.update({ where: { id, tenantId }, data: { estado } });
 }
@@ -138,8 +138,8 @@ export async function confirmarFirmaYEntregar(
 }
 
 // ============================================================================
-// 11.1/11.2: /entregas listado (LISTA_PARA_RETIRAR/PREPARADA listas para
-// entregar, ENVIADA_PEND_FIRMA esperando firma).
+// 11.1/11.2: /entregas listado (PREPARADA listas para entregar,
+// ENVIADA_PEND_FIRMA esperando firma).
 // ============================================================================
 
 export interface EntregaPendienteItem {
@@ -160,7 +160,7 @@ export interface ListEntregasPendientesFilter {
   pageSize: number;
 }
 
-const ESTADOS_LISTADO_ENTREGAS: EstadoReceta[] = ["PREPARADA", "LISTA_PARA_RETIRAR", "ENVIADA_PEND_FIRMA"];
+const ESTADOS_LISTADO_ENTREGAS: EstadoReceta[] = ["PREPARADA", "ENVIADA_PEND_FIRMA"];
 
 export async function listEntregasPendientes(tx: Prisma.TransactionClient, filter: ListEntregasPendientesFilter): Promise<{ items: EntregaPendienteItem[]; total: number }> {
   const where: Prisma.RecetaWhereInput = {

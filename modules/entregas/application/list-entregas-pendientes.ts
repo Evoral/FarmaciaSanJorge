@@ -1,4 +1,4 @@
-/** `listEntregasPendientes` -- `/entregas` (FASE 11 point 11.1/11.2). Recetas PREPARADA/LISTA_PARA_RETIRAR (listas para entregar) and ENVIADA_PEND_FIRMA (esperando firma). Gated on `entregas.registrar`, same list this permiso's action supports. */
+/** `listEntregasPendientes` -- `/entregas` (FASE 11 point 11.1/11.2). Recetas PREPARADA (listas para entregar) and ENVIADA_PEND_FIRMA (esperando firma). Gated on `entregas.registrar`, same list this permiso's action supports. */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { listEntregasPendientes as listRepo } from "../infrastructure/entrega-repository";
