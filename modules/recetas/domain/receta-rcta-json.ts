@@ -7,16 +7,18 @@
  * The schema is TOLERANT (undocumented API: unknown keys pass through, optional
  * fields may be absent, `null` or blank) and strict only on what the import
  * cannot do without. Failures never echo the data (patient data, DP-24).
- * Items (`prescripcion[]`) are mapped by the next slice; `items` is empty until then.
  */
 import { z } from "zod";
 import { esDiagnosticoCodigoValido, normalizarDiagnosticoCodigo } from "./receta";
 import {
+  clasificarRenglonCuerpo,
   colapsar,
+  parsearCuerpo,
   parsearFechaDdMmAaaa,
   separarContactoMedico,
   urlVerificacionRcta,
   type AdvertenciaParser,
+  type BorradorItem,
   type BorradorMedico,
   type BorradorPaciente,
   type BorradorReceta,
@@ -34,6 +36,12 @@ const texto = z
 const itemRctaSchema = z.looseObject({
   codDiagnostico: texto,
   diagnostico: texto,
+  /** The item's body: one string with "\n" between lines (read raw, never through `texto`, which would collapse them). */
+  prescripcion: z.string().nullish(),
+  // Source data the import does not store (only checked for presence); any shape is tolerated.
+  notas: z.unknown().optional(),
+  codPractica: z.unknown().optional(),
+  nroCUIR: z.unknown().optional(),
 });
 
 export const recetaRctaJsonSchema = z.looseObject({
@@ -46,6 +54,7 @@ export const recetaRctaJsonSchema = z.looseObject({
   fechaEmision: texto,
   codDiagnostico: texto,
   diagnostico: texto,
+  practica: z.unknown().optional(),
   paciente: z
     .looseObject({
       tipoDoc: texto,
@@ -151,6 +160,44 @@ function mapearMedico(json: RecetaRctaJson, advertencias: AdvertenciaParser[]): 
   };
 }
 
+type ItemRcta = RecetaRctaJson["prescripcion"][number];
+
+/** A source value is "present" unless it is absent, `null` or blank text. */
+const hayDato = (valor: unknown): boolean => valor !== null && valor !== undefined && !(typeof valor === "string" && valor.trim() === "");
+
+/**
+ * One item per `prescripcion[]` element. Its text goes through the SAME body
+ * parser as the PDF, with one QR-only rule: unclassifiable lines BEFORE the
+ * first component (the practice's address, for instance) are shown as
+ * informational notices, deduped across items, and never stored; unclassifiable
+ * lines after it keep the parser's RENGLON_NO_RECONOCIDO warning. `cantidad` is
+ * ignored (as in the PDF flow).
+ */
+function mapearItem(item: ItemRcta, numero: number, total: number, avisados: Set<string>, advertencias: AdvertenciaParser[]): BorradorItem {
+  const lineas = (item.prescripcion ?? "").split(/\r?\n/).map(colapsar).filter((linea) => linea.length > 0);
+  const clases = lineas.map((linea) => clasificarRenglonCuerpo(linea).clase);
+  const inicio = clases.includes("componente") ? clases.findIndex((clase) => clase !== "otro") : 0;
+  for (const texto of lineas.slice(0, inicio)) {
+    if (avisados.has(texto)) continue;
+    avisados.add(texto);
+    advertencias.push({ codigo: "RENGLON_INFORMATIVO", mensaje: `Texto al inicio de la receta (informativo, no se guarda): «${texto}»`, texto });
+  }
+
+  const cuerpo = parsearCuerpo(lineas.slice(inicio));
+  advertencias.push(...cuerpo.advertencias);
+
+  const sufijo = total > 1 ? ` (ítem ${numero})` : "";
+  if (cuerpo.item.componentes.length === 0) advertencias.push({ codigo: "DATO_FALTANTE", mensaje: `No se encontraron componentes con su dosis${sufijo}.` });
+  if (cuerpo.item.cantidadUnidades === null) advertencias.push({ codigo: "DATO_FALTANTE", mensaje: `No se encontró la cantidad de unidades (por ejemplo, «30 comprimidos»)${sufijo}.` });
+
+  const noImportado = (mensaje: string) => advertencias.push({ codigo: "DATO_NO_IMPORTADO", mensaje: `${mensaje}${sufijo}` });
+  if (typeof item.notas === "string" && item.notas.trim() !== "") noImportado(`La receta trae notas que no se importan: «${colapsar(item.notas)}».`);
+  else if (hayDato(item.notas)) noImportado("La receta trae notas que no se importan.");
+  if (hayDato(item.codPractica)) noImportado("La receta trae un código de práctica que no se importa.");
+  if (hayDato(item.nroCUIR)) noImportado("La receta trae un número CUIR que no se importa.");
+  return cuerpo.item;
+}
+
 /** Same limit as the confirm input (`diagnosticoDescripcion` in importar-receta.ts). */
 const MAX_DIAGNOSTICO_DESCRIPCION = 2000;
 
@@ -192,6 +239,9 @@ export function mapearRecetaRcta(json: unknown, hash: string): ResultadoLecturaQ
   const paciente = mapearPaciente(datos, advertencias);
   const medico = mapearMedico(datos, advertencias);
   const diagnostico = mapearDiagnostico(datos, advertencias);
+  const avisados = new Set<string>();
+  const items = datos.prescripcion.map((item, i, todos) => mapearItem(item, i + 1, todos.length, avisados, advertencias));
+  if (hayDato(datos.practica)) advertencias.push({ codigo: "DATO_NO_IMPORTADO", mensaje: "La receta trae una práctica que no se importa." });
 
   return {
     ok: true,
@@ -204,7 +254,7 @@ export function mapearRecetaRcta(json: unknown, hash: string): ResultadoLecturaQ
       ...diagnostico,
       paciente,
       medico,
-      items: [],
+      items,
     },
     advertencias,
   };

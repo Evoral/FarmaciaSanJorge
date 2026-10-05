@@ -228,6 +228,116 @@ describe("P34-P37: médico", () => {
   });
 });
 
+const conTexto = (prescripcion: string | null, cambios: Json = {}) => receta({ prescripcion: [{ ...ITEM, prescripcion, ...cambios }] });
+const clasePorCodigo = (r: ReturnType<typeof leer>, codigo: string) => r.advertencias.filter((a) => a.codigo === codigo);
+
+describe("P40-P42: items", () => {
+  it("P42: the real-shaped receta gives one item (component, presentación, fracción + posología, duración) and the PDF's consistency warning", () => {
+    const r = leer(RECETA_REAL);
+    expect(r.borrador.items).toEqual([
+      {
+        formaFarmaceutica: "CAPSULA",
+        cantidadUnidades: 30,
+        fraccionDosisPorUnidad: "0.5",
+        posologia: "Media dosis cada 12 horas",
+        duracionTratamientoDias: 30,
+        componentes: [{ drogaTexto: "Mazindol", cantidad: "1.5", unidadTexto: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: true }],
+      },
+    ]);
+    expect(clasePorCodigo(r, "UNIDADES_VS_DURACION").map((a) => a.mensaje)).toEqual(["Las unidades alcanzan para 15 días; la receta indica 30."]);
+    expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO")).toEqual([]);
+  });
+
+  it("P42: lines may be separated by \\r\\n and blank lines, and keep their order", () => {
+    const r = leer(conTexto("Ibuprofeno 400 mg\r\n\r\n 20 comprimidos \r\nCada 8 horas\r\n"));
+    expect(r.borrador.items[0]).toMatchObject({ cantidadUnidades: 20, formaFarmaceutica: "COMPRIMIDO", posologia: "Cada 8 horas" });
+    expect(r.borrador.items[0]!.componentes).toHaveLength(1);
+  });
+
+  it("P40: every prescripcion element is its own item, parsed independently", () => {
+    const r = leer(receta({
+      prescripcion: [
+        { ...ITEM, prescripcion: "Mazindol 1,5 mg\n30 cápsulas\nMedia dosis cada 12 horas\nTratamiento por 15 días" },
+        { ...ITEM, prescripcion: "Ibuprofeno 400 mg\n20 comprimidos\nCada 8 horas\nTratamiento por 7 días" },
+      ],
+    }));
+    expect(r.borrador.items.map((i) => [i.componentes[0]!.drogaTexto, i.cantidadUnidades, i.fraccionDosisPorUnidad, i.duracionTratamientoDias])).toEqual([
+      ["Mazindol", 30, "0.5", 15],
+      ["Ibuprofeno", 20, "1", 7],
+    ]);
+    expect(clasePorCodigo(r, "MAS_DE_UN_ITEM")).toEqual([]);
+    expect(clasePorCodigo(r, "UNIDADES_VS_DURACION")).toHaveLength(1);
+  });
+
+  it("an element with no usable text keeps an empty item and says what is missing", () => {
+    for (const texto of [null, "", " \n "]) {
+      const r = leer(conTexto(texto));
+      expect(r.borrador.items).toHaveLength(1);
+      expect(r.borrador.items[0]!.componentes).toEqual([]);
+      expect(r.advertencias).toContainEqual(faltante("No se encontraron componentes con su dosis."));
+      expect(r.advertencias).toContainEqual(faltante("No se encontró la cantidad de unidades (por ejemplo, «30 comprimidos»)."));
+    }
+    expect(leer(RECETA_REAL).advertencias.some((a) => a.mensaje.includes("componentes con su dosis"))).toBe(false);
+  });
+
+  it("a non-string item text is an unexpected format", () => {
+    expect(mapearRecetaRcta(conTexto(["Mazindol"] as unknown as string), HASH)).toMatchObject({ ok: false, codigo: "FORMATO_INESPERADO" });
+  });
+});
+
+describe("P43: source data the import does not store", () => {
+  it("non-empty notas, codPractica and nroCUIR each warn that they are not imported, and the notas text is shown", () => {
+    const r = leer(conTexto("Mazindol 1,5 mg\n30 cápsulas", { notas: "Tomar con agua", codPractica: "420101", nroCUIR: "CUIR-1" }));
+    const avisos = clasePorCodigo(r, "DATO_NO_IMPORTADO").map((a) => a.mensaje);
+    expect(avisos).toHaveLength(3);
+    expect(avisos.some((m) => m.includes("Tomar con agua"))).toBe(true);
+    expect(JSON.stringify(r.borrador)).not.toMatch(/Tomar con agua|420101|CUIR-1/);
+  });
+
+  it("a non-null top-level practica warns once; blank or null values do not warn", () => {
+    expect(clasePorCodigo(leer(receta({ practica: { descripcion: "x" } })), "DATO_NO_IMPORTADO")).toHaveLength(1);
+    expect(clasePorCodigo(leer(conTexto("Mazindol 1,5 mg", { notas: "  ", codPractica: "", nroCUIR: null })), "DATO_NO_IMPORTADO")).toEqual([]);
+    expect(clasePorCodigo(leer(RECETA_REAL), "DATO_NO_IMPORTADO")).toEqual([]);
+  });
+
+  it("cantidad is ignored, as in the PDF flow", () => {
+    expect(leer(conTexto("Mazindol 1,5 mg\n30 cápsulas", { cantidad: 7 })).borrador.items[0]!.cantidadUnidades).toBe(30);
+  });
+});
+
+describe("P44-P45: lines that are not part of the prescription", () => {
+  it("P44: unclassifiable lines BEFORE the first component are informational notices with the literal text and never stored", () => {
+    const r = leer(RECETA_REAL);
+    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO")).toEqual([
+      { codigo: "RENGLON_INFORMATIVO", mensaje: "Texto al inicio de la receta (informativo, no se guarda): «Calle Falsa 123 Ciudad»", texto: "Calle Falsa 123 Ciudad" },
+    ]);
+    expect(JSON.stringify(r.borrador.items)).not.toContain("Calle Falsa");
+  });
+
+  it("P44: several leading lines each get a notice; the same text on a second item is not repeated", () => {
+    const r = leer(receta({
+      prescripcion: [
+        { ...ITEM, prescripcion: "Consultorio Norte\nCalle Falsa 123\nMazindol 1,5 mg" },
+        { ...ITEM, prescripcion: "Calle Falsa 123\nIbuprofeno 400 mg" },
+      ],
+    }));
+    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO").map((a) => a.texto)).toEqual(["Consultorio Norte", "Calle Falsa 123"]);
+    expect(r.borrador.items.map((i) => i.componentes[0]!.drogaTexto)).toEqual(["Mazindol", "Ibuprofeno"]);
+  });
+
+  it("P45: an unclassifiable line AFTER the first component keeps the existing RENGLON_NO_RECONOCIDO warning", () => {
+    const r = leer(conTexto("Calle Falsa 123\nMazindol 1,5 mg\nlinea rara del medico\n30 cápsulas"));
+    expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO").map((a) => a.texto)).toEqual(["linea rara del medico"]);
+    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO").map((a) => a.texto)).toEqual(["Calle Falsa 123"]);
+  });
+
+  it("without any component nothing is 'leading': every unclassifiable line is a normal warning", () => {
+    const r = leer(conTexto("texto suelto\n30 cápsulas"));
+    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO")).toEqual([]);
+    expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO").map((a) => a.texto)).toEqual(["texto suelto"]);
+  });
+});
+
 describe("P38-P39: diagnóstico", () => {
   it("P38: a CIE-10 code without its dot gets it; one that already has it, or has none to add, is kept", () => {
     expect(leer(receta()).borrador).toMatchObject({ diagnosticoCodigo: "E66.0", diagnosticoDescripcion: "Obesidad por exceso de calorias" });
