@@ -9,7 +9,7 @@
  * coincidencias") applies the term to the table below instead, through the same action; clearing the box shows the
  * full list again. The table stays visible (dimmed) while it updates.
  */
-import { useActionState, useCallback, useRef, useState } from "react";
+import { useActionState, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight, ListFilter, PackageCheck, SearchX } from "lucide-react";
@@ -43,6 +43,15 @@ export function EntregasBuscador({ itemsIniciales, totalInicial }: EntregasBusca
   const formRef = useRef<HTMLFormElement>(null);
   const qRef = useRef<HTMLInputElement>(null);
   const [busquedaAplicada, setBusquedaAplicada] = useState("");
+
+  // An entrega registered from the pop-up refreshes the page's props, but `useActionState` keeps its first state: show
+  // the fresh list while no search applies, and re-run an applied search so its rows are current too.
+  const items = state.status === "idle" ? itemsIniciales : state.items;
+  const total = state.status === "idle" ? totalInicial : state.total;
+  useEffect(() => {
+    // The hidden `q` input holds the applied search (see filtrarTabla).
+    if (qRef.current?.value) formRef.current?.requestSubmit();
+  }, [itemsIniciales]);
 
   /** Applies `q` to the table (same POST action as before). */
   function filtrarTabla(q: string) {
@@ -107,8 +116,8 @@ export function EntregasBuscador({ itemsIniciales, totalInicial }: EntregasBusca
       <div className="list-panel transition-opacity" style={{ opacity: isPending ? 0.55 : 1 }}>
         <div className="list-toolbar">
           <p role="status">
-            <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(state.total)}</span>{" "}
-            {state.total === 1 ? "receta pendiente" : "recetas pendientes"} de entrega
+            <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(total)}</span>{" "}
+            {total === 1 ? "receta pendiente" : "recetas pendientes"} de entrega
             {busquedaAplicada ? <span className="text-zinc-500"> para “{busquedaAplicada}”</span> : null}
           </p>
           {isPending ? (
@@ -119,7 +128,7 @@ export function EntregasBuscador({ itemsIniciales, totalInicial }: EntregasBusca
           ) : null}
         </div>
 
-        {state.items.length === 0 ? (
+        {items.length === 0 ? (
           buscando && busquedaAplicada ? (
             <EmptyState icon={<SearchX className="size-5" />} title="Sin resultados" description="Ninguna receta pendiente de entrega coincide con ese paciente." />
           ) : (
@@ -148,7 +157,7 @@ export function EntregasBuscador({ itemsIniciales, totalInicial }: EntregasBusca
                 </tr>
               </thead>
               <tbody>
-                {state.items.map((r) => {
+                {items.map((r) => {
                   const paciente = `${r.pacienteNombre} ${r.pacienteApellido}`;
                   return (
                     <tr key={r.id}>
@@ -188,9 +197,9 @@ export function EntregasBuscador({ itemsIniciales, totalInicial }: EntregasBusca
           </div>
         )}
 
-        {state.total > state.items.length && busquedaAplicada ? (
+        {total > items.length && busquedaAplicada ? (
           <p className="border-t border-zinc-100 px-4 py-2.5 text-xs text-zinc-500">
-            Mostrando los primeros {state.items.length} resultados. Afiná la búsqueda para acotar.
+            Mostrando los primeros {items.length} resultados. Afiná la búsqueda para acotar.
           </p>
         ) : null}
       </div>

@@ -15,13 +15,15 @@ import type { EntregaActionState } from "./action-state";
 export interface RegistrarEntregaFormProps {
   action: (prevState: EntregaActionState, formData: FormData) => Promise<EntregaActionState>;
   recetaId: string;
+  /** Runs after a successful registration (the pop-up closes itself). */
+  onSuccess?: () => void;
 }
 
-export function RegistrarEntregaForm({ action, recetaId }: RegistrarEntregaFormProps) {
+export function RegistrarEntregaForm({ action, recetaId, onSuccess }: RegistrarEntregaFormProps) {
   const [modalidad, setModalidad] = useState<"RETIRO_PRESENCIAL" | "ENVIO">("RETIRO_PRESENCIAL");
 
   return (
-    <SimpleForm action={action} submitLabel="Registrar entrega" pendingLabel="Registrando…">
+    <SimpleForm action={action} submitLabel="Registrar entrega" pendingLabel="Registrando…" onSuccess={onSuccess}>
       <input type="hidden" name="recetaId" value={recetaId} />
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 text-xs font-medium text-zinc-600">Modalidad</legend>
