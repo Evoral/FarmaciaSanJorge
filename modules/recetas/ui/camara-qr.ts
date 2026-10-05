@@ -110,3 +110,10 @@ export function evaluarLecturaQr(
   if (ultima !== null && ultima.texto === limpio && ahora - ultima.instante < VENTANA_DEDUPE_MS) return { veredicto: "duplicada", ultima };
   return { veredicto: extraerHashRcta(limpio) === null ? "no-receta" : "receta", ultima: { texto: limpio, instante: ahora } };
 }
+
+/** Texts of the scanner while it runs, announced through the panel's live region and shown next to the video. */
+export const MENSAJE_CAMARA_SOLICITANDO = "Solicitando permiso para usar la cámara…";
+export const MENSAJE_CAMARA_ESCANEANDO = "Cámara activa. Apuntá al QR de la receta.";
+export const MENSAJE_CAMARA_NO_ES_RECETA = "Ese QR no es de una receta. Seguí buscando.";
+export const MENSAJE_CAMARA_CERRADA = "Cámara cerrada.";
+export const MENSAJE_CAMARA_CERRADA_AL_SALIR = "Cámara cerrada al salir de la pestaña.";

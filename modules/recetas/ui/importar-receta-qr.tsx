@@ -20,12 +20,20 @@
  * (plus `aria-invalid` when the error is about the typed code itself). The
  * alert is removed while a new reading is pending and inserted again with its
  * result, so the SAME error twice in a row is announced twice.
+ *
+ * Camera: once mounted, the panel offers "Escanear con la cámara" (escaner-qr-camara.tsx).
+ * What the camera decodes goes into the SAME input and through the SAME form submit
+ * (`requestSubmit`), so the camera is only another way to type the code. Where the
+ * camera cannot work (an insecure page, no camera API) the button is disabled and says why.
+ * The scanner's status texts use this panel's live region too.
  */
-import { useActionState, useEffect, useId, useRef, type FormEvent } from "react";
-import { AlertCircle, QrCode } from "lucide-react";
+import { useActionState, useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { AlertCircle, Camera, QrCode } from "lucide-react";
 import { leerRecetaQrAction } from "./actions";
 import { IDLE_LEER_RECETA_STATE } from "./action-state";
 import { MENSAJE_ANUNCIO_LEYENDO, textoAnuncioLectura } from "./anuncio-lectura";
+import { MENSAJE_CAMARA_CERRADA, mensajeEstadoCamara, soporteCamara } from "./camara-qr";
+import { EscanerQrCamara, leerEntornoCamara } from "./escaner-qr-camara";
 import { debeRecuperarFoco } from "./foco-lectura";
 import type { VistaPreviaImportacion } from "../domain/importacion-receta";
 import { useFormSubmit } from "@/shared/ui/use-form-submit";
@@ -38,15 +46,29 @@ export interface ImportarRecetaQrProps {
   autoEnfocar?: boolean;
 }
 
+/** The camera support never changes while the page is open: nothing to subscribe to. */
+const noSuscribirse = () => () => {};
+
 export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar = true }: ImportarRecetaQrProps) {
   const [state, formAction, isPending] = useActionState(leerRecetaQrAction, IDLE_LEER_RECETA_STATE);
   const { onSubmit } = useFormSubmit(formAction);
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const botonCamaraRef = useRef<HTMLButtonElement>(null);
+  const [camaraAbierta, setCamaraAbierta] = useState(false);
+  const [anuncioCamara, setAnuncioCamara] = useState("");
+  // null on the server and during hydration (the browser is unknown there): the camera button appears once mounted.
+  const soporte = useSyncExternalStore(
+    noSuscribirse,
+    () => soporteCamara(leerEntornoCamara(false)),
+    () => null,
+  );
   /** Set on submit, cleared when a result arrives: closes the gap before `isPending` turns true. */
   const enVuelo = useRef(false);
   const inputId = useId();
   const errorId = useId();
+  const avisoCamaraId = useId();
 
   const enfocarYSeleccionar = () => {
     inputRef.current?.focus();
@@ -70,7 +92,24 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
       return;
     }
     enVuelo.current = true;
+    setAnuncioCamara("");
     onSubmit(event);
+  };
+
+  const abrirCamara = () => setCamaraAbierta(true);
+
+  // What the camera decoded takes the same path as a typed code: into the input, then the form's own submit.
+  const alLeerConCamara = (texto: string) => {
+    setCamaraAbierta(false);
+    if (inputRef.current) inputRef.current.value = texto;
+    formRef.current?.requestSubmit();
+  };
+
+  // `mensaje` is set when the scanner closed itself (tab hidden); a click on "Cerrar cámara" gives the focus back to the button.
+  const alCerrarCamara = (mensaje?: string) => {
+    setCamaraAbierta(false);
+    setAnuncioCamara(mensaje ?? MENSAJE_CAMARA_CERRADA);
+    if (mensaje === undefined) botonCamaraRef.current?.focus();
   };
 
   const handleDescartar = () => {
@@ -81,7 +120,8 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
   const mostrarError = state.status === "error" && !isPending;
   // Only a problem with the typed code marks the input invalid; an outage or a permission error is not the input's fault.
   const entradaInvalida = mostrarError && state.campo === "codigo";
-  const anuncio = textoAnuncioLectura({ isPending, status: state.status, importando });
+  const anuncio = textoAnuncioLectura({ isPending, status: state.status, importando }) || anuncioCamara;
+  const camaraDisponible = soporte !== null && soporte !== "inseguro" && soporte !== "sin-api";
 
   return (
     <section ref={panelRef} aria-labelledby="importar-qr-heading" className="panel">
@@ -97,7 +137,7 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
             Precarga el formulario. No se guarda nada hasta que confirmes.
           </p>
         </div>
-        <form action={formAction} onSubmit={handleSubmit} className="flex flex-wrap items-center gap-2">
+        <form ref={formRef} action={formAction} onSubmit={handleSubmit} className="flex flex-wrap items-center gap-2">
           <label htmlFor={inputId} className="sr-only">
             QR o link de la receta
           </label>
@@ -126,6 +166,20 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
               {MENSAJE_ANUNCIO_LEYENDO}
             </p>
           ) : null}
+          {soporte === null ? null : (
+            <button
+              ref={botonCamaraRef}
+              type="button"
+              onClick={abrirCamara}
+              disabled={!camaraDisponible || isPending}
+              aria-expanded={camaraDisponible ? camaraAbierta : undefined}
+              aria-describedby={camaraDisponible ? undefined : avisoCamaraId}
+              className="btn btn-secondary btn-sm"
+            >
+              <Camera className="size-4" aria-hidden />
+              Escanear con la cámara
+            </button>
+          )}
           {importando ? (
             <button type="button" onClick={handleDescartar} className="btn btn-ghost btn-sm">
               Descartar importación
@@ -136,6 +190,16 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
           </p>
         </form>
       </div>
+      {soporte !== null && !camaraDisponible ? (
+        <p id={avisoCamaraId} className="px-4 pb-4 text-[0.8125rem] text-zinc-500 sm:px-5">
+          {mensajeEstadoCamara(soporte)}
+        </p>
+      ) : null}
+      {camaraAbierta ? (
+        <div className="px-4 pb-4 sm:px-5">
+          <EscanerQrCamara onLeido={alLeerConCamara} onCerrar={alCerrarCamara} onAnunciar={setAnuncioCamara} />
+        </div>
+      ) : null}
       {mostrarError ? (
         <div className="px-4 pb-4 sm:px-5">
           <div id={errorId} role="alert" className="alert alert-danger">
