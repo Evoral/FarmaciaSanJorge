@@ -121,7 +121,6 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   existenteId: "Coincidencia existente",
   fechaValidaDesde: "Válida desde",
   fuente: "Fuente de la importación",
-  qr: "QR o link de la receta",
   nroRecetaEmisor: "Nº de receta del emisor",
   urlVerificacion: "Link de verificación",
   cantidadTotal: "Cantidad total",

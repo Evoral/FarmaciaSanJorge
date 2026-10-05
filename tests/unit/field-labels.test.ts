@@ -39,8 +39,8 @@ describe("shared/labels/field-labels#fieldLabel", () => {
 });
 
 describe("shared/labels/field-labels -- receta import inputs", () => {
-  it("labels the QR text input and the import source (never shown as raw camelCase in an error)", () => {
-    expect(formatIssuePath(["qr"])).toBe("QR o link de la receta");
+  it("labels the import source and keeps no stale QR input key (the field is `codigo`)", () => {
+    expect(FIELD_LABELS).not.toHaveProperty("qr");
     expect(formatIssuePath(["fuente"])).toBe("Fuente de la importación");
   });
 });
