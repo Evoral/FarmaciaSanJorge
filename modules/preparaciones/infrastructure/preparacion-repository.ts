@@ -245,7 +245,7 @@ export interface PartidaElegible {
   lote: string;
   proveedorNombre: string;
   cantidadDisponible: string;
-  fechaVencimiento: string; // YYYY-MM-DD
+  fechaVencimiento: string | null; // YYYY-MM-DD; null = does not expire (0064)
   fechaApertura: string | null; // ISO instant
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
@@ -259,7 +259,7 @@ export async function listPartidasElegiblesDroga(tx: Prisma.TransactionClient, t
       lote: string;
       proveedor_nombre: string;
       cantidad_disponible: string;
-      fecha_vencimiento: string;
+      fecha_vencimiento: string | null;
       fecha_apertura: string | null;
       potencia_declarada: string | null;
     }[]
@@ -353,7 +353,7 @@ export interface PartidaFresca {
   drogaId: string;
   lote: string;
   cantidadDisponible: string;
-  fechaVencimiento: string; // YYYY-MM-DD
+  fechaVencimiento: string | null; // YYYY-MM-DD; null = does not expire (0064)
   fechaApertura: string | null;
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
@@ -368,7 +368,7 @@ export async function getPartidasFrescas(tx: Prisma.TransactionClient, tenantId:
       droga_id: string;
       lote: string;
       cantidad_disponible: string;
-      fecha_vencimiento: string;
+      fecha_vencimiento: string | null;
       fecha_apertura: string | null;
       potencia_declarada: string | null;
     }[]

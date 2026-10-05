@@ -731,7 +731,8 @@ model Partida {
   /// INV-S01/S04: read-only from the app's perspective -- see migration 0008.
   cantidadDisponible      Decimal   @default(0) @map("cantidad_disponible") @db.Decimal
   fechaIngreso            DateTime  @default(now()) @map("fecha_ingreso") @db.Timestamptz(6)
-  fechaVencimiento        DateTime  @map("fecha_vencimiento") @db.Date
+  /// Migration 0064: NULL = does not expire -- only for an insumo (droga.clase <> DROGA, trg_partida_validar_vencimiento).
+  fechaVencimiento        DateTime? @map("fecha_vencimiento") @db.Date
   /// INV-S16/S17: read-only from the app's perspective -- see migration 0008.
   fechaApertura           DateTime? @map("fecha_apertura") @db.Timestamptz(6)
   motivoAperturaAdicional String?   @map("motivo_apertura_adicional")

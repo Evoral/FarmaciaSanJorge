@@ -157,7 +157,7 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
                 <dt>Pureza</dt>
                 <dd className="font-mono tabular-nums">{partida.potenciaDeclarada !== null ? `${partida.potenciaDeclarada} %` : "No declarada (100 %)"}</dd>
                 <dt>Vencimiento</dt>
-                <dd className="tabular-nums">{formatFecha(partida.fechaVencimiento)}</dd>
+                <dd className="tabular-nums">{partida.fechaVencimiento ? formatFecha(partida.fechaVencimiento) : "No vence"}</dd>
                 <dt>Ingreso</dt>
                 <dd className="tabular-nums">{formatFecha(partida.fechaIngreso)}</dd>
                 <dt>Estado</dt>

@@ -163,12 +163,15 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
 
   const activas = lineas.filter((l) => !l.omitir);
   const incompletas = activas.filter((l) => !l.droga || !l.unidadCompraId).length;
+  // The date picker submits through a hidden input, which the browser never validates: checked here.
+  const sinVencimiento = activas.filter((l) => l.droga && !l.fechaVencimiento && (drogas.find((d) => d.id === l.droga?.value)?.clase ?? "DROGA") === "DROGA").length;
   const faltaEncabezado = !proveedor || !letra;
   /** Why "Ingresar" is disabled -- shown floating over the button. */
   const bloqueos = [
     !proveedor ? "Elegí el proveedor." : null,
     !letra ? "Elegí la letra del comprobante." : null,
     incompletas > 0 ? `Falta elegir droga o unidad en ${incompletas === 1 ? "1 lote" : `${incompletas} lotes`}.` : null,
+    sinVencimiento > 0 ? `Falta el vencimiento en ${sinVencimiento === 1 ? "1 lote" : `${sinVencimiento} lotes`} de droga (solo excipientes y materiales pueden no vencer).` : null,
     activas.length === 0 ? "Todos los lotes están marcados para no ingresar." : null,
     alta !== null ? "Terminá o cancelá el alta del producto nuevo." : null,
   ].filter((b): b is string => b !== null);
@@ -194,7 +197,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
       lineas: activas.map((l) => ({
         drogaId: l.droga?.value ?? "",
         lote: l.lote,
-        fechaVencimiento: l.fechaVencimiento,
+        fechaVencimiento: l.fechaVencimiento || undefined,
         cantidadCompra: l.cantidad,
         unidadCompraId: l.unidadCompraId,
         precioUnitario: l.precioUnitario,
@@ -378,14 +381,14 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
                       </div>
                       <div className="field">
                         <label htmlFor={`lineas.${i}.fechaVencimiento`} className="field-label">
-                          Vencimiento
+                          Vencimiento{clase && clase !== "DROGA" ? <span className="font-normal text-zinc-500"> (opc.: no vence)</span> : null}
                         </label>
                         <DateInput
                           id={`lineas.${i}.fechaVencimiento`}
                           name={`lineas.${i}.fechaVencimiento`}
                           value={l.fechaVencimiento}
                           onValueChange={(fechaVencimiento) => actualizar(i, { fechaVencimiento })}
-                          required
+                          required={!clase || clase === "DROGA"}
                         />
                       </div>
                     </div>

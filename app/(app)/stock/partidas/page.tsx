@@ -156,7 +156,7 @@ export default async function PartidasPage({ searchParams }: PartidasPageProps) 
                           <span className="block truncate text-xs text-zinc-500 md:hidden">{partida.proveedorRazonSocial}</span>
                         </td>
                         <td className="hidden px-3 py-2.5 md:table-cell">{partida.proveedorRazonSocial}</td>
-                        <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">{formatFecha(partida.fechaVencimiento)}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">{partida.fechaVencimiento ? formatFecha(partida.fechaVencimiento) : "No vence"}</td>
                         <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">
                           {disponible && inicial ? (
                             <>

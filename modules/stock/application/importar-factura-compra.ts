@@ -48,7 +48,8 @@ const importeOpcional = nonNegativeDecimalString.nullish().transform((v) => (v =
 const lineaInput = z.object({
   drogaId: uuid,
   lote: nonEmptyString,
-  fechaVencimiento: isoDate,
+  /** Optional for an insumo (migration 0064) -- checked in `registrarPartidaCompra`. */
+  fechaVencimiento: isoDate.optional(),
   cantidadCompra: positiveDecimalString,
   unidadCompraId: uuid,
   precioUnitario: nonNegativeDecimalString,

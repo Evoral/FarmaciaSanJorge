@@ -22,7 +22,7 @@ export async function ingresarPartidaAction(_prevState: StockActionState, formDa
       drogaId: String(formData.get("drogaId") ?? ""),
       proveedorId: String(formData.get("proveedorId") ?? ""),
       lote: String(formData.get("lote") ?? ""),
-      fechaVencimiento: String(formData.get("fechaVencimiento") ?? ""),
+      fechaVencimiento: (formData.get("fechaVencimiento") as string | null)?.trim() || undefined,
       cantidadCompra: String(formData.get("cantidadCompra") ?? ""),
       unidadCompraId: String(formData.get("unidadCompraId") ?? ""),
       costoUnitario: String(formData.get("costoUnitario") ?? ""),

@@ -116,7 +116,7 @@ export async function getPartidasElegiblesDeDroga(tx: Prisma.TransactionClient, 
   return rows.map((p) => ({
     id: p.id,
     cantidadDisponible: p.cantidadDisponible.toString(),
-    fechaVencimiento: p.fechaVencimiento.toISOString().slice(0, 10),
+    fechaVencimiento: p.fechaVencimiento?.toISOString().slice(0, 10) ?? null,
     fechaApertura: p.fechaApertura ? p.fechaApertura.toISOString() : null,
     costoUnitario: p.costoUnitario.toString(),
   }));

@@ -243,7 +243,7 @@ export default async function StockValorizadoPage({ searchParams }: StockValoriz
                           <span className="block font-mono text-xs text-zinc-500 sm:hidden">Lote {item.lote}</span>
                         </td>
                         <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono sm:table-cell">{item.lote}</td>
-                        <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono tabular-nums md:table-cell">{formatFechaIso(item.fechaVencimiento)}</td>
+                        <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono tabular-nums md:table-cell">{item.fechaVencimiento ? formatFechaIso(item.fechaVencimiento) : "No vence"}</td>
                         <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">
                           <Cantidad valor={formatCantidad(item.cantidadDisponible, { id: item.unidadId, simbolo: item.unidadSimbolo }, catalogo)} />
                         </td>

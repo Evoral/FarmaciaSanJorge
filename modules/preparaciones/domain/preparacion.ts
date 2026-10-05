@@ -83,7 +83,7 @@ export function requiereMotivoAperturaAdicional(
   cantidadRequerida: Decimal,
   jornadaActual: string,
 ): boolean {
-  const vigentes = (p: PartidaConEstadoApertura) => p.fechaVencimiento >= jornadaActual;
+  const vigentes = (p: PartidaConEstadoApertura) => p.fechaVencimiento === null || p.fechaVencimiento >= jornadaActual;
 
   const saldoAbiertasVigentes = partidas
     .filter((p) => p.fechaApertura !== null && vigentes(p))

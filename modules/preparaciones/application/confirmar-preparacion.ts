@@ -223,7 +223,7 @@ export const confirmarPreparacionCommand = defineCommand({
           return p;
         });
 
-        const vencida = elegidasFrescas.find((p) => p.fechaVencimiento < jornada);
+        const vencida = elegidasFrescas.find((p) => p.fechaVencimiento !== null && p.fechaVencimiento < jornada);
         if (vencida) {
           throw new DomainError(`La partida ${vencida.lote} (${linea.drogaNombre}) está vencida: no se puede descontar stock de una partida vencida.`);
         }

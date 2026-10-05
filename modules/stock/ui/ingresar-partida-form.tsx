@@ -38,6 +38,8 @@ export function IngresarPartidaForm({ drogas, proveedores, unidades }: IngresarP
   const [droga, setDroga] = useState<ComboboxOption | null>(null);
   const [proveedor, setProveedor] = useState<ComboboxOption | null>(null);
   const magnitud = drogas.find((d) => d.id === droga?.value)?.tipoMagnitud ?? null;
+  // Migration 0064: an insumo may have no expiry; a droga (or none chosen yet) requires it.
+  const esInsumo = (drogas.find((d) => d.id === droga?.value)?.clase ?? "DROGA") !== "DROGA";
   const unidadesDeLaDroga = magnitud === null ? [] : unidades.filter((unidad) => unidad.tipoMagnitud === magnitud);
 
   const buscarDrogas = useMemo(() => filtrarOpciones(drogas.map((d) => ({ value: d.id, label: d.label }))), [drogas]);
@@ -68,9 +70,9 @@ export function IngresarPartidaForm({ drogas, proveedores, unidades }: IngresarP
           </div>
           <div className="field">
             <label htmlFor="fechaVencimiento" className="field-label">
-              Fecha de vencimiento
+              Fecha de vencimiento{esInsumo ? <span className="font-normal text-zinc-500"> (opcional: vacía = no vence)</span> : null}
             </label>
-            <DateInput id="fechaVencimiento" name="fechaVencimiento" required />
+            <DateInput id="fechaVencimiento" name="fechaVencimiento" required={!esInsumo} />
           </div>
         </div>
       </fieldset>

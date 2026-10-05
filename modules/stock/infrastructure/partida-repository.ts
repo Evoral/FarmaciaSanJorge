@@ -214,7 +214,8 @@ export interface PartidaListItem {
   cantidadInicial: string;
   cantidadDisponible: string;
   fechaIngreso: Date;
-  fechaVencimiento: Date;
+  /** `null` = does not expire (migration 0064). */
+  fechaVencimiento: Date | null;
   fechaApertura: Date | null;
 }
 
@@ -309,7 +310,8 @@ export interface PartidaParaAccion {
   cantidadInicial: string;
   cantidadDisponible: string;
   fechaIngreso: Date;
-  fechaVencimiento: Date;
+  /** `null` = does not expire (migration 0064). */
+  fechaVencimiento: Date | null;
   fechaApertura: Date | null;
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
@@ -386,7 +388,8 @@ export interface NuevaPartidaInput {
   costoUnitario: string;
   /** Already converted to the droga's unidad base -- see ingresar-partida.ts. */
   cantidadInicialBase: string;
-  fechaVencimiento: string; // YYYY-MM-DD
+  /** YYYY-MM-DD; `null` = does not expire -- an insumo only (migration 0064). */
+  fechaVencimiento: string | null;
   registradoPorId: string;
   numeroValeAdquisicion: string | null;
   /** Migration 0058: the lot's purity (%), `null` = 100%. */
@@ -409,13 +412,15 @@ export interface DrogaParaIngreso {
   nombre: string;
   unidadBaseId: string;
   tipoControl: string;
+  /** Migration 0063: only a DROGA requires fecha_vencimiento (0064). */
+  clase: string;
   fechaBaja: Date | null;
 }
 
 export async function getDrogaParaIngreso(tx: Prisma.TransactionClient, tenantId: string, drogaId: string): Promise<DrogaParaIngreso | null> {
   const row = await tx.droga.findUnique({
     where: { id: drogaId, tenantId },
-    select: { id: true, nombre: true, unidadBaseId: true, tipoControl: true, fechaBaja: true },
+    select: { id: true, nombre: true, unidadBaseId: true, tipoControl: true, clase: true, fechaBaja: true },
   });
   return row;
 }
@@ -488,7 +493,7 @@ export async function insertPartidaConIngreso(tx: Prisma.TransactionClient, inpu
       lote: input.lote,
       costoUnitario: input.costoUnitario,
       cantidadInicial: input.cantidadInicialBase,
-      fechaVencimiento: new Date(`${input.fechaVencimiento}T00:00:00Z`),
+      fechaVencimiento: input.fechaVencimiento ? new Date(`${input.fechaVencimiento}T00:00:00Z`) : null,
       potenciaDeclarada: input.potenciaDeclarada,
       comprobanteCompraId: input.comprobanteCompraId ?? null,
       despachoImportacion: input.despachoImportacion ?? null,
