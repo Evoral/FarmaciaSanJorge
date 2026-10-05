@@ -47,7 +47,11 @@
  *         movimiento of a controlled droga).
  *      f. INSERT `asiento_recetario` (origen SISTEMA) + its `detalle_asiento`
  *         rows -- WITHOUT a correlativo or hash; the DB's `BEFORE INSERT`
- *         trigger (migration 0014) assigns both.
+ *         trigger (migration 0014) assigns both. Insumos (droga.clase
+ *         EXCIPIENTE/MATERIAL, migration 0063) consume stock like any line
+ *         but are left out of the detalle and the fórmula text -- unless
+ *         EVERY line is an insumo, in which case all are recorded (an
+ *         asiento never ends up without its fórmula).
  *      g. UPDATE `preparacion` -> CONFIRMADA, `preparada_por_id` = the
  *         SESSION user (INV-P06 -- never from input).
  *      h. UPDATE the receta's estado: EN_PREPARACION -> PREPARADA once
@@ -184,8 +188,8 @@ export const confirmarPreparacionCommand = defineCommand({
     // 5. Per línea (ficha order): resolve cantidad, recompute split,
     //    validate, write EGRESO_PREPARACION (+ asiento_contralor).
     // ------------------------------------------------------------------
-    const detalles: Array<{ lineaPesajeId: string; descripcion: string; cantidad: string; unidadTexto: string; orden: number }> = [];
-    const formulaLineas: Array<{ drogaNombre: string; cantidad: string; unidadSimbolo: string; esEnraseManual: boolean }> = [];
+    const detalles: Array<{ lineaPesajeId: string; descripcion: string; cantidad: string; unidadTexto: string; orden: number; esInsumo: boolean }> = [];
+    const formulaLineas: Array<{ drogaNombre: string; cantidad: string; unidadSimbolo: string; esEnraseManual: boolean; esInsumo: boolean }> = [];
     // Movimientos of a controlled droga (contralor activo) collected here --
     // their asiento_contralor row needs asiento_recetario_id, which does not
     // exist until AFTER every línea is processed (plan §9 M11 step 6 before
@@ -264,6 +268,7 @@ export const confirmarPreparacionCommand = defineCommand({
         const droga = await getDrogaTipoControl(tx, session.tenantId, linea.drogaId);
         const fechaActivacionContralor = await getFechaActivacionContralor(tx, session.tenantId);
         const contralorActivo = droga !== null && droga.tipoControl !== "NINGUNO" && fechaActivacionContralor !== null;
+        const esInsumo = droga !== null && droga.clase !== "DROGA";
 
         for (const split of resultado.lineas) {
           const movimiento = await insertEgresoPreparacion(tx, {
@@ -296,18 +301,24 @@ export const confirmarPreparacionCommand = defineCommand({
           cantidad: resultado.totalFisico.toString(),
           unidadTexto: linea.unidadSimbolo,
           orden: linea.orden,
+          esInsumo,
         });
         formulaLineas.push({
           drogaNombre: linea.drogaNombre,
           cantidad: cantidadRequerida.toString(),
           unidadSimbolo: linea.unidadSimbolo,
           esEnraseManual: linea.esEnraseManual,
+          esInsumo,
         });
       }
 
       // ------------------------------------------------------------------
       // 6. asiento_recetario + detalle_asiento (no correlativo/hash -- DB-assigned).
       // ------------------------------------------------------------------
+      const soloInsumos = detalles.every((d) => d.esInsumo);
+      const detallesLibro = detalles.filter((d) => soloInsumos || !d.esInsumo).map((d) => ({ lineaPesajeId: d.lineaPesajeId, descripcion: d.descripcion, cantidad: d.cantidad, unidadTexto: d.unidadTexto, orden: d.orden }));
+      const formulaLibro = formulaLineas.filter((l) => soloInsumos || !l.esInsumo);
+
       const contexto = await getRecetaContextoAsiento(tx, session.tenantId, preparacion.itemRecetaId);
       if (!contexto) throw new NotFoundError("No se pudo resolver el contexto de la receta para el asiento.");
 
@@ -316,9 +327,9 @@ export const confirmarPreparacionCommand = defineCommand({
         preparacionId: input.preparacionId,
         pacienteTexto: formatearPacienteTexto(contexto.pacienteNombre, contexto.pacienteApellido),
         medicoTexto: formatearMedicoTexto(contexto.medicoNombre, contexto.medicoApellido, contexto.medicoMatricula),
-        formulaTexto: formatearFormulaTexto(formulaLineas),
+        formulaTexto: formatearFormulaTexto(formulaLibro),
         registradoPorId: session.usuario.id,
-        detalles,
+        detalles: detallesLibro,
       });
 
       // ------------------------------------------------------------------

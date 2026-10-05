@@ -417,8 +417,13 @@ export async function insertEgresoPreparacion(tx: Prisma.TransactionClient, inpu
   });
 }
 
-export async function getDrogaTipoControl(tx: Prisma.TransactionClient, tenantId: string, drogaId: string): Promise<{ tipoControl: string; nombre: string; unidadBaseId: string } | null> {
-  const droga = await tx.droga.findUnique({ where: { id: drogaId, tenantId }, select: { tipoControl: true, nombre: true, unidadBaseId: true } });
+/** `clase` (migration 0063): non-DROGA lines are left out of the libro recetario -- see confirmar-preparacion.ts. */
+export async function getDrogaTipoControl(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  drogaId: string,
+): Promise<{ tipoControl: string; clase: string; nombre: string; unidadBaseId: string } | null> {
+  const droga = await tx.droga.findUnique({ where: { id: drogaId, tenantId }, select: { tipoControl: true, clase: true, nombre: true, unidadBaseId: true } });
   return droga;
 }
 
