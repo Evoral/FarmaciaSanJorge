@@ -19,6 +19,10 @@
  * for RLS (`set_config(..., true)` is transaction-local, see
  * shared/db/transaction.ts), so even a pure read needs a transaction scope
  * to see any tenant-scoped row at all. Queries never call `audit.record`.
+ * A query may also declare an opt-in `prepare` step (same prefix, then
+ * `prepare`, then the transaction): it runs after authorize + parse but
+ * OUTSIDE any transaction, so network I/O never holds a pooled connection,
+ * and its result reaches the handler as `prepared`.
  *
  * A session that lacks the use case's permiso is rejected by `authorize()`
  * before anything else runs -- and that rejection is itself audited
@@ -101,17 +105,33 @@ export interface DefineCommandConfig<TInput, TOutput> {
   handler: (args: CommandHandlerArgs<TInput>) => Promise<CommandHandlerResult<TOutput>>;
 }
 
-export interface QueryHandlerArgs<TInput> {
-  tx: Prisma.TransactionClient;
+export interface QueryPrepareArgs<TInput> {
   session: AuthenticatedSession;
   input: TInput;
 }
 
-export interface DefineQueryConfig<TInput, TOutput> {
+export interface QueryHandlerArgs<TInput, TPrepared = undefined> {
+  tx: Prisma.TransactionClient;
+  session: AuthenticatedSession;
+  input: TInput;
+  /** What `prepare` returned; `undefined` for a query that declares no `prepare`. */
+  prepared: TPrepared;
+}
+
+export interface DefineQueryConfig<TInput, TOutput, TPrepared = undefined> {
   name: string;
   permiso: Permiso;
   input: z.ZodType<TInput>;
-  handler: (args: QueryHandlerArgs<TInput>) => Promise<TOutput>;
+  /**
+   * Opt-in step for work that must NOT hold a pooled DB connection, typically
+   * network I/O (e.g. an external lookup that can take seconds). Runs AFTER
+   * `authorize()` and `zod.parse`, OUTSIDE any transaction; its result reaches
+   * the handler as `prepared`. A throw aborts the use case before a transaction
+   * opens. Declare it BEFORE `handler` in the config literal so TypeScript
+   * infers `TPrepared` from it.
+   */
+  prepare?: (args: QueryPrepareArgs<TInput>) => Promise<TPrepared>;
+  handler: (args: QueryHandlerArgs<TInput, TPrepared>) => Promise<TOutput>;
 }
 
 /** Lets tests (and, in principle, trusted internal callers that already hold a verified session) skip the real `requireSession()` cookie/DB round trip. Production Server Actions/route handlers never pass this. */
@@ -311,13 +331,16 @@ export function defineCommand<TInput, TOutput>(config: DefineCommandConfig<TInpu
 }
 
 /** Reads. See the module doc comment for why queries still open a tenant transaction. */
-export function defineQuery<TInput, TOutput>(config: DefineQueryConfig<TInput, TOutput>): DefinedUseCase<TOutput> {
+export function defineQuery<TInput, TOutput, TPrepared = undefined>(
+  config: DefineQueryConfig<TInput, TOutput, TPrepared>,
+): DefinedUseCase<TOutput> {
   async function execute(rawInput: unknown, options?: ExecuteOptions): Promise<TOutput> {
     const session = await resolveSession(options);
     await authorizeAuditado(session, config.name, config.permiso);
     const input = parseInput(config.input, rawInput);
+    const prepared = config.prepare ? await config.prepare({ session, input }) : (undefined as TPrepared);
 
-    return withTenantTransaction(session.tenantId, (tx) => config.handler({ tx, session, input }));
+    return withTenantTransaction(session.tenantId, (tx) => config.handler({ tx, session, input, prepared }));
   }
 
   registry.push({

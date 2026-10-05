@@ -273,6 +273,140 @@ describe("defineQuery", () => {
   });
 });
 
+describe("defineQuery prepare step (opt-in, runs outside any transaction)", () => {
+  it("runs requireSession -> authorize -> parse -> prepare -> transaction -> handler, in that order", async () => {
+    const callLog: string[] = [];
+    withTenantTransactionMock.mockImplementationOnce(async (tenantId: string, fn: (tx: unknown) => unknown) => {
+      callLog.push("transaction");
+      lastFakeTx = { __fakeTx: true, tenantId };
+      return fn(lastFakeTx);
+    });
+    requireSessionMock.mockImplementationOnce(async () => {
+      callLog.push("requireSession");
+      return fakeSession(["recetas.crear"]);
+    });
+    const query = defineQuery({
+      name: "test.prepare-order",
+      permiso: "recetas.crear",
+      input: z.object({ qr: z.string() }),
+      prepare: async () => {
+        callLog.push("prepare");
+        return { fetched: true };
+      },
+      handler: async () => {
+        callLog.push("handler");
+        return "ok";
+      },
+    });
+
+    await expect(query.execute({ qr: "x" })).resolves.toBe("ok");
+    expect(callLog).toEqual(["requireSession", "prepare", "transaction", "handler"]);
+  });
+
+  it("hands prepare the session and the PARSED input, and passes its result to the handler as `prepared`", async () => {
+    const session = fakeSession(["recetas.crear"]);
+    const prepare = vi.fn(async ({ input }: { session: AuthenticatedSession; input: { qr: string } }) => ({ largo: input.qr.length }));
+    const handler = vi.fn(async ({ prepared, input }: { prepared: { largo: number }; input: { qr: string } }) => `${input.qr}:${prepared.largo}`);
+    const query = defineQuery({
+      name: "test.prepare-result",
+      permiso: "recetas.crear",
+      input: z.object({ qr: z.string().trim() }),
+      prepare,
+      handler,
+    });
+
+    // The zod `trim()` transform proves prepare receives the parsed input, not the raw one.
+    await expect(query.execute({ qr: "  abc  " }, { session })).resolves.toBe("abc:3");
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(prepare).toHaveBeenCalledWith({ session, input: { qr: "abc" } });
+    expect(handler.mock.calls[0]![0]).toMatchObject({ prepared: { largo: 3 }, input: { qr: "abc" }, session });
+  });
+
+  it("opens no transaction while prepare is running (the transaction starts only after prepare resolves)", async () => {
+    let transactionsDuringPrepare = -1;
+    const query = defineQuery({
+      name: "test.prepare-outside-tx",
+      permiso: "recetas.crear",
+      input: z.object({}),
+      prepare: async () => {
+        transactionsDuringPrepare = withTenantTransactionMock.mock.calls.length;
+        return null;
+      },
+      handler: async () => "ok",
+    });
+
+    await query.execute({}, { session: fakeSession(["recetas.crear"]) });
+    expect(transactionsDuringPrepare).toBe(0);
+    expect(withTenantTransactionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a denied session throws AuthorizationError BEFORE prepare is called (only the denial audit transaction opens)", async () => {
+    const prepare = vi.fn(async () => "never");
+    const handler = vi.fn(async () => "never");
+    const query = defineQuery({
+      name: "test.prepare-denied",
+      permiso: "recetas.crear",
+      input: z.object({}),
+      prepare,
+      handler,
+    });
+
+    await expect(query.execute({}, { session: fakeSession([]) })).rejects.toBeInstanceOf(AuthorizationError);
+    expect(prepare).not.toHaveBeenCalled();
+    expect(handler).not.toHaveBeenCalled();
+    expect(withTenantTransactionMock).toHaveBeenCalledTimes(1); // the ACCESO_DENEGADO audit, nothing else
+    expect(auditRecordMock.mock.calls[0]![1]).toMatchObject({ accion: "ACCESO_DENEGADO" });
+  });
+
+  it("a zod failure throws ValidationError BEFORE prepare is called and opens no transaction", async () => {
+    const prepare = vi.fn(async () => "never");
+    const query = defineQuery({
+      name: "test.prepare-invalid-input",
+      permiso: "recetas.crear",
+      input: z.object({ qr: z.string().min(1) }),
+      prepare,
+      handler: async () => "never",
+    });
+
+    await expect(query.execute({ qr: "" }, { session: fakeSession(["recetas.crear"]) })).rejects.toBeInstanceOf(ValidationError);
+    expect(prepare).not.toHaveBeenCalled();
+    expect(withTenantTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("a throwing prepare propagates its error, never runs the handler and opens no transaction", async () => {
+    const handler = vi.fn(async () => "never");
+    const query = defineQuery({
+      name: "test.prepare-throws",
+      permiso: "recetas.crear",
+      input: z.object({}),
+      prepare: async () => {
+        throw new Error("upstream unavailable");
+      },
+      handler,
+    });
+
+    await expect(query.execute({}, { session: fakeSession(["recetas.crear"]) })).rejects.toThrow("upstream unavailable");
+    expect(handler).not.toHaveBeenCalled();
+    expect(withTenantTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("a query without prepare behaves as before: the handler sees `prepared` undefined and one transaction opens", async () => {
+    const session = fakeSession(["usuarios.listar"]);
+    const handler = vi.fn(async ({ input }: { input: { n: number } }) => input.n + 1);
+    const query = defineQuery({
+      name: "test.no-prepare",
+      permiso: "usuarios.listar",
+      input: z.object({ n: z.number() }),
+      handler,
+    });
+
+    await expect(query.execute({ n: 1 }, { session })).resolves.toBe(2);
+    expect(handler.mock.calls[0]![0]).toMatchObject({ input: { n: 1 }, session, prepared: undefined });
+    expect(handler.mock.calls[0]![0]).toHaveProperty("prepared");
+    expect(withTenantTransactionMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("every registered use case is structurally forced through authorize()", () => {
   it("rejects a permissionless session for EVERY currently registered use case", async () => {
     defineCommand({
