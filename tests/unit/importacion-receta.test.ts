@@ -111,22 +111,12 @@ describe("P6: duplicate message", () => {
 });
 
 describe("SEVERIDAD_ADVERTENCIA (what the preview shows as a warning vs. as plain information)", () => {
-  const TODOS: CodigoAdvertenciaImportacion[] = [
-    "RENGLON_NO_RECONOCIDO",
-    "UNIDADES_VS_DURACION",
-    "MAS_DE_UN_ITEM",
-    "DATO_FALTANTE",
-    "MATRICULA_DISTINTA",
-    "RENGLON_INFORMATIVO",
-    "DATO_NO_IMPORTADO",
-    "PACIENTE_DADO_DE_BAJA",
-    "DIFERENCIA_DATOS",
-    "DROGA_SIN_MATCH",
-    "UNIDAD_SIN_MATCH",
-  ];
+  const TODOS = Object.keys(SEVERIDAD_ADVERTENCIA) as CodigoAdvertenciaImportacion[];
 
   it("classifies every notice code, and only RENGLON_INFORMATIVO is informational", () => {
-    expect(Object.keys(SEVERIDAD_ADVERTENCIA).sort()).toEqual([...TODOS].sort());
+    // Exhaustiveness is enforced by the Record type; this guards that the map is not empty and every value is a known severity.
+    expect(TODOS).toContain("RENGLON_INFORMATIVO");
+    expect(TODOS.every((c) => SEVERIDAD_ADVERTENCIA[c] === "advertencia" || SEVERIDAD_ADVERTENCIA[c] === "informativa")).toBe(true);
     expect(TODOS.filter((c) => SEVERIDAD_ADVERTENCIA[c] === "informativa")).toEqual(["RENGLON_INFORMATIVO"]);
     expect(SEVERIDAD_ADVERTENCIA.DATO_NO_IMPORTADO).toBe("advertencia");
   });

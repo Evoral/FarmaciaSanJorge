@@ -122,6 +122,7 @@ Una transacción, permiso `recetas.crear`:
 2. Alta de la receta con `origen = DIGITAL_PDF`, `emisor`, `nroRecetaEmisor`, `urlVerificacion`, diagnóstico e ítems. Se aplican las mismas validaciones V1–V9 que en la carga manual.
 3. Alta de los alias de drogas marcados para recordar.
 4. Auditoría: una entrada por cada alta o modificación (paciente, médico, receta, alias), según INV-A01.
+   Cada entrada lleva `contexto = { origen: "importacion_receta_pdf", fuente }`, con `fuente` = `"PDF"` (por defecto) o `"QR"`. `fuente` la declara el cliente (viaja de la vista previa al payload de confirmación): es solo para auditoría y **no** tiene valor de autorización; ninguna regla ni permiso depende de él.
 
 ## Permisos
 

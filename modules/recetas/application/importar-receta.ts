@@ -18,7 +18,10 @@
  * again for a previous import; drogas/unidades are checked vigentes.
  *
  * `fuente` ("PDF" | "QR", default "PDF") says where the receta was read
- * from; it is audit-only and rides in every audit row's `contexto`.
+ * from; it is audit-only and rides in every audit row's `contexto`. It is
+ * asserted by the client (echoed from the preview) and carries NO
+ * authorization meaning: nothing branches on it, and the same checks run
+ * whatever it says.
  *
  * Audit: `defineCommand`'s built-in `audit` writes exactly ONE row, and
  * this command writes one per affected entity -- so, like
@@ -126,7 +129,7 @@ function toItemsInput(items: ImportarRecetaInput["items"]): ItemInput[] {
 interface Contexto {
   tx: Prisma.TransactionClient;
   session: AuthenticatedSession;
-  /** Recorded as `contexto.fuente` on every audit row of the import. */
+  /** Recorded as `contexto.fuente` on every audit row of the import. Client-asserted, audit-only. */
   fuente: FuenteImportacion;
 }
 

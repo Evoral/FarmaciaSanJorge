@@ -78,7 +78,7 @@ export async function construirVistaPrevia(
   tenantId: string,
   borrador: BorradorReceta,
   advertenciasParser: readonly AdvertenciaParser[],
-  fuente: FuenteImportacion = "PDF",
+  fuente: FuenteImportacion,
 ): Promise<VistaPreviaImportacion> {
   const numeroExistente = await buscarRecetaImportada(tx, tenantId, borrador.emisor, borrador.nroRecetaEmisor);
   if (numeroExistente !== null) throw new DomainError(mensajeRecetaYaImportada(numeroExistente));
@@ -159,7 +159,7 @@ export const leerRecetaPdfQuery = defineQuery({
     const bytes = await validarArchivoRecetaPdf(input.archivo);
     const resultado = parsearRecetaPdf(await extraerTextoRecetaPdf(bytes));
     if (!resultado.ok) throw new ValidationError(resultado.error.mensaje);
-    return construirVistaPrevia(tx, session.tenantId, resultado.borrador, resultado.advertencias);
+    return construirVistaPrevia(tx, session.tenantId, resultado.borrador, resultado.advertencias, "PDF");
   },
 });
 

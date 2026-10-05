@@ -198,13 +198,16 @@ describe("recetas.importar.leer -- trust boundary order (P8)", () => {
 });
 
 describe("recetas.importar.leer -- fuente of the preview", () => {
-  it("a PDF read is tagged PDF; construirVistaPrevia tags what its caller says (QR) and defaults to PDF", async () => {
+  it("a PDF read is tagged PDF; construirVistaPrevia tags what its caller says and has no default", async () => {
     const vista = await leerRecetaPdfQuery.execute({ archivo: pdfFile() }, { session: CON_PERMISO });
     expect(vista.fuente).toBe("PDF");
 
     const borrador = vista.borrador;
     expect((await construirVistaPrevia(FAKE_TX as never, TENANT_ID, borrador, [], "QR")).fuente).toBe("QR");
-    expect((await construirVistaPrevia(FAKE_TX as never, TENANT_ID, borrador, [])).fuente).toBe("PDF");
+    expect((await construirVistaPrevia(FAKE_TX as never, TENANT_ID, borrador, [], "PDF")).fuente).toBe("PDF");
+    // The source is required: omitting it must not typecheck (tsc flags an unused directive if it ever gets a default again).
+    // @ts-expect-error -- fuente is a required parameter
+    await construirVistaPrevia(FAKE_TX as never, TENANT_ID, borrador, []);
   });
 });
 
