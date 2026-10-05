@@ -14,9 +14,10 @@
  *
  * The bytes only ever live in memory: nothing here (or downstream) stores
  * the file, and nothing is logged (DP-24 -- it carries patient data).
- * No runtime dependencies.
+ * The checks themselves live in shared/pdf/validar-archivo-pdf.ts (shared
+ * with the factura de compra import).
  */
-import { ValidationError } from "@/shared/errors";
+import { validarArchivoPdf } from "@/shared/pdf/validar-archivo-pdf";
 
 /** 1 MiB. Server Actions' `bodySizeLimit` (next.config.ts) is this plus the multipart overhead margin -- see `SERVER_ACTIONS_BODY_SIZE_LIMIT_BYTES`. */
 export const MAX_PDF_BYTES = 1024 * 1024;
@@ -36,9 +37,6 @@ export const SERVER_ACTIONS_BODY_SIZE_LIMIT_BYTES = MAX_PDF_BYTES + MULTIPART_MA
 /** A receta is one page; a few pages of slack, but never an unbounded document to extract. */
 export const MAX_PDF_PAGINAS = 5;
 
-const PDF_SIGNATURE = [0x25, 0x50, 0x44, 0x46, 0x2d]; // "%PDF-"
-const SIGNATURE_WINDOW_BYTES = 1024;
-
 export const MENSAJES_ARCHIVO_PDF = {
   noEsArchivo: "Adjuntá el PDF de la receta.",
   vacio: "El archivo está vacío.",
@@ -50,25 +48,7 @@ export const MENSAJES_ARCHIVO_PDF = {
   demasiadasPaginas: `El PDF tiene más de ${MAX_PDF_PAGINAS} páginas; no parece una receta.`,
 } as const;
 
-function tieneFirmaPdf(bytes: Uint8Array): boolean {
-  const limite = Math.min(bytes.length, SIGNATURE_WINDOW_BYTES) - PDF_SIGNATURE.length;
-  for (let i = 0; i <= limite; i++) {
-    if (PDF_SIGNATURE.every((b, j) => bytes[i + j] === b)) return true;
-  }
-  return false;
-}
-
-/**
- * Steps 2-6 above, in that order; returns the file's bytes. Throws
- * `ValidationError` (shown verbatim in the UI) on the first failure.
- */
+/** Steps 2-6 above, in that order (shared/pdf/validar-archivo-pdf.ts); returns the file's bytes. */
 export async function validarArchivoRecetaPdf(archivo: unknown): Promise<Uint8Array> {
-  if (!(archivo instanceof File)) throw new ValidationError(MENSAJES_ARCHIVO_PDF.noEsArchivo);
-  if (archivo.size === 0) throw new ValidationError(MENSAJES_ARCHIVO_PDF.vacio);
-  if (archivo.size > MAX_PDF_BYTES) throw new ValidationError(MENSAJES_ARCHIVO_PDF.demasiadoGrande);
-  if (archivo.type !== "application/pdf") throw new ValidationError(MENSAJES_ARCHIVO_PDF.tipoIncorrecto);
-
-  const bytes = new Uint8Array(await archivo.arrayBuffer());
-  if (!tieneFirmaPdf(bytes)) throw new ValidationError(MENSAJES_ARCHIVO_PDF.sinFirmaPdf);
-  return bytes;
+  return validarArchivoPdf(archivo, MAX_PDF_BYTES, MENSAJES_ARCHIVO_PDF);
 }
