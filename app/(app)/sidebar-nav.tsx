@@ -23,7 +23,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   Archive,
   BookOpen,
@@ -131,6 +131,31 @@ export function SidebarNav(props: SidebarNavProps) {
   const open = openedAt === pathname;
   const setOpen = (value: boolean) => setOpenedAt(value ? pathname : null);
 
+  // Each desktop toggle button disappears when it is used (the aside turns `invisible`, the rail unmounts), which would drop keyboard focus on <body>.
+  // The button sets which counterpart should take focus; the effect applies it once the new state is committed. Stays null on first render and for
+  // changes that did not come from these buttons, so focus is never stolen.
+  const collapseButtonRef = useRef<HTMLButtonElement>(null);
+  const expandButtonRef = useRef<HTMLButtonElement>(null);
+  const focusAfterToggle = useRef<"collapse-button" | "expand-button" | null>(null);
+  const { collapsed } = props;
+
+  useEffect(() => {
+    const target = focusAfterToggle.current;
+    focusAfterToggle.current = null;
+    if (target === "expand-button") expandButtonRef.current?.focus();
+    else if (target === "collapse-button") collapseButtonRef.current?.focus();
+  }, [collapsed]);
+
+  function collapseSidebar() {
+    focusAfterToggle.current = "expand-button";
+    props.onCollapsedChange(true);
+  }
+
+  function expandSidebar() {
+    focusAfterToggle.current = "collapse-button";
+    props.onCollapsedChange(false);
+  }
+
   const groups = buildGroups(props, pathname);
 
   return (
@@ -146,18 +171,19 @@ export function SidebarNav(props: SidebarNavProps) {
       {open ? <div className="fixed inset-0 z-40 bg-zinc-900/30 lg:hidden" onClick={() => setOpen(false)} aria-hidden /> : null}
 
       {/* Desktop collapsed rail: one icon per section (label in a tooltip), in its own gutter so it never overlaps page content. */}
-      {props.collapsed ? <CollapsedRail groups={groups} usuario={props.usuario} logoutAction={props.logoutAction} onExpand={() => props.onCollapsedChange(false)} /> : null}
+      {props.collapsed ? <CollapsedRail groups={groups} usuario={props.usuario} logoutAction={props.logoutAction} expandButtonRef={expandButtonRef} onExpand={expandSidebar} /> : null}
 
       <aside
         id="app-sidebar"
-        className={`glass-panel fixed inset-y-2 left-2 z-50 flex w-60 flex-col transition-[translate,visibility] duration-200 ease-out motion-reduce:transition-none lg:inset-y-3 lg:left-3 ${open ? "visible translate-x-0" : "invisible -translate-x-[calc(100%+1rem)]"} ${props.collapsed ? "lg:invisible lg:-translate-x-[calc(100%+1rem)]" : "lg:visible lg:translate-x-0"}`}
+        // `visibility` flips at once when showing (so the toggle effect can focus inside right away) and only after the 200ms slide when hiding.
+        className={`glass-panel fixed inset-y-2 left-2 z-50 flex w-60 flex-col motion-reduce:transition-none! lg:inset-y-3 lg:left-3 ${open ? "visible translate-x-0 [transition:translate_200ms_ease-out,visibility_0s]" : "invisible -translate-x-[calc(100%+1rem)] [transition:translate_200ms_ease-out,visibility_0s_linear_200ms]"} ${props.collapsed ? "lg:invisible lg:-translate-x-[calc(100%+1rem)] lg:[transition:translate_200ms_ease-out,visibility_0s_linear_200ms]" : "lg:visible lg:translate-x-0 lg:[transition:translate_200ms_ease-out,visibility_0s]"}`}
       >
         <div className="flex h-14 shrink-0 items-center justify-between px-4">
           <Brand />
           <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar menú" className="glass-icon-btn -mr-1.5 lg:hidden">
             <X className="size-5" aria-hidden />
           </button>
-          <button type="button" onClick={() => props.onCollapsedChange(true)} aria-label="Contraer barra lateral" title="Contraer barra lateral" aria-expanded aria-controls="app-sidebar" className="glass-icon-btn -mr-1.5 hidden lg:inline-flex">
+          <button ref={collapseButtonRef} type="button" onClick={collapseSidebar} aria-label="Contraer barra lateral" title="Contraer barra lateral" aria-expanded aria-controls="app-sidebar" className="glass-icon-btn -mr-1.5 hidden lg:inline-flex">
             <PanelLeftClose className="size-4" aria-hidden />
           </button>
         </div>
@@ -207,7 +233,7 @@ function Brand() {
   );
 }
 
-function CollapsedRail({ groups, usuario, logoutAction, onExpand }: { groups: NavGroup[]; usuario: string; logoutAction: () => Promise<void>; onExpand: () => void }) {
+function CollapsedRail({ groups, usuario, logoutAction, onExpand, expandButtonRef }: { groups: NavGroup[]; usuario: string; logoutAction: () => Promise<void>; onExpand: () => void; expandButtonRef: RefObject<HTMLButtonElement | null> }) {
   const [tip, setTip] = useState<RailTip | null>(null);
 
   // Mouse and keyboard focus both show the tooltip, anchored to the element's vertical center.
@@ -222,7 +248,7 @@ function CollapsedRail({ groups, usuario, logoutAction, onExpand }: { groups: Na
     <>
       <div className="glass-panel fixed inset-y-3 left-3 z-40 hidden w-12 flex-col items-center lg:flex">
         <div className="flex h-14 shrink-0 items-center">
-          <button type="button" onClick={onExpand} aria-label="Expandir barra lateral" aria-expanded={false} aria-controls="app-sidebar" className="glass-pill glass-icon-btn text-zinc-700" {...tipHandlers("Expandir barra lateral")}>
+          <button ref={expandButtonRef} type="button" onClick={onExpand} aria-label="Expandir barra lateral" aria-expanded={false} aria-controls="app-sidebar" className="glass-pill glass-icon-btn text-zinc-700" {...tipHandlers("Expandir barra lateral")}>
             <PanelLeftOpen className="size-4" aria-hidden />
           </button>
         </div>
