@@ -1,6 +1,6 @@
 /**
  * Layout for `/proveedores/[id]/**`: only the uuid guard (a malformed id is a 404 here, before any page runs). Each
- * page renders its own header (breadcrumbs back to the list) and the proveedor's "Datos | Trayectoria" tabs
+ * page renders its own header (breadcrumbs back to the list) and the proveedor's "Datos | Historial" tabs
  * (`ProveedorTabs`, ../proveedor-tabs.tsx), so the tabs sit under the proveedor's name. The access guard
  * (`proveedores.gestionar`) is the parent `proveedores/layout.tsx`.
  */

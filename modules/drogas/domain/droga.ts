@@ -39,6 +39,28 @@ export function tipoControlValido(esControlada: boolean, tipoControl: TipoContro
 }
 
 /**
+ * Migration 0063: what a catalog row is. DROGA = active ingredient (the
+ * default); EXCIPIENTE (fillers, vehicles, solvents) and MATERIAL
+ * (capsules, containers) are "insumos": same stock and cost tracking, but
+ * left out of the libro recetario, and never controlled.
+ */
+export const CLASES_DROGA = ["DROGA", "EXCIPIENTE", "MATERIAL"] as const;
+export type ClaseDroga = (typeof CLASES_DROGA)[number];
+
+export const CLASE_DROGA_LABELS: Record<ClaseDroga, string> = {
+  DROGA: "Droga",
+  EXCIPIENTE: "Excipiente",
+  MATERIAL: "Material",
+};
+
+/** Mirrors migration 0063's `droga_clase_no_controlada_check`: only a DROGA can be controlled. */
+export function claseValida(clase: ClaseDroga, tipoControl: TipoControl): boolean {
+  return clase === "DROGA" || tipoControl === "NINGUNO";
+}
+
+export const MENSAJE_INSUMO_CONTROLADO = "Un excipiente o material no puede ser controlado: elegí la clase Droga o el tipo de control Ninguno.";
+
+/**
  * DP-12 (task's binding, conservative decision): once a droga has ANY
  * partida, its esControlada/tipoControl/unidadBaseId become immutable at
  * the application layer -- changing controlled status after partidas exist

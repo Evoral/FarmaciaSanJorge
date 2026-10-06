@@ -27,7 +27,7 @@ import type { ComponenteDePendiente, ItemPendienteFila, RecetaPendienteFila } fr
 export type { ComponenteDePendiente };
 
 export interface ItemPendiente extends ItemPendienteFila {
-  /** In `orden`; empty when the ítem has none. */
+  /** In `ordenarComponentes` order; empty when the ítem has none. */
   componentes: ComponenteDePendiente[];
 }
 

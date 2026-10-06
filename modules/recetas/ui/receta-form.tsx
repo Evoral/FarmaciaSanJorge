@@ -3,14 +3,12 @@
 /**
  * Crear/editar receta (FASE 6 points 6.1/6.3). A sectioned form that holds
  * one or more ítems, each with one or more componentes -- dynamic rows are
- * plain array state (add/remove buttons, up/down reordering for
- * componentes since V3 depends on the CSP componente being LAST in the
- * array: `orden` is assigned from array position server-side, see
- * modules/recetas/infrastructure/receta-repository.ts, so the UI never
- * sends an explicit order number). Every row control has a `<label>` and
- * every add/remove/move control is a real `<button>` (native keyboard
- * operation: Enter/Space activate, Tab moves focus -- no custom
- * mouse-only affordances).
+ * plain array state (add/remove buttons). The componentes of an item have
+ * no order (migration 0065), and whether one is a principio activo is not
+ * asked: the server derives it from the droga's clase (migration 0063).
+ * Every row control has a `<label>` and every add/remove control is a real
+ * `<button>` (native keyboard operation: Enter/Space activate, Tab moves
+ * focus -- no custom mouse-only affordances).
  *
  * V1-V9 (minus V5) are re-validated client-side before submit for instant
  * feedback, mirroring domain/receta.ts EXACTLY -- but the submit still goes
@@ -34,7 +32,7 @@
 import { useActionState, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { AlertCircle, ArrowDown, ArrowUp, Plus, Save, Trash2 } from "lucide-react";
+import { AlertCircle, Plus, Save, Trash2 } from "lucide-react";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { crearRecetaAction, editarRecetaAction, importarRecetaAction } from "./actions";
 import { IDLE_STATE } from "./action-state";
@@ -46,7 +44,7 @@ import { AdvertenciasImportacion, PanelPersona, ResumenImportacion } from "./imp
 import type { VistaPreviaImportacion } from "../domain/importacion-receta";
 import { JURISDICCIONES_MATRICULA, JURISDICCION_MATRICULA_LABELS } from "@/modules/medicos/domain/medico";
 import type { JurisdiccionMatricula } from "@/modules/medicos/domain/medico";
-import { FORMAS_FARMACEUTICAS, MODOS_EXPRESION, ORIGEN_RECETA_LABELS, validarItemsReceta } from "../domain/receta";
+import { FORMAS_FARMACEUTICAS, MODOS_EXPRESION, ORIGEN_RECETA_LABELS, esFormaCapsular, fechaPrescripcionMinima, validarItemsReceta } from "../domain/receta";
 import { FORMA_FARMACEUTICA_LABELS, MODO_EXPRESION_LABELS } from "@/shared/labels/enum-labels";
 import type { FormaFarmaceutica, ModoExpresion, OrigenReceta } from "../domain/receta";
 import type { UnidadOpcion } from "../infrastructure/receta-repository";
@@ -63,7 +61,6 @@ interface ComponenteState {
   cantidad: string;
   unidadMedidaId: string;
   modoExpresion: ModoExpresion;
-  esPrincipioActivo: boolean;
   /** `importar` mode: the drug name as printed on the receta. */
   drogaTexto?: string;
   /** `importar` mode: the catalog had no match -- the user picks it and may remember the equivalence. */
@@ -86,7 +83,7 @@ interface ItemState {
 }
 
 function nuevoComponente(): ComponenteState {
-  return { drogaId: "", drogaNombre: "", cantidad: "", unidadMedidaId: "", modoExpresion: "TOTAL", esPrincipioActivo: false };
+  return { drogaId: "", drogaNombre: "", cantidad: "", unidadMedidaId: "", modoExpresion: "TOTAL" };
 }
 
 function nuevoItem(): ItemState {
@@ -114,6 +111,24 @@ function SubmitButton({ label, pending }: { label: string; pending: boolean }) {
 }
 
 /** A titled block of the form. */
+/** How one dose is split across capsules/tablets; the value is `fraccionDosisPorUnidad`. */
+const FRACCIONES_DOSIS = [
+  { valor: "1", etiqueta: "Dosis entera" },
+  { valor: "0.5", etiqueta: "Media dosis (1/2)" },
+  { valor: "0.333333", etiqueta: "Un tercio de dosis (1/3)" },
+  { valor: "0.25", etiqueta: "Un cuarto de dosis (1/4)" },
+] as const;
+
+/** Maps a stored fraction ("0.50", "1.0000") to its option value, so an edited receta preselects the right one. */
+function opcionFraccion(valor: string): string {
+  return FRACCIONES_DOSIS.find((f) => Number(f.valor) === Number(valor))?.valor ?? valor;
+}
+
+/** Switching forma drops the fields it does not use: the fraction outside capsular forms, the c.s.p. total inside them. */
+function cambioDeForma(formaFarmaceutica: FormaFarmaceutica): Partial<ItemState> {
+  return esFormaCapsular(formaFarmaceutica) ? { formaFarmaceutica, cantidadTotal: "", unidadTotalId: "" } : { formaFarmaceutica, fraccionDosisPorUnidad: "1" };
+}
+
 function FormSection({ title, description, children, id }: { title: string; description?: string; children: ReactNode; id: string }) {
   return (
     <section aria-labelledby={id} className="panel">
@@ -130,14 +145,6 @@ function FormSection({ title, description, children, id }: { title: string; desc
 function fechaVisible(iso: string): string {
   const [y, m, d] = iso.split("-");
   return y && m && d ? `${d}/${m}/${y}` : "";
-}
-
-function moveItem<T>(arr: T[], index: number, dir: -1 | 1): T[] {
-  const target = index + dir;
-  if (target < 0 || target >= arr.length) return arr;
-  const copy = [...arr];
-  [copy[index], copy[target]] = [copy[target]!, copy[index]!];
-  return copy;
 }
 
 export interface RecetaFormInicial {
@@ -186,7 +193,6 @@ function itemsDesdeVistaPrevia(vista: VistaPreviaImportacion): ItemState[] {
         cantidad: c.cantidad,
         unidadMedidaId: match?.unidadMedidaId ?? "",
         modoExpresion: c.modoExpresion,
-        esPrincipioActivo: c.esPrincipioActivo,
         drogaTexto: c.drogaTexto,
         sinMatch: !match?.drogaId,
         recordar: false,
@@ -214,6 +220,10 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   const [medicoLabel, setMedicoLabel] = useState(inicial?.medicoLabel ?? "");
   const borrador = importacion?.borrador ?? null;
   const [fechaPrescripcion, setFechaPrescripcion] = useState(borrador?.fechaPrescripcion ?? inicial?.fechaPrescripcion ?? "");
+  // `crear` mode: a receta whose "válida desde" differs from its prescription date (its month of validity counts from it).
+  const [conValidaDesde, setConValidaDesde] = useState(false);
+  const [fechaValidaDesde, setFechaValidaDesde] = useState("");
+  const fechaValidaDesdeId = useId();
   const [diagnosticoCodigo, setDiagnosticoCodigo] = useState(borrador?.diagnosticoCodigo ?? inicial?.diagnosticoCodigo ?? "");
   const [diagnosticoDescripcion, setDiagnosticoDescripcion] = useState(borrador?.diagnosticoDescripcion ?? inicial?.diagnosticoDescripcion ?? "");
   // Manual alta is always PRESENCIAL; an edit keeps the receta's own origen (domain/receta.ts's validarOrigenCargaManual);
@@ -255,9 +265,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   }
 
   function actualizarComponente(itemIdx: number, compIdx: number, patch: Partial<ComponenteState>) {
-    setItems((prev) =>
-      prev.map((it, i) => (i === itemIdx ? { ...it, componentes: it.componentes.map((c, j) => (j === compIdx ? { ...c, ...patch } : c)) } : it)),
-    );
+    setItems((prev) => prev.map((it, i) => (i === itemIdx ? { ...it, componentes: it.componentes.map((c, j) => (j === compIdx ? { ...c, ...patch } : c)) } : it)));
   }
 
   function agregarItem() {
@@ -274,10 +282,6 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
 
   function quitarComponente(itemIdx: number, compIdx: number) {
     setItems((prev) => prev.map((it, i) => (i === itemIdx ? { ...it, componentes: it.componentes.filter((_, j) => j !== compIdx) } : it)));
-  }
-
-  function moverComponente(itemIdx: number, compIdx: number, dir: -1 | 1) {
-    setItems((prev) => prev.map((it, i) => (i === itemIdx ? { ...it, componentes: moveItem(it.componentes, compIdx, dir) } : it)));
   }
 
   function itemsParaEnvio() {
@@ -297,7 +301,6 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
         cantidad: c.cantidad.trim().length > 0 ? c.cantidad.trim() : null,
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
-        esPrincipioActivo: c.esPrincipioActivo,
       })),
     }));
   }
@@ -536,11 +539,44 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
 
         <FormSection id={`${personaIdBase}-datos`} title="Datos de la receta">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[auto_minmax(0,1fr)_8rem_minmax(0,2fr)]">
-            <div className="field">
-              <label htmlFor={fechaId} className="field-label">
-                Fecha de prescripción
-              </label>
-              <DateInput id={fechaId} name="fechaPrescripcion" required disabled={disabled} value={fechaPrescripcion} onValueChange={setFechaPrescripcion} max={jornadaDe(new Date())} />
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="field">
+                <label htmlFor={fechaId} className="field-label">
+                  Fecha de prescripción
+                </label>
+                <DateInput
+                  id={fechaId}
+                  name="fechaPrescripcion"
+                  required
+                  disabled={disabled}
+                  value={fechaPrescripcion}
+                  onValueChange={setFechaPrescripcion}
+                  min={mode === "editar" || conValidaDesde || importacion?.borrador.fechaValidaDesde ? undefined : fechaPrescripcionMinima(jornadaDe(new Date()))}
+                  max={jornadaDe(new Date())}
+                />
+              </div>
+              {mode === "crear" && conValidaDesde ? (
+                <div className="field">
+                  <label htmlFor={fechaValidaDesdeId} className="field-label">
+                    Válida desde
+                  </label>
+                  <DateInput
+                    id={fechaValidaDesdeId}
+                    name="fechaValidaDesde"
+                    required
+                    disabled={disabled}
+                    value={fechaValidaDesde}
+                    onValueChange={setFechaValidaDesde}
+                    min={[fechaPrescripcion, fechaPrescripcionMinima(jornadaDe(new Date()))].sort().at(-1)}
+                  />
+                </div>
+              ) : null}
+              {mode === "crear" ? (
+                <label className="toggle-switch max-w-64 text-[0.8125rem] leading-snug text-zinc-500" aria-label="La receta tiene una fecha de validez distinta de su fecha de prescripción">
+                  <input type="checkbox" role="switch" checked={conValidaDesde} disabled={disabled} onChange={(e) => setConValidaDesde(e.target.checked)} />
+                  {conValidaDesde ? null : "La receta tiene una fecha de validez distinta de su fecha de prescripción."}
+                </label>
+              ) : null}
             </div>
 
             <div className="field">
@@ -623,7 +659,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                     <label htmlFor={`item-${itemIdx}-forma`} className="field-label">
                       Forma farmacéutica
                     </label>
-                    <select id={`item-${itemIdx}-forma`} value={item.formaFarmaceutica} onChange={(e) => actualizarItem(itemIdx, { formaFarmaceutica: e.target.value as FormaFarmaceutica })} className="input">
+                    <select id={`item-${itemIdx}-forma`} value={item.formaFarmaceutica} onChange={(e) => actualizarItem(itemIdx, cambioDeForma(e.target.value as FormaFarmaceutica))} className="input">
                       {FORMAS_FARMACEUTICAS.map((f) => (
                         <option key={f} value={f}>
                           {FORMA_FARMACEUTICA_LABELS[f]}
@@ -643,6 +679,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                       step={1}
                       value={item.duracionTratamientoDias}
                       onChange={(e) => actualizarItem(itemIdx, { duracionTratamientoDias: e.target.value })}
+                      placeholder="Opcional"
                       aria-label="Duración del tratamiento (días)"
                       className="input"
                     />
@@ -655,55 +692,67 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                     <input id={`item-${itemIdx}-cu`} type="number" min={1} step={1} value={item.cantidadUnidades} onChange={(e) => actualizarItem(itemIdx, { cantidadUnidades: e.target.value })} className="input" />
                   </div>
 
-                  <div className="field">
-                    <label htmlFor={`item-${itemIdx}-frac`} className="field-label">
-                      Fracción de dosis por unidad
-                    </label>
-                    <input id={`item-${itemIdx}-frac`} type="text" inputMode="decimal" value={item.fraccionDosisPorUnidad} onChange={(e) => actualizarItem(itemIdx, { fraccionDosisPorUnidad: e.target.value })} className="input" />
-                  </div>
-
-                  <div className="field sm:col-span-2">
-                    <span id={`item-${itemIdx}-total-label`} className="field-label">
-                      Cantidad total (para csp)
-                    </span>
-                    <div className="flex gap-2" role="group" aria-labelledby={`item-${itemIdx}-total-label`}>
-                      <label htmlFor={`item-${itemIdx}-total`} className="sr-only">
-                        Cantidad total (para csp)
+                  {esFormaCapsular(item.formaFarmaceutica) ? (
+                    <div className="field">
+                      <label htmlFor={`item-${itemIdx}-frac`} className="field-label">
+                        Dosis por unidad
                       </label>
-                      <input id={`item-${itemIdx}-total`} type="text" inputMode="decimal" value={item.cantidadTotal} onChange={(e) => actualizarItem(itemIdx, { cantidadTotal: e.target.value })} className="input w-28 flex-none" />
-                      <label htmlFor={`item-${itemIdx}-unidad-total`} className="sr-only">
-                        Unidad del total
-                      </label>
-                      <select id={`item-${itemIdx}-unidad-total`} value={item.unidadTotalId} onChange={(e) => actualizarItem(itemIdx, { unidadTotalId: e.target.value })} className="input min-w-0 flex-1">
-                        <option value="">Sin unidad</option>
-                        {unidades.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.nombre} ({u.simbolo})
+                      <select id={`item-${itemIdx}-frac`} value={opcionFraccion(item.fraccionDosisPorUnidad)} onChange={(e) => actualizarItem(itemIdx, { fraccionDosisPorUnidad: e.target.value })} className="input">
+                        {FRACCIONES_DOSIS.map((f) => (
+                          <option key={f.valor} value={f.valor}>
+                            {f.etiqueta}
                           </option>
                         ))}
+                        {FRACCIONES_DOSIS.some((f) => f.valor === opcionFraccion(item.fraccionDosisPorUnidad)) ? null : (
+                          <option value={item.fraccionDosisPorUnidad}>{item.fraccionDosisPorUnidad}</option>
+                        )}
                       </select>
                     </div>
-                  </div>
+                  ) : null}
+
+                  {esFormaCapsular(item.formaFarmaceutica) ? null : (
+                    <div className="field sm:col-span-2">
+                      <span id={`item-${itemIdx}-total-label`} className="field-label">
+                        Cantidad total (para csp)
+                      </span>
+                      <div className="flex gap-2" role="group" aria-labelledby={`item-${itemIdx}-total-label`}>
+                        <label htmlFor={`item-${itemIdx}-total`} className="sr-only">
+                          Cantidad total (para csp)
+                        </label>
+                        <input id={`item-${itemIdx}-total`} type="text" inputMode="decimal" value={item.cantidadTotal} onChange={(e) => actualizarItem(itemIdx, { cantidadTotal: e.target.value })} className="input w-28 flex-none" />
+                        <label htmlFor={`item-${itemIdx}-unidad-total`} className="sr-only">
+                          Unidad del total
+                        </label>
+                        <select id={`item-${itemIdx}-unidad-total`} value={item.unidadTotalId} onChange={(e) => actualizarItem(itemIdx, { unidadTotalId: e.target.value })} className="input min-w-0 flex-1">
+                          <option value="">Sin unidad</option>
+                          {unidades.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.nombre} ({u.simbolo})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="field sm:col-span-2">
                     <label htmlFor={`item-${itemIdx}-posologia`} className="field-label">
                       Posología
                     </label>
-                    <input id={`item-${itemIdx}-posologia`} value={item.posologia} onChange={(e) => actualizarItem(itemIdx, { posologia: e.target.value })} placeholder="Ej.: 1 cada 12 horas" className="input" />
+                    <input id={`item-${itemIdx}-posologia`} value={item.posologia} onChange={(e) => actualizarItem(itemIdx, { posologia: e.target.value })} placeholder="Opcional · Ej.: 1 cada 12 horas" className="input" />
                   </div>
 
                   <div className="field sm:col-span-2">
                     <label htmlFor={`item-${itemIdx}-obs`} className="field-label">
                       Observaciones
                     </label>
-                    <input id={`item-${itemIdx}-obs`} value={item.observaciones} onChange={(e) => actualizarItem(itemIdx, { observaciones: e.target.value })} className="input" />
+                    <input id={`item-${itemIdx}-obs`} value={item.observaciones} onChange={(e) => actualizarItem(itemIdx, { observaciones: e.target.value })} placeholder="Opcional" className="input" />
                   </div>
                 </div>
 
                 <div>
-                  <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2 border-b border-zinc-200 pb-2">
+                  <div className="mb-1 border-b border-zinc-200 pb-2">
                     <h3 className="text-sm font-semibold text-zinc-900">Componentes</h3>
-                    <p className="text-xs text-zinc-500">El orden se guarda tal cual: el componente csp va último.</p>
                   </div>
 
                   <ol>
@@ -787,30 +836,13 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                           </select>
                         </div>
 
-                        <label className="flex min-h-[2rem] items-center gap-2 text-xs text-zinc-700">
-                          <input type="checkbox" checked={c.esPrincipioActivo} onChange={(e) => actualizarComponente(itemIdx, compIdx, { esPrincipioActivo: e.target.checked })} />
-                          Principio activo
-                        </label>
-
-                        <div className="ml-auto flex items-center gap-0.5">
-                          <button type="button" aria-label={`Mover componente ${compIdx + 1} hacia arriba`} disabled={compIdx === 0} onClick={() => moverComponente(itemIdx, compIdx, -1)} className="btn btn-ghost btn-sm btn-icon">
-                            <ArrowUp className="size-3.5" aria-hidden />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`Mover componente ${compIdx + 1} hacia abajo`}
-                            disabled={compIdx === item.componentes.length - 1}
-                            onClick={() => moverComponente(itemIdx, compIdx, 1)}
-                            className="btn btn-ghost btn-sm btn-icon"
-                          >
-                            <ArrowDown className="size-3.5" aria-hidden />
-                          </button>
-                          {item.componentes.length > 1 ? (
+                        {item.componentes.length > 1 ? (
+                          <div className="ml-auto flex items-center">
                             <button type="button" aria-label={`Quitar componente ${compIdx + 1}`} onClick={() => quitarComponente(itemIdx, compIdx)} className="btn btn-danger-ghost btn-sm btn-icon">
                               <Trash2 className="size-3.5" aria-hidden />
                             </button>
-                          ) : null}
-                        </div>
+                          </div>
+                        ) : null}
 
                         {importacion && c.sinMatch && c.drogaTexto ? (
                           <label className="flex w-full items-center gap-2 text-xs text-zinc-700">

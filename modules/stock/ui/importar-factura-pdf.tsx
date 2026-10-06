@@ -9,7 +9,7 @@
  * file is picked. The size pre-check is only for a clearer message.
  */
 import { useActionState, useEffect, useId, useState, type ChangeEvent } from "react";
-import { AlertCircle, FileUp } from "lucide-react";
+import { AlertCircle, FileUp, X } from "lucide-react";
 import { leerFacturaCompraPdfAction } from "./actions";
 import { IDLE_LEER_FACTURA_STATE } from "./action-state";
 import { MAX_FACTURA_PDF_BYTES, MENSAJES_ARCHIVO_FACTURA } from "../domain/factura-compra-pdf-parser";
@@ -79,7 +79,8 @@ export function ImportarFacturaPdf({ onLeida, onDescartar, importando }: Importa
             </p>
           ) : null}
           {importando ? (
-            <button type="button" onClick={onDescartar} className="btn btn-ghost btn-sm">
+            <button type="button" onClick={onDescartar} className="btn btn-secondary btn-sm">
+              <X className="size-4" aria-hidden />
               Descartar importación
             </button>
           ) : null}

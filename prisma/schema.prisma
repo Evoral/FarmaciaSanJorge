@@ -124,6 +124,16 @@ enum TipoControl {
   @@schema("fsj")
 }
 
+/// Migration 0063. Non-DROGA rows keep stock and cost but never reach the libro recetario.
+enum ClaseDroga {
+  DROGA
+  EXCIPIENTE
+  MATERIAL
+
+  @@map("clase_droga")
+  @@schema("fsj")
+}
+
 enum TipoMovimiento {
   INGRESO_COMPRA
   EGRESO_PREPARACION
@@ -588,6 +598,8 @@ model Droga {
   densidad     Decimal?    @db.Decimal
   esControlada Boolean     @default(false) @map("es_controlada")
   tipoControl  TipoControl @default(NINGUNO) @map("tipo_control")
+  /// Migration 0063: DROGA | EXCIPIENTE | MATERIAL. Only a DROGA can be controlled (droga_clase_no_controlada_check). Column-level UPDATE grant.
+  clase        ClaseDroga  @default(DROGA)
   stockMinimo  Decimal     @default(0) @map("stock_minimo") @db.Decimal
   fechaBaja    DateTime?   @map("fecha_baja") @db.Timestamptz(6)
   motivoBaja   String?     @map("motivo_baja")
@@ -719,7 +731,8 @@ model Partida {
   /// INV-S01/S04: read-only from the app's perspective -- see migration 0008.
   cantidadDisponible      Decimal   @default(0) @map("cantidad_disponible") @db.Decimal
   fechaIngreso            DateTime  @default(now()) @map("fecha_ingreso") @db.Timestamptz(6)
-  fechaVencimiento        DateTime  @map("fecha_vencimiento") @db.Date
+  /// Migration 0064: NULL = does not expire -- only for an insumo (droga.clase <> DROGA, trg_partida_validar_vencimiento).
+  fechaVencimiento        DateTime? @map("fecha_vencimiento") @db.Date
   /// INV-S16/S17: read-only from the app's perspective -- see migration 0008.
   fechaApertura           DateTime? @map("fecha_apertura") @db.Timestamptz(6)
   motivoAperturaAdicional String?   @map("motivo_apertura_adicional")
@@ -916,15 +929,16 @@ model ComponenteItemReceta {
   cantidad          Decimal?      @db.Decimal
   unidadMedidaId    String        @map("unidad_medida_id") @db.Uuid
   modoExpresion     ModoExpresion @map("modo_expresion")
+  /// Snapshot written by the app on insert: true iff the droga's clase is DROGA (migration 0063); not kept in sync with later catalog changes.
   esPrincipioActivo Boolean       @default(false) @map("es_principio_activo")
-  orden             Int
 
   itemReceta   ItemReceta   @relation(fields: [itemRecetaId], references: [id])
   droga        Droga        @relation(fields: [drogaId], references: [id])
   unidadMedida UnidadMedida @relation(fields: [unidadMedidaId], references: [id])
 
   @@unique([tenantId, id])
-  @@unique([tenantId, itemRecetaId, orden])
+  /// Migration 0065: the componentes of an item (they have no order -- orden was dropped).
+  @@index([tenantId, itemRecetaId], map: "idx_componente_item_receta_tenant_item")
   @@map("componente_item_receta")
   @@schema("fsj")
 }

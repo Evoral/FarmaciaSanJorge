@@ -103,7 +103,6 @@ export interface BorradorComponente {
   unidadTexto: string;
   /** The dose printed on the receta is the full dose (spec, "Reglas del ítem"). */
   modoExpresion: "POR_DOSIS";
-  esPrincipioActivo: true;
 }
 
 export interface BorradorItem {
@@ -428,7 +427,7 @@ export function parsearCuerpo(lineas: readonly string[]): ResultadoCuerpo {
     switch (c.clase) {
       case "componente":
         if (item.cantidadUnidades !== null) avisarMultiplesItems(texto);
-        item.componentes.push({ drogaTexto: c.drogaTexto, cantidad: c.cantidad, unidadTexto: c.unidadTexto, modoExpresion: "POR_DOSIS", esPrincipioActivo: true });
+        item.componentes.push({ drogaTexto: c.drogaTexto, cantidad: c.cantidad, unidadTexto: c.unidadTexto, modoExpresion: "POR_DOSIS" });
         return;
       case "presentacion":
         if (item.cantidadUnidades !== null) {

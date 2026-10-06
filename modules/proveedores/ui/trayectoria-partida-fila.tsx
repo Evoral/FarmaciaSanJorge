@@ -245,7 +245,7 @@ export function TrayectoriaPartidaCeldas({ partida, acceso, zonaHoraria, catalog
         </span>
         <span className="sr-only">, disponible</span> <Cantidad valor={disponible} />
       </td>
-      <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono tabular-nums sm:table-cell">{formatFecha(partida.fechaVencimiento)}</td>
+      <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono tabular-nums sm:table-cell">{partida.fechaVencimiento ? formatFecha(partida.fechaVencimiento) : "No vence"}</td>
       <td className="px-3 py-2.5">
         <StatusBadge estado={partida.estado} />
       </td>
@@ -276,7 +276,7 @@ export function TrayectoriaPartidaDetalle({ partida, acceso, zonaHoraria, catalo
           <Dato etiqueta="Saldo disponible">
             <Cantidad valor={disponible} />
           </Dato>
-          <Dato etiqueta="Vencimiento">{formatFecha(partida.fechaVencimiento)}</Dato>
+          <Dato etiqueta="Vencimiento">{partida.fechaVencimiento ? formatFecha(partida.fechaVencimiento) : "No vence"}</Dato>
           <Dato etiqueta="Apertura">{partida.fechaApertura ? formatFecha(partida.fechaApertura, zonaHoraria) : "Cerrada"}</Dato>
         </dl>
         {acceso.linkPartida ? (

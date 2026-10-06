@@ -22,6 +22,7 @@
  * See docs/specs/trayectoria-paciente.md and trayectoria-repository.ts.
  */
 import type { Prisma } from "@/generated/prisma/client";
+import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
 import { inicioVentanaRecurrentes } from "../domain/recurrentes";
 import type { ItemRecurrenteCrudo, RecurrentesCrudos } from "../domain/recurrentes";
 
@@ -34,7 +35,6 @@ const SELECT_ITEM = {
   formaFarmaceutica: true,
   duracionTratamientoDias: true,
   componentes: {
-    orderBy: { orden: "asc" },
     select: {
       drogaId: true,
       cantidad: true,
@@ -86,14 +86,16 @@ export async function getRecurrentesCrudos(tx: Prisma.TransactionClient, tenantI
     descripcion: r.descripcion,
     formaFarmaceutica: r.formaFarmaceutica,
     duracionTratamientoDias: r.duracionTratamientoDias,
-    componentes: r.componentes.map((c) => ({
-      drogaId: c.drogaId,
-      drogaNombre: c.droga.nombre,
-      cantidad: c.cantidad === null ? null : c.cantidad.toString(),
-      unidadMedidaId: c.unidadMedidaId,
-      unidadSimbolo: c.unidadMedida.simbolo,
-      modoExpresion: c.modoExpresion,
-    })),
+    componentes: ordenarComponentes(
+      r.componentes.map((c) => ({
+        drogaId: c.drogaId,
+        drogaNombre: c.droga.nombre,
+        cantidad: c.cantidad === null ? null : c.cantidad.toString(),
+        unidadMedidaId: c.unidadMedidaId,
+        unidadSimbolo: c.unidadMedida.simbolo,
+        modoExpresion: c.modoExpresion,
+      })),
+    ),
     receta: { id: r.receta.id, fechaIngreso: r.receta.fechaIngreso, estado: r.receta.estado },
     paciente: r.receta.paciente,
   }));

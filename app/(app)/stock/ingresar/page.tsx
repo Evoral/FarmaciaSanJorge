@@ -25,13 +25,14 @@ export default async function IngresarPartidaPage() {
       <PageHeader
         breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Stock", href: "/stock" }, { label: "Ingresar partida" }]}
         title="Ingresar partida"
-        description="Registrá una compra a mano o importá la factura del proveedor: cada lote se suma al stock como una partida nueva."
+        description="Cargá la factura del proveedor a mano o importá su PDF: cada lote se suma al stock como una partida nueva."
       />
       <div className="max-w-4xl">
         <IngresarPartida
-          drogas={drogas.map((droga) => ({ id: droga.id, label: droga.nombre, tipoMagnitud: droga.tipoMagnitud }))}
+          drogas={drogas.map((droga) => ({ id: droga.id, label: droga.nombre, tipoMagnitud: droga.tipoMagnitud, clase: droga.clase }))}
           proveedores={proveedores.map((proveedor) => ({ id: proveedor.id, label: proveedor.razonSocial }))}
-          unidades={unidades.map((unidad) => ({ id: unidad.id, label: `${unidad.nombre} (${unidad.simbolo})`, tipoMagnitud: unidad.tipoMagnitud }))}
+          puedeCrearProducto={can(session, "drogas.crear")}
+          unidades={unidades.map((unidad) => ({ id: unidad.id, label: `${unidad.nombre} (${unidad.simbolo})`, tipoMagnitud: unidad.tipoMagnitud, simbolo: unidad.simbolo }))}
         />
       </div>
     </div>

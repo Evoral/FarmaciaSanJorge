@@ -25,6 +25,7 @@
  * via `asientoOriginalId`) -- never by `pacienteTexto`, which is free text.
  */
 import type { Prisma } from "@/generated/prisma/client";
+import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
 import { calcularPaginacion } from "../domain/trayectoria";
 import type {
   AccesoTrayectoria,
@@ -105,7 +106,7 @@ async function readItems(tx: Prisma.TransactionClient, tenantId: string, recetaI
       descripcion: true,
       formaFarmaceutica: true,
       cantidadUnidades: true,
-      componentes: { orderBy: { orden: "asc" }, select: { droga: { select: { nombre: true } } } },
+      componentes: { select: { modoExpresion: true, droga: { select: { nombre: true } } } },
     },
   });
   return rows.map((r) => ({
@@ -114,7 +115,7 @@ async function readItems(tx: Prisma.TransactionClient, tenantId: string, recetaI
     descripcion: r.descripcion,
     formaFarmaceutica: r.formaFarmaceutica,
     cantidadUnidades: r.cantidadUnidades,
-    drogas: r.componentes.map((c) => c.droga.nombre),
+    drogas: ordenarComponentes(r.componentes.map((c) => ({ modoExpresion: c.modoExpresion, drogaNombre: c.droga.nombre }))).map((c) => c.drogaNombre),
   }));
 }
 

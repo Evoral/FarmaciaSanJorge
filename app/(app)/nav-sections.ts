@@ -27,7 +27,7 @@ import { can } from "@/shared/auth/authorize";
 export interface SectionLink {
   href: string;
   label: string;
-  /** Active ONLY on this exact path, not on its sub-paths (a tab whose href is a prefix of a sibling tab's, e.g. `/pacientes/[id]` vs `/pacientes/[id]/trayectoria`). */
+  /** Active ONLY on this exact path, not on its sub-paths (a tab whose href is a prefix of a sibling tab's, e.g. `/pacientes/[id]` vs `/pacientes/[id]/historial`). */
   exact?: boolean;
 }
 

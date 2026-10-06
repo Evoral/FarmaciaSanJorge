@@ -45,7 +45,7 @@
  * exclusively inside `proponerReparto`).
  */
 import { Decimal, dec } from "@/shared/decimal";
-import { proponerReparto } from "@/modules/stock/domain/reparto";
+import { estaVencida, proponerReparto } from "@/modules/stock/domain/reparto";
 import type { PartidaDisponible } from "@/modules/stock/domain/reparto";
 import { calcularPrecioFinal } from "./regla-precio";
 import type { ReglasPrecio } from "./regla-precio";
@@ -112,7 +112,7 @@ export interface CotizacionCalculada {
  */
 function totalDisponibleElegible(partidas: readonly PartidaDisponible[], jornadaActual: string): Decimal {
   return partidas
-    .filter((p) => p.fechaVencimiento >= jornadaActual && dec(p.cantidadDisponible).greaterThan(0))
+    .filter((p) => !estaVencida(p.fechaVencimiento, jornadaActual) && dec(p.cantidadDisponible).greaterThan(0))
     .reduce((total, p) => total.plus(dec(p.cantidadDisponible)), new Decimal(0));
 }
 

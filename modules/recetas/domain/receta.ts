@@ -12,7 +12,7 @@
  * Source of truth for V1-V9: docs/specs/ficha-tecnica.md, already
  * implemented as DB CHECKs/deferred constraint triggers (migration 0011)
  * PLUS a full pure calculator (modules/elaboracion/domain/calcular-ficha-tecnica.ts,
- * FASE 1 point 1.10). V1/V2/V3/V6/V7/V8/V9 are re-implemented here (cheap,
+ * FASE 1 point 1.10). V1/V2/V6/V7/V8/V9 are re-implemented here (cheap,
  * no DB lookups) so a receta form gets a clear Spanish message before ever
  * reaching the DB. V4 is [APP]-only everywhere (migration 0011 header: "not
  * DB-enforceable"). **V5 is deliberately NOT checked here** -- it requires
@@ -53,6 +53,11 @@ export const MODOS_EXPRESION = ["TOTAL", "POR_DOSIS", "CS", "CSP"] as const sati
 export { FORMA_FARMACEUTICA_LABELS, ORIGEN_RECETA_LABELS } from "@/shared/labels/enum-labels";
 
 const FORMAS_CAPSULARES: ReadonlySet<FormaFarmaceutica> = new Set(["CAPSULA", "COMPRIMIDO"]);
+
+/** Capsular formas take a dose fraction per unit and fill their c.s.p. by volume, so they have no c.s.p. total. */
+export function esFormaCapsular(forma: FormaFarmaceutica): boolean {
+  return FORMAS_CAPSULARES.has(forma);
+}
 
 export type OrigenReceta = "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO";
 export const ORIGENES_RECETA = ["PRESENCIAL", "DIGITAL_PDF", "DIGITAL_FOTO"] as const satisfies readonly OrigenReceta[];
@@ -191,6 +196,24 @@ export function esFechaPrescripcionValida(fechaPrescripcion: string, jornadaActu
   return fechaPrescripcion <= jornadaActual;
 }
 
+/**
+ * Earliest `fechaPrescripcion` still accepted on `jornadaActual`: a receta
+ * lasts one calendar month, so it is the same day one month back. When that
+ * day does not exist in the previous month, the month's last day is used
+ * (e.g. on 03-31 the limit is 02-28/29, so a receta from 02-28 or later is
+ * accepted; on 03-01 the limit is 02-01).
+ */
+export function fechaPrescripcionMinima(jornadaActual: string): string {
+  const [year, month, day] = jornadaActual.split("-").map(Number);
+  const ultimoDiaMesAnterior = new Date(Date.UTC(year, month - 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month - 2, Math.min(day, ultimoDiaMesAnterior))).toISOString().slice(0, 10);
+}
+
+/** A receta prescribed more than one month before `jornadaActual` has expired. */
+export function esFechaPrescripcionVigente(fechaPrescripcion: string, jornadaActual: string): boolean {
+  return fechaPrescripcion >= fechaPrescripcionMinima(jornadaActual);
+}
+
 // ============================================================================
 // V1-V9 (app-level pre-check, minus V5 -- see module doc comment)
 // ============================================================================
@@ -201,7 +224,6 @@ export interface ComponenteInput {
   cantidad: string | null;
   unidadMedidaId: string;
   modoExpresion: ModoExpresion;
-  esPrincipioActivo: boolean;
 }
 
 export interface ItemInput {
@@ -221,11 +243,11 @@ export interface ItemInput {
 }
 
 /**
- * A V1-V9 rule violation (docs/specs/ficha-tecnica.md). `regla` keeps the
- * spec code for tests and diagnostics; the user-facing message never
- * includes it.
+ * A V1-V9 rule violation (docs/specs/ficha-tecnica.md; V3 was removed with
+ * the componentes' order, migration 0065). `regla` keeps the spec code for
+ * tests and diagnostics; the user-facing message never includes it.
  */
-export type ReglaReceta = "V1" | "V2" | "V3" | "V4" | "V6" | "V7" | "V8" | "V9";
+export type ReglaReceta = "V1" | "V2" | "V4" | "V6" | "V7" | "V8" | "V9";
 
 export class ReglaRecetaError extends ValidationError {
   readonly regla: ReglaReceta;
@@ -254,11 +276,8 @@ function parseDecimalOrFail(value: string, regla: ReglaReceta, message: string):
  * DB, mirroring migration 0011's CHECKs/deferred constraint triggers with
  * clear Spanish messages. Throws `ValidationError` on the FIRST violation
  * found (same "fail fast" posture as the DB's own non-deferred CHECKs).
- * `orden` is NOT part of the input here -- callers (the application layer)
- * assign it from each componente's position in its array, so the UI never
- * has to manage an explicit order number (see
- * modules/recetas/infrastructure/receta-repository.ts's insert/replace
- * functions).
+ * The componentes of an item have no order (migration 0065), so none of
+ * these rules depends on their position.
  */
 export function validarItemsReceta(items: ItemInput[]): void {
   // INV-R01 (app-level pre-check; the DB's deferred constraint trigger is the real backstop).
@@ -320,13 +339,8 @@ export function validarItemsReceta(items: ItemInput[]): void {
       throw new ReglaRecetaError("V2", `El ítem ${n} tiene más de un componente csp (solo se permite uno).`);
     }
 
-    // V3 -- "último orden" = último de la lista, en el orden en que el usuario los cargó.
-    if (csp.length === 1 && item.componentes[item.componentes.length - 1]!.modoExpresion !== "CSP") {
-      throw new ReglaRecetaError("V3", `En el ítem ${n}, el componente csp debe ser el último de la lista.`);
-    }
-
     // V4 -- solo aplica a formas no capsulares (docs/specs/ficha-tecnica.md, aclaración de T3).
-    const esCapsular = FORMAS_CAPSULARES.has(item.formaFarmaceutica);
+    const esCapsular = esFormaCapsular(item.formaFarmaceutica);
     if (csp.length === 1 && !esCapsular && (item.cantidadTotal === null || item.unidadTotalId === null)) {
       throw new ReglaRecetaError(
         "V4",

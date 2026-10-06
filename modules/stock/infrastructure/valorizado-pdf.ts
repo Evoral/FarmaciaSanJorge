@@ -71,7 +71,7 @@ export function buildValorizadoPdf(items: ValorizadoItem[], options: ValorizadoP
 
       const y = doc.y;
       let x = x0;
-      const values = [item.drogaNombre, item.lote, item.fechaVencimiento, `${item.cantidadDisponible} ${item.unidadSimbolo}`, item.costoUnitario, item.valor];
+      const values = [item.drogaNombre, item.lote, item.fechaVencimiento ?? "No vence", `${item.cantidadDisponible} ${item.unidadSimbolo}`, item.costoUnitario, item.valor];
       for (let i = 0; i < COLS.length; i++) {
         doc.text(values[i], x, y, { width: COLS[i].width, height: ROW_HEIGHT, ellipsis: true, lineBreak: false });
         x += COLS[i].width;

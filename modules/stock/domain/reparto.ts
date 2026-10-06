@@ -41,8 +41,8 @@ export interface PartidaDisponible {
   id: string;
   /** partida.cantidad_disponible, as of the read that produced this list. */
   cantidadDisponible: Decimal | string;
-  /** `YYYY-MM-DD`. */
-  fechaVencimiento: string;
+  /** `YYYY-MM-DD`; `null` = does not expire (an insumo, migration 0064). */
+  fechaVencimiento: string | null;
   /** ISO-8601 instant, or `null` if the partida has never been opened. */
   fechaApertura: string | null;
 }
@@ -56,9 +56,17 @@ export type PropuestaRepartoResultado =
   | { ok: true; lineas: readonly PropuestaLinea[] }
   | { ok: false; motivo: "STOCK_INSUFICIENTE"; faltante: Decimal };
 
-/** `true` when `fechaVencimiento` is strictly before `jornadaActual` (both `YYYY-MM-DD`, safe to compare lexically). */
-function estaVencida(fechaVencimiento: string, jornadaActual: string): boolean {
-  return fechaVencimiento < jornadaActual;
+/** `true` when `fechaVencimiento` is strictly before `jornadaActual` (both `YYYY-MM-DD`, safe to compare lexically). A partida that does not expire never is. */
+export function estaVencida(fechaVencimiento: string | null, jornadaActual: string): boolean {
+  return fechaVencimiento !== null && fechaVencimiento < jornadaActual;
+}
+
+/** FEFO order; a partida that does not expire goes last. */
+function compararVencimiento(a: string | null, b: string | null): number {
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return a < b ? -1 : 1;
 }
 
 /**
@@ -81,7 +89,7 @@ export function ordenarParaConsumo<T extends PartidaDisponible>(partidas: readon
   const cerradas = elegibles
     .filter((p) => p.fechaApertura === null)
     .slice()
-    .sort((a, b) => (a.fechaVencimiento < b.fechaVencimiento ? -1 : a.fechaVencimiento > b.fechaVencimiento ? 1 : 0));
+    .sort((a, b) => compararVencimiento(a.fechaVencimiento, b.fechaVencimiento));
 
   return [...abiertas, ...cerradas];
 }

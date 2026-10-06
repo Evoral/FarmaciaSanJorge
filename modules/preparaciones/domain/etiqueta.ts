@@ -12,6 +12,8 @@
  */
 import { formatNumero } from "@/shared/format/cantidad";
 import { FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
+import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
+import type { ModoExpresion } from "@/modules/recetas/domain/receta";
 
 type FormaFarmaceutica = keyof typeof FORMA_FARMACEUTICA_LABELS;
 
@@ -20,9 +22,9 @@ export interface ComponenteEtiqueta {
   /** Decimal string as prescribed; `null` for CS/CSP. */
   cantidad: string | null;
   unidadSimbolo: string;
-  modoExpresion: string;
+  modoExpresion: ModoExpresion;
+  /** Snapshot of the droga's clase = DROGA when the receta was saved. */
   esPrincipioActivo: boolean;
-  orden: number;
 }
 
 export interface DatosEtiqueta {
@@ -97,10 +99,11 @@ export function viaDeAdministracion(forma: string, cantidad: number): string | n
 
 /**
  * PENDING (DP-28): "Rp/" lists only the principios activos; when none is
- * flagged, every componente except the CS/CSP excipient.
+ * flagged, every componente except the CS/CSP excipient. In
+ * `ordenarComponentes` order.
  */
 export function componentesRp(componentes: readonly ComponenteEtiqueta[]): ComponenteEtiqueta[] {
-  const ordenados = [...componentes].sort((a, b) => a.orden - b.orden);
+  const ordenados = ordenarComponentes(componentes);
   const activos = ordenados.filter((c) => c.esPrincipioActivo);
   return activos.length > 0 ? activos : ordenados.filter((c) => c.modoExpresion !== "CS" && c.modoExpresion !== "CSP");
 }

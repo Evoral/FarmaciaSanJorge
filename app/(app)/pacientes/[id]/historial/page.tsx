@@ -1,5 +1,5 @@
 /**
- * `/pacientes/[id]/trayectoria` (docs/specs/trayectoria-paciente.md): read-only
+ * `/pacientes/[id]/historial` (docs/specs/trayectoria-paciente.md): read-only
  * view of everything a paciente went through, receta by receta (Ingreso ->
  * Preparación -> Libro -> Entrega -> Archivo). HEALTH-ADJACENT DATA (DP-24,
  * Ley 25.326): `[id]` is an opaque UUID and `searchParams` ONLY ever reads
@@ -8,7 +8,7 @@
  * links are decided by the use case from the session's other permisos.
  * Recetas render as a `table.data-table` (same look as the other lists) whose
  * rows expand to the full journey (`FilaDesplegable`). The paciente's "Datos |
- * Trayectoria" tabs sit right under the header (`PacienteTabs`).
+ * Historial" tabs sit right under the header (`PacienteTabs`).
  */
 import { notFound } from "next/navigation";
 import { FileText } from "lucide-react";
@@ -44,7 +44,7 @@ export default async function TrayectoriaPacientePage({ params, searchParams }: 
 
   const { paciente, acceso, resumen, recetas, paginacion, zonaHoraria } = trayectoria;
   const colSpan = columnasTablaRecetas(acceso);
-  const pageHref = (target: number) => `/pacientes/${id}/trayectoria?page=${target}`;
+  const pageHref = (target: number) => `/pacientes/${id}/historial?page=${target}`;
 
   return (
     <>

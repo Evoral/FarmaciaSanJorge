@@ -33,7 +33,6 @@ export function inicialDesdeReceta(receta: RecetaDetalle): RecetaFormInicial {
         cantidad: c.cantidad ?? "",
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
-        esPrincipioActivo: c.esPrincipioActivo,
       })),
     })),
   };

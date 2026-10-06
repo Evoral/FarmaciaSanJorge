@@ -101,7 +101,7 @@ export interface PartidaParaEstado {
   /** Decimal string, droga unidad base. */
   cantidadDisponible: string;
   /** Postgres `date` (UTC midnight). */
-  fechaVencimiento: Date;
+  fechaVencimiento: Date | null;
   fechaApertura: Date | null;
 }
 
@@ -129,9 +129,10 @@ export interface ContextoEstadoPartida {
  */
 export function derivarEstadoPartida(partida: PartidaParaEstado, contexto: ContextoEstadoPartida): EstadoPartida {
   if (!dec(partida.cantidadDisponible).greaterThan(0)) return "AGOTADA";
-  const vencimiento = fechaCalendario(partida.fechaVencimiento);
-  if (vencimiento < contexto.jornada) return "VENCIDA";
-  if (vencimiento <= sumarDiasAJornada(contexto.jornada, contexto.diasAlerta)) return "POR_VENCER";
+  // A partida that does not expire (an insumo, migration 0064) is never VENCIDA nor POR_VENCER.
+  const vencimiento = partida.fechaVencimiento ? fechaCalendario(partida.fechaVencimiento) : null;
+  if (vencimiento !== null && vencimiento < contexto.jornada) return "VENCIDA";
+  if (vencimiento !== null && vencimiento <= sumarDiasAJornada(contexto.jornada, contexto.diasAlerta)) return "POR_VENCER";
   if (partida.fechaApertura !== null) return "ABIERTA";
   return "VIGENTE";
 }
@@ -202,7 +203,7 @@ export interface PartidaCruda {
   unidadBaseSimbolo: string;
   lote: string;
   fechaIngreso: Date;
-  fechaVencimiento: Date;
+  fechaVencimiento: Date | null;
   fechaApertura: Date | null;
   cantidadInicial: string;
   cantidadDisponible: string;
@@ -353,7 +354,7 @@ export interface PartidaTrayectoria {
   unidadBaseSimbolo: string;
   lote: string;
   fechaIngreso: Date;
-  fechaVencimiento: Date;
+  fechaVencimiento: Date | null;
   fechaApertura: Date | null;
   cantidadInicial: string;
   cantidadDisponible: string;

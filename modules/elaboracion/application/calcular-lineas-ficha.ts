@@ -72,7 +72,6 @@ export interface ComponenteBorrador {
   cantidad: string | null;
   unidadMedidaId: string;
   modoExpresion: ModoExpresion;
-  esPrincipioActivo: boolean;
 }
 
 export interface FormulaBorrador {
@@ -88,9 +87,9 @@ const MENSAJE_REFERENCIAS_INVALIDAS = "Una o más drogas o unidades del ítem no
 
 /**
  * Resolves a draft's droga/unidad ids to what `calcularLineasFicha` needs,
- * the way `getItemParaFicha`/`getComponentesParaFicha` do for a saved item
- * (`orden` = position in the list, exactly as the receta is saved). Drogas
- * or unidades that do not exist or are dados de baja -> `DATOS_INVALIDOS`.
+ * the way `getItemParaFicha`/`getComponentesParaFicha` do for a saved item.
+ * Drogas or unidades that do not exist or are dados de baja ->
+ * `DATOS_INVALIDOS`.
  */
 export async function resolverFormulaBorrador(
   tx: Prisma.TransactionClient,
@@ -111,7 +110,7 @@ export async function resolverFormulaBorrador(
     return u.ref;
   };
 
-  const componentes: ComponenteInput[] = formula.componentes.map((c, orden) => {
+  const componentes: ComponenteInput[] = formula.componentes.map((c) => {
     const droga = drogas.get(c.drogaId);
     if (!droga || !droga.vigente) throw new FichaNoGenerableError("DATOS_INVALIDOS", MENSAJE_REFERENCIAS_INVALIDAS);
     return {
@@ -120,8 +119,6 @@ export async function resolverFormulaBorrador(
       cantidad: c.cantidad,
       unidadMedida: unidad(c.unidadMedidaId),
       modoExpresion: c.modoExpresion,
-      esPrincipioActivo: c.esPrincipioActivo,
-      orden,
     };
   });
 

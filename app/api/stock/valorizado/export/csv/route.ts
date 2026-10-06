@@ -41,7 +41,7 @@ export async function GET(request: Request): Promise<Response> {
 
   const writer = new CsvWriter(["Droga", "Lote", "Vencimiento", "CantidadDisponible", "Unidad", "CostoUnitario", "Valor"]);
   for (const item of resultado.items) {
-    writer.push([item.drogaNombre, item.lote, item.fechaVencimiento, item.cantidadDisponible, item.unidadSimbolo, item.costoUnitario, item.valor]);
+    writer.push([item.drogaNombre, item.lote, item.fechaVencimiento ?? "", item.cantidadDisponible, item.unidadSimbolo, item.costoUnitario, item.valor]);
   }
   for (const subtotal of resultado.subtotales) {
     writer.push([`Subtotal ${subtotal.drogaNombre}`, "", "", "", "", "", subtotal.valorSubtotal]);

@@ -2,14 +2,16 @@
  * Prisma-backed access to `fsj.receta` / `fsj.item_receta` /
  * `fsj.componente_item_receta` for M09 (FASE 6 points 6.1/6.3/6.5).
  * Every function runs inside an ALREADY OPEN tenant transaction. The DB
- * remains authoritative for the state machine (INV-R08), INV-R01/V1/V2/V3
- * (deferred constraint triggers), V6/V7/V8/V9 (CHECKs) and, since migration
+ * remains authoritative for the state machine (INV-R08), INV-R01/V1
+ * (deferred constraint triggers), V2 (partial unique index), V6/V7/V8/V9
+ * (CHECKs) and, since migration
  * 0030, INV-R11 (item/componente DELETE only while editable) -- everything
  * here that duplicates a check exists purely to produce a clear Spanish
  * message before the DB rejects it.
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { EstadoReceta, FormaFarmaceutica, ModoExpresion, OrigenReceta } from "../domain/receta";
+import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
 import { rangoDeJornadas } from "@/shared/time/jornada";
 
 // ============================================================================
@@ -59,16 +61,26 @@ export async function getMedicoRefParaReceta(tx: Prisma.TransactionClient, tenan
   });
 }
 
-/** Every id in `drogaIds` that is EITHER missing (wrong tenant/never existed) OR given de baja -- used to produce one clear message instead of a raw FK violation. */
-export async function drogasInvalidas(tx: Prisma.TransactionClient, tenantId: string, drogaIds: string[]): Promise<string[]> {
-  if (drogaIds.length === 0) return [];
+export interface DrogasDeReceta {
+  /** Every id that is EITHER missing (wrong tenant/never existed) OR given de baja -- used to produce one clear message instead of a raw FK violation. */
+  invalidas: string[];
+  /** The vigente ids whose clase is DROGA (migration 0063): a componente of one of them is a principio activo (`es_principio_activo`, set by the server, never by the user). */
+  principiosActivos: ReadonlySet<string>;
+}
+
+/** ONE read of the drogas a receta's componentes (and import aliases) reference: which are invalid, and which are principios activos. */
+export async function clasificarDrogasDeReceta(tx: Prisma.TransactionClient, tenantId: string, drogaIds: string[]): Promise<DrogasDeReceta> {
+  if (drogaIds.length === 0) return { invalidas: [], principiosActivos: new Set() };
   const unicos = Array.from(new Set(drogaIds));
   const vigentes = await tx.droga.findMany({
     where: { tenantId, id: { in: unicos }, fechaBaja: null },
-    select: { id: true },
+    select: { id: true, clase: true },
   });
   const vigentesSet = new Set(vigentes.map((d) => d.id));
-  return unicos.filter((id) => !vigentesSet.has(id));
+  return {
+    invalidas: unicos.filter((id) => !vigentesSet.has(id)),
+    principiosActivos: new Set(vigentes.filter((d) => d.clase === "DROGA").map((d) => d.id)),
+  };
 }
 
 /** Every id in `unidadIds` that does not exist in the GLOBAL unidad_medida catalog, or is given de baja. */
@@ -149,6 +161,7 @@ export interface NuevoComponenteInput {
   cantidad: string | null;
   unidadMedidaId: string;
   modoExpresion: ModoExpresion;
+  /** Snapshot of the droga's clase = DROGA, resolved by the use case (`clasificarDrogasDeReceta`). */
   esPrincipioActivo: boolean;
 }
 
@@ -188,7 +201,7 @@ async function insertComponentes(
   itemRecetaId: string,
   componentes: NuevoComponenteInput[],
 ): Promise<void> {
-  for (const [idx, c] of componentes.entries()) {
+  for (const c of componentes) {
     await tx.componenteItemReceta.create({
       data: {
         tenantId,
@@ -198,7 +211,6 @@ async function insertComponentes(
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
         esPrincipioActivo: c.esPrincipioActivo,
-        orden: idx,
       },
     });
   }
@@ -318,7 +330,6 @@ export interface ComponenteDetalle {
   unidadMedidaSimbolo: string;
   modoExpresion: ModoExpresion;
   esPrincipioActivo: boolean;
-  orden: number;
 }
 
 export interface ItemDetalle {
@@ -333,6 +344,7 @@ export interface ItemDetalle {
   observaciones: string | null;
   posologia: string | null;
   duracionTratamientoDias: number | null;
+  /** In `ordenarComponentes` order (componentes have no stored order). */
   componentes: ComponenteDetalle[];
   /**
    * D2 REVISED (FASE 9, per-item rule, 2026-09-23): "PENDIENTE" (no
@@ -411,7 +423,6 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
         include: {
           unidadTotal: { select: { simbolo: true } },
           componentes: {
-            orderBy: { orden: "asc" },
             include: { droga: { select: { nombre: true } }, unidadMedida: { select: { simbolo: true } } },
           },
         },
@@ -457,17 +468,18 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
       posologia: item.posologia,
       duracionTratamientoDias: item.duracionTratamientoDias,
       estadoAsiento: estadoAsientoPorItem.get(item.id) ?? "PENDIENTE",
-      componentes: item.componentes.map((c) => ({
-        id: c.id,
-        drogaId: c.drogaId,
-        drogaNombre: c.droga.nombre,
-        cantidad: c.cantidad ? c.cantidad.toString() : null,
-        unidadMedidaId: c.unidadMedidaId,
-        unidadMedidaSimbolo: c.unidadMedida.simbolo,
-        modoExpresion: c.modoExpresion,
-        esPrincipioActivo: c.esPrincipioActivo,
-        orden: c.orden,
-      })),
+      componentes: ordenarComponentes(
+        item.componentes.map((c) => ({
+          id: c.id,
+          drogaId: c.drogaId,
+          drogaNombre: c.droga.nombre,
+          cantidad: c.cantidad ? c.cantidad.toString() : null,
+          unidadMedidaId: c.unidadMedidaId,
+          unidadMedidaSimbolo: c.unidadMedida.simbolo,
+          modoExpresion: c.modoExpresion,
+          esPrincipioActivo: c.esPrincipioActivo,
+        })),
+      ),
     })),
   };
 }
@@ -566,12 +578,10 @@ export interface ItemDeseado {
  *  - items with an `id` are updated in place;
  *  - items without an `id` are inserted;
  *  - EVERY item's componentes are replaced wholesale (delete-all,
- *    re-insert with `orden` = array index) rather than diffed individually
- *    -- componente_item_receta's `orden` has a NON-deferred UNIQUE
- *    constraint (tenant_id, item_receta_id, orden), so an in-place
- *    reorder (e.g. swapping two rows) can collide mid-transaction; a full
- *    replace per item sidesteps that entirely and is simple to reason
- *    about. This does mean a componente's row id is not stable across an
+ *    re-insert) rather than diffed individually -- simple to reason about,
+ *    and every componente gets its `es_principio_activo` snapshot
+ *    refreshed from the droga's current clase. This does mean a
+ *    componente's row id is not stable across an
  *    edit that touches its item -- acceptable since nothing else
  *    references componente_item_receta.id (no FK, no ficha yet at
  *    PENDIENTE_PREPARACION).

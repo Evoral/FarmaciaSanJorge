@@ -8,12 +8,14 @@
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
+import { CLASES_DROGA } from "../domain/droga";
 import { listDrogas as listDrogasRepo } from "../infrastructure/droga-repository";
 import type { ListDrogasResult } from "../infrastructure/droga-repository";
 
 const listDrogasInput = z.object({
   search: z.string().trim().optional(),
   soloControladas: z.boolean().optional(),
+  clase: z.enum(CLASES_DROGA).optional(),
   bajoMinimo: z.boolean().optional(),
   soloVigentes: z.boolean().optional(),
   page: z.number().int().min(1).default(1),
@@ -31,6 +33,7 @@ export const listDrogasQuery = defineQuery({
       tenantId: session.tenantId,
       search: input.search,
       soloControladas: input.soloControladas,
+      clase: input.clase,
       bajoMinimo: input.bajoMinimo,
       soloVigentes: input.soloVigentes,
       page: input.page,

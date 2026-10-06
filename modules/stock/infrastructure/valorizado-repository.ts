@@ -27,7 +27,7 @@ export interface ValorizadoItem {
   drogaId: string;
   drogaNombre: string;
   lote: string;
-  fechaVencimiento: string; // YYYY-MM-DD
+  fechaVencimiento: string | null; // YYYY-MM-DD; null = does not expire (0064)
   cantidadDisponible: string;
   /** The droga unidad base (`cantidadDisponible` is recorded in it). */
   unidadId: string;
@@ -55,7 +55,7 @@ function toItem(row: {
   droga_id: string;
   droga_nombre: string;
   lote: string;
-  fecha_vencimiento: Date;
+  fecha_vencimiento: Date | null;
   cantidad_disponible: string;
   unidad_id: string;
   unidad_simbolo: string;
@@ -67,7 +67,7 @@ function toItem(row: {
     drogaId: row.droga_id,
     drogaNombre: row.droga_nombre,
     lote: row.lote,
-    fechaVencimiento: row.fecha_vencimiento.toISOString().slice(0, 10),
+    fechaVencimiento: row.fecha_vencimiento?.toISOString().slice(0, 10) ?? null,
     cantidadDisponible: row.cantidad_disponible,
     unidadId: row.unidad_id,
     unidadSimbolo: row.unidad_simbolo,
@@ -91,7 +91,7 @@ export async function listValorizado(
       droga_id: string;
       droga_nombre: string;
       lote: string;
-      fecha_vencimiento: Date;
+      fecha_vencimiento: Date | null;
       cantidad_disponible: string;
       unidad_id: string;
       unidad_simbolo: string;
@@ -115,7 +115,7 @@ export async function listValorizado(
     JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
     WHERE p.tenant_id = ${filter.tenantId}::uuid
       AND (${search}::text IS NULL OR d.nombre ILIKE '%' || ${search}::text || '%')
-      AND (${filter.incluirVencidas} OR p.fecha_vencimiento >= fsj.jornada_actual(${filter.tenantId}::uuid))
+      AND (${filter.incluirVencidas} OR p.fecha_vencimiento IS NULL OR p.fecha_vencimiento >= fsj.jornada_actual(${filter.tenantId}::uuid))
       AND (NOT ${filter.soloConSaldo} OR p.cantidad_disponible > 0)
     ORDER BY d.nombre ASC, p.fecha_vencimiento ASC, p.lote ASC
     LIMIT ${pageSize} OFFSET ${skip}
@@ -127,7 +127,7 @@ export async function listValorizado(
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
     WHERE p.tenant_id = ${filter.tenantId}::uuid
       AND (${search}::text IS NULL OR d.nombre ILIKE '%' || ${search}::text || '%')
-      AND (${filter.incluirVencidas} OR p.fecha_vencimiento >= fsj.jornada_actual(${filter.tenantId}::uuid))
+      AND (${filter.incluirVencidas} OR p.fecha_vencimiento IS NULL OR p.fecha_vencimiento >= fsj.jornada_actual(${filter.tenantId}::uuid))
       AND (NOT ${filter.soloConSaldo} OR p.cantidad_disponible > 0)
   `;
 
@@ -147,7 +147,7 @@ export async function subtotalesValorizado(tx: Prisma.TransactionClient, filter:
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
     WHERE p.tenant_id = ${filter.tenantId}::uuid
       AND (${search}::text IS NULL OR d.nombre ILIKE '%' || ${search}::text || '%')
-      AND (${filter.incluirVencidas} OR p.fecha_vencimiento >= fsj.jornada_actual(${filter.tenantId}::uuid))
+      AND (${filter.incluirVencidas} OR p.fecha_vencimiento IS NULL OR p.fecha_vencimiento >= fsj.jornada_actual(${filter.tenantId}::uuid))
       AND (NOT ${filter.soloConSaldo} OR p.cantidad_disponible > 0)
     GROUP BY d.id, d.nombre
     ORDER BY d.nombre ASC

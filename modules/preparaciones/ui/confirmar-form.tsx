@@ -155,7 +155,7 @@ export function ConfirmarPreparacionForm({ pantalla }: ConfirmarPreparacionFormP
                         </span>
                         <span className="tabular-nums">
                           <span className="text-zinc-500">Vence </span>
-                          <span className="text-zinc-900">{fechaCorta(partida.fechaVencimiento)}</span>
+                          <span className="text-zinc-900">{partida.fechaVencimiento ? fechaCorta(partida.fechaVencimiento) : "No vence"}</span>
                         </span>
                       </span>
                       <span className="flex flex-none flex-wrap justify-end gap-1.5">

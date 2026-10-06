@@ -1,7 +1,7 @@
 /**
  * `getTrayectoriaProveedor` (docs/specs/trayectoria-proveedor.md): read-only
  * "everything this proveedor supplied, partida by partida", for
- * `/proveedores/[id]/trayectoria`. Gated on `proveedores.gestionar`; the URL
+ * `/proveedores/[id]/historial`. Gated on `proveedores.gestionar`; the URL
  * carries only the opaque proveedor id, a plain `?page=` integer and the
  * optional `?droga=<uuid>` filter (repeatable; drogas are not sensitive). The
  * filter narrows the partidas list only: the resumen stays proveedor-wide.

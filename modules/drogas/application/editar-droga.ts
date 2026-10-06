@@ -46,7 +46,17 @@ import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { ConflictError, DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { nonEmptyString, uuid } from "@/shared/validation";
-import { TIPOS_CONTROL, tipoControlValido, puedeCambiarClasificacion, nonNegativeDecimalString, type TipoControl } from "../domain/droga";
+import {
+  CLASES_DROGA,
+  MENSAJE_INSUMO_CONTROLADO,
+  TIPOS_CONTROL,
+  claseValida,
+  tipoControlValido,
+  puedeCambiarClasificacion,
+  nonNegativeDecimalString,
+  type ClaseDroga,
+  type TipoControl,
+} from "../domain/droga";
 import {
   existeNombreVigente,
   getDrogaParaAccion,
@@ -62,12 +72,15 @@ const editarDrogaInput = z.object({
   unidadBaseId: uuid.optional(),
   esControlada: z.boolean().optional(),
   tipoControl: z.enum(TIPOS_CONTROL).optional(),
+  /** Migration 0063: omitted = keep the stored clase. */
+  clase: z.enum(CLASES_DROGA).optional(),
   stockMinimo: nonNegativeDecimalString,
   version: z.object({
     nombre: z.string(),
     unidadBaseId: z.string(),
     esControlada: z.boolean(),
     tipoControl: z.enum(TIPOS_CONTROL),
+    clase: z.enum(CLASES_DROGA),
     stockMinimo: z.string(),
   }),
 });
@@ -79,8 +92,9 @@ export interface EditarDrogaInput {
   unidadBaseId?: string;
   esControlada?: boolean;
   tipoControl?: string;
+  clase?: string;
   stockMinimo: string;
-  version: { nombre: string; unidadBaseId: string; esControlada: boolean; tipoControl: string; stockMinimo: string };
+  version: { nombre: string; unidadBaseId: string; esControlada: boolean; tipoControl: string; clase: string; stockMinimo: string };
 }
 
 export const CONCURRENCY_MESSAGE = "La droga fue modificada por otra persona, recargá.";
@@ -108,6 +122,7 @@ export const editarDrogaCommand = defineCommand({
       actual.unidadBaseId !== input.version.unidadBaseId ||
       actual.esControlada !== input.version.esControlada ||
       actual.tipoControl !== input.version.tipoControl ||
+      actual.clase !== input.version.clase ||
       actual.stockMinimo !== input.version.stockMinimo
     ) {
       throw new ConflictError(CONCURRENCY_MESSAGE);
@@ -120,6 +135,8 @@ export const editarDrogaCommand = defineCommand({
     if (!tipoControlValido(esControlada, tipoControl)) {
       throw new ValidationError('El tipo de control debe ser "Ninguno" si y solo si la droga no es controlada.');
     }
+    const clase = input.clase ?? (actual.clase as ClaseDroga);
+    if (!claseValida(clase, tipoControl)) throw new ValidationError(MENSAJE_INSUMO_CONTROLADO, { fields: ["clase", "tipoControl"] });
 
     if (input.nombre !== actual.nombre && (await existeNombreVigente(tx, session.tenantId, input.nombre, input.id))) {
       throw new ValidationError("Ya existe una droga con ese nombre.");
@@ -143,6 +160,7 @@ export const editarDrogaCommand = defineCommand({
       {
         id: input.id,
         nombre: input.nombre,
+        clase,
         stockMinimo: input.stockMinimo.toString(),
         ...(cambiaClasificacion ? { clasificacion: { unidadBaseId, esControlada, tipoControl } } : {}),
       },
@@ -151,6 +169,7 @@ export const editarDrogaCommand = defineCommand({
         unidadBaseId: actual.unidadBaseId,
         esControlada: actual.esControlada,
         tipoControl: actual.tipoControl,
+        clase: actual.clase,
         stockMinimo: actual.stockMinimo,
       },
     );
@@ -171,6 +190,7 @@ export const editarDrogaCommand = defineCommand({
           unidadBase: etiquetaUnidad(actual.unidadBaseId),
           esControlada: actual.esControlada,
           tipoControl: actual.tipoControl,
+          clase: actual.clase,
           stockMinimo: actual.stockMinimo,
         },
         valorNuevo: {
@@ -179,6 +199,7 @@ export const editarDrogaCommand = defineCommand({
           unidadBase: etiquetaUnidad(unidadBaseNueva),
           esControlada: cambiaClasificacion ? esControlada : actual.esControlada,
           tipoControl: cambiaClasificacion ? tipoControl : actual.tipoControl,
+          clase,
           stockMinimo: input.stockMinimo.toString(),
         },
       },

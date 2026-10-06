@@ -6,7 +6,8 @@
  *   1. paciente and médico: alta if new, otherwise complete ONLY their
  *      empty fields with the PDF's data (never overwrite);
  *   2. receta with origen DIGITAL_PDF + emisor/nro/url/diagnóstico + items,
- *      under the same V1-V9 validation as the manual alta;
+ *      under the same V1-V9 validation as the manual alta (and, like it,
+ *      each componente's principio activo flag from the droga's clase);
  *   3. the droga aliases the user chose to remember;
  *   4. one audit row per alta/modificación (INV-A01).
  *
@@ -38,7 +39,7 @@ import { ConflictError, DomainError, ValidationError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { crearPacienteHandler, crearPacienteInput } from "@/modules/pacientes/application/crear-paciente";
 import { crearMedicoHandler, crearMedicoInput } from "@/modules/medicos/application/crear-medico";
-import { diagnosticoCodigoOpcional, esFechaPrescripcionValida, resumirItemsReceta, validarItemsReceta, validarOrigenHabilitado } from "../domain/receta";
+import { diagnosticoCodigoOpcional, esFechaPrescripcionValida, esFechaPrescripcionVigente, resumirItemsReceta, validarItemsReceta, validarOrigenHabilitado } from "../domain/receta";
 import type { ComponenteInput, ItemInput } from "../domain/receta";
 import { CODIGOS_EMISOR, esUrlVerificacionDeEmisor } from "../domain/receta-pdf-parser";
 import { normalizarTexto } from "../domain/normalizar";
@@ -53,7 +54,7 @@ import {
   valoresACompletar,
 } from "../domain/importacion-receta";
 import type { FuenteImportacion } from "../domain/importacion-receta";
-import { drogasInvalidas, getNombresParaResumen, insertRecetaConItems, jornadaActualTenant, unidadesInvalidas } from "../infrastructure/receta-repository";
+import { clasificarDrogasDeReceta, getNombresParaResumen, insertRecetaConItems, jornadaActualTenant, unidadesInvalidas } from "../infrastructure/receta-repository";
 import {
   buscarMedicoVigentePorMatricula,
   buscarPacientePorIdentificacion,
@@ -120,7 +121,6 @@ function toItemsInput(items: ImportarRecetaInput["items"]): ItemInput[] {
         cantidad: c.cantidad,
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
-        esPrincipioActivo: c.esPrincipioActivo,
       }),
     ),
   }));
@@ -218,12 +218,16 @@ export const importarRecetaCommand = defineCommand({
     if (!esFechaPrescripcionValida(input.fechaPrescripcion, jornadaActual)) {
       throw new ValidationError("La fecha de prescripción no puede ser futura.");
     }
+    if (!esFechaPrescripcionVigente(input.fechaValidaDesde ?? input.fechaPrescripcion, jornadaActual)) {
+      throw new ValidationError(input.fechaValidaDesde ? "La receta está vencida: pasó más de un mes desde su fecha de validez." : "La receta está vencida: tiene más de un mes desde su prescripción.");
+    }
 
     const itemsDominio = toItemsInput(input.items);
     validarItemsReceta(itemsDominio);
 
     const drogaIds = [...itemsDominio.flatMap((item) => item.componentes.map((c) => c.drogaId)), ...input.equivalencias.map((e) => e.drogaId)];
-    if ((await drogasInvalidas(tx, session.tenantId, drogaIds)).length > 0) {
+    const drogas = await clasificarDrogasDeReceta(tx, session.tenantId, drogaIds);
+    if (drogas.invalidas.length > 0) {
       throw new ValidationError("Una o más drogas seleccionadas no existen o están dadas de baja.");
     }
     const unidadIds = [
@@ -260,7 +264,7 @@ export const importarRecetaCommand = defineCommand({
         observaciones: item.observaciones ?? null,
         posologia: item.posologia ?? null,
         duracionTratamientoDias: item.duracionTratamientoDias ?? null,
-        componentes: item.componentes,
+        componentes: item.componentes.map((c) => ({ ...c, esPrincipioActivo: drogas.principiosActivos.has(c.drogaId) })),
       })),
     });
 

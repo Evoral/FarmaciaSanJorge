@@ -43,6 +43,8 @@ export interface SimpleFormProps<S extends FormActionState> {
   /** `"sm"` inside table rows. */
   submitSize?: "sm";
   submitDisabled?: boolean;
+  /** Floating note explaining why the submit is disabled (see `SubmitButton`). */
+  submitDisabledReason?: ReactNode;
   /** Defaults to `"stack"` -- see `FormLayout`. */
   layout?: FormLayout;
   /** Extra buttons (e.g. "Cancelar", always `type="button"`) rendered in the same actions row, after the submit button. `stack` layout only. */
@@ -62,6 +64,7 @@ export function SimpleForm<S extends FormActionState>({
   submitVariant,
   submitSize,
   submitDisabled,
+  submitDisabledReason,
   layout = "stack",
   className,
   extraActions,
@@ -91,7 +94,7 @@ export function SimpleForm<S extends FormActionState>({
       {children}
       {layout === "stack" ? feedback : null}
       <FormActions layout={layout}>
-        <SubmitButton pending={isPending} label={submitLabel} pendingLabel={pendingLabel} disabled={submitDisabled} variant={submitVariant} size={submitSize} />
+        <SubmitButton pending={isPending} label={submitLabel} pendingLabel={pendingLabel} disabled={submitDisabled} disabledReason={submitDisabledReason} variant={submitVariant} size={submitSize} />
         {layout === "stack" ? extraActions : null}
       </FormActions>
       {layout === "inline" ? feedback : null}

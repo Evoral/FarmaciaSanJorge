@@ -23,6 +23,8 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import type { EstadoPreparacion, EstadoReceta, TipoMovimientoContralor } from "@/generated/prisma/enums";
 import { jornadaDe, rangoDeJornadas } from "@/shared/time/jornada";
+import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
+import type { ModoExpresion } from "@/modules/recetas/domain/receta";
 import type { DatosEtiqueta } from "../domain/etiqueta";
 
 const PLACEHOLDER_UUID = "00000000-0000-0000-0000-000000000000";
@@ -245,7 +247,7 @@ export interface PartidaElegible {
   lote: string;
   proveedorNombre: string;
   cantidadDisponible: string;
-  fechaVencimiento: string; // YYYY-MM-DD
+  fechaVencimiento: string | null; // YYYY-MM-DD; null = does not expire (0064)
   fechaApertura: string | null; // ISO instant
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
@@ -259,7 +261,7 @@ export async function listPartidasElegiblesDroga(tx: Prisma.TransactionClient, t
       lote: string;
       proveedor_nombre: string;
       cantidad_disponible: string;
-      fecha_vencimiento: string;
+      fecha_vencimiento: string | null;
       fecha_apertura: string | null;
       potencia_declarada: string | null;
     }[]
@@ -353,7 +355,7 @@ export interface PartidaFresca {
   drogaId: string;
   lote: string;
   cantidadDisponible: string;
-  fechaVencimiento: string; // YYYY-MM-DD
+  fechaVencimiento: string | null; // YYYY-MM-DD; null = does not expire (0064)
   fechaApertura: string | null;
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
@@ -368,7 +370,7 @@ export async function getPartidasFrescas(tx: Prisma.TransactionClient, tenantId:
       droga_id: string;
       lote: string;
       cantidad_disponible: string;
-      fecha_vencimiento: string;
+      fecha_vencimiento: string | null;
       fecha_apertura: string | null;
       potencia_declarada: string | null;
     }[]
@@ -417,8 +419,13 @@ export async function insertEgresoPreparacion(tx: Prisma.TransactionClient, inpu
   });
 }
 
-export async function getDrogaTipoControl(tx: Prisma.TransactionClient, tenantId: string, drogaId: string): Promise<{ tipoControl: string; nombre: string; unidadBaseId: string } | null> {
-  const droga = await tx.droga.findUnique({ where: { id: drogaId, tenantId }, select: { tipoControl: true, nombre: true, unidadBaseId: true } });
+/** `clase` (migration 0063): non-DROGA lines are left out of the libro recetario -- see confirmar-preparacion.ts. */
+export async function getDrogaTipoControl(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  drogaId: string,
+): Promise<{ tipoControl: string; clase: string; nombre: string; unidadBaseId: string } | null> {
+  const droga = await tx.droga.findUnique({ where: { id: drogaId, tenantId }, select: { tipoControl: true, clase: true, nombre: true, unidadBaseId: true } });
   return droga;
 }
 
@@ -582,12 +589,10 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
               formaFarmaceutica: true,
               cantidadUnidades: true,
               componentes: {
-                orderBy: { orden: "asc" },
                 select: {
                   cantidad: true,
                   modoExpresion: true,
                   esPrincipioActivo: true,
-                  orden: true,
                   droga: { select: { nombre: true } },
                   unidadMedida: { select: { simbolo: true } },
                 },
@@ -635,7 +640,6 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
       unidadSimbolo: c.unidadMedida.simbolo,
       modoExpresion: c.modoExpresion,
       esPrincipioActivo: c.esPrincipioActivo,
-      orden: c.orden,
     })),
     recetaNumeroInterno: item.receta.numeroInterno.toString(),
     medicoNombre: medico.nombre,
@@ -1076,7 +1080,7 @@ export interface ComponenteDePendiente {
   drogaNombre: string;
   cantidad: string | null;
   unidadMedidaSimbolo: string;
-  modoExpresion: string;
+  modoExpresion: ModoExpresion;
   esPrincipioActivo: boolean;
 }
 
@@ -1087,13 +1091,14 @@ export interface ListComponentesDePendientesRow {
   droga_nombre: string;
   cantidad: string | null;
   unidad_medida_simbolo: string;
-  modo_expresion: string;
+  modo_expresion: ModoExpresion;
   es_principio_activo: boolean;
 }
 
 /**
  * The componentes of a page of pending ítems, in ONE statement (no N+1):
- * tenant-scoped, each ítem's in `orden`. Built separately so
+ * tenant-scoped, unordered (`listComponentesDePendientes` sorts each
+ * ítem's with `ordenarComponentes`). Built separately so
  * tests/db/preparaciones-pendientes.test.ts runs this EXACT statement on its
  * raw `pg` connection. `unidad_medida` is global (no tenant_id).
  */
@@ -1111,11 +1116,10 @@ export function listComponentesDePendientesSql(tenantId: string, itemIds: string
     JOIN fsj.droga d ON d.tenant_id = c.tenant_id AND d.id = c.droga_id
     JOIN fsj.unidad_medida um ON um.id = c.unidad_medida_id
     WHERE c.tenant_id = ${tenantId}::uuid AND c.item_receta_id = ANY(${itemIds}::uuid[])
-    ORDER BY c.item_receta_id, c.orden ASC
   `;
 }
 
-/** Componentes by ítem id; an ítem without componentes is absent from the map. No query for an empty page. */
+/** Componentes by ítem id, each ítem's in `ordenarComponentes` order; an ítem without componentes is absent from the map. No query for an empty page. */
 export async function listComponentesDePendientes(
   tx: Prisma.TransactionClient,
   tenantId: string,
@@ -1136,6 +1140,7 @@ export async function listComponentesDePendientes(
     });
     porItem.set(row.item_receta_id, componentes);
   }
+  for (const [itemId, componentes] of porItem) porItem.set(itemId, ordenarComponentes(componentes));
   return porItem;
 }
 
@@ -1480,7 +1485,6 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
           posologia: true,
           duracionTratamientoDias: true,
           componentes: {
-            orderBy: { orden: "asc" },
             select: {
               id: true,
               cantidad: true,
@@ -1558,14 +1562,16 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
         unidadTotalSimbolo: item.unidadTotal?.simbolo ?? null,
         posologia: item.posologia,
         duracionTratamientoDias: item.duracionTratamientoDias,
-        componentes: item.componentes.map((c) => ({
-          id: c.id,
-          drogaNombre: c.droga.nombre,
-          cantidad: c.cantidad ? c.cantidad.toString() : null,
-          unidadMedidaSimbolo: c.unidadMedida.simbolo,
-          modoExpresion: c.modoExpresion,
-          esPrincipioActivo: c.esPrincipioActivo,
-        })),
+        componentes: ordenarComponentes(
+          item.componentes.map((c) => ({
+            id: c.id,
+            drogaNombre: c.droga.nombre,
+            cantidad: c.cantidad ? c.cantidad.toString() : null,
+            unidadMedidaSimbolo: c.unidadMedida.simbolo,
+            modoExpresion: c.modoExpresion,
+            esPrincipioActivo: c.esPrincipioActivo,
+          })),
+        ),
         ultimaFicha: ficha
           ? {
               id: ficha.id,

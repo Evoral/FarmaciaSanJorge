@@ -148,8 +148,6 @@ export const generarFichaTecnicaCommand = defineCommand({
       cantidad: c.cantidad,
       unidadMedida: c.unidadMedida,
       modoExpresion: c.modoExpresion,
-      esPrincipioActivo: c.esPrincipioActivo,
-      orden: c.orden,
     }));
 
     const lineas = await calcularLineasFicha(tx, session.tenantId, itemInput, componentesInput);

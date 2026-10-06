@@ -37,9 +37,12 @@ calcularFichaTecnica(
 | unidadMedida | UnidadMedida |
 | modoExpresion | ModoExpresion |
 | esPrincipioActivo | Boolean |
-| orden | Integer |
 
 `modoExpresion` **reemplaza** al booleano `esCantidadSuficiente` del diagrama.
+
+`esPrincipioActivo` no lo carga el usuario: al guardar la receta se copia de la clase de la droga en el catálogo (`true` si es `DROGA`; migración 0063).
+
+Los componentes de un ítem **no tienen orden** (migración 0065: a la farmacia no le importa). Donde se listan o se calculan se ordenan con una sola regla: primero los que tienen cantidad (TOTAL, POR_DOSIS), después CS y al final CSP; a igualdad, por nombre de droga (`modules/elaboracion/domain/orden-componentes.ts`).
 
 ### Enum ModoExpresion
 
@@ -67,7 +70,7 @@ CSP        cantidad suficiente para completar cantidadTotal ("vaselina csp 30")
 | cantidadAPesar | Decimal \| null | redondeada a la balanza |
 | unidadMedida | UnidadMedida | unidad base de la magnitud |
 | esEnraseManual | Boolean | true = la cantidad la registra el farmacéutico al preparar |
-| orden | Integer | igual al del componente |
+| orden | Integer | posición de la línea: la de su componente según la regla de orden de arriba |
 
 ## Reglas de cálculo
 
@@ -87,7 +90,7 @@ CSP        cantidad suficiente para completar cantidadTotal ("vaselina csp 30")
 
 - **V1** — ItemReceta sin componentes.
 - **V2** — Más de un componente CSP.
-- **V3** — Componente CSP que no ocupa el último orden.
+- ~~**V3** — Componente CSP que no ocupa el último orden.~~ **Eliminada** (migración 0065): los componentes ya no tienen orden.
 - **V4** — CSP presente y `cantidadTotal` o `unidadTotal` nulos.
   **[ACLARACIÓN]** Solo aplica a formas no capsulares. Para CAPSULA/COMPRIMIDO el total no es requerido (T3).
 - **V5** — R3 da resultado ≤ 0: los componentes superan el total.
@@ -103,7 +106,7 @@ CSP        cantidad suficiente para completar cantidadTotal ("vaselina csp 30")
 - Las líneas generadas se persisten congeladas. Un cambio posterior en Droga o UnidadMedida no las recalcula.
 - Una línea con `esEnraseManual = true` recibe su cantidad real al confirmar la preparación. Esa cantidad se guarda en el `MovimientoStock` (EGRESO_PREPARACION) y en `DetalleAsiento`, no en `LineaPesaje`.
 - Para líneas no manuales, el egreso de stock es exactamente `cantidadAPesar`. Para líneas manuales, es la cantidad registrada por el farmacéutico.
-- `orden` de salida respeta el de entrada.
+- `orden` de salida sigue la regla de orden de los componentes (cantidad, CS, CSP; luego nombre de droga).
 
 **Impacto en invariantes previos del plan:**
 

@@ -83,7 +83,7 @@ export function requiereMotivoAperturaAdicional(
   cantidadRequerida: Decimal,
   jornadaActual: string,
 ): boolean {
-  const vigentes = (p: PartidaConEstadoApertura) => p.fechaVencimiento >= jornadaActual;
+  const vigentes = (p: PartidaConEstadoApertura) => p.fechaVencimiento === null || p.fechaVencimiento >= jornadaActual;
 
   const saldoAbiertasVigentes = partidas
     .filter((p) => p.fechaApertura !== null && vigentes(p))
@@ -118,7 +118,7 @@ export interface LineaFormulaTexto {
   esEnraseManual: boolean;
 }
 
-/** One line per componente, `orden` order, "Droga — cantidad unidad" (enrase manual notes the real registered quantity). */
+/** One line per ficha line, in the ficha's line order, "Droga — cantidad unidad" (enrase manual notes the real registered quantity). */
 export function formatearFormulaTexto(lineas: readonly LineaFormulaTexto[]): string {
   return lineas
     .map((l) => `${l.drogaNombre}: ${l.cantidad} ${l.unidadSimbolo}${l.esEnraseManual ? " (enrase manual)" : ""}`)

@@ -52,7 +52,8 @@ const ingresarPartidaInput = z.object({
   drogaId: uuid,
   proveedorId: uuid,
   lote: nonEmptyString,
-  fechaVencimiento: isoDate,
+  /** Migration 0064: optional for an insumo (does not expire); required for a DROGA -- checked in `registrarPartidaCompra`. */
+  fechaVencimiento: isoDate.optional(),
   cantidadCompra: positiveDecimalString,
   unidadCompraId: uuid,
   costoUnitario: nonNegativeDecimalString,
@@ -65,7 +66,7 @@ export interface IngresarPartidaInput {
   drogaId: string;
   proveedorId: string;
   lote: string;
-  fechaVencimiento: string;
+  fechaVencimiento?: string;
   cantidadCompra: string;
   unidadCompraId: string;
   costoUnitario: string;
@@ -78,7 +79,8 @@ export interface PartidaCompraInput {
   drogaId: string;
   proveedorId: string;
   lote: string;
-  fechaVencimiento: string;
+  /** Absent = does not expire: only for an insumo (droga.clase <> DROGA, migration 0064). */
+  fechaVencimiento?: string;
   cantidadCompra: string;
   unidadCompraId: string;
   /** Per unidad base (manual alta) or per unidad de compra (invoice price, converted here). */
@@ -115,7 +117,13 @@ export async function registrarPartidaCompra(
   }
 
   const jornadaActual = await jornadaActualTenant(tx, session.tenantId);
-  if (!esFechaVencimientoFutura(input.fechaVencimiento, jornadaActual)) {
+  if (!input.fechaVencimiento) {
+    if (droga.clase === "DROGA") {
+      throw new ValidationError(`Falta la fecha de vencimiento de ${droga.nombre}: solo los excipientes y materiales pueden no vencer.`, {
+        fields: [campo("fechaVencimiento")],
+      });
+    }
+  } else if (!esFechaVencimientoFutura(input.fechaVencimiento, jornadaActual)) {
     throw new ValidationError("La fecha de vencimiento debe ser posterior a la fecha actual.", { fields: [campo("fechaVencimiento")] });
   }
 
@@ -162,7 +170,7 @@ export async function registrarPartidaCompra(
     lote: input.lote,
     costoUnitario,
     cantidadInicialBase,
-    fechaVencimiento: input.fechaVencimiento,
+    fechaVencimiento: input.fechaVencimiento ?? null,
     registradoPorId: session.usuario.id,
     numeroValeAdquisicion: input.numeroValeAdquisicion ?? null,
     potenciaDeclarada: input.potenciaDeclarada ?? null,
@@ -179,7 +187,7 @@ export async function registrarPartidaCompra(
       proveedorId: input.proveedorId,
       proveedor: proveedor.razonSocial,
       lote: input.lote,
-      fechaVencimiento: input.fechaVencimiento,
+      fechaVencimiento: input.fechaVencimiento ?? null,
       cantidadCompra: input.cantidadCompra,
       unidadCompraId: input.unidadCompraId,
       unidadCompra: await getEtiquetaUnidad(tx, input.unidadCompraId),

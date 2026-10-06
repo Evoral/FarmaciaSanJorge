@@ -4,13 +4,14 @@
  * non-baja unidad de medida -- the DB's FK only requires "exists" (any
  * unidad, even one already given de baja); this command additionally
  * rejects a baja unidad with a clear Spanish message rather than letting
- * the picker's own filtering (UI-only) be the sole defense.
+ * the picker's own filtering (UI-only) be the sole defense. `clase`
+ * (migration 0063) defaults to DROGA; an insumo cannot be controlled.
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { nonEmptyString, uuid } from "@/shared/validation";
-import { TIPOS_CONTROL, tipoControlValido, nonNegativeDecimalString } from "../domain/droga";
+import { CLASES_DROGA, MENSAJE_INSUMO_CONTROLADO, TIPOS_CONTROL, claseValida, tipoControlValido, nonNegativeDecimalString } from "../domain/droga";
 import { existeNombreVigente, insertDroga } from "../infrastructure/droga-repository";
 
 const crearDrogaInput = z.object({
@@ -18,6 +19,7 @@ const crearDrogaInput = z.object({
   unidadBaseId: uuid,
   esControlada: z.boolean().optional(),
   tipoControl: z.enum(TIPOS_CONTROL).default("NINGUNO"),
+  clase: z.enum(CLASES_DROGA).default("DROGA"),
   stockMinimo: nonNegativeDecimalString,
 });
 
@@ -27,6 +29,7 @@ export interface CrearDrogaInput {
   unidadBaseId: string;
   esControlada?: boolean;
   tipoControl?: string;
+  clase?: string;
   stockMinimo: string;
 }
 
@@ -41,6 +44,7 @@ export const crearDrogaCommand = defineCommand({
     if (!tipoControlValido(esControlada, input.tipoControl)) {
       throw new ValidationError('El tipo de control debe ser "Ninguno" si y solo si la droga no es controlada.');
     }
+    if (!claseValida(input.clase, input.tipoControl)) throw new ValidationError(MENSAJE_INSUMO_CONTROLADO, { fields: ["clase", "tipoControl"] });
 
     const unidad = await tx.unidadMedida.findUnique({ where: { id: input.unidadBaseId }, select: { id: true, nombre: true, simbolo: true, fechaBaja: true } });
     if (!unidad) throw new NotFoundError("Unidad de medida no encontrada.");
@@ -56,6 +60,7 @@ export const crearDrogaCommand = defineCommand({
       unidadBaseId: input.unidadBaseId,
       esControlada,
       tipoControl: input.tipoControl,
+      clase: input.clase,
       stockMinimo: input.stockMinimo.toString(),
     });
 
@@ -69,6 +74,7 @@ export const crearDrogaCommand = defineCommand({
           unidadBase: `${unidad.nombre} (${unidad.simbolo})`,
           esControlada,
           tipoControl: input.tipoControl,
+          clase: input.clase,
           stockMinimo: input.stockMinimo.toString(),
         },
       },

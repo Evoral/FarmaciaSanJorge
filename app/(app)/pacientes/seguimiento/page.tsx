@@ -1,5 +1,5 @@
 /**
- * `/pacientes/recurrentes` (docs/specs/pacientes-recurrentes.md): patients who
+ * `/pacientes/seguimiento` (docs/specs/pacientes-recurrentes.md): patients who
  * periodically order the same preparation, with a one-click WhatsApp reminder.
  * HEALTH-ADJACENT DATA (DP-24, Ley 25.326): `searchParams` ONLY ever reads
  * `ventana` ("todos"; anything else is the default "próximos") and `page` (a
@@ -11,8 +11,8 @@
  * The ventana filter is a strip of tabs with the use case's own per-window
  * counts (`conteo`): the number the user reads is the tab they click.
  *
- * `/pacientes/recurrentes` is a STATIC segment next to the dynamic
- * `/pacientes/[id]`: Next.js matches static segments first, so `recurrentes` is
+ * `/pacientes/seguimiento` is a STATIC segment next to the dynamic
+ * `/pacientes/[id]`: Next.js matches static segments first, so `seguimiento` is
  * never read as an `[id]` (and never reaches that layout's uuid guard).
  */
 import Link from "next/link";
@@ -46,7 +46,7 @@ export default async function PacientesRecurrentesPage({ searchParams }: Recurre
     const qs = new URLSearchParams();
     if (ventana === "todos") qs.set("ventana", ventana);
     qs.set("page", String(targetPage));
-    return `/pacientes/recurrentes?${qs.toString()}`;
+    return `/pacientes/seguimiento?${qs.toString()}`;
   }
 
   const regla = `Aparecen los pacientes que pidieron la misma fórmula ${OCURRENCIAS_MINIMAS} o más veces en los últimos ${VENTANA_MESES} meses.`;
@@ -55,7 +55,7 @@ export default async function PacientesRecurrentesPage({ searchParams }: Recurre
   return (
     <>
       <PageHeader
-        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Pacientes", href: "/pacientes" }, { label: "Recurrentes" }]}
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Pacientes", href: "/pacientes" }, { label: "Seguimiento" }]}
         title="Pacientes"
         description="Datos de contacto de cada paciente y el recorrido de sus recetas."
       />
@@ -66,13 +66,13 @@ export default async function PacientesRecurrentesPage({ searchParams }: Recurre
         <StatusSummary
           label="Filtrar por fecha del próximo pedido"
           unit={["pedido", "pedidos"]}
-          all={{ label: "Todos", count: conteo.todos, href: "/pacientes/recurrentes?ventana=todos", active: ventana === "todos" }}
+          all={{ label: "Todos", count: conteo.todos, href: "/pacientes/seguimiento?ventana=todos", active: ventana === "todos" }}
           items={[
             {
               key: "proximos",
               label: "Próximos",
               count: conteo.proximos,
-              href: "/pacientes/recurrentes",
+              href: "/pacientes/seguimiento",
               active: ventana === "proximos",
               tone: "warn",
             },
@@ -85,7 +85,7 @@ export default async function PacientesRecurrentesPage({ searchParams }: Recurre
         <div className="list-toolbar">
           <p role="status">
             <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(paginacion.total)}</span>{" "}
-            {paginacion.total === 1 ? "pedido recurrente" : "pedidos recurrentes"}
+            {paginacion.total === 1 ? "pedido periódico" : "pedidos periódicos"}
             <span className="text-zinc-500">{ventana === "proximos" ? " atrasados o de esta semana" : ""}</span>
           </p>
           <p className="hidden text-xs text-zinc-500 md:block">WhatsApp solo para quienes aceptaron recordatorios y tienen un teléfono válido.</p>
@@ -98,20 +98,20 @@ export default async function PacientesRecurrentesPage({ searchParams }: Recurre
               title="Nada atrasado ni previsto para esta semana"
               description={`${numberFormat.format(masAdelante)} ${masAdelante === 1 ? "pedido más tiene" : "pedidos más tienen"} fecha posterior.`}
               action={
-                <Link href="/pacientes/recurrentes?ventana=todos" scroll={false} className="btn btn-secondary">
+                <Link href="/pacientes/seguimiento?ventana=todos" scroll={false} className="btn btn-secondary">
                   Ver todos
                 </Link>
               }
             />
           ) : (
-            <EmptyState icon={<Repeat className="size-5" />} title="Todavía no hay pedidos recurrentes" description={regla} />
+            <EmptyState icon={<Repeat className="size-5" />} title="Todavía no hay pedidos periódicos" description={regla} />
           )
         ) : (
           <RecurrentesTabla filas={filas} zonaHoraria={zonaHoraria} />
         )}
 
         <p className="border-t border-zinc-100 px-4 py-2.5 text-xs text-zinc-500 md:hidden">WhatsApp solo para quienes aceptaron recordatorios y tienen un teléfono válido.</p>
-        <Pagination page={paginacion.page} pageSize={paginacion.pageSize} total={paginacion.total} hrefFor={pageHref} label="Paginación de pacientes recurrentes" />
+        <Pagination page={paginacion.page} pageSize={paginacion.pageSize} total={paginacion.total} hrefFor={pageHref} label="Paginación de pacientes en seguimiento" />
       </div>
     </>
   );

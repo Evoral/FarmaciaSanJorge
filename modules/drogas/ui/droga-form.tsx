@@ -1,9 +1,16 @@
 "use client";
 
-/** Crear/editar droga form (FASE 4 point 4.2, DP-12). The page provides the surrounding panel. */
+/**
+ * Crear/editar droga form (FASE 4 point 4.2, DP-12). The page provides the
+ * surrounding panel. "Clase" (migration 0063): on alta it follows the name's
+ * suggestion (domain/sugerir-clase.ts) until the user picks one by hand;
+ * on edición it is never changed for the user.
+ */
+import { useState } from "react";
 import { crearDrogaAction, editarDrogaAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
-import { TIPOS_CONTROL, TIPO_CONTROL_LABELS } from "@/modules/drogas/domain/droga";
+import { CLASES_DROGA, CLASE_DROGA_LABELS, TIPOS_CONTROL, TIPO_CONTROL_LABELS, type ClaseDroga } from "@/modules/drogas/domain/droga";
+import { sugerirClase, type SugerenciaClase } from "@/modules/drogas/domain/sugerir-clase";
 
 export interface UnidadOpcion {
   id: string;
@@ -20,6 +27,7 @@ export interface DrogaFormProps {
     unidadBaseId: string;
     esControlada: boolean;
     tipoControl: string;
+    clase: string;
     stockMinimo: string;
     tienePartidas: boolean;
   };
@@ -29,6 +37,16 @@ export interface DrogaFormProps {
 export function DrogaForm({ mode, unidades, droga, disabled }: DrogaFormProps) {
   const action = mode === "crear" ? crearDrogaAction : editarDrogaAction;
   const clasificacionDisabled = disabled || (mode === "editar" && (droga?.tienePartidas ?? false));
+  const [clase, setClase] = useState<ClaseDroga>((droga?.clase as ClaseDroga | undefined) ?? "DROGA");
+  const [sugerencia, setSugerencia] = useState<SugerenciaClase | null>(null);
+  const [claseElegida, setClaseElegida] = useState(mode === "editar");
+
+  function onNombre(nombre: string) {
+    if (claseElegida) return;
+    const nueva = sugerirClase(nombre);
+    setSugerencia(nueva);
+    setClase(nueva?.clase ?? "DROGA");
+  }
 
   return (
     <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear droga" : "Guardar cambios"}>
@@ -39,6 +57,7 @@ export function DrogaForm({ mode, unidades, droga, disabled }: DrogaFormProps) {
           <input type="hidden" name="versionUnidadBaseId" value={droga.unidadBaseId} />
           <input type="hidden" name="versionEsControlada" value={String(droga.esControlada)} />
           <input type="hidden" name="versionTipoControl" value={droga.tipoControl} />
+          <input type="hidden" name="versionClase" value={droga.clase} />
           <input type="hidden" name="versionStockMinimo" value={droga.stockMinimo} />
         </>
       ) : null}
@@ -47,7 +66,35 @@ export function DrogaForm({ mode, unidades, droga, disabled }: DrogaFormProps) {
         <label htmlFor="nombre" className="field-label">
           Nombre
         </label>
-        <input id="nombre" name="nombre" defaultValue={droga?.nombre ?? ""} required disabled={disabled} className="input" />
+        <input id="nombre" name="nombre" defaultValue={droga?.nombre ?? ""} required disabled={disabled} onChange={(e) => onNombre(e.target.value)} className="input" />
+      </div>
+
+      <div className="field sm:max-w-[50%]">
+        <label htmlFor="clase" className="field-label">
+          Clase
+        </label>
+        <select
+          id="clase"
+          name="clase"
+          value={clase}
+          disabled={disabled}
+          onChange={(e) => {
+            setClase(e.target.value as ClaseDroga);
+            setClaseElegida(true);
+          }}
+          aria-describedby="clase-ayuda"
+          className="input"
+        >
+          {CLASES_DROGA.map((c) => (
+            <option key={c} value={c}>
+              {CLASE_DROGA_LABELS[c]}
+            </option>
+          ))}
+        </select>
+        <p id="clase-ayuda" className="field-help">
+          {!claseElegida && sugerencia ? `Sugerido por «${sugerencia.motivo}» en el nombre. ` : ""}
+          Excipientes y materiales llevan stock y costo, pero no van al libro recetario ni pueden ser controlados.
+        </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

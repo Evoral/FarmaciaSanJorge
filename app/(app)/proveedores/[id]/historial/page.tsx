@@ -1,5 +1,5 @@
 /**
- * `/proveedores/[id]/trayectoria` (docs/specs/trayectoria-proveedor.md):
+ * `/proveedores/[id]/historial` (docs/specs/trayectoria-proveedor.md):
  * read-only view of everything a proveedor supplied, partida by partida, as a
  * `table.data-table` whose rows expand to the detail (`FilaDesplegable`).
  * `[id]` is an opaque UUID and `searchParams` ONLY ever reads `page` (a plain
@@ -8,7 +8,7 @@
  * Access is the parent layout's
  * `proveedores.gestionar` guard; the optional blocks and links are decided by
  * the use case from the session's other permisos. No receta / paciente data.
- * The proveedor's "Datos | Trayectoria" tabs sit right under the header
+ * The proveedor's "Datos | Historial" tabs sit right under the header
  * (`ProveedorTabs`); the droga filter is an autocomplete in the table toolbar.
  */
 import { notFound } from "next/navigation";
@@ -61,10 +61,10 @@ export default async function TrayectoriaProveedorPage({ params, searchParams }:
     const params = new URLSearchParams();
     for (const droga of drogaIds) params.append("droga", droga);
     params.set("page", String(target));
-    return `/proveedores/${id}/trayectoria?${params.toString()}`;
+    return `/proveedores/${id}/historial?${params.toString()}`;
   };
 
-  const baseHref = `/proveedores/${id}/trayectoria`;
+  const baseHref = `/proveedores/${id}/historial`;
 
   return (
     <>

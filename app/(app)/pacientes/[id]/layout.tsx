@@ -1,6 +1,6 @@
 /**
  * Layout for `/pacientes/[id]/**`: only the uuid guard. Each page renders its own header (breadcrumbs back to the
- * list) and the paciente's "Datos | Trayectoria" tabs (`PacienteTabs`, ../pacientes-tabs.tsx), so the tabs sit under
+ * list) and the paciente's "Datos | Historial" tabs (`PacienteTabs`, ../pacientes-tabs.tsx), so the tabs sit under
  * the paciente's name. The access guard (`pacientes.gestionar`) is the parent `pacientes/layout.tsx`.
  * HEALTH-ADJACENT DATA (DP-24): `[id]` is an opaque UUID, nothing identifying goes in these hrefs.
  */

@@ -1,5 +1,5 @@
 /**
- * Header of `/proveedores/[id]/trayectoria`: breadcrumbs back to the list, razón social, estado (vigente / dado de baja
+ * Header of `/proveedores/[id]/historial`: breadcrumbs back to the list, razón social, estado (vigente / dado de baja
  * + motivo) and CUIT (formatted). Server component. Rendered only for sessions that passed `proveedores.gestionar`.
  */
 import { PageHeader } from "@/shared/ui/page-header";
