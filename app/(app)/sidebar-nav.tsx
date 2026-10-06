@@ -14,8 +14,9 @@
  * Configuración) link to the FIRST sub-section the session can reach,
  * computed server-side from `app/(app)/nav-sections.ts`.
  *
- * On desktop the sidebar can be collapsed into a slim rail; the state is
- * owned by `./app-shell.tsx` (which also moves the content gutter). The
+ * On desktop the sidebar can be collapsed into a slim rail that keeps one
+ * icon per entry (label in a tooltip); the mobile drawer has no rail. The
+ * state is owned by `./app-shell.tsx` (which also moves the content gutter). The
  * glass look is pure CSS (`.glass-panel`, `.glass-pill` in globals.css): no JS,
  * no SVG filters, and only `translate`/`visibility` are animated.
  */
@@ -23,7 +24,31 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
+import {
+  Archive,
+  BookOpen,
+  CalendarCheck,
+  ChartColumn,
+  FileText,
+  FlaskConical,
+  House,
+  LibraryBig,
+  LogOut,
+  Menu,
+  Package,
+  PackageCheck,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Scale,
+  Settings,
+  ShieldCheck,
+  SlidersHorizontal,
+  Truck,
+  UserCog,
+  Users,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 
 export interface SidebarNavProps {
   /** Display name of the signed-in usuario. */
@@ -82,8 +107,15 @@ export interface SidebarNavProps {
 interface NavItem {
   href: string;
   label: string;
+  icon: LucideIcon;
   active: boolean;
   badge?: number;
+}
+
+/** Rail tooltip: label + viewport `top` of the hovered/focused icon (fixed-positioned, so the rail's scroll box never clips it). */
+interface RailTip {
+  label: string;
+  top: number;
 }
 
 interface NavGroup {
@@ -113,16 +145,8 @@ export function SidebarNav(props: SidebarNavProps) {
 
       {open ? <div className="fixed inset-0 z-40 bg-zinc-900/30 lg:hidden" onClick={() => setOpen(false)} aria-hidden /> : null}
 
-      {/* Desktop collapsed rail: keeps the expand control in its own gutter so it never overlaps page content. */}
-      {props.collapsed ? (
-        <div className="glass-panel fixed inset-y-3 left-3 z-40 hidden w-12 flex-col items-center lg:flex">
-          <div className="flex h-14 items-center">
-            <button type="button" onClick={() => props.onCollapsedChange(false)} aria-label="Expandir barra lateral" title="Expandir barra lateral" aria-expanded={false} aria-controls="app-sidebar" className="glass-pill glass-icon-btn text-zinc-700">
-              <PanelLeftOpen className="size-4" aria-hidden />
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {/* Desktop collapsed rail: one icon per section (label in a tooltip), in its own gutter so it never overlaps page content. */}
+      {props.collapsed ? <CollapsedRail groups={groups} usuario={props.usuario} logoutAction={props.logoutAction} onExpand={() => props.onCollapsedChange(false)} /> : null}
 
       <aside
         id="app-sidebar"
@@ -183,7 +207,74 @@ function Brand() {
   );
 }
 
+function CollapsedRail({ groups, usuario, logoutAction, onExpand }: { groups: NavGroup[]; usuario: string; logoutAction: () => Promise<void>; onExpand: () => void }) {
+  const [tip, setTip] = useState<RailTip | null>(null);
+
+  // Mouse and keyboard focus both show the tooltip, anchored to the element's vertical center.
+  const tipHandlers = (label: string) => ({
+    onMouseEnter: (e: { currentTarget: HTMLElement }) => setTip(tipFor(e.currentTarget, label)),
+    onMouseLeave: () => setTip(null),
+    onFocus: (e: { currentTarget: HTMLElement }) => setTip(tipFor(e.currentTarget, label)),
+    onBlur: () => setTip(null),
+  });
+
+  return (
+    <div className="glass-panel fixed inset-y-3 left-3 z-40 hidden w-12 flex-col items-center lg:flex">
+      <div className="flex h-14 shrink-0 items-center">
+        <button type="button" onClick={onExpand} aria-label="Expandir barra lateral" aria-expanded={false} aria-controls="app-sidebar" className="glass-pill glass-icon-btn text-zinc-700" {...tipHandlers("Expandir barra lateral")}>
+          <PanelLeftOpen className="size-4" aria-hidden />
+        </button>
+      </div>
+
+      <nav aria-label="Navegación principal" className="flex w-full flex-1 flex-col items-center overflow-y-auto pb-2" onScroll={() => setTip(null)}>
+        {groups.map((group) => (
+          <ul key={group.label} aria-label={group.label} className="flex w-full flex-col items-center gap-0.5 border-t border-emerald-900/[0.07] py-2 first:border-t-0 first:pt-0 dark:border-zinc-800">
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              const label = item.badge ? `${item.label} (${item.badge} pendientes)` : item.label;
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    aria-current={item.active ? "page" : undefined}
+                    aria-label={label}
+                    className={`relative flex size-9 items-center justify-center rounded-[10px] ${item.active ? "glass-pill text-emerald-800 dark:text-emerald-300" : "text-zinc-500 transition-colors duration-100 hover:bg-white/60 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-zinc-100"}`}
+                    {...tipHandlers(label)}
+                  >
+                    <Icon className="size-4" aria-hidden />
+                    {item.badge ? <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-amber-500" aria-hidden /> : null}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        ))}
+      </nav>
+
+      <div className="flex shrink-0 justify-center border-t border-emerald-900/[0.07] py-2 dark:border-zinc-800">
+        <form action={logoutAction}>
+          <button type="submit" aria-label={`Cerrar sesión (${usuario})`} className="glass-icon-btn" {...tipHandlers(`Cerrar sesión (${usuario})`)}>
+            <LogOut className="size-4" aria-hidden />
+          </button>
+        </form>
+      </div>
+
+      {tip ? (
+        <span role="tooltip" aria-hidden className="pointer-events-none fixed left-[4.25rem] z-50 -translate-y-1/2 whitespace-nowrap rounded-md bg-zinc-900 px-2 py-1 text-xs font-medium text-white shadow-md dark:bg-zinc-100 dark:text-zinc-900" style={{ top: tip.top }}>
+          {tip.label}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function tipFor(el: HTMLElement, label: string): RailTip {
+  const rect = el.getBoundingClientRect();
+  return { label, top: rect.top + rect.height / 2 };
+}
+
 function NavLink({ item }: { item: NavItem }) {
+  const Icon = item.icon;
   return (
     <Link
       href={item.href}
@@ -194,6 +285,7 @@ function NavLink({ item }: { item: NavItem }) {
           : "flex items-center gap-2 rounded-[10px] px-2.5 py-1.5 text-sm text-zinc-600 transition-colors duration-100 hover:bg-white/60 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-zinc-100"
       }
     >
+      <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
       <span className="flex-1 truncate">{item.label}</span>
       {item.badge ? (
         <span className="font-mono text-[11px] font-medium text-amber-600 dark:text-amber-400" aria-label={`${item.badge} pendientes`}>
@@ -205,33 +297,33 @@ function NavLink({ item }: { item: NavItem }) {
 }
 
 function buildGroups(p: SidebarNavProps, pathname: string): NavGroup[] {
-  const operacion: NavItem[] = [{ href: "/", label: "Inicio", active: pathname === "/" }];
-  if (p.puedeRecetas) operacion.push({ href: "/recetas", label: "Recetas", active: pathname.startsWith("/recetas") });
-  if (p.puedePreparaciones) operacion.push({ href: "/preparaciones", label: "Preparaciones", active: pathname.startsWith("/preparaciones") });
+  const operacion: NavItem[] = [{ href: "/", label: "Inicio", icon: House, active: pathname === "/" }];
+  if (p.puedeRecetas) operacion.push({ href: "/recetas", label: "Recetas", icon: FileText, active: pathname.startsWith("/recetas") });
+  if (p.puedePreparaciones) operacion.push({ href: "/preparaciones", label: "Preparaciones", icon: FlaskConical, active: pathname.startsWith("/preparaciones") });
   if (p.puedeStock) {
     // `/stock/ajustes/**` has its own entry, so it must not light up "Stock" too.
     const enAjustes = pathname === "/stock/ajustes" || pathname.startsWith("/stock/ajustes/");
-    operacion.push({ href: "/stock", label: "Stock", active: pathname.startsWith("/stock") && !enAjustes });
-    operacion.push({ href: "/stock/ajustes", label: "Ajustes", active: enAjustes });
+    operacion.push({ href: "/stock", label: "Stock", icon: Package, active: pathname.startsWith("/stock") && !enAjustes });
+    operacion.push({ href: "/stock/ajustes", label: "Ajustes", icon: SlidersHorizontal, active: enAjustes });
   }
-  if (p.entregasHref) operacion.push({ href: p.entregasHref, label: "Entregas", active: pathname.startsWith("/entregas") });
+  if (p.entregasHref) operacion.push({ href: p.entregasHref, label: "Entregas", icon: PackageCheck, active: pathname.startsWith("/entregas") });
 
   const registro: NavItem[] = [];
-  if (p.puedeCierres) registro.push({ href: "/cierres", label: "Cierres", active: pathname.startsWith("/cierres"), badge: p.cierresPendientes });
-  if (p.puedeLibro) registro.push({ href: "/libro", label: "Libro Recetario", active: pathname.startsWith("/libro") });
-  if (p.puedeArchivo) registro.push({ href: "/archivo", label: "Archivo de recetas", active: pathname.startsWith("/archivo") });
+  if (p.puedeCierres) registro.push({ href: "/cierres", label: "Cierres", icon: CalendarCheck, active: pathname.startsWith("/cierres"), badge: p.cierresPendientes });
+  if (p.puedeLibro) registro.push({ href: "/libro", label: "Libro Recetario", icon: BookOpen, active: pathname.startsWith("/libro") });
+  if (p.puedeArchivo) registro.push({ href: "/archivo", label: "Archivo de recetas", icon: Archive, active: pathname.startsWith("/archivo") });
 
   const gestion: NavItem[] = [];
-  if (p.catalogosHref) gestion.push({ href: p.catalogosHref, label: "Catálogos", active: pathname.startsWith("/catalogos") });
-  if (p.puedePacientes) gestion.push({ href: "/pacientes", label: "Pacientes", active: pathname.startsWith("/pacientes") });
-  if (p.puedeProveedores) gestion.push({ href: "/proveedores", label: "Proveedores", active: pathname.startsWith("/proveedores") });
-  if (p.puedeComparadorCostos) gestion.push({ href: "/comparador-costos", label: "Comparador de costos", active: pathname.startsWith("/comparador-costos") });
-  if (p.puedeReportes) gestion.push({ href: "/reportes", label: "Reportes", active: pathname.startsWith("/reportes") });
-  if (p.puedeAuditoria) gestion.push({ href: "/auditoria", label: "Auditoría", active: pathname === "/auditoria" || pathname.startsWith("/auditoria/") });
+  if (p.catalogosHref) gestion.push({ href: p.catalogosHref, label: "Catálogos", icon: LibraryBig, active: pathname.startsWith("/catalogos") });
+  if (p.puedePacientes) gestion.push({ href: "/pacientes", label: "Pacientes", icon: Users, active: pathname.startsWith("/pacientes") });
+  if (p.puedeProveedores) gestion.push({ href: "/proveedores", label: "Proveedores", icon: Truck, active: pathname.startsWith("/proveedores") });
+  if (p.puedeComparadorCostos) gestion.push({ href: "/comparador-costos", label: "Comparador de costos", icon: Scale, active: pathname.startsWith("/comparador-costos") });
+  if (p.puedeReportes) gestion.push({ href: "/reportes", label: "Reportes", icon: ChartColumn, active: pathname.startsWith("/reportes") });
+  if (p.puedeAuditoria) gestion.push({ href: "/auditoria", label: "Auditoría", icon: ShieldCheck, active: pathname === "/auditoria" || pathname.startsWith("/auditoria/") });
 
   const administracion: NavItem[] = [];
-  if (p.accesosHref) administracion.push({ href: p.accesosHref, label: "Usuarios y accesos", active: pathname.startsWith("/admin/accesos") });
-  if (p.configuracionHref) administracion.push({ href: p.configuracionHref, label: "Configuración", active: pathname.startsWith("/admin/configuracion") });
+  if (p.accesosHref) administracion.push({ href: p.accesosHref, label: "Usuarios y accesos", icon: UserCog, active: pathname.startsWith("/admin/accesos") });
+  if (p.configuracionHref) administracion.push({ href: p.configuracionHref, label: "Configuración", icon: Settings, active: pathname.startsWith("/admin/configuracion") });
 
   return [
     { label: "Operación", items: operacion },

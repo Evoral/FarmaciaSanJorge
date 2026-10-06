@@ -7,10 +7,14 @@
  */
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CircleOff, Printer, Tag } from "lucide-react";
+import { ArrowLeft, CircleOff, Tag } from "lucide-react";
+import { can } from "@/shared/auth/authorize";
+import { requireSession } from "@/shared/auth/session";
 import { NotFoundError } from "@/shared/errors";
 import { getPreparacionParaPantalla } from "@/modules/preparaciones/application/get-preparacion-para-pantalla";
 import { getEtiquetaParaImprimir } from "@/modules/preparaciones/application/get-etiqueta-para-imprimir";
+import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
+import { ImprimirEtiquetaDialog } from "@/modules/preparaciones/ui/imprimir-etiqueta-dialog";
 import { ConfirmarPreparacionForm } from "@/modules/preparaciones/ui/confirmar-form";
 import { DescartarPreparacionForm } from "@/modules/preparaciones/ui/descartar-form";
 import { SimpleForm } from "@/shared/ui/simple-form";
@@ -102,6 +106,11 @@ async function EtiquetaSeccion({ preparacionId }: { preparacionId: string }) {
     if (!(error instanceof NotFoundError)) throw error;
   }
 
+  // The sizes of the "Seleccionar tamaño" dialog: read only when there is an etiqueta to print and the session may print.
+  const session = await requireSession();
+  const puedeImprimir = can(session, "etiquetas.imprimir");
+  const tamanos = etiqueta && puedeImprimir ? await listTamanosParaImprimir() : [];
+
   return (
     <section className="panel" aria-labelledby="etiqueta-heading">
       <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
@@ -115,10 +124,7 @@ async function EtiquetaSeccion({ preparacionId }: { preparacionId: string }) {
           <p className="text-[0.8125rem] text-zinc-500">{etiqueta ? "La etiqueta está generada y lista para imprimir." : "Falta generar la etiqueta de esta preparación."}</p>
         </div>
         {etiqueta ? (
-          <a href={`/api/preparaciones/${preparacionId}/etiqueta/pdf`} target="_blank" rel="noreferrer" className="btn btn-primary">
-            <Printer className="size-4" aria-hidden />
-            Imprimir etiqueta
-          </a>
+          puedeImprimir ? <ImprimirEtiquetaDialog preparacionId={preparacionId} tamanos={tamanos} variant="primary" small={false} /> : null
         ) : (
           <SimpleForm action={generarEtiquetaAction} submitLabel="Generar etiqueta" pendingLabel="Generando…">
             <input type="hidden" name="preparacionId" value={preparacionId} />

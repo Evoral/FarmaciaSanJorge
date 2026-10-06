@@ -46,6 +46,7 @@ import { Client } from "pg";
 import { z } from "zod";
 import { nonEmptyString, email as emailSchema } from "@/shared/validation";
 import { AUTH_POLICY } from "@/shared/auth/policy";
+import { ETIQUETA_TAMANO_PREDETERMINADO, ETIQUETA_TAMANO_PREDETERMINADO_NOMBRE } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 
 const argsSchema = z.object({
   tenantRazonSocial: nonEmptyString,
@@ -199,6 +200,17 @@ async function main(): Promise<void> {
          ($1, 'plazo_archivo_controladas_anios', 'NUMERO', '3', 'Anios de conservacion en archivo fisico para lotes con al menos una receta controlada -- DP-26 PARCIAL, FASE 12 punto 12.1')
        ON CONFLICT (tenant_id, clave) DO NOTHING`,
       [tenantId],
+    );
+
+    // Etiqueta page size (migration 0066): every tenant starts with the
+    // 100 x 42 mm the label was designed for, so printing always has at least
+    // one option; the administrator adds more in Configuración -> Etiquetas.
+    // Also backfilled for pre-existing tenants by migration 0066 (same row).
+    await client.query(
+      `INSERT INTO fsj.etiqueta_tamano (tenant_id, nombre, ancho_mm, alto_mm)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT DO NOTHING`,
+      [tenantId, ETIQUETA_TAMANO_PREDETERMINADO_NOMBRE, ETIQUETA_TAMANO_PREDETERMINADO.anchoMm, ETIQUETA_TAMANO_PREDETERMINADO.altoMm],
     );
 
     // libro_rubricado (M12, FASE 1 point 1.12 -- docs/specs/libro-recetario-y-contralor.md):

@@ -166,6 +166,11 @@ export function armarContenidoEtiqueta(datos: DatosEtiqueta): ContenidoEtiqueta 
   };
 }
 
+/** URL of the etiqueta PDF route for a preparación, rendered on the size (`etiqueta_tamano.id`) chosen in the "Seleccionar tamaño" dialog. */
+export function hrefEtiquetaPdf(preparacionId: string, tamanoId: string): string {
+  return `/api/preparaciones/${encodeURIComponent(preparacionId)}/etiqueta/pdf?tamano=${encodeURIComponent(tamanoId)}`;
+}
+
 /** Plain-text record of the label, persisted to `etiqueta.contenido`: the same fields the PDF prints, in reading order. */
 export function formatearContenidoEtiqueta(contenido: ContenidoEtiqueta): string {
   const dt = contenido.directorTecnico;

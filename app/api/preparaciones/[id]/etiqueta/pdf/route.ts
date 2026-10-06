@@ -25,13 +25,16 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-export async function GET(_request: Request, { params }: RouteParams): Promise<Response> {
+export async function GET(request: Request, { params }: RouteParams): Promise<Response> {
   const { id } = await params;
   const requestId = crypto.randomUUID();
+  // `?tamano=<etiqueta_tamano.id>` is the size picked in the "Seleccionar tamaño" dialog; without it (old links) the
+  // use case renders the default 100 x 42 mm. An unknown / deactivated / other-tenant size is a 404, a malformed id a 400.
+  const tamanoId = new URL(request.url).searchParams.get("tamano") || undefined;
 
   let resultado;
   try {
-    resultado = await imprimirEtiquetaPdf(id);
+    resultado = await imprimirEtiquetaPdf(id, tamanoId);
   } catch (e) {
     const appError = e instanceof AppError ? e : undefined;
     const status = appError ? STATUS_BY_CODE[appError.code] : 500;

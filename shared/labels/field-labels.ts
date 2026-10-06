@@ -79,6 +79,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   drogaIds: "Drogas",
   dtUsuarioId: "Director Técnico",
   etiquetaId: "Etiqueta",
+  tamanoId: "Tamaño de etiqueta",
   fichaTecnicaId: "Ficha técnica",
   id: "Identificador",
   itemRecetaId: "Ítem de la receta",
@@ -109,6 +110,8 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   stockMinimo: "Stock mínimo",
   tipoControl: "Tipo de control",
   tipoMagnitud: "Magnitud",
+  anchoMm: "Ancho (mm)",
+  altoMm: "Alto (mm)",
   tramos: "Tramos de margen",
   valor: "Valor",
 
@@ -260,6 +263,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   rol: "Rol",
   tomadaEn: "Tomada el",
   tomadaPor: "Tomada por",
+  activo: "Activo",
 };
 
 /** "fechaVencimiento" -> "Fecha vencimiento"; "laboratorioId" -> "Laboratorio"; "campo_nuevo" -> "Campo nuevo". Fallback only -- see the module doc comment. */

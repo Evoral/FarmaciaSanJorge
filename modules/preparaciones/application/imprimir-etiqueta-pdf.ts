@@ -8,7 +8,15 @@
  * BEFORE rendering, so a route hit that fails mid-render still recorded
  * the print attempt -- consistent with the fact that impression itself
  * carries no audit trail either way (plan §14).
+ *
+ * `tamanoId` is the size picked in the "Seleccionar tamaño" dialog
+ * (modules/etiqueta-tamanos). It is resolved FIRST: a size that does not
+ * resolve (unknown, another tenant's, deactivated) is `NOT_FOUND` and must
+ * not leave the etiqueta marked as printed. Without one (old links) the
+ * etiqueta is rendered on the default 100 × 42 mm.
  */
+import { getTamanoParaImprimir } from "@/modules/etiqueta-tamanos/application/get-tamano-para-imprimir";
+import { ETIQUETA_TAMANO_PREDETERMINADO } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import { getEtiquetaParaImprimir } from "./get-etiqueta-para-imprimir";
 import { marcarEtiquetaImpresa } from "./marcar-etiqueta-impresa";
 import { armarContenidoEtiqueta } from "../domain/etiqueta";
@@ -19,9 +27,10 @@ export interface EtiquetaPdfResult {
   pdf: Buffer;
 }
 
-export async function imprimirEtiquetaPdf(preparacionId: string): Promise<EtiquetaPdfResult> {
+export async function imprimirEtiquetaPdf(preparacionId: string, tamanoId?: string): Promise<EtiquetaPdfResult> {
+  const tamano = tamanoId ? await getTamanoParaImprimir(tamanoId) : ETIQUETA_TAMANO_PREDETERMINADO;
   const datos = await getEtiquetaParaImprimir(preparacionId);
   await marcarEtiquetaImpresa(datos.etiquetaId);
-  const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta(datos));
+  const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta(datos), tamano);
   return { preparacionId, pdf };
 }

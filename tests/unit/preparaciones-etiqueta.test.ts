@@ -10,6 +10,7 @@ import {
   formaSegunCantidad,
   formatearContenidoEtiqueta,
   formatearLineaRp,
+  hrefEtiquetaPdf,
   formatearMedicoEtiqueta,
   numeroRecetaEtiqueta,
   viaDeAdministracion,
@@ -149,5 +150,48 @@ describe("buildEtiquetaPdf", () => {
     const muchos = Array.from({ length: 12 }, (_, i) => componente({ drogaNombre: `Droga con un nombre bastante largo ${i + 1}`, esPrincipioActivo: true, orden: i + 1 }));
     const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta({ ...DATOS, formaFarmaceutica: "SOLUCION", cantidadUnidades: 1, componentes: muchos, directorTecnico: null, tenantDomicilio: null }));
     expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
+  });
+});
+
+/** The `/MediaBox [0 0 w h]` of the first page, in PDF points. */
+function mediaBox(pdf: Buffer): { ancho: number; alto: number } {
+  const match = /\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]/.exec(pdf.toString("latin1"));
+  if (!match) throw new Error("no MediaBox found in the PDF");
+  return { ancho: Number(match[1]), alto: Number(match[2]) };
+}
+
+const PT_POR_MM = 72 / 25.4;
+
+describe("buildEtiquetaPdf -- page size", () => {
+  it("defaults to the 100 x 42 mm the layout was designed for", async () => {
+    const box = mediaBox(await buildEtiquetaPdf(armarContenidoEtiqueta(DATOS)));
+    expect(box.ancho).toBeCloseTo(100 * PT_POR_MM, 1);
+    expect(box.alto).toBeCloseTo(42 * PT_POR_MM, 1);
+  });
+
+  it("renders a one-page PDF on the chosen size (50 x 30 mm = 141.7 x 85 pt)", async () => {
+    const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta(DATOS), { anchoMm: 50, altoMm: 30 });
+    expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
+    const box = mediaBox(pdf);
+    expect(box.ancho).toBeCloseTo(141.7, 1);
+    expect(box.alto).toBeCloseTo(85, 1);
+  });
+
+  it("supports a size larger than the design and one with decimals", async () => {
+    const grande = mediaBox(await buildEtiquetaPdf(armarContenidoEtiqueta(DATOS), { anchoMm: 200, altoMm: 84 }));
+    expect(grande.ancho).toBeCloseTo(200 * PT_POR_MM, 1);
+    const decimal = mediaBox(await buildEtiquetaPdf(armarContenidoEtiqueta(DATOS), { anchoMm: 62.5, altoMm: 29.7 }));
+    expect(decimal.ancho).toBeCloseTo(62.5 * PT_POR_MM, 1);
+    expect(decimal.alto).toBeCloseTo(29.7 * PT_POR_MM, 1);
+  });
+});
+
+describe("hrefEtiquetaPdf", () => {
+  it("points the PDF route at the preparación and the chosen size", () => {
+    expect(hrefEtiquetaPdf("prep-1", "tam-2")).toBe("/api/preparaciones/prep-1/etiqueta/pdf?tamano=tam-2");
+  });
+
+  it("encodes both ids", () => {
+    expect(hrefEtiquetaPdf("a/b", "c&d")).toBe("/api/preparaciones/a%2Fb/etiqueta/pdf?tamano=c%26d");
   });
 });

@@ -9,8 +9,10 @@
  * WHAT is printed comes from `domain/etiqueta.ts#armarContenidoEtiqueta`
  * (DP-28 rules live there); this file only lays it out. Same engine as
  * `modules/elaboracion/infrastructure/ficha-pdf.ts` (pdfkit, standard
- * fonts). The layout is drawn in a fixed design space and scaled uniformly
- * onto `ETIQUETA_TAMANO_MM`, so changing the size is a one-line edit.
+ * fonts). The layout is drawn in a FIXED design space (100 × 42 mm) and
+ * scaled uniformly, centered, onto the page size the caller chooses (one of
+ * the sizes the administrator configured -- modules/etiqueta-tamanos); the
+ * layout is not re-flowed per size.
  *
  * Every text is drawn with `lineBreak: false` at explicit coordinates (no
  * automatic wrapping, hence no automatic page breaks): the label is always
@@ -19,10 +21,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { renderPdf } from "@/shared/pdf/pdf-document";
+import { ETIQUETA_TAMANO_PREDETERMINADO } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
+import type { TamanoEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import type { ContenidoEtiqueta } from "../domain/etiqueta";
-
-/** PENDING (DP-28): label size, landscape. The printer is not known yet. */
-export const ETIQUETA_TAMANO_MM = { ancho: 100, alto: 42 } as const;
 
 const PT_POR_MM = 72 / 25.4;
 
@@ -205,9 +206,10 @@ function dibujarPie(doc: Doc, c: ContenidoEtiqueta): void {
   linea(doc, tramos, x, y, tamano, NEGRO);
 }
 
-export function buildEtiquetaPdf(contenido: ContenidoEtiqueta): Promise<Buffer> {
-  const ancho = ETIQUETA_TAMANO_MM.ancho * PT_POR_MM;
-  const alto = ETIQUETA_TAMANO_MM.alto * PT_POR_MM;
+/** Renders the etiqueta on a page of `tamano` (mm); without one, the 100 × 42 mm the layout was designed for. */
+export function buildEtiquetaPdf(contenido: ContenidoEtiqueta, tamano: TamanoEtiqueta = ETIQUETA_TAMANO_PREDETERMINADO): Promise<Buffer> {
+  const ancho = tamano.anchoMm * PT_POR_MM;
+  const alto = tamano.altoMm * PT_POR_MM;
   const escala = Math.min(ancho / DW, alto / DH);
 
   return renderPdf(

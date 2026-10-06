@@ -34,7 +34,7 @@
  * their data stacks under the receta Nº instead of duplicating the rows.
  */
 import Link from "next/link";
-import { CircleCheck, CircleOff, Eye, FlaskConical, Hourglass, Inbox, Printer, SearchX, X } from "lucide-react";
+import { CircleCheck, CircleOff, Eye, FlaskConical, Hourglass, Inbox, SearchX, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
@@ -54,7 +54,10 @@ import {
 } from "@/modules/preparaciones/domain/listado";
 import type { EstadoEtiqueta, FiltrosPreparaciones } from "@/modules/preparaciones/domain/listado";
 import { etiquetaProgreso, hrefToma, resumenItemsPendientes } from "@/modules/preparaciones/domain/toma";
+import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
+import type { EtiquetaTamano } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import { generarEtiquetaAction } from "@/modules/preparaciones/ui/actions";
+import { ImprimirEtiquetaDialog } from "@/modules/preparaciones/ui/imprimir-etiqueta-dialog";
 import { TomarRecetaForm } from "@/modules/preparaciones/ui/tomar-receta-form";
 import { VerRecetaPendienteDialog } from "@/modules/preparaciones/ui/ver-receta-pendiente-dialog";
 import { FORMA_FARMACEUTICA_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
@@ -126,6 +129,9 @@ export default async function PreparacionesPage({ searchParams }: PreparacionesP
   }
   const total = lista.result.total;
   const esConfirmadas = filtros.estado === "CONFIRMADA";
+  // The sizes of the "Seleccionar tamaño" dialog are read ONCE for the whole table (only when someone can print).
+  const puedeImprimirEtiqueta = can(session, "etiquetas.imprimir");
+  const tamanos: readonly EtiquetaTamano[] = esConfirmadas && puedeImprimirEtiqueta ? await listTamanosParaImprimir() : [];
   const etiquetaFechas = ETIQUETA_FECHAS[lista.pestana];
   const hasActiveFilters = Boolean(filtros.numero || filtros.desde || filtros.hasta || filtros.sinEtiquetaImpresa);
 
@@ -284,7 +290,8 @@ export default async function PreparacionesPage({ searchParams }: PreparacionesP
               result={lista.result}
               esConfirmadas={esConfirmadas}
               puedeGenerarEtiqueta={can(session, "etiquetas.generar")}
-              puedeImprimirEtiqueta={can(session, "etiquetas.imprimir")}
+              puedeImprimirEtiqueta={puedeImprimirEtiqueta}
+              tamanos={tamanos}
             />
           )}
 
@@ -460,11 +467,13 @@ function TablaPreparaciones({
   esConfirmadas,
   puedeGenerarEtiqueta,
   puedeImprimirEtiqueta,
+  tamanos,
 }: {
   result: ListPreparacionesOutput;
   esConfirmadas: boolean;
   puedeGenerarEtiqueta: boolean;
   puedeImprimirEtiqueta: boolean;
+  tamanos: readonly EtiquetaTamano[];
 }) {
   return (
     <div className="table-wrap">
@@ -515,7 +524,7 @@ function TablaPreparaciones({
                 ) : null}
                 <td className="px-3 py-2.5">
                   <div className="flex justify-end">
-                    <AccionFila preparacion={p} puedeGenerarEtiqueta={puedeGenerarEtiqueta} puedeImprimirEtiqueta={puedeImprimirEtiqueta} />
+                    <AccionFila preparacion={p} puedeGenerarEtiqueta={puedeGenerarEtiqueta} puedeImprimirEtiqueta={puedeImprimirEtiqueta} tamanos={tamanos} />
                   </div>
                 </td>
               </tr>
@@ -531,10 +540,12 @@ function AccionFila({
   preparacion,
   puedeGenerarEtiqueta,
   puedeImprimirEtiqueta,
+  tamanos,
 }: {
   preparacion: PreparacionListItem;
   puedeGenerarEtiqueta: boolean;
   puedeImprimirEtiqueta: boolean;
+  tamanos: readonly EtiquetaTamano[];
 }) {
   if (preparacion.estado !== "CONFIRMADA") {
     return (
@@ -545,12 +556,7 @@ function AccionFila({
     );
   }
   if (preparacion.etiqueta) {
-    return puedeImprimirEtiqueta ? (
-      <a href={`/api/preparaciones/${preparacion.id}/etiqueta/pdf`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">
-        <Printer className="size-3.5" aria-hidden />
-        Imprimir etiqueta
-      </a>
-    ) : null;
+    return puedeImprimirEtiqueta ? <ImprimirEtiquetaDialog preparacionId={preparacion.id} tamanos={tamanos} /> : null;
   }
   return puedeGenerarEtiqueta ? (
     // SimpleForm refreshes the route on success, so the row switches to "Imprimir etiqueta".

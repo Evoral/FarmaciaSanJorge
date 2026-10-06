@@ -1493,3 +1493,19 @@ model LoteArchivoNumeroContador {
   @@map("lote_archivo_numero_contador")
   @@schema("fsj")
 }
+
+/// Tenant-scoped (migration 0066): a page size, in mm, the farmacia prints its etiquetas on. Soft delete via `activo` (fsj_app has no DELETE). Case-insensitive name uniqueness lives in the DB only (unique index on (tenant_id, lower(nombre)); not expressible here).
+model EtiquetaTamano {
+  id        String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  nombre    String
+  anchoMm   Decimal  @map("ancho_mm") @db.Decimal(5, 1)
+  altoMm    Decimal  @map("alto_mm") @db.Decimal(5, 1)
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id])
+  @@map("etiqueta_tamano")
+  @@schema("fsj")
+}
