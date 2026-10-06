@@ -49,3 +49,6 @@ next-env.d.ts
 /playwright-report/
 /test-results/
 /blob-report/
+
+# gentle-ai / Agent Teams Lite
+/.atl/
