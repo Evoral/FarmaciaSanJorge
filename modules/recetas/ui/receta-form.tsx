@@ -112,9 +112,10 @@ function nuevoItem(): ItemState {
 }
 
 /** `sinGuardar`: a warning icon next to the label -- the edits on screen are not confirmed yet. */
-function SubmitButton({ label, pending, sinGuardar = false, compacto = false }: { label: string; pending: boolean; sinGuardar?: boolean; compacto?: boolean }) {
+/** `sinCambios`: nothing to save yet -- the button stays disabled (grey) until the draft differs from what is stored. */
+function SubmitButton({ label, pending, sinGuardar = false, compacto = false, sinCambios = false }: { label: string; pending: boolean; sinGuardar?: boolean; compacto?: boolean; sinCambios?: boolean }) {
   return (
-    <button type="submit" disabled={pending} className={compacto ? "btn btn-primary" : "btn btn-primary w-full"}>
+    <button type="submit" disabled={pending || sinCambios} title={sinCambios ? "No hay cambios para guardar." : undefined} className={compacto ? "btn btn-primary" : "btn btn-primary w-full"}>
       {pending ? <span className="spinner border-white/40 border-t-white" aria-hidden /> : <Save className="size-4" aria-hidden />}
       {pending ? "Guardando…" : label}
       {!pending && sinGuardar ? (
@@ -999,7 +1000,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                   Deshacer cambios
                 </button>
               ) : null}
-              <SubmitButton label="Guardar cambios" pending={isPending} sinGuardar={itemsSinGuardar} compacto />
+              <SubmitButton label="Guardar cambios" pending={isPending} sinGuardar={itemsSinGuardar} sinCambios={!itemsSinGuardar} compacto />
             </div>
           </div>
           {errorVisible ? (
