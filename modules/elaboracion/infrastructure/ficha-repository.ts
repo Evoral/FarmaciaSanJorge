@@ -235,6 +235,15 @@ export async function getMaxVersionFicha(tx: Prisma.TransactionClient, tenantId:
   return rows[0]?.max_version ?? 0;
 }
 
+/** Whether the item already has its (single, INV-PRP-003) CONFIRMADA preparación -- the item is done, so `generarFichaTecnica` refuses new versions. */
+export async function itemTienePreparacionConfirmada(tx: Prisma.TransactionClient, tenantId: string, itemRecetaId: string): Promise<boolean> {
+  const confirmada = await tx.preparacion.findFirst({
+    where: { tenantId, itemRecetaId, estado: "CONFIRMADA" },
+    select: { id: true },
+  });
+  return confirmada !== null;
+}
+
 export interface NuevaFichaInput {
   tenantId: string;
   itemRecetaId: string;

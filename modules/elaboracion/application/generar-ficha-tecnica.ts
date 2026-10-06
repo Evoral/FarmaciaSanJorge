@@ -50,11 +50,12 @@
  * a weighing mistake mid-preparation; FASE 8 is what decides what happens
  * to the INICIADA preparación against the now-superseded ficha, out of
  * scope here). Generating N+1 after version N's preparación is CONFIRMADA
- * is also allowed by the schema -- it is operationally close to moot
- * (INV-PRP-003 already forbids ever confirming another preparación for
- * this item_receta), but nothing here manufactures a refusal the DB itself
- * does not require, per the task's own instruction to implement exactly
- * what the invariants say. `listVersionesFicha` (ficha-repository.ts)
+ * is allowed by the schema but REFUSED here (business rule, not a DB
+ * invariant): INV-PRP-003 already forbids ever confirming another
+ * preparación for this item_receta, so a new version could never be
+ * prepared and would only clutter the item's history. An asiento later
+ * dejado "sin efecto" keeps its CONFIRMADA preparación, so the item stays
+ * closed. `listVersionesFicha` (ficha-repository.ts)
  * exposes each version's `preparacionActual` so the UI can surface this
  * context to the farmacéutico instead of silently hiding it.
  * ============================================================================
@@ -69,7 +70,7 @@
  */
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
-import { NotFoundError } from "@/shared/errors";
+import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import type { ComponenteInput, ItemRecetaInput } from "../domain/calcular-ficha-tecnica";
 import { mismasLineasPesaje } from "../domain/ficha-no-generable";
@@ -80,6 +81,7 @@ import {
   getComponentesParaFicha,
   getLineasUltimaFicha,
   getMaxVersionFicha,
+  itemTienePreparacionConfirmada,
   insertFichaConLineas,
 } from "../infrastructure/ficha-repository";
 import { calcularLineasFicha } from "./calcular-lineas-ficha";
@@ -132,6 +134,10 @@ export const generarFichaTecnicaCommand = defineCommand({
 
     const item = await getItemParaFicha(tx, session.tenantId, input.itemRecetaId);
     if (!item) throw new NotFoundError("Ítem de receta no encontrado.");
+
+    if (await itemTienePreparacionConfirmada(tx, session.tenantId, input.itemRecetaId)) {
+      throw new DomainError("Este ítem ya tiene una preparación confirmada: no se pueden generar nuevas versiones de su ficha técnica.");
+    }
 
     const componentesDb = await getComponentesParaFicha(tx, session.tenantId, input.itemRecetaId);
 

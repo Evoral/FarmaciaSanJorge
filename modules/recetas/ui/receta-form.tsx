@@ -28,14 +28,24 @@
  * catalog did not match are picked per componente with an optional
  * "recordar esta equivalencia", and the submit goes to `recetas.importar`,
  * which re-derives and re-validates everything server-side.
+ *
+ * `editar` mode keeps the saved ítems (`inicial`) to tell what is unsaved
+ * (the draft as `itemsJson` serializes it vs. the same serialization of the
+ * saved ítems, overall and per saved ítem id) and offers "Deshacer cambios"
+ * while there is something to undo. Embedded in the /preparaciones toma
+ * workspace, `encabezadoFijo` hides paciente/médico and the receta's data
+ * (the workspace shows them read-only; they are still submitted unchanged
+ * as hidden inputs) and `onBorradorChange` publishes the draft, so the
+ * page can preview each changed ítem's ficha técnica before it is saved.
  */
-import { useActionState, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useActionState, useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { AlertCircle, Plus, Save, Trash2 } from "lucide-react";
+import { AlertCircle, Plus, RotateCcw, Save, Trash2, TriangleAlert } from "lucide-react";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { crearRecetaAction, editarRecetaAction, importarRecetaAction } from "./actions";
 import { IDLE_STATE } from "./action-state";
+import type { RecetaActionState } from "./action-state";
 import { PacientePicker } from "./paciente-picker";
 import { MedicoPicker } from "./medico-picker";
 import { DrogaPicker } from "./droga-picker";
@@ -101,11 +111,19 @@ function nuevoItem(): ItemState {
   };
 }
 
-function SubmitButton({ label, pending }: { label: string; pending: boolean }) {
+/** `sinGuardar`: a warning icon next to the label -- the edits on screen are not confirmed yet. */
+/** `sinCambios`: nothing to save yet -- the button stays disabled (grey) until the draft differs from what is stored. */
+function SubmitButton({ label, pending, sinGuardar = false, compacto = false, sinCambios = false }: { label: string; pending: boolean; sinGuardar?: boolean; compacto?: boolean; sinCambios?: boolean }) {
   return (
-    <button type="submit" disabled={pending} className="btn btn-primary w-full">
+    <button type="submit" disabled={pending || sinCambios} title={sinCambios ? "No hay cambios para guardar." : undefined} className={compacto ? "btn btn-primary" : "btn btn-primary w-full"}>
       {pending ? <span className="spinner border-white/40 border-t-white" aria-hidden /> : <Save className="size-4" aria-hidden />}
       {pending ? "Guardando…" : label}
+      {!pending && sinGuardar ? (
+        <>
+          <TriangleAlert className="size-4 text-amber-300" aria-hidden />
+          <span className="sr-only">(cambios sin guardar)</span>
+        </>
+      ) : null}
     </button>
   );
 }
@@ -141,6 +159,52 @@ function FormSection({ title, description, children, id }: { title: string; desc
   );
 }
 
+/** One ítem as the form submits it (`itemsJson`): trimmed strings, `null` for what was left empty. */
+function itemParaEnvio(it: ItemState) {
+  return {
+    id: it.id,
+    descripcion: it.descripcion.trim().length > 0 ? it.descripcion.trim() : null,
+    formaFarmaceutica: it.formaFarmaceutica,
+    cantidadUnidades: Number.parseInt(it.cantidadUnidades, 10),
+    fraccionDosisPorUnidad: it.fraccionDosisPorUnidad.trim() || "1",
+    cantidadTotal: it.cantidadTotal.trim().length > 0 ? it.cantidadTotal.trim() : null,
+    unidadTotalId: it.unidadTotalId.trim().length > 0 ? it.unidadTotalId.trim() : null,
+    observaciones: it.observaciones.trim().length > 0 ? it.observaciones.trim() : null,
+    posologia: it.posologia.trim().length > 0 ? it.posologia.trim() : null,
+    duracionTratamientoDias: it.duracionTratamientoDias.trim().length > 0 ? Number(it.duracionTratamientoDias.trim()) : null,
+    componentes: it.componentes.map((c) => ({
+      drogaId: c.drogaId,
+      cantidad: c.cantidad.trim().length > 0 ? c.cantidad.trim() : null,
+      unidadMedidaId: c.unidadMedidaId,
+      modoExpresion: c.modoExpresion,
+    })),
+  };
+}
+
+/** An ítem of the draft as it would be submitted (`id` only for an ítem already saved). */
+export type ItemRecetaBorrador = ReturnType<typeof itemParaEnvio>;
+
+/** `editar` mode: the draft's ítems against the saved ones (`onBorradorChange`). */
+export interface BorradorReceta {
+  items: ItemRecetaBorrador[];
+  /** The ítems differ from the saved ones (any change, including added, removed or reordered ítems). */
+  sinGuardar: boolean;
+  /** Ids of the saved ítems whose draft differs from what is saved, removed ones included. */
+  itemsModificados: string[];
+}
+
+/** Compares the draft with the saved ítems, both serialized as `itemsJson` is. */
+function compararBorrador(itemsJson: string, guardadosJson: string): BorradorReceta {
+  const items = JSON.parse(itemsJson) as ItemRecetaBorrador[];
+  const guardados = JSON.parse(guardadosJson) as ItemRecetaBorrador[];
+  const borradorPorId = new Map(items.flatMap((item) => (item.id ? [[item.id, JSON.stringify(item)] as const] : [])));
+  return {
+    items,
+    sinGuardar: itemsJson !== guardadosJson,
+    itemsModificados: guardados.flatMap((guardado) => (guardado.id && borradorPorId.get(guardado.id) !== JSON.stringify(guardado) ? [guardado.id] : [])),
+  };
+}
+
 /** `2026-09-01` -> `01/09/2026` for the summary (empty stays empty). */
 function fechaVisible(iso: string): string {
   const [y, m, d] = iso.split("-");
@@ -171,6 +235,10 @@ export interface RecetaFormProps {
   puedePresupuestar?: boolean;
   /** `editar` mode only: where to come back after saving when the form is embedded in another screen (an internal /preparaciones path, re-validated by the action -- domain/avisos-generacion.ts#retornoDeEdicion). */
   volverA?: string;
+  /** `editar` mode only: paciente, médico and the receta's data are shown read-only by the embedding screen -- not rendered here, submitted unchanged. */
+  encabezadoFijo?: boolean;
+  /** `editar` mode only: called with the draft whenever its ítems change (and once on mount). */
+  onBorradorChange?: (borrador: BorradorReceta) => void;
 }
 
 /** The receta form's starting state for an imported PDF: the draft's data plus the catalog matches. */
@@ -206,7 +274,7 @@ function opcional(valor: string | null | undefined): string | undefined {
   return valor ?? undefined;
 }
 
-export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaPrevia, puedePresupuestar = false, volverA }: RecetaFormProps) {
+export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaPrevia, puedePresupuestar = false, volverA, encabezadoFijo = false, onBorradorChange }: RecetaFormProps) {
   const importacion = mode === "importar" ? (vistaPrevia ?? null) : null;
   const action = mode === "crear" ? crearRecetaAction : mode === "editar" ? editarRecetaAction : importarRecetaAction;
   const [state, formAction, isPending] = useActionState(action, IDLE_STATE);
@@ -244,6 +312,9 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
     matriculaJurisdiccion: (borrador?.medico.matriculaJurisdiccion ?? "PROVINCIAL") as JurisdiccionMatricula,
   }));
   const [clientError, setClientError] = useState<string | null>(null);
+  // "Deshacer cambios" also hides the server error it answered (a new submit brings its own state).
+  const [errorDescartado, setErrorDescartado] = useState<RecetaActionState | null>(null);
+  const encabezadoOculto = mode === "editar" && encabezadoFijo;
 
   const fechaId = useId();
   const personaIdBase = useId();
@@ -259,6 +330,24 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   }, [state]);
 
   useFieldErrors(formRef, errorFieldsOf(state));
+
+  // `editar` mode: what is unsaved. The ítems as they would be submitted vs. the saved ones, same serialization.
+  const itemsJson = JSON.stringify(items.map(itemParaEnvio));
+  const guardadosJson = useMemo(() => (mode === "editar" && inicial ? JSON.stringify(inicial.items.map(itemParaEnvio)) : null), [mode, inicial]);
+  const itemsSinGuardar = guardadosJson !== null && itemsJson !== guardadosJson;
+  const encabezadoSinGuardar =
+    guardadosJson !== null &&
+    !!inicial &&
+    (pacienteId !== inicial.pacienteId || medicoId !== inicial.medicoId || fechaPrescripcion !== inicial.fechaPrescripcion || diagnosticoCodigo !== inicial.diagnosticoCodigo || diagnosticoDescripcion !== inicial.diagnosticoDescripcion);
+
+  // The embedding screen's callback may change identity on every render: only the draft's changes publish it.
+  const onBorradorChangeRef = useRef(onBorradorChange);
+  useEffect(() => {
+    onBorradorChangeRef.current = onBorradorChange;
+  });
+  useEffect(() => {
+    if (guardadosJson !== null) onBorradorChangeRef.current?.(compararBorrador(itemsJson, guardadosJson));
+  }, [itemsJson, guardadosJson]);
 
   function actualizarItem(idx: number, patch: Partial<ItemState>) {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
@@ -285,24 +374,22 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   }
 
   function itemsParaEnvio() {
-    return items.map((it) => ({
-      id: it.id,
-      descripcion: it.descripcion.trim().length > 0 ? it.descripcion.trim() : null,
-      formaFarmaceutica: it.formaFarmaceutica,
-      cantidadUnidades: Number.parseInt(it.cantidadUnidades, 10),
-      fraccionDosisPorUnidad: it.fraccionDosisPorUnidad.trim() || "1",
-      cantidadTotal: it.cantidadTotal.trim().length > 0 ? it.cantidadTotal.trim() : null,
-      unidadTotalId: it.unidadTotalId.trim().length > 0 ? it.unidadTotalId.trim() : null,
-      observaciones: it.observaciones.trim().length > 0 ? it.observaciones.trim() : null,
-      posologia: it.posologia.trim().length > 0 ? it.posologia.trim() : null,
-      duracionTratamientoDias: it.duracionTratamientoDias.trim().length > 0 ? Number(it.duracionTratamientoDias.trim()) : null,
-      componentes: it.componentes.map((c) => ({
-        drogaId: c.drogaId,
-        cantidad: c.cantidad.trim().length > 0 ? c.cantidad.trim() : null,
-        unidadMedidaId: c.unidadMedidaId,
-        modoExpresion: c.modoExpresion,
-      })),
-    }));
+    return items.map(itemParaEnvio);
+  }
+
+  /** `editar` mode: back to the saved receta (the form's own state; nothing is submitted). */
+  function restablecer() {
+    if (!inicial) return;
+    setItems(inicial.items);
+    setPacienteId(inicial.pacienteId);
+    setPacienteLabel(inicial.pacienteLabel);
+    setMedicoId(inicial.medicoId);
+    setMedicoLabel(inicial.medicoLabel);
+    setFechaPrescripcion(inicial.fechaPrescripcion);
+    setDiagnosticoCodigo(inicial.diagnosticoCodigo);
+    setDiagnosticoDescripcion(inicial.diagnosticoDescripcion);
+    setClientError(null);
+    setErrorDescartado(state);
   }
 
   /** `recetas.importar`'s input (application/importar-receta.ts) -- the server re-matches and re-validates all of it. */
@@ -404,16 +491,16 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
     : medicoLabel;
   const totalComponentes = items.reduce((sum, it) => sum + it.componentes.length, 0);
   const cancelarHref = mode !== "editar" ? "/recetas" : !volverA && recetaId ? `/recetas/${recetaId}` : null;
-  const errorVisible = clientError ?? (state.status === "error" ? state.message : null);
+  const errorVisible = clientError ?? (state.status === "error" && state !== errorDescartado ? state.message : null);
 
   return (
-    <form ref={formRef} action={formAction} onSubmit={handleSubmit} noValidate className="split-layout">
+    <form ref={formRef} action={formAction} onSubmit={handleSubmit} noValidate className={encabezadoOculto ? "flex flex-col gap-6" : "split-layout"}>
       {mode === "editar" && recetaId ? <input type="hidden" name="id" value={recetaId} /> : null}
       {mode === "editar" && volverA ? <input type="hidden" name="volverA" value={volverA} /> : null}
       <input type="hidden" name="pacienteId" value={pacienteId} />
       <input type="hidden" name="medicoId" value={medicoId} />
       <input type="hidden" name="origen" value={origen} />
-      <input type="hidden" name="itemsJson" value={JSON.stringify(itemsParaEnvio())} />
+      <input type="hidden" name="itemsJson" value={itemsJson} />
       {importacion ? <input type="hidden" name="importacionJson" value={JSON.stringify(payloadImportacion())} /> : null}
       {mode === "editar" && inicial ? (
         <>
@@ -424,6 +511,14 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
           <input type="hidden" name="versionDiagnosticoCodigo" value={inicial.diagnosticoCodigo} />
           <input type="hidden" name="versionDiagnosticoDescripcion" value={inicial.diagnosticoDescripcion} />
           <input type="hidden" name="itemsVersionJson" value={JSON.stringify(inicial.items.filter((i) => i.id).map((i) => i.id))} />
+        </>
+      ) : null}
+      {encabezadoOculto ? (
+        // Not shown here, submitted unchanged (the `version*` fields above still guard against a concurrent edit).
+        <>
+          <input type="hidden" name="fechaPrescripcion" value={fechaPrescripcion} />
+          <input type="hidden" name="diagnosticoCodigo" value={diagnosticoCodigo} />
+          <input type="hidden" name="diagnosticoDescripcion" value={diagnosticoDescripcion} />
         </>
       ) : null}
 
@@ -512,7 +607,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
               )}
             </PanelPersona>
           </>
-        ) : (
+        ) : encabezadoOculto ? null : (
           <FormSection id={`${personaIdBase}-personas`} title="Paciente y médico" description="Escribí para buscar. Si no existe, lo creás desde la misma lista.">
             <div className="grid gap-5 md:grid-cols-2">
               <PacientePicker
@@ -537,86 +632,88 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
           </FormSection>
         )}
 
-        <FormSection id={`${personaIdBase}-datos`} title="Datos de la receta">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[auto_minmax(0,1fr)_8rem_minmax(0,2fr)]">
-            <div className="flex flex-wrap items-end gap-4">
-              <div className="field">
-                <label htmlFor={fechaId} className="field-label">
-                  Fecha de prescripción
-                </label>
-                <DateInput
-                  id={fechaId}
-                  name="fechaPrescripcion"
-                  required
-                  disabled={disabled}
-                  value={fechaPrescripcion}
-                  onValueChange={setFechaPrescripcion}
-                  min={mode === "editar" || conValidaDesde || importacion?.borrador.fechaValidaDesde ? undefined : fechaPrescripcionMinima(jornadaDe(new Date()))}
-                  max={jornadaDe(new Date())}
-                />
-              </div>
-              {mode === "crear" && conValidaDesde ? (
+        {encabezadoOculto ? null : (
+          <FormSection id={`${personaIdBase}-datos`} title="Datos de la receta">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[auto_minmax(0,1fr)_8rem_minmax(0,2fr)]">
+              <div className="flex flex-wrap items-end gap-4">
                 <div className="field">
-                  <label htmlFor={fechaValidaDesdeId} className="field-label">
-                    Válida desde
+                  <label htmlFor={fechaId} className="field-label">
+                    Fecha de prescripción
                   </label>
                   <DateInput
-                    id={fechaValidaDesdeId}
-                    name="fechaValidaDesde"
+                    id={fechaId}
+                    name="fechaPrescripcion"
                     required
                     disabled={disabled}
-                    value={fechaValidaDesde}
-                    onValueChange={setFechaValidaDesde}
-                    min={[fechaPrescripcion, fechaPrescripcionMinima(jornadaDe(new Date()))].sort().at(-1)}
+                    value={fechaPrescripcion}
+                    onValueChange={setFechaPrescripcion}
+                    min={mode === "editar" || conValidaDesde || importacion?.borrador.fechaValidaDesde ? undefined : fechaPrescripcionMinima(jornadaDe(new Date()))}
+                    max={jornadaDe(new Date())}
                   />
                 </div>
-              ) : null}
-              {mode === "crear" ? (
-                <label className="toggle-switch max-w-64 text-[0.8125rem] leading-snug text-zinc-500" aria-label="La receta tiene una fecha de validez distinta de su fecha de prescripción">
-                  <input type="checkbox" role="switch" checked={conValidaDesde} disabled={disabled} onChange={(e) => setConValidaDesde(e.target.checked)} />
-                  {conValidaDesde ? null : "La receta tiene una fecha de validez distinta de su fecha de prescripción."}
+                {mode === "crear" && conValidaDesde ? (
+                  <div className="field">
+                    <label htmlFor={fechaValidaDesdeId} className="field-label">
+                      Válida desde
+                    </label>
+                    <DateInput
+                      id={fechaValidaDesdeId}
+                      name="fechaValidaDesde"
+                      required
+                      disabled={disabled}
+                      value={fechaValidaDesde}
+                      onValueChange={setFechaValidaDesde}
+                      min={[fechaPrescripcion, fechaPrescripcionMinima(jornadaDe(new Date()))].sort().at(-1)}
+                    />
+                  </div>
+                ) : null}
+                {mode === "crear" ? (
+                  <label className="toggle-switch max-w-64 text-[0.8125rem] leading-snug text-zinc-500" aria-label="La receta tiene una fecha de validez distinta de su fecha de prescripción">
+                    <input type="checkbox" role="switch" checked={conValidaDesde} disabled={disabled} onChange={(e) => setConValidaDesde(e.target.checked)} />
+                    {conValidaDesde ? null : "La receta tiene una fecha de validez distinta de su fecha de prescripción."}
+                  </label>
+                ) : null}
+              </div>
+
+              <div className="field">
+                <span className="field-label">Origen</span>
+                <p className="flex min-h-[2.375rem] items-center text-sm text-zinc-700">{ORIGEN_RECETA_LABELS[origen]}</p>
+              </div>
+
+              <div className="field">
+                <label htmlFor={diagnosticoCodigoId} className="field-label">
+                  CIE-10
                 </label>
-              ) : null}
-            </div>
+                <input
+                  id={diagnosticoCodigoId}
+                  name="diagnosticoCodigo"
+                  value={diagnosticoCodigo}
+                  onChange={(e) => setDiagnosticoCodigo(e.target.value)}
+                  disabled={disabled}
+                  placeholder="Ej.: E66.0"
+                  maxLength={10}
+                  aria-label="Diagnóstico (código CIE-10)"
+                  className="input w-full font-mono"
+                />
+              </div>
 
-            <div className="field">
-              <span className="field-label">Origen</span>
-              <p className="flex min-h-[2.375rem] items-center text-sm text-zinc-700">{ORIGEN_RECETA_LABELS[origen]}</p>
+              <div className="field">
+                <label htmlFor={diagnosticoDescripcionId} className="field-label">
+                  Diagnóstico
+                </label>
+                <input
+                  id={diagnosticoDescripcionId}
+                  name="diagnosticoDescripcion"
+                  value={diagnosticoDescripcion}
+                  onChange={(e) => setDiagnosticoDescripcion(e.target.value)}
+                  disabled={disabled}
+                  aria-label="Diagnóstico (descripción)"
+                  className="input w-full"
+                />
+              </div>
             </div>
-
-            <div className="field">
-              <label htmlFor={diagnosticoCodigoId} className="field-label">
-                CIE-10
-              </label>
-              <input
-                id={diagnosticoCodigoId}
-                name="diagnosticoCodigo"
-                value={diagnosticoCodigo}
-                onChange={(e) => setDiagnosticoCodigo(e.target.value)}
-                disabled={disabled}
-                placeholder="Ej.: E66.0"
-                maxLength={10}
-                aria-label="Diagnóstico (código CIE-10)"
-                className="input w-full font-mono"
-              />
-            </div>
-
-            <div className="field">
-              <label htmlFor={diagnosticoDescripcionId} className="field-label">
-                Diagnóstico
-              </label>
-              <input
-                id={diagnosticoDescripcionId}
-                name="diagnosticoDescripcion"
-                value={diagnosticoDescripcion}
-                onChange={(e) => setDiagnosticoDescripcion(e.target.value)}
-                disabled={disabled}
-                aria-label="Diagnóstico (descripción)"
-                className="input w-full"
-              />
-            </div>
-          </div>
-        </FormSection>
+          </FormSection>
+        )}
 
         <section aria-labelledby="items-heading" className="flex flex-col gap-4">
           <div className="section-heading mb-0">
@@ -870,53 +967,108 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
         </section>
       </div>
 
-      <aside className="split-aside flex flex-col gap-4" aria-label="Resumen y guardado">
-        {puedePresupuestar && mode !== "editar" ? <PresupuestoPanel items={itemsParaEnvio()} /> : null}
-
-        <div className="panel">
-          <div className="panel-header">
-            <h2>Resumen</h2>
+      {/* In the toma workspace the resumen sits right below the ítems (and above the fichas técnicas) at every width, never as a sticky side column. */}
+      {encabezadoOculto ? (
+        // Toma workspace: one compact bar right below the ítems (and above the fichas técnicas) at every width.
+        <section aria-labelledby={`${personaIdBase}-resumen`} className="panel bg-zinc-50">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-5 py-3">
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <div className="text-sm">
+                <h2 id={`${personaIdBase}-resumen`} className="inline font-semibold text-zinc-900">
+                  Resumen
+                </h2>
+                <span className="text-zinc-500 tabular-nums">
+                  {" "}
+                  · {items.length} {items.length === 1 ? "ítem" : "ítems"} ({totalComponentes} {totalComponentes === 1 ? "componente" : "componentes"})
+                </span>
+              </div>
+              {itemsSinGuardar ? (
+                <p className="flex items-start gap-1.5 text-xs text-zinc-500">
+                  <TriangleAlert className="mt-px size-3.5 flex-none text-amber-600" aria-hidden />
+                  <span>
+                    <strong className="font-medium text-amber-700">Cambios no guardados.</strong> Al guardar, la ficha técnica de cada ítem se recalcula automáticamente.
+                  </span>
+                </p>
+              ) : (
+                <p className="text-xs text-zinc-500">Al guardar, la ficha técnica de cada ítem se recalcula automáticamente.</p>
+              )}
+            </div>
+            <div className="flex flex-none items-center gap-2">
+              {itemsSinGuardar ? (
+                <button type="button" onClick={restablecer} disabled={isPending} className="btn btn-secondary">
+                  <RotateCcw className="size-4" aria-hidden />
+                  Deshacer cambios
+                </button>
+              ) : null}
+              <SubmitButton label="Guardar cambios" pending={isPending} sinGuardar={itemsSinGuardar} sinCambios={!itemsSinGuardar} compacto />
+            </div>
           </div>
-          <div className="panel-body flex flex-col gap-4">
-            <dl className="summary-dl">
-              <dt>Paciente</dt>
-              <dd data-empty={!pacienteResumen || undefined} title={pacienteResumen || undefined}>
-                {pacienteResumen || "Sin elegir"}
-              </dd>
-              <dt>Médico</dt>
-              <dd data-empty={!medicoResumen || undefined} title={medicoResumen || undefined}>
-                {medicoResumen || "Sin elegir"}
-              </dd>
-              <dt>Prescripción</dt>
-              <dd data-empty={!fechaPrescripcion || undefined} className="tabular-nums">
-                {fechaVisible(fechaPrescripcion) || "Sin fecha"}
-              </dd>
-              <dt>Origen</dt>
-              <dd>{ORIGEN_RECETA_LABELS[origen]}</dd>
-              <dt>Ítems</dt>
-              <dd className="tabular-nums">
-                {items.length} ({totalComponentes} {totalComponentes === 1 ? "componente" : "componentes"})
-              </dd>
-            </dl>
-
-            {errorVisible ? (
+          {errorVisible ? (
+            <div className="px-5 pb-3">
               <div role="alert" className="alert alert-danger">
                 <AlertCircle aria-hidden />
                 <p>{errorVisible}</p>
               </div>
-            ) : null}
+            </div>
+          ) : null}
+        </section>
+      ) : (
+        <aside className="split-aside flex flex-col gap-4" aria-label="Resumen y guardado">
+          {puedePresupuestar && mode !== "editar" ? <PresupuestoPanel items={itemsParaEnvio()} /> : null}
 
-            <div className="flex flex-col gap-2">
-              <SubmitButton label={mode === "crear" ? "Crear receta" : mode === "editar" ? "Guardar cambios" : "Confirmar importación"} pending={isPending} />
-              {cancelarHref ? (
-                <Link href={cancelarHref} className="btn btn-ghost w-full">
-                  Cancelar
-                </Link>
+          <div className="panel">
+            <div className="panel-header">
+              <h2>Resumen</h2>
+            </div>
+            <div className="panel-body flex flex-col gap-4">
+              <dl className="summary-dl">
+                <>
+                  <dt>Paciente</dt>
+                  <dd data-empty={!pacienteResumen || undefined} title={pacienteResumen || undefined}>
+                    {pacienteResumen || "Sin elegir"}
+                  </dd>
+                  <dt>Médico</dt>
+                  <dd data-empty={!medicoResumen || undefined} title={medicoResumen || undefined}>
+                    {medicoResumen || "Sin elegir"}
+                  </dd>
+                  <dt>Prescripción</dt>
+                  <dd data-empty={!fechaPrescripcion || undefined} className="tabular-nums">
+                    {fechaVisible(fechaPrescripcion) || "Sin fecha"}
+                  </dd>
+                  <dt>Origen</dt>
+                  <dd>{ORIGEN_RECETA_LABELS[origen]}</dd>
+                </>
+                <dt>Ítems</dt>
+                <dd className="tabular-nums">
+                  {items.length} ({totalComponentes} {totalComponentes === 1 ? "componente" : "componentes"})
+                </dd>
+              </dl>
+
+              {errorVisible ? (
+                <div role="alert" className="alert alert-danger">
+                  <AlertCircle aria-hidden />
+                  <p>{errorVisible}</p>
+                </div>
               ) : null}
+
+              <div className="flex flex-col gap-2">
+                <SubmitButton label={mode === "crear" ? "Crear receta" : mode === "editar" ? "Guardar cambios" : "Confirmar importación"} pending={isPending} sinGuardar={itemsSinGuardar || encabezadoSinGuardar} />
+                {itemsSinGuardar || encabezadoSinGuardar ? (
+                  <button type="button" onClick={restablecer} disabled={isPending} className="btn btn-secondary w-full">
+                    <RotateCcw className="size-4" aria-hidden />
+                    Deshacer cambios
+                  </button>
+                ) : null}
+                {cancelarHref ? (
+                  <Link href={cancelarHref} className="btn btn-ghost w-full">
+                    Cancelar
+                  </Link>
+                ) : null}
+              </div>
             </div>
           </div>
-        </div>
-      </aside>
+        </aside>
+      )}
     </form>
   );
 }

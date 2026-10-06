@@ -47,7 +47,6 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
   if (!item) notFound();
 
   const versiones = await listVersionesFicha(itemId);
-  const puedeGenerar = can(session, "fichas.generar");
   const puedeImprimir = can(session, "fichas.imprimir");
   const puedeIniciarPreparacion = can(session, "preparaciones.iniciar");
   const puedeVerCotizacion = can(session, "cotizaciones.calcular") || can(session, "cotizaciones.ver");
@@ -55,6 +54,9 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
   // CONFIRMADA the item is done (an asiento later dejado "sin efecto" keeps its CONFIRMADA preparación, so it stays done); only a
   // DESCARTADA one lets it start again. Same rule as the /preparaciones "Pendientes" tab.
   const itemEnCurso = versiones.some((v) => v.preparacionActual?.estado === "INICIADA" || v.preparacionActual?.estado === "CONFIRMADA");
+  // Once the item's preparación is CONFIRMADA no new version can ever be prepared, so generating is closed (also refused by generarFichaTecnica).
+  const itemConfirmado = versiones.some((v) => v.preparacionActual?.estado === "CONFIRMADA");
+  const puedeGenerar = can(session, "fichas.generar") && !itemConfirmado;
   const posicion = receta.items.findIndex((i) => i.id === itemId) + 1;
 
   return (
@@ -67,7 +69,11 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
           { label: "Ficha técnica" },
         ]}
         title="Ficha técnica"
-        description="Líneas de pesaje calculadas para este ítem. Cada generación crea una versión nueva."
+        description={
+          itemConfirmado
+            ? "Líneas de pesaje calculadas para este ítem. Ya tiene una preparación confirmada: no se generan versiones nuevas."
+            : "Líneas de pesaje calculadas para este ítem. Cada generación crea una versión nueva."
+        }
         actions={
           puedeVerCotizacion ? (
             <Link href={`/recetas/${recetaId}/items/${itemId}/cotizacion`} className="btn btn-secondary">

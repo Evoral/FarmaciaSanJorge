@@ -41,8 +41,8 @@ const presupuestarRecetaInput = z.object({
 export type PresupuestarRecetaWireInput = z.input<typeof presupuestarRecetaInput>;
 type ItemBorrador = z.infer<typeof itemInput>;
 
-/** The message shown instead of an item's price, or `null` for an unexpected error (rethrown, not hidden). */
-function mensajeNoFatal(error: unknown): string | null {
+/** The message shown instead of an item's price, or `null` for an unexpected error (rethrown, not hidden). Shared with `preparaciones.toma.previsualizarFichas`. */
+export function mensajeNoFatal(error: unknown): string | null {
   if (error instanceof DomainError || error instanceof ValidationError) return error.message;
   // decimal.js rejects a malformed quantity with a plain Error.
   if (error instanceof Error && error.message.startsWith("[DecimalError]")) return "El ítem tiene una cantidad que no es un número válido.";
