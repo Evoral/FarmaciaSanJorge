@@ -12,6 +12,9 @@
 export const TAMANO_MM_MIN = 10;
 export const TAMANO_MM_MAX = 300;
 
+/** Longest size name accepted: the zod schemas of crear/editar and the form's `maxLength` share it (the column is unbounded `text`). */
+export const NOMBRE_MAX_LENGTH = 80;
+
 /** The page size of a printed etiqueta, in millimetres. */
 export interface TamanoEtiqueta {
   anchoMm: number;
@@ -29,6 +32,11 @@ export const ETIQUETA_TAMANO_PREDETERMINADO: TamanoEtiqueta = { anchoMm: 100, al
 
 /** Name of the size seeded for every tenant (migration 0066 and scripts/create-tenant.ts). */
 export const ETIQUETA_TAMANO_PREDETERMINADO_NOMBRE = "Estándar 100 × 42 mm";
+
+/** `true` if deactivating `id` would leave the tenant without an active size, given the ids of its currently ACTIVE sizes (print needs at least one to offer). */
+export function dejaSinTamanoActivo(activosIds: readonly string[], id: string): boolean {
+  return !activosIds.some((activoId) => activoId !== id);
+}
 
 /** `true` for a finite value within [TAMANO_MM_MIN, TAMANO_MM_MAX] with at most one decimal (the column is `numeric(5,1)`). */
 export function medidaMmValida(valor: number): boolean {

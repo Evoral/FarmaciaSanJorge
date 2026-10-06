@@ -72,6 +72,19 @@ export async function lockEtiquetaTamano(tx: Prisma.TransactionClient, tenantId:
   return rows.length === 1;
 }
 
+/**
+ * Locks EVERY active size of the tenant (`SELECT ... FOR UPDATE`) and returns
+ * their ids. Used by the baja so the "at least one active size" rule is checked
+ * against rows no concurrent baja can change; `ORDER BY id` fixes the lock order
+ * so two bajas can not deadlock on each other.
+ */
+export async function lockEtiquetaTamanosActivos(tx: Prisma.TransactionClient, tenantId: string): Promise<string[]> {
+  const rows = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM fsj.etiqueta_tamano WHERE tenant_id = ${tenantId}::uuid AND activo ORDER BY id FOR UPDATE
+  `;
+  return rows.map((row) => row.id);
+}
+
 export interface NuevoEtiquetaTamano {
   nombre: string;
   anchoMm: number;

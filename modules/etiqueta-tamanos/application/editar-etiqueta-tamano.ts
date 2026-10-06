@@ -14,6 +14,7 @@ import { defineCommand } from "@/shared/usecase";
 import { NotFoundError, ValidationError } from "@/shared/errors";
 import { AUTH_POLICY } from "@/shared/auth/policy";
 import { nonEmptyString, uuid } from "@/shared/validation";
+import { NOMBRE_MAX_LENGTH } from "../domain/etiqueta-tamano";
 import { existeNombre, getEtiquetaTamano, lockEtiquetaTamano, updateEtiquetaTamanoDatos } from "../infrastructure/etiqueta-tamano-repository";
 import { NOMBRE_DUPLICADO_MESSAGE } from "./crear-etiqueta-tamano";
 import { medidaMmInput } from "./medida-mm";
@@ -22,7 +23,7 @@ import { medidaMmInput } from "./medida-mm";
 export const editarEtiquetaTamanoInput = z
   .object({
     id: uuid,
-    nombre: nonEmptyString,
+    nombre: nonEmptyString.max(NOMBRE_MAX_LENGTH, `El nombre no puede superar los ${NOMBRE_MAX_LENGTH} caracteres.`),
     anchoMm: medidaMmInput,
     altoMm: medidaMmInput,
   })

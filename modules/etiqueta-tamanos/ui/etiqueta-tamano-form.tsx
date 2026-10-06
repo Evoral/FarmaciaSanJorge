@@ -8,7 +8,7 @@
  */
 import { useRouter } from "next/navigation";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
-import { TAMANO_MM_MAX, TAMANO_MM_MIN } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
+import { NOMBRE_MAX_LENGTH, TAMANO_MM_MAX, TAMANO_MM_MIN } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import { crearEtiquetaTamanoAction, editarEtiquetaTamanoAction } from "./actions";
 
 export interface EtiquetaTamanoFormProps {
@@ -44,7 +44,7 @@ export function EtiquetaTamanoForm({ mode, tamano, disabled, volverA }: Etiqueta
         <label htmlFor="nombre" className="field-label">
           Nombre
         </label>
-        <input id="nombre" name="nombre" defaultValue={tamano?.nombre ?? ""} required disabled={disabled} maxLength={80} placeholder="Ej.: Rollo 100 × 42" className="input" />
+        <input id="nombre" name="nombre" defaultValue={tamano?.nombre ?? ""} required disabled={disabled} maxLength={NOMBRE_MAX_LENGTH} placeholder="Ej.: Rollo 100 × 42" className="input" />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

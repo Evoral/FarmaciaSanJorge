@@ -3,17 +3,22 @@
  * longer offered when printing. The row is never deleted (fsj_app has no
  * DELETE) and can be reactivated. ADMINISTRADOR only (`config.editar`) with
  * recent re-authentication; the motivo goes to the audit trail (the table has
- * no motivo column).
+ * no motivo column). The tenant must keep at least one ACTIVE size (the print
+ * dialog would have nothing to offer): the active rows are locked before the
+ * check, so two concurrent bajas can not both pass it.
  */
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { AUTH_POLICY } from "@/shared/auth/policy";
 import { nonEmptyString, uuid } from "@/shared/validation";
-import { cambiarActivoEtiquetaTamano, getEtiquetaTamano, lockEtiquetaTamano } from "../infrastructure/etiqueta-tamano-repository";
+import { dejaSinTamanoActivo } from "../domain/etiqueta-tamano";
+import { cambiarActivoEtiquetaTamano, getEtiquetaTamano, lockEtiquetaTamano, lockEtiquetaTamanosActivos } from "../infrastructure/etiqueta-tamano-repository";
 import { NO_ENCONTRADO_MESSAGE } from "./editar-etiqueta-tamano";
 
 const darDeBajaEtiquetaTamanoInput = z.object({ id: uuid, motivo: nonEmptyString }).strict();
+
+export const ULTIMO_ACTIVO_MESSAGE = "Debe quedar al menos un tamaño de etiqueta activo.";
 
 export type DarDeBajaEtiquetaTamanoInput = z.infer<typeof darDeBajaEtiquetaTamanoInput>;
 
@@ -24,11 +29,14 @@ export const darDeBajaEtiquetaTamanoCommand = defineCommand({
   requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { entidad: "etiqueta_tamano", accion: "BAJA" },
   handler: async ({ tx, session, input }) => {
+    // Active rows first (fixed id order), then the target: a baja holding the target while waiting on the active set could deadlock with another baja.
+    const activos = await lockEtiquetaTamanosActivos(tx, session.tenantId);
     if (!(await lockEtiquetaTamano(tx, session.tenantId, input.id))) throw new NotFoundError(NO_ENCONTRADO_MESSAGE);
 
     const actual = await getEtiquetaTamano(tx, session.tenantId, input.id);
     if (!actual) throw new NotFoundError(NO_ENCONTRADO_MESSAGE);
     if (!actual.activo) throw new DomainError("Este tamaño ya está dado de baja.");
+    if (dejaSinTamanoActivo(activos, input.id)) throw new DomainError(ULTIMO_ACTIVO_MESSAGE);
 
     await cambiarActivoEtiquetaTamano(tx, session.tenantId, input.id, false);
 

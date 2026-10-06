@@ -6,8 +6,10 @@
 import { describe, it, expect } from "vitest";
 import {
   ETIQUETA_TAMANO_PREDETERMINADO,
+  NOMBRE_MAX_LENGTH,
   TAMANO_MM_MAX,
   TAMANO_MM_MIN,
+  dejaSinTamanoActivo,
   formatearMedidaMm,
   formatearMedidas,
   formatearTamano,
@@ -45,6 +47,16 @@ describe("medidaMmValida (mirrors the etiqueta_tamano CHECKs)", () => {
   });
 });
 
+describe("dejaSinTamanoActivo", () => {
+  it("is true when the size is the only active one", () => {
+    expect(dejaSinTamanoActivo(["a"], "a")).toBe(true);
+  });
+
+  it("is false while another size stays active", () => {
+    expect(dejaSinTamanoActivo(["a", "b"], "a")).toBe(false);
+  });
+});
+
 describe("formatting", () => {
   it("formats a measure with es-AR decimals and no trailing .0", () => {
     expect(formatearMedidaMm(100)).toBe("100");
@@ -78,6 +90,13 @@ describe("crearEtiquetaTamanoInput", () => {
     expect(crearEtiquetaTamanoInput.safeParse({ ...base, nombre: "   " }).success).toBe(false);
   });
 
+  it("caps the name at NOMBRE_MAX_LENGTH (80) characters, counted after trimming", () => {
+    expect(NOMBRE_MAX_LENGTH).toBe(80);
+    expect(crearEtiquetaTamanoInput.safeParse({ ...base, nombre: "a".repeat(80) }).success).toBe(true);
+    expect(crearEtiquetaTamanoInput.safeParse({ ...base, nombre: "a".repeat(81) }).success).toBe(false);
+    expect(crearEtiquetaTamanoInput.safeParse({ ...base, nombre: ` ${"a".repeat(80)} ` }).success).toBe(true);
+  });
+
   it("rejects measures below 10 mm or above 300 mm", () => {
     expect(crearEtiquetaTamanoInput.safeParse({ ...base, anchoMm: "9.9" }).success).toBe(false);
     expect(crearEtiquetaTamanoInput.safeParse({ ...base, altoMm: "300.1" }).success).toBe(false);
@@ -102,5 +121,11 @@ describe("editarEtiquetaTamanoInput", () => {
     expect(editarEtiquetaTamanoInput.safeParse({ id, nombre: "Rollo", anchoMm: "50", altoMm: "30" }).success).toBe(true);
     expect(editarEtiquetaTamanoInput.safeParse({ id: "x", nombre: "Rollo", anchoMm: "50", altoMm: "30" }).success).toBe(false);
     expect(editarEtiquetaTamanoInput.safeParse({ id, nombre: "Rollo", anchoMm: "5", altoMm: "30" }).success).toBe(false);
+  });
+
+  it("caps the name at 80 characters too", () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    expect(editarEtiquetaTamanoInput.safeParse({ id, nombre: "a".repeat(80), anchoMm: "50", altoMm: "30" }).success).toBe(true);
+    expect(editarEtiquetaTamanoInput.safeParse({ id, nombre: "a".repeat(81), anchoMm: "50", altoMm: "30" }).success).toBe(false);
   });
 });

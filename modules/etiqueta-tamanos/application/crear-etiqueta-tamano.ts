@@ -11,13 +11,14 @@ import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { ValidationError } from "@/shared/errors";
 import { AUTH_POLICY } from "@/shared/auth/policy";
 import { nonEmptyString } from "@/shared/validation";
+import { NOMBRE_MAX_LENGTH } from "../domain/etiqueta-tamano";
 import { existeNombre, insertEtiquetaTamano } from "../infrastructure/etiqueta-tamano-repository";
 import { medidaMmInput } from "./medida-mm";
 
 /** Exported for tests/unit/etiqueta-tamanos-validacion.test.ts. */
 export const crearEtiquetaTamanoInput = z
   .object({
-    nombre: nonEmptyString,
+    nombre: nonEmptyString.max(NOMBRE_MAX_LENGTH, `El nombre no puede superar los ${NOMBRE_MAX_LENGTH} caracteres.`),
     anchoMm: medidaMmInput,
     altoMm: medidaMmInput,
   })
