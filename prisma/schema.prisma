@@ -929,15 +929,16 @@ model ComponenteItemReceta {
   cantidad          Decimal?      @db.Decimal
   unidadMedidaId    String        @map("unidad_medida_id") @db.Uuid
   modoExpresion     ModoExpresion @map("modo_expresion")
+  /// Snapshot written by the app on insert: true iff the droga's clase is DROGA (migration 0063); not kept in sync with later catalog changes.
   esPrincipioActivo Boolean       @default(false) @map("es_principio_activo")
-  orden             Int
 
   itemReceta   ItemReceta   @relation(fields: [itemRecetaId], references: [id])
   droga        Droga        @relation(fields: [drogaId], references: [id])
   unidadMedida UnidadMedida @relation(fields: [unidadMedidaId], references: [id])
 
   @@unique([tenantId, id])
-  @@unique([tenantId, itemRecetaId, orden])
+  /// Migration 0065: the componentes of an item (they have no order -- orden was dropped).
+  @@index([tenantId, itemRecetaId], map: "idx_componente_item_receta_tenant_item")
   @@map("componente_item_receta")
   @@schema("fsj")
 }

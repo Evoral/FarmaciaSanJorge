@@ -23,6 +23,7 @@
  */
 import { Decimal, dec } from "@/shared/decimal";
 import { DomainError } from "@/shared/errors";
+import { ordenarComponentes } from "./orden-componentes";
 
 export type TipoMagnitud = "MASA" | "VOLUMEN" | "UNIDADES";
 
@@ -77,8 +78,6 @@ export interface ComponenteInput {
   cantidad: Decimal | string | number | null;
   unidadMedida: UnidadMedidaRef;
   modoExpresion: ModoExpresion;
-  esPrincipioActivo: boolean;
-  orden: number;
 }
 
 export interface ParametrosPesaje {
@@ -96,6 +95,7 @@ export interface LineaPesajeCalculada {
   /** Always the BASE unit of the line's magnitude (spec: "unidad base de la magnitud"), never the unit the component was declared in. */
   unidadMedida: UnidadMedidaRef;
   esEnraseManual: boolean;
+  /** 0-based position among the item's lines -- the componentes in `ordenarComponentes` order (they carry no stored order of their own). */
   orden: number;
 }
 
@@ -128,6 +128,7 @@ function redondearAMultiplo(valor: Decimal, precision: Decimal): Decimal {
 /** R7 + R8 (MASA only -- see the module doc comment's "Pending confirmation" note). */
 function calcularLineaNoManual(
   c: ComponenteInput,
+  orden: number,
   teorica: Decimal,
   excesoPct: Decimal,
   precisionBalanza: Decimal,
@@ -144,11 +145,11 @@ function calcularLineaNoManual(
     cantidadAPesar: aPesar,
     unidadMedida: unidadBase,
     esEnraseManual: false,
-    orden: c.orden,
+    orden,
   };
 }
 
-function calcularLineaManual(c: ComponenteInput, unidadBase: UnidadMedidaRef, excesoPct: Decimal): LineaPesajeCalculada {
+function calcularLineaManual(c: ComponenteInput, orden: number, unidadBase: UnidadMedidaRef, excesoPct: Decimal): LineaPesajeCalculada {
   return {
     drogaId: c.drogaId,
     drogaNombre: c.drogaNombre,
@@ -157,13 +158,15 @@ function calcularLineaManual(c: ComponenteInput, unidadBase: UnidadMedidaRef, ex
     cantidadAPesar: null,
     unidadMedida: unidadBase,
     esEnraseManual: true,
-    orden: c.orden,
+    orden,
   };
 }
 
 /**
- * Generates the LineaPesaje rows for one ItemReceta. Throws
- * `FichaTecnicaValidationError` (never generates a ficha) on V1-V9.
+ * Generates the LineaPesaje rows for one ItemReceta, one per componente in
+ * `ordenarComponentes` order. Throws `FichaTecnicaValidationError` (never
+ * generates a ficha) on V1-V9 (V3 no longer exists: componentes have no
+ * order since migration 0065).
  *
  * `unidadesBase` resolves, for each `TipoMagnitud` that appears among the
  * components/total, the BASE UnidadMedidaRef to tag the output line with
@@ -193,7 +196,7 @@ export function calcularFichaTecnica(
     fail("V9", `cantidadUnidades must be a positive integer, got ${item.cantidadUnidades}`);
   }
 
-  const ordenados = [...componentes].sort((a, b) => a.orden - b.orden);
+  const ordenados = ordenarComponentes(componentes);
 
   // V6 / V7, per component.
   for (const c of ordenados) {
@@ -211,14 +214,6 @@ export function calcularFichaTecnica(
   const csp = ordenados.filter((c) => c.modoExpresion === "CSP");
   if (csp.length > 1) {
     fail("V2", `more than one CSP component (${csp.length})`);
-  }
-
-  // V3
-  if (csp.length === 1) {
-    const maxOrden = Math.max(...ordenados.map((c) => c.orden));
-    if (csp[0]!.orden !== maxOrden) {
-      fail("V3", `CSP component must have the last orden (has ${csp[0]!.orden}, max is ${maxOrden})`);
-    }
   }
 
   const esCapsular = FORMAS_CAPSULARES.has(item.formaFarmaceutica);
@@ -244,25 +239,25 @@ export function calcularFichaTecnica(
 
   const lineas: LineaPesajeCalculada[] = [];
 
-  for (const c of ordenados) {
+  for (const [orden, c] of ordenados.entries()) {
     const unidadBaseComponente = unidadesBase[c.unidadMedida.tipoMagnitud];
 
     if (c.modoExpresion === "CS") {
       // R6: always manual, never part of R3's subtraction/magnitude check.
-      lineas.push(calcularLineaManual(c, unidadBaseComponente, excesoPct));
+      lineas.push(calcularLineaManual(c, orden, unidadBaseComponente, excesoPct));
       continue;
     }
 
     if (c.modoExpresion === "TOTAL" || c.modoExpresion === "POR_DOSIS") {
       const teorica = teoricaPorComponente.get(c)!;
-      lineas.push(calcularLineaNoManual(c, teorica, excesoPct, precisionBalanza, unidadBaseComponente));
+      lineas.push(calcularLineaNoManual(c, orden, teorica, excesoPct, precisionBalanza, unidadBaseComponente));
       continue;
     }
 
     // c.modoExpresion === "CSP"
     if (esCapsular) {
       // R5: capsules/tablets always complete the excipient by volume when preparing.
-      lineas.push(calcularLineaManual(c, unidadBaseComponente, excesoPct));
+      lineas.push(calcularLineaManual(c, orden, unidadBaseComponente, excesoPct));
       continue;
     }
 
@@ -275,7 +270,7 @@ export function calcularFichaTecnica(
 
     if (magnitudesDistintas) {
       // R4: mixed magnitudes -> always manual.
-      lineas.push(calcularLineaManual(c, unidadesBase[c.unidadMedida.tipoMagnitud], excesoPct));
+      lineas.push(calcularLineaManual(c, orden, unidadesBase[c.unidadMedida.tipoMagnitud], excesoPct));
       continue;
     }
 
@@ -293,7 +288,7 @@ export function calcularFichaTecnica(
       fail("V5", `CSP result is <= 0 (total ${totalEnBase.toString()}, components sum ${sumaOtros.toString()})`);
     }
 
-    lineas.push(calcularLineaNoManual(c, teoricaCsp, excesoPct, precisionBalanza, unidadesBase[magnitudTotal]));
+    lineas.push(calcularLineaNoManual(c, orden, teoricaCsp, excesoPct, precisionBalanza, unidadesBase[magnitudTotal]));
   }
 
   return lineas;

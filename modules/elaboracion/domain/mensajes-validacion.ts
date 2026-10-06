@@ -17,7 +17,6 @@
 export const MENSAJES_VALIDACION_FICHA: Readonly<Record<string, string>> = {
   V1: "El ítem no tiene componentes cargados: no se puede generar una ficha técnica sin al menos un componente.",
   V2: "El ítem tiene más de un componente csp (cantidad suficiente para completar): solo se permite uno.",
-  V3: "El componente csp debe ser el último de la fórmula (último orden).",
   V4: "El componente csp requiere que el ítem tenga cargada la cantidad total y su unidad.",
   V5:
     "La suma de los componentes de la fórmula supera (o iguala) la cantidad total del preparado: el componente csp " +

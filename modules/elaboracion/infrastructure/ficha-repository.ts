@@ -84,20 +84,16 @@ export interface ComponenteParaFicha {
   cantidad: string | null;
   unidadMedida: UnidadMedidaRef;
   modoExpresion: ModoExpresion;
-  esPrincipioActivo: boolean;
-  orden: number;
 }
 
+/** The item's componentes, unordered -- `calcularFichaTecnica` sorts them (`ordenarComponentes`). */
 export async function getComponentesParaFicha(tx: Prisma.TransactionClient, tenantId: string, itemRecetaId: string): Promise<ComponenteParaFicha[]> {
   const rows = await tx.componenteItemReceta.findMany({
     where: { tenantId, itemRecetaId },
-    orderBy: { orden: "asc" },
     select: {
       drogaId: true,
       cantidad: true,
       modoExpresion: true,
-      esPrincipioActivo: true,
-      orden: true,
       droga: { select: { nombre: true } },
       unidadMedida: { select: { id: true, tipoMagnitud: true, factorABase: true } },
     },
@@ -109,8 +105,6 @@ export async function getComponentesParaFicha(tx: Prisma.TransactionClient, tena
     cantidad: r.cantidad ? r.cantidad.toString() : null,
     unidadMedida: { id: r.unidadMedida.id, tipoMagnitud: r.unidadMedida.tipoMagnitud as TipoMagnitud, factorABase: r.unidadMedida.factorABase.toString() },
     modoExpresion: r.modoExpresion as ModoExpresion,
-    esPrincipioActivo: r.esPrincipioActivo,
-    orden: r.orden,
   }));
 }
 
@@ -212,7 +206,7 @@ export async function getLineasUltimaFicha(
       id: true,
       version: true,
       lineas: {
-        select: { drogaId: true, cantidadTeorica: true, excesoAplicado: true, cantidadAPesar: true, unidadMedidaId: true, esEnraseManual: true, orden: true },
+        select: { drogaId: true, cantidadTeorica: true, excesoAplicado: true, cantidadAPesar: true, unidadMedidaId: true, esEnraseManual: true },
       },
     },
   });
@@ -227,7 +221,6 @@ export async function getLineasUltimaFicha(
       cantidadAPesar: l.cantidadAPesar ? l.cantidadAPesar.toString() : null,
       unidadMedidaId: l.unidadMedidaId,
       esEnraseManual: l.esEnraseManual,
-      orden: l.orden,
     })),
   };
 }

@@ -24,6 +24,9 @@
  * confirming a receta generates them automatically, almost every item has
  * one. Editing an existing item's content is unaffected (a new ficha
  * version is generated afterwards).
+ *
+ * As in the alta, `es_principio_activo` is not an input: every componente
+ * written gets the droga's current clase = DROGA (migration 0063).
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
@@ -42,7 +45,7 @@ import {
 } from "../domain/receta";
 import type { ComponenteInput, ItemInput } from "../domain/receta";
 import {
-  drogasInvalidas,
+  clasificarDrogasDeReceta,
   existeFichaConPreparacionParaReceta,
   getMedicoRefParaReceta,
   itemsConFichaOCotizacion,
@@ -75,7 +78,6 @@ const componenteInput = z.object({
   cantidad: decimalOpcional,
   unidadMedidaId: uuid,
   modoExpresion: z.enum(MODOS_EXPRESION),
-  esPrincipioActivo: z.boolean().default(false),
 });
 
 const itemInput = z.object({
@@ -145,7 +147,6 @@ function toItemsInput(items: EditarRecetaInput["items"]): ItemInput[] {
         cantidad: c.cantidad,
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
-        esPrincipioActivo: c.esPrincipioActivo,
       }),
     ),
   }));
@@ -220,7 +221,8 @@ export const editarRecetaCommand = defineCommand({
     validarItemsReceta(itemsDominio);
 
     const drogaIds = itemsDominio.flatMap((item) => item.componentes.map((c) => c.drogaId));
-    if ((await drogasInvalidas(tx, session.tenantId, drogaIds)).length > 0) {
+    const drogas = await clasificarDrogasDeReceta(tx, session.tenantId, drogaIds);
+    if (drogas.invalidas.length > 0) {
       throw new ValidationError("Una o más drogas seleccionadas no existen o están dadas de baja.");
     }
     const unidadIds = [
@@ -267,7 +269,7 @@ export const editarRecetaCommand = defineCommand({
           cantidad: c.cantidad,
           unidadMedidaId: c.unidadMedidaId,
           modoExpresion: c.modoExpresion,
-          esPrincipioActivo: c.esPrincipioActivo,
+          esPrincipioActivo: drogas.principiosActivos.has(c.drogaId),
         })),
       })),
     );

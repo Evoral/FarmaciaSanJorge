@@ -11,7 +11,9 @@
  *
  * V1-V9 (minus V5, see domain/receta.ts's doc comment) are enforced here
  * BEFORE the DB, with clear Spanish messages; the DB's CHECKs/deferred
- * constraint triggers (migration 0011) remain the real backstop.
+ * constraint triggers (migration 0011) remain the real backstop. Whether a
+ * componente is a principio activo is not an input: it is the droga's
+ * clase = DROGA (migration 0063), read with the drogas' validity check.
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
@@ -31,7 +33,7 @@ import {
 } from "../domain/receta";
 import type { ComponenteInput, ItemInput } from "../domain/receta";
 import {
-  drogasInvalidas,
+  clasificarDrogasDeReceta,
   getMedicoRefParaReceta,
   getNombresParaResumen,
   getPacienteRefParaReceta,
@@ -60,7 +62,6 @@ const componenteInput = z.object({
   cantidad: decimalOpcional,
   unidadMedidaId: uuid,
   modoExpresion: z.enum(MODOS_EXPRESION),
-  esPrincipioActivo: z.boolean().default(false),
 });
 
 /** One ítem of the receta (with its componentes) -- shared with importar-receta.ts. */
@@ -111,7 +112,6 @@ function toItemsInput(items: CrearRecetaInput["items"]): ItemInput[] {
         cantidad: c.cantidad,
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
-        esPrincipioActivo: c.esPrincipioActivo,
       }),
     ),
   }));
@@ -148,8 +148,8 @@ export const crearRecetaCommand = defineCommand({
     validarItemsReceta(itemsDominio);
 
     const drogaIds = itemsDominio.flatMap((item) => item.componentes.map((c) => c.drogaId));
-    const drogasMalas = await drogasInvalidas(tx, session.tenantId, drogaIds);
-    if (drogasMalas.length > 0) {
+    const drogas = await clasificarDrogasDeReceta(tx, session.tenantId, drogaIds);
+    if (drogas.invalidas.length > 0) {
       throw new ValidationError("Una o más drogas seleccionadas no existen o están dadas de baja.");
     }
 
@@ -187,7 +187,7 @@ export const crearRecetaCommand = defineCommand({
           cantidad: c.cantidad,
           unidadMedidaId: c.unidadMedidaId,
           modoExpresion: c.modoExpresion,
-          esPrincipioActivo: c.esPrincipioActivo,
+          esPrincipioActivo: drogas.principiosActivos.has(c.drogaId),
         })),
       })),
     });

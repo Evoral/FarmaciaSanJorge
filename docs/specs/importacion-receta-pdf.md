@@ -77,7 +77,7 @@ Cada renglón se clasifica con la primera regla que matchee:
 | Regla | Patrón (ilustrativo) | Resultado |
 |---|---|---|
 | Ignorado | empieza con `- ` inmediatamente después de `Rp./` | Se descarta en silencio (ej. `- Avellaneda 14 las Heras`; significado desconocido). |
-| Componente | `^(.+?)\s+(\d+(?:[.,]\d+)?)\s*(mg\|g\|mcg\|µg\|ml\|UI\|%)$` | Componente `POR_DOSIS`, `esPrincipioActivo = true`, cantidad en es-AR (coma decimal). |
+| Componente | `^(.+?)\s+(\d+(?:[.,]\d+)?)\s*(mg\|g\|mcg\|µg\|ml\|UI\|%)$` | Componente `POR_DOSIS`, cantidad en es-AR (coma decimal). Si es principio activo no se lee del PDF: lo define la clase de la droga elegida en el catálogo (`DROGA`), al guardar. |
 | Presentación | `^(\d+)\s+(comprimidos?\|c[áa]psulas?\|…)$` | `cantidadUnidades` + `formaFarmaceutica` por léxico. |
 | Fracción de dosis | contiene `media dosis` / `½ dosis` | `fraccionDosisPorUnidad = 0.5` (convención de `ficha-tecnica.md`, asiento 34147). |
 | Posología | contiene `cada N horas` (u otra indicación de toma) | Renglón literal a `item.posologia`. |
