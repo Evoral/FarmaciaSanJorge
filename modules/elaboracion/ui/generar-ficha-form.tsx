@@ -1,6 +1,6 @@
 "use client";
 
-/** "Generar nueva ficha técnica" button -- no motivo/confirmation needed, generation is always allowed (see modules/elaboracion/application/generar-ficha-tecnica.ts's INV-R05/INV-P02 doc comment: a new version is never refused). */
+/** "Generar nueva ficha técnica" button -- no motivo/confirmation needed; only refused once the item has a CONFIRMADA preparación (see modules/elaboracion/application/generar-ficha-tecnica.ts's INV-R05/INV-P02 doc comment). */
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { generarFichaTecnicaAction } from "./actions";
 
