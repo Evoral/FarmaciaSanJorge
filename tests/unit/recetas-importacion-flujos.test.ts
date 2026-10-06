@@ -72,7 +72,7 @@ vi.mock("@/modules/recetas/infrastructure/importacion-repository", () => ({
 
 const insertRecetaMock = vi.fn();
 vi.mock("@/modules/recetas/infrastructure/receta-repository", () => ({
-  drogasInvalidas: async () => [],
+  clasificarDrogasDeReceta: async () => ({ invalidas: [], principiosActivos: new Set([DROGA_ID]) }),
   unidadesInvalidas: async () => [],
   jornadaActualTenant: async () => "2026-09-29",
   insertRecetaConItems: (...a: unknown[]) => insertRecetaMock(...a),
@@ -294,8 +294,8 @@ function payload(overrides: Record<string, unknown> = {}) {
     emisor: "RCTA",
     nroRecetaEmisor: "0200012345678",
     urlVerificacion: "https://verumrp.com.ar/prescripcion/TESTHASH0001",
-    fechaPrescripcion: "2026-08-19",
-    fechaValidaDesde: "2026-08-19",
+    fechaPrescripcion: "2026-09-10",
+    fechaValidaDesde: "2026-09-10",
     diagnosticoCodigo: "E66.0",
     diagnosticoDescripcion: "OBESIDAD",
     paciente: { existenteId: PACIENTE_ID, datos: { nombre: "Ana", apellido: "Suárez", dni: "28999111", cuil: CUIL, fechaNacimiento: "1981-03-05" } },
@@ -307,7 +307,7 @@ function payload(overrides: Record<string, unknown> = {}) {
         fraccionDosisPorUnidad: "0.5",
         posologia: "Media dosis cada 12 horas",
         duracionTratamientoDias: 30,
-        componentes: [{ drogaId: DROGA_ID, cantidad: "50", unidadMedidaId: UNIDAD_ID, modoExpresion: "POR_DOSIS", esPrincipioActivo: true }],
+        componentes: [{ drogaId: DROGA_ID, cantidad: "50", unidadMedidaId: UNIDAD_ID, modoExpresion: "POR_DOSIS" }],
       },
     ],
     equivalencias: [{ aliasTexto: "Cafeinna", drogaId: DROGA_ID }],
@@ -378,7 +378,7 @@ describe("recetas.importar -- confirmation", () => {
         emisor: "RCTA",
         nroRecetaEmisor: "0200012345678",
         urlVerificacion: "https://verumrp.com.ar/prescripcion/TESTHASH0001",
-        fechaValidaDesde: "2026-08-19",
+        fechaValidaDesde: "2026-09-10",
         diagnosticoCodigo: "E66.0",
       }),
     );
@@ -454,6 +454,32 @@ describe("recetas.importar -- confirmation", () => {
     await expect(importarRecetaCommand.execute(payload({ items: [{ ...item, fraccionDosisPorUnidad: "2" }] }), { session: CON_PERMISO })).rejects.toThrow(
       /fracción de dosis/,
     );
+  });
+
+  // The mocked jornada is 2026-09-29, so the limit is 2026-08-29 (one month back).
+  it.each(["PDF", "QR"])("a %s import of a receta older than one month is rejected: the same vigencia rule as the alta", async (fuente) => {
+    await expect(
+      importarRecetaCommand.execute(payload({ fuente, fechaPrescripcion: "2026-08-28", fechaValidaDesde: null }), { session: CON_PERMISO }),
+    ).rejects.toThrow(/vencida: tiene más de un mes desde su prescripción/);
+    expect(insertRecetaMock).not.toHaveBeenCalled();
+  });
+
+  it("counts the month from the 'válida desde' date when the receta has one", async () => {
+    repo.buscarPacientePorIdentificacion.mockResolvedValue(PACIENTE_EXISTENTE);
+    const fresca = { fechaPrescripcion: "2026-08-01", fechaValidaDesde: "2026-08-29" };
+    await expect(importarRecetaCommand.execute(payload(fresca), { session: CON_PERMISO })).resolves.toBeDefined();
+    await expect(
+      importarRecetaCommand.execute(payload({ fechaPrescripcion: "2026-08-01", fechaValidaDesde: "2026-08-28" }), { session: CON_PERMISO }),
+    ).rejects.toThrow(/pasó más de un mes desde su fecha de validez/);
+  });
+
+  it("sets each componente's principio activo flag from the droga's clase, never from the payload", async () => {
+    repo.buscarPacientePorIdentificacion.mockResolvedValue(PACIENTE_EXISTENTE);
+    const [item] = payload().items;
+    const componente = { ...item!.componentes[0]!, esPrincipioActivo: false };
+    await importarRecetaCommand.execute(payload({ items: [{ ...item, componentes: [componente] }] }), { session: CON_PERMISO });
+    const guardado = insertRecetaMock.mock.calls[0]![1] as { items: { componentes: { esPrincipioActivo: boolean }[] }[] };
+    expect(guardado.items[0]!.componentes[0]!.esPrincipioActivo).toBe(true);
   });
 });
 

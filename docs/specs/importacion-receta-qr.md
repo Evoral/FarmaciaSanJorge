@@ -18,7 +18,7 @@ La cámara del dispositivo es una segunda forma de ingresar el mismo código (ve
 3. Consulta HTTP al servicio de RCTA, **fuera de toda transacción** de base de datos.
 4. Validación del JSON y mapeo al mismo borrador que produce el PDF (`BorradorReceta`).
 5. Match con paciente, médico, drogas y unidades, y detección de receta duplicada (solo después de la consulta).
-6. Vista previa. La confirmación usa el mismo flujo que el PDF.
+6. Vista previa. La confirmación usa el mismo flujo que el PDF: el mismo comando `recetas.importar`, con sus mismas reglas (V1–V9, el `principio activo` de cada componente según la clase de la droga, y que la receta no tenga más de un mes desde su prescripción o, si la trae, desde su fecha de validez; una receta vencida se rechaza al confirmar).
 
 El texto escaneado viaja solo por POST (Server Action), nunca en una URL de esta aplicación.
 
@@ -130,5 +130,6 @@ El botón "Escanear con la cámara" del panel abre la cámara, lee el QR y manda
 - **P67** — Verificación de despliegue (manual, ver "Operación y riesgos").
 - **P68–P70** — Rótulo "Digital (PDF o QR)"; la auditoría registra `fuente` PDF o QR.
 - **P71–P72** — Regresión: el flujo y las pruebas del PDF no cambian.
+- **P73** — La confirmación aplica la vigencia de un mes igual para PDF y QR (`tests/unit/recetas-importacion-flujos.test.ts`, con la jornada simulada) y el principio activo sale de la clase de la droga, no del payload.
 
 Los fixtures se arman a mano con datos **ficticios** (hash inventado, nombres y documentos inventados); no se versiona ninguna respuesta real de RCTA.

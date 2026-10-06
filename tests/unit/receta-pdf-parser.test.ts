@@ -165,12 +165,12 @@ describe("P1: RCTA receta (synthetic equivalent of the real sample)", () => {
   it("builds ONE item with 6 POR_DOSIS principio-activo componentes, es-AR decimals included", () => {
     expect(borrador.items).toHaveLength(1);
     expect(item.componentes).toEqual([
-      { drogaTexto: "Fluoxetina", cantidad: "20", unidadTexto: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: true },
-      { drogaTexto: "Clonazepam", cantidad: "0.3", unidadTexto: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: true },
-      { drogaTexto: "Cafeína", cantidad: "50", unidadTexto: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: true },
-      { drogaTexto: "Picolinato de cromo", cantidad: "1.6", unidadTexto: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: true },
-      { drogaTexto: "Hidroclorotiazida", cantidad: "25", unidadTexto: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: true },
-      { drogaTexto: "Cloruro de potasio", cantidad: "100", unidadTexto: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: true },
+      { drogaTexto: "Fluoxetina", cantidad: "20", unidadTexto: "mg", modoExpresion: "POR_DOSIS" },
+      { drogaTexto: "Clonazepam", cantidad: "0.3", unidadTexto: "mg", modoExpresion: "POR_DOSIS" },
+      { drogaTexto: "Cafeína", cantidad: "50", unidadTexto: "mg", modoExpresion: "POR_DOSIS" },
+      { drogaTexto: "Picolinato de cromo", cantidad: "1.6", unidadTexto: "mg", modoExpresion: "POR_DOSIS" },
+      { drogaTexto: "Hidroclorotiazida", cantidad: "25", unidadTexto: "mg", modoExpresion: "POR_DOSIS" },
+      { drogaTexto: "Cloruro de potasio", cantidad: "100", unidadTexto: "mg", modoExpresion: "POR_DOSIS" },
     ]);
   });
 
@@ -434,7 +434,7 @@ describe("parsearCuerpo (shared by the PDF and the QR import)", () => {
       fraccionDosisPorUnidad: "0.5",
       posologia: "Media dosis cada 12 horas",
       duracionTratamientoDias: 30,
-      componentes: [{ drogaTexto: "Mazindol", cantidad: "1.5", unidadTexto: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: true }],
+      componentes: [{ drogaTexto: "Mazindol", cantidad: "1.5", unidadTexto: "mg", modoExpresion: "POR_DOSIS" }],
     });
     expect(advertencias.map((a) => a.codigo)).toEqual(["UNIDADES_VS_DURACION"]);
   });

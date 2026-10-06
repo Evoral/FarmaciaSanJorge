@@ -241,7 +241,7 @@ describe("P40-P42: items", () => {
         fraccionDosisPorUnidad: "0.5",
         posologia: "Media dosis cada 12 horas",
         duracionTratamientoDias: 30,
-        componentes: [{ drogaTexto: "Mazindol", cantidad: "1.5", unidadTexto: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: true }],
+        componentes: [{ drogaTexto: "Mazindol", cantidad: "1.5", unidadTexto: "mg", modoExpresion: "POR_DOSIS" }],
       },
     ]);
     expect(clasePorCodigo(r, "UNIDADES_VS_DURACION").map((a) => a.mensaje)).toEqual(["Las unidades alcanzan para 15 días; la receta indica 30."]);

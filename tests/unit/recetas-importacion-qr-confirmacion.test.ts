@@ -21,7 +21,7 @@ vi.mock("@/modules/recetas/infrastructure/importacion-repository", () => ({
   buscarMedicoVigentePorMatricula: async () => null,
 }));
 vi.mock("@/modules/recetas/infrastructure/receta-repository", () => ({
-  drogasInvalidas: async () => [],
+  clasificarDrogasDeReceta: async () => ({ invalidas: [], principiosActivos: new Set<string>() }),
   unidadesInvalidas: async () => [],
   jornadaActualTenant: async () => "2026-09-29",
   insertRecetaConItems: async () => ({ id: "99999999-9999-4999-a999-999999999999", numeroInterno: "77" }),
@@ -47,8 +47,8 @@ const payloadQr = () => ({
   emisor: "RCTA",
   nroRecetaEmisor: "1234567890123",
   urlVerificacion: `https://verumrp.com.ar/prescripcion/${HASH}`,
-  fechaPrescripcion: "2026-08-19",
-  fechaValidaDesde: "2026-08-19",
+  fechaPrescripcion: "2026-09-10",
+  fechaValidaDesde: "2026-09-10",
   paciente: { existenteId: null, datos: { nombre: "Ana", apellido: "Suárez", dni: "28999111" } },
   medico: { existenteId: null, datos: { nombre: "Camila", apellido: "Ferrero", matricula: "4321", matriculaJurisdiccion: "PROVINCIAL" } },
   items: [
@@ -57,7 +57,7 @@ const payloadQr = () => ({
       cantidadUnidades: 30,
       fraccionDosisPorUnidad: "1",
       posologia: "Una cada 12 horas",
-      componentes: [{ drogaId: "55555555-5555-4555-a555-555555555555", cantidad: "50", unidadMedidaId: "77777777-7777-4777-a777-777777777777", modoExpresion: "POR_DOSIS", esPrincipioActivo: true }],
+      componentes: [{ drogaId: "55555555-5555-4555-a555-555555555555", cantidad: "50", unidadMedidaId: "77777777-7777-4777-a777-777777777777", modoExpresion: "POR_DOSIS" }],
     },
   ],
   equivalencias: [],
