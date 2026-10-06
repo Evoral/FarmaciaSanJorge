@@ -24,6 +24,7 @@ import {
   diagnosticoCodigoOpcional,
   duracionTratamientoDiasOpcional,
   esFechaPrescripcionValida,
+  esFechaPrescripcionVigente,
   resumirItemsReceta,
   validarItemsReceta,
   validarOrigenCargaManual,
@@ -82,6 +83,7 @@ const crearRecetaInput = z.object({
   pacienteId: uuid,
   medicoId: uuid,
   fechaPrescripcion: isoDate,
+  fechaValidaDesde: isoDate.optional().nullable().transform((v) => v ?? null),
   origen: z.enum(ORIGENES_RECETA),
   diagnosticoCodigo: diagnosticoCodigoOpcional,
   diagnosticoDescripcion: textoOpcional,
@@ -135,6 +137,12 @@ export const crearRecetaCommand = defineCommand({
     if (!esFechaPrescripcionValida(input.fechaPrescripcion, jornadaActual)) {
       throw new ValidationError("La fecha de prescripción no puede ser futura.");
     }
+    if (input.fechaValidaDesde !== null && input.fechaValidaDesde < input.fechaPrescripcion) {
+      throw new ValidationError("La fecha de validez no puede ser anterior a la fecha de prescripción.");
+    }
+    if (!esFechaPrescripcionVigente(input.fechaValidaDesde ?? input.fechaPrescripcion, jornadaActual)) {
+      throw new ValidationError(input.fechaValidaDesde ? "La receta está vencida: pasó más de un mes desde su fecha de validez." : "La receta está vencida: tiene más de un mes desde su prescripción.");
+    }
 
     const itemsDominio = toItemsInput(input.items);
     validarItemsReceta(itemsDominio);
@@ -159,6 +167,7 @@ export const crearRecetaCommand = defineCommand({
       pacienteId: input.pacienteId,
       medicoId: input.medicoId,
       fechaPrescripcion: input.fechaPrescripcion,
+      fechaValidaDesde: input.fechaValidaDesde,
       origen: input.origen,
       registradaPorId: session.usuario.id,
       diagnosticoCodigo: input.diagnosticoCodigo,

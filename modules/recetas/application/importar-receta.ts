@@ -32,7 +32,7 @@ import { ConflictError, DomainError, ValidationError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { crearPacienteHandler, crearPacienteInput } from "@/modules/pacientes/application/crear-paciente";
 import { crearMedicoHandler, crearMedicoInput } from "@/modules/medicos/application/crear-medico";
-import { diagnosticoCodigoOpcional, esFechaPrescripcionValida, resumirItemsReceta, validarItemsReceta, validarOrigenHabilitado } from "../domain/receta";
+import { diagnosticoCodigoOpcional, esFechaPrescripcionValida, esFechaPrescripcionVigente, resumirItemsReceta, validarItemsReceta, validarOrigenHabilitado } from "../domain/receta";
 import type { ComponenteInput, ItemInput } from "../domain/receta";
 import { CODIGOS_EMISOR, esUrlVerificacionDeEmisor } from "../domain/receta-pdf-parser";
 import { normalizarTexto } from "../domain/normalizar";
@@ -207,6 +207,9 @@ export const importarRecetaCommand = defineCommand({
     const jornadaActual = await jornadaActualTenant(tx, session.tenantId);
     if (!esFechaPrescripcionValida(input.fechaPrescripcion, jornadaActual)) {
       throw new ValidationError("La fecha de prescripción no puede ser futura.");
+    }
+    if (!esFechaPrescripcionVigente(input.fechaValidaDesde ?? input.fechaPrescripcion, jornadaActual)) {
+      throw new ValidationError(input.fechaValidaDesde ? "La receta está vencida: pasó más de un mes desde su fecha de validez." : "La receta está vencida: tiene más de un mes desde su prescripción.");
     }
 
     const itemsDominio = toItemsInput(input.items);

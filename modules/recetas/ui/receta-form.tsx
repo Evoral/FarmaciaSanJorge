@@ -46,7 +46,7 @@ import { AdvertenciasImportacion, PanelPersona, ResumenImportacion } from "./imp
 import type { VistaPreviaImportacion } from "../domain/importacion-receta";
 import { JURISDICCIONES_MATRICULA, JURISDICCION_MATRICULA_LABELS } from "@/modules/medicos/domain/medico";
 import type { JurisdiccionMatricula } from "@/modules/medicos/domain/medico";
-import { FORMAS_FARMACEUTICAS, MODOS_EXPRESION, ORIGEN_RECETA_LABELS, validarItemsReceta } from "../domain/receta";
+import { FORMAS_FARMACEUTICAS, MODOS_EXPRESION, ORIGEN_RECETA_LABELS, fechaPrescripcionMinima, validarItemsReceta } from "../domain/receta";
 import { FORMA_FARMACEUTICA_LABELS, MODO_EXPRESION_LABELS } from "@/shared/labels/enum-labels";
 import type { FormaFarmaceutica, ModoExpresion, OrigenReceta } from "../domain/receta";
 import type { UnidadOpcion } from "../infrastructure/receta-repository";
@@ -214,6 +214,10 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   const [medicoLabel, setMedicoLabel] = useState(inicial?.medicoLabel ?? "");
   const borrador = importacion?.borrador ?? null;
   const [fechaPrescripcion, setFechaPrescripcion] = useState(borrador?.fechaPrescripcion ?? inicial?.fechaPrescripcion ?? "");
+  // `crear` mode: a receta whose "válida desde" differs from its prescription date (its month of validity counts from it).
+  const [conValidaDesde, setConValidaDesde] = useState(false);
+  const [fechaValidaDesde, setFechaValidaDesde] = useState("");
+  const fechaValidaDesdeId = useId();
   const [diagnosticoCodigo, setDiagnosticoCodigo] = useState(borrador?.diagnosticoCodigo ?? inicial?.diagnosticoCodigo ?? "");
   const [diagnosticoDescripcion, setDiagnosticoDescripcion] = useState(borrador?.diagnosticoDescripcion ?? inicial?.diagnosticoDescripcion ?? "");
   // Manual alta is always PRESENCIAL; an edit keeps the receta's own origen (domain/receta.ts's validarOrigenCargaManual);
@@ -535,11 +539,44 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
 
         <FormSection id={`${personaIdBase}-datos`} title="Datos de la receta">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[auto_minmax(0,1fr)_8rem_minmax(0,2fr)]">
-            <div className="field">
-              <label htmlFor={fechaId} className="field-label">
-                Fecha de prescripción
-              </label>
-              <DateInput id={fechaId} name="fechaPrescripcion" required disabled={disabled} value={fechaPrescripcion} onValueChange={setFechaPrescripcion} max={jornadaDe(new Date())} />
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="field">
+                <label htmlFor={fechaId} className="field-label">
+                  Fecha de prescripción
+                </label>
+                <DateInput
+                  id={fechaId}
+                  name="fechaPrescripcion"
+                  required
+                  disabled={disabled}
+                  value={fechaPrescripcion}
+                  onValueChange={setFechaPrescripcion}
+                  min={mode === "editar" || conValidaDesde || importacion?.borrador.fechaValidaDesde ? undefined : fechaPrescripcionMinima(jornadaDe(new Date()))}
+                  max={jornadaDe(new Date())}
+                />
+              </div>
+              {mode === "crear" && conValidaDesde ? (
+                <div className="field">
+                  <label htmlFor={fechaValidaDesdeId} className="field-label">
+                    Válida desde
+                  </label>
+                  <DateInput
+                    id={fechaValidaDesdeId}
+                    name="fechaValidaDesde"
+                    required
+                    disabled={disabled}
+                    value={fechaValidaDesde}
+                    onValueChange={setFechaValidaDesde}
+                    min={[fechaPrescripcion, fechaPrescripcionMinima(jornadaDe(new Date()))].sort().at(-1)}
+                  />
+                </div>
+              ) : null}
+              {mode === "crear" ? (
+                <label className="toggle-switch max-w-64 text-[0.8125rem] leading-snug text-zinc-500" aria-label="La receta tiene una fecha de validez distinta de su fecha de prescripción">
+                  <input type="checkbox" role="switch" checked={conValidaDesde} disabled={disabled} onChange={(e) => setConValidaDesde(e.target.checked)} />
+                  {conValidaDesde ? null : "La receta tiene una fecha de validez distinta de su fecha de prescripción."}
+                </label>
+              ) : null}
             </div>
 
             <div className="field">

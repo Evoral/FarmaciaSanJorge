@@ -191,6 +191,24 @@ export function esFechaPrescripcionValida(fechaPrescripcion: string, jornadaActu
   return fechaPrescripcion <= jornadaActual;
 }
 
+/**
+ * Earliest `fechaPrescripcion` still accepted on `jornadaActual`: a receta
+ * lasts one calendar month, so it is the same day one month back. When that
+ * day does not exist in the previous month, the month's last day is used
+ * (e.g. on 03-31 the limit is 02-28/29, so a receta from 02-28 or later is
+ * accepted; on 03-01 the limit is 02-01).
+ */
+export function fechaPrescripcionMinima(jornadaActual: string): string {
+  const [year, month, day] = jornadaActual.split("-").map(Number);
+  const ultimoDiaMesAnterior = new Date(Date.UTC(year, month - 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month - 2, Math.min(day, ultimoDiaMesAnterior))).toISOString().slice(0, 10);
+}
+
+/** A receta prescribed more than one month before `jornadaActual` has expired. */
+export function esFechaPrescripcionVigente(fechaPrescripcion: string, jornadaActual: string): boolean {
+  return fechaPrescripcion >= fechaPrescripcionMinima(jornadaActual);
+}
+
 // ============================================================================
 // V1-V9 (app-level pre-check, minus V5 -- see module doc comment)
 // ============================================================================

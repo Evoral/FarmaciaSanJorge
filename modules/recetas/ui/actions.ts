@@ -51,6 +51,7 @@ export async function crearRecetaAction(_prevState: RecetaActionState, formData:
       pacienteId: String(formData.get("pacienteId") ?? ""),
       medicoId: String(formData.get("medicoId") ?? ""),
       fechaPrescripcion: String(formData.get("fechaPrescripcion") ?? ""),
+      fechaValidaDesde: String(formData.get("fechaValidaDesde") ?? "") || null,
       origen: String(formData.get("origen") ?? "PRESENCIAL") as "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO",
       diagnosticoCodigo: String(formData.get("diagnosticoCodigo") ?? ""),
       diagnosticoDescripcion: String(formData.get("diagnosticoDescripcion") ?? ""),
