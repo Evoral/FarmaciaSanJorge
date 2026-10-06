@@ -219,52 +219,55 @@ function CollapsedRail({ groups, usuario, logoutAction, onExpand }: { groups: Na
   });
 
   return (
-    <div className="glass-panel fixed inset-y-3 left-3 z-40 hidden w-12 flex-col items-center lg:flex">
-      <div className="flex h-14 shrink-0 items-center">
-        <button type="button" onClick={onExpand} aria-label="Expandir barra lateral" aria-expanded={false} aria-controls="app-sidebar" className="glass-pill glass-icon-btn text-zinc-700" {...tipHandlers("Expandir barra lateral")}>
-          <PanelLeftOpen className="size-4" aria-hidden />
-        </button>
-      </div>
-
-      <nav aria-label="Navegación principal" className="flex w-full flex-1 flex-col items-center overflow-y-auto pb-2" onScroll={() => setTip(null)}>
-        {groups.map((group) => (
-          <ul key={group.label} aria-label={group.label} className="flex w-full flex-col items-center gap-0.5 border-t border-emerald-900/[0.07] py-2 first:border-t-0 first:pt-0 dark:border-zinc-800">
-            {group.items.map((item) => {
-              const Icon = item.icon;
-              const label = item.badge ? `${item.label} (${item.badge} pendientes)` : item.label;
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    aria-current={item.active ? "page" : undefined}
-                    aria-label={label}
-                    className={`relative flex size-9 items-center justify-center rounded-[10px] ${item.active ? "glass-pill text-emerald-800 dark:text-emerald-300" : "text-zinc-500 transition-colors duration-100 hover:bg-white/60 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-zinc-100"}`}
-                    {...tipHandlers(label)}
-                  >
-                    <Icon className="size-4" aria-hidden />
-                    {item.badge ? <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-amber-500" aria-hidden /> : null}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        ))}
-      </nav>
-
-      <div className="flex shrink-0 justify-center border-t border-emerald-900/[0.07] py-2 dark:border-zinc-800">
-        <form action={logoutAction}>
-          <button type="submit" aria-label={`Cerrar sesión (${usuario})`} className="glass-icon-btn" {...tipHandlers(`Cerrar sesión (${usuario})`)}>
-            <LogOut className="size-4" aria-hidden />
+    <>
+      <div className="glass-panel fixed inset-y-3 left-3 z-40 hidden w-12 flex-col items-center lg:flex">
+        <div className="flex h-14 shrink-0 items-center">
+          <button type="button" onClick={onExpand} aria-label="Expandir barra lateral" aria-expanded={false} aria-controls="app-sidebar" className="glass-pill glass-icon-btn text-zinc-700" {...tipHandlers("Expandir barra lateral")}>
+            <PanelLeftOpen className="size-4" aria-hidden />
           </button>
-        </form>
+        </div>
+
+        <nav aria-label="Navegación principal" className="flex w-full flex-1 flex-col items-center overflow-y-auto pb-2" onScroll={() => setTip(null)}>
+          {groups.map((group) => (
+            <ul key={group.label} aria-label={group.label} className="flex w-full flex-col items-center gap-0.5 border-t border-emerald-900/[0.07] py-2 first:border-t-0 first:pt-0 dark:border-zinc-800">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const label = item.badge ? `${item.label} (${item.badge} pendientes)` : item.label;
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      aria-current={item.active ? "page" : undefined}
+                      aria-label={label}
+                      className={`relative flex size-9 items-center justify-center rounded-[10px] ${item.active ? "glass-pill text-emerald-800 dark:text-emerald-300" : "text-zinc-500 transition-colors duration-100 hover:bg-white/60 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-zinc-100"}`}
+                      {...tipHandlers(label)}
+                    >
+                      <Icon className="size-4" aria-hidden />
+                      {item.badge ? <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-amber-500" aria-hidden /> : null}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          ))}
+        </nav>
+
+        <div className="flex shrink-0 justify-center border-t border-emerald-900/[0.07] py-2 dark:border-zinc-800">
+          <form action={logoutAction}>
+            <button type="submit" aria-label={`Cerrar sesión (${usuario})`} className="glass-icon-btn" {...tipHandlers(`Cerrar sesión (${usuario})`)}>
+              <LogOut className="size-4" aria-hidden />
+            </button>
+          </form>
+        </div>
       </div>
 
+      {/* Outside `.glass-panel` on purpose: its backdrop-filter would become the containing block of a fixed child and offset it. */}
       {tip ? (
         <span role="tooltip" aria-hidden className="pointer-events-none fixed left-[4.25rem] z-50 -translate-y-1/2 whitespace-nowrap rounded-md bg-zinc-900 px-2 py-1 text-xs font-medium text-white shadow-md dark:bg-zinc-100 dark:text-zinc-900" style={{ top: tip.top }}>
           {tip.label}
         </span>
       ) : null}
-    </div>
+    </>
   );
 }
 
