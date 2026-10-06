@@ -31,7 +31,7 @@
  *
  * `editar` mode keeps the saved ítems (`inicial`) to tell what is unsaved
  * (the draft as `itemsJson` serializes it vs. the same serialization of the
- * saved ítems, overall and per saved ítem id) and offers "Restablecer"
+ * saved ítems, overall and per saved ítem id) and offers "Deshacer cambios"
  * while there is something to undo. Embedded in the /preparaciones toma
  * workspace, `encabezadoFijo` hides paciente/médico and the receta's data
  * (the workspace shows them read-only; they are still submitted unchanged
@@ -311,7 +311,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
     matriculaJurisdiccion: (borrador?.medico.matriculaJurisdiccion ?? "PROVINCIAL") as JurisdiccionMatricula,
   }));
   const [clientError, setClientError] = useState<string | null>(null);
-  // "Restablecer" also hides the server error it answered (a new submit brings its own state).
+  // "Deshacer cambios" also hides the server error it answered (a new submit brings its own state).
   const [errorDescartado, setErrorDescartado] = useState<RecetaActionState | null>(null);
   const encabezadoOculto = mode === "editar" && encabezadoFijo;
 
@@ -994,9 +994,9 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
             </div>
             <div className="flex flex-none items-center gap-2">
               {itemsSinGuardar ? (
-                <button type="button" onClick={restablecer} disabled={isPending} className="btn btn-ghost">
+                <button type="button" onClick={restablecer} disabled={isPending} className="btn btn-secondary">
                   <RotateCcw className="size-4" aria-hidden />
-                  Restablecer
+                  Deshacer cambios
                 </button>
               ) : null}
               <SubmitButton label="Guardar cambios" pending={isPending} sinGuardar={itemsSinGuardar} compacto />
@@ -1053,9 +1053,9 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
               <div className="flex flex-col gap-2">
                 <SubmitButton label={mode === "crear" ? "Crear receta" : mode === "editar" ? "Guardar cambios" : "Confirmar importación"} pending={isPending} sinGuardar={itemsSinGuardar || encabezadoSinGuardar} />
                 {itemsSinGuardar || encabezadoSinGuardar ? (
-                  <button type="button" onClick={restablecer} disabled={isPending} className="btn btn-ghost w-full">
+                  <button type="button" onClick={restablecer} disabled={isPending} className="btn btn-secondary w-full">
                     <RotateCcw className="size-4" aria-hidden />
-                    Restablecer
+                    Deshacer cambios
                   </button>
                 ) : null}
                 {cancelarHref ? (
