@@ -33,11 +33,7 @@ import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { ConflictError, DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import {
-  FORMAS_FARMACEUTICAS,
-  MODOS_EXPRESION,
   ORIGENES_RECETA,
-  diagnosticoCodigoOpcional,
-  duracionTratamientoDiasOpcional,
   esEstadoEditable,
   resumirItemsReceta,
   validarItemsReceta,
@@ -58,60 +54,19 @@ import {
   unidadesInvalidas,
   updateRecetaHeader,
 } from "../infrastructure/receta-repository";
+import { crearRecetaInput, isoDate, itemInput as itemInputAlta } from "./crear-receta";
 
-const textoOpcional = z
-  .string()
-  .trim()
-  .optional()
-  .nullable()
-  .transform((v) => (v && v.length > 0 ? v : null));
+/** The same ítem as the alta (crear-receta.ts), plus the id of an existing one: one schema, so both screens accept the same draft. */
+const itemInput = itemInputAlta.extend({ id: uuid.optional() });
 
-const decimalOpcional = z
-  .string()
-  .trim()
-  .optional()
-  .nullable()
-  .transform((v) => (v && v.length > 0 ? v : null));
-
-const componenteInput = z.object({
-  drogaId: uuid,
-  cantidad: decimalOpcional,
-  unidadMedidaId: uuid,
-  modoExpresion: z.enum(MODOS_EXPRESION),
-});
-
-const itemInput = z.object({
-  id: uuid.optional(),
-  descripcion: z
-    .string()
-    .trim()
-    .optional()
-    .transform((v) => (v && v.length > 0 ? v : null)),
-  formaFarmaceutica: z.enum(FORMAS_FARMACEUTICAS),
-  cantidadUnidades: z.number().int(),
-  fraccionDosisPorUnidad: z.string().trim().min(1).default("1"),
-  cantidadTotal: decimalOpcional,
-  unidadTotalId: uuid.optional().nullable(),
-  observaciones: z
-    .string()
-    .trim()
-    .optional()
-    .transform((v) => (v && v.length > 0 ? v : null)),
-  posologia: textoOpcional,
-  duracionTratamientoDias: duracionTratamientoDiasOpcional,
-  componentes: z.array(componenteInput).min(1, "Cada ítem debe tener al menos un componente."),
-});
-
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha en formato AAAA-MM-DD.");
-
-const editarRecetaInput = z.object({
+/**
+ * The alta's input (header + ítems), so a field added there reaches the edit too. `fechaValidaDesde` is
+ * alta-only (an edit never changes the receta's validity) -- omitted explicitly, so a new alta-only field
+ * is a decision here, not a silent drift. `version` stays hand-written on purpose: it carries the RAW stored
+ * values for the compare-and-swap, without the alta's transforms.
+ */
+const editarRecetaInput = crearRecetaInput.omit({ fechaValidaDesde: true }).extend({
   id: uuid,
-  pacienteId: uuid,
-  medicoId: uuid,
-  fechaPrescripcion: isoDate,
-  origen: z.enum(ORIGENES_RECETA),
-  diagnosticoCodigo: diagnosticoCodigoOpcional,
-  diagnosticoDescripcion: textoOpcional,
   items: z.array(itemInput).min(1, "La receta debe tener al menos un ítem."),
   version: z.object({
     pacienteId: uuid,

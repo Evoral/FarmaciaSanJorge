@@ -80,7 +80,8 @@ export const itemInput = z.object({
 
 export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha en formato AAAA-MM-DD.");
 
-const crearRecetaInput = z.object({
+/** Shared with editar-receta.ts, which derives its own input from it (one header + ítem shape for both screens). */
+export const crearRecetaInput = z.object({
   pacienteId: uuid,
   medicoId: uuid,
   fechaPrescripcion: isoDate,
