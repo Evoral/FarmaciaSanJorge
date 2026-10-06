@@ -56,7 +56,8 @@ vi.stubGlobal("fetch", fetchMock);
 const { leerRecetaQrQuery } = await import("@/modules/recetas/application/leer-receta-qr");
 
 const TENANT_ID = "11111111-1111-1111-1111-111111111111";
-const HASH = "a1b2c3d4e5f60718".repeat(4);
+// RCTA's decrypter is case-sensitive: the hash is fetched in the UPPERCASE form its QR link prints.
+const HASH = "A1B2C3D4E5F60718".repeat(4);
 const URL_ESPERADA = `https://decrypter.verumrp.com.ar/api/RecipeDecryption/WithPrescription?hashedRecipe=${HASH}`;
 const DROGA_ID = "55555555-5555-4555-a555-555555555555";
 const UNIDAD_ID = "77777777-7777-4777-a777-777777777777";
@@ -134,13 +135,20 @@ describe("recetas.importar.leerQr -- order (P46, P47)", () => {
 
 describe("recetas.importar.leerQr -- the fetch target is never taken from the typed text", () => {
   it("fetches EXACTLY the constant endpoint + the extracted hash, whatever surrounds the hash", async () => {
-    const entradas = [HASH, ` ${HASH.toUpperCase()}\n`, `https://verumrp.com.ar/prescripcion/${HASH}`, `evil.com/${HASH}`, `https;--verumrp.com.ar-prescripcion-${HASH}`, `evil.example/x?u=${HASH}`];
+    const entradas = [HASH, ` ${HASH.toLowerCase()}\n`, `https://verumrp.com.ar/prescripcion/${HASH}`, `evil.com/${HASH}`, `https;--verumrp.com.ar-prescripcion-${HASH}`, `evil.example/x?u=${HASH}`];
     for (const entrada of entradas) {
       fetchMock.mockClear();
       await leer(entrada);
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(fetchMock.mock.calls[0]![0]).toBe(URL_ESPERADA);
     }
+  });
+
+  it("regression (RCTA hash is case-sensitive): a real uppercase link is fetched with the UPPERCASE hash and previews the uppercase verification URL", async () => {
+    const vista = await leer(`https://verumrp.com.ar/prescripcion/${HASH}`);
+    expect(fetchMock.mock.calls[0]![0]).toBe(URL_ESPERADA);
+    expect(String(fetchMock.mock.calls[0]![0])).not.toContain(HASH.toLowerCase());
+    expect(vista.borrador.urlVerificacion).toBe(`https://verumrp.com.ar/prescripcion/${HASH}`);
   });
 
   it("a link on a foreign host never reaches the network, even with the emisor's host in the userinfo", async () => {

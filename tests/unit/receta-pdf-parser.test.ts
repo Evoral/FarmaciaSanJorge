@@ -468,7 +468,7 @@ describe("separarContactoMedico", () => {
 
 describe("urlVerificacionRcta", () => {
   it("rebuilds the emisor's verification URL from the hash, and the emisor accepts it as its own", () => {
-    const hash = "0123456789abcdef".repeat(4);
+    const hash = "0123456789ABCDEF".repeat(4);
     const url = urlVerificacionRcta(hash);
     expect(url).toBe(`https://verumrp.com.ar/prescripcion/${hash}`);
     expect(esUrlVerificacionDeEmisor("RCTA", url)).toBe(true);

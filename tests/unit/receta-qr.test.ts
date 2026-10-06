@@ -6,10 +6,11 @@
 import { describe, it, expect } from "vitest";
 import { MENSAJES_LECTURA_QR, extraerHashRcta } from "@/modules/recetas/domain/receta-qr";
 
-const HASH = "0123456789abcdef".repeat(4);
-const OTRO_HASH = "fedcba9876543210".repeat(4);
+// RCTA's decrypter is CASE-SENSITIVE on the hash: the canonical form is the UPPERCASE hex printed in the QR URL.
+const HASH = "0123456789ABCDEF".repeat(4);
+const OTRO_HASH = "FEDCBA9876543210".repeat(4);
 
-describe("P11-P13: a valid hash is returned lowercase", () => {
+describe("P11-P13: a valid hash is returned in its canonical UPPERCASE form", () => {
   it("P11: from the emisor's verification URL", () => {
     expect(extraerHashRcta(`https://verumrp.com.ar/prescripcion/${HASH}`)).toBe(HASH);
     expect(extraerHashRcta(`https://www.verumrp.com.ar/prescripcion/${HASH}`)).toBe(HASH);
@@ -20,9 +21,23 @@ describe("P11-P13: a valid hash is returned lowercase", () => {
     expect(extraerHashRcta(HASH)).toBe(HASH);
   });
 
-  it("P13: uppercase input comes back lowercase", () => {
-    expect(extraerHashRcta(HASH.toUpperCase())).toBe(HASH);
-    expect(extraerHashRcta(`HTTPS://VERUMRP.COM.AR/prescripcion/${HASH.toUpperCase()}`)).toBe(HASH);
+  it("P13: regression (RCTA hash is case-sensitive): the uppercase hash of a real link is returned UNCHANGED, never lowercased", () => {
+    expect(extraerHashRcta(`https://verumrp.com.ar/prescripcion/${HASH}`)).toBe(HASH);
+    expect(extraerHashRcta(`https://verumrp.com.ar/prescripcion/${HASH}`)).not.toBe(HASH.toLowerCase());
+    expect(extraerHashRcta(`HTTPS://VERUMRP.COM.AR/prescripcion/${HASH}`)).toBe(HASH);
+  });
+
+  it("P13: lowercase input (Caps Lock flipped on the scanner) and mixed case come back uppercase", () => {
+    expect(extraerHashRcta(HASH.toLowerCase())).toBe(HASH);
+    expect(extraerHashRcta(`https://verumrp.com.ar/prescripcion/${HASH.toLowerCase()}`)).toBe(HASH);
+    const mezclado = [...HASH].map((c, i) => (i % 2 === 0 ? c.toLowerCase() : c.toUpperCase())).join("");
+    expect(mezclado).not.toBe(HASH);
+    expect(extraerHashRcta(mezclado)).toBe(HASH);
+  });
+
+  it("P13: two runs that differ only in case are the SAME hash, not two different ones", () => {
+    expect(extraerHashRcta(`${HASH} ${HASH.toLowerCase()}`)).toBe(HASH);
+    expect(extraerHashRcta(`https://verumrp.com.ar/prescripcion/${HASH.toLowerCase()}?x=${HASH}`)).toBe(HASH);
   });
 
   it("the same hash twice is still that hash", () => {
@@ -33,7 +48,7 @@ describe("P11-P13: a valid hash is returned lowercase", () => {
 describe("P14: scanner-garbled punctuation", () => {
   it("a keyboard-layout mangled URL that does not parse still yields the hash", () => {
     expect(extraerHashRcta(`https;--verumrp.com.ar-prescripcion-${HASH}`)).toBe(HASH);
-    expect(extraerHashRcta(`https;--verumrp.com.ar-prescripcion-${HASH.toUpperCase()}`)).toBe(HASH);
+    expect(extraerHashRcta(`https;--verumrp.com.ar-prescripcion-${HASH.toLowerCase()}`)).toBe(HASH);
   });
 });
 
@@ -83,7 +98,7 @@ describe("P17: foreign hosts are rejected before any network call", () => {
     // A scanner that turns the slashes into dashes leaves "https:" parseable as a URL whose
     // "host" is the whole garbled remainder; that must not read as a foreign host.
     expect(extraerHashRcta(`https:--verumrp.com.ar-prescripcion-${HASH}`)).toBe(HASH);
-    expect(extraerHashRcta(`HTTPS:--VERUMRP.COM.AR-PRESCRIPCION-${HASH.toUpperCase()}`)).toBe(HASH);
+    expect(extraerHashRcta(`HTTPS:--VERUMRP.COM.AR-PRESCRIPCION-${HASH.toLowerCase()}`)).toBe(HASH);
   });
 
   it("deliberate narrowing of P17: a foreign host WITHOUT scheme:// is not host-checked", () => {

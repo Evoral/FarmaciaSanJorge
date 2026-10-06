@@ -27,7 +27,8 @@ export const MAX_BYTES_RESPUESTA_RCTA = 64 * 1024;
 
 export type ResultadoConsultaRcta = { ok: true; json: unknown } | { ok: false; codigo: CodigoErrorQr };
 
-const RE_HASH = /^[0-9a-f]{64}$/;
+/** The decrypter is CASE-SENSITIVE (the lowercased hash is "Recipe does not exists"): only the canonical UPPERCASE form is sent. */
+const RE_HASH = /^[0-9A-F]{64}$/;
 const RE_CONTENT_TYPE_JSON = /^application\/(?:[a-z0-9.+-]+\+)?json\s*(?:;|$)/i;
 const RE_RECETA_INEXISTENTE = /recipe does not exist/i;
 /** The only statuses that mean "the API judged the hash itself bad"; every other 4xx (404, 410, 451, ...) says the endpoint moved or is blocked. */
@@ -91,7 +92,7 @@ async function clasificar(respuesta: Response): Promise<ResultadoConsultaRcta> {
   return fallo(STATUS_HASH_RECHAZADO.has(status) ? "QR_INVALIDO" : "RCTA_NO_DISPONIBLE");
 }
 
-/** `hash` must already be a validated lowercase 64-hex hash (re-checked here: it is the only thing that varies in the request). */
+/** `hash` must already be the canonical UPPERCASE 64-hex hash from `extraerHashRcta` (re-checked here, not normalized: it is the only thing that varies in the request and is sent exactly as given). */
 export async function consultarRecetaRcta(hash: string): Promise<ResultadoConsultaRcta> {
   if (!RE_HASH.test(hash)) return fallo("QR_INVALIDO");
   try {

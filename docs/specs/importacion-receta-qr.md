@@ -24,7 +24,7 @@ El texto escaneado viaja solo por POST (Server Action), nunca en una URL de esta
 
 ## Extracción del hash
 
-El hash es una secuencia de exactamente 64 caracteres hexadecimales (sin otro carácter hexadecimal pegado antes o después), sin distinguir mayúsculas; se devuelve en minúsculas. El texto puede ser el link completo (`https://verumrp.com.ar/prescripcion/<hash>`), el hash solo, o un link deformado por la distribución del teclado del lector (`https;--verumrp.com.ar-prescripcion-<hash>`).
+El hash es una secuencia de exactamente 64 caracteres hexadecimales (sin otro carácter hexadecimal pegado antes o después), sin distinguir mayúsculas al leerlo (un lector con Bloq Mayús invertido igual funciona). **El decrypter de RCTA SÍ distingue mayúsculas** en el hash: el hash en mayúsculas (como lo imprime el link del QR) devuelve la receta, y el mismo hash en minúsculas devuelve 500 "Recipe does not exists". Por eso la forma canónica es **MAYÚSCULAS**: `extraerHashRcta` siempre devuelve el hash en mayúsculas, el adaptador solo acepta `[0-9A-F]{64}` (rechaza cualquier otra forma sin consultar) y lo envía tal cual, y el link de verificación (`https://verumrp.com.ar/prescripcion/<HASH>`) también lleva el hash en mayúsculas. Dos tramos que difieren solo en mayúsculas son el mismo hash. El texto puede ser el link completo (`https://verumrp.com.ar/prescripcion/<hash>`), el hash solo, o un link deformado por la distribución del teclado del lector (`https;--verumrp.com.ar-prescripcion-<hash>`).
 
 - Más de un hash distinto, 63 o 65 caracteres hexadecimales, texto vacío o sin hash → "QR no válido o receta no encontrada", sin consulta.
 - **Restricción de host (P17, acotada a propósito).** Un texto con forma de URL completa `esquema://host/...` cuyo host no sea `verumrp.com.ar` (ni un subdominio) se rechaza sin consulta. El control **no** se aplica a textos sin `//` (`https:evil.com/<hash>` o `https:/evil.com/<hash>` devuelven el hash). Es inofensivo: del texto solo se usa el hash, y siempre contra un endpoint constante; la URL escaneada nunca se visita.
@@ -32,7 +32,7 @@ El hash es una secuencia de exactamente 64 caracteres hexadecimales (sin otro ca
 
 ## Consulta a RCTA
 
-Un único endpoint constante (`https://decrypter.verumrp.com.ar/api/RecipeDecryption/WithPrescription`) con el hash como único dato variable. GET, sin seguir redirecciones, sin caché, `accept: application/json`, **timeout de 8 s**, cuerpo máximo de **64 KiB** (se corta la lectura al llegar al tope). No se registra en logs el hash, la URL ni el cuerpo.
+Un único endpoint constante (`https://decrypter.verumrp.com.ar/api/RecipeDecryption/WithPrescription`) con el hash (en mayúsculas, exactamente como se extrajo) como único dato variable. GET, sin seguir redirecciones, sin caché, `accept: application/json`, **timeout de 8 s**, cuerpo máximo de **64 KiB** (se corta la lectura al llegar al tope). No se registra en logs el hash, la URL ni el cuerpo.
 
 | Respuesta | Mensaje al usuario |
 |---|---|
@@ -111,7 +111,7 @@ El botón "Escanear con la cámara" del panel abre la cámara, lee el QR y manda
 
 ## Casos de prueba
 
-- **P11–P14** — Extracción: link completo, hash solo (con espacios o salto de línea), mayúsculas → minúsculas, link deformado por el teclado.
+- **P11–P14** — Extracción: link completo, hash solo (con espacios o salto de línea), cualquier combinación de mayúsculas/minúsculas → siempre MAYÚSCULAS (forma canónica; RCTA distingue mayúsculas), link deformado por el teclado.
 - **P15–P16** — 63 o 65 hexadecimales, basura, vacío, dos hashes distintos → inválido, sin consulta.
 - **P17** — Host ajeno en una URL con `esquema://` → inválido, sin consulta; `https:evil.com/<hash>` y `https:/evil.com/<hash>` → devuelven el hash.
 - **P18–P26** — Adaptador: 200 válido; 200 vacío, `null` o `{}`; solo 400 y 422 → QR no válido; 500 "Recipe does not exists" (y 404 con ese mismo cuerpo JSON) → QR no válido; el mismo texto sin `content-type` JSON → RCTA no disponible; cualquier otro 4xx (401, 403, 404 sin ese cuerpo, 405, 407, 408, 410, 421, 429, 451), otros 5xx, timeout, red y redirección → RCTA no disponible; no JSON, más de 64 KiB o esquema inválido → formato inesperado.

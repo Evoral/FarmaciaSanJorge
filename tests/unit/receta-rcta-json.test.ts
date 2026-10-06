@@ -9,7 +9,7 @@ import { MENSAJES_LECTURA_QR } from "@/modules/recetas/domain/receta-qr";
 import { mapearRecetaRcta } from "@/modules/recetas/domain/receta-rcta-json";
 import { esUrlVerificacionDeEmisor } from "@/modules/recetas/domain/receta-pdf-parser";
 
-const HASH = "a1b2c3d4e5f60718".repeat(4);
+const HASH = "A1B2C3D4E5F60718".repeat(4);
 
 type Json = Record<string, unknown>;
 

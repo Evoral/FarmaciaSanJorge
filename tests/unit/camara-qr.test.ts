@@ -26,7 +26,7 @@ import {
   type EstadoMensajeCamara,
 } from "@/modules/recetas/ui/camara-qr";
 
-const HASH = "0123456789abcdef".repeat(4);
+const HASH = "0123456789ABCDEF".repeat(4);
 const URL_RECETA = `https://verumrp.com.ar/prescripcion/${HASH}`;
 
 const ENTORNO_OK: EntornoCamara = {

@@ -8,7 +8,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { consultarRecetaRcta, ENDPOINT_RCTA, MAX_BYTES_RESPUESTA_RCTA, TIMEOUT_RCTA_MS } from "@/modules/recetas/infrastructure/receta-rcta-api.server";
 
-const HASH = "a1b2c3d4e5f60718".repeat(4);
+// The decrypter is CASE-SENSITIVE on hashedRecipe: the canonical (and only accepted) form is UPPERCASE.
+const HASH = "A1B2C3D4E5F60718".repeat(4);
 const URL_ESPERADA = `https://decrypter.verumrp.com.ar/api/RecipeDecryption/WithPrescription?hashedRecipe=${HASH}`;
 const JSON_CT = { "content-type": "application/json; charset=utf-8" };
 const SECRETO = "CUERPO-CONFIDENCIAL-123";
@@ -44,8 +45,16 @@ describe("P18: the request", () => {
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
-  it("re-checks the hash: anything that is not 64 hex characters is QR_INVALIDO and never fetched", async () => {
-    for (const mala of ["", "abc", `${HASH}a`, HASH.toUpperCase(), `${HASH.slice(0, 63)}/`, `${HASH}&x=1`]) {
+  it("regression (RCTA hash is case-sensitive): the hash goes out in UPPERCASE exactly as given, never lowercased", async () => {
+    fetchMock.mockResolvedValue(json({ emisor: "RCTA" }));
+    await consultarRecetaRcta(HASH);
+    const url = String(fetchMock.mock.calls[0]![0]);
+    expect(url.endsWith(`hashedRecipe=${HASH}`)).toBe(true);
+    expect(url).not.toContain(HASH.toLowerCase());
+  });
+
+  it("re-checks the hash: anything that is not the canonical 64 UPPERCASE hex characters is QR_INVALIDO and never fetched", async () => {
+    for (const mala of ["", "abc", `${HASH}A`, HASH.toLowerCase(), `${HASH.slice(0, 32)}${HASH.slice(32).toLowerCase()}`, `${HASH.slice(0, 63)}/`, `${HASH}&x=1`]) {
       expect(await consultarRecetaRcta(mala)).toEqual(NO_ENCONTRADA);
     }
     expect(fetchMock).not.toHaveBeenCalled();

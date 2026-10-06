@@ -41,7 +41,9 @@ function esHostDelEmisor(hostname: string): boolean {
 }
 
 /**
- * The receta hash found in `texto` (lowercase), or `null` when there is none,
+ * The receta hash found in `texto` in its canonical UPPERCASE form (RCTA's
+ * decrypter is CASE-SENSITIVE: it answers "Recipe does not exists" to the same
+ * hash lowercased, and the QR link prints it uppercase), or `null` when there is none,
  * the candidates disagree (two DIFFERENT 64-hex runs), or the text is a
  * well-formed URL (scheme + "//") on a host other than the emisor's. Lenient
  * on purpose about everything else -- case and the punctuation a scanner with
@@ -63,7 +65,7 @@ export function extraerHashRcta(texto: string): string | null {
     if (url !== null && url.hostname.length > 0 && !esHostDelEmisor(url.hostname)) return null;
   }
 
-  const hashes = new Set((limpio.match(RE_HASH) ?? []).map((h) => h.toLowerCase()));
+  const hashes = new Set((limpio.match(RE_HASH) ?? []).map((h) => h.toUpperCase()));
   if (hashes.size !== 1) return null;
   return [...hashes][0]!;
 }
