@@ -31,7 +31,7 @@
  * (it would open the on-screen keyboard of a phone over the preview).
  */
 import { useActionState, useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
-import { AlertCircle, Camera, QrCode } from "lucide-react";
+import { AlertCircle, Camera, QrCode, X } from "lucide-react";
 import { leerRecetaQrAction } from "./actions";
 import { IDLE_LEER_RECETA_STATE } from "./action-state";
 import { MENSAJE_ANUNCIO_LEYENDO, textoAnuncioLectura } from "./anuncio-lectura";
@@ -144,20 +144,22 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
   const camaraDisponible = soporte !== null && soporte !== "inseguro" && soporte !== "sin-api";
 
   return (
-    <section ref={panelRef} aria-labelledby="importar-qr-heading" className="panel">
-      <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:px-5">
-        <span className="tone-tile" data-tone={importando ? "success" : "neutral"} aria-hidden>
-          <QrCode />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 id="importar-qr-heading" className="text-sm font-semibold text-zinc-900">
-            {importando ? "Receta importada con QR" : "¿Tenés el QR de la receta? Escanealo o pegá el link"}
-          </h2>
-          <p className="mt-0.5 text-[0.8125rem] text-zinc-500">
-            Precarga el formulario. No se guarda nada hasta que confirmes.
-          </p>
+    <section ref={panelRef} aria-labelledby="importar-qr-heading">
+      <div className="flex flex-col gap-3 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:gap-6">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <span className="tone-tile" data-tone={importando ? "success" : "neutral"} aria-hidden>
+            <QrCode />
+          </span>
+          <div className="min-w-0">
+            <h3 id="importar-qr-heading" className="text-sm font-semibold text-zinc-900">
+              {importando ? "Receta importada con QR" : "Con el QR o el link de la receta"}
+            </h3>
+            <p className="mt-0.5 text-[0.8125rem] text-zinc-500">
+              Usá el lector, pegá el link o escaneá con la cámara.
+            </p>
+          </div>
         </div>
-        <form ref={formRef} action={formAction} onSubmit={handleSubmit} className="flex flex-wrap items-center gap-2">
+        <form ref={formRef} action={formAction} onSubmit={handleSubmit} className="flex w-full flex-wrap items-center gap-2 lg:w-[26rem] lg:flex-none">
           <label htmlFor={inputId} className="sr-only">
             QR o link de la receta
           </label>
@@ -175,34 +177,31 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
             aria-invalid={entradaInvalida ? true : undefined}
             aria-describedby={mostrarError ? errorId : undefined}
             placeholder="Escaneá el QR o pegá el link"
-            className="input w-full sm:w-72"
+            className="input min-w-0 flex-1"
           />
-          <button type="submit" disabled={isPending} className="btn btn-secondary btn-sm">
-            Leer receta
+          <button type="submit" disabled={isPending} className="btn btn-secondary">
+            {isPending ? <span className="spinner" aria-hidden /> : null}
+            {isPending ? MENSAJE_ANUNCIO_LEYENDO : "Leer"}
           </button>
-          {isPending ? (
-            <p aria-hidden className="flex items-center gap-2 text-sm text-zinc-600">
-              <span className="spinner" aria-hidden />
-              {MENSAJE_ANUNCIO_LEYENDO}
-            </p>
-          ) : null}
           {soporte === null ? null : (
             <button
               ref={botonCamaraRef}
               type="button"
               onClick={abrirCamara}
               disabled={!camaraDisponible || isPending}
+              aria-label="Escanear con la cámara"
+              title="Escanear con la cámara"
               aria-expanded={camaraDisponible ? camaraAbierta : undefined}
               aria-describedby={camaraDisponible ? undefined : avisoCamaraId}
-              className="btn btn-secondary btn-sm"
+              className="btn btn-secondary btn-icon"
             >
               <Camera className="size-4" aria-hidden />
-              Escanear con la cámara
             </button>
           )}
           {importando ? (
-            <button type="button" onClick={handleDescartar} className="btn btn-ghost btn-sm">
-              Descartar importación
+            <button type="button" onClick={handleDescartar} className="btn btn-ghost">
+              <X className="size-4" aria-hidden />
+              Descartar
             </button>
           ) : null}
           <p role="status" className="sr-only">

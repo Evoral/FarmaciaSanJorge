@@ -31,9 +31,15 @@ export function NuevaReceta({ unidades, puedePresupuestar }: { unidades: UnidadO
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4">
-        <ImportarRecetaPdf key={`pdf-${lecturas.QR}`} importando={vistaPrevia?.fuente === "PDF"} onLeida={onLeida} onDescartar={onDescartar} />
-        <ImportarRecetaQr key={`qr-${lecturas.PDF}`} importando={vistaPrevia?.fuente === "QR"} onLeida={onLeida} onDescartar={onDescartar} autoEnfocar={totalLecturas === 0} />
+      <div className="panel">
+        <div className="panel-header">
+          <h2>Importar una receta digital</h2>
+          <p>Precarga el formulario. No se guarda nada hasta que confirmes.</p>
+        </div>
+        <div className="divide-y divide-zinc-100">
+          <ImportarRecetaPdf key={`pdf-${lecturas.QR}`} importando={vistaPrevia?.fuente === "PDF"} onLeida={onLeida} onDescartar={onDescartar} />
+          <ImportarRecetaQr key={`qr-${lecturas.PDF}`} importando={vistaPrevia?.fuente === "QR"} onLeida={onLeida} onDescartar={onDescartar} autoEnfocar={totalLecturas === 0} />
+        </div>
       </div>
       {vistaPrevia ? (
         <RecetaForm key={totalLecturas} mode="importar" vistaPrevia={vistaPrevia} unidades={unidades} disabled={false} puedePresupuestar={puedePresupuestar} />
