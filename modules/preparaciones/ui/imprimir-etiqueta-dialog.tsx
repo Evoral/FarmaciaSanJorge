@@ -2,7 +2,7 @@
 
 /**
  * "Imprimir etiqueta": the button opens a "Seleccionar tamaño" dialog with the
- * sizes the administrator configured (modules/etiqueta-tamanos); confirming
+ * active sizes the administrator configured (modules/etiqueta-tamanos); confirming
  * opens the etiqueta PDF, rendered on that page size, in a new tab. Native
  * `<dialog>` opened with `showModal()` (same pattern as
  * `./ver-receta-pendiente-dialog.tsx`): focus is trapped and returned to the
@@ -29,6 +29,7 @@ export interface ImprimirEtiquetaDialogProps {
 
 export function ImprimirEtiquetaDialog({ preparacionId, tamanos, variant = "secondary", small = true }: ImprimirEtiquetaDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const presionoFondoRef = useRef(false);
   const tituloId = useId();
   const selectId = useId();
   const [elegido, setElegido] = useState("");
@@ -60,9 +61,15 @@ export function ImprimirEtiquetaDialog({ preparacionId, tamanos, variant = "seco
       <dialog
         ref={dialogRef}
         aria-labelledby={tituloId}
-        // The content wrapper fills the dialog, so a click whose target is the dialog itself landed on the backdrop.
+        // The content wrapper fills the dialog, so a target that is the dialog itself is the backdrop. Close only when the press AND the click both
+        // landed there: a drag that starts inside (e.g. selecting text) and is released over the backdrop still fires a click on the dialog.
+        onPointerDown={(event) => {
+          presionoFondoRef.current = event.target === event.currentTarget;
+        }}
         onClick={(event) => {
-          if (event.target === event.currentTarget) cerrar();
+          const cerrarPorFondo = presionoFondoRef.current && event.target === event.currentTarget;
+          presionoFondoRef.current = false;
+          if (cerrarPorFondo) cerrar();
         }}
         className="card m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-md p-0 text-left text-foreground shadow-lg backdrop:bg-black/40 dark:border-zinc-800 dark:bg-zinc-900"
       >
@@ -74,7 +81,7 @@ export function ImprimirEtiquetaDialog({ preparacionId, tamanos, variant = "seco
           {sinTamanos ? (
             <div role="note" className="alert alert-warn">
               <TriangleAlert aria-hidden />
-              <p>No hay tamaños de etiqueta configurados. Solicite al administrador que cargue uno.</p>
+              <p>No hay tamaños de etiqueta activos. Solicite al administrador que habilite uno.</p>
             </div>
           ) : (
             <div className="field">

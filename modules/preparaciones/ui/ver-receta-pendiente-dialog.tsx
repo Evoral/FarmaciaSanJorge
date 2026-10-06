@@ -25,6 +25,7 @@ export interface RecetaPendienteVista {
 export function VerRecetaPendienteDialog({ receta }: { receta: RecetaPendienteVista }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cerrarRef = useRef<HTMLButtonElement>(null);
+  const presionoFondoRef = useRef(false);
   const tituloId = useId();
 
   function abrir() {
@@ -44,9 +45,15 @@ export function VerRecetaPendienteDialog({ receta }: { receta: RecetaPendienteVi
       <dialog
         ref={dialogRef}
         aria-labelledby={tituloId}
-        // The content wrapper fills the dialog, so a click whose target is the dialog itself landed on the backdrop.
+        // The content wrapper fills the dialog, so a target that is the dialog itself is the backdrop. Close only when the press AND the click both
+        // landed there: a drag that starts inside (e.g. selecting text) and is released over the backdrop still fires a click on the dialog.
+        onPointerDown={(event) => {
+          presionoFondoRef.current = event.target === event.currentTarget;
+        }}
         onClick={(event) => {
-          if (event.target === event.currentTarget) cerrar();
+          const cerrarPorFondo = presionoFondoRef.current && event.target === event.currentTarget;
+          presionoFondoRef.current = false;
+          if (cerrarPorFondo) cerrar();
         }}
         className="card m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-2xl p-0 text-left text-foreground shadow-lg backdrop:bg-black/40 dark:border-zinc-800 dark:bg-zinc-900"
       >
