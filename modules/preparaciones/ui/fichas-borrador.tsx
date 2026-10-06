@@ -91,7 +91,7 @@ export function FichaTecnicaEnToma({ itemId, children }: { itemId: string; child
 const NOTA_GUARDAR = (
   <p className="mr-auto flex items-start gap-2 text-sm text-zinc-600">
     <Lock className="mt-0.5 size-3.5 flex-none" aria-hidden />
-    Guardá los cambios de la receta para poder confirmar la terminación.
+    Guardá los cambios de la receta para poder confirmar la preparación.
   </p>
 );
 

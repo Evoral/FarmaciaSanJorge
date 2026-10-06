@@ -10,11 +10,13 @@ import { cancelarToma } from "@/modules/preparaciones/application/cancelar-toma"
 import { descartarPreparacion } from "@/modules/preparaciones/application/descartar-preparacion";
 import { confirmarPreparacion } from "@/modules/preparaciones/application/confirmar-preparacion";
 import type { ConfirmarPreparacionLineaInput } from "@/modules/preparaciones/application/confirmar-preparacion";
+import { confirmarPreparacionDeFicha } from "@/modules/preparaciones/application/confirmar-preparacion-de-ficha";
+import { getConfirmacionDeFicha } from "@/modules/preparaciones/application/get-confirmacion-de-ficha";
 import { generarEtiqueta } from "@/modules/preparaciones/application/generar-etiqueta";
 import { previsualizarFichas } from "@/modules/preparaciones/application/previsualizar-fichas";
 import { StepUpRequiredError } from "@/shared/errors";
 import { actionError, actionErrorMessage } from "@/shared/ui/action-error";
-import type { PreparacionActionState, VistaPreviaFichasState } from "./action-state";
+import type { ConfirmacionDeFichaState, PreparacionActionState, VistaPreviaFichasState } from "./action-state";
 
 export async function iniciarPreparacionAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
   try {
@@ -84,7 +86,7 @@ export async function descartarPreparacionAction(_prevState: PreparacionActionSt
 }
 
 /**
- * Parses the confirm form's per-línea fields back into
+ * Parses the confirm form's per-línea fields (both confirmation actions) back into
  * `ConfirmarPreparacionLineaInput[]`. Field names (built by
  * `modules/preparaciones/ui/confirmar-form.tsx`):
  *   - `lineaIds` (repeated, one per línea, in ficha order)
@@ -113,6 +115,34 @@ export async function confirmarPreparacionAction(_prevState: PreparacionActionSt
     const resultado = await confirmarPreparacion({ preparacionId, lineas: parseLineas(formData) });
     revalidatePath(`/preparaciones/${preparacionId}`);
     revalidatePath("/preparaciones");
+    return { status: "success", message: `Preparación confirmada. Asiento libro recetario Nº ${resultado.numeroCorrelativo}.`, id: resultado.id };
+  } catch (error) {
+    if (error instanceof StepUpRequiredError) {
+      return { status: "reauth-required" };
+    }
+    return actionError(error, "No se pudo confirmar la preparación.");
+  }
+}
+
+/**
+ * What the toma workspace's "Continuar" dialog shows for a ficha técnica: called when it opens, not a
+ * `<form action>`. Writes nothing.
+ */
+export async function getConfirmacionDeFichaAction(fichaTecnicaId: string): Promise<ConfirmacionDeFichaState> {
+  try {
+    return { status: "success", datos: await getConfirmacionDeFicha(fichaTecnicaId) };
+  } catch (error) {
+    return { status: "error", message: actionErrorMessage(error, "No se pudieron leer los datos para confirmar la preparación.") };
+  }
+}
+
+/** The "Continuar" dialog's final step: creates and confirms the preparación in one transaction (same form fields as `confirmarPreparacionAction`, keyed by `fichaTecnicaId`). */
+export async function confirmarPreparacionDeFichaAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
+  try {
+    const resultado = await confirmarPreparacionDeFicha({ fichaTecnicaId: String(formData.get("fichaTecnicaId") ?? ""), lineas: parseLineas(formData) });
+    revalidatePath("/preparaciones");
+    // The receta moved to EN_PREPARACION, or PREPARADA with its last ítem.
+    revalidatePath("/recetas");
     return { status: "success", message: `Preparación confirmada. Asiento libro recetario Nº ${resultado.numeroCorrelativo}.`, id: resultado.id };
   } catch (error) {
     if (error instanceof StepUpRequiredError) {

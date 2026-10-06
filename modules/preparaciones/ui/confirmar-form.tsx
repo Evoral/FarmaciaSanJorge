@@ -12,31 +12,45 @@
  * a clear message if INV-S18 requires it and it was left empty, which is
  * simpler and more honest than guessing client-side whether it will be
  * required.
+ *
+ * Two destinations, same fields: an INICIADA preparación on
+ * `/preparaciones/[id]` (`confirmarPreparacionAction`), or a ficha técnica
+ * from the toma workspace's "Continuar" dialog
+ * (`confirmarPreparacionDeFichaAction`: creates and confirms in one
+ * transaction). A closed jornada (`cierre_diario`) or a línea without stock
+ * is warned up front and disables the submit.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { CircleAlert, TriangleAlert } from "lucide-react";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { formatNumero } from "@/shared/format/cantidad";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
-import { confirmarPreparacionAction } from "./actions";
-import type { PreparacionParaPantalla } from "@/modules/preparaciones/application/get-preparacion-para-pantalla";
+import { confirmarPreparacionAction, confirmarPreparacionDeFichaAction } from "./actions";
+import type { DatosConfirmacion } from "@/modules/preparaciones/application/datos-confirmacion";
 
 export interface ConfirmarPreparacionFormProps {
-  pantalla: PreparacionParaPantalla;
+  datos: DatosConfirmacion;
+  /** An INICIADA preparación (it can still be discarded below the form), or the ficha técnica a new preparación is created from on submit. */
+  destino: { preparacionId: string } | { fichaTecnicaId: string };
+  /** After a successful confirmation (the page is refreshed anyway); receives the success message. */
+  onSuccess?: (message: string | undefined) => void;
+  /** E.g. the dialog's "Cancelar" (`type="button"`), next to the submit. */
+  extraActions?: ReactNode;
 }
 
 function fechaCorta(iso: string): string {
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "short" }).format(new Date(`${iso}T00:00:00`));
 }
 
-export function ConfirmarPreparacionForm({ pantalla }: ConfirmarPreparacionFormProps) {
+export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActions }: ConfirmarPreparacionFormProps) {
+  const deFicha = "fichaTecnicaId" in destino;
   // Which partidas start CHECKED per línea: the system's own proposal for
   // non-manual lines, EVERY eligible partida for manual lines (the pharmacist
   // narrows it down if needed -- there is no proposal to default to since the
   // quantity isn't known yet).
   const [checked, setChecked] = useState<Record<string, Set<string>>>(() => {
     const initial: Record<string, Set<string>> = {};
-    for (const linea of pantalla.lineas) {
+    for (const linea of datos.lineas) {
       if (linea.propuesta) {
         initial[linea.id] = new Set(linea.propuesta.map((p) => p.partidaId));
       } else {
@@ -55,8 +69,9 @@ export function ConfirmarPreparacionForm({ pantalla }: ConfirmarPreparacionFormP
     });
   }
 
-  const hayStockInsuficiente = pantalla.lineas.some((l) => l.stockInsuficiente);
-  const lineasSinStock = pantalla.lineas.filter((l) => l.stockInsuficiente).length;
+  const hayStockInsuficiente = datos.lineas.some((l) => l.stockInsuficiente);
+  const lineasSinStock = datos.lineas.filter((l) => l.stockInsuficiente).length;
+  const bloqueada = hayStockInsuficiente || datos.jornadaCerrada;
 
   return (
     <div className="flex flex-col gap-5">
@@ -68,26 +83,39 @@ export function ConfirmarPreparacionForm({ pantalla }: ConfirmarPreparacionFormP
         </div>
       </div>
 
+      {datos.jornadaCerrada ? (
+        <div role="alert" className="alert alert-danger">
+          <CircleAlert aria-hidden />
+          <p>La jornada de hoy ya fue firmada por el Director Técnico: no se pueden confirmar preparaciones para el día de hoy.</p>
+        </div>
+      ) : null}
+
       {hayStockInsuficiente ? (
         <div role="alert" className="alert alert-danger">
           <CircleAlert aria-hidden />
           <p>
-            {lineasSinStock === 1 ? "Una línea no tiene" : `${lineasSinStock} líneas no tienen`} stock suficiente: no se puede confirmar hasta que haya saldo. Podés
-            descartar la preparación más abajo.
+            {lineasSinStock === 1 ? "Una línea no tiene" : `${lineasSinStock} líneas no tienen`} stock suficiente: no se puede confirmar hasta que haya saldo.
+            {deFicha ? null : " Podés descartar la preparación más abajo."}
           </p>
         </div>
       ) : null}
 
       <ReauthAwareForm
-        action={confirmarPreparacionAction}
-        submitLabel="Confirmar preparación"
+        action={deFicha ? confirmarPreparacionDeFichaAction : confirmarPreparacionAction}
+        submitLabel={deFicha ? "Confirmar y descontar stock" : "Confirmar preparación"}
         pendingLabel="Confirmando…"
-        submitDisabled={hayStockInsuficiente}
+        submitDisabled={bloqueada}
         className="flex flex-col gap-4"
+        extraActions={extraActions}
+        onSuccess={onSuccess ? (state) => onSuccess(state.message) : undefined}
       >
-        <input type="hidden" name="preparacionId" value={pantalla.id} />
+        {"fichaTecnicaId" in destino ? (
+          <input type="hidden" name="fichaTecnicaId" value={destino.fichaTecnicaId} />
+        ) : (
+          <input type="hidden" name="preparacionId" value={destino.preparacionId} />
+        )}
 
-        {pantalla.lineas.map((linea) => (
+        {datos.lineas.map((linea) => (
           <fieldset key={linea.id} className="group-card" data-alerta={linea.stockInsuficiente || undefined}>
             <input type="hidden" name="lineaIds" value={linea.id} />
             <legend className="sr-only">

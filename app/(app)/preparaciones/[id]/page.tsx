@@ -69,7 +69,7 @@ export default async function PreparacionPage({ params }: PreparacionPageProps) 
 
         {pantalla.estado === "INICIADA" ? (
           <div className="flex flex-col gap-8">
-            <ConfirmarPreparacionForm pantalla={pantalla} />
+            <ConfirmarPreparacionForm datos={pantalla} destino={{ preparacionId: pantalla.id }} />
             <section className="panel" data-tone="danger" aria-labelledby="descartar-heading">
               <div className="panel-header">
                 <h2 id="descartar-heading">Descartar en lugar de confirmar</h2>

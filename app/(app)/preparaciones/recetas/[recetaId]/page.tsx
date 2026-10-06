@@ -16,17 +16,23 @@
  * - Each ítem: where it stands (Pendiente / Confirmación en curso /
  *   Confirmada), its latest ficha técnica with its líneas de pesaje (plus
  *   "Generar ficha técnica" only for an ítem that has none, e.g. when the
- *   automatic generation failed) and the action -- "Confirmar terminación"
- *   starts the formal preparación (`preparaciones.iniciar`) and opens its
- *   confirmation screen; from then on the receta is EN_PREPARACION and can
- *   no longer be edited (existing rule).
+ *   automatic generation failed) and the action -- "Continuar" opens the
+ *   confirmation in a dialog (modules/preparaciones/ui/continuar-preparacion-dialog.tsx:
+ *   partidas, enrase, warnings, re-authentication) that persists nothing
+ *   until "Confirmar y descontar stock", which creates and confirms the
+ *   preparación in one transaction (`preparaciones.confirmarDeFicha`); from
+ *   then on the receta can no longer be edited (existing rule). An ítem
+ *   with a preparación INICIADA from before this flow (or from the ficha
+ *   técnica screen's "Preparar") links to its `/preparaciones/[id]` screen
+ *   instead, where it is confirmed or discarded.
  * - The fichas follow the form's unsaved draft, never a button
  *   (modules/preparaciones/ui/borrador-receta.tsx + fichas-borrador.tsx): a
  *   changed or new ítem shows a live preview of the ficha saving will
  *   generate, a removed one a warning, and while anything is unsaved no
  *   ítem can start its confirmation.
- * - "Cancelar toma" sends the receta back to Pendientes (refused while a
- *   confirmation is in progress).
+ * - "Cancelar toma" sends the receta back to Pendientes (the command
+ *   refuses it while an ítem has a preparación INICIADA; its message shows
+ *   in the form).
  *
  * Requires `preparaciones.iniciar` (the /preparaciones layout). A receta
  * nobody took goes back to the list; one that already left the lab, to its
@@ -45,7 +51,7 @@ import type { EstadoItemToma } from "@/modules/preparaciones/domain/toma";
 import { BorradorRecetaProvider, RecetaFormToma } from "@/modules/preparaciones/ui/borrador-receta";
 import { CancelarTomaForm } from "@/modules/preparaciones/ui/cancelar-toma-form";
 import { FichaTecnicaEnToma, FichasDeItemsNuevos, RequiereRecetaGuardada } from "@/modules/preparaciones/ui/fichas-borrador";
-import { IniciarPreparacionForm } from "@/modules/preparaciones/ui/iniciar-form";
+import { ContinuarPreparacionDialog } from "@/modules/preparaciones/ui/continuar-preparacion-dialog";
 import { ItemDatos } from "@/modules/preparaciones/ui/item-datos";
 import { LineasFichaTabla } from "@/modules/preparaciones/ui/lineas-ficha-tabla";
 import { getReceta } from "@/modules/recetas/application/get-receta";
@@ -61,7 +67,8 @@ import { formatFecha, formatFechaHora } from "@/shared/format/fecha";
 import { StatusBadge, ToneBadge, type BadgeTone } from "@/shared/ui/status-badge";
 import { PageHeader } from "@/shared/ui/page-header";
 import { Avatar } from "@/shared/ui/avatar";
-import { CircleCheck, FlaskConical, Lock, Stethoscope } from "lucide-react";
+import { Toaster } from "@/shared/ui/toast";
+import { CircleCheck, FlaskConical, Stethoscope } from "lucide-react";
 
 interface TomaRecetaPageProps {
   params: Promise<{ recetaId: string }>;
@@ -105,7 +112,6 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
   const edicion = puedeEditar ? await datosEdicion(receta.id) : null;
   const puedeGenerarFicha = can(session, "fichas.generar");
   const puedeImprimirFicha = can(session, "fichas.imprimir");
-  const confirmacionEnCurso = receta.items.findIndex((item) => item.preparacion?.estado === "INICIADA");
 
   const estados = receta.items.map((item) => estadoItemToma(item.preparacion));
   const confirmados = estados.filter((estado) => estado === "CONFIRMADA").length;
@@ -118,7 +124,7 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
         <h2 id="fichas-heading" className="flex items-center gap-2">
           {edicion ? "Fichas técnicas" : "Ítems"} <span className="tab-count">{receta.items.length}</span>
         </h2>
-        <span className="text-xs text-zinc-500">Una vez que empieza la confirmación de un ítem, la receta ya no se puede editar.</span>
+        <span className="text-xs text-zinc-500">Una vez confirmado un ítem, la receta ya no se puede editar.</span>
       </div>
       <div className="flex flex-col gap-4">
         {receta.items.map((item, idx) => (
@@ -154,16 +160,7 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
             {receta.tomadaEn ? <> el {formatFechaHora(receta.tomadaEn, receta.zonaHoraria)}</> : null}
           </>
         }
-        actions={
-          confirmacionEnCurso >= 0 ? (
-            <p className="flex max-w-xs items-start gap-2 text-xs text-zinc-500">
-              <Lock className="mt-0.5 size-3.5 flex-none" aria-hidden />
-              Para cancelar la toma, primero hay que descartar la preparación en curso del ítem {confirmacionEnCurso + 1}.
-            </p>
-          ) : (
-            <CancelarTomaForm recetaId={receta.id} />
-          )
-        }
+        actions={<CancelarTomaForm recetaId={receta.id} />}
       />
 
       <AvisosGeneracion exito={guardada ? "Receta actualizada." : undefined} avisos={avisos} />
@@ -235,6 +232,7 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
       ) : (
         fichas
       )}
+      <Toaster />
     </div>
   );
 }
@@ -328,18 +326,19 @@ function ItemToma({
             </Link>
           </>
         ) : estado === "EN_CONFIRMACION" && item.preparacion ? (
+          // A preparación INICIADA from the former two-step flow (or the ficha técnica screen's "Preparar"): confirmed or discarded on its own screen.
           <Link href={`/preparaciones/${item.preparacion.id}`} className="btn btn-primary">
             <FlaskConical className="size-4" aria-hidden />
-            Confirmar preparación
+            Continuar
           </Link>
         ) : (
-          // Starting a preparación locks the receta: never with unsaved edits in the form above.
+          // Confirming locks the receta: never with unsaved edits in the form above.
           <RequiereRecetaGuardada>
             {ficha ? (
-              <IniciarPreparacionForm fichaTecnicaId={ficha.id} label="Confirmar terminación" pendingLabel="Iniciando…" />
+              <ContinuarPreparacionDialog fichaTecnicaId={ficha.id} itemNombre={`Ítem ${numero}: ${nombre}`} />
             ) : (
               <p className="mr-auto text-sm text-zinc-600">
-                {puedeGenerarFicha ? "Generá la ficha técnica para poder confirmar la terminación." : "Falta generar la ficha técnica de este ítem para poder confirmar la terminación."}
+                {puedeGenerarFicha ? "Generá la ficha técnica para poder confirmar la preparación." : "Falta generar la ficha técnica de este ítem para poder confirmar la preparación."}
               </p>
             )}
           </RequiereRecetaGuardada>

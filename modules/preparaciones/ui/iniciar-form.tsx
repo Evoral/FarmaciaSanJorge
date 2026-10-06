@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Starts a preparación on a ficha técnica (`preparaciones.iniciar`): the "Preparar" button of the ficha técnica screen and
- * the "Confirmar terminación" button of the toma workspace (/preparaciones/recetas/[recetaId]). On success, navigates
- * straight to the new preparación's screen (partidas, enrase, confirmation); an error shows inline.
+ * Starts a preparación on a ficha técnica (`preparaciones.iniciar`): the "Preparar" button of the ficha técnica screen
+ * (the toma workspace creates and confirms in one step instead, ./continuar-preparacion-dialog.tsx). On success,
+ * navigates straight to the new preparación's screen (partidas, enrase, confirmation); an error shows inline.
  */
 import { useRouter } from "next/navigation";
 import { SimpleForm } from "@/shared/ui/simple-form";
@@ -11,7 +11,7 @@ import { iniciarPreparacionAction } from "./actions";
 
 export interface IniciarPreparacionFormProps {
   fichaTecnicaId: string;
-  /** Default "Preparar"; the toma workspace uses "Confirmar terminación". */
+  /** Default "Preparar". */
   label?: string;
   /** Default "Preparando…". */
   pendingLabel?: string;

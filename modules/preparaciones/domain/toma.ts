@@ -5,9 +5,10 @@
  * Taking a receta from the Pendientes queue only records who took it and
  * when: no preparación is created and the receta keeps its estado, so a
  * PENDIENTE_PREPARACION receta stays editable (recetas/domain/receta.ts's
- * `esEstadoEditable`). The formal preparación is started per ítem from the
- * toma workspace ("Confirmar terminación" -> `preparaciones.iniciar`), and
- * from then on the receta is EN_PREPARACION and locked, as before.
+ * `esEstadoEditable`). The formal preparación is created and confirmed per
+ * ítem, in one step, from the toma workspace ("Continuar" ->
+ * `preparaciones.confirmarDeFicha`), and from then on the receta is
+ * EN_PREPARACION (or PREPARADA) and locked, as before.
  *
  * Rules (enforced by application/tomar-receta.ts and cancelar-toma.ts after
  * locking the receta row):

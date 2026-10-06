@@ -13,14 +13,17 @@
  * never start a new preparación.
  *
  * The toma (migration 0057, domain/toma.ts): the toma workspace's
- * "Confirmar terminación" runs this on a receta its user already took. When
- * it runs on a receta nobody took (the ficha técnica screen's "Preparar"),
+ * "Continuar" dialog runs this (via `confirmarPreparacionDeFicha`, together
+ * with the confirmation) on a receta its user already took. When it runs on
+ * a receta nobody took (the ficha técnica screen's "Preparar"),
  * the starter takes it here too, so a receta with a preparación INICIADA is
  * always listed under En curso. Same receta lock as the estado move (always
  * taken now, after the ficha's advisory lock -- same order as before).
  */
 import { z } from "zod";
+import type { Prisma } from "@/generated/prisma/client";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
+import type { AuthenticatedSession } from "@/shared/auth/session";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { esEstadoTerminal } from "@/modules/recetas/domain/receta";
@@ -48,55 +51,71 @@ export const iniciarPreparacionCommand = defineCommand({
   input: iniciarPreparacionInput,
   audit: { entidad: "preparacion", accion: TipoAccion.CREAR },
   handler: async ({ tx, session, input }) => {
-    const locked = await lockFichaTecnicaParaIniciar(tx, session.tenantId, input.fichaTecnicaId);
-    if (!locked) throw new NotFoundError("Ficha técnica no encontrada.");
-
-    const ficha = await getFichaParaIniciar(tx, session.tenantId, input.fichaTecnicaId);
-    if (!ficha) throw new NotFoundError("Ficha técnica no encontrada.");
-
-    if (esEstadoTerminal(ficha.recetaEstado)) {
-      throw new DomainError(`No se puede iniciar una preparación: la receta está en estado ${ficha.recetaEstado}.`);
-    }
-
-    const activa = await getPreparacionActivaDeFicha(tx, session.tenantId, input.fichaTecnicaId);
-    if (activa) {
-      throw new DomainError(`Ya existe una preparación activa (estado ${activa.estado}) para esta ficha técnica.`);
-    }
-
-    const preparacion = await insertPreparacion(tx, {
-      tenantId: session.tenantId,
-      fichaTecnicaId: input.fichaTecnicaId,
-      iniciadaPorId: session.usuario.id,
-    });
-
-    let tomadaPor: string | null = null;
-    const recetaLocked = await lockRecetaParaTransicion(tx, session.tenantId, ficha.recetaId);
-    if (recetaLocked) {
-      const estadoFresco = await getRecetaEstado(tx, session.tenantId, ficha.recetaId);
-      if (estadoFresco === "PENDIENTE_PREPARACION") {
-        await updateRecetaEstado(tx, session.tenantId, ficha.recetaId, "EN_PREPARACION");
-      }
-      const toma = await getTomaDeReceta(tx, session.tenantId, ficha.recetaId);
-      if (toma && toma.tomadaPorId === null) {
-        await setTomaDeReceta(tx, session.tenantId, ficha.recetaId, session.usuario.id);
-        tomadaPor = `${session.usuario.apellido}, ${session.usuario.nombre}`;
-      }
-    }
-
+    const iniciada = await iniciarPreparacionEnTx(tx, session, input.fichaTecnicaId);
     return {
-      output: { id: preparacion.id },
+      output: { id: iniciada.id },
       audit: {
-        entidadId: preparacion.id,
+        entidadId: iniciada.id,
         valorNuevo: {
           fichaTecnicaId: input.fichaTecnicaId,
-          fichaTecnica: `Receta Nº ${ficha.recetaNumeroInterno} · versión ${ficha.version}`,
+          fichaTecnica: iniciada.fichaTecnica,
           // Only when this start also took the receta (see the module doc comment).
-          ...(tomadaPor ? { tomadaPor } : {}),
+          ...(iniciada.tomadaPor ? { tomadaPor: iniciada.tomadaPor } : {}),
         },
       },
     };
   },
 });
+
+/**
+ * The start itself (every check and write above), inside the caller's
+ * transaction: also run by `confirmarPreparacionDeFicha`
+ * (./confirmar-preparacion-de-ficha.ts), which starts and confirms in ONE
+ * transaction. `fichaTecnica` is the audit's human label; `tomadaPor`, the
+ * usuario's name when this start also took the receta.
+ */
+export async function iniciarPreparacionEnTx(
+  tx: Prisma.TransactionClient,
+  session: AuthenticatedSession,
+  fichaTecnicaId: string,
+): Promise<{ id: string; fichaTecnica: string; tomadaPor: string | null }> {
+  const locked = await lockFichaTecnicaParaIniciar(tx, session.tenantId, fichaTecnicaId);
+  if (!locked) throw new NotFoundError("Ficha técnica no encontrada.");
+
+  const ficha = await getFichaParaIniciar(tx, session.tenantId, fichaTecnicaId);
+  if (!ficha) throw new NotFoundError("Ficha técnica no encontrada.");
+
+  if (esEstadoTerminal(ficha.recetaEstado)) {
+    throw new DomainError(`No se puede iniciar una preparación: la receta está en estado ${ficha.recetaEstado}.`);
+  }
+
+  const activa = await getPreparacionActivaDeFicha(tx, session.tenantId, fichaTecnicaId);
+  if (activa) {
+    throw new DomainError(`Ya existe una preparación activa (estado ${activa.estado}) para esta ficha técnica.`);
+  }
+
+  const preparacion = await insertPreparacion(tx, {
+    tenantId: session.tenantId,
+    fichaTecnicaId,
+    iniciadaPorId: session.usuario.id,
+  });
+
+  let tomadaPor: string | null = null;
+  const recetaLocked = await lockRecetaParaTransicion(tx, session.tenantId, ficha.recetaId);
+  if (recetaLocked) {
+    const estadoFresco = await getRecetaEstado(tx, session.tenantId, ficha.recetaId);
+    if (estadoFresco === "PENDIENTE_PREPARACION") {
+      await updateRecetaEstado(tx, session.tenantId, ficha.recetaId, "EN_PREPARACION");
+    }
+    const toma = await getTomaDeReceta(tx, session.tenantId, ficha.recetaId);
+    if (toma && toma.tomadaPorId === null) {
+      await setTomaDeReceta(tx, session.tenantId, ficha.recetaId, session.usuario.id);
+      tomadaPor = `${session.usuario.apellido}, ${session.usuario.nombre}`;
+    }
+  }
+
+  return { id: preparacion.id, fichaTecnica: `Receta Nº ${ficha.recetaNumeroInterno} · versión ${ficha.version}`, tomadaPor };
+}
 
 export async function iniciarPreparacion(input: IniciarPreparacionInput): Promise<{ id: string }> {
   return iniciarPreparacionCommand.execute(input);
