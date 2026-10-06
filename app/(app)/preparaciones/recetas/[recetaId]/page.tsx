@@ -4,17 +4,27 @@
  * A static `recetas` segment, so it never collides with `/preparaciones/[id]`
  * (same as `/recetas/nuevo` next to `/recetas/[id]`).
  *
- * - The receta: while it is editable (`recetas.editar` and still
- *   PENDIENTE_PREPARACION), the SAME edit form as /recetas/[id]/editar,
- *   coming back here after saving (`volverA`, validated by the action);
- *   saving regenerates the fichas técnicas/cotizaciones as always and the
- *   generation notices show here. Otherwise read-only.
+ * - The receta's header (paciente, médico, origen, prescripción, ingreso,
+ *   diagnóstico) is read-only here, in the "Resumen de la toma" panel next
+ *   to the avance; it is corrected from /recetas/[id]/editar.
+ * - Its ítems: while the receta is editable (`recetas.editar` and still
+ *   PENDIENTE_PREPARACION), the SAME edit form as /recetas/[id]/editar with
+ *   a fixed header (`RecetaFormToma`), coming back here after saving
+ *   (`volverA`, validated by the action); saving regenerates the fichas
+ *   técnicas/cotizaciones of the changed ítems as always and the generation
+ *   notices show here. Otherwise read-only, inside each ítem's card.
  * - Each ítem: where it stands (Pendiente / Confirmación en curso /
- *   Confirmada), its latest ficha técnica with its líneas de pesaje,
- *   "Generar ficha técnica" and the action -- "Confirmar terminación" starts
- *   the formal preparación (`preparaciones.iniciar`) and opens its
+ *   Confirmada), its latest ficha técnica with its líneas de pesaje (plus
+ *   "Generar ficha técnica" only for an ítem that has none, e.g. when the
+ *   automatic generation failed) and the action -- "Confirmar terminación"
+ *   starts the formal preparación (`preparaciones.iniciar`) and opens its
  *   confirmation screen; from then on the receta is EN_PREPARACION and can
  *   no longer be edited (existing rule).
+ * - The fichas follow the form's unsaved draft, never a button
+ *   (modules/preparaciones/ui/borrador-receta.tsx + fichas-borrador.tsx): a
+ *   changed or new ítem shows a live preview of the ficha saving will
+ *   generate, a removed one a warning, and while anything is unsaved no
+ *   ítem can start its confirmation.
  * - "Cancelar toma" sends the receta back to Pendientes (refused while a
  *   confirmation is in progress).
  *
@@ -23,31 +33,31 @@
  * detail page.
  */
 import { createHash } from "node:crypto";
-import { Fragment } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { ValidationError } from "@/shared/errors";
 import { getTomaReceta } from "@/modules/preparaciones/application/get-toma-receta";
-import type { ItemDeToma, LineaDeFichaToma, RecetaDeToma } from "@/modules/preparaciones/application/get-toma-receta";
+import type { ItemDeToma, RecetaDeToma } from "@/modules/preparaciones/application/get-toma-receta";
 import { ESTADOS_RECETA_EN_LABORATORIO, ESTADO_ITEM_TOMA_LABELS, HREF_EN_CURSO, estadoItemToma, etiquetaProgreso, hrefToma } from "@/modules/preparaciones/domain/toma";
 import type { EstadoItemToma } from "@/modules/preparaciones/domain/toma";
+import { BorradorRecetaProvider, RecetaFormToma } from "@/modules/preparaciones/ui/borrador-receta";
 import { CancelarTomaForm } from "@/modules/preparaciones/ui/cancelar-toma-form";
+import { FichaTecnicaEnToma, FichasDeItemsNuevos, RequiereRecetaGuardada } from "@/modules/preparaciones/ui/fichas-borrador";
 import { IniciarPreparacionForm } from "@/modules/preparaciones/ui/iniciar-form";
 import { ItemDatos } from "@/modules/preparaciones/ui/item-datos";
+import { LineasFichaTabla } from "@/modules/preparaciones/ui/lineas-ficha-tabla";
 import { getReceta } from "@/modules/recetas/application/get-receta";
 import { listUnidadesParaReceta } from "@/modules/recetas/application/list-unidades-para-receta";
 import { PARAM_AVISO, PARAM_GUARDADA, decodificarAvisos } from "@/modules/recetas/domain/avisos-generacion";
 import { ORIGEN_RECETA_LABELS, esEstadoEditable } from "@/modules/recetas/domain/receta";
 import { AvisosGeneracion } from "@/modules/recetas/ui/avisos-generacion";
-import { RecetaForm } from "@/modules/recetas/ui/receta-form";
 import { inicialDesdeReceta } from "@/modules/recetas/ui/receta-form-inicial";
 import { FichaVersionResumen } from "@/modules/elaboracion/ui/ficha-version-resumen";
 import { GenerarFichaForm } from "@/modules/elaboracion/ui/generar-ficha-form";
 import { FORMA_FARMACEUTICA_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 import { formatFecha, formatFechaHora } from "@/shared/format/fecha";
-import { formatNumero } from "@/shared/format/cantidad";
 import { StatusBadge, ToneBadge, type BadgeTone } from "@/shared/ui/status-badge";
 import { PageHeader } from "@/shared/ui/page-header";
 import { Avatar } from "@/shared/ui/avatar";
@@ -100,6 +110,33 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
   const estados = receta.items.map((item) => estadoItemToma(item.preparacion));
   const confirmados = estados.filter((estado) => estado === "CONFIRMADA").length;
   const paciente = `${receta.pacienteNombre} ${receta.pacienteApellido}`;
+  const diagnostico = [receta.diagnosticoCodigo, receta.diagnosticoDescripcion].filter(Boolean).join(" - ");
+
+  const fichas = (
+    <section aria-labelledby="fichas-heading">
+      <div className="section-heading">
+        <h2 id="fichas-heading" className="flex items-center gap-2">
+          {edicion ? "Fichas técnicas" : "Ítems"} <span className="tab-count">{receta.items.length}</span>
+        </h2>
+        <span className="text-xs text-zinc-500">Una vez que empieza la confirmación de un ítem, la receta ya no se puede editar.</span>
+      </div>
+      <div className="flex flex-col gap-4">
+        {receta.items.map((item, idx) => (
+          <ItemToma
+            key={item.id}
+            item={item}
+            numero={idx + 1}
+            recetaId={receta.id}
+            zonaHoraria={receta.zonaHoraria}
+            mostrarDatos={!edicion}
+            puedeGenerarFicha={puedeGenerarFicha}
+            puedeImprimirFicha={puedeImprimirFicha}
+          />
+        ))}
+        {edicion ? <FichasDeItemsNuevos /> : null}
+      </div>
+    </section>
+  );
 
   return (
     <div className="page">
@@ -166,42 +203,38 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
             <p className="text-sm font-medium text-zinc-900">{etiquetaProgreso(confirmados, receta.items.length)}</p>
           </div>
         </div>
+        <dl className="grid gap-x-8 gap-y-4 border-t border-zinc-100 px-5 py-4 text-sm sm:grid-cols-3">
+          <div>
+            <dt className="text-xs text-zinc-500">Origen</dt>
+            <dd className="text-zinc-900">{etiquetaDe(ORIGEN_RECETA_LABELS, receta.origen)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-zinc-500">Prescripción</dt>
+            <dd className="text-zinc-900 tabular-nums">{formatFecha(receta.fechaPrescripcion)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-zinc-500">Ingreso</dt>
+            <dd className="text-zinc-900 tabular-nums">{formatFecha(receta.fechaIngreso, receta.zonaHoraria)}</dd>
+          </div>
+          {diagnostico ? (
+            <div className="sm:col-span-3">
+              <dt className="text-xs text-zinc-500">Diagnóstico</dt>
+              <dd className="text-zinc-900">{diagnostico}</dd>
+            </div>
+          ) : null}
+        </dl>
       </section>
 
-      <section aria-labelledby="receta-heading" className="mb-10">
-        <div className="section-heading">
-          <h2 id="receta-heading">Receta</h2>
-          {edicion ? <span className="text-xs text-zinc-500">Todavía se puede corregir. Al guardar, las fichas técnicas se recalculan.</span> : null}
-        </div>
-        {edicion ? (
-          <RecetaForm key={edicion.version} mode="editar" unidades={edicion.unidades} disabled={false} recetaId={receta.id} inicial={edicion.inicial} volverA={hrefToma(receta.id)} />
-        ) : (
-          <RecetaSoloLectura receta={receta} />
-        )}
-      </section>
-
-      <section aria-labelledby="items-heading">
-        <div className="section-heading">
-          <h2 id="items-heading" className="flex items-center gap-2">
-            Ítems <span className="tab-count">{receta.items.length}</span>
-          </h2>
-          <span className="text-xs text-zinc-500">Una vez que empieza la confirmación de un ítem, la receta ya no se puede editar.</span>
-        </div>
-        <div className="flex flex-col gap-4">
-          {receta.items.map((item, idx) => (
-            <ItemToma
-              key={item.id}
-              item={item}
-              numero={idx + 1}
-              recetaId={receta.id}
-              zonaHoraria={receta.zonaHoraria}
-              mostrarDatos={!edicion}
-              puedeGenerarFicha={puedeGenerarFicha}
-              puedeImprimirFicha={puedeImprimirFicha}
-            />
-          ))}
-        </div>
-      </section>
+      {edicion ? (
+        <BorradorRecetaProvider>
+          <div className="mb-10">
+            <RecetaFormToma key={edicion.version} recetaId={receta.id} unidades={edicion.unidades} inicial={edicion.inicial} volverA={hrefToma(receta.id)} />
+          </div>
+          {fichas}
+        </BorradorRecetaProvider>
+      ) : (
+        fichas
+      )}
     </div>
   );
 }
@@ -212,34 +245,6 @@ async function datosEdicion(recetaId: string) {
   if (!detalle) return null;
   const inicial = inicialDesdeReceta(detalle);
   return { inicial, unidades, version: createHash("sha256").update(JSON.stringify(inicial)).digest("hex") };
-}
-
-function RecetaSoloLectura({ receta }: { receta: RecetaDeToma }) {
-  const diagnostico = [receta.diagnosticoCodigo, receta.diagnosticoDescripcion].filter(Boolean).join(" - ");
-  return (
-    <div className="panel">
-      <dl className="grid gap-x-8 gap-y-4 p-5 text-sm sm:grid-cols-3">
-        <div>
-          <dt className="text-xs text-zinc-500">Origen</dt>
-          <dd className="text-zinc-900">{etiquetaDe(ORIGEN_RECETA_LABELS, receta.origen)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-zinc-500">Prescripción</dt>
-          <dd className="text-zinc-900 tabular-nums">{formatFecha(receta.fechaPrescripcion)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-zinc-500">Ingreso</dt>
-          <dd className="text-zinc-900 tabular-nums">{formatFecha(receta.fechaIngreso, receta.zonaHoraria)}</dd>
-        </div>
-        {diagnostico ? (
-          <div className="sm:col-span-3">
-            <dt className="text-xs text-zinc-500">Diagnóstico</dt>
-            <dd className="text-zinc-900">{diagnostico}</dd>
-          </div>
-        ) : null}
-      </dl>
-    </div>
-  );
 }
 
 function ItemToma({
@@ -255,7 +260,7 @@ function ItemToma({
   numero: number;
   recetaId: string;
   zonaHoraria: string;
-  /** The receta's data, when the edit form above is not already showing it. */
+  /** The ítem's data, when the edit form above is not already showing it. */
   mostrarDatos: boolean;
   puedeGenerarFicha: boolean;
   puedeImprimirFicha: boolean;
@@ -281,84 +286,33 @@ function ItemToma({
         {mostrarDatos ? <ItemDatos item={item} /> : null}
 
         <div className={mostrarDatos ? "border-t border-zinc-100 pt-4" : undefined}>
-          <h4 className="mb-3 text-sm font-semibold text-zinc-900">Ficha técnica</h4>
-          {ficha ? (
-            <div className="flex flex-col gap-3">
-              <FichaVersionResumen
-                fichaTecnicaId={ficha.id}
-                version={ficha.version}
-                cantidadLineas={ficha.lineas.length}
-                generadaEnTexto={formatFechaHora(ficha.generadaEn, zonaHoraria)}
-                generadaPorNombre={ficha.generadaPorNombre}
-                puedeImprimir={puedeImprimirFicha}
-              />
-              <div className="table-wrap">
-                <table className="data-table">
-                  <caption className="sr-only">Líneas de pesaje</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col" className="px-3 py-2">
-                        Droga
-                      </th>
-                      <th scope="col" className="px-3 py-2 text-right">
-                        Teórica
-                      </th>
-                      <th scope="col" className="px-3 py-2 text-right">
-                        Exceso %
-                      </th>
-                      <th scope="col" className="px-3 py-2 text-right">
-                        A pesar
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ficha.lineas.map((linea) => (
-                      <Fragment key={linea.orden}>
-                        <tr>
-                          <td className="px-3 py-2 font-medium text-zinc-900">{linea.drogaNombre}</td>
-                          <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">
-                            {linea.cantidadTeorica ? (
-                              <>
-                                {linea.cantidadTeorica} <span className="text-zinc-500">{linea.unidadSimbolo}</span>
-                              </>
-                            ) : (
-                              <Vacio />
-                            )}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">{linea.excesoAplicado}</td>
-                          <td className="whitespace-nowrap px-3 py-2 text-right font-mono font-semibold text-zinc-900 tabular-nums">
-                            {linea.esEnraseManual ? (
-                              <span className="font-sans font-normal text-zinc-500">Enrase manual (se registra al confirmar)</span>
-                            ) : linea.cantidadAPesar ? (
-                              <>
-                                {linea.cantidadAPesar} <span className="font-normal text-zinc-500">{linea.unidadSimbolo}</span>
-                              </>
-                            ) : (
-                              <Vacio />
-                            )}
-                          </td>
-                        </tr>
-                        {linea.partidas ? (
-                          <tr>
-                            <td colSpan={4} className="px-3 pb-3 pt-0">
-                              <PartidasDeLinea linea={linea} />
-                            </td>
-                          </tr>
-                        ) : null}
-                      </Fragment>
-                    ))}
-                  </tbody>
-                </table>
+          {/* The saved ficha; replaced by the live preview while the form has unsaved changes to this ítem. */}
+          <FichaTecnicaEnToma itemId={item.id}>
+            <h4 className="mb-3 text-sm font-semibold text-zinc-900">Ficha técnica</h4>
+            {ficha ? (
+              <div className="flex flex-col gap-3">
+                <FichaVersionResumen
+                  fichaTecnicaId={ficha.id}
+                  version={ficha.version}
+                  cantidadLineas={ficha.lineas.length}
+                  generadaEnTexto={formatFechaHora(ficha.generadaEn, zonaHoraria)}
+                  generadaPorNombre={ficha.generadaPorNombre}
+                  puedeImprimir={puedeImprimirFicha}
+                />
+                <LineasFichaTabla lineas={ficha.lineas} />
               </div>
-            </div>
-          ) : (
-            <p className="text-sm text-zinc-500">Todavía no se generó la ficha técnica de este ítem.</p>
-          )}
-          {puedeGenerarFicha && estado === "PENDIENTE" ? (
-            <div className="mt-3">
-              <GenerarFichaForm itemRecetaId={item.id} recetaId={recetaId} label={ficha ? "Generar nueva versión" : "Generar ficha técnica"} />
-            </div>
-          ) : null}
+            ) : (
+              <p className="text-sm text-zinc-500">Todavía no se generó la ficha técnica de este ítem.</p>
+            )}
+            {/* Saving the receta regenerates the fichas by itself: by hand only when an ítem has none (e.g. the automatic generation failed). */}
+            {puedeGenerarFicha && estado === "PENDIENTE" && !ficha ? (
+              <RequiereRecetaGuardada nota={null}>
+                <div className="mt-3">
+                  <GenerarFichaForm itemRecetaId={item.id} recetaId={recetaId} label="Generar ficha técnica" />
+                </div>
+              </RequiereRecetaGuardada>
+            ) : null}
+          </FichaTecnicaEnToma>
         </div>
       </div>
 
@@ -378,81 +332,19 @@ function ItemToma({
             <FlaskConical className="size-4" aria-hidden />
             Confirmar preparación
           </Link>
-        ) : ficha ? (
-          <IniciarPreparacionForm fichaTecnicaId={ficha.id} label="Confirmar terminación" pendingLabel="Iniciando…" />
         ) : (
-          <p className="mr-auto text-sm text-zinc-600">
-            {puedeGenerarFicha ? "Generá la ficha técnica para poder confirmar la terminación." : "Falta generar la ficha técnica de este ítem para poder confirmar la terminación."}
-          </p>
+          // Starting a preparación locks the receta: never with unsaved edits in the form above.
+          <RequiereRecetaGuardada>
+            {ficha ? (
+              <IniciarPreparacionForm fichaTecnicaId={ficha.id} label="Confirmar terminación" pendingLabel="Iniciando…" />
+            ) : (
+              <p className="mr-auto text-sm text-zinc-600">
+                {puedeGenerarFicha ? "Generá la ficha técnica para poder confirmar la terminación." : "Falta generar la ficha técnica de este ítem para poder confirmar la terminación."}
+              </p>
+            )}
+          </RequiereRecetaGuardada>
         )}
       </div>
     </article>
-  );
-}
-
-/**
- * The partidas the confirmation would draw this línea from (same candidates
- * and order). With no declared purity, one compact line of lotes; otherwise
- * what to weigh from each one: cantidadAPesar (active) x 100 / pureza.
- */
-function PartidasDeLinea({ linea }: { linea: LineaDeFichaToma }) {
-  const partidas = linea.partidas ?? [];
-  if (partidas.length === 0) {
-    return <p className="text-xs text-zinc-500">Sin partidas con saldo para esta droga.</p>;
-  }
-
-  if (!partidas.some((p) => p.potenciaDeclarada !== null)) {
-    return (
-      <p className="text-xs text-zinc-500">
-        Lotes:{" "}
-        {partidas.map((p, i) => (
-          <span key={p.id}>
-            {i > 0 ? " · " : null}
-            <span className="font-mono text-zinc-700">{p.lote}</span> ({formatNumero(p.cantidadDisponible)} {linea.unidadSimbolo} disp.)
-          </span>
-        ))}
-      </p>
-    );
-  }
-
-  return (
-    <div className="rounded-md border border-zinc-100 bg-zinc-50/60 px-3 py-2">
-      <p className="mb-1 text-xs text-zinc-500">A pesar según la pureza de cada partida</p>
-      <ul className="flex flex-col gap-1 text-xs">
-        {partidas.map((p) => (
-          <li key={p.id} className="grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1fr)]">
-            <span className="truncate">
-              <span className="text-zinc-500">Lote </span>
-              <span className="font-mono font-medium text-zinc-900">{p.lote}</span>
-            </span>
-            <span className="truncate text-zinc-600">{p.proveedorNombre}</span>
-            <span className="tabular-nums">
-              <span className="text-zinc-500">Pureza </span>
-              {p.potenciaDeclarada !== null ? <span className="font-mono text-zinc-900">{formatNumero(p.potenciaDeclarada)} %</span> : <span className="font-mono text-zinc-400">100 %</span>}
-            </span>
-            <span className="tabular-nums">
-              <span className="text-zinc-500">Disp. </span>
-              <span className="font-mono text-zinc-900">
-                {formatNumero(p.cantidadDisponible)} {linea.unidadSimbolo}
-              </span>
-            </span>
-            <span className="tabular-nums sm:text-right">
-              <span className="text-zinc-500">Pesar </span>
-              <span className="font-mono font-semibold text-zinc-900">
-                {formatNumero(p.cantidadAPesar)} {linea.unidadSimbolo}
-              </span>
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function Vacio() {
-  return (
-    <span className="text-zinc-400">
-      -<span className="sr-only">Sin dato</span>
-    </span>
   );
 }

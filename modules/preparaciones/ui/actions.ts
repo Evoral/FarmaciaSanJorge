@@ -11,9 +11,10 @@ import { descartarPreparacion } from "@/modules/preparaciones/application/descar
 import { confirmarPreparacion } from "@/modules/preparaciones/application/confirmar-preparacion";
 import type { ConfirmarPreparacionLineaInput } from "@/modules/preparaciones/application/confirmar-preparacion";
 import { generarEtiqueta } from "@/modules/preparaciones/application/generar-etiqueta";
+import { previsualizarFichas } from "@/modules/preparaciones/application/previsualizar-fichas";
 import { StepUpRequiredError } from "@/shared/errors";
-import { actionError } from "@/shared/ui/action-error";
-import type { PreparacionActionState } from "./action-state";
+import { actionError, actionErrorMessage } from "@/shared/ui/action-error";
+import type { PreparacionActionState, VistaPreviaFichasState } from "./action-state";
 
 export async function iniciarPreparacionAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
   try {
@@ -24,6 +25,19 @@ export async function iniciarPreparacionAction(_prevState: PreparacionActionStat
     return { status: "success", message: "Preparación iniciada.", id: nueva.id };
   } catch (error) {
     return actionError(error, "No se pudo iniciar la preparación.");
+  }
+}
+
+/**
+ * Live preview of the fichas técnicas of a receta's unsaved ítems (the toma workspace's edit form):
+ * called from the page (debounced), not a `<form action>`. Writes nothing.
+ */
+export async function previsualizarFichasAction(itemsJson: string): Promise<VistaPreviaFichasState> {
+  try {
+    const fichas = await previsualizarFichas({ items: JSON.parse(itemsJson) });
+    return { status: "success", fichas };
+  } catch (error) {
+    return { status: "error", message: actionErrorMessage(error, "No se pudo calcular la vista previa de la ficha técnica.") };
   }
 }
 

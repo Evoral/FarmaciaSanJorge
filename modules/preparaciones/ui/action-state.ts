@@ -5,6 +5,8 @@
  * `modules/directores-tecnicos/ui/action-state.ts`'s shape (module
  * boundary: this module must not import a sibling module's `ui/`).
  */
+import type { FichaPrevista } from "../application/previsualizar-fichas";
+
 export type PreparacionActionState =
   | { status: "idle" }
   | { status: "error"; message: string; fields?: string[] }
@@ -12,3 +14,6 @@ export type PreparacionActionState =
   | { status: "success"; message?: string; id?: string };
 
 export const IDLE_STATE: PreparacionActionState = { status: "idle" };
+
+/** Result of the toma workspace's live ficha preview (`preparaciones.toma.previsualizarFichas`): one entry per ítem sent, in order. */
+export type VistaPreviaFichasState = { status: "success"; fichas: FichaPrevista[] } | { status: "error"; message: string };
