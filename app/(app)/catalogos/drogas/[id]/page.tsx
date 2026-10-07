@@ -9,6 +9,8 @@ import { MotivoForm } from "@/shared/ui/motivo-form";
 import { darDeBajaDrogaAction, reactivarDrogaAction } from "@/modules/drogas/ui/actions";
 import { PageHeader } from "@/shared/ui/page-header";
 import { ToneBadge } from "@/shared/ui/status-badge";
+import { puedeVerHistorialDroga } from "@/modules/drogas/application/get-historial-droga";
+import { DrogaTabs } from "../droga-tabs";
 
 interface DrogaDetallePageProps {
   params: Promise<{ id: string }>;
@@ -37,6 +39,7 @@ export default async function DrogaDetallePage({ params }: DrogaDetallePageProps
           </span>
         }
       />
+      <DrogaTabs id={droga.id} conHistorial={puedeVerHistorialDroga(session)} />
 
       <div className="split-layout">
         <section aria-labelledby="datos-heading" className="panel min-w-0">
