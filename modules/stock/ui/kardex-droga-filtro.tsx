@@ -23,7 +23,7 @@ export function KardexDrogaFiltro({ href, seleccion }: KardexDrogaFiltroProps) {
 
   const search = useCallback(async (q: string) => {
     const drogas = await buscarDrogasStockAction(q);
-    return drogas.map((d) => ({ value: d.drogaId, label: d.drogaNombre, description: d.disponible }));
+    return drogas.map((d) => ({ value: d.drogaId, label: d.drogaNombre, description: d.disponible, sinonimo: d.sinonimo }));
   }, []);
 
   return (

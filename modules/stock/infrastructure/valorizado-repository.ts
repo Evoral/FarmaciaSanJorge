@@ -11,10 +11,11 @@
  * or a JS `Date` default -- see this file's gotcha comment on `jornadaActualTenant`.
  */
 import type { Prisma } from "@/generated/prisma/client";
+import { drogaCoincideSql } from "@/shared/db/busqueda-droga";
 
 export interface ValorizadoFilter {
   tenantId: string;
-  /** Droga name substring (ILIKE), same UX as `listStockDrogas`'s `search` -- not a raw droga id input in the UI. */
+  /** Droga name or vigente synonym substring, accent-insensitive (shared/db/busqueda-droga.ts), same UX as `listStockDrogas`'s `search` -- not a raw droga id input in the UI. */
   search?: string;
   /** `false` excludes partidas whose `fecha_vencimiento` is before the tenant's current jornada. */
   incluirVencidas: boolean;
@@ -114,7 +115,7 @@ export async function listValorizado(
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
     JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
     WHERE p.tenant_id = ${filter.tenantId}::uuid
-      AND (${search}::text IS NULL OR d.nombre ILIKE '%' || ${search}::text || '%')
+      AND ${drogaCoincideSql("d", search)}
       AND (${filter.incluirVencidas} OR p.fecha_vencimiento IS NULL OR p.fecha_vencimiento >= fsj.jornada_actual(${filter.tenantId}::uuid))
       AND (NOT ${filter.soloConSaldo} OR p.cantidad_disponible > 0)
     ORDER BY d.nombre ASC, p.fecha_vencimiento ASC, p.lote ASC
@@ -126,7 +127,7 @@ export async function listValorizado(
     FROM fsj.partida p
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
     WHERE p.tenant_id = ${filter.tenantId}::uuid
-      AND (${search}::text IS NULL OR d.nombre ILIKE '%' || ${search}::text || '%')
+      AND ${drogaCoincideSql("d", search)}
       AND (${filter.incluirVencidas} OR p.fecha_vencimiento IS NULL OR p.fecha_vencimiento >= fsj.jornada_actual(${filter.tenantId}::uuid))
       AND (NOT ${filter.soloConSaldo} OR p.cantidad_disponible > 0)
   `;
@@ -146,7 +147,7 @@ export async function subtotalesValorizado(tx: Prisma.TransactionClient, filter:
     FROM fsj.partida p
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
     WHERE p.tenant_id = ${filter.tenantId}::uuid
-      AND (${search}::text IS NULL OR d.nombre ILIKE '%' || ${search}::text || '%')
+      AND ${drogaCoincideSql("d", search)}
       AND (${filter.incluirVencidas} OR p.fecha_vencimiento IS NULL OR p.fecha_vencimiento >= fsj.jornada_actual(${filter.tenantId}::uuid))
       AND (NOT ${filter.soloConSaldo} OR p.cantidad_disponible > 0)
     GROUP BY d.id, d.nombre

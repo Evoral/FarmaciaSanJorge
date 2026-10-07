@@ -41,15 +41,17 @@ export interface ComparadorFiltrosProps {
   hayFiltros: boolean;
   /** `/comparador-costos` with its current (parsed) params, for the droga autocomplete. */
   hrefActual: string;
+  /** droga id -> vigente synonyms: the autocomplete also finds a droga by them (docs/specs/sinonimos-droga.md). */
+  sinonimos?: Readonly<Record<string, readonly string[]>>;
 }
 
-export function ComparadorFiltros({ drogas, drogaId, periodo, unidadEnUrl, comparacion, hayFiltros, hrefActual }: ComparadorFiltrosProps) {
+export function ComparadorFiltros({ drogas, drogaId, periodo, unidadEnUrl, comparacion, hayFiltros, hrefActual, sinonimos }: ComparadorFiltrosProps) {
   const opcionesUnidad = comparacion?.opcionesUnidad ?? [];
   const predeterminada = comparacion ? unidadPredeterminada(comparacion.unidadBase, opcionesUnidad) : null;
   // Same matching as `resolverUnidadCosto`: the param may name the base unit by its codigo too.
   const pedida = unidadEnUrl?.toLowerCase();
   const unidadElegida = pedida ? (opcionesUnidad.find((o) => o.valor.toLowerCase() === pedida || o.unidad.codigo.toLowerCase() === pedida)?.valor ?? "") : "";
-  const opcionesDroga = drogas.map((droga) => ({ value: droga.id, label: etiquetaOpcionDroga(droga) }));
+  const opcionesDroga = drogas.map((droga) => ({ value: droga.id, label: etiquetaOpcionDroga(droga), sinonimos: sinonimos?.[droga.id] }));
   const seleccion = opcionesDroga.find((o) => o.value === drogaId) ?? null;
 
   return (

@@ -14,6 +14,7 @@
 import { notFound } from "next/navigation";
 import { PackageSearch, SearchX } from "lucide-react";
 import { getTrayectoriaProveedor } from "@/modules/proveedores/application/get-trayectoria-proveedor";
+import { listSinonimosDrogasTrayectoria } from "@/modules/proveedores/application/sinonimos-drogas";
 import { PAGE_MAX_TRAYECTORIA_PROVEEDOR, drogasRestantes, drogasSeleccionadas, parsearDrogaIds } from "@/modules/proveedores/domain/trayectoria";
 import { TrayectoriaEncabezado } from "@/modules/proveedores/ui/trayectoria-encabezado";
 import { TrayectoriaFiltroDrogas } from "@/modules/proveedores/ui/trayectoria-filtro-drogas";
@@ -54,6 +55,8 @@ export default async function TrayectoriaProveedorPage({ params, searchParams }:
   const catalogo = can(session, "stock.ver") ? (await getCatalogoUnidades()).catalogo : crearCatalogoUnidades([]);
 
   const { proveedor, acceso, resumen, partidas, paginacion, zonaHoraria, drogasDisponibles, drogaIds } = trayectoria;
+  // Synonyms only feed the droga filter's search, so they are read only when that filter is shown.
+  const sinonimos = drogasDisponibles.length > 0 ? await listSinonimosDrogasTrayectoria() : {};
   const colSpan = columnasTablaPartidas(acceso);
   const filtrando = drogaIds.length > 0;
   // Pagination links keep EVERY selected droga (the effective filter, not the raw URL).
@@ -97,6 +100,7 @@ export default async function TrayectoriaProveedorPage({ params, searchParams }:
               elegidas={drogasSeleccionadas(drogasDisponibles, drogaIds)}
               restantes={drogasRestantes(drogasDisponibles, drogaIds)}
               baseHref={baseHref}
+              sinonimos={sinonimos}
             />
           ) : null}
         </div>

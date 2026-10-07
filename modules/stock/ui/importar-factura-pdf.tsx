@@ -9,7 +9,7 @@
  * file is picked. The size pre-check is only for a clearer message.
  */
 import { useActionState, useEffect, useId, useState, type ChangeEvent } from "react";
-import { AlertCircle, FileUp, X } from "lucide-react";
+import { AlertCircle, FileText, Upload, X } from "lucide-react";
 import { leerFacturaCompraPdfAction } from "./actions";
 import { IDLE_LEER_FACTURA_STATE } from "./action-state";
 import { MAX_FACTURA_PDF_BYTES, MENSAJES_ARCHIVO_FACTURA } from "../domain/factura-compra-pdf-parser";
@@ -47,43 +47,48 @@ export function ImportarFacturaPdf({ onLeida, onDescartar, importando }: Importa
 
   return (
     <section aria-labelledby="importar-factura-heading" className="panel">
-      <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:px-5">
-        <span className="tone-tile" data-tone={importando ? "success" : "neutral"} aria-hidden>
-          <FileUp />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 id="importar-factura-heading" className="text-sm font-semibold text-zinc-900">
-            {importando ? "Factura importada desde PDF" : "¿Tenés la factura del proveedor? Importá el PDF"}
-          </h2>
-          <p className="mt-0.5 text-[0.8125rem] text-zinc-500">
-            Carga todas las drogas y lotes de la factura. No se guarda nada hasta que confirmes, y el PDF no se almacena.
-          </p>
+      <div className="flex flex-col gap-3 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:gap-6">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <span className="tone-tile" data-tone={importando ? "success" : "neutral"} aria-hidden>
+            <FileText />
+          </span>
+          <div className="min-w-0">
+            <h2 id="importar-factura-heading" className="text-sm font-semibold text-zinc-900">
+              {importando ? "Factura importada desde PDF" : "¿Tenés la factura del proveedor? Importá el PDF"}
+            </h2>
+            <p className="mt-0.5 text-[0.8125rem] text-zinc-500">
+              Carga todas las drogas y lotes de la factura. No se guarda nada hasta que confirmes, y el PDF no se almacena.
+            </p>
+          </div>
         </div>
-        <form action={formAction} onSubmit={onSubmit} className="flex flex-wrap items-center gap-2">
-          <label htmlFor={inputId} className="sr-only">
-            PDF de la factura
-          </label>
+        <form action={formAction} onSubmit={onSubmit} className="flex w-full flex-wrap items-center gap-2 lg:w-[26rem] lg:flex-none">
           <input
             id={inputId}
             name="archivo"
             type="file"
             accept="application/pdf,.pdf"
             required
+            disabled={isPending}
             onChange={handleChange}
-            className="max-w-full cursor-pointer text-sm text-zinc-600 file:mr-3 file:cursor-pointer file:rounded file:border file:border-zinc-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-zinc-900 hover:file:border-zinc-400 hover:file:bg-zinc-50"
+            className="peer sr-only"
           />
-          {isPending ? (
-            <p role="status" className="flex items-center gap-2 text-sm text-zinc-600">
-              <span className="spinner" aria-hidden />
-              Leyendo…
-            </p>
-          ) : null}
+          <label
+            htmlFor={inputId}
+            aria-disabled={isPending || undefined}
+            className="btn btn-secondary min-w-0 flex-1 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--color-brand)]"
+          >
+            {isPending ? <span className="spinner" aria-hidden /> : <Upload className="size-4" aria-hidden />}
+            {isPending ? "Leyendo PDF…" : importando ? "Elegir otro PDF" : "Seleccionar PDF"}
+          </label>
           {importando ? (
-            <button type="button" onClick={onDescartar} className="btn btn-secondary btn-sm">
+            <button type="button" onClick={onDescartar} className="btn btn-ghost">
               <X className="size-4" aria-hidden />
-              Descartar importación
+              Descartar
             </button>
           ) : null}
+          <p role="status" className="sr-only">
+            {isPending ? "Leyendo el PDF…" : ""}
+          </p>
         </form>
       </div>
       {clientError || state.status === "error" ? (

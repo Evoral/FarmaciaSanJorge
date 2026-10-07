@@ -3,12 +3,17 @@
  * function runs inside an ALREADY OPEN tenant transaction (`tx`, handed in
  * by `shared/usecase.ts`) -- nothing here opens its own transaction. The DB
  * is authoritative for `es_controlada = (tipo_control <> 'NINGUNO')`, the
- * vigente-name uniqueness (citext, partial), and INV-F03 (never deleted) --
- * see migration 0007. `tenantId` is an explicit, defense-in-depth filter on
- * top of RLS everywhere (same discipline as usuario-repository.ts).
+ * vigente-name uniqueness (accent/case-insensitive, partial -- migration
+ * 0067; names vs synonyms: INV-DRG-002), and INV-F03 (never deleted) -- see
+ * migrations 0007 and 0067. Name searches go through
+ * `shared/db/busqueda-droga.ts` (name OR vigente synonym, accent-insensitive).
+ * `tenantId` is an explicit, defense-in-depth filter on top of RLS
+ * everywhere (same discipline as usuario-repository.ts).
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { ClaseDroga as PrismaClaseDroga, TipoControl as PrismaTipoControl } from "@/generated/prisma/enums";
+import { buscarDrogasPorTexto, listSinonimosVigentes } from "@/shared/db/busqueda-droga";
+import type { ConflictoNombreDroga } from "../domain/sinonimo";
 
 // ============================================================================
 // Stock (fsj.v_stock_droga, migration 0008/0025) -- read-only, NOT a Prisma
@@ -52,6 +57,10 @@ export interface DrogaListItem {
   stockDisponible: string;
   fechaBaja: Date | null;
   motivoBaja: string | null;
+  /** Vigente synonyms, as typed (docs/specs/sinonimos-droga.md). */
+  sinonimos: string[];
+  /** The synonym the search matched through, when the name itself did not match. */
+  sinonimoCoincidente: string | null;
 }
 
 export interface ListDrogasResult {
@@ -61,12 +70,11 @@ export interface ListDrogasResult {
   pageSize: number;
 }
 
-function buildWhere(filter: ListDrogasFilter): Prisma.DrogaWhereInput {
+/** `coincidencias` = the search's matches (droga id -> matched synonym), `null` when there is no search. */
+function buildWhere(filter: ListDrogasFilter, coincidencias: Map<string, string | null> | null): Prisma.DrogaWhereInput {
   const where: Prisma.DrogaWhereInput = { tenantId: filter.tenantId };
 
-  if (filter.search && filter.search.trim().length > 0) {
-    where.nombre = { contains: filter.search.trim(), mode: "insensitive" };
-  }
+  if (coincidencias) where.id = { in: [...coincidencias.keys()] };
   if (filter.soloControladas === true) where.esControlada = true;
   if (filter.clase) where.clase = filter.clase;
   if (filter.soloVigentes === true) where.fechaBaja = null;
@@ -85,8 +93,15 @@ function buildWhere(filter: ListDrogasFilter): Prisma.DrogaWhereInput {
  * fragment builder for one filter combination.
  */
 export async function listDrogas(tx: Prisma.TransactionClient, filter: ListDrogasFilter): Promise<ListDrogasResult> {
-  const where = buildWhere(filter);
+  const search = filter.search?.trim() ?? "";
+  // Name OR vigente synonym, accent-insensitive (docs/specs/sinonimos-droga.md); the other filters stay a Prisma WHERE.
+  const coincidencias = search.length > 0 ? await buscarDrogasPorTexto(tx, filter.tenantId, search) : null;
+  const where = buildWhere(filter, coincidencias);
   const stock = await loadStockPorDroga(tx, filter.tenantId);
+  const extras = async (ids: string[]) => {
+    const sinonimos = await listSinonimosVigentes(tx, filter.tenantId, ids);
+    return (id: string) => ({ sinonimos: sinonimos.get(id) ?? [], sinonimoCoincidente: coincidencias?.get(id) ?? null });
+  };
 
   if (filter.bajoMinimo === true) {
     const rows = await tx.droga.findMany({
@@ -101,6 +116,7 @@ export async function listDrogas(tx: Prisma.TransactionClient, filter: ListDroga
     const total = withStock.length;
     const skip = (filter.page - 1) * filter.pageSize;
     const page = withStock.slice(skip, skip + filter.pageSize);
+    const extrasDe = await extras(page.map(({ row }) => row.id));
 
     return {
       items: page.map(({ row }) => ({
@@ -115,6 +131,7 @@ export async function listDrogas(tx: Prisma.TransactionClient, filter: ListDroga
         stockDisponible: stock.get(row.id) ?? "0",
         fechaBaja: row.fechaBaja,
         motivoBaja: row.motivoBaja,
+        ...extrasDe(row.id),
       })),
       total,
       page: filter.page,
@@ -131,6 +148,7 @@ export async function listDrogas(tx: Prisma.TransactionClient, filter: ListDroga
     take: filter.pageSize,
     select: { id: true, nombre: true, unidadBaseId: true, esControlada: true, tipoControl: true, clase: true, stockMinimo: true, fechaBaja: true, motivoBaja: true, unidadBase: { select: { simbolo: true } } },
   });
+  const extrasDe = await extras(rows.map((row) => row.id));
 
   return {
     items: rows.map((row) => ({
@@ -145,6 +163,7 @@ export async function listDrogas(tx: Prisma.TransactionClient, filter: ListDroga
       stockDisponible: stock.get(row.id) ?? "0",
       fechaBaja: row.fechaBaja,
       motivoBaja: row.motivoBaja,
+      ...extrasDe(row.id),
     })),
     total,
     page: filter.page,
@@ -178,13 +197,42 @@ export async function getDrogaParaAccion(tx: Prisma.TransactionClient, tenantId:
   return { ...row, densidad: row.densidad?.toString() ?? null, stockMinimo: row.stockMinimo.toString() };
 }
 
-/** `true` if some OTHER (non-baja OR baja -- the DB's own partial unique index only excludes baja rows, mirrored here) droga in the SAME tenant already has this nombre. */
-export async function existeNombreVigente(tx: Prisma.TransactionClient, tenantId: string, nombre: string, excludeId?: string): Promise<boolean> {
-  const row = await tx.droga.findFirst({
-    where: { tenantId, nombre: { equals: nombre, mode: "insensitive" }, fechaBaja: null, ...(excludeId ? { id: { not: excludeId } } : {}) },
-    select: { id: true },
-  });
-  return row !== null;
+/**
+ * Who already holds `nombre` in the SAME tenant, compared after
+ * `fsj.normalizar_nombre` (accents/case/whitespace ignored): a vigente
+ * droga other than `excludeId` (by its name), or a vigente synonym of ANY
+ * droga (`excludeId`'s own included). `null` = free. Mirrors what the DB
+ * enforces (migration 0067: uq_droga_nombre_normalizado_vigente,
+ * uq_droga_alias_vigente, INV-DRG-002) so callers answer with a readable
+ * message (`mensajeConflictoNombre`) before the DB would refuse. A name
+ * held by a droga is reported as such first.
+ */
+export async function existeNombreVigente(tx: Prisma.TransactionClient, tenantId: string, nombre: string, excludeId?: string): Promise<ConflictoNombreDroga | null> {
+  const excluir = excludeId ?? null;
+  const rows = await tx.$queryRaw<{ tipo: "droga" | "sinonimo"; droga_id: string; droga_nombre: string; sinonimo: string | null }[]>`
+    SELECT tipo, droga_id, droga_nombre, sinonimo FROM (
+      SELECT 1 AS orden, 'droga' AS tipo, d.id AS droga_id, d.nombre::text AS droga_nombre, NULL::text AS sinonimo
+      FROM fsj.droga d
+      WHERE d.tenant_id = ${tenantId}::uuid
+        AND d.fecha_baja IS NULL
+        AND fsj.normalizar_nombre(d.nombre) = fsj.normalizar_nombre(${nombre}::text)
+        AND (${excluir}::uuid IS NULL OR d.id <> ${excluir}::uuid)
+      UNION ALL
+      SELECT 2, 'sinonimo', d.id, d.nombre::text, a.texto
+      FROM fsj.droga_alias a
+      JOIN fsj.droga d ON d.tenant_id = a.tenant_id AND d.id = a.droga_id
+      WHERE a.tenant_id = ${tenantId}::uuid
+        AND a.fecha_baja IS NULL
+        AND fsj.normalizar_nombre(a.alias_normalizado) = fsj.normalizar_nombre(${nombre}::text)
+    ) t
+    ORDER BY orden
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row) return null;
+  return row.tipo === "droga"
+    ? { tipo: "droga", drogaId: row.droga_id, drogaNombre: row.droga_nombre }
+    : { tipo: "sinonimo", drogaId: row.droga_id, drogaNombre: row.droga_nombre, sinonimo: row.sinonimo ?? "" };
 }
 
 /** DP-12 (conservative, task's binding decision): a droga with ANY partida cannot change esControlada/tipoControl/unidadBaseId. */
@@ -326,16 +374,26 @@ export interface DrogaOpcion {
   /** `tipo_magnitud` of the unidad base: lets a unit picker (e.g. `/stock/ingresar`'s "Unidad de compra") offer only convertible units. */
   tipoMagnitud: string;
   clase: PrismaClaseDroga;
+  /** Vigente synonyms, as typed: client-filtered pickers search them too (docs/specs/sinonimos-droga.md). */
+  sinonimos: string[];
 }
 
-/** Every vigente droga of the tenant, with its unidad base -- feeds `<select>` pickers (no pagination, no stock join: see list-drogas-opciones.ts). */
+/** Every vigente droga of the tenant, with its unidad base and synonyms -- feeds client-filtered pickers (no pagination, no stock join: see list-drogas-opciones.ts). */
 export async function listDrogasOpciones(tx: Prisma.TransactionClient, tenantId: string): Promise<DrogaOpcion[]> {
   const rows = await tx.droga.findMany({
     where: { tenantId, fechaBaja: null },
     orderBy: [{ nombre: "asc" }],
     select: { id: true, nombre: true, unidadBaseId: true, clase: true, unidadBase: { select: { tipoMagnitud: true } } },
   });
-  return rows.map((row) => ({ id: row.id, nombre: row.nombre, unidadBaseId: row.unidadBaseId, tipoMagnitud: row.unidadBase.tipoMagnitud, clase: row.clase }));
+  const sinonimos = await listSinonimosVigentes(tx, tenantId);
+  return rows.map((row) => ({
+    id: row.id,
+    nombre: row.nombre,
+    unidadBaseId: row.unidadBaseId,
+    tipoMagnitud: row.unidadBase.tipoMagnitud,
+    clase: row.clase,
+    sinonimos: sinonimos.get(row.id) ?? [],
+  }));
 }
 
 /** unidad id -> "gramo (g)", for audit rows. Global catalog (DP-39): no tenant filter; includes unidades given de baja. */

@@ -18,6 +18,8 @@ export interface SugerenciaNavegable {
   label: string;
   /** Short trailing detail (matrícula, símbolo, unidad...). */
   description?: string;
+  /** The synonym the search matched through (drogas, docs/specs/sinonimos-droga.md): shown as a quiet hint after the label. */
+  sinonimo?: string | null;
 }
 
 export interface BuscadorNavegableProps {
@@ -44,7 +46,7 @@ export function BuscadorNavegable({ id, label, placeholder, buscar, detalleHref,
   const search = useCallback(
     async (q: string) => {
       const items = await buscar(q);
-      return items.map((item) => ({ value: item.id, label: item.label, description: item.description }));
+      return items.map((item) => ({ value: item.id, label: item.label, description: item.description, sinonimo: item.sinonimo }));
     },
     [buscar],
   );

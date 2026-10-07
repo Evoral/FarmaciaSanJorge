@@ -174,9 +174,9 @@ describe("P1: RCTA receta (synthetic equivalent of the real sample)", () => {
     ]);
   });
 
-  it("reads presentación (COMPRIMIDO x 30), fracción 0.5, posología and duración", () => {
+  it("reads presentación (COMPRIMIDO x 60: 30 full doses at media dosis), fracción 0.5, posología and duración", () => {
     expect(item.formaFarmaceutica).toBe("COMPRIMIDO");
-    expect(item.cantidadUnidades).toBe(30);
+    expect(item.cantidadUnidades).toBe(60);
     expect(item.fraccionDosisPorUnidad).toBe("0.5");
     expect(item.posologia).toBe("Media dosis cada 12 horas");
     expect(item.duracionTratamientoDias).toBe(30);
@@ -187,8 +187,8 @@ describe("P1: RCTA receta (synthetic equivalent of the real sample)", () => {
     expect(borrador.diagnosticoDescripcion).toBe("OBESIDAD DEBIDA A EXCESO DE CALORIAS");
   });
 
-  it("drops the '- ...' line right after Rp./ silently and warns ONLY about units vs. duración (15 vs 30 días)", () => {
-    expect(advertencias).toEqual([{ codigo: "UNIDADES_VS_DURACION", mensaje: "Las unidades alcanzan para 15 días; la receta indica 30." }]);
+  it("drops the '- ...' line right after Rp./ silently; 60 units at one per 12 h last the 30 días, so no warning", () => {
+    expect(advertencias).toEqual([]);
   });
 });
 
@@ -241,7 +241,7 @@ describe("P3: unclassifiable body line", () => {
       texto: "Preparar en farmacia magistral habilitada",
     });
     expect(borrador.items[0]!.componentes).toHaveLength(6);
-    expect(borrador.items[0]!.cantidadUnidades).toBe(30);
+    expect(borrador.items[0]!.cantidadUnidades).toBe(60);
   });
 
   it("a '- ...' line is only ignored right after Rp./ -- later on it is warned about", () => {
@@ -366,8 +366,7 @@ describe("parsearDecimalEsAr / parsearFechaDdMmAaaa", () => {
 describe("consistency and other warnings", () => {
   it("no warning when the units last exactly the prescribed days", () => {
     expect(controlarUnidadesVsDuracion({ cantidadUnidades: 60, posologia: "1 cada 12 horas", duracionTratamientoDias: 30 })).toBeNull();
-    const cuerpo = CUERPO_P1.map((l) => (l === "30 comprimidos" ? "60 comprimidos" : l));
-    expect(parsearOk(recetaRcta({ cuerpo })).advertencias).toEqual([]);
+    expect(parsearOk(recetaRcta({ cuerpo: CUERPO_P1 })).advertencias).toEqual([]);
   });
 
   it("formats a fractional result es-AR", () => {
@@ -430,13 +429,18 @@ describe("parsearCuerpo (shared by the PDF and the QR import)", () => {
     const { item, advertencias } = parsearCuerpo(["Mazindol 1,5 mg", "30 cápsulas", "Media dosis cada 12 horas", "Tratamiento por 30 días"]);
     expect(item).toEqual({
       formaFarmaceutica: "CAPSULA",
-      cantidadUnidades: 30,
+      cantidadUnidades: 60,
       fraccionDosisPorUnidad: "0.5",
       posologia: "Media dosis cada 12 horas",
       duracionTratamientoDias: 30,
       componentes: [{ drogaTexto: "Mazindol", cantidad: "1.5", unidadTexto: "mg", modoExpresion: "POR_DOSIS" }],
     });
-    expect(advertencias.map((a) => a.codigo)).toEqual(["UNIDADES_VS_DURACION"]);
+    expect(advertencias).toEqual([]);
+  });
+
+  it("media dosis doubles the units to make, whatever the line order; no fracción keeps them", () => {
+    expect(parsearCuerpo(["Mazindol 1,5 mg", "½ dosis", "30 cápsulas"]).item.cantidadUnidades).toBe(60);
+    expect(parsearCuerpo(["Mazindol 1,5 mg", "30 cápsulas", "Cada 12 horas"]).item.cantidadUnidades).toBe(30);
   });
 
   it("the PDF flow still drops the leading '- ' line silently (rule moved into the PDF strategy)", () => {

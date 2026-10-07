@@ -29,7 +29,7 @@ export default async function IngresarPartidaPage() {
       />
       <div className="max-w-4xl">
         <IngresarPartida
-          drogas={drogas.map((droga) => ({ id: droga.id, label: droga.nombre, tipoMagnitud: droga.tipoMagnitud, clase: droga.clase }))}
+          drogas={drogas.map((droga) => ({ id: droga.id, label: droga.nombre, tipoMagnitud: droga.tipoMagnitud, clase: droga.clase, sinonimos: droga.sinonimos }))}
           proveedores={proveedores.map((proveedor) => ({ id: proveedor.id, label: proveedor.razonSocial }))}
           puedeCrearProducto={can(session, "drogas.crear")}
           unidades={unidades.map((unidad) => ({ id: unidad.id, label: `${unidad.nombre} (${unidad.simbolo})`, tipoMagnitud: unidad.tipoMagnitud, simbolo: unidad.simbolo }))}

@@ -14,6 +14,7 @@ import { Prisma } from "@/generated/prisma/client";
 import type { TipoMovimiento, MotivoAjuste as PrismaMotivoAjuste } from "@/generated/prisma/enums";
 import { DIAS_ALERTA_VENCIMIENTO_PARTIDA_DEFAULT, type OrdenStockDrogas } from "../domain/partida";
 import { rangoDeJornadas } from "@/shared/time/jornada";
+import { drogaCoincideSql, sinonimoCoincidenteSql } from "@/shared/db/busqueda-droga";
 
 // ============================================================================
 // jornada helper (fsj.jornada_actual(tenantId)) -- see migration 0014.
@@ -43,6 +44,8 @@ export interface StockDrogaItem {
   bajoMinimo: boolean;
   /** Earliest `fecha_vencimiento` among partidas with balance (YYYY-MM-DD), `null` when none has balance. */
   proximoVencimiento: string | null;
+  /** The synonym the search matched through, when the name itself did not match (docs/specs/sinonimos-droga.md). */
+  sinonimoCoincidente: string | null;
 }
 
 export interface ListStockDrogasFilter {
@@ -104,6 +107,7 @@ export async function listStockDrogas(tx: Prisma.TransactionClient, filter: List
         stockDisponible: row.stock_disponible!,
         bajoMinimo: row.bajo_minimo === true,
         proximoVencimiento: row.proximo_vencimiento,
+        sinonimoCoincidente: row.sinonimo,
       })),
     total: rows[0]?.total ?? 0,
     page: filter.page,
@@ -122,6 +126,7 @@ export interface ListStockDrogasRow {
   stock_disponible: string | null;
   bajo_minimo: boolean | null;
   proximo_vencimiento: string | null;
+  sinonimo: string | null;
 }
 
 export function listStockDrogasSql(filter: ListStockDrogasFilter): Prisma.Sql {
@@ -137,6 +142,7 @@ export function listStockDrogasSql(filter: ListStockDrogasFilter): Prisma.Sql {
         u.id AS unidad_id,
         u.simbolo,
         d.stock_minimo,
+        ${sinonimoCoincidenteSql("d", search)} AS sinonimo,
         coalesce(v.stock_disponible, 0) AS stock_disponible,
         coalesce(v.stock_disponible, 0) * u.factor_a_base AS stock_en_base,
         (
@@ -149,7 +155,7 @@ export function listStockDrogasSql(filter: ListStockDrogasFilter): Prisma.Sql {
       LEFT JOIN fsj.v_stock_droga v ON v.tenant_id = d.tenant_id AND v.droga_id = d.id
       WHERE d.tenant_id = ${filter.tenantId}::uuid
         AND d.fecha_baja IS NULL
-        AND (${search}::text IS NULL OR d.nombre ILIKE '%' || ${search}::text || '%')
+        AND ${drogaCoincideSql("d", search)}
         AND (NOT ${filter.soloControladas ?? false}::boolean OR d.es_controlada)
         AND (NOT ${filter.soloBajoMinimo ?? false}::boolean OR coalesce(v.stock_disponible, 0) < d.stock_minimo)
         AND (NOT ${filter.soloSinStock ?? false}::boolean OR coalesce(v.stock_disponible, 0) = 0)
@@ -186,7 +192,8 @@ export function listStockDrogasSql(filter: ListStockDrogasFilter): Prisma.Sql {
       f.stock_minimo::text AS stock_minimo,
       f.stock_disponible::text AS stock_disponible,
       f.stock_disponible < f.stock_minimo AS bajo_minimo,
-      f.proximo_vencimiento::text AS proximo_vencimiento
+      f.proximo_vencimiento::text AS proximo_vencimiento,
+      f.sinonimo
     FROM (SELECT count(*)::int AS total FROM filtradas) t
     LEFT JOIN LATERAL (
       SELECT *
@@ -705,7 +712,7 @@ export interface AjusteListItem {
 
 export interface ListAjustesFilter {
   tenantId: string;
-  /** Case-insensitive substring of the droga name or the lote. */
+  /** Substring of the droga name or one of its vigente synonyms (accent-insensitive, shared/db/busqueda-droga.ts), or case-insensitive substring of the lote. */
   search?: string;
   motivoAjuste?: PrismaMotivoAjuste;
   desde?: string; // YYYY-MM-DD, jornada in the tenant's time zone (inclusive)
@@ -783,7 +790,7 @@ export function listAjustesSql(filter: ListAjustesFilter): Prisma.Sql {
       LEFT JOIN fsj.usuario a ON a.id = m.autorizado_por_id
       WHERE m.tenant_id = ${filter.tenantId}::uuid
         AND m.tipo = 'AJUSTE'
-        AND (${search}::text IS NULL OR d.nombre ILIKE '%' || ${search}::text || '%' OR p.lote ILIKE '%' || ${search}::text || '%')
+        AND (${search}::text IS NULL OR ${drogaCoincideSql("d", search)} OR p.lote ILIKE '%' || ${search}::text || '%')
         AND (${motivo}::text IS NULL OR m.motivo_ajuste::text = ${motivo}::text)
         AND (${desde}::date IS NULL OR fsj.jornada_de(m.registrado_en, tn.zona_horaria) >= ${desde}::date)
         AND (${hasta}::date IS NULL OR fsj.jornada_de(m.registrado_en, tn.zona_horaria) <= ${hasta}::date)

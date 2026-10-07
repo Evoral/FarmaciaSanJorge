@@ -4,12 +4,17 @@ import { defineQuery } from "@/shared/usecase";
 import { uuid } from "@/shared/validation";
 import { getDrogaParaAccion, tieneAlgunaPartida } from "../infrastructure/droga-repository";
 import type { DrogaParaAccion } from "../infrastructure/droga-repository";
+import { listSinonimosDeDroga, type SinonimoDroga } from "../infrastructure/sinonimo-repository";
+
+export type { SinonimoDroga };
 
 const getDrogaInput = z.object({ id: uuid });
 
 export interface DrogaDetalle extends DrogaParaAccion {
   /** DP-12 (task's conservative rule): the UI disables unidadBaseId/esControlada/tipoControl when true -- see modules/drogas/application/editar-droga.ts for the enforced version of this check. */
   tienePartidas: boolean;
+  /** Vigente synonyms (docs/specs/sinonimos-droga.md), alphabetical. */
+  sinonimos: SinonimoDroga[];
 }
 
 export const getDrogaQuery = defineQuery({
@@ -20,7 +25,8 @@ export const getDrogaQuery = defineQuery({
     const droga = await getDrogaParaAccion(tx, session.tenantId, input.id);
     if (!droga) return null;
     const tienePartidas = await tieneAlgunaPartida(tx, session.tenantId, input.id);
-    return { ...droga, tienePartidas };
+    const sinonimos = await listSinonimosDeDroga(tx, session.tenantId, input.id);
+    return { ...droga, tienePartidas, sinonimos };
   },
 });
 
