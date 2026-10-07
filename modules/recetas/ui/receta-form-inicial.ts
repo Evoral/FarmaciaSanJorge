@@ -15,6 +15,7 @@ export function inicialDesdeReceta(receta: RecetaDetalle): RecetaFormInicial {
     origen: receta.origen,
     diagnosticoCodigo: receta.diagnosticoCodigo ?? "",
     diagnosticoDescripcion: receta.diagnosticoDescripcion ?? "",
+    domicilioPaciente: receta.domicilioPaciente ?? "",
     items: receta.items.map((item) => ({
       id: item.id,
       descripcion: item.descripcion ?? "",
@@ -30,9 +31,9 @@ export function inicialDesdeReceta(receta: RecetaDetalle): RecetaFormInicial {
         id: c.id,
         drogaId: c.drogaId,
         drogaNombre: c.drogaNombre,
-        cantidad: c.cantidad ?? "",
         drogaAliasId: c.drogaAliasId,
         sinonimo: c.sinonimo,
+        cantidad: c.cantidad ?? "",
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
       })),

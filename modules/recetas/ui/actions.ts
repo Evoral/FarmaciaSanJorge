@@ -56,6 +56,7 @@ export async function crearRecetaAction(_prevState: RecetaActionState, formData:
       origen: String(formData.get("origen") ?? "PRESENCIAL") as "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO",
       diagnosticoCodigo: String(formData.get("diagnosticoCodigo") ?? ""),
       diagnosticoDescripcion: String(formData.get("diagnosticoDescripcion") ?? ""),
+      domicilioPaciente: String(formData.get("domicilioPaciente") ?? ""),
       items,
     });
     revalidatePath("/recetas");
@@ -81,6 +82,7 @@ export async function editarRecetaAction(_prevState: RecetaActionState, formData
       origen: String(formData.get("origen") ?? "PRESENCIAL") as "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO",
       diagnosticoCodigo: String(formData.get("diagnosticoCodigo") ?? ""),
       diagnosticoDescripcion: String(formData.get("diagnosticoDescripcion") ?? ""),
+      domicilioPaciente: String(formData.get("domicilioPaciente") ?? ""),
       items,
       itemsVersion,
       version: {
@@ -90,6 +92,7 @@ export async function editarRecetaAction(_prevState: RecetaActionState, formData
         origen: String(formData.get("versionOrigen") ?? "PRESENCIAL") as "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO",
         diagnosticoCodigo: formData.get("versionDiagnosticoCodigo") ? String(formData.get("versionDiagnosticoCodigo")) : null,
         diagnosticoDescripcion: formData.get("versionDiagnosticoDescripcion") ? String(formData.get("versionDiagnosticoDescripcion")) : null,
+        domicilioPaciente: formData.get("versionDomicilioPaciente") ? String(formData.get("versionDomicilioPaciente")) : null,
       },
     });
     revalidatePath("/recetas");

@@ -134,6 +134,7 @@ const recetaPendiente = {
   motivoAnulacion: null,
   diagnosticoCodigo: null,
   diagnosticoDescripcion: null,
+  domicilioPaciente: null,
 };
 
 const itemValido = {

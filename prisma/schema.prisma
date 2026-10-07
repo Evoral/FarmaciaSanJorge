@@ -882,6 +882,8 @@ model Receta {
   /// Migration 0049. CIE-10 code, format CHECKed in the DB.
   diagnosticoCodigo      String?      @map("diagnostico_codigo") @db.VarChar(10)
   diagnosticoDescripcion String?      @map("diagnostico_descripcion")
+  /// Migration 0070 (docs/specs/importacion-receta-pdf.md). The patient's home address as written on THIS receta (free text, optional) -- kept per receta, not on the paciente: the address at prescription time is what matters for a claim.
+  domicilioPaciente      String?      @map("domicilio_paciente")
   /// Migration 0057: the lab's "toma" -- who took the receta from the /preparaciones queue and when. Both set or both null (receta_toma_pair_check); cleared by "Cancelar toma". Partial index idx_receta_tenant_tomada_en_curso (not expressible here).
   tomadaPorId            String?      @map("tomada_por_id") @db.Uuid
   tomadaEn               DateTime?    @map("tomada_en") @db.Timestamptz(6)
@@ -946,20 +948,20 @@ model ComponenteItemReceta {
   modoExpresion     ModoExpresion @map("modo_expresion")
   /// Snapshot written by the app on insert: true iff the droga's clase is DROGA (migration 0063); not kept in sync with later catalog changes.
   esPrincipioActivo Boolean       @default(false) @map("es_principio_activo")
-
-  itemReceta   ItemReceta   @relation(fields: [itemRecetaId], references: [id])
   /// Migration 0069: the synonym of the droga the componente was picked by (display only; NULL = canonical name). The SQL FK is composite (tenant_id, droga_alias_id, droga_id): same tenant AND same droga. May point to a synonym removed later.
   drogaAliasId      String?       @map("droga_alias_id") @db.Uuid
+
+  itemReceta   ItemReceta   @relation(fields: [itemRecetaId], references: [id])
   droga        Droga        @relation(fields: [drogaId], references: [id])
   unidadMedida UnidadMedida @relation(fields: [unidadMedidaId], references: [id])
+  drogaAlias   DrogaAlias?  @relation(fields: [drogaAliasId], references: [id])
 
   @@unique([tenantId, id])
-  drogaAlias   DrogaAlias?  @relation(fields: [drogaAliasId], references: [id])
   /// Migration 0065: the componentes of an item (they have no order -- orden was dropped).
   @@index([tenantId, itemRecetaId], map: "idx_componente_item_receta_tenant_item")
+  @@index([tenantId, drogaAliasId], map: "idx_componente_item_receta_droga_alias")
   @@map("componente_item_receta")
   @@schema("fsj")
-  @@index([tenantId, drogaAliasId], map: "idx_componente_item_receta_droga_alias")
 }
 
 // ============================================================================

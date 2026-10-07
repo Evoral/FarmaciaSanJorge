@@ -376,9 +376,10 @@ describe("QR body lines", () => {
     expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO")).toEqual([]);
   });
 
-  it("a bulleted leading address is informational, shown without the bullet; a lone '-' line is dropped", () => {
+  it("a bulleted first leading line is the paciente's domicilio, without the bullet and without a notice; a lone '-' line is dropped", () => {
     const r = leer(conTexto("- Calle Falsa 12\n-\nIbuprofeno 400 mg"));
-    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO").map((a) => a.texto)).toEqual(["Calle Falsa 12"]);
+    expect(r.borrador.domicilioPaciente).toBe("Calle Falsa 12");
+    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO")).toEqual([]);
     expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO")).toEqual([]);
   });
 

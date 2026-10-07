@@ -172,6 +172,7 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
             <div className="min-w-0">
               <p className="text-xs text-zinc-500">Paciente</p>
               <p className="truncate font-medium text-zinc-900">{paciente}</p>
+              {receta.domicilioPaciente ? <p className="text-xs text-zinc-500">Domicilio: {receta.domicilioPaciente}</p> : null}
             </div>
           </div>
           <div className="person-block">

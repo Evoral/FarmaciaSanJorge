@@ -187,7 +187,8 @@ describe("P1: RCTA receta (synthetic equivalent of the real sample)", () => {
     expect(borrador.diagnosticoDescripcion).toBe("OBESIDAD DEBIDA A EXCESO DE CALORIAS");
   });
 
-  it("drops the '- ...' line right after Rp./ silently; 60 units at one per 12 h last the 30 días, so no warning", () => {
+  it("reads the '- ...' line right after Rp./ as the paciente's domicilio, without a warning; 60 units at one per 12 h last the 30 días, so no warning", () => {
+    expect(borrador.domicilioPaciente).toBe("Belgrano 250 Godoy Cruz");
     expect(advertencias).toEqual([]);
   });
 });
@@ -244,7 +245,7 @@ describe("P3: unclassifiable body line", () => {
     expect(borrador.items[0]!.cantidadUnidades).toBe(60);
   });
 
-  it("a '- ...' line is only ignored right after Rp./ -- later on it is warned about", () => {
+  it("a '- ...' line is only the domicilio right after Rp./ -- later on it is warned about", () => {
     const cuerpo = [...CUERPO_P1.slice(1), "- nota al pie"];
     const { advertencias } = parsearOk(recetaRcta({ cuerpo }));
     expect(advertencias.map((a) => a.texto)).toContain("- nota al pie");
@@ -443,10 +444,11 @@ describe("parsearCuerpo (shared by the PDF and the QR import)", () => {
     expect(parsearCuerpo(["Mazindol 1,5 mg", "30 cápsulas", "Cada 12 horas"]).item.cantidadUnidades).toBe(30);
   });
 
-  it("the PDF flow still drops the leading '- ' line silently (rule moved into the PDF strategy)", () => {
+  it("the PDF flow still takes the leading '- ' line out of the body, as the domicilio (rule kept in the PDF strategy)", () => {
     const sinGuion = parsearOk(recetaRcta({ cuerpo: CUERPO_P1.slice(1) }));
     const conGuion = parsearOk(recetaRcta());
-    expect(conGuion.borrador).toEqual(sinGuion.borrador);
+    expect(sinGuion.borrador.domicilioPaciente).toBeNull();
+    expect(conGuion.borrador).toEqual({ ...sinGuion.borrador, domicilioPaciente: "Belgrano 250 Godoy Cruz" });
     expect(conGuion.advertencias).toEqual(sinGuion.advertencias);
   });
 });

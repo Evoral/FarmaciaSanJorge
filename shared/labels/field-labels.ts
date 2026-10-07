@@ -132,6 +132,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   descripcion: "Descripción",
   diagnosticoCodigo: "Código de diagnóstico (CIE-10)",
   diagnosticoDescripcion: "Diagnóstico",
+  domicilioPaciente: "Domicilio del paciente",
   duracionTratamientoDias: "Duración del tratamiento (días)",
   esPrincipioActivo: "Principio activo",
   fechaPrescripcion: "Fecha de prescripción",

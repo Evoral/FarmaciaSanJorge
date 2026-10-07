@@ -1480,6 +1480,8 @@ export interface RecetaDeToma {
   fechaIngreso: Date;
   diagnosticoCodigo: string | null;
   diagnosticoDescripcion: string | null;
+  /** Migration 0070 -- the patient's home address as written on this receta. */
+  domicilioPaciente: string | null;
   pacienteNombre: string;
   pacienteApellido: string;
   medicoNombre: string;
@@ -1505,6 +1507,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
       fechaIngreso: true,
       diagnosticoCodigo: true,
       diagnosticoDescripcion: true,
+      domicilioPaciente: true,
       tomadaPorId: true,
       tomadaEn: true,
       tomadaPor: { select: { nombre: true, apellido: true } },
@@ -1527,10 +1530,10 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
               modoExpresion: true,
               esPrincipioActivo: true,
               droga: { select: { nombre: true } },
+              drogaAlias: { select: { texto: true } },
               unidadMedida: { select: { simbolo: true } },
             },
           },
-              drogaAlias: { select: { texto: true } },
           fichas: {
             orderBy: { version: "desc" },
             take: 1,
@@ -1579,6 +1582,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
     fechaIngreso: receta.fechaIngreso,
     diagnosticoCodigo: receta.diagnosticoCodigo,
     diagnosticoDescripcion: receta.diagnosticoDescripcion,
+    domicilioPaciente: receta.domicilioPaciente,
     pacienteNombre: receta.paciente.nombre,
     pacienteApellido: receta.paciente.apellido,
     medicoNombre: receta.medico.nombre,
@@ -1603,11 +1607,11 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
           item.componentes.map((c) => ({
             id: c.id,
             drogaNombre: c.droga.nombre,
+            sinonimo: c.drogaAlias?.texto ?? null,
             cantidad: c.cantidad ? c.cantidad.toString() : null,
             unidadMedidaSimbolo: c.unidadMedida.simbolo,
             modoExpresion: c.modoExpresion,
             esPrincipioActivo: c.esPrincipioActivo,
-            sinonimo: c.drogaAlias?.texto ?? null,
           })),
         ),
         ultimaFicha: ficha

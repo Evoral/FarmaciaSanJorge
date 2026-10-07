@@ -5,7 +5,8 @@
  *
  *   1. paciente and médico: alta if new, otherwise complete ONLY their
  *      empty fields with the PDF's data (never overwrite);
- *   2. receta with origen DIGITAL_PDF + emisor/nro/url/diagnóstico + items,
+ *   2. receta with origen DIGITAL_PDF + emisor/nro/url/diagnóstico/domicilio
+ *      del paciente + items,
  *      under the same V1-V9 validation as the manual alta (and, like it,
  *      each componente's principio activo flag from the droga's clase);
  *   3. the droga aliases the user chose to remember -- written BEFORE the
@@ -13,7 +14,6 @@
  *      (`drogaAliasId`, migration 0069; see below);
  *   4. one audit row per alta/modificación (INV-A01).
  *
- * The client only sends back what the preview showed plus the user's
  * Synonyms of the componentes (docs/specs/sinonimos-droga.md, "Nombre
  * elegido al cargar"): a componente the preview matched through a synonym
  * arrives with that `drogaAliasId` (validated like the manual alta). For
@@ -24,6 +24,7 @@
  * with it. A text that is the droga's own name is never a synonym, so those
  * componentes keep the canonical name.
  *
+ * The client only sends back what the preview showed plus the user's
  * choices; everything is re-derived here: the paciente/médico are matched
  * AGAIN by CUIL/DNI and (jurisdicción, matrícula) -- if that no longer
  * gives what the preview showed (`existenteId`), the data changed since
@@ -51,7 +52,7 @@ import { ConflictError, DomainError, ValidationError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { crearPacienteHandler, crearPacienteInput } from "@/modules/pacientes/application/crear-paciente";
 import { crearMedicoHandler, crearMedicoInput } from "@/modules/medicos/application/crear-medico";
-import { diagnosticoCodigoOpcional, esFechaPrescripcionValida, esFechaPrescripcionVigente, resumirItemsReceta, validarItemsReceta, validarOrigenHabilitado } from "../domain/receta";
+import { diagnosticoCodigoOpcional, domicilioPacienteOpcional, esFechaPrescripcionValida, esFechaPrescripcionVigente, resumirItemsReceta, validarItemsReceta, validarOrigenHabilitado } from "../domain/receta";
 import type { ComponenteInput, ItemInput } from "../domain/receta";
 import { CODIGOS_EMISOR, esUrlVerificacionDeEmisor } from "../domain/receta-pdf-parser";
 import { normalizarTexto } from "../domain/normalizar";
@@ -68,8 +69,8 @@ import {
 } from "../domain/importacion-receta";
 import type { FuenteImportacion } from "../domain/importacion-receta";
 import { clasificarDrogasDeReceta, getNombresParaResumen, insertRecetaConItems, jornadaActualTenant, unidadesInvalidas } from "../infrastructure/receta-repository";
-import {
 import { validarSinonimosDeComponentes } from "./sinonimos-componentes";
+import {
   buscarMedicoVigentePorMatricula,
   buscarPacientePorIdentificacion,
   buscarRecetaImportada,
@@ -99,6 +100,8 @@ export const importarRecetaInput = z
     fechaValidaDesde: isoDate.optional().nullable().transform((v) => v ?? null),
     diagnosticoCodigo: diagnosticoCodigoOpcional,
     diagnosticoDescripcion: textoOpcional,
+    /** The patient's domicilio as printed on the receta (migration 0070) -- stored on the receta, never on the paciente. */
+    domicilioPaciente: domicilioPacienteOpcional,
     /** `existenteId`: what the preview matched (`null` = alta). `datos`: the PDF's data, as confirmed by the user. */
     paciente: z.object({ existenteId: uuid.nullable(), datos: crearPacienteInput }),
     medico: z.object({ existenteId: uuid.nullable(), datos: crearMedicoInput }),
@@ -147,10 +150,10 @@ function toItemsInput(items: ImportarRecetaInput["items"]): ItemInput[] {
         cantidad: c.cantidad,
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
+        drogaAliasId: c.drogaAliasId ?? null,
       }),
     ),
   }));
-        drogaAliasId: c.drogaAliasId ?? null,
 }
 
 interface Contexto {
@@ -267,9 +270,6 @@ export const importarRecetaCommand = defineCommand({
 
     const paciente = await resolverPaciente(ctx, input.paciente);
     const medico = await resolverMedico(ctx, input.medico);
-
-    const nueva = await insertRecetaConItems(tx, {
-      tenantId: session.tenantId,
     const nombresBase = await getNombresParaResumen(tx, session.tenantId, drogaIds, unidadIds);
 
     // "Recordar esta equivalencia" = add the text as a synonym of the chosen droga (docs/specs/sinonimos-droga.md):
@@ -312,6 +312,9 @@ export const importarRecetaCommand = defineCommand({
 
     const sinonimos = await validarSinonimosDeComponentes(tx, session.tenantId, itemsDominio.flatMap((item) => item.componentes));
     const nombres = { ...nombresBase, sinonimos };
+
+    const nueva = await insertRecetaConItems(tx, {
+      tenantId: session.tenantId,
       pacienteId: paciente.id,
       medicoId: medico.id,
       fechaPrescripcion: input.fechaPrescripcion,
@@ -319,6 +322,7 @@ export const importarRecetaCommand = defineCommand({
       registradaPorId: session.usuario.id,
       diagnosticoCodigo: input.diagnosticoCodigo,
       diagnosticoDescripcion: input.diagnosticoDescripcion,
+      domicilioPaciente: input.domicilioPaciente,
       emisor: input.emisor,
       nroRecetaEmisor: input.nroRecetaEmisor,
       urlVerificacion: input.urlVerificacion,
@@ -350,6 +354,7 @@ export const importarRecetaCommand = defineCommand({
         urlVerificacion: input.urlVerificacion,
         diagnosticoCodigo: input.diagnosticoCodigo,
         diagnosticoDescripcion: input.diagnosticoDescripcion,
+        domicilioPaciente: input.domicilioPaciente,
         numeroInterno: nueva.numeroInterno,
         items: input.items,
         itemsResumen: resumirItemsReceta(itemsDominio, nombres),

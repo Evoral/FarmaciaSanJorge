@@ -227,6 +227,8 @@ export interface NuevaRecetaInput {
   registradaPorId: string;
   diagnosticoCodigo: string | null;
   diagnosticoDescripcion: string | null;
+  /** Migration 0070 -- the patient's home address as written on this receta. */
+  domicilioPaciente: string | null;
   /** PDF import only (migration 0049): the emisor's provenance and the "Válida desde" date. */
   emisor?: string | null;
   nroRecetaEmisor?: string | null;
@@ -251,9 +253,9 @@ async function insertComponentes(
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
         esPrincipioActivo: c.esPrincipioActivo,
+        drogaAliasId: c.drogaAliasId ?? null,
       },
     });
-        drogaAliasId: c.drogaAliasId ?? null,
   }
 }
 
@@ -270,6 +272,7 @@ export async function insertRecetaConItems(tx: Prisma.TransactionClient, input: 
       registradaPorId: input.registradaPorId,
       diagnosticoCodigo: input.diagnosticoCodigo,
       diagnosticoDescripcion: input.diagnosticoDescripcion,
+      domicilioPaciente: input.domicilioPaciente,
       emisor: input.emisor ?? null,
       nroRecetaEmisor: input.nroRecetaEmisor ?? null,
       urlVerificacion: input.urlVerificacion ?? null,
@@ -315,6 +318,7 @@ export interface RecetaParaAccion {
   motivoAnulacion: string | null;
   diagnosticoCodigo: string | null;
   diagnosticoDescripcion: string | null;
+  domicilioPaciente: string | null;
 }
 
 const SELECT_PARA_ACCION = {
@@ -327,6 +331,7 @@ const SELECT_PARA_ACCION = {
   motivoAnulacion: true,
   diagnosticoCodigo: true,
   diagnosticoDescripcion: true,
+  domicilioPaciente: true,
 } as const;
 
 export async function getRecetaParaAccion(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<RecetaParaAccion | null> {
@@ -365,16 +370,16 @@ export async function existeFichaConPreparacionParaReceta(tx: Prisma.Transaction
 export interface ComponenteDetalle {
   id: string;
   drogaId: string;
+  /** Always the canonical name (ordering, ficha, libro). */
   drogaNombre: string;
+  /** The synonym the componente was loaded with (migration 0069) -- shown instead of the name, with the name as a hint. */
+  drogaAliasId: string | null;
+  sinonimo: string | null;
   cantidad: string | null;
   unidadMedidaId: string;
   unidadMedidaSimbolo: string;
   modoExpresion: ModoExpresion;
-  /** Always the canonical name (ordering, ficha, libro). */
   esPrincipioActivo: boolean;
-  /** The synonym the componente was loaded with (migration 0069) -- shown instead of the name, with the name as a hint. */
-  drogaAliasId: string | null;
-  sinonimo: string | null;
 }
 
 export interface ItemDetalle {
@@ -450,6 +455,8 @@ export interface RecetaDetalle {
   registradaPorNombre: string;
   diagnosticoCodigo: string | null;
   diagnosticoDescripcion: string | null;
+  /** Migration 0070 -- the patient's home address as written on this receta. */
+  domicilioPaciente: string | null;
   /** Digital provenance (migration 0049) -- all three `null` for a receta loaded by hand. */
   emisor: string | null;
   nroRecetaEmisor: string | null;
@@ -497,6 +504,7 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
     registradaPorNombre: `${receta.registradaPor.apellido}, ${receta.registradaPor.nombre}`,
     diagnosticoCodigo: receta.diagnosticoCodigo,
     diagnosticoDescripcion: receta.diagnosticoDescripcion,
+    domicilioPaciente: receta.domicilioPaciente,
     emisor: receta.emisor,
     nroRecetaEmisor: receta.nroRecetaEmisor,
     urlVerificacion: receta.urlVerificacion,
@@ -518,6 +526,8 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
           id: c.id,
           drogaId: c.drogaId,
           drogaNombre: c.droga.nombre,
+          drogaAliasId: c.drogaAliasId,
+          sinonimo: c.drogaAlias?.texto ?? null,
           cantidad: c.cantidad ? c.cantidad.toString() : null,
           unidadMedidaId: c.unidadMedidaId,
           unidadMedidaSimbolo: c.unidadMedida.simbolo,
@@ -526,8 +536,6 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
         })),
       ),
     })),
-          drogaAliasId: c.drogaAliasId,
-          sinonimo: c.drogaAlias?.texto ?? null,
   };
 }
 
@@ -544,6 +552,7 @@ export interface EditarRecetaHeaderInput {
   origen: OrigenReceta;
   diagnosticoCodigo: string | null;
   diagnosticoDescripcion: string | null;
+  domicilioPaciente: string | null;
 }
 
 export interface EditarRecetaHeaderVersion {
@@ -553,6 +562,7 @@ export interface EditarRecetaHeaderVersion {
   origen: OrigenReceta;
   diagnosticoCodigo: string | null;
   diagnosticoDescripcion: string | null;
+  domicilioPaciente: string | null;
 }
 
 export async function updateRecetaHeader(
@@ -571,6 +581,7 @@ export async function updateRecetaHeader(
       origen: version.origen,
       diagnosticoCodigo: version.diagnosticoCodigo,
       diagnosticoDescripcion: version.diagnosticoDescripcion,
+      domicilioPaciente: version.domicilioPaciente,
     },
     data: {
       pacienteId: input.pacienteId,
@@ -579,6 +590,7 @@ export async function updateRecetaHeader(
       origen: input.origen,
       diagnosticoCodigo: input.diagnosticoCodigo,
       diagnosticoDescripcion: input.diagnosticoDescripcion,
+      domicilioPaciente: input.domicilioPaciente,
     },
   });
   return result.count === 1;

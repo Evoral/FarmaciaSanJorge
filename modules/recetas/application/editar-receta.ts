@@ -10,7 +10,7 @@
  *
  * Lock BEFORE any decision read (M3 discipline, same as every other
  * module): `lockRecetaParaAccion` first, then a FRESH read. Header fields
- * (paciente/médico/fecha/origen) use optimistic concurrency (compare-and-swap,
+ * (paciente/médico/fecha/origen/diagnóstico/domicilio del paciente) use optimistic concurrency (compare-and-swap,
  * same shape as modules/pacientes/application/editar-paciente.ts).
  * Items/componentes use a SEPARATE conflict check: the client submits the
  * ids of the items it started editing from (`itemsVersion`) -- if the
@@ -77,6 +77,7 @@ const editarRecetaInput = crearRecetaInput.omit({ fechaValidaDesde: true }).exte
     origen: z.enum(ORIGENES_RECETA),
     diagnosticoCodigo: z.string().nullable().default(null),
     diagnosticoDescripcion: z.string().nullable().default(null),
+    domicilioPaciente: z.string().nullable().default(null),
   }),
   /** ids of the items the client started editing from (existing items only) -- see module doc comment. */
   itemsVersion: z.array(uuid),
@@ -104,8 +105,8 @@ function toItemsInput(items: EditarRecetaInput["items"]): ItemInput[] {
         cantidad: c.cantidad,
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
-      }),
         drogaAliasId: c.drogaAliasId ?? null,
+      }),
     ),
   }));
 }
@@ -142,7 +143,8 @@ export const editarRecetaCommand = defineCommand({
       actualFechaISO === input.version.fechaPrescripcion &&
       actual.origen === input.version.origen &&
       actual.diagnosticoCodigo === input.version.diagnosticoCodigo &&
-      actual.diagnosticoDescripcion === input.version.diagnosticoDescripcion;
+      actual.diagnosticoDescripcion === input.version.diagnosticoDescripcion &&
+      actual.domicilioPaciente === input.version.domicilioPaciente;
     if (!versionMatches) {
       throw new ConflictError(CONCURRENCY_MESSAGE);
     }
@@ -183,12 +185,12 @@ export const editarRecetaCommand = defineCommand({
     if (drogas.invalidas.length > 0) {
       throw new ValidationError("Una o más drogas seleccionadas no existen o están dadas de baja.");
     }
-    const unidadIds = [
-      ...itemsDominio.flatMap((item) => item.componentes.map((c) => c.unidadMedidaId)),
     // A synonym removed since the receta was loaded may stay on the componentes that already had it (read before the replace).
     const sinonimos = await validarSinonimosDeComponentes(tx, session.tenantId, itemsDominio.flatMap((item) => item.componentes), () =>
       listSinonimosGuardadosDeReceta(tx, session.tenantId, input.id),
     );
+    const unidadIds = [
+      ...itemsDominio.flatMap((item) => item.componentes.map((c) => c.unidadMedidaId)),
       ...itemsDominio.flatMap((item) => (item.unidadTotalId ? [item.unidadTotalId] : [])),
     ];
     if ((await unidadesInvalidas(tx, unidadIds)).length > 0) {
@@ -206,6 +208,7 @@ export const editarRecetaCommand = defineCommand({
         origen: input.origen,
         diagnosticoCodigo: input.diagnosticoCodigo,
         diagnosticoDescripcion: input.diagnosticoDescripcion,
+        domicilioPaciente: input.domicilioPaciente,
       },
       input.version,
     );
@@ -232,10 +235,10 @@ export const editarRecetaCommand = defineCommand({
           unidadMedidaId: c.unidadMedidaId,
           modoExpresion: c.modoExpresion,
           esPrincipioActivo: drogas.principiosActivos.has(c.drogaId),
+          drogaAliasId: c.drogaAliasId ?? null,
         })),
       })),
     );
-          drogaAliasId: c.drogaAliasId ?? null,
 
     // Readable names for the audit row, taken NOW: later renames must not rewrite history.
     const pacienteAnterior = actual.pacienteId === paciente.id ? paciente : await getPacienteRefParaReceta(tx, session.tenantId, actual.pacienteId);
@@ -258,6 +261,7 @@ export const editarRecetaCommand = defineCommand({
           origen: actual.origen,
           diagnosticoCodigo: actual.diagnosticoCodigo,
           diagnosticoDescripcion: actual.diagnosticoDescripcion,
+          domicilioPaciente: actual.domicilioPaciente,
         },
         valorNuevo: {
           pacienteId: input.pacienteId,
@@ -268,6 +272,7 @@ export const editarRecetaCommand = defineCommand({
           origen: input.origen,
           diagnosticoCodigo: input.diagnosticoCodigo,
           diagnosticoDescripcion: input.diagnosticoDescripcion,
+          domicilioPaciente: input.domicilioPaciente,
           items: input.items,
           itemsResumen: resumirItemsReceta(itemsDominio, nombres),
         },

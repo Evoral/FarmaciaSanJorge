@@ -24,7 +24,7 @@
  * Matching the draft against existing pacientes/médicos/drogas/unidades
  * is NOT done here (that is the application layer's match step).
  */
-import type { FormaFarmaceutica } from "./receta";
+import { MAX_DOMICILIO_PACIENTE, type FormaFarmaceutica } from "./receta";
 import { dec } from "@/shared/decimal";
 import { normalizarTexto } from "./normalizar";
 
@@ -127,6 +127,11 @@ export interface BorradorReceta {
   fechaValidaDesde: string | null;
   diagnosticoCodigo: string | null;
   diagnosticoDescripcion: string | null;
+  /**
+   * The patient's home address as printed on the receta (RCTA PDF: the "- " line right after "Rp./"), without the
+   * "- ". A receta field (migration 0070), not a paciente one: it is never matched against nor written to the paciente.
+   */
+  domicilioPaciente: string | null;
   paciente: BorradorPaciente;
   medico: BorradorMedico;
   items: BorradorItem[];
@@ -198,6 +203,14 @@ function mediana(valores: number[]): number {
 
 export function colapsar(texto: string): string {
   return texto.replace(/\s+/g, " ").trim();
+}
+
+/** A body line opened by a list dash ("- Avellaneda 14 las Heras"): on RCTA, the patient's domicilio (migration 0070). */
+export const RE_GUION_INICIAL = /^-\s/;
+
+/** "- Avellaneda 14  las Heras" -> "Avellaneda 14 las Heras", capped at `MAX_DOMICILIO_PACIENTE`; nothing left -> `null`. Shared by the PDF and the QR import. */
+export function domicilioDesdeRenglon(linea: string): string | null {
+  return colapsar(linea.replace(/^-\s+/, "")).slice(0, MAX_DOMICILIO_PACIENTE) || null;
 }
 
 function centroVertical(item: TextItemLite): number {
@@ -665,6 +678,7 @@ function parsearRcta(ctx: ContextoParser): ResultadoParserReceta {
   // --- Cuerpo Rp./ ... Diagnóstico: ---
   let diagnosticoCodigo: string | null = null;
   let diagnosticoDescripcion: string | null = null;
+  let domicilioPaciente: string | null = null;
   let item: BorradorItem | null = null;
   let finCuerpo = renglones.length;
   if (iRp >= 0) {
@@ -692,8 +706,10 @@ function parsearRcta(ctx: ContextoParser): ResultadoParserReceta {
       }
       lineas.push(texto);
     }
-    // Spec: a first line starting with "- " right after Rp./ is dropped silently (meaning unknown). PDF only.
-    const cuerpo = parsearCuerpo(/^-\s/.test(lineas[0] ?? "") ? lineas.slice(1) : lineas);
+    // Spec: a first line starting with "- " right after Rp./ is the patient's domicilio, taken out of the body. PDF only.
+    const conDomicilio = RE_GUION_INICIAL.test(lineas[0] ?? "");
+    if (conDomicilio) domicilioPaciente = domicilioDesdeRenglon(lineas[0]!);
+    const cuerpo = parsearCuerpo(conDomicilio ? lineas.slice(1) : lineas);
     item = cuerpo.item;
     advertencias.push(...cuerpo.advertencias);
   }
@@ -743,6 +759,7 @@ function parsearRcta(ctx: ContextoParser): ResultadoParserReceta {
       fechaValidaDesde,
       diagnosticoCodigo,
       diagnosticoDescripcion,
+      domicilioPaciente,
       paciente,
       medico,
       items: [itemFinal],

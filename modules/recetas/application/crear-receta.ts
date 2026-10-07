@@ -6,7 +6,7 @@
  * `crearMedico`, reused directly by modules/recetas/ui/actions.ts) +
  * fecha de prescripción (not future) + origen (PRESENCIAL: a digital
  * receta only enters through the PDF import, see domain/receta.ts's
- * `validarOrigenCargaManual`) + optional diagnóstico (CIE-10) + one or more
+ * `validarOrigenCargaManual`) + optional diagnóstico (CIE-10) + optional domicilio del paciente (migration 0070) + one or more
  * ítems, each with >= 1 componente (optional posología/duración). Everything in ONE transaction (insertRecetaConItems).
  *
  * V1-V9 (minus V5, see domain/receta.ts's doc comment) are enforced here
@@ -24,6 +24,7 @@ import {
   MODOS_EXPRESION,
   ORIGENES_RECETA,
   diagnosticoCodigoOpcional,
+  domicilioPacienteOpcional,
   duracionTratamientoDiasOpcional,
   esFechaPrescripcionValida,
   esFechaPrescripcionVigente,
@@ -41,8 +42,8 @@ import {
   jornadaActualTenant,
   unidadesInvalidas,
 } from "../infrastructure/receta-repository";
-
 import { validarSinonimosDeComponentes } from "./sinonimos-componentes";
+
 /** Shared with importar-receta.ts. */
 export const textoOpcional = z
   .string()
@@ -63,9 +64,9 @@ const componenteInput = z.object({
   cantidad: decimalOpcional,
   unidadMedidaId: uuid,
   modoExpresion: z.enum(MODOS_EXPRESION),
-});
   /** The synonym of the droga it was picked by (migration 0069), validated by `validarSinonimosDeComponentes`. */
   drogaAliasId: uuid.nullable().optional(),
+});
 
 /** One ítem of the receta (with its componentes) -- shared with importar-receta.ts. */
 export const itemInput = z.object({
@@ -92,6 +93,7 @@ export const crearRecetaInput = z.object({
   origen: z.enum(ORIGENES_RECETA),
   diagnosticoCodigo: diagnosticoCodigoOpcional,
   diagnosticoDescripcion: textoOpcional,
+  domicilioPaciente: domicilioPacienteOpcional,
   items: z.array(itemInput).min(1, "La receta debe tener al menos un ítem."),
 });
 
@@ -116,9 +118,9 @@ function toItemsInput(items: CrearRecetaInput["items"]): ItemInput[] {
         cantidad: c.cantidad,
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
+        drogaAliasId: c.drogaAliasId ?? null,
       }),
     ),
-        drogaAliasId: c.drogaAliasId ?? null,
   }));
 }
 
@@ -157,9 +159,9 @@ export const crearRecetaCommand = defineCommand({
     if (drogas.invalidas.length > 0) {
       throw new ValidationError("Una o más drogas seleccionadas no existen o están dadas de baja.");
     }
+    const sinonimos = await validarSinonimosDeComponentes(tx, session.tenantId, itemsDominio.flatMap((item) => item.componentes));
 
     const unidadIds = [
-    const sinonimos = await validarSinonimosDeComponentes(tx, session.tenantId, itemsDominio.flatMap((item) => item.componentes));
       ...itemsDominio.flatMap((item) => item.componentes.map((c) => c.unidadMedidaId)),
       ...itemsDominio.flatMap((item) => (item.unidadTotalId ? [item.unidadTotalId] : [])),
     ];
@@ -178,6 +180,7 @@ export const crearRecetaCommand = defineCommand({
       registradaPorId: session.usuario.id,
       diagnosticoCodigo: input.diagnosticoCodigo,
       diagnosticoDescripcion: input.diagnosticoDescripcion,
+      domicilioPaciente: input.domicilioPaciente,
       items: input.items.map((item) => ({
         descripcion: item.descripcion,
         formaFarmaceutica: item.formaFarmaceutica,
@@ -194,10 +197,10 @@ export const crearRecetaCommand = defineCommand({
           unidadMedidaId: c.unidadMedidaId,
           modoExpresion: c.modoExpresion,
           esPrincipioActivo: drogas.principiosActivos.has(c.drogaId),
+          drogaAliasId: c.drogaAliasId ?? null,
         })),
       })),
     });
-          drogaAliasId: c.drogaAliasId ?? null,
 
     const nombres = { ...(await getNombresParaResumen(tx, session.tenantId, drogaIds, unidadIds)), sinonimos };
 
@@ -214,6 +217,7 @@ export const crearRecetaCommand = defineCommand({
           origen: input.origen,
           diagnosticoCodigo: input.diagnosticoCodigo,
           diagnosticoDescripcion: input.diagnosticoDescripcion,
+          domicilioPaciente: input.domicilioPaciente,
           numeroInterno: nueva.numeroInterno,
           items: input.items,
           itemsResumen: resumirItemsReceta(itemsDominio, nombres),

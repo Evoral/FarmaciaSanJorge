@@ -71,6 +71,7 @@ Emisor desconocido → el parser responde "formato de receta no reconocido" y no
 | `Matrícula Prov.:NNNN` / `MP NNNN` | `medico.matricula` + `jurisdiccion = PROVINCIAL` | `Nac.` / `MN` → `NACIONAL`. |
 | Dirección y teléfono del pie | `medico.direccionRegistrada`, `medico.telefono` | |
 | `Diagnóstico: <código> - <descripción>` | `receta.diagnosticoCodigo`, `receta.diagnosticoDescripcion` | Código CIE-10. |
+| Primer renglón `- <domicilio>` del cuerpo | `receta.domicilioPaciente` | Ver "Domicilio del paciente". |
 
 ### Cuerpo `Rp./` (entre `Rp./` y `Diagnóstico:`)
 
@@ -78,7 +79,7 @@ Cada renglón se clasifica con la primera regla que matchee:
 
 | Regla | Patrón (ilustrativo) | Resultado |
 |---|---|---|
-| Ignorado | empieza con `- ` inmediatamente después de `Rp./` | Se descarta en silencio (ej. `- Avellaneda 14 las Heras`; significado desconocido). |
+| Domicilio del paciente | empieza con `- ` inmediatamente después de `Rp./` | Sale del cuerpo sin advertencia y su texto, sin el `- `, precarga `receta.domicilioPaciente` (ej. `- Avellaneda 14 las Heras` → `Avellaneda 14 las Heras`). Solo ese primer renglón: un `- …` más abajo cae en "Otro". |
 | Componente | `^(.+?)\s+(\d+(?:[.,]\d+)?)\s*(mg\|g\|mcg\|µg\|ml\|UI\|%)$` | Componente `POR_DOSIS`, cantidad en es-AR (coma decimal). Si es principio activo no se lee del PDF: lo define la clase de la droga elegida en el catálogo (`DROGA`), al guardar. |
 | Presentación | `^(\d+)\s+(comprimidos?\|c[áa]psulas?\|…)$` | `cantidadUnidades` + `formaFarmaceutica` por léxico. |
 | Fracción de dosis | contiene `media dosis` / `½ dosis` | `fraccionDosisPorUnidad = 0.5` (convención de `ficha-tecnica.md`, asiento 34147) y se duplican las unidades a elaborar (ver abajo). |
@@ -95,6 +96,15 @@ Reglas del ítem:
 - Un único ítem por receta en RCTA. Si aparecen señales de más de un ítem → advertencia.
 
 **Control de consistencia (solo advertencia, nunca bloquea):** con `cantidadUnidades` (ya convertidas a unidades a elaborar), tomas por día (`24 / N horas`, una unidad por toma) y `duracionTratamientoDias`, si `cantidadUnidades / tomasPorDia ≠ duracion` → advertencia "Las unidades alcanzan para X días; la receta indica Y". La muestra NO la dispara: 30 comprimidos de media dosis = 60 unidades, una toma cada 12 h = 30 días.
+
+### Domicilio del paciente
+
+> Decisión del usuario (2026-10-07): el primer renglón `- …` del cuerpo RCTA es el domicilio del paciente (antes se descartaba como "significado desconocido").
+
+- Se guarda **por receta** (`receta.domicilio_paciente`, migración 0070), **no** en el paciente: para un reclamo importa el domicilio a la fecha de la receta. Nunca se usa para el match ni para completar datos del paciente.
+- Opcional, texto libre: se recorta, vacío → `NULL`, máximo 300 caracteres (el parser trunca a ese largo).
+- El formulario lo precarga y el usuario puede corregirlo o borrarlo antes de confirmar. La carga manual y la edición también lo aceptan (campo "Domicilio del paciente", junto al paciente). El detalle de la receta y el puesto de toma de `/preparaciones` lo muestran bajo el paciente.
+- QR (`docs/specs/importacion-receta-qr.md`, "Renglones del cuerpo"): el JSON de RCTA no trae un campo de domicilio; se toma del primer renglón con guion del primer ítem, con la misma normalización (`domicilioDesdeRenglon`, compartida).
 
 ### Separación de nombres
 
@@ -122,7 +132,7 @@ Receta ya importada (mismo `emisor` + `nroRecetaEmisor`, no ANULADA) → error "
 Una transacción, permiso `recetas.crear`:
 
 1. Alta de paciente y/o médico nuevos, o completado de campos vacíos de los existentes.
-2. Alta de la receta con `origen = DIGITAL_PDF`, `emisor`, `nroRecetaEmisor`, `urlVerificacion`, diagnóstico e ítems. Se aplican las mismas validaciones V1–V9 que en la carga manual.
+2. Alta de la receta con `origen = DIGITAL_PDF`, `emisor`, `nroRecetaEmisor`, `urlVerificacion`, diagnóstico, domicilio del paciente e ítems. Se aplican las mismas validaciones V1–V9 que en la carga manual.
 3. Alta de los alias de drogas marcados para recordar.
 4. Auditoría: una entrada por cada alta o modificación (paciente, médico, receta, alias), según INV-A01.
    Cada entrada lleva `contexto = { origen: "importacion_receta_pdf", fuente }`, con `fuente` = `"PDF"` (por defecto) o `"QR"`. `fuente` la declara el cliente (viaja de la vista previa al payload de confirmación): es solo para auditoría y **no** tiene valor de autorización; ninguna regla ni permiso depende de él.
@@ -187,9 +197,11 @@ Las recetas `DIGITAL_PDF` **no entran** en lotes de archivo físico ni en destru
 
 **Dominio**: `validarOrigenHabilitado` habilita `DIGITAL_PDF`; `DIGITAL_FOTO` sigue rechazado. La carga manual también puede completar diagnóstico, posología y duración.
 
+**Migración 0070** (`receta_domicilio_paciente`, posterior): `receta.domicilio_paciente text NULL` + `GRANT UPDATE` de la columna a `fsj_app` (editable como el diagnóstico). Rollback: `docs/rollbacks/receta-domicilio-paciente.md`.
+
 ## Casos de prueba
 
-- **P1 — Muestra RCTA (datos sintéticos equivalentes).** Emisor `RCTA`; nro receta y URL presentes; paciente 2 palabras (separación sin confirmación); médico `PROVINCIAL`; 6 componentes `POR_DOSIS` (incluye `0,3 mg` → 0.3 y `1,6 mg` → 1.6); `COMPRIMIDO` × 60 (30 recetados a media dosis); fracción 0.5; posología `Media dosis cada 12 horas`; duración 30; diagnóstico `E66.0`; renglón `- …` ignorado; sin advertencia de consistencia.
+- **P1 — Muestra RCTA (datos sintéticos equivalentes).** Emisor `RCTA`; nro receta y URL presentes; paciente 2 palabras (separación sin confirmación); médico `PROVINCIAL`; 6 componentes `POR_DOSIS` (incluye `0,3 mg` → 0.3 y `1,6 mg` → 1.6); `COMPRIMIDO` × 60 (30 recetados a media dosis); fracción 0.5; posología `Media dosis cada 12 horas`; duración 30; diagnóstico `E66.0`; renglón `- …` leído como domicilio del paciente (sin el `- `, sin advertencia); sin advertencia de consistencia.
 - **P2** — PDF sin link ni registro reconocible → "formato no reconocido".
 - **P3** — Renglón no clasificable en el cuerpo → advertencia con el texto literal.
 - **P4** — Sin número de receta del emisor → no importable.

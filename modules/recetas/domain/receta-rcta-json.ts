@@ -13,8 +13,10 @@ import { esDiagnosticoCodigoValido, normalizarDiagnosticoCodigo } from "./receta
 import {
   clasificarRenglonCuerpo,
   colapsar,
+  domicilioDesdeRenglon,
   parsearCuerpo,
   parsearFechaDdMmAaaa,
+  RE_GUION_INICIAL,
   RE_TOKEN_UNIDAD_DOSIS,
   separarContactoMedico,
   urlVerificacionRcta,
@@ -186,19 +188,44 @@ const sinViñeta = (linea: string): string => linea.replace(/^-(?:\s+|$)/, "");
  * parser as the PDF, with one QR-only rule: unclassifiable lines BEFORE the
  * first component that carry no dose unit (the practice's address, for
  * instance) are shown as informational notices, deduped across items, and never
- * stored. A leading line WITH a dose unit ("Amoxicilina 500 mg/5 ml") is more
- * likely a drug in a format the parser does not know, so it stays in the body
+ * stored -- except the patient's domicilio (below). A leading line WITH a
+ * dose unit ("Amoxicilina 500 mg/5 ml") is more likely a drug in a format the parser does not know, so it stays in the body
  * and gets the parser's RENGLON_NO_RECONOCIDO warning like any later line.
  * `cantidad` is ignored (as in the PDF flow). In a multi-item receta every
  * item-scoped notice names its item.
+ *
+ * Domicilio (PDF parity, migration 0070): when the FIRST item's first line
+ * opens with a list dash ("- Avellaneda 14 las Heras") and is one of those
+ * informational leading lines, it is the patient's domicilio instead -- no
+ * notice; its text joins the dedupe, so a later item repeating it is not
+ * shown as "no se guarda". Every other leading line keeps the rule above.
  */
-function mapearItem(item: ItemRcta, numero: number, total: number, avisados: Set<string>, advertencias: AdvertenciaParser[]): BorradorItem {
-  const lineas = (item.prescripcion ?? "").split(/\r\n|\r|\n/).map((linea) => sinViñeta(colapsar(linea))).filter((linea) => linea.length > 0);
+function mapearItem(
+  item: ItemRcta,
+  numero: number,
+  total: number,
+  avisados: Set<string>,
+  advertencias: AdvertenciaParser[],
+): { item: BorradorItem; domicilioPaciente: string | null } {
+  const renglones = (item.prescripcion ?? "")
+    .split(/\r\n|\r|\n/)
+    .map((crudo) => {
+      const linea = colapsar(crudo);
+      return { linea, texto: sinViñeta(linea) };
+    })
+    .filter((renglon) => renglon.texto.length > 0);
+  const lineas = renglones.map((renglon) => renglon.texto);
   const clases = lineas.map((linea) => clasificarRenglonCuerpo(linea).clase);
   const inicio = clases.includes("componente") ? clases.findIndex((clase) => clase !== "otro") : 0;
   const cuerpo: string[] = [];
+  let domicilioPaciente: string | null = null;
   lineas.forEach((texto, i) => {
     if (i >= inicio || RE_TOKEN_UNIDAD_DOSIS.test(texto)) return void cuerpo.push(texto);
+    if (numero === 1 && i === 0 && RE_GUION_INICIAL.test(renglones[0]!.linea)) {
+      domicilioPaciente = domicilioDesdeRenglon(renglones[0]!.linea);
+      avisados.add(texto);
+      return;
+    }
     if (avisados.has(texto)) return;
     avisados.add(texto);
     advertencias.push({ codigo: "RENGLON_INFORMATIVO", mensaje: `Texto al inicio de la receta (informativo, no se guarda): «${texto}»`, texto });
@@ -217,7 +244,7 @@ function mapearItem(item: ItemRcta, numero: number, total: number, avisados: Set
   } else if (hayDato(item.notas)) avisar("DATO_NO_IMPORTADO", "La receta trae notas que no se importan.");
   if (hayDato(item.codPractica)) avisar("DATO_NO_IMPORTADO", "La receta trae un código de práctica que no se importa.");
   if (hayDato(item.nroCUIR)) avisar("DATO_NO_IMPORTADO", "La receta trae un número CUIR que no se importa.");
-  return parseado.item;
+  return { item: parseado.item, domicilioPaciente };
 }
 
 /** Same limit as the confirm input (`diagnosticoDescripcion` in importar-receta.ts). */
@@ -262,7 +289,9 @@ export function mapearRecetaRcta(json: unknown, hash: string): ResultadoLecturaQ
   const medico = mapearMedico(datos, advertencias);
   const diagnostico = mapearDiagnostico(datos, advertencias);
   const avisados = new Set<string>();
-  const items = datos.prescripcion.map((item, i, todos) => mapearItem(item, i + 1, todos.length, avisados, advertencias));
+  // In order: the first item's domicilio joins the dedupe before the next items are read.
+  const mapeados = datos.prescripcion.map((item, i, todos) => mapearItem(item, i + 1, todos.length, avisados, advertencias));
+  const items = mapeados.map((mapeado) => mapeado.item);
   if (hayDato(datos.practica)) advertencias.push({ codigo: "DATO_NO_IMPORTADO", mensaje: "La receta trae una práctica que no se importa." });
 
   return {
@@ -274,6 +303,8 @@ export function mapearRecetaRcta(json: unknown, hash: string): ResultadoLecturaQ
       fechaPrescripcion,
       fechaValidaDesde: datos.fechaEmision === null ? null : parsearFechaDdMmAaaa(datos.fechaEmision),
       ...diagnostico,
+      // The JSON has no patient address field: it is the first item's leading "- " line (mapearItem).
+      domicilioPaciente: mapeados[0]!.domicilioPaciente,
       paciente,
       medico,
       items,

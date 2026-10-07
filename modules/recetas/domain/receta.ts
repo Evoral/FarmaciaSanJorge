@@ -136,6 +136,21 @@ export const diagnosticoCodigoOpcional = z
     return codigo;
   });
 
+/** Longest domicilio del paciente accepted (migration 0070 has no DB limit; the PDF import truncates to it). */
+export const MAX_DOMICILIO_PACIENTE = 300;
+
+/**
+ * Optional patient home address as written on the receta (migration 0070): kept per receta, not on the
+ * paciente. Trimmed; empty -> `null`.
+ */
+export const domicilioPacienteOpcional = z
+  .string()
+  .trim()
+  .max(MAX_DOMICILIO_PACIENTE, `El domicilio del paciente no puede superar los ${MAX_DOMICILIO_PACIENTE} caracteres.`)
+  .optional()
+  .nullable()
+  .transform((v) => (v && v.length > 0 ? v : null));
+
 /** Optional treatment length in days: absent/`null` -> `null`; otherwise an integer > 0 (migration 0049's CHECK). */
 export const duracionTratamientoDiasOpcional = z
   .number()
@@ -224,6 +239,8 @@ export interface ComponenteInput {
   cantidad: string | null;
   unidadMedidaId: string;
   modoExpresion: ModoExpresion;
+  /** The synonym of the droga it was picked by (migration 0069, display only); omitted/null = canonical name. */
+  drogaAliasId?: string | null;
 }
 
 export interface ItemInput {
@@ -239,8 +256,6 @@ export interface ItemInput {
   posologia?: string | null;
   /** Treatment length in days (migration 0049). When present, an integer > 0 (V-dur below). */
   duracionTratamientoDias?: number | null;
-  /** The synonym of the droga it was picked by (migration 0069, display only); omitted/null = canonical name. */
-  drogaAliasId?: string | null;
   componentes: ComponenteInput[];
 }
 
@@ -363,6 +378,8 @@ export interface NombresParaResumen {
   drogas: ReadonlyMap<string, string>;
   /** unidad id -> símbolo */
   unidades: ReadonlyMap<string, string>;
+  /** droga_alias id -> texto, for componentes picked by a synonym: "Acetaminofén (Paracetamol) 500 mg". */
+  sinonimos?: ReadonlyMap<string, string>;
 }
 
 function resumirComponente(c: ComponenteInput, nombres: NombresParaResumen): string {
@@ -380,8 +397,6 @@ function resumirComponente(c: ComponenteInput, nombres: NombresParaResumen): str
 export function resumirItemsReceta(items: readonly ItemInput[], nombres: NombresParaResumen): string[] {
   return items.map((item) => {
     const forma = FORMA_FARMACEUTICA_LABELS[item.formaFarmaceutica] ?? item.formaFarmaceutica;
-  /** droga_alias id -> texto, for componentes picked by a synonym: "Acetaminofén (Paracetamol) 500 mg". */
-  sinonimos?: ReadonlyMap<string, string>;
     const titulo = item.descripcion ? `${item.descripcion} (${forma})` : forma;
     const total = item.cantidadTotal && item.unidadTotalId ? ` c.s.p. ${item.cantidadTotal} ${nombres.unidades.get(item.unidadTotalId) ?? ""}`.trimEnd() : "";
     return `${titulo} ×${item.cantidadUnidades}${total}: ${item.componentes.map((c) => resumirComponente(c, nombres)).join(" + ")}`;
