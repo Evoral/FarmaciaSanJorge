@@ -48,7 +48,7 @@ export function DrogaBuscador({ id, label, hideLabel, placeholder, alElegir, alB
   const search = useCallback(async (q: string) => {
     const items = await buscarDrogasStockAction(q);
     sugerencias.current = new Map(items.map((item) => [item.drogaId, item]));
-    return items.map((item) => ({ value: item.drogaId, label: item.drogaNombre, description: item.disponible }));
+    return items.map((item) => ({ value: item.drogaId, label: item.drogaNombre, description: item.disponible, sinonimo: item.sinonimo }));
   }, []);
 
   return (

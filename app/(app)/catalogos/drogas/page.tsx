@@ -263,6 +263,13 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
                               <ToneBadge tone="neutral">{CLASE_DROGA_LABELS[droga.clase]}</ToneBadge>
                             </>
                           ) : null}
+                          {droga.sinonimos.length > 0 ? (
+                            <span className="block max-w-xs truncate text-xs text-zinc-400" title={`Otros nombres: ${droga.sinonimos.join(", ")}`}>
+                              <span aria-hidden>≈ </span>
+                              <span className="sr-only">Otros nombres: </span>
+                              {droga.sinonimos.join(", ")}
+                            </span>
+                          ) : null}
                           {droga.tipoControl !== "NINGUNO" ? <span className="block text-xs text-zinc-500 md:hidden">{control}</span> : null}
                         </td>
                         <td className="hidden px-3 py-2.5 font-mono sm:table-cell">{droga.unidadBaseSimbolo}</td>

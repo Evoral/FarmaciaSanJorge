@@ -588,7 +588,10 @@ model UnidadMedida {
 
 /// Tenant-scoped (M06). No stock column (INV-S01) -- see fsj.v_stock_droga
 /// (migration 0008). INV-DRG-001 (unidad_base_id/tipo_control immutable
-/// once used) is NOT enforced -- DP-12 unresolved.
+/// once used) is NOT enforced -- DP-12 unresolved. Vigente names are unique
+/// per tenant after fsj.normalizar_nombre (accent/case/whitespace-insensitive, migration
+/// 0067: uq_droga_nombre_normalizado_vigente, an expression index not
+/// declared here) and never equal a vigente synonym (DrogaAlias, INV-DRG-002).
 model Droga {
   id           String      @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
   tenantId     String      @map("tenant_id") @db.Uuid
@@ -619,22 +622,30 @@ model Droga {
   @@schema("fsj")
 }
 
-/// Tenant-scoped, append-only for fsj_app (migration 0049,
-/// docs/specs/importacion-receta-pdf.md "Pieza 4"). aliasNormalizado is
-/// written already normalized (modules/recetas/domain/normalizar.ts).
+/// Synonyms of a droga (docs/specs/sinonimos-droga.md; table from migration
+/// 0049, first-class since 0067). Tenant-scoped; soft delete only
+/// (fechaBaja, one-way -- fsj_app may UPDATE that column alone).
+/// aliasNormalizado is written already normalized
+/// (modules/drogas/domain/normalizar.ts) and is unique among VIGENTE rows
+/// per tenant -- a partial unique index (uq_droga_alias_vigente), not
+/// declared here. A vigente synonym never equals a vigente droga's
+/// normalized name (INV-DRG-002, triggers in 0067).
 model DrogaAlias {
-  id               String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId         String   @map("tenant_id") @db.Uuid
-  drogaId          String   @map("droga_id") @db.Uuid
-  aliasNormalizado String   @map("alias_normalizado")
-  creadoPorId      String   @map("creado_por_id") @db.Uuid
-  creadoEn         DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  id               String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  drogaId          String    @map("droga_id") @db.Uuid
+  aliasNormalizado String    @map("alias_normalizado")
+  /// Migration 0067: the synonym as typed (display). Rows from before 0067 hold their normalized form.
+  texto            String
+  creadoPorId      String    @map("creado_por_id") @db.Uuid
+  creadoEn         DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
+  /// Migration 0067: removed (by hand, or because the droga was given de baja). Never cleared.
+  fechaBaja        DateTime? @map("fecha_baja") @db.Timestamptz(6)
 
   droga     Droga   @relation(fields: [drogaId], references: [id])
   creadoPor Usuario @relation(fields: [creadoPorId], references: [id])
 
   @@unique([tenantId, id])
-  @@unique([tenantId, aliasNormalizado])
   @@map("droga_alias")
   @@schema("fsj")
 }

@@ -31,7 +31,8 @@ import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { record as auditRecord } from "@/shared/audit";
 import { ConflictError, DomainError, ValidationError } from "@/shared/errors";
 import { nonEmptyString, uuid } from "@/shared/validation";
-import { normalizarTexto } from "@/modules/recetas/domain/normalizar";
+import { normalizarTexto } from "@/modules/drogas/domain/normalizar";
+import { limpiarSinonimo } from "@/modules/drogas/domain/sinonimo";
 import { isoDate, nonNegativeDecimalString, positiveDecimalString, potenciaDeclaradaString } from "../domain/partida";
 import { formatearComprobante, mensajeFacturaYaImportada } from "../domain/importacion-factura-compra";
 import { buscarComprobanteImportado, getDrogaAlias, insertComprobanteCompra, insertDrogaAlias } from "../infrastructure/factura-compra-repository";
@@ -117,6 +118,8 @@ export const importarFacturaCompraCommand = defineCommand({
     });
 
     const partidas: string[] = [];
+    // droga id -> name read by registrarPartidaCompra, for the synonyms' readable audit rows below.
+    const nombresDroga = new Map<string, string>();
     for (const [i, linea] of input.lineas.entries()) {
       const { id, valorNuevo } = await registrarPartidaCompra(
         tx,
@@ -137,6 +140,7 @@ export const importarFacturaCompraCommand = defineCommand({
         },
         (campo) => `lineas.${i}.${campo}`,
       );
+      if (typeof valorNuevo.droga === "string") nombresDroga.set(linea.drogaId, valorNuevo.droga);
       await auditar("partida", id, { ...valorNuevo, precioUnitarioFactura: linea.precioUnitario.toString() });
       partidas.push(id);
     }
@@ -152,7 +156,9 @@ export const importarFacturaCompraCommand = defineCommand({
       partidas,
     });
 
-    // "Recordar esta equivalencia": idempotent for the same droga, a conflict for another one.
+    // "Recordar esta equivalencia" = add the text as a synonym of the chosen droga (docs/specs/sinonimos-droga.md):
+    // idempotent for the same droga, a conflict when a vigente synonym points to another one. A text that already IS
+    // a vigente droga's name is never remembered (a synonym cannot repeat a droga's name): it resolves by name.
     const aliasVistos = new Set<string>();
     for (const equivalencia of input.equivalencias) {
       const aliasNormalizado = normalizarTexto(equivalencia.aliasTexto);
@@ -160,11 +166,12 @@ export const importarFacturaCompraCommand = defineCommand({
       aliasVistos.add(aliasNormalizado);
       const existente = await getDrogaAlias(tx, session.tenantId, aliasNormalizado);
       if (existente) {
-        if (existente.drogaId === equivalencia.drogaId) continue;
+        if (existente.drogaId === equivalencia.drogaId || existente.esNombre) continue;
         throw new ConflictError(`«${equivalencia.aliasTexto}» ya está asociado a otra droga. Volvé a leer la factura.`);
       }
-      const alias = await insertDrogaAlias(tx, { tenantId: session.tenantId, drogaId: equivalencia.drogaId, aliasNormalizado, creadoPorId: session.usuario.id });
-      await auditar("droga_alias", alias.id, { aliasNormalizado, drogaId: equivalencia.drogaId });
+      const texto = limpiarSinonimo(equivalencia.aliasTexto);
+      const alias = await insertDrogaAlias(tx, { tenantId: session.tenantId, drogaId: equivalencia.drogaId, aliasNormalizado, texto, creadoPorId: session.usuario.id });
+      await auditar("droga_alias", alias.id, { sinonimo: texto, aliasNormalizado, drogaId: equivalencia.drogaId, droga: nombresDroga.get(equivalencia.drogaId) ?? null });
     }
 
     return { output: { id: nuevo.id, partidas: partidas.length } };

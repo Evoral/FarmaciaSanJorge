@@ -42,6 +42,8 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
 
   // Catálogos
   "INV-DRG-001": "No se puede cambiar la unidad base ni la clasificación de control de una droga que ya tiene partidas cargadas.",
+  "INV-DRG-002": "Ese nombre ya está en uso: es el nombre o uno de los otros nombres de una droga vigente.",
+  "INV-DRG-003": "Ese otro nombre ya fue quitado de la droga. Si hace falta, agregalo de nuevo.",
   "INV-M01": "No se puede convertir entre esas unidades de medida: no existen o miden magnitudes distintas (por ejemplo, masa y volumen).",
   "INV-M04": "La unidad de medida ya fue usada: no se puede cambiar su factor de conversión ni su magnitud.",
 

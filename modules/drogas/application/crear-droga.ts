@@ -6,12 +6,16 @@
  * rejects a baja unidad with a clear Spanish message rather than letting
  * the picker's own filtering (UI-only) be the sole defense. `clase`
  * (migration 0063) defaults to DROGA; an insumo cannot be controlled.
+ * The name must be free after normalization: no vigente droga and no vigente
+ * synonym may already hold it (docs/specs/sinonimos-droga.md; the DB
+ * re-checks: migration 0067).
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { nonEmptyString, uuid } from "@/shared/validation";
 import { CLASES_DROGA, MENSAJE_INSUMO_CONTROLADO, TIPOS_CONTROL, claseValida, tipoControlValido, nonNegativeDecimalString } from "../domain/droga";
+import { mensajeConflictoNombre } from "../domain/sinonimo";
 import { existeNombreVigente, insertDroga } from "../infrastructure/droga-repository";
 
 const crearDrogaInput = z.object({
@@ -50,9 +54,10 @@ export const crearDrogaCommand = defineCommand({
     if (!unidad) throw new NotFoundError("Unidad de medida no encontrada.");
     if (unidad.fechaBaja !== null) throw new DomainError("La unidad de medida elegida está dada de baja.");
 
-    if (await existeNombreVigente(tx, session.tenantId, input.nombre)) {
-      throw new ValidationError("Ya existe una droga con ese nombre.");
-    }
+    // Accent/case-insensitive, against vigente drogas AND synonyms (docs/specs/sinonimos-droga.md): another
+    // name for an existing substance is a synonym of that droga, never a second droga.
+    const conflicto = await existeNombreVigente(tx, session.tenantId, input.nombre);
+    if (conflicto) throw new ValidationError(mensajeConflictoNombre(conflicto), { fields: ["nombre"] });
 
     const nueva = await insertDroga(tx, {
       tenantId: session.tenantId,

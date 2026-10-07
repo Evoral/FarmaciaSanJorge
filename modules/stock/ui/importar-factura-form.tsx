@@ -51,6 +51,8 @@ export interface OpcionConMagnitud extends OpcionSimple {
   clase?: string;
   /** Units only: "kg", "mL"... */
   simbolo?: string;
+  /** Drogas only: vigente synonyms, also searched by the picker (docs/specs/sinonimos-droga.md). */
+  sinonimos?: string[];
 }
 
 /** The starting point of a manual invoice: empty header, no lote (the form starts with one blank lote). */
@@ -169,7 +171,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
     })),
   );
 
-  const buscarDrogas = useMemo(() => filtrarOpciones(drogas.map((d) => ({ value: d.id, label: d.label }))), [drogas]);
+  const buscarDrogas = useMemo(() => filtrarOpciones(drogas.map((d) => ({ value: d.id, label: d.label, sinonimos: d.sinonimos }))), [drogas]);
   const buscarProveedores = useMemo(() => filtrarOpciones(proveedores.map((p) => ({ value: p.id, label: p.label }))), [proveedores]);
   const magnitudDe = (drogaId: string | undefined) => drogas.find((d) => d.id === drogaId)?.tipoMagnitud ?? null;
 

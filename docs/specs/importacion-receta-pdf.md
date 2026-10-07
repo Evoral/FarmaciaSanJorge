@@ -110,7 +110,7 @@ Normalización: minúsculas, NFD, sin diacríticos, espacios colapsados, trim. C
 |---|---|---|
 | Paciente | CUIL; si no, DNI. Incluye dados de baja. | Alta nueva al confirmar. Si el match está dado de baja → advertencia; el usuario decide (no se reactiva solo). |
 | Médico | (`jurisdiccion`, `matricula`) entre vigentes. | Alta nueva al confirmar. |
-| Droga | `droga_alias.aliasNormalizado`, luego `droga.nombre` normalizado. Solo vigentes. | El usuario elige la droga en la vista previa; opción "recordar esta equivalencia" crea el alias. |
+| Droga | `droga_alias.aliasNormalizado` (sinónimo vigente de droga vigente), luego `droga.nombre` normalizado. Solo vigentes. | El usuario elige la droga en la vista previa; opción "recordar esta equivalencia" agrega el texto como **sinónimo** de esa droga (`docs/specs/sinonimos-droga.md`). |
 | Unidad | `simbolo` / `codigo` normalizado (`mg` → MILIGRAMO). | Advertencia; el usuario elige. |
 
 Paciente o médico **existente**: se completan solo los campos vacíos con datos del PDF; nunca se pisa un valor existente. Si hay diferencias (ej. otro teléfono) → advertencia informativa.
@@ -171,12 +171,17 @@ Las recetas `DIGITAL_PDF` **no entran** en lotes de archivo físico ni en destru
 
 **`droga_alias`** (nueva, con `tenant_id` y RLS como el resto)
 
+> Desde la migración 0067 esta tabla guarda los **sinónimos de droga** y su
+> regla completa (texto tal como se escribió, baja lógica, unicidad entre
+> vigentes, exclusión nombre/sinónimo, búsqueda) vive en
+> `docs/specs/sinonimos-droga.md`. La tabla de abajo es el diseño original de 0049.
+
 | Columna | Tipo | Nota |
 |---|---|---|
 | `id` | uuid PK | |
 | `tenant_id` | uuid | |
 | `droga_id` | uuid | FK compuesta con tenant. |
-| `alias_normalizado` | text | UNIQUE `(tenant_id, alias_normalizado)`. |
+| `alias_normalizado` | text | UNIQUE `(tenant_id, alias_normalizado)` (desde 0067: único solo entre vigentes). |
 | `creado_por_id` | uuid | |
 | `creado_en` | timestamptz | default `now()`. |
 

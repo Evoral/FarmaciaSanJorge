@@ -31,7 +31,8 @@ export function DrogaPicker({ label, selectedId, selectedLabel, onSelect, disabl
     const result = await buscarDrogasParaRecetaAction({ status: "idle", items: [] }, formData);
     if (result.status === "error") throw new Error(result.message ?? "No se pudo buscar drogas.");
     resultados.current = new Map(result.items.map((d) => [d.id, d]));
-    return result.items.map((d) => ({ value: d.id, label: d.nombre, description: d.unidadBaseSimbolo }));
+    // The canonical name is what gets picked; a synonym match only adds a quiet hint (docs/specs/sinonimos-droga.md).
+    return result.items.map((d) => ({ value: d.id, label: d.nombre, description: d.unidadBaseSimbolo, sinonimo: d.sinonimo }));
   }, []);
 
   return (

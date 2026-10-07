@@ -1,6 +1,6 @@
 "use server";
 
-/** Read-only suggestions for the `/catalogos/drogas` search: a thin wrapper over `listDrogas` (same `drogas.editar` permiso, same name search). */
+/** Read-only suggestions for the `/catalogos/drogas` search: a thin wrapper over `listDrogas` (same `drogas.editar` permiso, same search: name or vigente synonym, accent-insensitive). */
 import { listDrogas } from "@/modules/drogas/application/list-drogas";
 import type { SugerenciaNavegable } from "@/shared/ui/buscador-navegable";
 
@@ -11,5 +11,6 @@ export async function buscarDrogasCatalogoAction(busqueda: string): Promise<Suge
     id: droga.id,
     label: droga.fechaBaja ? `${droga.nombre} (baja)` : droga.nombre,
     description: droga.unidadBaseSimbolo,
+    sinonimo: droga.sinonimoCoincidente,
   }));
 }

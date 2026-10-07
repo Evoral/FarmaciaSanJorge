@@ -13,6 +13,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { EstadoReceta, FormaFarmaceutica, ModoExpresion, OrigenReceta } from "../domain/receta";
 import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
 import { rangoDeJornadas } from "@/shared/time/jornada";
+import { drogaCoincideSql, sinonimoCoincidenteSql } from "@/shared/db/busqueda-droga";
 
 // ============================================================================
 // Tenant jornada (fecha_prescripcion <= hoy check) -- own copy per module,
@@ -112,28 +113,34 @@ export async function getNombresParaResumen(
 
 export interface DrogaOpcion {
   id: string;
+  /** Always the canonical name: it is what the receta stores and prints. */
   nombre: string;
   unidadBaseId: string;
   unidadBaseSimbolo: string;
+  /** The synonym the search matched through, when the name itself did not match -- a display hint only. */
+  sinonimo: string | null;
 }
 
+/** Vigente drogas whose name or vigente synonym contains `search` (accent-insensitive, shared/db/busqueda-droga.ts); name matches first. */
 export async function listDrogasParaReceta(
   tx: Prisma.TransactionClient,
   tenantId: string,
   search?: string,
   limit = 20,
 ): Promise<DrogaOpcion[]> {
-  const rows = await tx.droga.findMany({
-    where: {
-      tenantId,
-      fechaBaja: null,
-      ...(search && search.trim().length > 0 ? { nombre: { contains: search.trim(), mode: "insensitive" as const } } : {}),
-    },
-    orderBy: { nombre: "asc" },
-    take: limit,
-    select: { id: true, nombre: true, unidadBaseId: true, unidadBase: { select: { simbolo: true } } },
-  });
-  return rows.map((r) => ({ id: r.id, nombre: r.nombre, unidadBaseId: r.unidadBaseId, unidadBaseSimbolo: r.unidadBase.simbolo }));
+  const rows = await tx.$queryRaw<{ id: string; nombre: string; unidad_base_id: string; simbolo: string; sinonimo: string | null }[]>`
+    SELECT * FROM (
+      SELECT d.id, d.nombre::text AS nombre, d.unidad_base_id, u.simbolo, ${sinonimoCoincidenteSql("d", search)} AS sinonimo
+      FROM fsj.droga d
+      JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
+      WHERE d.tenant_id = ${tenantId}::uuid
+        AND d.fecha_baja IS NULL
+        AND ${drogaCoincideSql("d", search)}
+    ) t
+    ORDER BY (t.sinonimo IS NOT NULL), t.nombre, t.id
+    LIMIT ${limit}::int
+  `;
+  return rows.map((r) => ({ id: r.id, nombre: r.nombre, unidadBaseId: r.unidad_base_id, unidadBaseSimbolo: r.simbolo, sinonimo: r.sinonimo }));
 }
 
 export interface UnidadOpcion {

@@ -6,7 +6,7 @@
  * cellulose can be the active ingredient of a formula). Once a product is
  * in the catalog its clase comes from there, never from this.
  */
-import { normalizarTexto } from "@/modules/recetas/domain/normalizar";
+import { normalizarTexto } from "./normalizar";
 import type { ClaseDroga } from "./droga";
 
 export interface SugerenciaClase {

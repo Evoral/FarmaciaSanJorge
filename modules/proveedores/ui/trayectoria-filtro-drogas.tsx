@@ -21,6 +21,8 @@ export interface TrayectoriaFiltroDrogasProps {
   restantes: readonly DrogaOpcion[];
   /** The trayectoria's URL without query string. */
   baseHref: string;
+  /** droga id -> vigente synonyms: typing one also finds the droga (docs/specs/sinonimos-droga.md). */
+  sinonimos?: Readonly<Record<string, readonly string[]>>;
 }
 
 function hrefConDrogas(baseHref: string, ids: readonly string[]): string {
@@ -30,10 +32,10 @@ function hrefConDrogas(baseHref: string, ids: readonly string[]): string {
   return query ? `${baseHref}?${query}` : baseHref;
 }
 
-export function TrayectoriaFiltroDrogas({ elegidas, restantes, baseHref }: TrayectoriaFiltroDrogasProps) {
+export function TrayectoriaFiltroDrogas({ elegidas, restantes, baseHref, sinonimos }: TrayectoriaFiltroDrogasProps) {
   const router = useRouter();
   const seleccionadas = elegidas.map((d) => d.id);
-  const search = useMemo(() => filtrarOpciones(restantes.map((d) => ({ value: d.id, label: d.nombre }))), [restantes]);
+  const search = useMemo(() => filtrarOpciones(restantes.map((d) => ({ value: d.id, label: d.nombre, sinonimos: sinonimos?.[d.id] }))), [restantes, sinonimos]);
 
   return (
     <div className="flex flex-wrap items-center gap-2">

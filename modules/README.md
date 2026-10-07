@@ -34,7 +34,7 @@ don't read it whole). Cross-cutting platform code (M00) lives in `shared/`.
 | `usuarios` | M03 | Users, roles and permissions (`docs/specs/roles-personalizables.md`) |
 | `directores-tecnicos` | M04 | Director Técnico designation and who is in charge today |
 | `unidades` | M05 | Units of measure catalog |
-| `drogas` | M06 | Drugs catalog |
+| `drogas` | M06 | Drugs catalog and their synonyms (`sinonimos-droga`) |
 | `proveedores` | M06 | Suppliers catalog, supplier history and cost comparison (`trayectoria-proveedor`, `comparador-costos`) |
 | `medicos` | M06 | Prescribers catalog |
 | `pacientes` | M06 | Patients, recurring patients and patient history (`pacientes-recurrentes`, `trayectoria-paciente`) |

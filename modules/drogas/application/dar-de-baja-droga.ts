@@ -1,7 +1,9 @@
 /**
  * `darDeBajaDroga` (M06, FASE 4 point 4.2, INV-G01). Sets `fecha_baja` +
  * `motivo_baja` -- never deleted (INV-F03). A droga already de baja cannot
- * be given de baja again.
+ * be given de baja again. Its vigente synonyms are removed in the same
+ * transaction by the DB (migration 0067's trg_droga_baja_quita_sinonimos,
+ * docs/specs/sinonimos-droga.md) -- a reactivation does not restore them.
  *
  * M3 (review finding): locks the target row FIRST (`lockDrogaParaAccion`)
  * and reads its current state with a FRESH statement only afterward -- see

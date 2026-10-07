@@ -22,12 +22,17 @@
  */
 import { AlertCircle, Plus, Search, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { SinonimoHint } from "./sinonimo-hint";
 
 export interface ComboboxOption {
   value: string;
   label: string;
   /** Short trailing detail (code, matrícula, unidad...). */
   description?: string;
+  /** Other names the option is also found by (a droga's synonyms, docs/specs/sinonimos-droga.md): searched by `filtrarOpciones`, never shown as such. */
+  sinonimos?: readonly string[];
+  /** The synonym the query matched through, when the label itself did not match: shown as a quiet hint after the label (`./sinonimo-hint.tsx`). */
+  sinonimo?: string | null;
 }
 
 export interface ComboboxActionOption {
@@ -70,13 +75,25 @@ const fold = (text: string) =>
 /**
  * A local `search` source for options the page already received from the
  * server (no extra request): accent- and case-insensitive "contains" match
- * on label and description, capped at `limit` results.
+ * on label and description, then on the option's `sinonimos` (an option
+ * found only through one carries it as `sinonimo`, for the hint), capped at
+ * `limit` results.
  */
 export function filtrarOpciones(options: readonly ComboboxOption[], limit = 30) {
   return async (query: string): Promise<readonly ComboboxOption[]> => {
-    const q = fold(query.trim());
-    const matches = q ? options.filter((option) => fold(`${option.label} ${option.description ?? ""}`).includes(q)) : options;
-    return matches.slice(0, limit);
+    const q = fold(query.replace(/\s+/g, " ").trim());
+    if (!q) return options.slice(0, limit);
+    const matches: ComboboxOption[] = [];
+    for (const option of options) {
+      if (matches.length >= limit) break;
+      if (fold(`${option.label} ${option.description ?? ""}`).includes(q)) {
+        matches.push(option);
+        continue;
+      }
+      const sinonimo = option.sinonimos?.find((s) => fold(s).includes(q));
+      if (sinonimo) matches.push({ ...option, sinonimo });
+    }
+    return matches;
   };
 }
 
@@ -311,6 +328,7 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
                 >
                   <span className="truncate">
                     <Highlight text={option.label} query={lastQuery} />
+                    <SinonimoHint sinonimo={option.sinonimo} />
                   </span>
                   {option.description ? <span className="option-description">{option.description}</span> : null}
                 </li>

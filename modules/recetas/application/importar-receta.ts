@@ -43,6 +43,7 @@ import { diagnosticoCodigoOpcional, esFechaPrescripcionValida, esFechaPrescripci
 import type { ComponenteInput, ItemInput } from "../domain/receta";
 import { CODIGOS_EMISOR, esUrlVerificacionDeEmisor } from "../domain/receta-pdf-parser";
 import { normalizarTexto } from "../domain/normalizar";
+import { limpiarSinonimo } from "@/modules/drogas/domain/sinonimo";
 import {
   CAMPOS_MEDICO_IMPORTABLES,
   CAMPOS_PACIENTE_IMPORTABLES,
@@ -288,7 +289,9 @@ export const importarRecetaCommand = defineCommand({
       },
     });
 
-    // "Recordar esta equivalencia": idempotent for the same droga, a conflict for another one.
+    // "Recordar esta equivalencia" = add the text as a synonym of the chosen droga (docs/specs/sinonimos-droga.md):
+    // idempotent for the same droga, a conflict when a vigente synonym points to another one. A text that already IS
+    // a vigente droga's name is never remembered (a synonym cannot repeat a droga's name): it resolves by name.
     const vistos = new Set<string>();
     for (const equivalencia of input.equivalencias) {
       const aliasNormalizado = normalizarTexto(equivalencia.aliasTexto);
@@ -296,12 +299,13 @@ export const importarRecetaCommand = defineCommand({
       vistos.add(aliasNormalizado);
       const existente = await getDrogaAlias(tx, session.tenantId, aliasNormalizado);
       if (existente) {
-        if (existente.drogaId === equivalencia.drogaId) continue;
+        if (existente.drogaId === equivalencia.drogaId || existente.esNombre) continue;
         throw new ConflictError(`«${equivalencia.aliasTexto}» ya está asociado a otra droga. ${MENSAJE_CAMBIOS_DESDE_LECTURA}`);
       }
-      const alias = await insertDrogaAlias(tx, { tenantId: session.tenantId, drogaId: equivalencia.drogaId, aliasNormalizado, creadoPorId: session.usuario.id });
+      const texto = limpiarSinonimo(equivalencia.aliasTexto);
+      const alias = await insertDrogaAlias(tx, { tenantId: session.tenantId, drogaId: equivalencia.drogaId, aliasNormalizado, texto, creadoPorId: session.usuario.id });
       await auditar(ctx, "droga_alias", alias.id, TipoAccion.CREAR, {
-        valorNuevo: { aliasNormalizado, drogaId: equivalencia.drogaId, droga: nombres.drogas.get(equivalencia.drogaId) ?? null },
+        valorNuevo: { sinonimo: texto, aliasNormalizado, drogaId: equivalencia.drogaId, droga: nombres.drogas.get(equivalencia.drogaId) ?? null },
       });
     }
 

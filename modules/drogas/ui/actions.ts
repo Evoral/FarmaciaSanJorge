@@ -1,11 +1,13 @@
 "use server";
 
-/** Server Actions for `/catalogos/drogas` (FASE 4 point 4.2). */
+/** Server Actions for `/catalogos/drogas` (FASE 4 point 4.2) and a droga's synonyms (docs/specs/sinonimos-droga.md). */
 import { revalidatePath } from "next/cache";
 import { crearDroga } from "@/modules/drogas/application/crear-droga";
 import { editarDroga } from "@/modules/drogas/application/editar-droga";
 import { darDeBajaDroga } from "@/modules/drogas/application/dar-de-baja-droga";
 import { reactivarDroga } from "@/modules/drogas/application/reactivar-droga";
+import { agregarSinonimo } from "@/modules/drogas/application/agregar-sinonimo";
+import { quitarSinonimo } from "@/modules/drogas/application/quitar-sinonimo";
 import { actionError } from "@/shared/ui/action-error";
 import type { DrogaActionState } from "./action-state";
 
@@ -81,5 +83,28 @@ export async function reactivarDrogaAction(_prevState: DrogaActionState, formDat
     return { status: "success", message: "Droga reactivada." };
   } catch (error) {
     return fromError(error, "No se pudo reactivar la droga.");
+  }
+}
+
+export async function agregarSinonimoAction(_prevState: DrogaActionState, formData: FormData): Promise<DrogaActionState> {
+  const drogaId = String(formData.get("drogaId") ?? "");
+  try {
+    await agregarSinonimo({ drogaId, sinonimo: String(formData.get("sinonimo") ?? "") });
+    revalidatePath(`/catalogos/drogas/${drogaId}`);
+    revalidatePath("/catalogos/drogas");
+    return { status: "success", message: "Nombre agregado." };
+  } catch (error) {
+    return fromError(error, "No se pudo agregar el nombre.");
+  }
+}
+
+export async function quitarSinonimoAction(_prevState: DrogaActionState, formData: FormData): Promise<DrogaActionState> {
+  try {
+    const { drogaId } = await quitarSinonimo({ id: String(formData.get("id") ?? "") });
+    revalidatePath(`/catalogos/drogas/${drogaId}`);
+    revalidatePath("/catalogos/drogas");
+    return { status: "success" };
+  } catch (error) {
+    return fromError(error, "No se pudo quitar el nombre.");
   }
 }

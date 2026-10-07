@@ -16,7 +16,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { defineQuery } from "@/shared/usecase";
 import { DomainError, ValidationError } from "@/shared/errors";
 import { validarArchivoPdf } from "@/shared/pdf/validar-archivo-pdf";
-import { normalizarTexto } from "@/modules/recetas/domain/normalizar";
+import { normalizarTexto } from "@/modules/drogas/domain/normalizar";
 import { resolverDroga, resolverUnidad } from "@/modules/recetas/domain/importacion-receta";
 import { MAX_FACTURA_PDF_BYTES, MENSAJES_ARCHIVO_FACTURA, parsearFacturaCompraPdf } from "../domain/factura-compra-pdf-parser";
 import type { AdvertenciaParserFactura, BorradorFactura } from "../domain/factura-compra-pdf-parser";

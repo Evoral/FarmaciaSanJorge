@@ -31,7 +31,7 @@ export const ENTIDADES: Readonly<Record<string, EntidadInfo>> = {
   co_firma_dt: { nombre: "co-firma del director técnico", articulo: "la" },
   designacion_director_tecnico: { nombre: "designación de director técnico", articulo: "la" },
   droga: { nombre: "droga", articulo: "la" },
-  droga_alias: { nombre: "equivalencia de droga", articulo: "la" },
+  droga_alias: { nombre: "sinónimo de droga", articulo: "el" },
   entrega: { nombre: "entrega", articulo: "la" },
   etiqueta: { nombre: "etiqueta", articulo: "la" },
   etiqueta_tamano: { nombre: "tamaño de etiqueta", articulo: "el" },

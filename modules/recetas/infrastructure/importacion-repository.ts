@@ -163,22 +163,50 @@ export async function listDrogasVigentesParaMatch(tx: Prisma.TransactionClient, 
   return tx.droga.findMany({ where: { tenantId, fechaBaja: null }, select: { id: true, nombre: true } });
 }
 
-/** Aliases among `aliasesNormalizados` whose droga is still vigente. */
+/** Vigente synonyms among `aliasesNormalizados` whose droga is still vigente. */
 export async function listAliasesVigentes(tx: Prisma.TransactionClient, tenantId: string, aliasesNormalizados: string[]): Promise<AliasDroga[]> {
   if (aliasesNormalizados.length === 0) return [];
   return tx.drogaAlias.findMany({
-    where: { tenantId, aliasNormalizado: { in: [...new Set(aliasesNormalizados)] }, droga: { fechaBaja: null } },
+    where: { tenantId, aliasNormalizado: { in: [...new Set(aliasesNormalizados)] }, fechaBaja: null, droga: { fechaBaja: null } },
     select: { aliasNormalizado: true, drogaId: true },
   });
 }
 
-export async function getDrogaAlias(tx: Prisma.TransactionClient, tenantId: string, aliasNormalizado: string): Promise<{ id: string; drogaId: string } | null> {
-  return tx.drogaAlias.findFirst({ where: { tenantId, aliasNormalizado }, select: { id: true, drogaId: true } });
+/**
+ * What `aliasNormalizado` already resolves to, for "recordar esta
+ * equivalencia" (docs/specs/sinonimos-droga.md): a VIGENTE synonym of a
+ * VIGENTE droga (`id` = the synonym's), or else -- `esNombre: true`, `id` =
+ * the droga's -- the normalized name of a vigente droga (a synonym can never
+ * repeat a droga's name, INV-DRG-002). Removed synonyms and synonyms of
+ * drogas dadas de baja never block a text. `null` = free.
+ */
+export async function getDrogaAlias(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  aliasNormalizado: string,
+): Promise<{ id: string; drogaId: string; esNombre?: boolean } | null> {
+  const rows = await tx.$queryRaw<{ id: string; droga_id: string; es_nombre: boolean }[]>`
+    SELECT id, droga_id, es_nombre FROM (
+      SELECT 1 AS orden, a.id, a.droga_id, false AS es_nombre
+      FROM fsj.droga_alias a
+      JOIN fsj.droga d ON d.tenant_id = a.tenant_id AND d.id = a.droga_id
+      WHERE a.tenant_id = ${tenantId}::uuid AND a.alias_normalizado = ${aliasNormalizado}::text AND a.fecha_baja IS NULL AND d.fecha_baja IS NULL
+      UNION ALL
+      SELECT 2, d.id, d.id, true
+      FROM fsj.droga d
+      WHERE d.tenant_id = ${tenantId}::uuid AND d.fecha_baja IS NULL AND fsj.normalizar_nombre(d.nombre) = fsj.normalizar_nombre(${aliasNormalizado}::text)
+    ) t
+    ORDER BY orden
+    LIMIT 1
+  `;
+  const row = rows[0];
+  return row ? { id: row.id, drogaId: row.droga_id, esNombre: row.es_nombre } : null;
 }
 
+/** `texto` = the synonym as written on the document (display); `aliasNormalizado` = its normalized form (match key). */
 export async function insertDrogaAlias(
   tx: Prisma.TransactionClient,
-  input: { tenantId: string; drogaId: string; aliasNormalizado: string; creadoPorId: string },
+  input: { tenantId: string; drogaId: string; aliasNormalizado: string; texto: string; creadoPorId: string },
 ): Promise<{ id: string }> {
   return tx.drogaAlias.create({ data: input, select: { id: true } });
 }

@@ -12,6 +12,7 @@
  */
 import { CircleAlert, Scale, SearchX } from "lucide-react";
 import { compararCostosDroga } from "@/modules/proveedores/application/comparar-costos-droga";
+import { listSinonimosDrogasComparador } from "@/modules/proveedores/application/sinonimos-drogas";
 import { PERIODO_LABELS, parsearFiltrosComparador } from "@/modules/proveedores/domain/comparador-costos";
 import { ComparadorEncabezado } from "@/modules/proveedores/ui/comparador-encabezado";
 import { COLUMNAS_COMPARADOR, ComparadorCeldas, ComparadorDetalle, etiquetaProveedorComparador } from "@/modules/proveedores/ui/comparador-fila";
@@ -30,11 +31,14 @@ const numberFormat = new Intl.NumberFormat("es-AR");
 export default async function ComparadorCostosPage({ searchParams }: ComparadorCostosPageProps) {
   const query = await searchParams;
   const filtros = parsearFiltrosComparador(query);
-  const { drogas, comparacion, drogaNoDisponible, linkPartida } = await compararCostosDroga({
-    drogaId: filtros.drogaId ?? undefined,
-    unidad: filtros.unidad ?? undefined,
-    periodo: filtros.periodo,
-  });
+  const [{ drogas, comparacion, drogaNoDisponible, linkPartida }, sinonimos] = await Promise.all([
+    compararCostosDroga({
+      drogaId: filtros.drogaId ?? undefined,
+      unidad: filtros.unidad ?? undefined,
+      periodo: filtros.periodo,
+    }),
+    listSinonimosDrogasComparador(),
+  ]);
 
   const hayFiltros = Boolean(query.droga || query.unidad || query.periodo);
   const catalogo = comparacion ? crearCatalogoUnidades(comparacion.unidadesCatalogo) : null;
@@ -63,6 +67,7 @@ export default async function ComparadorCostosPage({ searchParams }: ComparadorC
         comparacion={comparacion}
         hayFiltros={hayFiltros}
         hrefActual={hrefActual}
+        sinonimos={sinonimos}
       />
 
       {comparacion === null ? (

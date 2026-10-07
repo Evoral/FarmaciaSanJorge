@@ -57,6 +57,7 @@ import {
   type ClaseDroga,
   type TipoControl,
 } from "../domain/droga";
+import { mensajeConflictoNombre } from "../domain/sinonimo";
 import {
   existeNombreVigente,
   getDrogaParaAccion,
@@ -138,8 +139,11 @@ export const editarDrogaCommand = defineCommand({
     const clase = input.clase ?? (actual.clase as ClaseDroga);
     if (!claseValida(clase, tipoControl)) throw new ValidationError(MENSAJE_INSUMO_CONTROLADO, { fields: ["clase", "tipoControl"] });
 
-    if (input.nombre !== actual.nombre && (await existeNombreVigente(tx, session.tenantId, input.nombre, input.id))) {
-      throw new ValidationError("Ya existe una droga con ese nombre.");
+    // Accent/case-insensitive, against other vigente drogas AND every vigente synonym, this droga's own included
+    // (docs/specs/sinonimos-droga.md). Only when the name changes: an untouched name never blocks other edits.
+    if (input.nombre !== actual.nombre) {
+      const conflicto = await existeNombreVigente(tx, session.tenantId, input.nombre, input.id);
+      if (conflicto) throw new ValidationError(mensajeConflictoNombre(conflicto, input.id), { fields: ["nombre"] });
     }
 
     const cambiaClasificacion =
