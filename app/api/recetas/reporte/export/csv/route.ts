@@ -1,8 +1,9 @@
 /**
  * `GET /api/recetas/reporte/export/csv` (FASE 13 point 13.4). Requires
  * `reportes.ver` (enforced by `exportarRecetasCsv`'s own
- * `defineQuery`/`defineCommand`). Filters are `estado`/date range only --
- * never patient text in the URL.
+ * `defineQuery`/`defineCommand`). Used by `/reportes/recetas` and by the
+ * `/recetas` listado (same params: estado, numero, ingresoDesde/ingresoHasta,
+ * desde/hasta). No param carries patient text.
  */
 import { NextResponse } from "next/server";
 import { exportarRecetasCsv, MAX_EXPORT_ROWS } from "@/modules/recetas/application/reporte-recetas";
@@ -31,7 +32,14 @@ export async function GET(request: Request): Promise<Response> {
 
   let resultado;
   try {
-    resultado = await exportarRecetasCsv({ estado, ingresoDesde: q.get("ingresoDesde") || undefined, ingresoHasta: q.get("ingresoHasta") || undefined });
+    resultado = await exportarRecetasCsv({
+      estado,
+      numeroInterno: q.get("numero") || undefined,
+      ingresoDesde: q.get("ingresoDesde") || undefined,
+      ingresoHasta: q.get("ingresoHasta") || undefined,
+      desde: q.get("desde") || undefined,
+      hasta: q.get("hasta") || undefined,
+    });
   } catch (e) {
     const appError = e instanceof AppError ? e : undefined;
     const status = appError ? STATUS_BY_CODE[appError.code] : 500;

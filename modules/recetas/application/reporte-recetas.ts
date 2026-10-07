@@ -15,11 +15,15 @@
  * as `modules/libro/application/exportar-libro.ts` -- `TipoAccion.EXPORTAR`,
  * entidad "receta_reporte". The audit payload carries ONLY the filter
  * summary + row count + truncated flag -- never paciente/médico text.
+ *
+ * The CSV export is shared by this report and the `/recetas` listado's
+ * "Exportar CSV" button, so it also accepts the listado's filters
+ * (Nº interno, fecha_prescripcion range) and reads through `listRecetas`.
  */
 import { z } from "zod";
 import { defineQuery, defineCommand, TipoAccion } from "@/shared/usecase";
 import { ESTADOS_RECETA } from "../domain/receta";
-import { countRecetasPorEstado, listRecetasPorEstado } from "../infrastructure/receta-repository";
+import { countRecetasPorEstado, listRecetas, listRecetasPorEstado } from "../infrastructure/receta-repository";
 import type { RecetaListItem } from "../infrastructure/receta-repository";
 
 export type { RecetaListItem };
@@ -86,7 +90,12 @@ export async function listRecetasReporte(input: ListRecetasReporteInput): Promis
   return listRecetasReporteQuery.execute(input);
 }
 
-const exportarRecetasInput = listRecetasReporteInput.omit({ page: true, pageSize: true });
+const exportarRecetasInput = listRecetasReporteInput.omit({ page: true, pageSize: true }).extend({
+  numeroInterno: z.string().trim().optional(),
+  /** fecha_prescripcion range (the `/recetas` listado's `desde`/`hasta`). */
+  desde: isoDate.optional(),
+  hasta: isoDate.optional(),
+});
 type ExportarRecetasFiltro = z.infer<typeof exportarRecetasInput>;
 export type ExportarRecetasFiltroInput = z.input<typeof exportarRecetasInput>;
 
@@ -100,11 +109,14 @@ export const exportarRecetasQuery = defineQuery({
   permiso: "reportes.ver",
   input: exportarRecetasInput,
   handler: async ({ tx, session, input }): Promise<ExportarRecetasResultado> => {
-    const result = await listRecetasPorEstado(tx, {
+    const result = await listRecetas(tx, {
       tenantId: session.tenantId,
       estado: input.estado,
+      numeroInterno: input.numeroInterno,
       ingresoDesde: input.ingresoDesde,
       ingresoHasta: input.ingresoHasta,
+      desde: input.desde,
+      hasta: input.hasta,
       page: 1,
       pageSize: MAX_EXPORT_ROWS + 1,
     });
@@ -116,7 +128,11 @@ export const exportarRecetasQuery = defineQuery({
 function resumenFiltroParaAuditoria(input: ExportarRecetasFiltro): string {
   const partes: string[] = [];
   if (input.estado) partes.push(`Estado: ${input.estado}`);
+  // The listado's search box is free text: audit only the digits the query actually matches on, never what was typed (it could be a name).
+  const numero = input.numeroInterno?.replace(/\D/g, "").slice(0, 19);
+  if (numero) partes.push(`Nº interno: ${numero}`);
   if (input.ingresoDesde || input.ingresoHasta) partes.push(`Fecha ingreso: ${input.ingresoDesde ?? "…"} a ${input.ingresoHasta ?? "…"}`);
+  if (input.desde || input.hasta) partes.push(`Fecha prescripción: ${input.desde ?? "…"} a ${input.hasta ?? "…"}`);
   return partes.length > 0 ? partes.join(" · ") : "Sin filtros";
 }
 

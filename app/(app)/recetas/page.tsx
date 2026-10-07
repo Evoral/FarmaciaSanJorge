@@ -1,16 +1,17 @@
 /**
- * `/recetas`: listado con filtros por estado/fecha/número, server-side.
+ * `/recetas`: listado con filtros por estado/fechas (ingreso, prescripción)/número, server-side.
  * After creating a receta the form lands here (`?registrada=<id>`, plus the
  * automatic ficha/cotización notices as codes -- modules/recetas/domain/avisos-generacion.ts).
  *
  * Layout: the per-estado summary doubles as the estado filter
- * (same `?estado=` param), the rest of the filters stay in `FilterForm`,
+ * (same `?estado=` param) and counts only the recetas that entered within
+ * `?periodo=` (default last 30 days; it never filters the list), the rest of the filters stay in `FilterForm`,
  * and the rows render through `RecetasTable`. Data, permisos and queries
  * are the same as before; `resumenRecetasPorEstado` is the existing
  * read-only count already used by the home dashboard.
  */
 import Link from "next/link";
-import { ChartColumn, ClipboardList, Plus, SearchX, X } from "lucide-react";
+import { ClipboardList, Download, Plus, SearchX, X } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listRecetas, resumenRecetasPorEstado } from "@/modules/recetas/application/list-recetas";
@@ -19,10 +20,12 @@ import { getReceta } from "@/modules/recetas/application/get-receta";
 import { PARAM_AVISO, PARAM_REGISTRADA, decodificarAvisos } from "@/modules/recetas/domain/avisos-generacion";
 import { AvisosGeneracion } from "@/modules/recetas/ui/avisos-generacion";
 import { RecetasTable, type RecetaRow } from "@/modules/recetas/ui/recetas-table";
+import { PeriodoResumenSelect } from "@/modules/recetas/ui/periodo-resumen-select";
+import { PERIODO_RESUMEN_DEFAULT, PERIODO_RESUMEN_LABELS, parsePeriodoResumen } from "@/modules/recetas/domain/periodo-resumen";
 import { ESTADO_RECETA_LABELS, ORIGEN_RECETA_LABELS } from "@/shared/labels/enum-labels";
 import { formatFecha } from "@/shared/format/fecha";
 import { estadoTone } from "@/shared/ui/status-badge";
-import { DateInput } from "@/shared/ui/date-input";
+import { DateRangeField } from "@/shared/ui/date-range-field";
 import { FilterForm } from "@/shared/ui/filter-form";
 import { FilterDrawer } from "@/shared/ui/filter-drawer";
 import { SearchField } from "@/shared/ui/search-field";
@@ -43,13 +46,14 @@ const PAGE_SIZE = 20;
 const HREF_NUEVA_RECETA = "/recetas/nuevo";
 
 interface RecetasPageProps {
-  searchParams: Promise<{ estado?: string; numero?: string; desde?: string; hasta?: string; page?: string; registrada?: string; aviso?: string | string[] }>;
+  searchParams: Promise<{ estado?: string; numero?: string; desde?: string; hasta?: string; ingresoDesde?: string; ingresoHasta?: string; periodo?: string; page?: string; registrada?: string; aviso?: string | string[] }>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-type FilterParam = "estado" | "numero" | "desde" | "hasta";
+type FilterParam = "estado" | "numero" | "ingresoDesde" | "ingresoHasta" | "desde" | "hasta";
+const FILTER_PARAMS: readonly FilterParam[] = ["estado", "numero", "ingresoDesde", "ingresoHasta", "desde", "hasta"];
 
 /** `2026-09-01` -> `01/09/2026` (display only; anything else is shown as typed). */
 function isoToDisplay(value: string): string {
@@ -62,6 +66,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
   const params = await searchParams;
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
   const estado = params.estado ?? "";
+  const periodo = parsePeriodoResumen(params.periodo);
   const estadoValido = ESTADOS_RECETA.includes(estado as (typeof ESTADOS_RECETA)[number]) ? (estado as (typeof ESTADOS_RECETA)[number]) : undefined;
 
   const [result, resumen] = await Promise.all([
@@ -70,15 +75,17 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
       numeroInterno: params.numero,
       desde: params.desde,
       hasta: params.hasta,
+      ingresoDesde: params.ingresoDesde,
+      ingresoHasta: params.ingresoHasta,
       page,
       pageSize: PAGE_SIZE,
     }),
-    resumenRecetasPorEstado(),
+    resumenRecetasPorEstado(periodo),
   ]);
   const puedeCrear = can(session, "recetas.crear");
   const puedeEditar = can(session, "recetas.editar");
   const puedeAnularPermiso = can(session, "recetas.anular");
-  const puedeVerReporte = can(session, "reportes.ver");
+  const puedeExportar = can(session, "reportes.ver");
 
   // The receta just created (read again: the URL only carries its id and the notice codes).
   const idRegistrada = params[PARAM_REGISTRADA];
@@ -87,10 +94,11 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
 
   function pageHref(targetPage: number): string {
     const qs = new URLSearchParams();
-    if (params.estado) qs.set("estado", params.estado);
-    if (params.numero) qs.set("numero", params.numero);
-    if (params.desde) qs.set("desde", params.desde);
-    if (params.hasta) qs.set("hasta", params.hasta);
+    for (const key of FILTER_PARAMS) {
+      const value = params[key];
+      if (value) qs.set(key, value);
+    }
+    if (periodo !== PERIODO_RESUMEN_DEFAULT) qs.set("periodo", periodo);
     qs.set("page", String(targetPage));
     return `/recetas?${qs.toString()}`;
   }
@@ -98,16 +106,31 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
   /** The current filters with some replaced or removed (`""`), back on page 1. */
   function filtersHref(overrides: Partial<Record<FilterParam, string>>): string {
     const qs = new URLSearchParams();
-    for (const key of ["estado", "numero", "desde", "hasta"] as const) {
+    for (const key of FILTER_PARAMS) {
       const value = key in overrides ? overrides[key] : params[key];
       if (value) qs.set(key, value);
     }
+    if (periodo !== PERIODO_RESUMEN_DEFAULT) qs.set("periodo", periodo);
     const query = qs.toString();
     return query ? `/recetas?${query}` : "/recetas";
   }
 
-  const hasActiveFilters = Boolean(params.estado || params.numero || params.desde || params.hasta);
-  const hasNarrowingFilters = Boolean(params.numero || params.desde || params.hasta);
+  /** CSV of every receta the current filters select (not just this page); the summary's periodo does not apply. */
+  function exportHref(): string {
+    const qs = new URLSearchParams();
+    for (const key of FILTER_PARAMS) {
+      const value = params[key];
+      if (value) qs.set(key, value);
+    }
+    const query = qs.toString();
+    return query ? `/api/recetas/reporte/export/csv?${query}` : "/api/recetas/reporte/export/csv";
+  }
+
+  /** No filters, same summary window. */
+  const clearFiltersHref = periodo === PERIODO_RESUMEN_DEFAULT ? "/recetas" : `/recetas?periodo=${periodo}`;
+  const hasActiveFilters = FILTER_PARAMS.some((key) => params[key]);
+  const hasNarrowingFilters = FILTER_PARAMS.some((key) => key !== "estado" && params[key]);
+  const activeDateFilters = (["ingresoDesde", "ingresoHasta", "desde", "hasta"] as const).filter((key) => params[key]).length;
 
   // Status summary: global counts per estado; terminal estados are history, the rest is work in progress.
   const totalRegistradas = resumen.reduce((sum, r) => sum + r.cantidad, 0);
@@ -116,6 +139,8 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
   const chips: { key: FilterParam; label: string; value: string }[] = [];
   if (estadoValido) chips.push({ key: "estado", label: "Estado", value: ESTADO_RECETA_LABELS[estadoValido] });
   if (params.numero) chips.push({ key: "numero", label: "Nº interno", value: params.numero });
+  if (params.ingresoDesde) chips.push({ key: "ingresoDesde", label: "Ingreso desde", value: isoToDisplay(params.ingresoDesde) });
+  if (params.ingresoHasta) chips.push({ key: "ingresoHasta", label: "Ingreso hasta", value: isoToDisplay(params.ingresoHasta) });
   if (params.desde) chips.push({ key: "desde", label: "Prescripción desde", value: isoToDisplay(params.desde) });
   if (params.hasta) chips.push({ key: "hasta", label: "Prescripción hasta", value: isoToDisplay(params.hasta) });
 
@@ -154,7 +179,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
         title="Sin resultados"
         description="Ninguna receta coincide con los filtros aplicados."
         action={
-          <Link href="/recetas" scroll={false} className="btn btn-secondary">
+          <Link href={clearFiltersHref} scroll={false} className="btn btn-secondary">
             Limpiar filtros
           </Link>
         }
@@ -183,11 +208,11 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
         description="Seguimiento de cada receta desde el ingreso hasta la entrega."
         actions={
           <>
-            {puedeVerReporte ? (
-              <Link href="/reportes/recetas" className="btn btn-secondary">
-                <ChartColumn className="size-4" aria-hidden />
-                Reporte
-              </Link>
+            {puedeExportar ? (
+              <a href={exportHref()} className="btn btn-secondary">
+                <Download className="size-4" aria-hidden />
+                Exportar CSV
+              </a>
             ) : null}
             {puedeCrear ? (
               <a href={HREF_NUEVA_RECETA} className="btn btn-primary">
@@ -213,11 +238,12 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
 
       <StatusSummary
         label="Filtrar por estado"
+        control={<PeriodoResumenSelect value={periodo} />}
         unit={["receta", "recetas"]}
         headline={{
           value: enCurso,
           label: enCurso === 1 ? "receta en curso" : "recetas en curso",
-          caption: `de ${new Intl.NumberFormat("es-AR").format(totalRegistradas)} registradas`,
+          caption: `de ${new Intl.NumberFormat("es-AR").format(totalRegistradas)} ${periodo === "todos" ? "registradas en total" : `ingresadas en los ${PERIODO_RESUMEN_LABELS[periodo].toLowerCase()}`}`,
         }}
         note={hasNarrowingFilters ? "Los totales por estado no aplican la búsqueda ni las fechas." : undefined}
         all={{ label: "Todas", count: totalRegistradas, href: filtersHref({ estado: "" }), active: !estadoValido }}
@@ -234,9 +260,10 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
       />
 
       <section aria-label="Búsqueda y filtros" className="mb-4">
-        {/* The estado is chosen in the summary above; this hidden field keeps it while the other filters change. */}
+        {/* The estado and the summary's periodo are chosen above; these hidden fields keep them while the other filters change. */}
         <FilterForm className="filter-bar" aria-label="Filtros de recetas" hasActiveFilters={false}>
           <input type="hidden" name="estado" value={estadoValido ?? ""} />
+          {periodo !== PERIODO_RESUMEN_DEFAULT ? <input type="hidden" name="periodo" value={periodo} /> : null}
           <SearchField
             id="numero"
             name="numero"
@@ -247,25 +274,9 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
             inputMode="search"
             className="min-w-0 flex-1 md:w-64 md:flex-none"
           />
-          <FilterDrawer activeCount={(params.desde ? 1 : 0) + (params.hasta ? 1 : 0)}>
-            <div className="field">
-              <span id="prescripcion-label" className="field-label">
-                Prescripción
-              </span>
-              <div className="range-field" role="group" aria-labelledby="prescripcion-label">
-                <label htmlFor="desde" className="sr-only">
-                  Prescripción desde
-                </label>
-                <DateInput id="desde" name="desde" defaultValue={params.desde ?? ""} />
-                <span className="range-field-sep" aria-hidden>
-                  a
-                </span>
-                <label htmlFor="hasta" className="sr-only">
-                  Prescripción hasta
-                </label>
-                <DateInput id="hasta" name="hasta" defaultValue={params.hasta ?? ""} />
-              </div>
-            </div>
+          <FilterDrawer activeCount={activeDateFilters}>
+            <DateRangeField id="ingreso" label="Ingreso" desdeName="ingresoDesde" hastaName="ingresoHasta" desdeDefault={params.ingresoDesde ?? ""} hastaDefault={params.ingresoHasta ?? ""} />
+            <DateRangeField id="prescripcion" label="Prescripción" desdeName="desde" hastaName="hasta" desdeDefault={params.desde ?? ""} hastaDefault={params.hasta ?? ""} />
           </FilterDrawer>
         </FilterForm>
 
@@ -280,7 +291,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
               </span>
             ))}
             {chips.length > 1 ? (
-              <Link href="/recetas" scroll={false} className="btn btn-ghost btn-sm">
+              <Link href={clearFiltersHref} scroll={false} className="btn btn-ghost btn-sm">
                 Limpiar filtros
               </Link>
             ) : null}

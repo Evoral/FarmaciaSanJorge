@@ -38,11 +38,13 @@ export interface StatusSummaryProps {
   note?: ReactNode;
   /** Unit for screen readers, e.g. ["receta", "recetas"]. */
   unit: Unit;
+  /** Control above the headline that scopes the counts (e.g. a period picker). Only rendered with a headline. */
+  control?: ReactNode;
 }
 
 const numberFormat = new Intl.NumberFormat("es-AR");
 
-export function StatusSummary({ label, headline, all, items, note, unit }: StatusSummaryProps) {
+export function StatusSummary({ label, headline, all, items, note, unit, control }: StatusSummaryProps) {
   const work = items.filter((item) => !item.secondary);
   const history = items.filter((item) => item.secondary);
   const workTotal = work.reduce((sum, item) => sum + item.count, 0);
@@ -52,6 +54,7 @@ export function StatusSummary({ label, headline, all, items, note, unit }: Statu
     <section className="status-summary" data-plain={headline ? undefined : ""} aria-label={headline ? "Resumen por estado" : label}>
       {headline ? (
         <div className="status-summary-lead">
+          {control}
           <div>
             <p className="status-summary-value">{numberFormat.format(headline.value)}</p>
             <p className="mt-1.5 text-sm font-medium text-zinc-900">{headline.label}</p>

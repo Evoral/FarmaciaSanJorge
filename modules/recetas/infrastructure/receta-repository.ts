@@ -681,6 +681,8 @@ export interface ListRecetasFilter {
   numeroInterno?: string;
   desde?: string; // fecha_prescripcion >=
   hasta?: string; // fecha_prescripcion <=
+  ingresoDesde?: string; // YYYY-MM-DD, jornada in the tenant's time zone (inclusive)
+  ingresoHasta?: string; // YYYY-MM-DD, jornada in the tenant's time zone (inclusive)
   page: number;
   pageSize: number;
 }
@@ -729,7 +731,7 @@ async function recetasConFichaConPreparacion(tx: Prisma.TransactionClient, tenan
   return new Set(rows.map((r) => r.receta_id));
 }
 
-function buildWhere(filter: ListRecetasFilter): Prisma.RecetaWhereInput {
+function buildWhere(filter: ListRecetasFilter, zonaHoraria: string): Prisma.RecetaWhereInput {
   const where: Prisma.RecetaWhereInput = { tenantId: filter.tenantId };
   if (filter.estado) where.estado = filter.estado;
   if (filter.pacienteId) where.pacienteId = filter.pacienteId;
@@ -744,11 +746,20 @@ function buildWhere(filter: ListRecetasFilter): Prisma.RecetaWhereInput {
       ...(filter.hasta ? { lte: new Date(`${filter.hasta}T00:00:00Z`) } : {}),
     };
   }
+  if (filter.ingresoDesde || filter.ingresoHasta) {
+    // Calendar days in the pharmacy's time zone, not UTC (fecha_ingreso is a timestamptz).
+    const { desde, hastaExclusivo } = rangoDeJornadas(filter.ingresoDesde, filter.ingresoHasta, zonaHoraria);
+    where.fechaIngreso = {
+      ...(desde ? { gte: desde } : {}),
+      ...(hastaExclusivo ? { lt: hastaExclusivo } : {}),
+    };
+  }
   return where;
 }
 
 export async function listRecetas(tx: Prisma.TransactionClient, filter: ListRecetasFilter): Promise<ListRecetasResult> {
-  const where = buildWhere(filter);
+  const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: filter.tenantId }, select: { zonaHoraria: true } });
+  const where = buildWhere(filter, tenant.zonaHoraria);
   const skip = (filter.page - 1) * filter.pageSize;
 
   const total = await tx.receta.count({ where });
@@ -771,7 +782,6 @@ export async function listRecetas(tx: Prisma.TransactionClient, filter: ListRece
 
   const pendientes = rows.filter((r) => r.estado === "PENDIENTE_PREPARACION").map((r) => r.id);
   const conPreparacion = await recetasConFichaConPreparacion(tx, filter.tenantId, pendientes);
-  const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: filter.tenantId }, select: { zonaHoraria: true } });
 
   return {
     items: rows.map((r) => ({
@@ -800,6 +810,8 @@ export async function listRecetas(tx: Prisma.TransactionClient, filter: ListRece
 // DIFFERENT from `listRecetas`'s `desde`/`hasta` (which filter
 // `fecha_prescripcion`, the doctor's date on the paper) -- the task asks
 // for "fecha ingreso range" specifically for this report.
+// Also the per-estado counts of the /recetas summary (optionally limited by
+// fecha_ingreso) and the home dashboard (all time).
 // ============================================================================
 
 export interface CountRecetasPorEstadoItem {
@@ -807,9 +819,19 @@ export interface CountRecetasPorEstadoItem {
   cantidad: number;
 }
 
-/** One row per `EstadoReceta` value that has at least one receta -- states with zero recetas are simply absent (the caller fills them in as 0). */
-export async function countRecetasPorEstado(tx: Prisma.TransactionClient, tenantId: string): Promise<CountRecetasPorEstadoItem[]> {
-  const rows = await tx.receta.groupBy({ by: ["estado"], where: { tenantId }, _count: { _all: true } });
+/** The tenant's zona horaria, to turn "today" and picked dates into jornadas. */
+export async function zonaHorariaTenant(tx: Prisma.TransactionClient, tenantId: string): Promise<string> {
+  const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { zonaHoraria: true } });
+  return tenant.zonaHoraria;
+}
+
+/**
+ * One row per `EstadoReceta` value that has at least one receta -- states with zero recetas are simply absent (the caller fills them in as 0).
+ * `ingresoDesde` (an instant, usually the start of a jornada) limits the count to recetas that entered from then on.
+ */
+export async function countRecetasPorEstado(tx: Prisma.TransactionClient, tenantId: string, ingresoDesde?: Date): Promise<CountRecetasPorEstadoItem[]> {
+  const where: Prisma.RecetaWhereInput = { tenantId, ...(ingresoDesde ? { fechaIngreso: { gte: ingresoDesde } } : {}) };
+  const rows = await tx.receta.groupBy({ by: ["estado"], where, _count: { _all: true } });
   return rows.map((row) => ({ estado: row.estado, cantidad: row._count._all }));
 }
 

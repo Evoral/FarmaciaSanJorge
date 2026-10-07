@@ -53,7 +53,7 @@ type SortKey = "numero" | "paciente" | "prescripcion" | "ingreso" | "estado";
 type Sort = { key: SortKey; dir: "asc" | "desc" } | null;
 
 const SORT_LABELS: Record<SortKey, string> = {
-  numero: "Nº",
+  numero: "Nº interno",
   paciente: "Paciente",
   prescripcion: "Prescripción",
   ingreso: "Ingreso",
@@ -194,10 +194,10 @@ export function RecetasTable({ rows, total, empty, footer }: RecetasTableProps) 
                   <input ref={selectAllRef} type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Seleccionar todas las recetas de esta página" />
                 </label>
               </th>
-              <SortHeader label="Nº" sortKey="numero" sort={sort} onSort={toggleSort} />
+              <SortHeader label="Nº interno" sortKey="numero" sort={sort} onSort={toggleSort} />
+              <SortHeader label="Ingreso" sortKey="ingreso" sort={sort} onSort={toggleSort} />
               <SortHeader label="Paciente" sortKey="paciente" sort={sort} onSort={toggleSort} />
               <SortHeader label="Prescripción" sortKey="prescripcion" sort={sort} onSort={toggleSort} />
-              <SortHeader label="Ingreso" sortKey="ingreso" sort={sort} onSort={toggleSort} className="hidden lg:table-cell" />
               <SortHeader label="Estado" sortKey="estado" sort={sort} onSort={toggleSort} />
               <th scope="col" className="px-3 py-2">
                 <span className="sr-only">Acciones</span>
@@ -224,6 +224,7 @@ export function RecetasTable({ rows, total, empty, footer }: RecetasTableProps) 
                       {row.origenLabel}
                     </span>
                   </td>
+                  <td className="px-3 py-2.5 whitespace-nowrap tabular-nums">{row.ingreso}</td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2.5">
                       <Avatar name={row.paciente} />
@@ -238,7 +239,6 @@ export function RecetasTable({ rows, total, empty, footer }: RecetasTableProps) 
                     </div>
                   </td>
                   <td className="px-3 py-2.5 whitespace-nowrap tabular-nums">{row.prescripcion}</td>
-                  <td className="hidden px-3 py-2.5 whitespace-nowrap text-zinc-600 tabular-nums lg:table-cell">{row.ingreso}</td>
                   <td className="px-3 py-2.5">
                     <StatusBadge estado={row.estado} />
                   </td>
@@ -280,7 +280,7 @@ export function RecetasTable({ rows, total, empty, footer }: RecetasTableProps) 
               <StatusBadge estado={row.estado} />
             </div>
             <p className="text-xs text-zinc-500 tabular-nums">
-              Prescripción {row.prescripcion} · {row.origenLabel}
+              Ingreso {row.ingreso} · Prescripción {row.prescripcion} · {row.origenLabel}
             </p>
           </li>
         ))}

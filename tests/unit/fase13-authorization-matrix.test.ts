@@ -48,6 +48,7 @@ vi.mock("@/modules/libro/infrastructure/contralor-repository", () => ({
 vi.mock("@/modules/recetas/infrastructure/receta-repository", () => ({
   countRecetasPorEstado: vi.fn(async () => []),
   listRecetasPorEstado: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 20 })),
+  listRecetas: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 20, zonaHoraria: "America/Argentina/Mendoza" })),
 }));
 
 await import("@/modules/stock/application/reporte-valorizado");

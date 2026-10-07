@@ -43,7 +43,7 @@ const MEDICO_APELLIDO = "Confidencialini";
 
 vi.mock("@/modules/recetas/infrastructure/receta-repository", () => ({
   countRecetasPorEstado: vi.fn(async () => []),
-  listRecetasPorEstado: vi.fn(async () => ({
+  listRecetas: vi.fn(async () => ({
     items: [
       {
         id: "r1",
@@ -61,6 +61,7 @@ vi.mock("@/modules/recetas/infrastructure/receta-repository", () => ({
     total: 1,
     page: 1,
     pageSize: 5001,
+    zonaHoraria: "America/Argentina/Mendoza",
   })),
 }));
 
@@ -87,5 +88,14 @@ describe("exportarRecetasCsv -- audit payload never carries patient/médico text
     // Sanity: the payload is still meaningful (filter summary + count), not silently empty.
     expect(serialized).toContain("ENTREGADA");
     expect(auditInput.entidad).toBe("receta_reporte");
+  });
+
+  it("free text typed in the Nº interno search never reaches the audit payload", async () => {
+    recordMock.mockClear();
+    await exportarRecetasCsv({ numeroInterno: `${PACIENTE_APELLIDO} 123` });
+
+    const serialized = JSON.stringify(recordMock.mock.calls[0]![1]);
+    expect(serialized).not.toContain(PACIENTE_APELLIDO);
+    expect(serialized).toContain("Nº interno: 123");
   });
 });
