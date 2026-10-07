@@ -72,6 +72,7 @@ vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => (
   insertAsientoRecetario: vi.fn(async () => ({ id: "asiento-1", numeroCorrelativo: "1" })),
   insertAsientoContralorEgreso: vi.fn(async () => ({ id: "contralor-1" })),
   updatePreparacionConfirmada: vi.fn(async () => undefined),
+  getMesesVencimientoPreparado: vi.fn(async () => 3),
   getPreparacionParaEtiqueta: vi.fn(async () => ({
     id: PREPARACION_ID,
     confirmadaEn: new Date(),
@@ -95,6 +96,7 @@ vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => (
     medicoMatricula: "MAT-1",
     medicoJurisdiccion: "PROVINCIAL",
     directorTecnico: null,
+    fechaVencimiento: null,
   })),
   getEtiquetaExistente: vi.fn(async () => null),
   insertEtiqueta: vi.fn(async () => ({ id: ETIQUETA_ID })),

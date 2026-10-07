@@ -6,28 +6,32 @@
 import { describe, it, expect } from "vitest";
 import {
   armarContenidoEtiqueta,
+  columnasRp,
   componentesRp,
+  MAX_LINEAS_RP,
   formaSegunCantidad,
   formatearContenidoEtiqueta,
   formatearLineaRp,
   hrefEtiquetaPdf,
   formatearMedicoEtiqueta,
+  formatearVenceEtiqueta,
   numeroRecetaEtiqueta,
   viaDeAdministracion,
+  VENCE_ETIQUETA,
 } from "@/modules/preparaciones/domain/etiqueta";
 import type { ComponenteEtiqueta, DatosEtiqueta } from "@/modules/preparaciones/domain/etiqueta";
 import { buildEtiquetaPdf, tamanoFuenteRp } from "@/modules/preparaciones/infrastructure/etiqueta-pdf";
 
 function componente(overrides: Partial<ComponenteEtiqueta>): ComponenteEtiqueta {
-  return { drogaNombre: "Droga", cantidad: "1", unidadSimbolo: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: false, orden: 1, ...overrides };
+  return { drogaNombre: "Droga", cantidad: "1", unidadSimbolo: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: false, ...overrides };
 }
 
 const DATOS: DatosEtiqueta = {
   formaFarmaceutica: "CAPSULA",
   cantidadUnidades: 30,
   componentes: [
-    componente({ drogaNombre: "Mazindol", cantidad: "2", esPrincipioActivo: true, orden: 1 }),
-    componente({ drogaNombre: "Lactosa", cantidad: null, modoExpresion: "CSP", orden: 2 }),
+    componente({ drogaNombre: "Mazindol", cantidad: "2", esPrincipioActivo: true }),
+    componente({ drogaNombre: "Lactosa", cantidad: null, modoExpresion: "CSP" }),
   ],
   asientoNumeroCorrelativo: "1520",
   recetaNumeroInterno: "88",
@@ -38,6 +42,7 @@ const DATOS: DatosEtiqueta = {
   medicoJurisdiccion: "PROVINCIAL",
   directorTecnico: { nombre: "María", apellido: "López", matricula: "3310" },
   tenantDomicilio: "Av. San Martín 1234, Mendoza",
+  fechaVencimiento: "2027-03-15",
 };
 
 describe("viaDeAdministracion", () => {
@@ -64,20 +69,20 @@ describe("viaDeAdministracion", () => {
 });
 
 describe("Rp/", () => {
-  it("lists only the principios activos, in orden", () => {
+  it("lists only the principios activos, sorted by name", () => {
     const rp = componentesRp([
-      componente({ drogaNombre: "B", esPrincipioActivo: true, orden: 3 }),
-      componente({ drogaNombre: "Excipiente", orden: 1 }),
-      componente({ drogaNombre: "A", esPrincipioActivo: true, orden: 2 }),
+      componente({ drogaNombre: "B", esPrincipioActivo: true }),
+      componente({ drogaNombre: "Excipiente" }),
+      componente({ drogaNombre: "A", esPrincipioActivo: true }),
     ]);
     expect(rp.map((c) => c.drogaNombre)).toEqual(["A", "B"]);
   });
 
   it("with no activo flagged, lists every componente except CS/CSP", () => {
     const rp = componentesRp([
-      componente({ drogaNombre: "Ácido salicílico", modoExpresion: "TOTAL", orden: 1 }),
-      componente({ drogaNombre: "Agua", modoExpresion: "CS", cantidad: null, orden: 2 }),
-      componente({ drogaNombre: "Vaselina", modoExpresion: "CSP", cantidad: null, orden: 3 }),
+      componente({ drogaNombre: "Ácido salicílico", modoExpresion: "TOTAL" }),
+      componente({ drogaNombre: "Agua", modoExpresion: "CS", cantidad: null }),
+      componente({ drogaNombre: "Vaselina", modoExpresion: "CSP", cantidad: null }),
     ]);
     expect(rp.map((c) => c.drogaNombre)).toEqual(["Ácido salicílico"]);
   });
@@ -86,6 +91,38 @@ describe("Rp/", () => {
     expect(formatearLineaRp({ drogaNombre: "Mazindol", cantidad: "2.000", unidadSimbolo: "mg" })).toBe("Mazindol 2 mg");
     expect(formatearLineaRp({ drogaNombre: "Clonazepam", cantidad: "0.3", unidadSimbolo: "mg" })).toBe("Clonazepam 0,3 mg");
     expect(formatearLineaRp({ drogaNombre: "Vaselina", cantidad: null, unidadSimbolo: "g" })).toBe("Vaselina");
+  });
+
+  describe("columnasRp", () => {
+    const lineas = (n: number) => Array.from({ length: n }, (_, i) => `Droga ${i + 1}`);
+
+    it("up to 7 lines go in a single column", () => {
+      expect(columnasRp(lineas(1))).toEqual([["Droga 1"]]);
+      expect(columnasRp(lineas(7))).toEqual([lineas(7)]);
+    });
+
+    it("8 to 14 lines are split into two balanced columns, the first one taking the odd line", () => {
+      expect(columnasRp(lineas(8)).map((c) => c.length)).toEqual([4, 4]);
+      expect(columnasRp(lineas(9)).map((c) => c.length)).toEqual([5, 4]);
+      expect(columnasRp(lineas(14))).toEqual([lineas(7), lineas(14).slice(7)]);
+    });
+
+    it(`beyond ${MAX_LINEAS_RP} lines, prints the first ${MAX_LINEAS_RP - 1} and says how many are left out`, () => {
+      const columnas = columnasRp(lineas(17));
+      expect(columnas.map((c) => c.length)).toEqual([7, 7]);
+      expect(columnas.flat().slice(0, 13)).toEqual(lineas(13));
+      expect(columnas[1]!.at(-1)).toBe("… y 4 más");
+    });
+
+    it("no lines, no columns", () => {
+      expect(columnasRp([])).toEqual([]);
+    });
+  });
+
+  it("the persisted text keeps every Rp/ line, even beyond what the label prints", () => {
+    const muchos = Array.from({ length: 16 }, (_, i) => componente({ drogaNombre: `Activo ${i + 1}`, esPrincipioActivo: true }));
+    const texto = formatearContenidoEtiqueta(armarContenidoEtiqueta({ ...DATOS, componentes: muchos }));
+    for (let i = 1; i <= 16; i++) expect(texto).toContain(`Activo ${i} 1 mg`);
   });
 
   it("the font shrinks with the number of lines", () => {
@@ -128,13 +165,23 @@ describe("armarContenidoEtiqueta / formatearContenidoEtiqueta", () => {
       "Av. San Martín 1234, Mendoza",
       "Rp/",
       "Mazindol 2 mg",
-      "Vence: ______",
+      "Vence: 03/27",
       "Receta N 1520",
       "30 Cápsulas — Orales",
       "Conservar en lugar fresco y seco",
       "Médico Gómez, Ana  MAT MP 4521",
     ]);
     expect(texto).not.toContain("Pérez");
+  });
+
+  it("'Vence: MM/YY' from the snapshot fecha_vencimiento; a blank line when there is none", () => {
+    expect(formatearVenceEtiqueta("2026-03-31")).toBe("Vence: 03/26");
+    expect(formatearVenceEtiqueta("2029-02-28")).toBe("Vence: 02/29");
+    expect(formatearVenceEtiqueta("2100-12-01")).toBe("Vence: 12/00");
+    expect(formatearVenceEtiqueta(null)).toBe("Vence: ______");
+    expect(VENCE_ETIQUETA).toBe("Vence: ______");
+    expect(armarContenidoEtiqueta({ ...DATOS, fechaVencimiento: "2026-09-30" }).vence).toBe("Vence: 09/26");
+    expect(armarContenidoEtiqueta({ ...DATOS, fechaVencimiento: null }).vence).toBe("Vence: ______");
   });
 });
 
@@ -147,8 +194,14 @@ describe("buildEtiquetaPdf", () => {
   });
 
   it("stays one page with many Rp/ lines, no vía, no DT and no domicilio", async () => {
-    const muchos = Array.from({ length: 12 }, (_, i) => componente({ drogaNombre: `Droga con un nombre bastante largo ${i + 1}`, esPrincipioActivo: true, orden: i + 1 }));
+    const muchos = Array.from({ length: 12 }, (_, i) => componente({ drogaNombre: `Droga con un nombre bastante largo ${i + 1}`, esPrincipioActivo: true }));
     const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta({ ...DATOS, formaFarmaceutica: "SOLUCION", cantidadUnidades: 1, componentes: muchos, directorTecnico: null, tenantDomicilio: null }));
+    expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
+  });
+
+  it.each([7, 8, 14, 20])("stays one page with %i principios activos (one or two columns, overflow line)", async (n) => {
+    const activos = Array.from({ length: n }, (_, i) => componente({ drogaNombre: `Principio activo ${i + 1}`, cantidad: "12.5", esPrincipioActivo: true }));
+    const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta({ ...DATOS, componentes: activos }));
     expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
   });
 });

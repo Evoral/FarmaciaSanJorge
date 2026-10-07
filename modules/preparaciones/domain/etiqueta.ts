@@ -41,6 +41,12 @@ export interface DatosEtiqueta {
   /** DT vigente on the confirmation date; `null` if none was designated. */
   directorTecnico: { nombre: string; apellido: string; matricula: string } | null;
   tenantDomicilio: string | null;
+  /**
+   * `YYYY-MM-DD` snapshot taken when the preparación was confirmed
+   * (`preparacion.fecha_vencimiento`, migration 0068); `null` for one
+   * confirmed before that, which keeps the blank "Vence" line.
+   */
+  fechaVencimiento: string | null;
 }
 
 export interface ContenidoEtiqueta {
@@ -71,8 +77,19 @@ export function numeroRecetaEtiqueta(datos: Pick<DatosEtiqueta, "asientoNumeroCo
   return datos.asientoNumeroCorrelativo ?? datos.recetaNumeroInterno;
 }
 
-/** PENDING (DP-28): no expiry data yet, so a blank line to fill in by hand. */
+/** The blank "Vence" line, for a preparación with no `fecha_vencimiento` (confirmed before migration 0068): filled in by hand. */
 export const VENCE_ETIQUETA = "Vence: ______";
+
+/**
+ * DP-28 "Vencimiento" (resolved 2026-10-07): "Vence: MM/YY" from the
+ * `YYYY-MM-DD` snapshot -- the month and year of the expiry date, e.g.
+ * "2026-03-31" -> "Vence: 03/26". `null` keeps `VENCE_ETIQUETA`.
+ */
+export function formatearVenceEtiqueta(fechaVencimiento: string | null): string {
+  if (fechaVencimiento === null) return VENCE_ETIQUETA;
+  const [anio, mes] = fechaVencimiento.split("-");
+  return `Vence: ${mes}/${anio!.slice(-2)}`;
+}
 
 /** PENDING (DP-28): vía per forma, singular/plural. SOLUCION and SUSPENSION are ambiguous (oral or topical), so they have none. */
 const VIA_POR_FORMA: Readonly<Record<FormaFarmaceutica, readonly [singular: string, plural: string] | null>> = {
@@ -98,14 +115,37 @@ export function viaDeAdministracion(forma: string, cantidad: number): string | n
 }
 
 /**
- * PENDING (DP-28): "Rp/" lists only the principios activos; when none is
- * flagged, every componente except the CS/CSP excipient. In
+ * "Rp/" lists every principio activo and nothing else (DP-28, confirmed
+ * 2026-10-07). PENDING (DP-28): when none is flagged, every componente except
+ * the CS/CSP excipient, so the label is never left without a fórmula. In
  * `ordenarComponentes` order.
  */
 export function componentesRp(componentes: readonly ComponenteEtiqueta[]): ComponenteEtiqueta[] {
   const ordenados = ordenarComponentes(componentes);
   const activos = ordenados.filter((c) => c.esPrincipioActivo);
   return activos.length > 0 ? activos : ordenados.filter((c) => c.modoExpresion !== "CS" && c.modoExpresion !== "CSP");
+}
+
+/** Rp/ lines that fit in one column of the label. */
+export const LINEAS_RP_POR_COLUMNA = 7;
+
+/** At most two columns: the label prints up to 14 Rp/ lines. */
+export const MAX_LINEAS_RP = LINEAS_RP_POR_COLUMNA * 2;
+
+/**
+ * Rp/ lines as laid out on the label (DP-28, confirmed 2026-10-07: every
+ * principio activo goes on the label). Up to 7 lines: one column. 8 to 14:
+ * two balanced columns, the first one taking the odd line (9 -> 5 + 4).
+ * Beyond 14, the first 13 are printed and the last slot says how many were
+ * left out. Only the PRINTED label is capped; `etiqueta.contenido` keeps
+ * every line.
+ */
+export function columnasRp(rp: readonly string[]): string[][] {
+  if (rp.length === 0) return [];
+  const lineas = rp.length > MAX_LINEAS_RP ? [...rp.slice(0, MAX_LINEAS_RP - 1), `… y ${rp.length - (MAX_LINEAS_RP - 1)} más`] : [...rp];
+  if (lineas.length <= LINEAS_RP_POR_COLUMNA) return [lineas];
+  const corte = Math.ceil(lineas.length / 2);
+  return [lineas.slice(0, corte), lineas.slice(corte)];
 }
 
 /** PENDING (DP-28): the label does not show the paciente (the real one doesn't). */
@@ -155,7 +195,7 @@ export function armarContenidoEtiqueta(datos: DatosEtiqueta): ContenidoEtiqueta 
     directorTecnico: dt ? { nombre: `${dt.nombre} ${dt.apellido}`.toLocaleUpperCase("es-AR"), matricula: dt.matricula } : null,
     domicilio: datos.tenantDomicilio,
     rp: componentesRp(datos.componentes).map(formatearLineaRp),
-    vence: VENCE_ETIQUETA,
+    vence: formatearVenceEtiqueta(datos.fechaVencimiento),
     recetaNumero: numeroRecetaEtiqueta(datos),
     cantidad: datos.cantidadUnidades,
     forma: formaSegunCantidad(datos.formaFarmaceutica, datos.cantidadUnidades),

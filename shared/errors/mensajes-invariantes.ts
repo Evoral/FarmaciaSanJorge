@@ -65,6 +65,7 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   "INV-P01": "La preparación no tiene una ficha técnica válida, o se intentó cambiar su ficha técnica.",
   "INV-P04": "No se pudo vincular la preparación con su asiento en el libro recetario.",
   "INV-P05": "La preparación ya fue confirmada o descartada: no admite ese cambio.",
+  "INV-P07": "La fecha de vencimiento del preparado se fija al confirmar la preparación y no se puede modificar después.",
   "INV-R03": "La ficha técnica debe tener al menos una línea de pesaje.",
 
   // Registros inmutables / multi-farmacia

@@ -186,6 +186,8 @@ async function main(): Promise<void> {
     // (plazo_archivo_comun_anios / plazo_archivo_controladas_anios) -- kept here so every path (a
     // brand-new tenant via this script, and a tenant that already existed
     // when those migrations ran) ends up with the same rows.
+    // `meses_vencimiento_preparado` (DP-28 "Vencimiento") is also backfilled
+    // for pre-existing tenants, by migration 0068.
     // `dias_alerta_vencimiento_partida` needs no migration/backfill:
     // modules/stock/infrastructure/partida-repository.ts#getDiasAlertaVencimiento
     // falls back to the same default (30) for any tenant without this row.
@@ -197,7 +199,8 @@ async function main(): Promise<void> {
          ($1, 'dias_alerta_vencimiento_partida', 'NUMERO', '30', 'Dias de anticipacion para la alerta de partidas por vencer -- DP-14, FASE 5 punto 5.7'),
          ($1, 'plazo_firma_dias', 'NUMERO', '0', 'Plazo en dias corridos para firmar el cierre diario en termino -- DP-18, FASE 10 punto 10.1'),
          ($1, 'plazo_archivo_comun_anios', 'NUMERO', '2', 'Anios de conservacion en archivo fisico para lotes sin recetas controladas -- DP-26 PARCIAL, FASE 12 punto 12.1'),
-         ($1, 'plazo_archivo_controladas_anios', 'NUMERO', '3', 'Anios de conservacion en archivo fisico para lotes con al menos una receta controlada -- DP-26 PARCIAL, FASE 12 punto 12.1')
+         ($1, 'plazo_archivo_controladas_anios', 'NUMERO', '3', 'Anios de conservacion en archivo fisico para lotes con al menos una receta controlada -- DP-26 PARCIAL, FASE 12 punto 12.1'),
+         ($1, 'meses_vencimiento_preparado', 'NUMERO', '3', 'Meses desde la elaboracion tras los cuales vence un preparado; se fija al confirmar la preparacion -- DP-28 Vencimiento')
        ON CONFLICT (tenant_id, clave) DO NOTHING`,
       [tenantId],
     );

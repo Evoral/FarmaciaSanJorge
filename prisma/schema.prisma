@@ -1104,6 +1104,8 @@ model Preparacion {
   motivoDescarte  String?           @map("motivo_descarte")
   descartadaEn    DateTime?         @map("descartada_en") @db.Timestamptz(6)
   descartadaPorId String?           @map("descartada_por_id") @db.Uuid
+  /// Migration 0068 (DP-28 "Vencimiento"): expiry of the preparado, snapshotted at confirmation (jornada + meses_vencimiento_preparado). NULL for one confirmed before 0068. Frozen afterwards (INV-P07).
+  fechaVencimiento DateTime?        @map("fecha_vencimiento") @db.Date
 
   fichaTecnica      FichaTecnica       @relation(fields: [fichaTecnicaId], references: [id])
   iniciadaPor       Usuario            @relation("PreparacionIniciadaPor", fields: [iniciadaPorId], references: [id])

@@ -26,6 +26,7 @@ import { jornadaDe, rangoDeJornadas } from "@/shared/time/jornada";
 import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
 import type { ModoExpresion } from "@/modules/recetas/domain/receta";
 import type { DatosEtiqueta } from "../domain/etiqueta";
+import { parseMesesVencimientoPreparado } from "../domain/vencimiento";
 
 const PLACEHOLDER_UUID = "00000000-0000-0000-0000-000000000000";
 const PLACEHOLDER_DATE = new Date(0);
@@ -541,16 +542,42 @@ export async function insertAsientoContralorEgreso(tx: Prisma.TransactionClient,
   });
 }
 
+/**
+ * `fechaVencimiento` (`YYYY-MM-DD`) is the snapshot of the preparado's expiry
+ * (migration 0068): it is written in the SAME UPDATE that confirms, the only
+ * moment the DB lets it change.
+ */
 export async function updatePreparacionConfirmada(
   tx: Prisma.TransactionClient,
   tenantId: string,
   id: string,
   preparadaPorId: string,
+  fechaVencimiento: string,
 ): Promise<void> {
   await tx.preparacion.update({
     where: { id, tenantId },
-    data: { estado: "CONFIRMADA", confirmadaEn: new Date(), preparadaPorId },
+    data: {
+      estado: "CONFIRMADA",
+      confirmadaEn: new Date(),
+      preparadaPorId,
+      fechaVencimiento: new Date(`${fechaVencimiento}T00:00:00.000Z`), // @db.Date columns are written as UTC midnight.
+    },
   });
+}
+
+/**
+ * `meses_vencimiento_preparado` `parametro` row (DP-28 "Vencimiento"), with
+ * the defensive fallback to the default (3) when the tenant has no usable row
+ * -- same discipline as `modules/stock/infrastructure/partida-repository.ts#getDiasAlertaVencimiento`.
+ * Reads `fsj.parametro` directly because modules cannot reach into another
+ * module's infrastructure layer (`modules/parametros`).
+ */
+export async function getMesesVencimientoPreparado(tx: Prisma.TransactionClient, tenantId: string): Promise<number> {
+  const row = await tx.parametro.findUnique({
+    where: { tenantId_clave: { tenantId, clave: "meses_vencimiento_preparado" } },
+    select: { valor: true },
+  });
+  return parseMesesVencimientoPreparado(row?.valor);
 }
 
 // ============================================================================
@@ -580,6 +607,7 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
       id: true,
       estado: true,
       confirmadaEn: true,
+      fechaVencimiento: true,
       preparadaPor: { select: { nombre: true, apellido: true } },
       fichaTecnica: {
         select: {
@@ -655,6 +683,7 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
     tenantNombreFantasia: tenant.nombreFantasia,
     tenantMatriculaFarmacia: tenant.matriculaFarmacia,
     tenantDomicilio: tenant.domicilio,
+    fechaVencimiento: prep.fechaVencimiento ? prep.fechaVencimiento.toISOString().slice(0, 10) : null, // @db.Date comes back as UTC midnight.
   };
 }
 

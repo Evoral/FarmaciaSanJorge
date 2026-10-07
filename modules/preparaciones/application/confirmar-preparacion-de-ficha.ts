@@ -26,7 +26,7 @@ import { AUTH_POLICY } from "@/shared/auth/policy";
 import { authorize } from "@/shared/auth/authorize";
 import { uuid } from "@/shared/validation";
 import { iniciarPreparacionEnTx } from "./iniciar-preparacion";
-import { confirmarPreparacionEnTx, lineaConfirmacionInput, type ConfirmarPreparacionLineaInput } from "./confirmar-preparacion";
+import { confirmarPreparacionEnTx, lineaConfirmacionInput, type ConfirmacionResultado, type ConfirmarPreparacionLineaInput } from "./confirmar-preparacion";
 
 const confirmarPreparacionDeFichaInput = z.object({
   fichaTecnicaId: uuid,
@@ -63,6 +63,7 @@ export const confirmarPreparacionDeFichaCommand = defineCommand({
           asientoRecetarioId: confirmada.asientoId,
           asientoRecetario: `Nº ${confirmada.numeroCorrelativo}`,
           numeroCorrelativo: confirmada.numeroCorrelativo,
+          fechaVencimiento: confirmada.fechaVencimiento,
         },
       },
     };
@@ -71,6 +72,6 @@ export const confirmarPreparacionDeFichaCommand = defineCommand({
 
 export async function confirmarPreparacionDeFicha(
   input: ConfirmarPreparacionDeFichaInput,
-): Promise<{ id: string; asientoId: string; numeroCorrelativo: string }> {
+): Promise<ConfirmacionResultado> {
   return confirmarPreparacionDeFichaCommand.execute(input);
 }

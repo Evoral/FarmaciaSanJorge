@@ -27,6 +27,7 @@ const DATOS: DatosEtiqueta & { etiquetaId: string; generadaEn: Date } = {
   medicoJurisdiccion: "PROVINCIAL",
   directorTecnico: null,
   tenantDomicilio: null,
+  fechaVencimiento: null,
 };
 
 const getEtiquetaParaImprimirMock = vi.fn<(preparacionId: string) => Promise<typeof DATOS>>(async () => DATOS);

@@ -79,6 +79,32 @@ describe("parametros-registry: exceso_pesada_porcentaje", () => {
   });
 });
 
+describe("parametros-registry: meses_vencimiento_preparado", () => {
+  const def = PARAMETROS_REGISTRY.meses_vencimiento_preparado;
+
+  it("is registered with the default 3", () => {
+    expect(def.clave).toBe("meses_vencimiento_preparado");
+    expect(def.valorPorDefecto).toBe("3");
+    expect(def.validar(def.valorPorDefecto).ok).toBe(true);
+  });
+
+  it.each(["1", "3", "24", "60"])("accepts %s", (valor) => {
+    expect(def.validar(valor).ok).toBe(true);
+  });
+
+  it.each([
+    ["0", "below one"],
+    ["61", "above the 60-month cap"],
+    ["999999999", "absurdly large"],
+    ["-1", "negative"],
+    ["1.5", "not an integer"],
+    ["abc", "non-numeric"],
+    ["", "empty"],
+  ])("rejects %s (%s)", (valor) => {
+    expect(def.validar(valor).ok).toBe(false);
+  });
+});
+
 describe("editarDatosTenant zod schema: the 4 non-editable tenant fields are never accepted", () => {
   const baseInput = { razonSocial: "Farmacia Test" };
 

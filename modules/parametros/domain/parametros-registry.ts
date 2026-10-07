@@ -27,6 +27,7 @@
  * each parameter's rule.
  */
 import { Decimal } from "decimal.js";
+import { MESES_VENCIMIENTO_PREPARADO_MAX } from "@/modules/preparaciones/domain/vencimiento";
 
 export const PARAMETRO_CLAVES = [
   "precision_balanza",
@@ -35,6 +36,7 @@ export const PARAMETRO_CLAVES = [
   "plazo_firma_dias",
   "plazo_archivo_comun_anios",
   "plazo_archivo_controladas_anios",
+  "meses_vencimiento_preparado",
 ] as const;
 
 export type ParametroClave = (typeof PARAMETRO_CLAVES)[number];
@@ -138,6 +140,23 @@ function validarPlazoArchivoAnios(valorRaw: string): ValidacionParametro {
   return { ok: true, valor };
 }
 
+/**
+ * `meses_vencimiento_preparado` (DP-28 "Vencimiento", resolved 2026-10-07):
+ * calendar months after its elaboración (the jornada of the confirmación)
+ * that a preparado expires, snapshotted on `fsj.preparacion.fecha_vencimiento`
+ * (migration 0068) when it is confirmed. An integer between 1 (a preparado
+ * always expires some time after it is made) and
+ * `MESES_VENCIMIENTO_PREPARADO_MAX` (a typo cannot push the date out of range).
+ */
+function validarMesesVencimientoPreparado(valorRaw: string): ValidacionParametro {
+  const valor = parseDecimalOrNull(valorRaw);
+  if (!valor) return { ok: false, error: "Debe ser un número válido." };
+  if (!valor.isInteger() || valor.lessThan(1) || valor.greaterThan(MESES_VENCIMIENTO_PREPARADO_MAX)) {
+    return { ok: false, error: `Debe ser un número entero entre 1 y ${MESES_VENCIMIENTO_PREPARADO_MAX}.` };
+  }
+  return { ok: true, valor };
+}
+
 export interface ParametroDefinicion {
   clave: ParametroClave;
   tipo: "NUMERO";
@@ -211,5 +230,16 @@ export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = 
       "ser un entero mayor o igual que uno.",
     valorPorDefecto: "3",
     validar: validarPlazoArchivoAnios,
+  },
+  meses_vencimiento_preparado: {
+    clave: "meses_vencimiento_preparado",
+    tipo: "NUMERO",
+    label: "Meses de vencimiento del preparado",
+    descripcion:
+      "Cantidad de meses, contados desde la fecha de elaboración, tras los cuales vence un preparado. La fecha se fija al " +
+      "confirmar la preparación y se imprime en la etiqueta: cambiar este valor no modifica los preparados ya confirmados. " +
+      `Debe ser un entero entre 1 y ${MESES_VENCIMIENTO_PREPARADO_MAX}.`,
+    valorPorDefecto: "3",
+    validar: validarMesesVencimientoPreparado,
   },
 };

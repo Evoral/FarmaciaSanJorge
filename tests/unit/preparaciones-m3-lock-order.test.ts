@@ -108,6 +108,10 @@ const jornadaActualTenantMock = vi.fn(async (...args: unknown[]) => {
   void args;
   return "2026-06-15";
 });
+const getMesesVencimientoPreparadoMock = vi.fn(async (...args: unknown[]) => {
+  void args;
+  return 3;
+});
 const existeCierreParaJornadaMock = vi.fn(async (...args: unknown[]) => {
   void args;
   return false;
@@ -178,6 +182,7 @@ vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => (
   updatePreparacionDescartada: (...args: unknown[]) => updatePreparacionDescartadaMock(...args),
   updatePreparacionConfirmada: (...args: unknown[]) => updatePreparacionConfirmadaMock(...args),
   jornadaActualTenant: (...args: unknown[]) => jornadaActualTenantMock(...args),
+  getMesesVencimientoPreparado: (...args: unknown[]) => getMesesVencimientoPreparadoMock(...args),
   existeCierreParaJornada: (...args: unknown[]) => existeCierreParaJornadaMock(...args),
   getLineasParaPreparacion: (...args: unknown[]) => getLineasParaPreparacionMock(...args),
   listPartidasElegiblesDroga: (...args: unknown[]) => listPartidasElegiblesDrogaMock(...args),
@@ -225,6 +230,7 @@ beforeEach(() => {
   updatePreparacionConfirmadaMock.mockResolvedValue(undefined);
 
   jornadaActualTenantMock.mockResolvedValue("2026-06-15");
+  getMesesVencimientoPreparadoMock.mockResolvedValue(3);
   existeCierreParaJornadaMock.mockResolvedValue(false);
   getLineasParaPreparacionMock.mockResolvedValue([
     { id: LINEA_ID, drogaId: "droga-1", drogaNombre: "Droga X", cantidadAPesar: "10", unidadMedidaId: "u1", unidadSimbolo: "g", esEnraseManual: false, orden: 0 },
@@ -313,7 +319,25 @@ describe("confirmar-preparacion: lock ordering (preparación, then partidas)", (
       { preparacionId: PREPARACION_ID, lineas: [{ lineaPesajeId: LINEA_ID, partidaIds: [PARTIDA_ID] }] },
       { session: fakeSession("preparaciones.confirmar") },
     );
-    expect(updatePreparacionConfirmadaMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, PREPARACION_ID, USUARIO_ID);
+    expect(updatePreparacionConfirmadaMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, PREPARACION_ID, USUARIO_ID, expect.any(String));
+  });
+
+  it("snapshots fecha_vencimiento = the confirmation's jornada + meses_vencimiento_preparado, in the same UPDATE", async () => {
+    // jornada 2026-06-15 (mocked) + 3 months (mocked parameter).
+    await confirmarPreparacionCommand.execute(
+      { preparacionId: PREPARACION_ID, lineas: [{ lineaPesajeId: LINEA_ID, partidaIds: [PARTIDA_ID] }] },
+      { session: fakeSession("preparaciones.confirmar") },
+    );
+    expect(updatePreparacionConfirmadaMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, PREPARACION_ID, USUARIO_ID, "2026-09-15");
+
+    getMesesVencimientoPreparadoMock.mockResolvedValueOnce(6);
+    jornadaActualTenantMock.mockResolvedValue("2026-08-31");
+    updatePreparacionConfirmadaMock.mockClear();
+    await confirmarPreparacionCommand.execute(
+      { preparacionId: PREPARACION_ID, lineas: [{ lineaPesajeId: LINEA_ID, partidaIds: [PARTIDA_ID] }] },
+      { session: fakeSession("preparaciones.confirmar") },
+    );
+    expect(updatePreparacionConfirmadaMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, PREPARACION_ID, USUARIO_ID, "2027-02-28");
   });
 
   it("rejects a non-INICIADA preparación with a clear message, before touching partidas", async () => {

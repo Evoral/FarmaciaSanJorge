@@ -23,6 +23,7 @@ import path from "node:path";
 import { renderPdf } from "@/shared/pdf/pdf-document";
 import { ETIQUETA_TAMANO_PREDETERMINADO } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import type { TamanoEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
+import { columnasRp } from "../domain/etiqueta";
 import type { ContenidoEtiqueta } from "../domain/etiqueta";
 
 const PT_POR_MM = 72 / 25.4;
@@ -92,9 +93,12 @@ function regla(doc: Doc, x1: number, y1: number, x2: number, y2: number): void {
   doc.moveTo(x1, y1).lineTo(x2, y2).lineWidth(0.8).strokeColor(NEGRO).stroke();
 }
 
+/** Gap between the two Rp/ columns (`columnasRp`). */
+const SEPARACION_COLUMNAS_RP = 6;
+
 /**
- * PENDING (DP-28): Rp/ font size by number of lines -- largest for one line,
- * about 8 lines still fit. Further reduced to fit the panel's width/height.
+ * Rp/ font size by number of rows (per column, see `columnasRp`) -- largest
+ * for one line. Further reduced to fit the column's width and the panel's height.
  */
 export function tamanoFuenteRp(lineas: number): number {
   const tabla = [16, 12.5, 10, 8.5, 7.5, 6.5, 5.8, 5.2];
@@ -138,20 +142,22 @@ function dibujarRp(doc: Doc, c: ContenidoEtiqueta): void {
   const ancho = PANEL_DIV_X - PAD - x;
   const arriba = BANDA_Y + 12;
   const abajo = PIE_Y - 12;
-  const n = c.rp.length;
-  if (n > 0) {
-    const fuente: Fuente = n <= 2 ? "Helvetica-Bold" : "Helvetica";
-    let tamano = tamanoFuenteRp(n);
-    const masAncha = Math.max(...c.rp.map((l) => anchoDe(doc, [{ texto: l, fuente }], tamano)));
-    if (masAncha > ancho) tamano = (tamano * ancho) / masAncha;
-    const interlinea = tamano * 1.2;
-    if (interlinea * n > abajo - arriba) tamano = (abajo - arriba) / (n * 1.2);
-    const alto = tamano * 1.2 * n;
-    let y = arriba + (abajo - arriba - alto) / 2;
-    for (const l of c.rp) {
-      linea(doc, [{ texto: l, fuente }], x, y, tamano, NEGRO);
-      y += tamano * 1.2;
-    }
+  const columnas = columnasRp(c.rp);
+  if (columnas.length > 0) {
+    // One font size for the whole Rp/, driven by the rows of the tallest column
+    // and shrunk until the widest line fits its column and every row fits the panel.
+    const filas = Math.max(...columnas.map((col) => col.length));
+    const fuente: Fuente = c.rp.length <= 2 ? "Helvetica-Bold" : "Helvetica";
+    const anchoColumna = (ancho - SEPARACION_COLUMNAS_RP * (columnas.length - 1)) / columnas.length;
+    let tamano = tamanoFuenteRp(filas);
+    const masAncha = Math.max(...columnas.flat().map((l) => anchoDe(doc, [{ texto: l, fuente }], tamano)));
+    if (masAncha > anchoColumna) tamano = (tamano * anchoColumna) / masAncha;
+    if (tamano * 1.2 * filas > abajo - arriba) tamano = (abajo - arriba) / (filas * 1.2);
+    const primeraY = arriba + (abajo - arriba - tamano * 1.2 * filas) / 2;
+    columnas.forEach((col, i) => {
+      const colX = x + i * (anchoColumna + SEPARACION_COLUMNAS_RP);
+      col.forEach((l, fila) => linea(doc, [{ texto: l, fuente }], colX, primeraY + fila * tamano * 1.2, tamano, NEGRO));
+    });
   }
 
   linea(doc, [{ texto: c.vence, fuente: "Helvetica" }], BORDE + PAD, PIE_Y - 9, 6, NEGRO);

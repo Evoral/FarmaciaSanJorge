@@ -53,7 +53,11 @@
  *         EVERY line is an insumo, in which case all are recorded (an
  *         asiento never ends up without its fórmula).
  *      g. UPDATE `preparacion` -> CONFIRMADA, `preparada_por_id` = the
- *         SESSION user (INV-P06 -- never from input).
+ *         SESSION user (INV-P06 -- never from input), and snapshot
+ *         `fecha_vencimiento` = the confirmation's jornada (tenant-local,
+ *         `fsj.jornada_actual`) + the tenant's `meses_vencimiento_preparado`
+ *         calendar months (DP-28 "Vencimiento"; migration 0068). It is a
+ *         snapshot: changing the parameter later never moves it.
  *      h. UPDATE the receta's estado: EN_PREPARACION -> PREPARADA once
  *         EVERY item_receta of the receta has a CONFIRMADA preparación
  *         (INV-P03.4).
@@ -91,10 +95,12 @@ import {
   formatearFormulaTexto,
 } from "../domain/preparacion";
 import { mensajeParaInvariante } from "../domain/mensajes-invariantes";
+import { calcularVencimientoPreparado } from "../domain/vencimiento";
 import {
   lockPreparacionParaAccion,
   getPreparacionParaAccion,
   jornadaActualTenant,
+  getMesesVencimientoPreparado,
   existeCierreParaJornada,
   getLineasParaPreparacion,
   listPartidasElegiblesDroga,
@@ -141,6 +147,14 @@ export interface ConfirmarPreparacionInput {
   lineas: ConfirmarPreparacionLineaInput[];
 }
 
+/** What a confirmation returns; `fechaVencimiento` is the `YYYY-MM-DD` snapshot written on the preparación. */
+export interface ConfirmacionResultado {
+  id: string;
+  asientoId: string;
+  numeroCorrelativo: string;
+  fechaVencimiento: string;
+}
+
 export const confirmarPreparacionCommand = defineCommand({
   name: "preparaciones.confirmar",
   permiso: "preparaciones.confirmar",
@@ -161,6 +175,7 @@ export const confirmarPreparacionCommand = defineCommand({
           asientoRecetarioId: confirmada.asientoId,
           asientoRecetario: `Nº ${confirmada.numeroCorrelativo}`,
           numeroCorrelativo: confirmada.numeroCorrelativo,
+          fechaVencimiento: confirmada.fechaVencimiento,
         },
       },
     };
@@ -177,7 +192,7 @@ export async function confirmarPreparacionEnTx(
   tx: Prisma.TransactionClient,
   session: AuthenticatedSession,
   input: { preparacionId: string; lineas: LineaConfirmacion[] },
-): Promise<{ id: string; asientoId: string; numeroCorrelativo: string }> {
+): Promise<ConfirmacionResultado> {
   // ------------------------------------------------------------------
   // 1-2. Lock + verify INICIADA; friendly INV-C03 pre-check.
   // ------------------------------------------------------------------
@@ -389,7 +404,12 @@ export async function confirmarPreparacionEnTx(
     // ------------------------------------------------------------------
     // 7. preparación -> CONFIRMADA (preparada_por_id = SESIÓN, INV-P06).
     // ------------------------------------------------------------------
-    await updatePreparacionConfirmada(tx, session.tenantId, input.preparacionId, session.usuario.id);
+    // `jornada` is fsj.jornada_actual(tenant): the tenant-local date of the
+    // elaboración. Same transaction, so the parameter read is consistent with
+    // the confirmation it dates.
+    const mesesVencimiento = await getMesesVencimientoPreparado(tx, session.tenantId);
+    const fechaVencimiento = calcularVencimientoPreparado(jornada, mesesVencimiento);
+    await updatePreparacionConfirmada(tx, session.tenantId, input.preparacionId, session.usuario.id, fechaVencimiento);
 
     // ------------------------------------------------------------------
     // 8. receta: EN_PREPARACION -> PREPARADA una vez que TODOS los ítems
@@ -403,7 +423,7 @@ export async function confirmarPreparacionEnTx(
       }
     }
 
-    return { id: input.preparacionId, asientoId: asiento.id, numeroCorrelativo: asiento.numeroCorrelativo };
+    return { id: input.preparacionId, asientoId: asiento.id, numeroCorrelativo: asiento.numeroCorrelativo, fechaVencimiento };
   } catch (e) {
     // `withTenantTransaction` (shared/db/transaction.ts) only calls
     // `mapDbError` AFTER this whole handler has already thrown -- too
@@ -440,6 +460,6 @@ function repartoSinCorreccion(
   };
 }
 
-export async function confirmarPreparacion(input: ConfirmarPreparacionInput): Promise<{ id: string; asientoId: string; numeroCorrelativo: string }> {
+export async function confirmarPreparacion(input: ConfirmarPreparacionInput): Promise<ConfirmacionResultado> {
   return confirmarPreparacionCommand.execute(input);
 }

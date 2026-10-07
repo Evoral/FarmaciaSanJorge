@@ -128,10 +128,14 @@ async function intentarConfirmacion(tx: Client, seed: Seed, cantidad = 5, detall
     [asientoId, seed.tenantId, seed.preparacionId, seed.sistema],
   );
 
-  await tx.query(`UPDATE fsj.preparacion SET estado = 'CONFIRMADA', confirmada_en = now(), preparada_por_id = $1 WHERE id = $2`, [
-    seed.sistema,
-    seed.preparacionId,
-  ]);
+  // fecha_vencimiento: the confirmation's jornada + meses_vencimiento_preparado (default 3), as confirmar-preparacion.ts snapshots it (migration 0068).
+  await tx.query(
+    `UPDATE fsj.preparacion
+        SET estado = 'CONFIRMADA', confirmada_en = now(), preparada_por_id = $1,
+            fecha_vencimiento = (fsj.jornada_actual(tenant_id) + interval '3 months')::date
+      WHERE id = $2`,
+    [seed.sistema, seed.preparacionId],
+  );
 
   return { movimientoId: movimiento.rows[0].id as string, asientoId: asiento.rows[0].id as string };
 }
@@ -142,6 +146,26 @@ async function contadorUltimoValor(tx: Client, tenantId: string, libroId: string
 }
 
 describe.skipIf(dbTestSkipReason() !== null)("confirmación de preparación -- atomicidad y contador (FASE 8 point 8.4)", () => {
+  it("the confirming UPDATE snapshots fecha_vencimiento = jornada + 3 months, and it stays NULL on a preparación that was never confirmed", async () => {
+    await asOwner((client) =>
+      inRollbackTx(client, async (tx) => {
+        const seed = await seedParaConfirmacion(tx, "venc1");
+        const antes = await tx.query(`SELECT fecha_vencimiento FROM fsj.preparacion WHERE id = $1`, [seed.preparacionId]);
+        expect(antes.rows[0].fecha_vencimiento).toBeNull();
+
+        await intentarConfirmacion(tx, seed);
+
+        const despues = await tx.query(
+          `SELECT estado, fecha_vencimiento = (fsj.jornada_actual(tenant_id) + interval '3 months')::date AS es_jornada_mas_3_meses
+             FROM fsj.preparacion WHERE id = $1`,
+          [seed.preparacionId],
+        );
+        expect(despues.rows[0].estado).toBe("CONFIRMADA");
+        expect(despues.rows[0].es_jornada_mas_3_meses).toBe(true);
+      }),
+    );
+  });
+
   it("a failure partway through the sequence (bad detalle_asiento FK) leaves NOTHING persisted: no movimiento, no asiento, counter unchanged", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {

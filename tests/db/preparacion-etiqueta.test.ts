@@ -230,6 +230,74 @@ describe.skipIf(dbTestSkipReason() !== null)("0013_preparacion_etiqueta migratio
     );
   });
 
+  it("INV-P07: fecha_vencimiento is set only by the confirming UPDATE and frozen afterwards (migration 0068)", async () => {
+    await asOwner((client) =>
+      inRollbackTx(client, async (tx) => {
+        const { tenantId, sistema, fichaTecnicaId } = await seedFicha(tx, "p07");
+        const preparacionId = await insertPreparacion(tx, { tenantId, fichaTecnicaId, iniciadaPorId: sistema });
+
+        // Not while INICIADA: the trigger rejects a date before confirmation (INV-P07).
+        await expectInvariantViolation(
+          tx,
+          () => tx.query(`UPDATE fsj.preparacion SET fecha_vencimiento = '2027-01-31' WHERE id = $1`, [preparacionId]),
+          "INV-P07",
+        );
+
+        // The confirming UPDATE sets it.
+        await tx.query(
+          `UPDATE fsj.preparacion SET estado = 'CONFIRMADA', confirmada_en = now(), preparada_por_id = $1, fecha_vencimiento = '2027-01-31' WHERE id = $2`,
+          [sistema, preparacionId],
+        );
+        const fila = await tx.query(`SELECT fecha_vencimiento::text AS f FROM fsj.preparacion WHERE id = $1`, [preparacionId]);
+        expect(fila.rows[0].f).toBe("2027-01-31");
+
+        // Frozen afterwards: neither changed nor cleared.
+        await expectInvariantViolation(
+          tx,
+          () => tx.query(`UPDATE fsj.preparacion SET fecha_vencimiento = '2027-06-30' WHERE id = $1`, [preparacionId]),
+          "INV-P07",
+        );
+        await expectInvariantViolation(
+          tx,
+          () => tx.query(`UPDATE fsj.preparacion SET fecha_vencimiento = NULL WHERE id = $1`, [preparacionId]),
+          "INV-P07",
+        );
+      }),
+    );
+  });
+
+  it("INV-P07: a legacy CONFIRMADA preparación (NULL fecha_vencimiento) can never be given one retroactively; only a CONFIRMADA one may carry one (CHECK)", async () => {
+    await asOwner((client) =>
+      inRollbackTx(client, async (tx) => {
+        const { tenantId, sistema, fichaTecnicaId } = await seedFicha(tx, "p07legacy");
+        const preparacionId = await insertPreparacion(tx, { tenantId, fichaTecnicaId, iniciadaPorId: sistema });
+        // Confirmed WITHOUT a date, as every preparación confirmed before 0068 is.
+        await tx.query(`UPDATE fsj.preparacion SET estado = 'CONFIRMADA', confirmada_en = now(), preparada_por_id = $1 WHERE id = $2`, [
+          sistema,
+          preparacionId,
+        ]);
+        await expectInvariantViolation(
+          tx,
+          () => tx.query(`UPDATE fsj.preparacion SET fecha_vencimiento = '2027-01-31' WHERE id = $1`, [preparacionId]),
+          "INV-P07",
+        );
+
+        // The CHECK is the backstop for a direct INSERT: a preparación that is not CONFIRMADA never carries a date.
+        const otra = await seedFicha(tx, "p07ins");
+        await expectDbRejection(
+          tx,
+          () =>
+            tx.query(`INSERT INTO fsj.preparacion (tenant_id, ficha_tecnica_id, iniciada_por_id, fecha_vencimiento) VALUES ($1, $2, $3, '2027-01-31')`, [
+              otra.tenantId,
+              otra.fichaTecnicaId,
+              otra.sistema,
+            ]),
+          "23514",
+        );
+      }),
+    );
+  });
+
   it("INV-P05: DESCARTADA requires motivo_descarte + descartada_por_id + descartada_en (CHECK)", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
