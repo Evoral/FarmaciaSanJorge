@@ -232,19 +232,19 @@ const conTexto = (prescripcion: string | null, cambios: Json = {}) => receta({ p
 const clasePorCodigo = (r: ReturnType<typeof leer>, codigo: string) => r.advertencias.filter((a) => a.codigo === codigo);
 
 describe("P40-P42: items", () => {
-  it("P42: the real-shaped receta gives one item (component, presentación, fracción + posología, duración) and the PDF's consistency warning", () => {
+  it("P42: the real-shaped receta gives one item (component, presentación, fracción + posología, duración), 60 units to make and no consistency warning, as in the PDF", () => {
     const r = leer(RECETA_REAL);
     expect(r.borrador.items).toEqual([
       {
         formaFarmaceutica: "CAPSULA",
-        cantidadUnidades: 30,
+        cantidadUnidades: 60,
         fraccionDosisPorUnidad: "0.5",
         posologia: "Media dosis cada 12 horas",
         duracionTratamientoDias: 30,
         componentes: [{ drogaTexto: "Mazindol", cantidad: "1.5", unidadTexto: "mg", modoExpresion: "POR_DOSIS" }],
       },
     ]);
-    expect(clasePorCodigo(r, "UNIDADES_VS_DURACION").map((a) => a.mensaje)).toEqual(["Las unidades alcanzan para 15 días; la receta indica 30."]);
+    expect(clasePorCodigo(r, "UNIDADES_VS_DURACION")).toEqual([]);
     expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO")).toEqual([]);
   });
 
@@ -257,12 +257,12 @@ describe("P40-P42: items", () => {
   it("P40: every prescripcion element is its own item, parsed independently", () => {
     const r = leer(receta({
       prescripcion: [
-        { ...ITEM, prescripcion: "Mazindol 1,5 mg\n30 cápsulas\nMedia dosis cada 12 horas\nTratamiento por 15 días" },
+        { ...ITEM, prescripcion: "Mazindol 1,5 mg\n30 cápsulas\nMedia dosis cada 12 horas\nTratamiento por 30 días" },
         { ...ITEM, prescripcion: "Ibuprofeno 400 mg\n20 comprimidos\nCada 8 horas\nTratamiento por 7 días" },
       ],
     }));
     expect(r.borrador.items.map((i) => [i.componentes[0]!.drogaTexto, i.cantidadUnidades, i.fraccionDosisPorUnidad, i.duracionTratamientoDias])).toEqual([
-      ["Mazindol", 30, "0.5", 15],
+      ["Mazindol", 60, "0.5", 30],
       ["Ibuprofeno", 20, "1", 7],
     ]);
     expect(clasePorCodigo(r, "MAS_DE_UN_ITEM")).toEqual([]);
@@ -415,7 +415,7 @@ describe("(ítem N) suffix on item-scoped notices", () => {
 
   it("every item-scoped notice of the second item names it; the first item's too", () => {
     const r = leer(dos(
-      "Mazindol 1,5 mg\nrenglon raro uno\n30 cápsulas\nMedia dosis cada 12 horas\nTratamiento por 30 días",
+      "Mazindol 1,5 mg\nrenglon raro uno\n30 cápsulas\nMedia dosis cada 12 horas\nTratamiento por 15 días",
       "Ibuprofeno 400 mg\n20 comprimidos\nParacetamol 500 mg\nrenglon raro dos\nCada 8 horas\nTratamiento por 3 días",
     ));
     expect(mensajes(r, "RENGLON_NO_RECONOCIDO")).toEqual([
@@ -424,7 +424,7 @@ describe("(ítem N) suffix on item-scoped notices", () => {
     ]);
     expect(mensajes(r, "MAS_DE_UN_ITEM")).toEqual(["La receta parece tener más de un ítem (renglón «Paracetamol 500 mg»). Se carga un único ítem: revisá los ítems (ítem 2)."]);
     expect(mensajes(r, "UNIDADES_VS_DURACION")).toEqual([
-      "Las unidades alcanzan para 15 días; la receta indica 30 (ítem 1).",
+      "Las unidades alcanzan para 30 días; la receta indica 15 (ítem 1).",
       "Las unidades alcanzan para 6,67 días; la receta indica 3 (ítem 2).",
     ]);
   });

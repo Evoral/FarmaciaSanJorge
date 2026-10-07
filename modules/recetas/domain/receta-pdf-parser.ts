@@ -25,6 +25,7 @@
  * is NOT done here (that is the application layer's match step).
  */
 import type { FormaFarmaceutica } from "./receta";
+import { dec } from "@/shared/decimal";
 import { normalizarTexto } from "./normalizar";
 
 // ============================================================================
@@ -107,6 +108,7 @@ export interface BorradorComponente {
 
 export interface BorradorItem {
   formaFarmaceutica: FormaFarmaceutica | null;
+  /** Units to make, not the prescribed count: "30 comprimidos" at media dosis -> 60 (`unidadesAElaborar`). */
   cantidadUnidades: number | null;
   /** Decimal string: "1" unless the receta says "media dosis" / "½ dosis" ("0.5", docs/specs/ficha-tecnica.md). */
   fraccionDosisPorUnidad: string;
@@ -450,10 +452,24 @@ export function parsearCuerpo(lineas: readonly string[]): ResultadoCuerpo {
     }
   });
 
+  // The receta counts full doses ("30 comprimidos"); with "media dosis" each
+  // unit carries half a dose, so the pharmacy makes twice as many units.
+  if (item.cantidadUnidades !== null) item.cantidadUnidades = unidadesAElaborar(item.cantidadUnidades, item.fraccionDosisPorUnidad);
+
   const consistencia = controlarUnidadesVsDuracion(item);
   if (consistencia) advertencias.push(consistencia);
 
   return { item, advertencias };
+}
+
+/**
+ * Spec "Unidades a elaborar": the prescribed units are full doses; each
+ * elaborated unit carries `fraccion` of a dose, so units = prescribed / fraccion
+ * (30 comprimidos + media dosis -> 60). The parser only yields "1" or "0.5",
+ * so the result is always a whole number.
+ */
+export function unidadesAElaborar(unidadesRecetadas: number, fraccionDosisPorUnidad: string): number {
+  return dec(unidadesRecetadas).div(fraccionDosisPorUnidad).round().toNumber();
 }
 
 /**

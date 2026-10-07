@@ -81,7 +81,7 @@ Cada renglón se clasifica con la primera regla que matchee:
 | Ignorado | empieza con `- ` inmediatamente después de `Rp./` | Se descarta en silencio (ej. `- Avellaneda 14 las Heras`; significado desconocido). |
 | Componente | `^(.+?)\s+(\d+(?:[.,]\d+)?)\s*(mg\|g\|mcg\|µg\|ml\|UI\|%)$` | Componente `POR_DOSIS`, cantidad en es-AR (coma decimal). Si es principio activo no se lee del PDF: lo define la clase de la droga elegida en el catálogo (`DROGA`), al guardar. |
 | Presentación | `^(\d+)\s+(comprimidos?\|c[áa]psulas?\|…)$` | `cantidadUnidades` + `formaFarmaceutica` por léxico. |
-| Fracción de dosis | contiene `media dosis` / `½ dosis` | `fraccionDosisPorUnidad = 0.5` (convención de `ficha-tecnica.md`, asiento 34147). |
+| Fracción de dosis | contiene `media dosis` / `½ dosis` | `fraccionDosisPorUnidad = 0.5` (convención de `ficha-tecnica.md`, asiento 34147) y se duplican las unidades a elaborar (ver abajo). |
 | Posología | contiene `cada N horas` (u otra indicación de toma) | Renglón literal a `item.posologia`. |
 | Duración | `tratamiento por N d[ií]as` | `item.duracionTratamientoDias = N`. |
 | Otro | — | **Advertencia visible** con el texto del renglón. |
@@ -90,10 +90,11 @@ Reglas del ítem:
 
 - La dosis indicada es la dosis completa: los componentes se cargan `POR_DOSIS`.
 - Sin mención de fracción → `fraccionDosisPorUnidad = 1`.
+- **Unidades a elaborar.** La cantidad de la receta («30 comprimidos») cuenta dosis completas. Cada unidad elaborada lleva `fraccionDosisPorUnidad` de dosis, así que `cantidadUnidades = unidades recetadas / fracción`. Ejemplo: «30 comprimidos» con «Media dosis cada 12 horas» se elaboran **60** comprimidos de media dosis, para que el paciente no tenga que partirlos. Decisión del usuario (2026-10-07).
 - Un renglón puede ser a la vez fracción y posología (`Media dosis cada 12 horas`): aplica ambas.
 - Un único ítem por receta en RCTA. Si aparecen señales de más de un ítem → advertencia.
 
-**Control de consistencia (solo advertencia, nunca bloquea):** con `cantidadUnidades`, tomas por día (`24 / N horas`, una unidad por toma) y `duracionTratamientoDias`, si `cantidadUnidades / tomasPorDia ≠ duracion` → advertencia "Las unidades alcanzan para X días; la receta indica Y". [ACLARACIÓN] La muestra dispara esta advertencia (30 comprimidos, una toma cada 12 h = 15 días, receta dice 30).
+**Control de consistencia (solo advertencia, nunca bloquea):** con `cantidadUnidades` (ya convertidas a unidades a elaborar), tomas por día (`24 / N horas`, una unidad por toma) y `duracionTratamientoDias`, si `cantidadUnidades / tomasPorDia ≠ duracion` → advertencia "Las unidades alcanzan para X días; la receta indica Y". La muestra NO la dispara: 30 comprimidos de media dosis = 60 unidades, una toma cada 12 h = 30 días.
 
 ### Separación de nombres
 
@@ -183,7 +184,7 @@ Las recetas `DIGITAL_PDF` **no entran** en lotes de archivo físico ni en destru
 
 ## Casos de prueba
 
-- **P1 — Muestra RCTA (datos sintéticos equivalentes).** Emisor `RCTA`; nro receta y URL presentes; paciente 2 palabras (separación sin confirmación); médico `PROVINCIAL`; 6 componentes `POR_DOSIS` (incluye `0,3 mg` → 0.3 y `1,6 mg` → 1.6); `COMPRIMIDO` × 30; fracción 0.5; posología `Media dosis cada 12 horas`; duración 30; diagnóstico `E66.0`; renglón `- …` ignorado; advertencia de consistencia (15 vs 30 días).
+- **P1 — Muestra RCTA (datos sintéticos equivalentes).** Emisor `RCTA`; nro receta y URL presentes; paciente 2 palabras (separación sin confirmación); médico `PROVINCIAL`; 6 componentes `POR_DOSIS` (incluye `0,3 mg` → 0.3 y `1,6 mg` → 1.6); `COMPRIMIDO` × 60 (30 recetados a media dosis); fracción 0.5; posología `Media dosis cada 12 horas`; duración 30; diagnóstico `E66.0`; renglón `- …` ignorado; sin advertencia de consistencia.
 - **P2** — PDF sin link ni registro reconocible → "formato no reconocido".
 - **P3** — Renglón no clasificable en el cuerpo → advertencia con el texto literal.
 - **P4** — Sin número de receta del emisor → no importable.
