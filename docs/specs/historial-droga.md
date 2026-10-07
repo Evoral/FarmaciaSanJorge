@@ -1,6 +1,6 @@
 # Historial de la droga
 
-Status: approved by user 2026-10-07 — not implemented yet.
+Status: approved by user 2026-10-07 — implemented (see "Implementation notes" at the end).
 
 ## Goal
 
@@ -31,7 +31,7 @@ Key facts (verified in the code):
   by each page right under its header.
 - New `app/(app)/catalogos/drogas/[id]/layout.tsx`: uuid guard only (malformed
   id → 404), same as `app/(app)/proveedores/[id]/layout.tsx`.
-- The Historial tab is rendered only when the session holds `recetas.ver`.
+- The Historial tab is rendered only when the session holds `recetas.crear`.
   Opening the historial URL without it redirects to the Datos tab (the page
   checks `can()` before calling the use case, so no ACCESO_DENEGADO row is
   written for a link the UI never showed).
@@ -43,15 +43,15 @@ Key facts (verified in the code):
 
 Base access: the existing `catalogos/drogas/layout.tsx` guard
 (`drogas.editar`). The view exposes receta data, so the use case is a
-`defineQuery` on **`recetas.ver`**. Optional pieces are decided with `can()`
+`defineQuery` on **`recetas.crear`**. Optional pieces are decided with `can()`
 inside the use case (never by calling other defineQuerys: a denial writes
 ACCESO_DENEGADO). A piece the session cannot see is neither fetched nor
 rendered.
 
 | Piece | Gate |
 |---|---|
-| Tab, recetas, partidas consumed, quantities | `recetas.ver` |
-| Paciente name (otherwise "—") | `pacientes.ver` |
+| Tab, recetas, partidas consumed, quantities | `recetas.crear` |
+| Paciente name (otherwise "—") | `pacientes.gestionar` |
 | Link to the partida in stock + unit conversion | `stock.ver` |
 
 Without `stock.ver`, quantities show in the droga's unidad base, unconverted
@@ -73,7 +73,7 @@ Columns:
 |---|---|---|
 | Nº | `receta.numero_interno` | |
 | Preparada | latest `preparacion.confirmada_en` | tenant time zone |
-| Paciente | `paciente.apellido, nombre` | only with `pacientes.ver` |
+| Paciente | `paciente.apellido, nombre` | only with `pacientes.gestionar` |
 | Médico | `medico.apellido, nombre` | hidden on small screens |
 | Consumido | `SUM(movimiento_stock.cantidad)` | this droga only, across all of the receta's items and partidas |
 | Estado | `receta.estado` | status badge (an ANULADA receta still shows: the stock was consumed) |
@@ -138,12 +138,12 @@ No resumen block in v1.
      item_receta ir JOIN receta r`, `GROUP BY r.id`, ORDER/LIMIT/OFFSET as
      above, plus its own `count(DISTINCT r.id)` (the pagination total, and
      the unfiltered total for the "de M" line when a filter is active).
-     Paciente columns are selected only with `pacientes.ver`.
+     Paciente columns are selected only with `pacientes.gestionar`.
   4. detail for the page: `receta_id IN (page ids)` grouped by
      `(receta_id, partida_id)` with lote / proveedor / vencimiento.
   Every join also carries `tenant_id` (composite-key discipline).
 - `modules/drogas/application/get-historial-droga.ts` — `defineQuery` on
-  `recetas.ver`. Input `{ drogaId, page, partidaIds }`. Computes the `acceso`
+  `recetas.crear`. Input `{ drogaId, page, partidaIds }`. Computes the `acceso`
   flags with `can()` and passes them to the repository.
 - `modules/drogas/ui/historial-*.tsx` — row cells, expanded detail, filter.
 - `app/(app)/catalogos/drogas/[id]/historial/page.tsx`, `[id]/layout.tsx`,
@@ -166,7 +166,7 @@ as in 0056.
 Unit tests with a fake `tx` (same style as the proveedor historial):
 `parsearPartidaIds` (invalid, duplicates, case, cap), option split helpers,
 partida label (with/without vencimiento), pagination clamp, use case gating
-(no `pacientes.ver` → no paciente fields fetched; no `stock.ver` → no
+(no `pacientes.gestionar` → no paciente fields fetched; no `stock.ver` → no
 partida links), foreign partida ids ignored. Typecheck and lint. The raw SQL
 must be run once against a seeded tenant before it is relied on.
 
@@ -176,3 +176,38 @@ must be run once against a seeded tenant before it is relied on.
 - Resumen block (counts, pacientes distintos, total consumido).
 - Export (CSV/PDF) of the list for a recall.
 - Filters other than partida (date range, paciente, médico).
+
+## Implementation notes
+
+Status: implemented 2026-10-07. Decisions taken while building it (none changes
+the approved behavior; each is the narrowest reading of the spec).
+
+- **Permiso codes.** `recetas.ver` / `pacientes.ver` are use-case NAMES, not
+  permiso codes. The spec text above (Routes, Permissions table, Content,
+  Technical design, Testing) was corrected to the real codes: `recetas.crear`
+  (tab, page and the `drogas.historial` defineQuery, same as `/recetas/**`),
+  `pacientes.gestionar` (paciente name) and `stock.ver` (partida link + unit
+  catalog). `recetas.crear` is `operativo`, so the locked ADMINISTRADOR does not
+  hold it implicitly. A single helper, `puedeVerHistorialDroga`, is the rule
+  used by the tab and the page.
+- **Page size** is 20 (spec silent).
+- **Paciente column** is always present, "—" without `pacientes.gestionar`; the
+  paciente statement is not even executed in that case.
+- **`DrogaTabs`** renders nothing when the session cannot see the Historial.
+- **Statements.** options, count (unfiltered + filtered total in one pass), page,
+  detail and (optional) paciente names: one each, whatever the page size. The
+  partida filter is ONE bound `uuid[]` and the SQL switches on
+  `cardinality(...) = 0`; the page applies it with `HAVING bool_or(...)`, and the
+  detail statement never receives it (the filter selects recetas, it does not trim
+  them).
+- **Labels.** `drogaId`, `page` and `partidaIds` already existed in
+  `shared/labels/field-labels.ts`; nothing was added.
+- **Options are not capped** (a droga's partidas with egresos is a small list; the
+  Combobox shows at most 30 matches at once).
+- **Not verified against Postgres.** Everything was verified with unit tests
+  (fake `tx`), typecheck and lint. The raw SQL (count, page, detail, paciente
+  names, options) has NOT been executed against a real database in this change,
+  by instruction (`test:db` points at the single production database). Run it once
+  against a seeded tenant before relying on it, including: an empty `{}` filter
+  array bound as `uuid[]`, a receta with items of several partidas, and an ANULADA
+  receta (it must still appear).
