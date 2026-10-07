@@ -72,7 +72,11 @@ export interface ContenidoEtiqueta {
 // PENDING (DP-28) rules
 // ----------------------------------------------------------------------------
 
-/** PENDING (DP-28): the "Receta N" is the libro recetario asiento number, falling back to the receta's número interno. */
+/**
+ * DP-28 "Número de receta" (resolved 2026-10-07): the "Receta N" is the libro recetario asiento number.
+ * A printable etiqueta always has one (it is written when the preparación is confirmed); the fallback to
+ * the receta's número interno is only defensive.
+ */
 export function numeroRecetaEtiqueta(datos: Pick<DatosEtiqueta, "asientoNumeroCorrelativo" | "recetaNumeroInterno">): string {
   return datos.asientoNumeroCorrelativo ?? datos.recetaNumeroInterno;
 }
