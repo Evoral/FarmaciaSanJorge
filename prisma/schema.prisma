@@ -642,10 +642,14 @@ model DrogaAlias {
   /// Migration 0067: removed (by hand, or because the droga was given de baja). Never cleared.
   fechaBaja        DateTime? @map("fecha_baja") @db.Timestamptz(6)
 
-  droga     Droga   @relation(fields: [drogaId], references: [id])
-  creadoPor Usuario @relation(fields: [creadoPorId], references: [id])
+  droga       Droga                  @relation(fields: [drogaId], references: [id])
+  creadoPor   Usuario                @relation(fields: [creadoPorId], references: [id])
+  /// Migration 0069: receta componentes picked by this synonym (componente_item_receta.droga_alias_id).
+  componentes ComponenteItemReceta[]
 
   @@unique([tenantId, id])
+  /// Migration 0069: target of componente_item_receta_droga_alias_fkey (tenant_id, droga_alias_id, droga_id).
+  @@unique([tenantId, id, drogaId], map: "droga_alias_tenant_id_droga_key")
   @@map("droga_alias")
   @@schema("fsj")
 }
@@ -944,14 +948,18 @@ model ComponenteItemReceta {
   esPrincipioActivo Boolean       @default(false) @map("es_principio_activo")
 
   itemReceta   ItemReceta   @relation(fields: [itemRecetaId], references: [id])
+  /// Migration 0069: the synonym of the droga the componente was picked by (display only; NULL = canonical name). The SQL FK is composite (tenant_id, droga_alias_id, droga_id): same tenant AND same droga. May point to a synonym removed later.
+  drogaAliasId      String?       @map("droga_alias_id") @db.Uuid
   droga        Droga        @relation(fields: [drogaId], references: [id])
   unidadMedida UnidadMedida @relation(fields: [unidadMedidaId], references: [id])
 
   @@unique([tenantId, id])
+  drogaAlias   DrogaAlias?  @relation(fields: [drogaAliasId], references: [id])
   /// Migration 0065: the componentes of an item (they have no order -- orden was dropped).
   @@index([tenantId, itemRecetaId], map: "idx_componente_item_receta_tenant_item")
   @@map("componente_item_receta")
   @@schema("fsj")
+  @@index([tenantId, drogaAliasId], map: "idx_componente_item_receta_droga_alias")
 }
 
 // ============================================================================

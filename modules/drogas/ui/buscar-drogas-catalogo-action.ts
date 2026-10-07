@@ -14,3 +14,30 @@ export async function buscarDrogasCatalogoAction(busqueda: string): Promise<Suge
     sinonimo: droga.sinonimoCoincidente,
   }));
 }
+
+/** A droga that already answers to a name being typed in the alta form (by its name or a vigente synonym). */
+export interface DrogaExistente {
+  id: string;
+  nombre: string;
+  sinonimos: string[];
+  /** The synonym that matched, when the name itself did not. */
+  sinonimoCoincidente: string | null;
+  baja: boolean;
+}
+
+/**
+ * Live duplicate check while creating a droga (docs/specs/sinonimos-droga.md): drogas, vigente or not, whose name or
+ * vigente synonym contains the typed text (accent- and case-insensitive). The command re-checks on submit.
+ */
+export async function buscarDrogasExistentesAction(texto: string): Promise<DrogaExistente[]> {
+  const search = String(texto ?? "").trim().slice(0, 100);
+  if (search.length === 0) return [];
+  const result = await listDrogas({ search, page: 1, pageSize: 6 });
+  return result.items.map((droga) => ({
+    id: droga.id,
+    nombre: droga.nombre,
+    sinonimos: droga.sinonimos,
+    sinonimoCoincidente: droga.sinonimoCoincidente,
+    baja: droga.fechaBaja !== null,
+  }));
+}

@@ -119,6 +119,8 @@ export interface DrogaOpcion {
   unidadBaseSimbolo: string;
   /** The synonym the search matched through, when the name itself did not match -- a display hint only. */
   sinonimo: string | null;
+  /** That synonym's id: picking the option stores it on the componente (migration 0069, the name the user chose). */
+  sinonimoId: string | null;
 }
 
 /** Vigente drogas whose name or vigente synonym contains `search` (accent-insensitive, shared/db/busqueda-droga.ts); name matches first. */
@@ -128,9 +130,10 @@ export async function listDrogasParaReceta(
   search?: string,
   limit = 20,
 ): Promise<DrogaOpcion[]> {
-  const rows = await tx.$queryRaw<{ id: string; nombre: string; unidad_base_id: string; simbolo: string; sinonimo: string | null }[]>`
+  const rows = await tx.$queryRaw<{ id: string; nombre: string; unidad_base_id: string; simbolo: string; sinonimo: string | null; sinonimo_id: string | null }[]>`
     SELECT * FROM (
-      SELECT d.id, d.nombre::text AS nombre, d.unidad_base_id, u.simbolo, ${sinonimoCoincidenteSql("d", search)} AS sinonimo
+      SELECT d.id, d.nombre::text AS nombre, d.unidad_base_id, u.simbolo,
+        ${sinonimoCoincidenteSql("d", search)} AS sinonimo, ${sinonimoCoincidenteSql("d", search, "id")} AS sinonimo_id
       FROM fsj.droga d
       JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
       WHERE d.tenant_id = ${tenantId}::uuid
@@ -140,7 +143,35 @@ export async function listDrogasParaReceta(
     ORDER BY (t.sinonimo IS NOT NULL), t.nombre, t.id
     LIMIT ${limit}::int
   `;
-  return rows.map((r) => ({ id: r.id, nombre: r.nombre, unidadBaseId: r.unidad_base_id, unidadBaseSimbolo: r.simbolo, sinonimo: r.sinonimo }));
+  return rows.map((r) => ({ id: r.id, nombre: r.nombre, unidadBaseId: r.unidad_base_id, unidadBaseSimbolo: r.simbolo, sinonimo: r.sinonimo, sinonimoId: r.sinonimo_id }));
+}
+
+/** A synonym a componente references (migration 0069), as the use cases validate it. Includes removed ones (`vigente: false`). */
+export interface SinonimoDeComponente {
+  id: string;
+  drogaId: string;
+  texto: string;
+  /** The synonym and its droga are both vigente. */
+  vigente: boolean;
+}
+
+/** The synonyms among `ids` (tenant-scoped; unknown ids are absent from the map). */
+export async function getSinonimosParaComponentes(tx: Prisma.TransactionClient, tenantId: string, ids: string[]): Promise<Map<string, SinonimoDeComponente>> {
+  if (ids.length === 0) return new Map();
+  const rows = await tx.drogaAlias.findMany({
+    where: { tenantId, id: { in: [...new Set(ids)] } },
+    select: { id: true, drogaId: true, texto: true, fechaBaja: true, droga: { select: { fechaBaja: true } } },
+  });
+  return new Map(rows.map((r) => [r.id, { id: r.id, drogaId: r.drogaId, texto: r.texto, vigente: r.fechaBaja === null && r.droga.fechaBaja === null }]));
+}
+
+/** "droga id|synonym id" of every componente of the receta stored with a synonym -- what an edit may keep even if that synonym was removed since. */
+export async function listSinonimosGuardadosDeReceta(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<Set<string>> {
+  const rows = await tx.componenteItemReceta.findMany({
+    where: { tenantId, itemReceta: { recetaId }, drogaAliasId: { not: null } },
+    select: { drogaId: true, drogaAliasId: true },
+  });
+  return new Set(rows.map((r) => `${r.drogaId}|${r.drogaAliasId}`));
 }
 
 export interface UnidadOpcion {
@@ -170,6 +201,8 @@ export interface NuevoComponenteInput {
   modoExpresion: ModoExpresion;
   /** Snapshot of the droga's clase = DROGA, resolved by the use case (`clasificarDrogasDeReceta`). */
   esPrincipioActivo: boolean;
+  /** The synonym of `drogaId` the componente was picked by (migration 0069), validated by the use case; omitted/null = canonical name. */
+  drogaAliasId?: string | null;
 }
 
 export interface NuevoItemInput {
@@ -220,6 +253,7 @@ async function insertComponentes(
         esPrincipioActivo: c.esPrincipioActivo,
       },
     });
+        drogaAliasId: c.drogaAliasId ?? null,
   }
 }
 
@@ -336,7 +370,11 @@ export interface ComponenteDetalle {
   unidadMedidaId: string;
   unidadMedidaSimbolo: string;
   modoExpresion: ModoExpresion;
+  /** Always the canonical name (ordering, ficha, libro). */
   esPrincipioActivo: boolean;
+  /** The synonym the componente was loaded with (migration 0069) -- shown instead of the name, with the name as a hint. */
+  drogaAliasId: string | null;
+  sinonimo: string | null;
 }
 
 export interface ItemDetalle {
@@ -430,7 +468,7 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
         include: {
           unidadTotal: { select: { simbolo: true } },
           componentes: {
-            include: { droga: { select: { nombre: true } }, unidadMedida: { select: { simbolo: true } } },
+            include: { droga: { select: { nombre: true } }, drogaAlias: { select: { texto: true } }, unidadMedida: { select: { simbolo: true } } },
           },
         },
       },
@@ -488,6 +526,8 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
         })),
       ),
     })),
+          drogaAliasId: c.drogaAliasId,
+          sinonimo: c.drogaAlias?.texto ?? null,
   };
 }
 

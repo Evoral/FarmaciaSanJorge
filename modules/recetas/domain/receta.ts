@@ -239,6 +239,8 @@ export interface ItemInput {
   posologia?: string | null;
   /** Treatment length in days (migration 0049). When present, an integer > 0 (V-dur below). */
   duracionTratamientoDias?: number | null;
+  /** The synonym of the droga it was picked by (migration 0069, display only); omitted/null = canonical name. */
+  drogaAliasId?: string | null;
   componentes: ComponenteInput[];
 }
 
@@ -364,7 +366,9 @@ export interface NombresParaResumen {
 }
 
 function resumirComponente(c: ComponenteInput, nombres: NombresParaResumen): string {
-  const droga = nombres.drogas.get(c.drogaId) ?? "droga desconocida";
+  const nombre = nombres.drogas.get(c.drogaId) ?? "droga desconocida";
+  const sinonimo = c.drogaAliasId ? nombres.sinonimos?.get(c.drogaAliasId) : undefined;
+  const droga = sinonimo ? `${sinonimo} (${nombre})` : nombre;
   const unidad = nombres.unidades.get(c.unidadMedidaId) ?? "";
   if (c.modoExpresion === "CS") return `${droga} c.s.`;
   if (c.modoExpresion === "CSP") return `${droga} c.s.p.`;
@@ -376,6 +380,8 @@ function resumirComponente(c: ComponenteInput, nombres: NombresParaResumen): str
 export function resumirItemsReceta(items: readonly ItemInput[], nombres: NombresParaResumen): string[] {
   return items.map((item) => {
     const forma = FORMA_FARMACEUTICA_LABELS[item.formaFarmaceutica] ?? item.formaFarmaceutica;
+  /** droga_alias id -> texto, for componentes picked by a synonym: "Acetaminofén (Paracetamol) 500 mg". */
+  sinonimos?: ReadonlyMap<string, string>;
     const titulo = item.descripcion ? `${item.descripcion} (${forma})` : forma;
     const total = item.cantidadTotal && item.unidadTotalId ? ` c.s.p. ${item.cantidadTotal} ${nombres.unidades.get(item.unidadTotalId) ?? ""}`.trimEnd() : "";
     return `${titulo} ×${item.cantidadUnidades}${total}: ${item.componentes.map((c) => resumirComponente(c, nombres)).join(" + ")}`;

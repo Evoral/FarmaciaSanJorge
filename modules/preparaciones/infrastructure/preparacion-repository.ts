@@ -1106,7 +1106,10 @@ export async function listItemsPendientesDeRecetas(
 /** One componente of an ítem (the "Ver" preview's and the workspace's table), as on the receta detail page; `cantidad` is the Decimal as text. */
 export interface ComponenteDePendiente {
   id: string;
+  /** Canonical name. */
   drogaNombre: string;
+  /** The synonym the componente was loaded with (migration 0069), shown with the canonical name as a hint. */
+  sinonimo: string | null;
   cantidad: string | null;
   unidadMedidaSimbolo: string;
   modoExpresion: ModoExpresion;
@@ -1118,6 +1121,7 @@ export interface ListComponentesDePendientesRow {
   item_receta_id: string;
   id: string;
   droga_nombre: string;
+  sinonimo: string | null;
   cantidad: string | null;
   unidad_medida_simbolo: string;
   modo_expresion: ModoExpresion;
@@ -1137,12 +1141,14 @@ export function listComponentesDePendientesSql(tenantId: string, itemIds: string
       c.item_receta_id,
       c.id,
       d.nombre AS droga_nombre,
+      da.texto AS sinonimo,
       c.cantidad::text AS cantidad,
       um.simbolo AS unidad_medida_simbolo,
       c.modo_expresion::text AS modo_expresion,
       c.es_principio_activo
     FROM fsj.componente_item_receta c
     JOIN fsj.droga d ON d.tenant_id = c.tenant_id AND d.id = c.droga_id
+    LEFT JOIN fsj.droga_alias da ON da.tenant_id = c.tenant_id AND da.id = c.droga_alias_id
     JOIN fsj.unidad_medida um ON um.id = c.unidad_medida_id
     WHERE c.tenant_id = ${tenantId}::uuid AND c.item_receta_id = ANY(${itemIds}::uuid[])
   `;
@@ -1162,6 +1168,7 @@ export async function listComponentesDePendientes(
     componentes.push({
       id: row.id,
       drogaNombre: row.droga_nombre,
+      sinonimo: row.sinonimo,
       cantidad: row.cantidad,
       unidadMedidaSimbolo: row.unidad_medida_simbolo,
       modoExpresion: row.modo_expresion,
@@ -1523,6 +1530,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
               unidadMedida: { select: { simbolo: true } },
             },
           },
+              drogaAlias: { select: { texto: true } },
           fichas: {
             orderBy: { version: "desc" },
             take: 1,
@@ -1599,6 +1607,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
             unidadMedidaSimbolo: c.unidadMedida.simbolo,
             modoExpresion: c.modoExpresion,
             esPrincipioActivo: c.esPrincipioActivo,
+            sinonimo: c.drogaAlias?.texto ?? null,
           })),
         ),
         ultimaFicha: ficha

@@ -13,6 +13,9 @@
  * `fields` the server's per-row errors carry, so the right one is marked.
  * Picking a droga for one lote applies it to the other lotes of the same
  * product; "Recordar" saves the invoice's text as an alias of that droga.
+ * A droga picked (or matched) through a synonym shows that synonym with the
+ * canonical name as a quiet hint -- display only: the partida is keyed by
+ * droga_id alone (docs/specs/sinonimos-droga.md, "Nombre elegido al cargar").
  *
  * Insumos (migration 0063): a product missing from the catalog can be
  * created right here ("Crear «…»", with the clase suggested from its name,
@@ -158,7 +161,8 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
       despacho: l.despacho,
       paisOrigen: l.paisOrigen,
       matcheada: l.drogaId !== null,
-      droga: l.drogaId ? { value: l.drogaId, label: l.drogaNombre ?? l.drogaTexto } : null,
+      // Matched through a remembered synonym: the field shows the invoice's text, the canonical name as a hint (docs/specs/sinonimos-droga.md).
+      droga: l.drogaId ? { value: l.drogaId, label: l.drogaNombre ?? l.drogaTexto, sinonimo: l.via === "ALIAS" && l.drogaNombre ? l.drogaTexto : null } : null,
       unidadCompraId: l.unidadCompraId ?? "",
       cantidad: l.cantidad,
       precioUnitario: l.precioUnitario,

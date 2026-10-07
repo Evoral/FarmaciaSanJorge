@@ -16,6 +16,12 @@
  * - With `name`, a hidden input carries the value and a bubbling `change`
  *   is dispatched on pick/clear, so it drops into a `FilterForm` like
  *   `./date-input.tsx` does.
+ * - An option found through one of its `sinonimos` is picked WITH that
+ *   `sinonimo` (the whole option reaches `onChange`): while it is the
+ *   value, the field shows the synonym the user chose, followed by the
+ *   canonical `label` as a quiet hint ("Acetaminofén ≈ Paracetamol",
+ *   docs/specs/sinonimos-droga.md "Nombre elegido al cargar"). Parents that
+ *   keep the picked option as their `value` get this for free.
  *
  * Sources that touch personal data (pacientes, DP-24) must search through
  * a Server Action (POST), never through the URL.
@@ -31,7 +37,10 @@ export interface ComboboxOption {
   description?: string;
   /** Other names the option is also found by (a droga's synonyms, docs/specs/sinonimos-droga.md): searched by `filtrarOpciones`, never shown as such. */
   sinonimos?: readonly string[];
-  /** The synonym the query matched through, when the label itself did not match: shown as a quiet hint after the label (`./sinonimo-hint.tsx`). */
+  /**
+   * The synonym the query matched through, when the label itself did not match: in the list, a quiet hint after the
+   * label (`./sinonimo-hint.tsx`); on the selected `value`, the field's main text, with the label as the hint.
+   */
   sinonimo?: string | null;
 }
 
@@ -65,6 +74,11 @@ export interface ComboboxProps {
 }
 
 const DEBOUNCE_MS = 200;
+
+/** What the field shows for a selected option: the synonym it was picked by, else its label. */
+function textoDe(option: ComboboxOption | null): string {
+  return option ? option.sinonimo || option.label : "";
+}
 
 const fold = (text: string) =>
   text
@@ -110,7 +124,7 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
   const requestRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const [text, setText] = useState(value?.label ?? "");
+  const [text, setText] = useState(textoDe(value));
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [options, setOptions] = useState<readonly ComboboxOption[]>([]);
@@ -119,11 +133,11 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
 
   // Follow an outside value change (pick, clear, form reset). Compared by content, not identity:
   // parents usually rebuild the `value` object on every render.
-  const valueKey = value ? `${value.value}\u0000${value.label}` : "";
+  const valueKey = value ? `${value.value}\u0000${value.label}\u0000${value.sinonimo ?? ""}` : "";
   const [seenKey, setSeenKey] = useState(valueKey);
   if (valueKey !== seenKey) {
     setSeenKey(valueKey);
-    setText(value?.label ?? "");
+    setText(textoDe(value));
   }
 
   const firstValueKey = useRef(valueKey);
@@ -179,7 +193,7 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
 
   function pick(option: ComboboxOption) {
     onChange(option);
-    setText(option.label);
+    setText(textoDe(option));
     setOpen(false);
   }
 
@@ -228,7 +242,7 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
         if (open) {
           event.preventDefault();
           setOpen(false);
-          setText(value?.label ?? "");
+          setText(textoDe(value));
         } else if (text !== "") {
           event.preventDefault();
           clear();
@@ -241,6 +255,10 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
   }
 
   const showList = open && status !== "idle";
+  // Picked through a synonym and still showing it: the canonical name follows the text as a quiet hint.
+  const nombrePrincipal = value?.sinonimo && text === value.sinonimo ? value.label : null;
+  const nombrePrincipalId = `${autoId}-principal`;
+  const describedBy = [helperText ? helpId : null, nombrePrincipal ? nombrePrincipalId : null].filter(Boolean).join(" ") || undefined;
   const activeId = open && activeIndex >= 0 ? `${autoId}-opt-${activeIndex}` : undefined;
 
   return (
@@ -273,18 +291,32 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
             aria-controls={listId}
             aria-autocomplete="list"
             aria-activedescendant={activeId}
-            aria-describedby={helperText ? helpId : undefined}
+            aria-describedby={describedBy}
+            title={nombrePrincipal ? `Nombre principal: ${nombrePrincipal}` : undefined}
             onChange={(event) => {
               setText(event.target.value);
               openWith(event.target.value);
             }}
-            onFocus={() => openWith(text === value?.label ? "" : text)}
+            onFocus={() => openWith(text === textoDe(value) ? "" : text)}
             onBlur={() => {
               setOpen(false);
-              setText(value?.label ?? "");
+              setText(textoDe(value));
             }}
             onKeyDown={onKeyDown}
           />
+          {nombrePrincipal ? (
+            // Mirrors the input's text box (same left padding + border, same font size) so the hint lands right after
+            // the text; purely visual -- screen readers get it through the input's aria-describedby.
+            <span aria-hidden className="pointer-events-none absolute inset-y-0 left-[calc(2rem+1px)] right-8 flex items-center overflow-hidden whitespace-nowrap text-sm">
+              <span className="invisible">{text}</span>
+              <span className="ml-1.5 truncate text-xs text-zinc-400">≈ {nombrePrincipal}</span>
+            </span>
+          ) : null}
+          {nombrePrincipal ? (
+            <span id={nombrePrincipalId} className="sr-only">
+              Nombre principal: {nombrePrincipal}
+            </span>
+          ) : null}
           {text !== "" && !disabled ? (
             <button type="button" className="field-clear" onMouseDown={(event) => event.preventDefault()} onClick={clear} aria-label={`Borrar ${label.toLowerCase()}`}>
               <X className="size-3.5" aria-hidden />

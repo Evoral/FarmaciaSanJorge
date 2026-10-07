@@ -41,9 +41,22 @@
  * from the fresh locked read -- never from the client. `esControlada`, when
  * omitted, is derived from the effective `tipoControl` (same rule as
  * `tipoControlValido` / the DB CHECK).
+ *
+ * "Otros nombres" (docs/specs/sinonimos-droga.md) are saved with the rest of
+ * the form, same rows as the alta: `sinonimos` is the full list as edited
+ * (row `i` = form field `sinonimo-i`) and `sinonimosCargados` the ids of the
+ * synonyms the form showed. Omitted = synonyms
+ * untouched. A loaded synonym that was removed, blanked or retyped to another
+ * name is given de baja; a new text is added (checked like `crearDroga`'s);
+ * synonyms added by someone else after the form loaded are never removed.
+ * Removals run before the name check, so the droga can be renamed to one of
+ * its own synonyms in the same save. Each change is audited as its own
+ * `droga_alias` row.
  */
 import { z } from "zod";
-import { defineCommand } from "@/shared/usecase";
+import type { Prisma } from "@/generated/prisma/client";
+import { defineCommand, TipoAccion } from "@/shared/usecase";
+import { record as auditRecord } from "@/shared/audit";
 import { ConflictError, DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { nonEmptyString, uuid } from "@/shared/validation";
 import {
@@ -57,7 +70,8 @@ import {
   type ClaseDroga,
   type TipoControl,
 } from "../domain/droga";
-import { mensajeConflictoNombre } from "../domain/sinonimo";
+import { normalizarTexto } from "../domain/normalizar";
+import { SINONIMO_MAX_LARGO, limpiarSinonimo, mensajeConflictoNombre } from "../domain/sinonimo";
 import {
   existeNombreVigente,
   getDrogaParaAccion,
@@ -66,6 +80,7 @@ import {
   tieneAlgunaPartida,
   updateDrogaDatos,
 } from "../infrastructure/droga-repository";
+import { insertSinonimo, listSinonimosDeDroga, quitarSinonimo } from "../infrastructure/sinonimo-repository";
 
 const editarDrogaInput = z.object({
   id: uuid,
@@ -76,6 +91,8 @@ const editarDrogaInput = z.object({
   /** Migration 0063: omitted = keep the stored clase. */
   clase: z.enum(CLASES_DROGA).optional(),
   stockMinimo: nonNegativeDecimalString,
+  sinonimos: z.array(z.string().max(SINONIMO_MAX_LARGO, `Como máximo ${SINONIMO_MAX_LARGO} caracteres.`)).max(50).optional(),
+  sinonimosCargados: z.array(uuid).max(50).default([]),
   version: z.object({
     nombre: z.string(),
     unidadBaseId: z.string(),
@@ -95,6 +112,10 @@ export interface EditarDrogaInput {
   tipoControl?: string;
   clase?: string;
   stockMinimo: string;
+  /** The "Otros nombres" rows as edited, positional (row `i` = field `sinonimo-i`); omitted = synonyms untouched. */
+  sinonimos?: string[];
+  /** Ids of the synonyms the form showed when loaded. */
+  sinonimosCargados?: string[];
   version: { nombre: string; unidadBaseId: string; esControlada: boolean; tipoControl: string; clase: string; stockMinimo: string };
 }
 
@@ -139,6 +160,24 @@ export const editarDrogaCommand = defineCommand({
     const clase = input.clase ?? (actual.clase as ClaseDroga);
     if (!claseValida(clase, tipoControl)) throw new ValidationError(MENSAJE_INSUMO_CONTROLADO, { fields: ["clase", "tipoControl"] });
 
+    const sinonimos = input.sinonimos ? await planificarSinonimos(tx, session.tenantId, input.id, input.nombre, input.sinonimos, input.sinonimosCargados) : null;
+    const auditarSinonimo = (entidadId: string, accion: TipoAccion, valores: { valorAnterior?: Prisma.InputJsonValue; valorNuevo: Prisma.InputJsonValue }) =>
+      auditRecord(tx, { tenantId: session.tenantId, usuarioId: session.usuario.id, entidad: "droga_alias", entidadId, accion, ...valores });
+
+    const sinonimosQuitados: string[] = [];
+    if (sinonimos) {
+      const now = new Date();
+      for (const quitado of sinonimos.quitar) {
+        // Already gone (removed concurrently): nothing to undo.
+        if (!(await quitarSinonimo(tx, session.tenantId, quitado.id, now))) continue;
+        sinonimosQuitados.push(quitado.texto);
+        await auditarSinonimo(quitado.id, TipoAccion.BAJA, {
+          valorAnterior: { sinonimo: quitado.texto, drogaId: input.id, droga: actual.nombre, fechaBaja: null },
+          valorNuevo: { fechaBaja: now.toISOString() },
+        });
+      }
+    }
+
     // Accent/case-insensitive, against other vigente drogas AND every vigente synonym, this droga's own included
     // (docs/specs/sinonimos-droga.md). Only when the name changes: an untouched name never blocks other edits.
     if (input.nombre !== actual.nombre) {
@@ -179,13 +218,24 @@ export const editarDrogaCommand = defineCommand({
     );
     if (!updated) throw new ConflictError(CONCURRENCY_MESSAGE);
 
+    if (sinonimos) {
+      for (const nuevo of sinonimos.agregar) {
+        const ocupado = await existeNombreVigente(tx, session.tenantId, nuevo.texto, input.id);
+        if (ocupado) throw new ValidationError(mensajeConflictoNombre(ocupado, input.id), { fields: [nuevo.campo] });
+        const alias = await insertSinonimo(tx, { tenantId: session.tenantId, drogaId: input.id, texto: nuevo.texto, aliasNormalizado: nuevo.aliasNormalizado, creadoPorId: session.usuario.id });
+        await auditarSinonimo(alias.id, TipoAccion.CREAR, {
+          valorNuevo: { sinonimo: nuevo.texto, aliasNormalizado: nuevo.aliasNormalizado, drogaId: input.id, droga: input.nombre },
+        });
+      }
+    }
+
     const unidadBaseNueva = cambiaClasificacion ? unidadBaseId : actual.unidadBaseId;
     // Readable names for the audit row, taken NOW: later renames must not rewrite history.
     const unidades = await getEtiquetasUnidades(tx, [actual.unidadBaseId, unidadBaseNueva]);
     const etiquetaUnidad = (id: string) => unidades.get(id) ?? null;
 
     return {
-      output: { id: input.id },
+      output: { id: input.id, sinonimosAgregados: sinonimos?.agregar.map((a) => a.texto) ?? [], sinonimosQuitados },
       audit: {
         entidadId: input.id,
         valorAnterior: {
@@ -196,6 +246,7 @@ export const editarDrogaCommand = defineCommand({
           tipoControl: actual.tipoControl,
           clase: actual.clase,
           stockMinimo: actual.stockMinimo,
+          ...(sinonimos ? { sinonimos: sinonimos.antes } : {}),
         },
         valorNuevo: {
           nombre: input.nombre,
@@ -205,12 +256,67 @@ export const editarDrogaCommand = defineCommand({
           tipoControl: cambiaClasificacion ? tipoControl : actual.tipoControl,
           clase,
           stockMinimo: input.stockMinimo.toString(),
+          ...(sinonimos ? { sinonimos: sinonimos.despues } : {}),
         },
       },
     };
   },
 });
 
-export async function editarDroga(input: EditarDrogaInput): Promise<{ id: string }> {
+interface PlanSinonimos {
+  quitar: { id: string; texto: string }[];
+  agregar: { texto: string; aliasNormalizado: string; campo: string }[];
+  /** Vigente synonyms before / after the save, as typed, for the droga's audit row. */
+  antes: string[];
+  despues: string[];
+}
+
+/**
+ * Turns the edited "Otros nombres" rows into removals and additions, rejecting (on the row's own field) a text that is
+ * the droga's new name or repeats another row. A row matching a vigente synonym of this droga (its loaded one, or one
+ * added meanwhile) keeps that synonym instead of adding a copy; loaded synonyms no row keeps are removed.
+ */
+async function planificarSinonimos(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  drogaId: string,
+  nombre: string,
+  filas: string[],
+  cargados: string[],
+): Promise<PlanSinonimos> {
+  const vigentes = (await listSinonimosDeDroga(tx, tenantId, drogaId)).map((s) => ({ id: s.id, texto: s.texto, normalizado: normalizarTexto(s.texto) }));
+  const nombreNormalizado = normalizarTexto(nombre);
+  const conservados = new Set<string>();
+  const agregar: PlanSinonimos["agregar"] = [];
+  const vistos = new Set<string>();
+
+  for (const [i, fila] of filas.entries()) {
+    const texto = limpiarSinonimo(fila);
+    const aliasNormalizado = normalizarTexto(texto);
+    if (aliasNormalizado.length === 0) continue;
+    const campo = `sinonimo-${i}`;
+    if (aliasNormalizado === nombreNormalizado) throw new ValidationError(`«${texto}» es el mismo nombre principal de la droga.`, { fields: [campo] });
+    if (vistos.has(aliasNormalizado)) throw new ValidationError(`«${texto}» está repetido.`, { fields: [campo] });
+    vistos.add(aliasNormalizado);
+
+    const mismo = vigentes.find((v) => v.normalizado === aliasNormalizado);
+    if (mismo) conservados.add(mismo.id);
+    else agregar.push({ texto, aliasNormalizado, campo });
+  }
+
+  const loaded = new Set(cargados);
+  const quitar = vigentes.filter((v) => loaded.has(v.id) && !conservados.has(v.id)).map(({ id, texto }) => ({ id, texto }));
+  const quitados = new Set(quitar.map((q) => q.id));
+  const ordenar = (textos: string[]) => [...textos].sort((a, b) => a.localeCompare(b, "es"));
+  return {
+    quitar,
+    agregar,
+    antes: ordenar(vigentes.map((v) => v.texto)),
+    despues: ordenar([...vigentes.filter((v) => !quitados.has(v.id)).map((v) => v.texto), ...agregar.map((a) => a.texto)]),
+  };
+}
+
+/** Also returns the other names this save added and removed, as stored (for the success message). */
+export async function editarDroga(input: EditarDrogaInput): Promise<{ id: string; sinonimosAgregados: string[]; sinonimosQuitados: string[] }> {
   return editarDrogaCommand.execute(input);
 }

@@ -53,15 +53,19 @@ export function drogaCoincideSql(alias: string, busqueda: string | null | undefi
  * Text SQL expression: the first (alphabetical) vigente synonym of the
  * droga aliased `alias` that matches `busqueda`, or NULL when the name
  * itself matches (or there is no search). Pair it with `drogaCoincideSql`.
+ * `columna`: the synonym's `texto` (default) or its `id` (as text) -- the
+ * same synonym either way, for pickers that store which one was chosen
+ * (receta componentes, migration 0069).
  */
-export function sinonimoCoincidenteSql(alias: string, busqueda: string | null | undefined): Prisma.Sql {
+export function sinonimoCoincidenteSql(alias: string, busqueda: string | null | undefined, columna: "texto" | "id" = "texto"): Prisma.Sql {
   const like = busquedaDrogaLike(busqueda);
   if (like === null) return Prisma.sql`NULL::text`;
   const d = Prisma.raw(alias);
+  const valor = columna === "id" ? Prisma.sql`da.id::text` : Prisma.sql`da.texto`;
   return Prisma.sql`(
     CASE WHEN fsj.normalizar_nombre(${d}.nombre) LIKE ${patron(like)} THEN NULL::text
     ELSE (
-      SELECT da.texto FROM fsj.droga_alias da
+      SELECT ${valor} FROM fsj.droga_alias da
       WHERE da.tenant_id = ${d}.tenant_id
         AND da.droga_id = ${d}.id
         AND da.fecha_baja IS NULL

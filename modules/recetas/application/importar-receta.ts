@@ -8,10 +8,22 @@
  *   2. receta with origen DIGITAL_PDF + emisor/nro/url/diagnóstico + items,
  *      under the same V1-V9 validation as the manual alta (and, like it,
  *      each componente's principio activo flag from the droga's clase);
- *   3. the droga aliases the user chose to remember;
+ *   3. the droga aliases the user chose to remember -- written BEFORE the
+ *      receta, so the componentes they came from are loaded with them
+ *      (`drogaAliasId`, migration 0069; see below);
  *   4. one audit row per alta/modificación (INV-A01).
  *
  * The client only sends back what the preview showed plus the user's
+ * Synonyms of the componentes (docs/specs/sinonimos-droga.md, "Nombre
+ * elegido al cargar"): a componente the preview matched through a synonym
+ * arrives with that `drogaAliasId` (validated like the manual alta). For
+ * "recordar esta equivalencia", the client also says which componentes
+ * showed that text (`equivalencias[].componentes`, positions in `items`):
+ * once the synonym exists (new, or already a synonym of the same droga), each
+ * of those componentes still without a synonym and with that droga is loaded
+ * with it. A text that is the droga's own name is never a synonym, so those
+ * componentes keep the canonical name.
+ *
  * choices; everything is re-derived here: the paciente/médico are matched
  * AGAIN by CUIL/DNI and (jurisdicción, matrícula) -- if that no longer
  * gives what the preview showed (`existenteId`), the data changed since
@@ -57,6 +69,7 @@ import {
 import type { FuenteImportacion } from "../domain/importacion-receta";
 import { clasificarDrogasDeReceta, getNombresParaResumen, insertRecetaConItems, jornadaActualTenant, unidadesInvalidas } from "../infrastructure/receta-repository";
 import {
+import { validarSinonimosDeComponentes } from "./sinonimos-componentes";
   buscarMedicoVigentePorMatricula,
   buscarPacientePorIdentificacion,
   buscarRecetaImportada,
@@ -90,9 +103,21 @@ export const importarRecetaInput = z
     paciente: z.object({ existenteId: uuid.nullable(), datos: crearPacienteInput }),
     medico: z.object({ existenteId: uuid.nullable(), datos: crearMedicoInput }),
     items: z.array(itemInput).min(1, "La receta debe tener al menos un ítem."),
-    /** "Recordar esta equivalencia": the drug name as printed -> the droga the user chose. */
+    /**
+     * "Recordar esta equivalencia": the drug name as printed -> the droga the user chose. `componentes`: where that
+     * text was printed (positions in `items`), loaded with the remembered synonym (module doc comment).
+     */
     equivalencias: z
-      .array(z.object({ aliasTexto: z.string().trim().min(1).max(200), drogaId: uuid }))
+      .array(
+        z.object({
+          aliasTexto: z.string().trim().min(1).max(200),
+          drogaId: uuid,
+          componentes: z
+            .array(z.object({ item: z.number().int().min(0), componente: z.number().int().min(0) }))
+            .max(200)
+            .default([]),
+        }),
+      )
       .max(50)
       .default([]),
   })
@@ -125,6 +150,7 @@ function toItemsInput(items: ImportarRecetaInput["items"]): ItemInput[] {
       }),
     ),
   }));
+        drogaAliasId: c.drogaAliasId ?? null,
 }
 
 interface Contexto {
@@ -244,6 +270,48 @@ export const importarRecetaCommand = defineCommand({
 
     const nueva = await insertRecetaConItems(tx, {
       tenantId: session.tenantId,
+    const nombresBase = await getNombresParaResumen(tx, session.tenantId, drogaIds, unidadIds);
+
+    // "Recordar esta equivalencia" = add the text as a synonym of the chosen droga (docs/specs/sinonimos-droga.md):
+    // idempotent for the same droga, a conflict when a vigente synonym points to another one. A text that already IS
+    // a vigente droga's name is never remembered (a synonym cannot repeat a droga's name): it resolves by name.
+    // Their audit rows are written after the receta's, as before.
+    const aliasesNuevos: { id: string; valorNuevo: Prisma.InputJsonValue }[] = [];
+    // normalized text -> the synonym it resolved to (`null`: it is a droga's own name, nothing to remember).
+    const resueltos = new Map<string, { id: string; drogaId: string } | null>();
+    for (const equivalencia of input.equivalencias) {
+      const aliasNormalizado = normalizarTexto(equivalencia.aliasTexto);
+      if (aliasNormalizado.length === 0) continue;
+      if (!resueltos.has(aliasNormalizado)) {
+        const existente = await getDrogaAlias(tx, session.tenantId, aliasNormalizado);
+        if (existente?.esNombre) {
+          resueltos.set(aliasNormalizado, null);
+        } else if (existente) {
+          if (existente.drogaId !== equivalencia.drogaId) {
+            throw new ConflictError(`«${equivalencia.aliasTexto}» ya está asociado a otra droga. ${MENSAJE_CAMBIOS_DESDE_LECTURA}`);
+          }
+          resueltos.set(aliasNormalizado, { id: existente.id, drogaId: existente.drogaId });
+        } else {
+          const texto = limpiarSinonimo(equivalencia.aliasTexto);
+          const alias = await insertDrogaAlias(tx, { tenantId: session.tenantId, drogaId: equivalencia.drogaId, aliasNormalizado, texto, creadoPorId: session.usuario.id });
+          resueltos.set(aliasNormalizado, { id: alias.id, drogaId: equivalencia.drogaId });
+          aliasesNuevos.push({
+            id: alias.id,
+            valorNuevo: { sinonimo: texto, aliasNormalizado, drogaId: equivalencia.drogaId, droga: nombresBase.drogas.get(equivalencia.drogaId) ?? null },
+          });
+        }
+      }
+      const sinonimo = resueltos.get(aliasNormalizado);
+      if (!sinonimo) continue;
+      // The componentes that showed this text are loaded with the synonym (unless the user already picked one by another name).
+      for (const posicion of equivalencia.componentes) {
+        const componente = itemsDominio[posicion.item]?.componentes[posicion.componente];
+        if (componente && componente.drogaId === sinonimo.drogaId && !componente.drogaAliasId) componente.drogaAliasId = sinonimo.id;
+      }
+    }
+
+    const sinonimos = await validarSinonimosDeComponentes(tx, session.tenantId, itemsDominio.flatMap((item) => item.componentes));
+    const nombres = { ...nombresBase, sinonimos };
       pacienteId: paciente.id,
       medicoId: medico.id,
       fechaPrescripcion: input.fechaPrescripcion,
@@ -269,7 +337,6 @@ export const importarRecetaCommand = defineCommand({
       })),
     });
 
-    const nombres = await getNombresParaResumen(tx, session.tenantId, drogaIds, unidadIds);
     await auditar(ctx, "receta", nueva.id, TipoAccion.CREAR, {
       valorNuevo: {
         pacienteId: paciente.id,
@@ -289,24 +356,8 @@ export const importarRecetaCommand = defineCommand({
       },
     });
 
-    // "Recordar esta equivalencia" = add the text as a synonym of the chosen droga (docs/specs/sinonimos-droga.md):
-    // idempotent for the same droga, a conflict when a vigente synonym points to another one. A text that already IS
-    // a vigente droga's name is never remembered (a synonym cannot repeat a droga's name): it resolves by name.
-    const vistos = new Set<string>();
-    for (const equivalencia of input.equivalencias) {
-      const aliasNormalizado = normalizarTexto(equivalencia.aliasTexto);
-      if (aliasNormalizado.length === 0 || vistos.has(aliasNormalizado)) continue;
-      vistos.add(aliasNormalizado);
-      const existente = await getDrogaAlias(tx, session.tenantId, aliasNormalizado);
-      if (existente) {
-        if (existente.drogaId === equivalencia.drogaId || existente.esNombre) continue;
-        throw new ConflictError(`«${equivalencia.aliasTexto}» ya está asociado a otra droga. ${MENSAJE_CAMBIOS_DESDE_LECTURA}`);
-      }
-      const texto = limpiarSinonimo(equivalencia.aliasTexto);
-      const alias = await insertDrogaAlias(tx, { tenantId: session.tenantId, drogaId: equivalencia.drogaId, aliasNormalizado, texto, creadoPorId: session.usuario.id });
-      await auditar(ctx, "droga_alias", alias.id, TipoAccion.CREAR, {
-        valorNuevo: { sinonimo: texto, aliasNormalizado, drogaId: equivalencia.drogaId, droga: nombres.drogas.get(equivalencia.drogaId) ?? null },
-      });
+    for (const alias of aliasesNuevos) {
+      await auditar(ctx, "droga_alias", alias.id, TipoAccion.CREAR, { valorNuevo: alias.valorNuevo });
     }
 
     return { output: { id: nueva.id, numeroInterno: nueva.numeroInterno } };

@@ -31,6 +31,8 @@ export function inicialDesdeReceta(receta: RecetaDetalle): RecetaFormInicial {
         drogaId: c.drogaId,
         drogaNombre: c.drogaNombre,
         cantidad: c.cantidad ?? "",
+        drogaAliasId: c.drogaAliasId,
+        sinonimo: c.sinonimo,
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
       })),

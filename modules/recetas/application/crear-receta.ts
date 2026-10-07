@@ -42,6 +42,7 @@ import {
   unidadesInvalidas,
 } from "../infrastructure/receta-repository";
 
+import { validarSinonimosDeComponentes } from "./sinonimos-componentes";
 /** Shared with importar-receta.ts. */
 export const textoOpcional = z
   .string()
@@ -63,6 +64,8 @@ const componenteInput = z.object({
   unidadMedidaId: uuid,
   modoExpresion: z.enum(MODOS_EXPRESION),
 });
+  /** The synonym of the droga it was picked by (migration 0069), validated by `validarSinonimosDeComponentes`. */
+  drogaAliasId: uuid.nullable().optional(),
 
 /** One ítem of the receta (with its componentes) -- shared with importar-receta.ts. */
 export const itemInput = z.object({
@@ -115,6 +118,7 @@ function toItemsInput(items: CrearRecetaInput["items"]): ItemInput[] {
         modoExpresion: c.modoExpresion,
       }),
     ),
+        drogaAliasId: c.drogaAliasId ?? null,
   }));
 }
 
@@ -155,6 +159,7 @@ export const crearRecetaCommand = defineCommand({
     }
 
     const unidadIds = [
+    const sinonimos = await validarSinonimosDeComponentes(tx, session.tenantId, itemsDominio.flatMap((item) => item.componentes));
       ...itemsDominio.flatMap((item) => item.componentes.map((c) => c.unidadMedidaId)),
       ...itemsDominio.flatMap((item) => (item.unidadTotalId ? [item.unidadTotalId] : [])),
     ];
@@ -192,8 +197,9 @@ export const crearRecetaCommand = defineCommand({
         })),
       })),
     });
+          drogaAliasId: c.drogaAliasId ?? null,
 
-    const nombres = await getNombresParaResumen(tx, session.tenantId, drogaIds, unidadIds);
+    const nombres = { ...(await getNombresParaResumen(tx, session.tenantId, drogaIds, unidadIds)), sinonimos };
 
     return {
       output: { id: nueva.id, numeroInterno: nueva.numeroInterno },

@@ -2,13 +2,20 @@
  * Read-only table of an ítem's componentes (droga, cantidad, modo, principio activo), as the receta detail page shows
  * them. Shared by /recetas/[id], the /preparaciones "Ver" preview and the toma workspace. Plain presentational
  * component (no hooks), so both Server and Client Components can render it.
+ *
+ * A componente loaded through a synonym shows that synonym, with the canonical name as a quiet hint
+ * ("Acetaminofén ≈ Paracetamol", docs/specs/sinonimos-droga.md "Nombre elegido al cargar").
  */
 import { MODO_EXPRESION_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 import { ToneBadge } from "@/shared/ui/status-badge";
+import { NombrePrincipalHint } from "@/shared/ui/sinonimo-hint";
 
 export interface ComponenteVista {
   id: string;
+  /** Canonical name. */
   drogaNombre: string;
+  /** The synonym the componente was loaded with (migration 0069), if any. */
+  sinonimo?: string | null;
   /** Decimal as text; `null` for a CSP componente. */
   cantidad: string | null;
   unidadMedidaSimbolo: string;
@@ -40,7 +47,16 @@ export function ComponentesTabla({ componentes }: { componentes: readonly Compon
         <tbody>
           {componentes.map((c) => (
             <tr key={c.id}>
-              <td className="px-3 py-2 font-medium text-zinc-900">{c.drogaNombre}</td>
+              <td className="px-3 py-2 font-medium text-zinc-900">
+                {c.sinonimo ? (
+                  <>
+                    {c.sinonimo}
+                    <NombrePrincipalHint nombre={c.drogaNombre} />
+                  </>
+                ) : (
+                  c.drogaNombre
+                )}
+              </td>
               <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">
                 {c.cantidad ? (
                   <>

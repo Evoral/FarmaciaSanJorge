@@ -31,24 +31,6 @@ export async function insertSinonimo(
   return tx.drogaAlias.create({ data: input, select: { id: true } });
 }
 
-export interface SinonimoParaAccion {
-  id: string;
-  drogaId: string;
-  drogaNombre: string;
-  texto: string;
-  aliasNormalizado: string;
-  fechaBaja: Date | null;
-}
-
-export async function getSinonimoParaAccion(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<SinonimoParaAccion | null> {
-  const row = await tx.drogaAlias.findFirst({
-    where: { id, tenantId },
-    select: { id: true, drogaId: true, texto: true, aliasNormalizado: true, fechaBaja: true, droga: { select: { nombre: true } } },
-  });
-  if (!row) return null;
-  return { id: row.id, drogaId: row.drogaId, drogaNombre: row.droga.nombre, texto: row.texto, aliasNormalizado: row.aliasNormalizado, fechaBaja: row.fechaBaja };
-}
-
 /** Soft delete; `false` when it was no longer vigente (removed concurrently). */
 export async function quitarSinonimo(tx: Prisma.TransactionClient, tenantId: string, id: string, fechaBaja: Date): Promise<boolean> {
   const result = await tx.drogaAlias.updateMany({ where: { id, tenantId, fechaBaja: null }, data: { fechaBaja } });

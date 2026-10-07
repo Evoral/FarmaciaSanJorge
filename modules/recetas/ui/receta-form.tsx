@@ -67,7 +67,11 @@ import { useFormSubmit } from "@/shared/ui/use-form-submit";
 interface ComponenteState {
   id?: string;
   drogaId: string;
+  /** Canonical name. */
   drogaNombre: string;
+  /** The synonym the droga was picked by (stored, migration 0069): the picker shows it, with `drogaNombre` as a hint. */
+  drogaAliasId?: string | null;
+  sinonimo?: string | null;
   cantidad: string;
   unidadMedidaId: string;
   modoExpresion: ModoExpresion;
@@ -174,6 +178,7 @@ function itemParaEnvio(it: ItemState) {
     duracionTratamientoDias: it.duracionTratamientoDias.trim().length > 0 ? Number(it.duracionTratamientoDias.trim()) : null,
     componentes: it.componentes.map((c) => ({
       drogaId: c.drogaId,
+      drogaAliasId: c.drogaAliasId ?? null,
       cantidad: c.cantidad.trim().length > 0 ? c.cantidad.trim() : null,
       unidadMedidaId: c.unidadMedidaId,
       modoExpresion: c.modoExpresion,
@@ -259,6 +264,8 @@ function itemsDesdeVistaPrevia(vista: VistaPreviaImportacion): ItemState[] {
         drogaId: match?.drogaId ?? "",
         drogaNombre: match?.drogaNombre ?? "",
         cantidad: c.cantidad,
+        drogaAliasId: match?.drogaAliasId ?? null,
+        sinonimo: match?.sinonimo ?? null,
         unidadMedidaId: match?.unidadMedidaId ?? "",
         modoExpresion: c.modoExpresion,
         drogaTexto: c.drogaTexto,
@@ -431,8 +438,11 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
         },
       },
       items: itemsParaEnvio(),
-      equivalencias: items.flatMap((it) =>
-        it.componentes.filter((c) => c.sinMatch && c.recordar && c.drogaId && c.drogaTexto).map((c) => ({ aliasTexto: c.drogaTexto!, drogaId: c.drogaId })),
+      // `componentes`: where the text was printed -- the server loads them with the remembered synonym.
+      equivalencias: items.flatMap((it, itemIdx) =>
+        it.componentes.flatMap((c, compIdx) =>
+          c.sinMatch && c.recordar && c.drogaId && c.drogaTexto ? [{ aliasTexto: c.drogaTexto, drogaId: c.drogaId, componentes: [{ item: itemIdx, componente: compIdx }] }] : [],
+        ),
       ),
     };
   }
@@ -871,8 +881,16 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                             label={`Componente ${compIdx + 1}: droga`}
                             selectedId={c.drogaId}
                             selectedLabel={c.drogaNombre}
-                            onSelect={(id, nombre, unidadBaseId) =>
-                              actualizarComponente(itemIdx, compIdx, { drogaId: id, drogaNombre: nombre, unidadMedidaId: id ? c.unidadMedidaId || unidadBaseId : "" })
+                            selectedSinonimo={c.sinonimo}
+                            onSelect={(droga) =>
+                              // A new pick (or a clear) always replaces the synonym: it belongs to the droga it was picked with.
+                              actualizarComponente(itemIdx, compIdx, {
+                                drogaId: droga?.drogaId ?? "",
+                                drogaNombre: droga?.nombre ?? "",
+                                drogaAliasId: droga?.drogaAliasId ?? null,
+                                sinonimo: droga?.sinonimo ?? null,
+                                unidadMedidaId: droga ? c.unidadMedidaId || droga.unidadBaseId : "",
+                              })
                             }
                           />
                         </div>

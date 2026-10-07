@@ -143,6 +143,8 @@ export async function construirVistaPrevia(
         drogaId: droga?.drogaId ?? null,
         drogaNombre: droga ? (nombrePorId.get(droga.drogaId) ?? null) : null,
         via: droga?.via ?? null,
+        drogaAliasId: droga?.aliasId ?? null,
+        sinonimo: droga?.sinonimo ?? null,
         unidadMedidaId: unidad?.id ?? null,
       };
     }),

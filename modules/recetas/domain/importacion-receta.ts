@@ -100,6 +100,9 @@ export function valoresACompletar<C extends string>(completar: readonly C[], pdf
 export interface AliasDroga {
   aliasNormalizado: string;
   drogaId: string;
+  /** The synonym's id and text: a componente matched through it is loaded with it (migration 0069). */
+  id?: string;
+  texto?: string;
 }
 
 export interface DrogaCandidata {
@@ -112,6 +115,9 @@ export type ViaMatchDroga = "ALIAS" | "NOMBRE";
 export interface MatchDroga {
   drogaId: string;
   via: ViaMatchDroga;
+  /** `ALIAS` only: the synonym matched (when the caller's aliases carry it) -- the componente's `drogaAliasId`. */
+  aliasId?: string;
+  sinonimo?: string;
 }
 
 /**
@@ -123,7 +129,7 @@ export function resolverDroga(texto: string, aliases: readonly AliasDroga[], dro
   const buscado = normalizarTexto(texto);
   if (buscado.length === 0) return null;
   const porAlias = aliases.find((a) => a.aliasNormalizado === buscado);
-  if (porAlias) return { drogaId: porAlias.drogaId, via: "ALIAS" };
+  if (porAlias) return { drogaId: porAlias.drogaId, via: "ALIAS", aliasId: porAlias.id, sinonimo: porAlias.texto };
   const porNombre = drogas.find((d) => normalizarTexto(d.nombre) === buscado);
   return porNombre ? { drogaId: porNombre.id, via: "NOMBRE" } : null;
 }
@@ -273,8 +279,12 @@ export interface MedicoVistaPrevia extends Completado<CampoMedicoImportable> {
 
 export interface ComponenteVistaPrevia {
   drogaId: string | null;
+  /** Canonical name. */
   drogaNombre: string | null;
   via: ViaMatchDroga | null;
+  /** `via` ALIAS: the synonym matched, prefilled as the componente's chosen name (migration 0069). */
+  drogaAliasId: string | null;
+  sinonimo: string | null;
   unidadMedidaId: string | null;
 }
 

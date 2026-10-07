@@ -1,11 +1,10 @@
-/** `/catalogos/drogas/[id]` (M06, FASE 4 point 4.2): edit + baja/reactivar + synonyms. Layout: the data form and "Otros nombres" (docs/specs/sinonimos-droga.md) in the main column; the estado and its baja/reactivar action in the aside. */
+/** `/catalogos/drogas/[id]` (M06, FASE 4 point 4.2): edit + baja/reactivar + synonyms. Layout: the data form, "Otros nombres" included (same rows as the alta, docs/specs/sinonimos-droga.md), in the main column; the estado and its baja/reactivar action in the aside. */
 import { notFound } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getDroga } from "@/modules/drogas/application/get-droga";
 import { listUnidadesVigentesParaDroga } from "@/modules/drogas/application/list-unidades-vigentes";
 import { DrogaForm } from "@/modules/drogas/ui/droga-form";
-import { SinonimosDroga } from "@/modules/drogas/ui/sinonimos-droga";
 import { MotivoForm } from "@/shared/ui/motivo-form";
 import { darDeBajaDrogaAction, reactivarDrogaAction } from "@/modules/drogas/ui/actions";
 import { PageHeader } from "@/shared/ui/page-header";
@@ -51,16 +50,6 @@ export default async function DrogaDetallePage({ params }: DrogaDetallePageProps
             </div>
             <div className="panel-body">
               <DrogaForm mode="editar" unidades={unidades} droga={droga} disabled={!puedeEditar} />
-            </div>
-          </section>
-
-          <section aria-labelledby="sinonimos-heading" className="panel min-w-0">
-            <div className="panel-header">
-              <h2 id="sinonimos-heading">Otros nombres</h2>
-              <p>{droga.fechaBaja ? "Una droga dada de baja no tiene otros nombres." : "Sinónimos de la misma sustancia: no son drogas aparte."}</p>
-            </div>
-            <div className="panel-body">
-              <SinonimosDroga drogaId={droga.id} drogaNombre={droga.nombre} sinonimos={droga.sinonimos} editable={puedeEditar && !droga.fechaBaja} />
             </div>
           </section>
         </div>

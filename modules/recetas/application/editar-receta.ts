@@ -49,12 +49,14 @@ import {
   getPacienteRefParaReceta,
   getRecetaParaAccion,
   listItemIds,
+  listSinonimosGuardadosDeReceta,
   lockRecetaParaAccion,
   reemplazarItemsReceta,
   unidadesInvalidas,
   updateRecetaHeader,
 } from "../infrastructure/receta-repository";
 import { crearRecetaInput, isoDate, itemInput as itemInputAlta } from "./crear-receta";
+import { validarSinonimosDeComponentes } from "./sinonimos-componentes";
 
 /** The same ítem as the alta (crear-receta.ts), plus the id of an existing one: one schema, so both screens accept the same draft. */
 const itemInput = itemInputAlta.extend({ id: uuid.optional() });
@@ -103,6 +105,7 @@ function toItemsInput(items: EditarRecetaInput["items"]): ItemInput[] {
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
       }),
+        drogaAliasId: c.drogaAliasId ?? null,
     ),
   }));
 }
@@ -182,6 +185,10 @@ export const editarRecetaCommand = defineCommand({
     }
     const unidadIds = [
       ...itemsDominio.flatMap((item) => item.componentes.map((c) => c.unidadMedidaId)),
+    // A synonym removed since the receta was loaded may stay on the componentes that already had it (read before the replace).
+    const sinonimos = await validarSinonimosDeComponentes(tx, session.tenantId, itemsDominio.flatMap((item) => item.componentes), () =>
+      listSinonimosGuardadosDeReceta(tx, session.tenantId, input.id),
+    );
       ...itemsDominio.flatMap((item) => (item.unidadTotalId ? [item.unidadTotalId] : [])),
     ];
     if ((await unidadesInvalidas(tx, unidadIds)).length > 0) {
@@ -228,6 +235,7 @@ export const editarRecetaCommand = defineCommand({
         })),
       })),
     );
+          drogaAliasId: c.drogaAliasId ?? null,
 
     // Readable names for the audit row, taken NOW: later renames must not rewrite history.
     const pacienteAnterior = actual.pacienteId === paciente.id ? paciente : await getPacienteRefParaReceta(tx, session.tenantId, actual.pacienteId);
@@ -235,7 +243,7 @@ export const editarRecetaCommand = defineCommand({
     const nombrePaciente = (p: { nombre: string; apellido: string } | null) => (p ? `${p.apellido}, ${p.nombre}` : null);
     const nombreMedico = (m: { nombre: string; apellido: string; matricula: string } | null) =>
       m ? `${m.apellido}, ${m.nombre} — matrícula ${m.matricula}` : null;
-    const nombres = await getNombresParaResumen(tx, session.tenantId, drogaIds, unidadIds);
+    const nombres = { ...(await getNombresParaResumen(tx, session.tenantId, drogaIds, unidadIds)), sinonimos };
 
     return {
       output: { id: input.id },

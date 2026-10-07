@@ -168,7 +168,7 @@ export async function listAliasesVigentes(tx: Prisma.TransactionClient, tenantId
   if (aliasesNormalizados.length === 0) return [];
   return tx.drogaAlias.findMany({
     where: { tenantId, aliasNormalizado: { in: [...new Set(aliasesNormalizados)] }, fechaBaja: null, droga: { fechaBaja: null } },
-    select: { aliasNormalizado: true, drogaId: true },
+    select: { aliasNormalizado: true, drogaId: true, id: true, texto: true },
   });
 }
 

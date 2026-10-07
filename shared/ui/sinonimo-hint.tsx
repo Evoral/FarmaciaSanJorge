@@ -14,3 +14,19 @@ export function SinonimoHint({ sinonimo }: { sinonimo?: string | null }) {
     </span>
   );
 }
+
+/**
+ * The reverse hint, for a droga PICKED through one of its synonyms
+ * (docs/specs/sinonimos-droga.md, "Nombre elegido al cargar"): the synonym
+ * the user chose is the main text and the canonical name follows, just as
+ * quiet: "Acetaminofén ≈ Paracetamol". Render nothing without a name.
+ */
+export function NombrePrincipalHint({ nombre }: { nombre?: string | null }) {
+  if (!nombre) return null;
+  return (
+    <span className="ml-1.5 text-xs font-normal text-zinc-400" title={`Nombre principal: ${nombre}`}>
+      <span aria-hidden>≈ {nombre}</span>
+      <span className="sr-only">, nombre principal: {nombre}</span>
+    </span>
+  );
+}
