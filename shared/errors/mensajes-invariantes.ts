@@ -106,6 +106,7 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   "INV-R11": "La receta ya no se puede editar: solo se editan recetas pendientes de preparación y sin preparaciones iniciadas.",
   "INV-R12":
     "Esta receta ya tiene preparaciones registradas en el libro recetario. Para anularla, dejá sin efecto esos asientos desde el Libro recetario (requiere autorización del Director Técnico). La receta se anulará automáticamente.",
+  "INV-R13": "El pago de una receta anulada no se puede modificar.",
 
   // Stock (M07)
   "INV-S01": "El stock disponible de una partida solo cambia registrando un movimiento de stock.",

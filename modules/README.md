@@ -40,13 +40,13 @@ don't read it whole). Cross-cutting platform code (M00) lives in `shared/`.
 | `pacientes` | M06 | Patients, recurring patients and patient history (`pacientes-recurrentes`, `trayectoria-paciente`) |
 | `stock` | M07 | Partidas, stock movements, supplier invoice import |
 | `precios` | M08 | Price rules (margin tiers, minimum price) and per-ítem cotización (`reglas-precio`) |
-| `recetas` | M09 | Recetas and their ítems, PDF/QR import, receta budget (`importacion-receta-*`, `presupuesto-receta`) |
+| `recetas` | M09 | Recetas and their ítems, PDF/QR import, receta budget, paid/unpaid flag (`importacion-receta-*`, `presupuesto-receta`, `pago-receta`) |
 | `elaboracion` | M10 | Ficha técnica: weighing lines, versions, PDF (`ficha-tecnica`) |
 | `preparaciones` | M11 | Preparación lifecycle (confirm/discard) and labels |
 | `etiqueta-tamanos` | M11 | Label size catalog used when printing labels |
 | `libro` | M12 | Libro recetario and libros contralor, entries and exports (`libro-recetario-y-contralor`) |
 | `cierres` | M13 | Daily close and signature |
-| `entregas` | M14 | Delivery and regularization |
+| `entregas` | M14 | Delivery and regularization (can also mark the receta paid, `pago-receta`) |
 | `archivo` | M15 | Receta archive, retention periods, destruction |
 | `farmacia` | — | Tenant (pharmacy) data. No `domain/` layer |
 | `parametros` | — | Tenant-configurable parameters |

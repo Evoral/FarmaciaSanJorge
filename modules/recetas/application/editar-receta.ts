@@ -65,9 +65,10 @@ const itemInput = itemInputAlta.extend({ id: uuid.optional() });
  * The alta's input (header + ítems), so a field added there reaches the edit too. `fechaValidaDesde` is
  * alta-only (an edit never changes the receta's validity) -- omitted explicitly, so a new alta-only field
  * is a decision here, not a silent drift. `version` stays hand-written on purpose: it carries the RAW stored
- * values for the compare-and-swap, without the alta's transforms.
+ * values for the compare-and-swap, without the alta's transforms. `pagada` is alta-only too: the payment
+ * is changed from the receta's detail (`marcarPagoReceta`), never as a side effect of an edit.
  */
-const editarRecetaInput = crearRecetaInput.omit({ fechaValidaDesde: true }).extend({
+const editarRecetaInput = crearRecetaInput.omit({ fechaValidaDesde: true, pagada: true }).extend({
   id: uuid,
   items: z.array(itemInput).min(1, "La receta debe tener al menos un ítem."),
   version: z.object({

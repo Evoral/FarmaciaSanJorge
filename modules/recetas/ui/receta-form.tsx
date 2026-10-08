@@ -304,6 +304,8 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   const [diagnosticoDescripcion, setDiagnosticoDescripcion] = useState(borrador?.diagnosticoDescripcion ?? inicial?.diagnosticoDescripcion ?? "");
   // Stored on the receta, not on the paciente (migration 0070); the PDF import prefills it.
   const [domicilioPaciente, setDomicilioPaciente] = useState(borrador?.domicilioPaciente ?? inicial?.domicilioPaciente ?? "");
+  // `crear` / `importar` modes: the receta is created already paid (migration 0071). An edit never changes the payment (the receta detail does).
+  const [pagada, setPagada] = useState(false);
   // Manual alta is always PRESENCIAL; an edit keeps the receta's own origen (domain/receta.ts's validarOrigenCargaManual);
   // an import is DIGITAL_PDF.
   const origen: OrigenReceta = importacion ? "DIGITAL_PDF" : (inicial?.origen ?? "PRESENCIAL");
@@ -419,6 +421,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
       diagnosticoCodigo,
       diagnosticoDescripcion,
       domicilioPaciente,
+      pagada,
       paciente: {
         existenteId: paciente.existente?.id ?? null,
         datos: {
@@ -1091,6 +1094,14 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                   {items.length} ({totalComponentes} {totalComponentes === 1 ? "componente" : "componentes"})
                 </dd>
               </dl>
+
+              {mode !== "editar" ? (
+                <label className="flex items-center gap-2 text-sm font-medium text-zinc-900">
+                  {/* `crear` reads it from the form; `importar` sends it inside `importacionJson`. */}
+                  <input type="checkbox" name={mode === "crear" ? "pagada" : undefined} checked={pagada} disabled={disabled} onChange={(e) => setPagada(e.target.checked)} />
+                  Pagada
+                </label>
+              ) : null}
 
               {errorVisible ? (
                 <div role="alert" className="alert alert-danger">

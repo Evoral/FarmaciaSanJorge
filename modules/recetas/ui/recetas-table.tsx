@@ -16,7 +16,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, ArrowUpDown, Ban, Camera, Copy, Eye, FileText, Pencil, Stethoscope, Store, X, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { StatusBadge } from "@/shared/ui/status-badge";
+import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
+import { etiquetaPago } from "../domain/pago";
 import { ActionMenu, type ActionMenuItem } from "@/shared/ui/action-menu";
 import { Avatar } from "@/shared/ui/avatar";
 import { toast } from "@/shared/ui/toast";
@@ -35,6 +36,8 @@ export interface RecetaRow {
   estado: string;
   /** Position of `estado` in the workflow, to sort by estado in flow order. */
   estadoOrden: number;
+  /** Migration 0071: the receta was paid. */
+  pagada: boolean;
   editable: boolean;
   anulable: boolean;
 }
@@ -200,6 +203,9 @@ export function RecetasTable({ rows, total, empty, footer }: RecetasTableProps) 
               <SortHeader label="Prescripción" sortKey="prescripcion" sort={sort} onSort={toggleSort} />
               <SortHeader label="Estado" sortKey="estado" sort={sort} onSort={toggleSort} />
               <th scope="col" className="px-3 py-2">
+                Pago
+              </th>
+              <th scope="col" className="px-3 py-2">
                 <span className="sr-only">Acciones</span>
               </th>
             </tr>
@@ -243,6 +249,9 @@ export function RecetasTable({ rows, total, empty, footer }: RecetasTableProps) 
                     <StatusBadge estado={row.estado} />
                   </td>
                   <td className="px-3 py-2.5">
+                    <PagoBadge pagada={row.pagada} />
+                  </td>
+                  <td className="px-3 py-2.5">
                     <div className="row-actions flex items-center justify-end gap-1">
                       {row.editable ? (
                         <Link href={`/recetas/${row.id}/editar`} className="btn btn-ghost btn-sm" aria-label={`Editar receta Nº ${row.numero}`}>
@@ -277,7 +286,10 @@ export function RecetasTable({ rows, total, empty, footer }: RecetasTableProps) 
                 <p className="truncate text-sm font-medium text-zinc-900">{row.paciente}</p>
                 <p className="truncate text-xs text-zinc-500">{row.medico}</p>
               </div>
-              <StatusBadge estado={row.estado} />
+              <span className="flex flex-none flex-col items-end gap-1">
+                <StatusBadge estado={row.estado} />
+                <PagoBadge pagada={row.pagada} />
+              </span>
             </div>
             <p className="text-xs text-zinc-500 tabular-nums">
               Ingreso {row.ingreso} · Prescripción {row.prescripcion} · {row.origenLabel}
@@ -304,6 +316,10 @@ export function RecetasTable({ rows, total, empty, footer }: RecetasTableProps) 
       ) : null}
     </div>
   );
+}
+
+function PagoBadge({ pagada }: { pagada: boolean }) {
+  return <ToneBadge tone={pagada ? "success" : "warn"}>{etiquetaPago(pagada)}</ToneBadge>;
 }
 
 interface SortHeaderProps {

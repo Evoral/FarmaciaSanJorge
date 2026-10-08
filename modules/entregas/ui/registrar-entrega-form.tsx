@@ -8,19 +8,22 @@
  * shape.
  */
 import { useState } from "react";
-import { Store, Truck } from "lucide-react";
+import { Store, TriangleAlert, Truck } from "lucide-react";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import type { EntregaActionState } from "./action-state";
 
 export interface RegistrarEntregaFormProps {
   action: (prevState: EntregaActionState, formData: FormData) => Promise<EntregaActionState>;
   recetaId: string;
+  /** Migration 0071: the receta is already paid (the checkbox starts checked and cannot lower it -- that is done from the receta's detail). */
+  pagada: boolean;
   /** Runs after a successful registration (the pop-up closes itself). */
   onSuccess?: () => void;
 }
 
-export function RegistrarEntregaForm({ action, recetaId, onSuccess }: RegistrarEntregaFormProps) {
+export function RegistrarEntregaForm({ action, recetaId, pagada, onSuccess }: RegistrarEntregaFormProps) {
   const [modalidad, setModalidad] = useState<"RETIRO_PRESENCIAL" | "ENVIO">("RETIRO_PRESENCIAL");
+  const [pagarAhora, setPagarAhora] = useState(false);
 
   return (
     <SimpleForm action={action} submitLabel="Registrar entrega" pendingLabel="Registrando…" onSuccess={onSuccess}>
@@ -44,6 +47,26 @@ export function RegistrarEntregaForm({ action, recetaId, onSuccess }: RegistrarE
           </span>
         </label>
       </fieldset>
+
+      {pagada ? (
+        <label className="flex items-center gap-2 text-sm font-medium text-zinc-900">
+          <input type="checkbox" checked disabled />
+          Pagada
+        </label>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <div role="note" className="alert alert-warn">
+            <TriangleAlert aria-hidden />
+            <p>
+              <strong className="font-semibold">Receta impaga.</strong> Podés entregarla igual; tildá &quot;Pagada&quot; si el pago se registra ahora.
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-sm font-medium text-zinc-900">
+            <input type="checkbox" name="pagada" checked={pagarAhora} onChange={(e) => setPagarAhora(e.target.checked)} />
+            Pagada
+          </label>
+        </div>
+      )}
 
       {modalidad === "ENVIO" ? (
         <p className="text-[0.8125rem] leading-relaxed text-zinc-600">

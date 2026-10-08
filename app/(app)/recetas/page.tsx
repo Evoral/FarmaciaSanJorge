@@ -1,5 +1,5 @@
 /**
- * `/recetas`: listado con filtros por estado/fechas (ingreso, prescripción)/número, server-side.
+ * `/recetas`: listado con filtros por estado/pago/fechas (ingreso, prescripción)/número, server-side.
  * After creating a receta the form lands here (`?registrada=<id>`, plus the
  * automatic ficha/cotización notices as codes -- modules/recetas/domain/avisos-generacion.ts).
  *
@@ -21,6 +21,7 @@ import { PARAM_AVISO, PARAM_REGISTRADA, decodificarAvisos } from "@/modules/rece
 import { AvisosGeneracion } from "@/modules/recetas/ui/avisos-generacion";
 import { RecetasTable, type RecetaRow } from "@/modules/recetas/ui/recetas-table";
 import { PeriodoResumenSelect } from "@/modules/recetas/ui/periodo-resumen-select";
+import { FILTROS_PAGO_RECETA, FILTRO_PAGO_RECETA_LABELS, parseFiltroPagoReceta } from "@/modules/recetas/domain/pago";
 import { PERIODO_RESUMEN_DEFAULT, PERIODO_RESUMEN_LABELS, parsePeriodoResumen } from "@/modules/recetas/domain/periodo-resumen";
 import { ESTADO_RECETA_LABELS, ORIGEN_RECETA_LABELS } from "@/shared/labels/enum-labels";
 import { formatFecha } from "@/shared/format/fecha";
@@ -46,14 +47,14 @@ const PAGE_SIZE = 20;
 const HREF_NUEVA_RECETA = "/recetas/nuevo";
 
 interface RecetasPageProps {
-  searchParams: Promise<{ estado?: string; numero?: string; desde?: string; hasta?: string; ingresoDesde?: string; ingresoHasta?: string; periodo?: string; page?: string; registrada?: string; aviso?: string | string[] }>;
+  searchParams: Promise<{ estado?: string; numero?: string; pago?: string; desde?: string; hasta?: string; ingresoDesde?: string; ingresoHasta?: string; periodo?: string; page?: string; registrada?: string; aviso?: string | string[] }>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-type FilterParam = "estado" | "numero" | "ingresoDesde" | "ingresoHasta" | "desde" | "hasta";
-const FILTER_PARAMS: readonly FilterParam[] = ["estado", "numero", "ingresoDesde", "ingresoHasta", "desde", "hasta"];
+type FilterParam = "estado" | "numero" | "pago" | "ingresoDesde" | "ingresoHasta" | "desde" | "hasta";
+const FILTER_PARAMS: readonly FilterParam[] = ["estado", "numero", "pago", "ingresoDesde", "ingresoHasta", "desde", "hasta"];
 
 /** `2026-09-01` -> `01/09/2026` (display only; anything else is shown as typed). */
 function isoToDisplay(value: string): string {
@@ -68,11 +69,13 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
   const estado = params.estado ?? "";
   const periodo = parsePeriodoResumen(params.periodo);
   const estadoValido = ESTADOS_RECETA.includes(estado as (typeof ESTADOS_RECETA)[number]) ? (estado as (typeof ESTADOS_RECETA)[number]) : undefined;
+  const pago = parseFiltroPagoReceta(params.pago);
 
   const [result, resumen] = await Promise.all([
     listRecetas({
       estado: estadoValido,
       numeroInterno: params.numero,
+      pago,
       desde: params.desde,
       hasta: params.hasta,
       ingresoDesde: params.ingresoDesde,
@@ -130,7 +133,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
   const clearFiltersHref = periodo === PERIODO_RESUMEN_DEFAULT ? "/recetas" : `/recetas?periodo=${periodo}`;
   const hasActiveFilters = FILTER_PARAMS.some((key) => params[key]);
   const hasNarrowingFilters = FILTER_PARAMS.some((key) => key !== "estado" && params[key]);
-  const activeDateFilters = (["ingresoDesde", "ingresoHasta", "desde", "hasta"] as const).filter((key) => params[key]).length;
+  const activeDrawerFilters = (["ingresoDesde", "ingresoHasta", "desde", "hasta"] as const).filter((key) => params[key]).length + (pago ? 1 : 0);
 
   // Status summary: global counts per estado; terminal estados are history, the rest is work in progress.
   const totalRegistradas = resumen.reduce((sum, r) => sum + r.cantidad, 0);
@@ -139,6 +142,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
   const chips: { key: FilterParam; label: string; value: string }[] = [];
   if (estadoValido) chips.push({ key: "estado", label: "Estado", value: ESTADO_RECETA_LABELS[estadoValido] });
   if (params.numero) chips.push({ key: "numero", label: "Nº interno", value: params.numero });
+  if (pago) chips.push({ key: "pago", label: "Pago", value: FILTRO_PAGO_RECETA_LABELS[pago] });
   if (params.ingresoDesde) chips.push({ key: "ingresoDesde", label: "Ingreso desde", value: isoToDisplay(params.ingresoDesde) });
   if (params.ingresoHasta) chips.push({ key: "ingresoHasta", label: "Ingreso hasta", value: isoToDisplay(params.ingresoHasta) });
   if (params.desde) chips.push({ key: "desde", label: "Prescripción desde", value: isoToDisplay(params.desde) });
@@ -157,6 +161,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
     ingresoKey: r.fechaIngreso.toISOString(),
     estado: r.estado,
     estadoOrden: ESTADOS_RECETA.indexOf(r.estado),
+    pagada: r.pagada,
     editable: puedeEditar && r.editable,
     anulable: puedeAnularPermiso && puedeAnular(r.estado),
   }));
@@ -274,7 +279,20 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
             inputMode="search"
             className="min-w-0 flex-1 md:w-64 md:flex-none"
           />
-          <FilterDrawer activeCount={activeDateFilters}>
+          <FilterDrawer activeCount={activeDrawerFilters}>
+            <div className="field">
+              <label htmlFor="pago" className="field-label">
+                Pago
+              </label>
+              <select id="pago" name="pago" defaultValue={pago ?? ""} className="input">
+                <option value="">Todas</option>
+                {FILTROS_PAGO_RECETA.map((valor) => (
+                  <option key={valor} value={valor}>
+                    {FILTRO_PAGO_RECETA_LABELS[valor]}
+                  </option>
+                ))}
+              </select>
+            </div>
             <DateRangeField id="ingreso" label="Ingreso" desdeName="ingresoDesde" hastaName="ingresoHasta" desdeDefault={params.ingresoDesde ?? ""} hastaDefault={params.ingresoHasta ?? ""} />
             <DateRangeField id="prescripcion" label="Prescripción" desdeName="desde" hastaName="hasta" desdeDefault={params.desde ?? ""} hastaDefault={params.hasta ?? ""} />
           </FilterDrawer>
