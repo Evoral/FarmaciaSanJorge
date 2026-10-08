@@ -308,6 +308,133 @@
     border-color: var(--color-danger);
   }
 
+  /*
+   * Select. Every browser gets the identity's chevron instead of the OS arrow.
+   * Browsers with customizable selects (appearance: base-select) also get the
+   * open list styled as a .popover with .option rows; the rest keep their
+   * native list. Still a real <select>: forms, FormData and keyboard work as-is.
+   */
+  select.input {
+    appearance: none;
+    padding-right: 2rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2397a5a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 0.625rem center;
+    background-repeat: no-repeat;
+    background-size: 1rem;
+    cursor: pointer;
+  }
+  select.input:disabled {
+    cursor: not-allowed;
+  }
+  @supports (appearance: base-select) {
+    select.input,
+    select.input::picker(select) {
+      appearance: base-select;
+    }
+    select.input {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background-image: none;
+    }
+    select.input:open {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px rgb(3 179 134 / 0.18);
+    }
+    select.input::picker-icon {
+      content: "";
+      position: absolute;
+      right: 0.625rem;
+      width: 1rem;
+      height: 1rem;
+      background-color: var(--color-zinc-400);
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+        center / contain no-repeat;
+      transition: transform var(--duration-fast) ease;
+    }
+    select.input:open::picker-icon {
+      transform: rotate(180deg);
+    }
+
+    /* The open list: same floating surface as .popover. */
+    select.input::picker(select) {
+      margin-block: 6px;
+      max-height: min(18rem, 50dvh);
+      min-width: anchor-size(width);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      scrollbar-color: var(--color-zinc-300) transparent;
+      border: 1px solid var(--color-zinc-200);
+      border-radius: var(--radius-float);
+      background-color: var(--surface);
+      padding: 0.375rem;
+      box-shadow: var(--shadow-popover);
+      opacity: 0;
+      transform: translateY(-4px) scale(0.98);
+      transform-origin: top;
+      transition:
+        opacity 140ms var(--ease-out-expo),
+        transform 140ms var(--ease-out-expo),
+        display 140ms allow-discrete,
+        overlay 140ms allow-discrete;
+    }
+    select.input:open::picker(select) {
+      opacity: 1;
+      transform: none;
+    }
+    @starting-style {
+      select.input:open::picker(select) {
+        opacity: 0;
+        transform: translateY(-4px) scale(0.98);
+      }
+    }
+
+    /* Rows: same as .option, checkmark on the right in the brand color. */
+    select.input option {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      border-radius: var(--radius-lg);
+      padding: 0.4375rem 0.5rem;
+      font-size: 0.8125rem;
+      color: var(--color-zinc-800);
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background-color var(--duration-fast) ease;
+    }
+    select.input option:hover,
+    select.input option:focus-visible {
+      outline: none;
+      background-color: var(--color-zinc-100);
+    }
+    select.input option:checked {
+      font-weight: 500;
+      color: var(--color-primary);
+    }
+    select.input option:disabled {
+      color: var(--color-zinc-400);
+      cursor: default;
+    }
+    select.input option:disabled:hover {
+      background-color: transparent;
+    }
+    select.input option:disabled::checkmark {
+      visibility: hidden;
+    }
+    select.input option::checkmark {
+      order: 1;
+      margin-left: auto;
+      content: "";
+      width: 0.875rem;
+      height: 0.875rem;
+      background-color: currentColor;
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E")
+        center / contain no-repeat;
+    }
+  }
+
   /* Surfaces. */
   .card {
     border: 1px solid var(--color-zinc-200);
@@ -2247,5 +2374,9 @@
   }
   .link-pending::after {
     animation-duration: 2400ms;
+  }
+  select.input::picker(select),
+  select.input::picker-icon {
+    transition: none;
   }
 }
