@@ -181,10 +181,14 @@ export interface UnidadOpcion {
   tipoMagnitud: string;
 }
 
+/** Catalog units never prescribed in a receta; hidden from the picker only (still valid elsewhere, e.g. the cost comparator). */
+const UNIDADES_OCULTAS_EN_RECETA = ["MICROLITRO"];
+
 export async function listUnidadesParaReceta(tx: Prisma.TransactionClient): Promise<UnidadOpcion[]> {
   const rows = await tx.unidadMedida.findMany({
-    where: { fechaBaja: null },
-    orderBy: [{ tipoMagnitud: "asc" }, { nombre: "asc" }],
+    where: { fechaBaja: null, codigo: { notIn: UNIDADES_OCULTAS_EN_RECETA } },
+    // Grouped by magnitud (enum order: MASA, VOLUMEN, UNIDADES), smallest unit first.
+    orderBy: [{ tipoMagnitud: "asc" }, { factorABase: "asc" }, { nombre: "asc" }],
     select: { id: true, nombre: true, simbolo: true, tipoMagnitud: true },
   });
   return rows;

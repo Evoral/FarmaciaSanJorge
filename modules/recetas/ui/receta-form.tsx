@@ -103,7 +103,7 @@ function nuevoComponente(): ComponenteState {
 function nuevoItem(): ItemState {
   return {
     descripcion: "",
-    formaFarmaceutica: "CREMA",
+    formaFarmaceutica: "CAPSULA",
     cantidadUnidades: "1",
     fraccionDosisPorUnidad: "1",
     cantidadTotal: "",
@@ -227,6 +227,15 @@ export interface RecetaFormInicial {
   diagnosticoDescripcion: string;
   domicilioPaciente: string;
   items: ItemState[];
+}
+
+/** Unit options in server order: masa, volumen, unidades, each smallest unit first. */
+function OpcionesUnidad({ unidades }: { unidades: UnidadOpcion[] }) {
+  return unidades.map((u) => (
+    <option key={u.id} value={u.id}>
+      {u.nombre} ({u.simbolo})
+    </option>
+  ));
 }
 
 export interface RecetaFormProps {
@@ -787,14 +796,14 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="field sm:col-span-2">
                     <label htmlFor={`item-${itemIdx}-desc`} className="field-label">
-                      Descripción
+                      Nombre del preparado
                     </label>
-                    <input id={`item-${itemIdx}-desc`} value={item.descripcion} onChange={(e) => actualizarItem(itemIdx, { descripcion: e.target.value })} placeholder="Opcional" className="input" />
+                    <input id={`item-${itemIdx}-desc`} value={item.descripcion} onChange={(e) => actualizarItem(itemIdx, { descripcion: e.target.value })} placeholder="Opcional · Ej.: Crema hidratante" className="input" />
                   </div>
 
                   <div className="field">
                     <label htmlFor={`item-${itemIdx}-forma`} className="field-label">
-                      Forma farmacéutica
+                      Tipo de preparado
                     </label>
                     <select id={`item-${itemIdx}-forma`} value={item.formaFarmaceutica} onChange={(e) => actualizarItem(itemIdx, cambioDeForma(e.target.value as FormaFarmaceutica))} className="input">
                       {FORMAS_FARMACEUTICAS.map((f) => (
@@ -807,7 +816,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
 
                   <div className="field">
                     <label htmlFor={`item-${itemIdx}-duracion`} className="field-label">
-                      Duración (días)
+                      Duración del tratamiento (días)
                     </label>
                     <input
                       id={`item-${itemIdx}-duracion`}
@@ -862,11 +871,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                         </label>
                         <select id={`item-${itemIdx}-unidad-total`} value={item.unidadTotalId} onChange={(e) => actualizarItem(itemIdx, { unidadTotalId: e.target.value })} className="input min-w-0 flex-1">
                           <option value="">Sin unidad</option>
-                          {unidades.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.nombre} ({u.simbolo})
-                            </option>
-                          ))}
+                          <OpcionesUnidad unidades={unidades} />
                         </select>
                       </div>
                     </div>
@@ -973,11 +978,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                             className="input input-sm"
                           >
                             <option value="">Elegir unidad</option>
-                            {unidades.map((u) => (
-                              <option key={u.id} value={u.id}>
-                                {u.nombre} ({u.simbolo})
-                              </option>
-                            ))}
+                            <OpcionesUnidad unidades={unidades} />
                           </select>
                         </div>
 
