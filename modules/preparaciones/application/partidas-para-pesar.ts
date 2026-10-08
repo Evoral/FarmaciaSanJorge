@@ -2,7 +2,8 @@
  * Purity per partida (migration 0058) for the líneas de pesaje the toma
  * workspace shows: the partidas the confirmation would draw a línea from
  * (`listPartidasElegiblesDroga` + `ordenarParaConsumo`: same candidates,
- * same order, vencidas and empty ones left out) with the PHYSICAL weight
+ * same order, vencidas and empty ones left out; stock reserved by any
+ * preparación INICIADA is not available, migration 0071) with the PHYSICAL weight
  * each one needs for the línea's `cantidadAPesar` (= active required):
  * `fisicoParaActivo`, domain/potencia.ts -- the same function the
  * confirmation uses.

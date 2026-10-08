@@ -5,10 +5,13 @@
  * Taking a receta from the Pendientes queue only records who took it and
  * when: no preparación is created and the receta keeps its estado, so a
  * PENDIENTE_PREPARACION receta stays editable (recetas/domain/receta.ts's
- * `esEstadoEditable`). The formal preparación is created and confirmed per
- * ítem, in one step, from the toma workspace ("Continuar" ->
- * `preparaciones.confirmarDeFicha`), and from then on the receta is
- * EN_PREPARACION (or PREPARADA) and locked, as before.
+ * `esEstadoEditable`). The formal preparación is created per ítem from the
+ * toma workspace when its stock is reserved ("Continuar" -> "Reservar
+ * stock", `preparaciones.reservarStock`); while that preparación is live the
+ * receta can not be edited. It is confirmed (stock, libro recetario) at
+ * "Imprimir etiqueta", and only the first confirmation moves the receta to
+ * EN_PREPARACION (docs/specs/reserva-stock-preparacion.md); releasing a
+ * reserva before that leaves it PENDIENTE_PREPARACION and editable.
  *
  * Rules (enforced by application/tomar-receta.ts and cancelar-toma.ts after
  * locking the receta row):
@@ -73,7 +76,7 @@ export function validarCancelarToma(receta: Pick<RecetaParaToma, "numeroInterno"
   }
   const enCurso = receta.items.find((item) => item.iniciada);
   if (enCurso) {
-    throw new DomainError(`Primero hay que descartar la preparación en curso del ítem ${enCurso.posicion}.`);
+    throw new DomainError(`Primero hay que liberar la reserva de stock (o descartar la preparación en curso) del ítem ${enCurso.posicion}.`);
   }
 }
 
@@ -82,19 +85,26 @@ export function etiquetaProgreso(confirmados: number, total: number): string {
   return total === 1 ? `${confirmados} de 1 ítem confirmado` : `${confirmados} de ${total} ítems confirmados`;
 }
 
-/** Where an ítem stands in the toma workspace. */
-export type EstadoItemToma = "PENDIENTE" | "EN_CONFIRMACION" | "CONFIRMADA";
+/**
+ * Where an ítem stands in the toma workspace: RESERVADA = a preparación
+ * INICIADA holding a reserva de stock (migration 0071); EN_CONFIRMACION = an
+ * INICIADA one WITHOUT reservas (from before 0071, or the ficha técnica
+ * screen's "Preparar"), confirmed or discarded on its own screen.
+ */
+export type EstadoItemToma = "PENDIENTE" | "EN_CONFIRMACION" | "RESERVADA" | "CONFIRMADA";
 
 export const ESTADO_ITEM_TOMA_LABELS: Readonly<Record<EstadoItemToma, string>> = {
   PENDIENTE: "Pendiente",
   EN_CONFIRMACION: "Confirmación en curso",
+  RESERVADA: "Stock reservado",
   CONFIRMADA: "Confirmada",
 };
 
 /** From the ítem's active preparación (INICIADA/CONFIRMADA, any ficha version), `null` when none. */
-export function estadoItemToma(preparacion: { estado: "INICIADA" | "CONFIRMADA" } | null): EstadoItemToma {
+export function estadoItemToma(preparacion: { estado: "INICIADA" | "CONFIRMADA"; reservas: readonly unknown[] } | null): EstadoItemToma {
   if (!preparacion) return "PENDIENTE";
-  return preparacion.estado === "CONFIRMADA" ? "CONFIRMADA" : "EN_CONFIRMACION";
+  if (preparacion.estado === "CONFIRMADA") return "CONFIRMADA";
+  return preparacion.reservas.length > 0 ? "RESERVADA" : "EN_CONFIRMACION";
 }
 
 /** The toma workspace of a receta. */

@@ -13,26 +13,46 @@
  *   (`volverA`, validated by the action); saving regenerates the fichas
  *   técnicas/cotizaciones of the changed ítems as always and the generation
  *   notices show here. Otherwise read-only, inside each ítem's card.
- * - Each ítem: where it stands (Pendiente / Confirmación en curso /
- *   Confirmada), its latest ficha técnica with its líneas de pesaje (plus
- *   "Generar ficha técnica" only for an ítem that has none, e.g. when the
- *   automatic generation failed) and the action -- "Continuar" opens the
- *   confirmation in a dialog (modules/preparaciones/ui/continuar-preparacion-dialog.tsx:
- *   partidas, enrase, warnings, re-authentication) that persists nothing
- *   until "Confirmar y descontar stock", which creates and confirms the
- *   preparación in one transaction (`preparaciones.confirmarDeFicha`); from
- *   then on the receta can no longer be edited (existing rule). An ítem
- *   with a preparación INICIADA from before this flow (or from the ficha
- *   técnica screen's "Preparar") links to its `/preparaciones/[id]` screen
- *   instead, where it is confirmed or discarded.
+ * - Each ítem: where it stands (Pendiente / Stock reservado / Confirmada),
+ *   its latest ficha técnica with its líneas de pesaje (plus "Generar ficha
+ *   técnica" only for an ítem that has none, e.g. when the automatic
+ *   generation failed) and its actions, every one behind re-authentication
+ *   (docs/specs/reserva-stock-preparacion.md: the libro recetario is written
+ *   at the END of the lab's process, when the etiqueta is printed):
+ *     1. Pendiente: "Continuar" opens the partidas in a dialog
+ *        (modules/preparaciones/ui/continuar-preparacion-dialog.tsx: partidas,
+ *        enrase, warnings) whose "Reservar stock" creates the preparación
+ *        (INICIADA) and reserves its stock (`preparaciones.reservarStock`) --
+ *        no stock movement, no asiento; while it lives the receta can not
+ *        be edited (its estado stays PENDIENTE_PREPARACION until the first
+ *        confirmation).
+ *     2. Stock reservado: the reserved partidas are listed; "Modificar reserva"
+ *        (`preparaciones.modificarReserva`) reopens the same dialog prefilled
+ *        with the reserva and replaces it (same preparación); "Liberar reserva"
+ *        (`preparaciones.liberarReserva`) discards the preparación and the
+ *        ítem is Pendiente again (the receta editable again while no ítem
+ *        has a live preparación); "Registrar pérdida"
+ *        (`preparaciones.registrarPerdida`, DT co-firma) records a loss of a
+ *        reserved partida as an AJUSTE linked to the preparación and
+ *        re-plans the reserva -- "La reserva ya no alcanza" shows until it
+ *        is modified when the same partidas no longer cover it.
+ *     3. Stock reservado: "Imprimir etiqueta" (`preparaciones.confirmarReserva`)
+ *        confirms it from the reserva (stock descontado, asiento in the libro,
+ *        contralor) and generates its etiqueta in one transaction, then opens
+ *        the size dialog of the existing print flow; a Confirmada ítem keeps
+ *        that button to reprint (modules/preparaciones/ui/reserva-acciones.tsx).
+ *   An ítem with a preparación INICIADA WITHOUT reserva (from before this
+ *   flow, or the ficha técnica screen's "Preparar") shows "Confirmación en
+ *   curso" and links to its `/preparaciones/[id]` screen instead, where it is
+ *   confirmed or discarded.
  * - The fichas follow the form's unsaved draft, never a button
  *   (modules/preparaciones/ui/borrador-receta.tsx + fichas-borrador.tsx): a
  *   changed or new ítem shows a live preview of the ficha saving will
  *   generate, a removed one a warning, and while anything is unsaved no
  *   ítem can start its confirmation.
  * - "Cancelar toma" sends the receta back to Pendientes (the command
- *   refuses it while an ítem has a preparación INICIADA; its message shows
- *   in the form).
+ *   refuses it while an ítem has a preparación INICIADA -- reserved stock
+ *   included; its message shows in the form).
  *
  * Requires `preparaciones.iniciar` (the /preparaciones layout). A receta
  * nobody took goes back to the list; one that already left the lab, to its
@@ -52,6 +72,10 @@ import { BorradorRecetaProvider, RecetaFormToma } from "@/modules/preparaciones/
 import { CancelarTomaForm } from "@/modules/preparaciones/ui/cancelar-toma-form";
 import { FichaTecnicaEnToma, FichasDeItemsNuevos, RequiereRecetaGuardada } from "@/modules/preparaciones/ui/fichas-borrador";
 import { ContinuarPreparacionDialog } from "@/modules/preparaciones/ui/continuar-preparacion-dialog";
+import { EtiquetaDeItem, LiberarReservaForm, PerdidaReservaDialog } from "@/modules/preparaciones/ui/reserva-acciones";
+import { listDtParaPerdida } from "@/modules/preparaciones/application/list-dt-para-perdida";
+import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
+import type { EtiquetaTamano } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import { ItemDatos } from "@/modules/preparaciones/ui/item-datos";
 import { LineasFichaTabla } from "@/modules/preparaciones/ui/lineas-ficha-tabla";
 import { getReceta } from "@/modules/recetas/application/get-receta";
@@ -68,7 +92,7 @@ import { StatusBadge, ToneBadge, type BadgeTone } from "@/shared/ui/status-badge
 import { PageHeader } from "@/shared/ui/page-header";
 import { Avatar } from "@/shared/ui/avatar";
 import { Toaster } from "@/shared/ui/toast";
-import { CircleCheck, FlaskConical, Stethoscope } from "lucide-react";
+import { CircleAlert, CircleCheck, FlaskConical, Stethoscope } from "lucide-react";
 
 interface TomaRecetaPageProps {
   params: Promise<{ recetaId: string }>;
@@ -79,6 +103,7 @@ interface TomaRecetaPageProps {
 const TONO_ESTADO_ITEM: Record<EstadoItemToma, BadgeTone> = {
   PENDIENTE: "neutral",
   EN_CONFIRMACION: "warn",
+  RESERVADA: "warn",
   CONFIRMADA: "success",
 };
 
@@ -108,10 +133,23 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
   const guardada = sp[PARAM_GUARDADA] === "1";
 
   // /recetas/[id]/editar's own gates: the /recetas layout and getReceta need `recetas.crear`.
-  const puedeEditar = can(session, "recetas.editar") && can(session, "recetas.crear") && esEstadoEditable(receta.estado);
+  // A live preparación (a reserva de stock) blocks editing even while the receta is still PENDIENTE_PREPARACION.
+  const puedeEditar =
+    can(session, "recetas.editar") && can(session, "recetas.crear") && esEstadoEditable(receta.estado) && receta.items.every((item) => item.preparacion === null);
   const edicion = puedeEditar ? await datosEdicion(receta.id) : null;
   const puedeGenerarFicha = can(session, "fichas.generar");
   const puedeImprimirFicha = can(session, "fichas.imprimir");
+  const acciones: AccionesDeItem = {
+    puedeLiberar: can(session, "preparaciones.descartar"),
+    puedeReservar: can(session, "preparaciones.confirmar"),
+    puedeConfirmar: can(session, "preparaciones.confirmar") && can(session, "etiquetas.generar"),
+    puedeImprimirEtiqueta: can(session, "etiquetas.imprimir"),
+    // The "Seleccionar tamaño" dialog's sizes: read only when an ítem may need them.
+    tamanos: can(session, "etiquetas.imprimir") && receta.items.some((item) => item.preparacion !== null) ? await listTamanosParaImprimir() : [],
+    // "Registrar pérdida"'s co-firma: only when an ítem holds a reserva.
+    dts: can(session, "preparaciones.confirmar") && receta.items.some((item) => (item.preparacion?.reservas.length ?? 0) > 0) ? await listDtParaPerdida() : [],
+    usuarioId: session.usuario.id,
+  };
 
   const estados = receta.items.map((item) => estadoItemToma(item.preparacion));
   const confirmados = estados.filter((estado) => estado === "CONFIRMADA").length;
@@ -124,7 +162,7 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
         <h2 id="fichas-heading" className="flex items-center gap-2">
           {edicion ? "Fichas técnicas" : "Ítems"} <span className="tab-count">{receta.items.length}</span>
         </h2>
-        <span className="text-xs text-zinc-500">Una vez confirmado un ítem, la receta ya no se puede editar.</span>
+        <span className="text-xs text-zinc-500">Mientras un ítem tenga stock reservado o esté confirmado, la receta no se puede editar.</span>
       </div>
       <div className="flex flex-col gap-4">
         {receta.items.map((item, idx) => (
@@ -137,6 +175,7 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
             mostrarDatos={!edicion}
             puedeGenerarFicha={puedeGenerarFicha}
             puedeImprimirFicha={puedeImprimirFicha}
+            acciones={acciones}
           />
         ))}
         {edicion ? <FichasDeItemsNuevos /> : null}
@@ -246,6 +285,23 @@ async function datosEdicion(recetaId: string) {
   return { inicial, unidades, version: createHash("sha256").update(JSON.stringify(inicial)).digest("hex") };
 }
 
+/** What the session may do on a reserved or confirmed ítem, plus the etiqueta sizes. */
+interface AccionesDeItem {
+  /** `preparaciones.descartar`: "Liberar reserva". */
+  puedeLiberar: boolean;
+  /** `preparaciones.confirmar`: "Modificar reserva". */
+  puedeReservar: boolean;
+  /** `preparaciones.confirmar` + `etiquetas.generar`: "Imprimir etiqueta" on a reserva (confirms it). */
+  puedeConfirmar: boolean;
+  /** `etiquetas.imprimir`: the size dialog / PDF. */
+  puedeImprimirEtiqueta: boolean;
+  tamanos: EtiquetaTamano[];
+  /** DTs vigentes for "Registrar pérdida"'s co-firma. */
+  dts: { usuarioId: string; nombre: string; apellido: string }[];
+  /** The session's usuario (is the operator a DT?). */
+  usuarioId: string;
+}
+
 function ItemToma({
   item,
   numero,
@@ -254,6 +310,7 @@ function ItemToma({
   mostrarDatos,
   puedeGenerarFicha,
   puedeImprimirFicha,
+  acciones,
 }: {
   item: ItemDeToma;
   numero: number;
@@ -263,10 +320,24 @@ function ItemToma({
   mostrarDatos: boolean;
   puedeGenerarFicha: boolean;
   puedeImprimirFicha: boolean;
+  acciones: AccionesDeItem;
 }) {
   const estado = estadoItemToma(item.preparacion);
   const ficha = item.ultimaFicha;
   const nombre = item.descripcion ?? etiquetaDe(FORMA_FARMACEUTICA_LABELS, item.formaFarmaceutica);
+  const preparacion = item.preparacion;
+  // Same element at the same place for the reserved and the confirmed ítem: it keeps its state across the refresh in
+  // between and opens the print dialog right after confirming (modules/preparaciones/ui/reserva-acciones.tsx).
+  const etiqueta =
+    preparacion && ((estado === "RESERVADA" && acciones.puedeConfirmar) || (estado === "CONFIRMADA" && preparacion.etiquetaGenerada)) ? (
+      <EtiquetaDeItem
+        key={preparacion.id}
+        preparacionId={preparacion.id}
+        reservada={estado === "RESERVADA"}
+        puedeImprimir={acciones.puedeImprimirEtiqueta}
+        tamanos={acciones.tamanos}
+      />
+    ) : null;
 
   return (
     <article className="group-card" aria-labelledby={`item-toma-${item.id}`}>
@@ -313,37 +384,80 @@ function ItemToma({
             ) : null}
           </FichaTecnicaEnToma>
         </div>
+
+        {estado === "RESERVADA" && preparacion ? (
+          <div className="border-t border-zinc-100 pt-4">
+            <h4 className="mb-2 text-sm font-semibold text-zinc-900">Stock reservado</h4>
+            {preparacion.reservaAlcanza ? null : (
+              <div role="alert" className="alert alert-danger mb-3">
+                <CircleAlert aria-hidden />
+                <p>La reserva ya no alcanza: modificá la reserva.</p>
+              </div>
+            )}
+            <ul className="flex flex-col gap-1 text-sm">
+              {preparacion.reservas.map((reserva, i) => (
+                <li key={i} className="flex flex-wrap gap-x-2">
+                  <span className="font-medium text-zinc-900">{reserva.drogaNombre}</span>
+                  <span className="text-zinc-500">
+                    Lote <span className="font-mono text-zinc-900">{reserva.lote}</span>
+                  </span>
+                  <span className="font-mono tabular-nums text-zinc-900">
+                    {reserva.cantidad} <span className="text-zinc-500">{reserva.unidadSimbolo}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-3 border-t border-zinc-100 bg-zinc-50/60 px-4 py-3 sm:px-5">
-        {estado === "CONFIRMADA" && item.preparacion ? (
+        {estado === "CONFIRMADA" && preparacion ? (
           <>
             <span className="mr-auto flex items-center gap-1.5 text-sm font-medium text-emerald-700">
               <CircleCheck className="size-4" aria-hidden />
               Confirmada
             </span>
-            <Link href={`/preparaciones/${item.preparacion.id}`} className="btn btn-secondary btn-sm">
+            <Link href={`/preparaciones/${preparacion.id}`} className="btn btn-secondary btn-sm">
               Ver preparación
             </Link>
           </>
-        ) : estado === "EN_CONFIRMACION" && item.preparacion ? (
-          // A preparación INICIADA from the former two-step flow (or the ficha técnica screen's "Preparar"): confirmed or discarded on its own screen.
-          <Link href={`/preparaciones/${item.preparacion.id}`} className="btn btn-primary">
+        ) : estado === "RESERVADA" && preparacion ? (
+          <>
+            <p className="mr-auto text-sm text-zinc-600">Al imprimir la etiqueta se descuenta el stock y se escribe el asiento en el libro recetario.</p>
+            {acciones.puedeLiberar ? <LiberarReservaForm preparacionId={preparacion.id} /> : null}
+            {acciones.puedeReservar ? (
+              <>
+                <PerdidaReservaDialog
+                  preparacionId={preparacion.id}
+                  partidas={preparacion.reservas}
+                  dts={acciones.dts.map((dt) => ({ id: dt.usuarioId, label: `${dt.nombre} ${dt.apellido}` }))}
+                  operadorEsDt={acciones.dts.some((dt) => dt.usuarioId === acciones.usuarioId)}
+                  itemNombre={`Ítem ${numero}: ${nombre}`}
+                />
+                <ContinuarPreparacionDialog objetivo={{ reservaDePreparacionId: preparacion.id }} itemNombre={`Ítem ${numero}: ${nombre}`} />
+              </>
+            ) : null}
+          </>
+        ) : estado === "EN_CONFIRMACION" && preparacion ? (
+          // A preparación INICIADA without reserva (the former flows, or the ficha técnica screen's "Preparar"): confirmed or discarded on its own screen.
+          <Link href={`/preparaciones/${preparacion.id}`} className="btn btn-primary">
             <FlaskConical className="size-4" aria-hidden />
             Continuar
           </Link>
         ) : (
-          // Confirming locks the receta: never with unsaved edits in the form above.
+          // Reserving locks the receta: never with unsaved edits in the form above.
           <RequiereRecetaGuardada>
             {ficha ? (
-              <ContinuarPreparacionDialog fichaTecnicaId={ficha.id} itemNombre={`Ítem ${numero}: ${nombre}`} />
+              <ContinuarPreparacionDialog objetivo={{ fichaTecnicaId: ficha.id }} itemNombre={`Ítem ${numero}: ${nombre}`} />
             ) : (
               <p className="mr-auto text-sm text-zinc-600">
-                {puedeGenerarFicha ? "Generá la ficha técnica para poder confirmar la preparación." : "Falta generar la ficha técnica de este ítem para poder confirmar la preparación."}
+                {puedeGenerarFicha ? "Generá la ficha técnica para poder reservar el stock." : "Falta generar la ficha técnica de este ítem para poder reservar el stock."}
               </p>
             )}
           </RequiereRecetaGuardada>
         )}
+        {etiqueta}
       </div>
     </article>
   );

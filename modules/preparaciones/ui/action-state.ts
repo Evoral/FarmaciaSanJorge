@@ -19,5 +19,5 @@ export const IDLE_STATE: PreparacionActionState = { status: "idle" };
 /** Result of the toma workspace's live ficha preview (`preparaciones.toma.previsualizarFichas`): one entry per ítem sent, in order. */
 export type VistaPreviaFichasState = { status: "success"; fichas: FichaPrevista[] } | { status: "error"; message: string };
 
-/** What the toma workspace's "Continuar" dialog reads when it opens (`preparaciones.confirmacionDeFicha`). */
+/** What the toma workspace's "Continuar" / "Modificar reserva" dialog reads when it opens (`preparaciones.confirmacionDeFicha` / `preparaciones.modificacionDeReserva`). */
 export type ConfirmacionDeFichaState = { status: "success"; datos: DatosConfirmacion } | { status: "error"; message: string };

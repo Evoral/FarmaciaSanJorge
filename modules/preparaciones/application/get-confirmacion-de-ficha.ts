@@ -5,8 +5,9 @@
  * `/preparaciones/[id]` shows for an INICIADA one (shared builder,
  * ./datos-confirmacion.ts). Read-only, `preparaciones.iniciar` (same as
  * `preparaciones.pantalla`): opening the dialog persists nothing; the
- * preparación is created and confirmed together by
- * `confirmarPreparacionDeFicha` (./confirmar-preparacion-de-ficha.ts).
+ * preparación is created together with its reserva de stock by
+ * `reservarStockPreparacion` (./reservar-stock-preparacion.ts). Stock
+ * reserved by other preparaciones is not offered.
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";

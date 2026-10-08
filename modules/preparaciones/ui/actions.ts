@@ -10,7 +10,12 @@ import { cancelarToma } from "@/modules/preparaciones/application/cancelar-toma"
 import { descartarPreparacion } from "@/modules/preparaciones/application/descartar-preparacion";
 import { confirmarPreparacion } from "@/modules/preparaciones/application/confirmar-preparacion";
 import type { ConfirmarPreparacionLineaInput } from "@/modules/preparaciones/application/confirmar-preparacion";
-import { confirmarPreparacionDeFicha } from "@/modules/preparaciones/application/confirmar-preparacion-de-ficha";
+import { reservarStockPreparacion } from "@/modules/preparaciones/application/reservar-stock-preparacion";
+import { liberarReservaStock } from "@/modules/preparaciones/application/liberar-reserva-stock";
+import { confirmarReservaStock } from "@/modules/preparaciones/application/confirmar-reserva-stock";
+import { modificarReservaStock } from "@/modules/preparaciones/application/modificar-reserva-stock";
+import { getModificacionDeReserva } from "@/modules/preparaciones/application/get-modificacion-de-reserva";
+import { registrarPerdidaReserva, type RegistrarPerdidaReservaInput } from "@/modules/preparaciones/application/registrar-perdida-reserva";
 import { getConfirmacionDeFicha } from "@/modules/preparaciones/application/get-confirmacion-de-ficha";
 import { generarEtiqueta } from "@/modules/preparaciones/application/generar-etiqueta";
 import { previsualizarFichas } from "@/modules/preparaciones/application/previsualizar-fichas";
@@ -22,7 +27,7 @@ export async function iniciarPreparacionAction(_prevState: PreparacionActionStat
   try {
     const nueva = await iniciarPreparacion({ fichaTecnicaId: String(formData.get("fichaTecnicaId") ?? "") });
     revalidatePath("/preparaciones");
-    // The receta may have moved PENDIENTE_PREPARACION -> EN_PREPARACION.
+    // The receta (possibly taken now) is no longer editable while the preparación lives.
     revalidatePath("/recetas");
     return { status: "success", message: "Preparación iniciada.", id: nueva.id };
   } catch (error) {
@@ -115,6 +120,8 @@ export async function confirmarPreparacionAction(_prevState: PreparacionActionSt
     const resultado = await confirmarPreparacion({ preparacionId, lineas: parseLineas(formData) });
     revalidatePath(`/preparaciones/${preparacionId}`);
     revalidatePath("/preparaciones");
+    // The receta moved to EN_PREPARACION with its first ítem, or PREPARADA with its last.
+    revalidatePath("/recetas");
     return { status: "success", message: `Preparación confirmada. Asiento libro recetario Nº ${resultado.numeroCorrelativo}.`, id: resultado.id };
   } catch (error) {
     if (error instanceof StepUpRequiredError) {
@@ -136,12 +143,106 @@ export async function getConfirmacionDeFichaAction(fichaTecnicaId: string): Prom
   }
 }
 
-/** The "Continuar" dialog's final step: creates and confirms the preparación in one transaction (same form fields as `confirmarPreparacionAction`, keyed by `fichaTecnicaId`). */
-export async function confirmarPreparacionDeFichaAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
+/**
+ * The "Continuar" dialog's final step: creates the preparación and reserves its stock in one transaction (same form
+ * fields as `confirmarPreparacionAction`, keyed by `fichaTecnicaId`). Nothing is descontado nor written to the libro yet.
+ */
+export async function reservarStockAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
   try {
-    const resultado = await confirmarPreparacionDeFicha({ fichaTecnicaId: String(formData.get("fichaTecnicaId") ?? ""), lineas: parseLineas(formData) });
+    const resultado = await reservarStockPreparacion({ fichaTecnicaId: String(formData.get("fichaTecnicaId") ?? ""), lineas: parseLineas(formData) });
     revalidatePath("/preparaciones");
-    // The receta moved to EN_PREPARACION, or PREPARADA with its last ítem.
+    // The receta is no longer editable while the reserva lives (its estado does not change).
+    revalidatePath("/recetas");
+    return { status: "success", message: "Stock reservado. Al imprimir la etiqueta se descuenta y se registra en el libro recetario.", id: resultado.id };
+  } catch (error) {
+    if (error instanceof StepUpRequiredError) {
+      return { status: "reauth-required" };
+    }
+    return actionError(error, "No se pudo reservar el stock.");
+  }
+}
+
+/** What the "Modificar reserva" dialog shows: the "Continuar" data prefilled with the current reserva. Writes nothing. */
+export async function getModificacionDeReservaAction(preparacionId: string): Promise<ConfirmacionDeFichaState> {
+  try {
+    return { status: "success", datos: await getModificacionDeReserva(preparacionId) };
+  } catch (error) {
+    return { status: "error", message: actionErrorMessage(error, "No se pudo leer la reserva.") };
+  }
+}
+
+/** "Modificar reserva": replaces the reserva of the same preparación (same form fields as `reservarStockAction`, keyed by `preparacionId`). */
+export async function modificarReservaStockAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
+  try {
+    const resultado = await modificarReservaStock({ preparacionId: String(formData.get("preparacionId") ?? ""), lineas: parseLineas(formData) });
+    revalidatePath("/preparaciones");
+    return { status: "success", message: "Reserva modificada.", id: resultado.id };
+  } catch (error) {
+    if (error instanceof StepUpRequiredError) {
+      return { status: "reauth-required" };
+    }
+    return actionError(error, "No se pudo modificar la reserva.");
+  }
+}
+
+/**
+ * "Registrar pérdida" on a reserved ítem: an AJUSTE linked to the preparación (with the DT's co-firma in the same form)
+ * and the reserva re-planned. The message says whether the reserva still covers the receta.
+ */
+export async function registrarPerdidaReservaAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
+  try {
+    const observacion = String(formData.get("observacion") ?? "").trim();
+    const resultado = await registrarPerdidaReserva({
+      preparacionId: String(formData.get("preparacionId") ?? ""),
+      partidaId: String(formData.get("partidaId") ?? ""),
+      cantidad: String(formData.get("cantidad") ?? ""),
+      motivoAjuste: String(formData.get("motivoAjuste") ?? "") as RegistrarPerdidaReservaInput["motivoAjuste"],
+      observacion: observacion || undefined,
+      dtUsuarioId: String(formData.get("dtUsuarioId") ?? ""),
+      dtPassword: String(formData.get("dtPassword") ?? ""),
+    });
+    revalidatePath("/preparaciones");
+    revalidatePath("/stock");
+    return {
+      status: "success",
+      message: resultado.reservaAlcanza
+        ? "Pérdida registrada. La reserva sigue cubriendo la receta."
+        : "Pérdida registrada. La reserva ya no alcanza: modificá la reserva para elegir otro lote.",
+    };
+  } catch (error) {
+    if (error instanceof StepUpRequiredError) {
+      return { status: "reauth-required" };
+    }
+    return actionError(error, "No se pudo registrar la pérdida.");
+  }
+}
+
+/** "Liberar reserva": deletes the ítem's reserva and discards its preparación, so the ítem is Pendiente again. */
+export async function liberarReservaStockAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
+  try {
+    await liberarReservaStock(String(formData.get("preparacionId") ?? ""));
+    revalidatePath("/preparaciones");
+    // The receta may be editable again.
+    revalidatePath("/recetas");
+    return { status: "success", message: "Reserva liberada. El ítem volvió a Pendiente." };
+  } catch (error) {
+    if (error instanceof StepUpRequiredError) {
+      return { status: "reauth-required" };
+    }
+    return actionError(error, "No se pudo liberar la reserva.");
+  }
+}
+
+/**
+ * "Imprimir etiqueta" on a reserved ítem: confirms the preparación from its reserva (stock, libro recetario,
+ * contralor) and generates its etiqueta, in one transaction. `id` is the preparación: the client then opens the print
+ * dialog for it.
+ */
+export async function confirmarReservaStockAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
+  try {
+    const resultado = await confirmarReservaStock(String(formData.get("preparacionId") ?? ""));
+    revalidatePath("/preparaciones");
+    // The receta moved to EN_PREPARACION with its first ítem, or PREPARADA with its last.
     revalidatePath("/recetas");
     return { status: "success", message: `Preparación confirmada. Asiento libro recetario Nº ${resultado.numeroCorrelativo}.`, id: resultado.id };
   } catch (error) {

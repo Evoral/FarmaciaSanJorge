@@ -21,7 +21,7 @@ elaboración, and the etiqueta prints it as `Vence: MM/YY` (e.g. `Vence: 03/27`)
 | R5 | After confirmation the date is frozen: it cannot be changed or cleared, and a preparación that is not `CONFIRMADA` never carries one. | DB: `INV-P07` in `fsj.preparacion_validar_update()` and CHECK `preparacion_fecha_vencimiento_check` (migration 0068). |
 | R6 | Preparaciones confirmed **before** 0068 have `fecha_vencimiento = NULL` and are **not** backfilled: a regulatory date is not invented retroactively. Their etiqueta keeps printing the blank `Vence: ______` line, and INV-P07 stops anyone from filling it in later. | Migration 0068 (no backfill); `formatearVenceEtiqueta(null)`. |
 | R7 | The etiqueta prints `Vence: MM/YY` (month and two-digit year of the stored date); with no date it prints `Vence: ______`. The printed PDF and the persisted `etiqueta.contenido` text use the same value. | `modules/preparaciones/domain/etiqueta.ts` (`formatearVenceEtiqueta`, `armarContenidoEtiqueta`); `getPreparacionParaEtiqueta` loads the date. |
-| R8 | The confirmation's audit record includes `fechaVencimiento`. | `confirmarPreparacionCommand` / `confirmarPreparacionDeFichaCommand` (`valorNuevo`). |
+| R8 | The confirmation's audit record includes `fechaVencimiento`. | `confirmarPreparacionCommand` / `confirmarReservaStockCommand` (`valorNuevo`; the toma workspace confirms at "Imprimir etiqueta", docs/specs/reserva-stock-preparacion.md). |
 
 ## Decisions
 
