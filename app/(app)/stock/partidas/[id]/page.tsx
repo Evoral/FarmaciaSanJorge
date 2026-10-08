@@ -51,8 +51,8 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
 
   const [kardex, { catalogo }] = await Promise.all([kardexMovimientos({ partidaId: id, page: 1, pageSize: 50 }), getCatalogoUnidades()]);
   const unidad = { id: partida.unidadBaseId, simbolo: partida.unidadBaseSimbolo };
-  // Saldo and cantidad inicial side by side: one unit for both.
-  const [disponible, inicial] = formatCantidadesFila([partida.cantidadDisponible, partida.cantidadInicial], unidad, catalogo);
+  // Saldo and cantidad inicial side by side: one unit for both (and for the part reserved by preparaciones, migration 0071).
+  const [disponible, inicial, reservada] = formatCantidadesFila([partida.cantidadDisponible, partida.cantidadInicial, partida.cantidadReservada], unidad, catalogo);
   const puedeCorregirCosto = can(session, "stock.partida.costo.corregir");
   const puedeAjustar = can(session, "stock.ajuste.registrar");
 
@@ -149,6 +149,12 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
               <p className="mt-1 text-xs text-zinc-500">
                 de <Cantidad valor={inicial!} /> ingresados
               </p>
+              {partida.cantidadReservada !== "0" ? (
+                <p className="mt-2 text-xs text-zinc-600">
+                  Reservado en preparación: <Cantidad valor={reservada!} />
+                  {partida.recetasConReserva.length > 0 ? ` (receta ${partida.recetasConReserva.map((n) => `Nº ${n}`).join(", ")})` : null}
+                </p>
+              ) : null}
             </div>
             <div className="border-t border-zinc-100 p-5">
               <dl className="summary-dl">

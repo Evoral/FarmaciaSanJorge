@@ -47,6 +47,7 @@ function FilaTotal({ etiqueta, monto, fuerte = false }: { etiqueta: string; mont
       <td className="hidden sm:table-cell" />
       <td className="hidden md:table-cell" />
       <td />
+      <td className="hidden lg:table-cell" />
       <td className="hidden md:table-cell" />
       <td className={`whitespace-nowrap px-3 py-1.5 text-right font-mono tabular-nums text-zinc-900 ${fuerte ? "font-semibold" : "text-[0.8125rem] font-semibold"}`}>{pesos(monto)}</td>
     </tr>
@@ -219,7 +220,10 @@ export default async function StockValorizadoPage({ searchParams }: StockValoriz
                       Vencimiento
                     </th>
                     <th scope="col" className="px-3 py-2 text-right">
-                      Disponible
+                      Saldo físico
+                    </th>
+                    <th scope="col" className="hidden px-3 py-2 text-right lg:table-cell">
+                      Reservado en preparación
                     </th>
                     <th scope="col" className="hidden px-3 py-2 text-right md:table-cell">
                       Costo unitario
@@ -246,6 +250,14 @@ export default async function StockValorizadoPage({ searchParams }: StockValoriz
                         <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono tabular-nums md:table-cell">{item.fechaVencimiento ? formatFechaIso(item.fechaVencimiento) : "No vence"}</td>
                         <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">
                           <Cantidad valor={formatCantidad(item.cantidadDisponible, { id: item.unidadId, simbolo: item.unidadSimbolo }, catalogo)} />
+                        </td>
+                        {/* Informational (migration 0071): the valor is always the physical saldo's. */}
+                        <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums text-zinc-600 lg:table-cell">
+                          {item.cantidadReservada === "0" ? (
+                            <span className="text-zinc-400">—</span>
+                          ) : (
+                            <Cantidad valor={formatCantidad(item.cantidadReservada, { id: item.unidadId, simbolo: item.unidadSimbolo }, catalogo)} />
+                          )}
                         </td>
                         <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums md:table-cell">$&nbsp;{formatearCostoUnitario(item.costoUnitario)}</td>
                         <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums text-zinc-900">{pesos(item.valor)}</td>

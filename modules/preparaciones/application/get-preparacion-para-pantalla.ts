@@ -36,7 +36,8 @@ export const getPreparacionParaPantallaQuery = defineQuery({
     const preparacion = await getPreparacionParaAccion(tx, session.tenantId, input.preparacionId);
     if (!preparacion) throw new NotFoundError("Preparación no encontrada.");
 
-    const datos = await construirDatosConfirmacion(tx, session.tenantId, preparacion.fichaTecnicaId);
+    // Its own reservas (if any) stay available to it.
+    const datos = await construirDatosConfirmacion(tx, session.tenantId, preparacion.fichaTecnicaId, preparacion.id);
     const receta = await getRecetaDePreparacion(tx, session.tenantId, preparacion.itemRecetaId);
     return {
       ...datos,

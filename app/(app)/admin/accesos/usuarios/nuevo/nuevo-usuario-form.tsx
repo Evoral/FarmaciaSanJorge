@@ -28,7 +28,7 @@ import { useActionState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { CircleAlert } from "lucide-react";
 import { crearUsuarioAction, type CrearUsuarioFormState } from "./actions";
-import { ReauthPrompt } from "@/modules/auth/ui/reauth-prompt";
+import { ReauthPrompt, useReauthPrompt } from "@/modules/auth/ui/reauth-prompt";
 import { useReauthFormSubmit } from "@/modules/auth/ui/use-reauth-form-submit";
 import { CredencialActivacion } from "@/modules/usuarios/ui/credencial-activacion";
 import { errorFieldsOf } from "@/shared/ui/form-parts";
@@ -50,6 +50,7 @@ function SubmitButton({ pending }: { pending: boolean }) {
 
 export function NuevoUsuarioForm({ roles }: { roles: readonly { codigo: string; nombre: string }[] }) {
   const [state, formAction, isPending] = useActionState(crearUsuarioAction, initialCrearUsuarioState);
+  const reauth = useReauthPrompt(state);
   const { onSubmit, resubmit } = useReauthFormSubmit(formAction);
   const formRef = useRef<HTMLFormElement>(null);
   const alertRef = useRef<HTMLDivElement>(null);
@@ -159,7 +160,7 @@ export function NuevoUsuarioForm({ roles }: { roles: readonly { codigo: string; 
         </div>
       </form>
 
-      {state.status === "reauth-required" ? <ReauthPrompt onReauthenticated={resubmit} onCancel={() => undefined} /> : null}
+      {reauth.abierto ? <ReauthPrompt onReauthenticated={resubmit} onCancel={reauth.cancelar} /> : null}
     </div>
   );
 }

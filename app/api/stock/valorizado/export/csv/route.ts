@@ -39,14 +39,15 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json(safe, { status });
   }
 
-  const writer = new CsvWriter(["Droga", "Lote", "Vencimiento", "CantidadDisponible", "Unidad", "CostoUnitario", "Valor"]);
+  // CantidadReservada (migration 0071) goes LAST so existing columns keep their position; informational, Valor is the physical saldo's.
+  const writer = new CsvWriter(["Droga", "Lote", "Vencimiento", "CantidadDisponible", "Unidad", "CostoUnitario", "Valor", "CantidadReservada"]);
   for (const item of resultado.items) {
-    writer.push([item.drogaNombre, item.lote, item.fechaVencimiento ?? "", item.cantidadDisponible, item.unidadSimbolo, item.costoUnitario, item.valor]);
+    writer.push([item.drogaNombre, item.lote, item.fechaVencimiento ?? "", item.cantidadDisponible, item.unidadSimbolo, item.costoUnitario, item.valor, item.cantidadReservada]);
   }
   for (const subtotal of resultado.subtotales) {
-    writer.push([`Subtotal ${subtotal.drogaNombre}`, "", "", "", "", "", subtotal.valorSubtotal]);
+    writer.push([`Subtotal ${subtotal.drogaNombre}`, "", "", "", "", "", subtotal.valorSubtotal, ""]);
   }
-  writer.push(["TOTAL GENERAL", "", "", "", "", "", resultado.granTotal]);
+  writer.push(["TOTAL GENERAL", "", "", "", "", "", resultado.granTotal, ""]);
   if (resultado.truncated) {
     writer.push([`TRUNCADO: se alcanzó el máximo de ${MAX_EXPORT_ROWS} filas exportables. Acotá los filtros.`]);
   }

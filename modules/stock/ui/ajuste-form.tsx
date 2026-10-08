@@ -12,6 +12,11 @@
  * the practical units of the droga's magnitude, or just its unidad base when
  * that is not convertible); the server validates the unit and converts the
  * quantity to the unidad base (modules/stock/application/registrar-ajuste.ts).
+ *
+ * When preparaciones hold part of the saldo reserved (migration 0071,
+ * docs/specs/reserva-stock-preparacion.md), the header shows the physical
+ * saldo, the reserved part with its recetas and the free part -- the only one
+ * an ajuste may consume (the server enforces it).
  */
 import { useRouter } from "next/navigation";
 import { CoFirmaDt } from "@/shared/ui/co-firma-dt";
@@ -46,6 +51,8 @@ export interface AjusteFormProps {
   /** Preselected unit: the one `saldoPrincipal` is expressed in. */
   unidadPorDefectoId: string;
   dts: DtOpcion[];
+  /** Part of the saldo reserved by preparaciones (already formatted), `null` when none. */
+  reserva: { reservadoTexto: string; libreTexto: string; recetas: string[] } | null;
   /** `true` when the OPERATOR is themselves a vigente DT -- INV-U06: they still type their own password, and both `registradoPorId`/`autorizadoPorId` end up holding the same id. */
   operadorEsDt: boolean;
 }
@@ -62,6 +69,7 @@ export function AjusteForm({
   unidades,
   unidadPorDefectoId,
   dts,
+  reserva,
   operadorEsDt,
 }: AjusteFormProps) {
   const router = useRouter();
@@ -72,12 +80,24 @@ export function AjusteForm({
       <div className="border-b border-zinc-100 p-5">
         <p className="text-sm font-medium text-zinc-900">{drogaNombre}</p>
         <p className="text-xs text-zinc-500">
-          Lote <span className="font-mono">{lote}</span> · Saldo disponible
+          Lote <span className="font-mono">{lote}</span> · {reserva ? "Saldo físico" : "Saldo disponible"}
         </p>
         <p className="mt-2 font-mono text-3xl font-semibold tracking-tight text-zinc-900 tabular-nums">
           {saldoPrincipal}
           {saldoSecundario ? <span className="ml-3 text-base font-normal text-zinc-500">{saldoSecundario}</span> : null}
         </p>
+        {reserva ? (
+          <dl className="mt-3 grid gap-x-8 gap-y-1 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-xs text-zinc-500">Reservado en preparación{reserva.recetas.length > 0 ? ` (receta ${reserva.recetas.map((n) => `Nº ${n}`).join(", ")})` : ""}</dt>
+              <dd className="font-mono tabular-nums text-zinc-900">{reserva.reservadoTexto}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-zinc-500">Libre para ajustar</dt>
+              <dd className="font-mono font-semibold tabular-nums text-zinc-900">{reserva.libreTexto}</dd>
+            </div>
+          </dl>
+        ) : null}
       </div>
 
       <div className="panel-body">

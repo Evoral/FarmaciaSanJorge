@@ -89,6 +89,8 @@
  * to the caller.
  */
 import { z } from "zod";
+import type { Prisma } from "@/generated/prisma/client";
+import type { AuthenticatedSession } from "@/shared/auth/session";
 import { defineCommand } from "@/shared/usecase";
 import { uuid } from "@/shared/validation";
 import { verifyPassword } from "@/modules/auth/domain/password";
@@ -122,67 +124,80 @@ export const verificarCoFirmaDtCommand = defineCommand<VerificarCoFirmaDtInput, 
   // this file's module doc comment.
   input: verificarCoFirmaDtInput,
   audit: { skip: true, reason: "Audits CONDITIONALLY (failed attempts only) via a manual auditRecord call -- see this file's module doc comment." },
-  handler: async ({ tx, session, input }) => {
-    // "looks up that user IN THE SESSION'S TENANT" -- tenantId comes from
-    // the operator's own session, never from client input.
-    const candidate = await resolveDtCandidato(tx, session.tenantId, input.dtUsuarioId);
-
-    // ALWAYS run a real argon2 verification, even for an unknown id --
-    // verifyPassword(null, ...) falls back to a dummy hash internally
-    // (see modules/auth/domain/password.ts), keeping "unknown DT" and
-    // "wrong password" timing-indistinguishable, same as login().
-    const passwordMatches = await verifyPassword(candidate?.passwordHash ?? null, input.password);
-    const esDtVigente = candidate !== null ? await esDtVigenteHoy(tx, session.tenantId, input.dtUsuarioId) : false;
-
-    const now = new Date();
-    const decision = decideCoFirma({
-      found: candidate !== null,
-      estado: candidate?.estado ?? null,
-      bloqueadoHasta: candidate?.bloqueadoHasta ?? null,
-      passwordMatches,
-      esDtVigente,
-      now,
-    });
-
-    if (decision === "OK") {
-      // candidate is non-null whenever decision === "OK" (decideCoFirma's
-      // first check is `found`).
-      await recordCoFirmaSuccess(tx, candidate!.usuarioId);
-      const output: CoFirmaResult = { ok: true, dtUsuarioId: candidate!.usuarioId };
-      return { output };
-    }
-
-    // Only a WRONG PASSWORD for an otherwise-live, known DT counts toward
-    // the lockout -- same discipline as login() (an already-locked,
-    // inactive, unknown, or not-vigente candidate gains nothing from
-    // further counting).
-    if (decision === "PASSWORD_INCORRECTA" && candidate) {
-      const intentosFallidos = candidate.intentosFallidos + 1;
-      const lockedOut = intentosFallidos >= AUTH_POLICY.maxFailedLoginAttempts;
-      const bloqueadoHasta = lockedOut ? new Date(now.getTime() + AUTH_POLICY.lockoutMinutes * 60 * 1000) : null;
-      await recordCoFirmaFailure(tx, candidate.usuarioId, { intentosFallidos, bloqueadoHasta });
-    }
-
-    // INV-A01: audit EVERY failed co-signature attempt (task-required),
-    // authored by the OPERATOR's session (the actor requesting the
-    // co-signature), targeting the DT id the operator supplied -- real or
-    // not, it is always a well-formed UUID by the time this runs (zod,
-    // above). The `motivo` here is an internal detail for `auditoria.ver`
-    // (ADM/DT only) -- it is NEVER shown to the operator, who only ever
-    // sees `CO_FIRMA_GENERIC_ERROR`.
-    await auditRecord(tx, {
-      tenantId: session.tenantId,
-      usuarioId: session.usuario.id,
-      entidad: "co_firma_dt",
-      entidadId: input.dtUsuarioId,
-      accion: TipoAccion.AUTORIZAR,
-      motivo: `Co-firma de Director Técnico rechazada (motivo interno: ${decision}).`,
-    });
-
-    const output: CoFirmaResult = { ok: false, message: CO_FIRMA_GENERIC_ERROR };
-    return { output };
-  },
+  handler: async ({ tx, session, input }) => ({ output: await verificarCoFirmaDtEnTx(tx, session, input) }),
 });
+
+/**
+ * The verification itself (lookup, argon2, vigency, lockout bookkeeping,
+ * audit of a failure), inside the caller's transaction. Also run by the
+ * toma workspace's "Registrar pérdida" through its OWN command instance
+ * (modules/preparaciones/application/registrar-perdida-reserva.ts, permiso
+ * `preparaciones.confirmar`) -- the "own defineCommand per permiso" this
+ * module's doc comment asks of a future caller. Never throws for a rejected
+ * co-signature (see RATE LIMITING above): it returns `{ ok: false }`.
+ */
+export async function verificarCoFirmaDtEnTx(
+  tx: Prisma.TransactionClient,
+  session: AuthenticatedSession,
+  input: VerificarCoFirmaDtInput,
+): Promise<CoFirmaResult> {
+  // "looks up that user IN THE SESSION'S TENANT" -- tenantId comes from
+  // the operator's own session, never from client input.
+  const candidate = await resolveDtCandidato(tx, session.tenantId, input.dtUsuarioId);
+
+  // ALWAYS run a real argon2 verification, even for an unknown id --
+  // verifyPassword(null, ...) falls back to a dummy hash internally
+  // (see modules/auth/domain/password.ts), keeping "unknown DT" and
+  // "wrong password" timing-indistinguishable, same as login().
+  const passwordMatches = await verifyPassword(candidate?.passwordHash ?? null, input.password);
+  const esDtVigente = candidate !== null ? await esDtVigenteHoy(tx, session.tenantId, input.dtUsuarioId) : false;
+
+  const now = new Date();
+  const decision = decideCoFirma({
+    found: candidate !== null,
+    estado: candidate?.estado ?? null,
+    bloqueadoHasta: candidate?.bloqueadoHasta ?? null,
+    passwordMatches,
+    esDtVigente,
+    now,
+  });
+
+  if (decision === "OK") {
+    // candidate is non-null whenever decision === "OK" (decideCoFirma's
+    // first check is `found`).
+    await recordCoFirmaSuccess(tx, candidate!.usuarioId);
+    return { ok: true, dtUsuarioId: candidate!.usuarioId };
+  }
+
+  // Only a WRONG PASSWORD for an otherwise-live, known DT counts toward
+  // the lockout -- same discipline as login() (an already-locked,
+  // inactive, unknown, or not-vigente candidate gains nothing from
+  // further counting).
+  if (decision === "PASSWORD_INCORRECTA" && candidate) {
+    const intentosFallidos = candidate.intentosFallidos + 1;
+    const lockedOut = intentosFallidos >= AUTH_POLICY.maxFailedLoginAttempts;
+    const bloqueadoHasta = lockedOut ? new Date(now.getTime() + AUTH_POLICY.lockoutMinutes * 60 * 1000) : null;
+    await recordCoFirmaFailure(tx, candidate.usuarioId, { intentosFallidos, bloqueadoHasta });
+  }
+
+  // INV-A01: audit EVERY failed co-signature attempt (task-required),
+  // authored by the OPERATOR's session (the actor requesting the
+  // co-signature), targeting the DT id the operator supplied -- real or
+  // not, it is always a well-formed UUID by the time this runs (zod,
+  // above). The `motivo` here is an internal detail for `auditoria.ver`
+  // (ADM/DT only) -- it is NEVER shown to the operator, who only ever
+  // sees `CO_FIRMA_GENERIC_ERROR`.
+  await auditRecord(tx, {
+    tenantId: session.tenantId,
+    usuarioId: session.usuario.id,
+    entidad: "co_firma_dt",
+    entidadId: input.dtUsuarioId,
+    accion: TipoAccion.AUTORIZAR,
+    motivo: `Co-firma de Director Técnico rechazada (motivo interno: ${decision}).`,
+  });
+
+  return { ok: false, message: CO_FIRMA_GENERIC_ERROR };
+}
 
 export async function verificarCoFirmaDt(input: VerificarCoFirmaDtInput): Promise<CoFirmaResult> {
   return verificarCoFirmaDtCommand.execute(input);

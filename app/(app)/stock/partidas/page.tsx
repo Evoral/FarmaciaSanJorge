@@ -133,6 +133,9 @@ export default async function PartidasPage({ searchParams }: PartidasPageProps) 
                     <th scope="col" className="px-3 py-2 text-right">
                       Saldo
                     </th>
+                    <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
+                      Reservado en preparación
+                    </th>
                     <th scope="col" className="hidden px-3 py-2 text-right lg:table-cell">
                       Costo unitario
                     </th>
@@ -146,7 +149,10 @@ export default async function PartidasPage({ searchParams }: PartidasPageProps) 
                 </thead>
                 <tbody>
                   {result.items.map((partida) => {
-                    const [disponible, inicial] = unidad ? formatCantidadesFila([partida.cantidadDisponible, partida.cantidadInicial], unidad, catalogo, modo) : [null, null];
+                    // The physical saldo; the reserved part (preparaciones INICIADA, migration 0071) is shown next to it, informational.
+                    const [disponible, inicial, reservada] = unidad
+                      ? formatCantidadesFila([partida.cantidadDisponible, partida.cantidadInicial, partida.cantidadReservada], unidad, catalogo, modo)
+                      : [null, null, null];
                     return (
                       <tr key={partida.id}>
                         <td className="px-3 py-2.5">
@@ -171,6 +177,9 @@ export default async function PartidasPage({ searchParams }: PartidasPageProps) 
                           ) : (
                             `${partida.cantidadDisponible} / ${partida.cantidadInicial}`
                           )}
+                        </td>
+                        <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums text-zinc-600 sm:table-cell">
+                          {partida.cantidadReservada === "0" ? <span className="text-zinc-400">—</span> : reservada ? <Cantidad valor={reservada} /> : partida.cantidadReservada}
                         </td>
                         <td className="hidden px-3 py-2.5 text-right font-mono tabular-nums lg:table-cell">{partida.costoUnitario}</td>
                         <td className="hidden px-3 py-2.5 sm:table-cell">

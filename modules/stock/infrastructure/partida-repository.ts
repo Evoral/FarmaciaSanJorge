@@ -220,6 +220,8 @@ export interface PartidaListItem {
   costoUnitario: string;
   cantidadInicial: string;
   cantidadDisponible: string;
+  /** Of `cantidadDisponible` (the physical saldo), what preparaciones INICIADA reserved (migration 0071); informational. */
+  cantidadReservada: string;
   fechaIngreso: Date;
   /** `null` = does not expire (migration 0064). */
   fechaVencimiento: Date | null;
@@ -277,6 +279,8 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
     },
   });
 
+  const reservado = await reservadoPorPartida(tx, filter.tenantId, rows.map((row) => row.id));
+
   return {
     droga: droga ? { nombre: droga.nombre, unidadBaseId: droga.unidadBaseId, unidadBaseSimbolo: droga.unidadBase.simbolo } : null,
     items: rows.map((row) => ({
@@ -287,6 +291,7 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
       costoUnitario: row.costoUnitario.toString(),
       cantidadInicial: row.cantidadInicial.toString(),
       cantidadDisponible: row.cantidadDisponible.toString(),
+      cantidadReservada: reservado.get(row.id) ?? "0",
       fechaIngreso: row.fechaIngreso,
       fechaVencimiento: row.fechaVencimiento,
       fechaApertura: row.fechaApertura,
@@ -537,6 +542,8 @@ export interface NuevoAjusteInput {
   observacion: string;
   registradoPorId: string;
   autorizadoPorId: string;
+  /** A pérdida registered during a preparación (docs/specs/reserva-stock-preparacion.md): `movimiento_stock.preparacion_id` (nullable, FK since 0013). */
+  preparacionId?: string | null;
 }
 
 export async function insertAjuste(tx: Prisma.TransactionClient, input: NuevoAjusteInput): Promise<{ id: string }> {
@@ -550,9 +557,51 @@ export async function insertAjuste(tx: Prisma.TransactionClient, input: NuevoAju
       observacion: input.observacion,
       registradoPorId: input.registradoPorId,
       autorizadoPorId: input.autorizadoPorId,
+      preparacionId: input.preparacionId ?? null,
     },
     select: { id: true },
   });
+}
+
+/**
+ * What preparaciones INICIADA reserved from each of `partidaIds` (fsj.reserva_stock, migration 0071), for listings:
+ * ONE grouped query per page; partidas without reserva are absent (= 0). Same rule as `getReservadoEnPreparacion`.
+ */
+export async function reservadoPorPartida(tx: Prisma.TransactionClient, tenantId: string, partidaIds: readonly string[]): Promise<Map<string, string>> {
+  if (partidaIds.length === 0) return new Map();
+  const rows = await tx.$queryRaw<{ partida_id: string; cantidad: string }[]>`
+    SELECT rs.partida_id, sum(rs.cantidad)::text AS cantidad
+    FROM fsj.reserva_stock rs
+    JOIN fsj.preparacion p ON p.tenant_id = rs.tenant_id AND p.id = rs.preparacion_id AND p.estado = 'INICIADA'
+    WHERE rs.tenant_id = ${tenantId}::uuid AND rs.partida_id = ANY(${[...partidaIds]}::uuid[]) AND rs.cantidad > 0
+    GROUP BY rs.partida_id
+  `;
+  return new Map(rows.map((r) => [r.partida_id, r.cantidad]));
+}
+
+/**
+ * Stock of `partidaId` reserved by preparaciones INICIADA (fsj.reserva_stock, migration 0071,
+ * docs/specs/reserva-stock-preparacion.md), except `excluirPreparacionId`'s own, plus the receta Nº of each of them.
+ * Own small read of the preparaciones tables (each module keeps its own cross-module reads, like
+ * modules/preparaciones/infrastructure/preparacion-repository.ts does).
+ * Read AFTER `lockPartidaParaAccion`: a reserva is written only under the same partida lock.
+ */
+export async function getReservadoEnPreparacion(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  partidaId: string,
+  excluirPreparacionId: string | null = null,
+): Promise<{ cantidad: string; recetas: string[] }> {
+  const rows = await tx.$queryRaw<{ cantidad: string; recetas: string[] | null }[]>`
+    SELECT coalesce(sum(rs.cantidad), 0)::text AS cantidad, array_agg(DISTINCT r.numero_interno::text) AS recetas
+    FROM fsj.reserva_stock rs
+    JOIN fsj.preparacion p ON p.tenant_id = rs.tenant_id AND p.id = rs.preparacion_id AND p.estado = 'INICIADA'
+    JOIN fsj.item_receta ir ON ir.tenant_id = p.tenant_id AND ir.id = p.item_receta_id
+    JOIN fsj.receta r ON r.tenant_id = ir.tenant_id AND r.id = ir.receta_id
+    WHERE rs.tenant_id = ${tenantId}::uuid AND rs.partida_id = ${partidaId}::uuid AND rs.cantidad > 0
+      AND rs.preparacion_id IS DISTINCT FROM ${excluirPreparacionId}::uuid
+  `;
+  return { cantidad: rows[0]?.cantidad ?? "0", recetas: (rows[0]?.recetas ?? []).sort() };
 }
 
 // ============================================================================

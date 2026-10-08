@@ -9,6 +9,10 @@
  * "Vencidas" excludes/includes against the TENANT's own jornada
  * (`fsj.jornada_actual`, migration 0018/0025's fix), never `CURRENT_DATE`
  * or a JS `Date` default -- see this file's gotcha comment on `jornadaActualTenant`.
+ *
+ * The value is ALWAYS the physical saldo's (`cantidad_disponible`). What
+ * preparaciones INICIADA reserved of it (fsj.reserva_stock, migration 0071)
+ * is an informational column only: reserved stock is still the pharmacy's.
  */
 import type { Prisma } from "@/generated/prisma/client";
 import { drogaCoincideSql } from "@/shared/db/busqueda-droga";
@@ -30,6 +34,8 @@ export interface ValorizadoItem {
   lote: string;
   fechaVencimiento: string | null; // YYYY-MM-DD; null = does not expire (0064)
   cantidadDisponible: string;
+  /** Of `cantidadDisponible`, what preparaciones INICIADA reserved (informational, never subtracted from `valor`). */
+  cantidadReservada: string;
   /** The droga unidad base (`cantidadDisponible` is recorded in it). */
   unidadId: string;
   unidadSimbolo: string;
@@ -58,6 +64,7 @@ function toItem(row: {
   lote: string;
   fecha_vencimiento: Date | null;
   cantidad_disponible: string;
+  cantidad_reservada: string;
   unidad_id: string;
   unidad_simbolo: string;
   costo_unitario: string;
@@ -70,6 +77,7 @@ function toItem(row: {
     lote: row.lote,
     fechaVencimiento: row.fecha_vencimiento?.toISOString().slice(0, 10) ?? null,
     cantidadDisponible: row.cantidad_disponible,
+    cantidadReservada: row.cantidad_reservada,
     unidadId: row.unidad_id,
     unidadSimbolo: row.unidad_simbolo,
     costoUnitario: row.costo_unitario,
@@ -94,6 +102,7 @@ export async function listValorizado(
       lote: string;
       fecha_vencimiento: Date | null;
       cantidad_disponible: string;
+      cantidad_reservada: string;
       unidad_id: string;
       unidad_simbolo: string;
       costo_unitario: string;
@@ -107,6 +116,7 @@ export async function listValorizado(
       p.lote,
       p.fecha_vencimiento,
       p.cantidad_disponible::text AS cantidad_disponible,
+      r.reservado::text AS cantidad_reservada,
       u.id AS unidad_id,
       u.simbolo AS unidad_simbolo,
       p.costo_unitario::text AS costo_unitario,
@@ -114,6 +124,12 @@ export async function listValorizado(
     FROM fsj.partida p
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
     JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
+    CROSS JOIN LATERAL (
+      SELECT coalesce(sum(rs.cantidad), 0) AS reservado
+      FROM fsj.reserva_stock rs
+      JOIN fsj.preparacion rp ON rp.tenant_id = rs.tenant_id AND rp.id = rs.preparacion_id AND rp.estado = 'INICIADA'
+      WHERE rs.tenant_id = p.tenant_id AND rs.partida_id = p.id
+    ) r
     WHERE p.tenant_id = ${filter.tenantId}::uuid
       AND ${drogaCoincideSql("d", search)}
       AND (${filter.incluirVencidas} OR p.fecha_vencimiento IS NULL OR p.fecha_vencimiento >= fsj.jornada_actual(${filter.tenantId}::uuid))

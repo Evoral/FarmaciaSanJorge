@@ -5,20 +5,25 @@
  * 0013) -- the app-level pre-check below exists purely to give a clear
  * Spanish message instead of a raw unique-violation.
  *
- * "Starting moves the receta to EN_PREPARACION" (task scope): only when the
- * receta is still PENDIENTE_PREPARACION -- if it is already EN_PREPARACION
- * (a second ítem being started), this is a no-op (the DB's state-machine
- * trigger, migration 0011, only allows PENDIENTE_PREPARACION ->
- * EN_PREPARACION once anyway). A terminal receta (ENTREGADA/ANULADA) can
+ * Starting does NOT move the receta's estado (docs/specs/reserva-stock-preparacion.md):
+ * a receta stays PENDIENTE_PREPARACION until its first preparación is
+ * CONFIRMADA (`confirmarPreparacionEnTx` moves it to EN_PREPARACION), so a
+ * preparación discarded before that -- a released reserva de stock -- leaves
+ * it editable again without any backward transition (INV-R08). While the
+ * preparación is INICIADA the receta is still not editable (a LIVE
+ * preparación blocks editing, `existeFichaConPreparacionParaReceta`). Both
+ * paths behave the same: the toma workspace's "Reservar stock" and the ficha
+ * técnica screen's "Preparar". A terminal receta (ENTREGADA/ANULADA) can
  * never start a new preparación.
  *
  * The toma (migration 0057, domain/toma.ts): the toma workspace's
- * "Continuar" dialog runs this (via `confirmarPreparacionDeFicha`, together
- * with the confirmation) on a receta its user already took. When it runs on
+ * "Continuar" dialog runs this (via `reservarStockPreparacion`, together
+ * with the reserva de stock) on a receta its user already took. When it runs on
  * a receta nobody took (the ficha técnica screen's "Preparar"),
  * the starter takes it here too, so a receta with a preparación INICIADA is
- * always listed under En curso. Same receta lock as the estado move (always
- * taken now, after the ficha's advisory lock -- same order as before).
+ * always listed under En curso (taken + PENDIENTE_PREPARACION or
+ * EN_PREPARACION). The receta is locked for that, after the ficha's
+ * advisory lock -- same order as before.
  */
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
@@ -33,8 +38,6 @@ import {
   getPreparacionActivaDeFicha,
   insertPreparacion,
   lockRecetaParaTransicion,
-  getRecetaEstado,
-  updateRecetaEstado,
   getTomaDeReceta,
   setTomaDeReceta,
 } from "../infrastructure/preparacion-repository";
@@ -69,8 +72,8 @@ export const iniciarPreparacionCommand = defineCommand({
 
 /**
  * The start itself (every check and write above), inside the caller's
- * transaction: also run by `confirmarPreparacionDeFicha`
- * (./confirmar-preparacion-de-ficha.ts), which starts and confirms in ONE
+ * transaction: also run by `reservarStockPreparacion`
+ * (./reservar-stock-preparacion.ts), which starts and reserves stock in ONE
  * transaction. `fichaTecnica` is the audit's human label; `tomadaPor`, the
  * usuario's name when this start also took the receta.
  */
@@ -103,10 +106,6 @@ export async function iniciarPreparacionEnTx(
   let tomadaPor: string | null = null;
   const recetaLocked = await lockRecetaParaTransicion(tx, session.tenantId, ficha.recetaId);
   if (recetaLocked) {
-    const estadoFresco = await getRecetaEstado(tx, session.tenantId, ficha.recetaId);
-    if (estadoFresco === "PENDIENTE_PREPARACION") {
-      await updateRecetaEstado(tx, session.tenantId, ficha.recetaId, "EN_PREPARACION");
-    }
     const toma = await getTomaDeReceta(tx, session.tenantId, ficha.recetaId);
     if (toma && toma.tomadaPorId === null) {
       await setTomaDeReceta(tx, session.tenantId, ficha.recetaId, session.usuario.id);

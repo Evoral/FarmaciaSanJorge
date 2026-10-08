@@ -29,6 +29,21 @@ export interface ReauthPromptProps {
   onCancel: () => void;
 }
 
+/**
+ * Whether a caller's `ReauthPrompt` is open, and how to dismiss it. The
+ * prompt opens on `{ status: "reauth-required" }`, but `useActionState`
+ * keeps that state until the next submit, so "Cancelar" cannot clear it:
+ * it remembers WHICH state object was dismissed instead. A new submit
+ * returns a new state object, so a later "reauth-required" opens it again.
+ */
+export function useReauthPrompt(state: { status: string }): { abierto: boolean; cancelar: () => void } {
+  const [descartado, setDescartado] = useState<object | null>(null);
+  return {
+    abierto: state.status === "reauth-required" && descartado !== state,
+    cancelar: () => setDescartado(state),
+  };
+}
+
 export function ReauthPrompt({ onReauthenticated, onCancel }: ReauthPromptProps) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();

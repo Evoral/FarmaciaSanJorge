@@ -12,8 +12,13 @@
  * Plain data only: the page has already read the sizes (no client fetch), as
  * plain numbers -- never Prisma `Decimal`s, which can not cross into a client
  * component.
+ *
+ * `abrirAlMontar`: opens the size dialog by itself once mounted -- right after
+ * the toma workspace's "Imprimir etiqueta" confirmed a reserved preparación
+ * (./reserva-acciones.tsx). The PDF still opens from the dialog's own
+ * "Imprimir" click (a user gesture, so no popup blocker).
  */
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Printer, TriangleAlert } from "lucide-react";
 import { formatearTamano } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import type { EtiquetaTamano } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
@@ -25,14 +30,21 @@ export interface ImprimirEtiquetaDialogProps {
   /** `"secondary"` + `small` in table rows, `"primary"` on the preparación screen. Defaults to the row style. */
   variant?: "primary" | "secondary";
   small?: boolean;
+  /** Open the size dialog as soon as this mounts (or the flag turns on). */
+  abrirAlMontar?: boolean;
 }
 
-export function ImprimirEtiquetaDialog({ preparacionId, tamanos, variant = "secondary", small = true }: ImprimirEtiquetaDialogProps) {
+export function ImprimirEtiquetaDialog({ preparacionId, tamanos, variant = "secondary", small = true, abrirAlMontar = false }: ImprimirEtiquetaDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const presionoFondoRef = useRef(false);
   const tituloId = useId();
   const selectId = useId();
   const [elegido, setElegido] = useState("");
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (abrirAlMontar && dialog && !dialog.open) dialog.showModal();
+  }, [abrirAlMontar]);
 
   // The first size is preselected; a stale choice (the list changed meanwhile) falls back to it.
   const tamanoId = tamanos.some((t) => t.id === elegido) ? elegido : (tamanos[0]?.id ?? "");

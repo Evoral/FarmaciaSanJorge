@@ -5,10 +5,12 @@
  * de pesaje, and each ítem's INICIADA/CONFIRMADA preparación. `null` when
  * the receta does not exist (in this tenant).
  *
- * Purity per partida (migration 0058): every non-manual línea of an ítem not
- * yet CONFIRMADA also lists the partidas the confirmation would draw from,
- * with the PHYSICAL weight each one needs (./partidas-para-pesar.ts, shared
- * with the draft preview `preparaciones.toma.previsualizarFichas`).
+ * Purity per partida (migration 0058): every non-manual línea of an ítem
+ * still to be reserved (no preparación, or an INICIADA one without reservas)
+ * also lists the partidas the confirmation would draw from, with the
+ * PHYSICAL weight each one needs (./partidas-para-pesar.ts, shared with the
+ * draft preview `preparaciones.toma.previsualizarFichas`). An ítem with stock
+ * reserved lists its reservas instead (migration 0071).
  *
  * `preparaciones.iniciar`, like every /preparaciones read. The embedded
  * receta edit form reads its own data through `recetas.ver` (recetas
@@ -30,7 +32,7 @@ import type { PartidaParaPesar } from "./partidas-para-pesar";
 export type { PartidaParaPesar };
 
 export interface LineaDeFichaToma extends LineaDeFichaTomaBase {
-  /** `null` for manual-enrase líneas, líneas without cantidadAPesar, and ítems already CONFIRMADA. */
+  /** `null` for manual-enrase líneas, líneas without cantidadAPesar, and ítems already CONFIRMADA or with stock reserved. */
   partidas: PartidaParaPesar[] | null;
 }
 
@@ -56,8 +58,9 @@ export const getTomaRecetaQuery = defineQuery({
     const receta = await getRecetaDeToma(tx, session.tenantId, input.recetaId);
     if (!receta) return null;
 
-    // A CONFIRMADA ítem already drew its partidas: nothing left to weigh.
-    const lineasPorPesar = (item: ItemDeTomaBase) => (item.preparacion?.estado !== "CONFIRMADA" ? (item.ultimaFicha?.lineas ?? []) : []);
+    // A CONFIRMADA ítem already drew its partidas, a reserved one already chose them: nothing left to weigh from.
+    const porElegir = (item: ItemDeTomaBase) => item.preparacion?.estado !== "CONFIRMADA" && (item.preparacion?.reservas.length ?? 0) === 0;
+    const lineasPorPesar = (item: ItemDeTomaBase) => (porElegir(item) ? (item.ultimaFicha?.lineas ?? []) : []);
     const partidasPorDroga = await cargarPartidasPorDroga(
       tx,
       session.tenantId,
@@ -73,7 +76,7 @@ export const getTomaRecetaQuery = defineQuery({
               ...item.ultimaFicha,
               lineas: item.ultimaFicha.lineas.map((linea) => ({
                 ...linea,
-                partidas: item.preparacion?.estado !== "CONFIRMADA" ? partidasDeLinea(partidasPorDroga, linea) : null,
+                partidas: porElegir(item) ? partidasDeLinea(partidasPorDroga, linea) : null,
               })),
             }
           : null,

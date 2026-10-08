@@ -1141,6 +1141,30 @@ model Preparacion {
   @@schema("fsj")
 }
 
+/// Tenant-scoped (migration 0071, docs/specs/reserva-stock-preparacion.md). Stock reserved for a preparación INICIADA: one row per chosen partida of each línea de pesaje; only counts while the preparación is INICIADA. No relations declared (composite FKs live in the DB, like EtiquetaTamano). fsj_app: SELECT/INSERT/DELETE.
+model ReservaStock {
+  id                      String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId                String   @map("tenant_id") @db.Uuid
+  preparacionId           String   @map("preparacion_id") @db.Uuid
+  lineaPesajeId           String   @map("linea_pesaje_id") @db.Uuid
+  partidaId               String   @map("partida_id") @db.Uuid
+  /// Physical quantity the split takes from this partida; 0 = chosen but not needed by the split.
+  cantidad                Decimal  @db.Decimal
+  /// Enrase manual líneas only (repeated on every row of the línea).
+  cantidadManual          Decimal? @map("cantidad_manual") @db.Decimal
+  /// INV-S18 motivo of the línea (repeated on every row of the línea).
+  motivoAperturaAdicional String?  @map("motivo_apertura_adicional")
+  reservadaPorId          String   @map("reservada_por_id") @db.Uuid
+  reservadaEn             DateTime @default(now()) @map("reservada_en") @db.Timestamptz(6)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, preparacionId, lineaPesajeId, partidaId], map: "reserva_stock_preparacion_linea_partida_key")
+  @@index([tenantId, partidaId], map: "idx_reserva_stock_partida")
+  @@index([tenantId, preparacionId], map: "idx_reserva_stock_preparacion")
+  @@map("reserva_stock")
+  @@schema("fsj")
+}
+
 /// Tenant-scoped (M11). DP-28 (content rules) open -- contenido is free text.
 model Etiqueta {
   id            String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid

@@ -21,6 +21,7 @@ import { listStockDrogas } from "@/modules/stock/application/list-stock-drogas";
 import { listPartidasDroga } from "@/modules/stock/application/list-partidas-droga";
 import { getCatalogoUnidades } from "@/modules/unidades/application/catalogo-unidades";
 import { equivalenciasPracticas, formatCantidad, unidadesPracticas } from "@/shared/format/cantidad";
+import { dec, Decimal } from "@/shared/decimal";
 import { Cantidad } from "@/shared/ui/cantidad";
 import { DrogaBuscador } from "@/modules/stock/ui/droga-buscador";
 import { PageHeader } from "@/shared/ui/page-header";
@@ -97,6 +98,15 @@ export default async function NuevoAjustePage({ searchParams }: NuevoAjustePageP
   const saldo = equivalenciasPracticas(partida.cantidadDisponible, unidadBase, catalogo);
   const practicas = unidadesPracticas(unidadBase, catalogo);
   const unidades = practicas.length > 0 ? practicas.map((unidad) => ({ id: unidad.id, simbolo: unidad.simbolo })) : [unidadBase];
+  // Reserved by preparaciones (migration 0071): an ajuste can only consume the free part (registrar-ajuste.ts enforces it).
+  const reservada = dec(partida.cantidadReservada);
+  const reserva = reservada.isZero()
+    ? null
+    : {
+        reservadoTexto: equivalenciasPracticas(partida.cantidadReservada, unidadBase, catalogo).primaria.texto,
+        libreTexto: equivalenciasPracticas(Decimal.max(dec(partida.cantidadDisponible).minus(reservada), 0).toFixed(), unidadBase, catalogo).primaria.texto,
+        recetas: partida.recetasConReserva,
+      };
 
   return (
     <div className="page">
@@ -111,6 +121,7 @@ export default async function NuevoAjustePage({ searchParams }: NuevoAjustePageP
         unidades={unidades}
         unidadPorDefectoId={saldo.primaria.unidadId}
         dts={dts.map((dt) => ({ id: dt.usuarioId, label: `${dt.nombre} ${dt.apellido}` }))}
+        reserva={reserva}
         operadorEsDt={operadorEsDt}
       />
     </div>

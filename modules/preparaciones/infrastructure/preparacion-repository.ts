@@ -254,8 +254,34 @@ export interface PartidaElegible {
   potenciaDeclarada: string | null;
 }
 
-/** Every partida of `drogaId` with balance, ordered by id (S11 determinism) -- `proponerReparto` (reparto.ts) does the vencida/FEFO filtering, this just loads candidates. */
-export async function listPartidasElegiblesDroga(tx: Prisma.TransactionClient, tenantId: string, drogaId: string): Promise<PartidaElegible[]> {
+/**
+ * What the OTHER INICIADA preparaciones reserved from partida `p` (migration
+ * 0071, docs/specs/reserva-stock-preparacion.md), as `r.reservado`: a
+ * `CROSS JOIN LATERAL` for a query over `fsj.partida p`. Reserved stock is
+ * not available to anyone else; `preparacionPropiaId`'s own reservas are
+ * (it is the one consuming them), `null` = count every reserva.
+ */
+function reservadoPorOtrasSql(preparacionPropiaId: string | null): Prisma.Sql {
+  return Prisma.sql`CROSS JOIN LATERAL (
+      SELECT coalesce(sum(rs.cantidad), 0) AS reservado
+      FROM fsj.reserva_stock rs
+      JOIN fsj.preparacion rp ON rp.tenant_id = rs.tenant_id AND rp.id = rs.preparacion_id
+      WHERE rs.tenant_id = p.tenant_id AND rs.partida_id = p.id AND rp.estado = 'INICIADA'
+        AND rs.preparacion_id IS DISTINCT FROM ${preparacionPropiaId}::uuid
+    ) r`;
+}
+
+/**
+ * Every partida of `drogaId` with AVAILABLE balance, ordered by id (S11 determinism) -- `proponerReparto` (reparto.ts)
+ * does the vencida/FEFO filtering, this just loads candidates. `cantidadDisponible` is the balance minus what other
+ * INICIADA preparaciones reserved (`reservadoPorOtrasSql`; `preparacionPropiaId`'s own reservas stay available to it).
+ */
+export async function listPartidasElegiblesDroga(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  drogaId: string,
+  preparacionPropiaId: string | null = null,
+): Promise<PartidaElegible[]> {
   const rows = await tx.$queryRaw<
     {
       id: string;
@@ -267,11 +293,12 @@ export async function listPartidasElegiblesDroga(tx: Prisma.TransactionClient, t
       potencia_declarada: string | null;
     }[]
   >`
-    SELECT p.id, p.lote, pr.razon_social AS proveedor_nombre, p.cantidad_disponible::text, p.fecha_vencimiento::text, p.fecha_apertura::text,
-      p.potencia_declarada::text
+    SELECT p.id, p.lote, pr.razon_social AS proveedor_nombre, (p.cantidad_disponible - r.reservado)::text AS cantidad_disponible,
+      p.fecha_vencimiento::text, p.fecha_apertura::text, p.potencia_declarada::text
     FROM fsj.partida p
     JOIN fsj.proveedor pr ON pr.tenant_id = p.tenant_id AND pr.id = p.proveedor_id
-    WHERE p.tenant_id = ${tenantId}::uuid AND p.droga_id = ${drogaId}::uuid AND p.cantidad_disponible > 0
+    ${reservadoPorOtrasSql(preparacionPropiaId)}
+    WHERE p.tenant_id = ${tenantId}::uuid AND p.droga_id = ${drogaId}::uuid AND p.cantidad_disponible - r.reservado > 0
     ORDER BY p.id ASC
   `;
   return rows.map((r) => ({
@@ -362,8 +389,18 @@ export interface PartidaFresca {
   potenciaDeclarada: string | null;
 }
 
-/** Fresh read AFTER `lockPartidasParaConfirmacion` -- M3 discipline (never decide from a pre-lock snapshot). */
-export async function getPartidasFrescas(tx: Prisma.TransactionClient, tenantId: string, partidaIds: readonly string[]): Promise<PartidaFresca[]> {
+/**
+ * Fresh read AFTER `lockPartidasParaConfirmacion` -- M3 discipline (never decide from a pre-lock snapshot).
+ * `cantidadDisponible` excludes what OTHER INICIADA preparaciones reserved (never below 0) -- see
+ * `reservadoPorOtrasSql`. A reserva is written only under the same partida lock, so this read already sees
+ * every committed one.
+ */
+export async function getPartidasFrescas(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  partidaIds: readonly string[],
+  preparacionPropiaId: string | null = null,
+): Promise<PartidaFresca[]> {
   if (partidaIds.length === 0) return [];
   const rows = await tx.$queryRaw<
     {
@@ -376,9 +413,11 @@ export async function getPartidasFrescas(tx: Prisma.TransactionClient, tenantId:
       potencia_declarada: string | null;
     }[]
   >`
-    SELECT id, droga_id, lote, cantidad_disponible::text, fecha_vencimiento::text, fecha_apertura::text, potencia_declarada::text
-    FROM fsj.partida
-    WHERE tenant_id = ${tenantId}::uuid AND id = ANY(${partidaIds as string[]}::uuid[])
+    SELECT p.id, p.droga_id, p.lote, greatest(p.cantidad_disponible - r.reservado, 0)::text AS cantidad_disponible,
+      p.fecha_vencimiento::text, p.fecha_apertura::text, p.potencia_declarada::text
+    FROM fsj.partida p
+    ${reservadoPorOtrasSql(preparacionPropiaId)}
+    WHERE p.tenant_id = ${tenantId}::uuid AND p.id = ANY(${partidaIds as string[]}::uuid[])
   `;
   return rows.map((r) => ({
     id: r.id,
@@ -418,6 +457,60 @@ export async function insertEgresoPreparacion(tx: Prisma.TransactionClient, inpu
     },
     select: { id: true },
   });
+}
+
+// ============================================================================
+// Reservas de stock (migration 0071, docs/specs/reserva-stock-preparacion.md)
+// ============================================================================
+
+/** One chosen partida of a línea. `cantidadManual`/`motivoAperturaAdicional` belong to the línea (same on each of its rows). */
+export interface ReservaDePreparacion {
+  lineaPesajeId: string;
+  partidaId: string;
+  /** Physical, what the split takes from this partida; "0" = chosen but not needed by the split. */
+  cantidad: string;
+  cantidadManual: string | null;
+  motivoAperturaAdicional: string | null;
+}
+
+export async function insertReservas(
+  tx: Prisma.TransactionClient,
+  input: { tenantId: string; preparacionId: string; reservadaPorId: string; reservas: readonly ReservaDePreparacion[] },
+): Promise<void> {
+  await tx.reservaStock.createMany({
+    data: input.reservas.map((r) => ({
+      tenantId: input.tenantId,
+      preparacionId: input.preparacionId,
+      lineaPesajeId: r.lineaPesajeId,
+      partidaId: r.partidaId,
+      cantidad: r.cantidad,
+      cantidadManual: r.cantidadManual,
+      motivoAperturaAdicional: r.motivoAperturaAdicional,
+      reservadaPorId: input.reservadaPorId,
+    })),
+  });
+}
+
+/** The preparación's reservas, ordered by línea then partida id (the confirmation re-locks partidas in id order anyway). */
+export async function listReservasDePreparacion(tx: Prisma.TransactionClient, tenantId: string, preparacionId: string): Promise<ReservaDePreparacion[]> {
+  const rows = await tx.reservaStock.findMany({
+    where: { tenantId, preparacionId },
+    orderBy: [{ lineaPesajeId: "asc" }, { partidaId: "asc" }],
+    select: { lineaPesajeId: true, partidaId: true, cantidad: true, cantidadManual: true, motivoAperturaAdicional: true },
+  });
+  return rows.map((r) => ({
+    lineaPesajeId: r.lineaPesajeId,
+    partidaId: r.partidaId,
+    cantidad: r.cantidad.toString(),
+    cantidadManual: r.cantidadManual ? r.cantidadManual.toString() : null,
+    motivoAperturaAdicional: r.motivoAperturaAdicional,
+  }));
+}
+
+/** Releases (or consumes) every reserva of the preparación. Returns how many rows went. */
+export async function deleteReservasDePreparacion(tx: Prisma.TransactionClient, tenantId: string, preparacionId: string): Promise<number> {
+  const { count } = await tx.reservaStock.deleteMany({ where: { tenantId, preparacionId } });
+  return count;
 }
 
 /** `clase` (migration 0063): non-DROGA lines are left out of the libro recetario -- see confirmar-preparacion.ts. */
@@ -1468,7 +1561,32 @@ export interface ItemDeToma {
   /** Latest version; `null` when none was generated. */
   ultimaFicha: FichaDeItemToma | null;
   /** The ítem's CONFIRMADA (first) or INICIADA preparación, on any ficha version; `null` when none (or only DESCARTADA ones). */
-  preparacion: { id: string; estado: "INICIADA" | "CONFIRMADA" } | null;
+  preparacion: PreparacionDeItemToma | null;
+}
+
+/** A partida reserved for an INICIADA preparación (migration 0071), as the toma workspace lists it. */
+export interface ReservaDeItemToma {
+  partidaId: string;
+  drogaNombre: string;
+  lote: string;
+  /** Physical, in the línea's unidad. */
+  cantidad: string;
+  unidadSimbolo: string;
+}
+
+export interface PreparacionDeItemToma {
+  id: string;
+  estado: "INICIADA" | "CONFIRMADA";
+  /** INICIADA only: the partidas with a quantity reserved for it (empty = a preparación from before 0071 or the ficha screen's "Preparar"). */
+  reservas: ReservaDeItemToma[];
+  /**
+   * INICIADA with reservas only: every reserved quantity still fits its partida (saldo físico minus other
+   * preparaciones' reservas, partida not expired). `false` after e.g. a pérdida the same partidas could not absorb:
+   * "Imprimir etiqueta" would fail, the ítem asks for "Modificar reserva".
+   */
+  reservaAlcanza: boolean;
+  /** CONFIRMADA only: its etiqueta was already generated (printable). */
+  etiquetaGenerada: boolean;
 }
 
 export interface RecetaDeToma {
@@ -1565,12 +1683,44 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
 
   const preparaciones = await tx.preparacion.findMany({
     where: { tenantId, itemRecetaId: { in: receta.items.map((i) => i.id) }, estado: { in: ["INICIADA", "CONFIRMADA"] } },
-    select: { id: true, estado: true, itemRecetaId: true },
+    select: { id: true, estado: true, itemRecetaId: true, etiqueta: { select: { id: true } } },
   });
+  const iniciadaIds = preparaciones.filter((p) => p.estado === "INICIADA").map((p) => p.id);
+  // Only the partidas the split actually draws from (a chosen-but-unneeded one has cantidad 0).
+  const reservas =
+    iniciadaIds.length === 0
+      ? []
+      : await tx.$queryRaw<
+          { preparacion_id: string; partida_id: string; droga_nombre: string; lote: string; cantidad: string; simbolo: string; alcanza: boolean }[]
+        >`
+          SELECT rs.preparacion_id, rs.partida_id, l.droga_nombre, p.lote, rs.cantidad::text AS cantidad, u.simbolo,
+            (rs.cantidad <= p.cantidad_disponible - (
+               SELECT coalesce(sum(o.cantidad), 0)
+               FROM fsj.reserva_stock o
+               JOIN fsj.preparacion op ON op.tenant_id = o.tenant_id AND op.id = o.preparacion_id AND op.estado = 'INICIADA'
+               WHERE o.tenant_id = rs.tenant_id AND o.partida_id = rs.partida_id AND o.preparacion_id <> rs.preparacion_id
+             )
+             AND (p.fecha_vencimiento IS NULL OR p.fecha_vencimiento >= fsj.jornada_actual(rs.tenant_id))) AS alcanza
+          FROM fsj.reserva_stock rs
+          JOIN fsj.linea_pesaje l ON l.tenant_id = rs.tenant_id AND l.id = rs.linea_pesaje_id
+          JOIN fsj.partida p ON p.tenant_id = rs.tenant_id AND p.id = rs.partida_id
+          JOIN fsj.unidad_medida u ON u.id = l.unidad_medida_id
+          WHERE rs.tenant_id = ${tenantId}::uuid AND rs.preparacion_id = ANY(${iniciadaIds}::uuid[]) AND rs.cantidad > 0
+          ORDER BY l.orden ASC, p.lote ASC
+        `;
   const preparacionDe = (itemId: string): ItemDeToma["preparacion"] => {
     const delItem = preparaciones.filter((p) => p.itemRecetaId === itemId);
     const elegida = delItem.find((p) => p.estado === "CONFIRMADA") ?? delItem.find((p) => p.estado === "INICIADA");
-    return elegida ? { id: elegida.id, estado: elegida.estado === "CONFIRMADA" ? "CONFIRMADA" : "INICIADA" } : null;
+    if (!elegida) return null;
+    const confirmada = elegida.estado === "CONFIRMADA";
+    const propias = confirmada ? [] : reservas.filter((r) => r.preparacion_id === elegida.id);
+    return {
+      id: elegida.id,
+      estado: confirmada ? "CONFIRMADA" : "INICIADA",
+      reservas: propias.map((r) => ({ partidaId: r.partida_id, drogaNombre: r.droga_nombre, lote: r.lote, cantidad: r.cantidad, unidadSimbolo: r.simbolo })),
+      reservaAlcanza: propias.every((r) => r.alcanza),
+      etiquetaGenerada: confirmada && elegida.etiqueta !== null,
+    };
   };
 
   return {

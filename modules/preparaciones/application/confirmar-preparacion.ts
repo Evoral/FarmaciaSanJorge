@@ -58,18 +58,25 @@
  *         `fsj.jornada_actual`) + the tenant's `meses_vencimiento_preparado`
  *         calendar months (DP-28 "Vencimiento"; migration 0068). It is a
  *         snapshot: changing the parameter later never moves it.
- *      h. UPDATE the receta's estado: EN_PREPARACION -> PREPARADA once
- *         EVERY item_receta of the receta has a CONFIRMADA preparación
- *         (INV-P03.4).
+ *      h. UPDATE the receta's estado: PENDIENTE_PREPARACION ->
+ *         EN_PREPARACION on its FIRST confirmation (starting or reserving a
+ *         preparación no longer moves it -- docs/specs/reserva-stock-preparacion.md),
+ *         then EN_PREPARACION -> PREPARADA once EVERY item_receta of the
+ *         receta has a CONFIRMADA preparación (INV-P03.4). Both are forward
+ *         moves the DB state machine allows, one after the other.
  *      i. `audit.record` runs automatically after this handler returns
  *         (shared/usecase.ts's `defineCommand`, SAME transaction).
  *   3. Any failure at any point -> the WHOLE transaction rolls back --
  *      nothing above ever partially persists (see tests/preparaciones-confirmar-atomicidad.test.ts).
  *
  * Steps 2a-2h live in `confirmarPreparacionEnTx`, so the toma workspace's
- * `confirmarPreparacionDeFicha` (./confirmar-preparacion-de-ficha.ts) runs
- * the very same confirmation right after inserting the preparación, in its
- * own single transaction.
+ * "Imprimir etiqueta" (`confirmarReservaStock`, ./confirmar-reserva-stock.ts)
+ * runs the very same confirmation from the preparación's reserva de stock
+ * (migration 0071, docs/specs/reserva-stock-preparacion.md), together with
+ * its etiqueta, in its own single transaction; the reserva is deleted in that
+ * same transaction. The checks of 2c-2e (`planificarConsumoEnTx`) also
+ * validate the reserva itself (./reservar-stock-preparacion.ts). Stock
+ * reserved by OTHER preparaciones INICIADA is never available here.
  *
  * Every `INV-XXX` the DB can still raise (defense in depth beyond the
  * pre-checks above) is caught and mapped to a clear Spanish message via
@@ -117,7 +124,9 @@ import {
   updateRecetaEstado,
   todosLosItemsConfirmados,
   getRecetaContextoAsiento,
+  deleteReservasDePreparacion,
 } from "../infrastructure/preparacion-repository";
+import type { LineaParaPantalla, PartidaFresca } from "../infrastructure/preparacion-repository";
 
 export const lineaConfirmacionInput = z.object({
   lineaPesajeId: uuid,
@@ -184,9 +193,12 @@ export const confirmarPreparacionCommand = defineCommand({
 
 /**
  * Steps 2a-2h of this file's doc comment, inside the caller's transaction:
- * also run by `confirmarPreparacionDeFicha` (./confirmar-preparacion-de-ficha.ts)
- * right after it inserts the preparación, in the SAME transaction. The
- * caller declares the permiso, the step-up and the audit.
+ * also run by `confirmarReservaStock` (./confirmar-reserva-stock.ts, the toma
+ * workspace's "Imprimir etiqueta") on a preparación whose stock was reserved,
+ * in the SAME transaction as its etiqueta. The caller declares the permiso,
+ * the step-up and the audit. The preparación's own reservas (migration 0071)
+ * are available to it and are deleted at the end: its movimientos now hold
+ * that stock.
  */
 export async function confirmarPreparacionEnTx(
   tx: Prisma.TransactionClient,
@@ -212,34 +224,6 @@ export async function confirmarPreparacionEnTx(
     );
   }
 
-  // ------------------------------------------------------------------
-  // 3. The submitted líneas must match the ficha's líneas EXACTLY.
-  // ------------------------------------------------------------------
-  const lineasFicha = await getLineasParaPreparacion(tx, session.tenantId, preparacion.fichaTecnicaId);
-  const porInputId = new Map(input.lineas.map((l) => [l.lineaPesajeId, l]));
-  if (porInputId.size !== input.lineas.length) {
-    throw new DomainError("Hay líneas repetidas en la confirmación.");
-  }
-  if (lineasFicha.length !== input.lineas.length || lineasFicha.some((l) => !porInputId.has(l.id))) {
-    throw new DomainError("La confirmación no incluye exactamente las líneas de la ficha técnica.");
-  }
-
-  // ------------------------------------------------------------------
-  // 4. Lock EVERY chosen partida, across EVERY línea, in ONE
-  //    id-ordered statement (see this file's doc comment).
-  // ------------------------------------------------------------------
-  const todosLosPartidaIds = [...new Set(input.lineas.flatMap((l) => l.partidaIds))];
-  const lockedPartidaIds = new Set(await lockPartidasParaConfirmacion(tx, session.tenantId, todosLosPartidaIds));
-  const faltante = todosLosPartidaIds.find((id) => !lockedPartidaIds.has(id));
-  if (faltante) throw new NotFoundError(`Partida no encontrada: ${faltante}.`);
-
-  const partidasFrescas = await getPartidasFrescas(tx, session.tenantId, todosLosPartidaIds);
-  const partidaPorId = new Map(partidasFrescas.map((p) => [p.id, p]));
-
-  // ------------------------------------------------------------------
-  // 5. Per línea (ficha order): resolve cantidad, recompute split,
-  //    validate, write EGRESO_PREPARACION (+ asiento_contralor).
-  // ------------------------------------------------------------------
   const detalles: Array<{ lineaPesajeId: string; descripcion: string; cantidad: string; unidadTexto: string; orden: number; esInsumo: boolean }> = [];
   const formulaLineas: Array<{ drogaNombre: string; cantidad: string; unidadSimbolo: string; esEnraseManual: boolean; esInsumo: boolean }> = [];
   // Movimientos of a controlled droga (contralor activo) collected here --
@@ -249,80 +233,25 @@ export async function confirmarPreparacionEnTx(
   const movimientosControlados: Array<{ movimientoId: string; drogaId: string; drogaNombre: string; unidadBaseId: string; cantidad: string }> = [];
 
   try {
-    for (const linea of lineasFicha) {
-      const elegido = porInputId.get(linea.id)!;
+    // ------------------------------------------------------------------
+    // 3-5. Líneas match the ficha, partidas locked, every split recomputed
+    //      and validated (`planificarConsumoEnTx`); then, per línea (ficha
+    //      order), write EGRESO_PREPARACION (+ asiento_contralor).
+    // ------------------------------------------------------------------
+    const plan = await planificarConsumoEnTx(tx, session.tenantId, {
+      preparacionId: input.preparacionId,
+      fichaTecnicaId: preparacion.fichaTecnicaId,
+      lineas: input.lineas,
+      jornada,
+    });
 
-      let cantidadRequerida: Decimal;
-      if (linea.esEnraseManual) {
-        if (!elegido.cantidadManual) {
-          throw new DomainError(`La línea ${linea.orden + 1} (${linea.drogaNombre}) es de enrase manual: falta la cantidad real registrada.`);
-        }
-        cantidadRequerida = dec(elegido.cantidadManual);
-        validarCantidadManual(cantidadRequerida, linea.orden);
-      } else {
-        if (!linea.cantidadAPesar) {
-          throw new DomainError(`La línea ${linea.orden + 1} (${linea.drogaNombre}) no tiene cantidad a pesar definida.`);
-        }
-        cantidadRequerida = dec(linea.cantidadAPesar);
-      }
-
-      const elegidasFrescas = elegido.partidaIds.map((id) => {
-        const p = partidaPorId.get(id);
-        if (!p) throw new NotFoundError(`Partida no encontrada: ${id}.`);
-        if (p.drogaId !== linea.drogaId) {
-          throw new DomainError(`La partida elegida para la línea ${linea.orden + 1} (${linea.drogaNombre}) no corresponde a esa droga.`);
-        }
-        return p;
-      });
-
-      const vencida = elegidasFrescas.find((p) => p.fechaVencimiento !== null && p.fechaVencimiento < jornada);
-      if (vencida) {
-        throw new DomainError(`La partida ${vencida.lote} (${linea.drogaNombre}) está vencida: no se puede descontar stock de una partida vencida.`);
-      }
-
-      // Non-manual: split in ACTIVE terms (purity per partida,
-      // domain/potencia.ts). Manual enrase: the typed quantity is
-      // physical, no purity correction (potenciaAplicada stays NULL).
-      const repartir = (partidas: readonly PartidaConPotencia[]) =>
-        linea.esEnraseManual
-          ? repartoSinCorreccion(partidas, cantidadRequerida, jornada)
-          : proponerRepartoActivo(partidas, cantidadRequerida, jornada);
-
-      const resultado = repartir(elegidasFrescas);
-      if (!resultado.ok) {
-        throw new DomainError(
-          `Stock insuficiente de ${linea.drogaNombre} en las partidas elegidas: faltan ${resultado.faltante.toString()} ${linea.unidadSimbolo}${
-            !linea.esEnraseManual && elegidasFrescas.some((p) => tieneCorreccion(p.potenciaDeclarada)) ? " de principio activo" : ""
-          }.`,
-        );
-      }
-
-      // INV-S15 deviation: compare against the system's OWN default
-      // proposal over ALL eligible partidas for this droga (not just the
-      // chosen subset).
-      const todasElegibles = await listPartidasElegiblesDroga(tx, session.tenantId, linea.drogaId);
-      const propuestaCanonica = repartir(todasElegibles);
-      const esDesvio =
-        !propuestaCanonica.ok || esDesvioPropuesta(propuestaCanonica.lineas.map((l) => l.partidaId), elegido.partidaIds);
-
-      // INV-S18 [PROPUESTA TÉCNICA -- ver domain/preparacion.ts].
-      const partidasConEstado = todasElegibles.map((p) => ({
-        ...p,
-        potenciaDeclarada: linea.esEnraseManual ? null : p.potenciaDeclarada,
-        elegida: elegido.partidaIds.includes(p.id),
-      }));
-      if (requiereMotivoAperturaAdicional(partidasConEstado, cantidadRequerida, jornada) && !elegido.motivoAperturaAdicional) {
-        throw new DomainError(
-          `La línea ${linea.orden + 1} (${linea.drogaNombre}) abre una partida nueva mientras hay otra ya abierta con saldo suficiente: indicá el motivo.`,
-        );
-      }
-
+    for (const { linea, cantidadRequerida, split: reparto, totalFisico, esDesvio } of plan) {
       const droga = await getDrogaTipoControl(tx, session.tenantId, linea.drogaId);
       const fechaActivacionContralor = await getFechaActivacionContralor(tx, session.tenantId);
       const contralorActivo = droga !== null && droga.tipoControl !== "NINGUNO" && fechaActivacionContralor !== null;
       const esInsumo = droga !== null && droga.clase !== "DROGA";
 
-      for (const split of resultado.lineas) {
+      for (const split of reparto) {
         const movimiento = await insertEgresoPreparacion(tx, {
           tenantId: session.tenantId,
           partidaId: split.partidaId,
@@ -350,7 +279,7 @@ export async function confirmarPreparacionEnTx(
       detalles.push({
         lineaPesajeId: linea.id,
         descripcion: linea.drogaNombre,
-        cantidad: resultado.totalFisico.toString(),
+        cantidad: totalFisico.toString(),
         unidadTexto: linea.unidadSimbolo,
         orden: linea.orden,
         esInsumo,
@@ -412,31 +341,184 @@ export async function confirmarPreparacionEnTx(
     await updatePreparacionConfirmada(tx, session.tenantId, input.preparacionId, session.usuario.id, fechaVencimiento);
 
     // ------------------------------------------------------------------
-    // 8. receta: EN_PREPARACION -> PREPARADA una vez que TODOS los ítems
-    //    tienen una preparación CONFIRMADA (INV-P03.4).
+    // 8. receta: PENDIENTE_PREPARACION -> EN_PREPARACION con la primera
+    //    confirmación; EN_PREPARACION -> PREPARADA una vez que TODOS los
+    //    ítems tienen una preparación CONFIRMADA (INV-P03.4).
     // ------------------------------------------------------------------
     const recetaLocked = await lockRecetaParaTransicion(tx, session.tenantId, contexto.recetaId);
     if (recetaLocked) {
-      const estadoReceta = await getRecetaEstado(tx, session.tenantId, contexto.recetaId);
+      let estadoReceta = await getRecetaEstado(tx, session.tenantId, contexto.recetaId);
+      if (estadoReceta === "PENDIENTE_PREPARACION") {
+        await updateRecetaEstado(tx, session.tenantId, contexto.recetaId, "EN_PREPARACION");
+        estadoReceta = "EN_PREPARACION";
+      }
       if (estadoReceta === "EN_PREPARACION" && (await todosLosItemsConfirmados(tx, session.tenantId, contexto.recetaId))) {
         await updateRecetaEstado(tx, session.tenantId, contexto.recetaId, "PREPARADA");
       }
     }
 
+    // ------------------------------------------------------------------
+    // 9. The reserva de stock (if any) is consumed: the movimientos above
+    //    now hold that stock (migration 0071).
+    // ------------------------------------------------------------------
+    await deleteReservasDePreparacion(tx, session.tenantId, input.preparacionId);
+
     return { id: input.preparacionId, asientoId: asiento.id, numeroCorrelativo: asiento.numeroCorrelativo, fechaVencimiento };
   } catch (e) {
-    // `withTenantTransaction` (shared/db/transaction.ts) only calls
-    // `mapDbError` AFTER this whole handler has already thrown -- too
-    // late for THIS catch to react to it. Map explicitly here so a raw
-    // Postgres/Prisma error becomes an `InvariantViolationError` (and
-    // then a clear Spanish `DomainError`) BEFORE it leaves this command,
-    // never a raw driver message.
-    const mapped = mapDbError(e);
-    if (mapped instanceof InvariantViolationError) {
-      throw new DomainError(mensajeParaInvariante(mapped.invariantCode), { cause: mapped });
-    }
-    throw mapped;
+    throw comoErrorDeDominio(e);
   }
+}
+
+/**
+ * `withTenantTransaction` (shared/db/transaction.ts) only calls `mapDbError`
+ * AFTER the whole handler has already thrown -- too late for a handler's own
+ * catch to react to it. Mapping explicitly turns a raw Postgres/Prisma error
+ * into an `InvariantViolationError` (and then a clear Spanish `DomainError`)
+ * BEFORE it leaves the command, never a raw driver message.
+ */
+export function comoErrorDeDominio(e: unknown): Error {
+  const mapped = mapDbError(e);
+  if (mapped instanceof InvariantViolationError) {
+    return new DomainError(mensajeParaInvariante(mapped.invariantCode), { cause: mapped });
+  }
+  return mapped;
+}
+
+/** One línea of a validated consumption: steps 3-5 of the confirmation's checks, nothing written. */
+export interface LineaPlanificada {
+  linea: LineaParaPantalla;
+  elegido: LineaConfirmacion;
+  /** Manual enrase: the typed (physical) quantity; otherwise the ficha's frozen cantidadAPesar (active). */
+  cantidadRequerida: Decimal;
+  /** The system-computed split over the chosen partidas: PHYSICAL `cantidad` per partida; `potenciaAplicada` null = no purity correction (manual enrase). */
+  split: readonly { partidaId: string; cantidad: Decimal; potenciaAplicada: Decimal | null }[];
+  /** What the split weighs in total (physical): what the libro records. */
+  totalFisico: Decimal;
+  /** INV-S15: the choice differs from the system's own proposal. */
+  esDesvio: boolean;
+  /** The chosen partidas, as read after the lock. */
+  partidas: readonly PartidaFresca[];
+}
+
+/**
+ * Steps 2c-2e of this file's doc comment WITHOUT the writes: the submitted
+ * líneas match the ficha's EXACTLY, every chosen partida is locked (one
+ * id-ordered statement) and re-read, and each línea's split is recomputed
+ * and validated (cantidad, droga, vencida, stock, INV-S15 desvío, INV-S18
+ * motivo). Stock reserved by OTHER preparaciones INICIADA (migration 0071)
+ * is not available; `preparacionId`'s own reservas are. Shared by the
+ * confirmation and by `reservarStockPreparacion`
+ * (./reservar-stock-preparacion.ts), so a reserva is validated exactly as
+ * its confirmation will be. Runs inside the caller's transaction (the
+ * partida locks last until it ends). All líneas are validated before the
+ * caller writes anything.
+ */
+export async function planificarConsumoEnTx(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  input: { preparacionId: string; fichaTecnicaId: string; lineas: readonly LineaConfirmacion[]; jornada: string },
+): Promise<LineaPlanificada[]> {
+  const { jornada } = input;
+
+  // ------------------------------------------------------------------
+  // 3. The submitted líneas must match the ficha's líneas EXACTLY.
+  // ------------------------------------------------------------------
+  const lineasFicha = await getLineasParaPreparacion(tx, tenantId, input.fichaTecnicaId);
+  const porInputId = new Map(input.lineas.map((l) => [l.lineaPesajeId, l]));
+  if (porInputId.size !== input.lineas.length) {
+    throw new DomainError("Hay líneas repetidas en la confirmación.");
+  }
+  if (lineasFicha.length !== input.lineas.length || lineasFicha.some((l) => !porInputId.has(l.id))) {
+    throw new DomainError("La confirmación no incluye exactamente las líneas de la ficha técnica.");
+  }
+
+  // ------------------------------------------------------------------
+  // 4. Lock EVERY chosen partida, across EVERY línea, in ONE
+  //    id-ordered statement (see this file's doc comment).
+  // ------------------------------------------------------------------
+  const todosLosPartidaIds = [...new Set(input.lineas.flatMap((l) => l.partidaIds))];
+  const lockedPartidaIds = new Set(await lockPartidasParaConfirmacion(tx, tenantId, todosLosPartidaIds));
+  const faltante = todosLosPartidaIds.find((id) => !lockedPartidaIds.has(id));
+  if (faltante) throw new NotFoundError(`Partida no encontrada: ${faltante}.`);
+
+  const partidasFrescas = await getPartidasFrescas(tx, tenantId, todosLosPartidaIds, input.preparacionId);
+  const partidaPorId = new Map(partidasFrescas.map((p) => [p.id, p]));
+
+  // ------------------------------------------------------------------
+  // 5. Per línea (ficha order): resolve cantidad, recompute split, validate.
+  // ------------------------------------------------------------------
+  const plan: LineaPlanificada[] = [];
+  for (const linea of lineasFicha) {
+    const elegido = porInputId.get(linea.id)!;
+
+    let cantidadRequerida: Decimal;
+    if (linea.esEnraseManual) {
+      if (!elegido.cantidadManual) {
+        throw new DomainError(`La línea ${linea.orden + 1} (${linea.drogaNombre}) es de enrase manual: falta la cantidad real registrada.`);
+      }
+      cantidadRequerida = dec(elegido.cantidadManual);
+      validarCantidadManual(cantidadRequerida, linea.orden);
+    } else {
+      if (!linea.cantidadAPesar) {
+        throw new DomainError(`La línea ${linea.orden + 1} (${linea.drogaNombre}) no tiene cantidad a pesar definida.`);
+      }
+      cantidadRequerida = dec(linea.cantidadAPesar);
+    }
+
+    const elegidasFrescas = elegido.partidaIds.map((id) => {
+      const p = partidaPorId.get(id);
+      if (!p) throw new NotFoundError(`Partida no encontrada: ${id}.`);
+      if (p.drogaId !== linea.drogaId) {
+        throw new DomainError(`La partida elegida para la línea ${linea.orden + 1} (${linea.drogaNombre}) no corresponde a esa droga.`);
+      }
+      return p;
+    });
+
+    const vencida = elegidasFrescas.find((p) => p.fechaVencimiento !== null && p.fechaVencimiento < jornada);
+    if (vencida) {
+      throw new DomainError(`La partida ${vencida.lote} (${linea.drogaNombre}) está vencida: no se puede descontar stock de una partida vencida.`);
+    }
+
+    // Non-manual: split in ACTIVE terms (purity per partida,
+    // domain/potencia.ts). Manual enrase: the typed quantity is
+    // physical, no purity correction (potenciaAplicada stays NULL).
+    const repartir = (partidas: readonly PartidaConPotencia[]) =>
+      linea.esEnraseManual
+        ? repartoSinCorreccion(partidas, cantidadRequerida, jornada)
+        : proponerRepartoActivo(partidas, cantidadRequerida, jornada);
+
+    const resultado = repartir(elegidasFrescas);
+    if (!resultado.ok) {
+      throw new DomainError(
+        `Stock insuficiente de ${linea.drogaNombre} en las partidas elegidas: faltan ${resultado.faltante.toString()} ${linea.unidadSimbolo}${
+          !linea.esEnraseManual && elegidasFrescas.some((p) => tieneCorreccion(p.potenciaDeclarada)) ? " de principio activo" : ""
+        }.`,
+      );
+    }
+
+    // INV-S15 deviation: compare against the system's OWN default
+    // proposal over ALL eligible partidas for this droga (not just the
+    // chosen subset).
+    const todasElegibles = await listPartidasElegiblesDroga(tx, tenantId, linea.drogaId, input.preparacionId);
+    const propuestaCanonica = repartir(todasElegibles);
+    const esDesvio =
+      !propuestaCanonica.ok || esDesvioPropuesta(propuestaCanonica.lineas.map((l) => l.partidaId), elegido.partidaIds);
+
+    // INV-S18 [PROPUESTA TÉCNICA -- ver domain/preparacion.ts].
+    const partidasConEstado = todasElegibles.map((p) => ({
+      ...p,
+      potenciaDeclarada: linea.esEnraseManual ? null : p.potenciaDeclarada,
+      elegida: elegido.partidaIds.includes(p.id),
+    }));
+    if (requiereMotivoAperturaAdicional(partidasConEstado, cantidadRequerida, jornada) && !elegido.motivoAperturaAdicional) {
+      throw new DomainError(
+        `La línea ${linea.orden + 1} (${linea.drogaNombre}) abre una partida nueva mientras hay otra ya abierta con saldo suficiente: indicá el motivo.`,
+      );
+    }
+
+    plan.push({ linea, elegido, cantidadRequerida, split: resultado.lineas, totalFisico: resultado.totalFisico, esDesvio, partidas: elegidasFrescas });
+  }
+  return plan;
 }
 
 /**

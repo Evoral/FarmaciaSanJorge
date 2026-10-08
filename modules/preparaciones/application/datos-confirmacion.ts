@@ -15,6 +15,9 @@
  * `preparaciones.confirmacionDeFicha` (the toma workspace's dialog, before
  * any preparación exists). Not a use case: callers run it inside their own
  * transaction. Plain reads only.
+ *
+ * Stock reserved by OTHER preparaciones INICIADA (migration 0071) is not
+ * available here; `preparacionPropiaId`'s own reservas are.
  */
 import type { Prisma } from "@/generated/prisma/client";
 import { dec } from "@/shared/decimal";
@@ -29,6 +32,15 @@ export interface LineaPantalla extends LineaParaPantalla {
   stockInsuficiente: boolean;
   /** In ACTIVE terms (same unit as cantidadAPesar). */
   faltante: string | null;
+  /** Only when modifying a reserva (./get-modificacion-de-reserva.ts): what the línea reserves now, to prefill the form. */
+  reserva?: LineaReservada | null;
+}
+
+/** A línea's current reserva (migration 0071), as plain values. */
+export interface LineaReservada {
+  partidaIds: string[];
+  cantidadManual: string | null;
+  motivoAperturaAdicional: string | null;
 }
 
 export interface DatosConfirmacion {
@@ -39,13 +51,18 @@ export interface DatosConfirmacion {
   lineas: LineaPantalla[];
 }
 
-export async function construirDatosConfirmacion(tx: Prisma.TransactionClient, tenantId: string, fichaTecnicaId: string): Promise<DatosConfirmacion> {
+export async function construirDatosConfirmacion(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  fichaTecnicaId: string,
+  preparacionPropiaId: string | null = null,
+): Promise<DatosConfirmacion> {
   const jornada = await jornadaActualTenant(tx, tenantId);
   const lineasDb = await getLineasParaPreparacion(tx, tenantId, fichaTecnicaId);
 
   const lineas: LineaPantalla[] = [];
   for (const linea of lineasDb) {
-    const partidasElegibles = await listPartidasElegiblesDroga(tx, tenantId, linea.drogaId);
+    const partidasElegibles = await listPartidasElegiblesDroga(tx, tenantId, linea.drogaId, preparacionPropiaId);
 
     if (linea.esEnraseManual || !linea.cantidadAPesar) {
       lineas.push({ ...linea, partidasElegibles, propuesta: null, stockInsuficiente: false, faltante: null });

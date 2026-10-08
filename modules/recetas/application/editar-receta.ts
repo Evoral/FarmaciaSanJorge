@@ -3,10 +3,13 @@
  * `recetas.crear`... no -- migration 0002's seed grants `recetas.editar`
  * (ATP/FAR/DT, identical role set to `recetas.crear`) for this action.
  * Only while `esEstadoEditable(estado)` (PENDIENTE_PREPARACION) AND no
- * ficha_tecnica generated from any of the receta's items has a
- * preparación yet (domain/receta.ts + infrastructure's
- * `existeFichaConPreparacionParaReceta` -- mirrors migration 0030's
- * INV-R11 DB backstop).
+ * ficha_tecnica generated from any of the receta's items has a LIVE
+ * (INICIADA/CONFIRMADA) preparación (domain/receta.ts + infrastructure's
+ * `existeFichaConPreparacionParaReceta` -- mirrors INV-R11, migrations
+ * 0030/0072). A DESCARTADA preparación (e.g. a released reserva de stock,
+ * docs/specs/reserva-stock-preparacion.md) does not block it: the receta is
+ * still PENDIENTE_PREPARACION (it only moves at the first confirmation) and
+ * the discarded preparación keeps pointing at its old ficha version.
  *
  * Lock BEFORE any decision read (M3 discipline, same as every other
  * module): `lockRecetaParaAccion` first, then a FRESH read. Header fields
@@ -134,7 +137,7 @@ export const editarRecetaCommand = defineCommand({
       throw new DomainError(`La receta no se puede editar en su estado actual (${actual.estado}). Solo es editable mientras está pendiente de preparación.`);
     }
     if (await existeFichaConPreparacionParaReceta(tx, session.tenantId, input.id)) {
-      throw new DomainError("La receta no se puede editar: ya tiene una ficha técnica con una preparación.");
+      throw new DomainError("La receta no se puede editar: tiene una preparación en curso o confirmada (si es una reserva de stock, liberala primero).");
     }
 
     const actualFechaISO = actual.fechaPrescripcion.toISOString().slice(0, 10);
