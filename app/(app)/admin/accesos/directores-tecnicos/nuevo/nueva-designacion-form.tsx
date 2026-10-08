@@ -27,7 +27,7 @@ import { useRouter } from "next/navigation";
 import { CircleAlert, CircleCheck } from "lucide-react";
 import { designarDirectorTecnicoAction, type DesignarDirectorTecnicoFormState } from "./actions";
 import { CARACTERES_DESIGNACION, CARACTER_LABELS } from "@/modules/directores-tecnicos/domain/designacion";
-import { ReauthPrompt } from "@/modules/auth/ui/reauth-prompt";
+import { ReauthPrompt, useReauthPrompt } from "@/modules/auth/ui/reauth-prompt";
 import { useReauthFormSubmit } from "@/modules/auth/ui/use-reauth-form-submit";
 import type { listUsuariosElegiblesDt } from "@/modules/directores-tecnicos/application/list-usuarios-elegibles";
 import { Combobox, filtrarOpciones } from "@/shared/ui/combobox";
@@ -55,6 +55,7 @@ function SubmitButton({ pending }: { pending: boolean }) {
 
 export function NuevaDesignacionForm({ usuarios }: NuevaDesignacionFormProps) {
   const [state, formAction, isPending] = useActionState(designarDirectorTecnicoAction, initialDesignarDirectorTecnicoState);
+  const reauth = useReauthPrompt(state);
   const { onSubmit, resubmit } = useReauthFormSubmit(formAction);
   const alertRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -155,7 +156,7 @@ export function NuevaDesignacionForm({ usuarios }: NuevaDesignacionFormProps) {
         </div>
       </form>
 
-      {state.status === "reauth-required" ? <ReauthPrompt onReauthenticated={resubmit} onCancel={() => undefined} /> : null}
+      {reauth.abierto ? <ReauthPrompt onReauthenticated={resubmit} onCancel={reauth.cancelar} /> : null}
     </>
   );
 }

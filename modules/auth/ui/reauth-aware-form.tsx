@@ -33,7 +33,7 @@ import {
   type SuccessState,
 } from "@/shared/ui/form-parts";
 import { useFieldErrors } from "@/shared/ui/field-errors";
-import { ReauthPrompt } from "./reauth-prompt";
+import { ReauthPrompt, useReauthPrompt } from "./reauth-prompt";
 import { useReauthFormSubmit } from "./use-reauth-form-submit";
 
 export interface ReauthAwareFormProps<S extends FormActionState> {
@@ -68,6 +68,7 @@ export function ReauthAwareForm<S extends FormActionState>({
   onSuccess,
 }: ReauthAwareFormProps<S>) {
   const [state, formAction, isPending] = useActionState(action, { status: "idle" } as Awaited<S>);
+  const reauth = useReauthPrompt(state);
   const { onSubmit, resubmit } = useReauthFormSubmit(formAction);
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
@@ -96,7 +97,7 @@ export function ReauthAwareForm<S extends FormActionState>({
         {layout === "inline" ? feedback : null}
       </form>
 
-      {state.status === "reauth-required" ? <ReauthPrompt onReauthenticated={resubmit} onCancel={() => undefined} /> : null}
+      {reauth.abierto ? <ReauthPrompt onReauthenticated={resubmit} onCancel={reauth.cancelar} /> : null}
     </>
   );
 }

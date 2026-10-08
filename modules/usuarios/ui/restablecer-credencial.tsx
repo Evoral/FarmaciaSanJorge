@@ -16,7 +16,7 @@
 import { useActionState } from "react";
 import { restablecerCredencialAction } from "./actions";
 import type { RestablecerCredencialState } from "./actions";
-import { ReauthPrompt } from "@/modules/auth/ui/reauth-prompt";
+import { ReauthPrompt, useReauthPrompt } from "@/modules/auth/ui/reauth-prompt";
 import { useReauthFormSubmit } from "@/modules/auth/ui/use-reauth-form-submit";
 import { CredencialActivacion } from "./credencial-activacion";
 
@@ -32,6 +32,7 @@ function SubmitButton({ pending }: { pending: boolean }) {
 
 export function RestablecerCredencial({ usuarioId }: { usuarioId: string }) {
   const [state, formAction, isPending] = useActionState(restablecerCredencialAction, initialState);
+  const reauth = useReauthPrompt(state);
   const { onSubmit, resubmit } = useReauthFormSubmit(formAction);
 
   // Deliberately no router.refresh() on success: the credential must stay
@@ -58,8 +59,8 @@ export function RestablecerCredencial({ usuarioId }: { usuarioId: string }) {
         ) : null}
         <SubmitButton pending={isPending} />
       </form>
-      {state.status === "reauth-required" ? (
-        <ReauthPrompt onReauthenticated={resubmit} onCancel={() => undefined} />
+      {reauth.abierto ? (
+        <ReauthPrompt onReauthenticated={resubmit} onCancel={reauth.cancelar} />
       ) : null}
     </>
   );
