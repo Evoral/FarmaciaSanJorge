@@ -192,10 +192,14 @@ export function puedeAnular(estado: EstadoReceta): boolean {
 /**
  * FASE 6 point 6.3 binding decision: editable (including add/remove of
  * items/componentes, backed by migration 0030's INV-R11 DELETE guard) only
- * while PENDIENTE_PREPARACION. The "no ficha con preparación" half of the
- * rule needs a DB read (modules/recetas/infrastructure/receta-repository.ts's
- * `existeFichaConPreparacionParaReceta`) so it is NOT part of this pure
- * function -- callers must check both.
+ * while PENDIENTE_PREPARACION. The "no ficha with a LIVE (INICIADA/
+ * CONFIRMADA) preparación" half of the rule needs a DB read
+ * (modules/recetas/infrastructure/receta-repository.ts's
+ * `existeFichaConPreparacionParaReceta`; a DESCARTADA one does not count,
+ * migration 0072) so it is NOT part of this pure function -- callers must
+ * check both. A receta with stock reserved for an ítem is still
+ * PENDIENTE_PREPARACION (docs/specs/reserva-stock-preparacion.md) but not
+ * editable until the reserva is released.
  */
 export function esEstadoEditable(estado: EstadoReceta): boolean {
   return estado === "PENDIENTE_PREPARACION";

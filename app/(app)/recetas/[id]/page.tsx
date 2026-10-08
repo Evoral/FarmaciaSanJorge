@@ -39,7 +39,8 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
 
   const avisos = decodificarAvisos((await searchParams)[PARAM_AVISO], receta.items.length);
 
-  const puedeEditar = can(session, "recetas.editar") && esEstadoEditable(receta.estado);
+  // A PENDIENTE_PREPARACION receta may hold a preparación INICIADA (a reserva de stock): not editable until released.
+  const puedeEditar = can(session, "recetas.editar") && esEstadoEditable(receta.estado) && receta.itemsConPreparacionIniciada.length === 0;
   const puedeAnularReceta = can(session, "recetas.anular") && puedeAnular(receta.estado);
   // Same decision the anular command enforces (domain/anulacion.ts): the libro may forbid a direct anulación.
   const anulacion = decidirAnulacion({

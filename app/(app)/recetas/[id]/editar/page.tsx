@@ -21,7 +21,8 @@ export default async function EditarRecetaPage({ params }: EditarRecetaPageProps
   const receta = await getReceta(id);
   if (!receta) notFound();
 
-  if (!esEstadoEditable(receta.estado)) {
+  // A preparación INICIADA (a reserva de stock) blocks editing too; the command re-checks it under lock.
+  if (!esEstadoEditable(receta.estado) || receta.itemsConPreparacionIniciada.length > 0) {
     redirect(`/recetas/${id}`);
   }
 

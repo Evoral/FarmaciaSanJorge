@@ -353,7 +353,11 @@ export async function lockRecetaParaAccion(tx: Prisma.TransactionClient, tenantI
   return rows.length === 1;
 }
 
-/** 6.3 edit-lock (second half, needs a DB read -- see domain/receta.ts's `esEstadoEditable` for the pure half). Mirrors migration 0030's `fsj.receta_assert_editable`. */
+/**
+ * 6.3 edit-lock (second half, needs a DB read -- see domain/receta.ts's `esEstadoEditable` for the pure half): a ficha
+ * técnica of the receta has a LIVE (INICIADA/CONFIRMADA) preparación. A DESCARTADA one -- e.g. a released reserva de
+ * stock -- does not block editing. Mirrors `fsj.receta_assert_editable` (migration 0030, revised by 0072).
+ */
 export async function existeFichaConPreparacionParaReceta(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<boolean> {
   const rows = await tx.$queryRaw<{ exists: boolean }[]>`
     SELECT EXISTS (
@@ -361,7 +365,7 @@ export async function existeFichaConPreparacionParaReceta(tx: Prisma.Transaction
       FROM fsj.ficha_tecnica ft
       JOIN fsj.item_receta ir ON ir.tenant_id = ft.tenant_id AND ir.id = ft.item_receta_id
       JOIN fsj.preparacion p ON p.tenant_id = ft.tenant_id AND p.ficha_tecnica_id = ft.id
-      WHERE ft.tenant_id = ${tenantId}::uuid AND ir.receta_id = ${recetaId}::uuid
+      WHERE ft.tenant_id = ${tenantId}::uuid AND ir.receta_id = ${recetaId}::uuid AND p.estado <> 'DESCARTADA'
     ) AS exists
   `;
   return rows[0]?.exists ?? false;
@@ -770,7 +774,7 @@ export interface ListRecetasResult {
   zonaHoraria: string;
 }
 
-/** Which of `recetaIds` have a ficha técnica with a preparación -- ONE query for a whole page of the list (no N+1). Same join as `existeFichaConPreparacionParaReceta`. */
+/** Which of `recetaIds` have a ficha técnica with a LIVE preparación -- ONE query for a whole page of the list (no N+1). Same rule as `existeFichaConPreparacionParaReceta`. */
 async function recetasConFichaConPreparacion(tx: Prisma.TransactionClient, tenantId: string, recetaIds: string[]): Promise<Set<string>> {
   if (recetaIds.length === 0) return new Set();
   const rows = await tx.$queryRaw<{ receta_id: string }[]>`
@@ -778,7 +782,7 @@ async function recetasConFichaConPreparacion(tx: Prisma.TransactionClient, tenan
     FROM fsj.ficha_tecnica ft
     JOIN fsj.item_receta ir ON ir.tenant_id = ft.tenant_id AND ir.id = ft.item_receta_id
     JOIN fsj.preparacion p ON p.tenant_id = ft.tenant_id AND p.ficha_tecnica_id = ft.id
-    WHERE ft.tenant_id = ${tenantId}::uuid AND ir.receta_id = ANY(${recetaIds}::uuid[])
+    WHERE ft.tenant_id = ${tenantId}::uuid AND ir.receta_id = ANY(${recetaIds}::uuid[]) AND p.estado <> 'DESCARTADA'
   `;
   return new Set(rows.map((r) => r.receta_id));
 }
