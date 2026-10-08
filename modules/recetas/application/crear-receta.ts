@@ -159,6 +159,9 @@ export const crearRecetaCommand = defineCommand({
     if (drogas.invalidas.length > 0) {
       throw new ValidationError("Una o más drogas seleccionadas no existen o están dadas de baja.");
     }
+    if (drogas.materiales.length > 0) {
+      throw new ValidationError(`Los materiales no se cargan como componentes de la receta: ${drogas.materiales.join(", ")}.`);
+    }
     const sinonimos = await validarSinonimosDeComponentes(tx, session.tenantId, itemsDominio.flatMap((item) => item.componentes));
 
     const unidadIds = [

@@ -188,6 +188,9 @@ export const editarRecetaCommand = defineCommand({
     if (drogas.invalidas.length > 0) {
       throw new ValidationError("Una o más drogas seleccionadas no existen o están dadas de baja.");
     }
+    if (drogas.materiales.length > 0) {
+      throw new ValidationError(`Los materiales no se cargan como componentes de la receta: ${drogas.materiales.join(", ")}.`);
+    }
     // A synonym removed since the receta was loaded may stay on the componentes that already had it (read before the replace).
     const sinonimos = await validarSinonimosDeComponentes(tx, session.tenantId, itemsDominio.flatMap((item) => item.componentes), () =>
       listSinonimosGuardadosDeReceta(tx, session.tenantId, input.id),

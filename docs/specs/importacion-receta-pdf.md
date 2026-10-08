@@ -120,7 +120,7 @@ Normalización: minúsculas, NFD, sin diacríticos, espacios colapsados, trim. C
 |---|---|---|
 | Paciente | CUIL; si no, DNI. Incluye dados de baja. | Alta nueva al confirmar. Si el match está dado de baja → advertencia; el usuario decide (no se reactiva solo). |
 | Médico | (`jurisdiccion`, `matricula`) entre vigentes. | Alta nueva al confirmar. |
-| Droga | `droga_alias.aliasNormalizado` (sinónimo vigente de droga vigente), luego `droga.nombre` normalizado. Solo vigentes. | El usuario elige la droga en la vista previa; opción "recordar esta equivalencia" agrega el texto como **sinónimo** de esa droga (`docs/specs/sinonimos-droga.md`). |
+| Droga | `droga_alias.aliasNormalizado` (sinónimo vigente de droga vigente), luego `droga.nombre` normalizado. Solo vigentes y nunca de clase `MATERIAL` (cápsulas, envases: no se prescriben; tampoco aparecen en el buscador de drogas de la receta). | El usuario elige la droga en la vista previa; opción "recordar esta equivalencia" agrega el texto como **sinónimo** de esa droga (`docs/specs/sinonimos-droga.md`). |
 | Unidad | `simbolo` / `codigo` normalizado (`mg` → MILIGRAMO). | Advertencia; el usuario elige. |
 
 Paciente o médico **existente**: se completan solo los campos vacíos con datos del PDF; nunca se pisa un valor existente. Si hay diferencias (ej. otro teléfono) → advertencia informativa.

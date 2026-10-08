@@ -72,7 +72,7 @@ vi.mock("@/modules/recetas/infrastructure/importacion-repository", () => ({
 
 const insertRecetaMock = vi.fn();
 vi.mock("@/modules/recetas/infrastructure/receta-repository", () => ({
-  clasificarDrogasDeReceta: async () => ({ invalidas: [], principiosActivos: new Set([DROGA_ID]) }),
+  clasificarDrogasDeReceta: async () => ({ invalidas: [], principiosActivos: new Set([DROGA_ID]), materiales: [] }),
   unidadesInvalidas: async () => [],
   jornadaActualTenant: async () => "2026-09-29",
   insertRecetaConItems: (...a: unknown[]) => insertRecetaMock(...a),

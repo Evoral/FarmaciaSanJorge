@@ -260,6 +260,9 @@ export const importarRecetaCommand = defineCommand({
     if (drogas.invalidas.length > 0) {
       throw new ValidationError("Una o más drogas seleccionadas no existen o están dadas de baja.");
     }
+    if (drogas.materiales.length > 0) {
+      throw new ValidationError(`Los materiales no se cargan como componentes de la receta: ${drogas.materiales.join(", ")}.`);
+    }
     const unidadIds = [
       ...itemsDominio.flatMap((item) => item.componentes.map((c) => c.unidadMedidaId)),
       ...itemsDominio.flatMap((item) => (item.unidadTotalId ? [item.unidadTotalId] : [])),

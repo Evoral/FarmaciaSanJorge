@@ -67,20 +67,23 @@ export interface DrogasDeReceta {
   invalidas: string[];
   /** The vigente ids whose clase is DROGA (migration 0063): a componente of one of them is a principio activo (`es_principio_activo`, set by the server, never by the user). */
   principiosActivos: ReadonlySet<string>;
+  /** Names of the vigente drogas whose clase is MATERIAL (capsules, containers): never prescribed, so a receta may not reference them. */
+  materiales: string[];
 }
 
-/** ONE read of the drogas a receta's componentes (and import aliases) reference: which are invalid, and which are principios activos. */
+/** ONE read of the drogas a receta's componentes (and import aliases) reference: which are invalid, which are materiales, and which are principios activos. */
 export async function clasificarDrogasDeReceta(tx: Prisma.TransactionClient, tenantId: string, drogaIds: string[]): Promise<DrogasDeReceta> {
-  if (drogaIds.length === 0) return { invalidas: [], principiosActivos: new Set() };
+  if (drogaIds.length === 0) return { invalidas: [], principiosActivos: new Set(), materiales: [] };
   const unicos = Array.from(new Set(drogaIds));
   const vigentes = await tx.droga.findMany({
     where: { tenantId, id: { in: unicos }, fechaBaja: null },
-    select: { id: true, clase: true },
+    select: { id: true, nombre: true, clase: true },
   });
   const vigentesSet = new Set(vigentes.map((d) => d.id));
   return {
     invalidas: unicos.filter((id) => !vigentesSet.has(id)),
     principiosActivos: new Set(vigentes.filter((d) => d.clase === "DROGA").map((d) => d.id)),
+    materiales: vigentes.filter((d) => d.clase === "MATERIAL").map((d) => d.nombre),
   };
 }
 
@@ -123,7 +126,10 @@ export interface DrogaOpcion {
   sinonimoId: string | null;
 }
 
-/** Vigente drogas whose name or vigente synonym contains `search` (accent-insensitive, shared/db/busqueda-droga.ts); name matches first. */
+/**
+ * Vigente drogas whose name or vigente synonym contains `search` (accent-insensitive, shared/db/busqueda-droga.ts); name matches first.
+ * MATERIAL rows (capsules, containers -- migration 0063) are never prescribed, so they are left out; DROGA and EXCIPIENTE are.
+ */
 export async function listDrogasParaReceta(
   tx: Prisma.TransactionClient,
   tenantId: string,
@@ -138,6 +144,7 @@ export async function listDrogasParaReceta(
       JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
       WHERE d.tenant_id = ${tenantId}::uuid
         AND d.fecha_baja IS NULL
+        AND d.clase <> 'MATERIAL'
         AND ${drogaCoincideSql("d", search)}
     ) t
     ORDER BY (t.sinonimo IS NOT NULL), t.nombre, t.id

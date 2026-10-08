@@ -21,7 +21,7 @@ vi.mock("@/modules/recetas/infrastructure/importacion-repository", () => ({
   buscarMedicoVigentePorMatricula: async () => null,
 }));
 vi.mock("@/modules/recetas/infrastructure/receta-repository", () => ({
-  clasificarDrogasDeReceta: async () => ({ invalidas: [], principiosActivos: new Set<string>() }),
+  clasificarDrogasDeReceta: async () => ({ invalidas: [], principiosActivos: new Set<string>(), materiales: [] }),
   unidadesInvalidas: async () => [],
   jornadaActualTenant: async () => "2026-09-29",
   insertRecetaConItems: async () => ({ id: "99999999-9999-4999-a999-999999999999", numeroInterno: "77" }),
