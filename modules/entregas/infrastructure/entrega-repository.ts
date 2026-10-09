@@ -43,10 +43,17 @@ export async function lockRecetaParaAccion(tx: Prisma.TransactionClient, tenantI
 export interface RecetaParaEntrega {
   id: string;
   estado: EstadoReceta;
+  /** Migration 0071 -- whether the receta is already paid (delivering an unpaid one is allowed, just flagged). */
+  pagada: boolean;
 }
 
 export async function getRecetaParaEntrega(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<RecetaParaEntrega | null> {
-  return tx.receta.findUnique({ where: { id, tenantId }, select: { id: true, estado: true } }) as Promise<RecetaParaEntrega | null>;
+  return tx.receta.findUnique({ where: { id, tenantId }, select: { id: true, estado: true, pagada: true } }) as Promise<RecetaParaEntrega | null>;
+}
+
+/** Raises the receta's payment flag (own copy of modules/recetas/infrastructure/receta-repository.ts's `setPagoDeReceta`, mark case only): `pagada_en` = now, `pagada_por_id` = the acting usuario, the three columns together (receta_pagada_check). */
+export async function marcarRecetaPagada(tx: Prisma.TransactionClient, tenantId: string, id: string, usuarioId: string): Promise<void> {
+  await tx.receta.update({ where: { id, tenantId }, data: { pagada: true, pagadaEn: new Date(), pagadaPorId: usuarioId } });
 }
 
 /** One batched query resolving every item's `estadoAsiento` for a receta -- same query as `modules/recetas/infrastructure/receta-repository.ts`'s private `getEstadoAsientoPorItem` (own copy, see module doc comment). */

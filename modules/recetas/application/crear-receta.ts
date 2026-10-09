@@ -6,7 +6,7 @@
  * `crearMedico`, reused directly by modules/recetas/ui/actions.ts) +
  * fecha de prescripción (not future) + origen (PRESENCIAL: a digital
  * receta only enters through the PDF import, see domain/receta.ts's
- * `validarOrigenCargaManual`) + optional diagnóstico (CIE-10) + optional domicilio del paciente (migration 0070) + one or more
+ * `validarOrigenCargaManual`) + optional diagnóstico (CIE-10) + optional domicilio del paciente (migration 0070) + optional "pagada" (migration 0071) + one or more
  * ítems, each with >= 1 componente (optional posología/duración). Everything in ONE transaction (insertRecetaConItems).
  *
  * V1-V9 (minus V5, see domain/receta.ts's doc comment) are enforced here
@@ -94,6 +94,8 @@ export const crearRecetaInput = z.object({
   diagnosticoCodigo: diagnosticoCodigoOpcional,
   diagnosticoDescripcion: textoOpcional,
   domicilioPaciente: domicilioPacienteOpcional,
+  /** Migration 0071: the receta is created already paid. The server sets who and when (`pagadaEn`/`pagadaPorId`), never the client. */
+  pagada: z.boolean().default(false),
   items: z.array(itemInput).min(1, "La receta debe tener al menos un ítem."),
 });
 
@@ -184,6 +186,7 @@ export const crearRecetaCommand = defineCommand({
       diagnosticoCodigo: input.diagnosticoCodigo,
       diagnosticoDescripcion: input.diagnosticoDescripcion,
       domicilioPaciente: input.domicilioPaciente,
+      pagada: input.pagada,
       items: input.items.map((item) => ({
         descripcion: item.descripcion,
         formaFarmaceutica: item.formaFarmaceutica,
@@ -221,6 +224,7 @@ export const crearRecetaCommand = defineCommand({
           diagnosticoCodigo: input.diagnosticoCodigo,
           diagnosticoDescripcion: input.diagnosticoDescripcion,
           domicilioPaciente: input.domicilioPaciente,
+          pagada: input.pagada,
           numeroInterno: nueva.numeroInterno,
           items: input.items,
           itemsResumen: resumirItemsReceta(itemsDominio, nombres),

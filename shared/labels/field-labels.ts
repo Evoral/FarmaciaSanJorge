@@ -144,6 +144,8 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   modoExpresion: "Modo de expresión",
   numeroInterno: "Nº de receta",
   origen: "Origen",
+  pagada: "Pagada",
+  pago: "Pago",
   pacienteTexto: "Paciente (si figura)",
   posologia: "Posología",
   version: "Versión",

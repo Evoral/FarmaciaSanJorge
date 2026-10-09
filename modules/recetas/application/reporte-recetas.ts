@@ -23,6 +23,7 @@
 import { z } from "zod";
 import { defineQuery, defineCommand, TipoAccion } from "@/shared/usecase";
 import { ESTADOS_RECETA } from "../domain/receta";
+import { FILTROS_PAGO_RECETA, FILTRO_PAGO_RECETA_LABELS } from "../domain/pago";
 import { countRecetasPorEstado, listRecetas, listRecetasPorEstado } from "../infrastructure/receta-repository";
 import type { RecetaListItem } from "../infrastructure/receta-repository";
 
@@ -95,12 +96,14 @@ const exportarRecetasInput = listRecetasReporteInput.omit({ page: true, pageSize
   /** fecha_prescripcion range (the `/recetas` listado's `desde`/`hasta`). */
   desde: isoDate.optional(),
   hasta: isoDate.optional(),
+  /** The `/recetas` listado's "Pago" filter (migration 0071). */
+  pago: z.enum(FILTROS_PAGO_RECETA).optional(),
 });
 type ExportarRecetasFiltro = z.infer<typeof exportarRecetasInput>;
 export type ExportarRecetasFiltroInput = z.input<typeof exportarRecetasInput>;
 
 export interface ExportarRecetasResultado {
-  items: (RecetaListItem & { fechaIngreso: Date })[];
+  items: (RecetaListItem & { fechaIngreso: Date; pagada: boolean })[];
   truncated: boolean;
 }
 
@@ -117,6 +120,7 @@ export const exportarRecetasQuery = defineQuery({
       ingresoHasta: input.ingresoHasta,
       desde: input.desde,
       hasta: input.hasta,
+      pago: input.pago,
       page: 1,
       pageSize: MAX_EXPORT_ROWS + 1,
     });
@@ -133,6 +137,7 @@ function resumenFiltroParaAuditoria(input: ExportarRecetasFiltro): string {
   if (numero) partes.push(`Nº interno: ${numero}`);
   if (input.ingresoDesde || input.ingresoHasta) partes.push(`Fecha ingreso: ${input.ingresoDesde ?? "…"} a ${input.ingresoHasta ?? "…"}`);
   if (input.desde || input.hasta) partes.push(`Fecha prescripción: ${input.desde ?? "…"} a ${input.hasta ?? "…"}`);
+  if (input.pago) partes.push(`Pago: ${FILTRO_PAGO_RECETA_LABELS[input.pago]}`);
   return partes.length > 0 ? partes.join(" · ") : "Sin filtros";
 }
 

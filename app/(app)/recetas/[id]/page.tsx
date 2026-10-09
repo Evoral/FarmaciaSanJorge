@@ -12,7 +12,9 @@ import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getReceta } from "@/modules/recetas/application/get-receta";
 import { ORIGEN_RECETA_LABELS, esEstadoEditable, esEstadoTerminal, puedeAnular } from "@/modules/recetas/domain/receta";
+import { etiquetaPago, puedeCambiarPago } from "@/modules/recetas/domain/pago";
 import { anularRecetaAction } from "@/modules/recetas/ui/actions";
+import { PagoRecetaForm } from "@/modules/recetas/ui/pago-receta-form";
 import { PARAM_AVISO, decodificarAvisos } from "@/modules/recetas/domain/avisos-generacion";
 import { AvisosGeneracion } from "@/modules/recetas/ui/avisos-generacion";
 import { AYUDA_ANULACION_PERMITIDA, MENSAJE_ANULACION_BLOQUEADA_POR_LIBRO, decidirAnulacion, mensajePreparacionEnCurso } from "@/modules/recetas/domain/anulacion";
@@ -20,7 +22,7 @@ import { MotivoForm } from "@/shared/ui/motivo-form";
 import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
 import { ESTADO_RECETA_LABELS, FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
 import { ComponentesTabla } from "@/modules/recetas/ui/componentes-tabla";
-import { formatFecha } from "@/shared/format/fecha";
+import { formatFecha, formatFechaHora } from "@/shared/format/fecha";
 import { PageHeader } from "@/shared/ui/page-header";
 import { Avatar } from "@/shared/ui/avatar";
 
@@ -42,6 +44,8 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
   // A PENDIENTE_PREPARACION receta may hold a preparación INICIADA (a reserva de stock): not editable until released.
   const puedeEditar = can(session, "recetas.editar") && esEstadoEditable(receta.estado) && receta.itemsConPreparacionIniciada.length === 0;
   const puedeAnularReceta = can(session, "recetas.anular") && puedeAnular(receta.estado);
+  // Payment is orthogonal to the estado: it can change after delivery, but not once ANULADA (domain/pago.ts).
+  const puedeMarcarPago = can(session, "recetas.editar") && puedeCambiarPago(receta.estado);
   // Same decision the anular command enforces (domain/anulacion.ts): the libro may forbid a direct anulación.
   const anulacion = decidirAnulacion({
     estado: receta.estado,
@@ -65,6 +69,7 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
           <span className="flex flex-wrap items-center gap-3">
             Receta Nº <span className="font-mono">{receta.numeroInterno}</span>
             <StatusBadge estado={receta.estado} />
+            <ToneBadge tone={receta.pagada ? "success" : "warn"}>{etiquetaPago(receta.pagada)}</ToneBadge>
           </span>
         }
         actions={
@@ -228,6 +233,23 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
                   <p className="text-zinc-900">{diagnostico}</p>
                 </div>
               ) : null}
+            </div>
+          </section>
+
+          <section className="panel" aria-labelledby="pago-heading">
+            <div className="panel-header">
+              <h2 id="pago-heading">Pago</h2>
+            </div>
+            <div className="panel-body flex flex-col gap-3 text-sm">
+              <p className="text-zinc-900">
+                <ToneBadge tone={receta.pagada ? "success" : "warn"}>{etiquetaPago(receta.pagada)}</ToneBadge>
+              </p>
+              {receta.pagada && receta.pagadaEn ? (
+                <p className="text-xs text-zinc-500">
+                  Registrado por {receta.pagadaPorNombre} el {formatFechaHora(receta.pagadaEn, receta.zonaHoraria)}.
+                </p>
+              ) : null}
+              {puedeMarcarPago ? <PagoRecetaForm recetaId={receta.id} pagada={receta.pagada} /> : null}
             </div>
           </section>
 

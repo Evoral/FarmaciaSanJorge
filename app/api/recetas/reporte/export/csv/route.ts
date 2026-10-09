@@ -3,11 +3,12 @@
  * `reportes.ver` (enforced by `exportarRecetasCsv`'s own
  * `defineQuery`/`defineCommand`). Used by `/reportes/recetas` and by the
  * `/recetas` listado (same params: estado, numero, ingresoDesde/ingresoHasta,
- * desde/hasta). No param carries patient text.
+ * desde/hasta, pago). No param carries patient text.
  */
 import { NextResponse } from "next/server";
 import { exportarRecetasCsv, MAX_EXPORT_ROWS } from "@/modules/recetas/application/reporte-recetas";
 import { ESTADOS_RECETA } from "@/modules/recetas/domain/receta";
+import { etiquetaPago, parseFiltroPagoReceta } from "@/modules/recetas/domain/pago";
 import { CsvWriter } from "@/shared/csv/csv-writer";
 import { AppError, type AppErrorCode, toSafeError } from "@/shared/errors";
 
@@ -39,6 +40,7 @@ export async function GET(request: Request): Promise<Response> {
       ingresoHasta: q.get("ingresoHasta") || undefined,
       desde: q.get("desde") || undefined,
       hasta: q.get("hasta") || undefined,
+      pago: parseFiltroPagoReceta(q.get("pago")),
     });
   } catch (e) {
     const appError = e instanceof AppError ? e : undefined;
@@ -47,7 +49,7 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json(safe, { status });
   }
 
-  const writer = new CsvWriter(["NumeroInterno", "FechaIngreso", "FechaPrescripcion", "Estado", "Origen", "Paciente", "Medico"]);
+  const writer = new CsvWriter(["NumeroInterno", "FechaIngreso", "FechaPrescripcion", "Estado", "Origen", "Paciente", "Medico", "Pago"]);
   for (const item of resultado.items) {
     writer.push([
       item.numeroInterno,
@@ -57,6 +59,7 @@ export async function GET(request: Request): Promise<Response> {
       item.origen,
       `${item.pacienteNombre} ${item.pacienteApellido}`,
       `${item.medicoApellido}, ${item.medicoNombre}`,
+      etiquetaPago(item.pagada),
     ]);
   }
   if (resultado.truncated) {

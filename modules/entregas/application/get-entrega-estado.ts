@@ -23,6 +23,8 @@ const getEntregaEstadoInput = z.object({ recetaId: uuid });
 export interface EntregaEstado {
   recetaId: string;
   estado: EstadoReceta;
+  /** Migration 0071: the receta is paid. An unpaid one can still be delivered; the screen only flags it. */
+  pagada: boolean;
   itemsEntregables: number;
   itemsExcluidos: number;
   entrega: EntregaRow | null;
@@ -43,6 +45,7 @@ export const getEntregaEstadoQuery = defineQuery({
     return {
       recetaId: receta.id,
       estado: receta.estado,
+      pagada: receta.pagada,
       itemsEntregables: entregables.length,
       itemsExcluidos: excluidos.length,
       entrega,

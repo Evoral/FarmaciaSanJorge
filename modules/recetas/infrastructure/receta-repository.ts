@@ -11,6 +11,7 @@
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { EstadoReceta, FormaFarmaceutica, ModoExpresion, OrigenReceta } from "../domain/receta";
+import type { FiltroPagoReceta } from "../domain/pago";
 import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
 import { rangoDeJornadas } from "@/shared/time/jornada";
 import { drogaCoincideSql, sinonimoCoincidenteSql } from "@/shared/db/busqueda-droga";
@@ -240,6 +241,8 @@ export interface NuevaRecetaInput {
   diagnosticoDescripcion: string | null;
   /** Migration 0070 -- the patient's home address as written on this receta. */
   domicilioPaciente: string | null;
+  /** Migration 0071 -- the receta is created already paid (`registradaPorId` is who marked it, now). Default unpaid. */
+  pagada?: boolean;
   /** PDF import only (migration 0049): the emisor's provenance and the "Válida desde" date. */
   emisor?: string | null;
   nroRecetaEmisor?: string | null;
@@ -284,6 +287,7 @@ export async function insertRecetaConItems(tx: Prisma.TransactionClient, input: 
       diagnosticoCodigo: input.diagnosticoCodigo,
       diagnosticoDescripcion: input.diagnosticoDescripcion,
       domicilioPaciente: input.domicilioPaciente,
+      ...(input.pagada ? { pagada: true, pagadaEn: new Date(), pagadaPorId: input.registradaPorId } : {}),
       emisor: input.emisor ?? null,
       nroRecetaEmisor: input.nroRecetaEmisor ?? null,
       urlVerificacion: input.urlVerificacion ?? null,
@@ -472,6 +476,12 @@ export interface RecetaDetalle {
   diagnosticoDescripcion: string | null;
   /** Migration 0070 -- the patient's home address as written on this receta. */
   domicilioPaciente: string | null;
+  /** Migration 0071 -- payment flag; `pagadaEn` / `pagadaPorNombre` ("Apellido, Nombre") are null while unpaid. */
+  pagada: boolean;
+  pagadaEn: Date | null;
+  pagadaPorNombre: string | null;
+  /** The tenant's zona horaria, to show `pagadaEn` (a timestamptz) as the farmacia's local time. */
+  zonaHoraria: string;
   /** Digital provenance (migration 0049) -- all three `null` for a receta loaded by hand. */
   emisor: string | null;
   nroRecetaEmisor: string | null;
@@ -486,6 +496,7 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
       paciente: { select: { nombre: true, apellido: true } },
       medico: { select: { nombre: true, apellido: true, matricula: true } },
       registradaPor: { select: { nombre: true, apellido: true } },
+      pagadaPor: { select: { nombre: true, apellido: true } },
       items: {
         include: {
           unidadTotal: { select: { simbolo: true } },
@@ -520,6 +531,10 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
     diagnosticoCodigo: receta.diagnosticoCodigo,
     diagnosticoDescripcion: receta.diagnosticoDescripcion,
     domicilioPaciente: receta.domicilioPaciente,
+    pagada: receta.pagada,
+    pagadaEn: receta.pagadaEn,
+    pagadaPorNombre: receta.pagadaPor ? `${receta.pagadaPor.apellido}, ${receta.pagadaPor.nombre}` : null,
+    zonaHoraria: await zonaHorariaTenant(tx, tenantId),
     emisor: receta.emisor,
     nroRecetaEmisor: receta.nroRecetaEmisor,
     urlVerificacion: receta.urlVerificacion,
@@ -737,6 +752,34 @@ export async function anularReceta(tx: Prisma.TransactionClient, tenantId: strin
 }
 
 // ============================================================================
+// Pago (migration 0071, docs/specs/pago-receta.md).
+// ============================================================================
+
+export interface PagoDeReceta {
+  id: string;
+  estado: EstadoReceta;
+  pagada: boolean;
+  pagadaEn: Date | null;
+  pagadaPorId: string | null;
+}
+
+/** Fresh read of the receta's payment -- call AFTER `lockRecetaParaAccion` (M3). */
+export async function getPagoDeReceta(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<PagoDeReceta | null> {
+  return tx.receta.findUnique({ where: { id, tenantId }, select: { id: true, estado: true, pagada: true, pagadaEn: true, pagadaPorId: true } });
+}
+
+/**
+ * Raises the flag (`pagada_en` = now, `pagada_por_id` = the acting usuario) or lowers it (all three cleared) -- always
+ * the three columns together (receta_pagada_check). The caller has already checked the estado and that this is a change.
+ */
+export async function setPagoDeReceta(tx: Prisma.TransactionClient, tenantId: string, id: string, pagada: boolean, usuarioId: string): Promise<void> {
+  await tx.receta.update({
+    where: { id, tenantId },
+    data: pagada ? { pagada: true, pagadaEn: new Date(), pagadaPorId: usuarioId } : { pagada: false, pagadaEn: null, pagadaPorId: null },
+  });
+}
+
+// ============================================================================
 // 6.6: listados
 // ============================================================================
 
@@ -750,6 +793,8 @@ export interface ListRecetasFilter {
   hasta?: string; // fecha_prescripcion <=
   ingresoDesde?: string; // YYYY-MM-DD, jornada in the tenant's time zone (inclusive)
   ingresoHasta?: string; // YYYY-MM-DD, jornada in the tenant's time zone (inclusive)
+  /** Migration 0071: only paid (`pagadas`) or unpaid (`impagas`) recetas; omitted = all. */
+  pago?: FiltroPagoReceta;
   page: number;
   pageSize: number;
 }
@@ -768,6 +813,8 @@ export interface RecetaListItem {
 
 export interface RecetaListadoItem extends RecetaListItem {
   fechaIngreso: Date;
+  /** Migration 0071. */
+  pagada: boolean;
   /**
    * Same rule as /recetas/[id]/editar and `editarReceta` (minus the
    * permiso, which the page adds): PENDIENTE_PREPARACION and no ficha
@@ -803,6 +850,7 @@ function buildWhere(filter: ListRecetasFilter, zonaHoraria: string): Prisma.Rece
   if (filter.estado) where.estado = filter.estado;
   if (filter.pacienteId) where.pacienteId = filter.pacienteId;
   if (filter.medicoId) where.medicoId = filter.medicoId;
+  if (filter.pago) where.pagada = filter.pago === "pagadas";
   if (filter.numeroInterno && filter.numeroInterno.trim().length > 0) {
     const parsed = BigInt(filter.numeroInterno.trim().replace(/[^0-9]/g, "") || "-1");
     where.numeroInterno = parsed >= BigInt(0) ? parsed : BigInt(-1);
@@ -842,6 +890,7 @@ export async function listRecetas(tx: Prisma.TransactionClient, filter: ListRece
       fechaIngreso: true,
       origen: true,
       estado: true,
+      pagada: true,
       paciente: { select: { nombre: true, apellido: true } },
       medico: { select: { nombre: true, apellido: true } },
     },
@@ -862,6 +911,7 @@ export async function listRecetas(tx: Prisma.TransactionClient, filter: ListRece
       fechaIngreso: r.fechaIngreso,
       origen: r.origen,
       estado: r.estado,
+      pagada: r.pagada,
       editable: r.estado === "PENDIENTE_PREPARACION" && !conPreparacion.has(r.id),
     })),
     total,

@@ -6,7 +6,7 @@
  *   1. paciente and médico: alta if new, otherwise complete ONLY their
  *      empty fields with the PDF's data (never overwrite);
  *   2. receta with origen DIGITAL_PDF + emisor/nro/url/diagnóstico/domicilio
- *      del paciente + items,
+ *      del paciente + optional "pagada" (migration 0071) + items,
  *      under the same V1-V9 validation as the manual alta (and, like it,
  *      each componente's principio activo flag from the droga's clase);
  *   3. the droga aliases the user chose to remember -- written BEFORE the
@@ -102,6 +102,8 @@ export const importarRecetaInput = z
     diagnosticoDescripcion: textoOpcional,
     /** The patient's domicilio as printed on the receta (migration 0070) -- stored on the receta, never on the paciente. */
     domicilioPaciente: domicilioPacienteOpcional,
+    /** Migration 0071: the receta is imported already paid. The server sets who and when, never the client. */
+    pagada: z.boolean().default(false),
     /** `existenteId`: what the preview matched (`null` = alta). `datos`: the PDF's data, as confirmed by the user. */
     paciente: z.object({ existenteId: uuid.nullable(), datos: crearPacienteInput }),
     medico: z.object({ existenteId: uuid.nullable(), datos: crearMedicoInput }),
@@ -326,6 +328,7 @@ export const importarRecetaCommand = defineCommand({
       diagnosticoCodigo: input.diagnosticoCodigo,
       diagnosticoDescripcion: input.diagnosticoDescripcion,
       domicilioPaciente: input.domicilioPaciente,
+      pagada: input.pagada,
       emisor: input.emisor,
       nroRecetaEmisor: input.nroRecetaEmisor,
       urlVerificacion: input.urlVerificacion,
@@ -358,6 +361,7 @@ export const importarRecetaCommand = defineCommand({
         diagnosticoCodigo: input.diagnosticoCodigo,
         diagnosticoDescripcion: input.diagnosticoDescripcion,
         domicilioPaciente: input.domicilioPaciente,
+        pagada: input.pagada,
         numeroInterno: nueva.numeroInterno,
         items: input.items,
         itemsResumen: resumirItemsReceta(itemsDominio, nombres),

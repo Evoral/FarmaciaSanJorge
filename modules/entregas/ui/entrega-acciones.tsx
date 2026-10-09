@@ -18,6 +18,8 @@ import { RegistrarEntregaForm } from "./registrar-entrega-form";
 export interface EntregaAccionesProps {
   recetaId: string;
   estado: EstadoReceta;
+  /** Migration 0071: the receta is already paid. */
+  pagada: boolean;
   itemsExcluidos: number;
   /** `entregas.registrar` */
   puedeRegistrar: boolean;
@@ -25,7 +27,7 @@ export interface EntregaAccionesProps {
   puedeConfirmarFirma: boolean;
 }
 
-export function EntregaAcciones({ recetaId, estado, itemsExcluidos, puedeRegistrar, puedeConfirmarFirma }: EntregaAccionesProps) {
+export function EntregaAcciones({ recetaId, estado, pagada, itemsExcluidos, puedeRegistrar, puedeConfirmarFirma }: EntregaAccionesProps) {
   const cerrar = useRouteDialogClose();
 
   const excluidos =
@@ -39,7 +41,7 @@ export function EntregaAcciones({ recetaId, estado, itemsExcluidos, puedeRegistr
     return (
       <div className="flex flex-col gap-3">
         {excluidos}
-        <RegistrarEntregaForm action={registrarEntregaAction} recetaId={recetaId} onSuccess={cerrar} />
+        <RegistrarEntregaForm action={registrarEntregaAction} recetaId={recetaId} pagada={pagada} onSuccess={cerrar} />
       </div>
     );
   }

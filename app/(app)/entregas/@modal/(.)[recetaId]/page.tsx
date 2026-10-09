@@ -38,6 +38,7 @@ export default async function EntregaModalPage({ params }: EntregaModalPageProps
       <EntregaAcciones
         recetaId={receta.id}
         estado={receta.estado}
+        pagada={entregaEstado.pagada}
         itemsExcluidos={entregaEstado.itemsExcluidos}
         puedeRegistrar={can(session, "entregas.registrar")}
         puedeConfirmarFirma={can(session, "entregas.firma.confirmar")}

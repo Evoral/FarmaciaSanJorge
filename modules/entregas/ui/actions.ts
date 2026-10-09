@@ -21,7 +21,7 @@ export async function registrarEntregaAction(_prevState: EntregaActionState, for
   try {
     const recetaId = String(formData.get("recetaId") ?? "");
     const modalidad = String(formData.get("modalidad") ?? "") as "RETIRO_PRESENCIAL" | "ENVIO";
-    await registrarEntrega({ recetaId, modalidad });
+    await registrarEntrega({ recetaId, modalidad, pagada: formData.get("pagada") === "on" });
     revalidarEntregas(recetaId);
     const mensaje = modalidad === "RETIRO_PRESENCIAL" ? "Entrega registrada." : "Envío registrado: pendiente de confirmar firma recibida.";
     return { status: "success", message: mensaje, id: recetaId };

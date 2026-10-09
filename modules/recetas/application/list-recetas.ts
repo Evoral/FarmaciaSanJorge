@@ -1,8 +1,8 @@
 /**
  * `listRecetas` (M09, FASE 6 point 6.6). Read-only, gated on `recetas.crear`
  * (see get-receta.ts's doc comment for why). Filters by estado, paciente,
- * médico, date ranges (fecha_prescripcion and fecha_ingreso) and search by
- * numero_interno.
+ * médico, pago (pagadas / impagas, migration 0071), date ranges
+ * (fecha_prescripcion and fecha_ingreso) and search by numero_interno.
  * Pagination and filters entirely server-side (no client-side slicing).
  */
 import { z } from "zod";
@@ -10,6 +10,7 @@ import { defineQuery } from "@/shared/usecase";
 import { uuid } from "@/shared/validation";
 import { inicioDeJornada, jornadaDe } from "@/shared/time/jornada";
 import { ESTADOS_RECETA } from "../domain/receta";
+import { FILTROS_PAGO_RECETA } from "../domain/pago";
 import { PERIODOS_RESUMEN, inicioDePeriodo, type PeriodoResumen } from "../domain/periodo-resumen";
 import { listRecetas as listRecetasRepo, countRecetasPorEstado, zonaHorariaTenant } from "../infrastructure/receta-repository";
 import type { ListRecetasResult } from "../infrastructure/receta-repository";
@@ -27,6 +28,8 @@ const listRecetasInput = z.object({
   hasta: isoDate.optional(),
   ingresoDesde: isoDate.optional(),
   ingresoHasta: isoDate.optional(),
+  /** Migration 0071: only paid or unpaid recetas; omitted = all. */
+  pago: z.enum(FILTROS_PAGO_RECETA).optional(),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(100).default(20),
 });
@@ -48,6 +51,7 @@ export const listRecetasQuery = defineQuery({
       hasta: input.hasta,
       ingresoDesde: input.ingresoDesde,
       ingresoHasta: input.ingresoHasta,
+      pago: input.pago,
       page: input.page,
       pageSize: input.pageSize,
     });

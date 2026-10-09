@@ -380,6 +380,7 @@ model Usuario {
   movimientosAutorizadosPorMi     MovimientoStock[]            @relation("MovimientoAutorizadoPor")
   recetasRegistradas              Receta[]                     @relation("RecetaRegistradaPor")
   recetasTomadas                  Receta[]                     @relation("RecetaTomadaPor")
+  recetasPagadas                  Receta[]                     @relation("RecetaPagadaPor")
   fichasTecnicasGeneradas         FichaTecnica[]
   preparacionesIniciadas          Preparacion[]                @relation("PreparacionIniciadaPor")
   preparacionesPreparadas         Preparacion[]                @relation("PreparacionPreparadaPor")
@@ -887,11 +888,18 @@ model Receta {
   /// Migration 0057: the lab's "toma" -- who took the receta from the /preparaciones queue and when. Both set or both null (receta_toma_pair_check); cleared by "Cancelar toma". Partial index idx_receta_tenant_tomada_en_curso (not expressible here).
   tomadaPorId            String?      @map("tomada_por_id") @db.Uuid
   tomadaEn               DateTime?    @map("tomada_en") @db.Timestamptz(6)
+  /// Migration 0071 (docs/specs/pago-receta.md). Whether the pharmacy was paid for this receta -- a simple flag, orthogonal to `estado` (no amounts, no medios de pago). Set at alta, at entrega or from the detail; frozen while ANULADA (INV-R13).
+  pagada                 Boolean      @default(false)
+  /// Migration 0071. Server time of the marking; null while unpaid. pagada / pagadaEn / pagadaPorId are set and cleared together (receta_pagada_check).
+  pagadaEn               DateTime?    @map("pagada_en") @db.Timestamptz(6)
+  /// Migration 0071. The session's usuario who marked it paid (never client input); null while unpaid.
+  pagadaPorId            String?      @map("pagada_por_id") @db.Uuid
 
   paciente      Paciente            @relation(fields: [pacienteId], references: [id])
   medico        Medico              @relation(fields: [medicoId], references: [id])
   registradaPor Usuario             @relation("RecetaRegistradaPor", fields: [registradaPorId], references: [id])
   tomadaPor     Usuario?            @relation("RecetaTomadaPor", fields: [tomadaPorId], references: [id])
+  pagadaPor     Usuario?            @relation("RecetaPagadaPor", fields: [pagadaPorId], references: [id])
   items         ItemReceta[]
   loteArchivo   LoteArchivoRecetas? @relation(fields: [loteArchivoId], references: [id])
   entrega       Entrega?

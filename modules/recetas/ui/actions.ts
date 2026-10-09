@@ -23,6 +23,7 @@ import { generarFichasYCotizaciones } from "@/modules/recetas/application/genera
 import { retornoDeEdicion, urlTrasEditar, urlTrasRegistrar } from "@/modules/recetas/domain/avisos-generacion";
 import { editarReceta } from "@/modules/recetas/application/editar-receta";
 import { anularReceta } from "@/modules/recetas/application/anular-receta";
+import { marcarPagoReceta } from "@/modules/recetas/application/marcar-pago-receta";
 import { listDrogasParaReceta } from "@/modules/recetas/application/list-drogas-para-receta";
 import type { DrogaOpcion } from "@/modules/recetas/application/list-drogas-para-receta";
 import { listPacientes } from "@/modules/pacientes/application/list-pacientes";
@@ -57,6 +58,7 @@ export async function crearRecetaAction(_prevState: RecetaActionState, formData:
       diagnosticoCodigo: String(formData.get("diagnosticoCodigo") ?? ""),
       diagnosticoDescripcion: String(formData.get("diagnosticoDescripcion") ?? ""),
       domicilioPaciente: String(formData.get("domicilioPaciente") ?? ""),
+      pagada: formData.get("pagada") === "on",
       items,
     });
     revalidatePath("/recetas");
@@ -174,6 +176,23 @@ export async function anularRecetaAction(_prevState: RecetaActionState, formData
     return { status: "success", message: "Receta anulada.", id };
   } catch (error) {
     return fromError(error, "No se pudo anular la receta.");
+  }
+}
+
+// ============================================================================
+// Pago (migration 0071): mark / unmark a receta as paid from its detail
+// ============================================================================
+
+export async function marcarPagoRecetaAction(_prevState: RecetaActionState, formData: FormData): Promise<RecetaActionState> {
+  try {
+    const id = String(formData.get("id") ?? "");
+    const pagada = formData.get("pagada") === "true";
+    await marcarPagoReceta({ id, pagada });
+    revalidatePath("/recetas");
+    revalidatePath(`/recetas/${id}`);
+    return { status: "success", message: pagada ? "Receta marcada como pagada." : "Receta marcada como impaga.", id };
+  } catch (error) {
+    return fromError(error, "No se pudo actualizar el pago de la receta.");
   }
 }
 

@@ -3,6 +3,7 @@
 > Fuente: decisiones del usuario del 2026-09-21 (DP-16, DP-16c, DP-17, DP-31, DP-32, DP-33).
 > Fuente de verdad para los puntos 1.11–1.13 y las fases 8–10 del plan. Donde contradice al plan original, manda este documento.
 > Las notas **[DEDUCCIÓN]** derivan de combinar decisiones; las **[PENDIENTE]** requieren confirmación.
+> El pago de la receta (marca `pagada`, migración 0071) es una dimensión aparte: no es un estado de la receta ni forma parte de esta máquina de estados. Ver `docs/specs/pago-receta.md`.
 
 ## 1. Corrección de asientos (DP-16 y DP-16c)
 
