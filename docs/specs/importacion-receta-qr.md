@@ -75,6 +75,8 @@ Los avisos reproducen texto que no es nuestro (renglones de la receta, nombres d
 
 Comportamiento del panel (verificación manual, ver P55–P57):
 
+- No hay botón "Leer": la lectura arranca con el Enter del lector (o del teclado) y, al **pegar** un link en el campo, sola. Mientras lee se muestra un spinner junto al campo.
+
 - El campo tiene el foco al cargar la página (salvo que ya se haya leído una receta). Después de una lectura con éxito y después de "Descartar importación", el foco vuelve al campo con el texto seleccionado: el próximo escaneo **reemplaza** el anterior. Después de un **error** el foco vuelve al campo solo si no está en otro lado (en el `body`, sin elemento activo, o dentro del panel): si el usuario ya pasó al formulario manual, un error tardío **no le roba el foco**.
 - Mientras una lectura está en curso, un segundo Enter (por ejemplo, un lector que envía Enter dos veces) no inicia otra lectura (se descarta por el estado pendiente y por una guarda adicional que se activa al enviar y se libera al llegar el resultado).
 - Una región de estado (`role="status"`) siempre presente anuncia "Leyendo…" y "Receta leída. Revisá la vista previa."; el error se muestra como alerta (`role="alert"`), el campo queda con `aria-describedby` apuntando a ella y, solo cuando el error es del código ingresado ("QR no válido o receta no encontrada", formato), con `aria-invalid`; una caída de RCTA o un error de permisos no marcan el campo como inválido. El mismo error dos veces seguidas se anuncia dos veces.

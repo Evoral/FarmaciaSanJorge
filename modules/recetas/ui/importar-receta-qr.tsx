@@ -7,7 +7,7 @@
  * parent, which prefills the receta form with it. Nothing is saved here.
  *
  * It is a plain text input on purpose: a USB scanner types the code and
- * presses Enter, and a link can be pasted. The input is focused on load (unless
+ * presses Enter, and a pasted link is read right away (there is no "Leer" button). The input is focused on load (unless
  * the parent says a receta was already read), and focused and selected again
  * after a successful reading and after discarding the import, so the next scan
  * REPLACES the previous text instead of being appended to it. After an ERROR it
@@ -132,6 +132,14 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
     if (mensaje === undefined) botonCamaraRef.current?.focus();
   };
 
+  // There is no "Leer" button: a pasted link is read right away, like a scanner's Enter.
+  const pegado = useRef(false);
+  const alCambiarTexto = () => {
+    if (!pegado.current) return;
+    pegado.current = false;
+    if (inputRef.current?.value.trim() && formRef.current) enviarFormulario(formRef.current);
+  };
+
   const handleDescartar = () => {
     onDescartar();
     enfocarYSeleccionar();
@@ -174,15 +182,18 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
             spellCheck={false}
             enterKeyHint="go"
             readOnly={isPending}
+            onPaste={() => {
+              pegado.current = true;
+            }}
+            onChange={alCambiarTexto}
             aria-invalid={entradaInvalida ? true : undefined}
             aria-describedby={mostrarError ? errorId : undefined}
             placeholder="Escaneá el QR o pegá el link"
             className="input min-w-0 flex-1"
           />
-          <button type="submit" disabled={isPending} className="btn btn-secondary">
-            {isPending ? <span className="spinner" aria-hidden /> : null}
-            {isPending ? MENSAJE_ANUNCIO_LEYENDO : "Leer"}
-          </button>
+          {/* Hidden: Enter and `enviarFormulario`'s pre-Safari-16 fallback still submit through it. */}
+          <button type="submit" disabled={isPending} hidden tabIndex={-1} aria-hidden />
+          {isPending ? <span className="spinner" aria-hidden title={MENSAJE_ANUNCIO_LEYENDO} /> : null}
           {soporte === null ? null : (
             <button
               ref={botonCamaraRef}
@@ -193,9 +204,9 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
               title="Escanear con la cámara"
               aria-expanded={camaraDisponible ? camaraAbierta : undefined}
               aria-describedby={camaraDisponible ? undefined : avisoCamaraId}
-              className="btn btn-secondary btn-icon"
+              className="btn btn-secondary px-5 py-2"
             >
-              <Camera className="size-4" aria-hidden />
+              <Camera className="size-5" aria-hidden />
             </button>
           )}
           {importando ? (
