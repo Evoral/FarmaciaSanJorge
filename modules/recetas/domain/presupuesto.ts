@@ -83,10 +83,15 @@ export function armarPresupuesto(items: PresupuestoItem[], faltantesReceta: Falt
   return { ok: true, total: total.toString(), totalCompleto: items.every((i) => i.ok), items, faltantesReceta };
 }
 
-/** es-AR with 3 decimals, for quantities in a sentence ("3.000,500"). */
+/**
+ * es-AR with up to 3 decimals and no trailing zeros, for quantities in a
+ * sentence ("3.000,5", "3", "0,149"). Fixed zeros made "3,000 g" read as
+ * three thousand.
+ */
 function cantidadEsAr(valor: Decimal): string {
-  const [entero, fraccion] = valor.toFixed(3).split(".");
-  return `${entero!.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${fraccion}`;
+  const [entero, fraccion = ""] = valor.toDecimalPlaces(3).toFixed().split(".");
+  const miles = entero!.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return fraccion ? `${miles},${fraccion}` : miles;
 }
 
 /**

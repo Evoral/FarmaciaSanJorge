@@ -33,7 +33,7 @@ Ambos pasos comparten el código con los comandos existentes (`calcularLineasFic
 | Ítem calculable | Precio final, costo de insumos y, si corresponde: **Parcial** (algún excipiente se completa al preparar: enrase manual, costo 0) e **Incompleta** (stock insuficiente: se cotiza lo que hay e informa lo que falta por droga). |
 | Ítem no calculable (V1–V9, droga o unidad inexistente o dada de baja) | Mensaje en lugar del precio. No interrumpe el resto. |
 | Total | Suma de los ítems calculables. Si alguno no se pudo calcular, se indica que el total no lo incluye. |
-| Stock de la receta | Si la demanda total de una droga en la receta supera el stock elegible, advertencia destacada a nivel receta: «Falta stock de Cafeína para toda la receta: se necesitan 3,000 g y hay 2,000 g disponibles.» Nunca bloquea. |
+| Stock de la receta | Si la demanda total de una droga en la receta supera el stock elegible, advertencia destacada a nivel receta: «Falta stock de Cafeína para toda la receta: se necesitan 3 g y hay 2 g disponibles.» Nunca bloquea. |
 
 Con el reparto acumulado, `Incompleta`, los faltantes y el costo de cada ítem reflejan la receta completa.
 

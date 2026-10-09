@@ -50,9 +50,15 @@ const fichaRepo = {
 vi.mock("@/modules/elaboracion/infrastructure/ficha-repository", () => fichaRepo);
 
 const partidas = new Map<string, { id: string; cantidadDisponible: string; fechaVencimiento: string; fechaApertura: string | null; costoUnitario: string }[]>();
+/** Each droga's unidad base (stock unit); a droga not listed is kept in g. */
+const unidadesStock = new Map<string, { factorABase: string; tipoMagnitud: string }>();
 const cotizacionRepo = {
   jornadaActualTenant: vi.fn(async () => "2026-09-30"),
   getPartidasElegiblesDeDroga: vi.fn(async (_tx: unknown, _tenant: unknown, drogaId: string) => partidas.get(drogaId) ?? []),
+  getUnidadesBaseDeDrogas: vi.fn(
+    async (_tx: unknown, _tenant: unknown, drogaIds: string[]) =>
+      new Map(drogaIds.map((id) => [id, unidadesStock.get(id) ?? { factorABase: "1", tipoMagnitud: "MASA" }])),
+  ),
   insertCotizacion: vi.fn(),
 };
 vi.mock("@/modules/precios/infrastructure/cotizacion-repository", () => cotizacionRepo);
@@ -107,6 +113,7 @@ beforeEach(() => {
     creadoPorApellido: "A",
   });
   partidas.clear();
+  unidadesStock.clear();
   partidas.set(D_UREA, [{ id: "p-urea", cantidadDisponible: "100", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "2" }]);
   partidas.set(D_MAZINDOL, [{ id: "p-maz", cantidadDisponible: "1", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "100" }]);
   fichaRepo.insertFichaConLineas.mockClear();
@@ -114,6 +121,16 @@ beforeEach(() => {
 });
 
 describe("recetas.presupuestar", () => {
+  it("a droga kept in mg is costed from the línea's g converted into mg: 10 g of urea = 10000 mg at $0.002/mg -> $20 cost", async () => {
+    unidadesStock.set(D_UREA, { factorABase: "0.001", tipoMagnitud: "MASA" });
+    partidas.set(D_UREA, [{ id: "p-urea", cantidadDisponible: "15000", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "0.002" }]);
+    const p = await presupuestar([cremaUrea, cremaUrea]);
+    if (!p.ok) throw new Error("expected ok");
+    expect(p.items[0]).toMatchObject({ ok: true, costoInsumos: "20", esIncompleta: false });
+    // 15000 mg = 15 g for two items of 10 g: the second misses 5 g, reported in g (the línea's unit).
+    expect(p.items[1]).toMatchObject({ ok: true, costoInsumos: "10", esIncompleta: true, faltantes: [{ drogaNombre: "Urea", cantidad: "5", unidadSimbolo: "g" }] });
+  });
+
   it("prices a normal item: 10 g of urea at $2/g, margen 50% -> $30", async () => {
     const p = await presupuestar([cremaUrea]);
     expect(p).toEqual({
@@ -138,7 +155,7 @@ describe("recetas.presupuestar", () => {
         requerida: "20",
         disponible: "15",
         unidadSimbolo: "g",
-        mensaje: "Falta stock de Urea para toda la receta: se necesitan 20,000 g y hay 15,000 g disponibles.",
+        mensaje: "Falta stock de Urea para toda la receta: se necesitan 20 g y hay 15 g disponibles.",
       },
     ]);
   });
