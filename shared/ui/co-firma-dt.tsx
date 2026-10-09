@@ -40,7 +40,8 @@ export function CoFirmaDt({ dts, idSuffix = "", operadorEsDt = false }: CoFirmaD
           <label htmlFor={dtId} className="field-label">
             Director Técnico
           </label>
-          <select id={dtId} name="dtUsuarioId" required className="input">
+          {/* A single vigente DT is the only possible answer: preselect them. */}
+          <select id={dtId} name="dtUsuarioId" required defaultValue={dts.length === 1 ? dts[0]!.id : ""} className="input">
             <option value="">Seleccioná el DT que autoriza</option>
             {dts.map((dt) => (
               <option key={dt.id} value={dt.id}>
