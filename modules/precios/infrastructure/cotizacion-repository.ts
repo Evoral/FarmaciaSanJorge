@@ -13,6 +13,7 @@
  * calculating a cotizacion reserves nothing.
  */
 import type { Prisma } from "@/generated/prisma/client";
+import type { UnidadDeConversion } from "@/shared/decimal/convertir-unidad";
 import type { PartidaCosteo } from "../domain/calcular-cotizacion";
 
 // ============================================================================
@@ -49,6 +50,8 @@ export interface LineaParaCostear {
   drogaId: string;
   drogaNombre: string;
   unidadSimbolo: string;
+  /** The línea's unit (`unidadSimbolo`), for the conversion into the droga's unidad base. */
+  unidad: UnidadDeConversion;
   cantidadAPesar: string | null;
   esEnraseManual: boolean;
   orden: number;
@@ -76,7 +79,7 @@ export async function getUltimaFichaConLineas(tx: Prisma.TransactionClient, tena
           cantidadAPesar: true,
           esEnraseManual: true,
           orden: true,
-          unidadMedida: { select: { simbolo: true } },
+          unidadMedida: { select: { simbolo: true, factorABase: true, tipoMagnitud: true } },
         },
       },
     },
@@ -90,6 +93,7 @@ export async function getUltimaFichaConLineas(tx: Prisma.TransactionClient, tena
       drogaId: l.drogaId,
       drogaNombre: l.drogaNombre,
       unidadSimbolo: l.unidadMedida.simbolo,
+      unidad: { factorABase: l.unidadMedida.factorABase.toString(), tipoMagnitud: l.unidadMedida.tipoMagnitud },
       cantidadAPesar: l.cantidadAPesar ? l.cantidadAPesar.toString() : null,
       esEnraseManual: l.esEnraseManual,
       orden: l.orden,
@@ -120,6 +124,16 @@ export async function getPartidasElegiblesDeDroga(tx: Prisma.TransactionClient, 
     fechaApertura: p.fechaApertura ? p.fechaApertura.toISOString() : null,
     costoUnitario: p.costoUnitario.toString(),
   }));
+}
+
+/** Each droga's unidad base (the unit of its partidas' stock and costo unitario), by droga id. Plain read. */
+export async function getUnidadesBaseDeDrogas(tx: Prisma.TransactionClient, tenantId: string, drogaIds: readonly string[]): Promise<Map<string, UnidadDeConversion>> {
+  if (drogaIds.length === 0) return new Map();
+  const rows = await tx.droga.findMany({
+    where: { tenantId, id: { in: [...drogaIds] } },
+    select: { id: true, unidadBase: { select: { factorABase: true, tipoMagnitud: true } } },
+  });
+  return new Map(rows.map((d) => [d.id, { factorABase: d.unidadBase.factorABase.toString(), tipoMagnitud: d.unidadBase.tipoMagnitud }]));
 }
 
 // ============================================================================

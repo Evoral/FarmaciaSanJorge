@@ -43,8 +43,18 @@
  * literal copy of `proponerReparto`'s own two-line filter, NOT a
  * reimplementation of the ordering/splitting algorithm itself, which stays
  * exclusively inside `proponerReparto`).
+ *
+ * Units: a línea's `cantidadAPesar` is in the línea's unit (its magnitud's
+ * base, e.g. g); partidas (`cantidadDisponible`, and `costoUnitario` per
+ * unit) are in the droga's unidad base (e.g. mg). The required quantity is
+ * converted into the droga's unidad base before the split, so the costed
+ * partida amounts are in it; `cantidadRequerida` and `faltante` are reported
+ * back in the línea's unit (`unidadSimbolo`). A línea whose unit can not be
+ * converted (different magnitud) is not costed: it contributes 0 and sets
+ * `esParcial`, like a manual-enrase línea.
  */
 import { Decimal, dec } from "@/shared/decimal";
+import { convertirCantidad, mismaMagnitud, type UnidadDeConversion } from "@/shared/decimal/convertir-unidad";
 import { estaVencida, proponerReparto } from "@/modules/stock/domain/reparto";
 import type { PartidaDisponible } from "@/modules/stock/domain/reparto";
 import { calcularPrecioFinal } from "./regla-precio";
@@ -58,14 +68,19 @@ export interface LineaCosteoInput {
   drogaId: string;
   drogaNombre: string;
   unidadSimbolo: string;
-  /** `null` when `esEnraseManual` (docs/specs/ficha-tecnica.md). */
+  /** In `unidad` (the línea's unit). `null` when `esEnraseManual` (docs/specs/ficha-tecnica.md). */
   cantidadAPesar: Decimal | string | null;
+  /** The línea's unit (its magnitud's base unit, `unidadSimbolo`). */
+  unidad: UnidadDeConversion;
+  /** The droga's unidad base: the unit of its partidas' `cantidadDisponible` and `costoUnitario` (per unit). */
+  unidadStock: UnidadDeConversion;
   esEnraseManual: boolean;
   orden: number;
 }
 
 export interface PartidaUsadaDetalle {
   partidaId: string;
+  /** In the droga's unidad base (same unit as `costoUnitario`). */
   cantidad: string;
   costoUnitario: string;
   subtotal: string;
@@ -77,10 +92,11 @@ export interface LineaCotizacionDetalle {
   drogaNombre: string;
   unidadSimbolo: string;
   esEnraseManual: boolean;
+  /** In the línea's unit (`unidadSimbolo`). */
   cantidadRequerida: string | null;
   partidas: PartidaUsadaDetalle[];
   subtotal: string;
-  /** Present (and > 0) only when this linea could not be fully costed for lack of stock. */
+  /** In the línea's unit. Present (and > 0) only when this linea could not be fully costed for lack of stock. */
   faltante: string | null;
 }
 
@@ -123,11 +139,13 @@ function costearLinea(
   jornadaActual: string,
 ): { detalle: LineaCotizacionDetalle; incompleta: boolean } {
   const requerida = dec(linea.cantidadAPesar as Decimal | string);
+  // Partidas are in the droga's unidad base: split in it, report the faltante back in the línea's unit.
+  const requeridaStock = convertirCantidad(requerida, linea.unidad, linea.unidadStock);
   const costoPorPartida = new Map(partidas.map((p) => [p.id, dec(p.costoUnitario)]));
 
   const disponible = totalDisponibleElegible(partidas, jornadaActual);
-  const aPedir = Decimal.min(requerida, disponible);
-  const faltante = requerida.minus(aPedir);
+  const aPedir = Decimal.min(requeridaStock, disponible);
+  const faltante = convertirCantidad(requeridaStock.minus(aPedir), linea.unidadStock, linea.unidad);
 
   let partidasUsadas: PartidaUsadaDetalle[] = [];
   let subtotal = new Decimal(0);
@@ -168,7 +186,7 @@ function costearLinea(
       cantidadRequerida: requerida.toString(),
       partidas: partidasUsadas,
       subtotal: subtotal.toString(),
-      faltante: faltante.greaterThan(0) ? faltante.toString() : null,
+      faltante: faltante.greaterThan(0) ? faltante.toFixed() : null,
     },
   };
 }
@@ -200,6 +218,23 @@ export function calcularCotizacion(
         unidadSimbolo: linea.unidadSimbolo,
         esEnraseManual: true,
         cantidadRequerida: null,
+        partidas: [],
+        subtotal: "0",
+        faltante: null,
+      });
+      continue;
+    }
+
+    if (!mismaMagnitud(linea.unidad, linea.unidadStock)) {
+      // Not convertible into the droga's unidad base (no density conversion): not costed, like a manual línea.
+      esParcial = true;
+      detalleLineas.push({
+        orden: linea.orden,
+        drogaId: linea.drogaId,
+        drogaNombre: linea.drogaNombre,
+        unidadSimbolo: linea.unidadSimbolo,
+        esEnraseManual: false,
+        cantidadRequerida: linea.cantidadAPesar === null ? null : dec(linea.cantidadAPesar).toString(),
         partidas: [],
         subtotal: "0",
         faltante: null,

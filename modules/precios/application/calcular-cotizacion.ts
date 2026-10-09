@@ -24,10 +24,9 @@ import type { Prisma } from "@/generated/prisma/client";
 import { defineCommand } from "@/shared/usecase";
 import { NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
-import type { LineaCosteoInput } from "../domain/calcular-cotizacion";
 import { getItemParaCotizar, getUltimaFichaConLineas, insertCotizacion } from "../infrastructure/cotizacion-repository";
 import { getReglaVigente } from "../infrastructure/regla-precio-repository";
-import { CotizacionNoCalculableError, cotizarLineas } from "./cotizar-lineas";
+import { CotizacionNoCalculableError, cotizarLineas, type LineaACostear } from "./cotizar-lineas";
 
 const calcularCotizacionInput = z.object({ itemRecetaId: uuid });
 
@@ -72,10 +71,11 @@ export const calcularCotizacionCommand = defineCommand({
       );
     }
 
-    const lineasInput: LineaCosteoInput[] = ficha.lineas.map((l) => ({
+    const lineasInput: LineaACostear[] = ficha.lineas.map((l) => ({
       drogaId: l.drogaId,
       drogaNombre: l.drogaNombre,
       unidadSimbolo: l.unidadSimbolo,
+      unidad: l.unidad,
       cantidadAPesar: l.cantidadAPesar,
       esEnraseManual: l.esEnraseManual,
       orden: l.orden,

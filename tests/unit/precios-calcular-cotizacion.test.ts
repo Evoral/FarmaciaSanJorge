@@ -26,11 +26,17 @@ const REGLAS_EJEMPLO: ReglasPrecio = {
   ],
 };
 
+const GRAMO = { factorABase: "1", tipoMagnitud: "MASA" };
+const MILIGRAMO = { factorABase: "0.001", tipoMagnitud: "MASA" };
+const MILILITRO = { factorABase: "1", tipoMagnitud: "VOLUMEN" };
+
 function linea(overrides: Partial<LineaCosteoInput>): LineaCosteoInput {
   return {
     drogaId: "droga-1",
     drogaNombre: "Droga 1",
     unidadSimbolo: "g",
+    unidad: GRAMO,
+    unidadStock: GRAMO,
     cantidadAPesar: "10",
     esEnraseManual: false,
     orden: 0,
@@ -211,5 +217,54 @@ describe("calcularCotizacion -- price rules by tramo + floor (2026-10-01)", () =
     expect(primero!.precioFinal.toString()).toBe("120000");
     expect(segundo!.precioFinal.toString()).toBe("120000");
     expect(segundo!.margenAplicado.toString()).toBe("100");
+  });
+});
+
+describe("calcularCotizacion -- units: línea in its magnitud's base, stock in the droga's unidad base", () => {
+  it("converts a línea in g into a droga kept in mg before splitting and costing (950 g -> 950000 mg)", () => {
+    const lineas = [linea({ cantidadAPesar: "950", unidad: GRAMO, unidadStock: MILIGRAMO })];
+    // costoUnitario is per mg (the droga's unidad base).
+    const partidas = [partida({ id: "P1", cantidadDisponible: "1000000", costoUnitario: "0.01" })];
+
+    const resultado = calcularCotizacion(lineas, () => partidas, HOY, margenUnico("0"));
+
+    expect(resultado.detalle.lineas[0]!.partidas).toEqual([{ partidaId: "P1", cantidad: "950000", costoUnitario: "0.01", subtotal: "9500" }]);
+    expect(resultado.detalle.lineas[0]!.cantidadRequerida).toBe("950");
+    expect(resultado.costoInsumos.toString()).toBe("9500");
+    expect(resultado.esIncompleta).toBe(false);
+  });
+
+  it("reports the faltante back in the línea's unit", () => {
+    const lineas = [linea({ cantidadAPesar: "950", unidad: GRAMO, unidadStock: MILIGRAMO })];
+    const partidas = [partida({ id: "P1", cantidadDisponible: "500000", costoUnitario: "0.01" })];
+
+    const resultado = calcularCotizacion(lineas, () => partidas, HOY, margenUnico("0"));
+
+    expect(resultado.esIncompleta).toBe(true);
+    expect(resultado.detalle.lineas[0]!.faltante).toBe("450"); // g
+    expect(resultado.detalle.lineas[0]!.partidas[0]!.cantidad).toBe("500000"); // mg
+  });
+
+  it("calcularCotizacionesAcumuladas subtracts what each item used in the droga's unidad base", () => {
+    const lineas = [linea({ cantidadAPesar: "600", unidad: GRAMO, unidadStock: MILIGRAMO })];
+    const partidas = [partida({ id: "P1", cantidadDisponible: "1000000", costoUnitario: "0.01" })];
+
+    const [primero, segundo] = calcularCotizacionesAcumuladas([lineas, lineas], () => partidas, HOY, margenUnico("0"));
+
+    expect(primero!.esIncompleta).toBe(false);
+    expect(segundo!.esIncompleta).toBe(true);
+    expect(segundo!.detalle.lineas[0]!.faltante).toBe("200"); // 1200 g needed, 1000 g in stock
+  });
+
+  it("a línea that can not be converted (different magnitud) is not costed: 0, esParcial, no invented faltante", () => {
+    const lineas = [linea({ cantidadAPesar: "10", unidad: MILILITRO, unidadStock: GRAMO })];
+    const partidas = [partida({ id: "P1", cantidadDisponible: "1000", costoUnitario: "5" })];
+
+    const resultado = calcularCotizacion(lineas, () => partidas, HOY, margenUnico("0"));
+
+    expect(resultado.costoInsumos.toString()).toBe("0");
+    expect(resultado.esParcial).toBe(true);
+    expect(resultado.esIncompleta).toBe(false);
+    expect(resultado.detalle.lineas[0]!.partidas).toEqual([]);
   });
 });

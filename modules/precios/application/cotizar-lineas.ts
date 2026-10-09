@@ -17,7 +17,7 @@ import { DomainError } from "@/shared/errors";
 import { calcularCotizacion, calcularCotizacionesAcumuladas } from "../domain/calcular-cotizacion";
 import type { CotizacionCalculada, LineaCosteoInput, PartidaCosteo } from "../domain/calcular-cotizacion";
 import type { ReglasPrecio } from "../domain/regla-precio";
-import { getPartidasElegiblesDeDroga, jornadaActualTenant } from "../infrastructure/cotizacion-repository";
+import { getPartidasElegiblesDeDroga, getUnidadesBaseDeDrogas, jornadaActualTenant } from "../infrastructure/cotizacion-repository";
 import { getReglaVigente } from "../infrastructure/regla-precio-repository";
 import type { ReglaVigente } from "../infrastructure/regla-precio-repository";
 
@@ -40,18 +40,30 @@ export class CotizacionNoCalculableError extends DomainError {
   }
 }
 
+/** A ficha línea as the callers know it: in its own unit; the droga's unidad base is loaded here. */
+export type LineaACostear = Omit<LineaCosteoInput, "unidadStock">;
+
+/**
+ * Each línea with its droga's unidad base (`unidadStock`): partidas and their costo unitario are in it, the línea is
+ * in its magnitud's base unit. A droga that is not found keeps the línea's own unit (it has no partidas either).
+ */
+async function conUnidadStock(tx: Prisma.TransactionClient, tenantId: string, lineas: readonly LineaACostear[]): Promise<LineaCosteoInput[]> {
+  const unidades = await getUnidadesBaseDeDrogas(tx, tenantId, [...new Set(lineas.map((l) => l.drogaId))]);
+  return lineas.map((l) => ({ ...l, unidadStock: unidades.get(l.drogaId) ?? l.unidad }));
+}
+
 /** Costs ONE item's `lineas` against the full current stock and prices it with `reglas` (the persisted per-item cotización). */
 export async function cotizarLineas(
   tx: Prisma.TransactionClient,
   tenantId: string,
-  lineas: readonly LineaCosteoInput[],
+  lineas: readonly LineaACostear[],
   reglas: ReglasPrecio,
 ): Promise<CotizacionCalculada> {
   const jornadaActual = await jornadaActualTenant(tx, tenantId);
   const partidas = new Map<string, PartidaCosteo[]>();
   const drogaIds = [...new Set(lineas.filter((l) => !l.esEnraseManual).map((l) => l.drogaId))];
   for (const drogaId of drogaIds) partidas.set(drogaId, await getPartidasElegiblesDeDroga(tx, tenantId, drogaId));
-  return calcularCotizacion(lineas, (drogaId) => partidas.get(drogaId) ?? [], jornadaActual, reglas);
+  return calcularCotizacion(await conUnidadStock(tx, tenantId, lineas), (drogaId) => partidas.get(drogaId) ?? [], jornadaActual, reglas);
 }
 
 /**
@@ -64,12 +76,14 @@ export async function cotizarLineas(
 export async function cotizarItemsAcumulado(
   tx: Prisma.TransactionClient,
   tenantId: string,
-  items: readonly (readonly LineaCosteoInput[])[],
+  items: readonly (readonly LineaACostear[])[],
   reglas: ReglasPrecio,
 ): Promise<CotizacionCalculada[]> {
   const jornadaActual = await jornadaActualTenant(tx, tenantId);
   const partidas = new Map<string, PartidaCosteo[]>();
   const drogaIds = [...new Set(items.flatMap((lineas) => lineas.filter((l) => !l.esEnraseManual).map((l) => l.drogaId)))];
   for (const drogaId of drogaIds) partidas.set(drogaId, await getPartidasElegiblesDeDroga(tx, tenantId, drogaId));
-  return calcularCotizacionesAcumuladas(items, (drogaId) => partidas.get(drogaId) ?? [], jornadaActual, reglas);
+  const itemsConUnidad: LineaCosteoInput[][] = [];
+  for (const lineas of items) itemsConUnidad.push(await conUnidadStock(tx, tenantId, lineas));
+  return calcularCotizacionesAcumuladas(itemsConUnidad, (drogaId) => partidas.get(drogaId) ?? [], jornadaActual, reglas);
 }

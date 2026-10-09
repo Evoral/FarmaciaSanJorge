@@ -26,8 +26,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { defineQuery } from "@/shared/usecase";
 import { DomainError, ValidationError } from "@/shared/errors";
 import { calcularLineasFicha, resolverFormulaBorrador } from "@/modules/elaboracion/application/calcular-lineas-ficha";
-import { cargarReglaPrecioVigente, cotizarItemsAcumulado } from "@/modules/precios/application/cotizar-lineas";
-import type { LineaCosteoInput } from "@/modules/precios/domain/calcular-cotizacion";
+import { cargarReglaPrecioVigente, cotizarItemsAcumulado, type LineaACostear } from "@/modules/precios/application/cotizar-lineas";
 import { MENSAJE_SIN_REGLA_PRECIO, armarPresupuesto, faltantesDeReceta, presupuestoItemDesdeCotizacion } from "../domain/presupuesto";
 import type { Presupuesto, PresupuestoItem } from "../domain/presupuesto";
 import { itemInput } from "./crear-receta";
@@ -50,7 +49,7 @@ export function mensajeNoFatal(error: unknown): string | null {
 }
 
 /** The item's ficha lines, in memory, ready to be costed. */
-async function lineasDelItem(tx: Prisma.TransactionClient, tenantId: string, item: ItemBorrador): Promise<LineaCosteoInput[]> {
+async function lineasDelItem(tx: Prisma.TransactionClient, tenantId: string, item: ItemBorrador): Promise<LineaACostear[]> {
   const formula = await resolverFormulaBorrador(tx, tenantId, {
     formaFarmaceutica: item.formaFarmaceutica,
     cantidadUnidades: item.cantidadUnidades,
@@ -64,6 +63,7 @@ async function lineasDelItem(tx: Prisma.TransactionClient, tenantId: string, ite
     drogaId: l.drogaId,
     drogaNombre: l.drogaNombre,
     unidadSimbolo: l.unidadSimbolo,
+    unidad: { factorABase: String(l.unidadMedida.factorABase), tipoMagnitud: l.unidadMedida.tipoMagnitud },
     cantidadAPesar: l.cantidadAPesar,
     esEnraseManual: l.esEnraseManual,
     orden: l.orden,
@@ -75,7 +75,7 @@ export async function presupuestar(tx: Prisma.TransactionClient, tenantId: strin
   if (!regla) return { ok: false, mensaje: MENSAJE_SIN_REGLA_PRECIO };
 
   // 1. Each item's ficha lines; an item that cannot be computed gets its message.
-  const porItem: ({ ok: true; lineas: LineaCosteoInput[] } | { ok: false; mensaje: string })[] = [];
+  const porItem: ({ ok: true; lineas: LineaACostear[] } | { ok: false; mensaje: string })[] = [];
   for (const item of items) {
     try {
       porItem.push({ ok: true, lineas: await lineasDelItem(tx, tenantId, item) });
