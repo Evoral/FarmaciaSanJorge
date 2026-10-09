@@ -349,7 +349,9 @@ const LEXICO_PRESENTACION: ReadonlyArray<{ patron: RegExp; forma: FormaFarmaceut
   { patron: /^ovulos?$/, forma: "OVULO" },
   { patron: /^supositorios?$/, forma: "SUPOSITORIO" },
 ];
+/** "30 comprimidos", or the reverse order RCTA also prints: "Cápsulas 30" / "Cápsulas: 30" / "Cápsulas x 30". */
 const RE_PRESENTACION = /^(\d+)\s+([a-z]+)$/;
+const RE_PRESENTACION_INVERSA = /^([a-z]+)\s*(?::|\s+x)?\s*(\d+)$/;
 
 const RE_FRACCION = /(^|\s)(media|½|1\/2)\s+dosis(\s|$)/;
 /** "cada N horas/hs" -- also what the consistency check reads the dosing interval from. */
@@ -390,9 +392,11 @@ export function clasificarRenglonCuerpo(texto: string): ClaseRenglon {
   }
 
   const pres = RE_PRESENTACION.exec(normalizado);
-  if (pres) {
-    const forma = LEXICO_PRESENTACION.find((l) => l.patron.test(pres[2]!))?.forma;
-    const cantidadUnidades = Number(pres[1]);
+  const presInversa = pres ? null : RE_PRESENTACION_INVERSA.exec(normalizado);
+  if (pres || presInversa) {
+    const [numero, palabra] = pres ? [pres[1]!, pres[2]!] : [presInversa![2]!, presInversa![1]!];
+    const forma = LEXICO_PRESENTACION.find((l) => l.patron.test(palabra))?.forma;
+    const cantidadUnidades = Number(numero);
     if (forma && cantidadUnidades > 0) return { clase: "presentacion", cantidadUnidades, formaFarmaceutica: forma };
   }
 

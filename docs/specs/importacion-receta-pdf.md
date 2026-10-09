@@ -81,7 +81,7 @@ Cada renglón se clasifica con la primera regla que matchee:
 |---|---|---|
 | Domicilio del paciente | empieza con `- ` inmediatamente después de `Rp./` | Sale del cuerpo sin advertencia y su texto, sin el `- `, precarga `receta.domicilioPaciente` (ej. `- Avellaneda 14 las Heras` → `Avellaneda 14 las Heras`). Solo ese primer renglón: un `- …` más abajo cae en "Otro". |
 | Componente | `^(.+?)\s+(\d+(?:[.,]\d+)?)\s*(mg\|g\|mcg\|µg\|ml\|UI\|%)$` | Componente `POR_DOSIS`, cantidad en es-AR (coma decimal). Si es principio activo no se lee del PDF: lo define la clase de la droga elegida en el catálogo (`DROGA`), al guardar. |
-| Presentación | `^(\d+)\s+(comprimidos?\|c[áa]psulas?\|…)$` | `cantidadUnidades` + `formaFarmaceutica` por léxico. |
+| Presentación | `^(\d+)\s+(comprimidos?\|c[áa]psulas?\|…)$`, o en orden inverso `^(comprimidos?\|c[áa]psulas?\|…)\s*(:\|x)?\s*(\d+)$` («Cápsulas 30») | `cantidadUnidades` + `formaFarmaceutica` por léxico. |
 | Fracción de dosis | contiene `media dosis` / `½ dosis` | `fraccionDosisPorUnidad = 0.5` (convención de `ficha-tecnica.md`, asiento 34147) y se duplican las unidades a elaborar (ver abajo). |
 | Posología | contiene `cada N horas` (u otra indicación de toma) | Renglón literal a `item.posologia`. |
 | Duración | `tratamiento por N d[ií]as` | `item.duracionTratamientoDias = N`. |
