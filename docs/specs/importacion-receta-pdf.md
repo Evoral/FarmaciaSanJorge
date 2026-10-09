@@ -104,7 +104,7 @@ Reglas del ítem:
 - Se guarda **por receta** (`receta.domicilio_paciente`, migración 0070), **no** en el paciente: para un reclamo importa el domicilio a la fecha de la receta. Nunca se usa para el match ni para completar datos del paciente.
 - Opcional, texto libre: se recorta, vacío → `NULL`, máximo 300 caracteres (el parser trunca a ese largo).
 - El formulario lo precarga y el usuario puede corregirlo o borrarlo antes de confirmar. La carga manual y la edición también lo aceptan (campo "Domicilio del paciente", junto al paciente). El detalle de la receta y el puesto de toma de `/preparaciones` lo muestran bajo el paciente.
-- QR (`docs/specs/importacion-receta-qr.md`, "Renglones del cuerpo"): el JSON de RCTA no trae un campo de domicilio; se toma del primer renglón con guion del primer ítem, con la misma normalización (`domicilioDesdeRenglon`, compartida).
+- QR (`docs/specs/importacion-receta-qr.md`, "Renglones del cuerpo"): el JSON de RCTA no trae un campo de domicilio; se toma del primer renglón inicial del primer ítem, **con o sin guion** (el JSON no lo trae), con la misma normalización (`domicilioDesdeRenglon`, compartida).
 
 ### Separación de nombres
 

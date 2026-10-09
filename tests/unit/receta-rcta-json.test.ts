@@ -307,28 +307,35 @@ describe("P43: source data the import does not store", () => {
 
 describe("P44-P45: lines that are not part of the prescription", () => {
   it("P44: unclassifiable lines BEFORE the first component are informational notices with the literal text and never stored", () => {
-    const r = leer(RECETA_REAL);
+    const r = leer(conTexto("Calle Falsa 123 Ciudad\nConsultorio Norte\nMazindol 1,5 mg\n30 cápsulas"));
     expect(clasePorCodigo(r, "RENGLON_INFORMATIVO")).toEqual([
-      { codigo: "RENGLON_INFORMATIVO", mensaje: "Texto al inicio de la receta (informativo, no se guarda): «Calle Falsa 123 Ciudad»", texto: "Calle Falsa 123 Ciudad" },
+      { codigo: "RENGLON_INFORMATIVO", mensaje: "Texto al inicio de la receta (informativo, no se guarda): «Consultorio Norte»", texto: "Consultorio Norte" },
     ]);
+    expect(JSON.stringify(r.borrador.items)).not.toContain("Consultorio Norte");
+  });
+
+  it("the first leading line of the first item is the paciente's domicilio even without a dash, as the real RCTA JSON sends it", () => {
+    const r = leer(RECETA_REAL);
+    expect(r.borrador.domicilioPaciente).toBe("Calle Falsa 123 Ciudad");
+    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO")).toEqual([]);
     expect(JSON.stringify(r.borrador.items)).not.toContain("Calle Falsa");
   });
 
   it("P44: several leading lines each get a notice; the same text on a second item is not repeated", () => {
     const r = leer(receta({
       prescripcion: [
-        { ...ITEM, prescripcion: "Consultorio Norte\nCalle Falsa 123\nMazindol 1,5 mg" },
-        { ...ITEM, prescripcion: "Calle Falsa 123\nIbuprofeno 400 mg" },
+        { ...ITEM, prescripcion: "Calle Falsa 123\nConsultorio Norte\nDr. Perez\nMazindol 1,5 mg" },
+        { ...ITEM, prescripcion: "Dr. Perez\nIbuprofeno 400 mg" },
       ],
     }));
-    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO").map((a) => a.texto)).toEqual(["Consultorio Norte", "Calle Falsa 123"]);
+    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO").map((a) => a.texto)).toEqual(["Consultorio Norte", "Dr. Perez"]);
     expect(r.borrador.items.map((i) => i.componentes[0]!.drogaTexto)).toEqual(["Mazindol", "Ibuprofeno"]);
   });
 
   it("P45: an unclassifiable line AFTER the first component keeps the existing RENGLON_NO_RECONOCIDO warning", () => {
     const r = leer(conTexto("Calle Falsa 123\nMazindol 1,5 mg\nlinea rara del medico\n30 cápsulas"));
     expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO").map((a) => a.texto)).toEqual(["linea rara del medico"]);
-    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO").map((a) => a.texto)).toEqual(["Calle Falsa 123"]);
+    expect(r.borrador.domicilioPaciente).toBe("Calle Falsa 123");
   });
 
   it("without any component nothing is 'leading': every unclassifiable line is a normal warning", () => {
@@ -346,20 +353,20 @@ describe("P44 refinement: a leading line with a dose unit is never dropped", () 
     expect(r.borrador.items[0]!.componentes.map((c) => c.drogaTexto)).toEqual(["Ibuprofeno"]);
   });
 
-  it("an address with digits but no dose unit stays informational", () => {
+  it("an address with digits but no dose unit is not a drug line: it is the domicilio", () => {
     const r = leer(conTexto("Calle Falsa 123 Ciudad\nMazindol 1,5 mg\n30 cápsulas"));
-    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO").map((a) => a.texto)).toEqual(["Calle Falsa 123 Ciudad"]);
+    expect(r.borrador.domicilioPaciente).toBe("Calle Falsa 123 Ciudad");
     expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO")).toEqual([]);
   });
 
   it("decides line by line: the unit-less line is informational and the dose-like one is a warning, in their order", () => {
-    const r = leer(conTexto("Calle Falsa 123\nVitamina D 2000 UI/gota\nMazindol 1,5 mg\n30 cápsulas"));
-    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO").map((a) => a.texto)).toEqual(["Calle Falsa 123"]);
+    const r = leer(conTexto("Calle Falsa 123\nConsultorio Norte\nVitamina D 2000 UI/gota\nMazindol 1,5 mg\n30 cápsulas"));
+    expect(clasePorCodigo(r, "RENGLON_INFORMATIVO").map((a) => a.texto)).toEqual(["Consultorio Norte"]);
     expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO").map((a) => a.texto)).toEqual(["Vitamina D 2000 UI/gota"]);
   });
 
   it("unit tokens are whole words, case-insensitive: 'Magnolia 12' stays informational; '5 ML', '10 %' and '5 µg' are doses", () => {
-    expect(clasePorCodigo(leer(conTexto("Magnolia 12 Ciudad\nMazindol 1,5 mg")), "RENGLON_INFORMATIVO")).toHaveLength(1);
+    expect(leer(conTexto("Magnolia 12 Ciudad\nMazindol 1,5 mg")).borrador.domicilioPaciente).toBe("Magnolia 12 Ciudad");
     for (const linea of ["Jarabe 5 ML cada 8", "Crema 10 % x 30", "Levotiroxina 50 µg/dia"]) {
       const r = leer(conTexto(`${linea}\nMazindol 1,5 mg`));
       expect(clasePorCodigo(r, "RENGLON_INFORMATIVO")).toEqual([]);
@@ -444,8 +451,8 @@ describe("(ítem N) suffix on item-scoped notices", () => {
   it("a single-item receta has no suffix at all (PDF parity), and the deduped leading notice has none either", () => {
     const una = leer(conTexto("Calle Falsa 123\nMazindol 1,5 mg\nrenglon raro\n30 cápsulas", { notas: "x" }));
     expect(una.advertencias.some((a) => a.mensaje.includes("(ítem"))).toBe(false);
-    const r = leer(dos("Calle Falsa 123\nMazindol 1,5 mg\n30 cápsulas", "Calle Falsa 123\nIbuprofeno 400 mg\n20 comprimidos"));
-    expect(mensajes(r, "RENGLON_INFORMATIVO")).toEqual(["Texto al inicio de la receta (informativo, no se guarda): «Calle Falsa 123»"]);
+    const r = leer(dos("Calle Falsa 123\nConsultorio Norte\nMazindol 1,5 mg\n30 cápsulas", "Consultorio Norte\nIbuprofeno 400 mg\n20 comprimidos"));
+    expect(mensajes(r, "RENGLON_INFORMATIVO")).toEqual(["Texto al inicio de la receta (informativo, no se guarda): «Consultorio Norte»"]);
   });
 });
 
@@ -507,7 +514,7 @@ describe("P38-P39: diagnóstico", () => {
 describe("notices are not bounded here (the QR query applies acotarAvisos to the final preview)", () => {
   it("echoes a long leading line, unrecognized line and notas whole, and keeps every notice", () => {
     const largo = "x".repeat(250);
-    const r = leer(conTexto(`${largo}\nMazindol 1,5 mg\n${largo}z\n30 cápsulas`, { notas: largo }));
+    const r = leer(conTexto(`Calle Falsa 123\n${largo}\nMazindol 1,5 mg\n${largo}z\n30 cápsulas`, { notas: largo }));
     expect(clasePorCodigo(r, "RENGLON_INFORMATIVO")[0]!.texto).toBe(largo);
     expect(clasePorCodigo(r, "RENGLON_NO_RECONOCIDO")[0]!.texto).toBe(`${largo}z`);
     expect(clasePorCodigo(r, "DATO_NO_IMPORTADO")[0]!.mensaje).toContain(largo);

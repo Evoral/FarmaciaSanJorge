@@ -16,7 +16,6 @@ import {
   domicilioDesdeRenglon,
   parsearCuerpo,
   parsearFechaDdMmAaaa,
-  RE_GUION_INICIAL,
   RE_TOKEN_UNIDAD_DOSIS,
   separarContactoMedico,
   urlVerificacionRcta,
@@ -194,11 +193,12 @@ const sinViñeta = (linea: string): string => linea.replace(/^-(?:\s+|$)/, "");
  * `cantidad` is ignored (as in the PDF flow). In a multi-item receta every
  * item-scoped notice names its item.
  *
- * Domicilio (PDF parity, migration 0070): when the FIRST item's first line
- * opens with a list dash ("- Avellaneda 14 las Heras") and is one of those
- * informational leading lines, it is the patient's domicilio instead -- no
- * notice; its text joins the dedupe, so a later item repeating it is not
- * shown as "no se guarda". Every other leading line keeps the rule above.
+ * Domicilio (migration 0070): when the FIRST item's first line is one of
+ * those informational leading lines, it is the patient's domicilio instead --
+ * no notice. Unlike the PDF, no list dash is required: the RCTA JSON carries
+ * the domicilio as plain text ("Calle Falsa 123 Ciudad"); a dash, when
+ * present, is stripped. Its text joins the dedupe, so a later item repeating
+ * it is not shown as "no se guarda". Every other leading line keeps the rule above.
  */
 function mapearItem(
   item: ItemRcta,
@@ -221,7 +221,7 @@ function mapearItem(
   let domicilioPaciente: string | null = null;
   lineas.forEach((texto, i) => {
     if (i >= inicio || RE_TOKEN_UNIDAD_DOSIS.test(texto)) return void cuerpo.push(texto);
-    if (numero === 1 && i === 0 && RE_GUION_INICIAL.test(renglones[0]!.linea)) {
+    if (numero === 1 && i === 0) {
       domicilioPaciente = domicilioDesdeRenglon(renglones[0]!.linea);
       avisados.add(texto);
       return;
