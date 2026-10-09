@@ -23,6 +23,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import type { EstadoPreparacion, EstadoReceta, TipoMovimientoContralor } from "@/generated/prisma/enums";
 import { jornadaDe, rangoDeJornadas } from "@/shared/time/jornada";
+import type { UnidadDeConversion } from "@/shared/decimal/convertir-unidad";
 import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
 import type { ModoExpresion } from "@/modules/recetas/domain/receta";
 import type { DatosEtiqueta } from "../domain/etiqueta";
@@ -209,9 +210,17 @@ export interface LineaParaPantalla {
   id: string;
   drogaId: string;
   drogaNombre: string;
-  cantidadAPesar: string | null; // null only for esEnraseManual lines
+  /** In the línea's unit (its magnitud's base unit, e.g. g): active required. `null` only for esEnraseManual lines. */
+  cantidadAPesar: string | null;
   unidadMedidaId: string;
   unidadSimbolo: string;
+  /** The línea's unit, for conversions (`shared/decimal/convertir-unidad.ts`). */
+  unidad: UnidadDeConversion;
+  /**
+   * The droga's unidad base (`droga.unidad_base_id`, e.g. mg): the unit EVERY stock quantity is in (partida saldo,
+   * movimiento_stock, reserva_stock, asiento_contralor). A línea's quantity is converted into it before it touches stock.
+   */
+  unidadStock: UnidadDeConversion & { id: string; simbolo: string };
   esEnraseManual: boolean;
   orden: number;
 }
@@ -228,7 +237,8 @@ export async function getLineasParaPreparacion(tx: Prisma.TransactionClient, ten
       unidadMedidaId: true,
       esEnraseManual: true,
       orden: true,
-      unidadMedida: { select: { simbolo: true } },
+      unidadMedida: { select: { simbolo: true, factorABase: true, tipoMagnitud: true } },
+      droga: { select: { unidadBase: { select: { id: true, simbolo: true, factorABase: true, tipoMagnitud: true } } } },
     },
   });
   return rows.map((r) => ({
@@ -238,6 +248,13 @@ export async function getLineasParaPreparacion(tx: Prisma.TransactionClient, ten
     cantidadAPesar: r.cantidadAPesar ? r.cantidadAPesar.toString() : null,
     unidadMedidaId: r.unidadMedidaId,
     unidadSimbolo: r.unidadMedida.simbolo,
+    unidad: { factorABase: r.unidadMedida.factorABase.toString(), tipoMagnitud: r.unidadMedida.tipoMagnitud },
+    unidadStock: {
+      id: r.droga.unidadBase.id,
+      simbolo: r.droga.unidadBase.simbolo,
+      factorABase: r.droga.unidadBase.factorABase.toString(),
+      tipoMagnitud: r.droga.unidadBase.tipoMagnitud,
+    },
     esEnraseManual: r.esEnraseManual,
     orden: r.orden,
   }));
@@ -247,7 +264,10 @@ export interface PartidaElegible {
   id: string;
   lote: string;
   proveedorNombre: string;
+  /** In the droga's unidad base (`unidadSimbolo`). */
   cantidadDisponible: string;
+  /** Símbolo of the droga's unidad base: the unit of every stock quantity of this partida. */
+  unidadSimbolo: string;
   fechaVencimiento: string | null; // YYYY-MM-DD; null = does not expire (0064)
   fechaApertura: string | null; // ISO instant
   /** Migration 0058: declared purity (percent), `null` = 100%. */
@@ -288,15 +308,18 @@ export async function listPartidasElegiblesDroga(
       lote: string;
       proveedor_nombre: string;
       cantidad_disponible: string;
+      unidad_simbolo: string;
       fecha_vencimiento: string | null;
       fecha_apertura: string | null;
       potencia_declarada: string | null;
     }[]
   >`
     SELECT p.id, p.lote, pr.razon_social AS proveedor_nombre, (p.cantidad_disponible - r.reservado)::text AS cantidad_disponible,
-      p.fecha_vencimiento::text, p.fecha_apertura::text, p.potencia_declarada::text
+      u.simbolo AS unidad_simbolo, p.fecha_vencimiento::text, p.fecha_apertura::text, p.potencia_declarada::text
     FROM fsj.partida p
     JOIN fsj.proveedor pr ON pr.tenant_id = p.tenant_id AND pr.id = p.proveedor_id
+    JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
+    JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
     ${reservadoPorOtrasSql(preparacionPropiaId)}
     WHERE p.tenant_id = ${tenantId}::uuid AND p.droga_id = ${drogaId}::uuid AND p.cantidad_disponible - r.reservado > 0
     ORDER BY p.id ASC
@@ -306,6 +329,7 @@ export async function listPartidasElegiblesDroga(
     lote: r.lote,
     proveedorNombre: r.proveedor_nombre,
     cantidadDisponible: r.cantidad_disponible,
+    unidadSimbolo: r.unidad_simbolo,
     fechaVencimiento: r.fecha_vencimiento,
     fechaApertura: r.fecha_apertura,
     potenciaDeclarada: r.potencia_declarada,
@@ -467,8 +491,9 @@ export async function insertEgresoPreparacion(tx: Prisma.TransactionClient, inpu
 export interface ReservaDePreparacion {
   lineaPesajeId: string;
   partidaId: string;
-  /** Physical, what the split takes from this partida; "0" = chosen but not needed by the split. */
+  /** Physical, in the droga's unidad base (a stock quantity): what the split takes from this partida; "0" = chosen but not needed by the split. */
   cantidad: string;
+  /** Enrase manual: the quantity the user typed, in the LÍNEA's unit (the form's), converted at planning. */
   cantidadManual: string | null;
   motivoAperturaAdicional: string | null;
 }
@@ -1569,7 +1594,7 @@ export interface ReservaDeItemToma {
   partidaId: string;
   drogaNombre: string;
   lote: string;
-  /** Physical, in the línea's unidad. */
+  /** Physical, in the droga's unidad base (`unidadSimbolo`): a stock quantity. */
   cantidad: string;
   unidadSimbolo: string;
 }
@@ -1704,7 +1729,8 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
           FROM fsj.reserva_stock rs
           JOIN fsj.linea_pesaje l ON l.tenant_id = rs.tenant_id AND l.id = rs.linea_pesaje_id
           JOIN fsj.partida p ON p.tenant_id = rs.tenant_id AND p.id = rs.partida_id
-          JOIN fsj.unidad_medida u ON u.id = l.unidad_medida_id
+          JOIN fsj.droga d ON d.tenant_id = rs.tenant_id AND d.id = p.droga_id
+          JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
           WHERE rs.tenant_id = ${tenantId}::uuid AND rs.preparacion_id = ANY(${iniciadaIds}::uuid[]) AND rs.cantidad > 0
           ORDER BY l.orden ASC, p.lote ASC
         `;

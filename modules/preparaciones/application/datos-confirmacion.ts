@@ -18,19 +18,25 @@
  *
  * Stock reserved by OTHER preparaciones INICIADA (migration 0071) is not
  * available here; `preparacionPropiaId`'s own reservas are.
+ *
+ * Units, as in the confirmation: the línea's cantidadAPesar (línea unit,
+ * e.g. g) is converted into the droga's unidad base (e.g. mg) before the
+ * split; the proposal and the partidas' balances are in the droga's unidad
+ * base (`unidadStock.simbolo`), the shortfall in the línea's unit.
  */
 import type { Prisma } from "@/generated/prisma/client";
 import { dec } from "@/shared/decimal";
+import { convertirCantidad, mismaMagnitud } from "@/shared/decimal/convertir-unidad";
 import { proponerRepartoActivo } from "../domain/potencia";
 import { getLineasParaPreparacion, listPartidasElegiblesDroga, jornadaActualTenant, existeCierreParaJornada } from "../infrastructure/preparacion-repository";
 import type { LineaParaPantalla, PartidaElegible } from "../infrastructure/preparacion-repository";
 
 export interface LineaPantalla extends LineaParaPantalla {
   partidasElegibles: PartidaElegible[];
-  /** The system's own default split, `null` for manual-enrase lines (no fixed quantity to split yet) or when stock is insufficient. `cantidad` (PHYSICAL, purity-corrected) is a decimal string: this crosses into a Client Component, which only accepts plain values. */
+  /** The system's own default split, `null` for manual-enrase lines (no fixed quantity to split yet), when stock is insufficient or when the línea's unit can not be converted into the droga's unidad base. `cantidad` (PHYSICAL, purity-corrected, in the droga's unidad base) is a decimal string: this crosses into a Client Component, which only accepts plain values. */
   propuesta: { partidaId: string; cantidad: string }[] | null;
   stockInsuficiente: boolean;
-  /** In ACTIVE terms (same unit as cantidadAPesar). */
+  /** In ACTIVE terms, in the línea's unit (same unit as cantidadAPesar). */
   faltante: string | null;
   /** Only when modifying a reserva (./get-modificacion-de-reserva.ts): what the línea reserves now, to prefill the form. */
   reserva?: LineaReservada | null;
@@ -64,17 +70,21 @@ export async function construirDatosConfirmacion(
   for (const linea of lineasDb) {
     const partidasElegibles = await listPartidasElegiblesDroga(tx, tenantId, linea.drogaId, preparacionPropiaId);
 
-    if (linea.esEnraseManual || !linea.cantidadAPesar) {
+    // A línea whose unit can not be converted into the droga's unidad base gets no proposal: the confirmation
+    // refuses it with its own message.
+    if (linea.esEnraseManual || !linea.cantidadAPesar || !mismaMagnitud(linea.unidad, linea.unidadStock)) {
       lineas.push({ ...linea, partidasElegibles, propuesta: null, stockInsuficiente: false, faltante: null });
       continue;
     }
 
-    const resultado = proponerRepartoActivo(partidasElegibles, dec(linea.cantidadAPesar), jornada);
+    const requeridaStock = convertirCantidad(dec(linea.cantidadAPesar), linea.unidad, linea.unidadStock);
+    const resultado = proponerRepartoActivo(partidasElegibles, requeridaStock, jornada);
 
     if (resultado.ok) {
       lineas.push({ ...linea, partidasElegibles, propuesta: resultado.lineas.map((p) => ({ partidaId: p.partidaId, cantidad: p.cantidad.toString() })), stockInsuficiente: false, faltante: null });
     } else {
-      lineas.push({ ...linea, partidasElegibles, propuesta: null, stockInsuficiente: true, faltante: resultado.faltante.toString() });
+      const faltante = convertirCantidad(resultado.faltante, linea.unidadStock, linea.unidad);
+      lineas.push({ ...linea, partidasElegibles, propuesta: null, stockInsuficiente: true, faltante: faltante.toFixed() });
     }
   }
 

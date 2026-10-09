@@ -217,7 +217,8 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                         </span>
                         <span className="tabular-nums">
                           <span className="text-zinc-500">Disponible </span>
-                          <span className="font-mono text-zinc-900">{formatNumero(partida.cantidadDisponible)}</span>
+                          <span className="font-mono text-zinc-900">{formatNumero(partida.cantidadDisponible)}</span>{" "}
+                          <span className="text-zinc-500">{linea.unidadStock.simbolo}</span>
                         </span>
                         <span className="tabular-nums">
                           <span className="text-zinc-500">Vence </span>
@@ -227,7 +228,11 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                       <span className="flex flex-none flex-wrap justify-end gap-1.5">
                         {partida.fechaApertura ? <ToneBadge tone="neutral">Abierta</ToneBadge> : null}
                         {partida.potenciaDeclarada && !linea.esEnraseManual ? <ToneBadge tone="neutral">Pureza {formatNumero(partida.potenciaDeclarada)} %</ToneBadge> : null}
-                        {propuesta ? <ToneBadge tone="success">Propuesto: {propuesta.cantidad.toString()}</ToneBadge> : null}
+                        {propuesta ? (
+                          <ToneBadge tone="success">
+                            Propuesto: {propuesta.cantidad.toString()} {linea.unidadStock.simbolo}
+                          </ToneBadge>
+                        ) : null}
                       </span>
                     </label>
                   );

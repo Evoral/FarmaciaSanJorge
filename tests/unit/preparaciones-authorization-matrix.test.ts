@@ -52,7 +52,7 @@ vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => (
   updateRecetaEstado: vi.fn(async () => undefined),
   todosLosItemsConfirmados: vi.fn(async () => false),
   getLineasParaPreparacion: vi.fn(async () => [
-    { id: LINEA_ID, drogaId: "droga-1", drogaNombre: "Droga", cantidadAPesar: "10", unidadMedidaId: "u1", unidadSimbolo: "g", esEnraseManual: false, orden: 0 },
+    { id: LINEA_ID, drogaId: "droga-1", drogaNombre: "Droga", cantidadAPesar: "10", unidadMedidaId: "u1", unidadSimbolo: "g", unidad: { factorABase: "1", tipoMagnitud: "MASA" }, unidadStock: { id: "u1", simbolo: "g", factorABase: "1", tipoMagnitud: "MASA" }, esEnraseManual: false, orden: 0 },
   ]),
   listPartidasElegiblesDroga: vi.fn(async () => [{ id: PARTIDA_ID, lote: "L1", cantidadDisponible: "100", fechaVencimiento: "2099-12-31", fechaApertura: null }]),
   getRecetaContextoAsiento: vi.fn(async () => ({
@@ -103,14 +103,14 @@ vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => (
   getEtiquetaParaImprimir: vi.fn(async () => ({ id: ETIQUETA_ID, preparacionId: PREPARACION_ID, contenido: "x", generadaEn: new Date(), impresa: false })),
   marcarEtiquetaImpresa: vi.fn(async () => undefined),
   listPreparaciones: vi.fn(async () => ({ items: [], total: 0, zonaHoraria: "UTC" })),
-  listPendientesDePreparacion: vi.fn(async () => ({ items: [], total: 0, zonaHoraria: "UTC" })),
+  listRecetasPendientes: vi.fn(async () => ({ items: [], total: 0, zonaHoraria: "UTC" })),
 }));
 
 await import("@/modules/preparaciones/application/iniciar-preparacion");
 await import("@/modules/preparaciones/application/descartar-preparacion");
 await import("@/modules/preparaciones/application/confirmar-preparacion");
 await import("@/modules/preparaciones/application/list-preparaciones");
-await import("@/modules/preparaciones/application/list-pendientes-de-preparacion");
+await import("@/modules/preparaciones/application/list-recetas-pendientes");
 await import("@/modules/preparaciones/application/get-preparacion-para-pantalla");
 await import("@/modules/preparaciones/application/generar-etiqueta");
 await import("@/modules/preparaciones/application/get-etiqueta-para-imprimir");

@@ -26,8 +26,11 @@ export interface PartidaParaPesar {
   proveedorNombre: string;
   /** Percent; `null` = not declared (100%). */
   potenciaDeclarada: string | null;
+  /** In the droga's unidad base (`unidadSimbolo`), NOT the línea's unit. */
   cantidadDisponible: string;
-  /** PHYSICAL weight of THIS partida for the whole línea: cantidadAPesar x 100 / potencia. */
+  /** Símbolo of the droga's unidad base. */
+  unidadSimbolo: string;
+  /** PHYSICAL weight of THIS partida for the whole línea, in the LÍNEA's unit: cantidadAPesar x 100 / potencia. */
   cantidadAPesar: string;
 }
 
@@ -68,6 +71,7 @@ export function partidasDeLinea(partidasPorDroga: PartidasPorDroga, linea: Linea
     proveedorNombre: p.proveedorNombre,
     potenciaDeclarada: p.potenciaDeclarada,
     cantidadDisponible: p.cantidadDisponible,
+    unidadSimbolo: p.unidadSimbolo,
     cantidadAPesar: fisicoParaActivo(activo, p.potenciaDeclarada).toString(),
   }));
 }

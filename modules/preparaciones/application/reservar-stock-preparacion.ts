@@ -96,7 +96,8 @@ export const reservarStockPreparacionCommand = defineCommand({
 
 /**
  * The `reserva_stock` rows of a validated plan: every CHOSEN partida keeps a row (the confirmation re-validates the same
- * choice), with what the split takes from it (0 when the split does not need it). Also used by `modificarReservaStock`.
+ * choice), with what the split takes from it (0 when the split does not need it) in the droga's unidad base, and the
+ * línea's typed cantidadManual as typed (línea unit). Also used by `modificarReservaStock`.
  */
 export function reservasDelPlan(plan: readonly LineaPlanificada[]): ReservaDePreparacion[] {
   return plan.flatMap(({ linea, elegido, split }) =>
@@ -110,13 +111,13 @@ export function reservasDelPlan(plan: readonly LineaPlanificada[]): ReservaDePre
   );
 }
 
-/** What the audit records of a reserva: droga, lote and quantity of every partida the split draws from. */
+/** What the audit records of a reserva: droga, lote and quantity of every partida the split draws from (a stock quantity: the droga's unidad base). */
 export function resumenDelPlan(plan: readonly LineaPlanificada[]): { droga: string; lote: string; cantidad: string }[] {
   return plan.flatMap(({ linea, split, partidas }) =>
     split.map((parte) => ({
       droga: linea.drogaNombre,
       lote: partidas.find((p) => p.id === parte.partidaId)?.lote ?? parte.partidaId,
-      cantidad: `${parte.cantidad.toString()} ${linea.unidadSimbolo}`,
+      cantidad: `${parte.cantidad.toString()} ${linea.unidadStock.simbolo}`,
     })),
   );
 }

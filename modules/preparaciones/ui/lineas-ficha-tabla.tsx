@@ -91,7 +91,7 @@ function PartidasDeLinea({ linea }: { linea: LineaDeFichaToma }) {
         {partidas.map((p, i) => (
           <span key={p.id}>
             {i > 0 ? " · " : null}
-            <span className="font-mono text-zinc-700">{p.lote}</span> ({formatNumero(p.cantidadDisponible)} {linea.unidadSimbolo} disp.)
+            <span className="font-mono text-zinc-700">{p.lote}</span> ({formatNumero(p.cantidadDisponible)} {p.unidadSimbolo} disp.)
           </span>
         ))}
       </p>
@@ -116,7 +116,7 @@ function PartidasDeLinea({ linea }: { linea: LineaDeFichaToma }) {
             <span className="tabular-nums">
               <span className="text-zinc-500">Disp. </span>
               <span className="font-mono text-zinc-900">
-                {formatNumero(p.cantidadDisponible)} {linea.unidadSimbolo}
+                {formatNumero(p.cantidadDisponible)} {p.unidadSimbolo}
               </span>
             </span>
             <span className="tabular-nums sm:text-right">

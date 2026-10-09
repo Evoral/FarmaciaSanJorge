@@ -119,7 +119,7 @@ const existeCierreParaJornadaMock = vi.fn(async (...args: unknown[]) => {
 const getLineasParaPreparacionMock = vi.fn(async (...args: unknown[]) => {
   void args;
   return [
-    { id: LINEA_ID, drogaId: "droga-1", drogaNombre: "Droga X", cantidadAPesar: "10", unidadMedidaId: "u1", unidadSimbolo: "g", esEnraseManual: false, orden: 0 },
+    { id: LINEA_ID, drogaId: "droga-1", drogaNombre: "Droga X", cantidadAPesar: "10", unidadMedidaId: "u1", unidadSimbolo: "g", unidad: { factorABase: "1", tipoMagnitud: "MASA" }, unidadStock: { id: "u1", simbolo: "g", factorABase: "1", tipoMagnitud: "MASA" }, esEnraseManual: false, orden: 0 },
   ];
 });
 const listPartidasElegiblesDrogaMock = vi.fn(async (...args: unknown[]) => {
@@ -194,6 +194,7 @@ vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => (
   insertAsientoRecetario: (...args: unknown[]) => insertAsientoRecetarioMock(...args),
   insertAsientoContralorEgreso: (...args: unknown[]) => insertAsientoContralorEgresoMock(...args),
   getRecetaContextoAsiento: (...args: unknown[]) => getRecetaContextoAsientoMock(...args),
+  deleteReservasDePreparacion: vi.fn(async () => 0), getTomaDeReceta: vi.fn(async () => null), setTomaDeReceta: vi.fn(async () => undefined),
 }));
 
 const { iniciarPreparacionCommand } = await import("@/modules/preparaciones/application/iniciar-preparacion");
@@ -233,7 +234,7 @@ beforeEach(() => {
   getMesesVencimientoPreparadoMock.mockResolvedValue(3);
   existeCierreParaJornadaMock.mockResolvedValue(false);
   getLineasParaPreparacionMock.mockResolvedValue([
-    { id: LINEA_ID, drogaId: "droga-1", drogaNombre: "Droga X", cantidadAPesar: "10", unidadMedidaId: "u1", unidadSimbolo: "g", esEnraseManual: false, orden: 0 },
+    { id: LINEA_ID, drogaId: "droga-1", drogaNombre: "Droga X", cantidadAPesar: "10", unidadMedidaId: "u1", unidadSimbolo: "g", unidad: { factorABase: "1", tipoMagnitud: "MASA" }, unidadStock: { id: "u1", simbolo: "g", factorABase: "1", tipoMagnitud: "MASA" }, esEnraseManual: false, orden: 0 },
   ]);
   listPartidasElegiblesDrogaMock.mockResolvedValue([{ id: PARTIDA_ID, lote: "L1", cantidadDisponible: "100", fechaVencimiento: "2099-12-31", fechaApertura: null }]);
   lockPartidasParaConfirmacionMock.mockImplementation(async () => {
@@ -394,3 +395,4 @@ describe("confirmar-preparacion: lock ordering (preparación, then partidas)", (
     expect(message.toLowerCase()).toContain("vencida"); // the Spanish mapping for INV-S10
   });
 });
+

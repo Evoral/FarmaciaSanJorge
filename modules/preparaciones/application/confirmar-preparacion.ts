@@ -36,7 +36,14 @@
  *         the active ingredient required, each partida contributes
  *         physical x potencia / 100, stock moves in PHYSICAL units and each
  *         movimiento records `potencia_aplicada`; manual-enrase líneas get
- *         no purity correction),
+ *         no purity correction). UNITS: the línea's quantity (cantidadAPesar,
+ *         or the typed cantidadManual) is in the línea's unit (its magnitud's
+ *         base, e.g. g); stock is in the droga's unidad base (e.g. mg). The
+ *         required amount is converted into the droga's unidad base BEFORE
+ *         the split, so every stock quantity (split, reserva_stock,
+ *         movimiento_stock, asiento_contralor, the stock checks) is in the
+ *         droga's unidad base, while the libro recetario (detalle + fórmula)
+ *         and the "faltan X" message stay in the línea's unit,
  *         reject an expired chosen partida or insufficient stock with a
  *         clear message, detect INV-S15 deviation + INV-S18's
  *         motivo-required case, then INSERT one `EGRESO_PREPARACION` per
@@ -91,6 +98,7 @@ import { AUTH_POLICY } from "@/shared/auth/policy";
 import { DomainError, NotFoundError, InvariantViolationError, mapDbError } from "@/shared/errors";
 import { uuid, nonEmptyString, decimalString } from "@/shared/validation";
 import { dec, Decimal } from "@/shared/decimal";
+import { convertirCantidad, mismaMagnitud } from "@/shared/decimal/convertir-unidad";
 import { proponerReparto, type PartidaDisponible } from "@/modules/stock/domain/reparto";
 import { proponerRepartoActivo, tieneCorreccion, type PartidaConPotencia, type RepartoActivoLinea } from "../domain/potencia";
 import {
@@ -274,8 +282,8 @@ export async function confirmarPreparacionEnTx(
         }
       }
 
-      // The libro records the REAL weighed (physical) amount: equal to
-      // cantidadRequerida unless a partida's purity corrected it.
+      // The libro records the REAL weighed (physical) amount, in the línea's
+      // unit: equal to cantidadRequerida unless a partida's purity corrected it.
       detalles.push({
         lineaPesajeId: linea.id,
         descripcion: linea.drogaNombre,
@@ -388,11 +396,13 @@ export function comoErrorDeDominio(e: unknown): Error {
 export interface LineaPlanificada {
   linea: LineaParaPantalla;
   elegido: LineaConfirmacion;
-  /** Manual enrase: the typed (physical) quantity; otherwise the ficha's frozen cantidadAPesar (active). */
+  /** In the LÍNEA's unit (`linea.unidadSimbolo`). Manual enrase: the typed (physical) quantity; otherwise the ficha's frozen cantidadAPesar (active). What the fórmula text records. */
   cantidadRequerida: Decimal;
-  /** The system-computed split over the chosen partidas: PHYSICAL `cantidad` per partida; `potenciaAplicada` null = no purity correction (manual enrase). */
+  /** `cantidadRequerida` in the droga's unidad base (`linea.unidadStock`): what the split covers. */
+  cantidadRequeridaStock: Decimal;
+  /** The system-computed split over the chosen partidas: PHYSICAL `cantidad` per partida, in the droga's unidad base (a stock quantity); `potenciaAplicada` null = no purity correction (manual enrase). */
   split: readonly { partidaId: string; cantidad: Decimal; potenciaAplicada: Decimal | null }[];
-  /** What the split weighs in total (physical): what the libro records. */
+  /** What the split weighs in total (physical), converted back to the LÍNEA's unit: what the libro's detalle records. */
   totalFisico: Decimal;
   /** INV-S15: the choice differs from the system's own proposal. */
   esDesvio: boolean;
@@ -465,6 +475,17 @@ export async function planificarConsumoEnTx(
       cantidadRequerida = dec(linea.cantidadAPesar);
     }
 
+    // Stock is in the droga's unidad base, the línea in its magnitud's base unit:
+    // convert the requirement once here; everything below that touches stock
+    // works in the droga's unidad base.
+    if (!mismaMagnitud(linea.unidad, linea.unidadStock)) {
+      throw new DomainError(
+        `La línea ${linea.orden + 1} (${linea.drogaNombre}) está en ${linea.unidadSimbolo} y el stock de la droga se lleva en ${linea.unidadStock.simbolo}: son magnitudes distintas y no se pueden convertir.`,
+      );
+    }
+    const aUnidadLinea = (cantidad: Decimal) => convertirCantidad(cantidad, linea.unidadStock, linea.unidad);
+    const cantidadRequeridaStock = convertirCantidad(cantidadRequerida, linea.unidad, linea.unidadStock);
+
     const elegidasFrescas = elegido.partidaIds.map((id) => {
       const p = partidaPorId.get(id);
       if (!p) throw new NotFoundError(`Partida no encontrada: ${id}.`);
@@ -484,13 +505,14 @@ export async function planificarConsumoEnTx(
     // physical, no purity correction (potenciaAplicada stays NULL).
     const repartir = (partidas: readonly PartidaConPotencia[]) =>
       linea.esEnraseManual
-        ? repartoSinCorreccion(partidas, cantidadRequerida, jornada)
-        : proponerRepartoActivo(partidas, cantidadRequerida, jornada);
+        ? repartoSinCorreccion(partidas, cantidadRequeridaStock, jornada)
+        : proponerRepartoActivo(partidas, cantidadRequeridaStock, jornada);
 
     const resultado = repartir(elegidasFrescas);
     if (!resultado.ok) {
+      // The shortfall comes in the droga's unidad base: shown in the línea's unit, the one the user reads.
       throw new DomainError(
-        `Stock insuficiente de ${linea.drogaNombre} en las partidas elegidas: faltan ${resultado.faltante.toString()} ${linea.unidadSimbolo}${
+        `Stock insuficiente de ${linea.drogaNombre} en las partidas elegidas: faltan ${aUnidadLinea(resultado.faltante).toFixed()} ${linea.unidadSimbolo}${
           !linea.esEnraseManual && elegidasFrescas.some((p) => tieneCorreccion(p.potenciaDeclarada)) ? " de principio activo" : ""
         }.`,
       );
@@ -510,13 +532,22 @@ export async function planificarConsumoEnTx(
       potenciaDeclarada: linea.esEnraseManual ? null : p.potenciaDeclarada,
       elegida: elegido.partidaIds.includes(p.id),
     }));
-    if (requiereMotivoAperturaAdicional(partidasConEstado, cantidadRequerida, jornada) && !elegido.motivoAperturaAdicional) {
+    if (requiereMotivoAperturaAdicional(partidasConEstado, cantidadRequeridaStock, jornada) && !elegido.motivoAperturaAdicional) {
       throw new DomainError(
         `La línea ${linea.orden + 1} (${linea.drogaNombre}) abre una partida nueva mientras hay otra ya abierta con saldo suficiente: indicá el motivo.`,
       );
     }
 
-    plan.push({ linea, elegido, cantidadRequerida, split: resultado.lineas, totalFisico: resultado.totalFisico, esDesvio, partidas: elegidasFrescas });
+    plan.push({
+      linea,
+      elegido,
+      cantidadRequerida,
+      cantidadRequeridaStock,
+      split: resultado.lineas,
+      totalFisico: aUnidadLinea(resultado.totalFisico),
+      esDesvio,
+      partidas: elegidasFrescas,
+    });
   }
   return plan;
 }

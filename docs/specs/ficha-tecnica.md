@@ -111,7 +111,7 @@ CSP        cantidad suficiente para completar cantidadTotal ("vaselina csp 30")
 **Impacto en invariantes previos del plan:**
 
 - **INV-R04** pasa a ser: `cantidadAPesar > 0` si la línea no es manual; `cantidadAPesar` y `cantidadTeorica` nulas si es manual. Ambas congeladas al generarse.
-- **INV-S12** pasa a ser: el consumo de una línea no manual es exactamente `cantidadAPesar`; el de una línea manual es la cantidad registrada al confirmar (> 0).
+- **INV-S12** pasa a ser: el consumo de una línea no manual es exactamente `cantidadAPesar`; el de una línea manual es la cantidad registrada al confirmar (> 0). The consumption (`movimiento_stock`) is in the droga's unidad base, `cantidadAPesar` in the línea's unit: they are compared after converting (migration 0073; `docs/specs/reserva-stock-preparacion.md` R12).
 
 ## Casos de prueba (deben pasar exactos)
 
