@@ -180,7 +180,7 @@ describe("recetas.importar.leerQr -- preview and duplicate (P48-P50)", () => {
     expect(vista.borrador.paciente.nombre).toBeNull();
     expect(vista.paciente.existente).toBeNull();
     expect(vista.advertencias.map((a) => a.codigo)).toContain("DATO_FALTANTE");
-    expect(vista.componentes[0]).toEqual([{ drogaId: DROGA_ID, drogaNombre: "Cafeína", via: "NOMBRE", unidadMedidaId: UNIDAD_ID }]);
+    expect(vista.componentes[0]).toEqual([{ drogaId: DROGA_ID, drogaNombre: "Cafeína", via: "NOMBRE", unidadMedidaId: UNIDAD_ID, drogaAliasId: null, sinonimo: null }]);
     expect(repo.buscarRecetaImportada).toHaveBeenCalledWith(expect.anything(), TENANT_ID, "RCTA", "1234567890123");
   });
 

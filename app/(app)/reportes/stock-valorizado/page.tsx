@@ -93,7 +93,6 @@ export default async function StockValorizadoPage({ searchParams }: StockValoriz
   }
 
   const subtotalPorDroga = new Map(result.subtotales.map((s) => [s.drogaId, s.valorSubtotal]));
-  let drogaAnterior: string | null = null;
 
   const chips: { key: FilterParam; label: string; value?: string }[] = [];
   if (params.search) chips.push({ key: "search", label: "Droga", value: params.search });
@@ -234,12 +233,12 @@ export default async function StockValorizadoPage({ searchParams }: StockValoriz
                   </tr>
                 </thead>
                 <tbody>
-                  {result.items.map((item) => {
+                  {result.items.map((item, index, arr) => {
                     const filas = [];
-                    if (drogaAnterior !== null && drogaAnterior !== item.drogaId) {
-                      filas.push(<FilaTotal key={`subtotal-${drogaAnterior}`} etiqueta="Subtotal" monto={subtotalPorDroga.get(drogaAnterior) ?? "0"} />);
+                    const prevItem = index > 0 ? arr[index - 1] : null;
+                    if (prevItem !== null && prevItem.drogaId !== item.drogaId) {
+                      filas.push(<FilaTotal key={`subtotal-${prevItem.drogaId}`} etiqueta="Subtotal" monto={subtotalPorDroga.get(prevItem.drogaId) ?? "0"} />);
                     }
-                    drogaAnterior = item.drogaId;
                     filas.push(
                       <tr key={item.partidaId}>
                         <td className="px-3 py-2.5">
@@ -267,7 +266,7 @@ export default async function StockValorizadoPage({ searchParams }: StockValoriz
                   })}
                 </tbody>
                 <tfoot>
-                  {drogaAnterior ? <FilaTotal etiqueta="Subtotal" monto={subtotalPorDroga.get(drogaAnterior) ?? "0"} /> : null}
+                  {result.items.length > 0 ? <FilaTotal etiqueta="Subtotal" monto={subtotalPorDroga.get(result.items[result.items.length - 1]!.drogaId) ?? "0"} /> : null}
                   <FilaTotal etiqueta="Total general" monto={result.granTotal} fuerte />
                 </tfoot>
               </table>

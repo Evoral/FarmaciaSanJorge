@@ -30,7 +30,7 @@ function componente(overrides: Partial<ComponenteInput> = {}): ComponenteInput {
     cantidad: "5",
     unidadMedidaId: "22222222-2222-4222-a222-222222222222",
     modoExpresion: "TOTAL",
-    esPrincipioActivo: true,
+    
     ...overrides,
   };
 }
@@ -78,19 +78,7 @@ describe("validarItemsReceta -- V2 (mas de un CSP)", () => {
   });
 });
 
-describe("validarItemsReceta -- V3 (CSP debe ser el ultimo)", () => {
-  it("rejects a CSP componente that is NOT last in the list", () => {
-    const csp = componente({ modoExpresion: "CSP", cantidad: null });
-    const total = componente({ modoExpresion: "TOTAL", cantidad: "5" });
-    expect(() => validarItemsReceta([item({ formaFarmaceutica: "CAPSULA" }, [csp, total])])).toThrow(expect.objectContaining({ regla: "V3" }));
-  });
 
-  it("accepts a CSP componente that IS last", () => {
-    const total = componente({ modoExpresion: "TOTAL", cantidad: "5" });
-    const csp = componente({ modoExpresion: "CSP", cantidad: null });
-    expect(() => validarItemsReceta([item({ formaFarmaceutica: "CAPSULA" }, [total, csp])])).not.toThrow();
-  });
-});
 
 describe("validarItemsReceta -- V4 (CSP en forma no capsular requiere total)", () => {
   it("rejects a CSP on a non-capsular form with no cantidadTotal/unidadTotalId", () => {

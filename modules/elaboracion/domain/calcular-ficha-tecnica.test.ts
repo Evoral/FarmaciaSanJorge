@@ -32,8 +32,8 @@ function componente(overrides: Partial<ComponenteInput>): ComponenteInput {
     cantidad: null,
     unidadMedida: GRAMO,
     modoExpresion: "CS",
-    esPrincipioActivo: false,
-    orden: 0,
+    
+    
     ...overrides,
   };
 }
@@ -54,8 +54,8 @@ describe("calcularFichaTecnica -- spec test cases (docs/specs/ficha-tecnica.md)"
     const lineas = calcularFichaTecnica(
       item({ formaFarmaceutica: "CREMA", cantidadTotal: 30, unidadTotal: GRAMO, cantidadUnidades: 1 }),
       [
-        componente({ drogaId: "acido-salicilico", cantidad: 3, unidadMedida: GRAMO, modoExpresion: "TOTAL", esPrincipioActivo: true, orden: 0 }),
-        componente({ drogaId: "vaselina-solida", unidadMedida: GRAMO, modoExpresion: "CSP", orden: 1 }),
+        componente({ drogaId: "acido-salicilico", cantidad: 3, unidadMedida: GRAMO, modoExpresion: "TOTAL", }),
+        componente({ drogaId: "vaselina-solida", unidadMedida: GRAMO, modoExpresion: "CSP", }),
       ],
       SIN_EXCESO,
       UNIDADES_BASE,
@@ -72,8 +72,8 @@ describe("calcularFichaTecnica -- spec test cases (docs/specs/ficha-tecnica.md)"
     const lineas = calcularFichaTecnica(
       item({ formaFarmaceutica: "CREMA", cantidadTotal: 30, unidadTotal: GRAMO }),
       [
-        componente({ drogaId: "hidroquinona", cantidad: 1.2, unidadMedida: GRAMO, modoExpresion: "TOTAL", orden: 0 }),
-        componente({ drogaId: "crema-base", unidadMedida: GRAMO, modoExpresion: "CSP", orden: 1 }),
+        componente({ drogaId: "hidroquinona", cantidad: 1.2, unidadMedida: GRAMO, modoExpresion: "TOTAL", }),
+        componente({ drogaId: "crema-base", unidadMedida: GRAMO, modoExpresion: "CSP", }),
       ],
       SIN_EXCESO,
       UNIDADES_BASE,
@@ -87,8 +87,8 @@ describe("calcularFichaTecnica -- spec test cases (docs/specs/ficha-tecnica.md)"
     const lineas = calcularFichaTecnica(
       item({ formaFarmaceutica: "CAPSULA", cantidadTotal: null, unidadTotal: null, cantidadUnidades: 30, fraccionDosisPorUnidad: 0.5 }),
       [
-        componente({ drogaId: "mazindol", cantidad: 3, unidadMedida: MILIGRAMO, modoExpresion: "POR_DOSIS", esPrincipioActivo: true, orden: 0 }),
-        componente({ drogaId: "ludipress", unidadMedida: GRAMO, modoExpresion: "CSP", orden: 1 }),
+        componente({ drogaId: "mazindol", cantidad: 3, unidadMedida: MILIGRAMO, modoExpresion: "POR_DOSIS", }),
+        componente({ drogaId: "ludipress", unidadMedida: GRAMO, modoExpresion: "CSP", }),
       ],
       SIN_EXCESO,
       UNIDADES_BASE,
@@ -105,9 +105,9 @@ describe("calcularFichaTecnica -- spec test cases (docs/specs/ficha-tecnica.md)"
     const lineas = calcularFichaTecnica(
       item({ formaFarmaceutica: "JARABE", cantidadTotal: 120, unidadTotal: MILILITRO, cantidadUnidades: 1 }),
       [
-        componente({ drogaId: "sulfato-zinc", cantidad: 1200, unidadMedida: MILIGRAMO, modoExpresion: "TOTAL", esPrincipioActivo: true, orden: 0 }),
-        componente({ drogaId: "jarabe-simple", unidadMedida: MILILITRO, modoExpresion: "CS", orden: 1 }),
-        componente({ drogaId: "sorbitol", unidadMedida: MILILITRO, modoExpresion: "CSP", orden: 2 }),
+        componente({ drogaId: "sulfato-zinc", cantidad: 1200, unidadMedida: MILIGRAMO, modoExpresion: "TOTAL", }),
+        componente({ drogaId: "jarabe-simple", unidadMedida: MILILITRO, modoExpresion: "CS", }),
+        componente({ drogaId: "sorbitol", unidadMedida: MILILITRO, modoExpresion: "CSP", }),
       ],
       SIN_EXCESO,
       UNIDADES_BASE,
@@ -121,7 +121,7 @@ describe("calcularFichaTecnica -- spec test cases (docs/specs/ficha-tecnica.md)"
   it("T5 -- conversion: TOTAL 1200 miligramo -> 1.200 gramo", () => {
     const lineas = calcularFichaTecnica(
       item({ cantidadTotal: null, unidadTotal: null }),
-      [componente({ cantidad: 1200, unidadMedida: MILIGRAMO, modoExpresion: "TOTAL", orden: 0 })],
+      [componente({ cantidad: 1200, unidadMedida: MILIGRAMO, modoExpresion: "TOTAL", })],
       SIN_EXCESO,
       UNIDADES_BASE,
     );
@@ -133,7 +133,7 @@ describe("calcularFichaTecnica -- spec test cases (docs/specs/ficha-tecnica.md)"
   it("T6 -- exceso y redondeo: exceso 5%, precision 0.01, TOTAL 1.234 g -> teorica 1.234, con exceso 1.2957, a pesar 1.30", () => {
     const lineas = calcularFichaTecnica(
       item({ cantidadTotal: null, unidadTotal: null }),
-      [componente({ cantidad: 1.234, unidadMedida: GRAMO, modoExpresion: "TOTAL", orden: 0 })],
+      [componente({ cantidad: 1.234, unidadMedida: GRAMO, modoExpresion: "TOTAL", })],
       { precisionBalanza: 0.01, excesoPesadaPorcentaje: 5 },
       UNIDADES_BASE,
     );
@@ -147,8 +147,8 @@ describe("calcularFichaTecnica -- spec test cases (docs/specs/ficha-tecnica.md)"
       calcularFichaTecnica(
         item({ cantidadTotal: 30, unidadTotal: GRAMO }),
         [
-          componente({ cantidad: 31, unidadMedida: GRAMO, modoExpresion: "TOTAL", orden: 0 }),
-          componente({ unidadMedida: GRAMO, modoExpresion: "CSP", orden: 1 }),
+          componente({ cantidad: 31, unidadMedida: GRAMO, modoExpresion: "TOTAL", }),
+          componente({ unidadMedida: GRAMO, modoExpresion: "CSP", }),
         ],
         SIN_EXCESO,
         UNIDADES_BASE,
@@ -159,8 +159,8 @@ describe("calcularFichaTecnica -- spec test cases (docs/specs/ficha-tecnica.md)"
       calcularFichaTecnica(
         item({ cantidadTotal: 30, unidadTotal: GRAMO }),
         [
-          componente({ cantidad: 31, unidadMedida: GRAMO, modoExpresion: "TOTAL", orden: 0 }),
-          componente({ unidadMedida: GRAMO, modoExpresion: "CSP", orden: 1 }),
+          componente({ cantidad: 31, unidadMedida: GRAMO, modoExpresion: "TOTAL", }),
+          componente({ unidadMedida: GRAMO, modoExpresion: "CSP", }),
         ],
         SIN_EXCESO,
         UNIDADES_BASE,
@@ -177,8 +177,8 @@ describe("calcularFichaTecnica -- spec test cases (docs/specs/ficha-tecnica.md)"
       calcularFichaTecnica(
         item({ cantidadTotal: 30, unidadTotal: GRAMO }),
         [
-          componente({ unidadMedida: GRAMO, modoExpresion: "CSP", orden: 0 }),
-          componente({ unidadMedida: GRAMO, modoExpresion: "CSP", orden: 1 }),
+          componente({ unidadMedida: GRAMO, modoExpresion: "CSP", }),
+          componente({ unidadMedida: GRAMO, modoExpresion: "CSP", }),
         ],
         SIN_EXCESO,
         UNIDADES_BASE,
@@ -196,28 +196,11 @@ describe("calcularFichaTecnica -- validations V1-V9 (one case each, beyond T7/T8
     expect(() => calcularFichaTecnica(item({}), [], SIN_EXCESO, UNIDADES_BASE)).toThrowError(/^V1:/);
   });
 
-  it("V3 -- CSP component does not occupy the last orden", () => {
-    try {
-      calcularFichaTecnica(
-        item({ cantidadTotal: 30, unidadTotal: GRAMO }),
-        [
-          componente({ unidadMedida: GRAMO, modoExpresion: "CSP", orden: 0 }),
-          componente({ cantidad: 3, unidadMedida: GRAMO, modoExpresion: "TOTAL", orden: 1 }),
-        ],
-        SIN_EXCESO,
-        UNIDADES_BASE,
-      );
-      expect.unreachable();
-    } catch (e) {
-      expect((e as FichaTecnicaValidationError).validationCode).toBe("V3");
-    }
-  });
-
   it("V4 -- CSP present on a non-capsular form with cantidadTotal/unidadTotal null", () => {
     try {
       calcularFichaTecnica(
         item({ formaFarmaceutica: "CREMA", cantidadTotal: null, unidadTotal: null }),
-        [componente({ unidadMedida: GRAMO, modoExpresion: "CSP", orden: 0 })],
+        [componente({ unidadMedida: GRAMO, modoExpresion: "CSP", })],
         SIN_EXCESO,
         UNIDADES_BASE,
       );
@@ -231,7 +214,7 @@ describe("calcularFichaTecnica -- validations V1-V9 (one case each, beyond T7/T8
     try {
       calcularFichaTecnica(
         item({}),
-        [componente({ cantidad: null, unidadMedida: GRAMO, modoExpresion: "TOTAL", orden: 0 })],
+        [componente({ cantidad: null, unidadMedida: GRAMO, modoExpresion: "TOTAL", })],
         SIN_EXCESO,
         UNIDADES_BASE,
       );
@@ -245,7 +228,7 @@ describe("calcularFichaTecnica -- validations V1-V9 (one case each, beyond T7/T8
     try {
       calcularFichaTecnica(
         item({}),
-        [componente({ cantidad: 0, unidadMedida: GRAMO, modoExpresion: "POR_DOSIS", orden: 0 })],
+        [componente({ cantidad: 0, unidadMedida: GRAMO, modoExpresion: "POR_DOSIS", })],
         SIN_EXCESO,
         UNIDADES_BASE,
       );
@@ -259,7 +242,7 @@ describe("calcularFichaTecnica -- validations V1-V9 (one case each, beyond T7/T8
     try {
       calcularFichaTecnica(
         item({}),
-        [componente({ cantidad: 5, unidadMedida: GRAMO, modoExpresion: "CS", orden: 0 })],
+        [componente({ cantidad: 5, unidadMedida: GRAMO, modoExpresion: "CS", })],
         SIN_EXCESO,
         UNIDADES_BASE,
       );
@@ -273,7 +256,7 @@ describe("calcularFichaTecnica -- validations V1-V9 (one case each, beyond T7/T8
     try {
       calcularFichaTecnica(
         item({ cantidadTotal: 30, unidadTotal: GRAMO }),
-        [componente({ cantidad: 5, unidadMedida: GRAMO, modoExpresion: "CSP", orden: 0 })],
+        [componente({ cantidad: 5, unidadMedida: GRAMO, modoExpresion: "CSP", })],
         SIN_EXCESO,
         UNIDADES_BASE,
       );
@@ -287,7 +270,7 @@ describe("calcularFichaTecnica -- validations V1-V9 (one case each, beyond T7/T8
     try {
       calcularFichaTecnica(
         item({ fraccionDosisPorUnidad: 0 }),
-        [componente({ cantidad: 1, unidadMedida: GRAMO, modoExpresion: "TOTAL", orden: 0 })],
+        [componente({ cantidad: 1, unidadMedida: GRAMO, modoExpresion: "TOTAL", })],
         SIN_EXCESO,
         UNIDADES_BASE,
       );
@@ -301,7 +284,7 @@ describe("calcularFichaTecnica -- validations V1-V9 (one case each, beyond T7/T8
     try {
       calcularFichaTecnica(
         item({ fraccionDosisPorUnidad: 1.5 }),
-        [componente({ cantidad: 1, unidadMedida: GRAMO, modoExpresion: "TOTAL", orden: 0 })],
+        [componente({ cantidad: 1, unidadMedida: GRAMO, modoExpresion: "TOTAL", })],
         SIN_EXCESO,
         UNIDADES_BASE,
       );
@@ -315,7 +298,7 @@ describe("calcularFichaTecnica -- validations V1-V9 (one case each, beyond T7/T8
     try {
       calcularFichaTecnica(
         item({ cantidadUnidades: 0 }),
-        [componente({ cantidad: 1, unidadMedida: GRAMO, modoExpresion: "TOTAL", orden: 0 })],
+        [componente({ cantidad: 1, unidadMedida: GRAMO, modoExpresion: "TOTAL", })],
         SIN_EXCESO,
         UNIDADES_BASE,
       );
@@ -329,7 +312,7 @@ describe("calcularFichaTecnica -- validations V1-V9 (one case each, beyond T7/T8
     try {
       calcularFichaTecnica(
         item({ cantidadUnidades: 1.5 }),
-        [componente({ cantidad: 1, unidadMedida: GRAMO, modoExpresion: "TOTAL", orden: 0 })],
+        [componente({ cantidad: 1, unidadMedida: GRAMO, modoExpresion: "TOTAL", })],
         SIN_EXCESO,
         UNIDADES_BASE,
       );
@@ -345,8 +328,8 @@ describe("calcularFichaTecnica -- R3/R7/R8 interplay", () => {
     const lineas = calcularFichaTecnica(
       item({ formaFarmaceutica: "CREMA", cantidadTotal: 20, unidadTotal: GRAMO }),
       [
-        componente({ drogaId: "activo", cantidad: 3.0005, unidadMedida: GRAMO, modoExpresion: "TOTAL", esPrincipioActivo: true, orden: 0 }),
-        componente({ drogaId: "excipiente", unidadMedida: GRAMO, modoExpresion: "CSP", orden: 1 }),
+        componente({ drogaId: "activo", cantidad: 3.0005, unidadMedida: GRAMO, modoExpresion: "TOTAL", }),
+        componente({ drogaId: "excipiente", unidadMedida: GRAMO, modoExpresion: "CSP", }),
       ],
       { precisionBalanza: 0.01, excesoPesadaPorcentaje: 10 },
       UNIDADES_BASE,
@@ -371,7 +354,7 @@ describe("calcularFichaTecnica -- R3/R7/R8 interplay", () => {
   it("non-MASA non-manual lines are NOT rounded to precisionBalanza (pending confirmation, see module doc comment)", () => {
     const lineas = calcularFichaTecnica(
       item({ formaFarmaceutica: "JARABE", cantidadTotal: null, unidadTotal: null }),
-      [componente({ cantidad: 10.123456, unidadMedida: MILILITRO, modoExpresion: "TOTAL", orden: 0 })],
+      [componente({ cantidad: 10.123456, unidadMedida: MILILITRO, modoExpresion: "TOTAL", })],
       { precisionBalanza: 0.01, excesoPesadaPorcentaje: 0 },
       UNIDADES_BASE,
     );
@@ -379,3 +362,4 @@ describe("calcularFichaTecnica -- R3/R7/R8 interplay", () => {
     expect(lineas[0]!.cantidadAPesar!.toString()).toBe("10.123456");
   });
 });
+

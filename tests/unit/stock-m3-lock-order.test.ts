@@ -128,6 +128,8 @@ vi.mock("@/modules/stock/infrastructure/partida-repository", () => ({
   convertirUnidad: (...args: unknown[]) => convertirUnidadMock(...args),
   getUnidadesParaConversion: (...args: unknown[]) => getUnidadesParaConversionMock(...args),
   insertPartidaConIngreso: (...args: unknown[]) => insertPartidaConIngresoMock(...args),
+  getReservadoEnPreparacion: vi.fn(async () => ({ cantidad: "0" })),
+  existePartidaLote: vi.fn(async () => false),
 }));
 
 // FIX 4 (jd-fix-agent, 2026-09-23): registrarAjusteStock's internal command
@@ -151,7 +153,7 @@ const partidaVigente = {
   id: PARTIDA_ID,
   drogaId: DROGA_ID,
   drogaNombre: "Droga X",
-  unidadBaseId: UNIDAD_BASE_ID,
+  unidadBaseId: UNIDAD_BASE_ID, nombre: "Cafe�na",
   unidadBaseSimbolo: "g",
   proveedorId: PROVEEDOR_ID,
   proveedorRazonSocial: "Prov X",
@@ -372,7 +374,7 @@ describe("corregir-costo-partida: lock BEFORE the fresh optimistic-version read"
 
 describe("ingresar-partida: converts the purchased quantity to the droga's unidad base before inserting", () => {
   beforeEach(() => {
-    getDrogaParaIngresoMock.mockReset().mockResolvedValue({ id: DROGA_ID, unidadBaseId: UNIDAD_BASE_ID, tipoControl: "NINGUNO", fechaBaja: null });
+    getDrogaParaIngresoMock.mockReset().mockResolvedValue({ id: DROGA_ID, unidadBaseId: UNIDAD_BASE_ID, nombre: "Cafe�na", tipoControl: "NINGUNO", fechaBaja: null });
     getProveedorParaIngresoMock.mockReset().mockResolvedValue({ id: PROVEEDOR_ID, fechaBaja: null });
     getFechaActivacionContralorMock.mockReset().mockResolvedValue(null);
     jornadaActualTenantMock.mockReset().mockResolvedValue("2026-06-15");
@@ -421,7 +423,7 @@ describe("ingresar-partida: converts the purchased quantity to the droga's unida
     }
     expect(caught).toBeInstanceOf(ValidationError);
     expect((caught as ValidationError).fields).toEqual(["unidadCompraId"]);
-    expect((caught as ValidationError).message).toContain("no corresponde a esta droga, que se mide en g");
+    expect((caught as ValidationError).message).toContain("no corresponde a Cafe"); expect((caught as ValidationError).message).toContain(", que se mide en g");
     expect(convertirUnidadMock).not.toHaveBeenCalled();
     expect(insertPartidaConIngresoMock).not.toHaveBeenCalled();
   });
@@ -450,7 +452,7 @@ describe("ingresar-partida: converts the purchased quantity to the droga's unida
   });
 
   it("requires numeroValeAdquisicion for a controlled droga once the contralor is active (INV-L16 app-level pre-check)", async () => {
-    getDrogaParaIngresoMock.mockResolvedValue({ id: DROGA_ID, unidadBaseId: UNIDAD_BASE_ID, tipoControl: "PSICOTROPICO", fechaBaja: null });
+    getDrogaParaIngresoMock.mockResolvedValue({ id: DROGA_ID, unidadBaseId: UNIDAD_BASE_ID, nombre: "Cafe�na", tipoControl: "PSICOTROPICO", fechaBaja: null });
     getFechaActivacionContralorMock.mockResolvedValue(new Date("2026-01-01"));
 
     let caught: unknown;
@@ -475,7 +477,7 @@ describe("ingresar-partida: converts the purchased quantity to the droga's unida
   });
 
   it("does NOT require numeroValeAdquisicion when the contralor is not active, even for a controlled droga", async () => {
-    getDrogaParaIngresoMock.mockResolvedValue({ id: DROGA_ID, unidadBaseId: UNIDAD_BASE_ID, tipoControl: "PSICOTROPICO", fechaBaja: null });
+    getDrogaParaIngresoMock.mockResolvedValue({ id: DROGA_ID, unidadBaseId: UNIDAD_BASE_ID, nombre: "Cafe�na", tipoControl: "PSICOTROPICO", fechaBaja: null });
     getFechaActivacionContralorMock.mockResolvedValue(null);
 
     await ingresarPartidaCommand.execute(
@@ -494,3 +496,7 @@ describe("ingresar-partida: converts the purchased quantity to the droga's unida
     expect(insertPartidaConIngresoMock).toHaveBeenCalledTimes(1);
   });
 });
+
+
+
+

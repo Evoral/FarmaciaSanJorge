@@ -45,8 +45,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0030_receta_edicion_delete_guard m
         const medicoId = await insertMedico(tx, tenantId);
         const recetaId = await insertReceta(tx, { tenantId, pacienteId, medicoId, registradaPorId: sistema });
         const itemRecetaId = await insertItemReceta(tx, { tenantId, recetaId });
-        await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS", orden: 0 });
-        const componenteBId = await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS", orden: 1 });
+        await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS" });
+        const componenteBId = await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS" });
 
         await tx.query("SET LOCAL ROLE fsj_app");
         await tx.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
@@ -69,8 +69,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0030_receta_edicion_delete_guard m
         const medicoId = await insertMedico(tx, tenantId);
         const recetaId = await insertReceta(tx, { tenantId, pacienteId, medicoId, registradaPorId: sistema });
         const itemRecetaId = await insertItemReceta(tx, { tenantId, recetaId });
-        await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS", orden: 0 });
-        const componenteBId = await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS", orden: 1 });
+        await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS" });
+        const componenteBId = await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS" });
 
         await tx.query(`UPDATE fsj.receta SET estado = 'EN_PREPARACION' WHERE id = $1`, [recetaId]);
 
@@ -96,8 +96,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0030_receta_edicion_delete_guard m
         const medicoId = await insertMedico(tx, tenantId);
         const recetaId = await insertReceta(tx, { tenantId, pacienteId, medicoId, registradaPorId: sistema });
         const itemRecetaId = await insertItemReceta(tx, { tenantId, recetaId });
-        await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS", orden: 0 });
-        const componenteBId = await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS", orden: 1 });
+        await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS" });
+        const componenteBId = await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS" });
 
         const fichaId = await insertFicha(tx, { tenantId, itemRecetaId, generadaPorId: sistema });
         await insertPreparacion(tx, tenantId, fichaId, sistema);
@@ -127,9 +127,9 @@ describe.skipIf(dbTestSkipReason() !== null)("0030_receta_edicion_delete_guard m
         const medicoId = await insertMedico(tx, tenantId);
         const recetaId = await insertReceta(tx, { tenantId, pacienteId, medicoId, registradaPorId: sistema });
         const itemAId = await insertItemReceta(tx, { tenantId, recetaId });
-        await insertComponente(tx, { tenantId, itemRecetaId: itemAId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS", orden: 0 });
+        await insertComponente(tx, { tenantId, itemRecetaId: itemAId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS" });
         const itemBId = await insertItemReceta(tx, { tenantId, recetaId });
-        const componenteBId = await insertComponente(tx, { tenantId, itemRecetaId: itemBId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS", orden: 0 });
+        const componenteBId = await insertComponente(tx, { tenantId, itemRecetaId: itemBId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS" });
 
         await tx.query("SET LOCAL ROLE fsj_app");
         await tx.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
@@ -155,9 +155,9 @@ describe.skipIf(dbTestSkipReason() !== null)("0030_receta_edicion_delete_guard m
         const medicoId = await insertMedico(tx, tenantId);
         const recetaId = await insertReceta(tx, { tenantId, pacienteId, medicoId, registradaPorId: sistema });
         const itemAId = await insertItemReceta(tx, { tenantId, recetaId });
-        await insertComponente(tx, { tenantId, itemRecetaId: itemAId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS", orden: 0 });
+        await insertComponente(tx, { tenantId, itemRecetaId: itemAId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS" });
         const itemBId = await insertItemReceta(tx, { tenantId, recetaId });
-        await insertComponente(tx, { tenantId, itemRecetaId: itemBId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS", orden: 0 });
+        await insertComponente(tx, { tenantId, itemRecetaId: itemBId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS" });
 
         await tx.query(`UPDATE fsj.receta SET estado = 'ANULADA', motivo_anulacion = 'x' WHERE id = $1`, [recetaId]);
 
@@ -183,3 +183,5 @@ describe.skipIf(dbTestSkipReason() !== null)("0030_receta_edicion_delete_guard m
     );
   });
 });
+
+

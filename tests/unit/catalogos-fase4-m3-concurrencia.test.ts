@@ -189,6 +189,7 @@ describe("drogas M1/M3: lock-then-fresh-read", () => {
     esControlada: false,
     tipoControl: "NINGUNO",
     stockMinimo: "0",
+    clase: "DROGA",
     fechaBaja: null,
     motivoBaja: null,
   };
@@ -222,7 +223,7 @@ describe("drogas M1/M3: lock-then-fresh-read", () => {
           esControlada: false,
           tipoControl: "NINGUNO",
           stockMinimo: "0",
-          version: { nombre: "Droga X", unidadBaseId: UNIDAD_ID, esControlada: false, tipoControl: "NINGUNO", stockMinimo: "0" },
+          version: { nombre: "Droga X", unidadBaseId: UNIDAD_ID, esControlada: false, tipoControl: "NINGUNO", stockMinimo: "0", clase: "DROGA" },
         },
         { session: fakeSession("drogas.editar") },
       );
@@ -253,7 +254,7 @@ describe("drogas M1/M3: lock-then-fresh-read", () => {
         esControlada: false,
         tipoControl: "NINGUNO",
         stockMinimo: "0",
-        version: { nombre: "Droga X", unidadBaseId: UNIDAD_ID, esControlada: false, tipoControl: "NINGUNO", stockMinimo: "0" },
+        version: { nombre: "Droga X", unidadBaseId: UNIDAD_ID, esControlada: false, tipoControl: "NINGUNO", stockMinimo: "0", clase: "DROGA" },
       },
       { session: fakeSession("drogas.editar") },
     );
@@ -278,7 +279,7 @@ describe("drogas M1/M3: lock-then-fresh-read", () => {
           esControlada: false,
           tipoControl: "NINGUNO",
           stockMinimo: "0",
-          version: { nombre: "Droga X", unidadBaseId: UNIDAD_ID, esControlada: false, tipoControl: "NINGUNO", stockMinimo: "0" },
+          version: { nombre: "Droga X", unidadBaseId: UNIDAD_ID, esControlada: false, tipoControl: "NINGUNO", stockMinimo: "0", clase: "DROGA" },
         },
         { session: fakeSession("drogas.editar") },
       );
@@ -492,3 +493,6 @@ describe("unidades M3: lock-then-fresh-read", () => {
     expect(cambiarBajaUnidadMock).toHaveBeenCalledTimes(1);
   });
 });
+
+
+

@@ -261,12 +261,12 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
         const recetaId = await insertReceta(tx, { tenantId, pacienteId, medicoId, registradaPorId: sistema });
         const itemRecetaId = await insertItemReceta(tx, { tenantId, recetaId });
 
-        await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CSP", orden: 0 });
+        await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CSP" });
 
         await expectDbRejection(
           tx,
           () =>
-            insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CSP", orden: 1 }),
+            insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CSP" }),
           "23505",
         );
       }),
@@ -291,7 +291,6 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
           drogaId,
           unidadMedidaId: unidadId,
           modoExpresion: "CSP",
-          orden: 0,
         });
         expect(id).toBeTruthy();
       }),
@@ -310,7 +309,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
         const recetaId = await insertReceta(tx, { tenantId, pacienteId, medicoId, registradaPorId: sistema });
         const itemRecetaId = await insertItemReceta(tx, { tenantId, recetaId });
 
-        await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CSP", orden: 0 });
+        await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CSP" });
         await insertComponente(tx, {
           tenantId,
           itemRecetaId,
@@ -318,7 +317,6 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
           unidadMedidaId: unidadId,
           modoExpresion: "TOTAL",
           cantidad: 5,
-          orden: 1,
         });
 
         await expectInvariantViolation(tx, () => tx.query("SET CONSTRAINTS ALL IMMEDIATE"), "V3");
@@ -345,9 +343,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
           unidadMedidaId: unidadId,
           modoExpresion: "TOTAL",
           cantidad: 5,
-          orden: 0,
         });
-        await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CSP", orden: 1 });
+        await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CSP" });
 
         // Must NOT throw.
         await tx.query("SET CONSTRAINTS ALL IMMEDIATE");
@@ -371,14 +368,14 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
         await expectDbRejection(
           tx,
           () =>
-            insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "TOTAL", cantidad: null, orden: 0 }),
+            insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "TOTAL", cantidad: null }),
           "23514",
         );
         // V7: CS with a cantidad.
         await expectDbRejection(
           tx,
           () =>
-            insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS", cantidad: 5, orden: 0 }),
+            insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS", cantidad: 5 }),
           "23514",
         );
 
@@ -390,7 +387,6 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
           unidadMedidaId: unidadId,
           modoExpresion: "TOTAL",
           cantidad: 5,
-          orden: 0,
         });
         const csId = await insertComponente(tx, {
           tenantId,
@@ -399,7 +395,6 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
           unidadMedidaId: unidadId,
           modoExpresion: "CS",
           cantidad: null,
-          orden: 1,
         });
         expect(totalId).toBeTruthy();
         expect(csId).toBeTruthy();
@@ -504,3 +499,5 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
     );
   });
 });
+
+

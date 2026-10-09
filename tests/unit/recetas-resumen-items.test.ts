@@ -32,8 +32,8 @@ describe("resumirItemsReceta (readable audit summary)", () => {
       [
         item({
           componentes: [
-            { drogaId: "d-ibu", cantidad: "200", unidadMedidaId: "u-mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: true },
-            { drogaId: "d-lac", cantidad: null, unidadMedidaId: "u-mg", modoExpresion: "CSP", esPrincipioActivo: false },
+            { drogaId: "d-ibu", cantidad: "200", unidadMedidaId: "u-mg", modoExpresion: "POR_DOSIS" },
+            { drogaId: "d-lac", cantidad: null, unidadMedidaId: "u-mg", modoExpresion: "CSP" },
           ],
         }),
       ],
@@ -52,8 +52,8 @@ describe("resumirItemsReceta (readable audit summary)", () => {
           cantidadTotal: "100",
           unidadTotalId: "u-g",
           componentes: [
-            { drogaId: "d-urea", cantidad: "10", unidadMedidaId: "u-g", modoExpresion: "TOTAL", esPrincipioActivo: true },
-            { drogaId: "d-base", cantidad: null, unidadMedidaId: "u-g", modoExpresion: "CS", esPrincipioActivo: false },
+            { drogaId: "d-urea", cantidad: "10", unidadMedidaId: "u-g", modoExpresion: "TOTAL" },
+            { drogaId: "d-base", cantidad: null, unidadMedidaId: "u-g", modoExpresion: "CS" },
           ],
         }),
       ],
@@ -64,7 +64,7 @@ describe("resumirItemsReceta (readable audit summary)", () => {
 
   it("never throws on an id it cannot resolve", () => {
     const resumen = resumirItemsReceta(
-      [item({ componentes: [{ drogaId: "d-x", cantidad: "1", unidadMedidaId: "u-x", modoExpresion: "TOTAL", esPrincipioActivo: true }] })],
+      [item({ componentes: [{ drogaId: "d-x", cantidad: "1", unidadMedidaId: "u-x", modoExpresion: "TOTAL" }] })],
       nombres,
     );
     expect(resumen).toEqual(["Cápsula ×30: droga desconocida 1"]);

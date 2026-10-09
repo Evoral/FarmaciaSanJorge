@@ -114,8 +114,7 @@ describe("getRecurrentesCrudos", () => {
     const tx = fakeTx();
     await getRecurrentesCrudos(asTx(tx), TENANT, AHORA);
     const componentes = findManyArg(tx).select!.componentes as { orderBy: unknown; select: Record<string, unknown> };
-    expect(componentes.orderBy).toEqual({ orden: "asc" });
-    expect(Object.keys(componentes.select).sort()).toEqual(["cantidad", "droga", "drogaId", "modoExpresion", "unidadMedida", "unidadMedidaId"]);
+        expect(Object.keys(componentes.select).sort()).toEqual(["cantidad", "droga", "drogaId", "modoExpresion", "unidadMedida", "unidadMedidaId"]);
   });
 
   it("maps rows to the raw shape: decimal as string (null stays null), tenant zone and farmacia display name", async () => {
@@ -141,3 +140,4 @@ describe("getRecurrentesCrudos", () => {
     expect((await getRecurrentesCrudos(asTx(fakeTx({ nombreFantasia: "  " })), TENANT, AHORA)).farmaciaNombre).toBe("San José S.R.L.");
   });
 });
+

@@ -9,7 +9,7 @@
 import { describe, it, expect } from "vitest";
 import { mensajeParaCodigoValidacion, MENSAJES_VALIDACION_FICHA } from "@/modules/elaboracion/domain/mensajes-validacion";
 
-const CODIGOS_V1_A_V9 = ["V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9"];
+const CODIGOS_V1_A_V9 = ["V1", "V2", "V4", "V5", "V6", "V7", "V8", "V9"];
 
 describe("mensajeParaCodigoValidacion", () => {
   for (const codigo of CODIGOS_V1_A_V9) {
@@ -39,3 +39,4 @@ describe("mensajeParaCodigoValidacion", () => {
     expect(mensaje).not.toBe(mensajeParaCodigoValidacion("V1"));
   });
 });
+

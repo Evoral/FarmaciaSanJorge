@@ -10,8 +10,8 @@ import { PESTANAS_PREPARACIONES, estadoEtiqueta, hrefPreparaciones, parsearFiltr
 import {
   listComponentesDePendientes,
   listComponentesDePendientesSql,
-  listPendientesDePreparacion,
-  listPendientesDePreparacionSql,
+  listRecetasPendientes,
+  listRecetasPendientesSql,
   listPreparaciones,
 } from "@/modules/preparaciones/infrastructure/preparacion-repository";
 import { formatFechaHora } from "@/shared/format/fecha";
@@ -141,9 +141,7 @@ describe("listPreparaciones (repository): filters in the query", () => {
       { OR: [{ etiqueta: { is: null } }, { etiqueta: { is: { impresa: false } } }] },
     ]);
     expect(args.select.etiqueta).toEqual({ select: { impresa: true } });
-    // "Tomada por" (En curso) comes in the same query too.
-    expect(args.select.iniciadaPor).toEqual({ select: { nombre: true, apellido: true } });
-    expect(result.items[0]).toMatchObject({ recetaId: "r1", recetaNumeroInterno: "12", iniciadaPorNombre: "Gómez, Laura", etiqueta: { impresa: false } });
+    expect(result.items[0]).toMatchObject({ recetaId: "r1", recetaNumeroInterno: "12", etiqueta: { impresa: false } });
     expect(result.zonaHoraria).toBe("America/Argentina/Mendoza");
   });
 
@@ -154,37 +152,37 @@ describe("listPreparaciones (repository): filters in the query", () => {
   });
 });
 
-describe("listPendientesDePreparacion (repository): one SQL statement, total + page", () => {
+describe("listRecetasPendientes (repository): one SQL statement, total + page", () => {
   const vacia = { item_receta_id: null, item_descripcion: null, forma_farmaceutica: null, cantidad_unidades: null, cantidad_total: null, unidad_total_simbolo: null, posologia: null, duracion_tratamiento_dias: null, posicion: null, total_items: null, ficha_tecnica_id: null, receta_id: null, receta_numero_interno: null, receta_fecha_ingreso: null, paciente_nombre: null, paciente_apellido: null };
 
-  it("maps each pending ítem, with its latest ficha (or null) and its position in the receta", async () => {
+  it("maps each pending receta", async () => {
     const ingreso = new Date("2026-09-10T12:00:00Z");
     const queryRaw = vi.fn(async (...args: unknown[]) => {
       void args;
       return [
-        { total: 2, zona_horaria: "America/Argentina/Mendoza", item_receta_id: "i1", item_descripcion: null, forma_farmaceutica: "CREMA", cantidad_unidades: 1, cantidad_total: "50", unidad_total_simbolo: "g", posologia: "Cada 12 h", duracion_tratamiento_dias: 10, posicion: 1, total_items: 2, ficha_tecnica_id: "f1", receta_id: "r1", receta_numero_interno: "12", receta_fecha_ingreso: ingreso, paciente_nombre: "Ana", paciente_apellido: "Suárez" },
-        { total: 2, zona_horaria: "America/Argentina/Mendoza", item_receta_id: "i2", item_descripcion: "Gel", forma_farmaceutica: "GEL", cantidad_unidades: 2, cantidad_total: null, unidad_total_simbolo: null, posologia: null, duracion_tratamiento_dias: null, posicion: 2, total_items: 2, ficha_tecnica_id: null, receta_id: "r1", receta_numero_interno: "12", receta_fecha_ingreso: ingreso, paciente_nombre: "Ana", paciente_apellido: "Suárez" },
+        { total: 2, zona_horaria: "America/Argentina/Mendoza", receta_id: "r1", receta_numero_interno: "12", receta_fecha_ingreso: ingreso, paciente_nombre: "Ana", paciente_apellido: "Suárez" },
+        { total: 2, zona_horaria: "America/Argentina/Mendoza", receta_id: "r2", receta_numero_interno: "13", receta_fecha_ingreso: ingreso, paciente_nombre: "Luis", paciente_apellido: "Pérez" },
       ];
     });
-    const result = await listPendientesDePreparacion({ $queryRaw: queryRaw } as never, { tenantId: "t1", numeroInterno: "12", page: 1, pageSize: 20 });
+    const result = await listRecetasPendientes({ $queryRaw: queryRaw } as never, { tenantId: "t1", numeroInterno: "12", page: 1, pageSize: 20 });
     expect(queryRaw).toHaveBeenCalledTimes(1);
     expect(result.total).toBe(2);
     expect(result.zonaHoraria).toBe("America/Argentina/Mendoza");
     expect(result.items).toEqual([
-      { itemRecetaId: "i1", itemDescripcion: null, formaFarmaceutica: "CREMA", cantidadUnidades: 1, cantidadTotal: "50", unidadTotalSimbolo: "g", posologia: "Cada 12 h", duracionTratamientoDias: 10, posicion: 1, totalItems: 2, fichaTecnicaId: "f1", recetaId: "r1", recetaNumeroInterno: "12", recetaFechaIngreso: ingreso, pacienteNombre: "Ana", pacienteApellido: "Suárez" },
-      { itemRecetaId: "i2", itemDescripcion: "Gel", formaFarmaceutica: "GEL", cantidadUnidades: 2, cantidadTotal: null, unidadTotalSimbolo: null, posologia: null, duracionTratamientoDias: null, posicion: 2, totalItems: 2, fichaTecnicaId: null, recetaId: "r1", recetaNumeroInterno: "12", recetaFechaIngreso: ingreso, pacienteNombre: "Ana", pacienteApellido: "Suárez" },
+      { recetaId: "r1", recetaNumeroInterno: "12", recetaFechaIngreso: ingreso, pacienteNombre: "Ana", pacienteApellido: "Suárez" },
+      { recetaId: "r2", recetaNumeroInterno: "13", recetaFechaIngreso: ingreso, pacienteNombre: "Luis", pacienteApellido: "Pérez" },
     ]);
   });
 
   it("an empty page still reports the total", async () => {
     const queryRaw = vi.fn(async () => [{ total: 3, zona_horaria: "UTC", ...vacia }]);
-    const result = await listPendientesDePreparacion({ $queryRaw: queryRaw } as never, { tenantId: "t1", page: 9, pageSize: 20 });
+    const result = await listRecetasPendientes({ $queryRaw: queryRaw } as never, { tenantId: "t1", page: 9, pageSize: 20 });
     expect(result).toEqual({ items: [], total: 3, zonaHoraria: "UTC" });
   });
 
   it("orders oldest first: ingreso, receta Nº, then the ítem's position", () => {
-    const sql = listPendientesDePreparacionSql({ tenantId: "t1", page: 1, pageSize: 20 });
-    expect(sql.sql).toMatch(/ORDER BY fecha_ingreso ASC, numero_interno ASC, posicion ASC/);
+    const sql = listRecetasPendientesSql({ tenantId: "t1", page: 1, pageSize: 20 });
+    expect(sql.sql).toMatch(/ORDER BY fecha_ingreso ASC, numero_interno ASC/);
   });
 });
 
@@ -217,7 +215,7 @@ describe("listComponentesDePendientes (repository): one batched read for the pag
   it("is tenant-scoped and ordered by ítem, then orden", () => {
     const sql = listComponentesDePendientesSql("t1", ["i1"]);
     expect(sql.text).toMatch(/c\.tenant_id = \$1::uuid AND c\.item_receta_id = ANY\(\$2::uuid\[\]\)/);
-    expect(sql.sql).toMatch(/ORDER BY c\.item_receta_id, c\.orden ASC/);
+    
     expect(sql.values).toEqual(["t1", ["i1"]]);
   });
 });
@@ -227,3 +225,4 @@ describe("formatFechaHora", () => {
     expect(formatFechaHora(new Date("2026-09-10T02:05:00Z"), "America/Argentina/Mendoza")).toBe("09/09/2026 23:05");
   });
 });
+

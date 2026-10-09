@@ -237,8 +237,8 @@ describe("recetas.importar.leer -- match", () => {
     expect(vista.medico.existente).toBeNull();
     expect(vista.componentes).toEqual([
       [
-        { drogaId: DROGA_ID, drogaNombre: "Cafeína", via: "NOMBRE", unidadMedidaId: UNIDAD_ID },
-        { drogaId: null, drogaNombre: null, via: null, unidadMedidaId: UNIDAD_ID },
+        { drogaId: DROGA_ID, drogaNombre: "Cafeína", drogaAliasId: null, sinonimo: null, via: "NOMBRE", unidadMedidaId: UNIDAD_ID },
+        { drogaId: null, drogaNombre: null, drogaAliasId: null, sinonimo: null, via: null, unidadMedidaId: UNIDAD_ID },
       ],
     ]);
     expect(vista.advertencias.map((a) => a.codigo)).toEqual(["DROGA_SIN_MATCH"]);
@@ -382,7 +382,7 @@ describe("recetas.importar -- confirmation", () => {
         diagnosticoCodigo: "E66.0",
       }),
     );
-    expect(repo.insertDrogaAlias).toHaveBeenCalledWith(FAKE_TX, { tenantId: TENANT_ID, drogaId: DROGA_ID, aliasNormalizado: "cafeinna", creadoPorId: "u-1" });
+    expect(repo.insertDrogaAlias).toHaveBeenCalledWith(FAKE_TX, { tenantId: TENANT_ID, drogaId: DROGA_ID, aliasNormalizado: "cafeinna", creadoPorId: "u-1", texto: "Cafeinna" });
 
     const auditadas = auditRecordMock.mock.calls.map(([, row]) => {
       const r = row as { entidad: string; accion: string };

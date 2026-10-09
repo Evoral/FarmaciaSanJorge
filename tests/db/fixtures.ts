@@ -249,13 +249,13 @@ export interface CrearComponenteInput {
   unidadMedidaId: string;
   modoExpresion?: string;
   cantidad?: number | null;
-  orden?: number;
+  
 }
 
 export async function insertComponente(tx: Client, input: CrearComponenteInput): Promise<string> {
   const result = await tx.query(
-    `INSERT INTO fsj.componente_item_receta (tenant_id, item_receta_id, droga_id, cantidad, unidad_medida_id, modo_expresion, orden)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+    `INSERT INTO fsj.componente_item_receta (tenant_id, item_receta_id, droga_id, cantidad, unidad_medida_id, modo_expresion)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
     [
       input.tenantId,
       input.itemRecetaId,
@@ -263,7 +263,6 @@ export async function insertComponente(tx: Client, input: CrearComponenteInput):
       input.cantidad ?? null,
       input.unidadMedidaId,
       input.modoExpresion ?? "CS",
-      input.orden ?? 0,
     ],
   );
   return result.rows[0].id as string;
@@ -293,7 +292,8 @@ export interface CrearLineaInput {
   cantidadTeorica?: number | null;
   cantidadAPesar?: number | null;
   esEnraseManual?: boolean;
-  orden?: number;
+    orden?: number;
+  
 }
 
 export async function insertLinea(tx: Client, input: CrearLineaInput): Promise<string> {
@@ -334,7 +334,7 @@ export async function seedFichaCompleta(
   const medicoId = await insertMedico(tx, tenantId);
   const recetaId = await insertReceta(tx, { tenantId, pacienteId, medicoId, registradaPorId: sistema });
   const itemRecetaId = await insertItemReceta(tx, { tenantId, recetaId });
-  await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS", orden: 0 });
+  await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CS" });
   const fichaTecnicaId = await insertFicha(tx, { tenantId, itemRecetaId, generadaPorId: sistema });
   await insertLinea(tx, { tenantId, fichaTecnicaId, drogaId, unidadMedidaId: unidadId });
 
@@ -531,3 +531,6 @@ export async function seedAsientoSistema(tx: Client, suffix: string, cantidadAPe
     asientoId,
   };
 }
+
+
+

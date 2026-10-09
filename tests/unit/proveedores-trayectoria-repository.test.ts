@@ -416,7 +416,7 @@ describe("privacy: the view's source never logs", () => {
     "modules/proveedores/ui/trayectoria-resumen.tsx",
     "modules/proveedores/ui/trayectoria-partida-fila.tsx",
     "modules/proveedores/ui/trayectoria-filtro-drogas.tsx",
-    "app/(app)/proveedores/[id]/trayectoria/page.tsx",
+    "app/(app)/proveedores/[id]/historial/page.tsx",
   ];
   for (const file of files) {
     it(`${file} has no logger or console call`, () => {
