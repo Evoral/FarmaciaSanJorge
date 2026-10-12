@@ -55,7 +55,6 @@ import { crearMedicoHandler, crearMedicoInput } from "@/modules/medicos/applicat
 import { diagnosticoCodigoOpcional, domicilioPacienteOpcional, esFechaPrescripcionValida, esFechaPrescripcionVigente, resumirItemsReceta, validarItemsReceta, validarOrigenHabilitado } from "../domain/receta";
 import type { ComponenteInput, ItemInput } from "../domain/receta";
 import { CODIGOS_EMISOR, esUrlVerificacionDeEmisor } from "../domain/receta-pdf-parser";
-import { normalizarTexto } from "../domain/normalizar";
 import { limpiarSinonimo } from "@/modules/drogas/domain/sinonimo";
 import {
   CAMPOS_MEDICO_IMPORTABLES,
@@ -65,6 +64,7 @@ import {
   MENSAJE_PACIENTE_DADO_DE_BAJA,
   calcularCompletado,
   mensajeRecetaYaImportada,
+  normalizarTextoDroga,
   valoresACompletar,
 } from "../domain/importacion-receta";
 import type { FuenteImportacion } from "../domain/importacion-receta";
@@ -285,7 +285,7 @@ export const importarRecetaCommand = defineCommand({
     // normalized text -> the synonym it resolved to (`null`: it is a droga's own name, nothing to remember).
     const resueltos = new Map<string, { id: string; drogaId: string } | null>();
     for (const equivalencia of input.equivalencias) {
-      const aliasNormalizado = normalizarTexto(equivalencia.aliasTexto);
+      const aliasNormalizado = normalizarTextoDroga(equivalencia.aliasTexto);
       if (aliasNormalizado.length === 0) continue;
       if (!resueltos.has(aliasNormalizado)) {
         const existente = await getDrogaAlias(tx, session.tenantId, aliasNormalizado);

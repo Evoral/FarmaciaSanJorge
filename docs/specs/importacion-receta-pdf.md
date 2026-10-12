@@ -114,7 +114,7 @@ Reglas del ítem:
 
 ## Pieza 4 — Match
 
-Normalización: minúsculas, NFD, sin diacríticos, espacios colapsados, trim. Comparación **exacta** sobre el normalizado; sin fuzzy.
+Normalización: minúsculas, NFD, sin diacríticos, espacios colapsados, trim; para drogas también se ignora la puntuación final («ACEITE DE GIRASOL.» = «ACEITE DE GIRASOL»; también en la factura de compra). Comparación **exacta** sobre el normalizado; sin fuzzy.
 
 | Entidad | Orden de búsqueda | Si no hay match |
 |---|---|---|

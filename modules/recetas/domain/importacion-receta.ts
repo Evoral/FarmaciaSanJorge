@@ -121,12 +121,22 @@ export interface MatchDroga {
 }
 
 /**
+ * The match key of a droga text read from a receta: `normalizarTexto` plus
+ * trailing punctuation dropped -- a line ending in "." ("ACEITE DE GIRASOL.")
+ * is the same droga as "ACEITE DE GIRASOL". Matching only: names and
+ * synonyms in the catalog keep the plain normalization.
+ */
+export function normalizarTextoDroga(texto: string): string {
+  return normalizarTexto(texto).replace(/[\s.,;:]+$/u, "");
+}
+
+/**
  * Spec order: a remembered alias first, then the droga's own name, both
- * normalized and compared exactly. `aliases`/`drogas` must already be
+ * normalized (`normalizarTextoDroga`) and compared exactly. `aliases`/`drogas` must already be
  * restricted to vigente drogas by the caller.
  */
 export function resolverDroga(texto: string, aliases: readonly AliasDroga[], drogas: readonly DrogaCandidata[]): MatchDroga | null {
-  const buscado = normalizarTexto(texto);
+  const buscado = normalizarTextoDroga(texto);
   if (buscado.length === 0) return null;
   const porAlias = aliases.find((a) => a.aliasNormalizado === buscado);
   if (porAlias) return { drogaId: porAlias.drogaId, via: "ALIAS", aliasId: porAlias.id, sinonimo: porAlias.texto };

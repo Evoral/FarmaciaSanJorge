@@ -16,8 +16,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { defineQuery } from "@/shared/usecase";
 import { DomainError, ValidationError } from "@/shared/errors";
 import { validarArchivoPdf } from "@/shared/pdf/validar-archivo-pdf";
-import { normalizarTexto } from "@/modules/drogas/domain/normalizar";
-import { resolverDroga, resolverUnidad } from "@/modules/recetas/domain/importacion-receta";
+import { normalizarTextoDroga, resolverDroga, resolverUnidad } from "@/modules/recetas/domain/importacion-receta";
 import { MAX_FACTURA_PDF_BYTES, MENSAJES_ARCHIVO_FACTURA, parsearFacturaCompraPdf } from "../domain/factura-compra-pdf-parser";
 import type { AdvertenciaParserFactura, BorradorFactura } from "../domain/factura-compra-pdf-parser";
 import { formatearComprobante, mensajeFacturaYaImportada } from "../domain/importacion-factura-compra";
@@ -58,7 +57,7 @@ async function construirVistaPrevia(
   }
 
   const [aliases, drogas, unidades] = [
-    await listAliasesVigentes(tx, tenantId, items.map((item) => normalizarTexto(item.drogaTexto))),
+    await listAliasesVigentes(tx, tenantId, items.map((item) => normalizarTextoDroga(item.drogaTexto))),
     await listDrogasVigentesParaMatch(tx, tenantId),
     await listUnidadesVigentesParaMatch(tx),
   ];

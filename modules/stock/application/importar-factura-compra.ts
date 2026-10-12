@@ -31,7 +31,7 @@ import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { record as auditRecord } from "@/shared/audit";
 import { ConflictError, DomainError, ValidationError } from "@/shared/errors";
 import { nonEmptyString, uuid } from "@/shared/validation";
-import { normalizarTexto } from "@/modules/drogas/domain/normalizar";
+import { normalizarTextoDroga } from "@/modules/recetas/domain/importacion-receta";
 import { limpiarSinonimo } from "@/modules/drogas/domain/sinonimo";
 import { isoDate, nonNegativeDecimalString, positiveDecimalString, potenciaDeclaradaString } from "../domain/partida";
 import { formatearComprobante, mensajeFacturaYaImportada } from "../domain/importacion-factura-compra";
@@ -161,7 +161,7 @@ export const importarFacturaCompraCommand = defineCommand({
     // a vigente droga's name is never remembered (a synonym cannot repeat a droga's name): it resolves by name.
     const aliasVistos = new Set<string>();
     for (const equivalencia of input.equivalencias) {
-      const aliasNormalizado = normalizarTexto(equivalencia.aliasTexto);
+      const aliasNormalizado = normalizarTextoDroga(equivalencia.aliasTexto);
       if (aliasNormalizado.length === 0 || aliasVistos.has(aliasNormalizado)) continue;
       aliasVistos.add(aliasNormalizado);
       const existente = await getDrogaAlias(tx, session.tenantId, aliasNormalizado);

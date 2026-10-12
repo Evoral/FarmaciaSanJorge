@@ -26,7 +26,6 @@ import { normalizarMatricula } from "@/modules/medicos/domain/medico";
 import { validarArchivoRecetaPdf } from "../domain/archivo-receta-pdf";
 import { parsearRecetaPdf } from "../domain/receta-pdf-parser";
 import type { AdvertenciaParser, BorradorReceta } from "../domain/receta-pdf-parser";
-import { normalizarTexto } from "../domain/normalizar";
 import {
   CAMPOS_MEDICO_IMPORTABLES,
   CAMPOS_PACIENTE_IMPORTABLES,
@@ -35,6 +34,7 @@ import {
   calcularCompletado,
   diferenciaDeNombre,
   mensajeRecetaYaImportada,
+  normalizarTextoDroga,
   resolverDroga,
   resolverUnidad,
 } from "../domain/importacion-receta";
@@ -122,7 +122,7 @@ export async function construirVistaPrevia(
   }
 
   // --- Drogas (alias, then nombre) and unidades (símbolo/código). ---
-  const textos = borrador.items.flatMap((item) => item.componentes.map((c) => normalizarTexto(c.drogaTexto)));
+  const textos = borrador.items.flatMap((item) => item.componentes.map((c) => normalizarTextoDroga(c.drogaTexto)));
   const [aliases, drogas, unidades] = [
     await listAliasesVigentes(tx, tenantId, textos),
     await listDrogasVigentesParaMatch(tx, tenantId),
