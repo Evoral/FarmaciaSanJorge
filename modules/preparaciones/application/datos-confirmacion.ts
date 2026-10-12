@@ -28,7 +28,8 @@ import type { Prisma } from "@/generated/prisma/client";
 import { dec } from "@/shared/decimal";
 import { convertirCantidad, mismaMagnitud } from "@/shared/decimal/convertir-unidad";
 import { proponerRepartoActivo } from "../domain/potencia";
-import { getLineasParaPreparacion, listPartidasElegiblesDroga, jornadaActualTenant, existeCierreParaJornada } from "../infrastructure/preparacion-repository";
+import type { UnidadFormato } from "@/shared/format/cantidad";
+import { getLineasParaPreparacion, listPartidasElegiblesDroga, listUnidadesFormato, jornadaActualTenant, existeCierreParaJornada } from "../infrastructure/preparacion-repository";
 import type { LineaParaPantalla, PartidaElegible } from "../infrastructure/preparacion-repository";
 
 export interface LineaPantalla extends LineaParaPantalla {
@@ -55,6 +56,8 @@ export interface DatosConfirmacion {
   /** Today's jornada already has a `cierre_diario`: the confirmation would be refused. */
   jornadaCerrada: boolean;
   lineas: LineaPantalla[];
+  /** The global unit catalog, so the form shows stock amounts in a readable unit (`shared/format/cantidad.ts`, display only). */
+  unidades: UnidadFormato[];
 }
 
 export async function construirDatosConfirmacion(
@@ -93,5 +96,6 @@ export async function construirDatosConfirmacion(
     jornadaActual: jornada,
     jornadaCerrada: await existeCierreParaJornada(tx, tenantId, jornada),
     lineas,
+    unidades: await listUnidadesFormato(tx),
   };
 }

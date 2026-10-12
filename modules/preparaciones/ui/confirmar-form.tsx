@@ -7,11 +7,12 @@
  * DIFFERENT partidas (INV-S15) -- the amounts are always recomputed by the
  * SERVER for whatever selection is submitted, never sent from here. For
  * manual-enrase lines, a required quantity input (the ONLY quantity this
- * form ever lets the user type). `motivoApertura_<lineaId>` is always
- * rendered (optional) -- `confirmarPreparacion` rejects the submission with
- * a clear message if INV-S18 requires it and it was left empty, which is
- * simpler and more honest than guessing client-side whether it will be
- * required.
+ * form ever lets the user type). `motivoApertura_<lineaId>` only shows (and
+ * is required) when the current choice needs it: INV-S18's own pure rule
+ * (`requiereMotivoAperturaAdicional`, the one `confirmarPreparacion` runs
+ * against fresh balances) over the línea's partidas, the checked ones and
+ * its required quantity. The server still has the last word: with stale
+ * balances it rejects the submission with its own message.
  *
  * Two destinations, same fields: an INICIADA preparación on
  * `/preparaciones/[id]` (`confirmarPreparacionAction`), or a ficha técnica
@@ -26,13 +27,16 @@
  * jornada (`cierre_diario`) for the confirmation -- a reserva only warns
  * that its etiqueta can not be printed today.
  */
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { CircleAlert, Info, TriangleAlert } from "lucide-react";
 import { ToneBadge } from "@/shared/ui/status-badge";
-import { formatNumero } from "@/shared/format/cantidad";
+import { crearCatalogoUnidades, formatCantidad, formatCantidadesFila, formatNumero } from "@/shared/format/cantidad";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 import { confirmarPreparacionAction, modificarReservaStockAction, reservarStockAction } from "./actions";
-import type { DatosConfirmacion } from "@/modules/preparaciones/application/datos-confirmacion";
+import type { DatosConfirmacion, LineaPantalla } from "@/modules/preparaciones/application/datos-confirmacion";
+import { requiereMotivoAperturaAdicional } from "@/modules/preparaciones/domain/apertura-adicional";
+import { Decimal } from "@/shared/decimal";
+import { convertirCantidad, mismaMagnitud } from "@/shared/decimal/convertir-unidad";
 
 export interface ConfirmarPreparacionFormProps {
   datos: DatosConfirmacion;
@@ -45,6 +49,29 @@ export interface ConfirmarPreparacionFormProps {
   onSuccess?: (message: string | undefined) => void;
   /** E.g. the dialog's "Cancelar" (`type="button"`), next to the submit. */
   extraActions?: ReactNode;
+}
+
+/**
+ * INV-S18 for the current choice: does it open a cerrada partida while the abiertas alone cover the línea? `cantidadManual`
+ * is the typed enrase quantity (manual lines); without a valid quantity there is nothing to compare yet.
+ */
+function pideMotivoApertura(linea: LineaPantalla, elegidas: ReadonlySet<string>, cantidadManual: string | undefined, jornadaActual: string): boolean {
+  if (!mismaMagnitud(linea.unidad, linea.unidadStock)) return false;
+  let requerida: Decimal;
+  try {
+    // Parsed like the server does (`decimalString`: `new Decimal`).
+    requerida = new Decimal((linea.esEnraseManual ? cantidadManual : linea.cantidadAPesar)?.trim() ?? "");
+  } catch {
+    return false;
+  }
+  if (!requerida.isFinite() || requerida.lessThanOrEqualTo(0)) return false;
+  const partidas = linea.partidasElegibles.map((p) => ({
+    ...p,
+    // Manual enrase compares physical quantities, as the confirmation does.
+    potenciaDeclarada: linea.esEnraseManual ? null : p.potenciaDeclarada,
+    elegida: elegidas.has(p.id),
+  }));
+  return requiereMotivoAperturaAdicional(partidas, convertirCantidad(requerida, linea.unidad, linea.unidadStock), jornadaActual);
 }
 
 function fechaCorta(iso: string): string {
@@ -73,6 +100,15 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
     return initial;
   });
 
+  // Mirrors of two uncontrolled inputs: the typed enrase quantity (INV-S18 needs it) and the motivo, which keeps its text
+  // while the field is hidden and shown again.
+  const [cantidadesManuales, setCantidadesManuales] = useState<Record<string, string>>(() =>
+    Object.fromEntries(datos.lineas.flatMap((l) => (l.reserva?.cantidadManual ? [[l.id, l.reserva.cantidadManual]] : []))),
+  );
+  const [motivos, setMotivos] = useState<Record<string, string>>(() =>
+    Object.fromEntries(datos.lineas.flatMap((l) => (l.reserva?.motivoAperturaAdicional ? [[l.id, l.reserva.motivoAperturaAdicional]] : []))),
+  );
+
   function toggle(lineaId: string, partidaId: string) {
     setChecked((prev) => {
       const next = new Set(prev[lineaId]);
@@ -81,6 +117,10 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
       return { ...prev, [lineaId]: next };
     });
   }
+
+  // Stock amounts are DISPLAYED in a readable unit of the droga's chain (e.g. 999.999,55 mg -> 1.000 g, 2 decimals);
+  // what is submitted and validated stays in the droga's unidad base.
+  const catalogo = useMemo(() => crearCatalogoUnidades(datos.unidades), [datos.unidades]);
 
   const hayStockInsuficiente = datos.lineas.some((l) => l.stockInsuficiente);
   const lineasSinStock = datos.lineas.filter((l) => l.stockInsuficiente).length;
@@ -181,6 +221,10 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                     inputMode="decimal"
                     required
                     defaultValue={linea.reserva?.cantidadManual ?? undefined}
+                    onChange={(event) => {
+                      const valor = event.target.value;
+                      setCantidadesManuales((prev) => ({ ...prev, [linea.id]: valor }));
+                    }}
                     className="input font-mono"
                   />
                 </div>
@@ -199,8 +243,14 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
 
               <div className="flex flex-col gap-2">
                 <p className="text-xs text-zinc-500">Partidas: elegí de cuáles {esReserva ? "reservar" : "descontar"}. Los montos los calcula el sistema.</p>
-                {linea.partidasElegibles.map((partida) => {
+                {linea.partidasElegibles.map((partida, indice, partidas) => {
                   const propuesta = linea.propuesta?.find((p) => p.partidaId === partida.id);
+                  // One display unit for every partida of the línea, so their balances read side by side.
+                  const disponible = formatCantidadesFila(
+                    partidas.map((p) => p.cantidadDisponible),
+                    linea.unidadStock,
+                    catalogo,
+                  )[indice]!;
                   return (
                     <label key={partida.id} className="choice-row">
                       <input
@@ -210,28 +260,28 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                         checked={checked[linea.id]?.has(partida.id) ?? false}
                         onChange={() => toggle(linea.id, partida.id)}
                       />
-                      <span className="grid min-w-0 flex-1 gap-x-6 gap-y-1 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                      {/* Fixed column widths (not fractions of the space the badges leave): every row of every línea lines up. */}
+                      <span className="grid min-w-0 flex-1 gap-x-6 gap-y-1 sm:flex-none sm:grid-cols-[9rem_12rem_8.5rem]">
                         <span className="truncate">
                           <span className="text-zinc-500">Lote </span>
                           <span className="font-mono font-medium text-zinc-900">{partida.lote}</span>
                         </span>
-                        <span className="tabular-nums">
-                          <span className="text-zinc-500">Disponible </span>
-                          <span className="font-mono text-zinc-900">{formatNumero(partida.cantidadDisponible)}</span>{" "}
-                          <span className="text-zinc-500">{linea.unidadStock.simbolo}</span>
+                        <span className="flex justify-between gap-2 tabular-nums" title={disponible.exacto}>
+                          <span className="text-zinc-500">Disponible</span>
+                          <span className="font-mono text-zinc-900">{disponible.texto}</span>
                         </span>
-                        <span className="tabular-nums">
-                          <span className="text-zinc-500">Vence </span>
+                        <span className="flex justify-between gap-2 tabular-nums">
+                          <span className="text-zinc-500">Vence</span>
                           <span className="text-zinc-900">{partida.fechaVencimiento ? fechaCorta(partida.fechaVencimiento) : "No vence"}</span>
                         </span>
                       </span>
-                      <span className="flex flex-none flex-wrap justify-end gap-1.5">
+                      <span className="flex min-w-0 flex-1 flex-wrap justify-end gap-1.5">
                         {partida.fechaApertura ? <ToneBadge tone="neutral">Abierta</ToneBadge> : null}
                         {partida.potenciaDeclarada && !linea.esEnraseManual ? <ToneBadge tone="neutral">Pureza {formatNumero(partida.potenciaDeclarada)} %</ToneBadge> : null}
                         {propuesta ? (
-                          <ToneBadge tone="success">
-                            Propuesto: {propuesta.cantidad.toString()} {linea.unidadStock.simbolo}
-                          </ToneBadge>
+                          <span title={formatCantidad(propuesta.cantidad, linea.unidadStock, catalogo).exacto}>
+                            <ToneBadge tone="success">Propuesto: {formatCantidad(propuesta.cantidad, linea.unidadStock, catalogo).texto}</ToneBadge>
+                          </span>
                         ) : null}
                       </span>
                     </label>
@@ -245,22 +295,29 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                 ) : null}
               </div>
 
-              <div className="field">
-                <label htmlFor={`motivoApertura_${linea.id}`} className="field-label">
-                  Motivo de apertura adicional
-                </label>
-                <input
-                  id={`motivoApertura_${linea.id}`}
-                  name={`motivoApertura_${linea.id}`}
-                  type="text"
-                  defaultValue={linea.reserva?.motivoAperturaAdicional ?? undefined}
-                  aria-describedby={`motivoApertura_${linea.id}_ayuda`}
-                  className="input"
-                />
-                <p id={`motivoApertura_${linea.id}_ayuda`} className="field-help">
-                  Solo si abrís una partida nueva teniendo otra abierta con saldo.
-                </p>
-              </div>
+              {pideMotivoApertura(linea, checked[linea.id] ?? new Set(), cantidadesManuales[linea.id], datos.jornadaActual) ? (
+                <div className="field">
+                  <label htmlFor={`motivoApertura_${linea.id}`} className="field-label">
+                    Motivo de apertura adicional
+                  </label>
+                  <input
+                    id={`motivoApertura_${linea.id}`}
+                    name={`motivoApertura_${linea.id}`}
+                    type="text"
+                    required
+                    defaultValue={motivos[linea.id]}
+                    onChange={(event) => {
+                      const valor = event.target.value;
+                      setMotivos((prev) => ({ ...prev, [linea.id]: valor }));
+                    }}
+                    aria-describedby={`motivoApertura_${linea.id}_ayuda`}
+                    className="input"
+                  />
+                  <p id={`motivoApertura_${linea.id}_ayuda`} className="field-help">
+                    Elegiste abrir una partida nueva aunque la que ya está abierta alcanza: indicá por qué.
+                  </p>
+                </div>
+              ) : null}
             </div>
           </fieldset>
         ))}

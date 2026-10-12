@@ -24,6 +24,7 @@ import { Prisma } from "@/generated/prisma/client";
 import type { EstadoPreparacion, EstadoReceta, TipoMovimientoContralor } from "@/generated/prisma/enums";
 import { jornadaDe, rangoDeJornadas } from "@/shared/time/jornada";
 import type { UnidadDeConversion } from "@/shared/decimal/convertir-unidad";
+import type { UnidadFormato } from "@/shared/format/cantidad";
 import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
 import type { ModoExpresion } from "@/modules/recetas/domain/receta";
 import type { DatosEtiqueta } from "../domain/etiqueta";
@@ -258,6 +259,20 @@ export async function getLineasParaPreparacion(tx: Prisma.TransactionClient, ten
     esEnraseManual: r.esEnraseManual,
     orden: r.orden,
   }));
+}
+
+/**
+ * The GLOBAL unit catalog (`fsj.unidad_medida`: no `tenant_id`, no RLS), shaped for `shared/format/cantidad.ts`: the
+ * confirmation form shows stock amounts in a readable unit. Read here, like
+ * modules/proveedores/infrastructure/comparador-costos-repository.ts does, instead of reaching into
+ * modules/unidades/infrastructure (cross-module infrastructure imports are not allowed).
+ */
+export async function listUnidadesFormato(tx: Prisma.TransactionClient): Promise<UnidadFormato[]> {
+  const rows = await tx.unidadMedida.findMany({
+    orderBy: [{ tipoMagnitud: "asc" }, { factorABase: "asc" }],
+    select: { id: true, codigo: true, simbolo: true, tipoMagnitud: true, factorABase: true, esBase: true, fechaBaja: true },
+  });
+  return rows.map(({ fechaBaja, ...row }) => ({ ...row, factorABase: row.factorABase.toString(), vigente: fechaBaja === null }));
 }
 
 export interface PartidaElegible {
