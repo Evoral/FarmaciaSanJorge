@@ -21,6 +21,7 @@
  * when there are name changes not saved yet.
  */
 import { useEffect, useId, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { DrogaExistente } from "./buscar-drogas-catalogo-action";
 import { Check, Plus, X } from "lucide-react";
 import { crearDrogaAction, editarDrogaAction } from "./actions";
@@ -28,6 +29,7 @@ import { DrogasExistentesAviso, coincidenciaExacta, useDrogasExistentes } from "
 import { normalizarTexto } from "../domain/normalizar";
 import { SINONIMO_MAX_LARGO } from "../domain/sinonimo";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { toast } from "@/shared/ui/toast";
 import { CLASES_DROGA, CLASE_DROGA_LABELS, TIPOS_CONTROL, TIPO_CONTROL_LABELS, type ClaseDroga } from "@/modules/drogas/domain/droga";
 import { sugerirClase, type SugerenciaClase } from "@/modules/drogas/domain/sugerir-clase";
 
@@ -53,9 +55,12 @@ export interface DrogaFormProps {
     sinonimos: readonly { id: string; texto: string }[];
   };
   disabled: boolean;
+  /** Alta only: where to go once created -- closes the alta panel; the confirmation moves to a toast (the page mounts the Toaster). */
+  volverA?: string;
 }
 
-export function DrogaForm({ mode, unidades, droga, disabled }: DrogaFormProps) {
+export function DrogaForm({ mode, unidades, droga, disabled, volverA }: DrogaFormProps) {
+  const router = useRouter();
   const action = mode === "crear" ? crearDrogaAction : editarDrogaAction;
   const clasificacionDisabled = disabled || (mode === "editar" && (droga?.tienePartidas ?? false));
   const [clase, setClase] = useState<ClaseDroga>((droga?.clase as ClaseDroga | undefined) ?? "DROGA");
@@ -99,9 +104,13 @@ export function DrogaForm({ mode, unidades, droga, disabled }: DrogaFormProps) {
     setSiguienteKey((k) => k + 1);
   }
 
-  function onSuccess() {
+  function onSuccess(state: { message?: string }) {
     setNombre("");
     setSinonimos([]);
+    if (volverA) {
+      if (state.message) toast(state.message);
+      router.push(volverA);
+    }
   }
 
   function onNombre(nombre: string) {
@@ -115,9 +124,9 @@ export function DrogaForm({ mode, unidades, droga, disabled }: DrogaFormProps) {
   return (
     <SimpleForm
       action={action}
-      submitLabel={mode === "crear" ? "Crear droga" : "Guardar cambios"}
+      submitLabel={mode === "crear" ? "Crear insumo" : "Guardar cambios"}
       submitDisabled={nombreOcupado}
-      submitDisabledReason={nombreOcupado ? "Ya existe una droga con ese nombre." : undefined}
+      submitDisabledReason={nombreOcupado ? "Ya existe un insumo con ese nombre." : undefined}
       onSuccess={esAlta ? onSuccess : undefined}
     >
       {mode === "editar" && droga ? (

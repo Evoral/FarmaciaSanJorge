@@ -28,6 +28,7 @@ import { SectionTabs } from "../../section-tabs";
 import { catalogosSections } from "../../nav-sections";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
+import { Toaster } from "@/shared/ui/toast";
 import { ToneBadge } from "@/shared/ui/status-badge";
 
 const PAGE_SIZE = 20;
@@ -98,7 +99,7 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
           puedeCrear ? (
             <Link href="/catalogos/drogas?nueva=1" className="btn btn-primary">
               <Plus className="size-4" aria-hidden />
-              Nueva droga
+              Nuevo insumo
             </Link>
           ) : null
         }
@@ -109,13 +110,13 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
       {puedeCrear && params.nueva ? (
         <section className="panel mb-6 max-w-3xl" aria-labelledby="nueva-droga-heading">
           <div className="panel-header flex items-center justify-between gap-3">
-            <h2 id="nueva-droga-heading">Nueva droga</h2>
-            <Link href="/catalogos/drogas" className="btn btn-ghost btn-sm btn-icon" aria-label="Cerrar el alta de droga">
+            <h2 id="nueva-droga-heading">Nuevo insumo</h2>
+            <Link href="/catalogos/drogas" className="btn btn-ghost btn-sm btn-icon" aria-label="Cerrar el alta de insumo">
               <X className="size-4" aria-hidden />
             </Link>
           </div>
           <div className="panel-body">
-            <DrogaForm mode="crear" unidades={unidades} disabled={!puedeCrear} />
+            <DrogaForm mode="crear" unidades={unidades} disabled={!puedeCrear} volverA="/catalogos/drogas" />
           </div>
         </section>
       ) : null}
@@ -299,6 +300,7 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
           <Pagination page={page} pageSize={PAGE_SIZE} total={result.total} hrefFor={pageHref} label="Paginación de drogas" />
         </div>
       </div>
+      <Toaster />
     </>
   );
 }

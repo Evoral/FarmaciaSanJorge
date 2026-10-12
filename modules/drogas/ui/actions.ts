@@ -51,9 +51,9 @@ export async function crearDrogaAction(_prevState: DrogaActionState, formData: F
     });
     revalidatePath("/catalogos/drogas");
     const otros = creada.sinonimos.length > 0 ? ` con ${creada.sinonimos.length === 1 ? "otro nombre" : "otros nombres"}: ${listaNombres(creada.sinonimos)}` : "";
-    return { status: "success", message: `Droga creada${otros}.` };
+    return { status: "success", message: `Insumo creado${otros}.` };
   } catch (error) {
-    return fromError(error, "No se pudo crear la droga.");
+    return fromError(error, "No se pudo crear el insumo.");
   }
 }
 
