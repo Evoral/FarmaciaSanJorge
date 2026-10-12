@@ -9,8 +9,8 @@
  * action itself. A future caller (confirmar preparación, firmar cierre --
  * FASE 8/10) catches its own `StepUpRequiredError` (shared/errors), shows
  * this component, and on `onReauthenticated` re-invokes whatever it was
- * trying to do. Kept intentionally unstyled beyond the existing Tailwind
- * setup (plan §16: "this is not the design phase").
+ * trying to do. Styled with the shared `card` / `btn` / `alert` classes so it
+ * matches every other dialog.
  *
  * PIN MODE: on mount, checks `pinDisponibleAction()` (whether the CURRENT
  * usuario has an active, non-blocked PIN) and, if so, defaults to a 6-digit
@@ -20,6 +20,7 @@
  * a new required prop.
  */
 import { useEffect, useRef, useState, useTransition } from "react";
+import { CircleAlert } from "lucide-react";
 import { reautenticarAction, pinDisponibleAction } from "./actions";
 
 export interface ReauthPromptProps {
@@ -87,12 +88,12 @@ export function ReauthPrompt({ onReauthenticated, onCancel }: ReauthPromptProps)
       <form
         ref={formRef}
         action={handleSubmit}
-        className="w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-6 shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
+        className="card w-full max-w-sm p-5 text-foreground shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
       >
         <h2 id="reauth-prompt-title" className="mb-2 text-lg font-semibold">
           {modo === "pin" ? "Ingresá tu PIN" : "Confirmá tu contraseña"}
         </h2>
-        <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mb-4 text-sm text-zinc-600">
           {modo === "pin" ? "Esta acción requiere que confirmes tu PIN de reautenticación rápida." : "Esta acción requiere que vuelvas a ingresar tu contraseña."}
         </p>
 
@@ -132,26 +133,23 @@ export function ReauthPrompt({ onReauthenticated, onCancel }: ReauthPromptProps)
         )}
 
         {pinDisponible ? (
-          <button type="button" onClick={alternarModo} className="mb-2 text-xs text-zinc-600 underline dark:text-zinc-400">
+          <button type="button" onClick={alternarModo} className="link-button mb-2">
             {modo === "pin" ? "Usar contraseña" : "Usar PIN"}
           </button>
         ) : null}
 
         {error ? (
-          <p role="alert" className="mb-2 text-sm text-red-600">
-            {error}
-          </p>
+          <div role="alert" className="alert alert-danger mb-2">
+            <CircleAlert aria-hidden />
+            <p>{error}</p>
+          </div>
         ) : null}
 
         <div className="mt-4 flex justify-end gap-2">
-          <button type="button" onClick={onCancel} className="rounded px-3 py-2 text-sm">
+          <button type="button" onClick={onCancel} className="btn btn-secondary">
             Cancelar
           </button>
-          <button
-            type="submit"
-            disabled={pending}
-            className="btn btn-critical"
-          >
+          <button type="submit" disabled={pending} className="btn btn-primary">
             {pending ? "Verificando…" : "Confirmar"}
           </button>
         </div>
