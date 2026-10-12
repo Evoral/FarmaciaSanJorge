@@ -56,8 +56,7 @@ import type { EstadoEtiqueta, FiltrosPreparaciones } from "@/modules/preparacion
 import { etiquetaProgreso, hrefToma, resumenItemsPendientes } from "@/modules/preparaciones/domain/toma";
 import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
 import type { EtiquetaTamano } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
-import { generarEtiquetaAction } from "@/modules/preparaciones/ui/actions";
-import { ImprimirEtiquetaDialog } from "@/modules/preparaciones/ui/imprimir-etiqueta-dialog";
+import { EtiquetaParaImprimir } from "@/modules/preparaciones/ui/etiqueta-para-imprimir";
 import { TomarRecetaForm } from "@/modules/preparaciones/ui/tomar-receta-form";
 import { VerRecetaPendienteDialog } from "@/modules/preparaciones/ui/ver-receta-pendiente-dialog";
 import { FORMA_FARMACEUTICA_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
@@ -66,7 +65,6 @@ import { DateInput } from "@/shared/ui/date-input";
 import { FilterForm } from "@/shared/ui/filter-form";
 import { FilterDrawer } from "@/shared/ui/filter-drawer";
 import { SearchField } from "@/shared/ui/search-field";
-import { SimpleForm } from "@/shared/ui/simple-form";
 import { PageHeader } from "@/shared/ui/page-header";
 import { TabNav } from "@/shared/ui/tab-nav";
 import { EmptyState } from "@/shared/ui/empty-state";
@@ -555,13 +553,14 @@ function AccionFila({
       </Link>
     );
   }
-  if (preparacion.etiqueta) {
-    return puedeImprimirEtiqueta ? <ImprimirEtiquetaDialog preparacionId={preparacion.id} tamanos={tamanos} /> : null;
-  }
-  return puedeGenerarEtiqueta ? (
-    // SimpleForm refreshes the route on success, so the row switches to "Imprimir etiqueta".
-    <SimpleForm action={generarEtiquetaAction} submitLabel="Generar etiqueta" pendingLabel="Generando…" layout="inline" submitSize="sm">
-      <input type="hidden" name="preparacionId" value={preparacion.id} />
-    </SimpleForm>
-  ) : null;
+  // One step: generates the etiqueta when missing, then opens the size dialog.
+  return (
+    <EtiquetaParaImprimir
+      preparacionId={preparacion.id}
+      generada={preparacion.etiqueta !== null}
+      puedeGenerar={puedeGenerarEtiqueta}
+      puedeImprimir={puedeImprimirEtiqueta}
+      tamanos={tamanos}
+    />
+  );
 }
