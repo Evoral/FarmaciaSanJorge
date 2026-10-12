@@ -64,8 +64,9 @@ export function ContinuarPreparacionDialog({ objetivo, itemNombre }: ContinuarPr
   return (
     <>
       {modificar ? (
-        <button type="button" onClick={abrir} aria-haspopup="dialog" className="btn btn-secondary">
-          <PencilLine className="size-4" aria-hidden />
+        // A secondary action of the reserved ítem's toolbar: small, like Liberar reserva / Registrar pérdida.
+        <button type="button" onClick={abrir} aria-haspopup="dialog" className="btn btn-secondary btn-sm">
+          <PencilLine className="size-3.5" aria-hidden />
           Modificar reserva
         </button>
       ) : (

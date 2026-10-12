@@ -44,6 +44,8 @@ export interface ReauthAwareFormProps<S extends FormActionState> {
   pendingLabel?: string;
   /** Defaults to `"primary"`. */
   submitVariant?: ButtonVariant;
+  /** `"sm"` for secondary actions in a toolbar. */
+  submitSize?: "sm";
   submitDisabled?: boolean;
   /** Defaults to `"stack"` -- see `FormLayout`. */
   layout?: FormLayout;
@@ -61,6 +63,7 @@ export function ReauthAwareForm<S extends FormActionState>({
   submitLabel,
   pendingLabel = "Guardando…",
   submitVariant,
+  submitSize,
   submitDisabled,
   layout = "stack",
   className,
@@ -91,7 +94,7 @@ export function ReauthAwareForm<S extends FormActionState>({
         {children}
         {layout === "stack" ? feedback : null}
         <FormActions layout={layout}>
-          <SubmitButton pending={isPending} label={submitLabel} pendingLabel={pendingLabel} disabled={submitDisabled} variant={submitVariant} />
+          <SubmitButton pending={isPending} label={submitLabel} pendingLabel={pendingLabel} disabled={submitDisabled} variant={submitVariant} size={submitSize} />
           {layout === "stack" ? extraActions : null}
         </FormActions>
         {layout === "inline" ? feedback : null}

@@ -36,6 +36,7 @@ export function LiberarReservaForm({ preparacionId }: { preparacionId: string })
       submitLabel="Liberar reserva"
       pendingLabel="Liberando…"
       submitVariant="secondary"
+      submitSize="sm"
       layout="inline"
       onSuccess={(state) => {
         if (state.message) toast(state.message);
@@ -112,8 +113,8 @@ export function PerdidaReservaDialog({ preparacionId, partidas, dts, operadorEsD
 
   return (
     <>
-      <button type="button" onClick={() => dialogRef.current?.showModal()} aria-haspopup="dialog" className="btn btn-secondary">
-        <TriangleAlert className="size-4" aria-hidden />
+      <button type="button" onClick={() => dialogRef.current?.showModal()} aria-haspopup="dialog" className="btn btn-secondary btn-sm">
+        <TriangleAlert className="size-3.5" aria-hidden />
         Registrar pérdida
       </button>
       <dialog
