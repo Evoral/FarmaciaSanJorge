@@ -1,11 +1,11 @@
 /**
  * One ficha técnica version's heading -- "Versión N", its líneas de pesaje, who generated it and when -- plus its
- * "Imprimir PDF" link when allowed. Shared by the ficha técnica screen (/recetas/[id]/items/[itemId]/ficha-tecnica) and
+ * "Imprimir ficha técnica" link when allowed. Shared by the ficha técnica screen (/recetas/[id]/items/[itemId]/ficha-tecnica) and
  * the toma workspace (/preparaciones/recetas/[recetaId]). Server-safe presentational component; the date comes already
  * formatted (each screen formats it its own way).
  */
-import { Printer } from "lucide-react";
 import type { ReactNode } from "react";
+import { ImprimirFichaLink } from "./imprimir-ficha-link";
 
 export interface FichaVersionResumenProps {
   fichaTecnicaId: string;
@@ -16,7 +16,7 @@ export interface FichaVersionResumenProps {
   puedeImprimir: boolean;
   /** Extra lines under the heading (e.g. the associated preparación). */
   detalle?: ReactNode;
-  /** Extra actions next to "Imprimir PDF". */
+  /** Extra actions next to "Imprimir ficha técnica". */
   acciones?: ReactNode;
 }
 
@@ -50,12 +50,7 @@ export function FichaVersionResumen({
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
-        {puedeImprimir ? (
-          <a href={`/api/fichas-tecnicas/${fichaTecnicaId}/pdf`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">
-            <Printer className="size-3.5" aria-hidden />
-            Imprimir PDF
-          </a>
-        ) : null}
+        {puedeImprimir ? <ImprimirFichaLink fichaTecnicaId={fichaTecnicaId} className="btn btn-secondary btn-sm" /> : null}
         {acciones}
       </div>
     </div>

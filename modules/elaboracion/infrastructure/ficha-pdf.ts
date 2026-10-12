@@ -1,146 +1,93 @@
 /**
- * PDF layout for a ficha técnica (M10, FASE 7 point 7.3). Pure rendering:
- * takes the already-authorized, already-loaded `FichaParaImprimir` (from
- * `getFichaParaImprimir`, which is the ONLY place patient data is read) and
- * lays it out with `pdfkit` via `shared/pdf/pdf-document.ts#renderPdf`.
- * Content per the task: pharmacy header (tenant), receta/item data,
- * paciente + prescriptor, weighing lines with quantities/units and which
- * lines are "enrase manual", version + generation timestamp, and space for
- * the preparer's signature.
+ * PDF layout for a ficha técnica (M10, FASE 7 point 7.3), sized for the
+ * lab's 80 mm thermal receipt printer (POS80, 72 mm printable). Pure
+ * rendering: takes the already-authorized, already-loaded `FichaParaImprimir`
+ * (from `getFichaParaImprimir`, which is the ONLY place patient data is read)
+ * and lays it out with `pdfkit` via `shared/pdf/pdf-document.ts#renderPdf`.
+ *
+ * Content, kept to what the bench reads while preparing: the preparación's
+ * name (only when the ítem has one), the paciente, and the líneas de pesaje
+ * as a plain droga / cantidad list; a small footer with the receta number
+ * and ficha version for traceability. Black only, no shading: thermal
+ * printers have no greys.
+ *
+ * A receipt roll has no page height, so the page is exactly as tall as its
+ * content: the layout runs once on a very tall page to measure it, then
+ * again on a page of the measured height.
  */
 import { renderPdf } from "@/shared/pdf/pdf-document";
-import type { FichaParaImprimir } from "./ficha-repository";
+import { formatCantidadExacta } from "@/shared/format/cantidad";
+import type { FichaParaImprimir, LineaImprimir } from "./ficha-repository";
 
-const MARGIN_X = 40;
-const PAGE_WIDTH = 595.28; // A4 points
-const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_X * 2;
+const PUNTOS_POR_MM = 72 / 25.4;
+const mm = (valor: number) => valor * PUNTOS_POR_MM;
 
-function fechaHora(d: Date): string {
-  return new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Argentina/Mendoza" }).format(d);
+const ANCHO_PAGINA = mm(80);
+const MARGEN = mm(4); // 80 mm roll, 72 mm printable
+const ANCHO_CONTENIDO = ANCHO_PAGINA - MARGEN * 2;
+const ANCHO_CANTIDAD = mm(25);
+const SEPARACION = mm(2);
+const ANCHO_DROGA = ANCHO_CONTENIDO - ANCHO_CANTIDAD - SEPARACION;
+/** Measuring page: far taller than any ficha (PDF pages max out at 200 in). */
+const ALTO_MEDICION = mm(2000);
+/** Slack under the last line so pdfkit never wraps it onto a second page. */
+const HOLGURA = 4;
+
+function textoCantidad(linea: LineaImprimir): string {
+  if (linea.esEnraseManual) return "Enrase manual";
+  return linea.cantidadAPesar ? formatCantidadExacta(linea.cantidadAPesar, linea.unidadSimbolo) : "—";
 }
 
-const COLS = [
-  { key: "orden", label: "#", width: 24 },
-  { key: "droga", label: "Droga", width: 190 },
-  { key: "teorica", label: "Teórica", width: 70 },
-  { key: "exceso", label: "Exceso %", width: 55 },
-  { key: "aPesar", label: "A pesar", width: 75 },
-  { key: "manual", label: "Enrase manual", width: 101 },
-] as const;
-
-function drawTableHeader(doc: PDFKit.PDFDocument, y: number): number {
-  doc.font("Helvetica-Bold").fontSize(9);
-  let x = MARGIN_X;
-  for (const col of COLS) {
-    doc.text(col.label, x, y, { width: col.width, align: col.key === "droga" ? "left" : "center" });
-    x += col.width;
-  }
-  const bottom = y + 14;
+function separador(doc: PDFKit.PDFDocument, y: number): number {
   doc
-    .moveTo(MARGIN_X, bottom)
-    .lineTo(MARGIN_X + CONTENT_WIDTH, bottom)
+    .moveTo(MARGEN, y)
+    .lineTo(MARGEN + ANCHO_CONTENIDO, y)
     .lineWidth(0.75)
+    .strokeColor("black")
     .stroke();
-  return bottom + 4;
+  return y + 6;
 }
 
-function drawTableRow(doc: PDFKit.PDFDocument, y: number, linea: FichaParaImprimir["lineas"][number]): number {
-  doc.font("Helvetica").fontSize(9);
-  const values: Record<(typeof COLS)[number]["key"], string> = {
-    orden: String(linea.orden + 1),
-    droga: linea.drogaNombre,
-    teorica: linea.cantidadTeorica ? `${linea.cantidadTeorica} ${linea.unidadSimbolo}` : "—",
-    exceso: linea.excesoAplicado,
-    aPesar: linea.cantidadAPesar ? `${linea.cantidadAPesar} ${linea.unidadSimbolo}` : "—",
-    manual: linea.esEnraseManual ? "SÍ — a registrar al preparar" : "No",
-  };
-  let x = MARGIN_X;
-  let maxHeight = 12;
-  for (const col of COLS) {
-    const height = doc.heightOfString(values[col.key], { width: col.width, align: col.key === "droga" ? "left" : "center" });
-    maxHeight = Math.max(maxHeight, height);
+/** Lays the ficha out from the top of the page; returns the y where the content ends. */
+function dibujar(doc: PDFKit.PDFDocument, ficha: FichaParaImprimir): number {
+  doc.fillColor("black");
+  let y = MARGEN;
+
+  if (ficha.itemDescripcion) {
+    doc.font("Helvetica-Bold").fontSize(13).text(ficha.itemDescripcion, MARGEN, y, { width: ANCHO_CONTENIDO });
+    y = doc.y + 6;
   }
-  for (const col of COLS) {
-    doc.text(values[col.key], x, y, { width: col.width, align: col.key === "droga" ? "left" : "center" });
-    x += col.width;
+
+  doc.font("Helvetica").fontSize(8).text("Paciente", MARGEN, y, { width: ANCHO_CONTENIDO });
+  doc.font("Helvetica-Bold").fontSize(11).text(`${ficha.pacienteApellido}, ${ficha.pacienteNombre}`, MARGEN, doc.y, { width: ANCHO_CONTENIDO });
+  y = separador(doc, doc.y + 6);
+
+  for (const linea of ficha.lineas) {
+    const cantidad = textoCantidad(linea);
+    doc.font("Helvetica").fontSize(10);
+    const altoDroga = doc.heightOfString(linea.drogaNombre, { width: ANCHO_DROGA });
+    doc.text(linea.drogaNombre, MARGEN, y, { width: ANCHO_DROGA });
+    doc.font("Helvetica-Bold");
+    const altoCantidad = doc.heightOfString(cantidad, { width: ANCHO_CANTIDAD, align: "right" });
+    doc.text(cantidad, MARGEN + ANCHO_DROGA + SEPARACION, y, { width: ANCHO_CANTIDAD, align: "right" });
+    y += Math.max(altoDroga, altoCantidad) + 5;
   }
-  return y + maxHeight + 6;
+
+  y = separador(doc, y + 1);
+  doc.font("Helvetica").fontSize(8).text(`Receta Nº ${ficha.recetaNumeroInterno} · Ficha v${ficha.version}`, MARGEN, y, { width: ANCHO_CONTENIDO });
+  return doc.y;
 }
 
-function ensureSpace(doc: PDFKit.PDFDocument, y: number, needed: number): number {
-  const bottom = doc.page.height - doc.page.margins.bottom;
-  if (y + needed > bottom) {
-    doc.addPage();
-    return doc.page.margins.top;
-  }
-  return y;
+function opciones(alto: number): PDFKit.PDFDocumentOptions {
+  return { size: [ANCHO_PAGINA, alto], margin: MARGEN };
 }
 
-export function buildFichaTecnicaPdf(ficha: FichaParaImprimir): Promise<Buffer> {
+export async function buildFichaTecnicaPdf(ficha: FichaParaImprimir): Promise<Buffer> {
+  let fin = 0;
+  await renderPdf((doc) => {
+    fin = dibujar(doc, ficha);
+  }, opciones(ALTO_MEDICION));
   return renderPdf((doc) => {
-    // ---- Encabezado de farmacia -------------------------------------------
-    doc.font("Helvetica-Bold").fontSize(14).text(ficha.tenantNombreFantasia ?? ficha.tenantRazonSocial, MARGIN_X, doc.y);
-    doc.font("Helvetica").fontSize(9);
-    if (ficha.tenantNombreFantasia) doc.text(ficha.tenantRazonSocial);
-    doc.text(`CUIT ${ficha.tenantCuit}${ficha.tenantMatriculaFarmacia ? ` — Matrícula de farmacia ${ficha.tenantMatriculaFarmacia}` : ""}`);
-    if (ficha.tenantDomicilio) doc.text(ficha.tenantDomicilio);
-    doc.moveDown(0.5);
-    doc
-      .moveTo(MARGIN_X, doc.y)
-      .lineTo(MARGIN_X + CONTENT_WIDTH, doc.y)
-      .lineWidth(1)
-      .stroke();
-    doc.moveDown(0.75);
-
-    // ---- Título + versión ---------------------------------------------------
-    doc.font("Helvetica-Bold").fontSize(13).text(`Ficha técnica — versión ${ficha.version}`, MARGIN_X);
-    doc.font("Helvetica").fontSize(9).text(`Generada el ${fechaHora(ficha.generadaEn)} por ${ficha.generadaPorNombre}`);
-    doc.moveDown(0.75);
-
-    // ---- Receta / ítem --------------------------------------------------
-    doc.font("Helvetica-Bold").fontSize(10).text("Receta");
-    doc.font("Helvetica").fontSize(9);
-    doc.text(`Receta interna Nº ${ficha.recetaNumeroInterno}`);
-    doc.text(
-      `Ítem: ${ficha.itemDescripcion ?? ficha.formaFarmaceutica} (${ficha.formaFarmaceutica}) — ${ficha.cantidadUnidades} unidad${ficha.cantidadUnidades === 1 ? "" : "es"}` +
-        (ficha.cantidadTotal ? `, total ${ficha.cantidadTotal} ${ficha.unidadTotalSimbolo ?? ""}` : ""),
-    );
-    doc.moveDown(0.5);
-
-    // ---- Paciente / prescriptor ------------------------------------------
-    doc.font("Helvetica-Bold").fontSize(10).text("Paciente y prescriptor");
-    doc.font("Helvetica").fontSize(9);
-    doc.text(`Paciente: ${ficha.pacienteApellido}, ${ficha.pacienteNombre}`);
-    doc.text(`Prescriptor: Dr./Dra. ${ficha.medicoApellido}, ${ficha.medicoNombre} — matrícula ${ficha.medicoMatricula}`);
-    doc.moveDown(0.75);
-
-    // ---- Líneas de pesaje ---------------------------------------------------
-    doc.font("Helvetica-Bold").fontSize(10).text("Líneas de pesaje");
-    doc.moveDown(0.25);
-    let y = drawTableHeader(doc, doc.y);
-    for (const linea of ficha.lineas) {
-      y = ensureSpace(doc, y, 30);
-      if (y === doc.page.margins.top) y = drawTableHeader(doc, y);
-      y = drawTableRow(doc, y, linea);
-    }
-    doc.y = y;
-
-    doc.moveDown(0.5);
-    doc.font("Helvetica").fontSize(8).text("Las líneas marcadas \"enrase manual\" no llevan cantidad congelada: su cantidad real la registra el farmacéutico al confirmar la preparación (docs/specs/ficha-tecnica.md).", {
-      width: CONTENT_WIDTH,
-    });
-
-    // ---- Firma del preparador --------------------------------------------
-    const firmaY = ensureSpace(doc, doc.y + 40, 90) + 40;
-    doc
-      .moveTo(MARGIN_X, firmaY)
-      .lineTo(MARGIN_X + 220, firmaY)
-      .moveTo(MARGIN_X + 260, firmaY)
-      .lineTo(MARGIN_X + CONTENT_WIDTH, firmaY)
-      .lineWidth(0.75)
-      .stroke();
-    doc.font("Helvetica").fontSize(9);
-    doc.text("Firma del preparador", MARGIN_X, firmaY + 4, { width: 220, align: "center" });
-    doc.text("Aclaración y matrícula", MARGIN_X + 260, firmaY + 4, { width: CONTENT_WIDTH - 260, align: "center" });
-  });
+    dibujar(doc, ficha);
+  }, opciones(fin + MARGEN + HOLGURA));
 }
