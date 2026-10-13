@@ -24,6 +24,14 @@ export const listCierresFiltro = z.object({
 });
 
 export type ListCierresFiltro = z.infer<typeof listCierresFiltro>;
+
+/** Recetario asientos of one pending jornada (the DT's pre-firma review). */
+export const listAsientosJornadaFiltro = z.object({
+  fecha: fechaIso,
+  ...paginacion,
+});
+
+export type ListAsientosJornadaFiltroInput = z.input<typeof listAsientosJornadaFiltro>;
 export type ListCierresFiltroInput = z.input<typeof listCierresFiltro>;
 
 /** Same shape, without pagination -- the report/export walk every matching row (bounded, see `reporte-cumplimiento.ts`). */

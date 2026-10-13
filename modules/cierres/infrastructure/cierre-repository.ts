@@ -18,6 +18,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { EstadoUsuario } from "@/generated/prisma/enums";
 import { resolverEstadoVisualAsiento, etiquetaEstadoVisual } from "@/modules/libro/domain/estado-visual";
+import type { EstadoVisualAsiento } from "@/modules/libro/domain/estado-visual";
 
 // ============================================================================
 // jornada / parametro helpers -- own copies (see module doc comment).
@@ -121,6 +122,86 @@ export async function getResumenPendientes(tx: Prisma.TransactionClient, tenantI
   `;
   const row = rows[0];
   return { cantidad: row?.cantidad ?? 0, masAntiguaFecha: row?.mas_antigua ?? null };
+}
+
+/**
+ * Recetario asientos registered on a pending jornada -- what the DT reviews
+ * before signing it. Every estado is listed (an ANULADO asiento is part of
+ * what happened that day), even though the firma only attaches the VIGENTE
+ * ones. A pending fecha never has a cierre yet, so no `cierreDiarioId` filter.
+ */
+export interface AsientoJornadaItem {
+  id: string;
+  numeroCorrelativo: string;
+  esRectificativo: boolean;
+  asientoOriginalNumeroCorrelativo: string | null;
+  pacienteTexto: string;
+  medicoTexto: string;
+  formulaTexto: string;
+  estadoVisual: EstadoVisualAsiento;
+}
+
+export interface ListAsientosJornadaFilter {
+  tenantId: string;
+  fecha: string;
+  page: number;
+  pageSize: number;
+}
+
+export async function listAsientosJornada(tx: Prisma.TransactionClient, filter: ListAsientosJornadaFilter): Promise<{ items: AsientoJornadaItem[]; total: number }> {
+  const where: Prisma.AsientoRecetarioWhereInput = { tenantId: filter.tenantId, fechaAsiento: new Date(filter.fecha) };
+
+  const total = await tx.asientoRecetario.count({ where });
+  const rows = await tx.asientoRecetario.findMany({
+    where,
+    orderBy: { numeroCorrelativo: "asc" },
+    skip: (filter.page - 1) * filter.pageSize,
+    take: filter.pageSize,
+    select: {
+      id: true,
+      numeroCorrelativo: true,
+      origen: true,
+      pacienteTexto: true,
+      medicoTexto: true,
+      formulaTexto: true,
+      estado: true,
+      anulacion: {
+        select: {
+          motivo: true,
+          anuladoEn: true,
+          anuladoPor: { select: { nombre: true, apellido: true } },
+          autorizadoPor: { select: { nombre: true, apellido: true } },
+        },
+      },
+      rectificativos: { select: { numeroCorrelativo: true }, take: 1 },
+      asientoOriginal: { select: { numeroCorrelativo: true } },
+    },
+  });
+
+  return {
+    total,
+    items: rows.map((a) => ({
+      id: a.id,
+      numeroCorrelativo: a.numeroCorrelativo.toString(),
+      esRectificativo: a.origen === "RECTIFICATIVO",
+      asientoOriginalNumeroCorrelativo: a.asientoOriginal ? a.asientoOriginal.numeroCorrelativo.toString() : null,
+      pacienteTexto: a.pacienteTexto,
+      medicoTexto: a.medicoTexto,
+      formulaTexto: a.formulaTexto,
+      estadoVisual: resolverEstadoVisualAsiento({
+        estado: a.estado,
+        anulacion: a.anulacion
+          ? {
+              motivo: a.anulacion.motivo,
+              anuladoEn: a.anulacion.anuladoEn,
+              anuladoPorNombre: `${a.anulacion.anuladoPor.nombre} ${a.anulacion.anuladoPor.apellido}`,
+              autorizadoPorNombre: `${a.anulacion.autorizadoPor.nombre} ${a.anulacion.autorizadoPor.apellido}`,
+            }
+          : null,
+        rectificativoNumeroCorrelativo: a.rectificativos[0] ? a.rectificativos[0].numeroCorrelativo.toString() : null,
+      }),
+    })),
+  };
 }
 
 // ============================================================================

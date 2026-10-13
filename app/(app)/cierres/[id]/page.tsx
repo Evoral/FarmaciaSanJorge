@@ -40,7 +40,7 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
   return (
     <div className="page">
       <PageHeader
-        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Cierres", href: "/cierres" }, { label: fecha }]}
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Historial de cierres", href: "/cierres/historial" }, { label: fecha }]}
         title={
           <span className="flex flex-wrap items-center gap-3">
             Cierre de la jornada <span className="font-mono">{fecha}</span>
