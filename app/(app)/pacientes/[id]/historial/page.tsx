@@ -93,7 +93,7 @@ export default async function TrayectoriaPacientePage({ params, searchParams }: 
                   </th>
                   {acceso.presupuesto ? (
                     <th scope="col" className="hidden px-3 py-2 text-right lg:table-cell">
-                      Presupuesto
+                      Precio
                     </th>
                   ) : null}
                 </tr>

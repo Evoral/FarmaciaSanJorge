@@ -23,7 +23,7 @@ export interface FaltanteStockReceta {
   mensaje: string;
 }
 
-export const MENSAJE_SIN_REGLA_PRECIO = "No hay regla de precios configurada. Pedile a un administrador que configure las reglas de precio para ver el presupuesto.";
+export const MENSAJE_SIN_REGLA_PRECIO = "No hay regla de precios configurada. Pedile a un administrador que configure las reglas de precio para ver el precio.";
 
 export interface FaltanteStock {
   drogaNombre: string;

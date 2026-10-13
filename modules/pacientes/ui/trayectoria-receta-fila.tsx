@@ -135,7 +135,7 @@ function TablaItems({ items, acceso, zonaHoraria }: { items: ItemTrayectoria[]; 
             </th>
             {acceso.presupuesto ? (
               <th scope="col" className="px-3 py-2 font-medium">
-                Presupuesto
+                Precio
               </th>
             ) : null}
             {acceso.preparacion ? (
@@ -280,7 +280,7 @@ export function TrayectoriaRecetaDetalle({ receta, acceso, zonaHoraria }: Receta
 
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {acceso.presupuesto ? (
-          <Dato etiqueta="Presupuesto vigente">
+          <Dato etiqueta="Precio vigente">
             <TextoPresupuestoTotal presupuesto={receta.presupuesto} />
           </Dato>
         ) : null}

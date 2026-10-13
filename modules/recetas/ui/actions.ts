@@ -117,7 +117,7 @@ export async function presupuestarRecetaAction(itemsJson: string): Promise<Presu
     const presupuesto = await presupuestarReceta({ items: JSON.parse(itemsJson) });
     return { status: "success", presupuesto };
   } catch (error) {
-    return { status: "error", message: actionErrorMessage(error, "No se pudo calcular el presupuesto.") };
+    return { status: "error", message: actionErrorMessage(error, "No se pudo calcular el precio.") };
   }
 }
 
