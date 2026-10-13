@@ -24,6 +24,10 @@
  *   has written the new value; a half-typed date never does. That is what
  *   `./filter-form.tsx` auto-applies on. Server Action forms ignore it
  *   (nothing listens for `change` on a hidden input there).
+ * - The calendar is portalled to `document.body`, or into the field's own
+ *   `<dialog>` when it sits in one: a `showModal()` dialog lives in the top
+ *   layer and makes everything outside it inert, so a popover on `body`
+ *   would be hidden behind it and unclickable.
  */
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
@@ -84,6 +88,8 @@ export function DateInput({ id, name, defaultValue = "", value, onValueChange, r
   const [view, setView] = useState<View>("days");
   const [cursor, setCursor] = useState("");
   const [position, setPosition] = useState<{ left: number; top?: number; bottom?: number }>({ left: 0 });
+  // Where the open calendar is portalled (see the module doc comment); set on open.
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HTMLInputElement>(null);
@@ -141,7 +147,7 @@ export function DateInput({ id, name, defaultValue = "", value, onValueChange, r
       setOpen(false);
     }
     function onViewportChange() {
-      setPosition(computePosition(rootRef.current));
+      setPosition(computePosition(rootRef.current, calendarRef.current?.parentElement ?? null));
     }
     document.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("scroll", onViewportChange, true);
@@ -178,7 +184,9 @@ export function DateInput({ id, name, defaultValue = "", value, onValueChange, r
   function openCalendar() {
     if (disabled) return;
     const today = jornadaDe(new Date());
-    setPosition(computePosition(rootRef.current));
+    const target = rootRef.current?.closest("dialog") ?? document.body;
+    setPortalTarget(target);
+    setPosition(computePosition(rootRef.current, target));
     setCursor(clampIso(isValidIso(iso) ? iso : today, min, max));
     setView("days");
     focusDayRef.current = true;
@@ -274,7 +282,7 @@ export function DateInput({ id, name, defaultValue = "", value, onValueChange, r
       </button>
       {name ? <input ref={hiddenRef} type="hidden" name={name} value={iso} data-date-input="" /> : null}
 
-      {open
+      {open && portalTarget
         ? createPortal(
             <div
               ref={calendarRef}
@@ -297,7 +305,7 @@ export function DateInput({ id, name, defaultValue = "", value, onValueChange, r
             >
               <CalendarBody view={view} setView={changeView} cursor={cursor} selected={iso} min={min} max={max} onMove={moveCursor} onSelect={select} onGridKeyDown={onGridKeyDown} />
             </div>,
-            document.body,
+            portalTarget,
           )
         : null}
     </div>
@@ -447,13 +455,43 @@ function CalendarBody({
   );
 }
 
-function computePosition(anchor: HTMLElement | null): { left: number; top?: number; bottom?: number } {
+/**
+ * Viewport coordinates for the `position: fixed` calendar, next to `anchor`. When the portal `container` (a `<dialog>`)
+ * is itself the containing block of fixed descendants (a transform, filter, `contain`...), the coordinates are made
+ * relative to its padding box instead; a plain modal dialog is not, so they stay viewport-relative.
+ */
+function computePosition(anchor: HTMLElement | null, container: HTMLElement | null): { left: number; top?: number; bottom?: number } {
   if (!anchor) return { left: 0 };
   const rect = anchor.getBoundingClientRect();
   const left = Math.max(8, Math.min(rect.left, window.innerWidth - POPOVER_WIDTH - 8));
   const fitsBelow = rect.bottom + GAP + POPOVER_MAX_HEIGHT <= window.innerHeight;
   const fitsAbove = rect.top - GAP - POPOVER_MAX_HEIGHT >= 0;
-  return !fitsBelow && fitsAbove ? { left, bottom: window.innerHeight - rect.top + GAP } : { left, top: rect.bottom + GAP };
+  const origin = fixedContainingBlockOrigin(container);
+  if (!origin) {
+    return !fitsBelow && fitsAbove ? { left, bottom: window.innerHeight - rect.top + GAP } : { left, top: rect.bottom + GAP };
+  }
+  const x = left - origin.left;
+  return !fitsBelow && fitsAbove ? { left: x, top: rect.top - GAP - POPOVER_MAX_HEIGHT - origin.top } : { left: x, top: rect.bottom + GAP - origin.top };
+}
+
+/** The viewport offset of `container`'s padding box when it is the containing block of its fixed descendants, else null. */
+function fixedContainingBlockOrigin(container: HTMLElement | null): { left: number; top: number } | null {
+  if (!container || container === document.body) return null;
+  const style = getComputedStyle(container);
+  const contain = style.contain;
+  const establishes =
+    style.transform !== "none" ||
+    style.translate !== "none" ||
+    style.scale !== "none" ||
+    style.rotate !== "none" ||
+    style.perspective !== "none" ||
+    style.filter !== "none" ||
+    style.backdropFilter !== "none" ||
+    /transform|filter|perspective/.test(style.willChange) ||
+    /paint|layout|strict|content/.test(contain);
+  if (!establishes) return null;
+  const box = container.getBoundingClientRect();
+  return { left: box.left + container.clientLeft - container.scrollLeft, top: box.top + container.clientTop - container.scrollTop };
 }
 
 function pad(value: number): string {
