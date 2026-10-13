@@ -33,7 +33,6 @@ vi.mock("@/modules/cierres/infrastructure/cierre-repository", () => ({
   getPlazoFirmaDias: vi.fn(async () => 0),
   listJornadasPendientes: vi.fn(async () => []),
   getResumenPendientes: vi.fn(async () => ({ cantidad: 0, masAntiguaFecha: null })),
-  listPreparacionesIniciadas: vi.fn(async () => []),
   getDesignacionVigenteEnFecha: vi.fn(async () => null),
   cargarUsuarioParaPasswordFirma: vi.fn(async () => ({ passwordHash: "hash", estado: "ACTIVO", intentosFallidos: 0, bloqueadoHasta: null })),
   registrarFallaPasswordFirma: vi.fn(async () => undefined),
@@ -47,7 +46,6 @@ vi.mock("@/modules/cierres/infrastructure/cierre-repository", () => ({
 }));
 
 await import("@/modules/cierres/application/list-jornadas-pendientes");
-await import("@/modules/cierres/application/list-preparaciones-iniciadas");
 await import("@/modules/cierres/application/list-cierres");
 await import("@/modules/cierres/application/get-cierre-detalle");
 await import("@/modules/cierres/application/verificar-password-firma");
@@ -74,8 +72,6 @@ const CIERRE_ID = "33333333-3333-4333-a333-333333333333";
 const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> = [
   { name: "cierres.jornadas.pendientes", permiso: "cierres.ver", input: {} },
   { name: "cierres.jornadas.resumenPendientes", permiso: "cierres.ver", input: {} },
-  { name: "cierres.jornadaActual", permiso: "cierres.ver", input: {} },
-  { name: "cierres.preparacionesIniciadas.list", permiso: "cierres.firmar", input: {} },
   { name: "cierres.list", permiso: "cierres.ver", input: {} },
   { name: "cierres.detalle", permiso: "cierres.ver", input: { id: CIERRE_ID } },
   { name: "cierres.jornada.verificarPasswordFirma", permiso: "cierres.firmar", input: { password: "x" } },

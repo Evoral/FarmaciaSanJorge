@@ -11,7 +11,7 @@ export const MENSAJES_INVARIANTES_FIRMA: Readonly<Record<string, string>> = {
   "INV-C01": "Esa jornada ya fue firmada.",
   "INV-C18": "La firma quedaría fuera de término: indicá el motivo de la demora.",
   "INV-C19": "No se puede firmar fuera de orden: hay una jornada anterior sin firmar (recetario o contralor).",
-  "INV-C21": "No se puede firmar una jornada futura.",
+  "INV-C21": "Solo se puede firmar una jornada anterior a hoy: el cierre diario se hace al día siguiente.",
   "INV-U04": "No tenés una designación de Director Técnico vigente para esa fecha.",
 };
 

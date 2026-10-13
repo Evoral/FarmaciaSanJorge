@@ -5,32 +5,24 @@
  * jornada can be signed (chronological order, INV-C19 is the real
  * backstop) -- the caller only renders this for that one fecha. Shows the
  * motivo-de-demora fields only when `fueraDeTermino` (server-computed via
- * `../domain/demora.ts#calcularFueraDeTermino`) is true, and DP-18b's
- * explicit warning + today's `INICIADA` preparaciones when `fecha` IS the
- * tenant's current jornada.
+ * `../domain/demora.ts#calcularFueraDeTermino`) is true. The jornada in
+ * progress is never offered (DP-18b revised, migration 0075: the cierre
+ * diario is signed the day after).
  */
 import { useState } from "react";
-import { CircleAlert, PenLine, TriangleAlert } from "lucide-react";
+import { CircleAlert, PenLine } from "lucide-react";
 import { firmarCierreAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { MOTIVO_DEMORA_VALUES, MOTIVO_DEMORA_LABELS } from "../domain/motivo-demora";
 
-export interface PreparacionIniciadaResumen {
-  id: string;
-  descripcion: string;
-}
-
 export interface FirmarFormProps {
   fecha: string;
   fueraDeTermino: boolean;
-  esJornadaActual: boolean;
-  preparacionesIniciadas: PreparacionIniciadaResumen[];
 }
 
-export function FirmarForm({ fecha, fueraDeTermino, esJornadaActual, preparacionesIniciadas }: FirmarFormProps) {
+export function FirmarForm({ fecha, fueraDeTermino }: FirmarFormProps) {
   const [motivoDemora, setMotivoDemora] = useState("");
-  const [confirmaAdvertencia, setConfirmaAdvertencia] = useState(!esJornadaActual);
 
   return (
     <section className="panel" aria-labelledby="firmar-heading">
@@ -45,32 +37,6 @@ export function FirmarForm({ fecha, fueraDeTermino, esJornadaActual, preparacion
       </div>
 
       <div className="panel-body flex flex-col gap-4">
-        {esJornadaActual ? (
-          <div className="alert alert-warn">
-            <TriangleAlert aria-hidden />
-            <div className="flex flex-col gap-2">
-              <p className="font-semibold">Esta es la jornada de hoy.</p>
-              <p>Una vez firmada, no se van a poder registrar más preparaciones, ajustes ni asientos con fecha de hoy. Lo que falte queda para la jornada siguiente.</p>
-              {preparacionesIniciadas.length > 0 ? (
-                <div>
-                  <p className="font-medium">Preparaciones en curso ({preparacionesIniciadas.length}):</p>
-                  <ul className="mt-1 list-inside list-disc">
-                    {preparacionesIniciadas.map((p) => (
-                      <li key={p.id}>{p.descripcion}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : (
-                <p>No hay preparaciones iniciadas en este momento.</p>
-              )}
-              <label className="mt-1 flex items-start gap-2 font-medium">
-                <input type="checkbox" className="mt-0.5" checked={confirmaAdvertencia} onChange={(e) => setConfirmaAdvertencia(e.target.checked)} />
-                Entiendo la consecuencia y quiero firmar la jornada de hoy.
-              </label>
-            </div>
-          </div>
-        ) : null}
-
         {fueraDeTermino ? (
           <div className="alert alert-danger">
             <CircleAlert aria-hidden />
@@ -78,7 +44,7 @@ export function FirmarForm({ fecha, fueraDeTermino, esJornadaActual, preparacion
           </div>
         ) : null}
 
-        <SimpleForm action={firmarCierreAction} submitLabel="Firmar cierre" pendingLabel="Firmando…" submitVariant="critical" submitDisabled={!confirmaAdvertencia}>
+        <SimpleForm action={firmarCierreAction} submitLabel="Firmar cierre" pendingLabel="Firmando…" submitVariant="critical">
           <input type="hidden" name="fecha" value={fecha} />
 
           {fueraDeTermino ? (

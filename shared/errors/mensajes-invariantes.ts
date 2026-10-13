@@ -38,7 +38,7 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   "INV-C04": "Un cierre diario firmado no se puede modificar.",
   "INV-C18": "La firma quedaría fuera de término: indicá el motivo de la demora.",
   "INV-C19": "No se puede firmar fuera de orden: hay una jornada anterior con asientos sin firmar, o una jornada posterior ya firmada.",
-  "INV-C21": "No se puede firmar una jornada futura.",
+  "INV-C21": "Solo se puede firmar una jornada anterior a hoy: el cierre diario se hace al día siguiente.",
 
   // Catálogos
   "INV-DRG-001": "No se puede cambiar la unidad base ni la clasificación de control de una droga que ya tiene partidas cargadas.",

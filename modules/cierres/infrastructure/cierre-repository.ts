@@ -6,10 +6,9 @@
  * repository.
  *
  * Several reads below are "own small copies" of a query another module's
- * infrastructure layer already has (designación vigente, jornada actual,
- * preparaciones INICIADA) -- `modules/cierres` cannot import
- * `modules/directores-tecnicos/infrastructure/**` or
- * `modules/preparaciones/infrastructure/**` (eslint.config.mjs's
+ * infrastructure layer already has (designación vigente, jornada actual)
+ * -- `modules/cierres` cannot import
+ * `modules/directores-tecnicos/infrastructure/**` (eslint.config.mjs's
  * `appBoundaryPatterns` forbids ANY `modules/**\/*.ts` from reaching into
  * another module's `infrastructure/` layer, not just `app/**`) -- same
  * "own copy per module" discipline `modules/libro/infrastructure/co-firma-repository.ts`
@@ -32,7 +31,7 @@ export async function jornadaActualTenant(tx: Prisma.TransactionClient, tenantId
   return rows[0].jornada;
 }
 
-/** `plazo_firma_dias` (DP-18 RESUELTA, migration 0038) -- defaults to 0 (only the same jornada is on time) when the tenant somehow lacks the row, mirroring `fsj.cierre_diario_calcular_fuera_de_termino`'s own defensive `COALESCE`. */
+/** `plazo_firma_dias` (DP-18, migrations 0038/0075) -- defaults to 0 (only the day after the jornada is on time) when the tenant somehow lacks the row, mirroring `fsj.cierre_diario_calcular_fuera_de_termino`'s own defensive `COALESCE`. */
 export async function getPlazoFirmaDias(tx: Prisma.TransactionClient, tenantId: string): Promise<number> {
   const row = await tx.parametro.findUnique({
     where: { tenantId_clave: { tenantId, clave: "plazo_firma_dias" } },
@@ -66,7 +65,8 @@ export async function getTenantDatosComprobante(tx: Prisma.TransactionClient, te
 
 // ============================================================================
 // 10.1: jornadas pendientes de firma (DP-18d: only fechas with at least one
-// unsigned VIGENTE asiento, recetario or contralor).
+// unsigned VIGENTE asiento, recetario or contralor; DP-18b revised, migration
+// 0075: only fechas before the current jornada -- today is signed tomorrow).
 // ============================================================================
 
 export interface JornadaPendienteRow {
@@ -89,6 +89,7 @@ export async function listJornadasPendientes(tx: Prisma.TransactionClient, tenan
       WHERE tenant_id = ${tenantId}::uuid AND estado = 'VIGENTE' AND cierre_diario_id IS NULL
       GROUP BY fecha_asiento
     ) x
+    WHERE fecha < fsj.jornada_actual(${tenantId}::uuid)
     GROUP BY fecha
     ORDER BY fecha ASC
   `;
@@ -116,34 +117,10 @@ export async function getResumenPendientes(tx: Prisma.TransactionClient, tenantI
       FROM fsj.asiento_contralor
       WHERE tenant_id = ${tenantId}::uuid AND estado = 'VIGENTE' AND cierre_diario_id IS NULL
     ) x
+    WHERE fecha < fsj.jornada_actual(${tenantId}::uuid)
   `;
   const row = rows[0];
   return { cantidad: row?.cantidad ?? 0, masAntiguaFecha: row?.mas_antigua ?? null };
-}
-
-// ============================================================================
-// 10.1: preparaciones INICIADA (DP-18b warning before firming today).
-// ============================================================================
-
-export interface PreparacionIniciadaRow {
-  id: string;
-  fichaTecnicaId: string;
-  itemDescripcion: string | null;
-  iniciadaEn: Date;
-}
-
-export async function listPreparacionesIniciadas(tx: Prisma.TransactionClient, tenantId: string): Promise<PreparacionIniciadaRow[]> {
-  const rows = await tx.preparacion.findMany({
-    where: { tenantId, estado: "INICIADA" },
-    orderBy: { iniciadaEn: "asc" },
-    select: {
-      id: true,
-      fichaTecnicaId: true,
-      iniciadaEn: true,
-      fichaTecnica: { select: { itemReceta: { select: { descripcion: true } } } },
-    },
-  });
-  return rows.map((r) => ({ id: r.id, fichaTecnicaId: r.fichaTecnicaId, itemDescripcion: r.fichaTecnica.itemReceta.descripcion, iniciadaEn: r.iniciadaEn }));
 }
 
 // ============================================================================

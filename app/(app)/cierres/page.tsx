@@ -19,8 +19,7 @@ import { redirect } from "next/navigation";
 import { ChevronRight, CircleCheck, FileBarChart, History, SearchX, X } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
-import { listJornadasPendientes, getJornadaActualCierres } from "@/modules/cierres/application/list-jornadas-pendientes";
-import { listPreparacionesIniciadas } from "@/modules/cierres/application/list-preparaciones-iniciadas";
+import { listJornadasPendientes } from "@/modules/cierres/application/list-jornadas-pendientes";
 import { listCierres } from "@/modules/cierres/application/list-cierres";
 import { FirmarForm } from "@/modules/cierres/ui/firmar-form";
 import { DateInput } from "@/shared/ui/date-input";
@@ -59,9 +58,6 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
   ]);
 
   const laMasAntigua = pendientes.find((p) => p.esLaMasAntigua) ?? null;
-  const jornadaActual = puedeFirmar && laMasAntigua ? await getJornadaActualCierres() : null;
-  const esJornadaActual = jornadaActual !== null && laMasAntigua !== null && laMasAntigua.fecha === jornadaActual;
-  const preparaciones = puedeFirmar && laMasAntigua ? await listPreparacionesIniciadas() : [];
 
   function pageHref(targetPage: number): string {
     const qs = new URLSearchParams();
@@ -115,7 +111,7 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
 
         {pendientes.length === 0 ? (
           <div className="list-panel">
-            <EmptyState icon={<CircleCheck className="size-5" />} title="Todo firmado" description="No hay jornadas pendientes de firma." />
+            <EmptyState icon={<CircleCheck className="size-5" />} title="Todo firmado" description="No hay jornadas anteriores pendientes de firma. La jornada de hoy se firma mañana." />
           </div>
         ) : (
           <div className={mostrarFirma ? "split-layout" : undefined}>
@@ -153,12 +149,7 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
 
             {mostrarFirma && laMasAntigua ? (
               <aside className="split-aside" aria-label="Firma de la jornada">
-                <FirmarForm
-                  fecha={laMasAntigua.fecha}
-                  fueraDeTermino={laMasAntigua.fueraDeTermino}
-                  esJornadaActual={esJornadaActual}
-                  preparacionesIniciadas={preparaciones.map((p) => ({ id: p.id, descripcion: p.itemDescripcion ?? "Preparación sin descripción" }))}
-                />
+                <FirmarForm fecha={laMasAntigua.fecha} fueraDeTermino={laMasAntigua.fueraDeTermino} />
               </aside>
             ) : null}
           </div>

@@ -38,21 +38,21 @@ describe("diasEntreIso", () => {
   });
 });
 
-describe("calcularFueraDeTermino (mirrors fsj.cierre_diario_calcular_fuera_de_termino, migration 0038)", () => {
-  it("plazoFirmaDias = 0: signing the SAME jornada is on time", () => {
-    expect(calcularFueraDeTermino({ jornadaActual: "2026-06-15", fecha: "2026-06-15", plazoFirmaDias: 0 })).toBe(false);
+describe("calcularFueraDeTermino (mirrors fsj.cierre_diario_calcular_fuera_de_termino, migration 0075)", () => {
+  it("plazoFirmaDias = 0: signing on the NEXT day is on time", () => {
+    expect(calcularFueraDeTermino({ jornadaActual: "2026-06-16", fecha: "2026-06-15", plazoFirmaDias: 0 })).toBe(false);
   });
 
-  it("plazoFirmaDias = 0: signing a PAST jornada is out of term", () => {
-    expect(calcularFueraDeTermino({ jornadaActual: "2026-06-16", fecha: "2026-06-15", plazoFirmaDias: 0 })).toBe(true);
+  it("plazoFirmaDias = 0: signing 2 days later is out of term", () => {
+    expect(calcularFueraDeTermino({ jornadaActual: "2026-06-17", fecha: "2026-06-15", plazoFirmaDias: 0 })).toBe(true);
   });
 
-  it("plazoFirmaDias = 2: signing 2 days later is still on time", () => {
-    expect(calcularFueraDeTermino({ jornadaActual: "2026-06-17", fecha: "2026-06-15", plazoFirmaDias: 2 })).toBe(false);
+  it("plazoFirmaDias = 2: signing 3 days later is still on time", () => {
+    expect(calcularFueraDeTermino({ jornadaActual: "2026-06-18", fecha: "2026-06-15", plazoFirmaDias: 2 })).toBe(false);
   });
 
-  it("plazoFirmaDias = 2: signing 3 days later is out of term", () => {
-    expect(calcularFueraDeTermino({ jornadaActual: "2026-06-18", fecha: "2026-06-15", plazoFirmaDias: 2 })).toBe(true);
+  it("plazoFirmaDias = 2: signing 4 days later is out of term", () => {
+    expect(calcularFueraDeTermino({ jornadaActual: "2026-06-19", fecha: "2026-06-15", plazoFirmaDias: 2 })).toBe(true);
   });
 });
 

@@ -3,7 +3,7 @@
  * No I/O -- every date here is a plain `YYYY-MM-DD` string (the same shape
  * `fsj.jornada_actual()` / `fecha_asiento` / `cierre_diario.fecha` use), so
  * these mirror the DB's own logic (`fsj.cierre_diario_calcular_fuera_de_termino`,
- * migration 0038) without touching a database -- used by the UI (pending
+ * migration 0075) without touching a database -- used by the UI (pending
  * list ordering, the "va a quedar fuera de término" hint before submit) and
  * by the compliance report (`demoraDias`).
  *
@@ -43,19 +43,19 @@ export interface FueraDeTerminoInput {
   jornadaActual: string;
   /** The jornada being (or that was) signed. */
   fecha: string;
-  /** `plazo_firma_dias` parameter (DP-18 RESUELTA) -- 0 means "only the same jornada is on time". */
+  /** `plazo_firma_dias` parameter (DP-18) -- extra days after the day following the jornada; 0 means "only the next day is on time". */
   plazoFirmaDias: number;
 }
 
 /**
- * Mirrors `fsj.cierre_diario_calcular_fuera_de_termino` (migration 0038)
+ * Mirrors `fsj.cierre_diario_calcular_fuera_de_termino` (migration 0075)
  * exactly -- used ONLY for UI hints (e.g. "esta firma va a quedar fuera de
  * término") before the form is submitted. The DB function remains the
  * single source of truth for what `cierre_diario.fuera_de_termino` actually
  * ends up being; this is never used to skip asking the server.
  */
 export function calcularFueraDeTermino(input: FueraDeTerminoInput): boolean {
-  return input.jornadaActual > addDiasIso(input.fecha, input.plazoFirmaDias);
+  return input.jornadaActual > addDiasIso(input.fecha, 1 + input.plazoFirmaDias);
 }
 
 /** Days of "antigüedad" for a pending jornada -- how many days ago `fecha` was, relative to the tenant's current jornada. Never negative for a jornada that is not in the future. */

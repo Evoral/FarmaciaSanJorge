@@ -99,15 +99,3 @@ export const resumenJornadasPendientesQuery = defineQuery({
 export async function resumenJornadasPendientes(): Promise<ResumenPendientes> {
   return resumenJornadasPendientesQuery.execute({});
 }
-
-/** The tenant's current jornada -- used by `/cierres` to decide whether the oldest pending fecha IS today (DP-18b's explicit warning). Same permiso as the rest of this file. */
-export const jornadaActualCierresQuery = defineQuery({
-  name: "cierres.jornadaActual",
-  permiso: "cierres.ver",
-  input: z.object({}),
-  handler: async ({ tx, session }): Promise<string> => jornadaActualTenant(tx, session.tenantId),
-});
-
-export async function getJornadaActualCierres(): Promise<string> {
-  return jornadaActualCierresQuery.execute({});
-}

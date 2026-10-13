@@ -114,7 +114,7 @@ describe("firmarCierre", () => {
       motivoDemora: null,
       fechaFirma: new Date(),
     });
-    jornadaActualTenantMock.mockReset().mockResolvedValue(FECHA);
+    jornadaActualTenantMock.mockReset().mockResolvedValue("2026-06-16"); // the day after FECHA: on time
     getPlazoFirmaDiasMock.mockReset().mockResolvedValue(0);
   });
 
@@ -153,6 +153,13 @@ describe("firmarCierre", () => {
 
   it("no vigente designación at fecha: rejects with a clear DomainError, firmarCierreDb is never called", async () => {
     getDesignacionVigenteEnFechaMock.mockResolvedValue(null);
+
+    await expect(firmar({ fecha: FECHA, password: "correcta" })).rejects.toBeInstanceOf(DomainError);
+    expect(firmarCierreDbMock).not.toHaveBeenCalled();
+  });
+
+  it("the jornada in progress: rejected BEFORE calling firmarCierreDb (INV-C21, signed the day after)", async () => {
+    jornadaActualTenantMock.mockResolvedValue(FECHA);
 
     await expect(firmar({ fecha: FECHA, password: "correcta" })).rejects.toBeInstanceOf(DomainError);
     expect(firmarCierreDbMock).not.toHaveBeenCalled();

@@ -61,9 +61,12 @@ const firmarCierreInternalCommand = defineCommand({
       throw new DomainError("No tenés una designación de Director Técnico vigente para esa fecha.");
     }
 
-    // Friendly app-level pre-check (INV-C18 / the OTRO+detalle CHECK
-    // constraint are the real backstop, migrations 0015/0039).
+    // Friendly app-level pre-checks (INV-C21 / INV-C18 / the OTRO+detalle
+    // CHECK constraint are the real backstop, migrations 0075/0015/0039).
     const jornadaActual = await jornadaActualTenant(tx, session.tenantId);
+    if (input.fecha >= jornadaActual) {
+      throw new DomainError(mensajeParaInvarianteFirma("INV-C21"));
+    }
     const plazoFirmaDias = await getPlazoFirmaDias(tx, session.tenantId);
     const fueraDeTermino = calcularFueraDeTermino({ jornadaActual, fecha: input.fecha, plazoFirmaDias });
     const validacionMotivo = validarMotivoDemoraParaFirma({
