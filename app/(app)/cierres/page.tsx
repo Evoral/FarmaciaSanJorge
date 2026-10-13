@@ -6,8 +6,16 @@
  *
  * Layout: the pending jornadas with the firma form beside them (the work),
  * then the signed history (the record).
+ *
+ * The "Firmas diarias" tab and index route of the sidebar's "Pendientes del
+ * DT" section (`../nav-sections.ts#gestionDtSections`). Its own guard
+ * lives here, not in a nested layout (that would also cover the sibling
+ * tabs). Every tab of the section requires `cierres.ver`, so without it
+ * the session goes back to `/` (a `cierres.reporte`-only session gets here
+ * through `./layout.tsx` for `/cierres/reporte`).
  */
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ChevronRight, CircleCheck, FileBarChart, History, SearchX, X } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
@@ -22,6 +30,8 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
 import { ToneBadge } from "@/shared/ui/status-badge";
+import { SectionTabs } from "../section-tabs";
+import { gestionDtSections } from "../nav-sections";
 
 const PAGE_SIZE = 20;
 
@@ -33,6 +43,10 @@ const numberFormat = new Intl.NumberFormat("es-AR");
 
 export default async function CierresPage({ searchParams }: CierresPageProps) {
   const session = await requireSession();
+  const secciones = gestionDtSections(session);
+  if (!can(session, "cierres.ver")) {
+    redirect("/");
+  }
   const params = await searchParams;
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
@@ -72,8 +86,8 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
   return (
     <div className="page list-view">
       <PageHeader
-        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Cierres" }]}
-        title="Cierres diarios"
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Gestión DT" }, { label: "Firmas diarias" }]}
+        title="Firmas diarias"
         description="Firma de cada jornada por el Director Técnico, en orden cronológico."
         actions={
           puedeVerReporte ? (
@@ -84,6 +98,8 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
           ) : null
         }
       />
+
+      <SectionTabs ariaLabel="Secciones de gestión DT" links={secciones} />
 
       <section aria-labelledby="pendientes-heading" className="mb-10">
         <div className="section-heading">

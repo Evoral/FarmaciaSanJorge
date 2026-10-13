@@ -1,6 +1,7 @@
 /**
  * Single source of truth for the tabbed sections behind the sidebar's
- * "Catálogos", "Usuarios y accesos" and "Configuración" entries. Each
+ * "Catálogos", "Gestión DT", "Usuarios y accesos" and
+ * "Configuración" entries. Each
  * function returns the sections the session can actually reach, already
  * filtered and in priority order, as plain `{ href, label }` data.
  *
@@ -50,6 +51,31 @@ export function catalogosSections(session: AuthenticatedSession): SectionLink[] 
     { href: "/catalogos/drogas", label: "Drogas", visible: can(session, "drogas.editar") },
     { href: "/catalogos/medicos", label: "Médicos", visible: can(session, "medicos.gestionar") },
     { href: "/catalogos/unidades", label: "Unidades de medida", visible: can(session, "unidades.editar") },
+  ]);
+}
+
+/**
+ * `/cierres/**` -- "Gestión DT": what waits on the Director Técnico.
+ * The whole section is for `cierres.ver` holders only (the DT has it via
+ * seed; user decision): every tab requires it, plus its own permiso.
+ *   - "Firmas diarias" is the section's index route itself (`/cierres`,
+ *     guarded on `cierres.ver` in its page: a nested layout there would also
+ *     cover the sibling tabs), hence `exact`.
+ *   - "Vencimientos": + `stock.ver`, the permiso of the stock alert queries
+ *     behind it (only the DT vigente gets its actions).
+ *   - "Ajustes de stock": + `stock.ver`, the guard of `/stock/ajustes`
+ *     (`app/(app)/stock/layout.tsx`), whose list it renders.
+ * Sessions without access still see vencimientos on the home card and the
+ * notification bar, which then link to `/stock?vencidas=1` instead.
+ * `/cierres/[id]` and `/cierres/reporte` are detail pages: breadcrumbs, no tabs.
+ */
+export function gestionDtSections(session: AuthenticatedSession): SectionLink[] {
+  const puedeCierres = can(session, "cierres.ver");
+  const puedeStock = puedeCierres && can(session, "stock.ver");
+  return visible([
+    { href: "/cierres", label: "Firmas diarias", exact: true, visible: puedeCierres },
+    { href: "/cierres/vencimientos", label: "Vencimientos", visible: puedeStock },
+    { href: "/cierres/ajustes", label: "Ajustes de stock", visible: puedeStock },
   ]);
 }
 

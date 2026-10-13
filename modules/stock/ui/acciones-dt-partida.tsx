@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * The Director Técnico's own actions on a DROGA partida (docs/specs/reanalisis-partida.md), on `/stock/partidas/[id]`.
+ * The Director Técnico's own actions on a DROGA partida (docs/specs/reanalisis-partida.md), on `/stock/partidas/[id]`
+ * and inline on each row of "Gestión DT › Vencimientos" (`/cierres/vencimientos`, `compacto` buttons).
  * The page renders them only for a DT vigente (titular or suplente); the commands re-check it, and so does the DB.
  * Each one asks for the DT's OWN password in the same form (no co-firma picker: the DT is the session's usuario).
  *   - `ReanalisisDialog`: "Registrar reanálisis" -- the new date (strictly after today), motivo and respaldo
@@ -79,9 +80,11 @@ export interface ReanalisisDialogProps {
   jornadaActual: string;
   /** Emphasized button (the partida is vencida or por vencer). */
   destacado: boolean;
+  /** Small button, for a table row. */
+  compacto?: boolean;
 }
 
-export function ReanalisisDialog({ partidaId, partidaNombre, jornadaActual, destacado }: ReanalisisDialogProps) {
+export function ReanalisisDialog({ partidaId, partidaNombre, jornadaActual, destacado, compacto = false }: ReanalisisDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const campoId = useId();
   // Bumped on every closing: the next opening starts with an empty form.
@@ -93,7 +96,7 @@ export function ReanalisisDialog({ partidaId, partidaNombre, jornadaActual, dest
 
   return (
     <>
-      <button type="button" onClick={() => dialogRef.current?.showModal()} aria-haspopup="dialog" className={`btn ${destacado ? "btn-primary" : "btn-secondary"}`}>
+      <button type="button" onClick={() => dialogRef.current?.showModal()} aria-haspopup="dialog" className={`btn ${destacado ? "btn-primary" : "btn-secondary"}${compacto ? " btn-sm" : ""}`}>
         <CalendarClock className="size-4" aria-hidden />
         Registrar reanálisis
       </button>
@@ -150,9 +153,11 @@ export interface MarcarVencidaDialogProps {
   partidaNombre: string;
   /** The saldo that will be discounted, already formatted with its unit. */
   saldoTexto: string;
+  /** Small button, for a table row. */
+  compacto?: boolean;
 }
 
-export function MarcarVencidaDialog({ partidaId, partidaNombre, saldoTexto }: MarcarVencidaDialogProps) {
+export function MarcarVencidaDialog({ partidaId, partidaNombre, saldoTexto, compacto = false }: MarcarVencidaDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const campoId = useId();
   const [apertura, setApertura] = useState(0);
@@ -163,7 +168,7 @@ export function MarcarVencidaDialog({ partidaId, partidaNombre, saldoTexto }: Ma
 
   return (
     <>
-      <button type="button" onClick={() => dialogRef.current?.showModal()} aria-haspopup="dialog" className="btn btn-secondary">
+      <button type="button" onClick={() => dialogRef.current?.showModal()} aria-haspopup="dialog" className={`btn btn-secondary${compacto ? " btn-sm" : ""}`}>
         <PackageX className="size-4" aria-hidden />
         Marcar como vencida
       </button>

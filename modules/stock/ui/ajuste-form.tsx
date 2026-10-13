@@ -17,12 +17,17 @@
  * docs/specs/reserva-stock-preparacion.md), the header shows the physical
  * saldo, the reserved part with its recetas and the free part -- the only one
  * an ajuste may consume (the server enforces it).
+ *
+ * Once saved it returns to the list the flow started from (`volverA`, posted
+ * with the form; the action re-validates it against the allowlist of
+ * modules/stock/domain/ajustes-listado.ts and answers the target).
  */
 import { useRouter } from "next/navigation";
 import { CoFirmaDt } from "@/shared/ui/co-firma-dt";
 import { registrarAjusteAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { MOTIVOS_AJUSTE, MOTIVO_AJUSTE_LABELS } from "@/modules/stock/domain/partida";
+import { PARAM_VOLVER_AJUSTE, RETORNO_AJUSTE_DEFAULT, retornoAjusteRegistrado, type RetornoAjuste } from "@/modules/stock/domain/ajustes-listado";
 
 export interface DtOpcion {
   id: string;
@@ -55,10 +60,10 @@ export interface AjusteFormProps {
   reserva: { reservadoTexto: string; libreTexto: string; recetas: string[] } | null;
   /** `true` when the OPERATOR is themselves a vigente DT -- INV-U06: they still type their own password, and both `registradoPorId`/`autorizadoPorId` end up holding the same id. */
   operadorEsDt: boolean;
+  /** The list to return to once saved (already allowlisted by the page). */
+  volverA?: RetornoAjuste;
 }
 
-/** Once saved, the ajustes list: the new ajuste is its first row, under a success banner. */
-const REGISTRADO_HREF = "/stock/ajustes?registrado=1";
 
 export function AjusteForm({
   partidaId,
@@ -71,6 +76,7 @@ export function AjusteForm({
   dts,
   reserva,
   operadorEsDt,
+  volverA = RETORNO_AJUSTE_DEFAULT,
 }: AjusteFormProps) {
   const router = useRouter();
   const unidadFija = unidades.length === 1 ? unidades[0]! : null;
@@ -101,8 +107,9 @@ export function AjusteForm({
       </div>
 
       <div className="panel-body">
-        <SimpleForm action={registrarAjusteAction} submitLabel="Registrar ajuste" onSuccess={() => router.push(REGISTRADO_HREF)}>
+        <SimpleForm action={registrarAjusteAction} submitLabel="Registrar ajuste" onSuccess={(state) => router.push(state.redirigirA ?? retornoAjusteRegistrado(volverA))}>
           <input type="hidden" name="partidaId" value={partidaId} />
+          <input type="hidden" name={PARAM_VOLVER_AJUSTE} value={volverA} />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="field">

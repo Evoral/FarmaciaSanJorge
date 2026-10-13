@@ -60,3 +60,31 @@ export function ajustesSearchParams(filtros: FiltrosAjustes, page?: number): URL
   if (page !== undefined) qs.set("page", String(page));
   return qs;
 }
+
+/**
+ * Where the "Registrar ajuste" flow (`/stock/ajustes/nuevo`) returns: the list it was started from, carried by
+ * `?volverA=` through every step and posted with the form. An explicit allowlist -- any other value falls back to
+ * `/stock/ajustes`, so the param can never redirect anywhere else (no open redirect).
+ */
+export const RETORNOS_AJUSTE = ["/stock/ajustes", "/cierres/ajustes"] as const;
+export type RetornoAjuste = (typeof RETORNOS_AJUSTE)[number];
+export const RETORNO_AJUSTE_DEFAULT: RetornoAjuste = "/stock/ajustes";
+export const PARAM_VOLVER_AJUSTE = "volverA";
+
+export function retornoAjuste(valor: unknown): RetornoAjuste {
+  return RETORNOS_AJUSTE.find((retorno) => retorno === valor) ?? RETORNO_AJUSTE_DEFAULT;
+}
+
+/** The list after a successful registration: `?registrado=1` makes it show the success notice. */
+export function retornoAjusteRegistrado(retorno: RetornoAjuste): string {
+  return `${retorno}?registrado=1`;
+}
+
+/** `href` (a step of the flow) carrying the return param; omitted for the default, so those URLs are unchanged. */
+export function conRetornoAjuste(href: string, retorno: RetornoAjuste): string {
+  if (retorno === RETORNO_AJUSTE_DEFAULT) return href;
+  const [path, query = ""] = href.split("?", 2) as [string, string?];
+  const params = new URLSearchParams(query);
+  params.set(PARAM_VOLVER_AJUSTE, retorno);
+  return `${path}?${params.toString()}`;
+}

@@ -55,7 +55,7 @@ export interface SidebarNavProps {
   usuario: string;
   /** Server action that ends the session. */
   logoutAction: () => Promise<void>;
-  /** Jornadas pending signature (0 hides the badge on "Cierres"). */
+  /** Jornadas pending signature (0 hides the badge on "Gestión DT"). */
   cierresPendientes: number;
   puedeAuditoria: boolean;
   /** FASE 13 point 13.1/13.4 (user decision 5): `true` when the session holds ANY report permiso (`reportes.ver`, `stock.valorizado.ver`, `stock.ver`, `cierres.reporte`, `reportes.auditoria`) -- shows a "Reportes" link to the `/reportes` hub, which itself re-checks each entry's own permiso. */
@@ -93,8 +93,8 @@ export interface SidebarNavProps {
   puedePreparaciones: boolean;
   /** M12, FASE 9: `libro.ver` (FAR/DT/SOLO_CONSULTA) -- `true` shows a "Libro Recetario" link to `/libro`. */
   puedeLibro: boolean;
-  /** M13a, FASE 10: `cierres.ver` (DT/FAR/SOLO_CONSULTA) -- `true` shows a "Cierres" link to `/cierres`. */
-  puedeCierres: boolean;
+  /** "Registro legal › Gestión DT" (formerly "Cierres"): the FIRST `/cierres/**` tab (firmas diarias, vencimientos, ajustes de stock) this session can reach, or `null` to hide the entry. Same reasoning as `catalogosHref`, from `nav-sections.ts#gestionDtSections`. */
+  gestionDtHref: string | null;
   /** M14, FASE 11: `/entregas` when the session holds `entregas.registrar` (the permiso its layout guard requires), or `null` to hide the "Entregas" entry. */
   entregasHref: string | null;
   /** M15, FASE 12: `archivo.lotes.gestionar` ONLY -- same permiso `/archivo`'s layout guard requires, so this link never sends a `archivo.destruccion.gestionar`-only session into a guard that would just redirect it back out. */
@@ -338,7 +338,7 @@ function buildGroups(p: SidebarNavProps, pathname: string): NavGroup[] {
   if (p.entregasHref) operacion.push({ href: p.entregasHref, label: "Entregas", icon: PackageCheck, active: pathname.startsWith("/entregas") });
 
   const registro: NavItem[] = [];
-  if (p.puedeCierres) registro.push({ href: "/cierres", label: "Cierres", icon: CalendarCheck, active: pathname.startsWith("/cierres"), badge: p.cierresPendientes });
+  if (p.gestionDtHref) registro.push({ href: p.gestionDtHref, label: "Gestión DT", icon: CalendarCheck, active: pathname.startsWith("/cierres"), badge: p.cierresPendientes });
   if (p.puedeLibro) registro.push({ href: "/libro", label: "Libro Recetario", icon: BookOpen, active: pathname.startsWith("/libro") });
   if (p.puedeArchivo) registro.push({ href: "/archivo", label: "Archivo de recetas", icon: Archive, active: pathname.startsWith("/archivo") });
 

@@ -3,7 +3,10 @@
  * Without `partidaId` (the "Registrar ajuste" button on `/stock/ajustes`) it
  * first lets the user pick the partida: search a droga (`q`), pick it
  * (`drogaId`), then pick one of its partidas with balance. Once saved, the
- * form goes to `/stock/ajustes?registrado=1` (modules/stock/ui/ajuste-form.tsx).
+ * form goes back to the list the flow started from with `?registrado=1`
+ * (modules/stock/ui/ajuste-form.tsx): `?volverA=` (`/stock/ajustes`, the
+ * default, or `/cierres/ajustes`; allowlisted by `retornoAjuste`, anything
+ * else is the default) is carried by every step, link and breadcrumb.
  *
  * The three steps are shown as a stepper. Step 1 is a droga autocomplete
  * (picking goes straight to step 2); the list below browses the matches.
@@ -24,6 +27,7 @@ import { equivalenciasPracticas, formatCantidad, unidadesPracticas } from "@/sha
 import { dec, Decimal } from "@/shared/decimal";
 import { Cantidad } from "@/shared/ui/cantidad";
 import { DrogaBuscador } from "@/modules/stock/ui/droga-buscador";
+import { conRetornoAjuste, retornoAjuste, type RetornoAjuste } from "@/modules/stock/domain/ajustes-listado";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 
@@ -31,19 +35,19 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 const SELECCION_PAGE_SIZE = 20;
 
 interface NuevoAjustePageProps {
-  searchParams: Promise<{ partidaId?: string; drogaId?: string; q?: string }>;
+  searchParams: Promise<{ partidaId?: string; drogaId?: string; q?: string; volverA?: string }>;
 }
 
 function formatFecha(fecha: Date): string {
   return new Intl.DateTimeFormat("es-AR", { timeZone: "UTC" }).format(fecha);
 }
 
-const BREADCRUMBS = [
-  { label: "Inicio", href: "/" },
-  { label: "Stock", href: "/stock" },
-  { label: "Ajustes", href: "/stock/ajustes" },
-  { label: "Registrar" },
-];
+/** The trail of the list the flow returns to. */
+function breadcrumbs(volverA: RetornoAjuste) {
+  return volverA === "/cierres/ajustes"
+    ? [{ label: "Inicio", href: "/" }, { label: "Gestión DT" }, { label: "Ajustes de stock", href: volverA }, { label: "Registrar" }]
+    : [{ label: "Inicio", href: "/" }, { label: "Stock", href: "/stock" }, { label: "Ajustes", href: volverA }, { label: "Registrar" }];
+}
 
 type Paso = 1 | 2 | 3;
 
@@ -73,13 +77,14 @@ function Pasos({ actual, pasoUnoHref, pasoDosHref }: { actual: Paso; pasoUnoHref
 
 export default async function NuevoAjustePage({ searchParams }: NuevoAjustePageProps) {
   const session = await requireSession();
+  const { partidaId, drogaId, q, volverA: volverAParam } = await searchParams;
+  const volverA = retornoAjuste(volverAParam);
   if (!can(session, "stock.ajuste.registrar")) {
-    redirect("/stock/ajustes");
+    redirect(volverA);
   }
 
-  const { partidaId, drogaId, q } = await searchParams;
   if (!partidaId) {
-    return <SeleccionPartida q={q?.trim() ?? ""} drogaId={drogaId && UUID_PATTERN.test(drogaId) ? drogaId : ""} />;
+    return <SeleccionPartida q={q?.trim() ?? ""} drogaId={drogaId && UUID_PATTERN.test(drogaId) ? drogaId : ""} volverA={volverA} />;
   }
 
   let partida;
@@ -110,8 +115,8 @@ export default async function NuevoAjustePage({ searchParams }: NuevoAjustePageP
 
   return (
     <div className="page">
-      <PageHeader breadcrumbs={BREADCRUMBS} title="Registrar ajuste / merma" description="Se descuenta del saldo de la partida y queda registrado con la co-firma del Director Técnico." />
-      <Pasos actual={3} pasoUnoHref="/stock/ajustes/nuevo" />
+      <PageHeader breadcrumbs={breadcrumbs(volverA)} title="Registrar ajuste / merma" description="Se descuenta del saldo de la partida y queda registrado con la co-firma del Director Técnico." />
+      <Pasos actual={3} pasoUnoHref={conRetornoAjuste("/stock/ajustes/nuevo", volverA)} />
       <AjusteForm
         partidaId={partida.id}
         drogaNombre={partida.drogaNombre}
@@ -123,6 +128,7 @@ export default async function NuevoAjustePage({ searchParams }: NuevoAjustePageP
         dts={dts.map((dt) => ({ id: dt.usuarioId, label: `${dt.nombre} ${dt.apellido}` }))}
         reserva={reserva}
         operadorEsDt={operadorEsDt}
+        volverA={volverA}
       />
     </div>
   );
@@ -131,22 +137,26 @@ export default async function NuevoAjustePage({ searchParams }: NuevoAjustePageP
 type Catalogo = Awaited<ReturnType<typeof getCatalogoUnidades>>["catalogo"];
 
 /** Step before the form: droga search -> partidas with balance of the chosen droga. */
-async function SeleccionPartida({ q, drogaId }: { q: string; drogaId: string }) {
+async function SeleccionPartida({ q, drogaId, volverA }: { q: string; drogaId: string; volverA: RetornoAjuste }) {
   const { catalogo } = await getCatalogoUnidades();
-  const pasoUnoHref = q ? `/stock/ajustes/nuevo?${new URLSearchParams({ q }).toString()}` : "/stock/ajustes/nuevo";
+  const pasoUnoHref = conRetornoAjuste(q ? `/stock/ajustes/nuevo?${new URLSearchParams({ q }).toString()}` : "/stock/ajustes/nuevo", volverA);
 
   return (
     <div className="page list-view">
-      <PageHeader breadcrumbs={BREADCRUMBS} title="Registrar ajuste / merma" description="Elegí la droga y luego la partida sobre la que se registra el ajuste." />
+      <PageHeader breadcrumbs={breadcrumbs(volverA)} title="Registrar ajuste / merma" description="Elegí la droga y luego la partida sobre la que se registra el ajuste." />
       <Pasos actual={drogaId ? 2 : 1} pasoUnoHref={pasoUnoHref} />
       <div className="max-w-3xl">
-        {drogaId ? <PartidasConSaldo drogaId={drogaId} pasoUnoHref={pasoUnoHref} catalogo={catalogo} /> : <DrogasParaAjuste q={q} catalogo={catalogo} />}
+        {drogaId ? (
+          <PartidasConSaldo drogaId={drogaId} pasoUnoHref={pasoUnoHref} catalogo={catalogo} volverA={volverA} />
+        ) : (
+          <DrogasParaAjuste q={q} catalogo={catalogo} volverA={volverA} />
+        )}
       </div>
     </div>
   );
 }
 
-async function DrogasParaAjuste({ q, catalogo }: { q: string; catalogo: Catalogo }) {
+async function DrogasParaAjuste({ q, catalogo, volverA }: { q: string; catalogo: Catalogo; volverA: RetornoAjuste }) {
   const stock = await listStockDrogas({ search: q || undefined, page: 1, pageSize: SELECCION_PAGE_SIZE });
 
   return (
@@ -157,8 +167,8 @@ async function DrogasParaAjuste({ q, catalogo }: { q: string; catalogo: Catalogo
           label="Droga"
           placeholder="Escribí el nombre de la droga"
           busquedaActual={q || undefined}
-          alElegir={{ href: q ? `/stock/ajustes/nuevo?${new URLSearchParams({ q }).toString()}` : "/stock/ajustes/nuevo", param: "drogaId", valor: "id" }}
-          alBuscar={{ href: "/stock/ajustes/nuevo", param: "q", texto: "Ver todas las coincidencias de “{q}”", textoSinBusqueda: "Ver todas las drogas" }}
+          alElegir={{ href: conRetornoAjuste(q ? `/stock/ajustes/nuevo?${new URLSearchParams({ q }).toString()}` : "/stock/ajustes/nuevo", volverA), param: "drogaId", valor: "id" }}
+          alBuscar={{ href: conRetornoAjuste("/stock/ajustes/nuevo", volverA), param: "q", texto: "Ver todas las coincidencias de “{q}”", textoSinBusqueda: "Ver todas las drogas" }}
         />
       </div>
 
@@ -174,7 +184,7 @@ async function DrogasParaAjuste({ q, catalogo }: { q: string; catalogo: Catalogo
                 if (q) qs.set("q", q);
                 return (
                   <li key={item.drogaId}>
-                    <Link href={`/stock/ajustes/nuevo?${qs.toString()}`} className="pick-row" aria-label={`Elegir partida de ${item.drogaNombre}`}>
+                    <Link href={conRetornoAjuste(`/stock/ajustes/nuevo?${qs.toString()}`, volverA)} className="pick-row" aria-label={`Elegir partida de ${item.drogaNombre}`}>
                       <span className="min-w-0 flex-1 truncate font-medium text-zinc-900">{item.drogaNombre}</span>
                       <span className="text-right">
                         <span className="block text-xs text-zinc-500">Disponible</span>
@@ -200,7 +210,7 @@ async function DrogasParaAjuste({ q, catalogo }: { q: string; catalogo: Catalogo
   );
 }
 
-async function PartidasConSaldo({ drogaId, pasoUnoHref, catalogo }: { drogaId: string; pasoUnoHref: string; catalogo: Catalogo }) {
+async function PartidasConSaldo({ drogaId, pasoUnoHref, catalogo, volverA }: { drogaId: string; pasoUnoHref: string; catalogo: Catalogo; volverA: RetornoAjuste }) {
   const result = await listPartidasDroga({ drogaId, soloConSaldo: true, page: 1, pageSize: 100 });
   const unidad = result.droga ? { id: result.droga.unidadBaseId, simbolo: result.droga.unidadBaseSimbolo } : null;
 
@@ -218,7 +228,7 @@ async function PartidasConSaldo({ drogaId, pasoUnoHref, catalogo }: { drogaId: s
         <ul aria-label="Partidas con saldo">
           {result.items.map((partida) => (
             <li key={partida.id}>
-              <Link href={`/stock/ajustes/nuevo?partidaId=${partida.id}`} className="pick-row" aria-label={`Registrar ajuste del lote ${partida.lote}`}>
+              <Link href={conRetornoAjuste(`/stock/ajustes/nuevo?partidaId=${partida.id}`, volverA)} className="pick-row" aria-label={`Registrar ajuste del lote ${partida.lote}`}>
                 <span className="min-w-0 flex-1">
                   <span className="block">
                     <span className="text-zinc-500">Lote </span>

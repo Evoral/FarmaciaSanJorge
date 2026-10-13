@@ -10,6 +10,7 @@ import { importarFacturaCompra } from "@/modules/stock/application/importar-fact
 import { registrarReanalisisPartida } from "@/modules/stock/application/reanalizar-partida";
 import { marcarPartidaVencida } from "@/modules/stock/application/marcar-partida-vencida";
 import type { MotivoAjuste } from "@/modules/stock/domain/partida";
+import { PARAM_VOLVER_AJUSTE, retornoAjuste, retornoAjusteRegistrado } from "@/modules/stock/domain/ajustes-listado";
 import { actionError, actionErrorMessage } from "@/shared/ui/action-error";
 import type { LeerFacturaPdfState, StockActionState } from "./action-state";
 
@@ -66,6 +67,8 @@ export async function crearProductoDesdeFacturaAction(input: { nombre: string; u
  * co-firma entirely).
  */
 export async function registrarAjusteAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
+  // Allowlisted (`retornoAjuste`): an unknown value falls back to /stock/ajustes, never an arbitrary redirect.
+  const retorno = retornoAjuste(formData.get(PARAM_VOLVER_AJUSTE));
   try {
     await registrarAjusteStock({
       partidaId: String(formData.get("partidaId") ?? ""),
@@ -78,7 +81,8 @@ export async function registrarAjusteAction(_prevState: StockActionState, formDa
     });
     revalidatePath("/stock");
     revalidatePath("/stock/ajustes");
-    return { status: "success", message: "Ajuste registrado." };
+    revalidatePath("/cierres/ajustes");
+    return { status: "success", message: "Ajuste registrado.", redirigirA: retornoAjusteRegistrado(retorno) };
   } catch (error) {
     return fromError(error, "No se pudo registrar el ajuste.");
   }
@@ -107,6 +111,7 @@ function opcional(formData: FormData, campo: string): string | undefined {
 function revalidarPartida(partidaId: string) {
   revalidatePath("/stock");
   revalidatePath(`/stock/partidas/${partidaId}`);
+  revalidatePath("/cierres/vencimientos");
   revalidatePath("/");
 }
 
@@ -139,6 +144,7 @@ export async function marcarPartidaVencidaAction(_prevState: StockActionState, f
     });
     revalidarPartida(partidaId);
     revalidatePath("/stock/ajustes");
+    revalidatePath("/cierres/ajustes");
     return { status: "success", message: "Partida marcada como vencida: se descontó todo su saldo." };
   } catch (error) {
     return fromError(error, "No se pudo marcar la partida como vencida.");

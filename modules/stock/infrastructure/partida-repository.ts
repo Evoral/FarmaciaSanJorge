@@ -950,11 +950,18 @@ export async function alertasBajoMinimo(tx: Prisma.TransactionClient, tenantId: 
 
 export interface AlertaPorVencer {
   partidaId: string;
+  drogaId: string;
   drogaNombre: string;
   lote: string;
+  proveedorRazonSocial: string;
+  /** In the droga's unidad base (`unidadBaseId` / `unidadBaseSimbolo`). */
   cantidadDisponible: string;
+  unidadBaseId: string;
+  unidadBaseSimbolo: string;
   /** The vencimiento VIGENTE (migration 0074). */
   fechaVencimiento: Date;
+  /** The ORIGINAL (printed) vencimiento; differs from `fechaVencimiento` only when `reanalizada`. */
+  fechaVencimientoOriginal: Date;
   /** A DROGA partida (migration 0063): blocked when vencida until the DT acts; re-analysable (docs/specs/reanalisis-partida.md). */
   esDroga: boolean;
   /** The vigente date comes from a reanálisis (differs from the original one). */
@@ -969,10 +976,15 @@ export type AlertaVencidaConSaldo = AlertaPorVencer;
 
 interface AlertaVencimientoRow {
   partida_id: string;
+  droga_id: string;
   nombre: string;
   lote: string;
+  proveedor_razon_social: string;
   cantidad_disponible: string;
+  unidad_base_id: string;
+  unidad_base_simbolo: string;
   fecha_vencimiento_vigente: Date;
+  fecha_vencimiento: Date;
   es_droga: boolean;
   reanalizada: boolean;
 }
@@ -980,10 +992,15 @@ interface AlertaVencimientoRow {
 function alertaDesdeRow(row: AlertaVencimientoRow): AlertaPorVencer {
   return {
     partidaId: row.partida_id,
+    drogaId: row.droga_id,
     drogaNombre: row.nombre,
     lote: row.lote,
+    proveedorRazonSocial: row.proveedor_razon_social,
     cantidadDisponible: row.cantidad_disponible,
+    unidadBaseId: row.unidad_base_id,
+    unidadBaseSimbolo: row.unidad_base_simbolo,
     fechaVencimiento: row.fecha_vencimiento_vigente,
+    fechaVencimientoOriginal: row.fecha_vencimiento,
     esDroga: row.es_droga,
     reanalizada: row.reanalizada,
   };
@@ -992,10 +1009,14 @@ function alertaDesdeRow(row: AlertaVencimientoRow): AlertaPorVencer {
 /** Partidas with balance whose vencimiento VIGENTE falls within `[jornadaActual, jornadaActual + diasAlerta]` -- excludes already-expired ones (those are `alertasVencidasConSaldo`'s job). */
 export async function alertasPorVencer(tx: Prisma.TransactionClient, tenantId: string, diasAlerta: number): Promise<AlertaPorVencer[]> {
   const rows = await tx.$queryRaw<AlertaVencimientoRow[]>`
-    SELECT p.id AS partida_id, d.nombre, p.lote, p.cantidad_disponible::text, p.fecha_vencimiento_vigente,
+    SELECT p.id AS partida_id, d.id AS droga_id, d.nombre, p.lote, pv.razon_social AS proveedor_razon_social,
+      p.cantidad_disponible::text, u.id AS unidad_base_id, u.simbolo AS unidad_base_simbolo,
+      p.fecha_vencimiento_vigente, p.fecha_vencimiento,
       d.clase = 'DROGA' AS es_droga, p.fecha_vencimiento_vigente IS DISTINCT FROM p.fecha_vencimiento AS reanalizada
     FROM fsj.partida p
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
+    JOIN fsj.proveedor pv ON pv.tenant_id = p.tenant_id AND pv.id = p.proveedor_id
+    JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
     WHERE p.tenant_id = ${tenantId}::uuid
       AND p.cantidad_disponible > 0
       AND p.fecha_vencimiento_vigente >= fsj.jornada_actual(${tenantId}::uuid)
@@ -1008,16 +1029,51 @@ export async function alertasPorVencer(tx: Prisma.TransactionClient, tenantId: s
 /** Expired partidas (vencimiento VIGENTE < jornada) that STILL have balance. */
 export async function alertasVencidasConSaldo(tx: Prisma.TransactionClient, tenantId: string): Promise<AlertaVencidaConSaldo[]> {
   const rows = await tx.$queryRaw<AlertaVencimientoRow[]>`
-    SELECT p.id AS partida_id, d.nombre, p.lote, p.cantidad_disponible::text, p.fecha_vencimiento_vigente,
+    SELECT p.id AS partida_id, d.id AS droga_id, d.nombre, p.lote, pv.razon_social AS proveedor_razon_social,
+      p.cantidad_disponible::text, u.id AS unidad_base_id, u.simbolo AS unidad_base_simbolo,
+      p.fecha_vencimiento_vigente, p.fecha_vencimiento,
       d.clase = 'DROGA' AS es_droga, p.fecha_vencimiento_vigente IS DISTINCT FROM p.fecha_vencimiento AS reanalizada
     FROM fsj.partida p
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
+    JOIN fsj.proveedor pv ON pv.tenant_id = p.tenant_id AND pv.id = p.proveedor_id
+    JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
     WHERE p.tenant_id = ${tenantId}::uuid
       AND p.cantidad_disponible > 0
       AND p.fecha_vencimiento_vigente < fsj.jornada_actual(${tenantId}::uuid)
     ORDER BY p.fecha_vencimiento_vigente ASC
   `;
   return rows.map(alertaDesdeRow);
+}
+
+export interface ResumenVencimientosDrogas {
+  /** Distinct DROGA drogas (insumos excluded) with a vencida partida that still has balance. */
+  drogasVencidas: number;
+  /** Distinct DROGA drogas with a partida por vencer (balance, vigente date within the alert window). */
+  drogasPorVencer: number;
+}
+
+/**
+ * One aggregate row for the app-wide banner: the same predicates as `alertasVencidasConSaldo` /
+ * `alertasPorVencer` above (keep them in sync), restricted to DROGA partidas -- the ones that wait on the DT
+ * (docs/specs/reanalisis-partida.md) -- and counted per droga instead of listed.
+ */
+export async function resumenVencimientosDrogas(tx: Prisma.TransactionClient, tenantId: string, diasAlerta: number): Promise<ResumenVencimientosDrogas> {
+  const rows = await tx.$queryRaw<{ drogas_vencidas: number; drogas_por_vencer: number }[]>`
+    WITH j AS (SELECT fsj.jornada_actual(${tenantId}::uuid) AS jornada)
+    SELECT
+      (count(DISTINCT p.droga_id) FILTER (WHERE p.fecha_vencimiento_vigente < j.jornada))::int AS drogas_vencidas,
+      (count(DISTINCT p.droga_id) FILTER (
+        WHERE p.fecha_vencimiento_vigente >= j.jornada
+          AND p.fecha_vencimiento_vigente <= (j.jornada + (${diasAlerta}::int || ' days')::interval)
+      ))::int AS drogas_por_vencer
+    FROM fsj.partida p
+    JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
+    CROSS JOIN j
+    WHERE p.tenant_id = ${tenantId}::uuid
+      AND p.cantidad_disponible > 0
+      AND d.clase = 'DROGA'
+  `;
+  return { drogasVencidas: rows[0]?.drogas_vencidas ?? 0, drogasPorVencer: rows[0]?.drogas_por_vencer ?? 0 };
 }
 
 // ============================================================================

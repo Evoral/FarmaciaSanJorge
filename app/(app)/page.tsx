@@ -38,6 +38,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { StatusSummary } from "@/shared/ui/status-summary";
 import { SummaryList, type SummaryBreakdown, type SummaryListItem } from "@/shared/ui/summary-list";
 import { EmptyState } from "@/shared/ui/empty-state";
+import { gestionDtSections } from "./nav-sections";
 
 interface Card {
   titulo: string;
@@ -113,10 +114,13 @@ export default async function HomePage() {
     // to everyone who sees stock so they tell the DT; the actions themselves are on the partida, for the DT only.
     const vencidasDt = stock.vencidasConSaldo.filter((a) => a.esDroga);
     const vencidasInsumo = stock.vencidasConSaldo.length - vencidasDt.length;
+    // "Gestión DT › Vencimientos" lists them all with the DT's actions when this session can open that tab;
+    // otherwise the vencidas filter of /stock (same `stock.ver` as this card).
+    const puedeVerVencimientos = gestionDtSections(session).some((seccion) => seccion.href === "/cierres/vencimientos");
     if (vencidasDt.length > 0) {
       cards.push({
         titulo: "Partidas vencidas: requiere acción del DT",
-        href: vencidasDt.length === 1 ? `/stock/partidas/${vencidasDt[0]!.partidaId}` : "/stock?vencidas=1",
+        href: puedeVerVencimientos ? "/cierres/vencimientos" : "/stock?vencidas=1",
         cuerpo: "",
         detalle:
           vencidasDt.length === 1

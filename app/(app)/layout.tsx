@@ -16,10 +16,11 @@ import { AuthenticationError } from "@/shared/errors";
 import { logout } from "@/modules/auth/application/logout";
 import { resumenJornadasPendientes } from "@/modules/cierres/application/list-jornadas-pendientes";
 import { resumenDestruccion } from "@/modules/archivo/application/resumen-destruccion";
+import { resumenVencimientosDrogas } from "@/modules/stock/application/vencimientos-drogas";
 import { getLogger } from "@/shared/logging/logger";
 import { AppShell } from "./app-shell";
 import { SIDEBAR_COLLAPSED_COOKIE } from "./sidebar-state";
-import { accesosSections, catalogosSections, configuracionSections, firstSectionHref } from "./nav-sections";
+import { accesosSections, catalogosSections, configuracionSections, firstSectionHref, gestionDtSections } from "./nav-sections";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   let session;
@@ -49,6 +50,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const catalogosHref = firstSectionHref(catalogosSections(session));
   const accesosHref = firstSectionHref(accesosSections(session));
   const configuracionHref = firstSectionHref(configuracionSections(session));
+  // "Gestión DT" (formerly "Cierres"): same rule, from the /cierres/** tabs.
+  const seccionesGestionDt = gestionDtSections(session);
+  const gestionDtHref = firstSectionHref(seccionesGestionDt);
 
   // FASE 10 point 10.3: cheap banner for anyone who can see or sign
   // cierres. Gated on exactly the permiso the underlying query enforces
@@ -83,6 +87,23 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     }
   }
 
+  // Vencimientos of DROGA partidas (docs/specs/reanalisis-partida.md): same
+  // fail-soft, cheap-aggregate discipline, gated on the permiso the query
+  // enforces (`stock.ver`) -- everyone who sees stock alerts, so they warn
+  // the DT. It links to the "Gestión DT" tab when the session can
+  // open it, else to `/stock?vencidas=1` (same permiso as the query).
+  const puedeVencimientos = can(session, "stock.ver");
+  let resumenVencimientos: Awaited<ReturnType<typeof resumenVencimientosDrogas>> | null = null;
+  if (puedeVencimientos) {
+    try {
+      resumenVencimientos = await resumenVencimientosDrogas();
+    } catch (error) {
+      getLogger().error({ error }, "Failed to load vencimientos banner summary");
+      resumenVencimientos = null;
+    }
+  }
+  const vencimientosHref = seccionesGestionDt.some((seccion) => seccion.href === "/cierres/vencimientos") ? "/cierres/vencimientos" : "/stock?vencidas=1";
+
   // FASE 12 nav entry: "Archivo" is visible ONLY to archivo.lotes.gestionar
   // -- same permiso `app/(app)/archivo/layout.tsx`'s guard requires, so the
   // link never sends a destruccion.gestionar-only session into a layout
@@ -111,6 +132,68 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   const sidebarCollapsed = (await cookies()).get(SIDEBAR_COLLAPSED_COOKIE)?.value === "1";
 
+  const avisos: Aviso[] = [];
+  if (resumenCierres && resumenCierres.cantidad > 0) {
+    const { cantidad, masAntigua } = resumenCierres;
+    avisos.push({
+      key: "cierres",
+      tone: masAntigua?.fueraDeTermino ? "danger" : "warn",
+      href: "/cierres",
+      linkLabel: "Ver firmas",
+      content: (
+        <>
+          <b className="font-semibold tabular-nums">{cantidad}</b> jornada{cantidad === 1 ? "" : "s"} pendiente{cantidad === 1 ? "" : "s"} de firma
+          {masAntigua ? ` · la más antigua: ${masAntigua.fecha} (${masAntigua.antiguedadDias} día${masAntigua.antiguedadDias === 1 ? "" : "s"})` : ""}
+          {masAntigua?.fueraDeTermino ? " — fuera de término" : ""}
+        </>
+      ),
+    });
+  }
+  if (resumenVencimientos && (resumenVencimientos.drogasVencidas > 0 || resumenVencimientos.drogasPorVencer > 0)) {
+    const { drogasVencidas, drogasPorVencer } = resumenVencimientos;
+    avisos.push({
+      key: "vencimientos",
+      tone: drogasVencidas > 0 ? "danger" : "warn",
+      href: vencimientosHref,
+      linkLabel: "Ver vencimientos",
+      content: (
+        <>
+          {drogasVencidas > 0 ? (
+            <>
+              <b className="font-semibold tabular-nums">{drogasVencidas}</b> droga{drogasVencidas === 1 ? "" : "s"} vencida{drogasVencidas === 1 ? "" : "s"}
+            </>
+          ) : null}
+          {drogasVencidas > 0 && drogasPorVencer > 0 ? " · " : null}
+          {drogasPorVencer > 0 ? (
+            <>
+              <b className="font-semibold tabular-nums">{drogasPorVencer}</b> {drogasVencidas > 0 ? "por vencer" : `droga${drogasPorVencer === 1 ? "" : "s"} por vencer`}
+            </>
+          ) : null}
+        </>
+      ),
+    });
+  }
+  // The link only makes sense for a session that can open `/archivo`
+  // (`archivo.lotes.gestionar`, same permiso `app/(app)/archivo/layout.tsx`'s
+  // guard requires): a session with ONLY `archivo.destruccion.gestionar`
+  // would otherwise see a link that redirects it straight back out. That
+  // item is hidden instead of showing a dead link (both permisos are
+  // DIRECTOR_TECNICO-only today regardless).
+  if (resumenDestruccionArchivo && resumenDestruccionArchivo.cantidad > 0 && puedeArchivo) {
+    const { cantidad } = resumenDestruccionArchivo;
+    avisos.push({
+      key: "destruccion",
+      tone: "warn",
+      href: "/archivo",
+      linkLabel: "Ver archivo",
+      content: (
+        <>
+          <b className="font-semibold tabular-nums">{cantidad}</b> lote{cantidad === 1 ? "" : "s"} con plazo cumplido pendiente{cantidad === 1 ? "" : "s"} de destrucción
+        </>
+      ),
+    });
+  }
+
   return (
     <AppShell
       initialCollapsed={sidebarCollapsed}
@@ -130,57 +213,53 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         puedeRecetas: can(session, "recetas.crear"),
         puedePreparaciones: can(session, "preparaciones.iniciar"),
         puedeLibro: can(session, "libro.ver"),
-        puedeCierres,
+        gestionDtHref,
         entregasHref,
         puedeArchivo,
       }}
     >
-      {resumenCierres && resumenCierres.cantidad > 0 ? (
-        <AlertBanner tone={resumenCierres.masAntigua?.fueraDeTermino ? "danger" : "warn"} href="/cierres" linkLabel="Ver cierres">
-          <b className="font-semibold">
-            {resumenCierres.cantidad} jornada{resumenCierres.cantidad === 1 ? "" : "s"}
-          </b>{" "}
-          pendiente{resumenCierres.cantidad === 1 ? "" : "s"} de firma
-          {resumenCierres.masAntigua ? ` · la más antigua: ${resumenCierres.masAntigua.fecha} (${resumenCierres.masAntigua.antiguedadDias} día${resumenCierres.masAntigua.antiguedadDias === 1 ? "" : "s"})` : ""}
-          {resumenCierres.masAntigua?.fueraDeTermino ? " — fuera de término" : ""}
-        </AlertBanner>
-      ) : null}
-      {/*
-        The link below only makes sense for a session that can actually
-        open `/archivo` (`archivo.lotes.gestionar`, same permiso
-        `app/(app)/archivo/layout.tsx`'s guard requires) -- a session with
-        ONLY `archivo.destruccion.gestionar` would otherwise see a "Ver
-        archivo" link that redirects it straight back out. Hide the whole
-        banner in that case instead of showing a dead link (both permisos
-        are DIRECTOR_TECNICO-only today regardless, so this never fires
-        in practice yet).
-      */}
-      {resumenDestruccionArchivo && resumenDestruccionArchivo.cantidad > 0 && can(session, "archivo.lotes.gestionar") ? (
-        <AlertBanner tone="warn" href="/archivo" linkLabel="Ver archivo">
-          <b className="font-semibold">
-            {resumenDestruccionArchivo.cantidad} lote{resumenDestruccionArchivo.cantidad === 1 ? "" : "s"}
-          </b>{" "}
-          con plazo cumplido pendiente{resumenDestruccionArchivo.cantidad === 1 ? "" : "s"} de destrucción
-        </AlertBanner>
-      ) : null}
+      <NoticeBar avisos={avisos} />
       <main>{children}</main>
     </AppShell>
   );
 }
 
-const BANNER_TONES = {
-  warn: { box: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200", dot: "bg-amber-600" },
-  danger: { box: "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200", dot: "bg-red-600" },
-} as const;
+type AvisoTone = "warn" | "danger";
 
-function AlertBanner({ tone, href, linkLabel, children }: { tone: keyof typeof BANNER_TONES; href: string; linkLabel: string; children: ReactNode }) {
+interface Aviso {
+  key: string;
+  tone: AvisoTone;
+  /** `null` when the session cannot open the destination: the item shows without a link, never a dead one. */
+  href: string | null;
+  linkLabel: string;
+  content: ReactNode;
+}
+
+/**
+ * The app-wide notification bar: ONE shared `.alert` (app/globals.css) holding each pending item as its own segment
+ * (count, short text, link, and a dot in its own tone). The bar's tone is the most severe item's. Nothing renders
+ * when there is nothing pending.
+ */
+function NoticeBar({ avisos }: { avisos: readonly Aviso[] }) {
+  if (avisos.length === 0) return null;
+  const tone: AvisoTone = avisos.some((aviso) => aviso.tone === "danger") ? "danger" : "warn";
   return (
-    <div role="status" className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b px-4 py-2.5 text-sm sm:px-8 ${BANNER_TONES[tone].box}`}>
-      <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${BANNER_TONES[tone].dot}`} />
-      <span>{children}</span>
-      <Link href={href} className="ml-auto font-medium underline">
-        {linkLabel}
-      </Link>
+    <div className="notice-bar-wrap">
+      <div role="status" className={`alert alert-${tone} notice-bar`}>
+        <ul className="notice-bar-items">
+          {avisos.map((aviso) => (
+            <li key={aviso.key} className="notice-bar-item">
+              <span aria-hidden="true" className="notice-bar-dot" data-tone={aviso.tone} />
+              <span className="min-w-0">{aviso.content}</span>
+              {aviso.href ? (
+                <Link href={aviso.href} className="notice-bar-link">
+                  {aviso.linkLabel}
+                </Link>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
