@@ -246,7 +246,7 @@ export interface RecetaFormProps {
   inicial?: RecetaFormInicial;
   /** `importar` mode only. */
   vistaPrevia?: VistaPreviaImportacion;
-  /** `cotizaciones.calcular`: show the live presupuesto (crear/importar only -- docs/specs/presupuesto-receta.md). */
+  /** `cotizaciones.calcular`: show the live price (crear/importar only -- docs/specs/presupuesto-receta.md). */
   puedePresupuestar?: boolean;
   /** `editar` mode only: where to come back after saving when the form is embedded in another screen (an internal /preparaciones path, re-validated by the action -- domain/avisos-generacion.ts#retornoDeEdicion). */
   volverA?: string;
@@ -519,6 +519,10 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
     : medicoLabel;
   const totalComponentes = items.reduce((sum, it) => sum + it.componentes.length, 0);
   const cancelarHref = mode !== "editar" ? "/recetas" : !volverA && recetaId ? `/recetas/${recetaId}` : null;
+  // `crear` reads "pagada" from the form; `importar` sends it inside `importacionJson`.
+  const pagoPanel = { pagada, onChange: setPagada, disabled, name: mode === "crear" ? "pagada" : undefined };
+  // With the price panel, the paid switch lives inside it (it needs the total); otherwise it stays in the resumen.
+  const mostrarPrecio = puedePresupuestar && mode !== "editar";
   const errorVisible = clientError ?? (state.status === "error" && state !== errorDescartado ? state.message : null);
 
   // Next to the paciente: the picker (crear/editar) or the imported paciente's panel (importar).
@@ -1066,7 +1070,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
         </section>
       ) : (
         <aside className="split-aside flex flex-col gap-4" aria-label="Resumen y guardado">
-          {puedePresupuestar && mode !== "editar" ? <PresupuestoPanel items={itemsParaEnvio()} /> : null}
+          {mostrarPrecio ? <PresupuestoPanel items={itemsParaEnvio()} pago={pagoPanel} /> : null}
 
           <div className="panel">
             <div className="panel-header">
@@ -1096,11 +1100,10 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                 </dd>
               </dl>
 
-              {mode !== "editar" ? (
-                <label className="flex items-center gap-2 text-sm font-medium text-zinc-900">
-                  {/* `crear` reads it from the form; `importar` sends it inside `importacionJson`. */}
-                  <input type="checkbox" name={mode === "crear" ? "pagada" : undefined} checked={pagada} disabled={disabled} onChange={(e) => setPagada(e.target.checked)} />
-                  Pagada
+              {mode !== "editar" && !mostrarPrecio ? (
+                <label className="toggle-switch font-medium text-zinc-900">
+                  <input type="checkbox" role="switch" name={pagoPanel.name} checked={pagada} disabled={disabled} onChange={(e) => setPagada(e.target.checked)} />
+                  {pagada ? "Pagada" : "Marcar como pagada"}
                 </label>
               ) : null}
 

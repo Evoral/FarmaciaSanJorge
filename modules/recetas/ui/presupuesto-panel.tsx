@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Presupuesto" of the receta being loaded (docs/specs/presupuesto-receta.md):
+ * "Precio" of the receta being loaded (docs/specs/presupuesto-receta.md):
  * the price the client sees at the counter before anything is saved.
  * Recalculates by itself ~600 ms after the items stop changing -- but only
  * once they are complete enough to price (domain/presupuesto.ts's
@@ -30,7 +30,30 @@ function Badge({ children }: { children: ReactNode }) {
   );
 }
 
-export function PresupuestoPanel({ items }: { items: ItemPresupuestable[] }) {
+export interface PagoPanel {
+  pagada: boolean;
+  onChange: (pagada: boolean) => void;
+  disabled: boolean;
+  /** Form field name (`crear` reads it from the form; `importar` sends it inside `importacionJson`). */
+  name?: string;
+}
+
+/** "Pagada" switch: the whole receta is paid, so ítems added later are covered by the same payment. */
+function PagoSwitch({ pago, total }: { pago: PagoPanel; total: string | null }) {
+  return (
+    <div
+      className={`mt-4 flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 transition-colors ${pago.pagada ? "border-emerald-300 bg-emerald-50" : "border-zinc-200 bg-zinc-50"}`}
+    >
+      <label className="toggle-switch min-h-0 flex-1 font-medium text-zinc-900">
+        <input type="checkbox" role="switch" name={pago.name} checked={pago.pagada} disabled={pago.disabled} onChange={(e) => pago.onChange(e.target.checked)} />
+        {pago.pagada ? "Pagada" : "Marcar como pagada"}
+      </label>
+      {pago.pagada && total !== null ? <span className="text-sm font-semibold tabular-nums text-emerald-800">{precio(total)}</span> : null}
+    </div>
+  );
+}
+
+export function PresupuestoPanel({ items, pago }: { items: ItemPresupuestable[]; pago?: PagoPanel }) {
   const itemsJson = JSON.stringify(items);
   const listos = itemsListosParaPresupuesto(items);
   // The last answer, with the draft it was computed for: shown (marked as updating) until the next one arrives.
@@ -46,7 +69,7 @@ export function PresupuestoPanel({ items }: { items: ItemPresupuestable[] }) {
     try {
       respuesta = await presupuestarRecetaAction(json);
     } catch {
-      respuesta = { status: "error", message: "No se pudo calcular el presupuesto." };
+      respuesta = { status: "error", message: "No se pudo calcular el precio." };
     }
     // A newer request was sent meanwhile: this answer is stale.
     if (solicitud !== ultimaSolicitud.current) return;
@@ -64,11 +87,13 @@ export function PresupuestoPanel({ items }: { items: ItemPresupuestable[] }) {
     return () => clearTimeout(timer);
   }, [itemsJson, listos, calcular]);
 
+  const totalVisible = listos && resultado?.status === "success" && resultado.presupuesto.ok ? resultado.presupuesto.total : null;
+
   return (
     <section aria-labelledby="presupuesto-heading" aria-live="polite" className="card p-4">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 id="presupuesto-heading" className="text-lg font-medium">
-          Presupuesto
+          Precio
         </h2>
         <button type="button" onClick={() => void calcular(itemsJson)} disabled={!listos || (calculando && ultimo?.json === itemsJson)} className="btn btn-secondary btn-sm">
           {listos && calculando ? "Calculando…" : "Recalcular"}
@@ -129,6 +154,7 @@ export function PresupuestoPanel({ items }: { items: ItemPresupuestable[] }) {
           <p className="mt-2 text-xs text-zinc-500">Precio orientativo con el stock y la regla de precios de hoy; los ítems se cubren en orden con el mismo stock. No reserva stock ni guarda nada (otras recetas pendientes no se descuentan).</p>
         </>
       )}
+      {pago ? <PagoSwitch pago={pago} total={totalVisible} /> : null}
     </section>
   );
 }
