@@ -1,6 +1,6 @@
 /**
- * `/entregas/[recetaId]` (FASE 11 points 11.1/11.2) on a direct load (link from another section, refresh). From the
- * `/entregas` list the same URL opens as a pop-up instead (`../@modal/(.)[recetaId]/page.tsx`); both render the same
+ * `/entregas/[recetaId]` (FASE 11 points 11.1/11.2) on a direct load (typed URL, refresh). A soft navigation
+ * from any section opens the same URL as a pop-up instead (`../../@modal/(.)entregas/[recetaId]/page.tsx`); both render the same
  * minimal content: receta Nº, estado, paciente and the one action the estado allows (`EntregaAcciones`).
  */
 import Link from "next/link";

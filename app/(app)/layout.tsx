@@ -22,7 +22,7 @@ import { AppShell } from "./app-shell";
 import { SIDEBAR_COLLAPSED_COOKIE } from "./sidebar-state";
 import { accesosSections, catalogosSections, configuracionSections, firstSectionHref, gestionDtSections } from "./nav-sections";
 
-export default async function AppLayout({ children }: { children: ReactNode }) {
+export default async function AppLayout({ children, modal }: { children: ReactNode; modal: ReactNode }) {
   let session;
   try {
     session = await requireSession();
@@ -220,6 +220,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     >
       <NoticeBar avisos={avisos} />
       <main>{children}</main>
+      {/* `@modal`: intercepted routes opened as pop-ups over the current page (e.g. `(.)entregas/[recetaId]`). */}
+      {modal}
     </AppShell>
   );
 }

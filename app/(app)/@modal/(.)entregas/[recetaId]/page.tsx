@@ -1,7 +1,11 @@
 /**
- * `/entregas/[recetaId]` opened from the `/entregas` list (soft navigation): the entrega actions as a pop-up over the
- * list, closed with `router.back()`. Deliberately minimal -- receta Nº, estado, paciente and the one action the estado
- * allows. A direct load of the same URL renders ../../[recetaId]/page.tsx instead.
+ * `/entregas/[recetaId]` opened by a soft navigation from any section: the entrega actions as a pop-up over the current
+ * page, closed with `router.back()`. Deliberately minimal -- receta Nº, estado, paciente and the one action the estado
+ * allows. A direct load of the same URL renders ../../../entregas/[recetaId]/page.tsx instead.
+ *
+ * The slot lives in the `(app)` layout and intercepts the static `entregas` segment: intercepting the dynamic segment
+ * from `entregas/@modal/(.)[recetaId]` failed in Next.js 16 ("Invalid interception route: /entregas/(.)(.)…") and
+ * fell back to the full page. Outside `entregas/layout.tsx`, so this page checks `entregas.registrar` itself.
  */
 import { notFound } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
@@ -18,6 +22,7 @@ interface EntregaModalPageProps {
 
 export default async function EntregaModalPage({ params }: EntregaModalPageProps) {
   const session = await requireSession();
+  if (!can(session, "entregas.registrar")) notFound();
   const { recetaId } = await params;
 
   const receta = await getReceta(recetaId);
