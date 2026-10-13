@@ -50,6 +50,23 @@ function formatFecha(iso: string): string {
 
 const numberFormat = new Intl.NumberFormat("es-AR");
 
+/**
+ * Vencidas con saldo (docs/specs/reanalisis-partida.md): a droga's is blocked until the DT acts (reanálisis or "marcar
+ * como vencida", on the partida); an insumo's only needs a VENCIMIENTO ajuste.
+ */
+function notaVencidas(drogas: number, insumos: number): string | undefined {
+  const partes: string[] = [];
+  if (drogas > 0) {
+    partes.push(
+      `${numberFormat.format(drogas)} ${drogas === 1 ? "partida de droga vencida requiere" : "partidas de droga vencidas requieren"} acción del DT (reanálisis o marcar como vencida): avisale al Director Técnico.`,
+    );
+  }
+  if (insumos > 0) {
+    partes.push(`${numberFormat.format(insumos)} ${insumos === 1 ? "partida vencida de insumo todavía tiene" : "partidas vencidas de insumos todavía tienen"} saldo: se sugiere un ajuste por vencimiento.`);
+  }
+  return partes.length > 0 ? partes.join(" ") : undefined;
+}
+
 export default async function StockPage({ searchParams }: StockPageProps) {
   const session = await requireSession();
   const params = await searchParams;
@@ -163,11 +180,7 @@ export default async function StockPage({ searchParams }: StockPageProps) {
             unit: ["partida", "partidas"],
           },
         ]}
-        note={
-          alertas.vencidasConSaldo.length > 0
-            ? `${numberFormat.format(alertas.vencidasConSaldo.length)} ${alertas.vencidasConSaldo.length === 1 ? "partida vencida todavía tiene" : "partidas vencidas todavía tienen"} saldo. Se sugiere un ajuste por vencimiento.`
-            : undefined
-        }
+        note={notaVencidas(alertas.vencidasConSaldo.filter((a) => a.esDroga).length, alertas.vencidasConSaldo.filter((a) => !a.esDroga).length)}
       />
 
       <section aria-label="Búsqueda y filtros" className="mb-4">

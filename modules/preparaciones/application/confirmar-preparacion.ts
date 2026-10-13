@@ -495,9 +495,12 @@ export async function planificarConsumoEnTx(
       return p;
     });
 
+    // INV-S10 on the vencimiento VIGENTE (getPartidasFrescas reads fecha_vencimiento_vigente, migration 0074).
     const vencida = elegidasFrescas.find((p) => p.fechaVencimiento !== null && p.fechaVencimiento < jornada);
     if (vencida) {
-      throw new DomainError(`La partida ${vencida.lote} (${linea.drogaNombre}) está vencida: no se puede descontar stock de una partida vencida.`);
+      throw new DomainError(
+        `La partida ${vencida.lote} (${linea.drogaNombre}) está vencida: no se puede descontar stock de una partida vencida. Requiere acción del Director Técnico (reanálisis o marcarla como vencida).`,
+      );
     }
 
     // Non-manual: split in ACTIVE terms (purity per partida,

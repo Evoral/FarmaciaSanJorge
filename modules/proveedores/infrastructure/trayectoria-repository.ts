@@ -103,11 +103,11 @@ export async function readResumen(tx: Prisma.TransactionClient, tenantId: string
       count(*)::int AS partidas,
       count(DISTINCT p.droga_id)::int AS drogas_distintas,
       max(p.fecha_ingreso) AS ultimo_ingreso,
-      (count(*) FILTER (WHERE p.cantidad_disponible > 0 AND p.fecha_vencimiento < ${jornada}::date))::int AS vencidas_con_saldo,
+      (count(*) FILTER (WHERE p.cantidad_disponible > 0 AND p.fecha_vencimiento_vigente < ${jornada}::date))::int AS vencidas_con_saldo,
       (count(*) FILTER (
         WHERE p.cantidad_disponible > 0
-          AND p.fecha_vencimiento >= ${jornada}::date
-          AND p.fecha_vencimiento <= (${jornada}::date + (${diasAlerta}::int || ' days')::interval)
+          AND p.fecha_vencimiento_vigente >= ${jornada}::date
+          AND p.fecha_vencimiento_vigente <= (${jornada}::date + (${diasAlerta}::int || ' days')::interval)
       ))::int AS por_vencer
     FROM fsj.partida p
     WHERE p.tenant_id = ${tenantId}::uuid AND p.proveedor_id = ${proveedorId}::uuid
@@ -170,7 +170,8 @@ function partidaSelect(costos: boolean) {
     id: true,
     lote: true,
     fechaIngreso: true,
-    fechaVencimiento: true,
+    // The vencimiento VIGENTE (migration 0074, docs/specs/reanalisis-partida.md): the estado and the shown date.
+    fechaVencimientoVigente: true,
     fechaApertura: true,
     cantidadInicial: true,
     cantidadDisponible: true,
@@ -204,7 +205,7 @@ export async function readPartidasPagina(
     unidadBaseSimbolo: r.droga.unidadBase.simbolo,
     lote: r.lote,
     fechaIngreso: r.fechaIngreso,
-    fechaVencimiento: r.fechaVencimiento,
+    fechaVencimiento: r.fechaVencimientoVigente,
     fechaApertura: r.fechaApertura,
     cantidadInicial: r.cantidadInicial.toString(),
     cantidadDisponible: r.cantidadDisponible.toString(),

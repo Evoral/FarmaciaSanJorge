@@ -110,8 +110,10 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
 
   // Stock (M07)
   "INV-S01": "El stock disponible de una partida solo cambia registrando un movimiento de stock.",
-  "INV-S10": "La partida está vencida: no se puede descontar stock de una partida vencida.",
+  "INV-S10": "La partida está vencida: no se puede descontar stock de una partida vencida. Si es una droga, requiere acción del Director Técnico (reanálisis o marcarla como vencida).",
   "INV-S21": "La fecha de vencimiento es obligatoria para una droga; solo los excipientes y materiales pueden no vencer.",
+  "INV-S22": "No se pudo registrar el reanálisis: solo el Director Técnico vigente puede hacerlo, en una partida de droga con saldo y con una fecha posterior a la actual.",
+  "INV-S23": "El vencimiento original de una partida no se modifica; el vencimiento vigente solo cambia registrando un reanálisis.",
   "INV-S12": "La cantidad descontada no coincide con lo que exige la línea de pesaje. Revisá las cantidades y volvé a intentarlo.",
   "INV-S16": "La fecha de apertura de la partida solo se registra con un movimiento de stock.",
   "INV-S17": "La fecha de apertura de la partida ya fue registrada y no se puede cambiar.",

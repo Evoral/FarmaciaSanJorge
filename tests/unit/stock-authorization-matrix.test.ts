@@ -40,6 +40,7 @@ vi.mock("@/modules/stock/infrastructure/partida-repository", () => ({
     id: "p1",
     drogaId: "d1",
     drogaNombre: "D",
+    drogaClase: "DROGA",
     unidadBaseId: "u1",
     unidadBaseSimbolo: "g",
     proveedorId: "pv1",
@@ -48,9 +49,12 @@ vi.mock("@/modules/stock/infrastructure/partida-repository", () => ({
     costoUnitario: "10",
     cantidadInicial: "100",
     cantidadDisponible: "50",
+    cantidadReservada: "0",
     fechaIngreso: new Date(),
-    fechaVencimiento: new Date("2027-01-01"),
+    fechaVencimiento: new Date("2026-01-01"),
+    fechaVencimientoVigente: new Date("2026-01-01"),
     fechaApertura: null,
+    potenciaDeclarada: null,
   })),
   lockPartidaParaAccion: vi.fn(async () => true),
   getDrogaParaIngreso: vi.fn(async () => ({ id: "d1", unidadBaseId: "u1", tipoControl: "NINGUNO", fechaBaja: null })),
@@ -63,6 +67,9 @@ vi.mock("@/modules/stock/infrastructure/partida-repository", () => ({
   getFechaActivacionContralor: vi.fn(async () => null),
   insertPartidaConIngreso: vi.fn(async () => ({ id: "p-new" })),
   insertAjuste: vi.fn(async () => ({ id: "mov-1" })),
+  insertReanalisis: vi.fn(async () => ({ id: "rean-1", fechaVencimientoAnterior: "2026-01-01" })),
+  listReanalisisDePartida: vi.fn(async () => []),
+  getReservadoEnPreparacion: vi.fn(async () => ({ cantidad: "0", recetas: [] })),
   updateCostoPartida: vi.fn(async () => true),
   kardexMovimientos: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 20 })),
   listAjustes: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 20, zonaHoraria: "America/Argentina/Mendoza" })),
@@ -72,12 +79,23 @@ vi.mock("@/modules/stock/infrastructure/partida-repository", () => ({
   getDiasAlertaVencimiento: vi.fn(async () => 30),
 }));
 
+export const esDtVigenteHoyMock = vi.fn(async () => true);
 vi.mock("@/modules/stock/infrastructure/co-firma-repository", () => ({
   listDtVigentesParaCoFirma: vi.fn(async () => []),
-  resolveDtCandidato: vi.fn(async () => null),
-  esDtVigenteHoy: vi.fn(async () => false),
+  resolveDtCandidato: vi.fn(async () => ({
+    usuarioId: "u-DIRECTOR_TECNICO",
+    passwordHash: "hash",
+    estado: "ACTIVO",
+    intentosFallidos: 0,
+    bloqueadoHasta: null,
+  })),
+  esDtVigenteHoy: esDtVigenteHoyMock,
   recordCoFirmaFailure: vi.fn(async () => undefined),
   recordCoFirmaSuccess: vi.fn(async () => undefined),
+}));
+
+vi.mock("@/modules/auth/domain/password", () => ({
+  verifyPassword: vi.fn(async () => true),
 }));
 
 await import("@/modules/stock/application/ingresar-partida");
@@ -90,6 +108,9 @@ await import("@/modules/stock/application/registrar-ajuste");
 await import("@/modules/stock/application/corregir-costo-partida");
 await import("@/modules/stock/application/alertas-stock");
 await import("@/modules/stock/application/list-dt-para-co-firma");
+await import("@/modules/stock/application/reanalizar-partida");
+await import("@/modules/stock/application/marcar-partida-vencida");
+await import("@/modules/stock/application/verificar-password-dt-partida");
 
 const { listRegisteredUseCasesForTests } = await import("@/shared/usecase");
 
@@ -107,6 +128,7 @@ const SEED_GRANTS: Record<Rol, readonly Permiso[]> = {
 
 const DROGA_ID = "d1";
 const PARTIDA_ID = "p1";
+const VALID_PARTIDA_ID = "22222222-2222-4222-a222-222222222222";
 const PROVEEDOR_ID = "pv1";
 const UNIDAD_ID = "u1";
 const DT_ID = "22222222-2222-4222-a222-222222222222";
@@ -142,6 +164,31 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
     input: { id: PARTIDA_ID, costoUnitarioNuevo: "12", motivo: "Motivo de prueba." },
   },
   { name: "stock.ajuste.dtParaCoFirma", permiso: "stock.ajuste.registrar", input: {} },
+  {
+    name: "stock.partida.reanalizar",
+    permiso: "stock.ajuste.autorizar",
+    input: {
+      partidaId: VALID_PARTIDA_ID,
+      fechaReanalisis: "2027-06-01",
+      motivo: "Reanálisis",
+      respaldo: "Cert-1",
+    },
+  },
+  {
+    name: "stock.partida.marcarVencida",
+    permiso: "stock.ajuste.autorizar",
+    input: {
+      partidaId: VALID_PARTIDA_ID,
+      observacion: "Vencida",
+    },
+  },
+  {
+    name: "stock.partida.verificarPasswordDt",
+    permiso: "stock.ajuste.autorizar",
+    input: {
+      password: "correcta",
+    },
+  },
 ];
 
 function sessionForRol(rol: Rol): AuthenticatedSession {
@@ -188,4 +235,32 @@ describe("FASE 5 (stock) authorization matrix -- role x permiso, exercised throu
       });
     }
   }
+});
+
+describe("FASE 5 (stock) authorization matrix -- DIRECTOR_TECNICO without a vigente designación is rejected", () => {
+  it("rejects stock.partida.reanalizar when the DT is not vigente today", async () => {
+    esDtVigenteHoyMock.mockResolvedValueOnce(false);
+    const entry = listRegisteredUseCasesForTests().find((e) => e.name === "stock.partida.reanalizar")!;
+    const session = sessionForRol("DIRECTOR_TECNICO");
+
+    await expect(
+      entry.execute(
+        { partidaId: VALID_PARTIDA_ID, fechaReanalisis: "2027-06-01", motivo: "Reanálisis" },
+        { session },
+      ),
+    ).rejects.toThrow("Solo el Director Técnico vigente (titular o suplente) puede registrar un reanálisis.");
+  });
+
+  it("rejects stock.partida.marcarVencida when the DT is not vigente today", async () => {
+    esDtVigenteHoyMock.mockResolvedValueOnce(false);
+    const entry = listRegisteredUseCasesForTests().find((e) => e.name === "stock.partida.marcarVencida")!;
+    const session = sessionForRol("DIRECTOR_TECNICO");
+
+    await expect(
+      entry.execute(
+        { partidaId: VALID_PARTIDA_ID, observacion: "Vencida" },
+        { session },
+      ),
+    ).rejects.toThrow("Solo el Director Técnico vigente (titular o suplente) puede marcar una partida como vencida.");
+  });
 });

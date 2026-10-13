@@ -188,7 +188,7 @@ spec that satisfies the extra requirements).
   read ONCE and used for both the per-partida estado (pure
   `derivarEstadoPartida`, string date comparison) and the SQL counters
   (`vencidas con saldo`, `por vencer`), which use the predicates of
-  `alertasVencidasConSaldo` / `alertasPorVencer` verbatim. AGOTADA is first in the
+  `alertasVencidasConSaldo` / `alertasPorVencer` verbatim (on `fecha_vencimiento_vigente` since migration 0074, docs/specs/reanalisis-partida.md; the partidas page shows that vigente date too). AGOTADA is first in the
   priority because both alerts require balance. The parse of the parametro
   (`parseDiasAlertaVencimiento`) mirrors `getDiasAlertaVencimiento`; if the stock
   rule ever changes, update both (the unit tests pin boundaries, tz and the

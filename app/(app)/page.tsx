@@ -18,7 +18,7 @@
  * (the same per-estado summary as /recetas, linking into its filter).
  */
 import Link from "next/link";
-import { Archive, CircleCheck, FlaskConical, Inbox, Package, PackageCheck, PenLine, Users } from "lucide-react";
+import { Archive, CircleCheck, FlaskConical, Inbox, Package, PackageCheck, PackageX, PenLine, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
@@ -109,18 +109,37 @@ export default async function HomePage() {
   }
 
   if (stock) {
-    const total = stock.bajoMinimo.length + stock.porVencer.length + stock.vencidasConSaldo.length;
+    // A vencida DROGA partida is blocked until the DT acts (docs/specs/reanalisis-partida.md): its own urgent card, shown
+    // to everyone who sees stock so they tell the DT; the actions themselves are on the partida, for the DT only.
+    const vencidasDt = stock.vencidasConSaldo.filter((a) => a.esDroga);
+    const vencidasInsumo = stock.vencidasConSaldo.length - vencidasDt.length;
+    if (vencidasDt.length > 0) {
+      cards.push({
+        titulo: "Partidas vencidas: requiere acción del DT",
+        href: vencidasDt.length === 1 ? `/stock/partidas/${vencidasDt[0]!.partidaId}` : "/stock?vencidas=1",
+        cuerpo: "",
+        detalle:
+          vencidasDt.length === 1
+            ? `${vencidasDt[0]!.drogaNombre}, lote ${vencidasDt[0]!.lote}: bloqueada hasta que el Director Técnico registre un reanálisis o la marque como vencida.`
+            : "Bloqueadas hasta que el Director Técnico registre un reanálisis o las marque como vencidas.",
+        cantidad: vencidasDt.length,
+        tono: "red",
+        icon: <PackageX />,
+      });
+    }
+
+    const total = stock.bajoMinimo.length + stock.porVencer.length + vencidasInsumo;
     cards.push({
       titulo: "Alertas de stock",
       href: "/stock",
       cuerpo: "Sin alertas de stock.",
       cantidad: total,
-      tono: total === 0 ? "neutral" : stock.vencidasConSaldo.length > 0 ? "red" : "amber",
+      tono: total === 0 ? "neutral" : vencidasInsumo > 0 ? "red" : "amber",
       icon: <Package />,
       desglose: [
         { label: "bajo mínimo", value: stock.bajoMinimo.length, tone: "warn" as const },
         { label: "por vencer", value: stock.porVencer.length, tone: "warn" as const },
-        { label: "vencidas con saldo", value: stock.vencidasConSaldo.length, tone: "danger" as const },
+        { label: "vencidas con saldo", value: vencidasInsumo, tone: "danger" as const },
       ].filter((part) => part.value > 0),
     });
   }

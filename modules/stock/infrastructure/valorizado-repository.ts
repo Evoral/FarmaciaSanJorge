@@ -21,7 +21,7 @@ export interface ValorizadoFilter {
   tenantId: string;
   /** Droga name or vigente synonym substring, accent-insensitive (shared/db/busqueda-droga.ts), same UX as `listStockDrogas`'s `search` -- not a raw droga id input in the UI. */
   search?: string;
-  /** `false` excludes partidas whose `fecha_vencimiento` is before the tenant's current jornada. */
+  /** `false` excludes partidas whose vencimiento VIGENTE (`fecha_vencimiento_vigente`, migration 0074) is before the tenant's current jornada. */
   incluirVencidas: boolean;
   /** `true` restricts to partidas with `cantidad_disponible > 0`. */
   soloConSaldo: boolean;
@@ -32,7 +32,8 @@ export interface ValorizadoItem {
   drogaId: string;
   drogaNombre: string;
   lote: string;
-  fechaVencimiento: string | null; // YYYY-MM-DD; null = does not expire (0064)
+  /** The vencimiento VIGENTE (migration 0074: the latest reanálisis, else the original date), YYYY-MM-DD; null = does not expire (0064). */
+  fechaVencimiento: string | null;
   cantidadDisponible: string;
   /** Of `cantidadDisponible`, what preparaciones INICIADA reserved (informational, never subtracted from `valor`). */
   cantidadReservada: string;
@@ -114,7 +115,7 @@ export async function listValorizado(
       d.id AS droga_id,
       d.nombre AS droga_nombre,
       p.lote,
-      p.fecha_vencimiento,
+      p.fecha_vencimiento_vigente AS fecha_vencimiento,
       p.cantidad_disponible::text AS cantidad_disponible,
       r.reservado::text AS cantidad_reservada,
       u.id AS unidad_id,
@@ -132,9 +133,9 @@ export async function listValorizado(
     ) r
     WHERE p.tenant_id = ${filter.tenantId}::uuid
       AND ${drogaCoincideSql("d", search)}
-      AND (${filter.incluirVencidas} OR p.fecha_vencimiento IS NULL OR p.fecha_vencimiento >= fsj.jornada_actual(${filter.tenantId}::uuid))
+      AND (${filter.incluirVencidas} OR p.fecha_vencimiento_vigente IS NULL OR p.fecha_vencimiento_vigente >= fsj.jornada_actual(${filter.tenantId}::uuid))
       AND (NOT ${filter.soloConSaldo} OR p.cantidad_disponible > 0)
-    ORDER BY d.nombre ASC, p.fecha_vencimiento ASC, p.lote ASC
+    ORDER BY d.nombre ASC, p.fecha_vencimiento_vigente ASC, p.lote ASC
     LIMIT ${pageSize} OFFSET ${skip}
   `;
 
@@ -144,7 +145,7 @@ export async function listValorizado(
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
     WHERE p.tenant_id = ${filter.tenantId}::uuid
       AND ${drogaCoincideSql("d", search)}
-      AND (${filter.incluirVencidas} OR p.fecha_vencimiento IS NULL OR p.fecha_vencimiento >= fsj.jornada_actual(${filter.tenantId}::uuid))
+      AND (${filter.incluirVencidas} OR p.fecha_vencimiento_vigente IS NULL OR p.fecha_vencimiento_vigente >= fsj.jornada_actual(${filter.tenantId}::uuid))
       AND (NOT ${filter.soloConSaldo} OR p.cantidad_disponible > 0)
   `;
 
@@ -164,7 +165,7 @@ export async function subtotalesValorizado(tx: Prisma.TransactionClient, filter:
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
     WHERE p.tenant_id = ${filter.tenantId}::uuid
       AND ${drogaCoincideSql("d", search)}
-      AND (${filter.incluirVencidas} OR p.fecha_vencimiento IS NULL OR p.fecha_vencimiento >= fsj.jornada_actual(${filter.tenantId}::uuid))
+      AND (${filter.incluirVencidas} OR p.fecha_vencimiento_vigente IS NULL OR p.fecha_vencimiento_vigente >= fsj.jornada_actual(${filter.tenantId}::uuid))
       AND (NOT ${filter.soloConSaldo} OR p.cantidad_disponible > 0)
     GROUP BY d.id, d.nombre
     ORDER BY d.nombre ASC

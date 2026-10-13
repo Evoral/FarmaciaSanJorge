@@ -18,13 +18,14 @@ import { describe, it, expect } from "vitest";
 import type { Client } from "pg";
 import { dbTestSkipReason } from "./env";
 import { asOwner, inRollbackTx, setRelojPrueba } from "./helpers";
-import { insertTenant, createSistemaUser, insertProveedor, crearPartidaConIngreso, FUTURO } from "./fixtures";
+import { insertTenant, createSistemaUser, insertProveedor, crearPartidaConIngreso, createUserWithRole, designarDt, FUTURO } from "./fixtures";
 import { listStockDrogasSql, type ListStockDrogasFilter, type ListStockDrogasRow } from "@/modules/stock/infrastructure/partida-repository";
 
 const JORNADA = "2026-06-15T12:00:00-03:00";
 const DIAS_ALERTA = 30;
 
 interface Escenario {
+  tx: Client;
   tenantId: string;
   listar: (filter?: Partial<ListStockDrogasFilter>) => Promise<{ nombres: string[]; total: number; rows: ListStockDrogasRow[] }>;
 }
@@ -90,6 +91,7 @@ async function seed(tx: Client): Promise<Escenario> {
   await crearPartidaConIngreso(tx, { tenantId, drogaId: beta, proveedorId, registradoPorId: sistema, cantidadInicial: 2, fechaVencimiento: "2026-06-20" });
 
   return {
+    tx,
     tenantId,
     listar: async (filter = {}) => {
       const sql = listStockDrogasSql({ tenantId, diasAlertaVencimiento: DIAS_ALERTA, page: 1, pageSize: 20, ...filter });
@@ -169,6 +171,61 @@ describe.skipIf(dbTestSkipReason() !== null)("listStockDrogas: filters, order an
       expect(beta.bajo_minimo).toBe(false);
       expect(typeof alfa.stock_disponible).toBe("string");
       expect(Number(alfa.stock_disponible)).toBe(500);
+    });
+  });
+
+  it("a reanalizada partida (original past, vigente future) is NOT in 'vencidas con saldo', IS counted as stock, and uses vigente date for próximo vencimiento", async () => {
+    await enEscenario(async ({ tx, tenantId, listar }) => {
+      const g = await unidadId(tx, "GRAMO");
+      const proveedorId = await insertProveedor(tx, tenantId);
+      const sistema = await createSistemaUser(tx, tenantId);
+      const dtId = await createUserWithRole(tx, tenantId, "DIRECTOR_TECNICO", sistema, "dt-zeta");
+      await designarDt(tx, tenantId, dtId, sistema);
+
+      // Zeta has an expired partida (2026-03-01) that was reanalizada to 2026-07-20 (future, after JORNADA 2026-06-15)
+      const zeta = await insertDroga(tx, tenantId, "Zeta", g);
+
+      // Clock at ingreso date
+      await setRelojPrueba(tx, "2026-01-10T12:00:00-03:00");
+      const partidaZetaId = await crearPartidaConIngreso(tx, {
+        tenantId,
+        drogaId: zeta,
+        proveedorId,
+        registradoPorId: sistema,
+        cantidadInicial: 10,
+        fechaVencimiento: "2026-03-01",
+      });
+
+      // Clock restored to fixed JORNADA
+      await setRelojPrueba(tx, JORNADA);
+
+      // Reanalizar Zeta partida to 2026-07-20
+      await tx.query(
+        `INSERT INTO fsj.reanalisis_partida (tenant_id, partida_id, fecha_reanalisis, motivo, registrado_por_id)
+         VALUES ($1, $2, '2026-07-20', 'Reanálisis QC', $3)`,
+        [tenantId, partidaZetaId, dtId],
+      );
+
+      // 1. Zeta is NOT in "vencidas con saldo"
+      const vencidas = await listar({ conPartidasVencidas: true });
+      expect(vencidas.nombres).not.toContain("Zeta");
+
+      // 2. Zeta IS counted as stock (not in soloSinStock, has 10 g stock)
+      const sinStock = await listar({ soloSinStock: true });
+      expect(sinStock.nombres).not.toContain("Zeta");
+
+      const todas = await listar();
+      const filaZeta = todas.rows.find((r) => r.nombre === "Zeta");
+      expect(filaZeta).toBeDefined();
+      expect(Number(filaZeta?.stock_disponible)).toBe(10);
+
+      // 3. "Próximo vencimiento" uses the vigente date ("2026-07-20", not the past "2026-03-01")
+      expect(filaZeta?.proximo_vencimiento).toBe("2026-07-20");
+
+      // 4. ...and so does the order: on the original date Zeta would tie Gamma (2026-03-01) and sort before Beta.
+      const porVencimiento = await listar({ orden: "vencimiento" });
+      expect(porVencimiento.nombres).toEqual(["Gamma", "Beta", "Zeta", "Alfa", "Delta"]);
+      expect(porVencimiento.rows.map((r) => r.proximo_vencimiento)).toEqual(["2026-03-01", "2026-06-20", "2026-07-20", FUTURO, null]);
     });
   });
 });

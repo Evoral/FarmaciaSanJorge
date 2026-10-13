@@ -115,12 +115,13 @@ export async function getUltimaFichaConLineas(tx: Prisma.TransactionClient, tena
 export async function getPartidasElegiblesDeDroga(tx: Prisma.TransactionClient, tenantId: string, drogaId: string): Promise<PartidaCosteo[]> {
   const rows = await tx.partida.findMany({
     where: { tenantId, drogaId, cantidadDisponible: { gt: 0 } },
-    select: { id: true, cantidadDisponible: true, fechaVencimiento: true, fechaApertura: true, costoUnitario: true },
+    select: { id: true, cantidadDisponible: true, fechaVencimientoVigente: true, fechaApertura: true, costoUnitario: true },
   });
   return rows.map((p) => ({
     id: p.id,
     cantidadDisponible: p.cantidadDisponible.toString(),
-    fechaVencimiento: p.fechaVencimiento?.toISOString().slice(0, 10) ?? null,
+    // The vencimiento VIGENTE (migration 0074: the latest reanálisis, else the original date) -- what INV-S10 uses.
+    fechaVencimiento: p.fechaVencimientoVigente?.toISOString().slice(0, 10) ?? null,
     fechaApertura: p.fechaApertura ? p.fechaApertura.toISOString() : null,
     costoUnitario: p.costoUnitario.toString(),
   }));

@@ -36,6 +36,7 @@ import { confirmarPreparacionAction, modificarReservaStockAction, reservarStockA
 import type { DatosConfirmacion, LineaPantalla } from "@/modules/preparaciones/application/datos-confirmacion";
 import { requiereMotivoAperturaAdicional } from "@/modules/preparaciones/domain/apertura-adicional";
 import { Decimal } from "@/shared/decimal";
+import { MENSAJE_VENCIDA_REQUIERE_DT, estadoVencimientoPartida, textoPorVencer } from "@/modules/stock/domain/vencimiento-partida";
 import { convertirCantidad, mismaMagnitud } from "@/shared/decimal/convertir-unidad";
 
 export interface ConfirmarPreparacionFormProps {
@@ -94,7 +95,10 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
       } else if (linea.propuesta) {
         initial[linea.id] = new Set(linea.propuesta.map((p) => p.partidaId));
       } else {
-        initial[linea.id] = new Set(linea.partidasElegibles.map((p) => p.id));
+        // A vencida partida is blocked until the DT acts (docs/specs/reanalisis-partida.md): never preselected.
+        initial[linea.id] = new Set(
+          linea.partidasElegibles.filter((p) => estadoVencimientoPartida(p.fechaVencimiento, datos.jornadaActual, datos.diasAlertaVencimiento) !== "VENCIDA").map((p) => p.id),
+        );
       }
     }
     return initial;
@@ -251,13 +255,18 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                     linea.unidadStock,
                     catalogo,
                   )[indice]!;
+                  // Expiry on the vencimiento vigente (reanálisis-aware): a vencida partida can not be chosen.
+                  const vencimiento = estadoVencimientoPartida(partida.fechaVencimiento, datos.jornadaActual, datos.diasAlertaVencimiento);
+                  const vencida = vencimiento === "VENCIDA";
                   return (
-                    <label key={partida.id} className="choice-row">
+                    <label key={partida.id} className="choice-row" aria-disabled={vencida || undefined}>
                       <input
                         type="checkbox"
                         name={`partida_${linea.id}`}
                         value={partida.id}
-                        checked={checked[linea.id]?.has(partida.id) ?? false}
+                        checked={!vencida && (checked[linea.id]?.has(partida.id) ?? false)}
+                        disabled={vencida}
+                        title={vencida ? MENSAJE_VENCIDA_REQUIERE_DT : undefined}
                         onChange={() => toggle(linea.id, partida.id)}
                       />
                       {/* Fixed column widths (not fractions of the space the badges leave): every row of every línea lines up. */}
@@ -276,6 +285,9 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                         </span>
                       </span>
                       <span className="flex min-w-0 flex-1 flex-wrap justify-end gap-1.5">
+                        {vencida ? <ToneBadge tone="danger">{MENSAJE_VENCIDA_REQUIERE_DT}</ToneBadge> : null}
+                        {vencimiento === "POR_VENCER" && partida.fechaVencimiento ? <ToneBadge tone="warn">{textoPorVencer(partida.fechaVencimiento, datos.jornadaActual)}</ToneBadge> : null}
+                        {partida.reanalizada ? <ToneBadge tone="neutral">Reanalizada</ToneBadge> : null}
                         {partida.fechaApertura ? <ToneBadge tone="neutral">Abierta</ToneBadge> : null}
                         {partida.potenciaDeclarada && !linea.esEnraseManual ? <ToneBadge tone="neutral">Pureza {formatNumero(partida.potenciaDeclarada)} %</ToneBadge> : null}
                         {propuesta ? (

@@ -283,7 +283,13 @@ export interface PartidaElegible {
   cantidadDisponible: string;
   /** Símbolo of the droga's unidad base: the unit of every stock quantity of this partida. */
   unidadSimbolo: string;
-  fechaVencimiento: string | null; // YYYY-MM-DD; null = does not expire (0064)
+  /**
+   * The vencimiento VIGENTE (`partida.fecha_vencimiento_vigente`, migration 0074: the latest reanálisis, else the
+   * original date), YYYY-MM-DD; null = does not expire (0064). Every expiry decision (INV-S10) uses this one.
+   */
+  fechaVencimiento: string | null;
+  /** The vigente date comes from a reanálisis (docs/specs/reanalisis-partida.md). */
+  reanalizada: boolean;
   fechaApertura: string | null; // ISO instant
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
@@ -325,12 +331,15 @@ export async function listPartidasElegiblesDroga(
       cantidad_disponible: string;
       unidad_simbolo: string;
       fecha_vencimiento: string | null;
+      reanalizada: boolean;
       fecha_apertura: string | null;
       potencia_declarada: string | null;
     }[]
   >`
     SELECT p.id, p.lote, pr.razon_social AS proveedor_nombre, (p.cantidad_disponible - r.reservado)::text AS cantidad_disponible,
-      u.simbolo AS unidad_simbolo, p.fecha_vencimiento::text, p.fecha_apertura::text, p.potencia_declarada::text
+      u.simbolo AS unidad_simbolo, p.fecha_vencimiento_vigente::text AS fecha_vencimiento,
+      p.fecha_vencimiento_vigente IS DISTINCT FROM p.fecha_vencimiento AS reanalizada,
+      p.fecha_apertura::text, p.potencia_declarada::text
     FROM fsj.partida p
     JOIN fsj.proveedor pr ON pr.tenant_id = p.tenant_id AND pr.id = p.proveedor_id
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
@@ -346,6 +355,7 @@ export async function listPartidasElegiblesDroga(
     cantidadDisponible: r.cantidad_disponible,
     unidadSimbolo: r.unidad_simbolo,
     fechaVencimiento: r.fecha_vencimiento,
+    reanalizada: r.reanalizada,
     fechaApertura: r.fecha_apertura,
     potenciaDeclarada: r.potencia_declarada,
   }));
@@ -422,7 +432,8 @@ export interface PartidaFresca {
   drogaId: string;
   lote: string;
   cantidadDisponible: string;
-  fechaVencimiento: string | null; // YYYY-MM-DD; null = does not expire (0064)
+  /** The vencimiento VIGENTE (`fecha_vencimiento_vigente`, migration 0074), YYYY-MM-DD; null = does not expire (0064). */
+  fechaVencimiento: string | null;
   fechaApertura: string | null;
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
@@ -453,7 +464,7 @@ export async function getPartidasFrescas(
     }[]
   >`
     SELECT p.id, p.droga_id, p.lote, greatest(p.cantidad_disponible - r.reservado, 0)::text AS cantidad_disponible,
-      p.fecha_vencimiento::text, p.fecha_apertura::text, p.potencia_declarada::text
+      p.fecha_vencimiento_vigente::text AS fecha_vencimiento, p.fecha_apertura::text, p.potencia_declarada::text
     FROM fsj.partida p
     ${reservadoPorOtrasSql(preparacionPropiaId)}
     WHERE p.tenant_id = ${tenantId}::uuid AND p.id = ANY(${partidaIds as string[]}::uuid[])
@@ -1612,6 +1623,8 @@ export interface ReservaDeItemToma {
   /** Physical, in the droga's unidad base (`unidadSimbolo`): a stock quantity. */
   cantidad: string;
   unidadSimbolo: string;
+  /** The partida's vencimiento VIGENTE (migration 0074), YYYY-MM-DD; `null` = does not expire. */
+  fechaVencimiento: string | null;
 }
 
 export interface PreparacionDeItemToma {
@@ -1731,16 +1744,26 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
     iniciadaIds.length === 0
       ? []
       : await tx.$queryRaw<
-          { preparacion_id: string; partida_id: string; droga_nombre: string; lote: string; cantidad: string; simbolo: string; alcanza: boolean }[]
+          {
+            preparacion_id: string;
+            partida_id: string;
+            droga_nombre: string;
+            lote: string;
+            cantidad: string;
+            simbolo: string;
+            fecha_vencimiento: string | null;
+            alcanza: boolean;
+          }[]
         >`
           SELECT rs.preparacion_id, rs.partida_id, l.droga_nombre, p.lote, rs.cantidad::text AS cantidad, u.simbolo,
+            p.fecha_vencimiento_vigente::text AS fecha_vencimiento,
             (rs.cantidad <= p.cantidad_disponible - (
                SELECT coalesce(sum(o.cantidad), 0)
                FROM fsj.reserva_stock o
                JOIN fsj.preparacion op ON op.tenant_id = o.tenant_id AND op.id = o.preparacion_id AND op.estado = 'INICIADA'
                WHERE o.tenant_id = rs.tenant_id AND o.partida_id = rs.partida_id AND o.preparacion_id <> rs.preparacion_id
              )
-             AND (p.fecha_vencimiento IS NULL OR p.fecha_vencimiento >= fsj.jornada_actual(rs.tenant_id))) AS alcanza
+             AND (p.fecha_vencimiento_vigente IS NULL OR p.fecha_vencimiento_vigente >= fsj.jornada_actual(rs.tenant_id))) AS alcanza
           FROM fsj.reserva_stock rs
           JOIN fsj.linea_pesaje l ON l.tenant_id = rs.tenant_id AND l.id = rs.linea_pesaje_id
           JOIN fsj.partida p ON p.tenant_id = rs.tenant_id AND p.id = rs.partida_id
@@ -1758,7 +1781,14 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
     return {
       id: elegida.id,
       estado: confirmada ? "CONFIRMADA" : "INICIADA",
-      reservas: propias.map((r) => ({ partidaId: r.partida_id, drogaNombre: r.droga_nombre, lote: r.lote, cantidad: r.cantidad, unidadSimbolo: r.simbolo })),
+      reservas: propias.map((r) => ({
+        partidaId: r.partida_id,
+        drogaNombre: r.droga_nombre,
+        lote: r.lote,
+        cantidad: r.cantidad,
+        unidadSimbolo: r.simbolo,
+        fechaVencimiento: r.fecha_vencimiento,
+      })),
       reservaAlcanza: propias.every((r) => r.alcanza),
       etiquetaGenerada: confirmada && elegida.etiqueta !== null,
     };

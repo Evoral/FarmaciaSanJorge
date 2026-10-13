@@ -6,7 +6,11 @@
  *
  * Rules implemented (plan §9 M07 + FASE 5 point 5.6):
  *   - INV-S10: an expired partida (fechaVencimiento < jornadaActual) is
- *     NEVER proposed, full stop.
+ *     NEVER proposed, full stop. `fechaVencimiento` is the vencimiento
+ *     VIGENTE (`partida.fecha_vencimiento_vigente`, migration 0074: the
+ *     latest reanálisis, else the original date) -- callers must load that
+ *     column, never the original `fecha_vencimiento`
+ *     (docs/specs/reanalisis-partida.md).
  *   - INV-S16/S18: if an ABIERTA partida (fechaApertura not null) exists
  *     for this droga, it is consumed FIRST -- opening a second one is a
  *     separate [APP] decision (motivo_apertura_adicional) outside this
@@ -41,7 +45,7 @@ export interface PartidaDisponible {
   id: string;
   /** partida.cantidad_disponible, as of the read that produced this list. */
   cantidadDisponible: Decimal | string;
-  /** `YYYY-MM-DD`; `null` = does not expire (an insumo, migration 0064). */
+  /** The vencimiento VIGENTE (`partida.fecha_vencimiento_vigente`, migration 0074), `YYYY-MM-DD`; `null` = does not expire (an insumo, migration 0064). */
   fechaVencimiento: string | null;
   /** ISO-8601 instant, or `null` if the partida has never been opened. */
   fechaApertura: string | null;

@@ -19,12 +19,16 @@
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { uuid } from "@/shared/validation";
-import { getRecetaDeToma } from "../infrastructure/preparacion-repository";
+import { MENSAJE_VENCIDA_REQUIERE_DT, estadoVencimientoPartida, textoPorVencer } from "@/modules/stock/domain/vencimiento-partida";
+import { diasAlertaVencimientoEnTx } from "@/modules/stock/application/dias-alerta-vencimiento";
+import { getRecetaDeToma, jornadaActualTenant } from "../infrastructure/preparacion-repository";
 import type {
   FichaDeItemToma as FichaDeItemTomaBase,
   ItemDeToma as ItemDeTomaBase,
   LineaDeFichaToma as LineaDeFichaTomaBase,
+  PreparacionDeItemToma as PreparacionDeItemTomaBase,
   RecetaDeToma as RecetaDeTomaBase,
+  ReservaDeItemToma as ReservaDeItemTomaBase,
 } from "../infrastructure/preparacion-repository";
 import { cargarPartidasPorDroga, esLineaPesable, partidasDeLinea } from "./partidas-para-pesar";
 import type { PartidaParaPesar } from "./partidas-para-pesar";
@@ -40,8 +44,19 @@ export interface FichaDeItemToma extends Omit<FichaDeItemTomaBase, "lineas"> {
   lineas: LineaDeFichaToma[];
 }
 
-export interface ItemDeToma extends Omit<ItemDeTomaBase, "ultimaFicha"> {
+export interface ReservaDeItemToma extends ReservaDeItemTomaBase {
+  /** The reserved partida is por vencer ("Vence en 5 días") or vencida (blocked until the DT acts, docs/specs/reanalisis-partida.md); `null` otherwise. */
+  avisoVencimiento: string | null;
+  vencida: boolean;
+}
+
+export interface PreparacionDeItemToma extends Omit<PreparacionDeItemTomaBase, "reservas"> {
+  reservas: ReservaDeItemToma[];
+}
+
+export interface ItemDeToma extends Omit<ItemDeTomaBase, "ultimaFicha" | "preparacion"> {
   ultimaFicha: FichaDeItemToma | null;
+  preparacion: PreparacionDeItemToma | null;
 }
 
 export interface RecetaDeToma extends Omit<RecetaDeTomaBase, "items"> {
@@ -67,10 +82,22 @@ export const getTomaRecetaQuery = defineQuery({
       receta.items.flatMap((item) => lineasPorPesar(item).filter(esLineaPesable).map((l) => l.drogaId)),
     );
 
+    // Expiry of the reserved partidas (vencimiento vigente), read only when there is any.
+    const hayReservas = receta.items.some((item) => (item.preparacion?.reservas.length ?? 0) > 0);
+    const jornada = hayReservas ? await jornadaActualTenant(tx, session.tenantId) : "";
+    const diasAlerta = hayReservas ? await diasAlertaVencimientoEnTx(tx, session.tenantId) : 0;
+    const conVencimiento = (reserva: ReservaDeItemTomaBase): ReservaDeItemToma => {
+      const estado = estadoVencimientoPartida(reserva.fechaVencimiento, jornada, diasAlerta);
+      const aviso =
+        estado === "VENCIDA" ? MENSAJE_VENCIDA_REQUIERE_DT : estado === "POR_VENCER" && reserva.fechaVencimiento ? textoPorVencer(reserva.fechaVencimiento, jornada) : null;
+      return { ...reserva, avisoVencimiento: aviso, vencida: estado === "VENCIDA" };
+    };
+
     return {
       ...receta,
       items: receta.items.map((item) => ({
         ...item,
+        preparacion: item.preparacion ? { ...item.preparacion, reservas: item.preparacion.reservas.map(conVencimiento) } : null,
         ultimaFicha: item.ultimaFicha
           ? {
               ...item.ultimaFicha,

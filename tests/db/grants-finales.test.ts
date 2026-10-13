@@ -47,6 +47,8 @@ const LEGAL: Record<string, GrantRule> = {
   // Migration 0052: a regla_precio version's margin tramos -- insert-only,
   // a change is a new version (same shape as cotizacion above).
   regla_precio_tramo: { insert: true, update: [] },
+  // Migration 0074: reanalisis_partida -- append-only, immutable (same shape as cotizacion).
+  reanalisis_partida: { insert: true, update: [] },
 };
 
 /**
@@ -156,6 +158,15 @@ describe.skipIf(dbTestSkipReason() !== null)("0017/0018 grants -- INV-X01 (fsj s
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const check = await tx.query(`SELECT has_column_privilege('fsj_app', 'fsj.asiento_recetario', 'registrado_en', 'UPDATE') AS ok`);
+        expect(check.rows[0].ok).toBe(false);
+      }),
+    );
+  });
+
+  it("fsj_app has NO UPDATE privilege on partida.fecha_vencimiento_vigente (INV-S23: updated only by security definer trigger)", async () => {
+    await asOwner((client) =>
+      inRollbackTx(client, async (tx) => {
+        const check = await tx.query(`SELECT has_column_privilege('fsj_app', 'fsj.partida', 'fecha_vencimiento_vigente', 'UPDATE') AS ok`);
         expect(check.rows[0].ok).toBe(false);
       }),
     );

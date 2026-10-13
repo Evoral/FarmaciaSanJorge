@@ -3,10 +3,15 @@
  *
  * Layout: the kardex (what happened) in the main column; the balance as the lead number, the partida's data and
  * the cost correction in the aside.
+ *
+ * Expiry (docs/specs/reanalisis-partida.md): the vencimiento VIGENTE with its estado, the original date when a
+ * reanálisis moved it, and the reanálisis history under the kardex. A vencida DROGA partida with saldo is blocked
+ * until the DT acts: everyone sees "requiere acción del DT"; only a DT vigente gets "Registrar reanálisis" /
+ * "Marcar como vencida" (a por vencer or vigente droga partida: reanálisis only).
  */
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { History, SlidersHorizontal } from "lucide-react";
+import { CircleAlert, FlaskConical, History, SlidersHorizontal, TriangleAlert } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getPartida } from "@/modules/stock/application/get-partida";
@@ -19,7 +24,12 @@ import { Cantidad } from "@/shared/ui/cantidad";
 import { TIPO_MOVIMIENTO_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
-import { ToneBadge } from "@/shared/ui/status-badge";
+import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
+import { Toaster } from "@/shared/ui/toast";
+import { dec } from "@/shared/decimal";
+import { formatFecha as formatFechaCalendario } from "@/shared/format/fecha";
+import { textoPorVencer } from "@/modules/stock/domain/vencimiento-partida";
+import { MarcarVencidaDialog, ReanalisisDialog } from "@/modules/stock/ui/acciones-dt-partida";
 
 function formatFecha(fecha: Date): string {
   return new Intl.DateTimeFormat("es-AR", { timeZone: "UTC", dateStyle: "short", timeStyle: "short" }).format(fecha);
@@ -56,6 +66,17 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
   const puedeCorregirCosto = can(session, "stock.partida.costo.corregir");
   const puedeAjustar = can(session, "stock.ajuste.registrar");
 
+  // Expiry: always on the vencimiento VIGENTE (latest reanálisis, else the original date).
+  const vigenteIso = partida.fechaVencimientoVigente ? partida.fechaVencimientoVigente.toISOString().slice(0, 10) : null;
+  const reanalizada = partida.reanalisis.length > 0;
+  const esDroga = partida.drogaClase === "DROGA";
+  const tieneSaldo = dec(partida.cantidadDisponible).greaterThan(0);
+  const vencida = partida.estadoVencimiento === "VENCIDA";
+  const porVencer = partida.estadoVencimiento === "POR_VENCER";
+  // Only a DT vigente acts; only on a DROGA partida with saldo (saldo 0 is terminal).
+  const dtPuedeActuar = partida.sesionEsDtVigente && can(session, "stock.ajuste.autorizar") && esDroga && tieneSaldo && vigenteIso !== null;
+  const partidaNombre = `${partida.drogaNombre} · lote ${partida.lote}`;
+
   return (
     <div className="page">
       <PageHeader
@@ -76,66 +97,161 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
         }
       />
 
-      <div className="split-layout">
-        <section aria-labelledby="kardex-heading" className="panel min-w-0">
-          <div className="panel-header">
-            <h2 id="kardex-heading">Kardex de movimientos</h2>
-            <p>Cada ingreso, consumo y ajuste de esta partida.</p>
+      {tieneSaldo && vencida ? (
+        <div role="alert" className="alert alert-danger mb-4">
+          <CircleAlert aria-hidden />
+          <div className="flex flex-1 flex-wrap items-center justify-between gap-3">
+            {esDroga ? (
+              <p>
+                <strong>Partida vencida: requiere acción del DT.</strong> Está bloqueada: no se puede reservar ni descontar hasta que el Director Técnico registre un
+                reanálisis o la marque como vencida.{dtPuedeActuar ? null : " Avisale al Director Técnico."}
+              </p>
+            ) : (
+              <p>
+                <strong>Partida vencida.</strong> No se puede usar en preparaciones; registrá un ajuste por vencimiento para descontar su saldo.
+              </p>
+            )}
+            {dtPuedeActuar ? (
+              <div className="flex flex-wrap gap-2">
+                <ReanalisisDialog partidaId={partida.id} partidaNombre={partidaNombre} jornadaActual={partida.jornadaActual} destacado />
+                <MarcarVencidaDialog partidaId={partida.id} partidaNombre={partidaNombre} saldoTexto={disponible!.texto} />
+              </div>
+            ) : null}
           </div>
-          {kardex.items.length === 0 ? (
-            <EmptyState icon={<History className="size-5" />} title="Sin movimientos registrados" />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th scope="col" className="px-5 py-2">
-                      Fecha
-                    </th>
-                    <th scope="col" className="px-3 py-2">
-                      Tipo
-                    </th>
-                    <th scope="col" className="px-3 py-2 text-right">
-                      Cantidad
-                    </th>
-                    <th scope="col" className="px-3 py-2">
-                      Motivo
-                    </th>
-                    <th scope="col" className="hidden px-5 py-2 lg:table-cell">
-                      Registrado / autorizado
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {kardex.items.map((mov) => (
-                    <tr key={mov.id}>
-                      <td className="whitespace-nowrap px-5 py-2.5 tabular-nums">{formatFecha(mov.registradoEn)}</td>
-                      <td className="px-3 py-2.5">
-                        <ToneBadge tone="neutral">{etiquetaDe(TIPO_MOVIMIENTO_LABELS, mov.tipo)}</ToneBadge>
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">
-                        <Cantidad valor={formatCantidad(mov.cantidad, { id: mov.unidadId, simbolo: mov.unidadSimbolo }, catalogo)} />
-                      </td>
-                      <td className="max-w-[28ch] px-3 py-2.5 text-zinc-700">
-                        {mov.motivoAjuste ?? mov.observacion ?? <Vacio label="Sin motivo" />}
-                      </td>
-                      <td className="hidden px-5 py-2.5 text-xs lg:table-cell">
-                        <span className="block text-zinc-900">
-                          {mov.registradoPorNombre} {mov.registradoPorApellido}
-                        </span>
-                        {mov.autorizadoPorNombre ? (
-                          <span className="block text-zinc-500">
-                            Autorizó {mov.autorizadoPorNombre} {mov.autorizadoPorApellido}
-                          </span>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        </div>
+      ) : tieneSaldo && porVencer && vigenteIso ? (
+        <div className="alert alert-warn mb-4">
+          <TriangleAlert aria-hidden />
+          <div className="flex flex-1 flex-wrap items-center justify-between gap-3">
+            <p>
+              <strong>{textoPorVencer(vigenteIso, partida.jornadaActual)}</strong> ({formatFechaCalendario(partida.fechaVencimientoVigente!)}).
+              {esDroga ? " Al vencer queda bloqueada hasta que el Director Técnico registre un reanálisis o la marque como vencida." : null}
+            </p>
+            {dtPuedeActuar ? <ReanalisisDialog partidaId={partida.id} partidaNombre={partidaNombre} jornadaActual={partida.jornadaActual} destacado /> : null}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="split-layout">
+        <div className="flex min-w-0 flex-col gap-4">
+          <section aria-labelledby="kardex-heading" className="panel min-w-0">
+            <div className="panel-header">
+              <h2 id="kardex-heading">Kardex de movimientos</h2>
+              <p>Cada ingreso, consumo y ajuste de esta partida.</p>
             </div>
-          )}
-        </section>
+            {kardex.items.length === 0 ? (
+              <EmptyState icon={<History className="size-5" />} title="Sin movimientos registrados" />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col" className="px-5 py-2">
+                        Fecha
+                      </th>
+                      <th scope="col" className="px-3 py-2">
+                        Tipo
+                      </th>
+                      <th scope="col" className="px-3 py-2 text-right">
+                        Cantidad
+                      </th>
+                      <th scope="col" className="px-3 py-2">
+                        Motivo
+                      </th>
+                      <th scope="col" className="hidden px-5 py-2 lg:table-cell">
+                        Registrado / autorizado
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {kardex.items.map((mov) => (
+                      <tr key={mov.id}>
+                        <td className="whitespace-nowrap px-5 py-2.5 tabular-nums">{formatFecha(mov.registradoEn)}</td>
+                        <td className="px-3 py-2.5">
+                          <ToneBadge tone="neutral">{etiquetaDe(TIPO_MOVIMIENTO_LABELS, mov.tipo)}</ToneBadge>
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">
+                          <Cantidad valor={formatCantidad(mov.cantidad, { id: mov.unidadId, simbolo: mov.unidadSimbolo }, catalogo)} />
+                        </td>
+                        <td className="max-w-[28ch] px-3 py-2.5 text-zinc-700">
+                          {mov.motivoAjuste ?? mov.observacion ?? <Vacio label="Sin motivo" />}
+                        </td>
+                        <td className="hidden px-5 py-2.5 text-xs lg:table-cell">
+                          <span className="block text-zinc-900">
+                            {mov.registradoPorNombre} {mov.registradoPorApellido}
+                          </span>
+                          {mov.autorizadoPorNombre ? (
+                            <span className="block text-zinc-500">
+                              Autorizó {mov.autorizadoPorNombre} {mov.autorizadoPorApellido}
+                            </span>
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          {esDroga ? (
+            <section aria-labelledby="reanalisis-heading" className="panel min-w-0">
+              <div className="panel-header flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 id="reanalisis-heading">Reanálisis</h2>
+                  <p>Cada reanálisis fija un nuevo vencimiento vigente; el vencimiento original no cambia.</p>
+                </div>
+                {dtPuedeActuar && !vencida && !porVencer ? (
+                  <ReanalisisDialog partidaId={partida.id} partidaNombre={partidaNombre} jornadaActual={partida.jornadaActual} destacado={false} />
+                ) : null}
+              </div>
+              {partida.reanalisis.length === 0 ? (
+                <EmptyState icon={<FlaskConical className="size-5" />} title="Sin reanálisis registrados" />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th scope="col" className="px-5 py-2">
+                          Registrado
+                        </th>
+                        <th scope="col" className="px-3 py-2">
+                          Vencimiento anterior
+                        </th>
+                        <th scope="col" className="px-3 py-2">
+                          Nuevo vencimiento
+                        </th>
+                        <th scope="col" className="px-3 py-2">
+                          Respaldo / motivo
+                        </th>
+                        <th scope="col" className="hidden px-5 py-2 lg:table-cell">
+                          Director Técnico
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {partida.reanalisis.map((r) => (
+                        <tr key={r.id}>
+                          <td className="whitespace-nowrap px-5 py-2.5 tabular-nums">{formatFecha(r.registradoEn)}</td>
+                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-zinc-600">{formatFechaCalendario(r.fechaVencimientoAnterior)}</td>
+                          <td className="whitespace-nowrap px-3 py-2.5 font-medium tabular-nums text-zinc-900">{formatFechaCalendario(r.fechaReanalisis)}</td>
+                          <td className="max-w-[32ch] px-3 py-2.5 text-zinc-700">
+                            {r.respaldo ? <span className="block">{r.respaldo}</span> : null}
+                            {r.motivo ? <span className="block text-xs text-zinc-500">{r.motivo}</span> : null}
+                            {r.respaldo || r.motivo ? null : <Vacio label="Sin respaldo ni motivo" />}
+                          </td>
+                          <td className="hidden px-5 py-2.5 text-xs text-zinc-900 lg:table-cell">
+                            {r.registradoPorNombre} {r.registradoPorApellido}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          ) : null}
+        </div>
 
         <aside className="split-aside flex flex-col gap-4" aria-label="Datos de la partida">
           <section className="panel" aria-labelledby="saldo-heading">
@@ -162,8 +278,19 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
                 <dd className="font-mono tabular-nums">{partida.costoUnitario}</dd>
                 <dt>Pureza</dt>
                 <dd className="font-mono tabular-nums">{partida.potenciaDeclarada !== null ? `${partida.potenciaDeclarada} %` : "No declarada (100 %)"}</dd>
-                <dt>Vencimiento</dt>
-                <dd className="tabular-nums">{partida.fechaVencimiento ? formatFecha(partida.fechaVencimiento) : "No vence"}</dd>
+                <dt>{reanalizada ? "Vencimiento vigente" : "Vencimiento"}</dt>
+                <dd className="flex flex-wrap items-center gap-1.5 tabular-nums">
+                  {partida.fechaVencimientoVigente ? formatFechaCalendario(partida.fechaVencimientoVigente) : "No vence"}
+                  {tieneSaldo && vencida ? <StatusBadge estado="VENCIDA" /> : null}
+                  {tieneSaldo && porVencer ? <StatusBadge estado="POR_VENCER" /> : null}
+                  {reanalizada ? <ToneBadge tone="neutral">Reanalizada</ToneBadge> : null}
+                </dd>
+                {reanalizada && partida.fechaVencimiento ? (
+                  <>
+                    <dt>Vencimiento original</dt>
+                    <dd className="tabular-nums text-zinc-600">{formatFechaCalendario(partida.fechaVencimiento)}</dd>
+                  </>
+                ) : null}
                 <dt>Ingreso</dt>
                 <dd className="tabular-nums">{formatFecha(partida.fechaIngreso)}</dd>
                 <dt>Estado</dt>
@@ -184,6 +311,7 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
           ) : null}
         </aside>
       </div>
+      <Toaster />
     </div>
   );
 }

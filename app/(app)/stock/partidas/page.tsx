@@ -15,7 +15,8 @@ import { FilterMultiSelect } from "@/shared/ui/filter-multi-select";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
-import { ToneBadge } from "@/shared/ui/status-badge";
+import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
+import { estadoVencimientoPartida } from "@/modules/stock/domain/vencimiento-partida";
 
 const PAGE_SIZE = 20;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -153,6 +154,13 @@ export default async function PartidasPage({ searchParams }: PartidasPageProps) 
                     const [disponible, inicial, reservada] = unidad
                       ? formatCantidadesFila([partida.cantidadDisponible, partida.cantidadInicial, partida.cantidadReservada], unidad, catalogo, modo)
                       : [null, null, null];
+                    const vencimiento = estadoVencimientoPartida(
+                      partida.fechaVencimientoVigente ? partida.fechaVencimientoVigente.toISOString().slice(0, 10) : null,
+                      result.jornadaActual,
+                      result.diasAlertaVencimiento,
+                    );
+                    const conSaldo = partida.cantidadDisponible !== "0";
+                    const reanalizada = partida.fechaVencimientoVigente?.getTime() !== partida.fechaVencimiento?.getTime();
                     return (
                       <tr key={partida.id}>
                         <td className="px-3 py-2.5">
@@ -162,7 +170,15 @@ export default async function PartidasPage({ searchParams }: PartidasPageProps) 
                           <span className="block truncate text-xs text-zinc-500 md:hidden">{partida.proveedorRazonSocial}</span>
                         </td>
                         <td className="hidden px-3 py-2.5 md:table-cell">{partida.proveedorRazonSocial}</td>
-                        <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">{partida.fechaVencimiento ? formatFecha(partida.fechaVencimiento) : "No vence"}</td>
+                        {/* The vencimiento VIGENTE (docs/specs/reanalisis-partida.md): a reanálisis may have moved it from the original date. */}
+                        <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">
+                          {partida.fechaVencimientoVigente ? formatFecha(partida.fechaVencimientoVigente) : "No vence"}
+                          {reanalizada ? (
+                            <span className="block text-xs text-zinc-500" title={partida.fechaVencimiento ? `Vencimiento original: ${formatFecha(partida.fechaVencimiento)}` : undefined}>
+                              Reanalizada
+                            </span>
+                          ) : null}
+                        </td>
                         <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">
                           {disponible && inicial ? (
                             <>
@@ -183,7 +199,10 @@ export default async function PartidasPage({ searchParams }: PartidasPageProps) 
                         </td>
                         <td className="hidden px-3 py-2.5 text-right font-mono tabular-nums lg:table-cell">{partida.costoUnitario}</td>
                         <td className="hidden px-3 py-2.5 sm:table-cell">
-                          <ToneBadge tone="neutral">{partida.fechaApertura ? "Abierta" : "Cerrada"}</ToneBadge>
+                          <span className="flex flex-wrap gap-1">
+                            {conSaldo && (vencimiento === "VENCIDA" || vencimiento === "POR_VENCER") ? <StatusBadge estado={vencimiento} /> : null}
+                            <ToneBadge tone="neutral">{partida.fechaApertura ? "Abierta" : "Cerrada"}</ToneBadge>
+                          </span>
                         </td>
                         <td className="px-3 py-2.5 text-right">
                           <Link href={`/stock/partidas/${partida.id}`} aria-label={`Ver la partida ${partida.lote}`} className="btn btn-ghost btn-sm btn-icon">

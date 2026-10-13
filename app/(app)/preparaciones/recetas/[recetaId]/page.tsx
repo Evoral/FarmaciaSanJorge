@@ -418,6 +418,7 @@ function ItemToma({
                   <span className="font-mono tabular-nums text-zinc-900">
                     {reserva.cantidad} <span className="text-zinc-500">{reserva.unidadSimbolo}</span>
                   </span>
+                  {reserva.avisoVencimiento ? <ToneBadge tone={reserva.vencida ? "danger" : "warn"}>{reserva.avisoVencimiento}</ToneBadge> : null}
                 </li>
               ))}
             </ul>

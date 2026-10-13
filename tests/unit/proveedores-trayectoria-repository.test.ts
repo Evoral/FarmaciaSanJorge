@@ -44,6 +44,7 @@ function fakeTx(opts: FakeOpts = {}) {
     lote: `L${i}`,
     fechaIngreso: new Date("2026-09-20T12:00:00Z"),
     fechaVencimiento: new Date("2027-01-31T00:00:00Z"),
+    fechaVencimientoVigente: new Date("2027-01-31T00:00:00Z"),
     fechaApertura: null,
     cantidadInicial: { toString: () => "500" },
     cantidadDisponible: { toString: () => "320" },
@@ -253,8 +254,8 @@ describe("getTrayectoriaProveedorCruda", () => {
     expect(sql).toContain("p.tenant_id = ?::uuid AND p.proveedor_id = ?::uuid");
     expect(rawCalls(tx)[idx]!.slice(1)).toEqual(expect.arrayContaining(["2026-10-01", 45, TENANT, PROVEEDOR]));
     // same predicates as alertasVencidasConSaldo / alertasPorVencer
-    expect(sql).toContain("p.cantidad_disponible > 0 AND p.fecha_vencimiento < ?::date");
-    expect(sql).toContain("p.fecha_vencimiento >= ?::date");
+    expect(sql).toContain("p.cantidad_disponible > 0 AND p.fecha_vencimiento_vigente < ?::date");
+    expect(sql).toContain("p.fecha_vencimiento_vigente >= ?::date");
     expect(sql).toContain("(?::int || ' days')::interval");
   });
 

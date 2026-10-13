@@ -29,6 +29,7 @@ import { dec } from "@/shared/decimal";
 import { convertirCantidad, mismaMagnitud } from "@/shared/decimal/convertir-unidad";
 import { proponerRepartoActivo } from "../domain/potencia";
 import type { UnidadFormato } from "@/shared/format/cantidad";
+import { diasAlertaVencimientoEnTx } from "@/modules/stock/application/dias-alerta-vencimiento";
 import { getLineasParaPreparacion, listPartidasElegiblesDroga, listUnidadesFormato, jornadaActualTenant, existeCierreParaJornada } from "../infrastructure/preparacion-repository";
 import type { LineaParaPantalla, PartidaElegible } from "../infrastructure/preparacion-repository";
 
@@ -55,6 +56,12 @@ export interface DatosConfirmacion {
   jornadaActual: string;
   /** Today's jornada already has a `cierre_diario`: the confirmation would be refused. */
   jornadaCerrada: boolean;
+  /**
+   * `dias_alerta_vencimiento_partida`: the form flags each partida por vencer / vencida against `jornadaActual`
+   * (`estadoVencimientoPartida`, modules/stock/domain/vencimiento-partida.ts). A vencida one stays listed but can not
+   * be chosen: blocked until the DT acts (docs/specs/reanalisis-partida.md).
+   */
+  diasAlertaVencimiento: number;
   lineas: LineaPantalla[];
   /** The global unit catalog, so the form shows stock amounts in a readable unit (`shared/format/cantidad.ts`, display only). */
   unidades: UnidadFormato[];
@@ -95,6 +102,7 @@ export async function construirDatosConfirmacion(
     fichaTecnicaId,
     jornadaActual: jornada,
     jornadaCerrada: await existeCierreParaJornada(tx, tenantId, jornada),
+    diasAlertaVencimiento: await diasAlertaVencimientoEnTx(tx, tenantId),
     lineas,
     unidades: await listUnidadesFormato(tx),
   };

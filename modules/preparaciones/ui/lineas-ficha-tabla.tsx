@@ -8,7 +8,8 @@
  */
 import { Fragment } from "react";
 import { formatNumero } from "@/shared/format/cantidad";
-import type { LineaDeFichaToma } from "../application/get-toma-receta";
+import { ToneBadge } from "@/shared/ui/status-badge";
+import type { LineaDeFichaToma, PartidaParaPesar } from "../application/get-toma-receta";
 
 export function LineasFichaTabla({ lineas }: { lineas: readonly LineaDeFichaToma[] }) {
   return (
@@ -76,12 +77,47 @@ export function LineasFichaTabla({ lineas }: { lineas: readonly LineaDeFichaToma
 /**
  * The partidas the confirmation would draw this línea from (same candidates
  * and order). With no declared purity, one compact line of lotes; otherwise
- * what to weigh from each one: cantidadAPesar (active) x 100 / pureza.
+ * what to weigh from each one: cantidadAPesar (active) x 100 / pureza. A
+ * partida por vencer carries a compact warning; a vencida one (blocked until
+ * the DT acts, docs/specs/reanalisis-partida.md) is listed apart, saying why
+ * it is not available.
  */
 function PartidasDeLinea({ linea }: { linea: LineaDeFichaToma }) {
-  const partidas = linea.partidas ?? [];
+  const todas = linea.partidas ?? [];
+  const partidas = todas.filter((p) => !p.vencida);
+  const vencidas = todas.filter((p) => p.vencida);
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <PartidasDisponibles linea={linea} partidas={partidas} />
+      {vencidas.length > 0 ? (
+        <p className="text-xs text-red-700 dark:text-red-300">
+          No disponible{vencidas.length === 1 ? "" : "s"}:{" "}
+          {vencidas.map((p, i) => (
+            <span key={p.id}>
+              {i > 0 ? " · " : null}
+              lote <span className="font-mono">{p.lote}</span> ({formatNumero(p.cantidadDisponible)} {p.unidadSimbolo})
+            </span>
+          ))}
+          . {vencidas[0]!.avisoVencimiento}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function AvisoPorVencer({ aviso }: { aviso: string | null }) {
+  return aviso ? (
+    <>
+      {" "}
+      <ToneBadge tone="warn">{aviso}</ToneBadge>
+    </>
+  ) : null;
+}
+
+function PartidasDisponibles({ linea, partidas }: { linea: LineaDeFichaToma; partidas: readonly PartidaParaPesar[] }) {
   if (partidas.length === 0) {
-    return <p className="text-xs text-zinc-500">Sin partidas con saldo para esta droga.</p>;
+    return <p className="text-xs text-zinc-500">Sin partidas disponibles para esta droga.</p>;
   }
 
   if (!partidas.some((p) => p.potenciaDeclarada !== null)) {
@@ -92,6 +128,7 @@ function PartidasDeLinea({ linea }: { linea: LineaDeFichaToma }) {
           <span key={p.id}>
             {i > 0 ? " · " : null}
             <span className="font-mono text-zinc-700">{p.lote}</span> ({formatNumero(p.cantidadDisponible)} {p.unidadSimbolo} disp.)
+            <AvisoPorVencer aviso={p.avisoVencimiento} />
           </span>
         ))}
       </p>
@@ -107,6 +144,7 @@ function PartidasDeLinea({ linea }: { linea: LineaDeFichaToma }) {
             <span className="truncate">
               <span className="text-zinc-500">Lote </span>
               <span className="font-mono font-medium text-zinc-900">{p.lote}</span>
+              <AvisoPorVencer aviso={p.avisoVencimiento} />
             </span>
             <span className="truncate text-zinc-600">{p.proveedorNombre}</span>
             <span className="tabular-nums">

@@ -45,6 +45,7 @@ export const ENTIDADES: Readonly<Record<string, EntidadInfo>> = {
   partida: { nombre: "partida", articulo: "la" },
   preparacion: { nombre: "preparación", articulo: "la" },
   proveedor: { nombre: "proveedor", articulo: "el" },
+  reanalisis_partida: { nombre: "reanálisis de partida", articulo: "el" },
   receta: { nombre: "receta", articulo: "la" },
   receta_reporte: { nombre: "reporte de recetas", articulo: "el" },
   regla_precio: { nombre: "regla de precio", articulo: "la" },

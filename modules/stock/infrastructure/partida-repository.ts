@@ -42,7 +42,7 @@ export interface StockDrogaItem {
   stockDisponible: string;
   /** `stock_disponible < stock_minimo`, compared in SQL (numeric). */
   bajoMinimo: boolean;
-  /** Earliest `fecha_vencimiento` among partidas with balance (YYYY-MM-DD), `null` when none has balance. */
+  /** Earliest vencimiento VIGENTE (`fecha_vencimiento_vigente`, migration 0074) among partidas with balance (YYYY-MM-DD), `null` when none has balance. */
   proximoVencimiento: string | null;
   /** The synonym the search matched through, when the name itself did not match (docs/specs/sinonimos-droga.md). */
   sinonimoCoincidente: string | null;
@@ -146,7 +146,7 @@ export function listStockDrogasSql(filter: ListStockDrogasFilter): Prisma.Sql {
         coalesce(v.stock_disponible, 0) AS stock_disponible,
         coalesce(v.stock_disponible, 0) * u.factor_a_base AS stock_en_base,
         (
-          SELECT min(p.fecha_vencimiento)
+          SELECT min(p.fecha_vencimiento_vigente)
           FROM fsj.partida p
           WHERE p.tenant_id = d.tenant_id AND p.droga_id = d.id AND p.cantidad_disponible > 0
         ) AS proximo_vencimiento
@@ -167,8 +167,8 @@ export function listStockDrogasSql(filter: ListStockDrogasFilter): Prisma.Sql {
             WHERE p.tenant_id = d.tenant_id
               AND p.droga_id = d.id
               AND p.cantidad_disponible > 0
-              AND p.fecha_vencimiento >= fsj.jornada_actual(${filter.tenantId}::uuid)
-              AND p.fecha_vencimiento <= (fsj.jornada_actual(${filter.tenantId}::uuid) + (${filter.diasAlertaVencimiento}::int || ' days')::interval)
+              AND p.fecha_vencimiento_vigente >= fsj.jornada_actual(${filter.tenantId}::uuid)
+              AND p.fecha_vencimiento_vigente <= (fsj.jornada_actual(${filter.tenantId}::uuid) + (${filter.diasAlertaVencimiento}::int || ' days')::interval)
           )
         )
         AND (
@@ -179,7 +179,7 @@ export function listStockDrogasSql(filter: ListStockDrogasFilter): Prisma.Sql {
             WHERE p.tenant_id = d.tenant_id
               AND p.droga_id = d.id
               AND p.cantidad_disponible > 0
-              AND p.fecha_vencimiento < fsj.jornada_actual(${filter.tenantId}::uuid)
+              AND p.fecha_vencimiento_vigente < fsj.jornada_actual(${filter.tenantId}::uuid)
           )
         )
     )
@@ -223,8 +223,10 @@ export interface PartidaListItem {
   /** Of `cantidadDisponible` (the physical saldo), what preparaciones INICIADA reserved (migration 0071); informational. */
   cantidadReservada: string;
   fechaIngreso: Date;
-  /** `null` = does not expire (migration 0064). */
+  /** The ORIGINAL expiry printed on the lot; `null` = does not expire (migration 0064). */
   fechaVencimiento: Date | null;
+  /** The vencimiento VIGENTE (migration 0074): the latest reanálisis, else `fechaVencimiento`. Every expiry decision uses this one. */
+  fechaVencimientoVigente: Date | null;
   fechaApertura: Date | null;
 }
 
@@ -239,7 +241,7 @@ export interface ListPartidasDrogaFilter {
 
 export interface ListPartidasDrogaResult {
   /** The droga the partidas belong to (its quantities are all in its unidad base); `null` if it does not exist in this tenant. */
-  droga: { nombre: string; unidadBaseId: string; unidadBaseSimbolo: string } | null;
+  droga: { nombre: string; unidadBaseId: string; unidadBaseSimbolo: string; clase: string } | null;
   items: PartidaListItem[];
   total: number;
   page: number;
@@ -251,18 +253,18 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
   if (filter.soloConSaldo) where.cantidadDisponible = { gt: 0 };
   if (filter.soloVencidas) {
     const jornada = await jornadaActualTenant(tx, filter.tenantId);
-    where.fechaVencimiento = { lt: new Date(`${jornada}T00:00:00Z`) };
+    where.fechaVencimientoVigente = { lt: new Date(`${jornada}T00:00:00Z`) };
   }
 
   const skip = (filter.page - 1) * filter.pageSize;
   const droga = await tx.droga.findUnique({
     where: { id: filter.drogaId, tenantId: filter.tenantId },
-    select: { nombre: true, unidadBaseId: true, unidadBase: { select: { simbolo: true } } },
+    select: { nombre: true, unidadBaseId: true, clase: true, unidadBase: { select: { simbolo: true } } },
   });
   const total = await tx.partida.count({ where });
   const rows = await tx.partida.findMany({
     where,
-    orderBy: [{ fechaVencimiento: "asc" }],
+    orderBy: [{ fechaVencimientoVigente: "asc" }],
     skip,
     take: filter.pageSize,
     select: {
@@ -274,6 +276,7 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
       cantidadDisponible: true,
       fechaIngreso: true,
       fechaVencimiento: true,
+      fechaVencimientoVigente: true,
       fechaApertura: true,
       proveedor: { select: { razonSocial: true } },
     },
@@ -282,7 +285,7 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
   const reservado = await reservadoPorPartida(tx, filter.tenantId, rows.map((row) => row.id));
 
   return {
-    droga: droga ? { nombre: droga.nombre, unidadBaseId: droga.unidadBaseId, unidadBaseSimbolo: droga.unidadBase.simbolo } : null,
+    droga: droga ? { nombre: droga.nombre, unidadBaseId: droga.unidadBaseId, unidadBaseSimbolo: droga.unidadBase.simbolo, clase: droga.clase } : null,
     items: rows.map((row) => ({
       id: row.id,
       lote: row.lote,
@@ -294,6 +297,7 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
       cantidadReservada: reservado.get(row.id) ?? "0",
       fechaIngreso: row.fechaIngreso,
       fechaVencimiento: row.fechaVencimiento,
+      fechaVencimientoVigente: row.fechaVencimientoVigente,
       fechaApertura: row.fechaApertura,
     })),
     total,
@@ -312,6 +316,8 @@ export interface PartidaParaAccion {
   id: string;
   drogaId: string;
   drogaNombre: string;
+  /** `droga.clase` (migration 0063): only a DROGA partida admits a reanálisis (migration 0074). */
+  drogaClase: string;
   /** The droga unidad base -- every quantity of the partida is recorded in it. */
   unidadBaseId: string;
   unidadBaseSimbolo: string;
@@ -322,8 +328,10 @@ export interface PartidaParaAccion {
   cantidadInicial: string;
   cantidadDisponible: string;
   fechaIngreso: Date;
-  /** `null` = does not expire (migration 0064). */
+  /** The ORIGINAL expiry printed on the lot; `null` = does not expire (migration 0064). Never changes. */
   fechaVencimiento: Date | null;
+  /** The vencimiento VIGENTE (migration 0074): the latest reanálisis, else `fechaVencimiento`. Every expiry decision uses this one. */
+  fechaVencimientoVigente: Date | null;
   fechaApertura: Date | null;
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
@@ -342,9 +350,10 @@ export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantI
       cantidadDisponible: true,
       fechaIngreso: true,
       fechaVencimiento: true,
+      fechaVencimientoVigente: true,
       fechaApertura: true,
       potenciaDeclarada: true,
-      droga: { select: { nombre: true, unidadBaseId: true, unidadBase: { select: { simbolo: true } } } },
+      droga: { select: { nombre: true, clase: true, unidadBaseId: true, unidadBase: { select: { simbolo: true } } } },
       proveedor: { select: { razonSocial: true } },
     },
   });
@@ -353,6 +362,7 @@ export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantI
     id: row.id,
     drogaId: row.drogaId,
     drogaNombre: row.droga.nombre,
+    drogaClase: row.droga.clase,
     unidadBaseId: row.droga.unidadBaseId,
     unidadBaseSimbolo: row.droga.unidadBase.simbolo,
     proveedorId: row.proveedorId,
@@ -363,6 +373,7 @@ export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantI
     cantidadDisponible: row.cantidadDisponible.toString(),
     fechaIngreso: row.fechaIngreso,
     fechaVencimiento: row.fechaVencimiento,
+    fechaVencimientoVigente: row.fechaVencimientoVigente,
     fechaApertura: row.fechaApertura,
     potenciaDeclarada: row.potenciaDeclarada?.toString() ?? null,
   };
@@ -942,55 +953,148 @@ export interface AlertaPorVencer {
   drogaNombre: string;
   lote: string;
   cantidadDisponible: string;
+  /** The vencimiento VIGENTE (migration 0074). */
   fechaVencimiento: Date;
+  /** A DROGA partida (migration 0063): blocked when vencida until the DT acts; re-analysable (docs/specs/reanalisis-partida.md). */
+  esDroga: boolean;
+  /** The vigente date comes from a reanálisis (differs from the original one). */
+  reanalizada: boolean;
 }
 
-/** Partidas with balance whose `fecha_vencimiento` falls within `[jornadaActual, jornadaActual + diasAlerta]` -- excludes already-expired ones (those are `alertasVencidasConSaldo`'s job). */
-export async function alertasPorVencer(tx: Prisma.TransactionClient, tenantId: string, diasAlerta: number): Promise<AlertaPorVencer[]> {
-  const rows = await tx.$queryRaw<{ partida_id: string; nombre: string; lote: string; cantidad_disponible: string; fecha_vencimiento: Date }[]>`
-    SELECT p.id AS partida_id, d.nombre, p.lote, p.cantidad_disponible::text, p.fecha_vencimiento
-    FROM fsj.partida p
-    JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
-    WHERE p.tenant_id = ${tenantId}::uuid
-      AND p.cantidad_disponible > 0
-      AND p.fecha_vencimiento >= fsj.jornada_actual(${tenantId}::uuid)
-      AND p.fecha_vencimiento <= (fsj.jornada_actual(${tenantId}::uuid) + (${diasAlerta}::int || ' days')::interval)
-    ORDER BY p.fecha_vencimiento ASC
-  `;
-  return rows.map((row) => ({
-    partidaId: row.partida_id,
-    drogaNombre: row.nombre,
-    lote: row.lote,
-    cantidadDisponible: row.cantidad_disponible,
-    fechaVencimiento: row.fecha_vencimiento,
-  }));
-}
+/**
+ * An expired partida that STILL has balance. `esDroga` = blocked until the DT acts (reanálisis or "marcar como
+ * vencida", docs/specs/reanalisis-partida.md); an insumo's suggests a VENCIMIENTO ajuste (plan §9 M07 historia 6).
+ */
+export type AlertaVencidaConSaldo = AlertaPorVencer;
 
-export interface AlertaVencidaConSaldo {
-  partidaId: string;
-  drogaNombre: string;
+interface AlertaVencimientoRow {
+  partida_id: string;
+  nombre: string;
   lote: string;
-  cantidadDisponible: string;
-  fechaVencimiento: Date;
+  cantidad_disponible: string;
+  fecha_vencimiento_vigente: Date;
+  es_droga: boolean;
+  reanalizada: boolean;
 }
 
-/** Expired partidas that STILL have balance -- suggests a VENCIMIENTO ajuste (plan §9 M07 historia 6). */
-export async function alertasVencidasConSaldo(tx: Prisma.TransactionClient, tenantId: string): Promise<AlertaVencidaConSaldo[]> {
-  const rows = await tx.$queryRaw<{ partida_id: string; nombre: string; lote: string; cantidad_disponible: string; fecha_vencimiento: Date }[]>`
-    SELECT p.id AS partida_id, d.nombre, p.lote, p.cantidad_disponible::text, p.fecha_vencimiento
-    FROM fsj.partida p
-    JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
-    WHERE p.tenant_id = ${tenantId}::uuid
-      AND p.cantidad_disponible > 0
-      AND p.fecha_vencimiento < fsj.jornada_actual(${tenantId}::uuid)
-    ORDER BY p.fecha_vencimiento ASC
-  `;
-  return rows.map((row) => ({
+function alertaDesdeRow(row: AlertaVencimientoRow): AlertaPorVencer {
+  return {
     partidaId: row.partida_id,
     drogaNombre: row.nombre,
     lote: row.lote,
     cantidadDisponible: row.cantidad_disponible,
-    fechaVencimiento: row.fecha_vencimiento,
+    fechaVencimiento: row.fecha_vencimiento_vigente,
+    esDroga: row.es_droga,
+    reanalizada: row.reanalizada,
+  };
+}
+
+/** Partidas with balance whose vencimiento VIGENTE falls within `[jornadaActual, jornadaActual + diasAlerta]` -- excludes already-expired ones (those are `alertasVencidasConSaldo`'s job). */
+export async function alertasPorVencer(tx: Prisma.TransactionClient, tenantId: string, diasAlerta: number): Promise<AlertaPorVencer[]> {
+  const rows = await tx.$queryRaw<AlertaVencimientoRow[]>`
+    SELECT p.id AS partida_id, d.nombre, p.lote, p.cantidad_disponible::text, p.fecha_vencimiento_vigente,
+      d.clase = 'DROGA' AS es_droga, p.fecha_vencimiento_vigente IS DISTINCT FROM p.fecha_vencimiento AS reanalizada
+    FROM fsj.partida p
+    JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
+    WHERE p.tenant_id = ${tenantId}::uuid
+      AND p.cantidad_disponible > 0
+      AND p.fecha_vencimiento_vigente >= fsj.jornada_actual(${tenantId}::uuid)
+      AND p.fecha_vencimiento_vigente <= (fsj.jornada_actual(${tenantId}::uuid) + (${diasAlerta}::int || ' days')::interval)
+    ORDER BY p.fecha_vencimiento_vigente ASC
+  `;
+  return rows.map(alertaDesdeRow);
+}
+
+/** Expired partidas (vencimiento VIGENTE < jornada) that STILL have balance. */
+export async function alertasVencidasConSaldo(tx: Prisma.TransactionClient, tenantId: string): Promise<AlertaVencidaConSaldo[]> {
+  const rows = await tx.$queryRaw<AlertaVencimientoRow[]>`
+    SELECT p.id AS partida_id, d.nombre, p.lote, p.cantidad_disponible::text, p.fecha_vencimiento_vigente,
+      d.clase = 'DROGA' AS es_droga, p.fecha_vencimiento_vigente IS DISTINCT FROM p.fecha_vencimiento AS reanalizada
+    FROM fsj.partida p
+    JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
+    WHERE p.tenant_id = ${tenantId}::uuid
+      AND p.cantidad_disponible > 0
+      AND p.fecha_vencimiento_vigente < fsj.jornada_actual(${tenantId}::uuid)
+    ORDER BY p.fecha_vencimiento_vigente ASC
+  `;
+  return rows.map(alertaDesdeRow);
+}
+
+// ============================================================================
+// Reanálisis de partida (migration 0074, docs/specs/reanalisis-partida.md):
+// append-only rows; the DB trigger moves partida.fecha_vencimiento_vigente
+// and re-checks INV-S22 (droga, saldo, date, DT vigente).
+// ============================================================================
+
+export interface NuevoReanalisisInput {
+  tenantId: string;
+  partidaId: string;
+  /** YYYY-MM-DD. */
+  fechaReanalisis: string;
+  motivo: string | null;
+  respaldo: string | null;
+  /** The DT vigente registering it -- the session's own usuario, verified by its password in the same request. */
+  registradoPorId: string;
+}
+
+export async function insertReanalisis(tx: Prisma.TransactionClient, input: NuevoReanalisisInput): Promise<{ id: string; fechaVencimientoAnterior: string }> {
+  // fecha_vencimiento_anterior is NOT NULL but set by the BEFORE INSERT trigger from the partida: this placeholder is
+  // always overwritten, and the returned row carries the trigger's value.
+  const row = await tx.reanalisisPartida.create({
+    data: {
+      tenantId: input.tenantId,
+      partidaId: input.partidaId,
+      fechaReanalisis: new Date(`${input.fechaReanalisis}T00:00:00Z`),
+      fechaVencimientoAnterior: new Date(`${input.fechaReanalisis}T00:00:00Z`),
+      motivo: input.motivo,
+      respaldo: input.respaldo,
+      registradoPorId: input.registradoPorId,
+    },
+    select: { id: true, fechaVencimientoAnterior: true },
+  });
+  return { id: row.id, fechaVencimientoAnterior: row.fechaVencimientoAnterior.toISOString().slice(0, 10) };
+}
+
+export interface ReanalisisItem {
+  id: string;
+  fechaReanalisis: Date;
+  fechaVencimientoAnterior: Date;
+  motivo: string | null;
+  respaldo: string | null;
+  registradoPorNombre: string;
+  registradoPorApellido: string;
+  registradoEn: Date;
+}
+
+/** Every reanálisis of `partidaId`, newest first (a partida has a handful at most: no pagination). */
+export async function listReanalisisDePartida(tx: Prisma.TransactionClient, tenantId: string, partidaId: string): Promise<ReanalisisItem[]> {
+  const rows = await tx.$queryRaw<
+    {
+      id: string;
+      fecha_reanalisis: Date;
+      fecha_vencimiento_anterior: Date;
+      motivo: string | null;
+      respaldo: string | null;
+      nombre: string;
+      apellido: string;
+      registrado_en: Date;
+    }[]
+  >`
+    SELECT r.id, r.fecha_reanalisis, r.fecha_vencimiento_anterior, r.motivo, r.respaldo, u.nombre, u.apellido, r.registrado_en
+    FROM fsj.reanalisis_partida r
+    JOIN fsj.usuario u ON u.tenant_id = r.tenant_id AND u.id = r.registrado_por_id
+    WHERE r.tenant_id = ${tenantId}::uuid AND r.partida_id = ${partidaId}::uuid
+    ORDER BY r.registrado_en DESC, r.id DESC
+  `;
+  return rows.map((r) => ({
+    id: r.id,
+    fechaReanalisis: r.fecha_reanalisis,
+    fechaVencimientoAnterior: r.fecha_vencimiento_anterior,
+    motivo: r.motivo,
+    respaldo: r.respaldo,
+    registradoPorNombre: r.nombre,
+    registradoPorApellido: r.apellido,
+    registradoEn: r.registrado_en,
   }));
 }
 

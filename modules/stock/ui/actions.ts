@@ -7,6 +7,8 @@ import { corregirCostoPartida } from "@/modules/stock/application/corregir-costo
 import { crearDroga } from "@/modules/drogas/application/crear-droga";
 import { leerFacturaCompraPdf } from "@/modules/stock/application/leer-factura-compra-pdf";
 import { importarFacturaCompra } from "@/modules/stock/application/importar-factura-compra";
+import { registrarReanalisisPartida } from "@/modules/stock/application/reanalizar-partida";
+import { marcarPartidaVencida } from "@/modules/stock/application/marcar-partida-vencida";
 import type { MotivoAjuste } from "@/modules/stock/domain/partida";
 import { actionError, actionErrorMessage } from "@/shared/ui/action-error";
 import type { LeerFacturaPdfState, StockActionState } from "./action-state";
@@ -93,5 +95,52 @@ export async function corregirCostoPartidaAction(_prevState: StockActionState, f
     return { status: "success", message: "Costo corregido." };
   } catch (error) {
     return fromError(error, "No se pudo corregir el costo.");
+  }
+}
+
+/** Optional text field: empty = not given. */
+function opcional(formData: FormData, campo: string): string | undefined {
+  const valor = String(formData.get(campo) ?? "").trim();
+  return valor ? valor : undefined;
+}
+
+function revalidarPartida(partidaId: string) {
+  revalidatePath("/stock");
+  revalidatePath(`/stock/partidas/${partidaId}`);
+  revalidatePath("/");
+}
+
+/** "Registrar reanálisis" (docs/specs/reanalisis-partida.md): the use case verifies the DT's own password first. */
+export async function registrarReanalisisAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
+  const partidaId = String(formData.get("partidaId") ?? "");
+  try {
+    await registrarReanalisisPartida({
+      partidaId,
+      fechaReanalisis: String(formData.get("fechaReanalisis") ?? ""),
+      motivo: opcional(formData, "motivo"),
+      respaldo: opcional(formData, "respaldo"),
+      password: String(formData.get("password") ?? ""),
+    });
+    revalidarPartida(partidaId);
+    return { status: "success", message: "Reanálisis registrado: la partida tiene un nuevo vencimiento vigente." };
+  } catch (error) {
+    return fromError(error, "No se pudo registrar el reanálisis.");
+  }
+}
+
+/** "Marcar como vencida" (docs/specs/reanalisis-partida.md): discounts the whole saldo with a VENCIMIENTO ajuste. */
+export async function marcarPartidaVencidaAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
+  const partidaId = String(formData.get("partidaId") ?? "");
+  try {
+    await marcarPartidaVencida({
+      partidaId,
+      observacion: opcional(formData, "observacion"),
+      password: String(formData.get("password") ?? ""),
+    });
+    revalidarPartida(partidaId);
+    revalidatePath("/stock/ajustes");
+    return { status: "success", message: "Partida marcada como vencida: se descontó todo su saldo." };
+  } catch (error) {
+    return fromError(error, "No se pudo marcar la partida como vencida.");
   }
 }

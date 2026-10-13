@@ -225,7 +225,7 @@ async function PartidasConSaldo({ drogaId, pasoUnoHref, catalogo }: { drogaId: s
                     <span className="font-mono font-semibold text-zinc-900">{partida.lote}</span>
                   </span>
                   <span className="block truncate text-xs text-zinc-500">
-                    {partida.proveedorRazonSocial} · {partida.fechaVencimiento ? <>vence <span className="tabular-nums">{formatFecha(partida.fechaVencimiento)}</span></> : "no vence"}
+                    {partida.proveedorRazonSocial} · {partida.fechaVencimientoVigente ? <>vence <span className="tabular-nums">{formatFecha(partida.fechaVencimientoVigente)}</span></> : "no vence"}
                   </span>
                 </span>
                 <span className="text-right">

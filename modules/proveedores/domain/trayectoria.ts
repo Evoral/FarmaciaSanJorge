@@ -100,7 +100,7 @@ export function fechaCalendario(fecha: Date): string {
 export interface PartidaParaEstado {
   /** Decimal string, droga unidad base. */
   cantidadDisponible: string;
-  /** Postgres `date` (UTC midnight). */
+  /** The vencimiento VIGENTE (`partida.fecha_vencimiento_vigente`, migration 0074: the latest reanálisis, else the original date). Postgres `date` (UTC midnight). */
   fechaVencimiento: Date | null;
   fechaApertura: Date | null;
 }
