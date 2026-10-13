@@ -37,6 +37,7 @@ import {
   Menu,
   Package,
   PackageCheck,
+  PackageSearch,
   PanelLeftClose,
   PanelLeftOpen,
   Scale,
@@ -85,7 +86,7 @@ export interface SidebarNavProps {
   accesosHref: string | null;
   /** "Administración › Configuración": the FIRST `/admin/configuracion/**` section (farmacia, parámetros, reglas de precio) this session can reach, or `null` to hide the entry. Same reasoning as `catalogosHref`, from `nav-sections.ts#configuracionSections`. */
   configuracionHref: string | null;
-  /** M07, FASE 5: `stock.ver` (granted to every role) -- `true` shows the "Stock" link to `/stock` and, right below it, "Ajustes" to `/stock/ajustes` (same permiso: its list query and the `/stock/**` layout guard both check `stock.ver`). */
+  /** M07, FASE 5: `stock.ver` (granted to every role) -- `true` shows the "Stock" link to `/stock` and, right below it, "Partidas" (`/stock/historial`) and "Ajuste de Stock" (`/stock/ajustes`) (same permiso: its list query and the `/stock/**` layout guard both check `stock.ver`). */
   puedeStock: boolean;
   /** M09, FASE 6: `recetas.crear` (ATP/FAR/DT) -- `true` shows a "Recetas" link to `/recetas`. */
   puedeRecetas: boolean;
@@ -330,10 +331,12 @@ function buildGroups(p: SidebarNavProps, pathname: string): NavGroup[] {
   if (p.puedeRecetas) operacion.push({ href: "/recetas", label: "Recetas", icon: FileText, active: pathname.startsWith("/recetas") });
   if (p.puedePreparaciones) operacion.push({ href: "/preparaciones", label: "Preparaciones", icon: FlaskConical, active: pathname.startsWith("/preparaciones") });
   if (p.puedeStock) {
-    // `/stock/ajustes/**` has its own entry, so it must not light up "Stock" too.
+    // `/stock/ajustes/**` and `/stock/historial` (plus its "Nuevo ingreso", `/stock/ingresar`) have their own entries, so they must not light up "Stock" too.
     const enAjustes = pathname === "/stock/ajustes" || pathname.startsWith("/stock/ajustes/");
-    operacion.push({ href: "/stock", label: "Stock", icon: Package, active: pathname.startsWith("/stock") && !enAjustes });
-    operacion.push({ href: "/stock/ajustes", label: "Ajustes", icon: SlidersHorizontal, active: enAjustes });
+    const enHistorial = pathname === "/stock/historial" || pathname.startsWith("/stock/historial/") || pathname === "/stock/ingresar";
+    operacion.push({ href: "/stock", label: "Stock", icon: Package, active: pathname.startsWith("/stock") && !enAjustes && !enHistorial });
+    operacion.push({ href: "/stock/historial", label: "Partidas", icon: PackageSearch, active: enHistorial });
+    operacion.push({ href: "/stock/ajustes", label: "Ajuste de Stock", icon: SlidersHorizontal, active: enAjustes });
   }
   if (p.entregasHref) operacion.push({ href: p.entregasHref, label: "Entregas", icon: PackageCheck, active: pathname.startsWith("/entregas") });
 

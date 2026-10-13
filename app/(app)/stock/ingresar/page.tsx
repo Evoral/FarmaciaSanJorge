@@ -1,4 +1,7 @@
-/** `/stock/ingresar` (M07, FASE 5 point 5.1): alta manual o importación desde el PDF de la factura del proveedor (migration 0062). */
+/**
+ * `/stock/ingresar` (M07, FASE 5 point 5.1): alta manual o importación desde el PDF de la factura del proveedor (migration 0062).
+ * Reached from the "Nuevo ingreso" button of Partidas (`/stock/historial`), which owns partida management; `/stock` no longer links here.
+ */
 import { redirect } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
@@ -11,7 +14,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 export default async function IngresarPartidaPage() {
   const session = await requireSession();
   if (!can(session, "stock.partida.ingresar")) {
-    redirect("/stock");
+    redirect("/stock/historial");
   }
 
   const [drogas, proveedores, unidades] = await Promise.all([
@@ -23,8 +26,8 @@ export default async function IngresarPartidaPage() {
   return (
     <div className="page">
       <PageHeader
-        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Stock", href: "/stock" }, { label: "Ingresar partida" }]}
-        title="Ingresar partida"
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Partidas", href: "/stock/historial" }, { label: "Nuevo ingreso" }]}
+        title="Nuevo ingreso"
         description="Cargá la factura del proveedor a mano o importá su PDF: cada lote se suma al stock como una partida nueva."
       />
       <div className="max-w-4xl">

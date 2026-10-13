@@ -4,9 +4,9 @@
  * creation flow (`/stock/ajustes/nuevo`), which comes back to this same list (`?volverA=`, allowlisted) with
  * `?registrado=1`; that one-shot flag is never carried by the filter or pagination links.
  *
- * Server Component shared by `/stock/ajustes` and the "Gestión DT" section's `/cierres/ajustes` tab: each
+ * Server Component mounted on `/stock/ajustes` (formerly also on a "Gestión DT" tab): each
  * route only hands its own path (every filter, pagination and "Limpiar filtros" link stays on it), its breadcrumbs
- * and, for a tabbed section, its tab nav. Both routes are guarded on `stock.ver`, the permiso `listAjustes` requires.
+ * and, for a tabbed section, its tab nav. The route is guarded on `stock.ver`, the permiso `listAjustes` requires.
  */
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -33,7 +33,7 @@ const PAGE_SIZE = 20;
 export interface AjustesListadoProps {
   /** The route's search params, already awaited. */
   params: ParamsAjustes & { page?: string; registrado?: string };
-  /** The route this list is mounted on: one of `RETORNOS_AJUSTE` (`/stock/ajustes`, `/cierres/ajustes`). */
+  /** The route this list is mounted on: one of `RETORNOS_AJUSTE`. */
   basePath: string;
   breadcrumbs: Breadcrumb[];
   /** Page title; defaults to "Ajustes". */

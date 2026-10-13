@@ -307,6 +307,137 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
 }
 
 // ============================================================================
+// `/stock/historial` (docs/specs/historial-partidas.md): every partida of the
+// tenant, across all drogas (insumos included: they are drogas with another
+// `clase`), newest ingreso first. Agotadas included unless `soloConSaldo`.
+// ============================================================================
+
+export interface PartidaHistorialItem {
+  id: string;
+  lote: string;
+  drogaId: string;
+  drogaNombre: string;
+  /** The droga unidad base -- every quantity of the partida is recorded in it. */
+  unidadBaseId: string;
+  unidadBaseSimbolo: string;
+  proveedorId: string;
+  proveedorRazonSocial: string;
+  cantidadInicial: string;
+  cantidadDisponible: string;
+  fechaIngreso: Date;
+  /** The ORIGINAL expiry printed on the lot; `null` = does not expire (migration 0064). */
+  fechaVencimiento: Date | null;
+  /** The vencimiento VIGENTE (migration 0074). Every expiry decision uses this one. */
+  fechaVencimientoVigente: Date | null;
+  fechaApertura: Date | null;
+}
+
+export interface ListPartidasHistorialFilter {
+  tenantId: string;
+  drogaId?: string;
+  proveedorId?: string;
+  /** Case-insensitive "contains" on the lote. */
+  lote?: string;
+  /** YYYY-MM-DD jornada in the tenant's time zone (inclusive) -- `fecha_ingreso` is a timestamptz. */
+  desde?: string;
+  hasta?: string;
+  soloConSaldo?: boolean;
+  soloVencidas?: boolean;
+  page: number;
+  pageSize: number;
+}
+
+export interface ListPartidasHistorialResult {
+  items: PartidaHistorialItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  /** For showing `fechaIngreso` as the farmacia's calendar day. */
+  zonaHoraria: string;
+  /** The filtered droga's name (for the autocomplete), `null` without a droga filter or when it does not exist in this tenant. */
+  droga: { id: string; nombre: string } | null;
+  /** Every proveedor that has at least one partida of this tenant (dados de baja included: it is a history), by razón social. */
+  proveedores: { id: string; razonSocial: string }[];
+}
+
+export async function listPartidasHistorial(tx: Prisma.TransactionClient, filter: ListPartidasHistorialFilter): Promise<ListPartidasHistorialResult> {
+  const zonaHoraria = await getZonaHorariaTenant(tx, filter.tenantId);
+  const where: Prisma.PartidaWhereInput = { tenantId: filter.tenantId };
+  if (filter.drogaId) where.drogaId = filter.drogaId;
+  if (filter.proveedorId) where.proveedorId = filter.proveedorId;
+  if (filter.lote) where.lote = { contains: filter.lote, mode: "insensitive" };
+  if (filter.soloConSaldo) where.cantidadDisponible = { gt: 0 };
+  if (filter.soloVencidas) {
+    const jornada = await jornadaActualTenant(tx, filter.tenantId);
+    where.fechaVencimientoVigente = { lt: new Date(`${jornada}T00:00:00Z`) };
+  }
+  if (filter.desde || filter.hasta) {
+    // Calendar days in the pharmacy's time zone, not UTC (same rule as the kardex).
+    const { desde, hastaExclusivo } = rangoDeJornadas(filter.desde, filter.hasta, zonaHoraria);
+    where.fechaIngreso = {
+      ...(desde ? { gte: desde } : {}),
+      ...(hastaExclusivo ? { lt: hastaExclusivo } : {}),
+    };
+  }
+
+  const skip = (filter.page - 1) * filter.pageSize;
+  const total = await tx.partida.count({ where });
+  const rows = await tx.partida.findMany({
+    where,
+    orderBy: [{ fechaIngreso: "desc" }, { id: "desc" }],
+    skip,
+    take: filter.pageSize,
+    select: {
+      id: true,
+      lote: true,
+      drogaId: true,
+      proveedorId: true,
+      cantidadInicial: true,
+      cantidadDisponible: true,
+      fechaIngreso: true,
+      fechaVencimiento: true,
+      fechaVencimientoVigente: true,
+      fechaApertura: true,
+      droga: { select: { nombre: true, unidadBaseId: true, unidadBase: { select: { simbolo: true } } } },
+      proveedor: { select: { razonSocial: true } },
+    },
+  });
+  const droga = filter.drogaId
+    ? await tx.droga.findUnique({ where: { id: filter.drogaId, tenantId: filter.tenantId }, select: { id: true, nombre: true } })
+    : null;
+  const proveedores = await tx.proveedor.findMany({
+    where: { tenantId: filter.tenantId, partidas: { some: {} } },
+    orderBy: [{ razonSocial: "asc" }, { id: "asc" }],
+    select: { id: true, razonSocial: true },
+  });
+
+  return {
+    items: rows.map((row) => ({
+      id: row.id,
+      lote: row.lote,
+      drogaId: row.drogaId,
+      drogaNombre: row.droga.nombre,
+      unidadBaseId: row.droga.unidadBaseId,
+      unidadBaseSimbolo: row.droga.unidadBase.simbolo,
+      proveedorId: row.proveedorId,
+      proveedorRazonSocial: row.proveedor.razonSocial,
+      cantidadInicial: row.cantidadInicial.toString(),
+      cantidadDisponible: row.cantidadDisponible.toString(),
+      fechaIngreso: row.fechaIngreso,
+      fechaVencimiento: row.fechaVencimiento,
+      fechaVencimientoVigente: row.fechaVencimientoVigente,
+      fechaApertura: row.fechaApertura,
+    })),
+    total,
+    page: filter.page,
+    pageSize: filter.pageSize,
+    zonaHoraria,
+    droga,
+    proveedores,
+  };
+}
+
+// ============================================================================
 // Detail read + lock-before-read (M3 discipline: see
 // modules/usuarios/infrastructure/admin-guard.ts's header comment -- lock
 // the row in ONE statement, THEN decide from a FRESH read).

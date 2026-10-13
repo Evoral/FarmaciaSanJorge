@@ -4,9 +4,9 @@
  * first lets the user pick the partida: search a droga (`q`), pick it
  * (`drogaId`), then pick one of its partidas with balance. Once saved, the
  * form goes back to the list the flow started from with `?registrado=1`
- * (modules/stock/ui/ajuste-form.tsx): `?volverA=` (`/stock/ajustes`, the
- * default, or `/cierres/ajustes`; allowlisted by `retornoAjuste`, anything
- * else is the default) is carried by every step, link and breadcrumb.
+ * (modules/stock/ui/ajuste-form.tsx): `?volverA=` (allowlisted by
+ * `retornoAjuste`, today only `/stock/ajustes`, the default) is carried by
+ * every step, link and breadcrumb.
  *
  * The three steps are shown as a stepper. Step 1 is a droga autocomplete
  * (picking goes straight to step 2); the list below browses the matches.
@@ -44,9 +44,7 @@ function formatFecha(fecha: Date): string {
 
 /** The trail of the list the flow returns to. */
 function breadcrumbs(volverA: RetornoAjuste) {
-  return volverA === "/cierres/ajustes"
-    ? [{ label: "Inicio", href: "/" }, { label: "Gestión DT" }, { label: "Ajustes de stock", href: volverA }, { label: "Registrar" }]
-    : [{ label: "Inicio", href: "/" }, { label: "Stock", href: "/stock" }, { label: "Ajustes", href: volverA }, { label: "Registrar" }];
+  return [{ label: "Inicio", href: "/" }, { label: "Stock", href: "/stock" }, { label: "Ajuste de Stock", href: volverA }, { label: "Registrar" }];
 }
 
 type Paso = 1 | 2 | 3;
