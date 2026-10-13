@@ -1,6 +1,6 @@
 # SPEC — Pago de la receta (marca pagada / impaga)
 
-> Estado: implementado 2026-10-08 (migración 0071). Reversión: `docs/rollbacks/pago-receta.md`.
+> Estado: implementado 2026-10-08 (migración 0071). Revisado 2026-10-13 (migración 0076): una receta entregada siempre queda pagada (P4). Reversión: `docs/rollbacks/pago-receta.md`, `docs/rollbacks/receta-entregada-pagada.md`.
 > Decisión del usuario: la opción **mínima**. Un indicador en la receta, nada más.
 
 ## Alcance
@@ -23,7 +23,7 @@ Tres columnas en `fsj.receta` (migración 0071):
 
 `receta_pagada_check` obliga a que las tres cambien juntas: pagada ⇒ `pagada_en` y `pagada_por_id` informados; impaga ⇒ ambos `NULL`.
 
-**El pago NO es un estado de la receta.** No se agregó `PAGADA` a `EstadoReceta`: el pago es una dimensión ortogonal a la máquina de estados de producción y libro (`PENDIENTE_PREPARACION` … `ENTREGADA` / `ANULADA`). Una receta puede estar pagada y pendiente de preparación, o entregada e impaga. La máquina de estados no cambia.
+**El pago NO es un estado de la receta.** No se agregó `PAGADA` a `EstadoReceta`: el pago es una dimensión ortogonal a la máquina de estados de producción y libro (`PENDIENTE_PREPARACION` … `ENTREGADA` / `ANULADA`). Una receta puede estar pagada y pendiente de preparación, o impaga hasta su entrega. La máquina de estados no cambia, pero llegar a `ENTREGADA` exige el pago (P4, INV-R14).
 
 ## Reglas
 
@@ -31,10 +31,10 @@ Tres columnas en `fsj.receta` (migración 0071):
 |---|---|---|
 | P1 | `pagadaEn` y `pagadaPorId` los pone **el servidor** (hora de la transacción y usuario de la sesión). Nunca se aceptan del cliente. Desmarcar limpia las tres columnas. | `setPagoDeReceta` / `insertRecetaConItems` (`receta-repository.ts`); los inputs de los comandos solo llevan el booleano `pagada`. |
 | P2 | Se puede registrar el pago **al crear** la receta (carga manual e importación PDF/QR): casilla "Pagada", sin tildar por defecto. | `crearReceta`, `importarReceta` (input `pagada`); `receta-form.tsx`. |
-| P3 | Se puede registrar el pago **al entregar**, en la misma transacción que la entrega. La casilla es de solo subida: tildarla marca la receta pagada; si ya estaba pagada se muestra tildada y no se puede bajar desde ahí. | `registrarEntrega` (input `pagada`, solo marca); `registrar-entrega-form.tsx`. |
-| P4 | **Entregar una receta impaga está permitido.** No se bloquea: la pantalla de entrega solo muestra un aviso visible ("Receta impaga"). | `registrar-entrega-form.tsx` (aviso); `registrarEntrega` no valida el pago. |
-| P5 | El detalle de la receta muestra "Pagada" (con quién y cuándo) o "Impaga", y permite marcar o desmarcar: para registrar un pago hecho entre el alta y la entrega, o corregir un error. | `app/(app)/recetas/[id]/page.tsx`, `pago-receta-form.tsx`, `marcarPagoReceta`. |
-| P6 | El pago se puede cambiar en **cualquier estado menos `ANULADA`** (también en `ENTREGADA`: pagar después de entregar es válido). En `ANULADA` se rechaza con "La receta está anulada: no se puede modificar su pago." | `modules/recetas/domain/pago.ts` (`validarPagoModificable`); respaldo en la BD: **INV-R13** (`receta_validar_pago_no_anulada`, migración 0071). Anular una receta pagada no toca la marca: queda como historial. |
+| P3 | Se puede registrar el pago **al entregar** (registrar la entrega o confirmar la firma recibida de un envío), en la misma transacción. El switch "Pagada" es de solo subida: activarlo marca la receta pagada; si ya estaba pagada se muestra activado y bloqueado. El pago se escribe **antes** de pasar la receta a `ENTREGADA` (INV-R14). | `registrarEntrega` y `confirmarFirmaRecibida` (input `pagada`, solo marca); `registrar-entrega-form.tsx`, `confirmar-firma-form.tsx`. |
+| P4 | **Revisada 2026-10-13: una receta solo llega a `ENTREGADA` pagada**, para no perder el registro del pago (futuro módulo de finanzas). **Retiro presencial:** la receta pasa a `ENTREGADA` al registrar la entrega, así que tiene que estar pagada o marcarse pagada en ese momento. **Envío:** puede registrarse impaga y quedar en `ENVIADA_PEND_FIRMA`; al confirmar la firma recibida (pasa a `ENTREGADA`) tiene que estar pagada o marcarse pagada en ese momento. Sin pago se rechaza con "Para entregar la receta tiene que quedar pagada…" (el botón queda deshabilitado hasta activar el switch). | `modules/entregas/domain/entrega.ts` (`entregaExigePago`, `validarPagoAlEntregar`); respaldo en la BD: **INV-R14** (`receta_validar_entregada_pagada`, migración 0076). |
+| P5 | El detalle de la receta muestra "Pagada" (con quién y cuándo) o "Impaga", y permite marcar o desmarcar con el mismo switch del alta (guarda al tocarlo): para registrar un pago hecho entre el alta y la entrega, o corregir un error antes de entregar. Una receta `ENTREGADA` y pagada muestra el switch bloqueado. | `app/(app)/recetas/[id]/page.tsx`, `pago-receta-form.tsx`, `pago-switch.tsx`, `marcarPagoReceta`. |
+| P6 | El pago se puede cambiar en **cualquier estado menos `ANULADA`**. En `ANULADA` se rechaza con "La receta está anulada: no se puede modificar su pago." En `ENTREGADA` solo se puede **marcar** (recetas entregadas impagas antes de la migración 0076); desmarcar se rechaza con "La receta ya fue entregada: no se puede marcar como impaga." | `modules/recetas/domain/pago.ts` (`validarPagoModificable`, `puedeDesmarcarPago`); respaldo en la BD: **INV-R13** (`receta_validar_pago_no_anulada`, migración 0071) e **INV-R14** (migración 0076). Anular una receta pagada no toca la marca: queda como historial. |
 | P7 | **Idempotencia.** Pedir el estado que la receta ya tiene es un no-op: marcar una receta ya pagada **no** pisa `pagadaEn` ni `pagadaPorId` (se conserva el primer registro) y no deja fila de auditoría. | `decidirCambioPago` (`domain/pago.ts`); `marcarPagoReceta` y `registrarEntrega`. |
 | P8 | Editar la receta (`editarReceta`) **nunca** cambia el pago; el pago se cambia solo desde el detalle (P5). | `editar-receta.ts` omite `pagada` del input. |
 | P9 | El actor que marca el pago debe ser un usuario `ACTIVO` (INV-U07). | Trigger genérico `assert_actor_activo`, ahora con `pagada_por_id` en los triggers de `INSERT` y `UPDATE` de `receta`. |
@@ -70,8 +70,8 @@ Todas se escriben en la misma transacción que el cambio.
 
 ## Casos borde
 
-- **Entregada e impaga** y luego se paga: se marca desde el detalle (P5/P6).
-- **Envío (`ENVIADA_PEND_FIRMA`):** se puede marcar al registrar el envío o después desde el detalle; confirmar la firma no toca el pago.
+- **Entregada e impaga** (solo recetas entregadas antes de la migración 0076, que no se corrigen solas): se marca desde el detalle (P5/P6). Una vez pagada, no se puede volver a impaga.
+- **Envío (`ENVIADA_PEND_FIRMA`):** se puede marcar al registrar el envío, después desde el detalle, o al confirmar la firma recibida; confirmar la firma exige que quede pagada (P4).
 - **Marcar dos veces / dos usuarios a la vez:** la receta se bloquea (`SELECT … FOR UPDATE`) antes de leer; el segundo no pisa el primero (P7).
 - **Desmarcar y volver a marcar:** `pagadaEn` / `pagadaPorId` pasan a ser los del nuevo registro; el historial anterior queda en la auditoría.
 - **Receta anulada:** el detalle no ofrece la acción y el comando y la BD la rechazan (P6).
@@ -80,9 +80,10 @@ Todas se escriben en la misma transacción que el cambio.
 ## Código que lo implementa
 
 - `prisma/migrations/20261008090000_0071_receta_pagada/migration.sql` y `prisma/rollbacks/0071_receta_pagada.down.sql`.
+- `prisma/migrations/20261013120000_0076_receta_entregada_pagada/migration.sql` y `prisma/rollbacks/0076_receta_entregada_pagada.down.sql` (INV-R14).
 - `modules/recetas/domain/pago.ts` (reglas puras, filtros y etiquetas).
 - `modules/recetas/application/marcar-pago-receta.ts`; `crear-receta.ts`, `importar-receta.ts`, `list-recetas.ts`, `reporte-recetas.ts`.
 - `modules/recetas/infrastructure/receta-repository.ts` (`getPagoDeReceta`, `setPagoDeReceta`, alta, detalle, listado).
-- `modules/recetas/ui/` (`receta-form.tsx`, `pago-receta-form.tsx`, `recetas-table.tsx`, `actions.ts`) y `app/(app)/recetas/` (`page.tsx`, `[id]/page.tsx`).
-- `modules/entregas/` (`application/registrar-entrega.ts`, `application/get-entrega-estado.ts`, `infrastructure/entrega-repository.ts`, `ui/registrar-entrega-form.tsx`).
-- `app/api/recetas/reporte/export/csv/route.ts`; `shared/errors/mensajes-invariantes.ts` (INV-R13); `shared/labels/field-labels.ts`.
+- `modules/recetas/ui/` (`receta-form.tsx`, `pago-switch.tsx`, `pago-receta-form.tsx`, `recetas-table.tsx`, `actions.ts`) y `app/(app)/recetas/` (`page.tsx`, `[id]/page.tsx`).
+- `modules/entregas/` (`domain/entrega.ts`, `application/registrar-entrega.ts`, `application/confirmar-firma-recibida.ts`, `application/get-entrega-estado.ts`, `infrastructure/entrega-repository.ts`, `ui/registrar-entrega-form.tsx`, `ui/confirmar-firma-form.tsx`).
+- `app/api/recetas/reporte/export/csv/route.ts`; `shared/errors/mensajes-invariantes.ts` (INV-R13, INV-R14); `shared/labels/field-labels.ts`.

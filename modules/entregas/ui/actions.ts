@@ -33,7 +33,7 @@ export async function registrarEntregaAction(_prevState: EntregaActionState, for
 export async function confirmarFirmaRecibidaAction(_prevState: EntregaActionState, formData: FormData): Promise<EntregaActionState> {
   try {
     const recetaId = String(formData.get("recetaId") ?? "");
-    await confirmarFirmaRecibida({ recetaId });
+    await confirmarFirmaRecibida({ recetaId, pagada: formData.get("pagada") === "on" });
     revalidarEntregas(recetaId);
     return { status: "success", message: "Firma recibida confirmada: receta entregada.", id: recetaId };
   } catch (error) {

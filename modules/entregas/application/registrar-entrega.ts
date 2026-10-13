@@ -11,9 +11,10 @@
  * ENVIADA_PEND_FIRMA). No receta física step: the attribute and INV-R07 were
  * removed (client decision 2026-10-01, migration 0051).
  *
- * Payment (migration 0071, docs/specs/pago-receta.md): the entrega may also mark the receta paid, in the same
- * transaction (`pagada` input, raise-only). An UNPAID receta can be delivered -- it is never blocked, the screen
- * only flags it.
+ * Payment (docs/specs/pago-receta.md P3/P4): the entrega may also mark the receta paid, in the same transaction
+ * (`pagada` input, raise-only). A RETIRO_PRESENCIAL must leave the receta paid (it becomes ENTREGADA right away); an
+ * ENVIO may stay unpaid until its firma is confirmed (confirmar-firma-recibida.ts). The payment is written BEFORE the
+ * estado UPDATE: INV-R14 (migration 0076) rejects a receta becoming ENTREGADA unpaid.
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
@@ -21,7 +22,15 @@ import { record as auditRecord } from "@/shared/audit";
 import { DomainError, InvariantViolationError, NotFoundError, mapDbError } from "@/shared/errors";
 import { mensajeGlobalParaInvariante } from "@/shared/errors/mensajes-invariantes";
 import { uuid } from "@/shared/validation";
-import { MODALIDADES_ENTREGA, puedeRegistrarEntrega, estadoDestinoEntrega, validarTieneItemsEntregables } from "../domain/entrega";
+import {
+  MODALIDADES_ENTREGA,
+  MENSAJE_ENTREGA_REQUIERE_PAGO,
+  puedeRegistrarEntrega,
+  estadoDestinoEntrega,
+  validarTieneItemsEntregables,
+  entregaExigePago,
+  validarPagoAlEntregar,
+} from "../domain/entrega";
 import {
   lockRecetaParaAccion,
   getRecetaParaEntrega,
@@ -48,6 +57,7 @@ export type RegistrarEntregaInput = z.input<typeof registrarEntregaInput>;
 /** Human-readable message for the M14 invariant that can still slip past the pre-checks below under a race (INV-ENT-002) -- mirrors `modules/cierres/application/firmar-cierre.ts`'s `mapDbError`-in-its-own-try/catch discipline (the pipeline's own mapping, in `withTenantTransaction`, only runs once the WHOLE handler throws, too late for a clear message here). */
 function mensajeParaInvariante(codigo: string): string {
   if (codigo === "INV-ENT-002") return "No se pudo registrar la entrega: falta el registro de entrega correspondiente.";
+  if (codigo === "INV-R14") return MENSAJE_ENTREGA_REQUIERE_PAGO;
   return mensajeGlobalParaInvariante(codigo) ?? "No se pudo registrar la entrega.";
 }
 
@@ -70,6 +80,10 @@ export const registrarEntregaCommand = defineCommand({
     const items = await getItemsParaEntrega(tx, session.tenantId, input.recetaId);
     validarTieneItemsEntregables(items);
 
+    if (entregaExigePago(input.modalidad)) {
+      validarPagoAlEntregar({ yaPagada: receta.pagada, pagarAhora: input.pagada });
+    }
+
     try {
       const entrega = await insertEntrega(tx, {
         tenantId: session.tenantId,
@@ -78,11 +92,8 @@ export const registrarEntregaCommand = defineCommand({
         entregadaPorId: session.usuario.id,
       });
 
-      const estadoDestino = estadoDestinoEntrega(input.modalidad);
-      await actualizarEstadoReceta(tx, session.tenantId, input.recetaId, estadoDestino);
-
-      // Delivering an unpaid receta is allowed; the checkbox can only record the payment now. The payment is audited on
-      // the entrega row (before/after, below) and ALSO on the receta's own history.
+      // The switch can only record the payment now (never lower it). Audited on the entrega row (before/after, below)
+      // and ALSO on the receta's own history. Written before the estado UPDATE (INV-R14, see module doc comment).
       const marcarPago = input.pagada && !receta.pagada;
       if (marcarPago) {
         await marcarRecetaPagada(tx, session.tenantId, input.recetaId, session.usuario.id);
@@ -97,6 +108,9 @@ export const registrarEntregaCommand = defineCommand({
           contexto: { origen: "entrega" },
         });
       }
+
+      const estadoDestino = estadoDestinoEntrega(input.modalidad);
+      await actualizarEstadoReceta(tx, session.tenantId, input.recetaId, estadoDestino);
 
       return {
         output: { id: entrega.id, recetaId: input.recetaId, estado: estadoDestino },

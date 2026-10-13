@@ -67,6 +67,10 @@ const insertEntregaMock = vi.fn(async (...args: unknown[]) => {
   callOrder.push("insertEntrega");
   return { id: ENTREGA_ID };
 });
+const marcarRecetaPagadaMock = vi.fn(async (...args: unknown[]) => {
+  void args;
+  callOrder.push("pago");
+});
 const getEntregaPorRecetaMock = vi.fn();
 const confirmarFirmaYEntregarMock = vi.fn(async (...args: unknown[]) => {
   void args;
@@ -79,6 +83,7 @@ vi.mock("@/modules/entregas/infrastructure/entrega-repository", () => ({
   getItemsParaEntrega: (...args: unknown[]) => getItemsParaEntregaMock(...args),
   actualizarEstadoReceta: (...args: unknown[]) => actualizarEstadoRecetaMock(...args),
   insertEntrega: (...args: unknown[]) => insertEntregaMock(...args),
+  marcarRecetaPagada: (...args: unknown[]) => marcarRecetaPagadaMock(...args),
   getEntregaPorReceta: (...args: unknown[]) => getEntregaPorRecetaMock(...args),
   confirmarFirmaYEntregar: (...args: unknown[]) => confirmarFirmaYEntregarMock(...args),
 }));
@@ -93,6 +98,7 @@ function resetMocks() {
   getItemsParaEntregaMock.mockClear().mockResolvedValue([{ id: "item-1", estadoAsiento: "VIGENTE" }]);
   actualizarEstadoRecetaMock.mockClear();
   insertEntregaMock.mockClear();
+  marcarRecetaPagadaMock.mockClear();
   getEntregaPorRecetaMock.mockReset();
   confirmarFirmaYEntregarMock.mockClear();
 }
@@ -100,8 +106,8 @@ function resetMocks() {
 describe("registrarEntrega -- write order and PREPARADA -> destino", () => {
   beforeEach(resetMocks);
 
-  it("from PREPARADA + RETIRO_PRESENCIAL: lock -> read -> items -> insertEntrega -> estado:ENTREGADA", async () => {
-    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA" });
+  it("from PREPARADA + RETIRO_PRESENCIAL (already paid): lock -> read -> items -> insertEntrega -> estado:ENTREGADA", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: true });
 
     await registrarEntregaCommand.execute(
       { recetaId: RECETA_ID, modalidad: "RETIRO_PRESENCIAL" },
@@ -111,8 +117,8 @@ describe("registrarEntrega -- write order and PREPARADA -> destino", () => {
     expect(callOrder).toEqual(["lock", "insertEntrega", "estado:ENTREGADA"]);
   });
 
-  it("from PREPARADA + ENVIO: insertEntrega before estado:ENVIADA_PEND_FIRMA", async () => {
-    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA" });
+  it("from PREPARADA + ENVIO: an unpaid receta can be sent -- insertEntrega before estado:ENVIADA_PEND_FIRMA", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: false });
 
     await registrarEntregaCommand.execute(
       { recetaId: RECETA_ID, modalidad: "ENVIO" },
@@ -120,6 +126,31 @@ describe("registrarEntrega -- write order and PREPARADA -> destino", () => {
     );
 
     expect(callOrder).toEqual(["lock", "insertEntrega", "estado:ENVIADA_PEND_FIRMA"]);
+  });
+
+  it("RETIRO_PRESENCIAL marking the payment: the payment is written BEFORE estado:ENTREGADA (INV-R14)", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: false });
+
+    await registrarEntregaCommand.execute(
+      { recetaId: RECETA_ID, modalidad: "RETIRO_PRESENCIAL", pagada: true },
+      { session: fakeSession("entregas.registrar") },
+    );
+
+    expect(callOrder).toEqual(["lock", "insertEntrega", "pago", "estado:ENTREGADA"]);
+  });
+
+  it("RETIRO_PRESENCIAL of an unpaid receta without marking the payment: rejected before any write", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: false });
+
+    await expect(
+      registrarEntregaCommand.execute(
+        { recetaId: RECETA_ID, modalidad: "RETIRO_PRESENCIAL" },
+        { session: fakeSession("entregas.registrar") },
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    expect(insertEntregaMock).not.toHaveBeenCalled();
+    expect(actualizarEstadoRecetaMock).not.toHaveBeenCalled();
   });
 
   it("rejects when the receta's estado does not admit registering an entrega", async () => {
@@ -167,7 +198,7 @@ describe("confirmarFirmaRecibida -- envío -> confirmar firma atomic path (user 
   beforeEach(resetMocks);
 
   it("confirms when ENVIADA_PEND_FIRMA + an ENVIO entrega row exists and firma_recibida is still false", async () => {
-    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "ENVIADA_PEND_FIRMA" });
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "ENVIADA_PEND_FIRMA", pagada: true });
     getEntregaPorRecetaMock.mockResolvedValue({ id: ENTREGA_ID, modalidad: "ENVIO", entregadaEn: new Date(), firmaRecibida: false, firmaRecibidaEn: null });
 
     await confirmarFirmaRecibidaCommand.execute({ recetaId: RECETA_ID }, { session: fakeSession("entregas.firma.confirmar") });
@@ -177,6 +208,26 @@ describe("confirmarFirmaRecibida -- envío -> confirmar firma atomic path (user 
       TENANT_ID,
       { recetaId: RECETA_ID, entregaId: ENTREGA_ID },
     );
+  });
+
+  it("an unpaid envío: marking the payment writes it BEFORE confirmarFirmaYEntregar (INV-R14)", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "ENVIADA_PEND_FIRMA", pagada: false });
+    getEntregaPorRecetaMock.mockResolvedValue({ id: ENTREGA_ID, modalidad: "ENVIO", entregadaEn: new Date(), firmaRecibida: false, firmaRecibidaEn: null });
+
+    await confirmarFirmaRecibidaCommand.execute({ recetaId: RECETA_ID, pagada: true }, { session: fakeSession("entregas.firma.confirmar") });
+
+    expect(callOrder).toEqual(["lock", "pago", "confirmarFirmaYEntregar"]);
+  });
+
+  it("an unpaid envío without marking the payment: rejected, nothing written", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "ENVIADA_PEND_FIRMA", pagada: false });
+    getEntregaPorRecetaMock.mockResolvedValue({ id: ENTREGA_ID, modalidad: "ENVIO", entregadaEn: new Date(), firmaRecibida: false, firmaRecibidaEn: null });
+
+    await expect(confirmarFirmaRecibidaCommand.execute({ recetaId: RECETA_ID }, { session: fakeSession("entregas.firma.confirmar") })).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+    expect(marcarRecetaPagadaMock).not.toHaveBeenCalled();
+    expect(confirmarFirmaYEntregarMock).not.toHaveBeenCalled();
   });
 
   it("rejects when the receta is not ENVIADA_PEND_FIRMA", async () => {

@@ -16,9 +16,9 @@
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { record as auditRecord } from "@/shared/audit";
-import { NotFoundError } from "@/shared/errors";
+import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
-import { decidirCambioPago, validarPagoModificable } from "../domain/pago";
+import { MENSAJE_PAGO_RECETA_ENTREGADA, decidirCambioPago, puedeDesmarcarPago, validarPagoModificable } from "../domain/pago";
 import type { CambioPago } from "../domain/pago";
 import { getPagoDeReceta, lockRecetaParaAccion, setPagoDeReceta } from "../infrastructure/receta-repository";
 
@@ -44,6 +44,9 @@ export const marcarPagoRecetaCommand = defineCommand({
     validarPagoModificable(actual.estado);
 
     const cambio = decidirCambioPago(actual.pagada, input.pagada);
+    if (cambio === "desmarcar" && !puedeDesmarcarPago(actual.estado)) {
+      throw new DomainError(MENSAJE_PAGO_RECETA_ENTREGADA);
+    }
     if (cambio !== "sin-cambio") {
       await setPagoDeReceta(tx, session.tenantId, input.id, input.pagada, session.usuario.id);
       await auditRecord(tx, {

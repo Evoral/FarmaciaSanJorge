@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * The entrega action the receta's current estado allows (11.1/11.2), shared by the `/entregas` pop-up
- * (`@modal/(.)[recetaId]`) and the full `/entregas/[recetaId]` page. Plain data only: the page has already read it.
+ * The entrega action the receta's current estado allows (11.1/11.2), shared by the entrega pop-up
+ * (`app/(app)/@modal/(.)entregas/[recetaId]`) and the full `/entregas/[recetaId]` page. Plain data only: the page has already read it.
  * Inside the pop-up a successful action closes it (`useRouteDialogClose`).
  */
 import { Lock } from "lucide-react";
@@ -12,7 +12,7 @@ import { ToneBadge } from "@/shared/ui/status-badge";
 import { puedeConfirmarFirmaRecibida, puedeRegistrarEntrega } from "../domain/entrega";
 import type { EstadoReceta } from "@/modules/recetas/domain/receta";
 import { confirmarFirmaRecibidaAction, registrarEntregaAction } from "./actions";
-import { ConfirmarForm } from "./confirmar-form";
+import { ConfirmarFirmaForm } from "./confirmar-firma-form";
 import { RegistrarEntregaForm } from "./registrar-entrega-form";
 
 export interface EntregaAccionesProps {
@@ -48,14 +48,7 @@ export function EntregaAcciones({ recetaId, estado, pagada, itemsExcluidos, pued
 
   if (puedeConfirmarFirma && puedeConfirmarFirmaRecibida(estado)) {
     return (
-      <ConfirmarForm
-        action={confirmarFirmaRecibidaAction}
-        recetaId={recetaId}
-        label="Confirmar firma recibida"
-        pendingLabel="Confirmando…"
-        helpText="El repartidor trajo la constancia firmada: la receta pasa a Entregada."
-        onSuccess={cerrar}
-      />
+      <ConfirmarFirmaForm action={confirmarFirmaRecibidaAction} recetaId={recetaId} pagada={pagada} onSuccess={cerrar} />
     );
   }
 

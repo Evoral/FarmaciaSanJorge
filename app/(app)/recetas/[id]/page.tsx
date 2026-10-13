@@ -12,7 +12,7 @@ import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getReceta } from "@/modules/recetas/application/get-receta";
 import { ORIGEN_RECETA_LABELS, esEstadoEditable, esEstadoTerminal, puedeAnular } from "@/modules/recetas/domain/receta";
-import { etiquetaPago, puedeCambiarPago } from "@/modules/recetas/domain/pago";
+import { etiquetaPago, puedeCambiarPago, puedeDesmarcarPago } from "@/modules/recetas/domain/pago";
 import { anularRecetaAction } from "@/modules/recetas/ui/actions";
 import { PagoRecetaForm } from "@/modules/recetas/ui/pago-receta-form";
 import { PARAM_AVISO, decodificarAvisos } from "@/modules/recetas/domain/avisos-generacion";
@@ -241,15 +241,18 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
               <h2 id="pago-heading">Pago</h2>
             </div>
             <div className="panel-body flex flex-col gap-3 text-sm">
-              <p className="text-zinc-900">
-                <ToneBadge tone={receta.pagada ? "success" : "warn"}>{etiquetaPago(receta.pagada)}</ToneBadge>
-              </p>
+              {puedeMarcarPago ? (
+                <PagoRecetaForm recetaId={receta.id} pagada={receta.pagada} puedeDesmarcar={puedeDesmarcarPago(receta.estado)} />
+              ) : (
+                <p className="text-zinc-900">
+                  <ToneBadge tone={receta.pagada ? "success" : "warn"}>{etiquetaPago(receta.pagada)}</ToneBadge>
+                </p>
+              )}
               {receta.pagada && receta.pagadaEn ? (
                 <p className="text-xs text-zinc-500">
                   Registrado por {receta.pagadaPorNombre} el {formatFechaHora(receta.pagadaEn, receta.zonaHoraria)}.
                 </p>
               ) : null}
-              {puedeMarcarPago ? <PagoRecetaForm recetaId={receta.id} pagada={receta.pagada} /> : null}
             </div>
           </section>
 

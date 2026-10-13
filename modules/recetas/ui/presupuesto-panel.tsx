@@ -15,6 +15,7 @@ import type { PresupuestoState } from "./action-state";
 import { itemsListosParaPresupuesto } from "../domain/presupuesto";
 import type { ItemPresupuestable } from "../domain/presupuesto";
 import { formatNumero } from "@/shared/format/cantidad";
+import { PagoSwitch, type PagoPanel } from "./pago-switch";
 
 const DEBOUNCE_MS = 600;
 
@@ -27,29 +28,6 @@ function Badge({ children }: { children: ReactNode }) {
     <span className="rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
       {children}
     </span>
-  );
-}
-
-export interface PagoPanel {
-  pagada: boolean;
-  onChange: (pagada: boolean) => void;
-  disabled: boolean;
-  /** Form field name (`crear` reads it from the form; `importar` sends it inside `importacionJson`). */
-  name?: string;
-}
-
-/** "Pagada" switch: the whole receta is paid, so ítems added later are covered by the same payment. */
-function PagoSwitch({ pago, total }: { pago: PagoPanel; total: string | null }) {
-  return (
-    <div
-      className={`mt-4 flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 transition-colors ${pago.pagada ? "border-emerald-300 bg-emerald-50" : "border-zinc-200 bg-zinc-50"}`}
-    >
-      <label className="toggle-switch min-h-0 flex-1 font-medium text-zinc-900">
-        <input type="checkbox" role="switch" name={pago.name} checked={pago.pagada} disabled={pago.disabled} onChange={(e) => pago.onChange(e.target.checked)} />
-        {pago.pagada ? "Pagada" : "Marcar como pagada"}
-      </label>
-      {pago.pagada && total !== null ? <span className="text-sm font-semibold tabular-nums text-emerald-800">{precio(total)}</span> : null}
-    </div>
   );
 }
 

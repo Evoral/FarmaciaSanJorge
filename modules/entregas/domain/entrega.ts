@@ -71,3 +71,21 @@ export function validarTieneItemsEntregables(items: readonly ItemParaEntrega[]):
 export function estadoDestinoEntrega(modalidad: ModalidadEntrega): EstadoReceta {
   return modalidad === "RETIRO_PRESENCIAL" ? "ENTREGADA" : "ENVIADA_PEND_FIRMA";
 }
+
+export const MENSAJE_ENTREGA_REQUIERE_PAGO = "Para entregar la receta tiene que quedar pagada: activá “Marcar como pagada”.";
+
+/**
+ * Pago rule (docs/specs/pago-receta.md P4, user decision 2026-10-13): a receta only reaches ENTREGADA paid, so every
+ * delivered receta keeps its payment record. RETIRO_PRESENCIAL reaches ENTREGADA at registration; an ENVIO may stay
+ * unpaid while ENVIADA_PEND_FIRMA and must be paid when its firma is confirmed. DB backstop: INV-R14 (migration 0076).
+ */
+export function entregaExigePago(modalidad: ModalidadEntrega): boolean {
+  return estadoDestinoEntrega(modalidad) === "ENTREGADA";
+}
+
+/** Throws unless the receta ends up paid: already paid, or marked paid in this same action (`pagarAhora`). */
+export function validarPagoAlEntregar(input: { yaPagada: boolean; pagarAhora: boolean }): void {
+  if (!input.yaPagada && !input.pagarAhora) {
+    throw new ValidationError(MENSAJE_ENTREGA_REQUIERE_PAGO, { fields: ["pagada"] });
+  }
+}

@@ -2,7 +2,9 @@
 
 /**
  * Entrega registration form (11.1/11.2): modalidad radio (RETIRO_PRESENCIAL
- * / ENVIO), shown as two selectable cards. No receta física checkbox: the
+ * / ENVIO), shown as two selectable cards, and the "Pagada" switch -- required
+ * for RETIRO_PRESENCIAL (the receta becomes ENTREGADA, docs/specs/pago-receta.md
+ * P4); an ENVIO may leave unpaid. No receta física checkbox: the
  * attribute was removed (client decision 2026-10-01, migration 0051). See
  * shared/ui/motivo-form.tsx for the same `shared/ui/simple-form.tsx`-wrapping
  * shape.
@@ -10,12 +12,13 @@
 import { useState } from "react";
 import { Store, TriangleAlert, Truck } from "lucide-react";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { PagoSwitch } from "@/modules/recetas/ui/pago-switch";
 import type { EntregaActionState } from "./action-state";
 
 export interface RegistrarEntregaFormProps {
   action: (prevState: EntregaActionState, formData: FormData) => Promise<EntregaActionState>;
   recetaId: string;
-  /** Migration 0071: the receta is already paid (the checkbox starts checked and cannot lower it -- that is done from the receta's detail). */
+  /** The receta is already paid: the switch shows on and locked (the entrega never lowers the payment). */
   pagada: boolean;
   /** Runs after a successful registration (the pop-up closes itself). */
   onSuccess?: () => void;
@@ -24,9 +27,17 @@ export interface RegistrarEntregaFormProps {
 export function RegistrarEntregaForm({ action, recetaId, pagada, onSuccess }: RegistrarEntregaFormProps) {
   const [modalidad, setModalidad] = useState<"RETIRO_PRESENCIAL" | "ENVIO">("RETIRO_PRESENCIAL");
   const [pagarAhora, setPagarAhora] = useState(false);
+  const faltaPago = modalidad === "RETIRO_PRESENCIAL" && !pagada && !pagarAhora;
 
   return (
-    <SimpleForm action={action} submitLabel="Registrar entrega" pendingLabel="Registrando…" onSuccess={onSuccess}>
+    <SimpleForm
+      action={action}
+      submitLabel="Registrar entrega"
+      pendingLabel="Registrando…"
+      onSuccess={onSuccess}
+      submitDisabled={faltaPago}
+      submitDisabledReason="Para el retiro presencial, marcá la receta como pagada."
+    >
       <input type="hidden" name="recetaId" value={recetaId} />
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 text-xs font-medium text-zinc-600">Modalidad</legend>
@@ -49,22 +60,19 @@ export function RegistrarEntregaForm({ action, recetaId, pagada, onSuccess }: Re
       </fieldset>
 
       {pagada ? (
-        <label className="flex items-center gap-2 text-sm font-medium text-zinc-900">
-          <input type="checkbox" checked disabled />
-          Pagada
-        </label>
+        <PagoSwitch pago={{ pagada: true, onChange: () => {}, disabled: true }} className="" />
       ) : (
         <div className="flex flex-col gap-2">
           <div role="note" className="alert alert-warn">
             <TriangleAlert aria-hidden />
             <p>
-              <strong className="font-semibold">Receta impaga.</strong> Podés entregarla igual; tildá &quot;Pagada&quot; si el pago se registra ahora.
+              <strong className="font-semibold">Receta impaga.</strong>{" "}
+              {modalidad === "RETIRO_PRESENCIAL"
+                ? "Para entregarla tiene que quedar pagada."
+                : "Podés enviarla impaga: el pago se pide al confirmar la firma recibida."}
             </p>
           </div>
-          <label className="flex items-center gap-2 text-sm font-medium text-zinc-900">
-            <input type="checkbox" name="pagada" checked={pagarAhora} onChange={(e) => setPagarAhora(e.target.checked)} />
-            Pagada
-          </label>
+          <PagoSwitch pago={{ pagada: pagarAhora, onChange: setPagarAhora, disabled: false, name: "pagada" }} className="" />
         </div>
       )}
 

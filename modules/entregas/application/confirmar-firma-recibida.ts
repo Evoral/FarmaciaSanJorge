@@ -10,17 +10,26 @@
  * `confirmarFirmaYEntregar` and migration 0040's header comment): entrega
  * UPDATE first, receta estado UPDATE second -- so migration 0040's
  * INV-ENT-002 trigger sees the right state at the right time.
+ *
+ * Payment (docs/specs/pago-receta.md P4): the receta becomes ENTREGADA here, so it must end up paid -- already paid,
+ * or marked paid by this same command (`pagada` input, raise-only), BEFORE the estado UPDATE (INV-R14, migration 0076).
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
+import { record as auditRecord } from "@/shared/audit";
 import { DomainError, InvariantViolationError, NotFoundError, mapDbError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
-import { puedeConfirmarFirmaRecibida } from "../domain/entrega";
-import { lockRecetaParaAccion, getRecetaParaEntrega, getEntregaPorReceta, confirmarFirmaYEntregar } from "../infrastructure/entrega-repository";
+import { MENSAJE_ENTREGA_REQUIERE_PAGO, puedeConfirmarFirmaRecibida, validarPagoAlEntregar } from "../domain/entrega";
+import { lockRecetaParaAccion, getRecetaParaEntrega, getEntregaPorReceta, confirmarFirmaYEntregar, marcarRecetaPagada } from "../infrastructure/entrega-repository";
 
-const confirmarFirmaRecibidaInput = z.object({ recetaId: uuid });
+const confirmarFirmaRecibidaInput = z.object({
+  recetaId: uuid,
+  /** `true` marks the receta paid in this same transaction (raise-only, same as `registrarEntrega`'s `pagada`). */
+  pagada: z.boolean().default(false),
+});
 
-export type ConfirmarFirmaRecibidaInput = z.infer<typeof confirmarFirmaRecibidaInput>;
+/** Pre-default wire shape: `pagada` may be omitted (= false). */
+export type ConfirmarFirmaRecibidaInput = z.input<typeof confirmarFirmaRecibidaInput>;
 
 export const confirmarFirmaRecibidaCommand = defineCommand({
   name: "entregas.firma.confirmar",
@@ -46,21 +55,38 @@ export const confirmarFirmaRecibidaCommand = defineCommand({
       throw new DomainError("La firma de esta entrega ya fue confirmada.");
     }
 
+    validarPagoAlEntregar({ yaPagada: receta.pagada, pagarAhora: input.pagada });
+
     try {
+      const marcarPago = input.pagada && !receta.pagada;
+      if (marcarPago) {
+        await marcarRecetaPagada(tx, session.tenantId, input.recetaId, session.usuario.id);
+        await auditRecord(tx, {
+          tenantId: session.tenantId,
+          usuarioId: session.usuario.id,
+          entidad: "receta",
+          entidadId: input.recetaId,
+          accion: TipoAccion.MODIFICAR,
+          valorAnterior: { pagada: false },
+          valorNuevo: { pagada: true },
+          contexto: { origen: "entrega" },
+        });
+      }
+
       await confirmarFirmaYEntregar(tx, session.tenantId, { recetaId: input.recetaId, entregaId: entrega.id });
 
       return {
         output: { id: entrega.id, recetaId: input.recetaId },
         audit: {
           entidadId: entrega.id,
-          valorAnterior: { firmaRecibida: false, estadoReceta: "ENVIADA_PEND_FIRMA" },
-          valorNuevo: { firmaRecibida: true, estadoReceta: "ENTREGADA" },
+          valorAnterior: { firmaRecibida: false, estadoReceta: "ENVIADA_PEND_FIRMA", pagada: receta.pagada },
+          valorNuevo: { firmaRecibida: true, estadoReceta: "ENTREGADA", pagada: true },
         },
       };
     } catch (e) {
       const mapped = mapDbError(e);
       if (mapped instanceof InvariantViolationError) {
-        throw new DomainError("No se pudo confirmar la firma recibida.");
+        throw new DomainError(mapped.invariantCode === "INV-R14" ? MENSAJE_ENTREGA_REQUIERE_PAGO : "No se pudo confirmar la firma recibida.", { cause: mapped });
       }
       throw mapped;
     }

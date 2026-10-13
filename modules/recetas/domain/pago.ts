@@ -5,8 +5,10 @@
  * delivered and unpaid), so nothing here touches the state machine. Pure
  * rules, no I/O.
  *
- * The one hard rule: the payment of an ANULADA receta cannot change (the DB
- * backstop is INV-R13, migration 0071). Payment after delivery IS valid.
+ * Hard rules: the payment of an ANULADA receta cannot change (DB backstop
+ * INV-R13, migration 0071), and an ENTREGADA receta cannot go back to unpaid
+ * (DB backstop INV-R14, migration 0076) -- every delivered receta keeps its
+ * payment record. Paying an ENTREGADA receta that predates INV-R14 is valid.
  */
 import { DomainError } from "@/shared/errors";
 import type { EstadoReceta } from "./receta";
@@ -39,6 +41,13 @@ export function puedeCambiarPago(estado: EstadoReceta): boolean {
 
 export function validarPagoModificable(estado: EstadoReceta): void {
   if (!puedeCambiarPago(estado)) throw new DomainError(MENSAJE_PAGO_RECETA_ANULADA);
+}
+
+export const MENSAJE_PAGO_RECETA_ENTREGADA = "La receta ya fue entregada: no se puede marcar como impaga.";
+
+/** An ENTREGADA receta can be marked paid but never unmarked (INV-R14). */
+export function puedeDesmarcarPago(estado: EstadoReceta): boolean {
+  return estado !== "ENTREGADA";
 }
 
 /** What writing `deseada` does to a receta that currently is `actual`. */
