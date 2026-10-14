@@ -4,6 +4,8 @@
  * The precio final leads (it is what the counter quotes); costo and margen explain it. Server Component (no interactivity).
  */
 import { ToneBadge } from "@/shared/ui/status-badge";
+import { formatNumero } from "@/shared/format/cantidad";
+import { formatearCostoUnitario, formatearMonto } from "@/shared/format/monto";
 import type { CotizacionItemOutput } from "@/modules/precios/application/get-cotizacion-item";
 
 function fechaHora(iso: string): string {
@@ -39,16 +41,16 @@ export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionIt
       <dl className="grid gap-5 border-b border-zinc-100 px-5 py-5 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <div>
           <dt className="text-xs text-zinc-500">Precio final</dt>
-          <dd className="mt-1 font-mono text-3xl font-semibold tracking-tight text-zinc-900 tabular-nums">${cotizacion.precioFinal}</dd>
+          <dd className="mt-1 font-mono text-3xl font-semibold tracking-tight text-zinc-900 tabular-nums">${formatearMonto(cotizacion.precioFinal)}</dd>
           {cotizacion.precioMinimoAplicado ? <dd className="mt-1 text-xs text-zinc-500">Precio mínimo aplicado (el costo + margen quedaba por debajo)</dd> : null}
         </div>
         <div>
           <dt className="text-xs text-zinc-500">Costo insumos</dt>
-          <dd className="mt-1 font-mono text-lg font-medium text-zinc-900 tabular-nums">${cotizacion.costoInsumos}</dd>
+          <dd className="mt-1 font-mono text-lg font-medium text-zinc-900 tabular-nums">${formatearMonto(cotizacion.costoInsumos)}</dd>
         </div>
         <div>
           <dt className="text-xs text-zinc-500">Margen del tramo</dt>
-          <dd className="mt-1 font-mono text-lg font-medium text-zinc-900 tabular-nums">{cotizacion.margenAplicado}%</dd>
+          <dd className="mt-1 font-mono text-lg font-medium text-zinc-900 tabular-nums">{formatNumero(cotizacion.margenAplicado, 2)}%</dd>
         </div>
       </dl>
 
@@ -83,7 +85,7 @@ export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionIt
                     <span className="font-sans text-zinc-500">Enrase manual (sin costo)</span>
                   ) : (
                     <>
-                      {linea.cantidadRequerida} <span className="text-zinc-500">{linea.unidadSimbolo}</span>
+                      {linea.cantidadRequerida !== null ? formatNumero(linea.cantidadRequerida) : null} <span className="text-zinc-500">{linea.unidadSimbolo}</span>
                     </>
                   )}
                 </td>
@@ -94,17 +96,17 @@ export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionIt
                     <ul className="flex flex-col gap-0.5 font-mono text-xs text-zinc-600 tabular-nums">
                       {linea.partidas.map((p) => (
                         <li key={p.partidaId}>
-                          {p.cantidad} × ${p.costoUnitario} = <span className="text-zinc-900">${p.subtotal}</span>
+                          {formatNumero(p.cantidad)} × ${formatearCostoUnitario(p.costoUnitario)} = <span className="text-zinc-900">${formatearMonto(p.subtotal)}</span>
                         </li>
                       ))}
                     </ul>
                   )}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">${linea.subtotal}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">${formatearMonto(linea.subtotal)}</td>
                 <td className="whitespace-nowrap px-5 py-2.5 text-right font-mono tabular-nums">
                   {linea.faltante ? (
                     <span className="font-medium text-red-700">
-                      {linea.faltante} {linea.unidadSimbolo}
+                      {formatNumero(linea.faltante)} {linea.unidadSimbolo}
                     </span>
                   ) : (
                     <Vacio label="Sin faltante" />

@@ -20,6 +20,8 @@ import { ItemContexto } from "@/modules/recetas/ui/item-contexto";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ToneBadge } from "@/shared/ui/status-badge";
+import { formatNumero } from "@/shared/format/cantidad";
+import { formatearMonto } from "@/shared/format/monto";
 
 interface CotizacionPageProps {
   params: Promise<{ id: string; itemId: string }>;
@@ -116,9 +118,9 @@ export default async function CotizacionPage({ params }: CotizacionPageProps) {
                     {anteriores.map((c) => (
                       <tr key={c.id}>
                         <td className="whitespace-nowrap px-5 py-2.5 tabular-nums">{fechaHora(c.calculadaEn)}</td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">${c.costoInsumos}</td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">{c.margenAplicado}%</td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">${c.precioFinal}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">${formatearMonto(c.costoInsumos)}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">{formatNumero(c.margenAplicado, 2)}%</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">${formatearMonto(c.precioFinal)}</td>
                         <td className="px-5 py-2.5">
                           <span className="flex flex-wrap gap-1.5">
                             {c.precioMinimoAplicado ? <ToneBadge tone="neutral">Precio mínimo aplicado</ToneBadge> : null}
