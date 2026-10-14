@@ -126,7 +126,7 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
                       <th scope="col" className="px-5 py-2">
                         Nº
                       </th>
-                      <th scope="col" className="px-3 py-2">
+                      <th scope="col" className="hidden px-3 py-2 md:table-cell">
                         Libro
                       </th>
                       <th scope="col" className="px-3 py-2">
@@ -147,8 +147,17 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
                     {cierre.asientosContralor.map((a, i) => (
                       <tr key={`${a.tipoLibro}-${a.numeroCorrelativo}-${i}`}>
                         <td className="px-5 py-2.5 font-mono font-semibold text-zinc-900 tabular-nums">{a.numeroCorrelativo}</td>
-                        <td className="px-3 py-2.5">{etiquetaDe(TIPO_LIBRO_LABELS, a.tipoLibro)}</td>
-                        <td className="px-3 py-2.5 text-zinc-900">{a.drogaDescripcion}</td>
+                        <td className="hidden px-3 py-2.5 md:table-cell">{etiquetaDe(TIPO_LIBRO_LABELS, a.tipoLibro)}</td>
+                        <td className="px-3 py-2.5 text-zinc-900">
+                          <span className="line-clamp-2 block max-w-xs break-words" title={a.drogaDescripcion}>
+                            {a.drogaDescripcion}
+                          </span>
+                          {/* Phones: libro and movimiento travel under the droga. */}
+                          <span className="block text-xs text-zinc-500 md:hidden">
+                            {etiquetaDe(TIPO_LIBRO_LABELS, a.tipoLibro)}
+                            <span className="sm:hidden"> · {etiquetaDe(TIPO_MOVIMIENTO_CONTRALOR_LABELS, a.tipoMovimiento)}</span>
+                          </span>
+                        </td>
                         <td className="hidden px-3 py-2.5 sm:table-cell">
                           <ToneBadge tone="neutral">{etiquetaDe(TIPO_MOVIMIENTO_CONTRALOR_LABELS, a.tipoMovimiento)}</ToneBadge>
                         </td>

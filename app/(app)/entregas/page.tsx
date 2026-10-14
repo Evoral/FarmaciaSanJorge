@@ -26,13 +26,11 @@ export default async function EntregasPage({ searchParams }: EntregasPageProps) 
         description="Recetas preparadas para entregar y envíos a la espera de la firma recibida."
       />
 
-      <EntregasBuscador itemsIniciales={result.items} totalInicial={result.total} />
-
-      {result.total > PAGE_SIZE ? (
-        <div className="list-panel mt-4 [&>.pagination]:border-t-0">
-          <Pagination page={page} pageSize={PAGE_SIZE} total={result.total} hrefFor={(p) => `/entregas?page=${p}`} label="Paginación de entregas" />
-        </div>
-      ) : null}
+      <EntregasBuscador
+        itemsIniciales={result.items}
+        totalInicial={result.total}
+        paginacion={<Pagination page={page} pageSize={PAGE_SIZE} total={result.total} hrefFor={(p) => `/entregas?page=${p}`} label="Paginación de entregas" />}
+      />
     </div>
   );
 }

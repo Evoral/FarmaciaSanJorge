@@ -217,7 +217,7 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
                   {resultado.items.map((item) => (
                     <tr key={item.id}>
                       <td className="px-3 py-2.5">
-                        <Link href={`/archivo/${item.id}`} className="font-mono font-semibold underline-offset-2 hover:underline">
+                        <Link href={`/archivo/${item.id}`} className="whitespace-nowrap font-mono font-semibold underline-offset-2 hover:underline">
                           Nº {item.numero}
                         </Link>
                         {item.incluyeControladas ? (
@@ -226,11 +226,19 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
                           </span>
                         ) : null}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">
-                        {formatFechaIso(item.periodoDesde)} <span className="text-zinc-400">a</span> {formatFechaIso(item.periodoHasta)}
-                        <span className="block text-xs text-zinc-500 md:hidden">{item.ubicacion}</span>
+                      <td className="px-3 py-2.5">
+                        <span className="block whitespace-nowrap tabular-nums">
+                          {formatFechaIso(item.periodoDesde)} <span className="text-zinc-400">a</span> {formatFechaIso(item.periodoHasta)}
+                        </span>
+                        <span className="block max-w-[12rem] truncate text-xs text-zinc-500 md:hidden" title={item.ubicacion}>
+                          {item.ubicacion}
+                        </span>
                       </td>
-                      <td className="hidden px-3 py-2.5 md:table-cell">{item.ubicacion}</td>
+                      <td className="hidden px-3 py-2.5 md:table-cell">
+                        <span className="block max-w-xs truncate" title={item.ubicacion}>
+                          {item.ubicacion}
+                        </span>
+                      </td>
                       <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums lg:table-cell">
                         {formatFechaIso(item.vencimiento)}
                         {item.plazoCumplido && item.estado === "EN_ARCHIVO" ? (

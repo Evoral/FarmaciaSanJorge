@@ -18,19 +18,25 @@ import { formatFechaIso } from "@/shared/format/fecha";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Avatar } from "@/shared/ui/avatar";
+import { Pagination } from "@/shared/ui/pagination";
 import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
+
+const RECETAS_PAGE_SIZE = 50;
 
 interface LoteDetallePageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ page?: string }>;
 }
 
-export default async function LoteDetallePage({ params }: LoteDetallePageProps) {
+export default async function LoteDetallePage({ params, searchParams }: LoteDetallePageProps) {
   const session = await requireSession();
   const { id } = await params;
+  const { page: rawPage } = await searchParams;
+  const page = Math.max(1, Number.parseInt(rawPage ?? "1", 10) || 1);
 
   let lote;
   try {
-    lote = await getLoteArchivoDetalle(id);
+    lote = await getLoteArchivoDetalle({ id, page, pageSize: RECETAS_PAGE_SIZE });
   } catch (error) {
     if (error instanceof NotFoundError) notFound();
     throw error;
@@ -39,6 +45,11 @@ export default async function LoteDetallePage({ params }: LoteDetallePageProps) 
   const puedeDestruccion = can(session, "archivo.destruccion.gestionar");
   // The lifecycle in its own order (domain/lote-archivo.ts): earlier steps are done, the lote's estado is the current one.
   const pasoActual = ESTADOS_LOTE_ARCHIVO.indexOf(lote.estado);
+
+  function pageHref(targetPage: number): string {
+    const qs = new URLSearchParams({ page: String(targetPage) });
+    return `/archivo/${lote!.id}?${qs.toString()}`;
+  }
 
   return (
     <div className="page">
@@ -64,10 +75,10 @@ export default async function LoteDetallePage({ params }: LoteDetallePageProps) 
         <section aria-labelledby="recetas-heading" className="list-panel min-w-0">
           <div className="list-toolbar">
             <h2 id="recetas-heading" className="flex items-center gap-2 font-medium text-zinc-900">
-              Recetas <span className="tab-count">{lote.recetas.length}</span>
+              Recetas <span className="tab-count">{lote.totalRecetas}</span>
             </h2>
           </div>
-          {lote.recetas.length === 0 ? (
+          {lote.totalRecetas === 0 ? (
             <EmptyState icon={<Archive className="size-5" />} title="Sin recetas asignadas" />
           ) : (
             <div className="table-wrap">
@@ -92,9 +103,11 @@ export default async function LoteDetallePage({ params }: LoteDetallePageProps) 
                       <tr key={r.id}>
                         <td className="px-3 py-2.5 font-mono font-semibold text-zinc-900">{r.numeroInterno}</td>
                         <td className="px-3 py-2.5">
-                          <span className="flex items-center gap-2.5">
+                          <span className="flex min-w-0 items-center gap-2.5">
                             <Avatar name={paciente} />
-                            <span className="truncate text-zinc-900">{paciente}</span>
+                            <span className="block min-w-0 max-w-[16rem] truncate text-zinc-900" title={paciente}>
+                              {paciente}
+                            </span>
                           </span>
                         </td>
                         <td className="px-3 py-2.5">
@@ -107,6 +120,7 @@ export default async function LoteDetallePage({ params }: LoteDetallePageProps) 
               </table>
             </div>
           )}
+          <Pagination page={page} pageSize={RECETAS_PAGE_SIZE} total={lote.totalRecetas} hrefFor={pageHref} label="Paginación de recetas del lote" />
         </section>
 
         <aside className="split-aside flex flex-col gap-4" aria-label="Datos y destrucción del lote">

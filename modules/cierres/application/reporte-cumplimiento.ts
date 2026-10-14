@@ -9,9 +9,9 @@
  */
 import { z } from "zod";
 import { defineQuery, defineCommand, TipoAccion } from "@/shared/usecase";
-import { reporteCumplimientoFiltro } from "../domain/filtros";
-import type { ReporteCumplimientoFiltroInput } from "../domain/filtros";
-import { listCumplimiento } from "../infrastructure/cierre-repository";
+import { reporteCumplimientoFiltro, reporteCumplimientoPaginadoFiltro } from "../domain/filtros";
+import type { ReporteCumplimientoFiltroInput, ReporteCumplimientoPaginadoFiltroInput } from "../domain/filtros";
+import { listCumplimiento, listCumplimientoPaginado } from "../infrastructure/cierre-repository";
 
 export interface CumplimientoItem {
   fecha: string;
@@ -45,6 +45,40 @@ export const reporteCumplimientoQuery = defineQuery({
 
 export async function reporteCumplimiento(input: ReporteCumplimientoFiltroInput): Promise<CumplimientoItem[]> {
   return reporteCumplimientoQuery.execute(input);
+}
+
+export interface ReporteCumplimientoPagina {
+  items: CumplimientoItem[];
+  total: number;
+  /** Counted over every matching cierre, not only this page. */
+  enTermino: number;
+  fueraDeTermino: number;
+}
+
+/** The on-screen report: one page plus the totals of the whole filtered range. The CSV export stays on `reporteCumplimiento` (every row). */
+export const reporteCumplimientoPaginadoQuery = defineQuery({
+  name: "cierres.reporte.cumplimiento.paginado",
+  permiso: "cierres.reporte",
+  input: reporteCumplimientoPaginadoFiltro,
+  handler: async ({ tx, session, input }): Promise<ReporteCumplimientoPagina> => {
+    const result = await listCumplimientoPaginado(tx, {
+      tenantId: session.tenantId,
+      fechaDesde: input.fechaDesde,
+      fechaHasta: input.fechaHasta,
+      page: input.page,
+      pageSize: input.pageSize,
+    });
+    return {
+      items: result.items,
+      total: result.total,
+      enTermino: result.total - result.fueraDeTermino,
+      fueraDeTermino: result.fueraDeTermino,
+    };
+  },
+});
+
+export async function reporteCumplimientoPaginado(input: ReporteCumplimientoPaginadoFiltroInput): Promise<ReporteCumplimientoPagina> {
+  return reporteCumplimientoPaginadoQuery.execute(input);
 }
 
 function resumenFiltroParaAuditoria(input: ReporteCumplimientoFiltroInput): string {

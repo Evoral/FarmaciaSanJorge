@@ -15,7 +15,7 @@
  * and `modules/preparaciones/infrastructure/preparacion-repository.ts`'s
  * "Receta state transitions" section already establish.
  */
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import type { EstadoUsuario } from "@/generated/prisma/enums";
 import { resolverEstadoVisualAsiento, etiquetaEstadoVisual } from "@/modules/libro/domain/estado-visual";
 import type { EstadoVisualAsiento } from "@/modules/libro/domain/estado-visual";
@@ -569,7 +569,43 @@ export interface ReporteCumplimientoFilter {
   fechaHasta?: string;
 }
 
+/** The report's WHERE, shared by the full listing, the paged listing and its counts. */
+function cumplimientoWhere(filter: ReporteCumplimientoFilter): Prisma.Sql {
+  return Prisma.sql`
+    cd.tenant_id = ${filter.tenantId}::uuid
+      AND (${filter.fechaDesde ?? null}::date IS NULL OR cd.fecha >= ${filter.fechaDesde ?? null}::date)
+      AND (${filter.fechaHasta ?? null}::date IS NULL OR cd.fecha <= ${filter.fechaHasta ?? null}::date)
+  `;
+}
+
+/** Every matching row (the CSV export). */
 export async function listCumplimiento(tx: Prisma.TransactionClient, filter: ReporteCumplimientoFilter): Promise<CumplimientoItem[]> {
+  return queryCumplimiento(tx, filter, Prisma.empty);
+}
+
+export interface CumplimientoPaginado {
+  items: CumplimientoItem[];
+  total: number;
+  /** Over ALL matching rows, not only the page (the screen's "en término / fuera de término" summary). */
+  fueraDeTermino: number;
+}
+
+/** One page of the report (the screen), plus the totals over every matching row. */
+export async function listCumplimientoPaginado(
+  tx: Prisma.TransactionClient,
+  filter: ReporteCumplimientoFilter & { page: number; pageSize: number },
+): Promise<CumplimientoPaginado> {
+  const [conteo] = await tx.$queryRaw<{ total: number; fuera_de_termino: number }[]>`
+    SELECT count(*)::int AS total, (count(*) FILTER (WHERE cd.fuera_de_termino))::int AS fuera_de_termino
+    FROM fsj.cierre_diario cd
+    WHERE ${cumplimientoWhere(filter)}
+  `;
+  const offset = (filter.page - 1) * filter.pageSize;
+  const items = await queryCumplimiento(tx, filter, Prisma.sql`LIMIT ${filter.pageSize} OFFSET ${offset}`);
+  return { items, total: conteo?.total ?? 0, fueraDeTermino: conteo?.fuera_de_termino ?? 0 };
+}
+
+async function queryCumplimiento(tx: Prisma.TransactionClient, filter: ReporteCumplimientoFilter, limite: Prisma.Sql): Promise<CumplimientoItem[]> {
   const rows = await tx.$queryRaw<
     {
       fecha: string;
@@ -594,10 +630,9 @@ export async function listCumplimiento(tx: Prisma.TransactionClient, filter: Rep
     FROM fsj.cierre_diario cd
     JOIN fsj.tenant t ON t.id = cd.tenant_id
     JOIN fsj.usuario u ON u.id = cd.director_tecnico_id
-    WHERE cd.tenant_id = ${filter.tenantId}::uuid
-      AND (${filter.fechaDesde ?? null}::date IS NULL OR cd.fecha >= ${filter.fechaDesde ?? null}::date)
-      AND (${filter.fechaHasta ?? null}::date IS NULL OR cd.fecha <= ${filter.fechaHasta ?? null}::date)
+    WHERE ${cumplimientoWhere(filter)}
     ORDER BY cd.fecha ASC
+    ${limite}
   `;
   return rows.map((r) => ({
     fecha: r.fecha,

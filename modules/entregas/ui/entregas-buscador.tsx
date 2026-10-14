@@ -10,6 +10,7 @@
  * full list again. The table stays visible (dimmed) while it updates.
  */
 import { useActionState, useCallback, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight, ListFilter, PackageCheck, SearchX } from "lucide-react";
@@ -32,9 +33,11 @@ function etiquetaEstado(estado: string): string {
 export interface EntregasBuscadorProps {
   itemsIniciales: EntregaPendienteItem[];
   totalInicial: number;
+  /** The page's pagination of the default listing; hidden while a search is applied (the search shows page 1 only). */
+  paginacion?: ReactNode;
 }
 
-export function EntregasBuscador({ itemsIniciales, totalInicial }: EntregasBuscadorProps) {
+export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion }: EntregasBuscadorProps) {
   const router = useRouter();
   const initialState: BuscarEntregasState = { status: "idle", items: itemsIniciales, total: totalInicial };
   const [state, formAction, isPending] = useActionState(buscarEntregasAction, initialState);
@@ -45,9 +48,11 @@ export function EntregasBuscador({ itemsIniciales, totalInicial }: EntregasBusca
   const [busquedaAplicada, setBusquedaAplicada] = useState("");
 
   // An entrega registered from the pop-up refreshes the page's props, but `useActionState` keeps its first state: show
-  // the fresh list while no search applies, and re-run an applied search so its rows are current too.
-  const items = state.status === "idle" ? itemsIniciales : state.items;
-  const total = state.status === "idle" ? totalInicial : state.total;
+  // the page's own (paginated) listing while no search applies -- also after a search is cleared -- and re-run an
+  // applied search so its rows are current too.
+  const conBusqueda = state.status !== "idle" && busquedaAplicada !== "";
+  const items = conBusqueda ? state.items : itemsIniciales;
+  const total = conBusqueda ? state.total : totalInicial;
   useEffect(() => {
     // The hidden `q` input holds the applied search (see filtrarTabla).
     if (qRef.current?.value) formRef.current?.requestSubmit();
@@ -73,8 +78,6 @@ export function EntregasBuscador({ itemsIniciales, totalInicial }: EntregasBusca
       description: `Nº ${r.numeroInterno} · ${etiquetaEstado(r.estado)}`,
     }));
   }, []);
-
-  const buscando = state.status !== "idle";
 
   return (
     <div className="flex flex-col gap-4">
@@ -129,7 +132,7 @@ export function EntregasBuscador({ itemsIniciales, totalInicial }: EntregasBusca
         </div>
 
         {items.length === 0 ? (
-          buscando && busquedaAplicada ? (
+          conBusqueda ? (
             <EmptyState icon={<SearchX className="size-5" />} title="Sin resultados" description="Ninguna receta pendiente de entrega coincide con ese paciente." />
           ) : (
             <EmptyState icon={<PackageCheck className="size-5" />} title="No hay recetas pendientes de entrega" description="Las recetas preparadas aparecen acá para entregarlas o enviarlas." />
@@ -167,11 +170,13 @@ export function EntregasBuscador({ itemsIniciales, totalInicial }: EntregasBusca
                         </Link>
                       </td>
                       <td className="px-3 py-2.5">
-                        <span className="flex items-center gap-2.5">
+                        <span className="flex min-w-0 items-center gap-2.5">
                           <Avatar name={paciente} />
                           <span className="min-w-0">
-                            <span className="block truncate font-medium text-zinc-900">{paciente}</span>
-                            <span className="block truncate text-xs text-zinc-500 md:hidden">
+                            <span className="block max-w-[16rem] truncate font-medium text-zinc-900" title={paciente}>
+                              {paciente}
+                            </span>
+                            <span className="block max-w-[12rem] truncate text-xs text-zinc-500 md:hidden" title={`${r.medicoApellido}, ${r.medicoNombre}`}>
                               {r.medicoApellido}, {r.medicoNombre}
                             </span>
                           </span>
@@ -197,11 +202,15 @@ export function EntregasBuscador({ itemsIniciales, totalInicial }: EntregasBusca
           </div>
         )}
 
-        {total > items.length && busquedaAplicada ? (
-          <p className="border-t border-zinc-100 px-4 py-2.5 text-xs text-zinc-500">
-            Mostrando los primeros {items.length} resultados. Afiná la búsqueda para acotar.
-          </p>
-        ) : null}
+        {conBusqueda ? (
+          total > items.length ? (
+            <p className="border-t border-zinc-100 px-4 py-2.5 text-xs text-zinc-500">
+              Mostrando los primeros {items.length} resultados. Afiná la búsqueda para acotar.
+            </p>
+          ) : null
+        ) : (
+          paginacion
+        )}
       </div>
     </div>
   );

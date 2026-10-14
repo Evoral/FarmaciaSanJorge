@@ -26,8 +26,19 @@ export const periodoLote = z
     path: ["periodoHasta"],
   });
 
-export const listRecetasElegiblesInput = periodoLote;
+/** The eligible-recetas PREVIEW, one page at a time (`conformarLote` re-reads the whole set server side). */
+export const listRecetasElegiblesInput = z
+  .object({
+    periodoDesde: fechaIso,
+    periodoHasta: fechaIso,
+    ...paginacion,
+  })
+  .refine((v) => v.periodoHasta >= v.periodoDesde, {
+    message: "El período hasta no puede ser anterior al período desde.",
+    path: ["periodoHasta"],
+  });
 export type ListRecetasElegiblesInput = z.infer<typeof listRecetasElegiblesInput>;
+export type ListRecetasElegiblesInputRaw = z.input<typeof listRecetasElegiblesInput>;
 
 export const conformarLoteInput = z
   .object({
@@ -50,7 +61,9 @@ export const listLotesFiltro = z.object({
 export type ListLotesFiltro = z.infer<typeof listLotesFiltro>;
 export type ListLotesFiltroInput = z.input<typeof listLotesFiltro>;
 
-export const loteIdInput = z.object({ id: z.string().uuid() });
+/** A lote's detail; its recetas come one page at a time. */
+export const loteDetalleInput = z.object({ id: z.string().uuid(), ...paginacion });
+export type LoteDetalleInput = z.input<typeof loteDetalleInput>;
 
 export const solicitarDestruccionInput = z.object({
   id: z.string().uuid(),
