@@ -116,7 +116,7 @@ export default async function HistorialDrogaPage({ params, searchParams }: Histo
                   <th scope="col" className="px-3 py-2">
                     Nº
                   </th>
-                  <th scope="col" className="px-3 py-2">
+                  <th scope="col" className="hidden px-3 py-2 md:table-cell">
                     Preparada
                   </th>
                   <th scope="col" className="px-3 py-2">

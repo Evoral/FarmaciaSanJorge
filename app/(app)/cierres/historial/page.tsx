@@ -181,7 +181,7 @@ export default async function HistorialCierresPage({ searchParams }: HistorialCi
                         <Link href={`/cierres/${item.id}`} className="font-mono font-semibold underline-offset-2 hover:underline">
                           {formatFechaIso(item.fecha)}
                         </Link>
-                        <span className="block truncate text-xs text-zinc-500 md:hidden">
+                        <span className="block max-w-[12rem] truncate text-xs text-zinc-500 md:hidden" title={`${item.directorTecnicoApellido}, ${item.directorTecnicoNombre}`}>
                           {item.directorTecnicoApellido}, {item.directorTecnicoNombre}
                         </span>
                       </td>

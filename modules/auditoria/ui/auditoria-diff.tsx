@@ -85,14 +85,14 @@ export function AuditoriaDiff({ entidad, entidadId, valorAnterior, valorNuevo, z
         </summary>
         <div className="mt-2 flex flex-col gap-2">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Entidad <span className="font-mono">{entidad}</span> · ID <span className="font-mono">{entidadId}</span>
+            Entidad <span className="font-mono">{entidad}</span> · ID <span className="break-all font-mono">{entidadId}</span>
           </p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             IP <span className="font-mono">{ip ?? "—"}</span>
             {requestId ? (
               <>
                 {" "}
-                · Petición <span className="font-mono">{requestId}</span>
+                · Petición <span className="break-all font-mono">{requestId}</span>
               </>
             ) : null}
           </p>

@@ -260,13 +260,13 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-3 py-2 md:table-cell">
                       Fecha
                     </th>
                     <th scope="col" className="px-3 py-2">
                       Qué pasó
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-3 py-2 md:table-cell">
                       Cambios
                     </th>
                   </tr>
@@ -276,17 +276,18 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
                     const actor = `${registro.usuario.nombre} ${registro.usuario.apellido}`;
                     return (
                       <tr key={registro.id} className="align-top">
-                        <td className="whitespace-nowrap px-3 py-3 font-mono text-xs tabular-nums text-zinc-600">{formatearFechaHora(registro.ocurridoEn, result.zonaHoraria)}</td>
-                        <td className="min-w-[16rem] px-3 py-3">
+                        <td className="hidden whitespace-nowrap px-3 py-3 font-mono text-xs tabular-nums text-zinc-600 md:table-cell">{formatearFechaHora(registro.ocurridoEn, result.zonaHoraria)}</td>
+                        <td className="px-3 py-3 md:min-w-[16rem]">
                           <div className="flex gap-2.5">
                             <Avatar name={actor} />
-                            <div className="min-w-0">
-                              <p className="font-medium text-zinc-900">{describirRegistro(actor, registro.accion, registro.entidad)}</p>
+                            <div className="min-w-0 flex-1">
+                              <p className="mb-1 whitespace-nowrap font-mono text-xs tabular-nums text-zinc-600 md:hidden">{formatearFechaHora(registro.ocurridoEn, result.zonaHoraria)}</p>
+                              <p className="break-words font-medium text-zinc-900">{describirRegistro(actor, registro.accion, registro.entidad)}</p>
                               <p className="mt-1">
                                 <ToneBadge tone={tonoAccion(registro.accion)}>{ACCION_LABELS[registro.accion] ?? registro.accion}</ToneBadge>
                               </p>
                               {registro.motivo ? (
-                                <p className="mt-1.5 text-[0.8125rem]">
+                                <p className="mt-1.5 break-words text-[0.8125rem]">
                                   <span className="text-zinc-500">Motivo:</span> {registro.motivo}
                                 </p>
                               ) : null}
@@ -295,10 +296,22 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
                                   <span className="text-zinc-500">Autorizó:</span> {registro.autorizadoPor.nombre} {registro.autorizadoPor.apellido}
                                 </p>
                               ) : null}
+                              {/* Phones: the Cambios column is hidden, so the diff goes under the description. */}
+                              <div className="mt-3 md:hidden">
+                                <AuditoriaDiff
+                                  entidad={registro.entidad}
+                                  entidadId={registro.entidadId}
+                                  valorAnterior={registro.valorAnterior}
+                                  valorNuevo={registro.valorNuevo}
+                                  zonaHoraria={result.zonaHoraria}
+                                  ip={registro.ip}
+                                  contexto={registro.contexto}
+                                />
+                              </div>
                             </div>
                           </div>
                         </td>
-                        <td className="min-w-[20rem] px-3 py-3">
+                        <td className="hidden px-3 py-3 md:table-cell md:min-w-[20rem]">
                           <AuditoriaDiff
                             entidad={registro.entidad}
                             entidadId={registro.entidadId}

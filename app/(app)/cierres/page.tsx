@@ -192,12 +192,14 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
                                 {item.esRectificativo ? <span className="block text-xs text-zinc-500">Rectifica Nº {item.asientoOriginalNumeroCorrelativo}</span> : null}
                               </td>
                               <td className="px-3 py-2.5 text-zinc-900">
-                                {item.pacienteTexto}
-                                <span className="block text-xs text-zinc-500 md:hidden">{item.medicoTexto}</span>
+                                <span className="block max-w-[16rem] break-words">{item.pacienteTexto}</span>
+                                <span className="block max-w-[16rem] break-words text-xs text-zinc-500 md:hidden">{item.medicoTexto}</span>
                               </td>
-                              <td className="hidden px-3 py-2.5 md:table-cell">{item.medicoTexto}</td>
-                              <td className="hidden max-w-xs px-3 py-2.5 lg:table-cell">
-                                <span className="block truncate" title={item.formulaTexto}>
+                              <td className="hidden px-3 py-2.5 md:table-cell">
+                                <span className="block max-w-[16rem] break-words">{item.medicoTexto}</span>
+                              </td>
+                              <td className="hidden px-3 py-2.5 lg:table-cell">
+                                <span className="block max-w-xs truncate" title={item.formulaTexto}>
                                   {item.formulaTexto}
                                 </span>
                               </td>

@@ -8,6 +8,7 @@ import { LibroNav } from "@/modules/libro/ui/libro-nav";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
+import { Pagination } from "@/shared/ui/pagination";
 import { ToneBadge } from "@/shared/ui/status-badge";
 
 const TIPO_LABELS: Record<string, string> = {
@@ -15,6 +16,13 @@ const TIPO_LABELS: Record<string, string> = {
   PSICOTROPICO: "Psicotrópicos",
   ESTUPEFACIENTE: "Estupefacientes",
 };
+
+const PAGE_SIZE = 20;
+const BASE_HREF = "/libro/historico";
+
+interface HistoricoPageProps {
+  searchParams: Promise<{ page?: string }>;
+}
 
 function Vacio({ label }: { label: string }) {
   return (
@@ -24,11 +32,18 @@ function Vacio({ label }: { label: string }) {
   );
 }
 
-export default async function HistoricoPage() {
+export default async function HistoricoPage({ searchParams }: HistoricoPageProps) {
   const session = await requireSession();
   const puedeDigitalizar = can(session, "libro.historico.digitalizar");
+  const params = await searchParams;
+  const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
-  const result = await listHistorico({ page: 1, pageSize: 50 });
+  const result = await listHistorico({ page, pageSize: PAGE_SIZE });
+
+  function pageHref(targetPage: number): string {
+    const qs = new URLSearchParams({ page: String(targetPage) });
+    return `${BASE_HREF}?${qs.toString()}`;
+  }
 
   return (
     <div className="page">
@@ -49,7 +64,7 @@ export default async function HistoricoPage() {
         <section aria-labelledby="historicos-heading" className="list-panel min-w-0">
           <div className="list-toolbar">
             <h2 id="historicos-heading" className="flex items-center gap-2 font-medium text-zinc-900">
-              Digitalizados <span className="tab-count">{result.items.length}</span>
+              Digitalizados <span className="tab-count">{result.total}</span>
             </h2>
           </div>
           {result.items.length === 0 ? (
@@ -87,7 +102,7 @@ export default async function HistoricoPage() {
                       </td>
                       <td className="px-3 py-2.5 font-mono font-semibold text-zinc-900">{item.numeroAsientoFisico}</td>
                       <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">{formatFechaIso(item.fechaAsiento)}</td>
-                      <td className="px-3 py-2.5 text-zinc-900">{item.pacienteTexto ?? <Vacio label="Sin paciente" />}</td>
+                      <td className="max-w-xs break-words px-3 py-2.5 text-zinc-900">{item.pacienteTexto ?? <Vacio label="Sin paciente" />}</td>
                       <td className="hidden px-3 py-2.5 md:table-cell">{item.medicoTexto ?? <Vacio label="Sin médico" />}</td>
                       <td className="hidden px-3 py-2.5 text-zinc-600 lg:table-cell">{item.digitalizadoPorNombre}</td>
                     </tr>
@@ -96,6 +111,7 @@ export default async function HistoricoPage() {
               </table>
             </div>
           )}
+          <Pagination page={page} pageSize={PAGE_SIZE} total={result.total} hrefFor={pageHref} label="Paginación de asientos históricos" />
         </section>
 
         {puedeDigitalizar ? (

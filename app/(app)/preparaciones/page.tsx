@@ -312,7 +312,9 @@ function CeldaReceta({ recetaId, numero, paciente, extra }: { recetaId: string; 
       <Link href={`/recetas/${recetaId}`} className="font-mono font-semibold underline-offset-2 hover:underline">
         {numero}
       </Link>
-      <span className="block truncate text-xs text-zinc-600 md:hidden">{paciente}</span>
+      <span className="block max-w-[12rem] truncate text-xs text-zinc-600 md:hidden" title={paciente}>
+        {paciente}
+      </span>
       {extra ? <span className="block text-xs text-zinc-500 tabular-nums lg:hidden">{extra}</span> : null}
     </td>
   );
@@ -321,9 +323,11 @@ function CeldaReceta({ recetaId, numero, paciente, extra }: { recetaId: string; 
 function CeldaPaciente({ nombre }: { nombre: string }) {
   return (
     <td className="hidden px-3 py-2.5 md:table-cell">
-      <span className="flex items-center gap-2.5">
+      <span className="flex min-w-0 items-center gap-2.5">
         <Avatar name={nombre} />
-        <span className="truncate font-medium text-zinc-900">{nombre}</span>
+        <span className="block min-w-0 max-w-[16rem] truncate font-medium text-zinc-900" title={nombre}>
+          {nombre}
+        </span>
       </span>
     </td>
   );

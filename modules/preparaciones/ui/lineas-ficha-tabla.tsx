@@ -47,13 +47,13 @@ export function LineasFichaTabla({ lineas }: { lineas: readonly LineaDeFichaToma
                   )}
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">{linea.excesoAplicado}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-right font-mono font-semibold text-zinc-900 tabular-nums">
+                <td className="px-3 py-2 text-right font-mono font-semibold text-zinc-900 tabular-nums">
                   {linea.esEnraseManual ? (
-                    <span className="font-sans font-normal text-zinc-500">Enrase manual (se registra al confirmar)</span>
+                    <span className="inline-block max-w-[12rem] font-sans font-normal text-zinc-500">Enrase manual (se registra al confirmar)</span>
                   ) : linea.cantidadAPesar ? (
-                    <>
+                    <span className="whitespace-nowrap">
                       {linea.cantidadAPesar} <span className="font-normal text-zinc-500">{linea.unidadSimbolo}</span>
-                    </>
+                    </span>
                   ) : (
                     <Vacio />
                   )}

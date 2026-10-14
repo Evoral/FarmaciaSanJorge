@@ -235,11 +235,15 @@ export function RecetasTable({ rows, total, empty, footer }: RecetasTableProps) 
                     <div className="flex items-center gap-2.5">
                       <Avatar name={row.paciente} />
                       <div className="min-w-0">
-                        <p className="truncate font-medium text-zinc-900">{row.paciente}</p>
-                        <p className="flex items-center gap-1 text-xs text-zinc-500">
+                        <p className="max-w-[16rem] truncate font-medium text-zinc-900" title={row.paciente}>
+                          {row.paciente}
+                        </p>
+                        <p className="flex max-w-[16rem] items-center gap-1 text-xs text-zinc-500">
                           <Stethoscope className="size-3 flex-none" aria-hidden />
                           <span className="sr-only">Médico:</span>
-                          <span className="truncate">{row.medico}</span>
+                          <span className="min-w-0 truncate" title={row.medico}>
+                            {row.medico}
+                          </span>
                         </p>
                       </div>
                     </div>
