@@ -1,15 +1,16 @@
 /**
- * `GET /api/recetas/reporte/export/csv` (FASE 13 point 13.4). Requires
- * `reportes.ver` (enforced by `exportarRecetasCsv`'s own
+ * `GET /api/recetas/reporte/export/xlsx` (FASE 13 point 13.4). Requires
+ * `reportes.ver` (enforced by `exportarRecetasXlsx`'s own
  * `defineQuery`/`defineCommand`). Used by `/reportes/recetas` and by the
  * `/recetas` listado (same params: estado, numero, ingresoDesde/ingresoHasta,
  * desde/hasta, pago). No param carries patient text.
  */
 import { NextResponse } from "next/server";
-import { exportarRecetasCsv, MAX_EXPORT_ROWS } from "@/modules/recetas/application/reporte-recetas";
+import { exportarRecetasXlsx, MAX_EXPORT_ROWS } from "@/modules/recetas/application/reporte-recetas";
 import { ESTADOS_RECETA } from "@/modules/recetas/domain/receta";
 import { etiquetaPago, parseFiltroPagoReceta } from "@/modules/recetas/domain/pago";
-import { CsvWriter } from "@/shared/csv/csv-writer";
+import { ESTADO_RECETA_LABELS, ORIGEN_RECETA_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
+import { XLSX_CONTENT_TYPE, XlsxReport } from "@/shared/xlsx/xlsx-report";
 import { AppError, type AppErrorCode, toSafeError } from "@/shared/errors";
 
 const STATUS_BY_CODE: Record<AppErrorCode, number> = {
@@ -33,7 +34,7 @@ export async function GET(request: Request): Promise<Response> {
 
   let resultado;
   try {
-    resultado = await exportarRecetasCsv({
+    resultado = await exportarRecetasXlsx({
       estado,
       numeroInterno: q.get("numero") || undefined,
       ingresoDesde: q.get("ingresoDesde") || undefined,
@@ -49,29 +50,47 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json(safe, { status });
   }
 
-  const writer = new CsvWriter(["NumeroInterno", "FechaIngreso", "FechaPrescripcion", "Estado", "Origen", "Paciente", "Medico", "Pago"]);
+  const report = new XlsxReport({
+    title: "Reporte de recetas",
+    description:
+      "Recetas magistrales que cumplen los filtros aplicados, con su número interno, fechas de ingreso y prescripción, estado, origen, paciente, médico y si están pagadas.",
+    sheetName: "Recetas",
+    issuedAt: new Date(),
+    filters: resultado.filtroResumen,
+    columns: [
+      { header: "Nº interno", width: 12 },
+      { header: "Fecha de ingreso", width: 17, format: "datetime" },
+      { header: "Fecha de prescripción", width: 14, format: "date" },
+      { header: "Estado", width: 26 },
+      { header: "Origen", width: 18 },
+      { header: "Paciente", width: 28 },
+      { header: "Médico", width: 28 },
+      { header: "Pago", width: 10 },
+    ],
+  });
   for (const item of resultado.items) {
-    writer.push([
+    report.push([
       item.numeroInterno,
-      item.fechaIngreso.toISOString(),
-      item.fechaPrescripcion.toISOString().slice(0, 10),
-      item.estado,
-      item.origen,
+      item.fechaIngreso,
+      item.fechaPrescripcion,
+      etiquetaDe(ESTADO_RECETA_LABELS, item.estado),
+      etiquetaDe(ORIGEN_RECETA_LABELS, item.origen),
       `${item.pacienteNombre} ${item.pacienteApellido}`,
       `${item.medicoApellido}, ${item.medicoNombre}`,
       etiquetaPago(item.pagada),
     ]);
   }
   if (resultado.truncated) {
-    writer.push([`TRUNCADO: se alcanzó el máximo de ${MAX_EXPORT_ROWS} filas exportables. Acotá los filtros.`]);
+    report.pushNote(`TRUNCADO: se alcanzó el máximo de ${MAX_EXPORT_ROWS} filas exportables. Acotá los filtros.`);
   }
 
-  const csv = writer.toString();
-  return new NextResponse(csv, {
+  const xlsx = await report.toBuffer();
+  return new NextResponse(new Uint8Array(xlsx), {
     status: 200,
     headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="recetas-reporte.csv"`,
+      "Content-Type": XLSX_CONTENT_TYPE,
+      "Content-Disposition": `attachment; filename="recetas-reporte.xlsx"`,
+      "Content-Length": String(xlsx.byteLength),
       "Cache-Control": "private, no-store",
     },
   });

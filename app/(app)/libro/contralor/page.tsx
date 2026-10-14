@@ -72,7 +72,7 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
     return `/libro/contralor?${qs.toString()}`;
   }
 
-  function exportHref(kind: "csv" | "pdf"): string {
+  function exportHref(kind: "xlsx" | "pdf"): string {
     const qs = new URLSearchParams();
     if (params.tipoLibro) qs.set("tipoLibro", params.tipoLibro);
     if (params.drogaId) qs.set("drogaId", params.drogaId);
@@ -105,9 +105,9 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
         actions={
           puedeExportar ? (
             <>
-              <a href={exportHref("csv")} className="btn btn-secondary">
+              <a href={exportHref("xlsx")} className="btn btn-secondary">
                 <Download className="size-4" aria-hidden />
-                CSV
+                Excel
               </a>
               <a href={exportHref("pdf")} className="btn btn-secondary">
                 <Download className="size-4" aria-hidden />

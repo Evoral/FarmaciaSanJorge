@@ -1,5 +1,5 @@
 /**
- * `GET /api/libro/export/csv` (FASE 9, M12 point 9.1). Requires
+ * `GET /api/libro/export/xlsx` (FASE 9, M12 point 9.1). Requires
  * `libro.exportar` (enforced by `exportarLibroDatos`'s own `defineQuery`,
  * not re-checked here -- same "the use case is the authority" discipline
  * as every other route handler in this codebase).
@@ -7,7 +7,7 @@
 import { NextResponse } from "next/server";
 import { exportarLibroDatos, MAX_EXPORT_ROWS } from "@/modules/libro/application/exportar-libro";
 import { resolverEstadoVisualAsiento, etiquetaEstadoVisual } from "@/modules/libro/domain/estado-visual";
-import { CsvWriter } from "@/shared/csv/csv-writer";
+import { XLSX_CONTENT_TYPE, XlsxReport } from "@/shared/xlsx/xlsx-report";
 import { AppError, type AppErrorCode, toSafeError } from "@/shared/errors";
 
 const STATUS_BY_CODE: Record<AppErrorCode, number> = {
@@ -44,24 +44,41 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json(safe, { status });
   }
 
-  const writer = new CsvWriter(["Numero", "Fecha", "Origen", "Estado", "Paciente", "Medico", "Formula"]);
+  const report = new XlsxReport({
+    title: "Libro recetario digital",
+    description:
+      "Asientos del libro recetario en orden correlativo: fecha, origen, estado (vigente, anulado o sin efecto por un rectificativo), paciente, médico y fórmula registrada.",
+    sheetName: "Libro recetario",
+    issuedAt: new Date(),
+    filters: resultado.filtroResumen,
+    columns: [
+      { header: "Nº", width: 10, format: "integer" },
+      { header: "Fecha", width: 12, format: "date" },
+      { header: "Origen", width: 18 },
+      { header: "Estado", width: 18 },
+      { header: "Paciente", width: 28, wrap: true },
+      { header: "Médico", width: 28, wrap: true },
+      { header: "Fórmula", width: 60, wrap: true },
+    ],
+  });
   for (const item of resultado.items) {
     const estado = etiquetaEstadoVisual(
       resolverEstadoVisualAsiento({ estado: item.estado, anulacion: item.anulacion, rectificativoNumeroCorrelativo: item.rectificativoNumeroCorrelativo }),
     );
     const origen = item.origen === "RECTIFICATIVO" && item.asientoOriginalNumeroCorrelativo ? `Rectifica Nº ${item.asientoOriginalNumeroCorrelativo}` : "Sistema";
-    writer.push([item.numeroCorrelativo, item.fechaAsiento, origen, estado, item.pacienteTexto, item.medicoTexto, item.formulaTexto]);
+    report.push([item.numeroCorrelativo, item.fechaAsiento, origen, estado, item.pacienteTexto, item.medicoTexto, item.formulaTexto]);
   }
   if (resultado.truncated) {
-    writer.push([`TRUNCADO: se alcanzó el máximo de ${MAX_EXPORT_ROWS} filas exportables. Acotá el rango de fechas o números.`]);
+    report.pushNote(`TRUNCADO: se alcanzó el máximo de ${MAX_EXPORT_ROWS} filas exportables. Acotá el rango de fechas o números.`);
   }
 
-  const csv = writer.toString();
-  return new NextResponse(csv, {
+  const xlsx = await report.toBuffer();
+  return new NextResponse(new Uint8Array(xlsx), {
     status: 200,
     headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="libro-recetario.csv"`,
+      "Content-Type": XLSX_CONTENT_TYPE,
+      "Content-Disposition": `attachment; filename="libro-recetario.xlsx"`,
+      "Content-Length": String(xlsx.byteLength),
       "Cache-Control": "private, no-store",
     },
   });

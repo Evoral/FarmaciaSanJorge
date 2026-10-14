@@ -1,7 +1,7 @@
 /**
  * `reporteCumplimiento` -- FASE 10, M13a point 10.4 (reporte de cumplimiento
  * de firma: fecha, fecha de firma, demora, fuera de término, motivo, DT).
- * Gated on `cierres.reporte`. CSV export follows the SAME "separate audited
+ * Gated on `cierres.reporte`. XLSX export follows the SAME "separate audited
  * defineCommand, called right after the read resolves" shape D6 established
  * for the libro recetario export (`modules/libro/application/exportar-libro.ts`) --
  * `TipoAccion.EXPORTAR`, entidad "cierre_diario_reporte" (entidadId is the
@@ -55,7 +55,7 @@ export interface ReporteCumplimientoPagina {
   fueraDeTermino: number;
 }
 
-/** The on-screen report: one page plus the totals of the whole filtered range. The CSV export stays on `reporteCumplimiento` (every row). */
+/** The on-screen report: one page plus the totals of the whole filtered range. The XLSX export stays on `reporteCumplimiento` (every row). */
 export const reporteCumplimientoPaginadoQuery = defineQuery({
   name: "cierres.reporte.cumplimiento.paginado",
   permiso: "cierres.reporte",
@@ -100,14 +100,15 @@ const registrarExportacionReporteCommand = defineCommand({
     output: undefined,
     audit: {
       entidadId: session.tenantId,
-      motivo: `Exportación CSV del reporte de cumplimiento de firma -- ${input.cantidadFilas} fila(s). Filtros: ${input.filtroResumen}.`,
+      motivo: `Exportación XLSX del reporte de cumplimiento de firma -- ${input.cantidadFilas} fila(s). Filtros: ${input.filtroResumen}.`,
       valorNuevo: { filtroResumen: input.filtroResumen, cantidadFilas: input.cantidadFilas },
     },
   }),
 });
 
-export async function exportarReporteCumplimientoCsv(input: ReporteCumplimientoFiltroInput): Promise<CumplimientoItem[]> {
+export async function exportarReporteCumplimientoXlsx(input: ReporteCumplimientoFiltroInput): Promise<{ items: CumplimientoItem[]; filtroResumen: string }> {
   const items = await reporteCumplimiento(input);
-  await registrarExportacionReporteCommand.execute({ filtroResumen: resumenFiltroParaAuditoria(input), cantidadFilas: items.length });
-  return items;
+  const filtroResumen = resumenFiltroParaAuditoria(input);
+  await registrarExportacionReporteCommand.execute({ filtroResumen, cantidadFilas: items.length });
+  return { items, filtroResumen };
 }

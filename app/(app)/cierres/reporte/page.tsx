@@ -1,4 +1,4 @@
-/** `/cierres/reporte` (FASE 10, M13a point 10.4). Reporte de cumplimiento de firma: fecha, fecha de firma, demora, fuera de término, motivo, DT. Filtros por rango de fechas; exportación CSV auditada. */
+/** `/cierres/reporte` (FASE 10, M13a point 10.4). Reporte de cumplimiento de firma: fecha, fecha de firma, demora, fuera de término, motivo, DT. Filtros por rango de fechas; exportación Excel auditada. */
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Download, FileBarChart, SearchX, X } from "lucide-react";
@@ -51,7 +51,7 @@ export default async function ReporteCumplimientoPage({ searchParams }: ReporteC
     const qs = new URLSearchParams();
     if (params.fechaDesde) qs.set("fechaDesde", params.fechaDesde);
     if (params.fechaHasta) qs.set("fechaHasta", params.fechaHasta);
-    return `/api/cierres/reporte/csv?${qs.toString()}`;
+    return `/api/cierres/reporte/xlsx?${qs.toString()}`;
   }
 
   function sinFiltroHref(param: "fechaDesde" | "fechaHasta"): string {
@@ -73,7 +73,7 @@ export default async function ReporteCumplimientoPage({ searchParams }: ReporteC
         actions={
           <a href={exportHref()} className="btn btn-secondary">
             <Download className="size-4" aria-hidden />
-            Exportar CSV
+            Exportar Excel
           </a>
         }
       />

@@ -174,7 +174,7 @@ must be run once against a seeded tenant before it is relied on.
 
 - Recetas that prescribe the droga but are not prepared yet.
 - Resumen block (counts, pacientes distintos, total consumido).
-- Export (CSV/PDF) of the list for a recall.
+- Export (Excel/PDF) of the list for a recall.
 - Filters other than partida (date range, paciente, médico).
 
 ## Implementation notes

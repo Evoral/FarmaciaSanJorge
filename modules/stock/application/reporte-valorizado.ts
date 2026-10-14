@@ -6,7 +6,7 @@
  * is a snapshot, never a historical value). Gated on `stock.valorizado.ver`
  * (migration 0043, ADMINISTRADOR/DIRECTOR_TECNICO/FARMACEUTICO only).
  *
- * Export (CSV/PDF) follows the SAME "separate audited defineCommand,
+ * Export (XLSX/PDF) follows the SAME "separate audited defineCommand,
  * called right after the read resolves" shape D6 established for the
  * libro recetario export (`modules/libro/application/exportar-libro.ts`) --
  * `TipoAccion.EXPORTAR`, entidad "stock_valorizado_reporte" (entidadId is
@@ -119,7 +119,7 @@ function resumenFiltroParaAuditoria(input: ExportarValorizadoFiltro): string {
 }
 
 const registrarExportacionValorizadoInput = z.object({
-  formato: z.enum(["CSV", "PDF"]),
+  formato: z.enum(["XLSX", "PDF"]),
   filtroResumen: z.string(),
   cantidadFilas: z.number().int().min(0),
   truncated: z.boolean(),
@@ -141,16 +141,17 @@ const registrarExportacionValorizadoCommand = defineCommand({
   }),
 });
 
-export async function exportarValorizadoDatos(input: ExportarValorizadoFiltroInput, formato: "CSV" | "PDF" = "CSV"): Promise<ExportarValorizadoResultado> {
+export async function exportarValorizadoDatos(input: ExportarValorizadoFiltroInput, formato: "XLSX" | "PDF" = "XLSX"): Promise<ExportarValorizadoResultado & { filtroResumen: string }> {
   const resultado = await exportarValorizadoQuery.execute(input);
   const parsed = exportarValorizadoFiltro.parse(input);
+  const filtroResumen = resumenFiltroParaAuditoria(parsed);
   await registrarExportacionValorizadoCommand.execute({
     formato,
-    filtroResumen: resumenFiltroParaAuditoria(parsed),
+    filtroResumen,
     cantidadFilas: resultado.items.length,
     truncated: resultado.truncated,
   });
-  return resultado;
+  return { ...resultado, filtroResumen };
 }
 
 /**

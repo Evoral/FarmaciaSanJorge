@@ -1,6 +1,6 @@
 /**
  * `/reportes/recetas` (FASE 13 point 13.4). Recetas por estado: conteos + listado filtrado (estado, fecha de ingreso),
- * con exportación CSV auditada. The per-estado counts are the estado filter itself (`StatusSummary` tabs, same as
+ * con exportación Excel auditada. The per-estado counts are the estado filter itself (`StatusSummary` tabs, same as
  * `/recetas`); the fecha de ingreso range lives in the filter bar.
  */
 import Link from "next/link";
@@ -61,7 +61,7 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
     if (params.estado) qs.set("estado", params.estado);
     if (params.ingresoDesde) qs.set("ingresoDesde", params.ingresoDesde);
     if (params.ingresoHasta) qs.set("ingresoHasta", params.ingresoHasta);
-    return `/api/recetas/reporte/export/csv?${qs.toString()}`;
+    return `/api/recetas/reporte/export/xlsx?${qs.toString()}`;
   }
 
   const chips: { key: FilterParam; label: string; value: string }[] = [];
@@ -78,7 +78,7 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
         actions={
           <a href={exportHref()} className="btn btn-secondary">
             <Download className="size-4" aria-hidden />
-            Exportar CSV
+            Exportar Excel
           </a>
         }
       />

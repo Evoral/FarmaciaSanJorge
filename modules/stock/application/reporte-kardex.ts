@@ -1,9 +1,9 @@
 /**
- * `exportarKardexCsv` -- FASE 13 point 13.2 (M16). The kardex query itself
+ * `exportarKardexXlsx` -- FASE 13 point 13.2 (M16). The kardex query itself
  * (`kardexMovimientos`, `stock.ver`) already exists and is consumed by
  * `/partidas/[id]`'s per-partida panel, but there is no
  * droga/tipo/date-filterable REPORT page or export. This file adds the
- * audited CSV export on top of the SAME query/repository, walking pages
+ * audited XLSX export on top of the SAME query/repository, walking pages
  * internally (same "separate audited defineCommand, called right after
  * the read resolves" shape D6 established for the libro recetario export).
  */
@@ -95,19 +95,20 @@ const registrarExportacionKardexCommand = defineCommand({
     output: undefined,
     audit: {
       entidadId: session.tenantId,
-      motivo: `Exportación CSV del reporte de kardex -- ${input.cantidadFilas} fila(s)${input.truncated ? " (truncado)" : ""}. Filtros: ${input.filtroResumen}.`,
+      motivo: `Exportación XLSX del reporte de kardex -- ${input.cantidadFilas} fila(s)${input.truncated ? " (truncado)" : ""}. Filtros: ${input.filtroResumen}.`,
       valorNuevo: { filtroResumen: input.filtroResumen, cantidadFilas: input.cantidadFilas, truncated: input.truncated },
     },
   }),
 });
 
-export async function exportarKardexCsv(input: ExportarKardexFiltroInput): Promise<ExportarKardexResultado> {
+export async function exportarKardexXlsx(input: ExportarKardexFiltroInput): Promise<ExportarKardexResultado & { filtroResumen: string }> {
   const resultado = await exportarKardexQuery.execute(input);
   const parsed = exportarKardexFiltro.parse(input);
+  const filtroResumen = resumenFiltroParaAuditoria(parsed);
   await registrarExportacionKardexCommand.execute({
-    filtroResumen: resumenFiltroParaAuditoria(parsed),
+    filtroResumen,
     cantidadFilas: resultado.items.length,
     truncated: resultado.truncated,
   });
-  return resultado;
+  return { ...resultado, filtroResumen };
 }

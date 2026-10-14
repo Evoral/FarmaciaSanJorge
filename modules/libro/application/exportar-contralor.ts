@@ -1,5 +1,5 @@
 /**
- * `exportarContralorDatos` -- FASE 13 point 13.3 (M16). PDF/CSV export of
+ * `exportarContralorDatos` -- FASE 13 point 13.3 (M16). PDF/XLSX export of
  * the libro contralor listing, mirroring `exportar-libro.ts`'s D6 shape
  * exactly: gated on `libro.exportar` (separate from `list-contralor.ts`'s
  * `libro.ver`), walks every matching page internally via
@@ -59,7 +59,7 @@ function resumenFiltroParaAuditoria(input: ExportarContralorFiltro): string {
 }
 
 const registrarExportacionContralorInput = z.object({
-  formato: z.enum(["CSV", "PDF"]),
+  formato: z.enum(["XLSX", "PDF"]),
   filtroResumen: z.string(),
   cantidadFilas: z.number().int().min(0),
   truncated: z.boolean(),
@@ -81,16 +81,17 @@ const registrarExportacionContralorCommand = defineCommand({
   }),
 });
 
-export async function exportarContralorDatos(input: ExportarContralorFiltroInput, formato: "CSV" | "PDF" = "CSV"): Promise<ExportarContralorResultado> {
+export async function exportarContralorDatos(input: ExportarContralorFiltroInput, formato: "XLSX" | "PDF" = "XLSX"): Promise<ExportarContralorResultado & { filtroResumen: string }> {
   const resultado = await exportarContralorQuery.execute(input);
   const parsed = exportarContralorFiltro.parse(input);
+  const filtroResumen = resumenFiltroParaAuditoria(parsed);
   await registrarExportacionContralorCommand.execute({
     formato,
-    filtroResumen: resumenFiltroParaAuditoria(parsed),
+    filtroResumen,
     cantidadFilas: resultado.items.length,
     truncated: resultado.truncated,
   });
-  return resultado;
+  return { ...resultado, filtroResumen };
 }
 
 /**

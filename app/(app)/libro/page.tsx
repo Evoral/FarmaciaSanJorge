@@ -58,7 +58,7 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
     return `/libro?${qs.toString()}`;
   }
 
-  function exportHref(kind: "csv" | "pdf"): string {
+  function exportHref(kind: "xlsx" | "pdf"): string {
     const qs = new URLSearchParams();
     if (params.fechaDesde) qs.set("fechaDesde", params.fechaDesde);
     if (params.fechaHasta) qs.set("fechaHasta", params.fechaHasta);
@@ -95,9 +95,9 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
         actions={
           puedeExportar ? (
             <>
-              <a href={exportHref("csv")} className="btn btn-secondary">
+              <a href={exportHref("xlsx")} className="btn btn-secondary">
                 <Download className="size-4" aria-hidden />
-                CSV
+                Excel
               </a>
               <a href={exportHref("pdf")} className="btn btn-secondary">
                 <Download className="size-4" aria-hidden />

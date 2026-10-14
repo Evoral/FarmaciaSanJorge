@@ -1,5 +1,5 @@
 /**
- * `exportarLibroDatos` -- FASE 9, M12 point 9.1 (PDF/CSV export). Gated on
+ * `exportarLibroDatos` -- FASE 9, M12 point 9.1 (PDF/XLSX export). Gated on
  * `libro.exportar` (separate from `libro.ver`'s list query -- same
  * filters, no pagination: walks EVERY matching page internally via
  * `iterarAsientosParaExportar`, capped at `MAX_EXPORT_ROWS` so an
@@ -8,12 +8,12 @@
  * file. `truncated: true` tells the caller (the route handler) to say so
  * to the user instead of silently serving a partial book.
  *
- * D6 (user decision, 2026-09-23): DP-27 RESOLVED -- every export (CSV and
+ * D6 (user decision, 2026-09-23): DP-27 RESOLVED -- every export (XLSX and
  * PDF) is now audited, via `registrarExportacionLibroCommand` below. It is
  * a SEPARATE `defineCommand` (not folded into `exportarLibroQuery`, which
  * stays a `defineQuery` -- `shared/usecase.ts`'s queries never call
  * `audit.record`), called from `exportarLibroDatos` right after the read
- * resolves, so BOTH the CSV route (which calls `exportarLibroDatos`
+ * resolves, so BOTH the XLSX route (which calls `exportarLibroDatos`
  * directly) and the PDF route (via `exportarLibroPdf`, which also goes
  * through `exportarLibroDatos`) are covered from ONE place. This means the
  * read and its audit row are two separate transactions (a `defineQuery`
@@ -70,7 +70,7 @@ function resumenFiltroParaAuditoria(input: ExportarLibroFiltroInput): string {
 }
 
 const registrarExportacionLibroInput = z.object({
-  formato: z.enum(["CSV", "PDF"]),
+  formato: z.enum(["XLSX", "PDF"]),
   filtroResumen: z.string(),
   cantidadFilas: z.number().int().min(0),
   truncated: z.boolean(),
@@ -94,15 +94,16 @@ const registrarExportacionLibroCommand = defineCommand({
   },
 });
 
-export async function exportarLibroDatos(input: ExportarLibroFiltroInput, formato: "CSV" | "PDF" = "CSV"): Promise<ExportarLibroResultado> {
+export async function exportarLibroDatos(input: ExportarLibroFiltroInput, formato: "XLSX" | "PDF" = "XLSX"): Promise<ExportarLibroResultado & { filtroResumen: string }> {
   const resultado = await exportarLibroQuery.execute(input);
+  const filtroResumen = resumenFiltroParaAuditoria(input);
   await registrarExportacionLibroCommand.execute({
     formato,
-    filtroResumen: resumenFiltroParaAuditoria(input),
+    filtroResumen,
     cantidadFilas: resultado.items.length,
     truncated: resultado.truncated,
   });
-  return resultado;
+  return { ...resultado, filtroResumen };
 }
 
 /**

@@ -118,7 +118,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
     return query ? `/recetas?${query}` : "/recetas";
   }
 
-  /** CSV of every receta the current filters select (not just this page); the summary's periodo does not apply. */
+  /** Excel export of every receta the current filters select (not just this page); the summary's periodo does not apply. */
   function exportHref(): string {
     const qs = new URLSearchParams();
     for (const key of FILTER_PARAMS) {
@@ -126,7 +126,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
       if (value) qs.set(key, value);
     }
     const query = qs.toString();
-    return query ? `/api/recetas/reporte/export/csv?${query}` : "/api/recetas/reporte/export/csv";
+    return query ? `/api/recetas/reporte/export/xlsx?${query}` : "/api/recetas/reporte/export/xlsx";
   }
 
   /** No filters, same summary window. */
@@ -216,7 +216,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
             {puedeExportar ? (
               <a href={exportHref()} className="btn btn-secondary">
                 <Download className="size-4" aria-hidden />
-                Exportar CSV
+                Exportar Excel
               </a>
             ) : null}
             {puedeCrear ? (

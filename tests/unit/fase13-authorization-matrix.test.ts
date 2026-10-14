@@ -74,11 +74,11 @@ const SEED_GRANTS: Record<Rol, readonly Permiso[]> = {
 const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> = [
   { name: "stock.valorizado.listar", permiso: "stock.valorizado.ver", input: {} },
   { name: "stock.valorizado.exportar.datos", permiso: "stock.valorizado.ver", input: {} },
-  { name: "stock.valorizado.exportar.auditar", permiso: "stock.valorizado.ver", input: { formato: "CSV", filtroResumen: "Sin filtros", cantidadFilas: 0, truncated: false } },
+  { name: "stock.valorizado.exportar.auditar", permiso: "stock.valorizado.ver", input: { formato: "XLSX", filtroResumen: "Sin filtros", cantidadFilas: 0, truncated: false } },
   { name: "stock.kardex.exportar.datos", permiso: "stock.ver", input: {} },
   { name: "stock.kardex.exportar.auditar", permiso: "stock.ver", input: { filtroResumen: "Sin filtros", cantidadFilas: 0, truncated: false } },
   { name: "libro.contralor.exportar.datos", permiso: "libro.exportar", input: {} },
-  { name: "libro.contralor.exportar.auditar", permiso: "libro.exportar", input: { formato: "CSV", filtroResumen: "Sin filtros", cantidadFilas: 0, truncated: false } },
+  { name: "libro.contralor.exportar.auditar", permiso: "libro.exportar", input: { formato: "XLSX", filtroResumen: "Sin filtros", cantidadFilas: 0, truncated: false } },
   { name: "reportes.recetas.porEstado", permiso: "reportes.ver", input: {} },
   { name: "reportes.recetas.listar", permiso: "reportes.ver", input: {} },
   { name: "reportes.recetas.exportar.datos", permiso: "reportes.ver", input: {} },

@@ -65,17 +65,17 @@ vi.mock("@/modules/recetas/infrastructure/receta-repository", () => ({
   })),
 }));
 
-const { exportarRecetasCsv } = await import("@/modules/recetas/application/reporte-recetas");
+const { exportarRecetasXlsx } = await import("@/modules/recetas/application/reporte-recetas");
 
-describe("exportarRecetasCsv -- audit payload never carries patient/médico text", () => {
+describe("exportarRecetasXlsx -- audit payload never carries patient/médico text", () => {
   it("the row DOES carry patient text (sanity check the fixture is meaningful)", async () => {
-    const resultado = await exportarRecetasCsv({ estado: "ENTREGADA" });
+    const resultado = await exportarRecetasXlsx({ estado: "ENTREGADA" });
     expect(resultado.items[0]?.pacienteNombre).toBe(PACIENTE_NOMBRE);
   });
 
   it("audit.record is called, and its payload contains NONE of the patient/médico text", async () => {
     recordMock.mockClear();
-    await exportarRecetasCsv({ estado: "ENTREGADA" });
+    await exportarRecetasXlsx({ estado: "ENTREGADA" });
 
     expect(recordMock).toHaveBeenCalledTimes(1);
     // `record(tx, input)` -- see shared/audit/index.ts; the audit payload is the SECOND argument.
@@ -92,7 +92,7 @@ describe("exportarRecetasCsv -- audit payload never carries patient/médico text
 
   it("free text typed in the Nº interno search never reaches the audit payload", async () => {
     recordMock.mockClear();
-    await exportarRecetasCsv({ numeroInterno: `${PACIENTE_APELLIDO} 123` });
+    await exportarRecetasXlsx({ numeroInterno: `${PACIENTE_APELLIDO} 123` });
 
     const serialized = JSON.stringify(recordMock.mock.calls[0]![1]);
     expect(serialized).not.toContain(PACIENTE_APELLIDO);

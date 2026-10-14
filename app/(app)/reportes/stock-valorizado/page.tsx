@@ -84,7 +84,7 @@ export default async function StockValorizadoPage({ searchParams }: StockValoriz
     return query ? `/reportes/stock-valorizado?${query}` : "/reportes/stock-valorizado";
   }
 
-  function exportHref(kind: "csv" | "pdf"): string {
+  function exportHref(kind: "xlsx" | "pdf"): string {
     const qs = new URLSearchParams();
     if (params.search) qs.set("search", params.search);
     if (!incluirVencidas) qs.set("incluirVencidas", "0");
@@ -108,9 +108,9 @@ export default async function StockValorizadoPage({ searchParams }: StockValoriz
         description="El valor del stock de cada partida, con subtotales por droga."
         actions={
           <>
-            <a href={exportHref("csv")} className="btn btn-secondary">
+            <a href={exportHref("xlsx")} className="btn btn-secondary">
               <Download className="size-4" aria-hidden />
-              CSV
+              Excel
             </a>
             <a href={exportHref("pdf")} className="btn btn-secondary">
               <FileDown className="size-4" aria-hidden />
