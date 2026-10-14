@@ -61,7 +61,7 @@ purchases cannot be grouped.
      - Correcciones de costo: audit rows entidad `partida`, accion `MODIFICAR`
        (costo anterior → nuevo, motivo, quién, cuándo). Only with
        `auditoria.ver`.
-     - Link to `/stock/partidas/[id]` (`stock.ver`).
+     - Link to `/partidas/[id]` (`stock.ver`).
 
 ## Filtro por droga
 

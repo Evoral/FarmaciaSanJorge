@@ -778,7 +778,7 @@ model Partida {
 }
 
 /// Tenant-scoped, append-only for fsj_app (migration 0062). A supplier
-/// invoice imported from its PDF (/stock/ingresar); one partida per (droga,
+/// invoice imported from its PDF (/partidas/ingresar); one partida per (droga,
 /// lote) points back to it. puntoVenta/numero without leading zeros.
 model ComprobanteCompra {
   id              String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid

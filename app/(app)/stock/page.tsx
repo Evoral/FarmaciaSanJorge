@@ -181,7 +181,7 @@ export default async function StockPage({ searchParams }: StockPageProps) {
               hideLabel
               placeholder="Buscar droga"
               busquedaActual={q}
-              alElegir={{ href: modo === "base" ? "/stock/partidas?unidades=base" : "/stock/partidas", param: "drogaId", valor: "id" }}
+              alElegir={{ href: modo === "base" ? "/partidas?saldo=1&unidades=base" : "/partidas?saldo=1", param: "drogaId", valor: "id" }}
               alBuscar={{ href: sinFiltroHref("q"), param: "q", texto: "Buscar “{q}” en la lista", textoSinBusqueda: "Ver todas las drogas" }}
             />
           </div>
@@ -296,7 +296,7 @@ export default async function StockPage({ searchParams }: StockPageProps) {
                 <tbody>
                   {stock.items.map((item) => {
                     const [disponible, minimo] = formatCantidadesFila([item.stockDisponible, item.stockMinimo], { id: item.unidadId, simbolo: item.unidadSimbolo }, catalogo, modo);
-                    const partidasHref = `/stock/partidas?drogaId=${item.drogaId}${modo === "base" ? "&unidades=base" : ""}`;
+                    const partidasHref = `/partidas?drogaId=${item.drogaId}&saldo=1${modo === "base" ? "&unidades=base" : ""}`;
                     return (
                       <tr key={item.drogaId}>
                         <td className="px-3 py-2.5">

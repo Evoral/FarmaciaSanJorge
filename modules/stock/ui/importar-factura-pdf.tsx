@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Importar factura" (/stock/ingresar): uploads the supplier invoice PDF to
+ * "Importar factura" (/partidas/ingresar): uploads the supplier invoice PDF to
  * `leerFacturaCompraPdfAction` (the file is read in memory and discarded,
  * nothing is saved) and hands the preview to the parent, which swaps the
  * manual form for the import form. Same interaction as the receta import

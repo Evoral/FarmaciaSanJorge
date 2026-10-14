@@ -285,7 +285,7 @@ export async function AjustesListado({ params, basePath, breadcrumbs, title = "A
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <Link
-                          href={`/stock/partidas/${ajuste.partidaId}`}
+                          href={`/partidas/${ajuste.partidaId}`}
                           aria-label={`Ver detalle de la partida ${ajuste.lote} de ${ajuste.drogaNombre}`}
                           className="btn btn-ghost btn-sm"
                         >

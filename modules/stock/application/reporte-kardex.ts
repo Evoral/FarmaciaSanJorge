@@ -1,7 +1,7 @@
 /**
  * `exportarKardexCsv` -- FASE 13 point 13.2 (M16). The kardex query itself
  * (`kardexMovimientos`, `stock.ver`) already exists and is consumed by
- * `/stock/partidas/[id]`'s per-partida panel, but there is no
+ * `/partidas/[id]`'s per-partida panel, but there is no
  * droga/tipo/date-filterable REPORT page or export. This file adds the
  * audited CSV export on top of the SAME query/repository, walking pages
  * internally (same "separate audited defineCommand, called right after

@@ -1,6 +1,6 @@
 /**
  * `listProveedoresOpciones` -- every vigente proveedor (id + razón social)
- * for a `<select>` picker, e.g. `/stock/ingresar`. Same reasoning as
+ * for a `<select>` picker, e.g. `/partidas/ingresar`. Same reasoning as
  * modules/drogas/application/list-drogas-opciones.ts: a picker needs the
  * whole vigente catalog, which the paginated `listProveedores` (`pageSize`
  * capped at 100) can't return without silently truncating it. Same

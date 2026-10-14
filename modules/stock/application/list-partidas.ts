@@ -1,5 +1,5 @@
 /**
- * `listPartidas` (`/stock/historial`, docs/specs/historial-partidas.md).
+ * `listPartidas` (`/partidas`, docs/specs/historial-partidas.md).
  * Read-only, `stock.ver`. Every partida of the tenant across all drogas
  * (insumos included), agotadas included by default -- it is a history.
  * Filters (droga, proveedor, lote, fecha de ingreso range, solo con saldo,

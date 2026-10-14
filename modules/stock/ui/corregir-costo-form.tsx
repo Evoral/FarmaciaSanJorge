@@ -1,6 +1,6 @@
 "use client";
 
-/** `/stock/partidas/[id]`'s "corregir costo" form (FASE 5 point 5.5, DT/ADM). The page provides the surrounding panel. */
+/** `/partidas/[id]`'s "corregir costo" form (FASE 5 point 5.5, DT/ADM). The page provides the surrounding panel. */
 import { corregirCostoPartidaAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
 

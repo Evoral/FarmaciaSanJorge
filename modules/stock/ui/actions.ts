@@ -32,7 +32,7 @@ export async function importarFacturaCompraAction(_prevState: StockActionState, 
   try {
     const { partidas } = await importarFacturaCompra(JSON.parse(String(formData.get("facturaJson") ?? "{}")));
     revalidatePath("/stock");
-    revalidatePath("/stock/historial");
+    revalidatePath("/partidas");
     return { status: "success", message: partidas === 1 ? "Factura registrada: 1 partida ingresada." : `Factura registrada: ${partidas} partidas ingresadas.` };
   } catch (error) {
     return fromError(error, "No se pudo importar la factura.");
@@ -110,7 +110,7 @@ function opcional(formData: FormData, campo: string): string | undefined {
 
 function revalidarPartida(partidaId: string) {
   revalidatePath("/stock");
-  revalidatePath(`/stock/partidas/${partidaId}`);
+  revalidatePath(`/partidas/${partidaId}`);
   revalidatePath("/cierres/vencimientos");
   revalidatePath("/");
 }

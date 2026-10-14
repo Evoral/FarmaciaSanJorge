@@ -307,7 +307,7 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
 }
 
 // ============================================================================
-// `/stock/historial` (docs/specs/historial-partidas.md): every partida of the
+// `/partidas` (docs/specs/historial-partidas.md): every partida of the
 // tenant, across all drogas (insumos included: they are drogas with another
 // `clase`), newest ingreso first. Agotadas included unless `soloConSaldo`.
 // ============================================================================

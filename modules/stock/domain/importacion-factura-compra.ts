@@ -1,5 +1,5 @@
 /**
- * Supplier invoice import (/stock/ingresar): what the read step hands to
+ * Supplier invoice import (/partidas/ingresar): what the read step hands to
  * the form (one editable row per lote) and the shared messages. Pure.
  */
 import type { ViaMatchDroga } from "@/modules/recetas/domain/importacion-receta";

@@ -1,6 +1,6 @@
 /**
  * `getPartida` (M07, FASE 5 point 5.2). Read-only, `stock.ver`. Partida
- * detail (droga, proveedor, saldo) for `/stock/partidas/[id]` and the ajuste
+ * detail (droga, proveedor, saldo) for `/partidas/[id]` and the ajuste
  * screen, plus what preparaciones INICIADA reserved of the saldo and their
  * recetas (migration 0071, docs/specs/reserva-stock-preparacion.md): an
  * ajuste can only consume the rest.

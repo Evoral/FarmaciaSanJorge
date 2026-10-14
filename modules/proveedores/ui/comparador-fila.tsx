@@ -7,7 +7,7 @@
  * droga in the period).
  *
  * Summary cells carry no links on purpose (the whole row toggles on click); the
- * link to `/stock/partidas/[id]` lives in the detail and exists only with
+ * link to `/partidas/[id]` lives in the detail and exists only with
  * `linkPartida` (`stock.ver`, decided by the use case). Money never wraps
  * mid-number (`whitespace-nowrap`). The ranking bar is decoration: a div whose
  * width is a percentage of the largest último costo, hidden from assistive
@@ -116,7 +116,7 @@ export function ComparadorCeldas({ fila, zonaHoraria }: { fila: FilaProveedorCom
       </td>
       <td className={`hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums sm:table-cell ${apagada}`}>
         {fila.partidasTotal}
-        {fila.partidasCostoCero > 0 ? <span className="block font-sans text-xs text-zinc-500">{fila.partidasCostoCero} con costo <span className="block text-xs text-zinc-500">{fila.partidasCostoCero} con costo $&nbsp;0</span>nbsp;0</span> : null}
+        {fila.partidasCostoCero > 0 ? <span className="block font-sans text-xs text-zinc-500">{fila.partidasCostoCero} con costo $&nbsp;0</span> : null}
       </td>
     </>
   );
@@ -177,7 +177,7 @@ export function ComparadorDetalle({
                 </td>
                 {linkPartida ? (
                   <td className="px-3 py-2 text-right whitespace-nowrap">
-                    <Link href={`/stock/partidas/${partida.id}`} className="btn btn-ghost btn-sm" aria-label={`Ver partida lote ${partida.lote}`}>
+                    <Link href={`/partidas/${partida.id}`} className="btn btn-ghost btn-sm" aria-label={`Ver partida lote ${partida.lote}`}>
                       <span className="hidden sm:inline">Ver partida</span>
                       <ArrowUpRight className="size-3.5" aria-hidden />
                     </Link>

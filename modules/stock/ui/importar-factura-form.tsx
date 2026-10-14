@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Supplier invoice import form (/stock/ingresar): the preview read from the
+ * Supplier invoice import form (/partidas/ingresar): the preview read from the
  * PDF, editable, one block per lote -- each becomes a partida on
  * confirmation (`importarFacturaCompraAction`, one transaction). What the
  * invoice does not carry (vencimiento, pureza, vale) is typed here; droga,

@@ -1,6 +1,6 @@
 /**
  * `importarFacturaCompra` -- confirmation of a supplier invoice import
- * (/stock/ingresar). Permiso `stock.partida.ingresar`. ONE transaction,
+ * (/partidas/ingresar). Permiso `stock.partida.ingresar`. ONE transaction,
  * all or nothing:
  *
  *   1. the invoice is checked again for a previous import (UNIQUE

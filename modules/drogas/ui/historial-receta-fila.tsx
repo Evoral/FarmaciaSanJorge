@@ -46,9 +46,15 @@ export function HistorialRecetaCeldas({ receta, droga, zonaHoraria, catalogo }: 
   const unidad = { id: droga.unidadBaseId, simbolo: droga.unidadBaseSimbolo };
   return (
     <>
-      <td className="whitespace-nowrap px-3 py-2.5 font-mono font-medium text-zinc-900">{receta.numeroInterno}</td>
-      <td className="whitespace-nowrap px-3 py-2.5 font-mono tabular-nums">{receta.preparadaEn ? formatFechaHora(receta.preparadaEn, zonaHoraria) : "—"}</td>
-      <td className="px-3 py-2.5">{receta.paciente ?? <span className="text-zinc-400">—</span>}</td>
+      <td className="whitespace-nowrap px-3 py-2.5">
+        <span className="block font-mono font-medium text-zinc-900">{receta.numeroInterno}</span>
+        {/* Phones: the Preparada column is hidden, its date travels here. */}
+        <span className="block font-mono text-xs text-zinc-500 tabular-nums md:hidden">{receta.preparadaEn ? formatFechaHora(receta.preparadaEn, zonaHoraria) : "—"}</span>
+      </td>
+      <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono tabular-nums md:table-cell">{receta.preparadaEn ? formatFechaHora(receta.preparadaEn, zonaHoraria) : "—"}</td>
+      <td className="px-3 py-2.5">
+        <span className="block max-w-[16rem] break-words">{receta.paciente ?? <span className="text-zinc-400">—</span>}</span>
+      </td>
       <td className="hidden px-3 py-2.5 md:table-cell">{receta.medico}</td>
       <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">
         <Cantidad valor={formatCantidad(receta.consumido, unidad, catalogo)} />
@@ -91,7 +97,7 @@ export function HistorialRecetaDetalle({ receta, droga, acceso, catalogo }: Hist
                 <tr key={partida.partidaId} className="align-top">
                   <td className="whitespace-nowrap px-3 py-2 font-mono">
                     {acceso.stock ? (
-                      <Link href={`/stock/partidas/${partida.partidaId}`} className="underline underline-offset-2">
+                      <Link href={`/partidas/${partida.partidaId}`} className="underline underline-offset-2">
                         {partida.lote}
                       </Link>
                     ) : (

@@ -6,25 +6,25 @@ Status: implemented 2026-10-13.
 
 A general, read-only list of **every partida of the tenant**, across all
 drogas, regardless of saldo, so the user can find a lote, see which proveedor
-it came from and its estado, and open its detail (`/stock/partidas/[id]`).
+it came from and its estado, and open its detail (`/partidas/[id]`).
 It is a history: agotadas are included by default.
 
 Insumos (excipientes, materiales) are drogas with another `clase`
 (migration 0063), so their partidas are listed too; there is no separate
 insumo partida model.
 
-The per-droga list (`/stock/partidas?drogaId=...`) is unchanged: it still
-requires a droga and shows only partidas con saldo by default.
+The old per-droga list (`/stock/partidas`) was merged into this page: `/stock` links to `/partidas?drogaId=...&saldo=1`, which
+is the same view (only partidas con saldo).
 
 ## Route, navigation, permission
 
-- Route: `/stock/historial`. Breadcrumbs `Inicio › Stock › Partidas`, title
+- Route: `/partidas`. Breadcrumbs `Inicio › Stock › Partidas`, title
   "Partidas".
 - Sidebar (`app/(app)/sidebar-nav.tsx`): "Partidas" entry between "Stock" and
   "Ajuste de Stock", under the same `stock.ver` condition. "Stock" is no longer
-  highlighted on `/stock/historial` nor on `/stock/ingresar`.
+  highlighted on `/partidas` nor on `/partidas/ingresar`.
 - Partida management starts here: the header's "Nuevo ingreso" button
-  (`stock.partida.ingresar`) opens `/stock/ingresar` (breadcrumbs
+  (`stock.partida.ingresar`) opens `/partidas/ingresar` (breadcrumbs
   `Inicio › Partidas › Nuevo ingreso`). `/stock` no longer offers the ingreso;
   its header only links to "Ajuste de Stock" (`/stock/ajustes`).
 - Permission: `stock.ver`, enforced twice — the section guard
@@ -54,9 +54,9 @@ The proveedor list comes from the stock query itself (not from
 
 Order: `fecha_ingreso DESC, id DESC`. Page size 20 (`?page=`, clamped to ≥ 1).
 
-1. **Lote** — mono, link to `/stock/partidas/[id]`; proveedor under it on
+1. **Lote** — mono, link to `/partidas/[id]`; proveedor under it on
    small screens.
-2. **Droga** — link to `/stock/partidas?drogaId=...`.
+2. **Droga** — link to `/partidas?drogaId=...`.
 3. **Proveedor** — hidden below `md`.
 4. **Ingreso** — tenant calendar day of `fecha_ingreso`.
 5. **Vencimiento** — the vencimiento VIGENTE, "No vence" when null, plus a
@@ -74,7 +74,7 @@ The toolbar shows the total count. Empty states: "Todavía no hay partidas"
 
 ## Code
 
-- Page: `app/(app)/stock/historial/page.tsx`
+- Page: `app/(app)/partidas/page.tsx`
 - Use case: `modules/stock/application/list-partidas.ts` (`listPartidas`,
   query name `stock.partidas.historial`)
 - Repository: `modules/stock/infrastructure/partida-repository.ts`

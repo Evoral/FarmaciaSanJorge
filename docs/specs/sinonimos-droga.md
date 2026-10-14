@@ -108,7 +108,7 @@ synonym's text comes back with the row.
 | Receta componente (`DrogaPicker`) | `listDrogasParaReceta` (SQL fragment); name matches first. |
 | `/catalogos/drogas` list and its autocomplete | `listDrogas` (`buscarDrogasPorTexto` → `id IN`). Rows show their synonyms on a muted line. |
 | `/stock`, `/stock/ajustes`, ajuste nuevo, `/reportes/kardex` (`buscarDrogasStockAction`) | `listStockDrogasSql`; ajustes listing (`listAjustesSql`, also by lote); stock valorizado (`valorizado-repository.ts`). |
-| `/stock/ingresar` + factura import combobox | `listDrogasOpciones` returns `sinonimos`; `filtrarOpciones` searches them client-side. |
+| `/partidas/ingresar` + factura import combobox | `listDrogasOpciones` returns `sinonimos`; `filtrarOpciones` searches them client-side. |
 | Comparador de costos, proveedor Trayectoria droga filter | Separate queries `proveedores.comparar-costos.sinonimos` / `proveedores.trayectoria.sinonimos` (each screen's own permiso) feed `filtrarOpciones`. |
 | Libro contralor search | **Unchanged**: it searches its own snapshot text. |
 
@@ -143,7 +143,7 @@ keeping the picked option as its value.
 |---|---|---|
 | Receta componentes (alta, edición `/recetas/[id]/editar`, the `/preparaciones/recetas/[recetaId]` workspace form, PDF/QR import) | **Persisted** — the receta is edited later | `fsj.componente_item_receta.droga_alias_id` (migration 0069). `listDrogasParaReceta` returns the matched synonym's id + text; `DrogaPicker` keeps `{ drogaId, drogaAliasId }`. |
 | Receta read views: `/recetas/[id]`, the Pendientes "Ver" preview and the toma workspace (`ComponentesTabla`) | Shown from the stored synonym | `getRecetaConItems`, `listComponentesDePendientes`, the toma read. |
-| Ingreso de partidas (`/stock/ingresar`, manual and factura import) | **Display only** | Combobox value. Partidas stay keyed by `droga_id` alone (no schema change). A factura line matched through a remembered synonym shows the invoice text with the hint. |
+| Ingreso de partidas (`/partidas/ingresar`, manual and factura import) | **Display only** | Combobox value. Partidas stay keyed by `droga_id` alone (no schema change). A factura line matched through a remembered synonym shows the invoice text with the hint. |
 | Libro recetario/contralor, ficha técnica, etiquetas, PDFs, cotizaciones, stock listings/kardex | Never | Canonical `droga.nombre` (R9). |
 
 Rules for the stored synonym (`modules/recetas/application/sinonimos-componentes.ts`,
@@ -206,7 +206,7 @@ canonical name.
     still shows `Acetaminofén ≈ Paracetamol`, and editing another ítem saves
     fine. Picking Paracetamol again in that componente (by its name) drops the
     synonym.
-13. `/stock/ingresar`: typing `acetam` in a lote's droga and picking it shows
+13. `/partidas/ingresar`: typing `acetam` in a lote's droga and picking it shows
     `Acetaminofén ≈ Paracetamol`; the partida is stored for Paracetamol and
     `/stock` lists "Paracetamol".
 14. PDF import with "ACETAMINOFEN 500 mg" and no match: the user picks

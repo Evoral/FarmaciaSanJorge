@@ -1,12 +1,12 @@
 /**
- * `/stock/historial` (docs/specs/historial-partidas.md): every partida of the
+ * `/partidas` (docs/specs/historial-partidas.md): every partida of the
  * tenant across all drogas (insumos included), agotadas included -- a history
  * to find a lote, its proveedor and its estado. Newest ingreso first.
  * Filters, all in the URL: droga (autocomplete, `drogaId`), lote (`q`),
  * proveedor (`proveedorId`), fecha de ingreso (`desde`/`hasta`), "Solo con
  * saldo" (`saldo=1`), "Solo vencidas" (`vencidas=1`); `unidades=base` is the
  * same display option as `/stock`'s "Unificar unidades".
- * Partida management starts here: "Nuevo ingreso" (`/stock/ingresar`,
+ * Partida management starts here: "Nuevo ingreso" (`/partidas/ingresar`,
  * `stock.partida.ingresar`) lives in this header, not on `/stock`.
  * Section guard: `app/(app)/stock/layout.tsx` (`stock.ver`).
  */
@@ -33,7 +33,7 @@ import { Pagination } from "@/shared/ui/pagination";
 import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
 
 const PAGE_SIZE = 20;
-const BASE_PATH = "/stock/historial";
+const BASE_PATH = "/partidas";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface HistorialPartidasPageProps {
@@ -116,7 +116,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
         description="Historial de todas las partidas ingresadas, incluidas las agotadas."
         actions={
           puedeIngresar ? (
-            <Link href="/stock/ingresar" className="btn btn-primary">
+            <Link href="/partidas/ingresar" className="btn btn-primary">
               <PackagePlus className="size-4" aria-hidden />
               Nuevo ingreso
             </Link>
@@ -215,7 +215,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
                 description="Las partidas aparecen acá cuando se ingresa stock."
                 action={
                   puedeIngresar ? (
-                    <Link href="/stock/ingresar" className="btn btn-primary">
+                    <Link href="/partidas/ingresar" className="btn btn-primary">
                       <PackagePlus className="size-4" aria-hidden />
                       Nuevo ingreso
                     </Link>
@@ -272,13 +272,15 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
                     return (
                       <tr key={partida.id}>
                         <td className="px-3 py-2.5">
-                          <Link href={`/stock/partidas/${partida.id}`} className="font-mono font-semibold underline-offset-2 hover:underline">
+                          <Link href={`/partidas/${partida.id}`} className="font-mono font-semibold underline-offset-2 hover:underline">
                             {partida.lote}
                           </Link>
-                          <span className="block truncate text-xs text-zinc-500 md:hidden">{partida.proveedorRazonSocial}</span>
+                          <span className="block max-w-[12rem] truncate text-xs text-zinc-500 md:hidden" title={partida.proveedorRazonSocial}>
+                            {partida.proveedorRazonSocial}
+                          </span>
                         </td>
                         <td className="px-3 py-2.5">
-                          <Link href={`/stock/partidas?drogaId=${partida.drogaId}`} className="underline-offset-2 hover:underline">
+                          <Link href={`/partidas?drogaId=${partida.drogaId}`} className="underline-offset-2 hover:underline">
                             {partida.drogaNombre}
                           </Link>
                         </td>
@@ -317,7 +319,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
                           </span>
                         </td>
                         <td className="px-3 py-2.5 text-right">
-                          <Link href={`/stock/partidas/${partida.id}`} aria-label={`Ver la partida ${partida.lote}`} className="btn btn-ghost btn-sm btn-icon">
+                          <Link href={`/partidas/${partida.id}`} aria-label={`Ver la partida ${partida.lote}`} className="btn btn-ghost btn-sm btn-icon">
                             <ChevronRight className="size-4" aria-hidden />
                           </Link>
                         </td>

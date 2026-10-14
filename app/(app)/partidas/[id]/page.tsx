@@ -1,5 +1,5 @@
 /**
- * `/stock/partidas/[id]` (M07, FASE 5 points 5.2/5.4/5.5): partida detail + kardex + ajustar/corregir costo.
+ * `/partidas/[id]` (M07, FASE 5 points 5.2/5.4/5.5): partida detail + kardex + ajustar/corregir costo.
  *
  * Layout: the kardex (what happened) in the main column; the balance as the lead number, the partida's data and
  * the cost correction in the aside.
@@ -25,6 +25,7 @@ import { TIPO_MOVIMIENTO_LABELS, etiquetaDe } from "@/shared/labels/enum-labels"
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
+import { Pagination } from "@/shared/ui/pagination";
 import { Toaster } from "@/shared/ui/toast";
 import { dec } from "@/shared/decimal";
 import { formatFecha as formatFechaCalendario } from "@/shared/format/fecha";
@@ -43,15 +44,21 @@ function Vacio({ label }: { label: string }) {
   );
 }
 
+const KARDEX_PAGE_SIZE = 20;
+
 interface PartidaDetallePageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export default async function PartidaDetallePage({ params }: PartidaDetallePageProps) {
+export default async function PartidaDetallePage({ params, searchParams }: PartidaDetallePageProps) {
   const session = await requireSession();
   const { id } = await params;
+  const query = await searchParams;
+  const pageParam = typeof query.page === "string" ? query.page : undefined;
+  const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
 
-  let partida;
+  let partida: Awaited<ReturnType<typeof getPartida>>;
   try {
     partida = await getPartida(id);
   } catch (error) {
@@ -59,7 +66,7 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
     throw error;
   }
 
-  const [kardex, { catalogo }] = await Promise.all([kardexMovimientos({ partidaId: id, page: 1, pageSize: 50 }), getCatalogoUnidades()]);
+  const [kardex, { catalogo }] = await Promise.all([kardexMovimientos({ partidaId: id, page, pageSize: KARDEX_PAGE_SIZE }), getCatalogoUnidades()]);
   const unidad = { id: partida.unidadBaseId, simbolo: partida.unidadBaseSimbolo };
   // Saldo and cantidad inicial side by side: one unit for both (and for the part reserved by preparaciones, migration 0071).
   const [disponible, inicial, reservada] = formatCantidadesFila([partida.cantidadDisponible, partida.cantidadInicial, partida.cantidadReservada], unidad, catalogo);
@@ -76,6 +83,17 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
   // Only a DT vigente acts; only on a DROGA partida with saldo (saldo 0 is terminal).
   const dtPuedeActuar = partida.sesionEsDtVigente && can(session, "stock.ajuste.autorizar") && esDroga && tieneSaldo && vigenteIso !== null;
   const partidaNombre = `${partida.drogaNombre} · lote ${partida.lote}`;
+
+  // Kardex page links keep any other query param of the page.
+  function kardexPageHref(targetPage: number): string {
+    const qs = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (key === "page" || value === undefined) continue;
+      for (const v of Array.isArray(value) ? value : [value]) qs.append(key, v);
+    }
+    qs.set("page", String(targetPage));
+    return `/partidas/${id}?${qs.toString()}`;
+  }
 
   return (
     <div className="page">
@@ -155,7 +173,7 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
                       <th scope="col" className="px-3 py-2 text-right">
                         Cantidad
                       </th>
-                      <th scope="col" className="px-3 py-2">
+                      <th scope="col" className="hidden px-3 py-2 md:table-cell">
                         Motivo
                       </th>
                       <th scope="col" className="hidden px-5 py-2 lg:table-cell">
@@ -169,11 +187,14 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
                         <td className="whitespace-nowrap px-5 py-2.5 tabular-nums">{formatFecha(mov.registradoEn)}</td>
                         <td className="px-3 py-2.5">
                           <ToneBadge tone="neutral">{etiquetaDe(TIPO_MOVIMIENTO_LABELS, mov.tipo)}</ToneBadge>
+                          {mov.motivoAjuste ?? mov.observacion ? (
+                            <span className="mt-1 block max-w-[16rem] break-words text-xs text-zinc-500 md:hidden">{mov.motivoAjuste ?? mov.observacion}</span>
+                          ) : null}
                         </td>
                         <td className="px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">
                           <Cantidad valor={formatCantidad(mov.cantidad, { id: mov.unidadId, simbolo: mov.unidadSimbolo }, catalogo)} />
                         </td>
-                        <td className="max-w-[28ch] px-3 py-2.5 text-zinc-700">
+                        <td className="hidden max-w-[28ch] break-words px-3 py-2.5 text-zinc-700 md:table-cell">
                           {mov.motivoAjuste ?? mov.observacion ?? <Vacio label="Sin motivo" />}
                         </td>
                         <td className="hidden px-5 py-2.5 text-xs lg:table-cell">
@@ -192,6 +213,7 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
                 </table>
               </div>
             )}
+            <Pagination page={page} pageSize={KARDEX_PAGE_SIZE} total={kardex.total} hrefFor={kardexPageHref} label="Paginación del kardex" />
           </section>
 
           {esDroga ? (
@@ -212,10 +234,10 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th scope="col" className="px-5 py-2">
+                        <th scope="col" className="hidden px-5 py-2 md:table-cell">
                           Registrado
                         </th>
-                        <th scope="col" className="px-3 py-2">
+                        <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                           Vencimiento anterior
                         </th>
                         <th scope="col" className="px-3 py-2">
@@ -232,10 +254,14 @@ export default async function PartidaDetallePage({ params }: PartidaDetallePageP
                     <tbody>
                       {partida.reanalisis.map((r) => (
                         <tr key={r.id}>
-                          <td className="whitespace-nowrap px-5 py-2.5 tabular-nums">{formatFecha(r.registradoEn)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-zinc-600">{formatFechaCalendario(r.fechaVencimientoAnterior)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 font-medium tabular-nums text-zinc-900">{formatFechaCalendario(r.fechaReanalisis)}</td>
-                          <td className="max-w-[32ch] px-3 py-2.5 text-zinc-700">
+                          <td className="hidden whitespace-nowrap px-5 py-2.5 tabular-nums md:table-cell">{formatFecha(r.registradoEn)}</td>
+                          <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums text-zinc-600 sm:table-cell">{formatFechaCalendario(r.fechaVencimientoAnterior)}</td>
+                          <td className="px-3 py-2.5">
+                            <span className="block whitespace-nowrap font-medium tabular-nums text-zinc-900">{formatFechaCalendario(r.fechaReanalisis)}</span>
+                            <span className="block whitespace-nowrap text-xs tabular-nums text-zinc-500 sm:hidden">antes {formatFechaCalendario(r.fechaVencimientoAnterior)}</span>
+                            <span className="block whitespace-nowrap text-xs tabular-nums text-zinc-500 md:hidden">{formatFecha(r.registradoEn)}</span>
+                          </td>
+                          <td className="max-w-[32ch] break-words px-3 py-2.5 text-zinc-700">
                             {r.respaldo ? <span className="block">{r.respaldo}</span> : null}
                             {r.motivo ? <span className="block text-xs text-zinc-500">{r.motivo}</span> : null}
                             {r.respaldo || r.motivo ? null : <Vacio label="Sin respaldo ni motivo" />}
