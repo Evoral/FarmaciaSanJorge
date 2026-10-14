@@ -324,6 +324,8 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
     nombre: borrador?.paciente.nombre?.nombre ?? "",
     apellido: borrador?.paciente.nombre?.apellido ?? "",
     confirmado: !(borrador?.paciente.nombre?.requiereConfirmacion ?? false),
+    // Never in the imported file: typed by the user, optional.
+    telefono: "",
   }));
   const [medicoNuevo, setMedicoNuevo] = useState(() => ({
     nombre: borrador?.medico.nombre?.nombre ?? "",
@@ -441,6 +443,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
           sexo: opcional(b.paciente.sexo),
           fechaNacimiento: opcional(b.paciente.fechaNacimiento),
           nroCredencial: opcional(b.paciente.nroCredencial),
+          telefono: paciente.existente ? undefined : pacienteNuevo.telefono,
         },
       },
       medico: {
@@ -595,14 +598,31 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
               ]}
             >
               {importacion.paciente.existente ? null : (
-                <NombreAConfirmar
-                  idBase={`${personaIdBase}-paciente`}
-                  quien="paciente"
-                  nombreCompleto={importacion.borrador.paciente.nombre?.nombreCompleto ?? null}
-                  requiereConfirmacion={importacion.borrador.paciente.nombre?.requiereConfirmacion ?? false}
-                  valor={pacienteNuevo}
-                  onChange={(patch) => setPacienteNuevo((prev) => ({ ...prev, ...patch }))}
-                />
+                <>
+                  <NombreAConfirmar
+                    idBase={`${personaIdBase}-paciente`}
+                    quien="paciente"
+                    nombreCompleto={importacion.borrador.paciente.nombre?.nombreCompleto ?? null}
+                    requiereConfirmacion={importacion.borrador.paciente.nombre?.requiereConfirmacion ?? false}
+                    valor={pacienteNuevo}
+                    onChange={(patch) => setPacienteNuevo((prev) => ({ ...prev, ...patch }))}
+                  />
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="field">
+                      <label htmlFor={`${personaIdBase}-paciente-telefono`} className="field-label">
+                        Teléfono (opcional)
+                      </label>
+                      <input
+                        id={`${personaIdBase}-paciente-telefono`}
+                        type="tel"
+                        autoComplete="off"
+                        value={pacienteNuevo.telefono}
+                        onChange={(e) => setPacienteNuevo((prev) => ({ ...prev, telefono: e.target.value }))}
+                        className="input"
+                      />
+                    </div>
+                  </div>
+                </>
               )}
               <div className="mt-3">{campoDomicilioPaciente}</div>
             </PanelPersona>

@@ -5,7 +5,7 @@
  * (search or quick-create reusing modules/pacientes)"). The search is an
  * autocomplete over `buscarPacientesParaRecetaAction` (POST: the term never
  * reaches a URL, DP-24). Quick create is a minimal inline form
- * (nombre/apellido/DNI) that calls modules/pacientes' own `crearPaciente`
+ * (nombre/apellido/DNI/teléfono) that calls modules/pacientes' own `crearPaciente`
  * use case (via `crearPacienteRapidoAction`) and auto-selects the result.
  */
 import { useActionState, useCallback, useEffect, useId, useRef } from "react";
@@ -77,7 +77,7 @@ function CrearPaciente({ prefill, onCreado, onCancel }: { prefill: string; onCre
     <>
       <DetachedForm id={formId} ref={crearFormRef} action={crearAction} onSubmit={onSubmit} aria-label="Crear paciente" />
       <p className="mb-3 text-sm font-medium text-zinc-900">Nuevo paciente</p>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div className="field">
           <label htmlFor="paciente-nombre" className="field-label">
             Nombre
@@ -95,6 +95,12 @@ function CrearPaciente({ prefill, onCreado, onCancel }: { prefill: string; onCre
             DNI (opcional)
           </label>
           <input id="paciente-dni" name="dni" inputMode="numeric" form={formId} defaultValue={numero} className="input" />
+        </div>
+        <div className="field">
+          <label htmlFor="paciente-telefono" className="field-label">
+            Teléfono (opcional)
+          </label>
+          <input id="paciente-telefono" name="telefono" type="tel" form={formId} autoComplete="off" className="input" />
         </div>
       </div>
       {crearState.status === "error" ? (

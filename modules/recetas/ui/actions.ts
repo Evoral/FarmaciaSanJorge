@@ -218,7 +218,8 @@ export async function crearPacienteRapidoAction(_prevState: CrearPersonaRapidaSt
     const nombre = String(formData.get("nombre") ?? "");
     const apellido = String(formData.get("apellido") ?? "");
     const dniRaw = String(formData.get("dni") ?? "").trim();
-    const nueva = await crearPacienteDesdeReceta({ nombre, apellido, dni: dniRaw.length > 0 ? dniRaw : undefined });
+    const telefono = String(formData.get("telefono") ?? "");
+    const nueva = await crearPacienteDesdeReceta({ nombre, apellido, dni: dniRaw.length > 0 ? dniRaw : undefined, telefono });
     return { status: "success", persona: { id: nueva.id, nombre, apellido } };
   } catch (error) {
     return actionError(error, "No se pudo crear el paciente.");

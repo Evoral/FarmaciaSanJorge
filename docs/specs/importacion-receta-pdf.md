@@ -125,6 +125,8 @@ Normalización: minúsculas, NFD, sin diacríticos, espacios colapsados, trim; p
 
 Paciente o médico **existente**: se completan solo los campos vacíos con datos del PDF; nunca se pisa un valor existente. Si hay diferencias (ej. otro teléfono) → advertencia informativa.
 
+Paciente **nuevo**: el formulario ofrece un campo "Teléfono (opcional)". Los archivos (PDF, QR) nunca traen el teléfono del paciente; cargarlo acá evita editar el paciente después. El alta rápida del picker (carga manual) ofrece el mismo campo. Decisión del usuario (2026-10-14).
+
 Receta ya importada (mismo `emisor` + `nroRecetaEmisor`, no ANULADA) → error "Esta receta ya fue cargada (receta interna N°…)" antes de mostrar la vista previa.
 
 ## Confirmación — comando `recetas.importar`
