@@ -84,7 +84,7 @@ Cada renglón se clasifica con la primera regla que matchee:
 | Presentación | `^(\d+)\s+(comprimidos?\|c[áa]psulas?\|…)$`, o en orden inverso `^(comprimidos?\|c[áa]psulas?\|…)\s*(:\|x)?\s*(\d+)$` («Cápsulas 30») | `cantidadUnidades` + `formaFarmaceutica` por léxico. |
 | Fracción de dosis | contiene `media dosis` / `½ dosis` | `fraccionDosisPorUnidad = 0.5` (convención de `ficha-tecnica.md`, asiento 34147) y se duplican las unidades a elaborar (ver abajo). |
 | Posología | contiene `cada N horas` (u otra indicación de toma) | Renglón literal a `item.posologia`. |
-| Duración | `tratamiento por N d[ií]as` | `item.duracionTratamientoDias = N`. |
+| Duración | `tratamiento por N d[ií]as`, con o sin texto a continuación («Tratamiento por 30 días de …») | `item.duracionTratamientoDias = N`. El texto que sigue a «días» se descarta sin advertencia (decisión del usuario, 2026-10-14). |
 | Otro | — | **Advertencia visible** con el texto del renglón. |
 
 Reglas del ítem:

@@ -363,7 +363,8 @@ const RES_POSOLOGIA: readonly RegExp[] = [
   /\b(?:tomar|aplicar|administrar|colocar)\b/,
   /\b(?:en ayunas|antes de|despues de|al acostarse)\b/,
 ];
-const RE_DURACION = /^tratamiento\s+por\s+(\d+)\s+dias?\.?$/;
+/** "Tratamiento por 30 días", optionally followed by free text ("... de uso continuo") that is not kept. */
+const RE_DURACION = /^tratamiento\s+por\s+(\d+)\s+dias?\b/;
 
 export type ClaseRenglon =
   | { clase: "componente"; drogaTexto: string; cantidad: string; unidadTexto: string }
