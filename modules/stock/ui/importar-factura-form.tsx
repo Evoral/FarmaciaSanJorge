@@ -414,9 +414,10 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
                     <p className="text-[0.8125rem] text-zinc-500">
                       {[l.despacho ? `Despacho ${l.despacho}` : null, l.paisOrigen ? `Origen ${l.paisOrigen}` : null].filter(Boolean).join(" · ")}
                     </p>
-                    <label className="flex items-center gap-2 text-[0.8125rem] text-zinc-600">
+                    <label className="toggle-switch min-h-0 text-[0.8125rem] text-zinc-600">
                       <input
                         type="checkbox"
+                        role="switch"
                         checked={l.omitir}
                         onChange={(e) => {
                           actualizar(i, { omitir: e.target.checked });
@@ -461,8 +462,8 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
                         </p>
                       ) : null}
                       {!l.matcheada && l.droga && primeraDelProducto ? (
-                        <label className="flex items-center gap-2 text-[0.8125rem] text-zinc-600">
-                          <input type="checkbox" checked={l.recordar} onChange={(e) => actualizar(i, { recordar: e.target.checked })} />
+                        <label className="toggle-switch min-h-0 text-[0.8125rem] text-zinc-600">
+                          <input type="checkbox" role="switch" checked={l.recordar} onChange={(e) => actualizar(i, { recordar: e.target.checked })} />
                           Recordar «{l.drogaTexto}» como esta droga
                         </label>
                       ) : null}

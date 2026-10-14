@@ -86,8 +86,8 @@ export function RegistrarDestruccionForm({ loteId }: { loteId: string }) {
         <TriangleAlert aria-hidden />
         <div className="flex flex-col gap-2">
           <p>Se destruyen solo las recetas en papel de este lote. Los registros digitales (recetas, asientos, adjuntos) se conservan sin cambios y esta acción no se puede revertir.</p>
-          <label className="flex items-start gap-2 font-medium">
-            <input type="checkbox" className="mt-0.5" checked={confirma} onChange={(e) => setConfirma(e.target.checked)} />
+          <label className="toggle-switch items-start font-medium">
+            <input type="checkbox" role="switch" checked={confirma} onChange={(e) => setConfirma(e.target.checked)} />
             Confirmo que las recetas en papel de este lote fueron destruidas.
           </label>
         </div>

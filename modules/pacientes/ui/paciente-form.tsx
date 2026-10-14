@@ -101,11 +101,12 @@ export function PacienteForm({ mode, paciente, disabled }: PacienteFormProps) {
         </div>
       </div>
 
-      <label htmlFor="aceptaRecordatoriosWhatsapp" className="choice-row items-start">
+      <label htmlFor="aceptaRecordatoriosWhatsapp" className="choice-row toggle-switch items-start">
         <input
           id="aceptaRecordatoriosWhatsapp"
           name="aceptaRecordatoriosWhatsapp"
           type="checkbox"
+          role="switch"
           defaultChecked={paciente?.aceptaRecordatoriosWhatsapp ?? false}
           disabled={disabled}
           aria-describedby="aceptaRecordatoriosWhatsapp-ayuda"

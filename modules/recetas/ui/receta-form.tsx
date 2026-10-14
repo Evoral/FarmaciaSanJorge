@@ -998,8 +998,8 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                         ) : null}
 
                         {importacion && c.sinMatch && c.drogaTexto ? (
-                          <label className="flex w-full items-center gap-2 text-xs text-zinc-700">
-                            <input type="checkbox" checked={c.recordar ?? false} disabled={!c.drogaId} onChange={(e) => actualizarComponente(itemIdx, compIdx, { recordar: e.target.checked })} />
+                          <label className="toggle-switch w-full text-xs text-zinc-700">
+                            <input type="checkbox" role="switch" checked={c.recordar ?? false} disabled={!c.drogaId} onChange={(e) => actualizarComponente(itemIdx, compIdx, { recordar: e.target.checked })} />
                             Recordar esta equivalencia («{c.drogaTexto}» = droga elegida)
                           </label>
                         ) : null}
@@ -1174,8 +1174,8 @@ function NombreAConfirmar({ idBase, quien, nombreCompleto, requiereConfirmacion,
         </div>
       </div>
       {requiereConfirmacion ? (
-        <label className="flex items-center gap-2 text-sm font-medium text-zinc-900">
-          <input type="checkbox" checked={valor.confirmado} onChange={(e) => onChange({ confirmado: e.target.checked })} />
+        <label className="toggle-switch font-medium text-zinc-900">
+          <input type="checkbox" role="switch" checked={valor.confirmado} onChange={(e) => onChange({ confirmado: e.target.checked })} />
           Confirmo el nombre y el apellido del {quien}
         </label>
       ) : null}

@@ -102,8 +102,8 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
         ) : null}
 
         {mode === "crear" ? (
-          <label htmlFor="esBase" className="flex items-center gap-2 text-sm text-zinc-800">
-            <input id="esBase" name="esBase" type="checkbox" disabled={disabled} />
+          <label htmlFor="esBase" className="toggle-switch text-zinc-800">
+            <input id="esBase" name="esBase" type="checkbox" role="switch" disabled={disabled} />
             Es la unidad base de su magnitud (factor 1)
           </label>
         ) : null}
