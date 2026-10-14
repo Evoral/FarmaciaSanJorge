@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * "Continuar" on a toma workspace ítem (/preparaciones/recetas/[recetaId]): the ítem's partidas in a dialog, without
+ * "Marcar como preparada" on a toma workspace ítem (/preparaciones/recetas/[recetaId]): the ítem's partidas in a dialog, without
  * leaving the receta. Opening it only reads (`getConfirmacionDeFichaAction`, fresh stock on every opening, stock reserved
  * by other preparaciones left out); the form is the same as `/preparaciones/[id]`'s (./confirmar-form.tsx: partidas,
- * enrase, motivo, warnings, re-authentication) and its "Reservar stock" creates the preparación and reserves its stock in
+ * enrase, motivo, warnings, re-authentication) and its "Marcar como preparada" creates the preparación and reserves its stock in
  * one transaction (`preparaciones.reservarStock`) -- no stock is descontado and nothing is written to the libro
- * recetario until "Imprimir etiqueta" (docs/specs/reserva-stock-preparacion.md). On success the dialog closes and the
+ * recetario until "Imprimir etiquetas" (docs/specs/reserva-stock-preparacion.md). On success the dialog closes and the
  * page refreshes; an error stays inside it, keeping what was entered.
  *
  * Also "Modificar reserva" on a reserved ítem (`objetivo.reservaDePreparacionId`): the same dialog and form, read by
@@ -72,7 +72,7 @@ export function ContinuarPreparacionDialog({ objetivo, itemNombre }: ContinuarPr
       ) : (
         <button type="button" onClick={abrir} aria-haspopup="dialog" className="btn btn-primary">
           <FlaskConical className="size-4" aria-hidden />
-          Continuar
+          Marcar como preparada
         </button>
       )}
       <dialog
@@ -89,7 +89,7 @@ export function ContinuarPreparacionDialog({ objetivo, itemNombre }: ContinuarPr
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h2 id={tituloId} className="text-lg font-semibold">
-                {modificar ? "Modificar reserva" : "Reservar stock"}
+                {modificar ? "Modificar reserva" : "Marcar como preparada"}
               </h2>
               <p className="truncate text-sm text-zinc-500">{itemNombre}</p>
             </div>

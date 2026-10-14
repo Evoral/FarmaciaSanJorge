@@ -4,7 +4,7 @@
  * "Imprimir etiqueta" for a CONFIRMADA preparación, in ONE step: when its etiqueta was not generated yet (a preparación
  * confirmed from `/preparaciones/[id]`, which writes the asiento but no etiqueta), the button generates it
  * (`generarEtiquetaAction` -- no stock, no libro, just the etiqueta row) and then opens the size dialog by itself, like
- * the toma workspace's "Imprimir etiqueta" (./reserva-acciones.tsx). Once generated it is the print dialog's own button.
+ * the toma workspace's "Imprimir etiquetas" (./reserva-acciones.tsx). Once generated it is the print dialog's own button.
  *
  * Rendered at the SAME place for both states, so its "just generated" flag survives the refresh in between and the
  * dialog opens right after.

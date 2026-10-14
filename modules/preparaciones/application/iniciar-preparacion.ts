@@ -11,16 +11,18 @@
  * preparación discarded before that -- a released reserva de stock -- leaves
  * it editable again without any backward transition (INV-R08). While the
  * preparación is INICIADA the receta is still not editable (a LIVE
- * preparación blocks editing, `existeFichaConPreparacionParaReceta`). Both
- * paths behave the same: the toma workspace's "Reservar stock" and the ficha
- * técnica screen's "Preparar". A terminal receta (ENTREGADA/ANULADA) can
- * never start a new preparación.
+ * preparación blocks editing, `existeFichaConPreparacionParaReceta`). A
+ * terminal receta (ENTREGADA/ANULADA) can never start a new preparación.
+ *
+ * No Server Action exposes this command any more: the ficha técnica screen's
+ * "Preparar" was removed (docs/specs/reserva-stock-preparacion.md R16), so a
+ * preparación starts only through `iniciarPreparacionEnTx` inside
+ * `reservarStockPreparacion`, always with its reserva.
  *
  * The toma (migration 0057, domain/toma.ts): the toma workspace's
  * "Continuar" dialog runs this (via `reservarStockPreparacion`, together
  * with the reserva de stock) on a receta its user already took. When it runs on
- * a receta nobody took (the ficha técnica screen's "Preparar"),
- * the starter takes it here too, so a receta with a preparación INICIADA is
+ * a receta nobody took, the starter takes it here too, so a receta with a preparación INICIADA is
  * always listed under En curso (taken + PENDIENTE_PREPARACION or
  * EN_PREPARACION). The receta is locked for that, after the ficha's
  * advisory lock -- same order as before.

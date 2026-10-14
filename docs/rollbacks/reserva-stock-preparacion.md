@@ -46,7 +46,8 @@ depends on a reserva, so nothing else is lost.
 ## New files (delete on rollback)
 
 - `modules/preparaciones/application/liberar-reserva-stock.ts`
-- `modules/preparaciones/application/confirmar-reserva-stock.ts`
+- `modules/preparaciones/application/confirmar-desde-reservas.ts` and `confirmar-reservas-receta.ts`
+  (the feature shipped with a per-ítem `confirmar-reserva-stock.ts`, replaced on 2026-10-14: see the last section)
 - `modules/preparaciones/application/modificar-reserva-stock.ts`
 - `modules/preparaciones/application/get-modificacion-de-reserva.ts`
 - `modules/preparaciones/application/registrar-perdida-reserva.ts`
@@ -80,8 +81,35 @@ depends on a reserva, so nothing else is lost.
   `modules/stock/infrastructure/partida-repository.ts` (`getReservadoEnPreparacion`, `insertAjuste` preparacionId).
   Pérdidas already registered keep their `movimiento_stock.preparacion_id` (immutable, valid without this code).
 - Reserved-stock display: `modules/stock/application/get-partida.ts`, `modules/stock/ui/ajuste-form.tsx`,
-  `modules/stock/infrastructure/valorizado-repository.ts`, `app/(app)/stock/partidas/page.tsx`,
-  `app/(app)/stock/partidas/[id]/page.tsx`, `app/(app)/stock/ajustes/nuevo/page.tsx`,
+  `modules/stock/infrastructure/valorizado-repository.ts`, `app/(app)/partidas/page.tsx`,
+  `app/(app)/partidas/[id]/page.tsx`, `app/(app)/stock/ajustes/nuevo/page.tsx`,
   `app/(app)/reportes/stock-valorizado/page.tsx`, `app/api/stock/valorizado/export/csv/route.ts`
   (the CSV loses its last column `CantidadReservada`).
 - `docs/specs/vencimiento-preparado.md` (R8 command name).
+
+## Receta-level "Imprimir etiquetas" (2026-10-14, no schema change)
+
+Code only. It REPLACED the per-ítem "Imprimir etiqueta" (R13, R17), so reverting it
+means restoring that per-ítem flow from git history (the commit before this
+change), not just deleting files. Nothing persisted depends on it: its asientos,
+etiquetas and audit rows (entidad `receta`, CONFIRMAR) are ordinary ones; a taken
+PREPARADA receta just goes back to redirecting from the toma workspace to
+`/recetas/[id]`. The etiquetas are still printed through the existing single-etiqueta
+route (`/api/preparaciones/[id]/etiqueta/pdf`): no route or PDF code to revert.
+
+- Restore `modules/preparaciones/application/confirmar-reserva-stock.ts`
+  (`confirmarReservaStockCommand`, `preparaciones.confirmarReserva`, with
+  `confirmarDesdeReservasEnTx`'s body inline and `lineasDesdeReservas`); delete
+  `confirmar-desde-reservas.ts` and `confirmar-reservas-receta.ts`; point
+  `registrar-perdida-reserva.ts`'s `lineasDesdeReservas` import back to it.
+- Revert the hunks in `modules/preparaciones/infrastructure/preparacion-repository.ts`
+  (`lockPreparacionesParaAccion`, `listItemIdsDeReceta`, `listPreparacionesVivasDeItems`),
+  `modules/preparaciones/domain/toma.ts` (`ESTADOS_RECETA_VISIBLES_EN_TOMA`, `itemsSinReserva`,
+  `mensajeItemsSinReserva`), `modules/preparaciones/ui/actions.ts` (`confirmarReservasRecetaAction`
+  back to `confirmarReservaStockAction`), `reserva-acciones.tsx` (`EtiquetasDeReceta` back to
+  `EtiquetaDeItem`), `imprimir-etiqueta-dialog.tsx` (`SeleccionarEtiquetasDialog`), the toma page
+  (the bar below the ítems, the per-ítem button in each footer, the PREPARADA redirect), and the
+  "Imprimir etiquetas" copy in `confirmar-preparacion.ts`, `confirmar-form.tsx`, `actions.ts`
+  (reservar message), `app/(app)/preparaciones/[id]/page.tsx` and `docs/specs/vencimiento-preparado.md` (R8).
+- The libro's "Receta Nº" column (`modules/libro/infrastructure/{asiento-repository,libro-pdf}.ts`,
+  `app/(app)/libro/page.tsx`) is display-only and independent: revert it separately if wanted.

@@ -19,7 +19,6 @@ import { FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
 import { listVersionesFicha } from "@/modules/elaboracion/application/list-versiones-ficha";
 import { GenerarFichaForm } from "@/modules/elaboracion/ui/generar-ficha-form";
 import { FichaVersionResumen } from "@/modules/elaboracion/ui/ficha-version-resumen";
-import { IniciarPreparacionForm } from "@/modules/preparaciones/ui/iniciar-form";
 import { ItemContexto } from "@/modules/recetas/ui/item-contexto";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
@@ -50,10 +49,6 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
   const puedeImprimir = can(session, "fichas.imprimir");
   const puedeIniciarPreparacion = can(session, "preparaciones.iniciar");
   const puedeVerCotizacion = can(session, "cotizaciones.calcular") || can(session, "cotizaciones.ver");
-  // One preparación per item at a time: while one is INICIADA (any version) it is continued, not started again; once one is
-  // CONFIRMADA the item is done (an asiento later dejado "sin efecto" keeps its CONFIRMADA preparación, so it stays done); only a
-  // DESCARTADA one lets it start again. Same rule as the /preparaciones "Pendientes" tab.
-  const itemEnCurso = versiones.some((v) => v.preparacionActual?.estado === "INICIADA" || v.preparacionActual?.estado === "CONFIRMADA");
   // Once the item's preparación is CONFIRMADA no new version can ever be prepared, so generating is closed (also refused by generarFichaTecnica).
   const itemConfirmado = versiones.some((v) => v.preparacionActual?.estado === "CONFIRMADA");
   const puedeGenerar = can(session, "fichas.generar") && !itemConfirmado;
@@ -118,14 +113,15 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
                         </p>
                       ) : null
                     }
+                    // No "Preparar" here: a preparación starts only from the receta's toma workspace ("Reservar stock"), so every
+                    // ítem is confirmed by "Imprimir etiqueta(s)" there (docs/specs/reserva-stock-preparacion.md R16). An existing
+                    // INICIADA one is still continued from its own screen.
                     acciones={
                       puedeIniciarPreparacion && v.preparacionActual?.estado === "INICIADA" ? (
                         <Link href={`/preparaciones/${v.preparacionActual.id}`} className="btn btn-primary btn-sm">
                           <FlaskConical className="size-3.5" aria-hidden />
                           Continuar preparación
                         </Link>
-                      ) : puedeIniciarPreparacion && !v.preparacionActual && !itemEnCurso ? (
-                        <IniciarPreparacionForm fichaTecnicaId={v.id} />
                       ) : null
                     }
                   />

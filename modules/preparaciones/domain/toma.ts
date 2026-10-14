@@ -8,10 +8,12 @@
  * `esEstadoEditable`). The formal preparación is created per ítem from the
  * toma workspace when its stock is reserved ("Continuar" -> "Reservar
  * stock", `preparaciones.reservarStock`); while that preparación is live the
- * receta can not be edited. It is confirmed (stock, libro recetario) at
- * "Imprimir etiqueta", and only the first confirmation moves the receta to
- * EN_PREPARACION (docs/specs/reserva-stock-preparacion.md); releasing a
- * reserva before that leaves it PENDIENTE_PREPARACION and editable.
+ * receta can not be edited. The ítems are confirmed (stock, libro recetario)
+ * together at the receta's "Imprimir etiquetas", once every one holds a
+ * reserva, and the receta moves to PREPARADA (an ítem confirmed earlier on
+ * its preparación's own screen moved it to EN_PREPARACION;
+ * docs/specs/reserva-stock-preparacion.md); releasing a reserva before that
+ * leaves it PENDIENTE_PREPARACION and editable.
  *
  * Rules (enforced by application/tomar-receta.ts and cancelar-toma.ts after
  * locking the receta row):
@@ -19,14 +21,24 @@
  *     took it yet, and at least one ítem still needs a preparación (none
  *     INICIADA or CONFIRMADA).
  *   - Cancelling: the receta is taken and no ítem has a preparación
- *     INICIADA (it has to be discarded first, from its own screen). Anyone
- *     with `preparaciones.iniciar` may cancel -- the audit records who.
+ *     INICIADA (it has to be discarded first, from its own screen) nor
+ *     CONFIRMADA (already in the libro recetario: the lab's work on the
+ *     receta started for good). Anyone with `preparaciones.iniciar` may
+ *     cancel -- the audit records who.
  */
 import { DomainError } from "@/shared/errors";
 import type { EstadoReceta } from "@/modules/recetas/domain/receta";
 
 /** The receta estados the lab works on. */
 export const ESTADOS_RECETA_EN_LABORATORIO: ReadonlySet<EstadoReceta> = new Set(["PENDIENTE_PREPARACION", "EN_PREPARACION"]);
+
+/**
+ * The receta estados the toma workspace (/preparaciones/recetas/[recetaId]) shows a TAKEN receta in: the lab's, plus
+ * PREPARADA -- its "Imprimir etiquetas" confirms the last ítems and moves it there, and the workspace stays (read-only,
+ * every ítem Confirmada) so the etiquetas can be printed and reprinted. Any other estado (ENTREGADA, ANULADA...) goes to
+ * the receta's detail page. Only the page reads it: taking and cancelling still follow ESTADOS_RECETA_EN_LABORATORIO.
+ */
+export const ESTADOS_RECETA_VISIBLES_EN_TOMA: ReadonlySet<EstadoReceta> = new Set([...ESTADOS_RECETA_EN_LABORATORIO, "PREPARADA"]);
 
 export interface EstadoItemParaToma {
   /** 1-based, as the receta detail page numbers its ítems. */
@@ -74,6 +86,10 @@ export function validarCancelarToma(receta: Pick<RecetaParaToma, "numeroInterno"
   if (receta.tomadaPorId === null) {
     throw new DomainError(`La receta Nº ${receta.numeroInterno} no está tomada.`);
   }
+  const confirmado = receta.items.find((item) => item.confirmada);
+  if (confirmado) {
+    throw new DomainError(`El ítem ${confirmado.posicion} ya está confirmado y asentado en el libro recetario: la toma no se puede cancelar.`);
+  }
   const enCurso = receta.items.find((item) => item.iniciada);
   if (enCurso) {
     throw new DomainError(`Primero hay que liberar la reserva de stock (o descartar la preparación en curso) del ítem ${enCurso.posicion}.`);
@@ -89,7 +105,7 @@ export function etiquetaProgreso(confirmados: number, total: number): string {
  * Where an ítem stands in the toma workspace: RESERVADA = a preparación
  * INICIADA holding a reserva de stock (migration 0071); EN_CONFIRMACION = an
  * INICIADA one WITHOUT reservas (from before 0071, or the ficha técnica
- * screen's "Preparar"), confirmed or discarded on its own screen.
+ * screen's former "Preparar"), confirmed or discarded on its own screen.
  */
 export type EstadoItemToma = "PENDIENTE" | "EN_CONFIRMACION" | "RESERVADA" | "CONFIRMADA";
 
@@ -105,6 +121,22 @@ export function estadoItemToma(preparacion: { estado: "INICIADA" | "CONFIRMADA";
   if (!preparacion) return "PENDIENTE";
   if (preparacion.estado === "CONFIRMADA") return "CONFIRMADA";
   return preparacion.reservas.length > 0 ? "RESERVADA" : "EN_CONFIRMACION";
+}
+
+/**
+ * The workspace's "Imprimir etiquetas" confirms the receta all at once (docs/specs/reserva-stock-preparacion.md, R13):
+ * every ítem not yet Confirmada must hold a reserva. The 1-based numbers ("Ítem N") of those that do not -- Pendiente or
+ * "Confirmación en curso"; empty = it may confirm.
+ */
+export function itemsSinReserva(estados: readonly EstadoItemToma[]): number[] {
+  return estados.flatMap((estado, i) => (estado === "CONFIRMADA" || estado === "RESERVADA" ? [] : [i + 1]));
+}
+
+/** "el ítem 2 no tiene" / "los ítems 1, 2 y 4 no tienen" stock reservado: why "Imprimir etiquetas" is refused. */
+export function mensajeItemsSinReserva(numeros: readonly number[]): string {
+  const sujeto =
+    numeros.length === 1 ? `el ítem ${numeros[0]} no tiene` : `los ítems ${numeros.slice(0, -1).join(", ")} y ${numeros[numeros.length - 1]} no tienen`;
+  return `No se pueden imprimir las etiquetas: ${sujeto} stock reservado. Reservá el stock de todos los ítems para imprimirlas.`;
 }
 
 /** The toma workspace of a receta. */

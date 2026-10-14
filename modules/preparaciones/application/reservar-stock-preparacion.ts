@@ -5,7 +5,7 @@
  * (migration 0071, docs/specs/reserva-stock-preparacion.md). The lab still
  * has internal steps after weighing, so nothing is fixed yet: no
  * movimiento_stock, no libro recetario asiento, no contralor. That happens at
- * "Imprimir etiqueta" (`confirmarReservaStock`, ./confirmar-reserva-stock.ts),
+ * the receta's "Imprimir etiquetas" (`confirmarReservasReceta`, ./confirmar-reservas-receta.ts),
  * or the reserva is released ("Liberar reserva", ./liberar-reserva-stock.ts).
  *
  * It is `iniciarPreparacion` (`iniciarPreparacionEnTx`: ficha found, receta

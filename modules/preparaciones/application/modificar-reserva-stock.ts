@@ -10,7 +10,7 @@
  * (`planificarConsumoEnTx`, ./confirmar-preparacion.ts); the preparación's
  * OWN current reservas count as available to it (they are the ones being
  * replaced), other preparaciones' do not. Locks: the preparación first (so a
- * concurrent "Liberar reserva"/"Imprimir etiqueta" on it waits), then the
+ * concurrent "Liberar reserva"/"Imprimir etiquetas" on it waits), then the
  * chosen partidas in id order (inside `planificarConsumoEnTx`).
  *
  * `preparaciones.confirmar` + recent re-authentication (INV-X02), same as

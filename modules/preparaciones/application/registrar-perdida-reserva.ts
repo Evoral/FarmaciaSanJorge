@@ -4,8 +4,8 @@
  * whoever prepares records that part of a reserved partida was lost (rotura,
  * derrame) during the lab's work. ONE transaction:
  *   1. Lock the preparación, then its receta, then EVERY partida it reserves
- *      (one id-ordered statement): the same order as "Imprimir etiqueta"
- *      (`confirmarReservaStock`), and the partidas before any single one, so
+ *      (one id-ordered statement): the same order as "Imprimir etiquetas"
+ *      (`confirmarReservasReceta`), and the partidas before any single one, so
  *      it can not deadlock with a reserva or a confirmation.
  *   2. The partida must be one this preparación reserves.
  *   3. An AJUSTE through the stock module's own code
@@ -44,7 +44,7 @@ import { registrarAjusteEnTx } from "@/modules/stock/application/registrar-ajust
 import { verificarCoFirmaDtEnTx } from "@/modules/stock/application/verificar-co-firma-dt";
 import { MOTIVOS_PERDIDA, type MotivoPerdida } from "../domain/perdida";
 import { planificarConsumoEnTx } from "./confirmar-preparacion";
-import { lineasDesdeReservas } from "./confirmar-reserva-stock";
+import { lineasDesdeReservas } from "./confirmar-desde-reservas";
 import { reservasDelPlan } from "./reservar-stock-preparacion";
 import {
   deleteReservasDePreparacion,

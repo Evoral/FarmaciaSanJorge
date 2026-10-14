@@ -69,7 +69,21 @@ export default async function PreparacionPage({ params }: PreparacionPageProps) 
           }
         />
 
-        {pantalla.estado === "INICIADA" ? (
+        {pantalla.estado === "INICIADA" && pantalla.conReserva ? (
+          // Confirmed (with its etiqueta) or released from the receta's toma workspace, where its ítems can take consecutive asientos.
+          <section className="panel">
+            <EmptyState
+              icon={<Tag className="size-5" />}
+              title="Esta preparación tiene stock reservado"
+              description="Se confirma al imprimir las etiquetas desde la receta, o se libera la reserva desde ahí."
+              action={
+                <Link href={pantalla.hrefVolver} className="btn btn-primary">
+                  Ir a la receta
+                </Link>
+              }
+            />
+          </section>
+        ) : pantalla.estado === "INICIADA" ? (
           <div className="flex flex-col gap-8">
             <ConfirmarPreparacionForm datos={pantalla} destino={{ preparacionId: pantalla.id }} />
             <section className="panel" data-tone="danger" aria-labelledby="descartar-heading">

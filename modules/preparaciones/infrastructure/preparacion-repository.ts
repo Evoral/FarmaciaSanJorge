@@ -138,6 +138,44 @@ export async function lockPreparacionParaAccion(tx: Prisma.TransactionClient, te
   return rows.length === 1;
 }
 
+/** Locks EVERY preparación in `ids`, in id order (deterministic, like `lockPartidasParaConfirmacion`), in ONE statement. Returns the LOCKED ids. */
+export async function lockPreparacionesParaAccion(tx: Prisma.TransactionClient, tenantId: string, ids: readonly string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const rows = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM fsj.preparacion
+    WHERE tenant_id = ${tenantId}::uuid AND id = ANY(${ids as string[]}::uuid[])
+    ORDER BY id ASC
+    FOR UPDATE
+  `;
+  return rows.map((r) => r.id);
+}
+
+/**
+ * The receta's ítem ids in the order the toma workspace numbers them ("Ítem N"): the SAME relation read as
+ * `getRecetaDeToma` (item_receta has no order column). `null` when the receta does not exist in this tenant.
+ */
+export async function listItemIdsDeReceta(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<string[] | null> {
+  const receta = await tx.receta.findUnique({ where: { id: recetaId, tenantId }, select: { items: { select: { id: true } } } });
+  return receta ? receta.items.map((i) => i.id) : null;
+}
+
+export interface PreparacionVivaDeItem {
+  id: string;
+  itemRecetaId: string;
+  estado: EstadoPreparacion;
+  etiquetaId: string | null;
+}
+
+/** The INICIADA/CONFIRMADA preparaciones of `itemIds` (at most one live per ítem), with their etiqueta if any. Unordered. */
+export async function listPreparacionesVivasDeItems(tx: Prisma.TransactionClient, tenantId: string, itemIds: readonly string[]): Promise<PreparacionVivaDeItem[]> {
+  if (itemIds.length === 0) return [];
+  const rows = await tx.preparacion.findMany({
+    where: { tenantId, itemRecetaId: { in: [...itemIds] }, estado: { in: ["INICIADA", "CONFIRMADA"] } },
+    select: { id: true, itemRecetaId: true, estado: true, etiqueta: { select: { id: true } } },
+  });
+  return rows.map((r) => ({ id: r.id, itemRecetaId: r.itemRecetaId, estado: r.estado, etiquetaId: r.etiqueta?.id ?? null }));
+}
+
 export async function getPreparacionParaAccion(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<PreparacionParaAccion | null> {
   return tx.preparacion.findUnique({
     where: { id, tenantId },
@@ -1630,12 +1668,12 @@ export interface ReservaDeItemToma {
 export interface PreparacionDeItemToma {
   id: string;
   estado: "INICIADA" | "CONFIRMADA";
-  /** INICIADA only: the partidas with a quantity reserved for it (empty = a preparación from before 0071 or the ficha screen's "Preparar"). */
+  /** INICIADA only: the partidas with a quantity reserved for it (empty = a preparación from before 0071 or the ficha screen's former "Preparar"). */
   reservas: ReservaDeItemToma[];
   /**
    * INICIADA with reservas only: every reserved quantity still fits its partida (saldo físico minus other
    * preparaciones' reservas, partida not expired). `false` after e.g. a pérdida the same partidas could not absorb:
-   * "Imprimir etiqueta" would fail, the ítem asks for "Modificar reserva".
+   * "Imprimir etiquetas" would fail, the ítem asks for "Modificar reserva".
    */
   reservaAlcanza: boolean;
   /** CONFIRMADA only: its etiqueta was already generated (printable). */

@@ -77,10 +77,11 @@
  *      nothing above ever partially persists (see tests/preparaciones-confirmar-atomicidad.test.ts).
  *
  * Steps 2a-2h live in `confirmarPreparacionEnTx`, so the toma workspace's
- * "Imprimir etiqueta" (`confirmarReservaStock`, ./confirmar-reserva-stock.ts)
- * runs the very same confirmation from the preparación's reserva de stock
- * (migration 0071, docs/specs/reserva-stock-preparacion.md), together with
- * its etiqueta, in its own single transaction; the reserva is deleted in that
+ * "Imprimir etiquetas" (`confirmarReservasReceta`, ./confirmar-reservas-receta.ts,
+ * via ./confirmar-desde-reservas.ts) runs the very same confirmation from each
+ * preparación's reserva de stock (migration 0071,
+ * docs/specs/reserva-stock-preparacion.md), together with its etiqueta, every
+ * ítem of the receta in one transaction; the reservas are deleted in that
  * same transaction. The checks of 2c-2e (`planificarConsumoEnTx`) also
  * validate the reserva itself (./reservar-stock-preparacion.ts). Stock
  * reserved by OTHER preparaciones INICIADA is never available here.
@@ -133,6 +134,7 @@ import {
   todosLosItemsConfirmados,
   getRecetaContextoAsiento,
   deleteReservasDePreparacion,
+  listReservasDePreparacion,
 } from "../infrastructure/preparacion-repository";
 import type { LineaParaPantalla, PartidaFresca } from "../infrastructure/preparacion-repository";
 
@@ -182,6 +184,16 @@ export const confirmarPreparacionCommand = defineCommand({
   input: confirmarPreparacionInput,
   audit: { entidad: "preparacion", accion: TipoAccion.CONFIRMAR },
   handler: async ({ tx, session, input }) => {
+    // A preparación holding a reserva de stock is confirmed only by "Imprimir etiquetas" in the toma workspace
+    // (confirmar-reservas-receta.ts), which also generates its etiqueta and gives the receta's ítems consecutive
+    // asientos. Checked under the preparación's lock (confirmarPreparacionEnTx re-locks
+    // it, same transaction), the same order as every other preparación command.
+    if (!(await lockPreparacionParaAccion(tx, session.tenantId, input.preparacionId))) {
+      throw new NotFoundError("Preparación no encontrada.");
+    }
+    if ((await listReservasDePreparacion(tx, session.tenantId, input.preparacionId)).length > 0) {
+      throw new DomainError("Esta preparación tiene stock reservado: se confirma con \"Imprimir etiquetas\" desde la receta.");
+    }
     const confirmada = await confirmarPreparacionEnTx(tx, session, input);
     return {
       output: confirmada,
@@ -201,9 +213,9 @@ export const confirmarPreparacionCommand = defineCommand({
 
 /**
  * Steps 2a-2h of this file's doc comment, inside the caller's transaction:
- * also run by `confirmarReservaStock` (./confirmar-reserva-stock.ts, the toma
- * workspace's "Imprimir etiqueta") on a preparación whose stock was reserved,
- * in the SAME transaction as its etiqueta. The caller declares the permiso,
+ * also run by `confirmarDesdeReservasEnTx` (./confirmar-desde-reservas.ts, the
+ * toma workspace's "Imprimir etiquetas") on a preparación whose stock was
+ * reserved, in the SAME transaction as its etiqueta. The caller declares the permiso,
  * the step-up and the audit. The preparación's own reservas (migration 0071)
  * are available to it and are deleted at the end: its movimientos now hold
  * that stock.

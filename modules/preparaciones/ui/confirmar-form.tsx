@@ -139,7 +139,7 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
           <div>
             <p className="font-semibold">Se reserva el stock de las partidas elegidas.</p>
             <p>
-              Nadie más puede usarlo. El stock se descuenta y el asiento se escribe en el libro recetario recién al imprimir la etiqueta; hasta entonces podés liberar
+              Nadie más puede usarlo. El stock se descuenta y el asiento se escribe en el libro recetario recién al imprimir las etiquetas de la receta; hasta entonces podés liberar
               la reserva.
             </p>
           </div>
@@ -176,7 +176,7 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
 
       <ReauthAwareForm
         action={modificar ? modificarReservaStockAction : esReserva ? reservarStockAction : confirmarPreparacionAction}
-        submitLabel={modificar ? "Guardar reserva" : esReserva ? "Reservar stock" : "Confirmar preparación"}
+        submitLabel={modificar ? "Guardar reserva" : esReserva ? "Marcar como preparada" : "Confirmar preparación"}
         pendingLabel={esReserva ? "Reservando…" : "Confirmando…"}
         submitDisabled={bloqueada}
         className="flex flex-col gap-4"

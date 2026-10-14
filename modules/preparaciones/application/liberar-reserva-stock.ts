@@ -7,7 +7,7 @@
  * in ONE transaction, so the ítem is Pendiente again and can be reserved
  * from scratch. A receta with no confirmed ítem is still
  * PENDIENTE_PREPARACION, so it is editable again (migration 0072). Only an INICIADA preparación that holds a reserva: one
- * without (from before 0071 or the ficha técnica screen's "Preparar") is
+ * without (from before 0071 or the ficha técnica screen's former "Preparar") is
  * discarded from its own screen, with a motivo.
  *
  * `preparaciones.descartar` + recent re-authentication (INV-X02, same window
