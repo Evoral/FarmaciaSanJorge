@@ -1045,7 +1045,9 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
 
       {/* In the toma workspace the resumen sits right below the ítems (and above the fichas técnicas) at every width, never as a sticky side column. */}
       {encabezadoOculto ? (
-        // Toma workspace: one compact bar right below the ítems (and above the fichas técnicas) at every width.
+        // Toma workspace: one compact bar right below the ítems (and above the fichas técnicas) at every width -- only once
+        // there is something to save (or a save error to show): with nothing edited it was just noise above the fichas.
+        itemsSinGuardar || errorVisible ? (
         <section aria-labelledby={`${personaIdBase}-resumen`} className="panel bg-zinc-50">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-5 py-3">
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -1065,9 +1067,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                     <strong className="font-medium text-amber-700">Cambios no guardados.</strong> Al guardar, la ficha técnica de cada ítem se recalcula automáticamente.
                   </span>
                 </p>
-              ) : (
-                <p className="text-xs text-zinc-500">Al guardar, la ficha técnica de cada ítem se recalcula automáticamente.</p>
-              )}
+              ) : null}
             </div>
             <div className="flex flex-none items-center gap-2">
               {itemsSinGuardar ? (
@@ -1088,6 +1088,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
             </div>
           ) : null}
         </section>
+        ) : null
       ) : (
         <aside className="split-aside flex flex-col gap-4" aria-label="Resumen y guardado">
           {mostrarPrecio ? <PresupuestoPanel items={itemsParaEnvio()} pago={pagoPanel} /> : null}
@@ -1135,7 +1136,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
               ) : null}
 
               <div className="flex flex-col gap-2">
-                <SubmitButton label={mode === "crear" ? "Crear receta" : mode === "editar" ? "Guardar cambios" : "Confirmar importación"} pending={isPending} sinGuardar={itemsSinGuardar || encabezadoSinGuardar} />
+                <SubmitButton label={mode === "crear" ? "Crear receta" : mode === "editar" ? "Guardar cambios" : "Registrar receta"} pending={isPending} sinGuardar={itemsSinGuardar || encabezadoSinGuardar} />
                 {itemsSinGuardar || encabezadoSinGuardar ? (
                   <button type="button" onClick={restablecer} disabled={isPending} className="btn btn-secondary w-full">
                     <RotateCcw className="size-4" aria-hidden />
