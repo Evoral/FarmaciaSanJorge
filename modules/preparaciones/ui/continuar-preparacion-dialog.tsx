@@ -9,9 +9,9 @@
  * recetario until "Imprimir etiquetas" (docs/specs/reserva-stock-preparacion.md). On success the dialog closes and the
  * page refreshes; an error stays inside it, keeping what was entered.
  *
- * Also "Modificar reserva" on a reserved ítem (`objetivo.reservaDePreparacionId`): the same dialog and form, read by
- * `getModificacionDeReservaAction` (the preparación's own reservas available to it, the form prefilled with them), and
- * "Guardar reserva" replaces its reserva (`preparaciones.modificarReserva`).
+ * Also "Recalcular reserva" on a reserved ítem (`objetivo.reservaDePreparacionId`): the same dialog and form, read by
+ * `getRecalculoDeReservaAction` (the preparación's own reservas available to it, the enrase quantity prefilled), and its
+ * submit re-plans the reserva automatically (`preparaciones.recalcularReserva`).
  *
  * Native `<dialog>` opened with `showModal()`, like ./ver-receta-pendiente-dialog.tsx: focus trap and Escape come from
  * the browser. Unlike that read-only preview, a click on the backdrop does NOT close it (it would lose what was
@@ -22,7 +22,7 @@ import { useId, useRef, useState } from "react";
 import { CircleAlert, FlaskConical, PencilLine, X } from "lucide-react";
 import { toast } from "@/shared/ui/toast";
 import { ConfirmarPreparacionForm } from "./confirmar-form";
-import { getConfirmacionDeFichaAction, getModificacionDeReservaAction } from "./actions";
+import { getConfirmacionDeFichaAction, getRecalculoDeReservaAction } from "./actions";
 import type { ConfirmacionDeFichaState } from "./action-state";
 
 export interface ContinuarPreparacionDialogProps {
@@ -46,7 +46,7 @@ export function ContinuarPreparacionDialog({ objetivo, itemNombre }: ContinuarPr
     dialogRef.current?.showModal();
     const resultado =
       "reservaDePreparacionId" in objetivo
-        ? await getModificacionDeReservaAction(objetivo.reservaDePreparacionId)
+        ? await getRecalculoDeReservaAction(objetivo.reservaDePreparacionId)
         : await getConfirmacionDeFichaAction(objetivo.fichaTecnicaId);
     if (aperturaRef.current === apertura) setContenido(resultado);
   }
@@ -67,7 +67,7 @@ export function ContinuarPreparacionDialog({ objetivo, itemNombre }: ContinuarPr
         // A secondary action of the reserved ítem's toolbar: small, like Liberar reserva / Registrar pérdida.
         <button type="button" onClick={abrir} aria-haspopup="dialog" className="btn btn-secondary btn-sm">
           <PencilLine className="size-3.5" aria-hidden />
-          Modificar reserva
+          Recalcular reserva
         </button>
       ) : (
         <button type="button" onClick={abrir} aria-haspopup="dialog" className="btn btn-primary">
@@ -89,7 +89,7 @@ export function ContinuarPreparacionDialog({ objetivo, itemNombre }: ContinuarPr
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h2 id={tituloId} className="text-lg font-semibold">
-                {modificar ? "Modificar reserva" : "Marcar como preparada"}
+                {modificar ? "Recalcular reserva" : "Marcar como preparada"}
               </h2>
               <p className="truncate text-sm text-zinc-500">{itemNombre}</p>
             </div>
@@ -112,7 +112,7 @@ export function ContinuarPreparacionDialog({ objetivo, itemNombre }: ContinuarPr
             </>
           ) : (
             <>
-              <p className="text-sm text-zinc-600">Revisá las partidas de cada línea ({contenido.datos.lineas.length}) y reservá el stock. Se pide reautenticación.</p>
+              <p className="text-sm text-zinc-600">Revisá de qué partidas se toma cada línea ({contenido.datos.lineas.length}) y reservá el stock. Se pide reautenticación.</p>
               <ConfirmarPreparacionForm
                 datos={contenido.datos}
                 destino={objetivo}

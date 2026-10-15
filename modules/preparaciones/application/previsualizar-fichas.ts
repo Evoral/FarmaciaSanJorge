@@ -9,8 +9,9 @@
  * Per ítem, entirely in memory: the líneas with the SAME code path
  * `fichas.generar` uses (`resolverFormulaBorrador` + `calcularLineasFicha`),
  * so the preview is exactly what saving will store, plus the partidas each
- * línea would be weighed from (./partidas-para-pesar.ts, same as the saved
- * fichas of `preparaciones.toma.ver`). Each ítem is checked on its own
+ * línea would be weighed from (./partidas-para-pesar.ts, same candidates as
+ * the saved fichas of `preparaciones.toma.ver`; the automatic assignment
+ * itself is shown once the ítem is saved and its ficha generated). Each ítem is checked on its own
  * (`itemInput`, the receta's own schema): an ítem that is incomplete or
  * cannot be computed (V1-V9, a droga dada de baja...) gets a message
  * instead of its líneas; the others are still computed.
@@ -37,7 +38,7 @@ const previsualizarFichasInput = z.object({
 
 export type PrevisualizarFichasWireInput = z.input<typeof previsualizarFichasInput>;
 type ItemBorrador = z.infer<typeof itemInput>;
-type LineaSinPartidas = Omit<LineaDeFichaToma, "partidas">;
+type LineaSinPartidas = Omit<LineaDeFichaToma, "partidas" | "faltante">;
 
 const MENSAJE_ITEM_INCOMPLETO = "Completá los datos del ítem para ver su ficha técnica.";
 
@@ -92,7 +93,7 @@ export const previsualizarFichasQuery = defineQuery({
       session.tenantId,
       porItem.flatMap((p) => (p.ok ? p.lineas.filter(esLineaPesable).map((l) => l.drogaId) : [])),
     );
-    return porItem.map((p) => (p.ok ? { ok: true, lineas: p.lineas.map((linea) => ({ ...linea, partidas: partidasDeLinea(partidasPorDroga, linea) })) } : p));
+    return porItem.map((p) => (p.ok ? { ok: true, lineas: p.lineas.map((linea) => ({ ...linea, partidas: partidasDeLinea(partidasPorDroga, linea), faltante: null })) } : p));
   },
 });
 

@@ -5,14 +5,16 @@
  * is the real backstop -- this pre-check exists purely for a clear message.
  * At most one etiqueta per preparación (`etiqueta_preparacion_key` UNIQUE,
  * migration 0013) -- generating again is rejected with a friendly message
- * instead of a raw unique violation.
+ * instead of a raw unique violation. A preparado no longer valid -- its
+ * receta ANULADA, or its asiento dejado sin efecto (anulado/rectificado) --
+ * gets no etiqueta (docs/specs/reserva-stock-preparacion.md R22).
  */
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
-import { armarContenidoEtiqueta, formatearContenidoEtiqueta } from "../domain/etiqueta";
+import { armarContenidoEtiqueta, formatearContenidoEtiqueta, motivoEtiquetaNoImprimible } from "../domain/etiqueta";
 import { getPreparacionParaEtiqueta, getEtiquetaExistente, insertEtiqueta } from "../infrastructure/preparacion-repository";
 
 const generarEtiquetaInput = z.object({ preparacionId: uuid });
@@ -63,6 +65,9 @@ export async function generarEtiquetaEnTx(
   if (!datos) {
     throw new NotFoundError("La preparación no existe o no está CONFIRMADA: solo se puede generar la etiqueta de una preparación confirmada.");
   }
+  // A preparado no longer valid (receta ANULADA, asiento sin efecto) gets no etiqueta (docs/specs/reserva-stock-preparacion.md R22).
+  const motivo = motivoEtiquetaNoImprimible(datos);
+  if (motivo) throw new DomainError(motivo);
 
   const contenido = formatearContenidoEtiqueta(armarContenidoEtiqueta(datos));
   const etiqueta = await insertEtiqueta(tx, tenantId, preparacionId, contenido);

@@ -1137,6 +1137,7 @@ model Preparacion {
   asientosRecetario AsientoRecetario[]
 
   @@unique([tenantId, id])
+  /// Migration 0077: partial unique index uq_preparacion_item_viva (tenant_id, item_receta_id) WHERE estado IN ('INICIADA','CONFIRMADA') -- at most one live preparacion per item (Prisma cannot express it).
   /// Migration 0051: Trayectoria del paciente -- every preparacion (any estado) of a set of items (the item_receta partial unique index only covers CONFIRMADA).
   @@index([tenantId, itemRecetaId], map: "idx_preparacion_tenant_item_receta")
   @@map("preparacion")

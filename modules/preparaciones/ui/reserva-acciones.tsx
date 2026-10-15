@@ -27,7 +27,7 @@ import { CoFirmaDt, type CoFirmaDtOpcion } from "@/shared/ui/co-firma-dt";
 import type { EtiquetaTamano } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import { MOTIVO_AJUSTE_LABELS } from "@/modules/stock/domain/partida";
 import { MOTIVOS_PERDIDA } from "../domain/perdida";
-import { confirmarReservasRecetaAction, liberarReservaStockAction, registrarPerdidaReservaAction } from "./actions";
+import { confirmarReservasRecetaAction, liberarReservaStockAction, recalcularReservaStockAction, registrarPerdidaReservaAction } from "./actions";
 import type { PreparacionActionState } from "./action-state";
 import { SeleccionarEtiquetasDialog, type EtiquetaDeItemParaImprimir } from "./imprimir-etiqueta-dialog";
 
@@ -57,12 +57,23 @@ export function LiberarReservaForm({ preparacionId }: { preparacionId: string })
   );
 }
 
+/** One-click "Recalcular reserva" (no enrase quantity to type): re-plans the ítem's reserva automatically (R1b/R5). */
+export function RecalcularReservaForm({ preparacionId }: { preparacionId: string }) {
+  return (
+    <ReauthAwareForm action={recalcularReservaStockAction} submitLabel="Recalcular reserva" pendingLabel="Recalculando…" submitVariant="secondary" submitSize="sm" layout="inline">
+      <input type="hidden" name="preparacionId" value={preparacionId} />
+    </ReauthAwareForm>
+  );
+}
+
 export interface EtiquetasDeRecetaProps {
   recetaId: string;
   /** Ítems not confirmed yet: what "Imprimir etiquetas" confirms. 0 = all confirmed, the button reprints. */
   porConfirmar: number;
   /** Every ítem not confirmed yet holds a reserva (domain/toma.ts#itemsSinReserva): the confirmation may run. */
   todasReservadas: boolean;
+  /** Ítems ("Ítem N") whose reserva no longer fits (R5): recalculate them before printing. */
+  sinAlcance: readonly number[];
   /** `preparaciones.confirmar` + `etiquetas.generar`. */
   puedeConfirmar: boolean;
   /** `etiquetas.imprimir`: without it the confirmation still runs, but no print dialog is offered. */
@@ -72,7 +83,7 @@ export interface EtiquetasDeRecetaProps {
   etiquetas: readonly EtiquetaDeItemParaImprimir[];
 }
 
-export function EtiquetasDeReceta({ recetaId, porConfirmar, todasReservadas, puedeConfirmar, puedeImprimir, tamanos, etiquetas }: EtiquetasDeRecetaProps) {
+export function EtiquetasDeReceta({ recetaId, porConfirmar, todasReservadas, sinAlcance, puedeConfirmar, puedeImprimir, tamanos, etiquetas }: EtiquetasDeRecetaProps) {
   // "Just confirmed" is set when the confirmation resolves, NOT from the form's onSuccess: the action's revalidatePath
   // re-renders the page in the same response, so the form unmounts before its success effect ever runs. This component
   // stays mounted (the page renders it at a fixed place), so its own state survives and opens the dialog right after.
@@ -90,7 +101,9 @@ export function EtiquetasDeReceta({ recetaId, porConfirmar, todasReservadas, pue
     if (!puedeConfirmar) return null;
     return (
       <div className="panel flex flex-wrap items-center justify-end gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
-        {todasReservadas ? (
+        {todasReservadas && sinAlcance.length > 0 ? (
+          <p className="text-sm text-red-700">Recalculá la reserva {sinAlcance.length === 1 ? `del ítem ${sinAlcance[0]}` : `de los ítems ${sinAlcance.join(", ")}`} para imprimir las etiquetas.</p>
+        ) : todasReservadas ? (
           <p className="flex items-center gap-1.5 text-sm text-zinc-600">
             <CircleAlert className="size-4 shrink-0 text-amber-600" aria-hidden />
             Al imprimir, se registran todos los ítems en el libro recetario y se descuenta el stock.
@@ -98,7 +111,7 @@ export function EtiquetasDeReceta({ recetaId, porConfirmar, todasReservadas, pue
         ) : (
           <p className="text-sm text-zinc-500">Reservá el stock de todos los ítems para imprimir las etiquetas.</p>
         )}
-        <ReauthAwareForm action={confirmar} submitLabel="Imprimir etiquetas" pendingLabel="Confirmando…" submitDisabled={!todasReservadas} layout="inline">
+        <ReauthAwareForm action={confirmar} submitLabel="Imprimir etiquetas" pendingLabel="Confirmando…" submitDisabled={!todasReservadas || sinAlcance.length > 0} layout="inline">
           <input type="hidden" name="recetaId" value={recetaId} />
         </ReauthAwareForm>
       </div>
@@ -169,8 +182,8 @@ export function PerdidaReservaDialog({ preparacionId, partidas, dts, operadorEsD
             </button>
           </div>
           <p className="text-sm text-zinc-600">
-            Se descuenta de la partida como un ajuste, vinculado a esta preparación. Después se vuelve a calcular la reserva con las mismas partidas; si ya no
-            alcanza, vas a tener que modificar la reserva. Requiere la contraseña del Director Técnico.
+            Se descuenta de la partida como un ajuste, vinculado a esta preparación. Después la reserva se recalcula sola sobre todas las partidas de la droga;
+            solo si no queda stock suficiente deja de alcanzar. Requiere la contraseña del Director Técnico.
           </p>
           <SimpleForm
             key={apertura}

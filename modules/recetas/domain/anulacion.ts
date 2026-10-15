@@ -15,7 +15,10 @@
  * A preparación still INICIADA also blocks it: nothing prevents confirming
  * that preparación afterwards, which would register a new asiento for an
  * already ANULADA receta -- the same inconsistency, one step later. The
- * preparación has to be descartada first.
+ * preparación has to be discarded first: for a reserved one (the only way a
+ * preparación starts since docs/specs/reserva-stock-preparacion.md R16) that
+ * is "Liberar reserva" in the receta's toma workspace (`/preparaciones/recetas/[id]`),
+ * not the `/preparaciones/[id]` screen, which refuses a reserved one (R14).
  */
 import { esEstadoTerminal } from "./receta";
 import type { EstadoReceta } from "./receta";
@@ -26,7 +29,7 @@ export const MENSAJE_ANULACION_BLOQUEADA_POR_LIBRO =
 export const AYUDA_ANULACION_PERMITIDA = "La receta quedará anulada y no se podrá preparar ni entregar.";
 
 export function mensajePreparacionEnCurso(item: number): string {
-  return `No se puede anular la receta: el ítem ${item} tiene una preparación en curso. Descartala desde Preparaciones y volvé a intentar.`;
+  return `No se puede anular la receta: el ítem ${item} tiene una preparación en curso. Liberá la reserva de stock desde la receta en Preparaciones ("Liberar reserva" en el ítem ${item}) y volvé a intentar.`;
 }
 
 export interface AsientoEnEfectoRef {

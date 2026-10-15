@@ -113,3 +113,21 @@ route (`/api/preparaciones/[id]/etiqueta/pdf`): no route or PDF code to revert.
   (reservar message), `app/(app)/preparaciones/[id]/page.tsx` and `docs/specs/vencimiento-preparado.md` (R8).
 - The libro's "Receta Nº" column (`modules/libro/infrastructure/{asiento-repository,libro-pdf}.ts`,
   `app/(app)/libro/page.tsx`) is display-only and independent: revert it separately if wanted.
+
+## 2026-10-15: automatic reserva + consistency fixes (R1/R1b/R2/R9 revised, R18-R24)
+
+Spec: `docs/specs/reserva-stock-preparacion.md`. One schema change, migration
+`20261015090000_0077_preparacion_viva_por_item` (partial unique index
+`uq_preparacion_item_viva`). Revert order:
+
+1. Revert the code (the old code never relies on the index; reservas written by
+   the new code -- only partidas with cantidad > 0 -- are confirmed by the old
+   code as a "chosen" set as well).
+2. Copy `prisma/rollbacks/0077_preparacion_viva_por_item.down.sql` into a NEW
+   migration folder and apply it. Nothing is lost.
+
+Files: `modules/preparaciones/application/{confirmar-preparacion,reservar-stock-preparacion,recalcular-reserva-stock (was modificar-reserva-stock),get-recalculo-de-reserva (was get-modificacion-de-reserva),registrar-perdida-reserva,confirmar-desde-reservas,datos-confirmacion,iniciar-preparacion,descartar-preparacion,generar-etiqueta,get-etiqueta-para-imprimir,imprimir-etiqueta-pdf,get-toma-receta,partidas-para-pesar,previsualizar-fichas}.ts`,
+`modules/preparaciones/domain/{reparto-linea (new),etiqueta}.ts`, `modules/preparaciones/infrastructure/preparacion-repository.ts`,
+`modules/preparaciones/ui/{actions.ts,confirmar-form.tsx,continuar-preparacion-dialog.tsx,reserva-acciones.tsx}`,
+`modules/elaboracion/application/{estado-ficha (new),generar-ficha-tecnica}.ts`, `modules/elaboracion/infrastructure/ficha-repository.ts`,
+`modules/recetas/domain/anulacion.ts`, the toma page, `/preparaciones/[id]` page and the ficha técnica page.

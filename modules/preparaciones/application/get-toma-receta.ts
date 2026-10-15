@@ -1,16 +1,23 @@
 /**
  * `getTomaReceta` (M11): everything the toma workspace
  * (/preparaciones/recetas/[recetaId]) shows -- the receta (header, toma,
- * ítems with componentes), each ítem's latest ficha técnica with its líneas
- * de pesaje, and each ítem's INICIADA/CONFIRMADA preparación. `null` when
- * the receta does not exist (in this tenant).
+ * ítems with componentes), each ítem's ficha técnica with its líneas de
+ * pesaje (its live preparación's, else the latest version -- R20), and each
+ * ítem's INICIADA/CONFIRMADA preparación. `null` when the receta does not
+ * exist (in this tenant).
  *
- * Purity per partida (migration 0058): every non-manual línea of an ítem
- * still to be reserved (no preparación, or an INICIADA one without reservas)
- * also lists the partidas the confirmation would draw from, with the
- * PHYSICAL weight each one needs (./partidas-para-pesar.ts, shared with the
- * draft preview `preparaciones.toma.previsualizarFichas`). An ítem with stock
- * reserved lists its reservas instead (migration 0071).
+ * Per Pendiente ítem (docs/specs/reserva-stock-preparacion.md):
+ *   - R18: whether its ficha is still vigente (`evaluarFichaDeItemEnTx`,
+ *     modules/elaboracion: the latest version, built from the ítem's current
+ *     data); a desactualizada one can not be reserved and the page offers
+ *     "Generar ficha técnica".
+ *   - R21: every non-manual línea of a vigente ficha lists the partidas the
+ *     AUTOMATIC reserva will take, with how much of each (physical,
+ *     purity-corrected, línea unit), or its faltante
+ *     (./partidas-para-pesar.ts). An ítem with stock reserved lists its
+ *     reservas instead (migration 0071).
+ * Per CONFIRMADA ítem, R22: why its etiqueta can not be printed any more
+ * (asiento sin efecto), if so.
  *
  * `preparaciones.iniciar`, like every /preparaciones read. The embedded
  * receta edit form reads its own data through `recetas.ver` (recetas
@@ -21,6 +28,8 @@ import { defineQuery } from "@/shared/usecase";
 import { uuid } from "@/shared/validation";
 import { MENSAJE_VENCIDA_REQUIERE_DT, estadoVencimientoPartida, textoPorVencer } from "@/modules/stock/domain/vencimiento-partida";
 import { diasAlertaVencimientoEnTx } from "@/modules/stock/application/dias-alerta-vencimiento";
+import { evaluarFichaDeItemEnTx } from "@/modules/elaboracion/application/estado-ficha";
+import { motivoEtiquetaNoImprimible } from "../domain/etiqueta";
 import { getRecetaDeToma, jornadaActualTenant } from "../infrastructure/preparacion-repository";
 import type {
   FichaDeItemToma as FichaDeItemTomaBase,
@@ -30,14 +39,16 @@ import type {
   RecetaDeToma as RecetaDeTomaBase,
   ReservaDeItemToma as ReservaDeItemTomaBase,
 } from "../infrastructure/preparacion-repository";
-import { cargarPartidasPorDroga, esLineaPesable, partidasDeLinea } from "./partidas-para-pesar";
+import { asignacionDeLinea, cargarPartidasPorDroga, esLineaPesable } from "./partidas-para-pesar";
 import type { PartidaParaPesar } from "./partidas-para-pesar";
 
 export type { PartidaParaPesar };
 
 export interface LineaDeFichaToma extends LineaDeFichaTomaBase {
-  /** `null` for manual-enrase líneas, líneas without cantidadAPesar, and ítems already CONFIRMADA or with stock reserved. */
+  /** `null` for manual-enrase líneas, líneas without cantidadAPesar, and ítems already CONFIRMADA, with stock reserved or with a desactualizada ficha. */
   partidas: PartidaParaPesar[] | null;
+  /** The automatic reserva lacks this much of the droga (línea unit, active terms); `null` when it has the stock or nothing was computed. */
+  faltante: string | null;
 }
 
 export interface FichaDeItemToma extends Omit<FichaDeItemTomaBase, "lineas"> {
@@ -52,11 +63,15 @@ export interface ReservaDeItemToma extends ReservaDeItemTomaBase {
 
 export interface PreparacionDeItemToma extends Omit<PreparacionDeItemTomaBase, "reservas"> {
   reservas: ReservaDeItemToma[];
+  /** CONFIRMADA only: why its etiqueta can no longer be printed (R22); `null` = printable. */
+  etiquetaNoImprimible: string | null;
 }
 
-export interface ItemDeToma extends Omit<ItemDeTomaBase, "ultimaFicha" | "preparacion"> {
-  ultimaFicha: FichaDeItemToma | null;
+export interface ItemDeToma extends Omit<ItemDeTomaBase, "ficha" | "preparacion"> {
+  ficha: FichaDeItemToma | null;
   preparacion: PreparacionDeItemToma | null;
+  /** Pendiente ítem whose ficha is not vigente (R18): why; `null` = vigente (or not applicable). */
+  fichaDesactualizada: string | null;
 }
 
 export interface RecetaDeToma extends Omit<RecetaDeTomaBase, "items"> {
@@ -73,9 +88,17 @@ export const getTomaRecetaQuery = defineQuery({
     const receta = await getRecetaDeToma(tx, session.tenantId, input.recetaId);
     if (!receta) return null;
 
-    // A CONFIRMADA ítem already drew its partidas, a reserved one already chose them: nothing left to weigh from.
-    const porElegir = (item: ItemDeTomaBase) => item.preparacion?.estado !== "CONFIRMADA" && (item.preparacion?.reservas.length ?? 0) === 0;
-    const lineasPorPesar = (item: ItemDeTomaBase) => (porElegir(item) ? (item.ultimaFicha?.lineas ?? []) : []);
+    // R18: only a Pendiente ítem (no live preparación) is about to be reserved on its (latest) ficha.
+    const desactualizada = new Map<string, string>();
+    for (const item of receta.items) {
+      if (item.preparacion || !item.ficha) continue;
+      const estado = await evaluarFichaDeItemEnTx(tx, session.tenantId, item.id, item.ficha.id);
+      if (!estado.vigente) desactualizada.set(item.id, estado.mensaje);
+    }
+
+    // R21: a Pendiente ítem with a vigente ficha shows the automatic assignment.
+    const porReservar = (item: ItemDeTomaBase) => item.preparacion === null && !desactualizada.has(item.id);
+    const lineasPorPesar = (item: ItemDeTomaBase) => (porReservar(item) ? (item.ficha?.lineas ?? []) : []);
     const partidasPorDroga = await cargarPartidasPorDroga(
       tx,
       session.tenantId,
@@ -97,14 +120,24 @@ export const getTomaRecetaQuery = defineQuery({
       ...receta,
       items: receta.items.map((item) => ({
         ...item,
-        preparacion: item.preparacion ? { ...item.preparacion, reservas: item.preparacion.reservas.map(conVencimiento) } : null,
-        ultimaFicha: item.ultimaFicha
+        fichaDesactualizada: desactualizada.get(item.id) ?? null,
+        preparacion: item.preparacion
           ? {
-              ...item.ultimaFicha,
-              lineas: item.ultimaFicha.lineas.map((linea) => ({
-                ...linea,
-                partidas: porElegir(item) ? partidasDeLinea(partidasPorDroga, linea) : null,
-              })),
+              ...item.preparacion,
+              reservas: item.preparacion.reservas.map(conVencimiento),
+              etiquetaNoImprimible:
+                item.preparacion.estado === "CONFIRMADA"
+                  ? motivoEtiquetaNoImprimible({ recetaEstado: receta.estado, asientoSinEfecto: item.preparacion.asientoSinEfecto, asientoNumeroCorrelativo: null })
+                  : null,
+            }
+          : null,
+        ficha: item.ficha
+          ? {
+              ...item.ficha,
+              lineas: item.ficha.lineas.map((linea) => {
+                const asignacion = porReservar(item) ? asignacionDeLinea(partidasPorDroga, linea) : null;
+                return { ...linea, partidas: asignacion?.partidas ?? null, faltante: asignacion?.faltante ?? null };
+              }),
             }
           : null,
       })),

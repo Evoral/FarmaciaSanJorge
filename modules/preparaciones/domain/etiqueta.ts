@@ -210,6 +210,20 @@ export function armarContenidoEtiqueta(datos: DatosEtiqueta): ContenidoEtiqueta 
   };
 }
 
+/**
+ * Why a CONFIRMADA preparación's etiqueta can no longer be generated or printed (docs/specs/reserva-stock-preparacion.md
+ * R22), `null` when it can: its receta was ANULADA, or its asiento in the libro recetario was dejado sin efecto
+ * (anulado or rectificado) -- the preparado is no longer valid.
+ */
+export function motivoEtiquetaNoImprimible(datos: { recetaEstado: string; asientoSinEfecto: boolean; asientoNumeroCorrelativo: string | null }): string | null {
+  if (datos.recetaEstado === "ANULADA") return "La receta está anulada: no se pueden imprimir sus etiquetas.";
+  if (datos.asientoSinEfecto) {
+    const asiento = datos.asientoNumeroCorrelativo ? ` (asiento Nº ${datos.asientoNumeroCorrelativo})` : "";
+    return `El asiento de esta preparación en el libro recetario${asiento} quedó sin efecto (anulado o rectificado): su etiqueta ya no se puede imprimir.`;
+  }
+  return null;
+}
+
 /** URL of the etiqueta PDF route for a preparación, rendered on the size (`etiqueta_tamano.id`) chosen in the "Seleccionar tamaño" dialog. */
 export function hrefEtiquetaPdf(preparacionId: string, tamanoId: string): string {
   return `/api/preparaciones/${encodeURIComponent(preparacionId)}/etiqueta/pdf?tamano=${encodeURIComponent(tamanoId)}`;
@@ -231,4 +245,79 @@ export function formatearContenidoEtiqueta(contenido: ContenidoEtiqueta): string
     contenido.medico,
   ];
   return lineas.filter((l): l is string => l !== null).join("\n");
+}
+
+const PREFIJO_DT = "Director Técnico ";
+const DT_VACIO = "Director Técnico ______";
+const SEPARADOR_MATRICULA = " - MAT. ";
+const PREFIJO_RECETA = "Receta N ";
+const PREFIJO_VENCE = "Vence: ";
+const PREFIJO_PACIENTE = "Paciente ";
+const SEPARADOR_VIA = " — ";
+
+/**
+ * The inverse of `formatearContenidoEtiqueta`: the persisted `etiqueta.contenido` snapshot back into the fields the
+ * PDF lays out, so every print (first or reprint) shows exactly what was recorded when the etiqueta was generated --
+ * never a rebuild from live data (docs/specs/vencimiento-preparado.md R7). `null` when the text is not in this
+ * layout (an etiqueta stored by an older formatter): the caller then rebuilds it from the preparación's data, as
+ * before. `formatearContenidoEtiqueta` + this function round-trip every `ContenidoEtiqueta` whose free texts are
+ * single-line (the formatter's own precondition: it joins lines with "\n").
+ */
+export function parsearContenidoEtiqueta(texto: unknown): ContenidoEtiqueta | null {
+  if (typeof texto !== "string" || texto.length === 0) return null;
+  const lineas = texto.split("\n");
+  let i = 0;
+
+  const lineaDt = lineas[i++];
+  let directorTecnico: ContenidoEtiqueta["directorTecnico"];
+  if (lineaDt === DT_VACIO) {
+    directorTecnico = null;
+  } else if (lineaDt?.startsWith(PREFIJO_DT) && lineaDt.includes(SEPARADOR_MATRICULA)) {
+    const resto = lineaDt.slice(PREFIJO_DT.length);
+    const corte = resto.lastIndexOf(SEPARADOR_MATRICULA);
+    directorTecnico = { nombre: resto.slice(0, corte), matricula: resto.slice(corte + SEPARADOR_MATRICULA.length) };
+  } else {
+    return null;
+  }
+
+  // The domicilio line is omitted when null: the next line is then "Rp/".
+  let domicilio: string | null = null;
+  if (lineas[i] !== "Rp/") domicilio = lineas[i++] ?? null;
+  if (lineas[i++] !== "Rp/") return null;
+
+  // Rp/ lines run up to the "Vence" line, which is followed by "Receta N ...".
+  const indiceReceta = lineas.findIndex((l, j) => j > i && l.startsWith(PREFIJO_RECETA) && lineas[j - 1]?.startsWith(PREFIJO_VENCE));
+  if (indiceReceta < 0) return null;
+  const rp = lineas.slice(i, indiceReceta - 1);
+  const vence = lineas[indiceReceta - 1]!;
+  const recetaNumero = lineas[indiceReceta]!.slice(PREFIJO_RECETA.length);
+  i = indiceReceta + 1;
+
+  const lineaCantidad = lineas[i++];
+  const cantidadMatch = lineaCantidad ? /^(\d+) (.+)$/.exec(lineaCantidad) : null;
+  if (!cantidadMatch) return null;
+  const [formaTexto, via] = cantidadMatch[2]!.includes(SEPARADOR_VIA)
+    ? [cantidadMatch[2]!.slice(0, cantidadMatch[2]!.indexOf(SEPARADOR_VIA)), cantidadMatch[2]!.slice(cantidadMatch[2]!.indexOf(SEPARADOR_VIA) + SEPARADOR_VIA.length)]
+    : [cantidadMatch[2]!, null];
+
+  const conservacion = lineas[i++];
+  if (conservacion === undefined) return null;
+  let paciente: string | null = null;
+  if (lineas[i]?.startsWith(PREFIJO_PACIENTE) && i < lineas.length - 1) paciente = lineas[i++]!.slice(PREFIJO_PACIENTE.length);
+  const medico = lineas[i++];
+  if (medico === undefined || i !== lineas.length) return null;
+
+  return {
+    directorTecnico,
+    domicilio,
+    rp,
+    vence,
+    recetaNumero,
+    cantidad: Number(cantidadMatch[1]),
+    forma: formaTexto,
+    via,
+    conservacion,
+    medico,
+    paciente,
+  };
 }

@@ -15,9 +15,10 @@
  * INV-R05 / INV-P02 -- regeneration while a preparación exists (task
  * question, answered here with the actual schema, not a guess):
  * ============================================================================
- * This command NEVER refuses to generate a new version, regardless of the
- * state of any preparación on the item's current latest ficha. Here is why,
- * read directly from the two migrations that own these invariants:
+ * The SCHEMA never refuses a new version, whatever the state of any
+ * preparación on the item's current latest ficha (this command does, as a
+ * business rule -- see "Net effect" below). Here is why, read directly from
+ * the two migrations that own these invariants:
  *
  *  - INV-R05 (migration 0012, prisma/migrations/.../0012_.../migration.sql):
  *    `ficha_tecnica` and `linea_pesaje` have NO UPDATE/DELETE grant AT ALL
@@ -45,17 +46,20 @@
  *    CONFIRMING a preparación later (M11/FASE 8), not on generating a
  *    ficha now.
  *
- * Net effect: generating version N+1 while version N has an INICIADA
- * preparación is ALLOWED by the schema (the farmacéutico may be correcting
- * a weighing mistake mid-preparation; FASE 8 is what decides what happens
- * to the INICIADA preparación against the now-superseded ficha, out of
- * scope here). Generating N+1 after version N's preparación is CONFIRMADA
- * is allowed by the schema but REFUSED here (business rule, not a DB
- * invariant): INV-PRP-003 already forbids ever confirming another
- * preparación for this item_receta, so a new version could never be
- * prepared and would only clutter the item's history. An asiento later
- * dejado "sin efecto" keeps its CONFIRMADA preparación, so the item stays
- * closed. `listVersionesFicha` (ficha-repository.ts)
+ * Net effect: generating version N+1 while version N has a live
+ * preparación is allowed by the schema but REFUSED here (business rules,
+ * not DB invariants):
+ *   - CONFIRMADA: INV-PRP-003 already forbids ever confirming another
+ *     preparación for this item_receta, so a new version could never be
+ *     prepared and would only clutter the item's history. An asiento later
+ *     dejado "sin efecto" keeps its CONFIRMADA preparación, so the item
+ *     stays closed.
+ *   - INICIADA (2026-10-15, docs/specs/reserva-stock-preparacion.md R20):
+ *     its stock is reserved on version N; a version N+1 would leave that
+ *     reserva on a superseded ficha. Release the reserva first. The reserva
+ *     locks the same item_receta row before inserting its preparación, so
+ *     the two serialize (one of them sees the other).
+ * `listVersionesFicha` (ficha-repository.ts)
  * exposes each version's `preparacionActual` so the UI can surface this
  * context to the farmacéutico instead of silently hiding it.
  * ============================================================================
@@ -69,6 +73,7 @@
  * latest version instead of creating a duplicate one.
  */
 import { z } from "zod";
+import type { Prisma } from "@/generated/prisma/client";
 import { defineCommand } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
@@ -81,10 +86,11 @@ import {
   getComponentesParaFicha,
   getLineasUltimaFicha,
   getMaxVersionFicha,
-  itemTienePreparacionConfirmada,
+  estadoPreparacionVivaDeItem,
   insertFichaConLineas,
 } from "../infrastructure/ficha-repository";
-import { calcularLineasFicha } from "./calcular-lineas-ficha";
+import { calcularLineasFicha, type LineaFichaCalculada } from "./calcular-lineas-ficha";
+import type { ItemParaFicha } from "../infrastructure/ficha-repository";
 
 const generarFichaTecnicaInput = z.object({
   itemRecetaId: uuid,
@@ -135,28 +141,15 @@ export const generarFichaTecnicaCommand = defineCommand({
     const item = await getItemParaFicha(tx, session.tenantId, input.itemRecetaId);
     if (!item) throw new NotFoundError("Ítem de receta no encontrado.");
 
-    if (await itemTienePreparacionConfirmada(tx, session.tenantId, input.itemRecetaId)) {
+    const viva = await estadoPreparacionVivaDeItem(tx, session.tenantId, input.itemRecetaId);
+    if (viva === "CONFIRMADA") {
       throw new DomainError("Este ítem ya tiene una preparación confirmada: no se pueden generar nuevas versiones de su ficha técnica.");
     }
+    if (viva === "INICIADA") {
+      throw new DomainError("Este ítem tiene stock reservado (una preparación en curso): liberá la reserva antes de generar una nueva versión de su ficha técnica.");
+    }
 
-    const componentesDb = await getComponentesParaFicha(tx, session.tenantId, input.itemRecetaId);
-
-    const itemInput: ItemRecetaInput = {
-      formaFarmaceutica: item.formaFarmaceutica,
-      cantidadTotal: item.cantidadTotal,
-      unidadTotal: item.unidadTotal,
-      cantidadUnidades: item.cantidadUnidades,
-      fraccionDosisPorUnidad: item.fraccionDosisPorUnidad,
-    };
-    const componentesInput: ComponenteInput[] = componentesDb.map((c) => ({
-      drogaId: c.drogaId,
-      drogaNombre: c.drogaNombre,
-      cantidad: c.cantidad,
-      unidadMedida: c.unidadMedida,
-      modoExpresion: c.modoExpresion,
-    }));
-
-    const lineas = await calcularLineasFicha(tx, session.tenantId, itemInput, componentesInput);
+    const lineas = await calcularLineasDeItemEnTx(tx, session.tenantId, item);
 
     if (input.soloSiDesactualizada) {
       const ultima = await getLineasUltimaFicha(tx, session.tenantId, input.itemRecetaId);
@@ -177,6 +170,30 @@ export const generarFichaTecnicaCommand = defineCommand({
     return { output: { id: nueva.id, version: nueva.version, generada: true, lineas: aSalida(lineas) } };
   },
 });
+
+/**
+ * The líneas a ficha of the SAVED item would get now: its current data and componentes through `calcularLineasFicha`
+ * (throws `FichaNoGenerableError`). Shared with `evaluarFichaDeItemEnTx` (./estado-ficha.ts), so "desactualizada" is
+ * exactly "generating would create a new version". Not a use case: runs inside the caller's transaction.
+ */
+export async function calcularLineasDeItemEnTx(tx: Prisma.TransactionClient, tenantId: string, item: ItemParaFicha): Promise<LineaFichaCalculada[]> {
+  const componentesDb = await getComponentesParaFicha(tx, tenantId, item.id);
+  const itemInput: ItemRecetaInput = {
+    formaFarmaceutica: item.formaFarmaceutica,
+    cantidadTotal: item.cantidadTotal,
+    unidadTotal: item.unidadTotal,
+    cantidadUnidades: item.cantidadUnidades,
+    fraccionDosisPorUnidad: item.fraccionDosisPorUnidad,
+  };
+  const componentesInput: ComponenteInput[] = componentesDb.map((c) => ({
+    drogaId: c.drogaId,
+    drogaNombre: c.drogaNombre,
+    cantidad: c.cantidad,
+    unidadMedida: c.unidadMedida,
+    modoExpresion: c.modoExpresion,
+  }));
+  return calcularLineasFicha(tx, tenantId, itemInput, componentesInput);
+}
 
 function aSalida(lineas: Awaited<ReturnType<typeof calcularLineasFicha>>): GenerarFichaTecnicaOutput["lineas"] {
   return lineas.map((l) => ({

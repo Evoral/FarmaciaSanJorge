@@ -108,6 +108,11 @@ CSP        cantidad suficiente para completar cantidadTotal ("vaselina csp 30")
 - Para líneas no manuales, el egreso de stock es exactamente `cantidadAPesar`. Para líneas manuales, es la cantidad registrada por el farmacéutico.
 - `orden` de salida sigue la regla de orden de los componentes (cantidad, CS, CSP; luego nombre de droga).
 
+**Versiones, vigencia y preparación** (2026-10-15, `docs/specs/reserva-stock-preparacion.md` R18-R20):
+
+- Una ficha es **vigente** para su ítem cuando es la última versión y recalcular las líneas con los datos actuales del ítem (y los parámetros de pesaje actuales) da exactamente sus líneas (`mismasLineasPesaje`, la misma regla que decide si la regeneración tras editar crea una versión nueva). Si no, está **desactualizada**: no se puede reservar stock sobre ella hasta generar una versión nueva (`fichas.generar`). Editar la receta no genera fichas a quien no tiene `fichas.generar` (GA2 de `presupuesto-receta.md`); el laboratorio la genera desde la toma.
+- No se genera una versión nueva mientras el ítem tiene una preparación viva: CONFIRMADA (como siempre) o INICIADA con stock reservado («Liberá la reserva antes de generar una nueva versión»).
+
 **Impacto en invariantes previos del plan:**
 
 - **INV-R04** pasa a ser: `cantidadAPesar > 0` si la línea no es manual; `cantidadAPesar` y `cantidadTeorica` nulas si es manual. Ambas congeladas al generarse.

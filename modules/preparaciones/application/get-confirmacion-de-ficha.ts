@@ -1,13 +1,13 @@
 /**
- * `getConfirmacionDeFicha`: what the toma workspace's confirmation dialog
- * ("Continuar", ui/continuar-preparacion-dialog.tsx) shows for an ítem's
+ * `getConfirmacionDeFicha`: what the toma workspace's "Marcar como preparada"
+ * dialog (ui/continuar-preparacion-dialog.tsx) shows for an ítem's
  * ficha técnica BEFORE any preparación exists -- the same data
  * `/preparaciones/[id]` shows for an INICIADA one (shared builder,
  * ./datos-confirmacion.ts). Read-only, `preparaciones.iniciar` (same as
  * `preparaciones.pantalla`): opening the dialog persists nothing; the
  * preparación is created together with its reserva de stock by
- * `reservarStockPreparacion` (./reservar-stock-preparacion.ts). Stock
- * reserved by other preparaciones is not offered.
+ * `reservarStockPreparacion` (./reservar-stock-preparacion.ts) with the same
+ * automatic plan. Stock reserved by other preparaciones is not available.
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";

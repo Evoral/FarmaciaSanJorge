@@ -235,13 +235,19 @@ export async function getMaxVersionFicha(tx: Prisma.TransactionClient, tenantId:
   return rows[0]?.max_version ?? 0;
 }
 
-/** Whether the item already has its (single, INV-PRP-003) CONFIRMADA preparación -- the item is done, so `generarFichaTecnica` refuses new versions. */
-export async function itemTienePreparacionConfirmada(tx: Prisma.TransactionClient, tenantId: string, itemRecetaId: string): Promise<boolean> {
-  const confirmada = await tx.preparacion.findFirst({
-    where: { tenantId, itemRecetaId, estado: "CONFIRMADA" },
-    select: { id: true },
+/**
+ * The estado of the item's LIVE preparación (INICIADA or CONFIRMADA, any ficha version; at most one, migration 0077),
+ * `null` when none: `generarFichaTecnica` refuses new versions while it lives (CONFIRMADA: the item is done;
+ * INICIADA: its stock is reserved on the current version -- docs/specs/reserva-stock-preparacion.md R20). Read after
+ * `lockItemRecetaParaFicha`: a reserva locks the same row before inserting its preparación, so the two serialize.
+ */
+export async function estadoPreparacionVivaDeItem(tx: Prisma.TransactionClient, tenantId: string, itemRecetaId: string): Promise<"INICIADA" | "CONFIRMADA" | null> {
+  const viva = await tx.preparacion.findFirst({
+    where: { tenantId, itemRecetaId, estado: { in: ["INICIADA", "CONFIRMADA"] } },
+    orderBy: { estado: "desc" },
+    select: { estado: true },
   });
-  return confirmada !== null;
+  return viva ? (viva.estado === "CONFIRMADA" ? "CONFIRMADA" : "INICIADA") : null;
 }
 
 export interface NuevaFichaInput {

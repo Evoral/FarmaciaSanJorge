@@ -27,9 +27,9 @@
  *        no stock movement, no asiento; while it lives the receta can not
  *        be edited (its estado stays PENDIENTE_PREPARACION until the first
  *        confirmation).
- *     2. Stock reservado: the reserved partidas are listed; "Modificar reserva"
- *        (`preparaciones.modificarReserva`) reopens the same dialog prefilled
- *        with the reserva and replaces it (same preparación); "Liberar reserva"
+ *     2. Stock reservado: the reserved partidas are listed; "Recalcular reserva"
+ *        (`preparaciones.recalcularReserva`) re-plans it automatically (same
+ *        preparación); "Liberar reserva"
  *        (`preparaciones.liberarReserva`) discards the preparación and the
  *        ítem is Pendiente again (the receta editable again while no ítem
  *        has a live preparación); "Registrar pérdida"
@@ -98,7 +98,7 @@ import { BorradorRecetaProvider, RecetaFormToma } from "@/modules/preparaciones/
 import { CancelarTomaForm } from "@/modules/preparaciones/ui/cancelar-toma-form";
 import { FichaTecnicaEnToma, FichasDeItemsNuevos, RequiereRecetaGuardada } from "@/modules/preparaciones/ui/fichas-borrador";
 import { ContinuarPreparacionDialog } from "@/modules/preparaciones/ui/continuar-preparacion-dialog";
-import { EtiquetasDeReceta, LiberarReservaForm, PerdidaReservaDialog } from "@/modules/preparaciones/ui/reserva-acciones";
+import { EtiquetasDeReceta, LiberarReservaForm, PerdidaReservaDialog, RecalcularReservaForm } from "@/modules/preparaciones/ui/reserva-acciones";
 import { listDtParaPerdida } from "@/modules/preparaciones/application/list-dt-para-perdida";
 import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
 import { ItemDatos } from "@/modules/preparaciones/ui/item-datos";
@@ -181,7 +181,7 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
   const tamanos = puedeImprimirEtiquetas && receta.items.some((item) => item.preparacion !== null) ? await listTamanosParaImprimir() : [];
   // Its rows: the confirmed ítems with their etiqueta, in ítem order.
   const etiquetas = receta.items.flatMap((item, i) =>
-    estados[i] === "CONFIRMADA" && item.preparacion?.etiquetaGenerada ? [{ preparacionId: item.preparacion.id, numero: i + 1, nombre: nombreDeItem(item) }] : [],
+    estados[i] === "CONFIRMADA" && item.preparacion?.etiquetaGenerada && !item.preparacion.etiquetaNoImprimible ? [{ preparacionId: item.preparacion.id, numero: i + 1, nombre: nombreDeItem(item) }] : [],
   );
   const paciente = `${receta.pacienteNombre} ${receta.pacienteApellido}`;
   const diagnostico = [receta.diagnosticoCodigo, receta.diagnosticoDescripcion].filter(Boolean).join(" - ");
@@ -214,6 +214,7 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
           recetaId={receta.id}
           porConfirmar={receta.items.length - confirmados}
           todasReservadas={itemsSinReserva(estados).length === 0}
+          sinAlcance={receta.items.flatMap((item, i) => (estados[i] === "RESERVADA" && item.preparacion && !item.preparacion.reservaAlcanza ? [i + 1] : []))}
           puedeConfirmar={can(session, "preparaciones.confirmar") && can(session, "etiquetas.generar")}
           puedeImprimir={puedeImprimirEtiquetas}
           tamanos={tamanos}
@@ -343,7 +344,7 @@ function nombreDeItem(item: ItemDeToma): string {
 interface AccionesDeItem {
   /** `preparaciones.descartar`: "Liberar reserva". */
   puedeLiberar: boolean;
-  /** `preparaciones.confirmar`: "Modificar reserva" and "Registrar pérdida". */
+  /** `preparaciones.confirmar`: "Recalcular reserva" and "Registrar pérdida". */
   puedeReservar: boolean;
   /** DTs vigentes for "Registrar pérdida"'s co-firma. */
   dts: { usuarioId: string; nombre: string; apellido: string }[];
@@ -372,7 +373,7 @@ function ItemToma({
   acciones: AccionesDeItem;
 }) {
   const estado = estadoItemToma(item.preparacion);
-  const ficha = item.ultimaFicha;
+  const ficha = item.ficha;
   const nombre = nombreDeItem(item);
   const preparacion = item.preparacion;
   // In the actions bar, just left of the ítem's main action (Marcar como preparada, Liberar reserva, Ver preparación).
@@ -413,8 +414,18 @@ function ItemToma({
             ) : (
               <p className="text-sm text-zinc-500">Todavía no se generó la ficha técnica de este ítem.</p>
             )}
-            {/* Saving the receta regenerates the fichas by itself: by hand only when an ítem has none (e.g. the automatic generation failed). */}
-            {puedeGenerarFicha && estado === "PENDIENTE" && !ficha ? (
+            {estado === "PENDIENTE" && item.fichaDesactualizada ? (
+              <div role="alert" className="alert alert-warn mt-3">
+                <CircleAlert aria-hidden />
+                <div>
+                  <p className="font-semibold">Ficha desactualizada</p>
+                  <p>{item.fichaDesactualizada}</p>
+                  {puedeGenerarFicha ? null : <p>Pedile a alguien con permiso para generar fichas técnicas que la genere.</p>}
+                </div>
+              </div>
+            ) : null}
+            {/* Saving the receta regenerates the fichas by itself (with `fichas.generar`): by hand when an ítem has none or it is desactualizada (R18). */}
+            {puedeGenerarFicha && estado === "PENDIENTE" && (!ficha || item.fichaDesactualizada) ? (
               <RequiereRecetaGuardada nota={null}>
                 <div className="mt-3">
                   <GenerarFichaForm itemRecetaId={item.id} recetaId={recetaId} label="Generar ficha técnica" />
@@ -430,7 +441,10 @@ function ItemToma({
             {preparacion.reservaAlcanza ? null : (
               <div role="alert" className="alert alert-danger mb-3">
                 <CircleAlert aria-hidden />
-                <p>La reserva ya no alcanza: modificá la reserva.</p>
+                <div className="flex flex-col items-start gap-2">
+                  <p>La reserva ya no alcanza (cambió el stock o venció una partida): recalculala antes de imprimir las etiquetas.</p>
+                  {acciones.puedeReservar && !ficha?.lineas.some((l) => l.esEnraseManual) ? <RecalcularReservaForm preparacionId={preparacion.id} /> : null}
+                </div>
               </div>
             )}
             <ul className="flex flex-col gap-1 text-sm">
@@ -508,7 +522,7 @@ function ItemToma({
                   Continuar
                 </Link>
               </>
-            ) : ficha ? (
+            ) : ficha && !item.fichaDesactualizada ? (
               <RequiereRecetaGuardada nota={null}>
                 {imprimirFicha}
                 <ContinuarPreparacionDialog objetivo={{ fichaTecnicaId: ficha.id }} itemNombre={`Ítem ${numero}: ${nombre}`} />

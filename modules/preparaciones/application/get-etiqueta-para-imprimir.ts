@@ -3,11 +3,18 @@
  * `etiquetas.imprimir` (plan §7: FAR/DT). This is the ONLY entry point the
  * etiqueta PDF route handler uses to read data -- same discipline as
  * `modules/elaboracion/application/get-ficha-para-imprimir.ts`.
+ *
+ * Refuses (DomainError, with the reason) a preparado no longer valid: its
+ * receta ANULADA or its asiento dejado sin efecto
+ * (docs/specs/reserva-stock-preparacion.md R22). Returns the persisted
+ * `etiqueta.contenido` snapshot: the PDF prints THAT, not live data
+ * (docs/specs/vencimiento-preparado.md R7).
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { uuid } from "@/shared/validation";
-import { NotFoundError } from "@/shared/errors";
+import { DomainError, NotFoundError } from "@/shared/errors";
+import { motivoEtiquetaNoImprimible } from "../domain/etiqueta";
 import { getPreparacionParaEtiqueta, getEtiquetaParaImprimir as getEtiquetaParaImprimirRepo } from "../infrastructure/preparacion-repository";
 import type { EtiquetaParaImprimirDatos } from "../infrastructure/preparacion-repository";
 
@@ -25,8 +32,10 @@ export const getEtiquetaParaImprimirQuery = defineQuery({
 
     const datos = await getPreparacionParaEtiqueta(tx, session.tenantId, input.preparacionId);
     if (!datos) throw new NotFoundError("La preparación no está CONFIRMADA.");
+    const motivo = motivoEtiquetaNoImprimible(datos);
+    if (motivo) throw new DomainError(motivo);
 
-    return { ...datos, etiquetaId: etiqueta.id, generadaEn: etiqueta.generadaEn };
+    return { ...datos, etiquetaId: etiqueta.id, generadaEn: etiqueta.generadaEn, contenido: etiqueta.contenido };
   },
 });
 

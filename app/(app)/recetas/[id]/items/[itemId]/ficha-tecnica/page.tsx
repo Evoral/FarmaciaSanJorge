@@ -51,7 +51,9 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
   const puedeVerCotizacion = can(session, "cotizaciones.calcular") || can(session, "cotizaciones.ver");
   // Once the item's preparación is CONFIRMADA no new version can ever be prepared, so generating is closed (also refused by generarFichaTecnica).
   const itemConfirmado = versiones.some((v) => v.preparacionActual?.estado === "CONFIRMADA");
-  const puedeGenerar = can(session, "fichas.generar") && !itemConfirmado;
+  // Nor while its stock is reserved (an INICIADA preparación): release the reserva first (docs/specs/reserva-stock-preparacion.md R20).
+  const itemConReserva = versiones.some((v) => v.preparacionActual?.estado === "INICIADA");
+  const puedeGenerar = can(session, "fichas.generar") && !itemConfirmado && !itemConReserva;
   const posicion = receta.items.findIndex((i) => i.id === itemId) + 1;
 
   return (
@@ -67,7 +69,9 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
         description={
           itemConfirmado
             ? "Líneas de pesaje calculadas para este ítem. Ya tiene una preparación confirmada: no se generan versiones nuevas."
-            : "Líneas de pesaje calculadas para este ítem. Cada generación crea una versión nueva."
+            : itemConReserva
+              ? "Líneas de pesaje calculadas para este ítem. Tiene stock reservado: liberá la reserva antes de generar una nueva versión."
+              : "Líneas de pesaje calculadas para este ítem. Cada generación crea una versión nueva."
         }
         actions={
           puedeVerCotizacion ? (
