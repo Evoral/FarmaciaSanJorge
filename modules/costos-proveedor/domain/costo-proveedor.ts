@@ -78,7 +78,7 @@ export function calcularCostoUnidadBase(precioInformado: Decimal | string, unida
 // ============================================================================
 
 /** `YYYY-MM-DD` that is also a real calendar date (no 2026-02-31). */
-function esFechaIsoReal(value: string): boolean {
+export function esFechaIsoReal(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [year, month, day] = value.split("-").map(Number) as [number, number, number];
   const date = new Date(Date.UTC(year, month - 1, day));
