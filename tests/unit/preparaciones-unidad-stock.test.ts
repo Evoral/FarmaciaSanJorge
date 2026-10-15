@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 import { DomainError } from "@/shared/errors";
+import { dec } from "@/shared/decimal";
 import { convertirCantidad } from "@/shared/decimal/convertir-unidad";
 
 vi.mock("@/shared/audit", () => ({
@@ -100,6 +101,8 @@ const repo = {
     medicoMatricula: "MAT-1",
   })),
   deleteReservasDePreparacion: vi.fn(async () => 0),
+  listReservasDePreparacion: vi.fn(async () => [] as unknown[]),
+  getUltimaFichaDeItem: vi.fn(async () => ({ id: FICHA_ID, version: 1 })),
 };
 vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => repo);
 
@@ -115,15 +118,17 @@ beforeEach(() => {
   repo.getDrogaTipoControl.mockResolvedValue({ tipoControl: "NINGUNO", clase: "DROGA", nombre: "Cafeína", unidadBaseId: MILIGRAMO.id });
 });
 
-async function confirmar(lineas: { lineaPesajeId: string; partidaIds: string[]; cantidadManual?: string }[] = [{ lineaPesajeId: LINEA_ID, partidaIds: [PARTIDA_A] }]) {
-  return confirmarPreparacionCommand.execute({ preparacionId: PREPARACION_ID, lineas }, { session });
+// The partidas are chosen by the system (R1, "automatica"): the client sends only what a línea needs typed (an enrase
+// manual's real quantity), never partidaIds. The candidates are every eligible partida the repository mock lists.
+async function confirmar() {
+  return confirmarPreparacionCommand.execute({ preparacionId: PREPARACION_ID }, { session });
 }
 
-function plan(lineas: { lineaPesajeId: string; partidaIds: string[]; cantidadManual?: string }[] = [{ lineaPesajeId: LINEA_ID, partidaIds: [PARTIDA_A] }]) {
+function plan(entradas: { lineaPesajeId: string; cantidadManual?: string }[] = []) {
   return planificarConsumoEnTx({} as never, TENANT_ID, {
     preparacionId: PREPARACION_ID,
     fichaTecnicaId: FICHA_ID,
-    lineas: lineas.map((l) => ({ ...l, cantidadManual: l.cantidadManual })) as never,
+    seleccion: { modo: "automatica", entradas: entradas.map((e) => ({ lineaPesajeId: e.lineaPesajeId, cantidadManual: e.cantidadManual ? dec(e.cantidadManual) : undefined })) as never },
     jornada: JORNADA,
   });
 }
@@ -150,7 +155,7 @@ describe("planificarConsumoEnTx: the línea's quantity is converted into the dro
   it("spreads over several partidas in mg (600000 + 350000)", async () => {
     repo.getPartidasFrescas.mockResolvedValue([partida(PARTIDA_A, "600000", { fechaApertura: "2026-06-01T10:00:00.000Z" }), partida(PARTIDA_B, "500000")]);
     repo.listPartidasElegiblesDroga.mockResolvedValue([partida(PARTIDA_A, "600000", { fechaApertura: "2026-06-01T10:00:00.000Z" }), partida(PARTIDA_B, "500000")]);
-    const [linea] = await plan([{ lineaPesajeId: LINEA_ID, partidaIds: [PARTIDA_A, PARTIDA_B] }]);
+    const [linea] = await plan();
     expect(linea!.split.map((s) => [s.partidaId, s.cantidad.toFixed()])).toEqual([
       [PARTIDA_A, "600000"],
       [PARTIDA_B, "350000"],
@@ -170,7 +175,8 @@ describe("planificarConsumoEnTx: the línea's quantity is converted into the dro
     // 900000 mg = 900 g available for 950 g.
     repo.getPartidasFrescas.mockResolvedValue([partida(PARTIDA_A, "900000")]);
     repo.listPartidasElegiblesDroga.mockResolvedValue([partida(PARTIDA_A, "900000")]);
-    await expect(plan()).rejects.toThrow("Stock insuficiente de Cafeína en las partidas elegidas: faltan 50 g.");
+    // Automatic plan (R1): the shortfall is over every eligible partida, so no "en las partidas ..." qualifier.
+    await expect(plan()).rejects.toThrow("Stock insuficiente de Cafeína: faltan 50 g.");
   });
 
   it("a stock that covered the old (unconverted) amount is no longer enough: 950 mg do not cover 950 g", async () => {
@@ -189,7 +195,7 @@ describe("planificarConsumoEnTx: the línea's quantity is converted into the dro
 
   it("enrase manual: the typed quantity is in the línea's unit (the form's) and converted (27 g -> 27000 mg)", async () => {
     repo.getLineasParaPreparacion.mockResolvedValue([lineaCafeina({ drogaNombre: "Vaselina", cantidadAPesar: null, esEnraseManual: true })]);
-    const [linea] = await plan([{ lineaPesajeId: LINEA_ID, partidaIds: [PARTIDA_A], cantidadManual: "27" }]);
+    const [linea] = await plan([{ lineaPesajeId: LINEA_ID, cantidadManual: "27" }]);
     expect(linea!.cantidadRequerida.toFixed()).toBe("27");
     expect(linea!.split.map((s) => [s.cantidad.toFixed(), s.potenciaAplicada])).toEqual([["27000", null]]);
     expect(linea!.totalFisico.toFixed()).toBe("27");

@@ -5,6 +5,10 @@
  * maps a raw DB invariant error to a CLEAR SPANISH message (point 8.3's own
  * requirement), never the raw driver text. Mocked repository/tx, no DB --
  * tests/db covers the real SQL/trigger shape.
+ *
+ * Contract of docs/specs/reserva-stock-preparacion.md (R1, R19, R23): the partidas are chosen by the system (the
+ * client sends no partidaIds), the order of every preparación command is preparación -> receta -> partidas, and a
+ * preparación holding a reserva is refused by the plain descartar / confirmar commands.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
@@ -26,6 +30,10 @@ vi.mock("@/shared/auth/session", () => ({
     throw new Error("requireSession() unexpectedly called -- inject a session via execute(input, { session })");
   }),
   requireRecentReauth: vi.fn(),
+}));
+
+vi.mock("@/modules/elaboracion/application/estado-ficha", () => ({
+  evaluarFichaDeItemEnTx: vi.fn(async () => ({ vigente: true })),
 }));
 
 const TENANT_ID = "11111111-1111-1111-1111-111111111111";
@@ -58,7 +66,7 @@ const lockFichaTecnicaParaIniciarMock = vi.fn(async (...args: unknown[]) => {
 const getFichaParaIniciarMock = vi.fn(async (...args: unknown[]) => {
   void args;
   callOrder.push("readFicha");
-  return { id: FICHA_ID, itemRecetaId: "item-1", recetaId: "receta-1", recetaEstado: "PENDIENTE_PREPARACION" as const };
+  return { id: FICHA_ID, version: 1, itemRecetaId: "item-1", recetaId: "receta-1", recetaNumeroInterno: "1", recetaEstado: "PENDIENTE_PREPARACION" as const };
 });
 const getPreparacionActivaDeFichaMock = vi.fn(async (...args: unknown[]) => {
   void args;
@@ -70,7 +78,31 @@ const insertPreparacionMock = vi.fn(async (...args: unknown[]) => {
 });
 const lockRecetaParaTransicionMock = vi.fn(async (...args: unknown[]) => {
   void args;
+  callOrder.push("lockReceta");
   return true;
+});
+const getTomaDeRecetaMock = vi.fn(async (...args: unknown[]) => {
+  void args;
+  callOrder.push("readToma");
+  return { id: "receta-1", numeroInterno: "1", estado: "PENDIENTE_PREPARACION" as EstadoReceta, tomadaPorId: USUARIO_ID, tomadaPorNombre: "A, N", tomadaEn: new Date(), zonaHoraria: "America/Argentina/Buenos_Aires" };
+});
+const lockItemRecetaParaReservaMock = vi.fn(async (...args: unknown[]) => {
+  void args;
+  callOrder.push("lockItem");
+  return true;
+});
+const getPreparacionVivaDeItemMock = vi.fn(async (...args: unknown[]) => {
+  void args;
+  return null;
+});
+const listReservasDePreparacionMock = vi.fn(async (...args: unknown[]) => {
+  void args;
+  callOrder.push("listReservas");
+  return [] as unknown[];
+});
+const getUltimaFichaDeItemMock = vi.fn(async (...args: unknown[]) => {
+  void args;
+  return { id: FICHA_ID, version: 1 };
 });
 const getRecetaEstadoMock = vi.fn(async (...args: unknown[]) => {
   void args;
@@ -174,6 +206,12 @@ vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => (
   getPreparacionActivaDeFicha: (...args: unknown[]) => getPreparacionActivaDeFichaMock(...args),
   insertPreparacion: (...args: unknown[]) => insertPreparacionMock(...args),
   lockRecetaParaTransicion: (...args: unknown[]) => lockRecetaParaTransicionMock(...args),
+  getTomaDeReceta: (...args: unknown[]) => getTomaDeRecetaMock(...args),
+  setTomaDeReceta: vi.fn(async () => undefined),
+  lockItemRecetaParaReserva: (...args: unknown[]) => lockItemRecetaParaReservaMock(...args),
+  getPreparacionVivaDeItem: (...args: unknown[]) => getPreparacionVivaDeItemMock(...args),
+  listReservasDePreparacion: (...args: unknown[]) => listReservasDePreparacionMock(...args),
+  getUltimaFichaDeItem: (...args: unknown[]) => getUltimaFichaDeItemMock(...args),
   getRecetaEstado: (...args: unknown[]) => getRecetaEstadoMock(...args),
   updateRecetaEstado: (...args: unknown[]) => updateRecetaEstadoMock(...args),
   todosLosItemsConfirmados: (...args: unknown[]) => todosLosItemsConfirmadosMock(...args),
@@ -194,7 +232,7 @@ vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => (
   insertAsientoRecetario: (...args: unknown[]) => insertAsientoRecetarioMock(...args),
   insertAsientoContralorEgreso: (...args: unknown[]) => insertAsientoContralorEgresoMock(...args),
   getRecetaContextoAsiento: (...args: unknown[]) => getRecetaContextoAsientoMock(...args),
-  deleteReservasDePreparacion: vi.fn(async () => 0), getTomaDeReceta: vi.fn(async () => null), setTomaDeReceta: vi.fn(async () => undefined),
+  deleteReservasDePreparacion: vi.fn(async () => 0),
 }));
 
 const { iniciarPreparacionCommand } = await import("@/modules/preparaciones/application/iniciar-preparacion");
@@ -210,11 +248,28 @@ beforeEach(() => {
   });
   getFichaParaIniciarMock.mockImplementation(async () => {
     callOrder.push("readFicha");
-    return { id: FICHA_ID, itemRecetaId: "item-1", recetaId: "receta-1", recetaEstado: "PENDIENTE_PREPARACION" as const };
+    return { id: FICHA_ID, version: 1, itemRecetaId: "item-1", recetaId: "receta-1", recetaNumeroInterno: "1", recetaEstado: "PENDIENTE_PREPARACION" as const };
   });
   getPreparacionActivaDeFichaMock.mockResolvedValue(null);
+  getPreparacionVivaDeItemMock.mockResolvedValue(null);
   insertPreparacionMock.mockResolvedValue({ id: PREPARACION_ID });
-  lockRecetaParaTransicionMock.mockResolvedValue(true);
+  lockRecetaParaTransicionMock.mockImplementation(async () => {
+    callOrder.push("lockReceta");
+    return true;
+  });
+  getTomaDeRecetaMock.mockImplementation(async () => {
+    callOrder.push("readToma");
+    return { id: "receta-1", numeroInterno: "1", estado: "PENDIENTE_PREPARACION" as EstadoReceta, tomadaPorId: USUARIO_ID, tomadaPorNombre: "A, N", tomadaEn: new Date(), zonaHoraria: "America/Argentina/Buenos_Aires" };
+  });
+  lockItemRecetaParaReservaMock.mockImplementation(async () => {
+    callOrder.push("lockItem");
+    return true;
+  });
+  listReservasDePreparacionMock.mockImplementation(async () => {
+    callOrder.push("listReservas");
+    return [];
+  });
+  getUltimaFichaDeItemMock.mockResolvedValue({ id: FICHA_ID, version: 1 });
   getRecetaEstadoMock.mockResolvedValue("PENDIENTE_PREPARACION" as EstadoReceta);
   updateRecetaEstadoMock.mockResolvedValue(undefined);
   todosLosItemsConfirmadosMock.mockResolvedValue(false);
@@ -263,7 +318,28 @@ beforeEach(() => {
 describe("iniciar-preparacion: lock BEFORE reading the ficha's current state", () => {
   it("locks the ficha, then reads it", async () => {
     await iniciarPreparacionCommand.execute({ fichaTecnicaId: FICHA_ID }, { session: fakeSession("preparaciones.iniciar") });
-    expect(callOrder).toEqual(["lockFicha", "readFicha"]);
+    expect(callOrder.slice(0, 2)).toEqual(["lockFicha", "readFicha"]);
+  });
+
+  it("locks the receta BEFORE re-reading its estado/toma, then locks the ítem (R23)", async () => {
+    await iniciarPreparacionCommand.execute({ fichaTecnicaId: FICHA_ID }, { session: fakeSession("preparaciones.iniciar") });
+    expect(callOrder).toEqual(["lockFicha", "readFicha", "lockReceta", "readToma", "lockItem"]);
+  });
+
+  it("404s when the locked receta does not exist -- never reads its toma nor inserts afterward", async () => {
+    lockRecetaParaTransicionMock.mockImplementationOnce(async () => {
+      callOrder.push("lockReceta");
+      return false;
+    });
+    let caught: unknown;
+    try {
+      await iniciarPreparacionCommand.execute({ fichaTecnicaId: FICHA_ID }, { session: fakeSession("preparaciones.iniciar") });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(NotFoundError);
+    expect(getTomaDeRecetaMock).not.toHaveBeenCalled();
+    expect(insertPreparacionMock).not.toHaveBeenCalled();
   });
 
   it("404s when the locked ficha does not exist -- never reads afterward", async () => {
@@ -295,29 +371,61 @@ describe("descartar-preparacion: lock BEFORE reading the preparación's current 
       caught = error;
     }
     expect(caught).toBeInstanceOf(DomainError);
-    expect(callOrder).toEqual(["lockPreparacion", "readPreparacion"]);
+    // The command locks and checks the reservas under that lock; descartarPreparacionEnTx re-locks (same tx) and reads.
+    expect(callOrder).toEqual(["lockPreparacion", "listReservas", "lockPreparacion", "readPreparacion"]);
     expect(updatePreparacionDescartadaMock).not.toHaveBeenCalled();
   });
 
   it("succeeds for an INICIADA preparación", async () => {
     await descartarPreparacionCommand.execute({ preparacionId: PREPARACION_ID, motivo: "Motivo" }, { session: fakeSession("preparaciones.descartar") });
-    expect(callOrder).toEqual(["lockPreparacion", "readPreparacion"]);
+    expect(callOrder).toEqual(["lockPreparacion", "listReservas", "lockPreparacion", "readPreparacion"]);
     expect(updatePreparacionDescartadaMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a preparación that holds a reserva de stock (released only by \"Liberar reserva\"), never reading it", async () => {
+    listReservasDePreparacionMock.mockImplementationOnce(async () => {
+      callOrder.push("listReservas");
+      return [{ lineaPesajeId: LINEA_ID, partidaId: PARTIDA_ID, cantidad: "10", cantidadManual: null, motivoAperturaAdicional: null }];
+    });
+    let caught: unknown;
+    try {
+      await descartarPreparacionCommand.execute({ preparacionId: PREPARACION_ID, motivo: "Motivo" }, { session: fakeSession("preparaciones.descartar") });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(DomainError);
+    expect((caught as Error).message).toContain("reservado");
+    expect(callOrder).toEqual(["lockPreparacion", "listReservas"]);
+    expect(updatePreparacionDescartadaMock).not.toHaveBeenCalled();
   });
 });
 
-describe("confirmar-preparacion: lock ordering (preparación, then partidas)", () => {
-  it("locks the preparación, reads it, THEN locks every chosen partida, THEN reads their fresh balances", async () => {
-    await confirmarPreparacionCommand.execute(
-      { preparacionId: PREPARACION_ID, lineas: [{ lineaPesajeId: LINEA_ID, partidaIds: [PARTIDA_ID] }] },
-      { session: fakeSession("preparaciones.confirmar") },
-    );
-    expect(callOrder).toEqual(["lockPreparacion", "readPreparacion", "lockPartidas", "readPartidasFrescas"]);
+describe("confirmar-preparacion: lock ordering (preparación, receta, then partidas)", () => {
+  it("locks the preparación, reads it, locks the receta, THEN locks every candidate partida, THEN reads their fresh balances", async () => {
+    await confirmarPreparacionCommand.execute({ preparacionId: PREPARACION_ID }, { session: fakeSession("preparaciones.confirmar") });
+    // The command locks and checks the reservas under that lock; confirmarPreparacionEnTx re-locks (same tx) and reads.
+    expect(callOrder).toEqual(["lockPreparacion", "listReservas", "lockPreparacion", "readPreparacion", "lockReceta", "lockPartidas", "readPartidasFrescas"]);
+  });
+
+  it("refuses a preparación that holds a reserva de stock (confirmed only by \"Imprimir etiquetas\"), before touching partidas", async () => {
+    listReservasDePreparacionMock.mockImplementationOnce(async () => {
+      callOrder.push("listReservas");
+      return [{ lineaPesajeId: LINEA_ID, partidaId: PARTIDA_ID, cantidad: "10", cantidadManual: null, motivoAperturaAdicional: null }];
+    });
+    let caught: unknown;
+    try {
+      await confirmarPreparacionCommand.execute({ preparacionId: PREPARACION_ID }, { session: fakeSession("preparaciones.confirmar") });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(DomainError);
+    expect((caught as Error).message).toContain("reservado");
+    expect(lockPartidasParaConfirmacionMock).not.toHaveBeenCalled();
   });
 
   it("preparada_por_id is the SESSION user, never client input (INV-P06)", async () => {
     await confirmarPreparacionCommand.execute(
-      { preparacionId: PREPARACION_ID, lineas: [{ lineaPesajeId: LINEA_ID, partidaIds: [PARTIDA_ID] }] },
+      { preparacionId: PREPARACION_ID },
       { session: fakeSession("preparaciones.confirmar") },
     );
     expect(updatePreparacionConfirmadaMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, PREPARACION_ID, USUARIO_ID, expect.any(String));
@@ -326,7 +434,7 @@ describe("confirmar-preparacion: lock ordering (preparación, then partidas)", (
   it("snapshots fecha_vencimiento = the confirmation's jornada + meses_vencimiento_preparado, in the same UPDATE", async () => {
     // jornada 2026-06-15 (mocked) + 3 months (mocked parameter).
     await confirmarPreparacionCommand.execute(
-      { preparacionId: PREPARACION_ID, lineas: [{ lineaPesajeId: LINEA_ID, partidaIds: [PARTIDA_ID] }] },
+      { preparacionId: PREPARACION_ID },
       { session: fakeSession("preparaciones.confirmar") },
     );
     expect(updatePreparacionConfirmadaMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, PREPARACION_ID, USUARIO_ID, "2026-09-15");
@@ -335,7 +443,7 @@ describe("confirmar-preparacion: lock ordering (preparación, then partidas)", (
     jornadaActualTenantMock.mockResolvedValue("2026-08-31");
     updatePreparacionConfirmadaMock.mockClear();
     await confirmarPreparacionCommand.execute(
-      { preparacionId: PREPARACION_ID, lineas: [{ lineaPesajeId: LINEA_ID, partidaIds: [PARTIDA_ID] }] },
+      { preparacionId: PREPARACION_ID },
       { session: fakeSession("preparaciones.confirmar") },
     );
     expect(updatePreparacionConfirmadaMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, PREPARACION_ID, USUARIO_ID, "2027-02-28");
@@ -349,7 +457,7 @@ describe("confirmar-preparacion: lock ordering (preparación, then partidas)", (
     let caught: unknown;
     try {
       await confirmarPreparacionCommand.execute(
-        { preparacionId: PREPARACION_ID, lineas: [{ lineaPesajeId: LINEA_ID, partidaIds: [PARTIDA_ID] }] },
+        { preparacionId: PREPARACION_ID },
         { session: fakeSession("preparaciones.confirmar") },
       );
     } catch (error) {
@@ -365,7 +473,7 @@ describe("confirmar-preparacion: lock ordering (preparación, then partidas)", (
     let caught: unknown;
     try {
       await confirmarPreparacionCommand.execute(
-        { preparacionId: PREPARACION_ID, lineas: [{ lineaPesajeId: LINEA_ID, partidaIds: [PARTIDA_ID] }] },
+        { preparacionId: PREPARACION_ID },
         { session: fakeSession("preparaciones.confirmar") },
       );
     } catch (error) {
@@ -383,7 +491,7 @@ describe("confirmar-preparacion: lock ordering (preparación, then partidas)", (
     let caught: unknown;
     try {
       await confirmarPreparacionCommand.execute(
-        { preparacionId: PREPARACION_ID, lineas: [{ lineaPesajeId: LINEA_ID, partidaIds: [PARTIDA_ID] }] },
+        { preparacionId: PREPARACION_ID },
         { session: fakeSession("preparaciones.confirmar") },
       );
     } catch (error) {
