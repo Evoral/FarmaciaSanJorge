@@ -12,6 +12,7 @@ precioFinal = max(costo × (1 + margenTramo / 100), precioMinimo)
 | Regla | Detalle |
 |---|---|
 | Costo | El costo de insumos de **una** preparación (un ítem / una cotización). Cada ítem se cotiza solo, también en el presupuesto de una receta con varios ítems: el tramo y el piso se aplican por ítem, nunca sobre el total de la receta. |
+| Origen del costo | Se decide **por línea**: si la droga tiene un costo de proveedor utilizable, la línea cuesta toda su cantidad × ese costo (`costos-proveedor.md`, R25–R28); si no, cae al costo de las partidas en stock (abiertas primero, luego FEFO, mezcla). El costo de insumos es la suma de las líneas, sea cual sea su origen, y el tramo y el piso se aplican **una vez** sobre esa suma (R31). |
 | Tramos | Lista ordenada. Cada tramo tiene un tope **inclusive** `costoHasta`; el límite inferior es el tope del tramo anterior (exclusive) y el primero empieza en 0 (inclusive). El último tramo no tiene tope (`costoHasta = null`). |
 | Límite | «Más de X» es estrictamente mayor: un costo **igual** al tope de un tramo pertenece a ese tramo. |
 | Margen | Se aplica sobre **todo** el costo, no de forma escalonada. |

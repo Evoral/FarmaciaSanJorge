@@ -63,6 +63,9 @@ const cotizacionRepo = {
 };
 vi.mock("@/modules/precios/infrastructure/cotizacion-repository", () => cotizacionRepo);
 
+// No costo de proveedor for any droga: every línea falls back to partidas (docs/specs/costos-proveedor.md, R27).
+vi.mock("@/modules/costos-proveedor/infrastructure/costo-proveedor-repository", () => ({ getCostosProveedorVigentesDeDrogas: vi.fn(async () => []) }));
+
 const getReglaVigente = vi.fn();
 vi.mock("@/modules/precios/infrastructure/regla-precio-repository", () => ({ getReglaVigente: (...a: unknown[]) => getReglaVigente(...a) }));
 

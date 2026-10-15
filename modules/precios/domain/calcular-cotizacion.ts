@@ -5,10 +5,27 @@
  * modules/stock/domain/reparto.ts.
  *
  * ============================================================================
- * Cost basis (task's own words, this is an ASSUMPTION -- kept in exactly
- * this one function so it can change without hunting call sites):
+ * Cost basis (kept in exactly this one function so it can change without
+ * hunting call sites):
  * ============================================================================
- * For each NON-manual `linea_pesaje` of the item's LATEST ficha tecnica,
+ * Two sources, chosen PER LÍNEA (docs/specs/costos-proveedor.md, R25-R30):
+ *
+ *   - `PROVEEDOR`: the línea's droga has a usable costo de proveedor (the
+ *     caller looked it up and passes it as `costoProveedor`). The línea costs
+ *     the WHOLE required quantity (in the droga's unidad base) x that
+ *     `costoUnitario`, whether or not there is stock. Partidas are still
+ *     evaluated, but ONLY to report the `faltante` ("not enough stock to
+ *     prepare it": informational, it does NOT make the cotización
+ *     `esIncompleta`) and, in the cumulative presupuesto, to keep the stock
+ *     simulation right. The línea's `partidas` list in the detalle is empty.
+ *   - `PARTIDAS`: no costo de proveedor -> exactly the algorithm described
+ *     below (R27, the explicit fallback).
+ *
+ * Manual-enrase and different-magnitud líneas are never costed, whatever the
+ * source (R29). The tramo margin and precio mínimo apply to the resulting
+ * costo de insumos exactly as before (R31).
+ *
+ * PARTIDAS algorithm: for each NON-manual `linea_pesaje` of the item's LATEST ficha tecnica,
  * cost the quantities the reparto WOULD use if a preparacion confirmed
  * right now -- REUSING `modules/stock/domain/reparto.ts#proponerReparto`
  * (open partida first, then earliest expiry among the rest, expired
@@ -76,7 +93,31 @@ export interface LineaCosteoInput {
   unidadStock: UnidadDeConversion;
   esEnraseManual: boolean;
   orden: number;
+  /**
+   * The costo de proveedor chosen for this línea's droga (R26), or `null`/absent when it has none (-> PARTIDAS).
+   * Chosen by the caller (application layer); this module only applies it.
+   */
+  costoProveedor?: CostoProveedorCosteo | null;
 }
+
+/**
+ * The costo de proveedor a `PROVEEDOR` línea is priced with: what the cotización needs to compute and what the
+ * snapshot keeps (R32). `costoUnitario` is per the droga's unidad base (same convention as a partida's); the
+ * `precioInformado` / `unidadPrecioSimbolo` are the price as written on the supplier's list, for display.
+ */
+export interface CostoProveedorCosteo {
+  costoProveedorId: string;
+  proveedorId: string;
+  proveedorNombre: string;
+  precioInformado: string;
+  unidadPrecioSimbolo: string;
+  costoUnitario: string;
+  /** `YYYY-MM-DD`. */
+  fechaPrecio: string;
+}
+
+/** Where a línea's cost came from (R25, R27). */
+export type FuenteCosto = "PROVEEDOR" | "PARTIDAS";
 
 export interface PartidaUsadaDetalle {
   partidaId: string;
@@ -94,14 +135,53 @@ export interface LineaCotizacionDetalle {
   esEnraseManual: boolean;
   /** In the línea's unit (`unidadSimbolo`). */
   cantidadRequerida: string | null;
+  /** Always empty for a `PROVEEDOR` línea (its cost does not come from partidas). */
   partidas: PartidaUsadaDetalle[];
   subtotal: string;
-  /** In the línea's unit. Present (and > 0) only when this linea could not be fully costed for lack of stock. */
+  /**
+   * In the línea's unit. Present (and > 0) when the eligible stock does not cover the línea. On a `PARTIDAS` línea it
+   * means "could not be fully costed" (and makes the cotización `esIncompleta`); on a `PROVEEDOR` línea it is
+   * informational ("not enough stock to prepare it") and never makes it incomplete (R28).
+   */
   faltante: string | null;
+  /**
+   * Always written by calculations from this feature on. ABSENT in every snapshot calculated before it: readers treat
+   * a missing `fuente` as `PARTIDAS` (R32, see `leerDetalleCotizacion`).
+   */
+  fuente?: FuenteCosto;
+  /** Only on a `PROVEEDOR` línea: the costo de proveedor it was priced with (R32). */
+  costoProveedor?: CostoProveedorCosteo;
 }
 
 export interface CotizacionDetalle {
   lineas: LineaCotizacionDetalle[];
+}
+
+/** A línea of a stored detalle as the readers (UI) get it: `fuente` always present. */
+export interface LineaCotizacionLeida extends Omit<LineaCotizacionDetalle, "fuente" | "costoProveedor"> {
+  fuente: FuenteCosto;
+  /** `false`: a snapshot calculated before costos de proveedor existed (no `fuente` stored); `fuente` is then `PARTIDAS` by rule. */
+  fuenteRegistrada: boolean;
+  costoProveedor: CostoProveedorCosteo | null;
+}
+
+export interface CotizacionDetalleLeido {
+  lineas: LineaCotizacionLeida[];
+}
+
+/**
+ * R32: a stored detalle read for display. A línea without `fuente` (every cotización calculated before costos de
+ * proveedor) is `PARTIDAS`, flagged `fuenteRegistrada: false` so it can render exactly as it always did.
+ */
+export function leerDetalleCotizacion(detalle: CotizacionDetalle): CotizacionDetalleLeido {
+  return {
+    lineas: detalle.lineas.map((l) => ({
+      ...l,
+      fuente: l.fuente ?? "PARTIDAS",
+      fuenteRegistrada: l.fuente !== undefined,
+      costoProveedor: l.fuente === "PROVEEDOR" ? (l.costoProveedor ?? null) : null,
+    })),
+  };
 }
 
 export interface CotizacionCalculada {
@@ -132,12 +212,25 @@ function totalDisponibleElegible(partidas: readonly PartidaDisponible[], jornada
     .reduce((total, p) => total.plus(dec(p.cantidadDisponible)), new Decimal(0));
 }
 
-/** Costs ONE non-manual linea against its droga's eligible partidas. Never throws -- always returns a costed (possibly partial) result. */
+/** What a línea takes from a partida when the reparto is simulated (the droga's unidad base). */
+interface ConsumoSimulado {
+  drogaId: string;
+  partidaId: string;
+  cantidad: string;
+}
+
+/**
+ * Costs ONE non-manual linea. Never throws -- always returns a costed (possibly partial) result.
+ *
+ * The partidas are ALWAYS evaluated (reparto + faltante). With a costo de proveedor the línea is priced from it
+ * (R25) and the partidas only feed `faltante` and the stock simulation (`consumo`); without one the cost is the
+ * partidas' blend, exactly as before this feature (R27).
+ */
 function costearLinea(
   linea: LineaCosteoInput,
   partidas: readonly PartidaCosteo[],
   jornadaActual: string,
-): { detalle: LineaCotizacionDetalle; incompleta: boolean } {
+): { detalle: LineaCotizacionDetalle; incompleta: boolean; consumo: PartidaUsadaDetalle[] } {
   const requerida = dec(linea.cantidadAPesar as Decimal | string);
   // Partidas are in the droga's unidad base: split in it, report the faltante back in the línea's unit.
   const requeridaStock = convertirCantidad(requerida, linea.unidad, linea.unidadStock);
@@ -175,8 +268,31 @@ function costearLinea(
     });
   }
 
+  const costoProveedor = linea.costoProveedor ?? null;
+  if (costoProveedor) {
+    // R25: the WHOLE quantity (stock or not) at the proveedor's costo per unidad base. R28: the faltante is only informational.
+    return {
+      incompleta: false,
+      consumo: partidasUsadas,
+      detalle: {
+        orden: linea.orden,
+        drogaId: linea.drogaId,
+        drogaNombre: linea.drogaNombre,
+        unidadSimbolo: linea.unidadSimbolo,
+        esEnraseManual: false,
+        cantidadRequerida: requerida.toString(),
+        partidas: [],
+        subtotal: requeridaStock.times(dec(costoProveedor.costoUnitario)).toString(),
+        faltante: faltante.greaterThan(0) ? faltante.toFixed() : null,
+        fuente: "PROVEEDOR",
+        costoProveedor: { ...costoProveedor },
+      },
+    };
+  }
+
   return {
     incompleta: faltante.greaterThan(0),
+    consumo: partidasUsadas,
     detalle: {
       orden: linea.orden,
       drogaId: linea.drogaId,
@@ -187,26 +303,23 @@ function costearLinea(
       partidas: partidasUsadas,
       subtotal: subtotal.toString(),
       faltante: faltante.greaterThan(0) ? faltante.toFixed() : null,
+      fuente: "PARTIDAS",
     },
   };
 }
 
-/**
- * @param lineas every non-descartada linea_pesaje of the item's LATEST ficha tecnica, in `orden`.
- * @param partidasPorDroga eligible-or-not partidas for a given drogaId (this function itself applies eligibility filtering -- callers may pass every partida of that droga, expired or not, with or without balance).
- * @param jornadaActual `YYYY-MM-DD`, from `fsj.jornada_actual(tenantId)` -- never `new Date()` (INV-PL-002).
- * @param reglas the OPEN regla_precio's precioMinimo + tramos at calculation time -- priced on THIS item's cost alone (each item / cotización independently).
- */
-export function calcularCotizacion(
+/** `calcularCotizacion` plus what each línea would take from the partidas (including `PROVEEDOR` líneas, whose detalle lists none): the cumulative presupuesto needs it. */
+function costearItem(
   lineas: readonly LineaCosteoInput[],
   partidasPorDroga: (drogaId: string) => readonly PartidaCosteo[],
   jornadaActual: string,
   reglas: ReglasPrecio,
-): CotizacionCalculada {
+): { cotizacion: CotizacionCalculada; consumos: ConsumoSimulado[] } {
   let costoInsumos = new Decimal(0);
   let esParcial = false;
   let esIncompleta = false;
   const detalleLineas: LineaCotizacionDetalle[] = [];
+  const consumos: ConsumoSimulado[] = [];
 
   for (const linea of [...lineas].sort((a, b) => a.orden - b.orden)) {
     if (linea.esEnraseManual) {
@@ -221,6 +334,7 @@ export function calcularCotizacion(
         partidas: [],
         subtotal: "0",
         faltante: null,
+        fuente: "PARTIDAS",
       });
       continue;
     }
@@ -238,28 +352,48 @@ export function calcularCotizacion(
         partidas: [],
         subtotal: "0",
         faltante: null,
+        fuente: "PARTIDAS",
       });
       continue;
     }
 
-    const { detalle, incompleta } = costearLinea(linea, partidasPorDroga(linea.drogaId), jornadaActual);
+    const { detalle, incompleta, consumo } = costearLinea(linea, partidasPorDroga(linea.drogaId), jornadaActual);
     costoInsumos = costoInsumos.plus(dec(detalle.subtotal));
     if (incompleta) esIncompleta = true;
     detalleLineas.push(detalle);
+    for (const usada of consumo) consumos.push({ drogaId: linea.drogaId, partidaId: usada.partidaId, cantidad: usada.cantidad });
   }
 
   const precio = calcularPrecioFinal(costoInsumos, reglas);
 
   return {
-    costoInsumos,
-    margenAplicado: precio.margenAplicado,
-    tramoAplicado: precio.tramoAplicado,
-    precioMinimoAplicado: precio.precioMinimoAplicado,
-    precioFinal: precio.precioFinal,
-    esParcial,
-    esIncompleta,
-    detalle: { lineas: detalleLineas },
+    consumos,
+    cotizacion: {
+      costoInsumos,
+      margenAplicado: precio.margenAplicado,
+      tramoAplicado: precio.tramoAplicado,
+      precioMinimoAplicado: precio.precioMinimoAplicado,
+      precioFinal: precio.precioFinal,
+      esParcial,
+      esIncompleta,
+      detalle: { lineas: detalleLineas },
+    },
   };
+}
+
+/**
+ * @param lineas every non-descartada linea_pesaje of the item's LATEST ficha tecnica, in `orden`; each may carry the `costoProveedor` chosen for its droga (R25).
+ * @param partidasPorDroga eligible-or-not partidas for a given drogaId (this function itself applies eligibility filtering -- callers may pass every partida of that droga, expired or not, with or without balance).
+ * @param jornadaActual `YYYY-MM-DD`, from `fsj.jornada_actual(tenantId)` -- never `new Date()` (INV-PL-002).
+ * @param reglas the OPEN regla_precio's precioMinimo + tramos at calculation time -- priced on THIS item's cost alone (each item / cotización independently).
+ */
+export function calcularCotizacion(
+  lineas: readonly LineaCosteoInput[],
+  partidasPorDroga: (drogaId: string) => readonly PartidaCosteo[],
+  jornadaActual: string,
+  reglas: ReglasPrecio,
+): CotizacionCalculada {
+  return costearItem(lineas, partidasPorDroga, jornadaActual, reglas).cotizacion;
 }
 
 // ============================================================================
@@ -281,8 +415,13 @@ const APERTURA_SIMULADA = "9999-12-31T23:59:59.999Z";
  * the remainder -- so faltantes, `esIncompleta` and costs reflect the
  * receta as a whole. Each item is still PRICED on its own cost (tramo and
  * floor per item, never on the receta's total). The ordering/eligibility rules are NOT restated
- * here: every split still comes from `calcularCotizacion` ->
+ * here: every split still comes from `costearLinea` ->
  * `proponerReparto`. Pure; the caller's partidas are never mutated.
+ *
+ * Per línea the source rule is the same as `calcularCotizacion` (R30): a
+ * `PROVEEDOR` línea costs from its costo de proveedor whatever the
+ * simulation says, but it STILL consumes stock in the simulation (what it
+ * would take from the partidas), so the faltantes of later items stay right.
  */
 export function calcularCotizacionesAcumuladas(
   items: readonly (readonly LineaCosteoInput[])[],
@@ -301,15 +440,12 @@ export function calcularCotizacionesAcumuladas(
   };
 
   return items.map((lineas) => {
-    const cotizacion = calcularCotizacion(lineas, partidasDe, jornadaActual, reglas);
-    for (const linea of cotizacion.detalle.lineas) {
-      const partidas = partidasDe(linea.drogaId);
-      for (const usada of linea.partidas) {
-        const partida = partidas.find((p) => p.id === usada.partidaId);
-        if (!partida) continue;
-        partida.cantidadDisponible = dec(partida.cantidadDisponible).minus(dec(usada.cantidad)).toString();
-        if (partida.fechaApertura === null) partida.fechaApertura = APERTURA_SIMULADA;
-      }
+    const { cotizacion, consumos } = costearItem(lineas, partidasDe, jornadaActual, reglas);
+    for (const consumo of consumos) {
+      const partida = partidasDe(consumo.drogaId).find((p) => p.id === consumo.partidaId);
+      if (!partida) continue;
+      partida.cantidadDisponible = dec(partida.cantidadDisponible).minus(dec(consumo.cantidad)).toString();
+      if (partida.fechaApertura === null) partida.fechaApertura = APERTURA_SIMULADA;
     }
     return cotizacion;
   });

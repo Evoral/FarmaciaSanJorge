@@ -9,7 +9,8 @@ import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { uuid } from "@/shared/validation";
 import { getCotizacionVigente, listHistorialCotizaciones } from "../infrastructure/cotizacion-repository";
-import type { CotizacionDetalle } from "../domain/calcular-cotizacion";
+import { leerDetalleCotizacion } from "../domain/calcular-cotizacion";
+import type { CotizacionDetalle, CotizacionDetalleLeido } from "../domain/calcular-cotizacion";
 
 const getCotizacionItemInput = z.object({ itemRecetaId: uuid });
 
@@ -26,7 +27,8 @@ export interface CotizacionItemOutput {
   precioFinal: string;
   esParcial: boolean;
   esIncompleta: boolean;
-  detalle: CotizacionDetalle;
+  /** The stored detalle, read per R32: every línea has a `fuente` (a snapshot without one is `PARTIDAS`, flagged `fuenteRegistrada: false`). */
+  detalle: CotizacionDetalleLeido;
   calculadaEn: string;
   calculadaPorNombre: string;
   calculadaPorApellido: string;
@@ -58,7 +60,7 @@ function toOutput(row: {
     precioFinal: row.precioFinal,
     esParcial: row.esParcial,
     esIncompleta: row.esIncompleta,
-    detalle: row.detalle as CotizacionDetalle,
+    detalle: leerDetalleCotizacion(row.detalle as CotizacionDetalle),
     calculadaEn: row.calculadaEn.toISOString(),
     calculadaPorNombre: row.calculadaPorNombre,
     calculadaPorApellido: row.calculadaPorApellido,

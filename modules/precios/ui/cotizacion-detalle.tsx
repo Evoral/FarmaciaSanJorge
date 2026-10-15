@@ -6,6 +6,8 @@
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { formatNumero } from "@/shared/format/cantidad";
 import { formatearCostoUnitario, formatearMonto } from "@/shared/format/monto";
+import { formatFechaIso } from "@/shared/format/fecha";
+import { dec } from "@/shared/decimal";
 import type { CotizacionItemOutput } from "@/modules/precios/application/get-cotizacion-item";
 
 function fechaHora(iso: string): string {
@@ -32,6 +34,61 @@ function CantidadLinea({ linea }: { linea: LineaCotizacion }) {
   );
 }
 
+/** "Faltan 5 g": the shortage in the línea's unit. */
+function textoFaltante(linea: LineaCotizacion): string {
+  return `${formatNumero(linea.faltante ?? "0")} ${linea.unidadSimbolo}`;
+}
+
+/**
+ * `PROVEEDOR` línea (R25, R32): who and at what list price it was quoted, and the arithmetic of its subtotal. The
+ * subtotal's per-unit factor is the implied cost per the línea's unit (subtotal / cantidad), so it reads in the same
+ * unit as the quantity next to it whatever the droga's unidad base is. A faltante is information, not a failure (R28).
+ */
+function CostoProveedorLinea({ linea }: { linea: LineaCotizacion }) {
+  const costo = linea.costoProveedor;
+  const cantidad = linea.cantidadRequerida !== null ? dec(linea.cantidadRequerida) : null;
+  const costoPorUnidadLinea = cantidad !== null && cantidad.greaterThan(0) ? dec(linea.subtotal).dividedBy(cantidad).toString() : null;
+  return (
+    <div className="flex flex-col gap-0.5 text-xs text-zinc-600">
+      <span className="font-medium text-zinc-800">
+        Costo de proveedor
+        {costo ? (
+          <>
+            {" · "}
+            {costo.proveedorNombre}
+            {" · "}
+            <span className="whitespace-nowrap font-mono tabular-nums">
+              ${formatearMonto(costo.precioInformado)} / {costo.unidadPrecioSimbolo}
+            </span>
+            {" · "}
+            <span className="whitespace-nowrap tabular-nums">{formatFechaIso(costo.fechaPrecio)}</span>
+          </>
+        ) : null}
+      </span>
+      {costoPorUnidadLinea !== null ? (
+        <span className="font-mono tabular-nums md:whitespace-nowrap">
+          {formatNumero(linea.cantidadRequerida ?? "0")} {linea.unidadSimbolo} × ${formatearCostoUnitario(costoPorUnidadLinea)} / {linea.unidadSimbolo} ={" "}
+          <span className="text-zinc-900">${formatearMonto(linea.subtotal)}</span>
+        </span>
+      ) : null}
+      {linea.faltante ? <span>Sin stock suficiente para prepararla (faltan {textoFaltante(linea)})</span> : null}
+    </div>
+  );
+}
+
+/** The "Partidas usadas" cell: the costo de proveedor or the partida breakdown (labelled, except for an old snapshot that never said). */
+function OrigenCostoLinea({ linea }: { linea: LineaCotizacion }) {
+  if (linea.fuente === "PROVEEDOR") return <CostoProveedorLinea linea={linea} />;
+  // Only a línea that was really costed from partidas gets the label (not enrase manual / uncostable units), and an old snapshot never does.
+  const etiquetada = linea.fuenteRegistrada && !linea.esEnraseManual && (linea.partidas.length > 0 || linea.faltante !== null);
+  return (
+    <>
+      {etiquetada ? <span className="mb-0.5 block text-xs font-medium text-zinc-800">Costo de partidas (sin costo de proveedor)</span> : null}
+      {linea.partidas.length === 0 ? <Vacio label="Sin partidas" /> : <PartidasLinea linea={linea} />}
+    </>
+  );
+}
+
 function PartidasLinea({ linea }: { linea: LineaCotizacion }) {
   return (
     <ul className="flex flex-col gap-0.5 font-mono text-xs text-zinc-600 tabular-nums">
@@ -51,6 +108,7 @@ function PartidasLinea({ linea }: { linea: LineaCotizacion }) {
 }
 
 export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionItemOutput }) {
+  const hayProveedor = cotizacion.detalle.lineas.some((l) => l.fuente === "PROVEEDOR");
   return (
     <section className="panel" aria-labelledby="cotizacion-vigente-heading">
       <div className="panel-header flex flex-wrap items-center justify-between gap-2">
@@ -63,7 +121,7 @@ export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionIt
         {cotizacion.esParcial || cotizacion.esIncompleta ? (
           <div className="flex flex-wrap gap-2">
             {cotizacion.esParcial ? <ToneBadge tone="warn">Parcial: hay líneas de enrase manual sin costo</ToneBadge> : null}
-            {cotizacion.esIncompleta ? <ToneBadge tone="danger">Incompleta: stock insuficiente en alguna línea</ToneBadge> : null}
+            {cotizacion.esIncompleta ? <ToneBadge tone="danger">Incompleta: stock insuficiente en alguna línea costeada con partidas</ToneBadge> : null}
           </div>
         ) : null}
       </div>
@@ -96,7 +154,7 @@ export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionIt
                 Cantidad
               </th>
               <th scope="col" className="hidden px-3 py-2 md:table-cell">
-                Partidas usadas
+                {hayProveedor ? "Origen del costo" : "Partidas usadas"}
               </th>
               <th scope="col" className="px-3 py-2 text-right">
                 Subtotal
@@ -115,27 +173,36 @@ export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionIt
                   <span className="block text-xs text-zinc-600 sm:hidden">
                     <CantidadLinea linea={linea} />
                   </span>
-                  {linea.faltante ? (
-                    <span className="block whitespace-nowrap text-xs font-medium text-red-700 sm:hidden">
-                      Faltan {formatNumero(linea.faltante)} {linea.unidadSimbolo}
-                    </span>
-                  ) : null}
-                  {linea.partidas.length > 0 ? (
+                  {linea.fuente === "PROVEEDOR" ? (
+                    // The faltante of a línea costed from a proveedor is informational: it travels inside its note, not as a red alert.
                     <span className="mt-1 block md:hidden">
-                      <PartidasLinea linea={linea} />
+                      <OrigenCostoLinea linea={linea} />
                     </span>
-                  ) : null}
+                  ) : (
+                    <>
+                      {linea.faltante ? (
+                        <span className="block whitespace-nowrap text-xs font-medium text-red-700 sm:hidden">
+                          Faltan {formatNumero(linea.faltante)} {linea.unidadSimbolo}
+                        </span>
+                      ) : null}
+                      {linea.partidas.length > 0 ? (
+                        <span className="mt-1 block md:hidden">
+                          <OrigenCostoLinea linea={linea} />
+                        </span>
+                      ) : null}
+                    </>
+                  )}
                 </td>
                 <td className="hidden px-3 py-2.5 text-right sm:table-cell">
                   <CantidadLinea linea={linea} />
                 </td>
-                <td className="hidden px-3 py-2.5 md:table-cell">{linea.partidas.length === 0 ? <Vacio label="Sin partidas" /> : <PartidasLinea linea={linea} />}</td>
+                <td className="hidden px-3 py-2.5 md:table-cell">
+                  <OrigenCostoLinea linea={linea} />
+                </td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">${formatearMonto(linea.subtotal)}</td>
                 <td className="hidden whitespace-nowrap px-5 py-2.5 text-right font-mono tabular-nums sm:table-cell">
                   {linea.faltante ? (
-                    <span className="font-medium text-red-700">
-                      {formatNumero(linea.faltante)} {linea.unidadSimbolo}
-                    </span>
+                    <span className={linea.fuente === "PROVEEDOR" ? "text-zinc-600" : "font-medium text-red-700"}>{textoFaltante(linea)}</span>
                   ) : (
                     <Vacio label="Sin faltante" />
                   )}

@@ -1,6 +1,7 @@
 # Costos de proveedores (reference prices for cotizaciones)
 
-Status: approved 2026-10-15, not implemented. Rollback:
+Status: approved 2026-10-15. Implemented: store, section, xlsx import (E1-E4) and
+the cotización/presupuesto cost source (E5, R25-R34). Rollback:
 `docs/rollbacks/costos-proveedor.md`. Module: `modules/costos-proveedor`
 (new). Migration: `0079_costos_proveedor` (planned).
 
@@ -195,11 +196,14 @@ Audit entities `costo_proveedor` and `lista_precio_proveedor` (labels in
 - `modules/costos-proveedor/application/`: `listar-costos-vigentes.ts`,
   `get-historial-costo.ts`, `listar-listas.ts`, `leer-lista-precios.ts`,
   `registrar-costos-proveedor.ts`, `dar-de-baja-costo-proveedor.ts`,
-  `costos-proveedor-para-cotizar.ts` (tx-scoped read used by `precios`).
+  `costos-proveedor-para-cotizar.ts` (tx-scoped read used by `precios`;
+  `costosProveedorParaCotizar` returns drogaId -> chosen costo).
 - `modules/costos-proveedor/ui/` + `app/(app)/costos-proveedor/**`.
-- Edited: `modules/precios/domain/calcular-cotizacion.ts`,
-  `modules/precios/application/cotizar-lineas.ts`, `calcular-cotizacion.ts`,
-  `get-cotizacion-item.ts`, `modules/precios/ui/cotizacion-detalle.tsx`,
+- Edited: `modules/precios/domain/calcular-cotizacion.ts` (`costoProveedor`, `fuente`,
+  `leerDetalleCotizacion`), `modules/precios/application/cotizar-lineas.ts`,
+  `get-cotizacion-item.ts` (`calcular-cotizacion.ts` persists the detalle as is),
+  `modules/precios/ui/cotizacion-detalle.tsx`, `modules/precios/ui/actions.ts`
+  (aviso wording), `modules/recetas/domain/presupuesto.ts` (`fuentes`),
   `modules/recetas/ui/presupuesto-panel.tsx`, `app/(app)/layout.tsx`,
   `app/(app)/sidebar-nav.tsx`, `modules/auth/domain/permisos.ts`,
   `prisma/schema.prisma`, `modules/README.md`, `docs/specs/presupuesto-receta.md`,
