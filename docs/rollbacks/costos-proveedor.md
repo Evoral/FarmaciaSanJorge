@@ -1,8 +1,8 @@
 # Rollback: Costos de proveedores
 
 Spec: `docs/specs/costos-proveedor.md`. The feature has a **schema change**
-(migration `0077_costos_proveedor`, planned), so it is reverted as code + a new
-forward migration built from `prisma/rollbacks/0077_costos_proveedor.down.sql`.
+(migration `0079_costos_proveedor`, planned), so it is reverted as code + a new
+forward migration built from `prisma/rollbacks/0079_costos_proveedor.down.sql`.
 
 Written before implementation (stage E1); update the file lists below as each
 stage lands.
@@ -46,9 +46,9 @@ SELECT * FROM fsj.lista_precio_proveedor ORDER BY registrado_en;
 1. Deploy the reverted code **first**: it does not read the new tables.
    Dropping them while the current code is live makes every cotización and
    presupuesto fail.
-2. Copy `prisma/rollbacks/0077_costos_proveedor.down.sql` into a NEW migration
+2. Copy `prisma/rollbacks/0079_costos_proveedor.down.sql` into a NEW migration
    folder (next free number, a timestamp later than every existing one) and
-   apply it with `npm run db:migrate`. Never edit or delete the applied 0077
+   apply it with `npm run db:migrate`. Never edit or delete the applied 0079
    migration.
 3. `npm run db:generate`, `npm run typecheck`, `npm run lint`, `npm test`.
 
@@ -57,13 +57,14 @@ SELECT * FROM fsj.lista_precio_proveedor ORDER BY registrado_en;
 - `modules/costos-proveedor/**`
 - `app/(app)/costos-proveedor/**`
 - `docs/specs/costos-proveedor.md` and this file (optional)
-- `prisma/migrations/<timestamp>_0077_costos_proveedor/` (keep it once applied; the down migration undoes it)
+- `prisma/migrations/<timestamp>_0079_costos_proveedor/` (keep it once applied; the down migration undoes it)
 - New tests under `tests/unit/` and `tests/db/` for the module
 
 ## Edited files (revert the costos-proveedor hunks)
 
 - `prisma/schema.prisma`: `model CostoProveedor`, `model ListaPrecioProveedor` and their back-relations.
-- `modules/auth/domain/permisos.ts`: `costos.proveedor.gestionar`; `tests/db/auth-permisos.test.ts`.
+- `modules/auth/domain/permisos.ts`: `costos.proveedor.gestionar` (no change to `tests/db/auth-permisos.test.ts`: a `gestion` permiso reaches ADMINISTRADOR by category and no predefined role holds it); `modules/usuarios/domain/roles.ts` (`costos` group label); `shared/errors/mensajes-invariantes.ts` (`INV-CP-001/002`); `tests/db/grants-finales.test.ts` (the two new tables).
+- `shared/db/ahora-servidor.ts` is the former `ahoraServidor` of `modules/precios/infrastructure/regla-precio-repository.ts`, which now re-exports it; keep it on rollback (precios uses it).
 - `modules/auditoria/domain/presentacion.ts`, `shared/labels/field-labels.ts`: new entities and labels.
 - `modules/precios/domain/calcular-cotizacion.ts`, `modules/precios/application/cotizar-lineas.ts`, `calcular-cotizacion.ts`, `get-cotizacion-item.ts`, `modules/precios/ui/cotizacion-detalle.tsx`, `modules/recetas/ui/presupuesto-panel.tsx`.
 - `app/(app)/layout.tsx`, `app/(app)/sidebar-nav.tsx`: the sidebar entry.

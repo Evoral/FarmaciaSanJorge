@@ -96,6 +96,8 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   "INV-PR-001": "Una regla de precio no se puede editar: cerrala e ingresá una nueva versión.",
   "INV-PR-002":
     "Los tramos de margen no son válidos: debe haber al menos uno, cada tope debe ser mayor que el anterior y solo el último tramo puede quedar sin tope.",
+  "INV-CP-001": "Un costo de proveedor no se puede editar: registrá uno nuevo y el anterior queda en el historial.",
+  "INV-CP-002": "Ese costo de proveedor ya fue reemplazado o dado de baja y no se puede volver a modificar.",
 
   // Recetas
   "INV-R01": "La receta debe tener al menos un ítem.",

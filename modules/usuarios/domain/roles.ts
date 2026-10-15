@@ -254,6 +254,7 @@ export const GRUPO_PERMISO_LABELS: Readonly<Record<string, string>> = {
   medicos: "Médicos",
   pacientes: "Pacientes",
   precios: "Precios",
+  costos: "Costos de proveedores",
   stock: "Stock",
   recetas: "Recetas",
   fichas: "Fichas técnicas",

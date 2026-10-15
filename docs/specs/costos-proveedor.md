@@ -2,7 +2,7 @@
 
 Status: approved 2026-10-15, not implemented. Rollback:
 `docs/rollbacks/costos-proveedor.md`. Module: `modules/costos-proveedor`
-(new). Migration: `0077_costos_proveedor` (planned).
+(new). Migration: `0079_costos_proveedor` (planned).
 
 ## Goal
 
@@ -70,7 +70,7 @@ Kept here because the new rules are defined against it.
 |---|---|---|
 | R1 | A costo de proveedor belongs to one (droga, proveedor) of the tenant. At most **one vigente** per pair. | DB: partial unique index on `(tenant_id, droga_id, proveedor_id) WHERE vigente_hasta IS NULL`. |
 | R2 | Each change inserts a **new version** and closes the previous one (`vigente_hasta` = the new one's `vigente_desde`, same instant). Nothing is ever updated except `vigente_hasta` once, and nothing is deleted. The previous version is the "valor anterior". | DB: `GRANT UPDATE (vigente_hasta)` only, validating trigger (no other column, no reopening, no second close), forbid DELETE. App: `registrarCostosProveedor`. |
-| R3 | Stored per version: `precio_informado` (> 0, exact as typed), `unidad_precio_id`, `costo_unitario` (> 0, per droga unidad base), `fecha_precio`, `descripcion_proveedor` (text on the list, nullable), `lista_precio_id` (NULL = manual), `motivo` (nullable), `vigente_desde`, `vigente_hasta`, `creado_por_id`. | Migration 0077; zod in the domain. |
+| R3 | Stored per version: `precio_informado` (> 0, exact as typed), `unidad_precio_id`, `costo_unitario` (> 0, per droga unidad base), `fecha_precio`, `descripcion_proveedor` (text on the list, nullable), `lista_precio_id` (NULL = manual), `motivo` (nullable), `vigente_desde`, `vigente_hasta`, `creado_por_id`. | Migration 0079; zod in the domain. |
 | R4 | `costo_unitario = precio_informado / factor(1 unidad_precio → unidad base)`, using `shared/decimal/convertir-unidad.ts` (same arithmetic as `fsj.convertir`), rounded to **10 decimals** half-up. The precio informado is kept exact so the cost can always be recomputed. | Domain `calcularCostoUnidadBase`. |
 | R5 | The unidad de precio must have the **same magnitud** as the droga's unidad base and be vigente. No density conversion. | Domain validation per row. |
 | R6 | Default unidad de precio by the droga's magnitud: masa → kg, volumen → L, unidad → u. Editable per row. | Domain `unidadPrecioPorDefecto`; UI. |
@@ -123,7 +123,7 @@ Kept here because the new rules are defined against it.
 | # | Rule | Enforced in |
 |---|---|---|
 | R35 | Consulting costos de proveedor and the imported lists: `stock.valorizado.ver` (the permiso that already gates money: comparador, valorizado, costs in the proveedor history). | Queries. |
-| R36 | Importing, editing and dando de baja: new permiso **`costos.proveedor.gestionar`** (categoría `gestion`, so ADMINISTRADOR gets it automatically; other roles through the role editor). No existing permiso changes. | `PERMISO_CATALOGO`, migration 0077, `tests/db/auth-permisos.test.ts`. |
+| R36 | Importing, editing and dando de baja: new permiso **`costos.proveedor.gestionar`** (categoría `gestion`, so ADMINISTRADOR gets it automatically; other roles through the role editor). No existing permiso changes. | `PERMISO_CATALOGO`, migration 0079, `tests/db/auth-permisos.test.ts`. |
 | R37 | The cotización detail shows the proveedor and price used to whoever can see the cotización (`cotizaciones.ver`), consistent with `reglas-precio.md` ("no hay ocultamiento del costo según permiso"). | — |
 
 ## Interface
@@ -154,7 +154,7 @@ de partidas (sin costo de proveedor)". A `PROVEEDOR` línea with faltante shows
 an informational "Sin stock suficiente" note. The presupuesto panel shows the
 same fuente per línea.
 
-## Data model (migration 0077)
+## Data model (migration 0079)
 
 ```
 fsj.lista_precio_proveedor            -- append-only (REVOKE UPDATE/DELETE, forbid_update_delete)

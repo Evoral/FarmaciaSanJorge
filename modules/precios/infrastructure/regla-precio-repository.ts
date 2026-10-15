@@ -49,12 +49,8 @@ export async function lockReglaAbierta(tx: Prisma.TransactionClient, tenantId: s
   return { id: row.id, precioMinimo: row.precio_minimo, tramos: mapTramos(tramos), vigenteDesde: row.vigente_desde };
 }
 
-/** Server-side "now" (`SELECT now()`), used as BOTH the closed row's `vigente_hasta` and the new row's `vigente_desde` -- one instant, no gap or overlap between versions (INV-PL-002: fecha de negocio, del servidor, nunca del cliente). */
-export async function ahoraServidor(tx: Prisma.TransactionClient): Promise<Date> {
-  const rows = await tx.$queryRaw<{ ahora: Date }[]>`SELECT now() AS ahora`;
-  if (!rows[0]) throw new Error("ahoraServidor: SELECT now() returned no row");
-  return rows[0].ahora;
-}
+// Server-side "now", used as BOTH the closed row's `vigente_hasta` and the new row's `vigente_desde` (moved to shared/db when costos-proveedor needed it too).
+export { ahoraServidor } from "@/shared/db/ahora-servidor";
 
 /** Closes the currently open regla_precio row (INV-PR-001's ONLY allowed write after insert). MUST be called with the SAME `id` `lockReglaAbierta` just returned, inside the SAME transaction. */
 export async function cerrarReglaAbierta(tx: Prisma.TransactionClient, tenantId: string, id: string, vigenteHasta: Date): Promise<void> {
