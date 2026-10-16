@@ -1,7 +1,7 @@
 /**
  * Vigente synonyms of the tenant's drogas (docs/specs/sinonimos-droga.md),
- * for the client-filtered droga pickers of the Comparador de costos and the
- * proveedor Trayectoria: typing a synonym finds the droga. A separate read
+ * for the client-filtered droga picker of the proveedor Trayectoria: typing a
+ * synonym finds the droga. A separate read
  * (not folded into `readDrogasConPartidas` / `readDrogasDisponibles`) so
  * those queries keep their exact shape; the rule itself lives in
  * `shared/db/busqueda-droga.ts`.

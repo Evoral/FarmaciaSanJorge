@@ -29,7 +29,7 @@ Trayectoria added on top of it.
 - `modules/proveedores/ui/trayectoria-resumen.tsx`
 - `modules/proveedores/ui/trayectoria-partida-fila.tsx`
 - `modules/proveedores/ui/trayectoria-filtro-drogas.tsx` ("Filtro por droga", see the section below)
-- `shared/ui/fila-desplegable.tsx` (client component shared with the Pacientes Trayectoria; delete only if that one is reverted too. Do NOT delete it while the Comparador de costos uses it: see `docs/rollbacks/comparador-costos.md`. Likewise, `trayectoria-repository.ts` exports `readJornadaActual`, which the comparador's repository imports)
+- `shared/ui/fila-desplegable.tsx` (client component shared with the Pacientes Trayectoria; delete only if that one is reverted too.)
 - `tests/unit/fila-desplegable.test.ts`
 - `app/(app)/proveedores/[id]/layout.tsx` (back link + Datos/Trayectoria tabs + uuid guard)
 - `app/(app)/proveedores/[id]/trayectoria/page.tsx`

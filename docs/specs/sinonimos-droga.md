@@ -109,7 +109,7 @@ synonym's text comes back with the row.
 | `/catalogos/drogas` list and its autocomplete | `listDrogas` (`buscarDrogasPorTexto` → `id IN`). Rows show their synonyms on a muted line. |
 | `/stock`, `/stock/ajustes`, ajuste nuevo, `/reportes/kardex` (`buscarDrogasStockAction`) | `listStockDrogasSql`; ajustes listing (`listAjustesSql`, also by lote); stock valorizado (`valorizado-repository.ts`). |
 | `/partidas/ingresar` + factura import combobox | `listDrogasOpciones` returns `sinonimos`; `filtrarOpciones` searches them client-side. |
-| Comparador de costos, proveedor Trayectoria droga filter | Separate queries `proveedores.comparar-costos.sinonimos` / `proveedores.trayectoria.sinonimos` (each screen's own permiso) feed `filtrarOpciones`. |
+| Proveedor Trayectoria droga filter | Its own query `proveedores.trayectoria.sinonimos` (the screen's permiso) feeds `filtrarOpciones`. |
 | Libro contralor search | **Unchanged**: it searches its own snapshot text. |
 
 ### Visual hint

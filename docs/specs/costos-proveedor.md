@@ -125,13 +125,13 @@ Kept here because the new rules are defined against it.
 
 | # | Rule | Enforced in |
 |---|---|---|
-| R35 | Consulting costos de proveedor and the imported lists: `stock.valorizado.ver` (the permiso that already gates money: comparador, valorizado, costs in the proveedor history). | Queries. |
+| R35 | Consulting costos de proveedor and the imported lists: `stock.valorizado.ver` (the permiso that already gates money: valorizado, costs in the proveedor history). | Queries. |
 | R36 | Importing, editing and dando de baja: new permiso **`costos.proveedor.gestionar`** (categoría `gestion`, so ADMINISTRADOR gets it automatically; other roles through the role editor). No existing permiso changes. | `PERMISO_CATALOGO`, migration 0079, `tests/db/auth-permisos.test.ts`. |
 | R37 | The cotización detail shows the proveedor and price used to whoever can see the cotización (`cotizaciones.ver`), consistent with `reglas-precio.md` ("no hay ocultamiento del costo según permiso"). | — |
 
 ## Interface
 
-Sidebar "Gestión › Costos de proveedores" (next to "Comparador de costos"),
+Sidebar "Gestión › Costos de proveedores" (right below "Proveedores"),
 route `/costos-proveedor`, tabs:
 
 1. **Vigentes** (`/costos-proveedor`): droga · proveedor · precio informado
@@ -215,7 +215,7 @@ Audit entities `costo_proveedor` and `lista_precio_proveedor` (labels in
 ## Decisions
 
 - **New module, not `proveedores` or `stock`.** Those own the real purchase
-  cost (comparador, trayectoria, partidas). A separate module keeps reference
+  cost (trayectoria, partidas). A separate module keeps reference
   prices and real costs from being mixed by accident.
 - **Versioned rows instead of an updatable price.** Gives the "valor
   anterior" and the full history for free, matches `regla_precio`, and makes
@@ -273,8 +273,6 @@ Audit entities `costo_proveedor` and `lista_precio_proveedor` (labels in
 - Deterministic tie-break in `getPartidasElegiblesDeDroga`.
 - `app/(app)/partidas/[id]/page.tsx` shows the raw partida cost with
   `stock.ver` while every other cost view needs `stock.valorizado.ver`.
-- A "costo de lista vigente" column in the comparador de costos (stage E6,
-  to decide).
 - The stale comment in `corregir-costo-partida.ts` ("not referenced by any
   historical snapshot": `cotizacion.detalle` does store it).
 

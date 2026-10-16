@@ -40,7 +40,6 @@ import {
   PackageSearch,
   PanelLeftClose,
   PanelLeftOpen,
-  Scale,
   Settings,
   ShieldCheck,
   SlidersHorizontal,
@@ -81,9 +80,7 @@ export interface SidebarNavProps {
   puedePacientes: boolean;
   /** M06, FASE 4 point 4.3: `proveedores.gestionar` -- `true` shows "Gestión › Proveedores" to `/proveedores` (its own section, formerly a `/catalogos` tab). Same permiso `app/(app)/proveedores/layout.tsx`'s guard requires. */
   puedeProveedores: boolean;
-  /** `stock.valorizado.ver` (ADM/DT/FAR) -- `true` shows "Gestión › Comparador de costos" to `/comparador-costos`, right below Proveedores. Same permiso `app/(app)/comparador-costos/layout.tsx` guard requires. */
-  puedeComparadorCostos: boolean;
-  /** `stock.valorizado.ver` (ADM/DT/FAR) -- `true` shows "Gestión › Costos de proveedores" to `/costos-proveedor`, next to the Comparador de costos. Same permiso `app/(app)/costos-proveedor/layout.tsx` guard requires; editing needs `costos.proveedor.gestionar`, checked by its own pages. */
+  /** `stock.valorizado.ver` (ADM/DT/FAR) -- `true` shows "Gestión › Costos de proveedores" to `/costos-proveedor`, right below Proveedores. Same permiso `app/(app)/costos-proveedor/layout.tsx` guard requires; editing needs `costos.proveedor.gestionar`, checked by its own pages. */
   puedeCostosProveedor: boolean;
   /** "Administración › Usuarios y accesos": the FIRST `/admin/accesos/**` section (usuarios, roles, directores técnicos) this session can reach, or `null` to hide the entry. Same reasoning as `catalogosHref`, from `nav-sections.ts#accesosSections`. */
   accesosHref: string | null;
@@ -368,7 +365,6 @@ function buildGroups(p: SidebarNavProps, pathname: string): NavGroup[] {
   if (p.catalogosHref) gestion.push({ href: p.catalogosHref, label: "Catálogos", icon: LibraryBig, active: pathname.startsWith("/catalogos") });
   if (p.puedePacientes) gestion.push({ href: "/pacientes", label: "Pacientes", icon: Users, active: pathname.startsWith("/pacientes") });
   if (p.puedeProveedores) gestion.push({ href: "/proveedores", label: "Proveedores", icon: Truck, active: pathname.startsWith("/proveedores") });
-  if (p.puedeComparadorCostos) gestion.push({ href: "/comparador-costos", label: "Comparador de costos", icon: Scale, active: pathname.startsWith("/comparador-costos") });
   if (p.puedeCostosProveedor) gestion.push({ href: "/costos-proveedor", label: "Costos de proveedores", icon: Tags, active: pathname.startsWith("/costos-proveedor") });
   if (p.puedeReportes) gestion.push({ href: "/reportes", label: "Reportes", icon: ChartColumn, active: pathname.startsWith("/reportes") });
   if (p.puedeAuditoria) gestion.push({ href: "/auditoria", label: "Auditoría", icon: ShieldCheck, active: pathname === "/auditoria" || pathname.startsWith("/auditoria/") });

@@ -249,7 +249,6 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   texto: "Paciente / médico",
   tipo: "Tipo",
   truncated: "Resultado recortado",
-  unidad: "Mostrar costo por",
   ventana: "Ventana",
 
   // Keys that only appear in audit diffs (valorAnterior/valorNuevo), not in

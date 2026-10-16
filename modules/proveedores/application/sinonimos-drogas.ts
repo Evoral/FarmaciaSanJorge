@@ -13,23 +13,12 @@ import { readSinonimosDrogas } from "../infrastructure/sinonimos-drogas-reposito
 /** droga id -> vigente synonyms. */
 export type SinonimosPorDroga = Record<string, string[]>;
 
-export const sinonimosDrogasComparadorQuery = defineQuery({
-  name: "proveedores.comparar-costos.sinonimos",
-  permiso: "stock.valorizado.ver",
-  input: z.object({}),
-  handler: async ({ tx, session }): Promise<SinonimosPorDroga> => readSinonimosDrogas(tx, session.tenantId),
-});
-
 export const sinonimosDrogasTrayectoriaQuery = defineQuery({
   name: "proveedores.trayectoria.sinonimos",
   permiso: "proveedores.gestionar",
   input: z.object({}),
   handler: async ({ tx, session }): Promise<SinonimosPorDroga> => readSinonimosDrogas(tx, session.tenantId),
 });
-
-export async function listSinonimosDrogasComparador(): Promise<SinonimosPorDroga> {
-  return sinonimosDrogasComparadorQuery.execute({});
-}
 
 export async function listSinonimosDrogasTrayectoria(): Promise<SinonimosPorDroga> {
   return sinonimosDrogasTrayectoriaQuery.execute({});

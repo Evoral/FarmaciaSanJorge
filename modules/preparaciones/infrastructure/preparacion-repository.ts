@@ -333,8 +333,7 @@ export async function getLineasParaPreparacion(tx: Prisma.TransactionClient, ten
 
 /**
  * The GLOBAL unit catalog (`fsj.unidad_medida`: no `tenant_id`, no RLS), shaped for `shared/format/cantidad.ts`: the
- * confirmation form shows stock amounts in a readable unit. Read here, like
- * modules/proveedores/infrastructure/comparador-costos-repository.ts does, instead of reaching into
+ * confirmation form shows stock amounts in a readable unit. Read here instead of reaching into
  * modules/unidades/infrastructure (cross-module infrastructure imports are not allowed).
  */
 export async function listUnidadesFormato(tx: Prisma.TransactionClient): Promise<UnidadFormato[]> {
