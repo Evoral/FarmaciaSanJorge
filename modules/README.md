@@ -41,7 +41,7 @@ don't read it whole). Cross-cutting platform code (M00) lives in `shared/`.
 | `pacientes` | M06 | Patients, recurring patients and patient history (`pacientes-recurrentes`, `trayectoria-paciente`) |
 | `stock` | M07 | Partidas, stock movements, supplier invoice import |
 | `precios` | M08 | Price rules (margin tiers, minimum price) and per-ítem cotización (`reglas-precio`) |
-| `costos-proveedor` | — | Supplier reference prices used to quote: versioned costo per (droga, proveedor), consultation, history, manual edition and supplier list import from .xlsx (`costos-proveedor`) |
+| `costos-proveedor` | — | Supplier reference prices used to quote: versioned costo per (droga, proveedor), consultation, history, manual edition and supplier list import from .xls / .xlsx (`costos-proveedor`) |
 | `recetas` | M09 | Recetas and their ítems, PDF/QR import, receta budget, paid/unpaid flag (`importacion-receta-*`, `presupuesto-receta`, `pago-receta`) |
 | `elaboracion` | M10 | Ficha técnica: weighing lines, versions, PDF (`ficha-tecnica`) |
 | `preparaciones` | M11 | Preparación lifecycle (confirm/discard) and labels |

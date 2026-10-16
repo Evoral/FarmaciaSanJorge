@@ -1,7 +1,8 @@
 /**
  * P8 (docs/specs/importacion-receta-pdf.md, "Pieza 3 -- Frontera de
  * confianza"): the uploaded file's checks, in the spec's mandatory order,
- * plus the alignment between MAX_PDF_BYTES and next.config.ts's Server
+ * plus the alignment between EVERY upload limit (the PDF's MAX_PDF_BYTES and
+ * the supplier price list's MAX_LISTA_BYTES) and next.config.ts's Server
  * Actions body limit. The "permiso first" half of the order is covered by
  * tests/unit/recetas-importacion-flujos.test.ts (it needs the pipeline).
  */
@@ -9,9 +10,11 @@ import { describe, it, expect, vi } from "vitest";
 import {
   MAX_PDF_BYTES,
   MENSAJES_ARCHIVO_PDF,
+  MULTIPART_MARGIN_BYTES,
   SERVER_ACTIONS_BODY_SIZE_LIMIT_BYTES,
   validarArchivoRecetaPdf,
 } from "@/modules/recetas/domain/archivo-receta-pdf";
+import { LISTA_BODY_SIZE_LIMIT_BYTES, MAX_LISTA_BYTES } from "@/modules/costos-proveedor/domain/archivo-lista";
 import { ValidationError } from "@/shared/errors";
 import nextConfig from "@/next.config";
 
@@ -84,9 +87,21 @@ describe("P8: validarArchivoRecetaPdf", () => {
   });
 });
 
-describe("Server Actions body limit vs MAX_PDF_BYTES", () => {
-  it("next.config.ts sets bodySizeLimit to MAX_PDF_BYTES plus the multipart margin", () => {
-    expect(nextConfig.experimental?.serverActions?.bodySizeLimit).toBe(SERVER_ACTIONS_BODY_SIZE_LIMIT_BYTES);
+describe("Server Actions body limit vs every upload limit", () => {
+  // bodySizeLimit is ONE limit for every Server Action, so it has to hold the largest upload (the price list, 4 MiB)
+  // plus the multipart framing, and still the PDF (1 MiB) plus its framing. The assertion used to be "equals the
+  // PDF's body limit"; now that a second, bigger upload exists it is "equals the LARGEST body limit", which keeps
+  // both guarantees: nothing is cut off before its own check runs, and the limit can not drift upwards unnoticed.
+  it("next.config.ts sets bodySizeLimit to the largest upload limit (PDF 1 MiB, lista 4 MiB) plus the multipart margin", () => {
+    const limite = nextConfig.experimental?.serverActions?.bodySizeLimit;
+    expect(limite).toBe(Math.max(SERVER_ACTIONS_BODY_SIZE_LIMIT_BYTES, LISTA_BODY_SIZE_LIMIT_BYTES));
+    expect(limite).toBe(MAX_LISTA_BYTES + MULTIPART_MARGIN_BYTES);
+  });
+
+  it("covers a PDF of exactly MAX_PDF_BYTES and a price list of exactly MAX_LISTA_BYTES, each with its framing", () => {
+    const limite = nextConfig.experimental?.serverActions?.bodySizeLimit as number;
+    expect(limite).toBeGreaterThanOrEqual(MAX_PDF_BYTES + MULTIPART_MARGIN_BYTES);
+    expect(limite).toBeGreaterThanOrEqual(MAX_LISTA_BYTES + MULTIPART_MARGIN_BYTES);
     expect(SERVER_ACTIONS_BODY_SIZE_LIMIT_BYTES).toBeGreaterThan(MAX_PDF_BYTES);
   });
 

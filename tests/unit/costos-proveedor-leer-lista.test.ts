@@ -4,6 +4,8 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ExcelJS from "exceljs";
+import { armarXls } from "./helpers/xls-builder";
+import type { CeldaXls } from "./helpers/xls-builder";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 
@@ -202,6 +204,91 @@ describe("leerListaPrecios -- the preview", () => {
   });
 });
 
+/** The same dated sheets as `libro()`, as a BIFF8 .xls built by the test-only writer. */
+function libroXls(): Uint8Array<ArrayBuffer> {
+  const encabezado = (fila: number): CeldaXls[] =>
+    ["DESCRIPCION", "PRECIO", "PRECIO mg", "mg C/IVA", "COSTO"].map((texto, col) => ({ tipo: "sst", fila, col, texto }));
+  const datos = (filas: (string | number | null)[][]): CeldaXls[] =>
+    filas.flatMap((fila, i) =>
+      fila.flatMap((valor, col): CeldaXls[] => (valor === null ? [] : typeof valor === "string" ? [{ tipo: "sst", fila: i + 1, col, texto: valor }] : [{ tipo: "numero", fila: i + 1, col, valor }])),
+    );
+  return new Uint8Array(
+    armarXls({
+      hojas: [
+        { nombre: "11-24", celdas: [...encabezado(0), ...datos([["ACEITE DE GIRASOL", 1000]])] },
+        { nombre: "vacia" },
+        {
+          nombre: "04-26",
+          celdas: [
+            ...encabezado(0),
+            ...datos([
+              ["ACEITE DE GIRASOL", 1500],
+              ["ACEITE DE GIRASOL Tambor X 200", 250000],
+              ["ZINC SULFATO 7 H2O", 29801.136000000002],
+              ["DROGA QUE NO ESTA", 10],
+              [null, "Page 1 of 1"],
+            ]),
+          ],
+        },
+      ],
+    }),
+  );
+}
+
+function archivoXls(nombre = "Lista de medicamentos.xls", type = "application/vnd.ms-excel"): File {
+  return new File([libroXls()], nombre, { type });
+}
+
+describe("leerListaPrecios -- a .xls list (BIFF8)", () => {
+  it("reads it with the BIFF8 reader and previews the same rows as the .xlsx, reporting formato XLS", async () => {
+    const vista = await leer({ archivo: archivoXls() });
+    const vistaXlsx = await leer();
+
+    expect(vista.formato).toBe("XLS");
+    expect(vistaXlsx.formato).toBe("XLSX");
+    expect(vista.hoja).toBe("04-26");
+    expect(vista.hojas).toEqual(vistaXlsx.hojas);
+    expect(vista.filas.map((f) => [f.numeroFila, f.descripcion, f.precio, f.estado, f.drogaNombre])).toEqual(
+      vistaXlsx.filas.map((f) => [f.numeroFila, f.descripcion, f.precio, f.estado, f.drogaNombre]),
+    );
+    expect(vista.nombreArchivo).toBe("Lista de medicamentos.xls");
+    expect(vista.filasLeidas).toBe(4);
+    expect(vista.descartadas).toBe(1);
+  });
+
+  it("hashes the file's own bytes (R21) and reads another sheet of the same file", async () => {
+    const vista = await leer({ archivo: archivoXls(), hoja: "11-24" });
+
+    expect(vista.hashSha256).toBe(hashSha256(libroXls()));
+    expect(vista.hoja).toBe("11-24");
+    expect(vista.filas.map((f) => [f.descripcion, f.precio])).toEqual([["ACEITE DE GIRASOL", "1000"]]);
+  });
+
+  it("trusts the signature: a .xls renamed .xlsx is still read as XLS, and an .xlsx named .xls as XLSX", async () => {
+    expect((await leer({ archivo: archivoXls("lista.xlsx", XLSX_MIME) })).formato).toBe("XLS");
+    expect((await leer({ archivo: new File([await libro()], "lista.xls", { type: "application/vnd.ms-excel" }) })).formato).toBe("XLSX");
+  });
+
+  it("falls back to a name with the detected extension when the file has none", async () => {
+    const vista = await leer({ archivo: new File([libroXls()], " ", { type: "application/vnd.ms-excel" }) });
+    expect(vista.nombreArchivo).toBe("lista.xls");
+  });
+
+  it("refuses a password-protected .xls and one older than Excel 97 with their own messages", async () => {
+    const protegido = new File([armarXls({ hojas: [{ nombre: "x" }], filepass: true })], "lista.xls", { type: "application/vnd.ms-excel" });
+    await expect(leer({ archivo: protegido })).rejects.toThrow("El archivo .xls está protegido con contraseña: quitale la protección o guardalo como .xlsx.");
+    const antiguo = new File([armarXls({ hojas: [{ nombre: "x" }], versionBof: 0x0500 }, { nombre: "Book" })], "lista.xls", { type: "application/vnd.ms-excel" });
+    await expect(leer({ archivo: antiguo })).rejects.toThrow("Formato .xls muy antiguo (anterior a Excel 97): guardalo como .xlsx.");
+  });
+
+  it("refuses a .xls with no data in any sheet and one that is not the supplier's layout", async () => {
+    const vacio = new File([armarXls({ hojas: [{ nombre: "vacia" }] })], "vacio.xls", { type: "application/vnd.ms-excel" });
+    await expect(leer({ archivo: vacio })).rejects.toThrow("El archivo no tiene ninguna hoja con datos.");
+    const otro = new File([armarXls({ hojas: [{ nombre: "x", celdas: [{ tipo: "sst", fila: 0, col: 0, texto: "nombre" }] }] })], "otra.xls", { type: "application/vnd.ms-excel" });
+    await expect(leer({ archivo: otro })).rejects.toThrow(/encabezado/);
+  });
+});
+
 describe("leerListaPrecios -- refusals (R15, R21)", () => {
   it("refuses a file already imported for the proveedor, with the date (R21)", async () => {
     state.listaExistente = { id: "l-1", registradoEn: new Date("2026-10-12T15:00:00.000Z") };
@@ -227,9 +314,9 @@ describe("leerListaPrecios -- refusals (R15, R21)", () => {
     await expect(leer()).rejects.toBeInstanceOf(DomainError);
   });
 
-  it("refuses a legacy .xls with its own message, and what is not a file at all", async () => {
-    const xls = new File([new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0, 0, 0, 0])], "lista.xls", { type: "application/vnd.ms-excel" });
-    await expect(leer({ archivo: xls })).rejects.toThrow("Es un archivo .xls (Excel 97-2003). Abrilo en Excel y guardalo como .xlsx.");
+  it("refuses a .xls that is not a readable BIFF8 workbook with the .xls message, and what is not a file at all", async () => {
+    const xls = new File([new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0, 0, 0, 0])], "lista.xls", { type: "application/vnd.ms-excel" });
+    await expect(leer({ archivo: xls })).rejects.toThrow("No se pudo leer el archivo: no parece un .xls válido.");
     await expect(leer({ archivo: "texto" })).rejects.toBeInstanceOf(ValidationError);
     await expect(leer({ archivo: undefined })).rejects.toBeInstanceOf(ValidationError);
   });

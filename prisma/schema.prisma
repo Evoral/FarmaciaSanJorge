@@ -1258,7 +1258,7 @@ model ListaPrecioProveedor {
   id              String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
   tenantId        String   @map("tenant_id") @db.Uuid
   proveedorId     String   @map("proveedor_id") @db.Uuid
-  /// XLSX | PDF (CHECK lista_precio_proveedor_formato_check). PDF is reserved for a later stage.
+  /// XLS | XLSX | PDF (CHECK lista_precio_proveedor_formato_check, widened to XLS by 0080). PDF is allowed but unused: the supplier sends Excel.
   formato         String
   nombreArchivo   String   @map("nombre_archivo")
   hashSha256      String   @map("hash_sha256")

@@ -1,6 +1,7 @@
 /**
  * Reads an uploaded .xlsx supplier price list (docs/specs/costos-proveedor.md R14) with `exceljs`
- * (already a dependency; `shared/xlsx/xlsx-report.ts` WRITES workbooks with it). Interpreting the
+ * (already a dependency; `shared/xlsx/xlsx-report.ts` WRITES workbooks with it). Its .xls twin is
+ * `leer-xls.server.ts`; both return a `LibroHojas` (`./libro-hojas.ts`). Interpreting the
  * cells is the pure parser's job (`../domain/parsers/lista-xlsx-crystal.ts`); this file only turns
  * the workbook into plain values:
  *
@@ -21,17 +22,13 @@ import { createHash } from "node:crypto";
 import ExcelJS from "exceljs";
 import { ValidationError } from "@/shared/errors";
 import type { HojaLibro } from "../domain/importacion-lista";
-import type { CeldaCruda, FilaCruda } from "../domain/parsers/lista-xlsx-crystal";
+import type { CeldaCruda } from "../domain/parsers/lista-xlsx-crystal";
+import { MAX_COLUMNAS_HOJA, MAX_FILAS_HOJA, MENSAJES_LECTURA_HOJA, type LibroHojas } from "./libro-hojas";
 
 export const MENSAJES_LECTURA_XLSX = {
   ilegible: "No se pudo leer el archivo: no parece un .xlsx válido.",
-  hojaInexistente: (nombre: string) => `La hoja «${nombre}» no existe en el archivo.`,
-  hojaDemasiadoGrande: "La hoja es demasiado grande para ser una lista de precios.",
+  ...MENSAJES_LECTURA_HOJA,
 } as const;
-
-/** A price list has a few thousand rows; far beyond that the sheet is not a list (and looping over it would cost). */
-const MAX_FILAS_HOJA = 50_000;
-const MAX_COLUMNAS_HOJA = 60;
 
 /** SHA-256 of the file's bytes, lowercase hex (the DB checks 64 hex chars, R21). */
 export function hashSha256(bytes: Uint8Array): string {
@@ -51,15 +48,8 @@ function valorDeCelda(valor: ExcelJS.CellValue | undefined): CeldaCruda {
   return null;
 }
 
-export interface LibroXlsx {
-  /** In workbook order. */
-  hojas: HojaLibro[];
-  /** The rows of one sheet from row 1 (row N = index N-1), padded with `null` to the sheet's widest used column. Throws a `ValidationError` for an unknown sheet. */
-  leerHoja(nombre: string): FilaCruda[];
-}
-
 /** Opens the workbook. Throws `ValidationError(MENSAJES_LECTURA_XLSX.ilegible)` for anything that is not a readable .xlsx. */
-export async function leerLibroXlsx(bytes: Uint8Array): Promise<LibroXlsx> {
+export async function leerLibroXlsx(bytes: Uint8Array): Promise<LibroHojas> {
   const libro = new ExcelJS.Workbook();
   try {
     // exceljs types `load`'s input as its own Buffer alias; a Node Buffer is what it reads at runtime.

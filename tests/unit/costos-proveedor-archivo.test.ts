@@ -1,16 +1,25 @@
 /**
- * R14, R15 (docs/specs/costos-proveedor.md): the uploaded supplier list's checks, in order, and the alignment between
- * MAX_LISTA_BYTES and next.config.ts's Server Actions body limit (same discipline as tests/unit/archivo-receta-pdf.test.ts).
+ * R14, R15 (docs/specs/costos-proveedor.md): the uploaded supplier list's checks, in order (format detected from the
+ * signature, .xls and .xlsx both accepted), its own 4 MiB limit, and the alignment between that limit and
+ * next.config.ts's Server Actions body limit (same discipline as tests/unit/archivo-receta-pdf.test.ts).
  */
 import { describe, it, expect, vi } from "vitest";
-import { MAX_LISTA_BYTES, MAX_CONFIRMACION_BYTES, MENSAJES_ARCHIVO_LISTA, XLSX_MIME, validarArchivoLista } from "@/modules/costos-proveedor/domain/archivo-lista";
-import { MAX_PDF_BYTES, SERVER_ACTIONS_BODY_SIZE_LIMIT_BYTES } from "@/modules/recetas/domain/archivo-receta-pdf";
+import {
+  LISTA_BODY_SIZE_LIMIT_BYTES,
+  MAX_CONFIRMACION_BYTES,
+  MAX_LISTA_BYTES,
+  MENSAJES_ARCHIVO_LISTA,
+  XLSX_MIME,
+  XLS_MIME,
+  validarArchivoLista,
+} from "@/modules/costos-proveedor/domain/archivo-lista";
+import { MAX_PDF_BYTES } from "@/modules/recetas/domain/archivo-receta-pdf";
 import { ValidationError } from "@/shared/errors";
 import nextConfig from "@/next.config";
 
 /** A minimal zip header: what every .xlsx starts with. */
 const ZIP = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x08, 0x00]);
-/** The BIFF8 / OLE2 compound file signature of a legacy .xls. */
+/** The OLE2 / compound file signature of a .xls (BIFF8). */
 const XLS = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0x00, 0x00]);
 
 function archivo(bytes: Uint8Array<ArrayBuffer> = ZIP, nombre = "lista.xlsx", type = XLSX_MIME): File {
@@ -27,20 +36,70 @@ async function rechazo(valor: unknown): Promise<string> {
   throw new Error("expected a ValidationError");
 }
 
-describe("validarArchivoLista", () => {
-  it("accepts an .xlsx and returns its bytes", async () => {
-    expect(Array.from(await validarArchivoLista(archivo()))).toEqual(Array.from(ZIP));
+describe("validarArchivoLista -- .xlsx", () => {
+  it("accepts an .xlsx and returns its bytes and its format", async () => {
+    const { bytes, formato } = await validarArchivoLista(archivo());
+    expect(Array.from(bytes)).toEqual(Array.from(ZIP));
+    expect(formato).toBe("XLSX");
   });
 
   it("accepts it with an empty or generic MIME type when the extension says .xlsx (browsers differ)", async () => {
-    await expect(validarArchivoLista(archivo(ZIP, "Lista Droguería.XLSX", ""))).resolves.toBeDefined();
-    await expect(validarArchivoLista(archivo(ZIP, "lista.xlsx", "application/octet-stream"))).resolves.toBeDefined();
+    await expect(validarArchivoLista(archivo(ZIP, "Lista Droguería.XLSX", ""))).resolves.toMatchObject({ formato: "XLSX" });
+    await expect(validarArchivoLista(archivo(ZIP, "lista.xlsx", "application/octet-stream"))).resolves.toMatchObject({ formato: "XLSX" });
   });
 
   it("accepts the xlsx MIME type even with an odd name", async () => {
-    await expect(validarArchivoLista(archivo(ZIP, "lista", XLSX_MIME))).resolves.toBeDefined();
+    await expect(validarArchivoLista(archivo(ZIP, "lista", XLSX_MIME))).resolves.toMatchObject({ formato: "XLSX" });
+  });
+});
+
+describe("validarArchivoLista -- .xls (BIFF8)", () => {
+  it("accepts a .xls by its OLE signature and reports the XLS format", async () => {
+    const { bytes, formato } = await validarArchivoLista(archivo(XLS, "Lista de medicamentos.xls", XLS_MIME));
+    expect(Array.from(bytes)).toEqual(Array.from(XLS));
+    expect(formato).toBe("XLS");
   });
 
+  it("accepts it with an empty or generic MIME type when the extension says .xls", async () => {
+    await expect(validarArchivoLista(archivo(XLS, "lista.XLS", ""))).resolves.toMatchObject({ formato: "XLS" });
+    await expect(validarArchivoLista(archivo(XLS, "lista.xls", "application/octet-stream"))).resolves.toMatchObject({ formato: "XLS" });
+  });
+
+  it("accepts the xls MIME type even with an odd name", async () => {
+    await expect(validarArchivoLista(archivo(XLS, "lista", XLS_MIME))).resolves.toMatchObject({ formato: "XLS" });
+  });
+});
+
+describe("validarArchivoLista -- the signature decides the format, not the name or the MIME type", () => {
+  it("reads an OLE2 file named .xlsx as XLS", async () => {
+    await expect(validarArchivoLista(archivo(XLS, "lista.xlsx"))).resolves.toMatchObject({ formato: "XLS" });
+  });
+
+  it("reads a zip named .xls as XLSX", async () => {
+    await expect(validarArchivoLista(archivo(ZIP, "lista.xls", XLS_MIME))).resolves.toMatchObject({ formato: "XLSX" });
+  });
+
+  it("rejects a file with the right name and type but the wrong signature (the check that counts)", async () => {
+    const exe = new Uint8Array(4096);
+    exe.set([0x4d, 0x5a, 0x90, 0x00]); // "MZ" DOS header
+    expect(await rechazo(archivo(exe))).toBe(MENSAJES_ARCHIVO_LISTA.sinFirma);
+    expect(await rechazo(archivo(exe, "lista.xls", XLS_MIME))).toBe(MENSAJES_ARCHIVO_LISTA.sinFirma);
+    expect(await rechazo(archivo(new TextEncoder().encode("DESCRIPCION;PRECIO\nA;1\n")))).toBe(MENSAJES_ARCHIVO_LISTA.sinFirma);
+  });
+
+  it("rejects a file shorter than a signature, for both formats", async () => {
+    expect(await rechazo(archivo(new Uint8Array([0x50, 0x4b])))).toBe(MENSAJES_ARCHIVO_LISTA.sinFirma);
+    expect(await rechazo(archivo(new Uint8Array([0xd0, 0xcf, 0x11, 0xe0]), "lista.xls", XLS_MIME))).toBe(MENSAJES_ARCHIVO_LISTA.sinFirma);
+  });
+
+  it("no longer tells the user to convert a .xls (it is read natively)", () => {
+    for (const mensaje of Object.values(MENSAJES_ARCHIVO_LISTA)) expect(mensaje).not.toMatch(/guardalo como \.xlsx/);
+    expect(MENSAJES_ARCHIVO_LISTA.noEsArchivo).toContain(".xls");
+    expect(MENSAJES_ARCHIVO_LISTA.tipoIncorrecto).toContain(".xls");
+  });
+});
+
+describe("validarArchivoLista -- the checks before the content", () => {
   it("rejects anything that is not a File (a string, a Blob, nothing)", async () => {
     expect(await rechazo("PK")).toBe(MENSAJES_ARCHIVO_LISTA.noEsArchivo);
     expect(await rechazo(new Blob([ZIP]))).toBe(MENSAJES_ARCHIVO_LISTA.noEsArchivo);
@@ -52,17 +111,24 @@ describe("validarArchivoLista", () => {
     expect(await rechazo(archivo(new Uint8Array(0)))).toBe(MENSAJES_ARCHIVO_LISTA.vacio);
   });
 
-  it("rejects a file over MAX_LISTA_BYTES WITHOUT reading it into memory", async () => {
-    const grande = archivo(new Uint8Array(MAX_LISTA_BYTES + 1));
-    const lectura = vi.spyOn(grande, "arrayBuffer");
-    expect(await rechazo(grande)).toBe(MENSAJES_ARCHIVO_LISTA.demasiadoGrande);
-    expect(lectura).not.toHaveBeenCalled();
+  it("rejects a file over MAX_LISTA_BYTES WITHOUT reading it into memory, for both formats", async () => {
+    for (const nombre of ["lista.xlsx", "lista.xls"]) {
+      const grande = archivo(new Uint8Array(MAX_LISTA_BYTES + 1), nombre);
+      const lectura = vi.spyOn(grande, "arrayBuffer");
+      expect(await rechazo(grande)).toBe(MENSAJES_ARCHIVO_LISTA.demasiadoGrande);
+      expect(lectura).not.toHaveBeenCalled();
+    }
   });
 
   it("accepts exactly MAX_LISTA_BYTES", async () => {
-    const bytes = new Uint8Array(MAX_LISTA_BYTES);
-    bytes.set(ZIP);
-    await expect(validarArchivoLista(archivo(bytes))).resolves.toHaveLength(MAX_LISTA_BYTES);
+    const xlsx = new Uint8Array(MAX_LISTA_BYTES);
+    xlsx.set(ZIP);
+    await expect(validarArchivoLista(archivo(xlsx))).resolves.toMatchObject({ formato: "XLSX" });
+    const xls = new Uint8Array(MAX_LISTA_BYTES);
+    xls.set(XLS);
+    const resultado = await validarArchivoLista(archivo(xls, "lista.xls", XLS_MIME));
+    expect(resultado.bytes).toHaveLength(MAX_LISTA_BYTES);
+    expect(resultado.formato).toBe("XLS");
   });
 
   it("rejects a file that is neither .xlsx nor .xls by name or type, before reading its content", async () => {
@@ -72,42 +138,26 @@ describe("validarArchivoLista", () => {
     expect(lectura).not.toHaveBeenCalled();
     expect(await rechazo(archivo(ZIP, "lista.pdf", "application/pdf"))).toBe(MENSAJES_ARCHIVO_LISTA.tipoIncorrecto);
   });
-
-  it("gives a legacy .xls its own message (it can not be read without a new dependency)", async () => {
-    const mensaje = await rechazo(archivo(XLS, "Lista de medicamentos.xls", "application/vnd.ms-excel"));
-    expect(mensaje).toBe("Es un archivo .xls (Excel 97-2003). Abrilo en Excel y guardalo como .xlsx.");
-    expect(mensaje).toBe(MENSAJES_ARCHIVO_LISTA.esXls);
-  });
-
-  it("recognizes a .xls by its signature even when it is renamed .xlsx", async () => {
-    expect(await rechazo(archivo(XLS, "lista.xlsx"))).toBe(MENSAJES_ARCHIVO_LISTA.esXls);
-  });
-
-  it("rejects a file with the right name and type but the wrong signature (the check that counts)", async () => {
-    const exe = new Uint8Array(4096);
-    exe.set([0x4d, 0x5a, 0x90, 0x00]); // "MZ" DOS header
-    expect(await rechazo(archivo(exe))).toBe(MENSAJES_ARCHIVO_LISTA.sinFirmaXlsx);
-    expect(await rechazo(archivo(new TextEncoder().encode("DESCRIPCION;PRECIO\nA;1\n")))).toBe(MENSAJES_ARCHIVO_LISTA.sinFirmaXlsx);
-  });
-
-  it("rejects a file shorter than the signature", async () => {
-    expect(await rechazo(archivo(new Uint8Array([0x50, 0x4b])))).toBe(MENSAJES_ARCHIVO_LISTA.sinFirmaXlsx);
-  });
 });
 
-describe("Server Actions body limit vs MAX_LISTA_BYTES", () => {
-  it("is the same 1 MiB limit as the PDF imports", () => {
-    expect(MAX_LISTA_BYTES).toBe(MAX_PDF_BYTES);
-    expect(MAX_LISTA_BYTES).toBe(1024 * 1024);
+describe("price list size limit vs the Server Actions body limit", () => {
+  it("is 4 MiB: its own limit (under the ~4.5 MB Vercel request cap), no longer tied to the 1 MiB of the PDF imports", () => {
+    expect(MAX_LISTA_BYTES).toBe(4 * 1024 * 1024);
+    expect(MAX_LISTA_BYTES).toBeGreaterThan(MAX_PDF_BYTES);
+    expect(MENSAJES_ARCHIVO_LISTA.demasiadoGrande).toContain("4 MB");
+  });
+
+  it("the real supplier file (2.1 MB .xls) fits, with room", () => {
+    expect(2.1 * 1024 * 1024).toBeLessThan(MAX_LISTA_BYTES);
   });
 
   it("next.config.ts's bodySizeLimit lets a file of exactly MAX_LISTA_BYTES through, plus the multipart framing", () => {
-    expect(nextConfig.experimental?.serverActions?.bodySizeLimit).toBe(SERVER_ACTIONS_BODY_SIZE_LIMIT_BYTES);
-    expect(SERVER_ACTIONS_BODY_SIZE_LIMIT_BYTES).toBeGreaterThan(MAX_LISTA_BYTES);
+    expect(LISTA_BODY_SIZE_LIMIT_BYTES).toBeGreaterThan(MAX_LISTA_BYTES);
+    expect(nextConfig.experimental?.serverActions?.bodySizeLimit).toBeGreaterThanOrEqual(LISTA_BODY_SIZE_LIMIT_BYTES);
   });
 
   it("the confirmation JSON stays inside that same body limit, with room for the framing", () => {
-    expect(MAX_CONFIRMACION_BYTES).toBeLessThan(SERVER_ACTIONS_BODY_SIZE_LIMIT_BYTES);
+    expect(MAX_CONFIRMACION_BYTES).toBeLessThan(LISTA_BODY_SIZE_LIMIT_BYTES);
     expect(MAX_CONFIRMACION_BYTES).toBeGreaterThan(MAX_LISTA_BYTES / 2);
   });
 });

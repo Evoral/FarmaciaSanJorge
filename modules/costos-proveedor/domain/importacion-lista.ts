@@ -25,6 +25,7 @@ import type { AliasDroga, ViaMatchDroga } from "@/modules/recetas/domain/importa
 import { parsearDecimalEsAr } from "@/modules/recetas/domain/receta-pdf-parser";
 import { detectarDuplicados, esFechaIsoReal, planVersionar, unidadPrecioPorDefecto, validarFilaCosto } from "./costo-proveedor";
 import type { TipoMagnitudCosto, UnidadParaCosto } from "./costo-proveedor";
+import type { FormatoLista } from "./archivo-lista";
 import type { FilaListaLeida } from "./parsers/lista-xlsx-crystal";
 
 export const ESTADOS_FILA_LISTA = ["ASOCIADA", "SIN_ASOCIAR", "DUPLICADA", "PRECIO_INVALIDO", "MAS_ANTIGUA", "SIN_CAMBIOS", "OMITIDA_PRESENTACION", "OMITIDA"] as const;
@@ -267,7 +268,7 @@ export interface VistaPreviaLista {
   fechaLista: string;
   nombreArchivo: string;
   hashSha256: string;
-  formato: "XLSX";
+  formato: FormatoLista;
   hojas: HojaLibro[];
   /** The sheet this preview was read from. */
   hoja: string;

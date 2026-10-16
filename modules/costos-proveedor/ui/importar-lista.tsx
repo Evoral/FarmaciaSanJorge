@@ -3,7 +3,7 @@
 /**
  * "Importar lista" (/costos-proveedor/importar, docs/specs/costos-proveedor.md R13): two steps in one screen.
  *
- *   1. proveedor (autocomplete), fecha de la lista and the .xlsx file. Reading starts as soon as a file is picked
+ *   1. proveedor (autocomplete), fecha de la lista and the .xls or .xlsx file. Reading starts as soon as a file is picked
  *      (same interaction as the invoice import, modules/stock/ui/importar-factura-pdf.tsx): the file is sent to
  *      `leerListaPreciosAction`, read in memory and discarded -- NOTHING is saved. The size pre-check is only for a
  *      clearer message (the server validates the file again, R15).
@@ -168,7 +168,7 @@ function ImportarListaPaso({ proveedores, drogas, unidades, jornadaActual, onRei
               Importá la lista de precios de un proveedor
             </h2>
             <p className="mt-0.5 text-[0.8125rem] text-zinc-500">
-              Elegí el proveedor y la fecha de la lista, y seleccioná el archivo .xlsx. No se guarda nada hasta que confirmes, y el archivo no se almacena.
+              Elegí el proveedor y la fecha de la lista, y seleccioná el archivo .xls o .xlsx. No se guarda nada hasta que confirmes, y el archivo no se almacena.
             </p>
           </div>
         </div>
@@ -184,20 +184,20 @@ function ImportarListaPaso({ proveedores, drogas, unidades, jornadaActual, onRei
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <input id={inputId} ref={inputRef} name="archivo" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required disabled={isPending} onChange={elegirArchivo} className="peer sr-only" />
+          <input id={inputId} ref={inputRef} name="archivo" type="file" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required disabled={isPending} onChange={elegirArchivo} className="peer sr-only" />
           <label
             htmlFor={inputId}
             aria-disabled={isPending || undefined}
             className="btn btn-secondary peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--color-brand)]"
           >
             {isPending ? <span className="spinner" aria-hidden /> : <Upload className="size-4" aria-hidden />}
-            {isPending ? "Leyendo la lista…" : "Seleccionar archivo .xlsx"}
+            {isPending ? "Leyendo la lista…" : "Seleccionar archivo .xls o .xlsx"}
           </label>
           <p role="status" className="sr-only">
             {isPending ? "Leyendo la lista…" : ""}
           </p>
         </div>
-        <p className="field-help -mt-2">Si tu lista es un .xls (Excel 97-2003), abrila en Excel y guardala como .xlsx. Máximo 1 MB.</p>
+        <p className="field-help -mt-2">Se aceptan planillas de Excel .xls (97-2003) y .xlsx. Máximo {MAX_LISTA_BYTES / (1024 * 1024)} MB.</p>
 
         {alerta}
       </form>
