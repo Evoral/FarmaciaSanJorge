@@ -164,10 +164,14 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
                   return (
                     <tr key={paciente.id}>
                       <td className="px-3 py-2.5">
-                        <span className="flex items-center gap-2.5">
+                        <span className="flex min-w-0 items-center gap-2.5">
                           <Avatar name={nombre} />
                           <span className="min-w-0">
-                            <Link href={`/pacientes/${paciente.id}`} className="block truncate font-medium text-zinc-900 underline-offset-2 hover:underline">
+                            <Link
+                              href={`/pacientes/${paciente.id}`}
+                              title={nombre}
+                              className="block max-w-[16rem] truncate font-medium text-zinc-900 underline-offset-2 hover:underline"
+                            >
                               {nombre}
                             </Link>
                             {paciente.dni ? <span className="block font-mono text-xs text-zinc-500 sm:hidden">DNI {paciente.dni}</span> : null}

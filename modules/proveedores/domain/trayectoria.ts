@@ -145,7 +145,7 @@ export function derivarEstadoPartida(partida: PartidaParaEstado, contexto: Conte
  * Derived from the session's permisos by the use case (`can()`), then used
  * twice: the repository only loads the blocks that are `true`, and the UI
  * only renders (and links to) what is `true`. `linkPartida` only gates a link
- * (the page `/stock/partidas/[id]` guards on `stock.ver`), no data.
+ * (the page `/partidas/[id]` guards on `stock.ver`), no data.
  */
 export interface AccesoTrayectoriaProveedor {
   /** `stock.valorizado.ver`: costo unitario, total comprado, stock valorizado. */
@@ -156,7 +156,7 @@ export interface AccesoTrayectoriaProveedor {
   contralor: boolean;
   /** `auditoria.ver`. */
   correcciones: boolean;
-  /** `stock.ver` -> /stock/partidas/[id]. */
+  /** `stock.ver` -> /partidas/[id]. */
   linkPartida: boolean;
 }
 

@@ -132,8 +132,36 @@ export interface RecetaElegibleRow {
   fechaIngreso: string;
 }
 
-/** User decision 4: estado ENTREGADA/ANULADA, sin lote asignado, fecha_ingreso (date part, tenant zona_horaria) dentro del período. DIGITAL_PDF recetas are excluded (no paper to archive -- docs/specs/importacion-receta-pdf.md). `fecha_ingreso` is cast to the TENANT's own zona_horaria, never UTC/server-local -- same discipline `fsj.jornada_actual()` uses server-side. */
+/** User decision 4: estado ENTREGADA/ANULADA, sin lote asignado, fecha_ingreso (date part, tenant zona_horaria) dentro del período. DIGITAL_PDF recetas are excluded (no paper to archive -- docs/specs/importacion-receta-pdf.md). `fecha_ingreso` is cast to the TENANT's own zona_horaria, never UTC/server-local -- same discipline `fsj.jornada_actual()` uses server-side. Returns EVERY eligible receta (what `conformarLote` assigns). */
 export async function listRecetasElegibles(tx: Prisma.TransactionClient, tenantId: string, periodoDesde: string, periodoHasta: string): Promise<RecetaElegibleRow[]> {
+  return queryRecetasElegibles(tx, tenantId, periodoDesde, periodoHasta, PrismaRuntime.empty);
+}
+
+/** One page of the eligible recetas plus the total count -- only the `/archivo/nuevo` preview; never used to conform a lote. Its count repeats `queryRecetasElegibles`'s WHERE: keep both in sync (written out, not as a shared fragment, so each statement's text shows the whole rule). */
+export async function listRecetasElegiblesPagina(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  periodoDesde: string,
+  periodoHasta: string,
+  page: number,
+  pageSize: number,
+): Promise<{ items: RecetaElegibleRow[]; total: number }> {
+  const [conteo] = await tx.$queryRaw<{ total: number }[]>`
+    SELECT count(*)::int AS total
+    FROM fsj.receta r
+    JOIN fsj.tenant t ON t.id = r.tenant_id
+    WHERE r.tenant_id = ${tenantId}::uuid
+      AND r.estado IN ('ENTREGADA', 'ANULADA')
+      AND r.origen <> 'DIGITAL_PDF'
+      AND r.lote_archivo_id IS NULL
+      AND (r.fecha_ingreso AT TIME ZONE 'UTC' AT TIME ZONE t.zona_horaria)::date BETWEEN ${periodoDesde}::date AND ${periodoHasta}::date
+  `;
+  const offset = (page - 1) * pageSize;
+  const items = await queryRecetasElegibles(tx, tenantId, periodoDesde, periodoHasta, PrismaRuntime.sql`LIMIT ${pageSize} OFFSET ${offset}`);
+  return { items, total: conteo?.total ?? 0 };
+}
+
+async function queryRecetasElegibles(tx: Prisma.TransactionClient, tenantId: string, periodoDesde: string, periodoHasta: string, limite: Prisma.Sql): Promise<RecetaElegibleRow[]> {
   const rows = await tx.$queryRaw<
     {
       id: string;
@@ -161,7 +189,8 @@ export async function listRecetasElegibles(tx: Prisma.TransactionClient, tenantI
       AND r.origen <> 'DIGITAL_PDF'
       AND r.lote_archivo_id IS NULL
       AND (r.fecha_ingreso AT TIME ZONE 'UTC' AT TIME ZONE t.zona_horaria)::date BETWEEN ${periodoDesde}::date AND ${periodoHasta}::date
-    ORDER BY r.fecha_ingreso ASC
+    ORDER BY r.fecha_ingreso ASC, r.id ASC
+    ${limite}
   `;
   return rows.map((r) => ({
     id: r.id,
@@ -356,10 +385,18 @@ export interface LoteDetalle extends LoteRow {
   fechaDestruccion: string | null;
   registradoPorNombre: string;
   registradoPorApellido: string;
+  /** One page of the lote's recetas (ordered by número). */
   recetas: { id: string; numeroInterno: string; pacienteNombre: string; pacienteApellido: string; estado: string }[];
+  /** Every receta of the lote, not only this page. */
+  totalRecetas: number;
 }
 
-export async function getLoteDetalle(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<LoteDetalle | null> {
+export async function getLoteDetalle(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  id: string,
+  paginaRecetas: { page: number; pageSize: number },
+): Promise<LoteDetalle | null> {
   const lote = await tx.loteArchivoRecetas.findUnique({
     where: { id, tenantId },
     select: {
@@ -375,7 +412,13 @@ export async function getLoteDetalle(tx: Prisma.TransactionClient, tenantId: str
       fechaAutorizacion: true,
       fechaDestruccion: true,
       registradoPor: { select: { nombre: true, apellido: true } },
-      recetas: { select: { id: true, numeroInterno: true, estado: true, paciente: { select: { nombre: true, apellido: true } } } },
+      recetas: {
+        select: { id: true, numeroInterno: true, estado: true, paciente: { select: { nombre: true, apellido: true } } },
+        orderBy: { numeroInterno: "asc" },
+        skip: (paginaRecetas.page - 1) * paginaRecetas.pageSize,
+        take: paginaRecetas.pageSize,
+      },
+      _count: { select: { recetas: true } },
     },
   });
   if (!lote) return null;
@@ -408,6 +451,7 @@ export async function getLoteDetalle(tx: Prisma.TransactionClient, tenantId: str
       pacienteApellido: r.paciente.apellido,
       estado: r.estado,
     })),
+    totalRecetas: lote._count.recetas,
   };
 }
 

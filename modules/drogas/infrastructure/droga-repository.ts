@@ -371,7 +371,7 @@ export interface DrogaOpcion {
   id: string;
   nombre: string;
   unidadBaseId: string;
-  /** `tipo_magnitud` of the unidad base: lets a unit picker (e.g. `/stock/ingresar`'s "Unidad de compra") offer only convertible units. */
+  /** `tipo_magnitud` of the unidad base: lets a unit picker (e.g. `/partidas/ingresar`'s "Unidad de compra") offer only convertible units. */
   tipoMagnitud: string;
   clase: PrismaClaseDroga;
   /** Vigente synonyms, as typed: client-filtered pickers search them too (docs/specs/sinonimos-droga.md). */

@@ -18,9 +18,13 @@ import { formatFechaIso } from "@/shared/format/fecha";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Avatar } from "@/shared/ui/avatar";
+import { Pagination } from "@/shared/ui/pagination";
+
+const PAGE_SIZE = 50;
+const BASE_HREF = "/archivo/nuevo";
 
 interface ArchivoNuevoPageProps {
-  searchParams: Promise<{ periodoDesde?: string; periodoHasta?: string; ubicacion?: string }>;
+  searchParams: Promise<{ periodoDesde?: string; periodoHasta?: string; ubicacion?: string; page?: string }>;
 }
 
 export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPageProps) {
@@ -32,15 +36,26 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
   const periodoHasta = params.periodoHasta ?? "";
   const ubicacion = params.ubicacion ?? "";
   const periodoCompleto = periodoDesde.length > 0 && periodoHasta.length > 0 && periodoHasta >= periodoDesde;
+  const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
-  let elegibles: Awaited<ReturnType<typeof listRecetasElegiblesArchivo>> = [];
+  // Only the preview is paged: `total` is every eligible receta, and the confirm step re-reads them all server side.
+  let elegibles: Awaited<ReturnType<typeof listRecetasElegiblesArchivo>> = { items: [], total: 0 };
   let error: string | null = null;
   if (periodoCompleto) {
     try {
-      elegibles = await listRecetasElegiblesArchivo({ periodoDesde, periodoHasta });
+      elegibles = await listRecetasElegiblesArchivo({ periodoDesde, periodoHasta, page, pageSize: PAGE_SIZE });
     } catch {
       error = "No se pudo calcular las recetas elegibles para ese período.";
     }
+  }
+
+  function pageHref(targetPage: number): string {
+    const qs = new URLSearchParams();
+    if (params.periodoDesde) qs.set("periodoDesde", params.periodoDesde);
+    if (params.periodoHasta) qs.set("periodoHasta", params.periodoHasta);
+    if (params.ubicacion) qs.set("ubicacion", params.ubicacion);
+    qs.set("page", String(targetPage));
+    return `${BASE_HREF}?${qs.toString()}`;
   }
 
   const listoParaConfirmar = periodoCompleto && !error;
@@ -116,13 +131,13 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
           <section aria-labelledby="elegibles-heading" className="list-panel min-w-0">
             <div className="list-toolbar">
               <h2 id="elegibles-heading" className="font-medium text-zinc-900" aria-live="polite">
-                {elegibles.length} {elegibles.length === 1 ? "receta elegible" : "recetas elegibles"} del {formatFechaIso(periodoDesde)} al {formatFechaIso(periodoHasta)}
+                {elegibles.total} {elegibles.total === 1 ? "receta elegible" : "recetas elegibles"} del {formatFechaIso(periodoDesde)} al {formatFechaIso(periodoHasta)}
               </h2>
             </div>
             <p className="border-b border-zinc-100 px-4 py-2.5 text-xs text-zinc-500">
               Elegibles: entregadas o anuladas, sin lote asignado. Las recetas importadas desde PDF no se archivan (no tienen papel).
             </p>
-            {elegibles.length === 0 ? (
+            {elegibles.total === 0 ? (
               <EmptyState icon={<FileSearch className="size-5" />} title="No hay recetas elegibles en este período" />
             ) : (
               <div className="table-wrap">
@@ -144,15 +159,17 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
                     </tr>
                   </thead>
                   <tbody>
-                    {elegibles.map((r) => {
+                    {elegibles.items.map((r) => {
                       const paciente = `${r.pacienteNombre} ${r.pacienteApellido}`;
                       return (
                         <tr key={r.id}>
                           <td className="px-3 py-2.5 font-mono font-semibold text-zinc-900">{r.numeroInterno}</td>
                           <td className="px-3 py-2.5">
-                            <span className="flex items-center gap-2.5">
+                            <span className="flex min-w-0 items-center gap-2.5">
                               <Avatar name={paciente} />
-                              <span className="truncate text-zinc-900">{paciente}</span>
+                              <span className="block min-w-0 max-w-[16rem] truncate text-zinc-900" title={paciente}>
+                                {paciente}
+                              </span>
                             </span>
                           </td>
                           <td className="px-3 py-2.5">
@@ -166,6 +183,7 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
                 </table>
               </div>
             )}
+            <Pagination page={page} pageSize={PAGE_SIZE} total={elegibles.total} hrefFor={pageHref} label="Paginación de recetas elegibles" />
           </section>
 
           <aside className="split-aside" aria-label="Confirmar el lote">
@@ -182,10 +200,10 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
                   <dt>Ubicación</dt>
                   <dd data-empty={!conUbicacion || undefined}>{conUbicacion ? ubicacion : "Sin ubicación"}</dd>
                   <dt>Recetas</dt>
-                  <dd className="font-mono tabular-nums">{elegibles.length}</dd>
+                  <dd className="font-mono tabular-nums">{elegibles.total}</dd>
                 </dl>
                 {conUbicacion ? (
-                  <ConformarLoteForm periodoDesde={periodoDesde} periodoHasta={periodoHasta} ubicacion={ubicacion} cantidadElegibles={elegibles.length} />
+                  <ConformarLoteForm periodoDesde={periodoDesde} periodoHasta={periodoHasta} ubicacion={ubicacion} cantidadElegibles={elegibles.total} />
                 ) : (
                   <p className="text-[0.8125rem] text-zinc-600">Ingresá una ubicación arriba para poder confirmar.</p>
                 )}

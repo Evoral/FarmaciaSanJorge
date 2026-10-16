@@ -208,6 +208,7 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
         puedePacientes: can(session, "pacientes.gestionar"),
         puedeProveedores: can(session, "proveedores.gestionar"),
         puedeComparadorCostos: can(session, "stock.valorizado.ver"),
+        puedeCostosProveedor: can(session, "stock.valorizado.ver"),
         accesosHref,
         configuracionHref,
         puedeStock: can(session, "stock.ver"),

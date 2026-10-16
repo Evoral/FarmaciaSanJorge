@@ -53,6 +53,6 @@ SELECT r.*, p.lote FROM fsj.reanalisis_partida r JOIN fsj.partida p ON p.tenant_
 - `modules/stock/infrastructure/valorizado-repository.ts`, `modules/precios/infrastructure/cotizacion-repository.ts`, `modules/proveedores/infrastructure/trayectoria-repository.ts` (+ the comment in `modules/proveedores/domain/trayectoria.ts`): back to `fecha_vencimiento`.
 - `modules/stock/application/get-partida.ts`, `list-partidas-droga.ts`; `modules/stock/domain/reparto.ts` (comments); `modules/stock/ui/actions.ts` (the two actions).
 - `modules/preparaciones/infrastructure/preparacion-repository.ts` (`fecha_vencimiento_vigente`, `reanalizada`, the reserva's `fechaVencimiento`), `application/partidas-para-pesar.ts`, `datos-confirmacion.ts` (`diasAlertaVencimiento`), `get-toma-receta.ts`, `confirmar-preparacion.ts` (message), `ui/confirmar-form.tsx`, `ui/lineas-ficha-tabla.tsx`.
-- `app/(app)/page.tsx`, `app/(app)/stock/page.tsx`, `app/(app)/stock/partidas/page.tsx`, `app/(app)/stock/partidas/[id]/page.tsx`, `app/(app)/stock/ajustes/nuevo/page.tsx`, `app/(app)/preparaciones/recetas/[recetaId]/page.tsx`.
+- `app/(app)/page.tsx`, `app/(app)/stock/page.tsx`, `app/(app)/partidas/page.tsx`, `app/(app)/partidas/[id]/page.tsx`, `app/(app)/stock/ajustes/nuevo/page.tsx`, `app/(app)/preparaciones/recetas/[recetaId]/page.tsx`.
 - `shared/errors/mensajes-invariantes.ts`: `INV-S10` text; keep `INV-S22`/`INV-S23` while the 0074 migration file exists (the global-messages test scans every migration).
 - `shared/labels/field-labels.ts`: the reanálisis labels.

@@ -20,10 +20,11 @@ import { defineCommand, defineQuery, TipoAccion } from "@/shared/usecase";
 import type { ExecuteOptions } from "@/shared/usecase";
 import { DomainError, InvariantViolationError, mapDbError } from "@/shared/errors";
 import { esRecetaElegibleParaArchivo } from "../domain/lote-archivo";
-import { listRecetasElegiblesInput, conformarLoteInput } from "../domain/filtros";
+import { listRecetasElegiblesInput, conformarLoteInput, type ListRecetasElegiblesInputRaw } from "../domain/filtros";
 import { mensajeParaInvarianteArchivo } from "../domain/mensajes-invariantes";
 import {
   listRecetasElegibles,
+  listRecetasElegiblesPagina,
   lockRecetasParaArchivo,
   recheckRecetasElegibles,
   derivarIncluyeControladas,
@@ -42,26 +43,36 @@ export interface RecetaElegibleItem {
   fechaIngreso: string;
 }
 
+export interface RecetasElegiblesPagina {
+  items: RecetaElegibleItem[];
+  /** Every eligible receta of the período (what `conformarLote` will assign), not only this page. */
+  total: number;
+}
+
+/** The PREVIEW only, one page at a time. `conformarLote` never trusts it: it re-reads the whole eligible set itself. */
 export const listRecetasElegiblesArchivoQuery = defineQuery({
   name: "archivo.lotes.recetasElegibles",
   permiso: "archivo.lotes.gestionar",
   input: listRecetasElegiblesInput,
-  handler: async ({ tx, session, input }): Promise<RecetaElegibleItem[]> => {
-    const rows = await listRecetasElegibles(tx, session.tenantId, input.periodoDesde, input.periodoHasta);
+  handler: async ({ tx, session, input }): Promise<RecetasElegiblesPagina> => {
+    const { items, total } = await listRecetasElegiblesPagina(tx, session.tenantId, input.periodoDesde, input.periodoHasta, input.page, input.pageSize);
     // Defensive double check (same discipline as list-jornadas-pendientes.ts):
     // the repository query already filters in SQL, this re-asserts it in
     // the pure domain function.
-    return rows.filter((r) =>
-      esRecetaElegibleParaArchivo(
-        { estado: r.estado, origen: r.origen, loteArchivoId: null, fechaIngreso: r.fechaIngreso },
-        input.periodoDesde,
-        input.periodoHasta,
+    return {
+      items: items.filter((r) =>
+        esRecetaElegibleParaArchivo(
+          { estado: r.estado, origen: r.origen, loteArchivoId: null, fechaIngreso: r.fechaIngreso },
+          input.periodoDesde,
+          input.periodoHasta,
+        ),
       ),
-    );
+      total,
+    };
   },
 });
 
-export async function listRecetasElegiblesArchivo(input: z.infer<typeof listRecetasElegiblesInput>): Promise<RecetaElegibleItem[]> {
+export async function listRecetasElegiblesArchivo(input: ListRecetasElegiblesInputRaw): Promise<RecetasElegiblesPagina> {
   return listRecetasElegiblesArchivoQuery.execute(input);
 }
 

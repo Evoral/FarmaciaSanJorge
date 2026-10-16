@@ -1,5 +1,5 @@
 /**
- * Supplier invoice PDF parser (/stock/ingresar, "Importar factura"). Pure:
+ * Supplier invoice PDF parser (/partidas/ingresar, "Importar factura"). Pure:
  * positioned text items in (shared/pdf/extraer-texto-pdf.server.ts), a
  * draft out. Nothing here matches against the catalog -- that is
  * ../application/leer-factura-compra-pdf.ts's job.

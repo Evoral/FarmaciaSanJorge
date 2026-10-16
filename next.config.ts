@@ -49,11 +49,17 @@ const nextConfig: NextConfig = {
   // bundle lets Node resolve that import natively instead of relying on the
   // bundler to follow it (modules/recetas/infrastructure/receta-pdf.server.ts).
   serverExternalPackages: ["unpdf"],
-  // The etiqueta PDF draws public/logo.png, read from disk at request time
-  // (modules/preparaciones/infrastructure/etiqueta-pdf.ts): trace it into
-  // that route's serverless bundle.
+  // The etiqueta PDF and the Excel exports draw public/logo.png, read from
+  // disk at request time (modules/preparaciones/infrastructure/etiqueta-pdf.ts,
+  // shared/xlsx/xlsx-report.ts): trace it into those routes' serverless bundles.
   outputFileTracingIncludes: {
     "/api/preparaciones/\\[id\\]/etiqueta/pdf": ["./public/logo.png"],
+    "/api/recetas/reporte/export/xlsx": ["./public/logo.png"],
+    "/api/stock/kardex/export/xlsx": ["./public/logo.png"],
+    "/api/stock/valorizado/export/xlsx": ["./public/logo.png"],
+    "/api/libro/export/xlsx": ["./public/logo.png"],
+    "/api/libro/export/contralor/xlsx": ["./public/logo.png"],
+    "/api/cierres/reporte/xlsx": ["./public/logo.png"],
   },
   experimental: {
     serverActions: {

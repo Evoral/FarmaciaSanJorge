@@ -58,13 +58,13 @@ export function catalogosSections(session: AuthenticatedSession): SectionLink[] 
  * `/cierres/**` -- "Gestión DT": what waits on the Director Técnico.
  * The whole section is for `cierres.ver` holders only (the DT has it via
  * seed; user decision): every tab requires it, plus its own permiso.
- *   - "Firmas diarias" is the section's index route itself (`/cierres`,
+ *   - "Pendientes de firma" is the section's index route itself (`/cierres`,
  *     guarded on `cierres.ver` in its page: a nested layout there would also
  *     cover the sibling tabs), hence `exact`.
+ *   - "Historial de cierres": `cierres.ver` only, guarded in its page.
  *   - "Vencimientos": + `stock.ver`, the permiso of the stock alert queries
  *     behind it (only the DT vigente gets its actions).
- *   - "Ajustes de stock": + `stock.ver`, the guard of `/stock/ajustes`
- *     (`app/(app)/stock/layout.tsx`), whose list it renders.
+ * Ajustes de stock are not a tab here: they live only under `/stock/ajustes`.
  * Sessions without access still see vencimientos on the home card and the
  * notification bar, which then link to `/stock?vencidas=1` instead.
  * `/cierres/[id]` and `/cierres/reporte` are detail pages: breadcrumbs, no tabs.
@@ -73,9 +73,9 @@ export function gestionDtSections(session: AuthenticatedSession): SectionLink[] 
   const puedeCierres = can(session, "cierres.ver");
   const puedeStock = puedeCierres && can(session, "stock.ver");
   return visible([
-    { href: "/cierres", label: "Firmas diarias", exact: true, visible: puedeCierres },
+    { href: "/cierres", label: "Pendientes de firma", exact: true, visible: puedeCierres },
+    { href: "/cierres/historial", label: "Historial de cierres", visible: puedeCierres },
     { href: "/cierres/vencimientos", label: "Vencimientos", visible: puedeStock },
-    { href: "/cierres/ajustes", label: "Ajustes de stock", visible: puedeStock },
   ]);
 }
 

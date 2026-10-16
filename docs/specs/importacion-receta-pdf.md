@@ -84,7 +84,7 @@ Cada renglón se clasifica con la primera regla que matchee:
 | Presentación | `^(\d+)\s+(comprimidos?\|c[áa]psulas?\|…)$`, o en orden inverso `^(comprimidos?\|c[áa]psulas?\|…)\s*(:\|x)?\s*(\d+)$` («Cápsulas 30») | `cantidadUnidades` + `formaFarmaceutica` por léxico. |
 | Fracción de dosis | contiene `media dosis` / `½ dosis` | `fraccionDosisPorUnidad = 0.5` (convención de `ficha-tecnica.md`, asiento 34147) y se duplican las unidades a elaborar (ver abajo). |
 | Posología | contiene `cada N horas` (u otra indicación de toma) | Renglón literal a `item.posologia`. |
-| Duración | `tratamiento por N d[ií]as` | `item.duracionTratamientoDias = N`. |
+| Duración | `tratamiento por N d[ií]as`, con o sin texto a continuación («Tratamiento por 30 días de …») | `item.duracionTratamientoDias = N`. El texto que sigue a «días» se descarta sin advertencia (decisión del usuario, 2026-10-14). |
 | Otro | — | **Advertencia visible** con el texto del renglón. |
 
 Reglas del ítem:
@@ -124,6 +124,8 @@ Normalización: minúsculas, NFD, sin diacríticos, espacios colapsados, trim; p
 | Unidad | `simbolo` / `codigo` normalizado (`mg` → MILIGRAMO). | Advertencia; el usuario elige. |
 
 Paciente o médico **existente**: se completan solo los campos vacíos con datos del PDF; nunca se pisa un valor existente. Si hay diferencias (ej. otro teléfono) → advertencia informativa.
+
+Paciente **nuevo**: el formulario ofrece un campo "Teléfono (opcional)". Los archivos (PDF, QR) nunca traen el teléfono del paciente; cargarlo acá evita editar el paciente después. El alta rápida del picker (carga manual) ofrece el mismo campo. Decisión del usuario (2026-10-14).
 
 Receta ya importada (mismo `emisor` + `nroRecetaEmisor`, no ANULADA) → error "Esta receta ya fue cargada (receta interna N°…)" antes de mostrar la vista previa.
 

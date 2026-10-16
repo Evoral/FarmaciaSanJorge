@@ -40,7 +40,7 @@ export function errorFieldsOf(state: { status: string; fields?: readonly string[
 export type FormLayout = "stack" | "inline";
 
 /** Maps 1:1 to the `.btn-*` classes in `app/globals.css`. */
-export type ButtonVariant = "primary" | "secondary" | "critical" | "danger" | "danger-solid";
+export type ButtonVariant = "primary" | "secondary" | "danger" | "danger-solid";
 
 export function buttonClassName(variant: ButtonVariant = "primary", size?: "sm"): string {
   return size === "sm" ? `btn btn-${variant} btn-sm` : `btn btn-${variant}`;

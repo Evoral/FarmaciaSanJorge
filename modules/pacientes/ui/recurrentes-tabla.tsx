@@ -64,18 +64,26 @@ export function RecurrentesTabla({ filas, zonaHoraria }: RecurrentesTablaProps) 
             return (
               <tr key={fila.clave}>
                 <td className="px-3 py-2.5">
-                  <span className="flex items-center gap-2.5">
+                  <span className="flex min-w-0 items-center gap-2.5">
                     <Avatar name={nombre} />
                     <span className="min-w-0">
-                      <Link href={`/pacientes/${fila.pacienteId}`} className="block truncate font-medium text-zinc-900 underline-offset-2 hover:underline">
+                      <Link
+                        href={`/pacientes/${fila.pacienteId}`}
+                        title={nombre}
+                        className="block max-w-[16rem] truncate font-medium text-zinc-900 underline-offset-2 hover:underline"
+                      >
                         {nombre}
                       </Link>
-                      <span className="block truncate text-xs text-zinc-500 md:hidden">{fila.quePide}</span>
+                      <span className="block max-w-[14rem] truncate text-xs text-zinc-500 md:hidden" title={fila.quePide}>
+                        {fila.quePide}
+                      </span>
                     </span>
                   </span>
                 </td>
-                <td className="hidden max-w-xs px-3 py-2.5 md:table-cell">
-                  <span className="line-clamp-2">{fila.quePide}</span>
+                <td className="hidden px-3 py-2.5 md:table-cell">
+                  <span className="line-clamp-2 block max-w-xs break-words" title={fila.quePide}>
+                    {fila.quePide}
+                  </span>
                 </td>
                 <td className="hidden px-3 py-2.5 text-right font-mono tabular-nums lg:table-cell">{fila.veces}</td>
                 <td className="hidden whitespace-nowrap px-3 py-2.5 lg:table-cell">

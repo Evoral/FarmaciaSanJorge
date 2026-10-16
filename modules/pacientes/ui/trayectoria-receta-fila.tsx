@@ -74,8 +74,8 @@ function AvisosCotizacion({ esParcial, esIncompleta }: { esParcial: boolean; esI
 function CeldaPresupuesto({ item }: { item: ItemTrayectoria }) {
   if (!item.cotizacion) return <span className="text-zinc-500">Sin cotización</span>;
   return (
-    <span className="whitespace-nowrap">
-      $ {formatearMonto(item.cotizacion.precioFinal)}
+    <span>
+      <span className="whitespace-nowrap">$ {formatearMonto(item.cotizacion.precioFinal)}</span>
       <AvisosCotizacion esParcial={item.cotizacion.esParcial} esIncompleta={item.cotizacion.esIncompleta} />
     </span>
   );
@@ -203,11 +203,14 @@ function TextoQuePide({ items }: { items: ItemTrayectoria[] }) {
   const resumen = resumenItems(items);
   if (!resumen) return <span className="text-zinc-500">Sin ítems</span>;
   const { primero, restantes } = resumen;
+  const drogas = primero.drogas.length > 0 ? ` · ${primero.drogas.join(", ")}` : "";
+  const masItems = restantes > 0 ? ` (+${restantes} ítem${restantes === 1 ? "" : "s"})` : "";
+  // A long droga list is capped at two lines; the full text is in the tooltip.
   return (
-    <span>
+    <span className="line-clamp-2 block max-w-xs break-words" title={`${FORMA_FARMACEUTICA_LABELS[primero.formaFarmaceutica]} ×${primero.cantidadUnidades}${drogas}${masItems}`}>
       {FORMA_FARMACEUTICA_LABELS[primero.formaFarmaceutica]} ×{primero.cantidadUnidades}
-      {primero.drogas.length > 0 ? ` · ${primero.drogas.join(", ")}` : ""}
-      {restantes > 0 ? <span className="text-zinc-500"> (+{restantes} ítem{restantes === 1 ? "" : "s"})</span> : null}
+      {drogas}
+      {masItems ? <span className="text-zinc-500">{masItems}</span> : null}
     </span>
   );
 }

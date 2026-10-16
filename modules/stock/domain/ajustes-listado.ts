@@ -66,7 +66,7 @@ export function ajustesSearchParams(filtros: FiltrosAjustes, page?: number): URL
  * `?volverA=` through every step and posted with the form. An explicit allowlist -- any other value falls back to
  * `/stock/ajustes`, so the param can never redirect anywhere else (no open redirect).
  */
-export const RETORNOS_AJUSTE = ["/stock/ajustes", "/cierres/ajustes"] as const;
+export const RETORNOS_AJUSTE = ["/stock/ajustes"] as const;
 export type RetornoAjuste = (typeof RETORNOS_AJUSTE)[number];
 export const RETORNO_AJUSTE_DEFAULT: RetornoAjuste = "/stock/ajustes";
 export const PARAM_VOLVER_AJUSTE = "volverA";

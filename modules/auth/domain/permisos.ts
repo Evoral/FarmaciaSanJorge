@@ -71,6 +71,8 @@ export const PERMISO_CATALOGO = {
   "medicos.gestionar": "gestion",
   "pacientes.gestionar": "gestion",
   "precios.reglas.editar": "gestion",
+  // Import, edit and give de baja supplier reference prices (migration 0079, docs/specs/costos-proveedor.md).
+  "costos.proveedor.gestionar": "gestion",
   // Stock.
   "stock.ver": "consulta",
   "stock.valorizado.ver": "consulta",

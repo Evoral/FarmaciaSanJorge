@@ -64,7 +64,7 @@ Todas se escriben en la misma transacción que el cambio.
 
 - Columna **Pago** con una insignia Pagada (verde) / Impaga (ámbar), también en la lista para teléfonos.
 - Filtro **Pago**: Todas / Pagadas / Impagas (`?pago=pagadas|impagas`), dentro de "Filtros", con su chip de filtro activo.
-- **CSV** (`/api/recetas/reporte/export/csv`): columna `Pago` ("Pagada" / "Impaga") y respeta el filtro `pago`. El resumen de filtros de la auditoría de la exportación lo incluye.
+- **Excel** (`/api/recetas/reporte/export/xlsx`): columna `Pago` ("Pagada" / "Impaga") y respeta el filtro `pago`. El resumen de filtros de la auditoría de la exportación lo incluye.
 - No se agregó un contador de impagas al resumen por estado: ese resumen cuenta por estado y no aplica los demás filtros.
 - Sin índice nuevo: el listado no tiene índices para sus otros filtros y `pagada` es un booleano de baja cardinalidad.
 
@@ -86,4 +86,4 @@ Todas se escriben en la misma transacción que el cambio.
 - `modules/recetas/infrastructure/receta-repository.ts` (`getPagoDeReceta`, `setPagoDeReceta`, alta, detalle, listado).
 - `modules/recetas/ui/` (`receta-form.tsx`, `pago-switch.tsx`, `pago-receta-form.tsx`, `recetas-table.tsx`, `actions.ts`) y `app/(app)/recetas/` (`page.tsx`, `[id]/page.tsx`).
 - `modules/entregas/` (`domain/entrega.ts`, `application/registrar-entrega.ts`, `application/confirmar-firma-recibida.ts`, `application/get-entrega-estado.ts`, `infrastructure/entrega-repository.ts`, `ui/registrar-entrega-form.tsx`, `ui/confirmar-firma-form.tsx`).
-- `app/api/recetas/reporte/export/csv/route.ts`; `shared/errors/mensajes-invariantes.ts` (INV-R13, INV-R14); `shared/labels/field-labels.ts`.
+- `app/api/recetas/reporte/export/xlsx/route.ts`; `shared/errors/mensajes-invariantes.ts` (INV-R13, INV-R14); `shared/labels/field-labels.ts`.

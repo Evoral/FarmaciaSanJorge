@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * `/stock/ingresar`: "Importar factura" plus the invoice form. Without a PDF
+ * `/partidas/ingresar`: "Importar factura" plus the invoice form. Without a PDF
  * the form is empty (manual mode: the invoice is typed by hand, lote by
  * lote); a read invoice swaps it for the same form prefilled with the
  * preview, and discarding it -- or confirming it -- goes back to the manual

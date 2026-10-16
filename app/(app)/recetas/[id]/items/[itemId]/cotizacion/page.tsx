@@ -20,6 +20,8 @@ import { ItemContexto } from "@/modules/recetas/ui/item-contexto";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ToneBadge } from "@/shared/ui/status-badge";
+import { formatNumero } from "@/shared/format/cantidad";
+import { formatearMonto } from "@/shared/format/monto";
 
 interface CotizacionPageProps {
   params: Promise<{ id: string; itemId: string }>;
@@ -98,16 +100,16 @@ export default async function CotizacionPage({ params }: CotizacionPageProps) {
                       <th scope="col" className="px-5 py-2">
                         Calculada
                       </th>
-                      <th scope="col" className="px-3 py-2 text-right">
+                      <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
                         Costo insumos
                       </th>
-                      <th scope="col" className="px-3 py-2 text-right">
+                      <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
                         Margen
                       </th>
                       <th scope="col" className="px-3 py-2 text-right">
                         Precio final
                       </th>
-                      <th scope="col" className="px-5 py-2">
+                      <th scope="col" className="hidden px-5 py-2 sm:table-cell">
                         <span className="sr-only">Observaciones</span>
                       </th>
                     </tr>
@@ -115,11 +117,24 @@ export default async function CotizacionPage({ params }: CotizacionPageProps) {
                   <tbody>
                     {anteriores.map((c) => (
                       <tr key={c.id}>
-                        <td className="whitespace-nowrap px-5 py-2.5 tabular-nums">{fechaHora(c.calculadaEn)}</td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">${c.costoInsumos}</td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">{c.margenAplicado}%</td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">${c.precioFinal}</td>
                         <td className="px-5 py-2.5">
+                          <span className="block whitespace-nowrap tabular-nums">{fechaHora(c.calculadaEn)}</span>
+                          {/* Phones: costo, margen and the observaciones travel under the date. */}
+                          <span className="block whitespace-nowrap font-mono text-xs text-zinc-500 tabular-nums sm:hidden">
+                            ${formatearMonto(c.costoInsumos)} + {formatNumero(c.margenAplicado, 2)}%
+                          </span>
+                          {c.precioMinimoAplicado || c.esParcial || c.esIncompleta ? (
+                            <span className="mt-1 flex flex-wrap gap-1.5 sm:hidden">
+                              {c.precioMinimoAplicado ? <ToneBadge tone="neutral">Precio mínimo aplicado</ToneBadge> : null}
+                              {c.esParcial ? <ToneBadge tone="warn">Parcial</ToneBadge> : null}
+                              {c.esIncompleta ? <ToneBadge tone="danger">Incompleta</ToneBadge> : null}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums sm:table-cell">${formatearMonto(c.costoInsumos)}</td>
+                        <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums sm:table-cell">{formatNumero(c.margenAplicado, 2)}%</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">${formatearMonto(c.precioFinal)}</td>
+                        <td className="hidden px-5 py-2.5 sm:table-cell">
                           <span className="flex flex-wrap gap-1.5">
                             {c.precioMinimoAplicado ? <ToneBadge tone="neutral">Precio mínimo aplicado</ToneBadge> : null}
                             {c.esParcial ? <ToneBadge tone="warn">Parcial</ToneBadge> : null}

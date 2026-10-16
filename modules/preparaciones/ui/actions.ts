@@ -4,17 +4,16 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { hrefToma } from "@/modules/preparaciones/domain/toma";
-import { iniciarPreparacion } from "@/modules/preparaciones/application/iniciar-preparacion";
 import { tomarReceta } from "@/modules/preparaciones/application/tomar-receta";
 import { cancelarToma } from "@/modules/preparaciones/application/cancelar-toma";
 import { descartarPreparacion } from "@/modules/preparaciones/application/descartar-preparacion";
 import { confirmarPreparacion } from "@/modules/preparaciones/application/confirmar-preparacion";
-import type { ConfirmarPreparacionLineaInput } from "@/modules/preparaciones/application/confirmar-preparacion";
+import type { LineaEntradaInput } from "@/modules/preparaciones/application/confirmar-preparacion";
 import { reservarStockPreparacion } from "@/modules/preparaciones/application/reservar-stock-preparacion";
 import { liberarReservaStock } from "@/modules/preparaciones/application/liberar-reserva-stock";
-import { confirmarReservaStock } from "@/modules/preparaciones/application/confirmar-reserva-stock";
-import { modificarReservaStock } from "@/modules/preparaciones/application/modificar-reserva-stock";
-import { getModificacionDeReserva } from "@/modules/preparaciones/application/get-modificacion-de-reserva";
+import { confirmarReservasReceta } from "@/modules/preparaciones/application/confirmar-reservas-receta";
+import { recalcularReservaStock } from "@/modules/preparaciones/application/recalcular-reserva-stock";
+import { getRecalculoDeReserva } from "@/modules/preparaciones/application/get-recalculo-de-reserva";
 import { registrarPerdidaReserva, type RegistrarPerdidaReservaInput } from "@/modules/preparaciones/application/registrar-perdida-reserva";
 import { getConfirmacionDeFicha } from "@/modules/preparaciones/application/get-confirmacion-de-ficha";
 import { generarEtiqueta } from "@/modules/preparaciones/application/generar-etiqueta";
@@ -23,20 +22,6 @@ import { StepUpRequiredError } from "@/shared/errors";
 import { conOperador } from "@/shared/auth/operador-context";
 import { actionError, actionErrorMessage } from "@/shared/ui/action-error";
 import type { ConfirmacionDeFichaState, PreparacionActionState, VistaPreviaFichasState } from "./action-state";
-
-export async function iniciarPreparacionAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
-  return conOperador(formData, async (): Promise<PreparacionActionState> => {
-    try {
-      const nueva = await iniciarPreparacion({ fichaTecnicaId: String(formData.get("fichaTecnicaId") ?? "") });
-      revalidatePath("/preparaciones");
-      // The receta (possibly taken now) is no longer editable while the preparación lives.
-      revalidatePath("/recetas");
-      return { status: "success", message: "Preparación iniciada.", id: nueva.id };
-    } catch (error) {
-      return actionError(error, "No se pudo iniciar la preparación.");
-    }
-  });
-}
 
 /**
  * Live preview of the fichas técnicas of a receta's unsaved ítems (the toma workspace's edit form):
@@ -100,23 +85,21 @@ export async function descartarPreparacionAction(_prevState: PreparacionActionSt
 }
 
 /**
- * Parses the confirm form's per-línea fields (both confirmation actions) back into
- * `ConfirmarPreparacionLineaInput[]`. Field names (built by
- * `modules/preparaciones/ui/confirmar-form.tsx`):
- *   - `lineaIds` (repeated, one per línea, in ficha order)
- *   - `partida_<lineaId>` (repeated, one per CHECKED partida for that línea)
+ * Parses the reserva / confirmation form's per-línea entradas back into `LineaEntradaInput[]` (2026-10-15: the
+ * partidas are the system's, docs/specs/reserva-stock-preparacion.md R1 -- the form sends none). Field names (built
+ * by `modules/preparaciones/ui/confirmar-form.tsx`):
+ *   - `lineaIds` (repeated, one per línea with something to type)
  *   - `cantidadManual_<lineaId>` (manual-enrase lines only)
  *   - `motivoApertura_<lineaId>` (optional, INV-S18)
+ * A one-click form sends none of them.
  */
-function parseLineas(formData: FormData): ConfirmarPreparacionLineaInput[] {
-  const lineaIds = formData.getAll("lineaIds").map(String);
-  return lineaIds.map((lineaPesajeId) => {
-    const partidaIds = formData.getAll(`partida_${lineaPesajeId}`).map(String);
+function parseEntradas(formData: FormData): LineaEntradaInput[] {
+  return formData.getAll("lineaIds").map((valor) => {
+    const lineaPesajeId = String(valor);
     const cantidadManualRaw = formData.get(`cantidadManual_${lineaPesajeId}`);
     const motivoRaw = formData.get(`motivoApertura_${lineaPesajeId}`);
     return {
       lineaPesajeId,
-      partidaIds,
       cantidadManual: cantidadManualRaw ? String(cantidadManualRaw) : undefined,
       motivoAperturaAdicional: motivoRaw && String(motivoRaw).trim().length > 0 ? String(motivoRaw) : undefined,
     };
@@ -127,7 +110,7 @@ export async function confirmarPreparacionAction(_prevState: PreparacionActionSt
   return conOperador(formData, async (): Promise<PreparacionActionState> => {
     const preparacionId = String(formData.get("preparacionId") ?? "");
     try {
-      const resultado = await confirmarPreparacion({ preparacionId, lineas: parseLineas(formData) });
+      const resultado = await confirmarPreparacion({ preparacionId, lineas: parseEntradas(formData) });
       revalidatePath(`/preparaciones/${preparacionId}`);
       revalidatePath("/preparaciones");
       // The receta moved to EN_PREPARACION with its first ítem, or PREPARADA with its last.
@@ -143,8 +126,8 @@ export async function confirmarPreparacionAction(_prevState: PreparacionActionSt
 }
 
 /**
- * What the toma workspace's "Continuar" dialog shows for a ficha técnica: called when it opens, not a
- * `<form action>`. Writes nothing.
+ * What the toma workspace's "Marcar como preparada" dialog shows for a ficha técnica (the automatic plan): called
+ * when it opens, not a `<form action>`. Writes nothing.
  */
 export async function getConfirmacionDeFichaAction(fichaTecnicaId: string): Promise<ConfirmacionDeFichaState> {
   try {
@@ -155,17 +138,18 @@ export async function getConfirmacionDeFichaAction(fichaTecnicaId: string): Prom
 }
 
 /**
- * The "Continuar" dialog's final step: creates the preparación and reserves its stock in one transaction (same form
- * fields as `confirmarPreparacionAction`, keyed by `fichaTecnicaId`). Nothing is descontado nor written to the libro yet.
+ * "Marcar como preparada" (one click, or the dialog's submit): creates the preparación and reserves its stock
+ * automatically in one transaction (same form fields as `confirmarPreparacionAction`, keyed by `fichaTecnicaId`).
+ * Nothing is descontado nor written to the libro yet.
  */
 export async function reservarStockAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
   return conOperador(formData, async (): Promise<PreparacionActionState> => {
     try {
-      const resultado = await reservarStockPreparacion({ fichaTecnicaId: String(formData.get("fichaTecnicaId") ?? ""), lineas: parseLineas(formData) });
+      const resultado = await reservarStockPreparacion({ fichaTecnicaId: String(formData.get("fichaTecnicaId") ?? ""), lineas: parseEntradas(formData) });
       revalidatePath("/preparaciones");
       // The receta is no longer editable while the reserva lives (its estado does not change).
       revalidatePath("/recetas");
-      return { status: "success", message: "Stock reservado. Al imprimir la etiqueta se descuenta y se registra en el libro recetario.", id: resultado.id };
+      return { status: "success", message: "Ítem marcado como preparado (stock reservado). Al imprimir las etiquetas de la receta se descuenta y se registra en el libro recetario.", id: resultado.id };
     } catch (error) {
       if (error instanceof StepUpRequiredError) {
         return { status: "reauth-required" };
@@ -175,34 +159,37 @@ export async function reservarStockAction(_prevState: PreparacionActionState, fo
   });
 }
 
-/** What the "Modificar reserva" dialog shows: the "Continuar" data prefilled with the current reserva. Writes nothing. */
-export async function getModificacionDeReservaAction(preparacionId: string): Promise<ConfirmacionDeFichaState> {
+/** What the "Recalcular reserva" dialog shows: the automatic plan, prefilled with the current reserva's enrase quantity/motivo. Writes nothing. */
+export async function getRecalculoDeReservaAction(preparacionId: string): Promise<ConfirmacionDeFichaState> {
   try {
-    return { status: "success", datos: await getModificacionDeReserva(preparacionId) };
+    return { status: "success", datos: await getRecalculoDeReserva(preparacionId) };
   } catch (error) {
     return { status: "error", message: actionErrorMessage(error, "No se pudo leer la reserva.") };
   }
 }
 
-/** "Modificar reserva": replaces the reserva of the same preparación (same form fields as `reservarStockAction`, keyed by `preparacionId`). */
-export async function modificarReservaStockAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
+/**
+ * "Recalcular reserva": re-plans the reserva of the same preparación automatically (same form fields as
+ * `reservarStockAction`, keyed by `preparacionId`; the one-click form sends none and keeps the current entradas).
+ */
+export async function recalcularReservaStockAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
   return conOperador(formData, async (): Promise<PreparacionActionState> => {
     try {
-      const resultado = await modificarReservaStock({ preparacionId: String(formData.get("preparacionId") ?? ""), lineas: parseLineas(formData) });
+      const resultado = await recalcularReservaStock({ preparacionId: String(formData.get("preparacionId") ?? ""), lineas: parseEntradas(formData) });
       revalidatePath("/preparaciones");
-      return { status: "success", message: "Reserva modificada.", id: resultado.id };
+      return { status: "success", message: "Reserva recalculada.", id: resultado.id };
     } catch (error) {
       if (error instanceof StepUpRequiredError) {
         return { status: "reauth-required" };
       }
-      return actionError(error, "No se pudo modificar la reserva.");
+      return actionError(error, "No se pudo recalcular la reserva.");
     }
   });
 }
 
 /**
  * "Registrar pérdida" on a reserved ítem: an AJUSTE linked to the preparación (with the DT's co-firma in the same form)
- * and the reserva re-planned. The message says whether the reserva still covers the receta.
+ * and the reserva re-planned automatically. The message says whether the droga still covers the receta.
  */
 export async function registrarPerdidaReservaAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
   return conOperador(formData, async (): Promise<PreparacionActionState> => {
@@ -223,7 +210,7 @@ export async function registrarPerdidaReservaAction(_prevState: PreparacionActio
         status: "success",
         message: resultado.reservaAlcanza
           ? "Pérdida registrada. La reserva sigue cubriendo la receta."
-          : "Pérdida registrada. La reserva ya no alcanza: modificá la reserva para elegir otro lote.",
+          : "Pérdida registrada. La reserva ya no alcanza: no queda stock suficiente de la droga.",
       };
     } catch (error) {
       if (error instanceof StepUpRequiredError) {
@@ -252,24 +239,31 @@ export async function liberarReservaStockAction(_prevState: PreparacionActionSta
   });
 }
 
+/** "Se confirmaron 3 ítems. Asientos libro recetario Nº 101 a 103." -- the numbers are consecutive (one transaction). */
+function mensajeReservasConfirmadas(numeros: readonly string[]): string {
+  if (numeros.length === 1) return `Se confirmó 1 ítem. Asiento libro recetario Nº ${numeros[0]}.`;
+  return `Se confirmaron ${numeros.length} ítems. Asientos libro recetario Nº ${numeros[0]} a ${numeros[numeros.length - 1]}.`;
+}
+
 /**
- * "Imprimir etiqueta" on a reserved ítem: confirms the preparación from its reserva (stock, libro recetario,
- * contralor) and generates its etiqueta, in one transaction. `id` is the preparación: the client then opens the print
- * dialog for it.
+ * The toma workspace's "Imprimir etiquetas": confirms every ítem of the receta from its reserva (stock, libro
+ * recetario, contralor) and generates their etiquetas, in one transaction -- only when every ítem not yet confirmed holds
+ * a reserva. The client then opens the per-ítem print dialog. The ONLY action that confirms a reserva: there is no
+ * single-ítem one, so no ítem can take an asiento out of the receta's consecutive run.
  */
-export async function confirmarReservaStockAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
+export async function confirmarReservasRecetaAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
   return conOperador(formData, async (): Promise<PreparacionActionState> => {
     try {
-      const resultado = await confirmarReservaStock(String(formData.get("preparacionId") ?? ""));
+      const confirmadas = await confirmarReservasReceta(String(formData.get("recetaId") ?? ""));
       revalidatePath("/preparaciones");
-      // The receta moved to EN_PREPARACION with its first ítem, or PREPARADA with its last.
+      // The receta moved to PREPARADA.
       revalidatePath("/recetas");
-      return { status: "success", message: `Preparación confirmada. Asiento libro recetario Nº ${resultado.numeroCorrelativo}.`, id: resultado.id };
+      return { status: "success", message: mensajeReservasConfirmadas(confirmadas.map((c) => c.numeroCorrelativo)) };
     } catch (error) {
       if (error instanceof StepUpRequiredError) {
         return { status: "reauth-required" };
       }
-      return actionError(error, "No se pudo confirmar la preparación.");
+      return actionError(error, "No se pudieron confirmar los ítems de la receta.");
     }
   });
 }

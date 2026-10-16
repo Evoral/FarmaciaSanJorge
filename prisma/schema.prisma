@@ -421,6 +421,8 @@ model Usuario {
   cotizacionesCalculadas          Cotizacion[]
   drogaAliasCreados               DrogaAlias[]
   comprobantesCompraRegistrados   ComprobanteCompra[]
+  costosProveedorCreados          CostoProveedor[]
+  listasPrecioRegistradas         ListaPrecioProveedor[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, dni])
@@ -597,6 +599,7 @@ model UnidadMedida {
   componentesItemReceta ComponenteItemReceta[]
   lineasPesaje          LineaPesaje[]
   asientosContralor     AsientoContralor[]
+  costosProveedor       CostoProveedor[]
 
   @@map("unidad_medida")
   @@schema("fsj")
@@ -636,6 +639,7 @@ model Droga {
   lineasPesaje          LineaPesaje[]
   asientosContralor     AsientoContralor[]
   alias                 DrogaAlias[]
+  costosProveedor       CostoProveedor[]
 
   @@unique([tenantId, id])
   @@map("droga")
@@ -687,6 +691,8 @@ model Proveedor {
 
   partidas           Partida[]
   comprobantesCompra ComprobanteCompra[]
+  costosProveedor    CostoProveedor[]
+  listasPrecio       ListaPrecioProveedor[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, cuit])
@@ -797,7 +803,7 @@ model Partida {
 }
 
 /// Tenant-scoped, append-only for fsj_app (migration 0062). A supplier
-/// invoice imported from its PDF (/stock/ingresar); one partida per (droga,
+/// invoice imported from its PDF (/partidas/ingresar); one partida per (droga,
 /// lote) points back to it. puntoVenta/numero without leading zeros.
 model ComprobanteCompra {
   id              String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
@@ -1156,6 +1162,7 @@ model Preparacion {
   asientosRecetario AsientoRecetario[]
 
   @@unique([tenantId, id])
+  /// Migration 0077: partial unique index uq_preparacion_item_viva (tenant_id, item_receta_id) WHERE estado IN ('INICIADA','CONFIRMADA') -- at most one live preparacion per item (Prisma cannot express it).
   /// Migration 0051: Trayectoria del paciente -- every preparacion (any estado) of a set of items (the item_receta partial unique index only covers CONFIRMADA).
   @@index([tenantId, itemRecetaId], map: "idx_preparacion_tenant_item_receta")
   @@map("preparacion")
@@ -1204,6 +1211,72 @@ model ReanalisisPartida {
   @@unique([tenantId, id])
   @@index([tenantId, partidaId, registradoEn], map: "idx_reanalisis_partida_partida")
   @@map("reanalisis_partida")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (migration 0079, docs/specs/costos-proveedor.md). Reference price a proveedor
+/// quotes for a droga, used only to QUOTE (the real cost stays in Partida.costoUnitario).
+/// Versioned + immutable except the vigenteHasta close (INV-CP-001/002): a change closes the vigente
+/// version and inserts a new one in one transaction (R2); at most one vigente (vigenteHasta NULL) per
+/// (tenant, droga, proveedor) -- a partial unique index, not declared here. Never deleted.
+/// precioInformado = the price as written (net of IVA, pesos) per 1 unidadPrecio; costoUnitario = that
+/// price per the droga's unidad base, 10 decimals half-up (R4).
+model CostoProveedor {
+  id                   String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId             String    @map("tenant_id") @db.Uuid
+  drogaId              String    @map("droga_id") @db.Uuid
+  proveedorId          String    @map("proveedor_id") @db.Uuid
+  precioInformado      Decimal   @map("precio_informado") @db.Decimal
+  unidadPrecioId       String    @map("unidad_precio_id") @db.Uuid
+  costoUnitario        Decimal   @map("costo_unitario") @db.Decimal
+  fechaPrecio          DateTime  @map("fecha_precio") @db.Date
+  /// Product text as written on the supplier's list; NULL for a manual entry.
+  descripcionProveedor String?   @map("descripcion_proveedor")
+  /// NULL = manual entry (R24).
+  listaPrecioId        String?   @map("lista_precio_id") @db.Uuid
+  motivo               String?
+  vigenteDesde         DateTime  @default(now()) @map("vigente_desde") @db.Timestamptz(6)
+  vigenteHasta         DateTime? @map("vigente_hasta") @db.Timestamptz(6)
+  creadoPorId          String    @map("creado_por_id") @db.Uuid
+
+  droga        Droga                 @relation(fields: [drogaId], references: [id])
+  proveedor    Proveedor             @relation(fields: [proveedorId], references: [id])
+  unidadPrecio UnidadMedida          @relation(fields: [unidadPrecioId], references: [id])
+  listaPrecio  ListaPrecioProveedor? @relation(fields: [listaPrecioId], references: [id])
+  creadoPor    Usuario               @relation(fields: [creadoPorId], references: [id])
+
+  @@unique([tenantId, id])
+  @@index([tenantId, drogaId, proveedorId, vigenteDesde(sort: Desc)], map: "idx_costo_proveedor_historial")
+  @@map("costo_proveedor")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped, append-only (migration 0079). Header of one imported supplier price list; the
+/// rows it applied are CostoProveedor rows pointing back through listaPrecioId. The same file
+/// (hashSha256, lowercase hex) can not be imported twice for the same proveedor (R21).
+model ListaPrecioProveedor {
+  id              String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  proveedorId     String   @map("proveedor_id") @db.Uuid
+  /// XLSX | PDF (CHECK lista_precio_proveedor_formato_check). PDF is reserved for a later stage.
+  formato         String
+  nombreArchivo   String   @map("nombre_archivo")
+  hashSha256      String   @map("hash_sha256")
+  /// The date the list's prices correspond to (the fechaPrecio of the rows it applied).
+  fechaLista      DateTime @map("fecha_lista") @db.Date
+  filasLeidas     Int      @map("filas_leidas")
+  filasAplicadas  Int      @map("filas_aplicadas")
+  registradoPorId String   @map("registrado_por_id") @db.Uuid
+  registradoEn    DateTime @default(now()) @map("registrado_en") @db.Timestamptz(6)
+
+  proveedor     Proveedor        @relation(fields: [proveedorId], references: [id])
+  registradoPor Usuario          @relation(fields: [registradoPorId], references: [id])
+  costos        CostoProveedor[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, proveedorId, hashSha256], map: "lista_precio_proveedor_hash_key")
+  @@index([tenantId, registradoEn(sort: Desc)], map: "idx_lista_precio_proveedor_registrado")
+  @@map("lista_precio_proveedor")
   @@schema("fsj")
 }
 

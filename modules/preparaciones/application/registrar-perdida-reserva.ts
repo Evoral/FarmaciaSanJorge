@@ -4,9 +4,12 @@
  * whoever prepares records that part of a reserved partida was lost (rotura,
  * derrame) during the lab's work. ONE transaction:
  *   1. Lock the preparación, then its receta, then EVERY partida it reserves
- *      (one id-ordered statement): the same order as "Imprimir etiqueta"
- *      (`confirmarReservaStock`), and the partidas before any single one, so
- *      it can not deadlock with a reserva or a confirmation.
+ *      together with every eligible partida of its ficha's drogas (the
+ *      candidates of the re-plan in step 4) in ONE id-ordered statement: the
+ *      same order as "Imprimir etiquetas" (`confirmarReservasReceta`), and
+ *      all the partidas before any single one, so the AJUSTE and the re-plan
+ *      only re-lock rows already held and it can not deadlock with a reserva
+ *      or a confirmation (docs/specs/reserva-stock-preparacion.md R9/R23).
  *   2. The partida must be one this preparación reserves.
  *   3. An AJUSTE through the stock module's own code
  *      (`registrarAjusteEnTx`, modules/stock/application/registrar-ajuste.ts:
@@ -15,12 +18,13 @@
  *      LINKED to the preparación (`movimiento_stock.preparacion_id`) and
  *      allowed to consume this preparación's OWN reserva (never another's).
  *   4. The receta still needs the full amount, so the reserva is re-planned
- *      with the same choice (`planificarConsumoEnTx`): if the chosen partidas
- *      still cover it, the reserva rows are rewritten with the new split
- *      (same partidas, amounts updated); if not, the pérdida still persists,
- *      the old rows stay, and the ítem shows "La reserva ya no alcanza:
- *      modificá la reserva" until "Modificar reserva" fixes it ("Imprimir
- *      etiqueta" fails with the stock message meanwhile).
+ *      AUTOMATICALLY over every eligible partida (`planificarConsumoEnTx`,
+ *      `modo: "automatica"`, R1), with the reserva's enrase quantity and
+ *      motivo: if the droga still has the stock, the reserva rows are
+ *      rewritten (possibly other partidas); only if it truly lacks it the
+ *      pérdida still persists, the old rows stay, and the ítem shows "La
+ *      reserva ya no alcanza" with "Recalcular reserva" (R5; "Imprimir
+ *      etiquetas" stays disabled meanwhile).
  *
  * An AJUSTE needs a Director Técnico's authorization (INV-S08/INV-U05: the
  * DB requires `autorizado_por_id` = a DT vigente), so the form carries the
@@ -43,8 +47,8 @@ import { uuid, nonEmptyString, positiveDecimalString } from "@/shared/validation
 import { registrarAjusteEnTx } from "@/modules/stock/application/registrar-ajuste";
 import { verificarCoFirmaDtEnTx } from "@/modules/stock/application/verificar-co-firma-dt";
 import { MOTIVOS_PERDIDA, type MotivoPerdida } from "../domain/perdida";
-import { planificarConsumoEnTx } from "./confirmar-preparacion";
-import { lineasDesdeReservas } from "./confirmar-reserva-stock";
+import { candidatosAutomaticosEnTx, partidaIdsDeCandidatos, planificarConsumoEnTx } from "./confirmar-preparacion";
+import { entradasDeReserva } from "./recalcular-reserva-stock";
 import { reservasDelPlan } from "./reservar-stock-preparacion";
 import {
   deleteReservasDePreparacion,
@@ -82,7 +86,7 @@ export interface RegistrarPerdidaReservaInput {
 
 export interface PerdidaRegistrada {
   id: string;
-  /** The same partidas still cover the receta (the reserva was re-planned); `false` = "Modificar reserva". */
+  /** The droga still has the stock (the reserva was re-planned automatically); `false` = "La reserva ya no alcanza". */
   reservaAlcanza: boolean;
 }
 
@@ -102,7 +106,7 @@ const registrarPerdidaInternalCommand = defineCommand({
   input: registrarPerdidaInternalInput,
   audit: { entidad: "movimiento_stock", accion: TipoAccion.CREAR },
   handler: async ({ tx, session, input }) => {
-    // 1. Locks: preparación -> receta -> every reserved partida (id order).
+    // 1. Locks: preparación -> receta -> every reserved or candidate partida (id order).
     if (!(await lockPreparacionParaAccion(tx, session.tenantId, input.preparacionId))) {
       throw new NotFoundError("Preparación no encontrada.");
     }
@@ -116,7 +120,10 @@ const registrarPerdidaInternalCommand = defineCommand({
 
     const reservas = await listReservasDePreparacion(tx, session.tenantId, input.preparacionId);
     if (reservas.length === 0) throw new DomainError("Esta preparación no tiene stock reservado.");
-    await lockPartidasParaConfirmacion(tx, session.tenantId, [...new Set(reservas.map((r) => r.partidaId))]);
+    // Every partida the AJUSTE or the re-plan may touch, in one id-ordered statement (read before locking, as always).
+    const jornada = await jornadaActualTenant(tx, session.tenantId);
+    const candidatos = await candidatosAutomaticosEnTx(tx, session.tenantId, { preparacionId: input.preparacionId, fichaTecnicaId: preparacion.fichaTecnicaId, jornada });
+    await lockPartidasParaConfirmacion(tx, session.tenantId, [...new Set([...reservas.map((r) => r.partidaId), ...partidaIdsDeCandidatos(candidatos)])]);
 
     // 2. Only a partida this preparación reserves.
     if (!reservas.some((r) => r.partidaId === input.partidaId)) {
@@ -133,14 +140,14 @@ const registrarPerdidaInternalCommand = defineCommand({
       preparacionId: input.preparacionId,
     });
 
-    // 4. Re-plan the same choice against the new balances.
+    // 4. Re-plan automatically against the new balances, over the candidates locked in step 1.
     let reservaAlcanza = true;
     try {
       const plan = await planificarConsumoEnTx(tx, session.tenantId, {
         preparacionId: input.preparacionId,
         fichaTecnicaId: preparacion.fichaTecnicaId,
-        lineas: lineasDesdeReservas(reservas),
-        jornada: await jornadaActualTenant(tx, session.tenantId),
+        seleccion: { modo: "automatica", entradas: entradasDeReserva(reservas), candidatos },
+        jornada,
       });
       await deleteReservasDePreparacion(tx, session.tenantId, input.preparacionId);
       await insertReservas(tx, { tenantId: session.tenantId, preparacionId: input.preparacionId, reservadaPorId: session.usuario.id, reservas: reservasDelPlan(plan) });

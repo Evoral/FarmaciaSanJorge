@@ -13,13 +13,15 @@ import { resolverEstadoVisualAsiento, etiquetaEstadoVisual } from "../domain/est
 const MARGIN = 40;
 const PAGE_HEIGHT = 842; // A4 in points
 const ROW_HEIGHT = 16;
+// Fits the A4 width between margins (595 - 2 x 40 = 515 pt).
 const COLS = [
   { label: "Nº", width: 40 },
-  { label: "Fecha", width: 60 },
+  { label: "Fecha", width: 55 },
+  { label: "Receta Nº", width: 45 },
   { label: "Origen", width: 60 },
-  { label: "Estado", width: 130 },
-  { label: "Paciente", width: 130 },
-  { label: "Médico", width: 130 },
+  { label: "Estado", width: 105 },
+  { label: "Paciente", width: 105 },
+  { label: "Médico", width: 105 },
 ];
 
 export interface LibroPdfOptions {
@@ -67,7 +69,8 @@ export function buildLibroPdf(items: AsientoListItem[], options: LibroPdfOptions
 
       const y = doc.y;
       let x = x0;
-      const values = [item.numeroCorrelativo, item.fechaAsiento, origen, estado, item.pacienteTexto, item.medicoTexto];
+      // Receta Nº: display-only (asiento-repository.ts#AsientoListItem.recetaNumeroInterno), "—" without a receta.
+      const values = [item.numeroCorrelativo, item.fechaAsiento, item.recetaNumeroInterno ?? "—", origen, estado, item.pacienteTexto, item.medicoTexto];
       for (let i = 0; i < COLS.length; i++) {
         doc.text(values[i], x, y, { width: COLS[i].width, height: ROW_HEIGHT, ellipsis: true, lineBreak: false });
         x += COLS[i].width;

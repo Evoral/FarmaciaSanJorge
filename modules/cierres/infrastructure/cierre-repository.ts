@@ -15,9 +15,10 @@
  * and `modules/preparaciones/infrastructure/preparacion-repository.ts`'s
  * "Receta state transitions" section already establish.
  */
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import type { EstadoUsuario } from "@/generated/prisma/enums";
 import { resolverEstadoVisualAsiento, etiquetaEstadoVisual } from "@/modules/libro/domain/estado-visual";
+import type { EstadoVisualAsiento } from "@/modules/libro/domain/estado-visual";
 
 // ============================================================================
 // jornada / parametro helpers -- own copies (see module doc comment).
@@ -121,6 +122,86 @@ export async function getResumenPendientes(tx: Prisma.TransactionClient, tenantI
   `;
   const row = rows[0];
   return { cantidad: row?.cantidad ?? 0, masAntiguaFecha: row?.mas_antigua ?? null };
+}
+
+/**
+ * Recetario asientos registered on a pending jornada -- what the DT reviews
+ * before signing it. Every estado is listed (an ANULADO asiento is part of
+ * what happened that day), even though the firma only attaches the VIGENTE
+ * ones. A pending fecha never has a cierre yet, so no `cierreDiarioId` filter.
+ */
+export interface AsientoJornadaItem {
+  id: string;
+  numeroCorrelativo: string;
+  esRectificativo: boolean;
+  asientoOriginalNumeroCorrelativo: string | null;
+  pacienteTexto: string;
+  medicoTexto: string;
+  formulaTexto: string;
+  estadoVisual: EstadoVisualAsiento;
+}
+
+export interface ListAsientosJornadaFilter {
+  tenantId: string;
+  fecha: string;
+  page: number;
+  pageSize: number;
+}
+
+export async function listAsientosJornada(tx: Prisma.TransactionClient, filter: ListAsientosJornadaFilter): Promise<{ items: AsientoJornadaItem[]; total: number }> {
+  const where: Prisma.AsientoRecetarioWhereInput = { tenantId: filter.tenantId, fechaAsiento: new Date(filter.fecha) };
+
+  const total = await tx.asientoRecetario.count({ where });
+  const rows = await tx.asientoRecetario.findMany({
+    where,
+    orderBy: { numeroCorrelativo: "asc" },
+    skip: (filter.page - 1) * filter.pageSize,
+    take: filter.pageSize,
+    select: {
+      id: true,
+      numeroCorrelativo: true,
+      origen: true,
+      pacienteTexto: true,
+      medicoTexto: true,
+      formulaTexto: true,
+      estado: true,
+      anulacion: {
+        select: {
+          motivo: true,
+          anuladoEn: true,
+          anuladoPor: { select: { nombre: true, apellido: true } },
+          autorizadoPor: { select: { nombre: true, apellido: true } },
+        },
+      },
+      rectificativos: { select: { numeroCorrelativo: true }, take: 1 },
+      asientoOriginal: { select: { numeroCorrelativo: true } },
+    },
+  });
+
+  return {
+    total,
+    items: rows.map((a) => ({
+      id: a.id,
+      numeroCorrelativo: a.numeroCorrelativo.toString(),
+      esRectificativo: a.origen === "RECTIFICATIVO",
+      asientoOriginalNumeroCorrelativo: a.asientoOriginal ? a.asientoOriginal.numeroCorrelativo.toString() : null,
+      pacienteTexto: a.pacienteTexto,
+      medicoTexto: a.medicoTexto,
+      formulaTexto: a.formulaTexto,
+      estadoVisual: resolverEstadoVisualAsiento({
+        estado: a.estado,
+        anulacion: a.anulacion
+          ? {
+              motivo: a.anulacion.motivo,
+              anuladoEn: a.anulacion.anuladoEn,
+              anuladoPorNombre: `${a.anulacion.anuladoPor.nombre} ${a.anulacion.anuladoPor.apellido}`,
+              autorizadoPorNombre: `${a.anulacion.autorizadoPor.nombre} ${a.anulacion.autorizadoPor.apellido}`,
+            }
+          : null,
+        rectificativoNumeroCorrelativo: a.rectificativos[0] ? a.rectificativos[0].numeroCorrelativo.toString() : null,
+      }),
+    })),
+  };
 }
 
 // ============================================================================
@@ -488,7 +569,43 @@ export interface ReporteCumplimientoFilter {
   fechaHasta?: string;
 }
 
+/** The report's WHERE, shared by the full listing, the paged listing and its counts. */
+function cumplimientoWhere(filter: ReporteCumplimientoFilter): Prisma.Sql {
+  return Prisma.sql`
+    cd.tenant_id = ${filter.tenantId}::uuid
+      AND (${filter.fechaDesde ?? null}::date IS NULL OR cd.fecha >= ${filter.fechaDesde ?? null}::date)
+      AND (${filter.fechaHasta ?? null}::date IS NULL OR cd.fecha <= ${filter.fechaHasta ?? null}::date)
+  `;
+}
+
+/** Every matching row (the CSV export). */
 export async function listCumplimiento(tx: Prisma.TransactionClient, filter: ReporteCumplimientoFilter): Promise<CumplimientoItem[]> {
+  return queryCumplimiento(tx, filter, Prisma.empty);
+}
+
+export interface CumplimientoPaginado {
+  items: CumplimientoItem[];
+  total: number;
+  /** Over ALL matching rows, not only the page (the screen's "en término / fuera de término" summary). */
+  fueraDeTermino: number;
+}
+
+/** One page of the report (the screen), plus the totals over every matching row. */
+export async function listCumplimientoPaginado(
+  tx: Prisma.TransactionClient,
+  filter: ReporteCumplimientoFilter & { page: number; pageSize: number },
+): Promise<CumplimientoPaginado> {
+  const [conteo] = await tx.$queryRaw<{ total: number; fuera_de_termino: number }[]>`
+    SELECT count(*)::int AS total, (count(*) FILTER (WHERE cd.fuera_de_termino))::int AS fuera_de_termino
+    FROM fsj.cierre_diario cd
+    WHERE ${cumplimientoWhere(filter)}
+  `;
+  const offset = (filter.page - 1) * filter.pageSize;
+  const items = await queryCumplimiento(tx, filter, Prisma.sql`LIMIT ${filter.pageSize} OFFSET ${offset}`);
+  return { items, total: conteo?.total ?? 0, fueraDeTermino: conteo?.fuera_de_termino ?? 0 };
+}
+
+async function queryCumplimiento(tx: Prisma.TransactionClient, filter: ReporteCumplimientoFilter, limite: Prisma.Sql): Promise<CumplimientoItem[]> {
   const rows = await tx.$queryRaw<
     {
       fecha: string;
@@ -513,10 +630,9 @@ export async function listCumplimiento(tx: Prisma.TransactionClient, filter: Rep
     FROM fsj.cierre_diario cd
     JOIN fsj.tenant t ON t.id = cd.tenant_id
     JOIN fsj.usuario u ON u.id = cd.director_tecnico_id
-    WHERE cd.tenant_id = ${filter.tenantId}::uuid
-      AND (${filter.fechaDesde ?? null}::date IS NULL OR cd.fecha >= ${filter.fechaDesde ?? null}::date)
-      AND (${filter.fechaHasta ?? null}::date IS NULL OR cd.fecha <= ${filter.fechaHasta ?? null}::date)
+    WHERE ${cumplimientoWhere(filter)}
     ORDER BY cd.fecha ASC
+    ${limite}
   `;
   return rows.map((r) => ({
     fecha: r.fecha,

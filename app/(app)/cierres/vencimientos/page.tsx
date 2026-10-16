@@ -8,7 +8,7 @@
  *
  * Everyone who can open the tab (`cierres.ver` + `stock.ver`) sees the list
  * (so they can warn the DT); the actions render only for the DT vigente, exactly as on
- * `/stock/partidas/[id]` (`sesionEsDtVigente` + `stock.ajuste.autorizar`;
+ * `/partidas/[id]` (`sesionEsDtVigente` + `stock.ajuste.autorizar`;
  * the commands re-check it, and so does the DB). Guard: `./layout.tsx`.
  */
 import Link from "next/link";
@@ -159,8 +159,8 @@ function TablaVencimientos({ filas, vencida, catalogo, jornadaActual, dtPuedeAct
             return (
               <tr key={fila.partidaId}>
                 <td className="px-3 py-2.5">
-                  <span className="block font-medium text-zinc-900">{fila.drogaNombre}</span>
-                  <span className="block text-xs text-zinc-500">
+                  <span className="block break-words font-medium text-zinc-900">{fila.drogaNombre}</span>
+                  <span className="block max-w-[16rem] break-words text-xs text-zinc-500">
                     Lote <span className="font-mono">{fila.lote}</span>
                     <span className="lg:hidden"> · {fila.proveedorRazonSocial}</span>
                   </span>
@@ -181,14 +181,14 @@ function TablaVencimientos({ filas, vencida, catalogo, jornadaActual, dtPuedeAct
                   <Cantidad valor={saldo} />
                 </td>
                 <td className="px-3 py-2.5">
-                  <div className="flex flex-wrap items-center justify-end gap-2">
+                  <div className="flex items-center justify-end gap-1.5 md:flex-wrap md:gap-2">
                     {dtPuedeActuar ? (
                       <>
                         <ReanalisisDialog partidaId={fila.partidaId} partidaNombre={partidaNombre} jornadaActual={jornadaActual} destacado={vencida} compacto />
                         {vencida ? <MarcarVencidaDialog partidaId={fila.partidaId} partidaNombre={partidaNombre} saldoTexto={saldo.texto} compacto /> : null}
                       </>
                     ) : null}
-                    <Link href={`/stock/partidas/${fila.partidaId}`} aria-label={`Ver detalle de la partida ${fila.lote} de ${fila.drogaNombre}`} className="btn btn-ghost btn-sm">
+                    <Link href={`/partidas/${fila.partidaId}`} aria-label={`Ver detalle de la partida ${fila.lote} de ${fila.drogaNombre}`} className="btn btn-ghost btn-sm">
                       <span className="hidden sm:inline">Partida</span>
                       <ChevronRight className="size-3.5" aria-hidden />
                     </Link>

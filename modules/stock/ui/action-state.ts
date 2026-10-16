@@ -12,7 +12,7 @@ export type StockActionState =
 
 export const IDLE_STATE: StockActionState = { status: "idle" };
 
-/** Result of reading a supplier invoice PDF (/stock/ingresar, "Importar factura"). */
+/** Result of reading a supplier invoice PDF (/partidas/ingresar, "Importar factura"). */
 export type LeerFacturaPdfState = { status: "idle" } | { status: "error"; message: string } | { status: "success"; vistaPrevia: VistaPreviaFactura };
 
 export const IDLE_LEER_FACTURA_STATE: LeerFacturaPdfState = { status: "idle" };

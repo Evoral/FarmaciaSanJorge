@@ -8,7 +8,7 @@
 1. **Presupuesto en vivo** mientras se carga una receta (alta manual e importación desde PDF). No guarda nada.
 2. **Ficha técnica y cotización automáticas** al confirmar la receta (y al editarla, solo para los ítems cuya fórmula cambió).
 
-Fuera de alcance: reservar stock, guardar presupuestos, presupuesto en la edición de una receta ya guardada.
+Fuera de alcance: reservar stock (eso lo hace el laboratorio al marcar un ítem como preparado, `reserva-stock-preparacion.md`), guardar presupuestos, presupuesto en la edición de una receta ya guardada.
 
 ## 1. Presupuesto — consulta `recetas.presupuestar`
 
@@ -37,7 +37,7 @@ Ambos pasos comparten el código con los comandos existentes (`calcularLineasFic
 
 Con el reparto acumulado, `Incompleta`, los faltantes y el costo de cada ítem reflejan la receta completa.
 
-[ACLARACIÓN] El stock comprometido por **otras** recetas pendientes no se descuenta en ningún cálculo: nada reserva stock (INV-R02).
+[ACLARACIÓN] El presupuesto y la cotización no reservan stock (INV-R02) y cuestan contra el saldo **físico**: no descuentan lo que otras recetas pendientes van a usar ni lo que las preparaciones en curso ya **reservaron** (la reserva de stock existe desde 2026-10-08, `reserva-stock-preparacion.md`; ahí, «Open»). Es una estimación de precio, no una reserva.
 
 [ACLARACIÓN] La cotización que se guarda al confirmar (por ítem) sigue costeando cada ítem contra el stock completo, como la cotización manual: descontar los demás ítems no sería consistente una vez que alguno ya se preparó (su stock ya salió y se descontaría dos veces).
 
@@ -81,6 +81,6 @@ Los accesos manuales «Ficha técnica» y «Cotización» del detalle se mantien
 - **PR7** — Dos ítems con la misma droga y stock para uno solo: el segundo queda **Incompleta** y aparece la advertencia de stock de la receta.
 - **PR8** — Dos ítems con la misma droga y stock para ambos: sin advertencia.
 - **GA1** — Falla la ficha de un ítem: la receta queda guardada, aviso con el motivo, sin cotización para ese ítem.
-- **GA2** — Usuario sin `fichas.generar`: no se genera nada y no hay aviso.
+- **GA2** — Usuario sin `fichas.generar`: no se genera nada y no hay aviso. Si editó un ítem, su ficha queda **desactualizada**: la toma del laboratorio la muestra así, no deja reservar stock sobre ella y ofrece «Generar ficha técnica» a quien tiene el permiso (`reserva-stock-preparacion.md` R18).
 - **GA3** — Edición sin cambios en un ítem: no se crea una nueva versión de su ficha.
 - **GA4** — Edición que quita un ítem con ficha: se rechaza y no se modifica nada; editar el contenido de ese ítem sí se permite.

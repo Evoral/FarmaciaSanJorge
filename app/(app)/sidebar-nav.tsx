@@ -37,12 +37,14 @@ import {
   Menu,
   Package,
   PackageCheck,
+  PackageSearch,
   PanelLeftClose,
   PanelLeftOpen,
   Scale,
   Settings,
   ShieldCheck,
   SlidersHorizontal,
+  Tags,
   Truck,
   UserCog,
   Users,
@@ -81,11 +83,13 @@ export interface SidebarNavProps {
   puedeProveedores: boolean;
   /** `stock.valorizado.ver` (ADM/DT/FAR) -- `true` shows "Gestión › Comparador de costos" to `/comparador-costos`, right below Proveedores. Same permiso `app/(app)/comparador-costos/layout.tsx` guard requires. */
   puedeComparadorCostos: boolean;
+  /** `stock.valorizado.ver` (ADM/DT/FAR) -- `true` shows "Gestión › Costos de proveedores" to `/costos-proveedor`, next to the Comparador de costos. Same permiso `app/(app)/costos-proveedor/layout.tsx` guard requires; editing needs `costos.proveedor.gestionar`, checked by its own pages. */
+  puedeCostosProveedor: boolean;
   /** "Administración › Usuarios y accesos": the FIRST `/admin/accesos/**` section (usuarios, roles, directores técnicos) this session can reach, or `null` to hide the entry. Same reasoning as `catalogosHref`, from `nav-sections.ts#accesosSections`. */
   accesosHref: string | null;
   /** "Administración › Configuración": the FIRST `/admin/configuracion/**` section (farmacia, parámetros, reglas de precio) this session can reach, or `null` to hide the entry. Same reasoning as `catalogosHref`, from `nav-sections.ts#configuracionSections`. */
   configuracionHref: string | null;
-  /** M07, FASE 5: `stock.ver` (granted to every role) -- `true` shows the "Stock" link to `/stock` and, right below it, "Ajustes" to `/stock/ajustes` (same permiso: its list query and the `/stock/**` layout guard both check `stock.ver`). */
+  /** M07, FASE 5: `stock.ver` (granted to every role) -- `true` shows the "Stock" link to `/stock` and, right below it, "Partidas" (`/partidas`) and "Ajuste de Stock" (`/stock/ajustes`) (same permiso: its list query and the `/stock/**` layout guard both check `stock.ver`). */
   puedeStock: boolean;
   /** M09, FASE 6: `recetas.crear` (ATP/FAR/DT) -- `true` shows a "Recetas" link to `/recetas`. */
   puedeRecetas: boolean;
@@ -346,10 +350,12 @@ function buildGroups(p: SidebarNavProps, pathname: string): NavGroup[] {
   if (p.puedeRecetas) operacion.push({ href: "/recetas", label: "Recetas", icon: FileText, active: pathname.startsWith("/recetas") });
   if (p.puedePreparaciones) operacion.push({ href: "/preparaciones", label: "Preparaciones", icon: FlaskConical, active: pathname.startsWith("/preparaciones") });
   if (p.puedeStock) {
-    // `/stock/ajustes/**` has its own entry, so it must not light up "Stock" too.
+    // `/stock/ajustes/**` and `/partidas` (plus its "Nuevo ingreso", `/partidas/ingresar`) have their own entries, so they must not light up "Stock" too.
     const enAjustes = pathname === "/stock/ajustes" || pathname.startsWith("/stock/ajustes/");
-    operacion.push({ href: "/stock", label: "Stock", icon: Package, active: pathname.startsWith("/stock") && !enAjustes });
-    operacion.push({ href: "/stock/ajustes", label: "Ajustes", icon: SlidersHorizontal, active: enAjustes });
+    const enHistorial = pathname === "/partidas" || pathname.startsWith("/partidas/") || pathname === "/partidas/ingresar";
+    operacion.push({ href: "/stock", label: "Stock", icon: Package, active: pathname.startsWith("/stock") && !enAjustes && !enHistorial });
+    operacion.push({ href: "/partidas", label: "Partidas", icon: PackageSearch, active: enHistorial });
+    operacion.push({ href: "/stock/ajustes", label: "Ajuste de Stock", icon: SlidersHorizontal, active: enAjustes });
   }
   if (p.entregasHref) operacion.push({ href: p.entregasHref, label: "Entregas", icon: PackageCheck, active: pathname.startsWith("/entregas") });
 
@@ -363,6 +369,7 @@ function buildGroups(p: SidebarNavProps, pathname: string): NavGroup[] {
   if (p.puedePacientes) gestion.push({ href: "/pacientes", label: "Pacientes", icon: Users, active: pathname.startsWith("/pacientes") });
   if (p.puedeProveedores) gestion.push({ href: "/proveedores", label: "Proveedores", icon: Truck, active: pathname.startsWith("/proveedores") });
   if (p.puedeComparadorCostos) gestion.push({ href: "/comparador-costos", label: "Comparador de costos", icon: Scale, active: pathname.startsWith("/comparador-costos") });
+  if (p.puedeCostosProveedor) gestion.push({ href: "/costos-proveedor", label: "Costos de proveedores", icon: Tags, active: pathname.startsWith("/costos-proveedor") });
   if (p.puedeReportes) gestion.push({ href: "/reportes", label: "Reportes", icon: ChartColumn, active: pathname.startsWith("/reportes") });
   if (p.puedeAuditoria) gestion.push({ href: "/auditoria", label: "Auditoría", icon: ShieldCheck, active: pathname === "/auditoria" || pathname.startsWith("/auditoria/") });
 

@@ -6,7 +6,9 @@
  *
  * NEVER resolves paciente/médico/fórmula by FK -- every read below returns
  * the frozen `*_texto` snapshot columns (INV-L05), exactly as the plan's
- * M12 "NO HACER" list requires.
+ * M12 "NO HACER" list requires. The receta Nº of the listings is the one
+ * FK-resolved value, display-only (not part of the asiento, its snapshot or
+ * its hash): see `recetaNumeroInterno`.
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { EstadoAsiento, OrigenAsiento } from "@/generated/prisma/enums";
@@ -36,6 +38,12 @@ export interface AsientoListItem {
   anulacion: AnulacionResumen | null;
   rectificativoNumeroCorrelativo: string | null;
   asientoOriginalNumeroCorrelativo: string | null;
+  /**
+   * The receta's `numero_interno`, display-only: asiento -> preparación -> item_receta -> receta (a RECTIFICATIVO
+   * through its original asiento). NOT a frozen `*_texto` column, never hashed; `null` for an asiento without
+   * preparación (historical digitalization).
+   */
+  recetaNumeroInterno: string | null;
 }
 
 export interface AsientoListResult {
@@ -76,12 +84,34 @@ const LIST_SELECT = {
   cierreDiarioId: true,
   anulacion: { select: { motivo: true, anuladoEn: true, anuladoPor: { select: { nombre: true, apellido: true } }, autorizadoPor: { select: { nombre: true, apellido: true } } } },
   rectificativos: { select: { numeroCorrelativo: true }, take: 1 },
-  asientoOriginal: { select: { numeroCorrelativo: true } },
+  preparacion: { select: { itemRecetaId: true } },
+  asientoOriginal: { select: { numeroCorrelativo: true, preparacion: { select: { itemRecetaId: true } } } },
 } satisfies Prisma.AsientoRecetarioSelect;
 
 type AsientoRow = Prisma.AsientoRecetarioGetPayload<{ select: typeof LIST_SELECT }>;
 
-function toListItem(row: AsientoRow): AsientoListItem {
+/** The ítem the asiento belongs to: its own preparación (SISTEMA) or, lacking one, its original's (RECTIFICATIVO). Same chain as D2's `itemLabel`. */
+function itemRecetaIdDe(row: AsientoRow): string | null {
+  return row.preparacion?.itemRecetaId ?? row.asientoOriginal?.preparacion?.itemRecetaId ?? null;
+}
+
+/** item_receta id -> its receta's numero_interno, for every row of a page in ONE read (display-only, see `recetaNumeroInterno`). */
+async function numerosDeReceta(tx: Prisma.TransactionClient, tenantId: string, rows: readonly AsientoRow[]): Promise<Map<string, string>> {
+  const itemIds = [...new Set(rows.map(itemRecetaIdDe).filter((id): id is string => id !== null))];
+  if (itemIds.length === 0) return new Map();
+  const items = await tx.itemReceta.findMany({ where: { tenantId, id: { in: itemIds } }, select: { id: true, receta: { select: { numeroInterno: true } } } });
+  return new Map(items.map((item) => [item.id, item.receta.numeroInterno.toString()]));
+}
+
+async function toListItems(tx: Prisma.TransactionClient, tenantId: string, rows: readonly AsientoRow[]): Promise<AsientoListItem[]> {
+  const numeros = await numerosDeReceta(tx, tenantId, rows);
+  return rows.map((row) => {
+    const itemRecetaId = itemRecetaIdDe(row);
+    return toListItem(row, itemRecetaId ? (numeros.get(itemRecetaId) ?? null) : null);
+  });
+}
+
+function toListItem(row: AsientoRow, recetaNumeroInterno: string | null): AsientoListItem {
   return {
     id: row.id,
     numeroCorrelativo: row.numeroCorrelativo.toString(),
@@ -102,6 +132,7 @@ function toListItem(row: AsientoRow): AsientoListItem {
       : null,
     rectificativoNumeroCorrelativo: row.rectificativos[0] ? row.rectificativos[0].numeroCorrelativo.toString() : null,
     asientoOriginalNumeroCorrelativo: row.asientoOriginal ? row.asientoOriginal.numeroCorrelativo.toString() : null,
+    recetaNumeroInterno,
   };
 }
 
@@ -110,12 +141,13 @@ export async function listAsientosRecetario(tx: Prisma.TransactionClient, tenant
   const rows = await tx.asientoRecetario.findMany({
     where,
     select: LIST_SELECT,
-    orderBy: { numeroCorrelativo: "asc" },
+    // Latest asiento first on screen; the export (iterarAsientosParaExportar) keeps the book's ascending order.
+    orderBy: { numeroCorrelativo: "desc" },
     skip: (filtro.page - 1) * filtro.pageSize,
     take: filtro.pageSize,
   });
   const total = await tx.asientoRecetario.count({ where });
-  return { items: rows.map(toListItem), total, page: filtro.page, pageSize: filtro.pageSize };
+  return { items: await toListItems(tx, tenantId, rows), total, page: filtro.page, pageSize: filtro.pageSize };
 }
 
 /** Walks EVERY page matching `filtro` (no pagination), in ascending correlativo order -- used by CSV/PDF export. Caller enforces the row cap. */
@@ -125,7 +157,7 @@ export async function* iterarAsientosParaExportar(tx: Prisma.TransactionClient, 
   for (;;) {
     const rows = await tx.asientoRecetario.findMany({ where, select: LIST_SELECT, orderBy: { numeroCorrelativo: "asc" }, skip, take: pageSize });
     if (rows.length === 0) return;
-    yield rows.map(toListItem);
+    yield await toListItems(tx, tenantId, rows);
     if (rows.length < pageSize) return;
     skip += pageSize;
   }
@@ -169,12 +201,12 @@ export async function getAsientoRecetario(tx: Prisma.TransactionClient, tenantId
   // `*_texto` FK resolution (see AsientoDetalle's doc comment).
   const itemRecetaId = row.preparacion?.itemRecetaId ?? row.asientoOriginal?.preparacion?.itemRecetaId ?? null;
   const item = itemRecetaId
-    ? await tx.itemReceta.findUnique({ where: { id: itemRecetaId, tenantId }, select: { descripcion: true, formaFarmaceutica: true } })
+    ? await tx.itemReceta.findUnique({ where: { id: itemRecetaId, tenantId }, select: { descripcion: true, formaFarmaceutica: true, receta: { select: { numeroInterno: true } } } })
     : null;
   const itemLabel = item ? item.descripcion ?? item.formaFarmaceutica : null;
 
   return {
-    ...toListItem(row),
+    ...toListItem(row, item ? item.receta.numeroInterno.toString() : null),
     itemLabel,
     detalles: row.detalles.map((d) => ({ descripcion: d.descripcion, cantidad: d.cantidad.toString(), unidadTexto: d.unidadTexto, orden: d.orden })),
     rectificacion: row.rectificacion ? { motivo: row.rectificacion.motivo, autorizadoPorNombre: nombreCompleto(row.rectificacion.autorizadoPor) } : null,

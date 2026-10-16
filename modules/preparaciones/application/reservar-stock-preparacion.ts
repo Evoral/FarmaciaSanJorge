@@ -1,32 +1,27 @@
 /**
- * `reservarStockPreparacion`: the toma workspace's "Continuar" dialog
- * (ui/continuar-preparacion-dialog.tsx) creates an ítem's preparación
- * (INICIADA) and RESERVES the stock it will use, in ONE transaction
- * (migration 0071, docs/specs/reserva-stock-preparacion.md). The lab still
- * has internal steps after weighing, so nothing is fixed yet: no
- * movimiento_stock, no libro recetario asiento, no contralor. That happens at
- * "Imprimir etiqueta" (`confirmarReservaStock`, ./confirmar-reserva-stock.ts),
- * or the reserva is released ("Liberar reserva", ./liberar-reserva-stock.ts).
+ * `reservarStockPreparacion`: the toma workspace's "Marcar como preparada" (one click, or the dialog of
+ * ui/continuar-preparacion-dialog.tsx when an enrase manual quantity must be typed) creates an ítem's preparación
+ * (INICIADA) and RESERVES the stock it will use, in ONE transaction (migration 0071,
+ * docs/specs/reserva-stock-preparacion.md). The lab still has internal steps after weighing, so nothing is fixed yet:
+ * no movimiento_stock, no libro recetario asiento, no contralor. That happens at the receta's "Imprimir etiquetas"
+ * (`confirmarReservasReceta`, ./confirmar-reservas-receta.ts), or the reserva is released ("Liberar reserva",
+ * ./liberar-reserva-stock.ts).
  *
- * It is `iniciarPreparacion` (`iniciarPreparacionEnTx`: ficha found, receta
- * not terminal, INV-P02; the receta keeps its estado -- it moves to
- * EN_PREPARACION only at the first confirmation -- but a LIVE preparación
- * blocks editing it until the reserva is released) followed by the confirmation's own checks
- * (`planificarConsumoEnTx`, ./confirmar-preparacion.ts: líneas match the
- * ficha, chosen partidas locked in id order and re-read, split recomputed
- * by the system, expiry, stock, INV-S15 desvío, INV-S18 motivo) -- the
- * reserva is validated exactly as its confirmation will be, against stock
- * NOT reserved by other preparaciones. Then one `reserva_stock` row per
- * chosen partida of each línea, with what the split takes from it (0 when
- * the split does not need it), plus the línea's cantidadManual and motivo,
- * so the confirmation can rebuild the same input. Any failure rolls back
- * everything (no INICIADA is left behind).
+ * It is `iniciarPreparacion` (`iniciarPreparacionEnTx`: receta locked and re-checked, ítem locked, ficha vigente --
+ * latest version, built from the ítem's current data --, no other live preparación of the ítem; the receta keeps its
+ * estado but is not editable while the preparación lives) followed by the AUTOMATIC plan (R1, DT decision 2026-10-15:
+ * `planificarConsumoEnTx` with `modo: "automatica"`, ./confirmar-preparacion.ts): every eligible partida of each
+ * línea's droga, locked in id order and re-read, split abiertas first then FEFO, validated exactly as its confirmation
+ * will be against stock NOT reserved by other preparaciones. The client never sends partidas: only the enrase manual
+ * quantity and, when INV-S18 asks for it, the motivo. Then one `reserva_stock` row per partida the split draws from
+ * (R2), plus the línea's cantidadManual and motivo, so the confirmation can rebuild the same input. Any failure rolls
+ * back everything (no INICIADA is left behind).
  *
- * Permisos: `preparaciones.confirmar` via the pipeline (with its recent
- * re-authentication, INV-X02, same window as the confirmation) and
- * `preparaciones.iniciar` checked first thing in the handler. Audited once
- * (CREAR on the preparación), with the ficha it started from and the
- * reserva.
+ * Lock order (R23): ficha (advisory) -> receta -> item_receta -> partidas.
+ *
+ * Permisos: `preparaciones.confirmar` via the pipeline (with its recent re-authentication, INV-X02, same window as
+ * the confirmation) and `preparaciones.iniciar` checked first thing in the handler. Audited once (CREAR on the
+ * preparación), with the ficha it started from and the reserva.
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
@@ -34,23 +29,18 @@ import { AUTH_POLICY } from "@/shared/auth/policy";
 import { authorize } from "@/shared/auth/authorize";
 import { uuid } from "@/shared/validation";
 import { iniciarPreparacionEnTx } from "./iniciar-preparacion";
-import {
-  comoErrorDeDominio,
-  lineaConfirmacionInput,
-  planificarConsumoEnTx,
-  type ConfirmarPreparacionLineaInput,
-  type LineaPlanificada,
-} from "./confirmar-preparacion";
+import { comoErrorDeDominio, lineaEntradaInput, planificarConsumoEnTx, type LineaEntradaInput, type LineaPlanificada } from "./confirmar-preparacion";
 import { insertReservas, jornadaActualTenant, type ReservaDePreparacion } from "../infrastructure/preparacion-repository";
 
 const reservarStockPreparacionInput = z.object({
   fichaTecnicaId: uuid,
-  lineas: z.array(lineaConfirmacionInput).min(1),
+  /** Only the líneas with something typed (enrase manual quantity, INV-S18 motivo); the partidas are the system's. */
+  lineas: z.array(lineaEntradaInput).default([]),
 });
 
 export interface ReservarStockPreparacionInput {
   fichaTecnicaId: string;
-  lineas: ConfirmarPreparacionLineaInput[];
+  lineas?: LineaEntradaInput[];
 }
 
 export const reservarStockPreparacionCommand = defineCommand({
@@ -69,7 +59,7 @@ export const reservarStockPreparacionCommand = defineCommand({
       const plan = await planificarConsumoEnTx(tx, session.tenantId, {
         preparacionId: iniciada.id,
         fichaTecnicaId: input.fichaTecnicaId,
-        lineas: input.lineas,
+        seleccion: { modo: "automatica", entradas: input.lineas },
         jornada,
       });
 
@@ -95,9 +85,10 @@ export const reservarStockPreparacionCommand = defineCommand({
 });
 
 /**
- * The `reserva_stock` rows of a validated plan: every CHOSEN partida keeps a row (the confirmation re-validates the same
- * choice), with what the split takes from it (0 when the split does not need it) in the droga's unidad base, and the
- * línea's typed cantidadManual as typed (línea unit). Also used by `modificarReservaStock`.
+ * The `reserva_stock` rows of a validated plan (R2): one per partida the línea draws from -- for the automatic plan,
+ * exactly the split's partidas, all with cantidad > 0 -- with what the split takes from it in the droga's unidad base,
+ * and the línea's typed cantidadManual as typed (línea unit) and motivo. Also used by `recalcularReservaStock` and
+ * `registrarPerdidaReserva`.
  */
 export function reservasDelPlan(plan: readonly LineaPlanificada[]): ReservaDePreparacion[] {
   return plan.flatMap(({ linea, elegido, split }) =>

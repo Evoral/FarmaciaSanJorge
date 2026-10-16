@@ -1,6 +1,6 @@
 /**
  * Unit tests for `modules/libro/application/exportar-libro.ts` (D6,
- * 2026-09-23): every CSV/PDF export writes an EXPORTAR audit row via
+ * 2026-09-23): every XLSX/PDF export writes an EXPORTAR audit row via
  * `registrarExportacionLibroCommand` AFTER the read resolves but BEFORE
  * `exportarLibroDatos` returns anything to its caller -- and if that audit
  * write fails, the export is BLOCKED (the caller never receives data).
@@ -72,7 +72,7 @@ async function* singlePage() {
   yield [ITEM];
 }
 
-function exportar(formato: "CSV" | "PDF" = "CSV") {
+function exportar(formato: "XLSX" | "PDF" = "XLSX") {
   return exportarLibroDatos({}, formato);
 }
 
@@ -83,7 +83,7 @@ describe("exportarLibroDatos (D6: audit every export, blocks on audit failure)",
   });
 
   it("writes ONE EXPORTAR audit row (entidad libro_recetario) with the row count, AFTER the read resolves, then returns the data", async () => {
-    const result = await exportar("CSV");
+    const result = await exportar("XLSX");
 
     expect(result.items).toHaveLength(1);
     expect(result.truncated).toBe(false);
@@ -97,7 +97,7 @@ describe("exportarLibroDatos (D6: audit every export, blocks on audit failure)",
       }),
     );
     const auditCall = auditRecordMock.mock.calls[0]![1] as { valorNuevo: { formato: string; cantidadFilas: number } };
-    expect(auditCall.valorNuevo.formato).toBe("CSV");
+    expect(auditCall.valorNuevo.formato).toBe("XLSX");
     expect(auditCall.valorNuevo.cantidadFilas).toBe(1);
   });
 
@@ -110,6 +110,6 @@ describe("exportarLibroDatos (D6: audit every export, blocks on audit failure)",
   it("D6: if the audit write fails, the export is BLOCKED -- exportarLibroDatos rejects and never hands data back to the caller", async () => {
     auditRecordMock.mockRejectedValue(new Error("audit table unavailable"));
 
-    await expect(exportar("CSV")).rejects.toThrow("audit table unavailable");
+    await expect(exportar("XLSX")).rejects.toThrow("audit table unavailable");
   });
 });

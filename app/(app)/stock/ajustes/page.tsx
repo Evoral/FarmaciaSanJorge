@@ -1,7 +1,6 @@
 /**
  * `/stock/ajustes` (M07): the registered ajustes/mermas. The list itself is
- * `modules/stock/ui/ajustes-listado.tsx`, shared with the "Pendientes del
- * DT" section's `/cierres/ajustes` tab.
+ * `modules/stock/ui/ajustes-listado.tsx`.
  * Section guard: `app/(app)/stock/layout.tsx` (`stock.ver`).
  */
 import type { ParamsAjustes } from "@/modules/stock/domain/ajustes-listado";
@@ -17,7 +16,8 @@ export default async function AjustesPage({ searchParams }: AjustesPageProps) {
       <AjustesListado
         params={await searchParams}
         basePath="/stock/ajustes"
-        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Stock", href: "/stock" }, { label: "Ajustes" }]}
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Stock", href: "/stock" }, { label: "Ajuste de Stock" }]}
+        title="Ajuste de Stock"
       />
     </div>
   );

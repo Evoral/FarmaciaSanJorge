@@ -14,7 +14,7 @@ import { defineQuery } from "@/shared/usecase";
 import { NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { hrefVolverDePreparacion } from "../domain/toma";
-import { getPreparacionParaAccion, getRecetaDePreparacion } from "../infrastructure/preparacion-repository";
+import { getPreparacionParaAccion, getRecetaDePreparacion, listReservasDePreparacion } from "../infrastructure/preparacion-repository";
 import { construirDatosConfirmacion, type DatosConfirmacion } from "./datos-confirmacion";
 
 export type { LineaPantalla } from "./datos-confirmacion";
@@ -26,6 +26,8 @@ export interface PreparacionParaPantalla extends DatosConfirmacion {
   estado: string;
   /** "← Volver": the receta's toma workspace or the list tab. */
   hrefVolver: string;
+  /** An INICIADA preparación holding a reserva de stock: confirmed from the toma workspace ("Imprimir etiquetas"), never here. */
+  conReserva: boolean;
 }
 
 export const getPreparacionParaPantallaQuery = defineQuery({
@@ -39,11 +41,13 @@ export const getPreparacionParaPantallaQuery = defineQuery({
     // Its own reservas (if any) stay available to it.
     const datos = await construirDatosConfirmacion(tx, session.tenantId, preparacion.fichaTecnicaId, preparacion.id);
     const receta = await getRecetaDePreparacion(tx, session.tenantId, preparacion.itemRecetaId);
+    const conReserva = preparacion.estado === "INICIADA" && (await listReservasDePreparacion(tx, session.tenantId, preparacion.id)).length > 0;
     return {
       ...datos,
       id: preparacion.id,
       estado: preparacion.estado,
       hrefVolver: hrefVolverDePreparacion(preparacion.estado, receta),
+      conReserva,
     };
   },
 });

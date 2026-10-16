@@ -7,7 +7,7 @@
  * row, so this use case never calls another one: it reads its own droga
  * options (every droga with at least one partida; NOT `listDrogasOpciones`,
  * gated on `drogas.editar`) and its own unit factors from the repository, and
- * decides the link to `/stock/partidas/[id]` with `can(session, "stock.ver")`.
+ * decides the link to `/partidas/[id]` with `can(session, "stock.ver")`.
  * Reads are not audited (project convention). The droga options are ALWAYS
  * returned; the comparison only when `drogaId` is a droga of the tenant that
  * has partidas.
@@ -47,7 +47,7 @@ export interface ComparadorCostosResultado {
   comparacion: ComparacionCostos | null;
   /** A droga was asked for but it is not one of the tenant's drogas with partidas. */
   drogaNoDisponible: boolean;
-  /** `stock.ver`: the detail rows may link to `/stock/partidas/[id]` (that page's own guard). */
+  /** `stock.ver`: the detail rows may link to `/partidas/[id]` (that page's own guard). */
   linkPartida: boolean;
 }
 

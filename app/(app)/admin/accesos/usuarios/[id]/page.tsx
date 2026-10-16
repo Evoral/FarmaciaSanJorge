@@ -22,7 +22,10 @@ import { EstadoAcciones } from "@/modules/usuarios/ui/estado-acciones";
 import { RestablecerCredencial } from "@/modules/usuarios/ui/restablecer-credencial";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
+import { Pagination } from "@/shared/ui/pagination";
 import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
+
+const HISTORIAL_PAGE_SIZE = 20;
 
 const TABS = [
   { key: "datos", label: "Datos" },
@@ -32,13 +35,14 @@ const TABS = [
 
 interface UsuarioDetallePageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; page?: string }>;
 }
 
 export default async function UsuarioDetallePage({ params, searchParams }: UsuarioDetallePageProps) {
   const session = await requireSession();
   const { id } = await params;
-  const { tab: rawTab } = await searchParams;
+  const { tab: rawTab, page: rawPage } = await searchParams;
+  const page = Math.max(1, Number.parseInt(rawPage ?? "1", 10) || 1);
   const tab = TABS.some((t) => t.key === rawTab) ? (rawTab as (typeof TABS)[number]["key"]) : "datos";
 
   const usuario = await getUsuario(id);
@@ -129,7 +133,7 @@ export default async function UsuarioDetallePage({ params, searchParams }: Usuar
 
       {tab === "historial" ? (
         can(session, "usuarios.auditoria.ver") ? (
-          <HistorialAuditoria usuarioId={usuario.id} />
+          <HistorialAuditoria usuarioId={usuario.id} page={page} />
         ) : (
           <p className="alert alert-info">No tenés permiso para ver la auditoría de usuarios.</p>
         )
@@ -138,8 +142,13 @@ export default async function UsuarioDetallePage({ params, searchParams }: Usuar
   );
 }
 
-async function HistorialAuditoria({ usuarioId }: { usuarioId: string }) {
-  const result = await listUsuarioAuditoria({ usuarioId, page: 1, pageSize: 50 });
+async function HistorialAuditoria({ usuarioId, page }: { usuarioId: string; page: number }) {
+  const result = await listUsuarioAuditoria({ usuarioId, page, pageSize: HISTORIAL_PAGE_SIZE });
+
+  function pageHref(targetPage: number): string {
+    const qs = new URLSearchParams({ tab: "historial", page: String(targetPage) });
+    return `/admin/accesos/usuarios/${usuarioId}?${qs.toString()}`;
+  }
 
   return (
     <div className="list-panel">
@@ -150,13 +159,13 @@ async function HistorialAuditoria({ usuarioId }: { usuarioId: string }) {
           <table className="data-table">
             <thead>
               <tr>
-                <th scope="col" className="px-3 py-2">
+                <th scope="col" className="hidden px-3 py-2 md:table-cell">
                   Fecha
                 </th>
                 <th scope="col" className="px-3 py-2">
                   Qué pasó
                 </th>
-                <th scope="col" className="px-3 py-2">
+                <th scope="col" className="hidden px-3 py-2 md:table-cell">
                   Cambios
                 </th>
               </tr>
@@ -164,19 +173,24 @@ async function HistorialAuditoria({ usuarioId }: { usuarioId: string }) {
             <tbody>
               {result.items.map((row) => (
                 <tr key={row.id} className="align-top">
-                  <td className="whitespace-nowrap px-3 py-3 font-mono text-xs tabular-nums text-zinc-600">{formatearFechaHora(row.ocurridoEn, result.zonaHoraria)}</td>
-                  <td className="min-w-[14rem] px-3 py-3">
-                    <p className="font-medium text-zinc-900">{describirRegistro(`${row.usuario.nombre} ${row.usuario.apellido}`, row.accion, "usuario")}</p>
+                  <td className="hidden whitespace-nowrap px-3 py-3 font-mono text-xs tabular-nums text-zinc-600 md:table-cell">{formatearFechaHora(row.ocurridoEn, result.zonaHoraria)}</td>
+                  <td className="px-3 py-3 md:min-w-[14rem]">
+                    <p className="mb-1 whitespace-nowrap font-mono text-xs tabular-nums text-zinc-600 md:hidden">{formatearFechaHora(row.ocurridoEn, result.zonaHoraria)}</p>
+                    <p className="break-words font-medium text-zinc-900">{describirRegistro(`${row.usuario.nombre} ${row.usuario.apellido}`, row.accion, "usuario")}</p>
                     <p className="mt-1">
                       <ToneBadge tone={tonoAccion(row.accion)}>{ACCION_LABELS[row.accion] ?? row.accion}</ToneBadge>
                     </p>
                     {row.motivo ? (
-                      <p className="mt-1.5 text-[0.8125rem]">
+                      <p className="mt-1.5 break-words text-[0.8125rem]">
                         <span className="text-zinc-500">Motivo:</span> {row.motivo}
                       </p>
                     ) : null}
+                    {/* Phones: the Cambios column is hidden, so the diff goes under the description. */}
+                    <div className="mt-3 md:hidden">
+                      <AuditoriaDiff entidad="usuario" entidadId={usuarioId} valorAnterior={row.valorAnterior} valorNuevo={row.valorNuevo} zonaHoraria={result.zonaHoraria} />
+                    </div>
                   </td>
-                  <td className="min-w-[18rem] px-3 py-3">
+                  <td className="hidden px-3 py-3 md:table-cell md:min-w-[18rem]">
                     <AuditoriaDiff entidad="usuario" entidadId={usuarioId} valorAnterior={row.valorAnterior} valorNuevo={row.valorNuevo} zonaHoraria={result.zonaHoraria} />
                   </td>
                 </tr>
@@ -185,6 +199,7 @@ async function HistorialAuditoria({ usuarioId }: { usuarioId: string }) {
           </table>
         </div>
       )}
+      <Pagination page={page} pageSize={HISTORIAL_PAGE_SIZE} total={result.total} hrefFor={pageHref} label="Paginación del historial del usuario" />
     </div>
   );
 }

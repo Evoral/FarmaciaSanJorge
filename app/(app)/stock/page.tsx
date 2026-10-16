@@ -8,9 +8,7 @@
  * its matching filter applied.
  */
 import Link from "next/link";
-import { ChevronRight, PackagePlus, PackageSearch, SearchX, SlidersHorizontal, X } from "lucide-react";
-import { requireSession } from "@/shared/auth/session";
-import { can } from "@/shared/auth/authorize";
+import { ChevronRight, PackageSearch, SearchX, SlidersHorizontal, X } from "lucide-react";
 import { listStockDrogas } from "@/modules/stock/application/list-stock-drogas";
 import { alertasStock } from "@/modules/stock/application/alertas-stock";
 import { getCatalogoUnidades } from "@/modules/unidades/application/catalogo-unidades";
@@ -68,7 +66,6 @@ function notaVencidas(drogas: number, insumos: number): string | undefined {
 }
 
 export default async function StockPage({ searchParams }: StockPageProps) {
-  const session = await requireSession();
   const params = await searchParams;
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
@@ -92,8 +89,6 @@ export default async function StockPage({ searchParams }: StockPageProps) {
     alertasStock(),
     getCatalogoUnidades(),
   ]);
-
-  const puedeIngresar = can(session, "stock.partida.ingresar");
 
   /** Current filters (normalized), without `page`. */
   const actuales = new URLSearchParams();
@@ -140,18 +135,10 @@ export default async function StockPage({ searchParams }: StockPageProps) {
         title="Stock"
         description="Existencias por droga, con alertas de stock mínimo y vencimientos."
         actions={
-          <>
-            <Link href="/stock/ajustes" className="btn btn-secondary">
-              <SlidersHorizontal className="size-4" aria-hidden />
-              Ajustes
-            </Link>
-            {puedeIngresar ? (
-              <Link href="/stock/ingresar" className="btn btn-primary">
-                <PackagePlus className="size-4" aria-hidden />
-                Ingresar partida
-              </Link>
-            ) : null}
-          </>
+          <Link href="/stock/ajustes" className="btn btn-secondary">
+            <SlidersHorizontal className="size-4" aria-hidden />
+            Ajuste de Stock
+          </Link>
         }
       />
 
@@ -194,7 +181,7 @@ export default async function StockPage({ searchParams }: StockPageProps) {
               hideLabel
               placeholder="Buscar droga"
               busquedaActual={q}
-              alElegir={{ href: modo === "base" ? "/stock/partidas?unidades=base" : "/stock/partidas", param: "drogaId", valor: "id" }}
+              alElegir={{ href: modo === "base" ? "/partidas?saldo=1&unidades=base" : "/partidas?saldo=1", param: "drogaId", valor: "id" }}
               alBuscar={{ href: sinFiltroHref("q"), param: "q", texto: "Buscar “{q}” en la lista", textoSinBusqueda: "Ver todas las drogas" }}
             />
           </div>
@@ -281,15 +268,7 @@ export default async function StockPage({ searchParams }: StockPageProps) {
               <EmptyState
                 icon={<PackageSearch className="size-5" />}
                 title="Todavía no hay stock"
-                description="Las drogas aparecen acá cuando se ingresa su primera partida."
-                action={
-                  puedeIngresar ? (
-                    <Link href="/stock/ingresar" className="btn btn-primary">
-                      <PackagePlus className="size-4" aria-hidden />
-                      Ingresar partida
-                    </Link>
-                  ) : null
-                }
+                description="Las drogas aparecen acá cuando se ingresa su primera partida, desde Partidas."
               />
             )
           ) : (
@@ -317,7 +296,7 @@ export default async function StockPage({ searchParams }: StockPageProps) {
                 <tbody>
                   {stock.items.map((item) => {
                     const [disponible, minimo] = formatCantidadesFila([item.stockDisponible, item.stockMinimo], { id: item.unidadId, simbolo: item.unidadSimbolo }, catalogo, modo);
-                    const partidasHref = `/stock/partidas?drogaId=${item.drogaId}${modo === "base" ? "&unidades=base" : ""}`;
+                    const partidasHref = `/partidas?drogaId=${item.drogaId}&saldo=1${modo === "base" ? "&unidades=base" : ""}`;
                     return (
                       <tr key={item.drogaId}>
                         <td className="px-3 py-2.5">

@@ -11,13 +11,13 @@
  * free-text patient/médico search), so they are safe as GET query params
  * (never patient text in a URL, per the task's hard rule).
  *
- * Export (CSV) follows the SAME "separate audited defineCommand" D6 shape
+ * Export (XLSX) follows the SAME "separate audited defineCommand" D6 shape
  * as `modules/libro/application/exportar-libro.ts` -- `TipoAccion.EXPORTAR`,
  * entidad "receta_reporte". The audit payload carries ONLY the filter
  * summary + row count + truncated flag -- never paciente/médico text.
  *
- * The CSV export is shared by this report and the `/recetas` listado's
- * "Exportar CSV" button, so it also accepts the listado's filters
+ * The XLSX export is shared by this report and the `/recetas` listado's
+ * "Exportar Excel" button, so it also accepts the listado's filters
  * (Nº interno, fecha_prescripcion range) and reads through `listRecetas`.
  */
 import { z } from "zod";
@@ -157,19 +157,20 @@ const registrarExportacionRecetasCommand = defineCommand({
     output: undefined,
     audit: {
       entidadId: session.tenantId,
-      motivo: `Exportación CSV del reporte de recetas por estado -- ${input.cantidadFilas} fila(s)${input.truncated ? " (truncado)" : ""}. Filtros: ${input.filtroResumen}.`,
+      motivo: `Exportación XLSX del reporte de recetas por estado -- ${input.cantidadFilas} fila(s)${input.truncated ? " (truncado)" : ""}. Filtros: ${input.filtroResumen}.`,
       valorNuevo: { filtroResumen: input.filtroResumen, cantidadFilas: input.cantidadFilas, truncated: input.truncated },
     },
   }),
 });
 
-export async function exportarRecetasCsv(input: ExportarRecetasFiltroInput): Promise<ExportarRecetasResultado> {
+export async function exportarRecetasXlsx(input: ExportarRecetasFiltroInput): Promise<ExportarRecetasResultado & { filtroResumen: string }> {
   const resultado = await exportarRecetasQuery.execute(input);
   const parsed = exportarRecetasInput.parse(input);
+  const filtroResumen = resumenFiltroParaAuditoria(parsed);
   await registrarExportacionRecetasCommand.execute({
-    filtroResumen: resumenFiltroParaAuditoria(parsed),
+    filtroResumen,
     cantidadFilas: resultado.items.length,
     truncated: resultado.truncated,
   });
-  return resultado;
+  return { ...resultado, filtroResumen };
 }

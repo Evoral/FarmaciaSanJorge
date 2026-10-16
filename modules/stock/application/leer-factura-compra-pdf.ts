@@ -1,6 +1,6 @@
 /**
  * `leerFacturaCompraPdf` -- first step of the supplier invoice import
- * (/stock/ingresar), mirroring modules/recetas/application/leer-receta-pdf.ts:
+ * (/partidas/ingresar), mirroring modules/recetas/application/leer-receta-pdf.ts:
  * permiso -> trust boundary -> extraction -> parser -> match. Returns the
  * preview the form is prefilled with; NOTHING is written and the PDF only
  * lives in memory for the duration of this call (the audit row belongs to

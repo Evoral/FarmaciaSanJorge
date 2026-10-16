@@ -1,7 +1,7 @@
 /**
  * `kardexMovimientos` (M07, FASE 5 point 5.2). Read-only, `stock.ver`.
  * Movement history for a partida (or a whole droga), with filters and
- * pagination -- for `/stock/partidas/[id]`'s kardex panel.
+ * pagination -- for `/partidas/[id]`'s kardex panel.
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";

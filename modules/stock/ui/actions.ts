@@ -34,6 +34,7 @@ export async function importarFacturaCompraAction(_prevState: StockActionState, 
     try {
       const { partidas } = await importarFacturaCompra(JSON.parse(String(formData.get("facturaJson") ?? "{}")));
       revalidatePath("/stock");
+      revalidatePath("/partidas");
       return { status: "success", message: partidas === 1 ? "Factura registrada: 1 partida ingresada." : `Factura registrada: ${partidas} partidas ingresadas.` };
     } catch (error) {
       return fromError(error, "No se pudo importar la factura.");
@@ -85,7 +86,6 @@ export async function registrarAjusteAction(_prevState: StockActionState, formDa
       });
       revalidatePath("/stock");
       revalidatePath("/stock/ajustes");
-      revalidatePath("/cierres/ajustes");
       return { status: "success", message: "Ajuste registrado.", redirigirA: retornoAjusteRegistrado(retorno) };
     } catch (error) {
       return fromError(error, "No se pudo registrar el ajuste.");
@@ -115,7 +115,7 @@ function opcional(formData: FormData, campo: string): string | undefined {
 
 function revalidarPartida(partidaId: string) {
   revalidatePath("/stock");
-  revalidatePath(`/stock/partidas/${partidaId}`);
+  revalidatePath(`/partidas/${partidaId}`);
   revalidatePath("/cierres/vencimientos");
   revalidatePath("/");
 }
@@ -149,7 +149,6 @@ export async function marcarPartidaVencidaAction(_prevState: StockActionState, f
     });
     revalidarPartida(partidaId);
     revalidatePath("/stock/ajustes");
-    revalidatePath("/cierres/ajustes");
     return { status: "success", message: "Partida marcada como vencida: se descontó todo su saldo." };
   } catch (error) {
     return fromError(error, "No se pudo marcar la partida como vencida.");

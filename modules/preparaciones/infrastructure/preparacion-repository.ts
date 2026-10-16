@@ -107,6 +107,38 @@ export async function getPreparacionActivaDeFicha(
   });
 }
 
+/**
+ * The ítem's live preparación (INICIADA or CONFIRMADA) on ANY ficha version -- at most one (migration 0077,
+ * `uq_preparacion_item_viva`; docs/specs/reserva-stock-preparacion.md R19). Call after locking the receta/ítem.
+ */
+export async function getPreparacionVivaDeItem(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  itemRecetaId: string,
+): Promise<{ id: string; estado: EstadoPreparacion } | null> {
+  return tx.preparacion.findFirst({
+    where: { tenantId, itemRecetaId, estado: { in: ["INICIADA", "CONFIRMADA"] } },
+    select: { id: true, estado: true },
+  });
+}
+
+/**
+ * Locks the `item_receta` row FOR UPDATE: the reserva serializes with `fichas.generar` (which takes the same lock
+ * before reading the max version) so a new ficha version can not slip in between the "latest version" check and the
+ * INSERT of the preparación. Taken after the receta lock (receta -> ítem, like `editarReceta`). `false` when missing.
+ */
+export async function lockItemRecetaParaReserva(tx: Prisma.TransactionClient, tenantId: string, itemRecetaId: string): Promise<boolean> {
+  const rows = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM fsj.item_receta WHERE id = ${itemRecetaId}::uuid AND tenant_id = ${tenantId}::uuid FOR UPDATE
+  `;
+  return rows.length === 1;
+}
+
+/** The ítem's latest ficha técnica version (`null` when none was generated). */
+export async function getUltimaFichaDeItem(tx: Prisma.TransactionClient, tenantId: string, itemRecetaId: string): Promise<{ id: string; version: number } | null> {
+  return tx.fichaTecnica.findFirst({ where: { tenantId, itemRecetaId }, orderBy: { version: "desc" }, select: { id: true, version: true } });
+}
+
 export async function insertPreparacion(
   tx: Prisma.TransactionClient,
   input: { tenantId: string; fichaTecnicaId: string; iniciadaPorId: string },
@@ -136,6 +168,44 @@ export async function lockPreparacionParaAccion(tx: Prisma.TransactionClient, te
     SELECT id FROM fsj.preparacion WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid FOR UPDATE
   `;
   return rows.length === 1;
+}
+
+/** Locks EVERY preparación in `ids`, in id order (deterministic, like `lockPartidasParaConfirmacion`), in ONE statement. Returns the LOCKED ids. */
+export async function lockPreparacionesParaAccion(tx: Prisma.TransactionClient, tenantId: string, ids: readonly string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const rows = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM fsj.preparacion
+    WHERE tenant_id = ${tenantId}::uuid AND id = ANY(${ids as string[]}::uuid[])
+    ORDER BY id ASC
+    FOR UPDATE
+  `;
+  return rows.map((r) => r.id);
+}
+
+/**
+ * The receta's ítem ids in the order the toma workspace numbers them ("Ítem N"): the SAME relation read as
+ * `getRecetaDeToma` (item_receta has no order column). `null` when the receta does not exist in this tenant.
+ */
+export async function listItemIdsDeReceta(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<string[] | null> {
+  const receta = await tx.receta.findUnique({ where: { id: recetaId, tenantId }, select: { items: { select: { id: true } } } });
+  return receta ? receta.items.map((i) => i.id) : null;
+}
+
+export interface PreparacionVivaDeItem {
+  id: string;
+  itemRecetaId: string;
+  estado: EstadoPreparacion;
+  etiquetaId: string | null;
+}
+
+/** The INICIADA/CONFIRMADA preparaciones of `itemIds` (at most one live per ítem), with their etiqueta if any. Unordered. */
+export async function listPreparacionesVivasDeItems(tx: Prisma.TransactionClient, tenantId: string, itemIds: readonly string[]): Promise<PreparacionVivaDeItem[]> {
+  if (itemIds.length === 0) return [];
+  const rows = await tx.preparacion.findMany({
+    where: { tenantId, itemRecetaId: { in: [...itemIds] }, estado: { in: ["INICIADA", "CONFIRMADA"] } },
+    select: { id: true, itemRecetaId: true, estado: true, etiqueta: { select: { id: true } } },
+  });
+  return rows.map((r) => ({ id: r.id, itemRecetaId: r.itemRecetaId, estado: r.estado, etiquetaId: r.etiqueta?.id ?? null }));
 }
 
 export async function getPreparacionParaAccion(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<PreparacionParaAccion | null> {
@@ -742,6 +812,13 @@ export interface PreparacionParaEtiqueta extends DatosEtiqueta {
   tenantRazonSocial: string;
   tenantNombreFantasia: string | null;
   tenantMatriculaFarmacia: string | null;
+  /** The receta's current estado (an ANULADA receta prints no etiqueta, docs/specs/reserva-stock-preparacion.md R22). */
+  recetaEstado: EstadoReceta;
+  /**
+   * The preparación's SISTEMA asiento was dejado sin efecto: ANULADO, or it has a rectificativo -- the same
+   * "SIN_EFECTO" rule as the entregas' `estadoAsiento` (modules/entregas/infrastructure/entrega-repository.ts).
+   */
+  asientoSinEfecto: boolean;
 }
 
 export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, tenantId: string, preparacionId: string): Promise<PreparacionParaEtiqueta | null> {
@@ -772,6 +849,7 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
               receta: {
                 select: {
                   numeroInterno: true,
+                  estado: true,
                   medico: { select: { nombre: true, apellido: true, matricula: true, matriculaJurisdiccion: true } },
                 },
               },
@@ -781,7 +859,7 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
       },
       asientosRecetario: {
         where: { origen: "SISTEMA" },
-        select: { numeroCorrelativo: true, pacienteTexto: true, medicoTexto: true, formulaTexto: true },
+        select: { numeroCorrelativo: true, pacienteTexto: true, medicoTexto: true, formulaTexto: true, estado: true, _count: { select: { rectificativos: true } } },
         take: 1,
       },
     },
@@ -828,6 +906,8 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
     tenantMatriculaFarmacia: tenant.matriculaFarmacia,
     tenantDomicilio: tenant.domicilio,
     fechaVencimiento: prep.fechaVencimiento ? prep.fechaVencimiento.toISOString().slice(0, 10) : null, // @db.Date comes back as UTC midnight.
+    recetaEstado: item.receta.estado,
+    asientoSinEfecto: asiento.estado === "ANULADO" || asiento._count.rectificativos > 0,
   };
 }
 
@@ -884,6 +964,8 @@ export async function marcarEtiquetaImpresa(tx: Prisma.TransactionClient, tenant
 export interface EtiquetaParaImprimirDatos extends PreparacionParaEtiqueta {
   etiquetaId: string;
   generadaEn: Date;
+  /** The persisted `etiqueta.contenido` snapshot: what every print lays out (docs/specs/vencimiento-preparado.md R7). */
+  contenido: string;
 }
 
 // ============================================================================
@@ -1591,12 +1673,18 @@ export interface LineaDeFichaToma {
   orden: number;
 }
 
+/** A toma línea with the units the automatic plan needs (línea unit and the droga's unidad base, R12). */
+export interface LineaDeFichaTomaConUnidades extends LineaDeFichaToma {
+  unidad: UnidadDeConversion;
+  unidadStock: UnidadDeConversion & { simbolo: string };
+}
+
 export interface FichaDeItemToma {
   id: string;
   version: number;
   generadaEn: Date;
   generadaPorNombre: string;
-  lineas: LineaDeFichaToma[];
+  lineas: LineaDeFichaTomaConUnidades[];
 }
 
 export interface ItemDeToma {
@@ -1609,8 +1697,11 @@ export interface ItemDeToma {
   posologia: string | null;
   duracionTratamientoDias: number | null;
   componentes: ComponenteDePendiente[];
-  /** Latest version; `null` when none was generated. */
-  ultimaFicha: FichaDeItemToma | null;
+  /**
+   * The ficha the ítem works with: its live preparación's (what was reserved/confirmed -- shown and printed even if a
+   * newer version exists, docs/specs/reserva-stock-preparacion.md R20), else the latest version; `null` when none.
+   */
+  ficha: FichaDeItemToma | null;
   /** The ítem's CONFIRMADA (first) or INICIADA preparación, on any ficha version; `null` when none (or only DESCARTADA ones). */
   preparacion: PreparacionDeItemToma | null;
 }
@@ -1630,16 +1721,19 @@ export interface ReservaDeItemToma {
 export interface PreparacionDeItemToma {
   id: string;
   estado: "INICIADA" | "CONFIRMADA";
-  /** INICIADA only: the partidas with a quantity reserved for it (empty = a preparación from before 0071 or the ficha screen's "Preparar"). */
+  fichaTecnicaId: string;
+  /** INICIADA only: the partidas with a quantity reserved for it (empty = a preparación from before 0071 or the ficha screen's former "Preparar"). */
   reservas: ReservaDeItemToma[];
   /**
    * INICIADA with reservas only: every reserved quantity still fits its partida (saldo físico minus other
    * preparaciones' reservas, partida not expired). `false` after e.g. a pérdida the same partidas could not absorb:
-   * "Imprimir etiqueta" would fail, the ítem asks for "Modificar reserva".
+   * "Imprimir etiquetas" would fail, the ítem asks for "Modificar reserva".
    */
   reservaAlcanza: boolean;
   /** CONFIRMADA only: its etiqueta was already generated (printable). */
   etiquetaGenerada: boolean;
+  /** CONFIRMADA only: its SISTEMA asiento was dejado sin efecto (ANULADO or rectificado): no etiqueta (R22). */
+  asientoSinEfecto: boolean;
 }
 
 export interface RecetaDeToma {
@@ -1705,29 +1799,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
               unidadMedida: { select: { simbolo: true } },
             },
           },
-          fichas: {
-            orderBy: { version: "desc" },
-            take: 1,
-            select: {
-              id: true,
-              version: true,
-              generadaEn: true,
-              generadaPor: { select: { nombre: true, apellido: true } },
-              lineas: {
-                orderBy: { orden: "asc" },
-                select: {
-                  drogaId: true,
-                  drogaNombre: true,
-                  cantidadTeorica: true,
-                  excesoAplicado: true,
-                  cantidadAPesar: true,
-                  esEnraseManual: true,
-                  orden: true,
-                  unidadMedida: { select: { simbolo: true } },
-                },
-              },
-            },
-          },
+          fichas: { orderBy: { version: "desc" }, take: 1, select: SELECT_FICHA_TOMA },
         },
       },
     },
@@ -1736,8 +1808,20 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
 
   const preparaciones = await tx.preparacion.findMany({
     where: { tenantId, itemRecetaId: { in: receta.items.map((i) => i.id) }, estado: { in: ["INICIADA", "CONFIRMADA"] } },
-    select: { id: true, estado: true, itemRecetaId: true, etiqueta: { select: { id: true } } },
+    select: {
+      id: true,
+      estado: true,
+      itemRecetaId: true,
+      fichaTecnicaId: true,
+      etiqueta: { select: { id: true } },
+      asientosRecetario: { where: { origen: "SISTEMA" }, take: 1, select: { estado: true, _count: { select: { rectificativos: true } } } },
+    },
   });
+  // A live preparación on an older ficha version (from before R20): its own ficha is what the ítem shows.
+  const ultimaFichaIds = new Set(receta.items.flatMap((i) => (i.fichas[0] ? [i.fichas[0].id] : [])));
+  const fichaIdsDePreparaciones = [...new Set(preparaciones.map((p) => p.fichaTecnicaId).filter((id) => !ultimaFichaIds.has(id)))];
+  const fichasDePreparaciones =
+    fichaIdsDePreparaciones.length === 0 ? [] : await tx.fichaTecnica.findMany({ where: { tenantId, id: { in: fichaIdsDePreparaciones } }, select: SELECT_FICHA_TOMA });
   const iniciadaIds = preparaciones.filter((p) => p.estado === "INICIADA").map((p) => p.id);
   // Only the partidas the split actually draws from (a chosen-but-unneeded one has cantidad 0).
   const reservas =
@@ -1778,9 +1862,11 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
     if (!elegida) return null;
     const confirmada = elegida.estado === "CONFIRMADA";
     const propias = confirmada ? [] : reservas.filter((r) => r.preparacion_id === elegida.id);
+    const asiento = elegida.asientosRecetario[0];
     return {
       id: elegida.id,
       estado: confirmada ? "CONFIRMADA" : "INICIADA",
+      fichaTecnicaId: elegida.fichaTecnicaId,
       reservas: propias.map((r) => ({
         partidaId: r.partida_id,
         drogaNombre: r.droga_nombre,
@@ -1791,6 +1877,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
       })),
       reservaAlcanza: propias.every((r) => r.alcanza),
       etiquetaGenerada: confirmada && elegida.etiqueta !== null,
+      asientoSinEfecto: confirmada && asiento !== undefined && (asiento.estado === "ANULADO" || asiento._count.rectificativos > 0),
     };
   };
 
@@ -1814,7 +1901,8 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
     tomadaEn: receta.tomadaEn,
     zonaHoraria: await zonaHorariaTenant(tx, tenantId),
     items: receta.items.map((item) => {
-      const ficha = item.fichas[0];
+      const preparacion = preparacionDe(item.id);
+      const ficha = (preparacion && fichasDePreparaciones.find((f) => f.id === preparacion.fichaTecnicaId)) || item.fichas[0];
       return {
         id: item.id,
         descripcion: item.descripcion,
@@ -1835,26 +1923,52 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
             esPrincipioActivo: c.esPrincipioActivo,
           })),
         ),
-        ultimaFicha: ficha
-          ? {
-              id: ficha.id,
-              version: ficha.version,
-              generadaEn: ficha.generadaEn,
-              generadaPorNombre: `${ficha.generadaPor.apellido}, ${ficha.generadaPor.nombre}`,
-              lineas: ficha.lineas.map((l) => ({
-                drogaId: l.drogaId,
-                drogaNombre: l.drogaNombre,
-                cantidadTeorica: l.cantidadTeorica ? l.cantidadTeorica.toString() : null,
-                excesoAplicado: l.excesoAplicado.toString(),
-                cantidadAPesar: l.cantidadAPesar ? l.cantidadAPesar.toString() : null,
-                unidadSimbolo: l.unidadMedida.simbolo,
-                esEnraseManual: l.esEnraseManual,
-                orden: l.orden,
-              })),
-            }
-          : null,
-        preparacion: preparacionDe(item.id),
+        ficha: ficha ? fichaDeToma(ficha) : null,
+        preparacion,
       };
     }),
+  };
+}
+
+/** What the toma reads of a ficha técnica (latest version or a live preparación's). */
+const SELECT_FICHA_TOMA = {
+  id: true,
+  version: true,
+  generadaEn: true,
+  generadaPor: { select: { nombre: true, apellido: true } },
+  lineas: {
+    orderBy: { orden: "asc" },
+    select: {
+      drogaId: true,
+      drogaNombre: true,
+      cantidadTeorica: true,
+      excesoAplicado: true,
+      cantidadAPesar: true,
+      esEnraseManual: true,
+      orden: true,
+      unidadMedida: { select: { simbolo: true, factorABase: true, tipoMagnitud: true } },
+      droga: { select: { unidadBase: { select: { simbolo: true, factorABase: true, tipoMagnitud: true } } } },
+    },
+  },
+} satisfies Prisma.FichaTecnicaSelect;
+
+function fichaDeToma(ficha: Prisma.FichaTecnicaGetPayload<{ select: typeof SELECT_FICHA_TOMA }>): FichaDeItemToma {
+  return {
+    id: ficha.id,
+    version: ficha.version,
+    generadaEn: ficha.generadaEn,
+    generadaPorNombre: `${ficha.generadaPor.apellido}, ${ficha.generadaPor.nombre}`,
+    lineas: ficha.lineas.map((l) => ({
+      drogaId: l.drogaId,
+      drogaNombre: l.drogaNombre,
+      cantidadTeorica: l.cantidadTeorica ? l.cantidadTeorica.toString() : null,
+      excesoAplicado: l.excesoAplicado.toString(),
+      cantidadAPesar: l.cantidadAPesar ? l.cantidadAPesar.toString() : null,
+      unidadSimbolo: l.unidadMedida.simbolo,
+      esEnraseManual: l.esEnraseManual,
+      orden: l.orden,
+      unidad: { factorABase: l.unidadMedida.factorABase.toString(), tipoMagnitud: l.unidadMedida.tipoMagnitud },
+      unidadStock: { simbolo: l.droga.unidadBase.simbolo, factorABase: l.droga.unidadBase.factorABase.toString(), tipoMagnitud: l.droga.unidadBase.tipoMagnitud },
+    })),
   };
 }

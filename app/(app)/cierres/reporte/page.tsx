@@ -1,21 +1,25 @@
-/** `/cierres/reporte` (FASE 10, M13a point 10.4). Reporte de cumplimiento de firma: fecha, fecha de firma, demora, fuera de término, motivo, DT. Filtros por rango de fechas; exportación CSV auditada. */
+/** `/cierres/reporte` (FASE 10, M13a point 10.4). Reporte de cumplimiento de firma: fecha, fecha de firma, demora, fuera de término, motivo, DT. Filtros por rango de fechas; exportación Excel auditada. */
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Download, FileBarChart, SearchX, X } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
-import { reporteCumplimiento } from "@/modules/cierres/application/reporte-cumplimiento";
+import { reporteCumplimientoPaginado } from "@/modules/cierres/application/reporte-cumplimiento";
 import { MOTIVO_DEMORA_LABELS, type MotivoDemoraValue } from "@/modules/cierres/domain/motivo-demora";
 import { DateInput } from "@/shared/ui/date-input";
 import { FilterForm } from "@/shared/ui/filter-form";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
+import { Pagination } from "@/shared/ui/pagination";
 import { ToneBadge } from "@/shared/ui/status-badge";
 
 interface ReporteCumplimientoPageProps {
-  searchParams: Promise<{ fechaDesde?: string; fechaHasta?: string }>;
+  searchParams: Promise<{ fechaDesde?: string; fechaHasta?: string; page?: string }>;
 }
+
+const PAGE_SIZE = 50;
+const BASE_HREF = "/cierres/reporte";
 
 const numberFormat = new Intl.NumberFormat("es-AR");
 
@@ -31,13 +35,23 @@ export default async function ReporteCumplimientoPage({ searchParams }: ReporteC
   }
 
   const params = await searchParams;
-  const items = await reporteCumplimiento({ fechaDesde: params.fechaDesde, fechaHasta: params.fechaHasta });
+  const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
+  const reporte = await reporteCumplimientoPaginado({ fechaDesde: params.fechaDesde, fechaHasta: params.fechaHasta, page, pageSize: PAGE_SIZE });
+  const { items, total, enTermino, fueraDeTermino } = reporte;
+
+  function pageHref(targetPage: number): string {
+    const qs = new URLSearchParams();
+    if (params.fechaDesde) qs.set("fechaDesde", params.fechaDesde);
+    if (params.fechaHasta) qs.set("fechaHasta", params.fechaHasta);
+    qs.set("page", String(targetPage));
+    return `${BASE_HREF}?${qs.toString()}`;
+  }
 
   function exportHref(): string {
     const qs = new URLSearchParams();
     if (params.fechaDesde) qs.set("fechaDesde", params.fechaDesde);
     if (params.fechaHasta) qs.set("fechaHasta", params.fechaHasta);
-    return `/api/cierres/reporte/csv?${qs.toString()}`;
+    return `/api/cierres/reporte/xlsx?${qs.toString()}`;
   }
 
   function sinFiltroHref(param: "fechaDesde" | "fechaHasta"): string {
@@ -45,13 +59,10 @@ export default async function ReporteCumplimientoPage({ searchParams }: ReporteC
     if (params.fechaDesde && param !== "fechaDesde") qs.set("fechaDesde", params.fechaDesde);
     if (params.fechaHasta && param !== "fechaHasta") qs.set("fechaHasta", params.fechaHasta);
     const query = qs.toString();
-    return query ? `/cierres/reporte?${query}` : "/cierres/reporte";
+    return query ? `${BASE_HREF}?${query}` : BASE_HREF;
   }
 
   const hayFiltros = Boolean(params.fechaDesde || params.fechaHasta);
-  // Summary of the rows already on screen (no extra query).
-  const fueraDeTermino = items.filter((item) => item.fueraDeTermino).length;
-  const enTermino = items.length - fueraDeTermino;
 
   return (
     <div className="page list-view">
@@ -62,7 +73,7 @@ export default async function ReporteCumplimientoPage({ searchParams }: ReporteC
         actions={
           <a href={exportHref()} className="btn btn-secondary">
             <Download className="size-4" aria-hidden />
-            Exportar CSV
+            Exportar Excel
           </a>
         }
       />
@@ -116,9 +127,9 @@ export default async function ReporteCumplimientoPage({ searchParams }: ReporteC
         <div className="list-panel">
           <div className="list-toolbar">
             <p role="status">
-              <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(items.length)}</span> {items.length === 1 ? "cierre" : "cierres"}
+              <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(total)}</span> {total === 1 ? "cierre" : "cierres"}
             </p>
-            {items.length > 0 ? (
+            {total > 0 ? (
               <p className="flex flex-wrap items-center gap-2 text-xs">
                 <ToneBadge tone="success">{numberFormat.format(enTermino)} en término</ToneBadge>
                 <ToneBadge tone={fueraDeTermino > 0 ? "warn" : "neutral"}>{numberFormat.format(fueraDeTermino)} fuera de término</ToneBadge>
@@ -172,7 +183,11 @@ export default async function ReporteCumplimientoPage({ searchParams }: ReporteC
                         {item.motivoDemora ? (
                           <>
                             {MOTIVO_DEMORA_LABELS[item.motivoDemora as MotivoDemoraValue] ?? item.motivoDemora}
-                            {item.motivoDemoraDetalle ? <span className="block text-xs text-zinc-500">{item.motivoDemoraDetalle}</span> : null}
+                            {item.motivoDemoraDetalle ? (
+                              <span className="line-clamp-2 block max-w-xs break-words text-xs text-zinc-500" title={item.motivoDemoraDetalle}>
+                                {item.motivoDemoraDetalle}
+                              </span>
+                            ) : null}
                           </>
                         ) : (
                           <span className="text-zinc-400">
@@ -189,6 +204,8 @@ export default async function ReporteCumplimientoPage({ searchParams }: ReporteC
               </table>
             </div>
           )}
+
+          <Pagination page={page} pageSize={PAGE_SIZE} total={total} hrefFor={pageHref} label="Paginación del reporte de cumplimiento" />
         </div>
       </div>
     </div>

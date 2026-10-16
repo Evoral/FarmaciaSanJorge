@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The Director Técnico's own actions on a DROGA partida (docs/specs/reanalisis-partida.md), on `/stock/partidas/[id]`
+ * The Director Técnico's own actions on a DROGA partida (docs/specs/reanalisis-partida.md), on `/partidas/[id]`
  * and inline on each row of "Gestión DT › Vencimientos" (`/cierres/vencimientos`, `compacto` buttons).
  * The page renders them only for a DT vigente (titular or suplente); the commands re-check it, and so does the DB.
  * Each one asks for the DT's OWN password in the same form (no co-firma picker: the DT is the session's usuario).
@@ -80,8 +80,13 @@ export interface ReanalisisDialogProps {
   jornadaActual: string;
   /** Emphasized button (the partida is vencida or por vencer). */
   destacado: boolean;
-  /** Small button, for a table row. */
+  /** Small button, for a table row: icon-only below md (the label stays as its accessible name and tooltip). */
   compacto?: boolean;
+}
+
+/** The trigger's label: always visible on a full button; on a compact one only from md up. */
+function EtiquetaBoton({ texto, compacto }: { texto: string; compacto: boolean }) {
+  return compacto ? <span className="hidden md:inline">{texto}</span> : <>{texto}</>;
 }
 
 export function ReanalisisDialog({ partidaId, partidaNombre, jornadaActual, destacado, compacto = false }: ReanalisisDialogProps) {
@@ -96,9 +101,16 @@ export function ReanalisisDialog({ partidaId, partidaNombre, jornadaActual, dest
 
   return (
     <>
-      <button type="button" onClick={() => dialogRef.current?.showModal()} aria-haspopup="dialog" className={`btn ${destacado ? "btn-primary" : "btn-secondary"}${compacto ? " btn-sm" : ""}`}>
+      <button
+        type="button"
+        onClick={() => dialogRef.current?.showModal()}
+        aria-haspopup="dialog"
+        aria-label={compacto ? `Registrar reanálisis de ${partidaNombre}` : undefined}
+        title={compacto ? "Registrar reanálisis" : undefined}
+        className={`btn ${destacado ? "btn-primary" : "btn-secondary"}${compacto ? " btn-sm" : ""}`}
+      >
         <CalendarClock className="size-4" aria-hidden />
-        Registrar reanálisis
+        <EtiquetaBoton texto="Registrar reanálisis" compacto={compacto} />
       </button>
       <MarcoDialogo dialogRef={dialogRef} titulo="Registrar reanálisis" subtitulo={partidaNombre} onCerrar={cerrar} onClose={() => setApertura((n) => n + 1)}>
         <p className="text-sm text-zinc-600">
@@ -153,7 +165,7 @@ export interface MarcarVencidaDialogProps {
   partidaNombre: string;
   /** The saldo that will be discounted, already formatted with its unit. */
   saldoTexto: string;
-  /** Small button, for a table row. */
+  /** Small button, for a table row: icon-only below md (the label stays as its accessible name and tooltip). */
   compacto?: boolean;
 }
 
@@ -168,9 +180,16 @@ export function MarcarVencidaDialog({ partidaId, partidaNombre, saldoTexto, comp
 
   return (
     <>
-      <button type="button" onClick={() => dialogRef.current?.showModal()} aria-haspopup="dialog" className={`btn btn-secondary${compacto ? " btn-sm" : ""}`}>
+      <button
+        type="button"
+        onClick={() => dialogRef.current?.showModal()}
+        aria-haspopup="dialog"
+        aria-label={compacto ? `Marcar como vencida ${partidaNombre}` : undefined}
+        title={compacto ? "Marcar como vencida" : undefined}
+        className={`btn btn-secondary${compacto ? " btn-sm" : ""}`}
+      >
         <PackageX className="size-4" aria-hidden />
-        Marcar como vencida
+        <EtiquetaBoton texto="Marcar como vencida" compacto={compacto} />
       </button>
       <MarcoDialogo dialogRef={dialogRef} titulo="Marcar como vencida" subtitulo={partidaNombre} onCerrar={cerrar} onClose={() => setApertura((n) => n + 1)}>
         <div role="alert" className="alert alert-danger">

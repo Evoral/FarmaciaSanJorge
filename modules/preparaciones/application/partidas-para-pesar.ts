@@ -19,12 +19,20 @@
  * `preparaciones.toma.previsualizarFichas` (a draft's fichas, in memory),
  * so a preview lists exactly what the saved ficha will. Not a use case:
  * callers run it inside their own transaction. Plain reads only.
+ *
+ * The automatic assignment (docs/specs/reserva-stock-preparacion.md R21):
+ * `asignacionDeLinea` marks, for a saved ficha's línea, the partidas the
+ * reserva will take and how much of each -- the same `repartirLinea` over
+ * the same candidates as the reserva (R1) -- or the línea's faltante.
  */
 import type { Prisma } from "@/generated/prisma/client";
 import { estaVencida, ordenarParaConsumo } from "@/modules/stock/domain/reparto";
 import { MENSAJE_VENCIDA_REQUIERE_DT, estadoVencimientoPartida, textoPorVencer } from "@/modules/stock/domain/vencimiento-partida";
 import { diasAlertaVencimientoEnTx } from "@/modules/stock/application/dias-alerta-vencimiento";
+import { dec } from "@/shared/decimal";
+import { convertirCantidad, mismaMagnitud, type UnidadDeConversion } from "@/shared/decimal/convertir-unidad";
 import { fisicoParaActivo } from "../domain/potencia";
+import { repartirLinea } from "../domain/reparto-linea";
 import { jornadaActualTenant, listPartidasElegiblesDroga } from "../infrastructure/preparacion-repository";
 import type { PartidaElegible } from "../infrastructure/preparacion-repository";
 
@@ -45,6 +53,8 @@ export interface PartidaParaPesar {
   vencida: boolean;
   /** Compact expiry warning ("Vence en 5 días", or the vencida message); `null` when nothing to warn. */
   avisoVencimiento: string | null;
+  /** What the automatic reserva takes from this partida (physical, purity-corrected), in the LÍNEA's unit; `null` = not taken, or not computed (a draft). */
+  asignada: string | null;
 }
 
 /** What of a línea decides its partidas. */
@@ -106,6 +116,38 @@ export function partidasDeLinea(partidasPorDroga: PartidasPorDroga, linea: Linea
     cantidadAPesar: fisicoParaActivo(activo, p.potenciaDeclarada).toString(),
     vencida,
     avisoVencimiento: avisoVencimiento(p, jornada, diasAlerta),
+    asignada: null,
   });
   return [...(deDroga?.consumo ?? []).map((p) => aPesar(p, false)), ...(deDroga?.vencidas ?? []).map((p) => aPesar(p, true))];
+}
+
+/** A saved ficha's línea, with the units the split needs (línea unit, droga's unidad base -- R12). */
+export interface LineaConUnidades extends LineaPesable {
+  unidad: UnidadDeConversion;
+  unidadStock: UnidadDeConversion;
+}
+
+/** The automatic assignment of a línea (R21): its partidas with `asignada` set on the ones the reserva takes, in consumption order, or its faltante. */
+export interface AsignacionDeLinea {
+  partidas: PartidaParaPesar[];
+  /** In the línea's unit (active terms); `null` when the droga has the stock. */
+  faltante: string | null;
+}
+
+/**
+ * The partidas of a pesable línea (`partidasDeLinea`) with the automatic plan over its candidates: `repartirLinea`,
+ * the same split and order as the reserva. `null` for a línea that is not pesable or whose unit can not be converted
+ * into the droga's unidad base (the reserva refuses it with its own message).
+ */
+export function asignacionDeLinea(partidasPorDroga: PartidasPorDroga, linea: LineaConUnidades): AsignacionDeLinea | null {
+  const partidas = partidasDeLinea(partidasPorDroga, linea);
+  if (partidas === null || linea.cantidadAPesar === null || !mismaMagnitud(linea.unidad, linea.unidadStock)) return null;
+  const consumo = partidasPorDroga.porDroga.get(linea.drogaId)?.consumo ?? [];
+  const requeridaStock = convertirCantidad(dec(linea.cantidadAPesar), linea.unidad, linea.unidadStock);
+  const resultado = repartirLinea(consumo, requeridaStock, partidasPorDroga.jornada, false);
+  if (!resultado.ok) {
+    return { partidas, faltante: convertirCantidad(resultado.faltante, linea.unidadStock, linea.unidad).toFixed() };
+  }
+  const porPartida = new Map(resultado.partes.map((parte) => [parte.partidaId, convertirCantidad(parte.cantidad, linea.unidadStock, linea.unidad).toString()]));
+  return { partidas: partidas.map((p) => ({ ...p, asignada: porPartida.get(p.id) ?? null })), faltante: null };
 }

@@ -4,6 +4,7 @@
  * Droga filter of `/reportes/kardex`: an AUTOCOMPLETE over the existing stock droga search (`buscarDrogasStockAction`,
  * same `stock.ver` permiso as the kardex). Picking a droga sets the page's `drogaId` param (the same uuid the old
  * free-text "Droga (ID)" field took); clearing the box removes it. The other filters stay in the URL.
+ * Also the droga filter of `/partidas` (same `drogaId` param, same permiso).
  */
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";

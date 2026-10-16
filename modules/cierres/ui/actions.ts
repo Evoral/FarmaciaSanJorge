@@ -22,6 +22,7 @@ export async function firmarCierreAction(_prevState: CierresActionState, formDat
       motivoDemoraDetalle: (formData.get("motivoDemoraDetalle") as string | null)?.trim() || undefined,
     });
     revalidatePath("/cierres");
+    revalidatePath("/cierres/historial");
     revalidatePath(`/cierres/${resultado.id}`);
     return { status: "success", message: `Jornada ${resultado.fecha} firmada (${resultado.cantidadAsientos} asiento${resultado.cantidadAsientos === 1 ? "" : "s"}).` };
   } catch (error) {

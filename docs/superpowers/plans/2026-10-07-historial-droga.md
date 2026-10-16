@@ -368,7 +368,7 @@ export const PARTIDAS_FILTRO_MAX = 20;
 export interface AccesoHistorialDroga {
   /** `pacientes.gestionar`: the paciente name column (otherwise "—"). */
   pacientes: boolean;
-  /** `stock.ver`: link to /stock/partidas/[id] AND the unit-catalog conversion of quantities. */
+  /** `stock.ver`: link to /partidas/[id] AND the unit-catalog conversion of quantities. */
   stock: boolean;
 }
 
@@ -1737,7 +1737,7 @@ export function HistorialRecetaDetalle({ receta, droga, acceso, catalogo }: Hist
                 <tr key={partida.partidaId} className="align-top">
                   <td className="whitespace-nowrap px-3 py-2 font-mono">
                     {acceso.stock ? (
-                      <Link href={`/stock/partidas/${partida.partidaId}`} className="underline underline-offset-2">
+                      <Link href={`/partidas/${partida.partidaId}`} className="underline underline-offset-2">
                         {partida.lote}
                       </Link>
                     ) : (

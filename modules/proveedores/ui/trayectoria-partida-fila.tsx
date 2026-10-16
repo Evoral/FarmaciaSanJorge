@@ -133,7 +133,7 @@ function TablaMovimientos({
           {acceso.linkPartida ? (
             <>
               {" "}
-              <Link href={`/stock/partidas/${partida.id}`} className="underline underline-offset-2">
+              <Link href={`/partidas/${partida.id}`} className="underline underline-offset-2">
                 Ver el kardex completo
               </Link>
               .
@@ -280,7 +280,7 @@ export function TrayectoriaPartidaDetalle({ partida, acceso, zonaHoraria, catalo
           <Dato etiqueta="Apertura">{partida.fechaApertura ? formatFecha(partida.fechaApertura, zonaHoraria) : "Cerrada"}</Dato>
         </dl>
         {acceso.linkPartida ? (
-          <Link href={`/stock/partidas/${partida.id}`} className="btn btn-secondary btn-sm">
+          <Link href={`/partidas/${partida.id}`} className="btn btn-secondary btn-sm">
             Ver partida en stock
             <ArrowUpRight className="size-3.5" aria-hidden />
           </Link>

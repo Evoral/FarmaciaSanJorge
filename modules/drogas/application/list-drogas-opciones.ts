@@ -1,7 +1,7 @@
 /**
  * `listDrogasOpciones` -- every vigente droga (id + nombre + unidad base id
  * and tipo_magnitud) for a `<select>`
- * picker, e.g. `/stock/ingresar`. A picker must offer the WHOLE vigente
+ * picker, e.g. `/partidas/ingresar`. A picker must offer the WHOLE vigente
  * catalog, so it can't reuse the paginated `listDrogas` (its `pageSize` is
  * capped at 100, and silently truncating the options would hide drogas);
  * it also skips `listDrogas`' per-droga stock join, which a picker never

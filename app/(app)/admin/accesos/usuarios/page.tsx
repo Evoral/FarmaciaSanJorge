@@ -212,13 +212,17 @@ export default async function UsuariosPage({ searchParams }: UsuariosPageProps) 
                     return (
                       <tr key={usuario.id}>
                         <td className="px-3 py-2.5">
-                          <span className="flex items-center gap-2.5">
+                          <span className="flex min-w-0 items-center gap-2.5">
                             <Avatar name={nombre} />
                             <span className="min-w-0">
-                              <Link href={`/admin/accesos/usuarios/${usuario.id}`} className="block truncate font-medium text-zinc-900 underline-offset-2 hover:underline">
+                              <Link
+                                href={`/admin/accesos/usuarios/${usuario.id}`}
+                                title={nombre}
+                                className="block max-w-[16rem] truncate font-medium text-zinc-900 underline-offset-2 hover:underline"
+                              >
                                 {nombre}
                               </Link>
-                              <span className="block truncate text-xs text-zinc-500">
+                              <span className="block max-w-[16rem] truncate text-xs text-zinc-500" title={usuario.email}>
                                 {usuario.email}
                                 {usuario.esSector ? " · Cuenta de sector" : null}
                               </span>

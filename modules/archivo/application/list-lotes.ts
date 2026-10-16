@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { NotFoundError } from "@/shared/errors";
-import { listLotesFiltro, loteIdInput } from "../domain/filtros";
+import { listLotesFiltro, loteDetalleInput, type LoteDetalleInput } from "../domain/filtros";
 import {
   puedeSolicitarDestruccion,
   puedeAutorizarDestruccion,
@@ -45,7 +45,9 @@ export interface LoteDetalleOutput extends LoteListItem {
   fechaDestruccion: string | null;
   registradoPorNombre: string;
   registradoPorApellido: string;
+  /** One page of the lote's recetas; `totalRecetas` counts them all. */
   recetas: { id: string; numeroInterno: string; pacienteNombre: string; pacienteApellido: string; estado: string }[];
+  totalRecetas: number;
   puedeSolicitarDestruccion: boolean;
   puedeAutorizarDestruccion: boolean;
   puedeRegistrarDestruccion: boolean;
@@ -55,9 +57,9 @@ export interface LoteDetalleOutput extends LoteListItem {
 export const getLoteDetalleQuery = defineQuery({
   name: "archivo.lotes.detalle",
   permiso: "archivo.lotes.gestionar",
-  input: loteIdInput,
+  input: loteDetalleInput,
   handler: async ({ tx, session, input }): Promise<LoteDetalleOutput> => {
-    const detalle = await getLoteDetalle(tx, session.tenantId, input.id);
+    const detalle = await getLoteDetalle(tx, session.tenantId, input.id, { page: input.page, pageSize: input.pageSize });
     if (!detalle) throw new NotFoundError("El lote de archivo no existe.");
 
     const estado = detalle.estado as EstadoLoteArchivoValue;
@@ -72,6 +74,6 @@ export const getLoteDetalleQuery = defineQuery({
   },
 });
 
-export async function getLoteArchivoDetalle(id: string): Promise<LoteDetalleOutput> {
-  return getLoteDetalleQuery.execute({ id });
+export async function getLoteArchivoDetalle(input: LoteDetalleInput): Promise<LoteDetalleOutput> {
+  return getLoteDetalleQuery.execute(input);
 }

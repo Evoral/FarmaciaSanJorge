@@ -1,6 +1,6 @@
 /**
  * `/reportes/kardex` (FASE 13 point 13.2). Kardex de movimientos de stock,
- * filtrable por droga/tipo/rango de fechas, con exportación CSV auditada.
+ * filtrable por droga/tipo/rango de fechas, con exportación Excel auditada.
  * The droga is picked in an autocomplete (`KardexDrogaFiltro`) that writes its
  * uuid to `drogaId`; a hand-edited, incomplete id in the URL still shows a
  * prompt instead of querying (the use case only accepts a full UUID).
@@ -82,7 +82,7 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
     if (params.tipo) qs.set("tipo", params.tipo);
     if (params.desde) qs.set("desde", params.desde);
     if (params.hasta) qs.set("hasta", params.hasta);
-    return `/api/stock/kardex/export/csv?${qs.toString()}`;
+    return `/api/stock/kardex/export/xlsx?${qs.toString()}`;
   }
 
   // The filtered droga's name comes from its own movements (every row is that droga); without rows it is unknown.
@@ -103,7 +103,7 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
         actions={
           <a href={exportHref()} className="btn btn-secondary">
             <Download className="size-4" aria-hidden />
-            Exportar CSV
+            Exportar Excel
           </a>
         }
       />

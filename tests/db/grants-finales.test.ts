@@ -49,6 +49,8 @@ const LEGAL: Record<string, GrantRule> = {
   regla_precio_tramo: { insert: true, update: [] },
   // Migration 0074: reanalisis_partida -- append-only, immutable (same shape as cotizacion).
   reanalisis_partida: { insert: true, update: [] },
+  // Migration 0079: an imported supplier price list header -- append-only (same shape as reanalisis_partida).
+  lista_precio_proveedor: { insert: true, update: [] },
 };
 
 /**
@@ -68,6 +70,8 @@ const PROTEGIDAS_NO_LEGALES = [
   "paciente",
   "partida",
   "proveedor",
+  // Migration 0079: forbid_delete only -- versioned like regla_precio (fsj_app may UPDATE vigente_hasta alone).
+  "costo_proveedor",
   // M08 (migration 0031): forbid_delete only (never a forbid_update_delete
   // table) -- mutable via the vigente_hasta "close" write, same shape as
   // designacion_director_tecnico's cese above.

@@ -44,7 +44,7 @@ export function FirmarForm({ fecha, fueraDeTermino }: FirmarFormProps) {
           </div>
         ) : null}
 
-        <SimpleForm action={firmarCierreAction} submitLabel="Firmar cierre" pendingLabel="Firmando…" submitVariant="critical">
+        <SimpleForm action={firmarCierreAction} submitLabel="Firmar cierre" pendingLabel="Firmando…" submitVariant="primary">
           <input type="hidden" name="fecha" value={fecha} />
 
           {fueraDeTermino ? (

@@ -58,7 +58,7 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
     return `/libro?${qs.toString()}`;
   }
 
-  function exportHref(kind: "csv" | "pdf"): string {
+  function exportHref(kind: "xlsx" | "pdf"): string {
     const qs = new URLSearchParams();
     if (params.fechaDesde) qs.set("fechaDesde", params.fechaDesde);
     if (params.fechaHasta) qs.set("fechaHasta", params.fechaHasta);
@@ -91,13 +91,13 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
       <PageHeader
         breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Libro" }]}
         title="Libro recetario"
-        description="Asientos del libro digital, en orden correlativo. Cada asiento queda encadenado por hash."
+        description="Asientos del libro digital, del más reciente al más antiguo. Cada asiento queda encadenado por hash."
         actions={
           puedeExportar ? (
             <>
-              <a href={exportHref("csv")} className="btn btn-secondary">
+              <a href={exportHref("xlsx")} className="btn btn-secondary">
                 <Download className="size-4" aria-hidden />
-                CSV
+                Excel
               </a>
               <a href={exportHref("pdf")} className="btn btn-secondary">
                 <Download className="size-4" aria-hidden />
@@ -218,8 +218,11 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
                     <th scope="col" className="px-3 py-2">
                       Nº
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       Fecha
+                    </th>
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">
+                      Receta Nº
                     </th>
                     <th scope="col" className="px-3 py-2">
                       Paciente
@@ -248,14 +251,19 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
                           <Link href={`/libro/${item.id}`} className="font-mono font-semibold underline-offset-2 hover:underline">
                             {item.numeroCorrelativo}
                           </Link>
-                          {item.origen === "RECTIFICATIVO" ? <span className="block text-xs text-zinc-500">Rectifica Nº {item.asientoOriginalNumeroCorrelativo}</span> : null}
+                          {item.origen === "RECTIFICATIVO" ? <span className="block whitespace-nowrap text-xs text-zinc-500">Rectifica Nº {item.asientoOriginalNumeroCorrelativo}</span> : null}
+                          <span className="block whitespace-nowrap text-xs text-zinc-500 tabular-nums sm:hidden">{formatFechaIso(item.fechaAsiento)}</span>
+                          {item.recetaNumeroInterno ? <span className="block whitespace-nowrap text-xs text-zinc-500 sm:hidden">Receta Nº {item.recetaNumeroInterno}</span> : null}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">{formatFechaIso(item.fechaAsiento)}</td>
+                        <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums sm:table-cell">{formatFechaIso(item.fechaAsiento)}</td>
+                        <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono sm:table-cell">{item.recetaNumeroInterno ?? "—"}</td>
                         <td className="px-3 py-2.5 text-zinc-900">
-                          {item.pacienteTexto}
-                          <span className="block text-xs text-zinc-500 md:hidden">{item.medicoTexto}</span>
+                          <span className="block max-w-[16rem] break-words">{item.pacienteTexto}</span>
+                          <span className="block max-w-[16rem] break-words text-xs text-zinc-500 md:hidden">{item.medicoTexto}</span>
                         </td>
-                        <td className="hidden px-3 py-2.5 md:table-cell">{item.medicoTexto}</td>
+                        <td className="hidden px-3 py-2.5 md:table-cell">
+                          <span className="block max-w-[16rem] break-words">{item.medicoTexto}</span>
+                        </td>
                         <td className="px-3 py-2.5">
                           <ToneBadge tone={tonoEstadoAsiento(estadoVisual.kind)}>{etiquetaEstadoVisual(estadoVisual)}</ToneBadge>
                         </td>

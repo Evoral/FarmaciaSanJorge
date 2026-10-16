@@ -76,7 +76,7 @@ Mín – Máx · Partidas.
   comparar".
 - Expanded detail: that proveedor's partidas for the droga in the period —
   fecha de ingreso, lote, cantidad inicial (formatted), costo (display unit),
-  "Revisar" badge per outlier partida, link to `/stock/partidas/[id]` (only
+  "Revisar" badge per outlier partida, link to `/partidas/[id]` (only
   with `stock.ver`). Cap 50 rows, "mostrando 50 de N".
 
 Header above the table: droga name, unidad base, display unit note

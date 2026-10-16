@@ -72,7 +72,7 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
     return `/libro/contralor?${qs.toString()}`;
   }
 
-  function exportHref(kind: "csv" | "pdf"): string {
+  function exportHref(kind: "xlsx" | "pdf"): string {
     const qs = new URLSearchParams();
     if (params.tipoLibro) qs.set("tipoLibro", params.tipoLibro);
     if (params.drogaId) qs.set("drogaId", params.drogaId);
@@ -105,9 +105,9 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
         actions={
           puedeExportar ? (
             <>
-              <a href={exportHref("csv")} className="btn btn-secondary">
+              <a href={exportHref("xlsx")} className="btn btn-secondary">
                 <Download className="size-4" aria-hidden />
-                CSV
+                Excel
               </a>
               <a href={exportHref("pdf")} className="btn btn-secondary">
                 <Download className="size-4" aria-hidden />
@@ -206,10 +206,10 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
                     <th scope="col" className="px-3 py-2">
                       Nº
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       Fecha
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-3 py-2 md:table-cell">
                       Movimiento
                     </th>
                     <th scope="col" className="px-3 py-2">
@@ -235,12 +235,23 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
                 <tbody>
                   {result.items.map((item) => (
                     <tr key={item.id}>
-                      <td className="px-3 py-2.5 font-mono font-semibold text-zinc-900 tabular-nums">{item.numeroCorrelativo}</td>
-                      <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">{formatFechaIso(item.fechaAsiento)}</td>
                       <td className="px-3 py-2.5">
+                        <span className="block font-mono font-semibold text-zinc-900 tabular-nums">{item.numeroCorrelativo}</span>
+                        <span className="block whitespace-nowrap text-xs text-zinc-500 tabular-nums sm:hidden">{formatFechaIso(item.fechaAsiento)}</span>
+                      </td>
+                      <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums sm:table-cell">{formatFechaIso(item.fechaAsiento)}</td>
+                      <td className="hidden px-3 py-2.5 md:table-cell">
                         <ToneBadge tone="neutral">{TIPO_MOVIMIENTO_LABELS[item.tipoMovimiento] ?? item.tipoMovimiento}</ToneBadge>
                       </td>
-                      <td className="px-3 py-2.5 text-zinc-900">{item.drogaDescripcion}</td>
+                      <td className="px-3 py-2.5 text-zinc-900">
+                        <span className="line-clamp-2 block max-w-xs break-words" title={item.drogaDescripcion}>
+                          {item.drogaDescripcion}
+                        </span>
+                        {/* Phones: the movimiento travels under the droga. */}
+                        <span className="mt-1 block md:hidden">
+                          <ToneBadge tone="neutral">{TIPO_MOVIMIENTO_LABELS[item.tipoMovimiento] ?? item.tipoMovimiento}</ToneBadge>
+                        </span>
+                      </td>
                       {/* Legal record: exact quantities in the recorded unit (only trailing zeros stripped), never converted or rounded. */}
                       <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">{formatCantidadExacta(item.cantidad, item.unidadSimbolo)}</td>
                       <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono text-zinc-500 tabular-nums lg:table-cell">{formatCantidadExacta(item.saldoAnterior, "")}</td>
