@@ -113,29 +113,59 @@ export async function loadUsuarioConPermisos(
 ): Promise<UsuarioConPermisos | null> {
   const usuario = await tx.usuario.findUnique({
     where: { id: usuarioId },
+    select: USUARIO_CON_PERMISOS_SELECT,
+  });
+  if (!usuario) return null;
+  return toUsuarioConPermisos(usuario);
+}
+
+const USUARIO_CON_PERMISOS_SELECT = {
+  id: true,
+  tenantId: true,
+  email: true,
+  nombre: true,
+  apellido: true,
+  estado: true,
+  esSector: true,
+  esTecnico: true,
+  rolesAsignados: {
     select: {
-      id: true,
-      tenantId: true,
-      email: true,
-      nombre: true,
-      apellido: true,
-      estado: true,
-      esSector: true,
-      esTecnico: true,
-      rolesAsignados: {
+      rol: {
         select: {
-          rol: {
-            select: {
-              esAdministrador: true,
-              permisos: { select: { permiso: { select: { codigo: true } } } },
-            },
-          },
+          esAdministrador: true,
+          permisos: { select: { permiso: { select: { codigo: true } } } },
         },
       },
     },
-  });
-  if (!usuario) return null;
+  },
+} as const;
 
+type UsuarioConPermisosRow = Prisma.UsuarioGetPayload<{ select: typeof USUARIO_CON_PERMISOS_SELECT }>;
+
+/** Everything `validateSession` needs, read in ONE statement (relationJoins): the sesion, its usuario with permisos, and the tenant's `fecha_baja`. */
+export interface SesionCompleta {
+  sesion: SesionRow;
+  usuario: UsuarioConPermisos;
+  /** `null` while the tenant is active (global table, no RLS). */
+  tenantFechaBaja: Date | null;
+}
+
+/** Single-round-trip replacement for `findSesionByTokenHash` + `loadUsuarioConPermisos` + `loadTenantFechaBaja`, inside an already tenant-scoped transaction. */
+export async function findSesionCompletaByTokenHash(tx: Prisma.TransactionClient, tokenHash: string): Promise<SesionCompleta | null> {
+  const fila = await tx.sesion.findUnique({
+    where: { tokenHash },
+    select: {
+      ...SESION_ROW_SELECT,
+      usuario: { select: { ...USUARIO_CON_PERMISOS_SELECT, tenant: { select: { fechaBaja: true } } } },
+    },
+  });
+  if (!fila) return null;
+
+  const { usuario, ...sesion } = fila;
+  return { sesion, usuario: toUsuarioConPermisos(usuario), tenantFechaBaja: usuario.tenant.fechaBaja };
+}
+
+function toUsuarioConPermisos(usuario: UsuarioConPermisosRow): UsuarioConPermisos {
   const permisos = permisosEfectivos(
     usuario.rolesAsignados.map((asignacion) => ({
       esAdministrador: asignacion.rol.esAdministrador,

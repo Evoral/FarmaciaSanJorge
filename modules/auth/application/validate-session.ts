@@ -21,13 +21,13 @@ import { checkSessionLifecycle } from "../domain/session-policy";
 import type { AuthenticatedSession } from "../domain/session";
 import {
   resolveSessionTenant,
-  findSesionByTokenHash,
-  loadUsuarioConPermisos,
+  findSesionCompletaByTokenHash,
   loadPermisosConPin,
-  loadTenantFechaBaja,
   touchSesion,
 } from "../infrastructure/session-repository";
 import { withTenantTransaction } from "@/shared/db/transaction";
+
+const TOUCH_MIN_INTERVAL_MS = 60_000;
 
 export async function validateSession(rawToken: string, now: Date = new Date()): Promise<AuthenticatedSession | null> {
   const tokenHash = hashToken(rawToken);
@@ -36,18 +36,18 @@ export async function validateSession(rawToken: string, now: Date = new Date()):
   if (!tenantId) return null;
 
   return withTenantTransaction(tenantId, async (tx) => {
-    const sesion = await findSesionByTokenHash(tx, tokenHash);
-    if (!sesion) return null;
+    const completa = await findSesionCompletaByTokenHash(tx, tokenHash);
+    if (!completa) return null;
+    const { sesion, usuario, tenantFechaBaja } = completa;
 
     if (checkSessionLifecycle(sesion, now) !== null) return null;
+    if (usuario.estado !== "ACTIVO") return null;
+    if (tenantFechaBaja !== null) return null;
 
-    const usuario = await loadUsuarioConPermisos(tx, sesion.usuarioId);
-    if (!usuario || usuario.estado !== "ACTIVO") return null;
-
-    const fechaBaja = await loadTenantFechaBaja(tx, tenantId);
-    if (fechaBaja === undefined || fechaBaja !== null) return null;
-
-    await touchSesion(tx, sesion.id, now);
+    // Idle-refresh is a write on every request; skip it while the last one is recent. The idle timeout is 30 min, so a 1 min granularity is invisible.
+    if (now.getTime() - sesion.ultimoUsoEn.getTime() > TOUCH_MIN_INTERVAL_MS) {
+      await touchSesion(tx, sesion.id, now);
+    }
 
     return {
       usuario: { id: usuario.id, email: usuario.email, nombre: usuario.nombre, apellido: usuario.apellido },
