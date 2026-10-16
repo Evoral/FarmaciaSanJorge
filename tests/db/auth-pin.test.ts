@@ -4,7 +4,7 @@
  * (pin_hash/pin_intentos_fallidos/pin_bloqueado/pin_actualizado_en), the
  * `usuario_pin_bloqueado_requiere_pin` CHECK constraint, and the
  * column-level UPDATE grant to `fsj_app`. Same raw-`pg` +
- * `asOwner`/`asApp` + `inRollbackTx` harness as every other
+ * `asOwner` + `inRollbackTx` harness as every other
  * tests/db/*.test.ts -- see tests/db/auth-sessions.test.ts's module doc
  * comment for why the TypeScript application functions are NOT called
  * here.
@@ -16,7 +16,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, it, expect } from "vitest";
 import { dbTestSkipReason } from "./env";
-import { asOwner, asApp, inRollbackTx, withTenant, expectDbRejection } from "./helpers";
+import { asOwner, inRollbackTx, withTenant, expectDbRejection } from "./helpers";
 
 async function insertTenant(tx: import("pg").Client, suffix: string): Promise<string> {
   const result = await tx.query(`INSERT INTO fsj.tenant (razon_social, cuit) VALUES ('Test', $1) RETURNING id`, [
@@ -113,17 +113,18 @@ describe.skipIf(dbTestSkipReason() !== null)("migration 0037_pin_reautenticacion
   });
 
   it("fsj_app (the app role) can UPDATE all four pin_* columns via its column-level GRANT", async () => {
-    // Fixture AND the grant-under-test both run as fsj_app, on the SAME
-    // rolled-back transaction/connection -- asOwner (table owner) would
-    // bypass the grant entirely, so it cannot be used to check it (same
-    // discipline as tests/db/auth-sessions.test.ts's asApp usages).
-    await asApp((client) =>
+    // The fixture runs as the owner: fsj_app has no INSERT on fsj.tenant
+    // (migration 0001), so it cannot seed its own tenant. The grant under
+    // test then runs as fsj_app (SET LOCAL ROLE, same rolled-back
+    // transaction) -- the owner would bypass the grant entirely.
+    await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const tenantId = await insertTenant(tx, "pin-grant");
-        await withTenant(tx, tenantId, async (scoped) => {
-          const sistemaId = await createSistemaUser(scoped, tenantId);
-          const usuarioId = await createUsuarioActivo(scoped, tenantId, sistemaId, "grant");
+        const sistemaId = await createSistemaUser(tx, tenantId);
+        const usuarioId = await createUsuarioActivo(tx, tenantId, sistemaId, "grant");
 
+        await tx.query("SET LOCAL ROLE fsj_app");
+        await withTenant(tx, tenantId, async (scoped) => {
           await scoped.query(
             `UPDATE fsj.usuario SET pin_hash = 'hash', pin_intentos_fallidos = 1, pin_bloqueado = false, pin_actualizado_en = now() WHERE id = $1`,
             [usuarioId],
