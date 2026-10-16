@@ -25,6 +25,7 @@ import { useRouter } from "next/navigation";
 import type { DrogaExistente } from "./buscar-drogas-catalogo-action";
 import { Check, Plus, X } from "lucide-react";
 import { crearDrogaAction, editarDrogaAction } from "./actions";
+import type { DrogaCreada } from "./action-state";
 import { DrogasExistentesAviso, coincidenciaExacta, useDrogasExistentes } from "./drogas-existentes";
 import { normalizarTexto } from "../domain/normalizar";
 import { SINONIMO_MAX_LARGO } from "../domain/sinonimo";
@@ -57,16 +58,21 @@ export interface DrogaFormProps {
   disabled: boolean;
   /** Alta only: where to go once created -- closes the alta panel; the confirmation moves to a toast (the page mounts the Toaster). */
   volverA?: string;
+  /** Alta only: the name the form starts with (e.g. the text of an imported row); the clase follows it like a typed one. */
+  nombreInicial?: string;
+  /** Alta only: called with the created droga instead of navigating (an alta opened in a dialog); the confirmation moves to a toast. */
+  onCreada?: (droga: DrogaCreada) => void;
 }
 
-export function DrogaForm({ mode, unidades, droga, disabled, volverA }: DrogaFormProps) {
+export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInicial = "", onCreada }: DrogaFormProps) {
   const router = useRouter();
   const action = mode === "crear" ? crearDrogaAction : editarDrogaAction;
   const clasificacionDisabled = disabled || (mode === "editar" && (droga?.tienePartidas ?? false));
-  const [clase, setClase] = useState<ClaseDroga>((droga?.clase as ClaseDroga | undefined) ?? "DROGA");
-  const [sugerencia, setSugerencia] = useState<SugerenciaClase | null>(null);
+  const nombreDeArranque = droga?.nombre ?? (mode === "crear" ? nombreInicial : "");
+  const [sugerencia, setSugerencia] = useState<SugerenciaClase | null>(() => (mode === "crear" && nombreDeArranque ? sugerirClase(nombreDeArranque) : null));
+  const [clase, setClase] = useState<ClaseDroga>((droga?.clase as ClaseDroga | undefined) ?? sugerencia?.clase ?? "DROGA");
   const [claseElegida, setClaseElegida] = useState(mode === "editar");
-  const [nombre, setNombre] = useState(droga?.nombre ?? "");
+  const [nombre, setNombre] = useState(nombreDeArranque);
   const [sinonimos, setSinonimos] = useState(() => filasCargadas(droga));
   const [siguienteKey, setSiguienteKey] = useState(0);
   const avisoId = useId();
@@ -104,10 +110,13 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA }: DrogaFor
     setSiguienteKey((k) => k + 1);
   }
 
-  function onSuccess(state: { message?: string }) {
+  function onSuccess(state: { message?: string; droga?: DrogaCreada }) {
     setNombre("");
     setSinonimos([]);
-    if (volverA) {
+    if (onCreada && state.droga) {
+      if (state.message) toast(state.message);
+      onCreada(state.droga);
+    } else if (volverA) {
       if (state.message) toast(state.message);
       router.push(volverA);
     }
@@ -149,7 +158,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA }: DrogaFor
         <input
           id="nombre"
           name="nombre"
-          defaultValue={droga?.nombre ?? ""}
+          defaultValue={nombreDeArranque}
           required
           disabled={disabled}
           autoComplete="off"

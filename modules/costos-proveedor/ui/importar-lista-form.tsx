@@ -22,7 +22,11 @@
  */
 import { useMemo, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, CircleAlert, TriangleAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleAlert, Plus, TriangleAlert } from "lucide-react";
+import type { DrogaCreada } from "@/modules/drogas/ui/action-state";
+import type { UnidadOpcion } from "@/modules/drogas/ui/droga-form";
+import { NuevaDrogaDialog } from "@/modules/drogas/ui/nueva-droga-dialog";
+import { normalizarTexto } from "@/modules/drogas/domain/normalizar";
 import { Combobox, filtrarOpciones, type ComboboxOption } from "@/shared/ui/combobox";
 import { RecordarSinonimoSwitch } from "@/shared/ui/recordar-sinonimo-switch";
 import { SimpleForm } from "@/shared/ui/simple-form";
@@ -81,6 +85,8 @@ export interface ImportarListaFormProps {
   unidades: readonly UnidadOpcionCosto[];
   /** After a successful confirmation (the form already raised the toast). */
   onImportada: () => void;
+  /** Units for the alta de insumo of a "sin asociar" row; `null` when the session can not create drogas (no button). */
+  unidadesAltaDroga: UnidadOpcion[] | null;
 }
 
 interface FilaEditable {
@@ -100,8 +106,17 @@ function etiquetaVariacion(pct: string): string {
 /** Fields the server refused, by row (index in `vista.filas`). */
 type ErroresPorFila = ReadonlyMap<number, ReadonlySet<string>>;
 
-export function ImportarListaForm({ vista, drogas, unidades, onImportada }: ImportarListaFormProps) {
+export function ImportarListaForm({ vista, drogas: drogasDelCatalogo, unidades, onImportada, unidadesAltaDroga }: ImportarListaFormProps) {
   const router = useRouter();
+
+  /** Drogas created from a row's alta: usable at once, before the page's refresh brings them in the catalog. */
+  const [drogasCreadas, setDrogasCreadas] = useState<DrogaOpcionCosto[]>([]);
+  const drogas = useMemo(
+    () => [...drogasDelCatalogo, ...drogasCreadas.filter((creada) => !drogasDelCatalogo.some((d) => d.id === creada.id))],
+    [drogasDelCatalogo, drogasCreadas],
+  );
+  /** The row whose "Nuevo insumo" dialog is open. */
+  const [altaFila, setAltaFila] = useState<number | null>(null);
 
   const unidadesLista = useMemo<UnidadParaLista[]>(
     () => unidades.map((u) => ({ id: u.id, codigo: u.codigo, simbolo: u.simbolo, tipoMagnitud: u.tipoMagnitud, factorABase: u.factorABase, vigente: u.vigente })),
@@ -152,10 +167,18 @@ export function ImportarListaForm({ vista, drogas, unidades, onImportada }: Impo
   );
   const resumen = useMemo(() => resumirEstados(evaluaciones), [evaluaciones]);
 
-  // "Recordar equivalencia" only makes sense when the user (not the match) chose the droga for that text.
+  // "Recordar equivalencia" only makes sense when the user (not the match) chose the droga for that text, and the text
+  // is not already its name (e.g. a droga just created from the row with the list's text: it matches by name).
   const recordable = (i: number): boolean => {
     const fila = filas[i]!;
-    return fila.droga !== null && !fila.omitida && vista.filas[i]!.presentacion === null && fila.droga.value !== vista.filas[i]!.drogaId;
+    const original = vista.filas[i]!;
+    return (
+      fila.droga !== null &&
+      !fila.omitida &&
+      original.presentacion === null &&
+      fila.droga.value !== original.drogaId &&
+      normalizarTexto(fila.droga.label) !== normalizarTexto(original.descripcion)
+    );
   };
 
   /** The rows that will be applied, in list order, and the JSON the confirmation sends. */
@@ -225,8 +248,9 @@ export function ImportarListaForm({ vista, drogas, unidades, onImportada }: Impo
     });
   }
 
-  function elegirDroga(indice: number, droga: ComboboxOption | null) {
-    const nueva = droga ? drogas.find((d) => d.id === droga.value) : undefined;
+  /** `conocida`: the droga's data when it is not in `drogas` yet (just created in this render). */
+  function elegirDroga(indice: number, droga: ComboboxOption | null, conocida?: DrogaOpcionCosto) {
+    const nueva = droga ? (conocida ?? drogas.find((d) => d.id === droga.value)) : undefined;
     const unidadActual = unidades.find((u) => u.id === filas[indice]!.unidadPrecioId);
     // Keep the unit when it still fits the new droga's magnitud; otherwise start at the magnitud's default (R6).
     const sigueValida = nueva !== undefined && unidadActual !== undefined && unidadActual.vigente && unidadActual.tipoMagnitud === nueva.tipoMagnitud;
@@ -235,6 +259,15 @@ export function ImportarListaForm({ vista, drogas, unidades, onImportada }: Impo
       omitida: droga ? false : filas[indice]!.omitida,
       unidadPrecioId: sigueValida ? filas[indice]!.unidadPrecioId : nueva ? (unidadPrecioInicial(nueva.tipoMagnitud, unidadesLista) ?? "") : "",
     });
+  }
+
+  /** The row's alta created a droga: it joins the picker and is chosen for that row (its synonym switch then applies as usual). */
+  function drogaCreada(indice: number, creada: DrogaCreada) {
+    const tipoMagnitud = unidades.find((u) => u.id === creada.unidadBaseId)?.tipoMagnitud ?? "";
+    const opcion: DrogaOpcionCosto = { id: creada.id, nombre: creada.nombre, unidadBaseId: creada.unidadBaseId, tipoMagnitud, sinonimos: [] };
+    setDrogasCreadas((actuales) => [...actuales, opcion]);
+    elegirDroga(indice, { value: creada.id, label: creada.nombre }, opcion);
+    setAltaFila(null);
   }
 
   /** Enter in a row's field must not confirm the whole import: the form's own button is the only way. */
@@ -276,257 +309,280 @@ export function ImportarListaForm({ vista, drogas, unidades, onImportada }: Impo
 
   const omitidasPresentacion = resumen.OMITIDA_PRESENTACION;
 
+  const filaEnAlta = altaFila === null ? null : vista.filas[altaFila]!;
+
   return (
-    <SimpleForm
-      action={confirmar}
-      submitLabel={aplicables === 1 ? "Actualizar 1 costo" : `Actualizar ${numberFormat.format(aplicables)} costos`}
-      pendingLabel="Importando…"
-      submitDisabled={bloqueos.length > 0}
-      submitDisabledReason={
-        <ul className="flex flex-col gap-1">
-          {bloqueos.map((b) => (
-            <li key={b}>{b}</li>
-          ))}
-        </ul>
-      }
-      extraActions={
-        <button type="button" className="btn btn-secondary" onClick={() => router.push("/costos-proveedor")}>
-          Cancelar
-        </button>
-      }
-      onSuccess={onImportada}
-    >
-      <input type="hidden" name="listaJson" value={listaJson} />
+    <>
+      <SimpleForm
+        action={confirmar}
+        submitLabel={aplicables === 1 ? "Actualizar 1 costo" : `Actualizar ${numberFormat.format(aplicables)} costos`}
+        pendingLabel="Importando…"
+        submitDisabled={bloqueos.length > 0}
+        submitDisabledReason={
+          <ul className="flex flex-col gap-1">
+            {bloqueos.map((b) => (
+              <li key={b}>{b}</li>
+            ))}
+          </ul>
+        }
+        extraActions={
+          <button type="button" className="btn btn-secondary" onClick={() => router.push("/costos-proveedor")}>
+            Cancelar
+          </button>
+        }
+        onSuccess={onImportada}
+      >
+        <input type="hidden" name="listaJson" value={listaJson} />
 
-      {mensajeServidor ? (
-        <div role="alert" className="alert alert-danger">
-          <CircleAlert aria-hidden />
-          <p>{mensajeServidor} No se guardó nada: corregí las filas marcadas y confirmá de nuevo.</p>
-        </div>
-      ) : null}
-
-      <p className="text-sm text-zinc-600">
-        Se leyeron <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(vista.filasLeidas)}</span> filas de la hoja «{vista.hoja}»
-        {omitidasPresentacion > 0 ? `; ${numberFormat.format(omitidasPresentacion)} son presentaciones y se omiten` : ""}. Los precios son sin IVA, por kg / L / u. No se guarda nada
-        hasta que confirmes.
-      </p>
-
-      <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap gap-1.5">
-        <ChipEstado etiqueta="Todas" cantidad={vista.filas.length} activo={filtro === null} onClick={() => filtrar(null)} />
-        {ESTADOS_FILA_LISTA.filter((estado) => resumen[estado] > 0).map((estado) => (
-          <ChipEstado
-            key={estado}
-            etiqueta={ESTADO_FILA_LISTA_LABELS[estado]}
-            cantidad={resumen[estado]}
-            ayuda={AYUDA_ESTADO[estado]}
-            activo={filtro === estado}
-            onClick={() => filtrar(filtro === estado ? null : estado)}
-          />
-        ))}
-      </div>
-
-      {vista.filas.length === 0 ? (
-        <p role="note" className="alert alert-warn">
-          <TriangleAlert aria-hidden />
-          <span>La hoja «{vista.hoja}» no tiene productos para importar. Probá con otra hoja del archivo.</span>
-        </p>
-      ) : (
-        <div onKeyDownCapture={sinEnviarConEnter}>
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th scope="col" className="px-3 py-2 text-right">
-                    Fila
-                  </th>
-                  <th scope="col" className="px-3 py-2">
-                    Estado
-                  </th>
-                  <th scope="col" className="px-3 py-2">
-                    Descripción del proveedor
-                  </th>
-                  <th scope="col" className="min-w-64 px-3 py-2">
-                    Droga
-                  </th>
-                  <th scope="col" className="px-3 py-2">
-                    Unidad
-                  </th>
-                  <th scope="col" className="px-3 py-2">
-                    Precio (sin IVA)
-                  </th>
-                  <th scope="col" className="px-3 py-2">
-                    Vigente → nuevo
-                  </th>
-                  <th scope="col" className="px-3 py-2">
-                    <span className="sr-only">Acciones</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {deLaPagina.map((i) => {
-                  const original = vista.filas[i]!;
-                  const fila = filas[i]!;
-                  const evaluacion = evaluaciones[i]!;
-                  const marcas = erroresServidor.get(i);
-                  const esPresentacion = original.presentacion !== null;
-                  const drogaElegida = fila.droga ? drogas.find((d) => d.id === fila.droga!.value) : undefined;
-                  const unidadesDeLaDroga = drogaElegida ? unidades.filter((u) => u.vigente && u.tipoMagnitud === drogaElegida.tipoMagnitud) : [];
-                  const simboloUnidad = unidades.find((u) => u.id === fila.unidadPrecioId)?.simbolo;
-                  const vigente = fila.droga ? (contexto.vigentePorDroga.get(fila.droga.value) ?? null) : null;
-                  const atenuada = evaluacion.estado === "OMITIDA" || evaluacion.estado === "OMITIDA_PRESENTACION";
-                  return (
-                    <tr key={original.numeroFila} className={marcas ? "bg-red-50 dark:bg-red-950" : atenuada ? "text-zinc-500" : undefined}>
-                      <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums text-zinc-500">{original.numeroFila}</td>
-                      <td className="px-3 py-2.5">
-                        <ToneBadge tone={TONO_ESTADO[evaluacion.estado]} title={AYUDA_ESTADO[evaluacion.estado]}>
-                          {ESTADO_FILA_LISTA_LABELS[evaluacion.estado]}
-                        </ToneBadge>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span className={atenuada ? "line-through" : "font-medium text-zinc-900"}>{original.descripcion}</span>
-                        {esPresentacion ? <span className="block text-xs text-zinc-500">Presentación: {original.presentacion}</span> : null}
-                        {evaluacion.mensaje && !esPresentacion ? <span className="block text-xs text-zinc-600">{evaluacion.mensaje}</span> : null}
-                        {marcas ? (
-                          <span role="alert" className="block text-xs font-medium text-red-700 dark:text-red-300">
-                            Revisá: {[...marcas].map((campo) => fieldLabel(campo)).join(", ")}
-                          </span>
-                        ) : null}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        {esPresentacion ? (
-                          <span className="text-zinc-400">—</span>
-                        ) : (
-                          <>
-                            <Combobox
-                              id={`fila-${original.numeroFila}-droga`}
-                              label={`Droga de la fila ${original.numeroFila}`}
-                              hideLabel
-                              size="sm"
-                              placeholder="Buscar droga"
-                              search={buscarDrogas}
-                              value={fila.droga}
-                              onChange={(droga) => elegirDroga(i, droga)}
-                              disabled={fila.omitida}
-                            />
-                            {recordable(i) ? (
-                              <RecordarSinonimoSwitch
-                                className="mt-1.5"
-                                texto={original.descripcion}
-                                drogaNombre={fila.droga?.label}
-                                checked={fila.recordar}
-                                onChange={(recordar) => editar(i, { recordar })}
-                              />
-                            ) : null}
-                          </>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        {esPresentacion ? null : (
-                          <select
-                            aria-label={`Unidad del precio de la fila ${original.numeroFila}`}
-                            className="input input-sm"
-                            aria-invalid={marcas?.has("unidadPrecioId") ? true : undefined}
-                            disabled={!drogaElegida || fila.omitida}
-                            value={fila.unidadPrecioId}
-                            onChange={(e) => editar(i, { unidadPrecioId: e.target.value })}
-                          >
-                            <option value="">{drogaElegida ? "Elegí" : "—"}</option>
-                            {unidadesDeLaDroga.map((u) => (
-                              <option key={u.id} value={u.id}>
-                                {u.simbolo}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        {esPresentacion ? null : (
-                          <input
-                            aria-label={`Precio de la fila ${original.numeroFila}`}
-                            className="input input-sm w-28 font-mono"
-                            inputMode="decimal"
-                            autoComplete="off"
-                            aria-invalid={marcas?.has("precioInformado") || evaluacion.estado === "PRECIO_INVALIDO" ? true : undefined}
-                            disabled={fila.omitida}
-                            value={fila.precio}
-                            onChange={(e) => editar(i, { precio: e.target.value })}
-                          />
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2.5 text-[0.8125rem]">
-                        {esPresentacion || !fila.droga ? (
-                          <span className="text-zinc-400">—</span>
-                        ) : (
-                          <>
-                            <span className="block text-zinc-500">
-                              {vigente ? `${etiquetaPrecio(vigente.precioInformado, vigente.unidadPrecioSimbolo)} · ${formatFechaIso(vigente.fechaPrecio)}` : "Sin costo vigente"}
-                            </span>
-                            <span className="block font-mono tabular-nums text-zinc-900">
-                              {evaluacion.precioCanonico && simboloUnidad ? `→ $ ${formatearCostoUnitario(evaluacion.precioCanonico)} / ${simboloUnidad}` : "→ —"}
-                            </span>
-                            {evaluacion.variacionPct ? (
-                              <ToneBadge tone={evaluacion.variacionAlta ? "warn" : "neutral"} title={evaluacion.variacionAlta ? "Variación mayor al 50 %: revisá el precio." : "Variación respecto del costo vigente."}>
-                                {etiquetaVariacion(evaluacion.variacionPct)}
-                              </ToneBadge>
-                            ) : null}
-                          </>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-right">
-                        {esPresentacion ? null : (
-                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => editar(i, { omitida: !fila.omitida })}>
-                            {fila.omitida ? "Incluir" : "Omitir"}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        {mensajeServidor ? (
+          <div role="alert" className="alert alert-danger">
+            <CircleAlert aria-hidden />
+            <p>{mensajeServidor} No se guardó nada: corregí las filas marcadas y confirmá de nuevo.</p>
           </div>
+        ) : null}
 
-          {visibles.length === 0 ? <p className="px-1 py-4 text-sm text-zinc-500">Ninguna fila tiene ese estado.</p> : null}
-
-          {visibles.length > 0 ? (
-            <div className="pagination">
-              <p>
-                <span className="font-medium text-zinc-900 tabular-nums">
-                  {numberFormat.format(desde + 1)}-{numberFormat.format(Math.min(visibles.length, desde + PAGE_SIZE))}
-                </span>{" "}
-                de <span className="tabular-nums">{numberFormat.format(visibles.length)}</span>
-              </p>
-              {totalPaginas > 1 ? (
-                <nav aria-label="Paginación de la lista" className="flex items-center gap-1">
-                  <button type="button" className="page-link" aria-label="Página anterior" disabled={paginaActual <= 1} onClick={() => irAPagina(paginaActual - 1)}>
-                    <ChevronLeft className="size-4" aria-hidden />
-                  </button>
-                  <span className="px-2 tabular-nums">
-                    {paginaActual} / {totalPaginas}
-                  </span>
-                  <button type="button" className="page-link" aria-label="Página siguiente" disabled={paginaActual >= totalPaginas} onClick={() => irAPagina(paginaActual + 1)}>
-                    <ChevronRight className="size-4" aria-hidden />
-                  </button>
-                </nav>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      )}
-
-      {bloqueos.length > 0 ? (
-        <ul className="field-help flex list-disc flex-col gap-0.5 pl-4">
-          {bloqueos.map((b) => (
-            <li key={b}>{b}</li>
-          ))}
-        </ul>
-      ) : (
-        <p className="field-help">
-          Se actualizan {numberFormat.format(aplicables)} {aplicables === 1 ? "costo" : "costos"}; las filas sin asociar, omitidas, más antiguas o sin cambios no se tocan. Las drogas que no
-          están en la lista conservan su costo vigente.
+        <p className="text-sm text-zinc-600">
+          Se leyeron <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(vista.filasLeidas)}</span> filas de la hoja «{vista.hoja}»
+          {omitidasPresentacion > 0 ? `; ${numberFormat.format(omitidasPresentacion)} son presentaciones y se omiten` : ""}. Los precios son sin IVA, por kg / L / u. No se guarda nada
+          hasta que confirmes.
         </p>
-      )}
-    </SimpleForm>
+
+        <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap gap-1.5">
+          <ChipEstado etiqueta="Todas" cantidad={vista.filas.length} activo={filtro === null} onClick={() => filtrar(null)} />
+          {ESTADOS_FILA_LISTA.filter((estado) => resumen[estado] > 0).map((estado) => (
+            <ChipEstado
+              key={estado}
+              etiqueta={ESTADO_FILA_LISTA_LABELS[estado]}
+              cantidad={resumen[estado]}
+              ayuda={AYUDA_ESTADO[estado]}
+              activo={filtro === estado}
+              onClick={() => filtrar(filtro === estado ? null : estado)}
+            />
+          ))}
+        </div>
+
+        {vista.filas.length === 0 ? (
+          <p role="note" className="alert alert-warn">
+            <TriangleAlert aria-hidden />
+            <span>La hoja «{vista.hoja}» no tiene productos para importar. Probá con otra hoja del archivo.</span>
+          </p>
+        ) : (
+          <div onKeyDownCapture={sinEnviarConEnter}>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col" className="px-3 py-2 text-right">
+                      Fila
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      Estado
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      Descripción del proveedor
+                    </th>
+                    <th scope="col" className="min-w-64 px-3 py-2">
+                      Droga
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      Unidad
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      Precio (sin IVA)
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      Vigente → nuevo
+                    </th>
+                    <th scope="col" className="px-3 py-2">
+                      <span className="sr-only">Acciones</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deLaPagina.map((i) => {
+                    const original = vista.filas[i]!;
+                    const fila = filas[i]!;
+                    const evaluacion = evaluaciones[i]!;
+                    const marcas = erroresServidor.get(i);
+                    const esPresentacion = original.presentacion !== null;
+                    const drogaElegida = fila.droga ? drogas.find((d) => d.id === fila.droga!.value) : undefined;
+                    const unidadesDeLaDroga = drogaElegida ? unidades.filter((u) => u.vigente && u.tipoMagnitud === drogaElegida.tipoMagnitud) : [];
+                    const simboloUnidad = unidades.find((u) => u.id === fila.unidadPrecioId)?.simbolo;
+                    const vigente = fila.droga ? (contexto.vigentePorDroga.get(fila.droga.value) ?? null) : null;
+                    const atenuada = evaluacion.estado === "OMITIDA" || evaluacion.estado === "OMITIDA_PRESENTACION";
+                    return (
+                      <tr key={original.numeroFila} className={marcas ? "bg-red-50 dark:bg-red-950" : atenuada ? "text-zinc-500" : undefined}>
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums text-zinc-500">{original.numeroFila}</td>
+                        <td className="px-3 py-2.5">
+                          <ToneBadge tone={TONO_ESTADO[evaluacion.estado]} title={AYUDA_ESTADO[evaluacion.estado]}>
+                            {ESTADO_FILA_LISTA_LABELS[evaluacion.estado]}
+                          </ToneBadge>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className={atenuada ? "line-through" : "font-medium text-zinc-900"}>{original.descripcion}</span>
+                          {esPresentacion ? <span className="block text-xs text-zinc-500">Presentación: {original.presentacion}</span> : null}
+                          {evaluacion.mensaje && !esPresentacion ? <span className="block text-xs text-zinc-600">{evaluacion.mensaje}</span> : null}
+                          {marcas ? (
+                            <span role="alert" className="block text-xs font-medium text-red-700 dark:text-red-300">
+                              Revisá: {[...marcas].map((campo) => fieldLabel(campo)).join(", ")}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {esPresentacion ? (
+                            <span className="text-zinc-400">—</span>
+                          ) : (
+                            <>
+                              <Combobox
+                                id={`fila-${original.numeroFila}-droga`}
+                                label={`Droga de la fila ${original.numeroFila}`}
+                                hideLabel
+                                size="sm"
+                                placeholder="Buscar droga"
+                                search={buscarDrogas}
+                                value={fila.droga}
+                                onChange={(droga) => elegirDroga(i, droga)}
+                                disabled={fila.omitida}
+                              />
+                              {unidadesAltaDroga && evaluacion.estado === "SIN_ASOCIAR" ? (
+                                <button type="button" className="btn btn-secondary btn-sm mt-1.5" aria-haspopup="dialog" onClick={() => setAltaFila(i)}>
+                                  <Plus className="size-3.5" aria-hidden />
+                                  Nuevo insumo
+                                </button>
+                              ) : null}
+                              {recordable(i) ? (
+                                <RecordarSinonimoSwitch
+                                  className="mt-1.5"
+                                  texto={original.descripcion}
+                                  drogaNombre={fila.droga?.label}
+                                  checked={fila.recordar}
+                                  onChange={(recordar) => editar(i, { recordar })}
+                                />
+                              ) : null}
+                            </>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {esPresentacion ? null : (
+                            <select
+                              aria-label={`Unidad del precio de la fila ${original.numeroFila}`}
+                              className="input input-sm"
+                              aria-invalid={marcas?.has("unidadPrecioId") ? true : undefined}
+                              disabled={!drogaElegida || fila.omitida}
+                              value={fila.unidadPrecioId}
+                              onChange={(e) => editar(i, { unidadPrecioId: e.target.value })}
+                            >
+                              <option value="">{drogaElegida ? "Elegí" : "—"}</option>
+                              {unidadesDeLaDroga.map((u) => (
+                                <option key={u.id} value={u.id}>
+                                  {u.simbolo}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {esPresentacion ? null : (
+                            <input
+                              aria-label={`Precio de la fila ${original.numeroFila}`}
+                              className="input input-sm w-28 font-mono"
+                              inputMode="decimal"
+                              autoComplete="off"
+                              aria-invalid={marcas?.has("precioInformado") || evaluacion.estado === "PRECIO_INVALIDO" ? true : undefined}
+                              disabled={fila.omitida}
+                              value={fila.precio}
+                              onChange={(e) => editar(i, { precio: e.target.value })}
+                            />
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2.5 text-[0.8125rem]">
+                          {esPresentacion || !fila.droga ? (
+                            <span className="text-zinc-400">—</span>
+                          ) : (
+                            <>
+                              <span className="block text-zinc-500">
+                                {vigente ? `${etiquetaPrecio(vigente.precioInformado, vigente.unidadPrecioSimbolo)} · ${formatFechaIso(vigente.fechaPrecio)}` : "Sin costo vigente"}
+                              </span>
+                              <span className="block font-mono tabular-nums text-zinc-900">
+                                {evaluacion.precioCanonico && simboloUnidad ? `→ $ ${formatearCostoUnitario(evaluacion.precioCanonico)} / ${simboloUnidad}` : "→ —"}
+                              </span>
+                              {evaluacion.variacionPct ? (
+                                <ToneBadge tone={evaluacion.variacionAlta ? "warn" : "neutral"} title={evaluacion.variacionAlta ? "Variación mayor al 50 %: revisá el precio." : "Variación respecto del costo vigente."}>
+                                  {etiquetaVariacion(evaluacion.variacionPct)}
+                                </ToneBadge>
+                              ) : null}
+                            </>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          {esPresentacion ? null : (
+                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => editar(i, { omitida: !fila.omitida })}>
+                              {fila.omitida ? "Incluir" : "Omitir"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {visibles.length === 0 ? <p className="px-1 py-4 text-sm text-zinc-500">Ninguna fila tiene ese estado.</p> : null}
+
+            {visibles.length > 0 ? (
+              <div className="pagination">
+                <p>
+                  <span className="font-medium text-zinc-900 tabular-nums">
+                    {numberFormat.format(desde + 1)}-{numberFormat.format(Math.min(visibles.length, desde + PAGE_SIZE))}
+                  </span>{" "}
+                  de <span className="tabular-nums">{numberFormat.format(visibles.length)}</span>
+                </p>
+                {totalPaginas > 1 ? (
+                  <nav aria-label="Paginación de la lista" className="flex items-center gap-1">
+                    <button type="button" className="page-link" aria-label="Página anterior" disabled={paginaActual <= 1} onClick={() => irAPagina(paginaActual - 1)}>
+                      <ChevronLeft className="size-4" aria-hidden />
+                    </button>
+                    <span className="px-2 tabular-nums">
+                      {paginaActual} / {totalPaginas}
+                    </span>
+                    <button type="button" className="page-link" aria-label="Página siguiente" disabled={paginaActual >= totalPaginas} onClick={() => irAPagina(paginaActual + 1)}>
+                      <ChevronRight className="size-4" aria-hidden />
+                    </button>
+                  </nav>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {bloqueos.length > 0 ? (
+          <ul className="field-help flex list-disc flex-col gap-0.5 pl-4">
+            {bloqueos.map((b) => (
+              <li key={b}>{b}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="field-help">
+            Se actualizan {numberFormat.format(aplicables)} {aplicables === 1 ? "costo" : "costos"}; las filas sin asociar, omitidas, más antiguas o sin cambios no se tocan. Las drogas que no
+            están en la lista conservan su costo vigente.
+          </p>
+        )}
+      </SimpleForm>
+      {/* Outside the import's own <form>: the alta is a form of its own. */}
+      {unidadesAltaDroga ? (
+        <NuevaDrogaDialog
+          abierta={filaEnAlta !== null}
+          nombreInicial={filaEnAlta?.descripcion ?? ""}
+          subtitulo={filaEnAlta ? `Fila ${filaEnAlta.numeroFila} de la lista: al crearlo queda asociado a esa fila.` : undefined}
+          unidades={unidadesAltaDroga}
+          onCreada={(creada) => {
+            if (altaFila !== null) drogaCreada(altaFila, creada);
+          }}
+          onCerrar={() => setAltaFila(null)}
+        />
+      ) : null}
+    </>
   );
 }
 
