@@ -107,7 +107,7 @@ export function AjusteForm({
       </div>
 
       <div className="panel-body">
-        <SimpleForm action={registrarAjusteAction} submitLabel="Registrar ajuste" onSuccess={(state) => router.push(state.redirigirA ?? retornoAjusteRegistrado(volverA))}>
+        <SimpleForm action={registrarAjusteAction} accion="stock.ajuste.registrar" submitLabel="Registrar ajuste" onSuccess={(state) => router.push(state.redirigirA ?? retornoAjusteRegistrado(volverA))}>
           <input type="hidden" name="partidaId" value={partidaId} />
           <input type="hidden" name={PARAM_VOLVER_AJUSTE} value={volverA} />
 

@@ -13,7 +13,7 @@
  * matches every other dialog.
  *
  * PIN MODE: on mount, checks `pinDisponibleAction()` (whether the CURRENT
- * usuario has an active, non-blocked PIN) and, if so, defaults to a 6-digit
+ * usuario has an active, non-blocked PIN) and, if so, defaults to a
  * PIN input with a "Usar contraseña" toggle -- every OTHER existing caller
  * of this component (`./reauth-aware-form.tsx` and the inline reauth
  * forms) needs no changes: this check happens internally, not via
@@ -21,6 +21,7 @@
  */
 import { useEffect, useRef, useState, useTransition } from "react";
 import { CircleAlert } from "lucide-react";
+import { AUTH_POLICY } from "@/shared/auth/policy";
 import { reautenticarAction, pinDisponibleAction } from "./actions";
 
 export interface ReauthPromptProps {
@@ -107,8 +108,8 @@ export function ReauthPrompt({ onReauthenticated, onCancel }: ReauthPromptProps)
               name="pin"
               type="password"
               inputMode="numeric"
-              pattern="\d{6}"
-              maxLength={6}
+              pattern={`\\d{${AUTH_POLICY.pinLength}}`}
+              maxLength={AUTH_POLICY.pinLength}
               required
               autoComplete="off"
               autoFocus

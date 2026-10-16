@@ -69,6 +69,8 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   rolCodigo: "Rol",
   rolId: "Rol",
   permisos: "Permisos",
+  esSector: "Cuenta de sector",
+  acciones: "Acciones que piden PIN",
 
   // References to other entities (pickers or hidden ids in the UI).
   asientoId: "Asiento",

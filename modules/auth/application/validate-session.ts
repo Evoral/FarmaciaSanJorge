@@ -23,6 +23,7 @@ import {
   resolveSessionTenant,
   findSesionByTokenHash,
   loadUsuarioConPermisos,
+  loadPermisosConPin,
   loadTenantFechaBaja,
   touchSesion,
 } from "../infrastructure/session-repository";
@@ -54,6 +55,8 @@ export async function validateSession(rawToken: string, now: Date = new Date()):
       sesionId: sesion.id,
       permisos: usuario.permisos,
       reautenticadaEn: sesion.reautenticadaEn,
+      // A cuenta de sector (docs/specs/cuentas-de-sector.md) carries which acciones ask an empleado's PIN.
+      sector: usuario.esSector ? { permisosConPin: await loadPermisosConPin(tx, tenantId) } : null,
     };
   });
 }

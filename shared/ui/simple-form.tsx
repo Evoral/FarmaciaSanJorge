@@ -54,6 +54,8 @@ export interface SimpleFormProps<S extends FormActionState> {
   /** Overrides the success text (default: the state's own `message`). */
   successMessage?: (state: SuccessState<S>) => string | undefined;
   onSuccess?: (state: SuccessState<S>) => void;
+  /** The permiso of the action: in a cuenta de sector that asks a PIN for it, "who is acting" is asked before the first submit (see `./use-form-submit.ts`). */
+  accion?: string | readonly string[];
 }
 
 export function SimpleForm<S extends FormActionState>({
@@ -70,9 +72,10 @@ export function SimpleForm<S extends FormActionState>({
   extraActions,
   successMessage,
   onSuccess,
+  accion,
 }: SimpleFormProps<S>) {
   const [state, formAction, isPending] = useActionState(action, { status: "idle" } as Awaited<S>);
-  const { onSubmit } = useFormSubmit(formAction);
+  const { onSubmit } = useFormSubmit(formAction, { estado: state, accion });
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
 

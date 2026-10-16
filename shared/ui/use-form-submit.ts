@@ -41,9 +41,23 @@
  * dispatched manually (and never tracks `resubmit()`, which isn't a submit
  * event at all), so callers drive their submit button from
  * `useActionState`'s third return value (`isPending`) instead.
+ *
+ * CUENTAS DE SECTOR (docs/specs/cuentas-de-sector.md): on a shared session,
+ * some acciones must say which empleado performs them. With `opciones`,
+ * this hook asks for it (`./operador.tsx`'s prompt: who + PIN) and submits
+ * the SAME `FormData` with the credential fields added:
+ *   - `accion`: when the farmacia asks a PIN for that permiso, the prompt
+ *     opens BEFORE the first submit (one round trip);
+ *   - `estado` (the `useActionState` state object itself, never a new
+ *     literal): a `{ status: "operador-required" }` result, or an error
+ *     about the PIN field, opens it and resubmits -- so a form that did not
+ *     declare its `accion` still works, with one extra round trip.
+ * In an individual session none of this ever triggers.
  */
-import { startTransition, useCallback, useRef, type FormEvent } from "react";
+import { startTransition, useCallback, useEffect, useRef, type FormEvent } from "react";
+import { CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
 import { clearInvalidFields } from "./field-errors";
+import { useOperador } from "./operador";
 
 export interface FormSubmit {
   /** Attach as the `<form>`'s `onSubmit` (alongside `action={formAction}`). */
@@ -52,8 +66,32 @@ export interface FormSubmit {
   resubmit: () => void;
 }
 
-export function useFormSubmit(formAction: (payload: FormData) => void): FormSubmit {
+export interface FormSubmitOptions {
+  /** The form's action state, exactly as `useActionState` returned it. */
+  estado?: { status: string; message?: string; fields?: readonly string[] };
+  /** The permiso of the action this form submits -- several when the action also performs another acción (saving a receta regenerates its fichas técnicas). */
+  accion?: string | readonly string[];
+}
+
+export function useFormSubmit(formAction: (payload: FormData) => void, opciones?: FormSubmitOptions): FormSubmit {
   const lastFormData = useRef<FormData | null>(null);
+  const estadoAtendido = useRef<object | null>(null);
+  const operador = useOperador();
+  const estado = opciones?.estado;
+  const accion = opciones?.accion;
+
+  const despachar = useCallback((formData: FormData) => startTransition(() => formAction(formData)), [formAction]);
+
+  const despacharConOperador = useCallback(
+    (formData: FormData, error?: string) => {
+      void operador.pedir(error).then((campos) => {
+        if (!campos) return;
+        for (const [nombre, valor] of Object.entries(campos)) formData.set(nombre, valor);
+        despachar(formData);
+      });
+    },
+    [operador, despachar],
+  );
 
   const onSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
@@ -64,16 +102,34 @@ export function useFormSubmit(formAction: (payload: FormData) => void): FormSubm
       const submitter = (event.nativeEvent as SubmitEvent).submitter ?? null;
       const formData = new FormData(form, submitter);
       lastFormData.current = formData;
-      startTransition(() => formAction(formData));
+      const acciones = accion === undefined ? [] : typeof accion === "string" ? [accion] : accion;
+      if (acciones.some((codigo) => operador.requierePin(codigo))) despacharConOperador(formData);
+      else despachar(formData);
     },
-    [formAction],
+    [operador, accion, despachar, despacharConOperador],
   );
 
   const resubmit = useCallback(() => {
     const formData = lastFormData.current;
     if (!formData) return;
-    startTransition(() => formAction(formData));
-  }, [formAction]);
+    despachar(formData);
+  }, [despachar]);
+
+  useEffect(() => {
+    // Each result is answered once (a new submit returns a new state object).
+    if (!estado || estadoAtendido.current === estado) return;
+    estadoAtendido.current = estado;
+    const formData = lastFormData.current;
+    if (!formData) return;
+    if (estado.status === "operador-required") {
+      despacharConOperador(formData);
+    } else if (estado.status === "error" && estado.fields?.includes(CAMPO_OPERADOR_PIN)) {
+      despacharConOperador(formData, estado.message);
+    } else if (estado.status === "success") {
+      // The act is done: the PIN must not linger in memory.
+      formData.delete(CAMPO_OPERADOR_PIN);
+    }
+  }, [estado, despacharConOperador]);
 
   return { onSubmit, resubmit };
 }

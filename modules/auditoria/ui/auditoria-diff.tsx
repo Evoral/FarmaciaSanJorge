@@ -47,9 +47,17 @@ function textoDe(contexto: unknown, clave: string): string | null {
   return typeof valor === "string" ? valor : null;
 }
 
+/** `contexto.terminal.usuario`: the cuenta de sector an empleado identified themselves on (shared/audit, docs/specs/cuentas-de-sector.md). */
+function terminalDe(contexto: unknown): string | null {
+  if (typeof contexto !== "object" || contexto === null || Array.isArray(contexto)) return null;
+  return textoDe((contexto as Record<string, unknown>).terminal, "usuario");
+}
+
 export function AuditoriaDiff({ entidad, entidadId, valorAnterior, valorNuevo, zonaHoraria, ip, contexto }: AuditoriaDiffProps) {
   const userAgent = textoDe(contexto, "userAgent");
   const requestId = textoDe(contexto, "requestId");
+  const terminal = terminalDe(contexto);
+  const verificacion = textoDe(contexto, "verificacion");
   const cambios = calcularCambios(valorAnterior, valorNuevo, zonaHoraria);
   const conAntes = cambios.some((cambio) => cambio.antes !== null);
   const conDespues = cambios.some((cambio) => cambio.despues !== null);
@@ -78,6 +86,13 @@ export function AuditoriaDiff({ entidad, entidadId, valorAnterior, valorNuevo, z
           </tbody>
         </table>
       )}
+
+      {terminal ? (
+        <p className="text-xs text-zinc-600 dark:text-zinc-400">
+          Realizado desde la cuenta de sector <span className="font-medium">{terminal}</span>
+          {verificacion ? ` · identificado con ${verificacion}` : null}
+        </p>
+      ) : null}
 
       <details className="text-sm">
         <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200">

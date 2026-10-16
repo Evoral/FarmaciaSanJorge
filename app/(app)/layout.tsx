@@ -18,6 +18,7 @@ import { resumenJornadasPendientes } from "@/modules/cierres/application/list-jo
 import { resumenDestruccion } from "@/modules/archivo/application/resumen-destruccion";
 import { resumenVencimientosDrogas } from "@/modules/stock/application/vencimientos-drogas";
 import { getLogger } from "@/shared/logging/logger";
+import { OperadorProvider } from "@/modules/operadores/ui/operador-provider";
 import { AppShell } from "./app-shell";
 import { SIDEBAR_COLLAPSED_COOKIE } from "./sidebar-state";
 import { accesosSections, catalogosSections, configuracionSections, firstSectionHref, gestionDtSections } from "./nav-sections";
@@ -194,7 +195,7 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
     });
   }
 
-  return (
+  const shell = (
     <AppShell
       initialCollapsed={sidebarCollapsed}
       nav={{
@@ -224,6 +225,11 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
       {modal}
     </AppShell>
   );
+
+  // A cuenta de sector (docs/specs/cuentas-de-sector.md): the forms ask which empleado is acting for the acciones con PIN.
+  // Only the acciones this account can perform: one it lacks is rejected by authorize() before any PIN matters.
+  const permisosConPin = session.sector ? [...session.sector.permisosConPin].filter((permiso) => can(session, permiso)) : null;
+  return permisosConPin ? <OperadorProvider permisosConPin={permisosConPin}>{shell}</OperadorProvider> : shell;
 }
 
 type AvisoTone = "warn" | "danger";

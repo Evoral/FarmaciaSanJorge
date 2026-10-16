@@ -218,7 +218,10 @@ export default async function UsuariosPage({ searchParams }: UsuariosPageProps) 
                               <Link href={`/admin/accesos/usuarios/${usuario.id}`} className="block truncate font-medium text-zinc-900 underline-offset-2 hover:underline">
                                 {nombre}
                               </Link>
-                              <span className="block truncate text-xs text-zinc-500">{usuario.email}</span>
+                              <span className="block truncate text-xs text-zinc-500">
+                                {usuario.email}
+                                {usuario.esSector ? " · Cuenta de sector" : null}
+                              </span>
                             </span>
                           </span>
                         </td>

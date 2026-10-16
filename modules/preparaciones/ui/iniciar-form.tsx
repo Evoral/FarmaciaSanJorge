@@ -24,6 +24,7 @@ export function IniciarPreparacionForm({ fichaTecnicaId, label = "Preparar", pen
   return (
     <SimpleForm
       action={iniciarPreparacionAction}
+      accion="preparaciones.iniciar"
       submitLabel={label}
       pendingLabel={pendingLabel}
       submitSize={size}

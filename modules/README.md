@@ -30,8 +30,9 @@ don't read it whole). Cross-cutting platform code (M00) lives in `shared/`.
 | Module | Plan | Owns |
 |---|---|---|
 | `auditoria` | M01 | Audit log listing and queries (writing goes through `shared/audit`) |
-| `auth` | M02 | Login, sessions, PIN, account activation |
+| `auth` | M02 | Login, sessions, PIN, account activation, identifying the empleado on a shared session |
 | `usuarios` | M03 | Users, roles and permissions (`docs/specs/roles-personalizables.md`) |
+| `operadores` | — | Cuentas de sector: which acciones ask for the empleado's PIN, and the "who is acting" prompt (`cuentas-de-sector`). The verification itself lives in `auth` |
 | `directores-tecnicos` | M04 | Director Técnico designation and who is in charge today |
 | `unidades` | M05 | Units of measure catalog |
 | `drogas` | M06 | Drugs catalog and their synonyms (`sinonimos-droga`) |

@@ -24,7 +24,7 @@
  * user typed; the form is cleared explicitly on success below. The error's
  * `fields` are marked invalid (`shared/ui/field-errors.ts`).
  */
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { CircleAlert } from "lucide-react";
 import { crearUsuarioAction, type CrearUsuarioFormState } from "./actions";
@@ -54,6 +54,8 @@ export function NuevoUsuarioForm({ roles }: { roles: readonly { codigo: string; 
   const { onSubmit, resubmit } = useReauthFormSubmit(formAction);
   const formRef = useRef<HTMLFormElement>(null);
   const alertRef = useRef<HTMLDivElement>(null);
+  // A cuenta de sector (docs/specs/cuentas-de-sector.md) asks only for the sector's name and its login email.
+  const [esSector, setEsSector] = useState(false);
 
   useEffect(() => {
     if (state.status === "error" || state.status === "success") {
@@ -97,40 +99,63 @@ export function NuevoUsuarioForm({ roles }: { roles: readonly { codigo: string; 
 
       <form ref={formRef} action={formAction} onSubmit={onSubmit} noValidate className="panel">
         <div className="panel-header">
-          <h2>Datos de la persona</h2>
+          <h2>{esSector ? "Datos del sector" : "Datos de la persona"}</h2>
         </div>
         <div className="panel-body flex flex-col gap-5">
+          {/* First: it decides which fields the form asks for (a sector is not a person -- no apellido, DNI nor matrícula). */}
+          <label className="choice-row items-start">
+            <input type="checkbox" name="esSector" checked={esSector} onChange={(event) => setEsSector(event.target.checked)} className="mt-0.5 size-4" />
+            <span>
+              <span className="font-medium text-zinc-900">Cuenta de sector</span>
+              <span className="block text-[0.8125rem] text-zinc-500">
+                Una sesión compartida por puesto de trabajo (mostrador, laboratorio), no una persona. En las acciones que piden PIN, cada empleado se identifica con el suyo. No
+                admite los roles Administrador ni Director Técnico y no se puede cambiar después.
+              </span>
+            </span>
+          </label>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="field">
               <label htmlFor="nombre" className="field-label">
-                Nombre
+                {esSector ? "Nombre del sector" : "Nombre"}
               </label>
-              <input id="nombre" name="nombre" required className="input" />
+              <input id="nombre" name="nombre" required placeholder={esSector ? "Laboratorio" : undefined} className="input" />
             </div>
-            <div className="field">
-              <label htmlFor="apellido" className="field-label">
-                Apellido
-              </label>
-              <input id="apellido" name="apellido" required className="input" />
-            </div>
+            {esSector ? null : (
+              <div className="field">
+                <label htmlFor="apellido" className="field-label">
+                  Apellido
+                </label>
+                <input id="apellido" name="apellido" required className="input" />
+              </div>
+            )}
             <div className="field">
               <label htmlFor="email" className="field-label">
                 Email
               </label>
-              <input id="email" name="email" type="email" required className="input" />
+              <input id="email" name="email" type="email" required aria-describedby={esSector ? "email-ayuda" : undefined} className="input" />
+              {esSector ? (
+                <p id="email-ayuda" className="field-help">
+                  Es el usuario con el que la cuenta inicia sesión. No hace falta que sea una casilla real: el sistema no le envía correos.
+                </p>
+              ) : null}
             </div>
-            <div className="field">
-              <label htmlFor="dni" className="field-label">
-                DNI
-              </label>
-              <input id="dni" name="dni" required className="input font-mono" />
-            </div>
-            <div className="field">
-              <label htmlFor="numeroMatricula" className="field-label">
-                Matrícula <span className="font-normal text-zinc-500">(opcional)</span>
-              </label>
-              <input id="numeroMatricula" name="numeroMatricula" className="input font-mono" />
-            </div>
+            {esSector ? null : (
+              <>
+                <div className="field">
+                  <label htmlFor="dni" className="field-label">
+                    DNI
+                  </label>
+                  <input id="dni" name="dni" required className="input font-mono" />
+                </div>
+                <div className="field">
+                  <label htmlFor="numeroMatricula" className="field-label">
+                    Matrícula <span className="font-normal text-zinc-500">(opcional)</span>
+                  </label>
+                  <input id="numeroMatricula" name="numeroMatricula" className="input font-mono" />
+                </div>
+              </>
+            )}
           </div>
 
           <fieldset className="flex flex-col gap-2">

@@ -40,8 +40,8 @@ export const AUTH_POLICY = {
   /** DP-20 pending / INV-X02 pending. How recent a re-authentication must be for step-up actions. */
   reauthWindowMinutes: 15,
 
-  /** Resolved value (user decision, PIN re-auth feature): exact length of the "clave rápida" PIN. Never a range -- the format check rejects anything else. */
-  pinLength: 6,
+  /** Resolved value: exact length of the "clave rápida" PIN. Never a range -- the format check rejects anything else. 4 since 2026-10-13 (user decision; it was 6 -- migration 0078 cleared every existing PIN). The ONE place this number lives: the format check, every PIN input and the messages read it. */
+  pinLength: 4,
 
   /** Resolved value (user decision, PIN re-auth feature): consecutive failed PIN attempts before `pin_bloqueado` -- a counter separate from `maxFailedLoginAttempts` (password lockout), so PIN brute-forcing can never lock the account itself (DoS avoidance) and password brute-forcing never touches the PIN counter. */
   maxFailedPinAttempts: 5,

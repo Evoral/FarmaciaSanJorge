@@ -18,6 +18,7 @@
  */
 import type { Prisma } from "@/generated/prisma/client";
 import { TipoAccion } from "@/generated/prisma/client";
+import { solicitudDeOperador } from "@/shared/auth/operador-context";
 import { getRequestContext } from "./request-context";
 
 export { TipoAccion };
@@ -58,13 +59,23 @@ function esObjetoPlano(value: unknown): value is Record<string, Prisma.InputJson
  * Writes one immutable audit row inside `tx`. The request's client IP, user
  * agent and request id (./request-context.ts) are added automatically, so
  * every row answers "from where" without each caller having to pass it;
- * explicit `ip`/`contexto` from the caller win over them.
+ * explicit `ip`/`contexto` from the caller win over them. A row whose
+ * `usuarioId` is an empleado identified on a cuenta de sector also gets
+ * `contexto.terminal` (the shared account and its sesion) and
+ * `contexto.verificacion` (the method, e.g. "PIN").
  */
 export async function record(tx: Prisma.TransactionClient, input: AuditRecordInput): Promise<void> {
   const request = await getRequestContext();
-  const automatico: Record<string, string> = {};
+  const automatico: Record<string, Prisma.InputJsonValue> = {};
   if (request.requestId) automatico.requestId = request.requestId;
   if (request.userAgent) automatico.userAgent = request.userAgent;
+  // A row authored by the empleado verified in this request (cuenta de sector, docs/specs/cuentas-de-sector.md)
+  // also says which shared terminal they acted from and how they proved who they are.
+  const operador = solicitudDeOperador()?.operador;
+  if (operador && operador.usuarioId === input.usuarioId) {
+    automatico.terminal = operador.terminal;
+    automatico.verificacion = operador.verificacion;
+  }
   const contexto: Prisma.InputJsonValue | undefined =
     input.contexto === undefined
       ? Object.keys(automatico).length > 0

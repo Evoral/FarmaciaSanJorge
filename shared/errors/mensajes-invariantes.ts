@@ -127,6 +127,10 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   "INV-ROL-004": "El rol está asignado a uno o más usuarios: quitáselo antes de eliminarlo.",
   "INV-ROL-005": "El rol interno del sistema no se puede asignar a un usuario.",
 
+  // Cuentas de sector (migration 0077)
+  "INV-SEC-001": "Una cuenta de sector no puede tener el rol Administrador ni el de Director Técnico.",
+  "INV-SEC-002": "Un usuario no puede pasar a ser cuenta de sector ni dejar de serlo: se define al crearlo.",
+
   // Usuarios
   "INV-U02": "El usuario debe tener al menos un rol.",
   "INV-U04": "No hay una designación de Director Técnico vigente para esa fecha.",

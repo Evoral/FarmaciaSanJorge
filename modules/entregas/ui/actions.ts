@@ -4,6 +4,7 @@
 import { revalidatePath } from "next/cache";
 import { registrarEntrega } from "@/modules/entregas/application/registrar-entrega";
 import { confirmarFirmaRecibida } from "@/modules/entregas/application/confirmar-firma-recibida";
+import { conOperador } from "@/shared/auth/operador-context";
 import { actionError } from "@/shared/ui/action-error";
 import type { EntregaActionState } from "./action-state";
 
@@ -18,25 +19,29 @@ function revalidarEntregas(recetaId: string): void {
 }
 
 export async function registrarEntregaAction(_prevState: EntregaActionState, formData: FormData): Promise<EntregaActionState> {
-  try {
-    const recetaId = String(formData.get("recetaId") ?? "");
-    const modalidad = String(formData.get("modalidad") ?? "") as "RETIRO_PRESENCIAL" | "ENVIO";
-    await registrarEntrega({ recetaId, modalidad, pagada: formData.get("pagada") === "on" });
-    revalidarEntregas(recetaId);
-    const mensaje = modalidad === "RETIRO_PRESENCIAL" ? "Entrega registrada." : "Envío registrado: pendiente de confirmar firma recibida.";
-    return { status: "success", message: mensaje, id: recetaId };
-  } catch (error) {
-    return fromError(error, "No se pudo registrar la entrega.");
-  }
+  return conOperador(formData, async (): Promise<EntregaActionState> => {
+    try {
+      const recetaId = String(formData.get("recetaId") ?? "");
+      const modalidad = String(formData.get("modalidad") ?? "") as "RETIRO_PRESENCIAL" | "ENVIO";
+      await registrarEntrega({ recetaId, modalidad, pagada: formData.get("pagada") === "on" });
+      revalidarEntregas(recetaId);
+      const mensaje = modalidad === "RETIRO_PRESENCIAL" ? "Entrega registrada." : "Envío registrado: pendiente de confirmar firma recibida.";
+      return { status: "success", message: mensaje, id: recetaId };
+    } catch (error) {
+      return fromError(error, "No se pudo registrar la entrega.");
+    }
+  });
 }
 
 export async function confirmarFirmaRecibidaAction(_prevState: EntregaActionState, formData: FormData): Promise<EntregaActionState> {
-  try {
-    const recetaId = String(formData.get("recetaId") ?? "");
-    await confirmarFirmaRecibida({ recetaId, pagada: formData.get("pagada") === "on" });
-    revalidarEntregas(recetaId);
-    return { status: "success", message: "Firma recibida confirmada: receta entregada.", id: recetaId };
-  } catch (error) {
-    return fromError(error, "No se pudo confirmar la firma recibida.");
-  }
+  return conOperador(formData, async (): Promise<EntregaActionState> => {
+    try {
+      const recetaId = String(formData.get("recetaId") ?? "");
+      await confirmarFirmaRecibida({ recetaId, pagada: formData.get("pagada") === "on" });
+      revalidarEntregas(recetaId);
+      return { status: "success", message: "Firma recibida confirmada: receta entregada.", id: recetaId };
+    } catch (error) {
+      return fromError(error, "No se pudo confirmar la firma recibida.");
+    }
+  });
 }

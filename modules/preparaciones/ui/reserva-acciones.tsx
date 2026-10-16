@@ -33,6 +33,7 @@ export function LiberarReservaForm({ preparacionId }: { preparacionId: string })
     // The ítem goes back to Pendiente and this form unmounts: the message goes to a toast.
     <ReauthAwareForm
       action={liberarReservaStockAction}
+      accion="preparaciones.descartar"
       submitLabel="Liberar reserva"
       pendingLabel="Liberando…"
       submitVariant="secondary"
@@ -66,6 +67,7 @@ export function EtiquetaDeItem({ preparacionId, reservada, puedeImprimir, tamano
   return (
     <ReauthAwareForm
       action={confirmarReservaStockAction}
+      accion="preparaciones.confirmar"
       submitLabel="Imprimir etiqueta"
       pendingLabel="Confirmando…"
       layout="inline"
@@ -142,6 +144,7 @@ export function PerdidaReservaDialog({ preparacionId, partidas, dts, operadorEsD
           <SimpleForm
             key={apertura}
             action={registrarPerdidaReservaAction}
+            accion="preparaciones.confirmar"
             submitLabel="Registrar pérdida"
             pendingLabel="Registrando…"
             submitVariant="danger-solid"

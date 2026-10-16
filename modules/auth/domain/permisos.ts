@@ -183,3 +183,114 @@ export function esPermisoAsignableARol(value: string): value is Permiso {
  * their own password. Every default role already holds all three.
  */
 export const PERMISOS_BASE_DE_ROL = ["auth.login", "auth.logout", "auth.password.cambiar"] as const satisfies readonly Permiso[];
+
+/**
+ * Permisos a "cuenta de sector" (`usuario.es_sector`, a shared session per
+ * work area -- docs/specs/cuentas-de-sector.md) NEVER holds, whatever its
+ * roles say: the Director Técnico's own acts (they keep an individual
+ * session) and the administration of usuarios, roles and configuration. The
+ * session loader subtracts them (`permisosEfectivos`).
+ */
+export const PERMISOS_VEDADOS_A_SECTOR = [
+  "usuarios.crear",
+  "usuarios.editar",
+  "usuarios.roles.modificar",
+  "usuarios.suspender",
+  "usuarios.reactivar",
+  "usuarios.baja",
+  "usuarios.credencial.restablecer",
+  "dt.designar",
+  "dt.cesar",
+  "roles.gestionar",
+  "config.editar",
+  "stock.ajuste.autorizar",
+  "libro.anulacion.autorizar",
+  "cierres.firmar",
+  "cierres.folio.corregir",
+  "libros.crear",
+  "libros.cerrar",
+  "archivo.destruccion.gestionar",
+] as const satisfies readonly Permiso[];
+
+/**
+ * The acciones (permisos) a farmacia can switch "pide PIN" on or off for
+ * (`fsj.accion_con_pin`, docs/specs/cuentas-de-sector.md), in catalog order:
+ * exactly the ones whose Server Actions carry the operador's credential
+ * (`conOperador`, shared/auth/operador-context.ts). In a cuenta de sector, a
+ * command with one of these switched on is attributed to the empleado who
+ * typed their PIN.
+ */
+export const PERMISOS_CON_PIN_CONFIGURABLES = [
+  "drogas.crear",
+  "drogas.editar",
+  "drogas.baja",
+  "drogas.reactivar",
+  "stock.partida.ingresar",
+  "stock.ajuste.registrar",
+  "recetas.crear",
+  "recetas.editar",
+  "recetas.anular",
+  "fichas.generar",
+  "preparaciones.iniciar",
+  "preparaciones.descartar",
+  "preparaciones.confirmar",
+  "etiquetas.generar",
+  "entregas.registrar",
+  "entregas.firma.confirmar",
+] as const satisfies readonly Permiso[];
+
+/**
+ * What a new farmacia starts with (mirrors `fsj.seed_acciones_con_pin`,
+ * migration 0077): the laboratorio / stock / drogas acts ask for the PIN,
+ * the mostrador ones (recetas, presupuestos, entregas) do not.
+ */
+export const PERMISOS_CON_PIN_POR_DEFECTO = [
+  "drogas.crear",
+  "drogas.editar",
+  "drogas.baja",
+  "drogas.reactivar",
+  "stock.partida.ingresar",
+  "stock.ajuste.registrar",
+  "fichas.generar",
+  "preparaciones.iniciar",
+  "preparaciones.descartar",
+  "preparaciones.confirmar",
+  "etiquetas.generar",
+] as const satisfies readonly (typeof PERMISOS_CON_PIN_CONFIGURABLES)[number][];
+
+const CON_PIN_CONFIGURABLES: ReadonlySet<string> = new Set(PERMISOS_CON_PIN_CONFIGURABLES);
+
+export function esPermisoConPinConfigurable(value: string): value is (typeof PERMISOS_CON_PIN_CONFIGURABLES)[number] {
+  return CON_PIN_CONFIGURABLES.has(value);
+}
+
+/** One role as the loaders read it: the locked ADMINISTRADOR flag and its rol_permiso codes. */
+export interface RolConPermisos {
+  esAdministrador: boolean;
+  permisos: readonly string[];
+}
+
+/**
+ * The EFFECTIVE permission set of a usuario: the union over its roles. A
+ * role with `esAdministrador` contributes `PERMISOS_DE_ADMINISTRADOR`
+ * instead of its (always empty) rol_permiso rows; unknown codes are dropped
+ * (the DB catalog matches `PERMISO_CODES`, see tests/db/auth-permisos.test.ts,
+ * this only avoids trusting a drifted string). A cuenta de sector never
+ * holds `PERMISOS_VEDADOS_A_SECTOR`.
+ */
+export function permisosEfectivos(roles: readonly RolConPermisos[], esSector: boolean): Set<Permiso> {
+  const permisos = new Set<Permiso>();
+  for (const rol of roles) {
+    if (rol.esAdministrador) {
+      for (const codigo of PERMISOS_DE_ADMINISTRADOR) permisos.add(codigo);
+      continue;
+    }
+    for (const codigo of rol.permisos) {
+      if (isPermiso(codigo)) permisos.add(codigo);
+    }
+  }
+  if (esSector) {
+    for (const codigo of PERMISOS_VEDADOS_A_SECTOR) permisos.delete(codigo);
+  }
+  return permisos;
+}

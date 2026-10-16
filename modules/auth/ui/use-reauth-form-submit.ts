@@ -18,10 +18,10 @@
  * the full rationale, including why the submit button's pending state
  * comes from `useActionState`'s `isPending` rather than `useFormStatus`.
  */
-import { useFormSubmit, type FormSubmit } from "@/shared/ui/use-form-submit";
+import { useFormSubmit, type FormSubmit, type FormSubmitOptions } from "@/shared/ui/use-form-submit";
 
 export type ReauthFormSubmit = FormSubmit;
 
-export function useReauthFormSubmit(formAction: (payload: FormData) => void): ReauthFormSubmit {
-  return useFormSubmit(formAction);
+export function useReauthFormSubmit(formAction: (payload: FormData) => void, opciones?: FormSubmitOptions): ReauthFormSubmit {
+  return useFormSubmit(formAction, opciones);
 }

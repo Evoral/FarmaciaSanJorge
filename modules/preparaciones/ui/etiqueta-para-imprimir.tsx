@@ -40,6 +40,7 @@ export function EtiquetaParaImprimir({ preparacionId, generada, puedeGenerar, pu
   return (
     <SimpleForm
       action={generarEtiquetaAction}
+      accion="etiquetas.generar"
       submitLabel={puedeImprimir ? "Imprimir etiqueta" : "Generar etiqueta"}
       pendingLabel="Generando…"
       submitVariant={variant}

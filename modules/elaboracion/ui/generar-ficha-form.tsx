@@ -14,6 +14,7 @@ export function GenerarFichaForm({ itemRecetaId, recetaId, label }: GenerarFicha
   return (
     <SimpleForm
       action={generarFichaTecnicaAction}
+      accion="fichas.generar"
       submitLabel={label}
       pendingLabel="Generando…"
       successMessage={(state) => state.message ?? `Ficha versión ${state.version} generada.`}

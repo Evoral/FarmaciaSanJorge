@@ -58,7 +58,7 @@ export default async function UsuarioDetallePage({ params, searchParams }: Usuar
             <StatusBadge estado={usuario.estado} />
           </span>
         }
-        description={usuario.email}
+        description={usuario.esSector ? `${usuario.email} · Cuenta de sector (sesión compartida: las acciones con PIN quedan a nombre del empleado que lo ingresa)` : usuario.email}
       />
 
       <nav aria-label="Secciones del usuario" className="tab-nav">

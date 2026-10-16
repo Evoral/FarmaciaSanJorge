@@ -20,19 +20,22 @@ import { getConfirmacionDeFicha } from "@/modules/preparaciones/application/get-
 import { generarEtiqueta } from "@/modules/preparaciones/application/generar-etiqueta";
 import { previsualizarFichas } from "@/modules/preparaciones/application/previsualizar-fichas";
 import { StepUpRequiredError } from "@/shared/errors";
+import { conOperador } from "@/shared/auth/operador-context";
 import { actionError, actionErrorMessage } from "@/shared/ui/action-error";
 import type { ConfirmacionDeFichaState, PreparacionActionState, VistaPreviaFichasState } from "./action-state";
 
 export async function iniciarPreparacionAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
-  try {
-    const nueva = await iniciarPreparacion({ fichaTecnicaId: String(formData.get("fichaTecnicaId") ?? "") });
-    revalidatePath("/preparaciones");
-    // The receta (possibly taken now) is no longer editable while the preparación lives.
-    revalidatePath("/recetas");
-    return { status: "success", message: "Preparación iniciada.", id: nueva.id };
-  } catch (error) {
-    return actionError(error, "No se pudo iniciar la preparación.");
-  }
+  return conOperador(formData, async (): Promise<PreparacionActionState> => {
+    try {
+      const nueva = await iniciarPreparacion({ fichaTecnicaId: String(formData.get("fichaTecnicaId") ?? "") });
+      revalidatePath("/preparaciones");
+      // The receta (possibly taken now) is no longer editable while the preparación lives.
+      revalidatePath("/recetas");
+      return { status: "success", message: "Preparación iniciada.", id: nueva.id };
+    } catch (error) {
+      return actionError(error, "No se pudo iniciar la preparación.");
+    }
+  });
 }
 
 /**
@@ -54,40 +57,46 @@ export async function previsualizarFichasAction(itemsJson: string): Promise<Vist
  * a client-side `onSuccess` could navigate. `redirect` throws, so it stays outside the try/catch.
  */
 export async function tomarRecetaAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
-  let recetaId: string;
-  try {
-    recetaId = (await tomarReceta({ recetaId: String(formData.get("recetaId") ?? "") })).id;
-    revalidatePath("/preparaciones");
-    revalidatePath("/recetas");
-  } catch (error) {
-    return actionError(error, "No se pudo tomar la receta.");
-  }
-  redirect(hrefToma(recetaId));
+  return conOperador(formData, async (): Promise<PreparacionActionState> => {
+    let recetaId: string;
+    try {
+      recetaId = (await tomarReceta({ recetaId: String(formData.get("recetaId") ?? "") })).id;
+      revalidatePath("/preparaciones");
+      revalidatePath("/recetas");
+    } catch (error) {
+      return actionError(error, "No se pudo tomar la receta.");
+    }
+    redirect(hrefToma(recetaId));
+  });
 }
 
 /** Reverts a toma: the receta goes back to Pendientes. */
 export async function cancelarTomaAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
-  try {
-    const receta = await cancelarToma({ recetaId: String(formData.get("recetaId") ?? "") });
-    revalidatePath("/preparaciones");
-    revalidatePath("/recetas");
-    return { status: "success", message: "Toma cancelada. La receta volvió a Pendientes.", id: receta.id };
-  } catch (error) {
-    return actionError(error, "No se pudo cancelar la toma.");
-  }
+  return conOperador(formData, async (): Promise<PreparacionActionState> => {
+    try {
+      const receta = await cancelarToma({ recetaId: String(formData.get("recetaId") ?? "") });
+      revalidatePath("/preparaciones");
+      revalidatePath("/recetas");
+      return { status: "success", message: "Toma cancelada. La receta volvió a Pendientes.", id: receta.id };
+    } catch (error) {
+      return actionError(error, "No se pudo cancelar la toma.");
+    }
+  });
 }
 
 export async function descartarPreparacionAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
-  try {
-    await descartarPreparacion({
-      preparacionId: String(formData.get("preparacionId") ?? ""),
-      motivo: String(formData.get("motivo") ?? ""),
-    });
-    revalidatePath("/preparaciones");
-    return { status: "success", message: "Preparación descartada." };
-  } catch (error) {
-    return actionError(error, "No se pudo descartar la preparación.");
-  }
+  return conOperador(formData, async (): Promise<PreparacionActionState> => {
+    try {
+      await descartarPreparacion({
+        preparacionId: String(formData.get("preparacionId") ?? ""),
+        motivo: String(formData.get("motivo") ?? ""),
+      });
+      revalidatePath("/preparaciones");
+      return { status: "success", message: "Preparación descartada." };
+    } catch (error) {
+      return actionError(error, "No se pudo descartar la preparación.");
+    }
+  });
 }
 
 /**
@@ -115,20 +124,22 @@ function parseLineas(formData: FormData): ConfirmarPreparacionLineaInput[] {
 }
 
 export async function confirmarPreparacionAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
-  const preparacionId = String(formData.get("preparacionId") ?? "");
-  try {
-    const resultado = await confirmarPreparacion({ preparacionId, lineas: parseLineas(formData) });
-    revalidatePath(`/preparaciones/${preparacionId}`);
-    revalidatePath("/preparaciones");
-    // The receta moved to EN_PREPARACION with its first ítem, or PREPARADA with its last.
-    revalidatePath("/recetas");
-    return { status: "success", message: `Preparación confirmada. Asiento libro recetario Nº ${resultado.numeroCorrelativo}.`, id: resultado.id };
-  } catch (error) {
-    if (error instanceof StepUpRequiredError) {
-      return { status: "reauth-required" };
+  return conOperador(formData, async (): Promise<PreparacionActionState> => {
+    const preparacionId = String(formData.get("preparacionId") ?? "");
+    try {
+      const resultado = await confirmarPreparacion({ preparacionId, lineas: parseLineas(formData) });
+      revalidatePath(`/preparaciones/${preparacionId}`);
+      revalidatePath("/preparaciones");
+      // The receta moved to EN_PREPARACION with its first ítem, or PREPARADA with its last.
+      revalidatePath("/recetas");
+      return { status: "success", message: `Preparación confirmada. Asiento libro recetario Nº ${resultado.numeroCorrelativo}.`, id: resultado.id };
+    } catch (error) {
+      if (error instanceof StepUpRequiredError) {
+        return { status: "reauth-required" };
+      }
+      return actionError(error, "No se pudo confirmar la preparación.");
     }
-    return actionError(error, "No se pudo confirmar la preparación.");
-  }
+  });
 }
 
 /**
@@ -148,18 +159,20 @@ export async function getConfirmacionDeFichaAction(fichaTecnicaId: string): Prom
  * fields as `confirmarPreparacionAction`, keyed by `fichaTecnicaId`). Nothing is descontado nor written to the libro yet.
  */
 export async function reservarStockAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
-  try {
-    const resultado = await reservarStockPreparacion({ fichaTecnicaId: String(formData.get("fichaTecnicaId") ?? ""), lineas: parseLineas(formData) });
-    revalidatePath("/preparaciones");
-    // The receta is no longer editable while the reserva lives (its estado does not change).
-    revalidatePath("/recetas");
-    return { status: "success", message: "Stock reservado. Al imprimir la etiqueta se descuenta y se registra en el libro recetario.", id: resultado.id };
-  } catch (error) {
-    if (error instanceof StepUpRequiredError) {
-      return { status: "reauth-required" };
+  return conOperador(formData, async (): Promise<PreparacionActionState> => {
+    try {
+      const resultado = await reservarStockPreparacion({ fichaTecnicaId: String(formData.get("fichaTecnicaId") ?? ""), lineas: parseLineas(formData) });
+      revalidatePath("/preparaciones");
+      // The receta is no longer editable while the reserva lives (its estado does not change).
+      revalidatePath("/recetas");
+      return { status: "success", message: "Stock reservado. Al imprimir la etiqueta se descuenta y se registra en el libro recetario.", id: resultado.id };
+    } catch (error) {
+      if (error instanceof StepUpRequiredError) {
+        return { status: "reauth-required" };
+      }
+      return actionError(error, "No se pudo reservar el stock.");
     }
-    return actionError(error, "No se pudo reservar el stock.");
-  }
+  });
 }
 
 /** What the "Modificar reserva" dialog shows: the "Continuar" data prefilled with the current reserva. Writes nothing. */
@@ -173,16 +186,18 @@ export async function getModificacionDeReservaAction(preparacionId: string): Pro
 
 /** "Modificar reserva": replaces the reserva of the same preparación (same form fields as `reservarStockAction`, keyed by `preparacionId`). */
 export async function modificarReservaStockAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
-  try {
-    const resultado = await modificarReservaStock({ preparacionId: String(formData.get("preparacionId") ?? ""), lineas: parseLineas(formData) });
-    revalidatePath("/preparaciones");
-    return { status: "success", message: "Reserva modificada.", id: resultado.id };
-  } catch (error) {
-    if (error instanceof StepUpRequiredError) {
-      return { status: "reauth-required" };
+  return conOperador(formData, async (): Promise<PreparacionActionState> => {
+    try {
+      const resultado = await modificarReservaStock({ preparacionId: String(formData.get("preparacionId") ?? ""), lineas: parseLineas(formData) });
+      revalidatePath("/preparaciones");
+      return { status: "success", message: "Reserva modificada.", id: resultado.id };
+    } catch (error) {
+      if (error instanceof StepUpRequiredError) {
+        return { status: "reauth-required" };
+      }
+      return actionError(error, "No se pudo modificar la reserva.");
     }
-    return actionError(error, "No se pudo modificar la reserva.");
-  }
+  });
 }
 
 /**
@@ -190,47 +205,51 @@ export async function modificarReservaStockAction(_prevState: PreparacionActionS
  * and the reserva re-planned. The message says whether the reserva still covers the receta.
  */
 export async function registrarPerdidaReservaAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
-  try {
-    const observacion = String(formData.get("observacion") ?? "").trim();
-    const resultado = await registrarPerdidaReserva({
-      preparacionId: String(formData.get("preparacionId") ?? ""),
-      partidaId: String(formData.get("partidaId") ?? ""),
-      cantidad: String(formData.get("cantidad") ?? ""),
-      motivoAjuste: String(formData.get("motivoAjuste") ?? "") as RegistrarPerdidaReservaInput["motivoAjuste"],
-      observacion: observacion || undefined,
-      dtUsuarioId: String(formData.get("dtUsuarioId") ?? ""),
-      dtPassword: String(formData.get("dtPassword") ?? ""),
-    });
-    revalidatePath("/preparaciones");
-    revalidatePath("/stock");
-    return {
-      status: "success",
-      message: resultado.reservaAlcanza
-        ? "Pérdida registrada. La reserva sigue cubriendo la receta."
-        : "Pérdida registrada. La reserva ya no alcanza: modificá la reserva para elegir otro lote.",
-    };
-  } catch (error) {
-    if (error instanceof StepUpRequiredError) {
-      return { status: "reauth-required" };
+  return conOperador(formData, async (): Promise<PreparacionActionState> => {
+    try {
+      const observacion = String(formData.get("observacion") ?? "").trim();
+      const resultado = await registrarPerdidaReserva({
+        preparacionId: String(formData.get("preparacionId") ?? ""),
+        partidaId: String(formData.get("partidaId") ?? ""),
+        cantidad: String(formData.get("cantidad") ?? ""),
+        motivoAjuste: String(formData.get("motivoAjuste") ?? "") as RegistrarPerdidaReservaInput["motivoAjuste"],
+        observacion: observacion || undefined,
+        dtUsuarioId: String(formData.get("dtUsuarioId") ?? ""),
+        dtPassword: String(formData.get("dtPassword") ?? ""),
+      });
+      revalidatePath("/preparaciones");
+      revalidatePath("/stock");
+      return {
+        status: "success",
+        message: resultado.reservaAlcanza
+          ? "Pérdida registrada. La reserva sigue cubriendo la receta."
+          : "Pérdida registrada. La reserva ya no alcanza: modificá la reserva para elegir otro lote.",
+      };
+    } catch (error) {
+      if (error instanceof StepUpRequiredError) {
+        return { status: "reauth-required" };
+      }
+      return actionError(error, "No se pudo registrar la pérdida.");
     }
-    return actionError(error, "No se pudo registrar la pérdida.");
-  }
+  });
 }
 
 /** "Liberar reserva": deletes the ítem's reserva and discards its preparación, so the ítem is Pendiente again. */
 export async function liberarReservaStockAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
-  try {
-    await liberarReservaStock(String(formData.get("preparacionId") ?? ""));
-    revalidatePath("/preparaciones");
-    // The receta may be editable again.
-    revalidatePath("/recetas");
-    return { status: "success", message: "Reserva liberada. El ítem volvió a Pendiente." };
-  } catch (error) {
-    if (error instanceof StepUpRequiredError) {
-      return { status: "reauth-required" };
+  return conOperador(formData, async (): Promise<PreparacionActionState> => {
+    try {
+      await liberarReservaStock(String(formData.get("preparacionId") ?? ""));
+      revalidatePath("/preparaciones");
+      // The receta may be editable again.
+      revalidatePath("/recetas");
+      return { status: "success", message: "Reserva liberada. El ítem volvió a Pendiente." };
+    } catch (error) {
+      if (error instanceof StepUpRequiredError) {
+        return { status: "reauth-required" };
+      }
+      return actionError(error, "No se pudo liberar la reserva.");
     }
-    return actionError(error, "No se pudo liberar la reserva.");
-  }
+  });
 }
 
 /**
@@ -239,27 +258,31 @@ export async function liberarReservaStockAction(_prevState: PreparacionActionSta
  * dialog for it.
  */
 export async function confirmarReservaStockAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
-  try {
-    const resultado = await confirmarReservaStock(String(formData.get("preparacionId") ?? ""));
-    revalidatePath("/preparaciones");
-    // The receta moved to EN_PREPARACION with its first ítem, or PREPARADA with its last.
-    revalidatePath("/recetas");
-    return { status: "success", message: `Preparación confirmada. Asiento libro recetario Nº ${resultado.numeroCorrelativo}.`, id: resultado.id };
-  } catch (error) {
-    if (error instanceof StepUpRequiredError) {
-      return { status: "reauth-required" };
+  return conOperador(formData, async (): Promise<PreparacionActionState> => {
+    try {
+      const resultado = await confirmarReservaStock(String(formData.get("preparacionId") ?? ""));
+      revalidatePath("/preparaciones");
+      // The receta moved to EN_PREPARACION with its first ítem, or PREPARADA with its last.
+      revalidatePath("/recetas");
+      return { status: "success", message: `Preparación confirmada. Asiento libro recetario Nº ${resultado.numeroCorrelativo}.`, id: resultado.id };
+    } catch (error) {
+      if (error instanceof StepUpRequiredError) {
+        return { status: "reauth-required" };
+      }
+      return actionError(error, "No se pudo confirmar la preparación.");
     }
-    return actionError(error, "No se pudo confirmar la preparación.");
-  }
+  });
 }
 
 export async function generarEtiquetaAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
-  const preparacionId = String(formData.get("preparacionId") ?? "");
-  try {
-    await generarEtiqueta({ preparacionId });
-    revalidatePath(`/preparaciones/${preparacionId}`);
-    return { status: "success", message: "Etiqueta generada." };
-  } catch (error) {
-    return actionError(error, "No se pudo generar la etiqueta.");
-  }
+  return conOperador(formData, async (): Promise<PreparacionActionState> => {
+    const preparacionId = String(formData.get("preparacionId") ?? "");
+    try {
+      await generarEtiqueta({ preparacionId });
+      revalidatePath(`/preparaciones/${preparacionId}`);
+      return { status: "success", message: "Etiqueta generada." };
+    } catch (error) {
+      return actionError(error, "No se pudo generar la etiqueta.");
+    }
+  });
 }

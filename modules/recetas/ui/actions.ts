@@ -31,6 +31,7 @@ import { crearPacienteDesdeReceta } from "@/modules/pacientes/application/crear-
 import { listMedicos } from "@/modules/medicos/application/list-medicos";
 import { crearMedicoDesdeReceta } from "@/modules/medicos/application/crear-medico-desde-receta";
 import type { JurisdiccionMatricula } from "@/modules/medicos/domain/medico";
+import { conOperador } from "@/shared/auth/operador-context";
 import { actionError, actionErrorMessage } from "@/shared/ui/action-error";
 import type { RecetaActionState, BuscarPersonaState, CrearPersonaRapidaState, LeerRecetaState, PresupuestoState } from "./action-state";
 
@@ -46,66 +47,70 @@ function fromError(error: unknown, fallback: string): RecetaActionState {
 // ============================================================================
 
 export async function crearRecetaAction(_prevState: RecetaActionState, formData: FormData): Promise<RecetaActionState> {
-  let nueva: { id: string; numeroInterno: string };
-  try {
-    const items = JSON.parse(String(formData.get("itemsJson") ?? "[]"));
-    nueva = await crearReceta({
-      pacienteId: String(formData.get("pacienteId") ?? ""),
-      medicoId: String(formData.get("medicoId") ?? ""),
-      fechaPrescripcion: String(formData.get("fechaPrescripcion") ?? ""),
-      fechaValidaDesde: String(formData.get("fechaValidaDesde") ?? "") || null,
-      origen: String(formData.get("origen") ?? "PRESENCIAL") as "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO",
-      diagnosticoCodigo: String(formData.get("diagnosticoCodigo") ?? ""),
-      diagnosticoDescripcion: String(formData.get("diagnosticoDescripcion") ?? ""),
-      domicilioPaciente: String(formData.get("domicilioPaciente") ?? ""),
-      pagada: formData.get("pagada") === "on",
-      items,
-    });
-    revalidatePath("/recetas");
-  } catch (error) {
-    return fromError(error, "No se pudo crear la receta.");
-  }
-  const avisos = await generarFichasYCotizaciones(nueva.id, { soloSiDesactualizadas: false });
-  return { status: "success", message: "Receta creada.", id: nueva.id, numeroInterno: nueva.numeroInterno, redirigirA: urlTrasRegistrar(nueva.id, avisos) };
+  return conOperador(formData, async (): Promise<RecetaActionState> => {
+    let nueva: { id: string; numeroInterno: string };
+    try {
+      const items = JSON.parse(String(formData.get("itemsJson") ?? "[]"));
+      nueva = await crearReceta({
+        pacienteId: String(formData.get("pacienteId") ?? ""),
+        medicoId: String(formData.get("medicoId") ?? ""),
+        fechaPrescripcion: String(formData.get("fechaPrescripcion") ?? ""),
+        fechaValidaDesde: String(formData.get("fechaValidaDesde") ?? "") || null,
+        origen: String(formData.get("origen") ?? "PRESENCIAL") as "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO",
+        diagnosticoCodigo: String(formData.get("diagnosticoCodigo") ?? ""),
+        diagnosticoDescripcion: String(formData.get("diagnosticoDescripcion") ?? ""),
+        domicilioPaciente: String(formData.get("domicilioPaciente") ?? ""),
+        pagada: formData.get("pagada") === "on",
+        items,
+      });
+      revalidatePath("/recetas");
+    } catch (error) {
+      return fromError(error, "No se pudo crear la receta.");
+    }
+    const avisos = await generarFichasYCotizaciones(nueva.id, { soloSiDesactualizadas: false });
+    return { status: "success", message: "Receta creada.", id: nueva.id, numeroInterno: nueva.numeroInterno, redirigirA: urlTrasRegistrar(nueva.id, avisos) };
+  });
 }
 
 export async function editarRecetaAction(_prevState: RecetaActionState, formData: FormData): Promise<RecetaActionState> {
-  const id = String(formData.get("id") ?? "");
-  // Set when the form is embedded in another screen (the /preparaciones toma workspace); anything else is ignored.
-  const volverA = retornoDeEdicion(formData.get("volverA"));
-  try {
-    const items = JSON.parse(String(formData.get("itemsJson") ?? "[]"));
-    const itemsVersion = JSON.parse(String(formData.get("itemsVersionJson") ?? "[]"));
-    await editarReceta({
-      id,
-      pacienteId: String(formData.get("pacienteId") ?? ""),
-      medicoId: String(formData.get("medicoId") ?? ""),
-      fechaPrescripcion: String(formData.get("fechaPrescripcion") ?? ""),
-      origen: String(formData.get("origen") ?? "PRESENCIAL") as "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO",
-      diagnosticoCodigo: String(formData.get("diagnosticoCodigo") ?? ""),
-      diagnosticoDescripcion: String(formData.get("diagnosticoDescripcion") ?? ""),
-      domicilioPaciente: String(formData.get("domicilioPaciente") ?? ""),
-      items,
-      itemsVersion,
-      version: {
-        pacienteId: String(formData.get("versionPacienteId") ?? ""),
-        medicoId: String(formData.get("versionMedicoId") ?? ""),
-        fechaPrescripcion: String(formData.get("versionFechaPrescripcion") ?? ""),
-        origen: String(formData.get("versionOrigen") ?? "PRESENCIAL") as "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO",
-        diagnosticoCodigo: formData.get("versionDiagnosticoCodigo") ? String(formData.get("versionDiagnosticoCodigo")) : null,
-        diagnosticoDescripcion: formData.get("versionDiagnosticoDescripcion") ? String(formData.get("versionDiagnosticoDescripcion")) : null,
-        domicilioPaciente: formData.get("versionDomicilioPaciente") ? String(formData.get("versionDomicilioPaciente")) : null,
-      },
-    });
-    revalidatePath("/recetas");
-    revalidatePath(`/recetas/${id}`);
-  } catch (error) {
-    return fromError(error, "No se pudieron guardar los cambios.");
-  }
-  // Only items whose formula changed get a new ficha version (and cotización).
-  const avisos = await generarFichasYCotizaciones(id, { soloSiDesactualizadas: true });
-  if (volverA) revalidatePath(volverA);
-  return { status: "success", message: "Receta actualizada.", id, redirigirA: urlTrasEditar(id, avisos, volverA) };
+  return conOperador(formData, async (): Promise<RecetaActionState> => {
+    const id = String(formData.get("id") ?? "");
+    // Set when the form is embedded in another screen (the /preparaciones toma workspace); anything else is ignored.
+    const volverA = retornoDeEdicion(formData.get("volverA"));
+    try {
+      const items = JSON.parse(String(formData.get("itemsJson") ?? "[]"));
+      const itemsVersion = JSON.parse(String(formData.get("itemsVersionJson") ?? "[]"));
+      await editarReceta({
+        id,
+        pacienteId: String(formData.get("pacienteId") ?? ""),
+        medicoId: String(formData.get("medicoId") ?? ""),
+        fechaPrescripcion: String(formData.get("fechaPrescripcion") ?? ""),
+        origen: String(formData.get("origen") ?? "PRESENCIAL") as "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO",
+        diagnosticoCodigo: String(formData.get("diagnosticoCodigo") ?? ""),
+        diagnosticoDescripcion: String(formData.get("diagnosticoDescripcion") ?? ""),
+        domicilioPaciente: String(formData.get("domicilioPaciente") ?? ""),
+        items,
+        itemsVersion,
+        version: {
+          pacienteId: String(formData.get("versionPacienteId") ?? ""),
+          medicoId: String(formData.get("versionMedicoId") ?? ""),
+          fechaPrescripcion: String(formData.get("versionFechaPrescripcion") ?? ""),
+          origen: String(formData.get("versionOrigen") ?? "PRESENCIAL") as "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO",
+          diagnosticoCodigo: formData.get("versionDiagnosticoCodigo") ? String(formData.get("versionDiagnosticoCodigo")) : null,
+          diagnosticoDescripcion: formData.get("versionDiagnosticoDescripcion") ? String(formData.get("versionDiagnosticoDescripcion")) : null,
+          domicilioPaciente: formData.get("versionDomicilioPaciente") ? String(formData.get("versionDomicilioPaciente")) : null,
+        },
+      });
+      revalidatePath("/recetas");
+      revalidatePath(`/recetas/${id}`);
+    } catch (error) {
+      return fromError(error, "No se pudieron guardar los cambios.");
+    }
+    // Only items whose formula changed get a new ficha version (and cotización).
+    const avisos = await generarFichasYCotizaciones(id, { soloSiDesactualizadas: true });
+    if (volverA) revalidatePath(volverA);
+    return { status: "success", message: "Receta actualizada.", id, redirigirA: urlTrasEditar(id, avisos, volverA) };
+  });
 }
 
 /**
@@ -152,15 +157,17 @@ export async function leerRecetaQrAction(_prevState: LeerRecetaState, formData: 
 }
 
 export async function importarRecetaAction(_prevState: RecetaActionState, formData: FormData): Promise<RecetaActionState> {
-  let nueva: { id: string; numeroInterno: string };
-  try {
-    nueva = await importarReceta(JSON.parse(String(formData.get("importacionJson") ?? "{}")));
-    revalidatePath("/recetas");
-  } catch (error) {
-    return fromError(error, "No se pudo importar la receta.");
-  }
-  const avisos = await generarFichasYCotizaciones(nueva.id, { soloSiDesactualizadas: false });
-  return { status: "success", message: "Receta importada.", id: nueva.id, numeroInterno: nueva.numeroInterno, redirigirA: urlTrasRegistrar(nueva.id, avisos) };
+  return conOperador(formData, async (): Promise<RecetaActionState> => {
+    let nueva: { id: string; numeroInterno: string };
+    try {
+      nueva = await importarReceta(JSON.parse(String(formData.get("importacionJson") ?? "{}")));
+      revalidatePath("/recetas");
+    } catch (error) {
+      return fromError(error, "No se pudo importar la receta.");
+    }
+    const avisos = await generarFichasYCotizaciones(nueva.id, { soloSiDesactualizadas: false });
+    return { status: "success", message: "Receta importada.", id: nueva.id, numeroInterno: nueva.numeroInterno, redirigirA: urlTrasRegistrar(nueva.id, avisos) };
+  });
 }
 
 // ============================================================================
@@ -168,15 +175,17 @@ export async function importarRecetaAction(_prevState: RecetaActionState, formDa
 // ============================================================================
 
 export async function anularRecetaAction(_prevState: RecetaActionState, formData: FormData): Promise<RecetaActionState> {
-  try {
-    const id = String(formData.get("id") ?? "");
-    await anularReceta({ id, motivo: String(formData.get("motivo") ?? "") });
-    revalidatePath("/recetas");
-    revalidatePath(`/recetas/${id}`);
-    return { status: "success", message: "Receta anulada.", id };
-  } catch (error) {
-    return fromError(error, "No se pudo anular la receta.");
-  }
+  return conOperador(formData, async (): Promise<RecetaActionState> => {
+    try {
+      const id = String(formData.get("id") ?? "");
+      await anularReceta({ id, motivo: String(formData.get("motivo") ?? "") });
+      revalidatePath("/recetas");
+      revalidatePath(`/recetas/${id}`);
+      return { status: "success", message: "Receta anulada.", id };
+    } catch (error) {
+      return fromError(error, "No se pudo anular la receta.");
+    }
+  });
 }
 
 // ============================================================================
@@ -184,16 +193,18 @@ export async function anularRecetaAction(_prevState: RecetaActionState, formData
 // ============================================================================
 
 export async function marcarPagoRecetaAction(_prevState: RecetaActionState, formData: FormData): Promise<RecetaActionState> {
-  try {
-    const id = String(formData.get("id") ?? "");
-    const pagada = formData.get("pagada") === "true";
-    await marcarPagoReceta({ id, pagada });
-    revalidatePath("/recetas");
-    revalidatePath(`/recetas/${id}`);
-    return { status: "success", message: pagada ? "Receta marcada como pagada." : "Receta marcada como impaga.", id };
-  } catch (error) {
-    return fromError(error, "No se pudo actualizar el pago de la receta.");
-  }
+  return conOperador(formData, async (): Promise<RecetaActionState> => {
+    try {
+      const id = String(formData.get("id") ?? "");
+      const pagada = formData.get("pagada") === "true";
+      await marcarPagoReceta({ id, pagada });
+      revalidatePath("/recetas");
+      revalidatePath(`/recetas/${id}`);
+      return { status: "success", message: pagada ? "Receta marcada como pagada." : "Receta marcada como impaga.", id };
+    } catch (error) {
+      return fromError(error, "No se pudo actualizar el pago de la receta.");
+    }
+  });
 }
 
 // ============================================================================

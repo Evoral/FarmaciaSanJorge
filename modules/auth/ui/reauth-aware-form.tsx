@@ -55,6 +55,8 @@ export interface ReauthAwareFormProps<S extends FormActionState> {
   className?: string;
   /** Called after a successful submit, in addition to `router.refresh()` (which always runs on success so the server-rendered page reflects the change). */
   onSuccess?: (state: SuccessState<S>) => void;
+  /** The permiso of the action: in a cuenta de sector that asks a PIN for it, "who is acting" is asked before the first submit (see `shared/ui/use-form-submit.ts`). */
+  accion?: string | readonly string[];
 }
 
 export function ReauthAwareForm<S extends FormActionState>({
@@ -69,10 +71,11 @@ export function ReauthAwareForm<S extends FormActionState>({
   className,
   extraActions,
   onSuccess,
+  accion,
 }: ReauthAwareFormProps<S>) {
   const [state, formAction, isPending] = useActionState(action, { status: "idle" } as Awaited<S>);
   const reauth = useReauthPrompt(state);
-  const { onSubmit, resubmit } = useReauthFormSubmit(formAction);
+  const { onSubmit, resubmit } = useReauthFormSubmit(formAction, { estado: state, accion });
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
 

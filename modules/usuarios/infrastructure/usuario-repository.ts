@@ -37,6 +37,8 @@ export interface UsuarioListItem {
   dni: string;
   estado: PrismaEstadoUsuario;
   ultimoAcceso: Date | null;
+  /** Migration 0077: a cuenta de sector (shared session per work area). */
+  esSector: boolean;
   /** The usuario's roles, by display name (rol.nombre is per-tenant data since migration 0054). */
   roles: { codigo: string; nombre: string }[];
 }
@@ -93,6 +95,7 @@ export async function listUsuarios(tx: Prisma.TransactionClient, filter: ListUsu
       dni: true,
       estado: true,
       ultimoAcceso: true,
+      esSector: true,
       rolesAsignados: { select: { rol: { select: { codigo: true, nombre: true } } }, orderBy: { rol: { nombre: "asc" } } },
     },
   });
@@ -106,6 +109,7 @@ export async function listUsuarios(tx: Prisma.TransactionClient, filter: ListUsu
       dni: row.dni,
       estado: row.estado,
       ultimoAcceso: row.ultimoAcceso,
+      esSector: row.esSector,
       roles: row.rolesAsignados.map((asignacion) => ({ codigo: asignacion.rol.codigo, nombre: asignacion.rol.nombre })),
     })),
     total,
@@ -126,6 +130,8 @@ export interface UsuarioDetalle {
   ultimoAcceso: Date | null;
   fechaBaja: Date | null;
   motivoBaja: string | null;
+  /** Migration 0077: a cuenta de sector (shared session per work area). */
+  esSector: boolean;
   roles: string[];
 }
 
@@ -153,6 +159,7 @@ export async function getUsuarioDetalle(tx: Prisma.TransactionClient, tenantId: 
       fechaBaja: true,
       motivoBaja: true,
       esTecnico: true,
+      esSector: true,
       rolesAsignados: { select: { rol: { select: { codigo: true } } } },
     },
   });
@@ -170,6 +177,7 @@ export async function getUsuarioDetalle(tx: Prisma.TransactionClient, tenantId: 
     ultimoAcceso: row.ultimoAcceso,
     fechaBaja: row.fechaBaja,
     motivoBaja: row.motivoBaja,
+    esSector: row.esSector,
     roles: row.rolesAsignados.map((asignacion) => asignacion.rol.codigo),
   };
 }
@@ -261,6 +269,8 @@ export interface NuevoUsuarioInput {
   email: string;
   dni: string;
   numeroMatricula: string | null;
+  /** Migration 0077: a cuenta de sector. Only ever set here (immutable, INV-SEC-002). */
+  esSector?: boolean;
   creadoPorId: string;
 }
 
@@ -273,6 +283,7 @@ export async function insertUsuario(tx: Prisma.TransactionClient, input: NuevoUs
       email: input.email,
       dni: input.dni,
       numeroMatricula: input.numeroMatricula ?? undefined,
+      esSector: input.esSector ?? false,
       creadoPorId: input.creadoPorId,
       // estado defaults to PENDIENTE_ACTIVACION (schema default) -- never set explicitly (INV-U07).
     },

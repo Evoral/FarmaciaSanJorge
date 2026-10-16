@@ -12,6 +12,7 @@ export function TomarRecetaForm({ recetaId }: { recetaId: string }) {
   return (
     <SimpleForm
       action={tomarRecetaAction}
+      accion="preparaciones.iniciar"
       submitLabel="Tomar receta"
       pendingLabel="Tomando…"
       submitSize="sm"

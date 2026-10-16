@@ -290,6 +290,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
   return (
     <SimpleForm
       action={importarFacturaCompraAction}
+      accion="stock.partida.ingresar"
       submitLabel={activas.length === 1 ? "Ingresar 1 partida" : `Ingresar ${activas.length} partidas`}
       pendingLabel="Ingresando…"
       submitDisabled={bloqueos.length > 0}

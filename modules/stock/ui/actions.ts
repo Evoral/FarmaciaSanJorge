@@ -11,6 +11,7 @@ import { registrarReanalisisPartida } from "@/modules/stock/application/reanaliz
 import { marcarPartidaVencida } from "@/modules/stock/application/marcar-partida-vencida";
 import type { MotivoAjuste } from "@/modules/stock/domain/partida";
 import { PARAM_VOLVER_AJUSTE, retornoAjuste, retornoAjusteRegistrado } from "@/modules/stock/domain/ajustes-listado";
+import { conOperador } from "@/shared/auth/operador-context";
 import { actionError, actionErrorMessage } from "@/shared/ui/action-error";
 import type { LeerFacturaPdfState, StockActionState } from "./action-state";
 
@@ -29,13 +30,15 @@ export async function leerFacturaCompraPdfAction(_prevState: LeerFacturaPdfState
 }
 
 export async function importarFacturaCompraAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
-  try {
-    const { partidas } = await importarFacturaCompra(JSON.parse(String(formData.get("facturaJson") ?? "{}")));
-    revalidatePath("/stock");
-    return { status: "success", message: partidas === 1 ? "Factura registrada: 1 partida ingresada." : `Factura registrada: ${partidas} partidas ingresadas.` };
-  } catch (error) {
-    return fromError(error, "No se pudo importar la factura.");
-  }
+  return conOperador(formData, async (): Promise<StockActionState> => {
+    try {
+      const { partidas } = await importarFacturaCompra(JSON.parse(String(formData.get("facturaJson") ?? "{}")));
+      revalidatePath("/stock");
+      return { status: "success", message: partidas === 1 ? "Factura registrada: 1 partida ingresada." : `Factura registrada: ${partidas} partidas ingresadas.` };
+    } catch (error) {
+      return fromError(error, "No se pudo importar la factura.");
+    }
+  });
 }
 
 export type CrearProductoFacturaState = { status: "success"; id: string } | { status: "error"; message: string; fields?: string[] };
@@ -67,25 +70,27 @@ export async function crearProductoDesdeFacturaAction(input: { nombre: string; u
  * co-firma entirely).
  */
 export async function registrarAjusteAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
-  // Allowlisted (`retornoAjuste`): an unknown value falls back to /stock/ajustes, never an arbitrary redirect.
-  const retorno = retornoAjuste(formData.get(PARAM_VOLVER_AJUSTE));
-  try {
-    await registrarAjusteStock({
-      partidaId: String(formData.get("partidaId") ?? ""),
-      cantidad: String(formData.get("cantidad") ?? ""),
-      unidadId: (formData.get("unidadId") as string | null) || undefined,
-      motivoAjuste: String(formData.get("motivoAjuste") ?? "") as MotivoAjuste,
-      observacion: String(formData.get("observacion") ?? ""),
-      dtUsuarioId: String(formData.get("dtUsuarioId") ?? ""),
-      dtPassword: String(formData.get("dtPassword") ?? ""),
-    });
-    revalidatePath("/stock");
-    revalidatePath("/stock/ajustes");
-    revalidatePath("/cierres/ajustes");
-    return { status: "success", message: "Ajuste registrado.", redirigirA: retornoAjusteRegistrado(retorno) };
-  } catch (error) {
-    return fromError(error, "No se pudo registrar el ajuste.");
-  }
+  return conOperador(formData, async (): Promise<StockActionState> => {
+    // Allowlisted (`retornoAjuste`): an unknown value falls back to /stock/ajustes, never an arbitrary redirect.
+    const retorno = retornoAjuste(formData.get(PARAM_VOLVER_AJUSTE));
+    try {
+      await registrarAjusteStock({
+        partidaId: String(formData.get("partidaId") ?? ""),
+        cantidad: String(formData.get("cantidad") ?? ""),
+        unidadId: (formData.get("unidadId") as string | null) || undefined,
+        motivoAjuste: String(formData.get("motivoAjuste") ?? "") as MotivoAjuste,
+        observacion: String(formData.get("observacion") ?? ""),
+        dtUsuarioId: String(formData.get("dtUsuarioId") ?? ""),
+        dtPassword: String(formData.get("dtPassword") ?? ""),
+      });
+      revalidatePath("/stock");
+      revalidatePath("/stock/ajustes");
+      revalidatePath("/cierres/ajustes");
+      return { status: "success", message: "Ajuste registrado.", redirigirA: retornoAjusteRegistrado(retorno) };
+    } catch (error) {
+      return fromError(error, "No se pudo registrar el ajuste.");
+    }
+  });
 }
 
 export async function corregirCostoPartidaAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {

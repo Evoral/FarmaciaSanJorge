@@ -5,6 +5,8 @@ import type { Presupuesto } from "../domain/presupuesto";
 export type RecetaActionState =
   | { status: "idle" }
   | { status: "error"; message: string; fields?: string[] }
+  /** A cuenta de sector must say which empleado is acting (`conOperador`, shared/auth/operador-context.ts). */
+  | { status: "operador-required" }
   /** `redirigirA`: where the form navigates on success, with the automatic ficha/cotización notices (codes only) -- domain/avisos-generacion.ts. */
   | { status: "success"; message?: string; id?: string; numeroInterno?: string; redirigirA?: string };
 
