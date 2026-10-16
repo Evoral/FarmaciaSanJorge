@@ -109,7 +109,7 @@ export const crearDrogaCommand = defineCommand({
     }
 
     return {
-      output: { id: nueva.id, sinonimos: sinonimos.map((s) => s.texto) },
+      output: { id: nueva.id, nombre: input.nombre, unidadBaseId: input.unidadBaseId, sinonimos: sinonimos.map((s) => s.texto) },
       audit: {
         entidadId: nueva.id,
         valorNuevo: {
@@ -127,7 +127,7 @@ export const crearDrogaCommand = defineCommand({
   },
 });
 
-/** `sinonimos` = the other names registered with it, as stored (for the success message). */
-export async function crearDroga(input: CrearDrogaInput): Promise<{ id: string; sinonimos: string[] }> {
+/** `nombre` as stored (trimmed); `sinonimos` = the other names registered with it, as stored (for the success message). */
+export async function crearDroga(input: CrearDrogaInput): Promise<{ id: string; nombre: string; unidadBaseId: string; sinonimos: string[] }> {
   return crearDrogaCommand.execute(input);
 }

@@ -6,6 +6,14 @@ export type DrogaActionState =
   | { status: "idle" }
   | { status: "error"; message: string; fields?: string[] }
   | { status: "operador-required" }
-  | { status: "success"; message?: string };
+  /** `droga`: only from `crearDrogaAction`, so an alta opened from another screen can pick what it just created. */
+  | { status: "success"; message?: string; droga?: DrogaCreada };
+
+/** The droga an alta just created. */
+export interface DrogaCreada {
+  id: string;
+  nombre: string;
+  unidadBaseId: string;
+}
 
 export const IDLE_STATE: DrogaActionState = { status: "idle" };

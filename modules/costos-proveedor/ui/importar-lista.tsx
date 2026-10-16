@@ -26,6 +26,7 @@ import { IDLE_LEER_LISTA_STATE } from "./action-state";
 import { leerListaPreciosAction } from "./actions";
 import type { DrogaOpcionCosto, UnidadOpcionCosto } from "./costo-form";
 import { ImportarListaForm } from "./importar-lista-form";
+import type { UnidadOpcion } from "@/modules/drogas/ui/droga-form";
 
 export interface ImportarListaProps {
   proveedores: readonly { id: string; razonSocial: string }[];
@@ -33,6 +34,8 @@ export interface ImportarListaProps {
   unidades: readonly UnidadOpcionCosto[];
   /** `YYYY-MM-DD`: the pharmacy's today (default and maximum of the list's date). */
   jornadaActual: string;
+  /** Units for the "Nuevo insumo" alta of a "sin asociar" row; `null` without `drogas.crear`. */
+  unidadesAltaDroga: UnidadOpcion[] | null;
 }
 
 /** Starting over remounts the step (a fresh `useActionState`, no stale error). */
@@ -41,7 +44,7 @@ export function ImportarLista(props: ImportarListaProps) {
   return <ImportarListaPaso key={intento} {...props} onReiniciar={() => setIntento((n) => n + 1)} />;
 }
 
-function ImportarListaPaso({ proveedores, drogas, unidades, jornadaActual, onReiniciar }: ImportarListaProps & { onReiniciar: () => void }) {
+function ImportarListaPaso({ proveedores, drogas, unidades, jornadaActual, unidadesAltaDroga, onReiniciar }: ImportarListaProps & { onReiniciar: () => void }) {
   const router = useRouter();
   const [state, formAction, isPending] = useActionState(leerListaPreciosAction, IDLE_LEER_LISTA_STATE);
   const { onSubmit } = useFormSubmit(formAction);
@@ -151,7 +154,10 @@ function ImportarListaPaso({ proveedores, drogas, unidades, jornadaActual, onRei
           </div>
         </section>
 
-        <ImportarListaForm key={`${vista.hashSha256}|${vista.hoja}`} vista={vista} drogas={drogas} unidades={unidades} onImportada={() => router.push("/costos-proveedor/listas")} />
+        <ImportarListaForm key={`${vista.hashSha256}|${vista.hoja}`} vista={vista} drogas={drogas} unidades={unidades}
+          unidadesAltaDroga={unidadesAltaDroga}
+          onImportada={() => router.push("/costos-proveedor/listas")}
+        />
       </div>
     );
   }
