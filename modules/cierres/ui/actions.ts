@@ -2,6 +2,7 @@
 
 /** Server Actions for `/cierres/**` (FASE 10). */
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { firmarCierre } from "@/modules/cierres/application/firmar-cierre";
 import { actionError } from "@/shared/ui/action-error";
 import type { CierresActionState } from "./action-state";
@@ -14,6 +15,7 @@ function esMotivoDemoraValido(value: string): value is (typeof MOTIVO_DEMORA_VAL
 export async function firmarCierreAction(_prevState: CierresActionState, formData: FormData): Promise<CierresActionState> {
   const fecha = String(formData.get("fecha") ?? "");
   const motivoDemoraRaw = String(formData.get("motivoDemora") ?? "");
+  let firmado: { id: string; fecha: string };
   try {
     const resultado = await firmarCierre({
       fecha,
@@ -24,8 +26,11 @@ export async function firmarCierreAction(_prevState: CierresActionState, formDat
     revalidatePath("/cierres");
     revalidatePath("/cierres/historial");
     revalidatePath(`/cierres/${resultado.id}`);
-    return { status: "success", message: `Jornada ${resultado.fecha} firmada (${resultado.cantidadAsientos} asiento${resultado.cantidadAsientos === 1 ? "" : "s"}).` };
+    revalidatePath("/libro/dias");
+    firmado = { id: resultado.id, fecha: resultado.fecha };
   } catch (error) {
     return actionError(error, "No se pudo firmar el cierre.");
   }
+  // Back to /cierres with the signed jornada, so the DT can print its sheet right away (outside the try: redirect throws).
+  redirect(`/cierres?firmada=${encodeURIComponent(firmado.id)}&fecha=${encodeURIComponent(firmado.fecha)}`);
 }

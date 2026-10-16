@@ -532,6 +532,17 @@ export async function getCierreDetalle(tx: Prisma.TransactionClient, tenantId: s
 // friendly pre-check, not the real backstop.
 // ============================================================================
 
+/** The oldest signed cierre never printed (print order, ../domain/impresion.ts), or `null`. */
+export async function getPrimerCierreSinImprimir(tx: Prisma.TransactionClient, tenantId: string): Promise<{ id: string; fecha: string } | null> {
+  const row = await tx.cierreDiario.findFirst({ where: { tenantId, fechaImpresion: null }, orderBy: { fecha: "asc" }, select: { id: true, fecha: true } });
+  return row ? { id: row.id, fecha: row.fecha.toISOString().slice(0, 10) } : null;
+}
+
+export async function getFechaCierre(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<string | null> {
+  const row = await tx.cierreDiario.findUnique({ where: { id, tenantId }, select: { fecha: true } });
+  return row ? row.fecha.toISOString().slice(0, 10) : null;
+}
+
 export async function marcarCierreImpreso(tx: Prisma.TransactionClient, tenantId: string, id: string, impresoPorId: string): Promise<boolean> {
   const result = await tx.cierreDiario.updateMany({
     where: { id, tenantId, fechaImpresion: null },

@@ -13,9 +13,10 @@
  */
 import { z } from "zod";
 import { defineQuery, defineCommand, TipoAccion } from "@/shared/usecase";
-import { NotFoundError } from "@/shared/errors";
+import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
-import { getCierreDetalle as getCierreDetalleDb, getTenantDatosComprobante, marcarCierreImpreso } from "../infrastructure/cierre-repository";
+import { getCierreDetalle as getCierreDetalleDb, getFechaCierre, getPrimerCierreSinImprimir, getTenantDatosComprobante, marcarCierreImpreso } from "../infrastructure/cierre-repository";
+import { mensajeImpresionFueraDeOrden, puedeImprimirJornada } from "../domain/impresion";
 import type { CierreDetalle, TenantDatosComprobante } from "../infrastructure/cierre-repository";
 import { buildCierrePdf } from "../infrastructure/cierre-pdf";
 
@@ -47,6 +48,13 @@ const marcarImpresionCommand = defineCommand({
   input: marcarImpresionInput,
   audit: { entidad: "cierre_diario", accion: TipoAccion.IMPRIMIR_CIERRE },
   handler: async ({ tx, session, input }) => {
+    // Print order: the sheets go out in date order -- a later jornada waits for every earlier one to be printed.
+    const fecha = await getFechaCierre(tx, session.tenantId, input.id);
+    if (!fecha) throw new NotFoundError("El cierre no fue encontrado.");
+    const primerSinImprimir = await getPrimerCierreSinImprimir(tx, session.tenantId);
+    if (primerSinImprimir && !puedeImprimirJornada(fecha, primerSinImprimir.fecha)) {
+      throw new DomainError(mensajeImpresionFueraDeOrden(primerSinImprimir.fecha));
+    }
     const primeraImpresion = await marcarCierreImpreso(tx, session.tenantId, input.id, session.usuario.id);
     return {
       output: { primeraImpresion },
@@ -58,6 +66,18 @@ const marcarImpresionCommand = defineCommand({
     };
   },
 });
+
+/** The oldest signed jornada never printed, for the screens that offer printing (they disable the later ones). */
+const primerCierreSinImprimirQuery = defineQuery({
+  name: "cierres.imprimir.primerPendiente",
+  permiso: "cierres.ver",
+  input: z.object({}),
+  handler: async ({ tx, session }) => getPrimerCierreSinImprimir(tx, session.tenantId),
+});
+
+export async function primerCierreSinImprimir(): Promise<{ id: string; fecha: string } | null> {
+  return primerCierreSinImprimirQuery.execute({});
+}
 
 export async function imprimirCierrePdf(id: string): Promise<Buffer> {
   const { cierre, tenant } = await getCierreParaImprimirQuery.execute({ id });

@@ -4,12 +4,15 @@
  * Layout: the signed asientos (recetario and contralor) in the main column; who signed, when, the term status and the
  * lote hash (the integrity proof) in the aside.
  */
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BookOpen, Printer } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { NotFoundError } from "@/shared/errors";
 import { getCierreDetalle } from "@/modules/cierres/application/get-cierre-detalle";
+import { primerCierreSinImprimir } from "@/modules/cierres/application/imprimir-cierre-pdf";
+import { mensajeImpresionFueraDeOrden, puedeImprimirJornada } from "@/modules/cierres/domain/impresion";
 import { MOTIVO_DEMORA_LABELS, type MotivoDemoraValue } from "@/modules/cierres/domain/motivo-demora";
 import { TIPO_LIBRO_LABELS, TIPO_MOVIMIENTO_CONTRALOR_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 import { formatFechaIso } from "@/shared/format/fecha";
@@ -34,6 +37,9 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
   }
 
   const puedeImprimir = can(session, "cierres.imprimir");
+  // Print order (modules/cierres/domain/impresion.ts): a later sheet waits for every earlier one.
+  const sinImprimir = puedeImprimir ? await primerCierreSinImprimir() : null;
+  const enOrden = !sinImprimir || puedeImprimirJornada(cierre.fecha, sinImprimir.fecha);
   const motivoLabel = cierre.motivoDemora ? MOTIVO_DEMORA_LABELS[cierre.motivoDemora as MotivoDemoraValue] ?? cierre.motivoDemora : null;
   const fecha = formatFechaIso(cierre.fecha);
 
@@ -49,10 +55,19 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
         }
         actions={
           puedeImprimir ? (
-            <a href={`/api/cierres/${cierre.id}/pdf`} className="btn btn-secondary">
-              <Printer className="size-4" aria-hidden />
-              Imprimir comprobante
-            </a>
+            enOrden ? (
+              <a href={`/api/cierres/${cierre.id}/pdf`} target="_blank" rel="noopener" className="btn btn-secondary">
+                <Printer className="size-4" aria-hidden />
+                Imprimir hoja
+              </a>
+            ) : (
+              <span className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-zinc-600">{mensajeImpresionFueraDeOrden(sinImprimir!.fecha)}</span>
+                <Link href={`/cierres/${sinImprimir!.id}`} className="btn btn-secondary">
+                  Ir a la hoja del {formatFechaIso(sinImprimir!.fecha)}
+                </Link>
+              </span>
+            )
           ) : null
         }
       />

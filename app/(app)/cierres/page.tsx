@@ -17,12 +17,14 @@
  */
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BookOpen, ChevronRight, CircleCheck, FileBarChart } from "lucide-react";
+import { BookOpen, ChevronRight, CircleCheck, FileBarChart, Printer } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listJornadasPendientes } from "@/modules/cierres/application/list-jornadas-pendientes";
 import { listAsientosJornada } from "@/modules/cierres/application/list-asientos-jornada";
 import { FirmarForm } from "@/modules/cierres/ui/firmar-form";
+import { primerCierreSinImprimir } from "@/modules/cierres/application/imprimir-cierre-pdf";
+import { mensajeImpresionFueraDeOrden, puedeImprimirJornada } from "@/modules/cierres/domain/impresion";
 import { etiquetaEstadoVisual } from "@/modules/libro/domain/estado-visual";
 import { tonoEstadoAsiento } from "@/modules/libro/ui/libro-nav";
 import { formatFechaIso } from "@/shared/format/fecha";
@@ -36,7 +38,8 @@ import { gestionDtSections } from "../nav-sections";
 const PAGE_SIZE = 25;
 
 interface CierresPageProps {
-  searchParams: Promise<{ page?: string }>;
+  /** `firmada` / `fecha`: the jornada just signed (firmarCierreAction redirects here), to offer printing its sheet. */
+  searchParams: Promise<{ page?: string; firmada?: string; fecha?: string }>;
 }
 
 const numberFormat = new Intl.NumberFormat("es-AR");
@@ -53,7 +56,10 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
   const puedeFirmar = can(session, "cierres.firmar");
   const puedeVerReporte = can(session, "cierres.reporte");
   const puedeVerLibro = can(session, "libro.ver");
+  const firmada = params.firmada && /^[0-9a-f-]{36}$/i.test(params.firmada) ? { id: params.firmada, fecha: /^\d{4}-\d{2}-\d{2}$/.test(params.fecha ?? "") ? params.fecha! : null } : null;
 
+  // Print order (../domain/impresion.ts): right after signing, offer the oldest unprinted sheet if it is not this one.
+  const sinImprimir = firmada ? await primerCierreSinImprimir() : null;
   const pendientes = await listJornadasPendientes();
   const laMasAntigua = pendientes.find((p) => p.esLaMasAntigua) ?? null;
   const asientos = laMasAntigua ? await listAsientosJornada({ fecha: laMasAntigua.fecha, page, pageSize: PAGE_SIZE }) : null;
@@ -82,6 +88,31 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
       />
 
       <SectionTabs ariaLabel="Secciones de gestión DT" links={secciones} />
+
+      {firmada ? (
+        <div role="status" className="alert alert-success mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="flex items-center gap-2">
+            <CircleCheck className="size-4" aria-hidden />
+            {firmada.fecha ? `Jornada ${formatFechaIso(firmada.fecha)} firmada.` : "Jornada firmada."}
+          </p>
+          {can(session, "cierres.imprimir") ? (
+            sinImprimir && firmada.fecha && !puedeImprimirJornada(firmada.fecha, sinImprimir.fecha) ? (
+              <span className="flex flex-wrap items-center gap-2">
+                <span className="text-sm">{mensajeImpresionFueraDeOrden(sinImprimir.fecha)}</span>
+                <a href={`/api/cierres/${sinImprimir.id}/pdf`} target="_blank" rel="noopener" className="btn btn-primary btn-sm">
+                  <Printer className="size-4" aria-hidden />
+                  Imprimir hoja del {formatFechaIso(sinImprimir.fecha)}
+                </a>
+              </span>
+            ) : (
+              <a href={`/api/cierres/${firmada.id}/pdf`} target="_blank" rel="noopener" className="btn btn-primary btn-sm">
+                <Printer className="size-4" aria-hidden />
+                Imprimir hoja del día
+              </a>
+            )
+          ) : null}
+        </div>
+      ) : null}
 
       {pendientes.length === 0 || !laMasAntigua || !asientos ? (
         <div className="list-panel">

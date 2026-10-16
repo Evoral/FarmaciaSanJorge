@@ -42,7 +42,9 @@ export async function GET(_request: Request, { params }: RouteParams): Promise<R
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="cierre-${id}.pdf"`,
+      // "inline" (not "attachment"): the sheet opens in a new tab to print, like the fichas técnicas; it is rendered on
+      // every request, so printing it again is just opening it again.
+      "Content-Disposition": `inline; filename="libro-recetario-${id}.pdf"`,
       "Content-Length": String(pdf.byteLength),
       "Cache-Control": "private, no-store",
     },
