@@ -465,7 +465,12 @@ describe.skipIf(dbTestSkipReason() !== null)("0079_costos_proveedor migration (f
             expect((await scoped.query(`SELECT id FROM fsj.lista_precio_proveedor WHERE id = $1`, [listaA])).rows).toHaveLength(0);
             expect((await scoped.query(`UPDATE fsj.costo_proveedor SET vigente_hasta = now() WHERE id = $1`, [costoA])).rowCount).toBe(0);
 
-            await expectDbRejection(
+            // Still rejected, but since migration 0081 by INV-U07 first: BEFORE
+            // ROW triggers run before the RLS WITH CHECK policy, and under
+            // tenant B the trigger cannot see tenant A's actor, so it is not
+            // ACTIVO for it. RLS WITH CHECK itself is covered generically in
+            // tests/db/tenant-parametro.test.ts.
+            await expectInvariantViolation(
               scoped,
               () =>
                 scoped.query(
@@ -473,7 +478,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0079_costos_proveedor migration (f
                    VALUES ($1, $2, $3, 1, $4, 1, '2026-10-01', $5)`,
                   [a.tenantId, a.drogaId, a.proveedorId, a.unidadPrecioId, a.sistema],
                 ),
-              "42501",
+              "INV-U07",
             );
           });
           await withTenant(tx, a.tenantId, async (scoped) => {
