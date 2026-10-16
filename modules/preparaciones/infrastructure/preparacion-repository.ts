@@ -28,6 +28,7 @@ import type { UnidadFormato } from "@/shared/format/cantidad";
 import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
 import type { ModoExpresion } from "@/modules/recetas/domain/receta";
 import type { DatosEtiqueta } from "../domain/etiqueta";
+import type { ItemPrescripto } from "../domain/formula-prescripcion";
 import { parseMesesVencimientoPreparado } from "../domain/vencimiento";
 
 const PLACEHOLDER_UUID = "00000000-0000-0000-0000-000000000000";
@@ -684,6 +685,46 @@ export interface NuevoAsientoRecetarioInput {
  * is legal (checked at COMMIT). Trigger-assigned columns on the asiento use
  * placeholders -- see module doc comment.
  */
+/** The ítem of a preparación as prescribed, plus the excipiente used: the libro's fórmula (../domain/formula-prescripcion.ts). */
+export async function getItemPrescriptoDePreparacion(tx: Prisma.TransactionClient, tenantId: string, preparacionId: string): Promise<ItemPrescripto | null> {
+  const prep = await tx.preparacion.findUnique({ where: { id: preparacionId, tenantId }, select: { itemRecetaId: true, excipienteTexto: true } });
+  if (!prep) return null;
+  const item = await tx.itemReceta.findUnique({
+    where: { id: prep.itemRecetaId, tenantId },
+    select: {
+      formaFarmaceutica: true,
+      cantidadUnidades: true,
+      fraccionDosisPorUnidad: true,
+      cantidadTotal: true,
+      unidadTotal: { select: { simbolo: true } },
+      componentes: {
+        select: { cantidad: true, modoExpresion: true, esPrincipioActivo: true, droga: { select: { nombre: true } }, unidadMedida: { select: { simbolo: true } } },
+      },
+    },
+  });
+  if (!item) return null;
+  return {
+    formaFarmaceutica: item.formaFarmaceutica,
+    cantidadUnidades: item.cantidadUnidades,
+    fraccionDosisPorUnidad: item.fraccionDosisPorUnidad.toString(),
+    cantidadTotal: item.cantidadTotal === null ? null : item.cantidadTotal.toString(),
+    unidadTotalSimbolo: item.unidadTotal?.simbolo ?? null,
+    componentes: item.componentes.map((c) => ({
+      drogaNombre: c.droga.nombre,
+      cantidad: c.cantidad === null ? null : c.cantidad.toString(),
+      unidadSimbolo: c.unidadMedida.simbolo,
+      modoExpresion: c.modoExpresion,
+      esPrincipioActivo: c.esPrincipioActivo,
+    })),
+    excipiente: prep.excipienteTexto,
+  };
+}
+
+/** Sets (or clears, `null`) the excipiente used; the caller has locked the preparación and checked it is INICIADA (DB: INV-P08). */
+export async function setExcipientePreparacion(tx: Prisma.TransactionClient, tenantId: string, preparacionId: string, excipiente: string | null): Promise<void> {
+  await tx.preparacion.update({ where: { id: preparacionId, tenantId }, data: { excipienteTexto: excipiente } });
+}
+
 export async function insertAsientoRecetario(tx: Prisma.TransactionClient, input: NuevoAsientoRecetarioInput): Promise<{ id: string; numeroCorrelativo: string }> {
   const asientoId = randomUUID();
 
@@ -1764,6 +1805,8 @@ export interface PreparacionDeItemToma {
   etiquetaGenerada: boolean;
   /** CONFIRMADA only: its SISTEMA asiento was dejado sin efecto (ANULADO or rectificado): no etiqueta (R22). */
   asientoSinEfecto: boolean;
+  /** The excipiente used, typed in the toma workspace (migration 0083); `null` when not informed. */
+  excipiente: string | null;
 }
 
 export interface RecetaDeToma {
@@ -1845,6 +1888,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
       estado: true,
       itemRecetaId: true,
       fichaTecnicaId: true,
+      excipienteTexto: true,
       etiqueta: { select: { id: true } },
       asientosRecetario: { where: { origen: "SISTEMA" }, take: 1, select: SELECT_ASIENTO_SIN_EFECTO },
       asientoPreparacion: { select: { asiento: { select: SELECT_ASIENTO_SIN_EFECTO } } },
@@ -1909,6 +1953,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
         fechaVencimiento: r.fecha_vencimiento,
       })),
       reservaAlcanza: propias.every((r) => r.alcanza),
+      excipiente: elegida.excipienteTexto,
       etiquetaGenerada: confirmada && elegida.etiqueta !== null,
       asientoSinEfecto: confirmada && asiento !== undefined && (asiento.estado === "ANULADO" || asiento._count.rectificativos > 0),
     };

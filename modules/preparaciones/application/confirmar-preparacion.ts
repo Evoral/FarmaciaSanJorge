@@ -112,8 +112,8 @@ import {
   validarCantidadManual,
   esDesvioPropuesta,
   requiereMotivoAperturaAdicional,
-  formatearFormulaTexto,
 } from "../domain/preparacion";
+import { formatearFormulaPrescripcion } from "../domain/formula-prescripcion";
 import { validarConfirmacionIndividual, type DetalleDeItem } from "../domain/asiento-receta";
 import { mensajeParaInvariante } from "../domain/mensajes-invariantes";
 import { calcularVencimientoPreparado } from "../domain/vencimiento";
@@ -141,6 +141,7 @@ import {
   listReservasDePreparacion,
   listItemIdsDeReceta,
   listPreparacionesVivasDeItems,
+  getItemPrescriptoDePreparacion,
 } from "../infrastructure/preparacion-repository";
 import type { LineaParaPantalla, PartidaFresca, RecetaContextoAsiento } from "../infrastructure/preparacion-repository";
 import { registrarAsientoRecetaEnTx } from "./registrar-asiento-receta";
@@ -356,7 +357,6 @@ export async function confirmarPreparacionEnTx(
   }
 
   const detalles: Array<{ lineaPesajeId: string; descripcion: string; cantidad: string; unidadTexto: string; orden: number; esInsumo: boolean }> = [];
-  const formulaLineas: Array<{ drogaNombre: string; cantidad: string; unidadSimbolo: string; esEnraseManual: boolean; esInsumo: boolean }> = [];
   // Movimientos of a controlled droga (contralor activo) collected here --
   // their asiento_contralor row needs the receta's asiento_recetario id,
   // which does not exist until every ítem of the transaction is confirmed
@@ -376,7 +376,7 @@ export async function confirmarPreparacionEnTx(
       jornada,
     });
 
-    for (const { linea, cantidadRequerida, split: reparto, totalFisico, esDesvio } of plan) {
+    for (const { linea, split: reparto, totalFisico, esDesvio } of plan) {
       const droga = await getDrogaTipoControl(tx, session.tenantId, linea.drogaId);
       const fechaActivacionContralor = await getFechaActivacionContralor(tx, session.tenantId);
       const contralorActivo = droga !== null && droga.tipoControl !== "NINGUNO" && fechaActivacionContralor !== null;
@@ -415,22 +415,19 @@ export async function confirmarPreparacionEnTx(
         orden: linea.orden,
         esInsumo,
       });
-      formulaLineas.push({
-        drogaNombre: linea.drogaNombre,
-        cantidad: cantidadRequerida.toString(),
-        unidadSimbolo: linea.unidadSimbolo,
-        esEnraseManual: linea.esEnraseManual,
-        esInsumo,
-      });
     }
 
     // ------------------------------------------------------------------
     // 6. The ítem's libro data (written by the caller in the receta's ONE
-    //    asiento, D8): detalle lines and fórmula, insumos left out.
+    //    asiento, D8): detalle lines (weighed, insumos left out) and the
+    //    fórmula de la prescripción -- the ítem AS PRESCRIBED, every
+    //    componente plus the excipiente used (domain/formula-prescripcion.ts).
     // ------------------------------------------------------------------
     const soloInsumos = detalles.every((d) => d.esInsumo);
     const detallesLibro = detalles.filter((d) => soloInsumos || !d.esInsumo).map((d) => ({ lineaPesajeId: d.lineaPesajeId, descripcion: d.descripcion, cantidad: d.cantidad, unidadTexto: d.unidadTexto, orden: d.orden }));
-    const formulaLibro = formulaLineas.filter((l) => soloInsumos || !l.esInsumo);
+    const itemPrescripto = await getItemPrescriptoDePreparacion(tx, session.tenantId, input.preparacionId);
+    if (!itemPrescripto) throw new NotFoundError("No se encontró el ítem de la receta de esta preparación.");
+    const formulaTexto = formatearFormulaPrescripcion(itemPrescripto);
 
     // ------------------------------------------------------------------
     // 7. preparación -> CONFIRMADA (preparada_por_id = SESIÓN, INV-P06).
@@ -470,7 +467,7 @@ export async function confirmarPreparacionEnTx(
       id: input.preparacionId,
       fechaVencimiento,
       contexto,
-      formulaTexto: formatearFormulaTexto(formulaLibro),
+      formulaTexto,
       detalles: detallesLibro,
       egresosControlados: movimientosControlados,
     };

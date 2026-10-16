@@ -18,6 +18,7 @@ import { registrarPerdidaReserva, type RegistrarPerdidaReservaInput } from "@/mo
 import { getConfirmacionDeFicha } from "@/modules/preparaciones/application/get-confirmacion-de-ficha";
 import { generarEtiqueta } from "@/modules/preparaciones/application/generar-etiqueta";
 import { previsualizarFichas } from "@/modules/preparaciones/application/previsualizar-fichas";
+import { guardarExcipientePreparacion } from "@/modules/preparaciones/application/guardar-excipiente-preparacion";
 import { StepUpRequiredError } from "@/shared/errors";
 import { conOperador } from "@/shared/auth/operador-context";
 import { actionError, actionErrorMessage } from "@/shared/ui/action-error";
@@ -142,6 +143,19 @@ export async function getConfirmacionDeFichaAction(fichaTecnicaId: string): Prom
  * automatically in one transaction (same form fields as `confirmarPreparacionAction`, keyed by `fichaTecnicaId`).
  * Nothing is descontado nor written to the libro yet.
  */
+/** Toma workspace: saves the excipiente used of a reserved ítem when its field is left (migration 0083). No revalidation: the field already shows it. */
+export async function guardarExcipienteAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
+  return conOperador(formData, async (): Promise<PreparacionActionState> => {
+    try {
+      const preparacionId = String(formData.get("preparacionId") ?? "");
+      await guardarExcipientePreparacion({ preparacionId, excipiente: String(formData.get("excipiente") ?? "") || null });
+      return { status: "success", id: preparacionId };
+    } catch (error) {
+      return { ...actionError(error, "No se pudo guardar el excipiente."), fields: ["excipiente"] };
+    }
+  });
+}
+
 export async function reservarStockAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
   return conOperador(formData, async (): Promise<PreparacionActionState> => {
     try {

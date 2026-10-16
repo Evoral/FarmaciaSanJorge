@@ -247,6 +247,16 @@ vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => (
   listItemIdsDeReceta: (...args: unknown[]) => listItemIdsDeRecetaMock(...args),
   listPreparacionesVivasDeItems: (...args: unknown[]) => listPreparacionesVivasDeItemsMock(...args),
   getAsientoSistemaDeReceta: (...args: unknown[]) => getAsientoSistemaDeRecetaMock(...args),
+  // The fórmula de la prescripción: the ítem as prescribed plus the excipiente used (migration 0083).
+  getItemPrescriptoDePreparacion: vi.fn(async () => ({
+    formaFarmaceutica: "CAPSULA",
+    cantidadUnidades: 60,
+    fraccionDosisPorUnidad: "1",
+    cantidadTotal: null,
+    unidadTotalSimbolo: null,
+    componentes: [{ drogaNombre: "Droga X", cantidad: "10", unidadSimbolo: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: true }],
+    excipiente: "Ludipress",
+  })),
   deleteReservasDePreparacion: vi.fn(async () => 0),
 }));
 
@@ -450,7 +460,7 @@ describe("confirmar-preparacion: lock ordering (preparación, receta, then parti
       recetaId: "receta-1",
       preparaciones: [{ preparacionId: PREPARACION_ID, orden: 1 }],
       pacienteTexto: "Pérez, Juan",
-      formulaTexto: "Ítem 2: Droga X: 10 g",
+      formulaTexto: "Ítem 2: Droga X 10 mg; Ludipress c.s.p. — 60 Cápsulas",
       detalles: [{ lineaPesajeId: LINEA_ID, descripcion: "Droga X", cantidad: "10", unidadTexto: "g", orden: 1 }],
     });
     expect(asiento).not.toHaveProperty("preparacionId");

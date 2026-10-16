@@ -285,11 +285,11 @@ model Parametro {
 /// `nombre` is also unique per tenant, case-insensitive (functional index
 /// rol_tenant_nombre_key -- not expressible here, see migration 0054).
 model Rol {
-  id               String  @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId         String  @map("tenant_id") @db.Uuid
-  codigo           String
-  nombre           String
-  descripcion      String?
+  id              String  @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId        String  @map("tenant_id") @db.Uuid
+  codigo          String
+  nombre          String
+  descripcion     String?
   /// true ONLY for ADMINISTRADOR (CHECK rol_es_administrador_solo_admin): it holds every `consulta`/`gestion` permiso of the catalog (never `operativo`), including future ones, without rol_permiso rows.
   esAdministrador Boolean @default(false) @map("es_administrador")
 
@@ -311,8 +311,8 @@ model Permiso {
   /// Migration 0054 (DP-03): operativo | consulta | gestion | sistema (CHECK permiso_categoria_valida). Mirrors modules/auth/domain/permisos.ts#PERMISO_CATALOGO.
   categoria   String
 
-  roles           RolPermiso[]
-  accionesConPin  AccionConPin[]
+  roles          RolPermiso[]
+  accionesConPin AccionConPin[]
 
   @@map("permiso")
   @@schema("fsj")
@@ -1153,6 +1153,8 @@ model Preparacion {
   descartadaPorId  String?           @map("descartada_por_id") @db.Uuid
   /// Migration 0068 (DP-28 "Vencimiento"): expiry of the preparado, snapshotted at confirmation (jornada + meses_vencimiento_preparado). NULL for one confirmed before 0068. Frozen afterwards (INV-P07).
   fechaVencimiento DateTime?         @map("fecha_vencimiento") @db.Date
+  /// 0083: excipiente actually used (toma workspace, optional); copied into the libro asiento fórmula at confirmation. Changes only while INICIADA (INV-P08).
+  excipienteTexto  String?           @map("excipiente_texto") @db.VarChar(120)
 
   fichaTecnica       FichaTecnica        @relation(fields: [fichaTecnicaId], references: [id])
   iniciadaPor        Usuario             @relation("PreparacionIniciadaPor", fields: [iniciadaPorId], references: [id])

@@ -99,6 +99,7 @@ import { CancelarTomaForm } from "@/modules/preparaciones/ui/cancelar-toma-form"
 import { FichaTecnicaEnToma, FichasDeItemsNuevos, RequiereRecetaGuardada } from "@/modules/preparaciones/ui/fichas-borrador";
 import { ContinuarPreparacionDialog } from "@/modules/preparaciones/ui/continuar-preparacion-dialog";
 import { EtiquetasDeReceta, LiberarReservaForm, PerdidaReservaDialog, RecalcularReservaForm } from "@/modules/preparaciones/ui/reserva-acciones";
+import { ExcipienteField } from "@/modules/preparaciones/ui/excipiente-field";
 import { listDtParaPerdida } from "@/modules/preparaciones/application/list-dt-para-perdida";
 import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
 import { ItemDatos } from "@/modules/preparaciones/ui/item-datos";
@@ -464,6 +465,19 @@ function ItemToma({
           </div>
         ) : null}
       </div>
+
+      {estado === "RESERVADA" && preparacion ? (
+        // Excipiente used (migration 0083): optional, saved when left; goes into the libro at "Imprimir etiquetas".
+        <div className="border-t border-zinc-100 px-4 py-3 sm:px-5">
+          {acciones.puedeReservar ? (
+            <ExcipienteField preparacionId={preparacion.id} inicial={preparacion.excipiente} />
+          ) : preparacion.excipiente ? (
+            <p className="text-sm text-zinc-600">
+              Excipiente utilizado: <span className="font-medium text-zinc-900">{preparacion.excipiente}</span>
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {/*
         Footer: the ítem's note on the left; on the right, one block whose width is the widest of its rows -- the

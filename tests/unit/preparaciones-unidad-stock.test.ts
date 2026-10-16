@@ -106,6 +106,15 @@ const repo = {
   listItemIdsDeReceta: vi.fn(async () => ["item-1"]),
   listPreparacionesVivasDeItems: vi.fn(async () => [{ id: PREPARACION_ID, itemRecetaId: "item-1", estado: "INICIADA", etiquetaId: null }]),
   getAsientoSistemaDeReceta: vi.fn(async () => null),
+  getItemPrescriptoDePreparacion: vi.fn(async () => ({
+    formaFarmaceutica: "CAPSULA",
+    cantidadUnidades: 60,
+    fraccionDosisPorUnidad: "1",
+    cantidadTotal: null,
+    unidadTotalSimbolo: null,
+    componentes: [{ drogaNombre: "Droga X", cantidad: "10", unidadSimbolo: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: true }],
+    excipiente: "Ludipress",
+  })),
 };
 vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => repo);
 
@@ -221,7 +230,8 @@ describe("confirmarPreparacion: stock in the droga's unidad base, libro in the l
 
     const asiento = repo.insertAsientoRecetario.mock.calls[0]![1] as { formulaTexto: string; detalles: { cantidad: string; unidadTexto: string }[] };
     expect(asiento.detalles).toEqual([expect.objectContaining({ cantidad: "950", unidadTexto: "g" })]);
-    expect(asiento.formulaTexto).toContain("950 g");
+    // The fórmula is the ítem AS PRESCRIBED (migration 0083), not the weighed quantity.
+    expect(asiento.formulaTexto).toContain("Droga X 10 mg");
   });
 
   it("the asiento_contralor quantity is in the droga's unidad base (its unidadMedidaId)", async () => {
