@@ -17,6 +17,7 @@ import { useActionState, useEffect, useRef, useState, type RefObject } from "rea
 import { CircleAlert, CircleCheck, KeyRound, ShieldCheck } from "lucide-react";
 import { cambiarPasswordAction, configurarPinAction, eliminarPinAction, type CambiarPasswordFormState, type PinFormState } from "./actions";
 import { NewPasswordFields } from "@/modules/auth/ui/new-password-fields";
+import { AUTH_POLICY } from "@/shared/auth/policy";
 import { useFormSubmit } from "@/shared/ui/use-form-submit";
 import { PageHeader } from "@/shared/ui/page-header";
 
@@ -75,7 +76,7 @@ function PinSection() {
         </span>
         <div>
           <h2 id="pin-heading">PIN de reautenticación rápida</h2>
-          <p>Un PIN de 6 dígitos para confirmar acciones sensibles sin escribir tu contraseña completa. Nunca sirve para iniciar sesión.</p>
+          <p>Un PIN de {AUTH_POLICY.pinLength} dígitos para confirmar acciones sensibles sin escribir tu contraseña completa. Nunca sirve para iniciar sesión.</p>
         </div>
       </div>
 
@@ -91,16 +92,16 @@ function PinSection() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="field">
               <label htmlFor="pin" className="field-label">
-                Nuevo PIN <span className="font-normal text-zinc-500">(6 dígitos)</span>
+                Nuevo PIN <span className="font-normal text-zinc-500">({AUTH_POLICY.pinLength} dígitos)</span>
               </label>
-              <input id="pin" name="pin" type="password" inputMode="numeric" pattern="\d{6}" maxLength={6} required autoComplete="off" className="input font-mono tracking-[0.3em]" />
+              <input id="pin" name="pin" type="password" inputMode="numeric" pattern={`\\d{${AUTH_POLICY.pinLength}}`} maxLength={AUTH_POLICY.pinLength} required autoComplete="off" className="input font-mono tracking-[0.3em]" />
             </div>
 
             <div className="field">
               <label htmlFor="pinRepeat" className="field-label">
                 Repetir PIN
               </label>
-              <input id="pinRepeat" name="pinRepeat" type="password" inputMode="numeric" pattern="\d{6}" maxLength={6} required autoComplete="off" className="input font-mono tracking-[0.3em]" />
+              <input id="pinRepeat" name="pinRepeat" type="password" inputMode="numeric" pattern={`\\d{${AUTH_POLICY.pinLength}}`} maxLength={AUTH_POLICY.pinLength} required autoComplete="off" className="input font-mono tracking-[0.3em]" />
             </div>
           </div>
 

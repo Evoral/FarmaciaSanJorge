@@ -13,13 +13,16 @@ import { useId, type ReactNode } from "react";
  * `reauth-required` is only ever acted on by `ReauthAwareForm`; `SimpleForm`
  * accepts states that declare it but treats it as idle. The error's
  * `fields` (built by `./action-error.ts`) name the controls to mark as
- * invalid -- see `./field-errors.ts`.
+ * invalid -- see `./field-errors.ts`. `operador-required` (a cuenta de
+ * sector must say which empleado is acting, `shared/auth/operador-context.ts`)
+ * is answered by `./use-form-submit.ts` in both wrappers.
  */
 export type FormActionState =
   | { status: "idle" }
   | { status: "error"; message: string; fields?: string[] }
   | { status: "success"; message?: string }
-  | { status: "reauth-required" };
+  | { status: "reauth-required" }
+  | { status: "operador-required" };
 
 export type SuccessState<S extends FormActionState> = Extract<S, { status: "success" }>;
 

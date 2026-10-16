@@ -39,7 +39,7 @@ export async function calcularCotizacionAction(_prevState: PreciosActionState, f
     }
     const avisos: string[] = [];
     if (resultado.esParcial) avisos.push("cotización PARCIAL (hay líneas de enrase manual sin costo)");
-    if (resultado.esIncompleta) avisos.push("cotización INCOMPLETA (stock insuficiente en alguna línea)");
+    if (resultado.esIncompleta) avisos.push("cotización INCOMPLETA (stock insuficiente en alguna línea costeada con partidas)");
     return {
       status: "success",
       message: `Precio final: $${resultado.precioFinal}${avisos.length ? ` — ${avisos.join("; ")}` : ""}.`,

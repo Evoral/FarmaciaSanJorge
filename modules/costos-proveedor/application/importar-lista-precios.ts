@@ -69,7 +69,7 @@ const importarListaPreciosInput = z.object({
   fechaLista: z.string().trim(),
   nombreArchivo: z.string().trim().min(1, "Falta el nombre del archivo.").max(255),
   hashSha256: z.string().regex(/^[0-9a-f]{64}$/, "El hash del archivo no es válido: volvé a leerlo."),
-  formato: z.enum(["XLSX"]),
+  formato: z.enum(["XLS", "XLSX"]),
   filasLeidas: z.number().int().min(0).max(100_000),
   filas: z.array(filaImportacionWire).min(1, "No hay costos para actualizar.").max(MAX_FILAS_COSTOS, `No se pueden cargar más de ${MAX_FILAS_COSTOS} costos juntos.`),
 });

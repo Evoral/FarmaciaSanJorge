@@ -10,7 +10,7 @@ export interface DescartarPreparacionFormProps {
 
 export function DescartarPreparacionForm({ preparacionId }: DescartarPreparacionFormProps) {
   return (
-    <SimpleForm action={descartarPreparacionAction} submitLabel="Descartar preparación" pendingLabel="Descartando…" submitVariant="danger-solid">
+    <SimpleForm action={descartarPreparacionAction} accion="preparaciones.descartar" submitLabel="Descartar preparación" pendingLabel="Descartando…" submitVariant="danger-solid">
       <input type="hidden" name="preparacionId" value={preparacionId} />
       <div className="flex flex-col gap-1">
         <label htmlFor="motivo" className="text-sm font-medium">

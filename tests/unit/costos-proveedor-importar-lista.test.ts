@@ -459,8 +459,16 @@ describe("importarListaPrecios -- the list's own fields", () => {
     sinEscrituras();
   });
 
+  it("records the format the list was read from: XLS (a .xls import) as well as XLSX", async () => {
+    await importar(lista([fila()], { formato: "XLS", nombreArchivo: "Lista de medicamentos.xls" }));
+
+    expect(insertListaPrecioProveedorMock.mock.calls[0]![1]).toMatchObject({ formato: "XLS", nombreArchivo: "Lista de medicamentos.xls" });
+    const cabecera = auditRecordMock.mock.calls.map((call) => call[1] as Record<string, unknown>).find((a) => a.entidad === "lista_precio_proveedor")!;
+    expect(cabecera.valorNuevo).toMatchObject({ formato: "XLS", nombreArchivo: "Lista de medicamentos.xls" });
+  });
+
   it("validates the shape of the envelope before touching the database", async () => {
-    for (const cambios of [{ hashSha256: "xyz" }, { hashSha256: "A".repeat(64) }, { formato: "PDF" }, { nombreArchivo: "  " }, { proveedorId: "no-es-uuid" }, { filasLeidas: -1 }]) {
+    for (const cambios of [{ hashSha256: "xyz" }, { hashSha256: "A".repeat(64) }, { formato: "PDF" }, { formato: "xls" }, { formato: "XLSM" }, { formato: undefined }, { nombreArchivo: "  " }, { proveedorId: "no-es-uuid" }, { filasLeidas: -1 }]) {
       await expect(importar(lista([fila()], cambios))).rejects.toBeInstanceOf(ValidationError);
     }
     await expect(importar(lista([]))).rejects.toBeInstanceOf(ValidationError);

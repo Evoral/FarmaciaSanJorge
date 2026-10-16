@@ -33,7 +33,12 @@ function createClient(): PrismaClient {
     // would exhaust it under moderate concurrency. Kept small and
     // deliberately NOT configurable via env: this is a platform-topology
     // constant (Vercel + Supavisor), not a per-deployment tuning knob.
-    max: 3,
+    // Local dev runs ONE process, so a bigger pool cannot multiply across
+    // instances; it just stops parallel queries from queueing behind 3 slots.
+    max: env.NODE_ENV === "development" ? 10 : 3,
+    // pg's default (10s) closes idle connections, so every pause in dev pays a
+    // fresh TLS handshake to Supabase on the next action.
+    idleTimeoutMillis: 60_000,
   });
   return new PrismaClient({
     adapter,

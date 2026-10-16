@@ -6,6 +6,7 @@ import { crearDroga } from "@/modules/drogas/application/crear-droga";
 import { editarDroga } from "@/modules/drogas/application/editar-droga";
 import { darDeBajaDroga } from "@/modules/drogas/application/dar-de-baja-droga";
 import { reactivarDroga } from "@/modules/drogas/application/reactivar-droga";
+import { conOperador } from "@/shared/auth/operador-context";
 import { actionError } from "@/shared/ui/action-error";
 import type { DrogaActionState } from "./action-state";
 
@@ -40,72 +41,80 @@ function fromError(error: unknown, fallback: string): DrogaActionState {
 }
 
 export async function crearDrogaAction(_prevState: DrogaActionState, formData: FormData): Promise<DrogaActionState> {
-  try {
-    const creada = await crearDroga({
-      nombre: String(formData.get("nombre") ?? ""),
-      unidadBaseId: String(formData.get("unidadBaseId") ?? ""),
-      tipoControl: optionalField(formData, "tipoControl"),
-      clase: optionalField(formData, "clase"),
-      stockMinimo: String(formData.get("stockMinimo") ?? "0"),
-      sinonimos: sinonimosDelForm(formData),
-    });
-    revalidatePath("/catalogos/drogas");
-    const otros = creada.sinonimos.length > 0 ? ` con ${creada.sinonimos.length === 1 ? "otro nombre" : "otros nombres"}: ${listaNombres(creada.sinonimos)}` : "";
-    return { status: "success", message: `Insumo creado${otros}.` };
-  } catch (error) {
-    return fromError(error, "No se pudo crear el insumo.");
-  }
+  return conOperador(formData, async (): Promise<DrogaActionState> => {
+    try {
+      const creada = await crearDroga({
+        nombre: String(formData.get("nombre") ?? ""),
+        unidadBaseId: String(formData.get("unidadBaseId") ?? ""),
+        tipoControl: optionalField(formData, "tipoControl"),
+        clase: optionalField(formData, "clase"),
+        stockMinimo: String(formData.get("stockMinimo") ?? "0"),
+        sinonimos: sinonimosDelForm(formData),
+      });
+      revalidatePath("/catalogos/drogas");
+      const otros = creada.sinonimos.length > 0 ? ` con ${creada.sinonimos.length === 1 ? "otro nombre" : "otros nombres"}: ${listaNombres(creada.sinonimos)}` : "";
+      return { status: "success", message: `Insumo creado${otros}.` };
+    } catch (error) {
+      return fromError(error, "No se pudo crear el insumo.");
+    }
+  });
 }
 
 export async function editarDrogaAction(_prevState: DrogaActionState, formData: FormData): Promise<DrogaActionState> {
-  try {
-    const editada = await editarDroga({
-      id: String(formData.get("id") ?? ""),
-      nombre: String(formData.get("nombre") ?? ""),
-      unidadBaseId: optionalField(formData, "unidadBaseId"),
-      tipoControl: optionalField(formData, "tipoControl"),
-      clase: optionalField(formData, "clase"),
-      stockMinimo: String(formData.get("stockMinimo") ?? "0"),
-      // The "Otros nombres" rows travel only when the form rendered them enabled (marker field).
-      ...(formData.has("sinonimosEnviados")
-        ? { sinonimos: sinonimosDelForm(formData), sinonimosCargados: formData.getAll("sinonimosCargados").map(String) }
-        : {}),
-      version: {
-        nombre: String(formData.get("versionNombre") ?? ""),
-        unidadBaseId: String(formData.get("versionUnidadBaseId") ?? ""),
-        esControlada: String(formData.get("versionEsControlada") ?? "") === "true",
-        tipoControl: String(formData.get("versionTipoControl") ?? "") as never,
-        clase: String(formData.get("versionClase") ?? ""),
-        stockMinimo: String(formData.get("versionStockMinimo") ?? ""),
-      },
-    });
-    revalidatePath("/catalogos/drogas");
-    const cambios = [
-      editada.sinonimosAgregados.length > 0 ? `${editada.sinonimosAgregados.length === 1 ? "se agregó" : "se agregaron"} ${listaNombres(editada.sinonimosAgregados)}` : null,
-      editada.sinonimosQuitados.length > 0 ? `${editada.sinonimosQuitados.length === 1 ? "se quitó" : "se quitaron"} ${listaNombres(editada.sinonimosQuitados)}` : null,
-    ].filter(Boolean);
-    return { status: "success", message: cambios.length > 0 ? `Cambios guardados: ${cambios.join("; ")}.` : "Droga actualizada." };
-  } catch (error) {
-    return fromError(error, "No se pudieron guardar los cambios.");
-  }
+  return conOperador(formData, async (): Promise<DrogaActionState> => {
+    try {
+      const editada = await editarDroga({
+        id: String(formData.get("id") ?? ""),
+        nombre: String(formData.get("nombre") ?? ""),
+        unidadBaseId: optionalField(formData, "unidadBaseId"),
+        tipoControl: optionalField(formData, "tipoControl"),
+        clase: optionalField(formData, "clase"),
+        stockMinimo: String(formData.get("stockMinimo") ?? "0"),
+        // The "Otros nombres" rows travel only when the form rendered them enabled (marker field).
+        ...(formData.has("sinonimosEnviados")
+          ? { sinonimos: sinonimosDelForm(formData), sinonimosCargados: formData.getAll("sinonimosCargados").map(String) }
+          : {}),
+        version: {
+          nombre: String(formData.get("versionNombre") ?? ""),
+          unidadBaseId: String(formData.get("versionUnidadBaseId") ?? ""),
+          esControlada: String(formData.get("versionEsControlada") ?? "") === "true",
+          tipoControl: String(formData.get("versionTipoControl") ?? "") as never,
+          clase: String(formData.get("versionClase") ?? ""),
+          stockMinimo: String(formData.get("versionStockMinimo") ?? ""),
+        },
+      });
+      revalidatePath("/catalogos/drogas");
+      const cambios = [
+        editada.sinonimosAgregados.length > 0 ? `${editada.sinonimosAgregados.length === 1 ? "se agregó" : "se agregaron"} ${listaNombres(editada.sinonimosAgregados)}` : null,
+        editada.sinonimosQuitados.length > 0 ? `${editada.sinonimosQuitados.length === 1 ? "se quitó" : "se quitaron"} ${listaNombres(editada.sinonimosQuitados)}` : null,
+      ].filter(Boolean);
+      return { status: "success", message: cambios.length > 0 ? `Cambios guardados: ${cambios.join("; ")}.` : "Droga actualizada." };
+    } catch (error) {
+      return fromError(error, "No se pudieron guardar los cambios.");
+    }
+  });
 }
 
 export async function darDeBajaDrogaAction(_prevState: DrogaActionState, formData: FormData): Promise<DrogaActionState> {
-  try {
-    await darDeBajaDroga({ id: String(formData.get("id") ?? ""), motivo: String(formData.get("motivo") ?? "") });
-    revalidatePath("/catalogos/drogas");
-    return { status: "success", message: "Droga dada de baja." };
-  } catch (error) {
-    return fromError(error, "No se pudo dar de baja la droga.");
-  }
+  return conOperador(formData, async (): Promise<DrogaActionState> => {
+    try {
+      await darDeBajaDroga({ id: String(formData.get("id") ?? ""), motivo: String(formData.get("motivo") ?? "") });
+      revalidatePath("/catalogos/drogas");
+      return { status: "success", message: "Droga dada de baja." };
+    } catch (error) {
+      return fromError(error, "No se pudo dar de baja la droga.");
+    }
+  });
 }
 
 export async function reactivarDrogaAction(_prevState: DrogaActionState, formData: FormData): Promise<DrogaActionState> {
-  try {
-    await reactivarDroga({ id: String(formData.get("id") ?? ""), motivo: String(formData.get("motivo") ?? "") });
-    revalidatePath("/catalogos/drogas");
-    return { status: "success", message: "Droga reactivada." };
-  } catch (error) {
-    return fromError(error, "No se pudo reactivar la droga.");
-  }
+  return conOperador(formData, async (): Promise<DrogaActionState> => {
+    try {
+      await reactivarDroga({ id: String(formData.get("id") ?? ""), motivo: String(formData.get("motivo") ?? "") });
+      revalidatePath("/catalogos/drogas");
+      return { status: "success", message: "Droga reactivada." };
+    } catch (error) {
+      return fromError(error, "No se pudo reactivar la droga.");
+    }
+  });
 }

@@ -12,6 +12,8 @@ export type PreparacionActionState =
   | { status: "idle" }
   | { status: "error"; message: string; fields?: string[] }
   | { status: "reauth-required" }
+  /** A cuenta de sector must say which empleado is acting (`conOperador`, shared/auth/operador-context.ts). */
+  | { status: "operador-required" }
   | { status: "success"; message?: string; id?: string };
 
 export const IDLE_STATE: PreparacionActionState = { status: "idle" };

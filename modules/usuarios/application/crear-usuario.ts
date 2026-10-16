@@ -33,6 +33,15 @@
  * DP-03 (migration 0054): `roles` are codes of the session's TENANT roles,
  * resolved and escalation-checked by `resolverRolesAAsignar` before the
  * usuario is inserted (see cambiar-roles.ts).
+ *
+ * `esSector` (migration 0077, docs/specs/cuentas-de-sector.md) creates a
+ * cuenta de sector: one shared session per work area. It is decided HERE and
+ * never changes (INV-SEC-002), and such an account never holds
+ * ADMINISTRADOR nor DIRECTOR_TECNICO (checked below; INV-SEC-001 is the DB
+ * backstop, also for later role changes). A cuenta de sector is a work area,
+ * not a person: the form asks only its name and its email (the login
+ * identifier); apellido and DNI are derived (`../domain/cuenta-de-sector.ts`)
+ * and it has no matrícula.
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
@@ -41,24 +50,41 @@ import { ValidationError } from "@/shared/errors";
 import { email as emailSchema, nonEmptyString } from "@/shared/validation";
 import { AUTH_POLICY } from "@/shared/auth/policy";
 import { generateOpaqueToken, hashToken } from "@/modules/auth/domain/token";
-import { codigoRolAsignableSchema } from "../domain/roles";
+import { codigoRolAsignableSchema, ROLES_VEDADOS_A_SECTOR } from "../domain/roles";
+import { identidadDeCuentaDeSector } from "../domain/cuenta-de-sector";
 import { resolverRolesAAsignar } from "./roles-asignables";
 import { existeEmail, existeDni, insertUsuario, insertUsuarioRol, insertCredencialActivacion } from "../infrastructure/usuario-repository";
 
-const crearUsuarioInput = z.object({
-  nombre: nonEmptyString,
-  apellido: nonEmptyString,
-  email: emailSchema,
-  dni: nonEmptyString,
-  numeroMatricula: z.string().trim().max(100).optional(),
-  roles: z
-    .array(codigoRolAsignableSchema)
-    .min(1, "Elegí al menos un rol.")
-    .max(50)
-    .transform((roles) => [...new Set(roles)]),
-});
+const textoOpcional = z.string().trim().optional();
 
-export type CrearUsuarioInput = z.infer<typeof crearUsuarioInput>;
+const crearUsuarioInput = z
+  .object({
+    /** A person's first name, or the NAME OF THE SECTOR for a cuenta de sector ("Laboratorio"). */
+    nombre: nonEmptyString,
+    /** Required for a person. Ignored for a cuenta de sector (derived, see `identidadDeCuentaDeSector`). */
+    apellido: textoOpcional,
+    /** Also the login identifier, so a cuenta de sector needs one too (no mail is ever sent to it). */
+    email: emailSchema,
+    /** Required for a person. Ignored for a cuenta de sector (derived). */
+    dni: textoOpcional,
+    numeroMatricula: z.string().trim().max(100).optional(),
+    roles: z
+      .array(codigoRolAsignableSchema)
+      .min(1, "Elegí al menos un rol.")
+      .max(50)
+      .transform((roles) => [...new Set(roles)]),
+    /** A cuenta de sector (shared session per work area) instead of a person's own account. */
+    esSector: z.boolean().default(false),
+  })
+  .superRefine((value, ctx) => {
+    if (value.esSector) return;
+    for (const campo of ["apellido", "dni"] as const) {
+      if (!value[campo]) ctx.addIssue({ code: "custom", path: [campo], message: "Este campo no puede estar vacío." });
+    }
+  });
+
+/** Pre-default wire shape: `esSector` may be omitted (= false). */
+export type CrearUsuarioInput = z.input<typeof crearUsuarioInput>;
 
 export interface CrearUsuarioResult {
   usuarioId: string;
@@ -79,22 +105,36 @@ export const crearUsuarioCommand = defineCommand({
     // names another tenant, only "ya existe". The DB's own UNIQUE
     // constraints (usuario_email_key, usuario_tenant_dni_key) remain the
     // final backstop for the race between this check and the INSERT below.
+    // A cuenta de sector is a work area, not a person: only its name is asked (domain/cuenta-de-sector.ts).
+    const identidad = input.esSector ? identidadDeCuentaDeSector(input.nombre) : { nombre: input.nombre, apellido: input.apellido ?? "", dni: input.dni ?? "" };
+    if (!identidad) {
+      throw new ValidationError("El nombre del sector debe tener al menos una letra o un número.", { fields: ["nombre"] });
+    }
+    const numeroMatricula = input.esSector ? null : (input.numeroMatricula ?? null);
+
     if (await existeEmail(tx, input.email)) {
       throw new ValidationError("Ya existe un usuario con ese email.");
     }
-    if (await existeDni(tx, session.tenantId, input.dni)) {
-      throw new ValidationError("Ya existe un usuario con ese DNI en esta farmacia.");
+    if (await existeDni(tx, session.tenantId, identidad.dni)) {
+      throw new ValidationError(input.esSector ? "Ya existe una cuenta de sector con ese nombre." : "Ya existe un usuario con ese DNI en esta farmacia.", {
+        fields: [input.esSector ? "nombre" : "dni"],
+      });
+    }
+
+    if (input.esSector && input.roles.some((rol) => ROLES_VEDADOS_A_SECTOR.includes(rol))) {
+      throw new ValidationError("Una cuenta de sector no puede tener el rol Administrador ni el de Director Técnico.", { fields: ["roles"] });
     }
 
     await resolverRolesAAsignar(tx, session, input.roles);
 
     const nuevo = await insertUsuario(tx, {
       tenantId: session.tenantId,
-      nombre: input.nombre,
-      apellido: input.apellido,
+      nombre: identidad.nombre,
+      apellido: identidad.apellido,
       email: input.email,
-      dni: input.dni,
-      numeroMatricula: input.numeroMatricula ?? null,
+      dni: identidad.dni,
+      numeroMatricula,
+      esSector: input.esSector,
       creadoPorId: session.usuario.id,
     });
 
@@ -130,7 +170,7 @@ export const crearUsuarioCommand = defineCommand({
       entidadId: nuevo.id,
       accion: TipoAccion.CREAR,
       // Never the credential/hash -- only the non-secret fields (plan §14 audit rule).
-      valorNuevo: { nombre: input.nombre, apellido: input.apellido, email: input.email, dni: input.dni, roles: input.roles },
+      valorNuevo: { nombre: identidad.nombre, apellido: identidad.apellido, email: input.email, dni: identidad.dni, roles: input.roles, ...(input.esSector ? { esSector: true } : {}) },
     });
     for (const rolCodigo of input.roles) {
       await auditRecord(tx, {

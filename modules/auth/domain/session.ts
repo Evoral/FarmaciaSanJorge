@@ -3,12 +3,29 @@
  * pattern step 1). Pure type-only module -- no I/O.
  */
 import type { Permiso } from "./permisos";
+import type { MetodoVerificacion } from "./verificacion-identidad";
 
 export interface AuthenticatedUsuario {
   id: string;
   email: string;
   nombre: string;
   apellido: string;
+}
+
+/** Set on the session of a cuenta de sector (`usuario.es_sector`, docs/specs/cuentas-de-sector.md): a shared session per work area. */
+export interface SesionDeSector {
+  /** The acciones this farmacia asks an empleado's PIN for (`fsj.accion_con_pin`), loaded with the session. */
+  permisosConPin: ReadonlySet<Permiso>;
+}
+
+/** Where a verified empleado is acting from: the cuenta de sector whose session carried the request. */
+export interface TerminalDeOrigen {
+  usuarioId: string;
+  /** The cuenta de sector's display name (e.g. "Laboratorio"). */
+  nombre: string;
+  sesionId: string;
+  /** How the empleado proved who they are in this act. */
+  verificacion: MetodoVerificacion;
 }
 
 /**
@@ -29,4 +46,13 @@ export interface AuthenticatedSession {
   permisos: ReadonlySet<Permiso>;
   /** `sesion.reautenticada_en` (FASE 2 point 2.5, INV-X02) -- `null` until `reautenticar()` sets it. Consumed by `requireRecentReauth` (./step-up.ts). */
   reautenticadaEn: Date | null;
+  /** Present when the session belongs to a cuenta de sector; absent/`null` for an individual session. */
+  sector?: SesionDeSector | null;
+  /**
+   * Present only on the session a command HANDLER receives when the act was
+   * attributed to an empleado verified in that same request
+   * (shared/usecase.ts): `usuario` and `permisos` are then the empleado's
+   * (permisos = cuenta de sector ∩ empleado), and this says where from.
+   */
+  terminal?: TerminalDeOrigen | null;
 }

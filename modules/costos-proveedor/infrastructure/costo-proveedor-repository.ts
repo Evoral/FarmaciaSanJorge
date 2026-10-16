@@ -260,7 +260,7 @@ export async function insertCostoProveedor(tx: Prisma.TransactionClient, input: 
 export interface NuevaListaPrecioProveedorInput {
   tenantId: string;
   proveedorId: string;
-  formato: "XLSX" | "PDF";
+  formato: "XLS" | "XLSX" | "PDF";
   nombreArchivo: string;
   /** SHA-256 of the file's bytes, lowercase hex (DB CHECK: 64 hex chars). */
   hashSha256: string;

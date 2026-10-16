@@ -14,7 +14,7 @@ export interface ReautenticarActionResult {
   message: string;
 }
 
-/** `credential` is either the full password or the 6-digit PIN -- never both, see `reautenticar()`'s input union. */
+/** `credential` is either the full password or the PIN -- never both, see `reautenticar()`'s input union. */
 export async function reautenticarAction(credential: { password: string } | { pin: string }): Promise<ReautenticarActionResult> {
   try {
     await reautenticar(credential);

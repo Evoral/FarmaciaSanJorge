@@ -157,6 +157,7 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
 
       <ReauthAwareForm
         action={recalcular ? recalcularReservaStockAction : esReserva ? reservarStockAction : confirmarPreparacionAction}
+        accion="preparaciones.confirmar"
         submitLabel={recalcular ? "Recalcular reserva" : esReserva ? "Marcar como preparada" : "Confirmar preparación"}
         pendingLabel={esReserva ? "Reservando…" : "Confirmando…"}
         submitDisabled={bloqueada}

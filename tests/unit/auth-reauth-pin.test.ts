@@ -90,7 +90,7 @@ beforeEach(() => {
 describe("reautenticar: PIN branch", () => {
   it("no PIN configured -> rejected, no counter write", async () => {
     loadPinEstadoMock.mockResolvedValue({ pinHash: null, pinBloqueado: false, pinIntentosFallidos: 0 });
-    const result = await execute({ pin: "482913" });
+    const result = await execute({ pin: "4829" });
     expect(result).toEqual({ ok: false, message: "No tenés un PIN configurado. Usá tu contraseña." });
     expect(recordPinFailureMock).not.toHaveBeenCalled();
   });
@@ -98,7 +98,7 @@ describe("reautenticar: PIN branch", () => {
   it("blocked PIN -> rejected immediately, even with a matching PIN, no further counter write", async () => {
     loadPinEstadoMock.mockResolvedValue({ pinHash: "hash", pinBloqueado: true, pinIntentosFallidos: 5 });
     verifyPasswordMock.mockResolvedValue(true);
-    const result = await execute({ pin: "482913" });
+    const result = await execute({ pin: "4829" });
     expect(result).toEqual({ ok: false, message: "El PIN está bloqueado. Reautenticate con tu contraseña." });
     expect(recordPinFailureMock).not.toHaveBeenCalled();
   });
@@ -106,7 +106,7 @@ describe("reautenticar: PIN branch", () => {
   it("wrong PIN below the threshold -> rejected, counter incremented, not yet blocked, not audited", async () => {
     loadPinEstadoMock.mockResolvedValue({ pinHash: "hash", pinBloqueado: false, pinIntentosFallidos: 2 });
     verifyPasswordMock.mockResolvedValue(false);
-    const result = await execute({ pin: "000000" });
+    const result = await execute({ pin: "0000" });
     expect(result).toEqual({ ok: false, message: "El PIN no es correcto." });
     expect(recordPinFailureMock).toHaveBeenCalledWith(expect.anything(), USUARIO_ID, { pinIntentosFallidos: 3, pinBloqueado: false });
   });
@@ -114,7 +114,7 @@ describe("reautenticar: PIN branch", () => {
   it("the 5th consecutive wrong PIN blocks it (AUTH_POLICY.maxFailedPinAttempts)", async () => {
     loadPinEstadoMock.mockResolvedValue({ pinHash: "hash", pinBloqueado: false, pinIntentosFallidos: 4 });
     verifyPasswordMock.mockResolvedValue(false);
-    const result = await execute({ pin: "000000" });
+    const result = await execute({ pin: "0000" });
     expect(result).toEqual({ ok: false, message: "El PIN no es correcto." });
     expect(recordPinFailureMock).toHaveBeenCalledWith(expect.anything(), USUARIO_ID, { pinIntentosFallidos: 5, pinBloqueado: true });
   });
@@ -122,14 +122,14 @@ describe("reautenticar: PIN branch", () => {
   it("failed PIN attempts never touch the password lockout (no login repository call exists in this module at all)", async () => {
     loadPinEstadoMock.mockResolvedValue({ pinHash: "hash", pinBloqueado: false, pinIntentosFallidos: 0 });
     verifyPasswordMock.mockResolvedValue(false);
-    await execute({ pin: "000000" });
+    await execute({ pin: "0000" });
     expect(loadUsuarioParaPasswordMock).not.toHaveBeenCalled();
   });
 
   it("correct PIN -> accepted, marks reautenticada, resets the PIN lockout", async () => {
     loadPinEstadoMock.mockResolvedValue({ pinHash: "hash", pinBloqueado: false, pinIntentosFallidos: 3 });
     verifyPasswordMock.mockResolvedValue(true);
-    const result = await execute({ pin: "482913" });
+    const result = await execute({ pin: "4829" });
     expect(result).toMatchObject({ ok: true });
     expect(marcarReautenticadaMock).toHaveBeenCalled();
     expect(resetPinLockoutMock).toHaveBeenCalledWith(expect.anything(), USUARIO_ID);
@@ -138,13 +138,13 @@ describe("reautenticar: PIN branch", () => {
   it("reautenticar() (the public, throwing wrapper) converts a wrong-PIN {ok:false} result into a thrown DomainError", async () => {
     loadPinEstadoMock.mockResolvedValue({ pinHash: "hash", pinBloqueado: false, pinIntentosFallidos: 0 });
     verifyPasswordMock.mockResolvedValue(false);
-    await expect(reautenticar({ pin: "000000" })).rejects.toThrow("El PIN no es correcto.");
+    await expect(reautenticar({ pin: "0000" })).rejects.toThrow("El PIN no es correcto.");
   });
 
   it("reautenticar() (the public, throwing wrapper) resolves normally on a correct PIN", async () => {
     loadPinEstadoMock.mockResolvedValue({ pinHash: "hash", pinBloqueado: false, pinIntentosFallidos: 0 });
     verifyPasswordMock.mockResolvedValue(true);
-    await expect(reautenticar({ pin: "482913" })).resolves.toMatchObject({ reautenticadaEn: expect.any(Date) });
+    await expect(reautenticar({ pin: "4829" })).resolves.toMatchObject({ reautenticadaEn: expect.any(Date) });
   });
 });
 

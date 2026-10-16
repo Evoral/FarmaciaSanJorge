@@ -23,6 +23,8 @@ En memoria:
 1. **Ficha de cada ítem**: el mismo cálculo que `fichas.generar` (unidades base, parámetros de pesaje del tenant y calculadora pura de `ficha-tecnica.md`).
 2. **Costo de la receta completa**: el mismo cálculo que `cotizaciones.calcular` (jornada del tenant, partidas elegibles, reparto y calculadora pura) con la regla de precio vigente (tramos de margen por costo y precio mínimo, `reglas-precio.md`; cada ítem se cotiza con su propio costo), pero **acumulado por droga en el orden de los ítems**: el primer ítem consume de los saldos elegibles y el siguiente ve solo lo que queda. Así, dos ítems que usan la misma droga no pueden aparecer ambos cubiertos.
 
+   Origen del costo por línea (`costos-proveedor.md`, R25–R30): una droga con costo de proveedor utilizable se costea con él (toda la cantidad × costo, haya o no stock) y una droga sin costo de proveedor, **exactamente como antes**, con las partidas (fallback). La simulación acumulada de stock sigue corriendo para **todas** las líneas, también las de proveedor, para que los faltantes de los ítems siguientes sean correctos; el costo de una línea de proveedor nunca depende de ella. Su faltante es solo informativo («Sin stock suficiente para prepararla») y **no** marca el ítem como **Incompleta**; la advertencia de stock de la receta sigue mostrando la demanda que supera el stock. El panel indica, por ítem, el origen de cada línea cuando alguna se costeó con proveedor.
+
 Ambos pasos comparten el código con los comandos existentes (`calcularLineasFicha`; `calcularCotizacion` y su reparto), de modo que el presupuesto y la cotización posterior aplican las mismas reglas.
 
 ### Resultado
@@ -30,7 +32,7 @@ Ambos pasos comparten el código con los comandos existentes (`calcularLineasFic
 | Caso | Resultado |
 |---|---|
 | Sin regla de precio vigente | Un único mensaje: «No hay regla de precios configurada». No se calcula nada. |
-| Ítem calculable | Precio final, costo de insumos y, si corresponde: **Parcial** (algún excipiente se completa al preparar: enrase manual, costo 0) e **Incompleta** (stock insuficiente: se cotiza lo que hay e informa lo que falta por droga). |
+| Ítem calculable | Precio final, costo de insumos y, si corresponde: **Parcial** (algún excipiente se completa al preparar: enrase manual, costo 0) e **Incompleta** (stock insuficiente en una línea costeada con partidas: se cotiza lo que hay e informa lo que falta por droga; una línea costeada con costo de proveedor no la provoca). |
 | Ítem no calculable (V1–V9, droga o unidad inexistente o dada de baja) | Mensaje en lugar del precio. No interrumpe el resto. |
 | Total | Suma de los ítems calculables. Si alguno no se pudo calcular, se indica que el total no lo incluye. |
 | Stock de la receta | Si la demanda total de una droga en la receta supera el stock elegible, advertencia destacada a nivel receta: «Falta stock de Cafeína para toda la receta: se necesitan 3 g y hay 2 g disponibles.» Nunca bloquea. |

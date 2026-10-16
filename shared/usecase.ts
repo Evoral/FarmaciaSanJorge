@@ -34,6 +34,12 @@
  * (`ACCESO_DENEGADO`, in its own short transaction, best-effort), see
  * `authorizeAuditado` below.
  *
+ * Commands have one more step right after `authorize`: `resolverActor`
+ * (below). In a cuenta de sector -- a session shared by the empleados of a
+ * work area, docs/specs/cuentas-de-sector.md -- the acciones the farmacia
+ * asks a PIN for are attributed to the empleado who identified themselves
+ * in that request, not to the shared account. Queries never ask for it.
+ *
  * Every entry created this way is pushed to an in-process registry
  * (`listRegisteredUseCases`), which is what makes "every registered use
  * case calls authorize" a real, executable test
@@ -46,8 +52,12 @@ import { requireSession, requireRecentReauth } from "@/shared/auth/session";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 import { authorize } from "@/shared/auth/authorize";
 import type { Permiso } from "@/shared/auth/authorize";
+import { verificarOperadorEnTx } from "@/shared/auth/operador";
+import type { VerificacionDeOperador } from "@/shared/auth/operador";
+import { solicitudDeOperador } from "@/shared/auth/operador-context";
+import { CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
 import { withTenantTransaction } from "@/shared/db/transaction";
-import { AuthorizationError, ValidationError, mapDbError } from "@/shared/errors";
+import { AuthorizationError, DomainError, OperadorRequeridoError, ValidationError, mapDbError } from "@/shared/errors";
 import { record as auditRecord } from "@/shared/audit";
 import { getLogger } from "@/shared/logging/logger";
 import { formatIssuePath } from "@/shared/labels/field-labels";
@@ -274,6 +284,58 @@ async function authorizeAuditado(session: AuthenticatedSession, casoDeUso: strin
   }
 }
 
+/**
+ * Who a command is attributed to (docs/specs/cuentas-de-sector.md). For an
+ * individual session, and for a cuenta de sector's acciones the farmacia
+ * does not ask a PIN for, that is the session itself. For an acción "con
+ * PIN" in a cuenta de sector it is the empleado who identified themselves
+ * in THIS request:
+ *
+ *   - no credential in the request -> `OperadorRequeridoError`, before any
+ *     transaction of the command opens (the form then asks who is acting and
+ *     resubmits);
+ *   - the credential is verified in a short transaction of its own, so the
+ *     failed-attempt counter and the audit of a rejection are committed
+ *     whatever happens next -- once per request (an action that chains two
+ *     commands verifies the PIN a single time);
+ *   - the empleado must hold the permiso THEMSELVES (`authorizeAuditado`,
+ *     denial audited under their name).
+ *
+ * The session handed to the handler then carries the empleado as `usuario`
+ * (so every `session.usuario.id` a handler writes -- `registradaPorId`,
+ * `preparadaPorId`... -- and the audit row are theirs), `permisos` =
+ * cuenta de sector ∩ empleado, and `terminal` = where they acted from.
+ */
+async function resolverActor(session: AuthenticatedSession, casoDeUso: string, permiso: Permiso): Promise<AuthenticatedSession> {
+  if (!session.sector?.permisosConPin.has(permiso)) return session;
+
+  const solicitud = solicitudDeOperador();
+  if (!solicitud?.credencial) {
+    if (solicitud) solicitud.requerido = true;
+    throw new OperadorRequeridoError();
+  }
+
+  const { credencial } = solicitud;
+  solicitud.verificacion ??= withTenantTransaction(session.tenantId, (tx) => verificarOperadorEnTx(tx, session, credencial));
+  const verificacion = (await solicitud.verificacion) as VerificacionDeOperador;
+  if (!verificacion.ok) {
+    throw new DomainError(verificacion.message, { fields: [CAMPO_OPERADOR_PIN] });
+  }
+
+  const { operador, metodo } = verificacion;
+  const terminal = { usuarioId: session.usuario.id, nombre: `${session.usuario.nombre} ${session.usuario.apellido}`.trim(), sesionId: session.sesionId, verificacion: metodo };
+  solicitud.operador = { usuarioId: operador.id, terminal: { usuarioId: terminal.usuarioId, usuario: terminal.nombre, sesionId: terminal.sesionId }, verificacion: metodo };
+
+  const actor: AuthenticatedSession = {
+    ...session,
+    usuario: { id: operador.id, email: operador.email, nombre: operador.nombre, apellido: operador.apellido },
+    permisos: new Set([...session.permisos].filter((codigo) => operador.permisos.has(codigo))),
+    terminal,
+  };
+  await authorizeAuditado(actor, casoDeUso, permiso);
+  return actor;
+}
+
 /** Fails at module load (not at call time) if an audit opt-out carries no real reason. */
 function assertAuditDeclaration(name: string, audit: AuditDeclaration): void {
   if ("skip" in audit && audit.reason.trim().length < 10) {
@@ -287,9 +349,11 @@ function assertAuditDeclaration(name: string, audit: AuditDeclaration): void {
 export function defineCommand<TInput, TOutput>(config: DefineCommandConfig<TInput, TOutput>): DefinedUseCase<TOutput> {
   assertAuditDeclaration(config.name, config.audit);
   async function execute(rawInput: unknown, options?: ExecuteOptions): Promise<TOutput> {
-    const session = await resolveSession(options);
-    await authorizeAuditado(session, config.name, config.permiso);
-    if (config.requireRecentReauth) {
+    const sesionOriginal = await resolveSession(options);
+    await authorizeAuditado(sesionOriginal, config.name, config.permiso);
+    const session = await resolverActor(sesionOriginal, config.name, config.permiso);
+    // An empleado who just proved their identity for this very act satisfies the step-up (INV-X02) by construction.
+    if (config.requireRecentReauth && !session.terminal) {
       requireRecentReauth(session, config.requireRecentReauth.maxAgeMinutes);
     }
     const input = parseInput(config.input, rawInput);

@@ -37,6 +37,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Next 16.4 validates parallel-route slots strictly and, with the `(app)/@modal/[...catchAll]` slot, drops the
+  // sibling `(auth)` pages (/login, /activar) as "unreachable" (404). Loose matching restores the 16.3 behavior.
+  deprecated: { looseRouteMatching: true },
   logging: {
     // In development Next prints every Server Function call WITH its arguments.
     // The receta QR import (docs/specs/importacion-receta-qr.md) sends the scanned
@@ -63,14 +66,17 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      // docs/specs/importacion-receta-pdf.md: the receta PDF may weigh up to
-      // MAX_PDF_BYTES (1 MiB); the raw multipart body adds framing on top,
-      // so the limit is that plus MULTIPART_MARGIN_BYTES (32 KiB). Must equal
-      // SERVER_ACTIONS_BODY_SIZE_LIMIT_BYTES in
-      // modules/recetas/domain/archivo-receta-pdf.ts (asserted by
-      // tests/unit/archivo-receta-pdf.test.ts) -- a literal here rather than
-      // an import, to keep this config free of app-module imports.
-      bodySizeLimit: 1_081_344,
+      // One limit for every Server Action upload, so it must cover the largest:
+      // the receta / factura PDFs weigh up to MAX_PDF_BYTES (1 MiB,
+      // docs/specs/importacion-receta-pdf.md) and the supplier price list up to
+      // MAX_LISTA_BYTES (4 MiB, docs/specs/costos-proveedor.md R15); the raw
+      // multipart body adds framing on top (MULTIPART_MARGIN_BYTES, 32 KiB).
+      // So: 4 MiB + 32 KiB (under Vercel's ~4.5 MB request body cap), equal to LISTA_BODY_SIZE_LIMIT_BYTES in
+      // modules/costos-proveedor/domain/archivo-lista.ts (asserted, together
+      // with the PDF one, by tests/unit/archivo-receta-pdf.test.ts) -- a
+      // literal here rather than an import, to keep this config free of
+      // app-module imports. Each action still enforces its own file limit.
+      bodySizeLimit: 4_227_072,
     },
   },
   // Pacientes and Proveedores left the Catálogos tabs to become their own

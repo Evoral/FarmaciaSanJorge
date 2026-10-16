@@ -99,6 +99,23 @@ export class StepUpRequiredError extends AppError {
   }
 }
 
+/**
+ * The session is a cuenta de sector (a shared session per work area) and
+ * this act must be attributed to the empleado performing it, who has not
+ * identified themselves in this request (docs/specs/cuentas-de-sector.md).
+ * Distinct from `StepUpRequiredError` (the session's OWN usuario
+ * re-entering their credential): the UI answers this one by asking WHO is
+ * acting plus their PIN, and resubmitting the same data with it. It shares
+ * the `STEP_UP_REQUIRED` code (it is the same category for a route handler:
+ * identity must be confirmed first) but is deliberately NOT a subclass, so
+ * an `instanceof StepUpRequiredError` check never mistakes one for the other.
+ */
+export class OperadorRequeridoError extends AppError {
+  constructor(message = "Esta acción requiere que el empleado que la realiza se identifique con su PIN.", options?: { cause?: unknown }) {
+    super("STEP_UP_REQUIRED", message, options);
+  }
+}
+
 /** The requested entity does not exist (or is invisible to this tenant). */
 export class NotFoundError extends AppError {
   constructor(message = "No se encontró el registro solicitado.", options?: { cause?: unknown }) {
@@ -260,7 +277,7 @@ export function mapDbError(e: unknown): AppError {
  * - `INTERNAL_ERROR` and anything that is not an `AppError`: `fallback`
  *   (the caller's own "No se pudo ..." for that operation).
  * - Every other `AppError` (DomainError, ValidationError, ConflictError,
- *   NotFoundError, StepUpRequiredError): authored for the user, shown as
+ *   NotFoundError, StepUpRequiredError, OperadorRequeridoError): authored for the user, shown as
  *   is -- unless it still embeds an `INV-XXX` token, in which case that
  *   code is translated instead (defense in depth).
  */

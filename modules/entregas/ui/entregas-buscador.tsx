@@ -24,6 +24,9 @@ import { Avatar } from "@/shared/ui/avatar";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ESTADO_RECETA_LABELS } from "@/shared/labels/enum-labels";
 
+/** Row button once the envío left and the firma is awaited. */
+const ETIQUETA_ACCION_ENVIADA = "Esperando retorno";
+
 const numberFormat = new Intl.NumberFormat("es-AR");
 
 function etiquetaEstado(estado: string): string {
@@ -35,9 +38,15 @@ export interface EntregasBuscadorProps {
   totalInicial: number;
   /** The page's pagination of the default listing; hidden while a search is applied (the search shows page 1 only). */
   paginacion?: ReactNode;
+  /** The page's URL filters (`FilterForm`, none identifying a paciente); the POST search applies them too. */
+  filtros: { estado: string; numero: string; ingresoDesde: string; ingresoHasta: string };
+  /** The `FilterForm` rendered next to the paciente search, and the active-filter chips under the bar. */
+  controles?: ReactNode;
+  chips?: ReactNode;
 }
 
-export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion }: EntregasBuscadorProps) {
+export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion, filtros, controles, chips }: EntregasBuscadorProps) {
+  const hayFiltros = Object.values(filtros).some(Boolean);
   const router = useRouter();
   const initialState: BuscarEntregasState = { status: "idle", items: itemsIniciales, total: totalInicial };
   const [state, formAction, isPending] = useActionState(buscarEntregasAction, initialState);
@@ -67,9 +76,14 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion }: E
   }
 
   // The autocomplete's source: the same action, read directly (its own request; the table is untouched).
+  const { estado, numero, ingresoDesde, ingresoHasta } = filtros;
   const search = useCallback(async (q: string) => {
     const formData = new FormData();
     formData.set("q", q);
+    formData.set("estado", estado);
+    formData.set("numero", numero);
+    formData.set("ingresoDesde", ingresoDesde);
+    formData.set("ingresoHasta", ingresoHasta);
     const result = await buscarEntregasAction({ status: "idle", items: [], total: 0 }, formData);
     if (result.status === "error") throw new Error(result.message);
     return result.items.map((r) => ({
@@ -77,12 +91,16 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion }: E
       label: `${r.pacienteNombre} ${r.pacienteApellido}`,
       description: `Nº ${r.numeroInterno} · ${etiquetaEstado(r.estado)}`,
     }));
-  }, []);
+  }, [estado, numero, ingresoDesde, ingresoHasta]);
 
   return (
     <div className="flex flex-col gap-4">
       <form ref={formRef} action={formAction} onSubmit={onSubmit} aria-label="Filtrar entregas pendientes" aria-busy={isPending} hidden>
         <input ref={qRef} type="hidden" name="q" defaultValue="" />
+        <input type="hidden" name="estado" value={estado} readOnly />
+        <input type="hidden" name="numero" value={numero} readOnly />
+        <input type="hidden" name="ingresoDesde" value={ingresoDesde} readOnly />
+        <input type="hidden" name="ingresoHasta" value={ingresoHasta} readOnly />
       </form>
 
       <div className="filter-bar">
@@ -108,7 +126,9 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion }: E
             }}
           />
         </div>
+        {controles}
       </div>
+      {chips}
 
       {state.status === "error" ? (
         <p role="alert" className="text-sm text-red-700">
@@ -132,8 +152,12 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion }: E
         </div>
 
         {items.length === 0 ? (
-          conBusqueda ? (
-            <EmptyState icon={<SearchX className="size-5" />} title="Sin resultados" description="Ninguna receta pendiente de entrega coincide con ese paciente." />
+          conBusqueda || hayFiltros ? (
+            <EmptyState
+              icon={<SearchX className="size-5" />}
+              title="Sin resultados"
+              description={conBusqueda ? "Ninguna receta pendiente de entrega coincide con esa búsqueda y los filtros aplicados." : "Ninguna receta pendiente de entrega coincide con los filtros aplicados."}
+            />
           ) : (
             <EmptyState icon={<PackageCheck className="size-5" />} title="No hay recetas pendientes de entrega" description="Las recetas preparadas aparecen acá para entregarlas o enviarlas." />
           )
@@ -190,7 +214,7 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion }: E
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <Link href={`/entregas/${r.id}`} aria-label={`Gestionar la entrega de la receta Nº ${r.numeroInterno}`} className="btn btn-ghost btn-sm">
-                          <span className="hidden sm:inline">Entregar</span>
+                          <span className="hidden sm:inline">{r.estado === "ENVIADA_PEND_FIRMA" ? ETIQUETA_ACCION_ENVIADA : "Entregar"}</span>
                           <ChevronRight className="size-3.5" aria-hidden />
                         </Link>
                       </td>

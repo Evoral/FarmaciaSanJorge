@@ -103,6 +103,7 @@ export function configuracionSections(session: AuthenticatedSession): SectionLin
     { href: "/admin/configuracion/farmacia", label: "Farmacia", visible: puedeConfig },
     { href: "/admin/configuracion/parametros", label: "Parámetros", visible: puedeConfig },
     { href: "/admin/configuracion/etiquetas", label: "Etiquetas", visible: puedeConfig },
+    { href: "/admin/configuracion/pin", label: "PIN por acción", visible: puedeConfig },
     { href: "/admin/configuracion/precios", label: "Reglas de precio", visible: can(session, "precios.reglas.editar") },
   ]);
 }

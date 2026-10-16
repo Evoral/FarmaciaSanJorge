@@ -126,8 +126,8 @@ describe("login() never reads a PIN, even from a candidate row that has one atta
       candidateWithPoisonedPin({ tenantId: TENANT_ID, usuarioId: USUARIO_ID, passwordHash: "hash", estado: "ACTIVO", intentosFallidos: 0, bloqueadoHasta: null }),
     );
     verifyPasswordMock.mockResolvedValue(false);
-    // "482913" looks exactly like a valid 6-digit PIN -- login() must treat it as an ordinary wrong password, never consult pin_hash.
-    const result = await login("user@example.com", "482913", null, null);
+    // "4829" looks exactly like a valid PIN -- login() must treat it as an ordinary wrong password, never consult pin_hash.
+    const result = await login("user@example.com", "4829", null, null);
     expect(result.ok).toBe(false);
   });
 
@@ -151,8 +151,8 @@ describe("verificarCoFirmaDt() never reads the DT's PIN, even from a candidate r
       candidateWithPoisonedPin({ usuarioId: DT_ID, passwordHash: "hash", estado: "ACTIVO", intentosFallidos: 0, bloqueadoHasta: null }),
     );
     verifyPasswordMock.mockResolvedValue(false);
-    // Again: a 6-digit value that could be mistaken for a PIN must be treated as an ordinary wrong password.
-    const result = await verificarCoFirmaDt({ dtUsuarioId: DT_ID, password: "482913" });
+    // Again: a value that could be mistaken for a PIN must be treated as an ordinary wrong password.
+    const result = await verificarCoFirmaDt({ dtUsuarioId: DT_ID, password: "4829" });
     expect(result).toMatchObject({ ok: false });
   });
 

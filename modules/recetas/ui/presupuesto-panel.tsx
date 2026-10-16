@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { presupuestarRecetaAction } from "./actions";
 import type { PresupuestoState } from "./action-state";
 import { itemsListosParaPresupuesto } from "../domain/presupuesto";
-import type { ItemPresupuestable } from "../domain/presupuesto";
+import type { FuenteCostoLinea, ItemPresupuestable } from "../domain/presupuesto";
 import { formatNumero } from "@/shared/format/cantidad";
 import { PagoSwitch, type PagoPanel } from "./pago-switch";
 
@@ -29,6 +29,12 @@ function Badge({ children }: { children: ReactNode }) {
       {children}
     </span>
   );
+}
+
+/** The proveedor name when `drogaNombre` is costed from a costo de proveedor (`""` if the name is missing), `undefined` otherwise. */
+function proveedorDe(fuentes: FuenteCostoLinea[] | undefined, drogaNombre: string): string | undefined {
+  const fuente = fuentes?.find((f) => f.drogaNombre === drogaNombre && f.fuente === "PROVEEDOR");
+  return fuente ? (fuente.proveedorNombre ?? "") : undefined;
 }
 
 export function PresupuestoPanel({ items, pago }: { items: ItemPresupuestable[]; pago?: PagoPanel }) {
@@ -117,11 +123,28 @@ export function PresupuestoPanel({ items, pago }: { items: ItemPresupuestable[];
                   <>
                     <span>{precio(item.precioFinal)}</span>
                     {item.esParcial ? <Badge>Parcial: {item.enraseManual.join(", ")} se completa al preparar</Badge> : null}
-                    {item.faltantes.map((f) => (
-                      <Badge key={f.drogaNombre}>
-                        Falta stock: {f.drogaNombre} (faltan {formatNumero(f.cantidad, 3)} {f.unidadSimbolo})
-                      </Badge>
-                    ))}
+                    {item.faltantes.map((f) =>
+                      proveedorDe(item.fuentes, f.drogaNombre) !== undefined ? (
+                        // Costed from a proveedor: the cost is complete, the shortage is only information.
+                        <span key={f.drogaNombre} className="text-xs text-zinc-600 dark:text-zinc-400">
+                          Sin stock suficiente para prepararla: {f.drogaNombre} (faltan {formatNumero(f.cantidad, 3)} {f.unidadSimbolo})
+                        </span>
+                      ) : (
+                        <Badge key={f.drogaNombre}>
+                          Falta stock: {f.drogaNombre} (faltan {formatNumero(f.cantidad, 3)} {f.unidadSimbolo})
+                        </Badge>
+                      ),
+                    )}
+                    {item.fuentes ? (
+                      <span className="basis-full text-xs text-zinc-600 dark:text-zinc-400">
+                        {item.fuentes.map((f, i) => (
+                          <span key={f.drogaNombre}>
+                            {i > 0 ? " · " : null}
+                            {f.drogaNombre}: {f.fuente === "PROVEEDOR" ? `costo de proveedor${f.proveedorNombre ? ` (${f.proveedorNombre})` : ""}` : "costo de partidas"}
+                          </span>
+                        ))}
+                      </span>
+                    ) : null}
                   </>
                 ) : (
                   <span className="text-red-600">{item.mensaje}</span>

@@ -24,6 +24,7 @@ export interface EntidadInfo {
 
 export const ENTIDADES: Readonly<Record<string, EntidadInfo>> = {
   acceso: { nombre: "operación sin permiso", articulo: "una" },
+  accion_con_pin: { nombre: "configuración de PIN por acción", articulo: "la" },
   asiento_historico: { nombre: "asiento histórico", articulo: "el" },
   asiento_recetario: { nombre: "asiento del libro recetario", articulo: "el" },
   cierre_diario: { nombre: "cierre diario", articulo: "el" },
@@ -42,6 +43,7 @@ export const ENTIDADES: Readonly<Record<string, EntidadInfo>> = {
   lote_archivo_recetas: { nombre: "lote de archivo", articulo: "el" },
   medico: { nombre: "médico", articulo: "el" },
   movimiento_stock: { nombre: "movimiento de stock", articulo: "el" },
+  operador: { nombre: "identificación de empleado en cuenta de sector", articulo: "la" },
   paciente: { nombre: "paciente", articulo: "el" },
   parametro: { nombre: "parámetro", articulo: "el" },
   partida: { nombre: "partida", articulo: "la" },

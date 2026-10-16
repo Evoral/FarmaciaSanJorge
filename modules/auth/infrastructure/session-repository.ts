@@ -8,7 +8,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { getPrismaClient } from "@/shared/db/client";
 import { withTenantTransaction } from "@/shared/db/transaction";
-import { isPermiso, PERMISOS_DE_ADMINISTRADOR, type Permiso } from "../domain/permisos";
+import { isPermiso, permisosEfectivos, type Permiso } from "../domain/permisos";
 
 export interface NewSesionRow {
   tenantId: string;
@@ -85,10 +85,14 @@ export async function resolveSessionTenant(tokenHash: string): Promise<string | 
 
 export interface UsuarioConPermisos {
   id: string;
+  tenantId: string;
   email: string;
   nombre: string;
   apellido: string;
   estado: string;
+  /** Migration 0077: a cuenta de sector (shared session per work area, docs/specs/cuentas-de-sector.md). */
+  esSector: boolean;
+  esTecnico: boolean;
   permisos: ReadonlySet<Permiso>;
 }
 
@@ -100,7 +104,8 @@ export interface UsuarioConPermisos {
  * (`PERMISOS_DE_ADMINISTRADOR` -- never an `operativo` one) instead of its
  * (always empty) rol_permiso rows, so a non-operativo permiso added to the
  * catalog later reaches it with no data change. Operativo permisos come
- * only from roles that list them explicitly.
+ * only from roles that list them explicitly. A cuenta de sector never holds
+ * `PERMISOS_VEDADOS_A_SECTOR` (`permisosEfectivos`, ../domain/permisos.ts).
  */
 export async function loadUsuarioConPermisos(
   tx: Prisma.TransactionClient,
@@ -108,50 +113,88 @@ export async function loadUsuarioConPermisos(
 ): Promise<UsuarioConPermisos | null> {
   const usuario = await tx.usuario.findUnique({
     where: { id: usuarioId },
+    select: USUARIO_CON_PERMISOS_SELECT,
+  });
+  if (!usuario) return null;
+  return toUsuarioConPermisos(usuario);
+}
+
+const USUARIO_CON_PERMISOS_SELECT = {
+  id: true,
+  tenantId: true,
+  email: true,
+  nombre: true,
+  apellido: true,
+  estado: true,
+  esSector: true,
+  esTecnico: true,
+  rolesAsignados: {
     select: {
-      id: true,
-      email: true,
-      nombre: true,
-      apellido: true,
-      estado: true,
-      rolesAsignados: {
+      rol: {
         select: {
-          rol: {
-            select: {
-              esAdministrador: true,
-              permisos: { select: { permiso: { select: { codigo: true } } } },
-            },
-          },
+          esAdministrador: true,
+          permisos: { select: { permiso: { select: { codigo: true } } } },
         },
       },
     },
-  });
-  if (!usuario) return null;
+  },
+} as const;
 
-  const permisos = new Set<Permiso>();
-  for (const asignacion of usuario.rolesAsignados) {
-    if (asignacion.rol.esAdministrador) {
-      for (const codigo of PERMISOS_DE_ADMINISTRADOR) permisos.add(codigo);
-      continue;
-    }
-    for (const rolPermiso of asignacion.rol.permisos) {
-      const { codigo } = rolPermiso.permiso;
-      // The DB catalog is guaranteed to match PERMISO_CODES exactly (see
-      // tests/db/auth-permisos.test.ts) -- this guard just avoids trusting
-      // an unrecognized string into a `Permiso`-typed set if that ever
-      // drifts, rather than silently mis-typing it.
-      if (isPermiso(codigo)) permisos.add(codigo);
-    }
-  }
+type UsuarioConPermisosRow = Prisma.UsuarioGetPayload<{ select: typeof USUARIO_CON_PERMISOS_SELECT }>;
+
+/** Everything `validateSession` needs, read in ONE statement (relationJoins): the sesion, its usuario with permisos, and the tenant's `fecha_baja`. */
+export interface SesionCompleta {
+  sesion: SesionRow;
+  usuario: UsuarioConPermisos;
+  /** `null` while the tenant is active (global table, no RLS). */
+  tenantFechaBaja: Date | null;
+}
+
+/** Single-round-trip replacement for `findSesionByTokenHash` + `loadUsuarioConPermisos` + `loadTenantFechaBaja`, inside an already tenant-scoped transaction. */
+export async function findSesionCompletaByTokenHash(tx: Prisma.TransactionClient, tokenHash: string): Promise<SesionCompleta | null> {
+  const fila = await tx.sesion.findUnique({
+    where: { tokenHash },
+    select: {
+      ...SESION_ROW_SELECT,
+      usuario: { select: { ...USUARIO_CON_PERMISOS_SELECT, tenant: { select: { fechaBaja: true } } } },
+    },
+  });
+  if (!fila) return null;
+
+  const { usuario, ...sesion } = fila;
+  return { sesion, usuario: toUsuarioConPermisos(usuario), tenantFechaBaja: usuario.tenant.fechaBaja };
+}
+
+function toUsuarioConPermisos(usuario: UsuarioConPermisosRow): UsuarioConPermisos {
+  const permisos = permisosEfectivos(
+    usuario.rolesAsignados.map((asignacion) => ({
+      esAdministrador: asignacion.rol.esAdministrador,
+      permisos: asignacion.rol.permisos.map((rolPermiso) => rolPermiso.permiso.codigo),
+    })),
+    usuario.esSector,
+  );
 
   return {
     id: usuario.id,
+    tenantId: usuario.tenantId,
     email: usuario.email,
     nombre: usuario.nombre,
     apellido: usuario.apellido,
     estado: usuario.estado,
+    esSector: usuario.esSector,
+    esTecnico: usuario.esTecnico,
     permisos,
   };
+}
+
+/** The acciones this farmacia asks an empleado's PIN for (`fsj.accion_con_pin`, migration 0077), read with the session of a cuenta de sector. */
+export async function loadPermisosConPin(tx: Prisma.TransactionClient, tenantId: string): Promise<ReadonlySet<Permiso>> {
+  const filas = await tx.accionConPin.findMany({ where: { tenantId }, select: { permiso: { select: { codigo: true } } } });
+  const permisos = new Set<Permiso>();
+  for (const fila of filas) {
+    if (isPermiso(fila.permiso.codigo)) permisos.add(fila.permiso.codigo);
+  }
+  return permisos;
 }
 
 /** Reads `fsj.sesion` by (tenant-scoped) id. */

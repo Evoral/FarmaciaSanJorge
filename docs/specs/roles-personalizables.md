@@ -82,16 +82,21 @@ Los usuarios con ADMINISTRADOR ganan los permisos de consulta y gestión que no 
 | ADMINISTRADOR | **Todos los de consulta y gestión**, siempre (incluidos los futuros); **nunca operativos**. Sin filas en `rol_permiso`. | No | No | Sí |
 | DIRECTOR_TECNICO | Editables | Editables | **No** (INV-DT-001 depende del código) | Sí |
 | SISTEMA | Ninguno | No | No | **No** (solo el usuario técnico); oculto en toda la UI |
-| FARMACEUTICO, ATENCION_PUBLICO, SOLO_CONSULTA | Editables | Editables | Sí, si nadie lo tiene asignado | Sí |
+| FARMACEUTICO, LABORATORIO, ATENCION_PUBLICO, SOLO_CONSULTA | Editables | Editables | Sí, si nadie lo tiene asignado | Sí |
 | Roles nuevos | Editables | Editables | Sí, si nadie lo tiene asignado | Sí |
 
 Un administrador que además debe operar (por ejemplo, el farmacéutico dueño) tiene **también** un rol operativo
 (FARMACEUTICO, DIRECTOR_TECNICO o uno propio). No hay ninguna restricción extra para asignarse a uno mismo esos roles,
 más allá de las existentes: es un caso legítimo y queda auditado (`ASIGNAR_ROL`).
 
-Decisión sobre los predefinidos editables: FARMACEUTICO, ATENCION_PUBLICO y SOLO_CONSULTA no tienen reglas de negocio que
-dependan de su código, así que se tratan como cualquier rol: se pueden eliminar si no están asignados. Si se eliminan, no
-se recrean solos.
+Decisión sobre los predefinidos editables: FARMACEUTICO, LABORATORIO, ATENCION_PUBLICO y SOLO_CONSULTA no tienen reglas
+de negocio que dependan de su código, así que se tratan como cualquier rol: se pueden eliminar si no están asignados. Si
+se eliminan, no se recrean solos. LABORATORIO se agregó en la migración 0077 para el sector de elaboración
+(`docs/specs/cuentas-de-sector.md`).
+
+**Cuentas de sector** (migración 0077): un usuario marcado como cuenta de sector (sesión compartida por puesto de trabajo)
+no puede tener ADMINISTRADOR ni DIRECTOR_TECNICO (INV-SEC-001) y nunca conserva los permisos de
+`PERMISOS_VEDADOS_A_SECTOR`, aunque su rol los liste. Ver `docs/specs/cuentas-de-sector.md`.
 
 Los tres permisos de sesión (`auth.login`, `auth.logout`, `auth.password.cambiar`) se incluyen **siempre** en todo rol que
 se cree o edite: sin ellos un usuario no podría cerrar sesión ni re-autenticarse.

@@ -877,7 +877,6 @@ export async function listRecetas(tx: Prisma.TransactionClient, filter: ListRece
   const where = buildWhere(filter, tenant.zonaHoraria);
   const skip = (filter.page - 1) * filter.pageSize;
 
-  const total = await tx.receta.count({ where });
   const rows = await tx.receta.findMany({
     where,
     orderBy: [{ fechaIngreso: "desc" }],
@@ -895,6 +894,9 @@ export async function listRecetas(tx: Prisma.TransactionClient, filter: ListRece
       medico: { select: { nombre: true, apellido: true } },
     },
   });
+  // A short, non-empty-or-first page already tells the total: skip the COUNT round trip (each one costs a network hop).
+  const paginaCorta = rows.length < filter.pageSize && (skip === 0 || rows.length > 0);
+  const total = paginaCorta ? skip + rows.length : await tx.receta.count({ where });
 
   const pendientes = rows.filter((r) => r.estado === "PENDIENTE_PREPARACION").map((r) => r.id);
   const conPreparacion = await recetasConFichaConPreparacion(tx, filter.tenantId, pendientes);

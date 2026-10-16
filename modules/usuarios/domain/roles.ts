@@ -30,6 +30,9 @@ export const ROL_DIRECTOR_TECNICO = "DIRECTOR_TECNICO" as const;
 /** The one non-assignable, internal role code (migration 0002). Used to filter it out of any role/user listing that must never expose it. */
 export const ROL_SISTEMA = "SISTEMA" as const;
 
+/** Roles a cuenta de sector (`usuario.es_sector`, a shared session per work area) can never hold -- INV-SEC-001, migration 0077 (docs/specs/cuentas-de-sector.md). */
+export const ROLES_VEDADOS_A_SECTOR: readonly string[] = [ROL_ADMINISTRADOR, ROL_DIRECTOR_TECNICO];
+
 /** Format of every `rol.codigo` (DB CHECK rol_codigo_formato, migration 0054). */
 export const CODIGO_ROL_REGEX = /^[A-Z][A-Z0-9_]{0,59}$/;
 

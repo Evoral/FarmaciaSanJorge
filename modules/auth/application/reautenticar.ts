@@ -30,8 +30,9 @@
  * CO-FIRMA: this is structural, not a runtime check -- `login.ts`,
  * `activar-cuenta.ts`, `cambiar-password.ts`, `restablecer-credencial.ts`
  * and both `verificar-co-firma-dt.ts` files never read `pin_hash` at all;
- * this command is the ONLY place `pin_hash` is ever compared against user
- * input.
+ * `pin_hash` is only ever compared against user input inside modules/auth:
+ * here, and in `./verificador-pin.ts` (the empleado identifying themselves
+ * on a cuenta de sector, docs/specs/cuentas-de-sector.md).
  *
  * D (user decision, PIN re-auth feature): a successful PASSWORD re-auth
  * resets the PIN failed-attempt counter AND unblocks it (`resetPinLockout`)

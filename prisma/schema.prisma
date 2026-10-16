@@ -248,6 +248,7 @@ model Tenant {
   parametros                Parametro[]
   usuarios                  Usuario[]
   roles                     Rol[]
+  accionesConPin            AccionConPin[]
   recetaNumeroContador      RecetaNumeroContador?
   librosRubricados          LibroRubricado[]
   loteArchivoNumeroContador LoteArchivoNumeroContador?
@@ -310,9 +311,25 @@ model Permiso {
   /// Migration 0054 (DP-03): operativo | consulta | gestion | sistema (CHECK permiso_categoria_valida). Mirrors modules/auth/domain/permisos.ts#PERMISO_CATALOGO.
   categoria   String
 
-  roles RolPermiso[]
+  roles           RolPermiso[]
+  accionesConPin  AccionConPin[]
 
   @@map("permiso")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (migration 0077, docs/specs/cuentas-de-sector.md): a row means "in a cuenta de sector, this acción asks
+/// for the PIN of the empleado performing it". Only permisos of modules/auth/domain/permisos.ts#PERMISOS_CON_PIN_CONFIGURABLES.
+/// Seeded per tenant by fsj.seed_acciones_con_pin; replaced (delete + insert) by modules/operadores.
+model AccionConPin {
+  tenantId  String @map("tenant_id") @db.Uuid
+  permisoId String @map("permiso_id") @db.Uuid
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  permiso Permiso @relation(fields: [permisoId], references: [id])
+
+  @@id([tenantId, permisoId])
+  @@map("accion_con_pin")
   @@schema("fsj")
 }
 
@@ -342,9 +359,11 @@ model Usuario {
   estado              EstadoUsuario @default(PENDIENTE_ACTIVACION)
   passwordHash        String?       @map("password_hash")
   esTecnico           Boolean       @default(false) @map("es_tecnico")
+  /// Migration 0077 (docs/specs/cuentas-de-sector.md): a cuenta de sector -- one shared session per work area (mostrador, laboratorio). Set at creation, immutable (INV-SEC-003); never ADMINISTRADOR / DIRECTOR_TECNICO (INV-SEC-001) nor a designated DT (INV-SEC-002). The acciones in `accion_con_pin` are attributed to the empleado who types their PIN.
+  esSector            Boolean       @default(false) @map("es_sector")
   intentosFallidos    Int           @default(0) @map("intentos_fallidos")
   bloqueadoHasta      DateTime?     @map("bloqueado_hasta") @db.Timestamptz(6)
-  /// PIN re-auth feature (migration 0037): argon2id hash of the 6-digit "clave rápida", same hasher as password_hash. NEVER valid for login/activation/password-change/credential-reset/DT co-firma -- only for the logged-in user's own step-up re-auth (see modules/auth/application/reautenticar.ts).
+  /// PIN re-auth feature (migration 0037): argon2id hash of the "clave rápida" (AUTH_POLICY.pinLength digits: 4 since migration 0078, which cleared every 6-digit PIN), same hasher as password_hash. NEVER valid for login/activation/password-change/credential-reset/DT co-firma -- only for the logged-in user's own step-up re-auth (see modules/auth/application/reautenticar.ts) and, since migration 0077, to identify this usuario as the empleado acting on a cuenta de sector (modules/auth/application/verificador-pin.ts).
   pinHash             String?       @map("pin_hash")
   /// Own counter, separate from `intentos_fallidos` (INV: PIN brute-forcing must never lock the account itself).
   pinIntentosFallidos Int           @default(0) @map("pin_intentos_fallidos")
@@ -1239,7 +1258,7 @@ model ListaPrecioProveedor {
   id              String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
   tenantId        String   @map("tenant_id") @db.Uuid
   proveedorId     String   @map("proveedor_id") @db.Uuid
-  /// XLSX | PDF (CHECK lista_precio_proveedor_formato_check). PDF is reserved for a later stage.
+  /// XLS | XLSX | PDF (CHECK lista_precio_proveedor_formato_check, widened to XLS by 0080). PDF is allowed but unused: the supplier sends Excel.
   formato         String
   nombreArchivo   String   @map("nombre_archivo")
   hashSha256      String   @map("hash_sha256")

@@ -7,7 +7,7 @@
  * enough to price" check. No I/O.
  */
 import { Decimal, dec } from "@/shared/decimal";
-import type { CotizacionCalculada } from "@/modules/precios/domain/calcular-cotizacion";
+import type { CotizacionCalculada, FuenteCosto } from "@/modules/precios/domain/calcular-cotizacion";
 
 /**
  * The receta as a whole needs more of a droga than the eligible stock has
@@ -32,6 +32,14 @@ export interface FaltanteStock {
   unidadSimbolo: string;
 }
 
+/** Where one costed línea of an item got its cost (docs/specs/costos-proveedor.md, R30). */
+export interface FuenteCostoLinea {
+  drogaNombre: string;
+  fuente: FuenteCosto;
+  /** Only for `PROVEEDOR`. */
+  proveedorNombre?: string;
+}
+
 export type PresupuestoItem =
   | {
       /** 1-based, same numbering as the form ("Ítem 1"). */
@@ -44,7 +52,13 @@ export type PresupuestoItem =
       enraseManual: string[];
       /** Not enough stock for some droga: priced with what exists. */
       esIncompleta: boolean;
+      /** Informational for a línea costed from a proveedor (its cost is complete), a gap for one costed from partidas. */
       faltantes: FaltanteStock[];
+      /**
+       * Source of each costed línea. Present ONLY when at least one línea is costed from a costo de proveedor; an item
+       * costed entirely from partidas (today's behaviour) carries no `fuentes`.
+       */
+      fuentes?: FuenteCostoLinea[];
     }
   | { indice: number; ok: false; mensaje: string };
 
@@ -64,6 +78,13 @@ export type Presupuesto =
 /** One item's in-memory cotización -> its presupuesto line. */
 export function presupuestoItemDesdeCotizacion(indice: number, cotizacion: CotizacionCalculada): PresupuestoItem {
   const lineas = cotizacion.detalle.lineas;
+  const hayProveedor = lineas.some((l) => l.fuente === "PROVEEDOR");
+  // Only líneas that were really costed: not enrase manual, not a unit that could not be converted (0, no partidas, no faltante).
+  const fuentes: FuenteCostoLinea[] = lineas
+    .filter((l) => !l.esEnraseManual && (l.fuente === "PROVEEDOR" || l.partidas.length > 0 || l.faltante !== null))
+    .map((l) =>
+      l.fuente === "PROVEEDOR" ? { drogaNombre: l.drogaNombre, fuente: "PROVEEDOR", proveedorNombre: l.costoProveedor?.proveedorNombre } : { drogaNombre: l.drogaNombre, fuente: "PARTIDAS" },
+    );
   return {
     indice,
     ok: true,
@@ -75,6 +96,7 @@ export function presupuestoItemDesdeCotizacion(indice: number, cotizacion: Cotiz
     faltantes: lineas
       .filter((l) => l.faltante !== null)
       .map((l) => ({ drogaNombre: l.drogaNombre, cantidad: l.faltante!, unidadSimbolo: l.unidadSimbolo })),
+    ...(hayProveedor ? { fuentes } : {}),
   };
 }
 

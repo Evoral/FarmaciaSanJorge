@@ -60,6 +60,10 @@ The ESLint config enforces most of these rules. Full rationale: `docs/architectu
   (`shared/ui/field-errors.ts`). Losing a long pharmacy form to one bad field is a bug.
 - Reuse `shared/ui/` primitives (forms, filters, dialogs, pagination, toasts)
   and `shared/format/` before writing new ones.
+- **Shared sessions (cuentas de sector).** A Server Action that runs an acción
+  listed in `PERMISOS_CON_PIN_CONFIGURABLES` wraps its body in `conOperador`
+  (`shared/auth/operador-context.ts`); never read the acting user from anywhere
+  but `session.usuario`. Spec: `docs/specs/cuentas-de-sector.md`.
 - Follow the patterns of the nearest existing module; don't introduce new ones
   without a reason stated in the change.
 

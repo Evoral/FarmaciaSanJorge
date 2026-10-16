@@ -34,6 +34,7 @@ export function CancelarTomaForm({ recetaId }: { recetaId: string }) {
           <p>La receta vuelve a Pendientes y cualquier usuario del laboratorio la puede tomar. ¿Cancelar la toma?</p>
           <SimpleForm
             action={cancelarTomaAction}
+            accion="preparaciones.iniciar"
             submitLabel="Sí, cancelar toma"
             pendingLabel="Cancelando…"
             submitVariant="danger"

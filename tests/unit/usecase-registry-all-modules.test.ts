@@ -66,7 +66,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 import type { z } from "zod";
-import { AuthorizationError } from "@/shared/errors";
+import { AuthorizationError, OperadorRequeridoError } from "@/shared/errors";
 import { FIELD_LABELS } from "@/shared/labels/field-labels";
 
 vi.mock("next/headers", () => ({
@@ -162,6 +162,34 @@ describe("every registered use case (any module) is structurally forced through 
         valorNuevo: { casoDeUso: entry.name, permiso: entry.permiso },
       });
     });
+  });
+});
+
+/**
+ * Cuentas de sector (docs/specs/cuentas-de-sector.md): on a shared session,
+ * an acción the farmacia asks a PIN for is NEVER attributed to the shared
+ * account. Whatever the command, if its permiso is "con PIN" and the request
+ * identified no empleado, the pipeline rejects it before anything runs --
+ * proven here for every registered command, present or future. Queries
+ * never ask for a PIN.
+ */
+describe("every registered command (any module) refuses to run unattributed on a cuenta de sector", () => {
+  it("rejects with OperadorRequeridoError when its permiso asks a PIN and no empleado identified themselves", async () => {
+    const commands = listRegisteredUseCasesForTests().filter((entry) => entry.kind === "command");
+    expect(commands.length).toBeGreaterThan(0);
+    withTenantTransactionMock.mockClear();
+    auditRecordMock.mockClear();
+
+    for (const entry of commands) {
+      const sector: AuthenticatedSession = { ...fakeSession([entry.permiso]), sector: { permisosConPin: new Set([entry.permiso]) } };
+      await expect(entry.execute({}, { session: sector }), `command "${entry.name}" ran on a cuenta de sector without an identified empleado`).rejects.toBeInstanceOf(
+        OperadorRequeridoError,
+      );
+    }
+
+    // Rejected before any transaction: nothing was read, written or audited.
+    expect(withTenantTransactionMock).not.toHaveBeenCalled();
+    expect(auditRecordMock).not.toHaveBeenCalled();
   });
 });
 

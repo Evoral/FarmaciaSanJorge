@@ -421,12 +421,14 @@ describe.skipIf(dbTestSkipReason() !== null)("0079_costos_proveedor migration (f
       );
     });
 
-    it("CHECKs: formato XLSX|PDF, hash = 64 lowercase hex, filas_aplicadas <= filas_leidas, no negatives, no blank file name", async () => {
+    it("CHECKs: formato XLS|XLSX|PDF, hash = 64 lowercase hex, filas_aplicadas <= filas_leidas, no negatives, no blank file name", async () => {
       await asOwner((client) =>
         inRollbackTx(client, async (tx) => {
           const base = await seedBase(tx, "lischecks");
           await insertLista(tx, base, { formato: "PDF", hashSha256: "0123456789abcdef".repeat(4) });
-          await expectDbRejection(tx, () => insertLista(tx, base, { formato: "XLS", hashSha256: HASH_B }), "23514");
+          // 0080: an .xls import is recorded as 'XLS'; any other format is still refused.
+          await insertLista(tx, base, { formato: "XLS", hashSha256: "fedcba9876543210".repeat(4) });
+          await expectDbRejection(tx, () => insertLista(tx, base, { formato: "XLSM", hashSha256: HASH_B }), "23514");
           await expectDbRejection(tx, () => insertLista(tx, base, { hashSha256: "A".repeat(64) }), "23514");
           await expectDbRejection(tx, () => insertLista(tx, base, { hashSha256: "a".repeat(63) }), "23514");
           await expectDbRejection(tx, () => insertLista(tx, base, { hashSha256: "g".repeat(64) }), "23514");

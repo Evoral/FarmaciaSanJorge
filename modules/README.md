@@ -30,8 +30,9 @@ don't read it whole). Cross-cutting platform code (M00) lives in `shared/`.
 | Module | Plan | Owns |
 |---|---|---|
 | `auditoria` | M01 | Audit log listing and queries (writing goes through `shared/audit`) |
-| `auth` | M02 | Login, sessions, PIN, account activation |
+| `auth` | M02 | Login, sessions, PIN, account activation, identifying the empleado on a shared session |
 | `usuarios` | M03 | Users, roles and permissions (`docs/specs/roles-personalizables.md`) |
+| `operadores` | — | Cuentas de sector: which acciones ask for the empleado's PIN, and the "who is acting" prompt (`cuentas-de-sector`). The verification itself lives in `auth` |
 | `directores-tecnicos` | M04 | Director Técnico designation and who is in charge today |
 | `unidades` | M05 | Units of measure catalog |
 | `drogas` | M06 | Drugs catalog and their synonyms (`sinonimos-droga`) |
@@ -40,7 +41,7 @@ don't read it whole). Cross-cutting platform code (M00) lives in `shared/`.
 | `pacientes` | M06 | Patients, recurring patients and patient history (`pacientes-recurrentes`, `trayectoria-paciente`) |
 | `stock` | M07 | Partidas, stock movements, supplier invoice import |
 | `precios` | M08 | Price rules (margin tiers, minimum price) and per-ítem cotización (`reglas-precio`) |
-| `costos-proveedor` | — | Supplier reference prices used to quote: versioned costo per (droga, proveedor), consultation, history, manual edition and supplier list import from .xlsx (`costos-proveedor`) |
+| `costos-proveedor` | — | Supplier reference prices used to quote: versioned costo per (droga, proveedor), consultation, history, manual edition and supplier list import from .xls / .xlsx (`costos-proveedor`) |
 | `recetas` | M09 | Recetas and their ítems, PDF/QR import, receta budget, paid/unpaid flag (`importacion-receta-*`, `presupuesto-receta`, `pago-receta`) |
 | `elaboracion` | M10 | Ficha técnica: weighing lines, versions, PDF (`ficha-tecnica`) |
 | `preparaciones` | M11 | Preparación lifecycle (confirm/discard) and labels |

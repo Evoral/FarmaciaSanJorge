@@ -15,12 +15,20 @@
  * boundary, called from every Server Action / route handler (through
  * `defineCommand`/`defineQuery`).
  */
+import { cache } from "react";
 import { AuthenticationError } from "@/shared/errors";
 import type { AuthenticatedSession } from "../domain/session";
 import { readSessionCookie } from "../infrastructure/cookie-store";
 import { validateSession } from "./validate-session";
 
-export async function requireSession(): Promise<AuthenticatedSession> {
+/**
+ * Memoized per request (`React.cache`): layouts, the page and every use case it
+ * calls share ONE session validation instead of repeating the ~10 DB round trips
+ * each time (a rejection is memoized too). Caveat: a handler that revokes or re-authenticates the
+ * session and then calls `requireSession()` again in the SAME request would read
+ * the pre-mutation snapshot.
+ */
+export const requireSession = cache(async function requireSession(): Promise<AuthenticatedSession> {
   const rawToken = await readSessionCookie();
   if (!rawToken) {
     throw new AuthenticationError("No hay una sesión iniciada. Iniciá sesión para continuar.");
@@ -32,4 +40,4 @@ export async function requireSession(): Promise<AuthenticatedSession> {
   }
 
   return session;
-}
+});

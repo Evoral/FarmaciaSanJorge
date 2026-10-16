@@ -46,6 +46,7 @@ export function LiberarReservaForm({ preparacionId }: { preparacionId: string })
   return (
     <ReauthAwareForm
       action={liberarReservaConToast}
+      accion="preparaciones.descartar"
       submitLabel="Liberar reserva"
       pendingLabel="Liberando…"
       submitVariant="secondary"
@@ -60,7 +61,7 @@ export function LiberarReservaForm({ preparacionId }: { preparacionId: string })
 /** One-click "Recalcular reserva" (no enrase quantity to type): re-plans the ítem's reserva automatically (R1b/R5). */
 export function RecalcularReservaForm({ preparacionId }: { preparacionId: string }) {
   return (
-    <ReauthAwareForm action={recalcularReservaStockAction} submitLabel="Recalcular reserva" pendingLabel="Recalculando…" submitVariant="secondary" submitSize="sm" layout="inline">
+    <ReauthAwareForm action={recalcularReservaStockAction} accion="preparaciones.confirmar" submitLabel="Recalcular reserva" pendingLabel="Recalculando…" submitVariant="secondary" submitSize="sm" layout="inline">
       <input type="hidden" name="preparacionId" value={preparacionId} />
     </ReauthAwareForm>
   );
@@ -111,7 +112,7 @@ export function EtiquetasDeReceta({ recetaId, porConfirmar, todasReservadas, sin
         ) : (
           <p className="text-sm text-zinc-500">Reservá el stock de todos los ítems para imprimir las etiquetas.</p>
         )}
-        <ReauthAwareForm action={confirmar} submitLabel="Imprimir etiquetas" pendingLabel="Confirmando…" submitDisabled={!todasReservadas || sinAlcance.length > 0} layout="inline">
+        <ReauthAwareForm action={confirmar} accion={["preparaciones.confirmar", "etiquetas.generar"]} submitLabel="Imprimir etiquetas" pendingLabel="Confirmando…" submitDisabled={!todasReservadas || sinAlcance.length > 0} layout="inline">
           <input type="hidden" name="recetaId" value={recetaId} />
         </ReauthAwareForm>
       </div>
@@ -188,6 +189,7 @@ export function PerdidaReservaDialog({ preparacionId, partidas, dts, operadorEsD
           <SimpleForm
             key={apertura}
             action={registrarPerdidaReservaAction}
+            accion="preparaciones.confirmar"
             submitLabel="Registrar pérdida"
             pendingLabel="Registrando…"
             submitVariant="danger-solid"

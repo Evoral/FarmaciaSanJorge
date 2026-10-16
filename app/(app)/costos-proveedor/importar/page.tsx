@@ -1,6 +1,6 @@
 /**
  * `/costos-proveedor/importar` -- "Importar lista" (docs/specs/costos-proveedor.md, "Interface" 2, R13-R23): pick
- * the proveedor, the date of the list and the .xlsx; review the preview; confirm. Nothing is saved before the
+ * the proveedor, the date of the list and the .xls or .xlsx; review the preview; confirm. Nothing is saved before the
  * confirmation, and the file is read in memory and never stored.
  *
  * Needs `costos.proveedor.gestionar` (R36) on top of the layout's `stock.valorizado.ver`; the two use cases check it

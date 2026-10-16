@@ -1,8 +1,11 @@
 # Costos de proveedores (reference prices for cotizaciones)
 
-Status: approved 2026-10-15, not implemented. Rollback:
+Status: approved 2026-10-15. Implemented: store, section, .xls / .xlsx import (E1-E4) and
+the cotización/presupuesto cost source (E5, R25-R34). Rollback:
 `docs/rollbacks/costos-proveedor.md`. Module: `modules/costos-proveedor`
-(new). Migration: `0079_costos_proveedor` (planned).
+(new). Migrations: `0079_costos_proveedor` and `0080_lista_precio_formato_xls`
+(the CHECK of `lista_precio_proveedor.formato` learns `'XLS'`). Stage E7 (PDF
+parser) is dropped: the supplier sends Excel (user, 2026-10-15).
 
 ## Goal
 
@@ -86,8 +89,8 @@ Kept here because the new rules are defined against it.
 | # | Rule | Enforced in |
 |---|---|---|
 | R13 | Flow: choose proveedor → fecha de la lista → file → **read** (validate, parse, match; writes nothing) → editable preview → **confirm**. Nothing is saved before the user confirms. | `leerListaPrecios` (query) + `registrarCostosProveedor` (command). |
-| R14 | Accepted formats: **.xlsx** now (read with `exceljs`, already a dependency). PDF later, one parser per supplier layout, once a real sample is available. `.xls` (BIFF8) is **not** accepted: reading it needs a new dependency (the npm `xlsx` package is abandoned at 0.18.5 with known vulnerabilities); the user saves the sheet as .xlsx. | `modules/costos-proveedor/infrastructure/leer-xlsx.server.ts`; domain parsers. |
-| R15 | File validation before parsing: is a `File`, not empty, ≤ 1 MiB (same limit as the PDF imports and `next.config.ts` `bodySizeLimit`), `.xlsx` mime/extension, zip signature `PK`; at most 5.000 data rows. Errors are user-readable messages, never a stack trace. | Domain `validarArchivoLista` (sibling of `shared/pdf/validar-archivo-pdf.ts`). |
+| R14 | Accepted formats: **.xls** (Excel 97-2003, BIFF8) and **.xlsx**, both spreadsheets. The format is detected from the file's **signature** (OLE2 `D0 CF 11 E0 A1 B1 1A E1` → XLS, zip `PK\x03\x04` → XLSX); name and MIME type only have to say .xls or .xlsx, and a wrong extension is not an error (the content is what is read). .xlsx is read with `exceljs` (already a dependency); .xls by an **in-repo BIFF8 reader with no dependency** (the npm `xlsx`/SheetJS package is abandoned at 0.18.5 with known vulnerabilities): CFB container (FAT, DIFAT, mini stream) + records `SST`/`CONTINUE`, `LABELSST`, `LABEL`, `NUMBER`, `RK`, `MULRK`, `FORMULA` (cached result) and blanks. Both readers return the same `LibroHojas` (sheet names + raw rows), so the parser is format-agnostic. Not supported, with their own message: encrypted .xls ("protegido con contraseña") and BIFF5/7 or older ("anterior a Excel 97"); anything else unreadable is "no parece un .xls válido". Dates in a .xls are the plain number Excel stores (cell formats are not read); lists carry only text and numbers. PDF is not read: the supplier sends Excel, so the PDF parser (E7) was dropped (`formato 'PDF'` stays allowed in the DB, unused). | `modules/costos-proveedor/infrastructure/leer-xls.server.ts`, `leer-xlsx.server.ts`, `libro-hojas.ts`; domain parsers. |
+| R15 | File validation before parsing: is a `File`, not empty, ≤ **4 MiB** (its own limit `MAX_LISTA_BYTES`; the real list is a 2.1 MB .xls, and the PDF imports keep their 1 MiB), `.xls`/`.xlsx` name or mime, then the signature (R14); at most 5.000 data rows. `next.config.ts` `serverActions.bodySizeLimit` is one limit for every upload: it is the largest body (4 MiB + 32 KiB multipart margin) and a test asserts it covers both the PDF and the lista limits. The size is checked before `arrayBuffer()`; the .xls reader additionally bounds every sector index and chain (cycle detection, chain capped by the file's sector count). Errors are user-readable messages, never a stack trace. | Domain `validarArchivoLista` (sibling of `shared/pdf/validar-archivo-pdf.ts`); `tests/unit/archivo-receta-pdf.test.ts`. |
 | R16 | Parsing the received layout ("Lista de medicamentos", Crystal Reports export): header row `DESCRIPCION`, `PRECIO`; one data row per product. Only **base rows** (no presentation suffix) are imported, as price per kg/L/u. Rows with a presentation (`X <n>`, `Bidon X`, `Tambor X`, `Pet X`, `Cuñete X`, `Bolsa X`) are listed as **omitida (presentación)**. Blank rows, the header and page footers (`Page n of m`) are ignored. Other columns (`PRECIO mg`, `mg C/IVA`, `COSTO`) are derived spreadsheet formulas and ignored. The workbook has one sheet per date (newest last): the preview opens the **last sheet that has data** and shows a sheet selector that re-reads the same file with another sheet; each import reads ONE sheet. | Domain parser `parsers/lista-xlsx-crystal.ts`. |
 | R17 | Each parsed row is matched to a droga with the same rules as the invoice import: remembered synonym (`DrogaAlias`) first, then exact normalized name (`resolverDroga`, `normalizarTextoDroga` from `modules/recetas/domain/importacion-receta.ts`). No fuzzy matching, no droga is created. | `leerListaPrecios`. |
 | R18 | Row states in the preview: **asociada** (will apply), **sin asociar** (no droga; omitted unless the user picks one), **duplicada** (same droga twice in the file: both rows flagged, the user must omit one), **precio inválido** (missing, ≤ 0 or not a number), **más antigua** (R9), **sin cambios** (R10), **omitida** (presentación or by the user). Each applicable row shows the current vigente price, the new one and the variation %; a variation above ±50 % is highlighted. | Domain `construirVistaPrevia`; UI. |
@@ -159,7 +162,7 @@ same fuente per línea.
 ```
 fsj.lista_precio_proveedor            -- append-only (REVOKE UPDATE/DELETE, forbid_update_delete)
   id, tenant_id, proveedor_id → proveedor(tenant_id, id),
-  formato ('XLSX' | 'PDF'), nombre_archivo, hash_sha256,
+  formato ('XLS' | 'XLSX' | 'PDF'; 'XLS' added by 0080, 'PDF' unused), nombre_archivo, hash_sha256,
   fecha_lista date, filas_leidas int, filas_aplicadas int,
   registrado_por_id, registrado_en
   UNIQUE (tenant_id, proveedor_id, hash_sha256)
@@ -189,17 +192,21 @@ Audit entities `costo_proveedor` and `lista_precio_proveedor` (labels in
 - `modules/costos-proveedor/domain/`: `costo-proveedor.ts` (validation,
   `calcularCostoUnidadBase`, `unidadPrecioPorDefecto`, `planVersionar`,
   `elegirCostoProveedor`), `importacion-lista.ts` (preview types and states),
-  `archivo-lista.ts` (file validation), `parsers/lista-xlsx-crystal.ts`.
+  `archivo-lista.ts` (file validation + format detection), `parsers/lista-xlsx-crystal.ts`.
 - `modules/costos-proveedor/infrastructure/`: `costo-proveedor-repository.ts`,
-  `leer-xlsx.server.ts`.
+  `leer-xlsx.server.ts`, `leer-xls.server.ts` (BIFF8), `libro-hojas.ts` (the
+  `LibroHojas` shape both readers return).
 - `modules/costos-proveedor/application/`: `listar-costos-vigentes.ts`,
   `get-historial-costo.ts`, `listar-listas.ts`, `leer-lista-precios.ts`,
   `registrar-costos-proveedor.ts`, `dar-de-baja-costo-proveedor.ts`,
-  `costos-proveedor-para-cotizar.ts` (tx-scoped read used by `precios`).
+  `costos-proveedor-para-cotizar.ts` (tx-scoped read used by `precios`;
+  `costosProveedorParaCotizar` returns drogaId -> chosen costo).
 - `modules/costos-proveedor/ui/` + `app/(app)/costos-proveedor/**`.
-- Edited: `modules/precios/domain/calcular-cotizacion.ts`,
-  `modules/precios/application/cotizar-lineas.ts`, `calcular-cotizacion.ts`,
-  `get-cotizacion-item.ts`, `modules/precios/ui/cotizacion-detalle.tsx`,
+- Edited: `modules/precios/domain/calcular-cotizacion.ts` (`costoProveedor`, `fuente`,
+  `leerDetalleCotizacion`), `modules/precios/application/cotizar-lineas.ts`,
+  `get-cotizacion-item.ts` (`calcular-cotizacion.ts` persists the detalle as is),
+  `modules/precios/ui/cotizacion-detalle.tsx`, `modules/precios/ui/actions.ts`
+  (aviso wording), `modules/recetas/domain/presupuesto.ts` (`fuentes`),
   `modules/recetas/ui/presupuesto-panel.tsx`, `app/(app)/layout.tsx`,
   `app/(app)/sidebar-nav.tsx`, `modules/auth/domain/permisos.ts`,
   `prisma/schema.prisma`, `modules/README.md`, `docs/specs/presupuesto-receta.md`,
@@ -231,9 +238,30 @@ Audit entities `costo_proveedor` and `lista_precio_proveedor` (labels in
   margins keep comparing like with like.
 - **No automatic recalculation of existing cotizaciones** (user decision
   2026-10-15).
-- **.xlsx before PDF**: the sample received is a `.xls`, not a PDF; a PDF
-  parser can not be written without the real document. `exceljs` reads .xlsx
-  with no new dependency.
+- **.xls native reader instead of a dependency** (user decision 2026-10-15):
+  the real list is a BIFF8 `.xls` (Crystal Reports export, 2.1 MB, four
+  sheets) and the user wants it uploaded as is. The only mature npm reader,
+  `xlsx` (SheetJS), is abandoned at 0.18.5 with known vulnerabilities, so
+  `leer-xls.server.ts` reads the format directly (CFB + the BIFF8 records the
+  lists use) and returns the same shape as the .xlsx reader. Alternatives
+  rejected: asking the user to re-save as .xlsx (the original decision: an
+  extra manual step on every list) and a new dependency. Cost: a format
+  reader to maintain, covered by tests that build workbooks with a test-only
+  BIFF8 writer (`tests/unit/helpers/xls-builder.ts`, no binary fixtures).
+- **The signature decides the format**, not the extension or MIME type
+  (client-controlled): an OLE2 file named `.xlsx` is read as .xls and a zip named
+  `.xls` as .xlsx; a file whose content does not parse says so.
+- **4 MiB limit for lists, 1 MiB for PDFs**: the real list (2.1 MB .xls)
+  outgrew the shared 1 MiB. `bodySizeLimit` is global to Server Actions, so it
+  is raised to 4 MiB + 32 KiB for everyone; each action still enforces its own
+  file limit, and the confirmation JSON cap (`MAX_CONFIRMACION_BYTES`) follows
+  the body limit. 4 MiB, not more, because the app is hosted on Vercel
+  (`docs/deploy.md`), which caps a serverless request body at about 4.5 MB: a
+  bigger limit would let files through our check that the platform then
+  refuses with a generic error.
+- **PDF parser dropped (E7)**: the user clarified on 2026-10-15 that the
+  supplier sends this Excel, not a PDF. `formato 'PDF'` stays allowed by the
+  CHECK (no migration churn) but nothing writes it.
 - **Synonyms reused for matching** (`DrogaAlias`), same as the invoice import,
   instead of a per-supplier code table: no supplier code is printed on the
   received list, and a second matching mechanism would diverge.
@@ -274,7 +302,6 @@ Audit entities `costo_proveedor` and `lista_precio_proveedor` (labels in
 
 ## Open
 
-- PDF parser: needs a real PDF of the supplier list.
 - Which proveedor (razón social, CUIT) the received list belongs to.
 - Whether to warn in the cotización when the costo de proveedor used is older
   than N days (no rule defined; today only its date is shown).

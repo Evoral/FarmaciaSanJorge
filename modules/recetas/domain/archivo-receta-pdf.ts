@@ -19,7 +19,7 @@
  */
 import { validarArchivoPdf } from "@/shared/pdf/validar-archivo-pdf";
 
-/** 1 MiB. Server Actions' `bodySizeLimit` (next.config.ts) is this plus the multipart overhead margin -- see `SERVER_ACTIONS_BODY_SIZE_LIMIT_BYTES`. */
+/** 1 MiB. The body a PDF upload needs is this plus the multipart overhead margin -- see `SERVER_ACTIONS_BODY_SIZE_LIMIT_BYTES`. */
 export const MAX_PDF_BYTES = 1024 * 1024;
 
 /**
@@ -31,7 +31,11 @@ export const MAX_PDF_BYTES = 1024 * 1024;
  */
 export const MULTIPART_MARGIN_BYTES = 32 * 1024;
 
-/** What next.config.ts must set as `experimental.serverActions.bodySizeLimit` (asserted by tests/unit/archivo-receta-pdf.test.ts). */
+/**
+ * The Server Actions body a PDF upload needs. next.config.ts's `experimental.serverActions.bodySizeLimit` is ONE limit
+ * for every upload and must be at least this (asserted by tests/unit/archivo-receta-pdf.test.ts); it is larger today
+ * because the supplier price list (modules/costos-proveedor/domain/archivo-lista.ts) allows 4 MiB.
+ */
 export const SERVER_ACTIONS_BODY_SIZE_LIMIT_BYTES = MAX_PDF_BYTES + MULTIPART_MARGIN_BYTES;
 
 /** A receta is one page; a few pages of slack, but never an unbounded document to extract. */

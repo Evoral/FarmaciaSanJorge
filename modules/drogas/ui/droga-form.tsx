@@ -124,6 +124,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA }: DrogaFor
   return (
     <SimpleForm
       action={action}
+      accion={mode === "crear" ? "drogas.crear" : "drogas.editar"}
       submitLabel={mode === "crear" ? "Crear insumo" : "Guardar cambios"}
       submitDisabled={nombreOcupado}
       submitDisabledReason={nombreOcupado ? "Ya existe un insumo con ese nombre." : undefined}

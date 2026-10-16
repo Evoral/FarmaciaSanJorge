@@ -9,20 +9,21 @@ import { isValidPinFormat, isTrivialPin, validatePin } from "@/modules/auth/doma
 import { decidePinReauth } from "@/modules/auth/domain/pin-reauth-policy";
 
 describe("isValidPinFormat", () => {
-  it("accepts exactly 6 numeric digits", () => {
-    expect(isValidPinFormat("482913")).toBe(true);
+  it("accepts exactly 4 numeric digits (AUTH_POLICY.pinLength)", () => {
+    expect(isValidPinFormat("4829")).toBe(true);
   });
 
-  it("rejects fewer than 6 digits", () => {
-    expect(isValidPinFormat("12345")).toBe(false);
+  it("rejects fewer than 4 digits", () => {
+    expect(isValidPinFormat("482")).toBe(false);
   });
 
-  it("rejects more than 6 digits", () => {
-    expect(isValidPinFormat("1234567")).toBe(false);
+  it("rejects more than 4 digits -- including the old 6-digit PINs", () => {
+    expect(isValidPinFormat("48291")).toBe(false);
+    expect(isValidPinFormat("482913")).toBe(false);
   });
 
   it("rejects non-numeric characters", () => {
-    expect(isValidPinFormat("12a456")).toBe(false);
+    expect(isValidPinFormat("4a29")).toBe(false);
   });
 
   it("rejects an empty string", () => {
@@ -32,49 +33,49 @@ describe("isValidPinFormat", () => {
 
 describe("isTrivialPin", () => {
   it("all digits equal is trivial", () => {
-    expect(isTrivialPin("111111")).toBe(true);
-    expect(isTrivialPin("000000")).toBe(true);
+    expect(isTrivialPin("1111")).toBe(true);
+    expect(isTrivialPin("0000")).toBe(true);
   });
 
   it("ascending sequence is trivial", () => {
-    expect(isTrivialPin("123456")).toBe(true);
-    expect(isTrivialPin("234567")).toBe(true);
+    expect(isTrivialPin("1234")).toBe(true);
+    expect(isTrivialPin("6789")).toBe(true);
   });
 
   it("descending sequence is trivial", () => {
-    expect(isTrivialPin("654321")).toBe(true);
-    expect(isTrivialPin("987654")).toBe(true);
+    expect(isTrivialPin("4321")).toBe(true);
+    expect(isTrivialPin("9876")).toBe(true);
   });
 
   it("a non-trivial PIN is not flagged", () => {
-    expect(isTrivialPin("482913")).toBe(false);
+    expect(isTrivialPin("4829")).toBe(false);
   });
 
   it("a near-sequence with one digit off is not trivial", () => {
-    expect(isTrivialPin("123457")).toBe(false);
+    expect(isTrivialPin("1235")).toBe(false);
   });
 });
 
 describe("validatePin", () => {
   it("a well-formed, non-trivial PIN has no errors", () => {
-    expect(validatePin("482913")).toEqual([]);
+    expect(validatePin("4829")).toEqual([]);
   });
 
   it("a badly-formatted PIN reports the format error and skips the triviality check", () => {
-    const errors = validatePin("12345");
+    const errors = validatePin("482913");
     expect(errors).toHaveLength(1);
-    expect(errors[0]).toMatch(/6 dígitos/);
+    expect(errors[0]).toMatch(/exactamente 4 dígitos/);
   });
 
   it("a trivial (all-same-digit) PIN reports the triviality error", () => {
-    const errors = validatePin("555555");
+    const errors = validatePin("5555");
     expect(errors).toHaveLength(1);
     expect(errors[0]).toMatch(/trivial/);
   });
 
   it("a trivial (sequential) PIN reports the triviality error", () => {
-    expect(validatePin("123456")).toHaveLength(1);
-    expect(validatePin("654321")).toHaveLength(1);
+    expect(validatePin("1234")).toHaveLength(1);
+    expect(validatePin("4321")).toHaveLength(1);
   });
 });
 

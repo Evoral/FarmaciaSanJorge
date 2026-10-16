@@ -507,6 +507,56 @@ describe.skipIf(dbTestSkipReason() !== null)("0031_regla_precio_cotizacion migra
     });
   });
 
+  describe("costos de proveedor (docs/specs/costos-proveedor.md R34, CP18): calculating a cotizacion is read-only on them", () => {
+    it("reading the vigente costos (what costosProveedorParaCotizar does) and inserting the cotizacion leaves costo_proveedor, lista_precio_proveedor and partida unchanged", async () => {
+      await asOwner((client) =>
+        inRollbackTx(client, async (tx) => {
+          const { tenantId, sistema, unidadId, drogaId, itemRecetaId, reglaId } = await seedItemConFichaYRegla(tx, "cotcostoprov");
+          const proveedorId = await insertProveedor(tx, tenantId);
+          await crearPartidaConIngreso(tx, { tenantId, drogaId, proveedorId, registradoPorId: sistema, cantidadInicial: 50 });
+
+          // One imported list with one vigente costo and one closed (history) version of the same pair.
+          const lista = await tx.query(
+            `INSERT INTO fsj.lista_precio_proveedor (tenant_id, proveedor_id, formato, nombre_archivo, hash_sha256, fecha_lista, filas_leidas, filas_aplicadas, registrado_por_id)
+             VALUES ($1, $2, 'XLSX', 'lista.xlsx', $3, '2026-10-01', 1, 1, $4) RETURNING id`,
+            [tenantId, proveedorId, "c".repeat(64), sistema],
+          );
+          const insertCosto = (precio: string, costoUnitario: string, fechaPrecio: string, listaId: string | null) =>
+            tx.query(
+              `INSERT INTO fsj.costo_proveedor (tenant_id, droga_id, proveedor_id, precio_informado, unidad_precio_id, costo_unitario, fecha_precio, lista_precio_id, creado_por_id)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+              [tenantId, drogaId, proveedorId, precio, unidadId, costoUnitario, fechaPrecio, listaId, sistema],
+            );
+          const v1 = await insertCosto("10", "10", "2026-09-01", null);
+          await tx.query(`UPDATE fsj.costo_proveedor SET vigente_hasta = now() WHERE id = $1`, [v1.rows[0].id]);
+          await insertCosto("12", "12", "2026-10-01", lista.rows[0].id as string);
+
+          const snapshot = async () => {
+            const [costos, listas, partidas] = await Promise.all([
+              tx.query(
+                `SELECT id, precio_informado::text, costo_unitario::text, fecha_precio::text, vigente_desde, vigente_hasta FROM fsj.costo_proveedor WHERE tenant_id = $1 ORDER BY id`,
+                [tenantId],
+              ),
+              tx.query(`SELECT id, hash_sha256, filas_leidas, filas_aplicadas FROM fsj.lista_precio_proveedor WHERE tenant_id = $1 ORDER BY id`, [tenantId]),
+              tx.query(`SELECT id, cantidad_disponible::text, costo_unitario::text FROM fsj.partida WHERE tenant_id = $1 ORDER BY id`, [tenantId]),
+            ]);
+            return { costos: costos.rows, listas: listas.rows, partidas: partidas.rows };
+          };
+          const antes = await snapshot();
+          expect(antes.costos).toHaveLength(2);
+
+          // The same plain read the app performs (getCostosProveedorVigentesDeDrogas): vigentes of the droga, no lock.
+          const vigentes = await tx.query(`SELECT id FROM fsj.costo_proveedor WHERE tenant_id = $1 AND droga_id = $2 AND vigente_hasta IS NULL`, [tenantId, drogaId]);
+          expect(vigentes.rows).toHaveLength(1);
+
+          await insertCotizacion(tx, { tenantId, itemRecetaId, reglaPrecioId: reglaId, calculadaPorId: sistema });
+
+          expect(await snapshot()).toEqual(antes);
+        }),
+      );
+    });
+  });
+
   describe("cross-tenant isolation (INV-T01/T02)", () => {
     it("tenant B never sees tenant A's regla_precio or cotizacion", async () => {
       await asOwner((client) =>

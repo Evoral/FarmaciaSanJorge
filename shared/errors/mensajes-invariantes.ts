@@ -55,10 +55,10 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   "INV-DT-005": "El usuario elegido no está activo: no puede ser designado Director Técnico.",
 
   // Entregas (M14)
-  "INV-ENT-001": "Una entrega registrada no se puede modificar, salvo confirmar la firma recibida, que no se puede revertir.",
-  "INV-ENT-002": "La receta no puede marcarse como entregada sin una entrega registrada (retiro presencial, o envío con la firma recibida).",
+  "INV-ENT-001": "Una entrega registrada no se puede modificar, salvo confirmar el retorno, que no se puede revertir.",
+  "INV-ENT-002": "La receta no puede marcarse como entregada sin una entrega registrada (retiro presencial, o envío con el retorno confirmado).",
   // INV-ENT-003's trigger was dropped by migration 0051 (receta física attribute removed); kept because the scan covers 0040/0041.
-  "INV-ENT-003": "La receta fue enviada y está pendiente de firma: confirmá la firma recibida en lugar de registrar solo la recepción física.",
+  "INV-ENT-003": "La receta fue enviada y está esperando retorno: confirmá el retorno en lugar de registrar solo la recepción física.",
 
   // Preparaciones / etiquetas / fichas técnicas
   "INV-ETQ-001": "La etiqueta solo se puede generar para una preparación confirmada.",
@@ -128,6 +128,10 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   "INV-ROL-003": "El rol Director Técnico no se puede eliminar.",
   "INV-ROL-004": "El rol está asignado a uno o más usuarios: quitáselo antes de eliminarlo.",
   "INV-ROL-005": "El rol interno del sistema no se puede asignar a un usuario.",
+
+  // Cuentas de sector (migration 0077)
+  "INV-SEC-001": "Una cuenta de sector no puede tener el rol Administrador ni el de Director Técnico.",
+  "INV-SEC-002": "Un usuario no puede pasar a ser cuenta de sector ni dejar de serlo: se define al crearlo.",
 
   // Usuarios
   "INV-U02": "El usuario debe tener al menos un rol.",

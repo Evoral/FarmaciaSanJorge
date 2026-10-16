@@ -138,6 +138,10 @@ async function main(): Promise<void> {
     // here and is a no-op on a tenant that already has its roles.
     await client.query(`SELECT fsj.seed_roles_tenant($1)`, [tenantId]);
 
+    // Default acciones that ask an empleado's PIN in a cuenta de sector
+    // (migration 0077): same pattern, the trigger already ran it.
+    await client.query(`SELECT fsj.seed_acciones_con_pin($1)`, [tenantId]);
+
     // SISTEMA: self-created (creado_por_id = its own id), one per tenant,
     // es_tecnico = true. Gets the internal SISTEMA role (see migration
     // 0002 comment on fsj.rol for why that role exists at all).

@@ -224,6 +224,7 @@ export default async function UsuariosPage({ searchParams }: UsuariosPageProps) 
                               </Link>
                               <span className="block max-w-[16rem] truncate text-xs text-zinc-500" title={usuario.email}>
                                 {usuario.email}
+                                {usuario.esSector ? " · Cuenta de sector" : null}
                               </span>
                             </span>
                           </span>

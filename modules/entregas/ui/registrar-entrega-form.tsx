@@ -54,7 +54,7 @@ export function RegistrarEntregaForm({ action, recetaId, pagada, onSuccess }: Re
           <Truck className="size-4 flex-none text-zinc-500" aria-hidden />
           <span className="min-w-0">
             <span className="block font-medium text-zinc-900">Envío</span>
-            <span className="block text-xs text-zinc-500">Queda pendiente hasta confirmar la firma recibida.</span>
+            <span className="block text-xs text-zinc-500">Queda pendiente hasta confirmar su retorno.</span>
           </span>
         </label>
       </fieldset>
@@ -69,7 +69,7 @@ export function RegistrarEntregaForm({ action, recetaId, pagada, onSuccess }: Re
               <strong className="font-semibold">Receta impaga.</strong>{" "}
               {modalidad === "RETIRO_PRESENCIAL"
                 ? "Para entregarla tiene que quedar pagada."
-                : "Podés enviarla impaga: el pago se pide al confirmar la firma recibida."}
+                : "Podés enviarla impaga: el pago se pide al confirmar el retorno."}
             </p>
           </div>
           <PagoSwitch pago={{ pagada: pagarAhora, onChange: setPagarAhora, disabled: false, name: "pagada" }} className="" />
@@ -78,7 +78,7 @@ export function RegistrarEntregaForm({ action, recetaId, pagada, onSuccess }: Re
 
       {modalidad === "ENVIO" ? (
         <p className="text-[0.8125rem] leading-relaxed text-zinc-600">
-          La receta pasa a &quot;Enviada, pendiente de firma&quot; hasta confirmar que el repartidor trajo la constancia firmada por el paciente.
+          La receta pasa a &quot;Enviada, esperando retorno&quot; hasta que confirmes que el envío volvió.
         </p>
       ) : null}
     </SimpleForm>

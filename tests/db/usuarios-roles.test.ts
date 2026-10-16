@@ -45,7 +45,7 @@ async function createSistemaUser(tx: Client, tenantId: string): Promise<string> 
 }
 
 describe.skipIf(dbTestSkipReason() !== null)("0002_usuarios_roles_permisos migration (fsj schema)", () => {
-  it("every new tenant gets the 5 default roles plus the internal SISTEMA role (fsj.seed_roles_tenant via trg_tenant_seed_roles, migration 0054)", async () => {
+  it("every new tenant gets the 6 default roles plus the internal SISTEMA role (fsj.seed_roles_tenant via trg_tenant_seed_roles, migration 0054; LABORATORIO since 0077)", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const tenantId = await insertTenant(tx, "seed");
@@ -55,6 +55,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0002_usuarios_roles_permisos migra
           "ATENCION_PUBLICO",
           "DIRECTOR_TECNICO",
           "FARMACEUTICO",
+          "LABORATORIO",
           "SISTEMA",
           "SOLO_CONSULTA",
         ]);

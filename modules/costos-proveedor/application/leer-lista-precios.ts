@@ -7,7 +7,8 @@
  *
  * Order (cheap and safe first):
  *   - `prepare`, OUTSIDE the transaction (it holds no pooled DB connection while the workbook is
- *     decoded): `validarArchivoLista` (R15), SHA-256, the workbook, the sheet (the one asked for, else
+ *     decoded): `validarArchivoLista` (R15, which also detects the format: .xls or .xlsx), SHA-256, the workbook
+ *     (read by the reader of that format, both return a `LibroHojas`), the sheet (the one asked for, else
  *     the LAST one with data) and its rows through the Crystal parser;
  *   - in the transaction: the fecha de la lista (a real day, not after the jornada, R8), the proveedor (exists,
  *     not de baja, R12), the file not imported before for this proveedor (R21, with the date in the
@@ -23,11 +24,13 @@ import { formatFecha } from "@/shared/format/fecha";
 import { uuid } from "@/shared/validation";
 import { normalizarTextoDroga } from "@/modules/recetas/domain/importacion-receta";
 import { validarArchivoLista } from "../domain/archivo-lista";
+import type { FormatoLista } from "../domain/archivo-lista";
 import { construirVistaPrevia, hojaPorDefecto, mensajeFechaListaInvalida, mensajeListaYaImportada } from "../domain/importacion-lista";
 import type { HojaLibro, VistaPreviaLista } from "../domain/importacion-lista";
 import { parsearListaCrystal } from "../domain/parsers/lista-xlsx-crystal";
 import type { ResultadoParseoLista } from "../domain/parsers/lista-xlsx-crystal";
 import { hashSha256, leerLibroXlsx } from "../infrastructure/leer-xlsx.server";
+import { leerLibroXls } from "../infrastructure/leer-xls.server";
 import {
   buscarListaPorHash,
   getContextoTemporal,
@@ -56,15 +59,16 @@ export type LeerListaPreciosInput = z.input<typeof leerListaPreciosInput>;
 interface ListaLeida {
   nombreArchivo: string;
   hashSha256: string;
+  formato: FormatoLista;
   hojas: HojaLibro[];
   hoja: string;
   parseo: ResultadoParseoLista;
 }
 
 /** The file's own name, without any path and bounded: it is shown in the lists and stored (DB: not blank). */
-function nombreArchivoDe(archivo: File): string {
+function nombreArchivoDe(archivo: File, formato: FormatoLista): string {
   const nombre = archivo.name.split(/[\\/]/).pop()?.trim() ?? "";
-  return (nombre || "lista.xlsx").slice(0, MAX_CARACTERES_NOMBRE_ARCHIVO);
+  return (nombre || `lista.${formato.toLowerCase()}`).slice(0, MAX_CARACTERES_NOMBRE_ARCHIVO);
 }
 
 export const leerListaPreciosQuery = defineQuery({
@@ -72,12 +76,12 @@ export const leerListaPreciosQuery = defineQuery({
   permiso: "costos.proveedor.gestionar",
   input: leerListaPreciosInput,
   prepare: async ({ input }): Promise<ListaLeida> => {
-    const bytes = await validarArchivoLista(input.archivo);
-    const libro = await leerLibroXlsx(bytes);
+    const { bytes, formato } = await validarArchivoLista(input.archivo);
+    const libro = formato === "XLS" ? leerLibroXls(bytes) : await leerLibroXlsx(bytes);
     const hoja = input.hoja ?? hojaPorDefecto(libro.hojas);
     if (hoja === null) throw new ValidationError("El archivo no tiene ninguna hoja con datos.");
     const parseo = parsearListaCrystal(libro.leerHoja(hoja));
-    return { nombreArchivo: nombreArchivoDe(input.archivo as File), hashSha256: hashSha256(bytes), hojas: libro.hojas, hoja, parseo };
+    return { nombreArchivo: nombreArchivoDe(input.archivo as File, formato), hashSha256: hashSha256(bytes), formato, hojas: libro.hojas, hoja, parseo };
   },
   handler: async ({ tx, session, input, prepared }): Promise<VistaPreviaLista> => {
     const { tenantId } = session;
@@ -107,7 +111,7 @@ export const leerListaPreciosQuery = defineQuery({
       fechaLista: input.fechaLista,
       nombreArchivo: prepared.nombreArchivo,
       hashSha256: prepared.hashSha256,
-      formato: "XLSX",
+      formato: prepared.formato,
       hojas: prepared.hojas,
       hoja: prepared.hoja,
       filasLeidas: filas.length,

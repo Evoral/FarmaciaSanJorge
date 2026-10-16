@@ -40,6 +40,7 @@ export async function crearUsuarioAction(_prevState: CrearUsuarioFormState, form
       dni: String(formData.get("dni") ?? ""),
       numeroMatricula: String(formData.get("numeroMatricula") ?? "").trim() || undefined,
       roles,
+      esSector: formData.get("esSector") === "on",
     });
 
     return {

@@ -291,11 +291,18 @@ function opcional(valor: string | null | undefined): string | undefined {
   return valor ?? undefined;
 }
 
+/** The permisos each mode's action exercises: saving a receta also (re)generates its fichas técnicas (application/generar-fichas-y-cotizaciones.ts). Drives the cuenta de sector's "who is acting" prompt (shared/ui/use-form-submit.ts). */
+const ACCIONES_POR_MODO = {
+  crear: ["recetas.crear", "fichas.generar"],
+  importar: ["recetas.crear", "fichas.generar"],
+  editar: ["recetas.editar", "fichas.generar"],
+} as const;
+
 export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaPrevia, puedePresupuestar = false, volverA, encabezadoFijo = false, onBorradorChange }: RecetaFormProps) {
   const importacion = mode === "importar" ? (vistaPrevia ?? null) : null;
   const action = mode === "crear" ? crearRecetaAction : mode === "editar" ? editarRecetaAction : importarRecetaAction;
   const [state, formAction, isPending] = useActionState(action, IDLE_STATE);
-  const { onSubmit } = useFormSubmit(formAction);
+  const { onSubmit } = useFormSubmit(formAction, { estado: state, accion: ACCIONES_POR_MODO[mode] });
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
 
