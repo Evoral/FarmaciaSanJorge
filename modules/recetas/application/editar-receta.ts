@@ -13,7 +13,7 @@
  *
  * Lock BEFORE any decision read (M3 discipline, same as every other
  * module): `lockRecetaParaAccion` first, then a FRESH read. Header fields
- * (paciente/médico/fecha/origen/diagnóstico/domicilio del paciente) use optimistic concurrency (compare-and-swap,
+ * (paciente/médico/fecha/válida desde/origen/diagnóstico/domicilio del paciente) use optimistic concurrency (compare-and-swap,
  * same shape as modules/pacientes/application/editar-paciente.ts).
  * Items/componentes use a SEPARATE conflict check: the client submits the
  * ids of the items it started editing from (`itemsVersion`) -- if the
@@ -38,6 +38,8 @@ import { uuid } from "@/shared/validation";
 import {
   ORIGENES_RECETA,
   esEstadoEditable,
+  esFechaPrescripcionValida,
+  esFechaPrescripcionVigente,
   resumirItemsReceta,
   validarItemsReceta,
   validarOrigenCargaManual,
@@ -51,6 +53,7 @@ import {
   getNombresParaResumen,
   getPacienteRefParaReceta,
   getRecetaParaAccion,
+  jornadaActualTenant,
   listItemIds,
   listSinonimosGuardadosDeReceta,
   lockRecetaParaAccion,
@@ -59,25 +62,29 @@ import {
   updateRecetaHeader,
 } from "../infrastructure/receta-repository";
 import { crearRecetaInput, isoDate, itemInput as itemInputAlta } from "./crear-receta";
+import { aplicarCambioPago } from "./marcar-pago-receta";
 import { validarSinonimosDeComponentes } from "./sinonimos-componentes";
 
 /** The same ítem as the alta (crear-receta.ts), plus the id of an existing one: one schema, so both screens accept the same draft. */
 const itemInput = itemInputAlta.extend({ id: uuid.optional() });
 
 /**
- * The alta's input (header + ítems), so a field added there reaches the edit too. `fechaValidaDesde` is
- * alta-only (an edit never changes the receta's validity) -- omitted explicitly, so a new alta-only field
- * is a decision here, not a silent drift. `version` stays hand-written on purpose: it carries the RAW stored
- * values for the compare-and-swap, without the alta's transforms. `pagada` is alta-only too: the payment
- * is changed from the receta's detail (`marcarPagoReceta`), never as a side effect of an edit.
+ * The alta's input (header + ítems), so a field added there reaches the edit too (AGENTS.md: the edit offers what
+ * the alta offers) -- an omitted field is a decision here, not a silent drift. `fechaValidaDesde` is editable: when
+ * the validity changes the alta's checks run again (see the handler). `version` stays hand-written on purpose: it carries the RAW stored
+ * values for the compare-and-swap, without the alta's transforms. `pagada` is optional here (a payment forgotten at
+ * the alta can be marked while editing): omitted = the payment is left as it is (the toma workspace embeds the form
+ * without the switch); sent = the same change as the detail's `marcarPagoReceta` (docs/specs/pago-receta.md P8).
  */
-const editarRecetaInput = crearRecetaInput.omit({ fechaValidaDesde: true, pagada: true }).extend({
+const editarRecetaInput = crearRecetaInput.omit({ pagada: true }).extend({
   id: uuid,
+  pagada: z.boolean().optional(),
   items: z.array(itemInput).min(1, "La receta debe tener al menos un ítem."),
   version: z.object({
     pacienteId: uuid,
     medicoId: uuid,
     fechaPrescripcion: isoDate,
+    fechaValidaDesde: isoDate.nullable().default(null),
     origen: z.enum(ORIGENES_RECETA),
     diagnosticoCodigo: z.string().nullable().default(null),
     diagnosticoDescripcion: z.string().nullable().default(null),
@@ -141,10 +148,12 @@ export const editarRecetaCommand = defineCommand({
     }
 
     const actualFechaISO = actual.fechaPrescripcion.toISOString().slice(0, 10);
+    const actualValidaDesdeISO = actual.fechaValidaDesde ? actual.fechaValidaDesde.toISOString().slice(0, 10) : null;
     const versionMatches =
       actual.pacienteId === input.version.pacienteId &&
       actual.medicoId === input.version.medicoId &&
       actualFechaISO === input.version.fechaPrescripcion &&
+      actualValidaDesdeISO === input.version.fechaValidaDesde &&
       actual.origen === input.version.origen &&
       actual.diagnosticoCodigo === input.version.diagnosticoCodigo &&
       actual.diagnosticoDescripcion === input.version.diagnosticoDescripcion &&
@@ -172,6 +181,21 @@ export const editarRecetaCommand = defineCommand({
     }
 
     validarOrigenCargaManual(input.origen, actual.origen);
+
+    // The alta's validity checks (crear-receta.ts), only when the validity changes: an unchanged one may have
+    // expired since the alta and must not block fixing an ítem of a receta still pending preparación.
+    if (input.fechaPrescripcion !== actualFechaISO || input.fechaValidaDesde !== actualValidaDesdeISO) {
+      const jornadaActual = await jornadaActualTenant(tx, session.tenantId);
+      if (!esFechaPrescripcionValida(input.fechaPrescripcion, jornadaActual)) {
+        throw new ValidationError("La fecha de prescripción no puede ser futura.");
+      }
+      if (input.fechaValidaDesde !== null && input.fechaValidaDesde < input.fechaPrescripcion) {
+        throw new ValidationError("La fecha de validez no puede ser anterior a la fecha de prescripción.");
+      }
+      if (!esFechaPrescripcionVigente(input.fechaValidaDesde ?? input.fechaPrescripcion, jornadaActual)) {
+        throw new ValidationError(input.fechaValidaDesde ? "La receta está vencida: pasó más de un mes desde su fecha de validez." : "La receta está vencida: tiene más de un mes desde su prescripción.");
+      }
+    }
 
     const paciente = await getPacienteRefParaReceta(tx, session.tenantId, input.pacienteId);
     if (!paciente) throw new NotFoundError("Paciente no encontrado.");
@@ -212,6 +236,7 @@ export const editarRecetaCommand = defineCommand({
         pacienteId: input.pacienteId,
         medicoId: input.medicoId,
         fechaPrescripcion: input.fechaPrescripcion,
+        fechaValidaDesde: input.fechaValidaDesde,
         origen: input.origen,
         diagnosticoCodigo: input.diagnosticoCodigo,
         diagnosticoDescripcion: input.diagnosticoDescripcion,
@@ -220,6 +245,9 @@ export const editarRecetaCommand = defineCommand({
       input.version,
     );
     if (!headerUpdated) throw new ConflictError(CONCURRENCY_MESSAGE);
+
+    // Its own audit row (pagada before/after), like the detail's switch; nothing when the flag does not change.
+    if (input.pagada !== undefined) await aplicarCambioPago({ tx, session }, input.id, input.pagada);
 
     await reemplazarItemsReceta(
       tx,
@@ -265,6 +293,7 @@ export const editarRecetaCommand = defineCommand({
           medicoId: actual.medicoId,
           medico: nombreMedico(medicoAnterior),
           fechaPrescripcion: actualFechaISO,
+          fechaValidaDesde: actualValidaDesdeISO,
           origen: actual.origen,
           diagnosticoCodigo: actual.diagnosticoCodigo,
           diagnosticoDescripcion: actual.diagnosticoDescripcion,
@@ -276,6 +305,7 @@ export const editarRecetaCommand = defineCommand({
           medicoId: input.medicoId,
           medico: nombreMedico(medico),
           fechaPrescripcion: input.fechaPrescripcion,
+          fechaValidaDesde: input.fechaValidaDesde,
           origen: input.origen,
           diagnosticoCodigo: input.diagnosticoCodigo,
           diagnosticoDescripcion: input.diagnosticoDescripcion,

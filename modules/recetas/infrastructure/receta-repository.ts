@@ -328,6 +328,7 @@ export interface RecetaParaAccion {
   pacienteId: string;
   medicoId: string;
   fechaPrescripcion: Date;
+  fechaValidaDesde: Date | null;
   origen: OrigenReceta;
   estado: EstadoReceta;
   motivoAnulacion: string | null;
@@ -341,6 +342,7 @@ const SELECT_PARA_ACCION = {
   pacienteId: true,
   medicoId: true,
   fechaPrescripcion: true,
+  fechaValidaDesde: true,
   origen: true,
   estado: true,
   motivoAnulacion: true,
@@ -467,6 +469,8 @@ export interface RecetaDetalle {
   medicoMatricula: string;
   fechaCreada: Date;
   fechaPrescripcion: Date;
+  /** Set when the receta's month of validity counts from a date other than its prescription. */
+  fechaValidaDesde: Date | null;
   fechaIngreso: Date;
   origen: OrigenReceta;
   estado: EstadoReceta;
@@ -523,6 +527,7 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
     medicoMatricula: receta.medico.matricula,
     fechaCreada: receta.fechaCreada,
     fechaPrescripcion: receta.fechaPrescripcion,
+    fechaValidaDesde: receta.fechaValidaDesde,
     fechaIngreso: receta.fechaIngreso,
     origen: receta.origen,
     estado: receta.estado,
@@ -579,6 +584,7 @@ export interface EditarRecetaHeaderInput {
   pacienteId: string;
   medicoId: string;
   fechaPrescripcion: string;
+  fechaValidaDesde: string | null;
   origen: OrigenReceta;
   diagnosticoCodigo: string | null;
   diagnosticoDescripcion: string | null;
@@ -589,6 +595,7 @@ export interface EditarRecetaHeaderVersion {
   pacienteId: string;
   medicoId: string;
   fechaPrescripcion: string; // YYYY-MM-DD, compared as a date slice
+  fechaValidaDesde: string | null; // YYYY-MM-DD
   origen: OrigenReceta;
   diagnosticoCodigo: string | null;
   diagnosticoDescripcion: string | null;
@@ -608,6 +615,7 @@ export async function updateRecetaHeader(
       pacienteId: version.pacienteId,
       medicoId: version.medicoId,
       fechaPrescripcion: new Date(`${version.fechaPrescripcion}T00:00:00Z`),
+      fechaValidaDesde: version.fechaValidaDesde ? new Date(`${version.fechaValidaDesde}T00:00:00Z`) : null,
       origen: version.origen,
       diagnosticoCodigo: version.diagnosticoCodigo,
       diagnosticoDescripcion: version.diagnosticoDescripcion,
@@ -617,6 +625,7 @@ export async function updateRecetaHeader(
       pacienteId: input.pacienteId,
       medicoId: input.medicoId,
       fechaPrescripcion: new Date(`${input.fechaPrescripcion}T00:00:00Z`),
+      fechaValidaDesde: input.fechaValidaDesde ? new Date(`${input.fechaValidaDesde}T00:00:00Z`) : null,
       origen: input.origen,
       diagnosticoCodigo: input.diagnosticoCodigo,
       diagnosticoDescripcion: input.diagnosticoDescripcion,

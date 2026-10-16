@@ -223,10 +223,13 @@ export interface RecetaFormInicial {
   medicoId: string;
   medicoLabel: string;
   fechaPrescripcion: string;
+  /** "" when the receta's validity counts from its prescription date. */
+  fechaValidaDesde: string;
   origen: OrigenReceta;
   diagnosticoCodigo: string;
   diagnosticoDescripcion: string;
   domicilioPaciente: string;
+  pagada: boolean;
   items: ItemState[];
 }
 
@@ -247,7 +250,7 @@ export interface RecetaFormProps {
   inicial?: RecetaFormInicial;
   /** `importar` mode only. */
   vistaPrevia?: VistaPreviaImportacion;
-  /** `cotizaciones.calcular`: show the live price (crear/importar only -- docs/specs/presupuesto-receta.md). */
+  /** `cotizaciones.calcular`: show the live price in every mode (docs/specs/presupuesto-receta.md). */
   puedePresupuestar?: boolean;
   /** `editar` mode only: where to come back after saving when the form is embedded in another screen (an internal /preparaciones path, re-validated by the action -- domain/avisos-generacion.ts#retornoDeEdicion). */
   volverA?: string;
@@ -313,16 +316,17 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   const [medicoLabel, setMedicoLabel] = useState(inicial?.medicoLabel ?? "");
   const borrador = importacion?.borrador ?? null;
   const [fechaPrescripcion, setFechaPrescripcion] = useState(borrador?.fechaPrescripcion ?? inicial?.fechaPrescripcion ?? "");
-  // `crear` mode: a receta whose "válida desde" differs from its prescription date (its month of validity counts from it).
-  const [conValidaDesde, setConValidaDesde] = useState(false);
-  const [fechaValidaDesde, setFechaValidaDesde] = useState("");
+  // `crear` / `editar` modes: a receta whose "válida desde" differs from its prescription date (its month of validity
+  // counts from it). Switched off, the field is not submitted: the validity goes back to the prescription date.
+  const [conValidaDesde, setConValidaDesde] = useState(!!inicial?.fechaValidaDesde);
+  const [fechaValidaDesde, setFechaValidaDesde] = useState(inicial?.fechaValidaDesde ?? "");
   const fechaValidaDesdeId = useId();
   const [diagnosticoCodigo, setDiagnosticoCodigo] = useState(borrador?.diagnosticoCodigo ?? inicial?.diagnosticoCodigo ?? "");
   const [diagnosticoDescripcion, setDiagnosticoDescripcion] = useState(borrador?.diagnosticoDescripcion ?? inicial?.diagnosticoDescripcion ?? "");
   // Stored on the receta, not on the paciente (migration 0070); the PDF import prefills it.
   const [domicilioPaciente, setDomicilioPaciente] = useState(borrador?.domicilioPaciente ?? inicial?.domicilioPaciente ?? "");
-  // `crear` / `importar` modes: the receta is created already paid (migration 0071). An edit never changes the payment (the receta detail does).
-  const [pagada, setPagada] = useState(false);
+  // Migration 0071: `crear` / `importar` create the receta already paid; `editar` can mark a payment forgotten at the alta.
+  const [pagada, setPagada] = useState(inicial?.pagada ?? false);
   // Manual alta is always PRESENCIAL; an edit keeps the receta's own origen (domain/receta.ts's validarOrigenCargaManual);
   // an import is DIGITAL_PDF.
   const origen: OrigenReceta = importacion ? "DIGITAL_PDF" : (inicial?.origen ?? "PRESENCIAL");
@@ -370,7 +374,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   const encabezadoSinGuardar =
     guardadosJson !== null &&
     !!inicial &&
-    (pacienteId !== inicial.pacienteId || medicoId !== inicial.medicoId || fechaPrescripcion !== inicial.fechaPrescripcion || diagnosticoCodigo !== inicial.diagnosticoCodigo || diagnosticoDescripcion !== inicial.diagnosticoDescripcion || domicilioPaciente !== inicial.domicilioPaciente);
+    (pacienteId !== inicial.pacienteId || medicoId !== inicial.medicoId || fechaPrescripcion !== inicial.fechaPrescripcion || diagnosticoCodigo !== inicial.diagnosticoCodigo || diagnosticoDescripcion !== inicial.diagnosticoDescripcion || domicilioPaciente !== inicial.domicilioPaciente || pagada !== inicial.pagada || (conValidaDesde ? fechaValidaDesde : "") !== inicial.fechaValidaDesde);
 
   // The embedding screen's callback may change identity on every render: only the draft's changes publish it.
   const onBorradorChangeRef = useRef(onBorradorChange);
@@ -417,7 +421,10 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
     setPacienteLabel(inicial.pacienteLabel);
     setMedicoId(inicial.medicoId);
     setMedicoLabel(inicial.medicoLabel);
+    setPagada(inicial.pagada);
     setFechaPrescripcion(inicial.fechaPrescripcion);
+    setConValidaDesde(!!inicial.fechaValidaDesde);
+    setFechaValidaDesde(inicial.fechaValidaDesde);
     setDiagnosticoCodigo(inicial.diagnosticoCodigo);
     setDiagnosticoDescripcion(inicial.diagnosticoDescripcion);
     setDomicilioPaciente(inicial.domicilioPaciente);
@@ -530,10 +537,10 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
     : medicoLabel;
   const totalComponentes = items.reduce((sum, it) => sum + it.componentes.length, 0);
   const cancelarHref = mode !== "editar" ? "/recetas" : !volverA && recetaId ? `/recetas/${recetaId}` : null;
-  // `crear` reads "pagada" from the form; `importar` sends it inside `importacionJson`.
+  // `crear` reads "pagada" from the form; `importar` sends it inside `importacionJson`; `editar` sends a hidden "true"/"false" (an unchecked box would read as "leave it").
   const pagoPanel = { pagada, onChange: setPagada, disabled, name: mode === "crear" ? "pagada" : undefined };
   // With the price panel, the paid switch lives inside it (it needs the total); otherwise it stays in the resumen.
-  const mostrarPrecio = puedePresupuestar && mode !== "editar";
+  const mostrarPrecio = puedePresupuestar;
   const errorVisible = clientError ?? (state.status === "error" && state !== errorDescartado ? state.message : null);
 
   // Next to the paciente: the picker (crear/editar) or the imported paciente's panel (importar).
@@ -560,6 +567,8 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
     <form ref={formRef} action={formAction} onSubmit={handleSubmit} noValidate className={encabezadoOculto ? "flex flex-col gap-6" : "split-layout"}>
       {mode === "editar" && recetaId ? <input type="hidden" name="id" value={recetaId} /> : null}
       {mode === "editar" && volverA ? <input type="hidden" name="volverA" value={volverA} /> : null}
+      {/* The toma workspace (encabezadoOculto) has no payment switch: no field, so the edit leaves the payment as it is. */}
+      {mode === "editar" && !encabezadoOculto ? <input type="hidden" name="pagada" value={String(pagada)} /> : null}
       <input type="hidden" name="pacienteId" value={pacienteId} />
       <input type="hidden" name="medicoId" value={medicoId} />
       <input type="hidden" name="origen" value={origen} />
@@ -570,6 +579,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
           <input type="hidden" name="versionPacienteId" value={inicial.pacienteId} />
           <input type="hidden" name="versionMedicoId" value={inicial.medicoId} />
           <input type="hidden" name="versionFechaPrescripcion" value={inicial.fechaPrescripcion} />
+          <input type="hidden" name="versionFechaValidaDesde" value={inicial.fechaValidaDesde} />
           <input type="hidden" name="versionOrigen" value={inicial.origen} />
           <input type="hidden" name="versionDiagnosticoCodigo" value={inicial.diagnosticoCodigo} />
           <input type="hidden" name="versionDiagnosticoDescripcion" value={inicial.diagnosticoDescripcion} />
@@ -581,6 +591,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
         // Not shown here, submitted unchanged (the `version*` fields above still guard against a concurrent edit).
         <>
           <input type="hidden" name="fechaPrescripcion" value={fechaPrescripcion} />
+          {conValidaDesde ? <input type="hidden" name="fechaValidaDesde" value={fechaValidaDesde} /> : null}
           <input type="hidden" name="diagnosticoCodigo" value={diagnosticoCodigo} />
           <input type="hidden" name="diagnosticoDescripcion" value={diagnosticoDescripcion} />
           <input type="hidden" name="domicilioPaciente" value={domicilioPaciente} />
@@ -735,7 +746,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                     max={jornadaDe(new Date())}
                   />
                 </div>
-                {mode === "crear" && conValidaDesde ? (
+                {mode !== "importar" && conValidaDesde ? (
                   <div className="field">
                     <label htmlFor={fechaValidaDesdeId} className="field-label">
                       Válida desde
@@ -747,11 +758,12 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                       disabled={disabled}
                       value={fechaValidaDesde}
                       onValueChange={setFechaValidaDesde}
-                      min={[fechaPrescripcion, fechaPrescripcionMinima(jornadaDe(new Date()))].sort().at(-1)}
+                      // An edit that keeps the saved date is not re-checked (editar-receta.ts): only the prescription bounds it.
+                      min={mode === "editar" && fechaValidaDesde === inicial?.fechaValidaDesde ? fechaPrescripcion : [fechaPrescripcion, fechaPrescripcionMinima(jornadaDe(new Date()))].sort().at(-1)}
                     />
                   </div>
                 ) : null}
-                {mode === "crear" ? (
+                {mode !== "importar" ? (
                   <label className="toggle-switch max-w-64 text-[0.8125rem] leading-snug text-zinc-500" aria-label="La receta tiene una fecha de validez distinta de su fecha de prescripción">
                     <input type="checkbox" role="switch" checked={conValidaDesde} disabled={disabled} onChange={(e) => setConValidaDesde(e.target.checked)} />
                     {conValidaDesde ? null : "La receta tiene una fecha de validez distinta de su fecha de prescripción."}
@@ -1133,7 +1145,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                 </dd>
               </dl>
 
-              {mode !== "editar" && !mostrarPrecio ? (
+              {!mostrarPrecio ? (
                 <label className="toggle-switch font-medium text-zinc-900">
                   <input type="checkbox" role="switch" name={pagoPanel.name} checked={pagada} disabled={disabled} onChange={(e) => setPagada(e.target.checked)} />
                   {pagada ? "Pagada" : "Marcar como pagada"}

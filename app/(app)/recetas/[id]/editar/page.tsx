@@ -44,7 +44,7 @@ export default async function EditarRecetaPage({ params }: EditarRecetaPageProps
         }
         description="Se puede corregir mientras está pendiente de preparación. Al guardar, las fichas técnicas se recalculan."
       />
-      <RecetaForm mode="editar" unidades={unidades} disabled={false} recetaId={receta.id} inicial={inicialDesdeReceta(receta)} />
+      <RecetaForm mode="editar" unidades={unidades} disabled={false} recetaId={receta.id} inicial={inicialDesdeReceta(receta)} puedePresupuestar={can(session, "cotizaciones.calcular")} />
     </div>
   );
 }

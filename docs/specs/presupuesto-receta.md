@@ -5,10 +5,10 @@
 
 ## Alcance
 
-1. **Presupuesto en vivo** mientras se carga una receta (alta manual e importación desde PDF). No guarda nada.
+1. **Presupuesto en vivo** mientras se carga una receta (alta manual, importación desde PDF y edición de una receta guardada -- revisado 2026-10-16). No guarda nada.
 2. **Ficha técnica y cotización automáticas** al confirmar la receta (y al editarla, solo para los ítems cuya fórmula cambió).
 
-Fuera de alcance: reservar stock (eso lo hace el laboratorio al marcar un ítem como preparado, `reserva-stock-preparacion.md`), guardar presupuestos, presupuesto en la edición de una receta ya guardada.
+Fuera de alcance: reservar stock (eso lo hace el laboratorio al marcar un ítem como preparado, `reserva-stock-preparacion.md`), guardar presupuestos.
 
 ## 1. Presupuesto — consulta `recetas.presupuestar`
 

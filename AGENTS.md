@@ -58,6 +58,9 @@ The ESLint config enforces most of these rules. Full rationale: `docs/architectu
   `shared/ui/use-form-submit.ts` (React 19 otherwise resets the form on every
   submit). Only reset on success; on error mark the offending field
   (`shared/ui/field-errors.ts`). Losing a long pharmacy form to one bad field is a bug.
+- **Edit offers what the alta offers.** A create form and its edit form share one
+  component; an option added to one (e.g. "Pagada", the live price) appears in both
+  unless the spec states why not. Don't gate options by `mode !== "editar"` by default.
 - Reuse `shared/ui/` primitives (forms, filters, dialogs, pagination, toasts)
   and `shared/format/` before writing new ones.
 - **Shared sessions (cuentas de sector).** A Server Action that runs an acción

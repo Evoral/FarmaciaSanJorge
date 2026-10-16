@@ -12,10 +12,12 @@ export function inicialDesdeReceta(receta: RecetaDetalle): RecetaFormInicial {
     medicoId: receta.medicoId,
     medicoLabel: `${receta.medicoApellido}, ${receta.medicoNombre}`,
     fechaPrescripcion: receta.fechaPrescripcion.toISOString().slice(0, 10),
+    fechaValidaDesde: receta.fechaValidaDesde ? receta.fechaValidaDesde.toISOString().slice(0, 10) : "",
     origen: receta.origen,
     diagnosticoCodigo: receta.diagnosticoCodigo ?? "",
     diagnosticoDescripcion: receta.diagnosticoDescripcion ?? "",
     domicilioPaciente: receta.domicilioPaciente ?? "",
+    pagada: receta.pagada,
     items: receta.items.map((item) => ({
       id: item.id,
       descripcion: item.descripcion ?? "",
