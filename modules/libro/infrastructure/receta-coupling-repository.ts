@@ -47,7 +47,17 @@
  * why `todosLosItemsSinEfecto` below can just query fresh state instead of
  * accounting for the current operation specially.
  *
- * NO MIGRATION ADDED: `item_receta` has no per-item `estado` column (see
+ * D8 (user decision, 2026-10-16, migration 0082): every NEW SISTEMA asiento
+ * covers a whole receta (`asiento_recetario.receta_id` + its
+ * `asiento_preparacion` rows). An ítem's asiento is its legacy per-ítem one
+ * OR the por-receta one its preparación is linked to -- both resolved
+ * through `fsj.v_asiento_sistema_preparacion`. Anulling/rectifying a
+ * por-receta asiento therefore makes ALL its ítems sin efecto at once, and
+ * the receta moves to ANULADA (unless ENTREGADA) when no other ítem keeps an
+ * asiento in effect (a receta from the transition may still hold legacy
+ * per-ítem asientos too).
+ *
+ * NO COLUMN ADDED: `item_receta` has no per-item `estado` column (see
  * `prisma/schema.prisma`'s `ItemReceta` model) -- "sin efecto" is derived
  * on the fly from `preparacion`/`asiento_recetario`, never stored. FASE 11
  * (entrega) must exclude items whose asiento is "sin efecto" from what
@@ -68,13 +78,25 @@ const ASIENTO_SIN_EFECTO = Prisma.sql`(
   OR EXISTS (SELECT 1 FROM fsj.asiento_recetario r WHERE r.tenant_id = a.tenant_id AND r.asiento_original_id = a.id)
 )`;
 
+/**
+ * D8 (migration 0082): `p` (a CONFIRMADA preparación) -> its SISTEMA asiento
+ * `a`, legacy per-ítem or por receta, through the one view that resolves both.
+ * Must stay equal to the join in fsj.receta_validar_anulacion_libro (INV-R12).
+ */
+const JOIN_ASIENTO_SISTEMA = Prisma.sql`
+  JOIN fsj.v_asiento_sistema_preparacion v ON v.tenant_id = p.tenant_id AND v.preparacion_id = p.id
+  JOIN fsj.asiento_recetario a ON a.tenant_id = v.tenant_id AND a.id = v.asiento_recetario_id
+`;
+
 /** Mirrors modules/recetas/domain/receta.ts#ESTADOS_TERMINALES -- see module doc comment for why this is a local copy, not an import. */
 const ESTADOS_TERMINALES_RECETA: ReadonlySet<string> = new Set(["ENTREGADA", "ANULADA"]);
 
 export interface DesvincularRecetaInput {
   tenantId: string;
-  /** The asiento's OWN preparacionId (SISTEMA asientos), or the ORIGINAL asiento's preparacionId when called for a RECTIFICATIVO (which itself has no preparacionId). `null` is accepted as a no-op for callers that have no preparacion to resolve. */
+  /** The asiento's OWN preparacionId (legacy per-ítem SISTEMA asientos), or the ORIGINAL asiento's when called for a RECTIFICATIVO (which itself has none). */
   preparacionId: string | null;
+  /** D8: the asiento's OWN recetaId (por-receta SISTEMA asientos), or the ORIGINAL asiento's for a RECTIFICATIVO. With `preparacionId` also `null`, this is a no-op. */
+  recetaId: string | null;
   /** The asiento_recetario's own numeroCorrelativo -- used to build the motivoAnulacion text ("Todos los ítems quedaron sin efecto (último: asiento Nº X): <motivo>"). */
   numeroCorrelativo: string;
   motivo: string;
@@ -86,28 +108,33 @@ export interface RecetaDesvinculada {
   estadoAnterior: string;
 }
 
-/** Resolves the receta reached from a preparacionId, LOCKING it `FOR UPDATE` first (M3 discipline). Returns `null` if the preparacion/item/receta chain cannot be resolved. */
+/** Resolves the receta reached from the asiento -- its own receta_id (D8), or its legacy preparacion's ítem -- LOCKING it `FOR UPDATE` first (M3 discipline). Returns `null` if the chain cannot be resolved. */
 async function lockRecetaDeAsiento(
   tx: Prisma.TransactionClient,
   tenantId: string,
-  preparacionId: string,
+  asiento: { preparacionId: string | null; recetaId: string | null },
 ): Promise<{ id: string; estado: string } | null> {
-  const preparacion = await tx.preparacion.findUnique({ where: { id: preparacionId, tenantId }, select: { itemRecetaId: true } });
-  if (!preparacion) return null;
+  let recetaId = asiento.recetaId;
+  if (!recetaId && asiento.preparacionId) {
+    const preparacion = await tx.preparacion.findUnique({ where: { id: asiento.preparacionId, tenantId }, select: { itemRecetaId: true } });
+    if (!preparacion) return null;
 
-  const item = await tx.itemReceta.findUnique({ where: { id: preparacion.itemRecetaId, tenantId }, select: { recetaId: true } });
-  if (!item) return null;
+    const item = await tx.itemReceta.findUnique({ where: { id: preparacion.itemRecetaId, tenantId }, select: { recetaId: true } });
+    if (!item) return null;
+    recetaId = item.recetaId;
+  }
+  if (!recetaId) return null;
 
-  await tx.$queryRaw`SELECT id FROM fsj.receta WHERE id = ${item.recetaId}::uuid AND tenant_id = ${tenantId}::uuid FOR UPDATE`;
+  await tx.$queryRaw`SELECT id FROM fsj.receta WHERE id = ${recetaId}::uuid AND tenant_id = ${tenantId}::uuid FOR UPDATE`;
 
-  return tx.receta.findUnique({ where: { id: item.recetaId, tenantId }, select: { id: true, estado: true } });
+  return tx.receta.findUnique({ where: { id: recetaId, tenantId }, select: { id: true, estado: true } });
 }
 
 /**
  * `true` when the receta has AT LEAST ONE `item_receta` and EVERY one of
  * them is "sin efecto": its `preparacion` reached CONFIRMADA AND its
- * SISTEMA `asiento_recetario` is either `ANULADO` or already has a
- * RECTIFICATIVO. An item that never got a CONFIRMADA preparación (still
+ * SISTEMA `asiento_recetario` -- legacy or por receta (D8) -- is either
+ * `ANULADO` or already has a RECTIFICATIVO. An item that never got a CONFIRMADA preparación (still
  * pending) or whose asiento is VIGENTE with no rectificativo yet is NOT
  * "sin efecto", and blocks the whole receta from transitioning (per-item,
  * not all-or-nothing on JUST the asiento this call is reacting to -- every
@@ -115,9 +142,9 @@ async function lockRecetaDeAsiento(
  *
  * Raw SQL, same convention as
  * `modules/preparaciones/infrastructure/preparacion-repository.ts#todosLosItemsConfirmados`
- * (no Prisma back-relation from `item_receta` to `preparacion`, and none
- * from `preparacion` to `asiento_recetario` either -- both are plain FK
- * columns, joined here directly).
+ * (no Prisma back-relation from `item_receta` to `preparacion`); the
+ * preparación -> asiento step goes through `fsj.v_asiento_sistema_preparacion`
+ * (migration 0082), which resolves both kinds of SISTEMA asiento.
  */
 async function todosLosItemsSinEfecto(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<boolean> {
   const rows = await tx.$queryRaw<{ total: number; sin_efecto: number }[]>`
@@ -127,7 +154,7 @@ async function todosLosItemsSinEfecto(tx: Prisma.TransactionClient, tenantId: st
         SELECT count(DISTINCT ir.id)::int
         FROM fsj.item_receta ir
         JOIN fsj.preparacion p ON p.tenant_id = ir.tenant_id AND p.item_receta_id = ir.id AND p.estado = 'CONFIRMADA'
-        JOIN fsj.asiento_recetario a ON a.tenant_id = p.tenant_id AND a.preparacion_id = p.id AND a.origen = 'SISTEMA'
+        ${JOIN_ASIENTO_SISTEMA}
         WHERE ir.tenant_id = ${tenantId}::uuid AND ir.receta_id = ${recetaId}::uuid
           AND ${ASIENTO_SIN_EFECTO}
       ) AS sin_efecto
@@ -144,9 +171,10 @@ export interface AsientoEnEfecto {
 }
 
 /**
- * The receta's SISTEMA asientos that are still IN EFFECT: the item's
- * preparación is CONFIRMADA and its asiento is NOT "sin efecto" (the same
- * `ASIENTO_SIN_EFECTO` definition D2 uses). While any exists, the receta
+ * The receta's SISTEMA asientos that are still IN EFFECT, one row per ítem:
+ * the item's preparación is CONFIRMADA and its asiento (legacy or por receta,
+ * D8 -- a por-receta asiento appears once per ítem it covers) is NOT "sin
+ * efecto" (the same `ASIENTO_SIN_EFECTO` definition D2 uses). While any exists, the receta
  * must not be anulled directly -- the libro would keep recording a
  * preparación of an ANULADA receta; the asiento has to be anulled or
  * rectified from the Libro, and D2 then anulls the receta
@@ -157,10 +185,10 @@ export async function asientosEnEfectoDeReceta(tx: Prisma.TransactionClient, ten
     SELECT ir.id AS item_receta_id, a.id AS asiento_id, a.numero_correlativo::text AS numero_correlativo
     FROM fsj.item_receta ir
     JOIN fsj.preparacion p ON p.tenant_id = ir.tenant_id AND p.item_receta_id = ir.id AND p.estado = 'CONFIRMADA'
-    JOIN fsj.asiento_recetario a ON a.tenant_id = p.tenant_id AND a.preparacion_id = p.id AND a.origen = 'SISTEMA'
+    ${JOIN_ASIENTO_SISTEMA}
     WHERE ir.tenant_id = ${tenantId}::uuid AND ir.receta_id = ${recetaId}::uuid
       AND NOT ${ASIENTO_SIN_EFECTO}
-    ORDER BY a.numero_correlativo
+    ORDER BY a.numero_correlativo, ir.id
   `;
   return rows.map((r) => ({ itemRecetaId: r.item_receta_id, asientoId: r.asiento_id, numeroCorrelativo: r.numero_correlativo }));
 }
@@ -176,9 +204,9 @@ export async function asientosEnEfectoDeReceta(tx: Prisma.TransactionClient, ten
  * and simply ignore a `null` result (nothing to couple).
  */
 export async function desvincularRecetaPorAsiento(tx: Prisma.TransactionClient, input: DesvincularRecetaInput): Promise<RecetaDesvinculada | null> {
-  if (!input.preparacionId) return null;
+  if (!input.preparacionId && !input.recetaId) return null;
 
-  const receta = await lockRecetaDeAsiento(tx, input.tenantId, input.preparacionId);
+  const receta = await lockRecetaDeAsiento(tx, input.tenantId, input);
   if (!receta) return null;
   if (ESTADOS_TERMINALES_RECETA.has(receta.estado)) return null;
 

@@ -46,6 +46,7 @@ import {
   insertDroga,
   insertProveedor,
   crearPartidaConIngreso,
+  insertAsientoSistema,
 } from "./fixtures";
 
 type EstadoNoActivo = "PENDIENTE_ACTIVACION" | "SUSPENDIDO" | "BAJA";
@@ -114,41 +115,23 @@ describe.skipIf(dbTestSkipReason() !== null)("INV-U07 (migration 0023): actor co
             await expectInvariantViolation(
               tx,
               async () => {
-                // D4 (migration 0034): a detalle_asiento row must already
-                // exist under the asiento's (app-generated) id, or the
-                // "preparar" trigger raises INV-L22 BEFORE this test's own
+                // D4/D8 (migrations 0034/0082): the detalle_asiento and
+                // asiento_preparacion rows must already exist under the
+                // asiento's (app-generated) id, or the "preparar" trigger
+                // raises INV-L22/INV-L25 BEFORE this test's own
                 // trg_asiento_recetario_zz_inv_u07_insert ever runs
                 // ("preparar" < "zz_inv_u07_insert" alphabetically) --
                 // masking the INV-U07 rejection this test targets.
-                const asientoId = randomUUID();
-                await tx.query(
-                  `INSERT INTO fsj.detalle_asiento (tenant_id, asiento_recetario_id, descripcion, cantidad, unidad_texto, orden)
-                   VALUES ($1, $2, 'Droga', 5, 'g', 0)`,
-                  [tenantId, asientoId],
-                );
-                return tx.query(
-                  `INSERT INTO fsj.asiento_recetario (id, tenant_id, origen, preparacion_id, paciente_texto, medico_texto, formula_texto, registrado_por_id)
-                   VALUES ($1, $2, 'SISTEMA', $3, 'Paciente', 'Medico - MAT-1', 'Formula', $4)`,
-                  [asientoId, tenantId, preparacionId, actor],
-                );
+                // fixtures.ts#insertAsientoSistema inserts both first.
+                return insertAsientoSistema(tx, { tenantId, preparacionId, registradoPorId: actor, descripcion: "Droga" });
               },
               "INV-U07",
             );
           }
 
           const activo = await createUserWithRole(tx, tenantId, "FARMACEUTICO", sistema, "ase-activo", "ACTIVO");
-          const asientoIdOk = randomUUID();
-          await tx.query(
-            `INSERT INTO fsj.detalle_asiento (tenant_id, asiento_recetario_id, descripcion, cantidad, unidad_texto, orden)
-             VALUES ($1, $2, 'Droga', 5, 'g', 0)`,
-            [tenantId, asientoIdOk],
-          );
-          const result = await tx.query(
-            `INSERT INTO fsj.asiento_recetario (id, tenant_id, origen, preparacion_id, paciente_texto, medico_texto, formula_texto, registrado_por_id)
-             VALUES ($1, $2, 'SISTEMA', $3, 'Paciente', 'Medico - MAT-1', 'Formula', $4) RETURNING id`,
-            [asientoIdOk, tenantId, preparacionId, activo],
-          );
-          expect(result.rows).toHaveLength(1);
+          const result = await insertAsientoSistema(tx, { tenantId, preparacionId, registradoPorId: activo, descripcion: "Droga" });
+          expect(result.id).toBeTruthy();
         }),
       );
     });

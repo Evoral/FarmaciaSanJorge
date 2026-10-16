@@ -239,26 +239,25 @@ export async function liberarReservaStockAction(_prevState: PreparacionActionSta
   });
 }
 
-/** "Se confirmaron 3 ítems. Asientos libro recetario Nº 101 a 103." -- the numbers are consecutive (one transaction). */
-function mensajeReservasConfirmadas(numeros: readonly string[]): string {
-  if (numeros.length === 1) return `Se confirmó 1 ítem. Asiento libro recetario Nº ${numeros[0]}.`;
-  return `Se confirmaron ${numeros.length} ítems. Asientos libro recetario Nº ${numeros[0]} a ${numeros[numeros.length - 1]}.`;
+/** "Se confirmaron 3 ítems. Asiento libro recetario Nº 101." -- one asiento for the whole receta (D8). */
+function mensajeReservasConfirmadas(items: number, numeroCorrelativo: string): string {
+  return `${items === 1 ? "Se confirmó 1 ítem" : `Se confirmaron ${items} ítems`}. Asiento libro recetario Nº ${numeroCorrelativo}.`;
 }
 
 /**
  * The toma workspace's "Imprimir etiquetas": confirms every ítem of the receta from its reserva (stock, libro
  * recetario, contralor) and generates their etiquetas, in one transaction -- only when every ítem not yet confirmed holds
  * a reserva. The client then opens the per-ítem print dialog. The ONLY action that confirms a reserva: there is no
- * single-ítem one, so no ítem can take an asiento out of the receta's consecutive run.
+ * single-ítem one, so the receta's ítems always share ONE asiento (D8).
  */
 export async function confirmarReservasRecetaAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
   return conOperador(formData, async (): Promise<PreparacionActionState> => {
     try {
-      const confirmadas = await confirmarReservasReceta(String(formData.get("recetaId") ?? ""));
+      const confirmada = await confirmarReservasReceta(String(formData.get("recetaId") ?? ""));
       revalidatePath("/preparaciones");
       // The receta moved to PREPARADA.
       revalidatePath("/recetas");
-      return { status: "success", message: mensajeReservasConfirmadas(confirmadas.map((c) => c.numeroCorrelativo)) };
+      return { status: "success", message: mensajeReservasConfirmadas(confirmada.etiquetas.length, confirmada.numeroCorrelativo) };
     } catch (error) {
       if (error instanceof StepUpRequiredError) {
         return { status: "reauth-required" };

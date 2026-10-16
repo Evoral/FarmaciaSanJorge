@@ -188,6 +188,18 @@ const insertAsientoContralorEgresoMock = vi.fn(async (...args: unknown[]) => {
   void args;
   return { id: "contralor-1" };
 });
+const listItemIdsDeRecetaMock = vi.fn(async (...args: unknown[]) => {
+  void args;
+  return ["item-1"] as string[];
+});
+const listPreparacionesVivasDeItemsMock = vi.fn(async (...args: unknown[]) => {
+  void args;
+  return [{ id: PREPARACION_ID, itemRecetaId: "item-1", estado: "INICIADA", etiquetaId: null }] as { id: string; itemRecetaId: string; estado: string; etiquetaId: string | null }[];
+});
+const getAsientoSistemaDeRecetaMock = vi.fn(async (...args: unknown[]) => {
+  void args;
+  return null as { numeroCorrelativo: string } | null;
+});
 const getRecetaContextoAsientoMock = vi.fn(async (...args: unknown[]) => {
   void args;
   return {
@@ -232,6 +244,9 @@ vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => (
   insertAsientoRecetario: (...args: unknown[]) => insertAsientoRecetarioMock(...args),
   insertAsientoContralorEgreso: (...args: unknown[]) => insertAsientoContralorEgresoMock(...args),
   getRecetaContextoAsiento: (...args: unknown[]) => getRecetaContextoAsientoMock(...args),
+  listItemIdsDeReceta: (...args: unknown[]) => listItemIdsDeRecetaMock(...args),
+  listPreparacionesVivasDeItems: (...args: unknown[]) => listPreparacionesVivasDeItemsMock(...args),
+  getAsientoSistemaDeReceta: (...args: unknown[]) => getAsientoSistemaDeRecetaMock(...args),
   deleteReservasDePreparacion: vi.fn(async () => 0),
 }));
 
@@ -305,6 +320,9 @@ beforeEach(() => {
   getFechaActivacionContralorMock.mockResolvedValue(null);
   insertAsientoRecetarioMock.mockResolvedValue({ id: "asiento-1", numeroCorrelativo: "1" });
   insertAsientoContralorEgresoMock.mockResolvedValue({ id: "contralor-1" });
+  listItemIdsDeRecetaMock.mockResolvedValue(["item-1"]);
+  listPreparacionesVivasDeItemsMock.mockResolvedValue([{ id: PREPARACION_ID, itemRecetaId: "item-1", estado: "INICIADA", etiquetaId: null }]);
+  getAsientoSistemaDeRecetaMock.mockResolvedValue(null);
   getRecetaContextoAsientoMock.mockResolvedValue({
     recetaId: "receta-1",
     pacienteNombre: "Juan",
@@ -403,8 +421,63 @@ describe("descartar-preparacion: lock BEFORE reading the preparación's current 
 describe("confirmar-preparacion: lock ordering (preparación, receta, then partidas)", () => {
   it("locks the preparación, reads it, locks the receta, THEN locks every candidate partida, THEN reads their fresh balances", async () => {
     await confirmarPreparacionCommand.execute({ preparacionId: PREPARACION_ID }, { session: fakeSession("preparaciones.confirmar") });
-    // The command locks and checks the reservas under that lock; confirmarPreparacionEnTx re-locks (same tx) and reads.
-    expect(callOrder).toEqual(["lockPreparacion", "listReservas", "lockPreparacion", "readPreparacion", "lockReceta", "lockPartidas", "readPartidasFrescas"]);
+    // The command locks and checks the reservas under that lock, then locks the receta for the D8 rule;
+    // confirmarPreparacionEnTx re-locks both (same tx) and reads.
+    expect(callOrder).toEqual([
+      "lockPreparacion",
+      "listReservas",
+      "readPreparacion",
+      "lockReceta",
+      "lockPreparacion",
+      "readPreparacion",
+      "lockReceta",
+      "lockPartidas",
+      "readPartidasFrescas",
+    ]);
+  });
+
+  it("D8: writes ONE por-receta asiento with this preparación (receta id, \"Ítem N: \" fórmula, orden from 1), after confirming it", async () => {
+    listItemIdsDeRecetaMock.mockResolvedValueOnce(["item-0", "item-1"]);
+    listPreparacionesVivasDeItemsMock.mockResolvedValueOnce([
+      { id: "prep-0", itemRecetaId: "item-0", estado: "CONFIRMADA", etiquetaId: "et-0" },
+      { id: PREPARACION_ID, itemRecetaId: "item-1", estado: "INICIADA", etiquetaId: null },
+    ]);
+    const resultado = await confirmarPreparacionCommand.execute({ preparacionId: PREPARACION_ID }, { session: fakeSession("preparaciones.confirmar") });
+
+    expect(insertAsientoRecetarioMock).toHaveBeenCalledTimes(1);
+    const asiento = insertAsientoRecetarioMock.mock.calls[0]![1] as Record<string, unknown>;
+    expect(asiento).toMatchObject({
+      recetaId: "receta-1",
+      preparaciones: [{ preparacionId: PREPARACION_ID, orden: 1 }],
+      pacienteTexto: "Pérez, Juan",
+      formulaTexto: "Ítem 2: Droga X: 10 g",
+      detalles: [{ lineaPesajeId: LINEA_ID, descripcion: "Droga X", cantidad: "10", unidadTexto: "g", orden: 1 }],
+    });
+    expect(asiento).not.toHaveProperty("preparacionId");
+    expect(updatePreparacionConfirmadaMock.mock.invocationCallOrder[0]!).toBeLessThan(insertAsientoRecetarioMock.mock.invocationCallOrder[0]!);
+    expect(resultado).toMatchObject({ id: PREPARACION_ID, asientoId: "asiento-1", numeroCorrelativo: "1" });
+  });
+
+  it("D8: refuses while another ítem of the receta is not CONFIRMADA, before touching partidas", async () => {
+    listItemIdsDeRecetaMock.mockResolvedValueOnce(["item-1", "item-2"]);
+    let caught: unknown;
+    try {
+      await confirmarPreparacionCommand.execute({ preparacionId: PREPARACION_ID }, { session: fakeSession("preparaciones.confirmar") });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(DomainError);
+    expect((caught as Error).message).toBe("Esta receta tiene varios ítems: se registran juntos en el libro desde la toma (Imprimir etiquetas).");
+    expect(lockPartidasParaConfirmacionMock).not.toHaveBeenCalled();
+    expect(insertAsientoRecetarioMock).not.toHaveBeenCalled();
+  });
+
+  it("D8: refuses when the receta already has its por-receta asiento (INV-L24 pre-check)", async () => {
+    getAsientoSistemaDeRecetaMock.mockResolvedValueOnce({ numeroCorrelativo: "12" });
+    await expect(confirmarPreparacionCommand.execute({ preparacionId: PREPARACION_ID }, { session: fakeSession("preparaciones.confirmar") })).rejects.toThrow(
+      "asiento Nº 12",
+    );
+    expect(insertAsientoRecetarioMock).not.toHaveBeenCalled();
   });
 
   it("refuses a preparación that holds a reserva de stock (confirmed only by \"Imprimir etiquetas\"), before touching partidas", async () => {
@@ -450,7 +523,8 @@ describe("confirmar-preparacion: lock ordering (preparación, receta, then parti
   });
 
   it("rejects a non-INICIADA preparación with a clear message, before touching partidas", async () => {
-    getPreparacionParaAccionMock.mockImplementationOnce(async () => {
+    // Read twice: by the command (D8 rule, skipped for a non-INICIADA one) and by confirmarPreparacionEnTx.
+    getPreparacionParaAccionMock.mockImplementation(async () => {
       callOrder.push("readPreparacion");
       return { id: PREPARACION_ID, fichaTecnicaId: FICHA_ID, itemRecetaId: "item-1", estado: "CONFIRMADA" as const };
     });

@@ -41,8 +41,8 @@ export interface AsientoEnEfectoRef {
 export interface AsientoBloqueante {
   asientoId: string;
   numeroCorrelativo: string;
-  /** 1-based position of its item in `itemIds` ("ítem N", detail-page order). */
-  item: number;
+  /** 1-based positions of the ítems it covers in `itemIds` ("ítem N", detail-page order): one for a legacy per-ítem asiento, every ítem of the receta it registered for a por-receta one (D8). */
+  items: number[];
 }
 
 export type DecisionAnulacion =
@@ -63,10 +63,14 @@ export function decidirAnulacion(input: {
   if (esEstadoTerminal(input.estado)) return { tipo: "terminal" };
   const numero = (itemRecetaId: string) => input.itemIds.indexOf(itemRecetaId) + 1;
   if (input.asientosEnEfecto.length > 0) {
-    return {
-      tipo: "bloqueada-libro",
-      asientos: input.asientosEnEfecto.map((a) => ({ asientoId: a.asientoId, numeroCorrelativo: a.numeroCorrelativo, item: numero(a.itemRecetaId) })),
-    };
+    // One entry per asiento: a por-receta asiento (D8) comes once per ítem it covers.
+    const asientos = new Map<string, AsientoBloqueante>();
+    for (const a of input.asientosEnEfecto) {
+      const bloqueante = asientos.get(a.asientoId) ?? { asientoId: a.asientoId, numeroCorrelativo: a.numeroCorrelativo, items: [] };
+      bloqueante.items.push(numero(a.itemRecetaId));
+      asientos.set(a.asientoId, bloqueante);
+    }
+    return { tipo: "bloqueada-libro", asientos: [...asientos.values()].map((a) => ({ ...a, items: [...a.items].sort((x, y) => x - y) })) };
   }
   const enCurso = input.itemIds.findIndex((id) => input.itemsConPreparacionIniciada.includes(id));
   if (enCurso >= 0) return { tipo: "bloqueada-preparacion", item: enCurso + 1 };

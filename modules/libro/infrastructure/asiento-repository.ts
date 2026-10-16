@@ -9,6 +9,11 @@
  * M12 "NO HACER" list requires. The receta Nº of the listings is the one
  * FK-resolved value, display-only (not part of the asiento, its snapshot or
  * its hash): see `recetaNumeroInterno`.
+ *
+ * D8 (migration 0082): a SISTEMA asiento is either legacy per-ítem
+ * (`preparacionId`) or por receta (`recetaId` + its `asiento_preparacion`
+ * rows); a RECTIFICATIVO resolves through its original. Every read below
+ * handles both kinds.
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { EstadoAsiento, OrigenAsiento } from "@/generated/prisma/enums";
@@ -39,9 +44,9 @@ export interface AsientoListItem {
   rectificativoNumeroCorrelativo: string | null;
   asientoOriginalNumeroCorrelativo: string | null;
   /**
-   * The receta's `numero_interno`, display-only: asiento -> preparación -> item_receta -> receta (a RECTIFICATIVO
-   * through its original asiento). NOT a frozen `*_texto` column, never hashed; `null` for an asiento without
-   * preparación (historical digitalization).
+   * The receta's `numero_interno`, display-only: asiento -> receta (por-receta asientos, D8), or asiento ->
+   * preparación -> item_receta -> receta (legacy per-ítem asientos); a RECTIFICATIVO through its original asiento.
+   * NOT a frozen `*_texto` column, never hashed; `null` when the chain cannot be resolved.
    */
   recetaNumeroInterno: string | null;
 }
@@ -85,19 +90,25 @@ const LIST_SELECT = {
   anulacion: { select: { motivo: true, anuladoEn: true, anuladoPor: { select: { nombre: true, apellido: true } }, autorizadoPor: { select: { nombre: true, apellido: true } } } },
   rectificativos: { select: { numeroCorrelativo: true }, take: 1 },
   preparacion: { select: { itemRecetaId: true } },
-  asientoOriginal: { select: { numeroCorrelativo: true, preparacion: { select: { itemRecetaId: true } } } },
+  receta: { select: { numeroInterno: true } },
+  asientoOriginal: { select: { numeroCorrelativo: true, preparacion: { select: { itemRecetaId: true } }, receta: { select: { numeroInterno: true } } } },
 } satisfies Prisma.AsientoRecetarioSelect;
 
 type AsientoRow = Prisma.AsientoRecetarioGetPayload<{ select: typeof LIST_SELECT }>;
 
-/** The ítem the asiento belongs to: its own preparación (SISTEMA) or, lacking one, its original's (RECTIFICATIVO). Same chain as D2's `itemLabel`. */
-function itemRecetaIdDe(row: AsientoRow): string | null {
-  return row.preparacion?.itemRecetaId ?? row.asientoOriginal?.preparacion?.itemRecetaId ?? null;
+/** The asiento itself, or -- for a RECTIFICATIVO, which has neither preparación nor receta of its own -- its original. */
+function asientoConReceta(row: AsientoRow): Pick<AsientoRow, "preparacion" | "receta"> | null {
+  return row.origen === "RECTIFICATIVO" ? row.asientoOriginal : row;
 }
 
-/** item_receta id -> its receta's numero_interno, for every row of a page in ONE read (display-only, see `recetaNumeroInterno`). */
+/** A legacy per-ítem asiento's ítem: its own preparación's (SISTEMA) or its original's (RECTIFICATIVO). `null` for a por-receta asiento (its receta is read directly). */
+function itemRecetaIdLegacy(row: AsientoRow): string | null {
+  return asientoConReceta(row)?.preparacion?.itemRecetaId ?? null;
+}
+
+/** item_receta id -> its receta's numero_interno, for every legacy row of a page in ONE read (display-only, see `recetaNumeroInterno`). */
 async function numerosDeReceta(tx: Prisma.TransactionClient, tenantId: string, rows: readonly AsientoRow[]): Promise<Map<string, string>> {
-  const itemIds = [...new Set(rows.map(itemRecetaIdDe).filter((id): id is string => id !== null))];
+  const itemIds = [...new Set(rows.map(itemRecetaIdLegacy).filter((id): id is string => id !== null))];
   if (itemIds.length === 0) return new Map();
   const items = await tx.itemReceta.findMany({ where: { tenantId, id: { in: itemIds } }, select: { id: true, receta: { select: { numeroInterno: true } } } });
   return new Map(items.map((item) => [item.id, item.receta.numeroInterno.toString()]));
@@ -106,8 +117,9 @@ async function numerosDeReceta(tx: Prisma.TransactionClient, tenantId: string, r
 async function toListItems(tx: Prisma.TransactionClient, tenantId: string, rows: readonly AsientoRow[]): Promise<AsientoListItem[]> {
   const numeros = await numerosDeReceta(tx, tenantId, rows);
   return rows.map((row) => {
-    const itemRecetaId = itemRecetaIdDe(row);
-    return toListItem(row, itemRecetaId ? (numeros.get(itemRecetaId) ?? null) : null);
+    const porReceta = asientoConReceta(row)?.receta?.numeroInterno.toString() ?? null;
+    const itemRecetaId = itemRecetaIdLegacy(row);
+    return toListItem(row, porReceta ?? (itemRecetaId ? (numeros.get(itemRecetaId) ?? null) : null));
   });
 }
 
@@ -179,14 +191,28 @@ export interface RectificacionResumen {
 export interface AsientoDetalle extends AsientoListItem {
   detalles: DetalleAsientoItem[];
   rectificacion: RectificacionResumen | null;
-  /** D2 REVISED (per-item rule, 2026-09-23): which item_receta this asiento belongs to (SISTEMA: its own preparacion; RECTIFICATIVO: the ORIGINAL's preparacion, since a rectificativo has no preparacionId of its own). `descripcion`/`formaFarmaceutica` are plain business fields already shown on the receta detail page -- NOT the frozen legal `*_texto` snapshots (INV-L05 only governs those). `null` when the chain cannot be resolved (should not happen for a well-formed SISTEMA/RECTIFICATIVO asiento). */
-  itemLabel: string | null;
+  /**
+   * Which item_receta(s) this asiento covers: a legacy SISTEMA asiento its own preparación's ítem (D2), a por-receta
+   * asiento every ítem of its `asiento_preparacion` rows in their order (D8), a RECTIFICATIVO its ORIGINAL's.
+   * `descripcion`/`formaFarmaceutica` are plain business fields already shown on the receta detail page -- NOT the
+   * frozen legal `*_texto` snapshots (INV-L05 only governs those). Empty when the chain cannot be resolved.
+   */
+  itemLabels: string[];
 }
+
+const SELECT_ITEM_LABEL = { descripcion: true, formaFarmaceutica: true } satisfies Prisma.ItemRecetaSelect;
 
 const DETAIL_SELECT = {
   ...LIST_SELECT,
-  preparacion: { select: { itemRecetaId: true } },
-  asientoOriginal: { select: { numeroCorrelativo: true, preparacion: { select: { itemRecetaId: true } } } },
+  preparaciones: { select: { preparacion: { select: { itemRecetaId: true } } }, orderBy: { orden: "asc" } },
+  asientoOriginal: {
+    select: {
+      numeroCorrelativo: true,
+      preparacion: { select: { itemRecetaId: true } },
+      receta: { select: { numeroInterno: true } },
+      preparaciones: { select: { preparacion: { select: { itemRecetaId: true } } }, orderBy: { orden: "asc" } },
+    },
+  },
   detalles: { select: { descripcion: true, cantidad: true, unidadTexto: true, orden: true }, orderBy: { orden: "asc" } },
   rectificacion: { select: { motivo: true, autorizadoPor: { select: { nombre: true, apellido: true } } } },
 } satisfies Prisma.AsientoRecetarioSelect;
@@ -195,19 +221,23 @@ export async function getAsientoRecetario(tx: Prisma.TransactionClient, tenantId
   const row = await tx.asientoRecetario.findUnique({ where: { id, tenantId }, select: DETAIL_SELECT });
   if (!row) return null;
 
-  // D2 REVISED: resolve the item this asiento belongs to -- own preparacion
-  // (SISTEMA) or, lacking one, the ORIGINAL asiento's preparacion
-  // (RECTIFICATIVO). One extra single-row lookup, cheap, and NOT a legal
-  // `*_texto` FK resolution (see AsientoDetalle's doc comment).
-  const itemRecetaId = row.preparacion?.itemRecetaId ?? row.asientoOriginal?.preparacion?.itemRecetaId ?? null;
-  const item = itemRecetaId
-    ? await tx.itemReceta.findUnique({ where: { id: itemRecetaId, tenantId }, select: { descripcion: true, formaFarmaceutica: true, receta: { select: { numeroInterno: true } } } })
-    : null;
-  const itemLabel = item ? item.descripcion ?? item.formaFarmaceutica : null;
+  // The ítems this asiento covers: its own (SISTEMA) or, lacking them, the
+  // ORIGINAL asiento's (RECTIFICATIVO) -- a legacy preparación, or a
+  // por-receta asiento's linked preparaciones (D8). One extra read, cheap,
+  // and NOT a legal `*_texto` FK resolution (see AsientoDetalle's doc comment).
+  const fuente = row.origen === "RECTIFICATIVO" ? row.asientoOriginal : row;
+  const itemIds = fuente ? (fuente.preparacion ? [fuente.preparacion.itemRecetaId] : fuente.preparaciones.map((p) => p.preparacion.itemRecetaId)) : [];
+  const items = itemIds.length > 0 ? await tx.itemReceta.findMany({ where: { tenantId, id: { in: itemIds } }, select: { id: true, ...SELECT_ITEM_LABEL, receta: { select: { numeroInterno: true } } } }) : [];
+  const itemPorId = new Map(items.map((item) => [item.id, item]));
+  const itemLabels = itemIds.flatMap((itemId) => {
+    const item = itemPorId.get(itemId);
+    return item ? [item.descripcion ?? item.formaFarmaceutica] : [];
+  });
+  const recetaNumeroInterno = fuente?.receta?.numeroInterno.toString() ?? items[0]?.receta.numeroInterno.toString() ?? null;
 
   return {
-    ...toListItem(row, item ? item.receta.numeroInterno.toString() : null),
-    itemLabel,
+    ...toListItem(row, recetaNumeroInterno),
+    itemLabels,
     detalles: row.detalles.map((d) => ({ descripcion: d.descripcion, cantidad: d.cantidad.toString(), unidadTexto: d.unidadTexto, orden: d.orden })),
     rectificacion: row.rectificacion ? { motivo: row.rectificacion.motivo, autorizadoPorNombre: nombreCompleto(row.rectificacion.autorizadoPor) } : null,
   };
@@ -251,15 +281,20 @@ export interface AsientoParaAnular {
   estado: EstadoAsiento;
   cierreDiarioId: string | null;
   numeroCorrelativo: string;
-  /** D2 (2026-09-23): the receta reached from here is anulled alongside the asiento -- see receta-coupling-repository.ts. */
+  /** D2/D8: the receta reached from here is anulled alongside the asiento once every ítem is sin efecto -- see receta-coupling-repository.ts. Legacy per-ítem asiento: its preparación. */
   preparacionId: string | null;
+  /** D8 (migration 0082): a por-receta asiento's receta. */
+  recetaId: string | null;
 }
 
 /** Fresh read AFTER `lockAsientoParaAnular` -- M3 discipline (never decide from a pre-lock snapshot). */
 export async function getAsientoParaAnular(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<AsientoParaAnular | null> {
-  const row = await tx.asientoRecetario.findUnique({ where: { id, tenantId }, select: { id: true, estado: true, cierreDiarioId: true, numeroCorrelativo: true, preparacionId: true } });
+  const row = await tx.asientoRecetario.findUnique({
+    where: { id, tenantId },
+    select: { id: true, estado: true, cierreDiarioId: true, numeroCorrelativo: true, preparacionId: true, recetaId: true },
+  });
   if (!row) return null;
-  return { id: row.id, estado: row.estado, cierreDiarioId: row.cierreDiarioId, numeroCorrelativo: row.numeroCorrelativo.toString(), preparacionId: row.preparacionId };
+  return { ...row, numeroCorrelativo: row.numeroCorrelativo.toString() };
 }
 
 export interface InsertAnulacionInput {
@@ -315,6 +350,8 @@ export interface AsientoParaRectificar {
   cierreDiarioId: string | null;
   numeroCorrelativo: string;
   preparacionId: string | null;
+  /** D8 (migration 0082): a por-receta asiento's receta. */
+  recetaId: string | null;
   pacienteTexto: string;
   medicoTexto: string;
   formulaTexto: string;
@@ -333,6 +370,7 @@ export async function getAsientoParaRectificar(tx: Prisma.TransactionClient, ten
       cierreDiarioId: true,
       numeroCorrelativo: true,
       preparacionId: true,
+      recetaId: true,
       pacienteTexto: true,
       medicoTexto: true,
       formulaTexto: true,

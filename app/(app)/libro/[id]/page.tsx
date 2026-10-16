@@ -91,8 +91,8 @@ export default async function AsientoPage({ params }: AsientoPageProps) {
                 <dd className="text-zinc-900">{asiento.medicoTexto}</dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-xs text-zinc-500">Ítem de la receta</dt>
-                <dd className={asiento.itemLabel ? "text-zinc-900" : "text-zinc-400"}>{asiento.itemLabel ?? "Sin dato"}</dd>
+                <dt className="text-xs text-zinc-500">{asiento.itemLabels.length > 1 ? "Ítems de la receta" : "Ítem de la receta"}</dt>
+                <dd className={asiento.itemLabels.length > 0 ? "text-zinc-900" : "text-zinc-400"}>{asiento.itemLabels.length > 0 ? asiento.itemLabels.join(" | ") : "Sin dato"}</dd>
               </div>
               <div className="sm:col-span-2">
                 <dt className="text-xs text-zinc-500">Fórmula</dt>

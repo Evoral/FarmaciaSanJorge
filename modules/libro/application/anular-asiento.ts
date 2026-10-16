@@ -96,12 +96,14 @@ const anularAsientoInternalCommand = defineCommand({
         anuladoPorId: session.usuario.id,
       });
 
-      // D2 REVISED (2026-09-23, per-item rule): anulla la receta subyacente
-      // en la MISMA transacción SOLO si, tras esta operación, TODOS sus
-      // ítems quedaron sin efecto -- ver receta-coupling-repository.ts.
+      // D2 REVISED (2026-09-23, per-item rule) / D8 (por-receta asiento: all
+      // its ítems): anulla la receta subyacente en la MISMA transacción SOLO
+      // si, tras esta operación, TODOS sus ítems quedaron sin efecto -- ver
+      // receta-coupling-repository.ts.
       await desvincularRecetaPorAsiento(tx, {
         tenantId: session.tenantId,
         preparacionId: asiento.preparacionId,
+        recetaId: asiento.recetaId,
         numeroCorrelativo: asiento.numeroCorrelativo,
         motivo: input.motivo,
         usuarioId: session.usuario.id,

@@ -46,13 +46,17 @@
  *         `asiento_contralor` row when the contralor is active, which this
  *         handler inserts explicitly right after each movimiento of a
  *         controlled droga).
- *      f. INSERT `asiento_recetario` (origen SISTEMA) + its `detalle_asiento`
- *         rows -- WITHOUT a correlativo or hash; the DB's `BEFORE INSERT`
- *         trigger (migration 0014) assigns both. Insumos (droga.clase
+ *      f. The ítem's libro data -- its fórmula text, its `detalle_asiento`
+ *         lines and the controlled movimientos still owed an
+ *         `asiento_contralor` -- is RETURNED, not written: D8 (one asiento
+ *         per receta, docs/specs/libro-recetario-y-contralor.md §1) writes
+ *         ONE `asiento_recetario` for every ítem confirmed in the
+ *         transaction, after the last one (`registrarAsientoRecetaEnTx`,
+ *         ./registrar-asiento-receta.ts). Insumos (droga.clase
  *         EXCIPIENTE/MATERIAL, migration 0063) consume stock like any line
  *         but are left out of the detalle and the fórmula text -- unless
  *         EVERY line is an insumo, in which case all are recorded (an
- *         asiento never ends up without its fórmula).
+ *         ítem never ends up without its fórmula).
  *      g. UPDATE `preparacion` -> CONFIRMADA, `preparada_por_id` = the
  *         SESSION user (INV-P06 -- never from input), and snapshot
  *         `fecha_vencimiento` = the confirmation's jornada (tenant-local,
@@ -74,9 +78,15 @@
  * "Imprimir etiquetas" (`confirmarReservasReceta`, ./confirmar-reservas-receta.ts,
  * via ./confirmar-desde-reservas.ts) runs the very same confirmation from each
  * preparación's reserva de stock (migration 0071,
- * docs/specs/reserva-stock-preparacion.md), together with its etiqueta, every
- * ítem of the receta in one transaction; the reservas are deleted in that
- * same transaction. The checks of 2c-2e (`planificarConsumoEnTx`) also
+ * docs/specs/reserva-stock-preparacion.md), every ítem of the receta in one
+ * transaction, then writes the receta's ONE asiento and the etiquetas; the
+ * reservas are deleted in that same transaction.
+ *
+ * This command (the legacy single path, /preparaciones/[id]: a preparación
+ * INICIADA without reserva, from before R16) writes a por-receta asiento with
+ * that single preparación, and is refused while another ítem of the receta is
+ * not CONFIRMADA (`validarConfirmacionIndividual`, domain/asiento-receta.ts):
+ * those ítems are registered together from the toma. The checks of 2c-2e (`planificarConsumoEnTx`) also
  * validate the reserva itself (./reservar-stock-preparacion.ts). Stock
  * reserved by OTHER preparaciones INICIADA is never available here.
  *
@@ -102,10 +112,9 @@ import {
   validarCantidadManual,
   esDesvioPropuesta,
   requiereMotivoAperturaAdicional,
-  formatearMedicoTexto,
-  formatearPacienteTexto,
   formatearFormulaTexto,
 } from "../domain/preparacion";
+import { validarConfirmacionIndividual, type DetalleDeItem } from "../domain/asiento-receta";
 import { mensajeParaInvariante } from "../domain/mensajes-invariantes";
 import { calcularVencimientoPreparado } from "../domain/vencimiento";
 import {
@@ -121,8 +130,6 @@ import {
   insertEgresoPreparacion,
   getDrogaTipoControl,
   getFechaActivacionContralor,
-  insertAsientoRecetario,
-  insertAsientoContralorEgreso,
   updatePreparacionConfirmada,
   lockRecetaParaTransicion,
   getRecetaEstado,
@@ -132,8 +139,11 @@ import {
   getUltimaFichaDeItem,
   deleteReservasDePreparacion,
   listReservasDePreparacion,
+  listItemIdsDeReceta,
+  listPreparacionesVivasDeItems,
 } from "../infrastructure/preparacion-repository";
-import type { LineaParaPantalla, PartidaFresca } from "../infrastructure/preparacion-repository";
+import type { LineaParaPantalla, PartidaFresca, RecetaContextoAsiento } from "../infrastructure/preparacion-repository";
+import { registrarAsientoRecetaEnTx } from "./registrar-asiento-receta";
 
 /**
  * What a user may type for a línea (2026-10-15: the partidas are never chosen by the client, R1): the real quantity of
@@ -190,12 +200,38 @@ export type SeleccionDePartidas =
   | { modo: "automatica"; entradas: readonly LineaEntrada[]; candidatos?: CandidatosAutomaticos }
   | { modo: "reservada"; lineas: readonly LineaReservada[] };
 
-/** What a confirmation returns; `fechaVencimiento` is the `YYYY-MM-DD` snapshot written on the preparación. */
+/** What `confirmarPreparacion` returns: the preparación and its receta's asiento; `fechaVencimiento` is the `YYYY-MM-DD` snapshot written on the preparación. */
 export interface ConfirmacionResultado {
   id: string;
   asientoId: string;
   numeroCorrelativo: string;
   fechaVencimiento: string;
+}
+
+/** A movimiento of a controlled droga (contralor activo): its `asiento_contralor` EGRESO needs the receta's asiento id (INV-L08, same transaction). */
+export interface EgresoControlado {
+  movimientoId: string;
+  drogaId: string;
+  drogaNombre: string;
+  unidadBaseId: string;
+  cantidad: string;
+}
+
+/**
+ * What a per-ítem confirmation (`confirmarPreparacionEnTx`) returns: the preparación is CONFIRMADA and its stock moved,
+ * but the libro is not written yet (D8) -- its fórmula, detalle lines and pending contralor egresos go into the receta's
+ * ONE asiento (`registrarAsientoRecetaEnTx`, ./registrar-asiento-receta.ts), in the same transaction.
+ */
+export interface ConfirmacionDeItem {
+  id: string;
+  fechaVencimiento: string;
+  /** The receta's id and snapshot data (paciente, médico), read under its lock. */
+  contexto: RecetaContextoAsiento;
+  /** The ítem's own fórmula (`formatearFormulaTexto`). */
+  formulaTexto: string;
+  /** The ítem's detalle lines, in ficha order. */
+  detalles: DetalleDeItem[];
+  egresosControlados: EgresoControlado[];
 }
 
 export const confirmarPreparacionCommand = defineCommand({
@@ -209,19 +245,47 @@ export const confirmarPreparacionCommand = defineCommand({
   audit: { entidad: "preparacion", accion: TipoAccion.CONFIRMAR },
   handler: async ({ tx, session, input }) => {
     // A preparación holding a reserva de stock is confirmed only by "Imprimir etiquetas" in the toma workspace
-    // (confirmar-reservas-receta.ts), which also generates its etiqueta and gives the receta's ítems consecutive
-    // asientos. Checked under the preparación's lock (confirmarPreparacionEnTx re-locks
-    // it, same transaction), the same order as every other preparación command.
+    // (confirmar-reservas-receta.ts), which also generates its etiqueta and writes the receta's ONE asiento (D8).
+    // Checked under the preparación's lock (confirmarPreparacionEnTx re-locks it, same transaction), the same order
+    // as every other preparación command.
     if (!(await lockPreparacionParaAccion(tx, session.tenantId, input.preparacionId))) {
       throw new NotFoundError("Preparación no encontrada.");
     }
     if ((await listReservasDePreparacion(tx, session.tenantId, input.preparacionId)).length > 0) {
       throw new DomainError("Esta preparación tiene stock reservado: se confirma con \"Imprimir etiquetas\" desde la receta.");
     }
-    const confirmada = await confirmarPreparacionEnTx(tx, session, {
+
+    // D8: this path writes a por-receta asiento with this single preparación, so every OTHER ítem of the receta must
+    // already be CONFIRMADA. Read under the receta's lock (preparación -> receta, the order of every preparación
+    // command; confirmarPreparacionEnTx re-locks it): every confirmation locks the receta, so no sibling ítem can be
+    // confirmed in between. A preparación no longer INICIADA gets confirmarPreparacionEnTx's own message instead.
+    const preparacion = await getPreparacionParaAccion(tx, session.tenantId, input.preparacionId);
+    if (!preparacion) throw new NotFoundError("Preparación no encontrada.");
+    const contextoInicial = await getRecetaContextoAsiento(tx, session.tenantId, preparacion.itemRecetaId);
+    if (!contextoInicial) throw new NotFoundError("No se pudo resolver el contexto de la receta para el asiento.");
+    if (!(await lockRecetaParaTransicion(tx, session.tenantId, contextoInicial.recetaId))) throw new NotFoundError("Receta no encontrada.");
+    const itemIds = (await listItemIdsDeReceta(tx, session.tenantId, contextoInicial.recetaId)) ?? [];
+    if (preparacion.estado === "INICIADA") {
+      const vivas = await listPreparacionesVivasDeItems(tx, session.tenantId, itemIds);
+      validarConfirmacionIndividual(
+        itemIds.map((itemRecetaId) => {
+          const delItem = vivas.filter((p) => p.itemRecetaId === itemRecetaId);
+          const estadoPreparacion = delItem.some((p) => p.estado === "CONFIRMADA") ? "CONFIRMADA" : delItem.some((p) => p.estado === "INICIADA") ? "INICIADA" : null;
+          return { itemRecetaId, estadoPreparacion };
+        }),
+        preparacion.itemRecetaId,
+      );
+    }
+
+    const item = await confirmarPreparacionEnTx(tx, session, {
       preparacionId: input.preparacionId,
       seleccion: { modo: "automatica", entradas: input.lineas },
     });
+    const asiento = await registrarAsientoRecetaEnTx(tx, session, {
+      contexto: item.contexto,
+      items: [{ ...item, numero: itemIds.indexOf(preparacion.itemRecetaId) + 1, preparacionId: item.id }],
+    });
+    const confirmada: ConfirmacionResultado = { id: item.id, asientoId: asiento.id, numeroCorrelativo: asiento.numeroCorrelativo, fechaVencimiento: item.fechaVencimiento };
     return {
       output: confirmada,
       audit: {
@@ -242,16 +306,18 @@ export const confirmarPreparacionCommand = defineCommand({
  * Steps 2a-2h of this file's doc comment, inside the caller's transaction:
  * also run by `confirmarDesdeReservasEnTx` (./confirmar-desde-reservas.ts, the
  * toma workspace's "Imprimir etiquetas") on a preparación whose stock was
- * reserved, in the SAME transaction as its etiqueta. The caller declares the permiso,
- * the step-up and the audit. The preparación's own reservas (migration 0071)
- * are available to it and are deleted at the end: its movimientos now hold
- * that stock.
+ * reserved. The caller declares the permiso, the step-up and the audit, and
+ * MUST then write the receta's asiento with the returned libro data
+ * (`registrarAsientoRecetaEnTx`) in the same transaction -- INV-P04 and
+ * INV-L08 (deferred) refuse the COMMIT otherwise. The preparación's own
+ * reservas (migration 0071) are available to it and are deleted at the end:
+ * its movimientos now hold that stock.
  */
 export async function confirmarPreparacionEnTx(
   tx: Prisma.TransactionClient,
   session: AuthenticatedSession,
   input: { preparacionId: string; seleccion: SeleccionDePartidas },
-): Promise<ConfirmacionResultado> {
+): Promise<ConfirmacionDeItem> {
   // ------------------------------------------------------------------
   // 1-2. Lock + verify INICIADA; friendly INV-C03 pre-check.
   // ------------------------------------------------------------------
@@ -292,10 +358,10 @@ export async function confirmarPreparacionEnTx(
   const detalles: Array<{ lineaPesajeId: string; descripcion: string; cantidad: string; unidadTexto: string; orden: number; esInsumo: boolean }> = [];
   const formulaLineas: Array<{ drogaNombre: string; cantidad: string; unidadSimbolo: string; esEnraseManual: boolean; esInsumo: boolean }> = [];
   // Movimientos of a controlled droga (contralor activo) collected here --
-  // their asiento_contralor row needs asiento_recetario_id, which does not
-  // exist until AFTER every línea is processed (plan §9 M11 step 6 before
-  // step 7) -- see the loop below.
-  const movimientosControlados: Array<{ movimientoId: string; drogaId: string; drogaNombre: string; unidadBaseId: string; cantidad: string }> = [];
+  // their asiento_contralor row needs the receta's asiento_recetario id,
+  // which does not exist until every ítem of the transaction is confirmed
+  // (D8): returned to the caller.
+  const movimientosControlados: EgresoControlado[] = [];
 
   try {
     // ------------------------------------------------------------------
@@ -359,38 +425,12 @@ export async function confirmarPreparacionEnTx(
     }
 
     // ------------------------------------------------------------------
-    // 6. asiento_recetario + detalle_asiento (no correlativo/hash -- DB-assigned).
+    // 6. The ítem's libro data (written by the caller in the receta's ONE
+    //    asiento, D8): detalle lines and fórmula, insumos left out.
     // ------------------------------------------------------------------
     const soloInsumos = detalles.every((d) => d.esInsumo);
     const detallesLibro = detalles.filter((d) => soloInsumos || !d.esInsumo).map((d) => ({ lineaPesajeId: d.lineaPesajeId, descripcion: d.descripcion, cantidad: d.cantidad, unidadTexto: d.unidadTexto, orden: d.orden }));
     const formulaLibro = formulaLineas.filter((l) => soloInsumos || !l.esInsumo);
-
-    const asiento = await insertAsientoRecetario(tx, {
-      tenantId: session.tenantId,
-      preparacionId: input.preparacionId,
-      pacienteTexto: formatearPacienteTexto(contexto.pacienteNombre, contexto.pacienteApellido),
-      medicoTexto: formatearMedicoTexto(contexto.medicoNombre, contexto.medicoApellido, contexto.medicoMatricula),
-      formulaTexto: formatearFormulaTexto(formulaLibro),
-      registradoPorId: session.usuario.id,
-      detalles: detallesLibro,
-    });
-
-    // ------------------------------------------------------------------
-    // 6b. asiento_contralor per movimiento of a controlled droga
-    //     (INV-L08), now that asiento_recetario.id exists.
-    // ------------------------------------------------------------------
-    for (const mov of movimientosControlados) {
-      await insertAsientoContralorEgreso(tx, {
-        tenantId: session.tenantId,
-        drogaId: mov.drogaId,
-        drogaDescripcion: mov.drogaNombre,
-        cantidad: mov.cantidad,
-        unidadMedidaId: mov.unidadBaseId,
-        movimientoStockId: mov.movimientoId,
-        asientoRecetarioId: asiento.id,
-        registradoPorId: session.usuario.id,
-      });
-    }
 
     // ------------------------------------------------------------------
     // 7. preparación -> CONFIRMADA (preparada_por_id = SESIÓN, INV-P06).
@@ -426,7 +466,14 @@ export async function confirmarPreparacionEnTx(
     // ------------------------------------------------------------------
     await deleteReservasDePreparacion(tx, session.tenantId, input.preparacionId);
 
-    return { id: input.preparacionId, asientoId: asiento.id, numeroCorrelativo: asiento.numeroCorrelativo, fechaVencimiento };
+    return {
+      id: input.preparacionId,
+      fechaVencimiento,
+      contexto,
+      formulaTexto: formatearFormulaTexto(formulaLibro),
+      detalles: detallesLibro,
+      egresosControlados: movimientosControlados,
+    };
   } catch (e) {
     throw comoErrorDeDominio(e);
   }

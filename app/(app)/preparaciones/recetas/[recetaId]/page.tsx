@@ -43,10 +43,10 @@
  *        enabled only once EVERY ítem not yet Confirmada is Stock reservado
  *        (otherwise disabled with a note; the command refuses too, naming the
  *        ítems). It confirms them all from their reservas (stock descontado,
- *        asientos in the libro, contralor, etiquetas) in ítem order in ONE
- *        transaction -- consecutive asiento numbers, all or nothing (the error
- *        names the ítem that failed) -- the receta becomes PREPARADA, the
- *        asientos go to a toast and the "Seleccionar etiquetas" dialog opens by
+ *        ONE asiento in the libro for the receta, contralor, etiquetas) in ítem
+ *        order in ONE transaction -- all or nothing (the error names the ítem
+ *        that failed) -- the receta becomes PREPARADA, the asiento Nº goes to a
+ *        toast and the "Seleccionar etiquetas" dialog opens by
  *        itself: one row per ítem, each with its own size and "Imprimir" (that
  *        ítem's etiqueta PDF). Once nothing is left to confirm the button opens
  *        that dialog directly (reprint; `etiquetas.imprimir`). There is no

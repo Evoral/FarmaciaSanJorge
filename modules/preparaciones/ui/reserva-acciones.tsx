@@ -7,8 +7,8 @@
  *   - `LiberarReservaForm`: "Liberar reserva" -- deletes the reserva and discards the preparación; the ítem is
  *     Pendiente again.
  *   - `EtiquetasDeReceta`: the receta's ONE "Imprimir etiquetas", below its ítems -- enabled only once every ítem not
- *     yet confirmed holds a reserva; confirms them all in one transaction (stock, libro recetario with consecutive
- *     asientos, contralor, etiquetas: modules/preparaciones/application/confirmar-reservas-receta.ts), then opens the
+ *     yet confirmed holds a reserva; confirms them all in one transaction (stock, ONE libro recetario asiento for the
+ *     receta, contralor, etiquetas: modules/preparaciones/application/confirmar-reservas-receta.ts), then opens the
  *     "Seleccionar etiquetas" dialog (./imprimir-etiqueta-dialog.tsx: a size and an "Imprimir" per ítem). Once nothing
  *     is left to confirm it is that dialog's button (reprint). The page renders it at a FIXED place whatever the ítems'
  *     state, so its "just confirmed" flag survives the refresh that unmounts the form inside it, and the dialog opens by

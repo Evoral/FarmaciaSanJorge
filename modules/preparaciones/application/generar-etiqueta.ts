@@ -46,8 +46,8 @@ export const generarEtiquetaCommand = defineCommand({
 
 /**
  * The generation itself (checks + INSERT), inside the caller's transaction:
- * also run by `confirmarDesdeReservasEnTx` (./confirmar-desde-reservas.ts) right
- * after it confirms the preparación, in the SAME transaction. The caller
+ * also run by `confirmarReservasReceta` (./confirmar-reservas-receta.ts) right
+ * after it writes the receta's asiento (D8), in the SAME transaction. The caller
  * declares the permiso and the audit; `preparacion` is the audit's human
  * label.
  */

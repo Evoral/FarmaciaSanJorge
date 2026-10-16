@@ -71,7 +71,9 @@ export async function getItemsParaEntrega(tx: Prisma.TransactionClient, tenantId
       END AS estado
     FROM fsj.item_receta ir
     LEFT JOIN fsj.preparacion p ON p.tenant_id = ir.tenant_id AND p.item_receta_id = ir.id AND p.estado = 'CONFIRMADA'
-    LEFT JOIN fsj.asiento_recetario a ON a.tenant_id = p.tenant_id AND a.preparacion_id = p.id AND a.origen = 'SISTEMA'
+    -- D8 (migration 0082): the SISTEMA asiento of the preparación, legacy per-ítem or por receta.
+    LEFT JOIN fsj.v_asiento_sistema_preparacion v ON v.tenant_id = p.tenant_id AND v.preparacion_id = p.id
+    LEFT JOIN fsj.asiento_recetario a ON a.tenant_id = v.tenant_id AND a.id = v.asiento_recetario_id
     WHERE ir.tenant_id = ${tenantId}::uuid AND ir.receta_id = ${recetaId}::uuid
   `;
   return rows.map((r) => ({ id: r.item_id, estadoAsiento: r.estado }));

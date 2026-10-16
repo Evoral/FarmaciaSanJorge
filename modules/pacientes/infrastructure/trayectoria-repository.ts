@@ -147,10 +147,21 @@ async function readPreparaciones(tx: Prisma.TransactionClient, tenantId: string,
   return rows;
 }
 
-/** The SISTEMA asiento of each item's preparación + the facts the libro's visual-state rule needs. Filtering on `origen` lets the planner use the partial unique indexes of migration 0014. */
+/**
+ * The SISTEMA asiento of each item's preparación + the facts the libro's visual-state rule needs: a legacy per-ítem
+ * asiento (`preparacion`) or a por-receta one (D8, migration 0082: `preparaciones`), which yields one row per ítem it
+ * covers. Filtering on `origen` lets the planner use the partial unique indexes of migration 0014.
+ */
 async function readAsientos(tx: Prisma.TransactionClient, tenantId: string, itemIds: string[]): Promise<AsientoCrudo[]> {
   const rows = await tx.asientoRecetario.findMany({
-    where: { tenantId, origen: "SISTEMA", preparacion: { is: { tenantId, itemRecetaId: { in: itemIds } } } },
+    where: {
+      tenantId,
+      origen: "SISTEMA",
+      OR: [
+        { preparacion: { is: { tenantId, itemRecetaId: { in: itemIds } } } },
+        { preparaciones: { some: { tenantId, preparacion: { is: { tenantId, itemRecetaId: { in: itemIds } } } } } },
+      ],
+    },
     orderBy: [{ fechaAsiento: "asc" }, { id: "asc" }],
     select: {
       id: true,
@@ -158,22 +169,26 @@ async function readAsientos(tx: Prisma.TransactionClient, tenantId: string, item
       fechaAsiento: true,
       estado: true,
       preparacion: { select: { itemRecetaId: true } },
+      preparaciones: { select: { preparacion: { select: { itemRecetaId: true } } }, orderBy: { orden: "asc" } },
       anulacion: { select: { motivo: true, anuladoEn: true } },
       rectificativos: { where: { tenantId, origen: "RECTIFICATIVO" }, select: { numeroCorrelativo: true }, orderBy: { numeroCorrelativo: "asc" }, take: 1 },
     },
   });
+  const pedidos = new Set(itemIds);
   const asientos: AsientoCrudo[] = [];
   for (const r of rows) {
-    if (!r.preparacion) continue;
-    asientos.push({
-      id: r.id,
-      itemRecetaId: r.preparacion.itemRecetaId,
-      numeroCorrelativo: r.numeroCorrelativo.toString(),
-      fechaAsiento: r.fechaAsiento,
-      estado: r.estado,
-      anulacion: r.anulacion,
-      rectificativoNumeroCorrelativo: r.rectificativos[0] ? r.rectificativos[0].numeroCorrelativo.toString() : null,
-    });
+    const itemsDelAsiento = r.preparacion ? [r.preparacion.itemRecetaId] : r.preparaciones.map((p) => p.preparacion.itemRecetaId);
+    for (const itemRecetaId of itemsDelAsiento.filter((id) => pedidos.has(id))) {
+      asientos.push({
+        id: r.id,
+        itemRecetaId,
+        numeroCorrelativo: r.numeroCorrelativo.toString(),
+        fechaAsiento: r.fechaAsiento,
+        estado: r.estado,
+        anulacion: r.anulacion,
+        rectificativoNumeroCorrelativo: r.rectificativos[0] ? r.rectificativos[0].numeroCorrelativo.toString() : null,
+      });
+    }
   }
   return asientos;
 }

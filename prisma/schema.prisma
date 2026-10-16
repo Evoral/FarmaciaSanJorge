@@ -922,14 +922,16 @@ model Receta {
   /// Migration 0071. The session's usuario who marked it paid (never client input); null while unpaid.
   pagadaPorId            String?      @map("pagada_por_id") @db.Uuid
 
-  paciente      Paciente            @relation(fields: [pacienteId], references: [id])
-  medico        Medico              @relation(fields: [medicoId], references: [id])
-  registradaPor Usuario             @relation("RecetaRegistradaPor", fields: [registradaPorId], references: [id])
-  tomadaPor     Usuario?            @relation("RecetaTomadaPor", fields: [tomadaPorId], references: [id])
-  pagadaPor     Usuario?            @relation("RecetaPagadaPor", fields: [pagadaPorId], references: [id])
-  items         ItemReceta[]
-  loteArchivo   LoteArchivoRecetas? @relation(fields: [loteArchivoId], references: [id])
-  entrega       Entrega?
+  paciente          Paciente            @relation(fields: [pacienteId], references: [id])
+  medico            Medico              @relation(fields: [medicoId], references: [id])
+  registradaPor     Usuario             @relation("RecetaRegistradaPor", fields: [registradaPorId], references: [id])
+  tomadaPor         Usuario?            @relation("RecetaTomadaPor", fields: [tomadaPorId], references: [id])
+  pagadaPor         Usuario?            @relation("RecetaPagadaPor", fields: [pagadaPorId], references: [id])
+  items             ItemReceta[]
+  loteArchivo       LoteArchivoRecetas? @relation(fields: [loteArchivoId], references: [id])
+  entrega           Entrega?
+  /// D8 (migration 0082): its por-receta SISTEMA asiento (at most one, INV-L24). Legacy per-ítem asientos are reached through the preparaciones instead.
+  asientosRecetario AsientoRecetario[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, numeroInterno])
@@ -1137,29 +1139,31 @@ model Cotizacion {
 /// Tenant-scoped (M11). item_receta_id is denormalized/trigger-set -- see
 /// migration 0013 header.
 model Preparacion {
-  id              String            @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId        String            @map("tenant_id") @db.Uuid
-  fichaTecnicaId  String            @map("ficha_tecnica_id") @db.Uuid
-  itemRecetaId    String            @map("item_receta_id") @db.Uuid
-  estado          EstadoPreparacion @default(INICIADA)
-  iniciadaEn      DateTime          @default(now()) @map("iniciada_en") @db.Timestamptz(6)
-  iniciadaPorId   String            @map("iniciada_por_id") @db.Uuid
-  confirmadaEn    DateTime?         @map("confirmada_en") @db.Timestamptz(6)
-  preparadaPorId  String?           @map("preparada_por_id") @db.Uuid
-  motivoDescarte  String?           @map("motivo_descarte")
-  descartadaEn    DateTime?         @map("descartada_en") @db.Timestamptz(6)
-  descartadaPorId String?           @map("descartada_por_id") @db.Uuid
+  id               String            @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId         String            @map("tenant_id") @db.Uuid
+  fichaTecnicaId   String            @map("ficha_tecnica_id") @db.Uuid
+  itemRecetaId     String            @map("item_receta_id") @db.Uuid
+  estado           EstadoPreparacion @default(INICIADA)
+  iniciadaEn       DateTime          @default(now()) @map("iniciada_en") @db.Timestamptz(6)
+  iniciadaPorId    String            @map("iniciada_por_id") @db.Uuid
+  confirmadaEn     DateTime?         @map("confirmada_en") @db.Timestamptz(6)
+  preparadaPorId   String?           @map("preparada_por_id") @db.Uuid
+  motivoDescarte   String?           @map("motivo_descarte")
+  descartadaEn     DateTime?         @map("descartada_en") @db.Timestamptz(6)
+  descartadaPorId  String?           @map("descartada_por_id") @db.Uuid
   /// Migration 0068 (DP-28 "Vencimiento"): expiry of the preparado, snapshotted at confirmation (jornada + meses_vencimiento_preparado). NULL for one confirmed before 0068. Frozen afterwards (INV-P07).
-  fechaVencimiento DateTime?        @map("fecha_vencimiento") @db.Date
+  fechaVencimiento DateTime?         @map("fecha_vencimiento") @db.Date
 
-  fichaTecnica      FichaTecnica       @relation(fields: [fichaTecnicaId], references: [id])
-  iniciadaPor       Usuario            @relation("PreparacionIniciadaPor", fields: [iniciadaPorId], references: [id])
-  preparadaPor      Usuario?           @relation("PreparacionPreparadaPor", fields: [preparadaPorId], references: [id])
-  descartadaPor     Usuario?           @relation("PreparacionDescartadaPor", fields: [descartadaPorId], references: [id])
-  movimientos       MovimientoStock[]
-  etiqueta          Etiqueta?
-  /// At most one SISTEMA asiento per preparacion (partial unique index in the DB -- see AsientoRecetario.preparacionId).
-  asientosRecetario AsientoRecetario[]
+  fichaTecnica       FichaTecnica        @relation(fields: [fichaTecnicaId], references: [id])
+  iniciadaPor        Usuario             @relation("PreparacionIniciadaPor", fields: [iniciadaPorId], references: [id])
+  preparadaPor       Usuario?            @relation("PreparacionPreparadaPor", fields: [preparadaPorId], references: [id])
+  descartadaPor      Usuario?            @relation("PreparacionDescartadaPor", fields: [descartadaPorId], references: [id])
+  movimientos        MovimientoStock[]
+  etiqueta           Etiqueta?
+  /// Legacy per-ítem SISTEMA asiento (D2): at most one per preparacion (partial unique index in the DB -- see AsientoRecetario.preparacionId).
+  asientosRecetario  AsientoRecetario[]
+  /// D8 (migration 0082): the link to its por-receta SISTEMA asiento. A preparación has its SISTEMA asiento through exactly one of the two (INV-P04).
+  asientoPreparacion AsientoPreparacion?
 
   @@unique([tenantId, id])
   /// Migration 0077: partial unique index uq_preparacion_item_viva (tenant_id, item_receta_id) WHERE estado IN ('INICIADA','CONFIRMADA') -- at most one live preparacion per item (Prisma cannot express it).
@@ -1423,15 +1427,17 @@ model AsientoRecetario {
   numeroCorrelativo BigInt        @map("numero_correlativo")
   fechaAsiento      DateTime      @map("fecha_asiento") @db.Date
   origen            OrigenAsiento
-  /// NOT @unique: the DB only has the PARTIAL unique index uq_asiento_recetario_preparacion (tenant_id, preparacion_id) WHERE origen = 'SISTEMA' (migration 0014), which Prisma cannot express.
+  /// Legacy per-ítem SISTEMA asientos only (D2, version_hash <= 3); NULL for por-receta SISTEMA asientos (D8, migration 0082 -- see recetaId / preparaciones) and for RECTIFICATIVO rows. No new row may set it (INV-L07). NOT @unique: the DB only has the PARTIAL unique index uq_asiento_recetario_preparacion (tenant_id, preparacion_id) WHERE origen = 'SISTEMA' (migration 0014), which Prisma cannot express.
   preparacionId     String?       @map("preparacion_id") @db.Uuid
+  /// D8 (migration 0082): the receta a por-receta SISTEMA asiento covers (version_hash 4). NULL for legacy SISTEMA and RECTIFICATIVO rows. At most one SISTEMA asiento per receta: partial unique index uq_asiento_recetario_receta WHERE origen = 'SISTEMA' (INV-L24), not expressible here.
+  recetaId          String?       @map("receta_id") @db.Uuid
   asientoOriginalId String?       @map("asiento_original_id") @db.Uuid
   pacienteTexto     String        @map("paciente_texto")
   medicoTexto       String        @map("medico_texto")
   formulaTexto      String        @map("formula_texto")
   cierreDiarioId    String?       @map("cierre_diario_id") @db.Uuid
   estado            EstadoAsiento @default(VIGENTE)
-  /// D4 (migration 0034). 1/2/3 -- which serialization produced hash_integridad. Existing rows = 2; every new insert is pinned to 3 by the DB trigger.
+  /// D4 (migration 0034) / D8 (migration 0082). 1/2/3/4 -- which serialization produced hash_integridad. Pinned by the DB trigger: 4 for every new SISTEMA row (por receta), 3 for every new RECTIFICATIVO row.
   versionHash       Int           @default(2) @map("version_hash") @db.SmallInt
   hashIntegridad    String        @map("hash_integridad")
   hashAnterior      String        @map("hash_anterior")
@@ -1440,11 +1446,14 @@ model AsientoRecetario {
 
   libro             LibroRubricado        @relation(fields: [libroId], references: [id])
   preparacion       Preparacion?          @relation(fields: [preparacionId], references: [id])
+  receta            Receta?               @relation(fields: [recetaId], references: [id])
   asientoOriginal   AsientoRecetario?     @relation("Rectificativo", fields: [asientoOriginalId], references: [id])
   rectificativos    AsientoRecetario[]    @relation("Rectificativo")
   cierreDiario      CierreDiario?         @relation(fields: [cierreDiarioId], references: [id])
   registradoPor     Usuario               @relation(fields: [registradoPorId], references: [id])
   detalles          DetalleAsiento[]
+  /// D8 (migration 0082): the preparaciones a por-receta SISTEMA asiento covers, in ítem order. Empty for legacy and RECTIFICATIVO rows.
+  preparaciones     AsientoPreparacion[]
   anulacion         AnulacionAsiento?
   /// D1 (migration 0033). Present iff origen = RECTIFICATIVO (INV-L21).
   rectificacion     RectificacionAsiento?
@@ -1473,6 +1482,25 @@ model DetalleAsiento {
   @@unique([tenantId, id])
   @@unique([tenantId, asientoRecetarioId, orden])
   @@map("detalle_asiento")
+  @@schema("fsj")
+}
+
+/// D8 (migration 0082). The preparaciones a por-receta SISTEMA asiento covers, in ítem order (orden 1..n). Inserted BEFORE the asiento (deferred FK) and frozen once it exists (INV-L23); immutable (no UPDATE/DELETE grant). Hashed into the asiento (V4).
+model AsientoPreparacion {
+  id                 String @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId           String @map("tenant_id") @db.Uuid
+  asientoRecetarioId String @map("asiento_recetario_id") @db.Uuid
+  /// The DB has UNIQUE (tenant_id, preparacion_id) only; declared @unique here (like Etiqueta.preparacionId) so Preparacion gets a one-to-one back-relation -- ids are UUIDs, unique across tenants anyway.
+  preparacionId      String @unique @map("preparacion_id") @db.Uuid
+  orden              Int
+
+  asiento     AsientoRecetario @relation(fields: [asientoRecetarioId], references: [id])
+  preparacion Preparacion      @relation(fields: [preparacionId], references: [id])
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, preparacionId])
+  @@unique([tenantId, asientoRecetarioId, orden])
+  @@map("asiento_preparacion")
   @@schema("fsj")
 }
 

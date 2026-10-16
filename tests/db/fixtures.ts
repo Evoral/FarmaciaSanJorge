@@ -42,6 +42,14 @@ export function hashV2(campos: ReadonlyArray<string | null>): string {
  * itself with that id explicit (bypassing the `gen_random_uuid()` column
  * default) -- same order `modules/preparaciones/infrastructure/preparacion-repository.ts#insertAsientoRecetario`
  * now uses.
+ *
+ * D8 (migration 0082): every NEW SISTEMA asiento is por receta -- no
+ * `preparacion_id`, `receta_id` set, and its preparaciones in
+ * `fsj.asiento_preparacion`, inserted BEFORE it like the detalle (INV-L25).
+ * This helper keeps its `preparacionId` input: it resolves that
+ * preparación's receta and writes the asiento for the receta with that one
+ * preparación (INV-L24: at most one SISTEMA asiento per receta -- a second
+ * asiento needs a preparación of ANOTHER receta, see `insertItemAdicional`).
  */
 export async function insertAsientoSistema(
   tx: Client,
@@ -60,19 +68,25 @@ export async function insertAsientoSistema(
   },
 ): Promise<{ id: string; numeroCorrelativo: string; libroId: string; hashIntegridad: string; hashAnterior: string; fechaAsiento: string }> {
   const asientoId = randomUUID();
+  const recetaId = await recetaDePreparacion(tx, input.tenantId, input.preparacionId);
 
+  await tx.query(`INSERT INTO fsj.asiento_preparacion (tenant_id, asiento_recetario_id, preparacion_id, orden) VALUES ($1, $2, $3, 1)`, [
+    input.tenantId,
+    asientoId,
+    input.preparacionId,
+  ]);
   await tx.query(
     `INSERT INTO fsj.detalle_asiento (tenant_id, asiento_recetario_id, linea_pesaje_id, descripcion, cantidad, unidad_texto, orden)
-     VALUES ($1, $2, $3, $4, $5, $6, 0)`,
+     VALUES ($1, $2, $3, $4, $5, $6, 1)`,
     [input.tenantId, asientoId, input.lineaPesajeId ?? null, input.descripcion ?? "Detalle de prueba", input.cantidad ?? 5, input.unidadTexto ?? "g"],
   );
 
-  const cols = ["id", "tenant_id", "origen", "preparacion_id", "paciente_texto", "medico_texto", "formula_texto", "registrado_por_id"];
+  const cols = ["id", "tenant_id", "origen", "receta_id", "paciente_texto", "medico_texto", "formula_texto", "registrado_por_id"];
   const vals: unknown[] = [
     asientoId,
     input.tenantId,
     "SISTEMA",
-    input.preparacionId,
+    recetaId,
     input.pacienteTexto ?? "Paciente Test",
     input.medicoTexto ?? "Medico Test - MAT-1",
     input.formulaTexto ?? "Formula de prueba",
@@ -96,6 +110,16 @@ export async function insertAsientoSistema(
     hashAnterior: result.rows[0].hash_anterior as string,
     fechaAsiento: result.rows[0].fecha_asiento as string,
   };
+}
+
+/** The receta of a preparación (preparacion -> item_receta -> receta). */
+export async function recetaDePreparacion(tx: Client, tenantId: string, preparacionId: string): Promise<string> {
+  const result = await tx.query(
+    `SELECT ir.receta_id FROM fsj.preparacion p JOIN fsj.item_receta ir ON ir.tenant_id = p.tenant_id AND ir.id = p.item_receta_id
+     WHERE p.tenant_id = $1 AND p.id = $2`,
+    [tenantId, preparacionId],
+  );
+  return result.rows[0].receta_id as string;
 }
 
 export async function insertTenant(tx: Client, suffix: string): Promise<string> {
@@ -458,22 +482,31 @@ export interface AsientoSistemaResult {
 }
 
 /**
- * Creates one more item_receta (with a single componente) on the SAME receta
- * as `seed.itemRecetaId` and returns its id. Tests that need a second live
- * preparacion/asiento in the same tenant cannot reuse the seed's item: INV-P02
- * allows one non-DESCARTADA preparacion per ficha_tecnica, and migration 0077
- * (spec reserva-stock-preparacion R19) allows at most one live (INICIADA or
- * CONFIRMADA) preparacion per item_receta across ficha versions.
+ * Creates one more item_receta (with a single componente) on a NEW receta of
+ * the same paciente/médico as `seed.itemRecetaId`'s and returns its id. Tests
+ * that need a second live preparacion/asiento in the same tenant cannot reuse
+ * the seed's item: INV-P02 allows one non-DESCARTADA preparacion per
+ * ficha_tecnica, and migration 0077 (spec reserva-stock-preparacion R19)
+ * allows at most one live (INICIADA or CONFIRMADA) preparacion per
+ * item_receta across ficha versions. A new receta (not the seed's) because
+ * migration 0082 (D8) allows at most one SISTEMA asiento per receta (INV-L24).
  */
 export async function insertItemAdicional(
   tx: Client,
   seed: Pick<AsientoSistemaResult, "tenantId" | "itemRecetaId" | "drogaId" | "unidadId">,
 ): Promise<string> {
-  const recetaResult = await tx.query(`SELECT receta_id FROM fsj.item_receta WHERE tenant_id = $1 AND id = $2`, [
-    seed.tenantId,
-    seed.itemRecetaId,
-  ]);
-  const recetaId = recetaResult.rows[0].receta_id as string;
+  const recetaResult = await tx.query(
+    `SELECT r.paciente_id, r.medico_id, r.registrada_por_id FROM fsj.item_receta ir JOIN fsj.receta r ON r.tenant_id = ir.tenant_id AND r.id = ir.receta_id
+     WHERE ir.tenant_id = $1 AND ir.id = $2`,
+    [seed.tenantId, seed.itemRecetaId],
+  );
+  const origen = recetaResult.rows[0];
+  const recetaId = await insertReceta(tx, {
+    tenantId: seed.tenantId,
+    pacienteId: origen.paciente_id as string,
+    medicoId: origen.medico_id as string,
+    registradaPorId: origen.registrada_por_id as string,
+  });
   const itemRecetaId = await insertItemReceta(tx, { tenantId: seed.tenantId, recetaId });
   await insertComponente(tx, {
     tenantId: seed.tenantId,

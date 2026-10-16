@@ -103,6 +103,9 @@ const repo = {
   deleteReservasDePreparacion: vi.fn(async () => 0),
   listReservasDePreparacion: vi.fn(async () => [] as unknown[]),
   getUltimaFichaDeItem: vi.fn(async () => ({ id: FICHA_ID, version: 1 })),
+  listItemIdsDeReceta: vi.fn(async () => ["item-1"]),
+  listPreparacionesVivasDeItems: vi.fn(async () => [{ id: PREPARACION_ID, itemRecetaId: "item-1", estado: "INICIADA", etiquetaId: null }]),
+  getAsientoSistemaDeReceta: vi.fn(async () => null),
 };
 vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => repo);
 

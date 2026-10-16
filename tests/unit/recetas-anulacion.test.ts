@@ -34,10 +34,24 @@ describe("decidirAnulacion", () => {
     ).toEqual({
       tipo: "bloqueada-libro",
       asientos: [
-        { asientoId: "a-2", numeroCorrelativo: "31", item: 2 },
-        { asientoId: "a-1", numeroCorrelativo: "30", item: 1 },
+        { asientoId: "a-2", numeroCorrelativo: "31", items: [2] },
+        { asientoId: "a-1", numeroCorrelativo: "30", items: [1] },
       ],
     });
+  });
+
+  it("a por-receta asiento (D8) covering several ítems is listed ONCE, with all its ítem numbers", () => {
+    expect(
+      decidirAnulacion({
+        estado: "PREPARADA",
+        itemIds: [I1, I2],
+        asientosEnEfecto: [
+          { itemRecetaId: I2, asientoId: "a-9", numeroCorrelativo: "40" },
+          { itemRecetaId: I1, asientoId: "a-9", numeroCorrelativo: "40" },
+        ],
+        itemsConPreparacionIniciada: [],
+      }),
+    ).toEqual({ tipo: "bloqueada-libro", asientos: [{ asientoId: "a-9", numeroCorrelativo: "40", items: [1, 2] }] });
   });
 
   it("blocked by a preparación still INICIADA (the libro block wins when both apply)", () => {

@@ -1,10 +1,11 @@
 /**
  * `confirmarReservasReceta`: the toma workspace's "Imprimir etiquetas" (docs/specs/reserva-stock-preparacion.md, R13)
  * -- the end of the lab's process and the ONLY point where a reserved ítem becomes fixed (there is no single-ítem
- * variant). Confirms EVERY ítem of the receta from its reserva and generates its etiqueta (`confirmarDesdeReservasEnTx`,
- * ./confirmar-desde-reservas.ts), in ONE transaction and in ítem order ("Ítem N" of the toma workspace). The asiento
- * counter row the asiento_recetario trigger locks FOR UPDATE stays locked from the first insert to the commit, so no
- * other confirmation can take a number in between: the receta's asientos come out CONSECUTIVE.
+ * variant). Confirms EVERY ítem of the receta from its reserva (`confirmarDesdeReservasEnTx`,
+ * ./confirmar-desde-reservas.ts), in ONE transaction and in ítem order ("Ítem N" of the toma workspace), then writes the
+ * receta's ONE asiento in the libro recetario with all of them (D8, docs/specs/libro-recetario-y-contralor.md §1:
+ * `registrarAsientoRecetaEnTx`, ./registrar-asiento-receta.ts -- one number, one snapshot, the asiento_contralor
+ * EGRESO rows right after it) and finally generates each ítem's etiqueta, which prints that asiento's Nº.
  *
  * All or nothing, twice over:
  *   - Every ítem not yet CONFIRMADA must hold a reserva (domain/toma.ts#itemsSinReserva), checked under the locks
@@ -18,16 +19,16 @@
  * Lock order -- preparación -> receta -> partidas, like "Registrar pérdida" (./registrar-perdida-reserva.ts), with sets:
  *   1. every candidate preparación (INICIADA, read first), in id order, in one statement;
  *   2. the receta;
- *   3. every partida any of the confirmed reservas draws from, in id order, in one statement -- BEFORE the first
- *      asiento: per-ítem partida locks taken while already holding the asiento counter could wait on a confirmation
- *      that holds those partidas and waits on the counter.
+ *   3. every partida any of the confirmed reservas draws from, in id order, in one statement -- BEFORE the asiento,
+ *      whose insert locks the libro's counter row until the commit (partida locks taken while holding the counter
+ *      could wait on a confirmation that holds those partidas and waits on the counter).
  * `confirmarPreparacionEnTx` then re-locks its preparación, its partidas and the receta: re-locking a row this
  * transaction already holds never waits. A preparación that appears after step 1 (a reserva made meanwhile) is not
  * locked, and locking it now would invert the order: the command refuses ("volvé a intentar") instead.
  *
  * Permisos: `preparaciones.confirmar` via the pipeline (recent re-authentication, INV-X02, same window as
  * `confirmarPreparacion`) and `etiquetas.generar` checked first thing in the handler. Audited ONCE (the pipeline writes one row per command), on the receta
- * (CONFIRMAR), listing each confirmed preparación with its asiento and etiqueta.
+ * (CONFIRMAR): the receta's asiento and each confirmed preparación with its etiqueta.
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
@@ -37,6 +38,8 @@ import { AppError, DomainError, NotFoundError, userMessageFor } from "@/shared/e
 import { uuid } from "@/shared/validation";
 import { estadoItemToma, itemsSinReserva, mensajeItemsSinReserva, type EstadoItemToma } from "../domain/toma";
 import { confirmarDesdeReservasEnTx } from "./confirmar-desde-reservas";
+import { registrarAsientoRecetaEnTx, type ItemParaAsiento } from "./registrar-asiento-receta";
+import { generarEtiquetaEnTx } from "./generar-etiqueta";
 import {
   listItemIdsDeReceta,
   listPreparacionesVivasDeItems,
@@ -44,6 +47,7 @@ import {
   lockPartidasParaConfirmacion,
   lockPreparacionesParaAccion,
   lockRecetaParaTransicion,
+  type RecetaContextoAsiento,
   type ReservaDePreparacion,
 } from "../infrastructure/preparacion-repository";
 
@@ -51,8 +55,14 @@ const confirmarReservasRecetaInput = z.object({ recetaId: uuid });
 
 export interface EtiquetaDeRecetaConfirmada {
   preparacionId: string;
-  numeroCorrelativo: string;
   etiquetaId: string;
+}
+
+/** The receta's one asiento (D8) and the etiqueta of each ítem confirmed, in ítem order. */
+export interface RecetaConfirmada {
+  asientoId: string;
+  numeroCorrelativo: string;
+  etiquetas: EtiquetaDeRecetaConfirmada[];
 }
 
 /** Errors about the ítem itself get its number; anything else (authentication, unexpected) passes through untouched. */
@@ -94,46 +104,57 @@ export const confirmarReservasRecetaCommand = defineCommand({
       estados.push(estadoItemToma(viva ? { estado: viva.estado === "CONFIRMADA" ? "CONFIRMADA" : "INICIADA", reservas } : null));
       if (viva && viva.estado === "INICIADA" && reservas.length > 0) aConfirmar.push({ numero: indice + 1, preparacionId: viva.id, reservas });
     }
-    // All or nothing: the receta's asientos are consecutive only when every ítem is confirmed here.
+    // All or nothing: the receta's ítems go into ONE asiento (D8).
     const sinReserva = itemsSinReserva(estados);
     if (sinReserva.length > 0) throw new DomainError(mensajeItemsSinReserva(sinReserva));
     if (aConfirmar.length === 0) throw new DomainError("Todos los ítems de esta receta ya están confirmados.");
 
-    // 3. Every partida, before the first asiento.
+    // 3. Every partida, before the asiento.
     await lockPartidasParaConfirmacion(tx, session.tenantId, [...new Set(aConfirmar.flatMap((c) => c.reservas.map((r) => r.partidaId)))]);
 
-    const confirmadas: (EtiquetaDeRecetaConfirmada & { numero: number; asientoId: string; fechaVencimiento: string })[] = [];
+    // 4. Every ítem: stock, CONFIRMADA, its libro data.
+    const items: ItemParaAsiento[] = [];
+    const vencimientos = new Map<string, string>();
+    let contexto: RecetaContextoAsiento | null = null;
     for (const { numero, preparacionId, reservas } of aConfirmar) {
       try {
         const confirmada = await confirmarDesdeReservasEnTx(tx, session, preparacionId, reservas);
-        confirmadas.push({
-          numero,
-          preparacionId,
-          numeroCorrelativo: confirmada.numeroCorrelativo,
-          etiquetaId: confirmada.etiquetaId,
-          asientoId: confirmada.asientoId,
-          fechaVencimiento: confirmada.fechaVencimiento,
-        });
+        contexto ??= confirmada.contexto;
+        items.push({ ...confirmada, numero, preparacionId });
+        vencimientos.set(preparacionId, confirmada.fechaVencimiento);
+      } catch (error) {
+        throw conNumeroDeItem(error, numero);
+      }
+    }
+    if (!contexto) throw new DomainError("Todos los ítems de esta receta ya están confirmados.");
+
+    // 5. The receta's ONE asiento (D8), then the etiquetas, which print its Nº.
+    const asiento = await registrarAsientoRecetaEnTx(tx, session, { contexto, items });
+    const etiquetas: (EtiquetaDeRecetaConfirmada & { numero: number })[] = [];
+    for (const { numero, preparacionId } of aConfirmar) {
+      try {
+        const etiqueta = await generarEtiquetaEnTx(tx, session.tenantId, preparacionId);
+        etiquetas.push({ numero, preparacionId, etiquetaId: etiqueta.id });
       } catch (error) {
         throw conNumeroDeItem(error, numero);
       }
     }
 
     return {
-      output: confirmadas.map(({ preparacionId, numeroCorrelativo, etiquetaId }) => ({ preparacionId, numeroCorrelativo, etiquetaId })),
+      output: { asientoId: asiento.id, numeroCorrelativo: asiento.numeroCorrelativo, etiquetas: etiquetas.map(({ preparacionId, etiquetaId }) => ({ preparacionId, etiquetaId })) },
       audit: {
         entidadId: input.recetaId,
         valorNuevo: {
           desdeReservaStock: true,
-          preparaciones: confirmadas.map((c) => ({
-            item: c.numero,
-            preparacionId: c.preparacionId,
+          asientoRecetarioId: asiento.id,
+          asientoRecetario: `Nº ${asiento.numeroCorrelativo}`,
+          numeroCorrelativo: asiento.numeroCorrelativo,
+          preparaciones: etiquetas.map((e) => ({
+            item: e.numero,
+            preparacionId: e.preparacionId,
             estado: "CONFIRMADA",
-            asientoRecetarioId: c.asientoId,
-            asientoRecetario: `Nº ${c.numeroCorrelativo}`,
-            numeroCorrelativo: c.numeroCorrelativo,
-            fechaVencimiento: c.fechaVencimiento,
-            etiquetaId: c.etiquetaId,
+            fechaVencimiento: vencimientos.get(e.preparacionId),
+            etiquetaId: e.etiquetaId,
           })),
         },
       },
@@ -141,6 +162,6 @@ export const confirmarReservasRecetaCommand = defineCommand({
   },
 });
 
-export async function confirmarReservasReceta(recetaId: string): Promise<EtiquetaDeRecetaConfirmada[]> {
+export async function confirmarReservasReceta(recetaId: string): Promise<RecetaConfirmada> {
   return confirmarReservasRecetaCommand.execute({ recetaId });
 }

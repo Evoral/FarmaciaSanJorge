@@ -77,6 +77,7 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   "INV-L01": "Los asientos del libro no se pueden modificar: solo se pueden anular o rectificar, según corresponda.",
   "INV-L02": "La jornada del asiento ya está firmada: no se puede anular, corresponde un asiento rectificativo.",
   "INV-L03": "No hay un libro recetario abierto disponible. Contactá al administrador.",
+  "INV-L07": "Cada receta se registra en el libro recetario con un único asiento que reúne todos sus ítems. Contactá al administrador.",
   "INV-L08":
     "No se pudo registrar el movimiento en el libro contralor: verificá que la droga sea controlada y que haya un libro contralor abierto. Contactá al Director Técnico si el problema persiste.",
   "INV-L09": "El asiento no existe o ya no está vigente: no se puede anular.",
@@ -89,7 +90,8 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
     "El asiento original no admite un rectificativo: debe ser un asiento generado por el sistema, de una jornada ya firmada, y el rectificativo debe tener una fecha posterior.",
   "INV-L21": "El asiento rectificativo no tiene una autorización de rectificación válida.",
   "INV-L22": "No se pudo registrar el asiento del libro recetario porque su detalle está incompleto. Contactá al administrador.",
-  "INV-L23": "El detalle de un asiento ya registrado no se puede modificar.",
+  "INV-L23": "El detalle o las preparaciones de un asiento ya registrado no se pueden modificar.",
+  "INV-L25": "El asiento del libro recetario debe incluir las preparaciones confirmadas de los ítems de su receta. Contactá al administrador.",
   "INV-LIB-001": "Los datos ya cargados de un libro rubricado no se pueden modificar.",
 
   // Precios

@@ -109,24 +109,15 @@ describe.skipIf(dbTestSkipReason() !== null)("0019_cierre_jornada_guards (fsj sc
 
         // Now signed: a THIRD SISTEMA asiento for the same jornada must be rejected.
         // If trg_asiento_recetario_validar_jornada_cerrada is removed, this
-        // insert succeeds and the assertion below fails. A detalle_asiento
-        // row is inserted first (INV-L22, migration 0034) so the insert
-        // gets far enough to hit INV-C03, not fail earlier on INV-L22.
+        // insert succeeds and the assertion below fails. The detalle_asiento
+        // and asiento_preparacion rows are inserted first (INV-L22/INV-L25,
+        // migrations 0034/0082 -- fixtures.ts#insertAsientoSistema) so the
+        // insert gets far enough to hit INV-C03, not fail earlier.
         await expectInvariantViolation(
           tx,
           async () => {
             const preparacionId = await insertPreparacionAdicional(tx, seed);
-            const asientoId = randomUUID();
-            await tx.query(
-              `INSERT INTO fsj.detalle_asiento (tenant_id, asiento_recetario_id, descripcion, cantidad, unidad_texto, orden)
-               VALUES ($1, $2, 'Droga', 5, 'g', 0)`,
-              [seed.tenantId, asientoId],
-            );
-            return tx.query(
-              `INSERT INTO fsj.asiento_recetario (id, tenant_id, origen, preparacion_id, paciente_texto, medico_texto, formula_texto, registrado_por_id)
-               VALUES ($1, $2, 'SISTEMA', $3, 'Paciente', 'Medico - MAT-1', 'Formula', $4)`,
-              [asientoId, seed.tenantId, preparacionId, seed.sistema],
-            );
+            return insertAsientoSistema(tx, { tenantId: seed.tenantId, preparacionId, registradoPorId: seed.sistema, descripcion: "Droga" });
           },
           "INV-C03",
         );

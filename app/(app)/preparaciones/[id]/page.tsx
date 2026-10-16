@@ -70,7 +70,7 @@ export default async function PreparacionPage({ params }: PreparacionPageProps) 
         />
 
         {pantalla.estado === "INICIADA" && pantalla.conReserva ? (
-          // Confirmed (with its etiqueta) or released from the receta's toma workspace, where its ítems can take consecutive asientos.
+          // Confirmed (with its etiqueta) or released from the receta's toma workspace, where its ítems share ONE asiento (D8).
           <section className="panel">
             <EmptyState
               icon={<Tag className="size-5" />}

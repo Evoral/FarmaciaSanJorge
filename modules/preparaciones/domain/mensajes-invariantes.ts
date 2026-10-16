@@ -27,11 +27,13 @@ export const MENSAJES_INVARIANTES_CONFIRMACION: Readonly<Record<string, string>>
   "INV-C03": "La jornada de hoy ya fue firmada por el Director Técnico: no se pueden registrar más preparaciones para el día de hoy.",
   "INV-L03": "El libro recetario del tenant no está disponible: contactá al administrador.",
   "INV-L04": "No se pudo asignar el número correlativo del asiento: volvé a intentar la confirmación.",
+  "INV-L07": "La receta se registra en el libro recetario con un único asiento para todos sus ítems: confirmala desde la toma (Imprimir etiquetas).",
   "INV-L08": "Falta el asiento del libro contralor para una droga controlada: contactá al administrador.",
   "INV-L14": "El saldo del libro contralor quedaría negativo para esta droga.",
   "INV-L15": "Falta el asiento de apertura del libro contralor para esta droga: contactá al Director Técnico.",
   "INV-L16": "Falta el número de vale de adquisición requerido por el libro contralor.",
   "INV-L18": "El asiento original no admite un rectificativo en este momento.",
+  "INV-L25": "El asiento del libro recetario no incluye correctamente las preparaciones de la receta: volvé a intentar la confirmación.",
 };
 
 const MENSAJE_GENERICO = "No se pudo confirmar la preparación: se violó una regla del sistema. Contactá al administrador si el problema persiste.";

@@ -70,6 +70,8 @@ function makeFakeTx(opts: FakeTxOptions) {
 
 const baseInput = {
   tenantId: TENANT_ID,
+  /** Legacy per-ítem asientos (D2) carry no receta_id; por-receta ones (D8) are tested at the end. */
+  recetaId: null,
   numeroCorrelativo: "7",
   motivo: "El paciente no retira",
   usuarioId: USUARIO_ID,
@@ -80,7 +82,7 @@ describe("desvincularRecetaPorAsiento", () => {
     auditRecordMock.mockClear();
   });
 
-  it("no preparacionId (null) -> no-op, returns null, touches nothing", async () => {
+  it("no preparacionId nor recetaId (null) -> no-op, returns null, touches nothing", async () => {
     const fake = makeFakeTx({});
     const result = await desvincularRecetaPorAsiento(fake.tx, { ...baseInput, preparacionId: null });
     expect(result).toBeNull();
@@ -248,5 +250,45 @@ describe("desvincularRecetaPorAsiento", () => {
 
     // The lock is the FIRST $queryRaw call, strictly before the receta is read fresh.
     expect(fake.queryRaw.mock.invocationCallOrder[0]!).toBeLessThan(fake.recetaFindUnique.mock.invocationCallOrder[0]!);
+  });
+
+  describe("D8: por-receta asiento (recetaId, no preparacionId)", () => {
+    it("reaches the receta directly (no preparación lookup), locks it and anulls it once every ítem is sin efecto", async () => {
+      const fake = makeFakeTx({ receta: { id: RECETA_ID, estado: "PREPARADA" }, agregadoSinEfecto: { total: 2, sin_efecto: 2 } });
+
+      const result = await desvincularRecetaPorAsiento(fake.tx, { ...baseInput, preparacionId: null, recetaId: RECETA_ID, numeroCorrelativo: "50" });
+
+      expect(result).toEqual({ recetaId: RECETA_ID, estadoAnterior: "PREPARADA" });
+      expect(fake.preparacionFindUnique).not.toHaveBeenCalled();
+      expect(fake.itemRecetaFindUnique).not.toHaveBeenCalled();
+      expect(fake.recetaUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { estado: "ANULADA", motivoAnulacion: "Todos los ítems quedaron sin efecto (último: asiento Nº 50): El paciente no retira" } }),
+      );
+    });
+
+    it("a receta from the transition with a legacy asiento still in effect (total=3, sin_efecto=2) -> left UNCHANGED", async () => {
+      const fake = makeFakeTx({ receta: { id: RECETA_ID, estado: "PREPARADA" }, agregadoSinEfecto: { total: 3, sin_efecto: 2 } });
+
+      await expect(desvincularRecetaPorAsiento(fake.tx, { ...baseInput, preparacionId: null, recetaId: RECETA_ID })).resolves.toBeNull();
+      expect(fake.recetaUpdate).not.toHaveBeenCalled();
+    });
+
+    it("ENTREGADA stays ENTREGADA", async () => {
+      const fake = makeFakeTx({ receta: { id: RECETA_ID, estado: "ENTREGADA" } });
+
+      await expect(desvincularRecetaPorAsiento(fake.tx, { ...baseInput, preparacionId: null, recetaId: RECETA_ID })).resolves.toBeNull();
+      expect(fake.recetaUpdate).not.toHaveBeenCalled();
+    });
+
+    it("the per-ítem aggregate resolves both kinds of SISTEMA asiento through fsj.v_asiento_sistema_preparacion", async () => {
+      const fake = makeFakeTx({ receta: { id: RECETA_ID, estado: "PREPARADA" }, agregadoSinEfecto: { total: 1, sin_efecto: 0 } });
+
+      await desvincularRecetaPorAsiento(fake.tx, { ...baseInput, preparacionId: null, recetaId: RECETA_ID });
+
+      // The template's strings plus its nested Prisma.sql fragments.
+      const sql = JSON.stringify(fake.queryRaw.mock.calls[1]);
+      expect(sql).toContain("v_asiento_sistema_preparacion");
+      expect(sql).not.toContain("a.preparacion_id = p.id");
+    });
   });
 });

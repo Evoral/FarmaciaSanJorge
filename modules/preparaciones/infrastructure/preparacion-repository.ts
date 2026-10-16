@@ -1,7 +1,7 @@
 /**
  * Prisma-backed access to `fsj.preparacion` / `fsj.etiqueta` /
  * `fsj.movimiento_stock` / `fsj.asiento_recetario` / `fsj.detalle_asiento` /
- * `fsj.asiento_contralor` for M11 (FASE 8). Every function runs inside an
+ * `fsj.asiento_preparacion` / `fsj.asiento_contralor` for M11 (FASE 8). Every function runs inside an
  * ALREADY OPEN tenant transaction (`tx`), same convention as every other
  * module's repository (e.g. modules/stock/infrastructure/partida-repository.ts,
  * modules/recetas/infrastructure/receta-repository.ts).
@@ -658,7 +658,10 @@ export interface DetalleAsientoInput {
 
 export interface NuevoAsientoRecetarioInput {
   tenantId: string;
-  preparacionId: string;
+  /** D8 (migration 0082): the receta the asiento covers. */
+  recetaId: string;
+  /** The preparaciones it covers, `orden` 1..n in ítem order (`asiento_preparacion`). */
+  preparaciones: { preparacionId: string; orden: number }[];
   pacienteTexto: string;
   medicoTexto: string;
   formulaTexto: string;
@@ -667,21 +670,28 @@ export interface NuevoAsientoRecetarioInput {
 }
 
 /**
- * INSERT `detalle_asiento` rows THEN `asiento_recetario` (origen SISTEMA),
- * in that order -- D4 (migration 0034, hash V3): the asiento's
- * hash_integridad now covers its own detalle lines, so the DB's BEFORE
- * INSERT trigger needs them to already exist under the asiento's id when
- * the asiento row is inserted. This requires an APP-GENERATED id
- * (`randomUUID()`, not the column's `gen_random_uuid()` default) shared by
- * every detalle row and the asiento itself -- passing `id` explicitly in
- * the `create()` call below is what makes Prisma/Postgres skip the
- * default. `detalle_asiento`'s FK to `asiento_recetario` is DEFERRABLE
- * INITIALLY DEFERRED precisely so this "child rows before the parent"
- * order is legal (checked at COMMIT, not at each INSERT). Trigger-assigned
- * columns on the asiento use placeholders -- see module doc comment.
+ * INSERT `asiento_preparacion` and `detalle_asiento` rows THEN the por-receta
+ * `asiento_recetario` (origen SISTEMA, `receta_id`, no `preparacion_id` --
+ * D8, migration 0082), in that order: the asiento's hash (V4) covers its
+ * preparaciones and its detalle lines, so the DB's BEFORE INSERT trigger
+ * needs them to already exist under the asiento's id (INV-L22, INV-L25),
+ * and neither can be added once the asiento exists (INV-L23). This requires
+ * an APP-GENERATED id (`randomUUID()`, not the column's `gen_random_uuid()`
+ * default) shared by every child row and the asiento itself -- passing `id`
+ * explicitly in the `create()` call below is what makes Prisma/Postgres
+ * skip the default. Both child FKs to `asiento_recetario` are DEFERRABLE
+ * INITIALLY DEFERRED precisely so this "child rows before the parent" order
+ * is legal (checked at COMMIT). Trigger-assigned columns on the asiento use
+ * placeholders -- see module doc comment.
  */
 export async function insertAsientoRecetario(tx: Prisma.TransactionClient, input: NuevoAsientoRecetarioInput): Promise<{ id: string; numeroCorrelativo: string }> {
   const asientoId = randomUUID();
+
+  for (const vinculo of input.preparaciones) {
+    await tx.asientoPreparacion.create({
+      data: { tenantId: input.tenantId, asientoRecetarioId: asientoId, preparacionId: vinculo.preparacionId, orden: vinculo.orden },
+    });
+  }
 
   for (const detalle of input.detalles) {
     await tx.detalleAsiento.create({
@@ -705,7 +715,7 @@ export async function insertAsientoRecetario(tx: Prisma.TransactionClient, input
       numeroCorrelativo: BigInt(0),
       fechaAsiento: PLACEHOLDER_DATE,
       origen: "SISTEMA",
-      preparacionId: input.preparacionId,
+      recetaId: input.recetaId,
       pacienteTexto: input.pacienteTexto,
       medicoTexto: input.medicoTexto,
       formulaTexto: input.formulaTexto,
@@ -717,6 +727,12 @@ export async function insertAsientoRecetario(tx: Prisma.TransactionClient, input
   });
 
   return { id: asiento.id, numeroCorrelativo: asiento.numeroCorrelativo.toString() };
+}
+
+/** The receta's por-receta SISTEMA asiento number, if it already has one (INV-L24: at most one -- friendly pre-check before the partial unique index). */
+export async function getAsientoSistemaDeReceta(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<{ numeroCorrelativo: string } | null> {
+  const row = await tx.asientoRecetario.findFirst({ where: { tenantId, recetaId, origen: "SISTEMA" }, select: { numeroCorrelativo: true } });
+  return row ? { numeroCorrelativo: row.numeroCorrelativo.toString() } : null;
 }
 
 export interface NuevoAsientoContralorInput {
@@ -804,7 +820,7 @@ export interface PreparacionParaEtiqueta extends DatosEtiqueta {
   preparadaPorNombre: string;
   preparadaPorApellido: string;
   itemDescripcion: string | null;
-  /** Snapshot texts (INV-L05) from the preparación's own SISTEMA asiento_recetario. */
+  /** Snapshot texts (INV-L05) from the preparación's SISTEMA asiento_recetario (legacy per-ítem, or its receta's one -- D8). */
   pacienteTexto: string;
   medicoTexto: string;
   formulaTexto: string;
@@ -819,6 +835,24 @@ export interface PreparacionParaEtiqueta extends DatosEtiqueta {
    */
   asientoSinEfecto: boolean;
 }
+
+/**
+ * D8 (migration 0082): a preparación's SISTEMA asiento is its legacy per-ítem one (`asientosRecetario`, origen
+ * SISTEMA) or the por-receta one it is linked to (`asientoPreparacion`) -- never both (INV-P04). Select both relations
+ * with the same `select` and resolve them here.
+ */
+export function asientoSistemaDe<A>(prep: { asientosRecetario: readonly A[]; asientoPreparacion: { asiento: A } | null }): A | undefined {
+  return prep.asientosRecetario[0] ?? prep.asientoPreparacion?.asiento;
+}
+
+const SELECT_ASIENTO_ETIQUETA = {
+  numeroCorrelativo: true,
+  pacienteTexto: true,
+  medicoTexto: true,
+  formulaTexto: true,
+  estado: true,
+  _count: { select: { rectificativos: true } },
+} satisfies Prisma.AsientoRecetarioSelect;
 
 export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, tenantId: string, preparacionId: string): Promise<PreparacionParaEtiqueta | null> {
   const prep = await tx.preparacion.findUnique({
@@ -856,15 +890,12 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
           },
         },
       },
-      asientosRecetario: {
-        where: { origen: "SISTEMA" },
-        select: { numeroCorrelativo: true, pacienteTexto: true, medicoTexto: true, formulaTexto: true, estado: true, _count: { select: { rectificativos: true } } },
-        take: 1,
-      },
+      asientosRecetario: { where: { origen: "SISTEMA" }, select: SELECT_ASIENTO_ETIQUETA, take: 1 },
+      asientoPreparacion: { select: { asiento: { select: SELECT_ASIENTO_ETIQUETA } } },
     },
   });
   if (!prep || prep.estado !== "CONFIRMADA" || !prep.confirmadaEn || !prep.preparadaPor) return null;
-  const asiento = prep.asientosRecetario[0];
+  const asiento = asientoSistemaDe(prep);
   if (!asiento) return null; // INV-P04: a CONFIRMADA preparación always has one -- defensive.
 
   const tenant = await tx.tenant.findUniqueOrThrow({
@@ -1759,6 +1790,8 @@ export interface RecetaDeToma {
   items: ItemDeToma[];
 }
 
+const SELECT_ASIENTO_SIN_EFECTO = { estado: true, _count: { select: { rectificativos: true } } } satisfies Prisma.AsientoRecetarioSelect;
+
 export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<RecetaDeToma | null> {
   const receta = await tx.receta.findUnique({
     where: { id: recetaId, tenantId },
@@ -1813,7 +1846,8 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
       itemRecetaId: true,
       fichaTecnicaId: true,
       etiqueta: { select: { id: true } },
-      asientosRecetario: { where: { origen: "SISTEMA" }, take: 1, select: { estado: true, _count: { select: { rectificativos: true } } } },
+      asientosRecetario: { where: { origen: "SISTEMA" }, take: 1, select: SELECT_ASIENTO_SIN_EFECTO },
+      asientoPreparacion: { select: { asiento: { select: SELECT_ASIENTO_SIN_EFECTO } } },
     },
   });
   // A live preparación on an older ficha version (from before R20): its own ficha is what the ítem shows.
@@ -1861,7 +1895,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
     if (!elegida) return null;
     const confirmada = elegida.estado === "CONFIRMADA";
     const propias = confirmada ? [] : reservas.filter((r) => r.preparacion_id === elegida.id);
-    const asiento = elegida.asientosRecetario[0];
+    const asiento = asientoSistemaDe(elegida);
     return {
       id: elegida.id,
       estado: confirmada ? "CONFIRMADA" : "INICIADA",

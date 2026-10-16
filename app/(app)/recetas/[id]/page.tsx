@@ -270,11 +270,11 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
                         <li key={a.asientoId}>
                           {puedeVerLibro ? (
                             <Link href={`/libro/${a.asientoId}`} className="link-button">
-                              Asiento Nº {a.numeroCorrelativo} (ítem {a.item})
+                              Asiento Nº {a.numeroCorrelativo} ({a.items.length > 1 ? "ítems" : "ítem"} {a.items.join(", ")})
                             </Link>
                           ) : (
                             <span className="text-zinc-900">
-                              Asiento Nº {a.numeroCorrelativo} (ítem {a.item})
+                              Asiento Nº {a.numeroCorrelativo} ({a.items.length > 1 ? "ítems" : "ítem"} {a.items.join(", ")})
                             </span>
                           )}
                         </li>

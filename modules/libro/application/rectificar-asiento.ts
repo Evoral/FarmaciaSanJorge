@@ -117,13 +117,15 @@ const rectificarAsientoInternalCommand = defineCommand({
         registradoPorId: session.usuario.id,
       });
 
-      // D2 REVISED (per-item rule): couple the underlying receta (reached
-      // via the ORIGINAL's preparacion -- the rectificativo row itself has
-      // no preparacionId). Only moves the receta to ANULADA once EVERY item
-      // is sin efecto.
+      // D2 REVISED (per-item rule) / D8: couple the underlying receta
+      // (reached via the ORIGINAL's preparacion or receta -- the
+      // rectificativo row itself has neither). Only moves the receta to
+      // ANULADA once EVERY item is sin efecto (all of a por-receta asiento's
+      // ítems are, at once).
       await desvincularRecetaPorAsiento(tx, {
         tenantId: session.tenantId,
         preparacionId: original.preparacionId,
+        recetaId: original.recetaId,
         numeroCorrelativo: original.numeroCorrelativo,
         motivo: input.motivo,
         usuarioId: session.usuario.id,
