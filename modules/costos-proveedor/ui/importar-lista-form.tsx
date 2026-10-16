@@ -24,6 +24,7 @@ import { useMemo, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, CircleAlert, TriangleAlert } from "lucide-react";
 import { Combobox, filtrarOpciones, type ComboboxOption } from "@/shared/ui/combobox";
+import { RecordarSinonimoSwitch } from "@/shared/ui/recordar-sinonimo-switch";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { ToneBadge, type BadgeTone } from "@/shared/ui/status-badge";
 import { toast } from "@/shared/ui/toast";
@@ -408,10 +409,13 @@ export function ImportarListaForm({ vista, drogas, unidades, onImportada }: Impo
                               disabled={fila.omitida}
                             />
                             {recordable(i) ? (
-                              <label className="toggle-switch mt-1.5 min-h-0 text-[0.8125rem] text-zinc-600">
-                                <input type="checkbox" role="switch" checked={fila.recordar} onChange={(e) => editar(i, { recordar: e.target.checked })} />
-                                Recordar «{original.descripcion}» como esta droga
-                              </label>
+                              <RecordarSinonimoSwitch
+                                className="mt-1.5"
+                                texto={original.descripcion}
+                                drogaNombre={fila.droga?.label}
+                                checked={fila.recordar}
+                                onChange={(recordar) => editar(i, { recordar })}
+                              />
                             ) : null}
                           </>
                         )}

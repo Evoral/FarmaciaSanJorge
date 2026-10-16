@@ -43,6 +43,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle, Plus, RotateCcw, Save, Trash2, TriangleAlert } from "lucide-react";
 import { ToneBadge } from "@/shared/ui/status-badge";
+import { RecordarSinonimoSwitch } from "@/shared/ui/recordar-sinonimo-switch";
 import { crearRecetaAction, editarRecetaAction, importarRecetaAction } from "./actions";
 import { IDLE_STATE } from "./action-state";
 import type { RecetaActionState } from "./action-state";
@@ -1025,10 +1026,14 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                         ) : null}
 
                         {importacion && c.sinMatch && c.drogaTexto ? (
-                          <label className="toggle-switch w-full text-xs text-zinc-700">
-                            <input type="checkbox" role="switch" checked={c.recordar ?? false} disabled={!c.drogaId} onChange={(e) => actualizarComponente(itemIdx, compIdx, { recordar: e.target.checked })} />
-                            Recordar esta equivalencia («{c.drogaTexto}» = droga elegida)
-                          </label>
+                          <RecordarSinonimoSwitch
+                            className="w-full"
+                            texto={c.drogaTexto}
+                            drogaNombre={c.drogaNombre}
+                            checked={c.recordar ?? false}
+                            disabled={!c.drogaId}
+                            onChange={(recordar) => actualizarComponente(itemIdx, compIdx, { recordar })}
+                          />
                         ) : null}
                       </li>
                     ))}

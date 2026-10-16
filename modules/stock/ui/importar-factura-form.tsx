@@ -36,6 +36,7 @@ import type { VistaPreviaFactura } from "../domain/importacion-factura-compra";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { DateInput } from "@/shared/ui/date-input";
 import { Combobox, filtrarOpciones, type ComboboxOption } from "@/shared/ui/combobox";
+import { RecordarSinonimoSwitch } from "@/shared/ui/recordar-sinonimo-switch";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { CLASES_DROGA, CLASE_DROGA_LABELS, type ClaseDroga } from "@/modules/drogas/domain/droga";
 import { sugerirClase } from "@/modules/drogas/domain/sugerir-clase";
@@ -463,10 +464,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
                         </p>
                       ) : null}
                       {!l.matcheada && l.droga && primeraDelProducto ? (
-                        <label className="toggle-switch min-h-0 text-[0.8125rem] text-zinc-600">
-                          <input type="checkbox" role="switch" checked={l.recordar} onChange={(e) => actualizar(i, { recordar: e.target.checked })} />
-                          Recordar «{l.drogaTexto}» como esta droga
-                        </label>
+                        <RecordarSinonimoSwitch texto={l.drogaTexto} drogaNombre={l.droga.label} checked={l.recordar} onChange={(recordar) => actualizar(i, { recordar })} />
                       ) : null}
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
