@@ -3,6 +3,10 @@
  * 0039 (`fsj.motivo_demora` enum, DP-18c RESUELTA), FASE 10 point 10.5.
  * Same rollback-transaction safety model as tests/db/cierre-diario.test.ts
  * -- see tests/db/helpers.ts.
+ *
+ * Since migration 0075 the term counts from the day AFTER the jornada: a
+ * jornada D signed on D+1+plazo_firma_dias is on time, any later day is out
+ * of term (INV-C18); and D itself can never be signed on D (INV-C21).
  */
 import type { Client } from "pg";
 import { describe, it, expect } from "vitest";
@@ -17,7 +21,7 @@ async function crearDtVigente(tx: Client, seed: { tenantId: string; sistema: str
 }
 
 describe.skipIf(dbTestSkipReason() !== null)("0038_cierre_plazo_firma_dias (fsj schema)", () => {
-  it("with NO plazo_firma_dias row for the tenant, defaults to 0 -- same behavior as before migration 0038", async () => {
+  it("with NO plazo_firma_dias row for the tenant, defaults to 0 -- the next day is on time, two days later is out of term", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         await setRelojPrueba(tx, "2026-06-15T12:00:00-03:00");
@@ -30,7 +34,21 @@ describe.skipIf(dbTestSkipReason() !== null)("0038_cierre_plazo_firma_dias (fsj 
         const row = await tx.query(`SELECT 1 FROM fsj.parametro WHERE tenant_id = $1 AND clave = 'plazo_firma_dias'`, [seed.tenantId]);
         expect(row.rowCount).toBe(0);
 
-        await setRelojPrueba(tx, "2026-06-16T12:00:00-03:00"); // next day -- out of term when plazo = 0
+        // Next day (D+1) -- on time when plazo = 0 (migration 0075).
+        await setRelojPrueba(tx, "2026-06-16T12:00:00-03:00");
+        const aTiempo = await tx.query(`SELECT fsj.cierre_diario_calcular_fuera_de_termino($1, $2) AS fuera`, [
+          seed.tenantId,
+          fecha.rows[0].fecha_asiento,
+        ]);
+        expect(aTiempo.rows[0].fuera).toBe(false);
+
+        // Two days later (D+2) -- out of term when plazo = 0.
+        await setRelojPrueba(tx, "2026-06-17T12:00:00-03:00");
+        const tarde = await tx.query(`SELECT fsj.cierre_diario_calcular_fuera_de_termino($1, $2) AS fuera`, [
+          seed.tenantId,
+          fecha.rows[0].fecha_asiento,
+        ]);
+        expect(tarde.rows[0].fuera).toBe(true);
 
         await expectInvariantViolation(
           tx,
@@ -41,7 +59,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0038_cierre_plazo_firma_dias (fsj 
     );
   });
 
-  it("plazo_firma_dias = 2: signing 2 days later is still on time; signing 3 days later requires motivo", async () => {
+  it("plazo_firma_dias = 2: signing 3 days later (the day after + 2 days of grace) is still on time", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         await setRelojPrueba(tx, "2026-06-15T12:00:00-03:00");
@@ -54,7 +72,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0038_cierre_plazo_firma_dias (fsj 
           [seed.tenantId],
         );
 
-        await setRelojPrueba(tx, "2026-06-17T12:00:00-03:00"); // fecha + 2 days -- still on time
+        await setRelojPrueba(tx, "2026-06-18T12:00:00-03:00"); // fecha + 3 days = day after + plazo 2 -- still on time
         const cierre = await tx.query(`SELECT fuera_de_termino FROM fsj.cierre_diario_firmar($1, $2, $3, $4)`, [
           seed.tenantId,
           fecha.rows[0].fecha_asiento,
@@ -66,7 +84,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0038_cierre_plazo_firma_dias (fsj 
     );
   });
 
-  it("plazo_firma_dias = 2: signing 3 days later IS fuera de término and requires motivo (INV-C18)", async () => {
+  it("plazo_firma_dias = 2: signing 4 days later IS fuera de término and requires motivo (INV-C18)", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         await setRelojPrueba(tx, "2026-06-15T12:00:00-03:00");
@@ -79,7 +97,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0038_cierre_plazo_firma_dias (fsj 
           [seed.tenantId],
         );
 
-        await setRelojPrueba(tx, "2026-06-18T12:00:00-03:00"); // fecha + 3 days -- out of term
+        await setRelojPrueba(tx, "2026-06-19T12:00:00-03:00"); // fecha + 4 days -- out of term
         await expectInvariantViolation(
           tx,
           () => tx.query(`SELECT fsj.cierre_diario_firmar($1, $2, $3, $4)`, [seed.tenantId, fecha.rows[0].fecha_asiento, dtId, designacionId]),
@@ -107,7 +125,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0039_cierre_motivo_demora_enum (fs
         const seed = await seedAsientoSistema(tx, "enumok");
         const { dtId, designacionId } = await crearDtVigente(tx, seed);
         const fecha = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
-        await setRelojPrueba(tx, "2026-06-16T12:00:00-03:00");
+        await setRelojPrueba(tx, "2026-06-17T12:00:00-03:00"); // D+2: out of term, so the motivo is real
 
         const cierre = await tx.query(`SELECT motivo_demora FROM fsj.cierre_diario_firmar($1, $2, $3, $4, 'FALLA_SISTEMA', NULL)`, [
           seed.tenantId,
@@ -127,7 +145,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0039_cierre_motivo_demora_enum (fs
         const seed = await seedAsientoSistema(tx, "enumbad");
         const { dtId, designacionId } = await crearDtVigente(tx, seed);
         const fecha = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
-        await setRelojPrueba(tx, "2026-06-16T12:00:00-03:00");
+        await setRelojPrueba(tx, "2026-06-17T12:00:00-03:00"); // D+2: out of term, so the motivo is real
 
         await expectDbRejection(
           tx,
@@ -150,7 +168,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0039_cierre_motivo_demora_enum (fs
         const seed = await seedAsientoSistema(tx, "otrocheck");
         const { dtId, designacionId } = await crearDtVigente(tx, seed);
         const fecha = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
-        await setRelojPrueba(tx, "2026-06-16T12:00:00-03:00");
+        await setRelojPrueba(tx, "2026-06-17T12:00:00-03:00"); // D+2: out of term, so the motivo is real
 
         await expectDbRejection(
           tx,

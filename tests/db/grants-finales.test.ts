@@ -37,6 +37,9 @@ const LEGAL: Record<string, GrantRule> = {
   asiento_recetario: { insert: true, update: [] },
   detalle_asiento: { insert: true, update: [] },
   anulacion_asiento: { insert: true, update: [] },
+  // D1 (migration 0033): authorization record for a RECTIFICATIVO asiento --
+  // the "jornada firmada" twin of anulacion_asiento, fully immutable.
+  rectificacion_asiento: { insert: true, update: [] },
   asiento_historico: { insert: true, update: [] },
   asiento_contralor: { insert: true, update: [] },
   cierre_diario: { insert: false, update: ["fecha_impresion", "impreso_por_id"] },

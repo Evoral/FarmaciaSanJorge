@@ -215,6 +215,19 @@ export async function insertReceta(tx: Client, input: CrearRecetaInput): Promise
   return result.rows[0].id as string;
 }
 
+/**
+ * Marks a receta paid (migration 0071). INV-R14 (migration 0076) rejects
+ * moving an unpaid receta INTO ENTREGADA, so every test that delivers a
+ * receta pays it first -- the same write order the app uses
+ * (modules/entregas/application/registrar-entrega.ts).
+ */
+export async function marcarRecetaPagada(tx: Client, tenantId: string, recetaId: string, pagadaPorId: string): Promise<void> {
+  await tx.query(
+    `UPDATE fsj.receta SET pagada = true, pagada_en = now(), pagada_por_id = $3 WHERE tenant_id = $1 AND id = $2`,
+    [tenantId, recetaId, pagadaPorId],
+  );
+}
+
 export interface CrearItemInput {
   tenantId: string;
   recetaId: string;
@@ -442,6 +455,34 @@ export interface AsientoSistemaResult {
   partidaId: string;
   movimientoId: string;
   asientoId: string;
+}
+
+/**
+ * Creates one more item_receta (with a single componente) on the SAME receta
+ * as `seed.itemRecetaId` and returns its id. Tests that need a second live
+ * preparacion/asiento in the same tenant cannot reuse the seed's item: INV-P02
+ * allows one non-DESCARTADA preparacion per ficha_tecnica, and migration 0077
+ * (spec reserva-stock-preparacion R19) allows at most one live (INICIADA or
+ * CONFIRMADA) preparacion per item_receta across ficha versions.
+ */
+export async function insertItemAdicional(
+  tx: Client,
+  seed: Pick<AsientoSistemaResult, "tenantId" | "itemRecetaId" | "drogaId" | "unidadId">,
+): Promise<string> {
+  const recetaResult = await tx.query(`SELECT receta_id FROM fsj.item_receta WHERE tenant_id = $1 AND id = $2`, [
+    seed.tenantId,
+    seed.itemRecetaId,
+  ]);
+  const recetaId = recetaResult.rows[0].receta_id as string;
+  const itemRecetaId = await insertItemReceta(tx, { tenantId: seed.tenantId, recetaId });
+  await insertComponente(tx, {
+    tenantId: seed.tenantId,
+    itemRecetaId,
+    drogaId: seed.drogaId,
+    unidadMedidaId: seed.unidadId,
+    modoExpresion: "CS",
+  });
+  return itemRecetaId;
 }
 
 /**

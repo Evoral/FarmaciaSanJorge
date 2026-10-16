@@ -31,8 +31,16 @@
 import type { Client } from "pg";
 import { describe, it, expect } from "vitest";
 import { dbTestSkipReason, requireDbTestEnv } from "./env";
-import { asOwner, inRollbackTx, expectInvariantViolation, setRelojPrueba } from "./helpers";
-import { createUserWithRole, designarDt, seedAsientoSistema, insertAsientoSistema, type AsientoSistemaResult } from "./fixtures";
+import { asOwner, inRollbackTx, expectInvariantViolation, setRelojPrueba, avanzarJornadas } from "./helpers";
+import {
+  createUserWithRole,
+  designarDt,
+  seedAsientoSistema,
+  insertAsientoSistema,
+  insertFicha,
+  insertItemAdicional,
+  type AsientoSistemaResult,
+} from "./fixtures";
 
 async function crearDtVigente(tx: Client, seed: { tenantId: string; sistema: string }, vigenteDesde = "2000-01-01") {
   const dtId = await createUserWithRole(tx, seed.tenantId, "DIRECTOR_TECNICO", seed.sistema, "dtconc");
@@ -40,17 +48,10 @@ async function crearDtVigente(tx: Client, seed: { tenantId: string; sistema: str
   return { dtId, designacionId };
 }
 
+/** A NEW item_receta is needed for a second live preparacion (INV-P02 + migration 0077 R19: at most one live preparacion per item). */
 async function insertPreparacionAdicional(tx: Client, seed: AsientoSistemaResult): Promise<string> {
-  const versionResult = await tx.query(
-    `SELECT coalesce(max(version), 0) + 1 AS next FROM fsj.ficha_tecnica WHERE tenant_id = $1 AND item_receta_id = $2`,
-    [seed.tenantId, seed.itemRecetaId],
-  );
-  const version = versionResult.rows[0].next as number;
-  const fichaResult = await tx.query(
-    `INSERT INTO fsj.ficha_tecnica (tenant_id, item_receta_id, version, generada_por_id) VALUES ($1, $2, $3, $4) RETURNING id`,
-    [seed.tenantId, seed.itemRecetaId, version, seed.sistema],
-  );
-  const fichaTecnicaId = fichaResult.rows[0].id as string;
+  const itemRecetaId = await insertItemAdicional(tx, seed);
+  const fichaTecnicaId = await insertFicha(tx, { tenantId: seed.tenantId, itemRecetaId, generadaPorId: seed.sistema });
   await tx.query(
     `INSERT INTO fsj.linea_pesaje (tenant_id, ficha_tecnica_id, droga_id, droga_nombre, cantidad_teorica, cantidad_a_pesar, unidad_medida_id, orden)
      VALUES ($1, $2, $3, 'D', 1, 1, $4, 0)`,
@@ -113,6 +114,8 @@ describe.skipIf(dbTestSkipReason() !== null)("FASE 10 point 10.5: cierre diario 
         const { dtId, designacionId } = await crearDtVigente(tx, seed);
         const fecha = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
 
+        // INV-C21 (migration 0075): only a past jornada can be signed; the day after is still on time.
+        await avanzarJornadas(tx);
         const first = await tx.query(`SELECT id FROM fsj.cierre_diario_firmar($1, $2, $3, $4)`, [
           seed.tenantId,
           fecha.rows[0].fecha_asiento,
@@ -151,6 +154,10 @@ describe.skipIf(dbTestSkipReason() !== null)("FASE 10 point 10.5: cierre diario 
         const fechaD1 = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [insertResult.id]);
         expect(fechaD1.rows[0].fecha_asiento > fechaD.rows[0].fecha_asiento).toBe(true);
 
+        // Day D+2: D+1 is a past jornada too (INV-C21, migration 0075), so the
+        // INV-C19 ordering guard is the one that fires for it.
+        await setRelojPrueba(tx, "2026-06-17T12:00:00-03:00");
+
         // Attempting D+1 first (out of order) is rejected -- D still has unsigned asientos.
         await expectInvariantViolation(
           tx,
@@ -172,8 +179,8 @@ describe.skipIf(dbTestSkipReason() !== null)("FASE 10 point 10.5: cierre diario 
         ]);
         expect(cierreD.rows[0].id).toBeTruthy();
 
-        // Now D+1 can be signed.
-        const cierreD1 = await tx.query(`SELECT id FROM fsj.cierre_diario_firmar($1, $2, $3, $4, 'FALLA_SISTEMA', NULL)`, [
+        // Now D+1 can be signed (on time: today, D+2, is the day after it).
+        const cierreD1 = await tx.query(`SELECT id FROM fsj.cierre_diario_firmar($1, $2, $3, $4)`, [
           seed.tenantId,
           fechaD1.rows[0].fecha_asiento,
           dtId,

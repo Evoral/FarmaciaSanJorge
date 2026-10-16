@@ -12,7 +12,7 @@ import { randomUUID } from "node:crypto";
 import type { Client } from "pg";
 import { describe, it, expect } from "vitest";
 import { dbTestSkipReason } from "./env";
-import { asOwner, inRollbackTx, expectInvariantViolation, expectDbRejection, setRelojPrueba } from "./helpers";
+import { asOwner, inRollbackTx, expectInvariantViolation, expectDbRejection, setRelojPrueba, avanzarJornadas } from "./helpers";
 import {
   insertTenant,
   createSistemaUser,
@@ -21,22 +21,16 @@ import {
   designarDt,
   seedAsientoSistema,
   insertAsientoSistema,
+  insertFicha,
+  insertItemAdicional,
   hashV2,
   type AsientoSistemaResult,
 } from "./fixtures";
 
-/** See tests/db/libro-recetario.test.ts's identical helper for why a NEW ficha_tecnica version is needed (INV-P02). */
+/** See tests/db/libro-recetario.test.ts's identical helper for why a NEW item_receta is needed (INV-P02 + migration 0077 R19). */
 async function insertPreparacionAdicional(tx: Client, seed: AsientoSistemaResult): Promise<string> {
-  const versionResult = await tx.query(
-    `SELECT coalesce(max(version), 0) + 1 AS next FROM fsj.ficha_tecnica WHERE tenant_id = $1 AND item_receta_id = $2`,
-    [seed.tenantId, seed.itemRecetaId],
-  );
-  const version = versionResult.rows[0].next as number;
-  const fichaResult = await tx.query(
-    `INSERT INTO fsj.ficha_tecnica (tenant_id, item_receta_id, version, generada_por_id) VALUES ($1, $2, $3, $4) RETURNING id`,
-    [seed.tenantId, seed.itemRecetaId, version, seed.sistema],
-  );
-  const fichaTecnicaId = fichaResult.rows[0].id as string;
+  const itemRecetaId = await insertItemAdicional(tx, seed);
+  const fichaTecnicaId = await insertFicha(tx, { tenantId: seed.tenantId, itemRecetaId, generadaPorId: seed.sistema });
   await tx.query(
     `INSERT INTO fsj.linea_pesaje (tenant_id, ficha_tecnica_id, droga_id, droga_nombre, cantidad_teorica, cantidad_a_pesar, unidad_medida_id, orden)
      VALUES ($1, $2, $3, 'D', 1, 1, $4, 0)`,
@@ -82,6 +76,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
           [seed.tenantId, fecha.rows[0].fecha_asiento],
         );
 
+        // INV-C21 (migration 0075): the jornada is signed the day after, which is still on time (INV-C18).
+        await avanzarJornadas(tx);
         const cierre = await tx.query(`SELECT * FROM fsj.cierre_diario_firmar($1, $2, $3, $4, NULL, NULL)`, [
           seed.tenantId,
           fecha.rows[0].fecha_asiento,
@@ -137,6 +133,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
         const dtId = await createUserWithRole(tx, tenantId, "DIRECTOR_TECNICO", sistema, "firmaContralor");
         const { designacionId } = await designarDt(tx, tenantId, dtId, sistema);
 
+        // INV-C21 (migration 0075): sign the jornada the day after, still on time (INV-C18).
+        await avanzarJornadas(tx);
         const cierre = await tx.query(`SELECT * FROM fsj.cierre_diario_firmar($1, $2, $3, $4, NULL, NULL)`, [
           tenantId,
           apertura.rows[0].fecha_asiento,
@@ -188,10 +186,14 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
         const recetarioD = await tx.query(`SELECT count(*)::int AS n FROM fsj.asiento_recetario WHERE tenant_id = $1`, [tenantId]);
         expect(recetarioD.rows[0].n).toBe(0);
 
-        // Day D+1.
+        // Day D+1 (the jornada we will try to sign out of order).
         await setRelojPrueba(tx, "2026-06-16T12:00:00-03:00");
         const fechaD1 = (await tx.query(`SELECT fsj.jornada_actual($1)::text AS j`, [tenantId])).rows[0].j as string;
         expect(fechaD1 > fechaD).toBe(true);
+
+        // Day D+2: D+1 is now a past jornada (INV-C21, migration 0075), so the
+        // INV-C19 guard is the one that fires for it.
+        await setRelojPrueba(tx, "2026-06-17T12:00:00-03:00");
 
         await expectInvariantViolation(
           tx,
@@ -199,7 +201,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
           "INV-C19",
         );
 
-        // Signing D first works (late -> motivo required, INV-C18) and links the contralor row.
+        // Signing D first works (D+2 -> late, motivo required, INV-C18) and links the contralor row.
         const cierreD = await tx.query(`SELECT id FROM fsj.cierre_diario_firmar($1, $2, $3, $4, 'FALLA_SISTEMA', NULL)`, [
           tenantId,
           fechaD,
@@ -209,9 +211,10 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
         const linked = await tx.query(`SELECT cierre_diario_id FROM fsj.asiento_contralor WHERE id = $1`, [apertura.rows[0].id]);
         expect(linked.rows[0].cierre_diario_id).toBe(cierreD.rows[0].id);
 
-        // Now D+1 can be signed.
-        const cierreD1 = await tx.query(`SELECT id FROM fsj.cierre_diario_firmar($1, $2, $3, $4)`, [tenantId, fechaD1, dtId, designacionId]);
+        // Now D+1 can be signed, on time (signed on D+2 = the day after D+1).
+        const cierreD1 = await tx.query(`SELECT id, fuera_de_termino FROM fsj.cierre_diario_firmar($1, $2, $3, $4)`, [tenantId, fechaD1, dtId, designacionId]);
         expect(cierreD1.rows[0].id).toBeTruthy();
+        expect(cierreD1.rows[0].fuera_de_termino).toBe(false);
       }),
     );
   });
@@ -223,7 +226,11 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
         const { dtId, designacionId } = await crearDtVigente(tx, seed);
         const fecha = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
 
+        // INV-C21 (migration 0075): sign on the day after, then pin the clock back
+        // to the signed jornada so the movimiento below really lands in it.
+        const desde = await avanzarJornadas(tx);
         await tx.query(`SELECT fsj.cierre_diario_firmar($1, $2, $3, $4)`, [seed.tenantId, fecha.rows[0].fecha_asiento, dtId, designacionId]);
+        await setRelojPrueba(tx, desde);
 
         await expectInvariantViolation(
           tx,
@@ -246,6 +253,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
         const { dtId, designacionId } = await crearDtVigente(tx, seed);
         const fecha = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
 
+        // INV-C21 (migration 0075): only a past jornada can be signed.
+        await avanzarJornadas(tx);
         await tx.query(`SELECT fsj.cierre_diario_firmar($1, $2, $3, $4)`, [seed.tenantId, fecha.rows[0].fecha_asiento, dtId, designacionId]);
 
         await expectInvariantViolation(
@@ -271,6 +280,10 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
         const fechaD1 = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [asiento2]);
         expect(fechaD1.rows[0].fecha_asiento > fechaD.rows[0].fecha_asiento).toBe(true);
 
+        // Day D+2: D+1 is now a past jornada too (INV-C21, migration 0075), so
+        // the INV-C19 guard is the one that fires for it.
+        await setRelojPrueba(tx, "2026-06-17T12:00:00-03:00");
+
         await expectInvariantViolation(
           tx,
           () => tx.query(`SELECT fsj.cierre_diario_firmar($1, $2, $3, $4)`, [seed.tenantId, fechaD1.rows[0].fecha_asiento, dtId, designacionId]),
@@ -278,11 +291,9 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
         );
 
         // Signing D FIRST works. By now the tenant's CURRENT jornada is
-        // already D+1 (we jumped forward to create asiento2), so signing D
-        // at this point is ALSO fuera_de_termino (INV-C18) -- realistically
-        // correct (signing "yesterday" today is late) and orthogonal to
-        // what THIS test checks (chronological order), so a motivo is
-        // supplied here; INV-C18 has its own dedicated test above.
+        // D+2, so signing D at this point is ALSO fuera_de_termino (INV-C18)
+        // -- orthogonal to what THIS test checks (chronological order), so a
+        // motivo is supplied here; INV-C18 has its own dedicated test below.
         const cierreD = await tx.query(`SELECT id FROM fsj.cierre_diario_firmar($1, $2, $3, $4, $5, NULL)`, [
           seed.tenantId,
           fechaD.rows[0].fecha_asiento,
@@ -292,16 +303,15 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
         ]);
         expect(cierreD.rows[0].id).toBeTruthy();
 
-        // Now D+1 can be signed. It will be reported fuera_de_termino (D
-        // already passed) -- see the dedicated INV-C18 test below for that
-        // requirement; pass a motivo here so this test stays focused on C19.
-        const cierreD1 = await tx.query(`SELECT id FROM fsj.cierre_diario_firmar($1, $2, $3, $4, 'FALLA_SISTEMA', NULL)`, [
+        // Now D+1 can be signed, on time: today (D+2) is the day after it.
+        const cierreD1 = await tx.query(`SELECT id, fuera_de_termino FROM fsj.cierre_diario_firmar($1, $2, $3, $4)`, [
           seed.tenantId,
           fechaD1.rows[0].fecha_asiento,
           dtId,
           designacionId,
         ]);
         expect(cierreD1.rows[0].id).toBeTruthy();
+        expect(cierreD1.rows[0].fuera_de_termino).toBe(false);
       }),
     );
   });
@@ -314,8 +324,9 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
         const { dtId, designacionId } = await crearDtVigente(tx, seed);
         const fecha = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
 
-        // Move "now" forward so `fecha` is now in the past.
-        await setRelojPrueba(tx, "2026-06-16T12:00:00-03:00");
+        // Move "now" two days forward: the day after the jornada is still on
+        // time (INV-C18, migration 0075), so `fecha` is late from D+2 on.
+        await setRelojPrueba(tx, "2026-06-17T12:00:00-03:00");
 
         await expectInvariantViolation(
           tx,
@@ -398,6 +409,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
         const seed = await seedAsientoSistema(tx, "c04");
         const { dtId, designacionId } = await crearDtVigente(tx, seed);
         const fecha = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
+        // INV-C21 (migration 0075): only a past jornada can be signed.
+        await avanzarJornadas(tx);
         const cierre = await tx.query(`SELECT id FROM fsj.cierre_diario_firmar($1, $2, $3, $4)`, [
           seed.tenantId,
           fecha.rows[0].fecha_asiento,

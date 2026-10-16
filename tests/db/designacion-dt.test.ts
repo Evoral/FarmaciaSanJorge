@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { describe, it, expect } from "vitest";
 import type { Client } from "pg";
 import { dbTestSkipReason } from "./env";
-import { asOwner, inRollbackTx, withTenant, expectInvariantViolation, expectDbRejection } from "./helpers";
+import { asOwner, inRollbackTx, withTenant, expectInvariantViolation, expectDbRejection, avanzarJornadas } from "./helpers";
 import { seedAsientoSistema, designarDt } from "./fixtures";
 
 async function insertTenant(tx: Client, suffix: string): Promise<string> {
@@ -475,6 +475,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0021_designacion_dt_cese_retroacti
         const { designacionId } = await designarDt(tx, seed.tenantId, dtId, seed.sistema);
 
         const fecha = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
+        // INV-C21 (migration 0075): only a past jornada can be signed.
+        await avanzarJornadas(tx);
         await tx.query(`SELECT fsj.cierre_diario_firmar($1, $2, $3, $4)`, [seed.tenantId, fecha.rows[0].fecha_asiento, dtId, designacionId]);
 
         const diaAnterior = await tx.query(`SELECT ($1::date - 1)::text AS f`, [fecha.rows[0].fecha_asiento]);
@@ -500,6 +502,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0021_designacion_dt_cese_retroacti
         const { designacionId } = await designarDt(tx, seed.tenantId, dtId, seed.sistema);
 
         const fecha = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
+        // INV-C21 (migration 0075): only a past jornada can be signed.
+        await avanzarJornadas(tx);
         await tx.query(`SELECT fsj.cierre_diario_firmar($1, $2, $3, $4)`, [seed.tenantId, fecha.rows[0].fecha_asiento, dtId, designacionId]);
 
         const result = await tx.query(
@@ -521,6 +525,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0021_designacion_dt_cese_retroacti
         const dtA = await createUserWithRole(tx, seed.tenantId, "DIRECTOR_TECNICO", seed.sistema, "dt004cA");
         const { designacionId: designacionAId } = await designarDt(tx, seed.tenantId, dtA, seed.sistema);
         const fecha = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
+        // INV-C21 (migration 0075): only a past jornada can be signed.
+        await avanzarJornadas(tx);
         await tx.query(`SELECT fsj.cierre_diario_firmar($1, $2, $3, $4)`, [seed.tenantId, fecha.rows[0].fecha_asiento, dtA, designacionAId]);
 
         // Designacion B (a SEPARATE, unrelated SUPLENTE period, same tenant) was never used to sign anything.

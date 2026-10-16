@@ -7,7 +7,7 @@ import type { Client } from "pg";
 import { describe, it, expect } from "vitest";
 import { dbTestSkipReason } from "./env";
 import { asOwner, inRollbackTx, expectInvariantViolation, expectDbRejection } from "./helpers";
-import { insertTenant, createSistemaUser, insertPaciente, insertMedico, insertReceta, insertItemReceta, insertComponente, insertUnidad, insertDroga } from "./fixtures";
+import { insertTenant, createSistemaUser, insertPaciente, insertMedico, insertReceta, insertItemReceta, insertComponente, insertUnidad, insertDroga, marcarRecetaPagada } from "./fixtures";
 
 /** Steps a receta through PENDIENTE_PREPARACION -> ... -> PREPARADA. Stops one step before ENTREGADA so callers can exercise the entrega itself. */
 async function avanzarHastaPreparada(tx: Client, tenantId: string, recetaId: string): Promise<void> {
@@ -132,6 +132,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0016_entrega_archivo migration (fs
           `INSERT INTO fsj.entrega (tenant_id, receta_id, modalidad, entregada_por_id) VALUES ($1, $2, 'RETIRO_PRESENCIAL', $3)`,
           [tenantId, recetaId, sistema],
         );
+        // INV-R14 (migration 0076): only a paid receta can become ENTREGADA.
+        await marcarRecetaPagada(tx, tenantId, recetaId, sistema);
         await tx.query(`UPDATE fsj.receta SET estado = 'ENTREGADA' WHERE tenant_id = $1 AND id = $2`, [tenantId, recetaId]);
 
         await tx.query(`UPDATE fsj.receta SET lote_archivo_id = $1 WHERE id = $2`, [loteId, recetaId]);

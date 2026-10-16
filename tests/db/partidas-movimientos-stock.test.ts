@@ -162,8 +162,8 @@ async function insertPreparacionParaEgreso(
     [tenantId, receta.rows[0].id],
   );
   await tx.query(
-    `INSERT INTO fsj.componente_item_receta (tenant_id, item_receta_id, droga_id, unidad_medida_id, modo_expresion, orden)
-     VALUES ($1, $2, $3, $4, 'CS', 0)`,
+    `INSERT INTO fsj.componente_item_receta (tenant_id, item_receta_id, droga_id, unidad_medida_id, modo_expresion)
+     VALUES ($1, $2, $3, $4, 'CS')`,
     [tenantId, item.rows[0].id, drogaId, unidadId],
   );
   const ficha = await tx.query(

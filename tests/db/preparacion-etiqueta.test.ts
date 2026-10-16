@@ -146,7 +146,12 @@ describe.skipIf(dbTestSkipReason() !== null)("0013_preparacion_etiqueta migratio
     );
   });
 
-  it("INV-PRP-003: at most one CONFIRMADA preparacion per item_receta, even across two fichas (versions) of the same item", async () => {
+  // Migration 0077 (docs/specs/reserva-stock-preparacion.md R19) tightened
+  // INV-PRP-003 ("one CONFIRMADA per item_receta") to "one LIVE -- INICIADA
+  // or CONFIRMADA -- per item_receta", across ficha versions
+  // (uq_preparacion_item_viva). A second preparacion on another ficha of the
+  // same item is now rejected at INSERT, before it could ever be confirmed.
+  it("INV-PRP-003 / R19 (0077): at most one live preparacion per item_receta, even across two fichas (versions) of the same item", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const { tenantId, sistema, itemRecetaId, fichaTecnicaId } = await seedFicha(tx, "prp003");
@@ -163,24 +168,20 @@ describe.skipIf(dbTestSkipReason() !== null)("0013_preparacion_etiqueta migratio
           unidadMedidaId: drogaResult.rows[0].unidad_medida_id,
         });
 
+        // A second preparacion on the OTHER ficha (fichaV2) of the SAME
+        // item_receta -- INV-P02 (per ficha) cannot fire, only 0077's index.
+        const segundaEnV2 = () => insertPreparacion(tx, { tenantId, fichaTecnicaId: fichaV2, iniciadaPorId: sistema });
+
         const prep1 = await insertPreparacion(tx, { tenantId, fichaTecnicaId, iniciadaPorId: sistema });
+        // While the first one is INICIADA.
+        await expectDbRejection(tx, segundaEnV2, "23505");
+
         await tx.query(`UPDATE fsj.preparacion SET estado = 'CONFIRMADA', confirmada_en = now(), preparada_por_id = $1 WHERE id = $2`, [
           sistema,
           prep1,
         ]);
-
-        // A second preparacion, on the OTHER ficha (fichaV2) of the SAME item_receta.
-        const prep2 = await insertPreparacion(tx, { tenantId, fichaTecnicaId: fichaV2, iniciadaPorId: sistema });
-
-        await expectDbRejection(
-          tx,
-          () =>
-            tx.query(`UPDATE fsj.preparacion SET estado = 'CONFIRMADA', confirmada_en = now(), preparada_por_id = $1 WHERE id = $2`, [
-              sistema,
-              prep2,
-            ]),
-          "23505",
-        );
+        // And once it is CONFIRMADA (the original INV-PRP-003 case).
+        await expectDbRejection(tx, segundaEnV2, "23505");
       }),
     );
   });

@@ -13,7 +13,7 @@ import type { Client } from "pg";
 import { describe, it, expect } from "vitest";
 import { dbTestSkipReason } from "./env";
 import { asOwner, inRollbackTx, expectInvariantViolation } from "./helpers";
-import { insertTenant, createSistemaUser, insertPaciente, insertMedico, insertReceta, insertItemReceta, insertComponente, insertUnidad, insertDroga } from "./fixtures";
+import { insertTenant, createSistemaUser, insertPaciente, insertMedico, insertReceta, insertItemReceta, insertComponente, insertUnidad, insertDroga, marcarRecetaPagada } from "./fixtures";
 
 /** Steps a receta through PENDIENTE_PREPARACION -> ... -> PREPARADA -- same helper as tests/db/entrega-archivo.test.ts (own copy, test files do not import from each other). */
 async function avanzarHastaPreparada(tx: Client, tenantId: string, recetaId: string): Promise<void> {
@@ -31,6 +31,9 @@ async function seedReceta(tx: Client, suffix: string): Promise<{ tenantId: strin
   const recetaId = await insertReceta(tx, { tenantId, pacienteId, medicoId, registradaPorId: sistema });
   const itemRecetaId = await insertItemReceta(tx, { tenantId, recetaId });
   await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId });
+  // INV-R14 (migration 0076): only a paid receta can become ENTREGADA. Paid up
+  // front so these tests exercise INV-ENT-002 alone.
+  await marcarRecetaPagada(tx, tenantId, recetaId, sistema);
   return { tenantId, sistema, recetaId };
 }
 

@@ -253,6 +253,27 @@ export async function setRelojPrueba(client: Client, isoInstant: string): Promis
 }
 
 /**
+ * Moves the jornada clock `dias` days forward from wherever it is now (the
+ * real now(), or an instant already pinned with `setRelojPrueba`) and
+ * returns the instant it moved FROM, so a test can pin it back if needed.
+ *
+ * Migration 0075 (DP-18b revised) only lets the DT sign a jornada BEFORE
+ * the current one (INV-C21), so a test that creates asientos "today" and
+ * then signs them advances one day first -- which is also on time
+ * (INV-C18: plazo_firma_dias counts from the day after the jornada).
+ * Formatted in UTC ISO 8601 so the value parses under any DateStyle.
+ */
+export async function avanzarJornadas(client: Client, dias = 1): Promise<string> {
+  const result = await client.query<{ desde: string; hasta: string }>(
+    `SELECT to_char(fsj.instante_actual() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS desde,
+            to_char((fsj.instante_actual() + make_interval(days => $1::int)) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS hasta`,
+    [dias],
+  );
+  await setRelojPrueba(client, result.rows[0].hasta);
+  return result.rows[0].desde;
+}
+
+/**
  * Creates a savepoint-name generator: each call to the returned function
  * returns a new name of the form `<prefix>_<n>`, unique for the lifetime
  * of that generator. Factored out as a plain, side-effect-free-per-call

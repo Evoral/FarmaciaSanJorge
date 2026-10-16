@@ -15,20 +15,12 @@ import type { Client } from "pg";
 import { describe, it, expect } from "vitest";
 import { dbTestSkipReason } from "./env";
 import { asOwner, inRollbackTx, inSavepoint, expectInvariantViolation } from "./helpers";
-import { seedAsientoSistema, insertAsientoSistema, hashV2, type AsientoSistemaResult } from "./fixtures";
+import { seedAsientoSistema, insertAsientoSistema, insertFicha, insertItemAdicional, hashV2, type AsientoSistemaResult } from "./fixtures";
 
-/** See tests/db/libro-recetario.test.ts's identical helper for why a NEW ficha_tecnica version is needed (INV-P02: at most one non-DESCARTADA preparacion per ficha_tecnica_id). */
+/** See tests/db/libro-recetario.test.ts's identical helper for why a NEW item_receta is needed (INV-P02 + migration 0077 R19). */
 async function insertPreparacionAdicional(tx: Client, seed: AsientoSistemaResult): Promise<string> {
-  const versionResult = await tx.query(
-    `SELECT coalesce(max(version), 0) + 1 AS next FROM fsj.ficha_tecnica WHERE tenant_id = $1 AND item_receta_id = $2`,
-    [seed.tenantId, seed.itemRecetaId],
-  );
-  const version = versionResult.rows[0].next as number;
-  const fichaResult = await tx.query(
-    `INSERT INTO fsj.ficha_tecnica (tenant_id, item_receta_id, version, generada_por_id) VALUES ($1, $2, $3, $4) RETURNING id`,
-    [seed.tenantId, seed.itemRecetaId, version, seed.sistema],
-  );
-  const fichaTecnicaId = fichaResult.rows[0].id as string;
+  const itemRecetaId = await insertItemAdicional(tx, seed);
+  const fichaTecnicaId = await insertFicha(tx, { tenantId: seed.tenantId, itemRecetaId, generadaPorId: seed.sistema });
   const result = await tx.query(
     `INSERT INTO fsj.preparacion (tenant_id, ficha_tecnica_id, iniciada_por_id) VALUES ($1, $2, $3) RETURNING id`,
     [seed.tenantId, fichaTecnicaId, seed.sistema],

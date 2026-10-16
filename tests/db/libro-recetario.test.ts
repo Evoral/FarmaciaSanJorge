@@ -19,7 +19,7 @@ import { createHash } from "node:crypto";
 import { Client } from "pg";
 import { describe, it, expect } from "vitest";
 import { dbTestSkipReason, requireDbTestEnv } from "./env";
-import { asOwner, inRollbackTx, inSavepoint, withTenant, expectInvariantViolation, expectDbRejection, setRelojPrueba } from "./helpers";
+import { asOwner, inRollbackTx, inSavepoint, withTenant, expectInvariantViolation, expectDbRejection, setRelojPrueba, avanzarJornadas } from "./helpers";
 import {
   insertTenant,
   createSistemaUser,
@@ -28,6 +28,8 @@ import {
   createUserWithRole,
   seedAsientoSistema,
   insertAsientoSistema,
+  insertFicha,
+  insertItemAdicional,
   hashV2,
   type AsientoSistemaResult,
 } from "./fixtures";
@@ -137,26 +139,19 @@ async function insertAsientoSimple(
 }
 
 /**
- * Creates a NEW ficha_tecnica VERSION (its own linea_pesaje) + a fresh
- * preparacion (INICIADA, unconfirmed is fine -- deferred P04 never fires
- * under rollback) for a second asiento. A second preparacion on the SAME
- * ficha_tecnica_id would violate INV-P02 (uq_preparacion_ficha_activa,
- * migration 0013) since seed's original preparacion is already
- * CONFIRMADA (not DESCARTADA) -- a new ficha VERSION of the same
- * item_receta sidesteps that exactly like preparacion-etiqueta.test.ts's
- * INV-PRP-003 test does.
+ * Creates a NEW item_receta (on the seed's receta) with its own ficha_tecnica
+ * (version 1) + linea_pesaje + a fresh preparacion (INICIADA, unconfirmed is
+ * fine -- deferred P04 never fires under rollback) for a second asiento. A
+ * second preparacion on the SAME ficha_tecnica_id would violate INV-P02
+ * (uq_preparacion_ficha_activa, migration 0013) and a new ficha VERSION of
+ * the SAME item_receta is rejected too while the seed's preparacion is live
+ * (migration 0077, spec reserva-stock-preparacion R19: at most one live
+ * preparacion per item_receta across versions) -- so each extra asiento
+ * belongs to its own item.
  */
 async function insertPreparacionAdicional(tx: Client, seed: AsientoSistemaResult): Promise<string> {
-  const versionResult = await tx.query(
-    `SELECT coalesce(max(version), 0) + 1 AS next FROM fsj.ficha_tecnica WHERE tenant_id = $1 AND item_receta_id = $2`,
-    [seed.tenantId, seed.itemRecetaId],
-  );
-  const version = versionResult.rows[0].next as number;
-  const fichaResult = await tx.query(
-    `INSERT INTO fsj.ficha_tecnica (tenant_id, item_receta_id, version, generada_por_id) VALUES ($1, $2, $3, $4) RETURNING id`,
-    [seed.tenantId, seed.itemRecetaId, version, seed.sistema],
-  );
-  const fichaTecnicaId = fichaResult.rows[0].id as string;
+  const itemRecetaId = await insertItemAdicional(tx, seed);
+  const fichaTecnicaId = await insertFicha(tx, { tenantId: seed.tenantId, itemRecetaId, generadaPorId: seed.sistema });
   await tx.query(
     `INSERT INTO fsj.linea_pesaje (tenant_id, ficha_tecnica_id, droga_id, droga_nombre, cantidad_teorica, cantidad_a_pesar, unidad_medida_id, orden)
      VALUES ($1, $2, $3, 'D', 1, 1, $4, 0)`,
@@ -482,6 +477,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0014_libro_recetario_contralor mig
         const asiento = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
         const fecha = asiento.rows[0].fecha_asiento as string;
 
+        // INV-C21 (migration 0075): only a past jornada can be signed.
+        await avanzarJornadas(tx);
         await tx.query(`SELECT fsj.cierre_diario_firmar($1, $2, $3, $4)`, [seed.tenantId, fecha, dtId, designacionId]);
 
         await expectInvariantViolation(
@@ -501,7 +498,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0014_libro_recetario_contralor mig
   it("rectificativo in a SIGNED jornada works, gets the next correlativo, and a second rectificativo is rejected (INV-L18/L19)", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
-        // Day D: sign it, then move "now" forward to day D+1 (setRelojPrueba,
+        // Day D: move "now" forward to day D+1 and sign D there (setRelojPrueba,
         // prisma/migrations/.../0024_jornada_reloj_de_prueba) -- this is how
         // these tests get a second, strictly-later jornada without waiting
         // for real time to pass.
@@ -530,10 +527,10 @@ describe.skipIf(dbTestSkipReason() !== null)("0014_libro_recetario_contralor mig
         const asientoOriginal = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
         const fechaOriginal = asientoOriginal.rows[0].fecha_asiento as string;
 
-        await tx.query(`SELECT fsj.cierre_diario_firmar($1, $2, $3, $4)`, [seed.tenantId, fechaOriginal, dtId, designacionId]);
-
-        // Move "now" forward to day D+1.
+        // INV-C21 (migration 0075): D can only be signed from D+1 on, so move
+        // "now" forward to day D+1 first (signing it there is still on time).
         await setRelojPrueba(tx, "2026-06-16T12:00:00-03:00");
+        await tx.query(`SELECT fsj.cierre_diario_firmar($1, $2, $3, $4)`, [seed.tenantId, fechaOriginal, dtId, designacionId]);
         const jornadaNueva = await tx.query(`SELECT fsj.jornada_actual($1)::text AS jornada`, [seed.tenantId]);
         expect(jornadaNueva.rows[0].jornada > fechaOriginal).toBe(true);
 
@@ -740,8 +737,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0014_libro_recetario_contralor mig
             [tenantId, receta.rows[0].id],
           );
           await tx.query(
-            `INSERT INTO fsj.componente_item_receta (tenant_id, item_receta_id, droga_id, unidad_medida_id, modo_expresion, orden)
-             VALUES ($1,$2,$3,$4,'CS',0)`,
+            `INSERT INTO fsj.componente_item_receta (tenant_id, item_receta_id, droga_id, unidad_medida_id, modo_expresion)
+             VALUES ($1,$2,$3,$4,'CS')`,
             [tenantId, item.rows[0].id, drogaId, unidadId],
           );
           const ficha = await tx.query(
@@ -1197,7 +1194,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0018_legal_core_fixes -- N2/N3 fsj
 // Migration 0033 -- D1: fsj.rectificacion_asiento (INV-L21, both directions).
 // ============================================================================
 describe.skipIf(dbTestSkipReason() !== null)("0033_rectificacion_asiento -- INV-L21 (fsj schema)", () => {
-  /** Signs seed.asientoId's jornada and returns the DT id/designacionId + the RECTIFICATIVO-eligible fecha. Mirrors the "rectificativo" test in the 0014 describe block above. */
+  /** Advances the jornada clock one day (INV-C21, migration 0075: only a past jornada can be signed), signs seed.asientoId's jornada and returns the DT id/designacionId. Mirrors the "rectificativo" test in the 0014 describe block above. */
   async function firmarJornadaDeSeed(tx: Client, seed: AsientoSistemaResult): Promise<{ dtId: string; designacionId: string }> {
     const dtUser = await tx.query(
       `INSERT INTO fsj.usuario (tenant_id, email, nombre, apellido, dni, estado, creado_por_id) VALUES ($1,$2,'D','T',$3,'ACTIVO',$4) RETURNING id`,
@@ -1213,6 +1210,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0033_rectificacion_asiento -- INV-
     ]);
     const { designacionId } = await designarDt(tx, seed.tenantId, dtId, seed.sistema);
     const asientoOriginal = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
+    await avanzarJornadas(tx);
     await tx.query(`SELECT fsj.cierre_diario_firmar($1, $2, $3, $4)`, [seed.tenantId, asientoOriginal.rows[0].fecha_asiento, dtId, designacionId]);
     return { dtId, designacionId };
   }

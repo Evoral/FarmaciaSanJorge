@@ -7,9 +7,10 @@
  *   row, via trg_asiento_recetario_validar_jornada_cerrada /
  *   trg_asiento_contralor_validar_jornada_cerrada.
  *
- *   HOLE 2 -- fsj.cierre_diario_firmar now rejects p_fecha in the future
- *   (INV-C21). Signing today is still allowed (DP-18b open, migration 0019
- *   header).
+ *   HOLE 2 -- fsj.cierre_diario_firmar rejects p_fecha in the future
+ *   (INV-C21, migration 0019). Since migration 0075 (DP-18b revised) it also
+ *   rejects TODAY: only a jornada before the current one can be signed, so
+ *   tests that sign what they just created advance the clock first.
  *
  * See tests/db/helpers.ts for the rollback-transaction safety model and
  * tests/db/fixtures.ts for the shared seed helpers. A second, strictly-later
@@ -21,7 +22,7 @@ import { randomUUID } from "node:crypto";
 import type { Client } from "pg";
 import { describe, it, expect } from "vitest";
 import { dbTestSkipReason } from "./env";
-import { asOwner, inRollbackTx, expectInvariantViolation, setRelojPrueba } from "./helpers";
+import { asOwner, inRollbackTx, expectInvariantViolation, setRelojPrueba, avanzarJornadas } from "./helpers";
 import {
   insertTenant,
   createSistemaUser,
@@ -30,21 +31,15 @@ import {
   designarDt,
   seedAsientoSistema,
   insertAsientoSistema,
+  insertFicha,
+  insertItemAdicional,
   type AsientoSistemaResult,
 } from "./fixtures";
 
-/** See tests/db/cierre-diario.test.ts's identical helper for why a NEW ficha_tecnica version is needed (INV-P02). */
+/** See tests/db/libro-recetario.test.ts's identical helper for why a NEW item_receta is needed (INV-P02 + migration 0077 R19). */
 async function insertPreparacionAdicional(tx: Client, seed: AsientoSistemaResult): Promise<string> {
-  const versionResult = await tx.query(
-    `SELECT coalesce(max(version), 0) + 1 AS next FROM fsj.ficha_tecnica WHERE tenant_id = $1 AND item_receta_id = $2`,
-    [seed.tenantId, seed.itemRecetaId],
-  );
-  const version = versionResult.rows[0].next as number;
-  const fichaResult = await tx.query(
-    `INSERT INTO fsj.ficha_tecnica (tenant_id, item_receta_id, version, generada_por_id) VALUES ($1, $2, $3, $4) RETURNING id`,
-    [seed.tenantId, seed.itemRecetaId, version, seed.sistema],
-  );
-  const fichaTecnicaId = fichaResult.rows[0].id as string;
+  const itemRecetaId = await insertItemAdicional(tx, seed);
+  const fichaTecnicaId = await insertFicha(tx, { tenantId: seed.tenantId, itemRecetaId, generadaPorId: seed.sistema });
   await tx.query(
     `INSERT INTO fsj.linea_pesaje (tenant_id, ficha_tecnica_id, droga_id, droga_nombre, cantidad_teorica, cantidad_a_pesar, unidad_medida_id, orden)
      VALUES ($1, $2, $3, 'D', 1, 1, $4, 0)`,
@@ -106,7 +101,11 @@ describe.skipIf(dbTestSkipReason() !== null)("0019_cierre_jornada_guards (fsj sc
         expect(asiento2.id).toBeTruthy();
 
         const fecha = asiento2.fechaAsiento;
+        // INV-C21 (migration 0075): sign on the day after, then pin the clock
+        // back to the signed jornada so the inserts below really land in it.
+        const desde = await avanzarJornadas(tx);
         await firmar(tx, seed.tenantId, fecha, dtId, designacionId);
+        await setRelojPrueba(tx, desde);
 
         // Now signed: a THIRD SISTEMA asiento for the same jornada must be rejected.
         // If trg_asiento_recetario_validar_jornada_cerrada is removed, this
@@ -164,7 +163,11 @@ describe.skipIf(dbTestSkipReason() !== null)("0019_cierre_jornada_guards (fsj sc
         expect(apertura.rows[0].id).toBeTruthy();
         const fecha = apertura.rows[0].fecha_asiento as string;
 
+        // INV-C21 (migration 0075): sign on the day after, then pin the clock
+        // back to the signed jornada so the INGRESO below really lands in it.
+        const desde = await avanzarJornadas(tx);
         await firmar(tx, tenantId, fecha, dtId, designacionId);
+        await setRelojPrueba(tx, desde);
 
         // Now signed: a further movement (INGRESO) on this jornada must be rejected.
         // If trg_asiento_contralor_validar_jornada_cerrada is removed, this
@@ -183,7 +186,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0019_cierre_jornada_guards (fsj sc
     );
   });
 
-  it("HOLE 1a rectificativo: succeeds when TODAY is unsigned, and is rejected with INV-C03 once TODAY is signed", async () => {
+  it("HOLE 1a rectificativo: succeeds when its jornada is unsigned, and is rejected with INV-C03 once that jornada is signed", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         // Day D: two SISTEMA asientos, both to be signed together.
@@ -193,10 +196,10 @@ describe.skipIf(dbTestSkipReason() !== null)("0019_cierre_jornada_guards (fsj sc
         const asiento2 = await insertAsientoSistemaAdicional(tx, seed);
         const fechaD = asiento2.fechaAsiento;
 
-        await firmar(tx, seed.tenantId, fechaD, dtId, designacionId);
-
-        // Move forward: TODAY is now D+1, strictly later, unsigned.
+        // Move forward: TODAY is now D+1, strictly later, so D can be signed
+        // (INV-C21, migration 0075) and D+1 stays unsigned.
         await setRelojPrueba(tx, "2026-06-16T12:00:00-03:00");
+        await firmar(tx, seed.tenantId, fechaD, dtId, designacionId);
         const fechaD1 = (await tx.query(`SELECT fsj.jornada_actual($1)::text AS j`, [seed.tenantId])).rows[0].j as string;
         expect(fechaD1 > fechaD).toBe(true);
 
@@ -209,8 +212,11 @@ describe.skipIf(dbTestSkipReason() !== null)("0019_cierre_jornada_guards (fsj sc
         );
         expect(rectificativo.rows[0].fecha_asiento).toBe(fechaD1);
 
-        // Sign D+1 (today) -- still allowed pending DP-18b.
+        // Sign D+1 from D+2 (INV-C21: only a past jornada), then pin the clock
+        // back to D+1 so the rectificativo below really lands in the signed jornada.
+        await setRelojPrueba(tx, "2026-06-17T12:00:00-03:00");
         await firmar(tx, seed.tenantId, fechaD1, dtId, designacionId);
+        await setRelojPrueba(tx, "2026-06-16T12:00:00-03:00");
 
         // A rectificativo of asiento2 (a DIFFERENT original, so INV-L19 does
         // not interfere) is now dated into D+1, which is signed: rejected.
@@ -230,7 +236,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0019_cierre_jornada_guards (fsj sc
     );
   });
 
-  it("HOLE 2 / INV-C21: signing a FUTURE jornada is rejected; signing TODAY and a PAST jornada still succeed (DP-18b pending)", async () => {
+  it("HOLE 2 / INV-C21: signing a FUTURE jornada or TODAY is rejected; once it is a PAST jornada it can be signed (migration 0075)", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const seed = await seedAsientoSistema(tx, "c21");
@@ -247,14 +253,23 @@ describe.skipIf(dbTestSkipReason() !== null)("0019_cierre_jornada_guards (fsj sc
           "INV-C21",
         );
 
-        // Today: still allowed (DP-18b pending).
+        // Today: rejected too (migration 0075, DP-18b revised -- the cierre is
+        // signed the day after).
+        await expectInvariantViolation(
+          tx,
+          () => tx.query(`SELECT fsj.cierre_diario_firmar($1, $2, $3, $4)`, [seed.tenantId, hoy, dtId, designacionId]),
+          "INV-C21",
+        );
+
+        // The next day it is a past jornada and signing succeeds (on time).
+        await avanzarJornadas(tx);
         const cierreHoy = await firmar(tx, seed.tenantId, hoy, dtId, designacionId);
         expect(cierreHoy).toBeTruthy();
       }),
     );
   });
 
-  it("HOLE 2 / INV-C21: a PAST jornada can still be signed (only FUTURE dates are blocked)", async () => {
+  it("HOLE 2 / INV-C21: a PAST jornada can be signed, also days late (only today and FUTURE dates are blocked)", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         // Day D, then move "now" forward so D becomes a PAST jornada
@@ -264,12 +279,12 @@ describe.skipIf(dbTestSkipReason() !== null)("0019_cierre_jornada_guards (fsj sc
         const { dtId, designacionId } = await crearDtVigente(tx, seed);
         const fechaD = await tx.query(`SELECT fecha_asiento::text FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
 
-        await setRelojPrueba(tx, "2026-06-16T12:00:00-03:00");
+        await setRelojPrueba(tx, "2026-06-17T12:00:00-03:00");
         const hoy = (await tx.query(`SELECT fsj.jornada_actual($1)::text AS j`, [seed.tenantId])).rows[0].j as string;
         expect(hoy > fechaD.rows[0].fecha_asiento).toBe(true);
 
-        // D is in the past now: INV-C21 must NOT block it (INV-C18 requires
-        // a motivo_demora since it is also fuera_de_termino -- orthogonal).
+        // D is two days in the past: INV-C21 must NOT block it (INV-C18 requires
+        // a motivo_demora since it is also fuera_de_termino from D+2 -- orthogonal).
         const cierreD = await firmar(tx, seed.tenantId, fechaD.rows[0].fecha_asiento, dtId, designacionId, "FALLA_SISTEMA");
         expect(cierreD).toBeTruthy();
       }),

@@ -3,6 +3,7 @@
  * (FASE 1 point 1.9). See tests/db/helpers.ts for the rollback-transaction
  * safety model and tests/db/fixtures.ts for the shared seed helpers.
  */
+import type { Client } from "pg";
 import { describe, it, expect } from "vitest";
 import { dbTestSkipReason } from "./env";
 import { asOwner, inRollbackTx, withTenant, expectInvariantViolation, expectDbRejection } from "./helpers";
@@ -16,7 +17,22 @@ import {
   insertReceta,
   insertItemReceta,
   insertComponente,
+  marcarRecetaPagada,
 } from "./fixtures";
+
+/**
+ * What the app writes before a receta can move INTO ENTREGADA: an entrega row
+ * (INV-ENT-002, migration 0040) and the payment (INV-R14, migration 0076).
+ * These INV-R08 tests target the state machine, not those two guards.
+ */
+async function prepararEntrega(tx: Client, tenantId: string, recetaId: string, usuarioId: string): Promise<void> {
+  await tx.query(`INSERT INTO fsj.entrega (tenant_id, receta_id, modalidad, entregada_por_id) VALUES ($1, $2, 'RETIRO_PRESENCIAL', $3)`, [
+    tenantId,
+    recetaId,
+    usuarioId,
+  ]);
+  await marcarRecetaPagada(tx, tenantId, recetaId, usuarioId);
+}
 
 describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes migration (fsj schema)", () => {
   it("receta.numero_interno is assigned by the DB, increasing per tenant, starting at 1", async () => {
@@ -97,6 +113,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
         for (const estado of ["EN_PREPARACION", "PREPARADA"]) {
           await tx.query(`UPDATE fsj.receta SET estado = $1 WHERE id = $2`, [estado, recetaId]);
         }
+        await prepararEntrega(tx, tenantId, recetaId, sistema);
         await tx.query(`UPDATE fsj.receta SET estado = 'ENTREGADA' WHERE id = $1`, [recetaId]);
 
         const result = await tx.query(`SELECT estado FROM fsj.receta WHERE id = $1`, [recetaId]);
@@ -137,6 +154,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
           [recetaId],
         );
         await tx.query(`UPDATE fsj.receta SET estado = 'PREPARADA' WHERE id = $1`, [recetaId]);
+        await prepararEntrega(tx, tenantId, recetaId, sistema);
         await tx.query(`UPDATE fsj.receta SET estado = 'ENTREGADA' WHERE id = $1`, [recetaId]);
 
         await expectInvariantViolation(
@@ -297,12 +315,15 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
     );
   });
 
-  it("V3: a CSP component not occupying the last orden fails when constraints are checked (deferred constraint trigger)", async () => {
+  // V3 ("a CSP componente must occupy the LAST orden") was dropped together
+  // with the orden column in migration 0065 (client decision 2026-10-06: the
+  // componentes of an item have no order). V2 (at most one CSP) still holds.
+  it("0065: V3 is gone -- a CSP component listed before another component passes when constraints are checked", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
-        const tenantId = await insertTenant(tx, "v3");
+        const tenantId = await insertTenant(tx, "v3gone");
         const sistema = await createSistemaUser(tx, tenantId);
-        const unidadId = await insertUnidad(tx, "v3");
+        const unidadId = await insertUnidad(tx, "v3gone");
         const drogaId = await insertDroga(tx, tenantId, unidadId);
         const pacienteId = await insertPaciente(tx, tenantId);
         const medicoId = await insertMedico(tx, tenantId);
@@ -318,33 +339,6 @@ describe.skipIf(dbTestSkipReason() !== null)("0011_recetas_items_componentes mig
           modoExpresion: "TOTAL",
           cantidad: 5,
         });
-
-        await expectInvariantViolation(tx, () => tx.query("SET CONSTRAINTS ALL IMMEDIATE"), "V3");
-      }),
-    );
-  });
-
-  it("V3: a CSP component occupying the last orden passes when constraints are checked", async () => {
-    await asOwner((client) =>
-      inRollbackTx(client, async (tx) => {
-        const tenantId = await insertTenant(tx, "v3ok");
-        const sistema = await createSistemaUser(tx, tenantId);
-        const unidadId = await insertUnidad(tx, "v3ok");
-        const drogaId = await insertDroga(tx, tenantId, unidadId);
-        const pacienteId = await insertPaciente(tx, tenantId);
-        const medicoId = await insertMedico(tx, tenantId);
-        const recetaId = await insertReceta(tx, { tenantId, pacienteId, medicoId, registradaPorId: sistema });
-        const itemRecetaId = await insertItemReceta(tx, { tenantId, recetaId });
-
-        await insertComponente(tx, {
-          tenantId,
-          itemRecetaId,
-          drogaId,
-          unidadMedidaId: unidadId,
-          modoExpresion: "TOTAL",
-          cantidad: 5,
-        });
-        await insertComponente(tx, { tenantId, itemRecetaId, drogaId, unidadMedidaId: unidadId, modoExpresion: "CSP" });
 
         // Must NOT throw.
         await tx.query("SET CONSTRAINTS ALL IMMEDIATE");
