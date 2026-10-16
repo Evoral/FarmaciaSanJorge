@@ -1,6 +1,6 @@
 /** Unit tests for `modules/libro/domain/filtros.ts` (FASE 9, M12): zod parsing of the list/export/contralor/histórico filters. */
 import { describe, it, expect } from "vitest";
-import { listAsientosRecetarioFiltro, exportarLibroFiltro, listContralorFiltro, listHistoricoFiltro } from "@/modules/libro/domain/filtros";
+import { listAsientosRecetarioFiltro, exportarLibroFiltro, listContralorFiltro } from "@/modules/libro/domain/filtros";
 
 describe("listAsientosRecetarioFiltro", () => {
   it("defaults page/pageSize when omitted", () => {
@@ -57,13 +57,5 @@ describe("listContralorFiltro", () => {
 
   it("rejects a non-uuid drogaId", () => {
     expect(() => listContralorFiltro.parse({ drogaId: "not-a-uuid" })).toThrow();
-  });
-});
-
-describe("listHistoricoFiltro", () => {
-  it("accepts all three tipoLibro values (RECETARIO included -- histórico spans every physical book)", () => {
-    for (const tipo of ["RECETARIO", "PSICOTROPICO", "ESTUPEFACIENTE"]) {
-      expect(listHistoricoFiltro.parse({ tipoLibro: tipo }).tipoLibro).toBe(tipo);
-    }
   });
 });

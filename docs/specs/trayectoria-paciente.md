@@ -110,5 +110,5 @@ shared DB, not part of this repo) dropped `fsj.receta.receta_fisica_recibida`,
 
 - Global cross-receta timeline (the per-card journey already tells it).
 - Paciente audit log (full PII diffs; `auditoria.ver` only).
-- `AsientoHistorico` (pre-system, free-text patient, not reliably linkable).
+- `AsientoHistorico` (pre-system, free-text patient, not reliably linkable; the table was removed by migration 0084).
 - Stock movements / partidas consumed.

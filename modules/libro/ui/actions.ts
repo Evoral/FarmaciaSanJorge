@@ -4,7 +4,6 @@
 import { revalidatePath } from "next/cache";
 import { anularAsiento } from "@/modules/libro/application/anular-asiento";
 import { rectificarAsiento } from "@/modules/libro/application/rectificar-asiento";
-import { crearAsientoHistorico } from "@/modules/libro/application/crear-asiento-historico";
 import { StepUpRequiredError } from "@/shared/errors";
 import { actionError } from "@/shared/ui/action-error";
 import type { LibroActionState } from "./action-state";
@@ -66,23 +65,5 @@ export async function rectificarAsientoAction(_prevState: LibroActionState, form
       return { status: "reauth-required" };
     }
     return actionError(error, "No se pudo generar el asiento rectificativo.");
-  }
-}
-
-export async function crearAsientoHistoricoAction(_prevState: LibroActionState, formData: FormData): Promise<LibroActionState> {
-  try {
-    await crearAsientoHistorico({
-      tipoLibro: String(formData.get("tipoLibro") ?? "") as "RECETARIO" | "PSICOTROPICO" | "ESTUPEFACIENTE",
-      numeroAsientoFisico: String(formData.get("numeroAsientoFisico") ?? ""),
-      fechaAsiento: String(formData.get("fechaAsiento") ?? ""),
-      pacienteTexto: (formData.get("pacienteTexto") as string | null)?.trim() || undefined,
-      medicoTexto: (formData.get("medicoTexto") as string | null)?.trim() || undefined,
-      formulaTexto: String(formData.get("formulaTexto") ?? ""),
-      observaciones: (formData.get("observaciones") as string | null)?.trim() || undefined,
-    });
-    revalidatePath("/libro/historico");
-    return { status: "success", message: "Asiento histórico digitalizado." };
-  } catch (error) {
-    return actionError(error, "No se pudo digitalizar el asiento.");
   }
 }

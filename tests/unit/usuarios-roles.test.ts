@@ -252,7 +252,6 @@ const OPERATIVOS_APROBADOS: Permiso[] = [
   "etiquetas.generar",
   "libro.anulacion.solicitar",
   "libro.anulacion.autorizar",
-  "libro.historico.digitalizar",
   "cierres.firmar",
   "cierres.folio.corregir",
   "libros.crear",

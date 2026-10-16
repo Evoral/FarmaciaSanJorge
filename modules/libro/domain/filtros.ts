@@ -58,12 +58,3 @@ export const listContralorFiltro = z.object({
 });
 
 export type ListContralorFiltro = z.infer<typeof listContralorFiltro>;
-
-export const TIPO_LIBRO_HISTORICO = ["RECETARIO", "PSICOTROPICO", "ESTUPEFACIENTE"] as const;
-
-export const listHistoricoFiltro = z.object({
-  tipoLibro: z.enum(TIPO_LIBRO_HISTORICO).optional(),
-  ...paginacion,
-});
-
-export type ListHistoricoFiltro = z.infer<typeof listHistoricoFiltro>;

@@ -384,45 +384,44 @@ model Usuario {
   // as a plain scalar (`creadoPorId`) -- see migration 0002 for the actual
   // FK, which Prisma will not manage (hand-written SQL is the source of truth).
 
-  rolesAsignados                  UsuarioRol[]                 @relation("UsuarioRolUsuario")
-  rolesAsignadosPorMi             UsuarioRol[]                 @relation("UsuarioRolAsignadoPor")
-  historialEstados                UsuarioEstadoHistorial[]     @relation("HistorialUsuario")
-  historialEstadosCambiadoPorMi   UsuarioEstadoHistorial[]     @relation("HistorialCambiadoPor")
-  registrosAuditoria              RegistroAuditoria[]          @relation("AuditoriaUsuario")
-  registrosAutorizadosPorMi       RegistroAuditoria[]          @relation("AuditoriaAutorizadoPor")
-  credencialesActivacion          CredencialActivacion[]       @relation("CredencialUsuario")
-  credencialesEmitidasPorMi       CredencialActivacion[]       @relation("CredencialEmitidaPor")
-  sesiones                        Sesion[]
-  designacionesDt                 DesignacionDirectorTecnico[] @relation("DesignacionUsuario")
-  designacionesRegistradasPorMi   DesignacionDirectorTecnico[] @relation("DesignacionRegistradoPor")
-  movimientosRegistrados          MovimientoStock[]            @relation("MovimientoRegistradoPor")
-  movimientosAutorizadosPorMi     MovimientoStock[]            @relation("MovimientoAutorizadoPor")
-  recetasRegistradas              Receta[]                     @relation("RecetaRegistradaPor")
-  recetasTomadas                  Receta[]                     @relation("RecetaTomadaPor")
-  recetasPagadas                  Receta[]                     @relation("RecetaPagadaPor")
-  fichasTecnicasGeneradas         FichaTecnica[]
-  preparacionesIniciadas          Preparacion[]                @relation("PreparacionIniciadaPor")
-  preparacionesPreparadas         Preparacion[]                @relation("PreparacionPreparadaPor")
-  preparacionesDescartadas        Preparacion[]                @relation("PreparacionDescartadaPor")
-  etiquetasImpresas               Etiqueta[]
-  librosRubricadosRegistrados     LibroRubricado[]
-  asientosRecetarioRegistrados    AsientoRecetario[]
-  anulacionesAutorizadas          AnulacionAsiento[]           @relation("AnulacionAutorizadoPor")
-  anulacionesRealizadas           AnulacionAsiento[]           @relation("AnulacionAnuladoPor")
-  rectificacionesAutorizadas      RectificacionAsiento[]       @relation("RectificacionAutorizadoPor")
-  rectificacionesRegistradas      RectificacionAsiento[]       @relation("RectificacionRegistradoPor")
-  asientosHistoricosDigitalizados AsientoHistorico[]
-  asientosContralorRegistrados    AsientoContralor[]
-  cierresFirmados                 CierreDiario[]               @relation("CierreDirectorTecnico")
-  cierresImpresos                 CierreDiario[]               @relation("CierreImpresoPor")
-  entregasRegistradas             Entrega[]
-  lotesArchivoRegistrados         LoteArchivoRecetas[]
-  reglasPrecioCreadas             ReglaPrecio[]
-  cotizacionesCalculadas          Cotizacion[]
-  drogaAliasCreados               DrogaAlias[]
-  comprobantesCompraRegistrados   ComprobanteCompra[]
-  costosProveedorCreados          CostoProveedor[]
-  listasPrecioRegistradas         ListaPrecioProveedor[]
+  rolesAsignados                UsuarioRol[]                 @relation("UsuarioRolUsuario")
+  rolesAsignadosPorMi           UsuarioRol[]                 @relation("UsuarioRolAsignadoPor")
+  historialEstados              UsuarioEstadoHistorial[]     @relation("HistorialUsuario")
+  historialEstadosCambiadoPorMi UsuarioEstadoHistorial[]     @relation("HistorialCambiadoPor")
+  registrosAuditoria            RegistroAuditoria[]          @relation("AuditoriaUsuario")
+  registrosAutorizadosPorMi     RegistroAuditoria[]          @relation("AuditoriaAutorizadoPor")
+  credencialesActivacion        CredencialActivacion[]       @relation("CredencialUsuario")
+  credencialesEmitidasPorMi     CredencialActivacion[]       @relation("CredencialEmitidaPor")
+  sesiones                      Sesion[]
+  designacionesDt               DesignacionDirectorTecnico[] @relation("DesignacionUsuario")
+  designacionesRegistradasPorMi DesignacionDirectorTecnico[] @relation("DesignacionRegistradoPor")
+  movimientosRegistrados        MovimientoStock[]            @relation("MovimientoRegistradoPor")
+  movimientosAutorizadosPorMi   MovimientoStock[]            @relation("MovimientoAutorizadoPor")
+  recetasRegistradas            Receta[]                     @relation("RecetaRegistradaPor")
+  recetasTomadas                Receta[]                     @relation("RecetaTomadaPor")
+  recetasPagadas                Receta[]                     @relation("RecetaPagadaPor")
+  fichasTecnicasGeneradas       FichaTecnica[]
+  preparacionesIniciadas        Preparacion[]                @relation("PreparacionIniciadaPor")
+  preparacionesPreparadas       Preparacion[]                @relation("PreparacionPreparadaPor")
+  preparacionesDescartadas      Preparacion[]                @relation("PreparacionDescartadaPor")
+  etiquetasImpresas             Etiqueta[]
+  librosRubricadosRegistrados   LibroRubricado[]
+  asientosRecetarioRegistrados  AsientoRecetario[]
+  anulacionesAutorizadas        AnulacionAsiento[]           @relation("AnulacionAutorizadoPor")
+  anulacionesRealizadas         AnulacionAsiento[]           @relation("AnulacionAnuladoPor")
+  rectificacionesAutorizadas    RectificacionAsiento[]       @relation("RectificacionAutorizadoPor")
+  rectificacionesRegistradas    RectificacionAsiento[]       @relation("RectificacionRegistradoPor")
+  asientosContralorRegistrados  AsientoContralor[]
+  cierresFirmados               CierreDiario[]               @relation("CierreDirectorTecnico")
+  cierresImpresos               CierreDiario[]               @relation("CierreImpresoPor")
+  entregasRegistradas           Entrega[]
+  lotesArchivoRegistrados       LoteArchivoRecetas[]
+  reglasPrecioCreadas           ReglaPrecio[]
+  cotizacionesCalculadas        Cotizacion[]
+  drogaAliasCreados             DrogaAlias[]
+  comprobantesCompraRegistrados ComprobanteCompra[]
+  costosProveedorCreados        CostoProveedor[]
+  listasPrecioRegistradas       ListaPrecioProveedor[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, dni])
@@ -1541,29 +1540,6 @@ model RectificacionAsiento {
 
   @@unique([tenantId, id])
   @@map("rectificacion_asiento")
-  @@schema("fsj")
-}
-
-/// DP-17, spec section 2: digitized entries from the PHYSICAL book, reference only. Outside the correlativo/hash chain/cierres. Immutable.
-model AsientoHistorico {
-  id                  String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId            String    @map("tenant_id") @db.Uuid
-  tipoLibro           TipoLibro @map("tipo_libro")
-  numeroAsientoFisico String    @map("numero_asiento_fisico")
-  fechaAsiento        DateTime  @map("fecha_asiento") @db.Date
-  pacienteTexto       String?   @map("paciente_texto")
-  medicoTexto         String?   @map("medico_texto")
-  formulaTexto        String    @map("formula_texto")
-  observaciones       String?
-  digitalizadoPorId   String    @map("digitalizado_por_id") @db.Uuid
-  digitalizadoEn      DateTime  @default(now()) @map("digitalizado_en") @db.Timestamptz(6)
-
-  digitalizadoPor Usuario @relation(fields: [digitalizadoPorId], references: [id])
-
-  @@unique([tenantId, id])
-  /// D5 (migration 0035). A physical book entry is digitized at most once (no separate "libro fisico" column exists -- tipoLibro + numeroAsientoFisico is the natural key).
-  @@unique([tenantId, tipoLibro, numeroAsientoFisico])
-  @@map("asiento_historico")
   @@schema("fsj")
 }
 

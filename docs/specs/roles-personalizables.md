@@ -34,7 +34,7 @@ dos sentidos.
 Permisos `operativo`: `stock.partida.ingresar`, `stock.ajuste.registrar`, `stock.ajuste.autorizar`, `recetas.crear`,
 `recetas.editar`, `recetas.anular`, `fichas.generar`, `cotizaciones.calcular`, `preparaciones.iniciar`,
 `preparaciones.descartar`, `preparaciones.confirmar`, `etiquetas.generar`, `libro.anulacion.solicitar`,
-`libro.anulacion.autorizar`, `libro.historico.digitalizar`, `cierres.firmar`, `cierres.folio.corregir`, `libros.crear`,
+`libro.anulacion.autorizar`, `cierres.firmar`, `cierres.folio.corregir`, `libros.crear`,
 `libros.cerrar`, `entregas.registrar`, `entregas.firma.confirmar`, `archivo.lotes.gestionar`,
 `archivo.destruccion.gestionar`.
 

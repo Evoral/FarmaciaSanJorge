@@ -196,7 +196,6 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   fechaAsiento: "Fecha del asiento",
   fechaAutorizacion: "Fecha de autorización",
   fechaDestruccion: "Fecha de destrucción",
-  numeroAsientoFisico: "Nº de asiento en el libro físico",
   tipoLibro: "Libro",
   vigenteDesde: "Vigente desde",
   vigenteHasta: "Vigente hasta",

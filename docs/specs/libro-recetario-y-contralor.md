@@ -51,7 +51,9 @@ Motivos típicos: el paciente no retira, el médico revoca la prescripción, se 
   - **Transición.** Una receta que al desplegar ya tenía ítems confirmados con asiento por ítem conserva esos asientos; los ítems que le falten se registran juntos en un asiento por receta. Solo esas recetas pueden mostrar más de un asiento, y solo por ese motivo; INV-L24 aplica a los asientos por receta.
   - **Lectura.** Todo lo que hoy va de un asiento a "su" preparación (o al revés) resuelve las dos formas: listado y detalle de `/libro`, exportaciones, "Receta Nº" (por `receta_id`, o por la preparación en los heredados), entrega, etiqueta, contralor, historiales. El listado muestra una fila por asiento.
 
-## 2. Asientos históricos (DP-17)
+## 2. Asientos históricos (DP-17) -- ELIMINADOS (2026-10-16)
+
+**Eliminados por decisión del usuario (2026-10-16, migración 0084):** el sistema ya no digitaliza asientos del libro físico. Se borraron la tabla `fsj.asiento_historico`, el permiso `libro.historico.digitalizar`, la pantalla `/libro/historico` y su código. Rollback: `docs/rollbacks/quitar-asiento-historico.md`. Lo que sigue queda como registro de la decisión original.
 
 Los asientos históricos son **solo para control y consulta**. No forman parte del libro recetario digital.
 

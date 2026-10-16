@@ -92,7 +92,6 @@ const EXPECTED_ROL_PERMISOS: Record<string, string[]> = {
     "libro.anulacion.autorizar",
     "libro.anulacion.solicitar",
     "libro.exportar",
-    "libro.historico.digitalizar",
     "libro.ver",
     "libros.cerrar",
     "libros.crear",

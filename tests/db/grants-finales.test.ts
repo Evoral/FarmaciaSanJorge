@@ -40,7 +40,6 @@ const LEGAL: Record<string, GrantRule> = {
   // D1 (migration 0033): authorization record for a RECTIFICATIVO asiento --
   // the "jornada firmada" twin of anulacion_asiento, fully immutable.
   rectificacion_asiento: { insert: true, update: [] },
-  asiento_historico: { insert: true, update: [] },
   asiento_contralor: { insert: true, update: [] },
   cierre_diario: { insert: false, update: ["fecha_impresion", "impreso_por_id"] },
   // M10 FASE 7.4 (migration 0031): fully insert-only, same shape as

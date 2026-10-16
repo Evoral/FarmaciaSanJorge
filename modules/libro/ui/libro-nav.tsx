@@ -1,17 +1,16 @@
 /**
- * Shared presentation bits for `/libro/**`: the section tabs (recetario, por día, contralor, históricos, integridad -- all under
+ * Shared presentation bits for `/libro/**`: the section tabs (recetario, por día, contralor, integridad -- all under
  * the same `libro.ver` layout guard) and the tone of an asiento's visual estado. Server-safe.
  */
 import { TabNav } from "@/shared/ui/tab-nav";
 import type { BadgeTone } from "@/shared/ui/status-badge";
 
-export type SeccionLibro = "recetario" | "dias" | "contralor" | "historico" | "integridad";
+export type SeccionLibro = "recetario" | "dias" | "contralor" | "integridad";
 
 const SECCIONES: readonly { key: SeccionLibro; label: string; href: string }[] = [
   { key: "recetario", label: "Libro recetario", href: "/libro" },
   { key: "dias", label: "Por día", href: "/libro/dias" },
   { key: "contralor", label: "Libros contralor", href: "/libro/contralor" },
-  { key: "historico", label: "Asientos históricos", href: "/libro/historico" },
   { key: "integridad", label: "Integridad", href: "/libro/integridad" },
 ];
 

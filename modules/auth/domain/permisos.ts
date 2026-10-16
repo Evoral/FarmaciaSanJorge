@@ -99,7 +99,6 @@ export const PERMISO_CATALOGO = {
   "libro.exportar": "consulta",
   "libro.anulacion.solicitar": "operativo",
   "libro.anulacion.autorizar": "operativo",
-  "libro.historico.digitalizar": "operativo",
   "cierres.ver": "consulta",
   "cierres.reporte": "consulta",
   "cierres.firmar": "operativo",

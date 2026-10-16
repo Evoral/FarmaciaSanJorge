@@ -57,11 +57,6 @@ vi.mock("@/modules/libro/infrastructure/contralor-repository", () => ({
   getLibroContralorId: vi.fn(async () => null),
 }));
 
-vi.mock("@/modules/libro/infrastructure/historico-repository", () => ({
-  insertAsientoHistorico: vi.fn(async () => ({ id: "h1" })),
-  listAsientosHistoricos: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 20 })),
-}));
-
 vi.mock("@/modules/libro/infrastructure/co-firma-repository", () => ({
   listDtVigentesParaCoFirma: vi.fn(async () => []),
   resolveDtCandidato: vi.fn(async () => null),
@@ -77,8 +72,6 @@ await import("@/modules/libro/application/list-dt-para-co-firma");
 await import("@/modules/libro/application/anular-asiento");
 await import("@/modules/libro/application/verificar-cadena-libros");
 await import("@/modules/libro/application/list-contralor");
-await import("@/modules/libro/application/crear-asiento-historico");
-await import("@/modules/libro/application/list-historico");
 await import("@/modules/libro/application/exportar-libro");
 
 const { listRegisteredUseCasesForTests } = await import("@/shared/usecase");
@@ -89,7 +82,7 @@ type Rol = (typeof ROLES)[number];
 /** Verbatim from migration 0002's rol_permiso seed. */
 const SEED_GRANTS: Record<Rol, readonly Permiso[]> = {
   ADMINISTRADOR: [],
-  DIRECTOR_TECNICO: ["libro.ver", "libro.exportar", "libro.anulacion.solicitar", "libro.anulacion.autorizar", "libro.historico.digitalizar"],
+  DIRECTOR_TECNICO: ["libro.ver", "libro.exportar", "libro.anulacion.solicitar", "libro.anulacion.autorizar"],
   FARMACEUTICO: ["libro.ver", "libro.exportar", "libro.anulacion.solicitar"],
   ATENCION_PUBLICO: [],
   SOLO_CONSULTA: ["libro.ver", "libro.exportar"],
@@ -106,12 +99,6 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
   { name: "libro.asiento.anular", permiso: "libro.anulacion.solicitar", input: { asientoId: ASIENTO_ID, motivo: "Paciente no retira", autorizadoPorId: DT_ID } },
   { name: "libro.integridad.verificar", permiso: "libro.ver", input: {} },
   { name: "libro.contralor.listar", permiso: "libro.ver", input: {} },
-  {
-    name: "libro.historico.crear",
-    permiso: "libro.historico.digitalizar",
-    input: { tipoLibro: "RECETARIO", numeroAsientoFisico: "45", fechaAsiento: "2020-01-01", formulaTexto: "F" },
-  },
-  { name: "libro.historico.listar", permiso: "libro.ver", input: {} },
   { name: "libro.exportar.datos", permiso: "libro.exportar", input: {} },
 ];
 

@@ -1,7 +1,7 @@
 /**
  * DB tests for prisma/migrations/.../0014_libro_recetario_contralor --
  * the libro recetario half: contador_correlativo (gapless), hash chain,
- * anulacion/rectificativo (DP-16/DP-16c), asiento_historico (DP-17), and
+ * anulacion/rectificativo (DP-16/DP-16c) and
  * INV-P04. See tests/db/helpers.ts for the rollback-transaction safety
  * model and tests/db/fixtures.ts for the shared seed helpers.
  *
@@ -573,130 +573,6 @@ describe.skipIf(dbTestSkipReason() !== null)("0014_libro_recetario_contralor mig
             ),
           "INV-L18",
         );
-      }),
-    );
-  });
-
-  it("asiento_historico rows do NOT touch fsj.contador_correlativo (DP-17)", async () => {
-    await asOwner((client) =>
-      inRollbackTx(client, async (tx) => {
-        const tenantId = await insertTenant(tx, "historico");
-        const sistema = await createSistemaUser(tx, tenantId);
-          await crearLibrosRubricados(tx, tenantId, sistema);
-        const libroId = await openLibroId(tx, tenantId, "RECETARIO");
-
-        const before = await tx.query(`SELECT ultimo_valor FROM fsj.contador_correlativo WHERE tenant_id = $1 AND libro_id = $2`, [
-          tenantId,
-          libroId,
-        ]);
-        expect(String(before.rows[0].ultimo_valor)).toBe("0");
-
-        await tx.query(
-          `INSERT INTO fsj.asiento_historico (tenant_id, tipo_libro, numero_asiento_fisico, fecha_asiento, formula_texto, digitalizado_por_id)
-           VALUES ($1, 'RECETARIO', '34163', '2020-01-15', 'Acido salicilico 3g, vaselina csp 30g', $2)`,
-          [tenantId, sistema],
-        );
-        await tx.query(
-          `INSERT INTO fsj.asiento_historico (tenant_id, tipo_libro, numero_asiento_fisico, fecha_asiento, formula_texto, digitalizado_por_id)
-           VALUES ($1, 'RECETARIO', '34164', '2020-01-16', 'Hidroquinona 1.2g, crema base csp 30g', $2)`,
-          [tenantId, sistema],
-        );
-
-        const after = await tx.query(`SELECT ultimo_valor FROM fsj.contador_correlativo WHERE tenant_id = $1 AND libro_id = $2`, [
-          tenantId,
-          libroId,
-        ]);
-        expect(String(after.rows[0].ultimo_valor)).toBe("0"); // unchanged
-
-        const historicoCount = await tx.query(`SELECT count(*)::int AS n FROM fsj.asiento_historico WHERE tenant_id = $1`, [tenantId]);
-        expect(historicoCount.rows[0].n).toBe(2);
-
-        // No DELETE/UPDATE grant either (immutable, like every other legal table).
-        await tx.query("SET LOCAL ROLE fsj_app");
-        await expectDbRejection(
-          tx,
-          () => tx.query(`UPDATE fsj.asiento_historico SET formula_texto = 'x' WHERE tenant_id = $1`, [tenantId]),
-          "42501",
-        );
-      }),
-    );
-  });
-
-  it("D5 (migration 0035): the same physical folio (tipo_libro + numero_asiento_fisico) cannot be digitalized twice for the same tenant", async () => {
-    await asOwner((client) =>
-      inRollbackTx(client, async (tx) => {
-        const tenantId = await insertTenant(tx, "historicoUnico");
-        const sistema = await createSistemaUser(tx, tenantId);
-        await crearLibrosRubricados(tx, tenantId, sistema);
-
-        await tx.query(
-          `INSERT INTO fsj.asiento_historico (tenant_id, tipo_libro, numero_asiento_fisico, fecha_asiento, formula_texto, digitalizado_por_id)
-           VALUES ($1, 'RECETARIO', '500', '2020-01-15', 'Formula A', $2)`,
-          [tenantId, sistema],
-        );
-
-        // Same folio, same libro -> rejected.
-        await expectDbRejection(
-          tx,
-          () =>
-            tx.query(
-              `INSERT INTO fsj.asiento_historico (tenant_id, tipo_libro, numero_asiento_fisico, fecha_asiento, formula_texto, digitalizado_por_id)
-               VALUES ($1, 'RECETARIO', '500', '2020-01-16', 'Formula A (duplicado)', $2)`,
-              [tenantId, sistema],
-            ),
-          "23505",
-        );
-
-        // Same numero, but a DIFFERENT tipo_libro -> allowed (different physical book).
-        const otroLibro = await tx.query(
-          `INSERT INTO fsj.asiento_historico (tenant_id, tipo_libro, numero_asiento_fisico, fecha_asiento, formula_texto, digitalizado_por_id)
-           VALUES ($1, 'PSICOTROPICO', '500', '2020-01-15', 'Formula B', $2) RETURNING id`,
-          [tenantId, sistema],
-        );
-        expect(otroLibro.rows).toHaveLength(1);
-
-        // A different tenant digitalizing the SAME folio number is unaffected (no cross-tenant collision).
-        const tenant2 = await insertTenant(tx, "historicoUnico2");
-        const sistema2 = await createSistemaUser(tx, tenant2);
-        await crearLibrosRubricados(tx, tenant2, sistema2);
-        const otroTenant = await tx.query(
-          `INSERT INTO fsj.asiento_historico (tenant_id, tipo_libro, numero_asiento_fisico, fecha_asiento, formula_texto, digitalizado_por_id)
-           VALUES ($1, 'RECETARIO', '500', '2020-01-15', 'Formula C', $2) RETURNING id`,
-          [tenant2, sistema2],
-        );
-        expect(otroTenant.rows).toHaveLength(1);
-      }),
-    );
-  });
-
-  it("jd-fix-agent FIX 3: asiento_historico_numero_fisico_canonico_check rejects untrimmed/empty/leading-zero values, and a leading-zero duplicate ('07' vs '7') is caught by the UNIQUE constraint once both are canonical", async () => {
-    await asOwner((client) =>
-      inRollbackTx(client, async (tx) => {
-        const tenantId = await insertTenant(tx, "historicoCanonico");
-        const sistema = await createSistemaUser(tx, tenantId);
-        await crearLibrosRubricados(tx, tenantId, sistema);
-
-        const insertar = (numero: string) =>
-          tx.query(
-            `INSERT INTO fsj.asiento_historico (tenant_id, tipo_libro, numero_asiento_fisico, fecha_asiento, formula_texto, digitalizado_por_id)
-             VALUES ($1, 'RECETARIO', $2, '2020-01-15', 'Formula', $3)`,
-            [tenantId, numero, sistema],
-          );
-
-        // Untrimmed, empty, and leading-zero values are all rejected by the CHECK (23514).
-        await expectDbRejection(tx, () => insertar(" 7"), "23514");
-        await expectDbRejection(tx, () => insertar("7 "), "23514");
-        await expectDbRejection(tx, () => insertar(""), "23514");
-        await expectDbRejection(tx, () => insertar("07"), "23514");
-
-        // A single "0" is the canonical all-zero form -- allowed.
-        await insertar("0");
-
-        // "7" is canonical and distinct from the already-inserted "0" -- allowed.
-        await insertar("7");
-
-        // A SECOND "7" (already canonical, no leading zero to strip) collides via the UNIQUE constraint.
-        await expectDbRejection(tx, () => insertar("7"), "23505");
       }),
     );
   });
