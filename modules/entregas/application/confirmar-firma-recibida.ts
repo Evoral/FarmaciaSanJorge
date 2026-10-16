@@ -44,7 +44,7 @@ export const confirmarFirmaRecibidaCommand = defineCommand({
     if (!receta) throw new NotFoundError("Receta no encontrada.");
 
     if (!puedeConfirmarFirmaRecibida(receta.estado)) {
-      throw new DomainError(`La receta está en estado ${receta.estado}: no hay una firma pendiente de confirmar.`);
+      throw new DomainError(`La receta está en estado ${receta.estado}: no hay un retorno pendiente de confirmar.`);
     }
 
     const entrega = await getEntregaPorReceta(tx, session.tenantId, input.recetaId);
@@ -52,7 +52,7 @@ export const confirmarFirmaRecibidaCommand = defineCommand({
       throw new NotFoundError("No se encontró el registro de envío correspondiente a esta receta.");
     }
     if (entrega.firmaRecibida) {
-      throw new DomainError("La firma de esta entrega ya fue confirmada.");
+      throw new DomainError("El retorno de esta entrega ya fue confirmado.");
     }
 
     validarPagoAlEntregar({ yaPagada: receta.pagada, pagarAhora: input.pagada });
@@ -86,7 +86,7 @@ export const confirmarFirmaRecibidaCommand = defineCommand({
     } catch (e) {
       const mapped = mapDbError(e);
       if (mapped instanceof InvariantViolationError) {
-        throw new DomainError(mapped.invariantCode === "INV-R14" ? MENSAJE_ENTREGA_REQUIERE_PAGO : "No se pudo confirmar la firma recibida.", { cause: mapped });
+        throw new DomainError(mapped.invariantCode === "INV-R14" ? MENSAJE_ENTREGA_REQUIERE_PAGO : "No se pudo confirmar el retorno.", { cause: mapped });
       }
       throw mapped;
     }

@@ -25,10 +25,10 @@ export function ConfirmarFirmaForm({ action, recetaId, pagada, onSuccess }: Conf
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[0.8125rem] leading-relaxed text-zinc-600">El repartidor trajo la constancia firmada: la receta pasa a Entregada.</p>
+      <p className="text-[0.8125rem] leading-relaxed text-zinc-600">Al confirmar el retorno del envío, la receta pasa a Entregada.</p>
       <SimpleForm
         action={action}
-        submitLabel="Confirmar firma recibida"
+        submitLabel="Confirmar retorno"
         pendingLabel="Confirmando…"
         onSuccess={onSuccess}
         submitDisabled={!pagada && !pagarAhora}

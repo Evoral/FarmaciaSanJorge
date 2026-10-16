@@ -20,8 +20,19 @@ export type BuscarEntregasState =
 
 export async function buscarEntregasAction(prevState: BuscarEntregasState, formData: FormData): Promise<BuscarEntregasState> {
   const q = String(formData.get("q") ?? "").trim();
+  // The page's non-identifying filters (estado, Nº, ingreso range) travel along so the search narrows the filtered list.
+  const campo = (name: string) => String(formData.get(name) ?? "").trim() || undefined;
+  const estado = campo("estado");
   try {
-    const result = await listEntregasPendientes({ search: q.length > 0 ? q : undefined, page: 1, pageSize: RESULTADOS_BUSQUEDA });
+    const result = await listEntregasPendientes({
+      search: q.length > 0 ? q : undefined,
+      estado: estado === "PREPARADA" || estado === "ENVIADA_PEND_FIRMA" ? estado : undefined,
+      numeroInterno: campo("numero"),
+      ingresoDesde: campo("ingresoDesde"),
+      ingresoHasta: campo("ingresoHasta"),
+      page: 1,
+      pageSize: RESULTADOS_BUSQUEDA,
+    });
     return { status: "success", items: result.items, total: result.total };
   } catch (error) {
     const message = actionErrorMessage(error, "No se pudo buscar entregas pendientes.");

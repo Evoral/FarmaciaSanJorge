@@ -52,7 +52,7 @@ export const ESTADO_RECETA_LABELS: Readonly<Record<EstadoReceta, string>> = {
   PENDIENTE_PREPARACION: "Pendiente de preparación",
   EN_PREPARACION: "En preparación",
   PREPARADA: "Preparada",
-  ENVIADA_PEND_FIRMA: "Enviada, pendiente de firma",
+  ENVIADA_PEND_FIRMA: "Enviada, esperando retorno",
   ENTREGADA: "Entregada",
   ANULADA: "Anulada",
 };

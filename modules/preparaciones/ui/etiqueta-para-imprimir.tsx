@@ -19,6 +19,8 @@ export interface EtiquetaParaImprimirProps {
   preparacionId: string;
   /** The preparación already has its etiqueta. */
   generada: boolean;
+  /** The etiqueta was already printed at least once. */
+  impresa?: boolean;
   /** `etiquetas.generar`. */
   puedeGenerar: boolean;
   /** `etiquetas.imprimir`: without it the button only generates the etiqueta. */
@@ -29,11 +31,11 @@ export interface EtiquetaParaImprimirProps {
   small?: boolean;
 }
 
-export function EtiquetaParaImprimir({ preparacionId, generada, puedeGenerar, puedeImprimir, tamanos, variant = "secondary", small = true }: EtiquetaParaImprimirProps) {
+export function EtiquetaParaImprimir({ preparacionId, generada, impresa = false, puedeGenerar, puedeImprimir, tamanos, variant = "secondary", small = true }: EtiquetaParaImprimirProps) {
   const [recienGenerada, setRecienGenerada] = useState(false);
 
   if (generada) {
-    return puedeImprimir ? <ImprimirEtiquetaDialog preparacionId={preparacionId} tamanos={tamanos} variant={variant} small={small} abrirAlMontar={recienGenerada} /> : null;
+    return puedeImprimir ? <ImprimirEtiquetaDialog preparacionId={preparacionId} tamanos={tamanos} variant={variant} small={small} abrirAlMontar={recienGenerada} reimprimir={impresa} /> : null;
   }
   if (!puedeGenerar) return null;
 

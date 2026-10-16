@@ -13,6 +13,7 @@
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { EstadoReceta } from "@/modules/recetas/domain/receta";
+import { rangoDeJornadas } from "@/shared/time/jornada";
 import type { ModalidadEntrega, ItemParaEntrega } from "../domain/entrega";
 
 // ============================================================================
@@ -163,16 +164,32 @@ export interface EntregaPendienteItem {
 export interface ListEntregasPendientesFilter {
   tenantId: string;
   search?: string;
+  /** One of the listing's estados; omitted = both. */
+  estado?: EstadoReceta;
+  numeroInterno?: string;
+  ingresoDesde?: string; // YYYY-MM-DD, jornada in the tenant's time zone (inclusive)
+  ingresoHasta?: string; // YYYY-MM-DD, jornada in the tenant's time zone (inclusive)
   page: number;
   pageSize: number;
 }
 
 const ESTADOS_LISTADO_ENTREGAS: EstadoReceta[] = ["PREPARADA", "ENVIADA_PEND_FIRMA"];
 
+/** Calendar days in the pharmacy's time zone, not UTC (fecha_ingreso is a timestamptz). */
+async function rangoIngreso(tx: Prisma.TransactionClient, filter: ListEntregasPendientesFilter): Promise<Prisma.DateTimeFilter> {
+  const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: filter.tenantId }, select: { zonaHoraria: true } });
+  const { desde, hastaExclusivo } = rangoDeJornadas(filter.ingresoDesde, filter.ingresoHasta, tenant.zonaHoraria);
+  return { ...(desde ? { gte: desde } : {}), ...(hastaExclusivo ? { lt: hastaExclusivo } : {}) };
+}
+
 export async function listEntregasPendientes(tx: Prisma.TransactionClient, filter: ListEntregasPendientesFilter): Promise<{ items: EntregaPendienteItem[]; total: number }> {
   const where: Prisma.RecetaWhereInput = {
     tenantId: filter.tenantId,
-    estado: { in: ESTADOS_LISTADO_ENTREGAS },
+    estado: filter.estado ? filter.estado : { in: ESTADOS_LISTADO_ENTREGAS },
+    ...(filter.numeroInterno && filter.numeroInterno.trim().length > 0
+      ? { numeroInterno: BigInt(filter.numeroInterno.trim().replace(/[^0-9]/g, "") || "-1") }
+      : {}),
+    ...(filter.ingresoDesde || filter.ingresoHasta ? { fechaIngreso: await rangoIngreso(tx, filter) } : {}),
     ...(filter.search && filter.search.trim().length > 0
       ? {
           paciente: {

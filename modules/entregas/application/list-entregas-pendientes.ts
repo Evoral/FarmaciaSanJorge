@@ -1,4 +1,4 @@
-/** `listEntregasPendientes` -- `/entregas` (FASE 11 point 11.1/11.2). Recetas PREPARADA (listas para entregar) and ENVIADA_PEND_FIRMA (esperando firma). Gated on `entregas.registrar`, same list this permiso's action supports. */
+/** `listEntregasPendientes` -- `/entregas` (FASE 11 point 11.1/11.2). Recetas PREPARADA (listas para entregar) and ENVIADA_PEND_FIRMA (esperando retorno). Gated on `entregas.registrar`, same list this permiso's action supports. */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { listEntregasPendientes as listRepo } from "../infrastructure/entrega-repository";
@@ -6,8 +6,14 @@ import type { EntregaPendienteItem } from "../infrastructure/entrega-repository"
 
 export type { EntregaPendienteItem };
 
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha en formato AAAA-MM-DD.");
+
 const listEntregasPendientesInput = z.object({
   search: z.string().trim().max(200).optional(),
+  estado: z.enum(["PREPARADA", "ENVIADA_PEND_FIRMA"]).optional(),
+  numeroInterno: z.string().trim().max(20).optional(),
+  ingresoDesde: isoDate.optional(),
+  ingresoHasta: isoDate.optional(),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(100).default(20),
 });
@@ -26,7 +32,7 @@ export const listEntregasPendientesQuery = defineQuery({
   permiso: "entregas.registrar",
   input: listEntregasPendientesInput,
   handler: async ({ tx, session, input }): Promise<ListEntregasPendientesResult> => {
-    const { items, total } = await listRepo(tx, { tenantId: session.tenantId, search: input.search, page: input.page, pageSize: input.pageSize });
+    const { items, total } = await listRepo(tx, { tenantId: session.tenantId, search: input.search, estado: input.estado, numeroInterno: input.numeroInterno, ingresoDesde: input.ingresoDesde, ingresoHasta: input.ingresoHasta, page: input.page, pageSize: input.pageSize });
     return { items, total, page: input.page, pageSize: input.pageSize };
   },
 });

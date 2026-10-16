@@ -93,9 +93,11 @@ export interface ImprimirEtiquetaDialogProps {
   small?: boolean;
   /** Open the size dialog as soon as this mounts (or the flag turns on). */
   abrirAlMontar?: boolean;
+  /** The etiqueta was already printed: the button reads "Reimprimir", at the same fixed width as "Imprimir etiqueta". */
+  reimprimir?: boolean;
 }
 
-export function ImprimirEtiquetaDialog({ preparacionId, tamanos, variant = "secondary", small = true, abrirAlMontar = false }: ImprimirEtiquetaDialogProps) {
+export function ImprimirEtiquetaDialog({ preparacionId, tamanos, variant = "secondary", small = true, abrirAlMontar = false, reimprimir = false }: ImprimirEtiquetaDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cierrePorFondo = useCierrePorFondo(dialogRef);
   const tituloId = useId();
@@ -122,10 +124,10 @@ export function ImprimirEtiquetaDialog({ preparacionId, tamanos, variant = "seco
         type="button"
         onClick={() => dialogRef.current?.showModal()}
         aria-haspopup="dialog"
-        className={`btn ${variant === "primary" ? "btn-primary" : "btn-secondary"}${small ? " btn-sm" : ""}`}
+        className={`btn ${variant === "primary" ? "btn-primary" : "btn-secondary"}${small ? " btn-sm relative w-44 justify-center px-8" : ""}`}
       >
-        <Printer className={small ? "size-3.5" : "size-4"} aria-hidden />
-        Imprimir etiqueta
+        <Printer className={small ? "absolute left-2.5 size-3.5" : "size-4"} aria-hidden />
+        {reimprimir ? "Reimprimir" : "Imprimir etiqueta"}
       </button>
       <dialog ref={dialogRef} aria-labelledby={tituloId} {...cierrePorFondo} className={`${CLASE_DIALOG} max-w-md`}>
         <div className="p-5">

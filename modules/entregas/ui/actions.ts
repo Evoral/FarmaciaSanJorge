@@ -25,7 +25,7 @@ export async function registrarEntregaAction(_prevState: EntregaActionState, for
       const modalidad = String(formData.get("modalidad") ?? "") as "RETIRO_PRESENCIAL" | "ENVIO";
       await registrarEntrega({ recetaId, modalidad, pagada: formData.get("pagada") === "on" });
       revalidarEntregas(recetaId);
-      const mensaje = modalidad === "RETIRO_PRESENCIAL" ? "Entrega registrada." : "Envío registrado: pendiente de confirmar firma recibida.";
+      const mensaje = modalidad === "RETIRO_PRESENCIAL" ? "Entrega registrada." : "Envío registrado: pendiente de confirmar su retorno.";
       return { status: "success", message: mensaje, id: recetaId };
     } catch (error) {
       return fromError(error, "No se pudo registrar la entrega.");
@@ -39,9 +39,9 @@ export async function confirmarFirmaRecibidaAction(_prevState: EntregaActionStat
       const recetaId = String(formData.get("recetaId") ?? "");
       await confirmarFirmaRecibida({ recetaId, pagada: formData.get("pagada") === "on" });
       revalidarEntregas(recetaId);
-      return { status: "success", message: "Firma recibida confirmada: receta entregada.", id: recetaId };
+      return { status: "success", message: "Retorno confirmado: receta entregada.", id: recetaId };
     } catch (error) {
-      return fromError(error, "No se pudo confirmar la firma recibida.");
+      return fromError(error, "No se pudo confirmar el retorno.");
     }
   });
 }

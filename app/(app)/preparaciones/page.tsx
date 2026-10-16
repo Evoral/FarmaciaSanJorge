@@ -59,6 +59,7 @@ import type { EtiquetaTamano } from "@/modules/etiqueta-tamanos/domain/etiqueta-
 import { EtiquetaParaImprimir } from "@/modules/preparaciones/ui/etiqueta-para-imprimir";
 import { TomarRecetaForm } from "@/modules/preparaciones/ui/tomar-receta-form";
 import { VerRecetaPendienteDialog } from "@/modules/preparaciones/ui/ver-receta-pendiente-dialog";
+import { VerPreparacionDescartadaDialog } from "@/modules/preparaciones/ui/ver-preparacion-descartada-dialog";
 import { FORMA_FARMACEUTICA_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 import { formatFecha, formatFechaHora } from "@/shared/format/fecha";
 import { DateInput } from "@/shared/ui/date-input";
@@ -526,7 +527,7 @@ function TablaPreparaciones({
                 ) : null}
                 <td className="px-3 py-2.5">
                   <div className="flex justify-end">
-                    <AccionFila preparacion={p} puedeGenerarEtiqueta={puedeGenerarEtiqueta} puedeImprimirEtiqueta={puedeImprimirEtiqueta} tamanos={tamanos} />
+                    <AccionFila preparacion={p} zonaHoraria={result.zonaHoraria} puedeGenerarEtiqueta={puedeGenerarEtiqueta} puedeImprimirEtiqueta={puedeImprimirEtiqueta} tamanos={tamanos} />
                   </div>
                 </td>
               </tr>
@@ -543,12 +544,26 @@ function AccionFila({
   puedeGenerarEtiqueta,
   puedeImprimirEtiqueta,
   tamanos,
+  zonaHoraria,
 }: {
   preparacion: PreparacionListItem;
+  zonaHoraria: string;
   puedeGenerarEtiqueta: boolean;
   puedeImprimirEtiqueta: boolean;
   tamanos: readonly EtiquetaTamano[];
 }) {
+  if (preparacion.estado === "DESCARTADA") {
+    return (
+      <VerPreparacionDescartadaDialog
+        preparacion={{
+          recetaNumeroInterno: preparacion.recetaNumeroInterno,
+          paciente: `${preparacion.pacienteNombre} ${preparacion.pacienteApellido}`,
+          item: preparacion.itemDescripcion ?? etiquetaDe(FORMA_FARMACEUTICA_LABELS, preparacion.formaFarmaceutica),
+          iniciada: formatFechaHora(preparacion.iniciadaEn, zonaHoraria),
+        }}
+      />
+    );
+  }
   if (preparacion.estado !== "CONFIRMADA") {
     return (
       <Link href={`/preparaciones/${preparacion.id}`} className="btn btn-secondary btn-sm">
@@ -562,6 +577,7 @@ function AccionFila({
     <EtiquetaParaImprimir
       preparacionId={preparacion.id}
       generada={preparacion.etiqueta !== null}
+      impresa={preparacion.etiqueta?.impresa ?? false}
       puedeGenerar={puedeGenerarEtiqueta}
       puedeImprimir={puedeImprimirEtiqueta}
       tamanos={tamanos}
