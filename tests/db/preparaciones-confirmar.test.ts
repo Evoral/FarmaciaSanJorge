@@ -107,6 +107,10 @@ async function seedParaConfirmacion(tx: Client, suffix: string, cantidadAPesar =
  * already exists. Mirrors the new order in
  * modules/preparaciones/infrastructure/preparacion-repository.ts#insertAsientoRecetario.
  */
+/** The receta of the preparación passed as $3 (D8: a SISTEMA asiento is por receta, migration 0082). */
+const RECETA_DE_PREPARACION =
+  "(SELECT i.receta_id FROM fsj.preparacion p JOIN fsj.item_receta i ON i.tenant_id = p.tenant_id AND i.id = p.item_receta_id WHERE p.id = $3)";
+
 async function intentarConfirmacion(tx: Client, seed: Seed, cantidad = 5, detalleLineaPesajeIdOverride?: string): Promise<{ movimientoId: string; asientoId: string }> {
   const movimiento = await tx.query(
     `INSERT INTO fsj.movimiento_stock (tenant_id, partida_id, tipo, cantidad, preparacion_id, linea_pesaje_id, registrado_por_id)
@@ -116,6 +120,12 @@ async function intentarConfirmacion(tx: Client, seed: Seed, cantidad = 5, detall
 
   const asientoId = randomUUID();
 
+  // D8 (migration 0082): the por-receta asiento's preparación link goes in BEFORE the asiento, like its detalles.
+  await tx.query(`INSERT INTO fsj.asiento_preparacion (tenant_id, asiento_recetario_id, preparacion_id, orden) VALUES ($1, $2, $3, 1)`, [
+    seed.tenantId,
+    asientoId,
+    seed.preparacionId,
+  ]);
   await tx.query(
     `INSERT INTO fsj.detalle_asiento (tenant_id, asiento_recetario_id, linea_pesaje_id, descripcion, cantidad, unidad_texto, orden)
      VALUES ($1, $2, $3, 'Droga', $4, 'g', 0)`,
@@ -123,8 +133,8 @@ async function intentarConfirmacion(tx: Client, seed: Seed, cantidad = 5, detall
   );
 
   const asiento = await tx.query(
-    `INSERT INTO fsj.asiento_recetario (id, tenant_id, origen, preparacion_id, paciente_texto, medico_texto, formula_texto, registrado_por_id)
-     VALUES ($1, $2, 'SISTEMA', $3, 'Paciente Test', 'Medico Test - MAT-1', 'Formula de prueba', $4) RETURNING id, numero_correlativo`,
+    `INSERT INTO fsj.asiento_recetario (id, tenant_id, origen, receta_id, paciente_texto, medico_texto, formula_texto, registrado_por_id)
+     VALUES ($1, $2, 'SISTEMA', ${RECETA_DE_PREPARACION}, 'Paciente Test', 'Medico Test - MAT-1', 'Formula de prueba', $4) RETURNING id, numero_correlativo`,
     [asientoId, seed.tenantId, seed.preparacionId, seed.sistema],
   );
 
@@ -183,7 +193,7 @@ describe.skipIf(dbTestSkipReason() !== null)("confirmación de preparación -- a
         const movimientos = await tx.query(`SELECT count(*)::int AS n FROM fsj.movimiento_stock WHERE preparacion_id = $1`, [seed.preparacionId]);
         expect(movimientos.rows[0].n).toBe(0);
 
-        const asientos = await tx.query(`SELECT count(*)::int AS n FROM fsj.asiento_recetario WHERE preparacion_id = $1`, [seed.preparacionId]);
+        const asientos = await tx.query(`SELECT count(*)::int AS n FROM fsj.v_asiento_sistema_preparacion WHERE preparacion_id = $1`, [seed.preparacionId]);
         expect(asientos.rows[0].n).toBe(0);
 
         const prep = await tx.query(`SELECT estado FROM fsj.preparacion WHERE id = $1`, [seed.preparacionId]);
@@ -523,14 +533,19 @@ describe.skipIf(dbTestSkipReason() !== null)("confirmación de preparación -- c
 
         // D4 (migration 0034): detalle_asiento BEFORE its asiento_recetario -- see intentarConfirmacion's doc comment above.
         const asientoId2 = randomUUID();
+        await tx.query(`INSERT INTO fsj.asiento_preparacion (tenant_id, asiento_recetario_id, preparacion_id, orden) VALUES ($1, $2, $3, 1)`, [
+          seed.tenantId,
+          asientoId2,
+          seed.preparacionId,
+        ]);
         await tx.query(
           `INSERT INTO fsj.detalle_asiento (tenant_id, asiento_recetario_id, linea_pesaje_id, descripcion, cantidad, unidad_texto, orden)
            VALUES ($1, $2, $3, 'Droga', 8, 'g', 0)`,
           [seed.tenantId, asientoId2, seed.lineaPesajeId],
         );
         const asiento = await tx.query(
-          `INSERT INTO fsj.asiento_recetario (id, tenant_id, origen, preparacion_id, paciente_texto, medico_texto, formula_texto, registrado_por_id)
-           VALUES ($1, $2, 'SISTEMA', $3, 'Paciente Test', 'Medico Test - MAT-1', 'Formula de prueba', $4) RETURNING id`,
+          `INSERT INTO fsj.asiento_recetario (id, tenant_id, origen, receta_id, paciente_texto, medico_texto, formula_texto, registrado_por_id)
+           VALUES ($1, $2, 'SISTEMA', ${RECETA_DE_PREPARACION}, 'Paciente Test', 'Medico Test - MAT-1', 'Formula de prueba', $4) RETURNING id`,
           [asientoId2, seed.tenantId, seed.preparacionId, seed.sistema],
         );
         await tx.query(`UPDATE fsj.preparacion SET estado = 'CONFIRMADA', confirmada_en = now(), preparada_por_id = $1 WHERE id = $2`, [

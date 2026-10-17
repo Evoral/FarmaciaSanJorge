@@ -36,6 +36,8 @@ const LEGAL: Record<string, GrantRule> = {
   libro_rubricado: { insert: true, update: ["expediente_rubrica", "fecha_cierre", "fecha_rubrica", "numero"] },
   asiento_recetario: { insert: true, update: [] },
   detalle_asiento: { insert: true, update: [] },
+  // D8 (migration 0082): the preparaciones a por-receta asiento covers -- frozen with it, insert-only.
+  asiento_preparacion: { insert: true, update: [] },
   anulacion_asiento: { insert: true, update: [] },
   // D1 (migration 0033): authorization record for a RECTIFICATIVO asiento --
   // the "jornada firmada" twin of anulacion_asiento, fully immutable.

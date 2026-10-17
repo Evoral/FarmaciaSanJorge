@@ -72,14 +72,8 @@ function recomputeAsientoHash(fields: {
   ]);
 }
 
-/**
- * D4 (migration 0034): same fields as `recomputeAsientoHash` (V2) plus the
- * asiento's own detalle_asiento lines (orden, descripcion, cantidad,
- * unidad_texto, linea_pesaje_id -- in that order, ORDER BY orden),
- * prefixed by their count -- tag 'FSJ-ASIENTO-V3'. Every asiento created
- * from migration 0034 forward is hashed this way (see fixtures.ts#insertAsientoSistema).
- */
-function recomputeAsientoHashV3(
+/** Plain-TS mirror of fsj.asiento_recetario_hash_v4 (migration 0082, D8): V3 plus receta_id and the asiento_preparacion rows. */
+function recomputeAsientoHashV4(
   fields: {
     tenantId: string;
     libroId: string;
@@ -88,16 +82,19 @@ function recomputeAsientoHashV3(
     origen: string;
     preparacionId: string | null;
     asientoOriginalId: string | null;
+    recetaId: string | null;
     pacienteTexto: string;
     medicoTexto: string;
     formulaTexto: string;
     hashAnterior: string;
   },
+  preparaciones: ReadonlyArray<{ orden: number; preparacionId: string }>,
   detalles: ReadonlyArray<{ orden: number; descripcion: string; cantidad: string; unidadTexto: string; lineaPesajeId: string | null }>,
 ): string {
+  const preps = preparaciones.flatMap((p) => [String(p.orden), p.preparacionId]);
   const lineas = detalles.flatMap((d) => [String(d.orden), d.descripcion, d.cantidad, d.unidadTexto, d.lineaPesajeId]);
   return hashV2([
-    "FSJ-ASIENTO-V3",
+    "FSJ-ASIENTO-V4",
     fields.tenantId,
     fields.libroId,
     String(fields.numeroCorrelativo),
@@ -105,10 +102,13 @@ function recomputeAsientoHashV3(
     fields.origen,
     fields.preparacionId,
     fields.asientoOriginalId,
+    fields.recetaId,
     fields.pacienteTexto,
     fields.medicoTexto,
     fields.formulaTexto,
     fields.hashAnterior,
+    String(preparaciones.length),
+    ...preps,
     String(detalles.length),
     ...lineas,
   ]);
@@ -241,21 +241,26 @@ describe.skipIf(dbTestSkipReason() !== null)("0014_libro_recetario_contralor mig
     );
   });
 
-  it("hash chain: recomputing hash_integridad in plain SQL from the stored fields matches the trigger-computed value (V3, migration 0034)", async () => {
+  it("hash chain: recomputing hash_integridad in plain TS from the stored fields matches the trigger-computed value (V4, migration 0082)", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const seed = await seedAsientoSistema(tx, "hashVerify");
         const row = await tx.query(
           `SELECT tenant_id, libro_id, numero_correlativo, to_char(fecha_asiento, 'YYYY-MM-DD') AS fecha_asiento, origen,
-                  preparacion_id, asiento_original_id, paciente_texto, medico_texto, formula_texto, hash_integridad, hash_anterior, version_hash
+                  preparacion_id, asiento_original_id, receta_id, paciente_texto, medico_texto, formula_texto, hash_integridad, hash_anterior, version_hash
            FROM fsj.asiento_recetario WHERE id = $1`,
           [seed.asientoId],
         );
         const r = row.rows[0];
         expect(r.hash_anterior).toBe(GENESIS); // first asiento of a fresh libro chains against genesis
-        // Every asiento inserted by seedAsientoSistema (fixtures.ts#insertAsientoSistema) goes through the
-        // migration 0034 BEFORE INSERT trigger, which always pins version_hash = 3.
-        expect(r.version_hash).toBe(3);
+        // Every SISTEMA asiento inserted by seedAsientoSistema (fixtures.ts#insertAsientoSistema) is por receta: the
+        // migration 0082 BEFORE INSERT trigger pins version_hash = 4.
+        expect(r.version_hash).toBe(4);
+
+        const preparaciones = await tx.query(
+          `SELECT orden, preparacion_id FROM fsj.asiento_preparacion WHERE asiento_recetario_id = $1 ORDER BY orden`,
+          [seed.asientoId],
+        );
 
         const detalles = await tx.query(
           `SELECT orden, descripcion, cantidad::text, unidad_texto, linea_pesaje_id FROM fsj.detalle_asiento
@@ -263,7 +268,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0014_libro_recetario_contralor mig
           [seed.asientoId],
         );
 
-        const recomputed = recomputeAsientoHashV3(
+        const recomputed = recomputeAsientoHashV4(
           {
             tenantId: r.tenant_id,
             libroId: r.libro_id,
@@ -272,11 +277,13 @@ describe.skipIf(dbTestSkipReason() !== null)("0014_libro_recetario_contralor mig
             origen: r.origen,
             preparacionId: r.preparacion_id,
             asientoOriginalId: r.asiento_original_id,
+            recetaId: r.receta_id,
             pacienteTexto: r.paciente_texto,
             medicoTexto: r.medico_texto,
             formulaTexto: r.formula_texto,
             hashAnterior: r.hash_anterior,
           },
+          preparaciones.rows.map((p) => ({ orden: p.orden, preparacionId: p.preparacion_id })),
           detalles.rows.map((d) => ({ orden: d.orden, descripcion: d.descripcion, cantidad: d.cantidad, unidadTexto: d.unidad_texto, lineaPesajeId: d.linea_pesaje_id })),
         );
         expect(recomputed).toBe(r.hash_integridad);
@@ -315,7 +322,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0014_libro_recetario_contralor mig
         // (migration 0034), so ANY recompute of a DIFFERENT algorithm
         // already fails to match trivially; this only needs inequality,
         // unlike the "matches the trigger-computed value" test above,
-        // which needs the EXACT algorithm and uses recomputeAsientoHashV3)
+        // which needs the EXACT algorithm and uses recomputeAsientoHashV4)
         // as if formula_texto had been tampered with -- must NOT match.
         const tampered = recomputeAsientoHash({
           tenantId: r.tenant_id,
@@ -809,13 +816,13 @@ describe.skipIf(dbTestSkipReason() !== null)("0018_legal_core_fixes -- B2 hash s
         expect(probe.rows[0].t).toBe("21/09/2026");
 
         const inserted = await insertAsientoSimple(tx, { tenantId: seed.tenantId, preparacionId: prep2, sistema: seed.sistema });
-        // The asiento itself is hashed V3 (migration 0034) -- fsj.asiento_recetario_hash_v2
+        // The asiento itself is hashed V4 (migration 0082) -- fsj.asiento_recetario_hash_v2
         // is exercised directly (independent of what version the row actually uses) to
         // keep proving IT, specifically, is DateStyle-independent.
-        const hashSql = await tx.query(`SELECT fsj.asiento_recetario_hash_v2(a) AS h, fsj.asiento_recetario_hash_v3(a) AS h3 FROM fsj.asiento_recetario a WHERE id = $1`, [inserted.id]);
+        const hashSql = await tx.query(`SELECT fsj.asiento_recetario_hash_v2(a) AS h, fsj.asiento_recetario_hash_v4(a) AS h4 FROM fsj.asiento_recetario a WHERE id = $1`, [inserted.id]);
 
         await tx.query(`SET LOCAL DateStyle = 'ISO, YMD'`);
-        const hashIso = await tx.query(`SELECT fsj.asiento_recetario_hash_v2(a) AS h, fsj.asiento_recetario_hash_v3(a) AS h3 FROM fsj.asiento_recetario a WHERE id = $1`, [inserted.id]);
+        const hashIso = await tx.query(`SELECT fsj.asiento_recetario_hash_v2(a) AS h, fsj.asiento_recetario_hash_v4(a) AS h4 FROM fsj.asiento_recetario a WHERE id = $1`, [inserted.id]);
 
         const row = await tx.query(
           `SELECT tenant_id, libro_id, numero_correlativo, to_char(fecha_asiento, 'YYYY-MM-DD') AS fecha_asiento, origen,
@@ -840,10 +847,10 @@ describe.skipIf(dbTestSkipReason() !== null)("0018_legal_core_fixes -- B2 hash s
 
         expect(hashSql.rows[0].h).toBe(spec);
         expect(hashIso.rows[0].h).toBe(spec);
-        // The row's OWN stored hash is V3 -- matches fsj.asiento_recetario_hash_v3
+        // The row's OWN stored hash is V4 -- matches fsj.asiento_recetario_hash_v4
         // under both DateStyles too (same DateStyle-independence property).
-        expect(inserted.hashIntegridad).toBe(hashSql.rows[0].h3);
-        expect(hashIso.rows[0].h3).toBe(hashSql.rows[0].h3);
+        expect(inserted.hashIntegridad).toBe(hashSql.rows[0].h4);
+        expect(hashIso.rows[0].h4).toBe(hashSql.rows[0].h4);
 
         const verif = await tx.query(`SELECT fsj.verificar_cadena($1, $2) AS roto`, [seed.tenantId, inserted.libroId]);
         expect(verif.rows[0].roto).toBeNull();
@@ -900,12 +907,12 @@ describe.skipIf(dbTestSkipReason() !== null)("0018_legal_core_fixes -- B2 hash s
             `UPDATE fsj.asiento_recetario SET formula_texto = 'FORMULA ALTERADA' WHERE id = $1`,
             [a2.id],
           );
-          // a2.version_hash is 3 (migration 0034) -- re-hash with the SAME
+          // a2.version_hash is 4 (migration 0082) -- re-hash with the SAME
           // function fsj.verificar_cadena will use for this row, or the row
           // would be flagged as broken itself instead of merely breaking
           // the NEXT link (which is what this simulation is testing).
           await tx.query(
-            `UPDATE fsj.asiento_recetario a SET hash_integridad = fsj.asiento_recetario_hash_v3(a) WHERE id = $1`,
+            `UPDATE fsj.asiento_recetario a SET hash_integridad = fsj.asiento_recetario_hash_v4(a) WHERE id = $1`,
             [a2.id],
           );
           await tx.query(`SET LOCAL session_replication_role = origin`);

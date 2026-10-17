@@ -35,13 +35,22 @@ describe.skipIf(dbTestSkipReason() !== null)("0034_asiento_recetario_hash_v3 (D4
         const seed = await seedAsientoSistema(tx, "v3NoDetalle");
         const preparacionId = await insertPreparacionAdicional(tx, seed);
 
+        // D8 (migration 0082): a por-receta asiento -- its preparación link goes first, so only the missing detalle fails.
+        const asientoId = randomUUID();
+        await tx.query(`INSERT INTO fsj.asiento_preparacion (tenant_id, asiento_recetario_id, preparacion_id, orden) VALUES ($1, $2, $3, 1)`, [
+          seed.tenantId,
+          asientoId,
+          preparacionId,
+        ]);
         await expectInvariantViolation(
           tx,
           () =>
             tx.query(
-              `INSERT INTO fsj.asiento_recetario (tenant_id, origen, preparacion_id, paciente_texto, medico_texto, formula_texto, registrado_por_id)
-               VALUES ($1, 'SISTEMA', $2, 'Paciente', 'Medico - MAT-1', 'Formula', $3)`,
-              [seed.tenantId, preparacionId, seed.sistema],
+              `INSERT INTO fsj.asiento_recetario (id, tenant_id, origen, receta_id, paciente_texto, medico_texto, formula_texto, registrado_por_id)
+               VALUES ($1, $2, 'SISTEMA',
+                       (SELECT i.receta_id FROM fsj.preparacion p JOIN fsj.item_receta i ON i.tenant_id = p.tenant_id AND i.id = p.item_receta_id WHERE p.id = $3),
+                       'Paciente', 'Medico - MAT-1', 'Formula', $4)`,
+              [asientoId, seed.tenantId, preparacionId, seed.sistema],
             ),
           "INV-L22",
         );
@@ -69,16 +78,16 @@ describe.skipIf(dbTestSkipReason() !== null)("0034_asiento_recetario_hash_v3 (D4
     );
   });
 
-  it("every asiento inserted through the normal path is version_hash = 3, hashed with fsj.asiento_recetario_hash_v3, and fsj.verificar_cadena reports it intact", async () => {
+  it("every SISTEMA asiento inserted through the normal path is version_hash = 4 (D8, migration 0082), hashed with fsj.asiento_recetario_hash_v4, and fsj.verificar_cadena reports it intact", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const seed = await seedAsientoSistema(tx, "v3Intacto");
 
         const row = await tx.query(`SELECT version_hash, hash_integridad, libro_id FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]);
-        expect(row.rows[0].version_hash).toBe(3);
+        expect(row.rows[0].version_hash).toBe(4);
 
-        const v3 = await tx.query(`SELECT fsj.asiento_recetario_hash_v3(a) AS h FROM fsj.asiento_recetario a WHERE id = $1`, [seed.asientoId]);
-        expect(row.rows[0].hash_integridad).toBe(v3.rows[0].h);
+        const v4 = await tx.query(`SELECT fsj.asiento_recetario_hash_v4(a) AS h FROM fsj.asiento_recetario a WHERE id = $1`, [seed.asientoId]);
+        expect(row.rows[0].hash_integridad).toBe(v4.rows[0].h);
 
         const verif = await tx.query(`SELECT fsj.verificar_cadena($1, $2) AS roto`, [seed.tenantId, row.rows[0].libro_id]);
         expect(verif.rows[0].roto).toBeNull();
@@ -108,7 +117,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0034_asiento_recetario_hash_v3 (D4
           await tx.query(`SET LOCAL session_replication_role = origin`);
 
           // hash_integridad was computed from the ORIGINAL cantidad --
-          // fsj.asiento_recetario_hash_v3 now recomputes over the TAMPERED
+          // fsj.asiento_recetario_hash_v4 (V3 + D8) now recomputes over the TAMPERED
           // line and no longer matches: the asiento itself is flagged.
           const numeroCorrelativo = (await tx.query(`SELECT numero_correlativo::text AS n FROM fsj.asiento_recetario WHERE id = $1`, [seed.asientoId]))
             .rows[0].n as string;
