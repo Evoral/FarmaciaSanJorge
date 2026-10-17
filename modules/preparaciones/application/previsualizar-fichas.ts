@@ -26,7 +26,9 @@ import { calcularLineasFicha, resolverFormulaBorrador } from "@/modules/elaborac
 import { itemInput } from "@/modules/recetas/application/crear-receta";
 import { mensajeNoFatal } from "@/modules/recetas/application/presupuestar-receta";
 import type { LineaDeFichaToma } from "./get-toma-receta";
-import { cargarPartidasPorDroga, esLineaPesable, partidasDeLinea } from "./partidas-para-pesar";
+import type { UnidadDeConversion } from "@/shared/decimal/convertir-unidad";
+import { getUnidadesBaseDeDrogas } from "../infrastructure/preparacion-repository";
+import { asignacionDeLinea, cargarPartidasPorDroga, esLineaPesable, partidasDeLinea } from "./partidas-para-pesar";
 
 /** One ítem's previewed ficha, or why it cannot be shown yet. Líneas carry plain strings (decimal values). */
 export type FichaPrevista = { ok: true; lineas: LineaDeFichaToma[] } | { ok: false; mensaje: string };
@@ -38,7 +40,8 @@ const previsualizarFichasInput = z.object({
 
 export type PrevisualizarFichasWireInput = z.input<typeof previsualizarFichasInput>;
 type ItemBorrador = z.infer<typeof itemInput>;
-type LineaSinPartidas = Omit<LineaDeFichaToma, "partidas" | "faltante">;
+/** A computed línea plus its unit (the magnitud's base unit), which the automatic assignment converts with (R12). */
+type LineaSinPartidas = Omit<LineaDeFichaToma, "partidas" | "faltante"> & { unidad: UnidadDeConversion };
 
 const MENSAJE_ITEM_INCOMPLETO = "Completá los datos del ítem para ver su ficha técnica.";
 
@@ -62,6 +65,7 @@ async function lineasDelItem(tx: Prisma.TransactionClient, tenantId: string, ite
     unidadSimbolo: l.unidadSimbolo,
     esEnraseManual: l.esEnraseManual,
     orden: l.orden,
+    unidad: { factorABase: l.unidadMedida.factorABase.toString(), tipoMagnitud: l.unidadMedida.tipoMagnitud },
   }));
 }
 
@@ -93,7 +97,24 @@ export const previsualizarFichasQuery = defineQuery({
       session.tenantId,
       porItem.flatMap((p) => (p.ok ? p.lineas.filter(esLineaPesable).map((l) => l.drogaId) : [])),
     );
-    return porItem.map((p) => (p.ok ? { ok: true, lineas: p.lineas.map((linea) => ({ ...linea, partidas: partidasDeLinea(partidasPorDroga, linea), faltante: null })) } : p));
+    // 3. The automatic assignment (R21), as the toma shows it: which partidas the reserva would take, or the faltante.
+    const unidadesStock = await getUnidadesBaseDeDrogas(
+      tx,
+      session.tenantId,
+      porItem.flatMap((p) => (p.ok ? p.lineas.filter(esLineaPesable).map((l) => l.drogaId) : [])),
+    );
+    return porItem.map((p) =>
+      p.ok
+        ? {
+            ok: true,
+            lineas: p.lineas.map(({ unidad, ...linea }) => {
+              const unidadStock = unidadesStock.get(linea.drogaId);
+              const asignacion = unidadStock ? asignacionDeLinea(partidasPorDroga, { ...linea, unidad, unidadStock }) : null;
+              return asignacion ? { ...linea, partidas: asignacion.partidas, faltante: asignacion.faltante } : { ...linea, partidas: partidasDeLinea(partidasPorDroga, linea), faltante: null };
+            }),
+          }
+        : p,
+    );
   },
 });
 

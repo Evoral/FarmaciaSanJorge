@@ -337,6 +337,16 @@ export async function getLineasParaPreparacion(tx: Prisma.TransactionClient, ten
  * confirmation form shows stock amounts in a readable unit. Read here instead of reaching into
  * modules/unidades/infrastructure (cross-module infrastructure imports are not allowed).
  */
+/** Each droga's unidad base, by droga id (own copy of modules/precios' `getUnidadesBaseDeDrogas`). The draft ficha preview converts its líneas with it (R12, R21). Plain read. */
+export async function getUnidadesBaseDeDrogas(tx: Prisma.TransactionClient, tenantId: string, drogaIds: readonly string[]): Promise<Map<string, UnidadDeConversion>> {
+  if (drogaIds.length === 0) return new Map();
+  const rows = await tx.droga.findMany({
+    where: { tenantId, id: { in: [...drogaIds] } },
+    select: { id: true, unidadBase: { select: { factorABase: true, tipoMagnitud: true } } },
+  });
+  return new Map(rows.map((d) => [d.id, { factorABase: d.unidadBase.factorABase.toString(), tipoMagnitud: d.unidadBase.tipoMagnitud }]));
+}
+
 export async function listUnidadesFormato(tx: Prisma.TransactionClient): Promise<UnidadFormato[]> {
   const rows = await tx.unidadMedida.findMany({
     orderBy: [{ tipoMagnitud: "asc" }, { factorABase: "asc" }],
