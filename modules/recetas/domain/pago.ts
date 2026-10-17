@@ -1,8 +1,8 @@
 /**
  * Payment of a receta (migration 0071, docs/specs/pago-receta.md): a simple
  * paid/unpaid FLAG -- no amounts, no medio de pago, no facturación. It is
- * orthogonal to `EstadoReceta` (a receta can be paid and pending, or
- * delivered and unpaid), so nothing here touches the state machine. Pure
+ * orthogonal to `EstadoReceta` (a receta can be paid and still pending, or
+ * sent by ENVIO and unpaid until its firma; only ENTREGADA requires it, INV-R14, migration 0076), so nothing here touches the state machine. Pure
  * rules, no I/O.
  *
  * Hard rules: the payment of an ANULADA receta cannot change (DB backstop

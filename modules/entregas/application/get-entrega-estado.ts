@@ -23,7 +23,7 @@ const getEntregaEstadoInput = z.object({ recetaId: uuid });
 export interface EntregaEstado {
   recetaId: string;
   estado: EstadoReceta;
-  /** Migration 0071: the receta is paid. An unpaid one can still be delivered; the screen only flags it. */
+  /** Migration 0071: the receta is paid. Reaching ENTREGADA requires it (INV-R14, migration 0076): a retiro presencial or a firma confirmation must mark it paid; only an ENVIO may leave unpaid. */
   pagada: boolean;
   itemsEntregables: number;
   itemsExcluidos: number;
