@@ -29,6 +29,11 @@ const ETIQUETA_ACCION_ENVIADA = "Esperando retorno";
 
 const numberFormat = new Intl.NumberFormat("es-AR");
 
+function textoEsperandoFirma(dias: number): string {
+  if (dias === 0) return "Esperando desde hoy";
+  return `Esperando hace ${dias} ${dias === 1 ? "día" : "días"}`;
+}
+
 function etiquetaEstado(estado: string): string {
   return Object.hasOwn(ESTADO_RECETA_LABELS, estado) ? ESTADO_RECETA_LABELS[estado as keyof typeof ESTADO_RECETA_LABELS] : estado;
 }
@@ -211,6 +216,11 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion, fil
                       </td>
                       <td className="px-3 py-2.5">
                         <StatusBadge estado={r.estado} />
+                        {r.estado === "ENVIADA_PEND_FIRMA" && typeof r.diasEsperandoFirma === "number" ? (
+                          <span className="mt-1 block text-xs text-amber-700" title="Días desde el envío sin la firma de recepción">
+                            {textoEsperandoFirma(r.diasEsperandoFirma)}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <Link href={`/entregas/${r.id}`} aria-label={`Gestionar la entrega de la receta Nº ${r.numeroInterno}`} className="btn btn-ghost btn-sm">

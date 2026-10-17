@@ -44,7 +44,7 @@ export async function lockRecetaParaAccion(tx: Prisma.TransactionClient, tenantI
 export interface RecetaParaEntrega {
   id: string;
   estado: EstadoReceta;
-  /** Migration 0071 -- whether the receta is already paid (delivering an unpaid one is allowed, just flagged). */
+  /** Migration 0071 -- whether the receta is already paid. ENTREGADA requires it (INV-R14, migration 0076); only an ENVIO may leave unpaid. */
   pagada: boolean;
 }
 
@@ -161,6 +161,8 @@ export interface EntregaPendienteItem {
   medicoApellido: string;
   estado: EstadoReceta;
   fechaIngreso: Date;
+  /** ENVIADA_PEND_FIRMA only: whole days since the envío (entrega.entregada_en); null otherwise. The /entregas notice. */
+  diasEsperandoFirma: number | null;
 }
 
 export interface ListEntregasPendientesFilter {
@@ -218,8 +220,10 @@ export async function listEntregasPendientes(tx: Prisma.TransactionClient, filte
       fechaIngreso: true,
       paciente: { select: { nombre: true, apellido: true } },
       medico: { select: { nombre: true, apellido: true } },
+      entrega: { select: { entregadaEn: true } },
     },
   });
+  const ahora = Date.now();
 
   return {
     items: rows.map((r) => ({
@@ -231,6 +235,8 @@ export async function listEntregasPendientes(tx: Prisma.TransactionClient, filte
       medicoApellido: r.medico.apellido,
       estado: r.estado,
       fechaIngreso: r.fechaIngreso,
+      diasEsperandoFirma:
+        r.estado === "ENVIADA_PEND_FIRMA" && r.entrega ? Math.max(0, Math.floor((ahora - r.entrega.entregadaEn.getTime()) / 86_400_000)) : null,
     })),
     total,
   };
