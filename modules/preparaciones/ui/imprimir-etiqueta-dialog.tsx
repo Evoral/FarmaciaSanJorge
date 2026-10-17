@@ -169,6 +169,8 @@ export interface EtiquetaDeItemParaImprimir {
   /** "Ítem N" of the toma workspace. */
   numero: number;
   nombre: string;
+  /** Why it can no longer be printed (asiento sin efecto, receta ANULADA -- spec R22); listed disabled with this reason. */
+  noImprimible?: string | null;
 }
 
 export interface SeleccionarEtiquetasDialogProps {
@@ -191,7 +193,8 @@ export function SeleccionarEtiquetasDialog({ etiquetas, tamanos, abrirAlMontar =
 
   const sinTamanos = tamanos.length === 0;
   // Every etiqueta sent to print: the flow ends here, so the dialog offers the next step (the Confirmadas tab).
-  const todasImpresas = etiquetas.length > 0 && etiquetas.every((e) => impresas.has(e.preparacionId));
+  const imprimibles = etiquetas.filter((e) => !e.noImprimible);
+  const todasImpresas = imprimibles.length > 0 && imprimibles.every((e) => impresas.has(e.preparacionId));
 
   function imprimir(preparacionId: string) {
     const tamanoId = tamanoElegido(tamanos, elegidos[preparacionId]);
@@ -217,8 +220,18 @@ export function SeleccionarEtiquetasDialog({ etiquetas, tamanos, abrirAlMontar =
             <SinTamanos />
           ) : (
             <ul className="flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800">
-              {etiquetas.map(({ preparacionId, numero, nombre }) => {
+              {etiquetas.map(({ preparacionId, numero, nombre, noImprimible }) => {
                 const selectId = `${campoId}-${preparacionId}`;
+                if (noImprimible) {
+                  return (
+                    <li key={preparacionId} className="flex flex-col gap-1 py-3 opacity-70">
+                      <p className="min-w-0 truncate text-sm font-medium">
+                        Ítem {numero}: {nombre}
+                      </p>
+                      <p className="text-xs text-zinc-500">{noImprimible}</p>
+                    </li>
+                  );
+                }
                 return (
                   <li key={preparacionId} className="flex flex-col gap-2 py-3">
                     <div className="flex items-center justify-between gap-3">

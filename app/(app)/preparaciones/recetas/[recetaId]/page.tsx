@@ -180,9 +180,11 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
   const puedeImprimirEtiquetas = can(session, "etiquetas.imprimir");
   // The "Seleccionar etiquetas" dialog's sizes: read only when an ítem may need them.
   const tamanos = puedeImprimirEtiquetas && receta.items.some((item) => item.preparacion !== null) ? await listTamanosParaImprimir() : [];
-  // Its rows: the confirmed ítems with their etiqueta, in ítem order.
+  // Its rows: the confirmed ítems with their etiqueta, in ítem order; one no longer printable is listed with its reason (R22).
   const etiquetas = receta.items.flatMap((item, i) =>
-    estados[i] === "CONFIRMADA" && item.preparacion?.etiquetaGenerada && !item.preparacion.etiquetaNoImprimible ? [{ preparacionId: item.preparacion.id, numero: i + 1, nombre: nombreDeItem(item) }] : [],
+    estados[i] === "CONFIRMADA" && item.preparacion?.etiquetaGenerada
+      ? [{ preparacionId: item.preparacion.id, numero: i + 1, nombre: nombreDeItem(item), noImprimible: item.preparacion.etiquetaNoImprimible }]
+      : [],
   );
   const paciente = `${receta.pacienteNombre} ${receta.pacienteApellido}`;
   const diagnostico = [receta.diagnosticoCodigo, receta.diagnosticoDescripcion].filter(Boolean).join(" - ");
