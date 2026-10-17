@@ -1,6 +1,6 @@
 /** `/libro` (FASE 9, M12 point 9.1). Consulta del libro recetario: filtros por rango de fechas/números, estado, texto paciente/médico, paginación. */
 import Link from "next/link";
-import { BookOpen, ChevronRight, Download, SearchX, X } from "lucide-react";
+import { BookOpen, ChevronRight, Download, Lock, LockOpen, SearchX, X } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listAsientosRecetario } from "@/modules/libro/application/list-asientos-recetario";
@@ -233,6 +233,9 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
                     <th scope="col" className="px-3 py-2">
                       Estado
                     </th>
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">
+                      Jornada
+                    </th>
                     <th scope="col" className="px-3 py-2">
                       <span className="sr-only">Acciones</span>
                     </th>
@@ -266,6 +269,13 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
                         </td>
                         <td className="px-3 py-2.5">
                           <ToneBadge tone={tonoEstadoAsiento(estadoVisual.kind)}>{etiquetaEstadoVisual(estadoVisual)}</ToneBadge>
+                          <span className="mt-1 block whitespace-nowrap text-xs text-zinc-500 sm:hidden">{item.cierreFirmado ? "Firmado" : "Sin firmar"}</span>
+                        </td>
+                        <td className="hidden whitespace-nowrap px-3 py-2.5 sm:table-cell">
+                          <span className={`inline-flex items-center gap-1 text-xs ${item.cierreFirmado ? "text-zinc-700" : "text-zinc-500"}`}>
+                            {item.cierreFirmado ? <Lock className="size-3" aria-hidden /> : <LockOpen className="size-3" aria-hidden />}
+                            {item.cierreFirmado ? "Firmado" : "Sin firmar"}
+                          </span>
                         </td>
                         <td className="px-3 py-2.5 text-right">
                           <Link href={`/libro/${item.id}`} aria-label={`Ver el asiento Nº ${item.numeroCorrelativo}`} className="btn btn-ghost btn-sm btn-icon">
