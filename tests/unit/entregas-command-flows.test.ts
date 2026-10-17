@@ -201,7 +201,7 @@ describe("confirmarFirmaRecibida -- envío -> confirmar firma atomic path (user 
     getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "ENVIADA_PEND_FIRMA", pagada: true });
     getEntregaPorRecetaMock.mockResolvedValue({ id: ENTREGA_ID, modalidad: "ENVIO", entregadaEn: new Date(), firmaRecibida: false, firmaRecibidaEn: null });
 
-    await confirmarFirmaRecibidaCommand.execute({ recetaId: RECETA_ID }, { session: fakeSession("entregas.firma.confirmar") });
+    await confirmarFirmaRecibidaCommand.execute({ recetaId: RECETA_ID }, { session: fakeSession("entregas.registrar") });
 
     expect(confirmarFirmaYEntregarMock).toHaveBeenCalledWith(
       { __fakeTx: true, tenantId: TENANT_ID },
@@ -214,7 +214,7 @@ describe("confirmarFirmaRecibida -- envío -> confirmar firma atomic path (user 
     getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "ENVIADA_PEND_FIRMA", pagada: false });
     getEntregaPorRecetaMock.mockResolvedValue({ id: ENTREGA_ID, modalidad: "ENVIO", entregadaEn: new Date(), firmaRecibida: false, firmaRecibidaEn: null });
 
-    await confirmarFirmaRecibidaCommand.execute({ recetaId: RECETA_ID, pagada: true }, { session: fakeSession("entregas.firma.confirmar") });
+    await confirmarFirmaRecibidaCommand.execute({ recetaId: RECETA_ID, pagada: true }, { session: fakeSession("entregas.registrar") });
 
     expect(callOrder).toEqual(["lock", "pago", "confirmarFirmaYEntregar"]);
   });
@@ -223,7 +223,7 @@ describe("confirmarFirmaRecibida -- envío -> confirmar firma atomic path (user 
     getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "ENVIADA_PEND_FIRMA", pagada: false });
     getEntregaPorRecetaMock.mockResolvedValue({ id: ENTREGA_ID, modalidad: "ENVIO", entregadaEn: new Date(), firmaRecibida: false, firmaRecibidaEn: null });
 
-    await expect(confirmarFirmaRecibidaCommand.execute({ recetaId: RECETA_ID }, { session: fakeSession("entregas.firma.confirmar") })).rejects.toBeInstanceOf(
+    await expect(confirmarFirmaRecibidaCommand.execute({ recetaId: RECETA_ID }, { session: fakeSession("entregas.registrar") })).rejects.toBeInstanceOf(
       ValidationError,
     );
     expect(marcarRecetaPagadaMock).not.toHaveBeenCalled();
@@ -233,7 +233,7 @@ describe("confirmarFirmaRecibida -- envío -> confirmar firma atomic path (user 
   it("rejects when the receta is not ENVIADA_PEND_FIRMA", async () => {
     getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA" });
 
-    await expect(confirmarFirmaRecibidaCommand.execute({ recetaId: RECETA_ID }, { session: fakeSession("entregas.firma.confirmar") })).rejects.toBeInstanceOf(
+    await expect(confirmarFirmaRecibidaCommand.execute({ recetaId: RECETA_ID }, { session: fakeSession("entregas.registrar") })).rejects.toBeInstanceOf(
       DomainError,
     );
     expect(confirmarFirmaYEntregarMock).not.toHaveBeenCalled();
@@ -243,7 +243,7 @@ describe("confirmarFirmaRecibida -- envío -> confirmar firma atomic path (user 
     getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "ENVIADA_PEND_FIRMA" });
     getEntregaPorRecetaMock.mockResolvedValue(null);
 
-    await expect(confirmarFirmaRecibidaCommand.execute({ recetaId: RECETA_ID }, { session: fakeSession("entregas.firma.confirmar") })).rejects.toBeInstanceOf(
+    await expect(confirmarFirmaRecibidaCommand.execute({ recetaId: RECETA_ID }, { session: fakeSession("entregas.registrar") })).rejects.toBeInstanceOf(
       NotFoundError,
     );
   });
@@ -252,7 +252,7 @@ describe("confirmarFirmaRecibida -- envío -> confirmar firma atomic path (user 
     getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "ENVIADA_PEND_FIRMA" });
     getEntregaPorRecetaMock.mockResolvedValue({ id: ENTREGA_ID, modalidad: "ENVIO", entregadaEn: new Date(), firmaRecibida: true, firmaRecibidaEn: new Date() });
 
-    await expect(confirmarFirmaRecibidaCommand.execute({ recetaId: RECETA_ID }, { session: fakeSession("entregas.firma.confirmar") })).rejects.toBeInstanceOf(
+    await expect(confirmarFirmaRecibidaCommand.execute({ recetaId: RECETA_ID }, { session: fakeSession("entregas.registrar") })).rejects.toBeInstanceOf(
       DomainError,
     );
     expect(confirmarFirmaYEntregarMock).not.toHaveBeenCalled();

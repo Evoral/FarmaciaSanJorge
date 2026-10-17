@@ -3,7 +3,7 @@
  * (2026-09-24): the courier brings back the patient's signed constancia.
  * This command, ATOMICALLY in ONE transaction: entrega.firma_recibida
  * = true + firma_recibida_en, and receta -> ENTREGADA. Permiso
- * `entregas.firma.confirmar`, audited. (Before migration 0051 it also set
+ * `entregas.registrar` (the single /entregas permiso since 0085), audited. (Before migration 0051 it also set
  * the receta física attribute, which no longer exists.)
  *
  * Write order (see `modules/entregas/infrastructure/entrega-repository.ts`'s
@@ -33,7 +33,7 @@ export type ConfirmarFirmaRecibidaInput = z.input<typeof confirmarFirmaRecibidaI
 
 export const confirmarFirmaRecibidaCommand = defineCommand({
   name: "entregas.firma.confirmar",
-  permiso: "entregas.firma.confirmar",
+  permiso: "entregas.registrar",
   input: confirmarFirmaRecibidaInput,
   audit: { entidad: "entrega", accion: TipoAccion.CONFIRMAR },
   handler: async ({ tx, session, input }) => {

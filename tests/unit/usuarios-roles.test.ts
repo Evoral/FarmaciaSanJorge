@@ -257,7 +257,6 @@ const OPERATIVOS_APROBADOS: Permiso[] = [
   "libros.crear",
   "libros.cerrar",
   "entregas.registrar",
-  "entregas.firma.confirmar",
   "archivo.lotes.gestionar",
   "archivo.destruccion.gestionar",
 ];

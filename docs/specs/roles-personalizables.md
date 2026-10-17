@@ -35,7 +35,7 @@ Permisos `operativo`: `stock.partida.ingresar`, `stock.ajuste.registrar`, `stock
 `recetas.editar`, `recetas.anular`, `fichas.generar`, `cotizaciones.calcular`, `preparaciones.iniciar`,
 `preparaciones.descartar`, `preparaciones.confirmar`, `etiquetas.generar`, `libro.anulacion.solicitar`,
 `libro.anulacion.autorizar`, `cierres.firmar`, `cierres.folio.corregir`, `libros.crear`,
-`libros.cerrar`, `entregas.registrar`, `entregas.firma.confirmar`, `archivo.lotes.gestionar`,
+`libros.cerrar`, `entregas.registrar`, `archivo.lotes.gestionar`,
 `archivo.destruccion.gestionar`.
 
 Criterios de clasificación que vale la pena mencionar:

@@ -112,7 +112,6 @@ export const PERMISO_CATALOGO = {
   "tenants.baja": "sistema",
   // Entregas, archivo.
   "entregas.registrar": "operativo",
-  "entregas.firma.confirmar": "operativo",
   "archivo.lotes.gestionar": "operativo",
   "archivo.destruccion.gestionar": "operativo",
   // Reportes y auditoría.
@@ -237,7 +236,6 @@ export const PERMISOS_CON_PIN_CONFIGURABLES = [
   "preparaciones.confirmar",
   "etiquetas.generar",
   "entregas.registrar",
-  "entregas.firma.confirmar",
 ] as const satisfies readonly Permiso[];
 
 /**

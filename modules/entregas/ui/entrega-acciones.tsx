@@ -25,7 +25,7 @@ export interface EntregaAccionesProps {
   itemsExcluidos: number;
   /** `entregas.registrar` */
   puedeRegistrar: boolean;
-  /** `entregas.firma.confirmar` */
+  /** `entregas.registrar` (single /entregas permiso, migration 0085) */
   puedeConfirmarFirma: boolean;
 }
 

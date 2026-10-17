@@ -46,7 +46,7 @@ export default async function EntregaModalPage({ params }: EntregaModalPageProps
         pagada={entregaEstado.pagada}
         itemsExcluidos={entregaEstado.itemsExcluidos}
         puedeRegistrar={can(session, "entregas.registrar")}
-        puedeConfirmarFirma={can(session, "entregas.firma.confirmar")}
+        puedeConfirmarFirma={can(session, "entregas.registrar")}
       />
     </RouteDialog>
   );

@@ -39,9 +39,9 @@ type Rol = (typeof ROLES)[number];
 
 const SEED_GRANTS: Record<Rol, readonly Permiso[]> = {
   ADMINISTRADOR: [],
-  DIRECTOR_TECNICO: ["entregas.registrar", "entregas.firma.confirmar"],
-  FARMACEUTICO: ["entregas.registrar", "entregas.firma.confirmar"],
-  ATENCION_PUBLICO: ["entregas.registrar", "entregas.firma.confirmar"],
+  DIRECTOR_TECNICO: ["entregas.registrar"],
+  FARMACEUTICO: ["entregas.registrar"],
+  ATENCION_PUBLICO: ["entregas.registrar"],
   SOLO_CONSULTA: [],
 };
 
@@ -49,7 +49,7 @@ const RECETA_ID = "22222222-2222-4222-a222-222222222222";
 
 const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> = [
   { name: "entregas.registrar", permiso: "entregas.registrar", input: { recetaId: RECETA_ID, modalidad: "RETIRO_PRESENCIAL" } },
-  { name: "entregas.firma.confirmar", permiso: "entregas.firma.confirmar", input: { recetaId: RECETA_ID } },
+  { name: "entregas.firma.confirmar", permiso: "entregas.registrar", input: { recetaId: RECETA_ID } },
   { name: "entregas.pendientes.listar", permiso: "entregas.registrar", input: {} },
   { name: "entregas.estado.ver", permiso: "entregas.registrar", input: { recetaId: RECETA_ID } },
 ];

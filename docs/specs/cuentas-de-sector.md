@@ -66,7 +66,7 @@ editor de roles: "Confirmar preparaciones" cubre reservar, modificar la reserva,
 | `fichas.generar`, `etiquetas.generar` | Con PIN |
 | `preparaciones.iniciar`, `preparaciones.descartar`, `preparaciones.confirmar` | Con PIN |
 | `recetas.crear`, `recetas.editar`, `recetas.anular` | Sin PIN |
-| `entregas.registrar`, `entregas.firma.confirmar` | Sin PIN |
+| `entregas.registrar` (única de entregas desde 0085: registrar, confirmar firma) | Sin PIN |
 
 `cotizaciones.calcular` no es configurable: el presupuesto se recalcula solo mientras se carga la receta.
 

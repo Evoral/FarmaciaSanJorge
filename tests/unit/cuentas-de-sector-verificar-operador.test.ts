@@ -146,7 +146,7 @@ describe("reglas puras", () => {
     for (const permiso of PERMISOS_CON_PIN_POR_DEFECTO) expect(configurables).toContain(permiso);
     // Mostrador stays dynamic by default (user decision 2026-10-13).
     const porDefecto: readonly string[] = PERMISOS_CON_PIN_POR_DEFECTO;
-    for (const permiso of ["recetas.crear", "recetas.editar", "entregas.registrar", "entregas.firma.confirmar"]) expect(porDefecto).not.toContain(permiso);
+    for (const permiso of ["recetas.crear", "recetas.editar", "entregas.registrar"]) expect(porDefecto).not.toContain(permiso);
   });
 
   it("fsj.seed_acciones_con_pin (migración 0077) siembra exactamente PERMISOS_CON_PIN_POR_DEFECTO", () => {
