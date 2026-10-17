@@ -88,8 +88,10 @@ const JOIN_ASIENTO_SISTEMA = Prisma.sql`
   JOIN fsj.asiento_recetario a ON a.tenant_id = v.tenant_id AND a.id = v.asiento_recetario_id
 `;
 
-/** Mirrors modules/recetas/domain/receta.ts#ESTADOS_TERMINALES -- see module doc comment for why this is a local copy, not an import. */
-const ESTADOS_TERMINALES_RECETA: ReadonlySet<string> = new Set(["ENTREGADA", "ANULADA"]);
+/** modules/recetas/domain/receta.ts#ESTADOS_TERMINALES plus ENVIADA_PEND_FIRMA -- see module doc comment for why this is a local copy, not an import. */
+// ENVIADA_PEND_FIRMA counts as delivered here: the preparado already left the farmacia, so a libro correction must
+// not anular the receta (its firma can still be confirmed). Same treatment as ENTREGADA.
+const ESTADOS_TERMINALES_RECETA: ReadonlySet<string> = new Set(["ENTREGADA", "ENVIADA_PEND_FIRMA", "ANULADA"]);
 
 export interface DesvincularRecetaInput {
   tenantId: string;
@@ -197,7 +199,7 @@ export async function asientosEnEfectoDeReceta(tx: Prisma.TransactionClient, ten
  * Sets the receta to ANULADA (with a `motivoAnulacion` referencing the
  * asiento) and writes ONE extra audit row for it, ONLY when EVERY item of
  * the receta is "sin efecto" (see `todosLosItemsSinEfecto`) AND the receta
- * is not already in a terminal estado (ENTREGADA/ANULADA). Otherwise
+ * is not already delivered or terminal (ENTREGADA, ENVIADA_PEND_FIRMA, ANULADA). Otherwise
  * (terminal receta, or at least one item still pending/vigente) nothing is
  * written and this returns `null`. Callers (anularAsiento / rectificarAsiento)
  * call this AFTER their own asiento-side write, in the SAME transaction,
