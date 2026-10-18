@@ -16,26 +16,29 @@ export interface CoFirmaDtProps {
   idSuffix?: string;
   /** The operator is themselves a vigente DT (they still type their own password). */
   operadorEsDt?: boolean;
+  /** Block title; the libro forms call it "Firma". */
+  titulo?: string;
 }
 
-export function CoFirmaDt({ dts, idSuffix = "", operadorEsDt = false }: CoFirmaDtProps) {
+export function CoFirmaDt({ dts, idSuffix = "", operadorEsDt = false, titulo = "Co-firma del Director Técnico" }: CoFirmaDtProps) {
   const dtId = `dtUsuarioId${idSuffix}`;
   const passwordId = `dtPassword${idSuffix}`;
   return (
     <fieldset className="subpanel">
-      <legend className="sr-only">Co-firma del Director Técnico</legend>
+      <legend className="sr-only">{titulo}</legend>
       <div className="mb-3 flex items-start gap-3">
         <span className="tone-tile" data-tone="success" aria-hidden>
           <ShieldCheck />
         </span>
         <div>
-          <p className="text-sm font-medium text-zinc-900">Co-firma del Director Técnico</p>
+          <p className="text-sm font-medium text-zinc-900">{titulo}</p>
           <p className="text-xs text-zinc-500">
             {operadorEsDt ? "Sos DT vigente: aun así, ingresá tu propia contraseña para autorizar." : "El DT que autoriza ingresa su contraseña en este mismo paso."}
           </p>
         </div>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* items-end: a label that wraps to two lines must not push its input below the other one. */}
+      <div className="grid gap-4 sm:grid-cols-2 sm:items-end">
         <div className="field">
           <label htmlFor={dtId} className="field-label">
             Director Técnico

@@ -42,7 +42,7 @@ export function AnularAsientoForm({ asientoId, numeroCorrelativo, dts }: AnularA
             </label>
             <textarea id="motivo" name="motivo" required rows={2} className="input" />
           </div>
-          <CoFirmaDt dts={dts} />
+          <CoFirmaDt dts={dts} titulo="Firma del Director Técnico" />
         </ReauthAwareForm>
       </div>
     </section>

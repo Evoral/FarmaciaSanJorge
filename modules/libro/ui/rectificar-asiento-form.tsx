@@ -40,7 +40,7 @@ export function RectificarAsientoForm({ asientoOriginalId, numeroCorrelativo, dt
             </label>
             <textarea id="motivo-rectificar" name="motivo" required rows={2} className="input" />
           </div>
-          <CoFirmaDt dts={dts} idSuffix="-rectificar" />
+          <CoFirmaDt dts={dts} idSuffix="-rectificar" titulo="Firma del Director Técnico" />
         </ReauthAwareForm>
       </div>
     </section>
