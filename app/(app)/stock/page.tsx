@@ -8,10 +8,12 @@
  * its matching filter applied.
  */
 import Link from "next/link";
-import { ChevronRight, PackageSearch, SearchX, SlidersHorizontal, X } from "lucide-react";
+import { ChevronRight, History, PackageSearch, SearchX, SlidersHorizontal, X } from "lucide-react";
 import { listStockDrogas } from "@/modules/stock/application/list-stock-drogas";
 import { alertasStock } from "@/modules/stock/application/alertas-stock";
 import { getCatalogoUnidades } from "@/modules/unidades/application/catalogo-unidades";
+import { puedeVerHistorialDroga } from "@/modules/drogas/application/get-historial-droga";
+import { requireSession } from "@/shared/auth/session";
 import { ORDENES_STOCK_DROGAS, ORDEN_STOCK_DROGAS_LABELS, type OrdenStockDrogas } from "@/modules/stock/domain/partida";
 import { formatCantidadesFila, type ModoCantidad } from "@/shared/format/cantidad";
 import { Cantidad } from "@/shared/ui/cantidad";
@@ -74,7 +76,8 @@ export default async function StockPage({ searchParams }: StockPageProps) {
   const orden: OrdenStockDrogas = (ORDENES_STOCK_DROGAS as readonly string[]).includes(params.orden ?? "") ? (params.orden as OrdenStockDrogas) : "nombre";
   const modo: ModoCantidad = params.unidades === "base" ? "base" : "auto";
 
-  const [stock, alertas, { catalogo }] = await Promise.all([
+  const [session, stock, alertas, { catalogo }] = await Promise.all([
+    requireSession(),
     listStockDrogas({
       search: q,
       soloBajoMinimo: activos.bajoMinimo,
@@ -89,6 +92,8 @@ export default async function StockPage({ searchParams }: StockPageProps) {
     alertasStock(),
     getCatalogoUnidades(),
   ]);
+  // Same check as the historial page itself, so the link never leads to a redirect.
+  const conHistorial = puedeVerHistorialDroga(session);
 
   /** Current filters (normalized), without `page`. */
   const actuales = new URLSearchParams();
@@ -326,10 +331,18 @@ export default async function StockPage({ searchParams }: StockPageProps) {
                           )}
                         </td>
                         <td className="px-3 py-2.5 text-right">
-                          <Link href={partidasHref} aria-label={`Ver partidas de ${item.drogaNombre}`} className="btn btn-ghost btn-sm">
-                            <span className="hidden sm:inline">Partidas</span>
-                            <ChevronRight className="size-3.5" aria-hidden />
-                          </Link>
+                          <div className="flex justify-end gap-1">
+                            {conHistorial ? (
+                              <Link href={`/catalogos/drogas/${item.drogaId}/historial`} aria-label={`Ver historial de ${item.drogaNombre}`} className="btn btn-ghost btn-sm">
+                                <History className="size-3.5" aria-hidden />
+                                <span className="hidden sm:inline">Historial</span>
+                              </Link>
+                            ) : null}
+                            <Link href={partidasHref} aria-label={`Ver partidas de ${item.drogaNombre}`} className="btn btn-ghost btn-sm">
+                              <span className="hidden sm:inline">Partidas</span>
+                              <ChevronRight className="size-3.5" aria-hidden />
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     );

@@ -6,6 +6,7 @@
  *     the tenant's jornada (DP-14).
  *   - already-expired partidas that still carry a balance -- suggests a
  *     VENCIMIENTO ajuste (5.4).
+ * `resumenBajoMinimo` is the app-wide banner count of the first one.
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
@@ -13,6 +14,7 @@ import {
   alertasBajoMinimo,
   alertasPorVencer,
   alertasVencidasConSaldo,
+  contarDrogasBajoMinimo,
   getDiasAlertaVencimiento,
 } from "../infrastructure/partida-repository";
 import type { AlertaBajoMinimo, AlertaPorVencer, AlertaVencidaConSaldo } from "../infrastructure/partida-repository";
@@ -41,4 +43,15 @@ export const alertasStockQuery = defineQuery({
 
 export async function alertasStock(): Promise<AlertasStockResult> {
   return alertasStockQuery.execute({});
+}
+
+export const resumenBajoMinimoQuery = defineQuery({
+  name: "stock.alertas.bajo-minimo.resumen",
+  permiso: "stock.ver",
+  input: alertasStockInput,
+  handler: async ({ tx, session }): Promise<number> => contarDrogasBajoMinimo(tx, session.tenantId),
+});
+
+export async function resumenBajoMinimo(): Promise<number> {
+  return resumenBajoMinimoQuery.execute({});
 }

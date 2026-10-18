@@ -17,6 +17,7 @@ import { logout } from "@/modules/auth/application/logout";
 import { resumenJornadasPendientes } from "@/modules/cierres/application/list-jornadas-pendientes";
 import { resumenDestruccion } from "@/modules/archivo/application/resumen-destruccion";
 import { resumenVencimientosDrogas } from "@/modules/stock/application/vencimientos-drogas";
+import { resumenBajoMinimo } from "@/modules/stock/application/alertas-stock";
 import { getLogger } from "@/shared/logging/logger";
 import { OperadorProvider } from "@/modules/operadores/ui/operador-provider";
 import { AppShell } from "./app-shell";
@@ -103,6 +104,16 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
       resumenVencimientos = null;
     }
   }
+  // Drogas below their stock mínimo: same fail-soft discipline and permiso (`stock.ver`), links to the
+  // "Bajo mínimo" filter of /stock.
+  let drogasBajoMinimo = 0;
+  if (puedeVencimientos) {
+    try {
+      drogasBajoMinimo = await resumenBajoMinimo();
+    } catch (error) {
+      getLogger().error({ error }, "Failed to load stock bajo-minimo banner summary");
+    }
+  }
   const vencimientosHref = seccionesGestionDt.some((seccion) => seccion.href === "/cierres/vencimientos") ? "/cierres/vencimientos" : "/stock?vencidas=1";
 
   // FASE 12 nav entry: "Archivo" is visible ONLY to archivo.lotes.gestionar
@@ -170,6 +181,19 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
               <b className="font-semibold tabular-nums">{drogasPorVencer}</b> {drogasVencidas > 0 ? "por vencer" : `droga${drogasPorVencer === 1 ? "" : "s"} por vencer`}
             </>
           ) : null}
+        </>
+      ),
+    });
+  }
+  if (drogasBajoMinimo > 0) {
+    avisos.push({
+      key: "bajo-minimo",
+      tone: "warn",
+      href: "/stock?bajoMinimo=1",
+      linkLabel: "Ver stock",
+      content: (
+        <>
+          <b className="font-semibold tabular-nums">{drogasBajoMinimo}</b> droga{drogasBajoMinimo === 1 ? "" : "s"} por debajo del stock mínimo
         </>
       ),
     });

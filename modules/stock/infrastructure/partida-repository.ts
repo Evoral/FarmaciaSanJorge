@@ -1079,6 +1079,18 @@ export async function alertasBajoMinimo(tx: Prisma.TransactionClient, tenantId: 
   }));
 }
 
+/** How many drogas `alertasBajoMinimo` above would list (keep them in sync): one aggregate for the app-wide banner. */
+export async function contarDrogasBajoMinimo(tx: Prisma.TransactionClient, tenantId: string): Promise<number> {
+  const rows = await tx.$queryRaw<{ cantidad: number }[]>`
+    SELECT count(*)::int AS cantidad
+    FROM fsj.droga d
+    LEFT JOIN fsj.v_stock_droga v ON v.tenant_id = d.tenant_id AND v.droga_id = d.id
+    WHERE d.tenant_id = ${tenantId}::uuid AND d.fecha_baja IS NULL
+      AND coalesce(v.stock_disponible, 0) < d.stock_minimo
+  `;
+  return rows[0]?.cantidad ?? 0;
+}
+
 export interface AlertaPorVencer {
   partidaId: string;
   drogaId: string;
