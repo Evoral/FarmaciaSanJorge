@@ -13,6 +13,9 @@
  * - Visible states: loading, error (with retry), no matches, selected.
  * - `actionOption`: a last action row for the typed text (also reachable
  *   by keyboard): "Crear paciente “x”", "Buscar “x” en la lista"...
+ * - `enterRunsAction`: a search box. No option starts highlighted and
+ *   Enter never picks: it runs `actionOption` with the highlighted
+ *   option's label, or else the typed text. Only a click picks.
  * - With `name`, a hidden input carries the value and a bubbling `change`
  *   is dispatched on pick/clear, so it drops into a `FilterForm` like
  *   `./date-input.tsx` does.
@@ -71,6 +74,12 @@ export interface ComboboxProps {
   disabled?: boolean;
   size?: "md" | "sm";
   actionOption?: ComboboxActionOption;
+  /**
+   * Search-box behavior: no option starts highlighted, and Enter never picks -- it runs `actionOption` with the
+   * highlighted option's label (arrows or mouse), else the typed text. Only a click picks. Without it, Enter picks the
+   * first suggestion.
+   */
+  enterRunsAction?: boolean;
 }
 
 const DEBOUNCE_MS = 200;
@@ -113,7 +122,7 @@ export function filtrarOpciones(options: readonly ComboboxOption[], limit = 30) 
 
 type Status = "idle" | "loading" | "error" | "ready";
 
-export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, search, value, onChange, name, helperText, disabled, size = "md", actionOption }: ComboboxProps) {
+export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, search, value, onChange, name, helperText, disabled, size = "md", actionOption, enterRunsAction = false }: ComboboxProps) {
   const autoId = useId();
   const inputId = id ?? `${autoId}-input`;
   const listId = `${autoId}-list`;
@@ -173,7 +182,7 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
       (result) => {
         if (controller.signal.aborted) return;
         setOptions(result);
-        setActiveIndex(result.length > 0 ? 0 : -1);
+        setActiveIndex(result.length > 0 && !enterRunsAction ? 0 : -1);
         setStatus("ready");
       },
       () => {
@@ -234,6 +243,19 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
         return;
       }
       case "Enter":
+        if (enterRunsAction && actionOption) {
+          // Enter always searches, never picks: a highlighted option (among the current results, not a previous
+          // query's) is searched by its name; otherwise the typed text is.
+          event.preventDefault();
+          const resaltada = open && status === "ready" && lastQuery === text.trim() ? options[activeIndex] : undefined;
+          const query = resaltada ? resaltada.label : text.trim();
+          clearTimeout(debounceRef.current);
+          requestRef.current?.abort();
+          setOpen(false);
+          setText(query);
+          actionOption.onSelect(query);
+          return;
+        }
         // Never submit the surrounding form from inside the autocomplete.
         if (open) event.preventDefault();
         if (open && activeIndex >= 0) choose(activeIndex);
@@ -295,6 +317,8 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
             title={nombrePrincipal ? `Nombre principal: ${nombrePrincipal}` : undefined}
             onChange={(event) => {
               setText(event.target.value);
+              // A highlight chosen for the previous text no longer applies.
+              if (enterRunsAction) setActiveIndex(-1);
               openWith(event.target.value);
             }}
             onFocus={() => openWith(text === textoDe(value) ? "" : text)}

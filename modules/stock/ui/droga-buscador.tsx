@@ -7,7 +7,8 @@
  * - `/stock/ajustes`: filter the list by that droga;
  * - "Registrar ajuste": go to step 2 with that droga.
  * The last row ("Buscar “x” en la lista") applies the typed text as the list's own search instead, so free text (a lote,
- * part of a name) still works; clearing the box removes that search.
+ * part of a name) still works; clearing the box removes that search. With that row, Enter always runs it (a plain search
+ * box; a highlighted suggestion is searched by its name): only a click picks a droga.
  */
 import { Search } from "lucide-react";
 import { useCallback, useRef } from "react";
@@ -58,6 +59,7 @@ export function DrogaBuscador({ id, label, hideLabel, placeholder, alElegir, alB
       hideLabel={hideLabel}
       placeholder={placeholder}
       search={search}
+      enterRunsAction={Boolean(alBuscar)}
       value={busquedaActual ? { value: "", label: busquedaActual } : null}
       onChange={(option) => {
         if (!option) {
