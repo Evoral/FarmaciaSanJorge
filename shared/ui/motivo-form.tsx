@@ -74,13 +74,15 @@ export interface MotivoFormProps<S extends FormActionState> {
   pendingLabel: string;
   helpText?: string;
   variant?: ButtonVariant;
+  /** The permiso of the action, so a cuenta de sector asks for the empleado's PIN before submitting (see `SimpleForm`). */
+  accion?: string;
 }
 
-export function MotivoForm<S extends FormActionState>({ action, id, label, pendingLabel, helpText, variant }: MotivoFormProps<S>) {
+export function MotivoForm<S extends FormActionState>({ action, id, label, pendingLabel, helpText, variant, accion }: MotivoFormProps<S>) {
   return (
     <CollapsibleActionCard label={label} helpText={helpText} variant={variant}>
       {({ close, cancelButton }) => (
-        <SimpleForm action={action} submitLabel={label} pendingLabel={pendingLabel} submitVariant={variant} onSuccess={close} extraActions={cancelButton}>
+        <SimpleForm action={action} submitLabel={label} pendingLabel={pendingLabel} submitVariant={variant} onSuccess={close} extraActions={cancelButton} accion={accion}>
           <input type="hidden" name="id" value={id} />
           <MotivoField />
         </SimpleForm>

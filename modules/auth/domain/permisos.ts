@@ -229,7 +229,6 @@ export const PERMISOS_CON_PIN_CONFIGURABLES = [
   "stock.ajuste.registrar",
   "recetas.crear",
   "recetas.editar",
-  "recetas.anular",
   "fichas.generar",
   "preparaciones.iniciar",
   "preparaciones.descartar",
@@ -237,6 +236,14 @@ export const PERMISOS_CON_PIN_CONFIGURABLES = [
   "etiquetas.generar",
   "entregas.registrar",
 ] as const satisfies readonly Permiso[];
+
+/**
+ * Acciones that ALWAYS ask a cuenta de sector for the empleado's PIN, whatever
+ * `fsj.accion_con_pin` says: never configurable, so the empleado who did them
+ * is always known. Their Server Actions carry `conOperador` too. Anular a
+ * receta is irreversible (user decision 2026-10-17).
+ */
+export const PERMISOS_CON_PIN_SIEMPRE = ["recetas.anular"] as const satisfies readonly Permiso[];
 
 /**
  * What a new farmacia starts with (mirrors `fsj.seed_acciones_con_pin`,

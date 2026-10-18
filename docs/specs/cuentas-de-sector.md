@@ -65,8 +65,10 @@ editor de roles: "Confirmar preparaciones" cubre reservar, modificar la reserva,
 | `stock.partida.ingresar`, `stock.ajuste.registrar` | Con PIN |
 | `fichas.generar`, `etiquetas.generar` | Con PIN |
 | `preparaciones.iniciar`, `preparaciones.descartar`, `preparaciones.confirmar` | Con PIN |
-| `recetas.crear`, `recetas.editar`, `recetas.anular` | Sin PIN |
+| `recetas.crear`, `recetas.editar` | Sin PIN |
 | `entregas.registrar` (única de entregas desde 0085: registrar, confirmar firma) | Sin PIN |
+
+**Siempre con PIN** (`PERMISOS_CON_PIN_SIEMPRE`, no configurable; decisión del usuario 2026-10-17): `recetas.anular`. Anular una receta no se deshace, así que en una cuenta de sector siempre queda a nombre del empleado que la anuló. Se suma al conjunto de `fsj.accion_con_pin` al cargar la sesión (`loadPermisosConPin`) y no aparece en «PIN por acción».
 
 `cotizaciones.calcular` no es configurable: el presupuesto se recalcula solo mientras se carga la receta.
 

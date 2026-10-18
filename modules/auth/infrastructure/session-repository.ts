@@ -8,7 +8,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { getPrismaClient } from "@/shared/db/client";
 import { withTenantTransaction } from "@/shared/db/transaction";
-import { isPermiso, permisosEfectivos, type Permiso } from "../domain/permisos";
+import { PERMISOS_CON_PIN_SIEMPRE, isPermiso, permisosEfectivos, type Permiso } from "../domain/permisos";
 
 export interface NewSesionRow {
   tenantId: string;
@@ -187,10 +187,10 @@ function toUsuarioConPermisos(usuario: UsuarioConPermisosRow): UsuarioConPermiso
   };
 }
 
-/** The acciones this farmacia asks an empleado's PIN for (`fsj.accion_con_pin`, migration 0077), read with the session of a cuenta de sector. */
+/** The acciones this farmacia asks an empleado's PIN for (`fsj.accion_con_pin`, migration 0077, plus `PERMISOS_CON_PIN_SIEMPRE`), read with the session of a cuenta de sector. */
 export async function loadPermisosConPin(tx: Prisma.TransactionClient, tenantId: string): Promise<ReadonlySet<Permiso>> {
   const filas = await tx.accionConPin.findMany({ where: { tenantId }, select: { permiso: { select: { codigo: true } } } });
-  const permisos = new Set<Permiso>();
+  const permisos = new Set<Permiso>(PERMISOS_CON_PIN_SIEMPRE);
   for (const fila of filas) {
     if (isPermiso(fila.permiso.codigo)) permisos.add(fila.permiso.codigo);
   }
