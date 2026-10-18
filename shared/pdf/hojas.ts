@@ -110,8 +110,19 @@ export interface GrupoDeHojas {
   etiqueta: string;
 }
 
-/** Writes "<etiqueta> — Hoja i de n" at the bottom of every page, numbered within its group. Call once, after the last page. */
-export function numerarHojas(doc: PDFKit.PDFDocument, grupos: readonly GrupoDeHojas[]): void {
+/** The footnote of the sheets' Anulado column, mirroring the legalized libro's "NC" footnote. */
+export const LEYENDA_ANULADO = 'Aclaración: la leyenda "SI" en la columna Anulado indica que el asiento fue anulado en la misma jornada.';
+
+/** Text of the Anulado column: "SI" for an ANULADO asiento, empty otherwise. */
+export function celdaAnulado(anulado: boolean): string {
+  return anulado ? "SI" : "";
+}
+
+/**
+ * Writes "<etiqueta> — Hoja i de n" at the bottom of every page, numbered within its group, and `leyenda` (if any)
+ * at the bottom left of every page. Call once, after the last page.
+ */
+export function numerarHojas(doc: PDFKit.PDFDocument, grupos: readonly GrupoDeHojas[], leyenda?: string): void {
   for (const grupo of grupos) {
     const total = grupo.ultima - grupo.primera + 1;
     for (let pagina = grupo.primera; pagina <= grupo.ultima; pagina++) {
@@ -119,6 +130,9 @@ export function numerarHojas(doc: PDFKit.PDFDocument, grupos: readonly GrupoDeHo
       // Writing below the bottom margin would make pdfkit add a page: lift the margin while drawing the footer.
       const margenInferior = doc.page.margins.bottom;
       doc.page.margins.bottom = 0;
+      if (leyenda) {
+        doc.font("Helvetica").fontSize(7).fillColor(COLOR_TEXTO_SECUNDARIO).text(leyenda, HOJA_MARGEN, HOJA_ALTO - HOJA_MARGEN, { width: HOJA_ANCHO_UTIL * 0.6, lineBreak: false });
+      }
       doc
         .font("Helvetica")
         .fontSize(7)

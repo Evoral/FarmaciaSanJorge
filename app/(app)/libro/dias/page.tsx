@@ -11,6 +11,7 @@ import { listJornadasLibro } from "@/modules/libro/application/list-jornadas-lib
 import { ESTADO_JORNADA_LIBRO_LABELS, type EstadoJornadaLibro } from "@/modules/libro/domain/jornadas";
 import { LibroNav } from "@/modules/libro/ui/libro-nav";
 import { mensajeImpresionFueraDeOrden, puedeImprimirJornada } from "@/modules/cierres/domain/impresion";
+import { ImprimirHojaLink } from "@/modules/cierres/ui/imprimir-hoja-link";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
@@ -116,10 +117,10 @@ export default async function LibroDiasPage({ searchParams }: LibroDiasPageProps
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         {dia.cierreId && puedeImprimir ? (
                           puedeImprimirJornada(dia.fecha, result.primerSinImprimir) ? (
-                            <a href={`/api/cierres/${dia.cierreId}/pdf`} target="_blank" rel="noopener" className="btn btn-secondary btn-sm">
+                            <ImprimirHojaLink cierreId={dia.cierreId} className="btn btn-secondary btn-sm">
                               <Printer className="size-4" aria-hidden />
                               {dia.impresa ? "Reimprimir hoja" : "Imprimir hoja"}
-                            </a>
+                            </ImprimirHojaLink>
                           ) : (
                             <button type="button" disabled title={mensajeImpresionFueraDeOrden(result.primerSinImprimir!)} className="btn btn-secondary btn-sm">
                               <Printer className="size-4" aria-hidden />

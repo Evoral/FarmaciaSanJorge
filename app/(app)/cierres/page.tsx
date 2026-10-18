@@ -27,6 +27,7 @@ import { primerCierreSinImprimir } from "@/modules/cierres/application/imprimir-
 import { mensajeImpresionFueraDeOrden, puedeImprimirJornada } from "@/modules/cierres/domain/impresion";
 import { etiquetaEstadoVisual } from "@/modules/libro/domain/estado-visual";
 import { tonoEstadoAsiento } from "@/modules/libro/ui/libro-nav";
+import { ImprimirHojaLink } from "@/modules/cierres/ui/imprimir-hoja-link";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
@@ -99,16 +100,16 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
             sinImprimir && firmada.fecha && !puedeImprimirJornada(firmada.fecha, sinImprimir.fecha) ? (
               <span className="flex flex-wrap items-center gap-2">
                 <span className="text-sm">{mensajeImpresionFueraDeOrden(sinImprimir.fecha)}</span>
-                <a href={`/api/cierres/${sinImprimir.id}/pdf`} target="_blank" rel="noopener" className="btn btn-primary btn-sm">
+                <ImprimirHojaLink cierreId={sinImprimir.id} className="btn btn-primary btn-sm">
                   <Printer className="size-4" aria-hidden />
                   Imprimir hoja del {formatFechaIso(sinImprimir.fecha)}
-                </a>
+                </ImprimirHojaLink>
               </span>
             ) : (
-              <a href={`/api/cierres/${firmada.id}/pdf`} target="_blank" rel="noopener" className="btn btn-primary btn-sm">
+              <ImprimirHojaLink cierreId={firmada.id} className="btn btn-primary btn-sm">
                 <Printer className="size-4" aria-hidden />
                 Imprimir hoja del día
-              </a>
+              </ImprimirHojaLink>
             )
           ) : null}
         </div>

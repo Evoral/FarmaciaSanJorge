@@ -6,7 +6,7 @@
  * whole fórmula de la prescripción is printed). Reuses `shared/pdf/pdf-document.ts#renderPdf`.
  */
 import { renderPdf } from "@/shared/pdf/pdf-document";
-import { HOJA_MARGEN, OPCIONES_HOJA_LIBRO, dibujarTabla, formulaParaHoja, numerarHojas, type CeldaTabla, type ColumnaTabla, type GrupoDeHojas } from "@/shared/pdf/hojas";
+import { HOJA_MARGEN, LEYENDA_ANULADO, OPCIONES_HOJA_LIBRO, celdaAnulado, dibujarTabla, formulaParaHoja, numerarHojas, type CeldaTabla, type ColumnaTabla, type GrupoDeHojas } from "@/shared/pdf/hojas";
 import { formatFechaIso } from "@/shared/format/fecha";
 import type { AsientoListItem } from "./asiento-repository";
 
@@ -16,7 +16,8 @@ const COLUMNAS: ColumnaTabla[] = [
   { label: "Receta Nº", width: 55 },
   { label: "Paciente", width: 150 },
   { label: "Médico", width: 140 },
-  { label: "Fórmula de la prescripción", width: 362 },
+  { label: "Fórmula de la prescripción", width: 317 },
+  { label: "Anulado", width: 45 },
 ];
 
 export interface LibroPdfOptions {
@@ -41,12 +42,15 @@ function porJornada(items: readonly AsientoListItem[]): Array<{ fecha: string; a
   return grupos;
 }
 
-/** No estado column: the printed libro does not carry it (docs/specs/libro-recetario-y-contralor.md, "Impresión"). */
+/**
+ * No estado column: only "SI" under Anulado for an ANULADO asiento, like the signed sheet
+ * (docs/specs/libro-recetario-y-contralor.md, "Impresión").
+ */
 function fila(item: AsientoListItem): CeldaTabla[] {
   const numero: CeldaTabla =
     item.origen === "RECTIFICATIVO" && item.asientoOriginalNumeroCorrelativo ? { texto: item.numeroCorrelativo, nota: `Rectifica Nº ${item.asientoOriginalNumeroCorrelativo}` } : item.numeroCorrelativo;
   // Receta Nº: display-only (asiento-repository.ts#AsientoListItem.recetaNumeroInterno), "—" without a receta.
-  return [numero, item.recetaNumeroInterno ?? "—", item.pacienteTexto, item.medicoTexto, formulaParaHoja(item.formulaTexto)];
+  return [numero, item.recetaNumeroInterno ?? "—", item.pacienteTexto, item.medicoTexto, formulaParaHoja(item.formulaTexto), celdaAnulado(item.estado === "ANULADO")];
 }
 
 export function buildLibroPdf(items: AsientoListItem[], options: LibroPdfOptions): Promise<Buffer> {
@@ -86,6 +90,6 @@ export function buildLibroPdf(items: AsientoListItem[], options: LibroPdfOptions
       hojas.push({ primera, ultima: rango.start + rango.count - 1, etiqueta: `Jornada ${formatFechaIso(jornada.fecha)}` });
     });
 
-    numerarHojas(doc, hojas);
+    numerarHojas(doc, hojas, LEYENDA_ANULADO);
   }, OPCIONES_HOJA_LIBRO);
 }

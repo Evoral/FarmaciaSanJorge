@@ -394,6 +394,10 @@ export interface AsientoRecetarioComprobante {
   pacienteTexto: string;
   medicoTexto: string;
   formulaTexto: string;
+  /** ANULADO within the jornada: printed as "SI" in the sheet's Anulado column. */
+  anulado: boolean;
+  /** "Droga: lote, lote" per droga the asiento's preparaciones used, by droga name (display-only, see `lotesPorAsiento`). */
+  lotes: string[];
   estadoVisual: string;
 }
 
@@ -426,6 +430,42 @@ export interface CierreDetalle {
   asientosContralor: AsientoContralorComprobante[];
 }
 
+/**
+ * The partida lotes each asiento of the jornada used, for the sheet's Lote column: asiento -> its preparaciones
+ * (legacy per-ítem `preparacion_id`, or por-receta `asiento_preparacion`, D8; a RECTIFICATIVO through its original
+ * asiento, like `recetaNumeroInterno`) -> `movimiento_stock` EGRESO_PREPARACION -> `partida.lote`. Display-only: not
+ * an asiento column, not hashed. One line per droga, "Droga: lote, lote", by droga name; an asiento without
+ * preparaciones (historic) has no entry.
+ */
+async function lotesPorAsiento(tx: Prisma.TransactionClient, tenantId: string, fecha: string): Promise<Map<string, string[]>> {
+  const rows = await tx.$queryRaw<{ asiento_id: string; droga: string; lotes: string }[]>`
+    SELECT x.asiento_id::text AS asiento_id, d.nombre::text AS droga, string_agg(DISTINCT p.lote, ', ' ORDER BY p.lote) AS lotes
+    FROM (
+      SELECT a.id AS asiento_id, COALESCE(a.preparacion_id, o.preparacion_id) AS preparacion_id
+      FROM fsj.asiento_recetario a
+      LEFT JOIN fsj.asiento_recetario o ON o.tenant_id = a.tenant_id AND o.id = a.asiento_original_id
+      WHERE a.tenant_id = ${tenantId}::uuid AND a.fecha_asiento = ${fecha}::date
+      UNION ALL
+      SELECT a.id, ap.preparacion_id
+      FROM fsj.asiento_recetario a
+      JOIN fsj.asiento_preparacion ap ON ap.tenant_id = a.tenant_id AND ap.asiento_recetario_id = COALESCE(a.asiento_original_id, a.id)
+      WHERE a.tenant_id = ${tenantId}::uuid AND a.fecha_asiento = ${fecha}::date
+    ) x
+    JOIN fsj.movimiento_stock m ON m.tenant_id = ${tenantId}::uuid AND m.preparacion_id = x.preparacion_id AND m.tipo = 'EGRESO_PREPARACION'
+    JOIN fsj.partida p ON p.tenant_id = ${tenantId}::uuid AND p.id = m.partida_id
+    JOIN fsj.droga d ON d.tenant_id = ${tenantId}::uuid AND d.id = p.droga_id
+    GROUP BY x.asiento_id, d.nombre
+    ORDER BY x.asiento_id, d.nombre
+  `;
+  const porAsiento = new Map<string, string[]>();
+  for (const row of rows) {
+    const lineas = porAsiento.get(row.asiento_id) ?? [];
+    lineas.push(`${row.droga}: ${row.lotes}`);
+    porAsiento.set(row.asiento_id, lineas);
+  }
+  return porAsiento;
+}
+
 export async function getCierreDetalle(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<CierreDetalle | null> {
   const cierre = await tx.cierreDiario.findUnique({
     where: { id, tenantId },
@@ -444,25 +484,6 @@ export async function getCierreDetalle(tx: Prisma.TransactionClient, tenantId: s
       motivoDemoraDetalle: true,
       fechaImpresion: true,
       directorTecnico: { select: { nombre: true, apellido: true } },
-      asientosRecetario: {
-        orderBy: { numeroCorrelativo: "asc" },
-        select: {
-          numeroCorrelativo: true,
-          pacienteTexto: true,
-          medicoTexto: true,
-          formulaTexto: true,
-          estado: true,
-          anulacion: {
-            select: {
-              motivo: true,
-              anuladoEn: true,
-              anuladoPor: { select: { nombre: true, apellido: true } },
-              autorizadoPor: { select: { nombre: true, apellido: true } },
-            },
-          },
-          rectificativos: { select: { numeroCorrelativo: true }, take: 1 },
-        },
-      },
       asientosContralor: {
         orderBy: [{ libroId: "asc" }, { numeroCorrelativo: "asc" }],
         select: {
@@ -477,6 +498,33 @@ export async function getCierreDetalle(tx: Prisma.TransactionClient, tenantId: s
     },
   });
   if (!cierre) return null;
+
+  // Every asiento of the jornada, not only the ones attached to the cierre: the firma attaches the VIGENTE ones
+  // (migration 0075), but the sheet lists the ANULADO ones too, marked "SI" in its Anulado column
+  // (docs/specs/libro-recetario-y-contralor.md, "Impresión"). An asiento can only be anulado before the firma
+  // (INV-L02), so these are exactly the ones anulados within the jornada.
+  const asientosRecetario = await tx.asientoRecetario.findMany({
+    where: { tenantId, fechaAsiento: cierre.fecha },
+    orderBy: { numeroCorrelativo: "asc" },
+    select: {
+      id: true,
+      numeroCorrelativo: true,
+      pacienteTexto: true,
+      medicoTexto: true,
+      formulaTexto: true,
+      estado: true,
+      anulacion: {
+        select: {
+          motivo: true,
+          anuladoEn: true,
+          anuladoPor: { select: { nombre: true, apellido: true } },
+          autorizadoPor: { select: { nombre: true, apellido: true } },
+        },
+      },
+      rectificativos: { select: { numeroCorrelativo: true }, take: 1 },
+    },
+  });
+  const lotes = await lotesPorAsiento(tx, tenantId, cierre.fecha.toISOString().slice(0, 10));
 
   return {
     id: cierre.id,
@@ -494,11 +542,13 @@ export async function getCierreDetalle(tx: Prisma.TransactionClient, tenantId: s
     motivoDemora: cierre.motivoDemora,
     motivoDemoraDetalle: cierre.motivoDemoraDetalle,
     fechaImpresion: cierre.fechaImpresion,
-    asientosRecetario: cierre.asientosRecetario.map((a) => ({
+    asientosRecetario: asientosRecetario.map((a) => ({
       numeroCorrelativo: a.numeroCorrelativo.toString(),
       pacienteTexto: a.pacienteTexto,
       medicoTexto: a.medicoTexto,
       formulaTexto: a.formulaTexto,
+      anulado: a.estado === "ANULADO",
+      lotes: lotes.get(a.id) ?? [],
       estadoVisual: etiquetaEstadoVisual(
         resolverEstadoVisualAsiento({
           estado: a.estado,

@@ -15,6 +15,7 @@ import { primerCierreSinImprimir } from "@/modules/cierres/application/imprimir-
 import { mensajeImpresionFueraDeOrden, puedeImprimirJornada } from "@/modules/cierres/domain/impresion";
 import { MOTIVO_DEMORA_LABELS, type MotivoDemoraValue } from "@/modules/cierres/domain/motivo-demora";
 import { TIPO_LIBRO_LABELS, TIPO_MOVIMIENTO_CONTRALOR_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
+import { ImprimirHojaLink } from "@/modules/cierres/ui/imprimir-hoja-link";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
@@ -56,10 +57,10 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
         actions={
           puedeImprimir ? (
             enOrden ? (
-              <a href={`/api/cierres/${cierre.id}/pdf`} target="_blank" rel="noopener" className="btn btn-secondary">
+              <ImprimirHojaLink cierreId={cierre.id} className="btn btn-secondary">
                 <Printer className="size-4" aria-hidden />
                 Imprimir hoja
-              </a>
+              </ImprimirHojaLink>
             ) : (
               <span className="flex flex-wrap items-center gap-2">
                 <span className="text-sm text-zinc-600">{mensajeImpresionFueraDeOrden(sinImprimir!.fecha)}</span>

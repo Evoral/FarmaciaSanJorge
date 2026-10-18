@@ -7,7 +7,7 @@
  */
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Lock, LockOpen } from "lucide-react";
+import { ArrowLeft, Lock, LockOpen } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { NotFoundError } from "@/shared/errors";
@@ -75,6 +75,12 @@ export default async function AsientoPage({ params }: AsientoPageProps) {
               Jornada {asiento.cierreFirmado ? "firmada" : "abierta"}
             </span>
           </span>
+        }
+        actions={
+          <Link href="/libro" className="btn btn-secondary">
+            <ArrowLeft className="size-4" aria-hidden />
+            Volver al libro
+          </Link>
         }
       />
 
@@ -184,10 +190,6 @@ export default async function AsientoPage({ params }: AsientoPageProps) {
               Asiento vigente. No hay acciones disponibles para tu usuario en este estado.
             </p>
           ) : null}
-
-          <Link href="/libro" className="btn btn-ghost">
-            Volver al libro
-          </Link>
         </aside>
       </div>
     </div>
