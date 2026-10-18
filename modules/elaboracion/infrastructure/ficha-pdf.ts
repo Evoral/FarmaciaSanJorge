@@ -6,7 +6,8 @@
  * and lays it out with `pdfkit` via `shared/pdf/pdf-document.ts#renderPdf`.
  *
  * Content, kept to what the bench reads while preparing: the preparación's
- * name (only when the ítem has one), the paciente, and the líneas de pesaje
+ * name (only when the ítem has one), the paciente, the médico and their
+ * matrícula, and the líneas de pesaje
  * as a plain droga / cantidad list; a small footer with the receta number
  * and ficha version for traceability. Black only, no shading: thermal
  * printers have no greys.
@@ -60,6 +61,8 @@ function dibujar(doc: PDFKit.PDFDocument, ficha: FichaParaImprimir): number {
 
   doc.font("Helvetica").fontSize(8).text("Paciente", MARGEN, y, { width: ANCHO_CONTENIDO });
   doc.font("Helvetica-Bold").fontSize(11).text(`${ficha.pacienteApellido}, ${ficha.pacienteNombre}`, MARGEN, doc.y, { width: ANCHO_CONTENIDO });
+  doc.font("Helvetica").fontSize(8).text("Médico", MARGEN, doc.y + 4, { width: ANCHO_CONTENIDO });
+  doc.font("Helvetica-Bold").fontSize(10).text(`${ficha.medicoApellido}, ${ficha.medicoNombre} - MAT. ${ficha.medicoMatricula}`, MARGEN, doc.y, { width: ANCHO_CONTENIDO });
   y = separador(doc, doc.y + 6);
 
   for (const linea of ficha.lineas) {
