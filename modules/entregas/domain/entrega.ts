@@ -27,6 +27,21 @@ export function puedeRegistrarEntrega(estado: EstadoReceta): boolean {
   return estado === "PREPARADA";
 }
 
+/** docs/specs/anular-entrega.md A1: an entrega registered by mistake is reverted from either estado it reaches. */
+export function puedeAnularEntrega(estado: EstadoReceta): boolean {
+  return estado === "ENTREGADA" || estado === "ENVIADA_PEND_FIRMA";
+}
+
+export const MENSAJE_ANULAR_ENTREGA_ARCHIVADA = "La receta ya está en un lote de archivo: su entrega no se puede anular.";
+export const MENSAJE_ANULAR_ENTREGA_SIN_ITEMS =
+  "Todos los ítems de la receta quedaron sin efecto en el libro: no volvería a poder entregarse, así que su entrega no se anula.";
+
+/** docs/specs/anular-entrega.md A3: refused for an archived receta, and when the receta would come back with nothing left to deliver. */
+export function validarAnularEntrega(input: { archivada: boolean; items: readonly ItemParaEntrega[] }): void {
+  if (input.archivada) throw new ValidationError(MENSAJE_ANULAR_ENTREGA_ARCHIVADA);
+  if (calcularItemsEntregables(input.items).entregables.length === 0) throw new ValidationError(MENSAJE_ANULAR_ENTREGA_SIN_ITEMS);
+}
+
 /** User decision 1: "Confirmar firma recibida" is only valid while the envío is pending its firma. */
 export function puedeConfirmarFirmaRecibida(estado: EstadoReceta): boolean {
   return estado === "ENVIADA_PEND_FIRMA";

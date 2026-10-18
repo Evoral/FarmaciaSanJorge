@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { X } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
+import { can } from "@/shared/auth/authorize";
 import { listEntregasPendientes } from "@/modules/entregas/application/list-entregas-pendientes";
 import { EntregasBuscador } from "@/modules/entregas/ui/entregas-buscador";
 import { ESTADO_RECETA_LABELS } from "@/shared/labels/enum-labels";
@@ -38,7 +39,7 @@ function validIso(value: string | undefined): string {
 }
 
 export default async function EntregasPage({ searchParams }: EntregasPageProps) {
-  await requireSession();
+  const session = await requireSession();
   const params = await searchParams;
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
@@ -87,6 +88,7 @@ export default async function EntregasPage({ searchParams }: EntregasPageProps) 
       <EntregasBuscador
         itemsIniciales={result.items}
         totalInicial={result.total}
+        mostrarPrecio={can(session, "cotizaciones.ver")}
         filtros={{ estado: active.estado, numero, ingresoDesde, ingresoHasta }}
         controles={
           <FilterForm className="contents" aria-label="Filtros de entregas" hasActiveFilters={false}>

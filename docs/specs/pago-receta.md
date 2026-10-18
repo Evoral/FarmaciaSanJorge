@@ -68,6 +68,12 @@ Todas se escriben en la misma transacción que el cambio.
 - No se agregó un contador de impagas al resumen por estado: ese resumen cuenta por estado y no aplica los demás filtros.
 - Sin índice nuevo: el listado no tiene índices para sus otros filtros y `pagada` es un booleano de baja cardinalidad.
 
+## Listado de entregas (`/entregas`) (2026-10-17)
+
+Cada fila muestra el pago ("Pagada" / "Impaga") y, para quien tiene `cotizaciones.ver`, el precio: la suma de la cotización vigente de cada ítem (INV-R06), con "Parcial" si algún ítem no tiene cotización o su cotización es parcial/incompleta, y "Sin cotizar" si ninguno la tiene. Solo visualización (`listEntregasPendientes`, `modules/entregas/infrastructure/entrega-repository.ts`).
+
+Una entrega registrada por error se anula desde `/recetas/[id]` y puede dejar la receta impaga en el mismo acto: `docs/specs/anular-entrega.md` (A6).
+
 ## Casos borde
 
 - **Entregada e impaga** (solo recetas entregadas antes de la migración 0076, que no se corrigen solas): se marca desde el detalle (P5/P6). Una vez pagada, no se puede volver a impaga.

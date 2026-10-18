@@ -486,6 +486,8 @@ export interface RecetaDetalle {
   pagada: boolean;
   pagadaEn: Date | null;
   pagadaPorNombre: string | null;
+  /** In a lote de archivo: its entrega can no longer be reverted (docs/specs/anular-entrega.md). */
+  archivada: boolean;
   /** The tenant's zona horaria, to show `pagadaEn` (a timestamptz) as the farmacia's local time. */
   zonaHoraria: string;
   /** Digital provenance (migration 0049) -- all three `null` for a receta loaded by hand. */
@@ -541,6 +543,7 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
     pagada: receta.pagada,
     pagadaEn: receta.pagadaEn,
     pagadaPorNombre: receta.pagadaPor ? `${receta.pagadaPor.apellido}, ${receta.pagadaPor.nombre}` : null,
+    archivada: receta.loteArchivoId !== null,
     zonaHoraria: await zonaHorariaTenant(tx, tenantId),
     emisor: receta.emisor,
     nroRecetaEmisor: receta.nroRecetaEmisor,

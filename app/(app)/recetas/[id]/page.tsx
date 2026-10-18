@@ -19,6 +19,8 @@ import { PARAM_AVISO, decodificarAvisos } from "@/modules/recetas/domain/avisos-
 import { AvisosGeneracion } from "@/modules/recetas/ui/avisos-generacion";
 import { AYUDA_ANULACION_PERMITIDA, MENSAJE_ANULACION_BLOQUEADA_POR_LIBRO, decidirAnulacion, mensajePreparacionEnCurso } from "@/modules/recetas/domain/anulacion";
 import { MotivoForm } from "@/shared/ui/motivo-form";
+import { puedeAnularEntrega } from "@/modules/entregas/domain/entrega";
+import { AnularEntregaForm } from "@/modules/entregas/ui/anular-entrega-form";
 import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
 import { ESTADO_RECETA_LABELS, FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
 import { ComponentesTabla } from "@/modules/recetas/ui/componentes-tabla";
@@ -43,7 +45,12 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
 
   // A PENDIENTE_PREPARACION receta may hold a preparación INICIADA (a reserva de stock): not editable until released.
   const puedeEditar = can(session, "recetas.editar") && esEstadoEditable(receta.estado) && receta.itemsConPreparacionIniciada.length === 0;
-  const puedeAnularReceta = can(session, "recetas.anular") && puedeAnular(receta.estado);
+  // An entrega in course (ENVIADA_PEND_FIRMA) always has its asientos in effect, so this panel could only show the libro
+  // block -- next to "Anular entrega" it reads as if reverting the entrega touched the libro. Shown again once the
+  // receta is back to PREPARADA (docs/specs/anular-entrega.md A9).
+  const puedeAnularReceta = can(session, "recetas.anular") && puedeAnular(receta.estado) && !puedeAnularEntrega(receta.estado);
+  // docs/specs/anular-entrega.md: whoever registers entregas can revert one registered by mistake.
+  const puedeAnularLaEntrega = can(session, "entregas.registrar") && puedeAnularEntrega(receta.estado) && !receta.archivada;
   // Payment is orthogonal to the estado: it can change after delivery, but not once ANULADA (domain/pago.ts).
   const puedeMarcarPago = can(session, "recetas.editar") && puedeCambiarPago(receta.estado);
   // Same decision the anular command enforces (domain/anulacion.ts): the libro may forbid a direct anulación.
@@ -256,6 +263,17 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
             </div>
           </section>
 
+          {puedeAnularLaEntrega ? (
+            <section className="panel" aria-labelledby="anular-entrega-heading">
+              <div className="panel-header">
+                <h2 id="anular-entrega-heading">Entrega</h2>
+              </div>
+              <div className="panel-body text-sm">
+                <AnularEntregaForm recetaId={receta.id} pagada={receta.pagada} />
+              </div>
+            </section>
+          ) : null}
+
           {puedeAnularReceta ? (
             <section className="panel" data-tone="danger" aria-labelledby="anulacion-heading">
               <div className="panel-header">
@@ -286,6 +304,7 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
                 ) : (
                   <MotivoForm
                     action={anularRecetaAction}
+                    accion="recetas.anular"
                     id={receta.id}
                     label="Anular receta"
                     pendingLabel="Anulando…"
@@ -297,7 +316,7 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
             </section>
           ) : null}
 
-          {esEstadoTerminal(receta.estado) && !puedeAnularReceta ? (
+          {esEstadoTerminal(receta.estado) && !puedeAnularReceta && !puedeAnularLaEntrega ? (
             <p className="flex items-start gap-2 text-sm text-zinc-500">
               <Lock className="mt-0.5 size-4 flex-none" aria-hidden />
               La receta está {ESTADO_RECETA_LABELS[receta.estado].toLowerCase()}; no admite más cambios.

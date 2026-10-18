@@ -4,6 +4,7 @@
 import { revalidatePath } from "next/cache";
 import { registrarEntrega } from "@/modules/entregas/application/registrar-entrega";
 import { confirmarFirmaRecibida } from "@/modules/entregas/application/confirmar-firma-recibida";
+import { anularEntrega } from "@/modules/entregas/application/anular-entrega";
 import { conOperador } from "@/shared/auth/operador-context";
 import { actionError } from "@/shared/ui/action-error";
 import type { EntregaActionState } from "./action-state";
@@ -29,6 +30,19 @@ export async function registrarEntregaAction(_prevState: EntregaActionState, for
       return { status: "success", message: mensaje, id: recetaId };
     } catch (error) {
       return fromError(error, "No se pudo registrar la entrega.");
+    }
+  });
+}
+
+export async function anularEntregaAction(_prevState: EntregaActionState, formData: FormData): Promise<EntregaActionState> {
+  return conOperador(formData, async (): Promise<EntregaActionState> => {
+    try {
+      const recetaId = String(formData.get("recetaId") ?? "");
+      await anularEntrega({ recetaId, motivo: String(formData.get("motivo") ?? ""), marcarImpaga: formData.get("marcarImpaga") === "on" });
+      revalidarEntregas(recetaId);
+      return { status: "success", message: "Entrega anulada: la receta volvió a Entregas.", id: recetaId };
+    } catch (error) {
+      return fromError(error, "No se pudo anular la entrega.");
     }
   });
 }

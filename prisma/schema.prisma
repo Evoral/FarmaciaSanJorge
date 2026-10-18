@@ -1633,6 +1633,31 @@ model Entrega {
   @@schema("fsj")
 }
 
+/// Migration 0086 (docs/specs/anular-entrega.md). Insert-only history of an entrega reverted by mistake: a copy of
+/// the deleted fsj.entrega row plus motivo and who/when. Written with raw SQL (INSERT ... SELECT from the entrega), so
+/// no Prisma relations are declared; the FKs to receta/usuario live in the migration.
+model EntregaAnulada {
+  id                 String           @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId           String           @map("tenant_id") @db.Uuid
+  entregaId          String           @map("entrega_id") @db.Uuid
+  recetaId           String           @map("receta_id") @db.Uuid
+  modalidad          ModalidadEntrega
+  entregadaPorId     String           @map("entregada_por_id") @db.Uuid
+  entregadaEn        DateTime         @map("entregada_en") @db.Timestamptz(6)
+  firmaRecibida      Boolean          @map("firma_recibida")
+  firmaRecibidaEn    DateTime?        @map("firma_recibida_en") @db.Timestamptz(6)
+  fechaArchivoReceta DateTime?        @map("fecha_archivo_receta") @db.Date
+  motivo             String
+  anuladaPorId       String           @map("anulada_por_id") @db.Uuid
+  anuladaEn          DateTime         @default(now()) @map("anulada_en") @db.Timestamptz(6)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, entregaId])
+  @@index([tenantId, recetaId])
+  @@map("entrega_anulada")
+  @@schema("fsj")
+}
+
 /// M15. Linear state machine EN_ARCHIVO -> ... -> DESTRUIDO (trigger-enforced). Immutable once DESTRUIDO (INV-D05).
 model LoteArchivoRecetas {
   id                     String            @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid

@@ -31,17 +31,28 @@ export interface EntregaAccionesProps {
 
 export function EntregaAcciones({ recetaId, estado, pagada, itemsExcluidos, puedeRegistrar, puedeConfirmarFirma }: EntregaAccionesProps) {
   const cerrar = useRouteDialogClose();
-  // The action revalidates the receta, so the pop-up's props flip to ENVIADA_PEND_FIRMA (and unmount the registration
-  // form before its `onSuccess` runs) while it is still open: without this it would swap straight into the "confirmar
-  // firma" form. An envío is registered to be confirmed LATER (the repartidor takes time), so the pop-up just closes.
-  const [envioRegistrado, setEnvioRegistrado] = useState(false);
+  // The action revalidates the receta, so the pop-up's props flip to the new estado (and unmount the form before its
+  // `onSuccess` runs) while it is still open: without this an envío would swap straight into the "confirmar firma"
+  // form, and a retiro or a confirmed retorno would show "Sin acciones de entrega en estado Entregada". So the pop-up
+  // closes on every success; `cerradoCon` is what it shows meanwhile.
+  const [cerradoCon, setCerradoCon] = useState<string | null>(null);
+
+  function cerrarTrasExito(result: EntregaActionState, mensaje: string): void {
+    if (result.status === "success" && cerrar) {
+      setCerradoCon(mensaje);
+      cerrar();
+    }
+  }
 
   async function registrar(prevState: EntregaActionState, formData: FormData): Promise<EntregaActionState> {
     const result = await registrarEntregaAction(prevState, formData);
-    if (result.status === "success" && cerrar && formData.get("modalidad") === "ENVIO") {
-      setEnvioRegistrado(true);
-      cerrar();
-    }
+    cerrarTrasExito(result, formData.get("modalidad") === "ENVIO" ? "Envío registrado: queda pendiente de confirmar su retorno." : "Entrega registrada.");
+    return result;
+  }
+
+  async function confirmarFirma(prevState: EntregaActionState, formData: FormData): Promise<EntregaActionState> {
+    const result = await confirmarFirmaRecibidaAction(prevState, formData);
+    cerrarTrasExito(result, "Retorno confirmado: receta entregada.");
     return result;
   }
 
@@ -52,8 +63,8 @@ export function EntregaAcciones({ recetaId, estado, pagada, itemsExcluidos, pued
       </ToneBadge>
     ) : null;
 
-  if (envioRegistrado) {
-    return <p className="text-sm text-zinc-500">Envío registrado: queda pendiente de confirmar su retorno.</p>;
+  if (cerradoCon) {
+    return <p className="text-sm text-zinc-500">{cerradoCon}</p>;
   }
 
   if (puedeRegistrar && puedeRegistrarEntrega(estado)) {
@@ -67,7 +78,7 @@ export function EntregaAcciones({ recetaId, estado, pagada, itemsExcluidos, pued
 
   if (puedeConfirmarFirma && puedeConfirmarFirmaRecibida(estado)) {
     return (
-      <ConfirmarFirmaForm action={confirmarFirmaRecibidaAction} recetaId={recetaId} pagada={pagada} onSuccess={cerrar} />
+      <ConfirmarFirmaForm action={confirmarFirma} recetaId={recetaId} pagada={pagada} onSuccess={cerrar} />
     );
   }
 

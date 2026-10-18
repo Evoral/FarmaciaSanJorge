@@ -57,6 +57,45 @@ export async function marcarRecetaPagada(tx: Prisma.TransactionClient, tenantId:
   await tx.receta.update({ where: { id, tenantId }, data: { pagada: true, pagadaEn: new Date(), pagadaPorId: usuarioId } });
 }
 
+/** Clears the receta's payment flag, the three columns together (receta_pagada_check). Only for a receta that is no longer ENTREGADA (INV-R14). */
+export async function desmarcarRecetaPagada(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<void> {
+  await tx.receta.update({ where: { id, tenantId }, data: { pagada: false, pagadaEn: null, pagadaPorId: null } });
+}
+
+/** `anularEntrega`: whether the receta was already archived (INV-R08 refuses reverting it, migration 0086). */
+export async function recetaEstaArchivada(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<boolean> {
+  const receta = await tx.receta.findUnique({ where: { id, tenantId }, select: { loteArchivoId: true } });
+  return receta?.loteArchivoId != null;
+}
+
+export interface EntregaMovida {
+  entregaId: string;
+  modalidad: ModalidadEntrega;
+}
+
+/**
+ * Migration 0086: copies the receta's entrega to `fsj.entrega_anulada` (with motivo and who) and deletes it, in this
+ * order -- the DELETE guard (INV-ENT-004) only lets the row go once its copy exists. null when the receta has no entrega.
+ */
+export async function moverEntregaAAnuladas(
+  tx: Prisma.TransactionClient,
+  input: { tenantId: string; recetaId: string; motivo: string; anuladaPorId: string },
+): Promise<EntregaMovida | null> {
+  const copiadas = await tx.$queryRaw<{ entrega_id: string; modalidad: ModalidadEntrega }[]>`
+    INSERT INTO fsj.entrega_anulada
+      (tenant_id, entrega_id, receta_id, modalidad, entregada_por_id, entregada_en, firma_recibida, firma_recibida_en, fecha_archivo_receta, motivo, anulada_por_id)
+    SELECT e.tenant_id, e.id, e.receta_id, e.modalidad, e.entregada_por_id, e.entregada_en, e.firma_recibida, e.firma_recibida_en, e.fecha_archivo_receta,
+           ${input.motivo}, ${input.anuladaPorId}::uuid
+    FROM fsj.entrega e
+    WHERE e.tenant_id = ${input.tenantId}::uuid AND e.receta_id = ${input.recetaId}::uuid
+    RETURNING entrega_id, modalidad::text AS modalidad
+  `;
+  const copiada = copiadas[0];
+  if (!copiada) return null;
+  await tx.$executeRaw`DELETE FROM fsj.entrega WHERE tenant_id = ${input.tenantId}::uuid AND id = ${copiada.entrega_id}::uuid`;
+  return { entregaId: copiada.entrega_id, modalidad: copiada.modalidad };
+}
+
 /** One batched query resolving every item's `estadoAsiento` for a receta -- same query as `modules/recetas/infrastructure/receta-repository.ts`'s private `getEstadoAsientoPorItem` (own copy, see module doc comment). */
 export async function getItemsParaEntrega(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<ItemParaEntrega[]> {
   const rows = await tx.$queryRaw<{ item_id: string; estado: "PENDIENTE" | "VIGENTE" | "SIN_EFECTO" }[]>`
@@ -163,6 +202,12 @@ export interface EntregaPendienteItem {
   fechaIngreso: Date;
   /** ENVIADA_PEND_FIRMA only: whole days since the envío (entrega.entregada_en); null otherwise. The /entregas notice. */
   diasEsperandoFirma: number | null;
+  /** docs/specs/pago-receta.md: the counter sees whether it still has to charge. */
+  pagada: boolean;
+  /** Sum of each ítem's vigente cotización (INV-R06); null when nothing was cotizado or the viewer lacks `cotizaciones.ver`. */
+  precio: string | null;
+  /** Some ítem has no cotización, or a cotización is parcial/incompleta: the total is not the full price. */
+  precioIncompleto: boolean;
 }
 
 export interface ListEntregasPendientesFilter {
@@ -175,6 +220,41 @@ export interface ListEntregasPendientesFilter {
   ingresoHasta?: string; // YYYY-MM-DD, jornada in the tenant's time zone (inclusive)
   page: number;
   pageSize: number;
+  /** Read the price only for a viewer with `cotizaciones.ver` (the use case decides). */
+  conPrecio: boolean;
+}
+
+interface PrecioReceta {
+  precio: string | null;
+  precioIncompleto: boolean;
+}
+
+/**
+ * Per receta of the page: the sum of each ítem's vigente cotización (latest `calculada_en`, INV-R06), in ONE read.
+ * Cross-module read of `fsj.cotizacion`, the same way `modules/pacientes` reads it for the presupuesto.
+ */
+async function preciosDeRecetas(tx: Prisma.TransactionClient, tenantId: string, recetaIds: string[]): Promise<Map<string, PrecioReceta>> {
+  if (recetaIds.length === 0) return new Map();
+  const rows = await tx.$queryRaw<{ receta_id: string; items: number; cotizados: number; total: string | null; parcial: boolean | null }[]>`
+    SELECT ir.receta_id,
+           count(*)::int AS items,
+           count(v.precio_final)::int AS cotizados,
+           sum(v.precio_final)::text AS total,
+           bool_or(v.es_parcial OR v.es_incompleta) AS parcial
+    FROM fsj.item_receta ir
+    LEFT JOIN LATERAL (
+      SELECT c.precio_final, c.es_parcial, c.es_incompleta
+      FROM fsj.cotizacion c
+      WHERE c.tenant_id = ir.tenant_id AND c.item_receta_id = ir.id
+      ORDER BY c.calculada_en DESC, c.id DESC
+      LIMIT 1
+    ) v ON true
+    WHERE ir.tenant_id = ${tenantId}::uuid AND ir.receta_id = ANY(${recetaIds}::uuid[])
+    GROUP BY ir.receta_id
+  `;
+  return new Map(
+    rows.map((r) => [r.receta_id, { precio: r.cotizados > 0 ? r.total : null, precioIncompleto: r.cotizados < r.items || r.parcial === true }]),
+  );
 }
 
 const ESTADOS_LISTADO_ENTREGAS: EstadoReceta[] = ["PREPARADA", "ENVIADA_PEND_FIRMA"];
@@ -218,12 +298,14 @@ export async function listEntregasPendientes(tx: Prisma.TransactionClient, filte
       numeroInterno: true,
       estado: true,
       fechaIngreso: true,
+      pagada: true,
       paciente: { select: { nombre: true, apellido: true } },
       medico: { select: { nombre: true, apellido: true } },
       entrega: { select: { entregadaEn: true } },
     },
   });
   const ahora = Date.now();
+  const precios = filter.conPrecio ? await preciosDeRecetas(tx, filter.tenantId, rows.map((r) => r.id)) : new Map<string, PrecioReceta>();
 
   return {
     items: rows.map((r) => ({
@@ -237,6 +319,9 @@ export async function listEntregasPendientes(tx: Prisma.TransactionClient, filte
       fechaIngreso: r.fechaIngreso,
       diasEsperandoFirma:
         r.estado === "ENVIADA_PEND_FIRMA" && r.entrega ? Math.max(0, Math.floor((ahora - r.entrega.entregadaEn.getTime()) / 86_400_000)) : null,
+      pagada: r.pagada,
+      precio: precios.get(r.id)?.precio ?? null,
+      precioIncompleto: precios.get(r.id)?.precioIncompleto ?? false,
     })),
     total,
   };

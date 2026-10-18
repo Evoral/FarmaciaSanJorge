@@ -19,7 +19,8 @@ import type { BuscarEntregasState } from "./buscar-entregas-action";
 import type { EntregaPendienteItem } from "@/modules/entregas/application/list-entregas-pendientes";
 import { useFormSubmit } from "@/shared/ui/use-form-submit";
 import { Combobox } from "@/shared/ui/combobox";
-import { StatusBadge } from "@/shared/ui/status-badge";
+import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
+import { formatearMonto } from "@/shared/format/monto";
 import { Avatar } from "@/shared/ui/avatar";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ESTADO_RECETA_LABELS } from "@/shared/labels/enum-labels";
@@ -48,9 +49,11 @@ export interface EntregasBuscadorProps {
   /** The `FilterForm` rendered next to the paciente search, and the active-filter chips under the bar. */
   controles?: ReactNode;
   chips?: ReactNode;
+  /** The viewer holds `cotizaciones.ver`: show the Precio column. */
+  mostrarPrecio?: boolean;
 }
 
-export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion, filtros, controles, chips }: EntregasBuscadorProps) {
+export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion, filtros, controles, chips, mostrarPrecio = false }: EntregasBuscadorProps) {
   const hayFiltros = Object.values(filtros).some(Boolean);
   const router = useRouter();
   const initialState: BuscarEntregasState = { status: "idle", items: itemsIniciales, total: totalInicial };
@@ -183,6 +186,14 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion, fil
                   <th scope="col" className="px-3 py-2">
                     Estado
                   </th>
+                  {mostrarPrecio ? (
+                    <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
+                      Precio
+                    </th>
+                  ) : null}
+                  <th scope="col" className="px-3 py-2">
+                    Pago
+                  </th>
                   <th scope="col" className="px-3 py-2">
                     <span className="sr-only">Acciones</span>
                   </th>
@@ -221,6 +232,25 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion, fil
                             {textoEsperandoFirma(r.diasEsperandoFirma)}
                           </span>
                         ) : null}
+                      </td>
+                      {mostrarPrecio ? (
+                        <td className="hidden whitespace-nowrap px-3 py-2.5 text-right tabular-nums sm:table-cell">
+                          {r.precio === null ? (
+                            <span className="text-xs text-zinc-500">Sin cotizar</span>
+                          ) : (
+                            <>
+                              <span className="font-medium text-zinc-900">$ {formatearMonto(r.precio)}</span>
+                              {r.precioIncompleto ? (
+                                <span className="block text-xs text-amber-700" title="Algún ítem no tiene cotización o su cotización es parcial">
+                                  Parcial
+                                </span>
+                              ) : null}
+                            </>
+                          )}
+                        </td>
+                      ) : null}
+                      <td className="px-3 py-2.5">
+                        <ToneBadge tone={r.pagada ? "success" : "warn"}>{r.pagada ? "Pagada" : "Impaga"}</ToneBadge>
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <Link href={`/entregas/${r.id}`} aria-label={`Gestionar la entrega de la receta Nº ${r.numeroInterno}`} className="btn btn-ghost btn-sm">

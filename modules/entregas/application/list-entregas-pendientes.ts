@@ -1,6 +1,7 @@
 /** `listEntregasPendientes` -- `/entregas` (FASE 11 point 11.1/11.2). Recetas PREPARADA (listas para entregar) and ENVIADA_PEND_FIRMA (esperando retorno). Gated on `entregas.registrar`, same list this permiso's action supports. */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
+import { can } from "@/shared/auth/authorize";
 import { listEntregasPendientes as listRepo } from "../infrastructure/entrega-repository";
 import type { EntregaPendienteItem } from "../infrastructure/entrega-repository";
 
@@ -32,7 +33,7 @@ export const listEntregasPendientesQuery = defineQuery({
   permiso: "entregas.registrar",
   input: listEntregasPendientesInput,
   handler: async ({ tx, session, input }): Promise<ListEntregasPendientesResult> => {
-    const { items, total } = await listRepo(tx, { tenantId: session.tenantId, search: input.search, estado: input.estado, numeroInterno: input.numeroInterno, ingresoDesde: input.ingresoDesde, ingresoHasta: input.ingresoHasta, page: input.page, pageSize: input.pageSize });
+    const { items, total } = await listRepo(tx, { tenantId: session.tenantId, search: input.search, estado: input.estado, numeroInterno: input.numeroInterno, ingresoDesde: input.ingresoDesde, ingresoHasta: input.ingresoHasta, page: input.page, pageSize: input.pageSize, conPrecio: can(session, "cotizaciones.ver") });
     return { items, total, page: input.page, pageSize: input.pageSize };
   },
 });
