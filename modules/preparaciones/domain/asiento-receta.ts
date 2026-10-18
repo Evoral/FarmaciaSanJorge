@@ -27,10 +27,10 @@ function enOrdenDeItem<T extends { numero: number }>(items: readonly T[]): T[] {
   return [...items].sort((a, b) => a.numero - b.numero);
 }
 
-/** `formula_texto`: each ítem's fórmula in ítem order, prefixed by "Ítem N: " and joined by " | ". */
+/** `formula_texto`: each ítem's fórmula (only its drogas, no "Ítem N" label -- user decision 2026-10-17) in ítem order, joined by " | ". */
 export function formatearFormulaReceta(items: readonly Pick<ItemDelAsiento, "numero" | "formulaTexto">[]): string {
   return enOrdenDeItem(items)
-    .map((item) => `Ítem ${item.numero}: ${item.formulaTexto}`)
+    .map((item) => item.formulaTexto)
     .join(" | ");
 }
 

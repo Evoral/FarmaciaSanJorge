@@ -1,6 +1,6 @@
 /**
  * D8 (docs/specs/libro-recetario-y-contralor.md §1, 2026-10-16): one asiento per receta.
- *   - modules/preparaciones/domain/asiento-receta.ts: the fórmula text ("Ítem N: " ... joined by " | "), the detalle
+ *   - modules/preparaciones/domain/asiento-receta.ts: the fórmula text (each ítem's drogas joined by " | "), the detalle
  *     lines (ítem order, then each ítem's own order, `orden` continuous from 1), the asiento_preparacion order, and the
  *     legacy single path's rule (refused while another ítem is not CONFIRMADA).
  *   - `confirmarReservasReceta` ("Imprimir etiquetas"): every ítem confirmed, then ONE asiento with all of them, then
@@ -25,12 +25,12 @@ describe("asiento por receta: contenido (D8)", () => {
     { numero: 1, preparacionId: "prep-1", formulaTexto: "Ácido salicílico: 2 g; Vaselina: 98 g", detalles: [detalle("l-1a", 0), detalle("l-1b", 3)] },
   ];
 
-  it("fórmula: each ítem in ítem order, prefixed by \"Ítem N: \", joined by \" | \"", () => {
-    expect(formatearFormulaReceta(items)).toBe("Ítem 1: Ácido salicílico: 2 g; Vaselina: 98 g | Ítem 2: Urea: 10 g");
+  it("fórmula: each ítem's drogas in ítem order, joined by \" | \", with no \"Ítem N\" label", () => {
+    expect(formatearFormulaReceta(items)).toBe("Ácido salicílico: 2 g; Vaselina: 98 g | Urea: 10 g");
   });
 
-  it("a single ítem keeps its \"Ítem N: \" prefix (its real position in the receta)", () => {
-    expect(formatearFormulaReceta([{ numero: 3, formulaTexto: "Urea: 10 g" }])).toBe("Ítem 3: Urea: 10 g");
+  it("a single ítem is just its drogas", () => {
+    expect(formatearFormulaReceta([{ numero: 3, formulaTexto: "Urea: 10 g" }])).toBe("Urea: 10 g");
   });
 
   it("detalle: ítem order, then each ítem's own order; orden renumbered 1..n across the asiento", () => {
@@ -198,7 +198,7 @@ describe("confirmarReservasReceta: ONE asiento for the receta (D8)", () => {
       ],
       pacienteTexto: "Pérez, Juan",
       medicoTexto: "Gómez, Ana — matrícula MAT-1",
-      formulaTexto: "Ítem 1: Fórmula prep-1 | Ítem 2: Fórmula prep-2",
+      formulaTexto: "Fórmula prep-1 | Fórmula prep-2",
       registradoPorId: USUARIO_ID,
       detalles: [detalle("l-prep-1", 1), detalle("l-prep-2", 2)],
     });
@@ -223,7 +223,7 @@ describe("confirmarReservasReceta: ONE asiento for the receta (D8)", () => {
 
     const asiento = repo.insertAsientoRecetario.mock.calls[0]![1] as { preparaciones: unknown; formulaTexto: string };
     expect(asiento.preparaciones).toEqual([{ preparacionId: "prep-2", orden: 1 }]);
-    expect(asiento.formulaTexto).toBe("Ítem 2: Fórmula prep-2");
+    expect(asiento.formulaTexto).toBe("Fórmula prep-2");
   });
 
   it("refuses when the receta already has its por-receta asiento (INV-L24 pre-check), writing nothing", async () => {

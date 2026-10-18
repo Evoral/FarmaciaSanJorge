@@ -6,7 +6,7 @@
  *
  *   1. Friendly INV-L24 pre-check: the receta has no por-receta asiento yet (the partial unique index is the backstop).
  *   2. `asiento_preparacion` + `detalle_asiento` rows, then the `asiento_recetario` (`insertAsientoRecetario`): one
- *      number and one snapshot -- paciente/médico from the receta, the fórmula of each ítem prefixed by "Ítem N: ",
+ *      number and one snapshot -- paciente/médico from the receta, the fórmula of each ítem (drogas only) joined by " | ",
  *      the detalle lines of every ítem with a continuous `orden` (domain/asiento-receta.ts). Correlativo and hash (V4)
  *      are assigned by the DB.
  *   3. One `asiento_contralor` EGRESO per controlled movimiento of every ítem, now that the asiento id exists
