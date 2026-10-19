@@ -23,7 +23,8 @@ export type BuildPdf = (doc: PDFKit.PDFDocument) => void;
 /** Runs `build` against a fresh `PDFDocument`, then resolves with the complete rendered PDF as a `Buffer`. Rejects if `build` throws or the underlying stream errors. */
 export function renderPdf(build: BuildPdf, options?: PDFKit.PDFDocumentOptions): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: "A4", margin: 40, ...options });
+    // pdfkit reads `margin ?? margins`: the default `margin` only when the caller sets neither, or it would override per-side `margins`.
+    const doc = new PDFDocument({ size: "A4", ...(options?.margins === undefined ? { margin: 40 } : {}), ...options });
     const chunks: Buffer[] = [];
 
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));

@@ -149,6 +149,7 @@ import {
 import type { LineaParaPantalla, PartidaFresca, RecetaContextoAsiento } from "../infrastructure/preparacion-repository";
 import { registrarAsientoRecetaEnTx } from "./registrar-asiento-receta";
 import { autorizacionDePesadaReal } from "./co-firma-pesada-real";
+import { consumirExcipienteEnTx } from "./excipiente-preparacion";
 
 /**
  * What a user may type for a línea (2026-10-15: the partidas are chosen by the system, R1): the real quantity of an
@@ -465,6 +466,10 @@ export async function confirmarPreparacionEnTx(
         esInsumo,
       });
     }
+
+    // The excipiente (migration 0092): descontado from its reserva, no línea, no contralor, no detalle (it is in
+    // the fórmula through excipiente_texto).
+    await consumirExcipienteEnTx(tx, session, { preparacionId: input.preparacionId, jornada });
 
     // ------------------------------------------------------------------
     // 6. The ítem's libro data (written by the caller in the receta's ONE

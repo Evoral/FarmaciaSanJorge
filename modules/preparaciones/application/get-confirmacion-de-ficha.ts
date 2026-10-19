@@ -1,19 +1,22 @@
 /**
- * `getConfirmacionDeFicha`: what the toma workspace's "Marcar como preparada"
- * dialog (ui/continuar-preparacion-dialog.tsx) shows for an ítem's
- * ficha técnica BEFORE any preparación exists -- the same data
+ * `getConfirmacionDeFicha`: what the toma workspace's pesada en la ficha
+ * (ui/pesaje-en-toma.tsx: lots, real weighing, then "Marcar como preparada")
+ * needs for an ítem's ficha técnica BEFORE any preparación exists -- the same data
  * `/preparaciones/[id]` shows for an INICIADA one (shared builder,
  * ./datos-confirmacion.ts). Read-only, `preparaciones.iniciar` (same as
  * `preparaciones.pantalla`): opening the dialog persists nothing; the
  * preparación is created together with its reserva de stock by
  * `reservarStockPreparacion` (./reservar-stock-preparacion.ts) with the same
  * automatic plan. Stock reserved by other preparaciones is not available.
+ * Each línea carries its pesada en borrador (migration 0090,
+ * ./guardar-borrador-pesada.ts) as `reserva`, which prefills the fields; plus
+ * the excipientes to choose from and the excipiente's draft (migration 0092).
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
-import { getFichaParaIniciar } from "../infrastructure/preparacion-repository";
+import { getBorradoresDeFicha, getExcipienteBorrador, getFichaParaIniciar, listExcipientesParaToma } from "../infrastructure/preparacion-repository";
 import { construirDatosConfirmacion, type DatosConfirmacion } from "./datos-confirmacion";
 
 const getConfirmacionDeFichaInput = z.object({ fichaTecnicaId: uuid });
@@ -25,7 +28,13 @@ export const getConfirmacionDeFichaQuery = defineQuery({
   handler: async ({ tx, session, input }): Promise<DatosConfirmacion> => {
     const ficha = await getFichaParaIniciar(tx, session.tenantId, input.fichaTecnicaId);
     if (!ficha) throw new NotFoundError("Ficha técnica no encontrada.");
-    return construirDatosConfirmacion(tx, session.tenantId, ficha.id);
+    const datos = await construirDatosConfirmacion(tx, session.tenantId, ficha.id);
+    const borradores = await getBorradoresDeFicha(tx, session.tenantId, ficha.id);
+    return {
+      ...datos,
+      lineas: datos.lineas.map((linea) => ({ ...linea, reserva: borradores.get(linea.id) ?? null })),
+      excipiente: { opciones: await listExcipientesParaToma(tx, session.tenantId), borrador: await getExcipienteBorrador(tx, session.tenantId, ficha.id) },
+    };
   },
 });
 

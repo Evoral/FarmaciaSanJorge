@@ -9,10 +9,13 @@
  *   to the avance; it is corrected from /recetas/[id]/editar.
  * - Its ítems: while the receta is editable (`recetas.editar` and still
  *   PENDIENTE_PREPARACION), the SAME edit form as /recetas/[id]/editar with
- *   a fixed header (`RecetaFormToma`), coming back here after saving
+ *   a fixed header (`RecetaFormToma`) inside a collapsible closed by default
+ *   ("Editar receta / agregar ítem": corrections are the exception now that
+ *   the fichas are generated automatically), coming back here after saving
  *   (`volverA`, validated by the action); saving regenerates the fichas
  *   técnicas/cotizaciones of the changed ítems as always and the generation
- *   notices show here. Otherwise read-only, inside each ítem's card.
+ *   notices show here. Each ítem's card shows its saved data, except while
+ *   the form is open (it already shows them).
  * - Each ítem: where it stands (Pendiente / Stock reservado / Confirmada),
  *   its latest ficha técnica with its líneas de pesaje (plus "Generar ficha
  *   técnica" only for an ítem that has none, e.g. when the automatic
@@ -20,10 +23,15 @@
  *   of the ítem's main action) and its actions, every one behind re-authentication
  *   (docs/specs/reserva-stock-preparacion.md: the libro recetario is written
  *   at the END of the lab's process, when the etiquetas are printed):
- *     1. Pendiente: "Marcar como preparada" opens the partidas in a dialog
- *        (modules/preparaciones/ui/continuar-preparacion-dialog.tsx: partidas,
- *        enrase, warnings) whose "Marcar como preparada" creates the preparación
- *        (INICIADA) and reserves its stock (`preparaciones.reservarStock`) --
+ *     1. Pendiente: the lab fills in the ficha técnica while weighing
+ *        (modules/preparaciones/ui/pesaje-en-toma.tsx, docs/specs/pesada-real.md
+ *        "Pesada en la ficha"): a lot selector per línea (oldest first) and a
+ *        "Cantidad real pesada" column, each línea saved as it is filled in
+ *        (migration 0090), plus the excipiente used, chosen from the catalog
+ *        with its quantity (migration 0092, reserved and descontado with the
+ *        drogas; read-only once reserved). "Marcar como preparada" only confirms in a dialog
+ *        (DT co-firma outside the tolerance, re-authentication): it creates the
+ *        preparación (INICIADA) and reserves its stock (`preparaciones.reservarStock`) --
  *        no stock movement, no asiento; while it lives the receta can not
  *        be edited (its estado stays PENDIENTE_PREPARACION until the first
  *        confirmation).
@@ -82,6 +90,8 @@ import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { ValidationError } from "@/shared/errors";
 import { getTomaReceta } from "@/modules/preparaciones/application/get-toma-receta";
+import { getConfirmacionDeFicha } from "@/modules/preparaciones/application/get-confirmacion-de-ficha";
+import type { DatosConfirmacion } from "@/modules/preparaciones/application/datos-confirmacion";
 import type { ItemDeToma, RecetaDeToma } from "@/modules/preparaciones/application/get-toma-receta";
 import {
   ESTADOS_RECETA_EN_LABORATORIO,
@@ -94,12 +104,12 @@ import {
   itemsSinReserva,
 } from "@/modules/preparaciones/domain/toma";
 import type { EstadoItemToma } from "@/modules/preparaciones/domain/toma";
-import { BorradorRecetaProvider, RecetaFormToma } from "@/modules/preparaciones/ui/borrador-receta";
+import { BorradorRecetaProvider, EdicionRecetaDesplegable, RecetaFormToma, SoloConEdicionCerrada } from "@/modules/preparaciones/ui/borrador-receta";
 import { CancelarTomaForm } from "@/modules/preparaciones/ui/cancelar-toma-form";
 import { FichaTecnicaEnToma, FichasDeItemsNuevos, RequiereRecetaGuardada } from "@/modules/preparaciones/ui/fichas-borrador";
 import { ContinuarPreparacionDialog } from "@/modules/preparaciones/ui/continuar-preparacion-dialog";
+import { MarcarPreparadaDialog, PesajeProvider, PesajeTabla } from "@/modules/preparaciones/ui/pesaje-en-toma";
 import { EtiquetasDeReceta, LiberarReservaForm, PerdidaReservaDialog, RecalcularReservaForm } from "@/modules/preparaciones/ui/reserva-acciones";
-import { ExcipienteField } from "@/modules/preparaciones/ui/excipiente-field";
 import { listDtParaPerdida } from "@/modules/preparaciones/application/list-dt-para-perdida";
 import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
 import { ItemDatos } from "@/modules/preparaciones/ui/item-datos";
@@ -176,6 +186,12 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
   };
 
   const estados = receta.items.map((item) => estadoItemToma(item.preparacion));
+  // The pesada en la ficha (lots, real weighing, its draft): every Pendiente ítem with a vigente ficha the session may reserve.
+  const pesajes = await Promise.all(
+    receta.items.map((item, i) =>
+      acciones.puedeReservar && estados[i] === "PENDIENTE" && item.ficha && !item.fichaDesactualizada ? getConfirmacionDeFicha(item.ficha.id) : Promise.resolve(null),
+    ),
+  );
   const confirmados = estados.filter((estado) => estado === "CONFIRMADA").length;
   const puedeImprimirEtiquetas = can(session, "etiquetas.imprimir");
   // The "Seleccionar etiquetas" dialog's sizes: read only when an ítem may need them.
@@ -193,7 +209,7 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
     <section aria-labelledby="fichas-heading">
       <div className="section-heading">
         <h2 id="fichas-heading" className="flex items-center gap-2">
-          {edicion ? "Fichas técnicas" : "Ítems"} <span className="tab-count">{receta.items.length}</span>
+          Ítems <span className="tab-count">{receta.items.length}</span>
         </h2>
         <span className="text-xs text-zinc-500">Mientras un ítem tenga stock reservado o esté confirmado, la receta no se puede editar.</span>
       </div>
@@ -205,10 +221,11 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
             numero={idx + 1}
             recetaId={receta.id}
             zonaHoraria={receta.zonaHoraria}
-            mostrarDatos={!edicion}
+            datosOcultables={edicion !== null}
             puedeGenerarFicha={puedeGenerarFicha}
             puedeImprimirFicha={puedeImprimirFicha}
             acciones={acciones}
+            pesaje={pesajes[idx] ?? null}
           />
         ))}
         {edicion ? <FichasDeItemsNuevos /> : null}
@@ -318,7 +335,9 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
       {edicion ? (
         <BorradorRecetaProvider>
           <div className="mb-10">
-            <RecetaFormToma key={edicion.version} recetaId={receta.id} unidades={edicion.unidades} inicial={edicion.inicial} volverA={hrefToma(receta.id)} />
+            <EdicionRecetaDesplegable>
+              <RecetaFormToma key={edicion.version} recetaId={receta.id} unidades={edicion.unidades} inicial={edicion.inicial} volverA={hrefToma(receta.id)} />
+            </EdicionRecetaDesplegable>
           </div>
           {fichas}
         </BorradorRecetaProvider>
@@ -360,20 +379,23 @@ function ItemToma({
   numero,
   recetaId,
   zonaHoraria,
-  mostrarDatos,
+  datosOcultables,
   puedeGenerarFicha,
   puedeImprimirFicha,
   acciones,
+  pesaje,
 }: {
   item: ItemDeToma;
   numero: number;
   recetaId: string;
   zonaHoraria: string;
-  /** The ítem's data, when the edit form above is not already showing it. */
-  mostrarDatos: boolean;
+  /** There is an edit form above: the ítem's data hide while it is open (it already shows them). */
+  datosOcultables: boolean;
   puedeGenerarFicha: boolean;
   puedeImprimirFicha: boolean;
   acciones: AccionesDeItem;
+  /** The pesada en la ficha's data (lots, draft): a Pendiente ítem the session may reserve; `null` otherwise. */
+  pesaje: DatosConfirmacion | null;
 }) {
   const estado = estadoItemToma(item.preparacion);
   const ficha = item.ficha;
@@ -382,7 +404,7 @@ function ItemToma({
   // In the actions bar, just left of the ítem's main action (Marcar como preparada, Liberar reserva, Ver preparación).
   const imprimirFicha = puedeImprimirFicha && ficha ? <ImprimirFichaLink fichaTecnicaId={ficha.id} /> : null;
 
-  return (
+  const tarjeta = (
     <article className="group-card" aria-labelledby={`item-toma-${item.id}`}>
       <div className="group-card-header">
         <span className="index-badge" aria-hidden>
@@ -396,9 +418,19 @@ function ItemToma({
       </div>
 
       <div className="flex flex-col gap-5 p-4 sm:p-5">
-        {mostrarDatos ? <ItemDatos item={item} /> : null}
+        {datosOcultables ? (
+          <SoloConEdicionCerrada>
+            <div className="border-b border-zinc-100 pb-4">
+              <ItemDatos item={item} />
+            </div>
+          </SoloConEdicionCerrada>
+        ) : (
+          <div className="border-b border-zinc-100 pb-4">
+            <ItemDatos item={item} />
+          </div>
+        )}
 
-        <div className={mostrarDatos ? "border-t border-zinc-100 pt-4" : undefined}>
+        <div>
           {/* The saved ficha; replaced by the live preview while the form has unsaved changes to this ítem. */}
           <FichaTecnicaEnToma itemId={item.id}>
             <h4 className="mb-3 text-sm font-semibold text-zinc-900">Ficha técnica</h4>
@@ -412,7 +444,7 @@ function ItemToma({
                   generadaPorNombre={ficha.generadaPorNombre}
                   puedeImprimir={false}
                 />
-                <LineasFichaTabla lineas={ficha.lineas} />
+                {pesaje ? <PesajeTabla lineasFicha={ficha.lineas} /> : <LineasFichaTabla lineas={ficha.lineas} />}
               </div>
             ) : (
               <p className="text-sm text-zinc-500">Todavía no se generó la ficha técnica de este ítem.</p>
@@ -468,16 +500,13 @@ function ItemToma({
         ) : null}
       </div>
 
-      {estado === "RESERVADA" && preparacion ? (
-        // Excipiente used (migration 0083): optional, saved when left; goes into the libro at "Imprimir etiquetas".
+      {estado === "RESERVADA" && preparacion?.excipiente ? (
+        // Excipiente used: chosen from the catalog in the ficha before reserving (migration 0092), its stock reserved
+        // with the drogas; read-only here (to change it, "Liberar reserva"). Goes into the libro at "Imprimir etiquetas".
         <div className="border-t border-zinc-100 px-4 py-3 sm:px-5">
-          {acciones.puedeReservar ? (
-            <ExcipienteField preparacionId={preparacion.id} inicial={preparacion.excipiente} />
-          ) : preparacion.excipiente ? (
-            <p className="text-sm text-zinc-600">
-              Excipiente utilizado: <span className="font-medium text-zinc-900">{preparacion.excipiente}</span>
-            </p>
-          ) : null}
+          <p className="text-sm text-zinc-600">
+            Excipiente utilizado: <span className="font-medium text-zinc-900">{preparacion.excipiente}</span>
+          </p>
         </div>
       ) : null}
 
@@ -541,7 +570,11 @@ function ItemToma({
             ) : ficha && !item.fichaDesactualizada ? (
               <RequiereRecetaGuardada nota={null}>
                 {imprimirFicha}
-                <ContinuarPreparacionDialog objetivo={{ fichaTecnicaId: ficha.id }} itemNombre={`Ítem ${numero}: ${nombre}`} />
+                {pesaje ? (
+                  <MarcarPreparadaDialog itemNombre={`Ítem ${numero}: ${nombre}`} />
+                ) : (
+                  <ContinuarPreparacionDialog objetivo={{ fichaTecnicaId: ficha.id }} itemNombre={`Ítem ${numero}: ${nombre}`} />
+                )}
               </RequiereRecetaGuardada>
             ) : null}
           </div>
@@ -549,4 +582,5 @@ function ItemToma({
       </div>
     </article>
   );
+  return pesaje ? <PesajeProvider datos={pesaje}>{tarjeta}</PesajeProvider> : tarjeta;
 }

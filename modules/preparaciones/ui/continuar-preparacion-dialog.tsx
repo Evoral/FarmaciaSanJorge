@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * "Marcar como preparada" on a toma workspace ítem (/preparaciones/recetas/[recetaId]): the ítem's partidas in a dialog, without
- * leaving the receta. Opening it only reads (`getConfirmacionDeFichaAction`, fresh stock on every opening, stock reserved
+ * "Recalcular reserva" on a reserved toma workspace ítem (/preparaciones/recetas/[recetaId]), and "Marcar como preparada" only
+ * when the session can not use the pesada en la ficha (./pesaje-en-toma.tsx, which normally replaces this dialog for a
+ * Pendiente ítem): the ítem's partidas in a dialog, without leaving the receta. Opening it only reads (`getConfirmacionDeFichaAction`, fresh stock on every opening, stock reserved
  * by other preparaciones left out); the form is the same as `/preparaciones/[id]`'s (./confirmar-form.tsx: partidas,
  * enrase, motivo, warnings, re-authentication) and its "Marcar como preparada" creates the preparación and reserves its stock in
  * one transaction (`preparaciones.reservarStock`) -- no stock is descontado and nothing is written to the libro

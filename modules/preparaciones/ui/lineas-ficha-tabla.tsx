@@ -2,16 +2,35 @@
  * The líneas de pesaje of a ficha técnica as the toma workspace
  * (/preparaciones/recetas/[recetaId]) shows them: Droga / Teórica /
  * Exceso % / A pesar, and under each línea the partidas it would be
- * weighed from with their purity. Presentational only (no hooks), so the
+ * weighed from with their purity. Stock disponible is shown at a glance
+ * (whole numbers in the largest practical unit, `formatStockEntero`); the
+ * quantities to weigh stay exact. Presentational only (no hooks), so the
  * page renders it for a saved ficha and ./fichas-borrador.tsx for the live
  * preview of an unsaved ítem -- both read the same `LineaDeFichaToma`.
  */
 import { Fragment } from "react";
-import { equivalenciaGramosMg, formatNumero } from "@/shared/format/cantidad";
+import { Decimal } from "@/shared/decimal";
+import { equivalenciaGramosMg, formatNumero, formatStockEntero } from "@/shared/format/cantidad";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import type { LineaDeFichaToma, PartidaParaPesar } from "../application/get-toma-receta";
 
+/**
+ * The "Exceso %" column only when a línea applied one (`exceso_pesada_porcentaje` > 0 in Parámetros when its ficha
+ * was generated): unused, it is noise.
+ */
+export function conExceso(lineas: readonly { excesoAplicado: string }[]): boolean {
+  return lineas.some((l) => {
+    try {
+      return new Decimal(l.excesoAplicado).greaterThan(0);
+    } catch {
+      return false;
+    }
+  });
+}
+
 export function LineasFichaTabla({ lineas }: { lineas: readonly LineaDeFichaToma[] }) {
+  const exceso = conExceso(lineas);
+  const columnas = exceso ? 4 : 3;
   return (
     <div className="table-wrap">
       <table className="data-table">
@@ -24,9 +43,11 @@ export function LineasFichaTabla({ lineas }: { lineas: readonly LineaDeFichaToma
             <th scope="col" className="px-3 py-2 text-right">
               Teórica
             </th>
-            <th scope="col" className="px-3 py-2 text-right">
-              Exceso %
-            </th>
+            {exceso ? (
+              <th scope="col" className="px-3 py-2 text-right">
+                Exceso %
+              </th>
+            ) : null}
             <th scope="col" className="px-3 py-2 text-right">
               A pesar
             </th>
@@ -47,7 +68,7 @@ export function LineasFichaTabla({ lineas }: { lineas: readonly LineaDeFichaToma
                     <Vacio />
                   )}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">{linea.excesoAplicado}</td>
+                {exceso ? <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">{linea.excesoAplicado}</td> : null}
                 <td className="px-3 py-2 text-right font-mono font-semibold text-zinc-900 tabular-nums">
                   {linea.esEnraseManual ? (
                     <span className="inline-block max-w-[12rem] font-sans font-normal text-zinc-500">Enrase manual (se registra al confirmar)</span>
@@ -61,13 +82,7 @@ export function LineasFichaTabla({ lineas }: { lineas: readonly LineaDeFichaToma
                   )}
                 </td>
               </tr>
-              {linea.partidas ? (
-                <tr>
-                  <td colSpan={4} className="px-3 pb-3 pt-0">
-                    <PartidasDeLinea linea={linea} />
-                  </td>
-                </tr>
-              ) : null}
+              {linea.partidas ? <FilasPartidas linea={linea} columnas={columnas} /> : null}
             </Fragment>
           ))}
         </tbody>
@@ -78,33 +93,80 @@ export function LineasFichaTabla({ lineas }: { lineas: readonly LineaDeFichaToma
 
 /**
  * The partidas the confirmation would draw this línea from (same candidates
- * and order). With no declared purity, one compact line of lotes; otherwise
- * what to weigh from each one: cantidadAPesar (active) x 100 / pureza. A
- * partida por vencer carries a compact warning; a vencida one (blocked until
- * the DT acts, docs/specs/reanalisis-partida.md) is listed apart, saying why
- * it is not available.
+ * and order), as rows right below it. With no declared purity, one compact
+ * line of lotes; otherwise one row per partida -- lote, stock and purity --
+ * with what to weigh from it (cantidadAPesar (active) x 100 / pureza) in the
+ * "A pesar" column, with its g / mg equivalence like the línea's. A partida
+ * por vencer carries a compact warning; a vencida one (blocked until the DT
+ * acts, docs/specs/reanalisis-partida.md) is listed apart, saying why it is
+ * not available.
  */
-function PartidasDeLinea({ linea }: { linea: LineaDeFichaToma }) {
+function FilasPartidas({ linea, columnas }: { linea: LineaDeFichaToma; columnas: number }) {
   const todas = linea.partidas ?? [];
   const partidas = todas.filter((p) => !p.vencida);
   const vencidas = todas.filter((p) => p.vencida);
 
+  if (!partidas.some((p) => p.potenciaDeclarada !== null)) {
+    return (
+      <tr>
+        <td colSpan={columnas} className="px-3 pb-3 pt-0">
+          <div className="flex flex-col gap-1.5">
+            <LotesDisponibles partidas={partidas} />
+            <LotesVencidos vencidas={vencidas} />
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-1.5">
-      <PartidasDisponibles linea={linea} partidas={partidas} />
+    <>
+      {/* One visual group with the línea: no row borders until its last row. */}
+      <tr className="border-b-0">
+        <td colSpan={columnas} className="px-3 pb-0.5 pt-0 text-xs text-zinc-500">
+          Lotes (a pesar según la pureza de cada partida):
+        </td>
+      </tr>
+      {partidas.map((p, i) => {
+        const ultima = i === partidas.length - 1 && vencidas.length === 0;
+        const padding = ultima ? "pb-3 pt-0.5" : "py-0.5";
+        return (
+          <tr key={p.id} className={ultima ? undefined : "border-b-0"}>
+            <td colSpan={columnas - 1} className={`pl-6 pr-3 text-xs text-zinc-500 ${padding}`}>
+              <LoteConStock partida={p} /> · Pureza{" "}
+              {p.potenciaDeclarada !== null ? <span className="font-mono text-zinc-700">{formatNumero(p.potenciaDeclarada)} %</span> : <span className="font-mono text-zinc-400">100 %</span>}
+            </td>
+            <td className={`whitespace-nowrap px-3 text-right font-mono font-medium text-zinc-900 tabular-nums ${padding}`}>
+              {formatNumero(p.cantidadAPesar)} <span className="font-normal text-zinc-500">{linea.unidadSimbolo}</span>
+              <Equivalencia valor={p.cantidadAPesar} simbolo={linea.unidadSimbolo} />
+            </td>
+          </tr>
+        );
+      })}
       {vencidas.length > 0 ? (
-        <p className="text-xs text-red-700 dark:text-red-300">
-          No disponible{vencidas.length === 1 ? "" : "s"}:{" "}
-          {vencidas.map((p, i) => (
-            <span key={p.id}>
-              {i > 0 ? " · " : null}
-              lote <span className="font-mono">{p.lote}</span> ({formatNumero(p.cantidadDisponible)} {p.unidadSimbolo})
-            </span>
-          ))}
-          . {vencidas[0]!.avisoVencimiento}
-        </p>
+        <tr>
+          <td colSpan={columnas} className="pb-3 pl-6 pr-3 pt-0.5">
+            <LotesVencidos vencidas={vencidas} />
+          </td>
+        </tr>
       ) : null}
-    </div>
+    </>
+  );
+}
+
+export function LotesVencidos({ vencidas }: { vencidas: readonly PartidaParaPesar[] }) {
+  if (vencidas.length === 0) return null;
+  return (
+    <p className="text-xs text-red-700 dark:text-red-300">
+      No disponible{vencidas.length === 1 ? "" : "s"}:{" "}
+      {vencidas.map((p, i) => (
+        <span key={p.id}>
+          {i > 0 ? " · " : null}
+          lote <span className="font-mono">{p.lote}</span> ({formatStockEntero(p.cantidadDisponible, p.unidadSimbolo)})
+        </span>
+      ))}
+      . {vencidas[0]!.avisoVencimiento}
+    </p>
   );
 }
 
@@ -117,68 +179,40 @@ function AvisoPorVencer({ aviso }: { aviso: string | null }) {
   ) : null;
 }
 
-function PartidasDisponibles({ linea, partidas }: { linea: LineaDeFichaToma; partidas: readonly PartidaParaPesar[] }) {
+/** "251138 (5 kg disp.)": the same wording with or without a declared purity. */
+function LoteConStock({ partida }: { partida: PartidaParaPesar }) {
+  return (
+    <>
+      <span className="font-mono text-zinc-700">{partida.lote}</span> ({formatStockEntero(partida.cantidadDisponible, partida.unidadSimbolo)} disp.)
+      <AvisoPorVencer aviso={partida.avisoVencimiento} />
+    </>
+  );
+}
+
+function LotesDisponibles({ partidas }: { partidas: readonly PartidaParaPesar[] }) {
   if (partidas.length === 0) {
     return <p className="text-xs text-zinc-500">Sin partidas disponibles para esta droga.</p>;
   }
-
-  if (!partidas.some((p) => p.potenciaDeclarada !== null)) {
-    return (
-      <p className="text-xs text-zinc-500">
-        Lotes:{" "}
-        {partidas.map((p, i) => (
-          <span key={p.id}>
-            {i > 0 ? " · " : null}
-            <span className="font-mono text-zinc-700">{p.lote}</span> ({formatNumero(p.cantidadDisponible)} {p.unidadSimbolo} disp.)
-            <AvisoPorVencer aviso={p.avisoVencimiento} />
-          </span>
-        ))}
-      </p>
-    );
-  }
-
   return (
-    <div className="rounded-md border border-zinc-100 bg-zinc-50/60 px-3 py-2">
-      <p className="mb-1 text-xs text-zinc-500">A pesar según la pureza de cada partida</p>
-      <ul className="flex flex-col gap-1 text-xs">
-        {partidas.map((p) => (
-          <li key={p.id} className="grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1fr)]">
-            <span className="truncate">
-              <span className="text-zinc-500">Lote </span>
-              <span className="font-mono font-medium text-zinc-900">{p.lote}</span>
-              <AvisoPorVencer aviso={p.avisoVencimiento} />
-            </span>
-            <span className="truncate text-zinc-600">{p.proveedorNombre}</span>
-            <span className="tabular-nums">
-              <span className="text-zinc-500">Pureza </span>
-              {p.potenciaDeclarada !== null ? <span className="font-mono text-zinc-900">{formatNumero(p.potenciaDeclarada)} %</span> : <span className="font-mono text-zinc-400">100 %</span>}
-            </span>
-            <span className="tabular-nums">
-              <span className="text-zinc-500">Disp. </span>
-              <span className="font-mono text-zinc-900">
-                {formatNumero(p.cantidadDisponible)} {p.unidadSimbolo}
-              </span>
-            </span>
-            <span className="tabular-nums sm:text-right">
-              <span className="text-zinc-500">Pesar </span>
-              <span className="font-mono font-semibold text-zinc-900">
-                {formatNumero(p.cantidadAPesar)} {linea.unidadSimbolo}
-              </span>
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <p className="text-xs text-zinc-500">
+      Lotes:{" "}
+      {partidas.map((p, i) => (
+        <span key={p.id}>
+          {i > 0 ? " · " : null}
+          <LoteConStock partida={p} />
+        </span>
+      ))}
+    </p>
   );
 }
 
 /** The same mass in g / mg under the figure, when the línea is weighed by mass. */
-function Equivalencia({ valor, simbolo }: { valor: string; simbolo: string }) {
+export function Equivalencia({ valor, simbolo }: { valor: string; simbolo: string }) {
   const equivalencia = equivalenciaGramosMg(valor, simbolo);
   return equivalencia ? <span className="block text-xs font-normal text-zinc-500">= {equivalencia}</span> : null;
 }
 
-function Vacio() {
+export function Vacio() {
   return (
     <span className="text-zinc-400">
       -<span className="sr-only">Sin dato</span>

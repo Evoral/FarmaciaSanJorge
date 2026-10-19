@@ -54,7 +54,7 @@ export interface LineaPantalla extends LineaParaPantalla {
   faltante: string | null;
   /** INV-S18 over the plan: never with the automatic order (abiertas first), kept so the form asks the motivo if the rule ever says so. */
   requiereMotivo: boolean;
-  /** Only when recalculating a reserva (./get-recalculo-de-reserva.ts): its current entrada, to prefill the form. */
+  /** Recalculating a reserva (./get-recalculo-de-reserva.ts): its current entrada; before any reserva: the pesada en borrador (migration 0090). Prefills the form. */
   reserva?: EntradaReservada | null;
 }
 
@@ -82,6 +82,14 @@ export interface DatosConfirmacion {
   pesada: { precisionBalanza: string; toleranciaPorcentaje: string };
   /** The DTs vigentes who can co-sign a pesada real outside the tolerance. */
   dts: { id: string; label: string }[];
+  /**
+   * Only for the toma workspace's pesada en la ficha (./get-confirmacion-de-ficha.ts, migration 0092): the
+   * excipientes it may choose from and its saved draft (cantidad in the droga's unidad base).
+   */
+  excipiente?: {
+    opciones: { id: string; nombre: string; unidadSimbolo: string }[];
+    borrador: { drogaId: string | null; cantidad: string | null } | null;
+  };
 }
 
 export async function construirDatosConfirmacion(
