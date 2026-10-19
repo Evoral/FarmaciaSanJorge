@@ -268,7 +268,9 @@ export function PesajeTabla({ lineasFicha }: { lineasFicha: readonly LineaDeFich
   const exceso = conExceso(lineasFicha);
   const columnas = exceso ? 5 : 4;
   return (
-    <div className="table-wrap">
+    // overflow-visible: the excipiente Combobox popover must float over the card,
+    // not open a scroll box inside the table (hard to drive on a tablet).
+    <div className="table-wrap overflow-visible">
       <table className="data-table">
         <caption className="sr-only">Líneas de pesaje</caption>
         <thead>
