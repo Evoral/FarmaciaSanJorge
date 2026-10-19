@@ -134,6 +134,25 @@ export function formatCantidadExacta(valor: string, simbolo: string): string {
   return numero === null ? `${valor} ${simbolo}`.trim() : `${formatNumero(numero)} ${simbolo}`.trim();
 }
 
+/** Grams per unit, by símbolo, for the mass units (`CADENAS_CONVERTIBLES.MASA`). */
+const GRAMOS_POR_SIMBOLO: Readonly<Record<string, string>> = { mcg: "0.000001", mg: "0.001", g: "1", kg: "1000" };
+
+/**
+ * The same mass in grams and in milligrams, exact (only the decimal point moves), leaving out the unit it is already
+ * in: "500 mg" for 0,5 g, "0,5 g" for 500 mg, "0,0005 g · 0,5 mg" for 500 mcg. `null` when the unit is not a mass or
+ * the value is not a number. Display only: the recorded quantity stays in its own unit.
+ */
+export function equivalenciaGramosMg(valor: string, simbolo: string): string | null {
+  const gramosPorUnidad = GRAMOS_POR_SIMBOLO[simbolo];
+  const numero = parse(valor);
+  if (gramosPorUnidad === undefined || numero === null) return null;
+  const gramos = numero.times(gramosPorUnidad);
+  const partes: string[] = [];
+  if (simbolo !== "g") partes.push(`${formatNumero(gramos)} g`);
+  if (simbolo !== "mg") partes.push(`${formatNumero(gramos.times(1000))} mg`);
+  return partes.join(" · ");
+}
+
 /**
  * One quantity for display. `opciones.en` forces the display unit (used by
  * `formatCantidadesFila`); it is ignored unless it belongs to the same

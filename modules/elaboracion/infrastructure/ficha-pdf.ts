@@ -17,7 +17,7 @@
  * again on a page of the measured height.
  */
 import { renderPdf } from "@/shared/pdf/pdf-document";
-import { formatCantidadExacta } from "@/shared/format/cantidad";
+import { equivalenciaGramosMg, formatCantidadExacta } from "@/shared/format/cantidad";
 import type { FichaParaImprimir, LineaImprimir } from "./ficha-repository";
 
 const PUNTOS_POR_MM = 72 / 25.4;
@@ -37,6 +37,13 @@ const HOLGURA = 4;
 function textoCantidad(linea: LineaImprimir): string {
   if (linea.esEnraseManual) return "Enrase manual";
   return linea.cantidadAPesar ? formatCantidadExacta(linea.cantidadAPesar, linea.unidadSimbolo) : "—";
+}
+
+/** "= 500 mg" under the cantidad when the línea is a mass in another unit (g / mg); `null` otherwise. */
+function textoEquivalencia(linea: LineaImprimir): string | null {
+  if (linea.esEnraseManual || !linea.cantidadAPesar) return null;
+  const equivalencia = equivalenciaGramosMg(linea.cantidadAPesar, linea.unidadSimbolo);
+  return equivalencia ? `= ${equivalencia}` : null;
 }
 
 function separador(doc: PDFKit.PDFDocument, y: number): number {
@@ -73,7 +80,16 @@ function dibujar(doc: PDFKit.PDFDocument, ficha: FichaParaImprimir): number {
     doc.font("Helvetica-Bold");
     const altoCantidad = doc.heightOfString(cantidad, { width: ANCHO_CANTIDAD, align: "right" });
     doc.text(cantidad, MARGEN + ANCHO_DROGA + SEPARACION, y, { width: ANCHO_CANTIDAD, align: "right" });
-    y += Math.max(altoDroga, altoCantidad) + 5;
+    let altoDerecha = altoCantidad;
+    const equivalencia = textoEquivalencia(linea);
+    if (equivalencia) {
+      doc.font("Helvetica").fontSize(8);
+      const altoEquivalencia = doc.heightOfString(equivalencia, { width: ANCHO_CANTIDAD, align: "right" });
+      doc.text(equivalencia, MARGEN + ANCHO_DROGA + SEPARACION, y + altoCantidad, { width: ANCHO_CANTIDAD, align: "right" });
+      altoDerecha += altoEquivalencia;
+      doc.font("Helvetica").fontSize(10);
+    }
+    y += Math.max(altoDroga, altoDerecha) + 5;
   }
 
   y = separador(doc, y + 1);

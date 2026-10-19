@@ -7,7 +7,7 @@
  * preview of an unsaved ítem -- both read the same `LineaDeFichaToma`.
  */
 import { Fragment } from "react";
-import { formatNumero } from "@/shared/format/cantidad";
+import { equivalenciaGramosMg, formatNumero } from "@/shared/format/cantidad";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import type { LineaDeFichaToma, PartidaParaPesar } from "../application/get-toma-receta";
 
@@ -41,6 +41,7 @@ export function LineasFichaTabla({ lineas }: { lineas: readonly LineaDeFichaToma
                   {linea.cantidadTeorica ? (
                     <>
                       {linea.cantidadTeorica} <span className="text-zinc-500">{linea.unidadSimbolo}</span>
+                      <Equivalencia valor={linea.cantidadTeorica} simbolo={linea.unidadSimbolo} />
                     </>
                   ) : (
                     <Vacio />
@@ -53,6 +54,7 @@ export function LineasFichaTabla({ lineas }: { lineas: readonly LineaDeFichaToma
                   ) : linea.cantidadAPesar ? (
                     <span className="whitespace-nowrap">
                       {linea.cantidadAPesar} <span className="font-normal text-zinc-500">{linea.unidadSimbolo}</span>
+                      <Equivalencia valor={linea.cantidadAPesar} simbolo={linea.unidadSimbolo} />
                     </span>
                   ) : (
                     <Vacio />
@@ -168,6 +170,12 @@ function PartidasDisponibles({ linea, partidas }: { linea: LineaDeFichaToma; par
       </ul>
     </div>
   );
+}
+
+/** The same mass in g / mg under the figure, when the línea is weighed by mass. */
+function Equivalencia({ valor, simbolo }: { valor: string; simbolo: string }) {
+  const equivalencia = equivalenciaGramosMg(valor, simbolo);
+  return equivalencia ? <span className="block text-xs font-normal text-zinc-500">= {equivalencia}</span> : null;
 }
 
 function Vacio() {
