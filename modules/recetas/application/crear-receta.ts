@@ -16,6 +16,7 @@
  * clase = DROGA (migration 0063), read with the drogas' validity check.
  */
 import { z } from "zod";
+import { interpretarNumero } from "@/shared/decimal/numero-ingresado";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
@@ -52,12 +53,21 @@ export const textoOpcional = z
   .nullable()
   .transform((v) => (v && v.length > 0 ? v : null));
 
+/** An optional quantity as typed (`interpretarNumero`: comma decimals, an ambiguous "1.500" refused), canonical for the rest of the flow. */
 const decimalOpcional = z
   .string()
   .trim()
   .optional()
   .nullable()
-  .transform((v) => (v && v.length > 0 ? v : null));
+  .transform((v, ctx) => {
+    if (!v) return null;
+    const numero = interpretarNumero(v);
+    if (!numero.ok) {
+      ctx.addIssue({ code: "custom", message: numero.mensaje });
+      return z.NEVER;
+    }
+    return numero.valor;
+  });
 
 const componenteInput = z.object({
   drogaId: uuid,

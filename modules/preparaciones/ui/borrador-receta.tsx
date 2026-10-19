@@ -18,8 +18,17 @@
  *
  * Without a provider, or before the form published anything, there is no
  * draft (`useBorradorReceta()` is `null`): the page shows what is saved.
+ *
+ * The form lives in a collapsible (`EdicionRecetaDesplegable`), closed by
+ * default -- with the fichas generated automatically, correcting a receta here
+ * is the exception. Closing it only hides the form: it stays mounted, so an
+ * unsaved draft (and its previews) survives; the summary flags it. While it
+ * is closed each ítem card shows the ítem's saved data
+ * (`SoloConEdicionCerrada`), which the open form would duplicate.
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { ChevronRight, Pencil } from "lucide-react";
+import { ToneBadge } from "@/shared/ui/status-badge";
 import { RecetaForm } from "@/modules/recetas/ui/receta-form";
 import type { BorradorReceta, ItemRecetaBorrador, RecetaFormInicial, RecetaFormProps } from "@/modules/recetas/ui/receta-form";
 import { itemsListosParaPresupuesto } from "@/modules/recetas/domain/presupuesto";
@@ -46,6 +55,7 @@ export interface BorradorRecetaContexto {
 
 const BorradorContext = createContext<BorradorRecetaContexto | null>(null);
 const PublicarContext = createContext<((borrador: BorradorReceta) => void) | null>(null);
+const EdicionAbiertaContext = createContext<{ abierta: boolean; setAbierta: (abierta: boolean) => void } | null>(null);
 
 /** The workspace's draft and its previews; `null` when there is no edit form (or it did not publish yet). */
 export function useBorradorReceta(): BorradorRecetaContexto | null {
@@ -71,6 +81,8 @@ export function BorradorRecetaProvider({ children }: { children: ReactNode }) {
   // The last answer per ítem key, with the ítem (serialized) it was computed for.
   const [previas, setPrevias] = useState<Record<string, { json: string; ficha: FichaPrevista }>>({});
   const ultimaSolicitud = useRef(0);
+  const [abierta, setAbierta] = useState(false);
+  const edicion = useMemo(() => ({ abierta, setAbierta }), [abierta]);
 
   // Only the unsaved ítems -- changed or new -- that are complete enough get a preview.
   const pedidoJson = useMemo(() => {
@@ -131,7 +143,9 @@ export function BorradorRecetaProvider({ children }: { children: ReactNode }) {
 
   return (
     <PublicarContext.Provider value={setBorrador}>
-      <BorradorContext.Provider value={contexto}>{children}</BorradorContext.Provider>
+      <BorradorContext.Provider value={contexto}>
+        <EdicionAbiertaContext.Provider value={edicion}>{children}</EdicionAbiertaContext.Provider>
+      </BorradorContext.Provider>
     </PublicarContext.Provider>
   );
 }
@@ -148,4 +162,43 @@ export interface RecetaFormTomaProps {
 export function RecetaFormToma({ recetaId, unidades, inicial, volverA }: RecetaFormTomaProps) {
   const publicar = useContext(PublicarContext);
   return <RecetaForm mode="editar" unidades={unidades} disabled={false} recetaId={recetaId} inicial={inicial} volverA={volverA} encabezadoFijo onBorradorChange={publicar ?? undefined} />;
+}
+
+/** The edit form's collapsible: closed by default; `children` stay mounted while closed (the draft is kept). */
+export function EdicionRecetaDesplegable({ children }: { children: ReactNode }) {
+  const edicion = useContext(EdicionAbiertaContext);
+  const [abiertaLocal, setAbiertaLocal] = useState(false);
+  const abierta = edicion?.abierta ?? abiertaLocal;
+  const setAbierta = edicion?.setAbierta ?? setAbiertaLocal;
+  const sinGuardar = useBorradorReceta()?.borrador.sinGuardar ?? false;
+  const contenidoId = useId();
+
+  return (
+    <section aria-label="Editar receta">
+      <button
+        type="button"
+        aria-expanded={abierta}
+        aria-controls={contenidoId}
+        onClick={() => setAbierta(!abierta)}
+        className="panel flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-zinc-50"
+      >
+        <ChevronRight aria-hidden className={`size-4 shrink-0 text-zinc-500 transition-transform duration-(--duration-base) ease-(--ease-out-expo) ${abierta ? "rotate-90" : ""}`} />
+        <Pencil aria-hidden className="size-4 shrink-0 text-zinc-500" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium text-zinc-900">Editar receta / agregar ítem</span>
+          <span className="block text-xs text-zinc-500">Solo para corregir la receta: las fichas técnicas se regeneran al guardar.</span>
+        </span>
+        {sinGuardar ? <ToneBadge tone="warn">Cambios sin guardar</ToneBadge> : null}
+      </button>
+      <div id={contenidoId} hidden={!abierta} className="mt-4">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+/** Renders `children` only while the edit form is closed (or there is no edit form). */
+export function SoloConEdicionCerrada({ children }: { children: ReactNode }) {
+  const edicion = useContext(EdicionAbiertaContext);
+  return edicion?.abierta ? null : <>{children}</>;
 }

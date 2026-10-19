@@ -38,6 +38,10 @@ Key facts (verified in the code):
 - URL carries only the opaque droga UUID, `?page=` and the optional repeatable
   `?partida=<uuid>` filter. Partida ids are not sensitive.
 - Breadcrumbs: `Inicio › Catálogos › Drogas › <droga> › Historial`.
+- Lot tracing: the partida detail (`/partidas/[id]`) has a "Historial" header
+  button that opens this page already filtered by that partida
+  (`?partida=<id>`). Shown only with `drogas.editar` + `recetas.crear` (the
+  gates of this page), so it never leads to a redirect (2026-10-19).
 
 ## Permissions
 

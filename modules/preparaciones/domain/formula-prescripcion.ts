@@ -11,13 +11,10 @@ import { formatNumero } from "@/shared/format/cantidad";
 import { FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
 import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
 import type { ModoExpresion } from "@/modules/recetas/domain/receta";
-import { formaSegunCantidad } from "./etiqueta";
+import { FORMAS_POR_UNIDAD, formaSegunCantidad } from "./etiqueta";
 
 /** Excipiente field limit (`preparacion.excipiente_texto varchar(120)`). */
 export const EXCIPIENTE_MAX = 120;
-
-/** Capsular forms count units ("60 Cápsulas"); the rest are filled to a total ("Crema c.s.p. 100 g"). */
-const FORMAS_POR_UNIDAD = new Set(["CAPSULA", "COMPRIMIDO", "OVULO", "SUPOSITORIO"]);
 
 const FRACCIONES: ReadonlyArray<{ valor: number; texto: string }> = [
   { valor: 0.5, texto: "½" },

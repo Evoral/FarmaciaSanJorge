@@ -1,7 +1,8 @@
 /**
- * `editarDatosTenant` (FASE 3 point 3.10a). Edits ONLY the 4 institutional
- * fields fsj_app is granted UPDATE on post-migration 0020: razonSocial,
- * nombreFantasia, domicilio, matriculaFarmacia. `cuit`, `zonaHoraria`,
+ * `editarDatosTenant` (FASE 3 point 3.10a). Edits ONLY the institutional
+ * fields fsj_app is granted UPDATE on: razonSocial, nombreFantasia,
+ * domicilio, matriculaFarmacia (migration 0020) and the two phones printed on
+ * the etiqueta, telefonoFijo / telefonoCelular (migration 0089). `cuit`, `zonaHoraria`,
  * `fechaBaja` and `fechaActivacionContralor` are NEVER accepted as input --
  * the zod schema below does not declare them at all (`.strict()` rejects
  * any extra key outright, it does not just silently drop it), so a stale
@@ -36,6 +37,9 @@ import { getTenantDetalle, updateDatosEditablesTenant } from "../infrastructure/
 /** Optional free-text field: empty/omitted clears the column to NULL (mirrors editar-usuario.ts's numeroMatricula convention). */
 const optionalText = z.string().trim().max(300).optional();
 
+/** `fsj.tenant.telefono_* varchar(40)` (migration 0089). */
+const optionalTelefono = z.string().trim().max(40).optional();
+
 /** Exported for tests/unit/parametros-validacion.test.ts (asserts the 4 non-editable tenant fields are provably NOT accepted, via `.safeParse`/`.strict()`) -- not otherwise imported outside this module. */
 export const editarDatosTenantInput = z
   .object({
@@ -43,6 +47,8 @@ export const editarDatosTenantInput = z
     nombreFantasia: optionalText,
     domicilio: optionalText,
     matriculaFarmacia: optionalText,
+    telefonoFijo: optionalTelefono,
+    telefonoCelular: optionalTelefono,
   })
   .strict();
 
@@ -61,12 +67,16 @@ export const editarDatosTenantCommand = defineCommand({
     const nombreFantasiaNuevo = input.nombreFantasia || null;
     const domicilioNuevo = input.domicilio || null;
     const matriculaFarmaciaNuevo = input.matriculaFarmacia || null;
+    const telefonoFijoNuevo = input.telefonoFijo || null;
+    const telefonoCelularNuevo = input.telefonoCelular || null;
 
     await updateDatosEditablesTenant(tx, session.tenantId, {
       razonSocial: input.razonSocial,
       nombreFantasia: nombreFantasiaNuevo,
       domicilio: domicilioNuevo,
       matriculaFarmacia: matriculaFarmaciaNuevo,
+      telefonoFijo: telefonoFijoNuevo,
+      telefonoCelular: telefonoCelularNuevo,
     });
 
     return {
@@ -78,12 +88,16 @@ export const editarDatosTenantCommand = defineCommand({
           nombreFantasia: actual.nombreFantasia,
           domicilio: actual.domicilio,
           matriculaFarmacia: actual.matriculaFarmacia,
+          telefonoFijo: actual.telefonoFijo,
+          telefonoCelular: actual.telefonoCelular,
         },
         valorNuevo: {
           razonSocial: input.razonSocial,
           nombreFantasia: nombreFantasiaNuevo,
           domicilio: domicilioNuevo,
           matriculaFarmacia: matriculaFarmaciaNuevo,
+          telefonoFijo: telefonoFijoNuevo,
+          telefonoCelular: telefonoCelularNuevo,
         },
       },
     };

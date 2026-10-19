@@ -25,7 +25,7 @@
  * is NOT done here (that is the application layer's match step).
  */
 import { MAX_DOMICILIO_PACIENTE, type FormaFarmaceutica } from "./receta";
-import { dec } from "@/shared/decimal";
+import { dec, type Decimal } from "@/shared/decimal";
 import { normalizarTexto } from "./normalizar";
 
 // ============================================================================
@@ -509,6 +509,31 @@ export function controlarUnidadesVsDuracion(item: Pick<BorradorItem, "cantidadUn
     codigo: "UNIDADES_VS_DURACION",
     mensaje: `Las unidades alcanzan para ${formatearNumeroEsAr(diasQueAlcanzan)} días; la receta indica ${item.duracionTratamientoDias}.`,
   };
+}
+
+const NUMEROS_EN_LETRAS: Readonly<Record<string, number>> = { una: 1, un: 1, dos: 2, tres: 3, cuatro: 4 };
+const RE_VECES_POR_DIA = /\b(\d+|una|un|dos|tres|cuatro)\s+(?:vez|veces)\s+(?:al|por)\s+dia\b/;
+
+/**
+ * Tomas per day stated by a posología: "cada N horas" -> 24 / N, "N veces al/por día" -> N; `null` when it
+ * states neither. Same reading as the consistency check (one unit per toma), reused by the etiqueta's "Dosis".
+ */
+export function tomasPorDiaDePosologia(posologia: string): Decimal | null {
+  const texto = normalizarTexto(posologia);
+  const cada = RE_CADA_N_HORAS.exec(texto);
+  if (cada) {
+    const horas = parsearDecimalEsAr(cada[1]!);
+    return horas !== null && dec(horas).gt(0) ? dec(24).div(horas) : null;
+  }
+  const veces = RE_VECES_POR_DIA.exec(texto);
+  if (!veces) return null;
+  const n = NUMEROS_EN_LETRAS[veces[1]!] ?? Number(veces[1]);
+  return n > 0 ? dec(n) : null;
+}
+
+/** Doses taken per toma: "media dosis" -> 0.5, otherwise one whole dose. */
+export function dosisPorTomaDePosologia(posologia: string): Decimal {
+  return RE_FRACCION.test(normalizarTexto(posologia)) ? dec("0.5") : dec(1);
 }
 
 // ============================================================================

@@ -54,6 +54,8 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   razonSocial: "Razón social",
   sexo: "Sexo",
   telefono: "Teléfono",
+  telefonoCelular: "Celular",
+  telefonoFijo: "Teléfono fijo",
   aceptaRecordatoriosWhatsapp: "Acepta recordatorios por WhatsApp",
 
   // Credentials and step-up.

@@ -1,8 +1,9 @@
 /**
  * Etiqueta content (M11, point 8.5): what goes on the printed label, modeled
- * on the farmacia's real label (top band with the brand and the director
- * técnico, "Rp/" with the fórmula, the receta number, the quantity with its
- * forma and vía, the médico). Pure, no I/O. `infrastructure/etiqueta-pdf.ts`
+ * on the farmacia's real label (docs/specs/etiqueta-preparado.md): top band
+ * with the brand, the director técnico, the domicilio and the two phones;
+ * "Rp/" with the fórmula; the paciente, receta number, dosis, quantity with
+ * its forma, vía and fracción de dosis, and the vencimiento; the médico. Pure, no I/O. `infrastructure/etiqueta-pdf.ts`
  * lays this out; `formatearContenidoEtiqueta` is its plain-text record,
  * persisted as `etiqueta.contenido`.
  *
@@ -13,6 +14,7 @@
 import { formatNumero } from "@/shared/format/cantidad";
 import { FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
 import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
+import { dosisPorTomaDePosologia, tomasPorDiaDePosologia } from "@/modules/recetas/domain/receta-pdf-parser";
 import type { ModoExpresion } from "@/modules/recetas/domain/receta";
 
 type FormaFarmaceutica = keyof typeof FORMA_FARMACEUTICA_LABELS;
@@ -38,9 +40,16 @@ export interface DatosEtiqueta {
   medicoApellido: string;
   medicoMatricula: string;
   medicoJurisdiccion: "PROVINCIAL" | "NACIONAL";
-  /** DT vigente on the confirmation date; `null` if none was designated. */
+  /** The DT TITULAR (never a suplente) vigente on the confirmation date, else the current one; `null` if none. */
   directorTecnico: { nombre: string; apellido: string; matricula: string } | null;
   tenantDomicilio: string | null;
+  /** Farmacia phones (`tenant.telefono_fijo` / `telefono_celular`, migration 0089). */
+  tenantTelefonoFijo: string | null;
+  tenantTelefonoCelular: string | null;
+  /** The ítem's prescribed posología (free text), printed as "Dosis". */
+  posologia: string | null;
+  /** Decimal string in (0, 1]: how much of a dose one unit holds (`item_receta.fraccion_dosis_por_unidad`). */
+  fraccionDosisPorUnidad: string;
   /**
    * `YYYY-MM-DD` snapshot taken when the preparación was confirmed
    * (`preparacion.fecha_vencimiento`, migration 0068); `null` for one
@@ -53,18 +62,25 @@ export interface ContenidoEtiqueta {
   /** Name already in capitals. `null` prints a blank line. */
   directorTecnico: { nombre: string; matricula: string } | null;
   domicilio: string | null;
+  /** `null` leaves the phone's line blank. */
+  telefonoFijo: string | null;
+  celular: string | null;
   /** "Droga cantidad unidad", one per line. */
   rp: string[];
   vence: string;
   recetaNumero: string;
+  /** Units per day ("2 cáp/día", `dosisEtiqueta`), or the posología as prescribed when it cannot be read; `null` when the receta has none. */
+  dosis: string | null;
   cantidad: number;
   /** Forma label agreeing with `cantidad` ("Cápsulas", "Crema"). */
   forma: string;
   /** `null` when the vía cannot be derived from the forma. */
   via: string | null;
+  /** "1/2 Dosis" when one unit holds a fraction of a dose; `null` for a whole dose. */
+  fraccionDosis: string | null;
   conservacion: string;
   medico: string;
-  /** `null` while the label does not show the paciente. */
+  /** `null` when the asiento has no paciente text. */
   paciente: string | null;
 }
 
@@ -152,8 +168,58 @@ export function columnasRp(rp: readonly string[]): string[][] {
   return [lineas.slice(0, corte), lineas.slice(corte)];
 }
 
-/** PENDING (DP-28): the label does not show the paciente (the real one doesn't). */
-export const MOSTRAR_PACIENTE_EN_ETIQUETA = false;
+/** The label shows the paciente (2026-10-19: the farmacia's current label does). */
+export const MOSTRAR_PACIENTE_EN_ETIQUETA = true;
+
+/** Forms counted in units ("60 Cápsulas"), the only ones whose unit can hold a fraction of a dose. */
+export const FORMAS_POR_UNIDAD: ReadonlySet<string> = new Set(["CAPSULA", "COMPRIMIDO", "OVULO", "SUPOSITORIO"]);
+
+/** ASCII on purpose: the PDF's standard fonts (WinAnsi) have no "⅓". */
+const FRACCIONES_ETIQUETA: ReadonlyArray<{ valor: number; texto: string }> = [
+  { valor: 0.5, texto: "1/2" },
+  { valor: 1 / 3, texto: "1/3" },
+  { valor: 0.25, texto: "1/4" },
+];
+
+/** "1/2 Dosis" for a capsule holding half a dose; `null` for a whole dose or a form not counted in units. */
+export function fraccionDosisEtiqueta(forma: string, fraccionDosisPorUnidad: string): string | null {
+  const valor = Number(fraccionDosisPorUnidad);
+  if (!FORMAS_POR_UNIDAD.has(forma) || !(valor > 0) || valor >= 1) return null;
+  const texto = FRACCIONES_ETIQUETA.find((f) => Math.abs(f.valor - valor) < 0.001)?.texto ?? formatNumero(fraccionDosisPorUnidad);
+  return `${texto} Dosis`;
+}
+
+/** Abbreviation of each unit-counted form for the "Dosis" line. */
+const UNIDAD_DOSIS: Readonly<Record<string, string>> = {
+  CAPSULA: "cáp",
+  COMPRIMIDO: "comp",
+  OVULO: "óvulos",
+  SUPOSITORIO: "sup",
+};
+
+/**
+ * "Dosis" as the paciente reads it: units to take per day (2026-10-19, the farmacia writes "2 cáp/día" for
+ * "Media dosis cada 12 horas"). Units per toma = doses per toma / dose fraction of one unit (one unit per toma when
+ * the unit already holds the prescribed fraction, docs/specs/importacion-receta-pdf.md), times the tomas per day
+ * ("cada N horas" -> 24 / N, "N veces al día"). Falls back to the posología as written when the form is not counted
+ * in units or the text states no frequency.
+ */
+export function dosisEtiqueta(forma: string, posologia: string | null, fraccionDosisPorUnidad: string): string | null {
+  const texto = textoDeUnaLinea(posologia);
+  if (texto === null) return null;
+  const unidad = UNIDAD_DOSIS[forma];
+  const tomas = tomasPorDiaDePosologia(texto);
+  const fraccion = Number(fraccionDosisPorUnidad);
+  if (!unidad || tomas === null || !(fraccion > 0)) return texto;
+  const porDia = tomas.times(dosisPorTomaDePosologia(texto)).div(fraccionDosisPorUnidad);
+  return `${formatNumero(porDia, 2)} ${unidad}/día`;
+}
+
+/** Collapses whitespace (the snapshot is one line per field); blank -> `null`. */
+export function textoDeUnaLinea(valor: string | null | undefined): string | null {
+  const limpio = (valor ?? "").trim().replace(/\s+/g, " ");
+  return limpio === "" ? null : limpio;
+}
 
 export const CONSERVACION_ETIQUETA = "Conservar en lugar fresco y seco";
 
@@ -187,26 +253,29 @@ export function formaSegunCantidad(forma: string, cantidad: number): string {
   return PLURAL_FORMA[forma as FormaFarmaceutica] ?? forma;
 }
 
-/** "Médico Gómez, Ana  MAT MP 1234". */
-export function formatearMedicoEtiqueta(datos: Pick<DatosEtiqueta, "medicoNombre" | "medicoApellido" | "medicoMatricula" | "medicoJurisdiccion">): string {
-  const prefijo = datos.medicoJurisdiccion === "NACIONAL" ? "MN" : "MP";
-  return `Médico ${datos.medicoApellido}, ${datos.medicoNombre}  MAT ${prefijo} ${datos.medicoMatricula}`;
+/** "Médico: Ana Gómez  -  MAT:1234", as on the farmacia's label (2026-10-19: no MP/MN prefix). */
+export function formatearMedicoEtiqueta(datos: Pick<DatosEtiqueta, "medicoNombre" | "medicoApellido" | "medicoMatricula">): string {
+  return `Médico: ${datos.medicoNombre} ${datos.medicoApellido}  -  MAT:${datos.medicoMatricula}`;
 }
 
 export function armarContenidoEtiqueta(datos: DatosEtiqueta): ContenidoEtiqueta {
   const dt = datos.directorTecnico;
   return {
     directorTecnico: dt ? { nombre: `${dt.nombre} ${dt.apellido}`.toLocaleUpperCase("es-AR"), matricula: dt.matricula } : null,
-    domicilio: datos.tenantDomicilio,
+    domicilio: textoDeUnaLinea(datos.tenantDomicilio),
+    telefonoFijo: textoDeUnaLinea(datos.tenantTelefonoFijo),
+    celular: textoDeUnaLinea(datos.tenantTelefonoCelular),
     rp: componentesRp(datos.componentes).map(formatearLineaRp),
     vence: formatearVenceEtiqueta(datos.fechaVencimiento),
     recetaNumero: numeroRecetaEtiqueta(datos),
+    dosis: dosisEtiqueta(datos.formaFarmaceutica, datos.posologia, datos.fraccionDosisPorUnidad),
     cantidad: datos.cantidadUnidades,
     forma: formaSegunCantidad(datos.formaFarmaceutica, datos.cantidadUnidades),
     via: viaDeAdministracion(datos.formaFarmaceutica, datos.cantidadUnidades),
+    fraccionDosis: fraccionDosisEtiqueta(datos.formaFarmaceutica, datos.fraccionDosisPorUnidad),
     conservacion: CONSERVACION_ETIQUETA,
     medico: formatearMedicoEtiqueta(datos),
-    paciente: MOSTRAR_PACIENTE_EN_ETIQUETA ? datos.pacienteTexto : null,
+    paciente: MOSTRAR_PACIENTE_EN_ETIQUETA ? textoDeUnaLinea(datos.pacienteTexto) : null,
   };
 }
 
@@ -235,11 +304,15 @@ export function formatearContenidoEtiqueta(contenido: ContenidoEtiqueta): string
   const lineas = [
     dt ? `Director Técnico ${dt.nombre} - MAT. ${dt.matricula}` : "Director Técnico ______",
     contenido.domicilio,
+    contenido.telefonoFijo ? `${PREFIJO_TELEFONO_FIJO}${contenido.telefonoFijo}` : null,
+    contenido.celular ? `${PREFIJO_CELULAR}${contenido.celular}` : null,
     "Rp/",
     ...contenido.rp,
     contenido.vence,
     `Receta N ${contenido.recetaNumero}`,
+    contenido.dosis ? `${PREFIJO_DOSIS}${contenido.dosis}` : null,
     `${contenido.cantidad} ${contenido.forma}${contenido.via ? ` — ${contenido.via}` : ""}`,
+    contenido.fraccionDosis ? `${PREFIJO_FRACCION}${contenido.fraccionDosis}` : null,
     contenido.conservacion,
     contenido.paciente ? `Paciente ${contenido.paciente}` : null,
     contenido.medico,
@@ -254,6 +327,10 @@ const PREFIJO_RECETA = "Receta N ";
 const PREFIJO_VENCE = "Vence: ";
 const PREFIJO_PACIENTE = "Paciente ";
 const SEPARADOR_VIA = " — ";
+const PREFIJO_TELEFONO_FIJO = "Teléfono fijo ";
+const PREFIJO_CELULAR = "Celular ";
+const PREFIJO_DOSIS = "Dosis: ";
+const PREFIJO_FRACCION = "Por unidad: ";
 
 /**
  * The inverse of `formatearContenidoEtiqueta`: the persisted `etiqueta.contenido` snapshot back into the fields the
@@ -280,9 +357,14 @@ export function parsearContenidoEtiqueta(texto: unknown): ContenidoEtiqueta | nu
     return null;
   }
 
-  // The domicilio line is omitted when null: the next line is then "Rp/".
+  // The domicilio and phone lines are omitted when null (a text stored before 0089 has no phone lines).
+  const esTelefono = (l: string | undefined) => !!l && (l.startsWith(PREFIJO_TELEFONO_FIJO) || l.startsWith(PREFIJO_CELULAR));
   let domicilio: string | null = null;
-  if (lineas[i] !== "Rp/") domicilio = lineas[i++] ?? null;
+  if (lineas[i] !== "Rp/" && !esTelefono(lineas[i])) domicilio = lineas[i++] ?? null;
+  let telefonoFijo: string | null = null;
+  if (lineas[i]?.startsWith(PREFIJO_TELEFONO_FIJO)) telefonoFijo = lineas[i++]!.slice(PREFIJO_TELEFONO_FIJO.length);
+  let celular: string | null = null;
+  if (lineas[i]?.startsWith(PREFIJO_CELULAR)) celular = lineas[i++]!.slice(PREFIJO_CELULAR.length);
   if (lineas[i++] !== "Rp/") return null;
 
   // Rp/ lines run up to the "Vence" line, which is followed by "Receta N ...".
@@ -292,6 +374,8 @@ export function parsearContenidoEtiqueta(texto: unknown): ContenidoEtiqueta | nu
   const vence = lineas[indiceReceta - 1]!;
   const recetaNumero = lineas[indiceReceta]!.slice(PREFIJO_RECETA.length);
   i = indiceReceta + 1;
+  let dosis: string | null = null;
+  if (lineas[i]?.startsWith(PREFIJO_DOSIS)) dosis = lineas[i++]!.slice(PREFIJO_DOSIS.length);
 
   const lineaCantidad = lineas[i++];
   const cantidadMatch = lineaCantidad ? /^(\d+) (.+)$/.exec(lineaCantidad) : null;
@@ -300,6 +384,8 @@ export function parsearContenidoEtiqueta(texto: unknown): ContenidoEtiqueta | nu
     ? [cantidadMatch[2]!.slice(0, cantidadMatch[2]!.indexOf(SEPARADOR_VIA)), cantidadMatch[2]!.slice(cantidadMatch[2]!.indexOf(SEPARADOR_VIA) + SEPARADOR_VIA.length)]
     : [cantidadMatch[2]!, null];
 
+  let fraccionDosis: string | null = null;
+  if (lineas[i]?.startsWith(PREFIJO_FRACCION)) fraccionDosis = lineas[i++]!.slice(PREFIJO_FRACCION.length);
   const conservacion = lineas[i++];
   if (conservacion === undefined) return null;
   let paciente: string | null = null;
@@ -310,12 +396,16 @@ export function parsearContenidoEtiqueta(texto: unknown): ContenidoEtiqueta | nu
   return {
     directorTecnico,
     domicilio,
+    telefonoFijo,
+    celular,
     rp,
     vence,
     recetaNumero,
+    dosis,
     cantidad: Number(cantidadMatch[1]),
     forma: formaTexto,
     via,
+    fraccionDosis,
     conservacion,
     medico,
     paciente,

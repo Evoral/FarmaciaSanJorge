@@ -1,18 +1,24 @@
 /**
- * PDF layout for a preparación's etiqueta (M11, point 8.5), modeled on the
- * farmacia's real printed label: a thick rounded border; a top band with the
- * brand (logo + "san jorge" wordmark) and, across a vertical rule, the
- * director técnico and domicilio; below, "Rp/" with the fórmula on the left
- * and, on the right, the receta number, the quantity as a large green number
- * with its forma and vía, and the storage note; a footer with the médico.
+ * PDF layout for a preparación's etiqueta (M11, point 8.5), a copy of the
+ * farmacia's real printed label (docs/specs/etiqueta-preparado.md): a rounded
+ * border; a top band with the logo and, across a vertical rule, the director
+ * técnico, the domicilio and the two phones; below, "Rp/" with the fórmula on
+ * the left and, on the right, the paciente, the receta number, the dosis, the
+ * quantity as a large green number with its forma, vía and fracción de dosis,
+ * the vencimiento and the storage note; a footer with the médico.
+ *
+ * Every field has a FIXED place (coordinates measured on the real label): a
+ * field that is missing leaves its place blank and never moves the others.
+ * Long texts shrink to fit their place instead.
  *
  * WHAT is printed comes from `domain/etiqueta.ts#armarContenidoEtiqueta`
  * (DP-28 rules live there); this file only lays it out. Same engine as
  * `modules/elaboracion/infrastructure/ficha-pdf.ts` (pdfkit, standard
- * fonts). The layout is drawn in a FIXED design space (100 × 42 mm) and
- * scaled uniformly, centered, onto the page size the caller chooses (one of
- * the sizes the administrator configured -- modules/etiqueta-tamanos); the
- * layout is not re-flowed per size.
+ * fonts). The real label uses Arial Narrow: Helvetica (Arial's metrics) is
+ * drawn horizontally condensed (`ANGOSTO`) to match it. The layout is drawn
+ * in a FIXED design space (100 × 42 mm) and scaled uniformly, centered, onto
+ * the page size the caller chooses (one of the sizes the administrator
+ * configured -- modules/etiqueta-tamanos); the layout is not re-flowed per size.
  *
  * Every text is drawn with `lineBreak: false` at explicit coordinates (no
  * automatic wrapping, hence no automatic page breaks): the label is always
@@ -32,29 +38,36 @@ const PT_POR_MM = 72 / 25.4;
 const DW = 100 * PT_POR_MM;
 const DH = 42 * PT_POR_MM;
 
-/** The farmacia green: `--color-primary` in app/globals.css. */
-const VERDE = "#037a5c";
-const GRIS = "#3f3f46";
-const ROJO = "#c62828";
+/** The logo's green (public/logo-etiqueta.png), also the quantity's. */
+const VERDE = "#1cb78c";
+const VERDE_TELEFONO = "#3eb548";
+const VERDE_WHATSAPP = "#1ca94a";
+const ROJO = "#ee1d25";
 const NEGRO = "#000000";
+const BLANCO = "#ffffff";
 
-const MARCA = { nombre: "san jorge", bajada: "FARMACIA Y LABORATORIO" } as const;
+/** Horizontal scale of every text: Helvetica condensed to Arial Narrow's width. */
+const ANGOSTO = 0.82;
 
-// Layout (design-space points).
+/** Helvetica's cap height / ascender (AFM 718): pdfkit draws a text with its cap top at `y`, its baseline at `y + 0.718 * size`. */
+const ALTURA_MAYUSCULA = 0.718;
+
+// Frame and rules (design-space points).
 const BORDE = 3;
-const BANDA_Y = 40; // bottom of the top band
-const BANDA_DIV_X = 115; // vertical rule in the top band
-const PANEL_DIV_X = 150; // vertical rule between Rp/ and the quantity panel
-const PIE_Y = 101; // rule above the médico footer
-const PAD = 6;
+const BANDA_Y = 40.4; // rule under the top band
+const BANDA_DIV_X = 116.3; // vertical rule in the top band
+const PANEL_DIV_X = 141.9; // vertical rule between Rp/ and the right panel
+const PIE_Y = 102.2; // rule above the médico footer
+const DERECHA = DW - BORDE - 4; // right limit of the texts
+const REGLA_MARGEN = BORDE + 11.1; // the horizontal rules stop short of the border
 
 let logoCache: Buffer | null | undefined;
 
-/** `public/logo.png` (the pill icon), read once. Missing file -> the label is drawn without it. */
+/** `public/logo-etiqueta.png` (icon + "san jorge" wordmark), read once. Missing file -> the label is drawn without it. */
 function logo(): Buffer | null {
   if (logoCache === undefined) {
     try {
-      logoCache = readFileSync(path.join(process.cwd(), "public", "logo.png"));
+      logoCache = readFileSync(path.join(process.cwd(), "public", "logo-etiqueta.png"));
     } catch {
       logoCache = null;
     }
@@ -62,154 +75,211 @@ function logo(): Buffer | null {
   return logoCache;
 }
 
+/** Width / height of public/logo-etiqueta.png (283 × 95 px). */
+const LOGO_PROPORCION = 283 / 95;
+
 type Doc = PDFKit.PDFDocument;
 type Fuente = "Helvetica" | "Helvetica-Bold";
 
 interface Tramo {
   texto: string;
   fuente: Fuente;
+  /** Size relative to the line's size (1 when omitted); the tramos share one baseline. */
+  escala?: number;
+}
+
+function anchoDe(doc: Doc, tramos: readonly Tramo[], tamano: number): number {
+  return tramos.reduce((total, t) => total + doc.font(t.fuente).fontSize(tamano * (t.escala ?? 1)).widthOfString(t.texto) * ANGOSTO, 0);
 }
 
 /** Largest size <= `tamano` at which `tramos` fit in `ancho`. */
 function tamanoQueEntra(doc: Doc, tramos: readonly Tramo[], tamano: number, ancho: number): number {
-  const medida = tramos.reduce((total, t) => total + doc.font(t.fuente).fontSize(tamano).widthOfString(t.texto), 0);
+  const medida = anchoDe(doc, tramos, tamano);
   return medida > ancho ? (tamano * ancho) / medida : tamano;
 }
 
-function anchoDe(doc: Doc, tramos: readonly Tramo[], tamano: number): number {
-  return tramos.reduce((total, t) => total + doc.font(t.fuente).fontSize(tamano).widthOfString(t.texto), 0);
-}
-
-/** Mixed-font single line at (x, y), no wrapping. */
+/** Condensed mixed-font single line, cap top of the base size at (x, y), no wrapping. */
 function linea(doc: Doc, tramos: readonly Tramo[], x: number, y: number, tamano: number, color: string): void {
+  const base = y + tamano * ALTURA_MAYUSCULA;
   let cursor = x;
   for (const t of tramos) {
-    doc.font(t.fuente).fontSize(tamano).fillColor(color).text(t.texto, cursor, y, { lineBreak: false });
-    cursor += doc.widthOfString(t.texto);
+    const tam = tamano * (t.escala ?? 1);
+    doc.save();
+    doc.translate(cursor, base - tam * ALTURA_MAYUSCULA).scale(ANGOSTO, 1);
+    doc.font(t.fuente).fontSize(tam).fillColor(color).text(t.texto, 0, 0, { lineBreak: false });
+    doc.restore();
+    cursor += doc.font(t.fuente).fontSize(tam).widthOfString(t.texto) * ANGOSTO;
   }
 }
 
-function regla(doc: Doc, x1: number, y1: number, x2: number, y2: number): void {
-  doc.moveTo(x1, y1).lineTo(x2, y2).lineWidth(0.8).strokeColor(NEGRO).stroke();
+/** A single-font text shrunk to `ancho`, left-aligned at `x` (or centered on it with `centro`). */
+function texto(doc: Doc, valor: string, x: number, y: number, tamano: number, ancho: number, color = NEGRO, centro = false): void {
+  const tramos: Tramo[] = [{ texto: valor, fuente: "Helvetica" }];
+  const tam = tamanoQueEntra(doc, tramos, tamano, ancho);
+  linea(doc, tramos, centro ? x - anchoDe(doc, tramos, tam) / 2 : x, y, tam, color);
+}
+
+function regla(doc: Doc, x1: number, y1: number, x2: number, y2: number, grosor: number): void {
+  doc.moveTo(x1, y1).lineTo(x2, y2).lineWidth(grosor).strokeColor(NEGRO).stroke();
+}
+
+/** Classic telephone (☎) in a `t`-point square at (x, y). */
+function iconoTelefono(doc: Doc, x: number, y: number, t: number): void {
+  doc.save().translate(x, y).scale(t / 10);
+  // Handset over the body.
+  doc.path("M0.3 3.2 C0.3 1.2 2.6 0.4 5 0.4 C7.4 0.4 9.7 1.2 9.7 3.2 L9.7 4 L7.2 4 L7.2 3 C6.5 2.6 3.5 2.6 2.8 3 L2.8 4 L0.3 4 Z").fill(VERDE_TELEFONO);
+  doc.path("M3.2 3.6 L6.8 3.6 L9.2 8.2 C9.3 9.2 8.8 9.6 8 9.6 L2 9.6 C1.2 9.6 0.7 9.2 0.8 8.2 Z").fill(VERDE_TELEFONO);
+  doc.circle(5, 6.6, 1.6).fill(BLANCO);
+  doc.circle(5, 6.6, 0.6).fill(VERDE_TELEFONO);
+  doc.restore();
+}
+
+/** WhatsApp bubble in a `t`-point square at (x, y). */
+function iconoWhatsapp(doc: Doc, x: number, y: number, t: number): void {
+  doc.save().translate(x, y).scale(t / 10);
+  doc.circle(5.2, 4.8, 4.6).fill(VERDE_WHATSAPP);
+  doc.path("M0.6 9.8 L1.6 6.4 L3.6 8.6 Z").fill(VERDE_WHATSAPP);
+  // Handset (Material "phone" glyph, 24-unit box) in white.
+  doc.save().translate(2.6, 2.2).scale(5.2 / 24);
+  doc
+    .path(
+      "M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z",
+    )
+    .fill(BLANCO);
+  doc.restore();
+  doc.restore();
 }
 
 /** Gap between the two Rp/ columns (`columnasRp`). */
-const SEPARACION_COLUMNAS_RP = 6;
+const SEPARACION_COLUMNAS_RP = 1.5;
+
+/** Rp/ line pitch, as a multiple of the font size (the real label: 6.9 pt for 6.4 pt type). */
+const INTERLINEA_RP = 1.08;
 
 /**
  * Rp/ font size by number of rows (per column, see `columnasRp`) -- largest
  * for one line. Further reduced to fit the column's width and the panel's height.
  */
 export function tamanoFuenteRp(lineas: number): number {
-  const tabla = [16, 12.5, 10, 8.5, 7.5, 6.5, 5.8, 5.2];
+  const tabla = [16, 12.5, 10, 8.5, 7.5, 6.9, 6.4, 5.8];
   return lineas <= tabla.length ? tabla[Math.max(lineas, 1) - 1]! : Math.max(3.5, 42 / (lineas * 1.2));
 }
 
 function dibujarBanda(doc: Doc, c: ContenidoEtiqueta): void {
-  // Brand: icon + wordmark.
   const icono = logo();
-  const tamanoIcono = 29;
-  const iconoX = BORDE + 5;
-  if (icono) doc.image(icono, iconoX, (BORDE + BANDA_Y - tamanoIcono) / 2, { width: tamanoIcono, height: tamanoIcono });
-  const marcaX = icono ? iconoX + tamanoIcono + 2 : iconoX;
-  const marcaAncho = BANDA_DIV_X - marcaX - 4;
-  const tamanoNombre = tamanoQueEntra(doc, [{ texto: MARCA.nombre, fuente: "Helvetica-Bold" }], 17, marcaAncho);
-  linea(doc, [{ texto: MARCA.nombre, fuente: "Helvetica-Bold" }], marcaX, 9, tamanoNombre, GRIS);
-  const tamanoBajada = tamanoQueEntra(doc, [{ texto: MARCA.bajada, fuente: "Helvetica-Bold" }], 4.8, marcaAncho);
-  linea(doc, [{ texto: MARCA.bajada, fuente: "Helvetica-Bold" }], marcaX, 9 + tamanoNombre + 1, tamanoBajada, VERDE);
+  if (icono) {
+    const ancho = 89.9;
+    const alto = ancho / LOGO_PROPORCION;
+    doc.image(icono, 20.5, (BORDE + BANDA_Y - alto) / 2, { width: ancho, height: alto });
+  }
 
-  // Director técnico + domicilio. Phones: no data on the farmacia yet (DP-28), omitted.
-  const x = BANDA_DIV_X + PAD;
-  const ancho = DW - BORDE - PAD - x;
+  const x = 124;
+  const ancho = DERECHA - x;
+
+  // "Director Técnico NAME - MAT. 1665": the name larger and bold, one baseline.
   const dt: Tramo[] = c.directorTecnico
     ? [
         { texto: "Director Técnico ", fuente: "Helvetica" },
-        { texto: c.directorTecnico.nombre, fuente: "Helvetica-Bold" },
-        { texto: ` - MAT. ${c.directorTecnico.matricula}`, fuente: "Helvetica" },
+        { texto: c.directorTecnico.nombre, fuente: "Helvetica-Bold", escala: 1.34 },
+        { texto: ` - MAT. ${c.directorTecnico.matricula}`, fuente: "Helvetica", escala: 1.1 },
       ]
     : [{ texto: "Director Técnico ________________  MAT. ______", fuente: "Helvetica" }];
-  const tamanoDt = tamanoQueEntra(doc, dt, 5.8, ancho);
-  linea(doc, dt, x, 10, tamanoDt, NEGRO);
-  if (c.domicilio) {
-    doc.font("Helvetica").fontSize(5.3).fillColor(NEGRO).text(c.domicilio, x, 19, { width: ancho, height: 16, ellipsis: true });
+  linea(doc, dt, x, 11.2, tamanoQueEntra(doc, dt, 5.3, ancho), NEGRO);
+
+  if (c.domicilio) texto(doc, c.domicilio, x, 17.8, 5.3, ancho);
+
+  const xTelefono = 129.4;
+  const tamanoIcono = 4.8;
+  // Each icon is centered on its text's capitals.
+  const iconoY = (textoY: number) => textoY + (5.3 * ALTURA_MAYUSCULA) / 2 - tamanoIcono / 2;
+  if (c.telefonoFijo) {
+    iconoTelefono(doc, 123.2, iconoY(25.4), tamanoIcono);
+    texto(doc, `Teléfono fijo  ${c.telefonoFijo}`, xTelefono, 25.4, 5.3, DERECHA - xTelefono);
+  }
+  if (c.celular) {
+    iconoWhatsapp(doc, 123.2, iconoY(32.2), tamanoIcono);
+    texto(doc, `Celular  ${c.celular}`, xTelefono, 32.2, 5.3, DERECHA - xTelefono);
   }
 }
 
 function dibujarRp(doc: Doc, c: ContenidoEtiqueta): void {
-  linea(doc, [{ texto: "Rp/", fuente: "Helvetica-Bold" }], BORDE + PAD, BANDA_Y + 4, 6.5, NEGRO);
+  linea(doc, [{ texto: "Rp/", fuente: "Helvetica" }], 13.5, 43.7, 6.5, NEGRO);
 
-  const x = BORDE + PAD + 5;
-  const ancho = PANEL_DIV_X - PAD - x;
-  const arriba = BANDA_Y + 12;
-  const abajo = PIE_Y - 12;
+  const x = 21.4;
+  const ancho = PANEL_DIV_X - 2.5 - x;
+  const arriba = 50;
+  const abajo = PIE_Y - 3.6;
   const columnas = columnasRp(c.rp);
-  if (columnas.length > 0) {
-    // One font size for the whole Rp/, driven by the rows of the tallest column
-    // and shrunk until the widest line fits its column and every row fits the panel.
-    const filas = Math.max(...columnas.map((col) => col.length));
-    const fuente: Fuente = c.rp.length <= 2 ? "Helvetica-Bold" : "Helvetica";
-    const anchoColumna = (ancho - SEPARACION_COLUMNAS_RP * (columnas.length - 1)) / columnas.length;
-    let tamano = tamanoFuenteRp(filas);
-    const masAncha = Math.max(...columnas.flat().map((l) => anchoDe(doc, [{ texto: l, fuente }], tamano)));
-    if (masAncha > anchoColumna) tamano = (tamano * anchoColumna) / masAncha;
-    if (tamano * 1.2 * filas > abajo - arriba) tamano = (abajo - arriba) / (filas * 1.2);
-    const primeraY = arriba + (abajo - arriba - tamano * 1.2 * filas) / 2;
-    columnas.forEach((col, i) => {
-      const colX = x + i * (anchoColumna + SEPARACION_COLUMNAS_RP);
-      col.forEach((l, fila) => linea(doc, [{ texto: l, fuente }], colX, primeraY + fila * tamano * 1.2, tamano, NEGRO));
-    });
-  }
-
-  linea(doc, [{ texto: c.vence, fuente: "Helvetica" }], BORDE + PAD, PIE_Y - 9, 6, NEGRO);
+  if (columnas.length === 0) return;
+  // One font size for the whole Rp/, driven by the rows of the tallest column
+  // and shrunk until the widest line fits its column and every row fits the panel.
+  const filas = Math.max(...columnas.map((col) => col.length));
+  const fuente: Fuente = c.rp.length <= 2 ? "Helvetica-Bold" : "Helvetica";
+  const anchoColumna = (ancho - SEPARACION_COLUMNAS_RP * (columnas.length - 1)) / columnas.length;
+  let tamano = tamanoFuenteRp(filas);
+  const masAncha = Math.max(...columnas.flat().map((l) => anchoDe(doc, [{ texto: l, fuente }], tamano)));
+  if (masAncha > anchoColumna) tamano = (tamano * anchoColumna) / masAncha;
+  if (tamano * INTERLINEA_RP * filas > abajo - arriba) tamano = (abajo - arriba) / (filas * INTERLINEA_RP);
+  const primeraY = arriba + (abajo - arriba - tamano * INTERLINEA_RP * filas) / 2;
+  columnas.forEach((col, i) => {
+    const colX = x + i * (anchoColumna + SEPARACION_COLUMNAS_RP);
+    col.forEach((l, fila) => linea(doc, [{ texto: l, fuente }], colX, primeraY + fila * tamano * INTERLINEA_RP, tamano, NEGRO));
+  });
 }
 
-function dibujarCantidad(doc: Doc, c: ContenidoEtiqueta): void {
-  const izquierda = PANEL_DIV_X;
-  const derecha = DW - BORDE;
-  const ancho = derecha - izquierda - 2 * PAD;
+/** Wraps `valor` into at most `maxLineas` lines of `ancho`, shrinking the size from `tamano` until it does. */
+function envolver(doc: Doc, valor: string, tamano: number, ancho: number, maxLineas: number): { lineas: string[]; tamano: number } {
+  const palabras = valor.split(" ");
+  for (let tam = tamano; ; tam -= 0.25) {
+    const medir = (s: string) => anchoDe(doc, [{ texto: s, fuente: "Helvetica" }], tam);
+    const lineas: string[] = [];
+    let actual = "";
+    let entra = true;
+    for (const palabra of palabras) {
+      if (medir(palabra) > ancho) entra = false;
+      const prueba = actual ? `${actual} ${palabra}` : palabra;
+      if (medir(prueba) <= ancho || !actual) actual = prueba;
+      else {
+        lineas.push(actual);
+        actual = palabra;
+      }
+    }
+    if (actual) lineas.push(actual);
+    if ((entra && lineas.length <= maxLineas) || tam <= 3) return { lineas: lineas.slice(0, maxLineas), tamano: tam };
+  }
+}
 
-  // "Receta N 42", top-right.
-  const receta: Tramo[] = [
-    { texto: "Receta N ", fuente: "Helvetica" },
-    { texto: c.recetaNumero, fuente: "Helvetica-Bold" },
-  ];
-  const tamanoReceta = tamanoQueEntra(doc, receta, 6.5, ancho);
-  linea(doc, receta, derecha - PAD - anchoDe(doc, receta, tamanoReceta), BANDA_Y + 4, tamanoReceta, NEGRO);
+function dibujarPanel(doc: Doc, c: ContenidoEtiqueta): void {
+  const xIzquierda = 145.2;
+  const xDerecha = 232.6;
 
-  // Large green quantity, forma/vía in two small lines to its right, centered as a block.
-  const numero = String(c.cantidad);
-  const tamanoForma = 7;
-  const anchoForma = Math.max(anchoDe(doc, [{ texto: c.forma, fuente: "Helvetica" }], tamanoForma), c.via ? anchoDe(doc, [{ texto: c.via, fuente: "Helvetica" }], tamanoForma) : 0);
-  const separacion = 3;
-  const tamanoNumero = tamanoQueEntra(doc, [{ texto: numero, fuente: "Helvetica-Bold" }], 30, ancho - anchoForma - separacion);
-  const anchoNumero = anchoDe(doc, [{ texto: numero, fuente: "Helvetica-Bold" }], tamanoNumero);
-  const bloqueX = izquierda + PAD + (ancho - anchoNumero - separacion - anchoForma) / 2;
-  const numeroY = BANDA_Y + 15;
-  linea(doc, [{ texto: numero, fuente: "Helvetica-Bold" }], bloqueX, numeroY, tamanoNumero, VERDE);
-
-  // Centered on the digits' visual middle (cap height ~0.72 of the size, below the ascender gap).
-  const centro = numeroY + tamanoNumero * 0.47;
-  const formaX = bloqueX + anchoNumero + separacion;
-  if (c.via) {
-    linea(doc, [{ texto: c.forma, fuente: "Helvetica" }], formaX, centro - tamanoForma * 1.1, tamanoForma, NEGRO);
-    linea(doc, [{ texto: c.via, fuente: "Helvetica" }], formaX, centro + tamanoForma * 0.05, tamanoForma, NEGRO);
-  } else {
-    linea(doc, [{ texto: c.forma, fuente: "Helvetica" }], formaX, centro - tamanoForma * 0.55, tamanoForma, NEGRO);
+  if (c.paciente) texto(doc, `Paciente:${c.paciente}`, xIzquierda, 45, 6.5, xDerecha - 3 - xIzquierda);
+  texto(doc, `Receta N:${c.recetaNumero}`, xDerecha, 44.7, 6.5, DERECHA - xDerecha);
+  if (c.dosis) {
+    // "Dosis: ..." in its column under the receta number, wrapped down to the storage note.
+    const { lineas, tamano } = envolver(doc, `Dosis: ${c.dosis}`, 6.5, DERECHA - xDerecha, 4);
+    lineas.forEach((l, i) => linea(doc, [{ texto: l, fuente: "Helvetica" }], xDerecha, 53.3 + i * tamano * 1.15, tamano, NEGRO));
   }
 
-  const conservacion: Tramo[] = [{ texto: c.conservacion, fuente: "Helvetica" }];
-  const tamanoConservacion = tamanoQueEntra(doc, conservacion, 5.8, ancho);
-  linea(doc, conservacion, izquierda + PAD + (ancho - anchoDe(doc, conservacion, tamanoConservacion)) / 2, PIE_Y - 9, tamanoConservacion, ROJO);
+  // Large green quantity, right-aligned so its digits always end at the same place.
+  const numero: Tramo[] = [{ texto: String(c.cantidad), fuente: "Helvetica" }];
+  const finNumero = 189;
+  const tamanoNumero = tamanoQueEntra(doc, numero, 33, finNumero - (PANEL_DIV_X + 3));
+  linea(doc, numero, finNumero - anchoDe(doc, numero, tamanoNumero), 57.9 + (33 - tamanoNumero) * ALTURA_MAYUSCULA * 0.5, tamanoNumero, VERDE);
+
+  // Forma / vía / fracción: three fixed lines, centered on one axis.
+  const centroForma = 210.2;
+  const anchoForma = 2 * (xDerecha - 3 - centroForma);
+  texto(doc, c.forma, centroForma, 59.2, 7.8, anchoForma, NEGRO, true);
+  if (c.via) texto(doc, c.via, centroForma, 67.3, 7.8, anchoForma, NEGRO, true);
+  if (c.fraccionDosis) texto(doc, c.fraccionDosis, centroForma, 75.6, 7.8, anchoForma, NEGRO, true);
+
+  texto(doc, c.vence, xIzquierda, 93, 6.4, 45);
+  texto(doc, c.conservacion, 223.8, 94, 5, 2 * (DERECHA - 223.8), ROJO, true);
 }
 
 function dibujarPie(doc: Doc, c: ContenidoEtiqueta): void {
-  const texto = c.paciente ? `Paciente ${c.paciente}    ${c.medico}` : c.medico;
-  const tramos: Tramo[] = [{ texto, fuente: "Helvetica" }];
-  const ancho = DW - 2 * (BORDE + PAD);
-  const tamano = tamanoQueEntra(doc, tramos, 6.5, ancho);
-  const x = (DW - anchoDe(doc, tramos, tamano)) / 2;
-  const y = PIE_Y + (DH - BORDE - PIE_Y - tamano) / 2 - 0.5;
-  linea(doc, tramos, x, y, tamano, NEGRO);
+  texto(doc, c.medico, DW / 2, 105.5, 6.4, DW - 2 * (BORDE + 14), NEGRO, true);
 }
 
 /** Renders the etiqueta on a page of `tamano` (mm); without one, the 100 × 42 mm the layout was designed for. */
@@ -224,15 +294,15 @@ export function buildEtiquetaPdf(contenido: ContenidoEtiqueta, tamano: TamanoEti
       doc.translate((ancho - DW * escala) / 2, (alto - DH * escala) / 2).scale(escala);
 
       // Frame and rules.
-      doc.roundedRect(BORDE, BORDE, DW - 2 * BORDE, DH - 2 * BORDE, 9).lineWidth(2.4).strokeColor(NEGRO).stroke();
-      regla(doc, BANDA_DIV_X, BORDE, BANDA_DIV_X, BANDA_Y);
-      regla(doc, BORDE, BANDA_Y, DW - BORDE, BANDA_Y);
-      regla(doc, PANEL_DIV_X, BANDA_Y, PANEL_DIV_X, PIE_Y);
-      regla(doc, BORDE, PIE_Y, DW - BORDE, PIE_Y);
+      doc.roundedRect(BORDE, BORDE, DW - 2 * BORDE, DH - 2 * BORDE, 12).lineWidth(1.1).strokeColor(NEGRO).stroke();
+      regla(doc, BANDA_DIV_X, 8.6, BANDA_DIV_X, 37.8, 1);
+      regla(doc, REGLA_MARGEN, BANDA_Y, DW - REGLA_MARGEN, BANDA_Y, 1.6);
+      regla(doc, PANEL_DIV_X, 43.4, PANEL_DIV_X, 99.6, 1.2);
+      regla(doc, REGLA_MARGEN, PIE_Y, DW - REGLA_MARGEN, PIE_Y, 1.6);
 
       dibujarBanda(doc, contenido);
       dibujarRp(doc, contenido);
-      dibujarCantidad(doc, contenido);
+      dibujarPanel(doc, contenido);
       dibujarPie(doc, contenido);
 
       doc.restore();

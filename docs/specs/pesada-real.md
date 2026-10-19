@@ -1,6 +1,8 @@
 # Pesada real
 
 Status: implemented 2026-10-19 (migration 0088). Rollback: `docs/rollbacks/pesada-real.md`.
+**2026-10-19, pesada en la ficha** (migrations 0090, 0091): the lots and the real weighing moved from the "Marcar como
+preparada" dialog into the ficha técnica itself, saved línea by línea (P8-P12). Rollback: `docs/rollbacks/pesada-borrador.md`.
 
 ## Goal
 
@@ -22,6 +24,20 @@ is what is consumed.
 | P5 | **Reserva.** `reserva_stock.cantidad_real` and `pesada_autorizada_por_id` keep the real weighing and the co-firma until "Imprimir etiquetas". A recalculation or a pérdida's re-plan keeps the stored co-firma only while the pesada real is the same; a new one outside the tolerance needs a new co-firma. | `reservasDelPlan`, `lineasDesdeReservas`, `entradasDeReserva`, `autorizacionesDeReserva`. |
 | P6 | **Record.** The confirmation writes one immutable `fsj.pesada_real` row per línea weighed for real: esperada, real, margen, the DT (outside the margen; a DT vigente, INV-U05) and who registered it. INV-S12 then checks the línea's physical consumption equals `cantidad_real`; a línea without a row keeps the 0073 rule (active consumption = `cantidad_a_pesar`). The audit of reservar / recalcular lists the pesadas (`pesadasReales`). | Migration 0088 (`fsj.linea_pesaje_validar_consumo`, `trg_pesada_real_validar_autorizacion`); `pesadasDelPlan`. |
 | P7 | Enrase manual líneas are unchanged: their typed quantity already is the real one; no tolerance. | — |
+
+## Pesada en la ficha (2026-10-19, migration 0090)
+
+The pharmacist weighs and assembles step by step; leaving everything for the end risks forgetting a weighing. So the
+toma workspace's ficha técnica (Pendiente ítem with a vigente ficha, user with `preparaciones.confirmar`) is filled in
+while weighing, and the dialog only confirms.
+
+| # | Rule | Enforced in |
+|---|---|---|
+| P8 | **Lot selector per línea**, in consumption order (abiertas, then FEFO), preselected with the automatic plan's lots (the oldest; two when the oldest does not cover). Each option: lote and stock disponible (whole numbers, largest unit); plus the purity when the droga's lots declare one, "abierta" and the date of a lot por vencer. "Agregar otro lote" adds another when the chosen ones do not cover the línea (or to split on purpose); the chosen lots are drained in consumption order whatever the order they were picked in (P1/P4). A lot whose purity changes the weight shows what to weigh from it in the "A pesar" column. | `PesajeTabla`, `FilasLinea` (`ui/pesaje-en-toma.tsx`) |
+| P9 | **"Cantidad real pesada" column**, right of "A pesar": the P2 field (prefilled, follows the lots until typed; deviation and tolerance under it), or the enrase manual quantity (P7). The INV-S18 motivo shows under the línea only when asked. | `CantidadReal` (`ui/pesaje-en-toma.tsx`) |
+| P10 | **Saved as it is filled in**: a lot change at once, a quantity or motivo when its field is left (or Enter), one draft row per línea (`fsj.pesada_borrador`: lots in order, quantities in the línea's unit). Survives a reload, another PC or another pharmacist; a regenerated ficha has new líneas and starts clean. A draft writes no stock, libro or contralor; it is refused once the ítem has a live preparación. Audited (MODIFICAR on the línea). Permiso `preparaciones.confirmar`, no re-authentication (like the excipiente); operator PIN on a cuenta de sector. | `guardarBorradorPesada` (`application/guardar-borrador-pesada.ts`); migration 0090 |
+| P11 | **"Marcar como preparada" only confirms**: a dialog lists each línea's lot(s) and real weighing, blocks while a línea lacks stock in its lots, a lot or an enrase quantity, adds the DT co-firma when a pesada is outside the tolerance (P3) and re-authentication, and sends the same fields as before to `reservarStock` -- which re-validates everything under its locks (P1-P6 unchanged). "Recalcular reserva" and `/preparaciones/[id]` keep the full form. | `MarcarPreparadaDialog` (`ui/pesaje-en-toma.tsx`); `ui/confirmar-form.tsx` |
+| P12 | **"Exceso %" column hidden** in the ficha while no línea applied an exceso (`exceso_pesada_porcentaje` = 0 when it was generated); it appears by itself once Parámetros sets it above 0. | `conExceso` (`ui/lineas-ficha-tabla.tsx`) |
 
 ## Decisions
 

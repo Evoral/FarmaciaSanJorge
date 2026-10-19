@@ -239,6 +239,9 @@ model Tenant {
   cuit                     String    @unique
   domicilio                String?
   matriculaFarmacia        String?   @map("matricula_farmacia")
+  /// Migration 0089: printed on the etiqueta.
+  telefonoFijo             String?   @map("telefono_fijo") @db.VarChar(40)
+  telefonoCelular          String?   @map("telefono_celular") @db.VarChar(40)
   zonaHoraria              String    @default("America/Argentina/Mendoza") @map("zona_horaria")
   fechaBaja                DateTime? @map("fecha_baja") @db.Timestamptz(6)
   creadoEn                 DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
@@ -1154,6 +1157,9 @@ model Preparacion {
   fechaVencimiento DateTime?         @map("fecha_vencimiento") @db.Date
   /// 0083: excipiente actually used (toma workspace, optional); copied into the libro asiento fórmula at confirmation. Changes only while INICIADA (INV-P08).
   excipienteTexto  String?           @map("excipiente_texto") @db.VarChar(120)
+  /// 0092: the excipiente used (droga of clase EXCIPIENTE) and its quantity in the droga's unidad base; reserved and descontado with the preparación. Changes only while INICIADA (INV-P08).
+  excipienteDrogaId  String?  @map("excipiente_droga_id") @db.Uuid
+  excipienteCantidad Decimal? @map("excipiente_cantidad") @db.Decimal
 
   fichaTecnica       FichaTecnica        @relation(fields: [fichaTecnicaId], references: [id])
   iniciadaPor        Usuario             @relation("PreparacionIniciadaPor", fields: [iniciadaPorId], references: [id])
@@ -1179,7 +1185,8 @@ model ReservaStock {
   id                      String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
   tenantId                String   @map("tenant_id") @db.Uuid
   preparacionId           String   @map("preparacion_id") @db.Uuid
-  lineaPesajeId           String   @map("linea_pesaje_id") @db.Uuid
+  /// NULL = the preparación's excipiente (migration 0092), never a línea de pesaje.
+  lineaPesajeId           String?  @map("linea_pesaje_id") @db.Uuid
   partidaId               String   @map("partida_id") @db.Uuid
   /// Physical quantity the split takes from this partida; 0 = chosen but not needed by the split.
   cantidad                Decimal  @db.Decimal
@@ -1199,6 +1206,43 @@ model ReservaStock {
   @@index([tenantId, partidaId], map: "idx_reserva_stock_partida")
   @@index([tenantId, preparacionId], map: "idx_reserva_stock_preparacion")
   @@map("reserva_stock")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (migration 0092, docs/specs/excipiente-preparacion.md). The draft of a ficha técnica's excipiente:
+/// a droga of clase EXCIPIENTE and its quantity (droga's unidad base), saved from the toma workspace.
+model ExcipienteBorrador {
+  id               String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  fichaTecnicaId   String   @map("ficha_tecnica_id") @db.Uuid
+  drogaId          String?  @map("droga_id") @db.Uuid
+  cantidad         Decimal? @db.Decimal
+  actualizadoPorId String   @map("actualizado_por_id") @db.Uuid
+  actualizadoEn    DateTime @default(now()) @map("actualizado_en") @db.Timestamptz(6)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, fichaTecnicaId], map: "excipiente_borrador_ficha_key")
+  @@map("excipiente_borrador")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (migration 0090, docs/specs/pesada-real.md "Pesada en la ficha"). The draft of a línea de pesaje's
+/// weighing, saved from the toma workspace while the lab weighs: the lots in the order they are used and the typed
+/// quantities (línea unit). Never stock/libro/contralor: the reserva re-validates it.
+model PesadaBorrador {
+  id                      String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId                String   @map("tenant_id") @db.Uuid
+  lineaPesajeId           String   @map("linea_pesaje_id") @db.Uuid
+  partidaIds              String[] @default([]) @map("partida_ids") @db.Uuid
+  cantidadReal            Decimal? @map("cantidad_real") @db.Decimal
+  cantidadManual          Decimal? @map("cantidad_manual") @db.Decimal
+  motivoAperturaAdicional String?  @map("motivo_apertura_adicional")
+  actualizadoPorId        String   @map("actualizado_por_id") @db.Uuid
+  actualizadoEn           DateTime @default(now()) @map("actualizado_en") @db.Timestamptz(6)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, lineaPesajeId], map: "pesada_borrador_linea_key")
+  @@map("pesada_borrador")
   @@schema("fsj")
 }
 

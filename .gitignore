@@ -52,3 +52,6 @@ next-env.d.ts
 
 # gentle-ai / Agent Teams Lite
 /.atl/
+
+# Local demo data, never pushed
+scripts/datos-demo/

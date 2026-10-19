@@ -27,6 +27,10 @@ const DATOS: DatosEtiqueta & { etiquetaId: string; generadaEn: Date } = {
   medicoJurisdiccion: "PROVINCIAL",
   directorTecnico: null,
   tenantDomicilio: null,
+  tenantTelefonoFijo: null,
+  tenantTelefonoCelular: null,
+  posologia: null,
+  fraccionDosisPorUnidad: "1",
   fechaVencimiento: null,
 };
 

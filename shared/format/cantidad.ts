@@ -153,6 +153,43 @@ export function equivalenciaGramosMg(valor: string, simbolo: string): string | n
   return partes.join(" · ");
 }
 
+/** The mass (g) and volume (mL) chains by símbolo, largest unit first: what `formatStockEntero` may scale to. */
+const CADENAS_POR_SIMBOLO: readonly (readonly { simbolo: string; factor: string }[])[] = [
+  [
+    { simbolo: "kg", factor: "1000" },
+    { simbolo: "g", factor: "1" },
+    { simbolo: "mg", factor: "0.001" },
+    { simbolo: "mcg", factor: "0.000001" },
+  ],
+  [
+    { simbolo: "L", factor: "1000" },
+    { simbolo: "mL", factor: "1" },
+    { simbolo: "mcL", factor: "0.001" },
+  ],
+];
+
+/**
+ * A stock figure at a glance, whole numbers only: the LARGEST practical unit in which the value rounds
+ * (ROUND_HALF_UP) to at least 1 -- kg, else g, else mg (L, else mL for volumes): 767.398,5 mg -> "767 g",
+ * 4.975.398 mg -> "5 kg". A non-zero value below 1 of the smallest practical unit reads "< 1 mg" so an almost
+ * empty partida never reads as empty. Any other unit keeps its símbolo, rounded to an integer. Display only.
+ */
+export function formatStockEntero(valor: string, simbolo: string): string {
+  const numero = parse(valor);
+  if (numero === null) return `${valor} ${simbolo}`.trim();
+  const cadena = CADENAS_POR_SIMBOLO.find((c) => c.some((u) => u.simbolo === simbolo));
+  if (!cadena) return `${formatNumero(numero, 0)} ${simbolo}`.trim();
+  // mcg / mcL are never the display unit: nobody weighs or measures stock in them.
+  const practicas = cadena.filter((u) => !u.simbolo.startsWith("mc"));
+  const valorBase = numero.times(cadena.find((u) => u.simbolo === simbolo)!.factor);
+  if (valorBase.isZero()) return `0 ${practicas.find((u) => u.factor === "1")!.simbolo}`;
+  for (const unidad of practicas) {
+    const redondeado = valorBase.div(unidad.factor).toDecimalPlaces(0);
+    if (redondeado.abs().greaterThanOrEqualTo(1)) return `${formatNumero(redondeado)} ${unidad.simbolo}`;
+  }
+  return `< 1 ${practicas[practicas.length - 1]!.simbolo}`;
+}
+
 /**
  * One quantity for display. `opciones.en` forces the display unit (used by
  * `formatCantidadesFila`); it is ignored unless it belongs to the same

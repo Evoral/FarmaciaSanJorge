@@ -8,6 +8,7 @@
  */
 import { Decimal, dec } from "@/shared/decimal";
 import type { CotizacionCalculada, FuenteCosto } from "@/modules/precios/domain/calcular-cotizacion";
+import { numeroONull } from "@/shared/decimal/numero-ingresado";
 
 /**
  * The receta as a whole needs more of a droga than the eligible stock has
@@ -166,10 +167,10 @@ export interface ItemPresupuestable {
   componentes: ComponentePresupuestable[];
 }
 
-const DECIMAL_POSITIVO = /^\d+(\.\d+)?$/;
-
+/** As typed (`numeroONull`: comma decimals; an ambiguous "1.500" is not ready until the user fixes it). */
 function esDecimalPositivo(valor: string | null): boolean {
-  return valor !== null && DECIMAL_POSITIVO.test(valor) && Number(valor) > 0;
+  const numero = numeroONull(valor);
+  return numero !== null && !numero.startsWith("-") && Number(numero) > 0;
 }
 
 /**

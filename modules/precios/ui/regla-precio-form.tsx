@@ -13,6 +13,7 @@ import { useState } from "react";
 import { Info, Plus, Trash2 } from "lucide-react";
 import { guardarReglaPrecioAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { numeroParaInput } from "@/shared/decimal/numero-ingresado";
 
 export interface ReglaPrecioFormProps {
   vigente: { precioMinimo: string; tramos: { costoHasta: string | null; margen: string }[] } | null;
@@ -25,10 +26,10 @@ interface FilaTramo {
 }
 
 export function ReglaPrecioForm({ vigente }: ReglaPrecioFormProps) {
-  const [precioMinimo, setPrecioMinimo] = useState(vigente?.precioMinimo ?? "0");
+  const [precioMinimo, setPrecioMinimo] = useState(numeroParaInput(vigente?.precioMinimo ?? "0"));
   const [filas, setFilas] = useState<FilaTramo[]>(() =>
     vigente && vigente.tramos.length > 0
-      ? vigente.tramos.map((t, i) => ({ key: i, costoHasta: t.costoHasta ?? "", margen: t.margen }))
+      ? vigente.tramos.map((t, i) => ({ key: i, costoHasta: numeroParaInput(t.costoHasta), margen: numeroParaInput(t.margen) }))
       : [{ key: 0, costoHasta: "", margen: "" }],
   );
 

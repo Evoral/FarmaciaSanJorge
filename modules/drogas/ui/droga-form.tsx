@@ -33,6 +33,7 @@ import { SimpleForm } from "@/shared/ui/simple-form";
 import { toast } from "@/shared/ui/toast";
 import { CLASES_DROGA, CLASE_DROGA_LABELS, TIPOS_CONTROL, TIPO_CONTROL_LABELS, type ClaseDroga } from "@/modules/drogas/domain/droga";
 import { sugerirClase, type SugerenciaClase } from "@/modules/drogas/domain/sugerir-clase";
+import { numeroParaInput } from "@/shared/decimal/numero-ingresado";
 
 export interface UnidadOpcion {
   id: string;
@@ -289,7 +290,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
         <label htmlFor="stockMinimo" className="field-label">
           Stock mínimo
         </label>
-        <input id="stockMinimo" name="stockMinimo" defaultValue={droga?.stockMinimo ?? "0"} required disabled={disabled} inputMode="decimal" className="input font-mono" />
+        <input id="stockMinimo" name="stockMinimo" defaultValue={numeroParaInput(droga?.stockMinimo ?? "0")} required disabled={disabled} inputMode="decimal" className="input font-mono" />
       </div>
     </SimpleForm>
   );

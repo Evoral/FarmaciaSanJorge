@@ -3,6 +3,7 @@
 /** `/admin/configuracion/parametros` per-parameter edit form (FASE 3 point 3.10b), one panel per parameter. */
 import { editarParametroAction } from "./actions";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
+import { numeroParaInput } from "@/shared/decimal/numero-ingresado";
 
 export interface ParametroFormProps {
   clave: string;
@@ -30,7 +31,7 @@ export function ParametroForm({ clave, label, descripcion, valor, disabled }: Pa
             <label htmlFor={inputId} className="field-label">
               Valor actual
             </label>
-            <input id={inputId} name="valor" defaultValue={valor} required disabled={disabled} className="input font-mono" />
+            <input id={inputId} name="valor" defaultValue={numeroParaInput(valor)} required disabled={disabled} className="input font-mono" />
           </div>
         </ReauthAwareForm>
       </div>

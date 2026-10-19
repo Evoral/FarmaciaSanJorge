@@ -10,6 +10,7 @@ import { Globe } from "lucide-react";
 import { crearUnidadAction, editarUnidadAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { TIPOS_MAGNITUD, TIPO_MAGNITUD_LABELS } from "@/modules/unidades/domain/unidad";
+import { numeroParaInput } from "@/shared/decimal/numero-ingresado";
 
 const GLOBAL_WARNING = "Esta acción afecta a TODAS las farmacias del sistema: las unidades de medida son un catálogo global compartido.";
 
@@ -90,7 +91,7 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
             <label htmlFor="factorABase" className="field-label">
               Factor respecto de la unidad base
             </label>
-            <input id="factorABase" name="factorABase" defaultValue={unidad?.factorABase ?? ""} required disabled={classificacionDisabled} inputMode="decimal" className="input font-mono" />
+            <input id="factorABase" name="factorABase" defaultValue={numeroParaInput(unidad?.factorABase)} required disabled={classificacionDisabled} inputMode="decimal" className="input font-mono" />
           </div>
         </div>
         {classificacionDisabled && mode === "editar" ? (

@@ -27,7 +27,7 @@ import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { AUTH_POLICY } from "@/shared/auth/policy";
 import { authorize } from "@/shared/auth/authorize";
-import { uuid } from "@/shared/validation";
+import { decimalString, uuid } from "@/shared/validation";
 import { iniciarPreparacionEnTx } from "./iniciar-preparacion";
 import {
   comoErrorDeDominio,
@@ -39,6 +39,7 @@ import {
   type LineaPlanificada,
 } from "./confirmar-preparacion";
 import { autorizacionDePesadaReal } from "./co-firma-pesada-real";
+import { reservarExcipienteEnTx } from "./excipiente-preparacion";
 import { insertReservas, jornadaActualTenant, type ReservaDePreparacion } from "../infrastructure/preparacion-repository";
 
 const reservarStockPreparacionInput = z.object({
@@ -46,11 +47,14 @@ const reservarStockPreparacionInput = z.object({
   /** Only the líneas with something typed (enrase manual quantity, INV-S18 motivo); the partidas are the system's. */
   lineas: z.array(lineaEntradaInput).default([]),
   pesadaAutorizadaPorId: pesadaAutorizadaPorIdInput,
+  /** The excipiente used (migration 0092): a droga of clase EXCIPIENTE and its quantity in the droga's unidad base; reserved oldest lot first. */
+  excipiente: z.object({ drogaId: uuid, cantidad: decimalString }).optional(),
 });
 
 export interface ReservarStockPreparacionInput extends CoFirmaPesadaInput {
   fichaTecnicaId: string;
   lineas?: LineaEntradaInput[];
+  excipiente?: { drogaId: string; cantidad: string };
 }
 
 export const reservarStockPreparacionCommand = defineCommand({
@@ -74,6 +78,7 @@ export const reservarStockPreparacionCommand = defineCommand({
       });
 
       await insertReservas(tx, { tenantId: session.tenantId, preparacionId: iniciada.id, reservadaPorId: session.usuario.id, reservas: reservasDelPlan(plan) });
+      const excipiente = await reservarExcipienteEnTx(tx, session, { preparacionId: iniciada.id, excipiente: input.excipiente ?? null, jornada });
 
       return {
         output: { id: iniciada.id },
@@ -86,6 +91,7 @@ export const reservarStockPreparacionCommand = defineCommand({
             estado: "INICIADA",
             reservaStock: resumenDelPlan(plan),
             ...pesadasDelPlan(plan),
+            ...(excipiente ? { excipiente } : {}),
           },
         },
       };

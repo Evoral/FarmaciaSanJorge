@@ -19,6 +19,8 @@ import { getConfirmacionDeFicha } from "@/modules/preparaciones/application/get-
 import { generarEtiqueta } from "@/modules/preparaciones/application/generar-etiqueta";
 import { previsualizarFichas } from "@/modules/preparaciones/application/previsualizar-fichas";
 import { guardarExcipientePreparacion } from "@/modules/preparaciones/application/guardar-excipiente-preparacion";
+import { guardarBorradorPesada } from "@/modules/preparaciones/application/guardar-borrador-pesada";
+import { guardarExcipienteBorrador } from "@/modules/preparaciones/application/guardar-excipiente-borrador";
 import { StepUpRequiredError } from "@/shared/errors";
 import { conOperador } from "@/shared/auth/operador-context";
 import { actionError, actionErrorMessage } from "@/shared/ui/action-error";
@@ -170,10 +172,62 @@ export async function guardarExcipienteAction(_prevState: PreparacionActionState
   });
 }
 
+/**
+ * Toma workspace: saves one línea's pesada en borrador (migration 0090) as the lab fills it in -- lots in order, real
+ * weighing / enrase quantity, motivo. Blank quantities clear them. No revalidation: the fields already show it.
+ */
+export async function guardarBorradorPesadaAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
+  return conOperador(formData, async (): Promise<PreparacionActionState> => {
+    const lineaPesajeId = String(formData.get("lineaPesajeId") ?? "");
+    const texto = (nombre: string) => {
+      const valor = String(formData.get(nombre) ?? "").trim();
+      return valor.length > 0 ? valor : undefined;
+    };
+    try {
+      await guardarBorradorPesada({
+        lineaPesajeId,
+        partidaIds: formData.getAll("partidaIds").map(String),
+        cantidadReal: texto("cantidadReal"),
+        cantidadManual: texto("cantidadManual"),
+        motivoAperturaAdicional: texto("motivoAperturaAdicional"),
+      });
+      return { status: "success", id: lineaPesajeId };
+    } catch (error) {
+      return actionError(error, "No se pudo guardar la línea.");
+    }
+  });
+}
+
+/** Toma workspace: saves the ficha's excipiente draft (migration 0092) as it is chosen or its quantity is left. */
+export async function guardarExcipienteBorradorAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
+  return conOperador(formData, async (): Promise<PreparacionActionState> => {
+    const fichaTecnicaId = String(formData.get("fichaTecnicaId") ?? "");
+    const drogaId = String(formData.get("excipienteDrogaId") ?? "").trim();
+    const cantidad = String(formData.get("excipienteCantidad") ?? "").trim();
+    try {
+      await guardarExcipienteBorrador({ fichaTecnicaId, drogaId: drogaId || null, cantidad: cantidad || undefined });
+      return { status: "success", id: fichaTecnicaId };
+    } catch (error) {
+      return actionError(error, "No se pudo guardar el excipiente.");
+    }
+  });
+}
+
+/** The excipiente the reserva form sends (migration 0092): only when one is chosen; its quantity is then required. */
+function excipienteDe(formData: FormData): { drogaId: string; cantidad: string } | undefined {
+  const drogaId = String(formData.get("excipienteDrogaId") ?? "").trim();
+  return drogaId ? { drogaId, cantidad: String(formData.get("excipienteCantidad") ?? "") } : undefined;
+}
+
 export async function reservarStockAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
   return conOperador(formData, async (): Promise<PreparacionActionState> => {
     try {
-      const resultado = await reservarStockPreparacion({ fichaTecnicaId: String(formData.get("fichaTecnicaId") ?? ""), lineas: parseEntradas(formData), ...coFirmaPesada(formData) });
+      const resultado = await reservarStockPreparacion({
+        fichaTecnicaId: String(formData.get("fichaTecnicaId") ?? ""),
+        lineas: parseEntradas(formData),
+        excipiente: excipienteDe(formData),
+        ...coFirmaPesada(formData),
+      });
       revalidatePath("/preparaciones");
       // The receta is no longer editable while the reserva lives (its estado does not change).
       revalidatePath("/recetas");

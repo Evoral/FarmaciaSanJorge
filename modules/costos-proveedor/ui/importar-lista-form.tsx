@@ -51,6 +51,7 @@ import { etiquetaPrecio } from "../domain/presentacion";
 import type { CostoProveedorActionState } from "./action-state";
 import { importarListaPreciosAction } from "./actions";
 import type { DrogaOpcionCosto, UnidadOpcionCosto } from "./costo-form";
+import { numeroParaInput } from "@/shared/decimal/numero-ingresado";
 
 const PAGE_SIZE = 50;
 
@@ -138,7 +139,7 @@ export function ImportarListaForm({ vista, drogas: drogasDelCatalogo, unidades, 
     vista.filas.map((fila) => ({
       // Matched through a remembered synonym: the field shows the list's text, the canonical name as a hint (docs/specs/sinonimos-droga.md).
       droga: fila.drogaId ? { value: fila.drogaId, label: fila.drogaNombre ?? fila.descripcion, sinonimo: fila.via === "ALIAS" && fila.drogaNombre ? fila.descripcion : null } : null,
-      precio: fila.precio ?? "",
+      precio: numeroParaInput(fila.precio),
       unidadPrecioId: fila.unidadPrecioId ?? "",
       omitida: false,
       recordar: true,

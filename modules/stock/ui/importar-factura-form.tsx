@@ -40,6 +40,7 @@ import { RecordarSinonimoSwitch } from "@/shared/ui/recordar-sinonimo-switch";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { CLASES_DROGA, CLASE_DROGA_LABELS, type ClaseDroga } from "@/modules/drogas/domain/droga";
 import { sugerirClase } from "@/modules/drogas/domain/sugerir-clase";
+import { numeroONull, numeroParaInput } from "@/shared/decimal/numero-ingresado";
 
 const LETRAS = ["A", "B", "C", "M"] as const;
 
@@ -165,8 +166,9 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
       // Matched through a remembered synonym: the field shows the invoice's text, the canonical name as a hint (docs/specs/sinonimos-droga.md).
       droga: l.drogaId ? { value: l.drogaId, label: l.drogaNombre ?? l.drogaTexto, sinonimo: l.via === "ALIAS" && l.drogaNombre ? l.drogaTexto : null } : null,
       unidadCompraId: l.unidadCompraId ?? "",
-      cantidad: l.cantidad,
-      precioUnitario: l.precioUnitario,
+      // Shown es-AR (comma decimals): the parser's canonical "1234.5" would read as ambiguous once edited.
+      cantidad: numeroParaInput(l.cantidad),
+      precioUnitario: numeroParaInput(l.precioUnitario),
       lote: l.lote,
       fechaVencimiento: l.fechaVencimiento ?? "",
       potenciaDeclarada: "",
@@ -252,7 +254,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
     activas.length === 0 ? "Todos los lotes están marcados para no ingresar." : null,
     alta !== null ? "Terminá o cancelá el alta del producto nuevo." : null,
   ].filter((b): b is string => b !== null);
-  const totalLineas = lineas.reduce((suma, l) => suma + (Number(l.cantidad) || 0) * (Number(l.precioUnitario) || 0), 0);
+  const totalLineas = lineas.reduce((suma, l) => suma + (Number(numeroONull(l.cantidad)) || 0) * (Number(numeroONull(l.precioUnitario)) || 0), 0);
   const subtotalFactura = comprobante.subtotal === null ? null : Number(comprobante.subtotal);
   const difiereDelSubtotal = subtotalFactura !== null && Math.abs(totalLineas - subtotalFactura) > 0.05;
 
@@ -569,7 +571,9 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
                   <p className="text-sm text-zinc-600">
                     Importe del lote:{" "}
                     <span className="font-mono font-semibold text-zinc-900">
-                      {Number.isFinite(Number(l.cantidad) * Number(l.precioUnitario)) ? `$ ${formatearMonto(Number(l.cantidad) * Number(l.precioUnitario))}` : "—"}
+                      {numeroONull(l.cantidad) !== null && numeroONull(l.precioUnitario) !== null
+                        ? `$ ${formatearMonto(Number(numeroONull(l.cantidad)) * Number(numeroONull(l.precioUnitario)))}`
+                        : "—"}
                     </span>
                   </p>
                 </>

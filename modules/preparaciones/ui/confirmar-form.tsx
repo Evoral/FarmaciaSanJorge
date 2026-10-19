@@ -17,6 +17,9 @@
  *     order never does; the field stays wired for the rule).
  * The server recomputes everything under its locks: what is shown here is display-only, never sent.
  *
+ * The toma workspace's pesada en la ficha (./pesaje-en-toma.tsx) reuses `planDeLinea`, `pesadaDeLinea` and
+ * `lotesPorDefecto`, so the inline fields and this form compute the same plan and tolerance.
+ *
  * Three destinations, same fields: a ficha técnica from the toma workspace's "Marcar como preparada" dialog
  * (`reservarStockAction`: creates the preparación and RESERVES the stock; stock and libro recetario are fixed later,
  * at "Imprimir etiquetas"), a reserved preparación from its "Recalcular reserva" dialog (`recalcularReservaStockAction`:
@@ -39,6 +42,7 @@ import { repartirLinea, requiereElegirPartida } from "@/modules/preparaciones/do
 import { evaluarPesada, precisionDeLinea, redondearABalanza, type EvaluacionPesada } from "@/modules/preparaciones/domain/pesada-real";
 import { ordenarParaConsumo } from "@/modules/stock/domain/reparto";
 import { Decimal } from "@/shared/decimal";
+import { numeroONull, numeroParaInput } from "@/shared/decimal/numero-ingresado";
 import { estadoVencimientoPartida, textoPorVencer } from "@/modules/stock/domain/vencimiento-partida";
 import { convertirCantidad, mismaMagnitud } from "@/shared/decimal/convertir-unidad";
 
@@ -59,20 +63,18 @@ export interface ConfirmarPreparacionFormProps {
  * A línea's plan as the form shows it: what to take from each partida, or the faltante; `"elegir"` = its partidas
  * differ in purity and no lot is checked yet (R25); `null` = nothing to show yet (an enrase quantity not typed).
  */
-type PlanDeLinea =
+export type PlanDeLinea =
   | { ok: true; partes: { partidaId: string; cantidad: string }[]; /** Physical, droga's unidad base. */ totalFisico: string; requiereMotivo: boolean }
   | { ok: false; faltante: string }
   | "elegir"
   | null;
 
-/** Parsed like the server does (`decimalString`: `new Decimal`); `null` unless a finite quantity > 0. */
-function cantidadValida(texto: string | undefined): Decimal | null {
-  try {
-    const valor = new Decimal(texto?.trim() ?? "");
-    return valor.isFinite() && valor.greaterThan(0) ? valor : null;
-  } catch {
-    return null;
-  }
+/** Parsed like the server does (`decimalString` -> `interpretarNumero`: comma decimals); `null` unless a finite quantity > 0. */
+export function cantidadValida(texto: string | undefined): Decimal | null {
+  const numero = numeroONull(texto);
+  if (numero === null) return null;
+  const valor = new Decimal(numero);
+  return valor.isFinite() && valor.greaterThan(0) ? valor : null;
 }
 
 /**
@@ -81,7 +83,7 @@ function cantidadValida(texto: string | undefined): Decimal | null {
  * converted into the droga's unidad base, no purity correction) -- exactly what the server will do. `"elegir"` = no
  * lot checked while the droga has some.
  */
-function planDeLinea(linea: LineaPantalla, cantidadManual: string | undefined, elegidas: readonly string[], jornada: string): PlanDeLinea {
+export function planDeLinea(linea: LineaPantalla, cantidadManual: string | undefined, elegidas: readonly string[], jornada: string): PlanDeLinea {
   const candidatas = linea.partidasElegibles.filter((p) => elegidas.includes(p.id));
   if (candidatas.length === 0 && linea.partidasElegibles.length > 0) return "elegir";
   if (!mismaMagnitud(linea.unidad, linea.unidadStock)) return null;
@@ -110,7 +112,7 @@ function planDeLinea(linea: LineaPantalla, cantidadManual: string | undefined, e
 }
 
 /** The lots pre-checked for a línea: the current reserva's, else the automatic plan's, else the first one to consume (oldest). */
-function lotesPorDefecto(linea: LineaPantalla, jornada: string): string[] {
+export function lotesPorDefecto(linea: LineaPantalla, jornada: string): string[] {
   if (linea.reserva?.partidaIds.length) return linea.reserva.partidaIds;
   if (linea.propuesta?.length) return linea.propuesta.map((p) => p.partidaId);
   const primera = ordenarParaConsumo(linea.partidasElegibles, jornada).find((p) => new Decimal(p.cantidadDisponible).greaterThan(0));
@@ -118,17 +120,18 @@ function lotesPorDefecto(linea: LineaPantalla, jornada: string): string[] {
 }
 
 /** A non-manual línea's pesada real: the expected weight (línea unit), its balance-rounded prefill and, once typed, the tolerance check. */
-interface PesadaDeLinea {
+export interface PesadaDeLinea {
   esperada: Decimal;
   sugerida: string;
   evaluacion: EvaluacionPesada | null;
 }
 
-function pesadaDeLinea(linea: LineaPantalla, plan: PlanDeLinea, real: string | undefined, datos: DatosConfirmacion): PesadaDeLinea | null {
+export function pesadaDeLinea(linea: LineaPantalla, plan: PlanDeLinea, real: string | undefined, datos: DatosConfirmacion): PesadaDeLinea | null {
   if (linea.esEnraseManual || plan === null || plan === "elegir" || !plan.ok) return null;
   const precision = precisionDeLinea(linea.unidad, datos.pesada.precisionBalanza);
   const esperada = convertirCantidad(new Decimal(plan.totalFisico), linea.unidadStock, linea.unidad);
-  const sugerida = redondearABalanza(esperada, precision).toFixed();
+  // Shown es-AR (comma decimals), like every typed number.
+  const sugerida = numeroParaInput(redondearABalanza(esperada, precision).toFixed());
   const valor = cantidadValida(real ?? sugerida);
   return { esperada, sugerida, evaluacion: valor ? evaluarPesada(valor, esperada, datos.pesada.toleranciaPorcentaje, precision) : null };
 }
@@ -145,7 +148,7 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
   // Mirrors of two uncontrolled inputs: the typed enrase quantity (the línea's plan follows it) and the motivo, which
   // keeps its text while the field is hidden and shown again.
   const [cantidadesManuales, setCantidadesManuales] = useState<Record<string, string>>(() =>
-    Object.fromEntries(datos.lineas.flatMap((l) => (l.reserva?.cantidadManual ? [[l.id, l.reserva.cantidadManual]] : []))),
+    Object.fromEntries(datos.lineas.flatMap((l) => (l.reserva?.cantidadManual ? [[l.id, numeroParaInput(l.reserva.cantidadManual)]] : []))),
   );
   const [motivos, setMotivos] = useState<Record<string, string>>(() =>
     Object.fromEntries(datos.lineas.flatMap((l) => (l.reserva?.motivoAperturaAdicional ? [[l.id, l.reserva.motivoAperturaAdicional]] : []))),
@@ -156,7 +159,7 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
   );
   // The pesada real the user typed; a línea not typed shows the balance-rounded expected weight, which follows the lots.
   const [reales, setReales] = useState<Record<string, string>>(() =>
-    Object.fromEntries(datos.lineas.flatMap((l) => (l.reserva?.cantidadReal ? [[l.id, l.reserva.cantidadReal]] : []))),
+    Object.fromEntries(datos.lineas.flatMap((l) => (l.reserva?.cantidadReal ? [[l.id, numeroParaInput(l.reserva.cantidadReal)]] : []))),
   );
 
   // Stock amounts are DISPLAYED in a readable unit of the droga's chain (e.g. 999.999,55 mg -> 1.000 g, 2 decimals).
@@ -265,7 +268,7 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                       type="text"
                       inputMode="decimal"
                       required
-                      defaultValue={linea.reserva?.cantidadManual ?? undefined}
+                      defaultValue={linea.reserva?.cantidadManual ? numeroParaInput(linea.reserva.cantidadManual) : undefined}
                       onChange={(event) => {
                         const valor = event.target.value;
                         setCantidadesManuales((prev) => ({ ...prev, [linea.id]: valor }));

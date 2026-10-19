@@ -36,6 +36,7 @@ import {
   type LineaEntradaInput,
 } from "./confirmar-preparacion";
 import { pesadasDelPlan, reservasDelPlan, resumenDelPlan } from "./reservar-stock-preparacion";
+import { guardarReservaExcipienteEnTx, replanificarExcipienteEnTx } from "./excipiente-preparacion";
 import { autorizacionDePesadaReal } from "./co-firma-pesada-real";
 import {
   deleteReservasDePreparacion,
@@ -140,8 +141,11 @@ export const recalcularReservaStockCommand = defineCommand({
         jornada,
       });
 
+      // The excipiente (migration 0092) is re-planned too, before anything is deleted.
+      const excipiente = await replanificarExcipienteEnTx(tx, session, { preparacionId: input.preparacionId, jornada });
       await deleteReservasDePreparacion(tx, session.tenantId, input.preparacionId);
       await insertReservas(tx, { tenantId: session.tenantId, preparacionId: input.preparacionId, reservadaPorId: session.usuario.id, reservas: reservasDelPlan(plan) });
+      await guardarReservaExcipienteEnTx(tx, session, input.preparacionId, excipiente);
 
       return {
         output: { id: input.preparacionId },
@@ -152,7 +156,7 @@ export const recalcularReservaStockCommand = defineCommand({
               .filter((r) => r.cantidad !== "0")
               .map((r) => ({ lineaPesajeId: r.lineaPesajeId, partidaId: r.partidaId, cantidad: r.cantidad })),
           },
-          valorNuevo: { reservaStock: resumenDelPlan(plan), ...pesadasDelPlan(plan) },
+          valorNuevo: { reservaStock: resumenDelPlan(plan), ...pesadasDelPlan(plan), ...(excipiente ? { excipiente } : {}) },
         },
       };
     } catch (e) {

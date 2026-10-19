@@ -13,6 +13,8 @@ export async function editarDatosTenantAction(_prevState: FarmaciaActionState, f
       nombreFantasia: String(formData.get("nombreFantasia") ?? "").trim() || undefined,
       domicilio: String(formData.get("domicilio") ?? "").trim() || undefined,
       matriculaFarmacia: String(formData.get("matriculaFarmacia") ?? "").trim() || undefined,
+      telefonoFijo: String(formData.get("telefonoFijo") ?? "").trim() || undefined,
+      telefonoCelular: String(formData.get("telefonoCelular") ?? "").trim() || undefined,
     });
     return { status: "success", message: "Datos actualizados." };
   } catch (error) {

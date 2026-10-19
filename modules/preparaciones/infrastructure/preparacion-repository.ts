@@ -565,7 +565,8 @@ export interface NuevoEgresoInput {
   partidaId: string;
   cantidad: string;
   preparacionId: string;
-  lineaPesajeId: string;
+  /** `null` only for the preparación's excipiente (migration 0092, ../application/excipiente-preparacion.ts). */
+  lineaPesajeId: string | null;
   registradoPorId: string;
   desvioPropuesta: boolean;
   /** Migration 0058: purity snapshot (percent) used for this consumption; `null` for manual-enrase lines (no correction). */
@@ -628,15 +629,18 @@ export async function insertReservas(
   });
 }
 
-/** The preparación's reservas, ordered by línea then partida id (the confirmation re-locks partidas in id order anyway). */
+/**
+ * The preparación's reservas of its líneas de pesaje, ordered by línea then partida id (the confirmation re-locks
+ * partidas in id order anyway). The excipiente's (no línea, migration 0092) are `listReservasExcipiente`'s.
+ */
 export async function listReservasDePreparacion(tx: Prisma.TransactionClient, tenantId: string, preparacionId: string): Promise<ReservaDePreparacion[]> {
   const rows = await tx.reservaStock.findMany({
-    where: { tenantId, preparacionId },
+    where: { tenantId, preparacionId, lineaPesajeId: { not: null } },
     orderBy: [{ lineaPesajeId: "asc" }, { partidaId: "asc" }],
     select: { lineaPesajeId: true, partidaId: true, cantidad: true, cantidadManual: true, motivoAperturaAdicional: true, cantidadReal: true, pesadaAutorizadaPorId: true },
   });
   return rows.map((r) => ({
-    lineaPesajeId: r.lineaPesajeId,
+    lineaPesajeId: r.lineaPesajeId!,
     partidaId: r.partidaId,
     cantidad: r.cantidad.toString(),
     cantidadManual: r.cantidadManual ? r.cantidadManual.toString() : null,
@@ -969,6 +973,8 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
               descripcion: true,
               formaFarmaceutica: true,
               cantidadUnidades: true,
+              fraccionDosisPorUnidad: true,
+              posologia: true,
               componentes: {
                 select: {
                   cantidad: true,
@@ -999,9 +1005,9 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
 
   const tenant = await tx.tenant.findUniqueOrThrow({
     where: { id: tenantId },
-    select: { razonSocial: true, nombreFantasia: true, matriculaFarmacia: true, domicilio: true, zonaHoraria: true },
+    select: { razonSocial: true, nombreFantasia: true, matriculaFarmacia: true, domicilio: true, telefonoFijo: true, telefonoCelular: true, zonaHoraria: true },
   });
-  const directorTecnico = await getDtVigenteEnJornada(tx, tenantId, jornadaDe(prep.confirmadaEn, tenant.zonaHoraria));
+  const directorTecnico = await getDtTitularParaEtiqueta(tx, tenantId, jornadaDe(prep.confirmadaEn, tenant.zonaHoraria));
 
   const item = prep.fichaTecnica.itemReceta;
   const medico = item.receta.medico;
@@ -1013,6 +1019,8 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
     itemDescripcion: item.descripcion,
     formaFarmaceutica: item.formaFarmaceutica,
     cantidadUnidades: item.cantidadUnidades,
+    fraccionDosisPorUnidad: item.fraccionDosisPorUnidad.toString(),
+    posologia: item.posologia,
     componentes: item.componentes.map((c) => ({
       drogaNombre: c.droga.nombre,
       cantidad: c.cantidad === null ? null : c.cantidad.toString(),
@@ -1034,6 +1042,8 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
     tenantNombreFantasia: tenant.nombreFantasia,
     tenantMatriculaFarmacia: tenant.matriculaFarmacia,
     tenantDomicilio: tenant.domicilio,
+    tenantTelefonoFijo: tenant.telefonoFijo,
+    tenantTelefonoCelular: tenant.telefonoCelular,
     fechaVencimiento: prep.fechaVencimiento ? prep.fechaVencimiento.toISOString().slice(0, 10) : null, // @db.Date comes back as UTC midnight.
     recetaEstado: item.receta.estado,
     asientoSinEfecto: asiento.estado === "ANULADO" || asiento._count.rectificativos > 0,
@@ -1041,24 +1051,32 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
 }
 
 /**
- * The director técnico vigente on `jornada` (`YYYY-MM-DD`): the TITULAR,
- * else a SUPLENTE. Same WHERE as modules/directores-tecnicos'
- * `dtVigenteHoy`, but for a given date -- read here, against the shared
- * `tx`, because modules only reach their own infrastructure/ (the libro
- * and stock co-firma repositories do the same).
+ * The director técnico printed on the etiqueta: ALWAYS the TITULAR, never a
+ * SUPLENTE (docs/specs/etiqueta-preparado.md R8: the titular is in charge of
+ * everything), with the matrícula of his designación. The titular vigente on
+ * `jornada` (`YYYY-MM-DD`, the confirmation day); if there was none that day,
+ * the current titular. Read here, against the shared `tx`, because modules
+ * only reach their own infrastructure/ (the libro and stock co-firma
+ * repositories do the same).
  */
-export async function getDtVigenteEnJornada(
+export async function getDtTitularParaEtiqueta(
   tx: Prisma.TransactionClient,
   tenantId: string,
   jornada: string,
 ): Promise<{ nombre: string; apellido: string; matricula: string } | null> {
   const fecha = new Date(`${jornada}T00:00:00.000Z`); // @db.Date columns compare as UTC midnight.
-  const rows = await tx.designacionDirectorTecnico.findMany({
-    where: { tenantId, vigenteDesde: { lte: fecha }, OR: [{ vigenteHasta: null }, { vigenteHasta: { gte: fecha } }] },
-    orderBy: [{ vigenteDesde: "desc" }],
-    select: { caracter: true, matricula: true, usuario: { select: { nombre: true, apellido: true } } },
-  });
-  const dt = rows.find((r) => r.caracter === "TITULAR") ?? rows[0];
+  const select = { matricula: true, usuario: { select: { nombre: true, apellido: true } } } satisfies Prisma.DesignacionDirectorTecnicoSelect;
+  const dt =
+    (await tx.designacionDirectorTecnico.findFirst({
+      where: { tenantId, caracter: "TITULAR", vigenteDesde: { lte: fecha }, OR: [{ vigenteHasta: null }, { vigenteHasta: { gte: fecha } }] },
+      orderBy: [{ vigenteDesde: "desc" }],
+      select,
+    })) ??
+    (await tx.designacionDirectorTecnico.findFirst({
+      where: { tenantId, caracter: "TITULAR", vigenteHasta: null },
+      orderBy: [{ vigenteDesde: "desc" }],
+      select,
+    }));
   return dt ? { nombre: dt.usuario.nombre, apellido: dt.usuario.apellido, matricula: dt.matricula } : null;
 }
 
@@ -1974,7 +1992,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
             alcanza: boolean;
           }[]
         >`
-          SELECT rs.preparacion_id, rs.partida_id, l.droga_nombre, p.lote, rs.cantidad::text AS cantidad, u.simbolo,
+          SELECT rs.preparacion_id, rs.partida_id, coalesce(l.droga_nombre, d.nombre::text) AS droga_nombre, p.lote, rs.cantidad::text AS cantidad, u.simbolo,
             p.fecha_vencimiento_vigente::text AS fecha_vencimiento,
             (rs.cantidad <= p.cantidad_disponible - (
                SELECT coalesce(sum(o.cantidad), 0)
@@ -1984,12 +2002,13 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
              )
              AND (p.fecha_vencimiento_vigente IS NULL OR p.fecha_vencimiento_vigente >= fsj.jornada_actual(rs.tenant_id))) AS alcanza
           FROM fsj.reserva_stock rs
-          JOIN fsj.linea_pesaje l ON l.tenant_id = rs.tenant_id AND l.id = rs.linea_pesaje_id
+          -- LEFT: the excipiente's reserva has no línea (migration 0092); it is listed last.
+          LEFT JOIN fsj.linea_pesaje l ON l.tenant_id = rs.tenant_id AND l.id = rs.linea_pesaje_id
           JOIN fsj.partida p ON p.tenant_id = rs.tenant_id AND p.id = rs.partida_id
           JOIN fsj.droga d ON d.tenant_id = rs.tenant_id AND d.id = p.droga_id
           JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
           WHERE rs.tenant_id = ${tenantId}::uuid AND rs.preparacion_id = ANY(${iniciadaIds}::uuid[]) AND rs.cantidad > 0
-          ORDER BY l.orden ASC, p.lote ASC
+          ORDER BY l.orden ASC NULLS LAST, p.lote ASC
         `;
   const preparacionDe = (itemId: string): ItemDeToma["preparacion"] => {
     const delItem = preparaciones.filter((p) => p.itemRecetaId === itemId);
@@ -2107,4 +2126,190 @@ function fichaDeToma(ficha: Prisma.FichaTecnicaGetPayload<{ select: typeof SELEC
       unidadStock: { simbolo: l.droga.unidadBase.simbolo, factorABase: l.droga.unidadBase.factorABase.toString(), tipoMagnitud: l.droga.unidadBase.tipoMagnitud },
     })),
   };
+}
+
+/** One línea's pesada en borrador (migration 0090): the lots in the order they are used and the typed quantities (línea unit). */
+// A type alias (not an interface): it goes into the audit's JSON as is.
+export type PesadaBorrador = {
+  lineaPesajeId: string;
+  partidaIds: string[];
+  cantidadReal: string | null;
+  cantidadManual: string | null;
+  motivoAperturaAdicional: string | null;
+};
+
+/** The drafts of a ficha's líneas (migration 0090), by línea id. */
+export async function getBorradoresDeFicha(tx: Prisma.TransactionClient, tenantId: string, fichaTecnicaId: string): Promise<Map<string, PesadaBorrador>> {
+  const lineas = await tx.lineaPesaje.findMany({ where: { tenantId, fichaTecnicaId }, select: { id: true } });
+  const rows = await tx.pesadaBorrador.findMany({ where: { tenantId, lineaPesajeId: { in: lineas.map((l) => l.id) } } });
+  return new Map(
+    rows.map((r) => [
+      r.lineaPesajeId,
+      {
+        lineaPesajeId: r.lineaPesajeId,
+        partidaIds: r.partidaIds,
+        cantidadReal: r.cantidadReal?.toString() ?? null,
+        cantidadManual: r.cantidadManual?.toString() ?? null,
+        motivoAperturaAdicional: r.motivoAperturaAdicional,
+      },
+    ]),
+  );
+}
+
+/** The línea a draft is saved for: its droga and ficha; `null` when it is not this tenant's. */
+export async function getLineaParaBorrador(tx: Prisma.TransactionClient, tenantId: string, lineaPesajeId: string): Promise<{ drogaId: string; fichaTecnicaId: string } | null> {
+  return tx.lineaPesaje.findUnique({ where: { id: lineaPesajeId, tenantId }, select: { drogaId: true, fichaTecnicaId: true } });
+}
+
+/** The droga of each partida (only this tenant's are returned). */
+export async function getDrogaDePartidas(tx: Prisma.TransactionClient, tenantId: string, partidaIds: readonly string[]): Promise<Map<string, string>> {
+  const rows = await tx.partida.findMany({ where: { tenantId, id: { in: [...partidaIds] } }, select: { id: true, drogaId: true } });
+  return new Map(rows.map((r) => [r.id, r.drogaId]));
+}
+
+/** Creates or replaces a línea's draft (migration 0090); returns the previous one for the audit. */
+export async function upsertBorradorPesada(
+  tx: Prisma.TransactionClient,
+  input: PesadaBorrador & { tenantId: string; actualizadoPorId: string },
+): Promise<PesadaBorrador | null> {
+  const where = { tenantId_lineaPesajeId: { tenantId: input.tenantId, lineaPesajeId: input.lineaPesajeId } };
+  const anterior = await tx.pesadaBorrador.findUnique({ where });
+  const data = {
+    partidaIds: input.partidaIds,
+    cantidadReal: input.cantidadReal,
+    cantidadManual: input.cantidadManual,
+    motivoAperturaAdicional: input.motivoAperturaAdicional,
+    actualizadoPorId: input.actualizadoPorId,
+    actualizadoEn: new Date(),
+  };
+  await tx.pesadaBorrador.upsert({ where, create: { tenantId: input.tenantId, lineaPesajeId: input.lineaPesajeId, ...data }, update: data });
+  return anterior
+    ? {
+        lineaPesajeId: anterior.lineaPesajeId,
+        partidaIds: anterior.partidaIds,
+        cantidadReal: anterior.cantidadReal?.toString() ?? null,
+        cantidadManual: anterior.cantidadManual?.toString() ?? null,
+        motivoAperturaAdicional: anterior.motivoAperturaAdicional,
+      }
+    : null;
+}
+
+// ============================================================================
+// Excipiente (migration 0092, docs/specs/excipiente-preparacion.md)
+// ============================================================================
+
+/** A droga of clase EXCIPIENTE the toma may choose: its unidad base is the unit of the quantity. */
+export interface ExcipienteParaToma {
+  id: string;
+  nombre: string;
+  unidadSimbolo: string;
+}
+
+/** The vigente drogas of clase EXCIPIENTE, by name. */
+export async function listExcipientesParaToma(tx: Prisma.TransactionClient, tenantId: string): Promise<ExcipienteParaToma[]> {
+  const rows = await tx.droga.findMany({
+    where: { tenantId, clase: "EXCIPIENTE", fechaBaja: null },
+    orderBy: { nombre: "asc" },
+    select: { id: true, nombre: true, unidadBase: { select: { simbolo: true } } },
+  });
+  return rows.map((r) => ({ id: r.id, nombre: r.nombre, unidadSimbolo: r.unidadBase.simbolo }));
+}
+
+/** One droga as an excipiente candidate (any clase, so the caller can refuse a non-EXCIPIENTE one); `null` when not this tenant's. */
+export async function getDrogaExcipiente(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  drogaId: string,
+): Promise<{ id: string; nombre: string; esExcipiente: boolean; vigente: boolean; unidadSimbolo: string } | null> {
+  const droga = await tx.droga.findUnique({
+    where: { id: drogaId, tenantId },
+    select: { id: true, nombre: true, clase: true, fechaBaja: true, unidadBase: { select: { simbolo: true } } },
+  });
+  return droga
+    ? { id: droga.id, nombre: droga.nombre, esExcipiente: droga.clase === "EXCIPIENTE", vigente: droga.fechaBaja === null, unidadSimbolo: droga.unidadBase.simbolo }
+    : null;
+}
+
+/** The excipiente draft of a ficha (droga + quantity in its unidad base); `null` when none was saved. */
+export async function getExcipienteBorrador(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  fichaTecnicaId: string,
+): Promise<{ drogaId: string | null; cantidad: string | null } | null> {
+  const row = await tx.excipienteBorrador.findUnique({ where: { tenantId_fichaTecnicaId: { tenantId, fichaTecnicaId } } });
+  return row ? { drogaId: row.drogaId, cantidad: row.cantidad?.toString() ?? null } : null;
+}
+
+/** Creates or replaces a ficha's excipiente draft; returns the previous one for the audit. */
+export async function upsertExcipienteBorrador(
+  tx: Prisma.TransactionClient,
+  input: { tenantId: string; fichaTecnicaId: string; drogaId: string | null; cantidad: string | null; actualizadoPorId: string },
+): Promise<{ drogaId: string | null; cantidad: string | null } | null> {
+  const anterior = await getExcipienteBorrador(tx, input.tenantId, input.fichaTecnicaId);
+  const data = { drogaId: input.drogaId, cantidad: input.cantidad, actualizadoPorId: input.actualizadoPorId, actualizadoEn: new Date() };
+  await tx.excipienteBorrador.upsert({
+    where: { tenantId_fichaTecnicaId: { tenantId: input.tenantId, fichaTecnicaId: input.fichaTecnicaId } },
+    create: { tenantId: input.tenantId, fichaTecnicaId: input.fichaTecnicaId, ...data },
+    update: data,
+  });
+  return anterior;
+}
+
+/** The preparación's excipiente (migration 0092); `null` when it has none. */
+export async function getExcipienteDePreparacion(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  preparacionId: string,
+): Promise<{ drogaId: string; drogaNombre: string; cantidad: string; unidadSimbolo: string } | null> {
+  const preparacion = await tx.preparacion.findUnique({ where: { id: preparacionId, tenantId }, select: { excipienteDrogaId: true, excipienteCantidad: true } });
+  if (!preparacion?.excipienteDrogaId || !preparacion.excipienteCantidad) return null;
+  const droga = await getDrogaExcipiente(tx, tenantId, preparacion.excipienteDrogaId);
+  if (!droga) return null;
+  return { drogaId: droga.id, drogaNombre: droga.nombre, cantidad: preparacion.excipienteCantidad.toString(), unidadSimbolo: droga.unidadSimbolo };
+}
+
+/** Sets the preparación's excipiente (while INICIADA, INV-P08) and the text the fórmula carries ("Ludipress 12,5 g"). */
+export async function setExcipienteEstructurado(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  preparacionId: string,
+  excipiente: { drogaId: string; cantidad: string; texto: string },
+): Promise<void> {
+  await tx.preparacion.update({
+    where: { id: preparacionId, tenantId },
+    data: { excipienteDrogaId: excipiente.drogaId, excipienteCantidad: excipiente.cantidad, excipienteTexto: excipiente.texto },
+  });
+}
+
+/** The excipiente's reserva rows (no línea). */
+export async function listReservasExcipiente(tx: Prisma.TransactionClient, tenantId: string, preparacionId: string): Promise<{ partidaId: string; cantidad: string }[]> {
+  const rows = await tx.reservaStock.findMany({
+    where: { tenantId, preparacionId, lineaPesajeId: null },
+    orderBy: { partidaId: "asc" },
+    select: { partidaId: true, cantidad: true },
+  });
+  return rows.map((r) => ({ partidaId: r.partidaId, cantidad: r.cantidad.toString() }));
+}
+
+/** Reserves the excipiente's split: one row per partida, no línea. */
+export async function insertReservasExcipiente(
+  tx: Prisma.TransactionClient,
+  input: { tenantId: string; preparacionId: string; reservadaPorId: string; partes: readonly { partidaId: string; cantidad: string }[] },
+): Promise<void> {
+  if (input.partes.length === 0) return;
+  await tx.reservaStock.createMany({
+    data: input.partes.map((p) => ({
+      tenantId: input.tenantId,
+      preparacionId: input.preparacionId,
+      lineaPesajeId: null,
+      partidaId: p.partidaId,
+      cantidad: p.cantidad,
+      reservadaPorId: input.reservadaPorId,
+    })),
+  });
+}
+
+/** Drops only the excipiente's reserva rows (it is re-planned). */
+export async function deleteReservasExcipiente(tx: Prisma.TransactionClient, tenantId: string, preparacionId: string): Promise<void> {
+  await tx.reservaStock.deleteMany({ where: { tenantId, preparacionId, lineaPesajeId: null } });
 }

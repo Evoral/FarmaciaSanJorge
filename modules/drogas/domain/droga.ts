@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Decimal } from "decimal.js";
+import { interpretarNumero } from "@/shared/decimal/numero-ingresado";
 
 /**
  * Pure domain types/rules for the droga catalog (M06, FASE 4 point 4.2).
@@ -84,13 +85,12 @@ export const nonNegativeDecimalString = z
   .trim()
   .min(1, "Este campo no puede estar vacío.")
   .transform((value, ctx) => {
-    let parsed: Decimal;
-    try {
-      parsed = new Decimal(value);
-    } catch {
-      ctx.addIssue({ code: "custom", message: "Debe ser un número decimal válido." });
+    const numero = interpretarNumero(value);
+    if (!numero.ok) {
+      ctx.addIssue({ code: "custom", message: numero.mensaje });
       return z.NEVER;
     }
+    const parsed = new Decimal(numero.valor);
     if (!parsed.isFinite() || parsed.isNegative()) {
       ctx.addIssue({ code: "custom", message: "Debe ser cero o mayor." });
       return z.NEVER;
