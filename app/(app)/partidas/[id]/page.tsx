@@ -8,13 +8,18 @@
  * reanálisis moved it, and the reanálisis history under the kardex. A vencida DROGA partida with saldo is blocked
  * until the DT acts: everyone sees "requiere acción del DT"; only a DT vigente gets "Registrar reanálisis" /
  * "Marcar como vencida" (a por vencer or vigente droga partida: reanálisis only).
+ *
+ * "Historial" (lot tracing: which recetas consumed this partida) opens the droga's historial already filtered by
+ * this partida (docs/specs/historial-droga.md) -- shown only when that page would open, never a redirect.
  */
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CircleAlert, FlaskConical, History, SlidersHorizontal, TriangleAlert } from "lucide-react";
+import { CircleAlert, FlaskConical, History, ScrollText, SlidersHorizontal, TriangleAlert } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getPartida } from "@/modules/stock/application/get-partida";
+import { puedeVerHistorialDroga } from "@/modules/drogas/application/get-historial-droga";
+import { hrefHistorialDroga } from "@/modules/drogas/domain/historial";
 import { kardexMovimientos } from "@/modules/stock/application/kardex-movimientos";
 import { NotFoundError } from "@/shared/errors";
 import { CorregirCostoForm } from "@/modules/stock/ui/corregir-costo-form";
@@ -72,6 +77,8 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
   const [disponible, inicial, reservada] = formatCantidadesFila([partida.cantidadDisponible, partida.cantidadInicial, partida.cantidadReservada], unidad, catalogo);
   const puedeCorregirCosto = can(session, "stock.partida.costo.corregir");
   const puedeAjustar = can(session, "stock.ajuste.registrar");
+  // Same gates as /catalogos/drogas/[id]/historial (its section guard + its use case), so the link never redirects.
+  const puedeVerHistorial = can(session, "drogas.editar") && puedeVerHistorialDroga(session);
 
   // Expiry: always on the vencimiento VIGENTE (latest reanálisis, else the original date).
   const vigenteIso = partida.fechaVencimientoVigente ? partida.fechaVencimientoVigente.toISOString().slice(0, 10) : null;
@@ -106,11 +113,25 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
           </>
         }
         actions={
-          puedeAjustar ? (
-            <Link href={`/stock/ajustes/nuevo?partidaId=${partida.id}`} className="btn btn-secondary">
-              <SlidersHorizontal className="size-4" aria-hidden />
-              Registrar ajuste
-            </Link>
+          puedeVerHistorial || puedeAjustar ? (
+            <>
+              {puedeVerHistorial ? (
+                <Link
+                  href={hrefHistorialDroga(`/catalogos/drogas/${partida.drogaId}/historial`, [partida.id])}
+                  className="btn btn-secondary"
+                  title="Recetas en las que se usó este lote"
+                >
+                  <ScrollText className="size-4" aria-hidden />
+                  Historial
+                </Link>
+              ) : null}
+              {puedeAjustar ? (
+                <Link href={`/stock/ajustes/nuevo?partidaId=${partida.id}`} className="btn btn-secondary">
+                  <SlidersHorizontal className="size-4" aria-hidden />
+                  Registrar ajuste
+                </Link>
+              ) : null}
+            </>
           ) : null
         }
       />
