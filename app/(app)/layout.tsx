@@ -18,6 +18,8 @@ import { resumenJornadasPendientes } from "@/modules/cierres/application/list-jo
 import { resumenDestruccion } from "@/modules/archivo/application/resumen-destruccion";
 import { resumenVencimientosDrogas } from "@/modules/stock/application/vencimientos-drogas";
 import { resumenBajoMinimo } from "@/modules/stock/application/alertas-stock";
+import { resumenIntegridad, type LibroQuebrado } from "@/modules/libro/application/resumen-integridad";
+import { etiquetaLibro } from "@/modules/libro/domain/integridad";
 import { getLogger } from "@/shared/logging/logger";
 import { OperadorProvider } from "@/modules/operadores/ui/operador-provider";
 import { AppShell } from "./app-shell";
@@ -142,9 +144,34 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
     can(session, "cierres.reporte") ||
     can(session, "reportes.auditoria");
 
+  // Broken hash chain of a libro: same fail-soft discipline, gated on the permiso the query enforces (`libro.ver`).
+  // The result is cached in memory (resumen-integridad.ts), so this is not a full chain walk per navigation.
+  let librosQuebrados: LibroQuebrado[] = [];
+  if (can(session, "libro.ver")) {
+    try {
+      librosQuebrados = await resumenIntegridad();
+    } catch (error) {
+      getLogger().error({ error }, "Failed to load libro integridad banner summary");
+    }
+  }
+
   const sidebarCollapsed = (await cookies()).get(SIDEBAR_COLLAPSED_COOKIE)?.value === "1";
 
   const avisos: Aviso[] = [];
+  if (librosQuebrados.length > 0) {
+    avisos.push({
+      key: "integridad",
+      tone: "danger",
+      href: "/libro/integridad",
+      linkLabel: "Ver integridad",
+      content: (
+        <>
+          <b className="font-semibold">Se rompió la integridad {librosQuebrados.map((l) => `del ${etiquetaLibro(l.tipo).toLowerCase()} (asiento Nº ${l.primerQuiebreNumero})`).join(" y ")}.</b>{" "}
+          Los registros pudieron haber sido alterados o un cambio del sistema cortó la cadena. Contactá a soporte y revisá Auditoría.
+        </>
+      ),
+    });
+  }
   if (resumenCierres && resumenCierres.cantidad > 0) {
     const { cantidad, masAntigua } = resumenCierres;
     avisos.push({
@@ -268,30 +295,36 @@ interface Aviso {
 }
 
 /**
- * The app-wide notification bar: ONE shared `.alert` (app/globals.css) holding each pending item as its own segment
- * (count, short text, link, and a dot in its own tone). The bar's tone is the most severe item's. Nothing renders
- * when there is nothing pending.
+ * The app-wide notification area: one `.alert` (app/globals.css) per tone -- the red bar (danger) above the amber one
+ * (warn) -- so an urgent item never repaints the routine ones. Each bar holds its pending items as segments (dot in
+ * the item's tone, text, link). Nothing renders when there is nothing pending.
  */
 function NoticeBar({ avisos }: { avisos: readonly Aviso[] }) {
   if (avisos.length === 0) return null;
-  const tone: AvisoTone = avisos.some((aviso) => aviso.tone === "danger") ? "danger" : "warn";
+  const tones: AvisoTone[] = ["danger", "warn"];
   return (
     <div className="notice-bar-wrap">
-      <div role="status" className={`alert alert-${tone} notice-bar`}>
-        <ul className="notice-bar-items">
-          {avisos.map((aviso) => (
-            <li key={aviso.key} className="notice-bar-item">
-              <span aria-hidden="true" className="notice-bar-dot" data-tone={aviso.tone} />
-              <span className="min-w-0">{aviso.content}</span>
-              {aviso.href ? (
-                <Link href={aviso.href} className="notice-bar-link">
-                  {aviso.linkLabel}
-                </Link>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      </div>
+      {tones.map((tone) => {
+        const items = avisos.filter((aviso) => aviso.tone === tone);
+        if (items.length === 0) return null;
+        return (
+          <div key={tone} role="status" className={`alert alert-${tone} notice-bar`}>
+            <ul className="notice-bar-items">
+              {items.map((aviso) => (
+                <li key={aviso.key} className="notice-bar-item">
+                  <span aria-hidden="true" className="notice-bar-dot" data-tone={aviso.tone} />
+                  <span className="min-w-0">{aviso.content}</span>
+                  {aviso.href ? (
+                    <Link href={aviso.href} className="notice-bar-link">
+                      {aviso.linkLabel}
+                    </Link>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
     </div>
   );
 }

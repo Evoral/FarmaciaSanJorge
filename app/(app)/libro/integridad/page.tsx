@@ -1,18 +1,20 @@
 /** `/libro/integridad` (FASE 9, M12 point 9.3). Verificación de la cadena de hash del libro recetario y de cada libro contralor. */
 import { ShieldAlert, ShieldCheck } from "lucide-react";
+import { requireSession } from "@/shared/auth/session";
+import { can } from "@/shared/auth/authorize";
+import { listReanclajes } from "@/modules/libro/application/list-reanclajes";
 import { verificarCadenaLibros } from "@/modules/libro/application/verificar-cadena-libros";
+import { etiquetaLibro } from "@/modules/libro/domain/integridad";
 import { LibroNav } from "@/modules/libro/ui/libro-nav";
+import { ReanclarLibroForm } from "@/modules/libro/ui/reanclar-libro-form";
+import { formatFechaIso } from "@/shared/format/fecha";
 import { PageHeader } from "@/shared/ui/page-header";
 import { ToneBadge } from "@/shared/ui/status-badge";
 
-const TIPO_LABELS: Record<string, string> = {
-  RECETARIO: "Libro recetario",
-  PSICOTROPICO: "Libro contralor de psicotrópicos",
-  ESTUPEFACIENTE: "Libro contralor de estupefacientes",
-};
-
 export default async function IntegridadPage() {
-  const resultados = await verificarCadenaLibros();
+  const session = await requireSession();
+  const [resultados, reanclajes] = await Promise.all([verificarCadenaLibros(), listReanclajes()]);
+  const puedeReanclar = can(session, "libro.anulacion.autorizar");
   const quebrados = resultados.filter((r) => !r.ok).length;
 
   return (
@@ -43,13 +45,43 @@ export default async function IntegridadPage() {
               {r.ok ? <ShieldCheck /> : <ShieldAlert />}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-zinc-900">{TIPO_LABELS[r.tipo] ?? r.tipo}</p>
+              <p className="text-sm font-medium text-zinc-900">{etiquetaLibro(r.tipo)}</p>
               <p className="text-[0.8125rem] text-zinc-600">{r.ok ? "La cadena de hash está intacta." : `Primer quiebre en el asiento Nº ${r.primerQuiebreNumero}.`}</p>
             </div>
             <ToneBadge tone={r.ok ? "success" : "danger"}>{r.ok ? "OK" : "Quebrada"}</ToneBadge>
           </li>
         ))}
       </ul>
+
+      {puedeReanclar ? (
+        <div className="mt-6 flex max-w-3xl flex-col gap-4">
+          {resultados
+            .filter((r) => !r.ok && r.primerQuiebreNumero !== null)
+            .map((r) => (
+              <ReanclarLibroForm key={r.libroId} libroId={r.libroId} etiquetaLibro={etiquetaLibro(r.tipo)} numeroFaltante={r.primerQuiebreNumero ?? ""} />
+            ))}
+        </div>
+      ) : null}
+
+      {reanclajes.length > 0 ? (
+        <section className="mt-8 max-w-3xl" aria-labelledby="reanclajes-heading">
+          <h2 id="reanclajes-heading" className="mb-2 text-sm font-semibold text-zinc-900">
+            Reanclajes registrados
+          </h2>
+          <ul className="list-panel">
+            {reanclajes.map((r) => (
+              <li key={r.id} className="border-b border-zinc-100 px-5 py-3 text-[0.8125rem] text-zinc-700 last:border-b-0">
+                <p className="font-medium text-zinc-900">
+                  {etiquetaLibro(r.tipo)} · faltante Nº {r.numeroEsperado}, retoma en Nº {r.desdeNumero}
+                </p>
+                <p>
+                  {formatFechaIso(r.registradoEn.toISOString().slice(0, 10))} · {r.registradoPor} · {r.motivo}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

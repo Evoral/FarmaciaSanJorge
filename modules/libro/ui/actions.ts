@@ -4,6 +4,8 @@
 import { revalidatePath } from "next/cache";
 import { anularAsiento } from "@/modules/libro/application/anular-asiento";
 import { rectificarAsiento } from "@/modules/libro/application/rectificar-asiento";
+import { reanclarLibro } from "@/modules/libro/application/reanclar-libro";
+import { invalidarResumenIntegridad } from "@/modules/libro/application/resumen-integridad";
 import { StepUpRequiredError } from "@/shared/errors";
 import { actionError } from "@/shared/ui/action-error";
 import type { LibroActionState } from "./action-state";
@@ -65,5 +67,23 @@ export async function rectificarAsientoAction(_prevState: LibroActionState, form
       return { status: "reauth-required" };
     }
     return actionError(error, "No se pudo generar el asiento rectificativo.");
+  }
+}
+
+/** The DT accepts the hole in a libro's chain (migration 0087). Needs the DT's own recent re-auth; `ReauthAwareForm` resubmits after it. */
+export async function reanclarLibroAction(_prevState: LibroActionState, formData: FormData): Promise<LibroActionState> {
+  try {
+    const resultado = await reanclarLibro({
+      libroId: String(formData.get("libroId") ?? ""),
+      motivo: String(formData.get("motivo") ?? ""),
+    });
+    invalidarResumenIntegridad();
+    revalidatePath("/libro/integridad");
+    return { status: "success", message: `Cadena reanclada: el asiento Nº ${resultado.numeroEsperado} queda registrado como faltante y la verificación sigue desde el Nº ${resultado.desdeNumero}.` };
+  } catch (error) {
+    if (error instanceof StepUpRequiredError) {
+      return { status: "reauth-required" };
+    }
+    return actionError(error, "No se pudo reanclar la cadena.");
   }
 }

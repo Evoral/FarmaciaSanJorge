@@ -1986,6 +1986,9 @@
    * stack on phones and sit side by side, divided, from 640px.
    */
   .notice-bar-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
     width: 100%;
     max-width: 80rem;
     padding: 1rem 1rem 0;
@@ -2004,7 +2007,6 @@
   }
   .notice-bar-item {
     display: flex;
-    flex-wrap: wrap;
     align-items: baseline;
     gap: 0.125rem 0.5rem;
   }
