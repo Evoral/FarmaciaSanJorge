@@ -7,6 +7,7 @@
  */
 import { z } from "zod";
 import { Decimal } from "decimal.js";
+import { interpretarNumero } from "@/shared/decimal/numero-ingresado";
 import { CADENAS_CONVERTIBLES, UNIDADES_PRACTICAS } from "@/shared/format/cantidad";
 
 // ============================================================================
@@ -39,13 +40,12 @@ export const positiveDecimalString = z
   .trim()
   .min(1, "Este campo no puede estar vacío.")
   .transform((value, ctx) => {
-    let parsed: Decimal;
-    try {
-      parsed = new Decimal(value);
-    } catch {
-      ctx.addIssue({ code: "custom", message: "Debe ser un número decimal válido." });
+    const numero = interpretarNumero(value);
+    if (!numero.ok) {
+      ctx.addIssue({ code: "custom", message: numero.mensaje });
       return z.NEVER;
     }
+    const parsed = new Decimal(numero.valor);
     if (!parsed.isFinite() || !parsed.greaterThan(0)) {
       ctx.addIssue({ code: "custom", message: "Debe ser mayor que cero." });
       return z.NEVER;
@@ -59,13 +59,12 @@ export const nonNegativeDecimalString = z
   .trim()
   .min(1, "Este campo no puede estar vacío.")
   .transform((value, ctx) => {
-    let parsed: Decimal;
-    try {
-      parsed = new Decimal(value);
-    } catch {
-      ctx.addIssue({ code: "custom", message: "Debe ser un número decimal válido." });
+    const numero = interpretarNumero(value);
+    if (!numero.ok) {
+      ctx.addIssue({ code: "custom", message: numero.mensaje });
       return z.NEVER;
     }
+    const parsed = new Decimal(numero.valor);
     if (!parsed.isFinite() || parsed.isNegative()) {
       ctx.addIssue({ code: "custom", message: "Debe ser cero o mayor." });
       return z.NEVER;
@@ -79,13 +78,12 @@ export const potenciaDeclaradaString = z
   .trim()
   .min(1, "Este campo no puede estar vacío.")
   .transform((value, ctx) => {
-    let parsed: Decimal;
-    try {
-      parsed = new Decimal(value);
-    } catch {
-      ctx.addIssue({ code: "custom", message: "Debe ser un número decimal válido." });
+    const numero = interpretarNumero(value);
+    if (!numero.ok) {
+      ctx.addIssue({ code: "custom", message: numero.mensaje });
       return z.NEVER;
     }
+    const parsed = new Decimal(numero.valor);
     if (!parsed.isFinite() || !parsed.greaterThan(0) || parsed.greaterThan(100)) {
       ctx.addIssue({ code: "custom", message: "La pureza debe ser mayor que 0 y como máximo 100 %." });
       return z.NEVER;

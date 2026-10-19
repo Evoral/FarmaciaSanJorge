@@ -4,6 +4,7 @@
  */
 import type { RecetaDetalle } from "../application/get-receta";
 import type { RecetaFormInicial } from "./receta-form";
+import { numeroParaInput } from "@/shared/decimal/numero-ingresado";
 
 export function inicialDesdeReceta(receta: RecetaDetalle): RecetaFormInicial {
   return {
@@ -24,7 +25,7 @@ export function inicialDesdeReceta(receta: RecetaDetalle): RecetaFormInicial {
       formaFarmaceutica: item.formaFarmaceutica,
       cantidadUnidades: String(item.cantidadUnidades),
       fraccionDosisPorUnidad: item.fraccionDosisPorUnidad,
-      cantidadTotal: item.cantidadTotal ?? "",
+      cantidadTotal: numeroParaInput(item.cantidadTotal),
       unidadTotalId: item.unidadTotalId ?? "",
       observaciones: item.observaciones ?? "",
       posologia: item.posologia ?? "",
@@ -35,7 +36,7 @@ export function inicialDesdeReceta(receta: RecetaDetalle): RecetaFormInicial {
         drogaNombre: c.drogaNombre,
         drogaAliasId: c.drogaAliasId,
         sinonimo: c.sinonimo,
-        cantidad: c.cantidad ?? "",
+        cantidad: numeroParaInput(c.cantidad),
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
       })),

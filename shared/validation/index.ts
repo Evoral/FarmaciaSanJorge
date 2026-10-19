@@ -6,6 +6,7 @@
  */
 import { z } from "zod";
 import { Decimal } from "decimal.js";
+import { interpretarNumero } from "@/shared/decimal/numero-ingresado";
 
 /** A non-empty, trimmed string. */
 export const nonEmptyString = z
@@ -32,19 +33,20 @@ export const email = z
  * A string that parses to a valid, finite `Decimal` -- used for quantity
  * and money input fields, which arrive as strings over the wire (never
  * `number`, to avoid float precision loss before it even reaches decimal.js).
+ * Read as the user typed it (`interpretarNumero`, shared/decimal/numero-ingresado.ts:
+ * comma decimals, es-AR thousands, an ambiguous "1.500" refused).
  */
 export const decimalString = z
   .string()
   .trim()
   .min(1, "Este campo no puede estar vacío.")
   .transform((value, ctx) => {
-    let parsed: Decimal;
-    try {
-      parsed = new Decimal(value);
-    } catch {
-      ctx.addIssue({ code: "custom", message: "Debe ser un número decimal válido." });
+    const numero = interpretarNumero(value);
+    if (!numero.ok) {
+      ctx.addIssue({ code: "custom", message: numero.mensaje });
       return z.NEVER;
     }
+    const parsed = new Decimal(numero.valor);
     if (!parsed.isFinite()) {
       ctx.addIssue({ code: "custom", message: "Debe ser un número decimal finito." });
       return z.NEVER;

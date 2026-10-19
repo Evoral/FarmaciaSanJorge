@@ -22,11 +22,11 @@ import { Decimal, dec } from "@/shared/decimal";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { resolverDroga } from "@/modules/recetas/domain/importacion-receta";
 import type { AliasDroga, ViaMatchDroga } from "@/modules/recetas/domain/importacion-receta";
-import { parsearDecimalEsAr } from "@/modules/recetas/domain/receta-pdf-parser";
 import { detectarDuplicados, esFechaIsoReal, planVersionar, unidadPrecioPorDefecto, validarFilaCosto } from "./costo-proveedor";
 import type { TipoMagnitudCosto, UnidadParaCosto } from "./costo-proveedor";
 import type { FormatoLista } from "./archivo-lista";
 import type { FilaListaLeida } from "./parsers/lista-xlsx-crystal";
+import { interpretarNumero } from "@/shared/decimal/numero-ingresado";
 
 export const ESTADOS_FILA_LISTA = ["ASOCIADA", "SIN_ASOCIAR", "DUPLICADA", "PRECIO_INVALIDO", "MAS_ANTIGUA", "SIN_CAMBIOS", "OMITIDA_PRESENTACION", "OMITIDA"] as const;
 export type EstadoFilaLista = (typeof ESTADOS_FILA_LISTA)[number];
@@ -143,15 +143,23 @@ export function hojaPorDefecto(hojas: readonly HojaLibro[]): string | null {
 // ============================================================================
 
 /**
- * A price as the user types it, to a canonical plain decimal string. With a comma it is es-AR ("40.898,50",
- * "40898,5"); without one it is a plain decimal where the dot IS the decimal separator ("40898.5", "1.125"),
- * never thousands -- so what the preview shows (always plain) reads back unchanged. `null` when it is not a number.
+ * A price as the user types it (an optional "$"), to a canonical plain decimal string -- read like every typed number
+ * (`interpretarNumero`: comma decimals, es-AR thousands, an ambiguous "1.125" refused; the preview prefills with a
+ * comma, so it reads back unchanged). `null` when it is not a non-negative number; `mensajePrecioIngresado` says why.
  */
 export function parsearPrecioIngresado(texto: string | null | undefined): string | null {
-  const limpio = (texto ?? "").trim().replace(/^\$\s*/, "");
-  if (limpio === "") return null;
-  if (limpio.includes(",")) return parsearDecimalEsAr(limpio);
-  return /^\d+(\.\d+)?$/.test(limpio) ? dec(limpio).toFixed() : null;
+  const numero = interpretarNumero(sinSimboloPeso(texto));
+  return numero.ok && !numero.valor.startsWith("-") ? dec(numero.valor).toFixed() : null;
+}
+
+/** Why a typed price is not one (the ambiguity, a bad format, empty). */
+export function mensajePrecioIngresado(texto: string | null | undefined): string {
+  const numero = interpretarNumero(sinSimboloPeso(texto));
+  return numero.ok ? "El precio debe ser mayor a cero." : numero.mensaje;
+}
+
+function sinSimboloPeso(texto: string | null | undefined): string {
+  return (texto ?? "").trim().replace(/^\$\s*/, "");
 }
 
 // ============================================================================
@@ -179,7 +187,7 @@ function evaluarPrecio(
   droga: DrogaParaLista,
 ): { precio: string | null; costoUnitario: string | null; mensaje: string | null } {
   const precio = parsearPrecioIngresado(entrada.precio);
-  if (precio === null) return { precio, costoUnitario: null, mensaje: "Ingresá un precio válido: un número mayor a cero." };
+  if (precio === null) return { precio, costoUnitario: null, mensaje: mensajePrecioIngresado(entrada.precio) };
   if (!dec(precio).greaterThan(0)) return { precio, costoUnitario: null, mensaje: "El precio debe ser mayor a cero." };
   const unidadPrecio = entrada.unidadPrecioId ? contexto.unidades.get(entrada.unidadPrecioId) : undefined;
   if (!unidadPrecio) return { precio, costoUnitario: null, mensaje: "Elegí la unidad del precio." };

@@ -90,7 +90,7 @@ export const precioInformadoSchema = z
   .string()
   .trim()
   .min(1, "Ingresá el precio.")
-  .regex(/^-?\d+(\.\d+)?$/, "El precio debe ser un número decimal válido.")
+  // As typed (`interpretarNumero` inside `positiveDecimalString`): comma decimals, an ambiguous "1.500" refused.
   .pipe(positiveDecimalString)
   .transform((value) => value.toFixed());
 

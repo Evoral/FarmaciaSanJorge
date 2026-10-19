@@ -14,10 +14,9 @@ function texto(formData: FormData, nombre: string): string {
   return String(formData.get(nombre) ?? "");
 }
 
-/** "40898,50" -> "40898.50": the form is typed in es-AR, the command takes a plain decimal. Anything else is left for the command to refuse. */
+/** As typed: the command reads it (`precioInformadoSchema` -> `interpretarNumero`) and refuses an ambiguous or bad one with its message. */
 function normalizarDecimal(valor: string): string {
-  const limpio = valor.trim();
-  return /^\d+,\d+$/.test(limpio) ? limpio.replace(",", ".") : limpio;
+  return valor.trim();
 }
 
 /** The rows a form posted as `filas.<i>.<campo>` (the same names the command's errors point at). */

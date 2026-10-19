@@ -27,6 +27,7 @@
  * each parameter's rule.
  */
 import { Decimal } from "decimal.js";
+import { numeroONull } from "@/shared/decimal/numero-ingresado";
 import { MESES_VENCIMIENTO_PREPARADO_MAX } from "@/modules/preparaciones/domain/vencimiento";
 
 export const PARAMETRO_CLAVES = [
@@ -53,12 +54,11 @@ export type ValidacionParametro = { ok: true; valor: Decimal } | { ok: false; er
 function parseDecimalOrNull(valorRaw: string): Decimal | null {
   const trimmed = valorRaw.trim();
   if (trimmed.length === 0) return null;
-  try {
-    const parsed = new Decimal(trimmed);
-    return parsed.isFinite() ? parsed : null;
-  } catch {
-    return null;
-  }
+  // As the user types it (comma decimals); an ambiguous "1.500" is not a number here either.
+  const numero = numeroONull(trimmed);
+  if (numero === null) return null;
+  const parsed = new Decimal(numero);
+  return parsed.isFinite() ? parsed : null;
 }
 
 /**
