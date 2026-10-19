@@ -8,6 +8,7 @@ import {
   armarContenidoEtiqueta,
   columnasRp,
   componentesRp,
+  dosisEtiqueta,
   MAX_LINEAS_RP,
   formaSegunCantidad,
   formatearContenidoEtiqueta,
@@ -16,6 +17,7 @@ import {
   formatearMedicoEtiqueta,
   formatearVenceEtiqueta,
   numeroRecetaEtiqueta,
+  parsearContenidoEtiqueta,
   viaDeAdministracion,
   VENCE_ETIQUETA,
 } from "@/modules/preparaciones/domain/etiqueta";
@@ -42,6 +44,10 @@ const DATOS: DatosEtiqueta = {
   medicoJurisdiccion: "PROVINCIAL",
   directorTecnico: { nombre: "María", apellido: "López", matricula: "3310" },
   tenantDomicilio: "Av. San Martín 1234, Mendoza",
+  tenantTelefonoFijo: "(0263) 4428850",
+  tenantTelefonoCelular: "(0263) 154949843",
+  posologia: "Media dosis cada 12 horas",
+  fraccionDosisPorUnidad: "0.5",
   fechaVencimiento: "2027-03-15",
 };
 
@@ -140,7 +146,7 @@ describe("numeroRecetaEtiqueta", () => {
 });
 
 describe("armarContenidoEtiqueta / formatearContenidoEtiqueta", () => {
-  it("builds the label content; the paciente is not shown", () => {
+  it("builds the label content, paciente, phones, dosis and fracción included", () => {
     const contenido = armarContenidoEtiqueta(DATOS);
     expect(contenido).toMatchObject({
       directorTecnico: { nombre: "MARÍA LÓPEZ", matricula: "3310" },
@@ -149,13 +155,38 @@ describe("armarContenidoEtiqueta / formatearContenidoEtiqueta", () => {
       cantidad: 30,
       forma: "Cápsulas",
       via: "Orales",
-      medico: "Médico Gómez, Ana  MAT MP 4521",
-      paciente: null,
+      fraccionDosis: "1/2 Dosis",
+      dosis: "2 cáp/día",
+      telefonoFijo: "(0263) 4428850",
+      celular: "(0263) 154949843",
+      medico: "Médico: Ana Gómez  -  MAT:4521",
+      paciente: "Pérez, Juan",
     });
   });
 
-  it("médico: MN for a national matrícula", () => {
-    expect(formatearMedicoEtiqueta({ ...DATOS, medicoJurisdiccion: "NACIONAL" })).toBe("Médico Gómez, Ana  MAT MN 4521");
+  it("médico: as on the farmacia's label", () => {
+    expect(formatearMedicoEtiqueta(DATOS)).toBe("Médico: Ana Gómez  -  MAT:4521");
+  });
+
+  it("dosis: units per day from the posología; the text as written when it states no frequency", () => {
+    expect(dosisEtiqueta("COMPRIMIDO", "Cada 8 horas", "1")).toBe("3 comp/día");
+    expect(dosisEtiqueta("CAPSULA", "Cada 12 h", "0.5")).toBe("4 cáp/día");
+    expect(dosisEtiqueta("CAPSULA", "Una vez al día", "1")).toBe("1 cáp/día");
+    expect(dosisEtiqueta("CREMA", "Aplicar cada 12 horas", "1")).toBe("Aplicar cada 12 horas");
+    expect(dosisEtiqueta("CAPSULA", "Según indicación", "1")).toBe("Según indicación");
+    expect(dosisEtiqueta("CAPSULA", "  ", "1")).toBeNull();
+  });
+
+  it("a whole dose, or a form not counted in units, prints no fracción", () => {
+    expect(armarContenidoEtiqueta({ ...DATOS, fraccionDosisPorUnidad: "1" }).fraccionDosis).toBeNull();
+    expect(armarContenidoEtiqueta({ ...DATOS, formaFarmaceutica: "CREMA", fraccionDosisPorUnidad: "0.5" }).fraccionDosis).toBeNull();
+  });
+
+  it("round-trips every optional field, and a text stored before the phones still parses", () => {
+    const contenido = armarContenidoEtiqueta({ ...DATOS, tenantDomicilio: null });
+    expect(parsearContenidoEtiqueta(formatearContenidoEtiqueta(contenido))).toEqual(contenido);
+    const sinNuevos = armarContenidoEtiqueta({ ...DATOS, tenantTelefonoFijo: null, tenantTelefonoCelular: null, posologia: null, fraccionDosisPorUnidad: "1" });
+    expect(parsearContenidoEtiqueta(formatearContenidoEtiqueta(sinNuevos))).toEqual(sinNuevos);
   });
 
   it("the persisted text mirrors the label (blank DT line when none was vigente)", () => {
@@ -163,15 +194,19 @@ describe("armarContenidoEtiqueta / formatearContenidoEtiqueta", () => {
     expect(texto.split("\n")).toEqual([
       "Director Técnico ______",
       "Av. San Martín 1234, Mendoza",
+      "Teléfono fijo (0263) 4428850",
+      "Celular (0263) 154949843",
       "Rp/",
       "Mazindol 2 mg",
       "Vence: 03/27",
       "Receta N 1520",
+      "Dosis: 2 cáp/día",
       "30 Cápsulas — Orales",
+      "Por unidad: 1/2 Dosis",
       "Conservar en lugar fresco y seco",
-      "Médico Gómez, Ana  MAT MP 4521",
+      "Paciente Pérez, Juan",
+      "Médico: Ana Gómez  -  MAT:4521",
     ]);
-    expect(texto).not.toContain("Pérez");
   });
 
   it("'Vence: MM/YY' from the snapshot fecha_vencimiento; a blank line when there is none", () => {

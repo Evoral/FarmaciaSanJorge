@@ -973,6 +973,8 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
                 select: {
                   cantidad: true,
                   modoExpresion: true,
+              fraccionDosisPorUnidad: true,
+              posologia: true,
                   esPrincipioActivo: true,
                   droga: { select: { nombre: true } },
                   unidadMedida: { select: { simbolo: true } },
@@ -999,9 +1001,9 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
 
   const tenant = await tx.tenant.findUniqueOrThrow({
     where: { id: tenantId },
-    select: { razonSocial: true, nombreFantasia: true, matriculaFarmacia: true, domicilio: true, zonaHoraria: true },
+    select: { razonSocial: true, nombreFantasia: true, matriculaFarmacia: true, domicilio: true, telefonoFijo: true, telefonoCelular: true, zonaHoraria: true },
   });
-  const directorTecnico = await getDtVigenteEnJornada(tx, tenantId, jornadaDe(prep.confirmadaEn, tenant.zonaHoraria));
+  const directorTecnico = await getDtTitularParaEtiqueta(tx, tenantId, jornadaDe(prep.confirmadaEn, tenant.zonaHoraria));
 
   const item = prep.fichaTecnica.itemReceta;
   const medico = item.receta.medico;
@@ -1017,6 +1019,8 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
       drogaNombre: c.droga.nombre,
       cantidad: c.cantidad === null ? null : c.cantidad.toString(),
       unidadSimbolo: c.unidadMedida.simbolo,
+    fraccionDosisPorUnidad: item.fraccionDosisPorUnidad.toString(),
+    posologia: item.posologia,
       modoExpresion: c.modoExpresion,
       esPrincipioActivo: c.esPrincipioActivo,
     })),
@@ -1038,27 +1042,37 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
     recetaEstado: item.receta.estado,
     asientoSinEfecto: asiento.estado === "ANULADO" || asiento._count.rectificativos > 0,
   };
+    tenantTelefonoFijo: tenant.telefonoFijo,
+    tenantTelefonoCelular: tenant.telefonoCelular,
 }
 
 /**
- * The director técnico vigente on `jornada` (`YYYY-MM-DD`): the TITULAR,
- * else a SUPLENTE. Same WHERE as modules/directores-tecnicos'
- * `dtVigenteHoy`, but for a given date -- read here, against the shared
- * `tx`, because modules only reach their own infrastructure/ (the libro
- * and stock co-firma repositories do the same).
+ * The director técnico printed on the etiqueta: ALWAYS the TITULAR, never a
+ * SUPLENTE (docs/specs/etiqueta-preparado.md R8: the titular is in charge of
+ * everything), with the matrícula of his designación. The titular vigente on
+ * `jornada` (`YYYY-MM-DD`, the confirmation day); if there was none that day,
+ * the current titular. Read here, against the shared `tx`, because modules
+ * only reach their own infrastructure/ (the libro and stock co-firma
+ * repositories do the same).
  */
-export async function getDtVigenteEnJornada(
+export async function getDtTitularParaEtiqueta(
   tx: Prisma.TransactionClient,
   tenantId: string,
   jornada: string,
 ): Promise<{ nombre: string; apellido: string; matricula: string } | null> {
   const fecha = new Date(`${jornada}T00:00:00.000Z`); // @db.Date columns compare as UTC midnight.
-  const rows = await tx.designacionDirectorTecnico.findMany({
-    where: { tenantId, vigenteDesde: { lte: fecha }, OR: [{ vigenteHasta: null }, { vigenteHasta: { gte: fecha } }] },
-    orderBy: [{ vigenteDesde: "desc" }],
-    select: { caracter: true, matricula: true, usuario: { select: { nombre: true, apellido: true } } },
-  });
-  const dt = rows.find((r) => r.caracter === "TITULAR") ?? rows[0];
+  const select = { matricula: true, usuario: { select: { nombre: true, apellido: true } } } satisfies Prisma.DesignacionDirectorTecnicoSelect;
+  const dt =
+    (await tx.designacionDirectorTecnico.findFirst({
+      where: { tenantId, caracter: "TITULAR", vigenteDesde: { lte: fecha }, OR: [{ vigenteHasta: null }, { vigenteHasta: { gte: fecha } }] },
+      orderBy: [{ vigenteDesde: "desc" }],
+      select,
+    })) ??
+    (await tx.designacionDirectorTecnico.findFirst({
+      where: { tenantId, caracter: "TITULAR", vigenteHasta: null },
+      orderBy: [{ vigenteDesde: "desc" }],
+      select,
+    }));
   return dt ? { nombre: dt.usuario.nombre, apellido: dt.usuario.apellido, matricula: dt.matricula } : null;
 }
 

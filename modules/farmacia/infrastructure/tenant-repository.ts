@@ -21,6 +21,8 @@ export interface TenantDetalle {
   cuit: string;
   domicilio: string | null;
   matriculaFarmacia: string | null;
+  telefonoFijo: string | null;
+  telefonoCelular: string | null;
   zonaHoraria: string;
   fechaBaja: Date | null;
   fechaActivacionContralor: Date | null;
@@ -38,6 +40,8 @@ export async function getTenantDetalle(tx: Prisma.TransactionClient, tenantId: s
       cuit: true,
       domicilio: true,
       matriculaFarmacia: true,
+      telefonoFijo: true,
+      telefonoCelular: true,
       zonaHoraria: true,
       fechaBaja: true,
       fechaActivacionContralor: true,
@@ -52,11 +56,14 @@ export interface DatosEditablesTenant {
   nombreFantasia: string | null;
   domicilio: string | null;
   matriculaFarmacia: string | null;
+  telefonoFijo: string | null;
+  telefonoCelular: string | null;
 }
 
 /**
- * Updates ONLY the 4 columns fsj_app is granted UPDATE on, post-migration
- * 0020 (razon_social, nombre_fantasia, domicilio, matricula_farmacia).
+ * Updates ONLY the columns fsj_app is granted UPDATE on: migration 0020
+ * (razon_social, nombre_fantasia, domicilio, matricula_farmacia) and 0089
+ * (telefono_fijo, telefono_celular).
  * Never touches cuit / zona_horaria / fecha_baja / fecha_activacion_contralor
  * -- defense in depth on top of (a) the zod schema in
  * ../application/editar-datos-tenant.ts not even accepting those fields as
@@ -76,6 +83,8 @@ export async function updateDatosEditablesTenant(
       nombreFantasia: datos.nombreFantasia,
       domicilio: datos.domicilio,
       matriculaFarmacia: datos.matriculaFarmacia,
+      telefonoFijo: datos.telefonoFijo,
+      telefonoCelular: datos.telefonoCelular,
     },
   });
 }

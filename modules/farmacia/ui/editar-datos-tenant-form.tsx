@@ -1,6 +1,6 @@
 "use client";
 
-/** `/admin/configuracion/farmacia` edit form (FASE 3 point 3.10a). Only the 4 editable fields -- see modules/farmacia/application/editar-datos-tenant.ts for why the other 4 tenant fields are never even parsed as input. The page provides the surrounding panel. */
+/** `/admin/configuracion/farmacia` edit form (FASE 3 point 3.10a). Only the editable fields -- see modules/farmacia/application/editar-datos-tenant.ts for why the other 4 tenant fields are never even parsed as input. The page provides the surrounding panel. */
 import { editarDatosTenantAction } from "./actions";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 
@@ -10,6 +10,8 @@ export interface EditarDatosTenantFormProps {
     nombreFantasia: string | null;
     domicilio: string | null;
     matriculaFarmacia: string | null;
+    telefonoFijo: string | null;
+    telefonoCelular: string | null;
   };
   disabled: boolean;
 }
@@ -41,6 +43,18 @@ export function EditarDatosTenantForm({ tenant, disabled }: EditarDatosTenantFor
             Matrícula de la farmacia <span className="font-normal text-zinc-500">(opcional)</span>
           </label>
           <input id="tenant-matricula-farmacia" name="matriculaFarmacia" defaultValue={tenant.matriculaFarmacia ?? ""} disabled={disabled} className="input font-mono" />
+        </div>
+        <div className="field">
+          <label htmlFor="tenant-telefono-fijo" className="field-label">
+            Teléfono fijo <span className="font-normal text-zinc-500">(opcional, sale en la etiqueta)</span>
+          </label>
+          <input id="tenant-telefono-fijo" name="telefonoFijo" type="tel" maxLength={40} defaultValue={tenant.telefonoFijo ?? ""} placeholder="(0263) 4428850" disabled={disabled} className="input" />
+        </div>
+        <div className="field">
+          <label htmlFor="tenant-telefono-celular" className="field-label">
+            Celular / WhatsApp <span className="font-normal text-zinc-500">(opcional, sale en la etiqueta)</span>
+          </label>
+          <input id="tenant-telefono-celular" name="telefonoCelular" type="tel" maxLength={40} defaultValue={tenant.telefonoCelular ?? ""} placeholder="(0263) 154949843" disabled={disabled} className="input" />
         </div>
       </div>
     </ReauthAwareForm>

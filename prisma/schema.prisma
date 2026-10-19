@@ -239,6 +239,9 @@ model Tenant {
   cuit                     String    @unique
   domicilio                String?
   matriculaFarmacia        String?   @map("matricula_farmacia")
+  /// Migration 0089: printed on the etiqueta.
+  telefonoFijo             String?   @map("telefono_fijo") @db.VarChar(40)
+  telefonoCelular          String?   @map("telefono_celular") @db.VarChar(40)
   zonaHoraria              String    @default("America/Argentina/Mendoza") @map("zona_horaria")
   fechaBaja                DateTime? @map("fecha_baja") @db.Timestamptz(6)
   creadoEn                 DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
