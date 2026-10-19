@@ -3,7 +3,8 @@
 Status: implemented 2026-10-08 (migrations 0071, 0072; units fix R12: 0073); receta-level
 "Imprimir etiquetas" replaced the per-ítem one 2026-10-14 (R13, R17, no schema change).
 **2026-10-15: automatic reserva** (R1, R1b, R2, R9 revised: no partida choice, DT decision) and the
-consistency fixes R18-R23 (migration 0077: at most one live preparación per ítem). Rollback:
+consistency fixes R18-R23 (migration 0077: at most one live preparación per ítem). **2026-10-18:** a línea
+whose partidas differ in purity asks which lot(s) to weigh from (R25, DT decision; no schema change). Rollback:
 `docs/rollbacks/reserva-stock-preparacion.md` (R12: `docs/rollbacks/stock-unidad-base-droga.md`).
 
 ## Goal
@@ -20,9 +21,11 @@ made **automatically over ALL eligible partidas of the droga**, in the existing
 consumption order: **abiertas first (oldest apertura first), then FEFO** (the
 first to expire is consumed first) -- `ordenarParaConsumo` /
 `proponerRepartoActivo`, INV-S13/S16/S19/S20. Not by ingreso date. Nobody picks
-partidas any more: not when reserving, not when recalculating, not on
-`/preparaciones/[id]`'s confirmation. The client never sends partida ids. Stock
-control stays in the stock module (no new panel).
+partidas -- not when reserving, not when recalculating, not on
+`/preparaciones/[id]`'s confirmation -- **except** for a línea whose eligible
+partidas declare different purities (R25): there the weight depends on the lot,
+so the user marks the lot(s). Stock control stays in the stock module (no new
+panel).
 
 Eligible = the same as `listPartidasElegiblesDroga`: a partida of the línea's
 droga with **available** balance (saldo físico − what OTHER INICIADA
@@ -78,6 +81,7 @@ former "Preparar", removed by R16) shows "Confirmación en curso", link to
 | R22 | **No etiqueta for a preparado no longer valid.** Generating, reading for print and the PDF route refuse a preparación whose SISTEMA asiento was dejado sin efecto (ANULADO, or it has a rectificativo -- the same "SIN_EFECTO" rule as the entregas' `estadoAsiento`) or whose receta is ANULADA, with a clear message; "Seleccionar etiquetas" lists such an ítem disabled with the reason. | `motivoEtiquetaNoImprimible` (`domain/etiqueta.ts`) over `getPreparacionParaEtiqueta` (`asientoSinEfecto`, `recetaEstado`); `generarEtiquetaEnTx`, `getEtiquetaParaImprimirQuery`; `getRecetaDeToma.etiquetaNoImprimible`. |
 | R23 | **Lock order** (every path, outermost first): ficha advisory lock (reserva only) → preparación(es) (id order) → receta → item_receta (reserva only) → partidas (one id-ordered statement per command; later statements only re-lock). Reserva: ficha → receta → item → partidas (it inserts, never locks, a preparación). Recalcular: preparación → partidas. Pérdida: preparación → receta → partidas. Imprimir etiquetas: preparaciones → receta → partidas. `/preparaciones/[id]` confirmation: preparación → receta → partidas (the receta lock moved BEFORE the partidas, 2026-10-15). Other writers: `editarReceta` receta → item_receta; `anularReceta`, `tomarReceta`, `cancelarToma` receta; `generarFichaTecnica` item_receta. No path takes them in another order, so none can deadlock with another. | The commands above. |
 | R24 | **The receta's estado is re-checked under its lock.** Reserving locks the receta BEFORE inserting the preparación and re-reads its estado: only PENDIENTE_PREPARACION / EN_PREPARACION (an ANULADA, PREPARADA or delivered receta is refused). A confirmation refuses a receta outside those estados too (it never writes an asiento for an ANULADA/terminal receta) instead of skipping the estado move. | `iniciarPreparacionEnTx`, `confirmarPreparacionEnTx`. |
+| R25 | **Different purities: the user chooses the lot** (DT decision, 2026-10-18). **Superseded in part by `docs/specs/pesada-real.md` (P1, 2026-10-19): every línea now lists its lots, pre-checked with the automatic plan's; the purity warning stays for this case.** When a non-manual línea's eligible partidas with balance declare different purities (`potencia_declarada`, NULL = 100 %), the automatic plan is not enough: the lab weighing from another bottle than the plan's would get the dose wrong. The reserva / recalcular / `/preparaciones/[id]` dialog then lists those partidas (abiertas first, then FEFO) with lote, vence, disponible and pureza as checkboxes, none checked (a recalculation pre-checks the current reserva's), and blocks the submit until one is checked. The split runs over the checked ones only, in the same order: one that covers the línea is enough; with several, the first is used up and the rest comes from the next; not enough -> faltante "en los lotes elegidos". The server applies `partidaIds` only for such a línea (ignored otherwise), leaves out a chosen partida no longer available and refuses when none is left ("elegí de qué lote se pesa"). INV-S15 desvío is compared with the proposal over every eligible partida, INV-S18 as always. "Recalcular reserva" and "Registrar pérdida"'s re-plan (R9) default to the reserva's own partidas for such a línea. Equal purities, or an enrase manual línea (never purity-corrected), keep the automatic plan. The toma card already shows "Pesar" per lot by purity (R21). | `requiereElegirPartida` (`domain/reparto-linea.ts`); `planificarConsumoEnTx` (`lineaEntradaInput.partidaIds`); `entradasDeReserva` (`recalcular-reserva-stock.ts`); `ElegirLotes` (`ui/confirmar-form.tsx`); `parseEntradas` (`ui/actions.ts`, field `partidas_<lineaId>`). |
 | R7 | Permisos: reservar and recalcular = `preparaciones.confirmar` (reservar also `preparaciones.iniciar`); liberar = `preparaciones.descartar`; "Imprimir etiquetas" = `preparaciones.confirmar` + `etiquetas.generar` (+ `etiquetas.imprimir` for the dialog / PDF). Each step audited in its own transaction (CREAR / MODIFICAR / DESCARTAR / CONFIRMAR on the preparación). | The commands. |
 
 ## Invariants preserved

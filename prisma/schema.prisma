@@ -1187,6 +1187,10 @@ model ReservaStock {
   cantidadManual          Decimal? @map("cantidad_manual") @db.Decimal
   /// INV-S18 motivo of the línea (repeated on every row of the línea).
   motivoAperturaAdicional String?  @map("motivo_apertura_adicional")
+  /// Migration 0088: non-manual líneas, the real weighed (physical) quantity in the línea's unit (repeated on every row of the línea).
+  cantidadReal            Decimal? @map("cantidad_real") @db.Decimal
+  /// Migration 0088: the DT who co-signed a cantidadReal outside the tolerance (repeated on every row of the línea).
+  pesadaAutorizadaPorId   String?  @map("pesada_autorizada_por_id") @db.Uuid
   reservadaPorId          String   @map("reservada_por_id") @db.Uuid
   reservadaEn             DateTime @default(now()) @map("reservada_en") @db.Timestamptz(6)
 

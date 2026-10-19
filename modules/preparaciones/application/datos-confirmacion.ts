@@ -29,7 +29,15 @@ import { requiereMotivoAperturaAdicional } from "../domain/apertura-adicional";
 import { repartirLinea } from "../domain/reparto-linea";
 import type { UnidadFormato } from "@/shared/format/cantidad";
 import { diasAlertaVencimientoEnTx } from "@/modules/stock/application/dias-alerta-vencimiento";
-import { getLineasParaPreparacion, listPartidasElegiblesDroga, listUnidadesFormato, jornadaActualTenant, existeCierreParaJornada } from "../infrastructure/preparacion-repository";
+import { listDtParaCoFirmaEnTx } from "@/modules/stock/application/list-dt-para-co-firma";
+import {
+  getLineasParaPreparacion,
+  getParametrosPesadaReal,
+  listPartidasElegiblesDroga,
+  listUnidadesFormato,
+  jornadaActualTenant,
+  existeCierreParaJornada,
+} from "../infrastructure/preparacion-repository";
 import type { LineaParaPantalla, PartidaElegible } from "../infrastructure/preparacion-repository";
 
 export interface LineaPantalla extends LineaParaPantalla {
@@ -54,6 +62,10 @@ export interface LineaPantalla extends LineaParaPantalla {
 export interface EntradaReservada {
   cantidadManual: string | null;
   motivoAperturaAdicional: string | null;
+  /** The partidas the reserva draws from (cantidad > 0): the form pre-checks them. */
+  partidaIds: string[];
+  /** Non-manual línea: the reserva's pesada real (línea unit), to prefill the field (docs/specs/pesada-real.md). */
+  cantidadReal: string | null;
 }
 
 export interface DatosConfirmacion {
@@ -66,6 +78,10 @@ export interface DatosConfirmacion {
   lineas: LineaPantalla[];
   /** The global unit catalog, so the form shows stock amounts in a readable unit (`shared/format/cantidad.ts`, display only). */
   unidades: UnidadFormato[];
+  /** Pesada real (docs/specs/pesada-real.md): `precision_balanza` (GRAMO) and `tolerancia_pesada_porcentaje`, to prefill and flag. */
+  pesada: { precisionBalanza: string; toleranciaPorcentaje: string };
+  /** The DTs vigentes who can co-sign a pesada real outside the tolerance. */
+  dts: { id: string; label: string }[];
 }
 
 export async function construirDatosConfirmacion(
@@ -117,5 +133,7 @@ export async function construirDatosConfirmacion(
     diasAlertaVencimiento: await diasAlertaVencimientoEnTx(tx, tenantId),
     lineas,
     unidades: await listUnidadesFormato(tx),
+    pesada: await getParametrosPesadaReal(tx, tenantId),
+    dts: (await listDtParaCoFirmaEnTx(tx, tenantId)).map((dt) => ({ id: dt.usuarioId, label: `${dt.nombre} ${dt.apellido}` })),
   };
 }

@@ -32,6 +32,7 @@ import { MESES_VENCIMIENTO_PREPARADO_MAX } from "@/modules/preparaciones/domain/
 export const PARAMETRO_CLAVES = [
   "precision_balanza",
   "exceso_pesada_porcentaje",
+  "tolerancia_pesada_porcentaje",
   "dias_alerta_vencimiento_partida",
   "plazo_firma_dias",
   "plazo_archivo_comun_anios",
@@ -87,6 +88,16 @@ function validarPrecisionBalanza(valorRaw: string): ValidacionParametro {
 
 /** `exceso_pesada_porcentaje` (docs/specs/ficha-tecnica.md R7): a percentage, 0-100 inclusive. */
 function validarExcesoPesadaPorcentaje(valorRaw: string): ValidacionParametro {
+  const valor = parseDecimalOrNull(valorRaw);
+  if (!valor) return { ok: false, error: "Debe ser un número válido." };
+  if (valor.lessThan(0) || valor.greaterThan(100)) {
+    return { ok: false, error: "Debe estar entre 0 y 100." };
+  }
+  return { ok: true, valor };
+}
+
+/** `tolerancia_pesada_porcentaje` (docs/specs/pesada-real.md): a percentage, 0-100 inclusive. */
+function validarToleranciaPesadaPorcentaje(valorRaw: string): ValidacionParametro {
   const valor = parseDecimalOrNull(valorRaw);
   if (!valor) return { ok: false, error: "Debe ser un número válido." };
   if (valor.lessThan(0) || valor.greaterThan(100)) {
@@ -187,6 +198,16 @@ export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = 
       "(docs/specs/ficha-tecnica.md, regla R7). Debe estar entre 0 y 100.",
     valorPorDefecto: "0",
     validar: validarExcesoPesadaPorcentaje,
+  },
+  tolerancia_pesada_porcentaje: {
+    clave: "tolerancia_pesada_porcentaje",
+    tipo: "NUMERO",
+    label: "Tolerancia de pesada",
+    descripcion:
+      "Desvío máximo, en porcentaje, entre la pesada real y la esperada de cada línea no manual (nunca menor que una " +
+      "división de la balanza). Fuera de él se pide la co-firma del Director Técnico (docs/specs/pesada-real.md). Debe estar entre 0 y 100.",
+    valorPorDefecto: "5",
+    validar: validarToleranciaPesadaPorcentaje,
   },
   dias_alerta_vencimiento_partida: {
     clave: "dias_alerta_vencimiento_partida",

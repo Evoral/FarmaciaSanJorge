@@ -200,6 +200,7 @@ async function main(): Promise<void> {
        VALUES
          ($1, 'precision_balanza', 'NUMERO', '0.001', 'Precision de la balanza para redondeo de linea_pesaje (GRAMO) -- docs/specs/ficha-tecnica.md R8'),
          ($1, 'exceso_pesada_porcentaje', 'NUMERO', '0', 'Porcentaje de exceso de pesada aplicado a lineas no manuales -- docs/specs/ficha-tecnica.md R7'),
+         ($1, 'tolerancia_pesada_porcentaje', 'NUMERO', '5', 'Desvio maximo, en porcentaje, entre la pesada real y la esperada; fuera de el se pide la co-firma del Director Tecnico -- docs/specs/pesada-real.md'),
          ($1, 'dias_alerta_vencimiento_partida', 'NUMERO', '30', 'Dias de anticipacion para la alerta de partidas por vencer -- DP-14, FASE 5 punto 5.7'),
          ($1, 'plazo_firma_dias', 'NUMERO', '0', 'Dias corridos de gracia, despues del dia siguiente a la jornada, para firmar el cierre diario en termino (0 = solo el dia siguiente) -- DP-18'),
          ($1, 'plazo_archivo_comun_anios', 'NUMERO', '2', 'Anios de conservacion en archivo fisico para lotes sin recetas controladas -- DP-26 PARCIAL, FASE 12 punto 12.1'),

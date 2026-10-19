@@ -48,7 +48,7 @@ import { registrarAjusteEnTx } from "@/modules/stock/application/registrar-ajust
 import { verificarCoFirmaDtEnTx } from "@/modules/stock/application/verificar-co-firma-dt";
 import { MOTIVOS_PERDIDA, type MotivoPerdida } from "../domain/perdida";
 import { candidatosAutomaticosEnTx, partidaIdsDeCandidatos, planificarConsumoEnTx } from "./confirmar-preparacion";
-import { entradasDeReserva } from "./recalcular-reserva-stock";
+import { autorizacionesDeReserva, entradasDeReserva } from "./recalcular-reserva-stock";
 import { reservasDelPlan } from "./reservar-stock-preparacion";
 import {
   deleteReservasDePreparacion,
@@ -142,11 +142,12 @@ const registrarPerdidaInternalCommand = defineCommand({
 
     // 4. Re-plan automatically against the new balances, over the candidates locked in step 1.
     let reservaAlcanza = true;
+    const entradas = entradasDeReserva(reservas);
     try {
       const plan = await planificarConsumoEnTx(tx, session.tenantId, {
         preparacionId: input.preparacionId,
         fichaTecnicaId: preparacion.fichaTecnicaId,
-        seleccion: { modo: "automatica", entradas: entradasDeReserva(reservas), candidatos },
+        seleccion: { modo: "automatica", entradas, candidatos, autorizacionesPorLinea: autorizacionesDeReserva(reservas, entradas) },
         jornada,
       });
       await deleteReservasDePreparacion(tx, session.tenantId, input.preparacionId);

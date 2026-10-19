@@ -45,6 +45,8 @@ export function lineasDesdeReservas(reservas: readonly ReservaDePreparacion[]): 
       partidaIds: [reserva.partidaId],
       cantidadManual: reserva.cantidadManual ? dec(reserva.cantidadManual) : undefined,
       motivoAperturaAdicional: reserva.motivoAperturaAdicional ?? undefined,
+      cantidadReal: reserva.cantidadReal ? dec(reserva.cantidadReal) : undefined,
+      pesadaAutorizadaPorId: reserva.pesadaAutorizadaPorId ?? undefined,
     });
   }
   return [...porLinea.values()];

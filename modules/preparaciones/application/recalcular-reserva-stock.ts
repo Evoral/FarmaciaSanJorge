@@ -26,8 +26,17 @@ import { DomainError, NotFoundError } from "@/shared/errors";
 import { dec } from "@/shared/decimal";
 import { uuid } from "@/shared/validation";
 import { evaluarFichaDeItemEnTx } from "@/modules/elaboracion/application/estado-ficha";
-import { comoErrorDeDominio, lineaEntradaInput, planificarConsumoEnTx, type LineaEntrada, type LineaEntradaInput } from "./confirmar-preparacion";
-import { reservasDelPlan, resumenDelPlan } from "./reservar-stock-preparacion";
+import {
+  comoErrorDeDominio,
+  lineaEntradaInput,
+  pesadaAutorizadaPorIdInput,
+  planificarConsumoEnTx,
+  type CoFirmaPesadaInput,
+  type LineaEntrada,
+  type LineaEntradaInput,
+} from "./confirmar-preparacion";
+import { pesadasDelPlan, reservasDelPlan, resumenDelPlan } from "./reservar-stock-preparacion";
+import { autorizacionDePesadaReal } from "./co-firma-pesada-real";
 import {
   deleteReservasDePreparacion,
   getPreparacionParaAccion,
@@ -42,22 +51,29 @@ const recalcularReservaStockInput = z.object({
   preparacionId: uuid,
   /** Only what changes; a línea not sent keeps the current reserva's enrase quantity and motivo. */
   lineas: z.array(lineaEntradaInput).default([]),
+  pesadaAutorizadaPorId: pesadaAutorizadaPorIdInput,
 });
 
-export interface RecalcularReservaStockInput {
+export interface RecalcularReservaStockInput extends CoFirmaPesadaInput {
   preparacionId: string;
   lineas?: LineaEntradaInput[];
 }
 
-/** The current reserva's entradas (enrase quantity, motivo) per línea, overridden by what was sent. */
+/**
+ * The current reserva's entradas (enrase quantity, motivo and the partidas it draws from -- the R25 choice, applied by
+ * the planner only when the línea's candidates differ in purity) per línea, overridden by what was sent.
+ */
 export function entradasDeReserva(reservas: readonly ReservaDePreparacion[], enviadas: readonly LineaEntrada[] = []): LineaEntrada[] {
   const porLinea = new Map<string, LineaEntrada>();
   for (const r of reservas) {
-    if (porLinea.has(r.lineaPesajeId) || (r.cantidadManual === null && r.motivoAperturaAdicional === null)) continue;
+    const actual = porLinea.get(r.lineaPesajeId);
+    const partidaIds = dec(r.cantidad).greaterThan(0) ? [...(actual?.partidaIds ?? []), r.partidaId] : actual?.partidaIds;
     porLinea.set(r.lineaPesajeId, {
       lineaPesajeId: r.lineaPesajeId,
-      cantidadManual: r.cantidadManual ? dec(r.cantidadManual) : undefined,
-      motivoAperturaAdicional: r.motivoAperturaAdicional ?? undefined,
+      cantidadManual: actual?.cantidadManual ?? (r.cantidadManual ? dec(r.cantidadManual) : undefined),
+      motivoAperturaAdicional: actual?.motivoAperturaAdicional ?? r.motivoAperturaAdicional ?? undefined,
+      partidaIds,
+      cantidadReal: actual?.cantidadReal ?? (r.cantidadReal ? dec(r.cantidadReal) : undefined),
     });
   }
   for (const e of enviadas) {
@@ -66,9 +82,25 @@ export function entradasDeReserva(reservas: readonly ReservaDePreparacion[], env
       lineaPesajeId: e.lineaPesajeId,
       cantidadManual: e.cantidadManual ?? actual?.cantidadManual,
       motivoAperturaAdicional: e.motivoAperturaAdicional ?? actual?.motivoAperturaAdicional,
+      partidaIds: e.partidaIds && e.partidaIds.length > 0 ? e.partidaIds : actual?.partidaIds,
+      cantidadReal: e.cantidadReal ?? actual?.cantidadReal,
     });
   }
   return [...porLinea.values()];
+}
+
+/**
+ * The reserva's stored DT co-firmas (docs/specs/pesada-real.md) that still hold: a línea keeps its co-firma only while
+ * its pesada real is the one the DT authorized. A new pesada outside the tolerance needs a new co-firma.
+ */
+export function autorizacionesDeReserva(reservas: readonly ReservaDePreparacion[], entradas: readonly LineaEntrada[]): Map<string, string> {
+  const autorizaciones = new Map<string, string>();
+  for (const r of reservas) {
+    if (!r.pesadaAutorizadaPorId || !r.cantidadReal) continue;
+    const real = entradas.find((e) => e.lineaPesajeId === r.lineaPesajeId)?.cantidadReal;
+    if (real && dec(real).equals(dec(r.cantidadReal))) autorizaciones.set(r.lineaPesajeId, r.pesadaAutorizadaPorId);
+  }
+  return autorizaciones;
 }
 
 export const recalcularReservaStockCommand = defineCommand({
@@ -100,10 +132,11 @@ export const recalcularReservaStockCommand = defineCommand({
       }
 
       const jornada = await jornadaActualTenant(tx, session.tenantId);
+      const entradas = entradasDeReserva(anteriores, input.lineas);
       const plan = await planificarConsumoEnTx(tx, session.tenantId, {
         preparacionId: input.preparacionId,
         fichaTecnicaId: preparacion.fichaTecnicaId,
-        seleccion: { modo: "automatica", entradas: entradasDeReserva(anteriores, input.lineas) },
+        seleccion: { modo: "automatica", entradas, pesadaAutorizadaPorId: input.pesadaAutorizadaPorId, autorizacionesPorLinea: autorizacionesDeReserva(anteriores, entradas) },
         jornada,
       });
 
@@ -119,7 +152,7 @@ export const recalcularReservaStockCommand = defineCommand({
               .filter((r) => r.cantidad !== "0")
               .map((r) => ({ lineaPesajeId: r.lineaPesajeId, partidaId: r.partidaId, cantidad: r.cantidad })),
           },
-          valorNuevo: { reservaStock: resumenDelPlan(plan) },
+          valorNuevo: { reservaStock: resumenDelPlan(plan), ...pesadasDelPlan(plan) },
         },
       };
     } catch (e) {
@@ -129,5 +162,7 @@ export const recalcularReservaStockCommand = defineCommand({
 });
 
 export async function recalcularReservaStock(input: RecalcularReservaStockInput): Promise<{ id: string }> {
-  return recalcularReservaStockCommand.execute(input);
+  const { dtUsuarioId, dtPassword, ...resto } = input;
+  const pesadaAutorizadaPorId = await autorizacionDePesadaReal({ dtUsuarioId, dtPassword });
+  return recalcularReservaStockCommand.execute({ ...resto, pesadaAutorizadaPorId });
 }

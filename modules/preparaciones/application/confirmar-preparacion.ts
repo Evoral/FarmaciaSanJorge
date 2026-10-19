@@ -106,7 +106,8 @@ import { dec, Decimal } from "@/shared/decimal";
 import { convertirCantidad, mismaMagnitud } from "@/shared/decimal/convertir-unidad";
 import { estaVencida } from "@/modules/stock/domain/reparto";
 import { tieneCorreccion, type PartidaConPotencia } from "../domain/potencia";
-import { repartirLinea, type ParteDeReparto } from "../domain/reparto-linea";
+import { repartirLinea, repartirPesadaReal, requiereElegirPartida, type ParteDeReparto } from "../domain/reparto-linea";
+import { evaluarPesada, precisionDeLinea } from "../domain/pesada-real";
 import { ESTADOS_RECETA_EN_LABORATORIO } from "../domain/toma";
 import {
   validarCantidadManual,
@@ -139,23 +140,30 @@ import {
   getUltimaFichaDeItem,
   deleteReservasDePreparacion,
   listReservasDePreparacion,
+  getParametrosPesadaReal,
+  insertPesadaReal,
   listItemIdsDeReceta,
   listPreparacionesVivasDeItems,
   getItemPrescriptoDePreparacion,
 } from "../infrastructure/preparacion-repository";
 import type { LineaParaPantalla, PartidaFresca, RecetaContextoAsiento } from "../infrastructure/preparacion-repository";
 import { registrarAsientoRecetaEnTx } from "./registrar-asiento-receta";
+import { autorizacionDePesadaReal } from "./co-firma-pesada-real";
 
 /**
- * What a user may type for a línea (2026-10-15: the partidas are never chosen by the client, R1): the real quantity of
- * an enrase manual línea and, only when INV-S18 asks for it, the motivo de apertura adicional. A línea with nothing to
- * type is simply not sent.
+ * What a user may type for a línea (2026-10-15: the partidas are chosen by the system, R1): the real quantity of an
+ * enrase manual línea, only when INV-S18 asks for it the motivo de apertura adicional and, only when the droga's
+ * partidas differ in purity (R25), the partidas the línea is weighed from. A línea with nothing to type is not sent.
  */
 export const lineaEntradaInput = z.object({
   lineaPesajeId: uuid,
   /** Required (and validated > 0) ONLY for esEnraseManual lines -- the DB is what says whether a línea is manual, never client input. In the línea's unit. */
   cantidadManual: decimalString.optional(),
   motivoAperturaAdicional: nonEmptyString.optional(),
+  /** The partidas chosen to weigh from (docs/specs/pesada-real.md; the form pre-checks the automatic plan's). Required when the línea's candidates differ in purity (R25). */
+  partidaIds: z.array(uuid).optional(),
+  /** Non-manual líneas: the real weighed (physical) quantity, in the línea's unit (docs/specs/pesada-real.md). Ignored for an enrase manual línea. */
+  cantidadReal: decimalString.optional(),
 });
 
 /** The parsed entrada (`cantidadManual` already a `Decimal`). */
@@ -165,14 +173,30 @@ export interface LineaEntradaInput {
   lineaPesajeId: string;
   cantidadManual?: string;
   motivoAperturaAdicional?: string;
+  partidaIds?: string[];
+  cantidadReal?: string;
+}
+
+/**
+ * The DT co-firma of a pesada real outside the tolerance (docs/specs/pesada-real.md). Set ONLY by the public wrappers
+ * (`confirmarPreparacion`, `reservarStockPreparacion`, `recalcularReservaStock`) from `autorizacionDePesadaReal`'s
+ * password check -- never from client input. The DB re-checks it is a DT vigente (migration 0088).
+ */
+export const pesadaAutorizadaPorIdInput = uuid.optional();
+
+/** What the reserva / confirmation form sends for a pesada real outside the tolerance (verified, never stored as typed). */
+export interface CoFirmaPesadaInput {
+  dtUsuarioId?: string;
+  dtPassword?: string;
 }
 
 const confirmarPreparacionInput = z.object({
   preparacionId: uuid,
   lineas: z.array(lineaEntradaInput).default([]),
+  pesadaAutorizadaPorId: pesadaAutorizadaPorIdInput,
 });
 
-export interface ConfirmarPreparacionInput {
+export interface ConfirmarPreparacionInput extends CoFirmaPesadaInput {
   preparacionId: string;
   lineas?: LineaEntradaInput[];
 }
@@ -183,6 +207,10 @@ export interface LineaReservada {
   partidaIds: string[];
   cantidadManual?: Decimal;
   motivoAperturaAdicional?: string;
+  /** Non-manual línea weighed for real: physical, línea unit (docs/specs/pesada-real.md). */
+  cantidadReal?: Decimal;
+  /** The DT who co-signed `cantidadReal` outside the tolerance. */
+  pesadaAutorizadaPorId?: string;
 }
 
 /** The candidates of the automatic plan, read before locking: the ficha's líneas and, per droga, its eligible (available, not expired) partidas. */
@@ -198,7 +226,15 @@ export interface CandidatosAutomaticos {
  *   - "reservada": the partidas a reserva holds ("Imprimir etiquetas"), re-split against fresh balances.
  */
 export type SeleccionDePartidas =
-  | { modo: "automatica"; entradas: readonly LineaEntrada[]; candidatos?: CandidatosAutomaticos }
+  | {
+      modo: "automatica";
+      entradas: readonly LineaEntrada[];
+      candidatos?: CandidatosAutomaticos;
+      /** A fresh DT co-firma (docs/specs/pesada-real.md), for every línea whose pesada real is outside the tolerance. */
+      pesadaAutorizadaPorId?: string;
+      /** Per línea, a reserva's stored co-firma still valid for the same pesada real (`autorizacionesDeReserva`). */
+      autorizacionesPorLinea?: ReadonlyMap<string, string>;
+    }
   | { modo: "reservada"; lineas: readonly LineaReservada[] };
 
 /** What `confirmarPreparacion` returns: the preparación and its receta's asiento; `fechaVencimiento` is the `YYYY-MM-DD` snapshot written on the preparación. */
@@ -280,7 +316,7 @@ export const confirmarPreparacionCommand = defineCommand({
 
     const item = await confirmarPreparacionEnTx(tx, session, {
       preparacionId: input.preparacionId,
-      seleccion: { modo: "automatica", entradas: input.lineas },
+      seleccion: { modo: "automatica", entradas: input.lineas, pesadaAutorizadaPorId: input.pesadaAutorizadaPorId },
     });
     const asiento = await registrarAsientoRecetaEnTx(tx, session, {
       contexto: item.contexto,
@@ -376,7 +412,20 @@ export async function confirmarPreparacionEnTx(
       jornada,
     });
 
-    for (const { linea, split: reparto, totalFisico, esDesvio } of plan) {
+    for (const { linea, split: reparto, totalFisico, esDesvio, pesada } of plan) {
+      if (pesada) {
+        await insertPesadaReal(tx, {
+          tenantId: session.tenantId,
+          preparacionId: input.preparacionId,
+          lineaPesajeId: linea.id,
+          cantidadEsperada: pesada.esperada.toString(),
+          cantidadReal: pesada.real.toString(),
+          margen: pesada.margen.toString(),
+          autorizadoPorId: pesada.autorizadoPorId,
+          registradoPorId: session.usuario.id,
+        });
+      }
+
       const droga = await getDrogaTipoControl(tx, session.tenantId, linea.drogaId);
       const fechaActivacionContralor = await getFechaActivacionContralor(tx, session.tenantId);
       const contralorActivo = droga !== null && droga.tipoControl !== "NINGUNO" && fechaActivacionContralor !== null;
@@ -504,10 +553,21 @@ export interface LineaPlanificada {
   split: readonly ParteDeReparto[];
   /** What the split weighs in total (physical), converted back to the LÍNEA's unit: what the libro's detalle records. */
   totalFisico: Decimal;
-  /** INV-S15: the partidas drawn from differ from the system's own proposal (always `false` for the automatic plan). */
+  /** INV-S15: the partidas drawn from differ from the system's own proposal (`false` for the automatic plan unless the user chose the lots, R25). */
   esDesvio: boolean;
   /** The partidas drawn from, as read after the lock. */
   partidas: readonly PartidaFresca[];
+  /** A non-manual línea weighed for real (docs/specs/pesada-real.md): what `fsj.pesada_real` records. Línea unit. */
+  pesada: PesadaPlanificada | null;
+}
+
+export interface PesadaPlanificada {
+  /** The physical (purity-corrected) weight the plan expected. */
+  esperada: Decimal;
+  real: Decimal;
+  margen: Decimal;
+  /** Only when the pesada is outside the tolerance. */
+  autorizadoPorId: string | null;
 }
 
 /**
@@ -563,6 +623,8 @@ export async function planificarConsumoEnTx(
   // ------------------------------------------------------------------
   let lineasFicha: LineaParaPantalla[];
   const elegidoPorLinea = new Map<string, LineaReservada>();
+  // R25: the partidas the user chose for a línea (automatic plan only), applied below if its candidates differ in purity.
+  const elegidasPorUsuario = new Map<string, readonly string[]>();
   if (seleccion.modo === "automatica") {
     const candidatos =
       seleccion.candidatos ?? (await candidatosAutomaticosEnTx(tx, tenantId, { preparacionId: input.preparacionId, fichaTecnicaId: input.fichaTecnicaId, jornada }));
@@ -579,7 +641,10 @@ export async function planificarConsumoEnTx(
         partidaIds: [...(candidatos.partidaIdsPorDroga.get(linea.drogaId) ?? [])],
         cantidadManual: entrada?.cantidadManual,
         motivoAperturaAdicional: entrada?.motivoAperturaAdicional,
+        cantidadReal: entrada?.cantidadReal,
+        pesadaAutorizadaPorId: seleccion.pesadaAutorizadaPorId ?? seleccion.autorizacionesPorLinea?.get(linea.id),
       });
+      if (entrada?.partidaIds && entrada.partidaIds.length > 0) elegidasPorUsuario.set(linea.id, entrada.partidaIds);
     }
   } else {
     lineasFicha = await getLineasParaPreparacion(tx, tenantId, input.fichaTecnicaId);
@@ -603,6 +668,7 @@ export async function planificarConsumoEnTx(
 
   const partidasFrescas = await getPartidasFrescas(tx, tenantId, todosLosPartidaIds, input.preparacionId);
   const partidaPorId = new Map(partidasFrescas.map((p) => [p.id, p]));
+  const parametrosPesada = await getParametrosPesadaReal(tx, tenantId);
 
   // ------------------------------------------------------------------
   // 5. Per línea (ficha order): resolve cantidad, compute split, validate.
@@ -659,27 +725,79 @@ export async function planificarConsumoEnTx(
     }
     const usables = frescas.filter((p) => !estaVencida(p.fechaVencimiento, jornada));
 
+    // The lots the user checked (docs/specs/pesada-real.md: the form pre-checks the automatic plan's): the split runs
+    // over those only (still abiertas first, then FEFO). Required when the candidates differ in purity (R25): the
+    // weight depends on the lot. A reserva already holds the chosen ones.
+    let aRepartir: readonly PartidaFresca[] = usables;
+    let porEleccion = false;
+    const elegidasLinea = automatica ? elegidasPorUsuario.get(linea.id) : undefined;
+    if (automatica && (elegidasLinea || requiereElegirPartida(usables, linea.esEnraseManual))) {
+      // A chosen partida no longer available (emptied, expired, reserved by another) is left out, never replaced.
+      const elegidas = elegidasLinea ?? [];
+      aRepartir = usables.filter((p) => elegidas.includes(p.id));
+      if (aRepartir.length === 0) {
+        throw new DomainError(`La línea ${linea.orden + 1} (${linea.drogaNombre}) tiene partidas de distinta pureza: elegí de qué lote se pesa.`, {
+          fields: [`partidas_${linea.id}`],
+        });
+      }
+      porEleccion = true;
+    }
+
     // Non-manual: split in ACTIVE terms (purity per partida). Manual enrase: the typed quantity is physical, no
     // purity correction (potenciaAplicada stays NULL) -- domain/reparto-linea.ts.
-    const resultado = repartirLinea(usables, cantidadRequeridaStock, jornada, linea.esEnraseManual);
+    const resultado = repartirLinea(aRepartir, cantidadRequeridaStock, jornada, linea.esEnraseManual);
     if (!resultado.ok) {
       // The shortfall comes in the droga's unidad base: shown in the línea's unit, the one the user reads.
-      const texto = `Stock insuficiente de ${linea.drogaNombre}${automatica ? "" : " en las partidas reservadas"}: faltan ${aUnidadLinea(resultado.faltante).toFixed()} ${linea.unidadSimbolo}${
+      const texto = `Stock insuficiente de ${linea.drogaNombre}${automatica ? (porEleccion ? " en los lotes elegidos" : "") : " en las partidas reservadas"}: faltan ${aUnidadLinea(resultado.faltante).toFixed()} ${linea.unidadSimbolo}${
         !linea.esEnraseManual && usables.some((p) => tieneCorreccion(p.potenciaDeclarada)) ? " de principio activo" : ""
       }.`;
       if (!automatica) throw new DomainError(texto);
       // The automatic plan reports every línea short of stock at once.
       sinStock.push(texto);
       if (linea.esEnraseManual) camposSinStock.push(`cantidadManual_${linea.id}`);
+      if (porEleccion) camposSinStock.push(`partidas_${linea.id}`);
       continue;
     }
-    const usadas = resultado.partes.map((parte) => parte.partidaId);
+
+    // Pesada real (docs/specs/pesada-real.md): the línea consumes what the balance showed, drained over the same
+    // partidas; the plan above is what was EXPECTED. Outside the tolerance the DT must have co-signed.
+    let split = resultado.partes;
+    let pesada: PesadaPlanificada | null = null;
+    if (!linea.esEnraseManual && elegido.cantidadReal) {
+      const real = dec(elegido.cantidadReal);
+      if (!real.isFinite() || !real.greaterThan(0)) {
+        throw new DomainError(`La línea ${linea.orden + 1} (${linea.drogaNombre}): la pesada real debe ser mayor que 0.`, { fields: [`cantidadReal_${linea.id}`] });
+      }
+      const esperada = aUnidadLinea(resultado.totalFisico);
+      const evaluacion = evaluarPesada(real, esperada, parametrosPesada.toleranciaPorcentaje, precisionDeLinea(linea.unidad, parametrosPesada.precisionBalanza));
+      if (evaluacion.fueraDeTolerancia && !elegido.pesadaAutorizadaPorId) {
+        throw new DomainError(
+          `La pesada real de ${linea.drogaNombre} (${real.toFixed()} ${linea.unidadSimbolo}) se desvía ${evaluacion.desvioPorcentaje.toFixed()} % de la esperada (${esperada.toFixed()} ${linea.unidadSimbolo}): supera la tolerancia de ±${dec(parametrosPesada.toleranciaPorcentaje).toFixed()} %. Volvé a pesar o pedí la co-firma del Director Técnico.`,
+          { fields: [`cantidadReal_${linea.id}`] },
+        );
+      }
+      const repartoReal = repartirPesadaReal(aRepartir, convertirCantidad(real, linea.unidad, linea.unidadStock), jornada);
+      if (!repartoReal.ok) {
+        const texto = `Stock insuficiente de ${linea.drogaNombre} para la pesada real: faltan ${aUnidadLinea(repartoReal.faltante).toFixed()} ${linea.unidadSimbolo}.`;
+        if (!automatica) throw new DomainError(texto);
+        sinStock.push(texto);
+        camposSinStock.push(`cantidadReal_${linea.id}`);
+        continue;
+      }
+      split = repartoReal.partes;
+      pesada = { esperada, real, margen: evaluacion.margen, autorizadoPorId: evaluacion.fueraDeTolerancia ? elegido.pesadaAutorizadaPorId! : null };
+    }
+    const usadas = split.map((parte) => parte.partidaId);
 
     // INV-S15 deviation: the system's OWN proposal over ALL eligible partidas for this droga. The automatic plan IS
-    // that proposal (its candidates are every eligible partida, fresh); a reserva is compared with the current one.
+    // that proposal (its candidates are every eligible partida, fresh) unless the user chose the lots (R25); a reserva
+    // is compared with the current one.
     let esDesvio = false;
     let todasElegibles: readonly PartidaConPotencia[] = usables;
-    if (!automatica) {
+    if (porEleccion) {
+      const propuestaCanonica = repartirLinea(usables, cantidadRequeridaStock, jornada, linea.esEnraseManual);
+      esDesvio = !propuestaCanonica.ok || esDesvioPropuesta(propuestaCanonica.partes.map((p) => p.partidaId), usadas);
+    } else if (!automatica) {
       const elegibles = await listPartidasElegiblesDroga(tx, tenantId, linea.drogaId, input.preparacionId);
       const propuestaCanonica = repartirLinea(elegibles, cantidadRequeridaStock, jornada, linea.esEnraseManual);
       esDesvio = !propuestaCanonica.ok || esDesvioPropuesta(propuestaCanonica.partes.map((p) => p.partidaId), usadas);
@@ -703,13 +821,19 @@ export async function planificarConsumoEnTx(
 
     plan.push({
       linea,
-      elegido: { ...elegido, partidaIds: automatica ? usadas : elegido.partidaIds },
+      elegido: {
+        ...elegido,
+        partidaIds: automatica ? usadas : elegido.partidaIds,
+        cantidadReal: pesada?.real,
+        pesadaAutorizadaPorId: pesada?.autorizadoPorId ?? undefined,
+      },
       cantidadRequerida,
       cantidadRequeridaStock,
-      split: resultado.partes,
-      totalFisico: aUnidadLinea(resultado.totalFisico),
+      split,
+      totalFisico: pesada ? pesada.real : aUnidadLinea(resultado.totalFisico),
       esDesvio,
       partidas: frescas.filter((p) => usadas.includes(p.id)),
+      pesada,
     });
   }
   if (sinStock.length > 0) throw new DomainError(sinStock.join(" "), camposSinStock.length > 0 ? { fields: camposSinStock } : undefined);
@@ -717,5 +841,7 @@ export async function planificarConsumoEnTx(
 }
 
 export async function confirmarPreparacion(input: ConfirmarPreparacionInput): Promise<ConfirmacionResultado> {
-  return confirmarPreparacionCommand.execute(input);
+  const { dtUsuarioId, dtPassword, ...resto } = input;
+  const pesadaAutorizadaPorId = await autorizacionDePesadaReal({ dtUsuarioId, dtPassword });
+  return confirmarPreparacionCommand.execute({ ...resto, pesadaAutorizadaPorId });
 }

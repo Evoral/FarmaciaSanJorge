@@ -29,16 +29,26 @@ import { AUTH_POLICY } from "@/shared/auth/policy";
 import { authorize } from "@/shared/auth/authorize";
 import { uuid } from "@/shared/validation";
 import { iniciarPreparacionEnTx } from "./iniciar-preparacion";
-import { comoErrorDeDominio, lineaEntradaInput, planificarConsumoEnTx, type LineaEntradaInput, type LineaPlanificada } from "./confirmar-preparacion";
+import {
+  comoErrorDeDominio,
+  lineaEntradaInput,
+  pesadaAutorizadaPorIdInput,
+  planificarConsumoEnTx,
+  type CoFirmaPesadaInput,
+  type LineaEntradaInput,
+  type LineaPlanificada,
+} from "./confirmar-preparacion";
+import { autorizacionDePesadaReal } from "./co-firma-pesada-real";
 import { insertReservas, jornadaActualTenant, type ReservaDePreparacion } from "../infrastructure/preparacion-repository";
 
 const reservarStockPreparacionInput = z.object({
   fichaTecnicaId: uuid,
   /** Only the líneas with something typed (enrase manual quantity, INV-S18 motivo); the partidas are the system's. */
   lineas: z.array(lineaEntradaInput).default([]),
+  pesadaAutorizadaPorId: pesadaAutorizadaPorIdInput,
 });
 
-export interface ReservarStockPreparacionInput {
+export interface ReservarStockPreparacionInput extends CoFirmaPesadaInput {
   fichaTecnicaId: string;
   lineas?: LineaEntradaInput[];
 }
@@ -59,7 +69,7 @@ export const reservarStockPreparacionCommand = defineCommand({
       const plan = await planificarConsumoEnTx(tx, session.tenantId, {
         preparacionId: iniciada.id,
         fichaTecnicaId: input.fichaTecnicaId,
-        seleccion: { modo: "automatica", entradas: input.lineas },
+        seleccion: { modo: "automatica", entradas: input.lineas, pesadaAutorizadaPorId: input.pesadaAutorizadaPorId },
         jornada,
       });
 
@@ -75,6 +85,7 @@ export const reservarStockPreparacionCommand = defineCommand({
             ...(iniciada.tomadaPor ? { tomadaPor: iniciada.tomadaPor } : {}),
             estado: "INICIADA",
             reservaStock: resumenDelPlan(plan),
+            ...pesadasDelPlan(plan),
           },
         },
       };
@@ -98,8 +109,23 @@ export function reservasDelPlan(plan: readonly LineaPlanificada[]): ReservaDePre
       cantidad: (split.find((parte) => parte.partidaId === partidaId)?.cantidad ?? 0).toString(),
       cantidadManual: linea.esEnraseManual && elegido.cantidadManual ? elegido.cantidadManual.toString() : null,
       motivoAperturaAdicional: elegido.motivoAperturaAdicional ?? null,
+      cantidadReal: !linea.esEnraseManual && elegido.cantidadReal ? elegido.cantidadReal.toString() : null,
+      pesadaAutorizadaPorId: elegido.pesadaAutorizadaPorId ?? null,
     })),
   );
+}
+
+/**
+ * What the audit records of the pesadas reales (docs/specs/pesada-real.md): per línea weighed for real, the expected
+ * and real weight (línea unit) and, outside the tolerance, the DT who co-signed. Omitted when there is none.
+ */
+export function pesadasDelPlan(plan: readonly LineaPlanificada[]): { pesadasReales?: { droga: string; esperada: string; real: string; autorizadoPorId: string | null }[] } {
+  const pesadas = plan.flatMap(({ linea, pesada }) =>
+    pesada
+      ? [{ droga: linea.drogaNombre, esperada: `${pesada.esperada.toString()} ${linea.unidadSimbolo}`, real: `${pesada.real.toString()} ${linea.unidadSimbolo}`, autorizadoPorId: pesada.autorizadoPorId }]
+      : [],
+  );
+  return pesadas.length > 0 ? { pesadasReales: pesadas } : {};
 }
 
 /** What the audit records of a reserva: droga, lote and quantity of every partida the split draws from (a stock quantity: the droga's unidad base). */
@@ -114,5 +140,7 @@ export function resumenDelPlan(plan: readonly LineaPlanificada[]): { droga: stri
 }
 
 export async function reservarStockPreparacion(input: ReservarStockPreparacionInput): Promise<{ id: string }> {
-  return reservarStockPreparacionCommand.execute(input);
+  const { dtUsuarioId, dtPassword, ...resto } = input;
+  const pesadaAutorizadaPorId = await autorizacionDePesadaReal({ dtUsuarioId, dtPassword });
+  return reservarStockPreparacionCommand.execute({ ...resto, pesadaAutorizadaPorId });
 }

@@ -87,31 +87,45 @@ export async function descartarPreparacionAction(_prevState: PreparacionActionSt
 
 /**
  * Parses the reserva / confirmation form's per-línea entradas back into `LineaEntradaInput[]` (2026-10-15: the
- * partidas are the system's, docs/specs/reserva-stock-preparacion.md R1 -- the form sends none). Field names (built
- * by `modules/preparaciones/ui/confirmar-form.tsx`):
+ * partidas are the system's, docs/specs/reserva-stock-preparacion.md R1 -- except a línea whose partidas differ in
+ * purity, R25). Field names (built by `modules/preparaciones/ui/confirmar-form.tsx`):
  *   - `lineaIds` (repeated, one per línea with something to type)
  *   - `cantidadManual_<lineaId>` (manual-enrase lines only)
  *   - `motivoApertura_<lineaId>` (optional, INV-S18)
- * A one-click form sends none of them.
+ *   - `partidas_<lineaId>` (repeated checkbox: the lots the línea is weighed from, docs/specs/pesada-real.md)
+ *   - `cantidadReal_<lineaId>` (non-manual lines: the real weighing, docs/specs/pesada-real.md)
+ * A one-click form sends none of them. `dtUsuarioId` / `dtPassword` (the DT co-firma of a pesada real outside the
+ * tolerance) are read by `coFirmaPesada`.
  */
 function parseEntradas(formData: FormData): LineaEntradaInput[] {
   return formData.getAll("lineaIds").map((valor) => {
     const lineaPesajeId = String(valor);
     const cantidadManualRaw = formData.get(`cantidadManual_${lineaPesajeId}`);
     const motivoRaw = formData.get(`motivoApertura_${lineaPesajeId}`);
+    const partidaIds = formData.getAll(`partidas_${lineaPesajeId}`).map(String);
+    const cantidadRealRaw = formData.get(`cantidadReal_${lineaPesajeId}`);
     return {
       lineaPesajeId,
       cantidadManual: cantidadManualRaw ? String(cantidadManualRaw) : undefined,
       motivoAperturaAdicional: motivoRaw && String(motivoRaw).trim().length > 0 ? String(motivoRaw) : undefined,
+      partidaIds: partidaIds.length > 0 ? partidaIds : undefined,
+      cantidadReal: cantidadRealRaw && String(cantidadRealRaw).trim().length > 0 ? String(cantidadRealRaw).trim() : undefined,
     };
   });
+}
+
+/** The DT co-firma block of the reserva / confirmation form: only rendered when a pesada real is outside the tolerance. */
+function coFirmaPesada(formData: FormData): { dtUsuarioId?: string; dtPassword?: string } {
+  const dtUsuarioId = String(formData.get("dtUsuarioId") ?? "");
+  const dtPassword = String(formData.get("dtPassword") ?? "");
+  return { dtUsuarioId: dtUsuarioId || undefined, dtPassword: dtPassword || undefined };
 }
 
 export async function confirmarPreparacionAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
   return conOperador(formData, async (): Promise<PreparacionActionState> => {
     const preparacionId = String(formData.get("preparacionId") ?? "");
     try {
-      const resultado = await confirmarPreparacion({ preparacionId, lineas: parseEntradas(formData) });
+      const resultado = await confirmarPreparacion({ preparacionId, lineas: parseEntradas(formData), ...coFirmaPesada(formData) });
       revalidatePath(`/preparaciones/${preparacionId}`);
       revalidatePath("/preparaciones");
       // The receta moved to EN_PREPARACION with its first ítem, or PREPARADA with its last.
@@ -159,7 +173,7 @@ export async function guardarExcipienteAction(_prevState: PreparacionActionState
 export async function reservarStockAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
   return conOperador(formData, async (): Promise<PreparacionActionState> => {
     try {
-      const resultado = await reservarStockPreparacion({ fichaTecnicaId: String(formData.get("fichaTecnicaId") ?? ""), lineas: parseEntradas(formData) });
+      const resultado = await reservarStockPreparacion({ fichaTecnicaId: String(formData.get("fichaTecnicaId") ?? ""), lineas: parseEntradas(formData), ...coFirmaPesada(formData) });
       revalidatePath("/preparaciones");
       // The receta is no longer editable while the reserva lives (its estado does not change).
       revalidatePath("/recetas");
@@ -189,7 +203,7 @@ export async function getRecalculoDeReservaAction(preparacionId: string): Promis
 export async function recalcularReservaStockAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
   return conOperador(formData, async (): Promise<PreparacionActionState> => {
     try {
-      const resultado = await recalcularReservaStock({ preparacionId: String(formData.get("preparacionId") ?? ""), lineas: parseEntradas(formData) });
+      const resultado = await recalcularReservaStock({ preparacionId: String(formData.get("preparacionId") ?? ""), lineas: parseEntradas(formData), ...coFirmaPesada(formData) });
       revalidatePath("/preparaciones");
       return { status: "success", message: "Reserva recalculada.", id: resultado.id };
     } catch (error) {

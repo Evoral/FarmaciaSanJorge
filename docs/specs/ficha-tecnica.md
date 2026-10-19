@@ -105,7 +105,7 @@ CSP        cantidad suficiente para completar cantidadTotal ("vaselina csp 30")
 - Todo cálculo usa numeric/decimal de precisión fija. Prohibido float.
 - Las líneas generadas se persisten congeladas. Un cambio posterior en Droga o UnidadMedida no las recalcula.
 - Una línea con `esEnraseManual = true` recibe su cantidad real al confirmar la preparación. Esa cantidad se guarda en el `MovimientoStock` (EGRESO_PREPARACION) y en `DetalleAsiento`, no en `LineaPesaje`.
-- Para líneas no manuales, el egreso de stock es exactamente `cantidadAPesar`. Para líneas manuales, es la cantidad registrada por el farmacéutico.
+- Para líneas no manuales, el egreso de stock es exactamente `cantidadAPesar`, salvo que se registre la pesada real (`docs/specs/pesada-real.md`, migración 0088): entonces es la pesada real. Para líneas manuales, es la cantidad registrada por el farmacéutico.
 - `orden` de salida sigue la regla de orden de los componentes (cantidad, CS, CSP; luego nombre de droga).
 
 **Versiones, vigencia y preparación** (2026-10-15, `docs/specs/reserva-stock-preparacion.md` R18-R20):

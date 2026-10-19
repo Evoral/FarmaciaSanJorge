@@ -13,9 +13,9 @@
  * Every quantity here is in the droga's unidad base (a stock quantity): the caller converts the línea's requirement
  * before and the faltante back after (`shared/decimal/convertir-unidad.ts`).
  */
-import { Decimal } from "@/shared/decimal";
+import { Decimal, dec } from "@/shared/decimal";
 import { proponerReparto } from "@/modules/stock/domain/reparto";
-import { proponerRepartoActivo, type PartidaConPotencia } from "./potencia";
+import { potenciaEfectiva, proponerRepartoActivo, type PartidaConPotencia } from "./potencia";
 
 export interface ParteDeReparto {
   partidaId: string;
@@ -48,4 +48,34 @@ export function repartirLinea(
     partes: resultado.lineas.map((l) => ({ partidaId: l.partidaId, cantidad: l.cantidad, potenciaAplicada: l.potenciaAplicada })),
     totalFisico: resultado.totalFisico,
   };
+}
+
+/**
+ * A non-manual línea weighed for real (docs/specs/pesada-real.md): `realStock` is the PHYSICAL weight (droga's unidad
+ * base) the balance showed, drained over `partidas` in the same order (abiertas first, then FEFO). Each part keeps its
+ * partida's purity (`potenciaAplicada`) so the libro and the contralor know the active it carried.
+ */
+export function repartirPesadaReal(partidas: readonly PartidaConPotencia[], realStock: Decimal, jornada: string): RepartoLinea {
+  const resultado = proponerReparto(partidas, realStock, jornada);
+  if (!resultado.ok) return { ok: false, faltante: resultado.faltante };
+  const potenciaDe = new Map(partidas.map((p) => [p.id, potenciaEfectiva(p.potenciaDeclarada)]));
+  return {
+    ok: true,
+    partes: resultado.lineas.map((l) => ({ partidaId: l.partidaId, cantidad: l.cantidad, potenciaAplicada: potenciaDe.get(l.partidaId) ?? null })),
+    totalFisico: realStock,
+  };
+}
+
+/**
+ * `true` when the user must choose which partida(s) a línea is weighed from (docs/specs/reserva-stock-preparacion.md
+ * R25): a non-manual línea whose candidate partidas with balance declare DIFFERENT purities. The weight depends on the
+ * lot, so the lab weighing from another bottle than the plan's would get the dose wrong. Equal purities (or an enrase
+ * manual línea, never purity-corrected) keep the automatic plan.
+ */
+export function requiereElegirPartida(partidas: readonly PartidaConPotencia[], esEnraseManual: boolean): boolean {
+  if (esEnraseManual) return false;
+  const potencias = new Set(
+    partidas.filter((p) => dec(p.cantidadDisponible).greaterThan(0)).map((p) => potenciaEfectiva(p.potenciaDeclarada).toString()),
+  );
+  return potencias.size > 1;
 }

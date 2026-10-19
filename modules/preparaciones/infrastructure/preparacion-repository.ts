@@ -602,6 +602,10 @@ export interface ReservaDePreparacion {
   /** Enrase manual: the quantity the user typed, in the LÍNEA's unit (the form's), converted at planning. */
   cantidadManual: string | null;
   motivoAperturaAdicional: string | null;
+  /** Non-manual línea weighed for real (migration 0088): the physical quantity in the LÍNEA's unit. */
+  cantidadReal: string | null;
+  /** The DT who co-signed `cantidadReal` outside the tolerance (migration 0088). */
+  pesadaAutorizadaPorId: string | null;
 }
 
 export async function insertReservas(
@@ -617,6 +621,8 @@ export async function insertReservas(
       cantidad: r.cantidad,
       cantidadManual: r.cantidadManual,
       motivoAperturaAdicional: r.motivoAperturaAdicional,
+      cantidadReal: r.cantidadReal,
+      pesadaAutorizadaPorId: r.pesadaAutorizadaPorId,
       reservadaPorId: input.reservadaPorId,
     })),
   });
@@ -627,7 +633,7 @@ export async function listReservasDePreparacion(tx: Prisma.TransactionClient, te
   const rows = await tx.reservaStock.findMany({
     where: { tenantId, preparacionId },
     orderBy: [{ lineaPesajeId: "asc" }, { partidaId: "asc" }],
-    select: { lineaPesajeId: true, partidaId: true, cantidad: true, cantidadManual: true, motivoAperturaAdicional: true },
+    select: { lineaPesajeId: true, partidaId: true, cantidad: true, cantidadManual: true, motivoAperturaAdicional: true, cantidadReal: true, pesadaAutorizadaPorId: true },
   });
   return rows.map((r) => ({
     lineaPesajeId: r.lineaPesajeId,
@@ -635,7 +641,49 @@ export async function listReservasDePreparacion(tx: Prisma.TransactionClient, te
     cantidad: r.cantidad.toString(),
     cantidadManual: r.cantidadManual ? r.cantidadManual.toString() : null,
     motivoAperturaAdicional: r.motivoAperturaAdicional,
+    cantidadReal: r.cantidadReal ? r.cantidadReal.toString() : null,
+    pesadaAutorizadaPorId: r.pesadaAutorizadaPorId,
   }));
+}
+
+/**
+ * The weighing parameters of the pesada real (docs/specs/pesada-real.md): `precision_balanza` (GRAMO) and
+ * `tolerancia_pesada_porcentaje`, with the registry's defaults for a tenant without the row.
+ */
+export async function getParametrosPesadaReal(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+): Promise<{ precisionBalanza: string; toleranciaPorcentaje: string }> {
+  const rows = await tx.parametro.findMany({
+    where: { tenantId, clave: { in: ["precision_balanza", "tolerancia_pesada_porcentaje"] } },
+    select: { clave: true, valor: true },
+  });
+  const porClave = new Map(rows.map((r) => [r.clave, r.valor]));
+  return {
+    precisionBalanza: porClave.get("precision_balanza") ?? "0.001",
+    toleranciaPorcentaje: porClave.get("tolerancia_pesada_porcentaje") ?? "5",
+  };
+}
+
+/** One `fsj.pesada_real` row (migration 0088), written by the confirmation. Quantities in the línea's unit. */
+export async function insertPesadaReal(
+  tx: Prisma.TransactionClient,
+  input: {
+    tenantId: string;
+    preparacionId: string;
+    lineaPesajeId: string;
+    cantidadEsperada: string;
+    cantidadReal: string;
+    margen: string;
+    autorizadoPorId: string | null;
+    registradoPorId: string;
+  },
+): Promise<void> {
+  await tx.$executeRaw`
+    INSERT INTO fsj.pesada_real (tenant_id, preparacion_id, linea_pesaje_id, cantidad_esperada, cantidad_real, margen, autorizado_por_id, registrado_por_id)
+    VALUES (${input.tenantId}::uuid, ${input.preparacionId}::uuid, ${input.lineaPesajeId}::uuid, ${input.cantidadEsperada}::numeric,
+            ${input.cantidadReal}::numeric, ${input.margen}::numeric, ${input.autorizadoPorId}::uuid, ${input.registradoPorId}::uuid)
+  `;
 }
 
 /** Releases (or consumes) every reserva of the preparación. Returns how many rows went. */
