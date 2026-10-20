@@ -166,7 +166,8 @@ export type EstadoReceta =
   | "PREPARADA"
   | "ENVIADA_PEND_FIRMA"
   | "ENTREGADA"
-  | "ANULADA";
+  | "ANULADA"
+  | "RETIRO_VENCIDO";
 
 export const ESTADOS_RECETA = [
   "PENDIENTE_PREPARACION",
@@ -175,13 +176,29 @@ export const ESTADOS_RECETA = [
   "ENVIADA_PEND_FIRMA",
   "ENTREGADA",
   "ANULADA",
+  "RETIRO_VENCIDO",
 ] as const satisfies readonly EstadoReceta[];
 
 export const ESTADOS_TERMINALES: ReadonlySet<EstadoReceta> = new Set(["ENTREGADA", "ANULADA"]);
 
-/** INV-R08. Mirrors fsj.receta_validar_transicion_estado exactly (migration 0011, last redefined by 0061). */
+/**
+ * INV-R08. Mirrors fsj.receta_validar_transicion_estado (migration 0011, last redefined by 0095). RETIRO_VENCIDO is NOT
+ * terminal: it can be reactivated back to PREPARADA or annulled (docs/specs/retiro-vencido.md).
+ */
 export function esEstadoTerminal(estado: EstadoReceta): boolean {
   return ESTADOS_TERMINALES.has(estado);
+}
+
+/** Estados that are history for counters and queues: the terminal ones plus RETIRO_VENCIDO (nobody picked it up). */
+const ESTADOS_FUERA_DE_CURSO: ReadonlySet<EstadoReceta> = new Set(["ENTREGADA", "ANULADA", "RETIRO_VENCIDO"]);
+
+/**
+ * "En curso" / "activa": the receta still has work ahead, so it is not ENTREGADA, ANULADA nor RETIRO_VENCIDO. Different
+ * from `esEstadoTerminal` on purpose: a RETIRO_VENCIDO receta can still be reactivated or annulled, but it no longer
+ * counts as work in progress (inicio, trayectoria del paciente, /recetas summary).
+ */
+export function esRecetaEnCurso(estado: EstadoReceta): boolean {
+  return !ESTADOS_FUERA_DE_CURSO.has(estado);
 }
 
 /** INV-R08: ANULADA is reachable from any non-terminal state -- this is the only app-driven transition FASE 6 needs (6.5). */

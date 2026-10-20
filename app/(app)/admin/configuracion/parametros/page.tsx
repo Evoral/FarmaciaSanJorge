@@ -22,7 +22,7 @@ export default async function ParametrosPage() {
       <PageHeader
         breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Configuración" }, { label: "Parámetros" }]}
         title="Parámetros de la farmacia"
-        description="Estos parámetros afectan el cálculo de las líneas de pesaje de las fichas técnicas."
+        description="Valores propios de la farmacia: pesaje de las fichas técnicas, alertas y plazos de vencimiento, archivo y retiro de recetas preparadas."
       />
 
       <SectionTabs ariaLabel="Secciones de configuración" links={configuracionSections(session)} />

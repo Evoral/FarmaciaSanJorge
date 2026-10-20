@@ -105,6 +105,32 @@ describe("parametros-registry: meses_vencimiento_preparado", () => {
   });
 });
 
+describe("parametros-registry: dias_retiro_vencido", () => {
+  const def = PARAMETROS_REGISTRY.dias_retiro_vencido;
+
+  it("is registered with the default 30", () => {
+    expect(def.clave).toBe("dias_retiro_vencido");
+    expect(def.label).toBe("Días para el retiro");
+    expect(def.valorPorDefecto).toBe("30");
+    expect(def.validar(def.valorPorDefecto).ok).toBe(true);
+  });
+
+  it.each(["0", "1", "30", "365"])("accepts %s (0 disables the vencimiento)", (valor) => {
+    expect(def.validar(valor).ok).toBe(true);
+  });
+
+  it.each([
+    ["-1", "negative"],
+    ["366", "above the 365-day cap"],
+    ["999999999", "absurdly large"],
+    ["1.5", "not an integer"],
+    ["abc", "non-numeric"],
+    ["", "empty"],
+  ])("rejects %s (%s)", (valor) => {
+    expect(def.validar(valor).ok).toBe(false);
+  });
+});
+
 describe("editarDatosTenant zod schema: the 4 non-editable tenant fields are never accepted", () => {
   const baseInput = { razonSocial: "Farmacia Test" };
 

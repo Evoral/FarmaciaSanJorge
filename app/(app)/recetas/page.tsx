@@ -15,7 +15,7 @@ import { ClipboardList, Download, Plus, SearchX, X } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listRecetas, resumenRecetasPorEstado } from "@/modules/recetas/application/list-recetas";
-import { ESTADOS_RECETA, esEstadoTerminal, puedeAnular } from "@/modules/recetas/domain/receta";
+import { ESTADOS_RECETA, esRecetaEnCurso, puedeAnular } from "@/modules/recetas/domain/receta";
 import { getReceta } from "@/modules/recetas/application/get-receta";
 import { PARAM_AVISO, PARAM_REGISTRADA, decodificarAvisos } from "@/modules/recetas/domain/avisos-generacion";
 import { AvisosGeneracion } from "@/modules/recetas/ui/avisos-generacion";
@@ -135,9 +135,9 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
   const hasNarrowingFilters = FILTER_PARAMS.some((key) => key !== "estado" && params[key]);
   const activeDrawerFilters = (["ingresoDesde", "ingresoHasta", "desde", "hasta"] as const).filter((key) => params[key]).length + (pago ? 1 : 0);
 
-  // Status summary: global counts per estado; terminal estados are history, the rest is work in progress.
+  // Status summary: global counts per estado; terminal estados and RETIRO_VENCIDO are history, the rest is work in progress.
   const totalRegistradas = resumen.reduce((sum, r) => sum + r.cantidad, 0);
-  const enCurso = resumen.filter((r) => !esEstadoTerminal(r.estado)).reduce((sum, r) => sum + r.cantidad, 0);
+  const enCurso = resumen.filter((r) => esRecetaEnCurso(r.estado)).reduce((sum, r) => sum + r.cantidad, 0);
 
   const chips: { key: FilterParam; label: string; value: string }[] = [];
   if (estadoValido) chips.push({ key: "estado", label: "Estado", value: ESTADO_RECETA_LABELS[estadoValido] });
@@ -260,7 +260,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
           href: filtersHref({ estado: r.estado === estadoValido ? "" : r.estado }),
           active: r.estado === estadoValido,
           tone: estadoTone(r.estado),
-          secondary: esEstadoTerminal(r.estado),
+          secondary: !esRecetaEnCurso(r.estado),
         }))}
       />
 

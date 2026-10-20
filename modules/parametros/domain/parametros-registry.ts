@@ -28,6 +28,7 @@
  */
 import { Decimal } from "decimal.js";
 import { numeroONull } from "@/shared/decimal/numero-ingresado";
+import { DIAS_RETIRO_VENCIDO_DEFAULT, DIAS_RETIRO_VENCIDO_MAX } from "@/modules/entregas/domain/retiro-vencido";
 import { MESES_VENCIMIENTO_PREPARADO_MAX } from "@/modules/preparaciones/domain/vencimiento";
 
 export const PARAMETRO_CLAVES = [
@@ -39,6 +40,7 @@ export const PARAMETRO_CLAVES = [
   "plazo_archivo_comun_anios",
   "plazo_archivo_controladas_anios",
   "meses_vencimiento_preparado",
+  "dias_retiro_vencido",
 ] as const;
 
 export type ParametroClave = (typeof PARAMETRO_CLAVES)[number];
@@ -168,6 +170,20 @@ function validarMesesVencimientoPreparado(valorRaw: string): ValidacionParametro
   return { ok: true, valor };
 }
 
+/**
+ * `dias_retiro_vencido` (docs/specs/retiro-vencido.md RV1/RV10): days, counted from `receta.preparada_en`, after which
+ * a PREPARADA receta nobody picked up moves to RETIRO_VENCIDO. An integer between 0 (disabled) and
+ * `DIAS_RETIRO_VENCIDO_MAX`. Changing it recalculates nothing: the next daily run applies the new value.
+ */
+function validarDiasRetiroVencido(valorRaw: string): ValidacionParametro {
+  const valor = parseDecimalOrNull(valorRaw);
+  if (!valor) return { ok: false, error: "Debe ser un número válido." };
+  if (!valor.isInteger() || valor.lessThan(0) || valor.greaterThan(DIAS_RETIRO_VENCIDO_MAX)) {
+    return { ok: false, error: `Debe ser un número entero entre 0 y ${DIAS_RETIRO_VENCIDO_MAX}.` };
+  }
+  return { ok: true, valor };
+}
+
 export interface ParametroDefinicion {
   clave: ParametroClave;
   tipo: "NUMERO";
@@ -262,5 +278,17 @@ export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = 
       `Debe ser un entero entre 1 y ${MESES_VENCIMIENTO_PREPARADO_MAX}.`,
     valorPorDefecto: "3",
     validar: validarMesesVencimientoPreparado,
+  },
+  dias_retiro_vencido: {
+    clave: "dias_retiro_vencido",
+    tipo: "NUMERO",
+    label: "Días para el retiro",
+    descripcion:
+      "Cantidad de días, desde que la receta queda preparada, tras los cuales un preparado que nadie retiró pasa a " +
+      "\"Retiro vencido\" (se puede reactivar si la persona aparece). El cambio se aplica en la próxima corrida diaria: " +
+      "bajar el valor puede vencer varias recetas de golpe y subirlo no reactiva las ya vencidas. " +
+      `Debe ser un entero entre 0 y ${DIAS_RETIRO_VENCIDO_MAX}; 0 desactiva el vencimiento.`,
+    valorPorDefecto: String(DIAS_RETIRO_VENCIDO_DEFAULT),
+    validar: validarDiasRetiroVencido,
   },
 };

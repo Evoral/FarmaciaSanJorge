@@ -1,7 +1,8 @@
-/** `listEntregasPendientes` -- `/entregas` (FASE 11 point 11.1/11.2). Recetas PREPARADA (listas para entregar) and ENVIADA_PEND_FIRMA (esperando retorno). Gated on `entregas.registrar`, same list this permiso's action supports. */
+/** `listEntregasPendientes` -- `/entregas` (FASE 11 point 11.1/11.2). Recetas PREPARADA (listas para entregar) and ENVIADA_PEND_FIRMA (esperando retorno); RETIRO_VENCIDO only when filtered by it (docs/specs/retiro-vencido.md). Gated on `entregas.registrar`, same list this permiso's action supports. */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { can } from "@/shared/auth/authorize";
+import { ESTADOS_FILTRO_ENTREGAS } from "../domain/entrega";
 import { listEntregasPendientes as listRepo } from "../infrastructure/entrega-repository";
 import type { EntregaPendienteItem } from "../infrastructure/entrega-repository";
 
@@ -11,7 +12,7 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha en f
 
 const listEntregasPendientesInput = z.object({
   search: z.string().trim().max(200).optional(),
-  estado: z.enum(["PREPARADA", "ENVIADA_PEND_FIRMA"]).optional(),
+  estado: z.enum(ESTADOS_FILTRO_ENTREGAS).optional(),
   numeroInterno: z.string().trim().max(20).optional(),
   ingresoDesde: isoDate.optional(),
   ingresoHasta: isoDate.optional(),

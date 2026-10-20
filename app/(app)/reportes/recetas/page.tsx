@@ -6,7 +6,7 @@
 import Link from "next/link";
 import { ClipboardList, Download, SearchX, X } from "lucide-react";
 import { reporteRecetasPorEstado, listRecetasReporte } from "@/modules/recetas/application/reporte-recetas";
-import { ESTADOS_RECETA, esEstadoTerminal } from "@/modules/recetas/domain/receta";
+import { ESTADOS_RECETA, esRecetaEnCurso } from "@/modules/recetas/domain/receta";
 import { DateInput } from "@/shared/ui/date-input";
 import { FilterForm } from "@/shared/ui/filter-form";
 import { ESTADO_RECETA_LABELS } from "@/shared/labels/enum-labels";
@@ -96,7 +96,7 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
           href: filtersHref({ estado: c.estado === estado ? "" : c.estado }),
           active: c.estado === estado,
           tone: estadoTone(c.estado),
-          secondary: esEstadoTerminal(c.estado),
+          secondary: !esRecetaEnCurso(c.estado),
         }))}
       />
 

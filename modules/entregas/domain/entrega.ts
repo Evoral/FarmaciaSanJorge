@@ -27,6 +27,19 @@ export function puedeRegistrarEntrega(estado: EstadoReceta): boolean {
   return estado === "PREPARADA";
 }
 
+/**
+ * The estados `/entregas` can be filtered by. The default listing (no estado chosen) is PREPARADA + ENVIADA_PEND_FIRMA only:
+ * RETIRO_VENCIDO (docs/specs/retiro-vencido.md) shows up only when asked for, so the counter finds the receta when the
+ * person finally appears.
+ */
+export const ESTADOS_FILTRO_ENTREGAS = ["PREPARADA", "ENVIADA_PEND_FIRMA", "RETIRO_VENCIDO"] as const satisfies readonly EstadoReceta[];
+export type EstadoFiltroEntregas = (typeof ESTADOS_FILTRO_ENTREGAS)[number];
+
+/** Narrows free input (a URL param, a form field) to one of the filterable estados; anything else is `undefined`. */
+export function estadoFiltroEntregas(valor: string | null | undefined): EstadoFiltroEntregas | undefined {
+  return ESTADOS_FILTRO_ENTREGAS.find((estado) => estado === valor);
+}
+
 /** docs/specs/anular-entrega.md A1: an entrega registered by mistake is reverted from either estado it reaches. */
 export function puedeAnularEntrega(estado: EstadoReceta): boolean {
   return estado === "ENTREGADA" || estado === "ENVIADA_PEND_FIRMA";

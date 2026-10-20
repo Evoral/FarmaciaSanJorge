@@ -131,6 +131,12 @@ export function EntregaAcciones({
     );
   }
 
+  // docs/specs/retiro-vencido.md: the retiro expired. Nothing to register here; "Reactivar" is added to this branch by the
+  // reactivation slice.
+  if (estado === "RETIRO_VENCIDO") {
+    return <p className="text-sm text-zinc-600">El plazo de retiro venció.</p>;
+  }
+
   return (
     <p className="flex items-start gap-2 text-sm text-zinc-500">
       <Lock className="mt-0.5 size-4 flex-none" aria-hidden />

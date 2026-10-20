@@ -1,10 +1,11 @@
-/** `/entregas` (FASE 11 points 11.1/11.2): recetas PREPARADA (listas para entregar) y ENVIADA_PEND_FIRMA (esperando firma). Paciente search goes through `EntregasBuscador` (POST Server Action, DP-24 -- never a URL/query string); the other filters (Nº, estado, ingreso) identify no one, so they live in the URL through `FilterForm`, like `/recetas`. The page-number pagination carries no identifying data either, so a plain GET `?page=` is fine (same distinction `modules/pacientes/ui/pacientes-buscador.tsx` documents). */
+/** `/entregas` (FASE 11 points 11.1/11.2): recetas PREPARADA (listas para entregar) y ENVIADA_PEND_FIRMA (esperando firma); RETIRO_VENCIDO solo al filtrar por ese estado (docs/specs/retiro-vencido.md). Paciente search goes through `EntregasBuscador` (POST Server Action, DP-24 -- never a URL/query string); the other filters (Nº, estado, ingreso) identify no one, so they live in the URL through `FilterForm`, like `/recetas`. The page-number pagination carries no identifying data either, so a plain GET `?page=` is fine (same distinction `modules/pacientes/ui/pacientes-buscador.tsx` documents). */
 import Link from "next/link";
 import { X } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listEntregasPendientes } from "@/modules/entregas/application/list-entregas-pendientes";
 import { getFechaHoyEnvios } from "@/modules/entregas/application/imprimir-envios-pdf";
+import { ESTADOS_FILTRO_ENTREGAS, estadoFiltroEntregas } from "@/modules/entregas/domain/entrega";
 import { EntregasBuscador } from "@/modules/entregas/ui/entregas-buscador";
 import { ExportarEnviosDialog } from "@/modules/entregas/ui/exportar-envios-dialog";
 import { ESTADO_RECETA_LABELS } from "@/shared/labels/enum-labels";
@@ -16,9 +17,6 @@ import { Pagination } from "@/shared/ui/pagination";
 import { SearchField } from "@/shared/ui/search-field";
 
 const PAGE_SIZE = 20;
-
-const ESTADOS_ENTREGA = ["PREPARADA", "ENVIADA_PEND_FIRMA"] as const;
-type EstadoEntrega = (typeof ESTADOS_ENTREGA)[number];
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -45,7 +43,7 @@ export default async function EntregasPage({ searchParams }: EntregasPageProps) 
   const params = await searchParams;
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
-  const estado: EstadoEntrega | undefined = ESTADOS_ENTREGA.find((e) => e === params.estado);
+  const estado = estadoFiltroEntregas(params.estado);
   const numero = (params.numero ?? "").trim();
   const ingresoDesde = validIso(params.ingresoDesde);
   const ingresoHasta = validIso(params.ingresoHasta);
@@ -115,8 +113,8 @@ export default async function EntregasPage({ searchParams }: EntregasPageProps) 
                   Estado
                 </label>
                 <select id="estado" name="estado" defaultValue={estado ?? ""} className="input">
-                  <option value="">Todos</option>
-                  {ESTADOS_ENTREGA.map((valor) => (
+                  <option value="">Pendientes</option>
+                  {ESTADOS_FILTRO_ENTREGAS.map((valor) => (
                     <option key={valor} value={valor}>
                       {ESTADO_RECETA_LABELS[valor]}
                     </option>

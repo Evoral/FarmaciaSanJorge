@@ -16,6 +16,7 @@ import type { EstadoReceta } from "@/modules/recetas/domain/receta";
 import { rangoDeJornadas } from "@/shared/time/jornada";
 import { calcularItemsEntregables } from "../domain/entrega";
 import type { ModalidadEntrega, ItemParaEntrega } from "../domain/entrega";
+import { parseDiasRetiroVencido } from "../domain/retiro-vencido";
 
 // ============================================================================
 // jornada helper -- own copy (see module doc comment).
@@ -27,6 +28,20 @@ export async function jornadaActualTenant(tx: Prisma.TransactionClient, tenantId
   `;
   if (!rows[0]) throw new Error(`jornadaActualTenant: no row for tenant ${tenantId}`);
   return rows[0].jornada;
+}
+
+/**
+ * `dias_retiro_vencido` `parametro` row (docs/specs/retiro-vencido.md RV1), with the defensive fallback to the default (30)
+ * when the tenant has no usable row -- same discipline as `getMesesVencimientoPreparado`
+ * (modules/preparaciones/infrastructure/preparacion-repository.ts). 0 is a valid value (disabled). Reads `fsj.parametro`
+ * directly because modules cannot reach into another module's infrastructure layer (`modules/parametros`).
+ */
+export async function getDiasRetiroVencido(tx: Prisma.TransactionClient, tenantId: string): Promise<number> {
+  const row = await tx.parametro.findUnique({
+    where: { tenantId_clave: { tenantId, clave: "dias_retiro_vencido" } },
+    select: { valor: true },
+  });
+  return parseDiasRetiroVencido(row?.valor);
 }
 
 // ============================================================================
@@ -292,7 +307,7 @@ export interface EntregaPendienteItem {
 export interface ListEntregasPendientesFilter {
   tenantId: string;
   search?: string;
-  /** One of the listing's estados; omitted = both. */
+  /** One of the listing's estados (`ESTADOS_FILTRO_ENTREGAS`, RETIRO_VENCIDO included); omitted = PREPARADA + ENVIADA_PEND_FIRMA only. */
   estado?: EstadoReceta;
   numeroInterno?: string;
   ingresoDesde?: string; // YYYY-MM-DD, jornada in the tenant's time zone (inclusive)
@@ -336,6 +351,7 @@ async function preciosDeRecetas(tx: Prisma.TransactionClient, tenantId: string, 
   );
 }
 
+/** The default listing. RETIRO_VENCIDO is deliberately NOT here: it is listed only when filtered by explicitly. */
 const ESTADOS_LISTADO_ENTREGAS: EstadoReceta[] = ["PREPARADA", "ENVIADA_PEND_FIRMA"];
 
 /** Calendar days in the pharmacy's time zone, not UTC (fecha_ingreso is a timestamptz). */

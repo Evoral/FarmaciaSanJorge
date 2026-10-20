@@ -26,6 +26,7 @@ const TONE_BY_ESTADO: Record<string, BadgeTone> = {
   PENDIENTE_PREPARACION: "warn",
   EN_PREPARACION: "warn",
   ENVIADA_PEND_FIRMA: "warn",
+  RETIRO_VENCIDO: "warn",
   INICIADA: "warn",
   PENDIENTE: "warn",
   PENDIENTE_ACTIVACION: "warn",

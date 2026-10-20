@@ -55,6 +55,7 @@ export const ESTADO_RECETA_LABELS: Readonly<Record<EstadoReceta, string>> = {
   ENVIADA_PEND_FIRMA: "Enviada, esperando retorno",
   ENTREGADA: "Entregada",
   ANULADA: "Anulada",
+  RETIRO_VENCIDO: "Retiro vencido",
 };
 
 export const ESTADO_PREPARACION_LABELS: Readonly<Record<EstadoPreparacion, string>> = {

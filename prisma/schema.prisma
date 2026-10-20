@@ -181,6 +181,8 @@ enum EstadoReceta {
   ENVIADA_PEND_FIRMA
   ENTREGADA
   ANULADA
+  /// Migration 0094 (docs/specs/retiro-vencido.md): a PREPARADA receta nobody picked up within dias_retiro_vencido. Not terminal (reactivable back to PREPARADA); archivable.
+  RETIRO_VENCIDO
 
   @@map("estado_receta")
   @@schema("fsj")
@@ -902,7 +904,7 @@ model Receta {
   archivoAdjuntoUrl      String?      @map("archivo_adjunto_url")
   registradaPorId        String       @map("registrada_por_id") @db.Uuid
   motivoAnulacion        String?      @map("motivo_anulacion")
-  /// M15, deferred from migration 0011, added in migration 0016. INV-ARC-006: only settable once ENTREGADA/ANULADA; frozen once set.
+  /// M15, deferred from migration 0011, added in migration 0016. INV-ARC-006: only settable once ENTREGADA/ANULADA/RETIRO_VENCIDO (0095); frozen once set.
   loteArchivoId          String?      @map("lote_archivo_id") @db.Uuid
   /// Migration 0049 (docs/specs/importacion-receta-pdf.md). Digital platform code (e.g. RCTA); set together with nroRecetaEmisor. No UPDATE grant -- provenance, written once at import.
   emisor                 String?
@@ -923,8 +925,10 @@ model Receta {
   pagadaEn               DateTime?    @map("pagada_en") @db.Timestamptz(6)
   /// Migration 0071. The session's usuario who marked it paid (never client input); null while unpaid.
   pagadaPorId            String?      @map("pagada_por_id") @db.Uuid
+  /// Migration 0095 (docs/specs/retiro-vencido.md). When the receta last entered PREPARADA; written only by trg_receta_preparada_en (no UPDATE grant). The retiro vencido job counts dias_retiro_vencido from it.
+  preparadaEn            DateTime?    @map("preparada_en") @db.Timestamptz(6)
 
-  paciente          Paciente            @relation(fields: [pacienteId], references: [id])
+  paciente         Paciente            @relation(fields: [pacienteId], references: [id])
   medico            Medico              @relation(fields: [medicoId], references: [id])
   registradaPor     Usuario             @relation("RecetaRegistradaPor", fields: [registradaPorId], references: [id])
   tomadaPor         Usuario?            @relation("RecetaTomadaPor", fields: [tomadaPorId], references: [id])

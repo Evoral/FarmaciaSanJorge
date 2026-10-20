@@ -9,6 +9,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  ESTADOS_RECETA,
   ORIGENES_HABILITADOS,
   diagnosticoCodigoOpcional,
   duracionTratamientoDiasOpcional,
@@ -16,6 +17,7 @@ import {
   esEstadoEditable,
   esEstadoTerminal,
   esFechaPrescripcionValida,
+  esRecetaEnCurso,
   puedeAnular,
   validarItemsReceta,
   validarOrigenCargaManual,
@@ -167,11 +169,27 @@ describe("esEstadoTerminal / puedeAnular / esEstadoEditable -- INV-R08 mirror", 
     expect(esEstadoTerminal("EN_PREPARACION")).toBe(false);
     expect(esEstadoTerminal("PREPARADA")).toBe(false);
     expect(esEstadoTerminal("ENVIADA_PEND_FIRMA")).toBe(false);
+    expect(esEstadoTerminal("RETIRO_VENCIDO")).toBe(false); // reactivable back to PREPARADA
+  });
+
+  it("esRecetaEnCurso: only the estados with work ahead (not ENTREGADA, ANULADA nor RETIRO_VENCIDO)", () => {
+    for (const estado of ["PENDIENTE_PREPARACION", "EN_PREPARACION", "PREPARADA", "ENVIADA_PEND_FIRMA"] as const) {
+      expect(esRecetaEnCurso(estado), estado).toBe(true);
+    }
+    for (const estado of ["ENTREGADA", "ANULADA", "RETIRO_VENCIDO"] as const) {
+      expect(esRecetaEnCurso(estado), estado).toBe(false);
+    }
+  });
+
+  it("every estado is classified: en curso, or one of the three out-of-course estados", () => {
+    const fuera = ESTADOS_RECETA.filter((e) => !esRecetaEnCurso(e));
+    expect([...fuera].sort()).toEqual(["ANULADA", "ENTREGADA", "RETIRO_VENCIDO"]);
   });
 
   it("puedeAnular is the negation of esEstadoTerminal (ANULADA reachable from any non-terminal state)", () => {
     expect(puedeAnular("PENDIENTE_PREPARACION")).toBe(true);
     expect(puedeAnular("PREPARADA")).toBe(true);
+    expect(puedeAnular("RETIRO_VENCIDO")).toBe(true);
     expect(puedeAnular("ENTREGADA")).toBe(false);
     expect(puedeAnular("ANULADA")).toBe(false);
   });

@@ -52,6 +52,14 @@ describe("calcularResumen", () => {
     expect(r.anuladas).toBe(2);
   });
 
+  it("RETIRO_VENCIDO counts in the total but not as en curso, entregada nor anulada", () => {
+    const r = calcularResumen([...grupos, { estado: "RETIRO_VENCIDO", cantidad: 2, ultimaIngreso: dia("2026-08-01") }]);
+    expect(r.total).toBe(11);
+    expect(r.enCurso).toBe(3);
+    expect(r.entregadas).toBe(4);
+    expect(r.anuladas).toBe(2);
+  });
+
   it("ultima atencion is the max fechaIngreso over all groups", () => {
     expect(calcularResumen(grupos).ultimaAtencion).toEqual(dia("2026-09-30"));
   });
@@ -163,6 +171,8 @@ describe("journey steps", () => {
     expect(estadoPasoEntrega("ENTREGADA", { modalidad: "ENVIO", firmaRecibida: true })).toBe("COMPLETO");
     expect(estadoPasoEntrega("PREPARADA", null)).toBe("PENDIENTE");
     expect(estadoPasoEntrega("ANULADA", null)).toBe("NO_APLICA");
+    // A receta whose retiro expired can still be reactivated and delivered: the step stays pending, not "no aplica".
+    expect(estadoPasoEntrega("RETIRO_VENCIDO", null)).toBe("PENDIENTE");
   });
 
   it("archivo: COMPLETO with a lote, PENDIENTE otherwise (it no longer waits on anything but the lote)", () => {

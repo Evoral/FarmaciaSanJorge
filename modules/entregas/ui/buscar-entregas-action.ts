@@ -9,6 +9,7 @@
  */
 import { listEntregasPendientes } from "@/modules/entregas/application/list-entregas-pendientes";
 import type { EntregaPendienteItem } from "@/modules/entregas/application/list-entregas-pendientes";
+import { estadoFiltroEntregas } from "@/modules/entregas/domain/entrega";
 import { actionErrorMessage } from "@/shared/ui/action-error";
 
 const RESULTADOS_BUSQUEDA = 50;
@@ -26,7 +27,7 @@ export async function buscarEntregasAction(prevState: BuscarEntregasState, formD
   try {
     const result = await listEntregasPendientes({
       search: q.length > 0 ? q : undefined,
-      estado: estado === "PREPARADA" || estado === "ENVIADA_PEND_FIRMA" ? estado : undefined,
+      estado: estadoFiltroEntregas(estado),
       numeroInterno: campo("numero"),
       ingresoDesde: campo("ingresoDesde"),
       ingresoHasta: campo("ingresoHasta"),

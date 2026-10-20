@@ -30,6 +30,13 @@ const ETIQUETA_ACCION_ENVIADA = "Esperando retorno";
 
 const numberFormat = new Intl.NumberFormat("es-AR");
 
+/** The row button: "Entregar" for a PREPARADA receta, a look-only "Ver" once the retiro expired (docs/specs/retiro-vencido.md). */
+function etiquetaAccion(estado: EntregaPendienteItem["estado"]): string {
+  if (estado === "ENVIADA_PEND_FIRMA") return ETIQUETA_ACCION_ENVIADA;
+  if (estado === "RETIRO_VENCIDO") return "Ver";
+  return "Entregar";
+}
+
 function textoEsperandoFirma(dias: number): string {
   if (dias === 0) return "Esperando desde hoy";
   return `Esperando hace ${dias} ${dias === 1 ? "día" : "días"}`;
@@ -148,7 +155,11 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion, fil
         <div className="list-toolbar">
           <p role="status">
             <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(total)}</span>{" "}
-            {total === 1 ? "receta pendiente" : "recetas pendientes"} de entrega
+            {estado === "RETIRO_VENCIDO"
+              ? total === 1
+                ? "receta con retiro vencido"
+                : "recetas con retiro vencido"
+              : `${total === 1 ? "receta pendiente" : "recetas pendientes"} de entrega`}
             {busquedaAplicada ? <span className="text-zinc-500"> para “{busquedaAplicada}”</span> : null}
           </p>
           {isPending ? (
@@ -254,7 +265,7 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion, fil
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <Link href={`/entregas/${r.id}`} aria-label={`Gestionar la entrega de la receta Nº ${r.numeroInterno}`} className="btn btn-ghost btn-sm">
-                          <span className="hidden sm:inline">{r.estado === "ENVIADA_PEND_FIRMA" ? ETIQUETA_ACCION_ENVIADA : "Entregar"}</span>
+                          <span className="hidden sm:inline">{etiquetaAccion(r.estado)}</span>
                           <ChevronRight className="size-3.5" aria-hidden />
                         </Link>
                       </td>

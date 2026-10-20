@@ -20,7 +20,7 @@
  * "no data" and "not allowed" are never confused.
  */
 import { Decimal, dec } from "@/shared/decimal";
-import { esEstadoTerminal } from "@/modules/recetas/domain/receta";
+import { esRecetaEnCurso } from "@/modules/recetas/domain/receta";
 import type { EstadoReceta, FormaFarmaceutica, OrigenReceta } from "@/modules/recetas/domain/receta";
 import { etiquetaEstadoVisual, resolverEstadoVisualAsiento } from "@/modules/libro/domain/estado-visual";
 import type { EstadoLoteArchivoValue } from "@/modules/archivo/domain/lote-archivo";
@@ -327,7 +327,8 @@ export function calcularResumen(grupos: readonly GrupoRecetasCrudo[]): ResumenTr
     total += g.cantidad;
     if (g.estado === "ENTREGADA") entregadas += g.cantidad;
     if (g.estado === "ANULADA") anuladas += g.cantidad;
-    if (!esEstadoTerminal(g.estado)) enCurso += g.cantidad;
+    // RETIRO_VENCIDO is not terminal but nobody is working on it: it is not "en curso" (docs/specs/retiro-vencido.md).
+    if (esRecetaEnCurso(g.estado)) enCurso += g.cantidad;
     if (g.ultimaIngreso && (ultimaAtencion === null || g.ultimaIngreso > ultimaAtencion)) ultimaAtencion = g.ultimaIngreso;
   }
 
@@ -422,7 +423,11 @@ export function estadoPasoLibro(estadoReceta: EstadoReceta, items: readonly Pick
   return aplicarAnulada(estadoReceta, estado);
 }
 
-/** Entrega: COMPLETO once delivered (an ENVIO still waiting for the firma is EN_CURSO). */
+/**
+ * Entrega: COMPLETO once delivered (an ENVIO still waiting for the firma is EN_CURSO). A RETIRO_VENCIDO receta has no
+ * entrega yet and keeps the step PENDIENTE (not NO_APLICA: it can be reactivated and delivered; not SIN_EFECTO: nothing
+ * was undone); the receta's own estado badge says "Retiro vencido".
+ */
 export function estadoPasoEntrega(estadoReceta: EstadoReceta, entrega: Pick<EntregaTrayectoria, "modalidad" | "firmaRecibida"> | null): EstadoPaso {
   if (entrega) return entrega.modalidad === "ENVIO" && !entrega.firmaRecibida ? "EN_CURSO" : "COMPLETO";
   return aplicarAnulada(estadoReceta, "PENDIENTE");

@@ -30,7 +30,7 @@ import { alertasStock } from "@/modules/stock/application/alertas-stock";
 import { listRecetasEnCurso } from "@/modules/preparaciones/application/list-recetas-en-curso";
 import { listEntregasPendientes } from "@/modules/entregas/application/list-entregas-pendientes";
 import { resumenRecetasPorEstado } from "@/modules/recetas/application/list-recetas";
-import { esEstadoTerminal } from "@/modules/recetas/domain/receta";
+import { esRecetaEnCurso } from "@/modules/recetas/domain/receta";
 import { listUsuarios } from "@/modules/usuarios/application/list-usuarios";
 import { ESTADO_RECETA_LABELS } from "@/shared/labels/enum-labels";
 import { estadoTone } from "@/shared/ui/status-badge";
@@ -208,9 +208,9 @@ export default async function HomePage() {
     .filter((card) => card.tono === "neutral")
     .map((card) => ({ key: card.titulo, title: card.titulo, href: card.href, tone: "success", icon: card.icon, description: card.cuerpo }));
 
-  // Recetas overview: "en curso" = not ENTREGADA nor ANULADA (the terminal estados), same count as before.
+  // Recetas overview: "en curso" = not ENTREGADA, ANULADA nor RETIRO_VENCIDO (see esRecetaEnCurso).
   const totalRecetas = recetas ? recetas.reduce((acc, r) => acc + r.cantidad, 0) : 0;
-  const activas = recetas ? recetas.filter((r) => r.estado !== "ENTREGADA" && r.estado !== "ANULADA").reduce((acc, r) => acc + r.cantidad, 0) : 0;
+  const activas = recetas ? recetas.filter((r) => esRecetaEnCurso(r.estado)).reduce((acc, r) => acc + r.cantidad, 0) : 0;
   const numberFormat = new Intl.NumberFormat("es-AR");
 
   return (
@@ -270,7 +270,7 @@ export default async function HomePage() {
             headline={{
               value: activas,
               label: activas === 1 ? "receta activa" : "recetas activas",
-              caption: `No entregadas ni anuladas, de ${numberFormat.format(totalRecetas)} registradas`,
+              caption: `No entregadas, anuladas ni con retiro vencido, de ${numberFormat.format(totalRecetas)} registradas`,
             }}
             all={{ label: "Todas", count: totalRecetas, href: "/recetas", active: false }}
             items={recetas.map((r) => ({
@@ -280,7 +280,7 @@ export default async function HomePage() {
               href: `/recetas?estado=${r.estado}`,
               active: false,
               tone: estadoTone(r.estado),
-              secondary: esEstadoTerminal(r.estado),
+              secondary: !esRecetaEnCurso(r.estado),
             }))}
           />
         </section>

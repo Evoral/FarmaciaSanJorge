@@ -20,7 +20,7 @@ export interface StatusSummaryItem {
   href: string;
   active: boolean;
   tone: BadgeTone;
-  /** Terminal estado: shown after the work estados, de-emphasized and left out of the meter. */
+  /** History estado (terminal, or a receta whose retiro expired): shown after the work estados, de-emphasized and left out of the meter. */
   secondary?: boolean;
   /** Overrides the summary's `unit` for this tab (e.g. drogas vs partidas). */
   unit?: Unit;

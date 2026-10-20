@@ -326,6 +326,8 @@ export function calcularRecurrentes(items: readonly ItemRecurrenteCrudo[], zonaH
   // Items sorted by id so "the item of a receta" is deterministic when a receta repeats a fórmula.
   const ordenados = [...items].sort((a, b) => a.id.localeCompare(b.id));
   for (const item of ordenados) {
+    // Only ANULADA is skipped. A RETIRO_VENCIDO receta was prescribed and prepared, so it still counts as the paciente's
+    // treatment history for the recurrence interval, exactly like a PREPARADA one (docs/specs/retiro-vencido.md).
     if (item.receta.estado === "ANULADA" || item.paciente.fechaBaja !== null) continue;
     const clave = `${item.paciente.id}\u0000${firmaFormula(item)}`;
     const grupo = grupos.get(clave);
