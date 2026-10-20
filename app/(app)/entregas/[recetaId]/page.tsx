@@ -57,6 +57,10 @@ export default async function EntregaDetallePage({ params }: EntregaDetallePageP
             estado={receta.estado}
             pagada={entregaEstado.pagada}
             itemsExcluidos={entregaEstado.itemsExcluidos}
+            domicilioPaciente={entregaEstado.domicilioPaciente}
+            repartidor={entregaEstado.repartidor}
+            hayRepartidoresActivos={entregaEstado.hayRepartidoresActivos}
+            puedeGestionarRepartidores={can(session, "repartidores.gestionar")}
             puedeRegistrar={can(session, "entregas.registrar")}
             puedeConfirmarFirma={can(session, "entregas.registrar")}
           />

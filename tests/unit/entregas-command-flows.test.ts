@@ -8,6 +8,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
+import {
+  MENSAJE_ENVIO_SIN_DOMICILIO,
+  MENSAJE_REPARTIDOR_INACTIVO,
+  MENSAJE_REPARTIDOR_NO_ENCONTRADO,
+} from "@/modules/entregas/domain/entrega";
 
 vi.mock("@/shared/audit", () => ({
   record: vi.fn(async () => undefined),
@@ -29,6 +34,9 @@ vi.mock("@/shared/auth/session", () => ({
 const TENANT_ID = "11111111-1111-1111-1111-111111111111";
 const RECETA_ID = "22222222-2222-4222-a222-222222222222";
 const ENTREGA_ID = "33333333-3333-4333-a333-333333333333";
+const REPARTIDOR_ID = "44444444-4444-4444-a444-444444444444";
+const OTRO_REPARTIDOR_ID = "55555555-5555-4555-a555-555555555555";
+const DOMICILIO = "Calle Falsa 123, Ciudad Ejemplo";
 const USUARIO_ID = "u-1";
 
 function fakeSession(permiso: string): AuthenticatedSession {
@@ -72,6 +80,11 @@ const marcarRecetaPagadaMock = vi.fn(async (...args: unknown[]) => {
   callOrder.push("pago");
 });
 const getEntregaPorRecetaMock = vi.fn();
+const getRepartidorParaAsignarMock = vi.fn();
+const cambiarRepartidorDeEntregaMock = vi.fn(async (...args: unknown[]) => {
+  void args;
+  callOrder.push("cambiarRepartidor");
+});
 const confirmarFirmaYEntregarMock = vi.fn(async (...args: unknown[]) => {
   void args;
   callOrder.push("confirmarFirmaYEntregar");
@@ -85,11 +98,15 @@ vi.mock("@/modules/entregas/infrastructure/entrega-repository", () => ({
   insertEntrega: (...args: unknown[]) => insertEntregaMock(...args),
   marcarRecetaPagada: (...args: unknown[]) => marcarRecetaPagadaMock(...args),
   getEntregaPorReceta: (...args: unknown[]) => getEntregaPorRecetaMock(...args),
+  getRepartidorParaAsignar: (...args: unknown[]) => getRepartidorParaAsignarMock(...args),
+  cambiarRepartidorDeEntrega: (...args: unknown[]) => cambiarRepartidorDeEntregaMock(...args),
   confirmarFirmaYEntregar: (...args: unknown[]) => confirmarFirmaYEntregarMock(...args),
 }));
 
 const { registrarEntregaCommand } = await import("@/modules/entregas/application/registrar-entrega");
 const { confirmarFirmaRecibidaCommand } = await import("@/modules/entregas/application/confirmar-firma-recibida");
+const { cambiarRepartidorCommand, MENSAJE_MISMO_REPARTIDOR } = await import("@/modules/entregas/application/cambiar-repartidor");
+const { record: auditRecordMock } = await import("@/shared/audit");
 
 function resetMocks() {
   callOrder.length = 0;
@@ -100,7 +117,10 @@ function resetMocks() {
   insertEntregaMock.mockClear();
   marcarRecetaPagadaMock.mockClear();
   getEntregaPorRecetaMock.mockReset();
+  getRepartidorParaAsignarMock.mockReset().mockResolvedValue({ id: REPARTIDOR_ID, activo: true });
+  cambiarRepartidorDeEntregaMock.mockClear();
   confirmarFirmaYEntregarMock.mockClear();
+  vi.mocked(auditRecordMock).mockClear();
 }
 
 describe("registrarEntrega -- write order and PREPARADA -> destino", () => {
@@ -118,14 +138,87 @@ describe("registrarEntrega -- write order and PREPARADA -> destino", () => {
   });
 
   it("from PREPARADA + ENVIO: an unpaid receta can be sent -- insertEntrega before estado:ENVIADA_PEND_FIRMA", async () => {
-    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: false });
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: false, domicilioPaciente: DOMICILIO });
 
     await registrarEntregaCommand.execute(
-      { recetaId: RECETA_ID, modalidad: "ENVIO" },
+      { recetaId: RECETA_ID, modalidad: "ENVIO", repartidorId: REPARTIDOR_ID },
       { session: fakeSession("entregas.registrar") },
     );
 
     expect(callOrder).toEqual(["lock", "insertEntrega", "estado:ENVIADA_PEND_FIRMA"]);
+    expect(insertEntregaMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ modalidad: "ENVIO", repartidorId: REPARTIDOR_ID }));
+  });
+
+  it("ENVIO audits the repartidor in the CAMBIAR_ESTADO valorNuevo; RETIRO_PRESENCIAL carries none", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: true, domicilioPaciente: DOMICILIO });
+
+    // The command's own audit record is written by the pipeline (mocked `record`): its valorNuevo is what we assert.
+    const envio = await registrarEntregaCommand.execute(
+      { recetaId: RECETA_ID, modalidad: "ENVIO", repartidorId: REPARTIDOR_ID },
+      { session: fakeSession("entregas.registrar") },
+    );
+    expect(envio.estado).toBe("ENVIADA_PEND_FIRMA");
+    expect(vi.mocked(auditRecordMock)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ valorNuevo: expect.objectContaining({ modalidad: "ENVIO", repartidorId: REPARTIDOR_ID }) }),
+    );
+
+    vi.mocked(auditRecordMock).mockClear();
+    await registrarEntregaCommand.execute({ recetaId: RECETA_ID, modalidad: "RETIRO_PRESENCIAL" }, { session: fakeSession("entregas.registrar") });
+    const valorNuevo = vi.mocked(auditRecordMock).mock.calls[0]?.[1].valorNuevo as Record<string, unknown>;
+    expect(valorNuevo).not.toHaveProperty("repartidorId");
+  });
+
+  it("ENVIO without repartidor: rejected by the input schema on the repartidor field, nothing read or written (E1)", async () => {
+    const rejected = registrarEntregaCommand.execute({ recetaId: RECETA_ID, modalidad: "ENVIO" }, { session: fakeSession("entregas.registrar") });
+    await expect(rejected).rejects.toBeInstanceOf(ValidationError);
+    await expect(rejected).rejects.toMatchObject({ fields: ["repartidorId"] });
+    expect(lockRecetaMock).not.toHaveBeenCalled();
+    expect(insertEntregaMock).not.toHaveBeenCalled();
+  });
+
+  it("RETIRO_PRESENCIAL with a repartidor: rejected by the input schema on the repartidor field (E2)", async () => {
+    const rejected = registrarEntregaCommand.execute(
+      { recetaId: RECETA_ID, modalidad: "RETIRO_PRESENCIAL", pagada: true, repartidorId: REPARTIDOR_ID },
+      { session: fakeSession("entregas.registrar") },
+    );
+    await expect(rejected).rejects.toBeInstanceOf(ValidationError);
+    await expect(rejected).rejects.toMatchObject({ fields: ["repartidorId"] });
+    expect(insertEntregaMock).not.toHaveBeenCalled();
+  });
+
+  it("ENVIO of a receta without domicilio (null or blank): rejected before any write (E4)", async () => {
+    for (const domicilioPaciente of [null, "   "]) {
+      getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: true, domicilioPaciente });
+      await expect(
+        registrarEntregaCommand.execute(
+          { recetaId: RECETA_ID, modalidad: "ENVIO", repartidorId: REPARTIDOR_ID },
+          { session: fakeSession("entregas.registrar") },
+        ),
+      ).rejects.toThrow(MENSAJE_ENVIO_SIN_DOMICILIO);
+    }
+    expect(insertEntregaMock).not.toHaveBeenCalled();
+    expect(actualizarEstadoRecetaMock).not.toHaveBeenCalled();
+  });
+
+  it("ENVIO with an inactive repartidor: rejected before any write (E3)", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: true, domicilioPaciente: DOMICILIO });
+    getRepartidorParaAsignarMock.mockResolvedValue({ id: REPARTIDOR_ID, activo: false });
+
+    await expect(
+      registrarEntregaCommand.execute({ recetaId: RECETA_ID, modalidad: "ENVIO", repartidorId: REPARTIDOR_ID }, { session: fakeSession("entregas.registrar") }),
+    ).rejects.toThrow(MENSAJE_REPARTIDOR_INACTIVO);
+    expect(insertEntregaMock).not.toHaveBeenCalled();
+  });
+
+  it("ENVIO with a repartidor that does not exist in the tenant: rejected before any write (E3)", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: true, domicilioPaciente: DOMICILIO });
+    getRepartidorParaAsignarMock.mockResolvedValue(null);
+
+    await expect(
+      registrarEntregaCommand.execute({ recetaId: RECETA_ID, modalidad: "ENVIO", repartidorId: REPARTIDOR_ID }, { session: fakeSession("entregas.registrar") }),
+    ).rejects.toThrow(MENSAJE_REPARTIDOR_NO_ENCONTRADO);
+    expect(insertEntregaMock).not.toHaveBeenCalled();
   });
 
   it("RETIRO_PRESENCIAL marking the payment: the payment is written BEFORE estado:ENTREGADA (INV-R14)", async () => {
@@ -190,6 +283,110 @@ describe("registrarEntrega -- write order and PREPARADA -> destino", () => {
       ),
     ).rejects.toBeInstanceOf(NotFoundError);
 
+    expect(getRecetaParaEntregaMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("cambiarRepartidor -- only while the envío waits for its firma (E5)", () => {
+  beforeEach(resetMocks);
+
+  const envioConRepartidor = {
+    id: ENTREGA_ID,
+    modalidad: "ENVIO",
+    entregadaEn: new Date(),
+    firmaRecibida: false,
+    firmaRecibidaEn: null,
+    repartidorId: REPARTIDOR_ID,
+  };
+  const session = () => fakeSession("entregas.registrar");
+
+  it("changes the repartidor of an ENVIADA_PEND_FIRMA envío and audits the before/after on the entrega", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "ENVIADA_PEND_FIRMA", pagada: false, domicilioPaciente: DOMICILIO });
+    getEntregaPorRecetaMock.mockResolvedValue(envioConRepartidor);
+    getRepartidorParaAsignarMock.mockResolvedValue({ id: OTRO_REPARTIDOR_ID, activo: true });
+
+    await cambiarRepartidorCommand.execute({ recetaId: RECETA_ID, repartidorId: OTRO_REPARTIDOR_ID }, { session: session() });
+
+    expect(callOrder).toEqual(["lock", "cambiarRepartidor"]);
+    expect(cambiarRepartidorDeEntregaMock).toHaveBeenCalledWith({ __fakeTx: true, tenantId: TENANT_ID }, TENANT_ID, ENTREGA_ID, OTRO_REPARTIDOR_ID);
+    expect(vi.mocked(auditRecordMock)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        entidad: "entrega",
+        entidadId: ENTREGA_ID,
+        accion: "MODIFICAR",
+        valorAnterior: { repartidorId: REPARTIDOR_ID },
+        valorNuevo: { repartidorId: OTRO_REPARTIDOR_ID },
+      }),
+    );
+  });
+
+  it("assigns a repartidor to an envío registered before the feature (none yet, E7)", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "ENVIADA_PEND_FIRMA", pagada: false });
+    getEntregaPorRecetaMock.mockResolvedValue({ ...envioConRepartidor, repartidorId: null });
+
+    await cambiarRepartidorCommand.execute({ recetaId: RECETA_ID, repartidorId: REPARTIDOR_ID }, { session: session() });
+
+    expect(cambiarRepartidorDeEntregaMock).toHaveBeenCalledOnce();
+  });
+
+  it.each(["PREPARADA", "ENTREGADA", "ANULADA"])("rejects when the receta is %s (not waiting for its firma)", async (estado) => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado });
+
+    await expect(
+      cambiarRepartidorCommand.execute({ recetaId: RECETA_ID, repartidorId: OTRO_REPARTIDOR_ID }, { session: session() }),
+    ).rejects.toBeInstanceOf(DomainError);
+    expect(cambiarRepartidorDeEntregaMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects when the entrega is not an ENVIO", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "ENVIADA_PEND_FIRMA" });
+    getEntregaPorRecetaMock.mockResolvedValue({ ...envioConRepartidor, modalidad: "RETIRO_PRESENCIAL", repartidorId: null });
+
+    await expect(
+      cambiarRepartidorCommand.execute({ recetaId: RECETA_ID, repartidorId: OTRO_REPARTIDOR_ID }, { session: session() }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+    expect(cambiarRepartidorDeEntregaMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects the repartidor the envío already has (nothing to change, no audit row)", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "ENVIADA_PEND_FIRMA" });
+    getEntregaPorRecetaMock.mockResolvedValue(envioConRepartidor);
+
+    await expect(cambiarRepartidorCommand.execute({ recetaId: RECETA_ID, repartidorId: REPARTIDOR_ID }, { session: session() })).rejects.toThrow(
+      MENSAJE_MISMO_REPARTIDOR,
+    );
+    expect(cambiarRepartidorDeEntregaMock).not.toHaveBeenCalled();
+    expect(vi.mocked(auditRecordMock)).not.toHaveBeenCalled();
+  });
+
+  it("rejects an inactive repartidor (E3) and one that does not exist in the tenant", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "ENVIADA_PEND_FIRMA" });
+    getEntregaPorRecetaMock.mockResolvedValue(envioConRepartidor);
+
+    getRepartidorParaAsignarMock.mockResolvedValue({ id: OTRO_REPARTIDOR_ID, activo: false });
+    await expect(
+      cambiarRepartidorCommand.execute({ recetaId: RECETA_ID, repartidorId: OTRO_REPARTIDOR_ID }, { session: session() }),
+    ).rejects.toThrow(MENSAJE_REPARTIDOR_INACTIVO);
+
+    getRepartidorParaAsignarMock.mockResolvedValue(null);
+    await expect(
+      cambiarRepartidorCommand.execute({ recetaId: RECETA_ID, repartidorId: OTRO_REPARTIDOR_ID }, { session: session() }),
+    ).rejects.toThrow(MENSAJE_REPARTIDOR_NO_ENCONTRADO);
+    expect(cambiarRepartidorDeEntregaMock).not.toHaveBeenCalled();
+  });
+
+  it("requires a repartidor: removing it is not an option (E5)", async () => {
+    await expect(cambiarRepartidorCommand.execute({ recetaId: RECETA_ID } as never, { session: session() })).rejects.toBeInstanceOf(ValidationError);
+    expect(lockRecetaMock).not.toHaveBeenCalled();
+  });
+
+  it("404s when the locked target does not exist", async () => {
+    lockRecetaMock.mockImplementationOnce(async () => false);
+
+    await expect(
+      cambiarRepartidorCommand.execute({ recetaId: RECETA_ID, repartidorId: OTRO_REPARTIDOR_ID }, { session: session() }),
+    ).rejects.toBeInstanceOf(NotFoundError);
     expect(getRecetaParaEntregaMock).not.toHaveBeenCalled();
   });
 });

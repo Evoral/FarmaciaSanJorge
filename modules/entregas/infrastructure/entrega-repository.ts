@@ -46,10 +46,43 @@ export interface RecetaParaEntrega {
   estado: EstadoReceta;
   /** Migration 0071 -- whether the receta is already paid. ENTREGADA requires it (INV-R14, migration 0076); only an ENVIO may leave unpaid. */
   pagada: boolean;
+  /** `receta.domicilio_paciente` (migration 0070): where an ENVIO goes (docs/specs/envios-repartidores.md E4). */
+  domicilioPaciente: string | null;
 }
 
 export async function getRecetaParaEntrega(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<RecetaParaEntrega | null> {
-  return tx.receta.findUnique({ where: { id, tenantId }, select: { id: true, estado: true, pagada: true } }) as Promise<RecetaParaEntrega | null>;
+  return tx.receta.findUnique({
+    where: { id, tenantId },
+    select: { id: true, estado: true, pagada: true, domicilioPaciente: true },
+  }) as Promise<RecetaParaEntrega | null>;
+}
+
+// ============================================================================
+// Repartidores (own copy of the reads entregas needs: modules/entregas cannot reach into
+// modules/repartidores/infrastructure, see the module doc comment).
+// ============================================================================
+
+/** E3: the repartidor as the assignment rules need it; null when it does not exist in the tenant. */
+export async function getRepartidorParaAsignar(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<{ id: string; activo: boolean } | null> {
+  return tx.repartidor.findFirst({ where: { id, tenantId }, select: { id: true, activo: true } });
+}
+
+/** Whether the tenant has at least one active repartidor to offer for a new envío (the entrega modal's "No hay repartidores" notice). */
+export async function hayRepartidoresActivos(tx: Prisma.TransactionClient, tenantId: string): Promise<boolean> {
+  const row = await tx.repartidor.findFirst({ where: { tenantId, activo: true }, select: { id: true } });
+  return row !== null;
+}
+
+export interface RepartidorDeEntrega {
+  id: string;
+  nombre: string;
+  apellido: string;
+  telefono: string;
+}
+
+/** The repartidor currently assigned to an entrega (active or not: deactivating one keeps its envíos, E3). */
+export async function getRepartidorDeEntrega(tx: Prisma.TransactionClient, tenantId: string, repartidorId: string): Promise<RepartidorDeEntrega | null> {
+  return tx.repartidor.findFirst({ where: { id: repartidorId, tenantId }, select: { id: true, nombre: true, apellido: true, telefono: true } });
 }
 
 /** Raises the receta's payment flag (own copy of modules/recetas/infrastructure/receta-repository.ts's `setPagoDeReceta`, mark case only): `pagada_en` = now, `pagada_por_id` = the acting usuario, the three columns together (receta_pagada_check). */
@@ -76,6 +109,7 @@ export interface EntregaMovida {
 /**
  * Migration 0086: copies the receta's entrega to `fsj.entrega_anulada` (with motivo and who) and deletes it, in this
  * order -- the DELETE guard (INV-ENT-004) only lets the row go once its copy exists. null when the receta has no entrega.
+ * Migration 0093: the copy keeps the entrega's `repartidor_id` (docs/specs/envios-repartidores.md E6).
  */
 export async function moverEntregaAAnuladas(
   tx: Prisma.TransactionClient,
@@ -83,8 +117,8 @@ export async function moverEntregaAAnuladas(
 ): Promise<EntregaMovida | null> {
   const copiadas = await tx.$queryRaw<{ entrega_id: string; modalidad: ModalidadEntrega }[]>`
     INSERT INTO fsj.entrega_anulada
-      (tenant_id, entrega_id, receta_id, modalidad, entregada_por_id, entregada_en, firma_recibida, firma_recibida_en, fecha_archivo_receta, motivo, anulada_por_id)
-    SELECT e.tenant_id, e.id, e.receta_id, e.modalidad, e.entregada_por_id, e.entregada_en, e.firma_recibida, e.firma_recibida_en, e.fecha_archivo_receta,
+      (tenant_id, entrega_id, receta_id, modalidad, entregada_por_id, entregada_en, firma_recibida, firma_recibida_en, fecha_archivo_receta, repartidor_id, motivo, anulada_por_id)
+    SELECT e.tenant_id, e.id, e.receta_id, e.modalidad, e.entregada_por_id, e.entregada_en, e.firma_recibida, e.firma_recibida_en, e.fecha_archivo_receta, e.repartidor_id,
            ${input.motivo}, ${input.anuladaPorId}::uuid
     FROM fsj.entrega e
     WHERE e.tenant_id = ${input.tenantId}::uuid AND e.receta_id = ${input.recetaId}::uuid
@@ -132,14 +166,27 @@ export interface NuevaEntregaInput {
   recetaId: string;
   modalidad: ModalidadEntrega;
   entregadaPorId: string;
+  /** Migration 0093: required for an ENVIO (INV-ENT-005), absent for a RETIRO_PRESENCIAL (CHECK). */
+  repartidorId?: string | null;
 }
 
 /** INSERTs the entrega row -- must run BEFORE the receta's own estado UPDATE (migration 0040's INV-ENT-002 checks for this row's existence when estado becomes ENTREGADA). */
 export async function insertEntrega(tx: Prisma.TransactionClient, input: NuevaEntregaInput): Promise<{ id: string }> {
   return tx.entrega.create({
-    data: { tenantId: input.tenantId, recetaId: input.recetaId, modalidad: input.modalidad, entregadaPorId: input.entregadaPorId },
+    data: {
+      tenantId: input.tenantId,
+      recetaId: input.recetaId,
+      modalidad: input.modalidad,
+      entregadaPorId: input.entregadaPorId,
+      repartidorId: input.repartidorId ?? null,
+    },
     select: { id: true },
   });
+}
+
+/** `cambiarRepartidor` (E5): reassigns the envío. `fsj_app` may UPDATE `repartidor_id` (migration 0093); INV-ENT-005 refuses clearing it. */
+export async function cambiarRepartidorDeEntrega(tx: Prisma.TransactionClient, tenantId: string, entregaId: string, repartidorId: string): Promise<void> {
+  await tx.entrega.update({ where: { id: entregaId, tenantId }, data: { repartidorId } });
 }
 
 export interface EntregaRow {
@@ -148,6 +195,8 @@ export interface EntregaRow {
   entregadaEn: Date;
   firmaRecibida: boolean;
   firmaRecibidaEn: Date | null;
+  /** Migration 0093: null for a retiro and for the envíos registered before it (E7). */
+  repartidorId: string | null;
 }
 
 /**
@@ -161,10 +210,17 @@ export interface EntregaRow {
 export async function getEntregaPorReceta(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<EntregaRow | null> {
   const row = await tx.entrega.findUnique({
     where: { recetaId },
-    select: { id: true, tenantId: true, modalidad: true, entregadaEn: true, firmaRecibida: true, firmaRecibidaEn: true },
+    select: { id: true, tenantId: true, modalidad: true, entregadaEn: true, firmaRecibida: true, firmaRecibidaEn: true, repartidorId: true },
   });
   if (!row || row.tenantId !== tenantId) return null;
-  return { id: row.id, modalidad: row.modalidad, entregadaEn: row.entregadaEn, firmaRecibida: row.firmaRecibida, firmaRecibidaEn: row.firmaRecibidaEn };
+  return {
+    id: row.id,
+    modalidad: row.modalidad,
+    entregadaEn: row.entregadaEn,
+    firmaRecibida: row.firmaRecibida,
+    firmaRecibidaEn: row.firmaRecibidaEn,
+    repartidorId: row.repartidorId,
+  };
 }
 
 /**

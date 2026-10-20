@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { registrarEntrega } from "@/modules/entregas/application/registrar-entrega";
 import { confirmarFirmaRecibida } from "@/modules/entregas/application/confirmar-firma-recibida";
 import { anularEntrega } from "@/modules/entregas/application/anular-entrega";
+import { cambiarRepartidor } from "@/modules/entregas/application/cambiar-repartidor";
 import { conOperador } from "@/shared/auth/operador-context";
 import { actionError } from "@/shared/ui/action-error";
 import type { EntregaActionState } from "./action-state";
@@ -24,12 +25,27 @@ export async function registrarEntregaAction(_prevState: EntregaActionState, for
     try {
       const recetaId = String(formData.get("recetaId") ?? "");
       const modalidad = String(formData.get("modalidad") ?? "") as "RETIRO_PRESENCIAL" | "ENVIO";
-      await registrarEntrega({ recetaId, modalidad, pagada: formData.get("pagada") === "on" });
+      // Empty string (nothing picked) is "no repartidor": the use case's schema then asks for one on an ENVIO.
+      const repartidorId = String(formData.get("repartidorId") ?? "") || undefined;
+      await registrarEntrega({ recetaId, modalidad, pagada: formData.get("pagada") === "on", repartidorId });
       revalidarEntregas(recetaId);
       const mensaje = modalidad === "RETIRO_PRESENCIAL" ? "Entrega registrada." : "Envío registrado: pendiente de confirmar su retorno.";
       return { status: "success", message: mensaje, id: recetaId };
     } catch (error) {
       return fromError(error, "No se pudo registrar la entrega.");
+    }
+  });
+}
+
+export async function cambiarRepartidorAction(_prevState: EntregaActionState, formData: FormData): Promise<EntregaActionState> {
+  return conOperador(formData, async (): Promise<EntregaActionState> => {
+    try {
+      const recetaId = String(formData.get("recetaId") ?? "");
+      await cambiarRepartidor({ recetaId, repartidorId: String(formData.get("repartidorId") ?? "") });
+      revalidarEntregas(recetaId);
+      return { status: "success", message: "Repartidor actualizado.", id: recetaId };
+    } catch (error) {
+      return fromError(error, "No se pudo cambiar el repartidor.");
     }
   });
 }

@@ -14,8 +14,14 @@ import { defineQuery } from "@/shared/usecase";
 import { NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { calcularItemsEntregables } from "../domain/entrega";
-import { getRecetaParaEntrega, getItemsParaEntrega, getEntregaPorReceta } from "../infrastructure/entrega-repository";
-import type { EntregaRow } from "../infrastructure/entrega-repository";
+import {
+  getRecetaParaEntrega,
+  getItemsParaEntrega,
+  getEntregaPorReceta,
+  getRepartidorDeEntrega,
+  hayRepartidoresActivos,
+} from "../infrastructure/entrega-repository";
+import type { EntregaRow, RepartidorDeEntrega } from "../infrastructure/entrega-repository";
 import type { EstadoReceta } from "@/modules/recetas/domain/receta";
 
 const getEntregaEstadoInput = z.object({ recetaId: uuid });
@@ -28,6 +34,12 @@ export interface EntregaEstado {
   itemsEntregables: number;
   itemsExcluidos: number;
   entrega: EntregaRow | null;
+  /** `receta.domicilio_paciente`: the address of an envío (docs/specs/envios-repartidores.md E4); null/blank when the receta has none. */
+  domicilioPaciente: string | null;
+  /** The entrega's repartidor (E5/E7); null for a retiro, for an envío registered before migration 0093, or when there is no entrega. */
+  repartidor: RepartidorDeEntrega | null;
+  /** The tenant has at least one active repartidor to assign to a new envío or to a change (E3). */
+  hayRepartidoresActivos: boolean;
 }
 
 export const getEntregaEstadoQuery = defineQuery({
@@ -49,6 +61,9 @@ export const getEntregaEstadoQuery = defineQuery({
       itemsEntregables: entregables.length,
       itemsExcluidos: excluidos.length,
       entrega,
+      domicilioPaciente: receta.domicilioPaciente,
+      repartidor: entrega?.repartidorId ? await getRepartidorDeEntrega(tx, session.tenantId, entrega.repartidorId) : null,
+      hayRepartidoresActivos: await hayRepartidoresActivos(tx, session.tenantId),
     };
   },
 });

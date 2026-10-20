@@ -15,6 +15,10 @@
  * (`pagada` input, raise-only). A RETIRO_PRESENCIAL must leave the receta paid (it becomes ENTREGADA right away); an
  * ENVIO may stay unpaid until its firma is confirmed (confirmar-firma-recibida.ts). The payment is written BEFORE the
  * estado UPDATE: INV-R14 (migration 0076) rejects a receta becoming ENTREGADA unpaid.
+ *
+ * Repartidor (docs/specs/envios-repartidores.md E1-E4): an ENVIO carries exactly one active repartidor of the tenant
+ * (`repartidorId`, required by the input schema; DB backstop INV-ENT-005) and needs a receta with a domicilio; a
+ * RETIRO_PRESENCIAL carries none. Both reads happen inside the transaction, after the receta lock.
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
@@ -30,6 +34,9 @@ import {
   validarTieneItemsEntregables,
   entregaExigePago,
   validarPagoAlEntregar,
+  mensajeRepartidorSegunModalidad,
+  validarDomicilioParaEnvio,
+  validarRepartidorAsignable,
 } from "../domain/entrega";
 import {
   lockRecetaParaAccion,
@@ -38,20 +45,28 @@ import {
   actualizarEstadoReceta,
   insertEntrega,
   marcarRecetaPagada,
+  getRepartidorParaAsignar,
 } from "../infrastructure/entrega-repository";
 
-const registrarEntregaInput = z.object({
-  recetaId: uuid,
-  modalidad: z.enum(MODALIDADES_ENTREGA),
-  /**
-   * Migration 0071: `true` marks the receta paid in this same transaction (who and when are set by the server). It
-   * only ever RAISES the flag -- `false`, or `true` on a receta that is already paid, leaves the payment untouched
-   * (an already-paid receta keeps its original `pagadaEn`/`pagadaPorId`); unmarking is done from the receta's detail.
-   */
-  pagada: z.boolean().default(false),
-});
+const registrarEntregaInput = z
+  .object({
+    recetaId: uuid,
+    modalidad: z.enum(MODALIDADES_ENTREGA),
+    /**
+     * Migration 0071: `true` marks the receta paid in this same transaction (who and when are set by the server). It
+     * only ever RAISES the flag -- `false`, or `true` on a receta that is already paid, leaves the payment untouched
+     * (an already-paid receta keeps its original `pagadaEn`/`pagadaPorId`); unmarking is done from the receta's detail.
+     */
+    pagada: z.boolean().default(false),
+    /** Migration 0093 (E1/E2): required for an ENVIO, forbidden for a RETIRO_PRESENCIAL (checked below, on this field). */
+    repartidorId: uuid.optional(),
+  })
+  .superRefine((input, ctx) => {
+    const mensaje = mensajeRepartidorSegunModalidad(input.modalidad, input.repartidorId);
+    if (mensaje) ctx.addIssue({ code: "custom", message: mensaje, path: ["repartidorId"] });
+  });
 
-/** Pre-default wire shape: `pagada` may be omitted (= false). */
+/** Pre-default wire shape: `pagada` may be omitted (= false); `repartidorId` is required for an ENVIO only. */
 export type RegistrarEntregaInput = z.input<typeof registrarEntregaInput>;
 
 /** Human-readable message for the M14 invariant that can still slip past the pre-checks below under a race (INV-ENT-002) -- mirrors `modules/cierres/application/firmar-cierre.ts`'s `mapDbError`-in-its-own-try/catch discipline (the pipeline's own mapping, in `withTenantTransaction`, only runs once the WHOLE handler throws, too late for a clear message here). */
@@ -80,6 +95,11 @@ export const registrarEntregaCommand = defineCommand({
     const items = await getItemsParaEntrega(tx, session.tenantId, input.recetaId);
     validarTieneItemsEntregables(items);
 
+    if (input.modalidad === "ENVIO") {
+      validarDomicilioParaEnvio(receta.domicilioPaciente);
+      validarRepartidorAsignable(await getRepartidorParaAsignar(tx, session.tenantId, input.repartidorId!));
+    }
+
     if (entregaExigePago(input.modalidad)) {
       validarPagoAlEntregar({ yaPagada: receta.pagada, pagarAhora: input.pagada });
     }
@@ -90,6 +110,7 @@ export const registrarEntregaCommand = defineCommand({
         recetaId: input.recetaId,
         modalidad: input.modalidad,
         entregadaPorId: session.usuario.id,
+        repartidorId: input.repartidorId,
       });
 
       // The switch can only record the payment now (never lower it). Audited on the entrega row (before/after, below)
@@ -117,7 +138,12 @@ export const registrarEntregaCommand = defineCommand({
         audit: {
           entidadId: entrega.id,
           valorAnterior: { estadoReceta: receta.estado, pagada: receta.pagada },
-          valorNuevo: { modalidad: input.modalidad, estadoReceta: estadoDestino, pagada: receta.pagada || marcarPago },
+          valorNuevo: {
+            modalidad: input.modalidad,
+            estadoReceta: estadoDestino,
+            pagada: receta.pagada || marcarPago,
+            ...(input.repartidorId ? { repartidorId: input.repartidorId } : {}),
+          },
         },
       };
     } catch (e) {

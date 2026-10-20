@@ -87,7 +87,50 @@ export function estadoDestinoEntrega(modalidad: ModalidadEntrega): EstadoReceta 
   return modalidad === "RETIRO_PRESENCIAL" ? "ENTREGADA" : "ENVIADA_PEND_FIRMA";
 }
 
-export const MENSAJE_ENTREGA_REQUIERE_PAGO = "Para entregar la receta tiene que quedar pagada: activá “Marcar como pagada”.";
+// ============================================================================
+// Envíos con repartidor (docs/specs/envios-repartidores.md E1-E5).
+// ============================================================================
+
+export const MENSAJE_ENVIO_SIN_REPARTIDOR = "Elija el repartidor que lleva el envío.";
+export const MENSAJE_RETIRO_CON_REPARTIDOR = "Un retiro presencial no lleva repartidor.";
+export const MENSAJE_ENVIO_SIN_DOMICILIO = "Cargue el domicilio en la receta antes de registrar un envío.";
+export const MENSAJE_REPARTIDOR_NO_ENCONTRADO = "El repartidor elegido no existe.";
+export const MENSAJE_REPARTIDOR_INACTIVO = "El repartidor elegido está inactivo: elija otro.";
+
+/**
+ * E1/E2: an ENVIO carries exactly one repartidor and a RETIRO_PRESENCIAL none. Returns the message to show on the
+ * repartidor field, or null when the combination is valid. DB backstops: INV-ENT-005 (trigger) and the
+ * `entrega_repartidor_solo_envio_check` CHECK (migration 0093).
+ */
+export function mensajeRepartidorSegunModalidad(modalidad: ModalidadEntrega, repartidorId: string | null | undefined): string | null {
+  const tiene = repartidorId != null && repartidorId !== "";
+  if (modalidad === "ENVIO" && !tiene) return MENSAJE_ENVIO_SIN_REPARTIDOR;
+  if (modalidad === "RETIRO_PRESENCIAL" && tiene) return MENSAJE_RETIRO_CON_REPARTIDOR;
+  return null;
+}
+
+/** E4: the domicilio of an envío is the receta's `domicilio_paciente`; blank (null, empty or whitespace) means there is none. */
+export function recetaTieneDomicilio(domicilioPaciente: string | null | undefined): boolean {
+  return domicilioPaciente != null && domicilioPaciente.trim().length > 0;
+}
+
+/** E4: throws unless the receta has a domicilio to send to. */
+export function validarDomicilioParaEnvio(domicilioPaciente: string | null | undefined): void {
+  if (!recetaTieneDomicilio(domicilioPaciente)) throw new ValidationError(MENSAJE_ENVIO_SIN_DOMICILIO);
+}
+
+/** E3: only an existing, active repartidor of the tenant (`null` = not found in the tenant) can be assigned to an envío. */
+export function validarRepartidorAsignable(repartidor: { activo: boolean } | null): void {
+  if (!repartidor) throw new ValidationError(MENSAJE_REPARTIDOR_NO_ENCONTRADO, { fields: ["repartidorId"] });
+  if (!repartidor.activo) throw new ValidationError(MENSAJE_REPARTIDOR_INACTIVO, { fields: ["repartidorId"] });
+}
+
+/** E5: the repartidor of an envío can be changed only while the receta waits for its firma. */
+export function puedeCambiarRepartidor(estado: EstadoReceta): boolean {
+  return estado === "ENVIADA_PEND_FIRMA";
+}
+
+export const MENSAJE_ENTREGA_REQUIERE_PAGO ="Para entregar la receta tiene que quedar pagada: activá “Marcar como pagada”.";
 
 /**
  * Pago rule (docs/specs/pago-receta.md P4, user decision 2026-10-13): a receta only reaches ENTREGADA paid, so every

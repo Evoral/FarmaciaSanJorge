@@ -29,6 +29,7 @@ vi.mock("@/shared/auth/session", () => ({
 
 await import("@/modules/entregas/application/registrar-entrega");
 await import("@/modules/entregas/application/confirmar-firma-recibida");
+await import("@/modules/entregas/application/cambiar-repartidor");
 await import("@/modules/entregas/application/list-entregas-pendientes");
 await import("@/modules/entregas/application/get-entrega-estado");
 
@@ -47,8 +48,11 @@ const SEED_GRANTS: Record<Rol, readonly Permiso[]> = {
 
 const RECETA_ID = "22222222-2222-4222-a222-222222222222";
 
+const REPARTIDOR_ID = "44444444-4444-4444-a444-444444444444";
+
 const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> = [
   { name: "entregas.registrar", permiso: "entregas.registrar", input: { recetaId: RECETA_ID, modalidad: "RETIRO_PRESENCIAL" } },
+  { name: "entregas.repartidor.cambiar", permiso: "entregas.registrar", input: { recetaId: RECETA_ID, repartidorId: REPARTIDOR_ID } },
   { name: "entregas.firma.confirmar", permiso: "entregas.registrar", input: { recetaId: RECETA_ID } },
   { name: "entregas.pendientes.listar", permiso: "entregas.registrar", input: {} },
   { name: "entregas.estado.ver", permiso: "entregas.registrar", input: { recetaId: RECETA_ID } },

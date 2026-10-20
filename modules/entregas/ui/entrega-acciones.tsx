@@ -10,11 +10,12 @@ import { Lock } from "lucide-react";
 import { ESTADO_RECETA_LABELS } from "@/shared/labels/enum-labels";
 import { useRouteDialogClose } from "@/shared/ui/route-dialog";
 import { ToneBadge } from "@/shared/ui/status-badge";
-import { puedeConfirmarFirmaRecibida, puedeRegistrarEntrega } from "../domain/entrega";
+import { puedeCambiarRepartidor, puedeConfirmarFirmaRecibida, puedeRegistrarEntrega } from "../domain/entrega";
 import type { EstadoReceta } from "@/modules/recetas/domain/receta";
 import type { EntregaActionState } from "./action-state";
-import { confirmarFirmaRecibidaAction, registrarEntregaAction } from "./actions";
+import { cambiarRepartidorAction, confirmarFirmaRecibidaAction, registrarEntregaAction } from "./actions";
 import { ConfirmarFirmaForm } from "./confirmar-firma-form";
+import { EnvioPendiente, type RepartidorAsignado } from "./envio-pendiente";
 import { RegistrarEntregaForm } from "./registrar-entrega-form";
 
 export interface EntregaAccionesProps {
@@ -23,13 +24,32 @@ export interface EntregaAccionesProps {
   /** Migration 0071: the receta is already paid. */
   pagada: boolean;
   itemsExcluidos: number;
+  /** `receta.domicilio_paciente`: where an envío goes (docs/specs/envios-repartidores.md E4). */
+  domicilioPaciente: string | null;
+  /** The entrega's repartidor; null for a retiro or an envío registered before migration 0093 (E7). */
+  repartidor: RepartidorAsignado | null;
+  /** The tenant has at least one active repartidor to assign. */
+  hayRepartidoresActivos: boolean;
+  /** `repartidores.gestionar`: only then the "No hay repartidores" notice links to the catalog. */
+  puedeGestionarRepartidores: boolean;
   /** `entregas.registrar` */
   puedeRegistrar: boolean;
   /** `entregas.registrar` (single /entregas permiso, migration 0085) */
   puedeConfirmarFirma: boolean;
 }
 
-export function EntregaAcciones({ recetaId, estado, pagada, itemsExcluidos, puedeRegistrar, puedeConfirmarFirma }: EntregaAccionesProps) {
+export function EntregaAcciones({
+  recetaId,
+  estado,
+  pagada,
+  itemsExcluidos,
+  domicilioPaciente,
+  repartidor,
+  hayRepartidoresActivos,
+  puedeGestionarRepartidores,
+  puedeRegistrar,
+  puedeConfirmarFirma,
+}: EntregaAccionesProps) {
   const cerrar = useRouteDialogClose();
   // The action revalidates the receta, so the pop-up's props flip to the new estado (and unmount the form before its
   // `onSuccess` runs) while it is still open: without this an envío would swap straight into the "confirmar firma"
@@ -47,6 +67,12 @@ export function EntregaAcciones({ recetaId, estado, pagada, itemsExcluidos, pued
   async function registrar(prevState: EntregaActionState, formData: FormData): Promise<EntregaActionState> {
     const result = await registrarEntregaAction(prevState, formData);
     cerrarTrasExito(result, formData.get("modalidad") === "ENVIO" ? "Envío registrado: queda pendiente de confirmar su retorno." : "Entrega registrada.");
+    return result;
+  }
+
+  async function cambiarRepartidor(prevState: EntregaActionState, formData: FormData): Promise<EntregaActionState> {
+    const result = await cambiarRepartidorAction(prevState, formData);
+    cerrarTrasExito(result, "Repartidor actualizado.");
     return result;
   }
 
@@ -71,14 +97,37 @@ export function EntregaAcciones({ recetaId, estado, pagada, itemsExcluidos, pued
     return (
       <div className="flex flex-col gap-3">
         {excluidos}
-        <RegistrarEntregaForm action={registrar} recetaId={recetaId} pagada={pagada} onSuccess={cerrar} />
+        <RegistrarEntregaForm
+          action={registrar}
+          recetaId={recetaId}
+          pagada={pagada}
+          domicilioPaciente={domicilioPaciente}
+          hayRepartidoresActivos={hayRepartidoresActivos}
+          puedeGestionarRepartidores={puedeGestionarRepartidores}
+          onSuccess={cerrar}
+        />
       </div>
     );
   }
 
-  if (puedeConfirmarFirma && puedeConfirmarFirmaRecibida(estado)) {
+  if ((puedeRegistrar || puedeConfirmarFirma) && puedeConfirmarFirmaRecibida(estado)) {
     return (
-      <ConfirmarFirmaForm action={confirmarFirma} recetaId={recetaId} pagada={pagada} onSuccess={cerrar} />
+      <div className="flex flex-col gap-4">
+        <EnvioPendiente
+          recetaId={recetaId}
+          domicilioPaciente={domicilioPaciente}
+          repartidor={repartidor}
+          puedeCambiar={puedeRegistrar && puedeCambiarRepartidor(estado)}
+          hayRepartidoresActivos={hayRepartidoresActivos}
+          puedeGestionarRepartidores={puedeGestionarRepartidores}
+          cambiarAction={cambiarRepartidor}
+        />
+        {puedeConfirmarFirma ? (
+          <div className="border-t border-zinc-200 pt-4">
+            <ConfirmarFirmaForm action={confirmarFirma} recetaId={recetaId} pagada={pagada} onSuccess={cerrar} />
+          </div>
+        ) : null}
+      </div>
     );
   }
 

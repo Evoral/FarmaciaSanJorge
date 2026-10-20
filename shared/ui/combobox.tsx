@@ -18,7 +18,10 @@
  *   option's label, or else the typed text. Only a click picks.
  * - With `name`, a hidden input carries the value and a bubbling `change`
  *   is dispatched on pick/clear, so it drops into a `FilterForm` like
- *   `./date-input.tsx` does.
+ *   `./date-input.tsx` does. It also handles `FIELD_ERROR_EVENT`
+ *   (`./field-errors.ts`): a Server Action error that names the field marks
+ *   the visible input as invalid and focuses it; picking or clearing a value
+ *   removes the mark.
  * - An option found through one of its `sinonimos` is picked WITH that
  *   `sinonimo` (the whole option reaches `onChange`): while it is the
  *   value, the field shows the synonym the user chose, followed by the
@@ -31,6 +34,7 @@
  */
 import { AlertCircle, Plus, Search, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { FIELD_ERROR_EVENT, type FieldErrorEventDetail } from "./field-errors";
 import { SinonimoHint } from "./sinonimo-hint";
 
 export interface ComboboxOption {
@@ -139,6 +143,21 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
   const [options, setOptions] = useState<readonly ComboboxOption[]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [lastQuery, setLastQuery] = useState("");
+  const [serverInvalid, setServerInvalid] = useState(false);
+
+  // A Server Action error naming this field (`name`) marks the visible input; see `./field-errors.ts`.
+  useEffect(() => {
+    const hidden = hiddenRef.current;
+    if (!hidden) return;
+    function onFieldError(event: Event) {
+      const detail = (event as CustomEvent<FieldErrorEventDetail>).detail;
+      event.preventDefault();
+      detail.focusTarget = inputRef.current;
+      setServerInvalid(detail.invalid);
+    }
+    hidden.addEventListener(FIELD_ERROR_EVENT, onFieldError);
+    return () => hidden.removeEventListener(FIELD_ERROR_EVENT, onFieldError);
+  }, [name]);
 
   // Follow an outside value change (pick, clear, form reset). Compared by content, not identity:
   // parents usually rebuild the `value` object on every render.
@@ -201,6 +220,7 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
   }
 
   function pick(option: ComboboxOption) {
+    setServerInvalid(false);
     onChange(option);
     setText(textoDe(option));
     setOpen(false);
@@ -222,6 +242,7 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
   }
 
   function clear() {
+    setServerInvalid(false);
     onChange(null);
     setText("");
     inputRef.current?.focus();
@@ -314,6 +335,7 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
             aria-autocomplete="list"
             aria-activedescendant={activeId}
             aria-describedby={describedBy}
+            aria-invalid={serverInvalid || undefined}
             title={nombrePrincipal ? `Nombre principal: ${nombrePrincipal}` : undefined}
             onChange={(event) => {
               setText(event.target.value);
