@@ -3,19 +3,21 @@
  * the envíos he carries that have not come back signed, with address, patient, payment state and room to sign.
  *
  * Unlike the libro recetario sheets (`shared/pdf/hojas.ts`, a legal document with its own neutral format), this sheet
- * follows the app's look (DESIGN.md): terracotta accent bar, serif title, cream summary cards, a cream table header with
- * hairline separators and zebra rows, and the payment state as a green/red pill. Only pdfkit's built-in fonts are used
- * (Times for the display title, Helvetica for the rest), so nothing is embedded (`shared/pdf/pdf-document.ts`).
+ * wears the app's skin, visual identity 1a "Clínico" (`app/globals.css`): white surfaces, cool green-tinted neutrals,
+ * the logo's green as the only brand color, 4-6 pt radii. The logo (`shared/pdf/logo.ts`) heads the first sheet over a
+ * brand-green band; summary cards and the table look like the app's `.card` and `.data-table`, and the payment state is
+ * a `StatusBadge`-like pill. pdfkit's built-in Helvetica stands in for IBM Plex Sans (nothing is embedded).
  *
- * Layout: header and summary cards on the first sheet, a short continuation title on the next ones, the table header
- * repeated on every sheet, and a footer on every sheet with the farmacia, the repartidor and "Hoja i de n". The Importe
- * column exists only when the viewer holds `cotizaciones.ver` (E10).
+ * Layout: header and summary cards on the first sheet, a short continuation header on the next ones, the table (with
+ * its header) framed as a card on every sheet, and a footer on every sheet with the farmacia, the repartidor and
+ * "Hoja i de n". The Importe column exists only when the viewer holds `cotizaciones.ver` (E10).
  */
 import { renderPdf } from "@/shared/pdf/pdf-document";
 import { HOJA_ALTO, HOJA_ANCHO, HOJA_ANCHO_UTIL, HOJA_MARGEN, OPCIONES_HOJA_LIBRO } from "@/shared/pdf/hojas";
+import { LOGO_FARMACIA_PROPORCION, logoFarmacia } from "@/shared/pdf/logo";
 import { formatFechaHora } from "@/shared/format/fecha";
 import { formatearMonto } from "@/shared/format/monto";
-import { MENSAJE_HOJA_ENVIOS_VACIA, TEXTO_PAGO_IMPAGA, TEXTO_PAGO_PAGADA, textoFiltroHoja } from "../domain/hoja-envios";
+import { MENSAJE_HOJA_ENVIOS_VACIA, TEXTO_PAGO_PAGADA, textoFiltroHoja } from "../domain/hoja-envios";
 import type { EnvioDeRepartidor, FarmaciaParaHoja, RepartidorDeEntrega } from "./entrega-repository";
 
 export interface DatosHojaEnvios {
@@ -31,27 +33,27 @@ export interface DatosHojaEnvios {
   generadaPor: string;
 }
 
-// DESIGN.md color tokens (pdfkit takes hex only).
+// Identity 1a "Clínico" tokens (app/globals.css @theme; pdfkit takes hex only).
 const COLOR = {
-  primary: "#cc785c",
-  primaryActive: "#a9583e",
-  ink: "#141413",
-  body: "#3d3d3a",
-  bodyStrong: "#252523",
-  muted: "#6c6a64",
-  mutedSoft: "#8e8b82",
-  hairline: "#e6dfd8",
-  canvas: "#faf9f5",
-  surfaceSoft: "#f5f0e8",
-  surfaceCard: "#efe9de",
-  // Pills: the success/error tokens, darkened for text and lightened for the background so they stay legible on paper.
-  successText: "#2e7d46",
-  successBg: "#e2f2e6",
-  errorText: "#a83232",
-  errorBg: "#f7e1e1",
+  brand: "#03b386", // --color-brand / emerald-500
+  primary: "#037a5c", // --color-primary / emerald-700
+  ink: "#0f1a17", // zinc-900
+  bodyStrong: "#232c29", // zinc-800
+  body: "#36403d", // zinc-700
+  muted: "#65746f", // zinc-500
+  mutedSoft: "#97a5a0", // zinc-400
+  border: "#e2e8e6", // zinc-200
+  borderSoft: "#eef1f0", // zinc-100
+  canvas: "#f5f7f7", // zinc-50
+  successBg: "#e7f5f0", // emerald-50
+  successText: "#037a5c", // emerald-700
+  dangerBg: "#fdecea", // red-50
+  dangerText: "#b42318", // --color-danger / red-600
 } as const;
 
-const FUENTE = { titulo: "Times-Roman", texto: "Helvetica", negrita: "Helvetica-Bold" } as const;
+const FUENTE = { texto: "Helvetica", negrita: "Helvetica-Bold" } as const;
+const RADIO_CARD = 6; // --radius-lg
+const RADIO_BADGE = 4; // --radius-sm
 
 const PIE_Y = HOJA_ALTO - HOJA_MARGEN + 6;
 /** Last y a table row may end at: leaves room for the footer. */
@@ -151,93 +153,145 @@ function lineaTelefonos(fijo: string | null, celular: string | null): string | n
 
 type Doc = PDFKit.PDFDocument;
 
-function barraAcento(doc: Doc): void {
-  doc.save().rect(0, 0, HOJA_ANCHO, 5).fill(COLOR.primary).restore();
+/** Brand band across the top edge: the logo's green fading into the primary green. */
+function bandaMarca(doc: Doc): void {
+  const degradado = doc.linearGradient(0, 0, HOJA_ANCHO, 0).stop(0, COLOR.brand).stop(1, COLOR.primary);
+  doc.save().rect(0, 0, HOJA_ANCHO, 6).fill(degradado).restore();
 }
 
-function rotulo(doc: Doc, texto: string, x: number, y: number, width: number, color: string = COLOR.muted, align: "left" | "center" | "right" = "left", characterSpacing = 0.8): void {
-  doc.font(FUENTE.negrita).fontSize(TAMANO_ROTULO).fillColor(color).text(texto.toUpperCase(), x, y, { width, align, characterSpacing, lineBreak: false });
+function rotulo(doc: Doc, texto: string, x: number, y: number, width: number, align: "left" | "center" | "right" = "left", characterSpacing = 0.5): void {
+  doc.font(FUENTE.negrita).fontSize(TAMANO_ROTULO).fillColor(COLOR.muted).text(texto.toUpperCase(), x, y, { width, align, characterSpacing, lineBreak: false });
 }
 
-/** First-sheet header: farmacia eyebrow + phones, serif title, generation line. Leaves `doc.y` under it. */
+function lineaHorizontal(doc: Doc, y: number, color: string, x = HOJA_MARGEN, ancho = HOJA_ANCHO_UTIL): void {
+  doc.save().moveTo(x, y).lineTo(x + ancho, y).lineWidth(0.75).strokeColor(color).stroke().restore();
+}
+
+/** The logo at (x, y) with the given height; without the file, the farmacia's name in bold. Returns its width. */
+function dibujarLogo(doc: Doc, nombreFarmacia: string, x: number, y: number, alto: number): number {
+  const logo = logoFarmacia();
+  if (logo) {
+    doc.image(logo, x, y, { height: alto });
+    return alto * LOGO_FARMACIA_PROPORCION;
+  }
+  doc.font(FUENTE.negrita).fontSize(alto * 0.45).fillColor(COLOR.primary).text(nombreFarmacia, x, y + alto * 0.25, { lineBreak: false });
+  return doc.widthOfString(nombreFarmacia);
+}
+
+/** First-sheet header: logo on the left; title, phones and generation on the right; a hairline under both. */
 function encabezado(doc: Doc, datos: DatosHojaEnvios): void {
-  const x0 = HOJA_MARGEN;
-  const y0 = HOJA_MARGEN - 6;
-  rotulo(doc, datos.farmacia.nombre, x0, y0, HOJA_ANCHO_UTIL / 2, COLOR.primaryActive);
-  const telefonos = lineaTelefonos(datos.farmacia.telefonoFijo, datos.farmacia.telefonoCelular);
-  if (telefonos) doc.font(FUENTE.texto).fontSize(TAMANO_NOTA + 0.5).fillColor(COLOR.muted).text(telefonos, x0 + HOJA_ANCHO_UTIL / 2, y0 - 1, { width: HOJA_ANCHO_UTIL / 2, align: "right", lineBreak: false });
+  const y0 = HOJA_MARGEN - 10;
+  dibujarLogo(doc, datos.farmacia.nombre, HOJA_MARGEN, y0, 40);
 
-  doc.font(FUENTE.titulo).fontSize(26).fillColor(COLOR.ink).text("Hoja de envíos", x0, y0 + 14, { lineBreak: false });
+  const xDerecha = HOJA_MARGEN + HOJA_ANCHO_UTIL / 2;
+  const anchoDerecha = HOJA_ANCHO_UTIL / 2;
+  doc.font(FUENTE.negrita).fontSize(18).fillColor(COLOR.ink).text("Hoja de envíos", xDerecha, y0 + 2, { width: anchoDerecha, align: "right", lineBreak: false });
+  const telefonos = lineaTelefonos(datos.farmacia.telefonoFijo, datos.farmacia.telefonoCelular);
   doc
     .font(FUENTE.texto)
-    .fontSize(TAMANO_NOTA + 0.5)
+    .fontSize(TAMANO_NOTA + 1)
+    .fillColor(COLOR.body)
+    .text(telefonos ? `${datos.farmacia.nombre}  ·  ${telefonos}` : datos.farmacia.nombre, xDerecha, y0 + 25, { width: anchoDerecha, align: "right", lineBreak: false });
+  doc
+    .fontSize(TAMANO_NOTA)
     .fillColor(COLOR.muted)
-    .text(`Generada el ${formatFechaHora(datos.generadaEn, datos.zonaHoraria)} por ${datos.generadaPor}`, x0, y0 + 46, { lineBreak: false });
-  doc.y = y0 + 64;
+    .text(`Generada el ${formatFechaHora(datos.generadaEn, datos.zonaHoraria)} por ${datos.generadaPor}`, xDerecha, y0 + 38, { width: anchoDerecha, align: "right", lineBreak: false });
+
+  lineaHorizontal(doc, y0 + 54, COLOR.border);
+  doc.y = y0 + 66;
 }
 
-/** A cream card with a small label and a value; returns nothing, draws at (x, y). */
-function tarjeta(doc: Doc, x: number, y: number, width: number, alto: number, etiqueta: string, dibujarValor: (xi: number, yi: number, wi: number) => void): void {
-  doc.save().roundedRect(x, y, width, alto, 6).fill(COLOR.surfaceCard).restore();
-  rotulo(doc, etiqueta, x + 12, y + 10, width - 24);
-  dibujarValor(x + 12, y + 22, width - 24);
+/** A white card with a hairline border (`.card`); `acento` adds the brand bar on its left edge. */
+function tarjeta(doc: Doc, x: number, y: number, width: number, alto: number, etiqueta: string, dibujarValor: (xi: number, yi: number, wi: number) => void, acento = false): void {
+  doc.save().roundedRect(x, y, width, alto, RADIO_CARD).lineWidth(0.75).fillAndStroke("#ffffff", COLOR.border).restore();
+  if (acento) {
+    doc.save().roundedRect(x, y, width, alto, RADIO_CARD).clip().rect(x, y, 3, alto).fill(COLOR.brand).restore();
+  }
+  const xi = x + (acento ? 15 : 12);
+  rotulo(doc, etiqueta, xi, y + 10, width - 24);
+  dibujarValor(xi, y + 22, width - 24);
 }
 
 /** Repartidor, filter, envíos and "a cobrar" cards across the page. Leaves `doc.y` under them. */
 function tarjetasResumen(doc: Doc, datos: DatosHojaEnvios): void {
   const y = doc.y;
-  const alto = 52;
+  const alto = 50;
   const gap = 10;
-  const anchos = [290, 200];
-  const anchoNumero = (HOJA_ANCHO_UTIL - anchos[0]! - anchos[1]! - 3 * gap) / 2;
+  const anchoRepartidor = 290;
+  const anchoFiltro = 200;
+  const anchoNumero = (HOJA_ANCHO_UTIL - anchoRepartidor - anchoFiltro - 3 * gap) / 2;
   const impagas = datos.envios.filter((e) => !e.pagada).length;
   let x = HOJA_MARGEN;
 
-  tarjeta(doc, x, y, anchos[0]!, alto, "Repartidor", (xi, yi, wi) => {
-    doc.font(FUENTE.negrita).fontSize(12).fillColor(COLOR.ink).text(`${datos.repartidor.apellido}, ${datos.repartidor.nombre}`, xi, yi, { width: wi, lineBreak: false, ellipsis: true });
-    doc.font(FUENTE.texto).fontSize(TAMANO_TEXTO).fillColor(COLOR.body).text(`Tel. ${datos.repartidor.telefono}`, xi, yi + 16, { width: wi, lineBreak: false });
-  });
-  x += anchos[0]! + gap;
+  tarjeta(
+    doc,
+    x,
+    y,
+    anchoRepartidor,
+    alto,
+    "Repartidor",
+    (xi, yi, wi) => {
+      doc.font(FUENTE.negrita).fontSize(12).fillColor(COLOR.ink).text(`${datos.repartidor.apellido}, ${datos.repartidor.nombre}`, xi, yi, { width: wi, lineBreak: false, ellipsis: true });
+      doc.font(FUENTE.texto).fontSize(TAMANO_TEXTO).fillColor(COLOR.body).text(`Tel. ${datos.repartidor.telefono}`, xi, yi + 15, { width: wi, lineBreak: false });
+    },
+    true,
+  );
+  x += anchoRepartidor + gap;
 
-  tarjeta(doc, x, y, anchos[1]!, alto, "Filtro", (xi, yi, wi) => {
+  tarjeta(doc, x, y, anchoFiltro, alto, "Fecha de envío", (xi, yi, wi) => {
     const filtro = textoFiltroHoja(datos.fecha);
-    const [titulo, valor] = filtro.includes(": ") ? filtro.split(": ") : [filtro, null];
-    doc.font(FUENTE.negrita).fontSize(12).fillColor(COLOR.ink).text(valor ?? titulo!, xi, yi, { width: wi, lineBreak: false });
-    doc.font(FUENTE.texto).fontSize(TAMANO_TEXTO).fillColor(COLOR.body).text(valor ? titulo! : "Sin filtro de fecha", xi, yi + 16, { width: wi, lineBreak: false });
+    const valor = filtro.includes(": ") ? filtro.split(": ")[1]! : filtro;
+    doc.font(FUENTE.negrita).fontSize(12).fillColor(COLOR.ink).text(valor, xi, yi, { width: wi, lineBreak: false });
+    doc.font(FUENTE.texto).fontSize(TAMANO_TEXTO).fillColor(COLOR.muted).text(datos.fecha ? "Envíos pendientes de ese día" : "Sin filtro de fecha", xi, yi + 15, { width: wi, lineBreak: false });
   });
-  x += anchos[1]! + gap;
+  x += anchoFiltro + gap;
 
   tarjeta(doc, x, y, anchoNumero, alto, "Envíos", (xi, yi, wi) => {
-    doc.font(FUENTE.titulo).fontSize(22).fillColor(COLOR.ink).text(String(datos.envios.length), xi, yi - 2, { width: wi, lineBreak: false });
+    doc.font(FUENTE.negrita).fontSize(20).fillColor(COLOR.ink).text(String(datos.envios.length), xi, yi - 1, { width: wi, lineBreak: false });
   });
   x += anchoNumero + gap;
 
   tarjeta(doc, x, y, anchoNumero, alto, "A cobrar", (xi, yi, wi) => {
-    doc.font(FUENTE.titulo).fontSize(22).fillColor(impagas > 0 ? COLOR.errorText : COLOR.ink).text(String(impagas), xi, yi - 2, { width: wi, lineBreak: false });
+    doc.font(FUENTE.negrita).fontSize(20).fillColor(impagas > 0 ? COLOR.dangerText : COLOR.ink).text(String(impagas), xi, yi - 1, { width: wi, lineBreak: false });
   });
 
-  doc.y = y + alto + 16;
+  doc.y = y + alto + 14;
 }
 
-/** Continuation sheets: accent bar and a one-line title. */
+/** Continuation sheets: brand band, small logo and a one-line title. */
 function encabezadoContinuacion(doc: Doc, datos: DatosHojaEnvios): void {
-  barraAcento(doc);
-  doc.font(FUENTE.titulo).fontSize(14).fillColor(COLOR.ink).text("Hoja de envíos", HOJA_MARGEN, HOJA_MARGEN - 6, { continued: true, lineBreak: false });
-  doc.font(FUENTE.texto).fontSize(TAMANO_TEXTO).fillColor(COLOR.muted).text(`   ${datos.repartidor.apellido}, ${datos.repartidor.nombre} · continuación`, { lineBreak: false });
-  doc.y = HOJA_MARGEN + 18;
+  bandaMarca(doc);
+  const y0 = HOJA_MARGEN - 12;
+  dibujarLogo(doc, datos.farmacia.nombre, HOJA_MARGEN, y0, 24);
+  doc
+    .font(FUENTE.negrita)
+    .fontSize(11)
+    .fillColor(COLOR.ink)
+    .text(`Hoja de envíos  ·  ${datos.repartidor.apellido}, ${datos.repartidor.nombre}`, HOJA_MARGEN + HOJA_ANCHO_UTIL / 2, y0 + 4, { width: HOJA_ANCHO_UTIL / 2, align: "right", lineBreak: false });
+  doc.font(FUENTE.texto).fontSize(TAMANO_NOTA).fillColor(COLOR.muted).text("continuación", HOJA_MARGEN + HOJA_ANCHO_UTIL / 2, y0 + 17, { width: HOJA_ANCHO_UTIL / 2, align: "right", lineBreak: false });
+  doc.y = y0 + 36;
 }
 
+const ALTO_ENCABEZADO_TABLA = 22;
+
+/** The `.data-table` thead: zinc-50 band (rounded top corners, the table is framed as a card) and uppercase labels. */
 function encabezadoTabla(doc: Doc, columnas: readonly ColumnaHojaEnvios[]): void {
   const y = doc.y;
-  const alto = 22;
-  doc.save().roundedRect(HOJA_MARGEN, y, HOJA_ANCHO_UTIL, alto, 4).fill(COLOR.surfaceSoft).restore();
+  const alto = ALTO_ENCABEZADO_TABLA;
+  doc.save().roundedRect(HOJA_MARGEN, y, HOJA_ANCHO_UTIL, alto, RADIO_CARD).fill(COLOR.canvas).restore();
+  doc.save().rect(HOJA_MARGEN, y + alto - RADIO_CARD, HOJA_ANCHO_UTIL, RADIO_CARD).fill(COLOR.canvas).restore();
   let x = HOJA_MARGEN;
   for (const col of columnas) {
-    // Tighter spacing than the cards' labels: the narrow columns' labels must fit on one line.
-    rotulo(doc, col.label, x + CELDA_PADDING_X, y + 8, col.width - 2 * CELDA_PADDING_X, COLOR.muted, col.align ?? "left", 0.4);
+    rotulo(doc, col.label, x + CELDA_PADDING_X, y + 8, col.width - 2 * CELDA_PADDING_X, col.align ?? "left", 0.4);
     x += col.width;
   }
+  lineaHorizontal(doc, y + alto, COLOR.border);
   doc.y = y + alto;
+}
+
+/** The card frame around one sheet's part of the table. */
+function marcoTabla(doc: Doc, yInicio: number, yFin: number): void {
+  doc.save().roundedRect(HOJA_MARGEN, yInicio, HOJA_ANCHO_UTIL, yFin - yInicio, RADIO_CARD).lineWidth(0.75).strokeColor(COLOR.border).stroke().restore();
 }
 
 /** Text (and optional smaller note below) of a plain cell, for measuring and drawing alike. */
@@ -246,17 +300,16 @@ interface TextoCelda {
   nota?: string | null;
   negrita?: boolean;
   color?: string;
-  colorNota?: string;
 }
 
 function textoDeCelda(fila: FilaHojaEnvios, clave: ClaveColumna): TextoCelda | null {
   switch (clave) {
     case "receta":
-      return { texto: fila.receta, negrita: true, color: COLOR.ink };
+      return { texto: fila.receta, negrita: true, color: COLOR.primary };
     case "enviada":
       return { texto: fila.fecha, nota: fila.hora };
     case "paciente":
-      return { texto: fila.paciente, nota: fila.dni, negrita: true, color: COLOR.bodyStrong };
+      return { texto: fila.paciente, nota: fila.dni, negrita: true, color: COLOR.ink };
     case "telefono":
       return { texto: fila.telefono };
     case "domicilio":
@@ -289,17 +342,17 @@ function dibujarTexto(doc: Doc, celda: TextoCelda, x: number, y: number, ancho: 
     .fontSize(TAMANO_TEXTO)
     .fillColor(celda.color ?? COLOR.body)
     .text(celda.texto, x, y, { width: ancho, align });
-  if (celda.nota) doc.font(FUENTE.texto).fontSize(TAMANO_NOTA).fillColor(celda.colorNota ?? COLOR.muted).text(celda.nota, x, doc.y + 2, { width: ancho, align });
+  if (celda.nota) doc.font(FUENTE.texto).fontSize(TAMANO_NOTA).fillColor(COLOR.muted).text(celda.nota, x, doc.y + 2, { width: ancho, align });
 }
 
-/** Payment pill ("PAGADA" green / "IMPAGA" red) with "Cobrar al entregar" under an unpaid one. */
+/** `StatusBadge`-like pill: "Pagada" green / "Impaga" red, with "Cobrar al entregar" under an unpaid one. */
 function dibujarPago(doc: Doc, pagada: boolean, x: number, y: number, ancho: number): void {
-  const texto = (pagada ? TEXTO_PAGO_PAGADA : TEXTO_PAGO_IMPAGA.split(" — ")[0]!).toUpperCase();
-  doc.font(FUENTE.negrita).fontSize(TAMANO_ROTULO + 0.5);
-  const anchoPastilla = doc.widthOfString(texto, { characterSpacing: 0.6 }) + 14;
-  doc.save().roundedRect(x, y - 2, anchoPastilla, 14, 7).fill(pagada ? COLOR.successBg : COLOR.errorBg).restore();
-  doc.fillColor(pagada ? COLOR.successText : COLOR.errorText).text(texto, x + 7, y + 1.5, { characterSpacing: 0.6, lineBreak: false });
-  if (!pagada) doc.font(FUENTE.texto).fontSize(TAMANO_NOTA).fillColor(COLOR.errorText).text("Cobrar al entregar", x, y + 16, { width: ancho, lineBreak: false });
+  const texto = pagada ? TEXTO_PAGO_PAGADA : "Impaga";
+  doc.font(FUENTE.negrita).fontSize(TAMANO_NOTA + 0.5);
+  const anchoBadge = doc.widthOfString(texto) + 14;
+  doc.save().roundedRect(x, y - 2, anchoBadge, 14, RADIO_BADGE).fill(pagada ? COLOR.successBg : COLOR.dangerBg).restore();
+  doc.fillColor(pagada ? COLOR.successText : COLOR.dangerText).text(texto, x + 7, y + 1.5, { lineBreak: false });
+  if (!pagada) doc.font(FUENTE.negrita).fontSize(TAMANO_NOTA).fillColor(COLOR.dangerText).text("Cobrar al entregar", x, y + 16, { width: ancho, lineBreak: false });
 }
 
 /** Signature line with its caption at the bottom of the Recibió cell. */
@@ -312,6 +365,7 @@ function dibujarFirma(doc: Doc, x: number, yFondo: number, ancho: number): void 
 function dibujarTabla(doc: Doc, datos: DatosHojaEnvios): void {
   const columnas = columnasHojaEnvios(datos.conImporte);
   const filas = filasHojaEnvios(datos.envios, datos.conImporte, datos.zonaHoraria);
+  let yInicio = doc.y;
   encabezadoTabla(doc, columnas);
 
   filas.forEach((fila, indice) => {
@@ -325,14 +379,16 @@ function dibujarTabla(doc: Doc, datos: DatosHojaEnvios): void {
     const alto = Math.max(ALTO_MINIMO_FILA, altoContenido + 2 * CELDA_PADDING_Y);
 
     if (doc.y + alto > LIMITE_INFERIOR) {
+      marcoTabla(doc, yInicio, doc.y);
       doc.addPage();
       encabezadoContinuacion(doc, datos);
+      yInicio = doc.y;
       encabezadoTabla(doc, columnas);
+    } else if (indice > 0) {
+      lineaHorizontal(doc, doc.y, COLOR.borderSoft);
     }
 
     const y = doc.y;
-    if (indice % 2 === 1) doc.save().rect(HOJA_MARGEN, y, HOJA_ANCHO_UTIL, alto).fill(COLOR.canvas).restore();
-
     let x = HOJA_MARGEN;
     for (const col of columnas) {
       const xi = x + CELDA_PADDING_X;
@@ -343,13 +399,13 @@ function dibujarTabla(doc: Doc, datos: DatosHojaEnvios): void {
       else if (col.clave === "recibio") dibujarFirma(doc, xi, y + alto, ancho);
       x += col.width;
     }
-
-    doc.save().moveTo(HOJA_MARGEN, y + alto).lineTo(HOJA_MARGEN + HOJA_ANCHO_UTIL, y + alto).lineWidth(0.6).strokeColor(COLOR.hairline).stroke().restore();
     doc.y = y + alto;
   });
+
+  marcoTabla(doc, yInicio, doc.y);
 }
 
-/** Under the table: what "IMPAGA" means for the repartidor. */
+/** Under the table: what "Impaga" means for the repartidor. */
 function leyenda(doc: Doc, datos: DatosHojaEnvios): void {
   if (!datos.envios.some((e) => !e.pagada)) return;
   if (doc.y + 24 > LIMITE_INFERIOR) {
@@ -360,12 +416,12 @@ function leyenda(doc: Doc, datos: DatosHojaEnvios): void {
     .font(FUENTE.texto)
     .fontSize(TAMANO_NOTA + 0.5)
     .fillColor(COLOR.muted)
-    .text("Los envíos marcados IMPAGA se cobran al entregar. Pida firma y aclaración de quien recibe en cada envío.", HOJA_MARGEN, doc.y + 10, { width: HOJA_ANCHO_UTIL });
+    .text("Los envíos marcados Impaga se cobran al entregar. Pida firma y aclaración de quien recibe en cada envío.", HOJA_MARGEN, doc.y + 10, { width: HOJA_ANCHO_UTIL });
 }
 
 function vacio(doc: Doc): void {
   const y = doc.y;
-  doc.save().roundedRect(HOJA_MARGEN, y, HOJA_ANCHO_UTIL, 70, 6).fill(COLOR.surfaceSoft).restore();
+  doc.save().roundedRect(HOJA_MARGEN, y, HOJA_ANCHO_UTIL, 70, RADIO_CARD).lineWidth(0.75).fillAndStroke(COLOR.canvas, COLOR.border).restore();
   doc.font(FUENTE.texto).fontSize(10).fillColor(COLOR.muted).text(MENSAJE_HOJA_ENVIOS_VACIA, HOJA_MARGEN, y + 30, { width: HOJA_ANCHO_UTIL, align: "center", lineBreak: false });
   doc.y = y + 70;
 }
@@ -379,20 +435,20 @@ function pies(doc: Doc, datos: DatosHojaEnvios): void {
     // Writing below the bottom margin would make pdfkit add a page: lift the margin while drawing the footer.
     const margenInferior = doc.page.margins.bottom;
     doc.page.margins.bottom = 0;
-    doc.save().moveTo(HOJA_MARGEN, PIE_Y - 6).lineTo(HOJA_MARGEN + HOJA_ANCHO_UTIL, PIE_Y - 6).lineWidth(0.6).strokeColor(COLOR.hairline).stroke().restore();
+    lineaHorizontal(doc, PIE_Y - 6, COLOR.border);
     doc
       .font(FUENTE.texto)
       .fontSize(TAMANO_NOTA)
-      .fillColor(COLOR.mutedSoft)
+      .fillColor(COLOR.muted)
       .text(`${datos.farmacia.nombre}  ·  Hoja de envíos  ·  ${datos.repartidor.apellido}, ${datos.repartidor.nombre}`, HOJA_MARGEN, PIE_Y, { width: HOJA_ANCHO_UTIL * 0.7, lineBreak: false });
-    doc.text(`Hoja ${i + 1} de ${total}`, HOJA_MARGEN, PIE_Y, { width: HOJA_ANCHO_UTIL, align: "right", lineBreak: false });
+    doc.font(FUENTE.negrita).fillColor(COLOR.primary).text(`Hoja ${i + 1} de ${total}`, HOJA_MARGEN, PIE_Y, { width: HOJA_ANCHO_UTIL, align: "right", lineBreak: false });
     doc.page.margins.bottom = margenInferior;
   }
 }
 
 export function buildEnviosPdf(datos: DatosHojaEnvios): Promise<Buffer> {
   return renderPdf((doc) => {
-    barraAcento(doc);
+    bandaMarca(doc);
     encabezado(doc, datos);
     tarjetasResumen(doc, datos);
     if (datos.envios.length === 0) vacio(doc);

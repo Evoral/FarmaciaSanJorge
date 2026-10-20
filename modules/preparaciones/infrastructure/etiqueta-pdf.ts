@@ -24,9 +24,8 @@
  * automatic wrapping, hence no automatic page breaks): the label is always
  * exactly one page.
  */
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { renderPdf } from "@/shared/pdf/pdf-document";
+import { LOGO_FARMACIA_PROPORCION, logoFarmacia } from "@/shared/pdf/logo";
 import { ETIQUETA_TAMANO_PREDETERMINADO } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import type { TamanoEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import { columnasRp } from "../domain/etiqueta";
@@ -60,23 +59,6 @@ const PANEL_DIV_X = 141.9; // vertical rule between Rp/ and the right panel
 const PIE_Y = 102.2; // rule above the médico footer
 const DERECHA = DW - BORDE - 4; // right limit of the texts
 const REGLA_MARGEN = BORDE + 11.1; // the horizontal rules stop short of the border
-
-let logoCache: Buffer | null | undefined;
-
-/** `public/logo-etiqueta.png` (icon + "san jorge" wordmark), read once. Missing file -> the label is drawn without it. */
-function logo(): Buffer | null {
-  if (logoCache === undefined) {
-    try {
-      logoCache = readFileSync(path.join(process.cwd(), "public", "logo-etiqueta.png"));
-    } catch {
-      logoCache = null;
-    }
-  }
-  return logoCache;
-}
-
-/** Width / height of public/logo-etiqueta.png (283 × 95 px). */
-const LOGO_PROPORCION = 283 / 95;
 
 type Doc = PDFKit.PDFDocument;
 type Fuente = "Helvetica" | "Helvetica-Bold";
@@ -166,10 +148,10 @@ export function tamanoFuenteRp(lineas: number): number {
 }
 
 function dibujarBanda(doc: Doc, c: ContenidoEtiqueta): void {
-  const icono = logo();
+  const icono = logoFarmacia();
   if (icono) {
     const ancho = 89.9;
-    const alto = ancho / LOGO_PROPORCION;
+    const alto = ancho / LOGO_FARMACIA_PROPORCION;
     doc.image(icono, 20.5, (BORDE + BANDA_Y - alto) / 2, { width: ancho, height: alto });
   }
 
