@@ -14,6 +14,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { EstadoReceta } from "@/modules/recetas/domain/receta";
 import { rangoDeJornadas } from "@/shared/time/jornada";
+import { calcularItemsEntregables } from "../domain/entrega";
 import type { ModalidadEntrega, ItemParaEntrega } from "../domain/entrega";
 
 // ============================================================================
@@ -130,10 +131,13 @@ export async function moverEntregaAAnuladas(
   return { entregaId: copiada.entrega_id, modalidad: copiada.modalidad };
 }
 
-/** One batched query resolving every item's `estadoAsiento` for a receta -- same query as `modules/recetas/infrastructure/receta-repository.ts`'s private `getEstadoAsientoPorItem` (own copy, see module doc comment). */
-export async function getItemsParaEntrega(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<ItemParaEntrega[]> {
-  const rows = await tx.$queryRaw<{ item_id: string; estado: "PENDIENTE" | "VIGENTE" | "SIN_EFECTO" }[]>`
+/** One batched query resolving every item's `estadoAsiento` for each of the given recetas -- same query as `modules/recetas/infrastructure/receta-repository.ts`'s private `getEstadoAsientoPorItem` (own copy, see module doc comment). */
+export async function getItemsParaEntregaDeRecetas(tx: Prisma.TransactionClient, tenantId: string, recetaIds: string[]): Promise<Map<string, ItemParaEntrega[]>> {
+  const porReceta = new Map<string, ItemParaEntrega[]>();
+  if (recetaIds.length === 0) return porReceta;
+  const rows = await tx.$queryRaw<{ receta_id: string; item_id: string; estado: "PENDIENTE" | "VIGENTE" | "SIN_EFECTO" }[]>`
     SELECT
+      ir.receta_id,
       ir.id AS item_id,
       CASE
         WHEN a.id IS NULL THEN 'PENDIENTE'
@@ -147,9 +151,19 @@ export async function getItemsParaEntrega(tx: Prisma.TransactionClient, tenantId
     -- D8 (migration 0082): the SISTEMA asiento of the preparación, legacy per-ítem or por receta.
     LEFT JOIN fsj.v_asiento_sistema_preparacion v ON v.tenant_id = p.tenant_id AND v.preparacion_id = p.id
     LEFT JOIN fsj.asiento_recetario a ON a.tenant_id = v.tenant_id AND a.id = v.asiento_recetario_id
-    WHERE ir.tenant_id = ${tenantId}::uuid AND ir.receta_id = ${recetaId}::uuid
+    WHERE ir.tenant_id = ${tenantId}::uuid AND ir.receta_id = ANY(${recetaIds}::uuid[])
   `;
-  return rows.map((r) => ({ id: r.item_id, estadoAsiento: r.estado }));
+  for (const r of rows) {
+    const items = porReceta.get(r.receta_id) ?? [];
+    items.push({ id: r.item_id, estadoAsiento: r.estado });
+    porReceta.set(r.receta_id, items);
+  }
+  return porReceta;
+}
+
+/** Every item's `estadoAsiento` for one receta (`getItemsParaEntregaDeRecetas` with a single id). */
+export async function getItemsParaEntrega(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<ItemParaEntrega[]> {
+  return (await getItemsParaEntregaDeRecetas(tx, tenantId, [recetaId])).get(recetaId) ?? [];
 }
 
 /** A single receta.estado UPDATE (the state machine trigger, migration 0011/0061, validates the transition). `registrarEntrega` issues one, PREPARADA -> {ENTREGADA|ENVIADA_PEND_FIRMA}, after inserting the entrega row (INV-ENT-002, migration 0040). */
@@ -381,4 +395,111 @@ export async function listEntregasPendientes(tx: Prisma.TransactionClient, filte
     })),
     total,
   };
+}
+
+// ============================================================================
+// Hoja de envíos de un repartidor (docs/specs/envios-repartidores.md E8-E10).
+// ============================================================================
+
+/** The tenant's zona horaria: turns "today" and a picked fecha de envío into a jornada (own copy, see module doc comment). */
+export async function zonaHorariaTenant(tx: Prisma.TransactionClient, tenantId: string): Promise<string> {
+  const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { zonaHoraria: true } });
+  return tenant.zonaHoraria;
+}
+
+export interface FarmaciaParaHoja {
+  nombre: string;
+  telefonoFijo: string | null;
+  telefonoCelular: string | null;
+}
+
+/** The farmacia's name (nombre de fantasía, else razón social) and phones: who the repartidor calls (own copy of the tenant read the comprobante and the etiqueta headers do). */
+export async function getFarmaciaParaHoja(tx: Prisma.TransactionClient, tenantId: string): Promise<FarmaciaParaHoja> {
+  const tenant = await tx.tenant.findUniqueOrThrow({
+    where: { id: tenantId },
+    select: { razonSocial: true, nombreFantasia: true, telefonoFijo: true, telefonoCelular: true },
+  });
+  return { nombre: tenant.nombreFantasia ?? tenant.razonSocial, telefonoFijo: tenant.telefonoFijo, telefonoCelular: tenant.telefonoCelular };
+}
+
+export interface EnvioDeRepartidor {
+  recetaId: string;
+  numeroInterno: string;
+  entregadaEn: Date;
+  pacienteApellido: string;
+  pacienteNombre: string;
+  pacienteDni: string | null;
+  pacienteTelefono: string | null;
+  /** `receta.domicilio_paciente` as it is now (not frozen at the envío). */
+  domicilio: string | null;
+  pagada: boolean;
+  /** Ítems entregables (`calcularItemsEntregables`): the ones whose asiento is still VIGENTE; the excluded ones are not delivered. */
+  itemsPreparados: number;
+  /** Sum of each ítem's vigente cotización; null when nothing was cotizado or the price was not requested (`conPrecio` off). */
+  precio: string | null;
+  precioIncompleto: boolean;
+}
+
+export interface ListEnviosDeRepartidorFilter {
+  tenantId: string;
+  repartidorId: string;
+  /** YYYY-MM-DD jornada in the tenant's time zone, filtering `entrega.entregada_en`; null = every pending envío of the repartidor. */
+  fecha: string | null;
+  /** Read the price only for a viewer with `cotizaciones.ver` (the use case decides, E10). */
+  conPrecio: boolean;
+}
+
+/**
+ * E8/E9: the envíos the repartidor carries that have not come back signed (receta ENVIADA_PEND_FIRMA), optionally of
+ * one day. The day is the farmacia's calendar day, turned into an instant range with `rangoDeJornadas` exactly like the
+ * other date filters of this module (`rangoIngreso`), never UTC midnight. Sorted by envío time, then Nº de receta.
+ */
+export async function listEnviosDeRepartidor(tx: Prisma.TransactionClient, filter: ListEnviosDeRepartidorFilter): Promise<EnvioDeRepartidor[]> {
+  let entregadaEn: Prisma.DateTimeFilter | undefined;
+  if (filter.fecha) {
+    const { desde, hastaExclusivo } = rangoDeJornadas(filter.fecha, filter.fecha, await zonaHorariaTenant(tx, filter.tenantId));
+    entregadaEn = { ...(desde ? { gte: desde } : {}), ...(hastaExclusivo ? { lt: hastaExclusivo } : {}) };
+  }
+
+  const rows = await tx.receta.findMany({
+    where: {
+      tenantId: filter.tenantId,
+      estado: "ENVIADA_PEND_FIRMA",
+      entrega: { is: { repartidorId: filter.repartidorId, ...(entregadaEn ? { entregadaEn } : {}) } },
+    },
+    orderBy: [{ entrega: { entregadaEn: "asc" } }, { numeroInterno: "asc" }],
+    select: {
+      id: true,
+      numeroInterno: true,
+      domicilioPaciente: true,
+      pagada: true,
+      paciente: { select: { apellido: true, nombre: true, dni: true, telefono: true } },
+      entrega: { select: { entregadaEn: true } },
+    },
+  });
+
+  const recetaIds = rows.map((r) => r.id);
+  const itemsPorReceta = await getItemsParaEntregaDeRecetas(tx, filter.tenantId, recetaIds);
+  const precios = filter.conPrecio ? await preciosDeRecetas(tx, filter.tenantId, recetaIds) : new Map<string, PrecioReceta>();
+
+  return rows.flatMap((r) =>
+    r.entrega
+      ? [
+          {
+            recetaId: r.id,
+            numeroInterno: r.numeroInterno.toString(),
+            entregadaEn: r.entrega.entregadaEn,
+            pacienteApellido: r.paciente.apellido,
+            pacienteNombre: r.paciente.nombre,
+            pacienteDni: r.paciente.dni,
+            pacienteTelefono: r.paciente.telefono,
+            domicilio: r.domicilioPaciente,
+            pagada: r.pagada,
+            itemsPreparados: calcularItemsEntregables(itemsPorReceta.get(r.id) ?? []).entregables.length,
+            precio: precios.get(r.id)?.precio ?? null,
+            precioIncompleto: precios.get(r.id)?.precioIncompleto ?? false,
+          },
+        ]
+      : [],
+  );
 }

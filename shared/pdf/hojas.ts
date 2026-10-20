@@ -31,16 +31,16 @@ export interface ColumnaTabla {
   align?: "left" | "right";
 }
 
-/** One cell: the main text, plus an optional smaller grey line below it (e.g. "Rectifica Nº 12"). */
-export type CeldaTabla = string | { texto: string; nota?: string };
+/** One cell: the main text (bold when `negrita`), plus an optional smaller grey line below it (e.g. "Rectifica Nº 12"). */
+export type CeldaTabla = string | { texto: string; nota?: string; negrita?: boolean };
 
-function partes(celda: CeldaTabla): { texto: string; nota?: string } {
+function partes(celda: CeldaTabla): { texto: string; nota?: string; negrita?: boolean } {
   return typeof celda === "string" ? { texto: celda } : celda;
 }
 
 function altoCelda(doc: PDFKit.PDFDocument, celda: CeldaTabla, ancho: number): number {
-  const { texto, nota } = partes(celda);
-  doc.font("Helvetica").fontSize(TAMANO_TEXTO);
+  const { texto, nota, negrita } = partes(celda);
+  doc.font(negrita ? "Helvetica-Bold" : "Helvetica").fontSize(TAMANO_TEXTO);
   let alto = doc.heightOfString(texto || " ", { width: ancho });
   if (nota) {
     doc.fontSize(TAMANO_TEXTO - 1);
@@ -69,14 +69,21 @@ function dibujarEncabezado(doc: PDFKit.PDFDocument, columnas: readonly ColumnaTa
 
 /**
  * Draws `filas` under the current `doc.y`. `alNuevaHoja` writes the continuation title of the new sheet (it must
- * leave `doc.y` where the table goes on); the column header is repeated by this function.
+ * leave `doc.y` where the table goes on); the column header is repeated by this function. `altoMinimoFila` (points)
+ * keeps every row at least that tall, e.g. to leave room for a handwritten signature.
  */
-export function dibujarTabla(doc: PDFKit.PDFDocument, columnas: readonly ColumnaTabla[], filas: readonly CeldaTabla[][], alNuevaHoja: () => void): void {
+export function dibujarTabla(
+  doc: PDFKit.PDFDocument,
+  columnas: readonly ColumnaTabla[],
+  filas: readonly CeldaTabla[][],
+  alNuevaHoja: () => void,
+  altoMinimoFila = 0,
+): void {
   const ancho = columnas.reduce((total, c) => total + c.width, 0);
   dibujarEncabezado(doc, columnas, ancho);
 
   for (const fila of filas) {
-    const alto = Math.max(...columnas.map((col, i) => altoCelda(doc, fila[i] ?? "", col.width - 2 * PADDING_X))) + 2 * PADDING_Y;
+    const alto = Math.max(altoMinimoFila, Math.max(...columnas.map((col, i) => altoCelda(doc, fila[i] ?? "", col.width - 2 * PADDING_X))) + 2 * PADDING_Y);
     if (doc.y + alto > HOJA_LIMITE_INFERIOR) {
       doc.addPage();
       alNuevaHoja();
@@ -86,9 +93,9 @@ export function dibujarTabla(doc: PDFKit.PDFDocument, columnas: readonly Columna
     const y = doc.y;
     let x = HOJA_MARGEN;
     columnas.forEach((col, i) => {
-      const { texto, nota } = partes(fila[i] ?? "");
+      const { texto, nota, negrita } = partes(fila[i] ?? "");
       const opciones = { width: col.width - 2 * PADDING_X, align: col.align ?? "left" } as const;
-      doc.font("Helvetica").fontSize(TAMANO_TEXTO).fillColor("#18181b").text(texto, x + PADDING_X, y + PADDING_Y, opciones);
+      doc.font(negrita ? "Helvetica-Bold" : "Helvetica").fontSize(TAMANO_TEXTO).fillColor("#18181b").text(texto, x + PADDING_X, y + PADDING_Y, opciones);
       if (nota) doc.fontSize(TAMANO_TEXTO - 1).fillColor(COLOR_TEXTO_SECUNDARIO).text(nota, x + PADDING_X, doc.y + 1, opciones);
       x += col.width;
     });

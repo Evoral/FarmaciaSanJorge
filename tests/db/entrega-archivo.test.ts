@@ -7,7 +7,7 @@ import type { Client } from "pg";
 import { describe, it, expect } from "vitest";
 import { dbTestSkipReason } from "./env";
 import { asOwner, inRollbackTx, expectInvariantViolation, expectDbRejection } from "./helpers";
-import { insertTenant, createSistemaUser, insertPaciente, insertMedico, insertReceta, insertItemReceta, insertComponente, insertUnidad, insertDroga, marcarRecetaPagada } from "./fixtures";
+import { insertTenant, createSistemaUser, insertPaciente, insertMedico, insertReceta, insertItemReceta, insertComponente, insertUnidad, insertDroga, insertRepartidor, marcarRecetaPagada } from "./fixtures";
 
 /** Steps a receta through PENDIENTE_PREPARACION -> ... -> PREPARADA. Stops one step before ENTREGADA so callers can exercise the entrega itself. */
 async function avanzarHastaPreparada(tx: Client, tenantId: string, recetaId: string): Promise<void> {
@@ -50,13 +50,16 @@ describe.skipIf(dbTestSkipReason() !== null)("0016_entrega_archivo migration (fs
         );
         expect(entrega.rows[0].id).toBeTruthy();
 
+        // The ENVIO carries a repartidor (INV-ENT-005, migration 0093), so the UNIQUE on receta_id is what rejects it.
+        const repartidorId = await insertRepartidor(tx, tenantId, sistema);
         await expectDbRejection(
           tx,
           () =>
-            tx.query(`INSERT INTO fsj.entrega (tenant_id, receta_id, modalidad, entregada_por_id) VALUES ($1, $2, 'ENVIO', $3)`, [
+            tx.query(`INSERT INTO fsj.entrega (tenant_id, receta_id, modalidad, entregada_por_id, repartidor_id) VALUES ($1, $2, 'ENVIO', $3, $4)`, [
               tenantId,
               recetaId,
               sistema,
+              repartidorId,
             ]),
           "23505",
         );

@@ -32,6 +32,7 @@ await import("@/modules/entregas/application/confirmar-firma-recibida");
 await import("@/modules/entregas/application/cambiar-repartidor");
 await import("@/modules/entregas/application/list-entregas-pendientes");
 await import("@/modules/entregas/application/get-entrega-estado");
+await import("@/modules/entregas/application/imprimir-envios-pdf");
 
 const { listRegisteredUseCasesForTests } = await import("@/shared/usecase");
 
@@ -56,6 +57,8 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
   { name: "entregas.firma.confirmar", permiso: "entregas.registrar", input: { recetaId: RECETA_ID } },
   { name: "entregas.pendientes.listar", permiso: "entregas.registrar", input: {} },
   { name: "entregas.estado.ver", permiso: "entregas.registrar", input: { recetaId: RECETA_ID } },
+  { name: "entregas.envios.hoja", permiso: "entregas.registrar", input: { repartidorId: REPARTIDOR_ID } },
+  { name: "entregas.envios.fechaHoy", permiso: "entregas.registrar", input: {} },
 ];
 
 function sessionForRol(rol: Rol): AuthenticatedSession {

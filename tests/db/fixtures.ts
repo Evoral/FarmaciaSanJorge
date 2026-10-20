@@ -180,6 +180,15 @@ export async function createUserWithRole(
   return id;
 }
 
+/** A fictitious repartidor (migration 0093) -- what every ENVIO entrega needs (INV-ENT-005). */
+export async function insertRepartidor(tx: Client, tenantId: string, creadoPorId: string): Promise<string> {
+  const result = await tx.query(
+    `INSERT INTO fsj.repartidor (tenant_id, nombre, apellido, telefono, creado_por_id) VALUES ($1, 'Test', 'Repartidor', '000-0000', $2) RETURNING id`,
+    [tenantId, creadoPorId],
+  );
+  return result.rows[0].id as string;
+}
+
 export async function insertUnidad(tx: Client, suffix: string, tipoMagnitud = "MASA", factorABase = 1): Promise<string> {
   const codigo = `TEST-UM-${suffix}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
   const result = await tx.query(

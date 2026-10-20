@@ -13,7 +13,7 @@ import type { Client } from "pg";
 import { describe, it, expect } from "vitest";
 import { dbTestSkipReason } from "./env";
 import { asOwner, inRollbackTx, expectInvariantViolation } from "./helpers";
-import { insertTenant, createSistemaUser, insertPaciente, insertMedico, insertReceta, insertItemReceta, insertComponente, insertUnidad, insertDroga, marcarRecetaPagada } from "./fixtures";
+import { insertTenant, createSistemaUser, insertPaciente, insertMedico, insertReceta, insertItemReceta, insertComponente, insertUnidad, insertDroga, insertRepartidor, marcarRecetaPagada } from "./fixtures";
 
 /** Steps a receta through PENDIENTE_PREPARACION -> ... -> PREPARADA -- same helper as tests/db/entrega-archivo.test.ts (own copy, test files do not import from each other). */
 async function avanzarHastaPreparada(tx: Client, tenantId: string, recetaId: string): Promise<void> {
@@ -78,7 +78,14 @@ describe.skipIf(dbTestSkipReason() !== null)("0040_entrega_regularizacion migrat
         const { tenantId, sistema, recetaId } = await seedReceta(tx, "ent002-envio-sin-firma");
         await avanzarHastaPreparada(tx, tenantId, recetaId);
 
-        await tx.query(`INSERT INTO fsj.entrega (tenant_id, receta_id, modalidad, entregada_por_id) VALUES ($1, $2, 'ENVIO', $3)`, [tenantId, recetaId, sistema]);
+        // An ENVIO needs a repartidor (INV-ENT-005, migration 0093).
+        const repartidorId = await insertRepartidor(tx, tenantId, sistema);
+        await tx.query(`INSERT INTO fsj.entrega (tenant_id, receta_id, modalidad, entregada_por_id, repartidor_id) VALUES ($1, $2, 'ENVIO', $3, $4)`, [
+          tenantId,
+          recetaId,
+          sistema,
+          repartidorId,
+        ]);
         await tx.query(`UPDATE fsj.receta SET estado = 'ENVIADA_PEND_FIRMA' WHERE tenant_id = $1 AND id = $2`, [tenantId, recetaId]);
 
         await expectInvariantViolation(
@@ -95,9 +102,11 @@ describe.skipIf(dbTestSkipReason() !== null)("0040_entrega_regularizacion migrat
       inRollbackTx(client, async (tx) => {
         const { tenantId, sistema, recetaId } = await seedReceta(tx, "ent002-firma");
         await avanzarHastaPreparada(tx, tenantId, recetaId);
+        // An ENVIO needs a repartidor (INV-ENT-005, migration 0093).
+        const repartidorId = await insertRepartidor(tx, tenantId, sistema);
         const entrega = await tx.query(
-          `INSERT INTO fsj.entrega (tenant_id, receta_id, modalidad, entregada_por_id) VALUES ($1, $2, 'ENVIO', $3) RETURNING id`,
-          [tenantId, recetaId, sistema],
+          `INSERT INTO fsj.entrega (tenant_id, receta_id, modalidad, entregada_por_id, repartidor_id) VALUES ($1, $2, 'ENVIO', $3, $4) RETURNING id`,
+          [tenantId, recetaId, sistema, repartidorId],
         );
         await tx.query(`UPDATE fsj.receta SET estado = 'ENVIADA_PEND_FIRMA' WHERE tenant_id = $1 AND id = $2`, [tenantId, recetaId]);
 

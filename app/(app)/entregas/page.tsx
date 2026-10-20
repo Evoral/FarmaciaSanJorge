@@ -4,7 +4,9 @@ import { X } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listEntregasPendientes } from "@/modules/entregas/application/list-entregas-pendientes";
+import { getFechaHoyEnvios } from "@/modules/entregas/application/imprimir-envios-pdf";
 import { EntregasBuscador } from "@/modules/entregas/ui/entregas-buscador";
+import { ExportarEnviosDialog } from "@/modules/entregas/ui/exportar-envios-dialog";
 import { ESTADO_RECETA_LABELS } from "@/shared/labels/enum-labels";
 import { DateRangeField } from "@/shared/ui/date-range-field";
 import { FilterDrawer } from "@/shared/ui/filter-drawer";
@@ -49,14 +51,18 @@ export default async function EntregasPage({ searchParams }: EntregasPageProps) 
   const ingresoHasta = validIso(params.ingresoHasta);
   const active: Record<FilterParam, string> = { numero, estado: estado ?? "", ingresoDesde, ingresoHasta };
 
-  const result = await listEntregasPendientes({
-    estado,
-    numeroInterno: numero || undefined,
-    ingresoDesde: ingresoDesde || undefined,
-    ingresoHasta: ingresoHasta || undefined,
-    page,
-    pageSize: PAGE_SIZE,
-  });
+  const [result, fechaHoy] = await Promise.all([
+    listEntregasPendientes({
+      estado,
+      numeroInterno: numero || undefined,
+      ingresoDesde: ingresoDesde || undefined,
+      ingresoHasta: ingresoHasta || undefined,
+      page,
+      pageSize: PAGE_SIZE,
+    }),
+    // "Exportar envíos" preselects today in the farmacia's time zone.
+    getFechaHoyEnvios(),
+  ]);
 
   /** The current filters with some replaced or removed (`""`); `page` set only when given. */
   function hrefFor(overrides: Partial<Record<FilterParam, string>>, targetPage?: number): string {
@@ -83,6 +89,7 @@ export default async function EntregasPage({ searchParams }: EntregasPageProps) 
         breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Entregas" }]}
         title="Entregas"
         description="Recetas preparadas para entregar y envíos a la espera de su retorno."
+        actions={<ExportarEnviosDialog fechaHoy={fechaHoy} />}
       />
 
       <EntregasBuscador

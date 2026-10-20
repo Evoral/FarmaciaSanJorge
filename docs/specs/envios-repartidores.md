@@ -1,6 +1,6 @@
 # SPEC — Envíos con repartidor y hoja de envíos del repartidor (PDF)
 
-> Estado: **propuesta** 2026-10-20, sin implementar. Reversión (a escribir con el código): `docs/rollbacks/envios-repartidores.md`.
+> Estado: **implementado 2026-10-20 (migración 0093)**. Reversión: `docs/rollbacks/envios-repartidores.md`.
 > Decisiones del usuario (2026-10-20, revisadas el mismo día):
 > - Los repartidores son un **catálogo propio** (no son usuarios del sistema, no se loguean).
 > - Un envío lleva **un solo** repartidor, elegido con un autocomplete que muestra nombre, apellido y teléfono.
@@ -85,7 +85,7 @@ Alta del permiso según `docs/specs/roles-personalizables.md` (catálogo `PERMIS
 | Alta / edición / activar / desactivar repartidor | `CREAR` / `MODIFICAR` sobre `repartidor`, con valor anterior y nuevo. |
 | Registrar envío | El `CAMBIAR_ESTADO` actual de la entrega suma `repartidorId` al valor nuevo. |
 | Cambiar repartidor | `MODIFICAR` sobre la entrega, con `repartidorId` anterior y nuevo. |
-| Exportar envíos | A definir en el diseño: seguir lo que hacen hoy las otras impresiones de PDF (`cierres.imprimir`, `etiquetas.imprimir`). Si ellas auditan, esta también, porque expone datos de pacientes. |
+| Exportar envíos | **No se audita** (decisión del corte 6). Las impresiones existentes no son uniformes: `etiquetas.imprimir` (PDF con datos de pacientes tras un route handler) no deja registro, y `cierres.imprimir` audita porque además escribe la marca "impreso". Auditar esta exportación exigiría un `defineCommand` bajo `entregas.registrar`, que está en `PERMISOS_CON_PIN_CONFIGURABLES`: en una cuenta de sector con el PIN activo, `resolverActor` pediría un operador que un `GET` nunca trae y el PDF dejaría de salir. El listado `/entregas` ya muestra los mismos datos sin auditoría. Si se quisiera auditar, haría falta un permiso propio fuera de la lista de PIN. |
 
 ## Pantallas
 
@@ -167,7 +167,7 @@ Cada corte es un commit revisable. La migración se aplica antes de desplegar el
 
 ## Código que lo implementa
 
-A completar con cada corte. Implementados (cortes 1 y 2):
+Implementados (cortes 1 y 2):
 
 - **Migración 0093** (`prisma/migrations/20261020120000_0093_repartidores_envio/`, rollback `prisma/rollbacks/0093_repartidores_envio.down.sql`): INV-ENT-005 es el trigger `trg_entrega_validar_repartidor`. **Ventana de aplicación:** como el trigger exige repartidor en todo `ENVIO` nuevo y el código anterior al corte 3 no lo manda, registrar un envío falla entre aplicar 0093 y desplegar el corte 3 (retiro presencial, confirmar firma y anular no se ven afectados). Aplicar 0093 junto con el despliegue del corte 3.
 - **Módulo** `modules/repartidores/` (`domain/repartidor.ts`, `application/{crear,editar,cambiar-estado,get,list,buscar}-repartidor(es).ts`, `infrastructure/repartidor-repository.ts`, `ui/`). Activar/desactivar es un solo comando (`repartidores.cambiarEstado`, auditado como `MODIFICAR` con `activo` anterior y nuevo, sin motivo).
@@ -182,3 +182,11 @@ Implementados (cortes 3, 4 y 5):
 - **Corte 4, cambiar repartidor.** `application/cambiar-repartidor.ts` (`entregas.repartidor.cambiar`, permiso `entregas.registrar`, mismo lock de receta, solo `ENVIADA_PEND_FIRMA` y entrega `ENVIO`, repartidor activo del tenant; elegir el mismo repartidor que ya tiene se rechaza, así no se audita un cambio idéntico; `MODIFICAR` sobre la entrega con `repartidorId` anterior y nuevo); `cambiarRepartidorAction` (envuelta en `conOperador`); `ui/envio-pendiente.tsx` (domicilio, repartidor con teléfono o "Sin repartidor asignado", botón "Cambiar repartidor" / "Asignar repartidor") y `ui/cambiar-repartidor-form.tsx`; `ui/entrega-acciones.tsx` los muestra encima de "Confirmar retorno", que queda intacto.
 - **Corte 5, anular.** `moverEntregaAAnuladas` copia `repartidor_id` (regla A10 de `docs/specs/anular-entrega.md`).
 - **Tests:** `tests/unit/entregas-validacion.test.ts` (reglas puras), `tests/unit/entregas-command-flows.test.ts` (ENVIO sin repartidor, RETIRO con repartidor, ENVIO sin domicilio, repartidor inactivo o inexistente, auditoría, `cambiarRepartidor` solo en `ENVIADA_PEND_FIRMA`), `tests/unit/entregas-authorization-matrix.test.ts` (`entregas.repartidor.cambiar`). Sin test DB: no se pudo correr contra la base compartida.
+
+Implementado (corte 6, exportar envíos):
+
+- **Consulta** `listEnviosDeRepartidor` en `modules/entregas/infrastructure/entrega-repository.ts`: recetas `ENVIADA_PEND_FIRMA` con `entrega.repartidor_id` = el elegido, ordenadas por `entregada_en` y Nº de receta. **Día:** la fecha de envío es un día calendario de la farmacia (`tenant.zona_horaria`) y se convierte al rango `[inicio del día, inicio del día siguiente)` con `rangoDeJornadas` (`shared/time/jornada.ts`), igual que el filtro de ingreso de `/entregas`; nunca medianoche UTC. "Preparados" cuenta los ítems entregables con `calcularItemsEntregables` (asiento VIGENTE) sobre `getItemsParaEntregaDeRecetas` (la consulta de `getItemsParaEntrega`, ahora en lote); el importe reutiliza `preciosDeRecetas` y solo se lee con `cotizaciones.ver`. También: `getFarmaciaParaHoja` (nombre de fantasía o razón social, teléfono fijo y celular) y `zonaHorariaTenant`.
+- **Reglas puras** `modules/entregas/domain/hoja-envios.ts` (línea de filtro, texto de Pago, aviso de hoja vacía, nombre de archivo); **PDF** `modules/entregas/infrastructure/envios-pdf.ts` (`buildEnviosPdf`, `columnasHojaEnvios`, `filasHojaEnvios`). `shared/pdf/hojas.ts` suma `negrita` a las celdas (Pago impago destacado) y `altoMinimoFila` a `dibujarTabla` (espacio para firmar en "Recibió"). El PDF imprime ambos teléfonos de la farmacia si están cargados.
+- **Casos de uso** `modules/entregas/application/imprimir-envios-pdf.ts`: `entregas.envios.hoja` (`defineQuery`, `entregas.registrar`; el repartidor puede estar inactivo, uno inexistente es `NOT_FOUND`; la columna de importe depende de `can(session, "cotizaciones.ver")`) y `entregas.envios.fechaHoy` (hoy en la zona horaria de la farmacia, para precargar el diálogo). Sin auditoría: ver la tabla de Auditoría.
+- **Ruta** `app/api/entregas/envios/pdf/route.ts` (`GET`, solo `repartidorId` y `fecha`), **UI** `modules/entregas/ui/exportar-envios-dialog.tsx` en las acciones del `PageHeader` de `app/(app)/entregas/page.tsx`.
+- **Tests:** `tests/unit/entregas-envios-pdf.test.ts`, `tests/unit/entregas-authorization-matrix.test.ts`; `tests/db/entrega-repartidor.test.ts` (INV-ENT-005, CHECK y FK) y fixtures de repartidor en `tests/db/{entrega-archivo,entrega-regularizacion}.test.ts` (`insertRepartidor` en `tests/db/fixtures.ts`). Los tests DB no se corrieron contra la base compartida.
