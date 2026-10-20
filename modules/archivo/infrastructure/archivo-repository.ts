@@ -127,12 +127,12 @@ export interface RecetaElegibleRow {
   numeroInterno: string;
   pacienteNombre: string;
   pacienteApellido: string;
-  estado: "ENTREGADA" | "ANULADA";
+  estado: "ENTREGADA" | "ANULADA" | "RETIRO_VENCIDO";
   origen: "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO";
   fechaIngreso: string;
 }
 
-/** User decision 4: estado ENTREGADA/ANULADA, sin lote asignado, fecha_ingreso (date part, tenant zona_horaria) dentro del período. DIGITAL_PDF recetas are excluded (no paper to archive -- docs/specs/importacion-receta-pdf.md). `fecha_ingreso` is cast to the TENANT's own zona_horaria, never UTC/server-local -- same discipline `fsj.jornada_actual()` uses server-side. Returns EVERY eligible receta (what `conformarLote` assigns). */
+/** User decision 4 (+ RV7, docs/specs/retiro-vencido.md): estado ENTREGADA/ANULADA/RETIRO_VENCIDO, sin lote asignado, fecha_ingreso (date part, tenant zona_horaria) dentro del período. DIGITAL_PDF recetas are excluded (no paper to archive -- docs/specs/importacion-receta-pdf.md). `fecha_ingreso` is cast to the TENANT's own zona_horaria, never UTC/server-local -- same discipline `fsj.jornada_actual()` uses server-side. Returns EVERY eligible receta (what `conformarLote` assigns). */
 export async function listRecetasElegibles(tx: Prisma.TransactionClient, tenantId: string, periodoDesde: string, periodoHasta: string): Promise<RecetaElegibleRow[]> {
   return queryRecetasElegibles(tx, tenantId, periodoDesde, periodoHasta, PrismaRuntime.empty);
 }
@@ -151,7 +151,7 @@ export async function listRecetasElegiblesPagina(
     FROM fsj.receta r
     JOIN fsj.tenant t ON t.id = r.tenant_id
     WHERE r.tenant_id = ${tenantId}::uuid
-      AND r.estado IN ('ENTREGADA', 'ANULADA')
+      AND r.estado IN ('ENTREGADA', 'ANULADA', 'RETIRO_VENCIDO')
       AND r.origen <> 'DIGITAL_PDF'
       AND r.lote_archivo_id IS NULL
       AND (r.fecha_ingreso AT TIME ZONE 'UTC' AT TIME ZONE t.zona_horaria)::date BETWEEN ${periodoDesde}::date AND ${periodoHasta}::date
@@ -168,7 +168,7 @@ async function queryRecetasElegibles(tx: Prisma.TransactionClient, tenantId: str
       numero_interno: string;
       paciente_nombre: string;
       paciente_apellido: string;
-      estado: "ENTREGADA" | "ANULADA";
+      estado: "ENTREGADA" | "ANULADA" | "RETIRO_VENCIDO";
       origen: "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO";
       fecha_ingreso: string;
     }[]
@@ -185,7 +185,7 @@ async function queryRecetasElegibles(tx: Prisma.TransactionClient, tenantId: str
     JOIN fsj.paciente p ON p.tenant_id = r.tenant_id AND p.id = r.paciente_id
     JOIN fsj.tenant t ON t.id = r.tenant_id
     WHERE r.tenant_id = ${tenantId}::uuid
-      AND r.estado IN ('ENTREGADA', 'ANULADA')
+      AND r.estado IN ('ENTREGADA', 'ANULADA', 'RETIRO_VENCIDO')
       AND r.origen <> 'DIGITAL_PDF'
       AND r.lote_archivo_id IS NULL
       AND (r.fecha_ingreso AT TIME ZONE 'UTC' AT TIME ZONE t.zona_horaria)::date BETWEEN ${periodoDesde}::date AND ${periodoHasta}::date
@@ -259,7 +259,7 @@ export async function recheckRecetasElegibles(tx: Prisma.TransactionClient, tena
     SELECT id FROM fsj.receta
     WHERE tenant_id = ${tenantId}::uuid
       AND id = ANY(${recetaIds}::uuid[])
-      AND estado IN ('ENTREGADA', 'ANULADA')
+      AND estado IN ('ENTREGADA', 'ANULADA', 'RETIRO_VENCIDO')
       AND origen <> 'DIGITAL_PDF'
       AND lote_archivo_id IS NULL
   `;

@@ -5,6 +5,10 @@
     {
       "path": "/api/jobs/plazos-archivo",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/jobs/retiros-vencidos",
+      "schedule": "10 6 * * *"
     }
   ]
 }

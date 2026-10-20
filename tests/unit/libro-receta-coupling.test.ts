@@ -214,6 +214,22 @@ describe("desvincularRecetaPorAsiento", () => {
     expect(fake.recetaUpdate).not.toHaveBeenCalled();
   });
 
+  it("RETIRO_VENCIDO receta is NOT terminal (RV8): anulling its last asiento anulls it like a PREPARADA one", async () => {
+    const fake = makeFakeTx({
+      preparacion: { itemRecetaId: ITEM_RECETA_ID },
+      item: { recetaId: RECETA_ID },
+      receta: { id: RECETA_ID, estado: "RETIRO_VENCIDO" },
+      agregadoSinEfecto: { total: 1, sin_efecto: 1 },
+    });
+
+    const result = await desvincularRecetaPorAsiento(fake.tx, { ...baseInput, preparacionId: PREPARACION_ID, numeroCorrelativo: "77" });
+
+    expect(result).toEqual({ recetaId: RECETA_ID, estadoAnterior: "RETIRO_VENCIDO" });
+    expect(fake.recetaUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { estado: "ANULADA", motivoAnulacion: expect.stringContaining("asiento Nº 77") } }),
+    );
+  });
+
   it("ENTREGADA receta -> unchanged, but the operation proceeds (no throw, terminal short-circuit)", async () => {
     const fake = makeFakeTx({
       preparacion: { itemRecetaId: ITEM_RECETA_ID },

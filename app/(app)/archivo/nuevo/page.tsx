@@ -135,7 +135,7 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
               </h2>
             </div>
             <p className="border-b border-zinc-100 px-4 py-2.5 text-xs text-zinc-500">
-              Elegibles: entregadas o anuladas, sin lote asignado. Las recetas importadas desde PDF no se archivan (no tienen papel).
+              Elegibles: entregadas, anuladas o con retiro vencido, sin lote asignado. Las recetas importadas desde PDF no se archivan (no tienen papel).
             </p>
             {elegibles.total === 0 ? (
               <EmptyState icon={<FileSearch className="size-5" />} title="No hay recetas elegibles en este período" />

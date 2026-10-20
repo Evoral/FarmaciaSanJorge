@@ -34,7 +34,8 @@ Ninguna de estas variables se loguea nunca (`shared/logging/logger.ts#REDACT_PAT
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["gru1"],
   "crons": [
-    { "path": "/api/jobs/plazos-archivo", "schedule": "0 6 * * *" }
+    { "path": "/api/jobs/plazos-archivo", "schedule": "0 6 * * *" },
+    { "path": "/api/jobs/retiros-vencidos", "schedule": "10 6 * * *" }
   ]
 }
 ```
@@ -108,6 +109,18 @@ Vercel Cron invoca el `path` configurado con **`GET`** y, si `CRON_SECRET` está
 Sin `CRON_SECRET` configurada, la ruta responde `503` en cualquiera de los dos casos (nunca ejecuta el job sin secreto). Sin credencial o con una incorrecta, responde `404` (no revela que la ruta existe -- mismo criterio 404-no-403 del resto de la app).
 
 Tests: `tests/unit/archivo-plazos-job.test.ts` cubre ambos transportes (secreto no configurado, header/bearer ausente, incorrecto, correcto).
+
+### Job diario: retiros vencidos
+
+`app/api/jobs/retiros-vencidos/route.ts` pasa a `RETIRO_VENCIDO` las recetas `PREPARADA` cuyo plazo de retiro se cumplió (`docs/specs/retiro-vencido.md`, RV1-RV3). `vercel.json` lo agenda a las `10 6 * * *` (06:10 UTC = 03:10 Argentina), diez minutos después del job de plazos de archivo.
+
+- **Autenticación:** idéntica a la del job de plazos (mismo `CRON_SECRET`, mismos dos transportes `GET` + `Authorization: Bearer` y `POST` + `x-cron-secret`, misma comparación constant-time, 503 sin secreto, 404 con credencial ausente o incorrecta). No hay nada nuevo que configurar en Vercel.
+- **Qué hace:** recorre los tenants activos; por tenant, en una transacción propia, lee `dias_retiro_vencido` (0 = desactivado, el tenant se saltea), calcula el instante de corte a partir de la jornada del tenant y mueve las recetas con `preparada_en` anterior al corte, auditando cada una como el usuario SISTEMA del tenant. El error de un tenant no frena a los demás. Responde solo contadores (`tenantsProcesados`, `recetasVencidas`, `tenantsConError`).
+- **Idempotente:** solo toca recetas `PREPARADA`; correrlo dos veces el mismo día no cambia nada. Una receta que alguien está operando en ese instante (tiene el lock) se saltea y vence en la corrida siguiente.
+- **Primera corrida tras el deploy:** las recetas que ya llevan más de N días en `PREPARADA` (según el backfill de la migración 0095) vencen todas juntas. Conviene avisarle a la farmacia antes.
+- **Límite de crons del plan:** Vercel admite hasta 100 cron jobs por proyecto en todos los planes (https://vercel.com/docs/cron-jobs/usage-and-pricing, verificado 2026-10-20), así que un segundo cron no es un problema. En Hobby los crons solo pueden correr una vez por día y con precisión de ±59 minutos (el job puede ejecutarse entre las 06:10 y las 07:09 UTC); no afecta la regla, que cuenta jornadas y no horas. Si en algún plan o proveedor hubiera que limitar la cantidad de crons, la ruta nueva puede encadenarse desde la del job de plazos (no está implementado).
+
+Tests: `tests/unit/retiro-vencido.test.ts` (cálculo de bordes de jornada) y `tests/unit/retiros-vencidos-job.test.ts` (autenticación de la ruta, aislamiento por tenant, idempotencia, auditoría como SISTEMA, tenant con N = 0).
 
 ## 7. Rollback
 

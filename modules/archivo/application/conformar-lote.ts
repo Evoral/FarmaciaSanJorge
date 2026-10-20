@@ -38,7 +38,7 @@ export interface RecetaElegibleItem {
   numeroInterno: string;
   pacienteNombre: string;
   pacienteApellido: string;
-  estado: "ENTREGADA" | "ANULADA";
+  estado: "ENTREGADA" | "ANULADA" | "RETIRO_VENCIDO";
   origen: "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO";
   fechaIngreso: string;
 }

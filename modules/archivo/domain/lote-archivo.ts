@@ -59,7 +59,7 @@ export function estaDestruido(estado: EstadoLoteArchivoValue): boolean {
 }
 
 /** M09 `EstadoReceta` values that make a receta archivable (migration 0016 INV-ARC-006) -- own copy, module boundary (see modules/entregas/infrastructure/entrega-repository.ts's doc comment for the same "own copy per module" discipline). */
-export type EstadoRecetaArchivable = "ENTREGADA" | "ANULADA";
+export type EstadoRecetaArchivable = "ENTREGADA" | "ANULADA" | "RETIRO_VENCIDO";
 
 export interface RecetaCandidataArchivo {
   estado: string;
@@ -71,7 +71,8 @@ export interface RecetaCandidataArchivo {
 }
 
 /**
- * User decision 4: eligible = ENTREGADA or ANULADA, not already archived,
+ * User decision 4: eligible = ENTREGADA, ANULADA or RETIRO_VENCIDO (RV7, docs/specs/retiro-vencido.md: a receta whose
+ * retiro expired is archivable like the other two), not already archived,
  * and `fecha_ingreso` within the lote's período. The former
  * "receta física recibida" condition went away with the column (client
  * decision 2026-10-01, migration 0051): every non-digital receta has its
@@ -82,7 +83,7 @@ export interface RecetaCandidataArchivo {
 export function esRecetaElegibleParaArchivo(receta: RecetaCandidataArchivo, periodoDesde: string, periodoHasta: string): boolean {
   if (receta.origen === "DIGITAL_PDF") return false;
   if (receta.loteArchivoId !== null) return false;
-  if (receta.estado !== "ENTREGADA" && receta.estado !== "ANULADA") return false;
+  if (receta.estado !== "ENTREGADA" && receta.estado !== "ANULADA" && receta.estado !== "RETIRO_VENCIDO") return false;
   return receta.fechaIngreso >= periodoDesde && receta.fechaIngreso <= periodoHasta;
 }
 

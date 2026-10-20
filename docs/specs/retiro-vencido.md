@@ -1,6 +1,6 @@
 # SPEC — Retiro vencido (recetas preparadas que nadie retira)
 
-> Estado: **propuesta** 2026-10-20; cortes 1 a 3 implementados (ver "Código que lo implementa"), 4 a 6 pendientes. Reversión (a escribir con el código): `docs/rollbacks/retiro-vencido.md`.
+> Estado: **propuesta** 2026-10-20; cortes 1 a 4 y 6 implementados (ver "Código que lo implementa"), 5 pendiente. Reversión (a escribir con el código): `docs/rollbacks/retiro-vencido.md`.
 > Decisiones del usuario (2026-10-20):
 > - Una receta **Preparada** que nadie retira pasa sola a un estado nuevo, **`RETIRO_VENCIDO`**, después de N días.
 > - N es un parámetro por farmacia: **30 días por defecto**, editable por el administrador.
@@ -127,7 +127,7 @@ Cada corte es un commit revisable. Las migraciones se aplican antes de desplegar
 
 ## Código que lo implementa
 
-Cortes 1 a 3 implementados (migraciones **sin aplicar**: 0094 y 0095 se aplican antes de desplegar este código). Cortes 4 a 6 pendientes.
+Cortes 1 a 4 y 6 implementados (migraciones **sin aplicar**: 0094 y 0095 se aplican antes de desplegar este código). Corte 5 (reactivar) pendiente.
 
 **Corte 1 — migraciones.**
 - `prisma/migrations/20261020130000_0094_estado_retiro_vencido/migration.sql` (solo el valor del enum) y `prisma/migrations/20261020130100_0095_retiro_vencido/migration.sql` (`receta.preparada_en` + backfill + trigger `trg_receta_preparada_en`, INV-R08 e INV-ARC-006 redefinidas, seed del parámetro).
@@ -149,7 +149,17 @@ Cortes 1 a 3 implementados (migraciones **sin aplicar**: 0094 y 0095 se aplican 
 - `modules/entregas/domain/retiro-vencido.ts` (`DIAS_RETIRO_VENCIDO_DEFAULT/MAX`, `parseDiasRetiroVencido`, `retiroVencidoDesactivado`) y `getDiasRetiroVencido` en `modules/entregas/infrastructure/entrega-repository.ts` (copia propia, como `getMesesVencimientoPreparado`).
 - `scripts/create-tenant.ts` (seed) y texto de `app/(app)/admin/configuracion/parametros/page.tsx`.
 
-**Tests.** `tests/unit/retiro-vencido.test.ts`, y casos nuevos en `parametros-validacion.test.ts`, `recetas-validacion.test.ts` y `pacientes-trayectoria.test.ts`; la paridad del enum la cubre `enum-labels.test.ts`.
+**Corte 4 — job diario.**
+- `modules/entregas/domain/retiro-vencido.ts`: `sumarDiasAJornada`, `instanteCorteRetiroVencido(jornadaActual, dias, zona)` (el corte que usa el job: `preparada_en < inicio de la jornada J - N + 1`, `null` con N = 0) y `esRetiroVencido` (la misma regla por receta, definida sobre jornadas; los tests comprueban que ambas coinciden en cada borde).
+- `modules/entregas/infrastructure/retiro-vencido-repository.ts`: `lockRecetasPreparadasVencidas` (`FOR UPDATE SKIP LOCKED`, `ORDER BY id`), `marcarRetiroVencido` (UPDATE guardado por `estado = 'PREPARADA'` + un `CAMBIAR_ESTADO` por receta, a nombre de SISTEMA, con `diasRetiroVencido` y `preparadaEn` en el contexto), y copias propias de `listActiveTenantIds` / `getSistemaUsuarioId`.
+- `modules/entregas/application/vencer-retiros.ts` (`runVencerRetirosJob`, una transacción por tenant, error aislado por tenant, tenant con N = 0 salteado sin tocar nada; excepción en `eslint.config.mjs` como la del job de plazos), `app/api/jobs/retiros-vencidos/route.ts` (misma autenticación que `plazos-archivo`), `vercel.json` (`10 6 * * *`) y `docs/deploy.md` (sección del job; límite de crons: 100 por proyecto en todos los planes).
+- "Hoy" es la jornada del tenant según la base (`fsj.jornada_actual`), convertida a instante de corte en TypeScript con `inicioDeJornada` (zona del tenant). Una receta que alguien está operando (lock tomado) se saltea y vence en la corrida siguiente.
+
+**Corte 6 — archivo y libro.**
+- `modules/archivo`: `RETIRO_VENCIDO` entra en `EstadoRecetaArchivable` y `esRecetaElegibleParaArchivo` (`domain/lote-archivo.ts`), en el tipo de `conformar-lote.ts`, en los tres filtros SQL de `archivo-repository.ts` (conteo y listado de elegibles, `recheckRecetasElegibles`), en el mensaje de INV-ARC-006 (`domain/mensajes-invariantes.ts`) y en el texto de `/archivo` y `/archivo/nuevo`. No existe un spec propio de archivo: la regla de elegibilidad vive en esos comentarios y en la nota de 2026-10-01 del plan.
+- Libro (RV8) confirmado sin cambios de código: `ESTADOS_TERMINALES_RECETA` no incluye `RETIRO_VENCIDO`. Test en `tests/unit/libro-receta-coupling.test.ts` y línea en `docs/specs/libro-recetario-y-contralor.md`.
+
+**Tests.** `tests/unit/retiro-vencido.test.ts`, `tests/unit/retiros-vencidos-job.test.ts` (caso de uso, repositorio, ruta), `archivo-lote.test.ts`, `libro-receta-coupling.test.ts` y casos nuevos en `parametros-validacion.test.ts`, `recetas-validacion.test.ts` y `pacientes-trayectoria.test.ts`; la paridad del enum la cubre `enum-labels.test.ts`.
 
 **Desvíos respecto del texto de arriba.**
 - INV-R08 (0095) agrega a `RETIRO_VENCIDO → PREPARADA` una guarda en la base: se rechaza si la receta ya está en un lote de archivo (defensa en profundidad de RV4/RV7, igual que 0086 para la anulación de entrega). `RETIRO_VENCIDO → ANULADA` queda cubierta por la regla general de anulación.

@@ -69,7 +69,12 @@ const eslintConfig = defineConfig([
     // directly. Every OTHER export in that same file (`actualizarPlazos`,
     // the DT's session-driven "Actualizar plazos" button) still goes
     // through defineCommand normally.
-    ignores: ["modules/auth/**", "modules/archivo/application/actualizar-plazos.ts"],
+    // modules/entregas/application/vencer-retiros.ts: the daily "retiro
+    // vencido" job (app/api/jobs/retiros-vencidos, docs/specs/retiro-vencido.md
+    // RV2) is the same case -- no session, secret-protected, iterates every
+    // tenant -- and this file only exports that one job runner
+    // (`runVencerRetirosJob`).
+    ignores: ["modules/auth/**", "modules/archivo/application/actualizar-plazos.ts", "modules/entregas/application/vencer-retiros.ts"],
     rules: {
       "no-restricted-imports": [
         "error",

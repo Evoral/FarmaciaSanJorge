@@ -177,7 +177,7 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
               <EmptyState
                 icon={<Archive className="size-5" />}
                 title="Todavía no hay lotes"
-                description="Conformá un lote con las recetas entregadas o anuladas de un período."
+                description="Conformá un lote con las recetas entregadas, anuladas o con retiro vencido de un período."
                 action={
                   puedeConformar ? (
                     <Link href="/archivo/nuevo" className="btn btn-primary">

@@ -2,9 +2,10 @@
  * Retiro vencido (docs/specs/retiro-vencido.md): a PREPARADA receta that nobody picks up moves, after N days, to
  * RETIRO_VENCIDO. N is the per-tenant parameter `dias_retiro_vencido` (default 30, 0 = disabled, RV1/RV10).
  *
- * Pure, no I/O. This file holds the parameter's bounds and its defensive parser; the job's date arithmetic (RV1) is added
- * next to it by the job slice.
+ * Pure, no I/O. This file holds the parameter's bounds and its defensive parser, and the date arithmetic of the daily job
+ * (RV1): which PREPARADA recetas have waited long enough.
  */
+import { inicioDeJornada, jornadaDe } from "@/shared/time/jornada";
 
 /** Same default scripts/create-tenant.ts and migration 0095 seed; the fallback when a tenant has no usable row. */
 export const DIAS_RETIRO_VENCIDO_DEFAULT = 30;
@@ -29,4 +30,39 @@ export function parseDiasRetiroVencido(raw: string | null | undefined): number {
   if (!/^\d+$/.test(trimmed)) return DIAS_RETIRO_VENCIDO_DEFAULT;
   const dias = Number(trimmed);
   return Number.isSafeInteger(dias) && dias >= 0 && dias <= DIAS_RETIRO_VENCIDO_MAX ? dias : DIAS_RETIRO_VENCIDO_DEFAULT;
+}
+
+/** `YYYY-MM-DD` shifted by a whole number of calendar days (negative = earlier). Pure calendar arithmetic, no time zone involved. */
+export function sumarDiasAJornada(jornada: string, dias: number): string {
+  const [year, month, day] = jornada.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + dias)).toISOString().slice(0, 10);
+}
+
+/**
+ * RV1, as a cutoff for the job's query: a PREPARADA receta is vencida iff `preparada_en < cutoff`.
+ *
+ * "N jornadas" are counted in calendar days of the tenant's zone, not in 24-hour blocks: a receta prepared on jornada D
+ * expires on the first run on jornada >= D + N, whatever the hour it was prepared. So today's jornada J expires every
+ * receta prepared on a jornada <= J - N, i.e. every instant before the start of jornada J - N + 1 (local midnight, in
+ * the tenant's zone). `null` when N = 0 (disabled: nothing ever expires, RV1).
+ *
+ * `jornadaActual` is the tenant's current jornada as the DB reports it (`fsj.jornada_actual`), so the job and every
+ * other "today" in the app read the same clock.
+ */
+export function instanteCorteRetiroVencido(jornadaActual: string, dias: number, zonaHoraria: string): Date | null {
+  if (retiroVencidoDesactivado(dias)) return null;
+  return inicioDeJornada(sumarDiasAJornada(jornadaActual, 1 - dias), zonaHoraria);
+}
+
+/**
+ * RV1 for a single receta: has its retiro expired at `ahora`? Same rule as {@link instanteCorteRetiroVencido}, expressed on
+ * jornadas (`jornada(preparadaEn) + N <= jornada(ahora)`). A receta with no `preparadaEn` (it should not exist in
+ * PREPARADA: the trigger of migration 0095 always sets it) never expires: without the reference date there is nothing to
+ * count from.
+ */
+export function esRetiroVencido(input: { preparadaEn: Date | null; dias: number; ahora: Date; zonaHoraria: string }): boolean {
+  if (input.preparadaEn === null || retiroVencidoDesactivado(input.dias)) return false;
+  const jornadaPreparada = jornadaDe(input.preparadaEn, input.zonaHoraria);
+  const jornadaActual = jornadaDe(input.ahora, input.zonaHoraria);
+  return sumarDiasAJornada(jornadaPreparada, input.dias) <= jornadaActual;
 }

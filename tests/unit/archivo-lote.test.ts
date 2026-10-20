@@ -21,9 +21,22 @@ import {
 describe("esRecetaElegibleParaArchivo", () => {
   const base = { estado: "ENTREGADA", origen: "PRESENCIAL", loteArchivoId: null, fechaIngreso: "2024-06-15" };
 
-  it("eligible: ENTREGADA/ANULADA (an ANULADA receta too, migration 0051), sin lote, dentro del periodo", () => {
+  it("eligible: ENTREGADA/ANULADA/RETIRO_VENCIDO (an ANULADA receta too, migration 0051; RETIRO_VENCIDO per RV7), sin lote, dentro del periodo", () => {
     expect(esRecetaElegibleParaArchivo(base, "2024-06-01", "2024-06-30")).toBe(true);
     expect(esRecetaElegibleParaArchivo({ ...base, estado: "ANULADA" }, "2024-06-01", "2024-06-30")).toBe(true);
+    expect(esRecetaElegibleParaArchivo({ ...base, estado: "RETIRO_VENCIDO" }, "2024-06-01", "2024-06-30")).toBe(true);
+  });
+
+  it("RETIRO_VENCIDO follows the same exclusions as the other estados: already archived, outside the periodo, DIGITAL_PDF", () => {
+    const vencida = { ...base, estado: "RETIRO_VENCIDO" };
+    expect(esRecetaElegibleParaArchivo({ ...vencida, loteArchivoId: "lote-1" }, "2024-06-01", "2024-06-30")).toBe(false);
+    expect(esRecetaElegibleParaArchivo(vencida, "2024-07-01", "2024-07-31")).toBe(false);
+    expect(esRecetaElegibleParaArchivo({ ...vencida, origen: "DIGITAL_PDF" }, "2024-06-01", "2024-06-30")).toBe(false);
+  });
+
+  it("not eligible: PREPARADA and ENVIADA_PEND_FIRMA (the retiro has not expired / the preparado is out for signature)", () => {
+    expect(esRecetaElegibleParaArchivo({ ...base, estado: "PREPARADA" }, "2024-06-01", "2024-06-30")).toBe(false);
+    expect(esRecetaElegibleParaArchivo({ ...base, estado: "ENVIADA_PEND_FIRMA" }, "2024-06-01", "2024-06-30")).toBe(false);
   });
 
   it("not eligible: already has a lote assigned", () => {
