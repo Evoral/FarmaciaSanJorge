@@ -64,6 +64,7 @@ import { DateInput } from "@/shared/ui/date-input";
 import { errorFieldsOf } from "@/shared/ui/form-parts";
 import { useFieldErrors } from "@/shared/ui/field-errors";
 import { useFormSubmit } from "@/shared/ui/use-form-submit";
+import { interpretarNumero } from "@/shared/decimal/numero-ingresado";
 
 interface ComponenteState {
   id?: string;
@@ -189,6 +190,25 @@ function itemParaEnvio(it: ItemState) {
 
 /** An ítem of the draft as it would be submitted (`id` only for an ítem already saved). */
 export type ItemRecetaBorrador = ReturnType<typeof itemParaEnvio>;
+
+/**
+ * The ítems with their typed quantities read as the server reads them (`interpretarNumero`): "1,5" -> "1.5". The
+ * client pre-check (`validarItemsReceta`) parses with `new Decimal`, which rejects the es-AR comma; an unreadable or
+ * ambiguous number ("1.500") throws with `interpretarNumero`'s own message.
+ */
+function itemsConNumerosCanonicos(items: ItemRecetaBorrador[]): ItemRecetaBorrador[] {
+  const leer = (texto: string | null, donde: string): string | null => {
+    if (texto === null) return null;
+    const numero = interpretarNumero(texto);
+    if (!numero.ok) throw new Error(`${donde}: ${numero.mensaje}`);
+    return numero.valor;
+  };
+  return items.map((it, i) => ({
+    ...it,
+    cantidadTotal: leer(it.cantidadTotal, `Ítem ${i + 1}, cantidad total`),
+    componentes: it.componentes.map((c, j) => ({ ...c, cantidad: leer(c.cantidad, `Ítem ${i + 1}, componente ${j + 1}`) })),
+  }));
+}
 
 /** `editar` mode: the draft's ítems against the saved ones (`onBorradorChange`). */
 export interface BorradorReceta {
@@ -514,7 +534,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
       return;
     }
     try {
-      validarItemsReceta(itemsParaEnvio());
+      validarItemsReceta(itemsConNumerosCanonicos(itemsParaEnvio()));
     } catch (err) {
       e.preventDefault();
       setClientError(err instanceof Error ? err.message : "La receta tiene errores.");
