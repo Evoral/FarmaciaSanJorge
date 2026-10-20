@@ -181,55 +181,58 @@ describe("hoja de envíos -- pure rules", () => {
 });
 
 describe("hoja de envíos -- table", () => {
-  const ETIQUETAS_BASE = ["Nº receta", "Enviada", "Paciente", "Teléfono", "Domicilio", "Preparados", "Pago", "Recibió"];
+  const CLAVES_BASE = ["receta", "enviada", "paciente", "telefono", "domicilio", "preparados", "pago", "recibio"];
 
-  it("has no Importe column without cotizaciones.ver, and Recibió is the last and widest signing space", () => {
+  it("has no Importe column without cotizaciones.ver, and Recibió is the last column, wide enough to sign", () => {
     const columnas = columnasHojaEnvios(false);
 
-    expect(columnas.map((c) => c.label)).toEqual(ETIQUETAS_BASE);
+    expect(columnas.map((c) => c.clave)).toEqual(CLAVES_BASE);
     expect(columnas.reduce((total, c) => total + c.width, 0)).toBe(HOJA_ANCHO_UTIL);
-    expect(columnas.at(-1)!.width).toBeGreaterThanOrEqual(150);
+    expect(columnas.at(-1)!.width).toBeGreaterThanOrEqual(140);
   });
 
-  it("adds Importe before Recibió with cotizaciones.ver, still filling the page width", () => {
-    const columnas = columnasHojaEnvios(true);
+  it("adds Importe before Recibió with cotizaciones.ver, still filling the page width (Domicilio gives up the room)", () => {
+    const sin = columnasHojaEnvios(false);
+    const con = columnasHojaEnvios(true);
+    const ancho = (columnas: typeof con, clave: string) => columnas.find((c) => c.clave === clave)!.width;
 
-    expect(columnas.map((c) => c.label)).toEqual([...ETIQUETAS_BASE.slice(0, 7), "Importe", "Recibió"]);
-    expect(columnas.reduce((total, c) => total + c.width, 0)).toBe(HOJA_ANCHO_UTIL);
-    expect(columnas.at(-1)!.width).toBeGreaterThanOrEqual(150);
+    expect(con.map((c) => c.clave)).toEqual([...CLAVES_BASE.slice(0, 7), "importe", "recibio"]);
+    expect(con.reduce((total, c) => total + c.width, 0)).toBe(HOJA_ANCHO_UTIL);
+    expect(ancho(sin, "domicilio") - ancho(con, "domicilio")).toBe(ancho(con, "importe"));
   });
 
-  it("builds one row per envío with as many cells as columns, with or without Importe", () => {
+  it("builds one row per envío; the importe only exists with cotizaciones.ver", () => {
     const envios = [envio(1), envio(2, { pagada: false, precio: null, pacienteDni: null, pacienteTelefono: null, domicilio: null })];
 
-    for (const conImporte of [false, true]) {
-      const filas = filasHojaEnvios(envios, conImporte, ZONA);
-      expect(filas).toHaveLength(2);
-      for (const fila of filas) expect(fila).toHaveLength(columnasHojaEnvios(conImporte).length);
-    }
+    expect(filasHojaEnvios(envios, false, ZONA).map((f) => f.importe)).toEqual([null, null]);
+    expect(filasHojaEnvios(envios, true, ZONA).every((f) => f.importe !== null)).toBe(true);
   });
 
-  it("prints Pagada plain and IMPAGA — cobrar in bold, and '—' for a missing teléfono or domicilio", () => {
-    const [pagada, impaga] = filasHojaEnvios([envio(1), envio(2, { pagada: false, pacienteTelefono: null, domicilio: null })], false, ZONA);
+  it("keeps the payment state, the DNI note, and '—' for a missing teléfono or domicilio", () => {
+    const [pagada, impaga] = filasHojaEnvios([envio(1), envio(2, { pagada: false, pacienteDni: null, pacienteTelefono: null, domicilio: null })], false, ZONA);
 
-    expect(pagada![6]).toEqual({ texto: TEXTO_PAGO_PAGADA, negrita: false });
-    expect(impaga![6]).toEqual({ texto: TEXTO_PAGO_IMPAGA, negrita: true });
-    expect(impaga![3]).toBe("—");
-    expect(impaga![4]).toBe("—");
+    expect(pagada!.pagada).toBe(true);
+    expect(pagada!.dni).toMatch(/^DNI /);
+    expect(impaga!.pagada).toBe(false);
+    expect(impaga!.dni).toBeNull();
+    expect(impaga!.telefono).toBe("—");
+    expect(impaga!.domicilio).toBe("—");
   });
 
   it("shows the importe, 'incompleto' under a partial one and 'Sin cotizar' when there is none", () => {
     const filas = filasHojaEnvios([envio(1), envio(2, { precioIncompleto: true }), envio(3, { precio: null })], true, ZONA);
 
-    expect(filas[0]![7]).toBe("$ 1.500,50");
-    expect(filas[1]![7]).toEqual({ texto: "$ 1.500,50", nota: "incompleto" });
-    expect(filas[2]![7]).toBe("Sin cotizar");
+    expect(filas[0]!.importe).toEqual({ texto: "$ 1.500,50" });
+    expect(filas[1]!.importe).toEqual({ texto: "$ 1.500,50", nota: "incompleto" });
+    expect(filas[2]!.importe).toEqual({ texto: "Sin cotizar", sinCotizar: true });
   });
 
-  it("shows the envío's day and time in the farmacia's zone", () => {
+  it("shows the receta number and the envío's day and time in the farmacia's zone", () => {
     const [fila] = filasHojaEnvios([envio(1)], false, ZONA);
 
-    expect(fila![1]).toBe("20/10/2026 12:30");
+    expect(fila!.receta).toMatch(/^Nº /);
+    expect(fila!.fecha).toBe("20/10/2026");
+    expect(fila!.hora).toBe("12:30");
   });
 });
 
