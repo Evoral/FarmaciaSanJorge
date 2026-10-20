@@ -13,12 +13,13 @@ import {
   estadoDestinoEntrega,
   mensajeRepartidorSegunModalidad,
   recetaTieneDomicilio,
-  validarDomicilioParaEnvio,
+  resolverDomicilioParaEnvio,
   validarRepartidorAsignable,
   puedeCambiarRepartidor,
   MENSAJE_ENVIO_SIN_REPARTIDOR,
   MENSAJE_RETIRO_CON_REPARTIDOR,
   MENSAJE_ENVIO_SIN_DOMICILIO,
+  MENSAJE_DOMICILIO_YA_CARGADO,
   MENSAJE_REPARTIDOR_INACTIVO,
   MENSAJE_REPARTIDOR_NO_ENCONTRADO,
 } from "@/modules/entregas/domain/entrega";
@@ -85,7 +86,7 @@ describe("mensajeRepartidorSegunModalidad (E1/E2)", () => {
   });
 });
 
-describe("recetaTieneDomicilio / validarDomicilioParaEnvio (E4)", () => {
+describe("recetaTieneDomicilio / resolverDomicilioParaEnvio (E4)", () => {
   it("null, empty and whitespace-only mean there is no domicilio", () => {
     expect(recetaTieneDomicilio(null)).toBe(false);
     expect(recetaTieneDomicilio(undefined)).toBe(false);
@@ -94,10 +95,38 @@ describe("recetaTieneDomicilio / validarDomicilioParaEnvio (E4)", () => {
     expect(recetaTieneDomicilio("Calle Falsa 123")).toBe(true);
   });
 
-  it("throws the sin-domicilio message for a receta without one, and passes otherwise", () => {
-    expect(() => validarDomicilioParaEnvio(null)).toThrow(ValidationError);
-    expect(() => validarDomicilioParaEnvio("  ")).toThrow(MENSAJE_ENVIO_SIN_DOMICILIO);
-    expect(() => validarDomicilioParaEnvio("Calle Falsa 123")).not.toThrow();
+  it("a receta without domicilio and none typed: refused on the domicilio field", () => {
+    for (const domicilioReceta of [null, undefined, "", "  "]) {
+      for (const ingresado of [null, undefined, "", "   "]) {
+        expect(() => resolverDomicilioParaEnvio(domicilioReceta, ingresado)).toThrow(MENSAJE_ENVIO_SIN_DOMICILIO);
+      }
+    }
+    try {
+      resolverDomicilioParaEnvio(null, undefined);
+    } catch (error) {
+      expect(error).toBeInstanceOf(ValidationError);
+      expect((error as ValidationError).fields).toEqual(["domicilio"]);
+    }
+  });
+
+  it("a receta without domicilio and one typed: returns it (trimmed) to be saved", () => {
+    expect(resolverDomicilioParaEnvio(null, "Calle Falsa 123")).toBe("Calle Falsa 123");
+    expect(resolverDomicilioParaEnvio("  ", "  Calle Falsa 123  ")).toBe("Calle Falsa 123");
+  });
+
+  it("a receta that already has a domicilio: nothing to save when none is typed", () => {
+    expect(resolverDomicilioParaEnvio("Calle Falsa 123", undefined)).toBeNull();
+    expect(resolverDomicilioParaEnvio("Calle Falsa 123", "")).toBeNull();
+    expect(resolverDomicilioParaEnvio("Calle Falsa 123", "  ")).toBeNull();
+  });
+
+  it("a receta that already has a domicilio: a typed one is rejected, never overwriting it", () => {
+    expect(() => resolverDomicilioParaEnvio("Calle Falsa 123", "Otra calle 9")).toThrow(MENSAJE_DOMICILIO_YA_CARGADO);
+    try {
+      resolverDomicilioParaEnvio("Calle Falsa 123", "Otra calle 9");
+    } catch (error) {
+      expect((error as ValidationError).fields).toEqual(["domicilio"]);
+    }
   });
 });
 

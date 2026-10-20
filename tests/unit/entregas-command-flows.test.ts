@@ -10,6 +10,8 @@ import type { AuthenticatedSession } from "@/shared/auth/session";
 import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import {
   MENSAJE_ENVIO_SIN_DOMICILIO,
+  MENSAJE_DOMICILIO_YA_CARGADO,
+  MENSAJE_RETIRO_CON_DOMICILIO,
   MENSAJE_REPARTIDOR_INACTIVO,
   MENSAJE_REPARTIDOR_NO_ENCONTRADO,
 } from "@/modules/entregas/domain/entrega";
@@ -79,6 +81,10 @@ const marcarRecetaPagadaMock = vi.fn(async (...args: unknown[]) => {
   void args;
   callOrder.push("pago");
 });
+const actualizarDomicilioRecetaMock = vi.fn(async (...args: unknown[]) => {
+  void args;
+  callOrder.push("domicilio");
+});
 const getEntregaPorRecetaMock = vi.fn();
 const getRepartidorParaAsignarMock = vi.fn();
 const cambiarRepartidorDeEntregaMock = vi.fn(async (...args: unknown[]) => {
@@ -97,6 +103,7 @@ vi.mock("@/modules/entregas/infrastructure/entrega-repository", () => ({
   actualizarEstadoReceta: (...args: unknown[]) => actualizarEstadoRecetaMock(...args),
   insertEntrega: (...args: unknown[]) => insertEntregaMock(...args),
   marcarRecetaPagada: (...args: unknown[]) => marcarRecetaPagadaMock(...args),
+  actualizarDomicilioReceta: (...args: unknown[]) => actualizarDomicilioRecetaMock(...args),
   getEntregaPorReceta: (...args: unknown[]) => getEntregaPorRecetaMock(...args),
   getRepartidorParaAsignar: (...args: unknown[]) => getRepartidorParaAsignarMock(...args),
   cambiarRepartidorDeEntrega: (...args: unknown[]) => cambiarRepartidorDeEntregaMock(...args),
@@ -116,6 +123,7 @@ function resetMocks() {
   actualizarEstadoRecetaMock.mockClear();
   insertEntregaMock.mockClear();
   marcarRecetaPagadaMock.mockClear();
+  actualizarDomicilioRecetaMock.mockClear();
   getEntregaPorRecetaMock.mockReset();
   getRepartidorParaAsignarMock.mockReset().mockResolvedValue({ id: REPARTIDOR_ID, activo: true });
   cambiarRepartidorDeEntregaMock.mockClear();
@@ -187,18 +195,103 @@ describe("registrarEntrega -- write order and PREPARADA -> destino", () => {
     expect(insertEntregaMock).not.toHaveBeenCalled();
   });
 
-  it("ENVIO of a receta without domicilio (null or blank): rejected before any write (E4)", async () => {
+  it("ENVIO of a receta without domicilio (null or blank) and none typed: rejected on the domicilio field before any write (E4)", async () => {
     for (const domicilioPaciente of [null, "   "]) {
       getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: true, domicilioPaciente });
-      await expect(
-        registrarEntregaCommand.execute(
-          { recetaId: RECETA_ID, modalidad: "ENVIO", repartidorId: REPARTIDOR_ID },
+      for (const domicilio of [undefined, "", "   "]) {
+        const rejected = registrarEntregaCommand.execute(
+          { recetaId: RECETA_ID, modalidad: "ENVIO", repartidorId: REPARTIDOR_ID, domicilio },
           { session: fakeSession("entregas.registrar") },
-        ),
-      ).rejects.toThrow(MENSAJE_ENVIO_SIN_DOMICILIO);
+        );
+        await expect(rejected).rejects.toThrow(MENSAJE_ENVIO_SIN_DOMICILIO);
+        await expect(rejected).rejects.toMatchObject({ fields: ["domicilio"] });
+      }
     }
+    expect(actualizarDomicilioRecetaMock).not.toHaveBeenCalled();
     expect(insertEntregaMock).not.toHaveBeenCalled();
     expect(actualizarEstadoRecetaMock).not.toHaveBeenCalled();
+  });
+
+  it("ENVIO of a receta without domicilio + one typed: saved on the receta (trimmed) and audited as MODIFICAR, BEFORE the entrega is inserted (E4)", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: false, domicilioPaciente: null });
+
+    await registrarEntregaCommand.execute(
+      { recetaId: RECETA_ID, modalidad: "ENVIO", repartidorId: REPARTIDOR_ID, domicilio: "  " + DOMICILIO + "  " },
+      { session: fakeSession("entregas.registrar") },
+    );
+
+    expect(callOrder).toEqual(["lock", "domicilio", "insertEntrega", "estado:ENVIADA_PEND_FIRMA"]);
+    expect(actualizarDomicilioRecetaMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, RECETA_ID, DOMICILIO);
+    expect(vi.mocked(auditRecordMock)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        entidad: "receta",
+        entidadId: RECETA_ID,
+        accion: "MODIFICAR",
+        valorAnterior: { domicilioPaciente: null },
+        valorNuevo: { domicilioPaciente: DOMICILIO },
+      }),
+    );
+  });
+
+  it("ENVIO of a receta with a blank-only domicilio overwrites it with the typed one, recording the old value", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: true, domicilioPaciente: "   " });
+
+    await registrarEntregaCommand.execute(
+      { recetaId: RECETA_ID, modalidad: "ENVIO", repartidorId: REPARTIDOR_ID, domicilio: DOMICILIO },
+      { session: fakeSession("entregas.registrar") },
+    );
+
+    expect(actualizarDomicilioRecetaMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, RECETA_ID, DOMICILIO);
+    expect(vi.mocked(auditRecordMock)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ entidad: "receta", valorAnterior: { domicilioPaciente: "   " } }),
+    );
+  });
+
+  it("ENVIO of a receta that already has a domicilio: nothing is written to the receta and no receta audit row (E4)", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: true, domicilioPaciente: DOMICILIO });
+
+    await registrarEntregaCommand.execute(
+      { recetaId: RECETA_ID, modalidad: "ENVIO", repartidorId: REPARTIDOR_ID },
+      { session: fakeSession("entregas.registrar") },
+    );
+
+    expect(callOrder).toEqual(["lock", "insertEntrega", "estado:ENVIADA_PEND_FIRMA"]);
+    expect(actualizarDomicilioRecetaMock).not.toHaveBeenCalled();
+    expect(vi.mocked(auditRecordMock).mock.calls.some(([, entrada]) => entrada.entidad === "receta")).toBe(false);
+  });
+
+  it("ENVIO sending a domicilio while the receta already has one: rejected on the domicilio field, receta untouched (E4)", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: true, domicilioPaciente: DOMICILIO });
+
+    const rejected = registrarEntregaCommand.execute(
+      { recetaId: RECETA_ID, modalidad: "ENVIO", repartidorId: REPARTIDOR_ID, domicilio: "Otra calle 9" },
+      { session: fakeSession("entregas.registrar") },
+    );
+    await expect(rejected).rejects.toThrow(MENSAJE_DOMICILIO_YA_CARGADO);
+    await expect(rejected).rejects.toMatchObject({ fields: ["domicilio"] });
+    expect(actualizarDomicilioRecetaMock).not.toHaveBeenCalled();
+    expect(insertEntregaMock).not.toHaveBeenCalled();
+  });
+
+  it("RETIRO_PRESENCIAL with a domicilio: rejected by the input schema on the domicilio field (E4)", async () => {
+    const rejected = registrarEntregaCommand.execute(
+      { recetaId: RECETA_ID, modalidad: "RETIRO_PRESENCIAL", pagada: true, domicilio: DOMICILIO },
+      { session: fakeSession("entregas.registrar") },
+    );
+    await expect(rejected).rejects.toThrow(MENSAJE_RETIRO_CON_DOMICILIO);
+    await expect(rejected).rejects.toMatchObject({ fields: ["domicilio"] });
+    expect(lockRecetaMock).not.toHaveBeenCalled();
+  });
+
+  it("a domicilio longer than the receta form's limit is rejected by the input schema (same rule as domicilioPaciente)", async () => {
+    const rejected = registrarEntregaCommand.execute(
+      { recetaId: RECETA_ID, modalidad: "ENVIO", repartidorId: REPARTIDOR_ID, domicilio: "x".repeat(301) },
+      { session: fakeSession("entregas.registrar") },
+    );
+    await expect(rejected).rejects.toMatchObject({ fields: ["domicilio"] });
+    expect(lockRecetaMock).not.toHaveBeenCalled();
   });
 
   it("ENVIO with an inactive repartidor: rejected before any write (E3)", async () => {

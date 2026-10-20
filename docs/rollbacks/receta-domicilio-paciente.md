@@ -1,6 +1,6 @@
 # Rollback: Domicilio del paciente per receta (`receta.domicilio_paciente`)
 
-Spec: `docs/specs/importacion-receta-pdf.md`, "Domicilio del paciente". One database
+Spec: `docs/specs/importacion-receta-pdf.md`, "Domicilio del paciente". Note (2026-10-20): `registrarEntrega` (`modules/entregas`) also writes this column, for an envío of a receta that has none (`docs/specs/envios-repartidores.md` E4); if the column is dropped, that command must lose its `domicilio` input first. One database
 change (migration 0070: a nullable text column on `fsj.receta`) and the code that
 reads and writes it: manual alta, edit, PDF import (the first `- …` line after
 `Rp./`), the receta detail and the `/preparaciones` toma workspace.

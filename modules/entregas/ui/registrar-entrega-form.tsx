@@ -10,16 +10,17 @@
  * shape.
  *
  * Envío (docs/specs/envios-repartidores.md): choosing it shows the receta's domicilio (read-only) and a required
- * "Repartidor" autocomplete over the ACTIVE repartidores. Without a domicilio the option is disabled (E4); with no
+ * "Repartidor" autocomplete over the ACTIVE repartidores. Without a receta domicilio the form asks for one (`domicilio`, saved on the receta by the use case, E4); with no
  * active repartidor the form says so and, for whoever manages the catalog, links to it. The picked repartidor is
  * submitted as `repartidorId` only while "Envío" is chosen (a retiro presencial never carries one, E2).
  */
-import { useState } from "react";
+import { useId, useState } from "react";
 import Link from "next/link";
 import { Store, TriangleAlert, Truck } from "lucide-react";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { Combobox, type ComboboxOption } from "@/shared/ui/combobox";
 import { PagoSwitch } from "@/modules/recetas/ui/pago-switch";
+import { MAX_DOMICILIO_PACIENTE } from "@/modules/recetas/domain/receta";
 import { buscarRepartidoresParaCombobox } from "@/modules/repartidores/ui/repartidor-search";
 import type { EntregaActionState } from "./action-state";
 
@@ -31,7 +32,7 @@ export interface RegistrarEntregaFormProps {
   recetaId: string;
   /** The receta is already paid: the switch shows on and locked (the entrega never lowers the payment). */
   pagada: boolean;
-  /** `receta.domicilio_paciente`; blank or null means the receta cannot be sent (E4). */
+  /** `receta.domicilio_paciente`; blank or null means the person registering types the domicilio de entrega (E4). */
   domicilioPaciente: string | null;
   /** The tenant has at least one active repartidor to pick. */
   hayRepartidoresActivos: boolean;
@@ -53,10 +54,20 @@ export function RegistrarEntregaForm({
   const [modalidad, setModalidad] = useState<"RETIRO_PRESENCIAL" | "ENVIO">("RETIRO_PRESENCIAL");
   const [pagarAhora, setPagarAhora] = useState(false);
   const [repartidor, setRepartidor] = useState<ComboboxOption | null>(null);
+  // The receta has none: an envío is registered from PREPARADA, where it can no longer be edited, so it is typed here and
+  // saved on the receta by the use case (E4). The state survives a server error (useFormSubmit never resets on error).
+  const [domicilioEscrito, setDomicilioEscrito] = useState("");
+  const domicilioInputId = useId();
   const domicilio = domicilioPaciente?.trim() ?? "";
-  const puedeEnviar = domicilio.length > 0;
+  const recetaTieneDomicilio = domicilio.length > 0;
   const faltaPago = modalidad === "RETIRO_PRESENCIAL" && !pagada && !pagarAhora;
   const faltaRepartidor = modalidad === "ENVIO" && !repartidor;
+  const faltaDomicilio = modalidad === "ENVIO" && !recetaTieneDomicilio && domicilioEscrito.trim().length === 0;
+  const motivoSubmitDeshabilitado = faltaPago
+    ? "Para el retiro presencial, marcá la receta como pagada."
+    : faltaRepartidor
+      ? "Elija el repartidor que lleva el envío."
+      : "Ingrese el domicilio de entrega.";
 
   return (
     <SimpleForm
@@ -64,8 +75,8 @@ export function RegistrarEntregaForm({
       submitLabel="Registrar entrega"
       pendingLabel="Registrando…"
       onSuccess={onSuccess}
-      submitDisabled={faltaPago || faltaRepartidor}
-      submitDisabledReason={faltaPago ? "Para el retiro presencial, marcá la receta como pagada." : "Elija el repartidor que lleva el envío."}
+      submitDisabled={faltaPago || faltaRepartidor || faltaDomicilio}
+      submitDisabledReason={motivoSubmitDeshabilitado}
     >
       <input type="hidden" name="recetaId" value={recetaId} />
       <fieldset className="flex flex-col gap-2">
@@ -78,30 +89,42 @@ export function RegistrarEntregaForm({
             <span className="block text-xs text-zinc-500">El paciente la retira en el mostrador.</span>
           </span>
         </label>
-        <label className={puedeEnviar ? "choice-row" : "choice-row cursor-not-allowed opacity-60"}>
-          <input type="radio" name="modalidad" value="ENVIO" checked={modalidad === "ENVIO"} disabled={!puedeEnviar} onChange={() => setModalidad("ENVIO")} />
+        <label className="choice-row">
+          <input type="radio" name="modalidad" value="ENVIO" checked={modalidad === "ENVIO"} onChange={() => setModalidad("ENVIO")} />
           <Truck className="size-4 flex-none text-zinc-500" aria-hidden />
           <span className="min-w-0">
             <span className="block font-medium text-zinc-900">Envío</span>
             <span className="block text-xs text-zinc-500">Queda pendiente hasta confirmar su retorno.</span>
           </span>
         </label>
-        {puedeEnviar ? null : (
-          <div role="note" className="alert alert-warn">
-            <TriangleAlert aria-hidden />
-            <p>
-              <strong className="font-semibold">La receta no tiene domicilio.</strong> No se puede registrar un envío: solo retiro presencial.
-            </p>
-          </div>
-        )}
       </fieldset>
 
       {modalidad === "ENVIO" ? (
         <div className="flex flex-col gap-3">
-          <div className="field">
-            <span className="field-label">Domicilio de entrega</span>
-            <p className="text-sm text-zinc-900">{domicilio}</p>
-          </div>
+          {recetaTieneDomicilio ? (
+            <div className="field">
+              <span className="field-label">Domicilio de entrega</span>
+              <p className="text-sm text-zinc-900">{domicilio}</p>
+            </div>
+          ) : (
+            <div className="field">
+              <label htmlFor={domicilioInputId} className="field-label">
+                Domicilio de entrega
+              </label>
+              <input
+                id={domicilioInputId}
+                name="domicilio"
+                value={domicilioEscrito}
+                onChange={(e) => setDomicilioEscrito(e.target.value)}
+                required
+                maxLength={MAX_DOMICILIO_PACIENTE}
+                autoComplete="off"
+                placeholder="Calle, número, localidad"
+                className="input w-full"
+              />
+              <p className="mt-1 text-xs text-zinc-500">La receta no tiene domicilio: se guarda en la receta al registrar el envío.</p>
+            </div>
+          )}
           {hayRepartidoresActivos ? (
             <Combobox
               label="Repartidor"

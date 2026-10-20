@@ -91,6 +91,15 @@ export async function marcarRecetaPagada(tx: Prisma.TransactionClient, tenantId:
   await tx.receta.update({ where: { id, tenantId }, data: { pagada: true, pagadaEn: new Date(), pagadaPorId: usuarioId } });
 }
 
+/**
+ * docs/specs/envios-repartidores.md E4: writes ONLY `receta.domicilio_paciente` (own copy, narrow on purpose: an envío is
+ * registered from PREPARADA, where the receta can no longer be edited, so a receta without domicilio gets it here). `fsj_app`
+ * holds UPDATE on that column (migration 0070) and no trigger restricts it by estado.
+ */
+export async function actualizarDomicilioReceta(tx: Prisma.TransactionClient, tenantId: string, id: string, domicilio: string): Promise<void> {
+  await tx.receta.update({ where: { id, tenantId }, data: { domicilioPaciente: domicilio } });
+}
+
 /** Clears the receta's payment flag, the three columns together (receta_pagada_check). Only for a receta that is no longer ENTREGADA (INV-R14). */
 export async function desmarcarRecetaPagada(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<void> {
   await tx.receta.update({ where: { id, tenantId }, data: { pagada: false, pagadaEn: null, pagadaPorId: null } });

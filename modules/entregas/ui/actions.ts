@@ -27,7 +27,9 @@ export async function registrarEntregaAction(_prevState: EntregaActionState, for
       const modalidad = String(formData.get("modalidad") ?? "") as "RETIRO_PRESENCIAL" | "ENVIO";
       // Empty string (nothing picked) is "no repartidor": the use case's schema then asks for one on an ENVIO.
       const repartidorId = String(formData.get("repartidorId") ?? "") || undefined;
-      await registrarEntrega({ recetaId, modalidad, pagada: formData.get("pagada") === "on", repartidorId });
+      // Sent only by the envío form of a receta without domicilio (E4); the use case rejects it in every other case.
+      const domicilio = String(formData.get("domicilio") ?? "");
+      await registrarEntrega({ recetaId, modalidad, pagada: formData.get("pagada") === "on", repartidorId, domicilio });
       revalidarEntregas(recetaId);
       const mensaje = modalidad === "RETIRO_PRESENCIAL" ? "Entrega registrada." : "Envío registrado: pendiente de confirmar su retorno.";
       return { status: "success", message: mensaje, id: recetaId };

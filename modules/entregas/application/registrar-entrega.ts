@@ -18,7 +18,10 @@
  *
  * Repartidor (docs/specs/envios-repartidores.md E1-E4): an ENVIO carries exactly one active repartidor of the tenant
  * (`repartidorId`, required by the input schema; DB backstop INV-ENT-005) and needs a receta with a domicilio; a
- * RETIRO_PRESENCIAL carries none. Both reads happen inside the transaction, after the receta lock.
+ * RETIRO_PRESENCIAL carries none. Both reads happen inside the transaction, after the receta lock. A receta without
+ * domicilio cannot be edited from PREPARADA, so the envío form asks for it (`domicilio`) and this command saves it on the
+ * receta (only that column, audited as MODIFICAR) before inserting the entrega; a `domicilio` sent for a receta that
+ * already has one is rejected (the receta's value is never overwritten from here).
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
@@ -26,6 +29,7 @@ import { record as auditRecord } from "@/shared/audit";
 import { DomainError, InvariantViolationError, NotFoundError, mapDbError } from "@/shared/errors";
 import { mensajeGlobalParaInvariante } from "@/shared/errors/mensajes-invariantes";
 import { uuid } from "@/shared/validation";
+import { domicilioPacienteOpcional } from "@/modules/recetas/domain/receta";
 import {
   MODALIDADES_ENTREGA,
   MENSAJE_ENTREGA_REQUIERE_PAGO,
@@ -35,7 +39,8 @@ import {
   entregaExigePago,
   validarPagoAlEntregar,
   mensajeRepartidorSegunModalidad,
-  validarDomicilioParaEnvio,
+  resolverDomicilioParaEnvio,
+  MENSAJE_RETIRO_CON_DOMICILIO,
   validarRepartidorAsignable,
 } from "../domain/entrega";
 import {
@@ -45,6 +50,7 @@ import {
   actualizarEstadoReceta,
   insertEntrega,
   marcarRecetaPagada,
+  actualizarDomicilioReceta,
   getRepartidorParaAsignar,
 } from "../infrastructure/entrega-repository";
 
@@ -60,13 +66,22 @@ const registrarEntregaInput = z
     pagada: z.boolean().default(false),
     /** Migration 0093 (E1/E2): required for an ENVIO, forbidden for a RETIRO_PRESENCIAL (checked below, on this field). */
     repartidorId: uuid.optional(),
+    /**
+     * E4: the domicilio de entrega typed when the receta has none (an envío is registered from PREPARADA, where the receta
+     * can no longer be edited). Same trim / max length / blank-is-null rule as the receta form's `domicilioPaciente`.
+     * Only meaningful for an ENVIO of a receta without domicilio: anything else is rejected (below, and in the handler).
+     */
+    domicilio: domicilioPacienteOpcional,
   })
   .superRefine((input, ctx) => {
     const mensaje = mensajeRepartidorSegunModalidad(input.modalidad, input.repartidorId);
     if (mensaje) ctx.addIssue({ code: "custom", message: mensaje, path: ["repartidorId"] });
+    if (input.modalidad === "RETIRO_PRESENCIAL" && input.domicilio) {
+      ctx.addIssue({ code: "custom", message: MENSAJE_RETIRO_CON_DOMICILIO, path: ["domicilio"] });
+    }
   });
 
-/** Pre-default wire shape: `pagada` may be omitted (= false); `repartidorId` is required for an ENVIO only. */
+/** Pre-default wire shape: `pagada` may be omitted (= false); `repartidorId` is required for an ENVIO only; `domicilio` only for an ENVIO of a receta without one. */
 export type RegistrarEntregaInput = z.input<typeof registrarEntregaInput>;
 
 /** Human-readable message for the M14 invariant that can still slip past the pre-checks below under a race (INV-ENT-002) -- mirrors `modules/cierres/application/firmar-cierre.ts`'s `mapDbError`-in-its-own-try/catch discipline (the pipeline's own mapping, in `withTenantTransaction`, only runs once the WHOLE handler throws, too late for a clear message here). */
@@ -95,8 +110,9 @@ export const registrarEntregaCommand = defineCommand({
     const items = await getItemsParaEntrega(tx, session.tenantId, input.recetaId);
     validarTieneItemsEntregables(items);
 
+    let domicilioNuevo: string | null = null;
     if (input.modalidad === "ENVIO") {
-      validarDomicilioParaEnvio(receta.domicilioPaciente);
+      domicilioNuevo = resolverDomicilioParaEnvio(receta.domicilioPaciente, input.domicilio);
       validarRepartidorAsignable(await getRepartidorParaAsignar(tx, session.tenantId, input.repartidorId!));
     }
 
@@ -105,6 +121,22 @@ export const registrarEntregaCommand = defineCommand({
     }
 
     try {
+      // E4: a receta without domicilio gets the typed one (only that column) BEFORE the entrega is inserted. Audited on the
+      // receta's own history, like the payment below.
+      if (domicilioNuevo !== null) {
+        await actualizarDomicilioReceta(tx, session.tenantId, input.recetaId, domicilioNuevo);
+        await auditRecord(tx, {
+          tenantId: session.tenantId,
+          usuarioId: session.usuario.id,
+          entidad: "receta",
+          entidadId: input.recetaId,
+          accion: TipoAccion.MODIFICAR,
+          valorAnterior: { domicilioPaciente: receta.domicilioPaciente },
+          valorNuevo: { domicilioPaciente: domicilioNuevo },
+          contexto: { origen: "entrega" },
+        });
+      }
+
       const entrega = await insertEntrega(tx, {
         tenantId: session.tenantId,
         recetaId: input.recetaId,

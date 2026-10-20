@@ -93,7 +93,9 @@ export function estadoDestinoEntrega(modalidad: ModalidadEntrega): EstadoReceta 
 
 export const MENSAJE_ENVIO_SIN_REPARTIDOR = "Elija el repartidor que lleva el envío.";
 export const MENSAJE_RETIRO_CON_REPARTIDOR = "Un retiro presencial no lleva repartidor.";
-export const MENSAJE_ENVIO_SIN_DOMICILIO = "Cargue el domicilio en la receta antes de registrar un envío.";
+export const MENSAJE_ENVIO_SIN_DOMICILIO = "Ingrese el domicilio de entrega.";
+export const MENSAJE_DOMICILIO_YA_CARGADO = "La receta ya tiene domicilio: el envío va a ese domicilio y no se puede cambiar desde acá.";
+export const MENSAJE_RETIRO_CON_DOMICILIO = "Un retiro presencial no lleva domicilio de entrega.";
 export const MENSAJE_REPARTIDOR_NO_ENCONTRADO = "El repartidor elegido no existe.";
 export const MENSAJE_REPARTIDOR_INACTIVO = "El repartidor elegido está inactivo: elija otro.";
 
@@ -114,9 +116,21 @@ export function recetaTieneDomicilio(domicilioPaciente: string | null | undefine
   return domicilioPaciente != null && domicilioPaciente.trim().length > 0;
 }
 
-/** E4: throws unless the receta has a domicilio to send to. */
-export function validarDomicilioParaEnvio(domicilioPaciente: string | null | undefined): void {
-  if (!recetaTieneDomicilio(domicilioPaciente)) throw new ValidationError(MENSAJE_ENVIO_SIN_DOMICILIO);
+/**
+ * E4: the domicilio an ENVIO goes to is `receta.domicilio_paciente`. A receta is only editable in PENDIENTE_PREPARACION
+ * but an envío is registered from PREPARADA, so when the receta has none the person registering types it (`ingresado`,
+ * already trimmed; blank = not typed) and the use case saves it on the receta. Returns the domicilio to save, or `null`
+ * when the receta already has one (nothing to write). Rejects (both on the `domicilio` field) a receta without domicilio
+ * and none typed, and a typed one when the receta already has its own: the receta's value is never overwritten from here.
+ */
+export function resolverDomicilioParaEnvio(domicilioReceta: string | null | undefined, ingresado: string | null | undefined): string | null {
+  const escrito = ingresado?.trim() ?? "";
+  if (recetaTieneDomicilio(domicilioReceta)) {
+    if (escrito.length > 0) throw new ValidationError(MENSAJE_DOMICILIO_YA_CARGADO, { fields: ["domicilio"] });
+    return null;
+  }
+  if (escrito.length === 0) throw new ValidationError(MENSAJE_ENVIO_SIN_DOMICILIO, { fields: ["domicilio"] });
+  return escrito;
 }
 
 /** E3: only an existing, active repartidor of the tenant (`null` = not found in the tenant) can be assigned to an envío. */
