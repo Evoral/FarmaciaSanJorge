@@ -5,7 +5,9 @@
  * Pure, no I/O. This file holds the parameter's bounds and its defensive parser, and the date arithmetic of the daily job
  * (RV1): which PREPARADA recetas have waited long enough.
  */
+import { ValidationError } from "@/shared/errors";
 import { inicioDeJornada, jornadaDe } from "@/shared/time/jornada";
+import type { EstadoReceta } from "@/modules/recetas/domain/receta";
 
 /** Same default scripts/create-tenant.ts and migration 0095 seed; the fallback when a tenant has no usable row. */
 export const DIAS_RETIRO_VENCIDO_DEFAULT = 30;
@@ -65,4 +67,69 @@ export function esRetiroVencido(input: { preparadaEn: Date | null; dias: number;
   const jornadaPreparada = jornadaDe(input.preparadaEn, input.zonaHoraria);
   const jornadaActual = jornadaDe(input.ahora, input.zonaHoraria);
   return sumarDiasAJornada(jornadaPreparada, input.dias) <= jornadaActual;
+}
+
+/**
+ * The jornada (YYYY-MM-DD) on which a receta's retiro expires: `jornada(preparadaEn) + N`, the same day the job moves it
+ * to RETIRO_VENCIDO (RV1). What the entrega pop-up shows as "venció el ...". `null` when there is nothing to count from
+ * (no `preparadaEn`) or the parameter is 0 (disabled, so there is no plazo to name).
+ */
+export function jornadaVencimientoRetiro(input: { preparadaEn: Date | null; dias: number; zonaHoraria: string }): string | null {
+  if (input.preparadaEn === null || retiroVencidoDesactivado(input.dias)) return null;
+  return sumarDiasAJornada(jornadaDe(input.preparadaEn, input.zonaHoraria), input.dias);
+}
+
+// ============================================================================
+// Reactivar (RV4-RV6).
+// ============================================================================
+
+export const MENSAJE_REACTIVAR_NO_VENCIDA = "La receta no está en retiro vencido.";
+export const MENSAJE_REACTIVAR_ARCHIVADA = "La receta ya está archivada: no se puede reactivar.";
+export const MENSAJE_REACTIVAR_REQUIERE_CO_FIRMA =
+  "Hay preparados vencidos: para reactivar la receta hace falta la co-firma del Director Técnico.";
+
+/** RV4: only a RETIRO_VENCIDO receta that is not in a lote de archivo goes back to PREPARADA. */
+export function puedeReactivar(input: { estado: EstadoReceta; loteArchivoId: string | null }): boolean {
+  return input.estado === "RETIRO_VENCIDO" && input.loteArchivoId === null;
+}
+
+/** The same rule as {@link puedeReactivar}, with the message of whichever condition fails (RV4). */
+export function validarReactivar(input: { estado: EstadoReceta; loteArchivoId: string | null }): void {
+  if (input.estado !== "RETIRO_VENCIDO") throw new ValidationError(MENSAJE_REACTIVAR_NO_VENCIDA);
+  if (input.loteArchivoId !== null) throw new ValidationError(MENSAJE_REACTIVAR_ARCHIVADA);
+}
+
+/** One confirmed preparación of the receta, as the reactivation needs it. `fechaVencimiento` is `YYYY-MM-DD`, null for data confirmed before migration 0068. */
+export interface PreparadoConVencimiento {
+  /** The ítem's description, or its forma farmacéutica when it has none. */
+  etiqueta: string;
+  fechaVencimiento: string | null;
+}
+
+export interface PreparadoVencido {
+  etiqueta: string;
+  /** `YYYY-MM-DD` */
+  fechaVencimiento: string;
+}
+
+/**
+ * RV5: the preparados whose `fecha_vencimiento` is before the tenant's jornada actual (a preparado that expires today is
+ * still good today). One without a `fecha_vencimiento` (confirmed before 0068) is not considered vencido. Keeps the input order.
+ */
+export function preparadosVencidos(preparaciones: readonly PreparadoConVencimiento[], jornadaActual: string): PreparadoVencido[] {
+  const vencidos: PreparadoVencido[] = [];
+  for (const preparado of preparaciones) {
+    if (preparado.fechaVencimiento !== null && preparado.fechaVencimiento < jornadaActual) {
+      vencidos.push({ etiqueta: preparado.etiqueta, fechaVencimiento: preparado.fechaVencimiento });
+    }
+  }
+  return vencidos;
+}
+
+/** Which of the co-firma's two fields the form left empty (the ones to mark). Both present = none missing. */
+export function camposFaltantesCoFirma(input: { dtUsuarioId?: string | undefined; dtPassword?: string | undefined }): string[] {
+  const faltantes: string[] = [];
+  if (!input.dtUsuarioId) faltantes.push("dtUsuarioId");
+  if (!input.dtPassword) faltantes.push("dtPassword");
+  return faltantes;
 }

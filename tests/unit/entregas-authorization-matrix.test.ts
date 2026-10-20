@@ -30,6 +30,7 @@ vi.mock("@/shared/auth/session", () => ({
 await import("@/modules/entregas/application/registrar-entrega");
 await import("@/modules/entregas/application/confirmar-firma-recibida");
 await import("@/modules/entregas/application/cambiar-repartidor");
+await import("@/modules/entregas/application/reactivar-receta");
 await import("@/modules/entregas/application/list-entregas-pendientes");
 await import("@/modules/entregas/application/get-entrega-estado");
 await import("@/modules/entregas/application/imprimir-envios-pdf");
@@ -55,6 +56,7 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
   { name: "entregas.registrar", permiso: "entregas.registrar", input: { recetaId: RECETA_ID, modalidad: "RETIRO_PRESENCIAL" } },
   { name: "entregas.repartidor.cambiar", permiso: "entregas.registrar", input: { recetaId: RECETA_ID, repartidorId: REPARTIDOR_ID } },
   { name: "entregas.firma.confirmar", permiso: "entregas.registrar", input: { recetaId: RECETA_ID } },
+  { name: "entregas.reactivar", permiso: "entregas.registrar", input: { recetaId: RECETA_ID } },
   { name: "entregas.pendientes.listar", permiso: "entregas.registrar", input: {} },
   { name: "entregas.estado.ver", permiso: "entregas.registrar", input: { recetaId: RECETA_ID } },
   { name: "entregas.envios.hoja", permiso: "entregas.registrar", input: { repartidorId: REPARTIDOR_ID } },

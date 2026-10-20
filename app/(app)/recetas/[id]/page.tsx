@@ -7,7 +7,7 @@
  */
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Ban, Calculator, ExternalLink, FileText, Lock, Pencil, Stethoscope } from "lucide-react";
+import { Ban, Calculator, ExternalLink, FileText, Lock, Pencil, RotateCcw, Stethoscope } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getReceta } from "@/modules/recetas/application/get-receta";
@@ -20,6 +20,7 @@ import { AvisosGeneracion } from "@/modules/recetas/ui/avisos-generacion";
 import { AYUDA_ANULACION_PERMITIDA, MENSAJE_ANULACION_BLOQUEADA_POR_LIBRO, decidirAnulacion, mensajePreparacionEnCurso } from "@/modules/recetas/domain/anulacion";
 import { MotivoForm } from "@/shared/ui/motivo-form";
 import { puedeAnularEntrega } from "@/modules/entregas/domain/entrega";
+import { puedeReactivar } from "@/modules/entregas/domain/retiro-vencido";
 import { AnularEntregaForm } from "@/modules/entregas/ui/anular-entrega-form";
 import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
 import { ESTADO_RECETA_LABELS, FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
@@ -51,6 +52,9 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
   const puedeAnularReceta = can(session, "recetas.anular") && puedeAnular(receta.estado) && !puedeAnularEntrega(receta.estado);
   // docs/specs/anular-entrega.md: whoever registers entregas can revert one registered by mistake.
   const puedeAnularLaEntrega = can(session, "entregas.registrar") && puedeAnularEntrega(receta.estado) && !receta.archivada;
+  // docs/specs/retiro-vencido.md RV4: a RETIRO_VENCIDO receta is reactivated from the entrega pop-up, unless it is archived
+  // (the detail only knows whether there is a lote, which is all `puedeReactivar` asks of `loteArchivoId`).
+  const puedeReactivarLaReceta = can(session, "entregas.registrar") && puedeReactivar({ estado: receta.estado, loteArchivoId: receta.archivada ? "archivada" : null });
   // Payment is orthogonal to the estado: it can change after delivery, but not once ANULADA (domain/pago.ts).
   const puedeMarcarPago = can(session, "recetas.editar") && puedeCambiarPago(receta.estado);
   // Same decision the anular command enforces (domain/anulacion.ts): the libro may forbid a direct anulación.
@@ -270,6 +274,22 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
               </div>
               <div className="panel-body text-sm">
                 <AnularEntregaForm recetaId={receta.id} pagada={receta.pagada} />
+              </div>
+            </section>
+          ) : null}
+
+          {puedeReactivarLaReceta ? (
+            <section className="panel" aria-labelledby="reactivar-heading">
+              <div className="panel-header">
+                <h2 id="reactivar-heading">Retiro vencido</h2>
+              </div>
+              <div className="panel-body flex flex-col gap-3 text-sm">
+                <p className="text-zinc-700">Nadie retiró esta receta a tiempo. Si la persona aparece, se reactiva y se entrega como siempre.</p>
+                {/* A soft navigation: the same /entregas/[recetaId] URL opens as a pop-up over this page. */}
+                <Link href={`/entregas/${receta.id}`} className="btn btn-secondary self-start">
+                  <RotateCcw className="size-4" aria-hidden />
+                  Reactivar
+                </Link>
               </div>
             </section>
           ) : null}

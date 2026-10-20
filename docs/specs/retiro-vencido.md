@@ -1,6 +1,6 @@
 # SPEC — Retiro vencido (recetas preparadas que nadie retira)
 
-> Estado: **propuesta** 2026-10-20; cortes 1 a 4 y 6 implementados (ver "Código que lo implementa"), 5 pendiente. Reversión (a escribir con el código): `docs/rollbacks/retiro-vencido.md`.
+> Estado: **implementado 2026-10-20 (migraciones 0094-0095)**; los seis cortes están hechos (ver "Código que lo implementa"). Reversión: `docs/rollbacks/retiro-vencido.md`.
 > Decisiones del usuario (2026-10-20):
 > - Una receta **Preparada** que nadie retira pasa sola a un estado nuevo, **`RETIRO_VENCIDO`**, después de N días.
 > - N es un parámetro por farmacia: **30 días por defecto**, editable por el administrador.
@@ -127,7 +127,7 @@ Cada corte es un commit revisable. Las migraciones se aplican antes de desplegar
 
 ## Código que lo implementa
 
-Cortes 1 a 4 y 6 implementados (migraciones **sin aplicar**: 0094 y 0095 se aplican antes de desplegar este código). Corte 5 (reactivar) pendiente.
+Los seis cortes están implementados (migraciones **sin aplicar**: 0094 y 0095 se aplican antes de desplegar este código).
 
 **Corte 1 — migraciones.**
 - `prisma/migrations/20261020130000_0094_estado_retiro_vencido/migration.sql` (solo el valor del enum) y `prisma/migrations/20261020130100_0095_retiro_vencido/migration.sql` (`receta.preparada_en` + backfill + trigger `trg_receta_preparada_en`, INV-R08 e INV-ARC-006 redefinidas, seed del parámetro).
@@ -155,13 +155,26 @@ Cortes 1 a 4 y 6 implementados (migraciones **sin aplicar**: 0094 y 0095 se apli
 - `modules/entregas/application/vencer-retiros.ts` (`runVencerRetirosJob`, una transacción por tenant, error aislado por tenant, tenant con N = 0 salteado sin tocar nada; excepción en `eslint.config.mjs` como la del job de plazos), `app/api/jobs/retiros-vencidos/route.ts` (misma autenticación que `plazos-archivo`), `vercel.json` (`10 6 * * *`) y `docs/deploy.md` (sección del job; límite de crons: 100 por proyecto en todos los planes).
 - "Hoy" es la jornada del tenant según la base (`fsj.jornada_actual`), convertida a instante de corte en TypeScript con `inicioDeJornada` (zona del tenant). Una receta que alguien está operando (lock tomado) se saltea y vence en la corrida siguiente.
 
+**Corte 5 — reactivar.**
+- Dominio (`modules/entregas/domain/retiro-vencido.ts`): `puedeReactivar` / `validarReactivar` (RV4, con los mensajes "La receta no está en retiro vencido." y "La receta ya está archivada: no se puede reactivar."), `preparadosVencidos` (RV5: `fecha_vencimiento` anterior a la jornada actual; sin fecha = no vencido), `jornadaVencimientoRetiro` (`jornada(preparada_en) + N`, lo que el modal muestra como "venció el …") y `camposFaltantesCoFirma`.
+- Comando `modules/entregas/application/reactivar-receta.ts` (`entregas.reactivar`, permiso `entregas.registrar`): toma el lock de la receta con `lockRecetaParaAccion`, el mismo de `registrarEntrega`, antes de leer; exige RETIRO_VENCIDO y sin archivar; lee los preparados CONFIRMADA (`getPreparadosConVencimiento`) y la jornada actual del tenant; con algún vencido exige `dtUsuarioId` + `dtPassword` (error en esos campos si faltan) y verifica la co-firma; pasa la receta a PREPARADA (el trigger de 0095 reinicia `preparada_en`) y audita `CAMBIAR_ESTADO` a nombre del operador, con `autorizadoPorId` = el DT y `valorNuevo.preparadosVencidos` (RV6). INV-R08 se traduce al mensaje de archivada. Una co-firma que sobra (sin preparados vencidos) no se verifica ni se registra.
+- Co-firma: **no hay tercera copia**. El comando corre `verificarCoFirmaDtEnTx` de `modules/stock/application/verificar-co-firma-dt.ts` (exportada para este fin, como ya hace `modules/preparaciones`) dentro de su misma transacción. Un rechazo se devuelve como resultado normal (`ok: false`, mensaje genérico) y la transacción **confirma**, así el intento fallido del DT y su auditoría persisten y nada más se escribió; `reactivarReceta` lo convierte en un `DomainError` con ese mensaje sobre el campo `dtPassword`. Por eso el comando declara `audit: { skip: true }` y escribe él mismo el `CAMBIAR_ESTADO`, solo si tuvo éxito.
+- Consulta `getEntregaEstado` (`entregas.estado.ver`): suma `retiroVencido` (solo en RETIRO_VENCIDO): `vencioEl`, `diasRetiroVencido`, `archivada` + `loteNumero`, `preparadosVencidos`, los DT vigentes (`listDtParaCoFirmaEnTx` de stock) y `operadorEsDt`. Lecturas nuevas en `entrega-repository.ts`: `getRetiroVencidoDeReceta`, `getPreparadosConVencimiento`.
+- Server Action `reactivarRecetaAction` (`modules/entregas/ui/actions.ts`, dentro de `conOperador`; revalida `/entregas`, `/entregas/{id}` y `/recetas/{id}`).
+- UI: `modules/entregas/ui/reactivar-form.tsx` (texto del plazo, aviso en rojo por preparado vencido, `CoFirmaDt` obligatorio) y la rama RETIRO_VENCIDO de `entrega-acciones.tsx` (archivada: "Archivada en el lote Nro X: no se puede reactivar.", sin botón; sin `entregas.registrar`: solo el texto). Tras reactivar, la revalidación cambia el estado de la receta y el modal **sigue abierto** mostrando el formulario normal de una Preparada (no se cierra, a diferencia de las otras acciones de entrega). Las páginas `app/(app)/entregas/[recetaId]/page.tsx` y `app/(app)/@modal/(.)entregas/[recetaId]/page.tsx` pasan `retiroVencido`.
+- Detalle de receta (`app/(app)/recetas/[id]/page.tsx`): panel "Retiro vencido" con el acceso "Reactivar" a `/entregas/{id}` (navegación suave: abre el modal), con `entregas.registrar` y la receta sin archivar.
+- `shared/labels/field-labels.ts`: `dtPassword`, `preparadosVencidos`.
+
 **Corte 6 — archivo y libro.**
 - `modules/archivo`: `RETIRO_VENCIDO` entra en `EstadoRecetaArchivable` y `esRecetaElegibleParaArchivo` (`domain/lote-archivo.ts`), en el tipo de `conformar-lote.ts`, en los tres filtros SQL de `archivo-repository.ts` (conteo y listado de elegibles, `recheckRecetasElegibles`), en el mensaje de INV-ARC-006 (`domain/mensajes-invariantes.ts`) y en el texto de `/archivo` y `/archivo/nuevo`. No existe un spec propio de archivo: la regla de elegibilidad vive en esos comentarios y en la nota de 2026-10-01 del plan.
 - Libro (RV8) confirmado sin cambios de código: `ESTADOS_TERMINALES_RECETA` no incluye `RETIRO_VENCIDO`. Test en `tests/unit/libro-receta-coupling.test.ts` y línea en `docs/specs/libro-recetario-y-contralor.md`.
 
-**Tests.** `tests/unit/retiro-vencido.test.ts`, `tests/unit/retiros-vencidos-job.test.ts` (caso de uso, repositorio, ruta), `archivo-lote.test.ts`, `libro-receta-coupling.test.ts` y casos nuevos en `parametros-validacion.test.ts`, `recetas-validacion.test.ts` y `pacientes-trayectoria.test.ts`; la paridad del enum la cubre `enum-labels.test.ts`.
+**Tests.** `tests/unit/retiro-vencido.test.ts` (incluye las reglas de reactivar), `tests/unit/entregas-reactivar.test.ts` (comando: no RETIRO_VENCIDO, archivada, sin vencidos, vencido sin co-firma / con contraseña mala / con DT válido, auditoría; y `getEntregaEstado`), la entrada `entregas.reactivar` en `tests/unit/entregas-authorization-matrix.test.ts`, `tests/unit/retiros-vencidos-job.test.ts` (caso de uso, repositorio, ruta), `archivo-lote.test.ts`, `libro-receta-coupling.test.ts` y casos nuevos en `parametros-validacion.test.ts`, `recetas-validacion.test.ts` y `pacientes-trayectoria.test.ts`; la paridad del enum la cubre `enum-labels.test.ts`.
 
 **Desvíos respecto del texto de arriba.**
 - INV-R08 (0095) agrega a `RETIRO_VENCIDO → PREPARADA` una guarda en la base: se rechaza si la receta ya está en un lote de archivo (defensa en profundidad de RV4/RV7, igual que 0086 para la anulación de entrega). `RETIRO_VENCIDO → ANULADA` queda cubierta por la regla general de anulación.
 - El rollback de 0095 también se niega si hay recetas en `RETIRO_VENCIDO`, no solo el de 0094.
 - En `/entregas` el valor vacío del filtro de estado se llama "Pendientes" (antes "Todos"), porque ya no incluye todos los estados que el filtro puede elegir.
+- "Venció el dd/mm/aaaa (N días …)" usa el `dias_retiro_vencido` **vigente hoy** (RV10: el parámetro no se recalcula hacia atrás); con el parámetro en 0 el modal dice solo "El plazo de retiro venció.".
+- El acceso "Reactivar" del detalle de receta no se muestra si la receta está archivada (el modal solo diría que no se puede).
+- La co-firma se verifica dentro de la transacción del comando en vez de en una transacción previa como la del ajuste de stock: si hace falta o no depende de los preparados leídos con la receta bloqueada.

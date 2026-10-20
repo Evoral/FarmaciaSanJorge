@@ -5,12 +5,20 @@ import { describe, it, expect } from "vitest";
 import {
   DIAS_RETIRO_VENCIDO_DEFAULT,
   DIAS_RETIRO_VENCIDO_MAX,
+  MENSAJE_REACTIVAR_ARCHIVADA,
+  MENSAJE_REACTIVAR_NO_VENCIDA,
+  camposFaltantesCoFirma,
   esRetiroVencido,
   instanteCorteRetiroVencido,
+  jornadaVencimientoRetiro,
   parseDiasRetiroVencido,
+  preparadosVencidos,
+  puedeReactivar,
   retiroVencidoDesactivado,
   sumarDiasAJornada,
+  validarReactivar,
 } from "@/modules/entregas/domain/retiro-vencido";
+import { ValidationError } from "@/shared/errors";
 import { ESTADOS_FILTRO_ENTREGAS, estadoFiltroEntregas, puedeRegistrarEntrega } from "@/modules/entregas/domain/entrega";
 import { PARAMETROS_REGISTRY } from "@/modules/parametros/domain/parametros-registry";
 import { ESTADOS_RECETA } from "@/modules/recetas/domain/receta";
@@ -147,5 +155,91 @@ describe("esRetiroVencido (RV1)", () => {
         expect(esRetiroVencido({ dias, zonaHoraria: ZONA, preparadaEn, ahora }), `N=${dias} offset=${offsetMin}`).toBe(preparadaEn.getTime() < corte!.getTime());
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// RV4-RV6: reactivar.
+// ---------------------------------------------------------------------------------------------------------------------
+describe("puedeReactivar / validarReactivar (RV4)", () => {
+  it("only a RETIRO_VENCIDO receta that is not archived can be reactivated", () => {
+    expect(puedeReactivar({ estado: "RETIRO_VENCIDO", loteArchivoId: null })).toBe(true);
+    expect(puedeReactivar({ estado: "RETIRO_VENCIDO", loteArchivoId: "lote-1" })).toBe(false);
+    for (const estado of ["PREPARADA", "ENTREGADA", "ENVIADA_PEND_FIRMA", "ANULADA", "EN_PREPARACION", "PENDIENTE_PREPARACION"] as const) {
+      expect(puedeReactivar({ estado, loteArchivoId: null }), estado).toBe(false);
+    }
+  });
+
+  it("validarReactivar throws a ValidationError with the message of the condition that fails", () => {
+    expect(() => validarReactivar({ estado: "RETIRO_VENCIDO", loteArchivoId: null })).not.toThrow();
+    expect(() => validarReactivar({ estado: "PREPARADA", loteArchivoId: null })).toThrow(MENSAJE_REACTIVAR_NO_VENCIDA);
+    expect(() => validarReactivar({ estado: "RETIRO_VENCIDO", loteArchivoId: "lote-1" })).toThrow(MENSAJE_REACTIVAR_ARCHIVADA);
+    expect(MENSAJE_REACTIVAR_NO_VENCIDA).toBe("La receta no está en retiro vencido.");
+    expect(MENSAJE_REACTIVAR_ARCHIVADA).toBe("La receta ya está archivada: no se puede reactivar.");
+    try {
+      validarReactivar({ estado: "ANULADA", loteArchivoId: null });
+    } catch (error) {
+      expect(error).toBeInstanceOf(ValidationError);
+    }
+  });
+});
+
+describe("preparadosVencidos (RV5)", () => {
+  const hoy = "2026-10-20";
+
+  it("lists the preparados whose fecha_vencimiento is before the jornada actual, in order", () => {
+    const vencidos = preparadosVencidos(
+      [
+        { etiqueta: "Crema A", fechaVencimiento: "2026-10-19" },
+        { etiqueta: "Cápsulas B", fechaVencimiento: "2027-01-01" },
+        { etiqueta: "Gel C", fechaVencimiento: "2026-01-31" },
+      ],
+      hoy,
+    );
+    expect(vencidos).toEqual([
+      { etiqueta: "Crema A", fechaVencimiento: "2026-10-19" },
+      { etiqueta: "Gel C", fechaVencimiento: "2026-01-31" },
+    ]);
+  });
+
+  it("one that expires today is still good today (strictly before)", () => {
+    expect(preparadosVencidos([{ etiqueta: "Crema A", fechaVencimiento: hoy }], hoy)).toEqual([]);
+  });
+
+  it("a preparado without fecha_vencimiento (confirmed before migration 0068) is not vencido", () => {
+    expect(preparadosVencidos([{ etiqueta: "Crema A", fechaVencimiento: null }], hoy)).toEqual([]);
+  });
+
+  it("compares calendar days across a year boundary and with no preparaciones", () => {
+    expect(preparadosVencidos([{ etiqueta: "Crema A", fechaVencimiento: "2025-12-31" }], "2026-01-01")).toHaveLength(1);
+    expect(preparadosVencidos([], hoy)).toEqual([]);
+  });
+});
+
+describe("jornadaVencimientoRetiro", () => {
+  it("is the jornada of preparada_en plus N days, in the tenant's zone", () => {
+    expect(jornadaVencimientoRetiro({ preparadaEn: utc("2026-09-20T15:00:00Z"), dias: 30, zonaHoraria: ZONA })).toBe("2026-10-20");
+    // 21:30 local on 10-01 is already 10-02 in UTC: the jornada is the local one.
+    expect(jornadaVencimientoRetiro({ preparadaEn: utc("2026-10-02T00:30:00Z"), dias: 1, zonaHoraria: ZONA })).toBe("2026-10-02");
+  });
+
+  it("is null with no preparada_en or with the parameter at 0 (no plazo to name)", () => {
+    expect(jornadaVencimientoRetiro({ preparadaEn: null, dias: 30, zonaHoraria: ZONA })).toBeNull();
+    expect(jornadaVencimientoRetiro({ preparadaEn: utc("2026-09-20T15:00:00Z"), dias: 0, zonaHoraria: ZONA })).toBeNull();
+  });
+
+  it("names the same day the job expires the receta on (RV1)", () => {
+    const preparadaEn = utc("2026-09-20T15:00:00Z");
+    expect(esRetiroVencido({ dias: 30, zonaHoraria: ZONA, preparadaEn, ahora: utc("2026-10-19T09:00:00Z") })).toBe(false);
+    expect(esRetiroVencido({ dias: 30, zonaHoraria: ZONA, preparadaEn, ahora: utc("2026-10-20T09:00:00Z") })).toBe(true);
+  });
+});
+
+describe("camposFaltantesCoFirma", () => {
+  it("names the co-firma fields the form left empty", () => {
+    expect(camposFaltantesCoFirma({})).toEqual(["dtUsuarioId", "dtPassword"]);
+    expect(camposFaltantesCoFirma({ dtPassword: "x" })).toEqual(["dtUsuarioId"]);
+    expect(camposFaltantesCoFirma({ dtUsuarioId: "dt-1" })).toEqual(["dtPassword"]);
+    expect(camposFaltantesCoFirma({ dtUsuarioId: "dt-1", dtPassword: "x" })).toEqual([]);
   });
 });

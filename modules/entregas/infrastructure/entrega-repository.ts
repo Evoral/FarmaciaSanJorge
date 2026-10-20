@@ -12,11 +12,14 @@
  * here (INV-R08, INV-ENT-001/002, migrations 0011/0016/0040).
  */
 import type { Prisma } from "@/generated/prisma/client";
+import type { FormaFarmaceutica } from "@/generated/prisma/enums";
 import type { EstadoReceta } from "@/modules/recetas/domain/receta";
+import { FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
 import { rangoDeJornadas } from "@/shared/time/jornada";
 import { calcularItemsEntregables } from "../domain/entrega";
 import type { ModalidadEntrega, ItemParaEntrega } from "../domain/entrega";
 import { parseDiasRetiroVencido } from "../domain/retiro-vencido";
+import type { PreparadoConVencimiento } from "../domain/retiro-vencido";
 
 // ============================================================================
 // jornada helper -- own copy (see module doc comment).
@@ -124,6 +127,41 @@ export async function desmarcarRecetaPagada(tx: Prisma.TransactionClient, tenant
 export async function recetaEstaArchivada(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<boolean> {
   const receta = await tx.receta.findUnique({ where: { id, tenantId }, select: { loteArchivoId: true } });
   return receta?.loteArchivoId != null;
+}
+
+export interface RetiroVencidoDeReceta {
+  /** Migration 0095: when the receta last entered PREPARADA; the retiro plazo counts from it. */
+  preparadaEn: Date | null;
+  /** Set once the receta is in a lote de archivo (INV-ARC-006): it can no longer be reactivated (RV4). */
+  loteArchivoId: string | null;
+  /** The lote's correlative number ("Lote Nro X"), when archived. */
+  loteNumero: string | null;
+}
+
+/** What "Reactivar" and the RETIRO_VENCIDO panel need beyond `getRecetaParaEntrega`: the plazo's clock and the archive link. */
+export async function getRetiroVencidoDeReceta(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<RetiroVencidoDeReceta | null> {
+  const row = await tx.receta.findUnique({
+    where: { id, tenantId },
+    select: { preparadaEn: true, loteArchivoId: true, loteArchivo: { select: { numero: true } } },
+  });
+  if (!row) return null;
+  return { preparadaEn: row.preparadaEn, loteArchivoId: row.loteArchivoId, loteNumero: row.loteArchivo ? row.loteArchivo.numero.toString() : null };
+}
+
+/**
+ * The receta's CONFIRMADA preparaciones with the vencimiento snapshotted at confirmation (`preparacion.fecha_vencimiento`,
+ * migration 0068), labelled by their ítem. RV5 decides which of them are vencidos (`preparadosVencidos`, domain). A
+ * discarded or still-running preparación is not a preparado of the receta, so it is not listed.
+ */
+export async function getPreparadosConVencimiento(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<PreparadoConVencimiento[]> {
+  const rows = await tx.$queryRaw<{ descripcion: string | null; forma: FormaFarmaceutica; fecha_vencimiento: string | null }[]>`
+    SELECT ir.descripcion, ir.forma_farmaceutica::text AS forma, p.fecha_vencimiento::text AS fecha_vencimiento
+    FROM fsj.preparacion p
+    JOIN fsj.item_receta ir ON ir.tenant_id = p.tenant_id AND ir.id = p.item_receta_id
+    WHERE p.tenant_id = ${tenantId}::uuid AND ir.receta_id = ${recetaId}::uuid AND p.estado = 'CONFIRMADA'
+    ORDER BY p.fecha_vencimiento NULLS LAST, ir.id
+  `;
+  return rows.map((r) => ({ etiqueta: r.descripcion?.trim() || FORMA_FARMACEUTICA_LABELS[r.forma] || r.forma, fechaVencimiento: r.fecha_vencimiento }));
 }
 
 export interface EntregaMovida {

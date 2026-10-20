@@ -3,7 +3,8 @@
 /**
  * The entrega action the receta's current estado allows (11.1/11.2), shared by the entrega pop-up
  * (`app/(app)/@modal/(.)entregas/[recetaId]`) and the full `/entregas/[recetaId]` page. Plain data only: the page has already read it.
- * Inside the pop-up a successful action closes it (`useRouteDialogClose`).
+ * Inside the pop-up a successful action closes it (`useRouteDialogClose`), except "Reactivar": the receta becomes Preparada
+ * and the pop-up stays open on the entrega form, so the entrega can be registered right away.
  */
 import { useState } from "react";
 import { Lock } from "lucide-react";
@@ -13,9 +14,11 @@ import { ToneBadge } from "@/shared/ui/status-badge";
 import { puedeCambiarRepartidor, puedeConfirmarFirmaRecibida, puedeRegistrarEntrega } from "../domain/entrega";
 import type { EstadoReceta } from "@/modules/recetas/domain/receta";
 import type { EntregaActionState } from "./action-state";
-import { cambiarRepartidorAction, confirmarFirmaRecibidaAction, registrarEntregaAction } from "./actions";
+import type { RetiroVencidoEstado } from "../application/get-entrega-estado";
+import { cambiarRepartidorAction, confirmarFirmaRecibidaAction, reactivarRecetaAction, registrarEntregaAction } from "./actions";
 import { ConfirmarFirmaForm } from "./confirmar-firma-form";
 import { EnvioPendiente, type RepartidorAsignado } from "./envio-pendiente";
+import { ReactivarForm, textoPlazoVencido } from "./reactivar-form";
 import { RegistrarEntregaForm } from "./registrar-entrega-form";
 
 export interface EntregaAccionesProps {
@@ -36,6 +39,8 @@ export interface EntregaAccionesProps {
   puedeRegistrar: boolean;
   /** `entregas.registrar` (single /entregas permiso, migration 0085) */
   puedeConfirmarFirma: boolean;
+  /** `EntregaEstado.retiroVencido`: set only for a RETIRO_VENCIDO receta. */
+  retiroVencido: RetiroVencidoEstado | null;
 }
 
 export function EntregaAcciones({
@@ -49,6 +54,7 @@ export function EntregaAcciones({
   puedeGestionarRepartidores,
   puedeRegistrar,
   puedeConfirmarFirma,
+  retiroVencido,
 }: EntregaAccionesProps) {
   const cerrar = useRouteDialogClose();
   // The action revalidates the receta, so the pop-up's props flip to the new estado (and unmount the form before its
@@ -131,10 +137,34 @@ export function EntregaAcciones({
     );
   }
 
-  // docs/specs/retiro-vencido.md: the retiro expired. Nothing to register here; "Reactivar" is added to this branch by the
-  // reactivation slice.
+  // docs/specs/retiro-vencido.md: the retiro expired. Nothing to register until it is reactivated (RV4); once it is, the
+  // action's revalidation flips `estado` to PREPARADA and the pop-up stays open on the normal entrega form above.
   if (estado === "RETIRO_VENCIDO") {
-    return <p className="text-sm text-zinc-600">El plazo de retiro venció.</p>;
+    if (!puedeRegistrar || !retiroVencido) {
+      return <p className="text-sm text-zinc-600">El plazo de retiro venció.</p>;
+    }
+    if (retiroVencido.archivada) {
+      return (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-zinc-700">{textoPlazoVencido(retiroVencido.vencioEl, retiroVencido.diasRetiroVencido)}</p>
+          <p className="flex items-start gap-2 text-sm text-zinc-500">
+            <Lock className="mt-0.5 size-4 flex-none" aria-hidden />
+            {retiroVencido.loteNumero ? `Archivada en el lote Nro ${retiroVencido.loteNumero}: no se puede reactivar.` : "Archivada: no se puede reactivar."}
+          </p>
+        </div>
+      );
+    }
+    return (
+      <ReactivarForm
+        action={reactivarRecetaAction}
+        recetaId={recetaId}
+        vencioEl={retiroVencido.vencioEl}
+        diasRetiroVencido={retiroVencido.diasRetiroVencido}
+        preparadosVencidos={retiroVencido.preparadosVencidos}
+        dts={retiroVencido.dts}
+        operadorEsDt={retiroVencido.operadorEsDt}
+      />
+    );
   }
 
   return (

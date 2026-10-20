@@ -63,6 +63,7 @@ export default async function EntregaDetallePage({ params }: EntregaDetallePageP
             puedeGestionarRepartidores={can(session, "repartidores.gestionar")}
             puedeRegistrar={can(session, "entregas.registrar")}
             puedeConfirmarFirma={can(session, "entregas.registrar")}
+            retiroVencido={entregaEstado.retiroVencido}
           />
         </div>
       </section>
