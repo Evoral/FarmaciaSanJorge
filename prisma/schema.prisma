@@ -1672,9 +1672,12 @@ model Entrega {
   firmaRecibida      Boolean          @default(false) @map("firma_recibida")
   firmaRecibidaEn    DateTime?        @map("firma_recibida_en") @db.Timestamptz(6)
   fechaArchivoReceta DateTime?        @map("fecha_archivo_receta") @db.Date
+  /// Migration 0093 (docs/specs/envios-repartidores.md): who carries an ENVIO. NULL for a retiro (CHECK) and for envios registered before 0093; a new ENVIO needs one (INV-ENT-005, trigger).
+  repartidorId       String?          @map("repartidor_id") @db.Uuid
 
-  receta       Receta  @relation(fields: [recetaId], references: [id])
-  entregadaPor Usuario @relation(fields: [entregadaPorId], references: [id])
+  receta       Receta      @relation(fields: [recetaId], references: [id])
+  entregadaPor Usuario     @relation(fields: [entregadaPorId], references: [id])
+  repartidor   Repartidor? @relation(fields: [repartidorId], references: [id])
 
   @@unique([tenantId, id])
   @@map("entrega")
@@ -1695,6 +1698,8 @@ model EntregaAnulada {
   firmaRecibida      Boolean          @map("firma_recibida")
   firmaRecibidaEn    DateTime?        @map("firma_recibida_en") @db.Timestamptz(6)
   fechaArchivoReceta DateTime?        @map("fecha_archivo_receta") @db.Date
+  /// Migration 0093: the repartidor the anulada entrega had. No FK (history).
+  repartidorId       String?          @map("repartidor_id") @db.Uuid
   motivo             String
   anuladaPorId       String           @map("anulada_por_id") @db.Uuid
   anuladaEn          DateTime         @default(now()) @map("anulada_en") @db.Timestamptz(6)
@@ -1703,6 +1708,24 @@ model EntregaAnulada {
   @@unique([tenantId, entregaId])
   @@index([tenantId, recetaId])
   @@map("entrega_anulada")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (migration 0093, docs/specs/envios-repartidores.md): a person who carries the envios of the farmacia. Not a usuario (never logs in). Soft delete via `activo` (fsj_app has no DELETE). The FK (tenant_id, creado_por_id) -> usuario lives in the migration.
+model Repartidor {
+  id          String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  nombre      String
+  apellido    String
+  telefono    String
+  activo      Boolean  @default(true)
+  creadoEn    DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  creadoPorId String   @map("creado_por_id") @db.Uuid
+
+  entregas Entrega[]
+
+  @@unique([tenantId, id])
+  @@map("repartidor")
   @@schema("fsj")
 }
 

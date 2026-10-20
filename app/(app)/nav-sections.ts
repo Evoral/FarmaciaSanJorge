@@ -50,6 +50,7 @@ export function catalogosSections(session: AuthenticatedSession): SectionLink[] 
   return visible([
     { href: "/catalogos/drogas", label: "Drogas", visible: can(session, "drogas.editar") },
     { href: "/catalogos/medicos", label: "Médicos", visible: can(session, "medicos.gestionar") },
+    { href: "/catalogos/repartidores", label: "Repartidores", visible: can(session, "repartidores.gestionar") },
     { href: "/catalogos/unidades", label: "Unidades de medida", visible: can(session, "unidades.editar") },
   ]);
 }

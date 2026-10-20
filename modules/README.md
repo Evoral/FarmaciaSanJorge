@@ -49,6 +49,7 @@ don't read it whole). Cross-cutting platform code (M00) lives in `shared/`.
 | `libro` | M12 | Libro recetario and libros contralor, entries and exports (`libro-recetario-y-contralor`) |
 | `cierres` | M13 | Daily close and signature |
 | `entregas` | M14 | Delivery and regularization (can also mark the receta paid, `pago-receta`) |
+| `repartidores` | — | Catalog of the people who carry the envíos (not usuarios) and the autocomplete source to pick one (`envios-repartidores`) |
 | `archivo` | M15 | Receta archive, retention periods, destruction |
 | `farmacia` | — | Tenant (pharmacy) data. No `domain/` layer |
 | `parametros` | — | Tenant-configurable parameters |

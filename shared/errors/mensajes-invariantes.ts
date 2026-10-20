@@ -59,6 +59,7 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   "INV-ENT-002": "La receta no puede marcarse como entregada sin una entrega registrada (retiro presencial, o envío con el retorno confirmado).",
   // INV-ENT-003's trigger was dropped by migration 0051 (receta física attribute removed); kept because the scan covers 0040/0041.
   "INV-ENT-003": "La receta fue enviada y está esperando retorno: confirmá el retorno en lugar de registrar solo la recepción física.",
+  "INV-ENT-005": "Un envío necesita un repartidor asignado, y el repartidor de un envío registrado se puede cambiar pero no quitar.",
 
   // Preparaciones / etiquetas / fichas técnicas
   "INV-ETQ-001": "La etiqueta solo se puede generar para una preparación confirmada.",

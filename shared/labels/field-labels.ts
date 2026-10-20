@@ -249,6 +249,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   soloSinStock: "Solo sin stock",
   soloVencidas: "Solo vencidas",
   soloVigentes: "Solo vigentes",
+  soloActivos: "Solo activos",
   texto: "Paciente / médico",
   tipo: "Tipo",
   truncated: "Resultado recortado",
