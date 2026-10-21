@@ -24,6 +24,7 @@ import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { toast } from "@/shared/ui/toast";
 import { CoFirmaDt, type CoFirmaDtOpcion } from "@/shared/ui/co-firma-dt";
+import type { HojaEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import type { EtiquetaTamano } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import { MOTIVO_AJUSTE_LABELS } from "@/modules/stock/domain/partida";
 import { MOTIVOS_PERDIDA } from "../domain/perdida";
@@ -79,12 +80,14 @@ export interface EtiquetasDeRecetaProps {
   puedeConfirmar: boolean;
   /** `etiquetas.imprimir`: without it the confirmation still runs, but no print dialog is offered. */
   puedeImprimir: boolean;
+  /** The active sizes that fit the sheet. */
   tamanos: readonly EtiquetaTamano[];
+  hoja: HojaEtiqueta;
   /** The confirmed ítems that have their etiqueta, in ítem order: the dialog's rows. */
   etiquetas: readonly EtiquetaDeItemParaImprimir[];
 }
 
-export function EtiquetasDeReceta({ recetaId, porConfirmar, todasReservadas, sinAlcance, puedeConfirmar, puedeImprimir, tamanos, etiquetas }: EtiquetasDeRecetaProps) {
+export function EtiquetasDeReceta({ recetaId, porConfirmar, todasReservadas, sinAlcance, puedeConfirmar, puedeImprimir, tamanos, hoja, etiquetas }: EtiquetasDeRecetaProps) {
   // "Just confirmed" is set when the confirmation resolves, NOT from the form's onSuccess: the action's revalidatePath
   // re-renders the page in the same response, so the form unmounts before its success effect ever runs. This component
   // stays mounted (the page renders it at a fixed place), so its own state survives and opens the dialog right after.
@@ -121,7 +124,7 @@ export function EtiquetasDeReceta({ recetaId, porConfirmar, todasReservadas, sin
 
   return puedeImprimir && etiquetas.length > 0 ? (
     <div className="panel flex justify-end px-4 py-3 sm:px-5">
-      <SeleccionarEtiquetasDialog etiquetas={etiquetas} tamanos={tamanos} abrirAlMontar={recienConfirmadas} />
+      <SeleccionarEtiquetasDialog etiquetas={etiquetas} tamanos={tamanos} hoja={hoja} abrirAlMontar={recienConfirmadas} />
     </div>
   ) : null;
 }

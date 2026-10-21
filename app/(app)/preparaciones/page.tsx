@@ -54,7 +54,10 @@ import {
 } from "@/modules/preparaciones/domain/listado";
 import type { EstadoEtiqueta, FiltrosPreparaciones } from "@/modules/preparaciones/domain/listado";
 import { etiquetaProgreso, hrefToma, resumenItemsPendientes } from "@/modules/preparaciones/domain/toma";
+import { getHojaParaImprimir } from "@/modules/etiqueta-tamanos/application/get-hoja-para-imprimir";
 import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
+import { HOJA_PREDETERMINADA } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
+import type { HojaEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import type { EtiquetaTamano } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import { EtiquetaParaImprimir } from "@/modules/preparaciones/ui/etiqueta-para-imprimir";
 import { TomarRecetaForm } from "@/modules/preparaciones/ui/tomar-receta-form";
@@ -128,9 +131,9 @@ export default async function PreparacionesPage({ searchParams }: PreparacionesP
   }
   const total = lista.result.total;
   const esConfirmadas = filtros.estado === "CONFIRMADA";
-  // The sizes of the "Seleccionar tamaño" dialog are read ONCE for the whole table (only when someone can print).
+  // The sizes and the sheet of the "Seleccionar tamaño y posición" dialog are read ONCE for the whole table (only when someone can print).
   const puedeImprimirEtiqueta = can(session, "etiquetas.imprimir");
-  const tamanos: readonly EtiquetaTamano[] = esConfirmadas && puedeImprimirEtiqueta ? await listTamanosParaImprimir() : [];
+  const [tamanos, hoja]: [readonly EtiquetaTamano[], HojaEtiqueta] = esConfirmadas && puedeImprimirEtiqueta ? await Promise.all([listTamanosParaImprimir(), getHojaParaImprimir()]) : [[], HOJA_PREDETERMINADA];
   const etiquetaFechas = ETIQUETA_FECHAS[lista.pestana];
   const hasActiveFilters = Boolean(filtros.numero || filtros.desde || filtros.hasta || filtros.sinEtiquetaImpresa);
 
@@ -291,6 +294,7 @@ export default async function PreparacionesPage({ searchParams }: PreparacionesP
               puedeGenerarEtiqueta={can(session, "etiquetas.generar")}
               puedeImprimirEtiqueta={puedeImprimirEtiqueta}
               tamanos={tamanos}
+              hoja={hoja}
             />
           )}
 
@@ -471,12 +475,14 @@ function TablaPreparaciones({
   puedeGenerarEtiqueta,
   puedeImprimirEtiqueta,
   tamanos,
+  hoja,
 }: {
   result: ListPreparacionesOutput;
   esConfirmadas: boolean;
   puedeGenerarEtiqueta: boolean;
   puedeImprimirEtiqueta: boolean;
   tamanos: readonly EtiquetaTamano[];
+  hoja: HojaEtiqueta;
 }) {
   return (
     <div className="table-wrap">
@@ -527,7 +533,7 @@ function TablaPreparaciones({
                 ) : null}
                 <td className="px-3 py-2.5">
                   <div className="flex justify-end">
-                    <AccionFila preparacion={p} zonaHoraria={result.zonaHoraria} puedeGenerarEtiqueta={puedeGenerarEtiqueta} puedeImprimirEtiqueta={puedeImprimirEtiqueta} tamanos={tamanos} />
+                    <AccionFila preparacion={p} zonaHoraria={result.zonaHoraria} puedeGenerarEtiqueta={puedeGenerarEtiqueta} puedeImprimirEtiqueta={puedeImprimirEtiqueta} tamanos={tamanos} hoja={hoja} />
                   </div>
                 </td>
               </tr>
@@ -544,6 +550,7 @@ function AccionFila({
   puedeGenerarEtiqueta,
   puedeImprimirEtiqueta,
   tamanos,
+  hoja,
   zonaHoraria,
 }: {
   preparacion: PreparacionListItem;
@@ -551,6 +558,7 @@ function AccionFila({
   puedeGenerarEtiqueta: boolean;
   puedeImprimirEtiqueta: boolean;
   tamanos: readonly EtiquetaTamano[];
+  hoja: HojaEtiqueta;
 }) {
   if (preparacion.estado === "DESCARTADA") {
     return (
@@ -581,6 +589,7 @@ function AccionFila({
       puedeGenerar={puedeGenerarEtiqueta}
       puedeImprimir={puedeImprimirEtiqueta}
       tamanos={tamanos}
+      hoja={hoja}
     />
   );
 }

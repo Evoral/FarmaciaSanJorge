@@ -111,7 +111,9 @@ import { ContinuarPreparacionDialog } from "@/modules/preparaciones/ui/continuar
 import { MarcarPreparadaDialog, PesajeProvider, PesajeTabla } from "@/modules/preparaciones/ui/pesaje-en-toma";
 import { EtiquetasDeReceta, LiberarReservaForm, PerdidaReservaDialog, RecalcularReservaForm } from "@/modules/preparaciones/ui/reserva-acciones";
 import { listDtParaPerdida } from "@/modules/preparaciones/application/list-dt-para-perdida";
+import { getHojaParaImprimir } from "@/modules/etiqueta-tamanos/application/get-hoja-para-imprimir";
 import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
+import { HOJA_PREDETERMINADA } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import { ItemDatos } from "@/modules/preparaciones/ui/item-datos";
 import { LineasFichaTabla } from "@/modules/preparaciones/ui/lineas-ficha-tabla";
 import { getReceta } from "@/modules/recetas/application/get-receta";
@@ -194,8 +196,8 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
   );
   const confirmados = estados.filter((estado) => estado === "CONFIRMADA").length;
   const puedeImprimirEtiquetas = can(session, "etiquetas.imprimir");
-  // The "Seleccionar etiquetas" dialog's sizes: read only when an ítem may need them.
-  const tamanos = puedeImprimirEtiquetas && receta.items.some((item) => item.preparacion !== null) ? await listTamanosParaImprimir() : [];
+  // The "Seleccionar etiquetas" dialog's sizes and sheet: read only when an ítem may need them.
+  const [tamanos, hoja] = puedeImprimirEtiquetas && receta.items.some((item) => item.preparacion !== null) ? await Promise.all([listTamanosParaImprimir(), getHojaParaImprimir()]) : [[], HOJA_PREDETERMINADA];
   // Its rows: the confirmed ítems with their etiqueta, in ítem order; one no longer printable is listed with its reason (R22).
   const etiquetas = receta.items.flatMap((item, i) =>
     estados[i] === "CONFIRMADA" && item.preparacion?.etiquetaGenerada
@@ -238,6 +240,7 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
           puedeConfirmar={can(session, "preparaciones.confirmar") && can(session, "etiquetas.generar")}
           puedeImprimir={puedeImprimirEtiquetas}
           tamanos={tamanos}
+          hoja={hoja}
           etiquetas={etiquetas}
         />
       </div>

@@ -294,7 +294,7 @@ export function motivoEtiquetaNoImprimible(datos: { recetaEstado: string; asient
 }
 
 /** URL of the etiqueta PDF route for a preparación: the size (`etiqueta_tamano.id`) and the cell (columna, fila, 1-based) of the sheet chosen in the print dialog (docs/specs/hoja-etiquetas.md R7). */
-export function hrefEtiquetaPdf(preparacionId: string, tamanoId: string, celda: { columna: number; fila: number } = { columna: 1, fila: 1 }): string {
+export function hrefEtiquetaPdf(preparacionId: string, tamanoId: string, celda: { columna: number; fila: number }): string {
   return `/api/preparaciones/${encodeURIComponent(preparacionId)}/etiqueta/pdf?tamano=${encodeURIComponent(tamanoId)}&columna=${celda.columna}&fila=${celda.fila}`;
 }
 

@@ -3,7 +3,7 @@
 /**
  * "Imprimir etiqueta" for a CONFIRMADA preparación, in ONE step: when its etiqueta was not generated yet (a preparación
  * confirmed from `/preparaciones/[id]`, which writes the asiento but no etiqueta), the button generates it
- * (`generarEtiquetaAction` -- no stock, no libro, just the etiqueta row) and then opens the size dialog by itself, like
+ * (`generarEtiquetaAction` -- no stock, no libro, just the etiqueta row) and then opens the size and position dialog by itself, like
  * the toma workspace's "Imprimir etiquetas" (./reserva-acciones.tsx). Once generated it is the print dialog's own button.
  *
  * Rendered at the SAME place for both states, so its "just generated" flag survives the refresh in between and the
@@ -11,6 +11,7 @@
  */
 import { useState } from "react";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import type { HojaEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import type { EtiquetaTamano } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import { generarEtiquetaAction } from "./actions";
 import { ImprimirEtiquetaDialog } from "./imprimir-etiqueta-dialog";
@@ -25,17 +26,19 @@ export interface EtiquetaParaImprimirProps {
   puedeGenerar: boolean;
   /** `etiquetas.imprimir`: without it the button only generates the etiqueta. */
   puedeImprimir: boolean;
+  /** The active sizes that fit the sheet. */
   tamanos: readonly EtiquetaTamano[];
+  hoja: HojaEtiqueta;
   /** `"secondary"` + `small` in table rows, `"primary"` on the preparación screen. */
   variant?: "primary" | "secondary";
   small?: boolean;
 }
 
-export function EtiquetaParaImprimir({ preparacionId, generada, impresa = false, puedeGenerar, puedeImprimir, tamanos, variant = "secondary", small = true }: EtiquetaParaImprimirProps) {
+export function EtiquetaParaImprimir({ preparacionId, generada, impresa = false, puedeGenerar, puedeImprimir, tamanos, hoja, variant = "secondary", small = true }: EtiquetaParaImprimirProps) {
   const [recienGenerada, setRecienGenerada] = useState(false);
 
   if (generada) {
-    return puedeImprimir ? <ImprimirEtiquetaDialog preparacionId={preparacionId} tamanos={tamanos} variant={variant} small={small} abrirAlMontar={recienGenerada} reimprimir={impresa} /> : null;
+    return puedeImprimir ? <ImprimirEtiquetaDialog preparacionId={preparacionId} tamanos={tamanos} hoja={hoja} variant={variant} small={small} abrirAlMontar={recienGenerada} reimprimir={impresa} /> : null;
   }
   if (!puedeGenerar) return null;
 
