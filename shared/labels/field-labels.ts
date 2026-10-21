@@ -134,6 +134,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   tipoMagnitud: "Magnitud",
   anchoMm: "Ancho (mm)",
   altoMm: "Alto (mm)",
+  margenMm: "Margen (mm)",
   tramos: "Tramos de margen",
   valor: "Valor",
 

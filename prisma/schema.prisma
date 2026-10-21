@@ -1785,3 +1785,15 @@ model EtiquetaTamano {
   @@map("etiqueta_tamano")
   @@schema("fsj")
 }
+
+/// Tenant-scoped (migration 0096, docs/specs/hoja-etiquetas.md): the sheet, in mm, the etiqueta PDF page is -- ONE row per tenant (`tenantId` is the PK and the tenancy key). The grid of cells is computed from it and the chosen EtiquetaTamano, never stored. No relation declared (the FK to fsj.tenant lives in the DB, like EtiquetaTamano).
+model EtiquetaHoja {
+  tenantId  String   @id @map("tenant_id") @db.Uuid
+  anchoMm   Decimal  @map("ancho_mm") @db.Decimal(4, 1)
+  altoMm    Decimal  @map("alto_mm") @db.Decimal(4, 1)
+  margenMm  Decimal  @map("margen_mm") @db.Decimal(4, 1)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("etiqueta_hoja")
+  @@schema("fsj")
+}

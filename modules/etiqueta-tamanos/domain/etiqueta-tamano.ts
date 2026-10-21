@@ -1,11 +1,12 @@
 /**
  * Pure domain rules for the etiqueta sizes a farmacia can print on
  * (`fsj.etiqueta_tamano`, migration 0066). A size is a free-form name plus
- * the page width x height in millimetres (landscape: ancho is the long side
- * of the roll). The label layout itself is drawn in a fixed design space and
- * scaled onto whatever page size is chosen (see
- * modules/preparaciones/infrastructure/etiqueta-pdf.ts), so a size is nothing
- * but its measures.
+ * the label's width x height in millimetres (landscape: ancho is the long
+ * side). Since migration 0096 the PDF page is the SHEET (`etiqueta-hoja.ts`)
+ * and a size is the etiqueta INSIDE it, drawn in the cell the user picks. The
+ * label layout itself is drawn in a fixed design space and scaled onto the
+ * cell (see modules/preparaciones/infrastructure/etiqueta-pdf.ts), so a size
+ * is nothing but its measures.
  */
 
 /** Mirrors the `etiqueta_tamano_*_check` constraints of migration 0066. */
@@ -38,12 +39,17 @@ export function dejaSinTamanoActivo(activosIds: readonly string[], id: string): 
   return !activosIds.some((activoId) => activoId !== id);
 }
 
-/** `true` for a finite value within [TAMANO_MM_MIN, TAMANO_MM_MAX] with at most one decimal (the column is `numeric(5,1)`). */
-export function medidaMmValida(valor: number): boolean {
+/** `true` for a finite value with at most one decimal (every measure column is `numeric(.., 1)`). */
+export function tieneUnDecimal(valor: number): boolean {
   if (!Number.isFinite(valor)) return false;
-  if (valor < TAMANO_MM_MIN || valor > TAMANO_MM_MAX) return false;
   const decimos = valor * 10;
   return Math.abs(decimos - Math.round(decimos)) < 1e-9;
+}
+
+/** `true` for a finite value within [TAMANO_MM_MIN, TAMANO_MM_MAX] with at most one decimal (the column is `numeric(5,1)`). */
+export function medidaMmValida(valor: number): boolean {
+  if (valor < TAMANO_MM_MIN || valor > TAMANO_MM_MAX) return false;
+  return tieneUnDecimal(valor);
 }
 
 /** `100` -> "100", `42.5` -> "42,5" (es-AR decimal comma, no trailing ",0"). */
