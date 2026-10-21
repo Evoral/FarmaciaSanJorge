@@ -258,6 +258,11 @@ vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => (
     excipiente: "Ludipress",
   })),
   deleteReservasDePreparacion: vi.fn(async () => 0),
+  // Pesada real (migration 0088): the repository's own defaults.
+  getParametrosPesadaReal: vi.fn(async () => ({ precisionBalanza: "0.001", toleranciaPorcentaje: "5" })),
+  insertPesadaReal: vi.fn(async () => undefined),
+  // No structured excipiente (migration 0092): the confirmation consumes no excipiente stock.
+  getExcipienteDePreparacion: vi.fn(async () => null),
 }));
 
 const { iniciarPreparacionCommand } = await import("@/modules/preparaciones/application/iniciar-preparacion");
@@ -446,7 +451,7 @@ describe("confirmar-preparacion: lock ordering (preparación, receta, then parti
     ]);
   });
 
-  it("D8: writes ONE por-receta asiento with this preparación (receta id, \"Ítem N: \" fórmula, orden from 1), after confirming it", async () => {
+  it("D8: writes ONE por-receta asiento with this preparación (receta id, fórmula without the \"Ítem N: \" label, orden from 1), after confirming it", async () => {
     listItemIdsDeRecetaMock.mockResolvedValueOnce(["item-0", "item-1"]);
     listPreparacionesVivasDeItemsMock.mockResolvedValueOnce([
       { id: "prep-0", itemRecetaId: "item-0", estado: "CONFIRMADA", etiquetaId: "et-0" },
@@ -460,7 +465,7 @@ describe("confirmar-preparacion: lock ordering (preparación, receta, then parti
       recetaId: "receta-1",
       preparaciones: [{ preparacionId: PREPARACION_ID, orden: 1 }],
       pacienteTexto: "Pérez, Juan",
-      formulaTexto: "Ítem 2: Droga X 10 mg; Ludipress c.s.p. — 60 Cápsulas",
+      formulaTexto: "Droga X 10 mg; Ludipress c.s.p. — 60 Cápsulas",
       detalles: [{ lineaPesajeId: LINEA_ID, descripcion: "Droga X", cantidad: "10", unidadTexto: "g", orden: 1 }],
     });
     expect(asiento).not.toHaveProperty("preparacionId");
