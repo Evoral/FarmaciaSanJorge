@@ -1,6 +1,6 @@
 # Etiquetas sobre hoja (posición en la hoja)
 
-Status: approved design, not implemented (2026-10-21).
+Status: implemented (2026-10-21), migration 0096 pending to apply (see Rollout). Plan: `docs/superpowers/plans/2026-10-21-hoja-etiquetas.md`.
 Builds on `docs/specs/etiqueta-preparado.md` (the label layout, unchanged) and
 migration 0066 (`fsj.etiqueta_tamano`, the configured label sizes).
 
@@ -144,3 +144,14 @@ forced. One sheet per farmacia is enough (they only print etiquetas on A4).
 9. R11 carries the next cell only between rows of the same size.
 10. A link without `tamano` uses the first active size that fits, not a hardcoded
     100 × 42 (R7).
+
+## Decisions taken while implementing
+
+Not pinned by the rules above; veto any.
+
+1. Editing the sheet is rejected only for the active sizes that fit the CURRENT sheet and would stop fitting (R5). A size that already does not fit (e.g. wider than 200 mm after migration 0096) does not block the edit, or the administrator could never enlarge the sheet while it exists.
+2. Editing a size is checked against the sheet whether the size is active or not; reactivating one that does not fit is a plain domain error (the reactivation form has only the motivo, so there is no field to mark).
+3. A link that names a size that exists but does not fit the sheet is a `VALIDATION_ERROR`, resolved before marking impresa (R7).
+4. The size commands hold the sheet row `FOR SHARE` and the sheet edit holds it `FOR UPDATE` (see `etiqueta-hoja-repository.ts`), so a size created while the sheet is edited can not slip past the fit check.
+5. `fsj.etiqueta_hoja` has no surrogate id: the audit row uses the tenant id as `entidadId` (same as `parametro`), entity `etiqueta_hoja`.
+6. R11: a row counts as "touched" once the user picks a cell in it; printing freezes the printed cell on its row.

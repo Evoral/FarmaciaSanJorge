@@ -15,4 +15,6 @@ label (reference provided by the farmacia on 2026-10-19). Earlier rules
 | R8 | The director técnico is ALWAYS the TITULAR, with the matrícula of his designación -- never a suplente (2026-10-19: the titular is in charge of everything). The titular vigente on the confirmation day; if there was none that day, the current titular. | `getDtTitularParaEtiqueta` (preparacion-repository) |
 | R7 | The new fields are part of the persisted `etiqueta.contenido` snapshot (optional lines `Teléfono fijo`, `Celular`, `Dosis:`, `Por unidad:`, and `Paciente`). A snapshot stored before this change still parses: it simply prints without them. | `formatearContenidoEtiqueta`, `parsearContenidoEtiqueta` |
 
+Placement on the printed page (the PDF is the sheet, the label goes in a chosen cell): `docs/specs/hoja-etiquetas.md`. This spec only governs what the label says and how it is laid out.
+
 Rollback: `docs/rollbacks/etiqueta-preparado.md`.
