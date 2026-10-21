@@ -28,13 +28,18 @@ interface RouteParams {
 export async function GET(request: Request, { params }: RouteParams): Promise<Response> {
   const { id } = await params;
   const requestId = crypto.randomUUID();
-  // `?tamano=<etiqueta_tamano.id>` is the size picked in the "Seleccionar tamaño" dialog; without it (old links) the
-  // use case renders the default 100 x 42 mm. An unknown / deactivated / other-tenant size is a 404, a malformed id a 400.
-  const tamanoId = new URL(request.url).searchParams.get("tamano") || undefined;
+  // `?tamano=<etiqueta_tamano.id>&columna=<n>&fila=<n>` is what the print dialog picked: the label size and the cell of
+  // the sheet (docs/specs/hoja-etiquetas.md R7). Without `tamano` (old links) the use case takes the first active size
+  // that fits the sheet; without `columna` / `fila`, 1 / 1. An unknown / deactivated / other-tenant size is a 404; a
+  // malformed id, or a cell that is not an integer or is outside the grid, a 400.
+  const busqueda = new URL(request.url).searchParams;
+  const tamanoId = busqueda.get("tamano") || undefined;
+  const columna = busqueda.get("columna") ?? undefined;
+  const fila = busqueda.get("fila") ?? undefined;
 
   let resultado;
   try {
-    resultado = await imprimirEtiquetaPdf(id, tamanoId);
+    resultado = await imprimirEtiquetaPdf(id, { tamanoId, columna, fila });
   } catch (e) {
     const appError = e instanceof AppError ? e : undefined;
     const status = appError ? STATUS_BY_CODE[appError.code] : 500;

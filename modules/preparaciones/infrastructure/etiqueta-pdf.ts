@@ -17,8 +17,12 @@
  * fonts). The real label uses Arial Narrow: Helvetica (Arial's metrics) is
  * drawn horizontally condensed (`ANGOSTO`) to match it. The layout is drawn
  * in a FIXED design space (100 × 42 mm) and scaled uniformly, centered, onto
- * the page size the caller chooses (one of the sizes the administrator
+ * the label size the caller chooses (one of the sizes the administrator
  * configured -- modules/etiqueta-tamanos); the layout is not re-flowed per size.
+ * The PDF page is the SHEET the farmacia prints on (modules/etiqueta-tamanos, spec
+ * docs/specs/hoja-etiquetas.md R6), not the label: the label is drawn inside the cell
+ * (columna, fila) of the sheet's grid the user picked and the rest of the page stays
+ * blank, so the printer drops it in that spot.
  *
  * Every text is drawn with `lineBreak: false` at explicit coordinates (no
  * automatic wrapping, hence no automatic page breaks): the label is always
@@ -26,7 +30,8 @@
  */
 import { renderPdf } from "@/shared/pdf/pdf-document";
 import { LOGO_FARMACIA_PROPORCION, logoFarmacia } from "@/shared/pdf/logo";
-import { ETIQUETA_TAMANO_PREDETERMINADO } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
+import { posicionCelda } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
+import type { Celda, HojaEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import type { TamanoEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import { columnasRp } from "../domain/etiqueta";
 import type { ContenidoEtiqueta } from "../domain/etiqueta";
@@ -264,16 +269,33 @@ function dibujarPie(doc: Doc, c: ContenidoEtiqueta): void {
   texto(doc, c.medico, DW / 2, 105.5, 6.4, DW - 2 * (BORDE + 14), NEGRO, true);
 }
 
-/** Renders the etiqueta on a page of `tamano` (mm); without one, the 100 × 42 mm the layout was designed for. */
-export function buildEtiquetaPdf(contenido: ContenidoEtiqueta, tamano: TamanoEtiqueta = ETIQUETA_TAMANO_PREDETERMINADO): Promise<Buffer> {
+/** Where the design lands on the page, in points: the origin of the (scaled) design space and its uniform scale. */
+export interface ColocacionEtiqueta {
+  x: number;
+  y: number;
+  escala: number;
+}
+
+/**
+ * R4 + R6: the design is scaled uniformly and centered inside the cell (columna, fila) of the grid of `tamano` on `hoja`,
+ * whose top-left corner is `posicionCelda` (exact in mm, the grid is anchored at the sheet's margin).
+ */
+export function colocarEtiqueta(tamano: TamanoEtiqueta, hoja: HojaEtiqueta, celda: Celda): ColocacionEtiqueta {
   const ancho = tamano.anchoMm * PT_POR_MM;
   const alto = tamano.altoMm * PT_POR_MM;
   const escala = Math.min(ancho / DW, alto / DH);
+  const { xMm, yMm } = posicionCelda(hoja, tamano, celda);
+  return { x: xMm * PT_POR_MM + (ancho - DW * escala) / 2, y: yMm * PT_POR_MM + (alto - DH * escala) / 2, escala };
+}
+
+/** Renders the sheet (`hoja`, mm) as ONE page with the etiqueta of `tamano` (mm) drawn in the cell `celda` (1-based). The caller checks that the cell is in the grid (`celdaValida`). */
+export function buildEtiquetaPdf(contenido: ContenidoEtiqueta, tamano: TamanoEtiqueta, hoja: HojaEtiqueta, celda: Celda = { columna: 1, fila: 1 }): Promise<Buffer> {
+  const colocacion = colocarEtiqueta(tamano, hoja, celda);
 
   return renderPdf(
     (doc) => {
       doc.save();
-      doc.translate((ancho - DW * escala) / 2, (alto - DH * escala) / 2).scale(escala);
+      doc.translate(colocacion.x, colocacion.y).scale(colocacion.escala);
 
       // Frame and rules.
       doc.roundedRect(BORDE, BORDE, DW - 2 * BORDE, DH - 2 * BORDE, 12).lineWidth(1.1).strokeColor(NEGRO).stroke();
@@ -289,6 +311,6 @@ export function buildEtiquetaPdf(contenido: ContenidoEtiqueta, tamano: TamanoEti
 
       doc.restore();
     },
-    { size: [ancho, alto], margin: 0 },
+    { size: [hoja.anchoMm * PT_POR_MM, hoja.altoMm * PT_POR_MM], margin: 0 },
   );
 }

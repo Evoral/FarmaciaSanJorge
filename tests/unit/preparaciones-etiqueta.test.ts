@@ -1,9 +1,13 @@
 /**
  * Etiqueta content (modules/preparaciones/domain/etiqueta.ts): vía per
  * forma, Rp/ selection and formatting, receta-number fallback, the
- * persisted text -- plus a smoke test of the PDF layout.
+ * persisted text -- plus a smoke test of the PDF layout and where it lands on the sheet
+ * (docs/specs/hoja-etiquetas.md R4, R6).
  */
+import { inflateSync } from "node:zlib";
 import { describe, it, expect } from "vitest";
+import { HOJA_PREDETERMINADA, posicionCelda } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
+import { ETIQUETA_TAMANO_PREDETERMINADO } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import {
   armarContenidoEtiqueta,
   columnasRp,
@@ -22,7 +26,7 @@ import {
   VENCE_ETIQUETA,
 } from "@/modules/preparaciones/domain/etiqueta";
 import type { ComponenteEtiqueta, DatosEtiqueta } from "@/modules/preparaciones/domain/etiqueta";
-import { buildEtiquetaPdf, tamanoFuenteRp } from "@/modules/preparaciones/infrastructure/etiqueta-pdf";
+import { buildEtiquetaPdf, colocarEtiqueta, tamanoFuenteRp } from "@/modules/preparaciones/infrastructure/etiqueta-pdf";
 
 function componente(overrides: Partial<ComponenteEtiqueta>): ComponenteEtiqueta {
   return { drogaNombre: "Droga", cantidad: "1", unidadSimbolo: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: false, ...overrides };
@@ -220,9 +224,18 @@ describe("armarContenidoEtiqueta / formatearContenidoEtiqueta", () => {
   });
 });
 
+const PT_POR_MM = 72 / 25.4;
+const A4 = HOJA_PREDETERMINADA;
+const ESTANDAR = ETIQUETA_TAMANO_PREDETERMINADO;
+
+/** Renders the sample etiqueta on a sheet (A4 by default). */
+function pdfEnHoja(tamano = ESTANDAR, celda?: { columna: number; fila: number }, hoja = A4) {
+  return buildEtiquetaPdf(armarContenidoEtiqueta(DATOS), tamano, hoja, celda);
+}
+
 describe("buildEtiquetaPdf", () => {
   it("renders a one-page PDF", async () => {
-    const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta(DATOS));
+    const pdf = await pdfEnHoja();
     expect(pdf.length).toBeGreaterThan(1000);
     expect(pdf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
     expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
@@ -230,13 +243,13 @@ describe("buildEtiquetaPdf", () => {
 
   it("stays one page with many Rp/ lines, no vía, no DT and no domicilio", async () => {
     const muchos = Array.from({ length: 12 }, (_, i) => componente({ drogaNombre: `Droga con un nombre bastante largo ${i + 1}`, esPrincipioActivo: true }));
-    const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta({ ...DATOS, formaFarmaceutica: "SOLUCION", cantidadUnidades: 1, componentes: muchos, directorTecnico: null, tenantDomicilio: null }));
+    const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta({ ...DATOS, formaFarmaceutica: "SOLUCION", cantidadUnidades: 1, componentes: muchos, directorTecnico: null, tenantDomicilio: null }), ESTANDAR, A4);
     expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
   });
 
   it.each([7, 8, 14, 20])("stays one page with %i principios activos (one or two columns, overflow line)", async (n) => {
     const activos = Array.from({ length: n }, (_, i) => componente({ drogaNombre: `Principio activo ${i + 1}`, cantidad: "12.5", esPrincipioActivo: true }));
-    const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta({ ...DATOS, componentes: activos }));
+    const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta({ ...DATOS, componentes: activos }), ESTANDAR, A4);
     expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
   });
 });
@@ -248,38 +261,99 @@ function mediaBox(pdf: Buffer): { ancho: number; alto: number } {
   return { ancho: Number(match[1]), alto: Number(match[2]) };
 }
 
-const PT_POR_MM = 72 / 25.4;
+/** Inflates every Flate content stream of the PDF (pdfkit compresses them) into one text. */
+function contenido(pdf: Buffer): string {
+  const textos: string[] = [];
+  for (const m of pdf.toString("latin1").matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
+    try {
+      textos.push(inflateSync(Buffer.from(m[1]!, "latin1")).toString("latin1"));
+    } catch {
+      // Not a Flate stream (an embedded image / font): not the page content.
+    }
+  }
+  return textos.join("\n");
+}
 
-describe("buildEtiquetaPdf -- page size", () => {
-  it("defaults to the 100 x 42 mm the layout was designed for", async () => {
-    const box = mediaBox(await buildEtiquetaPdf(armarContenidoEtiqueta(DATOS)));
-    expect(box.ancho).toBeCloseTo(100 * PT_POR_MM, 1);
-    expect(box.alto).toBeCloseTo(42 * PT_POR_MM, 1);
+/** Where the page content moves its origin to draw the design: its first `q` + `1 0 0 1 x y cm`, then the uniform scale (pdfkit omits it when it is 1). */
+function colocacionEnElPdf(pdf: Buffer): { x: number; y: number; escala: number } {
+  const match = /\nq\n1 0 0 1 (-?[\d.]+) (-?[\d.]+) cm\n(?:([\d.]+) 0 0 [\d.]+ 0 0 cm\n)?/.exec(contenido(pdf));
+  if (!match) throw new Error("no translate found in the page content");
+  return { x: Number(match[1]), y: Number(match[2]), escala: match[3] === undefined ? 1 : Number(match[3]) };
+}
+
+describe("buildEtiquetaPdf -- the page is the sheet (R6)", () => {
+  it("is the A4 sheet (210 x 297 mm), not the label size", async () => {
+    const box = mediaBox(await pdfEnHoja());
+    expect(box.ancho).toBeCloseTo(210 * PT_POR_MM, 1);
+    expect(box.alto).toBeCloseTo(297 * PT_POR_MM, 1);
   });
 
-  it("renders a one-page PDF on the chosen size (50 x 30 mm = 141.7 x 85 pt)", async () => {
-    const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta(DATOS), { anchoMm: 50, altoMm: 30 });
+  it("follows the sheet: landscape and decimals, whatever the label size", async () => {
+    const horizontal = mediaBox(await pdfEnHoja({ anchoMm: 50, altoMm: 30 }, undefined, { anchoMm: 297, altoMm: 210, margenMm: 5 }));
+    expect(horizontal.ancho).toBeCloseTo(297 * PT_POR_MM, 1);
+    expect(horizontal.alto).toBeCloseTo(210 * PT_POR_MM, 1);
+    const decimal = mediaBox(await pdfEnHoja(ESTANDAR, undefined, { anchoMm: 215.9, altoMm: 279.4, margenMm: 4.5 }));
+    expect(decimal.ancho).toBeCloseTo(215.9 * PT_POR_MM, 1);
+    expect(decimal.alto).toBeCloseTo(279.4 * PT_POR_MM, 1);
+  });
+
+  it("stays one page on the sheet for any cell and size", async () => {
+    const pdf = await pdfEnHoja({ anchoMm: 50, altoMm: 30 }, { columna: 4, fila: 9 });
     expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
-    const box = mediaBox(pdf);
-    expect(box.ancho).toBeCloseTo(141.7, 1);
-    expect(box.alto).toBeCloseTo(85, 1);
+  });
+});
+
+describe("colocarEtiqueta / buildEtiquetaPdf -- the etiqueta lands in the chosen cell (R4, R6)", () => {
+  it("the 100 x 42 mm size is the design itself: scale 1 at the cell's corner", () => {
+    const colocacion = colocarEtiqueta(ESTANDAR, A4, { columna: 1, fila: 1 });
+    expect(colocacion.escala).toBeCloseTo(1, 9);
+    expect(colocacion.x).toBeCloseTo(5 * PT_POR_MM, 6);
+    expect(colocacion.y).toBeCloseTo(5 * PT_POR_MM, 6);
   });
 
-  it("supports a size larger than the design and one with decimals", async () => {
-    const grande = mediaBox(await buildEtiquetaPdf(armarContenidoEtiqueta(DATOS), { anchoMm: 200, altoMm: 84 }));
-    expect(grande.ancho).toBeCloseTo(200 * PT_POR_MM, 1);
-    const decimal = mediaBox(await buildEtiquetaPdf(armarContenidoEtiqueta(DATOS), { anchoMm: 62.5, altoMm: 29.7 }));
-    expect(decimal.ancho).toBeCloseTo(62.5 * PT_POR_MM, 1);
-    expect(decimal.alto).toBeCloseTo(29.7 * PT_POR_MM, 1);
+  it("each cell moves the design by exactly one label size in mm", () => {
+    const origen = colocarEtiqueta(ESTANDAR, A4, { columna: 1, fila: 1 });
+    const otra = colocarEtiqueta(ESTANDAR, A4, { columna: 2, fila: 4 });
+    expect(otra.x - origen.x).toBeCloseTo(100 * PT_POR_MM, 6);
+    expect(otra.y - origen.y).toBeCloseTo(3 * 42 * PT_POR_MM, 6);
+  });
+
+  it("a smaller size is scaled uniformly and centered inside its cell", () => {
+    const tamano = { anchoMm: 50, altoMm: 30 };
+    const colocacion = colocarEtiqueta(tamano, A4, { columna: 3, fila: 2 });
+    const esquina = posicionCelda(A4, tamano, { columna: 3, fila: 2 });
+    const escala = Math.min(50 / 100, 30 / 42);
+    expect(colocacion.escala).toBeCloseTo(escala, 9);
+    // 50 x 30 is limited by its width (50 / 100): the design is centered vertically in the cell.
+    expect(colocacion.x).toBeCloseTo(esquina.xMm * PT_POR_MM, 6);
+    expect(colocacion.y).toBeCloseTo(esquina.yMm * PT_POR_MM + (30 * PT_POR_MM - 42 * PT_POR_MM * escala) / 2, 6);
+  });
+
+  it.each([
+    [{ columna: 1, fila: 1 }, ESTANDAR],
+    [{ columna: 2, fila: 6 }, ESTANDAR],
+    [{ columna: 3, fila: 2 }, { anchoMm: 50, altoMm: 30 }],
+  ])("the rendered page content is translated to the cell %j of %j", async (celda, tamano) => {
+    const esperada = colocarEtiqueta(tamano, A4, celda);
+    const real = colocacionEnElPdf(await pdfEnHoja(tamano, celda));
+    expect(real.x).toBeCloseTo(esperada.x, 4);
+    expect(real.y).toBeCloseTo(esperada.y, 4);
+    expect(real.escala).toBeCloseTo(esperada.escala, 4);
+  });
+
+  it("defaults to column 1, row 1", async () => {
+    const real = colocacionEnElPdf(await pdfEnHoja());
+    expect(real.x).toBeCloseTo(5 * PT_POR_MM, 4);
+    expect(real.y).toBeCloseTo(5 * PT_POR_MM, 4);
   });
 });
 
 describe("hrefEtiquetaPdf", () => {
-  it("points the PDF route at the preparación and the chosen size", () => {
-    expect(hrefEtiquetaPdf("prep-1", "tam-2")).toBe("/api/preparaciones/prep-1/etiqueta/pdf?tamano=tam-2");
+  it("points the PDF route at the preparación, the chosen size and the cell", () => {
+    expect(hrefEtiquetaPdf("prep-1", "tam-2", { columna: 3, fila: 2 })).toBe("/api/preparaciones/prep-1/etiqueta/pdf?tamano=tam-2&columna=3&fila=2");
   });
 
   it("encodes both ids", () => {
-    expect(hrefEtiquetaPdf("a/b", "c&d")).toBe("/api/preparaciones/a%2Fb/etiqueta/pdf?tamano=c%26d");
+    expect(hrefEtiquetaPdf("a/b", "c&d", { columna: 1, fila: 1 })).toBe("/api/preparaciones/a%2Fb/etiqueta/pdf?tamano=c%26d&columna=1&fila=1");
   });
 });

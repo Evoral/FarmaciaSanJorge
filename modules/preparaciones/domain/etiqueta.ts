@@ -293,9 +293,9 @@ export function motivoEtiquetaNoImprimible(datos: { recetaEstado: string; asient
   return null;
 }
 
-/** URL of the etiqueta PDF route for a preparación, rendered on the size (`etiqueta_tamano.id`) chosen in the "Seleccionar tamaño" dialog. */
-export function hrefEtiquetaPdf(preparacionId: string, tamanoId: string): string {
-  return `/api/preparaciones/${encodeURIComponent(preparacionId)}/etiqueta/pdf?tamano=${encodeURIComponent(tamanoId)}`;
+/** URL of the etiqueta PDF route for a preparación: the size (`etiqueta_tamano.id`) and the cell (columna, fila, 1-based) of the sheet chosen in the print dialog (docs/specs/hoja-etiquetas.md R7). */
+export function hrefEtiquetaPdf(preparacionId: string, tamanoId: string, celda: { columna: number; fila: number } = { columna: 1, fila: 1 }): string {
+  return `/api/preparaciones/${encodeURIComponent(preparacionId)}/etiqueta/pdf?tamano=${encodeURIComponent(tamanoId)}&columna=${celda.columna}&fila=${celda.fila}`;
 }
 
 /** Plain-text record of the label, persisted to `etiqueta.contenido`: the same fields the PDF prints, in reading order. */
