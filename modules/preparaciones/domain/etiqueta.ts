@@ -16,6 +16,7 @@ import { FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
 import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
 import { dosisPorTomaDePosologia, tomasPorDiaDePosologia } from "@/modules/recetas/domain/receta-pdf-parser";
 import type { ModoExpresion } from "@/modules/recetas/domain/receta";
+import { esTipoVencimientoEnDias, type TipoVencimientoPreparado } from "./vencimiento";
 
 type FormaFarmaceutica = keyof typeof FORMA_FARMACEUTICA_LABELS;
 
@@ -56,6 +57,8 @@ export interface DatosEtiqueta {
    * confirmed before that, which keeps the blank "Vence" line.
    */
   fechaVencimiento: string | null;
+  /** The tipo chosen at confirmation (`preparacion.tipo_vencimiento`, migration 0096); `null` before 0096. */
+  tipoVencimiento: TipoVencimientoPreparado | null;
 }
 
 export interface ContenidoEtiqueta {
@@ -103,12 +106,13 @@ export const VENCE_ETIQUETA = "Vence: ______";
 /**
  * DP-28 "Vencimiento" (resolved 2026-10-07): "Vence: MM/YY" from the
  * `YYYY-MM-DD` snapshot -- the month and year of the expiry date, e.g.
- * "2026-03-31" -> "Vence: 03/26". `null` keeps `VENCE_ETIQUETA`.
+ * "2026-03-31" -> "Vence: 03/26". A tipo counted in days prints the day too,
+ * "Vence: 04/11/26" (docs/specs/vencimiento-preparado.md R12). `null` keeps `VENCE_ETIQUETA`.
  */
-export function formatearVenceEtiqueta(fechaVencimiento: string | null): string {
+export function formatearVenceEtiqueta(fechaVencimiento: string | null, tipo: TipoVencimientoPreparado | null = null): string {
   if (fechaVencimiento === null) return VENCE_ETIQUETA;
-  const [anio, mes] = fechaVencimiento.split("-");
-  return `Vence: ${mes}/${anio!.slice(-2)}`;
+  const [anio, mes, dia] = fechaVencimiento.split("-");
+  return esTipoVencimientoEnDias(tipo) ? `Vence: ${dia}/${mes}/${anio!.slice(-2)}` : `Vence: ${mes}/${anio!.slice(-2)}`;
 }
 
 /** PENDING (DP-28): vía per forma, singular/plural. SOLUCION and SUSPENSION are ambiguous (oral or topical), so they have none. */
@@ -223,6 +227,13 @@ export function textoDeUnaLinea(valor: string | null | undefined): string | null
 
 export const CONSERVACION_ETIQUETA = "Conservar en lugar fresco y seco";
 
+/** R13: an aqueous preparado without conservante goes to the fridge. */
+export const CONSERVACION_HELADERA_ETIQUETA = "Conservar en heladera (2 °C a 8 °C)";
+
+export function conservacionEtiqueta(tipo: TipoVencimientoPreparado | null): string {
+  return tipo === "ACUOSA_SIN_CONSERVANTE" ? CONSERVACION_HELADERA_ETIQUETA : CONSERVACION_ETIQUETA;
+}
+
 // ----------------------------------------------------------------------------
 // Formatting
 // ----------------------------------------------------------------------------
@@ -266,14 +277,14 @@ export function armarContenidoEtiqueta(datos: DatosEtiqueta): ContenidoEtiqueta 
     telefonoFijo: textoDeUnaLinea(datos.tenantTelefonoFijo),
     celular: textoDeUnaLinea(datos.tenantTelefonoCelular),
     rp: componentesRp(datos.componentes).map(formatearLineaRp),
-    vence: formatearVenceEtiqueta(datos.fechaVencimiento),
+    vence: formatearVenceEtiqueta(datos.fechaVencimiento, datos.tipoVencimiento),
     recetaNumero: numeroRecetaEtiqueta(datos),
     dosis: dosisEtiqueta(datos.formaFarmaceutica, datos.posologia, datos.fraccionDosisPorUnidad),
     cantidad: datos.cantidadUnidades,
     forma: formaSegunCantidad(datos.formaFarmaceutica, datos.cantidadUnidades),
     via: viaDeAdministracion(datos.formaFarmaceutica, datos.cantidadUnidades),
     fraccionDosis: fraccionDosisEtiqueta(datos.formaFarmaceutica, datos.fraccionDosisPorUnidad),
-    conservacion: CONSERVACION_ETIQUETA,
+    conservacion: conservacionEtiqueta(datos.tipoVencimiento),
     medico: formatearMedicoEtiqueta(datos),
     paciente: MOSTRAR_PACIENTE_EN_ETIQUETA ? textoDeUnaLinea(datos.pacienteTexto) : null,
   };

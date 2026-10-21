@@ -511,7 +511,7 @@ describe("confirmar-preparacion: lock ordering (preparación, receta, then parti
       { preparacionId: PREPARACION_ID },
       { session: fakeSession("preparaciones.confirmar") },
     );
-    expect(updatePreparacionConfirmadaMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, PREPARACION_ID, USUARIO_ID, expect.any(String));
+    expect(updatePreparacionConfirmadaMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, PREPARACION_ID, USUARIO_ID, expect.any(String), "ESTANDAR");
   });
 
   it("snapshots fecha_vencimiento = the confirmation's jornada + meses_vencimiento_preparado, in the same UPDATE", async () => {
@@ -520,7 +520,7 @@ describe("confirmar-preparacion: lock ordering (preparación, receta, then parti
       { preparacionId: PREPARACION_ID },
       { session: fakeSession("preparaciones.confirmar") },
     );
-    expect(updatePreparacionConfirmadaMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, PREPARACION_ID, USUARIO_ID, "2026-09-15");
+    expect(updatePreparacionConfirmadaMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, PREPARACION_ID, USUARIO_ID, "2026-09-15", "ESTANDAR");
 
     getMesesVencimientoPreparadoMock.mockResolvedValueOnce(6);
     jornadaActualTenantMock.mockResolvedValue("2026-08-31");
@@ -529,7 +529,7 @@ describe("confirmar-preparacion: lock ordering (preparación, receta, then parti
       { preparacionId: PREPARACION_ID },
       { session: fakeSession("preparaciones.confirmar") },
     );
-    expect(updatePreparacionConfirmadaMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, PREPARACION_ID, USUARIO_ID, "2027-02-28");
+    expect(updatePreparacionConfirmadaMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, PREPARACION_ID, USUARIO_ID, "2027-02-28", "ESTANDAR");
   });
 
   it("rejects a non-INICIADA preparación with a clear message, before touching partidas", async () => {

@@ -19,6 +19,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 import { dec } from "@/shared/decimal";
 import { confirmarPreparacionEnTx, type ConfirmacionDeItem, type LineaReservada } from "./confirmar-preparacion";
+import type { TipoVencimientoPreparado } from "../domain/vencimiento";
 import type { ReservaDePreparacion } from "../infrastructure/preparacion-repository";
 
 /** See this file's doc comment. */
@@ -27,8 +28,9 @@ export async function confirmarDesdeReservasEnTx(
   session: AuthenticatedSession,
   preparacionId: string,
   reservas: readonly ReservaDePreparacion[],
+  tipoVencimiento: TipoVencimientoPreparado,
 ): Promise<ConfirmacionDeItem> {
-  return confirmarPreparacionEnTx(tx, session, { preparacionId, seleccion: { modo: "reservada", lineas: lineasDesdeReservas(reservas) } });
+  return confirmarPreparacionEnTx(tx, session, { preparacionId, seleccion: { modo: "reservada", lineas: lineasDesdeReservas(reservas) }, tipoVencimiento });
 }
 
 /** One línea per reserved línea: its reserved partidas plus the línea's cantidadManual/motivo (the same on each of its rows). */

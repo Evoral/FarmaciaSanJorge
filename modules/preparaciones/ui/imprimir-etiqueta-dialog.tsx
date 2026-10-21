@@ -68,7 +68,7 @@ function useAbrirAlMontar(dialogRef: RefObject<HTMLDialogElement | null>, abrirA
 }
 
 /** The first size is preselected; a stale choice (the list changed meanwhile) falls back to it. */
-function tamanoElegido(tamanos: readonly EtiquetaTamano[], elegido: string | undefined): EtiquetaTamano | undefined {
+export function tamanoElegido(tamanos: readonly EtiquetaTamano[], elegido: string | undefined): EtiquetaTamano | undefined {
   return tamanos.find((t) => t.id === elegido) ?? tamanos[0];
 }
 
@@ -95,7 +95,7 @@ function AvisoTamanoReal() {
   );
 }
 
-function OpcionesTamano({ tamanos }: { tamanos: readonly EtiquetaTamano[] }) {
+export function OpcionesTamano({ tamanos }: { tamanos: readonly EtiquetaTamano[] }) {
   return tamanos.map((tamano) => (
     <option key={tamano.id} value={tamano.id}>
       {formatearTamano(tamano)}
@@ -216,15 +216,18 @@ export interface SeleccionarEtiquetasDialogProps {
   hoja: HojaEtiqueta;
   /** Open the dialog as soon as this mounts (or the flag turns on): right after the confirmation. */
   abrirAlMontar?: boolean;
+  /** Per preparación, the size already chosen in the confirmation dialog (./reserva-acciones.tsx). */
+  tamanosIniciales?: Readonly<Record<string, string>>;
 }
 
-export function SeleccionarEtiquetasDialog({ etiquetas, tamanos, hoja, abrirAlMontar = false }: SeleccionarEtiquetasDialogProps) {
+export function SeleccionarEtiquetasDialog({ etiquetas, tamanos, hoja, abrirAlMontar = false, tamanosIniciales }: SeleccionarEtiquetasDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cierrePorFondo = useCierrePorFondo(dialogRef);
   const tituloId = useId();
   const campoId = useId();
-  // Per preparación: the chosen size, the cell the user picked (an untouched row shows the default), and whether it was sent to print while the page is open.
-  const [elegidos, setElegidos] = useState<Record<string, string>>({});
+  // Per preparación: the chosen size (starting on the one picked when confirming), the cell the user picked (an untouched
+  // row shows the default), and whether it was sent to print while the page is open.
+  const [elegidos, setElegidos] = useState<Record<string, string>>(() => ({ ...tamanosIniciales }));
   const [celdas, setCeldas] = useState<Record<string, Celda>>({});
   const [impresas, setImpresas] = useState<ReadonlySet<string>>(new Set());
   // R11: the last etiqueta sent to print, kept only while this page is open.

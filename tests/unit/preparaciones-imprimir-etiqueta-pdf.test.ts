@@ -32,6 +32,7 @@ const DATOS: DatosEtiqueta & { etiquetaId: string; generadaEn: Date } = {
   posologia: null,
   fraccionDosisPorUnidad: "1",
   fechaVencimiento: null,
+  tipoVencimiento: null,
 };
 
 const A4 = { anchoMm: 210, altoMm: 297, margenMm: 5 };

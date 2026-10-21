@@ -53,6 +53,7 @@ const DATOS: DatosEtiqueta = {
   posologia: "Media dosis cada 12 horas",
   fraccionDosisPorUnidad: "0.5",
   fechaVencimiento: "2027-03-15",
+  tipoVencimiento: "ESTANDAR",
 };
 
 describe("viaDeAdministracion", () => {

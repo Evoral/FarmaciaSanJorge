@@ -9,6 +9,7 @@ import { cancelarToma } from "@/modules/preparaciones/application/cancelar-toma"
 import { descartarPreparacion } from "@/modules/preparaciones/application/descartar-preparacion";
 import { confirmarPreparacion } from "@/modules/preparaciones/application/confirmar-preparacion";
 import type { LineaEntradaInput } from "@/modules/preparaciones/application/confirmar-preparacion";
+import type { TipoVencimientoPreparado } from "@/modules/preparaciones/domain/vencimiento";
 import { reservarStockPreparacion } from "@/modules/preparaciones/application/reservar-stock-preparacion";
 import { liberarReservaStock } from "@/modules/preparaciones/application/liberar-reserva-stock";
 import { confirmarReservasReceta } from "@/modules/preparaciones/application/confirmar-reservas-receta";
@@ -127,7 +128,12 @@ export async function confirmarPreparacionAction(_prevState: PreparacionActionSt
   return conOperador(formData, async (): Promise<PreparacionActionState> => {
     const preparacionId = String(formData.get("preparacionId") ?? "");
     try {
-      const resultado = await confirmarPreparacion({ preparacionId, lineas: parseEntradas(formData), ...coFirmaPesada(formData) });
+      const resultado = await confirmarPreparacion({
+        preparacionId,
+        lineas: parseEntradas(formData),
+        ...coFirmaPesada(formData),
+        tipoVencimiento: (formData.get("tipoVencimiento") || undefined) as TipoVencimientoPreparado | undefined,
+      });
       revalidatePath(`/preparaciones/${preparacionId}`);
       revalidatePath("/preparaciones");
       // The receta moved to EN_PREPARACION with its first ítem, or PREPARADA with its last.
@@ -322,6 +328,19 @@ export async function liberarReservaStockAction(_prevState: PreparacionActionSta
 }
 
 /** "Se confirmaron 3 ítems. Asiento libro recetario Nº 101." -- one asiento for the whole receta (D8). */
+const PREFIJO_TIPO_VENCIMIENTO = "tipoVencimiento_";
+
+/** "Imprimir etiquetas"'s per-ítem selectors (`tipoVencimiento_<preparacionId>`); the command validates every value. */
+function tiposVencimientoPorPreparacion(formData: FormData): Record<string, TipoVencimientoPreparado> {
+  const tipos: Record<string, TipoVencimientoPreparado> = {};
+  for (const [clave, valor] of formData.entries()) {
+    if (clave.startsWith(PREFIJO_TIPO_VENCIMIENTO) && typeof valor === "string") {
+      tipos[clave.slice(PREFIJO_TIPO_VENCIMIENTO.length)] = valor as TipoVencimientoPreparado;
+    }
+  }
+  return tipos;
+}
+
 function mensajeReservasConfirmadas(items: number, numeroCorrelativo: string): string {
   return `${items === 1 ? "Se confirmó 1 ítem" : `Se confirmaron ${items} ítems`}. Asiento libro recetario Nº ${numeroCorrelativo}.`;
 }
@@ -335,7 +354,7 @@ function mensajeReservasConfirmadas(items: number, numeroCorrelativo: string): s
 export async function confirmarReservasRecetaAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
   return conOperador(formData, async (): Promise<PreparacionActionState> => {
     try {
-      const confirmada = await confirmarReservasReceta(String(formData.get("recetaId") ?? ""));
+      const confirmada = await confirmarReservasReceta(String(formData.get("recetaId") ?? ""), tiposVencimientoPorPreparacion(formData));
       revalidatePath("/preparaciones");
       // The receta moved to PREPARADA.
       revalidatePath("/recetas");

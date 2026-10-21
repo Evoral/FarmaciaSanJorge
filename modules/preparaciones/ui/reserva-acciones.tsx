@@ -30,7 +30,8 @@ import { MOTIVO_AJUSTE_LABELS } from "@/modules/stock/domain/partida";
 import { MOTIVOS_PERDIDA } from "../domain/perdida";
 import { confirmarReservasRecetaAction, liberarReservaStockAction, recalcularReservaStockAction, registrarPerdidaReservaAction } from "./actions";
 import type { PreparacionActionState } from "./action-state";
-import { SeleccionarEtiquetasDialog, type EtiquetaDeItemParaImprimir } from "./imprimir-etiqueta-dialog";
+import { OpcionesTamano, SeleccionarEtiquetasDialog, tamanoElegido, type EtiquetaDeItemParaImprimir } from "./imprimir-etiqueta-dialog";
+import { TipoVencimientoSelect } from "./tipo-vencimiento-select";
 
 /**
  * The ítem goes back to Pendiente and this form unmounts: the message goes to a toast. Fired here, when the action
@@ -85,13 +86,19 @@ export interface EtiquetasDeRecetaProps {
   hoja: HojaEtiqueta;
   /** The confirmed ítems that have their etiqueta, in ítem order: the dialog's rows. */
   etiquetas: readonly EtiquetaDeItemParaImprimir[];
+  /** The ítems "Imprimir etiquetas" confirms (reserved), in ítem order: one tipo de vencimiento selector each (docs/specs/vencimiento-preparado.md R10). */
+  aConfirmar: readonly { preparacionId: string; numero: number; nombre: string }[];
+  /** `meses_vencimiento_preparado`, shown in the `ESTANDAR` option. */
+  mesesVencimiento: number;
 }
 
-export function EtiquetasDeReceta({ recetaId, porConfirmar, todasReservadas, sinAlcance, puedeConfirmar, puedeImprimir, tamanos, hoja, etiquetas }: EtiquetasDeRecetaProps) {
+export function EtiquetasDeReceta({ recetaId, porConfirmar, todasReservadas, sinAlcance, puedeConfirmar, puedeImprimir, tamanos, hoja, etiquetas, aConfirmar, mesesVencimiento }: EtiquetasDeRecetaProps) {
   // "Just confirmed" is set when the confirmation resolves, NOT from the form's onSuccess: the action's revalidatePath
   // re-renders the page in the same response, so the form unmounts before its success effect ever runs. This component
   // stays mounted (the page renders it at a fixed place), so its own state survives and opens the dialog right after.
   const [recienConfirmadas, setRecienConfirmadas] = useState(false);
+  // The size chosen per preparación in the confirmation dialog: the size dialog that opens afterwards starts on it.
+  const [tamanosElegidos, setTamanosElegidos] = useState<Record<string, string>>({});
   async function confirmar(prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
     const state = await confirmarReservasRecetaAction(prevState, formData);
     if (state.status === "success") {
@@ -115,18 +122,129 @@ export function EtiquetasDeReceta({ recetaId, porConfirmar, todasReservadas, sin
         ) : (
           <p className="text-sm text-zinc-500">Reservá el stock de todos los ítems para imprimir las etiquetas.</p>
         )}
-        <ReauthAwareForm action={confirmar} accion={["preparaciones.confirmar", "etiquetas.generar"]} submitLabel="Imprimir etiquetas" pendingLabel="Confirmando…" submitDisabled={!todasReservadas || sinAlcance.length > 0} layout="inline">
-          <input type="hidden" name="recetaId" value={recetaId} />
-        </ReauthAwareForm>
+        <ConfirmarEtiquetasDialog
+          recetaId={recetaId}
+          aConfirmar={aConfirmar}
+          mesesVencimiento={mesesVencimiento}
+          tamanos={puedeImprimir ? tamanos : []}
+          tamanosElegidos={tamanosElegidos}
+          onTamano={(preparacionId, tamanoId) => setTamanosElegidos((anteriores) => ({ ...anteriores, [preparacionId]: tamanoId }))}
+          confirmar={confirmar}
+          deshabilitado={!todasReservadas || sinAlcance.length > 0}
+        />
       </div>
     );
   }
 
   return puedeImprimir && etiquetas.length > 0 ? (
     <div className="panel flex justify-end px-4 py-3 sm:px-5">
-      <SeleccionarEtiquetasDialog etiquetas={etiquetas} tamanos={tamanos} hoja={hoja} abrirAlMontar={recienConfirmadas} />
+      <SeleccionarEtiquetasDialog etiquetas={etiquetas} tamanos={tamanos} hoja={hoja} abrirAlMontar={recienConfirmadas} tamanosIniciales={tamanosElegidos} />
     </div>
   ) : null;
+}
+
+interface ConfirmarEtiquetasDialogProps {
+  recetaId: string;
+  aConfirmar: EtiquetasDeRecetaProps["aConfirmar"];
+  mesesVencimiento: number;
+  /** Sizes to choose from; empty without `etiquetas.imprimir` (or none active): no size selector. */
+  tamanos: readonly EtiquetaTamano[];
+  tamanosElegidos: Readonly<Record<string, string>>;
+  onTamano: (preparacionId: string, tamanoId: string) => void;
+  confirmar: (prevState: PreparacionActionState, formData: FormData) => Promise<PreparacionActionState>;
+  deshabilitado: boolean;
+}
+
+/**
+ * "Imprimir etiquetas" before the confirmation: one row per ítem to confirm, each with its own tipo de vencimiento
+ * (docs/specs/vencimiento-preparado.md R10) -- the date is fixed when confirming, so it is chosen here, not in the size
+ * dialog that opens afterwards. One submit confirms every ítem (one asiento, D8). On success the page re-renders
+ * without this dialog and `SeleccionarEtiquetasDialog` opens by itself.
+ */
+function ConfirmarEtiquetasDialog({ recetaId, aConfirmar, mesesVencimiento, tamanos, tamanosElegidos, onTamano, confirmar, deshabilitado }: ConfirmarEtiquetasDialogProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const tituloId = useId();
+  const campoId = useId();
+
+  function cerrar() {
+    dialogRef.current?.close();
+  }
+
+  return (
+    <>
+      <button type="button" onClick={() => dialogRef.current?.showModal()} aria-haspopup="dialog" disabled={deshabilitado} className="btn btn-primary">
+        Imprimir etiquetas
+      </button>
+      <dialog
+        ref={dialogRef}
+        aria-labelledby={tituloId}
+        className="card m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-xl p-0 text-left text-foreground shadow-lg backdrop:bg-black/40 dark:border-zinc-800 dark:bg-zinc-900"
+      >
+        <div className="flex flex-col gap-4 p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 id={tituloId} className="text-lg font-semibold">
+                Imprimir etiquetas
+              </h2>
+              <p className="text-sm text-zinc-500">Elegí el vencimiento y el tamaño de la etiqueta de cada preparado.</p>
+            </div>
+            <button type="button" onClick={cerrar} aria-label="Cerrar" className="btn btn-ghost btn-sm">
+              <X className="size-4" aria-hidden />
+            </button>
+          </div>
+          <ReauthAwareForm
+            action={confirmar}
+            accion={["preparaciones.confirmar", "etiquetas.generar"]}
+            submitLabel="Confirmar e imprimir"
+            pendingLabel="Confirmando…"
+            className="flex flex-col gap-4"
+            extraActions={
+              <button type="button" onClick={cerrar} className="btn btn-secondary">
+                Cancelar
+              </button>
+            }
+          >
+            <input type="hidden" name="recetaId" value={recetaId} />
+            <ul className="flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800">
+              {aConfirmar.map((item) => (
+                <li key={item.preparacionId} className="flex flex-col gap-2 py-3">
+                  <p className="min-w-0 truncate text-sm font-medium">
+                    Ítem {item.numero}: {item.nombre}
+                  </p>
+                  <TipoVencimientoSelect
+                    id={`${campoId}-${item.preparacionId}`}
+                    name={`tipoVencimiento_${item.preparacionId}`}
+                    label="Vencimiento"
+                    mesesEstandar={mesesVencimiento}
+                  />
+                  {tamanos.length > 0 ? (
+                    <div className="field">
+                      <label htmlFor={`${campoId}-${item.preparacionId}-tamano`} className="field-label">
+                        Tamaño de la etiqueta
+                      </label>
+                      {/* No `name`: the size is not sent with the confirmation, it only preselects the print dialog. */}
+                      <select
+                        id={`${campoId}-${item.preparacionId}-tamano`}
+                        value={tamanoElegido(tamanos, tamanosElegidos[item.preparacionId])?.id ?? ""}
+                        onChange={(event) => onTamano(item.preparacionId, event.target.value)}
+                        className="input"
+                      >
+                        <OpcionesTamano tamanos={tamanos} />
+                      </select>
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+            <div role="note" className="alert alert-warn">
+              <CircleAlert aria-hidden />
+              <p>Al confirmar, se registran todos los ítems en el libro recetario y se descuenta el stock. No se puede deshacer.</p>
+            </div>
+          </ReauthAwareForm>
+        </div>
+      </dialog>
+    </>
+  );
 }
 
 export interface PartidaReservada {

@@ -242,6 +242,10 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
           tamanos={tamanos}
           hoja={hoja}
           etiquetas={etiquetas}
+          aConfirmar={receta.items.flatMap((item, i) =>
+            estados[i] === "RESERVADA" && item.preparacion ? [{ preparacionId: item.preparacion.id, numero: i + 1, nombre: nombreDeItem(item) }] : [],
+          )}
+          mesesVencimiento={receta.mesesVencimientoPreparado}
         />
       </div>
     </section>

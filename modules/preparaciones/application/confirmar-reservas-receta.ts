@@ -37,6 +37,7 @@ import { authorize } from "@/shared/auth/authorize";
 import { AppError, DomainError, NotFoundError, userMessageFor } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { estadoItemToma, itemsSinReserva, mensajeItemsSinReserva, type EstadoItemToma } from "../domain/toma";
+import { TIPOS_VENCIMIENTO_PREPARADO, TIPO_VENCIMIENTO_DEFAULT, type TipoVencimientoPreparado } from "../domain/vencimiento";
 import { confirmarDesdeReservasEnTx } from "./confirmar-desde-reservas";
 import { registrarAsientoRecetaEnTx, type ItemParaAsiento } from "./registrar-asiento-receta";
 import { generarEtiquetaEnTx } from "./generar-etiqueta";
@@ -51,7 +52,11 @@ import {
   type ReservaDePreparacion,
 } from "../infrastructure/preparacion-repository";
 
-const confirmarReservasRecetaInput = z.object({ recetaId: uuid });
+/** docs/specs/vencimiento-preparado.md R10: per preparación, the tipo chosen in "Imprimir etiquetas"; one missing = `ESTANDAR`. */
+const confirmarReservasRecetaInput = z.object({
+  recetaId: uuid,
+  tiposVencimiento: z.record(uuid, z.enum(TIPOS_VENCIMIENTO_PREPARADO)).default({}),
+});
 
 export interface EtiquetaDeRecetaConfirmada {
   preparacionId: string;
@@ -114,14 +119,15 @@ export const confirmarReservasRecetaCommand = defineCommand({
 
     // 4. Every ítem: stock, CONFIRMADA, its libro data.
     const items: ItemParaAsiento[] = [];
-    const vencimientos = new Map<string, string>();
+    const vencimientos = new Map<string, { fechaVencimiento: string; tipoVencimiento: string }>();
     let contexto: RecetaContextoAsiento | null = null;
     for (const { numero, preparacionId, reservas } of aConfirmar) {
       try {
-        const confirmada = await confirmarDesdeReservasEnTx(tx, session, preparacionId, reservas);
+        const tipo = input.tiposVencimiento[preparacionId] ?? TIPO_VENCIMIENTO_DEFAULT;
+        const confirmada = await confirmarDesdeReservasEnTx(tx, session, preparacionId, reservas, tipo);
         contexto ??= confirmada.contexto;
         items.push({ ...confirmada, numero, preparacionId });
-        vencimientos.set(preparacionId, confirmada.fechaVencimiento);
+        vencimientos.set(preparacionId, { fechaVencimiento: confirmada.fechaVencimiento, tipoVencimiento: confirmada.tipoVencimiento });
       } catch (error) {
         throw conNumeroDeItem(error, numero);
       }
@@ -153,7 +159,7 @@ export const confirmarReservasRecetaCommand = defineCommand({
             item: e.numero,
             preparacionId: e.preparacionId,
             estado: "CONFIRMADA",
-            fechaVencimiento: vencimientos.get(e.preparacionId),
+            ...vencimientos.get(e.preparacionId),
             etiquetaId: e.etiquetaId,
           })),
         },
@@ -162,6 +168,6 @@ export const confirmarReservasRecetaCommand = defineCommand({
   },
 });
 
-export async function confirmarReservasReceta(recetaId: string): Promise<RecetaConfirmada> {
-  return confirmarReservasRecetaCommand.execute({ recetaId });
+export async function confirmarReservasReceta(recetaId: string, tiposVencimiento: Record<string, TipoVencimientoPreparado> = {}): Promise<RecetaConfirmada> {
+  return confirmarReservasRecetaCommand.execute({ recetaId, tiposVencimiento });
 }
