@@ -29,7 +29,7 @@ import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-component
 import type { ModoExpresion } from "@/modules/recetas/domain/receta";
 import type { DatosEtiqueta } from "../domain/etiqueta";
 import type { ItemPrescripto } from "../domain/formula-prescripcion";
-import { parseMesesVencimientoPreparado } from "../domain/vencimiento";
+import { parseMesesVencimientoPreparado, type TipoVencimientoPreparado } from "../domain/vencimiento";
 
 const PLACEHOLDER_UUID = "00000000-0000-0000-0000-000000000000";
 const PLACEHOLDER_DATE = new Date(0);
@@ -876,8 +876,9 @@ export async function insertAsientoContralorEgreso(tx: Prisma.TransactionClient,
 
 /**
  * `fechaVencimiento` (`YYYY-MM-DD`) is the snapshot of the preparado's expiry
- * (migration 0068): it is written in the SAME UPDATE that confirms, the only
- * moment the DB lets it change.
+ * (migration 0068) and `tipoVencimiento` the tipo it was computed from (0096):
+ * both are written in the SAME UPDATE that confirms, the only moment the DB
+ * lets them change (INV-P07).
  */
 export async function updatePreparacionConfirmada(
   tx: Prisma.TransactionClient,
@@ -885,6 +886,7 @@ export async function updatePreparacionConfirmada(
   id: string,
   preparadaPorId: string,
   fechaVencimiento: string,
+  tipoVencimiento: TipoVencimientoPreparado,
 ): Promise<void> {
   await tx.preparacion.update({
     where: { id, tenantId },
@@ -893,6 +895,7 @@ export async function updatePreparacionConfirmada(
       confirmadaEn: new Date(),
       preparadaPorId,
       fechaVencimiento: new Date(`${fechaVencimiento}T00:00:00.000Z`), // @db.Date columns are written as UTC midnight.
+      tipoVencimiento,
     },
   });
 }
@@ -965,6 +968,7 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
       estado: true,
       confirmadaEn: true,
       fechaVencimiento: true,
+      tipoVencimiento: true,
       preparadaPor: { select: { nombre: true, apellido: true } },
       fichaTecnica: {
         select: {
@@ -1045,6 +1049,7 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
     tenantTelefonoFijo: tenant.telefonoFijo,
     tenantTelefonoCelular: tenant.telefonoCelular,
     fechaVencimiento: prep.fechaVencimiento ? prep.fechaVencimiento.toISOString().slice(0, 10) : null, // @db.Date comes back as UTC midnight.
+    tipoVencimiento: prep.tipoVencimiento,
     recetaEstado: item.receta.estado,
     asientoSinEfecto: asiento.estado === "ANULADO" || asiento._count.rectificativos > 0,
   };

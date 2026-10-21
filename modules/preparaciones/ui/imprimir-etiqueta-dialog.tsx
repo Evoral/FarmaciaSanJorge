@@ -60,7 +60,7 @@ function useAbrirAlMontar(dialogRef: RefObject<HTMLDialogElement | null>, abrirA
 }
 
 /** The first size is preselected; a stale choice (the list changed meanwhile) falls back to it. */
-function tamanoElegido(tamanos: readonly EtiquetaTamano[], elegido: string | undefined): string {
+export function tamanoElegido(tamanos: readonly EtiquetaTamano[], elegido: string | undefined): string {
   return tamanos.find((t) => t.id === elegido)?.id ?? tamanos[0]?.id ?? "";
 }
 
@@ -77,7 +77,7 @@ function SinTamanos() {
   );
 }
 
-function OpcionesTamano({ tamanos }: { tamanos: readonly EtiquetaTamano[] }) {
+export function OpcionesTamano({ tamanos }: { tamanos: readonly EtiquetaTamano[] }) {
   return tamanos.map((tamano) => (
     <option key={tamano.id} value={tamano.id}>
       {formatearTamano(tamano)}
@@ -179,15 +179,17 @@ export interface SeleccionarEtiquetasDialogProps {
   tamanos: readonly EtiquetaTamano[];
   /** Open the dialog as soon as this mounts (or the flag turns on): right after the confirmation. */
   abrirAlMontar?: boolean;
+  /** Per preparación, the size already chosen in the confirmation dialog (./reserva-acciones.tsx). */
+  tamanosIniciales?: Readonly<Record<string, string>>;
 }
 
-export function SeleccionarEtiquetasDialog({ etiquetas, tamanos, abrirAlMontar = false }: SeleccionarEtiquetasDialogProps) {
+export function SeleccionarEtiquetasDialog({ etiquetas, tamanos, abrirAlMontar = false, tamanosIniciales }: SeleccionarEtiquetasDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cierrePorFondo = useCierrePorFondo(dialogRef);
   const tituloId = useId();
   const campoId = useId();
   // Per preparación: the chosen size, and whether it was sent to print while the page is open.
-  const [elegidos, setElegidos] = useState<Record<string, string>>({});
+  const [elegidos, setElegidos] = useState<Record<string, string>>(() => ({ ...tamanosIniciales }));
   const [impresas, setImpresas] = useState<ReadonlySet<string>>(new Set());
   useAbrirAlMontar(dialogRef, abrirAlMontar);
 

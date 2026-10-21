@@ -188,6 +188,16 @@ enum EstadoReceta {
   @@schema("fsj")
 }
 
+/// Migration 0096 (docs/specs/vencimiento-preparado.md R9): ESTANDAR = meses_vencimiento_preparado months; the aqueous tipos are fixed day limits.
+enum TipoVencimientoPreparado {
+  ESTANDAR
+  ACUOSA_CON_CONSERVANTE
+  ACUOSA_SIN_CONSERVANTE
+
+  @@map("tipo_vencimiento_preparado")
+  @@schema("fsj")
+}
+
 /// PROPUESTA (migration 0011 header) -- CAPSULA/COMPRIMIDO are special-cased
 /// by the ficha calculator (modules/elaboracion/domain/calcular-ficha-tecnica.ts).
 enum FormaFarmaceutica {
@@ -1159,6 +1169,8 @@ model Preparacion {
   descartadaPorId  String?           @map("descartada_por_id") @db.Uuid
   /// Migration 0068 (DP-28 "Vencimiento"): expiry of the preparado, snapshotted at confirmation (jornada + meses_vencimiento_preparado). NULL for one confirmed before 0068. Frozen afterwards (INV-P07).
   fechaVencimiento DateTime?         @map("fecha_vencimiento") @db.Date
+  /// Migration 0096 (docs/specs/vencimiento-preparado.md R9-R14): the tipo de vencimiento chosen at confirmation; decides the etiqueta's date format and storage note. NULL for one confirmed before 0096. Frozen afterwards (INV-P07).
+  tipoVencimiento  TipoVencimientoPreparado? @map("tipo_vencimiento")
   /// 0083: excipiente actually used (toma workspace, optional); copied into the libro asiento fórmula at confirmation. Changes only while INICIADA (INV-P08).
   excipienteTexto  String?           @map("excipiente_texto") @db.VarChar(120)
   /// 0092: the excipiente used (droga of clase EXCIPIENTE) and its quantity in the droga's unidad base; reserved and descontado with the preparación. Changes only while INICIADA (INV-P08).

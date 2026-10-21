@@ -117,7 +117,7 @@ import {
 import { formatearFormulaPrescripcion } from "../domain/formula-prescripcion";
 import { validarConfirmacionIndividual, type DetalleDeItem } from "../domain/asiento-receta";
 import { mensajeParaInvariante } from "../domain/mensajes-invariantes";
-import { calcularVencimientoPreparado } from "../domain/vencimiento";
+import { calcularVencimientoPorTipo, TIPOS_VENCIMIENTO_PREPARADO, TIPO_VENCIMIENTO_DEFAULT, type TipoVencimientoPreparado } from "../domain/vencimiento";
 import {
   lockPreparacionParaAccion,
   getPreparacionParaAccion,
@@ -185,6 +185,9 @@ export interface LineaEntradaInput {
  */
 export const pesadaAutorizadaPorIdInput = uuid.optional();
 
+/** docs/specs/vencimiento-preparado.md R10: the tipo chosen when confirming; missing = `ESTANDAR`. */
+export const tipoVencimientoInput = z.enum(TIPOS_VENCIMIENTO_PREPARADO).default(TIPO_VENCIMIENTO_DEFAULT);
+
 /** What the reserva / confirmation form sends for a pesada real outside the tolerance (verified, never stored as typed). */
 export interface CoFirmaPesadaInput {
   dtUsuarioId?: string;
@@ -195,11 +198,13 @@ const confirmarPreparacionInput = z.object({
   preparacionId: uuid,
   lineas: z.array(lineaEntradaInput).default([]),
   pesadaAutorizadaPorId: pesadaAutorizadaPorIdInput,
+  tipoVencimiento: tipoVencimientoInput,
 });
 
 export interface ConfirmarPreparacionInput extends CoFirmaPesadaInput {
   preparacionId: string;
   lineas?: LineaEntradaInput[];
+  tipoVencimiento?: TipoVencimientoPreparado;
 }
 
 /** A reserva's línea as stored (migration 0071): the partidas it holds plus the línea's entrada. Internal, never client input. */
@@ -244,6 +249,7 @@ export interface ConfirmacionResultado {
   asientoId: string;
   numeroCorrelativo: string;
   fechaVencimiento: string;
+  tipoVencimiento: TipoVencimientoPreparado;
 }
 
 /** A movimiento of a controlled droga (contralor activo): its `asiento_contralor` EGRESO needs the receta's asiento id (INV-L08, same transaction). */
@@ -263,6 +269,7 @@ export interface EgresoControlado {
 export interface ConfirmacionDeItem {
   id: string;
   fechaVencimiento: string;
+  tipoVencimiento: TipoVencimientoPreparado;
   /** The receta's id and snapshot data (paciente, médico), read under its lock. */
   contexto: RecetaContextoAsiento;
   /** The ítem's own fórmula (`formatearFormulaTexto`). */
@@ -318,12 +325,19 @@ export const confirmarPreparacionCommand = defineCommand({
     const item = await confirmarPreparacionEnTx(tx, session, {
       preparacionId: input.preparacionId,
       seleccion: { modo: "automatica", entradas: input.lineas, pesadaAutorizadaPorId: input.pesadaAutorizadaPorId },
+      tipoVencimiento: input.tipoVencimiento,
     });
     const asiento = await registrarAsientoRecetaEnTx(tx, session, {
       contexto: item.contexto,
       items: [{ ...item, numero: itemIds.indexOf(preparacion.itemRecetaId) + 1, preparacionId: item.id }],
     });
-    const confirmada: ConfirmacionResultado = { id: item.id, asientoId: asiento.id, numeroCorrelativo: asiento.numeroCorrelativo, fechaVencimiento: item.fechaVencimiento };
+    const confirmada: ConfirmacionResultado = {
+      id: item.id,
+      asientoId: asiento.id,
+      numeroCorrelativo: asiento.numeroCorrelativo,
+      fechaVencimiento: item.fechaVencimiento,
+      tipoVencimiento: item.tipoVencimiento,
+    };
     return {
       output: confirmada,
       audit: {
@@ -334,6 +348,7 @@ export const confirmarPreparacionCommand = defineCommand({
           asientoRecetario: `Nº ${confirmada.numeroCorrelativo}`,
           numeroCorrelativo: confirmada.numeroCorrelativo,
           fechaVencimiento: confirmada.fechaVencimiento,
+          tipoVencimiento: confirmada.tipoVencimiento,
         },
       },
     };
@@ -354,7 +369,7 @@ export const confirmarPreparacionCommand = defineCommand({
 export async function confirmarPreparacionEnTx(
   tx: Prisma.TransactionClient,
   session: AuthenticatedSession,
-  input: { preparacionId: string; seleccion: SeleccionDePartidas },
+  input: { preparacionId: string; seleccion: SeleccionDePartidas; tipoVencimiento: TipoVencimientoPreparado },
 ): Promise<ConfirmacionDeItem> {
   // ------------------------------------------------------------------
   // 1-2. Lock + verify INICIADA; friendly INV-C03 pre-check.
@@ -490,8 +505,8 @@ export async function confirmarPreparacionEnTx(
     // elaboración. Same transaction, so the parameter read is consistent with
     // the confirmation it dates.
     const mesesVencimiento = await getMesesVencimientoPreparado(tx, session.tenantId);
-    const fechaVencimiento = calcularVencimientoPreparado(jornada, mesesVencimiento);
-    await updatePreparacionConfirmada(tx, session.tenantId, input.preparacionId, session.usuario.id, fechaVencimiento);
+    const fechaVencimiento = calcularVencimientoPorTipo(jornada, input.tipoVencimiento, mesesVencimiento);
+    await updatePreparacionConfirmada(tx, session.tenantId, input.preparacionId, session.usuario.id, fechaVencimiento, input.tipoVencimiento);
 
     // ------------------------------------------------------------------
     // 8. receta (locked at 2b): PENDIENTE_PREPARACION -> EN_PREPARACION con
@@ -520,6 +535,7 @@ export async function confirmarPreparacionEnTx(
     return {
       id: input.preparacionId,
       fechaVencimiento,
+      tipoVencimiento: input.tipoVencimiento,
       contexto,
       formulaTexto,
       detalles: detallesLibro,

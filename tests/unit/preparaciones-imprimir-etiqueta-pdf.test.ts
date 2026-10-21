@@ -32,6 +32,7 @@ const DATOS: DatosEtiqueta & { etiquetaId: string; generadaEn: Date } = {
   posologia: null,
   fraccionDosisPorUnidad: "1",
   fechaVencimiento: null,
+  tipoVencimiento: null,
 };
 
 const getEtiquetaParaImprimirMock = vi.fn<(preparacionId: string) => Promise<typeof DATOS>>(async () => DATOS);

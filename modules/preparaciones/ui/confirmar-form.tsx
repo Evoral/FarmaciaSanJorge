@@ -36,6 +36,7 @@ import { crearCatalogoUnidades, formatCantidadesFila, formatNumero, type Catalog
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 import { CoFirmaDt } from "@/shared/ui/co-firma-dt";
 import { confirmarPreparacionAction, recalcularReservaStockAction, reservarStockAction } from "./actions";
+import { TipoVencimientoSelect } from "./tipo-vencimiento-select";
 import type { DatosConfirmacion, LineaPantalla } from "@/modules/preparaciones/application/datos-confirmacion";
 import { requiereMotivoAperturaAdicional } from "@/modules/preparaciones/domain/apertura-adicional";
 import { repartirLinea, requiereElegirPartida } from "@/modules/preparaciones/domain/reparto-linea";
@@ -329,6 +330,11 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
         })}
 
         {requiereCoFirma ? <CoFirmaDt dts={datos.dts} titulo="Co-firma del Director Técnico (pesada fuera de tolerancia)" /> : null}
+
+        {/* docs/specs/vencimiento-preparado.md R10: dated only when confirming, never on a reserva. */}
+        {esReserva ? null : (
+          <TipoVencimientoSelect id="tipoVencimiento" name="tipoVencimiento" label="Vencimiento del preparado" mesesEstandar={datos.mesesVencimientoPreparado} />
+        )}
       </ReauthAwareForm>
     </div>
   );

@@ -30,7 +30,7 @@ import { MENSAJE_VENCIDA_REQUIERE_DT, estadoVencimientoPartida, textoPorVencer }
 import { diasAlertaVencimientoEnTx } from "@/modules/stock/application/dias-alerta-vencimiento";
 import { evaluarFichaDeItemEnTx } from "@/modules/elaboracion/application/estado-ficha";
 import { motivoEtiquetaNoImprimible } from "../domain/etiqueta";
-import { getRecetaDeToma, jornadaActualTenant } from "../infrastructure/preparacion-repository";
+import { getMesesVencimientoPreparado, getRecetaDeToma, jornadaActualTenant } from "../infrastructure/preparacion-repository";
 import type {
   FichaDeItemToma as FichaDeItemTomaBase,
   ItemDeToma as ItemDeTomaBase,
@@ -76,6 +76,8 @@ export interface ItemDeToma extends Omit<ItemDeTomaBase, "ficha" | "preparacion"
 
 export interface RecetaDeToma extends Omit<RecetaDeTomaBase, "items"> {
   items: ItemDeToma[];
+  /** `meses_vencimiento_preparado`: the months of the `ESTANDAR` tipo in "Imprimir etiquetas" (docs/specs/vencimiento-preparado.md R10). */
+  mesesVencimientoPreparado: number;
 }
 
 const getTomaRecetaInput = z.object({ recetaId: uuid });
@@ -118,6 +120,7 @@ export const getTomaRecetaQuery = defineQuery({
 
     return {
       ...receta,
+      mesesVencimientoPreparado: await getMesesVencimientoPreparado(tx, session.tenantId),
       items: receta.items.map((item) => ({
         ...item,
         fichaDesactualizada: desactualizada.get(item.id) ?? null,

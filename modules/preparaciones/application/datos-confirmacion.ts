@@ -36,6 +36,7 @@ import {
   listPartidasElegiblesDroga,
   listUnidadesFormato,
   jornadaActualTenant,
+  getMesesVencimientoPreparado,
   existeCierreParaJornada,
 } from "../infrastructure/preparacion-repository";
 import type { LineaParaPantalla, PartidaElegible } from "../infrastructure/preparacion-repository";
@@ -75,6 +76,8 @@ export interface DatosConfirmacion {
   jornadaCerrada: boolean;
   /** `dias_alerta_vencimiento_partida`: the form flags each planned partida por vencer (`estadoVencimientoPartida`). */
   diasAlertaVencimiento: number;
+  /** `meses_vencimiento_preparado`: the months of the `ESTANDAR` tipo de vencimiento, shown in its selector (docs/specs/vencimiento-preparado.md R10). */
+  mesesVencimientoPreparado: number;
   lineas: LineaPantalla[];
   /** The global unit catalog, so the form shows stock amounts in a readable unit (`shared/format/cantidad.ts`, display only). */
   unidades: UnidadFormato[];
@@ -139,6 +142,7 @@ export async function construirDatosConfirmacion(
     jornadaActual: jornada,
     jornadaCerrada: await existeCierreParaJornada(tx, tenantId, jornada),
     diasAlertaVencimiento: await diasAlertaVencimientoEnTx(tx, tenantId),
+    mesesVencimientoPreparado: await getMesesVencimientoPreparado(tx, tenantId),
     lineas,
     unidades: await listUnidadesFormato(tx),
     pesada: await getParametrosPesadaReal(tx, tenantId),

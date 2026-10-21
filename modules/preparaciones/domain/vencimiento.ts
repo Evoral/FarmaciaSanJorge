@@ -65,6 +65,65 @@ export function calcularVencimientoPreparado(fechaElaboracion: string, meses: nu
 }
 
 /**
+ * Tipo de vencimiento (docs/specs/vencimiento-preparado.md R9-R14, migration 0096): chosen per ítem when confirming.
+ * `ESTANDAR` is the parameter's months; the aqueous tipos are regulatory day limits for preparados without a
+ * monograph -- constants, never tenant parameters, so a farmacia cannot lengthen them.
+ */
+export const TIPOS_VENCIMIENTO_PREPARADO = ["ESTANDAR", "ACUOSA_CON_CONSERVANTE", "ACUOSA_SIN_CONSERVANTE"] as const;
+
+export type TipoVencimientoPreparado = (typeof TIPOS_VENCIMIENTO_PREPARADO)[number];
+
+export const TIPO_VENCIMIENTO_DEFAULT: TipoVencimientoPreparado = "ESTANDAR";
+
+export const DIAS_POR_TIPO_VENCIMIENTO: Readonly<Record<Exclude<TipoVencimientoPreparado, "ESTANDAR">, number>> = {
+  ACUOSA_CON_CONSERVANTE: 35,
+  ACUOSA_SIN_CONSERVANTE: 14,
+};
+
+/** The selector's option text; `ESTANDAR` shows the tenant's months. */
+export function etiquetaTipoVencimiento(tipo: TipoVencimientoPreparado, mesesEstandar: number): string {
+  if (tipo === "ESTANDAR") return `Estándar (${mesesEstandar} ${mesesEstandar === 1 ? "mes" : "meses"})`;
+  const dias = DIAS_POR_TIPO_VENCIMIENTO[tipo];
+  return tipo === "ACUOSA_CON_CONSERVANTE" ? `Acuosa con conservantes (${dias} días)` : `Acuosa sin conservantes (${dias} días)`;
+}
+
+/** Whether the tipo is counted in days: its etiqueta prints the day (R12). `null` = confirmed before 0096. */
+export function esTipoVencimientoEnDias(tipo: TipoVencimientoPreparado | null): boolean {
+  return tipo !== null && tipo !== "ESTANDAR";
+}
+
+/** `fechaElaboracion` + `dias` calendar days (integer >= 1), same integer arithmetic as the months version. */
+export function sumarDias(fechaElaboracion: string, dias: number): string {
+  const match = FECHA_ISO.exec(fechaElaboracion);
+  if (!match) throw new RangeError(`Fecha de elaboración inválida: "${fechaElaboracion}" (se esperaba YYYY-MM-DD).`);
+  let anio = Number(match[1]);
+  let mes = Number(match[2]);
+  let dia = Number(match[3]);
+  if (mes < 1 || mes > 12 || dia < 1 || dia > diasDelMes(anio, mes)) {
+    throw new RangeError(`Fecha de elaboración inválida: "${fechaElaboracion}".`);
+  }
+  if (!Number.isInteger(dias) || dias < 1) {
+    throw new RangeError(`Los días de vencimiento deben ser un entero mayor o igual que 1 (recibido: ${dias}).`);
+  }
+
+  dia += dias;
+  while (dia > diasDelMes(anio, mes)) {
+    dia -= diasDelMes(anio, mes);
+    mes += 1;
+    if (mes > 12) {
+      mes = 1;
+      anio += 1;
+    }
+  }
+  return `${String(anio).padStart(4, "0")}-${dosDigitos(mes)}-${dosDigitos(dia)}`;
+}
+
+/** R1/R9: the preparado's expiry for the chosen tipo; `mesesEstandar` is the tenant's `meses_vencimiento_preparado`. */
+export function calcularVencimientoPorTipo(fechaElaboracion: string, tipo: TipoVencimientoPreparado, mesesEstandar: number): string {
+  return tipo === "ESTANDAR" ? calcularVencimientoPreparado(fechaElaboracion, mesesEstandar) : sumarDias(fechaElaboracion, DIAS_POR_TIPO_VENCIMIENTO[tipo]);
+}
+
+/**
  * Parses the raw `fsj.parametro.valor` of `meses_vencimiento_preparado`: a
  * an integer in [1, MESES_VENCIMIENTO_PREPARADO_MAX], else (no row, empty, non-numeric, out of range, fractional)
  * `MESES_VENCIMIENTO_PREPARADO_DEFAULT` -- the same defensive fallback every
