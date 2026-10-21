@@ -2,18 +2,22 @@
 
 /**
  * Crear/editar tamaño de etiqueta (`/admin/configuracion/etiquetas`). Nombre
- * plus ancho x alto in mm (decimal comma or dot, one decimal). Both commands
+ * plus the label's ancho x alto in mm (decimal comma or dot, one decimal). Both commands
  * require recent re-authentication, hence `ReauthAwareForm`. The page provides
  * the surrounding panel.
  */
 import { useRouter } from "next/navigation";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
-import { NOMBRE_MAX_LENGTH, TAMANO_MM_MAX, TAMANO_MM_MIN } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
+import { areaUtilMm } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
+import type { HojaEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
+import { NOMBRE_MAX_LENGTH, TAMANO_MM_MAX, TAMANO_MM_MIN, formatearMedidas } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import { crearEtiquetaTamanoAction, editarEtiquetaTamanoAction } from "./actions";
 
 export interface EtiquetaTamanoFormProps {
   mode: "crear" | "editar";
   tamano?: { id: string; nombre: string; anchoMm: number; altoMm: number };
+  /** The sheet the size has to fit (spec R5): its printable area is the largest size, shown in the help text. */
+  hoja?: HojaEtiqueta;
   disabled: boolean;
   /** Where to go after a successful create (the list, which closes the "Nuevo tamaño" panel). */
   volverA?: string;
@@ -25,8 +29,9 @@ function medidaParaInput(valor: number | undefined): string {
   return String(valor).replace(".", ",");
 }
 
-export function EtiquetaTamanoForm({ mode, tamano, disabled, volverA }: EtiquetaTamanoFormProps) {
+export function EtiquetaTamanoForm({ mode, tamano, hoja, disabled, volverA }: EtiquetaTamanoFormProps) {
   const router = useRouter();
+  const maximo = hoja ? areaUtilMm(hoja) : null;
   const action = mode === "crear" ? crearEtiquetaTamanoAction : editarEtiquetaTamanoAction;
 
   return (
@@ -63,6 +68,7 @@ export function EtiquetaTamanoForm({ mode, tamano, disabled, volverA }: Etiqueta
       </div>
       <p className="field-help -mt-1">
         Entre {TAMANO_MM_MIN} y {TAMANO_MM_MAX} mm, con un decimal como máximo. El ancho es el lado largo (la etiqueta se imprime en apaisado).
+        {maximo ? ` Tiene que entrar al menos una vez en la hoja de impresión: como máximo ${formatearMedidas(maximo)}.` : null}
       </p>
     </ReauthAwareForm>
   );

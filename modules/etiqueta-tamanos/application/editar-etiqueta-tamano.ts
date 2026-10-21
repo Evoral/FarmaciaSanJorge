@@ -2,7 +2,9 @@
  * `editarEtiquetaTamano`: changes the name and/or the measures of a size.
  * ADMINISTRADOR only (`config.editar`) with recent re-authentication. Past
  * etiquetas are not affected: the size is only used at the moment of
- * printing (the PDF is rendered on demand, nothing stores the size).
+ * printing (the PDF is rendered on demand, nothing stores the size). The
+ * measures must fit the sheet at least once (docs/specs/hoja-etiquetas.md R5),
+ * so a size that does not fit is edited to fit (or deactivated).
  *
  * Locks the row FIRST and reads its current state with a fresh statement
  * afterwards -- same discipline as modules/unidades/application/editar-unidad.ts
@@ -15,8 +17,10 @@ import { NotFoundError, ValidationError } from "@/shared/errors";
 import { AUTH_POLICY } from "@/shared/auth/policy";
 import { nonEmptyString, uuid } from "@/shared/validation";
 import { NOMBRE_MAX_LENGTH } from "../domain/etiqueta-tamano";
+import { getEtiquetaHoja, lockEtiquetaHojaCompartida } from "../infrastructure/etiqueta-hoja-repository";
 import { existeNombre, getEtiquetaTamano, lockEtiquetaTamano, updateEtiquetaTamanoDatos } from "../infrastructure/etiqueta-tamano-repository";
 import { NOMBRE_DUPLICADO_MESSAGE } from "./crear-etiqueta-tamano";
+import { exigirQueEntreEnHoja } from "./entra-en-hoja";
 import { medidaMmInput } from "./medida-mm";
 
 /** Exported for tests/unit/etiqueta-tamanos-validacion.test.ts. */
@@ -54,6 +58,9 @@ export const editarEtiquetaTamanoCommand = defineCommand({
     if (input.nombre.toLowerCase() !== actual.nombre.toLowerCase() && (await existeNombre(tx, session.tenantId, input.nombre, input.id))) {
       throw new ValidationError(NOMBRE_DUPLICADO_MESSAGE, { fields: ["nombre"] });
     }
+
+    await lockEtiquetaHojaCompartida(tx, session.tenantId);
+    exigirQueEntreEnHoja(await getEtiquetaHoja(tx, session.tenantId), input);
 
     await updateEtiquetaTamanoDatos(tx, session.tenantId, input.id, { nombre: input.nombre, anchoMm: input.anchoMm, altoMm: input.altoMm });
 

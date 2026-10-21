@@ -4,7 +4,8 @@
  * recent re-authentication like the other configuration commands
  * (modules/parametros/application/editar-parametro.ts). The name must be
  * unique per tenant, case-insensitively (the unique index of migration 0066
- * is the authority; the pre-check just gives a clear message).
+ * is the authority; the pre-check just gives a clear message). The size must
+ * fit the sheet at least once (docs/specs/hoja-etiquetas.md R5).
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
@@ -12,7 +13,9 @@ import { ValidationError } from "@/shared/errors";
 import { AUTH_POLICY } from "@/shared/auth/policy";
 import { nonEmptyString } from "@/shared/validation";
 import { NOMBRE_MAX_LENGTH } from "../domain/etiqueta-tamano";
+import { getEtiquetaHoja, lockEtiquetaHojaCompartida } from "../infrastructure/etiqueta-hoja-repository";
 import { existeNombre, insertEtiquetaTamano } from "../infrastructure/etiqueta-tamano-repository";
+import { exigirQueEntreEnHoja } from "./entra-en-hoja";
 import { medidaMmInput } from "./medida-mm";
 
 /** Exported for tests/unit/etiqueta-tamanos-validacion.test.ts. */
@@ -43,6 +46,9 @@ export const crearEtiquetaTamanoCommand = defineCommand({
     if (await existeNombre(tx, session.tenantId, input.nombre)) {
       throw new ValidationError(NOMBRE_DUPLICADO_MESSAGE, { fields: ["nombre"] });
     }
+
+    await lockEtiquetaHojaCompartida(tx, session.tenantId);
+    exigirQueEntreEnHoja(await getEtiquetaHoja(tx, session.tenantId), input);
 
     const nuevo = await insertEtiquetaTamano(tx, session.tenantId, input);
 

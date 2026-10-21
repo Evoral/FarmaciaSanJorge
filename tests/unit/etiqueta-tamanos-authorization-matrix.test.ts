@@ -1,7 +1,8 @@
 /**
  * Authorization matrix for modules/etiqueta-tamanos/**: managing the sizes is
  * ADMINISTRADOR-only (`config.ver` / `config.editar`, like the rest of
- * Configuración), while resolving/listing the sizes to print on needs only
+ * Configuración) -- the sheet (`etiquetaHoja.*`) included -- while resolving/listing
+ * the sizes and reading the sheet to print on needs only
  * `etiquetas.imprimir` (FARMACEUTICO / DIRECTOR_TECNICO) -- the person who
  * prints is not an administrator. Same pattern as
  * tests/unit/parametros-authorization-matrix.test.ts (see it for the
@@ -38,6 +39,9 @@ await import("@/modules/etiqueta-tamanos/application/list-etiqueta-tamanos");
 await import("@/modules/etiqueta-tamanos/application/get-etiqueta-tamano");
 await import("@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir");
 await import("@/modules/etiqueta-tamanos/application/get-tamano-para-imprimir");
+await import("@/modules/etiqueta-tamanos/application/editar-etiqueta-hoja");
+await import("@/modules/etiqueta-tamanos/application/get-etiqueta-hoja");
+await import("@/modules/etiqueta-tamanos/application/get-hoja-para-imprimir");
 
 const { listRegisteredUseCasesForTests } = await import("@/shared/usecase");
 
@@ -64,6 +68,9 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
   { name: "etiquetaTamanos.ver", permiso: "config.ver", input: { id: SIZE_ID } },
   { name: "etiquetaTamanos.paraImprimir", permiso: "etiquetas.imprimir", input: {} },
   { name: "etiquetaTamanos.paraImprimir.ver", permiso: "etiquetas.imprimir", input: { tamanoId: SIZE_ID } },
+  { name: "etiquetaHoja.editar", permiso: "config.editar", input: { anchoMm: "210", altoMm: "297", margenMm: "5" } },
+  { name: "etiquetaHoja.ver", permiso: "config.ver", input: {} },
+  { name: "etiquetaHoja.paraImprimir", permiso: "etiquetas.imprimir", input: {} },
 ];
 
 function sessionForRol(rol: Rol): AuthenticatedSession {

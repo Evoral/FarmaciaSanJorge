@@ -46,6 +46,7 @@ import { Client } from "pg";
 import { z } from "zod";
 import { nonEmptyString, email as emailSchema } from "@/shared/validation";
 import { AUTH_POLICY } from "@/shared/auth/policy";
+import { HOJA_PREDETERMINADA } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import { ETIQUETA_TAMANO_PREDETERMINADO, ETIQUETA_TAMANO_PREDETERMINADO_NOMBRE } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 
 const argsSchema = z.object({
@@ -221,6 +222,18 @@ async function main(): Promise<void> {
        VALUES ($1, $2, $3, $4)
        ON CONFLICT DO NOTHING`,
       [tenantId, ETIQUETA_TAMANO_PREDETERMINADO_NOMBRE, ETIQUETA_TAMANO_PREDETERMINADO.anchoMm, ETIQUETA_TAMANO_PREDETERMINADO.altoMm],
+    );
+
+    // Etiqueta sheet (migration 0096): the PDF page is the sheet, the etiqueta
+    // is drawn in a cell of it. Every tenant starts on A4 portrait with a 5 mm
+    // margin (the 100 x 42 mm size above fits it 2 x 6 times); the administrator
+    // changes it in Configuración -> Etiquetas. Also backfilled for pre-existing
+    // tenants by migration 0096 (same row).
+    await client.query(
+      `INSERT INTO fsj.etiqueta_hoja (tenant_id, ancho_mm, alto_mm, margen_mm)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT DO NOTHING`,
+      [tenantId, HOJA_PREDETERMINADA.anchoMm, HOJA_PREDETERMINADA.altoMm, HOJA_PREDETERMINADA.margenMm],
     );
 
     // libro_rubricado (M12, FASE 1 point 1.12 -- docs/specs/libro-recetario-y-contralor.md):

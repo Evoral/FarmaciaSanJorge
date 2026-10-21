@@ -3,6 +3,7 @@
 /** Server Actions for `/admin/configuracion/etiquetas`. */
 import { revalidatePath } from "next/cache";
 import { crearEtiquetaTamano } from "@/modules/etiqueta-tamanos/application/crear-etiqueta-tamano";
+import { editarEtiquetaHoja } from "@/modules/etiqueta-tamanos/application/editar-etiqueta-hoja";
 import { editarEtiquetaTamano } from "@/modules/etiqueta-tamanos/application/editar-etiqueta-tamano";
 import { darDeBajaEtiquetaTamano } from "@/modules/etiqueta-tamanos/application/dar-de-baja-etiqueta-tamano";
 import { reactivarEtiquetaTamano } from "@/modules/etiqueta-tamanos/application/reactivar-etiqueta-tamano";
@@ -43,6 +44,20 @@ export async function editarEtiquetaTamanoAction(_prevState: EtiquetaTamanoActio
     return { status: "success", message: "Tamaño actualizado." };
   } catch (error) {
     return fromError(error, "No se pudieron guardar los cambios.");
+  }
+}
+
+export async function editarEtiquetaHojaAction(_prevState: EtiquetaTamanoActionState, formData: FormData): Promise<EtiquetaTamanoActionState> {
+  try {
+    await editarEtiquetaHoja({
+      anchoMm: String(formData.get("anchoMm") ?? ""),
+      altoMm: String(formData.get("altoMm") ?? ""),
+      margenMm: String(formData.get("margenMm") ?? ""),
+    });
+    revalidatePath(LISTA_PATH);
+    return { status: "success", message: "Hoja actualizada." };
+  } catch (error) {
+    return fromError(error, "No se pudo guardar la hoja.");
   }
 }
 
