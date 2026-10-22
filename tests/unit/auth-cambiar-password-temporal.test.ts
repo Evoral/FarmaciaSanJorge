@@ -171,8 +171,12 @@ describe("CT4: only completarCambioPasswordTemporal clears debeCambiarPassword",
    * nowhere else may set the flag to false. Keep this list explicit: adding
    * an entry must be a conscious, reviewed decision (a read-side WHERE
    * filter is fine, a write is not).
+   *
+   * - usuario-repository.ts: the clearing write itself.
+   * - operadores-repository.ts: a WHERE read filter in `listOperadores`
+   *   (cannot clear the flag).
    */
-  const ALLOWED_FILES = ["modules/auth/infrastructure/usuario-repository.ts"];
+  const ALLOWED_FILES = ["modules/auth/infrastructure/usuario-repository.ts", "modules/operadores/infrastructure/operadores-repository.ts"];
   const NEEDLE = "debeCambiarPassword: false";
 
   function walk(dir: string, out: string[]): string[] {
