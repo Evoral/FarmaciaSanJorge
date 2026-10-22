@@ -92,7 +92,8 @@ npm run db:create-tenant -- \
   --admin-email="admin@ejemplo.com" \
   --admin-nombre="..." \
   --admin-apellido="..." \
-  --admin-dni="..." \n  [--admin-password-temporal="..."]
+  --admin-dni="..." \
+  [--admin-password-temporal="..."]
 ```
 
 No se emite ninguna credencial de activación. Entregar la contraseña temporal al primer ADM en persona (DP-05: hoy solo se soporta entrega en persona). En su primer login el sistema lo obliga a cambiar esa contraseña por una propia y a configurar su PIN antes de poder usar nada más; la contraseña temporal no vence. No existe todavía una consola de operador de plataforma (DP-37 sin resolver) -- este script ES el mecanismo de alta hasta que se resuelva.
