@@ -6,6 +6,7 @@
  * spacing or feedback HERE -- never per call site.
  */
 import { useId, type ReactNode } from "react";
+import Link from "next/link";
 
 /**
  * Base shape every module's `ui/action-state.ts` union conforms to. Module
@@ -13,13 +14,15 @@ import { useId, type ReactNode } from "react";
  * `reauth-required` is only ever acted on by `ReauthAwareForm`; `SimpleForm`
  * accepts states that declare it but treats it as idle. The error's
  * `fields` (built by `./action-error.ts`) name the controls to mark as
- * invalid -- see `./field-errors.ts`. `operador-required` (a cuenta de
+ * invalid -- see `./field-errors.ts`; its `href` (a pending step,
+ * `./action-error.ts`) is rendered as a link after the message.
+ * `operador-required` (a cuenta de
  * sector must say which empleado is acting, `shared/auth/operador-context.ts`)
  * is answered by `./use-form-submit.ts` in both wrappers.
  */
 export type FormActionState =
   | { status: "idle" }
-  | { status: "error"; message: string; fields?: string[] }
+  | { status: "error"; message: string; fields?: string[]; href?: string }
   | { status: "success"; message?: string }
   | { status: "reauth-required" }
   | { status: "operador-required" };
@@ -123,7 +126,10 @@ export interface FormFeedbackProps<S extends FormActionState> {
   successMessage?: (state: SuccessState<S>) => string | undefined;
 }
 
-/** Renders the error / success message (if any) for an action state. */
+/**
+ * Renders the error / success message (if any) for an action state. Forms with their own custom alert (e.g. `/cuenta`)
+ * only show the text, without the `href` link -- acceptable: the next navigation lands on the pending step anyway.
+ */
 export function FormFeedback<S extends FormActionState>({ state, layout, successMessage }: FormFeedbackProps<S>) {
   const current: FormActionState = state;
   const floating = layout === "inline";
@@ -132,6 +138,14 @@ export function FormFeedback<S extends FormActionState>({ state, layout, success
     return (
       <FormMessage tone="error" floating={floating}>
         {current.message}
+        {current.href ? (
+          <>
+            {" "}
+            <Link href={current.href} className="font-medium underline">
+              Ir ahora
+            </Link>
+          </>
+        ) : null}
       </FormMessage>
     );
   }
