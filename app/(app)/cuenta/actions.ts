@@ -3,7 +3,6 @@
 /** Server Actions for `/cuenta` (M02, FASE 2 point 2.4; PIN actions added by the PIN re-auth feature, user decision 2026-09-23). */
 import { cambiarPassword } from "@/modules/auth/application/cambiar-password";
 import { configurarPin } from "@/modules/auth/application/configurar-pin";
-import { eliminarPin } from "@/modules/auth/application/eliminar-pin";
 import { actionErrorMessage } from "@/shared/ui/action-error";
 
 export interface CambiarPasswordFormState {
@@ -46,14 +45,4 @@ export async function configurarPinAction(_prevState: PinFormState, formData: Fo
     return { message: actionErrorMessage(error, "No se pudo actualizar el PIN."), success: false };
   }
 }
-
-export async function eliminarPinAction(_prevState: PinFormState, formData: FormData): Promise<PinFormState> {
-  const passwordActual = String(formData.get("passwordActualEliminar") ?? "");
-
-  try {
-    await eliminarPin(passwordActual);
-    return { message: "PIN eliminado.", success: true };
-  } catch (error) {
-    return { message: actionErrorMessage(error, "No se pudo eliminar el PIN."), success: false };
-  }
-}
+

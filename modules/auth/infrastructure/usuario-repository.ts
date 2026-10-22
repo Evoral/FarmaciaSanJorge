@@ -155,14 +155,6 @@ export async function setPinHash(tx: Prisma.TransactionClient, usuarioId: string
   });
 }
 
-/** Removes the PIN entirely (`eliminarPin`, and the shared clearing done on ADM credential reset / suspensión / baja -- see modules/usuarios/infrastructure/usuario-repository.ts#cambiarEstadoUsuario). */
-export async function clearPin(tx: Prisma.TransactionClient, usuarioId: string, now: Date): Promise<void> {
-  await tx.usuario.update({
-    where: { id: usuarioId },
-    data: { pinHash: null, pinIntentosFallidos: 0, pinBloqueado: false, pinActualizadoEn: now },
-  });
-}
-
 /** A successful PASSWORD re-auth resets the PIN counter AND unblocks it (task's binding decision) -- called unconditionally on the password branch's success path, never read-then-write (idempotent regardless of prior state). */
 export async function resetPinLockout(tx: Prisma.TransactionClient, usuarioId: string): Promise<void> {
   await tx.usuario.update({ where: { id: usuarioId }, data: { pinIntentosFallidos: 0, pinBloqueado: false } });
