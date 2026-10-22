@@ -45,4 +45,3 @@ export async function configurarPinAction(_prevState: PinFormState, formData: Fo
     return { message: actionErrorMessage(error, "No se pudo actualizar el PIN."), success: false };
   }
 }
-
