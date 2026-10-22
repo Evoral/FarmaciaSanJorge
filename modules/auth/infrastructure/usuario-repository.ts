@@ -84,11 +84,27 @@ export interface UsuarioEmailRow {
   passwordHash: string | null;
   /** PIN re-auth feature: `null` when the usuario has no PIN configured. Included here so `cambiarPassword`/PIN commands, which already load this row to verify the current password, don't need a second round trip. */
   pinHash: string | null;
+  /** Contraseña temporal: an administrator set the current password; the usuario must replace it before doing anything else. */
+  debeCambiarPassword: boolean;
+  esSector: boolean;
 }
 
 /** Loads the minimum needed to verify/change a usuario's own password (FASE 2 point 2.4/2.5) or PIN (PIN re-auth feature), inside an already-open tenant transaction. */
 export async function loadUsuarioParaPassword(tx: Prisma.TransactionClient, usuarioId: string): Promise<UsuarioEmailRow | null> {
-  return tx.usuario.findUnique({ where: { id: usuarioId }, select: { id: true, email: true, passwordHash: true, pinHash: true } });
+  return tx.usuario.findUnique({
+    where: { id: usuarioId },
+    select: { id: true, email: true, passwordHash: true, pinHash: true, debeCambiarPassword: true, esSector: true },
+  });
+}
+
+/**
+ * Completes the temporary-password change (docs/specs/contrasena-temporal.md):
+ * one UPDATE that stores the usuario's own password hash and clears
+ * `debeCambiarPassword`. This is the ONLY code path that clears the flag
+ * (CT4, guarded by tests/unit/auth-cambiar-password-temporal.test.ts).
+ */
+export async function completarCambioPasswordTemporal(tx: Prisma.TransactionClient, usuarioId: string, passwordHash: string): Promise<void> {
+  await tx.usuario.update({ where: { id: usuarioId }, data: { passwordHash, debeCambiarPassword: false } });
 }
 
 /** Sets a new password hash (FASE 2 point 2.4, `cambiarPassword`). Never touches `estado`. */
