@@ -26,13 +26,44 @@ forward migration built from `prisma/rollbacks/0097_contrasena_temporal.down.sql
 
 - `prisma/rollbacks/0097_contrasena_temporal.down.sql` and this file (optional)
 - `prisma/migrations/20261022100000_0097_contrasena_temporal/` (keep it once applied)
-- `tests/db/contrasena-temporal.test.ts`
-- (more are listed here as the later tasks land; filled in at Task 15)
+- `app/(pasos)/` (`layout.tsx`, `cambiar-password/`, `configurar-pin/`), `app/(app)/cuenta/cuenta-forms.tsx`
+- `modules/auth/application/{cambiar-password-temporal,configurar-pin-obligatorio}.ts`,
+  `modules/auth/domain/pasos-pendientes.ts`, `shared/auth/pasos.ts`
+- `modules/usuarios/application/password-temporal.ts`, `shared/ui/brand-header.tsx`
+- Tests: `tests/db/contrasena-temporal.test.ts`, `tests/unit/{activation-flow-removed,auth-cambiar-password-temporal,auth-configurar-pin-obligatorio,auth-pasos-pendientes,auth-pasos-registry,auth-pin-removed,auth-require-session-gate,contrasena-temporal-operadores,contrasena-temporal-restablecer,create-tenant-script}.test.ts`
 
 ## Edited files (revert the contraseña temporal hunks)
 
 - `prisma/schema.prisma`: `debeCambiarPassword` in `model Usuario`.
-- (filled in at Task 15)
+- Pipeline and session: `shared/usecase.ts` (`permitirPasosPendientes`), `shared/auth/{policy,session}.ts`,
+  `shared/errors/index.ts` (`PASOS_PENDIENTES`), `shared/ui/{action-error.ts,form-parts.tsx,toast.tsx}`,
+  `shared/labels/field-labels.ts`, `shared/audit/request-context.ts`, `proxy.ts`, `next.config.ts`.
+- Auth: `modules/auth/application/{cambiar-password,create-session,login,logout,reautenticar,require-session,validate-session,verificar-operador}.ts`,
+  `modules/auth/domain/{operador-policy,session,token}.ts`,
+  `modules/auth/infrastructure/{session-repository,usuario-repository}.ts`, `modules/auth/ui/new-password-fields.tsx`,
+  `modules/operadores/infrastructure/operadores-repository.ts`.
+- Usuarios: `modules/usuarios/application/{crear-usuario,dar-de-baja-usuario,reactivar-usuario,restablecer-credencial,suspender-usuario}.ts`,
+  `modules/usuarios/infrastructure/usuario-repository.ts`, `modules/usuarios/ui/{actions.ts,restablecer-credencial.tsx}`.
+- Routes: `app/(app)/{layout,error}.tsx`, `app/(app)/cuenta/{actions.ts,page.tsx}`,
+  `app/(app)/admin/accesos/usuarios/{[id]/page.tsx,nuevo/actions.ts,nuevo/nuevo-usuario-form.tsx}`,
+  `app/(auth)/{layout.tsx,login/actions.ts,login/page.tsx}`, and the `PASOS_PENDIENTES: 403` entry in the
+  error-code map of the `app/api/**/route.ts` handlers (cierres, entregas, fichas-tecnicas, libro,
+  preparaciones, recetas, stock).
+- `scripts/create-tenant.ts` (temporary password instead of the activation credential), `modules/README.md`.
+- Docs: `docs/specs/cuentas-de-sector.md` (S7, Pantallas), `shared/auth/README.md`, `docs/deploy.md` §5.
+- Tests: `tests/db/{inv-u07-actor-activo,usuarios-admin}.test.ts`,
+  `tests/unit/{action-error,auth-login,auth-pin-never-for-login-or-cofirma,auth-policy,cuentas-de-sector-alta,cuentas-de-sector-verificar-operador,roles-personalizables-usecases,usecase,usuarios-authorization-matrix,usuarios-crear-usuario-audit,usuarios-m3-lock-order,usuarios-usecase-registry}.test.ts`.
+
+## Deleted files (restore on rollback)
+
+- `app/(auth)/activar/{actions.ts,page.tsx}`
+- `modules/auth/application/{activar-cuenta,eliminar-pin}.ts`, `modules/auth/domain/activation-policy.ts`
+- `modules/usuarios/ui/credencial-activacion.tsx`
+- Tests: `tests/unit/auth-activation-policy.test.ts`; `tests/db/auth-login-activacion.test.ts` was
+  renamed to `tests/db/auth-login.test.ts` (its activation cases were dropped).
+- Helpers removed from the two `usuario-repository.ts` files (`consumeCredencialActivacion`,
+  `activarUsuario`, `insertCredencialActivacion`, `revokeCredencialesActivas`) and
+  `AUTH_POLICY.activationCredentialTtlHours`: they come back with the revert of those files.
 
 ## Nothing to undo
 

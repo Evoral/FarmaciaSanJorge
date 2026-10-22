@@ -24,5 +24,27 @@ Action received (`conOperador(formData, ...)`) to the use-case pipeline for the
 duration of the request; `operador.ts` is the facade over the verification in
 `modules/auth`; `operador-campos.ts` holds the form field names (client-safe).
 
+## Pasos pendientes
+
+`docs/specs/contrasena-temporal.md`. The session carries `pasosPendientes`
+(`PasoPendiente[]`, `shared/auth/pasos.ts`): `"cambiar-password"` while
+`usuario.debe_cambiar_password` is set, then `"configurar-pin"` for a usuario
+that is not a cuenta de sector and has no PIN. It is derived in `validateSession`
+(`derivarPasosPendientes`) from columns `findSesionCompletaByTokenHash` loads,
+never stored per session.
+
+`requireSession()` throws `PasosPendientesError` (code `PASOS_PENDIENTES`)
+while any step is pending, so every page and every use case is blocked by
+default. Only the flows that resolve or leave the steps opt out: pages and
+layouts call `requireSession({ permitirPasosPendientes: true })`, use cases set
+`permitirPasosPendientes: true` in `defineCommand`/`defineQuery`. The allowlist
+is pinned by `tests/unit/auth-pasos-registry.test.ts` (today: `auth.logout`,
+`auth.password.cambiarTemporal`, `auth.pin.configurarObligatorio`); widening it
+is a reviewed change to that test.
+
+The step pages live in the `app/(pasos)` route group (`/cambiar-password`,
+`/configurar-pin`), outside `app/(app)`: `app/(app)/layout.tsx` redirects a
+session with a pending step to its page (`rutaDelPaso`).
+
 The `proxy.ts` optimistic guard lives at the repo root (Next.js
 convention), not here -- see that file's own header comment.

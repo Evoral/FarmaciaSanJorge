@@ -1,5 +1,7 @@
 # SPEC — Contraseña temporal, cambio obligatorio y PIN obligatorio
 
+Estado: implementado 2026-10-22 (migración 0097). Reversión: `docs/rollbacks/contrasena-temporal.md`.
+
 > Decisiones del usuario (2026-10-22):
 > - El Administrador, al dar de alta un usuario, le **asigna una contraseña temporal**. Reemplaza al código de activación de un solo uso (72 h) y a la pantalla `/activar`.
 > - Con esa contraseña la persona **inicia sesión normalmente**. Antes de poder usar el sistema tiene que (1) **cambiar la contraseña** por una propia y (2) **configurar su PIN**.
@@ -187,3 +189,14 @@ Todos los formularios usan `shared/ui/use-form-submit.ts` y conservan lo escrito
 - **[decisión técnica]** El permiso `auth.activar` queda en el catálogo (sacarlo de migraciones anteriores no aporta), pero ningún caso de uso lo usa.
 
 **Tests a actualizar**: los de activación (`tests/db/auth-login-activacion.test.ts`, `tests/unit/auth-activation-policy.test.ts`, `auth-policy.test.ts`), los de alta y restablecimiento (`usuarios-crear-usuario-audit`, `cuentas-de-sector-alta`, `usuarios-m3-lock-order`, `roles-personalizables-usecases`, `tests/db/usuarios-admin`, `credenciales-sesiones`, `inv-u07-actor-activo`) y los nuevos de CT2–CT6.
+
+## Desviaciones
+
+Decisiones de implementación que precisan o difieren del texto de arriba.
+
+- CT4: el literal `debeCambiarPassword: false` se admite en dos archivos: el repositorio de usuarios de auth (`modules/auth/infrastructure/usuario-repository.ts`, la única escritura) y `operadores-repository.ts` (un filtro `WHERE` de lectura para CT7).
+- Tras crear un usuario se vuelve a su detalle con `?creado=1` y se muestra un toast; no hay un toaster compartido en el layout, así que el detalle lo monta él mismo.
+- El error tipado de pasos pendientes (`PASOS_PENDIENTES`) se suma al mapa de códigos HTTP (403) de los route handlers de `/api`. En las Server Actions vuelve como error de formulario con un link al paso.
+- Suspender y dar de baja ya no revocan credenciales de activación (no se emiten más): `suspender-usuario.ts` y `dar-de-baja-usuario.ts` dejaron de devolver `credencialesRevocadas`.
+- `create-tenant` recibe la contraseña con `--admin-password-temporal` o la pide por consola sin mostrarla.
+- Las páginas de los pasos viven en el grupo de rutas `app/(pasos)`; `app/(app)/error.tsx` hace una carga completa para que el layout redirija al paso.
