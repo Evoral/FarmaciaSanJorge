@@ -32,11 +32,12 @@ vi.mock("@/shared/db/transaction", () => ({
   withTenantTransaction: (...args: [string, (tx: unknown) => unknown]) => withTenantTransactionMock(...args),
 }));
 
-const requireSessionMock = vi.fn(async (): Promise<AuthenticatedSession> => {
+const requireSessionMock = vi.fn(async (...args: unknown[]): Promise<AuthenticatedSession> => {
+  void args;
   throw new Error("requireSession() unexpectedly called -- this test should inject a session via execute(input, { session })");
 });
 vi.mock("@/shared/auth/session", () => ({
-  requireSession: () => requireSessionMock(),
+  requireSession: (...args: unknown[]) => requireSessionMock(...args),
 }));
 
 // Imported AFTER the mocks above (vi.mock calls are hoisted by Vitest, so
@@ -116,6 +117,53 @@ describe("defineCommand", () => {
 
     await expect(cmd.execute({})).resolves.toBe("ok");
     expect(requireSessionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls requireSession() with NO argument unless the command opts into pending steps", async () => {
+    requireSessionMock.mockResolvedValueOnce(fakeSession(["usuarios.crear"]));
+    const cmd = defineCommand({
+      name: "test.gate-default",
+      permiso: "usuarios.crear",
+      input: z.object({}),
+      audit: { skip: true, reason: "pipeline fixture: asserts the session gate, writes nothing" },
+      handler: async () => ({ output: "ok" }),
+    });
+
+    await cmd.execute({});
+    expect(requireSessionMock).toHaveBeenCalledTimes(1);
+    expect(requireSessionMock.mock.calls[0]).toEqual([]);
+    expect(listRegisteredUseCasesForTests().find((e) => e.name === "test.gate-default")?.permitirPasosPendientes).toBe(false);
+  });
+
+  it("calls requireSession({ permitirPasosPendientes: true }) when the command opts into pending steps", async () => {
+    requireSessionMock.mockResolvedValueOnce(fakeSession(["usuarios.crear"]));
+    const cmd = defineCommand({
+      name: "test.gate-opt-out",
+      permiso: "usuarios.crear",
+      input: z.object({}),
+      audit: { skip: true, reason: "pipeline fixture: asserts the session gate, writes nothing" },
+      permitirPasosPendientes: true,
+      handler: async () => ({ output: "ok" }),
+    });
+
+    await cmd.execute({});
+    expect(requireSessionMock).toHaveBeenCalledTimes(1);
+    expect(requireSessionMock.mock.calls[0]).toEqual([{ permitirPasosPendientes: true }]);
+    expect(listRegisteredUseCasesForTests().find((e) => e.name === "test.gate-opt-out")?.permitirPasosPendientes).toBe(true);
+  });
+
+  it("an injected session is never gated: requireSession() is not called", async () => {
+    const cmd = defineCommand({
+      name: "test.gate-injected",
+      permiso: "usuarios.crear",
+      input: z.object({}),
+      audit: { skip: true, reason: "pipeline fixture: asserts the session gate, writes nothing" },
+      handler: async () => ({ output: "ok" }),
+    });
+    await expect(
+      cmd.execute({}, { session: { ...fakeSession(["usuarios.crear"]), pasosPendientes: ["cambiar-password"] } }),
+    ).resolves.toBe("ok");
+    expect(requireSessionMock).not.toHaveBeenCalled();
   });
 
   it("throws AuthorizationError without running the handler, and audits the denial (ACCESO_DENEGADO) in its own transaction", async () => {
@@ -260,6 +308,35 @@ describe("defineQuery", () => {
     expect(result).toEqual([session.usuario.id]);
     expect(withTenantTransactionMock).toHaveBeenCalledWith(session.tenantId, expect.any(Function));
     expect(auditRecordMock).not.toHaveBeenCalled();
+  });
+
+  it("calls requireSession() with NO argument unless the query opts into pending steps", async () => {
+    requireSessionMock.mockResolvedValueOnce(fakeSession(["usuarios.listar"]));
+    const query = defineQuery({
+      name: "test.query-gate-default",
+      permiso: "usuarios.listar",
+      input: z.object({}),
+      handler: async () => "ok",
+    });
+
+    await query.execute({});
+    expect(requireSessionMock.mock.calls[0]).toEqual([]);
+    expect(listRegisteredUseCasesForTests().find((e) => e.name === "test.query-gate-default")?.permitirPasosPendientes).toBe(false);
+  });
+
+  it("calls requireSession({ permitirPasosPendientes: true }) when the query opts into pending steps", async () => {
+    requireSessionMock.mockResolvedValueOnce(fakeSession(["usuarios.listar"]));
+    const query = defineQuery({
+      name: "test.query-gate-opt-out",
+      permiso: "usuarios.listar",
+      input: z.object({}),
+      permitirPasosPendientes: true,
+      handler: async () => "ok",
+    });
+
+    await query.execute({});
+    expect(requireSessionMock.mock.calls[0]).toEqual([{ permitirPasosPendientes: true }]);
+    expect(listRegisteredUseCasesForTests().find((e) => e.name === "test.query-gate-opt-out")?.permitirPasosPendientes).toBe(true);
   });
 
   it("denies a session without the permission", async () => {

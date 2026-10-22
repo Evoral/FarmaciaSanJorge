@@ -7,7 +7,15 @@
  * Component is already a generic placeholder, and must not be shown
  * anyway); `digest` correlates with the server log line.
  */
-import Link from "next/link";
+
+/**
+ * A hard load on purpose: it re-runs app/(app)/layout.tsx, which sends a session with a pending step to its page.
+ * A soft navigation (`router.push`) would hit the same server-component error again.
+ */
+function irAlInicio() {
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+  window.location.assign("/");
+}
 
 export default function AppError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
   return (
@@ -21,9 +29,9 @@ export default function AppError({ error, retry }: { error: Error & { digest?: s
         <button type="button" className="btn btn-primary" onClick={() => retry()}>
           Reintentar
         </button>
-        <Link href="/" className="btn btn-secondary">
+        <button type="button" className="btn btn-secondary" onClick={irAlInicio}>
           Ir al inicio
-        </Link>
+        </button>
       </div>
     </main>
   );

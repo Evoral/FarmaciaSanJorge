@@ -120,6 +120,8 @@ export interface DefineCommandConfig<TInput, TOutput> {
    * password (co-firma).
    */
   requireRecentReauth?: { maxAgeMinutes: number };
+  /** Only the flows that resolve a pending step (change the temporary password, configure the PIN) set this: every other use case is blocked while the session has pending steps (docs/specs/contrasena-temporal.md). */
+  permitirPasosPendientes?: true;
   handler: (args: CommandHandlerArgs<TInput>) => Promise<CommandHandlerResult<TOutput>>;
 }
 
@@ -149,6 +151,8 @@ export interface DefineQueryConfig<TInput, TOutput, TPrepared = undefined> {
    * infers `TPrepared` from it.
    */
   prepare?: (args: QueryPrepareArgs<TInput>) => Promise<TPrepared>;
+  /** See `DefineCommandConfig.permitirPasosPendientes`. */
+  permitirPasosPendientes?: true;
   handler: (args: QueryHandlerArgs<TInput, TPrepared>) => Promise<TOutput>;
 }
 
@@ -183,6 +187,8 @@ export interface RegisteredUseCase {
 interface InternalRegistryEntry extends RegisteredUseCase {
   execute: (rawInput: unknown, options?: ExecuteOptions) => Promise<unknown>;
   input: z.ZodType;
+  /** Whether the use case opted out of the pending-steps gate (`requireSession`). */
+  permitirPasosPendientes: boolean;
 }
 
 let registry: InternalRegistryEntry[] = [];
@@ -239,15 +245,18 @@ function parseInput<TInput>(schema: z.ZodType<TInput>, rawInput: unknown): TInpu
  * Otherwise the session always comes from the session cookie via
  * requireSession(), so no production code path can hand the pipeline a
  * hand-built session (and with it, arbitrary permissions and tenant).
+ * `requireSession()` also blocks a session with pending steps (temporary
+ * password, PIN to configure) unless the use case opted out with
+ * `permitirPasosPendientes`; an injected session is never gated.
  */
-async function resolveSession(options?: ExecuteOptions): Promise<AuthenticatedSession> {
+async function resolveSession(options: ExecuteOptions | undefined, permitirPasosPendientes: boolean): Promise<AuthenticatedSession> {
   if (options?.session) {
     if (process.env.NODE_ENV !== "test") {
       throw new Error("defineCommand/defineQuery: injecting a session is only allowed under NODE_ENV=test");
     }
     return options.session;
   }
-  return requireSession();
+  return permitirPasosPendientes ? requireSession({ permitirPasosPendientes: true }) : requireSession();
 }
 
 /**
@@ -352,7 +361,7 @@ function assertAuditDeclaration(name: string, audit: AuditDeclaration): void {
 export function defineCommand<TInput, TOutput>(config: DefineCommandConfig<TInput, TOutput>): DefinedUseCase<TOutput> {
   assertAuditDeclaration(config.name, config.audit);
   async function execute(rawInput: unknown, options?: ExecuteOptions): Promise<TOutput> {
-    const sesionOriginal = await resolveSession(options);
+    const sesionOriginal = await resolveSession(options, config.permitirPasosPendientes === true);
     await authorizeAuditado(sesionOriginal, config.name, config.permiso);
     const session = await resolverActor(sesionOriginal, config.name, config.permiso);
     // An empleado who just proved their identity for this very act satisfies the step-up (INV-X02) by construction.
@@ -397,6 +406,7 @@ export function defineCommand<TInput, TOutput>(config: DefineCommandConfig<TInpu
     permiso: config.permiso,
     execute: execute as InternalRegistryEntry["execute"],
     input: config.input,
+    permitirPasosPendientes: config.permitirPasosPendientes === true,
   });
 
   return { name: config.name, permiso: config.permiso, execute };
@@ -419,7 +429,7 @@ export function defineQuery<TInput, TOutput, TPrepared = undefined>(
   config: DefineQueryConfig<TInput, TOutput, TPrepared>,
 ): DefinedUseCase<TOutput> {
   async function execute(rawInput: unknown, options?: ExecuteOptions): Promise<TOutput> {
-    const session = await resolveSession(options);
+    const session = await resolveSession(options, config.permitirPasosPendientes === true);
     await authorizeAuditado(session, config.name, config.permiso);
     const input = parseInput(config.input, rawInput);
     const prepared = config.prepare ? await runPrepare(config.prepare, { session, input }) : (undefined as TPrepared);
@@ -433,6 +443,7 @@ export function defineQuery<TInput, TOutput, TPrepared = undefined>(
     permiso: config.permiso,
     execute: execute as InternalRegistryEntry["execute"],
     input: config.input,
+    permitirPasosPendientes: config.permitirPasosPendientes === true,
   });
 
   return { name: config.name, permiso: config.permiso, execute };
