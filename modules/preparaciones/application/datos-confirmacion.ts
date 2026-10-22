@@ -39,7 +39,7 @@ import {
   getMesesVencimientoPreparado,
   existeCierreParaJornada,
 } from "../infrastructure/preparacion-repository";
-import type { LineaParaPantalla, PartidaElegible } from "../infrastructure/preparacion-repository";
+import type { ExcipienteParaToma, LineaParaPantalla, PartidaElegible } from "../infrastructure/preparacion-repository";
 
 export interface LineaPantalla extends LineaParaPantalla {
   /** Every eligible partida of the droga, not expired, in id order: the automatic plan's candidates (the form previews an enrase manual línea over them). */
@@ -90,7 +90,7 @@ export interface DatosConfirmacion {
    * excipientes it may choose from and its saved draft (cantidad in the droga's unidad base).
    */
   excipiente?: {
-    opciones: { id: string; nombre: string; unidadSimbolo: string }[];
+    opciones: ExcipienteParaToma[];
     borrador: { drogaId: string | null; cantidad: string | null } | null;
   };
 }

@@ -11,6 +11,7 @@
  * isolated in ONE named constant or function below, marked PENDING (DP-28),
  * so changing it later is a one-line edit.
  */
+import { dec } from "@/shared/decimal";
 import { formatNumero } from "@/shared/format/cantidad";
 import { FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
 import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
@@ -28,6 +29,8 @@ export interface ComponenteEtiqueta {
   modoExpresion: ModoExpresion;
   /** Snapshot of the droga's clase = DROGA when the receta was saved. */
   esPrincipioActivo: boolean;
+  /** The droga's current `tipo_control` is PSICOTROPICO: its Rp/ line reads "Droga (ps)" (user decision, 2026-10-22). */
+  esPsicotropico?: boolean;
 }
 
 export interface DatosEtiqueta {
@@ -187,9 +190,9 @@ const FRACCIONES_ETIQUETA: ReadonlyArray<{ valor: number; texto: string }> = [
 
 /** "1/2 Dosis" for a capsule holding half a dose; `null` for a whole dose or a form not counted in units. */
 export function fraccionDosisEtiqueta(forma: string, fraccionDosisPorUnidad: string): string | null {
-  const valor = Number(fraccionDosisPorUnidad);
-  if (!FORMAS_POR_UNIDAD.has(forma) || !(valor > 0) || valor >= 1) return null;
-  const texto = FRACCIONES_ETIQUETA.find((f) => Math.abs(f.valor - valor) < 0.001)?.texto ?? formatNumero(fraccionDosisPorUnidad);
+  const valor = dec(fraccionDosisPorUnidad);
+  if (!FORMAS_POR_UNIDAD.has(forma) || !valor.greaterThan(0) || valor.greaterThanOrEqualTo(1)) return null;
+  const texto = FRACCIONES_ETIQUETA.find((f) => valor.minus(f.valor).abs().lessThan(0.001))?.texto ?? formatNumero(fraccionDosisPorUnidad);
   return `${texto} Dosis`;
 }
 
@@ -213,8 +216,7 @@ export function dosisEtiqueta(forma: string, posologia: string | null, fraccionD
   if (texto === null) return null;
   const unidad = UNIDAD_DOSIS[forma];
   const tomas = tomasPorDiaDePosologia(texto);
-  const fraccion = Number(fraccionDosisPorUnidad);
-  if (!unidad || tomas === null || !(fraccion > 0)) return texto;
+  if (!unidad || tomas === null || !dec(fraccionDosisPorUnidad).greaterThan(0)) return texto;
   const porDia = tomas.times(dosisPorTomaDePosologia(texto)).div(fraccionDosisPorUnidad);
   return `${formatNumero(porDia, 2)} ${unidad}/día`;
 }
@@ -238,10 +240,11 @@ export function conservacionEtiqueta(tipo: TipoVencimientoPreparado | null): str
 // Formatting
 // ----------------------------------------------------------------------------
 
-/** "Mazindol 2 mg", "Ácido salicílico 0,3 g" (es-AR decimals). */
-export function formatearLineaRp(componente: Pick<ComponenteEtiqueta, "drogaNombre" | "cantidad" | "unidadSimbolo">): string {
-  if (componente.cantidad === null) return componente.drogaNombre;
-  return `${componente.drogaNombre} ${formatNumero(componente.cantidad)} ${componente.unidadSimbolo}`;
+/** "Mazindol (ps) 2 mg", "Ácido salicílico 0,3 g" (es-AR decimals): a psicotrópico is marked next to its name. */
+export function formatearLineaRp(componente: Pick<ComponenteEtiqueta, "drogaNombre" | "cantidad" | "unidadSimbolo" | "esPsicotropico">): string {
+  const droga = componente.esPsicotropico ? `${componente.drogaNombre} (ps)` : componente.drogaNombre;
+  if (componente.cantidad === null) return droga;
+  return `${droga} ${formatNumero(componente.cantidad)} ${componente.unidadSimbolo}`;
 }
 
 const PLURAL_FORMA: Readonly<Record<FormaFarmaceutica, string>> = {
@@ -307,6 +310,27 @@ export function motivoEtiquetaNoImprimible(datos: { recetaEstado: string; asient
 /** URL of the etiqueta PDF route for a preparación: the size (`etiqueta_tamano.id`) and the cell (columna, fila, 1-based) of the sheet chosen in the print dialog (docs/specs/hoja-etiquetas.md R7). */
 export function hrefEtiquetaPdf(preparacionId: string, tamanoId: string, celda: { columna: number; fila: number }): string {
   return `/api/preparaciones/${encodeURIComponent(preparacionId)}/etiqueta/pdf?tamano=${encodeURIComponent(tamanoId)}&columna=${celda.columna}&fila=${celda.fila}`;
+}
+
+/** One etiqueta of the multi-etiqueta PDF: `<preparacionId>.<tamanoId>.<columna>.<fila>` (ids are uuids, never a "."). */
+export interface EtiquetaEnPdf {
+  preparacionId: string;
+  tamanoId: string;
+  celda: { columna: number; fila: number };
+}
+
+/** The toma's single "Imprimir" (docs/specs/hoja-etiquetas.md R14): every etiqueta in ONE PDF, in this order. */
+export function hrefEtiquetasPdf(etiquetas: readonly EtiquetaEnPdf[]): string {
+  const query = etiquetas.map((e) => `e=${encodeURIComponent(`${e.preparacionId}.${e.tamanoId}.${e.celda.columna}.${e.celda.fila}`)}`).join("&");
+  return `/api/preparaciones/etiquetas/pdf?${query}`;
+}
+
+/** The inverse of `hrefEtiquetasPdf`'s `e` value, as raw text (the use case validates it); `null` when malformed. */
+export function leerEtiquetaEnPdf(valor: string): { preparacionId: string; tamanoId: string; columna: string; fila: string } | null {
+  const partes = valor.split(".");
+  if (partes.length !== 4 || partes.some((parte) => parte === "")) return null;
+  const [preparacionId, tamanoId, columna, fila] = partes;
+  return { preparacionId, tamanoId, columna, fila };
 }
 
 /** Plain-text record of the label, persisted to `etiqueta.contenido`: the same fields the PDF prints, in reading order. */

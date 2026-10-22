@@ -28,13 +28,14 @@ import { CircleAlert, FlaskConical, Info, Plus, TriangleAlert, X } from "lucide-
 import { Decimal } from "@/shared/decimal";
 import { convertirCantidad } from "@/shared/decimal/convertir-unidad";
 import { formatNumero, formatStockEntero } from "@/shared/format/cantidad";
+import { formatFechaIso } from "@/shared/format/fecha";
 import { AYUDA_NUMERO, numeroParaInput } from "@/shared/decimal/numero-ingresado";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { CoFirmaDt } from "@/shared/ui/co-firma-dt";
 import { toast } from "@/shared/ui/toast";
 import { useFormSubmit } from "@/shared/ui/use-form-submit";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
-import { Combobox, type ComboboxOption } from "@/shared/ui/combobox";
+import { Combobox, filtrarOpciones, type ComboboxOption } from "@/shared/ui/combobox";
 import { ordenarParaConsumo } from "@/modules/stock/domain/reparto";
 import { estadoVencimientoPartida } from "@/modules/stock/domain/vencimiento-partida";
 import type { DatosConfirmacion, LineaPantalla } from "../application/datos-confirmacion";
@@ -64,7 +65,7 @@ interface PesajeContexto {
   /** Saves the línea's draft (a field was left); `CLAVE_EXCIPIENTE` saves the excipiente's. */
   guardar: (lineaId: string) => void;
   excipiente: {
-    opciones: { id: string; nombre: string; unidadSimbolo: string }[];
+    opciones: NonNullable<DatosConfirmacion["excipiente"]>["opciones"];
     drogaId: string | null;
     cantidad: string;
     /** Chooses (or clears) the excipiente and saves it. */
@@ -256,10 +257,6 @@ function BorradorLinea({
       <input type="hidden" name="motivoAperturaAdicional" value={motivo} />
     </form>
   );
-}
-
-function fechaCorta(iso: string): string {
-  return new Intl.DateTimeFormat("es-AR", { dateStyle: "short" }).format(new Date(`${iso}T00:00:00`));
 }
 
 /** The ficha's líneas with their lots and "Cantidad real pesada". `lineasFicha`: the saved ficha's display data (teórica, exceso, vencidas), matched by `orden`. */
@@ -479,70 +476,90 @@ function FilasLinea({
  * and its quantity in the droga's unidad base, in the "Cantidad real pesada" column. Saved when chosen / left.
  */
 function FilaExcipiente({ columnas }: { columnas: number }) {
-  const { excipiente, guardar, guardados } = usePesaje();
-  const id = useId();
+  const { excipiente } = usePesaje();
   if (!excipiente) return null;
-  const elegido = excipiente.opciones.find((o) => o.id === excipiente.drogaId) ?? null;
-  const valor: ComboboxOption | null = elegido ? { value: elegido.id, label: elegido.nombre } : null;
-  const guardado = guardados[CLAVE_EXCIPIENTE];
-  const faltaCantidad = elegido !== null && cantidadValida(excipiente.cantidad) === null;
 
   return (
     <tr className="border-t border-zinc-200">
       <td className="px-3 py-2 align-top font-medium text-zinc-900">Excipiente</td>
       <td colSpan={columnas - 2} className="px-3 py-2 align-top">
-        {excipiente.opciones.length === 0 ? (
-          <p className="text-xs text-zinc-500">No hay excipientes en el catálogo de drogas.</p>
-        ) : (
-          <Combobox
-            label="Excipiente utilizado"
-            hideLabel
-            size="sm"
-            placeholder="Buscá el excipiente (opcional)"
-            value={valor}
-            onChange={(opcion) => excipiente.setDroga(opcion ? opcion.value : null)}
-            search={async (consulta) => {
-              const texto = consulta.trim().toLocaleLowerCase("es");
-              return excipiente.opciones
-                .filter((o) => o.nombre.toLocaleLowerCase("es").includes(texto))
-                .map((o) => ({ value: o.id, label: o.nombre }));
-            }}
-          />
-        )}
+        <BuscadorExcipiente />
       </td>
       <td className="px-3 py-2 text-right align-top">
-        {elegido ? (
-          <div className="ml-auto flex max-w-[11rem] flex-col items-end gap-1">
-            <div className="flex items-center gap-1.5">
-              <input
-                id={id}
-                type="text"
-                inputMode="decimal"
-                value={excipiente.cantidad}
-                onChange={(event) => excipiente.setCantidad(event.target.value)}
-                onBlur={() => guardar(CLAVE_EXCIPIENTE)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    guardar(CLAVE_EXCIPIENTE);
-                  }
-                }}
-                aria-label={`Cantidad de ${elegido.nombre} (${elegido.unidadSimbolo})`}
-                aria-invalid={faltaCantidad || guardado?.estado === "error" ? true : undefined}
-                aria-describedby={`${id}-ayuda`}
-                title={AYUDA_NUMERO}
-                className="input h-8 w-24 py-0 text-right font-mono"
-              />
-              <span className="text-xs text-zinc-500">{elegido.unidadSimbolo}</span>
-            </div>
-            <p id={`${id}-ayuda`} className="text-right text-xs text-zinc-500" aria-live="polite">
-              {faltaCantidad ? <span className="block text-amber-700 dark:text-amber-300">Ingresá la cantidad.</span> : null}
-              {guardado?.estado === "error" ? <span className="block text-red-700 dark:text-red-300">{guardado.mensaje}</span> : guardado?.estado === "guardando" ? <span className="block">Guardando…</span> : guardado?.estado === "guardado" ? <span className="block">Guardado</span> : null}
-            </p>
-          </div>
-        ) : null}
+        <CantidadExcipiente />
       </td>
     </tr>
+  );
+}
+
+/**
+ * The excipiente's buscador: only drogas of clase EXCIPIENTE (`listExcipientesParaToma`). Shared by the ficha and
+ * "Marcar como preparada"; in the dialog its list floats over the dialog's edge instead of being clipped by it.
+ */
+function BuscadorExcipiente({ flotante = false }: { flotante?: boolean }) {
+  const { excipiente } = usePesaje();
+  const opciones = excipiente?.opciones;
+  // The app's standard local search (accents, case, synonyms, a capped list), as every droga buscador.
+  const buscar = useMemo(() => filtrarOpciones((opciones ?? []).map((o) => ({ value: o.id, label: o.nombre, sinonimos: o.sinonimos }))), [opciones]);
+  if (!excipiente) return null;
+  const elegido = excipiente.opciones.find((o) => o.id === excipiente.drogaId) ?? null;
+  const valor: ComboboxOption | null = elegido ? { value: elegido.id, label: elegido.nombre } : null;
+
+  return excipiente.opciones.length === 0 ? (
+    <p className="text-xs text-zinc-500">No hay excipientes en el catálogo de drogas.</p>
+  ) : (
+    <Combobox
+      label="Excipiente utilizado"
+      hideLabel
+      size="sm"
+      placeholder="Buscá el excipiente (opcional)"
+      floating={flotante}
+      value={valor}
+      onChange={(opcion) => excipiente.setDroga(opcion ? opcion.value : null)}
+      search={buscar}
+    />
+  );
+}
+
+/** The chosen excipiente's quantity (unidad base), saved when left or on Enter; nothing until one is chosen. */
+function CantidadExcipiente() {
+  const { excipiente, guardar, guardados } = usePesaje();
+  const id = useId();
+  if (!excipiente) return null;
+  const elegido = excipiente.opciones.find((o) => o.id === excipiente.drogaId) ?? null;
+  if (!elegido) return null;
+  const guardado = guardados[CLAVE_EXCIPIENTE];
+  const faltaCantidad = cantidadValida(excipiente.cantidad) === null;
+
+  return (
+    <div className="ml-auto flex max-w-[11rem] flex-col items-end gap-1">
+      <div className="flex items-center gap-1.5">
+        <input
+          id={id}
+          type="text"
+          inputMode="decimal"
+          value={excipiente.cantidad}
+          onChange={(event) => excipiente.setCantidad(event.target.value)}
+          onBlur={() => guardar(CLAVE_EXCIPIENTE)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              guardar(CLAVE_EXCIPIENTE);
+            }
+          }}
+          aria-label={`Cantidad de ${elegido.nombre} (${elegido.unidadSimbolo})`}
+          aria-invalid={faltaCantidad || guardado?.estado === "error" ? true : undefined}
+          aria-describedby={`${id}-ayuda`}
+          title={AYUDA_NUMERO}
+          className="input h-8 w-24 py-0 text-right font-mono"
+        />
+        <span className="text-xs text-zinc-500">{elegido.unidadSimbolo}</span>
+      </div>
+      <p id={`${id}-ayuda`} className="text-right text-xs text-zinc-500" aria-live="polite">
+        {faltaCantidad ? <span className="block text-amber-700 dark:text-amber-300">Ingresá la cantidad.</span> : null}
+        {guardado?.estado === "error" ? <span className="block text-red-700 dark:text-red-300">{guardado.mensaje}</span> : guardado?.estado === "guardando" ? <span className="block">Guardando…</span> : guardado?.estado === "guardado" ? <span className="block">Guardado</span> : null}
+      </p>
+    </div>
   );
 }
 
@@ -552,7 +569,7 @@ function etiquetaLote(p: LineaPantalla["partidasElegibles"][number], conPureza: 
   if (conPureza) partes.push(`Pureza ${p.potenciaDeclarada ? formatNumero(p.potenciaDeclarada) : "100"} %`);
   if (p.fechaApertura) partes.push("abierta");
   if (p.fechaVencimiento && estadoVencimientoPartida(p.fechaVencimiento, datos.jornadaActual, datos.diasAlertaVencimiento) === "POR_VENCER") {
-    partes.push(`vence ${fechaCorta(p.fechaVencimiento)}`);
+    partes.push(`vence ${formatFechaIso(p.fechaVencimiento)}`);
   }
   return partes.join(" · ");
 }
@@ -631,6 +648,13 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
   const requiereCoFirma = pesadas.some((p) => p?.evaluacion?.fueraDeTolerancia);
   const bloqueada = lineasSinStock > 0 || faltaManual || sinLote || faltaExcipiente;
   const loteDe = useMemo(() => new Map(datos.lineas.flatMap((l) => l.partidasElegibles.map((p) => [p.id, p.lote] as const))), [datos.lineas]);
+  // No excipiente added in the ficha when the dialog opened: one more chance to add it here (same buscador, same draft).
+  const [agregarExcipiente, setAgregarExcipiente] = useState(false);
+
+  function abrir() {
+    setAgregarExcipiente(excipiente !== null && excipienteElegido === null && excipiente.opciones.length > 0);
+    dialogRef.current?.showModal();
+  }
 
   function cerrar() {
     dialogRef.current?.close();
@@ -638,7 +662,7 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
 
   return (
     <>
-      <button type="button" onClick={() => dialogRef.current?.showModal()} aria-haspopup="dialog" className="btn btn-primary">
+      <button type="button" onClick={abrir} aria-haspopup="dialog" className="btn btn-primary">
         <FlaskConical className="size-4" aria-hidden />
         Marcar como preparada
       </button>
@@ -670,14 +694,15 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
               <p>La jornada de hoy ya fue firmada por el Director Técnico: podés reservar el stock, pero la etiqueta recién se podrá imprimir en la próxima jornada.</p>
             </div>
           ) : null}
-          {bloqueada ? (
+          {/* An excipiente being added here shows its own "Ingresá la cantidad." next to the field. */}
+          {lineasSinStock > 0 || faltaManual || sinLote || (faltaExcipiente && !agregarExcipiente) ? (
             <div role="alert" className="alert alert-danger">
               <CircleAlert aria-hidden />
               <p>
                 {lineasSinStock > 0 ? "Hay líneas sin stock suficiente en los lotes elegidos. " : null}
                 {sinLote ? "Hay líneas sin lote. " : null}
                 {faltaManual ? "Falta la cantidad real de una línea de enrase manual. " : null}
-                {faltaExcipiente ? "Falta la cantidad del excipiente. " : null}
+                {faltaExcipiente && !agregarExcipiente ? "Falta la cantidad del excipiente. " : null}
                 Completalo en la ficha técnica.
               </p>
             </div>
@@ -704,7 +729,17 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
                 </li>
               );
             })}
-            {excipienteElegido ? (
+            {agregarExcipiente ? (
+              <li className="flex flex-col gap-2 py-2">
+                <span className="text-xs text-zinc-500">No agregaste el excipiente en la ficha. Si usaste uno, buscalo acá con su cantidad.</span>
+                <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+                  <div className="min-w-0 flex-1">
+                    <BuscadorExcipiente flotante />
+                  </div>
+                  <CantidadExcipiente />
+                </div>
+              </li>
+            ) : excipienteElegido ? (
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2">
                 <span className="min-w-0">
                   <span className="text-xs text-zinc-500">Excipiente</span> <span className="font-medium text-zinc-900">{excipienteElegido.nombre}</span>{" "}

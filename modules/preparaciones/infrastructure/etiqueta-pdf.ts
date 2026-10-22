@@ -25,8 +25,8 @@
  * blank, so the printer drops it in that spot.
  *
  * Every text is drawn with `lineBreak: false` at explicit coordinates (no
- * automatic wrapping, hence no automatic page breaks): the label is always
- * exactly one page.
+ * automatic wrapping, hence no automatic page breaks): a single label is always
+ * exactly one page; several (`buildEtiquetasPdf`) share a page unless they overlap.
  */
 import { renderPdf } from "@/shared/pdf/pdf-document";
 import { LOGO_FARMACIA_PROPORCION, logoFarmacia } from "@/shared/pdf/logo";
@@ -288,29 +288,74 @@ export function colocarEtiqueta(tamano: TamanoEtiqueta, hoja: HojaEtiqueta, celd
   return { x: xMm * PT_POR_MM + (ancho - DW * escala) / 2, y: yMm * PT_POR_MM + (alto - DH * escala) / 2, escala };
 }
 
+/** Draws one etiqueta on the current page, its design space placed by `colocacion`. */
+function dibujarEtiqueta(doc: PDFKit.PDFDocument, contenido: ContenidoEtiqueta, colocacion: ColocacionEtiqueta): void {
+  doc.save();
+  doc.translate(colocacion.x, colocacion.y).scale(colocacion.escala);
+
+  // Frame and rules.
+  doc.roundedRect(BORDE, BORDE, DW - 2 * BORDE, DH - 2 * BORDE, 12).lineWidth(1.1).strokeColor(NEGRO).stroke();
+  regla(doc, BANDA_DIV_X, 8.6, BANDA_DIV_X, 37.8, 1);
+  regla(doc, REGLA_MARGEN, BANDA_Y, DW - REGLA_MARGEN, BANDA_Y, 1.6);
+  regla(doc, PANEL_DIV_X, 43.4, PANEL_DIV_X, 99.6, 1.2);
+  regla(doc, REGLA_MARGEN, PIE_Y, DW - REGLA_MARGEN, PIE_Y, 1.6);
+
+  dibujarBanda(doc, contenido);
+  dibujarRp(doc, contenido);
+  dibujarPanel(doc, contenido);
+  dibujarPie(doc, contenido);
+
+  doc.restore();
+}
+
 /** Renders the sheet (`hoja`, mm) as ONE page with the etiqueta of `tamano` (mm) drawn in the cell `celda` (1-based). The caller checks that the cell is in the grid (`celdaValida`). */
 export function buildEtiquetaPdf(contenido: ContenidoEtiqueta, tamano: TamanoEtiqueta, hoja: HojaEtiqueta, celda: Celda = { columna: 1, fila: 1 }): Promise<Buffer> {
-  const colocacion = colocarEtiqueta(tamano, hoja, celda);
+  return buildEtiquetasPdf([{ contenido, tamano, celda }], hoja);
+}
 
+/** One etiqueta of a multi-etiqueta print: what, at which size, in which cell. */
+export interface EtiquetaEnHoja {
+  contenido: ContenidoEtiqueta;
+  tamano: TamanoEtiqueta;
+  celda: Celda;
+}
+
+interface Rectangulo {
+  x: number;
+  y: number;
+  ancho: number;
+  alto: number;
+}
+
+function rectanguloDe({ tamano, celda }: EtiquetaEnHoja, hoja: HojaEtiqueta): Rectangulo {
+  const { xMm, yMm } = posicionCelda(hoja, tamano, celda);
+  return { x: xMm, y: yMm, ancho: tamano.anchoMm, alto: tamano.altoMm };
+}
+
+function seSuperponen(a: Rectangulo, b: Rectangulo): boolean {
+  return a.x < b.x + b.ancho && b.x < a.x + a.ancho && a.y < b.y + b.alto && b.y < a.y + a.alto;
+}
+
+/**
+ * Several etiquetas in ONE PDF (the toma's single "Imprimir", docs/specs/hoja-etiquetas.md R14), in the given order:
+ * each in its own cell of the SAME sheet while they do not overlap -- the farmacia prints them all on one sheet -- and
+ * a new page (sheet) when one would overlap an etiqueta already on the current page (e.g. two left on 1 / 1).
+ */
+export function buildEtiquetasPdf(etiquetas: readonly EtiquetaEnHoja[], hoja: HojaEtiqueta): Promise<Buffer> {
+  const pagina: [number, number] = [hoja.anchoMm * PT_POR_MM, hoja.altoMm * PT_POR_MM];
   return renderPdf(
     (doc) => {
-      doc.save();
-      doc.translate(colocacion.x, colocacion.y).scale(colocacion.escala);
-
-      // Frame and rules.
-      doc.roundedRect(BORDE, BORDE, DW - 2 * BORDE, DH - 2 * BORDE, 12).lineWidth(1.1).strokeColor(NEGRO).stroke();
-      regla(doc, BANDA_DIV_X, 8.6, BANDA_DIV_X, 37.8, 1);
-      regla(doc, REGLA_MARGEN, BANDA_Y, DW - REGLA_MARGEN, BANDA_Y, 1.6);
-      regla(doc, PANEL_DIV_X, 43.4, PANEL_DIV_X, 99.6, 1.2);
-      regla(doc, REGLA_MARGEN, PIE_Y, DW - REGLA_MARGEN, PIE_Y, 1.6);
-
-      dibujarBanda(doc, contenido);
-      dibujarRp(doc, contenido);
-      dibujarPanel(doc, contenido);
-      dibujarPie(doc, contenido);
-
-      doc.restore();
+      let ocupados: Rectangulo[] = [];
+      for (const etiqueta of etiquetas) {
+        const rectangulo = rectanguloDe(etiqueta, hoja);
+        if (ocupados.some((otro) => seSuperponen(otro, rectangulo))) {
+          doc.addPage({ size: pagina, margin: 0 });
+          ocupados = [];
+        }
+        ocupados.push(rectangulo);
+        dibujarEtiqueta(doc, etiqueta.contenido, colocarEtiqueta(etiqueta.tamano, hoja, etiqueta.celda));
+      }
     },
-    { size: [hoja.anchoMm * PT_POR_MM, hoja.altoMm * PT_POR_MM], margin: 0 },
+    { size: pagina, margin: 0 },
   );
 }

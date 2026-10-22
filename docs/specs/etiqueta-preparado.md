@@ -14,6 +14,7 @@ label (reference provided by the farmacia on 2026-10-19). Earlier rules
 | R6 | The médico prints as "Médico: Nombre Apellido  -  MAT:número", without the MP/MN prefix (as on the real label). | `formatearMedicoEtiqueta` |
 | R8 | The director técnico is ALWAYS the TITULAR, with the matrícula of his designación -- never a suplente (2026-10-19: the titular is in charge of everything). The titular vigente on the confirmation day; if there was none that day, the current titular. | `getDtTitularParaEtiqueta` (preparacion-repository) |
 | R7 | The new fields are part of the persisted `etiqueta.contenido` snapshot (optional lines `Teléfono fijo`, `Celular`, `Dosis:`, `Por unidad:`, and `Paciente`). A snapshot stored before this change still parses: it simply prints without them. | `formatearContenidoEtiqueta`, `parsearContenidoEtiqueta` |
+| R9 | A psicotrópico in "Rp/" is marked next to its name: "Clonazepam (ps) 0,3 mg" (user decision, 2026-10-22). It follows the droga's current `tipo_control` = PSICOTROPICO when the etiqueta is generated (estupefacientes are not marked); it is part of the stored `contenido`, so an etiqueta generated before keeps printing without it. | `formatearLineaRp` (`domain/etiqueta.ts`), `getPreparacionParaEtiqueta` |
 
 Placement on the printed page (the PDF is the sheet, the label goes in a chosen cell): `docs/specs/hoja-etiquetas.md`. This spec only governs what the label says and how it is laid out.
 

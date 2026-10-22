@@ -19,9 +19,14 @@
  * and who took them; "Abrir" goes back to the workspace -- also after the
  * browser tab was closed, since the toma is persisted.
  *
- * Confirmadas / Descartadas list preparaciones. Confirming is NOT offered
- * inline anywhere: it is irreversible and needs the partida review, the
- * manual enrase and a re-authentication, all on /preparaciones/[id].
+ * Confirmadas / Descartadas list preparaciones. Confirmadas also lists the
+ * ítems marked as preparados whose etiquetas were not printed yet (stock
+ * reservado, docs/specs/reserva-stock-preparacion.md R26): "Imprimir" opens
+ * the toma workspace with "Imprimir etiquetas" already open (it confirms the
+ * whole receta, R13), and "Editar preparación" opens that workspace as is
+ * (where "Liberar reserva" sends the ítem back to Pendiente).
+ * Confirming is NOT offered inline anywhere: it is irreversible and needs
+ * the vencimiento choice and a re-authentication.
  *
  * Filters (server-side, modules/preparaciones/domain/listado.ts): Nº de
  * receta and a date range on every tab -- the receta's ingreso on
@@ -34,7 +39,7 @@
  * their data stacks under the receta Nº instead of duplicating the rows.
  */
 import Link from "next/link";
-import { CircleCheck, CircleOff, Eye, FlaskConical, Hourglass, Inbox, SearchX, X } from "lucide-react";
+import { CircleCheck, CircleOff, Eye, FlaskConical, Hourglass, Inbox, Pencil, Printer, SearchX, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
@@ -53,7 +58,7 @@ import {
   parsearFiltrosPreparaciones,
 } from "@/modules/preparaciones/domain/listado";
 import type { EstadoEtiqueta, FiltrosPreparaciones } from "@/modules/preparaciones/domain/listado";
-import { etiquetaProgreso, hrefToma, resumenItemsPendientes } from "@/modules/preparaciones/domain/toma";
+import { etiquetaProgreso, hrefImprimirEtiquetas, hrefToma, resumenItemsPendientes } from "@/modules/preparaciones/domain/toma";
 import { getHojaParaImprimir } from "@/modules/etiqueta-tamanos/application/get-hoja-para-imprimir";
 import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
 import { HOJA_PREDETERMINADA } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
@@ -528,12 +533,23 @@ function TablaPreparaciones({
                 ) : null}
                 {esConfirmadas ? (
                   <td className="px-3 py-2.5">
-                    <ToneBadge tone={TONO_ETIQUETA[etiqueta]}>{ESTADO_ETIQUETA_LABELS[etiqueta]}</ToneBadge>
+                    {p.estado === "INICIADA" ? (
+                      <ToneBadge tone="warn">Sin imprimir</ToneBadge>
+                    ) : (
+                      <ToneBadge tone={TONO_ETIQUETA[etiqueta]}>{ESTADO_ETIQUETA_LABELS[etiqueta]}</ToneBadge>
+                    )}
                   </td>
                 ) : null}
                 <td className="px-3 py-2.5">
-                  <div className="flex justify-end">
-                    <AccionFila preparacion={p} zonaHoraria={result.zonaHoraria} puedeGenerarEtiqueta={puedeGenerarEtiqueta} puedeImprimirEtiqueta={puedeImprimirEtiqueta} tamanos={tamanos} hoja={hoja} />
+                  <div className="flex flex-wrap items-start justify-end gap-2">
+                    <AccionFila
+                      preparacion={p}
+                      zonaHoraria={result.zonaHoraria}
+                      puedeGenerarEtiqueta={puedeGenerarEtiqueta}
+                      puedeImprimirEtiqueta={puedeImprimirEtiqueta}
+                      tamanos={tamanos}
+                      hoja={hoja}
+                    />
                   </div>
                 </td>
               </tr>
@@ -560,6 +576,21 @@ function AccionFila({
   tamanos: readonly EtiquetaTamano[];
   hoja: HojaEtiqueta;
 }) {
+  // Confirmadas lists only INICIADA preparaciones that hold a reserva (R26): marked as preparada, not printed yet.
+  if (preparacion.estado === "INICIADA") {
+    return (
+      <>
+        <Link href={hrefToma(preparacion.recetaId)} className="btn btn-secondary btn-sm">
+          <Pencil className="size-3.5" aria-hidden />
+          Editar preparación
+        </Link>
+        <Link href={hrefImprimirEtiquetas(preparacion.recetaId)} className="btn btn-primary btn-sm">
+          <Printer className="size-3.5" aria-hidden />
+          Imprimir
+        </Link>
+      </>
+    );
+  }
   if (preparacion.estado === "DESCARTADA") {
     return (
       <VerPreparacionDescartadaDialog
