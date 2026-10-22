@@ -21,8 +21,8 @@
  * `rectificar-asiento.ts` and `modules/stock/application/registrar-ajuste.ts`.
  *
  * Pipeline: `requireSession -> authorize('libro.anulacion.solicitar') ->
- * requireRecentReauth (INV-X02, the REQUESTER's own step-up) -> zod.parse`,
- * then inside the transaction:
+ * zod.parse` (no requester re-authentication since the 2026-10-21 decision; the
+ * DT's own password is the only credential asked), then inside the transaction:
  *   1. Lock the asiento `FOR UPDATE`; verify VIGENTE and its jornada is NOT
  *      signed (friendly pre-check, clear Spanish message -- the DB's own
  *      INV-L02 trigger is the real backstop for a race).
@@ -43,7 +43,6 @@
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import type { ExecuteOptions } from "@/shared/usecase";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { DomainError, NotFoundError, InvariantViolationError, mapDbError } from "@/shared/errors";
 import { uuid, nonEmptyString } from "@/shared/validation";
 import { mensajeParaInvarianteAnulacion } from "../domain/mensajes-invariantes";
@@ -70,7 +69,6 @@ export interface AnularAsientoInput {
 const anularAsientoInternalCommand = defineCommand({
   name: "libro.asiento.anular",
   permiso: "libro.anulacion.solicitar",
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   input: anularAsientoInternalInput,
   audit: { entidad: "asiento_recetario", accion: TipoAccion.ANULAR },
   handler: async ({ tx, session, input }) => {

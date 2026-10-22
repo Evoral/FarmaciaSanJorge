@@ -21,8 +21,8 @@
  * CREDENTIALS (`dtUsuarioId`/`dtPassword`), not a pre-verified id.
  *
  * Pipeline: SAME shape as `anular-asiento.ts` -- `requireSession ->
- * authorize('libro.anulacion.solicitar') -> requireRecentReauth (the
- * REQUESTER's own step-up) -> zod.parse`, then inside the transaction:
+ * authorize('libro.anulacion.solicitar') -> zod.parse` (no requester
+ * re-authentication since the 2026-10-21 decision), then inside the transaction:
  *   1. Lock the ORIGINAL asiento `FOR UPDATE`; verify it is SISTEMA,
  *      VIGENTE, its jornada IS signed (otherwise: friendly message
  *      pointing to `anularAsiento` instead -- D1: "only for SISTEMA
@@ -41,7 +41,6 @@
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import type { ExecuteOptions } from "@/shared/usecase";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { DomainError, NotFoundError, InvariantViolationError, mapDbError } from "@/shared/errors";
 import { uuid, nonEmptyString } from "@/shared/validation";
 import { mensajeParaInvarianteRectificacion } from "../domain/mensajes-invariantes";
@@ -74,7 +73,6 @@ const rectificarAsientoInternalCommand = defineCommand({
   name: "libro.asiento.rectificar",
   // Same permiso as anularAsiento -- D1: "same permiso libro.anulacion.solicitar".
   permiso: "libro.anulacion.solicitar",
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   input: rectificarAsientoInternalInput,
   audit: { entidad: "asiento_recetario", accion: TipoAccion.ANULAR },
   handler: async ({ tx, session, input }) => {

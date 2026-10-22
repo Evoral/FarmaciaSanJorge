@@ -7,11 +7,12 @@
  * that need determinism -- tests -- pass `now` explicitly; production call
  * sites, including shared/usecase.ts, rely on the default).
  *
- * `confirmar preparación` (FASE 8) and `firmar cierre` (FASE 10) will be
- * the first real callers, via `defineCommand`'s `requireRecentReauth`
- * option (shared/usecase.ts) -- this file is the policy those wire up to,
- * landed now so FASE 2 point 2.5 has a working, testable contract before
- * any concrete command needs it.
+ * Wired through `defineCommand`'s `requireRecentReauth` option
+ * (shared/usecase.ts). User decision 2026-10-21: the periodic password
+ * re-authentication was removed from every command except `reanclarLibro`
+ * (a DT-only act), the only remaining caller; the session already identifies
+ * who acts (and the PIN does in a cuenta de sector). The DT's own password
+ * (co-firma, firma de cierre, destrucción) is a separate mechanism.
  */
 import { StepUpRequiredError } from "@/shared/errors";
 import type { AuthenticatedSession } from "./session";

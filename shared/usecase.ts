@@ -111,10 +111,13 @@ export interface DefineCommandConfig<TInput, TOutput> {
    * FASE 2 point 2.5 / INV-X02 (step-up). When set, the pipeline calls
    * `requireRecentReauth(session, maxAgeMinutes)` right after `authorize()`
    * and before `zod.parse` -- a command that needs a recent
-   * re-authentication (confirmar preparación, firmar cierre, in later
-   * phases) declares it here instead of every handler re-implementing the
-   * check. Omitted by default (most commands never need it); throws
+   * re-authentication declares it here instead of every handler
+   * re-implementing the check. Omitted by default; throws
    * `StepUpRequiredError` (shared/errors) before opening a transaction.
+   * Since the 2026-10-21 decision the only caller is `reanclarLibro` (a
+   * DT-only act): everywhere else the session (or the PIN in a cuenta de
+   * sector) identifies who acts, and the DT authorizes with their own
+   * password (co-firma).
    */
   requireRecentReauth?: { maxAgeMinutes: number };
   handler: (args: CommandHandlerArgs<TInput>) => Promise<CommandHandlerResult<TOutput>>;

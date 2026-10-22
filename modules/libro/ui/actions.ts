@@ -18,9 +18,8 @@ import type { LibroActionState } from "./action-state";
  * `modules/libro/application/anular-asiento.ts`'s module doc comment for
  * why this moved out of the UI layer (an exported command that trusted a
  * pre-verified id could be called directly by ANY other caller, bypassing
- * co-firma entirely). `anularAsiento` also requires the REQUESTER's own
- * recent re-auth (INV-X02); `ReauthAwareForm` catches that and resubmits
- * automatically.
+ * co-firma entirely). `anularAsiento` asks for no requester re-auth since the
+ * 2026-10-21 decision; the DT's password is the only credential.
  */
 export async function anularAsientoAction(_prevState: LibroActionState, formData: FormData): Promise<LibroActionState> {
   const asientoId = String(formData.get("asientoId") ?? "");

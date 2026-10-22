@@ -2,8 +2,8 @@
 
 /**
  * Crear/editar tamaño de etiqueta (`/admin/configuracion/etiquetas`). Nombre
- * plus the label's ancho x alto in mm (decimal comma or dot, one decimal). Both commands
- * require recent re-authentication, hence `ReauthAwareForm`. The page provides
+ * plus the label's ancho x alto in mm (decimal comma or dot, one decimal). Uses
+ * `ReauthAwareForm` (keeps what was typed on an error). The page provides
  * the surrounding panel.
  */
 import { useRouter } from "next/navigation";

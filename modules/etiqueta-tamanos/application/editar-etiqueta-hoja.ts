@@ -1,7 +1,7 @@
 /**
  * `editarEtiquetaHoja`: changes the sheet (ancho, alto, margen in mm) the etiquetas
  * are printed on (docs/specs/hoja-etiquetas.md R1, R2, R5, R13). ADMINISTRADOR only
- * (`config.editar`) with recent re-authentication, audited like the sizes (before /
+ * (`config.editar`), audited like the sizes (before /
  * after values of the three measures).
  *
  * Two rules beyond the field limits:
@@ -21,7 +21,6 @@
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { ValidationError } from "@/shared/errors";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { HOJA_MM_MAX, HOJA_MM_MIN, MARGEN_MM_MAX, MARGEN_MM_MIN, areaUtilMm, areaUtilSuficiente, entraEnHoja } from "../domain/etiqueta-hoja";
 import type { HojaEtiqueta } from "../domain/etiqueta-hoja";
 import { TAMANO_MM_MIN, formatearMedidaMm } from "../domain/etiqueta-tamano";
@@ -53,7 +52,6 @@ export const editarEtiquetaHojaCommand = defineCommand({
   name: "etiquetaHoja.editar",
   permiso: "config.editar",
   input: editarEtiquetaHojaInput,
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { entidad: "etiqueta_hoja", accion: "MODIFICAR" },
   handler: async ({ tx, session, input }) => {
     if (!areaUtilSuficiente(input)) throw new ValidationError(AREA_UTIL_MESSAGE, { fields: ["margenMm"] });

@@ -7,8 +7,8 @@
  * -- never a generic "any decimal" check.
  *
  * Sensitive action (changes a value that affects every ficha técnica
- * generated from now on) -- `requireRecentReauth` applies, same as
- * usuarios' suspender/reactivar/baja/restablecerCredencial.
+ * generated from now on), but it asks for no password re-authentication (user
+ * decision, 2026-10-21): the session identifies who acts.
  *
  * `entidadId` on the audit row must be a real UUID (fsj.registro_auditoria.entidad_id
  * is `@db.Uuid`), but `fsj.parametro` has no surrogate id (its PK is the
@@ -20,7 +20,6 @@
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { PARAMETRO_CLAVES, PARAMETROS_REGISTRY } from "../domain/parametros-registry";
 import { getParametroTenant, updateParametroValor } from "../infrastructure/parametro-repository";
 
@@ -35,7 +34,6 @@ export const editarParametroCommand = defineCommand({
   name: "parametros.editar",
   permiso: "config.editar",
   input: editarParametroInput,
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { entidad: "parametro", accion: "MODIFICAR" },
   handler: async ({ tx, session, input }) => {
     const definicion = PARAMETROS_REGISTRY[input.clave];

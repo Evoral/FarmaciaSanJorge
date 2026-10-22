@@ -2,9 +2,8 @@
 
 /**
  * Edit the sheet the etiquetas are printed on (`/admin/configuracion/etiquetas`):
- * ancho x alto and margen in mm (decimal comma or dot, one decimal). Requires recent
- * re-authentication, hence `ReauthAwareForm` (it keeps what was typed on an error and
- * marks the offending field). The page provides the surrounding panel.
+ * ancho x alto and margen in mm (decimal comma or dot, one decimal). Uses
+ * `ReauthAwareForm` (it keeps what was typed on an error and marks the offending field). The page provides the surrounding panel.
  */
 import { useRouter } from "next/navigation";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";

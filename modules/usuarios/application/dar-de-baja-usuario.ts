@@ -2,7 +2,7 @@
  * `darDeBajaUsuario` (M03, FASE 3 point 3.5, INV-USR-004/005). Any of
  * PENDIENTE_ACTIVACION/ACTIVO/SUSPENDIDO -> BAJA, terminal (DP-02
  * unresolved -- no reactivation path exists anywhere in this codebase).
- * Requires motivo, recent re-authentication, and revokes every session and
+ * Requires motivo (no password re-authentication, user decision 2026-10-21), and revokes every session and
  * pending credential immediately (task's binding decision), same as
  * suspend.
  *
@@ -14,7 +14,6 @@ import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid, nonEmptyString } from "@/shared/validation";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { revokeAllSesionesForUsuarioInTx } from "@/modules/auth/application/revoke-session";
 import { esAccionSobreSiMismo, quedariaSinAdministradores } from "../domain/reglas-admin";
 import { ROL_ADMINISTRADOR } from "../domain/roles";
@@ -32,7 +31,6 @@ export const darDeBajaUsuarioCommand = defineCommand({
   name: "usuarios.baja",
   permiso: "usuarios.baja",
   input: darDeBajaUsuarioInput,
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { entidad: "usuario", accion: "BAJA" },
   handler: async ({ tx, session, input }) => {
     if (esAccionSobreSiMismo(session.usuario.id, input.usuarioId)) {

@@ -1,8 +1,8 @@
 /**
  * `cesarDesignacion` (M04, FASE 3 point 3.9, INV-DT-003/004). A cese sets
  * `vigente_hasta` + `motivo_cese` EXACTLY ONCE -- the row is never deleted
- * or otherwise rewritten (INV-DT-003). Requires recent re-authentication,
- * same sensitivity as `designar-director-tecnico.ts`.
+ * or otherwise rewritten (INV-DT-003). No password re-authentication
+ * (user decision, 2026-10-21): the session identifies who acts.
  *
  * `TipoAccion` choice: audited as `BAJA`. There is no dedicated `CESAR`
  * value in the enum (prisma/schema.prisma's `TipoAccion`), and `BAJA`
@@ -30,7 +30,6 @@
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid, nonEmptyString } from "@/shared/validation";
 import { isoDate, validarRangoVigencia } from "../domain/designacion";
@@ -53,7 +52,6 @@ export const cesarDesignacionCommand = defineCommand({
   name: "dt.cesar",
   permiso: "dt.cesar",
   input: cesarDesignacionInput,
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { entidad: "designacion_director_tecnico", accion: TipoAccion.BAJA },
   handler: async ({ tx, session, input }) => {
     const actual = await getDesignacionParaCese(tx, session.tenantId, input.designacionId);

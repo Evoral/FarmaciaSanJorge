@@ -6,7 +6,7 @@
  *
  * Pipeline (`shared/usecase.ts`, in this exact order):
  *   1. requireSession -> authorize('preparaciones.confirmar') ->
- *      requireRecentReauth (INV-X02, `requireRecentReauth: { maxAgeMinutes }`
+ *      zod.parse (no re-authentication since the 2026-10-21 decision; INV-X02
  *      below) -> zod.parse -- ALL before a transaction is even opened.
  *   2. withTenantTransaction opens the transaction (READ COMMITTED, Postgres
  *      default) and this handler runs inside it:
@@ -99,7 +99,6 @@ import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import type { AuthenticatedSession } from "@/shared/auth/session";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { DomainError, NotFoundError, InvariantViolationError, mapDbError } from "@/shared/errors";
 import { uuid, nonEmptyString, decimalString } from "@/shared/validation";
 import { dec, Decimal } from "@/shared/decimal";
@@ -282,10 +281,8 @@ export interface ConfirmacionDeItem {
 export const confirmarPreparacionCommand = defineCommand({
   name: "preparaciones.confirmar",
   permiso: "preparaciones.confirmar",
-  // INV-X02: the SAME shared window every other step-up command in this
-  // codebase declares (modules/{usuarios,directores-tecnicos,farmacia,parametros}/
-  // application/*.ts) -- never a locally invented number.
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
+  // No `requireRecentReauth` (user decision, 2026-10-21): the session -- or the PIN in a
+  // cuenta de sector -- identifies who confirms.
   input: confirmarPreparacionInput,
   audit: { entidad: "preparacion", accion: TipoAccion.CONFIRMAR },
   handler: async ({ tx, session, input }) => {
@@ -359,7 +356,7 @@ export const confirmarPreparacionCommand = defineCommand({
  * Steps 2a-2h of this file's doc comment, inside the caller's transaction:
  * also run by `confirmarDesdeReservasEnTx` (./confirmar-desde-reservas.ts, the
  * toma workspace's "Imprimir etiquetas") on a preparación whose stock was
- * reserved. The caller declares the permiso, the step-up and the audit, and
+ * reserved. The caller declares the permiso and the audit, and
  * MUST then write the receta's asiento with the returned libro data
  * (`registrarAsientoRecetaEnTx`) in the same transaction -- INV-P04 and
  * INV-L08 (deferred) refuse the COMMIT otherwise. The preparación's own

@@ -4,9 +4,9 @@
  * (INV-P05 -- DB trigger, migration 0013, is the real backstop). Discarding
  * touches NO stock (task scope) -- it is the ONLY confirmation-adjacent
  * write that never opens `fsj.movimiento_stock`. A preparación that holds a
- * reserva de stock (migration 0071) is REFUSED here (no re-authentication on
- * this form): its reserva is released only by "Liberar reserva" from the
- * receta's toma workspace (`liberarReservaStock`, re-authenticated), which
+ * reserva de stock (migration 0071) is REFUSED here (this form is for
+ * preparaciones without a reserva): its reserva is released only by "Liberar reserva" from the
+ * receta's toma workspace (`liberarReservaStock`), which
  * runs `descartarPreparacionEnTx` and releases it in the same transaction
  * (docs/specs/reserva-stock-preparacion.md R14). The receta's
  * estado never changes here (INV-R08: no backwards transitions): a receta

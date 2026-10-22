@@ -7,14 +7,13 @@
  * Escalation rule: the actor can only include permisos of their grantable
  * set -- what they hold, plus every operativo permiso for an
  * ADMINISTRADOR (`otorgablesDelActor` / `resolverPermisosDeRol`); the session basics
- * (`PERMISOS_BASE_DE_ROL`) are always added. Sensitive admin action:
- * requires a recent re-authentication, like cambiarRoles. Audited as
+ * (`PERMISOS_BASE_DE_ROL`) are always added. Sensitive admin action, but it asks
+ * for no password re-authentication (user decision, 2026-10-21). Audited as
  * CREAR_ROL with nombre, descripción and the sorted permiso list.
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, ValidationError } from "@/shared/errors";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { generarCodigoRol, resolverPermisosDeRol } from "../domain/roles";
 import { existeNombreDeRol, insertRol, listCodigosDeRol, reemplazarPermisosDeRol } from "../infrastructure/rol-repository";
 import { datosDeRolInput, snapshotDeRol } from "./rol-input";
@@ -28,7 +27,6 @@ export const crearRolCommand = defineCommand({
   name: "roles.crear",
   permiso: "roles.gestionar",
   input: crearRolInput,
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { entidad: "rol", accion: TipoAccion.CREAR_ROL },
   handler: async ({ tx, session, input }) => {
     if (await existeNombreDeRol(tx, session.tenantId, input.nombre)) {

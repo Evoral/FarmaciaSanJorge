@@ -113,7 +113,7 @@ export function ContinuarPreparacionDialog({ objetivo, itemNombre }: ContinuarPr
             </>
           ) : (
             <>
-              <p className="text-sm text-zinc-600">Revisá de qué partidas se toma cada línea ({contenido.datos.lineas.length}) y reservá el stock. Se pide reautenticación.</p>
+              <p className="text-sm text-zinc-600">Revisá de qué partidas se toma cada línea ({contenido.datos.lineas.length}) y reservá el stock.</p>
               <ConfirmarPreparacionForm
                 datos={contenido.datos}
                 destino={objetivo}

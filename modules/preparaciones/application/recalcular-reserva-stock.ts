@@ -16,12 +16,11 @@
  * Locks (R23): the preparación first (so a concurrent "Liberar reserva"/"Imprimir etiquetas" on it waits), then every
  * candidate partida in id order (inside `planificarConsumoEnTx`).
  *
- * `preparaciones.confirmar` + recent re-authentication (INV-X02), same as reserving. Audited as MODIFICAR on the
+ * `preparaciones.confirmar`, no re-authentication (same as reserving). Audited as MODIFICAR on the
  * preparación, with the old and the new reserva.
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { dec } from "@/shared/decimal";
 import { uuid } from "@/shared/validation";
@@ -107,7 +106,6 @@ export function autorizacionesDeReserva(reservas: readonly ReservaDePreparacion[
 export const recalcularReservaStockCommand = defineCommand({
   name: "preparaciones.recalcularReserva",
   permiso: "preparaciones.confirmar",
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   input: recalcularReservaStockInput,
   audit: { entidad: "preparacion", accion: TipoAccion.MODIFICAR },
   handler: async ({ tx, session, input }) => {

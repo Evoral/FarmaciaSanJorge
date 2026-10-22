@@ -49,12 +49,11 @@
  *     ever actually called (a real call here would mean some use case is
  *     NOT going through the injected-session path this test relies on);
  *     `requireRecentReauth` is left a permissive no-op so use cases that
- *     declare it (crearUsuario, suspender, reactivar, baja,
- *     restablecerCredencial, cambiarRoles) don't need a real
+ *     still declare it (reanclarLibro) don't need a real
  *     `reautenticadaEn` timestamp just to reach the authorize() check this
- *     file actually tests -- the step-up behavior itself has its own
- *     dedicated regression test (tests/unit/usuarios-usecase-registry.test.ts's
- *     M2 case), which deliberately uses the REAL step-up policy instead.
+ *     file actually tests -- the step-up policy has its own tests
+ *     (tests/unit/auth-step-up.test.ts, and tests/unit/usuarios-usecase-registry.test.ts
+ *     checks with the REAL policy that crearUsuario no longer asks for it).
  *
  * The same discovered registry also backs a second cross-module guarantee
  * (last describe block): every field name any registered use case accepts

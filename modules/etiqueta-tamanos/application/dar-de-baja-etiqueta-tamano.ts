@@ -1,8 +1,8 @@
 /**
  * `darDeBajaEtiquetaTamano`: deactivates a size (`activo = false`) so it is no
  * longer offered when printing. The row is never deleted (fsj_app has no
- * DELETE) and can be reactivated. ADMINISTRADOR only (`config.editar`) with
- * recent re-authentication; the motivo goes to the audit trail (the table has
+ * DELETE) and can be reactivated. ADMINISTRADOR only (`config.editar`); the
+ * motivo goes to the audit trail (the table has
  * no motivo column). The tenant must keep at least one ACTIVE size (the print
  * dialog would have nothing to offer): the active rows are locked before the
  * check, so two concurrent bajas can not both pass it.
@@ -10,7 +10,6 @@
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { nonEmptyString, uuid } from "@/shared/validation";
 import { dejaSinTamanoActivo } from "../domain/etiqueta-tamano";
 import { cambiarActivoEtiquetaTamano, getEtiquetaTamano, lockEtiquetaTamano, lockEtiquetaTamanosActivos } from "../infrastructure/etiqueta-tamano-repository";
@@ -26,7 +25,6 @@ export const darDeBajaEtiquetaTamanoCommand = defineCommand({
   name: "etiquetaTamanos.baja",
   permiso: "config.editar",
   input: darDeBajaEtiquetaTamanoInput,
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { entidad: "etiqueta_tamano", accion: "BAJA" },
   handler: async ({ tx, session, input }) => {
     // Active rows first (fixed id order), then the target: a baja holding the target while waiting on the active set could deadlock with another baja.

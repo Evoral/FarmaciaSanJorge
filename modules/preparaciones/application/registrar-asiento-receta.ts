@@ -12,7 +12,7 @@
  *   3. One `asiento_contralor` EGRESO per controlled movimiento of every ítem, now that the asiento id exists
  *      (INV-L08, same transaction).
  *
- * Not a use case on its own: the caller declares the permiso, the step-up and the audit.
+ * Not a use case on its own: the caller declares the permiso and the audit.
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { AuthenticatedSession } from "@/shared/auth/session";

@@ -1,7 +1,7 @@
 /**
  * `reactivarEtiquetaTamano`: the mirror of `darDeBajaEtiquetaTamano` -- the
- * size is offered again when printing. ADMINISTRADOR only (`config.editar`)
- * with recent re-authentication; the motivo goes to the audit trail. A size
+ * size is offered again when printing. ADMINISTRADOR only (`config.editar`);
+ * the motivo goes to the audit trail. A size
  * that does not fit the sheet is not reactivated (docs/specs/hoja-etiquetas.md
  * R5): the form only has the motivo, so the refusal is a plain domain error and
  * the administrator edits the size first.
@@ -9,7 +9,6 @@
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { nonEmptyString, uuid } from "@/shared/validation";
 import { entraEnHoja } from "../domain/etiqueta-hoja";
 import { getEtiquetaHoja, lockEtiquetaHojaCompartida } from "../infrastructure/etiqueta-hoja-repository";
@@ -25,7 +24,6 @@ export const reactivarEtiquetaTamanoCommand = defineCommand({
   name: "etiquetaTamanos.reactivar",
   permiso: "config.editar",
   input: reactivarEtiquetaTamanoInput,
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { entidad: "etiqueta_tamano", accion: "REACTIVAR" },
   handler: async ({ tx, session, input }) => {
     if (!(await lockEtiquetaTamano(tx, session.tenantId, input.id))) throw new NotFoundError(NO_ENCONTRADO_MESSAGE);

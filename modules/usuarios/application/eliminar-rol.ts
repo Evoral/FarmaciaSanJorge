@@ -7,8 +7,7 @@
  * ADMINISTRADOR / SISTEMA (INV-ROL-002) and DIRECTOR_TECNICO (INV-ROL-003)
  * are never deletable. The actor cannot delete a role they hold.
  *
- * Locks the role row first (same reason as editar-rol.ts). Requires a
- * recent re-authentication. Audited as ELIMINAR_ROL with the role's last
+ * Locks the role row first (same reason as editar-rol.ts). Audited as ELIMINAR_ROL with the role's last
  * nombre, descripción and sorted permisos. Its rol_permiso rows go with it
  * (ON DELETE CASCADE).
  */
@@ -16,7 +15,6 @@ import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { motivoNoEliminable, motivoNoGestionable, ROL_SISTEMA } from "../domain/roles";
 import { codigosDeRolesDelUsuario, deleteRol, findRolById, lockRol } from "../infrastructure/rol-repository";
 import { snapshotDeRol } from "./rol-input";
@@ -29,7 +27,6 @@ export const eliminarRolCommand = defineCommand({
   name: "roles.eliminar",
   permiso: "roles.gestionar",
   input: eliminarRolInput,
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { entidad: "rol", accion: TipoAccion.ELIMINAR_ROL },
   handler: async ({ tx, session, input }) => {
     if (!(await lockRol(tx, session.tenantId, input.rolId))) throw new NotFoundError("Rol no encontrado.");

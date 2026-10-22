@@ -1,6 +1,6 @@
 /**
  * `editarEtiquetaTamano`: changes the name and/or the measures of a size.
- * ADMINISTRADOR only (`config.editar`) with recent re-authentication. Past
+ * ADMINISTRADOR only (`config.editar`). Past
  * etiquetas are not affected: the size is only used at the moment of
  * printing (the PDF is rendered on demand, nothing stores the size). The
  * measures must fit the sheet at least once (docs/specs/hoja-etiquetas.md R5),
@@ -14,7 +14,6 @@
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { NotFoundError, ValidationError } from "@/shared/errors";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { nonEmptyString, uuid } from "@/shared/validation";
 import { NOMBRE_MAX_LENGTH } from "../domain/etiqueta-tamano";
 import { getEtiquetaHoja, lockEtiquetaHojaCompartida } from "../infrastructure/etiqueta-hoja-repository";
@@ -47,7 +46,6 @@ export const editarEtiquetaTamanoCommand = defineCommand({
   name: "etiquetaTamanos.editar",
   permiso: "config.editar",
   input: editarEtiquetaTamanoInput,
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { entidad: "etiqueta_tamano", accion: "MODIFICAR" },
   handler: async ({ tx, session, input }) => {
     if (!(await lockEtiquetaTamano(tx, session.tenantId, input.id))) throw new NotFoundError(NO_ENCONTRADO_MESSAGE);

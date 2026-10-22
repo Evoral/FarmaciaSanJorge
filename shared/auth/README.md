@@ -14,7 +14,8 @@ relies on) have one place to import "sessions"/"authorization" from.
 
 `requireRecentReauth()` (step-up re-authentication, INV-X02) is re-exported by
 `session.ts` from `modules/auth/domain/step-up.ts`; commands declare it through
-`defineCommand`'s `requireRecentReauth` option.
+`defineCommand`'s `requireRecentReauth` option (only `reanclarLibro` uses it since
+the 2026-10-21 decision).
 
 `operador.ts` / `operador-context.ts` / `operador-campos.ts` (cuentas de sector,
 `docs/specs/cuentas-de-sector.md`): on a session shared by the empleados of a

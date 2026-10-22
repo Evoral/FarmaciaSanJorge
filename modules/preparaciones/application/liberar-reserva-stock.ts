@@ -10,13 +10,11 @@
  * without (from before 0071 or the ficha técnica screen's former "Preparar") is
  * discarded from its own screen, with a motivo.
  *
- * `preparaciones.descartar` + recent re-authentication (INV-X02, same window
- * as the confirmation). Audited as DESCARTAR, with a fixed motivo and the
+ * `preparaciones.descartar`, no re-authentication (user decision, 2026-10-21). Audited as DESCARTAR, with a fixed motivo and the
  * released reserva.
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { descartarPreparacionEnTx } from "./descartar-preparacion";
@@ -30,7 +28,6 @@ const liberarReservaStockInput = z.object({ preparacionId: uuid });
 export const liberarReservaStockCommand = defineCommand({
   name: "preparaciones.liberarReserva",
   permiso: "preparaciones.descartar",
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   input: liberarReservaStockInput,
   audit: { entidad: "preparacion", accion: TipoAccion.DESCARTAR },
   handler: async ({ tx, session, input }) => {

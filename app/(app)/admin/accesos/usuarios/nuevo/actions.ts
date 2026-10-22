@@ -3,16 +3,13 @@
 /**
  * Server Action for `/admin/accesos/usuarios/nuevo` (M03, FASE 3 point 3.2).
  *
- * M2 (security review): `crearUsuarioCommand` now declares
- * `requireRecentReauth` (creating a user mints a credential -- same
- * sensitivity as suspender/reactivar/baja/restablecerCredencial/
- * cambiarRoles), so this action must surface `StepUpRequiredError` as a
- * `"reauth-required"` state, exactly like `modules/usuarios/ui/actions.ts`'s
- * `fromError` does for the OTHER sensitive usuarios actions -- this page
- * predates that shared helper (it has its own richer success state, with
- * the one-time credential) and isn't wired through `ReauthAwareForm`, so
- * the same two-line check is duplicated here rather than importing a
- * helper from a sibling module's `ui/` (module boundary).
+ * M2 (security review) made `crearUsuarioCommand` declare
+ * `requireRecentReauth`; since the 2026-10-21 decision it no longer does, so
+ * the `"reauth-required"` branch below is never reached today. It stays (as in
+ * `modules/usuarios/ui/actions.ts`'s `fromError`) because it is harmless --
+ * this page has its own richer success state (the one-time credential), isn't
+ * wired through `ReauthAwareForm`, and duplicates the two-line check rather
+ * than importing a helper from a sibling module's `ui/` (module boundary).
  */
 import { crearUsuario } from "@/modules/usuarios/application/crear-usuario";
 import { StepUpRequiredError } from "@/shared/errors";

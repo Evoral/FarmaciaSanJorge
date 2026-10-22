@@ -41,7 +41,6 @@ export const restablecerCredencialCommand = defineCommand({
   name: "usuarios.credencial.restablecer",
   permiso: "usuarios.credencial.restablecer",
   input: restablecerCredencialInput,
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { entidad: "usuario", accion: "RESTABLECER_CREDENCIAL" },
   handler: async ({ tx, session, input }) => {
     if (esAccionSobreSiMismo(session.usuario.id, input.usuarioId)) {

@@ -60,7 +60,7 @@ export default async function PreparacionPage({ params }: PreparacionPageProps) 
           }
           description={
             pantalla.estado === "INICIADA"
-              ? `Revisá de qué partidas se toma cada línea (${pantalla.lineas.length}) y confirmá. Se pide reautenticación.`
+              ? `Revisá de qué partidas se toma cada línea (${pantalla.lineas.length}) y confirmá.`
               : undefined
           }
           actions={

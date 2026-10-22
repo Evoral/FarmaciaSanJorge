@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
-import { AuthorizationError, DomainError, NotFoundError, StepUpRequiredError, ValidationError } from "@/shared/errors";
+import { AuthorizationError, DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import {
   PERMISOS_ASIGNABLES_A_ROLES,
   PERMISOS_BASE_DE_ROL,
@@ -145,7 +145,7 @@ beforeEach(() => {
   for (const mock of [auditRecordMock, insertRolMock, reemplazarMock, updateDatosMock, deleteRolMock, insertUsuarioRolMock, withTenantTransactionMock]) mock.mockClear();
 });
 
-describe("pipeline: permiso, step-up, catalog validation", () => {
+describe("pipeline: permiso, no re-authentication, catalog validation", () => {
   it("every role write requires roles.gestionar (roles.ver is not enough)", async () => {
     const soloVer = session([...PERMISOS_BASE_DE_ROL, "roles.ver"]);
     await expect(crearRolCommand.execute({ nombre: "X", permisos: [] }, { session: soloVer })).rejects.toBeInstanceOf(AuthorizationError);
@@ -156,11 +156,13 @@ describe("pipeline: permiso, step-up, catalog validation", () => {
     expect(eliminarRolCommand.permiso).toBe("roles.gestionar");
   });
 
-  it("every role write requires a recent re-authentication", async () => {
+  it("no role write asks for a re-authentication (user decision 2026-10-21)", async () => {
+    // The real step-up policy is wired in the mock above: a session that never re-authenticated would throw
+    // StepUpRequiredError if any of these commands still declared it. Invalid input proves the pipeline reached zod.
     const sinReauth = session(TODOS, null);
-    await expect(crearRolCommand.execute({ nombre: "X", permisos: [] }, { session: sinReauth })).rejects.toBeInstanceOf(StepUpRequiredError);
-    await expect(editarRolCommand.execute({ rolId: ID_FAR, nombre: "X", permisos: [] }, { session: sinReauth })).rejects.toBeInstanceOf(StepUpRequiredError);
-    await expect(eliminarRolCommand.execute({ rolId: ID_FAR }, { session: sinReauth })).rejects.toBeInstanceOf(StepUpRequiredError);
+    await expect(crearRolCommand.execute({ nombre: "X", permisos: ["no.existe"] }, { session: sinReauth })).rejects.toBeInstanceOf(ValidationError);
+    await expect(editarRolCommand.execute({ rolId: ID_FAR, nombre: "X", permisos: ["no.existe"] }, { session: sinReauth })).rejects.toBeInstanceOf(ValidationError);
+    await expect(eliminarRolCommand.execute({ rolId: "no-es-uuid" }, { session: sinReauth })).rejects.toBeInstanceOf(ValidationError);
   });
 
   it("an unknown permiso code is rejected by zod before any transaction opens", async () => {

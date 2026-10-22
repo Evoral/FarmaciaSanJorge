@@ -3,8 +3,8 @@
 /**
  * `/libro/[id]` anulación form (FASE 9, M12 point 9.2). Same "co-firma en
  * el mismo acto" shape as `modules/stock/ui/ajuste-form.tsx`: the requester
- * fills in the motivo (their OWN step-up re-auth is handled by
- * `ReauthAwareForm`), and the DT types their own password right below --
+ * fills in the motivo (no re-auth of their own since the
+ * 2026-10-21 decision; `ReauthAwareForm` keeps what they typed), and the DT types their own password right below --
  * `anularAsientoAction` verifies it server-side (via
  * `verificarCoFirmaDtLibro`) before writing anything. Only rendered by the
  * caller for a VIGENTE asiento whose jornada is not signed and whose

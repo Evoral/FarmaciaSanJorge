@@ -75,8 +75,8 @@ function PinSection() {
           <ShieldCheck />
         </span>
         <div>
-          <h2 id="pin-heading">PIN de reautenticación rápida</h2>
-          <p>Un PIN de {AUTH_POLICY.pinLength} dígitos para confirmar acciones sensibles sin escribir tu contraseña completa. Nunca sirve para iniciar sesión.</p>
+          <h2 id="pin-heading">PIN</h2>
+          <p>Un PIN de {AUTH_POLICY.pinLength} dígitos para identificarte en las cuentas de sector (mostrador, laboratorio). Nunca sirve para iniciar sesión.</p>
         </div>
       </div>
 
@@ -124,7 +124,7 @@ function PinSection() {
             <h3 id="eliminar-pin-heading" className="text-[0.8125rem] font-semibold text-red-800">
               Eliminar el PIN
             </h3>
-            <p className="mt-0.5 text-xs text-zinc-600">Las acciones sensibles vuelven a pedir tu contraseña completa.</p>
+            <p className="mt-0.5 text-xs text-zinc-600">No vas a poder identificarte en las cuentas de sector hasta configurar uno nuevo.</p>
           </div>
           <div className="field">
             <label htmlFor="passwordActualEliminar" className="field-label">

@@ -19,13 +19,11 @@
  *
  * Lock order (R23): ficha (advisory) -> receta -> item_receta -> partidas.
  *
- * Permisos: `preparaciones.confirmar` via the pipeline (with its recent re-authentication, INV-X02, same window as
- * the confirmation) and `preparaciones.iniciar` checked first thing in the handler. Audited once (CREAR on the
+ * Permisos: `preparaciones.confirmar` via the pipeline (no re-authentication since the 2026-10-21 decision) and `preparaciones.iniciar` checked first thing in the handler. Audited once (CREAR on the
  * preparación), with the ficha it started from and the reserva.
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { authorize } from "@/shared/auth/authorize";
 import { decimalString, uuid } from "@/shared/validation";
 import { iniciarPreparacionEnTx } from "./iniciar-preparacion";
@@ -60,7 +58,6 @@ export interface ReservarStockPreparacionInput extends CoFirmaPesadaInput {
 export const reservarStockPreparacionCommand = defineCommand({
   name: "preparaciones.reservarStock",
   permiso: "preparaciones.confirmar",
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   input: reservarStockPreparacionInput,
   audit: { entidad: "preparacion", accion: TipoAccion.CREAR },
   handler: async ({ tx, session, input }) => {

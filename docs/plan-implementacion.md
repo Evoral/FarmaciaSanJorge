@@ -298,6 +298,7 @@ Orden de presentación = orden de dependencias. Cada módulo lista invariantes p
   - INV-AU-001 La contraseña definitiva solo la define el titular; nunca se almacena en claro ni la ve el ADM. [APP]
   - INV-AU-002 Una credencial se usa a lo sumo una vez y no después de `vence_en`. [BD + APP] (`UPDATE ... SET usada_en = now() WHERE usada_en IS NULL AND vence_en > now() RETURNING` — atómico).
   - INV-X02 Confirmar preparación y firmar cierre requieren sesión propia activa + re-autenticación reciente (contraseña reingresada en ese acto) **[PROPUESTA de implementación de INV-X02; confirmar DP-20]**.
+  - Nota (2026-10-21): decisión del usuario — la re-autenticación periódica con contraseña se eliminó de todos los comandos (salvo `reanclarLibro`); ver `docs/specs/cuentas-de-sector.md` (S11, S12). Solo queda la contraseña del DT donde el DT autoriza.
 - **Historias**:
   1. Como usuario ACTIVO quiero iniciar sesión con email y contraseña para operar. *Criterios*: mensaje genérico ante error (no revela si el email existe); bloqueo temporal tras N intentos (DP-20); SUSPENDIDO/BAJA/PENDIENTE no ingresan; se actualiza `ultimoAcceso`.
   2. Como titular con credencial quiero establecer mi contraseña para activar mi cuenta. *Criterios*: pantalla `/activar` pide email + código + nueva contraseña ×2; política de contraseña (DP-20); credencial vencida/usada ⇒ error claro "pedí al administrador una nueva"; al activar: estado ACTIVO, credencial `usada_en`, auditoría `ACTIVAR_CUENTA` con el propio usuario como autor, redirección a login.

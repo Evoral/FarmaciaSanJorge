@@ -3,7 +3,8 @@
 > Estado: implementado 2026-10-13 (migración 0077). Reversión: `docs/rollbacks/cuentas-de-sector.md`.
 > Decisiones del usuario (2026-10-13): una cuenta por sector; PIN en cada acción, pero solo en las acciones
 > configuradas; el mostrador sin PIN; el empleado necesita el permiso en sus propios roles; PIN de 4 dígitos (decidido primero en 6 y cambiado el mismo día, migración 0078);
-> cada empleado configura su propio PIN.
+> cada empleado configura su propio PIN. Decisión del usuario (2026-10-21): se elimina la reautenticación periódica con contraseña en todos los
+> actos (la sesión individual ya identifica a quien actúa y, en una cuenta de sector, lo hace el PIN); queda solo la contraseña del DT donde el DT autoriza.
 
 ## Alcance
 
@@ -51,8 +52,8 @@ configura desde «Mi cuenta» con su propio usuario; nadie más lo conoce.
 | S8 | Un PIN rechazado suma al contador del empleado; al quinto se bloquea (`AUTH_POLICY.maxFailedPinAttempts`). Lo desbloquea su titular reautenticándose con contraseña o configurando un PIN nuevo. Nunca bloquea la cuenta en sí. | `verificador-pin.ts`; el contador se confirma aunque el acto falle (transacción propia). |
 | S9 | Cada identificación rechazada se audita (`entidad = operador`, acción `AUTORIZAR`) a nombre de la cuenta de sector, apuntando al usuario elegido. El PIN nunca se registra. | `verificar-operador.ts`. |
 | S10 | Una cuenta de sector nunca tiene `ADMINISTRADOR` ni `DIRECTOR_TECNICO` (y por eso nunca puede ser designada DT), y nunca conserva los permisos de `PERMISOS_VEDADOS_A_SECTOR`, diga lo que diga su rol. | `crearUsuario`; INV-SEC-001; `permisosEfectivos` (`modules/auth/domain/permisos.ts`). |
-| S11 | El empleado identificado cumple la reautenticación reciente (INV-X02) de ese acto: no se le pide además la contraseña de la cuenta. | `defineCommand`. |
-| S12 | Las consultas nunca piden PIN. Una sesión individual nunca pide PIN de empleado y conserva su reautenticación de siempre. | `defineQuery`; `resolverActor`. |
+| S11 | Ningún acto pide reautenticación con contraseña (decisión 2026-10-21; la excepción es `reanclarLibro`, que solo hace el DT): en una cuenta de sector el PIN del empleado identifica al que actúa, y no se le pide además la contraseña de la cuenta. | `defineCommand`. |
+| S12 | Las consultas nunca piden PIN. Una sesión individual nunca pide PIN de empleado ni reautenticación con contraseña: la propia sesión identifica a quien actúa. Solo se pide la contraseña **del DT** donde el DT autoriza (co-firma de ajustes y anulaciones, firma de cierre, destrucción de archivo), sea cual sea el perfil de quien opera. | `defineQuery`; `resolverActor`. |
 
 ### Acciones configurables
 
@@ -72,7 +73,7 @@ editor de roles: "Confirmar preparaciones" cubre reservar, modificar la reserva,
 
 `cotizaciones.calcular` no es configurable: el presupuesto se recalcula solo mientras se carga la receta.
 
-La configuración se cambia en **Configuración › PIN por acción** (`config.editar` + reautenticación, auditado con
+La configuración se cambia en **Configuración › PIN por acción** (`config.editar`, auditado con
 el conjunto antes y después) y rige desde la próxima acción de cada cuenta de sector.
 
 ### Casos a tener presentes

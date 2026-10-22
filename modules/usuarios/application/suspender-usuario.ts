@@ -1,7 +1,7 @@
 /**
  * `suspenderUsuario` (M03, FASE 3 point 3.5, INV-USR-004/005). Only
- * ACTIVO -> SUSPENDIDO. Requires a motivo, recent re-authentication
- * (sensitive action), and revokes every session AND every pending
+ * ACTIVO -> SUSPENDIDO. Requires a motivo (no password re-authentication, user
+ * decision 2026-10-21), and revokes every session AND every pending
  * activation credential for the usuario immediately (task's binding
  * decision) -- a suspended usuario must not be able to keep using an
  * already-open session, nor activate via a credential issued before the
@@ -19,7 +19,6 @@ import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid, nonEmptyString } from "@/shared/validation";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { revokeAllSesionesForUsuarioInTx } from "@/modules/auth/application/revoke-session";
 import { esAccionSobreSiMismo, quedariaSinAdministradores } from "../domain/reglas-admin";
 import { ROL_ADMINISTRADOR } from "../domain/roles";
@@ -38,7 +37,6 @@ export const suspenderUsuarioCommand = defineCommand({
   name: "usuarios.suspender",
   permiso: "usuarios.suspender",
   input: suspenderUsuarioInput,
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { entidad: "usuario", accion: "SUSPENDER" },
   handler: async ({ tx, session, input }) => {
     if (esAccionSobreSiMismo(session.usuario.id, input.usuarioId)) {

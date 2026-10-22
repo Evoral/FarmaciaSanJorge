@@ -18,12 +18,13 @@
  * handler-level rules, not DB behavior (that is tests/db/*). ONE exception:
  * `requireRecentReauth` below is NOT a no-op -- it delegates to the REAL
  * `modules/auth/domain/step-up.ts` policy (a pure function, no I/O) so the
- * M2 regression test can actually observe `StepUpRequiredError` instead of
- * having step-up silently short-circuited.
+ * regression test below can actually observe a `StepUpRequiredError` if a
+ * usuarios command ever declares step-up again, instead of having it silently
+ * short-circuited.
  */
 import { describe, it, expect, vi } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
-import { ValidationError, StepUpRequiredError } from "@/shared/errors";
+import { ValidationError } from "@/shared/errors";
 import { requireRecentReauth as realRequireRecentReauth } from "@/modules/auth/domain/step-up";
 
 const auditRecordMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
@@ -153,42 +154,22 @@ describe("input validation runs after authorize() but before any transaction is 
   });
 });
 
-describe("M2 (security review): crearUsuario requires a recent re-authentication, same as the other sensitive usuarios commands", () => {
-  it("raises StepUpRequiredError when the session has never re-authenticated (reautenticadaEn: null)", async () => {
+describe("crearUsuario asks for no re-authentication (user decision 2026-10-21; supersedes M2)", () => {
+  it("does not raise StepUpRequiredError when the session never re-authenticated (reautenticadaEn: null)", async () => {
     const entry = listRegisteredUseCasesForTests().find((e) => e.name === "usuarios.crear")!;
     const session: AuthenticatedSession = { ...fakeSession(["usuarios.crear"]), reautenticadaEn: null };
 
+    // Empty roles is a zod failure, reached only if no step-up check threw first (the REAL policy is wired in the mock above).
     await expect(
-      entry.execute(
-        { nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: ["FARMACEUTICO"] },
-        { session },
-      ),
-    ).rejects.toBeInstanceOf(StepUpRequiredError);
-    // requireRecentReauth (shared/usecase.ts pipeline) runs BEFORE zod.parse
-    // and BEFORE opening a transaction -- confirms this isn't accidentally
-    // passing because of an unrelated validation failure.
-    expect(withTenantTransactionMock).not.toHaveBeenCalled();
+      entry.execute({ nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: [] }, { session }),
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 
-  it("raises StepUpRequiredError when the last re-authentication is older than AUTH_POLICY.reauthWindowMinutes", async () => {
+  it("does not raise StepUpRequiredError when the last re-authentication is long past", async () => {
     const entry = listRegisteredUseCasesForTests().find((e) => e.name === "usuarios.crear")!;
-    const staleReauth = new Date(Date.now() - 60 * 60 * 1000); // 1h ago, window is 15 min
+    const staleReauth = new Date(Date.now() - 60 * 60 * 1000);
     const session: AuthenticatedSession = { ...fakeSession(["usuarios.crear"]), reautenticadaEn: staleReauth };
 
-    await expect(
-      entry.execute(
-        { nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: ["FARMACEUTICO"] },
-        { session },
-      ),
-    ).rejects.toBeInstanceOf(StepUpRequiredError);
-  });
-
-  it("proceeds past the step-up check with a recent reautenticadaEn (reaches validation/transaction as usual)", async () => {
-    const entry = listRegisteredUseCasesForTests().find((e) => e.name === "usuarios.crear")!;
-    const session: AuthenticatedSession = { ...fakeSession(["usuarios.crear"]), reautenticadaEn: new Date() };
-
-    // Empty roles is a zod failure, reached only if step-up did NOT throw --
-    // proves the recent-reauth path is not rejected by StepUpRequiredError.
     await expect(
       entry.execute({ nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: [] }, { session }),
     ).rejects.toBeInstanceOf(ValidationError);

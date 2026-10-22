@@ -3,8 +3,8 @@
  * and diffs it against the usuario's current roles -- `roles` submitted
  * with zero entries is a zod validation error (INV-U02's "always >= 1
  * role" first line of defense; the DB's deferred constraint trigger is the
- * final one). Requires recent re-authentication (task's binding decision:
- * role changes are a sensitive admin action).
+ * final one). No password re-authentication (user decision, 2026-10-21;
+ * supersedes the original binding decision).
  *
  * Audits ONE row per added/removed role (`ASIGNAR_ROL`/`QUITAR_ROL`, plan
  * §9 M03 historia 4: "auditoría por cada rol") -- this is why `audit` is
@@ -26,7 +26,6 @@ import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { record as auditRecord } from "@/shared/audit";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { codigoRolAsignableSchema, ROL_ADMINISTRADOR, ROL_DIRECTOR_TECNICO } from "../domain/roles";
 import { resolverRolesAAsignar } from "./roles-asignables";
 import { esAccionSobreSiMismo, quedariaSinAdministradores } from "../domain/reglas-admin";
@@ -44,7 +43,6 @@ export const cambiarRolesCommand = defineCommand({
   name: "usuarios.roles.modificar",
   permiso: "usuarios.roles.modificar",
   input: cambiarRolesInput,
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { skip: true, reason: "Audits one ASIGNAR_ROL/QUITAR_ROL row per changed role via manual auditRecord calls below, not a single command-level entry." },
   handler: async ({ tx, session, input }) => {
     // Lock FIRST (same single ordered statement as the estado commands, so

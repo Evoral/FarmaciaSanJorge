@@ -5,8 +5,8 @@
  * switch that is on), limited to `PERMISOS_CON_PIN_CONFIGURABLES` by zod.
  *
  * Sensitive: switching an acción off means its acts are attributed to the
- * shared account from then on. `config.editar` + `requireRecentReauth`, like
- * `editarParametro`; audited with the full set before and after. It takes
+ * shared account from then on. `config.editar` (no password
+ * re-authentication, user decision 2026-10-21); audited with the full set before and after. It takes
  * effect on each cuenta de sector's next request (the set is read with the
  * session, no cache).
  *
@@ -17,7 +17,6 @@
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError } from "@/shared/errors";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { PERMISOS_CON_PIN_CONFIGURABLES } from "@/modules/auth/domain/permisos";
 import { diferenciaAccionesConPin, ordenarAccionesConPin } from "../domain/acciones-con-pin";
 import { getCodigosConPin, replaceAccionesConPin } from "../infrastructure/operadores-repository";
@@ -32,7 +31,6 @@ export const configurarAccionesConPinCommand = defineCommand({
   name: "operadores.accionesConPin.configurar",
   permiso: "config.editar",
   input: configurarAccionesConPinInput,
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { entidad: "accion_con_pin", accion: TipoAccion.MODIFICAR },
   handler: async ({ tx, session, input }) => {
     const antes = await getCodigosConPin(tx, session.tenantId);

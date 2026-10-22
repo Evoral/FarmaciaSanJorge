@@ -14,8 +14,7 @@
  *
  * The role row is locked first (`lockRol`), so a concurrent edit/delete of
  * the same role waits and then reads the committed state -- keeps the
- * escalation check and the audit `valorAnterior` truthful. Requires a recent
- * re-authentication. Audited as EDITAR_ROL (before/after: nombre,
+ * escalation check and the audit `valorAnterior` truthful. Audited as EDITAR_ROL (before/after: nombre,
  * descripción, sorted permisos). Takes effect on the next request of every
  * usuario holding the role (permisos are re-read per request, see
  * modules/auth/infrastructure/session-repository.ts).
@@ -24,7 +23,6 @@ import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { motivoNoEditable, motivoNoGestionable, resolverPermisosDeRol, ROL_SISTEMA } from "../domain/roles";
 import {
   existeNombreDeRol,
@@ -44,7 +42,6 @@ export const editarRolCommand = defineCommand({
   name: "roles.editar",
   permiso: "roles.gestionar",
   input: editarRolInput,
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { entidad: "rol", accion: TipoAccion.EDITAR_ROL },
   handler: async ({ tx, session, input }) => {
     if (!(await lockRol(tx, session.tenantId, input.rolId))) throw new NotFoundError("Rol no encontrado.");

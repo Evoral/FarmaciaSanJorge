@@ -20,13 +20,13 @@
  * nothing on a rejected co-signature). Kept in lockstep with that file on
  * purpose -- do not let the two drift on behavior, only on permiso/imports.
  *
- * D7 (user decision, 2026-09-23): `requireRecentReauth` runs BEFORE the
- * handler evaluates any DT credential -- an operator whose OWN step-up has
- * expired can no longer spend the DT's password attempts by calling this
- * command over and over (the final `anularAsientoCommand`/
- * `rectificarAsientoCommand` already required the requester's re-auth, but
- * only AFTER this command had already run and possibly locked out the DT).
- * Same fix applied in lockstep to `modules/stock/application/verificar-co-firma-dt.ts`.
+ * D7 REVERTED (user decision, 2026-10-21): D7 (2026-09-23) made this command
+ * require the requester's OWN recent re-authentication before evaluating any DT
+ * credential. Dropped, like stock did on 2026-09-29: the session already
+ * identifies the requester and the DT's password in the same act is the
+ * authorization that matters. Accepted tradeoff: from an unattended open
+ * session someone could spend the DT's password attempts and temporarily lock
+ * the DT out (shared login counters) -- the lockout is time-bound.
  */
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
@@ -57,9 +57,8 @@ export const verificarCoFirmaDtLibroCommand = defineCommand<VerificarCoFirmaDtLi
   // The operator requesting the anulación must already hold
   // libro.anulacion.solicitar -- see this file's module doc comment.
   permiso: "libro.anulacion.solicitar",
-  // D7 (2026-09-23): the requester's OWN step-up, checked BEFORE any DT
-  // credential is evaluated -- see this file's module doc comment.
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
+  // No `requireRecentReauth`: D7 was reverted (2026-10-21) -- see this file's
+  // module doc comment.
   input: verificarCoFirmaDtInput,
   audit: { skip: true, reason: "Audits CONDITIONALLY (failed attempts only) via a manual auditRecord call -- see this file's module doc comment." },
   handler: async ({ tx, session, input }) => {

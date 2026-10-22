@@ -1,10 +1,8 @@
 /**
  * `designarDirectorTecnico` (M04, FASE 3 point 3.9, INV-DT-001/002/005).
  * INSERT-only: a designation is never edited, only ceased (see
- * `cesar-designacion.ts`). Requires recent re-authentication -- designating
- * (or re-designating) the tenant's Director Tecnico is exactly the kind of
- * sensitive admin action the rest of this codebase already gates behind
- * step-up (crear-usuario/cambiar-roles/suspender-usuario, etc.).
+ * `cesar-designacion.ts`). No password re-authentication (user decision,
+ * 2026-10-21): the session identifies who acts.
  *
  * INV-DT-001 (usuario must hold role DIRECTOR_TECNICO), INV-DT-002 (no two
  * overlapping TITULAR periods per tenant, a GiST EXCLUDE constraint) and
@@ -41,7 +39,6 @@
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid, nonEmptyString } from "@/shared/validation";
 import { CARACTERES_DESIGNACION, isoDate } from "../domain/designacion";
@@ -66,7 +63,6 @@ export const designarDirectorTecnicoCommand = defineCommand({
   name: "dt.designar",
   permiso: "dt.designar",
   input: designarDirectorTecnicoInput,
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { entidad: "designacion_director_tecnico", accion: TipoAccion.CREAR },
   handler: async ({ tx, session, input }) => {
     // Fresh read inside THIS transaction (not the picker's stale list) --

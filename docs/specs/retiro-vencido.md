@@ -74,7 +74,7 @@ En `fsj.parametro` (tipo `NUMERO`), siguiendo el patrón de `meses_vencimiento_p
 
 | Acción | Permiso |
 |---|---|
-| Editar "Días para el retiro" | `config.editar` (como el resto de los parámetros; solo ADMINISTRADOR, con reautenticación). |
+| Editar "Días para el retiro" | `config.editar` (como el resto de los parámetros; solo ADMINISTRADOR). |
 | Reactivar | `entregas.registrar` (es parte del flujo del mostrador). Está en `PERMISOS_CON_PIN_CONFIGURABLES`: la Server Action va en `conOperador`. |
 | Autorizar un preparado vencido | Ser **DT vigente** (co-firma con su contraseña), no un permiso del operador. |
 | Job diario | `CRON_SECRET`; actúa como el usuario SISTEMA de cada tenant. |

@@ -26,13 +26,11 @@
  * transaction already holds never waits. A preparación that appears after step 1 (a reserva made meanwhile) is not
  * locked, and locking it now would invert the order: the command refuses ("volvé a intentar") instead.
  *
- * Permisos: `preparaciones.confirmar` via the pipeline (recent re-authentication, INV-X02, same window as
- * `confirmarPreparacion`) and `etiquetas.generar` checked first thing in the handler. Audited ONCE (the pipeline writes one row per command), on the receta
+ * Permisos: `preparaciones.confirmar` via the pipeline (no re-authentication, user decision 2026-10-21) and `etiquetas.generar` checked first thing in the handler. Audited ONCE (the pipeline writes one row per command), on the receta
  * (CONFIRMAR): the receta's asiento and each confirmed preparación with its etiqueta.
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { authorize } from "@/shared/auth/authorize";
 import { AppError, DomainError, NotFoundError, userMessageFor } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
@@ -81,7 +79,6 @@ function conNumeroDeItem(error: unknown, numero: number): unknown {
 export const confirmarReservasRecetaCommand = defineCommand({
   name: "preparaciones.confirmarReservasReceta",
   permiso: "preparaciones.confirmar",
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   input: confirmarReservasRecetaInput,
   audit: { entidad: "receta", accion: TipoAccion.CONFIRMAR },
   handler: async ({ tx, session, input }) => {

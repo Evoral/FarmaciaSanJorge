@@ -64,8 +64,8 @@
  * operator). Accepted tradeoff: from an unattended open session someone
  * could spend the DT's password attempts and temporarily lock the DT out
  * (shared login counters, see RATE LIMITING below) -- the lockout is
- * time-bound. `modules/libro/application/verificar-co-firma-dt.ts` KEEPS
- * D7 (anular/rectificar asiento are legal-record changes).
+ * time-bound. `modules/libro/application/verificar-co-firma-dt.ts` reverted D7
+ * the same way on 2026-10-21.
  *
  * RATE LIMITING (task-required): reuses `usuario.intentos_fallidos`/
  * `bloqueado_hasta` and `AUTH_POLICY.maxFailedLoginAttempts`/

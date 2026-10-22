@@ -53,8 +53,8 @@ vi.mock("@/shared/auth/session", () => ({
   requireSession: vi.fn(async () => {
     throw new Error("requireSession() unexpectedly called -- inject a session via execute(input, { session })");
   }),
-  // Not what this file is testing (that's tests/unit/usuarios-usecase-registry.test.ts's
-  // M2 case) -- every session here has a fresh reautenticadaEn anyway, so a
+  // Not what this file is testing (tests/unit/usuarios-usecase-registry.test.ts
+  // checks that no usuarios command asks for re-authentication any more) -- a
   // no-op vs. the real policy would not change any assertion below.
   requireRecentReauth: vi.fn(),
 }));

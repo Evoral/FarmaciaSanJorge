@@ -21,14 +21,10 @@
  * `audit` option can only write ONE row per invocation, which cannot
  * express "1 + N rows" on its own.
  *
- * M2 (security review): declares `requireRecentReauth` UNCONDITIONALLY,
- * same as every other sensitive usuarios command (suspender/reactivar/
- * baja/restablecerCredencial/cambiarRoles). Creating a user mints a brand
- * new credential (including, potentially, a new ADMINISTRADOR) -- without
- * this, a hijacked admin session (stolen cookie, XSS, left-open browser)
- * could mint itself a fresh ADMINISTRADOR account without ever having to
- * prove the password again, even though `cambiarRoles` already requires
- * exactly that step-up to grant the SAME role to an EXISTING user.
+ * M2 (security review) declared `requireRecentReauth` here because creating a
+ * user mints a brand new credential. User decision 2026-10-21: no usuarios
+ * command asks for password re-authentication any more (the session identifies
+ * who acts); the escalation checks below remain.
  *
  * DP-03 (migration 0054): `roles` are codes of the session's TENANT roles,
  * resolved and escalation-checked by `resolverRolesAAsignar` before the
@@ -97,7 +93,6 @@ export const crearUsuarioCommand = defineCommand({
   name: "usuarios.crear",
   permiso: "usuarios.crear",
   input: crearUsuarioInput,
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { skip: true, reason: "Audits one CREAR row plus one ASIGNAR_ROL row per initial role via manual auditRecord calls below (plan §9 M03 historia 2), not a single command-level entry." },
   handler: async ({ tx, session, input }) => {
     // Field-level duplicate errors (task requirement), without leaking

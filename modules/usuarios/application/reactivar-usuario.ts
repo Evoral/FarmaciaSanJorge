@@ -18,7 +18,6 @@ import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid, nonEmptyString } from "@/shared/validation";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { lockUsuarioYAdministradoresActivos } from "../infrastructure/admin-guard";
 import { loadUsuarioParaAccion, cambiarEstadoUsuario } from "../infrastructure/usuario-repository";
 
@@ -33,7 +32,6 @@ export const reactivarUsuarioCommand = defineCommand({
   name: "usuarios.reactivar",
   permiso: "usuarios.reactivar",
   input: reactivarUsuarioInput,
-  requireRecentReauth: { maxAgeMinutes: AUTH_POLICY.reauthWindowMinutes },
   audit: { entidad: "usuario", accion: "REACTIVAR" },
   handler: async ({ tx, session, input }) => {
     // M3: lock the target row first -- see admin-guard.ts's LOCK ORDER doc
