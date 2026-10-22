@@ -22,10 +22,12 @@ import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listJornadasPendientes } from "@/modules/cierres/application/list-jornadas-pendientes";
 import { listAsientosJornada } from "@/modules/cierres/application/list-asientos-jornada";
+import { listNumeracionPorFijar } from "@/modules/cierres/application/list-numeracion-por-fijar";
 import { FirmarForm } from "@/modules/cierres/ui/firmar-form";
 import { primerCierreSinImprimir } from "@/modules/cierres/application/imprimir-cierre-pdf";
 import { mensajeImpresionFueraDeOrden, puedeImprimirJornada } from "@/modules/cierres/domain/impresion";
 import { etiquetaEstadoVisual } from "@/modules/libro/domain/estado-visual";
+import { etiquetaLibro } from "@/modules/libro/domain/integridad";
 import { tonoEstadoAsiento } from "@/modules/libro/ui/libro-nav";
 import { ImprimirHojaLink } from "@/modules/cierres/ui/imprimir-hoja-link";
 import { formatFechaIso } from "@/shared/format/fecha";
@@ -71,6 +73,11 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
 
   const fueraDeTermino = pendientes.filter((p) => p.fueraDeTermino).length;
   const mostrarFirma = puedeFirmar && laMasAntigua !== null;
+  // Migration 0097 (INV-L26): the first cierre of a libro fixes its numbering; the firma form asks to confirm it.
+  const numeracionPorConfirmar =
+    mostrarFirma && laMasAntigua
+      ? (await listNumeracionPorFijar(laMasAntigua.fecha)).map((l) => ({ libroId: l.libroId, etiquetaLibro: etiquetaLibro(l.tipo), numeroInicial: l.numeroInicial }))
+      : [];
 
   return (
     <div className="page list-view">
@@ -260,7 +267,7 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
 
           {mostrarFirma ? (
             <aside className="split-aside" aria-label="Firma de la jornada">
-              <FirmarForm fecha={laMasAntigua.fecha} fueraDeTermino={laMasAntigua.fueraDeTermino} />
+              <FirmarForm fecha={laMasAntigua.fecha} fueraDeTermino={laMasAntigua.fueraDeTermino} numeracionPorConfirmar={numeracionPorConfirmar} />
             </aside>
           ) : null}
         </div>

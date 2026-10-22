@@ -1457,6 +1457,10 @@ model LibroRubricado {
   fechaCierre       DateTime? @map("fecha_cierre") @db.Date
   registradoPorId   String    @map("registrado_por_id") @db.Uuid
   registradoEn      DateTime  @default(now()) @map("registrado_en") @db.Timestamptz(6)
+  /// Migration 0097 (INV-L26): first asiento number. Changes only via fsj.libro_configurar_numeracion until the libro is fixed.
+  numeroInicial     BigInt    @default(1) @map("numero_inicial")
+  /// Migration 0097: the first signed cierre covering this libro's asientos; set once by fsj.cierre_diario_firmar.
+  numeracionFijadaCierreId String? @map("numeracion_fijada_cierre_id") @db.Uuid
 
   tenant            Tenant               @relation(fields: [tenantId], references: [id])
   registradoPor     Usuario              @relation(fields: [registradoPorId], references: [id])

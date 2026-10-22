@@ -8,20 +8,33 @@
  * `../domain/demora.ts#calcularFueraDeTermino`) is true. The jornada in
  * progress is never offered (DP-18b revised, migration 0075: the cierre
  * diario is signed the day after).
+ *
+ * Migration 0097 (INV-L26): when this cierre is the first to cover a libro's asientos, it fixes that libro's first
+ * number for good. The DT then confirms the number each libro starts at (mandatory checkbox, the shown numbers travel
+ * as hidden fields and are re-checked server-side), with a link to `/libro/numeracion` to change it first.
  */
 import { useState } from "react";
-import { CircleAlert, PenLine } from "lucide-react";
+import Link from "next/link";
+import { CircleAlert, Hash, PenLine } from "lucide-react";
 import { firmarCierreAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { MOTIVO_DEMORA_VALUES, MOTIVO_DEMORA_LABELS } from "../domain/motivo-demora";
 
+export interface NumeracionPorConfirmar {
+  libroId: string;
+  etiquetaLibro: string;
+  numeroInicial: string;
+}
+
 export interface FirmarFormProps {
   fecha: string;
   fueraDeTermino: boolean;
+  /** Libros whose numbering this cierre fixes (empty after the first cierre of every libro). */
+  numeracionPorConfirmar: NumeracionPorConfirmar[];
 }
 
-export function FirmarForm({ fecha, fueraDeTermino }: FirmarFormProps) {
+export function FirmarForm({ fecha, fueraDeTermino, numeracionPorConfirmar }: FirmarFormProps) {
   const [motivoDemora, setMotivoDemora] = useState("");
 
   return (
@@ -71,6 +84,36 @@ export function FirmarForm({ fecha, fueraDeTermino }: FirmarFormProps) {
                 </div>
               ) : null}
             </>
+          ) : null}
+
+          {numeracionPorConfirmar.length > 0 ? (
+            <div className="alert alert-warn flex-col items-stretch gap-3">
+              <div className="flex gap-2">
+                <Hash className="size-4 flex-none" aria-hidden />
+                <div className="flex flex-col gap-1">
+                  <p className="font-medium">Este cierre deja fija la numeración del libro.</p>
+                  <ul className="flex flex-col gap-0.5">
+                    {numeracionPorConfirmar.map((l) => (
+                      <li key={l.libroId}>
+                        {l.etiquetaLibro}: el primer asiento será el <span className="font-mono font-semibold tabular-nums">Nº {l.numeroInicial}</span>.
+                        <input type="hidden" name="numeracion" value={`${l.libroId}:${l.numeroInicial}`} />
+                      </li>
+                    ))}
+                  </ul>
+                  <p>Después de firmar no se puede cambiar.</p>
+                  <p>
+                    ¿No es así?{" "}
+                    <Link href="/libro/numeracion" className="font-medium underline underline-offset-2">
+                      Ir a Numeración del libro
+                    </Link>
+                  </p>
+                </div>
+              </div>
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" id="confirmaNumeracion" name="confirmaNumeracion" required className="mt-0.5 size-4 flex-none" />
+                <span>Confirmo la numeración y entiendo que no se podrá cambiar.</span>
+              </label>
+            </div>
           ) : null}
 
           <div className="field">

@@ -37,6 +37,7 @@ vi.mock("@/modules/cierres/infrastructure/cierre-repository", () => ({
   cargarUsuarioParaPasswordFirma: vi.fn(async () => ({ passwordHash: "hash", estado: "ACTIVO", intentosFallidos: 0, bloqueadoHasta: null })),
   registrarFallaPasswordFirma: vi.fn(async () => undefined),
   registrarExitoPasswordFirma: vi.fn(async () => undefined),
+  listLibrosPorFijarNumeracion: vi.fn(async () => []),
   firmarCierreDb: vi.fn(async () => ({ id: "c1", fecha: "2026-06-15", cantidadAsientos: 0, hashLote: "h", fueraDeTermino: false, motivoDemora: null, fechaFirma: new Date() })),
   listCierres: vi.fn(async () => ({ items: [], total: 0 })),
   getCierreDetalle: vi.fn(async () => null),

@@ -75,6 +75,7 @@ vi.mock("@/modules/cierres/infrastructure/cierre-repository", () => ({
   firmarCierreDb: (...args: unknown[]) => firmarCierreDbMock(...args),
   jornadaActualTenant: (...args: unknown[]) => jornadaActualTenantMock(...args),
   getPlazoFirmaDias: (...args: unknown[]) => getPlazoFirmaDiasMock(...args),
+  listLibrosPorFijarNumeracion: async () => [],
 }));
 
 const { firmarCierre } = await import("@/modules/cierres/application/firmar-cierre");

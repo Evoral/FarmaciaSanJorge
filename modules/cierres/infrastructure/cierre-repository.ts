@@ -322,6 +322,44 @@ export async function firmarCierreDb(tx: Prisma.TransactionClient, input: Firmar
 }
 
 // ============================================================================
+// Migration 0097 (INV-L26): libros whose numbering the cierre of `fecha` fixes -- the same set
+// `fsj.cierre_diario_firmar` fixes: not fixed yet, with an asiento (any estado) on or before the jornada.
+// ============================================================================
+
+export interface LibroPorFijarNumeracion {
+  libroId: string;
+  tipo: "RECETARIO" | "PSICOTROPICO" | "ESTUPEFACIENTE";
+  numeroInicial: string;
+}
+
+/**
+ * `bloquear` takes the cierre's own advisory lock first (`fsj.cierre_diario_firmar` and
+ * `fsj.libro_configurar_numeracion` take it too; it is re-entrant within the transaction), so the numbers the DT
+ * confirmed cannot change between this read and the signature.
+ */
+export async function listLibrosPorFijarNumeracion(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  fecha: string,
+  opciones: { bloquear: boolean },
+): Promise<LibroPorFijarNumeracion[]> {
+  if (opciones.bloquear) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${tenantId}::uuid::text))`;
+  }
+  return tx.$queryRaw<LibroPorFijarNumeracion[]>`
+    SELECT l.id::text AS "libroId", l.tipo::text AS tipo, l.numero_inicial::text AS "numeroInicial"
+    FROM fsj.libro_rubricado l
+    WHERE l.tenant_id = ${tenantId}::uuid
+      AND l.numeracion_fijada_cierre_id IS NULL
+      AND (
+        EXISTS (SELECT 1 FROM fsj.asiento_recetario a WHERE a.tenant_id = l.tenant_id AND a.libro_id = l.id AND a.fecha_asiento <= ${fecha}::date)
+        OR EXISTS (SELECT 1 FROM fsj.asiento_contralor a WHERE a.tenant_id = l.tenant_id AND a.libro_id = l.id AND a.fecha_asiento <= ${fecha}::date)
+      )
+    ORDER BY l.tipo
+  `;
+}
+
+// ============================================================================
 // 10.1/10.2: historial paginado + detalle (comprobante).
 // ============================================================================
 
