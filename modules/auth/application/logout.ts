@@ -16,6 +16,8 @@ import { revokeSesion } from "../infrastructure/session-repository";
 export const logoutCommand = defineCommand({
   name: "auth.logout",
   permiso: "auth.logout",
+  // Leaving must always be possible, even with a password/PIN step pending.
+  permitirPasosPendientes: true,
   input: z.object({}),
   // Session revocation is not itself a distinct M02-audited event (plan
   // §14 lists activation, lockout, and credential reset -- not routine
