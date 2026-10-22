@@ -54,6 +54,8 @@ vi.mock("@/modules/auth/infrastructure/usuario-repository", () => ({
   resolveLoginByEmail: (...args: unknown[]) => resolveLoginByEmailMock(...args),
   recordLoginSuccess: (...args: unknown[]) => recordLoginSuccessMock(...args),
   recordLoginFailure: (...args: unknown[]) => recordLoginFailureMock(...args),
+  // Success path of login() also derives the pending steps; irrelevant to this test.
+  loadPasosPendientes: async () => [],
 }));
 
 const insertSesionInTxMock = vi.fn(async (...args: unknown[]): Promise<unknown> => {
