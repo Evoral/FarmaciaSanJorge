@@ -9,6 +9,8 @@
  */
 import type { Prisma } from "@/generated/prisma/client";
 import { getPrismaClient } from "@/shared/db/client";
+import type { PasoPendiente } from "@/shared/auth/pasos";
+import { derivarPasosPendientes } from "../domain/pasos-pendientes";
 
 export interface LoginCandidate {
   tenantId: string;
@@ -55,6 +57,21 @@ export async function resolveLoginByEmail(email: string): Promise<LoginCandidate
     intentosFallidos: row.intentos_fallidos,
     bloqueadoHasta: row.bloqueado_hasta,
   };
+}
+
+/** Pending steps (temporary password, mandatory PIN) of a usuario, inside an already-open tenant transaction. Login uses it to pick the first page to land on. */
+export async function loadPasosPendientes(tx: Prisma.TransactionClient, usuarioId: string): Promise<readonly PasoPendiente[]> {
+  const row = await tx.usuario.findUnique({
+    where: { id: usuarioId },
+    select: { debeCambiarPassword: true, pinHash: true, esSector: true, esTecnico: true },
+  });
+  if (!row) return [];
+  return derivarPasosPendientes({
+    debeCambiarPassword: row.debeCambiarPassword,
+    tienePin: row.pinHash !== null,
+    esSector: row.esSector,
+    esTecnico: row.esTecnico,
+  });
 }
 
 /** Successful login (FASE 2 point 2.2): resets the failed-attempt counter/lockout and stamps `ultimo_acceso`. */

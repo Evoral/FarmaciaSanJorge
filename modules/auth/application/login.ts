@@ -31,17 +31,18 @@ import { generateOpaqueToken, hashToken } from "../domain/token";
 import { computeAbsoluteExpiry } from "../domain/session-policy";
 import { verifyPassword } from "../domain/password";
 import { decideLogin } from "../domain/login-policy";
-import { resolveLoginByEmail, recordLoginSuccess, recordLoginFailure } from "../infrastructure/usuario-repository";
+import { resolveLoginByEmail, recordLoginSuccess, recordLoginFailure, loadPasosPendientes } from "../infrastructure/usuario-repository";
 import { insertSesionInTx } from "../infrastructure/session-repository";
 import { record as auditRecord, TipoAccion } from "@/shared/audit";
 import { withTenantTransaction } from "@/shared/db/transaction";
 import { AUTH_POLICY } from "@/shared/auth/policy";
+import type { PasoPendiente } from "@/shared/auth/pasos";
 
 /** The single, generic message for EVERY rejected login attempt (see module doc comment) -- never branch UI copy on the internal `LoginDecision`. */
 export const GENERIC_LOGIN_ERROR = "El email o la contraseña son incorrectos, o la cuenta no puede iniciar sesión en este momento.";
 
 export type LoginResult =
-  | { ok: true; rawToken: string; expiraEn: Date }
+  | { ok: true; rawToken: string; expiraEn: Date; pasoPendiente: PasoPendiente | null }
   | { ok: false; message: string };
 
 /**
@@ -79,7 +80,11 @@ export async function login(email: string, password: string, ip: string | null, 
       const expiraEn = computeAbsoluteExpiry(now);
       await insertSesionInTx(tx, { tenantId: candidate.tenantId, usuarioId: candidate.usuarioId, tokenHash, ip, userAgent, expiraEn });
 
-      return { ok: true, rawToken, expiraEn };
+      // Success path only: a rejected login must stay uniform (no extra read,
+      // no hint about the account's state).
+      const [pasoPendiente = null] = await loadPasosPendientes(tx, candidate.usuarioId);
+
+      return { ok: true, rawToken, expiraEn, pasoPendiente };
     }
 
     // Only a WRONG PASSWORD for an otherwise-live account counts toward
@@ -96,9 +101,8 @@ export async function login(email: string, password: string, ip: string | null, 
 
       if (lockedOut) {
         // No session exists to author this -- the affected usuario is
-        // recorded as their own audit actor (same convention as
-        // ACTIVAR_CUENTA: the subject of a public, pre-session action is
-        // its own author, never a client-supplied id).
+        // recorded as their own audit actor (the subject of a public,
+        // pre-session action is its own author, never a client-supplied id).
         await auditRecord(tx, {
           tenantId: candidate.tenantId,
           usuarioId: candidate.usuarioId,
