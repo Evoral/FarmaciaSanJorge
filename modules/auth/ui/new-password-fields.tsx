@@ -2,8 +2,8 @@
 
 /**
  * "Nueva contraseña" + "Repetir contraseña" pair with a live requirements
- * checklist. Every form where a usuario chooses a password (/activar,
- * /cuenta) renders this, and the checklist iterates
+ * checklist. Every form where a usuario chooses a password (/cuenta,
+ * the forced password change, the admin forms) renders this, and the checklist iterates
  * `PASSWORD_REQUIREMENTS` -- the same list the server validates against
  * (shared/auth/policy.ts) -- so the UI can never drift from the real rule.
  *

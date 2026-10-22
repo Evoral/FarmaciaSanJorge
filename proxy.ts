@@ -47,7 +47,7 @@ import type { NextRequest } from "next/server";
 import { SESSION_COOKIE_NAME } from "@/modules/auth/domain/cookie-policy";
 
 /** Paths reachable without a session -- excluded from the redirect below. */
-const PUBLIC_PATHS = ["/login", "/activar"];
+const PUBLIC_PATHS = ["/login"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
@@ -114,8 +114,8 @@ export const config = {
     // redirect or an HTML-shaped CSP here would be the wrong response
     // shape; route handlers call requireSession() themselves), static
     // assets, image optimization, and well-known metadata files. Everything
-    // else runs through `proxy()` above, which itself exempts /login and
-    // /activar from the redirect (but NOT from the CSP header).
+    // else runs through `proxy()` above, which itself exempts /login
+    // from the redirect (but NOT from the CSP header).
     "/((?!api|_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|logo.png|sitemap.xml|robots.txt).*)",
   ],
 };

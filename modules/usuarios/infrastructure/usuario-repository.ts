@@ -1,8 +1,8 @@
 /**
  * Prisma-backed access to `fsj.usuario` / `fsj.usuario_rol` /
- * `fsj.usuario_estado_historial` / `fsj.credencial_activacion` for M03
- * (FASE 3 points 3.1-3.8). Every function here runs inside an ALREADY OPEN
- * tenant transaction (`tx`, handed in by `shared/usecase.ts`'s
+ * `fsj.usuario_estado_historial` for M03 (FASE 3 points 3.1-3.8). Every
+ * function here runs inside an ALREADY OPEN tenant transaction (`tx`,
+ * handed in by `shared/usecase.ts`'s
  * `defineCommand`/`defineQuery`) -- nothing here opens its own transaction
  * or imports `shared/db/transaction` (that import is ESLint-forbidden
  * outside `modules/auth`, see eslint.config.mjs).
@@ -472,47 +472,6 @@ export async function listUsuarioEstadoHistorial(tx: Prisma.TransactionClient, u
     },
   });
   return rows;
-}
-
-// ============================================================================
-// Credentials (3.2 / 3.6): reuses the exact hashing/format from
-// modules/auth/domain/token.ts and scripts/create-tenant.ts.
-// ============================================================================
-
-export interface EmitirCredencialInput {
-  tenantId: string;
-  usuarioId: string;
-  tokenHash: string;
-  emitidaPorId: string;
-  venceEn: Date;
-  motivoEmision: "ALTA" | "RESTABLECIMIENTO";
-}
-
-export async function insertCredencialActivacion(tx: Prisma.TransactionClient, input: EmitirCredencialInput): Promise<void> {
-  await tx.credencialActivacion.create({
-    data: {
-      tenantId: input.tenantId,
-      usuarioId: input.usuarioId,
-      tokenHash: input.tokenHash,
-      emitidaPorId: input.emitidaPorId,
-      venceEn: input.venceEn,
-      motivoEmision: input.motivoEmision,
-    },
-  });
-}
-
-/** Revokes every non-used, non-revoked credential for a usuario (INV-U08: reset -- and suspend/baja, task's binding decision -- must invalidate pending credentials too). Returns the number revoked. */
-export async function revokeCredencialesActivas(
-  tx: Prisma.TransactionClient,
-  tenantId: string,
-  usuarioId: string,
-  now: Date,
-): Promise<number> {
-  const result = await tx.credencialActivacion.updateMany({
-    where: { tenantId, usuarioId, usadaEn: null, revocadaEn: null },
-    data: { revocadaEn: now },
-  });
-  return result.count;
 }
 
 // ============================================================================

@@ -26,9 +26,9 @@
  * every OTHER caller in this codebase, which still expects step-up to
  * throw on failure (same contract as before this feature).
  *
- * PIN NEVER VALID FOR LOGIN/ACTIVATION/PASSWORD-CHANGE/CREDENTIAL-RESET/DT
+ * PIN NEVER VALID FOR LOGIN/PASSWORD-CHANGE/CREDENTIAL-RESET/DT
  * CO-FIRMA: this is structural, not a runtime check -- `login.ts`,
- * `activar-cuenta.ts`, `cambiar-password.ts`, `restablecer-credencial.ts`
+ * `cambiar-password.ts`, `restablecer-credencial.ts`
  * and both `verificar-co-firma-dt.ts` files never read `pin_hash` at all;
  * `pin_hash` is only ever compared against user input inside modules/auth:
  * here, and in `./verificador-pin.ts` (the empleado identifying themselves

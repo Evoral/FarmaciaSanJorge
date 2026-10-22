@@ -1,12 +1,10 @@
 /**
- * Centralized auth policy values (credential expiry, session timeouts,
- * lockout thresholds). Pure constants -- no I/O, no Prisma, safe to import
+ * Centralized auth policy values (session timeouts, lockout thresholds). Pure constants -- no I/O, no Prisma, safe to import
  * from anywhere (including a module's domain layer).
  *
  * DP-20 (session/password policy) is UNRESOLVED -- see plan §21. Everything
- * in this file except `activationCredentialTtlHours` (a resolved value: 72h,
- * plan §9 M00 "Parametros iniciales") is a CONSERVATIVE DEFAULT, chosen so
- * FASE 2 has something safe to build against. Change the values here (one
+ * in this file is a CONSERVATIVE DEFAULT, chosen so FASE 2 has something
+ * safe to build against. Change the values here (one
  * place) once DP-20 resolves -- do not hardcode any of these numbers
  * anywhere else.
  *
@@ -19,9 +17,6 @@
  */
 
 export const AUTH_POLICY = {
-  /** M02: activation/reset credential validity window. Resolved value (plan §9 M00). */
-  activationCredentialTtlHours: 72,
-
   /** DP-20 pending. Idle session timeout. */
   sessionIdleMinutes: 30,
 
@@ -60,8 +55,8 @@ export type AuthPolicy = typeof AUTH_POLICY;
 export const MAX_PASSWORD_LENGTH = 256;
 
 /**
- * Password policy validation (FASE 2 points 2.3/2.4: shared by activation
- * and change-password). Checks `AUTH_POLICY.minPasswordLength`, at least
+ * Password policy validation (FASE 2 point 2.4: shared by every form that
+ * sets a password). Checks `AUTH_POLICY.minPasswordLength`, at least
  * one uppercase letter (user decision, 2026-09-28), and the technical
  * guards `MAX_PASSWORD_LENGTH` / not-blank (internal: enforced, not listed
  * in the checklist). Other DP-20 rules (breach-list checks, etc.) remain

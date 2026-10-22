@@ -1,5 +1,5 @@
 /**
- * `logout` (M02, FASE 2 point 2.2). Unlike `login`/`activarCuenta`, a
+ * `logout` (M02, FASE 2 point 2.2). Unlike `login`, a
  * logout ALWAYS has an existing session by definition (there is nothing to
  * log out of otherwise) -- so, unlike those two, this goes through the
  * normal `defineCommand` pipeline like any other authenticated use case.

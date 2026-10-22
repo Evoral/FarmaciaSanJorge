@@ -38,7 +38,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   // Next 16.4 validates parallel-route slots strictly and, with the `(app)/@modal/[...catchAll]` slot, drops the
-  // sibling `(auth)` pages (/login, /activar) as "unreachable" (404). Loose matching restores the 16.3 behavior.
+  // sibling `(auth)` pages (/login) as "unreachable" (404). Loose matching restores the 16.3 behavior.
   deprecated: { looseRouteMatching: true },
   logging: {
     // In development Next prints every Server Function call WITH its arguments.

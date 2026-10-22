@@ -1,7 +1,7 @@
 /**
  * `cambiarPassword(actual, nueva, nuevaRepeat)` (M02, FASE 2 point 2.4).
  * Always has a session (a logged-in usuario changing their own password),
- * so unlike `login`/`activarCuenta` this goes through the normal
+ * so unlike `login` this goes through the normal
  * `defineCommand` pipeline.
  */
 import { z } from "zod";

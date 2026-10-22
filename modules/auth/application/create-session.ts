@@ -8,7 +8,7 @@
  * Next.js-specific step (`modules/auth/infrastructure/cookie-store.ts`)
  * the caller performs once it has `rawToken`/`expiraEn`, since a Server
  * Function may need to do other work (e.g. clear `intentos_fallidos`,
- * write `ACTIVAR_CUENTA`/login audit) in the same request before the
+ * write the login audit) in the same request before the
  * response is produced.
  */
 import { generateOpaqueToken, hashToken } from "../domain/token";
