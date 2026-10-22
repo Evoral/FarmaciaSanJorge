@@ -2,6 +2,7 @@
  * The shape `requireSession()` returns to callers (FASE 2, plan §8 use-case
  * pattern step 1). Pure type-only module -- no I/O.
  */
+import type { PasoPendiente } from "@/shared/auth/pasos";
 import type { Permiso } from "./permisos";
 import type { MetodoVerificacion } from "./verificacion-identidad";
 
@@ -55,4 +56,10 @@ export interface AuthenticatedSession {
    * (permisos = cuenta de sector ∩ empleado), and this says where from.
    */
   terminal?: TerminalDeOrigen | null;
+  /**
+   * Steps this usuario must complete before using the app (first element = the
+   * current one; docs/specs/contrasena-temporal.md). Built only by
+   * `validateSession`; optional so fixtures that omit it mean "none pending".
+   */
+  pasosPendientes?: readonly PasoPendiente[];
 }

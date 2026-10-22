@@ -93,6 +93,10 @@ export interface UsuarioConPermisos {
   /** Migration 0077: a cuenta de sector (shared session per work area, docs/specs/cuentas-de-sector.md). */
   esSector: boolean;
   esTecnico: boolean;
+  /** `usuario.debe_cambiar_password`: the password was set by someone else and must be changed (docs/specs/contrasena-temporal.md). */
+  debeCambiarPassword: boolean;
+  /** Whether a PIN is configured; the hash itself is never exposed. */
+  tienePin: boolean;
   permisos: ReadonlySet<Permiso>;
 }
 
@@ -128,6 +132,8 @@ const USUARIO_CON_PERMISOS_SELECT = {
   estado: true,
   esSector: true,
   esTecnico: true,
+  debeCambiarPassword: true,
+  pinHash: true,
   rolesAsignados: {
     select: {
       rol: {
@@ -183,6 +189,8 @@ function toUsuarioConPermisos(usuario: UsuarioConPermisosRow): UsuarioConPermiso
     estado: usuario.estado,
     esSector: usuario.esSector,
     esTecnico: usuario.esTecnico,
+    debeCambiarPassword: usuario.debeCambiarPassword,
+    tienePin: usuario.pinHash !== null,
     permisos,
   };
 }
