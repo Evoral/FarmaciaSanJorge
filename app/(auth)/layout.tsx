@@ -28,7 +28,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           <span className="text-sm text-zinc-500">Farmacia San Jorge</span>
         </span>
       </div>
-      <div className="card w-full max-w-sm p-6 sm:p-8">{children}</div>
+      <div className="glass-panel w-full max-w-sm p-6 sm:p-8">{children}</div>
     </div>
   );
 }

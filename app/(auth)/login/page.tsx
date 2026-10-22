@@ -14,6 +14,7 @@ import { useActionState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { loginAction, type LoginFormState } from "./actions";
 import { useFormSubmit } from "@/shared/ui/use-form-submit";
+import { WavesBackground } from "@/shared/ui/waves-background";
 
 const initialState: LoginFormState = { message: null };
 
@@ -44,6 +45,7 @@ export default function LoginPage() {
 
   return (
     <main>
+      <WavesBackground />
       <h1 className="mb-6 text-2xl font-semibold">Iniciar sesión</h1>
 
       <form action={formAction} onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
