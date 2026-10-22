@@ -1,15 +1,13 @@
 /**
  * `crearUsuario` (M03, FASE 3 point 3.2, INV-U01/INV-U07). No
  * self-registration -- only an ADMINISTRADOR with `usuarios.crear` reaches
- * this. The new usuario starts `PENDIENTE_ACTIVACION` (schema default,
- * never set explicitly) with a one-use, 72h activation credential, shown
- * to the caller EXACTLY ONCE in this command's output -- never persisted
- * in plain text, never re-derivable, never included in the audit row
- * (INV-AU-001). Reuses the exact token generation/hashing
- * (`modules/auth/domain/token.ts`) and TTL (`AUTH_POLICY`) as
- * `scripts/create-tenant.ts`'s first-admin bootstrap, so every activation
- * credential in the system has the same shape regardless of how it was
- * issued.
+ * this. The caller types a TEMPORARY password (docs/specs/contrasena-temporal.md):
+ * the usuario is created `ACTIVO` with that password's argon2id hash and
+ * `debeCambiarPassword`, so at first login they must replace it and set a PIN
+ * (no activation credential is generated any more). INV-U07 ("starts
+ * `PENDIENTE_ACTIVACION`") is superseded by the spec for this flow. The
+ * plaintext is hashed here and never persisted, returned nor audited
+ * (INV-AU-001); the caller hands it over in person.
  *
  * M1 (security review): plan §9 M03 historia 2 requires "auditoría `CREAR`
  * + `ASIGNAR_ROL`" -- one `ASIGNAR_ROL` row PER initial role, same
@@ -44,12 +42,12 @@ import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { record as auditRecord } from "@/shared/audit";
 import { ValidationError } from "@/shared/errors";
 import { email as emailSchema, nonEmptyString } from "@/shared/validation";
-import { AUTH_POLICY } from "@/shared/auth/policy";
-import { generateOpaqueToken, hashToken } from "@/modules/auth/domain/token";
+import { validatePassword } from "@/shared/auth/policy";
+import { hashPassword } from "@/modules/auth/domain/password";
 import { codigoRolAsignableSchema, ROLES_VEDADOS_A_SECTOR } from "../domain/roles";
 import { identidadDeCuentaDeSector } from "../domain/cuenta-de-sector";
 import { resolverRolesAAsignar } from "./roles-asignables";
-import { existeEmail, existeDni, insertUsuario, insertUsuarioRol, insertCredencialActivacion } from "../infrastructure/usuario-repository";
+import { existeEmail, existeDni, insertUsuario, insertUsuarioRol } from "../infrastructure/usuario-repository";
 
 const textoOpcional = z.string().trim().optional();
 
@@ -71,11 +69,22 @@ const crearUsuarioInput = z
       .transform((roles) => [...new Set(roles)]),
     /** A cuenta de sector (shared session per work area) instead of a person's own account. */
     esSector: z.boolean().default(false),
+    /** The temporary password the Administrador hands over in person (replaced by the usuario at first login). */
+    passwordTemporal: z.string(),
+    passwordTemporalRepeat: z.string(),
   })
   .superRefine((value, ctx) => {
-    if (value.esSector) return;
-    for (const campo of ["apellido", "dni"] as const) {
-      if (!value[campo]) ctx.addIssue({ code: "custom", path: [campo], message: "Este campo no puede estar vacío." });
+    if (value.passwordTemporal !== value.passwordTemporalRepeat) {
+      ctx.addIssue({ code: "custom", path: ["passwordTemporalRepeat"], message: "Las contraseñas no coinciden." });
+    }
+    for (const error of validatePassword(value.passwordTemporal)) {
+      ctx.addIssue({ code: "custom", path: ["passwordTemporal"], message: error });
+    }
+    // A cuenta de sector is not a person: apellido and DNI are derived, not asked.
+    if (!value.esSector) {
+      for (const campo of ["apellido", "dni"] as const) {
+        if (!value[campo]) ctx.addIssue({ code: "custom", path: [campo], message: "Este campo no puede estar vacío." });
+      }
     }
   });
 
@@ -84,9 +93,6 @@ export type CrearUsuarioInput = z.input<typeof crearUsuarioInput>;
 
 export interface CrearUsuarioResult {
   usuarioId: string;
-  /** Shown ONCE -- the caller (UI) must never persist or re-request this value. */
-  credencial: string;
-  credencialVenceEn: Date;
 }
 
 export const crearUsuarioCommand = defineCommand({
@@ -122,6 +128,7 @@ export const crearUsuarioCommand = defineCommand({
 
     await resolverRolesAAsignar(tx, session, input.roles);
 
+    const passwordHash = await hashPassword(input.passwordTemporal);
     const nuevo = await insertUsuario(tx, {
       tenantId: session.tenantId,
       nombre: identidad.nombre,
@@ -130,6 +137,7 @@ export const crearUsuarioCommand = defineCommand({
       dni: identidad.dni,
       numeroMatricula,
       esSector: input.esSector,
+      passwordHash,
       creadoPorId: session.usuario.id,
     });
 
@@ -142,19 +150,6 @@ export const crearUsuarioCommand = defineCommand({
       });
     }
 
-    const rawToken = generateOpaqueToken();
-    const tokenHash = hashToken(rawToken);
-    const venceEn = new Date(Date.now() + AUTH_POLICY.activationCredentialTtlHours * 60 * 60 * 1000);
-
-    await insertCredencialActivacion(tx, {
-      tenantId: session.tenantId,
-      usuarioId: nuevo.id,
-      tokenHash,
-      emitidaPorId: session.usuario.id,
-      venceEn,
-      motivoEmision: "ALTA",
-    });
-
     // M1: CREAR + one ASIGNAR_ROL per initial role (plan §9 M03 historia 2),
     // all inside this same transaction -- if it rolls back, every audit row
     // rolls back with it (INV-A01).
@@ -164,7 +159,7 @@ export const crearUsuarioCommand = defineCommand({
       entidad: "usuario",
       entidadId: nuevo.id,
       accion: TipoAccion.CREAR,
-      // Never the credential/hash -- only the non-secret fields (plan §14 audit rule).
+      // Never the password nor its hash -- only the non-secret fields (plan §14 audit rule).
       valorNuevo: { nombre: identidad.nombre, apellido: identidad.apellido, email: input.email, dni: identidad.dni, roles: input.roles, ...(input.esSector ? { esSector: true } : {}) },
     });
     for (const rolCodigo of input.roles) {
@@ -179,7 +174,7 @@ export const crearUsuarioCommand = defineCommand({
     }
 
     return {
-      output: { usuarioId: nuevo.id, credencial: rawToken, credencialVenceEn: venceEn },
+      output: { usuarioId: nuevo.id },
     };
   },
 });

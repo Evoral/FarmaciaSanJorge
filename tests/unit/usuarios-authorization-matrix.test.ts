@@ -107,7 +107,7 @@ const CASES: ReadonlyArray<{ permiso: Permiso; input: unknown }> = [
   { permiso: "usuarios.listar", input: {} },
   { permiso: "usuarios.ver", input: { id: TARGET_ID } },
   { permiso: "usuarios.auditoria.ver", input: { usuarioId: TARGET_ID } },
-  { permiso: "usuarios.crear", input: { nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: ["FARMACEUTICO"] } },
+  { permiso: "usuarios.crear", input: { nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: ["FARMACEUTICO"], passwordTemporal: "Temporal-Segura-2026", passwordTemporalRepeat: "Temporal-Segura-2026" } },
   {
     permiso: "usuarios.editar",
     input: {

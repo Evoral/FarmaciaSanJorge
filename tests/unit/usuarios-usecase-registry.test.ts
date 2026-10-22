@@ -95,7 +95,7 @@ describe("input validation runs after authorize() but before any transaction is 
     const entry = listRegisteredUseCasesForTests().find((e) => e.name === "usuarios.crear")!;
     await expect(
       entry.execute(
-        { nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: [] },
+        { nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: [], passwordTemporal: "Temporal-Segura-2026", passwordTemporalRepeat: "Temporal-Segura-2026" },
         { session: fakeSession(["usuarios.crear"]) },
       ),
     ).rejects.toBeInstanceOf(ValidationError);
@@ -106,7 +106,7 @@ describe("input validation runs after authorize() but before any transaction is 
     const entry = listRegisteredUseCasesForTests().find((e) => e.name === "usuarios.crear")!;
     await expect(
       entry.execute(
-        { nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: ["SISTEMA"] },
+        { nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: ["SISTEMA"], passwordTemporal: "Temporal-Segura-2026", passwordTemporalRepeat: "Temporal-Segura-2026" },
         { session: fakeSession(["usuarios.crear"]) },
       ),
     ).rejects.toBeInstanceOf(ValidationError);
@@ -116,7 +116,7 @@ describe("input validation runs after authorize() but before any transaction is 
     const entry = listRegisteredUseCasesForTests().find((e) => e.name === "usuarios.crear")!;
     await expect(
       entry.execute(
-        { nombre: "A", apellido: "B", email: "not-an-email", dni: "1", roles: ["FARMACEUTICO"] },
+        { nombre: "A", apellido: "B", email: "not-an-email", dni: "1", roles: ["FARMACEUTICO"], passwordTemporal: "Temporal-Segura-2026", passwordTemporalRepeat: "Temporal-Segura-2026" },
         { session: fakeSession(["usuarios.crear"]) },
       ),
     ).rejects.toBeInstanceOf(ValidationError);
@@ -161,7 +161,7 @@ describe("crearUsuario asks for no re-authentication (user decision 2026-10-21; 
 
     // Empty roles is a zod failure, reached only if no step-up check threw first (the REAL policy is wired in the mock above).
     await expect(
-      entry.execute({ nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: [] }, { session }),
+      entry.execute({ nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: [], passwordTemporal: "Temporal-Segura-2026", passwordTemporalRepeat: "Temporal-Segura-2026" }, { session }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
@@ -171,7 +171,7 @@ describe("crearUsuario asks for no re-authentication (user decision 2026-10-21; 
     const session: AuthenticatedSession = { ...fakeSession(["usuarios.crear"]), reautenticadaEn: staleReauth };
 
     await expect(
-      entry.execute({ nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: [] }, { session }),
+      entry.execute({ nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: [], passwordTemporal: "Temporal-Segura-2026", passwordTemporalRepeat: "Temporal-Segura-2026" }, { session }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 });

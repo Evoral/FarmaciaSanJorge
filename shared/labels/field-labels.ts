@@ -65,6 +65,8 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   nuevaRepeat: "Repetir nueva contraseña",
   dtPassword: "Contraseña del Director Técnico",
   password: "Contraseña",
+  passwordTemporal: "Contraseña temporal",
+  passwordTemporalRepeat: "Repetir contraseña temporal",
   passwordActual: "Contraseña actual",
   pin: "PIN",
   pinRepeat: "Repetir PIN",

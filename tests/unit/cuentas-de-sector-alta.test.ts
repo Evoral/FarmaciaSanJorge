@@ -38,7 +38,6 @@ vi.mock("@/modules/usuarios/infrastructure/usuario-repository", () => ({
   existeDni: (...args: unknown[]) => existeDniMock(...args),
   insertUsuario: (...args: unknown[]) => insertUsuarioMock(...args),
   insertUsuarioRol: vi.fn(async () => undefined),
-  insertCredencialActivacion: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/modules/usuarios/infrastructure/rol-repository", () => ({
@@ -63,6 +62,8 @@ beforeEach(() => {
   existeDniMock.mockReset().mockResolvedValue(false);
 });
 
+const passwordTemporal = { passwordTemporal: "Temporal-Segura-2026", passwordTemporalRepeat: "Temporal-Segura-2026" };
+
 describe("identidadDeCuentaDeSector", () => {
   it("deriva nombre, apellido y un DNI estable a partir del nombre del sector", () => {
     expect(identidadDeCuentaDeSector("Laboratorio")).toEqual({ nombre: "Sector", apellido: "Laboratorio", dni: "SECTOR-LABORATORIO" });
@@ -80,7 +81,7 @@ describe("identidadDeCuentaDeSector", () => {
 describe("crearUsuario: cuenta de sector", () => {
   it("alcanza con el nombre del sector, el email y un rol: apellido y DNI se derivan, sin matrícula", async () => {
     await crearUsuarioCommand.execute(
-      { nombre: "Laboratorio", apellido: "", dni: "", email: "laboratorio@farmacia.local", numeroMatricula: "MP 123", roles: ["LABORATORIO"], esSector: true },
+      { nombre: "Laboratorio", apellido: "", dni: "", email: "laboratorio@farmacia.local", numeroMatricula: "MP 123", roles: ["LABORATORIO"], esSector: true, ...passwordTemporal },
       { session: admin },
     );
     expect(insertUsuarioMock).toHaveBeenCalledTimes(1);
@@ -97,7 +98,7 @@ describe("crearUsuario: cuenta de sector", () => {
   it("dos cuentas de sector con el mismo nombre: se rechaza marcando el nombre", async () => {
     existeDniMock.mockResolvedValue(true);
     const error = await crearUsuarioCommand
-      .execute({ nombre: "Laboratorio", email: "lab2@farmacia.local", roles: ["LABORATORIO"], esSector: true }, { session: admin })
+      .execute({ nombre: "Laboratorio", email: "lab2@farmacia.local", roles: ["LABORATORIO"], esSector: true, ...passwordTemporal }, { session: admin })
       .catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ValidationError);
     expect((error as ValidationError).message).toBe("Ya existe una cuenta de sector con ese nombre.");
@@ -108,7 +109,7 @@ describe("crearUsuario: cuenta de sector", () => {
 
   it.each(["ADMINISTRADOR", "DIRECTOR_TECNICO"])("no admite el rol %s", async (rol) => {
     await expect(
-      crearUsuarioCommand.execute({ nombre: "Laboratorio", email: "lab@farmacia.local", roles: ["LABORATORIO", rol], esSector: true }, { session: admin }),
+      crearUsuarioCommand.execute({ nombre: "Laboratorio", email: "lab@farmacia.local", roles: ["LABORATORIO", rol], esSector: true, ...passwordTemporal }, { session: admin }),
     ).rejects.toThrow(/cuenta de sector no puede tener el rol/);
     expect(insertUsuarioMock).not.toHaveBeenCalled();
   });
@@ -117,7 +118,7 @@ describe("crearUsuario: cuenta de sector", () => {
 describe("crearUsuario: una persona sigue necesitando apellido y DNI", () => {
   it("sin apellido ni DNI se rechaza, nombrando los dos campos", async () => {
     const error = await crearUsuarioCommand
-      .execute({ nombre: "Ana", apellido: "", dni: "  ", email: "ana@example.com", roles: ["FARMACEUTICO"] }, { session: admin })
+      .execute({ nombre: "Ana", apellido: "", dni: "  ", email: "ana@example.com", roles: ["FARMACEUTICO"], ...passwordTemporal }, { session: admin })
       .catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ValidationError);
     expect((error as ValidationError).fields).toEqual(["apellido", "dni"]);
@@ -125,7 +126,7 @@ describe("crearUsuario: una persona sigue necesitando apellido y DNI", () => {
   });
 
   it("con todos sus datos se crea tal cual", async () => {
-    await crearUsuarioCommand.execute({ nombre: "Ana", apellido: "Gómez", dni: "30111222", email: "ana@example.com", roles: ["FARMACEUTICO"] }, { session: admin });
+    await crearUsuarioCommand.execute({ nombre: "Ana", apellido: "Gómez", dni: "30111222", email: "ana@example.com", roles: ["FARMACEUTICO"], ...passwordTemporal }, { session: admin });
     expect(insertUsuarioMock.mock.calls[0]![1]).toMatchObject({ nombre: "Ana", apellido: "Gómez", dni: "30111222", esSector: false });
   });
 });

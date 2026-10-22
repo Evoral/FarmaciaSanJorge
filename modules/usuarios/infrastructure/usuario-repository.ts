@@ -271,6 +271,8 @@ export interface NuevoUsuarioInput {
   numeroMatricula: string | null;
   /** Migration 0077: a cuenta de sector. Only ever set here (immutable, INV-SEC-002). */
   esSector?: boolean;
+  /** argon2id hash of the temporary password the Administrador typed (docs/specs/contrasena-temporal.md). */
+  passwordHash: string;
   creadoPorId: string;
 }
 
@@ -285,7 +287,10 @@ export async function insertUsuario(tx: Prisma.TransactionClient, input: NuevoUs
       numeroMatricula: input.numeroMatricula ?? undefined,
       esSector: input.esSector ?? false,
       creadoPorId: input.creadoPorId,
-      // estado defaults to PENDIENTE_ACTIVACION (schema default) -- never set explicitly (INV-U07).
+      // Active from the start, with a temporary password the usuario must replace (and a PIN to set) at first login.
+      passwordHash: input.passwordHash,
+      estado: "ACTIVO",
+      debeCambiarPassword: true,
     },
     select: { id: true },
   });
