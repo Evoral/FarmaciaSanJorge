@@ -406,12 +406,11 @@ export interface CambiarEstadoInput {
  *
  * PIN re-auth feature (task requirement, user decision 2026-09-23):
  * whenever `estadoNuevo !== 'ACTIVO'`, the PIN is cleared in the SAME
- * statement/transaction as the estado change -- this covers exactly the
- * three transitions the task requires (suspenderUsuario -> SUSPENDIDO,
- * darDeBajaUsuario -> BAJA, restablecerCredencial -> PENDIENTE_ACTIVACION)
- * without each of those three call sites needing to remember to do it
- * separately, and WITHOUT clearing it on `reactivarUsuario` (-> ACTIVO,
- * the one caller of this function that must NOT lose the PIN).
+ * statement/transaction as the estado change -- this covers
+ * suspenderUsuario -> SUSPENDIDO and darDeBajaUsuario -> BAJA without each
+ * call site needing to remember to do it separately, and WITHOUT clearing it
+ * on `reactivarUsuario` nor on `restablecerCredencial` (-> ACTIVO, the
+ * callers that must NOT lose the PIN).
  */
 export async function cambiarEstadoUsuario(tx: Prisma.TransactionClient, input: CambiarEstadoInput): Promise<void> {
   await tx.usuario.update({
@@ -434,6 +433,19 @@ export async function cambiarEstadoUsuario(tx: Prisma.TransactionClient, input: 
       motivo: input.motivo ?? undefined,
       cambiadoPorId: input.cambiadoPorId,
     },
+  });
+}
+
+/**
+ * "Restablecer contraseña" (docs/specs/contrasena-temporal.md): one UPDATE that
+ * replaces the hash with the temporary one, flags `debeCambiarPassword` and
+ * clears the failed-login lock. It NEVER touches the PIN columns (CT5): the
+ * usuario keeps their PIN.
+ */
+export async function restablecerPasswordTemporal(tx: Prisma.TransactionClient, usuarioId: string, passwordHash: string): Promise<void> {
+  await tx.usuario.update({
+    where: { id: usuarioId },
+    data: { passwordHash, debeCambiarPassword: true, intentosFallidos: 0, bloqueadoHasta: null },
   });
 }
 

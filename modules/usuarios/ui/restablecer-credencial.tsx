@@ -1,67 +1,61 @@
 "use client";
 
 /**
- * `/admin/accesos/usuarios/[id]` "Restablecer credencial" action (M03, FASE 3
- * point 3.6, INV-U08). Same one-time-display discipline as the creation
- * flow (`app/(app)/admin/accesos/usuarios/nuevo/page.tsx`): the credential is
- * shown inline, exactly once, with an explicit expiry/one-shot notice, and
- * is never put in a URL.
+ * `/admin/accesos/usuarios/[id]` "Asignar contraseña temporal" action (M03,
+ * FASE 3 point 3.6, INV-U08; docs/specs/contrasena-temporal.md). The
+ * Administrador types a new temporary password twice; the usuario's open
+ * sessions are closed and they must change it at the next login. Nothing
+ * secret comes back, so there is no one-time display.
  *
- * Re-authentication retry: `resubmit()` from
- * `modules/auth/ui/use-reauth-form-submit.ts` re-dispatches the FormData
- * captured on the original submit (React 19 auto-resets a `<form action>`
- * on every submit, so re-reading the DOM with `requestSubmit()` would
- * send an already-reset form).
+ * Submits through `useFormSubmit` so a rejected password keeps what was typed
+ * (the error's `fields` are marked on the controls). Because the form is not
+ * auto-reset, a success remounts the password fields (`key`) to clear them,
+ * and `router.refresh()` updates the estado badge (a pending usuario is now
+ * active).
  */
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { restablecerCredencialAction } from "./actions";
 import type { RestablecerCredencialState } from "./actions";
-import { ReauthPrompt, useReauthPrompt } from "@/modules/auth/ui/reauth-prompt";
-import { useReauthFormSubmit } from "@/modules/auth/ui/use-reauth-form-submit";
-import { CredencialActivacion } from "./credencial-activacion";
+import { NewPasswordFields } from "@/modules/auth/ui/new-password-fields";
+import { FormActions, FormFeedback, SubmitButton, errorFieldsOf } from "@/shared/ui/form-parts";
+import { useFieldErrors } from "@/shared/ui/field-errors";
+import { useFormSubmit } from "@/shared/ui/use-form-submit";
 
 const initialState: RestablecerCredencialState = { status: "idle" };
 
-function SubmitButton({ pending }: { pending: boolean }) {
-  return (
-    <button type="submit" disabled={pending} className="btn btn-secondary">
-      {pending ? "Restableciendo…" : "Restablecer credencial"}
-    </button>
-  );
-}
-
 export function RestablecerCredencial({ usuarioId }: { usuarioId: string }) {
-  const [state, formAction, isPending] = useActionState(restablecerCredencialAction, initialState);
-  const reauth = useReauthPrompt(state);
-  const { onSubmit, resubmit } = useReauthFormSubmit(formAction);
+  const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [fieldsKey, setFieldsKey] = useState(0);
+  const [passwordValid, setPasswordValid] = useState(false);
+  const [state, formAction, isPending] = useActionState(async (prevState: RestablecerCredencialState, formData: FormData) => {
+    const result = await restablecerCredencialAction(prevState, formData);
+    if (result.status === "success") {
+      setFieldsKey((key) => key + 1);
+      router.refresh();
+    }
+    return result;
+  }, initialState);
+  const { onSubmit } = useFormSubmit(formAction);
 
-  // Deliberately no router.refresh() on success: the credential must stay
-  // visible on screen. The estado badge above will be stale until the
-  // next navigation -- acceptable, since this action's own confirmation
-  // already states the new estado.
-
-  if (state.status === "success" && state.credencial) {
-    return (
-      <CredencialActivacion titulo="Nueva credencial: se muestra una sola vez" credencial={state.credencial} venceEn={state.credencialVenceEn!}>
-        Entregásela en mano. El usuario pasó a «Pendiente de activación» y se cerraron sus sesiones y credenciales anteriores.
-      </CredencialActivacion>
-    );
-  }
+  useFieldErrors(formRef, errorFieldsOf(state));
 
   return (
-    <>
-      <form action={formAction} onSubmit={onSubmit}>
-        <input type="hidden" name="usuarioId" value={usuarioId} />
-        {state.status === "error" ? (
-          <p role="alert" className="alert alert-danger mb-3">
-            {state.message}
-          </p>
-        ) : null}
-        <SubmitButton pending={isPending} />
-      </form>
-      {reauth.abierto ? (
-        <ReauthPrompt onReauthenticated={resubmit} onCancel={reauth.cancelar} />
-      ) : null}
-    </>
+    <form ref={formRef} action={formAction} onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
+      <input type="hidden" name="usuarioId" value={usuarioId} />
+      <NewPasswordFields
+        key={fieldsKey}
+        name="passwordTemporal"
+        repeatName="passwordTemporalRepeat"
+        label="Contraseña temporal"
+        repeatLabel="Repetir contraseña temporal"
+        onValidityChange={setPasswordValid}
+      />
+      <FormFeedback state={state} layout="stack" />
+      <FormActions layout="stack">
+        <SubmitButton label="Asignar contraseña temporal" pendingLabel="Asignando…" pending={isPending} disabled={!passwordValid} variant="secondary" />
+      </FormActions>
+    </form>
   );
 }

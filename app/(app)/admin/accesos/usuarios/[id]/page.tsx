@@ -111,7 +111,7 @@ export default async function UsuarioDetallePage({ params, searchParams }: Usuar
               <section className="panel" aria-labelledby="credencial-heading">
                 <div className="panel-header">
                   <h2 id="credencial-heading">Credencial</h2>
-                  <p>Emite una credencial nueva de 72 horas, revoca la anterior y las sesiones abiertas, y vuelve a «Pendiente de activación».</p>
+                  <p>Asigná una contraseña temporal nueva. Cierra las sesiones abiertas y la persona tendrá que cambiarla al ingresar; su PIN se conserva.</p>
                 </div>
                 <div className="panel-body">
                   <RestablecerCredencial usuarioId={usuario.id} />

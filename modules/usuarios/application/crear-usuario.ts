@@ -42,8 +42,8 @@ import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { record as auditRecord } from "@/shared/audit";
 import { ValidationError } from "@/shared/errors";
 import { email as emailSchema, nonEmptyString } from "@/shared/validation";
-import { validatePassword } from "@/shared/auth/policy";
 import { hashPassword } from "@/modules/auth/domain/password";
+import { passwordTemporalFields, refinarPasswordTemporal } from "./password-temporal";
 import { codigoRolAsignableSchema, ROLES_VEDADOS_A_SECTOR } from "../domain/roles";
 import { identidadDeCuentaDeSector } from "../domain/cuenta-de-sector";
 import { resolverRolesAAsignar } from "./roles-asignables";
@@ -70,16 +70,10 @@ const crearUsuarioInput = z
     /** A cuenta de sector (shared session per work area) instead of a person's own account. */
     esSector: z.boolean().default(false),
     /** The temporary password the Administrador hands over in person (replaced by the usuario at first login). */
-    passwordTemporal: z.string(),
-    passwordTemporalRepeat: z.string(),
+    ...passwordTemporalFields,
   })
   .superRefine((value, ctx) => {
-    if (value.passwordTemporal !== value.passwordTemporalRepeat) {
-      ctx.addIssue({ code: "custom", path: ["passwordTemporalRepeat"], message: "Las contraseñas no coinciden." });
-    }
-    for (const error of validatePassword(value.passwordTemporal)) {
-      ctx.addIssue({ code: "custom", path: ["passwordTemporal"], message: error });
-    }
+    refinarPasswordTemporal(value, ctx);
     // A cuenta de sector is not a person: apellido and DNI are derived, not asked.
     if (!value.esSector) {
       for (const campo of ["apellido", "dni"] as const) {

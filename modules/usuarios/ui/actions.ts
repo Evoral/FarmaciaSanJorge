@@ -11,14 +11,7 @@ import { StepUpRequiredError } from "@/shared/errors";
 import { actionError } from "@/shared/ui/action-error";
 import type { UsuarioActionState } from "@/modules/usuarios/ui/action-state";
 
-/**
- * Narrower than `UsuarioActionState` on purpose: this is a SUBTYPE of both
- * `UsuarioActionState` and `RestablecerCredencialState` (below), so it can
- * be returned from either kind of action without widening the caller's
- * declared return type to include shapes (like the generic `"success"`
- * with only an optional `message`) that `RestablecerCredencialState`
- * deliberately does not have.
- */
+/** The failure shapes of `UsuarioActionState`, so `fromError` can be returned from any of its actions. */
 type FailureState = { status: "reauth-required" } | { status: "error"; message: string; fields?: string[] };
 
 function fromError(error: unknown, fallback: string): FailureState {
@@ -92,14 +85,17 @@ export async function darDeBajaUsuarioAction(_prevState: UsuarioActionState, for
 export type RestablecerCredencialState =
   | { status: "idle" }
   | { status: "error"; message: string; fields?: string[] }
-  | { status: "reauth-required" }
-  | { status: "success"; credencial: string; credencialVenceEn: string };
+  | { status: "success"; message: string };
 
 export async function restablecerCredencialAction(_prevState: RestablecerCredencialState, formData: FormData): Promise<RestablecerCredencialState> {
   try {
-    const result = await restablecerCredencial(String(formData.get("usuarioId") ?? ""));
-    return { status: "success", credencial: result.credencial, credencialVenceEn: result.credencialVenceEn.toISOString() };
+    await restablecerCredencial({
+      usuarioId: String(formData.get("usuarioId") ?? ""),
+      passwordTemporal: String(formData.get("passwordTemporal") ?? ""),
+      passwordTemporalRepeat: String(formData.get("passwordTemporalRepeat") ?? ""),
+    });
+    return { status: "success", message: "Contraseña temporal asignada. Se cerraron sus sesiones y tendrá que cambiarla al ingresar." };
   } catch (error) {
-    return fromError(error, "No se pudo restablecer la credencial.");
+    return actionError(error, "No se pudo asignar la contraseña temporal.");
   }
 }

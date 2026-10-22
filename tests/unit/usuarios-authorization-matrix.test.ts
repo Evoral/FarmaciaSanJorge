@@ -123,7 +123,7 @@ const CASES: ReadonlyArray<{ permiso: Permiso; input: unknown }> = [
   { permiso: "usuarios.suspender", input: { usuarioId: TARGET_ID, motivo: "Motivo de prueba." } },
   { permiso: "usuarios.reactivar", input: { usuarioId: TARGET_ID, motivo: "Motivo de prueba." } },
   { permiso: "usuarios.baja", input: { usuarioId: TARGET_ID, motivo: "Motivo de prueba." } },
-  { permiso: "usuarios.credencial.restablecer", input: { usuarioId: TARGET_ID } },
+  { permiso: "usuarios.credencial.restablecer", input: { usuarioId: TARGET_ID, passwordTemporal: "Temporal-Segura-2026", passwordTemporalRepeat: "Temporal-Segura-2026" } },
   { permiso: "roles.ver", input: {} },
 ];
 

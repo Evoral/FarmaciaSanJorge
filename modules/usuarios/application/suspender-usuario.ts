@@ -1,11 +1,10 @@
 /**
  * `suspenderUsuario` (M03, FASE 3 point 3.5, INV-USR-004/005). Only
  * ACTIVO -> SUSPENDIDO. Requires a motivo (no password re-authentication, user
- * decision 2026-10-21), and revokes every session AND every pending
- * activation credential for the usuario immediately (task's binding
- * decision) -- a suspended usuario must not be able to keep using an
- * already-open session, nor activate via a credential issued before the
- * suspension.
+ * decision 2026-10-21), and revokes every session for the usuario immediately
+ * (task's binding decision) -- a suspended usuario must not be able to keep
+ * using an already-open session. (No activation credentials exist any more:
+ * docs/specs/contrasena-temporal.md.)
  *
  * M3 (security review): the target row is locked FIRST
  * (`lockUsuarioYAdministradoresActivos`, single ordered statement -- see
@@ -24,7 +23,7 @@ import { esAccionSobreSiMismo, quedariaSinAdministradores } from "../domain/regl
 import { ROL_ADMINISTRADOR } from "../domain/roles";
 import { explicarTransicionInvalida } from "../domain/estado-usuario";
 import { lockUsuarioYAdministradoresActivos } from "../infrastructure/admin-guard";
-import { loadUsuarioParaAccion, cambiarEstadoUsuario, revokeCredencialesActivas } from "../infrastructure/usuario-repository";
+import { loadUsuarioParaAccion, cambiarEstadoUsuario } from "../infrastructure/usuario-repository";
 
 const suspenderUsuarioInput = z.object({
   usuarioId: uuid,
@@ -73,10 +72,9 @@ export const suspenderUsuarioCommand = defineCommand({
     });
 
     const sesionesRevocadas = await revokeAllSesionesForUsuarioInTx(tx, session.tenantId, input.usuarioId, now);
-    const credencialesRevocadas = await revokeCredencialesActivas(tx, session.tenantId, input.usuarioId, now);
 
     return {
-      output: { sesionesRevocadas, credencialesRevocadas },
+      output: { sesionesRevocadas },
       audit: {
         entidadId: input.usuarioId,
         motivo: input.motivo,
@@ -87,6 +85,6 @@ export const suspenderUsuarioCommand = defineCommand({
   },
 });
 
-export async function suspenderUsuario(input: SuspenderUsuarioInput): Promise<{ sesionesRevocadas: number; credencialesRevocadas: number }> {
+export async function suspenderUsuario(input: SuspenderUsuarioInput): Promise<{ sesionesRevocadas: number }> {
   return suspenderUsuarioCommand.execute(input);
 }
