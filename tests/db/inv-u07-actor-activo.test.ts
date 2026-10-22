@@ -334,7 +334,7 @@ describe.skipIf(dbTestSkipReason() !== null)("INV-U07 (migration 0023): actor co
   });
 
   describe("scripts/create-tenant.ts bootstrap sequence still works under INV-U07", () => {
-    it("SISTEMA self-references creado_por_id while declaring itself ACTIVO in the same INSERT, then creates the first ADM (PENDIENTE_ACTIVACION, creado_por_id = SISTEMA)", async () => {
+    it("SISTEMA self-references creado_por_id while declaring itself ACTIVO in the same INSERT, then creates the first ADM (ACTIVO with a temporary password, creado_por_id = SISTEMA)", async () => {
       await asOwner((client) =>
         inRollbackTx(client, async (tx) => {
           const tenantId = await insertTenant(tx, "u07bootstrap");
@@ -355,9 +355,9 @@ describe.skipIf(dbTestSkipReason() !== null)("INV-U07 (migration 0023): actor co
 
           const adminId = randomUUID();
           await tx.query(
-            `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, estado, es_tecnico, creado_por_id)
-             VALUES ($1, $2, $3, 'Admin', 'Uno', $4, 'PENDIENTE_ACTIVACION', false, $5)`,
-            [adminId, tenantId, `admin+${adminId}@example.com`, `DNI-${adminId}`, sistemaId],
+            `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, estado, es_tecnico, creado_por_id, password_hash, debe_cambiar_password)
+             VALUES ($1, $2, $3, 'Admin', 'Uno', $4, 'ACTIVO', false, $5, $6, true)`,
+            [adminId, tenantId, `admin+${adminId}@example.com`, `DNI-${adminId}`, sistemaId, "argon2-placeholder"],
           );
           const adminRol = await tx.query(`SELECT id FROM fsj.rol WHERE tenant_id = $1 AND codigo = 'ADMINISTRADOR'`, [tenantId]);
           await tx.query(`INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1, $2, $3, $4)`, [
@@ -367,19 +367,12 @@ describe.skipIf(dbTestSkipReason() !== null)("INV-U07 (migration 0023): actor co
             sistemaId,
           ]);
 
-          const credencial = await tx.query(
-            `INSERT INTO fsj.credencial_activacion (tenant_id, usuario_id, token_hash, emitida_por_id, vence_en, motivo_emision)
-             VALUES ($1, $2, $3, $4, now() + interval '72 hours', 'ALTA') RETURNING id`,
-            [tenantId, adminId, `hash-${randomUUID()}`, sistemaId],
-          );
-
           await crearLibrosRubricados(tx, tenantId, sistemaId);
 
-          expect(credencial.rows).toHaveLength(1);
           const sistemaRow = await tx.query(`SELECT estado, creado_por_id FROM fsj.usuario WHERE id = $1`, [sistemaId]);
           expect(sistemaRow.rows[0]).toMatchObject({ estado: "ACTIVO", creado_por_id: sistemaId });
-          const adminRow = await tx.query(`SELECT estado, creado_por_id FROM fsj.usuario WHERE id = $1`, [adminId]);
-          expect(adminRow.rows[0]).toMatchObject({ estado: "PENDIENTE_ACTIVACION", creado_por_id: sistemaId });
+          const adminRow = await tx.query(`SELECT estado, creado_por_id, debe_cambiar_password FROM fsj.usuario WHERE id = $1`, [adminId]);
+          expect(adminRow.rows[0]).toMatchObject({ estado: "ACTIVO", creado_por_id: sistemaId, debe_cambiar_password: true });
         }),
       );
     });

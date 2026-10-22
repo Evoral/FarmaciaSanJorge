@@ -1,8 +1,7 @@
 /**
  * Platform-operator CLI (DP-04/DP-37): creates a new tenant, its per-tenant
  * SISTEMA technical user, and the tenant's first ADMINISTRADOR -- with a
- * one-use activation credential for that admin, printed to the terminal
- * exactly once.
+ * temporary password the operator chooses (docs/specs/contrasena-temporal.md).
  *
  * There is no "operator console" UI yet (DP-37 is unresolved on whether one
  * ever exists) -- this script IS the FASE 1 delivery mechanism for the
@@ -16,12 +15,12 @@
  * FORCE-RLS tables like `fsj.usuario` directly -- that privilege is
  * exactly why this is an operator-only script, never application code.
  *
- * Credential token: a random, already-high-entropy 256-bit value, hashed
- * with SHA-256 before storage (fast hash is correct here, unlike password
- * hashing with argon2id -- there is no human-chosen low-entropy secret to
- * protect against brute force, only the DB row itself). The raw token is
- * printed ONCE and never stored or logged anywhere else (INV-AU-001-style
- * discipline, even though INV-AU-001 is about the user's own password).
+ * Temporary password: taken from `--admin-password-temporal` or, when the
+ * flag is absent, asked twice on stdin with the echo disabled (a flag lands
+ * in the shell history, the prompt does not). It must satisfy the password
+ * policy, is stored only as an argon2id hash, and is NEVER printed or logged
+ * (INV-AU-001). The admin is created ACTIVO with `debe_cambiar_password`, so
+ * the first login forces a new password and a PIN.
  *
  * Usage:
  *   npx tsx scripts/create-tenant.ts \
@@ -34,18 +33,20 @@
  *     --admin-email="admin@example.com" \
  *     --admin-nombre="..." \
  *     --admin-apellido="..." \
- *     --admin-dni="..."
+ *     --admin-dni="..." \
+ *     [--admin-password-temporal="..."]
  *
- * DP-05 (credential delivery channel) is unresolved; this script implements
- * option (a) from the plan's recommendation -- screen only, delivered in
- * person -- since that requires no integration and is the safer default.
+ * The operator hands the temporary password to the admin in person (DP-05).
  */
 import "dotenv/config";
-import { randomUUID, randomBytes, createHash } from "node:crypto";
+import { randomUUID } from "node:crypto";
+import { createInterface } from "node:readline";
+import { Writable } from "node:stream";
 import { Client } from "pg";
 import { z } from "zod";
 import { nonEmptyString, email as emailSchema } from "@/shared/validation";
-import { AUTH_POLICY } from "@/shared/auth/policy";
+import { validatePassword } from "@/shared/auth/policy";
+import { hashPassword } from "@/modules/auth/domain/password";
 import { HOJA_PREDETERMINADA } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import { ETIQUETA_TAMANO_PREDETERMINADO, ETIQUETA_TAMANO_PREDETERMINADO_NOMBRE } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 
@@ -60,6 +61,7 @@ const argsSchema = z.object({
   adminNombre: nonEmptyString,
   adminApellido: nonEmptyString,
   adminDni: nonEmptyString,
+  adminPasswordTemporal: z.string().optional(),
 });
 
 type Args = z.infer<typeof argsSchema>;
@@ -86,7 +88,8 @@ function printUsageAndExit(message: string): never {
       "--tenant-razon-social=... --tenant-cuit=... " +
       "[--tenant-nombre-fantasia=...] [--tenant-domicilio=...] " +
       "[--tenant-matricula-farmacia=...] [--tenant-zona-horaria=...] " +
-      "--admin-email=... --admin-nombre=... --admin-apellido=... --admin-dni=...",
+      "--admin-email=... --admin-nombre=... --admin-apellido=... --admin-dni=... " +
+      "[--admin-password-temporal=... (asked on stdin when omitted)]",
   );
   process.exit(1);
 }
@@ -102,6 +105,42 @@ function parseAndValidateArgs(): Args {
   return parsed.data;
 }
 
+/** Asks `question` on stdin with the echo disabled; resolves with the typed line. */
+function promptHidden(question: string): Promise<string> {
+  let muted = false;
+  const output = new Writable({
+    write(chunk, encoding, callback) {
+      if (!muted) process.stdout.write(chunk, encoding);
+      callback();
+    },
+  });
+  const rl = createInterface({ input: process.stdin, output, terminal: Boolean(process.stdin.isTTY) });
+  return new Promise((resolvePrompt) => {
+    process.stdout.write(question);
+    muted = true;
+    rl.question("", (answer) => {
+      rl.close();
+      process.stdout.write("\n");
+      resolvePrompt(answer);
+    });
+  });
+}
+
+/** The temporary password: the flag when given, else typed twice (hidden). Exits on a mismatch or a policy violation. */
+async function resolveTemporaryPassword(fromFlag: string | undefined): Promise<string> {
+  let passwordTemporal = fromFlag;
+  if (passwordTemporal === undefined) {
+    passwordTemporal = await promptHidden("Temporary password for the first admin: ");
+    const confirmation = await promptHidden("Repeat the temporary password: ");
+    if (passwordTemporal !== confirmation) printUsageAndExit("the two passwords do not match.");
+  }
+  const violations = validatePassword(passwordTemporal);
+  if (violations.length > 0) {
+    printUsageAndExit(`the temporary password does not meet the policy:\n${violations.map((v) => `  - ${v}`).join("\n")}`);
+  }
+  return passwordTemporal;
+}
+
 async function main(): Promise<void> {
   const directUrl = process.env.DIRECT_URL;
   if (!directUrl) {
@@ -111,6 +150,9 @@ async function main(): Promise<void> {
   }
 
   const args = parseAndValidateArgs();
+  const passwordTemporal = await resolveTemporaryPassword(args.adminPasswordTemporal);
+  // Hashed before the transaction opens: argon2id is slow and must not hold it.
+  const passwordHash = await hashPassword(passwordTemporal);
 
   const client = new Client({ connectionString: directUrl });
   await client.connect();
@@ -158,28 +200,18 @@ async function main(): Promise<void> {
       [tenantId, sistemaId],
     );
 
-    // First ADMINISTRADOR: creado_por_id = SISTEMA (DP-04), PENDIENTE_ACTIVACION.
+    // First ADMINISTRADOR: creado_por_id = SISTEMA (DP-04), ACTIVO with the
+    // temporary password; it must change it (and set a PIN) on first login.
     const adminId = randomUUID();
     await client.query(
-      `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, estado, es_tecnico, creado_por_id)
-       VALUES ($1, $2, $3, $4, $5, $6, 'PENDIENTE_ACTIVACION', false, $7)`,
-      [adminId, tenantId, args.adminEmail, args.adminNombre, args.adminApellido, args.adminDni, sistemaId],
+      `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, estado, es_tecnico, creado_por_id, password_hash, debe_cambiar_password)
+       VALUES ($1, $2, $3, $4, $5, $6, 'ACTIVO', false, $7, $8, true)`,
+      [adminId, tenantId, args.adminEmail, args.adminNombre, args.adminApellido, args.adminDni, sistemaId, passwordHash],
     );
     await client.query(
       `INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id)
        SELECT $1, $2, r.id, $3 FROM fsj.rol r WHERE r.tenant_id = $1 AND r.codigo = 'ADMINISTRADOR'`,
       [tenantId, adminId, sistemaId],
-    );
-
-    // One-use activation credential, shown ONCE below.
-    const rawToken = randomBytes(32).toString("base64url");
-    const tokenHash = createHash("sha256").update(rawToken).digest("hex");
-    const ttlHours = AUTH_POLICY.activationCredentialTtlHours;
-
-    await client.query(
-      `INSERT INTO fsj.credencial_activacion (tenant_id, usuario_id, token_hash, emitida_por_id, vence_en, motivo_emision)
-       VALUES ($1, $2, $3, $4, now() + ($5 || ' hours')::interval, 'ALTA')`,
-      [tenantId, adminId, tokenHash, sistemaId, String(ttlHours)],
     );
 
     // Per-tenant weighing parameters (M10, FASE 1 point 1.10 --
@@ -267,9 +299,7 @@ async function main(): Promise<void> {
     console.log(`  tenant id:  ${tenantId}`);
     console.log(`  admin id:   ${adminId}`);
     console.log(`  admin email: ${args.adminEmail}`);
-    console.log(`\n  Activation credential (shown ONCE -- deliver in person, DP-05):`);
-    console.log(`    ${rawToken}`);
-    console.log(`  Expires in ${ttlHours}h. This value is never stored or logged anywhere else.\n`);
+    console.log("\n  On first login the admin must change this temporary password and set a PIN.\n");
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
