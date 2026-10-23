@@ -279,19 +279,27 @@ Pruebas propuestas prioritarias (describe, no ejecutes las que requieran escribi
 ```markdown
 ALCANCE DE LA PARTE 6: COBERTURA DE TESTS Y CONSOLIDACIÓN
 
-Entrada: a continuación se adjuntan los informes de las partes 1 a 5.
+Entrada: los informes de las partes 1 a 5 están en `docs/auditoria/informes/parte-1.md` … `parte-5.md`. Cada uno tiene dos secciones: "Revisión del auditor del plan" (veredicto, severidad revisada, clasificación y estado CORREGIDO) y el informe original resumido. La severidad y el veredicto de la revisión prevalecen sobre los del informe original, salvo que encuentres evidencia en contra en el código: en ese caso, muéstrala.
+
+ESTADO DE PARTIDA (verifícalo, no lo asumas)
+- Los hallazgos marcados CORREGIDO fueron arreglados en commits sobre `master`. Confirma cada uno en el código de HEAD (archivo y línea) y márcalo CERRADO o REABIERTO. No re-audites el resto de las partes.
+- Los hallazgos de la parte 5 clasificados "antes del deploy" pueden estar corregidos o no al momento de esta parte: determina su estado en el código.
+- Migraciones `0102_receta_envio_id`, `0103_pesada_real_jornada` y `0104_forbid_truncate`: su DDL está aplicado en la base de prueba, pero pueden no tener fila en `public._prisma_migrations`. Verifica el DDL con SELECT sobre catálogos (columna `fsj.receta.envio_id`, índice `uq_receta_envio`, función `fsj.pesada_real_validar_autorizacion`, triggers `trg_*_forbid_truncate`). Si faltan las filas, `npm run test:db` puede fallar en su global-setup: regístralo como limitación de entorno, no como hallazgo, y no intentes registrarlas.
 
 Tareas
-1. Inventario de `tests/` (proyectos unit y db): qué cubre aislamiento entre tenants, permisos, PIN, concurrencia del libro y del stock. Diferencia tests existentes, ejecutados en esta parte y solo propuestos.
-2. Resuelve las "Observaciones para otras partes" de los informes 1 a 5 que nadie haya cerrado.
-3. Detecta hallazgos duplicados o contradictorios entre partes y unifícalos conservando sus IDs originales.
+1. Inventario de `tests/` (proyectos `unit`, `db` y `e2e`): qué cubre aislamiento entre tenants, permisos y autorización de endpoints, PIN y cuentas de sector, bloqueo por intentos fallidos, concurrencia del libro y del stock, contralor digital, idempotencia (alta de receta, crons) y saneamiento de salidas (PDF, XLSX). Diferencia tests existentes, ejecutados en esta parte y solo propuestos. Puedes ejecutar `npm test`; `npm run test:db` solo tras confirmar que apunta a la base de prueba.
+2. Para cada hallazgo CORREGIDO de las partes 1 a 5, indica si hay un test que impida su regresión; si no lo hay, propón uno concreto (archivo, escenario, aserción).
+3. Resuelve las "Observaciones para otras partes" de los informes 1 a 5 que nadie haya cerrado. En particular:
+   - pruebas T3-01 a T3-06 de la parte 3 (concurrencia, atomicidad, contralor activo, intentos de PIN concurrentes);
+   - las 77 FK sin índice de la parte 5: cuáles importan por los filtros y joins reales del código, cuáles no.
+4. Detecta hallazgos duplicados o contradictorios entre partes y unifícalos conservando sus IDs originales.
 
 Entregable consolidado (reemplaza al formato de parte)
 A. Encabezado: commit base, partes consolidadas, limitaciones generales.
-B. Resumen ejecutivo: 5 riesgos principales, conteo por severidad, estado por módulo (LISTO / CON BLOQUEANTES / NO REVISADO).
-C. Tabla única de hallazgos (IDs `P<N>-<nn>`), ordenada por severidad.
-D. Matriz de cobertura por parte.
-E. Pruebas propuestas priorizadas, indicando cuáles requieren base aislada.
-F. Verificaciones pendientes en producción.
-G. Bloqueantes para producción ordenados por dependencia, separando: obligatorio antes de producción, antes de habilitar un módulo concreto, y mejoras posteriores.
+B. Resumen ejecutivo: 5 riesgos principales, conteo por severidad de lo que sigue ABIERTO, estado por módulo (LISTO / CON BLOQUEANTES / NO REVISADO).
+C. Tabla única de hallazgos (IDs `P<N>-<nn>`), ordenada por severidad, con columna Estado (ABIERTO / CERRADO / REABIERTO / FALSO POSITIVO) y la evidencia del cierre.
+D. Matriz de cobertura por parte y por módulo, incluida la cobertura de tests.
+E. Pruebas propuestas priorizadas, indicando cuáles requieren base aislada (escriben o necesitan concurrencia real).
+F. Verificaciones pendientes en producción (unificadas de los apartados F de cada parte, sin duplicados).
+G. Bloqueantes para producción ordenados por dependencia, separando: obligatorio antes de producción, antes de habilitar un módulo concreto (por ejemplo, el contralor digital), y mejoras posteriores.
 ```
