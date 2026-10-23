@@ -31,7 +31,7 @@ Actúa como auditor senior de seguridad de aplicaciones, arquitectura multi-tena
 CONTEXTO
 Farmacia San Jorge: gestión de recetas magistrales, stock, libro recetario y cierres. Monolito modular multi-tenant sobre Next.js 16 (App Router), React 19, Prisma 7, Postgres en Supabase (schema `fsj`), zod 4 y decimal.js, con deploy previsto en Vercel. Este stack es declarado: verifícalo en el repositorio.
 La aplicación todavía no está terminada. El objetivo NO es un veredicto de deploy, sino identificar bloqueantes para producción, riesgos por módulo y pruebas faltantes.
-La auditoría se ejecuta en 6 partes. Esta es la PARTE <N>. Limítate a su alcance; si detectas algo que pertenece a otra parte, regístralo en "Observaciones para otras partes" sin profundizar.
+La auditoría se ejecuta en 6 partes. Esta es la PARTE <N>. Limítate a su alcance; si detectas algo que pertenece a otra parte, regístralo en "Observaciones para otras partes" sin profundizar, usando esta numeración: 1 aislamiento multi-tenant y base de datos; 2 autenticación, autorización, cuentas de sector y endpoints; 3 integridad del dominio, transacciones, concurrencia y auditoría; 4 entradas no confiables y salidas generadas; 5 logs, secretos, configuración, infraestructura y dependencias; 6 cobertura de tests y consolidación.
 
 BASE DE REVISIÓN
 - Al inicio ejecuta `git rev-parse HEAD` y `git status --short` y regístralos en el informe.
@@ -130,10 +130,21 @@ Pruebas propuestas prioritarias
 ```markdown
 ALCANCE DE LA PARTE 2: AUTENTICACIÓN, AUTORIZACIÓN, CUENTAS DE SECTOR Y ENDPOINTS
 
-Esta parte se ejecuta en paralelo con la parte 1 (RLS y base de datos). No re-audites RLS. Al evaluar IDOR, distingue:
-- Acceso cruzado entre tenants: RLS puede mitigarlo; regístralo como POTENCIAL y menciona que su cierre depende de la parte 1.
+CONTEXTO DE LA PARTE 1 (ya cerrada, `docs/auditoria/informes/parte-1.md`; no la re-audites)
+- RLS verificado y conforme en las 54 tablas de negocio; `fsj_app` sin BYPASSRLS; `anon`/`authenticated` sin acceso a `fsj`.
+- Las funciones SECURITY DEFINER saltean RLS. `fsj.cierre_diario_firmar` y `fsj.libro_configurar_numeracion` validan `p_tenant_id` contra `fsj.current_tenant_id()`; la guarda de `cierre_diario_firmar` y el REVOKE de EXECUTE a PUBLIC están en la migración `0101_security_definer_hardening`, todavía SIN APLICAR en la base de prueba (la base no la refleja).
+- `fsj.tenant` no tiene RLS por diseño (INV-PL-004).
+- `fsj.usuario.debe_cambiar_password` existe en la base por una migración de otro desarrollador (`0097_contrasena_temporal`) que aún no está en el repositorio. Fuera de alcance: no audites esa funcionalidad.
+
+Al evaluar IDOR, distingue:
+- Acceso cruzado entre tenants por tablas: lo cubre RLS (verificado en la parte 1).
+- Acceso cruzado a través de funciones SECURITY DEFINER: verifica que todo caller pase el tenant de la sesión y nunca uno tomado de la entrada del usuario.
 - Acceso dentro del mismo tenant a un recurso u operación para la que el usuario no tiene permiso: RLS NO lo cubre; es el foco de esta parte.
-No ejecutes `npm run test:db` en esta parte (otra parte puede estar usando la base al mismo tiempo).
+
+Pendientes que la parte 1 derivó a esta:
+- `fsj.usuario_resolve_login`: SECURITY DEFINER que devuelve el hash antes de fijar el tenant; enumeración de correos y diferencias de tiempo de respuesta entre usuario existente e inexistente.
+- `fsj.sesion_resolve_tenant`: resolución del tenant a partir del hash del token de sesión.
+- `resolverActor` en `shared/usecase.ts` con cuentas de sector (`esSector = true`) y acciones con PIN.
 
 - `shared/usecase.ts` (`defineCommand`/`defineQuery`): orden efectivo requireSession → authorize → zod → transacción → audit, y diferencias legítimas entre comandos y consultas.
 - Todos los Route Handlers de `app/api/**/route.ts`: para cada uno, indica si pasa por un caso de uso de `application/` o accede a datos por otro camino, qué permiso exige y si valida que el recurso pedido por ID pertenece al tenant (IDOR). Preséntalo como tabla.

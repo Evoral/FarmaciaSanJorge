@@ -23,7 +23,11 @@ describe("getEnv", () => {
   it("throws a readable error listing missing variable names when required vars are absent", () => {
     setEnv({ DATABASE_URL: undefined, DIRECT_URL: undefined });
     expect(() => getEnv()).toThrowError(/DATABASE_URL/);
-    expect(() => getEnv()).toThrowError(/DIRECT_URL/);
+  });
+
+  it("does not require DIRECT_URL at runtime (owner credential stays out of the app env)", () => {
+    setEnv({ DATABASE_URL: "postgresql://fsj_app.ref:pw@host:6543/postgres?pgbouncer=true", DIRECT_URL: undefined });
+    expect(() => getEnv()).not.toThrow();
   });
 
   it("never includes variable values in the error message", () => {

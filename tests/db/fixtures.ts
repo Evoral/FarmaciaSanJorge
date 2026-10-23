@@ -600,6 +600,9 @@ export async function seedAsientoSistema(tx: Client, suffix: string, cantidadAPe
     preparacionId,
   ]);
 
+  // Migration 0101: fsj.cierre_diario_firmar only signs for the current tenant, as withTenantTransaction sets it.
+  await tx.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
+
   return {
     tenantId,
     sistema,

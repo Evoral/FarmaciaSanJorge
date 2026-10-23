@@ -47,6 +47,12 @@ one real Supabase project.
 - Money and quantities use `decimal.js` (`shared/decimal`), never JS `number` arithmetic.
 - Schema changes: new migration in `prisma/migrations/` (triggers, RLS and grants
   are hand-written SQL) plus its `prisma/rollbacks/<migration>.down.sql`.
+- `SECURITY DEFINER` functions bypass RLS: always `SET search_path = fsj, extensions`;
+  if they take `p_tenant_id`, refuse it first when `IS DISTINCT FROM fsj.current_tenant_id()`.
+  Never grant EXECUTE to PUBLIC; new `fsj` routines reach `fsj_app` by default privileges,
+  so `REVOKE ... FROM fsj_app` the ones the app must not call (migration 0101).
+- `DIRECT_URL` (owner, bypasses RLS) is never read by runtime code nor added to
+  `shared/env.ts`; only `scripts/` and `prisma.config.ts` read it.
 
 The ESLint config enforces most of these rules. Full rationale: `docs/architecture.md`.
 
