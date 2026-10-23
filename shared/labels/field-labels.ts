@@ -175,6 +175,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   numeroInterno: "Nº de receta",
   origen: "Origen",
   pagada: "Pagada",
+  envioId: "Envío del formulario",
   marcarImpaga: "Marcar como impaga",
   pago: "Pago",
   pacienteTexto: "Paciente (si figura)",

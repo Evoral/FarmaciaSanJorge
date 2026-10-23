@@ -249,6 +249,8 @@ export interface NuevaRecetaInput {
   nroRecetaEmisor?: string | null;
   urlVerificacion?: string | null;
   fechaValidaDesde?: string | null; // YYYY-MM-DD
+  /** Migration 0102: the manual alta form's idempotency key (docs/specs/alta-receta-idempotente.md). */
+  envioId?: string | null;
   items: NuevoItemInput[];
 }
 
@@ -274,6 +276,12 @@ async function insertComponentes(
   }
 }
 
+/** The receta a previous submit of the same alta form already created (migration 0102), if any. */
+export async function buscarRecetaPorEnvio(tx: Prisma.TransactionClient, tenantId: string, envioId: string): Promise<{ id: string; numeroInterno: string } | null> {
+  const row = await tx.receta.findFirst({ where: { tenantId, envioId }, select: { id: true, numeroInterno: true } });
+  return row ? { id: row.id, numeroInterno: row.numeroInterno.toString() } : null;
+}
+
 export async function insertRecetaConItems(tx: Prisma.TransactionClient, input: NuevaRecetaInput): Promise<{ id: string; numeroInterno: string }> {
   const receta = await tx.receta.create({
     data: {
@@ -294,6 +302,7 @@ export async function insertRecetaConItems(tx: Prisma.TransactionClient, input: 
       nroRecetaEmisor: input.nroRecetaEmisor ?? null,
       urlVerificacion: input.urlVerificacion ?? null,
       fechaValidaDesde: input.fechaValidaDesde ? new Date(`${input.fechaValidaDesde}T00:00:00Z`) : null,
+      envioId: input.envioId ?? null,
     },
     select: { id: true, numeroInterno: true },
   });

@@ -76,7 +76,7 @@ const itemInput = itemInputAlta.extend({ id: uuid.optional() });
  * the alta can be marked while editing): omitted = the payment is left as it is (the toma workspace embeds the form
  * without the switch); sent = the same change as the detail's `marcarPagoReceta` (docs/specs/pago-receta.md P8).
  */
-const editarRecetaInput = crearRecetaInput.omit({ pagada: true }).extend({
+const editarRecetaInput = crearRecetaInput.omit({ pagada: true, envioId: true }).extend({
   id: uuid,
   pagada: z.boolean().optional(),
   items: z.array(itemInput).min(1, "La receta debe tener al menos un ítem."),

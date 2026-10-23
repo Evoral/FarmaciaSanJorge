@@ -332,6 +332,11 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
 
+  // Idempotency key of this alta (docs/specs/alta-receta-idempotente.md): kept across retries, renewed after a success.
+  const [envioId, setEnvioId] = useState(() => crypto.randomUUID());
+  useEffect(() => {
+    if (state.status === "success") setEnvioId(crypto.randomUUID());
+  }, [state]);
   const [pacienteId, setPacienteId] = useState(inicial?.pacienteId ?? "");
   const [pacienteLabel, setPacienteLabel] = useState(inicial?.pacienteLabel ?? "");
   const [medicoId, setMedicoId] = useState(inicial?.medicoId ?? "");
@@ -632,6 +637,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   return (
     <form ref={formRef} action={formAction} onSubmit={handleSubmit} noValidate className={encabezadoOculto ? "flex flex-col gap-6" : "split-layout"}>
       {mode === "editar" && recetaId ? <input type="hidden" name="id" value={recetaId} /> : null}
+      {mode === "crear" ? <input type="hidden" name="envioId" value={envioId} /> : null}
       {mode === "editar" && volverA ? <input type="hidden" name="volverA" value={volverA} /> : null}
       {/* The toma workspace (encabezadoOculto) has no payment switch: no field, so the edit leaves the payment as it is. */}
       {mode === "editar" && !encabezadoOculto ? <input type="hidden" name="pagada" value={String(pagada)} /> : null}

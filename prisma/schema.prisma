@@ -955,6 +955,8 @@ model Receta {
   domicilioPaciente      String?      @map("domicilio_paciente")
   /// Migration 0099 (docs/specs/domicilios.md): envío address of this receta. NULL = same as `domicilioPaciente`.
   domicilioEntrega       String?      @map("domicilio_entrega")
+  /// Migration 0102 (docs/specs/alta-receta-idempotente.md): idempotency key of the manual alta form. Partial unique index uq_receta_envio (tenant_id, envio_id) WHERE envio_id IS NOT NULL (not expressible here).
+  envioId                String?      @map("envio_id") @db.Uuid
   /// Migration 0057: the lab's "toma" -- who took the receta from the /preparaciones queue and when. Both set or both null (receta_toma_pair_check); cleared by "Cancelar toma". Partial index idx_receta_tenant_tomada_en_curso (not expressible here).
   tomadaPorId            String?      @map("tomada_por_id") @db.Uuid
   tomadaEn               DateTime?    @map("tomada_en") @db.Timestamptz(6)

@@ -14,7 +14,7 @@
  * legitimate cross-module entry point).
  */
 import { revalidatePath } from "next/cache";
-import { crearReceta } from "@/modules/recetas/application/crear-receta";
+import { crearReceta, RecetaYaRegistradaError } from "@/modules/recetas/application/crear-receta";
 import { leerRecetaPdf } from "@/modules/recetas/application/leer-receta-pdf";
 import { leerRecetaQr } from "@/modules/recetas/application/leer-receta-qr";
 import { importarReceta } from "@/modules/recetas/application/importar-receta";
@@ -63,10 +63,17 @@ export async function crearRecetaAction(_prevState: RecetaActionState, formData:
         domicilioPaciente: String(formData.get("domicilioPaciente") ?? ""),
         domicilioEntrega: String(formData.get("domicilioEntrega") ?? ""),
         pagada: formData.get("pagada") === "on",
+        envioId: String(formData.get("envioId") ?? "") || undefined,
         items,
       });
       revalidatePath("/recetas");
     } catch (error) {
+      // A resubmit after a lost response: show the receta the first submit created (its fichas are completed if missing).
+      if (error instanceof RecetaYaRegistradaError) {
+        nueva = error.receta;
+        const avisos = await generarFichasYCotizaciones(nueva.id, { soloSiDesactualizadas: true });
+        return { status: "success", message: "La receta ya estaba registrada.", id: nueva.id, numeroInterno: nueva.numeroInterno, redirigirA: urlTrasRegistrar(nueva.id, avisos) };
+      }
       return fromError(error, "No se pudo crear la receta.");
     }
     const avisos = await generarFichasYCotizaciones(nueva.id, { soloSiDesactualizadas: false });
