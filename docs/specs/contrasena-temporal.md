@@ -152,7 +152,7 @@ Lo mismo vale para la **co-firma del Director Técnico** (stock, libro y pesada 
 | `/activar` | Se elimina (también de `PUBLIC_PATHS` en `proxy.ts`). |
 | Paso «Cambiar contraseña» (nueva, fuera de `(app)`) | Nueva contraseña + repetir, requisitos visibles, botón «Cerrar sesión». |
 | Paso «Configurar PIN» (nueva, fuera de `(app)`) | PIN + repetir, botón «Cerrar sesión». |
-| `/cuenta` | Sin «Eliminar PIN». Sin panel PIN para cuentas de sector ni para el usuario cuyo único rol es Administrador. |
+| `/cuenta` | Sin «Eliminar PIN». Sin panel PIN para cuentas de sector ni para el usuario cuyo único rol es Administrador; `configurarPin` además los rechaza en el servidor. |
 
 Todos los formularios usan `shared/ui/use-form-submit.ts` y conservan lo escrito ante un error.
 
