@@ -32,6 +32,7 @@ export const cuilOpcional = z
   .string()
   .trim()
   .optional()
+  .nullable()
   .transform((value, ctx) => {
     if (!value || value.length === 0) return null;
     const digits = soloDigitos(value);
@@ -56,6 +57,7 @@ export const dniOpcional = z
   .string()
   .trim()
   .optional()
+  .nullable()
   .transform((value, ctx) => {
     if (!value || value.length === 0) return null;
     const digits = soloDigitos(value);

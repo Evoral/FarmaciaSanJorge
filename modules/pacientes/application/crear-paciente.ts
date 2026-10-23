@@ -20,12 +20,14 @@ const textoOpcional = z
   .string()
   .trim()
   .optional()
+  .nullable()
   .transform((v) => (v && v.length > 0 ? v : null));
 
 const fechaOpcional = z
   .string()
   .trim()
   .optional()
+  .nullable()
   .transform((value, ctx) => {
     if (!value || value.length === 0) return null;
     const date = new Date(value);
