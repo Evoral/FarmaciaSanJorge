@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { anularAsiento } from "@/modules/libro/application/anular-asiento";
 import { rectificarAsiento } from "@/modules/libro/application/rectificar-asiento";
 import { reanclarLibro } from "@/modules/libro/application/reanclar-libro";
+import { configurarNumeracionLibro } from "@/modules/libro/application/configurar-numeracion-libro";
 import { invalidarResumenIntegridad } from "@/modules/libro/application/resumen-integridad";
 import { StepUpRequiredError } from "@/shared/errors";
 import { actionError } from "@/shared/ui/action-error";
@@ -84,5 +85,28 @@ export async function reanclarLibroAction(_prevState: LibroActionState, formData
       return { status: "reauth-required" };
     }
     return actionError(error, "No se pudo reanclar la cadena.");
+  }
+}
+
+/** Migration 0097: the DT sets a libro's first number from `/libro/numeracion` (re-auth like the re-anchor). */
+export async function configurarNumeracionLibroAction(_prevState: LibroActionState, formData: FormData): Promise<LibroActionState> {
+  try {
+    const resultado = await configurarNumeracionLibro({
+      libroId: String(formData.get("libroId") ?? ""),
+      numeroInicial: String(formData.get("numeroInicial") ?? ""),
+    });
+    invalidarResumenIntegridad();
+    revalidatePath("/libro", "layout");
+    revalidatePath("/cierres");
+    const renumerados =
+      resultado.asientosRenumerados === 0
+        ? ""
+        : ` ${resultado.asientosRenumerados === 1 ? "El asiento ya registrado se renumeró" : `Los ${resultado.asientosRenumerados} asientos ya registrados se renumeraron`}.`;
+    return { status: "success", message: `${resultado.libro}: el primer asiento es ahora el Nº ${resultado.numeroInicial}.${renumerados}` };
+  } catch (error) {
+    if (error instanceof StepUpRequiredError) {
+      return { status: "reauth-required" };
+    }
+    return actionError(error, "No se pudo cambiar la numeración del libro.");
   }
 }

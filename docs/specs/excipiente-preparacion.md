@@ -20,6 +20,7 @@ excipiente is chosen from the catalog (no free text), with its quantity, and is 
 | E6 | **Descontado at "Imprimir etiquetas"**: EGRESO_PREPARACION over its reserved lots, in the same transaction as the líneas. Never contralor (an EXCIPIENTE can not be controlled, 0063). In the libro it is in the **fórmula** ("excipiente utilizado"), not a detalle line (insumos are left out of the detalle, as before). | `consumirExcipienteEnTx`; `confirmarPreparacionEnTx` |
 | E7 | **No línea de pesaje**: fichas are immutable and the prescription is not altered, so its reserva and egreso have `linea_pesaje_id` NULL -- allowed by the DB ONLY for the preparación's excipiente (the partida's droga = `preparacion.excipiente_droga_id`, a droga of clase EXCIPIENTE). | Migration 0092 triggers |
 | E8 | **Read-only once reserved** ("Excipiente utilizado: …"); to change it, "Liberar reserva" and mark it again. "Liberar reserva" releases its stock with the rest. | Toma page |
+| E9 | **Second chance in "Marcar como preparada"** (user decision, 2026-10-22). When the dialog opens with no excipiente added in the ficha, it shows the same buscador (clase EXCIPIENTE only) and quantity field; what is chosen there is the same draft as the ficha's row (saved the same way). With an excipiente already added the dialog lists it read-only, as before. | `MarcarPreparadaDialog`, `BuscadorExcipiente` / `CantidadExcipiente` (`ui/pesaje-en-toma.tsx`) |
 
 ## Decisions
 

@@ -21,7 +21,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       <div className="mb-8">
         <BrandHeader />
       </div>
-      <div className="card w-full max-w-sm p-6 sm:p-8">{children}</div>
+      <div className="glass-panel w-full max-w-sm p-6 sm:p-8">{children}</div>
     </div>
   );
 }

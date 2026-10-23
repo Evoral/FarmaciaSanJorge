@@ -144,6 +144,13 @@ export function hrefToma(recetaId: string): string {
   return `/preparaciones/recetas/${recetaId}`;
 }
 
+/** Toma workspace URL flag: open "Imprimir etiquetas" on load (the Confirmadas tab's "Imprimir", reserva spec R26). */
+export const PARAM_IMPRIMIR = "imprimir";
+
+export function hrefImprimirEtiquetas(recetaId: string): string {
+  return `${hrefToma(recetaId)}?${PARAM_IMPRIMIR}=1`;
+}
+
 /** The "En curso" tab (its URL key is still `estado=INICIADA`, so older links keep working). */
 export const HREF_EN_CURSO = "/preparaciones?estado=INICIADA";
 

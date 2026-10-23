@@ -19,7 +19,6 @@ import { registrarPerdidaReserva, type RegistrarPerdidaReservaInput } from "@/mo
 import { getConfirmacionDeFicha } from "@/modules/preparaciones/application/get-confirmacion-de-ficha";
 import { generarEtiqueta } from "@/modules/preparaciones/application/generar-etiqueta";
 import { previsualizarFichas } from "@/modules/preparaciones/application/previsualizar-fichas";
-import { guardarExcipientePreparacion } from "@/modules/preparaciones/application/guardar-excipiente-preparacion";
 import { guardarBorradorPesada } from "@/modules/preparaciones/application/guardar-borrador-pesada";
 import { guardarExcipienteBorrador } from "@/modules/preparaciones/application/guardar-excipiente-borrador";
 import { StepUpRequiredError } from "@/shared/errors";
@@ -161,24 +160,6 @@ export async function getConfirmacionDeFichaAction(fichaTecnicaId: string): Prom
 }
 
 /**
- * "Marcar como preparada" (one click, or the dialog's submit): creates the preparación and reserves its stock
- * automatically in one transaction (same form fields as `confirmarPreparacionAction`, keyed by `fichaTecnicaId`).
- * Nothing is descontado nor written to the libro yet.
- */
-/** Toma workspace: saves the excipiente used of a reserved ítem when its field is left (migration 0083). No revalidation: the field already shows it. */
-export async function guardarExcipienteAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
-  return conOperador(formData, async (): Promise<PreparacionActionState> => {
-    try {
-      const preparacionId = String(formData.get("preparacionId") ?? "");
-      await guardarExcipientePreparacion({ preparacionId, excipiente: String(formData.get("excipiente") ?? "") || null });
-      return { status: "success", id: preparacionId };
-    } catch (error) {
-      return { ...actionError(error, "No se pudo guardar el excipiente."), fields: ["excipiente"] };
-    }
-  });
-}
-
-/**
  * Toma workspace: saves one línea's pesada en borrador (migration 0090) as the lab fills it in -- lots in order, real
  * weighing / enrase quantity, motivo. Blank quantities clear them. No revalidation: the fields already show it.
  */
@@ -225,6 +206,11 @@ function excipienteDe(formData: FormData): { drogaId: string; cantidad: string }
   return drogaId ? { drogaId, cantidad: String(formData.get("excipienteCantidad") ?? "") } : undefined;
 }
 
+/**
+ * "Marcar como preparada" (one click, or the dialog's submit): creates the preparación and reserves its stock
+ * automatically in one transaction (same form fields as `confirmarPreparacionAction`, keyed by `fichaTecnicaId`).
+ * Nothing is descontado nor written to the libro yet.
+ */
 export async function reservarStockAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
   return conOperador(formData, async (): Promise<PreparacionActionState> => {
     try {

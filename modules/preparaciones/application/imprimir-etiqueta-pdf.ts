@@ -33,11 +33,13 @@ import { getHojaParaImprimir } from "@/modules/etiqueta-tamanos/application/get-
 import { getTamanoParaImprimir } from "@/modules/etiqueta-tamanos/application/get-tamano-para-imprimir";
 import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
 import { celdaValida, entraEnHoja, grillaHoja } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
+import type { Celda, HojaEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
+import type { EtiquetaTamano } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import { NotFoundError, ValidationError } from "@/shared/errors";
 import { getEtiquetaParaImprimir } from "./get-etiqueta-para-imprimir";
 import { marcarEtiquetaImpresa } from "./marcar-etiqueta-impresa";
 import { armarContenidoEtiqueta, parsearContenidoEtiqueta } from "../domain/etiqueta";
-import { buildEtiquetaPdf } from "../infrastructure/etiqueta-pdf";
+import { buildEtiquetaPdf, buildEtiquetasPdf } from "../infrastructure/etiqueta-pdf";
 
 export interface EtiquetaPdfResult {
   preparacionId: string;
@@ -62,10 +64,9 @@ function leerCoordenada(valor: string | undefined): number {
   return Number(valor);
 }
 
-export async function imprimirEtiquetaPdf(preparacionId: string, opciones: OpcionesEtiquetaPdf = {}): Promise<EtiquetaPdfResult> {
+/** The size and the cell, resolved and checked against the sheet (R7): nothing is marked before every one passes. */
+async function resolverColocacion(hoja: HojaEtiqueta, opciones: OpcionesEtiquetaPdf): Promise<{ tamano: EtiquetaTamano; celda: Celda }> {
   const celda = { columna: leerCoordenada(opciones.columna), fila: leerCoordenada(opciones.fila) };
-
-  const hoja = await getHojaParaImprimir();
   let tamano;
   if (opciones.tamanoId) {
     tamano = await getTamanoParaImprimir(opciones.tamanoId);
@@ -75,9 +76,47 @@ export async function imprimirEtiquetaPdf(preparacionId: string, opciones: Opcio
     if (!tamano) throw new NotFoundError(SIN_TAMANOS_MESSAGE);
   }
   if (!celdaValida(grillaHoja(hoja, tamano), celda)) throw new ValidationError(CELDA_NO_VALIDA_MESSAGE);
+  return { tamano, celda };
+}
+
+export async function imprimirEtiquetaPdf(preparacionId: string, opciones: OpcionesEtiquetaPdf = {}): Promise<EtiquetaPdfResult> {
+  const hoja = await getHojaParaImprimir();
+  const { tamano, celda } = await resolverColocacion(hoja, opciones);
 
   const datos = await getEtiquetaParaImprimir(preparacionId);
   await marcarEtiquetaImpresa(datos.etiquetaId);
   const pdf = await buildEtiquetaPdf(parsearContenidoEtiqueta(datos.contenido) ?? armarContenidoEtiqueta(datos), tamano, hoja, celda);
   return { preparacionId, pdf };
+}
+
+/** One etiqueta of the multi-etiqueta print, as the route reads it (raw text). */
+export interface EtiquetaPedida extends OpcionesEtiquetaPdf {
+  preparacionId: string;
+}
+
+export const SIN_ETIQUETAS_MESSAGE = "No se indicó ninguna etiqueta para imprimir.";
+/** A receta has a handful of ítems; the cap only bounds a hand-made URL. */
+const MAX_ETIQUETAS = 50;
+
+/**
+ * Several etiquetas in ONE PDF (the toma's single "Imprimir", docs/specs/hoja-etiquetas.md R14), in the given order,
+ * sharing the sheet while they do not overlap. All or nothing: every size, cell and etiqueta is resolved before any
+ * is marked as printed, so one refused etiqueta prints (and marks) none.
+ */
+export async function imprimirEtiquetasPdf(pedidas: readonly EtiquetaPedida[]): Promise<Buffer> {
+  if (pedidas.length === 0 || pedidas.length > MAX_ETIQUETAS) throw new ValidationError(SIN_ETIQUETAS_MESSAGE);
+  const hoja = await getHojaParaImprimir();
+
+  const etiquetas = [];
+  for (const pedida of pedidas) {
+    const { tamano, celda } = await resolverColocacion(hoja, pedida);
+    const datos = await getEtiquetaParaImprimir(pedida.preparacionId);
+    etiquetas.push({ datos, tamano, celda });
+  }
+  for (const { datos } of etiquetas) await marcarEtiquetaImpresa(datos.etiquetaId);
+
+  return buildEtiquetasPdf(
+    etiquetas.map(({ datos, tamano, celda }) => ({ contenido: parsearContenidoEtiqueta(datos.contenido) ?? armarContenidoEtiqueta(datos), tamano, celda })),
+    hoja,
+  );
 }

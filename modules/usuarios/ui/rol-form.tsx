@@ -9,6 +9,7 @@
  *
  * Each permiso shows its category (operativo / consulta / gestión) as a
  * small badge; each module card shows how many of its permisos are on.
+ * An info icon next to each permiso shows its plain-language help (`ayudaDePermiso`).
  *
  * Disabled (never submitted) checkboxes:
  *   - permisos outside the ACTOR's grantable set (held permisos, plus every
@@ -21,8 +22,10 @@ import { useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 import { PERMISOS_BASE_DE_ROL, type Permiso } from "@/modules/auth/domain/permisos";
+import { InfoHint } from "@/shared/ui/info-hint";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import type { BadgeTone } from "@/shared/ui/status-badge";
+import { ayudaDePermiso } from "../domain/ayuda-permisos";
 import { agruparPermisos, CATEGORIA_PERMISO_LABELS, DESCRIPCION_ROL_MAX, NOMBRE_ROL_MAX, type PermisoCatalogo } from "../domain/roles";
 import { crearRolAction, editarRolAction } from "./rol-actions";
 
@@ -135,6 +138,7 @@ export function RolForm({ rol, catalogo, otorgables, disabled = false }: RolForm
                           />
                           <span className="min-w-0 flex-1">
                             <span className={habilitado ? "text-zinc-900" : undefined}>{permiso.descripcion}</span>
+                            <AyudaPermiso codigo={permiso.codigo} descripcion={permiso.descripcion} />
                             <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                               <span className="font-mono text-[0.6875rem] text-zinc-400">{permiso.codigo}</span>
                               {BASE.has(permiso.codigo) ? <span className="text-xs text-zinc-500">(siempre incluido)</span> : null}
@@ -182,4 +186,14 @@ const CATEGORIA_TONE: Record<PermisoCatalogo["categoria"], BadgeTone> = {
 /** Small category badge next to each permiso (operativo / consulta / gestión). */
 export function CategoriaBadge({ categoria }: { categoria: PermisoCatalogo["categoria"] }) {
   return <ToneBadge tone={CATEGORIA_TONE[categoria]}>{CATEGORIA_PERMISO_LABELS[categoria]}</ToneBadge>;
+}
+
+/** Info icon with the permiso's plain-language help; nothing when it has none. */
+export function AyudaPermiso({ codigo, descripcion }: Pick<PermisoCatalogo, "codigo" | "descripcion">) {
+  const ayuda = ayudaDePermiso(codigo);
+  return ayuda ? (
+    <span className="ml-1.5">
+      <InfoHint label={`Qué permite: ${descripcion}`}>{ayuda}</InfoHint>
+    </span>
+  ) : null;
 }

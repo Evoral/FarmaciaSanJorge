@@ -17,7 +17,7 @@ import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getRol } from "@/modules/usuarios/application/get-rol";
 import { agruparPermisos, motivoNoEditable, motivoNoEliminable, motivoNoGestionable } from "@/modules/usuarios/domain/roles";
-import { CategoriaBadge } from "@/modules/usuarios/ui/rol-form";
+import { AyudaPermiso, CategoriaBadge } from "@/modules/usuarios/ui/rol-form";
 import { RolForm } from "@/modules/usuarios/ui/rol-form";
 import { EliminarRolForm } from "@/modules/usuarios/ui/eliminar-rol-form";
 import { PageHeader } from "@/shared/ui/page-header";
@@ -77,7 +77,10 @@ export default async function RolDetallePage({ params }: RolDetallePageProps) {
                 <ul className="flex flex-col divide-y divide-zinc-100">
                   {grupo.permisos.map((permiso) => (
                     <li key={permiso.codigo} className="flex items-start justify-between gap-3 px-3 py-2 text-[0.8125rem] text-zinc-900">
-                      {permiso.descripcion}
+                      <span>
+                        {permiso.descripcion}
+                        <AyudaPermiso codigo={permiso.codigo} descripcion={permiso.descripcion} />
+                      </span>
                       <CategoriaBadge categoria={permiso.categoria} />
                     </li>
                   ))}

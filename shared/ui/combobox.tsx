@@ -29,11 +29,14 @@
  *   docs/specs/sinonimos-droga.md "Nombre elegido al cargar"). Parents that
  *   keep the picked option as their `value` get this for free.
  *
+ * - `floating`: the list is laid out `position: fixed` over the field, so a
+ *   scrolling container (a `<dialog>` with a max height) never clips it.
+ *
  * Sources that touch personal data (pacientes, DP-24) must search through
  * a Server Action (POST), never through the URL.
  */
 import { AlertCircle, Plus, Search, X } from "lucide-react";
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { FIELD_ERROR_EVENT, type FieldErrorEventDetail } from "./field-errors";
 import { SinonimoHint } from "./sinonimo-hint";
 
@@ -84,6 +87,8 @@ export interface ComboboxProps {
    * first suggestion.
    */
   enterRunsAction?: boolean;
+  /** Lay the list out `position: fixed` over the field: it escapes a scrolling container (a dialog) instead of being clipped. */
+  floating?: boolean;
 }
 
 const DEBOUNCE_MS = 200;
@@ -126,7 +131,28 @@ export function filtrarOpciones(options: readonly ComboboxOption[], limit = 30) 
 
 type Status = "idle" | "loading" | "error" | "ready";
 
-export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, search, value, onChange, name, helperText, disabled, size = "md", actionOption, enterRunsAction = false }: ComboboxProps) {
+/** `floating`: the list's fixed box under the field, kept in place while anything scrolls or the window resizes. */
+function usePosicionFlotante(controlRef: RefObject<HTMLDivElement | null>, activa: boolean): CSSProperties | null {
+  const [posicion, setPosicion] = useState<CSSProperties | null>(null);
+  useLayoutEffect(() => {
+    if (!activa) return;
+    function ubicar() {
+      const rect = controlRef.current?.getBoundingClientRect();
+      if (rect) setPosicion({ position: "fixed", top: rect.bottom + 6, left: rect.left, width: rect.width, right: "auto" });
+    }
+    ubicar();
+    window.addEventListener("scroll", ubicar, true);
+    window.addEventListener("resize", ubicar);
+    return () => {
+      window.removeEventListener("scroll", ubicar, true);
+      window.removeEventListener("resize", ubicar);
+    };
+  }, [controlRef, activa]);
+  // A stale box from the previous opening is never used: the effect re-measures before paint.
+  return activa ? posicion : null;
+}
+
+export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, search, value, onChange, name, helperText, disabled, size = "md", actionOption, enterRunsAction = false, floating = false }: ComboboxProps) {
   const autoId = useId();
   const inputId = id ?? `${autoId}-input`;
   const listId = `${autoId}-list`;
@@ -134,6 +160,7 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
   const inputRef = useRef<HTMLInputElement>(null);
   const hiddenRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const controlRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -303,6 +330,7 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
   const nombrePrincipalId = `${autoId}-principal`;
   const describedBy = [helperText ? helpId : null, nombrePrincipal ? nombrePrincipalId : null].filter(Boolean).join(" ") || undefined;
   const activeId = open && activeIndex >= 0 ? `${autoId}-opt-${activeIndex}` : undefined;
+  const posicion = usePosicionFlotante(controlRef, floating && showList);
 
   return (
     <div className="field min-w-0">
@@ -317,7 +345,7 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
         )}
       </label>
       <div className="combobox">
-        <div className="combobox-control">
+        <div ref={controlRef} className="combobox-control">
           <Search aria-hidden />
           <input
             ref={inputRef}
@@ -371,7 +399,7 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
         </div>
 
         {showList ? (
-          <div className="popover">
+          <div className="popover" style={posicion ?? undefined}>
             {status === "loading" && options.length === 0 ? (
               <p className="popover-status">
                 <span className="spinner" aria-hidden />

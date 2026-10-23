@@ -7,6 +7,7 @@
  *
  * "Minoxidil 5 mg; Finasteride 1 mg; Ludipress c.s.p. — 60 Cápsulas (1 cápsula = ½ dosis)"
  */
+import { dec } from "@/shared/decimal";
 import { formatNumero } from "@/shared/format/cantidad";
 import { FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
 import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
@@ -50,15 +51,15 @@ function lineaComponente(c: ComponentePrescripto): string {
 }
 
 function textoFraccion(valor: string): string {
-  const numero = Number(valor);
-  return FRACCIONES.find((f) => Math.abs(f.valor - numero) < 0.001)?.texto ?? formatNumero(valor);
+  const numero = dec(valor);
+  return FRACCIONES.find((f) => numero.minus(f.valor).abs().lessThan(0.001))?.texto ?? formatNumero(valor);
 }
 
 function cantidadYForma(item: ItemPrescripto): string {
   const forma = item.formaFarmaceutica;
   if (FORMAS_POR_UNIDAD.has(forma) || !item.cantidadTotal) {
     const base = `${item.cantidadUnidades} ${formaSegunCantidad(forma, item.cantidadUnidades)}`;
-    if (!FORMAS_POR_UNIDAD.has(forma) || Number(item.fraccionDosisPorUnidad) === 1) return base;
+    if (!FORMAS_POR_UNIDAD.has(forma) || dec(item.fraccionDosisPorUnidad).equals(1)) return base;
     const unidad = formaSegunCantidad(forma, 1).toLocaleLowerCase("es-AR");
     return `${base} (1 ${unidad} = ${textoFraccion(item.fraccionDosisPorUnidad)} dosis)`;
   }

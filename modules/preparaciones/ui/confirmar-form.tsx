@@ -33,6 +33,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { CircleAlert, Info, TriangleAlert } from "lucide-react";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { crearCatalogoUnidades, formatCantidadesFila, formatNumero, type CatalogoUnidades } from "@/shared/format/cantidad";
+import { formatFechaIso } from "@/shared/format/fecha";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 import { CoFirmaDt } from "@/shared/ui/co-firma-dt";
 import { confirmarPreparacionAction, recalcularReservaStockAction, reservarStockAction } from "./actions";
@@ -135,10 +136,6 @@ export function pesadaDeLinea(linea: LineaPantalla, plan: PlanDeLinea, real: str
   const sugerida = numeroParaInput(redondearABalanza(esperada, precision).toFixed());
   const valor = cantidadValida(real ?? sugerida);
   return { esperada, sugerida, evaluacion: valor ? evaluarPesada(valor, esperada, datos.pesada.toleranciaPorcentaje, precision) : null };
-}
-
-function fechaCorta(iso: string): string {
-  return new Intl.DateTimeFormat("es-AR", { dateStyle: "short" }).format(new Date(`${iso}T00:00:00`));
 }
 
 export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActions }: ConfirmarPreparacionFormProps) {
@@ -391,7 +388,7 @@ function PlanLinea({ linea, plan, catalogo, datos }: { linea: LineaPantalla; pla
                 </span>
                 <span className="flex justify-between gap-2 tabular-nums">
                   <span className="text-zinc-500">Vence</span>
-                  <span className="text-zinc-900">{partida?.fechaVencimiento ? fechaCorta(partida.fechaVencimiento) : "No vence"}</span>
+                  <span className="text-zinc-900">{partida?.fechaVencimiento ? formatFechaIso(partida.fechaVencimiento) : "No vence"}</span>
                 </span>
                 <span className="flex justify-between gap-2 tabular-nums" title={cantidad.exacto}>
                   <span className="text-zinc-500">Tomar</span>
@@ -476,7 +473,7 @@ function ElegirLotes({
                   </span>
                   <span className="flex justify-between gap-2 tabular-nums">
                     <span className="text-zinc-500">Vence</span>
-                    <span className="text-zinc-900">{partida.fechaVencimiento ? fechaCorta(partida.fechaVencimiento) : "No vence"}</span>
+                    <span className="text-zinc-900">{partida.fechaVencimiento ? formatFechaIso(partida.fechaVencimiento) : "No vence"}</span>
                   </span>
                   <span className="flex justify-between gap-2 tabular-nums" title={disponible.exacto}>
                     <span className="text-zinc-500">Disponible</span>

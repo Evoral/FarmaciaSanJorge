@@ -98,6 +98,7 @@ import {
   ESTADOS_RECETA_VISIBLES_EN_TOMA,
   ESTADO_ITEM_TOMA_LABELS,
   HREF_EN_CURSO,
+  PARAM_IMPRIMIR,
   estadoItemToma,
   etiquetaProgreso,
   hrefToma,
@@ -171,6 +172,7 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
   const sp = await searchParams;
   const avisos = decodificarAvisos(sp[PARAM_AVISO], receta.items.length);
   const guardada = sp[PARAM_GUARDADA] === "1";
+  const abrirImprimir = sp[PARAM_IMPRIMIR] === "1";
 
   // /recetas/[id]/editar's own gates: the /recetas layout and getReceta need `recetas.crear`.
   // A live preparación (a reserva de stock) blocks editing even while the receta is still PENDIENTE_PREPARACION.
@@ -246,6 +248,7 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
             estados[i] === "RESERVADA" && item.preparacion ? [{ preparacionId: item.preparacion.id, numero: i + 1, nombre: nombreDeItem(item) }] : [],
           )}
           mesesVencimiento={receta.mesesVencimientoPreparado}
+          abrirAlMontar={abrirImprimir}
         />
       </div>
     </section>

@@ -19,6 +19,7 @@
  * FINAL row, after BEFORE ROW triggers run, not against the values the
  * INSERT statement supplied).
  */
+import { listSinonimosVigentes } from "@/shared/db/busqueda-droga";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import type { EstadoPreparacion, EstadoReceta, TipoMovimientoContralor } from "@/generated/prisma/enums";
@@ -782,11 +783,6 @@ export async function getItemPrescriptoDePreparacion(tx: Prisma.TransactionClien
   };
 }
 
-/** Sets (or clears, `null`) the excipiente used; the caller has locked the preparación and checked it is INICIADA (DB: INV-P08). */
-export async function setExcipientePreparacion(tx: Prisma.TransactionClient, tenantId: string, preparacionId: string, excipiente: string | null): Promise<void> {
-  await tx.preparacion.update({ where: { id: preparacionId, tenantId }, data: { excipienteTexto: excipiente } });
-}
-
 export async function insertAsientoRecetario(tx: Prisma.TransactionClient, input: NuevoAsientoRecetarioInput): Promise<{ id: string; numeroCorrelativo: string }> {
   const asientoId = randomUUID();
 
@@ -984,7 +980,7 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
                   cantidad: true,
                   modoExpresion: true,
                   esPrincipioActivo: true,
-                  droga: { select: { nombre: true } },
+                  droga: { select: { nombre: true, tipoControl: true } },
                   unidadMedida: { select: { simbolo: true } },
                 },
               },
@@ -1031,6 +1027,7 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
       unidadSimbolo: c.unidadMedida.simbolo,
       modoExpresion: c.modoExpresion,
       esPrincipioActivo: c.esPrincipioActivo,
+      esPsicotropico: c.droga.tipoControl === "PSICOTROPICO",
     })),
     recetaNumeroInterno: item.receta.numeroInterno.toString(),
     medicoNombre: medico.nombre,
@@ -1176,8 +1173,22 @@ function whereComun(filter: FiltroComunPreparaciones, zonaHoraria: string): Pris
 
 const SIN_ETIQUETA_IMPRESA: Prisma.PreparacionWhereInput = { OR: [{ etiqueta: { is: null } }, { etiqueta: { is: { impresa: false } } }] };
 
-function wherePestana(comun: Prisma.PreparacionWhereInput, estado: EstadoPreparacion, sinEtiquetaImpresa: boolean): Prisma.PreparacionWhereInput {
-  return estado === "CONFIRMADA" && sinEtiquetaImpresa ? { AND: [comun, { estado }, SIN_ETIQUETA_IMPRESA] } : { AND: [comun, { estado }] };
+/**
+ * Confirmadas also lists the INICIADA preparaciones that hold a reserva ("Marcar como preparada" done, etiquetas not
+ * printed yet: docs/specs/reserva-stock-preparacion.md R26). No Prisma relation to `reserva_stock`, so their ids are read
+ * first: reservas only live while a preparación is INICIADA (R4), so this is the lab's work in progress, a handful.
+ */
+async function wherePestana(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  comun: Prisma.PreparacionWhereInput,
+  estado: EstadoPreparacion,
+  sinEtiquetaImpresa: boolean,
+): Promise<Prisma.PreparacionWhereInput> {
+  if (estado !== "CONFIRMADA") return { AND: [comun, { estado }] };
+  const reservadas = await tx.reservaStock.findMany({ where: { tenantId }, distinct: ["preparacionId"], select: { preparacionId: true } });
+  const estadoWhere: Prisma.PreparacionWhereInput = { OR: [{ estado }, { estado: "INICIADA", id: { in: reservadas.map((r) => r.preparacionId) } }] };
+  return sinEtiquetaImpresa ? { AND: [comun, estadoWhere, SIN_ETIQUETA_IMPRESA] } : { AND: [comun, estadoWhere] };
 }
 
 export async function listPreparaciones(
@@ -1186,7 +1197,7 @@ export async function listPreparaciones(
 ): Promise<{ items: PreparacionListItem[]; total: number; zonaHoraria: string }> {
   const zonaHoraria = await zonaHorariaTenant(tx, filter.tenantId);
   const comun = whereComun(filter, zonaHoraria);
-  const where = filter.estado ? wherePestana(comun, filter.estado, filter.sinEtiquetaImpresa ?? false) : comun;
+  const where = filter.estado ? await wherePestana(tx, filter.tenantId, comun, filter.estado, filter.sinEtiquetaImpresa ?? false) : comun;
   const skip = (filter.page - 1) * filter.pageSize;
 
   const total = await tx.preparacion.count({ where });
@@ -1603,8 +1614,10 @@ export interface ListRecetasEnCursoRow {
 /**
  * The /preparaciones "En curso" tab: recetas taken by the lab (migration
  * 0057) that are still PENDIENTE_PREPARACION or EN_PREPARACION and have at
- * least one ítem without a CONFIRMADA preparación (once every ítem is
- * confirmed the receta is PREPARADA anyway). The `tomada_por_id`/estado
+ * least one ítem still to prepare: neither CONFIRMADA nor INICIADA with a
+ * reserva. Once every ítem is reserved the receta leaves En curso and waits
+ * in Confirmadas for its etiquetas (docs/specs/reserva-stock-preparacion.md
+ * R26); once every ítem is confirmed it is PREPARADA anyway. The `tomada_por_id`/estado
  * predicates match the partial index idx_receta_tenant_tomada_en_curso.
  * Oldest toma first. Built separately for tests/db.
  */
@@ -1638,14 +1651,24 @@ export function listRecetasEnCursoSql(filter: ListRecetasEnCursoFilter): Prisma.
               SELECT 1 FROM fsj.preparacion p
               WHERE p.tenant_id = ir.tenant_id AND p.item_receta_id = ir.id AND p.estado = 'CONFIRMADA'
             )
-          ))::int AS items_confirmados
+          ))::int AS items_confirmados,
+          (count(*) FILTER (
+            WHERE EXISTS (
+              SELECT 1 FROM fsj.preparacion p
+              WHERE p.tenant_id = ir.tenant_id AND p.item_receta_id = ir.id
+                AND (
+                  p.estado = 'CONFIRMADA'
+                  OR (p.estado = 'INICIADA' AND EXISTS (SELECT 1 FROM fsj.reserva_stock rs WHERE rs.tenant_id = p.tenant_id AND rs.preparacion_id = p.id))
+                )
+            )
+          ))::int AS items_preparados
         FROM fsj.item_receta ir
         WHERE ir.tenant_id = r.tenant_id AND ir.receta_id = r.id
       ) avance
       WHERE r.tenant_id = ${filter.tenantId}::uuid
         AND r.tomada_por_id IS NOT NULL
         AND r.estado IN ('PENDIENTE_PREPARACION', 'EN_PREPARACION')
-        AND avance.items_confirmados < avance.total_items
+        AND avance.items_preparados < avance.total_items
         AND (${numero}::bigint IS NULL OR r.numero_interno = ${numero}::bigint)
         AND (${desde}::date IS NULL OR fsj.jornada_de(r.tomada_en, tn.zona_horaria) >= ${desde}::date)
         AND (${hasta}::date IS NULL OR fsj.jornada_de(r.tomada_en, tn.zona_horaria) <= ${hasta}::date)
@@ -2208,16 +2231,23 @@ export interface ExcipienteParaToma {
   id: string;
   nombre: string;
   unidadSimbolo: string;
+  /** Vigente synonyms: the buscador finds the excipiente by them too, like every droga buscador (`filtrarOpciones`). */
+  sinonimos: string[];
 }
 
-/** The vigente drogas of clase EXCIPIENTE, by name. */
+/** The vigente drogas of clase EXCIPIENTE, by name, with their vigente synonyms. */
 export async function listExcipientesParaToma(tx: Prisma.TransactionClient, tenantId: string): Promise<ExcipienteParaToma[]> {
   const rows = await tx.droga.findMany({
     where: { tenantId, clase: "EXCIPIENTE", fechaBaja: null },
     orderBy: { nombre: "asc" },
     select: { id: true, nombre: true, unidadBase: { select: { simbolo: true } } },
   });
-  return rows.map((r) => ({ id: r.id, nombre: r.nombre, unidadSimbolo: r.unidadBase.simbolo }));
+  const sinonimos = await listSinonimosVigentes(
+    tx,
+    tenantId,
+    rows.map((r) => r.id),
+  );
+  return rows.map((r) => ({ id: r.id, nombre: r.nombre, unidadSimbolo: r.unidadBase.simbolo, sinonimos: sinonimos.get(r.id) ?? [] }));
 }
 
 /** One droga as an excipiente candidate (any clase, so the caller can refuse a non-EXCIPIENTE one); `null` when not this tenant's. */

@@ -36,3 +36,14 @@ const MENSAJE_GENERICO_RECTIFICACION =
 export function mensajeParaInvarianteRectificacion(codigo: string): string {
   return MENSAJES_INVARIANTES_RECTIFICACION[codigo] ?? mensajeGlobalParaInvariante(codigo) ?? MENSAJE_GENERICO_RECTIFICACION;
 }
+
+/** Migration 0097: Spanish messages for `configurarNumeracionLibro` (INV-L26). */
+export const MENSAJES_INVARIANTES_NUMERACION: Readonly<Record<string, string>> = {
+  "INV-L26": "La numeración de este libro ya quedó fija con el primer cierre firmado: no se puede cambiar.",
+};
+
+const MENSAJE_GENERICO_NUMERACION = "No se pudo cambiar la numeración del libro: se violó una regla del sistema. Contactá al administrador si el problema persiste.";
+
+export function mensajeParaInvarianteNumeracion(codigo: string): string {
+  return MENSAJES_INVARIANTES_NUMERACION[codigo] ?? mensajeGlobalParaInvariante(codigo) ?? MENSAJE_GENERICO_NUMERACION;
+}

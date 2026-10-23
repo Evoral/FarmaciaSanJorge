@@ -25,13 +25,21 @@ import { fechaIso } from "../domain/filtros";
 import { mensajeParaInvarianteFirma } from "../domain/mensajes-invariantes";
 import { MOTIVO_DEMORA_VALUES, validarMotivoDemoraParaFirma } from "../domain/motivo-demora";
 import { calcularFueraDeTermino } from "../domain/demora";
-import { getDesignacionVigenteEnFecha, firmarCierreDb, jornadaActualTenant, getPlazoFirmaDias } from "../infrastructure/cierre-repository";
+import { validarConfirmacionNumeracion, type NumeracionLibro } from "../domain/numeracion";
+import {
+  getDesignacionVigenteEnFecha,
+  firmarCierreDb,
+  jornadaActualTenant,
+  getPlazoFirmaDias,
+  listLibrosPorFijarNumeracion,
+} from "../infrastructure/cierre-repository";
 import { verificarPasswordFirmaCommand } from "./verificar-password-firma";
 
 const firmarCierreInternalInput = z.object({
   fecha: fechaIso,
   motivoDemora: z.enum(MOTIVO_DEMORA_VALUES).optional(),
   motivoDemoraDetalle: z.string().trim().max(2000).optional(),
+  numeracionConfirmada: z.array(z.object({ libroId: z.string().uuid(), numeroInicial: z.string() })).default([]),
 });
 
 export interface FirmarCierreInput {
@@ -40,6 +48,11 @@ export interface FirmarCierreInput {
   password: string;
   motivoDemora?: (typeof MOTIVO_DEMORA_VALUES)[number];
   motivoDemoraDetalle?: string;
+  /**
+   * Migration 0097 (INV-L26): the first number of each libro this cierre fixes, as shown to and confirmed by the DT.
+   * Empty when the DT did not confirm; required whenever the cierre fixes a libro.
+   */
+  numeracionConfirmada?: NumeracionLibro[];
 }
 
 export interface CierreFirmadoOutput {
@@ -78,6 +91,14 @@ const firmarCierreInternalCommand = defineCommand({
       throw new DomainError(validacionMotivo.error);
     }
 
+    // INV-L26: the libros this cierre fixes, read under the cierre's own lock so they cannot be renumbered before
+    // fsj.cierre_diario_firmar (same transaction) fixes them.
+    const porFijar = await listLibrosPorFijarNumeracion(tx, session.tenantId, input.fecha, { bloquear: true });
+    const confirmacion = validarConfirmacionNumeracion(porFijar, input.numeracionConfirmada);
+    if (!confirmacion.ok) {
+      throw new DomainError(confirmacion.error, { fields: ["confirmaNumeracion"] });
+    }
+
     try {
       const cierre = await firmarCierreDb(tx, {
         tenantId: session.tenantId,
@@ -99,7 +120,13 @@ const firmarCierreInternalCommand = defineCommand({
         audit: {
           entidadId: cierre.id,
           motivo: input.motivoDemora ? `Motivo de demora: ${input.motivoDemora}${input.motivoDemoraDetalle ? ` — ${input.motivoDemoraDetalle}` : ""}` : undefined,
-          valorNuevo: { fecha: input.fecha, cantidadAsientos: cierre.cantidadAsientos, fueraDeTermino: cierre.fueraDeTermino, motivoDemora: input.motivoDemora ?? null },
+          valorNuevo: {
+            fecha: input.fecha,
+            cantidadAsientos: cierre.cantidadAsientos,
+            fueraDeTermino: cierre.fueraDeTermino,
+            motivoDemora: input.motivoDemora ?? null,
+            ...(porFijar.length > 0 ? { numeracionFijada: porFijar.map((l) => ({ libro: l.tipo, numeroInicial: l.numeroInicial })) } : {}),
+          },
         },
       };
     } catch (e) {
@@ -129,7 +156,7 @@ export async function firmarCierre(input: FirmarCierreInput, options?: ExecuteOp
     throw new DomainError(passwordOk.message);
   }
   return firmarCierreInternalCommand.execute(
-    { fecha: input.fecha, motivoDemora: input.motivoDemora, motivoDemoraDetalle: input.motivoDemoraDetalle },
+    { fecha: input.fecha, motivoDemora: input.motivoDemora, motivoDemoraDetalle: input.motivoDemoraDetalle, numeracionConfirmada: input.numeracionConfirmada },
     options,
   );
 }
