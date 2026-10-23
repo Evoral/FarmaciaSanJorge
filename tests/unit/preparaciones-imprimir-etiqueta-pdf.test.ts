@@ -46,6 +46,9 @@ const getTamanoParaImprimirMock = vi.fn<(tamanoId: string) => Promise<Tamano>>()
 const listTamanosParaImprimirMock = vi.fn<() => Promise<Tamano[]>>();
 const getHojaParaImprimirMock = vi.fn<() => Promise<typeof A4>>();
 
+// The tenant's logo is read through its own query (session): none here.
+vi.mock("@/modules/farmacia/application/get-marca-tenant", () => ({ getLogoTenant: async () => null }));
+
 vi.mock("@/modules/preparaciones/application/get-etiqueta-para-imprimir", () => ({ getEtiquetaParaImprimir: (arg: string) => getEtiquetaParaImprimirMock(arg) }));
 vi.mock("@/modules/preparaciones/application/marcar-etiqueta-impresa", () => ({ marcarEtiquetaImpresa: (arg: string) => marcarEtiquetaImpresaMock(arg) }));
 vi.mock("@/modules/etiqueta-tamanos/application/get-tamano-para-imprimir", () => ({ getTamanoParaImprimir: (arg: string) => getTamanoParaImprimirMock(arg) }));

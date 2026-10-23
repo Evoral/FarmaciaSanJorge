@@ -1,8 +1,9 @@
 # Logo de la farmacia (per tenant)
 
 User decision (2026-10-22): when the app serves more than one farmacia, the logo at the top of the navigation
-bar is each farmacia's own. It is the ONLY per-tenant logo: every other one (login, PDFs, Excel exports, favicon)
-is the generic app asset (`public/logo.png`, `public/logo-etiqueta.png`) and stays as it is.
+bar is each farmacia's own. Revised 2026-10-23 (security audit, part 4): `public/logo-etiqueta.png` and the XLSX
+banner carried San Jorge's brand, so another farmacia would print it on its own documents. Printed documents and
+exports now carry each farmacia's own logo and name (R6, R7). Login and favicon stay the generic app asset.
 
 ## Rules
 
@@ -16,6 +17,11 @@ is the generic app asset (`public/logo.png`, `public/logo-etiqueta.png`) and sta
   `GET /api/farmacia/logo` for the session's tenant only, with `Cache-Control: private`.
 - **R5** Uploading or removing the logo is audited (`tenant`, `MODIFICAR`) with type, size and timestamp, never the
   bytes.
+- **R6** The etiqueta and the hoja de envíos print the tenant's own logo (`shared/pdf/logo.ts#logoParaPdf`, fitted
+  in the same box keeping its proportion). PDFKit draws PNG and JPEG only: with no logo or a WebP one the etiqueta
+  prints without it and the hoja de envíos prints the farmacia's name. No document falls back to a fixed file.
+- **R7** Every XLSX export's banner, footer and file author are the tenant's name (`getMarcaTenant().nombre`,
+  `XlsxReportOptions.farmacia`), never a fixed brand.
 
 ## Storage
 

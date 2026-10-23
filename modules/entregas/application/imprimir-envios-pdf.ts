@@ -29,6 +29,8 @@ import {
   zonaHorariaTenant,
 } from "../infrastructure/entrega-repository";
 import type { EnvioDeRepartidor, FarmaciaParaHoja, RepartidorDeEntrega } from "../infrastructure/entrega-repository";
+import { getLogoTenant } from "@/modules/farmacia/application/get-marca-tenant";
+import { logoParaPdf } from "@/shared/pdf/logo";
 import { buildEnviosPdf } from "../infrastructure/envios-pdf";
 
 const isoDate = z
@@ -84,7 +86,8 @@ export interface EnviosPdfResult {
 export async function imprimirEnviosPdf(input: ImprimirEnviosPdfInput): Promise<EnviosPdfResult> {
   const datos = await getHojaEnviosQuery.execute(input);
   const fecha = input.fecha ?? null;
-  const pdf = await buildEnviosPdf({ ...datos, fecha, generadaEn: new Date() });
+  const logo = logoParaPdf(await getLogoTenant());
+  const pdf = await buildEnviosPdf({ ...datos, logo, fecha, generadaEn: new Date() });
   return { pdf, filename: nombreArchivoHojaEnvios(datos.repartidor.apellido, fecha) };
 }
 

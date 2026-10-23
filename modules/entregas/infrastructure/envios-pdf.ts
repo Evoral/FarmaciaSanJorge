@@ -14,7 +14,7 @@
  */
 import { renderPdf } from "@/shared/pdf/pdf-document";
 import { HOJA_ALTO, HOJA_ANCHO, HOJA_ANCHO_UTIL, HOJA_MARGEN, OPCIONES_HOJA_LIBRO } from "@/shared/pdf/hojas";
-import { LOGO_FARMACIA_PROPORCION, logoFarmacia } from "@/shared/pdf/logo";
+import type { LogoPdf } from "@/shared/pdf/logo";
 import { formatFechaHora } from "@/shared/format/fecha";
 import { formatearMonto } from "@/shared/format/monto";
 import { MENSAJE_HOJA_ENVIOS_VACIA, TEXTO_PAGO_PAGADA, textoFiltroHoja } from "../domain/hoja-envios";
@@ -22,6 +22,8 @@ import type { EnvioDeRepartidor, FarmaciaParaHoja, RepartidorDeEntrega } from ".
 
 export interface DatosHojaEnvios {
   farmacia: FarmaciaParaHoja;
+  /** The tenant's own logo (`shared/pdf/logo.ts`); null = the farmacia's name instead. */
+  logo: LogoPdf | null;
   repartidor: RepartidorDeEntrega;
   /** YYYY-MM-DD filter, or null for every pending envío. */
   fecha: string | null;
@@ -167,12 +169,11 @@ function lineaHorizontal(doc: Doc, y: number, color: string, x = HOJA_MARGEN, an
   doc.save().moveTo(x, y).lineTo(x + ancho, y).lineWidth(0.75).strokeColor(color).stroke().restore();
 }
 
-/** The logo at (x, y) with the given height; without the file, the farmacia's name in bold. Returns its width. */
-function dibujarLogo(doc: Doc, nombreFarmacia: string, x: number, y: number, alto: number): number {
-  const logo = logoFarmacia();
+/** The logo at (x, y) with the given height; without one, the farmacia's name in bold. Returns its width. */
+function dibujarLogo(doc: Doc, logo: LogoPdf | null, nombreFarmacia: string, x: number, y: number, alto: number): number {
   if (logo) {
-    doc.image(logo, x, y, { height: alto });
-    return alto * LOGO_FARMACIA_PROPORCION;
+    doc.image(logo.imagen, x, y, { height: alto });
+    return alto * logo.proporcion;
   }
   doc.font(FUENTE.negrita).fontSize(alto * 0.45).fillColor(COLOR.primary).text(nombreFarmacia, x, y + alto * 0.25, { lineBreak: false });
   return doc.widthOfString(nombreFarmacia);
@@ -181,7 +182,7 @@ function dibujarLogo(doc: Doc, nombreFarmacia: string, x: number, y: number, alt
 /** First-sheet header: logo on the left; title, phones and generation on the right; a hairline under both. */
 function encabezado(doc: Doc, datos: DatosHojaEnvios): void {
   const y0 = HOJA_MARGEN - 10;
-  dibujarLogo(doc, datos.farmacia.nombre, HOJA_MARGEN, y0, 40);
+  dibujarLogo(doc, datos.logo, datos.farmacia.nombre, HOJA_MARGEN, y0, 40);
 
   const xDerecha = HOJA_MARGEN + HOJA_ANCHO_UTIL / 2;
   const anchoDerecha = HOJA_ANCHO_UTIL / 2;
@@ -262,7 +263,7 @@ function tarjetasResumen(doc: Doc, datos: DatosHojaEnvios): void {
 function encabezadoContinuacion(doc: Doc, datos: DatosHojaEnvios): void {
   bandaMarca(doc);
   const y0 = HOJA_MARGEN - 12;
-  dibujarLogo(doc, datos.farmacia.nombre, HOJA_MARGEN, y0, 24);
+  dibujarLogo(doc, datos.logo, datos.farmacia.nombre, HOJA_MARGEN, y0, 24);
   doc
     .font(FUENTE.negrita)
     .fontSize(11)

@@ -19,6 +19,9 @@ import {
 } from "@/modules/entregas/domain/hoja-envios";
 import type { EnvioDeRepartidor } from "@/modules/entregas/infrastructure/entrega-repository";
 
+// The tenant's logo is read through its own query (session): none here.
+vi.mock("@/modules/farmacia/application/get-marca-tenant", () => ({ getLogoTenant: async () => null }));
+
 vi.mock("@/shared/audit", () => ({
   record: vi.fn(async () => undefined),
   TipoAccion: new Proxy({}, { get: (_t, prop) => String(prop) }),
@@ -239,6 +242,7 @@ describe("hoja de envíos -- table", () => {
 describe("hoja de envíos -- PDF", () => {
   const datos = (envios: EnvioDeRepartidor[], conImporte: boolean) => ({
     farmacia: { nombre: "Farmacia Ejemplo", telefonoFijo: "261 400-0000", telefonoCelular: "261 15 555-0000" },
+    logo: null,
     repartidor: { id: REPARTIDOR_ID, nombre: "Luis", apellido: "Núñez", telefono: "261 444-1111" },
     fecha: "2026-10-20" as string | null,
     envios,

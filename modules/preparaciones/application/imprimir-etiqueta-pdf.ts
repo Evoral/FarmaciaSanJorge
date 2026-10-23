@@ -39,6 +39,8 @@ import { NotFoundError, ValidationError } from "@/shared/errors";
 import { getEtiquetaParaImprimir } from "./get-etiqueta-para-imprimir";
 import { marcarEtiquetaImpresa } from "./marcar-etiqueta-impresa";
 import { armarContenidoEtiqueta, parsearContenidoEtiqueta } from "../domain/etiqueta";
+import { getLogoTenant } from "@/modules/farmacia/application/get-marca-tenant";
+import { logoParaPdf } from "@/shared/pdf/logo";
 import { buildEtiquetaPdf, buildEtiquetasPdf } from "../infrastructure/etiqueta-pdf";
 
 export interface EtiquetaPdfResult {
@@ -85,7 +87,8 @@ export async function imprimirEtiquetaPdf(preparacionId: string, opciones: Opcio
 
   const datos = await getEtiquetaParaImprimir(preparacionId);
   await marcarEtiquetaImpresa(datos.etiquetaId);
-  const pdf = await buildEtiquetaPdf(parsearContenidoEtiqueta(datos.contenido) ?? armarContenidoEtiqueta(datos), tamano, hoja, celda);
+  const logo = logoParaPdf(await getLogoTenant());
+  const pdf = await buildEtiquetaPdf(parsearContenidoEtiqueta(datos.contenido) ?? armarContenidoEtiqueta(datos), tamano, hoja, celda, logo);
   return { preparacionId, pdf };
 }
 
@@ -115,8 +118,10 @@ export async function imprimirEtiquetasPdf(pedidas: readonly EtiquetaPedida[]): 
   }
   for (const { datos } of etiquetas) await marcarEtiquetaImpresa(datos.etiquetaId);
 
+  const logo = logoParaPdf(await getLogoTenant());
   return buildEtiquetasPdf(
     etiquetas.map(({ datos, tamano, celda }) => ({ contenido: parsearContenidoEtiqueta(datos.contenido) ?? armarContenidoEtiqueta(datos), tamano, celda })),
     hoja,
+    logo,
   );
 }
