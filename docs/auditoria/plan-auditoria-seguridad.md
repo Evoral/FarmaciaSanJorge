@@ -165,6 +165,21 @@ Pendientes que la parte 1 derivó a esta:
 ```markdown
 ALCANCE DE LA PARTE 3: INTEGRIDAD DEL DOMINIO, TRANSACCIONES Y CONCURRENCIA
 
+CONTEXTO DE LAS PARTES 1 Y 2 (cerradas, `docs/auditoria/informes/`; no las re-audites)
+- RLS, roles, grants y funciones SECURITY DEFINER: auditados en la parte 1. La migración `0101_security_definer_hardening` está en el repositorio pero SIN APLICAR en la base de prueba: `npm run test:db` probablemente falle en su verificación inicial de migraciones; si pasa, no lo reportes como hallazgo.
+- Autenticación, permisos y cuentas de sector: auditados en la parte 2.
+- `npm test` pasa completo en el entorno del equipo; si en tu entorno falla, regístralo como limitación de entorno, no como hallazgo.
+- `fsj.usuario.debe_cambiar_password` (`0097_contrasena_temporal`) es trabajo de otro desarrollador fuera del repositorio: fuera de alcance.
+
+Pendientes que las partes 1 y 2 derivaron a esta:
+- `fsj.hash_v2`, `fsj.hash_genesis` y los triggers de correlatividad `asiento_recetario_preparar` y `asiento_contralor_preparar`.
+- `fsj.libro_configurar_numeracion` (migración 0097): renumera asientos y recalcula la cadena de hashes; verifica que no pueda romper la correlatividad ni la cadena, y su interacción con `fsj.cierre_diario_firmar` (mismo advisory lock).
+- Inmutabilidad de `fsj.registro_auditoria` frente a UPDATE, DELETE y TRUNCATE, incluidos roles administrativos.
+- Casos de uso con `audit: { skip: true }` y auditoría manual: `modules/usuarios/application/cambiar-roles.ts`, `crear-usuario.ts` y `actualizar-plazos.ts`; verifica que la auditoría manual sea completa y quede en la misma transacción.
+- Co-firma del DT en `modules/stock/application/registrar-ajuste.ts`: la contraseña se valida en una transacción previa a la del ajuste; evalúa la ventana entre ambas (por ejemplo, el DT deja de ser vigente entre la validación y el commit).
+- Funcionalidades recientes que tocan stock: existencia inicial y relevamiento inicial (migración 0100).
+
+Alcance general
 - Libro recetario (`docs/specs/libro-recetario-y-contralor.md`): correlatividad y unicidad del número de asiento bajo concurrencia (constraint, lock o secuencia), número inicial configurable (migración 0097) y su fijación por el primer cierre firmado, inmutabilidad de cierres firmados (triggers en la base), trazabilidad de cambios.
 - Stock: atomicidad de movimientos, reservas (`reserva-stock-preparacion.md`), pesada real (`pesada-real.md`), reglas de stock negativo, orden de locks y riesgo de deadlock o actualizaciones perdidas.
 - Dinero y cantidades: uso de `shared/decimal`; busca aritmética con `number` en precios, costos y cantidades (`reglas-precio.md`, `presupuesto-receta.md`, `pago-receta.md`, `costos-proveedor.md`) y conversiones prematuras a `number`. No marques aritmética no monetaria.
@@ -187,13 +202,36 @@ Pruebas propuestas prioritarias
 ```markdown
 ALCANCE DE LA PARTE 4: ENTRADAS NO CONFIABLES Y SALIDAS GENERADAS
 
-- Upload de logo (`app/api/farmacia/logo/route.ts`, [WIP], `docs/specs/logo-farmacia.md`): validación del tipo real (magic bytes, no solo MIME), tamaño máximo, SVG con scripts, almacenamiento, autorización y tenant.
-- Importación de recetas por PDF y QR (`importacion-receta-pdf.md`, `importacion-receta-qr.md`): límites de tamaño y tiempo, librerías de parsing y sus vulnerabilidades conocidas, contenido malicioso, datos extraídos que llegan a la base sin validar.
-- Exportaciones XLSX (`app/api/**/xlsx/route.ts`): inyección de fórmulas (celdas que empiezan con `=`, `+`, `-`, `@`).
-- Generación de PDF (`app/api/**/pdf/route.ts`): datos de usuario interpolados sin escapar, recursos externos cargados.
-- XSS: `dangerouslySetInnerHTML`, URLs construidas con datos de usuario, `href` con `javascript:`.
-- Validación zod en todos los puntos de entrada: esquemas permisivos (`passthrough`, `any`, strings sin límite de longitud).
-- Headers de seguridad y CSP en `next.config.*`, `proxy` o middleware.
+CONTEXTO DE LAS PARTES 1 A 3 (cerradas, `docs/auditoria/informes/`; no las re-audites)
+- RLS, roles, grants y funciones SECURITY DEFINER: parte 1. La migración `0101_security_definer_hardening` ya está aplicada en la base de prueba.
+- Autenticación, permisos, cuentas de sector y autorización de Route Handlers: parte 2. Aquí solo interesa qué hace cada endpoint con la entrada y la salida, no quién puede llamarlo.
+- Transacciones, concurrencia, contadores de intentos e integridad del libro: parte 3.
+- `npm test` pasa completo en el entorno del equipo; si en tu entorno falla, regístralo como limitación de entorno, no como hallazgo.
+- Rate limiting se resuelve en Vercel Firewall (condición de deploy ya registrada): no lo reportes como hallazgo.
+
+Pendientes que las partes 1 a 3 derivaron a esta
+- Logo (`app/api/farmacia/logo/route.ts` [WIP], `docs/specs/logo-farmacia.md`): tipo real por magic bytes (no solo MIME ni extensión), SVG con scripts o referencias externas, tamaño máximo, almacenamiento en `bytea`, y el `Content-Type`/`Content-Disposition`/`X-Content-Type-Options` con que se sirve de vuelta.
+- Parsers de archivos subidos por el usuario:
+  - `modules/recetas/domain/receta-pdf-parser.ts` y la extracción con `unpdf` (`docs/specs/importacion-receta-pdf.md`).
+  - Lectura de QR con `jsqr` y `modules/recetas/infrastructure/receta-rcta-api.server.ts` (`docs/specs/importacion-receta-qr.md`): la URL o el dato que sale del QR, ¿puede hacer que el servidor consulte un host arbitrario (SSRF)? Timeouts, tamaño de respuesta, validación de lo que devuelve la API externa.
+  - `modules/stock/domain/factura-compra-pdf-parser.ts` (importación de factura de compra).
+  - `modules/costos-proveedor/infrastructure/leer-xls.server.ts` y `leer-xlsx.server.ts` (`docs/specs/costos-proveedor.md`): librería usada, vulnerabilidades conocidas (prototype pollution, ReDoS, zip bomb), límites de filas y tamaño.
+  - Para todos: límite de tamaño antes de parsear, límite de tiempo, y validación zod de lo extraído antes de que llegue a la base.
+- Exportaciones XLSX con `exceljs` (`app/api/**/xlsx/route.ts`, `docs/specs/exportaciones-excel.md`): inyección de fórmulas en celdas de texto que empiezan con `=`, `+`, `-`, `@`, tabulación o retorno de carro; nombres de paciente, médico, producto y observaciones son texto libre.
+- PDF con `pdfkit` (`app/api/**/pdf/route.ts`): texto libre interpolado, fuentes o imágenes cargadas desde rutas o URLs derivadas de datos de usuario, nombre de archivo en `Content-Disposition`.
+
+Alcance general
+- XSS: `dangerouslySetInnerHTML`, URLs construidas con datos de usuario, `href`/`src` con `javascript:` o `data:`, `redirect()` con destinos tomados de la petición (open redirect).
+- Validación zod en todos los puntos de entrada (Server Actions, Route Handlers, query params de exportaciones): esquemas permisivos (`passthrough`, `any`, `unknown` sin refinar), strings sin `max()`, arrays sin límite, números sin rango, fechas sin rango en exportaciones que puedan pedir años de datos.
+- Límites de cuerpo: `serverActions.bodySizeLimit` en `next.config.ts` y su coherencia con los tamaños máximos de cada upload; Route Handlers que leen `request.formData()`/`arrayBuffer()` sin límite propio.
+- Headers de seguridad y CSP en `next.config.ts` y `proxy.ts`: CSP, `frame-ancestors`, HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`; `Cache-Control` en respuestas con datos de pacientes (PDF y XLSX).
+- Mensajes de error: que las respuestas de error de parsers y exportaciones no devuelvan stack traces ni contenido interno.
+
+Pruebas propuestas prioritarias (describe, no ejecutes las que requieran escribir en la base)
+- Subir como logo un SVG con `<script>` y un PNG con extensión renombrada: rechazo o neutralización.
+- Exportar un XLSX con un paciente cuyo nombre sea `=HYPERLINK("http://x","y")`: la celda debe quedar como texto.
+- PDF de receta y XLSX de costos sobredimensionados o malformados: rechazo por tamaño o error controlado, sin colgar el proceso.
+- QR que apunte a un host distinto del esperado: el servidor no lo consulta.
 ```
 
 ---
