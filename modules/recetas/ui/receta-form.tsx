@@ -333,10 +333,12 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   const router = useRouter();
 
   // Idempotency key of this alta (docs/specs/alta-receta-idempotente.md): kept across retries, renewed after a success.
-  const [envioId, setEnvioId] = useState(() => crypto.randomUUID());
-  useEffect(() => {
-    if (state.status === "success") setEnvioId(crypto.randomUUID());
-  }, [state]);
+  // Adjusted during render when a new result arrives (React's "store information from previous renders" pattern).
+  const [envio, setEnvio] = useState(() => ({ id: crypto.randomUUID(), estado: state }));
+  if (envio.estado !== state) {
+    setEnvio({ id: state.status === "success" ? crypto.randomUUID() : envio.id, estado: state });
+  }
+  const envioId = envio.id;
   const [pacienteId, setPacienteId] = useState(inicial?.pacienteId ?? "");
   const [pacienteLabel, setPacienteLabel] = useState(inicial?.pacienteLabel ?? "");
   const [medicoId, setMedicoId] = useState(inicial?.medicoId ?? "");
