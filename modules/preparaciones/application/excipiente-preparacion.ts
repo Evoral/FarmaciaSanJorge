@@ -13,8 +13,9 @@
  *     detalle line of the libro (insumos are left out of it): it is in the asiento's fórmula.
  * The DB refuses a línea-less reserva/egreso that is not the preparación's excipiente (0092's triggers).
  *
- * Lock order: the excipiente's partidas are locked AFTER the líneas' (one id-ordered statement each). An excipiente
- * droga is never a línea's droga in the same preparación, so the two sets are disjoint.
+ * Lock order: the callers lock the excipiente's candidate partidas (`partidasCandidatasExcipienteEnTx`) in the SAME
+ * id-ordered statement as the líneas' (security audit P3-02: two statements could deadlock against
+ * `confirmarReservasReceta`'s single one). `planificar`'s own lock then only re-locks rows this transaction holds.
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { AuthenticatedSession } from "@/shared/auth/session";
@@ -148,6 +149,17 @@ export async function guardarReservaExcipienteEnTx(
 }
 
 /** The partidas the excipiente's reserva holds (a pérdida may be registered on them). */
+/** Every partida the excipiente's plan may lock: of `drogaId`, or of the preparación's stored excipiente; `[]` without one. */
+export async function partidasCandidatasExcipienteEnTx(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  input: { preparacionId: string; drogaId?: string },
+): Promise<string[]> {
+  const drogaId = input.drogaId ?? (await getExcipienteDePreparacion(tx, tenantId, input.preparacionId))?.drogaId;
+  if (!drogaId) return [];
+  return (await listPartidasElegiblesDroga(tx, tenantId, drogaId, input.preparacionId)).map((p) => p.id);
+}
+
 export async function partidasReservadasExcipienteEnTx(tx: Prisma.TransactionClient, tenantId: string, preparacionId: string): Promise<string[]> {
   return (await listReservasExcipiente(tx, tenantId, preparacionId)).map((r) => r.partidaId);
 }

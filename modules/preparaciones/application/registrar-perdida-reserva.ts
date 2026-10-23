@@ -50,7 +50,7 @@ import { MOTIVOS_PERDIDA, type MotivoPerdida } from "../domain/perdida";
 import { candidatosAutomaticosEnTx, partidaIdsDeCandidatos, planificarConsumoEnTx } from "./confirmar-preparacion";
 import { autorizacionesDeReserva, entradasDeReserva } from "./recalcular-reserva-stock";
 import { reservasDelPlan } from "./reservar-stock-preparacion";
-import { guardarReservaExcipienteEnTx, partidasReservadasExcipienteEnTx, replanificarExcipienteEnTx } from "./excipiente-preparacion";
+import { guardarReservaExcipienteEnTx, partidasCandidatasExcipienteEnTx, partidasReservadasExcipienteEnTx, replanificarExcipienteEnTx } from "./excipiente-preparacion";
 import {
   deleteReservasDePreparacion,
   getPreparacionParaAccion,
@@ -122,7 +122,10 @@ const registrarPerdidaInternalCommand = defineCommand({
     const reservas = await listReservasDePreparacion(tx, session.tenantId, input.preparacionId);
     if (reservas.length === 0) throw new DomainError("Esta preparación no tiene stock reservado.");
     // The excipiente's reserved partidas (migration 0092): a pérdida may be registered on them too.
-    const partidasExcipiente = await partidasReservadasExcipienteEnTx(tx, session.tenantId, input.preparacionId);
+    const partidasExcipiente = [
+      ...(await partidasReservadasExcipienteEnTx(tx, session.tenantId, input.preparacionId)),
+      ...(await partidasCandidatasExcipienteEnTx(tx, session.tenantId, { preparacionId: input.preparacionId })),
+    ];
     // Every partida the AJUSTE or the re-plan may touch, in one id-ordered statement (read before locking, as always).
     const jornada = await jornadaActualTenant(tx, session.tenantId);
     const candidatos = await candidatosAutomaticosEnTx(tx, session.tenantId, { preparacionId: input.preparacionId, fichaTecnicaId: preparacion.fichaTecnicaId, jornada });

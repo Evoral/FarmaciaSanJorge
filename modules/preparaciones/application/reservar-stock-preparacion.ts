@@ -37,7 +37,7 @@ import {
   type LineaPlanificada,
 } from "./confirmar-preparacion";
 import { autorizacionDePesadaReal } from "./co-firma-pesada-real";
-import { reservarExcipienteEnTx } from "./excipiente-preparacion";
+import { partidasCandidatasExcipienteEnTx, reservarExcipienteEnTx } from "./excipiente-preparacion";
 import { insertReservas, jornadaActualTenant, type ReservaDePreparacion } from "../infrastructure/preparacion-repository";
 
 const reservarStockPreparacionInput = z.object({
@@ -67,7 +67,11 @@ export const reservarStockPreparacionCommand = defineCommand({
     try {
       const iniciada = await iniciarPreparacionEnTx(tx, session, input.fichaTecnicaId);
       const jornada = await jornadaActualTenant(tx, session.tenantId);
+      const partidasExcipiente = input.excipiente
+        ? await partidasCandidatasExcipienteEnTx(tx, session.tenantId, { preparacionId: iniciada.id, drogaId: input.excipiente.drogaId })
+        : [];
       const plan = await planificarConsumoEnTx(tx, session.tenantId, {
+        partidasAdicionales: partidasExcipiente,
         preparacionId: iniciada.id,
         fichaTecnicaId: input.fichaTecnicaId,
         seleccion: { modo: "automatica", entradas: input.lineas, pesadaAutorizadaPorId: input.pesadaAutorizadaPorId },

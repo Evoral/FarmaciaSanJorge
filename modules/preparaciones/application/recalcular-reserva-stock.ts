@@ -35,7 +35,7 @@ import {
   type LineaEntradaInput,
 } from "./confirmar-preparacion";
 import { pesadasDelPlan, reservasDelPlan, resumenDelPlan } from "./reservar-stock-preparacion";
-import { guardarReservaExcipienteEnTx, replanificarExcipienteEnTx } from "./excipiente-preparacion";
+import { guardarReservaExcipienteEnTx, partidasCandidatasExcipienteEnTx, replanificarExcipienteEnTx } from "./excipiente-preparacion";
 import { autorizacionDePesadaReal } from "./co-firma-pesada-real";
 import {
   deleteReservasDePreparacion,
@@ -133,6 +133,7 @@ export const recalcularReservaStockCommand = defineCommand({
       const jornada = await jornadaActualTenant(tx, session.tenantId);
       const entradas = entradasDeReserva(anteriores, input.lineas);
       const plan = await planificarConsumoEnTx(tx, session.tenantId, {
+        partidasAdicionales: await partidasCandidatasExcipienteEnTx(tx, session.tenantId, { preparacionId: input.preparacionId }),
         preparacionId: input.preparacionId,
         fichaTecnicaId: preparacion.fichaTecnicaId,
         seleccion: { modo: "automatica", entradas, pesadaAutorizadaPorId: input.pesadaAutorizadaPorId, autorizacionesPorLinea: autorizacionesDeReserva(anteriores, entradas) },

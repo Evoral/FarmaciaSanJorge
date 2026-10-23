@@ -631,7 +631,14 @@ export function partidaIdsDeCandidatos(candidatos: CandidatosAutomaticos): strin
 export async function planificarConsumoEnTx(
   tx: Prisma.TransactionClient,
   tenantId: string,
-  input: { preparacionId: string; fichaTecnicaId: string; seleccion: SeleccionDePartidas; jornada: string },
+  input: {
+    preparacionId: string;
+    fichaTecnicaId: string;
+    seleccion: SeleccionDePartidas;
+    jornada: string;
+    /** Other partidas the caller will lock later in this transaction (the excipiente's): locked here, in the same statement. */
+    partidasAdicionales?: readonly string[];
+  },
 ): Promise<LineaPlanificada[]> {
   const { jornada, seleccion } = input;
   const automatica = seleccion.modo === "automatica";
@@ -680,7 +687,7 @@ export async function planificarConsumoEnTx(
   //    statement (see this file's doc comment), then re-read them.
   // ------------------------------------------------------------------
   const todosLosPartidaIds = [...new Set([...elegidoPorLinea.values()].flatMap((l) => l.partidaIds))];
-  const lockedPartidaIds = new Set(await lockPartidasParaConfirmacion(tx, tenantId, todosLosPartidaIds));
+  const lockedPartidaIds = new Set(await lockPartidasParaConfirmacion(tx, tenantId, [...new Set([...todosLosPartidaIds, ...(input.partidasAdicionales ?? [])])]));
   const faltante = todosLosPartidaIds.find((id) => !lockedPartidaIds.has(id));
   if (faltante) throw new NotFoundError(`Partida no encontrada: ${faltante}.`);
 
