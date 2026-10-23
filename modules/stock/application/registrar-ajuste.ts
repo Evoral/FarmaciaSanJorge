@@ -59,7 +59,7 @@ import { defineCommand, TipoAccion } from "@/shared/usecase";
 import type { ExecuteOptions } from "@/shared/usecase";
 import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { uuid, nonEmptyString } from "@/shared/validation";
-import { MOTIVOS_AJUSTE, positiveDecimalString, ajusteExcedeSaldo, rechazoUnidadAjuste, type RechazoUnidadAjuste } from "../domain/partida";
+import { MOTIVOS_AJUSTE, positiveDecimalString, ajusteExcedeSaldo, rechazoUnidadAjuste, requiereAsientoContralor, type RechazoUnidadAjuste } from "../domain/partida";
 import { dec, Decimal } from "@/shared/decimal";
 import { formatCantidadExacta } from "@/shared/format/cantidad";
 import type { Prisma } from "@/generated/prisma/client";
@@ -70,6 +70,9 @@ import {
   getUnidadesParaConversion,
   convertirUnidad,
   insertAjuste,
+  insertAsientoContralorStock,
+  getDrogaParaIngreso,
+  getFechaActivacionContralor,
   getReservadoEnPreparacion,
 } from "../infrastructure/partida-repository";
 import { verificarCoFirmaDtCommand } from "./verificar-co-firma-dt";
@@ -193,6 +196,23 @@ export async function registrarAjusteEnTx(
     autorizadoPorId: input.autorizadoPorId,
     preparacionId: input.preparacionId ?? null,
   });
+
+  // INV-L08: an ajuste (merma, pérdida, vencimiento) of a controlled droga with the contralor activo is an AJUSTE of
+  // its libro (security audit P3-01).
+  const droga = await getDrogaParaIngreso(tx, session.tenantId, partida.drogaId);
+  if (droga && requiereAsientoContralor(droga.tipoControl, await getFechaActivacionContralor(tx, session.tenantId), new Date())) {
+    await insertAsientoContralorStock(tx, {
+      tenantId: session.tenantId,
+      tipo: "AJUSTE",
+      drogaId: partida.drogaId,
+      drogaDescripcion: partida.drogaNombre,
+      cantidad: cantidadBase,
+      unidadMedidaId: partida.unidadBaseId,
+      movimientoStockId: movimiento.id,
+      numeroValeAdquisicion: null,
+      registradoPorId: session.usuario.id,
+    });
+  }
 
   return {
     id: movimiento.id,

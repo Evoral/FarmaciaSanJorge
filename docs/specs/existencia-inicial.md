@@ -75,9 +75,9 @@ allowed only while the tenant's **relevamiento inicial** is open.
 
 - **No app path activates the contralor digital yet.** `tenant.fecha_activacion_contralor` is never written by
   the app, and no APERTURA was written before R12. R8 and R12 are implemented and take effect once the contralor
-  is activated (today, only by SQL); with it NULL the relevamiento ignores the contralor entirely. Related gap,
-  out of scope here: with the contralor activo, an `INGRESO_COMPRA` of a controlled droga requires a contralor
-  asiento (INV-L08) that the purchase alta does not write.
+  is activated (today, only by SQL); with it NULL the relevamiento ignores the contralor entirely. The related gap (an
+  `INGRESO_COMPRA` of a controlled droga needs its contralor INGRESO, INV-L08) was closed on 2026-10-23 (audit P3-01):
+  `registrarPartidaCompra` writes it.
 - **Partidas without proveedor in reads.** Every raw query that joined `fsj.proveedor` with an inner JOIN now uses
   a LEFT JOIN and shows `ETIQUETA_SIN_PROVEEDOR`; in particular the preparación's eligible partidas, which would
   otherwise never offer a partida de existencia inicial.

@@ -38,6 +38,7 @@ import {
   nonNegativeDecimalString,
   potenciaDeclaradaString,
   esFechaVencimientoFutura,
+  requiereAsientoContralor,
 } from "../domain/partida";
 import {
   getDrogaParaIngreso,
@@ -48,6 +49,7 @@ import {
   convertirUnidad,
   jornadaActualTenant,
   insertPartidaConIngreso,
+  insertAsientoContralorStock,
   existePartidaLote,
 } from "../infrastructure/partida-repository";
 import { lockTenantRelevamientoCompartido, relevamientoInicialAbierto } from "../infrastructure/existencia-inicial-repository";
@@ -200,6 +202,21 @@ export async function registrarPartidaCompra(
     despachoImportacion: input.despachoImportacion ?? null,
     paisOrigen: input.paisOrigen ?? null,
   });
+
+  // INV-L08: a compra of a controlled droga with the contralor activo is an INGRESO of its libro (security audit P3-01).
+  if (origen === "COMPRA" && requiereAsientoContralor(droga.tipoControl, fechaActivacionContralor, new Date())) {
+    await insertAsientoContralorStock(tx, {
+      tenantId: session.tenantId,
+      tipo: "INGRESO",
+      drogaId: input.drogaId,
+      drogaDescripcion: droga.nombre,
+      cantidad: cantidadInicialBase,
+      unidadMedidaId: droga.unidadBaseId,
+      movimientoStockId: nueva.movimientoId,
+      numeroValeAdquisicion: input.numeroValeAdquisicion ?? null,
+      registradoPorId: session.usuario.id,
+    });
+  }
 
   return {
     id: nueva.id,

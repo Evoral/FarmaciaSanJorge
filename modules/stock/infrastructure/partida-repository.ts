@@ -646,7 +646,7 @@ export async function getFechaActivacionContralor(tx: Prisma.TransactionClient, 
  * this atomic by COMMIT time (both succeed, or the whole transaction rolls
  * back), not the ordering of these two statements.
  */
-export async function insertPartidaConIngreso(tx: Prisma.TransactionClient, input: NuevaPartidaInput): Promise<{ id: string }> {
+export async function insertPartidaConIngreso(tx: Prisma.TransactionClient, input: NuevaPartidaInput): Promise<{ id: string; movimientoId: string }> {
   const partida = await tx.partida.create({
     data: {
       tenantId: input.tenantId,
@@ -665,7 +665,7 @@ export async function insertPartidaConIngreso(tx: Prisma.TransactionClient, inpu
     select: { id: true },
   });
 
-  await tx.movimientoStock.create({
+  const movimiento = await tx.movimientoStock.create({
     data: {
       tenantId: input.tenantId,
       partidaId: partida.id,
@@ -674,9 +674,56 @@ export async function insertPartidaConIngreso(tx: Prisma.TransactionClient, inpu
       registradoPorId: input.registradoPorId,
       numeroValeAdquisicion: input.numeroValeAdquisicion ?? undefined,
     },
+    select: { id: true },
   });
 
-  return partida;
+  return { id: partida.id, movimientoId: movimiento.id };
+}
+
+const PLACEHOLDER_UUID = "00000000-0000-0000-0000-000000000000";
+const PLACEHOLDER_DATE = new Date(0);
+
+export interface NuevoAsientoContralorStockInput {
+  tenantId: string;
+  tipo: "INGRESO" | "AJUSTE";
+  drogaId: string;
+  drogaDescripcion: string;
+  /** In the droga's unidad base, like the movimiento. */
+  cantidad: string;
+  unidadMedidaId: string;
+  movimientoStockId: string;
+  /** INGRESO only (asiento_contralor_tipo_check). */
+  numeroValeAdquisicion: string | null;
+  registradoPorId: string;
+}
+
+/**
+ * INSERT `asiento_contralor` for a compra (INGRESO) or an ajuste (AJUSTE) of a controlled droga -- INV-L08, same
+ * transaction as the movimiento. `fsj.asiento_contralor_preparar` assigns libro, número, fecha, saldos and hash: the
+ * placeholders below are overwritten (same pattern as the preparación's EGRESO).
+ */
+export async function insertAsientoContralorStock(tx: Prisma.TransactionClient, input: NuevoAsientoContralorStockInput): Promise<{ id: string }> {
+  return tx.asientoContralor.create({
+    data: {
+      tenantId: input.tenantId,
+      libroId: PLACEHOLDER_UUID,
+      numeroCorrelativo: BigInt(0),
+      fechaAsiento: PLACEHOLDER_DATE,
+      tipoMovimiento: input.tipo,
+      drogaId: input.drogaId,
+      drogaDescripcion: input.drogaDescripcion,
+      cantidad: input.cantidad,
+      unidadMedidaId: input.unidadMedidaId,
+      saldoAnterior: "0",
+      saldoPosterior: "0",
+      movimientoStockId: input.movimientoStockId,
+      numeroValeAdquisicion: input.numeroValeAdquisicion,
+      hashIntegridad: "",
+      hashAnterior: "",
+      registradoPorId: input.registradoPorId,
+    },
+    select: { id: true },
+  });
 }
 
 // ============================================================================
