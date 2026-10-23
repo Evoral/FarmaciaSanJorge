@@ -25,6 +25,15 @@ function assertUuid(tenantId: string): void {
   }
 }
 
+/**
+ * Prisma's interactive-transaction defaults (2 s to get a connection, 5 s for
+ * the whole transaction) are too tight for batch imports (factura, recetas,
+ * existencia inicial) on a pooled, remote database: the import would roll
+ * back as "Transaction already closed". 60 s stays below the database's own
+ * `statement_timeout` (120 s); keep the function's `maxDuration` above it.
+ */
+const TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 60_000 } as const;
+
 export type TenantTransactionCallback<T> = (tx: Prisma.TransactionClient) => Promise<T>;
 
 /**
@@ -50,7 +59,7 @@ export async function withTenantTransaction<T>(
       // next logical session on a reused physical connection.
       await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
       return fn(tx);
-    });
+    }, TRANSACTION_OPTIONS);
   } catch (e) {
     throw mapDbError(e);
   }
@@ -68,7 +77,7 @@ export type PlatformTransactionCallback<T> = (tx: Prisma.TransactionClient) => P
 export async function withPlatformTransaction<T>(fn: PlatformTransactionCallback<T>): Promise<T> {
   const prisma = getPrismaClient();
   try {
-    return await prisma.$transaction(fn);
+    return await prisma.$transaction(fn, TRANSACTION_OPTIONS);
   } catch (e) {
     throw mapDbError(e);
   }
