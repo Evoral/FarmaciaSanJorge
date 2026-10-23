@@ -21,7 +21,8 @@ exports now carry each farmacia's own logo and name (R6, R7). Login and favicon 
   in the same box keeping its proportion). PDFKit draws PNG and JPEG only: with no logo or a WebP one the etiqueta
   prints without it and the hoja de envíos prints the farmacia's name. No document falls back to a fixed file.
 - **R7** Every XLSX export's banner, footer and file author are the tenant's name (`getMarcaTenant().nombre`,
-  `XlsxReportOptions.farmacia`), never a fixed brand.
+  `XlsxReportOptions.farmacia`), and its banner logo is the tenant's own (`XlsxReportOptions.logo`, PNG or JPEG fitted
+  in 56 x 56 keeping its proportion; none or WebP draws the banner without it), never a fixed brand.
 
 ## Storage
 

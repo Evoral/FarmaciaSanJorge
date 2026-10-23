@@ -1,4 +1,6 @@
 /** Unit tests for `shared/xlsx/xlsx-report.ts`: branded banner, typed cells (dates, numbers), styling, and formula safety. Each workbook is written and read back with exceljs. */
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it, expect } from "vitest";
 import ExcelJS from "exceljs";
 import { XlsxReport, toCellValue, toExcelWallClock, type XlsxReportOptions } from "@/shared/xlsx/xlsx-report";
@@ -96,9 +98,12 @@ describe("XlsxReport", () => {
     expect(sheet.getCell("B5").value).toBe("Filtros: Sin filtros");
   });
 
-  it("puts the logo on the sheet", async () => {
-    const sheet = await readBack(new XlsxReport(OPTIONS));
-    expect(sheet.getImages()).toHaveLength(1);
+  it("puts the tenant's own logo on the sheet, and none without one (logo-farmacia.md R7)", async () => {
+    const bytes = readFileSync(path.join(process.cwd(), "public", "logo.png"));
+    const conLogo = await readBack(new XlsxReport({ ...OPTIONS, logo: { bytes, tipo: "image/png" } }));
+    expect(conLogo.getImages()).toHaveLength(1);
+    expect((await readBack(new XlsxReport(OPTIONS))).getImages()).toHaveLength(0);
+    expect((await readBack(new XlsxReport({ ...OPTIONS, logo: { bytes, tipo: "image/webp" } }))).getImages()).toHaveLength(0);
   });
 
   it("writes one column per field under a brand-green header, frozen and with auto-filter", async () => {

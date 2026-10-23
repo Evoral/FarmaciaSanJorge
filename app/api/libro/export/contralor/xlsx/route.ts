@@ -6,8 +6,8 @@
 import { NextResponse } from "next/server";
 import { exportarContralorDatos, MAX_EXPORT_ROWS } from "@/modules/libro/application/exportar-contralor";
 import { TIPO_MOVIMIENTO_CONTRALOR_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
-import { XLSX_CONTENT_TYPE, XlsxReport } from "@/shared/xlsx/xlsx-report";
-import { getMarcaTenant } from "@/modules/farmacia/application/get-marca-tenant";
+import { XLSX_CONTENT_TYPE, XlsxReport, type XlsxReportOptions } from "@/shared/xlsx/xlsx-report";
+import { getLogoTenant, getMarcaTenant } from "@/modules/farmacia/application/get-marca-tenant";
 import { AppError, type AppErrorCode, toSafeError } from "@/shared/errors";
 
 const STATUS_BY_CODE: Record<AppErrorCode, number> = {
@@ -30,8 +30,11 @@ export async function GET(request: Request): Promise<Response> {
 
   let resultado;
   let farmacia = "";
+  let logo: XlsxReportOptions["logo"] = null;
   try {
-    farmacia = (await getMarcaTenant())?.nombre ?? "";
+    const [marca, logoTenant] = await Promise.all([getMarcaTenant(), getLogoTenant()]);
+    farmacia = marca?.nombre ?? "";
+    logo = logoTenant;
     resultado = await exportarContralorDatos({
       tipoLibro: q.get("tipoLibro") === "PSICOTROPICO" || q.get("tipoLibro") === "ESTUPEFACIENTE" ? (q.get("tipoLibro") as "PSICOTROPICO" | "ESTUPEFACIENTE") : undefined,
       drogaId: q.get("drogaId") || undefined,
@@ -47,6 +50,7 @@ export async function GET(request: Request): Promise<Response> {
 
   const report = new XlsxReport({
     farmacia,
+    logo,
     title: "Libro contralor de psicotrópicos y estupefacientes",
     description:
       "Movimientos de las drogas controladas (aperturas, ingresos, egresos y ajustes), con la cantidad, el saldo anterior y posterior, el vale de adquisición y el asiento del recetario asociado.",

@@ -7,8 +7,8 @@
 import { NextResponse } from "next/server";
 import { exportarLibroDatos, MAX_EXPORT_ROWS } from "@/modules/libro/application/exportar-libro";
 import { resolverEstadoVisualAsiento, etiquetaEstadoVisual } from "@/modules/libro/domain/estado-visual";
-import { XLSX_CONTENT_TYPE, XlsxReport } from "@/shared/xlsx/xlsx-report";
-import { getMarcaTenant } from "@/modules/farmacia/application/get-marca-tenant";
+import { XLSX_CONTENT_TYPE, XlsxReport, type XlsxReportOptions } from "@/shared/xlsx/xlsx-report";
+import { getLogoTenant, getMarcaTenant } from "@/modules/farmacia/application/get-marca-tenant";
 import { AppError, type AppErrorCode, toSafeError } from "@/shared/errors";
 
 const STATUS_BY_CODE: Record<AppErrorCode, number> = {
@@ -31,8 +31,11 @@ export async function GET(request: Request): Promise<Response> {
 
   let resultado;
   let farmacia = "";
+  let logo: XlsxReportOptions["logo"] = null;
   try {
-    farmacia = (await getMarcaTenant())?.nombre ?? "";
+    const [marca, logoTenant] = await Promise.all([getMarcaTenant(), getLogoTenant()]);
+    farmacia = marca?.nombre ?? "";
+    logo = logoTenant;
     resultado = await exportarLibroDatos({
       fechaDesde: q.get("fechaDesde") || undefined,
       fechaHasta: q.get("fechaHasta") || undefined,
@@ -50,6 +53,7 @@ export async function GET(request: Request): Promise<Response> {
 
   const report = new XlsxReport({
     farmacia,
+    logo,
     title: "Libro recetario digital",
     description:
       "Asientos del libro recetario en orden correlativo: fecha, origen, estado (vigente, anulado o sin efecto por un rectificativo), paciente, médico y fórmula registrada.",

@@ -6,7 +6,7 @@
  * does not even split it into columns (it expects `;`, not `,`).
  *
  * Layout of every sheet:
- *   - rows 1-5: the logo (`public/logo.png`) next to the farmacia name,
+ *   - rows 1-5: the tenant's own logo (when it uploaded a PNG or JPEG) next to the farmacia name,
  *     the report title, a short description of what it contains, the
  *     emission date and the applied filters;
  *   - a brand-colored rule, then the column header (brand green, white
@@ -20,10 +20,9 @@
  * value -- exceljs only emits a formula for an explicit `{ formula }` object,
  * so user text starting with `=`/`+`/`-`/`@` can never become one.
  */
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import ExcelJS from "exceljs";
 import { formatFechaHora } from "@/shared/format/fecha";
+import { logoParaPdf } from "@/shared/pdf/logo";
 
 /**
  * Zone instants (fecha de ingreso, fecha de firma, emisión) are shown in: the
@@ -94,6 +93,8 @@ export type XlsxCell = string | number | Date | null | undefined;
 export interface XlsxReportOptions {
   /** The tenant's name (nombre de fantasía or razón social): each farmacia's export carries its own, never a fixed brand. */
   farmacia: string;
+  /** The tenant's uploaded logo (`getLogoTenant`), never a fixed file (docs/specs/logo-farmacia.md R6). Excel shows PNG and JPEG only: anything else, or none, draws the banner without it. */
+  logo?: { bytes: Uint8Array; tipo: string } | null;
   title: string;
   /** One or two sentences under the title saying what the export contains. */
   description: string;
@@ -108,20 +109,6 @@ export interface XlsxReportOptions {
 
 const DECIMAL_STRING = /^-?\d+(\.\d+)?$/;
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-let logoCache: Buffer | null | undefined;
-
-/** `public/logo.png`, read once. Missing file -> the sheet is drawn without it. */
-function logo(): Buffer | null {
-  if (logoCache === undefined) {
-    try {
-      logoCache = readFileSync(path.join(process.cwd(), "public", "logo.png"));
-    } catch {
-      logoCache = null;
-    }
-  }
-  return logoCache;
-}
 
 /**
  * The wall-clock time of `instant` in `timeZone`, as a `Date` whose UTC
@@ -285,11 +272,15 @@ export class XlsxReport {
     for (let col = 1; col <= this.columns.length; col++) rule.getCell(col).border = { bottom: { style: "medium", color: { argb: COLOR.brand } } };
     this.sheet.getRow(BANNER_ROWS + 2).height = 8;
 
-    const image = logo();
+    const image = logoParaPdf(options.logo ?? null);
     if (image) {
+      // Fit in a 56 x 56 box, keeping the image's own proportion.
+      const width = image.proporcion >= 1 ? 56 : 56 * image.proporcion;
+      const height = image.proporcion >= 1 ? 56 / image.proporcion : 56;
+      const extension = options.logo?.tipo === "image/png" ? "png" : "jpeg";
       // exceljs types `buffer` as its own Buffer alias; a Node Buffer is what it reads at runtime.
-      const imageId = this.workbook.addImage({ buffer: image as unknown as ExcelJS.Buffer, extension: "png" });
-      this.sheet.addImage(imageId, { tl: { col: 0.15, row: 0.3 }, ext: { width: 56, height: 56 }, editAs: "oneCell" });
+      const imageId = this.workbook.addImage({ buffer: image.imagen as unknown as ExcelJS.Buffer, extension });
+      this.sheet.addImage(imageId, { tl: { col: 0.15, row: 0.3 }, ext: { width, height }, editAs: "oneCell" });
     }
   }
 
