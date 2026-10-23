@@ -33,12 +33,17 @@ vi.mock("@/modules/auth/domain/password", () => ({
 }));
 
 const loadUsuarioParaPasswordMock = vi.fn();
+const loadEsSoloAdministradorMock = vi.fn(async (...args: unknown[]): Promise<boolean> => {
+  void args;
+  return false;
+});
 const setPinHashMock = vi.fn(async (...args: unknown[]) => {
   void args;
   return undefined;
 });
 vi.mock("@/modules/auth/infrastructure/usuario-repository", () => ({
   loadUsuarioParaPassword: (...args: unknown[]) => loadUsuarioParaPasswordMock(...args),
+  loadEsSoloAdministrador: (...args: unknown[]) => loadEsSoloAdministradorMock(...args),
   setPinHash: (...args: unknown[]) => setPinHashMock(...args),
 }));
 
@@ -76,6 +81,7 @@ beforeEach(() => {
   recordMock.mockClear();
   hashPasswordMock.mockClear();
   loadUsuarioParaPasswordMock.mockReset().mockResolvedValue(usuarioRow());
+  loadEsSoloAdministradorMock.mockReset().mockResolvedValue(false);
   setPinHashMock.mockClear();
 });
 
@@ -130,6 +136,17 @@ describe("configurarPinObligatorio", () => {
     expect(bySession).toBeInstanceOf(DomainError);
     expect((bySession as DomainError).message).toBe("Las cuentas de sector no usan PIN.");
 
+    expect(setPinHashMock).not.toHaveBeenCalled();
+  });
+
+  it("CT9: rejects a usuario whose only role is Administrador, read from the DB inside the transaction", async () => {
+    loadEsSoloAdministradorMock.mockResolvedValue(true);
+
+    const error = await execute({ pin: PIN, pinRepeat: PIN }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(DomainError);
+    expect((error as DomainError).message).toBe("El Administrador no usa PIN.");
+    expect(loadEsSoloAdministradorMock).toHaveBeenCalledWith(expect.objectContaining({ __fakeTx: true }), USUARIO_ID);
     expect(setPinHashMock).not.toHaveBeenCalled();
   });
 

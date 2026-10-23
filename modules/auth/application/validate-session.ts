@@ -63,7 +63,9 @@ export async function validateSession(rawToken: string, now: Date = new Date()):
         tienePin: usuario.tienePin,
         esSector: usuario.esSector,
         esTecnico: usuario.esTecnico,
+        soloAdministrador: usuario.soloAdministrador,
       }),
+      soloAdministrador: usuario.soloAdministrador,
     };
   });
 }

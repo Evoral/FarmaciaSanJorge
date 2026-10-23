@@ -29,7 +29,10 @@ duration of the request; `operador.ts` is the facade over the verification in
 `docs/specs/contrasena-temporal.md`. The session carries `pasosPendientes`
 (`PasoPendiente[]`, `shared/auth/pasos.ts`): `"cambiar-password"` while
 `usuario.debe_cambiar_password` is set, then `"configurar-pin"` for a usuario
-that is not a cuenta de sector and has no PIN. It is derived in `validateSession`
+that has no PIN and is not a cuenta de sector, the SISTEMA user, or a usuario
+whose only role is Administrador (`esSoloAdministrador`; Administrador plus
+another role still needs a PIN). The session also carries `soloAdministrador`
+so `/cuenta` can hide the PIN panel. It is derived in `validateSession`
 (`derivarPasosPendientes`) from columns `findSesionCompletaByTokenHash` loads,
 never stored per session.
 

@@ -24,12 +24,13 @@ vi.mock("@/shared/db/transaction", () => ({
   withTenantTransaction: vi.fn(async (_tenantId: string, fn: (tx: unknown) => unknown) => fn({ __fakeTx: true })),
 }));
 
-import { derivarPasosPendientes } from "@/modules/auth/domain/pasos-pendientes";
+import { derivarPasosPendientes, esSoloAdministrador } from "@/modules/auth/domain/pasos-pendientes";
+import { loadPasosPendientes } from "@/modules/auth/infrastructure/usuario-repository";
 import { rutaDelPaso } from "@/shared/auth/pasos";
 import { PasosPendientesError, userMessageFor } from "@/shared/errors";
 import { validateSession } from "@/modules/auth/application/validate-session";
 
-const base = { debeCambiarPassword: false, tienePin: false, esSector: false, esTecnico: false };
+const base = { debeCambiarPassword: false, tienePin: false, esSector: false, esTecnico: false, soloAdministrador: false };
 
 describe("derivarPasosPendientes", () => {
   it("asks to change the temporary password first, whether or not there is a PIN", () => {
@@ -52,6 +53,41 @@ describe("derivarPasosPendientes", () => {
 
   it("the technical SISTEMA user has no PIN step", () => {
     expect(derivarPasosPendientes({ ...base, esTecnico: true })).toEqual([]);
+  });
+
+  it("CT9: a usuario whose only role is Administrador has no PIN step, but still must change a temporary password", () => {
+    expect(derivarPasosPendientes({ ...base, soloAdministrador: true })).toEqual([]);
+    expect(derivarPasosPendientes({ ...base, soloAdministrador: true, debeCambiarPassword: true })).toEqual(["cambiar-password"]);
+    expect(derivarPasosPendientes({ ...base, soloAdministrador: false })).toEqual(["configurar-pin"]);
+  });
+});
+
+describe("esSoloAdministrador", () => {
+  const admin = { esAdministrador: true };
+  const farmaceutico = { esAdministrador: false };
+
+  it("is true only when the usuario has roles and every one of them is the Administrador role", () => {
+    expect(esSoloAdministrador([admin])).toBe(true);
+    expect(esSoloAdministrador([admin, farmaceutico])).toBe(false);
+    expect(esSoloAdministrador([farmaceutico])).toBe(false);
+    expect(esSoloAdministrador([])).toBe(false);
+  });
+});
+
+describe("loadPasosPendientes (login)", () => {
+  function txCon(row: Record<string, unknown> | null) {
+    return { usuario: { findUnique: vi.fn(async () => row) } } as unknown as Parameters<typeof loadPasosPendientes>[0];
+  }
+  const fila = { debeCambiarPassword: false, pinHash: null, esSector: false, esTecnico: false };
+
+  it("CT9: an Administrador-only usuario without PIN has no pending steps", async () => {
+    const tx = txCon({ ...fila, rolesAsignados: [{ rol: { esAdministrador: true } }] });
+    expect(await loadPasosPendientes(tx, "u-1")).toEqual([]);
+  });
+
+  it("CT9: Administrador plus another role without PIN must configure it", async () => {
+    const tx = txCon({ ...fila, rolesAsignados: [{ rol: { esAdministrador: true } }, { rol: { esAdministrador: false } }] });
+    expect(await loadPasosPendientes(tx, "u-1")).toEqual(["configurar-pin"]);
   });
 });
 
@@ -112,5 +148,23 @@ describe("validateSession pasosPendientes", () => {
     );
     const session = await validateSession("raw-token", now);
     expect(session?.pasosPendientes).toEqual(["configurar-pin"]);
+  });
+
+  it("CT9: an Administrador-only usuario without PIN has no pending steps and the session says so", async () => {
+    findSesionCompletaMock.mockResolvedValue(
+      completa({ estado: "ACTIVO", debeCambiarPassword: false, tienePin: false, esSector: false, esTecnico: false, soloAdministrador: true }),
+    );
+    const session = await validateSession("raw-token", now);
+    expect(session?.pasosPendientes).toEqual([]);
+    expect(session?.soloAdministrador).toBe(true);
+  });
+
+  it("CT9: Administrador plus another role without PIN must configure it", async () => {
+    findSesionCompletaMock.mockResolvedValue(
+      completa({ estado: "ACTIVO", debeCambiarPassword: false, tienePin: false, esSector: false, esTecnico: false, soloAdministrador: false }),
+    );
+    const session = await validateSession("raw-token", now);
+    expect(session?.pasosPendientes).toEqual(["configurar-pin"]);
+    expect(session?.soloAdministrador).toBe(false);
   });
 });

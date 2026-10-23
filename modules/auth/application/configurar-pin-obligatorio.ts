@@ -15,7 +15,7 @@ import { defineCommand } from "@/shared/usecase";
 import { DomainError } from "@/shared/errors";
 import { validatePin } from "../domain/pin";
 import { hashPassword } from "../domain/password";
-import { loadUsuarioParaPassword, setPinHash } from "../infrastructure/usuario-repository";
+import { loadEsSoloAdministrador, loadUsuarioParaPassword, setPinHash } from "../infrastructure/usuario-repository";
 
 const configurarPinObligatorioInput = z
   .object({
@@ -45,6 +45,9 @@ export const configurarPinObligatorioCommand = defineCommand({
     }
     if (session.sector || usuario.esSector) {
       throw new DomainError("Las cuentas de sector no usan PIN.");
+    }
+    if (await loadEsSoloAdministrador(tx, session.usuario.id)) {
+      throw new DomainError("El Administrador no usa PIN.");
     }
     if (usuario.debeCambiarPassword) {
       throw new DomainError("Primero tenés que cambiar tu contraseña temporal.");

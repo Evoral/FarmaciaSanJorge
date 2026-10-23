@@ -8,6 +8,7 @@ Estado: implementado 2026-10-22 (migración 0097). Reversión: `docs/rollbacks/c
 > - La contraseña temporal **no vence**: vale hasta que la persona la cambie.
 > - «Restablecer credencial» funciona igual que el alta: el Administrador asigna una nueva contraseña temporal. **El PIN se conserva**; solo se obliga a cambiar la contraseña.
 > - El PIN pasa a ser **obligatorio para todo usuario que no sea cuenta de sector**, también para los que ya estaban activos sin PIN: lo configuran la próxima vez que usen el sistema.
+> - El usuario cuyo único rol es Administrador no tiene PIN (2026-10-23): el Administrador no ejerce actos operativos. Con otro rol además, sí.
 > - Las **cuentas de sector** no tienen PIN; para ellas solo es obligatorio el cambio de contraseña.
 > - Mientras una persona tenga pendiente el cambio de contraseña, **no puede identificarse con su PIN en las cuentas de sector** (aunque conserve el PIN tras un restablecimiento).
 > - Los usuarios que al desplegar estén `PENDIENTE_ACTIVACION` con un código sin usar: el código deja de servir y el Administrador les asigna una contraseña temporal con «Restablecer credencial».
@@ -93,7 +94,7 @@ El código de activación obligaba a entregar un string de ~43 caracteres que se
 Una sesión tiene **pasos pendientes** si:
 
 1. `debe_cambiar_password = true` → paso **Cambiar contraseña**.
-2. El paso 1 no está pendiente, `pin_hash IS NULL` y el usuario no es cuenta de sector ni el usuario técnico SISTEMA (que nunca inicia sesión) → paso **Configurar PIN**.
+2. El paso 1 no está pendiente, `pin_hash IS NULL` y el usuario no es cuenta de sector, ni el usuario técnico SISTEMA (que nunca inicia sesión), ni un usuario cuyo único rol es Administrador (`rol.es_administrador`; con Administrador más otro rol, sí) → paso **Configurar PIN**. `configurarPinObligatorio` rechaza al usuario solo-Administrador («El Administrador no usa PIN.»).
 
 Siempre en ese orden: el PIN se pide recién después del cambio de contraseña.
 
@@ -151,7 +152,7 @@ Lo mismo vale para la **co-firma del Director Técnico** (stock, libro y pesada 
 | `/activar` | Se elimina (también de `PUBLIC_PATHS` en `proxy.ts`). |
 | Paso «Cambiar contraseña» (nueva, fuera de `(app)`) | Nueva contraseña + repetir, requisitos visibles, botón «Cerrar sesión». |
 | Paso «Configurar PIN» (nueva, fuera de `(app)`) | PIN + repetir, botón «Cerrar sesión». |
-| `/cuenta` | Sin «Eliminar PIN». Sin panel PIN para cuentas de sector. |
+| `/cuenta` | Sin «Eliminar PIN». Sin panel PIN para cuentas de sector ni para el usuario cuyo único rol es Administrador. |
 
 Todos los formularios usan `shared/ui/use-form-submit.ts` y conservan lo escrito ante un error.
 
@@ -167,6 +168,7 @@ Todos los formularios usan `shared/ui/use-form-submit.ts` y conservan lo escrito
 | CT6 | Las cuentas de sector nunca reciben el paso «Configurar PIN». | carga de sesión + test |
 | CT7 | Un empleado con `debe_cambiar_password = true` no se identifica como operador en una cuenta de sector, aunque su PIN sea correcto. | `verificar-operador.ts`, `operadores-repository.ts` + test |
 | CT8 | Un DT con `debe_cambiar_password = true` no puede co-firmar (stock, libro, pesada real) aunque su contraseña sea correcta; no suma intentos fallidos. | `modules/stock/domain/co-firma.ts`, `modules/{stock,libro}/infrastructure/co-firma-repository.ts`, `modules/{stock,libro}/application/verificar-co-firma-dt.ts` + `tests/unit/contrasena-temporal-co-firma.test.ts` |
+| CT9 | Un usuario cuyo único rol es Administrador nunca recibe el paso «Configurar PIN»; con Administrador más otro rol, sí. | `esSoloAdministrador` y `derivarPasosPendientes` (`modules/auth/domain/pasos-pendientes.ts`), `validate-session.ts`, `loadPasosPendientes`, `configurar-pin-obligatorio.ts`, `app/(app)/cuenta/page.tsx` + `tests/unit/auth-pasos-pendientes.test.ts`, `tests/unit/auth-configurar-pin-obligatorio.test.ts` |
 
 ## Código
 

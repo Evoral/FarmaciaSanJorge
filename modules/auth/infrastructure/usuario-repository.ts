@@ -9,7 +9,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { getPrismaClient } from "@/shared/db/client";
 import type { PasoPendiente } from "@/shared/auth/pasos";
-import { derivarPasosPendientes } from "../domain/pasos-pendientes";
+import { derivarPasosPendientes, esSoloAdministrador } from "../domain/pasos-pendientes";
 
 export interface LoginCandidate {
   tenantId: string;
@@ -62,7 +62,13 @@ export async function resolveLoginByEmail(email: string): Promise<LoginCandidate
 export async function loadPasosPendientes(tx: Prisma.TransactionClient, usuarioId: string): Promise<readonly PasoPendiente[]> {
   const row = await tx.usuario.findUnique({
     where: { id: usuarioId },
-    select: { debeCambiarPassword: true, pinHash: true, esSector: true, esTecnico: true },
+    select: {
+      debeCambiarPassword: true,
+      pinHash: true,
+      esSector: true,
+      esTecnico: true,
+      rolesAsignados: { select: { rol: { select: { esAdministrador: true } } } },
+    },
   });
   if (!row) return [];
   return derivarPasosPendientes({
@@ -70,7 +76,14 @@ export async function loadPasosPendientes(tx: Prisma.TransactionClient, usuarioI
     tienePin: row.pinHash !== null,
     esSector: row.esSector,
     esTecnico: row.esTecnico,
+    soloAdministrador: esSoloAdministrador(row.rolesAsignados.map((asignacion) => asignacion.rol)),
   });
+}
+
+/** Whether every role of the usuario is the locked ADMINISTRADOR (no PIN, CT9), read inside an already-open tenant transaction. */
+export async function loadEsSoloAdministrador(tx: Prisma.TransactionClient, usuarioId: string): Promise<boolean> {
+  const asignaciones = await tx.usuarioRol.findMany({ where: { usuarioId }, select: { rol: { select: { esAdministrador: true } } } });
+  return esSoloAdministrador(asignaciones.map((asignacion) => asignacion.rol));
 }
 
 /** Successful login (FASE 2 point 2.2): resets the failed-attempt counter/lockout and stamps `ultimo_acceso`. */

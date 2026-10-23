@@ -9,6 +9,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { getPrismaClient } from "@/shared/db/client";
 import { withTenantTransaction } from "@/shared/db/transaction";
 import { PERMISOS_CON_PIN_SIEMPRE, isPermiso, permisosEfectivos, type Permiso } from "../domain/permisos";
+import { esSoloAdministrador } from "../domain/pasos-pendientes";
 
 export interface NewSesionRow {
   tenantId: string;
@@ -97,6 +98,8 @@ export interface UsuarioConPermisos {
   debeCambiarPassword: boolean;
   /** Whether a PIN is configured; the hash itself is never exposed. */
   tienePin: boolean;
+  /** Every role is the locked ADMINISTRADOR (`esSoloAdministrador`): no PIN step (docs/specs/contrasena-temporal.md, CT9). */
+  soloAdministrador: boolean;
   permisos: ReadonlySet<Permiso>;
 }
 
@@ -191,6 +194,7 @@ function toUsuarioConPermisos(usuario: UsuarioConPermisosRow): UsuarioConPermiso
     esTecnico: usuario.esTecnico,
     debeCambiarPassword: usuario.debeCambiarPassword,
     tienePin: usuario.pinHash !== null,
+    soloAdministrador: esSoloAdministrador(usuario.rolesAsignados.map((asignacion) => asignacion.rol)),
     permisos,
   };
 }

@@ -62,4 +62,10 @@ export interface AuthenticatedSession {
    * `validateSession`; optional so fixtures that omit it mean "none pending".
    */
   pasosPendientes?: readonly PasoPendiente[];
+  /**
+   * Every role of the usuario is the locked ADMINISTRADOR, so it has no PIN
+   * (docs/specs/contrasena-temporal.md, CT9). Built only by `validateSession`;
+   * optional so fixtures that omit it mean "not admin-only".
+   */
+  soloAdministrador?: boolean;
 }
