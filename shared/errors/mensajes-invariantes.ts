@@ -59,6 +59,7 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   "INV-ENT-002": "La receta no puede marcarse como entregada sin una entrega registrada (retiro presencial, o envío con el retorno confirmado).",
   // INV-ENT-003's trigger was dropped by migration 0051 (receta física attribute removed); kept because the scan covers 0040/0041.
   "INV-ENT-003": "La receta fue enviada y está esperando retorno: confirmá el retorno en lugar de registrar solo la recepción física.",
+  "INV-ENT-004": "Una entrega solo se elimina anulándola, para que quede su registro en el historial de entregas anuladas.",
   "INV-ENT-005": "Un envío necesita un repartidor asignado, y el repartidor de un envío registrado se puede cambiar pero no quitar.",
 
   // Preparaciones / etiquetas / fichas técnicas
@@ -122,6 +123,8 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   "INV-S21": "La fecha de vencimiento es obligatoria para una droga; solo los excipientes y materiales pueden no vencer.",
   "INV-S22": "No se pudo registrar el reanálisis: solo el Director Técnico vigente puede hacerlo, en una partida de droga con saldo y con una fecha posterior a la actual.",
   "INV-S23": "El vencimiento original de una partida no se modifica; el vencimiento vigente solo cambia registrando un reanálisis.",
+  "INV-S24": "El relevamiento inicial ya está cerrado: no se pueden cargar más existencias iniciales. Ingresá el stock como una compra.",
+  "INV-S26": "El relevamiento inicial ya está cerrado y no se puede reabrir; solo el Director Técnico vigente puede cerrarlo.",
   "INV-S12": "La cantidad descontada no coincide con lo que exige la línea de pesaje. Revisá las cantidades y volvé a intentarlo.",
   "INV-S16": "La fecha de apertura de la partida solo se registra con un movimiento de stock.",
   "INV-S17": "La fecha de apertura de la partida ya fue registrada y no se puede cambiar.",

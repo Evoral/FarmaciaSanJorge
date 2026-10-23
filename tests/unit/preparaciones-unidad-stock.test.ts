@@ -102,6 +102,8 @@ const repo = {
   })),
   deleteReservasDePreparacion: vi.fn(async () => 0),
   listReservasDePreparacion: vi.fn(async () => [] as unknown[]),
+  getParametrosPesadaReal: vi.fn(async () => ({ precisionBalanza: "0.001", toleranciaPorcentaje: "5" })),
+  getExcipienteDePreparacion: vi.fn(async () => null),
   getUltimaFichaDeItem: vi.fn(async () => ({ id: FICHA_ID, version: 1 })),
   listItemIdsDeReceta: vi.fn(async () => ["item-1"]),
   listPreparacionesVivasDeItems: vi.fn(async () => [{ id: PREPARACION_ID, itemRecetaId: "item-1", estado: "INICIADA", etiquetaId: null }]),
@@ -161,7 +163,9 @@ describe("planificarConsumoEnTx: the línea's quantity is converted into the dro
     expect(linea!.cantidadRequeridaStock.toFixed()).toBe("950000");
     expect(linea!.split.map((s) => [s.partidaId, s.cantidad.toFixed()])).toEqual([[PARTIDA_A, "950000"]]);
     expect(linea!.totalFisico.toFixed()).toBe("950");
-    expect(reservasDelPlan([linea!])).toEqual([{ lineaPesajeId: LINEA_ID, partidaId: PARTIDA_A, cantidad: "950000", cantidadManual: null, motivoAperturaAdicional: null }]);
+    expect(reservasDelPlan([linea!])).toEqual([
+      { lineaPesajeId: LINEA_ID, partidaId: PARTIDA_A, cantidad: "950000", cantidadManual: null, motivoAperturaAdicional: null, cantidadReal: null, pesadaAutorizadaPorId: null },
+    ]);
   });
 
   it("spreads over several partidas in mg (600000 + 350000)", async () => {

@@ -84,11 +84,12 @@ describe("precioInformadoSchema (R3, CP3)", () => {
   it("accepts a positive decimal and returns the exact canonical string", () => {
     expect(precioInformadoSchema.parse("40898")).toBe("40898");
     expect(precioInformadoSchema.parse(" 40898.50 ")).toBe("40898.5");
+    expect(precioInformadoSchema.parse("1,5")).toBe("1.5");
     expect(precioInformadoSchema.parse("0.0000001")).toBe("0.0000001");
   });
 
   it("CP3: rejects zero, negative, empty and non-numeric input", () => {
-    for (const invalido of ["0", "0.00", "-1", "-0.5", "", "   ", "abc", "1,5", "1e3", "0x10", "Infinity", "NaN", "12.", ".5"]) {
+    for (const invalido of ["0", "0.00", "-1", "-0.5", "", "   ", "abc", "1e3", "0x10", "Infinity", "NaN", "12."]) {
       expect(precioInformadoSchema.safeParse(invalido).success, JSON.stringify(invalido)).toBe(false);
     }
   });
@@ -96,7 +97,9 @@ describe("precioInformadoSchema (R3, CP3)", () => {
   it("says why", () => {
     expect(precioInformadoSchema.safeParse("0").error?.issues[0]?.message).toBe("Debe ser mayor que cero.");
     expect(precioInformadoSchema.safeParse("").error?.issues[0]?.message).toBe("Ingresá el precio.");
-    expect(precioInformadoSchema.safeParse("abc").error?.issues[0]?.message).toBe("El precio debe ser un número decimal válido.");
+    expect(precioInformadoSchema.safeParse("abc").error?.issues[0]?.message).toBe(
+      '"abc" no es un número válido. Usá coma para los decimales (1,5) y no separes los miles (1500).',
+    );
   });
 });
 

@@ -266,7 +266,7 @@ describe("domain/presupuesto", () => {
     expect(itemsListosParaPresupuesto([{ ...base, componentes: [{ ...comp, drogaId: "" }] }])).toBe(false);
     expect(itemsListosParaPresupuesto([{ ...base, componentes: [{ ...comp, unidadMedidaId: "" }] }])).toBe(false);
     expect(itemsListosParaPresupuesto([{ ...base, componentes: [{ ...comp, cantidad: "0" }] }])).toBe(false);
-    expect(itemsListosParaPresupuesto([{ ...base, componentes: [{ ...comp, cantidad: "1,5" }] }])).toBe(false);
+    expect(itemsListosParaPresupuesto([{ ...base, componentes: [{ ...comp, cantidad: "1.500" }] }])).toBe(false);
     expect(itemsListosParaPresupuesto([{ ...base, cantidadUnidades: Number.NaN, componentes: [comp] }])).toBe(false);
     expect(itemsListosParaPresupuesto([{ ...base, cantidadTotal: "30", componentes: [comp] }])).toBe(false); // total without its unit
   });

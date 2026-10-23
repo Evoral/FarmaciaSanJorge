@@ -28,20 +28,11 @@ describe("parametros-registry: precision_balanza", () => {
     expect(result.ok).toBe(false);
   });
 
-  // FASE 3 point 3.9 review finding N3: exponential notation and
-  // whitespace weren't exercised before. Decimal.js parses exponential
-  // notation natively (new Decimal("1e-3").equals(new Decimal("0.001")) ===
-  // true), so "1e-3" is just another spelling of an already-allowed value
-  // and must be ACCEPTED; "1e3" is a valid, finite number (1000) that is
-  // simply not in the allowed {0.1, 0.01, 0.001} set, same as "1" already
-  // above, so it must be REJECTED -- neither case needed a code change,
-  // only test coverage for behavior the implementation already had.
-  it("accepts exponential notation '1e-3' (normalizes to 0.001, an allowed value)", () => {
+  // docs/specs/numeros-ingresados.md (N6): exponential notation ("1e-3", "1e3") is refused by
+  // `interpretarNumero` even when the numeric value (0.001) would otherwise be in the allowed set.
+  it("rejects exponential notation '1e-3' (refused by N6 even though 0.001 is an allowed value)", () => {
     const result = validar("1e-3");
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.valor.equals("0.001")).toBe(true);
-    }
+    expect(result.ok).toBe(false);
   });
 
   it("rejects exponential notation '1e3' (a valid number, 1000, but not in the allowed set)", () => {
