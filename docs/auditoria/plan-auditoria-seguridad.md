@@ -241,14 +241,35 @@ Pruebas propuestas prioritarias (describe, no ejecutes las que requieran escribi
 ```markdown
 ALCANCE DE LA PARTE 5: LOGS, SECRETOS, CONFIGURACIÓN, INFRAESTRUCTURA Y DEPENDENCIAS
 
-- `shared/logging/logger.ts` y sus puntos de uso: redacción de tokens, PIN, cookies, cadenas de conexión y datos personales de pacientes.
-- `shared/env.ts` y `.env.example`: variables `NEXT_PUBLIC_*`, secretos que puedan llegar al bundle del cliente, módulos de servidor sin `server-only`.
-- `vercel.json`: crons y su idempotencia ante una doble ejecución; región; límites de duración de funciones frente a exportaciones pesadas.
-- `next.config.*` y `package.json`: el build no ejecuta migraciones; `postinstall` y scripts que tocan la base.
-- Prisma con Supavisor: modo de pooling, límite de conexiones del cliente, compatibilidad con transacciones interactivas y timeouts.
-- Dependencias de estado local o filesystem incompatibles con serverless.
-- `npm audit --omit=dev` y versiones instaladas (`npm ls next react prisma zod`): informa las advertencias como POTENCIALES salvo que confirmes que el código afectado se usa.
-- Coherencia de TypeScript estricto y ESLint: excepciones (`eslint-disable`, `@ts-ignore`, `as any`) en código sensible.
+CONTEXTO DE LAS PARTES 1 A 4 (cerradas, `docs/auditoria/informes/`; no las re-audites)
+- RLS, roles, grants y SECURITY DEFINER: parte 1. `DIRECT_URL` (owner, salta RLS) ya NO está en `shared/env.ts`: solo lo leen `scripts/` y `prisma.config.ts`. Verifica que ningún código de runtime lo lea por otra vía (`process.env.DIRECT_URL`).
+- Autenticación, permisos y autorización de endpoints (incluidos `app/api/jobs/*`): parte 2. Aquí solo interesa la configuración de los crons, no quién puede llamarlos.
+- Concurrencia e integridad: parte 3. Migraciones 0101 a 0104 aplicadas en la base de prueba.
+- Entradas y salidas (uploads, parsers, PDF, XLSX, CSP y headers): parte 4. No re-audites headers ni CSP.
+- Rate limiting se resuelve en Vercel Firewall (condición de deploy ya registrada): no lo reportes como hallazgo.
+- `npm test`, typecheck y lint pasan en el entorno del equipo; si en tu entorno fallan, regístralo como limitación de entorno.
+- `.env*`: puedes leer `.env.example` (no tiene secretos), pero NUNCA imprimas valores de `.env`, `.env.local` ni similares; si necesitas saber si una variable existe, informa solo su nombre.
+
+Pendientes que la parte 4 derivó a esta (verificaciones de producción, para el apartado F)
+- Egress de las funciones: que solo salgan hacia Supabase y `decrypter.verumrp.com.ar`.
+- Límite de cuerpo de la plataforma: un upload de ~5 MB rechazado con 413 antes de llegar a la Server Action (coherente con `serverActions.bodySizeLimit` en `next.config.ts`).
+- Headers por `curl -I` en producción: HSTS, `Permissions-Policy`, `Cache-Control` de las exportaciones.
+
+Alcance
+- Logs (`shared/logging/logger.ts` y todos sus puntos de uso, `console.*` sueltos): redacción de tokens, PIN, contraseñas, cookies, cadenas de conexión y datos personales de pacientes (nombre, DNI, domicilio, diagnóstico). Busca objetos completos logueados (`{ input }`, `{ error }` con `cause` que arrastre datos de Prisma).
+- Secretos y bundle del cliente: `shared/env.ts`, `.env.example`, variables `NEXT_PUBLIC_*`, módulos de servidor importables desde componentes cliente sin `server-only`, secretos en `next.config.ts`.
+- `vercel.json`: crons, su autenticación por secreto y su idempotencia ante doble ejecución; región (cercanía a la base de Supabase); `maxDuration` frente a exportaciones pesadas (PDF/XLSX de hasta 5000 filas).
+- Build y scripts: que `build` no ejecute migraciones ni toque la base; `postinstall`; scripts de `scripts/` que lean `DIRECT_URL` y cómo se ejecutan (nunca desde el runtime).
+- Prisma con Supavisor: modo transaction (puerto 6543), `connection_limit`, compatibilidad con transacciones interactivas, `set_config(..., true)` por transacción (sin estado de sesión que se filtre entre requests del pool) y timeouts.
+- Serverless: estado en memoria entre requests (caches de módulo, `AsyncLocalStorage`), escritura en filesystem, lecturas de `public/` en runtime.
+- Dependencias: `npm audit --omit=dev` y `npm ls next react prisma zod exceljs pdfkit unpdf jsqr`. Informa las advertencias como POTENCIALES salvo que confirmes que el código afectado se usa.
+- Excepciones a TypeScript estricto y ESLint (`eslint-disable`, `@ts-ignore`, `@ts-expect-error`, `as any`, `as unknown as`) en código sensible: auth, usecase, db, audit, repositorios.
+- Supabase (solo SELECT y herramientas de lectura): `get_advisors` de seguridad y rendimiento; informa qué avisos aplican de verdad al schema `fsj`.
+
+Pruebas propuestas prioritarias (describe, no ejecutes las que requieran escribir)
+- Un error de Prisma con datos de paciente en el `where`: qué llega al log.
+- Doble ejecución del mismo cron en el mismo minuto: sin efectos duplicados.
+- Dos requests concurrentes de tenants distintos sobre el mismo backend del pool: ninguno ve el `app.tenant_id` del otro.
 ```
 
 ---
