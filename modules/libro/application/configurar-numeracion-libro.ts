@@ -41,6 +41,9 @@ export const configurarNumeracionLibroCommand = defineCommand({
     const libro = (await listNumeracionLibros(tx, session.tenantId)).find((l) => l.libroId === input.libroId);
     if (!libro) throw new DomainError("El libro no existe o ya está cerrado.");
     if (libro.fijadaEnJornada !== null) throw new DomainError(mensajeParaInvarianteNumeracion("INV-L26"));
+    if (libro.contralorManual) {
+      throw new DomainError("Los libros contralor se llevan en forma manual: esta farmacia no activó el contralor digital, así que no hay numeración que configurar.");
+    }
     if (libro.tieneReanclaje) {
       throw new DomainError("Este libro tiene un reanclaje de la cadena registrado: su numeración ya no se puede cambiar. Contactá a soporte.");
     }

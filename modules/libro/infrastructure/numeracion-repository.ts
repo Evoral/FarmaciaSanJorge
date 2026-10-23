@@ -12,6 +12,8 @@ export interface NumeracionLibroRow {
   /** Jornada of the cierre that fixed the numbering, or null while it can still change. */
   fijadaEnJornada: string | null;
   tieneReanclaje: boolean;
+  /** A libro contralor of a tenant that has not activated the digital contralor: kept on paper, nothing to number. */
+  contralorManual: boolean;
   cantidadAsientos: number;
   primerNumero: string | null;
   ultimoNumero: string | null;
@@ -22,10 +24,12 @@ export async function listNumeracionLibros(tx: Prisma.TransactionClient, tenantI
     SELECT l.id::text AS "libroId", l.tipo::text AS tipo, l.numero_inicial::text AS "numeroInicial",
            c.fecha::text AS "fijadaEnJornada",
            EXISTS (SELECT 1 FROM fsj.libro_reanclaje r WHERE r.tenant_id = l.tenant_id AND r.libro_id = l.id) AS "tieneReanclaje",
+           (l.tipo <> 'RECETARIO' AND t.fecha_activacion_contralor IS NULL) AS "contralorManual",
            count(a.numero_correlativo)::int AS "cantidadAsientos",
            min(a.numero_correlativo)::text AS "primerNumero",
            max(a.numero_correlativo)::text AS "ultimoNumero"
     FROM fsj.libro_rubricado l
+    JOIN fsj.tenant t ON t.id = l.tenant_id
     LEFT JOIN fsj.cierre_diario c ON c.tenant_id = l.tenant_id AND c.id = l.numeracion_fijada_cierre_id
     LEFT JOIN (
       SELECT libro_id, numero_correlativo FROM fsj.asiento_recetario WHERE tenant_id = ${tenantId}::uuid
@@ -33,7 +37,7 @@ export async function listNumeracionLibros(tx: Prisma.TransactionClient, tenantI
       SELECT libro_id, numero_correlativo FROM fsj.asiento_contralor WHERE tenant_id = ${tenantId}::uuid
     ) a ON a.libro_id = l.id
     WHERE l.tenant_id = ${tenantId}::uuid AND l.fecha_cierre IS NULL
-    GROUP BY l.id, l.tipo, l.numero_inicial, c.fecha
+    GROUP BY l.id, l.tipo, l.numero_inicial, c.fecha, t.fecha_activacion_contralor
     ORDER BY l.tipo
   `;
 }

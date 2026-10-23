@@ -31,12 +31,13 @@ export default async function NumeracionLibroPage() {
       <div className="flex max-w-3xl flex-col gap-4">
         {libros.map((l) => {
           const fija = l.fijadaEnJornada !== null;
+          const bloqueada = fija || l.contralorManual;
           const headingId = `numeracion-${l.libroId}`;
           return (
             <section key={l.libroId} className="panel" aria-labelledby={headingId}>
               <div className="panel-header flex items-center gap-3">
-                <span className="tone-tile" data-tone={fija ? "neutral" : "warn"} aria-hidden>
-                  {fija ? <Lock /> : <Hash />}
+                <span className="tone-tile" data-tone={bloqueada ? "neutral" : "warn"} aria-hidden>
+                  {bloqueada ? <Lock /> : <Hash />}
                 </span>
                 <div className="min-w-0 flex-1">
                   <h2 id={headingId}>{etiquetaLibro(l.tipo)}</h2>
@@ -45,10 +46,14 @@ export default async function NumeracionLibroPage() {
                     {l.cantidadAsientos > 0 ? ` · ${l.cantidadAsientos} ${l.cantidadAsientos === 1 ? "asiento registrado" : "asientos registrados"} (Nº ${l.primerNumero} a Nº ${l.ultimoNumero})` : " · Sin asientos todavía"}
                   </p>
                 </div>
-                <ToneBadge tone={fija ? "neutral" : "warn"}>{fija ? "Fija" : "Se puede cambiar"}</ToneBadge>
+                <ToneBadge tone={bloqueada ? "neutral" : "warn"}>{fija ? "Fija" : l.contralorManual ? "Manual" : "Se puede cambiar"}</ToneBadge>
               </div>
               <div className="panel-body">
-                {fija ? (
+                {l.contralorManual ? (
+                  <p className="text-[0.8125rem] text-zinc-600">
+                    Libros contralor llevados en forma manual: esta farmacia no activó el contralor digital, así que el sistema no genera asientos ni hay numeración que configurar.
+                  </p>
+                ) : fija ? (
                   <p className="text-[0.8125rem] text-zinc-600">Quedó fija con el cierre de la jornada {formatFechaIso(l.fijadaEnJornada ?? "")}. No se puede cambiar.</p>
                 ) : l.tieneReanclaje ? (
                   <p className="text-[0.8125rem] text-zinc-600">Este libro tiene un reanclaje de la cadena registrado: su numeración no se puede cambiar.</p>
