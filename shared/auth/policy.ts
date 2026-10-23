@@ -32,6 +32,9 @@ export const AUTH_POLICY = {
   /** DP-20 pending. Minimum password length for INV-AU-001 (titular-set passwords). */
   minPasswordLength: 12,
 
+  /** Resolved value (user decision, 2026-10-23): minimum length of a TEMPORARY password typed by the Administrador (alta, "Restablecer credencial", first admin of create-tenant). It is short on purpose: the usuario replaces it on first login with a password of their own, which keeps the full `minPasswordLength` + uppercase policy. */
+  minTemporaryPasswordLength: 6,
+
   /** DP-20 pending / INV-X02 pending. How recent a re-authentication must be for step-up actions. */
   reauthWindowMinutes: 15,
 
@@ -116,4 +119,26 @@ export const PASSWORD_REQUIREMENTS: readonly PasswordRequirement[] = [
 
 export function validatePassword(password: string): string[] {
   return PASSWORD_REQUIREMENTS.filter((requirement) => !requirement.test(password)).map((requirement) => requirement.error);
+}
+
+/**
+ * Policy for a TEMPORARY password typed by the Administrador (user decision,
+ * 2026-10-23; docs/specs/contrasena-temporal.md): at least
+ * `AUTH_POLICY.minTemporaryPasswordLength` characters and no uppercase
+ * requirement, since the usuario must replace it on first login. The internal
+ * technical guards are the very same objects as in `PASSWORD_REQUIREMENTS`.
+ * The password a usuario chooses for themself keeps `PASSWORD_REQUIREMENTS`.
+ */
+export const TEMPORARY_PASSWORD_REQUIREMENTS: readonly PasswordRequirement[] = [
+  {
+    id: "min-length",
+    label: `Al menos ${AUTH_POLICY.minTemporaryPasswordLength} caracteres`,
+    error: `Debe tener al menos ${AUTH_POLICY.minTemporaryPasswordLength} caracteres.`,
+    test: (password) => password.length >= AUTH_POLICY.minTemporaryPasswordLength,
+  },
+  ...PASSWORD_REQUIREMENTS.filter((requirement) => requirement.internal),
+];
+
+export function validateTemporaryPassword(password: string): string[] {
+  return TEMPORARY_PASSWORD_REQUIREMENTS.filter((requirement) => !requirement.test(password)).map((requirement) => requirement.error);
 }

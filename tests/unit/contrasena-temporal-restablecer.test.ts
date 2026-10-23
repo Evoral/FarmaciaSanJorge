@@ -188,4 +188,18 @@ describe("restablecerCredencial: temporary password validation", () => {
     expect(JSON.stringify((error as ValidationError).fields)).toContain("passwordTemporal");
     expect(restablecerPasswordTemporalMock).not.toHaveBeenCalled();
   });
+
+  it("rejects a 5-character password on the password field only", async () => {
+    const error = await run({ passwordTemporal: "abc12", passwordTemporalRepeat: "abc12" }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).fields).toEqual(["passwordTemporal"]);
+    expect(restablecerPasswordTemporalMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts a 6-character lowercase password", async () => {
+    await run({ passwordTemporal: "abc123", passwordTemporalRepeat: "abc123" });
+
+    expect(restablecerPasswordTemporalMock).toHaveBeenCalledTimes(1);
+  });
 });

@@ -162,6 +162,13 @@ describe("cambiarPasswordTemporal", () => {
 
     expect(completarCambioPasswordTemporalMock).not.toHaveBeenCalled();
   });
+
+  it("keeps the full policy for the password the usuario chooses: 6 lowercase characters are rejected", async () => {
+    const error = await execute({ nueva: "abc123", nuevaRepeat: "abc123" }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as { fields?: string[] }).fields).toContain("nueva");
+    expect(completarCambioPasswordTemporalMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("CT4: only completarCambioPasswordTemporal clears debeCambiarPassword", () => {

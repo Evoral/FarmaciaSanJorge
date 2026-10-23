@@ -17,8 +17,9 @@
  *
  * Temporary password: taken from `--admin-password-temporal` or, when the
  * flag is absent, asked twice on stdin with the echo disabled (a flag lands
- * in the shell history, the prompt does not). It must satisfy the password
- * policy, is stored only as an argon2id hash, and is NEVER printed or logged
+ * in the shell history, the prompt does not). It must satisfy the temporary
+ * password policy (at least 6 characters; the admin's own password, chosen on
+ * first login, gets the full policy), is stored only as an argon2id hash, and is NEVER printed or logged
  * (INV-AU-001). The admin is created ACTIVO with `debe_cambiar_password`, so
  * the first login forces a new password and a PIN.
  *
@@ -45,7 +46,7 @@ import { Writable } from "node:stream";
 import { Client } from "pg";
 import { z } from "zod";
 import { nonEmptyString, email as emailSchema } from "@/shared/validation";
-import { validatePassword } from "@/shared/auth/policy";
+import { validateTemporaryPassword } from "@/shared/auth/policy";
 import { hashPassword } from "@/modules/auth/domain/password";
 import { HOJA_PREDETERMINADA } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import { ETIQUETA_TAMANO_PREDETERMINADO, ETIQUETA_TAMANO_PREDETERMINADO_NOMBRE } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
@@ -134,9 +135,9 @@ async function resolveTemporaryPassword(fromFlag: string | undefined): Promise<s
     const confirmation = await promptHidden("Repeat the temporary password: ");
     if (passwordTemporal !== confirmation) printUsageAndExit("the two passwords do not match.");
   }
-  const violations = validatePassword(passwordTemporal);
+  const violations = validateTemporaryPassword(passwordTemporal);
   if (violations.length > 0) {
-    printUsageAndExit(`the temporary password does not meet the policy:\n${violations.map((v) => `  - ${v}`).join("\n")}`);
+    printUsageAndExit(`the temporary password does not meet the temporary password policy:\n${violations.map((v) => `  - ${v}`).join("\n")}`);
   }
   return passwordTemporal;
 }

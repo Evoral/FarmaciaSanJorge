@@ -6,6 +6,9 @@
  * the forced password change, the admin forms) renders this, and the checklist iterates
  * `PASSWORD_REQUIREMENTS` -- the same list the server validates against
  * (shared/auth/policy.ts) -- so the UI can never drift from the real rule.
+ * The Administrador's forms (alta, "Restablecer credencial") pass
+ * `TEMPORARY_PASSWORD_REQUIREMENTS` through `requirements`: they set a
+ * temporary password, which the server validates with the lighter policy.
  *
  * The checklist appears as soon as either field has content. The parent
  * disables its submit button until `onValidityChange(true)`; the server
@@ -15,7 +18,7 @@
  */
 import { useEffect, useId, useState } from "react";
 import { Check, X } from "lucide-react";
-import { PASSWORD_REQUIREMENTS } from "@/shared/auth/policy";
+import { PASSWORD_REQUIREMENTS, type PasswordRequirement } from "@/shared/auth/policy";
 
 export interface NewPasswordFieldsProps {
   /** Form field name of the new password (e.g. "password", "nueva"). */
@@ -25,6 +28,8 @@ export interface NewPasswordFieldsProps {
   label?: string;
   repeatLabel?: string;
   onValidityChange: (valid: boolean) => void;
+  /** Rules for the live checklist and the submit gate; must match what the server validates. Defaults to the full policy. */
+  requirements?: readonly PasswordRequirement[];
 }
 
 export function NewPasswordFields({
@@ -33,13 +38,14 @@ export function NewPasswordFields({
   label = "Nueva contraseña",
   repeatLabel = "Repetir contraseña",
   onValidityChange,
+  requirements = PASSWORD_REQUIREMENTS,
 }: NewPasswordFieldsProps) {
   const [password, setPassword] = useState("");
   const [repeat, setRepeat] = useState("");
   const checklistId = useId();
 
   const checks = [
-    ...PASSWORD_REQUIREMENTS.map((requirement) => ({ ...requirement, ok: requirement.test(password) })),
+    ...requirements.map((requirement) => ({ ...requirement, ok: requirement.test(password) })),
     { id: "match", label: "Las dos contraseñas coinciden", ok: repeat.length > 0 && password === repeat, internal: false },
   ];
   // Internal requirements still gate the submit button -- they are only left out of the visible list.

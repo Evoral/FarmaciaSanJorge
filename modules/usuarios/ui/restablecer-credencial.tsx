@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { restablecerCredencialAction } from "./actions";
 import type { RestablecerCredencialState } from "./actions";
 import { NewPasswordFields } from "@/modules/auth/ui/new-password-fields";
+import { TEMPORARY_PASSWORD_REQUIREMENTS } from "@/shared/auth/policy";
 import { FormActions, FormFeedback, SubmitButton, errorFieldsOf } from "@/shared/ui/form-parts";
 import { useFieldErrors } from "@/shared/ui/field-errors";
 import { useFormSubmit } from "@/shared/ui/use-form-submit";
@@ -50,6 +51,7 @@ export function RestablecerCredencial({ usuarioId }: { usuarioId: string }) {
         repeatName="passwordTemporalRepeat"
         label="Contraseña temporal"
         repeatLabel="Repetir contraseña temporal"
+        requirements={TEMPORARY_PASSWORD_REQUIREMENTS}
         onValidityChange={setPasswordValid}
       />
       <FormFeedback state={state} layout="stack" />

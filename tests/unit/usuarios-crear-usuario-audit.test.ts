@@ -168,4 +168,24 @@ describe("crearUsuario: temporary password", () => {
     expect((error as ValidationError).fields).toEqual(["passwordTemporal"]);
     expect(insertUsuarioMock).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["a person", persona],
+    ["a cuenta de sector", sector],
+  ])("accepts a 6-character lowercase temporary password for %s", async (_label, base) => {
+    await crearUsuarioCommand.execute({ ...base, passwordTemporal: "abc123", passwordTemporalRepeat: "abc123" }, { session: fakeSession() });
+    expect(insertUsuarioMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["a person", persona],
+    ["a cuenta de sector", sector],
+  ])("rejects a 5-character temporary password for %s, marking only the password field", async (_label, base) => {
+    const error = await crearUsuarioCommand
+      .execute({ ...base, passwordTemporal: "abc12", passwordTemporalRepeat: "abc12" }, { session: fakeSession() })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).fields).toEqual(["passwordTemporal"]);
+    expect(insertUsuarioMock).not.toHaveBeenCalled();
+  });
 });

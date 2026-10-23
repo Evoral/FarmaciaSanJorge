@@ -13,7 +13,9 @@ describe("scripts/create-tenant.ts (CT1)", () => {
   it("creates the first admin ACTIVO with an argon2id temporary password that must be changed", () => {
     expect(source).toContain("debe_cambiar_password");
     expect(source).toContain("hashPassword(");
-    expect(source).toContain("validatePassword(");
+    // The operator types a TEMPORARY password: the 6-character rule, not the full policy of a password the usuario chooses.
+    expect(source).toContain("validateTemporaryPassword(");
+    expect(source).not.toContain("validatePassword(");
     expect(source).toMatch(/INSERT INTO fsj\.usuario[^`]*'ACTIVO', false/);
     expect(source).toContain("--admin-password-temporal");
   });

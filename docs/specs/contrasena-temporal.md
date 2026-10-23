@@ -8,6 +8,7 @@ Estado: implementado 2026-10-22 (migración 0097). Reversión: `docs/rollbacks/c
 > - La contraseña temporal **no vence**: vale hasta que la persona la cambie.
 > - «Restablecer credencial» funciona igual que el alta: el Administrador asigna una nueva contraseña temporal. **El PIN se conserva**; solo se obliga a cambiar la contraseña.
 > - El PIN pasa a ser **obligatorio para todo usuario que no sea cuenta de sector**, también para los que ya estaban activos sin PIN: lo configuran la próxima vez que usen el sistema.
+> - La contraseña temporal que escribe el Administrador (alta, «Restablecer credencial» y primer admin de `create-tenant`) necesita **al menos 6 caracteres**, sin exigir mayúscula (2026-10-23). La contraseña que la persona elige para sí misma (paso 1, «Mi cuenta») mantiene la política completa: 12 caracteres y una mayúscula.
 > - El usuario cuyo único rol es Administrador no tiene PIN (2026-10-23): el Administrador no ejerce actos operativos. Con otro rol además, sí.
 > - Las **cuentas de sector** no tienen PIN; para ellas solo es obligatorio el cambio de contraseña.
 > - Mientras una persona tenga pendiente el cambio de contraseña, **no puede identificarse con su PIN en las cuentas de sector** (aunque conserve el PIN tras un restablecimiento).
@@ -32,7 +33,7 @@ El código de activación obligaba a entregar un string de ~43 caracteres que se
 **No entra**
 - Vencimiento de la contraseña temporal (decisión: no vence).
 - Envío de la contraseña por mail u otro canal: el Administrador la entrega en mano.
-- Cambios a la política de contraseñas (`validatePassword`) o de PIN (`validatePin`).
+- Cambios a la política de la contraseña que elige la persona (`validatePassword`) o de PIN (`validatePin`). La contraseña temporal tiene su propia política más corta (ver Reglas → Alta).
 - Eliminar el valor `PENDIENTE_ACTIVACION` del enum `EstadoUsuario` (queda como estado heredado, ver Modelo).
 
 **Anti-objetivos** (aunque «funcione», sería un error)
@@ -65,7 +66,7 @@ El código de activación obligaba a entregar un string de ~43 caracteres que se
 ### Alta (`crearUsuario`)
 
 - El formulario agrega **Contraseña temporal** y **Repetir contraseña temporal**, para personas y para cuentas de sector.
-- Se valida con la misma política que cualquier contraseña (`validatePassword`). Si las dos no coinciden, error de campo.
+- Se valida con la política de contraseña temporal (`validateTemporaryPassword`): al menos 6 caracteres, sin exigir mayúscula. La contraseña que la persona elige después (paso 1) mantiene la política completa (`validatePassword`: 12 caracteres y una mayúscula). Si las dos no coinciden, error de campo.
 - Se guarda solo el hash (argon2id, `hashPassword`), con `estado = ACTIVO` y `debe_cambiar_password = true`.
 - No se genera código; `CrearUsuarioResult` deja de tener `credencial` y `credencialVenceEn`.
 - Al terminar bien, se vuelve al detalle del usuario (o al listado) con un toast. La contraseña **no** se vuelve a mostrar: el Administrador ya la conoce porque la escribió.

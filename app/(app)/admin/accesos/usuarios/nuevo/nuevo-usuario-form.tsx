@@ -26,6 +26,7 @@ import { crearUsuarioAction, type CrearUsuarioFormState } from "./actions";
 import { ReauthPrompt, useReauthPrompt } from "@/modules/auth/ui/reauth-prompt";
 import { useReauthFormSubmit } from "@/modules/auth/ui/use-reauth-form-submit";
 import { NewPasswordFields } from "@/modules/auth/ui/new-password-fields";
+import { TEMPORARY_PASSWORD_REQUIREMENTS } from "@/shared/auth/policy";
 import { errorFieldsOf } from "@/shared/ui/form-parts";
 import { useFieldErrors } from "@/shared/ui/field-errors";
 import { PageHeader } from "@/shared/ui/page-header";
@@ -151,6 +152,7 @@ export function NuevoUsuarioForm({ roles }: { roles: readonly { codigo: string; 
               repeatName="passwordTemporalRepeat"
               label="Contraseña temporal"
               repeatLabel="Repetir contraseña temporal"
+              requirements={TEMPORARY_PASSWORD_REQUIREMENTS}
               onValidityChange={setPasswordValid}
             />
           </div>
