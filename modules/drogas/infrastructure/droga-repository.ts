@@ -12,6 +12,7 @@
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { ClaseDroga as PrismaClaseDroga, TipoControl as PrismaTipoControl } from "@/generated/prisma/enums";
+import { dec } from "@/shared/decimal";
 import { buscarDrogasPorTexto, listSinonimosVigentes } from "@/shared/db/busqueda-droga";
 import type { ConflictoNombreDroga } from "../domain/sinonimo";
 
@@ -110,8 +111,8 @@ export async function listDrogas(tx: Prisma.TransactionClient, filter: ListDroga
       select: { id: true, nombre: true, unidadBaseId: true, esControlada: true, tipoControl: true, clase: true, stockMinimo: true, fechaBaja: true, motivoBaja: true, unidadBase: { select: { simbolo: true } } },
     });
     const withStock = rows
-      .map((row) => ({ row, disponible: Number(stock.get(row.id) ?? "0") }))
-      .filter(({ row, disponible }) => disponible < Number(row.stockMinimo.toString()));
+      .map((row) => ({ row, disponible: dec(stock.get(row.id) ?? "0") }))
+      .filter(({ row, disponible }) => disponible.lessThan(dec(row.stockMinimo.toString())));
 
     const total = withStock.length;
     const skip = (filter.page - 1) * filter.pageSize;
