@@ -790,8 +790,13 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                 }}
                 disabled={disabled}
               />
-              {campoDomicilioPaciente}
-              {campoDomicilioEntrega}
+              {/* Only once a paciente is chosen (searched or just created): the domicilios belong to that cliente. */}
+              {pacienteId ? (
+                <>
+                  {campoDomicilioPaciente}
+                  {campoDomicilioEntrega}
+                </>
+              ) : null}
             </div>
           </FormSection>
         )}
