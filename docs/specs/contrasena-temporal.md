@@ -124,6 +124,8 @@ Un empleado con `debe_cambiar_password = true` **no puede identificarse como ope
 
 Cuando cambia su contraseña, vuelve a poder identificarse sin hacer nada más.
 
+Lo mismo vale para la **co-firma del Director Técnico** (stock, libro y pesada real, que reutiliza la verificación de stock): un DT con `debe_cambiar_password = true` no puede co-firmar aunque su contraseña sea correcta. La tabla `decideCoFirma` devuelve `DEBE_CAMBIAR_PASSWORD` justo después de `INACTIVO` y antes de comparar la contraseña, así que no suma intentos fallidos ni bloquea; el mensaje al operador es el mismo genérico de siempre y el motivo interno queda en la auditoría. El selector de DT de la co-firma no lista a esos DT.
+
 ### Eliminar PIN
 
 **[decisión técnica]** Con el PIN obligatorio, «Eliminar PIN» de `/cuenta` deja de tener sentido para un usuario que no sea de sector. Se quita esa opción (y `eliminarPin`). Cambiar el PIN sigue igual. Para las cuentas de sector se oculta el panel de PIN en `/cuenta`: no tienen PIN.
@@ -164,6 +166,7 @@ Todos los formularios usan `shared/ui/use-form-submit.ts` y conservan lo escrito
 | CT5 | Restablecer la credencial no modifica `pin_hash`. | `restablecer-credencial.ts` + test |
 | CT6 | Las cuentas de sector nunca reciben el paso «Configurar PIN». | carga de sesión + test |
 | CT7 | Un empleado con `debe_cambiar_password = true` no se identifica como operador en una cuenta de sector, aunque su PIN sea correcto. | `verificar-operador.ts`, `operadores-repository.ts` + test |
+| CT8 | Un DT con `debe_cambiar_password = true` no puede co-firmar (stock, libro, pesada real) aunque su contraseña sea correcta; no suma intentos fallidos. | `modules/stock/domain/co-firma.ts`, `modules/{stock,libro}/infrastructure/co-firma-repository.ts`, `modules/{stock,libro}/application/verificar-co-firma-dt.ts` + `tests/unit/contrasena-temporal-co-firma.test.ts` |
 
 ## Código
 
@@ -180,6 +183,7 @@ Todos los formularios usan `shared/ui/use-form-submit.ts` y conservan lo escrito
 - `modules/auth/domain/session.ts`, `modules/auth/infrastructure/session-repository.ts`, `validate-session.ts`, `shared/usecase.ts`, `app/(app)/layout.tsx`.
 - `app/(auth)/login/*`, `proxy.ts`, `app/(app)/cuenta/*`, `scripts/create-tenant.ts`, `shared/auth/policy.ts`.
 - `modules/auth/application/verificar-operador.ts` (y `OperadorPolicy`), `modules/operadores/infrastructure/operadores-repository.ts`.
+- `modules/stock/domain/co-firma.ts`, `modules/{stock,libro}/infrastructure/co-firma-repository.ts`, `modules/{stock,libro}/application/verificar-co-firma-dt.ts` (CT8).
 - Specs y docs que mencionan la credencial de activación: `docs/specs/cuentas-de-sector.md`, `shared/auth/README.md`.
 
 **Se elimina**
@@ -194,7 +198,7 @@ Todos los formularios usan `shared/ui/use-form-submit.ts` y conservan lo escrito
 
 Decisiones de implementación que precisan o difieren del texto de arriba.
 
-- CT4: el literal `debeCambiarPassword: false` se admite en dos archivos: el repositorio de usuarios de auth (`modules/auth/infrastructure/usuario-repository.ts`, la única escritura) y `operadores-repository.ts` (un filtro `WHERE` de lectura para CT7).
+- CT4: el literal `debeCambiarPassword: false` se admite en dos archivos: el repositorio de usuarios de auth (`modules/auth/infrastructure/usuario-repository.ts`, la única escritura) y `operadores-repository.ts` (un filtro `WHERE` de lectura para CT7). Los filtros de CT8 en los dos `co-firma-repository.ts` son SQL crudo (`u.debe_cambiar_password = false`), no contienen ese literal y por eso no están en la lista.
 - Tras crear un usuario se vuelve a su detalle con `?creado=1` y se muestra un toast; no hay un toaster compartido en el layout, así que el detalle lo monta él mismo.
 - El error tipado de pasos pendientes (`PASOS_PENDIENTES`) se suma al mapa de códigos HTTP (403) de los route handlers de `/api`. En las Server Actions vuelve como error de formulario con un link al paso.
 - Suspender y dar de baja ya no revocan credenciales de activación (no se emiten más): `suspender-usuario.ts` y `dar-de-baja-usuario.ts` dejaron de devolver `credencialesRevocadas`.

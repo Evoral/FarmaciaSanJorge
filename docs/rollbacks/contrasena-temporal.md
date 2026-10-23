@@ -30,7 +30,7 @@ forward migration built from `prisma/rollbacks/0097_contrasena_temporal.down.sql
 - `modules/auth/application/{cambiar-password-temporal,configurar-pin-obligatorio}.ts`,
   `modules/auth/domain/pasos-pendientes.ts`, `shared/auth/pasos.ts`
 - `modules/usuarios/application/password-temporal.ts`, `shared/ui/brand-header.tsx`
-- Tests: `tests/db/contrasena-temporal.test.ts`, `tests/unit/{activation-flow-removed,auth-cambiar-password-temporal,auth-configurar-pin-obligatorio,auth-pasos-pendientes,auth-pasos-registry,auth-pin-removed,auth-require-session-gate,contrasena-temporal-operadores,contrasena-temporal-restablecer,create-tenant-script}.test.ts`
+- Tests: `tests/db/contrasena-temporal.test.ts`, `tests/unit/{activation-flow-removed,auth-cambiar-password-temporal,auth-configurar-pin-obligatorio,auth-pasos-pendientes,auth-pasos-registry,auth-pin-removed,auth-require-session-gate,contrasena-temporal-co-firma,contrasena-temporal-operadores,contrasena-temporal-restablecer,create-tenant-script}.test.ts`
 
 ## Edited files (revert the contraseña temporal hunks)
 
@@ -42,6 +42,8 @@ forward migration built from `prisma/rollbacks/0097_contrasena_temporal.down.sql
   `modules/auth/domain/{operador-policy,session,token}.ts`,
   `modules/auth/infrastructure/{session-repository,usuario-repository}.ts`, `modules/auth/ui/new-password-fields.tsx`,
   `modules/operadores/infrastructure/operadores-repository.ts`.
+- Co-firma (CT8): `modules/stock/domain/co-firma.ts`, `modules/{stock,libro}/infrastructure/co-firma-repository.ts`,
+  `modules/{stock,libro}/application/verificar-co-firma-dt.ts`.
 - Usuarios: `modules/usuarios/application/{crear-usuario,dar-de-baja-usuario,reactivar-usuario,restablecer-credencial,suspender-usuario}.ts`,
   `modules/usuarios/infrastructure/usuario-repository.ts`, `modules/usuarios/ui/{actions.ts,restablecer-credencial.tsx}`.
 - Routes: `app/(app)/{layout,error}.tsx`, `app/(app)/cuenta/{actions.ts,page.tsx}`,
@@ -52,7 +54,7 @@ forward migration built from `prisma/rollbacks/0097_contrasena_temporal.down.sql
 - `scripts/create-tenant.ts` (temporary password instead of the activation credential), `modules/README.md`.
 - Docs: `docs/specs/cuentas-de-sector.md` (S7, Pantallas), `shared/auth/README.md`, `docs/deploy.md` §5.
 - Tests: `tests/db/{inv-u07-actor-activo,usuarios-admin}.test.ts`,
-  `tests/unit/{action-error,auth-login,auth-pin-never-for-login-or-cofirma,auth-policy,cuentas-de-sector-alta,cuentas-de-sector-verificar-operador,roles-personalizables-usecases,usecase,usuarios-authorization-matrix,usuarios-crear-usuario-audit,usuarios-m3-lock-order,usuarios-usecase-registry}.test.ts`.
+  `tests/unit/{action-error,auth-login,auth-pin-never-for-login-or-cofirma,auth-policy,cuentas-de-sector-alta,cuentas-de-sector-verificar-operador,roles-personalizables-usecases,usecase,usuarios-authorization-matrix,usuarios-crear-usuario-audit,usuarios-m3-lock-order,stock-co-firma,usuarios-usecase-registry}.test.ts`.
 
 ## Deleted files (restore on rollback)
 
