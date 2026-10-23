@@ -252,13 +252,22 @@ export async function cargarUsuarioParaPasswordFirma(tx: Prisma.TransactionClien
   });
 }
 
-export interface FirmaPasswordFailureUpdate {
-  intentosFallidos: number;
-  bloqueadoHasta: Date | null;
+export interface PoliticaBloqueo {
+  maxIntentos: number;
+  /** Lockout expiry applied when this failure reaches `maxIntentos`. */
+  bloqueadoHasta: Date;
 }
 
-export async function registrarFallaPasswordFirma(tx: Prisma.TransactionClient, usuarioId: string, update: FirmaPasswordFailureUpdate): Promise<void> {
-  await tx.usuario.update({ where: { id: usuarioId }, data: { intentosFallidos: update.intentosFallidos, bloqueadoHasta: update.bloqueadoHasta } });
+/** Atomic increment (audit P3-03), same as `modules/auth/infrastructure/usuario-repository.ts#recordLoginFailure`. Returns the new count. */
+export async function registrarFallaPasswordFirma(tx: Prisma.TransactionClient, usuarioId: string, politica: PoliticaBloqueo): Promise<number> {
+  const rows = await tx.$queryRaw<{ intentos_fallidos: number }[]>`
+    UPDATE fsj.usuario
+    SET intentos_fallidos = intentos_fallidos + 1,
+        bloqueado_hasta = CASE WHEN intentos_fallidos + 1 >= ${politica.maxIntentos} THEN ${politica.bloqueadoHasta}::timestamptz ELSE NULL END
+    WHERE id = ${usuarioId}::uuid
+    RETURNING intentos_fallidos
+  `;
+  return rows[0]?.intentos_fallidos ?? 0;
 }
 
 export async function registrarExitoPasswordFirma(tx: Prisma.TransactionClient, usuarioId: string, now: Date): Promise<void> {

@@ -281,7 +281,7 @@ describe("reactivarReceta -- RV5/RV6: a preparado vencido needs the DT's co-firm
     // The command COMMITS (a normal `ok: false` result), so the DT's counter and the rejection audit survive.
     const result = await reactivarRecetaCommand.execute({ recetaId: RECETA_ID, dtUsuarioId: DT_ID, dtPassword: "mala" }, { session: fakeSession() });
     expect(result).toEqual({ ok: false, message: CO_FIRMA_GENERIC_ERROR });
-    expect(recordCoFirmaFailureMock).toHaveBeenCalledWith(expect.anything(), DT_ID, { intentosFallidos: 1, bloqueadoHasta: null });
+    expect(recordCoFirmaFailureMock).toHaveBeenCalledWith(expect.anything(), DT_ID, { maxIntentos: 5, bloqueadoHasta: expect.any(Date) });
     expect(actualizarEstadoRecetaMock).not.toHaveBeenCalled();
     expect(recetaAudits()).toEqual([]);
     expect(auditCalls()).toEqual([expect.objectContaining({ entidad: "co_firma_dt", entidadId: DT_ID, accion: "AUTORIZAR", usuarioId: OPERADOR_ID })]);

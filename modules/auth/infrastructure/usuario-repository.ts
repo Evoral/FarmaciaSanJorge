@@ -94,17 +94,27 @@ export async function recordLoginSuccess(tx: Prisma.TransactionClient, usuarioId
   });
 }
 
-export interface LoginFailureUpdate {
-  intentosFallidos: number;
-  bloqueadoHasta: Date | null;
+export interface PoliticaBloqueo {
+  maxIntentos: number;
+  /** Lockout expiry applied when this failure reaches `maxIntentos`. */
+  bloqueadoHasta: Date;
 }
 
-/** Failed login (wrong password) for a KNOWN usuario (FASE 2 point 2.2): persists the new attempt count and, once the threshold is reached, the lockout expiry -- caller (login.ts) computes both via AUTH_POLICY before calling this. */
-export async function recordLoginFailure(tx: Prisma.TransactionClient, usuarioId: string, update: LoginFailureUpdate): Promise<void> {
-  await tx.usuario.update({
-    where: { id: usuarioId },
-    data: { intentosFallidos: update.intentosFallidos, bloqueadoHasta: update.bloqueadoHasta },
-  });
+/**
+ * Failed login (wrong password) for a KNOWN usuario (FASE 2 point 2.2). The
+ * count is incremented by the UPDATE itself (audit P3-03): concurrent
+ * failures serialize on the row and never overwrite each other, so parallel
+ * attempts cannot dodge the lockout. Returns the new count.
+ */
+export async function recordLoginFailure(tx: Prisma.TransactionClient, usuarioId: string, politica: PoliticaBloqueo): Promise<number> {
+  const rows = await tx.$queryRaw<{ intentos_fallidos: number }[]>`
+    UPDATE fsj.usuario
+    SET intentos_fallidos = intentos_fallidos + 1,
+        bloqueado_hasta = CASE WHEN intentos_fallidos + 1 >= ${politica.maxIntentos} THEN ${politica.bloqueadoHasta}::timestamptz ELSE NULL END
+    WHERE id = ${usuarioId}::uuid
+    RETURNING intentos_fallidos
+  `;
+  return rows[0]?.intentos_fallidos ?? 0;
 }
 
 export interface UsuarioEmailRow {
@@ -172,15 +182,18 @@ export async function resetPinLockout(tx: Prisma.TransactionClient, usuarioId: s
   await tx.usuario.update({ where: { id: usuarioId }, data: { pinIntentosFallidos: 0, pinBloqueado: false } });
 }
 
-export interface PinFailureUpdate {
-  pinIntentosFallidos: number;
-  pinBloqueado: boolean;
-}
-
-/** Persists a failed PIN attempt (and the block, once the threshold is reached) -- caller (`reautenticar.ts`) computes both via `AUTH_POLICY.maxFailedPinAttempts`. */
-export async function recordPinFailure(tx: Prisma.TransactionClient, usuarioId: string, update: PinFailureUpdate): Promise<void> {
-  await tx.usuario.update({
-    where: { id: usuarioId },
-    data: { pinIntentosFallidos: update.pinIntentosFallidos, pinBloqueado: update.pinBloqueado },
-  });
+/**
+ * Persists a failed PIN attempt and, once `maxIntentos` is reached, the block.
+ * Incremented by the UPDATE itself (audit P3-03), like `recordLoginFailure`:
+ * parallel guesses at a 4-digit PIN cannot dodge the block. Returns the new count.
+ */
+export async function recordPinFailure(tx: Prisma.TransactionClient, usuarioId: string, maxIntentos: number): Promise<number> {
+  const rows = await tx.$queryRaw<{ pin_intentos_fallidos: number }[]>`
+    UPDATE fsj.usuario
+    SET pin_intentos_fallidos = pin_intentos_fallidos + 1,
+        pin_bloqueado = pin_intentos_fallidos + 1 >= ${maxIntentos}
+    WHERE id = ${usuarioId}::uuid
+    RETURNING pin_intentos_fallidos
+  `;
+  return rows[0]?.pin_intentos_fallidos ?? 0;
 }

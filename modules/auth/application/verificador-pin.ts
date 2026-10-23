@@ -37,9 +37,8 @@ export const verificadorPin: VerificadorDeIdentidad<"PIN", Prisma.TransactionCli
     if (decision === "NO_PIN") return { ok: false, motivo: "SIN_CREDENCIAL" };
     if (decision === "BLOCKED") return { ok: false, motivo: "BLOQUEADA" };
 
-    const pinIntentosFallidos = pinEstado.pinIntentosFallidos + 1;
+    const pinIntentosFallidos = await recordPinFailure(tx, usuarioId, AUTH_POLICY.maxFailedPinAttempts);
     const pinBloqueado = pinIntentosFallidos >= AUTH_POLICY.maxFailedPinAttempts;
-    await recordPinFailure(tx, usuarioId, { pinIntentosFallidos, pinBloqueado });
     return { ok: false, motivo: "INCORRECTA", bloqueoAlcanzado: pinBloqueado };
   },
 };

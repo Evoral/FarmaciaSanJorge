@@ -119,9 +119,8 @@ export const reautenticarCommand = defineCommand<ReautenticarInput, Reautenticar
     }
 
     if (decision === "WRONG_PIN") {
-      const pinIntentosFallidos = pinEstado.pinIntentosFallidos + 1;
+      const pinIntentosFallidos = await recordPinFailure(tx, session.usuario.id, AUTH_POLICY.maxFailedPinAttempts);
       const pinBloqueado = pinIntentosFallidos >= AUTH_POLICY.maxFailedPinAttempts;
-      await recordPinFailure(tx, session.usuario.id, { pinIntentosFallidos, pinBloqueado });
 
       if (pinBloqueado) {
         // INV-A01: the ONE PIN-related event this command audits (task

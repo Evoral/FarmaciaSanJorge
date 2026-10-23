@@ -93,11 +93,11 @@ export async function login(email: string, password: string, ip: string | null, 
     // counting it would only extend/obscure the lockout window for no
     // security benefit.
     if (decision === "WRONG_PASSWORD") {
-      const intentosFallidos = candidate.intentosFallidos + 1;
+      const intentosFallidos = await recordLoginFailure(tx, candidate.usuarioId, {
+        maxIntentos: AUTH_POLICY.maxFailedLoginAttempts,
+        bloqueadoHasta: new Date(now.getTime() + AUTH_POLICY.lockoutMinutes * 60 * 1000),
+      });
       const lockedOut = intentosFallidos >= AUTH_POLICY.maxFailedLoginAttempts;
-      const bloqueadoHasta = lockedOut ? new Date(now.getTime() + AUTH_POLICY.lockoutMinutes * 60 * 1000) : null;
-
-      await recordLoginFailure(tx, candidate.usuarioId, { intentosFallidos, bloqueadoHasta });
 
       if (lockedOut) {
         // No session exists to author this -- the affected usuario is

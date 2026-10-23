@@ -17,9 +17,9 @@ const recordLoginSuccessMock = vi.fn(async (...args: unknown[]): Promise<undefin
   void args;
   return undefined;
 });
-const recordLoginFailureMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
+const recordLoginFailureMock = vi.fn(async (...args: unknown[]): Promise<number> => {
   void args;
-  return undefined;
+  return 0;
 });
 const loadPasosPendientesMock = vi.fn(async (...args: unknown[]): Promise<unknown> => {
   void args;
@@ -226,10 +226,11 @@ describe("login: lockout bookkeeping", () => {
       bloqueadoHasta: null,
     });
     verifyPasswordMock.mockResolvedValue(false);
+    recordLoginFailureMock.mockResolvedValueOnce(2);
 
     await login("user@example.com", "wrong", null, null);
 
-    expect(recordLoginFailureMock).toHaveBeenCalledWith(lastFakeTx, USUARIO_ID, { intentosFallidos: 2, bloqueadoHasta: null });
+    expect(recordLoginFailureMock).toHaveBeenCalledWith(lastFakeTx, USUARIO_ID, { maxIntentos: 5, bloqueadoHasta: expect.any(Date) });
     expect(auditRecordMock).not.toHaveBeenCalled();
   });
 
@@ -243,14 +244,12 @@ describe("login: lockout bookkeeping", () => {
       bloqueadoHasta: null,
     });
     verifyPasswordMock.mockResolvedValue(false);
+    // The counter is incremented in SQL; the repository returns the new value.
+    recordLoginFailureMock.mockResolvedValueOnce(5);
 
     await login("user@example.com", "wrong", null, null);
 
-    expect(recordLoginFailureMock).toHaveBeenCalledWith(
-      lastFakeTx,
-      USUARIO_ID,
-      expect.objectContaining({ intentosFallidos: 5, bloqueadoHasta: expect.any(Date) }),
-    );
+    expect(recordLoginFailureMock).toHaveBeenCalledWith(lastFakeTx, USUARIO_ID, { maxIntentos: 5, bloqueadoHasta: expect.any(Date) });
     expect(auditRecordMock).toHaveBeenCalledTimes(1);
     const auditInput = auditRecordMock.mock.calls[0]?.[1] as Record<string, unknown>;
     expect(auditInput).toMatchObject({

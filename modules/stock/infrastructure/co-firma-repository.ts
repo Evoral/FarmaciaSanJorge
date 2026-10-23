@@ -78,17 +78,22 @@ export async function listDtVigentesParaCoFirma(tx: Prisma.TransactionClient, te
   return rows.map((row) => ({ usuarioId: row.usuario_id, nombre: row.nombre, apellido: row.apellido }));
 }
 
-export interface CoFirmaFailureUpdate {
-  intentosFallidos: number;
-  bloqueadoHasta: Date | null;
+export interface PoliticaBloqueo {
+  maxIntentos: number;
+  /** Lockout expiry applied when this failure reaches `maxIntentos`. */
+  bloqueadoHasta: Date;
 }
 
-/** Same shape as `modules/auth/infrastructure/usuario-repository.ts#recordLoginFailure` -- a local copy (not an import) per the module-boundary rule above. */
-export async function recordCoFirmaFailure(tx: Prisma.TransactionClient, usuarioId: string, update: CoFirmaFailureUpdate): Promise<void> {
-  await tx.usuario.update({
-    where: { id: usuarioId },
-    data: { intentosFallidos: update.intentosFallidos, bloqueadoHasta: update.bloqueadoHasta },
-  });
+/** Same shape as `modules/auth/infrastructure/usuario-repository.ts#recordLoginFailure` -- a local copy (not an import) per the module-boundary rule above. Atomic increment (audit P3-03); returns the new count. */
+export async function recordCoFirmaFailure(tx: Prisma.TransactionClient, usuarioId: string, politica: PoliticaBloqueo): Promise<number> {
+  const rows = await tx.$queryRaw<{ intentos_fallidos: number }[]>`
+    UPDATE fsj.usuario
+    SET intentos_fallidos = intentos_fallidos + 1,
+        bloqueado_hasta = CASE WHEN intentos_fallidos + 1 >= ${politica.maxIntentos} THEN ${politica.bloqueadoHasta}::timestamptz ELSE NULL END
+    WHERE id = ${usuarioId}::uuid
+    RETURNING intentos_fallidos
+  `;
+  return rows[0]?.intentos_fallidos ?? 0;
 }
 
 /** Same shape as `recordLoginSuccess` -- a successful co-firma also clears any stale lockout on the DT's own login, since it just proved the password. */

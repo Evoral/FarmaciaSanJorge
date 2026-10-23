@@ -106,6 +106,6 @@ describe("verificarCoFirmaDtLibro", () => {
 
     const result = await verificar({ dtUsuarioId: DT_ID, password: "wrong" });
     expect(result).toEqual({ ok: false, message: CO_FIRMA_LIBRO_GENERIC_ERROR });
-    expect(recordCoFirmaFailureMock).toHaveBeenCalledWith(expect.anything(), DT_ID, { intentosFallidos: 1, bloqueadoHasta: null });
+    expect(recordCoFirmaFailureMock).toHaveBeenCalledWith(expect.anything(), DT_ID, { maxIntentos: 5, bloqueadoHasta: expect.any(Date) });
   });
 });

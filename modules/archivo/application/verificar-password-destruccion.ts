@@ -54,10 +54,11 @@ export const verificarPasswordDestruccionCommand = defineCommand<VerificarPasswo
     }
 
     if (decision === "WRONG_PASSWORD") {
-      const intentosFallidos = usuario.intentosFallidos + 1;
+      const intentosFallidos = await registrarFallaPasswordDestruccion(tx, session.usuario.id, {
+        maxIntentos: AUTH_POLICY.maxFailedLoginAttempts,
+        bloqueadoHasta: new Date(now.getTime() + AUTH_POLICY.lockoutMinutes * 60 * 1000),
+      });
       const lockedOut = intentosFallidos >= AUTH_POLICY.maxFailedLoginAttempts;
-      const bloqueadoHasta = lockedOut ? new Date(now.getTime() + AUTH_POLICY.lockoutMinutes * 60 * 1000) : null;
-      await registrarFallaPasswordDestruccion(tx, session.usuario.id, { intentosFallidos, bloqueadoHasta });
 
       if (lockedOut) {
         await auditRecord(tx, {

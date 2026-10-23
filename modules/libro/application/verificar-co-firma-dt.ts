@@ -85,10 +85,10 @@ export const verificarCoFirmaDtLibroCommand = defineCommand<VerificarCoFirmaDtLi
     }
 
     if (decision === "PASSWORD_INCORRECTA" && candidate) {
-      const intentosFallidos = candidate.intentosFallidos + 1;
-      const lockedOut = intentosFallidos >= AUTH_POLICY.maxFailedLoginAttempts;
-      const bloqueadoHasta = lockedOut ? new Date(now.getTime() + AUTH_POLICY.lockoutMinutes * 60 * 1000) : null;
-      await recordCoFirmaFailure(tx, candidate.usuarioId, { intentosFallidos, bloqueadoHasta });
+      await recordCoFirmaFailure(tx, candidate.usuarioId, {
+        maxIntentos: AUTH_POLICY.maxFailedLoginAttempts,
+        bloqueadoHasta: new Date(now.getTime() + AUTH_POLICY.lockoutMinutes * 60 * 1000),
+      });
     }
 
     await auditRecord(tx, {

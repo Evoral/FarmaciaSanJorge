@@ -52,9 +52,9 @@ const loadPinEstadoMock = vi.fn(async (...args: unknown[]): Promise<unknown> => 
   void args;
   return null;
 });
-const recordPinFailureMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
+const recordPinFailureMock = vi.fn(async (...args: unknown[]): Promise<number> => {
   void args;
-  return undefined;
+  return 1;
 });
 const resetPinLockoutMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
   void args;
@@ -176,7 +176,7 @@ describe("verificarOperadorEnTx", () => {
   it("PIN incorrecto: no lanza, cuenta el intento y audita el rechazo a nombre de la cuenta de sector", async () => {
     const resultado = await verificarOperadorEnTx(TX, sector, credencial("0000"));
     expect(resultado).toEqual({ ok: false, message: "El PIN no es correcto." });
-    expect(recordPinFailureMock).toHaveBeenCalledWith(TX, EMPLEADO_ID, { pinIntentosFallidos: 1, pinBloqueado: false });
+    expect(recordPinFailureMock).toHaveBeenCalledWith(TX, EMPLEADO_ID, AUTH_POLICY.maxFailedPinAttempts);
     expect(auditRecordMock).toHaveBeenCalledTimes(1);
     expect(auditRecordMock.mock.calls[0]![1]).toMatchObject({
       tenantId: TENANT_ID,
@@ -192,8 +192,10 @@ describe("verificarOperadorEnTx", () => {
 
   it("el intento que alcanza el máximo bloquea el PIN y lo deja dicho en la auditoría", async () => {
     loadPinEstadoMock.mockResolvedValue({ pinHash: "hash", pinBloqueado: false, pinIntentosFallidos: AUTH_POLICY.maxFailedPinAttempts - 1 });
+    // The counter and the block are computed in SQL; the repository returns the new count.
+    recordPinFailureMock.mockResolvedValueOnce(AUTH_POLICY.maxFailedPinAttempts);
     await verificarOperadorEnTx(TX, sector, credencial("0000"));
-    expect(recordPinFailureMock).toHaveBeenCalledWith(TX, EMPLEADO_ID, { pinIntentosFallidos: AUTH_POLICY.maxFailedPinAttempts, pinBloqueado: true });
+    expect(recordPinFailureMock).toHaveBeenCalledWith(TX, EMPLEADO_ID, AUTH_POLICY.maxFailedPinAttempts);
     expect((auditRecordMock.mock.calls[0]![1] as { motivo: string }).motivo).toContain("PIN bloqueado");
   });
 
