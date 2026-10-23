@@ -1,22 +1,19 @@
 /**
  * `leerRecetaPdf` -- first step of the receta PDF import
- * (docs/specs/importacion-receta-pdf.md): trust boundary -> extraction ->
- * parser -> match. Returns the preview the form is prefilled with;
- * NOTHING is written (it is a query: read-only transaction, no audit row --
+ * (docs/specs/importacion-receta-pdf.md, "Lectura por RCTA"): trust boundary -> extraction -> the PDF's RCTA link ->
+ * the SAME RCTA read as the QR import (./lectura-rcta.ts) -> the paciente's name from the PDF text -> match. Returns
+ * the preview the form is prefilled with; NOTHING is written (it is a query: read-only transaction, no audit row --
  * the spec audits the confirmation, `recetas.importar`, not the reading).
  *
- * Spec order, mandatory: (1) permiso `recetas.crear` -- the use-case
- * pipeline's `authorize()`, before anything else; (2-6) File / size 0 /
- * size > MAX_PDF_BYTES (before reading it) / type / `%PDF-` signature --
- * domain/archivo-receta-pdf.ts, first thing in the handler. The PDF only
- * lives in memory for the duration of this call and is never logged.
+ * User decision (2026-10-23): every datum comes from RCTA, so a PDF and a QR of the same receta load the same thing;
+ * the PDF only gives its "Ver Link" (same hash as its QR) and the paciente's name (RCTA anonymizes it). Without that
+ * link, or when RCTA cannot answer, the read fails with an error: there is no fallback to the PDF's text.
  *
- * Trade-off, deliberate: extraction runs inside the query's transaction.
- * It is bounded (1 MiB, at most MAX_PDF_PAGINAS pages, ~150 ms for a real
- * one-page receta), so it is cheap enough to hold a connection for. Slow
- * network I/O does NOT belong here: a query's opt-in `prepare` step
- * (shared/usecase.ts) runs after authorize + parse but outside any
- * transaction, which is where the QR import does its external fetch.
+ * Spec order, mandatory: (1) permiso `recetas.crear` -- the use-case pipeline's `authorize()`, before anything else;
+ * (2-6) File / size 0 / size > MAX_PDF_BYTES (before reading it) / type / `%PDF-` signature --
+ * domain/archivo-receta-pdf.ts, first thing in `prepare`. The PDF only lives in memory for the duration of this call
+ * and is never logged. The extraction and the RCTA fetch run in the query's `prepare` step, OUTSIDE any transaction
+ * (the fetch can take seconds and must not hold a pooled connection); only the match runs inside it.
  */
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
@@ -25,11 +22,15 @@ import { DomainError, ValidationError } from "@/shared/errors";
 import { normalizarMatricula } from "@/modules/medicos/domain/medico";
 import { validarArchivoRecetaPdf } from "../domain/archivo-receta-pdf";
 import { parsearRecetaPdf } from "../domain/receta-pdf-parser";
+import { hashDeLinksPdf, MENSAJES_LECTURA_PDF } from "../domain/receta-qr";
+import { conNombrePacienteDelPdf } from "../domain/receta-rcta-json";
+import { leerRecetaRcta } from "./lectura-rcta";
 import type { AdvertenciaParser, BorradorReceta } from "../domain/receta-pdf-parser";
 import {
   CAMPOS_MEDICO_IMPORTABLES,
   CAMPOS_PACIENTE_IMPORTABLES,
   MENSAJE_PACIENTE_DADO_DE_BAJA,
+  acotarAvisos,
   advertenciasDeDiferencias,
   calcularCompletado,
   diferenciaDeNombre,
@@ -159,11 +160,20 @@ export const leerRecetaPdfQuery = defineQuery({
   name: "recetas.importar.leer",
   permiso: "recetas.crear",
   input: leerRecetaPdfInput,
-  handler: async ({ tx, session, input }): Promise<VistaPreviaImportacion> => {
+  prepare: async ({ input }) => {
     const bytes = await validarArchivoRecetaPdf(input.archivo);
-    const resultado = parsearRecetaPdf(await extraerTextoRecetaPdf(bytes));
-    if (!resultado.ok) throw new ValidationError(resultado.error.mensaje);
-    return construirVistaPrevia(tx, session.tenantId, resultado.borrador, resultado.advertencias, "PDF");
+    const pdf = await extraerTextoRecetaPdf(bytes);
+    const hash = hashDeLinksPdf(pdf.links);
+    if (hash === null) throw new ValidationError(MENSAJES_LECTURA_PDF.SIN_LINK);
+    const lectura = await leerRecetaRcta(hash, MENSAJES_LECTURA_PDF);
+    // Only the name is taken from the PDF's text; a text the parser cannot read just leaves it to be typed.
+    const texto = parsearRecetaPdf(pdf);
+    return conNombrePacienteDelPdf(lectura, texto.ok ? texto.borrador.paciente.nombre : null);
+  },
+  handler: async ({ tx, session, prepared }): Promise<VistaPreviaImportacion> => {
+    const vista = await construirVistaPrevia(tx, session.tenantId, prepared.borrador, prepared.advertencias, "PDF");
+    // Same bound as the QR import: the match step adds notices echoing the receta's text.
+    return { ...vista, advertencias: acotarAvisos(vista.advertencias) };
   },
 });
 

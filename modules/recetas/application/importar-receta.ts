@@ -266,6 +266,10 @@ export const importarRecetaCommand = defineCommand({
     if (!esFechaPrescripcionValida(input.fechaPrescripcion, jornadaActual)) {
       throw new ValidationError("La fecha de prescripción no puede ser futura.");
     }
+    // Same rule as the alta and the edit (crear-receta.ts, editar-receta.ts): the validity never starts before the prescription.
+    if (input.fechaValidaDesde !== null && input.fechaValidaDesde < input.fechaPrescripcion) {
+      throw new ValidationError("La fecha de validez no puede ser anterior a la fecha de prescripción.");
+    }
     if (!esFechaPrescripcionVigente(input.fechaValidaDesde ?? input.fechaPrescripcion, jornadaActual)) {
       throw new ValidationError(input.fechaValidaDesde ? "La receta está vencida: pasó más de un mes desde su fecha de validez." : "La receta está vencida: tiene más de un mes desde su prescripción.");
     }

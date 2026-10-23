@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Importar desde PDF" (docs/specs/importacion-receta-pdf.md): uploads the
+ * "Importar desde PDF" (docs/specs/importacion-receta-pdf.md, read through RCTA like the QR): uploads the
  * digital receta's PDF to `leerRecetaPdfAction` (POST only; the file is read
  * in memory and discarded, nothing is saved) and hands the resulting
  * preview to the parent, which prefills the receta form with it. The
@@ -58,7 +58,7 @@ export function ImportarRecetaPdf({ onLeida, onDescartar, importando }: Importar
               {importando ? "Receta importada desde PDF" : "Desde el PDF de la receta"}
             </h3>
             <p className="mt-0.5 text-[0.8125rem] text-zinc-500">
-              Se lee y se descarta: el PDF no se almacena. Hasta {MAX_PDF_BYTES / (1024 * 1024)} MB.
+              Los datos se consultan en RCTA con el link del PDF; el PDF no se almacena. Hasta {MAX_PDF_BYTES / (1024 * 1024)} MB.
             </p>
           </div>
         </div>

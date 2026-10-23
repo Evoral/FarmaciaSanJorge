@@ -123,10 +123,13 @@ const soloDigitos = (valor: string | null): string | null => {
   return digitos.length > 0 ? digitos : null;
 };
 
+/** The JSON's own paciente name is anonymized: this notice asks for it (the PDF import replaces it with the PDF's name). */
+export const MENSAJE_QR_SIN_NOMBRE_PACIENTE = "El QR no incluye el nombre del paciente: escribilo para confirmar la importación.";
+
 function mapearPaciente(json: RecetaRctaJson, advertencias: AdvertenciaParser[]): BorradorPaciente {
   const p = json.paciente;
   // The JSON's own `nombre` is anonymized: it is never read. The user types it when the paciente is new.
-  advertencias.push({ codigo: "DATO_FALTANTE", mensaje: "El QR no incluye el nombre del paciente: escribilo para confirmar la importación." });
+  advertencias.push({ codigo: "DATO_FALTANTE", mensaje: MENSAJE_QR_SIN_NOMBRE_PACIENTE });
   return {
     nombre: null,
     dni: p?.tipoDoc === null || p?.tipoDoc === undefined || /^DNI$/i.test(p.tipoDoc) ? soloDigitos(p?.nroDoc ?? null) : null,
@@ -311,4 +314,21 @@ export function mapearRecetaRcta(json: unknown, hash: string): ResultadoLecturaQ
     },
     advertencias,
   };
+}
+
+/** The PDF import's notice when its text has no paciente name either. */
+export const MENSAJE_PDF_SIN_NOMBRE_PACIENTE = "No se encontró el nombre del paciente en el PDF: escribilo para confirmar la importación.";
+
+/**
+ * The PDF import (docs/specs/importacion-receta-pdf.md, "Lectura por RCTA"): everything comes from RCTA, like the QR,
+ * except the paciente's name, which RCTA anonymizes and the PDF prints. Swaps the QR's "no name" notice for the
+ * name found in the PDF, or for the PDF's own notice when there is none.
+ */
+export function conNombrePacienteDelPdf(
+  lectura: { borrador: BorradorReceta; advertencias: AdvertenciaParser[] },
+  nombre: NombreSeparado | null,
+): { borrador: BorradorReceta; advertencias: AdvertenciaParser[] } {
+  const advertencias = lectura.advertencias.filter((a) => a.mensaje !== MENSAJE_QR_SIN_NOMBRE_PACIENTE);
+  if (nombre === null) advertencias.unshift({ codigo: "DATO_FALTANTE", mensaje: MENSAJE_PDF_SIN_NOMBRE_PACIENTE });
+  return { borrador: { ...lectura.borrador, paciente: { ...lectura.borrador.paciente, nombre } }, advertencias };
 }

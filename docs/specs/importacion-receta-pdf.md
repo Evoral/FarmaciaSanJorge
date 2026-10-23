@@ -14,6 +14,20 @@ La misma vista previa y confirmación también se alimentan desde el QR o link d
 
 Fuera de alcance: recetas escaneadas (sin capa de texto), `DIGITAL_FOTO`, obras sociales (DP-30), OCR y LLM.
 
+## Lectura por RCTA
+
+> **Decisión del usuario (2026-10-23).** Los datos de la receta ya no salen del texto del PDF: salen de RCTA, por el mismo camino que el QR, para que un PDF y un QR de la misma receta carguen exactamente lo mismo.
+
+1. Frontera de confianza (Pieza 3) y extracción (Pieza 1), sin cambios.
+2. El link "Ver Link" del PDF (`https://verumrp.com.ar/prescripcion/<hash>`) lleva el mismo hash que el QR impreso al lado: `hashDeLinksPdf` (`domain/receta-qr.ts`) lo toma con `extraerHashRcta`. No se decodifica la imagen del QR.
+3. Con ese hash, `leerRecetaRcta` (`application/lectura-rcta.ts`, compartido con `leer-receta-qr.ts`): consulta a RCTA y `mapearRecetaRcta`. Corre en el `prepare` de la query, fuera de la transacción.
+4. Del texto del PDF se toma **solo el nombre del paciente** (RCTA lo anonimiza), con el parser de la Pieza 2: `conNombrePacienteDelPdf` (`domain/receta-rcta-json.ts`). Si el parser no lo encuentra, queda para escribirlo, con su advertencia.
+5. Sin link de RCTA, o si RCTA no encuentra la receta, no responde o responde en otro formato: **error** (`MENSAJES_LECTURA_PDF`), sin volver a leer el texto del PDF. La carga manual sigue disponible.
+
+El parser de la Pieza 2 queda como está: hoy solo aporta el nombre del paciente, y sus tests siguen cubriendo el formato del PDF.
+
+La confirmación (`recetas.importar`) valida además que "válida desde" no sea anterior a la fecha de prescripción, igual que el alta y la edición.
+
 ## Arquitectura (4 piezas)
 
 | Pieza | Ubicación sugerida | Naturaleza |
