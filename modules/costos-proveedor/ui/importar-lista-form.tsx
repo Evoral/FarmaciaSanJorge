@@ -88,6 +88,8 @@ export interface ImportarListaFormProps {
   onImportada: () => void;
   /** Units for the alta de insumo of a "sin asociar" row; `null` when the session can not create drogas (no button). */
   unidadesAltaDroga: UnidadOpcion[] | null;
+  /** For that alta: the contralor digital is activo (a controlled droga asks for its saldo de apertura). */
+  contralorActivo?: boolean;
 }
 
 interface FilaEditable {
@@ -107,7 +109,7 @@ function etiquetaVariacion(pct: string): string {
 /** Fields the server refused, by row (index in `vista.filas`). */
 type ErroresPorFila = ReadonlyMap<number, ReadonlySet<string>>;
 
-export function ImportarListaForm({ vista, drogas: drogasDelCatalogo, unidades, onImportada, unidadesAltaDroga }: ImportarListaFormProps) {
+export function ImportarListaForm({ vista, drogas: drogasDelCatalogo, unidades, onImportada, unidadesAltaDroga, contralorActivo }: ImportarListaFormProps) {
   const router = useRouter();
 
   /** Drogas created from a row's alta: usable at once, before the page's refresh brings them in the catalog. */
@@ -577,6 +579,7 @@ export function ImportarListaForm({ vista, drogas: drogasDelCatalogo, unidades, 
           nombreInicial={filaEnAlta?.descripcion ?? ""}
           subtitulo={filaEnAlta ? `Fila ${filaEnAlta.numeroFila} de la lista: al crearlo queda asociado a esa fila.` : undefined}
           unidades={unidadesAltaDroga}
+          contralorActivo={contralorActivo}
           onCreada={(creada) => {
             if (altaFila !== null) drogaCreada(altaFila, creada);
           }}

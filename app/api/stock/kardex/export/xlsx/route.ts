@@ -32,7 +32,7 @@ export async function GET(request: Request): Promise<Response> {
     resultado = await exportarKardexXlsx({
       partidaId: q.get("partidaId") || undefined,
       drogaId: q.get("drogaId") || undefined,
-      tipo: (q.get("tipo") as "INGRESO_COMPRA" | "EGRESO_PREPARACION" | "AJUSTE" | null) || undefined,
+      tipo: (q.get("tipo") as "INGRESO_COMPRA" | "INGRESO_INICIAL" | "EGRESO_PREPARACION" | "AJUSTE" | null) || undefined,
       desde: q.get("desde") || undefined,
       hasta: q.get("hasta") || undefined,
     });

@@ -49,6 +49,7 @@ export async function crearDrogaAction(_prevState: DrogaActionState, formData: F
         tipoControl: optionalField(formData, "tipoControl"),
         clase: optionalField(formData, "clase"),
         stockMinimo: String(formData.get("stockMinimo") ?? "0"),
+        saldoAperturaContralor: optionalField(formData, "saldoAperturaContralor"),
         sinonimos: sinonimosDelForm(formData),
       });
       revalidatePath("/catalogos/drogas");
@@ -70,6 +71,7 @@ export async function editarDrogaAction(_prevState: DrogaActionState, formData: 
         tipoControl: optionalField(formData, "tipoControl"),
         clase: optionalField(formData, "clase"),
         stockMinimo: String(formData.get("stockMinimo") ?? "0"),
+        saldoAperturaContralor: optionalField(formData, "saldoAperturaContralor"),
         // The "Otros nombres" rows travel only when the form rendered them enabled (marker field).
         ...(formData.has("sinonimosEnviados")
           ? { sinonimos: sinonimosDelForm(formData), sinonimosCargados: formData.getAll("sinonimosCargados").map(String) }

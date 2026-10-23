@@ -194,6 +194,8 @@ async function main(): Promise<void> {
     // `meses_vencimiento_preparado` (DP-28 "Vencimiento") is also backfilled
     // for pre-existing tenants, by migration 0068; `dias_retiro_vencido`
     // (docs/specs/retiro-vencido.md) by migration 0095.
+    // `dias_relevamiento_inicial` (docs/specs/existencia-inicial.md) needs no
+    // backfill either: fsj.relevamiento_inicial_fecha_limite falls back to 30.
     // `dias_alerta_vencimiento_partida` needs no migration/backfill:
     // modules/stock/infrastructure/partida-repository.ts#getDiasAlertaVencimiento
     // falls back to the same default (30) for any tenant without this row.
@@ -208,7 +210,8 @@ async function main(): Promise<void> {
          ($1, 'plazo_archivo_comun_anios', 'NUMERO', '2', 'Anios de conservacion en archivo fisico para lotes sin recetas controladas -- DP-26 PARCIAL, FASE 12 punto 12.1'),
          ($1, 'plazo_archivo_controladas_anios', 'NUMERO', '3', 'Anios de conservacion en archivo fisico para lotes con al menos una receta controlada -- DP-26 PARCIAL, FASE 12 punto 12.1'),
          ($1, 'meses_vencimiento_preparado', 'NUMERO', '3', 'Meses desde la elaboracion tras los cuales vence un preparado; se fija al confirmar la preparacion -- DP-28 Vencimiento'),
-         ($1, 'dias_retiro_vencido', 'NUMERO', '30', 'Dias, desde que la receta queda preparada, tras los cuales un preparado que nadie retiro pasa a Retiro vencido; 0 desactiva el vencimiento -- docs/specs/retiro-vencido.md')
+         ($1, 'dias_retiro_vencido', 'NUMERO', '30', 'Dias, desde que la receta queda preparada, tras los cuales un preparado que nadie retiro pasa a Retiro vencido; 0 desactiva el vencimiento -- docs/specs/retiro-vencido.md'),
+         ($1, 'dias_relevamiento_inicial', 'NUMERO', '30', 'Dias, desde el primer cierre diario firmado, durante los cuales se puede cargar existencia inicial si el DT no cerro antes el relevamiento -- docs/specs/existencia-inicial.md')
        ON CONFLICT (tenant_id, clave) DO NOTHING`,
       [tenantId],
     );

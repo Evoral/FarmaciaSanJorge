@@ -20,6 +20,7 @@
  * INSERT statement supplied).
  */
 import { listSinonimosVigentes } from "@/shared/db/busqueda-droga";
+import { ETIQUETA_SIN_PROVEEDOR } from "@/shared/labels/enum-labels";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import type { EstadoPreparacion, EstadoReceta, TipoMovimientoContralor } from "@/generated/prisma/enums";
@@ -417,12 +418,12 @@ export async function listPartidasElegiblesDroga(
       potencia_declarada: string | null;
     }[]
   >`
-    SELECT p.id, p.lote, pr.razon_social AS proveedor_nombre, (p.cantidad_disponible - r.reservado)::text AS cantidad_disponible,
+    SELECT p.id, p.lote, coalesce(pr.razon_social, ${ETIQUETA_SIN_PROVEEDOR}) AS proveedor_nombre, (p.cantidad_disponible - r.reservado)::text AS cantidad_disponible,
       u.simbolo AS unidad_simbolo, p.fecha_vencimiento_vigente::text AS fecha_vencimiento,
       p.fecha_vencimiento_vigente IS DISTINCT FROM p.fecha_vencimiento AS reanalizada,
       p.fecha_apertura::text, p.potencia_declarada::text
     FROM fsj.partida p
-    JOIN fsj.proveedor pr ON pr.tenant_id = p.tenant_id AND pr.id = p.proveedor_id
+    LEFT JOIN fsj.proveedor pr ON pr.tenant_id = p.tenant_id AND pr.id = p.proveedor_id
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
     JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
     ${reservadoPorOtrasSql(preparacionPropiaId)}

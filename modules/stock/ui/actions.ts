@@ -9,6 +9,9 @@ import { leerFacturaCompraPdf } from "@/modules/stock/application/leer-factura-c
 import { importarFacturaCompra } from "@/modules/stock/application/importar-factura-compra";
 import { registrarReanalisisPartida } from "@/modules/stock/application/reanalizar-partida";
 import { marcarPartidaVencida } from "@/modules/stock/application/marcar-partida-vencida";
+import { ingresarExistenciaInicial } from "@/modules/stock/application/ingresar-existencia-inicial";
+import { cerrarRelevamientoInicial } from "@/modules/stock/application/cerrar-relevamiento-inicial";
+import { listarCostosVigentes } from "@/modules/costos-proveedor/application/listar-costos-vigentes";
 import type { MotivoAjuste } from "@/modules/stock/domain/partida";
 import { PARAM_VOLVER_AJUSTE, retornoAjuste, retornoAjusteRegistrado } from "@/modules/stock/domain/ajustes-listado";
 import { conOperador } from "@/shared/auth/operador-context";
@@ -152,5 +155,49 @@ export async function marcarPartidaVencidaAction(_prevState: StockActionState, f
     return { status: "success", message: "Partida marcada como vencida: se descontó todo su saldo." };
   } catch (error) {
     return fromError(error, "No se pudo marcar la partida como vencida.");
+  }
+}
+
+/** Existencia inicial (docs/specs/existencia-inicial.md R5): one counted envase per submit, the form resets for the next one. */
+export async function ingresarExistenciaInicialAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
+  return conOperador(formData, async (): Promise<StockActionState> => {
+    try {
+      await ingresarExistenciaInicial({
+        drogaId: String(formData.get("drogaId") ?? ""),
+        proveedorId: opcional(formData, "proveedorId"),
+        lote: String(formData.get("lote") ?? ""),
+        fechaVencimiento: opcional(formData, "fechaVencimiento"),
+        cantidadCompra: String(formData.get("cantidadCompra") ?? ""),
+        unidadCompraId: String(formData.get("unidadCompraId") ?? ""),
+        costoUnitario: String(formData.get("costoUnitario") ?? ""),
+        potenciaDeclarada: opcional(formData, "potenciaDeclarada"),
+      });
+      revalidatePath("/stock");
+      revalidatePath("/partidas");
+      return { status: "success", message: "Existencia inicial cargada: la partida ya está en el stock." };
+    } catch (error) {
+      return fromError(error, "No se pudo cargar la existencia inicial.");
+    }
+  });
+}
+
+/** "Cerrar relevamiento" (R7): the use case verifies the DT's own password first. */
+export async function cerrarRelevamientoInicialAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
+  try {
+    await cerrarRelevamientoInicial({ password: String(formData.get("password") ?? "") });
+    revalidatePath("/partidas/ingresar");
+    return { status: "success", message: "Relevamiento inicial cerrado: desde ahora el stock entra solo por compras." };
+  } catch (error) {
+    return fromError(error, "No se pudo cerrar el relevamiento inicial.");
+  }
+}
+
+/** R3: the droga's vigente costo de proveedor (that proveedor's when one is chosen), per unidad base, to prefill the alta. */
+export async function costoSugeridoExistenciaInicialAction(drogaId: string, proveedorId?: string): Promise<string | null> {
+  try {
+    const { items } = await listarCostosVigentes({ drogaId: String(drogaId), proveedorId: proveedorId ? String(proveedorId) : undefined, page: 1, pageSize: 1 });
+    return items[0]?.costoUnitario ?? null;
+  } catch {
+    return null;
   }
 }

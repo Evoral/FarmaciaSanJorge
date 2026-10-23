@@ -1,9 +1,9 @@
 # Existencia inicial (relevamiento de stock al implementar)
 
-Status: proposed 2026-10-23, not implemented. Schema change (stock + farmacia +
-libro): ships with its migration, `prisma/rollbacks/<migration>.down.sql` and
+Status: implemented 2026-10-23 (migration 0100). Rollback:
 `docs/rollbacks/existencia-inicial.md`. Extends DP-21b (a new positive movement
-type besides `INGRESO_COMPRA`).
+type besides `INGRESO_COMPRA`). New invariants: INV-S24 (window), INV-S25
+(origen ↔ ingreso type), INV-S26 (close once, by the DT).
 
 ## Goal
 
@@ -28,8 +28,8 @@ allowed only while the tenant's **relevamiento inicial** is open.
   existencia inicial can be created. **Abierto** or **cerrado**; once cerrado it
   never reopens.
 - **Plazo del relevamiento**: `dias_relevamiento_inicial` (tenant parameter,
-  default 30) counted from the jornada of the tenant's **first signed cierre
-  diario**.
+  default 30, **at most 90** -- three months) counted from the jornada of the
+  tenant's **first signed cierre diario**.
 
 ## Rules
 
@@ -39,9 +39,9 @@ allowed only while the tenant's **relevamiento inicial** is open.
 | R2 | A partida de existencia inicial can be created only while the relevamiento is **abierto** (R6). Purchases (`INGRESO_COMPRA`, manual or from a factura PDF) are allowed at any time, before, during and after the relevamiento. | App: the new use case (R4). DB: insert trigger on `partida` re-checks the window for `origen = EXISTENCIA_INICIAL`. |
 | R3 | Data of a partida de existencia inicial, read from the physical envase: droga, **lote** (required), **fecha de vencimiento** (required for a `DROGA`, optional for an insumo, same as today, trg_partida_validar_vencimiento), **cantidad** counted (required, > 0, in the droga's unidad base), **potencia declarada** (same rule as a purchase: required when the droga demands it), **costo unitario** (required, ≥ 0; prefilled with the droga's vigente costo de proveedor when there is one, `modules/costos-proveedor`), **proveedor** (optional). | zod schema of the use case; DB checks. |
 | R4 | Proveedor is nullable **only** for `origen = EXISTENCIA_INICIAL` (check `proveedor_id IS NOT NULL OR origen = 'EXISTENCIA_INICIAL'`). Uniqueness without proveedor: one partida per `(tenant, droga, lote)` among those with NULL proveedor (partial unique index), alongside today's `(tenant, droga, proveedor, lote)`. | Migration. Every read that assumes `partida.proveedor` exists (Prisma type becomes optional) shows "Sin proveedor (existencia inicial)". |
-| R5 | Creating one is a `defineCommand` use case, permiso `stock.partida.ingresar` (same as a manual alta), audited (`partida`, CREAR, with `origen`). Its UI is the manual alta form with an "Existencia inicial" mode, shown only while the relevamiento is abierto; the form keeps every field on error (`use-form-submit`). | `modules/stock/application/ingresar-existencia-inicial.ts` (new), sharing the alta form component. |
-| R6 | The relevamiento is **abierto** when it has not been closed by the DT **and** the plazo has not run out: no signed cierre yet, or jornada actual ≤ jornada of the first signed cierre + `dias_relevamiento_inicial`. Computed, not a job: nothing runs when the plazo ends, altas are simply refused from then on. | Domain function `relevamientoAbierto(...)` (pure); DB function used by the R2 trigger. |
-| R7 | **Cerrar relevamiento**: only the **DT vigente**, themselves, confirming with their own password (same pattern as the reanálisis, `verificarPasswordDtPartidaCommand`). Irreversible (`tenant.relevamiento_inicial_cerrado_en` / `_por_id`, set once, no reopen). Audited. Shows, before confirming, how many partidas de existencia inicial were loaded per droga. | App: permiso `stock.ajuste.autorizar` + `esDtVigenteHoy`. DB: the two columns are write-once. |
+| R5 | Creating one is a `defineCommand` use case, permiso `stock.partida.ingresar` (same as a manual alta, PIN-configurable: `conOperador`), audited (`partida`, CREAR, with `origen`), running the manual alta's own rules (`registrarPartidaCompra` with `origen`). Its UI is an "Existencia inicial" panel at the top of `/partidas/ingresar`, shown only while the relevamiento is abierto: one envase per submit (the manual alta is an invoice of several lotes, which existing stock does not have); it keeps every field on error and clears them on success for the next envase. | `modules/stock/application/ingresar-existencia-inicial.ts`, `modules/stock/ui/existencia-inicial-form.tsx`, `relevamiento-inicial-panel.tsx`. |
+| R6 | The relevamiento is **abierto** when it has not been closed by the DT **and** the plazo has not run out: no signed cierre yet, or jornada actual ≤ jornada of the first signed cierre + `dias_relevamiento_inicial`. Computed, not a job: nothing runs when the plazo ends, altas are simply refused from then on. The plazo can never exceed **three months (90 days)** from the first signed cierre, so the feature cannot be kept open to bring stock in without a purchase: the parametro accepts 1-90, and the DB caps whatever value it reads at 90. Raising the parametro after the plazo ran out re-enables the alta up to the new date (still within the 90 days); a DT close never reopens. | Domain function `relevamientoAbierto(...)` (pure); DB function used by the R2 trigger. |
+| R7 | **Cerrar relevamiento**: only the **DT vigente**, themselves, confirming with their own password (same pattern as the reanálisis, `verificarPasswordDtPartidaCommand`). Irreversible (`tenant.relevamiento_inicial_cerrado_en` / `_por_id`, set once, no reopen). Audited (`tenant`, MODIFICAR, with the number of drogas and partidas loaded). The panel shows, before confirming, how many envases and drogas were loaded. | App: permiso `stock.ajuste.autorizar` + `esDtVigenteHoy`. DB: the two columns are write-once. |
 | R8 | **Controlled drogas, contralor digital activo** (`tenant.fecha_activacion_contralor` not NULL): an `INGRESO_INICIAL` **never** generates a contralor asiento; the droga's `APERTURA` asiento (INV-L15, saldo of the manual libro) already accounts for that physical stock. Closing the relevamiento (R7) is **refused** while, for any controlled droga, the contralor saldo (latest vigente asiento's `saldo_posterior`) differs from its physical stock (sum of `cantidad_disponible` of all its partidas); the refusal lists each droga with both figures. With the contralor manual (paper), no check. | Contralor asiento trigger (skip `INGRESO_INICIAL`); the close use case. |
 | R9 | An envase that was **already open** at the relevamiento gets no special mark: `fecha_apertura` stays NULL and is set by its first `EGRESO_PREPARACION`, as for any partida (INV-S16/S17). Consequence: when the farmacéutico overrides the proposed split (INV-S15), INV-S18 may ask for a motivo de apertura adicional on an envase that was physically open already; the motivo can say so. | No change. |
 | R10 | Reports distinguish the origin: the kardex labels the movement "Existencia inicial"; the stock valorizado includes these partidas (they have costo); the proveedor trayectoria and purchase-based views list only partidas with a proveedor; the partida detail shows "Origen: existencia inicial". | `kardex-movimientos.ts`, `reporte-valorizado.ts`, `trayectoria-repository.ts`, `/partidas/[id]`. |
@@ -70,6 +70,17 @@ allowed only while the tenant's **relevamiento inicial** is open.
   relevamiento: every movement after activation already wrote its asiento.
 - **Already-open envases: no mark.** Tracking "opened before the system" adds a
   field and a UI choice for a case that only matters to INV-S18's motivo prompt.
+
+## Implementation notes
+
+- **No app path activates the contralor digital yet.** `tenant.fecha_activacion_contralor` is never written by
+  the app, and no APERTURA was written before R12. R8 and R12 are implemented and take effect once the contralor
+  is activated (today, only by SQL); with it NULL the relevamiento ignores the contralor entirely. Related gap,
+  out of scope here: with the contralor activo, an `INGRESO_COMPRA` of a controlled droga requires a contralor
+  asiento (INV-L08) that the purchase alta does not write.
+- **Partidas without proveedor in reads.** Every raw query that joined `fsj.proveedor` with an inner JOIN now uses
+  a LEFT JOIN and shows `ETIQUETA_SIN_PROVEEDOR`; in particular the preparación's eligible partidas, which would
+  otherwise never offer a partida de existencia inicial.
 
 ## Open points
 

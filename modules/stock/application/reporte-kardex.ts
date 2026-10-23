@@ -19,7 +19,7 @@ export type { KardexItem };
 export const MAX_EXPORT_ROWS = 5000;
 const EXPORT_PAGE_SIZE = 500;
 
-const TIPOS_MOVIMIENTO = ["INGRESO_COMPRA", "EGRESO_PREPARACION", "AJUSTE"] as const;
+const TIPOS_MOVIMIENTO = ["INGRESO_COMPRA", "INGRESO_INICIAL", "EGRESO_PREPARACION", "AJUSTE"] as const;
 
 const exportarKardexFiltro = z.object({
   partidaId: uuid.optional(),

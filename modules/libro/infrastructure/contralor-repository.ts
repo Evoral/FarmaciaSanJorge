@@ -1,7 +1,8 @@
 /**
  * Prisma-backed access to `fsj.asiento_contralor` for FASE 9 (M12 point
- * 9.4, DP-33). Consulta-only -- there is no anulación/rectificativo path
- * for contralor rows (INV-L20), so this file only ever reads.
+ * 9.4, DP-33). There is no anulación/rectificativo path for contralor rows
+ * (INV-L20). The one write is the APERTURA of a controlled droga given alta
+ * with the contralor activo (docs/specs/existencia-inicial.md R12).
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { TipoMovimientoContralor } from "@/generated/prisma/enums";
@@ -145,4 +146,45 @@ export async function* iterarAsientosContralorParaExportar(
 export async function getFechaActivacionContralor(tx: Prisma.TransactionClient, tenantId: string): Promise<Date | null> {
   const row = await tx.tenant.findUnique({ where: { id: tenantId }, select: { fechaActivacionContralor: true } });
   return row?.fechaActivacionContralor ?? null;
+}
+
+const PLACEHOLDER_UUID = "00000000-0000-0000-0000-000000000000";
+const PLACEHOLDER_DATE = new Date(0);
+
+/**
+ * INSERT the droga's APERTURA asiento (INV-L15). `fsj.asiento_contralor_preparar` assigns libro_id, número,
+ * fecha, saldos and hashes (placeholders here, same as the preparaciones EGRESO insert) and refuses a second one.
+ */
+export async function insertAperturaContralor(
+  tx: Prisma.TransactionClient,
+  input: { tenantId: string; drogaId: string; drogaDescripcion: string; saldo: string; unidadMedidaId: string; registradoPorId: string },
+): Promise<{ id: string; numeroCorrelativo: bigint }> {
+  return tx.asientoContralor.create({
+    data: {
+      tenantId: input.tenantId,
+      libroId: PLACEHOLDER_UUID,
+      numeroCorrelativo: BigInt(0),
+      fechaAsiento: PLACEHOLDER_DATE,
+      tipoMovimiento: "APERTURA" as TipoMovimientoContralor,
+      drogaId: input.drogaId,
+      drogaDescripcion: input.drogaDescripcion,
+      cantidad: input.saldo,
+      unidadMedidaId: input.unidadMedidaId,
+      saldoAnterior: "0",
+      saldoPosterior: "0",
+      hashIntegridad: "",
+      hashAnterior: "",
+      registradoPorId: input.registradoPorId,
+    },
+    select: { id: true, numeroCorrelativo: true },
+  });
+}
+
+/** The droga already has its APERTURA in the open libro of `tipoLibro` (INV-L15: at most one). */
+export async function tieneAperturaContralor(tx: Prisma.TransactionClient, tenantId: string, drogaId: string, tipoLibro: "PSICOTROPICO" | "ESTUPEFACIENTE"): Promise<boolean> {
+  const row = await tx.asientoContralor.findFirst({
+    where: { tenantId, drogaId, tipoMovimiento: "APERTURA", libro: { tipo: tipoLibro, fechaCierre: null } },
+    select: { id: true },
+  });
+  return row !== null;
 }

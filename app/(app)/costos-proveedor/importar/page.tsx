@@ -16,6 +16,7 @@ import { CostosTabs } from "@/modules/costos-proveedor/ui/costos-tabs";
 import { ImportarLista } from "@/modules/costos-proveedor/ui/importar-lista";
 import { listDrogasOpciones } from "@/modules/drogas/application/list-drogas-opciones";
 import { listUnidadesVigentesParaDroga } from "@/modules/drogas/application/list-unidades-vigentes";
+import { contralorActivoParaDroga } from "@/modules/drogas/application/contralor-activo";
 import { listProveedoresOpciones } from "@/modules/proveedores/application/list-proveedores-opciones";
 import { getCatalogoUnidades } from "@/modules/unidades/application/catalogo-unidades";
 import { can } from "@/shared/auth/authorize";
@@ -65,12 +66,13 @@ export default async function ImportarListaPage() {
 
   // "Nuevo insumo" on a "sin asociar" row: the same alta as /catalogos/drogas, only with `drogas.crear`.
   const puedeCrearDroga = can(session, "drogas.crear");
-  const [drogas, proveedores, { unidades }, contexto, unidadesAltaDroga] = await Promise.all([
+  const [drogas, proveedores, { unidades }, contexto, unidadesAltaDroga, contralorActivo] = await Promise.all([
     listDrogasOpciones(),
     listProveedoresOpciones(),
     getCatalogoUnidades(),
     listarCostosVigentes({ page: 1, pageSize: 1 }),
     puedeCrearDroga ? listUnidadesVigentesParaDroga() : Promise.resolve(null),
+    puedeCrearDroga ? contralorActivoParaDroga() : Promise.resolve(false),
   ]);
 
   return (
@@ -83,6 +85,7 @@ export default async function ImportarListaPage() {
         unidades={unidades.map((u) => ({ id: u.id, codigo: u.codigo, simbolo: u.simbolo, tipoMagnitud: u.tipoMagnitud, factorABase: u.factorABase, vigente: u.vigente }))}
         jornadaActual={contexto.jornadaActual}
         unidadesAltaDroga={unidadesAltaDroga}
+        contralorActivo={contralorActivo}
       />
     </>
   );

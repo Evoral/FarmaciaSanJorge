@@ -24,11 +24,13 @@ export interface NuevaDrogaDialogProps {
   unidades: UnidadOpcion[];
   /** Optional line under the title, e.g. where the alta was opened from. */
   subtitulo?: string;
+  /** `contralorActivoParaDroga()`: a controlled alta asks for its saldo de apertura. */
+  contralorActivo?: boolean;
   onCreada: (droga: DrogaCreada) => void;
   onCerrar: () => void;
 }
 
-export function NuevaDrogaDialog({ abierta, nombreInicial, unidades, subtitulo, onCreada, onCerrar }: NuevaDrogaDialogProps) {
+export function NuevaDrogaDialog({ abierta, nombreInicial, unidades, subtitulo, contralorActivo, onCreada, onCerrar }: NuevaDrogaDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const presionoFondoRef = useRef(false);
   const tituloId = useId();
@@ -69,7 +71,7 @@ export function NuevaDrogaDialog({ abierta, nombreInicial, unidades, subtitulo, 
               <X className="size-4" aria-hidden />
             </button>
           </div>
-          <DrogaForm mode="crear" unidades={unidades} disabled={false} nombreInicial={nombreInicial} onCreada={onCreada} />
+          <DrogaForm mode="crear" unidades={unidades} disabled={false} nombreInicial={nombreInicial} onCreada={onCreada} contralorActivo={contralorActivo} />
         </div>
       ) : null}
     </dialog>

@@ -109,7 +109,10 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
         title={partida.drogaNombre}
         description={
           <>
-            Lote <span className="font-mono text-zinc-900">{partida.lote}</span> de {partida.proveedorRazonSocial}
+            Lote <span className="font-mono text-zinc-900">{partida.lote}</span>
+            {partida.origen === "EXISTENCIA_INICIAL"
+              ? `${partida.proveedorId ? ` de ${partida.proveedorRazonSocial}` : ""} · existencia inicial`
+              : ` de ${partida.proveedorRazonSocial}`}
           </>
         }
         actions={

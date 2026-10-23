@@ -12,6 +12,7 @@ import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listDrogas } from "@/modules/drogas/application/list-drogas";
 import { listUnidadesVigentesParaDroga } from "@/modules/drogas/application/list-unidades-vigentes";
+import { contralorActivoParaDroga } from "@/modules/drogas/application/contralor-activo";
 import { CLASES_DROGA, CLASE_DROGA_LABELS, TIPO_CONTROL_LABELS, type ClaseDroga } from "@/modules/drogas/domain/droga";
 import { DrogaForm } from "@/modules/drogas/ui/droga-form";
 import { buscarDrogasCatalogoAction } from "@/modules/drogas/ui/buscar-drogas-catalogo-action";
@@ -80,6 +81,7 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
   }
 
   const unidades = puedeCrear && params.nueva ? await listUnidadesVigentesParaDroga() : [];
+  const contralorActivo = puedeCrear && params.nueva ? await contralorActivoParaDroga() : false;
 
   const chips: { key: ParamDrogas; label: string; value?: string }[] = [];
   if (params.q) chips.push({ key: "q", label: "Búsqueda", value: params.q });
@@ -116,7 +118,7 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
             </Link>
           </div>
           <div className="panel-body">
-            <DrogaForm mode="crear" unidades={unidades} disabled={!puedeCrear} volverA="/catalogos/drogas" />
+            <DrogaForm mode="crear" unidades={unidades} disabled={!puedeCrear} volverA="/catalogos/drogas" contralorActivo={contralorActivo} />
           </div>
         </section>
       ) : null}

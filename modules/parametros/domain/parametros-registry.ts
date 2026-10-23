@@ -30,6 +30,7 @@ import { Decimal } from "decimal.js";
 import { numeroONull } from "@/shared/decimal/numero-ingresado";
 import { DIAS_RETIRO_VENCIDO_DEFAULT, DIAS_RETIRO_VENCIDO_MAX } from "@/modules/entregas/domain/retiro-vencido";
 import { MESES_VENCIMIENTO_PREPARADO_MAX } from "@/modules/preparaciones/domain/vencimiento";
+import { DIAS_RELEVAMIENTO_INICIAL_DEFAULT, DIAS_RELEVAMIENTO_INICIAL_MAX } from "@/modules/stock/domain/existencia-inicial";
 
 export const PARAMETRO_CLAVES = [
   "precision_balanza",
@@ -41,6 +42,7 @@ export const PARAMETRO_CLAVES = [
   "plazo_archivo_controladas_anios",
   "meses_vencimiento_preparado",
   "dias_retiro_vencido",
+  "dias_relevamiento_inicial",
 ] as const;
 
 export type ParametroClave = (typeof PARAMETRO_CLAVES)[number];
@@ -114,6 +116,16 @@ function validarDiasAlertaVencimientoPartida(valorRaw: string): ValidacionParame
   if (!valor) return { ok: false, error: "Debe ser un número válido." };
   if (!valor.isInteger() || valor.lessThanOrEqualTo(0)) {
     return { ok: false, error: "Debe ser un número entero mayor que cero." };
+  }
+  return { ok: true, valor };
+}
+
+/** `dias_relevamiento_inicial` (docs/specs/existencia-inicial.md R6): an integer between 1 and three months. */
+function validarDiasRelevamientoInicial(valorRaw: string): ValidacionParametro {
+  const valor = parseDecimalOrNull(valorRaw);
+  if (!valor) return { ok: false, error: "Debe ser un número válido." };
+  if (!valor.isInteger() || valor.lessThan(1) || valor.greaterThan(DIAS_RELEVAMIENTO_INICIAL_MAX)) {
+    return { ok: false, error: `Debe ser un número entero entre 1 y ${DIAS_RELEVAMIENTO_INICIAL_MAX}.` };
   }
   return { ok: true, valor };
 }
@@ -290,5 +302,17 @@ export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = 
       `Debe ser un entero entre 0 y ${DIAS_RETIRO_VENCIDO_MAX}; 0 desactiva el vencimiento.`,
     valorPorDefecto: String(DIAS_RETIRO_VENCIDO_DEFAULT),
     validar: validarDiasRetiroVencido,
+  },
+  dias_relevamiento_inicial: {
+    clave: "dias_relevamiento_inicial",
+    tipo: "NUMERO",
+    label: "Plazo del relevamiento inicial",
+    descripcion:
+      "Cantidad de días, contados desde el primer cierre diario firmado, durante los cuales se puede cargar existencia " +
+      "inicial, salvo que el Director Técnico cierre antes el relevamiento. Si el plazo ya venció, subirlo vuelve a " +
+      "habilitar la carga hasta la nueva fecha; un relevamiento cerrado por el DT no se reabre nunca. " +
+      `Debe ser un entero entre 1 y ${DIAS_RELEVAMIENTO_INICIAL_MAX} (tres meses).`,
+    valorPorDefecto: DIAS_RELEVAMIENTO_INICIAL_DEFAULT,
+    validar: validarDiasRelevamientoInicial,
   },
 };

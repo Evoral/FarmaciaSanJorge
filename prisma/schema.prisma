@@ -138,8 +138,19 @@ enum TipoMovimiento {
   INGRESO_COMPRA
   EGRESO_PREPARACION
   AJUSTE
+  /// Migration 0100: the only ingreso of an EXISTENCIA_INICIAL partida (docs/specs/existencia-inicial.md). Adds saldo, like INGRESO_COMPRA.
+  INGRESO_INICIAL
 
   @@map("tipo_movimiento")
+  @@schema("fsj")
+}
+
+/// Migration 0100 (docs/specs/existencia-inicial.md): COMPRA = a purchase; EXISTENCIA_INICIAL = stock counted at the relevamiento inicial.
+enum OrigenPartida {
+  COMPRA
+  EXISTENCIA_INICIAL
+
+  @@map("origen_partida")
   @@schema("fsj")
 }
 
@@ -245,24 +256,27 @@ enum EstadoPreparacion {
 
 /// Global table (M00): one row per pharmacy tenant. No tenant_id, no RLS.
 model Tenant {
-  id                       String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  razonSocial              String    @map("razon_social")
-  nombreFantasia           String?   @map("nombre_fantasia")
-  cuit                     String    @unique
-  domicilio                String?
-  matriculaFarmacia        String?   @map("matricula_farmacia")
+  id                              String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  razonSocial                     String    @map("razon_social")
+  nombreFantasia                  String?   @map("nombre_fantasia")
+  cuit                            String    @unique
+  domicilio                       String?
+  matriculaFarmacia               String?   @map("matricula_farmacia")
   /// Migration 0089: printed on the etiqueta.
-  telefonoFijo             String?   @map("telefono_fijo") @db.VarChar(40)
-  telefonoCelular          String?   @map("telefono_celular") @db.VarChar(40)
-  zonaHoraria              String    @default("America/Argentina/Mendoza") @map("zona_horaria")
-  fechaBaja                DateTime? @map("fecha_baja") @db.Timestamptz(6)
-  creadoEn                 DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
+  telefonoFijo                    String?   @map("telefono_fijo") @db.VarChar(40)
+  telefonoCelular                 String?   @map("telefono_celular") @db.VarChar(40)
+  zonaHoraria                     String    @default("America/Argentina/Mendoza") @map("zona_horaria")
+  fechaBaja                       DateTime? @map("fecha_baja") @db.Timestamptz(6)
+  creadoEn                        DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
   /// M12/spec section 4 (DP-33). NULL = contralor libros kept by hand. INV-L17: never changes once set (migration 0014).
-  fechaActivacionContralor DateTime? @map("fecha_activacion_contralor") @db.Timestamptz(6)
+  fechaActivacionContralor        DateTime? @map("fecha_activacion_contralor") @db.Timestamptz(6)
   /// Migration 0098: navbar logo (docs/specs/logo-farmacia.md). The three columns are all NULL or all set.
-  logo                     Bytes?
-  logoTipo                 String?   @map("logo_tipo") @db.VarChar(20)
-  logoActualizadoEn        DateTime? @map("logo_actualizado_en") @db.Timestamptz(6)
+  logo                            Bytes?
+  logoTipo                        String?   @map("logo_tipo") @db.VarChar(20)
+  logoActualizadoEn               DateTime? @map("logo_actualizado_en") @db.Timestamptz(6)
+  /// Migration 0100: the DT's explicit close of the relevamiento inicial (docs/specs/existencia-inicial.md R7). Both NULL or both set, written once (INV-S26). FK to usuario (tenant_id, id) in SQL only.
+  relevamientoInicialCerradoEn    DateTime? @map("relevamiento_inicial_cerrado_en") @db.Timestamptz(6)
+  relevamientoInicialCerradoPorId String?   @map("relevamiento_inicial_cerrado_por_id") @db.Uuid
 
   parametros                Parametro[]
   usuarios                  Usuario[]
@@ -784,33 +798,36 @@ model Paciente {
 /// Tenant-scoped (M07). cantidad_disponible is written ONLY by
 /// fsj.movimiento_stock_aplicar() (INV-S01/S04) -- see migration 0008.
 model Partida {
-  id                      String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId                String    @map("tenant_id") @db.Uuid
-  drogaId                 String    @map("droga_id") @db.Uuid
-  proveedorId             String    @map("proveedor_id") @db.Uuid
+  id                      String        @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId                String        @map("tenant_id") @db.Uuid
+  drogaId                 String        @map("droga_id") @db.Uuid
+  /// Migration 0100: NULL only for origen EXISTENCIA_INICIAL (partida_proveedor_obligatorio).
+  proveedorId             String?       @map("proveedor_id") @db.Uuid
   lote                    String
-  costoUnitario           Decimal   @map("costo_unitario") @db.Decimal
-  cantidadInicial         Decimal   @map("cantidad_inicial") @db.Decimal
+  costoUnitario           Decimal       @map("costo_unitario") @db.Decimal
+  cantidadInicial         Decimal       @map("cantidad_inicial") @db.Decimal
   /// INV-S01/S04: read-only from the app's perspective -- see migration 0008.
-  cantidadDisponible      Decimal   @default(0) @map("cantidad_disponible") @db.Decimal
-  fechaIngreso            DateTime  @default(now()) @map("fecha_ingreso") @db.Timestamptz(6)
+  cantidadDisponible      Decimal       @default(0) @map("cantidad_disponible") @db.Decimal
+  fechaIngreso            DateTime      @default(now()) @map("fecha_ingreso") @db.Timestamptz(6)
   /// Migration 0064: NULL = does not expire -- only for an insumo (droga.clase <> DROGA, trg_partida_validar_vencimiento).
-  fechaVencimiento        DateTime? @map("fecha_vencimiento") @db.Date
+  fechaVencimiento        DateTime?     @map("fecha_vencimiento") @db.Date
   /// Migration 0074: effective expiry ("vencimiento vigente") = the latest reanálisis' date, else fechaVencimiento. Trigger-only (INV-S23): read-only from the app's perspective. Every expiry check reads THIS column.
-  fechaVencimientoVigente DateTime? @map("fecha_vencimiento_vigente") @db.Date
+  fechaVencimientoVigente DateTime?     @map("fecha_vencimiento_vigente") @db.Date
   /// INV-S16/S17: read-only from the app's perspective -- see migration 0008.
-  fechaApertura           DateTime? @map("fecha_apertura") @db.Timestamptz(6)
-  motivoAperturaAdicional String?   @map("motivo_apertura_adicional")
+  fechaApertura           DateTime?     @map("fecha_apertura") @db.Timestamptz(6)
+  motivoAperturaAdicional String?       @map("motivo_apertura_adicional")
   /// Migration 0058: the lot's declared purity, in percent (0 < p <= 100, partida_potencia_declarada_check). NULL = 100% (no correction). Insert-only (no UPDATE grant).
-  potenciaDeclarada       Decimal?  @map("potencia_declarada") @db.Decimal
+  potenciaDeclarada       Decimal?      @map("potencia_declarada") @db.Decimal
   /// Migration 0062: the supplier invoice the lot was imported from (NULL = manual alta). Insert-only.
-  comprobanteCompraId     String?   @map("comprobante_compra_id") @db.Uuid
+  comprobanteCompraId     String?       @map("comprobante_compra_id") @db.Uuid
   /// Migration 0062: import traceability printed under the lot on the invoice. Insert-only.
-  despachoImportacion     String?   @map("despacho_importacion")
-  paisOrigen              String?   @map("pais_origen")
+  despachoImportacion     String?       @map("despacho_importacion")
+  paisOrigen              String?       @map("pais_origen")
+  /// Migration 0100: COMPRA (INGRESO_COMPRA) or EXISTENCIA_INICIAL (INGRESO_INICIAL, only while the relevamiento inicial is open, INV-S24). Insert-only.
+  origen                  OrigenPartida @default(COMPRA)
 
   droga             Droga              @relation(fields: [drogaId], references: [id])
-  proveedor         Proveedor          @relation(fields: [proveedorId], references: [id])
+  proveedor         Proveedor?         @relation(fields: [proveedorId], references: [id])
   comprobanteCompra ComprobanteCompra? @relation(fields: [comprobanteCompraId], references: [id])
   movimientos       MovimientoStock[]
 
@@ -948,7 +965,7 @@ model Receta {
   /// Migration 0095 (docs/specs/retiro-vencido.md). When the receta last entered PREPARADA; written only by trg_receta_preparada_en (no UPDATE grant). The retiro vencido job counts dias_retiro_vencido from it.
   preparadaEn            DateTime?    @map("preparada_en") @db.Timestamptz(6)
 
-  paciente         Paciente            @relation(fields: [pacienteId], references: [id])
+  paciente          Paciente            @relation(fields: [pacienteId], references: [id])
   medico            Medico              @relation(fields: [medicoId], references: [id])
   registradaPor     Usuario             @relation("RecetaRegistradaPor", fields: [registradaPorId], references: [id])
   tomadaPor         Usuario?            @relation("RecetaTomadaPor", fields: [tomadaPorId], references: [id])
@@ -1165,27 +1182,27 @@ model Cotizacion {
 /// Tenant-scoped (M11). item_receta_id is denormalized/trigger-set -- see
 /// migration 0013 header.
 model Preparacion {
-  id               String            @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId         String            @map("tenant_id") @db.Uuid
-  fichaTecnicaId   String            @map("ficha_tecnica_id") @db.Uuid
-  itemRecetaId     String            @map("item_receta_id") @db.Uuid
-  estado           EstadoPreparacion @default(INICIADA)
-  iniciadaEn       DateTime          @default(now()) @map("iniciada_en") @db.Timestamptz(6)
-  iniciadaPorId    String            @map("iniciada_por_id") @db.Uuid
-  confirmadaEn     DateTime?         @map("confirmada_en") @db.Timestamptz(6)
-  preparadaPorId   String?           @map("preparada_por_id") @db.Uuid
-  motivoDescarte   String?           @map("motivo_descarte")
-  descartadaEn     DateTime?         @map("descartada_en") @db.Timestamptz(6)
-  descartadaPorId  String?           @map("descartada_por_id") @db.Uuid
+  id                 String                    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId           String                    @map("tenant_id") @db.Uuid
+  fichaTecnicaId     String                    @map("ficha_tecnica_id") @db.Uuid
+  itemRecetaId       String                    @map("item_receta_id") @db.Uuid
+  estado             EstadoPreparacion         @default(INICIADA)
+  iniciadaEn         DateTime                  @default(now()) @map("iniciada_en") @db.Timestamptz(6)
+  iniciadaPorId      String                    @map("iniciada_por_id") @db.Uuid
+  confirmadaEn       DateTime?                 @map("confirmada_en") @db.Timestamptz(6)
+  preparadaPorId     String?                   @map("preparada_por_id") @db.Uuid
+  motivoDescarte     String?                   @map("motivo_descarte")
+  descartadaEn       DateTime?                 @map("descartada_en") @db.Timestamptz(6)
+  descartadaPorId    String?                   @map("descartada_por_id") @db.Uuid
   /// Migration 0068 (DP-28 "Vencimiento"): expiry of the preparado, snapshotted at confirmation (jornada + meses_vencimiento_preparado). NULL for one confirmed before 0068. Frozen afterwards (INV-P07).
-  fechaVencimiento DateTime?         @map("fecha_vencimiento") @db.Date
+  fechaVencimiento   DateTime?                 @map("fecha_vencimiento") @db.Date
   /// Migration 0096 (docs/specs/vencimiento-preparado.md R9-R14): the tipo de vencimiento chosen at confirmation; decides the etiqueta's date format and storage note. NULL for one confirmed before 0096. Frozen afterwards (INV-P07).
-  tipoVencimiento  TipoVencimientoPreparado? @map("tipo_vencimiento")
+  tipoVencimiento    TipoVencimientoPreparado? @map("tipo_vencimiento")
   /// 0083: excipiente actually used (toma workspace, optional); copied into the libro asiento fórmula at confirmation. Changes only while INICIADA (INV-P08).
-  excipienteTexto  String?           @map("excipiente_texto") @db.VarChar(120)
+  excipienteTexto    String?                   @map("excipiente_texto") @db.VarChar(120)
   /// 0092: the excipiente used (droga of clase EXCIPIENTE) and its quantity in the droga's unidad base; reserved and descontado with the preparación. Changes only while INICIADA (INV-P08).
-  excipienteDrogaId  String?  @map("excipiente_droga_id") @db.Uuid
-  excipienteCantidad Decimal? @map("excipiente_cantidad") @db.Decimal
+  excipienteDrogaId  String?                   @map("excipiente_droga_id") @db.Uuid
+  excipienteCantidad Decimal?                  @map("excipiente_cantidad") @db.Decimal
 
   fichaTecnica       FichaTecnica        @relation(fields: [fichaTecnicaId], references: [id])
   iniciadaPor        Usuario             @relation("PreparacionIniciadaPor", fields: [iniciadaPorId], references: [id])
@@ -1458,19 +1475,19 @@ enum MotivoDemora {
 /// M12/M13b minimal model (spec [CONFLICTO], DP-38 open). No folios. At most one OPEN book per (tenant, tipo).
 /// numero/fechaRubrica/expedienteRubrica are official rubric data: created NULL, set once (NULL -> value) when actually issued, never invented (DP-38, migration 0018 B3).
 model LibroRubricado {
-  id                String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId          String    @map("tenant_id") @db.Uuid
-  tipo              TipoLibro
-  numero            String?
-  fechaRubrica      DateTime? @map("fecha_rubrica") @db.Date
-  expedienteRubrica String?   @map("expediente_rubrica")
-  fechaCierre       DateTime? @map("fecha_cierre") @db.Date
-  registradoPorId   String    @map("registrado_por_id") @db.Uuid
-  registradoEn      DateTime  @default(now()) @map("registrado_en") @db.Timestamptz(6)
+  id                       String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId                 String    @map("tenant_id") @db.Uuid
+  tipo                     TipoLibro
+  numero                   String?
+  fechaRubrica             DateTime? @map("fecha_rubrica") @db.Date
+  expedienteRubrica        String?   @map("expediente_rubrica")
+  fechaCierre              DateTime? @map("fecha_cierre") @db.Date
+  registradoPorId          String    @map("registrado_por_id") @db.Uuid
+  registradoEn             DateTime  @default(now()) @map("registrado_en") @db.Timestamptz(6)
   /// Migration 0097 (INV-L26): first asiento number. Changes only via fsj.libro_configurar_numeracion until the libro is fixed.
-  numeroInicial     BigInt    @default(1) @map("numero_inicial")
+  numeroInicial            BigInt    @default(1) @map("numero_inicial")
   /// Migration 0097: the first signed cierre covering this libro's asientos; set once by fsj.cierre_diario_firmar.
-  numeracionFijadaCierreId String? @map("numeracion_fijada_cierre_id") @db.Uuid
+  numeracionFijadaCierreId String?   @map("numeracion_fijada_cierre_id") @db.Uuid
 
   tenant            Tenant               @relation(fields: [tenantId], references: [id])
   registradoPor     Usuario              @relation(fields: [registradoPorId], references: [id])
