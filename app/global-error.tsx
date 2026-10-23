@@ -11,7 +11,7 @@ export default function GlobalError({ error, retry }: { error: Error & { digest?
   return (
     <html lang="es">
       <body className="min-h-full flex flex-col">
-        <title>Error — Farmacia San Jorge</title>
+        <title>Error — Farmacia Magistral</title>
         <main className="mx-auto flex max-w-xl flex-col gap-4 px-4 py-12">
           <h1 className="text-2xl font-semibold">Algo salió mal</h1>
           <p className="text-zinc-600">

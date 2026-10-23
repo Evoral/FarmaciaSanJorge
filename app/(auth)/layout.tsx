@@ -23,10 +23,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         <span className="flex size-11 items-center justify-center rounded-lg bg-white ring-1 ring-zinc-200 dark:ring-zinc-800">
           <Image src="/logo.png" alt="" width={32} height={32} priority />
         </span>
-        <span className="flex flex-col leading-tight">
-          <span className="text-base font-semibold">Laboratorio Magistral</span>
-          <span className="text-sm text-zinc-500">Farmacia San Jorge</span>
-        </span>
+        <span className="text-base font-semibold leading-tight">Farmacia Magistral</span>
       </div>
       <div className="glass-panel w-full max-w-sm p-6 sm:p-8">{children}</div>
     </div>
