@@ -104,6 +104,8 @@ export const crearRecetaInput = z.object({
   diagnosticoCodigo: diagnosticoCodigoOpcional,
   diagnosticoDescripcion: textoOpcional,
   domicilioPaciente: domicilioPacienteOpcional,
+  /** Migration 0099 (docs/specs/domicilios.md): where the envío goes; `null` = the domicilio above. */
+  domicilioEntrega: domicilioPacienteOpcional,
   /** Migration 0071: the receta is created already paid. The server sets who and when (`pagadaEn`/`pagadaPorId`), never the client. */
   pagada: z.boolean().default(false),
   items: z.array(itemInput).min(1, "La receta debe tener al menos un ítem."),
@@ -196,6 +198,7 @@ export const crearRecetaCommand = defineCommand({
       diagnosticoCodigo: input.diagnosticoCodigo,
       diagnosticoDescripcion: input.diagnosticoDescripcion,
       domicilioPaciente: input.domicilioPaciente,
+      domicilioEntrega: input.domicilioEntrega,
       pagada: input.pagada,
       items: input.items.map((item) => ({
         descripcion: item.descripcion,
@@ -234,6 +237,7 @@ export const crearRecetaCommand = defineCommand({
           diagnosticoCodigo: input.diagnosticoCodigo,
           diagnosticoDescripcion: input.diagnosticoDescripcion,
           domicilioPaciente: input.domicilioPaciente,
+          domicilioEntrega: input.domicilioEntrega,
           pagada: input.pagada,
           numeroInterno: nueva.numeroInterno,
           items: input.items,

@@ -97,6 +97,8 @@ export async function construirVistaPrevia(
         nombre: pacienteExistente.nombre,
         apellido: pacienteExistente.apellido,
         dadoDeBaja: pacienteExistente.fechaBaja !== null,
+        domicilio: pacienteExistente.domicilio,
+        domicilioEntrega: pacienteExistente.domicilioEntrega,
       },
       completar: completado.completar,
       diferencias: nombre ? [nombre, ...completado.diferencias] : completado.diferencias,

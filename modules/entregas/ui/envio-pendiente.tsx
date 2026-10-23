@@ -22,7 +22,7 @@ export interface RepartidorAsignado {
 
 export interface EnvioPendienteProps {
   recetaId: string;
-  domicilioPaciente: string | null;
+  domicilioEnvio: string | null;
   repartidor: RepartidorAsignado | null;
   /** `entregas.registrar`: may change the repartidor. */
   puedeCambiar: boolean;
@@ -35,7 +35,7 @@ export interface EnvioPendienteProps {
 
 export function EnvioPendiente({
   recetaId,
-  domicilioPaciente,
+  domicilioEnvio,
   repartidor,
   puedeCambiar,
   hayRepartidoresActivos,
@@ -43,7 +43,7 @@ export function EnvioPendiente({
   cambiarAction,
 }: EnvioPendienteProps) {
   const [editando, setEditando] = useState(false);
-  const domicilio = domicilioPaciente?.trim() ?? "";
+  const domicilio = domicilioEnvio?.trim() ?? "";
 
   return (
     <div className="flex flex-col gap-3">

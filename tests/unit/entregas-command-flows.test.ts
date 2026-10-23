@@ -212,8 +212,8 @@ describe("registrarEntrega -- write order and PREPARADA -> destino", () => {
     expect(actualizarEstadoRecetaMock).not.toHaveBeenCalled();
   });
 
-  it("ENVIO of a receta without domicilio + one typed: saved on the receta (trimmed) and audited as MODIFICAR, BEFORE the entrega is inserted (E4)", async () => {
-    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: false, domicilioPaciente: null });
+  it("ENVIO of a receta without domicilio + one typed: saved as the receta's domicilio de entrega (trimmed) and audited as MODIFICAR, BEFORE the entrega is inserted (E4)", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: false, domicilioPaciente: null, domicilioEntrega: null });
 
     await registrarEntregaCommand.execute(
       { recetaId: RECETA_ID, modalidad: "ENVIO", repartidorId: REPARTIDOR_ID, domicilio: "  " + DOMICILIO + "  " },
@@ -228,14 +228,14 @@ describe("registrarEntrega -- write order and PREPARADA -> destino", () => {
         entidad: "receta",
         entidadId: RECETA_ID,
         accion: "MODIFICAR",
-        valorAnterior: { domicilioPaciente: null },
-        valorNuevo: { domicilioPaciente: DOMICILIO },
+        valorAnterior: { domicilioEntrega: null },
+        valorNuevo: { domicilioEntrega: DOMICILIO },
       }),
     );
   });
 
-  it("ENVIO of a receta with a blank-only domicilio overwrites it with the typed one, recording the old value", async () => {
-    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: true, domicilioPaciente: "   " });
+  it("ENVIO of a receta with blank-only domicilios saves the typed one as its domicilio de entrega, recording the old value", async () => {
+    getRecetaParaEntregaMock.mockResolvedValue({ id: RECETA_ID, estado: "PREPARADA", pagada: true, domicilioPaciente: "   ", domicilioEntrega: "  " });
 
     await registrarEntregaCommand.execute(
       { recetaId: RECETA_ID, modalidad: "ENVIO", repartidorId: REPARTIDOR_ID, domicilio: DOMICILIO },
@@ -245,7 +245,7 @@ describe("registrarEntrega -- write order and PREPARADA -> destino", () => {
     expect(actualizarDomicilioRecetaMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, RECETA_ID, DOMICILIO);
     expect(vi.mocked(auditRecordMock)).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ entidad: "receta", valorAnterior: { domicilioPaciente: "   " } }),
+      expect.objectContaining({ entidad: "receta", valorAnterior: { domicilioEntrega: "  " } }),
     );
   });
 

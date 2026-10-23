@@ -76,6 +76,7 @@ import {
   buscarRecetaImportada,
   completarMedico,
   completarPaciente,
+  actualizarDomicilioPaciente,
   getDrogaAlias,
   insertDrogaAlias,
 } from "../infrastructure/importacion-repository";
@@ -102,6 +103,13 @@ export const importarRecetaInput = z
     diagnosticoDescripcion: textoOpcional,
     /** The patient's domicilio as printed on the receta (migration 0070) -- stored on the receta, never on the paciente. */
     domicilioPaciente: domicilioPacienteOpcional,
+    /** Migration 0099: where the envío goes (NULL = the domicilio above). Prefilled from the cliente, never written to it. */
+    domicilioEntrega: domicilioPacienteOpcional,
+    /**
+     * `true` when `domicilioPaciente` is the one the document brought, unchanged (docs/specs/domicilios.md): only then it
+     * becomes the cliente's. One typed or corrected by hand stays on the receta. Omitted = `false`.
+     */
+    domicilioDelDocumento: z.boolean().default(false),
     /** Migration 0071: the receta is imported already paid. The server sets who and when, never the client. */
     pagada: z.boolean().default(false),
     /** `existenteId`: what the preview matched (`null` = alta). `datos`: the PDF's data, as confirmed by the user. */
@@ -175,15 +183,19 @@ async function auditar(
   await auditRecord(tx, { tenantId: session.tenantId, usuarioId: session.usuario.id, entidad, entidadId, accion, contexto: { origen: "importacion_receta_pdf", fuente }, ...valores });
 }
 
-/** Alta or completion of the paciente; returns its id and a readable name for the receta's audit row. */
-async function resolverPaciente(ctx: Contexto, input: ImportarRecetaInput["paciente"]): Promise<{ id: string; nombre: string }> {
+/**
+ * Alta or completion of the paciente; returns its id and a readable name for the receta's audit row. The receta's
+ * domicilio, when it brings one, becomes the cliente's (docs/specs/domicilios.md): set at the alta, overwritten on an
+ * existing cliente. Its domicilio de entrega is never touched (ficha only).
+ */
+async function resolverPaciente(ctx: Contexto, input: ImportarRecetaInput["paciente"], domicilio: string | null): Promise<{ id: string; nombre: string }> {
   const { tx, session } = ctx;
   const datos = input.datos;
   const existente = await buscarPacientePorIdentificacion(tx, session.tenantId, datos.cuil, datos.dni);
   if ((existente?.id ?? null) !== input.existenteId) throw new ConflictError(MENSAJE_CAMBIOS_DESDE_LECTURA);
 
   if (!existente) {
-    const alta = await crearPacienteHandler({ tx, session, input: datos });
+    const alta = await crearPacienteHandler({ tx, session, input: { ...datos, domicilio } });
     await auditar(ctx, "paciente", alta.output.id, TipoAccion.CREAR, { valorNuevo: alta.audit!.valorNuevo! });
     return { id: alta.output.id, nombre: `${datos.nombre} ${datos.apellido}` };
   }
@@ -203,6 +215,10 @@ async function resolverPaciente(ctx: Contexto, input: ImportarRecetaInput["pacie
       valorAnterior: Object.fromEntries(Object.keys(escritos).map((campo) => [campo, null])),
       valorNuevo: escritos,
     });
+  }
+  if (domicilio) {
+    const cambio = await actualizarDomicilioPaciente(tx, session.tenantId, existente.id, domicilio);
+    if (cambio) await auditar(ctx, "paciente", existente.id, TipoAccion.MODIFICAR, { valorAnterior: { domicilio: cambio.anterior }, valorNuevo: { domicilio } });
   }
   return { id: existente.id, nombre: `${existente.nombre} ${existente.apellido}` };
 }
@@ -273,7 +289,7 @@ export const importarRecetaCommand = defineCommand({
       throw new ValidationError("Una o más unidades de medida seleccionadas no existen o están dadas de baja.");
     }
 
-    const paciente = await resolverPaciente(ctx, input.paciente);
+    const paciente = await resolverPaciente(ctx, input.paciente, input.domicilioDelDocumento ? input.domicilioPaciente : null);
     const medico = await resolverMedico(ctx, input.medico);
     const nombresBase = await getNombresParaResumen(tx, session.tenantId, drogaIds, unidadIds);
 
@@ -328,6 +344,7 @@ export const importarRecetaCommand = defineCommand({
       diagnosticoCodigo: input.diagnosticoCodigo,
       diagnosticoDescripcion: input.diagnosticoDescripcion,
       domicilioPaciente: input.domicilioPaciente,
+      domicilioEntrega: input.domicilioEntrega,
       pagada: input.pagada,
       emisor: input.emisor,
       nroRecetaEmisor: input.nroRecetaEmisor,
@@ -361,6 +378,7 @@ export const importarRecetaCommand = defineCommand({
         diagnosticoCodigo: input.diagnosticoCodigo,
         diagnosticoDescripcion: input.diagnosticoDescripcion,
         domicilioPaciente: input.domicilioPaciente,
+        domicilioEntrega: input.domicilioEntrega,
         pagada: input.pagada,
         numeroInterno: nueva.numeroInterno,
         items: input.items,

@@ -279,8 +279,8 @@ export interface PersonaExistente {
 }
 
 export interface PacienteVistaPrevia extends Completado<CampoPacienteImportable> {
-  /** `null` -> alta on confirmation. */
-  existente: (PersonaExistente & { dadoDeBaja: boolean }) | null;
+  /** `null` -> alta on confirmation. Its domicilios prefill the receta (docs/specs/domicilios.md). */
+  existente: (PersonaExistente & { dadoDeBaja: boolean; domicilio: string | null; domicilioEntrega: string | null }) | null;
 }
 
 export interface MedicoVistaPrevia extends Completado<CampoMedicoImportable> {

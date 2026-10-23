@@ -4,6 +4,7 @@
 import { crearPacienteAction, editarPacienteAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { DateInput } from "@/shared/ui/date-input";
+import { MAX_DOMICILIO } from "../domain/paciente";
 
 export interface PacienteFormProps {
   mode: "crear" | "editar";
@@ -19,6 +20,8 @@ export interface PacienteFormProps {
     nroCredencial: string | null;
     sexo: string | null;
     aceptaRecordatoriosWhatsapp: boolean;
+    domicilio: string | null;
+    domicilioEntrega: string | null;
   };
   disabled: boolean;
 }
@@ -41,6 +44,8 @@ export function PacienteForm({ mode, paciente, disabled }: PacienteFormProps) {
           <input type="hidden" name="versionNroCredencial" value={paciente.nroCredencial ?? ""} />
           <input type="hidden" name="versionSexo" value={paciente.sexo ?? ""} />
           <input type="hidden" name="versionAceptaRecordatoriosWhatsapp" value={paciente.aceptaRecordatoriosWhatsapp ? "true" : "false"} />
+          <input type="hidden" name="versionDomicilio" value={paciente.domicilio ?? ""} />
+          <input type="hidden" name="versionDomicilioEntrega" value={paciente.domicilioEntrega ?? ""} />
         </>
       ) : null}
 
@@ -98,6 +103,18 @@ export function PacienteForm({ mode, paciente, disabled }: PacienteFormProps) {
             Nº de credencial <span className="font-normal text-zinc-500">(obra social)</span>
           </label>
           <input id="nroCredencial" name="nroCredencial" defaultValue={paciente?.nroCredencial ?? ""} disabled={disabled} autoComplete="off" className="input font-mono" />
+        </div>
+        <div className="field sm:col-span-2">
+          <label htmlFor="domicilio" className="field-label">
+            Domicilio receta <span className="font-normal text-zinc-500">(opcional; se actualiza solo con una receta importada que lo trae)</span>
+          </label>
+          <input id="domicilio" name="domicilio" defaultValue={paciente?.domicilio ?? ""} maxLength={MAX_DOMICILIO} disabled={disabled} autoComplete="off" className="input" />
+        </div>
+        <div className="field sm:col-span-2">
+          <label htmlFor="domicilioEntrega" className="field-label">
+            Domicilio de entrega <span className="font-normal text-zinc-500">(opcional; vacío = domicilio receta)</span>
+          </label>
+          <input id="domicilioEntrega" name="domicilioEntrega" defaultValue={paciente?.domicilioEntrega ?? ""} maxLength={MAX_DOMICILIO} disabled={disabled} autoComplete="off" className="input" />
         </div>
       </div>
 

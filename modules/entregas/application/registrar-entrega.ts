@@ -40,6 +40,7 @@ import {
   validarPagoAlEntregar,
   mensajeRepartidorSegunModalidad,
   resolverDomicilioParaEnvio,
+  domicilioDeEnvio,
   MENSAJE_RETIRO_CON_DOMICILIO,
   validarRepartidorAsignable,
 } from "../domain/entrega";
@@ -112,7 +113,7 @@ export const registrarEntregaCommand = defineCommand({
 
     let domicilioNuevo: string | null = null;
     if (input.modalidad === "ENVIO") {
-      domicilioNuevo = resolverDomicilioParaEnvio(receta.domicilioPaciente, input.domicilio);
+      domicilioNuevo = resolverDomicilioParaEnvio(domicilioDeEnvio(receta.domicilioPaciente, receta.domicilioEntrega), input.domicilio);
       validarRepartidorAsignable(await getRepartidorParaAsignar(tx, session.tenantId, input.repartidorId!));
     }
 
@@ -121,8 +122,9 @@ export const registrarEntregaCommand = defineCommand({
     }
 
     try {
-      // E4: a receta without domicilio gets the typed one (only that column) BEFORE the entrega is inserted. Audited on the
-      // receta's own history, like the payment below.
+      // E4: a receta without domicilio gets the typed one as its domicilio de entrega (only that column, migration 0099;
+      // the domicilio written on the receta is never touched) BEFORE the entrega is inserted. Audited on the receta's own
+      // history, like the payment below.
       if (domicilioNuevo !== null) {
         await actualizarDomicilioReceta(tx, session.tenantId, input.recetaId, domicilioNuevo);
         await auditRecord(tx, {
@@ -131,8 +133,8 @@ export const registrarEntregaCommand = defineCommand({
           entidad: "receta",
           entidadId: input.recetaId,
           accion: TipoAccion.MODIFICAR,
-          valorAnterior: { domicilioPaciente: receta.domicilioPaciente },
-          valorNuevo: { domicilioPaciente: domicilioNuevo },
+          valorAnterior: { domicilioEntrega: receta.domicilioEntrega },
+          valorNuevo: { domicilioEntrega: domicilioNuevo },
           contexto: { origen: "entrega" },
         });
       }

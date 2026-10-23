@@ -13,7 +13,7 @@ import { defineCommand, TipoAccion } from "@/shared/usecase";
 import type { CommandHandlerArgs, CommandHandlerResult } from "@/shared/usecase";
 import { ValidationError } from "@/shared/errors";
 import { nonEmptyString } from "@/shared/validation";
-import { cuilOpcional, dniOpcional } from "../domain/paciente";
+import { cuilOpcional, dniOpcional, domicilioOpcional } from "../domain/paciente";
 import { existeCuil, insertPaciente } from "../infrastructure/paciente-repository";
 
 const textoOpcional = z
@@ -46,6 +46,8 @@ export const crearPacienteInput = z.object({
   fechaNacimiento: fechaOpcional,
   nroCredencial: textoOpcional,
   sexo: textoOpcional,
+  /** The cliente's domicilio (docs/specs/domicilios.md): the receta import sends the one the document brings. */
+  domicilio: domicilioOpcional,
 });
 
 export type CrearPacienteInput = z.infer<typeof crearPacienteInput>;
@@ -63,6 +65,8 @@ export type CrearPacienteWireInput = z.input<typeof crearPacienteInput>;
  */
 export const crearPacienteConConsentimientoInput = crearPacienteInput.extend({
   aceptaRecordatoriosWhatsapp: z.boolean().default(false),
+  /** The domicilio de entrega is loaded from the ficha only (docs/specs/domicilios.md): the receta flow never sets it. */
+  domicilioEntrega: domicilioOpcional,
 });
 
 export type CrearPacienteConConsentimientoInput = z.infer<typeof crearPacienteConConsentimientoInput>;
@@ -74,12 +78,13 @@ export type CrearPacienteConConsentimientoWireInput = z.input<typeof crearPacien
  * created from the receta flow starts without it (`false`).
  */
 export async function crearPacienteHandler(args: CommandHandlerArgs<CrearPacienteInput>): Promise<CommandHandlerResult<{ id: string }>> {
-  return crearPacienteConConsentimiento(args, false);
+  return crearPacienteConConsentimiento(args, false, null);
 }
 
 async function crearPacienteConConsentimiento(
   { tx, session, input }: CommandHandlerArgs<CrearPacienteInput>,
   aceptaRecordatoriosWhatsapp: boolean,
+  domicilioEntrega: string | null,
 ): Promise<CommandHandlerResult<{ id: string }>> {
   if (input.cuil && (await existeCuil(tx, session.tenantId, input.cuil))) {
     throw new ValidationError("Ya existe un paciente con ese CUIL.");
@@ -97,6 +102,8 @@ async function crearPacienteConConsentimiento(
     nroCredencial: input.nroCredencial,
     sexo: input.sexo,
     aceptaRecordatoriosWhatsapp,
+    domicilio: input.domicilio ?? null,
+    domicilioEntrega,
   });
 
   return {
@@ -114,6 +121,8 @@ async function crearPacienteConConsentimiento(
         nroCredencial: input.nroCredencial,
         sexo: input.sexo,
         aceptaRecordatoriosWhatsapp,
+        domicilio: input.domicilio ?? null,
+        domicilioEntrega,
       },
     },
   };
@@ -124,7 +133,7 @@ export const crearPacienteCommand = defineCommand({
   permiso: "pacientes.gestionar",
   input: crearPacienteConConsentimientoInput,
   audit: { entidad: "paciente", accion: TipoAccion.CREAR },
-  handler: (args) => crearPacienteConConsentimiento(args, args.input.aceptaRecordatoriosWhatsapp),
+  handler: (args) => crearPacienteConConsentimiento(args, args.input.aceptaRecordatoriosWhatsapp, args.input.domicilioEntrega ?? null),
 });
 
 export async function crearPaciente(input: CrearPacienteConConsentimientoWireInput): Promise<{ id: string }> {

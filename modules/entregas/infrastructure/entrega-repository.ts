@@ -16,7 +16,7 @@ import type { FormaFarmaceutica } from "@/generated/prisma/enums";
 import type { EstadoReceta } from "@/modules/recetas/domain/receta";
 import { FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
 import { rangoDeJornadas } from "@/shared/time/jornada";
-import { calcularItemsEntregables } from "../domain/entrega";
+import { calcularItemsEntregables, domicilioDeEnvio } from "../domain/entrega";
 import type { ModalidadEntrega, ItemParaEntrega } from "../domain/entrega";
 import { parseDiasRetiroVencido } from "../domain/retiro-vencido";
 import type { PreparadoConVencimiento } from "../domain/retiro-vencido";
@@ -65,14 +65,15 @@ export interface RecetaParaEntrega {
   estado: EstadoReceta;
   /** Migration 0071 -- whether the receta is already paid. ENTREGADA requires it (INV-R14, migration 0076); only an ENVIO may leave unpaid. */
   pagada: boolean;
-  /** `receta.domicilio_paciente` (migration 0070): where an ENVIO goes (docs/specs/envios-repartidores.md E4). */
+  /** `receta.domicilio_paciente` (migration 0070) and `domicilio_entrega` (0099): an ENVIO goes to `domicilioDeEnvio` of both (E4). */
   domicilioPaciente: string | null;
+  domicilioEntrega: string | null;
 }
 
 export async function getRecetaParaEntrega(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<RecetaParaEntrega | null> {
   return tx.receta.findUnique({
     where: { id, tenantId },
-    select: { id: true, estado: true, pagada: true, domicilioPaciente: true },
+    select: { id: true, estado: true, pagada: true, domicilioPaciente: true, domicilioEntrega: true },
   }) as Promise<RecetaParaEntrega | null>;
 }
 
@@ -115,7 +116,7 @@ export async function marcarRecetaPagada(tx: Prisma.TransactionClient, tenantId:
  * holds UPDATE on that column (migration 0070) and no trigger restricts it by estado.
  */
 export async function actualizarDomicilioReceta(tx: Prisma.TransactionClient, tenantId: string, id: string, domicilio: string): Promise<void> {
-  await tx.receta.update({ where: { id, tenantId }, data: { domicilioPaciente: domicilio } });
+  await tx.receta.update({ where: { id, tenantId }, data: { domicilioEntrega: domicilio } });
 }
 
 /** Clears the receta's payment flag, the three columns together (receta_pagada_check). Only for a receta that is no longer ENTREGADA (INV-R14). */
@@ -493,7 +494,7 @@ export interface EnvioDeRepartidor {
   pacienteNombre: string;
   pacienteDni: string | null;
   pacienteTelefono: string | null;
-  /** `receta.domicilio_paciente` as it is now (not frozen at the envío). */
+  /** `domicilioDeEnvio` of the receta as it is now (not frozen at the envío). */
   domicilio: string | null;
   pagada: boolean;
   /** Ítems entregables (`calcularItemsEntregables`): the ones whose asiento is still VIGENTE; the excluded ones are not delivered. */
@@ -535,6 +536,7 @@ export async function listEnviosDeRepartidor(tx: Prisma.TransactionClient, filte
       id: true,
       numeroInterno: true,
       domicilioPaciente: true,
+      domicilioEntrega: true,
       pagada: true,
       paciente: { select: { apellido: true, nombre: true, dni: true, telefono: true } },
       entrega: { select: { entregadaEn: true } },
@@ -556,7 +558,7 @@ export async function listEnviosDeRepartidor(tx: Prisma.TransactionClient, filte
             pacienteNombre: r.paciente.nombre,
             pacienteDni: r.paciente.dni,
             pacienteTelefono: r.paciente.telefono,
-            domicilio: r.domicilioPaciente,
+            domicilio: domicilioDeEnvio(r.domicilioPaciente, r.domicilioEntrega),
             pagada: r.pagada,
             itemsPreparados: calcularItemsEntregables(itemsPorReceta.get(r.id) ?? []).entregables.length,
             precio: precios.get(r.id)?.precio ?? null,

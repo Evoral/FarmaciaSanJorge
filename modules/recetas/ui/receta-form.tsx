@@ -44,7 +44,7 @@ import Link from "next/link";
 import { AlertCircle, Plus, RotateCcw, Save, Trash2, TriangleAlert } from "lucide-react";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { RecordarSinonimoSwitch } from "@/shared/ui/recordar-sinonimo-switch";
-import { crearRecetaAction, editarRecetaAction, importarRecetaAction } from "./actions";
+import { crearRecetaAction, domiciliosPacienteParaRecetaAction, editarRecetaAction, importarRecetaAction } from "./actions";
 import { IDLE_STATE } from "./action-state";
 import type { RecetaActionState } from "./action-state";
 import { PacientePicker } from "./paciente-picker";
@@ -249,6 +249,8 @@ export interface RecetaFormInicial {
   diagnosticoCodigo: string;
   diagnosticoDescripcion: string;
   domicilioPaciente: string;
+  /** Migration 0099: "" = the envío goes to `domicilioPaciente`. */
+  domicilioEntrega: string;
   pagada: boolean;
   items: ItemState[];
 }
@@ -344,7 +346,11 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   const [diagnosticoCodigo, setDiagnosticoCodigo] = useState(borrador?.diagnosticoCodigo ?? inicial?.diagnosticoCodigo ?? "");
   const [diagnosticoDescripcion, setDiagnosticoDescripcion] = useState(borrador?.diagnosticoDescripcion ?? inicial?.diagnosticoDescripcion ?? "");
   // Stored on the receta, not on the paciente (migration 0070); the PDF import prefills it.
-  const [domicilioPaciente, setDomicilioPaciente] = useState(borrador?.domicilioPaciente ?? inicial?.domicilioPaciente ?? "");
+  const [domicilioPaciente, setDomicilioPaciente] = useState(borrador?.domicilioPaciente ?? importacion?.paciente.existente?.domicilio ?? inicial?.domicilioPaciente ?? "");
+  // Migration 0099 (docs/specs/domicilios.md): where the envío goes, "" = the domicilio above. Prefilled from the
+  // cliente: the imported one matched by the preview, or the one picked in the manual alta (`elegirPaciente`).
+  const [domicilioEntrega, setDomicilioEntrega] = useState(importacion?.paciente.existente?.domicilioEntrega ?? inicial?.domicilioEntrega ?? "");
+  const pacienteElegidoRef = useRef<string | null>(null);
   // Migration 0071: `crear` / `importar` create the receta already paid; `editar` can mark a payment forgotten at the alta.
   const [pagada, setPagada] = useState(inicial?.pagada ?? false);
   // Manual alta is always PRESENCIAL; an edit keeps the receta's own origen (domain/receta.ts's validarOrigenCargaManual);
@@ -376,6 +382,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   const diagnosticoCodigoId = useId();
   const diagnosticoDescripcionId = useId();
   const domicilioPacienteId = useId();
+  const domicilioEntregaId = useId();
 
   useEffect(() => {
     if (state.status === "success" && state.id) {
@@ -394,7 +401,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   const encabezadoSinGuardar =
     guardadosJson !== null &&
     !!inicial &&
-    (pacienteId !== inicial.pacienteId || medicoId !== inicial.medicoId || fechaPrescripcion !== inicial.fechaPrescripcion || diagnosticoCodigo !== inicial.diagnosticoCodigo || diagnosticoDescripcion !== inicial.diagnosticoDescripcion || domicilioPaciente !== inicial.domicilioPaciente || pagada !== inicial.pagada || (conValidaDesde ? fechaValidaDesde : "") !== inicial.fechaValidaDesde);
+    (pacienteId !== inicial.pacienteId || medicoId !== inicial.medicoId || fechaPrescripcion !== inicial.fechaPrescripcion || diagnosticoCodigo !== inicial.diagnosticoCodigo || diagnosticoDescripcion !== inicial.diagnosticoDescripcion || domicilioPaciente !== inicial.domicilioPaciente || domicilioEntrega !== inicial.domicilioEntrega || pagada !== inicial.pagada || (conValidaDesde ? fechaValidaDesde : "") !== inicial.fechaValidaDesde);
 
   // The embedding screen's callback may change identity on every render: only the draft's changes publish it.
   const onBorradorChangeRef = useRef(onBorradorChange);
@@ -448,6 +455,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
     setDiagnosticoCodigo(inicial.diagnosticoCodigo);
     setDiagnosticoDescripcion(inicial.diagnosticoDescripcion);
     setDomicilioPaciente(inicial.domicilioPaciente);
+    setDomicilioEntrega(inicial.domicilioEntrega);
     setClientError(null);
     setErrorDescartado(state);
   }
@@ -467,6 +475,9 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
       diagnosticoCodigo,
       diagnosticoDescripcion,
       domicilioPaciente,
+      domicilioEntrega,
+      // Only the document's own domicilio, unchanged, updates the cliente (docs/specs/domicilios.md).
+      domicilioDelDocumento: !!b.domicilioPaciente && domicilioPaciente.trim() === b.domicilioPaciente.trim(),
       pagada,
       paciente: {
         existenteId: paciente.existente?.id ?? null,
@@ -563,11 +574,28 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   const mostrarPrecio = puedePresupuestar;
   const errorVisible = clientError ?? (state.status === "error" && state !== errorDescartado ? state.message : null);
 
+  /**
+   * A cliente picked in the alta/edit shows its own domicilios (docs/specs/domicilios.md); one it does not have keeps
+   * what was typed. The last pick wins if two lookups overlap. Typing a domicilio here never changes the cliente.
+   */
+  function elegirPaciente(id: string, label: string) {
+    const cambio = id !== pacienteId;
+    setPacienteId(id);
+    setPacienteLabel(label);
+    if (!cambio || !id) return;
+    pacienteElegidoRef.current = id;
+    void domiciliosPacienteParaRecetaAction(id).then((domicilios) => {
+      if (!domicilios || pacienteElegidoRef.current !== id) return;
+      if (domicilios.domicilio) setDomicilioPaciente(domicilios.domicilio);
+      if (domicilios.domicilioEntrega) setDomicilioEntrega(domicilios.domicilioEntrega);
+    });
+  }
+
   // Next to the paciente: the picker (crear/editar) or the imported paciente's panel (importar).
   const campoDomicilioPaciente = (
     <div className="field">
       <label htmlFor={domicilioPacienteId} className="field-label">
-        Domicilio del paciente
+        Domicilio receta
       </label>
       <input
         id={domicilioPacienteId}
@@ -576,6 +604,24 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
         onChange={(e) => setDomicilioPaciente(e.target.value)}
         disabled={disabled}
         placeholder="Opcional"
+        maxLength={MAX_DOMICILIO_PACIENTE}
+        autoComplete="off"
+        className="input w-full"
+      />
+    </div>
+  );
+  const campoDomicilioEntrega = (
+    <div className="field">
+      <label htmlFor={domicilioEntregaId} className="field-label">
+        Domicilio de entrega <span className="font-normal text-zinc-500">(opcional)</span>
+      </label>
+      <input
+        id={domicilioEntregaId}
+        name="domicilioEntrega"
+        value={domicilioEntrega}
+        onChange={(e) => setDomicilioEntrega(e.target.value)}
+        disabled={disabled}
+        placeholder="Vacío = domicilio receta"
         maxLength={MAX_DOMICILIO_PACIENTE}
         autoComplete="off"
         className="input w-full"
@@ -604,6 +650,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
           <input type="hidden" name="versionDiagnosticoCodigo" value={inicial.diagnosticoCodigo} />
           <input type="hidden" name="versionDiagnosticoDescripcion" value={inicial.diagnosticoDescripcion} />
           <input type="hidden" name="versionDomicilioPaciente" value={inicial.domicilioPaciente} />
+          <input type="hidden" name="versionDomicilioEntrega" value={inicial.domicilioEntrega} />
           <input type="hidden" name="itemsVersionJson" value={JSON.stringify(inicial.items.filter((i) => i.id).map((i) => i.id))} />
         </>
       ) : null}
@@ -615,6 +662,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
           <input type="hidden" name="diagnosticoCodigo" value={diagnosticoCodigo} />
           <input type="hidden" name="diagnosticoDescripcion" value={diagnosticoDescripcion} />
           <input type="hidden" name="domicilioPaciente" value={domicilioPaciente} />
+          <input type="hidden" name="domicilioEntrega" value={domicilioEntrega} />
         </>
       ) : null}
 
@@ -663,7 +711,10 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                   </div>
                 </>
               )}
-              <div className="mt-3">{campoDomicilioPaciente}</div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {campoDomicilioPaciente}
+                {campoDomicilioEntrega}
+              </div>
             </PanelPersona>
             <PanelPersona
               titulo="Médico"
@@ -727,10 +778,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
               <PacientePicker
                 selectedId={pacienteId}
                 selectedLabel={pacienteLabel}
-                onSelect={(id, label) => {
-                  setPacienteId(id);
-                  setPacienteLabel(label);
-                }}
+                onSelect={elegirPaciente}
                 disabled={disabled}
               />
               <MedicoPicker
@@ -743,6 +791,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                 disabled={disabled}
               />
               {campoDomicilioPaciente}
+              {campoDomicilioEntrega}
             </div>
           </FormSection>
         )}

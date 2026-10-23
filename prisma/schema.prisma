@@ -765,6 +765,10 @@ model Paciente {
   motivoBaja                  String?   @map("motivo_baja")
   /// Migration 0055 (docs/specs/pacientes-recurrentes.md): opt-in for WhatsApp reminders. Default false = no consent assumed. Column-level UPDATE grant for fsj_app.
   aceptaRecordatoriosWhatsapp Boolean   @default(false) @map("acepta_recordatorios_whatsapp")
+  /// Migration 0099 (docs/specs/domicilios.md): updated by an imported receta that brings one, or from the ficha.
+  domicilio                   String?
+  /// Migration 0099: where the envíos go, ficha only. NULL = same as `domicilio`.
+  domicilioEntrega            String?   @map("domicilio_entrega")
 
   recetas Receta[]
 
@@ -930,6 +934,8 @@ model Receta {
   diagnosticoDescripcion String?      @map("diagnostico_descripcion")
   /// Migration 0070 (docs/specs/importacion-receta-pdf.md). The patient's home address as written on THIS receta (free text, optional) -- kept per receta, not on the paciente: the address at prescription time is what matters for a claim.
   domicilioPaciente      String?      @map("domicilio_paciente")
+  /// Migration 0099 (docs/specs/domicilios.md): envío address of this receta. NULL = same as `domicilioPaciente`.
+  domicilioEntrega       String?      @map("domicilio_entrega")
   /// Migration 0057: the lab's "toma" -- who took the receta from the /preparaciones queue and when. Both set or both null (receta_toma_pair_check); cleared by "Cancelar toma". Partial index idx_receta_tenant_tomada_en_curso (not expressible here).
   tomadaPorId            String?      @map("tomada_por_id") @db.Uuid
   tomadaEn               DateTime?    @map("tomada_en") @db.Timestamptz(6)

@@ -101,7 +101,7 @@ Reglas del ítem:
 
 > Decisión del usuario (2026-10-07): el primer renglón `- …` del cuerpo RCTA es el domicilio del paciente (antes se descartaba como "significado desconocido").
 
-- Se guarda **por receta** (`receta.domicilio_paciente`, migración 0070), **no** en el paciente: para un reclamo importa el domicilio a la fecha de la receta. Nunca se usa para el match ni para completar datos del paciente.
+- Se guarda **por receta** (`receta.domicilio_paciente`, migración 0070): para un reclamo importa el domicilio a la fecha de la receta. Nunca se usa para el match. **Actualizado (2026-10-23, `docs/specs/domicilios.md` D3):** si se confirma sin cambios, además actualiza el domicilio del cliente (`paciente.domicilio`, migración 0099).
 - Opcional, texto libre: se recorta, vacío → `NULL`, máximo 300 caracteres (el parser trunca a ese largo).
 - El formulario lo precarga y el usuario puede corregirlo o borrarlo antes de confirmar. La carga manual y la edición también lo aceptan (campo "Domicilio del paciente", junto al paciente). El detalle de la receta y el puesto de toma de `/preparaciones` lo muestran bajo el paciente. Excepción a "solo editable en `PENDIENTE_PREPARACION`": al registrar un envío de una receta `PREPARADA` sin domicilio, `registrarEntrega` lo guarda (`docs/specs/envios-repartidores.md` E4).
 - QR (`docs/specs/importacion-receta-qr.md`, "Renglones del cuerpo"): el JSON de RCTA no trae un campo de domicilio; se toma del primer renglón inicial del primer ítem, **con o sin guion** (el JSON no lo trae), con la misma normalización (`domicilioDesdeRenglon`, compartida).

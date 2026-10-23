@@ -28,7 +28,7 @@ export interface EntregaAccionesProps {
   pagada: boolean;
   itemsExcluidos: number;
   /** `receta.domicilio_paciente`: where an envío goes (docs/specs/envios-repartidores.md E4). */
-  domicilioPaciente: string | null;
+  domicilioEnvio: string | null;
   /** The entrega's repartidor; null for a retiro or an envío registered before migration 0093 (E7). */
   repartidor: RepartidorAsignado | null;
   /** The tenant has at least one active repartidor to assign. */
@@ -48,7 +48,7 @@ export function EntregaAcciones({
   estado,
   pagada,
   itemsExcluidos,
-  domicilioPaciente,
+  domicilioEnvio,
   repartidor,
   hayRepartidoresActivos,
   puedeGestionarRepartidores,
@@ -107,7 +107,7 @@ export function EntregaAcciones({
           action={registrar}
           recetaId={recetaId}
           pagada={pagada}
-          domicilioPaciente={domicilioPaciente}
+          domicilioEnvio={domicilioEnvio}
           hayRepartidoresActivos={hayRepartidoresActivos}
           puedeGestionarRepartidores={puedeGestionarRepartidores}
           onSuccess={cerrar}
@@ -121,7 +121,7 @@ export function EntregaAcciones({
       <div className="flex flex-col gap-4">
         <EnvioPendiente
           recetaId={recetaId}
-          domicilioPaciente={domicilioPaciente}
+          domicilioEnvio={domicilioEnvio}
           repartidor={repartidor}
           puedeCambiar={puedeRegistrar && puedeCambiarRepartidor(estado)}
           hayRepartidoresActivos={hayRepartidoresActivos}

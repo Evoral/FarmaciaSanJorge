@@ -12,7 +12,7 @@ import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { ConflictError, NotFoundError, ValidationError } from "@/shared/errors";
 import { nonEmptyString, uuid } from "@/shared/validation";
-import { cuilOpcional, dniOpcional } from "../domain/paciente";
+import { cuilOpcional, dniOpcional, domicilioOpcional } from "../domain/paciente";
 import { existeCuil, getPacienteParaAccion, lockPacienteParaAccion, updatePacienteDatos } from "../infrastructure/paciente-repository";
 import type { PacienteParaAccion } from "../infrastructure/paciente-repository";
 
@@ -49,6 +49,8 @@ const editarPacienteInput = z.object({
   sexo: textoOpcional,
   /** Required (no default): an omitted value must never silently revoke an existing consent. */
   aceptaRecordatoriosWhatsapp: z.boolean(),
+  domicilio: domicilioOpcional,
+  domicilioEntrega: domicilioOpcional,
   version: z.object({
     nombre: z.string(),
     apellido: z.string(),
@@ -60,6 +62,9 @@ const editarPacienteInput = z.object({
     nroCredencial: z.string().nullable(),
     sexo: z.string().nullable(),
     aceptaRecordatoriosWhatsapp: z.boolean(),
+    // Migration 0099: defaulted like the receta's version fields, so a client that predates them still compares.
+    domicilio: z.string().nullable().default(null),
+    domicilioEntrega: z.string().nullable().default(null),
   }),
 });
 
@@ -85,7 +90,9 @@ function versionMatches(actual: PacienteParaAccion, version: EditarPacienteInput
     fechaToISODate(actual.fechaNacimiento) === version.fechaNacimiento &&
     actual.nroCredencial === version.nroCredencial &&
     actual.sexo === version.sexo &&
-    actual.aceptaRecordatoriosWhatsapp === version.aceptaRecordatoriosWhatsapp
+    actual.aceptaRecordatoriosWhatsapp === version.aceptaRecordatoriosWhatsapp &&
+    (actual.domicilio ?? null) === version.domicilio &&
+    (actual.domicilioEntrega ?? null) === version.domicilioEntrega
   );
 }
 
@@ -124,6 +131,8 @@ export const editarPacienteCommand = defineCommand({
       nroCredencial: input.nroCredencial,
       sexo: input.sexo,
       aceptaRecordatoriosWhatsapp: input.aceptaRecordatoriosWhatsapp,
+      domicilio: input.domicilio ?? null,
+      domicilioEntrega: input.domicilioEntrega ?? null,
     };
     const valorAnterior = {
       nombre: actual.nombre,
@@ -136,6 +145,8 @@ export const editarPacienteCommand = defineCommand({
       nroCredencial: actual.nroCredencial,
       sexo: actual.sexo,
       aceptaRecordatoriosWhatsapp: actual.aceptaRecordatoriosWhatsapp,
+      domicilio: actual.domicilio,
+      domicilioEntrega: actual.domicilioEntrega,
     };
 
     const updated = await updatePacienteDatos(tx, session.tenantId, { id: input.id, ...nuevoValor }, valorAnterior);

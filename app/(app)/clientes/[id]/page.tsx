@@ -84,6 +84,8 @@ export default async function PacienteDetallePage({ params }: PacienteDetallePag
                 nroCredencial: paciente.nroCredencial,
                 sexo: paciente.sexo,
                 aceptaRecordatoriosWhatsapp: paciente.aceptaRecordatoriosWhatsapp,
+                domicilio: paciente.domicilio,
+                domicilioEntrega: paciente.domicilioEntrega,
               }}
               disabled={!puedeGestionar}
             />

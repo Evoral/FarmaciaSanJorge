@@ -114,6 +114,7 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
                   <p className="text-xs text-zinc-500">Paciente</p>
                   <p className="truncate font-medium text-zinc-900">{paciente}</p>
                   {receta.domicilioPaciente ? <p className="text-xs text-zinc-500">Domicilio: {receta.domicilioPaciente}</p> : null}
+                  {receta.domicilioEntrega && receta.domicilioEntrega !== receta.domicilioPaciente ? <p className="text-xs text-zinc-500">Entrega: {receta.domicilioEntrega}</p> : null}
                 </div>
               </div>
               <div className="person-block">

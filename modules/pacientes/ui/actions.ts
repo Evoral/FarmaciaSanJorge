@@ -48,6 +48,8 @@ export async function crearPacienteAction(_prevState: PacienteActionState, formD
       nroCredencial: optional(formData, "nroCredencial"),
       sexo: optional(formData, "sexo"),
       aceptaRecordatoriosWhatsapp: checkbox(formData, "aceptaRecordatoriosWhatsapp"),
+      domicilio: optional(formData, "domicilio"),
+      domicilioEntrega: optional(formData, "domicilioEntrega"),
     });
     revalidatePath("/clientes");
     return { status: "success", message: "Cliente creado." };
@@ -70,6 +72,8 @@ export async function editarPacienteAction(_prevState: PacienteActionState, form
       nroCredencial: optional(formData, "nroCredencial"),
       sexo: optional(formData, "sexo"),
       aceptaRecordatoriosWhatsapp: checkbox(formData, "aceptaRecordatoriosWhatsapp"),
+      domicilio: optional(formData, "domicilio"),
+      domicilioEntrega: optional(formData, "domicilioEntrega"),
       version: {
         nombre: String(formData.get("versionNombre") ?? ""),
         apellido: String(formData.get("versionApellido") ?? ""),
@@ -81,6 +85,8 @@ export async function editarPacienteAction(_prevState: PacienteActionState, form
         nroCredencial: optionalOrNull(formData, "versionNroCredencial"),
         sexo: optionalOrNull(formData, "versionSexo"),
         aceptaRecordatoriosWhatsapp: versionBoolean(formData, "versionAceptaRecordatoriosWhatsapp"),
+        domicilio: optionalOrNull(formData, "versionDomicilio"),
+        domicilioEntrega: optionalOrNull(formData, "versionDomicilioEntrega"),
       },
     });
     revalidatePath("/clientes");

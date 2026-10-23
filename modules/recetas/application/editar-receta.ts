@@ -89,6 +89,7 @@ const editarRecetaInput = crearRecetaInput.omit({ pagada: true }).extend({
     diagnosticoCodigo: z.string().nullable().default(null),
     diagnosticoDescripcion: z.string().nullable().default(null),
     domicilioPaciente: z.string().nullable().default(null),
+    domicilioEntrega: z.string().nullable().default(null),
   }),
   /** ids of the items the client started editing from (existing items only) -- see module doc comment. */
   itemsVersion: z.array(uuid),
@@ -157,7 +158,8 @@ export const editarRecetaCommand = defineCommand({
       actual.origen === input.version.origen &&
       actual.diagnosticoCodigo === input.version.diagnosticoCodigo &&
       actual.diagnosticoDescripcion === input.version.diagnosticoDescripcion &&
-      actual.domicilioPaciente === input.version.domicilioPaciente;
+      actual.domicilioPaciente === input.version.domicilioPaciente &&
+      (actual.domicilioEntrega ?? null) === input.version.domicilioEntrega;
     if (!versionMatches) {
       throw new ConflictError(CONCURRENCY_MESSAGE);
     }
@@ -241,6 +243,7 @@ export const editarRecetaCommand = defineCommand({
         diagnosticoCodigo: input.diagnosticoCodigo,
         diagnosticoDescripcion: input.diagnosticoDescripcion,
         domicilioPaciente: input.domicilioPaciente,
+        domicilioEntrega: input.domicilioEntrega,
       },
       input.version,
     );
@@ -298,6 +301,7 @@ export const editarRecetaCommand = defineCommand({
           diagnosticoCodigo: actual.diagnosticoCodigo,
           diagnosticoDescripcion: actual.diagnosticoDescripcion,
           domicilioPaciente: actual.domicilioPaciente,
+          domicilioEntrega: actual.domicilioEntrega,
         },
         valorNuevo: {
           pacienteId: input.pacienteId,
@@ -310,6 +314,7 @@ export const editarRecetaCommand = defineCommand({
           diagnosticoCodigo: input.diagnosticoCodigo,
           diagnosticoDescripcion: input.diagnosticoDescripcion,
           domicilioPaciente: input.domicilioPaciente,
+          domicilioEntrega: input.domicilioEntrega,
           items: input.items,
           itemsResumen: resumirItemsReceta(itemsDominio, nombres),
         },

@@ -27,6 +27,7 @@ import { marcarPagoReceta } from "@/modules/recetas/application/marcar-pago-rece
 import { listDrogasParaReceta } from "@/modules/recetas/application/list-drogas-para-receta";
 import type { DrogaOpcion } from "@/modules/recetas/application/list-drogas-para-receta";
 import { listPacientes } from "@/modules/pacientes/application/list-pacientes";
+import { getPaciente } from "@/modules/pacientes/application/get-paciente";
 import { crearPacienteDesdeReceta } from "@/modules/pacientes/application/crear-paciente-desde-receta";
 import { listMedicos } from "@/modules/medicos/application/list-medicos";
 import { crearMedicoDesdeReceta } from "@/modules/medicos/application/crear-medico-desde-receta";
@@ -60,6 +61,7 @@ export async function crearRecetaAction(_prevState: RecetaActionState, formData:
         diagnosticoCodigo: String(formData.get("diagnosticoCodigo") ?? ""),
         diagnosticoDescripcion: String(formData.get("diagnosticoDescripcion") ?? ""),
         domicilioPaciente: String(formData.get("domicilioPaciente") ?? ""),
+        domicilioEntrega: String(formData.get("domicilioEntrega") ?? ""),
         pagada: formData.get("pagada") === "on",
         items,
       });
@@ -90,6 +92,7 @@ export async function editarRecetaAction(_prevState: RecetaActionState, formData
         diagnosticoCodigo: String(formData.get("diagnosticoCodigo") ?? ""),
         diagnosticoDescripcion: String(formData.get("diagnosticoDescripcion") ?? ""),
         domicilioPaciente: String(formData.get("domicilioPaciente") ?? ""),
+        domicilioEntrega: String(formData.get("domicilioEntrega") ?? ""),
         // Absent when the form has no payment switch (the toma workspace): the payment is left untouched.
         pagada: formData.has("pagada") ? formData.get("pagada") === "true" : undefined,
         items,
@@ -103,6 +106,7 @@ export async function editarRecetaAction(_prevState: RecetaActionState, formData
           diagnosticoCodigo: formData.get("versionDiagnosticoCodigo") ? String(formData.get("versionDiagnosticoCodigo")) : null,
           diagnosticoDescripcion: formData.get("versionDiagnosticoDescripcion") ? String(formData.get("versionDiagnosticoDescripcion")) : null,
           domicilioPaciente: formData.get("versionDomicilioPaciente") ? String(formData.get("versionDomicilioPaciente")) : null,
+          domicilioEntrega: formData.get("versionDomicilioEntrega") ? String(formData.get("versionDomicilioEntrega")) : null,
         },
       });
       revalidatePath("/recetas");
@@ -225,6 +229,21 @@ export async function buscarPacientesParaRecetaAction(prevState: BuscarPersonaSt
   } catch (error) {
     const message = actionErrorMessage(error, "No se pudo buscar pacientes.");
     return { status: "error", message, items: prevState.items };
+  }
+}
+
+/**
+ * The picked cliente's domicilios, to prefill the receta (docs/specs/domicilios.md). Same use case and permiso as the
+ * cliente's ficha (`getPaciente`, `pacientes.gestionar`, like the search above); POST only, never a URL (DP-24).
+ * `null` when it cannot be read: the receta form then just keeps what was typed.
+ */
+export async function domiciliosPacienteParaRecetaAction(id: string): Promise<{ domicilio: string | null; domicilioEntrega: string | null } | null> {
+  try {
+    const paciente = await getPaciente(id);
+    return paciente ? { domicilio: paciente.domicilio, domicilioEntrega: paciente.domicilioEntrega } : null;
+  } catch (error) {
+    actionErrorMessage(error, "No se pudieron leer los domicilios del cliente.");
+    return null;
   }
 }
 

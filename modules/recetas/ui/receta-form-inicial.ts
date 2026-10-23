@@ -18,6 +18,7 @@ export function inicialDesdeReceta(receta: RecetaDetalle): RecetaFormInicial {
     diagnosticoCodigo: receta.diagnosticoCodigo ?? "",
     diagnosticoDescripcion: receta.diagnosticoDescripcion ?? "",
     domicilioPaciente: receta.domicilioPaciente ?? "",
+    domicilioEntrega: receta.domicilioEntrega ?? "",
     pagada: receta.pagada,
     items: receta.items.map((item) => ({
       id: item.id,

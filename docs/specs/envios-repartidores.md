@@ -5,6 +5,7 @@
 > - Los repartidores son un **catálogo propio** (no son usuarios del sistema, no se loguean).
 > - Un envío lleva **un solo** repartidor, elegido con un autocomplete que muestra nombre, apellido y teléfono.
 > - El domicilio de entrega es **el de la receta** (`receta.domicilio_paciente`). Si la receta no lo tiene, quien registra el envío lo escribe en el modal y se guarda en la receta (decisión del 2026-10-20, ver E4).
+> - **Actualizado (2026-10-23, migración 0099, `docs/specs/domicilios.md`):** el envío va a `receta.domicilio_entrega` o, si está vacío, a `receta.domicilio_paciente` (`domicilioDeEnvio`). Lo que se escribe en el modal se guarda en `receta.domicilio_entrega`; `domicilio_paciente` ya no se toca desde una entrega. Donde abajo dice `domicilio_paciente` como destino del envío, léase ese domicilio efectivo.
 > - El repartidor de un envío pendiente de firma **se puede cambiar**.
 > - "Exportar envíos" genera el PDF **de un repartidor**: los envíos pendientes que tiene asignados, para dárselo y que sepa a dónde ir. Filtros: repartidor (obligatorio) y fecha de envío (por defecto hoy; vacía = todos sus pendientes).
 

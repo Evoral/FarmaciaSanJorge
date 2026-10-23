@@ -16,7 +16,7 @@ import { defineQuery } from "@/shared/usecase";
 import { NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { listDtParaCoFirmaEnTx } from "@/modules/stock/application/list-dt-para-co-firma";
-import { calcularItemsEntregables } from "../domain/entrega";
+import { calcularItemsEntregables, domicilioDeEnvio } from "../domain/entrega";
 import { jornadaVencimientoRetiro, preparadosVencidos, puedeReactivar } from "../domain/retiro-vencido";
 import type { PreparadoVencido } from "../domain/retiro-vencido";
 import {
@@ -68,8 +68,8 @@ export interface EntregaEstado {
   itemsEntregables: number;
   itemsExcluidos: number;
   entrega: EntregaRow | null;
-  /** `receta.domicilio_paciente`: the address of an envío (docs/specs/envios-repartidores.md E4); null/blank when the receta has none. */
-  domicilioPaciente: string | null;
+  /** Where an envío goes: `domicilioDeEnvio` of the receta (E4, docs/specs/domicilios.md); null when the receta has none. */
+  domicilioEnvio: string | null;
   /** The entrega's repartidor (E5/E7); null for a retiro, for an envío registered before migration 0093, or when there is no entrega. */
   repartidor: RepartidorDeEntrega | null;
   /** The tenant has at least one active repartidor to assign to a new envío or to a change (E3). */
@@ -97,7 +97,7 @@ export const getEntregaEstadoQuery = defineQuery({
       itemsEntregables: entregables.length,
       itemsExcluidos: excluidos.length,
       entrega,
-      domicilioPaciente: receta.domicilioPaciente,
+      domicilioEnvio: domicilioDeEnvio(receta.domicilioPaciente, receta.domicilioEntrega),
       repartidor: entrega?.repartidorId ? await getRepartidorDeEntrega(tx, session.tenantId, entrega.repartidorId) : null,
       hayRepartidoresActivos: await hayRepartidoresActivos(tx, session.tenantId),
       retiroVencido: receta.estado === "RETIRO_VENCIDO" ? await getRetiroVencidoEstado(tx, session, receta.id) : null,
