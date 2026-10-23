@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { exportarValorizadoPdf } from "@/modules/stock/application/reporte-valorizado";
 import { AppError, type AppErrorCode, toSafeError } from "@/shared/errors";
+import { textoDeFiltro } from "@/shared/format/texto-filtro";
 
 const STATUS_BY_CODE: Record<AppErrorCode, number> = {
   DOMAIN_ERROR: 422,
@@ -21,10 +22,11 @@ const STATUS_BY_CODE: Record<AppErrorCode, number> = {
 };
 
 function resumenFiltro(q: URLSearchParams): string {
+  const get = (clave: string) => textoDeFiltro(q.get(clave));
   const partes: string[] = [];
-  if (q.get("search")) partes.push(`Droga: "${q.get("search")}"`);
-  partes.push(q.get("incluirVencidas") !== "0" ? "Incluye vencidas" : "Excluye vencidas");
-  if (q.get("soloConSaldo") === "1") partes.push("Solo con saldo");
+  if (get("search")) partes.push(`Droga: "${get("search")}"`);
+  partes.push(get("incluirVencidas") !== "0" ? "Incluye vencidas" : "Excluye vencidas");
+  if (get("soloConSaldo") === "1") partes.push("Solo con saldo");
   return partes.join(" · ");
 }
 

@@ -32,7 +32,7 @@ export const listAsientosRecetarioFiltro = z.object({
   numeroDesde: numeroCorrelativo.optional(),
   numeroHasta: numeroCorrelativo.optional(),
   estado: z.enum(ESTADO_ASIENTO_FILTRO).optional(),
-  texto: z.string().trim().min(1).optional(),
+  texto: z.string().trim().min(1).max(200).optional(),
   ...paginacion,
 });
 

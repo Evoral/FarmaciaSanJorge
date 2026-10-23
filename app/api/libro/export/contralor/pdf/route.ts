@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { exportarContralorPdf } from "@/modules/libro/application/exportar-contralor";
 import { AppError, type AppErrorCode, toSafeError } from "@/shared/errors";
+import { textoDeFiltro } from "@/shared/format/texto-filtro";
 
 const STATUS_BY_CODE: Record<AppErrorCode, number> = {
   DOMAIN_ERROR: 422,
@@ -21,10 +22,11 @@ const STATUS_BY_CODE: Record<AppErrorCode, number> = {
 };
 
 function resumenFiltro(q: URLSearchParams): string {
+  const get = (clave: string) => textoDeFiltro(q.get(clave));
   const partes: string[] = [];
-  if (q.get("tipoLibro")) partes.push(`Libro: ${q.get("tipoLibro")}`);
-  if (q.get("drogaId")) partes.push(`Droga: ${q.get("drogaId")}`);
-  if (q.get("fechaDesde") || q.get("fechaHasta")) partes.push(`Fechas: ${q.get("fechaDesde") ?? "…"} a ${q.get("fechaHasta") ?? "…"}`);
+  if (get("tipoLibro")) partes.push(`Libro: ${get("tipoLibro")}`);
+  if (get("drogaId")) partes.push(`Droga: ${get("drogaId")}`);
+  if (get("fechaDesde") || get("fechaHasta")) partes.push(`Fechas: ${get("fechaDesde") || "…"} a ${get("fechaHasta") || "…"}`);
   return partes.length > 0 ? partes.join(" · ") : "Sin filtros";
 }
 

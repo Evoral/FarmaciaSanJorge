@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { exportarLibroPdf } from "@/modules/libro/application/exportar-libro";
 import { AppError, type AppErrorCode, toSafeError } from "@/shared/errors";
+import { textoDeFiltro } from "@/shared/format/texto-filtro";
 
 const STATUS_BY_CODE: Record<AppErrorCode, number> = {
   DOMAIN_ERROR: 422,
@@ -20,11 +21,12 @@ const STATUS_BY_CODE: Record<AppErrorCode, number> = {
 };
 
 function resumenFiltro(q: URLSearchParams): string {
+  const get = (clave: string) => textoDeFiltro(q.get(clave));
   const partes: string[] = [];
-  if (q.get("fechaDesde") || q.get("fechaHasta")) partes.push(`Fechas: ${q.get("fechaDesde") ?? "…"} a ${q.get("fechaHasta") ?? "…"}`);
-  if (q.get("numeroDesde") || q.get("numeroHasta")) partes.push(`Números: ${q.get("numeroDesde") ?? "…"} a ${q.get("numeroHasta") ?? "…"}`);
-  if (q.get("estado")) partes.push(`Estado: ${q.get("estado")}`);
-  if (q.get("texto")) partes.push(`Texto: "${q.get("texto")}"`);
+  if (get("fechaDesde") || get("fechaHasta")) partes.push(`Fechas: ${get("fechaDesde") || "…"} a ${get("fechaHasta") || "…"}`);
+  if (get("numeroDesde") || get("numeroHasta")) partes.push(`Números: ${get("numeroDesde") || "…"} a ${get("numeroHasta") || "…"}`);
+  if (get("estado")) partes.push(`Estado: ${get("estado")}`);
+  if (get("texto")) partes.push(`Texto: "${get("texto")}"`);
   return partes.length > 0 ? partes.join(" · ") : "Sin filtros";
 }
 
