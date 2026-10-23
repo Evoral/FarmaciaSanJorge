@@ -50,7 +50,7 @@ import {
   insertPartidaConIngreso,
   existePartidaLote,
 } from "../infrastructure/partida-repository";
-import { relevamientoInicialAbierto } from "../infrastructure/existencia-inicial-repository";
+import { lockTenantRelevamientoCompartido, relevamientoInicialAbierto } from "../infrastructure/existencia-inicial-repository";
 import { MENSAJE_RELEVAMIENTO_CERRADO } from "../domain/existencia-inicial";
 
 const ingresarPartidaInput = z.object({
@@ -117,8 +117,9 @@ export async function registrarPartidaCompra(
   if (droga.fechaBaja !== null) throw new DomainError(`La droga ${droga.nombre} está dada de baja.`, { fields: [campo("drogaId")] });
 
   const origen = input.origen ?? "COMPRA";
-  if (origen === "EXISTENCIA_INICIAL" && !(await relevamientoInicialAbierto(tx, session.tenantId))) {
-    throw new DomainError(MENSAJE_RELEVAMIENTO_CERRADO);
+  if (origen === "EXISTENCIA_INICIAL") {
+    await lockTenantRelevamientoCompartido(tx, session.tenantId);
+    if (!(await relevamientoInicialAbierto(tx, session.tenantId))) throw new DomainError(MENSAJE_RELEVAMIENTO_CERRADO);
   }
 
   let proveedor: Awaited<ReturnType<typeof getProveedorParaIngreso>> = null;

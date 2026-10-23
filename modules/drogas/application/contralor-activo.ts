@@ -2,7 +2,7 @@
  * Whether the tenant's contralor digital is activo, for the droga form: with
  * it, a controlled droga's alta (or an edit that makes it controlled) asks for
  * the saldo de apertura of the manual libro (docs/specs/existencia-inicial.md
- * R12). Same permiso as the unidades the form loads with it.
+ * R12). One query per form, each with that form's permiso.
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
@@ -17,4 +17,16 @@ export const contralorActivoParaDrogaQuery = defineQuery({
 
 export async function contralorActivoParaDroga(): Promise<boolean> {
   return contralorActivoParaDrogaQuery.execute({});
+}
+
+/** The alta's twin of `contralorActivoParaDroga`: a role may hold `drogas.crear` without `drogas.editar`. */
+export const contralorActivoParaAltaDrogaQuery = defineQuery({
+  name: "drogas.contralor-activo.alta",
+  permiso: "drogas.crear",
+  input: z.object({}),
+  handler: async ({ tx, session }) => contralorActivoEnTx(tx, session.tenantId),
+});
+
+export async function contralorActivoParaAltaDroga(): Promise<boolean> {
+  return contralorActivoParaAltaDrogaQuery.execute({});
 }

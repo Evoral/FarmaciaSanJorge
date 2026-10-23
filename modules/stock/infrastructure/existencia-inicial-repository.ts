@@ -32,6 +32,14 @@ export async function lockTenantRelevamiento(tx: Prisma.TransactionClient, tenan
   await tx.$queryRaw`SELECT id FROM fsj.tenant WHERE id = ${tenantId}::uuid FOR UPDATE`;
 }
 
+/**
+ * Shared lock on the tenant row for an existencia inicial alta: it conflicts with the close's FOR UPDATE, so an
+ * alta and the close serialize -- the close never misses a partida committed after its R8 check.
+ */
+export async function lockTenantRelevamientoCompartido(tx: Prisma.TransactionClient, tenantId: string): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM fsj.tenant WHERE id = ${tenantId}::uuid FOR SHARE`;
+}
+
 /** INV-S26 (DB) re-checks the DT vigente and the write-once rule. */
 export async function cerrarRelevamientoInicial(tx: Prisma.TransactionClient, tenantId: string, usuarioId: string): Promise<Date> {
   const row = await tx.tenant.update({

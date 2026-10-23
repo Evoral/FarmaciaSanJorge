@@ -25,6 +25,7 @@ export interface EntidadInfo {
 export const ENTIDADES: Readonly<Record<string, EntidadInfo>> = {
   acceso: { nombre: "operación sin permiso", articulo: "una" },
   accion_con_pin: { nombre: "configuración de PIN por acción", articulo: "la" },
+  asiento_contralor: { nombre: "asiento del libro contralor", articulo: "el" },
   asiento_historico: { nombre: "asiento histórico", articulo: "el" },
   asiento_recetario: { nombre: "asiento del libro recetario", articulo: "el" },
   cierre_diario: { nombre: "cierre diario", articulo: "el" },
