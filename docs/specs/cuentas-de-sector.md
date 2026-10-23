@@ -48,7 +48,7 @@ configura desde «Mi cuenta» con su propio usuario; nadie más lo conoce.
 | S4 | Atribución: el handler recibe al empleado como `session.usuario`, así que `registrada_por_id`, `preparada_por_id`, `entregada_por_id`, `registrado_por_id`, etc. y `registro_auditoria.usuario_id` son suyos. | `resolverActor`. Ningún handler cambió. |
 | S5 | Toda fila de auditoría a nombre del empleado lleva `contexto.terminal = { usuarioId, usuario, sesionId }` (la cuenta de sector) y `contexto.verificacion` (`"PIN"`). | `shared/audit/index.ts`; visible en `/auditoria`. |
 | S6 | Una acción **sin PIN** en una cuenta de sector queda a nombre de la cuenta del sector (decisión explícita para el mostrador). | `resolverActor`. |
-| S7 | Puede ser empleado ("operador") un usuario `ACTIVO` de la farmacia que no sea cuenta de sector ni el usuario técnico, y que tenga PIN. | `decideCandidatoOperador` (`modules/auth/domain/operador-policy.ts`), `verificador-pin.ts`. |
+| S7 | Puede ser empleado ("operador") un usuario `ACTIVO` de la farmacia que no sea cuenta de sector ni el usuario técnico, y que tenga PIN y no tenga un cambio de contraseña temporal pendiente (`debeCambiarPassword`; no cuenta como intento fallido de PIN, ver `docs/specs/contrasena-temporal.md`). | `decideCandidatoOperador` (`modules/auth/domain/operador-policy.ts`, decisión `DEBE_CAMBIAR_PASSWORD`), `operadores-repository.ts` (el selector solo lista empleados sin cambio pendiente), `verificador-pin.ts`. |
 | S8 | Un PIN rechazado suma al contador del empleado; al quinto se bloquea (`AUTH_POLICY.maxFailedPinAttempts`). Lo desbloquea su titular reautenticándose con contraseña o configurando un PIN nuevo. Nunca bloquea la cuenta en sí. | `verificador-pin.ts`; el contador se confirma aunque el acto falle (transacción propia). |
 | S9 | Cada identificación rechazada se audita (`entidad = operador`, acción `AUTORIZAR`) a nombre de la cuenta de sector, apuntando al usuario elegido. El PIN nunca se registra. | `verificar-operador.ts`. |
 | S10 | Una cuenta de sector nunca tiene `ADMINISTRADOR` ni `DIRECTOR_TECNICO` (y por eso nunca puede ser designada DT), y nunca conserva los permisos de `PERMISOS_VEDADOS_A_SECTOR`, diga lo que diga su rol. | `crearUsuario`; INV-SEC-001; `permisosEfectivos` (`modules/auth/domain/permisos.ts`). |
@@ -120,7 +120,11 @@ en una cuenta de sector el comando se rechaza con un mensaje claro: nunca se atr
   con el que la cuenta inicia sesión (no tiene que ser una casilla real, el sistema no le envía correos). Como
   `fsj.usuario` exige apellido y DNI, se derivan del nombre (`modules/usuarios/domain/cuenta-de-sector.ts`):
   "Laboratorio" queda como nombre "Sector", apellido "Laboratorio" y DNI `SECTOR-LABORATORIO`, que además impide
-  dos cuentas de sector con el mismo nombre.
+  dos cuentas de sector con el mismo nombre. Como a cualquier usuario, el formulario pide una **contraseña temporal**
+  (y su repetición): la cuenta nace `ACTIVO` con el cambio de contraseña pendiente y, al ser de sector, ese es su
+  único paso obligatorio (`docs/specs/contrasena-temporal.md`).
+- **Mi cuenta** (`/cuenta`): para una cuenta de sector no hay panel de PIN (no tiene PIN) y, para nadie, existe
+  «Eliminar PIN» (el PIN es obligatorio para quien no es cuenta de sector).
 - **Configuración › PIN por acción** (`/admin/configuracion/pin`): un interruptor por acción.
 - Diálogo de empleado + PIN en los formularios de laboratorio, stock, drogas, recetas y entregas.
 - **Auditoría**: "Realizado desde la cuenta de sector X · identificado con PIN".
@@ -139,5 +143,6 @@ en una cuenta de sector el comando se rechaza con un mensaje claro: nunca se atr
 - Pipeline: `shared/usecase.ts` (`resolverActor`), `shared/auth/{operador,operador-context,operador-campos}.ts`,
   `shared/audit/index.ts`.
 - Configuración y selector: `modules/operadores/`.
-- Tests: `tests/unit/cuentas-de-sector-*.test.ts`, `tests/unit/usecase-registry-all-modules.test.ts`,
+- Tests: `tests/unit/cuentas-de-sector-*.test.ts`, `tests/unit/contrasena-temporal-operadores.test.ts`,
+  `tests/unit/usecase-registry-all-modules.test.ts`,
   `tests/db/auth-permisos.test.ts` (plantilla de roles).

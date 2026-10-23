@@ -14,6 +14,7 @@
  * the raw text is logged by `logErrorForDiagnostics`.
  */
 import { getLogger } from "@/shared/logging/logger";
+import type { PasoPendiente } from "@/shared/auth/pasos";
 import { MENSAJE_INVARIANTE_GENERICO, mensajeParaInvariante } from "./mensajes-invariantes";
 
 export { MENSAJES_INVARIANTES, MENSAJE_INVARIANTE_GENERICO, mensajeParaInvariante, mensajeGlobalParaInvariante } from "./mensajes-invariantes";
@@ -27,6 +28,7 @@ export type AppErrorCode =
   | "CONFLICT"
   | "INVARIANT_VIOLATION"
   | "STEP_UP_REQUIRED"
+  | "PASOS_PENDIENTES"
   | "INTERNAL_ERROR";
 
 export interface AppErrorOptions {
@@ -113,6 +115,27 @@ export class StepUpRequiredError extends AppError {
 export class OperadorRequeridoError extends AppError {
   constructor(message = "Esta acción requiere que el empleado que la realiza se identifique con su PIN.", options?: { cause?: unknown }) {
     super("STEP_UP_REQUIRED", message, options);
+  }
+}
+
+/**
+ * The session is valid but must first complete a pending step (change a
+ * temporary password, configure the PIN -- docs/specs/contrasena-temporal.md).
+ * Distinct from `AuthorizationError`: the usuario CAN do this once the step
+ * is done, so the UI answers by sending them to `rutaDelPaso(paso)`.
+ */
+export class PasosPendientesError extends AppError {
+  readonly paso: PasoPendiente;
+
+  constructor(paso: PasoPendiente, options?: { cause?: unknown }) {
+    super(
+      "PASOS_PENDIENTES",
+      paso === "cambiar-password"
+        ? "Antes de seguir tenés que cambiar tu contraseña temporal."
+        : "Antes de seguir tenés que configurar tu PIN.",
+      options,
+    );
+    this.paso = paso;
   }
 }
 
@@ -277,7 +300,7 @@ export function mapDbError(e: unknown): AppError {
  * - `INTERNAL_ERROR` and anything that is not an `AppError`: `fallback`
  *   (the caller's own "No se pudo ..." for that operation).
  * - Every other `AppError` (DomainError, ValidationError, ConflictError,
- *   NotFoundError, StepUpRequiredError, OperadorRequeridoError): authored for the user, shown as
+ *   NotFoundError, StepUpRequiredError, OperadorRequeridoError, PasosPendientesError): authored for the user, shown as
  *   is -- unless it still embeds an `INV-XXX` token, in which case that
  *   code is translated instead (defense in depth).
  */
@@ -350,6 +373,7 @@ const MENSAJES_SEGUROS: Record<AppErrorCode, string> = {
   CONFLICT: "La operación entra en conflicto con el estado actual de los datos. Actualizá la página y volvé a intentarlo.",
   INVARIANT_VIOLATION: MENSAJE_INVARIANTE_GENERICO,
   STEP_UP_REQUIRED: "Esta acción requiere que vuelvas a confirmar tu identidad.",
+  PASOS_PENDIENTES: "Antes de seguir tenés que completar un paso pendiente en tu cuenta.",
   INTERNAL_ERROR: "Ocurrió un error inesperado. Volvé a intentarlo.",
 };
 

@@ -97,7 +97,6 @@ vi.mock("@/modules/usuarios/infrastructure/usuario-repository", () => ({
   insertUsuario: vi.fn(async () => ({ id: "nuevo-usuario" })),
   insertUsuarioRol: (...args: unknown[]) => insertUsuarioRolMock(...args),
   deleteUsuarioRol: vi.fn(async () => undefined),
-  insertCredencialActivacion: vi.fn(async () => undefined),
   loadUsuarioParaAccion: vi.fn(async () => ({ id: TARGET, estado: "ACTIVO", esTecnico: false, roles: ["SOLO_CONSULTA"] })),
   tieneDesignacionDtVigente: vi.fn(async () => false),
 }));
@@ -276,7 +275,7 @@ describe("assigning roles (crearUsuario / cambiarRoles) is limited to the tenant
   it("an unknown role code is a validation error", async () => {
     await expect(cambiarRolesCommand.execute({ usuarioId: TARGET, roles: ["NO_EXISTE"] }, { session: GESTOR })).rejects.toBeInstanceOf(ValidationError);
     await expect(
-      crearUsuarioCommand.execute({ nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: ["NO_EXISTE"] }, { session: GESTOR }),
+      crearUsuarioCommand.execute({ nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: ["NO_EXISTE"], passwordTemporal: "Temporal-Segura-2026", passwordTemporalRepeat: "Temporal-Segura-2026" }, { session: GESTOR }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
@@ -287,7 +286,7 @@ describe("assigning roles (crearUsuario / cambiarRoles) is limited to the tenant
   it("escalation: a non-admin cannot assign ADMINISTRADOR (or any role exceeding their permisos)", async () => {
     await expect(cambiarRolesCommand.execute({ usuarioId: TARGET, roles: ["ADMINISTRADOR"] }, { session: GESTOR })).rejects.toThrow(/No podés asignar el rol "Administrador"/);
     await expect(
-      crearUsuarioCommand.execute({ nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: ["FARMACEUTICO"] }, { session: GESTOR }),
+      crearUsuarioCommand.execute({ nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: ["FARMACEUTICO"], passwordTemporal: "Temporal-Segura-2026", passwordTemporalRepeat: "Temporal-Segura-2026" }, { session: GESTOR }),
     ).rejects.toBeInstanceOf(DomainError);
     expect(insertUsuarioRolMock).not.toHaveBeenCalled();
   });

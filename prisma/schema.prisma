@@ -403,7 +403,9 @@ model Usuario {
   /// Set once `pinIntentosFallidos` reaches AUTH_POLICY.maxFailedPinAttempts. Cleared by a successful PASSWORD re-auth (never by a successful PIN attempt alone reaching it -- that can't happen, PIN success requires NOT being blocked).
   pinBloqueado        Boolean       @default(false) @map("pin_bloqueado")
   pinActualizadoEn    DateTime?     @map("pin_actualizado_en") @db.Timestamptz(6)
-  creadoPorId         String        @map("creado_por_id") @db.Uuid
+  /// Migration 0097 (docs/specs/contrasena-temporal.md): true while the usuario logs in with an admin-chosen temporary password and must replace it. Set by alta / "Restablecer contraseña", cleared when they change their own password.
+  debeCambiarPassword Boolean       @default(false) @map("debe_cambiar_password")
+  creadoPorId       String        @map("creado_por_id") @db.Uuid
   creadoEn            DateTime      @default(now()) @map("creado_en") @db.Timestamptz(6)
   ultimoAcceso        DateTime?     @map("ultimo_acceso") @db.Timestamptz(6)
   numeroMatricula     String?       @map("numero_matricula")

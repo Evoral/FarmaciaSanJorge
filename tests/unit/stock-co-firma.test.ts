@@ -14,7 +14,7 @@ const NOW = new Date("2026-06-15T12:00:00Z");
 describe("decideCoFirma (pure decision table)", () => {
   it("unknown DT: found=false -> DESCONOCIDO, regardless of every other input", () => {
     expect(
-      decideCoFirma({ found: false, estado: null, bloqueadoHasta: null, passwordMatches: true, esDtVigente: true, now: NOW }),
+      decideCoFirma({ found: false, estado: null, bloqueadoHasta: null, debeCambiarPassword: false, passwordMatches: true, esDtVigente: true, now: NOW }),
     ).toBe("DESCONOCIDO");
   });
 
@@ -24,6 +24,7 @@ describe("decideCoFirma (pure decision table)", () => {
         found: true,
         estado: "ACTIVO",
         bloqueadoHasta: new Date(NOW.getTime() + 60_000),
+        debeCambiarPassword: false,
         passwordMatches: true,
         esDtVigente: true,
         now: NOW,
@@ -37,6 +38,7 @@ describe("decideCoFirma (pure decision table)", () => {
         found: true,
         estado: "ACTIVO",
         bloqueadoHasta: new Date(NOW.getTime() - 60_000),
+        debeCambiarPassword: false,
         passwordMatches: true,
         esDtVigente: true,
         now: NOW,
@@ -46,25 +48,25 @@ describe("decideCoFirma (pure decision table)", () => {
 
   it("inactive: estado !== ACTIVO -> INACTIVO", () => {
     expect(
-      decideCoFirma({ found: true, estado: "SUSPENDIDO", bloqueadoHasta: null, passwordMatches: true, esDtVigente: true, now: NOW }),
+      decideCoFirma({ found: true, estado: "SUSPENDIDO", bloqueadoHasta: null, debeCambiarPassword: false, passwordMatches: true, esDtVigente: true, now: NOW }),
     ).toBe("INACTIVO");
   });
 
   it("wrong password: ACTIVO, not locked, but passwordMatches=false -> PASSWORD_INCORRECTA", () => {
     expect(
-      decideCoFirma({ found: true, estado: "ACTIVO", bloqueadoHasta: null, passwordMatches: false, esDtVigente: true, now: NOW }),
+      decideCoFirma({ found: true, estado: "ACTIVO", bloqueadoHasta: null, debeCambiarPassword: false, passwordMatches: false, esDtVigente: true, now: NOW }),
     ).toBe("PASSWORD_INCORRECTA");
   });
 
   it("no current designation: correct password but esDtVigente=false -> NO_VIGENTE_DT", () => {
     expect(
-      decideCoFirma({ found: true, estado: "ACTIVO", bloqueadoHasta: null, passwordMatches: true, esDtVigente: false, now: NOW }),
+      decideCoFirma({ found: true, estado: "ACTIVO", bloqueadoHasta: null, debeCambiarPassword: false, passwordMatches: true, esDtVigente: false, now: NOW }),
     ).toBe("NO_VIGENTE_DT");
   });
 
   it("valid: found, ACTIVO, not locked, correct password, DT vigente -> OK", () => {
     expect(
-      decideCoFirma({ found: true, estado: "ACTIVO", bloqueadoHasta: null, passwordMatches: true, esDtVigente: true, now: NOW }),
+      decideCoFirma({ found: true, estado: "ACTIVO", bloqueadoHasta: null, debeCambiarPassword: false, passwordMatches: true, esDtVigente: true, now: NOW }),
     ).toBe("OK");
   });
 });

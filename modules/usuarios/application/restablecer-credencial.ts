@@ -1,13 +1,18 @@
 /**
- * `restablecerCredencial` (M03, FASE 3 point 3.6, INV-U08). Moves the
- * usuario back to PENDIENTE_ACTIVACION (a no-op state assignment when it
- * is already PENDIENTE_ACTIVACION -- the DB trigger's
- * `NEW.estado = OLD.estado` short-circuit allows that), revokes every
- * existing session and every previously-issued, still-active credential,
- * and issues a fresh 72h credential -- shown to the caller EXACTLY ONCE
- * (same discipline as `crearUsuario`, see that file's doc comment).
- * Rejected for a BAJA usuario (terminal) and for the plan §7 matrix
- * condition "no sobre sí mismo".
+ * `restablecerCredencial` (M03, FASE 3 point 3.6, INV-U08), reworked by
+ * docs/specs/contrasena-temporal.md: the Administrador types a NEW TEMPORARY
+ * password (twice) for the usuario. It replaces the stored hash, sets
+ * `debeCambiarPassword` (so the usuario must change it at the next login),
+ * clears the failed-login lock and revokes every open session. The PIN is
+ * deliberately left alone (CT5). The plaintext is hashed here and never
+ * persisted, returned nor audited (CT1); the caller hands it over in person.
+ *
+ * Estado: PENDIENTE_ACTIVACION becomes ACTIVO (a temporary password is all it
+ * was waiting for -- `cambiarEstadoUsuario` keeps the PIN when the new state is
+ * ACTIVO); ACTIVO stays ACTIVO and SUSPENDIDO stays SUSPENDIDO (resetting a
+ * password must not lift a suspension -- `reactivarUsuario` does that). Rejected
+ * for a BAJA usuario (terminal) and for the plan §7 matrix condition "no sobre
+ * sí mismo".
  *
  * M3 (security review): this command has no last-admin check (resetting a
  * credential does not, by itself, remove the ADMINISTRADOR role), but it
@@ -20,22 +25,17 @@ import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
-import { AUTH_POLICY } from "@/shared/auth/policy";
-import { generateOpaqueToken, hashToken } from "@/modules/auth/domain/token";
+import { hashPassword } from "@/modules/auth/domain/password";
 import { revokeAllSesionesForUsuarioInTx } from "@/modules/auth/application/revoke-session";
 import { esAccionSobreSiMismo } from "../domain/reglas-admin";
+import type { EstadoUsuario } from "../domain/estado-usuario";
 import { lockUsuarioYAdministradoresActivos } from "../infrastructure/admin-guard";
-import { loadUsuarioParaAccion, cambiarEstadoUsuario, revokeCredencialesActivas, insertCredencialActivacion } from "../infrastructure/usuario-repository";
+import { loadUsuarioParaAccion, cambiarEstadoUsuario, restablecerPasswordTemporal } from "../infrastructure/usuario-repository";
+import { passwordTemporalFields, refinarPasswordTemporal } from "./password-temporal";
 
-const restablecerCredencialInput = z.object({ usuarioId: uuid });
+const restablecerCredencialInput = z.object({ usuarioId: uuid, ...passwordTemporalFields }).superRefine(refinarPasswordTemporal);
 
 export type RestablecerCredencialInput = z.infer<typeof restablecerCredencialInput>;
-
-export interface RestablecerCredencialResult {
-  /** Shown ONCE -- the caller (UI) must never persist or re-request this value. */
-  credencial: string;
-  credencialVenceEn: Date;
-}
 
 export const restablecerCredencialCommand = defineCommand({
   name: "usuarios.credencial.restablecer",
@@ -59,44 +59,37 @@ export const restablecerCredencialCommand = defineCommand({
     }
 
     const now = new Date();
+    const passwordHash = await hashPassword(input.passwordTemporal);
+    await restablecerPasswordTemporal(tx, input.usuarioId, passwordHash);
 
-    await cambiarEstadoUsuario(tx, {
-      tenantId: session.tenantId,
-      usuarioId: input.usuarioId,
-      estadoAnterior: actual.estado,
-      estadoNuevo: "PENDIENTE_ACTIVACION",
-      motivo: "Restablecimiento de credencial de activación.",
-      cambiadoPorId: session.usuario.id,
-      now,
-    });
+    let estadoResultante: EstadoUsuario = actual.estado;
+    if (actual.estado === "PENDIENTE_ACTIVACION") {
+      estadoResultante = "ACTIVO";
+      await cambiarEstadoUsuario(tx, {
+        tenantId: session.tenantId,
+        usuarioId: input.usuarioId,
+        estadoAnterior: actual.estado,
+        estadoNuevo: estadoResultante,
+        motivo: "Contraseña temporal asignada: el usuario pasa a Activo.",
+        cambiadoPorId: session.usuario.id,
+        now,
+      });
+    }
 
     await revokeAllSesionesForUsuarioInTx(tx, session.tenantId, input.usuarioId, now);
-    await revokeCredencialesActivas(tx, session.tenantId, input.usuarioId, now);
-
-    const rawToken = generateOpaqueToken();
-    const tokenHash = hashToken(rawToken);
-    const venceEn = new Date(now.getTime() + AUTH_POLICY.activationCredentialTtlHours * 60 * 60 * 1000);
-
-    await insertCredencialActivacion(tx, {
-      tenantId: session.tenantId,
-      usuarioId: input.usuarioId,
-      tokenHash,
-      emitidaPorId: session.usuario.id,
-      venceEn,
-      motivoEmision: "RESTABLECIMIENTO",
-    });
 
     return {
-      output: { credencial: rawToken, credencialVenceEn: venceEn },
+      output: { estado: estadoResultante },
       audit: {
         entidadId: input.usuarioId,
         valorAnterior: { estado: actual.estado },
-        valorNuevo: { estado: "PENDIENTE_ACTIVACION" },
+        // Never the password nor its hash (CT1).
+        valorNuevo: { estado: estadoResultante },
       },
     };
   },
 });
 
-export async function restablecerCredencial(usuarioId: string): Promise<RestablecerCredencialResult> {
-  return restablecerCredencialCommand.execute({ usuarioId });
+export async function restablecerCredencial(input: RestablecerCredencialInput): Promise<void> {
+  await restablecerCredencialCommand.execute(input);
 }

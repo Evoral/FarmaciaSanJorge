@@ -1,14 +1,15 @@
 /**
- * Prisma-backed access to `fsj.usuario` / `fsj.credencial_activacion` for
- * M02 login (2.2), activation (2.3), change-password (2.4) and
- * re-authentication (2.5). `resolveLoginByEmail` is the one deliberate RLS
- * bootstrap exception here (mirrors `resolveSessionTenant` in
- * session-repository.ts) -- see migration
- * 0010_usuario_login_resolver for why it has to be. Every other function
- * here runs inside an already-open `withTenantTransaction`.
+ * Prisma-backed access to `fsj.usuario` for M02 login (2.2),
+ * change-password (2.4) and re-authentication (2.5).
+ * `resolveLoginByEmail` is the one deliberate RLS bootstrap exception here
+ * (mirrors `resolveSessionTenant` in session-repository.ts) -- see
+ * migration 0010_usuario_login_resolver for why it has to be. Every other
+ * function here runs inside an already-open `withTenantTransaction`.
  */
 import type { Prisma } from "@/generated/prisma/client";
 import { getPrismaClient } from "@/shared/db/client";
+import type { PasoPendiente } from "@/shared/auth/pasos";
+import { derivarPasosPendientes, esSoloAdministrador } from "../domain/pasos-pendientes";
 
 export interface LoginCandidate {
   tenantId: string;
@@ -23,9 +24,9 @@ export interface LoginCandidate {
  * RLS bootstrap ONLY (migration 0010, see that file's header): resolves
  * the usuario matching `email` via the SECURITY DEFINER function
  * `fsj.usuario_resolve_login`, with no tenant set. Returns `null` when no
- * usuario has that email (never a row of nulls) -- `login()`/
- * `activarCuenta()` MUST treat this identically to "found, but password/
- * credential did not match" in whatever they show the caller.
+ * usuario has that email (never a row of nulls) -- `login()` MUST treat
+ * this identically to "found, but password did not match" in whatever it
+ * shows the caller.
  *
  * Deliberately does NOT use `withTenantTransaction` (there is no tenant to
  * set yet) -- runs directly against the shared Prisma client, exactly like
@@ -57,6 +58,34 @@ export async function resolveLoginByEmail(email: string): Promise<LoginCandidate
   };
 }
 
+/** Pending steps (temporary password, mandatory PIN) of a usuario, inside an already-open tenant transaction. Login uses it to pick the first page to land on. */
+export async function loadPasosPendientes(tx: Prisma.TransactionClient, usuarioId: string): Promise<readonly PasoPendiente[]> {
+  const row = await tx.usuario.findUnique({
+    where: { id: usuarioId },
+    select: {
+      debeCambiarPassword: true,
+      pinHash: true,
+      esSector: true,
+      esTecnico: true,
+      rolesAsignados: { select: { rol: { select: { esAdministrador: true } } } },
+    },
+  });
+  if (!row) return [];
+  return derivarPasosPendientes({
+    debeCambiarPassword: row.debeCambiarPassword,
+    tienePin: row.pinHash !== null,
+    esSector: row.esSector,
+    esTecnico: row.esTecnico,
+    soloAdministrador: esSoloAdministrador(row.rolesAsignados.map((asignacion) => asignacion.rol)),
+  });
+}
+
+/** Whether every role of the usuario is the locked ADMINISTRADOR (no PIN, CT9), read inside an already-open tenant transaction. */
+export async function loadEsSoloAdministrador(tx: Prisma.TransactionClient, usuarioId: string): Promise<boolean> {
+  const asignaciones = await tx.usuarioRol.findMany({ where: { usuarioId }, select: { rol: { select: { esAdministrador: true } } } });
+  return esSoloAdministrador(asignaciones.map((asignacion) => asignacion.rol));
+}
+
 /** Successful login (FASE 2 point 2.2): resets the failed-attempt counter/lockout and stamps `ultimo_acceso`. */
 export async function recordLoginSuccess(tx: Prisma.TransactionClient, usuarioId: string, now: Date): Promise<void> {
   await tx.usuario.update({
@@ -84,11 +113,27 @@ export interface UsuarioEmailRow {
   passwordHash: string | null;
   /** PIN re-auth feature: `null` when the usuario has no PIN configured. Included here so `cambiarPassword`/PIN commands, which already load this row to verify the current password, don't need a second round trip. */
   pinHash: string | null;
+  /** Contraseña temporal: an administrator set the current password; the usuario must replace it before doing anything else. */
+  debeCambiarPassword: boolean;
+  esSector: boolean;
 }
 
 /** Loads the minimum needed to verify/change a usuario's own password (FASE 2 point 2.4/2.5) or PIN (PIN re-auth feature), inside an already-open tenant transaction. */
 export async function loadUsuarioParaPassword(tx: Prisma.TransactionClient, usuarioId: string): Promise<UsuarioEmailRow | null> {
-  return tx.usuario.findUnique({ where: { id: usuarioId }, select: { id: true, email: true, passwordHash: true, pinHash: true } });
+  return tx.usuario.findUnique({
+    where: { id: usuarioId },
+    select: { id: true, email: true, passwordHash: true, pinHash: true, debeCambiarPassword: true, esSector: true },
+  });
+}
+
+/**
+ * Completes the temporary-password change (docs/specs/contrasena-temporal.md):
+ * one UPDATE that stores the usuario's own password hash and clears
+ * `debeCambiarPassword`. This is the ONLY code path that clears the flag
+ * (CT4, guarded by tests/unit/auth-cambiar-password-temporal.test.ts).
+ */
+export async function completarCambioPasswordTemporal(tx: Prisma.TransactionClient, usuarioId: string, passwordHash: string): Promise<void> {
+  await tx.usuario.update({ where: { id: usuarioId }, data: { passwordHash, debeCambiarPassword: false } });
 }
 
 /** Sets a new password hash (FASE 2 point 2.4, `cambiarPassword`). Never touches `estado`. */
@@ -122,14 +167,6 @@ export async function setPinHash(tx: Prisma.TransactionClient, usuarioId: string
   });
 }
 
-/** Removes the PIN entirely (`eliminarPin`, and the shared clearing done on ADM credential reset / suspensión / baja -- see modules/usuarios/infrastructure/usuario-repository.ts#cambiarEstadoUsuario). */
-export async function clearPin(tx: Prisma.TransactionClient, usuarioId: string, now: Date): Promise<void> {
-  await tx.usuario.update({
-    where: { id: usuarioId },
-    data: { pinHash: null, pinIntentosFallidos: 0, pinBloqueado: false, pinActualizadoEn: now },
-  });
-}
-
 /** A successful PASSWORD re-auth resets the PIN counter AND unblocks it (task's binding decision) -- called unconditionally on the password branch's success path, never read-then-write (idempotent regardless of prior state). */
 export async function resetPinLockout(tx: Prisma.TransactionClient, usuarioId: string): Promise<void> {
   await tx.usuario.update({ where: { id: usuarioId }, data: { pinIntentosFallidos: 0, pinBloqueado: false } });
@@ -145,43 +182,5 @@ export async function recordPinFailure(tx: Prisma.TransactionClient, usuarioId: 
   await tx.usuario.update({
     where: { id: usuarioId },
     data: { pinIntentosFallidos: update.pinIntentosFallidos, pinBloqueado: update.pinBloqueado },
-  });
-}
-
-/**
- * Atomically consumes ONE activation credential (INV-AU-002, FASE 2 point
- * 2.3): a single `UPDATE ... WHERE usada_en IS NULL AND revocada_en IS
- * NULL AND vence_en > now() RETURNING`-equivalent (Prisma's `updateMany`
- * compiles to one atomic UPDATE statement with this WHERE clause, which is
- * exactly the atomicity two concurrent activation attempts need -- the
- * loser's WHERE simply matches zero rows once the winner's UPDATE has
- * committed `usada_en`). Scoped additionally to `usuarioId` so a
- * mismatched email (which resolves a different `usuarioId` than the one
- * that actually owns this `tokenHash`) naturally matches zero rows too,
- * with no separate check needed.
- *
- * Returns the number of rows updated: 1 on success, 0 for any of "wrong
- * email", "wrong/unknown code", "already used", "revoked", or "expired" --
- * `activarCuenta()` shows the SAME generic message for all of them (FASE 2
- * point 2.3).
- */
-export async function consumeCredencialActivacion(
-  tx: Prisma.TransactionClient,
-  usuarioId: string,
-  tokenHash: string,
-  now: Date,
-): Promise<number> {
-  const result = await tx.credencialActivacion.updateMany({
-    where: { usuarioId, tokenHash, usadaEn: null, revocadaEn: null, venceEn: { gt: now } },
-    data: { usadaEn: now },
-  });
-  return result.count;
-}
-
-/** Completes activation (FASE 2 point 2.3) once the credential is consumed: sets the password hash and flips PENDIENTE_ACTIVACION -> ACTIVO (a legal transition -- migration 0002's `usuario_validar_transicion_estado`). Also clears any stale lockout state, defensively (a PENDIENTE_ACTIVACION usuario should never have one, but costs nothing to be sure). */
-export async function activarUsuario(tx: Prisma.TransactionClient, usuarioId: string, passwordHash: string): Promise<void> {
-  await tx.usuario.update({
-    where: { id: usuarioId },
-    data: { passwordHash, estado: "ACTIVO", intentosFallidos: 0, bloqueadoHasta: null },
   });
 }

@@ -4,11 +4,10 @@
  * only Node's `crypto` primitives, no Prisma/Next/shared-db -- so this lives
  * in domain/ and is unit-testable without any I/O.
  *
- * The raw token is what the client holds (session cookie / activation
- * link); only `hashToken(raw)` is ever persisted or looked up in
- * `fsj.sesion.token_hash` / `fsj.credencial_activacion.token_hash` --
- * mirrors the DB comment "token_hash stores the hash only (never the raw
- * token)" on both tables (migration 0004).
+ * The raw token is what the client holds (session cookie); only
+ * `hashToken(raw)` is ever persisted or looked up in
+ * `fsj.sesion.token_hash` -- mirrors the DB comment "token_hash stores
+ * the hash only (never the raw token)" (migration 0004).
  */
 import { randomBytes, createHash } from "node:crypto";
 

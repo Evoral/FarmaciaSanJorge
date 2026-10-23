@@ -12,6 +12,11 @@
  * failed-attempt counter written by the verifier must be committed: a throw
  * would roll it back and defeat the block.
  *
+ * A usuario with a temporary password still to be replaced
+ * (`debeCambiarPassword`, docs/specs/contrasena-temporal.md) is not eligible
+ * either: rejected like any other ineligible candidate, without counting a
+ * failed PIN attempt.
+ *
  * NOT a use case: the pipeline is its only caller, with the session it
  * already authorized. Whether the empleado HOLDS the permiso of the act is
  * the pipeline's next check, not this function's.
@@ -87,9 +92,11 @@ export async function verificarOperadorEnTx(tx: Prisma.TransactionClient, sessio
     estado: encontrado ? candidato.estado : null,
     esSector: encontrado ? candidato.esSector : false,
     esTecnico: encontrado ? candidato.esTecnico : false,
+    debeCambiarPassword: encontrado ? candidato.debeCambiarPassword : false,
   });
 
   // The verifier always runs, with no usuario when the candidate is not eligible (constant work, see ./verificador-pin.ts).
+  // A pending password change makes the candidate ineligible: their PIN is neither checked nor counted as a failed attempt.
   const verificacion = await VERIFICADORES[prueba.metodo].verificar(tx, candidatura === "OK" ? usuarioId : null, prueba);
 
   if (candidatura === "OK" && verificacion.ok && candidato) {

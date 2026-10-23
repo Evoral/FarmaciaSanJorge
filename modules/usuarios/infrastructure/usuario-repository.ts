@@ -1,8 +1,8 @@
 /**
  * Prisma-backed access to `fsj.usuario` / `fsj.usuario_rol` /
- * `fsj.usuario_estado_historial` / `fsj.credencial_activacion` for M03
- * (FASE 3 points 3.1-3.8). Every function here runs inside an ALREADY OPEN
- * tenant transaction (`tx`, handed in by `shared/usecase.ts`'s
+ * `fsj.usuario_estado_historial` for M03 (FASE 3 points 3.1-3.8). Every
+ * function here runs inside an ALREADY OPEN tenant transaction (`tx`,
+ * handed in by `shared/usecase.ts`'s
  * `defineCommand`/`defineQuery`) -- nothing here opens its own transaction
  * or imports `shared/db/transaction` (that import is ESLint-forbidden
  * outside `modules/auth`, see eslint.config.mjs).
@@ -271,6 +271,8 @@ export interface NuevoUsuarioInput {
   numeroMatricula: string | null;
   /** Migration 0077: a cuenta de sector. Only ever set here (immutable, INV-SEC-002). */
   esSector?: boolean;
+  /** argon2id hash of the temporary password the Administrador typed (docs/specs/contrasena-temporal.md). */
+  passwordHash: string;
   creadoPorId: string;
 }
 
@@ -285,7 +287,10 @@ export async function insertUsuario(tx: Prisma.TransactionClient, input: NuevoUs
       numeroMatricula: input.numeroMatricula ?? undefined,
       esSector: input.esSector ?? false,
       creadoPorId: input.creadoPorId,
-      // estado defaults to PENDIENTE_ACTIVACION (schema default) -- never set explicitly (INV-U07).
+      // Active from the start, with a temporary password the usuario must replace (and a PIN to set) at first login.
+      passwordHash: input.passwordHash,
+      estado: "ACTIVO",
+      debeCambiarPassword: true,
     },
     select: { id: true },
   });
@@ -401,12 +406,11 @@ export interface CambiarEstadoInput {
  *
  * PIN re-auth feature (task requirement, user decision 2026-09-23):
  * whenever `estadoNuevo !== 'ACTIVO'`, the PIN is cleared in the SAME
- * statement/transaction as the estado change -- this covers exactly the
- * three transitions the task requires (suspenderUsuario -> SUSPENDIDO,
- * darDeBajaUsuario -> BAJA, restablecerCredencial -> PENDIENTE_ACTIVACION)
- * without each of those three call sites needing to remember to do it
- * separately, and WITHOUT clearing it on `reactivarUsuario` (-> ACTIVO,
- * the one caller of this function that must NOT lose the PIN).
+ * statement/transaction as the estado change -- this covers
+ * suspenderUsuario -> SUSPENDIDO and darDeBajaUsuario -> BAJA without each
+ * call site needing to remember to do it separately, and WITHOUT clearing it
+ * on `reactivarUsuario` nor on `restablecerCredencial` (-> ACTIVO, the
+ * callers that must NOT lose the PIN).
  */
 export async function cambiarEstadoUsuario(tx: Prisma.TransactionClient, input: CambiarEstadoInput): Promise<void> {
   await tx.usuario.update({
@@ -429,6 +433,19 @@ export async function cambiarEstadoUsuario(tx: Prisma.TransactionClient, input: 
       motivo: input.motivo ?? undefined,
       cambiadoPorId: input.cambiadoPorId,
     },
+  });
+}
+
+/**
+ * "Restablecer contraseña" (docs/specs/contrasena-temporal.md): one UPDATE that
+ * replaces the hash with the temporary one, flags `debeCambiarPassword` and
+ * clears the failed-login lock. It NEVER touches the PIN columns (CT5): the
+ * usuario keeps their PIN.
+ */
+export async function restablecerPasswordTemporal(tx: Prisma.TransactionClient, usuarioId: string, passwordHash: string): Promise<void> {
+  await tx.usuario.update({
+    where: { id: usuarioId },
+    data: { passwordHash, debeCambiarPassword: true, intentosFallidos: 0, bloqueadoHasta: null },
   });
 }
 
@@ -455,47 +472,6 @@ export async function listUsuarioEstadoHistorial(tx: Prisma.TransactionClient, u
     },
   });
   return rows;
-}
-
-// ============================================================================
-// Credentials (3.2 / 3.6): reuses the exact hashing/format from
-// modules/auth/domain/token.ts and scripts/create-tenant.ts.
-// ============================================================================
-
-export interface EmitirCredencialInput {
-  tenantId: string;
-  usuarioId: string;
-  tokenHash: string;
-  emitidaPorId: string;
-  venceEn: Date;
-  motivoEmision: "ALTA" | "RESTABLECIMIENTO";
-}
-
-export async function insertCredencialActivacion(tx: Prisma.TransactionClient, input: EmitirCredencialInput): Promise<void> {
-  await tx.credencialActivacion.create({
-    data: {
-      tenantId: input.tenantId,
-      usuarioId: input.usuarioId,
-      tokenHash: input.tokenHash,
-      emitidaPorId: input.emitidaPorId,
-      venceEn: input.venceEn,
-      motivoEmision: input.motivoEmision,
-    },
-  });
-}
-
-/** Revokes every non-used, non-revoked credential for a usuario (INV-U08: reset -- and suspend/baja, task's binding decision -- must invalidate pending credentials too). Returns the number revoked. */
-export async function revokeCredencialesActivas(
-  tx: Prisma.TransactionClient,
-  tenantId: string,
-  usuarioId: string,
-  now: Date,
-): Promise<number> {
-  const result = await tx.credencialActivacion.updateMany({
-    where: { tenantId, usuarioId, usadaEn: null, revocadaEn: null },
-    data: { revocadaEn: now },
-  });
-  return result.count;
 }
 
 // ============================================================================

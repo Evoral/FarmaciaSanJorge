@@ -12,7 +12,8 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { requireSession, clearSessionCookie } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
-import { AuthenticationError } from "@/shared/errors";
+import { AuthenticationError, PasosPendientesError } from "@/shared/errors";
+import { rutaDelPaso } from "@/shared/auth/pasos";
 import { logout } from "@/modules/auth/application/logout";
 import { resumenJornadasPendientes } from "@/modules/cierres/application/list-jornadas-pendientes";
 import { resumenDestruccion } from "@/modules/archivo/application/resumen-destruccion";
@@ -34,6 +35,10 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
   } catch (error) {
     if (error instanceof AuthenticationError) {
       redirect("/login");
+    }
+    // A temporary password or a missing PIN must be resolved first (docs/specs/contrasena-temporal.md).
+    if (error instanceof PasosPendientesError) {
+      redirect(rutaDelPaso(error.paso));
     }
     throw error;
   }

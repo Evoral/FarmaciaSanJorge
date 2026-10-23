@@ -15,7 +15,7 @@
  *     no DB needed.
  *   - what THIS file proves is what only Postgres can prove: the exact SQL
  *     choreography each command performs (estado + historial + sesion +
- *     credencial writes, all in one transaction) behaves atomically and
+ *     password writes, all in one transaction) behaves atomically and
  *     the way the repository functions assume, PLUS the one thing that
  *     genuinely needs two real connections -- the `FOR UPDATE` row lock
  *     that makes INV-USR-004 race-safe.
@@ -61,7 +61,7 @@ async function createSistemaUser(tx: Client, tenantId: string): Promise<string> 
   return id;
 }
 
-/** A regular ACTIVO usuario with `rolCodigo` -- mirrors what crearUsuario + activarCuenta produce together. */
+/** A regular ACTIVO usuario with `rolCodigo` (the state an alta or a password reset leaves, minus the temporary-password flag). */
 async function createUsuarioActivo(tx: Client, tenantId: string, sistemaId: string, suffix: string, rolCodigo: string): Promise<string> {
   const id = randomUUID();
   await tx.query(
@@ -79,24 +79,24 @@ async function createUsuarioActivo(tx: Client, tenantId: string, sistemaId: stri
   return id;
 }
 
-function rawTokenHash(): { rawToken: string; tokenHash: string } {
+function sesionTokenHash(): string {
   const rawToken = randomBytes(32).toString("base64url");
-  const tokenHash = createHash("sha256").update(rawToken, "utf8").digest("hex");
-  return { rawToken, tokenHash };
+  return createHash("sha256").update(rawToken, "utf8").digest("hex");
 }
 
 describe.skipIf(dbTestSkipReason() !== null)("FASE 3 usuarios admin -- full lifecycle choreography", () => {
-  it("crear (PENDIENTE + credencial ALTA) -> restablecer (revokes sesiones + credencial, reissues, stays/returns to PENDIENTE) -> suspender is rejected from PENDIENTE -> activar-shaped ACTIVO -> suspender (revokes sesiones + credencial) -> reactivar -> dar de baja (terminal)", async () => {
+  it("crear (ACTIVO + contraseña temporal) -> restablecer (new hash + flag, lock reset, PIN kept, sesiones revoked) -> suspender (revokes sesiones) -> reactivar -> dar de baja (terminal)", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const tenantId = await insertTenant(tx, "lifecycle");
         const sistema = await createSistemaUser(tx, tenantId);
         const admin = await createUsuarioActivo(tx, tenantId, sistema, "adm", "ADMINISTRADOR");
 
-        // crearUsuario-shaped: PENDIENTE_ACTIVACION + one ALTA credential.
+        // crearUsuario-shaped: ACTIVO from the start, with a temporary password the usuario must replace (no credential row).
         const userId = randomUUID();
         await tx.query(
-          `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, creado_por_id) VALUES ($1,$2,$3,'N','A','LC1',$4)`,
+          `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, estado, password_hash, debe_cambiar_password, creado_por_id)
+           VALUES ($1,$2,$3,'N','A','LC1','ACTIVO','hash-temporal-1',true,$4)`,
           [userId, tenantId, `lc-${Date.now()}@example.com`, admin],
         );
         const farRolId = await rolId(tx, tenantId, "FARMACEUTICO");
@@ -106,59 +106,55 @@ describe.skipIf(dbTestSkipReason() !== null)("FASE 3 usuarios admin -- full life
           farRolId,
           admin,
         ]);
-        const alta = rawTokenHash();
-        await tx.query(
-          `INSERT INTO fsj.credencial_activacion (tenant_id, usuario_id, token_hash, emitida_por_id, vence_en, motivo_emision)
-           VALUES ($1,$2,$3,$4, now() + interval '72 hours', 'ALTA')`,
-          [tenantId, userId, alta.tokenHash, admin],
-        );
 
-        let row = await tx.query(`SELECT estado FROM fsj.usuario WHERE id = $1`, [userId]);
-        expect(row.rows[0].estado).toBe("PENDIENTE_ACTIVACION");
+        let row = await tx.query(`SELECT estado, debe_cambiar_password FROM fsj.usuario WHERE id = $1`, [userId]);
+        expect(row.rows[0].estado).toBe("ACTIVO");
+        expect(row.rows[0].debe_cambiar_password).toBe(true);
 
-        // restablecerCredencial-shaped, even while already PENDIENTE (a
-        // no-op estado assignment -- the trigger's NEW=OLD short-circuit
-        // must allow it): revoke the old credential, issue a new one.
-        await tx.query(`UPDATE fsj.credencial_activacion SET revocada_en = now() WHERE usuario_id = $1 AND usada_en IS NULL AND revocada_en IS NULL`, [userId]);
-        const reset1 = rawTokenHash();
+        // The usuario changed their password (flag cleared), set a PIN, opened a sesion and failed a few logins.
         await tx.query(
-          `INSERT INTO fsj.credencial_activacion (tenant_id, usuario_id, token_hash, emitida_por_id, vence_en, motivo_emision)
-           VALUES ($1,$2,$3,$4, now() + interval '72 hours', 'RESTABLECIMIENTO')`,
-          [tenantId, userId, reset1.tokenHash, admin],
-        );
-        await tx.query(`UPDATE fsj.usuario SET estado = 'PENDIENTE_ACTIVACION' WHERE id = $1`, [userId]); // no-op, must not throw
-        await tx.query(
-          `INSERT INTO fsj.usuario_estado_historial (tenant_id, usuario_id, estado_anterior, estado_nuevo, motivo, cambiado_por_id)
-           VALUES ($1,$2,'PENDIENTE_ACTIVACION','PENDIENTE_ACTIVACION','Restablecimiento de credencial.',$3)`,
-          [tenantId, userId, admin],
-        );
-
-        const oldCred = await tx.query(`SELECT revocada_en FROM fsj.credencial_activacion WHERE token_hash = $1`, [alta.tokenHash]);
-        expect(oldCred.rows[0].revocada_en).not.toBeNull();
-        const activeCredCount = await tx.query(
-          `SELECT count(*)::int AS n FROM fsj.credencial_activacion WHERE usuario_id = $1 AND usada_en IS NULL AND revocada_en IS NULL`,
+          `UPDATE fsj.usuario SET debe_cambiar_password = false, password_hash = 'hash-propio', pin_hash = 'pin-hash', intentos_fallidos = 4,
+                  bloqueado_hasta = now() + interval '15 minutes' WHERE id = $1`,
           [userId],
         );
-        expect(activeCredCount.rows[0].n).toBe(1);
-
-        // suspender is illegal from PENDIENTE_ACTIVACION (only ACTIVO -> SUSPENDIDO).
-        await expectInvariantViolation(
-          tx,
-          () => tx.query(`UPDATE fsj.usuario SET estado = 'SUSPENDIDO' WHERE id = $1`, [userId]),
-          "INV-USR-006",
-        );
-
-        // activarCuenta-shaped: consume the credential, go ACTIVO, open a sesion.
-        await tx.query(`UPDATE fsj.credencial_activacion SET usada_en = now() WHERE token_hash = $1`, [reset1.tokenHash]);
-        await tx.query(`UPDATE fsj.usuario SET estado = 'ACTIVO', password_hash = 'x' WHERE id = $1`, [userId]);
-        const { tokenHash: sesionHash } = rawTokenHash();
+        const sesionHash = sesionTokenHash();
         await tx.query(`INSERT INTO fsj.sesion (tenant_id, usuario_id, token_hash, expira_en) VALUES ($1,$2,$3, now() + interval '12 hours')`, [
           tenantId,
           userId,
           sesionHash,
         ]);
 
-        // suspenderUsuario-shaped: estado + historial + revoke sesiones (there are none left to revoke, but the statement must be a no-op, not an error) + revoke credenciales.
+        // restablecerPasswordTemporal-shaped: one UPDATE that never touches the pin columns (CT5), then the sesiones are revoked.
+        await tx.query(
+          `UPDATE fsj.usuario SET password_hash = 'hash-temporal-2', debe_cambiar_password = true, intentos_fallidos = 0, bloqueado_hasta = NULL WHERE id = $1`,
+          [userId],
+        );
+        const revokedAfterReset = await tx.query(`UPDATE fsj.sesion SET revocada_en = now() WHERE tenant_id = $1 AND usuario_id = $2 AND revocada_en IS NULL`, [
+          tenantId,
+          userId,
+        ]);
+        expect(revokedAfterReset.rowCount).toBe(1);
+
+        row = await tx.query(
+          `SELECT estado, password_hash, debe_cambiar_password, intentos_fallidos, bloqueado_hasta, pin_hash FROM fsj.usuario WHERE id = $1`,
+          [userId],
+        );
+        expect(row.rows[0]).toMatchObject({
+          estado: "ACTIVO",
+          password_hash: "hash-temporal-2",
+          debe_cambiar_password: true,
+          intentos_fallidos: 0,
+          bloqueado_hasta: null,
+          pin_hash: "pin-hash", // the reset keeps the PIN
+        });
+
+        // suspenderUsuario-shaped: estado + historial + revoke sesiones. A fresh sesion is open (the usuario logged in with the temporary password).
+        const sesionSuspensionHash = sesionTokenHash();
+        await tx.query(`INSERT INTO fsj.sesion (tenant_id, usuario_id, token_hash, expira_en) VALUES ($1,$2,$3, now() + interval '12 hours')`, [
+          tenantId,
+          userId,
+          sesionSuspensionHash,
+        ]);
         await tx.query(`UPDATE fsj.usuario SET estado = 'SUSPENDIDO' WHERE id = $1`, [userId]);
         await tx.query(
           `INSERT INTO fsj.usuario_estado_historial (tenant_id, usuario_id, estado_anterior, estado_nuevo, motivo, cambiado_por_id)
@@ -173,7 +169,7 @@ describe.skipIf(dbTestSkipReason() !== null)("FASE 3 usuarios admin -- full life
 
         row = await tx.query(`SELECT estado FROM fsj.usuario WHERE id = $1`, [userId]);
         expect(row.rows[0].estado).toBe("SUSPENDIDO");
-        const sesionRow = await tx.query(`SELECT revocada_en FROM fsj.sesion WHERE token_hash = $1`, [sesionHash]);
+        const sesionRow = await tx.query(`SELECT revocada_en FROM fsj.sesion WHERE token_hash = $1`, [sesionSuspensionHash]);
         expect(sesionRow.rows[0].revocada_en).not.toBeNull();
 
         // reactivarUsuario-shaped: SUSPENDIDO -> ACTIVO.
@@ -206,12 +202,7 @@ describe.skipIf(dbTestSkipReason() !== null)("FASE 3 usuarios admin -- full life
         );
 
         const historial = await tx.query(`SELECT estado_nuevo FROM fsj.usuario_estado_historial WHERE usuario_id = $1 ORDER BY cambiado_en`, [userId]);
-        expect(historial.rows.map((r: { estado_nuevo: string }) => r.estado_nuevo)).toEqual([
-          "PENDIENTE_ACTIVACION",
-          "SUSPENDIDO",
-          "ACTIVO",
-          "BAJA",
-        ]);
+        expect(historial.rows.map((r: { estado_nuevo: string }) => r.estado_nuevo)).toEqual(["SUSPENDIDO", "ACTIVO", "BAJA"]);
       }),
     );
   });

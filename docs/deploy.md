@@ -79,7 +79,7 @@ Orden en una base completamente nueva: `db:migrate` → `db:bootstrap` → (depl
 
 ## 5. Bootstrap del primer tenant
 
-`scripts/create-tenant.ts` (rol owner vía `DIRECT_URL`, corre BYPASSRLS a propósito -- ver el comentario del script) crea el tenant, su usuario técnico SISTEMA y el primer ADMINISTRADOR con una credencial de activación de un solo uso que se imprime por consola una única vez (nunca se loguea ni se guarda en texto plano):
+`scripts/create-tenant.ts` (rol owner vía `DIRECT_URL`, corre BYPASSRLS a propósito -- ver el comentario del script) crea el tenant, su usuario técnico SISTEMA y el primer ADMINISTRADOR, ya `ACTIVO`, con una **contraseña temporal** (solo se guarda su hash; el script nunca la imprime ni la loguea). La contraseña se pasa con `--admin-password-temporal=...` o, si se omite, el script la pide por consola sin mostrarla (preferible: el argumento queda en el historial del shell). Por ser temporal solo exige **al menos 6 caracteres** (sin mayúscula); la que el ADM elija al cambiarla en su primer login sí lleva la política completa (12 caracteres y una mayúscula):
 
 ```
 npm run db:create-tenant -- \
@@ -92,10 +92,11 @@ npm run db:create-tenant -- \
   --admin-email="admin@ejemplo.com" \
   --admin-nombre="..." \
   --admin-apellido="..." \
-  --admin-dni="..."
+  --admin-dni="..." \
+  [--admin-password-temporal="..."]
 ```
 
-Entregar la credencial impresa al primer ADM por un canal fuera de banda (DP-05: hoy solo se soporta entrega en persona/pantalla). No existe todavía una consola de operador de plataforma (DP-37 sin resolver) -- este script ES el mecanismo de alta hasta que se resuelva.
+No se emite ninguna credencial de activación. Entregar la contraseña temporal al primer ADM en persona (DP-05: hoy solo se soporta entrega en persona). En su primer login el sistema lo obliga a cambiar esa contraseña por una propia y a configurar su PIN antes de poder usar nada más; la contraseña temporal no vence. No existe todavía una consola de operador de plataforma (DP-37 sin resolver) -- este script ES el mecanismo de alta hasta que se resuelva.
 
 ## 6. Job diario: plazos de archivo (Vercel Cron)
 

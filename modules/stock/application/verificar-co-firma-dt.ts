@@ -157,6 +157,7 @@ export async function verificarCoFirmaDtEnTx(
     found: candidate !== null,
     estado: candidate?.estado ?? null,
     bloqueadoHasta: candidate?.bloqueadoHasta ?? null,
+    debeCambiarPassword: candidate?.debeCambiarPassword ?? false,
     passwordMatches,
     esDtVigente,
     now,

@@ -3,8 +3,8 @@
  * when, WHERE, outcome): client IP, user agent and request id, read from
  * the current request's headers. Filled in automatically by
  * `audit.record()` so every row carries it -- including the direct
- * `auditRecord` calls outside `defineCommand` (login lockout, activation,
- * failed co-firmas).
+ * `auditRecord` calls outside `defineCommand` (login lockout, failed
+ * co-firmas).
  *
  * Never throws: outside a request scope (unit/DB tests, scripts, a future
  * background job) `headers()` is unavailable and every field is `null`.

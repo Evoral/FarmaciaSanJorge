@@ -26,6 +26,17 @@ export function toast(message: string, tone: ToastTone = "success") {
   for (const listener of listeners) listener(item);
 }
 
+/** Fires `toast(message)` once when it mounts (e.g. after a redirect with `?creado=1`). Render it AFTER `<Toaster />` so the listener already exists. */
+export function ToastOnMount({ message, tone = "success" }: { message: string; tone?: ToastTone }) {
+  const fired = useRef(false);
+  useEffect(() => {
+    if (fired.current) return;
+    fired.current = true;
+    toast(message, tone);
+  }, [message, tone]);
+  return null;
+}
+
 export function Toaster() {
   const [items, setItems] = useState<ToastItem[]>([]);
 

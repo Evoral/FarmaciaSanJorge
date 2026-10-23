@@ -12,8 +12,7 @@
  * history) silently misses every role granted at creation time.
  *
  * This is a stubbed-tx unit test: the repository functions
- * (`existeEmail`/`existeDni`/`insertUsuario`/`insertUsuarioRol`/
- * `insertCredencialActivacion`) are mocked so the handler runs with no
+ * (`existeEmail`/`existeDni`/`insertUsuario`/`insertUsuarioRol`) are mocked so the handler runs with no
  * real database at all -- what this test proves is the SEQUENCE and SHAPE
  * of `auditRecord` calls the handler makes. tests/db/usuarios-admin.test.ts's
  * "M1: a crearUsuario-shaped insert..." test proves the same shape holds
@@ -21,6 +20,7 @@
  * constraints, JSONB shape, etc.).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ValidationError } from "@/shared/errors";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 
 const auditRecordMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
@@ -44,6 +44,10 @@ vi.mock("@/shared/auth/session", () => ({
   requireRecentReauth: vi.fn(),
 }));
 
+const insertUsuarioMock = vi.fn(async (...args: unknown[]): Promise<{ id: string }> => {
+  void args;
+  return { id: "nuevo-usuario-1" };
+});
 const insertUsuarioRolMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
   void args;
   return undefined;
@@ -51,9 +55,8 @@ const insertUsuarioRolMock = vi.fn(async (...args: unknown[]): Promise<undefined
 vi.mock("@/modules/usuarios/infrastructure/usuario-repository", () => ({
   existeEmail: vi.fn(async () => false),
   existeDni: vi.fn(async () => false),
-  insertUsuario: vi.fn(async () => ({ id: "nuevo-usuario-1" })),
+  insertUsuario: (...args: unknown[]) => insertUsuarioMock(...args),
   insertUsuarioRol: (...args: unknown[]) => insertUsuarioRolMock(...args),
-  insertCredencialActivacion: vi.fn(async () => undefined),
 }));
 
 // DP-03: crearUsuario resolves the submitted codes against the tenant's roles first (roles-asignables.ts).
@@ -78,13 +81,18 @@ function fakeSession(): AuthenticatedSession {
 
 beforeEach(() => {
   auditRecordMock.mockClear();
+  insertUsuarioMock.mockClear();
   insertUsuarioRolMock.mockClear();
 });
+
+const PASSWORD_TEMPORAL = "Temporal-Segura-2026";
+const passwordFields = { passwordTemporal: PASSWORD_TEMPORAL, passwordTemporalRepeat: PASSWORD_TEMPORAL };
+const persona = { nombre: "Nueva", apellido: "Persona", email: "nueva@example.com", dni: "999", roles: ["FARMACEUTICO"] };
 
 describe("M1: crearUsuario audits CREAR + one ASIGNAR_ROL per initial role", () => {
   it("creating a user with 2 roles writes exactly 3 audit rows: 1 CREAR + 2 ASIGNAR_ROL, all for the new usuario, all in the same transaction", async () => {
     await crearUsuarioCommand.execute(
-      { nombre: "Nueva", apellido: "Persona", email: "nueva@example.com", dni: "999", roles: ["FARMACEUTICO", "ATENCION_PUBLICO"] },
+      { ...persona, roles: ["FARMACEUTICO", "ATENCION_PUBLICO"], ...passwordFields },
       { session: fakeSession() },
     );
 
@@ -111,5 +119,73 @@ describe("M1: crearUsuario audits CREAR + one ASIGNAR_ROL per initial role", () 
 
     // insertUsuarioRol (the actual role grant) was called once per role too.
     expect(insertUsuarioRolMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("crearUsuario: temporary password", () => {
+  it("stores only an argon2id hash: the plaintext and the hash never reach the audit rows nor the output", async () => {
+    const output = await crearUsuarioCommand.execute({ ...persona, ...passwordFields }, { session: fakeSession() });
+
+    expect(insertUsuarioMock).toHaveBeenCalledTimes(1);
+    const { passwordHash } = insertUsuarioMock.mock.calls[0]![1] as { passwordHash: string };
+    expect(passwordHash).toMatch(/^\$argon2id\$/);
+    expect(passwordHash).not.toBe(PASSWORD_TEMPORAL);
+
+    const audited = JSON.stringify(auditRecordMock.mock.calls);
+    const returned = JSON.stringify(output);
+    for (const text of [audited, returned]) {
+      expect(text).not.toContain(PASSWORD_TEMPORAL);
+      expect(text).not.toContain(passwordHash);
+    }
+  });
+
+  it("outputs only the new usuario id (no activation credential)", async () => {
+    const output = await crearUsuarioCommand.execute({ ...persona, ...passwordFields }, { session: fakeSession() });
+    expect(output).toEqual({ usuarioId: "nuevo-usuario-1" });
+  });
+
+  const sector = { nombre: "Laboratorio", email: "lab@farmacia.local", roles: ["FARMACEUTICO"], esSector: true };
+  it.each([
+    ["a person", persona],
+    ["a cuenta de sector", sector],
+  ])("rejects mismatched passwords for %s, marking the repeat field", async (_label, base) => {
+    const error = await crearUsuarioCommand
+      .execute({ ...base, passwordTemporal: PASSWORD_TEMPORAL, passwordTemporalRepeat: `${PASSWORD_TEMPORAL}x` }, { session: fakeSession() })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).fields).toEqual(["passwordTemporalRepeat"]);
+    expect(insertUsuarioMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a person", persona],
+    ["a cuenta de sector", sector],
+  ])("rejects a policy-violating password for %s, marking the password field", async (_label, base) => {
+    const error = await crearUsuarioCommand
+      .execute({ ...base, passwordTemporal: "corta", passwordTemporalRepeat: "corta" }, { session: fakeSession() })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).fields).toEqual(["passwordTemporal"]);
+    expect(insertUsuarioMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a person", persona],
+    ["a cuenta de sector", sector],
+  ])("accepts a 6-character lowercase temporary password for %s", async (_label, base) => {
+    await crearUsuarioCommand.execute({ ...base, passwordTemporal: "abc123", passwordTemporalRepeat: "abc123" }, { session: fakeSession() });
+    expect(insertUsuarioMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["a person", persona],
+    ["a cuenta de sector", sector],
+  ])("rejects a 5-character temporary password for %s, marking only the password field", async (_label, base) => {
+    const error = await crearUsuarioCommand
+      .execute({ ...base, passwordTemporal: "abc12", passwordTemporalRepeat: "abc12" }, { session: fakeSession() })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).fields).toEqual(["passwordTemporal"]);
+    expect(insertUsuarioMock).not.toHaveBeenCalled();
   });
 });

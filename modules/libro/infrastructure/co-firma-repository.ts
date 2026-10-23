@@ -23,13 +23,14 @@ export interface DtCandidato {
   estado: string;
   intentosFallidos: number;
   bloqueadoHasta: Date | null;
+  debeCambiarPassword: boolean;
 }
 
 /** Looks up `dtUsuarioId` IN `tenantId` ONLY -- same non-enumeration discipline as the stock module's twin. */
 export async function resolveDtCandidato(tx: Prisma.TransactionClient, tenantId: string, dtUsuarioId: string): Promise<DtCandidato | null> {
   const row = await tx.usuario.findUnique({
     where: { id: dtUsuarioId, tenantId },
-    select: { id: true, passwordHash: true, estado: true, intentosFallidos: true, bloqueadoHasta: true },
+    select: { id: true, passwordHash: true, estado: true, intentosFallidos: true, bloqueadoHasta: true, debeCambiarPassword: true },
   });
   if (!row) return null;
   return {
@@ -38,6 +39,7 @@ export async function resolveDtCandidato(tx: Prisma.TransactionClient, tenantId:
     estado: row.estado,
     intentosFallidos: row.intentosFallidos,
     bloqueadoHasta: row.bloqueadoHasta,
+    debeCambiarPassword: row.debeCambiarPassword,
   };
 }
 
@@ -62,6 +64,7 @@ export async function listDtVigentesParaCoFirma(tx: Prisma.TransactionClient, te
     FROM fsj.usuario u
     JOIN fsj.designacion_director_tecnico d ON d.tenant_id = u.tenant_id AND d.usuario_id = u.id
     WHERE u.tenant_id = ${tenantId}::uuid
+      AND u.debe_cambiar_password = false
       AND fsj.es_dt_vigente(u.id, fsj.jornada_actual(${tenantId}::uuid))
     ORDER BY u.apellido, u.nombre
   `;

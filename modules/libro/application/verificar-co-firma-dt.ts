@@ -72,6 +72,7 @@ export const verificarCoFirmaDtLibroCommand = defineCommand<VerificarCoFirmaDtLi
       found: candidate !== null,
       estado: candidate?.estado ?? null,
       bloqueadoHasta: candidate?.bloqueadoHasta ?? null,
+      debeCambiarPassword: candidate?.debeCambiarPassword ?? false,
       passwordMatches,
       esDtVigente,
       now,

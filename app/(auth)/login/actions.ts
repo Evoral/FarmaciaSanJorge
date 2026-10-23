@@ -17,6 +17,7 @@ import { redirect } from "next/navigation";
 import { email as emailSchema, nonEmptyString } from "@/shared/validation";
 import { login } from "@/modules/auth/application/login";
 import { writeSessionCookie } from "@/shared/auth/session";
+import { rutaDelPaso } from "@/shared/auth/pasos";
 
 export interface LoginFormState {
   message: string | null;
@@ -47,5 +48,6 @@ export async function loginAction(_prevState: LoginFormState, formData: FormData
   }
 
   await writeSessionCookie(result.rawToken, result.expiraEn);
-  redirect("/");
+  // Outside any try/catch: redirect() works by throwing.
+  redirect(result.pasoPendiente ? rutaDelPaso(result.pasoPendiente) : "/");
 }

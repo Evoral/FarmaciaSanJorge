@@ -21,8 +21,13 @@ const recordLoginFailureMock = vi.fn(async (...args: unknown[]): Promise<undefin
   void args;
   return undefined;
 });
+const loadPasosPendientesMock = vi.fn(async (...args: unknown[]): Promise<unknown> => {
+  void args;
+  return [];
+});
 vi.mock("@/modules/auth/infrastructure/usuario-repository", () => ({
   resolveLoginByEmail: (...args: unknown[]) => resolveLoginByEmailMock(...args),
+  loadPasosPendientes: (...args: unknown[]) => loadPasosPendientesMock(...args),
   recordLoginSuccess: (...args: unknown[]) => recordLoginSuccessMock(...args),
   recordLoginFailure: (...args: unknown[]) => recordLoginFailureMock(...args),
 }));
@@ -70,6 +75,7 @@ beforeEach(() => {
   resolveLoginByEmailMock.mockReset();
   recordLoginSuccessMock.mockClear();
   recordLoginFailureMock.mockClear();
+  loadPasosPendientesMock.mockReset().mockResolvedValue([]);
   insertSesionInTxMock.mockClear();
   verifyPasswordMock.mockReset().mockResolvedValue(false);
   auditRecordMock.mockClear();
@@ -170,6 +176,42 @@ describe("login: success path", () => {
     verifyPasswordMock.mockResolvedValue(true);
     await login("user@example.com", "correct", null, null);
     expect(withTenantTransactionMock).toHaveBeenCalledWith(TENANT_ID, expect.any(Function));
+  });
+});
+
+describe("login: first pending step (docs/specs/contrasena-temporal.md)", () => {
+  const candidate = {
+    tenantId: TENANT_ID,
+    usuarioId: USUARIO_ID,
+    passwordHash: "hash",
+    estado: "ACTIVO",
+    intentosFallidos: 0,
+    bloqueadoHasta: null,
+  };
+
+  it.each([
+    [["cambiar-password"], "cambiar-password"],
+    [["configurar-pin"], "configurar-pin"],
+    [[], null],
+  ])("maps loadPasosPendientes %j to pasoPendiente %j", async (pasos, esperado) => {
+    resolveLoginByEmailMock.mockResolvedValue(candidate);
+    verifyPasswordMock.mockResolvedValue(true);
+    loadPasosPendientesMock.mockResolvedValue(pasos);
+
+    const result = await login("user@example.com", "correct", null, null);
+
+    expect(result).toMatchObject({ ok: true, pasoPendiente: esperado });
+    expect(loadPasosPendientesMock).toHaveBeenCalledWith(lastFakeTx, USUARIO_ID);
+  });
+
+  it("never loads the pending steps nor exposes pasoPendiente on a rejected login", async () => {
+    resolveLoginByEmailMock.mockResolvedValue(candidate);
+    verifyPasswordMock.mockResolvedValue(false);
+
+    const result = await login("user@example.com", "wrong", null, null);
+
+    expect(result).toEqual({ ok: false, message: GENERIC_LOGIN_ERROR });
+    expect(loadPasosPendientesMock).not.toHaveBeenCalled();
   });
 });
 

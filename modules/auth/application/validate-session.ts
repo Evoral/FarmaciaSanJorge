@@ -17,6 +17,7 @@
  * (idle-refresh) the session.
  */
 import { hashToken } from "../domain/token";
+import { derivarPasosPendientes } from "../domain/pasos-pendientes";
 import { checkSessionLifecycle } from "../domain/session-policy";
 import type { AuthenticatedSession } from "../domain/session";
 import {
@@ -57,6 +58,14 @@ export async function validateSession(rawToken: string, now: Date = new Date()):
       reautenticadaEn: sesion.reautenticadaEn,
       // A cuenta de sector (docs/specs/cuentas-de-sector.md) carries which acciones ask an empleado's PIN.
       sector: usuario.esSector ? { permisosConPin: await loadPermisosConPin(tx, tenantId) } : null,
+      pasosPendientes: derivarPasosPendientes({
+        debeCambiarPassword: usuario.debeCambiarPassword,
+        tienePin: usuario.tienePin,
+        esSector: usuario.esSector,
+        esTecnico: usuario.esTecnico,
+        soloAdministrador: usuario.soloAdministrador,
+      }),
+      soloAdministrador: usuario.soloAdministrador,
     };
   });
 }

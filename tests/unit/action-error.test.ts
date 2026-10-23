@@ -5,7 +5,7 @@
  * (same message, same fallback, no `fields` key when there are none).
  */
 import { describe, it, expect } from "vitest";
-import { AppError, AuthorizationError, DomainError, ValidationError } from "@/shared/errors";
+import { AppError, AuthorizationError, DomainError, PasosPendientesError, ValidationError } from "@/shared/errors";
 import { actionError } from "@/shared/ui/action-error";
 
 describe("AppError fields", () => {
@@ -36,6 +36,21 @@ describe("actionError", () => {
     const state = actionError(new AuthorizationError(), "fallback");
     expect(state).toEqual({ status: "error", message: "No tenés permiso para realizar esta acción." });
     expect("fields" in state).toBe(false);
+  });
+
+  it("points a PasosPendientesError at the page that resolves the step", () => {
+    expect(actionError(new PasosPendientesError("configurar-pin"), "x")).toEqual({
+      status: "error",
+      message: "Antes de seguir tenés que configurar tu PIN.",
+      href: "/configurar-pin",
+    });
+    expect(actionError(new PasosPendientesError("cambiar-password"), "x").href).toBe("/cambiar-password");
+  });
+
+  it("never adds an href to any other error", () => {
+    expect("href" in actionError(new DomainError("Nope."), "x")).toBe(false);
+    expect("href" in actionError(new ValidationError("Nope.", { fields: ["a"] }), "x")).toBe(false);
+    expect("href" in actionError(new Error("boom"), "x")).toBe(false);
   });
 
   it("returns a copy of the fields, not the error's own array", () => {

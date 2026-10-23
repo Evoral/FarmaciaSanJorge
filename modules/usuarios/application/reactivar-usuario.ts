@@ -1,8 +1,8 @@
 /**
  * `reactivarUsuario` (M03, FASE 3 point 3.5). Only SUSPENDIDO -> ACTIVO
  * (task requirement, narrower than the DB trigger which would also allow
- * PENDIENTE_ACTIVACION -> ACTIVO via the activation flow -- that path is
- * `activarCuenta`, not this admin command). BAJA is terminal: reactivating
+ * PENDIENTE_ACTIVACION -> ACTIVO -- a temporary password does that, see
+ * `restablecerCredencial`, not this admin command). BAJA is terminal: reactivating
  * from BAJA is never offered and is rejected with a clear message.
  *
  * M3 (security review): reactivar never removes an ADMINISTRADOR from the

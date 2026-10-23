@@ -17,5 +17,6 @@ export { readSessionCookie, writeSessionCookie, clearSessionCookie, SESSION_COOK
 /** FASE 2 point 2.5 / INV-X02. Re-exported here (not imported directly from modules/auth/domain) so shared/usecase.ts can use it without inverting the shared/ -> modules/ dependency direction -- see this file's module doc comment. */
 export { requireRecentReauth } from "@/modules/auth/domain/step-up";
 
+export type { RequireSessionOptions } from "@/modules/auth/application/require-session";
 export type { AuthenticatedSession, AuthenticatedUsuario } from "@/modules/auth/domain/session";
 export type { CreateSessionResult } from "@/modules/auth/application/create-session";

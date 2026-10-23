@@ -19,6 +19,7 @@ export type CoFirmaDecision =
   | "DESCONOCIDO" // no usuario with that id in this tenant
   | "BLOQUEADO" // locked out from too many recent failed attempts
   | "INACTIVO" // usuario.estado !== 'ACTIVO'
+  | "DEBE_CAMBIAR_PASSWORD" // still has a temporary password to replace (CT8): never a password oracle nor a counted failure
   | "PASSWORD_INCORRECTA"
   | "NO_VIGENTE_DT" // password correct, but not a DT vigente today (INV-U05)
   | "OK";
@@ -30,6 +31,8 @@ export interface CoFirmaDecisionInput {
   estado: string | null;
   /** `usuario.bloqueado_hasta`, or `null` when `found` is `false` or never locked. */
   bloqueadoHasta: Date | null;
+  /** `usuario.debe_cambiar_password`: the password was set by someone else and not replaced yet (docs/specs/contrasena-temporal.md, CT8). */
+  debeCambiarPassword: boolean;
   /** Result of `verifyPassword(candidate.passwordHash, rawPassword)` -- ALWAYS computed by the caller, even for `found: false` (constant-time discipline, mirrors login()). */
   passwordMatches: boolean;
   /** `fsj.es_dt_vigente(dtUsuarioId, jornadaActual)` -- only meaningful (and only computed by the caller) when `found` and `passwordMatches`, but accepted unconditionally here for a simple, total function. */
@@ -45,7 +48,10 @@ export function estaBloqueado(bloqueadoHasta: Date | null, now: Date): boolean {
 /**
  * The decision table, in the order each check applies. Lockout is checked
  * BEFORE password correctness (same order as login) so a locked DT is
- * rejected even with the right password. `NO_VIGENTE_DT` is checked LAST
+ * rejected even with the right password. `DEBE_CAMBIAR_PASSWORD` comes right
+ * after `INACTIVO` and BEFORE the password check, so a DT holding a temporary
+ * password is neither a password oracle nor a counted failed attempt.
+ * `NO_VIGENTE_DT` is checked LAST
  * (only once the password is confirmed correct) -- there is no way to learn
  * "this DT exists and its password is right, but it is not vigente" without
  * also learning "the password was right", so ordering it last does not leak
@@ -55,6 +61,7 @@ export function decideCoFirma(input: CoFirmaDecisionInput): CoFirmaDecision {
   if (!input.found) return "DESCONOCIDO";
   if (estaBloqueado(input.bloqueadoHasta, input.now)) return "BLOQUEADO";
   if (input.estado !== "ACTIVO") return "INACTIVO";
+  if (input.debeCambiarPassword) return "DEBE_CAMBIAR_PASSWORD";
   if (!input.passwordMatches) return "PASSWORD_INCORRECTA";
   if (!input.esDtVigente) return "NO_VIGENTE_DT";
   return "OK";

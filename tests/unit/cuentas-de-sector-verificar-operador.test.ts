@@ -93,6 +93,7 @@ function empleado(extra: Record<string, unknown> = {}) {
     estado: "ACTIVO",
     esSector: false,
     esTecnico: false,
+    debeCambiarPassword: false,
     permisos: new Set(["preparaciones.confirmar"]),
     ...extra,
   };
@@ -111,7 +112,7 @@ beforeEach(() => {
 
 describe("reglas puras", () => {
   it("decideCandidatoOperador: solo una persona ACTIVA del tenant puede ser operador", () => {
-    const base = { encontrado: true, estado: "ACTIVO", esSector: false, esTecnico: false };
+    const base = { encontrado: true, estado: "ACTIVO", esSector: false, esTecnico: false, debeCambiarPassword: false };
     expect(decideCandidatoOperador(base)).toBe("OK");
     expect(decideCandidatoOperador({ ...base, encontrado: false, estado: null })).toBe("NO_ENCONTRADO");
     expect(decideCandidatoOperador({ ...base, esSector: true })).toBe("NO_ES_EMPLEADO");

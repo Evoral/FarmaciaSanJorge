@@ -69,19 +69,14 @@ const cambiarEstadoUsuarioMock = vi.fn(async (...args: unknown[]): Promise<undef
   void args;
   return undefined;
 });
-const revokeCredencialesActivasMock = vi.fn(async (...args: unknown[]): Promise<number> => {
-  void args;
-  return 0;
-});
-const insertCredencialActivacionMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
+const restablecerPasswordTemporalMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
   void args;
   return undefined;
 });
 vi.mock("@/modules/usuarios/infrastructure/usuario-repository", () => ({
   loadUsuarioParaAccion: (...args: unknown[]) => loadUsuarioParaAccionMock(...args),
   cambiarEstadoUsuario: (...args: unknown[]) => cambiarEstadoUsuarioMock(...args),
-  revokeCredencialesActivas: (...args: unknown[]) => revokeCredencialesActivasMock(...args),
-  insertCredencialActivacion: (...args: unknown[]) => insertCredencialActivacionMock(...args),
+  restablecerPasswordTemporal: (...args: unknown[]) => restablecerPasswordTemporalMock(...args),
 }));
 
 vi.mock("@/modules/auth/application/revoke-session", () => ({
@@ -131,7 +126,10 @@ beforeEach(() => {
 
 describe("M3: restablecerCredencial derives estadoAnterior from the LOCKED read, not an earlier snapshot", () => {
   it("locks the target row BEFORE reading it, and the audit row's valorAnterior reflects the LOCKED read's estado", async () => {
-    await restablecerCredencialCommand.execute({ usuarioId: TARGET_ID }, { session: fakeSession() });
+    await restablecerCredencialCommand.execute(
+      { usuarioId: TARGET_ID, passwordTemporal: "Temporal-Segura-2026", passwordTemporalRepeat: "Temporal-Segura-2026" },
+      { session: fakeSession() },
+    );
 
     expect(lockMock).toHaveBeenCalledTimes(1);
     expect(loadUsuarioParaAccionMock).toHaveBeenCalledTimes(1);
@@ -144,9 +142,8 @@ describe("M3: restablecerCredencial derives estadoAnterior from the LOCKED read,
     expect(auditInput.valorAnterior).toEqual({ estado: "SUSPENDIDO" });
     expect(auditInput.valorAnterior).not.toEqual({ estado: "ACTIVO" });
 
-    expect(cambiarEstadoUsuarioMock).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ estadoAnterior: "SUSPENDIDO", estadoNuevo: "PENDIENTE_ACTIVACION" }),
-    );
+    // A SUSPENDIDO usuario stays SUSPENDIDO when its password is reset: the estado is not touched.
+    expect(cambiarEstadoUsuarioMock).not.toHaveBeenCalled();
+    expect(auditInput.valorNuevo).toEqual({ estado: "SUSPENDIDO" });
   });
 });

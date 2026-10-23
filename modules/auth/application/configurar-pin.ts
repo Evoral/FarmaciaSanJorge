@@ -11,13 +11,17 @@
  * `permiso: "auth.password.cambiar"` is a deliberate reuse (same reasoning
  * as `reautenticar`'s reuse of `auth.login`): this is the closest existing
  * permission for "manage my own credential", granted to every role.
+ *
+ * Cuentas de sector and usuarios whose only role is Administrador have no
+ * PIN (docs/specs/contrasena-temporal.md, CT6/CT9): «Mi cuenta» hides the
+ * panel for them, and this command rejects them server-side as well.
  */
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { DomainError } from "@/shared/errors";
 import { validatePin } from "../domain/pin";
 import { hashPassword, verifyPassword } from "../domain/password";
-import { loadUsuarioParaPassword, setPinHash } from "../infrastructure/usuario-repository";
+import { loadEsSoloAdministrador, loadUsuarioParaPassword, setPinHash } from "../infrastructure/usuario-repository";
 
 const configurarPinInput = z
   .object({
@@ -44,6 +48,12 @@ export const configurarPinCommand = defineCommand({
     if (!usuario) {
       // Should be unreachable (the session's own usuario row always exists), but never trust it silently.
       throw new DomainError("No se pudo configurar el PIN.");
+    }
+    if (session.sector || usuario.esSector) {
+      throw new DomainError("Las cuentas de sector no usan PIN.");
+    }
+    if (await loadEsSoloAdministrador(tx, session.usuario.id)) {
+      throw new DomainError("El Administrador no usa PIN.");
     }
 
     const actualMatches = await verifyPassword(usuario.passwordHash, input.passwordActual);

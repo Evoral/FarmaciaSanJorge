@@ -1,5 +1,5 @@
 /**
- * `logout` (M02, FASE 2 point 2.2). Unlike `login`/`activarCuenta`, a
+ * `logout` (M02, FASE 2 point 2.2). Unlike `login`, a
  * logout ALWAYS has an existing session by definition (there is nothing to
  * log out of otherwise) -- so, unlike those two, this goes through the
  * normal `defineCommand` pipeline like any other authenticated use case.
@@ -16,6 +16,8 @@ import { revokeSesion } from "../infrastructure/session-repository";
 export const logoutCommand = defineCommand({
   name: "auth.logout",
   permiso: "auth.logout",
+  // Leaving must always be possible, even with a password/PIN step pending.
+  permitirPasosPendientes: true,
   input: z.object({}),
   // Session revocation is not itself a distinct M02-audited event (plan
   // §14 lists activation, lockout, and credential reset -- not routine

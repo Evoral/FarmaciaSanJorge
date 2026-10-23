@@ -24,6 +24,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
 import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
+import { Toaster, ToastOnMount } from "@/shared/ui/toast";
 
 const HISTORIAL_PAGE_SIZE = 20;
 
@@ -35,13 +36,13 @@ const TABS = [
 
 interface UsuarioDetallePageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; page?: string }>;
+  searchParams: Promise<{ tab?: string; page?: string; creado?: string }>;
 }
 
 export default async function UsuarioDetallePage({ params, searchParams }: UsuarioDetallePageProps) {
   const session = await requireSession();
   const { id } = await params;
-  const { tab: rawTab, page: rawPage } = await searchParams;
+  const { tab: rawTab, page: rawPage, creado } = await searchParams;
   const page = Math.max(1, Number.parseInt(rawPage ?? "1", 10) || 1);
   const tab = TABS.some((t) => t.key === rawTab) ? (rawTab as (typeof TABS)[number]["key"]) : "datos";
 
@@ -54,6 +55,8 @@ export default async function UsuarioDetallePage({ params, searchParams }: Usuar
 
   return (
     <>
+      <Toaster />
+      {creado === "1" ? <ToastOnMount message="Usuario creado. Entregale la contraseña temporal en mano." /> : null}
       <PageHeader
         breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Usuarios y accesos" }, { label: "Usuarios", href: "/admin/accesos/usuarios" }, { label: nombre }]}
         title={
@@ -108,7 +111,7 @@ export default async function UsuarioDetallePage({ params, searchParams }: Usuar
               <section className="panel" aria-labelledby="credencial-heading">
                 <div className="panel-header">
                   <h2 id="credencial-heading">Credencial</h2>
-                  <p>Emite una credencial nueva de 72 horas, revoca la anterior y las sesiones abiertas, y vuelve a «Pendiente de activación».</p>
+                  <p>Asigná una contraseña temporal nueva. Cierra las sesiones abiertas y la persona tendrá que cambiarla al ingresar; su PIN se conserva.</p>
                 </div>
                 <div className="panel-body">
                   <RestablecerCredencial usuarioId={usuario.id} />

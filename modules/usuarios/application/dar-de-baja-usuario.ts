@@ -2,9 +2,8 @@
  * `darDeBajaUsuario` (M03, FASE 3 point 3.5, INV-USR-004/005). Any of
  * PENDIENTE_ACTIVACION/ACTIVO/SUSPENDIDO -> BAJA, terminal (DP-02
  * unresolved -- no reactivation path exists anywhere in this codebase).
- * Requires motivo (no password re-authentication, user decision 2026-10-21), and revokes every session and
- * pending credential immediately (task's binding decision), same as
- * suspend.
+ * Requires motivo (no password re-authentication, user decision 2026-10-21), and revokes every session
+ * immediately (task's binding decision), same as suspend.
  *
  * M3 (security review): target row locked first, `actual`/`estadoAnterior`
  * read after -- see suspender-usuario.ts's doc comment / admin-guard.ts's
@@ -18,7 +17,7 @@ import { revokeAllSesionesForUsuarioInTx } from "@/modules/auth/application/revo
 import { esAccionSobreSiMismo, quedariaSinAdministradores } from "../domain/reglas-admin";
 import { ROL_ADMINISTRADOR } from "../domain/roles";
 import { lockUsuarioYAdministradoresActivos } from "../infrastructure/admin-guard";
-import { loadUsuarioParaAccion, cambiarEstadoUsuario, revokeCredencialesActivas } from "../infrastructure/usuario-repository";
+import { loadUsuarioParaAccion, cambiarEstadoUsuario } from "../infrastructure/usuario-repository";
 
 const darDeBajaUsuarioInput = z.object({
   usuarioId: uuid,
@@ -67,10 +66,9 @@ export const darDeBajaUsuarioCommand = defineCommand({
     });
 
     const sesionesRevocadas = await revokeAllSesionesForUsuarioInTx(tx, session.tenantId, input.usuarioId, now);
-    const credencialesRevocadas = await revokeCredencialesActivas(tx, session.tenantId, input.usuarioId, now);
 
     return {
-      output: { sesionesRevocadas, credencialesRevocadas },
+      output: { sesionesRevocadas },
       audit: {
         entidadId: input.usuarioId,
         motivo: input.motivo,
@@ -81,6 +79,6 @@ export const darDeBajaUsuarioCommand = defineCommand({
   },
 });
 
-export async function darDeBajaUsuario(input: DarDeBajaUsuarioInput): Promise<{ sesionesRevocadas: number; credencialesRevocadas: number }> {
+export async function darDeBajaUsuario(input: DarDeBajaUsuarioInput): Promise<{ sesionesRevocadas: number }> {
   return darDeBajaUsuarioCommand.execute(input);
 }

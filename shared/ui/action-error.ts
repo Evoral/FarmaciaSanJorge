@@ -15,20 +15,27 @@
  *   `AppErrorOptions`) travel along so the form can mark exactly those
  *   controls (`shared/ui/field-errors.ts`).
  *
- * `fields` is omitted (not `undefined`) when there are none, so the
+ * A `PasosPendientesError` also carries an `href`: the page that resolves the pending step
+ * (shared/auth/pasos.ts), which `FormFeedback` renders as a link after the message.
+ *
+ * `fields` and `href` are omitted (not `undefined`) when there are none, so the
  * serialized state stays identical to what actions returned before.
  */
-import { AppError, logErrorForDiagnostics, userMessageFor } from "@/shared/errors";
+import { AppError, PasosPendientesError, logErrorForDiagnostics, userMessageFor } from "@/shared/errors";
+import { rutaDelPaso } from "@/shared/auth/pasos";
 
 export interface ActionErrorState {
   status: "error";
   message: string;
   fields?: string[];
+  /** Where to resolve the error (only set for a pending step). */
+  href?: string;
 }
 
 export function actionError(error: unknown, fallback: string): ActionErrorState {
   logErrorForDiagnostics(error, { origen: "server-action" });
   const message = userMessageFor(error, fallback);
+  if (error instanceof PasosPendientesError) return { status: "error", message, href: rutaDelPaso(error.paso) };
   if (error instanceof AppError && error.fields && error.fields.length > 0) return { status: "error", message, fields: [...error.fields] };
   return { status: "error", message };
 }
