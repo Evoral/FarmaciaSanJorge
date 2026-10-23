@@ -1,5 +1,5 @@
 /**
- * Table of `/pacientes/seguimiento` (docs/specs/pacientes-recurrentes.md).
+ * Table of `/clientes/seguimiento` (docs/specs/pacientes-recurrentes.md).
  * Server component. HEALTH-ADJACENT DATA (DP-24): internal hrefs carry only the
  * opaque paciente id. The one external link, "WhatsApp" (`wa.me` with phone +
  * message), is built by the use case on purpose: it is the link the person
@@ -36,7 +36,7 @@ export function RecurrentesTabla({ filas, zonaHoraria }: RecurrentesTablaProps) 
         <thead>
           <tr>
             <th scope="col" className="px-3 py-2">
-              Paciente
+              Cliente
             </th>
             <th scope="col" className="hidden px-3 py-2 md:table-cell">
               Qué pide
@@ -68,7 +68,7 @@ export function RecurrentesTabla({ filas, zonaHoraria }: RecurrentesTablaProps) 
                     <Avatar name={nombre} />
                     <span className="min-w-0">
                       <Link
-                        href={`/pacientes/${fila.pacienteId}`}
+                        href={`/clientes/${fila.pacienteId}`}
                         title={nombre}
                         className="block max-w-[16rem] truncate font-medium text-zinc-900 underline-offset-2 hover:underline"
                       >
@@ -112,15 +112,15 @@ export function RecurrentesTabla({ filas, zonaHoraria }: RecurrentesTablaProps) 
                       </a>
                     ) : (
                       <Link
-                        href={`/pacientes/${fila.pacienteId}`}
+                        href={`/clientes/${fila.pacienteId}`}
                         className="whitespace-nowrap text-xs text-zinc-500 underline-offset-2 hover:text-zinc-900 hover:underline"
-                        title="Abrir los datos del paciente para corregirlo"
+                        title="Abrir los datos del cliente para corregirlo"
                       >
                         {MOTIVO_SIN_WHATSAPP_LABELS[fila.whatsapp.motivo]}
                       </Link>
                     )}
                     <Link
-                      href={`/pacientes/${fila.pacienteId}/historial`}
+                      href={`/clientes/${fila.pacienteId}/historial`}
                       className="btn btn-ghost btn-sm btn-icon"
                       aria-label={`Ver el historial de ${fila.nombre} ${fila.apellido}`}
                       title="Historial"

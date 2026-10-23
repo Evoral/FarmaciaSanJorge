@@ -90,7 +90,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/catalogos/pacientes/:path*",
-        destination: "/pacientes/:path*",
+        destination: "/clientes/:path*",
         permanent: false,
       },
       {
@@ -102,12 +102,19 @@ const nextConfig: NextConfig = {
       // Recurrentes -> Seguimiento. Same 307 reasoning as above.
       {
         source: "/pacientes/recurrentes",
-        destination: "/pacientes/seguimiento",
+        destination: "/clientes/seguimiento",
         permanent: false,
       },
       {
         source: "/pacientes/:id/trayectoria",
-        destination: "/pacientes/:id/historial",
+        destination: "/clientes/:id/historial",
+        permanent: false,
+      },
+      // For the farmacia they are clientes, not pacientes: the section moved to /clientes (UI wording only; the
+      // module, permiso and tables keep "paciente"). After the specific /pacientes redirects above.
+      {
+        source: "/pacientes/:path*",
+        destination: "/clientes/:path*",
         permanent: false,
       },
       {

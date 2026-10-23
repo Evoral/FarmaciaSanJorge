@@ -1,5 +1,5 @@
 /**
- * `/pacientes` (M06, FASE 4 point 4.5). HEALTH-ADJACENT DATA
+ * `/clientes` (M06, FASE 4 point 4.5). HEALTH-ADJACENT DATA
  * (DP-24, Ley 25.326): unlike proveedores/medicos, this page's GET
  * `searchParams` ONLY ever reads `estado` ("vigente"/"baja"/"todos", not
  * identifying), `page` (a plain integer) and `nuevo` (a flag) -- there is
@@ -22,7 +22,7 @@ import { FilterForm } from "@/shared/ui/filter-form";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
-import { PacientesTabs } from "./pacientes-tabs";
+import { ClientesTabs } from "./clientes-tabs";
 
 const PAGE_SIZE = 20;
 
@@ -45,7 +45,7 @@ export default async function PacientesPage({ searchParams }: PacientesPageProps
     const qs = new URLSearchParams();
     if (estado) qs.set("estado", estado);
     qs.set("page", String(targetPage));
-    return `/pacientes?${qs.toString()}`;
+    return `/clientes?${qs.toString()}`;
   }
 
   const etiquetaEstado = estado === "vigente" ? "Vigentes" : estado === "baja" ? "Dados de baja" : null;
@@ -53,26 +53,26 @@ export default async function PacientesPage({ searchParams }: PacientesPageProps
   return (
     <>
       <PageHeader
-        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Pacientes" }]}
-        title="Pacientes"
-        description="Datos de contacto de cada paciente y el recorrido de sus recetas."
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Clientes" }]}
+        title="Clientes"
+        description="Datos de contacto de cada cliente y el recorrido de sus recetas."
         actions={
           puedeCrear ? (
-            <Link href="/pacientes?nuevo=1" className="btn btn-primary">
+            <Link href="/clientes?nuevo=1" className="btn btn-primary">
               <Plus className="size-4" aria-hidden />
-              Nuevo paciente
+              Nuevo cliente
             </Link>
           ) : null
         }
       />
 
-      <PacientesTabs />
+      <ClientesTabs />
 
       {puedeCrear && params.nuevo ? (
         <section className="panel mb-6 max-w-3xl" aria-labelledby="nuevo-paciente-heading">
           <div className="panel-header flex items-center justify-between gap-3">
-            <h2 id="nuevo-paciente-heading">Nuevo paciente</h2>
-            <Link href="/pacientes" className="btn btn-ghost btn-sm btn-icon" aria-label="Cerrar el alta de paciente">
+            <h2 id="nuevo-paciente-heading">Nuevo cliente</h2>
+            <Link href="/clientes" className="btn btn-ghost btn-sm btn-icon" aria-label="Cerrar el alta de cliente">
               <X className="size-4" aria-hidden />
             </Link>
           </div>
@@ -89,7 +89,7 @@ export default async function PacientesPage({ searchParams }: PacientesPageProps
         totalInicial={result.total}
         estado={estado}
         filtros={
-          <FilterForm aria-label="Filtro de estado de pacientes" hasActiveFilters={false}>
+          <FilterForm aria-label="Filtro de estado de clientes" hasActiveFilters={false}>
             <div className="field">
               <label htmlFor="estado" className="sr-only">
                 Estado
@@ -107,7 +107,7 @@ export default async function PacientesPage({ searchParams }: PacientesPageProps
             <div className="filter-chips" role="group" aria-label="Filtros activos">
               <span className="chip">
                 <strong>{etiquetaEstado}</strong>
-                <Link href="/pacientes" scroll={false} className="chip-remove" aria-label={`Quitar filtro ${etiquetaEstado}`}>
+                <Link href="/clientes" scroll={false} className="chip-remove" aria-label={`Quitar filtro ${etiquetaEstado}`}>
                   <X className="size-3" aria-hidden />
                 </Link>
               </span>
@@ -118,18 +118,18 @@ export default async function PacientesPage({ searchParams }: PacientesPageProps
           etiquetaEstado ? (
             <EmptyState
               icon={<Users className="size-5" />}
-              title="Sin pacientes en este estado"
+              title="Sin clientes en este estado"
               action={
-                <Link href="/pacientes" scroll={false} className="btn btn-secondary">
+                <Link href="/clientes" scroll={false} className="btn btn-secondary">
                   Ver todos
                 </Link>
               }
             />
           ) : (
-            <EmptyState icon={<Users className="size-5" />} title="Todavía no hay pacientes" description="También se pueden crear desde la carga de una receta." />
+            <EmptyState icon={<Users className="size-5" />} title="Todavía no hay clientes" description="También se pueden crear desde la carga de una receta." />
           )
         }
-        paginacion={<Pagination page={page} pageSize={PAGE_SIZE} total={result.total} hrefFor={pageHref} label="Paginación de pacientes" />}
+        paginacion={<Pagination page={page} pageSize={PAGE_SIZE} total={result.total} hrefFor={pageHref} label="Paginación de clientes" />}
       />
     </>
   );

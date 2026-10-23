@@ -1,5 +1,5 @@
 /**
- * Header of `/pacientes/[id]/trayectoria`: breadcrumbs back to the list, apellido, nombre, estado (vigente / dado de
+ * Header of `/clientes/[id]/trayectoria`: breadcrumbs back to the list, apellido, nombre, estado (vigente / dado de
  * baja + motivo), DNI and nro. de credencial. Server component. HEALTH-ADJACENT DATA (DP-24, Ley 25.326): rendered only
  * for sessions that passed `pacientes.gestionar`; none of these values may go into a URL or a log.
  */
@@ -12,7 +12,7 @@ export function TrayectoriaEncabezado({ paciente }: { paciente: PacienteTrayecto
 
   return (
     <PageHeader
-      breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Pacientes", href: "/pacientes" }, { label: nombre }]}
+      breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Clientes", href: "/clientes" }, { label: nombre }]}
       title={
         <span className="flex flex-wrap items-center gap-3">
           {nombre}

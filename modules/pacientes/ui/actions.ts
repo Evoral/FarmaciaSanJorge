@@ -1,6 +1,6 @@
 "use server";
 
-/** Server Actions for `/pacientes` (FASE 4 point 4.5). HEALTH-ADJACENT DATA (DP-24): none of these ever call a logger with paciente fields. */
+/** Server Actions for `/clientes` (FASE 4 point 4.5). HEALTH-ADJACENT DATA (DP-24): none of these ever call a logger with paciente fields. */
 import { revalidatePath } from "next/cache";
 import { crearPaciente } from "@/modules/pacientes/application/crear-paciente";
 import { editarPaciente } from "@/modules/pacientes/application/editar-paciente";
@@ -49,10 +49,10 @@ export async function crearPacienteAction(_prevState: PacienteActionState, formD
       sexo: optional(formData, "sexo"),
       aceptaRecordatoriosWhatsapp: checkbox(formData, "aceptaRecordatoriosWhatsapp"),
     });
-    revalidatePath("/pacientes");
-    return { status: "success", message: "Paciente creado." };
+    revalidatePath("/clientes");
+    return { status: "success", message: "Cliente creado." };
   } catch (error) {
-    return fromError(error, "No se pudo crear el paciente.");
+    return fromError(error, "No se pudo crear el cliente.");
   }
 }
 
@@ -83,9 +83,9 @@ export async function editarPacienteAction(_prevState: PacienteActionState, form
         aceptaRecordatoriosWhatsapp: versionBoolean(formData, "versionAceptaRecordatoriosWhatsapp"),
       },
     });
-    revalidatePath("/pacientes");
-    revalidatePath("/pacientes/seguimiento");
-    return { status: "success", message: "Paciente actualizado." };
+    revalidatePath("/clientes");
+    revalidatePath("/clientes/seguimiento");
+    return { status: "success", message: "Cliente actualizado." };
   } catch (error) {
     return fromError(error, "No se pudieron guardar los cambios.");
   }
@@ -94,19 +94,19 @@ export async function editarPacienteAction(_prevState: PacienteActionState, form
 export async function darDeBajaPacienteAction(_prevState: PacienteActionState, formData: FormData): Promise<PacienteActionState> {
   try {
     await darDeBajaPaciente({ id: String(formData.get("id") ?? ""), motivo: String(formData.get("motivo") ?? "") });
-    revalidatePath("/pacientes");
-    return { status: "success", message: "Paciente dado de baja." };
+    revalidatePath("/clientes");
+    return { status: "success", message: "Cliente dado de baja." };
   } catch (error) {
-    return fromError(error, "No se pudo dar de baja al paciente.");
+    return fromError(error, "No se pudo dar de baja al cliente.");
   }
 }
 
 export async function reactivarPacienteAction(_prevState: PacienteActionState, formData: FormData): Promise<PacienteActionState> {
   try {
     await reactivarPaciente({ id: String(formData.get("id") ?? ""), motivo: String(formData.get("motivo") ?? "") });
-    revalidatePath("/pacientes");
-    return { status: "success", message: "Paciente reactivado." };
+    revalidatePath("/clientes");
+    return { status: "success", message: "Cliente reactivado." };
   } catch (error) {
-    return fromError(error, "No se pudo reactivar al paciente.");
+    return fromError(error, "No se pudo reactivar al cliente.");
   }
 }

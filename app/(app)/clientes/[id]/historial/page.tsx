@@ -1,5 +1,5 @@
 /**
- * `/pacientes/[id]/historial` (docs/specs/trayectoria-paciente.md): read-only
+ * `/clientes/[id]/historial` (docs/specs/trayectoria-paciente.md): read-only
  * view of everything a paciente went through, receta by receta (Ingreso ->
  * Preparación -> Libro -> Entrega -> Archivo). HEALTH-ADJACENT DATA (DP-24,
  * Ley 25.326): `[id]` is an opaque UUID and `searchParams` ONLY ever reads
@@ -8,7 +8,7 @@
  * links are decided by the use case from the session's other permisos.
  * Recetas render as a `table.data-table` (same look as the other lists) whose
  * rows expand to the full journey (`FilaDesplegable`). The paciente's "Datos |
- * Historial" tabs sit right under the header (`PacienteTabs`).
+ * Historial" tabs sit right under the header (`ClienteTabs`).
  */
 import { notFound } from "next/navigation";
 import { FileText } from "lucide-react";
@@ -21,7 +21,7 @@ import { uuid } from "@/shared/validation";
 import { FilaDesplegable } from "@/shared/ui/fila-desplegable";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
-import { PacienteTabs } from "../../pacientes-tabs";
+import { ClienteTabs } from "../../clientes-tabs";
 
 interface TrayectoriaPageProps {
   params: Promise<{ id: string }>;
@@ -44,12 +44,12 @@ export default async function TrayectoriaPacientePage({ params, searchParams }: 
 
   const { paciente, acceso, resumen, recetas, paginacion, zonaHoraria } = trayectoria;
   const colSpan = columnasTablaRecetas(acceso);
-  const pageHref = (target: number) => `/pacientes/${id}/historial?page=${target}`;
+  const pageHref = (target: number) => `/clientes/${id}/historial?page=${target}`;
 
   return (
     <>
       <TrayectoriaEncabezado paciente={paciente} />
-      <PacienteTabs id={id} />
+      <ClienteTabs id={id} />
       <TrayectoriaResumen resumen={resumen} zonaHoraria={zonaHoraria} />
 
       <section aria-labelledby="trayectoria-recetas" className="list-panel">
@@ -64,7 +64,7 @@ export default async function TrayectoriaPacientePage({ params, searchParams }: 
         </div>
 
         {recetas.length === 0 ? (
-          <EmptyState icon={<FileText className="size-5" />} title="Sin recetas" description="Este paciente todavía no tiene recetas registradas." />
+          <EmptyState icon={<FileText className="size-5" />} title="Sin recetas" description="Este cliente todavía no tiene recetas registradas." />
         ) : (
           <div className="table-wrap">
             <table className="data-table">
@@ -114,7 +114,7 @@ export default async function TrayectoriaPacientePage({ params, searchParams }: 
           </div>
         )}
 
-        <Pagination page={paginacion.page} pageSize={paginacion.pageSize} total={paginacion.total} hrefFor={pageHref} label="Paginación de recetas del paciente" />
+        <Pagination page={paginacion.page} pageSize={paginacion.pageSize} total={paginacion.total} hrefFor={pageHref} label="Paginación de recetas del cliente" />
       </section>
     </>
   );

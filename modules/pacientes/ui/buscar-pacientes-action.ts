@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * Search Server Action for `/pacientes` (FASE 4 point 4.5,
+ * Search Server Action for `/clientes` (FASE 4 point 4.5,
  * DP-24). Deliberately SEPARATE from `page.tsx`'s GET `searchParams` (which
  * only ever reads the non-identifying `estado`/`page`/`nuevo` params -- see
  * that file's doc comment) -- the search term itself (apellido or DNI, both
@@ -35,7 +35,7 @@ export async function buscarPacientesAction(prevState: BuscarPacientesState, for
     const result = await listPacientes({ search: q.length > 0 ? q : undefined, soloVigentes, page: 1, pageSize: PAGE_SIZE });
     return { status: "success", items: result.items, total: result.total };
   } catch (error) {
-    const message = actionErrorMessage(error, "No se pudo buscar pacientes.");
+    const message = actionErrorMessage(error, "No se pudo buscar clientes.");
     return { status: "error", message, items: prevState.items, total: prevState.total };
   }
 }

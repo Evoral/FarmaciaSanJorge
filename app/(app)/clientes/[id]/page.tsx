@@ -1,5 +1,5 @@
 /**
- * `/pacientes/[id]` (M06, FASE 4 point 4.5): edit + baja/reactivar. HEALTH-ADJACENT DATA (DP-24) -- `[id]` in the path
+ * `/clientes/[id]` (M06, FASE 4 point 4.5): edit + baja/reactivar. HEALTH-ADJACENT DATA (DP-24) -- `[id]` in the path
  * is an opaque UUID, not a patient-identifying value. Layout: the data form in the main column; the estado and its
  * baja/reactivar action in the aside (same shape as /catalogos/medicos/[id]).
  */
@@ -13,7 +13,7 @@ import { MotivoForm } from "@/shared/ui/motivo-form";
 import { darDeBajaPacienteAction, reactivarPacienteAction } from "@/modules/pacientes/ui/actions";
 import { PageHeader } from "@/shared/ui/page-header";
 import { ToneBadge } from "@/shared/ui/status-badge";
-import { PacienteTabs } from "../pacientes-tabs";
+import { ClienteTabs } from "../clientes-tabs";
 
 interface PacienteDetallePageProps {
   params: Promise<{ id: string }>;
@@ -37,7 +37,7 @@ export default async function PacienteDetallePage({ params }: PacienteDetallePag
   return (
     <>
       <PageHeader
-        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Pacientes", href: "/pacientes" }, { label: nombre }]}
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Clientes", href: "/clientes" }, { label: nombre }]}
         title={
           <span className="flex flex-wrap items-center gap-3">
             {nombre}
@@ -62,7 +62,7 @@ export default async function PacienteDetallePage({ params }: PacienteDetallePag
         }
       />
 
-      <PacienteTabs id={paciente.id} />
+      <ClienteTabs id={paciente.id} />
 
       <div className="split-layout">
         <section aria-labelledby="datos-heading" className="panel min-w-0">
@@ -90,7 +90,7 @@ export default async function PacienteDetallePage({ params }: PacienteDetallePag
           </div>
         </section>
 
-        <aside className="split-aside" aria-label="Estado del paciente">
+        <aside className="split-aside" aria-label="Estado del cliente">
           <section className="panel" aria-labelledby="estado-heading">
             <div className="panel-header">
               <h2 id="estado-heading">Estado</h2>
@@ -117,7 +117,7 @@ export default async function PacienteDetallePage({ params }: PacienteDetallePag
                       id={paciente.id}
                       label="Dar de baja"
                       pendingLabel="Dando de baja…"
-                      helpText="Este paciente deja de ofrecerse para nuevas recetas, pero sigue resolviendo en históricos."
+                      helpText="Este cliente deja de ofrecerse para nuevas recetas, pero sigue resolviendo en históricos."
                       variant="danger"
                     />
                   ) : null}

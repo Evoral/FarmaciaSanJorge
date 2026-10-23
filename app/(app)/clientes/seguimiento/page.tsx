@@ -1,5 +1,5 @@
 /**
- * `/pacientes/seguimiento` (docs/specs/pacientes-recurrentes.md): patients who
+ * `/clientes/seguimiento` (docs/specs/pacientes-recurrentes.md): patients who
  * periodically order the same preparation, with a one-click WhatsApp reminder.
  * HEALTH-ADJACENT DATA (DP-24, Ley 25.326): `searchParams` ONLY ever reads
  * `ventana` ("todos"; anything else is the default "próximos") and `page` (a
@@ -11,8 +11,8 @@
  * The ventana filter is a strip of tabs with the use case's own per-window
  * counts (`conteo`): the number the user reads is the tab they click.
  *
- * `/pacientes/seguimiento` is a STATIC segment next to the dynamic
- * `/pacientes/[id]`: Next.js matches static segments first, so `seguimiento` is
+ * `/clientes/seguimiento` is a STATIC segment next to the dynamic
+ * `/clientes/[id]`: Next.js matches static segments first, so `seguimiento` is
  * never read as an `[id]` (and never reaches that layout's uuid guard).
  */
 import Link from "next/link";
@@ -25,7 +25,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { StatusSummary } from "@/shared/ui/status-summary";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
-import { PacientesTabs } from "../pacientes-tabs";
+import { ClientesTabs } from "../clientes-tabs";
 
 interface RecurrentesPageProps {
   searchParams: Promise<{ ventana?: string; page?: string }>;
@@ -46,33 +46,33 @@ export default async function PacientesRecurrentesPage({ searchParams }: Recurre
     const qs = new URLSearchParams();
     if (ventana === "todos") qs.set("ventana", ventana);
     qs.set("page", String(targetPage));
-    return `/pacientes/seguimiento?${qs.toString()}`;
+    return `/clientes/seguimiento?${qs.toString()}`;
   }
 
-  const regla = `Aparecen los pacientes que pidieron la misma fórmula ${OCURRENCIAS_MINIMAS} o más veces en los últimos ${VENTANA_MESES} meses.`;
+  const regla = `Aparecen los clientes que pidieron la misma fórmula ${OCURRENCIAS_MINIMAS} o más veces en los últimos ${VENTANA_MESES} meses.`;
   const masAdelante = conteo.todos - conteo.proximos;
 
   return (
     <>
       <PageHeader
-        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Pacientes", href: "/pacientes" }, { label: "Seguimiento" }]}
-        title="Pacientes"
-        description="Datos de contacto de cada paciente y el recorrido de sus recetas."
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Clientes", href: "/clientes" }, { label: "Seguimiento" }]}
+        title="Clientes"
+        description="Datos de contacto de cada cliente y el recorrido de sus recetas."
       />
 
-      <PacientesTabs />
+      <ClientesTabs />
 
       <div className="mb-4">
         <StatusSummary
           label="Filtrar por fecha del próximo pedido"
           unit={["pedido", "pedidos"]}
-          all={{ label: "Todos", count: conteo.todos, href: "/pacientes/seguimiento?ventana=todos", active: ventana === "todos" }}
+          all={{ label: "Todos", count: conteo.todos, href: "/clientes/seguimiento?ventana=todos", active: ventana === "todos" }}
           items={[
             {
               key: "proximos",
               label: "Próximos",
               count: conteo.proximos,
-              href: "/pacientes/seguimiento",
+              href: "/clientes/seguimiento",
               active: ventana === "proximos",
               tone: "warn",
             },
@@ -98,7 +98,7 @@ export default async function PacientesRecurrentesPage({ searchParams }: Recurre
               title="Nada atrasado ni previsto para esta semana"
               description={`${numberFormat.format(masAdelante)} ${masAdelante === 1 ? "pedido más tiene" : "pedidos más tienen"} fecha posterior.`}
               action={
-                <Link href="/pacientes/seguimiento?ventana=todos" scroll={false} className="btn btn-secondary">
+                <Link href="/clientes/seguimiento?ventana=todos" scroll={false} className="btn btn-secondary">
                   Ver todos
                 </Link>
               }
@@ -111,7 +111,7 @@ export default async function PacientesRecurrentesPage({ searchParams }: Recurre
         )}
 
         <p className="border-t border-zinc-100 px-4 py-2.5 text-xs text-zinc-500 md:hidden">WhatsApp solo para quienes aceptaron recordatorios y tienen un teléfono válido.</p>
-        <Pagination page={paginacion.page} pageSize={paginacion.pageSize} total={paginacion.total} hrefFor={pageHref} label="Paginación de pacientes en seguimiento" />
+        <Pagination page={paginacion.page} pageSize={paginacion.pageSize} total={paginacion.total} hrefFor={pageHref} label="Paginación de clientes en seguimiento" />
       </div>
     </>
   );

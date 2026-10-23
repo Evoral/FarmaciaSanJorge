@@ -31,6 +31,7 @@ export interface PacienteListItem {
   nombre: string;
   apellido: string;
   dni: string | null;
+  telefono: string | null;
   fechaBaja: Date | null;
   motivoBaja: string | null;
 }
@@ -65,7 +66,7 @@ export async function listPacientes(tx: Prisma.TransactionClient, filter: ListPa
     orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
     skip,
     take: filter.pageSize,
-    select: { id: true, nombre: true, apellido: true, dni: true, fechaBaja: true, motivoBaja: true },
+    select: { id: true, nombre: true, apellido: true, dni: true, telefono: true, fechaBaja: true, motivoBaja: true },
   });
 
   return { items: rows, total, page: filter.page, pageSize: filter.pageSize };

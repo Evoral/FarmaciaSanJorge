@@ -27,7 +27,7 @@ export function PacienteForm({ mode, paciente, disabled }: PacienteFormProps) {
   const action = mode === "crear" ? crearPacienteAction : editarPacienteAction;
 
   return (
-    <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear paciente" : "Guardar cambios"}>
+    <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear cliente" : "Guardar cambios"}>
       {mode === "editar" && paciente ? (
         <>
           <input type="hidden" name="id" value={paciente.id} />
@@ -115,7 +115,7 @@ export function PacienteForm({ mode, paciente, disabled }: PacienteFormProps) {
         <span className="flex flex-col gap-0.5">
           <span className="font-medium text-zinc-900">Acepta recordatorios por WhatsApp</span>
           <span id="aceptaRecordatoriosWhatsapp-ayuda" className="text-xs text-zinc-500">
-            Solo si el paciente lo aceptó. Permite avisarle cuando se acerca la fecha de una preparación que pide seguido.
+            Solo si el cliente lo aceptó. Permite avisarle cuando se acerca la fecha de una preparación que pide seguido.
           </span>
         </span>
       </label>

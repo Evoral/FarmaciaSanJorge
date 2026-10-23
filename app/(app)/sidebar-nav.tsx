@@ -80,7 +80,7 @@ export interface SidebarNavProps {
    * priority order) that drives the `/catalogos` tab nav and guards.
    */
   catalogosHref: string | null;
-  /** M06, FASE 4 point 4.5: `pacientes.gestionar` -- `true` shows "Gestión › Pacientes" to `/pacientes` (its own section, formerly a `/catalogos` tab). Same permiso `app/(app)/pacientes/layout.tsx`'s guard requires. */
+  /** M06, FASE 4 point 4.5: `pacientes.gestionar` -- `true` shows "Gestión › Pacientes" to `/clientes` (its own section, formerly a `/catalogos` tab). Same permiso `app/(app)/pacientes/layout.tsx`'s guard requires. */
   puedePacientes: boolean;
   /** M06, FASE 4 point 4.3: `proveedores.gestionar` -- `true` shows "Gestión › Proveedores" to `/proveedores` (its own section, formerly a `/catalogos` tab). Same permiso `app/(app)/proveedores/layout.tsx`'s guard requires. */
   puedeProveedores: boolean;
@@ -368,7 +368,7 @@ function buildGroups(p: SidebarNavProps, pathname: string): NavGroup[] {
 
   const gestion: NavItem[] = [];
   if (p.catalogosHref) gestion.push({ href: p.catalogosHref, label: "Catálogos", icon: LibraryBig, active: pathname.startsWith("/catalogos") });
-  if (p.puedePacientes) gestion.push({ href: "/pacientes", label: "Pacientes", icon: Users, active: pathname.startsWith("/pacientes") });
+  if (p.puedePacientes) gestion.push({ href: "/clientes", label: "Clientes", icon: Users, active: pathname.startsWith("/clientes") });
   if (p.puedeProveedores) gestion.push({ href: "/proveedores", label: "Proveedores", icon: Truck, active: pathname.startsWith("/proveedores") });
   if (p.puedeCostosProveedor) gestion.push({ href: "/costos-proveedor", label: "Costos de proveedores", icon: Tags, active: pathname.startsWith("/costos-proveedor") });
   if (p.puedeReportes) gestion.push({ href: "/reportes", label: "Reportes", icon: ChartColumn, active: pathname.startsWith("/reportes") });

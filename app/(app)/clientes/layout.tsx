@@ -1,5 +1,5 @@
 /**
- * Layout guard for `/pacientes/**` (FASE 4 point 4.5, DP-24: HEALTH-ADJACENT
+ * Layout guard for `/clientes/**` (FASE 4 point 4.5, DP-24: HEALTH-ADJACENT
  * DATA, access strictly by `pacientes.gestionar`). Its own sidebar section
  * under "Gestión" (formerly a `/catalogos` tab -- `next.config.ts` redirects
  * the old `/catalogos/pacientes/**` paths here), so it also provides the

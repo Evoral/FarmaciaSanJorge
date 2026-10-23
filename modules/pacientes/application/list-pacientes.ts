@@ -9,10 +9,23 @@
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { listPacientes as listPacientesRepo } from "../infrastructure/paciente-repository";
-import type { ListPacientesResult } from "../infrastructure/paciente-repository";
+import type { PacienteListItem as PacienteListItemRepo } from "../infrastructure/paciente-repository";
+import { normalizarTelefonoWhatsappAR } from "../domain/recurrentes";
 
-/** Re-exported (unlike modules/proveedores/application/list-proveedores.ts's own `ListProveedoresResult` import) so modules/pacientes/ui/buscar-pacientes-action.ts can derive its item type from the application layer's result shape instead of reaching into infrastructure/ directly (eslint.config.mjs's appBoundaryPatterns forbids that from any modules/**\/*.ts file, not just app/**). */
-export type { ListPacientesResult };
+/**
+ * A listed paciente plus the `wa.me` shortcut of the "WhatsApp" button (`null` when the teléfono is missing or not a
+ * valid Argentine number). The raw teléfono is not sent to the client. Same deliberate exception as the recurrentes
+ * view (domain/recurrentes.ts): an external link the person clicks, never logged or stored by this system.
+ */
+export type PacienteListItem = Omit<PacienteListItemRepo, "telefono"> & { whatsappUrl: string | null };
+
+/** Own result type (built here, not re-exported from infrastructure) so modules/pacientes/ui/buscar-pacientes-action.ts derives its item type from the application layer (eslint.config.mjs's appBoundaryPatterns forbids reaching into infrastructure/ from any modules/**\/*.ts file, not just app/**). */
+export interface ListPacientesResult {
+  items: PacienteListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
 
 const listPacientesInput = z.object({
   search: z.string().trim().optional(),
@@ -27,14 +40,21 @@ export const listPacientesQuery = defineQuery({
   name: "pacientes.listar",
   permiso: "pacientes.gestionar",
   input: listPacientesInput,
-  handler: async ({ tx, session, input }) => {
-    return listPacientesRepo(tx, {
+  handler: async ({ tx, session, input }): Promise<ListPacientesResult> => {
+    const result = await listPacientesRepo(tx, {
       tenantId: session.tenantId,
       search: input.search,
       soloVigentes: input.soloVigentes,
       page: input.page,
       pageSize: input.pageSize,
     });
+    return {
+      ...result,
+      items: result.items.map(({ telefono, ...paciente }) => {
+        const numero = normalizarTelefonoWhatsappAR(telefono);
+        return { ...paciente, whatsappUrl: numero ? `https://wa.me/${numero}` : null };
+      }),
+    };
   },
 });
 
