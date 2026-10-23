@@ -88,3 +88,43 @@ export async function updateDatosEditablesTenant(
     },
   });
 }
+
+/** What the navbar shows for the tenant: its name and the version of its logo (`null` = no logo, the generic one is shown). Never loads the image bytes. */
+export interface MarcaTenant {
+  nombre: string;
+  logoTipo: string | null;
+  logoActualizadoEn: Date | null;
+}
+
+export async function getMarcaTenant(tx: Prisma.TransactionClient, tenantId: string): Promise<MarcaTenant | null> {
+  const row = await tx.tenant.findUnique({
+    where: { id: tenantId },
+    select: { razonSocial: true, nombreFantasia: true, logoTipo: true, logoActualizadoEn: true },
+  });
+  if (!row) return null;
+  return { nombre: row.nombreFantasia ?? row.razonSocial, logoTipo: row.logoTipo, logoActualizadoEn: row.logoActualizadoEn };
+}
+
+export interface LogoTenant {
+  bytes: Uint8Array<ArrayBuffer>;
+  tipo: string;
+}
+
+/** `null` when the tenant has no logo (migration 0098 keeps the columns all NULL or all set). */
+export async function getLogoTenant(tx: Prisma.TransactionClient, tenantId: string): Promise<LogoTenant | null> {
+  const row = await tx.tenant.findUnique({ where: { id: tenantId }, select: { logo: true, logoTipo: true } });
+  if (!row?.logo || !row.logoTipo) return null;
+  return { bytes: new Uint8Array(row.logo), tipo: row.logoTipo };
+}
+
+/** Sets (or, with `null`, removes) the logo. Only the columns migration 0098 grants UPDATE on. */
+export async function updateLogoTenant(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  logo: { bytes: Uint8Array<ArrayBuffer>; tipo: string; actualizadoEn: Date } | null,
+): Promise<void> {
+  await tx.tenant.update({
+    where: { id: tenantId },
+    data: logo ? { logo: logo.bytes, logoTipo: logo.tipo, logoActualizadoEn: logo.actualizadoEn } : { logo: null, logoTipo: null, logoActualizadoEn: null },
+  });
+}

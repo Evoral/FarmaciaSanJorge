@@ -358,7 +358,7 @@ Motion is short and quiet: `--duration-fast` 120ms for color/background, `--dura
 | `{rounded.pill}` | 999px | Count pills, the status meter bar |
 
 ### Brand imagery
-Logo assets: `public/logo.png` (icon) and `public/logo-etiqueta.png` (icon + wordmark). Printed documents load the logo through `shared/pdf/logo.ts`. The brand green is the only brand color; no photography or illustration is part of the system.
+Logo assets: `public/logo.png` (icon) and `public/logo-etiqueta.png` (icon + wordmark). Printed documents load the logo through `shared/pdf/logo.ts`. These are the generic app assets; the only per-tenant logo is the navbar's (`docs/specs/logo-farmacia.md`), with `public/logo.png` as its fallback. The brand green is the only brand color; no photography or illustration is part of the system.
 
 ## Components
 

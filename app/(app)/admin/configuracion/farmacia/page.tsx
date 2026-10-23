@@ -2,15 +2,18 @@
  * `/admin/configuracion/farmacia` (FASE 3 point 3.10a): tenant institutional data. The 4
  * editable fields are shown in an edit form (enabled only for
  * `config.editar`); the 4 non-editable fields are shown read-only with a
- * short explanation each, per the task instruction. Layout: the form in the
- * main column, the read-only data in the aside. The "Configuración" tabs sit
+ * short explanation each, per the task instruction. Layout: the form and the
+ * navbar logo (docs/specs/logo-farmacia.md) in the main column, the read-only
+ * data in the aside. The "Configuración" tabs sit
  * under the header.
  */
 import { Lock } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getDatosTenant } from "@/modules/farmacia/application/get-datos-tenant";
+import { getMarcaTenant } from "@/modules/farmacia/application/get-marca-tenant";
 import { EditarDatosTenantForm } from "@/modules/farmacia/ui/editar-datos-tenant-form";
+import { LogoTenantForm } from "@/modules/farmacia/ui/logo-tenant-form";
 import { PageHeader } from "@/shared/ui/page-header";
 import { configuracionSections } from "../../../nav-sections";
 import { SectionTabs } from "../../../section-tabs";
@@ -27,7 +30,8 @@ function DatoFijo({ etiqueta, valor, motivo }: { etiqueta: string; valor: string
 
 export default async function FarmaciaPage() {
   const session = await requireSession();
-  const tenant = await getDatosTenant();
+  const [tenant, marca] = await Promise.all([getDatosTenant(), getMarcaTenant()]);
+  const puedeEditar = can(session, "config.editar");
 
   return (
     <>
@@ -40,14 +44,25 @@ export default async function FarmaciaPage() {
       <SectionTabs ariaLabel="Secciones de configuración" links={configuracionSections(session)} />
 
       <div className="split-layout">
-        <section className="panel min-w-0" aria-labelledby="editables-heading">
-          <div className="panel-header">
-            <h2 id="editables-heading">Datos editables</h2>
-          </div>
-          <div className="panel-body">
-            <EditarDatosTenantForm tenant={tenant} disabled={!can(session, "config.editar")} />
-          </div>
-        </section>
+        <div className="flex min-w-0 flex-col gap-6">
+          <section className="panel min-w-0" aria-labelledby="editables-heading">
+            <div className="panel-header">
+              <h2 id="editables-heading">Datos editables</h2>
+            </div>
+            <div className="panel-body">
+              <EditarDatosTenantForm tenant={tenant} disabled={!puedeEditar} />
+            </div>
+          </section>
+
+          <section className="panel min-w-0" aria-labelledby="logo-heading">
+            <div className="panel-header">
+              <h2 id="logo-heading">Logo</h2>
+            </div>
+            <div className="panel-body">
+              <LogoTenantForm logoSrc={marca?.logoSrc ?? null} disabled={!puedeEditar} />
+            </div>
+          </section>
+        </div>
 
         <aside className="split-aside" aria-label="Datos no editables">
           <section className="panel" aria-labelledby="no-editables-heading">

@@ -54,6 +54,10 @@ import {
 export interface SidebarNavProps {
   /** Display name of the signed-in usuario. */
   usuario: string;
+  /** The tenant's name under the app name (`null` hides the line). */
+  farmacia: string | null;
+  /** The tenant's own logo (docs/specs/logo-farmacia.md), or `null` for the generic `public/logo.png`. */
+  logoSrc: string | null;
   /** Server action that ends the session. */
   logoutAction: () => Promise<void>;
   /** Jornadas pending signature (0 hides the badge on "Gestión DT"). */
@@ -166,7 +170,7 @@ export function SidebarNav(props: SidebarNavProps) {
         <button type="button" onClick={() => setOpen(true)} aria-label="Abrir menú" aria-expanded={open} aria-controls="app-sidebar" className="glass-icon-btn -ml-1.5">
           <Menu className="size-5" aria-hidden />
         </button>
-        <Brand />
+        <Brand farmacia={props.farmacia} logoSrc={props.logoSrc} />
       </div>
 
       {open ? <div className="fixed inset-0 z-40 bg-zinc-900/30 lg:hidden" onClick={() => setOpen(false)} aria-hidden /> : null}
@@ -180,7 +184,7 @@ export function SidebarNav(props: SidebarNavProps) {
         className={`glass-panel fixed inset-y-2 left-2 z-50 flex w-60 flex-col motion-reduce:transition-none! lg:inset-y-3 lg:left-3 ${open ? "visible translate-x-0 [transition:translate_200ms_ease-out,visibility_0s]" : "invisible -translate-x-[calc(100%+1rem)] [transition:translate_200ms_ease-out,visibility_0s_linear_200ms]"} ${props.collapsed ? "lg:invisible lg:-translate-x-[calc(100%+1rem)] lg:[transition:translate_200ms_ease-out,visibility_0s_linear_200ms]" : "lg:visible lg:translate-x-0 lg:[transition:translate_200ms_ease-out,visibility_0s]"}`}
       >
         <div className="flex h-14 shrink-0 items-center justify-between px-4">
-          <Brand />
+          <Brand farmacia={props.farmacia} logoSrc={props.logoSrc} />
           <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar menú" className="glass-icon-btn -mr-1.5 lg:hidden">
             <X className="size-5" aria-hidden />
           </button>
@@ -228,15 +232,16 @@ export function SidebarNav(props: SidebarNavProps) {
   );
 }
 
-function Brand() {
+function Brand({ farmacia, logoSrc }: { farmacia: string | null; logoSrc: string | null }) {
   return (
-    <Link href="/" className="flex items-center gap-2.5">
-      <span className="flex size-8 items-center justify-center rounded-md dark:bg-white">
-        <Image src="/logo.png" alt="" width={28} height={28} priority />
+    <Link href="/" className="flex min-w-0 items-center gap-2.5">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-md dark:bg-white">
+        {/* The tenant's logo sits behind the session cookie, which the image optimizer would not send: `unoptimized`. */}
+        {logoSrc ? <Image src={logoSrc} alt="" width={28} height={28} unoptimized priority className="size-7 object-contain" /> : <Image src="/logo.png" alt="" width={28} height={28} priority />}
       </span>
-      <span className="flex flex-col leading-tight">
+      <span className="flex min-w-0 flex-col leading-tight">
         <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Lab. Magistral</span>
-        <span className="text-[11px] text-zinc-500">Farmacia San Jorge</span>
+        {farmacia ? <span className="truncate text-[11px] text-zinc-500">{farmacia}</span> : null}
       </span>
     </Link>
   );

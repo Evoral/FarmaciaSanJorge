@@ -20,6 +20,7 @@ import { resumenVencimientosDrogas } from "@/modules/stock/application/vencimien
 import { resumenBajoMinimo } from "@/modules/stock/application/alertas-stock";
 import { resumenIntegridad, type LibroQuebrado } from "@/modules/libro/application/resumen-integridad";
 import { etiquetaLibro } from "@/modules/libro/domain/integridad";
+import { getMarcaTenant, type MarcaTenantVista } from "@/modules/farmacia/application/get-marca-tenant";
 import { getLogger } from "@/shared/logging/logger";
 import { OperadorProvider } from "@/modules/operadores/ui/operador-provider";
 import { AppShell } from "./app-shell";
@@ -155,6 +156,15 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
     }
   }
 
+  // The tenant's name and logo for the navbar (docs/specs/logo-farmacia.md). Fail-soft: without it the navbar shows
+  // the generic logo and no farmacia name.
+  let marca: MarcaTenantVista | null = null;
+  try {
+    marca = await getMarcaTenant();
+  } catch (error) {
+    getLogger().error({ error }, "Failed to load the tenant brand for the navbar");
+  }
+
   const sidebarCollapsed = (await cookies()).get(SIDEBAR_COLLAPSED_COOKIE)?.value === "1";
 
   const avisos: Aviso[] = [];
@@ -251,6 +261,8 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
       initialCollapsed={sidebarCollapsed}
       nav={{
         usuario: `${session.usuario.nombre} ${session.usuario.apellido}`,
+        farmacia: marca?.nombre ?? null,
+        logoSrc: marca?.logoSrc ?? null,
         logoutAction,
         cierresPendientes: resumenCierres?.cantidad ?? 0,
         puedeAuditoria: can(session, "auditoria.ver"),

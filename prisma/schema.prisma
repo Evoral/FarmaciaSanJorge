@@ -259,6 +259,10 @@ model Tenant {
   creadoEn                 DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
   /// M12/spec section 4 (DP-33). NULL = contralor libros kept by hand. INV-L17: never changes once set (migration 0014).
   fechaActivacionContralor DateTime? @map("fecha_activacion_contralor") @db.Timestamptz(6)
+  /// Migration 0098: navbar logo (docs/specs/logo-farmacia.md). The three columns are all NULL or all set.
+  logo                     Bytes?
+  logoTipo                 String?   @map("logo_tipo") @db.VarChar(20)
+  logoActualizadoEn        DateTime? @map("logo_actualizado_en") @db.Timestamptz(6)
 
   parametros                Parametro[]
   usuarios                  Usuario[]
