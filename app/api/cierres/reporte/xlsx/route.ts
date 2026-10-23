@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { exportarReporteCumplimientoXlsx } from "@/modules/cierres/application/reporte-cumplimiento";
 import { MOTIVO_DEMORA_LABELS, type MotivoDemoraValue } from "@/modules/cierres/domain/motivo-demora";
 import { XLSX_CONTENT_TYPE, XlsxReport } from "@/shared/xlsx/xlsx-report";
+import { getMarcaTenant } from "@/modules/farmacia/application/get-marca-tenant";
 import { AppError, type AppErrorCode, toSafeError } from "@/shared/errors";
 
 const STATUS_BY_CODE: Record<AppErrorCode, number> = {
@@ -28,7 +29,9 @@ export async function GET(request: Request): Promise<Response> {
   const q = url.searchParams;
 
   let resultado;
+  let farmacia = "";
   try {
+    farmacia = (await getMarcaTenant())?.nombre ?? "";
     resultado = await exportarReporteCumplimientoXlsx({ fechaDesde: q.get("fechaDesde") || undefined, fechaHasta: q.get("fechaHasta") || undefined });
   } catch (e) {
     const appError = e instanceof AppError ? e : undefined;
@@ -38,6 +41,7 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const report = new XlsxReport({
+    farmacia,
     title: "Reporte de cumplimiento de firma de cierres",
     description:
       "Firma del cierre diario de cada jornada por el director técnico: fecha de firma, días de demora y, cuando se firmó fuera de término, el motivo declarado.",
