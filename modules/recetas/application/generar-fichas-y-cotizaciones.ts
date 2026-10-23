@@ -12,7 +12,11 @@
  *
  *   - Without `fichas.generar` nothing is generated; without
  *     `cotizaciones.calcular` only the fichas are (silently -- the same
- *     role split as the manual screens).
+ *     role split as the manual screens). In a cuenta de sector the permisos
+ *     that count are the empleado's who is acting (shared/usecase.ts
+ *     `resolverActor`), known only once the use case itself runs: the
+ *     session check below is just a shortcut, and an `AuthorizationError`
+ *     from the use case means the same silent "not allowed".
  *   - A cotización is only attempted for an item whose ficha was generated.
  *   - After an edit (`soloSiDesactualizadas`), an item whose latest ficha
  *     already has exactly the recalculated lines keeps it (no duplicate
@@ -25,6 +29,7 @@
  */
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
+import { AuthorizationError } from "@/shared/errors";
 import { getLogger } from "@/shared/logging/logger";
 import { generarFichaTecnica } from "@/modules/elaboracion/application/generar-ficha-tecnica";
 import { FichaNoGenerableError } from "@/modules/elaboracion/domain/ficha-no-generable";
@@ -45,7 +50,7 @@ export async function generarFichasYCotizaciones(recetaId: string, opciones: { s
   try {
     const session = await requireSession();
     if (!can(session, "fichas.generar")) return [];
-    const puedeCotizar = can(session, "cotizaciones.calcular");
+    let puedeCotizar = can(session, "cotizaciones.calcular");
 
     const receta = await getReceta(recetaId);
     if (!receta) return [];
@@ -57,6 +62,7 @@ export async function generarFichasYCotizaciones(recetaId: string, opciones: { s
         const ficha = await generarFichaTecnica({ itemRecetaId: item.id, soloSiDesactualizada: opciones.soloSiDesactualizadas });
         generada = ficha.generada;
       } catch (error) {
+        if (error instanceof AuthorizationError) return [];
         avisos.push({ tipo: "ficha", item: numero, codigo: codigoDeError(error, { recetaId, itemRecetaId: item.id, paso: "ficha" }) });
         continue;
       }
@@ -65,6 +71,10 @@ export async function generarFichasYCotizaciones(recetaId: string, opciones: { s
       try {
         await calcularCotizacionItem({ itemRecetaId: item.id });
       } catch (error) {
+        if (error instanceof AuthorizationError) {
+          puedeCotizar = false;
+          continue;
+        }
         avisos.push({ tipo: "cotizacion", item: numero, codigo: codigoDeError(error, { recetaId, itemRecetaId: item.id, paso: "cotizacion" }) });
       }
     }
