@@ -34,6 +34,8 @@ import { crearProductoDesdeFacturaAction, importarFacturaCompraAction } from "./
 import { formatearComprobante } from "../domain/importacion-factura-compra";
 import type { VistaPreviaFactura } from "../domain/importacion-factura-compra";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { useOperador } from "@/shared/ui/operador";
+import { CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
 import { DateInput } from "@/shared/ui/date-input";
 import { Combobox, filtrarOpciones, type ComboboxOption } from "@/shared/ui/combobox";
 import { RecordarSinonimoSwitch } from "@/shared/ui/recordar-sinonimo-switch";
@@ -146,6 +148,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
   const [drogas, setDrogas] = useState(drogasIniciales);
   const [alta, setAlta] = useState<AltaProducto | null>(null);
   const [creando, startCreando] = useTransition();
+  const operador = useOperador();
   const { comprobante } = vistaPrevia;
   const [proveedor, setProveedor] = useState<ComboboxOption | null>(
     vistaPrevia.proveedor ? { value: vistaPrevia.proveedor.id, label: vistaPrevia.proveedor.razonSocial } : null,
@@ -229,14 +232,41 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
       return;
     }
     startCreando(async () => {
-      const resultado = await crearProductoDesdeFacturaAction({ nombre: nombre.trim(), unidadBaseId, clase });
-      if (resultado.status === "error") {
-        setAlta((actual) => (actual ? { ...actual, error: resultado.message } : actual));
+      const datos = new FormData();
+      datos.set("nombre", nombre.trim());
+      datos.set("unidadBaseId", unidadBaseId);
+      datos.set("clase", clase);
+      // Cuenta de sector: who creates it (+ PIN), asked up front when the farmacia requires it,
+      // or after the server says so -- the same flow useFormSubmit runs for a submitted form.
+      let pedirOperador = operador.requierePin("drogas.crear");
+      let errorOperador: string | undefined;
+      let resultado: Awaited<ReturnType<typeof crearProductoDesdeFacturaAction>>;
+      for (;;) {
+        if (pedirOperador) {
+          const campos = await operador.pedir(errorOperador);
+          if (!campos) return;
+          for (const [campo, valor] of Object.entries(campos)) datos.set(campo, valor);
+        }
+        resultado = await crearProductoDesdeFacturaAction(datos);
+        if (resultado.status === "operador-required") {
+          pedirOperador = true;
+          errorOperador = undefined;
+        } else if (resultado.status === "error" && resultado.fields?.includes(CAMPO_OPERADOR_PIN)) {
+          pedirOperador = true;
+          errorOperador = resultado.message;
+        } else {
+          break;
+        }
+      }
+      const final = resultado;
+      if (final.status === "error") {
+        setAlta((actual) => (actual ? { ...actual, error: final.message } : actual));
         return;
       }
-      setDrogas((actuales) => [...actuales, { id: resultado.id, label: nombre.trim(), tipoMagnitud: unidad.tipoMagnitud, clase }]);
+      if (final.status !== "success") return;
+      setDrogas((actuales) => [...actuales, { id: final.id, label: nombre.trim(), tipoMagnitud: unidad.tipoMagnitud, clase }]);
       setAlta(null);
-      elegirDroga(indice, { value: resultado.id, label: nombre.trim() });
+      elegirDroga(indice, { value: final.id, label: nombre.trim() });
     });
   }
 

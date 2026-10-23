@@ -45,22 +45,34 @@ export async function importarFacturaCompraAction(_prevState: StockActionState, 
   });
 }
 
-export type CrearProductoFacturaState = { status: "success"; id: string } | { status: "error"; message: string; fields?: string[] };
+export type CrearProductoFacturaState =
+  | { status: "success"; id: string }
+  | { status: "error"; message: string; fields?: string[] }
+  | { status: "operador-required" };
 
 /**
  * "Crear «texto de la factura»" from the invoice import: alta of a droga or
  * insumo (migration 0063) without leaving the form. Called directly (not a
  * form submit -- it lives inside the import form). `drogas.crear` is
  * checked by the command itself; the form only offers it when allowed.
+ * `drogas.crear` can require the operador's PIN on a cuenta de sector, so the
+ * fields travel as `FormData` through `conOperador`.
  */
-export async function crearProductoDesdeFacturaAction(input: { nombre: string; unidadBaseId: string; clase: string }): Promise<CrearProductoFacturaState> {
-  try {
-    const { id } = await crearDroga({ nombre: input.nombre, unidadBaseId: input.unidadBaseId, clase: input.clase, stockMinimo: "0" });
-    revalidatePath("/catalogos/drogas");
-    return { status: "success", id };
-  } catch (error) {
-    return actionError(error, "No se pudo crear el producto.");
-  }
+export async function crearProductoDesdeFacturaAction(formData: FormData): Promise<CrearProductoFacturaState> {
+  return conOperador(formData, async (): Promise<CrearProductoFacturaState> => {
+    try {
+      const { id } = await crearDroga({
+        nombre: String(formData.get("nombre") ?? ""),
+        unidadBaseId: String(formData.get("unidadBaseId") ?? ""),
+        clase: String(formData.get("clase") ?? ""),
+        stockMinimo: "0",
+      });
+      revalidatePath("/catalogos/drogas");
+      return { status: "success", id };
+    } catch (error) {
+      return actionError(error, "No se pudo crear el producto.");
+    }
+  });
 }
 
 /**
