@@ -58,3 +58,7 @@ scripts/datos-demo/
 
 # Personal operations manual, never pushed
 /Gestor-App/
+
+# Local secrets and Supabase CLI state, never pushed
+/claves/
+/supabase/.temp/
