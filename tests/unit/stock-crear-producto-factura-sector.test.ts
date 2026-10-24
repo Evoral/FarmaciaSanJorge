@@ -16,7 +16,7 @@ import { CAMPO_OPERADOR_ID, CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-ca
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 const insertDrogaMock = vi.fn();
-const auditRecordMock = vi.fn(async () => undefined);
+const auditRecordMock = vi.fn<(tx: unknown, input: unknown) => Promise<undefined>>(async () => undefined);
 
 vi.mock("@/shared/audit", () => ({
   record: (tx: unknown, input: unknown) => auditRecordMock(tx, input),

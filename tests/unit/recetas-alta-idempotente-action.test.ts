@@ -9,8 +9,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-const crearRecetaMock = vi.fn(async () => undefined as unknown);
-const generarFichasMock = vi.fn(async () => [] as unknown[]);
+const crearRecetaMock = vi.fn<(input: unknown) => Promise<unknown>>(async () => undefined);
+const generarFichasMock = vi.fn<(id: string, opts?: unknown) => Promise<unknown[]>>(async () => []);
 
 class MockRecetaYaRegistradaError extends Error {
   constructor(readonly receta: { id: string; numeroInterno: string }) {
