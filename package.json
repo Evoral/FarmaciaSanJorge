@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:desarrollo": "tsx scripts/dev.ts .env.desarrollo",
+    "dev:prod": "tsx scripts/dev.ts .env.prod",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
