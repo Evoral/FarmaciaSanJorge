@@ -58,13 +58,15 @@ export interface DatosEditablesTenant {
   matriculaFarmacia: string | null;
   telefonoFijo: string | null;
   telefonoCelular: string | null;
+  /** Omitted = unchanged. Writable only before the first cierre diario (migration 0105, INV-PL-005). */
+  cuit?: string;
 }
 
 /**
  * Updates ONLY the columns fsj_app is granted UPDATE on: migration 0020
- * (razon_social, nombre_fantasia, domicilio, matricula_farmacia) and 0089
- * (telefono_fijo, telefono_celular).
- * Never touches cuit / zona_horaria / fecha_baja / fecha_activacion_contralor
+ * (razon_social, nombre_fantasia, domicilio, matricula_farmacia), 0089
+ * (telefono_fijo, telefono_celular) and 0105 (cuit, guarded by a trigger).
+ * Never touches zona_horaria / fecha_baja / fecha_activacion_contralor
  * -- defense in depth on top of (a) the zod schema in
  * ../application/editar-datos-tenant.ts not even accepting those fields as
  * input, and (b) the column-level GRANT (migration 0020) that would reject
@@ -85,8 +87,15 @@ export async function updateDatosEditablesTenant(
       matriculaFarmacia: datos.matriculaFarmacia,
       telefonoFijo: datos.telefonoFijo,
       telefonoCelular: datos.telefonoCelular,
+      ...(datos.cuit !== undefined ? { cuit: datos.cuit } : {}),
     },
   });
+}
+
+/** True once the tenant has signed a cierre diario: from then on its CUIT is fixed (docs/specs/cuit-farmacia.md). */
+export async function tenantTieneCierreDiario(tx: Prisma.TransactionClient, tenantId: string): Promise<boolean> {
+  const cierre = await tx.cierreDiario.findFirst({ where: { tenantId }, select: { id: true } });
+  return cierre !== null;
 }
 
 /** What the navbar shows for the tenant: its name and the version of its logo (`null` = no logo, the generic one is shown). Never loads the image bytes. */

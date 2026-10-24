@@ -1,8 +1,10 @@
 /**
- * `/admin/configuracion/farmacia` (FASE 3 point 3.10a): tenant institutional data. The 4
+ * `/admin/configuracion/farmacia` (FASE 3 point 3.10a): tenant institutional data. The
  * editable fields are shown in an edit form (enabled only for
- * `config.editar`); the 4 non-editable fields are shown read-only with a
- * short explanation each, per the task instruction. Layout: the form and the
+ * `config.editar`); the non-editable fields are shown read-only with a
+ * short explanation each, per the task instruction. The CUIT moves from the
+ * form to the read-only aside once the first cierre diario is signed
+ * (docs/specs/cuit-farmacia.md). Layout: the form and the
  * navbar logo (docs/specs/logo-farmacia.md) in the main column, the read-only
  * data in the aside. The "Configuración" tabs sit
  * under the header.
@@ -71,7 +73,13 @@ export default async function FarmaciaPage() {
               <h2 id="no-editables-heading">Datos no editables</h2>
             </div>
             <dl className="panel-body flex flex-col gap-3">
-              <DatoFijo etiqueta="CUIT" valor={tenant.cuit} motivo="Identificador legal de la farmacia: no se modifica desde esta pantalla." />
+              {tenant.cuitEditable ? null : (
+                <DatoFijo
+                  etiqueta="CUIT"
+                  valor={tenant.cuit}
+                  motivo="Identificador legal de la farmacia: quedó fijo al firmar el primer cierre diario, que lo lleva impreso."
+                />
+              )}
               <DatoFijo
                 etiqueta="Zona horaria"
                 valor={tenant.zonaHoraria}

@@ -55,3 +55,6 @@ next-env.d.ts
 
 # Local demo data, never pushed
 scripts/datos-demo/
+
+# Personal operations manual, never pushed
+/Gestor-App/

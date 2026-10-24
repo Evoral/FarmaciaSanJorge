@@ -122,7 +122,7 @@ describe("parametros-registry: dias_retiro_vencido", () => {
   });
 });
 
-describe("editarDatosTenant zod schema: the 4 non-editable tenant fields are never accepted", () => {
+describe("editarDatosTenant zod schema: the 3 non-editable tenant fields are never accepted", () => {
   const baseInput = { razonSocial: "Farmacia Test" };
 
   it("accepts the 4 editable fields", () => {
@@ -135,7 +135,11 @@ describe("editarDatosTenant zod schema: the 4 non-editable tenant fields are nev
     expect(result.success).toBe(true);
   });
 
-  it.each(["cuit", "zonaHoraria", "fechaBaja", "fechaActivacionContralor"])(
+  it("accepts the cuit (editable until the first cierre diario, docs/specs/cuit-farmacia.md)", () => {
+    expect(editarDatosTenantInput.safeParse({ ...baseInput, cuit: "30-12345678-9" }).success).toBe(true);
+  });
+
+  it.each(["zonaHoraria", "fechaBaja", "fechaActivacionContralor"])(
     "rejects (safeParse fails) when the input carries the non-editable field %s",
     (fieldName) => {
       const result = editarDatosTenantInput.safeParse({ ...baseInput, [fieldName]: "anything" });

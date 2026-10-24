@@ -78,7 +78,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0001_tenant_parametro_multi_tenant
           await c.query(`UPDATE fsj.tenant SET razon_social = 'B' WHERE id = $1`, [tenantId]);
           await expectDbRejection(
             c,
-            () => c.query(`UPDATE fsj.tenant SET cuit = '99-99999999-9' WHERE id = $1`, [tenantId]),
+            () => c.query(`UPDATE fsj.tenant SET fecha_baja = now() WHERE id = $1`, [tenantId]),
             "42501",
           );
         });
@@ -295,19 +295,16 @@ describe.skipIf(dbTestSkipReason() !== null)("0020_tenant_datos_editables migrat
     );
   });
 
-  // cuit was NEVER granted to fsj_app (not even by migration 0001) -- this
-  // is not a NEW restriction from 0020, but it is part of the task's
-  // required (b) coverage: fsj_app UPDATE of cuit fails with 42501. If the
-  // GRANT statement in migration 0001/0020 were changed to include cuit,
-  // this test would start failing (the UPDATE would unexpectedly succeed),
-  // which is exactly how it proves the grant is what's enforcing this.
-  it("fsj_app UPDATE of cuit fails with SQLSTATE 42501 (never granted)", async () => {
+  // Migration 0105 granted cuit to fsj_app; its trigger only refuses the
+  // change once the tenant has a signed cierre diario (INV-PL-005,
+  // docs/specs/cuit-farmacia.md). A fresh tenant has none.
+  it("fsj_app UPDATE of cuit succeeds while the tenant has no cierre diario (migration 0105)", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const tenantId = await insertTenant(tx, "0020b1");
         await tx.query("SET LOCAL ROLE fsj_app");
         await withTenant(tx, tenantId, async (c) => {
-          await expectDbRejection(c, () => c.query(`UPDATE fsj.tenant SET cuit = '99-99999999-9' WHERE id = $1`, [tenantId]), "42501");
+          await c.query(`UPDATE fsj.tenant SET cuit = '99-99999999-9' WHERE id = $1`, [tenantId]);
         });
       }),
     );

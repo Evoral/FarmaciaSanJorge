@@ -17,6 +17,8 @@ export async function editarDatosTenantAction(_prevState: FarmaciaActionState, f
       matriculaFarmacia: String(formData.get("matriculaFarmacia") ?? "").trim() || undefined,
       telefonoFijo: String(formData.get("telefonoFijo") ?? "").trim() || undefined,
       telefonoCelular: String(formData.get("telefonoCelular") ?? "").trim() || undefined,
+      // Absent once the CUIT is fixed: the form does not render the field then.
+      cuit: formData.has("cuit") ? String(formData.get("cuit") ?? "") : undefined,
     });
     return { status: "success", message: "Datos actualizados." };
   } catch (error) {

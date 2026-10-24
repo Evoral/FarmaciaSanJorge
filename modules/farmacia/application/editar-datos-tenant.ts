@@ -2,7 +2,9 @@
  * `editarDatosTenant` (FASE 3 point 3.10a). Edits ONLY the institutional
  * fields fsj_app is granted UPDATE on: razonSocial, nombreFantasia,
  * domicilio, matriculaFarmacia (migration 0020) and the two phones printed on
- * the etiqueta, telefonoFijo / telefonoCelular (migration 0089). `cuit`, `zonaHoraria`,
+ * the etiqueta, telefonoFijo / telefonoCelular (migration 0089), plus
+ * `cuit` only until the first cierre diario is signed (migration 0105,
+ * docs/specs/cuit-farmacia.md). `zonaHoraria`,
  * `fechaBaja` and `fechaActivacionContralor` are NEVER accepted as input --
  * the zod schema below does not declare them at all (`.strict()` rejects
  * any extra key outright, it does not just silently drop it), so a stale
@@ -30,9 +32,10 @@
  */
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
-import { NotFoundError } from "@/shared/errors";
+import { DomainError, NotFoundError } from "@/shared/errors";
+import { mensajeParaInvariante } from "@/shared/errors/mensajes-invariantes";
 import { nonEmptyString } from "@/shared/validation";
-import { getTenantDetalle, updateDatosEditablesTenant } from "../infrastructure/tenant-repository";
+import { getTenantDetalle, tenantTieneCierreDiario, updateDatosEditablesTenant } from "../infrastructure/tenant-repository";
 
 /** Optional free-text field: empty/omitted clears the column to NULL (mirrors editar-usuario.ts's numeroMatricula convention). */
 const optionalText = z.string().trim().max(300).optional();
@@ -40,7 +43,7 @@ const optionalText = z.string().trim().max(300).optional();
 /** `fsj.tenant.telefono_* varchar(40)` (migration 0089). */
 const optionalTelefono = z.string().trim().max(40).optional();
 
-/** Exported for tests/unit/parametros-validacion.test.ts (asserts the 4 non-editable tenant fields are provably NOT accepted, via `.safeParse`/`.strict()`) -- not otherwise imported outside this module. */
+/** Exported for tests/unit/parametros-validacion.test.ts (asserts the 3 non-editable tenant fields are provably NOT accepted, via `.safeParse`/`.strict()`) -- not otherwise imported outside this module. */
 export const editarDatosTenantInput = z
   .object({
     razonSocial: nonEmptyString,
@@ -49,6 +52,8 @@ export const editarDatosTenantInput = z
     matriculaFarmacia: optionalText,
     telefonoFijo: optionalTelefono,
     telefonoCelular: optionalTelefono,
+    /** Omitted = unchanged (the form sends it only while no cierre diario is signed). */
+    cuit: nonEmptyString.max(20).optional(),
   })
   .strict();
 
@@ -68,6 +73,11 @@ export const editarDatosTenantCommand = defineCommand({
     const matriculaFarmaciaNuevo = input.matriculaFarmacia || null;
     const telefonoFijoNuevo = input.telefonoFijo || null;
     const telefonoCelularNuevo = input.telefonoCelular || null;
+    const cuitNuevo = input.cuit !== undefined && input.cuit !== actual.cuit ? input.cuit : undefined;
+    // App-level check for a clear message; the 0105 trigger is the backstop.
+    if (cuitNuevo !== undefined && (await tenantTieneCierreDiario(tx, session.tenantId))) {
+      throw new DomainError(mensajeParaInvariante("INV-PL-005"), { fields: ["cuit"] });
+    }
 
     await updateDatosEditablesTenant(tx, session.tenantId, {
       razonSocial: input.razonSocial,
@@ -76,6 +86,7 @@ export const editarDatosTenantCommand = defineCommand({
       matriculaFarmacia: matriculaFarmaciaNuevo,
       telefonoFijo: telefonoFijoNuevo,
       telefonoCelular: telefonoCelularNuevo,
+      cuit: cuitNuevo,
     });
 
     return {
@@ -89,6 +100,7 @@ export const editarDatosTenantCommand = defineCommand({
           matriculaFarmacia: actual.matriculaFarmacia,
           telefonoFijo: actual.telefonoFijo,
           telefonoCelular: actual.telefonoCelular,
+          ...(cuitNuevo !== undefined ? { cuit: actual.cuit } : {}),
         },
         valorNuevo: {
           razonSocial: input.razonSocial,
@@ -97,6 +109,7 @@ export const editarDatosTenantCommand = defineCommand({
           matriculaFarmacia: matriculaFarmaciaNuevo,
           telefonoFijo: telefonoFijoNuevo,
           telefonoCelular: telefonoCelularNuevo,
+          ...(cuitNuevo !== undefined ? { cuit: cuitNuevo } : {}),
         },
       },
     };
