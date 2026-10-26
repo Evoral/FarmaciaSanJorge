@@ -15,8 +15,9 @@
  *   - `SISTEMA`: internal role of the per-tenant technical user (migration
  *     0002). Hidden from every listing/picker, never assignable, untouchable.
  *
- * Every other role (the default FARMACEUTICO / ATENCION_PUBLICO /
- * SOLO_CONSULTA and any custom role) is fully editable and deletable while
+ * Every other role (the default FARMACEUTICO -- plus LABORATORIO /
+ * ATENCION_PUBLICO / SOLO_CONSULTA in tenants created before migration 0106 --
+ * and any custom role) is fully editable and deletable while
  * no usuario holds it. The same rules are enforced by DB triggers
  * (INV-ROL-001..005, migration 0054); the checks here give the clear
  * Spanish message first.

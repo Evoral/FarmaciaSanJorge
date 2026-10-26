@@ -176,7 +176,8 @@ async function main(): Promise<void> {
     );
     const tenantId = tenantResult.rows[0]!.id;
 
-    // Default roles of the tenant (DP-03, migration 0054): roles are
+    // Default roles of the tenant (DP-03, migration 0054; since 0106 only
+    // ADMINISTRADOR, DIRECTOR_TECNICO, FARMACEUTICO and SISTEMA): roles are
     // per-tenant rows. The AFTER INSERT trigger on fsj.tenant already ran
     // this same function; calling it explicitly keeps the dependency visible
     // here and is a no-op on a tenant that already has its roles.

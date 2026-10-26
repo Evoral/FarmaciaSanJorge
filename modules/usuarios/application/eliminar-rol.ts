@@ -1,7 +1,8 @@
 /**
  * `eliminarRol` (DP-03 RESUELTA 2026-10-01): deletes a role of the session's
  * tenant. Only roles with protection `NINGUNA` (the default
- * FARMACEUTICO / ATENCION_PUBLICO / SOLO_CONSULTA and custom roles) and
+ * FARMACEUTICO, the older defaults ATENCION_PUBLICO / SOLO_CONSULTA /
+ * LABORATORIO (seeded before migration 0106) and custom roles) and
  * only while NO usuario holds it -- the error says how many do
  * (INV-ROL-004 / the composite FK from usuario_rol are the DB backstops).
  * ADMINISTRADOR / SISTEMA (INV-ROL-002) and DIRECTOR_TECNICO (INV-ROL-003)

@@ -7,8 +7,10 @@ Revisada el mismo día: **el ADMINISTRADOR no ejerce actos operativos**.
 
 ## Resumen
 
-- Cada farmacia (tenant) tiene **sus propios roles**. Al crearse una farmacia recibe una copia de los roles predefinidos
-  con los mismos permisos que tenían antes de este cambio.
+- Cada farmacia (tenant) tiene **sus propios roles**. Al crearse una farmacia recibe una copia de los roles predefinidos.
+  Desde la migración 0106 (decisión del usuario 2026-10-26) son solo **Administrador, Director Técnico y Farmacéutico**
+  (más el interno SISTEMA); cualquier otro rol (laboratorio, atención al público, solo consulta…) lo crea el
+  Administrador a pedido. Las farmacias que ya existían conservan sus roles: 0106 no borra ni cambia ninguno.
 - Un administrador puede **crear roles nuevos**, **editar** nombre, descripción y permisos, y **eliminar** roles que nadie
   tenga asignados.
 - Cada permiso tiene una **categoría**: `operativo`, `consulta`, `gestion` o `sistema`.
@@ -82,7 +84,7 @@ Los usuarios con ADMINISTRADOR ganan los permisos de consulta y gestión que no 
 | ADMINISTRADOR | **Todos los de consulta y gestión**, siempre (incluidos los futuros); **nunca operativos**. Sin filas en `rol_permiso`. | No | No | Sí |
 | DIRECTOR_TECNICO | Editables | Editables | **No** (INV-DT-001 depende del código) | Sí |
 | SISTEMA | Ninguno | No | No | **No** (solo el usuario técnico); oculto en toda la UI |
-| FARMACEUTICO, LABORATORIO, ATENCION_PUBLICO, SOLO_CONSULTA | Editables | Editables | Sí, si nadie lo tiene asignado | Sí |
+| FARMACEUTICO (y LABORATORIO, ATENCION_PUBLICO, SOLO_CONSULTA en las farmacias creadas antes de 0106) | Editables | Editables | Sí, si nadie lo tiene asignado | Sí |
 | Roles nuevos | Editables | Editables | Sí, si nadie lo tiene asignado | Sí |
 
 Un administrador que además debe operar (por ejemplo, el farmacéutico dueño) tiene **también** un rol operativo
@@ -92,7 +94,8 @@ más allá de las existentes: es un caso legítimo y queda auditado (`ASIGNAR_RO
 Decisión sobre los predefinidos editables: FARMACEUTICO, LABORATORIO, ATENCION_PUBLICO y SOLO_CONSULTA no tienen reglas
 de negocio que dependan de su código, así que se tratan como cualquier rol: se pueden eliminar si no están asignados. Si
 se eliminan, no se recrean solos. LABORATORIO se agregó en la migración 0077 para el sector de elaboración
-(`openspec/specs/cuentas-de-sector/spec.md`).
+(`openspec/specs/cuentas-de-sector/spec.md`); desde 0106 ni LABORATORIO, ni ATENCION_PUBLICO, ni SOLO_CONSULTA se
+siembran en una farmacia nueva.
 
 **Cuentas de sector** (migración 0077): un usuario marcado como cuenta de sector (sesión compartida por puesto de trabajo)
 no puede tener ADMINISTRADOR ni DIRECTOR_TECNICO (INV-SEC-001) y nunca conserva los permisos de

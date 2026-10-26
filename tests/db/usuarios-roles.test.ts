@@ -45,20 +45,12 @@ async function createSistemaUser(tx: Client, tenantId: string): Promise<string> 
 }
 
 describe.skipIf(dbTestSkipReason() !== null)("0002_usuarios_roles_permisos migration (fsj schema)", () => {
-  it("every new tenant gets the 6 default roles plus the internal SISTEMA role (fsj.seed_roles_tenant via trg_tenant_seed_roles, migration 0054; LABORATORIO since 0077)", async () => {
+  it("every new tenant gets the 3 default roles plus the internal SISTEMA role (fsj.seed_roles_tenant via trg_tenant_seed_roles, migration 0054; reduced by 0106)", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const tenantId = await insertTenant(tx, "seed");
         const result = await tx.query(`SELECT codigo FROM fsj.rol WHERE tenant_id = $1 ORDER BY codigo`, [tenantId]);
-        expect(result.rows.map((r) => r.codigo as string)).toEqual([
-          "ADMINISTRADOR",
-          "ATENCION_PUBLICO",
-          "DIRECTOR_TECNICO",
-          "FARMACEUTICO",
-          "LABORATORIO",
-          "SISTEMA",
-          "SOLO_CONSULTA",
-        ]);
+        expect(result.rows.map((r) => r.codigo as string)).toEqual(["ADMINISTRADOR", "DIRECTOR_TECNICO", "FARMACEUTICO", "SISTEMA"]);
       }),
     );
   });
