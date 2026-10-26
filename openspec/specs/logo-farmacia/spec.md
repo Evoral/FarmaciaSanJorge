@@ -34,8 +34,9 @@ with the permiso `config.editar` (same as the rest of the farmacia's data). It c
 
 ### Requirement: R2 — Navbar brand
 
-Without a logo the navbar SHALL show the generic `public/logo.png`. Next to the logo, the navbar SHALL show the
-tenant's `nombre_fantasia` (or `razon_social` when there is none) under the app name.
+Without a logo the navbar SHALL show the generic `public/logo.png`. The logo is shown large (64px box) and, below it,
+the tenant's `nombre_fantasia` (or `razon_social` when there is none). There is no app name ("Lab. Magistral" was
+removed, user decision 2026-10-26).
 
 #### Scenario: Tenant without a logo
 
@@ -47,7 +48,7 @@ tenant's `nombre_fantasia` (or `razon_social` when there is none) under the app 
 
 - **GIVEN** a tenant with no `nombre_fantasia`
 - **WHEN** a usuario opens the app
-- **THEN** the navbar shows the `razon_social` under the app name
+- **THEN** the navbar shows the `razon_social` under the logo
 
 ### Requirement: R3 — Accepted files
 
