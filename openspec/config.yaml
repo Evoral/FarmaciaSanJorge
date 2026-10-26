@@ -1,12 +1,16 @@
 # OpenSpec / SDD configuration for Farmacia San Jorge.
 # Layout and workflow: openspec/README.md. Project rules: AGENTS.md.
+# Read by the OpenSpec CLI (schema, context, rules, operations) and by the SDD
+# agents (strict_tdd, testing, rules.verify); each ignores the keys it does not use.
+
+schema: spec-driven
 
 context: |
   Pharmacy compounding management (recetas magistrales, stock, libro recetario, cierres).
   Multi-tenant modular monolith: Next.js 16 App Router, React 19, Prisma 7 + Postgres
   (Supabase, schema fsj), zod 4, decimal.js, Tailwind 4.
   Business logic in modules/<modulo>/{domain,application,infrastructure,ui}; app/ is routing only.
-  Business vocabulary in Spanish; code comments and technical docs in English.
+  Business vocabulary in Spanish; code comments and technical docs in English; specs keep their original language.
 
 strict_tdd: false # AGENTS.md: CI is the gate; tests are written/run only when the task asks.
 
@@ -19,20 +23,25 @@ testing:
 
 rules:
   proposal:
-    - Record the user's decision with its date ("User decision (YYYY-MM-DD)").
-    - State scope and what is explicitly out of scope.
-  spec:
-    - One capability per feature folder: openspec/specs/<feature>/spec.md.
-    - Never drop an existing rule silently; a removed rule goes under REMOVED with its reason.
-    - Libro recetario rules are append-only (what is recorded is never undone).
+    - "Record the user's decision with its date: User decision (YYYY-MM-DD)."
+    - "State scope and what is explicitly out of scope."
+  specs:
+    - "One capability per feature folder, at openspec/specs/<feature>/spec.md."
+    - "Keep rule IDs (R7, V3...) in the requirement name; code cites them."
+    - "Never drop an existing rule silently; a removed rule goes under REMOVED with its reason."
+    - "Libro recetario rules are append-only (what is recorded is never undone)."
   design:
-    - Follow docs/architecture.md and the nearest existing module; justify any new pattern.
-    - Use cases via defineCommand / defineQuery; money and quantities via decimal.js.
+    - "Follow docs/architecture.md and the nearest existing module; justify any new pattern."
+    - "Use cases via defineCommand / defineQuery; money and quantities via decimal.js."
   tasks:
-    - A schema change lists its migration, prisma/rollbacks/<migration>.down.sql and docs/rollbacks/<feature>.md.
-  apply:
-    - Forms keep user input on error (shared/ui/use-form-submit.ts); edit offers what the alta offers.
+    - "A schema change lists its migration, prisma/rollbacks/<migration>.down.sql and docs/rollbacks/<feature>.md."
   verify:
-    - State what was NOT verified; never run destructive DB commands (shared Supabase project).
+    - "State what was NOT verified; never run destructive DB commands (shared Supabase project)."
+
+operations:
+  apply:
+    guidance:
+      - "Forms keep user input on error (shared/ui/use-form-submit.ts); edit offers what the alta offers."
   archive:
-    - Merge deltas into openspec/specs/<feature>/spec.md and move the change to changes/archive/YYYY-MM-DD-<name>/.
+    guidance:
+      - "Merge deltas into openspec/specs/<feature>/spec.md and move the change to changes/archive/YYYY-MM-DD-<name>/."
