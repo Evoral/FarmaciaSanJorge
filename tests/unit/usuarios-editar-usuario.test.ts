@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
-import { ConflictError, ValidationError } from "@/shared/errors";
+import { ValidationError } from "@/shared/errors";
 
 const auditRecordMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
   void args;

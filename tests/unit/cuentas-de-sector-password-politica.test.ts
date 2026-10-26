@@ -8,6 +8,7 @@
  *   `restablecerPasswordTemporal` sets `debeCambiarPassword = debeCambiarPassword`.
  */
 import { describe, it, expect, vi } from "vitest";
+import type { Prisma } from "@/generated/prisma/client";
 import { erroresDePasswordAsignada, refinarPasswordTemporal } from "@/modules/usuarios/application/password-temporal";
 import { insertUsuario, restablecerPasswordTemporal } from "@/modules/usuarios/infrastructure/usuario-repository";
 import { z } from "zod";
@@ -58,7 +59,7 @@ describe("erroresDePasswordAsignada & refinarPasswordTemporal", () => {
 describe("usuario-repository debeCambiarPassword flag", () => {
   it("insertUsuario sets debeCambiarPassword = false for a cuenta de sector", async () => {
     const createMock = vi.fn().mockResolvedValue({ id: "u-sector" });
-    const fakeTx = { usuario: { create: createMock } } as any;
+    const fakeTx = { usuario: { create: createMock } } as unknown as Prisma.TransactionClient;
 
     await insertUsuario(fakeTx, {
       tenantId: "11111111-1111-1111-1111-111111111111",
@@ -86,7 +87,7 @@ describe("usuario-repository debeCambiarPassword flag", () => {
 
   it("insertUsuario sets debeCambiarPassword = true for a person", async () => {
     const createMock = vi.fn().mockResolvedValue({ id: "u-person" });
-    const fakeTx = { usuario: { create: createMock } } as any;
+    const fakeTx = { usuario: { create: createMock } } as unknown as Prisma.TransactionClient;
 
     await insertUsuario(fakeTx, {
       tenantId: "11111111-1111-1111-1111-111111111111",
@@ -114,7 +115,7 @@ describe("usuario-repository debeCambiarPassword flag", () => {
 
   it("restablecerPasswordTemporal passes debeCambiarPassword flag to tx.usuario.update", async () => {
     const updateMock = vi.fn().mockResolvedValue({ id: "u-target" });
-    const fakeTx = { usuario: { update: updateMock } } as any;
+    const fakeTx = { usuario: { update: updateMock } } as unknown as Prisma.TransactionClient;
 
     // For sector: false
     await restablecerPasswordTemporal(fakeTx, "u-target", "new-hash", false);

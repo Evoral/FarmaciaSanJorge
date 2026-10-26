@@ -7,9 +7,9 @@
  *   `loadPinHashesDeOtros` takes a per-tenant advisory lock and excludes the usuario itself.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Prisma } from "@/generated/prisma/client";
 import { ValidationError } from "@/shared/errors";
 import { assertPinDisponible, MENSAJE_PIN_NO_DISPONIBLE } from "@/modules/auth/application/pin-disponible";
-import { loadPinHashesDeOtros } from "@/modules/auth/infrastructure/usuario-repository";
 
 const verifyPasswordMock = vi.fn();
 vi.mock("@/modules/auth/domain/password", () => ({
@@ -39,7 +39,8 @@ describe("assertPinDisponible (pin-disponible.ts)", () => {
     loadPinHashesDeOtrosMock.mockResolvedValue(["hash-user-b", "hash-user-c"]);
     verifyPasswordMock.mockImplementation(async (hash: string) => hash === "hash-user-c");
 
-    const error = await assertPinDisponible({} as any, TENANT_ID, USUARIO_ID, PIN).catch((e: unknown) => e);
+    const fakeTx = {} as unknown as Prisma.TransactionClient;
+    const error = await assertPinDisponible(fakeTx, TENANT_ID, USUARIO_ID, PIN).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(ValidationError);
     const valError = error as ValidationError;
@@ -55,13 +56,15 @@ describe("assertPinDisponible (pin-disponible.ts)", () => {
     loadPinHashesDeOtrosMock.mockResolvedValue(["hash-user-b", "hash-user-c"]);
     verifyPasswordMock.mockResolvedValue(false);
 
-    await expect(assertPinDisponible({} as any, TENANT_ID, USUARIO_ID, PIN)).resolves.toBeUndefined();
+    const fakeTx = {} as unknown as Prisma.TransactionClient;
+    await expect(assertPinDisponible(fakeTx, TENANT_ID, USUARIO_ID, PIN)).resolves.toBeUndefined();
   });
 
   it("resolves immediately when there are no other usuarios with a configured PIN", async () => {
     loadPinHashesDeOtrosMock.mockResolvedValue([]);
 
-    await expect(assertPinDisponible({} as any, TENANT_ID, USUARIO_ID, PIN)).resolves.toBeUndefined();
+    const fakeTx = {} as unknown as Prisma.TransactionClient;
+    await expect(assertPinDisponible(fakeTx, TENANT_ID, USUARIO_ID, PIN)).resolves.toBeUndefined();
     expect(verifyPasswordMock).not.toHaveBeenCalled();
   });
 });
@@ -83,7 +86,7 @@ describe("loadPinHashesDeOtros (usuario-repository)", () => {
       usuario: {
         findMany: findManyMock,
       },
-    } as any;
+    } as unknown as Prisma.TransactionClient;
 
     const { loadPinHashesDeOtros: realLoadPinHashesDeOtros } = await vi.importActual<
       typeof import("@/modules/auth/infrastructure/usuario-repository")

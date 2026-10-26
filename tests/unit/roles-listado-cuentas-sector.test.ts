@@ -5,7 +5,8 @@
  * - `modules/usuarios/application/list-roles-con-permisos.ts`:
  *   `soloPersonal` flag computed via `ROLES_VEDADOS_A_SECTOR.includes(rol.codigo)`.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import type { Prisma } from "@/generated/prisma/client";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 import { ROL_ADMINISTRADOR, ROL_DIRECTOR_TECNICO, ROLES_VEDADOS_A_SECTOR } from "@/modules/usuarios/domain/roles";
 
@@ -86,7 +87,7 @@ describe("listRolesDelTenant (rol-repository)", () => {
     ];
 
     const findManyMock = vi.fn().mockResolvedValue(fakePrismaRows);
-    const fakeTx = { rol: { findMany: findManyMock } } as any;
+    const fakeTx = { rol: { findMany: findManyMock } } as unknown as Prisma.TransactionClient;
 
     const result = await listRolesDelTenant(fakeTx, TENANT_ID);
 

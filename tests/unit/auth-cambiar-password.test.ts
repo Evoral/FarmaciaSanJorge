@@ -7,12 +7,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 import { DomainError } from "@/shared/errors";
 
-const recordMock = vi.fn(async (...args: unknown[]) => {
-  void args;
-  return undefined;
-});
+const recordMock = vi.fn(async () => undefined);
 vi.mock("@/shared/audit", () => ({
-  record: (...args: unknown[]) => recordMock(...args),
+  record: () => recordMock(),
   TipoAccion: new Proxy({}, { get: (_t, prop) => String(prop) }),
 }));
 
@@ -28,23 +25,23 @@ vi.mock("@/shared/auth/session", () => ({
   requireRecentReauth: vi.fn(),
 }));
 
-const verifyPasswordMock = vi.fn(async (...args: unknown[]) => false);
+const verifyPasswordMock = vi.fn(async () => false);
 const hashPasswordMock = vi.fn(async (plain: string) => `hashed:${plain.length}`);
 vi.mock("@/modules/auth/domain/password", () => ({
-  verifyPassword: (...args: unknown[]) => verifyPasswordMock(...args),
+  verifyPassword: (...args: [string, string]) => verifyPasswordMock(...args),
   hashPassword: (plain: string) => hashPasswordMock(plain),
 }));
 
 const loadUsuarioParaPasswordMock = vi.fn();
-const updatePasswordHashMock = vi.fn(async (...args: unknown[]) => undefined);
+const updatePasswordHashMock = vi.fn(async () => undefined);
 vi.mock("@/modules/auth/infrastructure/usuario-repository", () => ({
-  loadUsuarioParaPassword: (...args: unknown[]) => loadUsuarioParaPasswordMock(...args),
-  updatePasswordHash: (...args: unknown[]) => updatePasswordHashMock(...args),
+  loadUsuarioParaPassword: (...args: [unknown, string]) => loadUsuarioParaPasswordMock(...args),
+  updatePasswordHash: (...args: [unknown, string, string]) => updatePasswordHashMock(...args),
 }));
 
-const revokeOtherSesionesMock = vi.fn(async (...args: unknown[]) => 1);
+const revokeOtherSesionesMock = vi.fn(async () => 1);
 vi.mock("@/modules/auth/infrastructure/session-repository", () => ({
-  revokeOtherSesionesForUsuario: (...args: unknown[]) => revokeOtherSesionesMock(...args),
+  revokeOtherSesionesForUsuario: (...args: [unknown, string, string, string, Date]) => revokeOtherSesionesMock(...args),
 }));
 
 const { cambiarPasswordCommand } = await import("@/modules/auth/application/cambiar-password");

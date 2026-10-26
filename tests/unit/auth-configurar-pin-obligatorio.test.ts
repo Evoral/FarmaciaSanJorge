@@ -26,10 +26,10 @@ vi.mock("@/shared/auth/session", () => ({
   requireRecentReauth: vi.fn(),
 }));
 
-const verifyPasswordMock = vi.fn(async (...args: unknown[]) => false);
+const verifyPasswordMock = vi.fn(async () => false);
 const hashPasswordMock = vi.fn(async (plain: string) => `hashed:${plain.length}`);
 vi.mock("@/modules/auth/domain/password", () => ({
-  verifyPassword: (...args: unknown[]) => verifyPasswordMock(...args),
+  verifyPassword: (...args: [string, string]) => verifyPasswordMock(...args),
   hashPassword: (plain: string) => hashPasswordMock(plain),
 }));
 

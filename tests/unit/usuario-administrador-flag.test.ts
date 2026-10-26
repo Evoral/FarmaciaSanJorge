@@ -11,6 +11,8 @@
  *   - `modules/libro/infrastructure/co-firma-repository.ts` (listDtVigentesParaCoFirma)
  */
 import { describe, it, expect, vi } from "vitest";
+import type { Prisma } from "@/generated/prisma/client";
+import type { AuthenticatedSession } from "@/shared/auth/session";
 import { nombreDeUsuario, ETIQUETA_ADMINISTRADOR } from "@/shared/format/usuario";
 import { SELECT_ROL_ADMINISTRADOR, esAdministradorDe } from "@/shared/db/usuario-administrador";
 
@@ -101,7 +103,7 @@ describe("auditoria-repository: listRegistroAuditoria & listUsuariosParaFiltro",
       registroAuditoria: {
         findMany: vi.fn().mockResolvedValue(fakeRows),
       },
-    } as any;
+    } as unknown as Prisma.TransactionClient;
 
     const result = await listRegistroAuditoria(fakeTx, { tenantId: "t-1", pageSize: 10 });
 
@@ -130,7 +132,7 @@ describe("auditoria-repository: listRegistroAuditoria & listUsuariosParaFiltro",
       usuario: {
         findMany: vi.fn().mockResolvedValue(fakeRows),
       },
-    } as any;
+    } as unknown as Prisma.TransactionClient;
 
     const options = await listUsuariosParaFiltro(fakeTx, "t-1");
 
@@ -175,7 +177,7 @@ describe("listUsuarioAuditoriaQuery", () => {
       tenant: {
         findUniqueOrThrow: vi.fn().mockResolvedValue({ zonaHoraria: "America/Argentina/Buenos_Aires" }),
       },
-    } as any;
+    } as unknown as Prisma.TransactionClient;
 
     withTenantTransactionMock.mockImplementation(async (_tenantId, fn) => fn(fakeTx));
 
@@ -187,7 +189,7 @@ describe("listUsuarioAuditoriaQuery", () => {
       sesionId: "s1",
       permisos: new Set(["usuarios.auditoria.ver"]),
       reautenticadaEn: new Date(),
-    } as any;
+    } as unknown as AuthenticatedSession;
 
     const result = await listUsuarioAuditoriaQuery.execute(
       { usuarioId: "22222222-2222-4222-a222-222222222222" },
@@ -212,7 +214,7 @@ describe("operadores-repository: listOperadores", () => {
       usuario: {
         findMany: vi.fn().mockResolvedValue(fakeRows),
       },
-    } as any;
+    } as unknown as Prisma.TransactionClient;
 
     const result = await listOperadores(fakeTx, "t-1");
 
@@ -236,7 +238,7 @@ describe("directores-tecnicos: listUsuariosElegibles", () => {
       usuario: {
         findMany: vi.fn().mockResolvedValue(fakeRows),
       },
-    } as any;
+    } as unknown as Prisma.TransactionClient;
 
     const result = await listUsuariosElegibles(fakeTx, "t-1");
 
@@ -262,7 +264,7 @@ describe("co-firma-repository (stock & libro): listDtVigentesParaCoFirma", () =>
         executedQuery = strings.join("");
         return Promise.resolve(fakeRows);
       }),
-    } as any;
+    } as unknown as Prisma.TransactionClient;
 
     const result = await listStockDt(fakeTx, "11111111-1111-1111-1111-111111111111");
 
@@ -286,7 +288,7 @@ describe("co-firma-repository (stock & libro): listDtVigentesParaCoFirma", () =>
         executedQuery = strings.join("");
         return Promise.resolve(fakeRows);
       }),
-    } as any;
+    } as unknown as Prisma.TransactionClient;
 
     const result = await listLibroDt(fakeTx, "11111111-1111-1111-1111-111111111111");
 

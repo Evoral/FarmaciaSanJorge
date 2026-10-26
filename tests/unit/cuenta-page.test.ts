@@ -16,7 +16,7 @@ const cuentaFormsMock = vi.fn(({ mostrarPin }: { mostrarPin: boolean }) =>
   createElement("div", { "data-testid": "cuenta-forms", "data-mostrar-pin": String(mostrarPin) }, "FORMULARIO_DE_CUENTA"),
 );
 vi.mock("@/app/(app)/cuenta/cuenta-forms", () => ({
-  CuentaForms: (props: any) => cuentaFormsMock(props),
+  CuentaForms: (props: { mostrarPin: boolean }) => cuentaFormsMock(props),
 }));
 
 const { default: CuentaPage } = await import("@/app/(app)/cuenta/page");

@@ -1,5 +1,4 @@
-import { createElement, type ComponentProps } from "react";
-import * as React from "react";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -9,7 +8,7 @@ vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react")>();
   return {
     ...actual,
-    useState: (initial: any) => useStateMock(initial, actual.useState),
+    useState: (initial: unknown) => useStateMock(initial, actual.useState),
   };
 });
 
@@ -40,22 +39,13 @@ describe("PasswordInput", () => {
 
   it("toggles visible state on button click", () => {
     let stateUpdater: ((prev: boolean) => boolean) | undefined;
-    const setVisible = vi.fn((fn: any) => {
+    const setVisible = vi.fn((fn: unknown) => {
       if (typeof fn === "function") {
-        stateUpdater = fn;
+        stateUpdater = fn as (prev: boolean) => boolean;
       }
     });
     useStateMock.mockImplementation(() => [false, setVisible]);
 
-    // Render inside a wrapper or call renderToStaticMarkup
-    let capturedElement: any = null;
-    function Wrapper() {
-      capturedElement = createElement(PasswordInput, { id: "pass", name: "password" });
-      return capturedElement;
-    }
-    renderToStaticMarkup(createElement(Wrapper));
-
-    // PasswordInput returned JSX: find the button in the rendered element
     const rendered = PasswordInput({ id: "pass", name: "password" });
     const button = rendered.props.children[1];
     button.props.onClick();
