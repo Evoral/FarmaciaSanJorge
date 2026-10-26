@@ -11,10 +11,10 @@ approved.
 
 ## 1. Configuración y utilidades (8 KB)
 
-- [ ] 1.1 `numeros-ingresados`
-- [ ] 1.2 `exportaciones-excel`
-- [ ] 1.3 `logo-farmacia`
-- [ ] 1.4 `alta-receta-idempotente`
+- [x] 1.1 `numeros-ingresados`
+- [x] 1.2 `exportaciones-excel`
+- [x] 1.3 `logo-farmacia`
+- [x] 1.4 `alta-receta-idempotente`
 
 ## 2. Catálogos e historiales (61 KB)
 

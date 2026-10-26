@@ -37,7 +37,8 @@ The reason, when the original gives one, stays in the text.
    control table so the reviewer checks it.
 3. **Non-normative content is kept**, not deleted: enforcement notes, accepted
    races, code maps and implementation notes go in sections after
-   `## Requirements`, which the CLI ignores.
+   `## Requirements`, which the CLI ignores. Reference material a requirement
+   cites (e.g. the list of exports) also goes there, named in the requirement.
 4. **Language**: every spec keeps its original language; nothing is translated.
    User decision (2026-10-25). A Spanish spec stays in Spanish and its requirement
    text carries the literal SHALL or MUST keyword the CLI requires
