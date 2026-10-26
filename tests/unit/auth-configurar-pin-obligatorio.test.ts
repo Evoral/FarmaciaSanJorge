@@ -41,10 +41,16 @@ const setPinHashMock = vi.fn(async (...args: unknown[]) => {
   void args;
   return undefined;
 });
+// Other usuarios' PIN hashes (uniqueness check, pin-disponible.ts): none by default.
+const loadPinHashesDeOtrosMock = vi.fn(async (...args: unknown[]): Promise<string[]> => {
+  void args;
+  return [];
+});
 vi.mock("@/modules/auth/infrastructure/usuario-repository", () => ({
   loadUsuarioParaPassword: (...args: unknown[]) => loadUsuarioParaPasswordMock(...args),
   loadEsSoloAdministrador: (...args: unknown[]) => loadEsSoloAdministradorMock(...args),
   setPinHash: (...args: unknown[]) => setPinHashMock(...args),
+  loadPinHashesDeOtros: (...args: unknown[]) => loadPinHashesDeOtrosMock(...args),
 }));
 
 const { configurarPinObligatorioCommand } = await import("@/modules/auth/application/configurar-pin-obligatorio");

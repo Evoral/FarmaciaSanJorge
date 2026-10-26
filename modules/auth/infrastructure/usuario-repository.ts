@@ -177,6 +177,20 @@ export async function setPinHash(tx: Prisma.TransactionClient, usuarioId: string
   });
 }
 
+/**
+ * The PIN hashes of every OTHER usuario of the tenant (no two usuarios share a PIN, user decision 2026-10-26). Takes a
+ * per-tenant transaction-scoped advisory lock first, so two usuarios choosing the same PIN at once are serialized:
+ * the second one sees the first one's hash. Never returns the hashes to a caller outside the PIN uniqueness check.
+ */
+export async function loadPinHashesDeOtros(tx: Prisma.TransactionClient, tenantId: string, usuarioId: string): Promise<string[]> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('fsj.pin:' || ${tenantId}::text))`;
+  const rows = await tx.usuario.findMany({
+    where: { tenantId, id: { not: usuarioId }, pinHash: { not: null } },
+    select: { pinHash: true },
+  });
+  return rows.flatMap((row) => (row.pinHash ? [row.pinHash] : []));
+}
+
 /** A successful PASSWORD re-auth resets the PIN counter AND unblocks it (task's binding decision) -- called unconditionally on the password branch's success path, never read-then-write (idempotent regardless of prior state). */
 export async function resetPinLockout(tx: Prisma.TransactionClient, usuarioId: string): Promise<void> {
   await tx.usuario.update({ where: { id: usuarioId }, data: { pinIntentosFallidos: 0, pinBloqueado: false } });

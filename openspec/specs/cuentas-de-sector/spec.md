@@ -38,6 +38,14 @@ El PIN es el de siempre (migración 0037), ahora de **4 dígitos** (`AUTH_POLICY
 PIN de 6 dígitos que existían): hash argon2, contador y bloqueo propios. Cada empleado lo
 configura desde «Mi cuenta» con su propio usuario; nadie más lo conoce.
 
+**Dos usuarios de la misma farmacia nunca comparten PIN** (decisión del usuario 2026-10-26). Como el PIN se guarda
+con hash argon2 (con sal), no hay índice único: al elegirlo se verifica contra el hash de cada otro usuario de la
+farmacia (`modules/auth/application/pin-disponible.ts`, en «Mi cuenta» y en el paso obligatorio), bajo un lock
+consultivo por farmacia para que dos altas simultáneas no elijan el mismo. El error no dice que el PIN es de otro:
+«Ese PIN no se puede usar. Elegí otro.». Riesgo aceptado: el rechazo revela que ese PIN está en uso, así que probando
+PINs en «Mi cuenta» se puede armar la lista de los ocupados (el intento contra un compañero sigue limitado por S8 y
+queda auditado por S9).
+
 ## Reglas
 
 | # | Regla | Dónde se hace cumplir |

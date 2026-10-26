@@ -16,6 +16,7 @@ import { DomainError } from "@/shared/errors";
 import { validatePin } from "../domain/pin";
 import { hashPassword } from "../domain/password";
 import { loadEsSoloAdministrador, loadUsuarioParaPassword, setPinHash } from "../infrastructure/usuario-repository";
+import { assertPinDisponible } from "./pin-disponible";
 
 const configurarPinObligatorioInput = z
   .object({
@@ -55,6 +56,8 @@ export const configurarPinObligatorioCommand = defineCommand({
     if (usuario.pinHash !== null) {
       throw new DomainError("Ya tenés un PIN configurado. Podés cambiarlo desde «Mi cuenta».");
     }
+
+    await assertPinDisponible(tx, session.tenantId, session.usuario.id, input.pin);
 
     // Same argon2id setup as the real password -- `hashPassword` is generic over the string it hashes.
     const pinHash = await hashPassword(input.pin);

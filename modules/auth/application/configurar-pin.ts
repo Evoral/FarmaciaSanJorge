@@ -22,6 +22,7 @@ import { DomainError } from "@/shared/errors";
 import { validatePin } from "../domain/pin";
 import { hashPassword, verifyPassword } from "../domain/password";
 import { loadEsSoloAdministrador, loadUsuarioParaPassword, setPinHash } from "../infrastructure/usuario-repository";
+import { assertPinDisponible } from "./pin-disponible";
 
 const configurarPinInput = z
   .object({
@@ -60,6 +61,8 @@ export const configurarPinCommand = defineCommand({
     if (!actualMatches) {
       throw new DomainError("La contraseña actual no es correcta.");
     }
+
+    await assertPinDisponible(tx, session.tenantId, session.usuario.id, input.pin);
 
     // Same argon2id setup as the real password (task requirement) --
     // `hashPassword` is generic over the string it hashes.

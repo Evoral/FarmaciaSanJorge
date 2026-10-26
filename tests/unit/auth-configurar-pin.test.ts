@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
-import { DomainError } from "@/shared/errors";
+import { DomainError, ValidationError } from "@/shared/errors";
 
 const recordMock = vi.fn(async (...args: unknown[]) => {
   void args;
@@ -46,13 +46,20 @@ const setPinHashMock = vi.fn(async (...args: unknown[]) => {
   void args;
   return undefined;
 });
+// Other usuarios' PIN hashes (uniqueness check, pin-disponible.ts): none by default.
+const loadPinHashesDeOtrosMock = vi.fn(async (...args: unknown[]): Promise<string[]> => {
+  void args;
+  return [];
+});
 vi.mock("@/modules/auth/infrastructure/usuario-repository", () => ({
   loadUsuarioParaPassword: (...args: unknown[]) => loadUsuarioParaPasswordMock(...args),
   loadEsSoloAdministrador: (...args: unknown[]) => loadEsSoloAdministradorMock(...args),
   setPinHash: (...args: unknown[]) => setPinHashMock(...args),
+  loadPinHashesDeOtros: (...args: unknown[]) => loadPinHashesDeOtrosMock(...args),
 }));
 
 const { configurarPinCommand } = await import("@/modules/auth/application/configurar-pin");
+const { MENSAJE_PIN_NO_DISPONIBLE } = await import("@/modules/auth/application/pin-disponible");
 
 const TENANT_ID = "11111111-1111-1111-1111-111111111111";
 const USUARIO_ID = "22222222-2222-2222-2222-222222222222";
@@ -89,9 +96,22 @@ beforeEach(() => {
   loadUsuarioParaPasswordMock.mockReset().mockResolvedValue(usuarioRow());
   loadEsSoloAdministradorMock.mockReset().mockResolvedValue(false);
   setPinHashMock.mockClear();
+  loadPinHashesDeOtrosMock.mockReset().mockResolvedValue([]);
 });
 
 describe("configurarPin («Mi cuenta»)", () => {
+  it("rejects a PIN another usuario of the farmacia already uses, without saying it is taken", async () => {
+    loadPinHashesDeOtrosMock.mockResolvedValue(["otro-pin-hash"]);
+
+    const error = await execute().catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).message).toBe(MENSAJE_PIN_NO_DISPONIBLE);
+    expect(loadPinHashesDeOtrosMock).toHaveBeenCalledWith(expect.objectContaining({ __fakeTx: true }), TENANT_ID, USUARIO_ID);
+    expect(verifyPasswordMock).toHaveBeenCalledWith("otro-pin-hash", PIN);
+    expect(setPinHashMock).not.toHaveBeenCalled();
+  });
+
   it("changes the PIN of a usuario who uses one", async () => {
     await execute();
 
