@@ -35,10 +35,10 @@ const existeDniMock = vi.fn(async () => false);
 const updateUsuarioDatosPersonalesMock = vi.fn(async () => true);
 
 vi.mock("@/modules/usuarios/infrastructure/usuario-repository", () => ({
-  loadUsuarioParaAccion: (...args: any[]) => loadUsuarioParaAccionMock(...args),
-  existeEmail: (...args: any[]) => existeEmailMock(...args),
-  existeDni: (...args: any[]) => existeDniMock(...args),
-  updateUsuarioDatosPersonales: (...args: any[]) => updateUsuarioDatosPersonalesMock(...args),
+  loadUsuarioParaAccion: loadUsuarioParaAccionMock,
+  existeEmail: existeEmailMock,
+  existeDni: existeDniMock,
+  updateUsuarioDatosPersonales: updateUsuarioDatosPersonalesMock,
 }));
 
 const { editarUsuarioCommand } = await import("@/modules/usuarios/application/editar-usuario");
