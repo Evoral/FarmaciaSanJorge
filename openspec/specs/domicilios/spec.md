@@ -9,7 +9,7 @@ When only one is loaded, it is used for both. Migration 0099.
 |---|---|---|
 | Domicilio del cliente | `paciente.domicilio` | Su ficha (`/clientes/[id]`), y **automáticamente** una receta importada (QR / PDF) que trae domicilio. |
 | Domicilio de entrega del cliente | `paciente.domicilio_entrega` | **Solo** su ficha. Vacío = el mismo domicilio. |
-| Domicilio de la receta | `receta.domicilio_paciente` (0070) | El formulario de la receta; el QR / PDF lo precarga. Se guarda por receta: es el de la fecha de la prescripción (ver `importacion-receta-pdf.md`). |
+| Domicilio de la receta | `receta.domicilio_paciente` (0070) | El formulario de la receta; el QR / PDF lo precarga. Se guarda por receta: es el de la fecha de la prescripción (ver `openspec/specs/importacion-receta-pdf/spec.md`). |
 | Domicilio de entrega de la receta | `receta.domicilio_entrega` (0099) | El formulario de la receta, y el modal de envío cuando la receta no tiene ninguno (E4). Vacío = el domicilio de la receta. |
 
 ## Rules

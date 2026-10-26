@@ -12,7 +12,7 @@ Alcance:
 1. **Presupuesto en vivo** mientras se carga una receta (alta manual, importación desde PDF y edición de una receta guardada -- revisado 2026-10-16). No guarda nada.
 2. **Ficha técnica y cotización automáticas** al confirmar la receta (y al editarla, solo para los ítems cuya fórmula cambió).
 
-Fuera de alcance: reservar stock (eso lo hace el laboratorio al marcar un ítem como preparado, `reserva-stock-preparacion.md`), guardar presupuestos.
+Fuera de alcance: reservar stock (eso lo hace el laboratorio al marcar un ítem como preparado, `openspec/specs/reserva-stock-preparacion/spec.md`), guardar presupuestos.
 
 ## Requirements
 
@@ -61,7 +61,7 @@ partidas. No se audita (es una consulta; además fichas y cotizaciones están fu
 ### Requirement: Ficha de cada ítem en memoria
 
 En memoria, la ficha de cada ítem SHALL calcularse con el mismo cálculo que `fichas.generar` (unidades base,
-parámetros de pesaje del tenant y calculadora pura de `ficha-tecnica.md`).
+parámetros de pesaje del tenant y calculadora pura de `openspec/specs/ficha-tecnica/spec.md`).
 
 #### Scenario: Misma ficha que la generada
 
@@ -72,12 +72,12 @@ parámetros de pesaje del tenant y calculadora pura de `ficha-tecnica.md`).
 
 En memoria, el costo SHALL calcularse con el mismo cálculo que `cotizaciones.calcular` (jornada del tenant,
 partidas elegibles, reparto y calculadora pura) con la regla de precio vigente (tramos de margen por costo y precio
-mínimo, `reglas-precio.md`; cada ítem se cotiza con su propio costo).
+mínimo, `openspec/specs/reglas-precio/spec.md`; cada ítem se cotiza con su propio costo).
 
 #### Scenario: PR1 — Ítem normal
 
 - **WHEN** se presupuesta un ítem normal
-- **THEN** precio = max(costo × (1 + margen del tramo/100), precio mínimo) — ver `reglas-precio.md`
+- **THEN** precio = max(costo × (1 + margen del tramo/100), precio mínimo) — ver `openspec/specs/reglas-precio/spec.md`
 
 ### Requirement: Costo acumulado por droga
 
@@ -94,7 +94,7 @@ reparto acumulado, `Incompleta`, los faltantes y el costo de cada ítem reflejan
 
 ### Requirement: Origen del costo por línea
 
-Origen del costo por línea (`costos-proveedor.md`, R25–R30): una droga con costo de proveedor utilizable SHALL
+Origen del costo por línea (`openspec/specs/costos-proveedor/spec.md`, R25–R30): una droga con costo de proveedor utilizable SHALL
 costearse con él (toda la cantidad × costo, haya o no stock) y una droga sin costo de proveedor, **exactamente como
 antes**, con las partidas (fallback).
 
@@ -302,7 +302,7 @@ generan solo las fichas. Sin aviso.
 - **GIVEN** un usuario sin `fichas.generar`
 - **WHEN** confirma o edita una receta
 - **THEN** no se genera nada y no hay aviso
-- **AND** si editó un ítem, su ficha queda **desactualizada**: la toma del laboratorio la muestra así, no deja reservar stock sobre ella y ofrece «Generar ficha técnica» a quien tiene el permiso (`reserva-stock-preparacion.md` R18)
+- **AND** si editó un ítem, su ficha queda **desactualizada**: la toma del laboratorio la muestra así, no deja reservar stock sobre ella y ofrece «Generar ficha técnica» a quien tiene el permiso (`openspec/specs/reserva-stock-preparacion/spec.md` R18)
 
 #### Scenario: Usuario sin `cotizaciones.calcular`
 
@@ -369,10 +369,10 @@ regenerar.
 
 ## Referencias
 
-> Se apoya en `ficha-tecnica.md` (cálculo de la ficha, V1–V9) y en la cotización existente (FASE 7.4, DP-09). Las notas **[ACLARACIÓN]** son deducciones de consistencia; no agregan requisitos.
+> Se apoya en `openspec/specs/ficha-tecnica/spec.md` (cálculo de la ficha, V1–V9) y en la cotización existente (FASE 7.4, DP-09). Las notas **[ACLARACIÓN]** son deducciones de consistencia; no agregan requisitos.
 
 ## Aclaraciones
 
-[ACLARACIÓN] El presupuesto y la cotización no reservan stock (INV-R02) y cuestan contra el saldo **físico**: no descuentan lo que otras recetas pendientes van a usar ni lo que las preparaciones en curso ya **reservaron** (la reserva de stock existe desde 2026-10-08, `reserva-stock-preparacion.md`; ahí, «Open»). Es una estimación de precio, no una reserva.
+[ACLARACIÓN] El presupuesto y la cotización no reservan stock (INV-R02) y cuestan contra el saldo **físico**: no descuentan lo que otras recetas pendientes van a usar ni lo que las preparaciones en curso ya **reservaron** (la reserva de stock existe desde 2026-10-08, `openspec/specs/reserva-stock-preparacion/spec.md`; ahí, «Open»). Es una estimación de precio, no una reserva.
 
 [ACLARACIÓN] La cotización que se guarda al confirmar (por ítem) sigue costeando cada ítem contra el stock completo, como la cotización manual: descontar los demás ítems no sería consistente una vez que alguno ya se preparó (su stock ya salió y se descontaría dos veces).

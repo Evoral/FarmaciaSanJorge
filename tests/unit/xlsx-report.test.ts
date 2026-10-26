@@ -98,7 +98,7 @@ describe("XlsxReport", () => {
     expect(sheet.getCell("B5").value).toBe("Filtros: Sin filtros");
   });
 
-  it("puts the tenant's own logo on the sheet, and none without one (logo-farmacia.md R7)", async () => {
+  it("puts the tenant's own logo on the sheet, and none without one (openspec/specs/logo-farmacia/spec.md R7)", async () => {
     const bytes = readFileSync(path.join(process.cwd(), "public", "logo.png"));
     const conLogo = await readBack(new XlsxReport({ ...OPTIONS, logo: { bytes, tipo: "image/png" } }));
     expect(conLogo.getImages()).toHaveLength(1);

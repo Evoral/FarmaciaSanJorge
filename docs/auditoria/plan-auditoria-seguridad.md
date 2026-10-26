@@ -181,8 +181,8 @@ Pendientes que las partes 1 y 2 derivaron a esta:
 
 Alcance general
 - Libro recetario (`openspec/specs/libro-recetario-y-contralor/spec.md`): correlatividad y unicidad del número de asiento bajo concurrencia (constraint, lock o secuencia), número inicial configurable (migración 0097) y su fijación por el primer cierre firmado, inmutabilidad de cierres firmados (triggers en la base), trazabilidad de cambios.
-- Stock: atomicidad de movimientos, reservas (`reserva-stock-preparacion.md`), pesada real (`pesada-real.md`), reglas de stock negativo, orden de locks y riesgo de deadlock o actualizaciones perdidas.
-- Dinero y cantidades: uso de `shared/decimal`; busca aritmética con `number` en precios, costos y cantidades (`reglas-precio.md`, `presupuesto-receta.md`, `pago-receta.md`, `costos-proveedor.md`) y conversiones prematuras a `number`. No marques aritmética no monetaria.
+- Stock: atomicidad de movimientos, reservas (`openspec/specs/reserva-stock-preparacion/spec.md`), pesada real (`openspec/specs/pesada-real/spec.md`), reglas de stock negativo, orden de locks y riesgo de deadlock o actualizaciones perdidas.
+- Dinero y cantidades: uso de `shared/decimal`; busca aritmética con `number` en precios, costos y cantidades (`openspec/specs/reglas-precio/spec.md`, `openspec/specs/presupuesto-receta/spec.md`, `openspec/specs/pago-receta/spec.md`, `openspec/specs/costos-proveedor/spec.md`) y conversiones prematuras a `number`. No marques aritmética no monetaria.
 - Compatibilidad de precisión y escala entre Decimal de la aplicación y columnas `numeric` de la base.
 - Auditoría: el registro se escribe en la misma transacción que la operación; `fsj_app` no puede hacer UPDATE ni DELETE en tablas de auditoría (verifícalo en grants y triggers de la base).
 - Idempotencia y doble envío: operaciones críticas que puedan duplicarse por doble clic o reintento.

@@ -110,7 +110,7 @@ CSP        cantidad suficiente para completar cantidadTotal ("vaselina csp 30")
 
 **Versiones, vigencia y preparación** (2026-10-15, `openspec/specs/reserva-stock-preparacion/spec.md` R18-R20):
 
-- Una ficha es **vigente** para su ítem cuando es la última versión y recalcular las líneas con los datos actuales del ítem (y los parámetros de pesaje actuales) da exactamente sus líneas (`mismasLineasPesaje`, la misma regla que decide si la regeneración tras editar crea una versión nueva). Si no, está **desactualizada**: no se puede reservar stock sobre ella hasta generar una versión nueva (`fichas.generar`). Editar la receta no genera fichas a quien no tiene `fichas.generar` (GA2 de `presupuesto-receta.md`); el laboratorio la genera desde la toma.
+- Una ficha es **vigente** para su ítem cuando es la última versión y recalcular las líneas con los datos actuales del ítem (y los parámetros de pesaje actuales) da exactamente sus líneas (`mismasLineasPesaje`, la misma regla que decide si la regeneración tras editar crea una versión nueva). Si no, está **desactualizada**: no se puede reservar stock sobre ella hasta generar una versión nueva (`fichas.generar`). Editar la receta no genera fichas a quien no tiene `fichas.generar` (GA2 de `openspec/specs/presupuesto-receta/spec.md`); el laboratorio la genera desde la toma.
 - No se genera una versión nueva mientras el ítem tiene una preparación viva: CONFIRMADA (como siempre) o INICIADA con stock reservado («Liberá la reserva antes de generar una nueva versión»).
 
 **Impacto en invariantes previos del plan:**

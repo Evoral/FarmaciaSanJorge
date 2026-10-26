@@ -543,7 +543,7 @@ changes.
 ### Requirement: R37 — Proveedor shown in the cotización detail
 
 The cotización detail SHALL show the proveedor and price used to whoever can see the cotización (`cotizaciones.ver`),
-consistent with `reglas-precio.md` ("no hay ocultamiento del costo según permiso").
+consistent with `openspec/specs/reglas-precio/spec.md` ("no hay ocultamiento del costo según permiso").
 
 #### Scenario: User without stock.valorizado.ver
 

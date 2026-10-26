@@ -37,7 +37,7 @@ total de la receta.
 ### Requirement: Origen del costo por línea
 
 El origen del costo SHALL decidirse **por línea**: si la droga tiene un costo de proveedor utilizable, la línea
-cuesta toda su cantidad × ese costo (`costos-proveedor.md`, R25–R28); si no, cae al costo de las partidas en stock
+cuesta toda su cantidad × ese costo (`openspec/specs/costos-proveedor/spec.md`, R25–R28); si no, cae al costo de las partidas en stock
 (abiertas primero, luego FEFO, mezcla). El costo de insumos es la suma de las líneas, sea cual sea su origen, y el
 tramo y el piso se aplican **una vez** sobre esa suma (R31).
 
