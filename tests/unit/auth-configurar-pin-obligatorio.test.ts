@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
-import { DomainError } from "@/shared/errors";
+import { DomainError, ValidationError } from "@/shared/errors";
 
 const recordMock = vi.fn(async (...args: unknown[]) => {
   void args;
@@ -26,9 +26,10 @@ vi.mock("@/shared/auth/session", () => ({
   requireRecentReauth: vi.fn(),
 }));
 
+const verifyPasswordMock = vi.fn(async (...args: unknown[]) => false);
 const hashPasswordMock = vi.fn(async (plain: string) => `hashed:${plain.length}`);
 vi.mock("@/modules/auth/domain/password", () => ({
-  verifyPassword: vi.fn(async () => false),
+  verifyPassword: (...args: unknown[]) => verifyPasswordMock(...args),
   hashPassword: (plain: string) => hashPasswordMock(plain),
 }));
 
@@ -54,6 +55,7 @@ vi.mock("@/modules/auth/infrastructure/usuario-repository", () => ({
 }));
 
 const { configurarPinObligatorioCommand } = await import("@/modules/auth/application/configurar-pin-obligatorio");
+const { MENSAJE_PIN_NO_DISPONIBLE } = await import("@/modules/auth/application/pin-disponible");
 
 const TENANT_ID = "11111111-1111-1111-1111-111111111111";
 const USUARIO_ID = "22222222-2222-2222-2222-222222222222";
@@ -86,12 +88,43 @@ function usuarioRow(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   recordMock.mockClear();
   hashPasswordMock.mockClear();
+  verifyPasswordMock.mockReset().mockResolvedValue(false);
   loadUsuarioParaPasswordMock.mockReset().mockResolvedValue(usuarioRow());
   loadEsSoloAdministradorMock.mockReset().mockResolvedValue(false);
   setPinHashMock.mockClear();
+  loadPinHashesDeOtrosMock.mockReset().mockResolvedValue([]);
 });
 
 describe("configurarPinObligatorio", () => {
+  it("rejects a PIN another usuario of the farmacia already uses, without naming the other usuario", async () => {
+    loadPinHashesDeOtrosMock.mockResolvedValue(["hash-de-otro"]);
+    verifyPasswordMock.mockResolvedValue(true);
+
+    const error = await execute({ pin: PIN, pinRepeat: PIN }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    const valError = error as ValidationError;
+    expect(valError.message).toBe(MENSAJE_PIN_NO_DISPONIBLE);
+    expect(valError.fields).toEqual(["pin"]);
+    expect(valError.message).not.toMatch(/usuario|nombre|email|pertenece a/i);
+    expect(loadPinHashesDeOtrosMock).toHaveBeenCalledWith(
+      expect.objectContaining({ __fakeTx: true }),
+      TENANT_ID,
+      USUARIO_ID,
+    );
+    expect(setPinHashMock).not.toHaveBeenCalled();
+    expect(hashPasswordMock).not.toHaveBeenCalled();
+  });
+
+  it("allows setting a PIN when other usuarios have different PINs", async () => {
+    loadPinHashesDeOtrosMock.mockResolvedValue(["hash-de-otro"]);
+    verifyPasswordMock.mockResolvedValue(false);
+
+    await execute({ pin: PIN, pinRepeat: PIN });
+
+    expect(setPinHashMock).toHaveBeenCalledTimes(1);
+  });
+
   it("stores a hashed PIN and audits MODIFICAR with the exact motivo, never the PIN or hash", async () => {
     await execute({ pin: PIN, pinRepeat: PIN });
 

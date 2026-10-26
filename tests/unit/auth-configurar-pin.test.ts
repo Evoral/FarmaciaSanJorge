@@ -107,9 +107,26 @@ describe("configurarPin («Mi cuenta»)", () => {
 
     expect(error).toBeInstanceOf(ValidationError);
     expect((error as ValidationError).message).toBe(MENSAJE_PIN_NO_DISPONIBLE);
+    expect((error as ValidationError).message).not.toMatch(/usuario|nombre|email|pertenece a/i);
     expect(loadPinHashesDeOtrosMock).toHaveBeenCalledWith(expect.objectContaining({ __fakeTx: true }), TENANT_ID, USUARIO_ID);
     expect(verifyPasswordMock).toHaveBeenCalledWith("otro-pin-hash", PIN);
     expect(setPinHashMock).not.toHaveBeenCalled();
+  });
+
+  it("allows setting the usuario's own current PIN because loadPinHashesDeOtros excludes the usuario itself", async () => {
+    // loadPinHashesDeOtros excludes the current usuario (USUARIO_ID), so only other users' hashes are checked
+    loadPinHashesDeOtrosMock.mockResolvedValue([]);
+    // The current password check passes
+    verifyPasswordMock.mockResolvedValue(true);
+
+    await execute();
+
+    expect(loadPinHashesDeOtrosMock).toHaveBeenCalledWith(
+      expect.objectContaining({ __fakeTx: true }),
+      TENANT_ID,
+      USUARIO_ID,
+    );
+    expect(setPinHashMock).toHaveBeenCalledTimes(1);
   });
 
   it("changes the PIN of a usuario who uses one", async () => {
