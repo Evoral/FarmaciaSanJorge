@@ -14,6 +14,7 @@ import { SimpleForm } from "@/shared/ui/simple-form";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { formatCantidadExacta } from "@/shared/format/cantidad";
 import { cerrarRelevamientoInicialAction } from "./actions";
+import { PasswordInput } from "@/shared/ui/password-input";
 
 export interface RelevamientoInicialPanelProps {
   /** `YYYY-MM-DD`, `null` while no cierre diario is signed. */
@@ -80,7 +81,7 @@ export function RelevamientoInicialPanel({
                 <label htmlFor="relevamiento-password" className="field-label">
                   Tu contraseña (Director Técnico)
                 </label>
-                <input id="relevamiento-password" name="password" type="password" autoComplete="current-password" required className="input" />
+                <PasswordInput id="relevamiento-password" name="password" autoComplete="current-password" required className="input" />
               </div>
             </SimpleForm>
           </div>

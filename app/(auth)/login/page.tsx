@@ -14,6 +14,7 @@ import { useActionState, useEffect, useRef } from "react";
 import { loginAction, type LoginFormState } from "./actions";
 import { useFormSubmit } from "@/shared/ui/use-form-submit";
 import { WavesBackground } from "@/shared/ui/waves-background";
+import { PasswordInput } from "@/shared/ui/password-input";
 
 const initialState: LoginFormState = { message: null };
 
@@ -67,11 +68,10 @@ export default function LoginPage() {
           <label htmlFor="password" className="text-sm font-medium">
             Contraseña
           </label>
-          <input
+          <PasswordInput
             ref={passwordRef}
             id="password"
             name="password"
-            type="password"
             required
             autoComplete="current-password"
             className="input"
