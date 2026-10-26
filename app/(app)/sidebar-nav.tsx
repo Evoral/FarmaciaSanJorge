@@ -183,12 +183,13 @@ export function SidebarNav(props: SidebarNavProps) {
         // `visibility` flips at once when showing (so the toggle effect can focus inside right away) and only after the 200ms slide when hiding.
         className={`glass-panel fixed inset-y-2 left-2 z-50 flex w-60 flex-col motion-reduce:transition-none! lg:inset-y-3 lg:left-3 ${open ? "visible translate-x-0 [transition:translate_200ms_ease-out,visibility_0s]" : "invisible -translate-x-[calc(100%+1rem)] [transition:translate_200ms_ease-out,visibility_0s_linear_200ms]"} ${props.collapsed ? "lg:invisible lg:-translate-x-[calc(100%+1rem)] lg:[transition:translate_200ms_ease-out,visibility_0s_linear_200ms]" : "lg:visible lg:translate-x-0 lg:[transition:translate_200ms_ease-out,visibility_0s]"}`}
       >
-        <div className="flex shrink-0 items-start justify-between gap-2 px-4 pb-2 pt-4">
+        {/* The buttons are absolutely positioned so the brand is centered on the whole sidebar width. */}
+        <div className="relative flex shrink-0 justify-center px-10 pb-2 pt-4">
           <Brand farmacia={props.farmacia} logoSrc={props.logoSrc} />
-          <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar menú" className="glass-icon-btn -mr-1.5 lg:hidden">
+          <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar menú" className="glass-icon-btn absolute right-2.5 top-3 lg:hidden">
             <X className="size-5" aria-hidden />
           </button>
-          <button ref={collapseButtonRef} type="button" onClick={collapseSidebar} aria-label="Contraer barra lateral" title="Contraer barra lateral" aria-expanded aria-controls="app-sidebar" className="glass-icon-btn -mr-1.5 hidden lg:inline-flex">
+          <button ref={collapseButtonRef} type="button" onClick={collapseSidebar} aria-label="Contraer barra lateral" title="Contraer barra lateral" aria-expanded aria-controls="app-sidebar" className="glass-icon-btn absolute right-2.5 top-3 hidden lg:inline-flex">
             <PanelLeftClose className="size-4" aria-hidden />
           </button>
         </div>
@@ -232,13 +233,13 @@ export function SidebarNav(props: SidebarNavProps) {
   );
 }
 
-/** The farmacia's logo, large, with its name below it. */
+/** The farmacia's logo, large and centered, with its name below it. */
 function Brand({ farmacia, logoSrc }: { farmacia: string | null; logoSrc: string | null }) {
   return (
-    <Link href="/" className="flex min-w-0 flex-col items-start gap-2">
-      <span className="flex size-16 shrink-0 items-center justify-center rounded-lg dark:bg-white">
+    <Link href="/" className="flex min-w-0 flex-col items-center gap-2 text-center">
+      <span className="flex size-14 shrink-0 items-center justify-center rounded-lg dark:bg-white">
         {/* The tenant's logo sits behind the session cookie, which the image optimizer would not send: `unoptimized`. */}
-        {logoSrc ? <Image src={logoSrc} alt="" width={60} height={60} unoptimized priority className="size-15 object-contain" /> : <Image src="/logo.png" alt="" width={60} height={60} priority />}
+        {logoSrc ? <Image src={logoSrc} alt="" width={52} height={52} unoptimized priority className="size-13 object-contain" /> : <Image src="/logo.png" alt="" width={52} height={52} priority />}
       </span>
       {farmacia ? <span className="line-clamp-2 text-sm font-semibold leading-tight text-zinc-900 dark:text-zinc-100">{farmacia}</span> : null}
     </Link>

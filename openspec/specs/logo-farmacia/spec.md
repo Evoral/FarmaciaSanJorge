@@ -34,7 +34,7 @@ with the permiso `config.editar` (same as the rest of the farmacia's data). It c
 
 ### Requirement: R2 — Navbar brand
 
-Without a logo the navbar SHALL show the generic `public/logo.png`. The logo is shown large (64px box) and, below it,
+Without a logo the navbar SHALL show the generic `public/logo.png`. The logo is shown large and centered (56px box) and, below it,
 the tenant's `nombre_fantasia` (or `razon_social` when there is none). There is no app name ("Lab. Magistral" was
 removed, user decision 2026-10-26).
 
