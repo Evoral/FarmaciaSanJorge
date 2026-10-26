@@ -27,9 +27,9 @@ approved.
 
 ## 3. Precios (37 KB)
 
-- [ ] 3.1 `reglas-precio`
-- [ ] 3.2 `presupuesto-receta`
-- [ ] 3.3 `costos-proveedor`
+- [x] 3.1 `reglas-precio`
+- [x] 3.2 `presupuesto-receta`
+- [x] 3.3 `costos-proveedor`
 
 ## 4. Stock (48 KB)
 
