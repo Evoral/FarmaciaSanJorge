@@ -15,6 +15,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { EstadoUsuario as PrismaEstadoUsuario } from "@/generated/prisma/enums";
 import type { CaracterDesignacion } from "../domain/designacion";
+import { SELECT_ROL_ADMINISTRADOR, esAdministradorDe } from "@/shared/db/usuario-administrador";
 
 // ============================================================================
 // Read: fresh usuario.estado, for designarDirectorTecnico's app-level
@@ -274,6 +275,8 @@ export interface UsuarioElegible {
   nombre: string;
   apellido: string;
   dni: string;
+  /** Also the Administrador: flagged "(Admin)" in the picker (`shared/format/usuario.ts`). */
+  esAdministrador: boolean;
 }
 
 export async function listUsuariosElegibles(tx: Prisma.TransactionClient, tenantId: string): Promise<UsuarioElegible[]> {
@@ -285,7 +288,7 @@ export async function listUsuariosElegibles(tx: Prisma.TransactionClient, tenant
       rolesAsignados: { some: { rol: { codigo: "DIRECTOR_TECNICO" } } },
     },
     orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
-    select: { id: true, nombre: true, apellido: true, dni: true },
+    select: { id: true, nombre: true, apellido: true, dni: true, ...SELECT_ROL_ADMINISTRADOR },
   });
-  return rows;
+  return rows.map((row) => ({ id: row.id, nombre: row.nombre, apellido: row.apellido, dni: row.dni, esAdministrador: esAdministradorDe(row) }));
 }

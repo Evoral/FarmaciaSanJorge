@@ -23,6 +23,7 @@ import { OperadorContextProvider, type CamposDeOperador, type OperadorContextVal
 import type { OperadorOpcion } from "../application/list-operadores";
 import { listarOperadoresAction } from "./actions";
 import { PasswordInput } from "@/shared/ui/password-input";
+import { nombreDeUsuario } from "@/shared/format/usuario";
 
 /** The last empleado who identified themselves on this terminal: preselected, so the usual case is "type your PIN". */
 const ULTIMO_OPERADOR_KEY = "fsj.operador.ultimo";
@@ -160,7 +161,7 @@ function OperadorPrompt({ error, onConfirm, onCancel }: OperadorPromptProps) {
             <option value="">{operadores === null ? "Cargando…" : "Seleccioná tu nombre"}</option>
             {(operadores ?? []).map((operador) => (
               <option key={operador.id} value={operador.id}>
-                {operador.apellido}, {operador.nombre}
+                {nombreDeUsuario(operador, "apellido")}
               </option>
             ))}
           </select>

@@ -10,6 +10,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { PERMISOS_CON_PIN_CONFIGURABLES, esPermisoConPinConfigurable, type Permiso } from "@/modules/auth/domain/permisos";
 import type { AccionConPin } from "../domain/acciones-con-pin";
+import { SELECT_ROL_ADMINISTRADOR, esAdministradorDe } from "@/shared/db/usuario-administrador";
 
 /** Every configurable acción, in catalog order, with whether this farmacia asks a PIN for it. */
 export async function listAccionesConPin(tx: Prisma.TransactionClient, tenantId: string): Promise<AccionConPin[]> {
@@ -42,6 +43,8 @@ export interface OperadorOpcion {
   id: string;
   nombre: string;
   apellido: string;
+  /** Also the Administrador (with an operative role too): flagged "(Admin)" in the selector. */
+  esAdministrador: boolean;
 }
 
 /**
@@ -52,9 +55,10 @@ export interface OperadorOpcion {
  * themselves and be told why it fails.
  */
 export async function listOperadores(tx: Prisma.TransactionClient, tenantId: string): Promise<OperadorOpcion[]> {
-  return tx.usuario.findMany({
+  const rows = await tx.usuario.findMany({
     where: { tenantId, estado: "ACTIVO", esSector: false, esTecnico: false, pinHash: { not: null }, debeCambiarPassword: false },
     orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
-    select: { id: true, nombre: true, apellido: true },
+    select: { id: true, nombre: true, apellido: true, ...SELECT_ROL_ADMINISTRADOR },
   });
+  return rows.map((row) => ({ id: row.id, nombre: row.nombre, apellido: row.apellido, esAdministrador: esAdministradorDe(row) }));
 }

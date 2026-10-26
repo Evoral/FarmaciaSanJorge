@@ -33,6 +33,7 @@ import {
 } from "../infrastructure/entrega-repository";
 import type { EntregaRow, RepartidorDeEntrega } from "../infrastructure/entrega-repository";
 import type { EstadoReceta } from "@/modules/recetas/domain/receta";
+import { nombreDeUsuario } from "@/shared/format/usuario";
 
 const getEntregaEstadoInput = z.object({ recetaId: uuid });
 
@@ -124,7 +125,7 @@ async function getRetiroVencidoEstado(tx: Prisma.TransactionClient, session: Aut
     archivada,
     loteNumero: retiro.loteNumero,
     preparadosVencidos: vencidos,
-    dts: dts.map((dt) => ({ id: dt.usuarioId, label: `${dt.nombre} ${dt.apellido}` })),
+    dts: dts.map((dt) => ({ id: dt.usuarioId, label: nombreDeUsuario(dt) })),
     operadorEsDt: dts.some((dt) => dt.usuarioId === session.usuario.id),
   };
 }

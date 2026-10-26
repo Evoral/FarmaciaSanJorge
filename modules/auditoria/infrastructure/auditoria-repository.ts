@@ -29,6 +29,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { TipoAccion } from "@/generated/prisma/enums";
 import { encodeCursor } from "../domain/cursor";
 import type { AuditoriaCursor } from "../domain/cursor";
+import { SELECT_ROL_ADMINISTRADOR, esAdministradorDe } from "@/shared/db/usuario-administrador";
 
 export interface AuditoriaFiltro {
   tenantId: string;
@@ -58,8 +59,9 @@ export interface AuditoriaRow {
   /** Request context (requestId, userAgent) -- see shared/audit/request-context.ts. */
   contexto: Prisma.JsonValue | null;
   ocurridoEn: Date;
-  usuario: { id: string; nombre: string; apellido: string };
-  autorizadoPor: { nombre: string; apellido: string } | null;
+  /** `esAdministrador`: flagged "(Admin)" when shown (`shared/format/usuario.ts`). */
+  usuario: { id: string; nombre: string; apellido: string; esAdministrador: boolean };
+  autorizadoPor: { nombre: string; apellido: string; esAdministrador: boolean } | null;
 }
 
 export interface AuditoriaListResult {
@@ -113,13 +115,17 @@ export async function listRegistroAuditoria(tx: Prisma.TransactionClient, filtro
       ip: true,
       contexto: true,
       ocurridoEn: true,
-      usuario: { select: { id: true, nombre: true, apellido: true } },
-      autorizadoPor: { select: { nombre: true, apellido: true } },
+      usuario: { select: { id: true, nombre: true, apellido: true, ...SELECT_ROL_ADMINISTRADOR } },
+      autorizadoPor: { select: { nombre: true, apellido: true, ...SELECT_ROL_ADMINISTRADOR } },
     },
   });
 
   const hasMore = rows.length > filtro.pageSize;
-  const items = hasMore ? rows.slice(0, filtro.pageSize) : rows;
+  const items = (hasMore ? rows.slice(0, filtro.pageSize) : rows).map(({ usuario, autorizadoPor, ...row }) => ({
+    ...row,
+    usuario: { id: usuario.id, nombre: usuario.nombre, apellido: usuario.apellido, esAdministrador: esAdministradorDe(usuario) },
+    autorizadoPor: autorizadoPor ? { nombre: autorizadoPor.nombre, apellido: autorizadoPor.apellido, esAdministrador: esAdministradorDe(autorizadoPor) } : null,
+  }));
   const last = items[items.length - 1];
   const nextCursor = hasMore && last ? encodeCursor({ ocurridoEn: last.ocurridoEn, id: last.id }) : null;
 
@@ -136,6 +142,7 @@ export interface UsuarioFiltroOption {
   id: string;
   nombre: string;
   apellido: string;
+  esAdministrador: boolean;
 }
 
 /**
@@ -151,7 +158,7 @@ export async function listUsuariosParaFiltro(tx: Prisma.TransactionClient, tenan
   const rows = await tx.usuario.findMany({
     where: { tenantId, esTecnico: false },
     orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
-    select: { id: true, nombre: true, apellido: true },
+    select: { id: true, nombre: true, apellido: true, ...SELECT_ROL_ADMINISTRADOR },
   });
-  return rows;
+  return rows.map((row) => ({ id: row.id, nombre: row.nombre, apellido: row.apellido, esAdministrador: esAdministradorDe(row) }));
 }

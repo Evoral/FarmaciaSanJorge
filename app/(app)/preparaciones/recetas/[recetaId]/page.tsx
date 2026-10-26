@@ -133,6 +133,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { Avatar } from "@/shared/ui/avatar";
 import { Toaster } from "@/shared/ui/toast";
 import { ArrowLeft, CircleAlert, CircleCheck, FlaskConical, Stethoscope } from "lucide-react";
+import { nombreDeUsuario } from "@/shared/format/usuario";
 
 interface TomaRecetaPageProps {
   params: Promise<{ recetaId: string }>;
@@ -379,7 +380,7 @@ interface AccionesDeItem {
   /** `preparaciones.confirmar`: "Recalcular reserva" and "Registrar pérdida". */
   puedeReservar: boolean;
   /** DTs vigentes for "Registrar pérdida"'s co-firma. */
-  dts: { usuarioId: string; nombre: string; apellido: string }[];
+  dts: { usuarioId: string; nombre: string; apellido: string; esAdministrador: boolean }[];
   /** The session's usuario (is the operator a DT?). */
   usuarioId: string;
 }
@@ -550,7 +551,7 @@ function ItemToma({
                 <PerdidaReservaDialog
                   preparacionId={preparacion.id}
                   partidas={preparacion.reservas}
-                  dts={acciones.dts.map((dt) => ({ id: dt.usuarioId, label: `${dt.nombre} ${dt.apellido}` }))}
+                  dts={acciones.dts.map((dt) => ({ id: dt.usuarioId, label: nombreDeUsuario(dt) }))}
                   operadorEsDt={acciones.dts.some((dt) => dt.usuarioId === acciones.usuarioId)}
                   itemNombre={`Ítem ${numero}: ${nombre}`}
                 />

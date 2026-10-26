@@ -25,6 +25,7 @@ import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
 import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
 import { Toaster, ToastOnMount } from "@/shared/ui/toast";
+import { nombreDeUsuario } from "@/shared/format/usuario";
 
 const HISTORIAL_PAGE_SIZE = 20;
 
@@ -183,7 +184,7 @@ async function HistorialAuditoria({ usuarioId, page }: { usuarioId: string; page
                   <td className="hidden whitespace-nowrap px-3 py-3 font-mono text-xs tabular-nums text-zinc-600 md:table-cell">{formatearFechaHora(row.ocurridoEn, result.zonaHoraria)}</td>
                   <td className="px-3 py-3 md:min-w-[14rem]">
                     <p className="mb-1 whitespace-nowrap font-mono text-xs tabular-nums text-zinc-600 md:hidden">{formatearFechaHora(row.ocurridoEn, result.zonaHoraria)}</p>
-                    <p className="break-words font-medium text-zinc-900">{describirRegistro(`${row.usuario.nombre} ${row.usuario.apellido}`, row.accion, "usuario")}</p>
+                    <p className="break-words font-medium text-zinc-900">{describirRegistro(nombreDeUsuario(row.usuario), row.accion, "usuario")}</p>
                     <p className="mt-1">
                       <ToneBadge tone={tonoAccion(row.accion)}>{ACCION_LABELS[row.accion] ?? row.accion}</ToneBadge>
                     </p>
