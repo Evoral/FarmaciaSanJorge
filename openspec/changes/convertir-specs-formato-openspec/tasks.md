@@ -39,12 +39,12 @@ approved.
 
 ## 5. Laboratorio (41 KB)
 
-- [ ] 5.1 `ficha-tecnica` (its test cases become scenarios)
-- [ ] 5.2 `pesada-real`
-- [ ] 5.3 `excipiente-preparacion`
-- [ ] 5.4 `vencimiento-preparado`
-- [ ] 5.5 `etiqueta-preparado`
-- [ ] 5.6 `hoja-etiquetas`
+- [x] 5.1 `ficha-tecnica` (its test cases become scenarios)
+- [x] 5.2 `pesada-real`
+- [x] 5.3 `excipiente-preparacion`
+- [x] 5.4 `vencimiento-preparado`
+- [x] 5.5 `etiqueta-preparado`
+- [x] 5.6 `hoja-etiquetas`
 
 ## 6. Recetas (55 KB)
 
