@@ -2,7 +2,9 @@
  * `cambiarPassword(actual, nueva, nuevaRepeat)` (M02, FASE 2 point 2.4).
  * Always has a session (a logged-in usuario changing their own password),
  * so unlike `login` this goes through the normal
- * `defineCommand` pipeline.
+ * `defineCommand` pipeline. A cuenta de sector never changes its own
+ * password (openspec/specs/cuentas-de-sector/spec.md): the Administrador sets
+ * it from Usuarios; «Mi cuenta» hides the form and this rejects it as well.
  */
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
@@ -38,6 +40,9 @@ export const cambiarPasswordCommand = defineCommand({
       // Should be unreachable (the session's own usuario row always
       // exists), but never trust it silently.
       throw new DomainError("No se pudo actualizar la contraseña.");
+    }
+    if (session.sector || usuario.esSector) {
+      throw new DomainError("Una cuenta de sector no cambia su contraseña: la define el Administrador desde Usuarios.");
     }
 
     const actualMatches = await verifyPassword(usuario.passwordHash, input.actual);

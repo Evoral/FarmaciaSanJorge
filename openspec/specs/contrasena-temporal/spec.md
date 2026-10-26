@@ -8,9 +8,9 @@ Estado: implementado 2026-10-22 (migración 0097). Reversión: `docs/rollbacks/c
 > - La contraseña temporal **no vence**: vale hasta que la persona la cambie.
 > - «Restablecer credencial» funciona igual que el alta: el Administrador asigna una nueva contraseña temporal. **El PIN se conserva**; solo se obliga a cambiar la contraseña.
 > - El PIN pasa a ser **obligatorio para todo usuario que no sea cuenta de sector**, también para los que ya estaban activos sin PIN: lo configuran la próxima vez que usen el sistema.
-> - La contraseña temporal que escribe el Administrador (alta, «Restablecer credencial» y primer admin de `create-tenant`) necesita **al menos 6 caracteres**, sin exigir mayúscula (2026-10-23). La contraseña que la persona elige para sí misma (paso 1, «Mi cuenta») mantiene la política completa: 12 caracteres y una mayúscula.
+> - La contraseña temporal que escribe el Administrador (alta, «Restablecer credencial» y primer admin de `create-tenant`) necesita **al menos 6 caracteres**, sin exigir mayúscula (2026-10-23). La contraseña que la persona elige para sí misma (paso 1, «Mi cuenta») mantiene la política completa: 8 caracteres y una mayúscula (12 hasta el 2026-10-26).
 > - El usuario cuyo único rol es Administrador no tiene PIN (2026-10-23): el Administrador no ejerce actos operativos. Con otro rol además, sí.
-> - Las **cuentas de sector** no tienen PIN; para ellas solo es obligatorio el cambio de contraseña.
+> - Las **cuentas de sector** no tienen PIN ni cambian su contraseña (decisión del usuario 2026-10-26, reemplaza a «solo es obligatorio el cambio de contraseña»): la contraseña que escribe el Administrador en el alta o en «Restablecer credencial» es la definitiva, así que cumple la política completa. No tienen ningún paso pendiente.
 > - Mientras una persona tenga pendiente el cambio de contraseña, **no puede identificarse con su PIN en las cuentas de sector** (aunque conserve el PIN tras un restablecimiento).
 > - Los usuarios que al desplegar estén `PENDIENTE_ACTIVACION` con un código sin usar: el código deja de servir y el Administrador les asigna una contraseña temporal con «Restablecer credencial».
 
@@ -65,9 +65,10 @@ El código de activación obligaba a entregar un string de ~43 caracteres que se
 
 ### Alta (`crearUsuario`)
 
-- El formulario agrega **Contraseña temporal** y **Repetir contraseña temporal**, para personas y para cuentas de sector.
-- Se valida con la política de contraseña temporal (`validateTemporaryPassword`): al menos 6 caracteres, sin exigir mayúscula. La contraseña que la persona elige después (paso 1) mantiene la política completa (`validatePassword`: 12 caracteres y una mayúscula). Si las dos no coinciden, error de campo.
-- Se guarda solo el hash (argon2id, `hashPassword`), con `estado = ACTIVO` y `debe_cambiar_password = true`.
+- El formulario agrega **Contraseña temporal** y **Repetir contraseña temporal** para personas, y **Contraseña** y **Repetir contraseña** para cuentas de sector (definitiva).
+- Se valida con la política de contraseña temporal (`validateTemporaryPassword`): al menos 6 caracteres, sin exigir mayúscula. La contraseña que la persona elige después (paso 1) mantiene la política completa (`validatePassword`: 8 caracteres y una mayúscula). Si las dos no coinciden, error de campo.
+- Una cuenta de sector usa la política completa (`validatePassword`): su contraseña no se cambia después (`refinarPasswordTemporal(…, esSector)`).
+- Se guarda solo el hash (argon2id, `hashPassword`), con `estado = ACTIVO` y `debe_cambiar_password = true` (`false` para una cuenta de sector).
 - No se genera código; `CrearUsuarioResult` deja de tener `credencial` y `credencialVenceEn`.
 - Al terminar bien, se vuelve al detalle del usuario (o al listado) con un toast. La contraseña **no** se vuelve a mostrar: el Administrador ya la conoce porque la escribió.
 - Auditoría: la de hoy (`CREAR` + un `ASIGNAR_ROL` por rol), sin la contraseña ni su hash.
@@ -92,7 +93,7 @@ El código de activación obligaba a entregar un string de ~43 caracteres que se
 
 ### Pasos obligatorios después del login
 
-Una sesión tiene **pasos pendientes** si:
+Una sesión tiene **pasos pendientes** si no es de una cuenta de sector (que nunca tiene pasos, aunque una fila anterior conserve `debe_cambiar_password = true`) y:
 
 1. `debe_cambiar_password = true` → paso **Cambiar contraseña**.
 2. El paso 1 no está pendiente, `pin_hash IS NULL` y el usuario no es cuenta de sector, ni el usuario técnico SISTEMA (que nunca inicia sesión), ni un usuario cuyo único rol es Administrador (`rol.es_administrador`; con Administrador más otro rol, sí) → paso **Configurar PIN**. `configurarPinObligatorio` rechaza al usuario solo-Administrador («El Administrador no usa PIN.»).
@@ -166,7 +167,7 @@ Todos los formularios usan `shared/ui/use-form-submit.ts` y conservan lo escrito
 | CT3 | Un usuario que no es de sector y no tiene PIN no ejecuta ningún caso de uso, salvo los del flujo. | `requireSession` + test |
 | CT4 | `debe_cambiar_password` vuelve a `false` solo por el cambio de contraseña del propio usuario. | `cambiar-password.ts` / paso 1 |
 | CT5 | Restablecer la credencial no modifica `pin_hash`. | `restablecer-credencial.ts` + test |
-| CT6 | Las cuentas de sector nunca reciben el paso «Configurar PIN». | carga de sesión + test |
+| CT6 | Las cuentas de sector nunca reciben pasos pendientes («Configurar PIN» ni «Cambiar contraseña») y no cambian su propia contraseña (`cambiarPassword` las rechaza; «Mi cuenta» no muestra el formulario). | `derivarPasosPendientes`, `cambiar-password.ts`, `app/(app)/cuenta/page.tsx` + test |
 | CT7 | Un empleado con `debe_cambiar_password = true` no se identifica como operador en una cuenta de sector, aunque su PIN sea correcto. | `verificar-operador.ts`, `operadores-repository.ts` + test |
 | CT8 | Un DT con `debe_cambiar_password = true` no puede co-firmar (stock, libro, pesada real) aunque su contraseña sea correcta; no suma intentos fallidos. | `modules/stock/domain/co-firma.ts`, `modules/{stock,libro}/infrastructure/co-firma-repository.ts`, `modules/{stock,libro}/application/verificar-co-firma-dt.ts` + `tests/unit/contrasena-temporal-co-firma.test.ts` |
 | CT9 | Un usuario cuyo único rol es Administrador nunca recibe el paso «Configurar PIN»; con Administrador más otro rol, sí. | `esSoloAdministrador` y `derivarPasosPendientes` (`modules/auth/domain/pasos-pendientes.ts`), `validate-session.ts`, `loadPasosPendientes`, `configurar-pin-obligatorio.ts`, `app/(app)/cuenta/page.tsx` + `tests/unit/auth-pasos-pendientes.test.ts`, `tests/unit/auth-configurar-pin-obligatorio.test.ts` |

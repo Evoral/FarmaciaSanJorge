@@ -105,7 +105,8 @@ describe("restablecerCredencial: assigns a temporary password", () => {
     expect(output).toEqual({ estado: "ACTIVO" });
     expect(restablecerPasswordTemporalMock).toHaveBeenCalledTimes(1);
     const args = restablecerPasswordTemporalMock.mock.calls[0]!;
-    expect(args).toHaveLength(3); // (tx, usuarioId, passwordHash): nothing else can carry a PIN change
+    expect(args).toHaveLength(4); // (tx, usuarioId, passwordHash, debeCambiarPassword): nothing else can carry a PIN change
+    expect(args[3]).toBe(true);
     expect(args[1]).toBe(TARGET_ID);
     expect(args[2]).toMatch(/^\$argon2id\$/);
 

@@ -80,7 +80,7 @@ export default async function UsuarioDetallePage({ params, searchParams }: Usuar
         <div className="split-layout">
           <section aria-labelledby="datos-heading" className="panel min-w-0">
             <div className="panel-header">
-              <h2 id="datos-heading">Datos personales</h2>
+              <h2 id="datos-heading">{usuario.esSector ? "Datos del sector" : "Datos personales"}</h2>
             </div>
             <div className="panel-body">
               <EditarDatosForm usuario={usuario} disabled={!can(session, "usuarios.editar")} />
@@ -111,10 +111,14 @@ export default async function UsuarioDetallePage({ params, searchParams }: Usuar
               <section className="panel" aria-labelledby="credencial-heading">
                 <div className="panel-header">
                   <h2 id="credencial-heading">Credencial</h2>
-                  <p>Asigná una contraseña temporal nueva. Cierra las sesiones abiertas y la persona tendrá que cambiarla al ingresar; su PIN se conserva.</p>
+                  <p>
+                    {usuario.esSector
+                      ? "Cambiá la contraseña de la cuenta de sector (la cuenta no puede cambiarla por sí misma). Cierra las sesiones abiertas."
+                      : "Asigná una contraseña temporal nueva. Cierra las sesiones abiertas y la persona tendrá que cambiarla al ingresar; su PIN se conserva."}
+                  </p>
                 </div>
                 <div className="panel-body">
-                  <RestablecerCredencial usuarioId={usuario.id} />
+                  <RestablecerCredencial usuarioId={usuario.id} esSector={usuario.esSector} />
                 </div>
               </section>
             ) : null}

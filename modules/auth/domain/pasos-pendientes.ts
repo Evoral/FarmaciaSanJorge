@@ -28,10 +28,13 @@ export function esSoloAdministrador(roles: readonly { esAdministrador: boolean }
 /**
  * Returns `[]`, `["cambiar-password"]` or `["configurar-pin"]` -- never both:
  * the PIN is asked only after the password step, so the first element is the
- * current step.
+ * current step. A cuenta de sector has no steps: it has no PIN and never
+ * changes its password (the Administrador's is definitive), even if an older
+ * row still has `debeCambiarPassword`.
  */
 export function derivarPasosPendientes(f: FactoresDePasosPendientes): readonly PasoPendiente[] {
+  if (f.esSector) return [];
   if (f.debeCambiarPassword) return ["cambiar-password"];
-  if (!f.tienePin && !f.esSector && !f.esTecnico && !f.soloAdministrador) return ["configurar-pin"];
+  if (!f.tienePin && !f.esTecnico && !f.soloAdministrador) return ["configurar-pin"];
   return [];
 }

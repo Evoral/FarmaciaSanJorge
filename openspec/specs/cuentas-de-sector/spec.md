@@ -29,7 +29,7 @@ después (ver "Verificación"), pero hoy el único método es el PIN.
 | `fsj.usuario.es_sector` | Marca la cuenta de sector. Se define al crear el usuario y no cambia (INV-SEC-002). Nunca junto con `es_tecnico`. |
 | `fsj.accion_con_pin (tenant_id, permiso_id)` | Una fila = en una cuenta de sector, esa acción pide el PIN del empleado. Por farmacia. RLS forzada. |
 | `fsj.seed_acciones_con_pin(tenant)` | El conjunto por defecto de una farmacia nueva (y el backfill de las existentes). |
-| Rol `LABORATORIO` | Rol predefinido nuevo, editable y eliminable como `FARMACEUTICO`. Para el mostrador se usa `ATENCION_PUBLICO`. |
+| Rol `LABORATORIO` | Rol predefinido nuevo, editable y eliminable como `FARMACEUTICO`. Para el mostrador se usa `ATENCION_PUBLICO`. Desde la migración 0106 ninguno de los dos se siembra en una farmacia nueva: se crean a pedido (`openspec/specs/roles-personalizables/spec.md`). |
 
 No hay permisos nuevos ni valores nuevos de `tipo_accion`. `registro_auditoria` no cambia de forma: la terminal de
 origen va en su `contexto` (JSON).
@@ -115,16 +115,20 @@ en una cuenta de sector el comando se rechaza con un mensaje claro: nunca se atr
 
 ## Pantallas
 
-- **Usuarios › Nuevo usuario**: casilla "Cuenta de sector". Al tildarla el formulario pide solo el **nombre del
+- **Usuarios › Nuevo usuario**: interruptor "Cuenta de sector" (apagado = cuenta personal). Al tildarla el formulario pide solo el **nombre del
   sector** y el **email**; apellido, DNI y matrícula no aplican a un sector. El email sí hace falta: es el usuario
   con el que la cuenta inicia sesión (no tiene que ser una casilla real, el sistema no le envía correos). Como
   `fsj.usuario` exige apellido y DNI, se derivan del nombre (`modules/usuarios/domain/cuenta-de-sector.ts`):
   "Laboratorio" queda como nombre "Sector", apellido "Laboratorio" y DNI `SECTOR-LABORATORIO`, que además impide
-  dos cuentas de sector con el mismo nombre. Como a cualquier usuario, el formulario pide una **contraseña temporal**
-  (y su repetición): la cuenta nace `ACTIVO` con el cambio de contraseña pendiente y, al ser de sector, ese es su
-  único paso obligatorio (`openspec/specs/contrasena-temporal/spec.md`).
-- **Mi cuenta** (`/cuenta`): para una cuenta de sector no hay panel de PIN (no tiene PIN) y, para nadie, existe
-  «Eliminar PIN» (el PIN es obligatorio para quien no es cuenta de sector).
+  dos cuentas de sector con el mismo nombre. El formulario pide una **contraseña** (y su repetición) que es la
+  **definitiva**, con la política completa: una cuenta de sector no tiene PIN ni cambia su contraseña, así que nace
+  `ACTIVO` sin pasos pendientes (decisión del usuario 2026-10-26; `openspec/specs/contrasena-temporal/spec.md`). La
+  cambia solo un Administrador, con «Restablecer credencial» en el detalle del usuario (también definitiva).
+- **Usuarios › detalle › Datos**: una cuenta de sector se edita como se crea, con solo el **nombre del sector** y el
+  **email**; `editarUsuario` vuelve a derivar apellido y DNI del nombre (sin matrícula), sin pedir DNI.
+- **Mi cuenta** (`/cuenta`): una cuenta de sector no ve ni el panel de PIN ni el de contraseña, solo una nota
+  (`cambiarPassword` también la rechaza en el servidor). Una cuenta personal cambia su contraseña (con la actual) y su
+  PIN. Para nadie existe «Eliminar PIN» (el PIN es obligatorio para quien no es cuenta de sector).
 - **Configuración › PIN por acción** (`/admin/configuracion/pin`): un interruptor por acción.
 - Diálogo de empleado + PIN en los formularios de laboratorio, stock, drogas, recetas y entregas.
 - **Auditoría**: "Realizado desde la cuenta de sector X · identificado con PIN".

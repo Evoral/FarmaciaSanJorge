@@ -1,6 +1,6 @@
 "use client";
 
-/** `/admin/accesos/usuarios/[id]` "Datos" tab form (M03, FASE 3 point 3.3). Carries the loaded snapshot as hidden `version*` fields for optimistic concurrency -- see editarUsuario's doc comment. The page provides the surrounding panel. */
+/** `/admin/accesos/usuarios/[id]` "Datos" tab form (M03, FASE 3 point 3.3). Carries the loaded snapshot as hidden `version*` fields for optimistic concurrency -- see editarUsuario's doc comment. The page provides the surrounding panel. A cuenta de sector shows the same fields as its alta (nombre del sector + email); `editarUsuario` derives the rest. */
 import { editarUsuarioAction } from "./actions";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 
@@ -12,6 +12,7 @@ export interface EditarDatosFormProps {
     email: string;
     dni: string;
     numeroMatricula: string | null;
+    esSector: boolean;
   };
   disabled: boolean;
 }
@@ -26,38 +27,59 @@ export function EditarDatosForm({ usuario, disabled }: EditarDatosFormProps) {
       <input type="hidden" name="versionDni" value={usuario.dni} />
       <input type="hidden" name="versionNumeroMatricula" value={usuario.numeroMatricula ?? ""} />
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="field">
-          <label htmlFor="edit-nombre" className="field-label">
-            Nombre
-          </label>
-          <input id="edit-nombre" name="nombre" defaultValue={usuario.nombre} required disabled={disabled} className="input" />
+      {usuario.esSector ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="field">
+            <label htmlFor="edit-nombre" className="field-label">
+              Nombre del sector
+            </label>
+            {/* The sector's name is stored as the apellido ("Sector Laboratorio"): see domain/cuenta-de-sector.ts. */}
+            <input id="edit-nombre" name="nombre" defaultValue={usuario.apellido} required disabled={disabled} className="input" />
+          </div>
+          <div className="field">
+            <label htmlFor="edit-email" className="field-label">
+              Email
+            </label>
+            <input id="edit-email" name="email" type="email" defaultValue={usuario.email} required disabled={disabled} aria-describedby="edit-email-ayuda" className="input" />
+            <p id="edit-email-ayuda" className="field-help">
+              Es el usuario con el que la cuenta inicia sesión. No hace falta que sea una casilla real: el sistema no le envía correos.
+            </p>
+          </div>
         </div>
-        <div className="field">
-          <label htmlFor="edit-apellido" className="field-label">
-            Apellido
-          </label>
-          <input id="edit-apellido" name="apellido" defaultValue={usuario.apellido} required disabled={disabled} className="input" />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="field">
+            <label htmlFor="edit-nombre" className="field-label">
+              Nombre
+            </label>
+            <input id="edit-nombre" name="nombre" defaultValue={usuario.nombre} required disabled={disabled} className="input" />
+          </div>
+          <div className="field">
+            <label htmlFor="edit-apellido" className="field-label">
+              Apellido
+            </label>
+            <input id="edit-apellido" name="apellido" defaultValue={usuario.apellido} required disabled={disabled} className="input" />
+          </div>
+          <div className="field sm:col-span-2">
+            <label htmlFor="edit-email" className="field-label">
+              Email
+            </label>
+            <input id="edit-email" name="email" type="email" defaultValue={usuario.email} required disabled={disabled} className="input" />
+          </div>
+          <div className="field">
+            <label htmlFor="edit-dni" className="field-label">
+              DNI
+            </label>
+            <input id="edit-dni" name="dni" defaultValue={usuario.dni} required disabled={disabled} className="input font-mono" />
+          </div>
+          <div className="field">
+            <label htmlFor="edit-matricula" className="field-label">
+              Matrícula <span className="font-normal text-zinc-500">(opcional)</span>
+            </label>
+            <input id="edit-matricula" name="numeroMatricula" defaultValue={usuario.numeroMatricula ?? ""} disabled={disabled} className="input font-mono" />
+          </div>
         </div>
-        <div className="field sm:col-span-2">
-          <label htmlFor="edit-email" className="field-label">
-            Email
-          </label>
-          <input id="edit-email" name="email" type="email" defaultValue={usuario.email} required disabled={disabled} className="input" />
-        </div>
-        <div className="field">
-          <label htmlFor="edit-dni" className="field-label">
-            DNI
-          </label>
-          <input id="edit-dni" name="dni" defaultValue={usuario.dni} required disabled={disabled} className="input font-mono" />
-        </div>
-        <div className="field">
-          <label htmlFor="edit-matricula" className="field-label">
-            Matrícula <span className="font-normal text-zinc-500">(opcional)</span>
-          </label>
-          <input id="edit-matricula" name="numeroMatricula" defaultValue={usuario.numeroMatricula ?? ""} disabled={disabled} className="input font-mono" />
-        </div>
-      </div>
+      )}
     </ReauthAwareForm>
   );
 }

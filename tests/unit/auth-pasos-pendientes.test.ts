@@ -46,9 +46,10 @@ describe("derivarPasosPendientes", () => {
     expect(derivarPasosPendientes({ ...base, tienePin: true })).toEqual([]);
   });
 
-  it("CT6: a cuenta de sector never has a PIN step, but still must change a temporary password", () => {
+  it("CT6: a cuenta de sector never has a PIN step nor a password change", () => {
     expect(derivarPasosPendientes({ ...base, esSector: true })).toEqual([]);
-    expect(derivarPasosPendientes({ ...base, esSector: true, debeCambiarPassword: true })).toEqual(["cambiar-password"]);
+    // A cuenta de sector never changes its own password: an older row's pending flag is ignored.
+    expect(derivarPasosPendientes({ ...base, esSector: true, debeCambiarPassword: true })).toEqual([]);
   });
 
   it("the technical SISTEMA user has no PIN step", () => {
