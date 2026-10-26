@@ -43,7 +43,12 @@ The reason, when the original gives one, stays in the text.
    User decision (2026-10-25). A Spanish spec stays in Spanish and its requirement
    text carries the literal SHALL or MUST keyword the CLI requires
    ("La receta SHALL quedar Pagada...").
-5. **Control table** per spec: original rule → requirement → scenarios, with
+5. **Requirement text the CLI can read**: no fenced code blocks and no line
+   starting with `**X**:` inside a requirement body. The CLI silently drops both
+   (it reads `**X**:` as metadata), so `openspec show` would lose that text. Use
+   inline code for a formula. Every tanda runs a check that the text the CLI
+   parses equals the text in the file.
+6. **Control table** per spec: original rule → requirement → scenarios, with
    every original sentence accounted for. It lives in
    `control/<feature>.md` inside this change and is archived with it.
 

@@ -51,3 +51,9 @@ summed per ítem before the tramo; NULL `margen` on new versions; 0052 backfill;
 Adjusted: "Tope no creciente en el formulario" now says the message indicates the tramo; the code shows one
 form-level alert prefixed "Tramos de margen › n.º 2 › Costo hasta: ...", not an inline message (the original's
 "mensajes por tramo" is equally loose).
+
+## Fix after commit (2026-10-26)
+
+The formula sat in a fenced block inside the "Fórmula del precio final" requirement; the CLI drops fenced blocks
+from requirement text, so `openspec show` returned the requirement without its formula. It is now inline code
+(same formula, unchanged).

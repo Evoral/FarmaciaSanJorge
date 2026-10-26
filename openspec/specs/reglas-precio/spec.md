@@ -12,10 +12,7 @@ precio mínimo.
 ### Requirement: Fórmula del precio final
 
 El precio final de una preparación SHALL calcularse con:
-
-```
-precioFinal = max(costo × (1 + margenTramo / 100), precioMinimo)
-```
+`precioFinal = max(costo × (1 + margenTramo / 100), precioMinimo)`.
 
 #### Scenario: RP4 — Precio del tramo mayor al piso
 
