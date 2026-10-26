@@ -29,8 +29,8 @@ export const AUTH_POLICY = {
   /** DP-20 pending. Lockout duration once maxFailedLoginAttempts is reached. */
   lockoutMinutes: 15,
 
-  /** DP-20 pending. Minimum password length for INV-AU-001 (titular-set passwords). */
-  minPasswordLength: 12,
+  /** Minimum password length for INV-AU-001 (titular-set passwords). User decision 2026-10-26: 8 (was 12). */
+  minPasswordLength: 8,
 
   /** Resolved value (user decision, 2026-10-23): minimum length of a TEMPORARY password typed by the Administrador (alta, "Restablecer credencial", first admin of create-tenant). It is short on purpose: the usuario replaces it on first login with a password of their own, which keeps the full `minPasswordLength` + uppercase policy. */
   minTemporaryPasswordLength: 6,

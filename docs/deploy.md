@@ -79,7 +79,7 @@ Orden en una base completamente nueva: `db:migrate` → `db:bootstrap` → (depl
 
 ## 5. Bootstrap del primer tenant
 
-`scripts/create-tenant.ts` (rol owner vía `DIRECT_URL`, corre BYPASSRLS a propósito -- ver el comentario del script) crea el tenant, su usuario técnico SISTEMA y el primer ADMINISTRADOR, ya `ACTIVO`, con una **contraseña temporal** (solo se guarda su hash; el script nunca la imprime ni la loguea). La contraseña se pasa con `--admin-password-temporal=...` o, si se omite, el script la pide por consola sin mostrarla (preferible: el argumento queda en el historial del shell). Por ser temporal solo exige **al menos 6 caracteres** (sin mayúscula); la que el ADM elija al cambiarla en su primer login sí lleva la política completa (12 caracteres y una mayúscula):
+`scripts/create-tenant.ts` (rol owner vía `DIRECT_URL`, corre BYPASSRLS a propósito -- ver el comentario del script) crea el tenant, su usuario técnico SISTEMA y el primer ADMINISTRADOR, ya `ACTIVO`, con una **contraseña temporal** (solo se guarda su hash; el script nunca la imprime ni la loguea). La contraseña se pasa con `--admin-password-temporal=...` o, si se omite, el script la pide por consola sin mostrarla (preferible: el argumento queda en el historial del shell). Por ser temporal solo exige **al menos 6 caracteres** (sin mayúscula); la que el ADM elija al cambiarla en su primer login sí lleva la política completa (8 caracteres y una mayúscula):
 
 ```
 npm run db:create-tenant -- \
