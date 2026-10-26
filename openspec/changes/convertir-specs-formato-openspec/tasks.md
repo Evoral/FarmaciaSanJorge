@@ -18,12 +18,12 @@ approved.
 
 ## 2. Catálogos e historiales (61 KB)
 
-- [ ] 2.1 `historial-partidas`
-- [ ] 2.2 `historial-droga`
-- [ ] 2.3 `trayectoria-paciente` (header says "implementation in progress": check against code)
-- [ ] 2.4 `trayectoria-proveedor`
-- [ ] 2.5 `pacientes-recurrentes`
-- [ ] 2.6 `sinonimos-droga`
+- [x] 2.1 `historial-partidas`
+- [x] 2.2 `historial-droga`
+- [x] 2.3 `trayectoria-paciente` (header says "implementation in progress": check against code)
+- [x] 2.4 `trayectoria-proveedor`
+- [x] 2.5 `pacientes-recurrentes`
+- [x] 2.6 `sinonimos-droga`
 
 ## 3. Precios (37 KB)
 
