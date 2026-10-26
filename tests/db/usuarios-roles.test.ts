@@ -164,6 +164,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0002_usuarios_roles_permisos migra
           [userId, tenantId, `u02d-${Date.now()}@example.com`, sistema],
         );
         const farmaceuticoId = await rolId(tx, tenantId, "FARMACEUTICO");
+        await tx.query("INSERT INTO fsj.rol (tenant_id, codigo, nombre) VALUES ($1, 'ATENCION_PUBLICO', 'Atención al público')", [tenantId]);
         const atpId = await rolId(tx, tenantId, "ATENCION_PUBLICO");
         await tx.query(
           `INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1,$2,$3,$4)`,

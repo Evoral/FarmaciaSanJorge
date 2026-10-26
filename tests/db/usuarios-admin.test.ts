@@ -274,6 +274,7 @@ describe.skipIf(dbTestSkipReason() !== null)("FASE 3 usuarios admin -- audit row
           `INSERT INTO fsj.usuario (id, tenant_id, email, nombre, apellido, dni, creado_por_id) VALUES ($1,$2,$3,'Nuevo','Usuario','DNI-CREAR',$4)`,
           [nuevoId, tenantId, `crear-${Date.now()}@example.com`, admin],
         );
+        await tx.query("INSERT INTO fsj.rol (tenant_id, codigo, nombre) VALUES ($1, 'ATENCION_PUBLICO', 'Atención al público')", [tenantId]);
         const roles = ["FARMACEUTICO", "ATENCION_PUBLICO"] as const;
         for (const rolCodigo of roles) {
           const targetRolId = await rolId(tx, tenantId, rolCodigo);

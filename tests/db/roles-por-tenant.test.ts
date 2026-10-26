@@ -170,10 +170,12 @@ describe.skipIf(dbTestSkipReason() !== null)("migration 0054: per-tenant roles",
       inRollbackTx(client, async (tx) => {
         const tenantId = await insertTenant(tx, "asig");
         const sistema = await createSistemaUser(tx, tenantId);
+        await insertCustomRol(tx, tenantId, "SOLO_CONSULTA");
+        await insertCustomRol(tx, tenantId, "ATENCION_PUBLICO");
         await createUserWithRole(tx, tenantId, "SOLO_CONSULTA", sistema, "asig");
         const soloConsulta = await rol(tx, tenantId, "SOLO_CONSULTA");
         await expectInvariantViolation(tx, () => tx.query(`DELETE FROM fsj.rol WHERE id = $1`, [soloConsulta]), "INV-ROL-004");
-        // ...while an unassigned default role can be deleted.
+        // ...while an unassigned role can be deleted.
         await tx.query(`DELETE FROM fsj.rol WHERE id = $1`, [await rol(tx, tenantId, "ATENCION_PUBLICO")]);
       }),
     );
