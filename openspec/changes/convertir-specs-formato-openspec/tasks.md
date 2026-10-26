@@ -33,9 +33,9 @@ approved.
 
 ## 4. Stock (48 KB)
 
-- [ ] 4.1 `existencia-inicial`
-- [ ] 4.2 `reanalisis-partida`
-- [ ] 4.3 `reserva-stock-preparacion` (most cited spec: 68 references)
+- [x] 4.1 `existencia-inicial`
+- [x] 4.2 `reanalisis-partida`
+- [x] 4.3 `reserva-stock-preparacion` (most cited spec: 68 references)
 
 ## 5. Laboratorio (41 KB)
 
