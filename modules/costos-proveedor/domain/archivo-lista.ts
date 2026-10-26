@@ -1,5 +1,5 @@
 /**
- * Trust boundary for an uploaded supplier price list (docs/specs/costos-proveedor.md
+ * Trust boundary for an uploaded supplier price list (openspec/specs/costos-proveedor/spec.md
  * R14, R15). Sibling of `shared/pdf/validar-archivo-pdf.ts`: the use case's
  * pipeline checks the permiso BEFORE this runs, then, in this order:
  *

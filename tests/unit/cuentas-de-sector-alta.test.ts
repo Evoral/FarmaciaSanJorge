@@ -1,5 +1,5 @@
 /**
- * Cuentas de sector (docs/specs/cuentas-de-sector.md): creating one from
+ * Cuentas de sector (openspec/specs/cuentas-de-sector/spec.md): creating one from
  * `/admin/accesos/usuarios/nuevo`. A sector is a work area, not a person:
  * the administrator types its name and its login email, nothing else --
  * apellido and DNI are derived, a person still needs both.

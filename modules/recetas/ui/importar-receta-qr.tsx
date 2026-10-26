@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Importar con QR o link" (docs/specs/importacion-receta-qr.md): sends the
+ * "Importar con QR o link" (openspec/specs/importacion-receta-qr/spec.md): sends the
  * text of a receta's QR or link to `leerRecetaQrAction` (POST only: the text
  * never goes into a URL of this app) and hands the resulting preview to the
  * parent, which prefills the receta form with it. Nothing is saved here.

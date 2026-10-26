@@ -1,5 +1,5 @@
 /**
- * The gate in `requireSession()` (docs/specs/contrasena-temporal.md): a session
+ * The gate in `requireSession()` (openspec/specs/contrasena-temporal/spec.md): a session
  * with pending steps (temporary password, PIN to configure) is rejected with
  * `PasosPendientesError` unless the caller opts out. Cookie reading and session
  * validation are mocked; only the gate is under test.

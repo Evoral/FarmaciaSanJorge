@@ -1,6 +1,6 @@
 /**
  * Unit tests for `modules/drogas/domain/historial.ts`: pure derivation of the droga
- * Historial (docs/specs/historial-droga.md): partida filter parsing, option helpers,
+ * Historial (openspec/specs/historial-droga/spec.md): partida filter parsing, option helpers,
  * partida label, pagination clamp, URL builder and view-model assembly. No mocks, no DB.
  */
 import { describe, it, expect } from "vitest";

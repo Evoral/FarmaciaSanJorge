@@ -1,5 +1,5 @@
 /**
- * Unit tests for `importarListaPrecios` (docs/specs/costos-proveedor.md R13, R20-R23; CP8, CP9, CP10). The repository is mocked, the
+ * Unit tests for `importarListaPrecios` (openspec/specs/costos-proveedor/spec.md R13, R20-R23; CP8, CP9, CP10). The repository is mocked, the
  * domain and `registrarFilasEnTx` are the real ones: what is under test is the command's ALL-OR-NOTHING order (the lista header is
  * inserted only after every row passed, with the final `filas_aplicadas`), the dating of every row with the list's date, the
  * duplicate-file refusal, the optimistic conflict and "recordar equivalencia".

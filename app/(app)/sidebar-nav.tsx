@@ -56,7 +56,7 @@ export interface SidebarNavProps {
   usuario: string;
   /** The tenant's name under the app name (`null` hides the line). */
   farmacia: string | null;
-  /** The tenant's own logo (docs/specs/logo-farmacia.md), or `null` for the generic `public/logo.png`. */
+  /** The tenant's own logo (openspec/specs/logo-farmacia/spec.md), or `null` for the generic `public/logo.png`. */
   logoSrc: string | null;
   /** Server action that ends the session. */
   logoutAction: () => Promise<void>;

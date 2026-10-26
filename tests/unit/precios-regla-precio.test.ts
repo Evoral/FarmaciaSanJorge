@@ -1,7 +1,7 @@
 /**
  * Unit tests for `modules/precios/domain/regla-precio.ts` (M08): the
  * 2026-10-01 price rule set (margin tramos by cost + precio mínimo,
- * docs/specs/reglas-precio.md) and INV-PR-001 versioning.
+ * openspec/specs/reglas-precio/spec.md) and INV-PR-001 versioning.
  */
 import { describe, it, expect } from "vitest";
 import {

@@ -4,7 +4,7 @@
  * fields (zonaHoraria, fechaBaja, fechaActivacionContralor) -- so the
  * UI can show them read-only with an explanation instead of hiding them.
  * `cuitEditable` tells the UI whether the CUIT is still editable (no cierre
- * diario signed yet, docs/specs/cuit-farmacia.md).
+ * diario signed yet, openspec/specs/cuit-farmacia/spec.md).
  * Gated on `config.ver`, which migration 0046 (user decision 2026-09-28)
  * narrowed to ADMINISTRADOR only -- it was granted to all five roles by
  * migration 0002. Other flows that need tenant fields (labels, jornada /

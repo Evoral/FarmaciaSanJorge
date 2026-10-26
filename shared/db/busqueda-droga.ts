@@ -1,5 +1,5 @@
 /**
- * THE droga search rule (docs/specs/sinonimos-droga.md), shared by every
+ * THE droga search rule (openspec/specs/sinonimos-droga/spec.md), shared by every
  * droga picker and list: a droga matches a query when the normalized query
  * (`fsj.normalizar_nombre`: no accents, no case, collapsed whitespace,
  * migration 0067) is a substring of its normalized name OR of one of its

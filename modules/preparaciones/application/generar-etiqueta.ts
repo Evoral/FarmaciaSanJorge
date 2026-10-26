@@ -7,7 +7,7 @@
  * migration 0013) -- generating again is rejected with a friendly message
  * instead of a raw unique violation. A preparado no longer valid -- its
  * receta ANULADA, or its asiento dejado sin efecto (anulado/rectificado) --
- * gets no etiqueta (docs/specs/reserva-stock-preparacion.md R22).
+ * gets no etiqueta (openspec/specs/reserva-stock-preparacion/spec.md R22).
  */
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
@@ -65,7 +65,7 @@ export async function generarEtiquetaEnTx(
   if (!datos) {
     throw new NotFoundError("La preparación no existe o no está CONFIRMADA: solo se puede generar la etiqueta de una preparación confirmada.");
   }
-  // A preparado no longer valid (receta ANULADA, asiento sin efecto) gets no etiqueta (docs/specs/reserva-stock-preparacion.md R22).
+  // A preparado no longer valid (receta ANULADA, asiento sin efecto) gets no etiqueta (openspec/specs/reserva-stock-preparacion/spec.md R22).
   const motivo = motivoEtiquetaNoImprimible(datos);
   if (motivo) throw new DomainError(motivo);
 

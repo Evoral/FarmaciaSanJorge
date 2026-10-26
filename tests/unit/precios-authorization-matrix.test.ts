@@ -35,7 +35,7 @@ await import("@/modules/precios/application/guardar-regla-precio");
 await import("@/modules/precios/application/get-reglas-precio");
 await import("@/modules/precios/application/calcular-cotizacion");
 await import("@/modules/precios/application/get-cotizacion-item");
-// Presupuesto of a receta draft (docs/specs/presupuesto-receta.md): lives in modules/recetas, gated on cotizaciones.calcular.
+// Presupuesto of a receta draft (openspec/specs/presupuesto-receta/spec.md): lives in modules/recetas, gated on cotizaciones.calcular.
 await import("@/modules/recetas/application/presupuestar-receta");
 
 const { listRegisteredUseCasesForTests } = await import("@/shared/usecase");

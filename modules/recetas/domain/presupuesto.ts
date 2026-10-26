@@ -1,5 +1,5 @@
 /**
- * Presupuesto of a receta being loaded (docs/specs/presupuesto-receta.md):
+ * Presupuesto of a receta being loaded (openspec/specs/presupuesto-receta/spec.md):
  * the price shown at the counter BEFORE anything is saved, so the client
  * can decide whether to go on. Pure: the shapes returned by
  * `recetas.presupuestar`, how one item's in-memory cotización becomes a
@@ -33,7 +33,7 @@ export interface FaltanteStock {
   unidadSimbolo: string;
 }
 
-/** Where one costed línea of an item got its cost (docs/specs/costos-proveedor.md, R30). */
+/** Where one costed línea of an item got its cost (openspec/specs/costos-proveedor/spec.md, R30). */
 export interface FuenteCostoLinea {
   drogaNombre: string;
   fuente: FuenteCosto;

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Relevamiento inicial on /partidas/ingresar (docs/specs/existencia-inicial.md
+ * Relevamiento inicial on /partidas/ingresar (openspec/specs/existencia-inicial/spec.md
  * R6-R8): whether existencia inicial can still be loaded and until when, what
  * was loaded per droga, the controlled drogas whose libro contralor does not
  * match their stock, and -- for the DT vigente only -- "Cerrar relevamiento"

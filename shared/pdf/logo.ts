@@ -1,6 +1,6 @@
 /**
  * The farmacia's logo for printed documents: the tenant's OWN uploaded logo (`fsj.tenant.logo`,
- * docs/specs/logo-farmacia.md R6), never a fixed file -- in a multi-tenant app a fixed logo would print one
+ * openspec/specs/logo-farmacia/spec.md R6), never a fixed file -- in a multi-tenant app a fixed logo would print one
  * farmacia's brand on another's documents. Used by the etiqueta (`modules/preparaciones/infrastructure/etiqueta-pdf.ts`)
  * and the hoja de envíos (`modules/entregas/infrastructure/envios-pdf.ts`).
  *

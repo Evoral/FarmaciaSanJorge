@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Cambiar repartidor" / "Asignar repartidor" (docs/specs/envios-repartidores.md E5/E7): the repartidor autocomplete
+ * "Cambiar repartidor" / "Asignar repartidor" (openspec/specs/envios-repartidores/spec.md E5/E7): the repartidor autocomplete
  * over the ACTIVE repartidores plus its submit, for an envío waiting for its firma. Same `shared/ui/simple-form.tsx`
  * wrapping shape as `confirmar-firma-form.tsx`: an error keeps the picked repartidor (`useFormSubmit`) and marks the
  * field (the Combobox handles `FIELD_ERROR_EVENT`). Choosing the repartidor the envío already has is not submittable.

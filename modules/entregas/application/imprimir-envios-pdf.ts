@@ -1,5 +1,5 @@
 /**
- * `imprimirEnviosPdf` -- "Exportar envíos" (docs/specs/envios-repartidores.md E8-E11): the PDF "Hoja de envíos" of one
+ * `imprimirEnviosPdf` -- "Exportar envíos" (openspec/specs/envios-repartidores/spec.md E8-E11): the PDF "Hoja de envíos" of one
  * repartidor. `app/api/entregas/envios/pdf/route.ts` is the ONLY entry point (eslint's `appBoundaryPatterns` forbids
  * `app/**` from importing this module's `infrastructure/` layer directly).
  *

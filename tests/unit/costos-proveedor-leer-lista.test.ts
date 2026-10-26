@@ -1,5 +1,5 @@
 /**
- * Unit tests for `leerListaPrecios` (docs/specs/costos-proveedor.md R13-R18, R21): the read step that writes NOTHING. The repository is
+ * Unit tests for `leerListaPrecios` (openspec/specs/costos-proveedor/spec.md R13-R18, R21): the read step that writes NOTHING. The repository is
  * mocked; the file validation, the workbook reader (exceljs, on workbooks built here) and the domain are the real ones.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";

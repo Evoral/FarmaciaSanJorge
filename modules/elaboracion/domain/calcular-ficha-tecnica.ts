@@ -4,7 +4,7 @@
  * access, no I/O -- see tests/unit/calcular-ficha-tecnica.test.ts (T1-T8
  * from the spec, plus one case per V1-V9 and the R7/R8 interplay).
  *
- * SOURCE OF TRUTH: docs/specs/ficha-tecnica.md. Implements rules R1-R9 and
+ * SOURCE OF TRUTH: openspec/specs/ficha-tecnica/spec.md. Implements rules R1-R9 and
  * validations V1-V9 EXACTLY as written there -- read that file before
  * changing anything here, it is more precise than this comment.
  *

@@ -42,7 +42,7 @@
  * event at all), so callers drive their submit button from
  * `useActionState`'s third return value (`isPending`) instead.
  *
- * CUENTAS DE SECTOR (docs/specs/cuentas-de-sector.md): on a shared session,
+ * CUENTAS DE SECTOR (openspec/specs/cuentas-de-sector/spec.md): on a shared session,
  * some acciones must say which empleado performs them. With `opciones`,
  * this hook asks for it (`./operador.tsx`'s prompt: who + PIN) and submits
  * the SAME `FormData` with the credential fields added:

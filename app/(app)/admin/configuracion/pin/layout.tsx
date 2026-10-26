@@ -1,5 +1,5 @@
 /**
- * Layout guard for `/admin/configuracion/pin/**` (docs/specs/cuentas-de-sector.md).
+ * Layout guard for `/admin/configuracion/pin/**` (openspec/specs/cuentas-de-sector/spec.md).
  * Same pattern as ../parametros/layout.tsx: `config.ver` reaches the section;
  * `config.editar` is enforced per-action by `configurarAccionesConPinCommand`
  * and, on the UI side, by the form rendering read-only without it.

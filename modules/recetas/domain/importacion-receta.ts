@@ -1,6 +1,6 @@
 /**
  * Pure rules of the receta PDF import's match step and confirmation
- * (docs/specs/importacion-receta-pdf.md, "Pieza 4 -- Match" and
+ * (openspec/specs/importacion-receta-pdf/spec.md, "Pieza 4 -- Match" and
  * "Confirmación"). The lookups themselves are infrastructure
  * (../infrastructure/importacion-repository.ts); what to do with what was
  * found is decided here, so it is testable without a database:
@@ -279,7 +279,7 @@ export interface PersonaExistente {
 }
 
 export interface PacienteVistaPrevia extends Completado<CampoPacienteImportable> {
-  /** `null` -> alta on confirmation. Its domicilios prefill the receta (docs/specs/domicilios.md). */
+  /** `null` -> alta on confirmation. Its domicilios prefill the receta (openspec/specs/domicilios/spec.md). */
   existente: (PersonaExistente & { dadoDeBaja: boolean; domicilio: string | null; domicilioEntrega: string | null }) | null;
 }
 

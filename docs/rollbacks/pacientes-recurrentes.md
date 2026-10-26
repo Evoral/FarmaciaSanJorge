@@ -1,6 +1,6 @@
 # Rollback: Pacientes recurrentes (consent column + `/pacientes/recurrentes`)
 
-Spec: `docs/specs/pacientes-recurrentes.md`. One database change (migration 0055:
+Spec: `openspec/specs/pacientes-recurrentes/spec.md`. One database change (migration 0055:
 a consent column on `fsj.paciente`) and the code that reads it. Everything else is
 read-only UI over existing recetas.
 

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Step 2 of docs/specs/contrasena-temporal.md: the usuario sets the PIN they will
+ * Step 2 of openspec/specs/contrasena-temporal/spec.md: the usuario sets the PIN they will
  * use to confirm acciones. Same inputs as `/cuenta`'s PIN panel, without the
  * current-password field (it was just set in step 1). Submits through
  * `useFormSubmit` so a rejected PIN keeps what was typed.

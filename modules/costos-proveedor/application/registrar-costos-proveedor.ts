@@ -1,6 +1,6 @@
 /**
  * `registrarCostosProveedor` -- THE ONLY writer of `fsj.costo_proveedor`
- * (docs/specs/costos-proveedor.md R20, R23, R24). A manual entry (this file's
+ * (openspec/specs/costos-proveedor/spec.md R20, R23, R24). A manual entry (this file's
  * command, `lista_precio_id` NULL) and a confirmed list import (stage E4) go
  * through the same `registrarFilasEnTx`, so every price is validated, versioned
  * and audited by the same rules.

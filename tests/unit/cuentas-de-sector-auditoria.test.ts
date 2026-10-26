@@ -1,5 +1,5 @@
 /**
- * Cuentas de sector (docs/specs/cuentas-de-sector.md): `audit.record` tags a
+ * Cuentas de sector (openspec/specs/cuentas-de-sector/spec.md): `audit.record` tags a
  * row written on behalf of the empleado verified in the current request with
  * the shared terminal they acted from -- and only those rows.
  */

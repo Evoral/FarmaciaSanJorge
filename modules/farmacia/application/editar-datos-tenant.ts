@@ -4,7 +4,7 @@
  * domicilio, matriculaFarmacia (migration 0020) and the two phones printed on
  * the etiqueta, telefonoFijo / telefonoCelular (migration 0089), plus
  * `cuit` only until the first cierre diario is signed (migration 0105,
- * docs/specs/cuit-farmacia.md). `zonaHoraria`,
+ * openspec/specs/cuit-farmacia/spec.md). `zonaHoraria`,
  * `fechaBaja` and `fechaActivacionContralor` are NEVER accepted as input --
  * the zod schema below does not declare them at all (`.strict()` rejects
  * any extra key outright, it does not just silently drop it), so a stale

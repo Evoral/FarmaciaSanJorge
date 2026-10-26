@@ -1,5 +1,5 @@
 /**
- * `cambiarLogoTenant` (docs/specs/logo-farmacia.md): the farmacia uploads the logo shown in the navigation bar.
+ * `cambiarLogoTenant` (openspec/specs/logo-farmacia/spec.md): the farmacia uploads the logo shown in the navigation bar.
  * Same permiso as the rest of the farmacia's data (`config.editar`). The file is checked by
  * `validarArchivoLogo` (domain/logo.ts) first thing in the handler, not by zod, so every step keeps its own
  * message. The audit row records the type and size, never the bytes.

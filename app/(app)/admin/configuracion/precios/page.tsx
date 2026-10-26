@@ -1,7 +1,7 @@
 /**
  * `/admin/configuracion/precios` (M08, FASE 4 point 4.6). Shows the
  * tenant's current price rule set (precio mínimo + margin tramos by cost,
- * docs/specs/reglas-precio.md) and its full version history, plus the form
+ * openspec/specs/reglas-precio/spec.md) and its full version history, plus the form
  * to save a new version. The "Configuración" tabs sit under the header.
  */
 import { History } from "lucide-react";

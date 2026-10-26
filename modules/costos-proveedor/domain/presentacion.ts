@@ -1,6 +1,6 @@
 /**
  * Pure presentation rules of the "Costos de proveedores" section
- * (docs/specs/costos-proveedor.md, "Interface"): how old a price is, and what
+ * (openspec/specs/costos-proveedor/spec.md, "Interface"): how old a price is, and what
  * state each version of a (droga, proveedor) history is in. NO I/O.
  */
 

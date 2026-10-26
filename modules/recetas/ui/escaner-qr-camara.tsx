@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Camera scanner of the QR import (docs/specs/importacion-receta-qr.md, "Lectura
+ * Camera scanner of the QR import (openspec/specs/importacion-receta-qr/spec.md, "Lectura
  * con la cámara"). It only reads: on the first decoded QR that carries a receta
  * it stops and hands the text to the parent (`onLeido`), which puts it in the SAME
  * input and submits the SAME form as a typed or pasted code. The server action

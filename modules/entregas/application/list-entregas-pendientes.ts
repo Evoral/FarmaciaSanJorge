@@ -1,4 +1,4 @@
-/** `listEntregasPendientes` -- `/entregas` (FASE 11 point 11.1/11.2). Recetas PREPARADA (listas para entregar) and ENVIADA_PEND_FIRMA (esperando retorno); RETIRO_VENCIDO only when filtered by it (docs/specs/retiro-vencido.md). Gated on `entregas.registrar`, same list this permiso's action supports. */
+/** `listEntregasPendientes` -- `/entregas` (FASE 11 point 11.1/11.2). Recetas PREPARADA (listas para entregar) and ENVIADA_PEND_FIRMA (esperando retorno); RETIRO_VENCIDO only when filtered by it (openspec/specs/retiro-vencido/spec.md). Gated on `entregas.registrar`, same list this permiso's action supports. */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { can } from "@/shared/auth/authorize";

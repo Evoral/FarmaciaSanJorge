@@ -7,7 +7,7 @@
  * the picker's own filtering (UI-only) be the sole defense. `clase`
  * (migration 0063) defaults to DROGA; an insumo cannot be controlled.
  * The name must be free after normalization: no vigente droga and no vigente
- * synonym may already hold it (docs/specs/sinonimos-droga.md; the DB
+ * synonym may already hold it (openspec/specs/sinonimos-droga/spec.md; the DB
  * re-checks: migration 0067).
  *
  * `sinonimos` lets the alta register the droga's other names in the same
@@ -19,7 +19,7 @@
  *
  * With the contralor digital activo, a controlled droga's alta also writes its
  * APERTURA asiento with `saldoAperturaContralor` -- the manual libro's saldo, 0
- * if the pharmacy never had it (docs/specs/existencia-inicial.md R12). Without
+ * if the pharmacy never had it (openspec/specs/existencia-inicial/spec.md R12). Without
  * it every later movement of the droga would be refused (INV-L15).
  */
 import { z } from "zod";
@@ -77,7 +77,7 @@ export const crearDrogaCommand = defineCommand({
     if (!unidad) throw new NotFoundError("Unidad de medida no encontrada.");
     if (unidad.fechaBaja !== null) throw new DomainError("La unidad de medida elegida está dada de baja.");
 
-    // Accent/case-insensitive, against vigente drogas AND synonyms (docs/specs/sinonimos-droga.md): another
+    // Accent/case-insensitive, against vigente drogas AND synonyms (openspec/specs/sinonimos-droga/spec.md): another
     // name for an existing substance is a synonym of that droga, never a second droga.
     const conflicto = await existeNombreVigente(tx, session.tenantId, input.nombre);
     if (conflicto) throw new ValidationError(mensajeConflictoNombre(conflicto), { fields: ["nombre"] });

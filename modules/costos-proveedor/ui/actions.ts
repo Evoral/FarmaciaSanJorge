@@ -1,6 +1,6 @@
 "use server";
 
-/** Server Actions for `/costos-proveedor` (docs/specs/costos-proveedor.md): manual entry, baja, the vigente lookup of the form, and the list import (read + confirm). */
+/** Server Actions for `/costos-proveedor` (openspec/specs/costos-proveedor/spec.md): manual entry, baja, the vigente lookup of the form, and the list import (read + confirm). */
 import { revalidatePath } from "next/cache";
 import { listarCostosVigentes } from "@/modules/costos-proveedor/application/listar-costos-vigentes";
 import { registrarCostosProveedor } from "@/modules/costos-proveedor/application/registrar-costos-proveedor";

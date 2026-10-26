@@ -34,7 +34,7 @@
  * between that module's own plain-string-union `EstadoReceta` and the
  * generated Prisma enum this file's `tx.receta.estado` actually has --
  * keep the two in sync if either ever changes (they mirror
- * `docs/specs/libro-recetario-y-contralor.md` / migration 0011's
+ * `openspec/specs/libro-recetario-y-contralor/spec.md` / migration 0011's
  * `fsj.receta_validar_transicion_estado`).
  *
  * PER-ITEM CHECK, COMPUTED IN THE SAME TRANSACTION: the caller

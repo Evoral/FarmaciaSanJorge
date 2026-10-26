@@ -1,5 +1,5 @@
 /**
- * Table of `/clientes/seguimiento` (docs/specs/pacientes-recurrentes.md).
+ * Table of `/clientes/seguimiento` (openspec/specs/pacientes-recurrentes/spec.md).
  * Server component. HEALTH-ADJACENT DATA (DP-24): internal hrefs carry only the
  * opaque paciente id. The one external link, "WhatsApp" (`wa.me` with phone +
  * message), is built by the use case on purpose: it is the link the person

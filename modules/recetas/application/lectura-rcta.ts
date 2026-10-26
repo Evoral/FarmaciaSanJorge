@@ -1,6 +1,6 @@
 /**
- * The RCTA read shared by the QR and the PDF import (docs/specs/importacion-receta-qr.md,
- * docs/specs/importacion-receta-pdf.md "Lectura por RCTA"): hash -> RCTA decrypter -> the shared draft. Not a use case:
+ * The RCTA read shared by the QR and the PDF import (openspec/specs/importacion-receta-qr/spec.md,
+ * openspec/specs/importacion-receta-pdf/spec.md "Lectura por RCTA"): hash -> RCTA decrypter -> the shared draft. Not a use case:
  * it runs inside the callers' `prepare` step (after authorize + parse, OUTSIDE any transaction). Each caller passes its
  * own messages, so a PDF failure never tells the user to "import the PDF". Every failure is mapped here to the
  * user-facing error: a raw error escaping `prepare` would surface as a generic INTERNAL_ERROR. Neither the hash nor any

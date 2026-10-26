@@ -1,5 +1,5 @@
 /**
- * The tipo de vencimiento of one ítem, chosen where it is confirmed (docs/specs/vencimiento-preparado.md R10): starts on
+ * The tipo de vencimiento of one ítem, chosen where it is confirmed (openspec/specs/vencimiento-preparado/spec.md R10): starts on
  * `ESTANDAR`. Uncontrolled, so `ReauthAwareForm` keeps the choice when the server refuses the confirmation.
  */
 import { etiquetaTipoVencimiento, TIPOS_VENCIMIENTO_PREPARADO, TIPO_VENCIMIENTO_DEFAULT } from "@/modules/preparaciones/domain/vencimiento";

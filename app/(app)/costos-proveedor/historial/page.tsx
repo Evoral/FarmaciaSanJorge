@@ -1,6 +1,6 @@
 /**
  * `/costos-proveedor/historial?droga=&proveedor=` -- every version of the costo de proveedor of
- * one (droga, proveedor) pair, newest first (docs/specs/costos-proveedor.md, "Interface" 4):
+ * one (droga, proveedor) pair, newest first (openspec/specs/costos-proveedor/spec.md, "Interface" 4):
  * precio informado, costo por unidad base, fecha del precio, origen (lista or manual), motivo,
  * who loaded it, its vigencia and its state (Vigente / Reemplazado / Dado de baja, with the
  * baja's motivo). Nothing here is ever edited: a change is a new version (R2).

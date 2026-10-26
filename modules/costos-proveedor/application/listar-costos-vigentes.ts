@@ -1,6 +1,6 @@
 /**
  * `listarCostosVigentes` -- the "Vigentes" tab of `/costos-proveedor`
- * (docs/specs/costos-proveedor.md, "Interface"): one vigente costo per
+ * (openspec/specs/costos-proveedor/spec.md, "Interface"): one vigente costo per
  * (droga, proveedor), by droga name then proveedor, filtered by proveedor
  * and/or droga, paginated. Gated on `stock.valorizado.ver` (R35: the permiso
  * that gates money everywhere else).

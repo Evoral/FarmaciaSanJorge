@@ -1,5 +1,5 @@
 /**
- * A cuenta de sector (`usuario.es_sector`, docs/specs/cuentas-de-sector.md)
+ * A cuenta de sector (`usuario.es_sector`, openspec/specs/cuentas-de-sector/spec.md)
  * is a work area, not a person: it has no apellido and no DNI of its own.
  * `fsj.usuario` requires both (and `dni` is unique per farmacia), so they
  * are DERIVED from the one thing the administrator types -- the sector's

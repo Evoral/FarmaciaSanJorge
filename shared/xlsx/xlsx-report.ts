@@ -93,7 +93,7 @@ export type XlsxCell = string | number | Date | null | undefined;
 export interface XlsxReportOptions {
   /** The tenant's name (nombre de fantasía or razón social): each farmacia's export carries its own, never a fixed brand. */
   farmacia: string;
-  /** The tenant's uploaded logo (`getLogoTenant`), never a fixed file (docs/specs/logo-farmacia.md R6). Excel shows PNG and JPEG only: anything else, or none, draws the banner without it. */
+  /** The tenant's uploaded logo (`getLogoTenant`), never a fixed file (openspec/specs/logo-farmacia/spec.md R6). Excel shows PNG and JPEG only: anything else, or none, draws the banner without it. */
   logo?: { bytes: Uint8Array; tipo: string } | null;
   title: string;
   /** One or two sentences under the title saying what the export contains. */

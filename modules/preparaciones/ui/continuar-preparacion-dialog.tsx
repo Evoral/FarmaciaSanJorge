@@ -7,7 +7,7 @@
  * by other preparaciones left out); the form is the same as `/preparaciones/[id]`'s (./confirmar-form.tsx: partidas,
  * enrase, motivo, warnings, re-authentication) and its "Marcar como preparada" creates the preparación and reserves its stock in
  * one transaction (`preparaciones.reservarStock`) -- no stock is descontado and nothing is written to the libro
- * recetario until "Imprimir etiquetas" (docs/specs/reserva-stock-preparacion.md). On success the dialog closes and the
+ * recetario until "Imprimir etiquetas" (openspec/specs/reserva-stock-preparacion/spec.md). On success the dialog closes and the
  * page refreshes; an error stays inside it, keeping what was entered.
  *
  * Also "Recalcular reserva" on a reserved ítem (`objetivo.reservaDePreparacionId`): the same dialog and form, read by

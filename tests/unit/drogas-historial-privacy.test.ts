@@ -1,6 +1,6 @@
 /**
  * The droga Historial reads recetas and (optionally) paciente names: its source
- * must never log them (docs/specs/historial-droga.md: "No logging of free-text
+ * must never log them (openspec/specs/historial-droga/spec.md: "No logging of free-text
  * fields or paciente data"). Same source scan as the proveedor Trayectoria.
  */
 import { readFileSync } from "node:fs";

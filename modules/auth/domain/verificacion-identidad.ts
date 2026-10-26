@@ -1,6 +1,6 @@
 /**
  * How an empleado proves who they are when acting from a cuenta de sector
- * (docs/specs/cuentas-de-sector.md). Pure contract -- no I/O.
+ * (openspec/specs/cuentas-de-sector/spec.md). Pure contract -- no I/O.
  *
  * Today the only method is the PIN (`./pin.ts`). The pipeline
  * (shared/usecase.ts), the audit trail and every command only know this

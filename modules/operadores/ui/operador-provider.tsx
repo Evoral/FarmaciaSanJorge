@@ -2,7 +2,7 @@
 
 /**
  * Mounted once in the authenticated layout (`app/(app)/layout.tsx`) for a
- * cuenta de sector (docs/specs/cuentas-de-sector.md): provides
+ * cuenta de sector (openspec/specs/cuentas-de-sector/spec.md): provides
  * `shared/ui/operador.tsx`'s context to every form and renders THE prompt
  * that asks which empleado is acting and their PIN.
  *

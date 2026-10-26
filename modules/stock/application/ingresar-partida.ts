@@ -21,7 +21,7 @@
  * the cost comes per unidad de compra (the invoice's price) and is divided
  * by the same `fsj.convertir` factor, and `campo` prefixes each error's
  * field with the lote's row so the right input is marked. The existencia
- * inicial alta (./ingresar-existencia-inicial.ts, docs/specs/existencia-inicial.md)
+ * inicial alta (./ingresar-existencia-inicial.ts, openspec/specs/existencia-inicial/spec.md)
  * runs the same rules with `origen: "EXISTENCIA_INICIAL"`: proveedor
  * optional, no vale, INGRESO_INICIAL, only while the relevamiento is open.
  */

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Importar desde PDF" (docs/specs/importacion-receta-pdf.md, read through RCTA like the QR): uploads the
+ * "Importar desde PDF" (openspec/specs/importacion-receta-pdf/spec.md, read through RCTA like the QR): uploads the
  * digital receta's PDF to `leerRecetaPdfAction` (POST only; the file is read
  * in memory and discarded, nothing is saved) and hands the resulting
  * preview to the parent, which prefills the receta form with it. The

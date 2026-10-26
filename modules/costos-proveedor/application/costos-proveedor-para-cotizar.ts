@@ -1,5 +1,5 @@
 /**
- * The costo de proveedor each droga is quoted with (docs/specs/costos-proveedor.md, R25/R26/R34), for the
+ * The costo de proveedor each droga is quoted with (openspec/specs/costos-proveedor/spec.md, R25/R26/R34), for the
  * cotización and the presupuesto of `modules/precios`.
  *
  * NOT a use case: it runs inside the transaction of the caller (`cotizarLineas` / `cotizarItemsAcumulado`, which are

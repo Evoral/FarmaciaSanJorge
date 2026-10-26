@@ -1,5 +1,5 @@
 /**
- * `/clientes/[id]/historial` (docs/specs/trayectoria-paciente.md): read-only
+ * `/clientes/[id]/historial` (openspec/specs/trayectoria-paciente/spec.md): read-only
  * view of everything a paciente went through, receta by receta (Ingreso ->
  * Preparación -> Libro -> Entrega -> Archivo). HEALTH-ADJACENT DATA (DP-24,
  * Ley 25.326): `[id]` is an opaque UUID and `searchParams` ONLY ever reads

@@ -1,7 +1,7 @@
 /**
  * modules/recetas/domain/anulacion.ts: the decision the receta detail page
  * renders and `recetas.anular` enforces (direct anulación vs. the libro
- * recetario, D2 REVISED -- docs/specs/libro-recetario-y-contralor.md §1).
+ * recetario, D2 REVISED -- openspec/specs/libro-recetario-y-contralor/spec.md §1).
  */
 import { describe, it, expect } from "vitest";
 import { decidirAnulacion } from "@/modules/recetas/domain/anulacion";

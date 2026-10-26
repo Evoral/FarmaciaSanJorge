@@ -6,13 +6,13 @@
  *
  * Also loads, once per call, the costo de proveedor of each droga
  * (`costosProveedorParaCotizar`, read-only): a línea whose droga has one is
- * costed with it, any other from partidas (docs/specs/costos-proveedor.md,
+ * costed with it, any other from partidas (openspec/specs/costos-proveedor/spec.md,
  * R25-R27). The choice itself lives in the pure domain.
  *
  * Shared by `cotizaciones.calcular` (`cotizarLineas`: a saved item's latest
  * ficha, persisted as a cotización) and `recetas.presupuestar`
  * (`cotizarItemsAcumulado`: a draft's items computed in memory against the
- * same stock, persisted nowhere -- docs/specs/presupuesto-receta.md). Not a use
+ * same stock, persisted nowhere -- openspec/specs/presupuesto-receta/spec.md). Not a use
  * case: callers run it inside their own transaction and load the regla
  * themselves (`getReglaVigente`), since "no regla" means an error for one
  * and a message for the other.

@@ -1,7 +1,7 @@
 /**
  * `configurarNumeracionLibro` -- the DT sets the first number of a libro (recetario or contralor) from
  * `/libro/numeracion`: 1 to start from scratch, or the next number of the physical book to continue it (migration
- * 0097, INV-L26, docs/specs/libro-recetario-y-contralor.md "Numeración inicial").
+ * 0097, INV-L26, openspec/specs/libro-recetario-y-contralor/spec.md "Numeración inicial").
  *
  * Allowed until the first signed cierre covering the libro's asientos fixes it. Asientos already registered are
  * renumbered by the difference and their hash chain recomputed in the DB (`fsj.libro_configurar_numeracion`), which

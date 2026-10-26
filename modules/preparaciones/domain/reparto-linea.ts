@@ -1,6 +1,6 @@
 /**
  * The automatic split of ONE línea de pesaje over its droga's candidate partidas
- * (docs/specs/reserva-stock-preparacion.md R1): abiertas first (oldest apertura first), then FEFO -- the order of
+ * (openspec/specs/reserva-stock-preparacion/spec.md R1): abiertas first (oldest apertura first), then FEFO -- the order of
  * `ordenarParaConsumo` (modules/stock/domain/reparto.ts), never the ingreso date. Pure and client-safe (decimals and
  * the two pure split functions only): the server plans with it (`planificarConsumoEnTx`, `construirDatosConfirmacion`,
  * the toma's "partidas para pesar") and the reserva dialog previews an enrase manual línea with it as the user types.
@@ -51,7 +51,7 @@ export function repartirLinea(
 }
 
 /**
- * A non-manual línea weighed for real (docs/specs/pesada-real.md): `realStock` is the PHYSICAL weight (droga's unidad
+ * A non-manual línea weighed for real (openspec/specs/pesada-real/spec.md): `realStock` is the PHYSICAL weight (droga's unidad
  * base) the balance showed, drained over `partidas` in the same order (abiertas first, then FEFO). Each part keeps its
  * partida's purity (`potenciaAplicada`) so the libro and the contralor know the active it carried.
  */
@@ -67,7 +67,7 @@ export function repartirPesadaReal(partidas: readonly PartidaConPotencia[], real
 }
 
 /**
- * `true` when the user must choose which partida(s) a línea is weighed from (docs/specs/reserva-stock-preparacion.md
+ * `true` when the user must choose which partida(s) a línea is weighed from (openspec/specs/reserva-stock-preparacion/spec.md
  * R25): a non-manual línea whose candidate partidas with balance declare DIFFERENT purities. The weight depends on the
  * lot, so the lab weighing from another bottle than the plan's would get the dose wrong. Equal purities (or an enrase
  * manual línea, never purity-corrected) keep the automatic plan.

@@ -1,5 +1,5 @@
 /**
- * `/catalogos/drogas/[id]/historial` (docs/specs/historial-droga.md): read-only
+ * `/catalogos/drogas/[id]/historial` (openspec/specs/historial-droga/spec.md): read-only
  * view of every receta that CONSUMED the droga and from which partida(s), as a
  * `table.data-table` whose rows expand to the detail (`FilaDesplegable`).
  * `[id]` is an opaque UUID and `searchParams` ONLY ever reads `page` (a plain

@@ -1,7 +1,7 @@
 /**
  * `cambiarEstadoRepartidor`: activates or deactivates a repartidor (`repartidores.gestionar`). Deactivating is not
  * deleting (fsj_app has no DELETE): the repartidor stops being offered for NEW envios but keeps the ones it already
- * has, and its "Hoja de envíos" can still be exported (docs/specs/envios-repartidores.md, E3 and "Casos borde").
+ * has, and its "Hoja de envíos" can still be exported (openspec/specs/envios-repartidores/spec.md, E3 and "Casos borde").
  */
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";

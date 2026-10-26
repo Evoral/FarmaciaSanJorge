@@ -50,7 +50,7 @@ export function NuevoUsuarioForm({ roles }: { roles: readonly { codigo: string; 
   const { onSubmit, resubmit } = useReauthFormSubmit(formAction);
   const formRef = useRef<HTMLFormElement>(null);
   const alertRef = useRef<HTMLDivElement>(null);
-  // A cuenta de sector (docs/specs/cuentas-de-sector.md) asks only for the sector's name and its login email.
+  // A cuenta de sector (openspec/specs/cuentas-de-sector/spec.md) asks only for the sector's name and its login email.
   const [esSector, setEsSector] = useState(false);
   const [passwordValid, setPasswordValid] = useState(false);
 

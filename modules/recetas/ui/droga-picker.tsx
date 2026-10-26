@@ -9,7 +9,7 @@
  *
  * Picked through a synonym, the row keeps that synonym too (`drogaAliasId`,
  * stored on the componente -- migration 0069) and the field shows it, with
- * the canonical name as a quiet hint (docs/specs/sinonimos-droga.md,
+ * the canonical name as a quiet hint (openspec/specs/sinonimos-droga/spec.md,
  * "Nombre elegido al cargar").
  */
 import { useCallback, useRef } from "react";
@@ -51,7 +51,7 @@ export function DrogaPicker({ label, selectedId, selectedLabel, selectedSinonimo
     const result = await buscarDrogasParaRecetaAction({ status: "idle", items: [] }, formData);
     if (result.status === "error") throw new Error(result.message ?? "No se pudo buscar drogas.");
     resultados.current = new Map(result.items.map((d) => [d.id, d]));
-    // The canonical name is the option's label; a synonym match adds a quiet hint (docs/specs/sinonimos-droga.md).
+    // The canonical name is the option's label; a synonym match adds a quiet hint (openspec/specs/sinonimos-droga/spec.md).
     return result.items.map((d) => ({ value: d.id, label: d.nombre, description: d.unidadBaseSimbolo, sinonimo: d.sinonimo }));
   }, []);
 

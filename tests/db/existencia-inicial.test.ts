@@ -1,5 +1,5 @@
 /**
- * DB tests for migration 0100_existencia_inicial (docs/specs/existencia-inicial.md):
+ * DB tests for migration 0100_existencia_inicial (openspec/specs/existencia-inicial/spec.md):
  * - INV-S24 (trg_partida_validar_existencia_inicial): window open vs closed
  * - INV-S25 (partida_validar_ingreso_compra): INGRESO_INICIAL for EXISTENCIA_INICIAL, INGRESO_COMPRA for COMPRA
  * - INV-S26 (tenant_validar_relevamiento_inicial): DT vigente requirement and irreversible close

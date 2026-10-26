@@ -1,6 +1,6 @@
 /**
  * DB tests for prisma/migrations/20261015150000_0079_costos_proveedor
- * (docs/specs/costos-proveedor.md): fsj.lista_precio_proveedor (append-only),
+ * (openspec/specs/costos-proveedor/spec.md): fsj.lista_precio_proveedor (append-only),
  * fsj.costo_proveedor (versioned, INV-CP-001/002) and the permiso
  * `costos.proveedor.gestionar`.
  *

@@ -1,6 +1,6 @@
 /**
  * Unit tests for modules/costos-proveedor/domain/costo-proveedor.ts
- * (docs/specs/costos-proveedor.md: CP1-CP7 domain parts, R4-R10, R18, R26).
+ * (openspec/specs/costos-proveedor/spec.md: CP1-CP7 domain parts, R4-R10, R18, R26).
  */
 import { describe, it, expect } from "vitest";
 import { DomainError } from "@/shared/errors";

@@ -1,6 +1,6 @@
 # Rollback: Domicilios del cliente y de entrega
 
-Spec: `docs/specs/domicilios.md`. Schema change (migration `prisma/migrations/20261023090000_0099_domicilios_cliente_y_entrega`):
+Spec: `openspec/specs/domicilios/spec.md`. Schema change (migration `prisma/migrations/20261023090000_0099_domicilios_cliente_y_entrega`):
 reverted as code + a new forward migration built from `prisma/rollbacks/0099_domicilios_cliente_y_entrega.down.sql`.
 
 ## What the down migration loses
@@ -19,9 +19,9 @@ reverted as code + a new forward migration built from `prisma/rollbacks/0099_dom
 
 ## Files
 
-New (delete): `docs/specs/domicilios.md`, this file, `prisma/rollbacks/0099_domicilios_cliente_y_entrega.down.sql`,
+New (delete): `openspec/specs/domicilios/spec.md`, this file, `prisma/rollbacks/0099_domicilios_cliente_y_entrega.down.sql`,
 the 0099 migration folder (keep it once applied).
 
 Edited (revert the domicilio hunks): `prisma/schema.prisma`; every file listed under "Code" in the spec;
-`shared/labels/field-labels.ts`; `docs/specs/envios-repartidores.md` and `docs/specs/importacion-receta-pdf.md` (notes);
+`shared/labels/field-labels.ts`; `openspec/specs/envios-repartidores/spec.md` and `openspec/specs/importacion-receta-pdf/spec.md` (notes);
 `tests/unit/entregas-command-flows.test.ts` (the two E4 audit assertions).

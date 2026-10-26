@@ -1,5 +1,5 @@
 /**
- * Prisma-backed access for `modules/operadores` (docs/specs/cuentas-de-sector.md):
+ * Prisma-backed access for `modules/operadores` (openspec/specs/cuentas-de-sector/spec.md):
  * `fsj.accion_con_pin` (migration 0077) and the empleados a cuenta de sector
  * can pick. Every function runs inside an already-open tenant transaction.
  *
@@ -48,7 +48,7 @@ export interface OperadorOpcion {
  * The empleados a cuenta de sector offers in its "¿quién sos?" selector:
  * ACTIVO people (never a cuenta de sector nor the technical usuario) who
  * have a PIN configured and no pending password change (a temporary
- * password, docs/specs/contrasena-temporal.md). A blocked PIN is still listed -- its owner must see
+ * password, openspec/specs/contrasena-temporal/spec.md). A blocked PIN is still listed -- its owner must see
  * themselves and be told why it fails.
  */
 export async function listOperadores(tx: Prisma.TransactionClient, tenantId: string): Promise<OperadorOpcion[]> {

@@ -4,7 +4,7 @@
  * "Imprimir etiqueta": the button opens a "Seleccionar tamaño y posición" dialog with the
  * active sizes the administrator configured (modules/etiqueta-tamanos) and the cell of the
  * sheet to print in (`./posicion-en-hoja.tsx`); confirming opens the etiqueta PDF -- the whole
- * sheet, with the etiqueta in that cell (docs/specs/hoja-etiquetas.md) -- in a new tab. Native
+ * sheet, with the etiqueta in that cell (openspec/specs/hoja-etiquetas/spec.md) -- in a new tab. Native
  * `<dialog>` opened with `showModal()` (same pattern as `./ver-receta-pendiente-dialog.tsx`):
  * focus is trapped and returned to the trigger by the browser, Escape closes it natively, and a
  * click on the backdrop closes it too.
@@ -218,7 +218,7 @@ export interface EtiquetaDeItemParaImprimir {
 /** The confirmation the dialog runs first, while the receta still has ítems to confirm (./reserva-acciones.tsx). */
 export interface ConfirmacionDeEtiquetas {
   recetaId: string;
-  /** The ítems to confirm (reserved), in ítem order: one tipo de vencimiento selector each (docs/specs/vencimiento-preparado.md R10). */
+  /** The ítems to confirm (reserved), in ítem order: one tipo de vencimiento selector each (openspec/specs/vencimiento-preparado/spec.md R10). */
   items: readonly { preparacionId: string; numero: number; nombre: string }[];
   /** `meses_vencimiento_preparado`, shown in the `ESTANDAR` option. */
   mesesVencimiento: number;

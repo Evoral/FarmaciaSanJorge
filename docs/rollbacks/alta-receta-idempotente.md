@@ -1,6 +1,6 @@
 # Rollback: alta de receta idempotente (`receta.envio_id`)
 
-Spec: `docs/specs/alta-receta-idempotente.md`. One database change (migration 0102:
+Spec: `openspec/specs/alta-receta-idempotente/spec.md`. One database change (migration 0102:
 nullable `envio_id uuid` on `fsj.receta` + partial unique index `uq_receta_envio`).
 
 **Order matters.** Code first, database second: while this code is live, dropping the

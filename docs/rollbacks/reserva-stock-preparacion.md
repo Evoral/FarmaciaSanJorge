@@ -1,6 +1,6 @@
 # Rollback: Reserva de stock de una preparación
 
-Spec: `docs/specs/reserva-stock-preparacion.md`. The feature has **schema changes**
+Spec: `openspec/specs/reserva-stock-preparacion/spec.md`. The feature has **schema changes**
 (migrations `prisma/migrations/20261008090000_0071_reserva_stock` and
 `20261008120000_0072_receta_editable_sin_preparacion_viva`), so it is reverted as
 code + new forward migrations built from `prisma/rollbacks/0072_receta_editable_sin_preparacion_viva.down.sql`
@@ -54,7 +54,7 @@ depends on a reserva, so nothing else is lost.
 - `modules/preparaciones/application/list-dt-para-perdida.ts`
 - `modules/preparaciones/domain/perdida.ts`
 - `modules/preparaciones/ui/reserva-acciones.tsx`
-- `docs/specs/reserva-stock-preparacion.md` and this file (optional)
+- `openspec/specs/reserva-stock-preparacion/spec.md` and this file (optional)
 - `prisma/migrations/20261008090000_0071_reserva_stock/` (keep it once applied; the down migration undoes it)
 
 ## Renamed file
@@ -85,7 +85,7 @@ depends on a reserva, so nothing else is lost.
   `app/(app)/partidas/[id]/page.tsx`, `app/(app)/stock/ajustes/nuevo/page.tsx`,
   `app/(app)/reportes/stock-valorizado/page.tsx`, `app/api/stock/valorizado/export/csv/route.ts`
   (the CSV loses its last column `CantidadReservada`).
-- `docs/specs/vencimiento-preparado.md` (R8 command name).
+- `openspec/specs/vencimiento-preparado/spec.md` (R8 command name).
 
 ## Receta-level "Imprimir etiquetas" (2026-10-14, no schema change)
 
@@ -110,13 +110,13 @@ route (`/api/preparaciones/[id]/etiqueta/pdf`): no route or PDF code to revert.
   `EtiquetaDeItem`), `imprimir-etiqueta-dialog.tsx` (`SeleccionarEtiquetasDialog`), the toma page
   (the bar below the ítems, the per-ítem button in each footer, the PREPARADA redirect), and the
   "Imprimir etiquetas" copy in `confirmar-preparacion.ts`, `confirmar-form.tsx`, `actions.ts`
-  (reservar message), `app/(app)/preparaciones/[id]/page.tsx` and `docs/specs/vencimiento-preparado.md` (R8).
+  (reservar message), `app/(app)/preparaciones/[id]/page.tsx` and `openspec/specs/vencimiento-preparado/spec.md` (R8).
 - The libro's "Receta Nº" column (`modules/libro/infrastructure/{asiento-repository,libro-pdf}.ts`,
   `app/(app)/libro/page.tsx`) is display-only and independent: revert it separately if wanted.
 
 ## 2026-10-15: automatic reserva + consistency fixes (R1/R1b/R2/R9 revised, R18-R24)
 
-Spec: `docs/specs/reserva-stock-preparacion.md`. One schema change, migration
+Spec: `openspec/specs/reserva-stock-preparacion/spec.md`. One schema change, migration
 `20261015090000_0077_preparacion_viva_por_item` (partial unique index
 `uq_preparacion_item_viva`). Revert order:
 

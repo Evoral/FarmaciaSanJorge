@@ -13,7 +13,7 @@ triggers y los 18 `audit: { skip: true }`, y lo que declara conforme es creíble
 BLOCKER y uno de sus hallazgos ya está resuelto en el código.
 
 Desvíos del revisor:
-- P3-01 ignora que `docs/specs/existencia-inicial.md:77` dice que ninguna ruta de la app activa el contralor digital (`tenant.fecha_activacion_contralor` solo se escribe por SQL; confirmado: ningún código lo escribe).
+- P3-01 ignora que `openspec/specs/existencia-inicial/spec.md:77` dice que ninguna ruta de la app activa el contralor digital (`tenant.fecha_activacion_contralor` solo se escribe por SQL; confirmado: ningún código lo escribe).
 - P3-05: el criterio de cierre que propone ya se cumple (`configurar-numeracion-libro.ts:73-74`).
 - Llama P2-01 al arreglo de `crearProductoDesdeFacturaAction` (es P2-04) y cita mal los timestamps de las migraciones 0100 y 0101.
 

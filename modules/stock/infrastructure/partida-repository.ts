@@ -45,7 +45,7 @@ export interface StockDrogaItem {
   bajoMinimo: boolean;
   /** Earliest vencimiento VIGENTE (`fecha_vencimiento_vigente`, migration 0074) among partidas with balance (YYYY-MM-DD), `null` when none has balance. */
   proximoVencimiento: string | null;
-  /** The synonym the search matched through, when the name itself did not match (docs/specs/sinonimos-droga.md). */
+  /** The synonym the search matched through, when the name itself did not match (openspec/specs/sinonimos-droga/spec.md). */
   sinonimoCoincidente: string | null;
 }
 
@@ -308,7 +308,7 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
 }
 
 // ============================================================================
-// `/partidas` (docs/specs/historial-partidas.md): every partida of the
+// `/partidas` (openspec/specs/historial-partidas/spec.md): every partida of the
 // tenant, across all drogas (insumos included: they are drogas with another
 // `clase`), newest ingreso first. Agotadas included unless `soloConSaldo`.
 // ============================================================================
@@ -467,7 +467,7 @@ export interface PartidaParaAccion {
   fechaApertura: Date | null;
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
-  /** Migration 0100: COMPRA or EXISTENCIA_INICIAL (docs/specs/existencia-inicial.md R10). */
+  /** Migration 0100: COMPRA or EXISTENCIA_INICIAL (openspec/specs/existencia-inicial/spec.md R10). */
   origen: "COMPRA" | "EXISTENCIA_INICIAL";
 }
 
@@ -740,7 +740,7 @@ export interface NuevoAjusteInput {
   observacion: string;
   registradoPorId: string;
   autorizadoPorId: string;
-  /** A pérdida registered during a preparación (docs/specs/reserva-stock-preparacion.md): `movimiento_stock.preparacion_id` (nullable, FK since 0013). */
+  /** A pérdida registered during a preparación (openspec/specs/reserva-stock-preparacion/spec.md): `movimiento_stock.preparacion_id` (nullable, FK since 0013). */
   preparacionId?: string | null;
 }
 
@@ -779,7 +779,7 @@ export async function reservadoPorPartida(tx: Prisma.TransactionClient, tenantId
 
 /**
  * Stock of `partidaId` reserved by preparaciones INICIADA (fsj.reserva_stock, migration 0071,
- * docs/specs/reserva-stock-preparacion.md), except `excluirPreparacionId`'s own, plus the receta Nº of each of them.
+ * openspec/specs/reserva-stock-preparacion/spec.md), except `excluirPreparacionId`'s own, plus the receta Nº of each of them.
  * Own small read of the preparaciones tables (each module keeps its own cross-module reads, like
  * modules/preparaciones/infrastructure/preparacion-repository.ts does).
  * Read AFTER `lockPartidaParaAccion`: a reserva is written only under the same partida lock.
@@ -1161,7 +1161,7 @@ export interface AlertaPorVencer {
   fechaVencimiento: Date;
   /** The ORIGINAL (printed) vencimiento; differs from `fechaVencimiento` only when `reanalizada`. */
   fechaVencimientoOriginal: Date;
-  /** A DROGA partida (migration 0063): blocked when vencida until the DT acts; re-analysable (docs/specs/reanalisis-partida.md). */
+  /** A DROGA partida (migration 0063): blocked when vencida until the DT acts; re-analysable (openspec/specs/reanalisis-partida/spec.md). */
   esDroga: boolean;
   /** The vigente date comes from a reanálisis (differs from the original one). */
   reanalizada: boolean;
@@ -1169,7 +1169,7 @@ export interface AlertaPorVencer {
 
 /**
  * An expired partida that STILL has balance. `esDroga` = blocked until the DT acts (reanálisis or "marcar como
- * vencida", docs/specs/reanalisis-partida.md); an insumo's suggests a VENCIMIENTO ajuste (plan §9 M07 historia 6).
+ * vencida", openspec/specs/reanalisis-partida/spec.md); an insumo's suggests a VENCIMIENTO ajuste (plan §9 M07 historia 6).
  */
 export type AlertaVencidaConSaldo = AlertaPorVencer;
 
@@ -1254,7 +1254,7 @@ export interface ResumenVencimientosDrogas {
 /**
  * One aggregate row for the app-wide banner: the same predicates as `alertasVencidasConSaldo` /
  * `alertasPorVencer` above (keep them in sync), restricted to DROGA partidas -- the ones that wait on the DT
- * (docs/specs/reanalisis-partida.md) -- and counted per droga instead of listed.
+ * (openspec/specs/reanalisis-partida/spec.md) -- and counted per droga instead of listed.
  */
 export async function resumenVencimientosDrogas(tx: Prisma.TransactionClient, tenantId: string, diasAlerta: number): Promise<ResumenVencimientosDrogas> {
   const rows = await tx.$queryRaw<{ drogas_vencidas: number; drogas_por_vencer: number }[]>`
@@ -1276,7 +1276,7 @@ export async function resumenVencimientosDrogas(tx: Prisma.TransactionClient, te
 }
 
 // ============================================================================
-// Reanálisis de partida (migration 0074, docs/specs/reanalisis-partida.md):
+// Reanálisis de partida (migration 0074, openspec/specs/reanalisis-partida/spec.md):
 // append-only rows; the DB trigger moves partida.fecha_vencimiento_vigente
 // and re-checks INV-S22 (droga, saldo, date, DT vigente).
 // ============================================================================

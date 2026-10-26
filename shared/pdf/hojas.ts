@@ -1,5 +1,5 @@
 /**
- * Sheet layout shared by the printed libro recetario (docs/specs/libro-recetario-y-contralor.md, "Impresión"):
+ * Sheet layout shared by the printed libro recetario (openspec/specs/libro-recetario-y-contralor/spec.md, "Impresión"):
  * A4 landscape, one jornada per sheet group -- a day may take several sheets, two days never share one -- and a
  * "Hoja i de n" footer numbered within each day. Requires the document to be created with `bufferPages: true`
  * (`renderPdf(build, OPCIONES_HOJA_LIBRO)`), since the totals are only known once every page exists.

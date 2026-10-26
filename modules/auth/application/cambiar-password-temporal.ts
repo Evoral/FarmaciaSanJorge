@@ -1,5 +1,5 @@
 /**
- * `cambiarPasswordTemporal(nueva, nuevaRepeat)` (docs/specs/contrasena-temporal.md,
+ * `cambiarPasswordTemporal(nueva, nuevaRepeat)` (openspec/specs/contrasena-temporal/spec.md,
  * step 1). A usuario whose password was set by an administrator
  * (`debeCambiarPassword`) replaces it with their own. It does not ask for the
  * current password: the session was just opened with the temporary one. It

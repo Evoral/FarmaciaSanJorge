@@ -1,6 +1,6 @@
 /**
  * `reanclarLibro` -- the DT accepts ONE hole in a libro's hash chain from `/libro/integridad` (migration 0087,
- * docs/specs/libro-recetario-y-contralor.md "Reanclaje de la cadena").
+ * openspec/specs/libro-recetario-y-contralor/spec.md "Reanclaje de la cadena").
  *
  * Only a HOLE is re-anchorable: rows missing from the numbering, so the next existing row points to a hash that is
  * gone. A row sitting at the broken number (content edited) and a missing tail are refused: those are not a deletion

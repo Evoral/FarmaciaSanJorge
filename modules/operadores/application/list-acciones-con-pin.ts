@@ -1,5 +1,5 @@
 /**
- * `listAccionesConPin` (docs/specs/cuentas-de-sector.md): the configurable
+ * `listAccionesConPin` (openspec/specs/cuentas-de-sector/spec.md): the configurable
  * acciones and whether this farmacia asks an empleado's PIN for each, for
  * `/admin/configuracion/pin`. `config.ver`, like the rest of "Configuración".
  */

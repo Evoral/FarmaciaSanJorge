@@ -1,6 +1,6 @@
 /**
  * Unit tests for `marcarPartidaVencida` and `registrarReanalisisPartida`
- * (docs/specs/reanalisis-partida.md, migration 0074).
+ * (openspec/specs/reanalisis-partida/spec.md, migration 0074).
  *
  * Covers:
  * - `marcarPartidaVencida`: M3 lock-before-read order; discounts the entire saldo via VENCIMIENTO ajuste;

@@ -2,7 +2,7 @@
  * Prisma-backed access to `fsj.asiento_contralor` for FASE 9 (M12 point
  * 9.4, DP-33). There is no anulación/rectificativo path for contralor rows
  * (INV-L20). The one write is the APERTURA of a controlled droga given alta
- * with the contralor activo (docs/specs/existencia-inicial.md R12).
+ * with the contralor activo (openspec/specs/existencia-inicial/spec.md R12).
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { TipoMovimientoContralor } from "@/generated/prisma/enums";

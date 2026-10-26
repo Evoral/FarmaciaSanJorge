@@ -2,7 +2,7 @@
  * Pure rules for `regla_precio` (M08). NO I/O, NO Prisma -- same discipline
  * as modules/stock/domain/reparto.ts.
  *
- * Price rule set confirmed by the user on 2026-10-01 (docs/specs/reglas-precio.md),
+ * Price rule set confirmed by the user on 2026-10-01 (openspec/specs/reglas-precio/spec.md),
  * superseding DP-09's single global margen:
  *
  *   precioFinal = max(costo * (1 + margenTramo / 100), precioMinimo)

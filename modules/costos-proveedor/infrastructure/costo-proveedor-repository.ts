@@ -1,6 +1,6 @@
 /**
  * Prisma-backed access to `fsj.costo_proveedor` and `fsj.lista_precio_proveedor`
- * (migration 0079, docs/specs/costos-proveedor.md). Every function runs inside
+ * (migration 0079, openspec/specs/costos-proveedor/spec.md). Every function runs inside
  * an ALREADY OPEN tenant transaction (`tx`), same convention as
  * modules/precios/infrastructure/regla-precio-repository.ts.
  *
@@ -322,7 +322,7 @@ export async function listAliasesVigentesParaLista(tx: Prisma.TransactionClient,
 }
 
 /**
- * What `aliasNormalizado` already resolves to, for "recordar equivalencia" (docs/specs/sinonimos-droga.md):
+ * What `aliasNormalizado` already resolves to, for "recordar equivalencia" (openspec/specs/sinonimos-droga/spec.md):
  * a VIGENTE synonym of a VIGENTE droga (`id` = the synonym's), or else -- `esNombre: true`, `id` = the droga's --
  * the normalized name of a vigente droga (a synonym can never repeat a droga's name, INV-DRG-002). `null` = free.
  * Same query as the invoice import's (modules/stock/infrastructure/factura-compra-repository.ts).

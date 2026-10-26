@@ -92,7 +92,7 @@ export const TIPO_MOVIMIENTO_LABELS: Readonly<Record<TipoMovimiento, string>> = 
   INGRESO_INICIAL: "Existencia inicial",
 };
 
-/** Partida origin (docs/specs/existencia-inicial.md). */
+/** Partida origin (openspec/specs/existencia-inicial/spec.md). */
 export const ORIGEN_PARTIDA_LABELS: Readonly<Record<OrigenPartida, string>> = {
   COMPRA: "Compra",
   EXISTENCIA_INICIAL: "Existencia inicial",

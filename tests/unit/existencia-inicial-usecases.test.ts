@@ -1,7 +1,7 @@
 /**
  * Unit tests for `modules/stock/application/ingresar-existencia-inicial.ts`
  * and `modules/stock/application/cerrar-relevamiento-inicial.ts`
- * (docs/specs/existencia-inicial.md R2-R8).
+ * (openspec/specs/existencia-inicial/spec.md R2-R8).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";

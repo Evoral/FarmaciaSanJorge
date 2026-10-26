@@ -9,7 +9,7 @@ integers); the sheet<->size fit is enforced in the use cases; `buildEtiquetaPdf`
 `(contenido, tamano, hoja, celda)`; a `PosicionEnHoja` radio-grid component is shared by
 both print dialogs.
 
-**Spec:** `docs/specs/hoja-etiquetas.md` (R1–R13).
+**Spec:** `openspec/specs/hoja-etiquetas/spec.md` (R1–R13).
 
 ## Task 1 — Data model + pure domain
 
@@ -62,5 +62,5 @@ both print dialogs.
 
 ## Task 5 — Docs
 
-- `docs/specs/etiqueta-preparado.md` (one line), `etiqueta-tamano.ts` header, admin copy,
+- `openspec/specs/etiqueta-preparado/spec.md` (one line), `etiqueta-tamano.ts` header, admin copy,
   spec status line.

@@ -42,7 +42,7 @@ export interface DtParaReactivar {
   label: string;
 }
 
-/** What the entrega pop-up shows for a RETIRO_VENCIDO receta (docs/specs/retiro-vencido.md "Pantallas"). */
+/** What the entrega pop-up shows for a RETIRO_VENCIDO receta (openspec/specs/retiro-vencido/spec.md "Pantallas"). */
 export interface RetiroVencidoEstado {
   /** The jornada (YYYY-MM-DD) the plazo expired on: `preparada_en` + `diasRetiroVencido`. null when the parameter is 0 now or there is no `preparada_en`. */
   vencioEl: string | null;
@@ -68,7 +68,7 @@ export interface EntregaEstado {
   itemsEntregables: number;
   itemsExcluidos: number;
   entrega: EntregaRow | null;
-  /** Where an envío goes: `domicilioDeEnvio` of the receta (E4, docs/specs/domicilios.md); null when the receta has none. */
+  /** Where an envío goes: `domicilioDeEnvio` of the receta (E4, openspec/specs/domicilios/spec.md); null when the receta has none. */
   domicilioEnvio: string | null;
   /** The entrega's repartidor (E5/E7); null for a retiro, for an envío registered before migration 0093, or when there is no entrega. */
   repartidor: RepartidorDeEntrega | null;

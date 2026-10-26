@@ -165,7 +165,7 @@ function resetMocks() {
   anularRecetaMock.mockClear();
 }
 
-// Item removal vs. fichas (docs/specs/presupuesto-receta.md, "Edición"): an item with a ficha
+// Item removal vs. fichas (openspec/specs/presupuesto-receta/spec.md, "Edición"): an item with a ficha
 // técnica (or cotización) cannot be removed; editing its content still can.
 describe("editar-receta: items that already have a ficha técnica", () => {
   beforeEach(resetMocks);

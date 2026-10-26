@@ -1,6 +1,6 @@
 /**
  * Unit tests for the pure sheet rules in
- * modules/etiqueta-tamanos/domain/etiqueta-hoja.ts (docs/specs/hoja-etiquetas.md
+ * modules/etiqueta-tamanos/domain/etiqueta-hoja.ts (openspec/specs/hoja-etiquetas/spec.md
  * R1-R5, R8, R11): the grid in integer tenths of a mm, the cell positions and the
  * formatting.
  */

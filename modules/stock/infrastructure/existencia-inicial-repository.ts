@@ -1,5 +1,5 @@
 /**
- * Relevamiento inicial (docs/specs/existencia-inicial.md, migration 0100).
+ * Relevamiento inicial (openspec/specs/existencia-inicial/spec.md, migration 0100).
  * The window is read from `fsj.relevamiento_inicial_abierto` /
  * `fsj.relevamiento_inicial_fecha_limite`, the functions INV-S24 enforces
  * with -- never recomputed here.

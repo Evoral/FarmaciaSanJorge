@@ -46,4 +46,4 @@ END;
 $$;
 
 COMMENT ON FUNCTION fsj.receta_validar_transicion_estado() IS
-  'INV-R08 + docs/specs/libro-recetario-y-contralor.md section 1. No backwards transitions; ANULADA reachable from any non-terminal state; ENTREGADA/ANULADA terminal. 0061: LISTA_PARA_RETIRAR removed -- PREPARADA goes straight to ENTREGADA or ENVIADA_PEND_FIRMA.';
+  'INV-R08 + openspec/specs/libro-recetario-y-contralor/spec.md section 1. No backwards transitions; ANULADA reachable from any non-terminal state; ENTREGADA/ANULADA terminal. 0061: LISTA_PARA_RETIRAR removed -- PREPARADA goes straight to ENTREGADA or ENVIADA_PEND_FIRMA.';

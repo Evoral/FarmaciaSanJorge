@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * What the entrega panel shows for an envío waiting for its firma (ENVIADA_PEND_FIRMA, docs/specs/envios-repartidores.md):
+ * What the entrega panel shows for an envío waiting for its firma (ENVIADA_PEND_FIRMA, openspec/specs/envios-repartidores/spec.md):
  * the domicilio it goes to, its repartidor (nombre, apellido, teléfono) or "Sin repartidor asignado" for an envío
  * registered before migration 0093 (E7), and -- for whoever can register entregas -- the button that opens the
  * repartidor autocomplete (E5): "Cambiar repartidor", or "Asignar repartidor" when there is none.

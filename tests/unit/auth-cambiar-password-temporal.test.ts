@@ -1,6 +1,6 @@
 /**
  * Unit tests for `modules/auth/application/cambiar-password-temporal.ts`
- * (docs/specs/contrasena-temporal.md, step 1): everything I/O is mocked,
+ * (openspec/specs/contrasena-temporal/spec.md, step 1): everything I/O is mocked,
  * same style as tests/unit/auth-reauth-pin.test.ts.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";

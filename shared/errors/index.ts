@@ -104,7 +104,7 @@ export class StepUpRequiredError extends AppError {
 /**
  * The session is a cuenta de sector (a shared session per work area) and
  * this act must be attributed to the empleado performing it, who has not
- * identified themselves in this request (docs/specs/cuentas-de-sector.md).
+ * identified themselves in this request (openspec/specs/cuentas-de-sector/spec.md).
  * Distinct from `StepUpRequiredError` (the session's OWN usuario
  * re-entering their credential): the UI answers this one by asking WHO is
  * acting plus their PIN, and resubmitting the same data with it. It shares
@@ -120,7 +120,7 @@ export class OperadorRequeridoError extends AppError {
 
 /**
  * The session is valid but must first complete a pending step (change a
- * temporary password, configure the PIN -- docs/specs/contrasena-temporal.md).
+ * temporary password, configure the PIN -- openspec/specs/contrasena-temporal/spec.md).
  * Distinct from `AuthorizationError`: the usuario CAN do this once the step
  * is done, so the UI answers by sending them to `rutaDelPaso(paso)`.
  */

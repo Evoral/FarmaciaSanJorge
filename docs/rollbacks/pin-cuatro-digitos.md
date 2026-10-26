@@ -3,7 +3,7 @@
 The "clave rápida" PIN went from 6 to 4 digits on 2026-10-13
 (`AUTH_POLICY.pinLength` in `shared/auth/policy.ts`; migration
 `prisma/migrations/20261013180000_0078_pin_cuatro_digitos` cleared every
-existing PIN). Specs that mention it: `docs/specs/cuentas-de-sector.md`,
+existing PIN). Specs that mention it: `openspec/specs/cuentas-de-sector/spec.md`,
 DP-20 in `docs/plan-implementacion.md`.
 
 ## What cannot be undone

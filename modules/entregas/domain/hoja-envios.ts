@@ -1,5 +1,5 @@
 /**
- * Pure rules of the "Hoja de envíos" PDF (docs/specs/envios-repartidores.md E8-E11): the filter line, the Pago text,
+ * Pure rules of the "Hoja de envíos" PDF (openspec/specs/envios-repartidores/spec.md E8-E11): the filter line, the Pago text,
  * the empty-result notice and the file name (which never carries patient data). No I/O.
  */
 import { formatFechaIso } from "@/shared/format/fecha";

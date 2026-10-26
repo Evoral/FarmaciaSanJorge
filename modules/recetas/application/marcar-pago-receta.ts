@@ -1,5 +1,5 @@
 /**
- * `marcarPagoReceta` (migration 0071, docs/specs/pago-receta.md): marks a receta paid or unpaid from its detail --
+ * `marcarPagoReceta` (migration 0071, openspec/specs/pago-receta/spec.md): marks a receta paid or unpaid from its detail --
  * to record a payment made between the alta and the entrega, or to fix a mistake. Permiso `recetas.editar`
  * (ATP/FAR/DT, the receta-mutation permiso that is not `recetas.anular`); it is NOT tied to `esEstadoEditable`,
  * because payment after delivery is valid. Alta and entrega mark the payment through their own commands; the edit

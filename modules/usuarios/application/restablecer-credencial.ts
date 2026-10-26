@@ -1,6 +1,6 @@
 /**
  * `restablecerCredencial` (M03, FASE 3 point 3.6, INV-U08), reworked by
- * docs/specs/contrasena-temporal.md: the Administrador types a NEW TEMPORARY
+ * openspec/specs/contrasena-temporal/spec.md: the Administrador types a NEW TEMPORARY
  * password (twice) for the usuario. It replaces the stored hash, sets
  * `debeCambiarPassword` (so the usuario must change it at the next login),
  * clears the failed-login lock and revokes every open session. The PIN is

@@ -10,7 +10,7 @@
  * `ACTIVO` (PENDIENTE_ACTIVACION / SUSPENDIDO / BAJA), or a tenant with
  * `fecha_baja` set.
  *
- * It is also the gate of the pending steps (docs/specs/contrasena-temporal.md):
+ * It is also the gate of the pending steps (openspec/specs/contrasena-temporal/spec.md):
  * a valid session that still has to change a temporary password or configure
  * its PIN is rejected with `PasosPendientesError` -- so EVERY use case and page
  * is blocked by default -- unless the caller passes `permitirPasosPendientes`

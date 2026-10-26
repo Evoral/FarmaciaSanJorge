@@ -8,7 +8,7 @@
  * Cost basis (kept in exactly this one function so it can change without
  * hunting call sites):
  * ============================================================================
- * Two sources, chosen PER LÍNEA (docs/specs/costos-proveedor.md, R25-R30):
+ * Two sources, chosen PER LÍNEA (openspec/specs/costos-proveedor/spec.md, R25-R30):
  *
  *   - `PROVEEDOR`: the línea's droga has a usable costo de proveedor (the
  *     caller looked it up and passes it as `costoProveedor`). The línea costs
@@ -35,7 +35,7 @@
  * database exists.
  *
  * Manual-enrase lines (esEnraseManual = true) have NO computable quantity
- * -- R4/R5/R6 of docs/specs/ficha-tecnica.md explicitly leave
+ * -- R4/R5/R6 of openspec/specs/ficha-tecnica/spec.md explicitly leave
  * `cantidadAPesar = null` for them. They contribute EXACTLY 0 to
  * `costoInsumos` and set `esParcial = true` on the result -- a quantity is
  * NEVER invented for them, per the task's own instruction.
@@ -85,7 +85,7 @@ export interface LineaCosteoInput {
   drogaId: string;
   drogaNombre: string;
   unidadSimbolo: string;
-  /** In `unidad` (the línea's unit). `null` when `esEnraseManual` (docs/specs/ficha-tecnica.md). */
+  /** In `unidad` (the línea's unit). `null` when `esEnraseManual` (openspec/specs/ficha-tecnica/spec.md). */
   cantidadAPesar: Decimal | string | null;
   /** The línea's unit (its magnitud's base unit, `unidadSimbolo`). */
   unidad: UnidadDeConversion;
@@ -397,7 +397,7 @@ export function calcularCotizacion(
 }
 
 // ============================================================================
-// Several items of ONE receta against the SAME stock (docs/specs/presupuesto-receta.md)
+// Several items of ONE receta against the SAME stock (openspec/specs/presupuesto-receta/spec.md)
 // ============================================================================
 
 /**

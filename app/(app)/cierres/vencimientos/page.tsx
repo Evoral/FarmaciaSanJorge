@@ -1,7 +1,7 @@
 /**
  * `/cierres/vencimientos` -- "Gestión DT › Vencimientos": the DROGA
  * partidas with saldo that wait on the Director Técnico
- * (docs/specs/reanalisis-partida.md; insumos are excluded, as in the spec).
+ * (openspec/specs/reanalisis-partida/spec.md; insumos are excluded, as in the spec).
  * Two groups: "Vencidas -- requieren acción" (blocked until the DT registers
  * a reanálisis or marks them as vencidas) and "Por vencer" (within
  * `dias_alerta_vencimiento_partida`).

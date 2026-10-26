@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Filtrar por partida" control of the droga Historial table (docs/specs/historial-droga.md,
+ * "Filtrar por partida" control of the droga Historial table (openspec/specs/historial-droga/spec.md,
  * "Filtro por partida"). An AUTOCOMPLETE over the droga's partidas that have at
  * least one consumption and are NOT selected yet (typing narrows them; picking
  * one adds it), plus one chip per selected partida (its × drops that partida,

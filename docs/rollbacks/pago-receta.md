@@ -1,6 +1,6 @@
 # Rollback: Pago de la receta (`receta.pagada`, `pagada_en`, `pagada_por_id`)
 
-Spec: `docs/specs/pago-receta.md`. One database change (migration 0071: three columns, a CHECK, a FK, a
+Spec: `openspec/specs/pago-receta/spec.md`. One database change (migration 0071: three columns, a CHECK, a FK, a
 trigger/function for INV-R13 and the INV-U07 triggers recreated with one more column) and the code that reads
 and writes them: alta (manual and PDF/QR import), entrega, the receta detail, the `/recetas` listado and its CSV.
 
@@ -27,7 +27,7 @@ forward direction: **APPLY 0071 BEFORE deploying this code.**
 - `modules/recetas/domain/pago.ts`
 - `modules/recetas/application/marcar-pago-receta.ts`
 - `modules/recetas/ui/pago-receta-form.tsx`
-- `docs/specs/pago-receta.md`, and this file once the revert is done (optional)
+- `openspec/specs/pago-receta/spec.md`, and this file once the revert is done (optional)
 
 ### Edited files (revert only these hunks)
 - `modules/recetas/application/crear-receta.ts`, `importar-receta.ts`: the `pagada` input field, the argument to `insertRecetaConItems` and the audit key.
@@ -43,7 +43,7 @@ forward direction: **APPLY 0071 BEFORE deploying this code.**
 - `modules/entregas/application/registrar-entrega.ts`, `get-entrega-estado.ts`, `modules/entregas/infrastructure/entrega-repository.ts` (`pagada` in `RecetaParaEntrega`, `marcarRecetaPagada`), `modules/entregas/ui/actions.ts`, `entrega-acciones.tsx`, `registrar-entrega-form.tsx`, and the two `/entregas/[recetaId]` pages (`pagada` prop).
 - `shared/errors/mensajes-invariantes.ts`: the `INV-R13` entry (the scan in `tests/unit/mensajes-invariantes-global.test.ts` only requires entries for codes the migrations raise, so remove it together with the migration).
 - `shared/labels/field-labels.ts`: the `pagada` entry (`tests/unit/usecase-registry-all-modules.test.ts` fails if an input key has no label, not the other way round).
-- `docs/specs/libro-recetario-y-contralor.md` and `modules/README.md`: the one-line pointers to `pago-receta`.
+- `openspec/specs/libro-recetario-y-contralor/spec.md` and `modules/README.md`: the one-line pointers to `pago-receta`.
 
 ## Steps
 

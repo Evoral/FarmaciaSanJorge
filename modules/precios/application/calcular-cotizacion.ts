@@ -16,7 +16,7 @@
  *
  * The costing itself (jornada + partidas + pure calculator) is
  * `cotizarLineas`, shared with the in-memory presupuesto of a receta draft
- * (docs/specs/presupuesto-receta.md); the "no ficha" / "no regla" errors
+ * (openspec/specs/presupuesto-receta/spec.md); the "no ficha" / "no regla" errors
  * are `CotizacionNoCalculableError` (same messages, plus a stable code).
  */
 import { z } from "zod";

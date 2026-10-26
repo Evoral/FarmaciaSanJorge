@@ -149,7 +149,7 @@ const EXPECTED_ROL_PERMISOS: Record<string, string[]> = {
     "stock.valorizado.ver",
     "stock.ver",
   ].sort(),
-  // Migration 0077 (docs/specs/cuentas-de-sector.md): the elaboración work area.
+  // Migration 0077 (openspec/specs/cuentas-de-sector/spec.md): the elaboración work area.
   LABORATORIO: [
     "auth.login",
     "auth.logout",

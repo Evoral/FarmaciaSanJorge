@@ -5,7 +5,7 @@
  * and médico search/quick-create REUSE modules/pacientes' and
  * modules/medicos' own application-layer use cases directly (`listPacientes`/
  * `crearPacienteDesdeReceta`, `listMedicos`/`crearMedicoDesdeReceta` -- the
- * quick-creates are gated on `recetas.crear`, docs/specs/importacion-receta-pdf.md
+ * quick-creates are gated on `recetas.crear`, openspec/specs/importacion-receta-pdf/spec.md
  * "Permisos") -- not their `ui/actions.ts`
  * (which don't return the created id, needed here to auto-select the new
  * paciente/médico in the receta form) and not their `infrastructure/`
@@ -129,7 +129,7 @@ export async function editarRecetaAction(_prevState: RecetaActionState, formData
 }
 
 /**
- * Live presupuesto of the receta being loaded (docs/specs/presupuesto-receta.md):
+ * Live presupuesto of the receta being loaded (openspec/specs/presupuesto-receta/spec.md):
  * called from the form (debounced), not a `<form action>`. Writes nothing.
  */
 export async function presupuestarRecetaAction(itemsJson: string): Promise<PresupuestoState> {
@@ -142,7 +142,7 @@ export async function presupuestarRecetaAction(itemsJson: string): Promise<Presu
 }
 
 // ============================================================================
-// Importación desde PDF (docs/specs/importacion-receta-pdf.md): read (a
+// Importación desde PDF (openspec/specs/importacion-receta-pdf/spec.md): read (a
 // query -- nothing is saved) and confirm (`recetas.importar`). The file
 // travels only in this POST's multipart body and lives in memory.
 // ============================================================================
@@ -240,7 +240,7 @@ export async function buscarPacientesParaRecetaAction(prevState: BuscarPersonaSt
 }
 
 /**
- * The picked cliente's domicilios, to prefill the receta (docs/specs/domicilios.md). Same use case and permiso as the
+ * The picked cliente's domicilios, to prefill the receta (openspec/specs/domicilios/spec.md). Same use case and permiso as the
  * cliente's ficha (`getPaciente`, `pacientes.gestionar`, like the search above); POST only, never a URL (DP-24).
  * `null` when it cannot be read: the receta form then just keeps what was typed.
  */

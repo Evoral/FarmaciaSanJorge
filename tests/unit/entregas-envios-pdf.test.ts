@@ -1,5 +1,5 @@
 /**
- * "Exportar envíos" (docs/specs/envios-repartidores.md, plan item 6): input validation of `imprimirEnviosPdf`, the
+ * "Exportar envíos" (openspec/specs/envios-repartidores/spec.md, plan item 6): input validation of `imprimirEnviosPdf`, the
  * `cotizaciones.ver` gate of the Importe column (E10), the repartidor lookup, the file name (no patient data), the
  * pure rules of the hoja (`domain/hoja-envios.ts`), the table's shape and a PDF smoke test. Mocked repository/tx, no
  * DB: the SQL of `listEnviosDeRepartidor` is covered by the shared DB, not here.

@@ -1,6 +1,6 @@
 /**
  * `importarReceta` -- confirmation of a receta PDF import
- * (docs/specs/importacion-receta-pdf.md, "Confirmación -- comando
+ * (openspec/specs/importacion-receta-pdf/spec.md, "Confirmación -- comando
  * `recetas.importar`"). Permiso `recetas.crear`. ONE transaction:
  *
  *   1. paciente and médico: alta if new, otherwise complete ONLY their
@@ -14,7 +14,7 @@
  *      (`drogaAliasId`, migration 0069; see below);
  *   4. one audit row per alta/modificación (INV-A01).
  *
- * Synonyms of the componentes (docs/specs/sinonimos-droga.md, "Nombre
+ * Synonyms of the componentes (openspec/specs/sinonimos-droga/spec.md, "Nombre
  * elegido al cargar"): a componente the preview matched through a synonym
  * arrives with that `drogaAliasId` (validated like the manual alta). For
  * "recordar esta equivalencia", the client also says which componentes
@@ -106,7 +106,7 @@ export const importarRecetaInput = z
     /** Migration 0099: where the envío goes (NULL = the domicilio above). Prefilled from the cliente, never written to it. */
     domicilioEntrega: domicilioPacienteOpcional,
     /**
-     * `true` when `domicilioPaciente` is the one the document brought, unchanged (docs/specs/domicilios.md): only then it
+     * `true` when `domicilioPaciente` is the one the document brought, unchanged (openspec/specs/domicilios/spec.md): only then it
      * becomes the cliente's. One typed or corrected by hand stays on the receta. Omitted = `false`.
      */
     domicilioDelDocumento: z.boolean().default(false),
@@ -185,7 +185,7 @@ async function auditar(
 
 /**
  * Alta or completion of the paciente; returns its id and a readable name for the receta's audit row. The receta's
- * domicilio, when it brings one, becomes the cliente's (docs/specs/domicilios.md): set at the alta, overwritten on an
+ * domicilio, when it brings one, becomes the cliente's (openspec/specs/domicilios/spec.md): set at the alta, overwritten on an
  * existing cliente. Its domicilio de entrega is never touched (ficha only).
  */
 async function resolverPaciente(ctx: Contexto, input: ImportarRecetaInput["paciente"], domicilio: string | null): Promise<{ id: string; nombre: string }> {
@@ -297,7 +297,7 @@ export const importarRecetaCommand = defineCommand({
     const medico = await resolverMedico(ctx, input.medico);
     const nombresBase = await getNombresParaResumen(tx, session.tenantId, drogaIds, unidadIds);
 
-    // "Recordar esta equivalencia" = add the text as a synonym of the chosen droga (docs/specs/sinonimos-droga.md):
+    // "Recordar esta equivalencia" = add the text as a synonym of the chosen droga (openspec/specs/sinonimos-droga/spec.md):
     // idempotent for the same droga, a conflict when a vigente synonym points to another one. A text that already IS
     // a vigente droga's name is never remembered (a synonym cannot repeat a droga's name): it resolves by name.
     // Their audit rows are written after the receta's, as before.

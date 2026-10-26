@@ -42,7 +42,7 @@ const PAGE_SIZE = 20;
  * Link to the receta form. It MUST be a plain `<a>` (a full page load), not a `<Link>`:
  * Permissions-Policy is fixed per document load, so a soft navigation from here would keep
  * this page's `camera=()` and the QR import could not use the camera
- * (next.config.ts, docs/specs/importacion-receta-qr.md). Any new link to this route needs the same.
+ * (next.config.ts, openspec/specs/importacion-receta-qr/spec.md). Any new link to this route needs the same.
  */
 const HREF_NUEVA_RECETA = "/recetas/nuevo";
 

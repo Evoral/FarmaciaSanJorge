@@ -1,5 +1,5 @@
 /**
- * DB tests for migration 0097_contrasena_temporal (docs/specs/contrasena-temporal.md): the new
+ * DB tests for migration 0097_contrasena_temporal (openspec/specs/contrasena-temporal/spec.md): the new
  * `fsj.usuario.debe_cambiar_password` flag, its column-level UPDATE grant to `fsj_app`, and the one-off revocation of
  * every live `credencial_activacion`. Same raw-`pg` + `asOwner` + `inRollbackTx` harness as tests/db/auth-pin.test.ts.
  */

@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 /**
  * Allowlist of use cases that may run while a mandatory step is pending
- * (docs/specs/contrasena-temporal.md, CT2/CT3). Every OTHER registered use
+ * (openspec/specs/contrasena-temporal/spec.md, CT2/CT3). Every OTHER registered use
  * case, present or future, is blocked by the pipeline behind pending steps;
  * opting in (`permitirPasosPendientes: true`) must be a conscious, reviewed
  * change to this list.

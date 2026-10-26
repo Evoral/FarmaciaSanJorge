@@ -105,12 +105,12 @@ export const crearRecetaInput = z.object({
   diagnosticoCodigo: diagnosticoCodigoOpcional,
   diagnosticoDescripcion: textoOpcional,
   domicilioPaciente: domicilioPacienteOpcional,
-  /** Migration 0099 (docs/specs/domicilios.md): where the envío goes; `null` = the domicilio above. */
+  /** Migration 0099 (openspec/specs/domicilios/spec.md): where the envío goes; `null` = the domicilio above. */
   domicilioEntrega: domicilioPacienteOpcional,
   /** Migration 0071: the receta is created already paid. The server sets who and when (`pagadaEn`/`pagadaPorId`), never the client. */
   pagada: z.boolean().default(false),
   items: z.array(itemInput).min(1, "La receta debe tener al menos un ítem."),
-  /** Migration 0102 (docs/specs/alta-receta-idempotente.md): generated once per form instance; a resubmit finds the receta it already created. */
+  /** Migration 0102 (openspec/specs/alta-receta-idempotente/spec.md): generated once per form instance; a resubmit finds the receta it already created. */
   envioId: uuid.optional(),
 });
 

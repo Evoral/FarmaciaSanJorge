@@ -1,5 +1,5 @@
 /**
- * Contraseña temporal (docs/specs/contrasena-temporal.md) x cuentas de sector:
+ * Contraseña temporal (openspec/specs/contrasena-temporal/spec.md) x cuentas de sector:
  * a usuario with a pending password change cannot identify as operador, even
  * with the correct PIN, and that must not count a failed PIN attempt.
  * Mocks mirror tests/unit/cuentas-de-sector-verificar-operador.test.ts.

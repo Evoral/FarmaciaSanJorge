@@ -36,7 +36,7 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
     if (error instanceof AuthenticationError) {
       redirect("/login");
     }
-    // A temporary password or a missing PIN must be resolved first (docs/specs/contrasena-temporal.md).
+    // A temporary password or a missing PIN must be resolved first (openspec/specs/contrasena-temporal/spec.md).
     if (error instanceof PasosPendientesError) {
       redirect(rutaDelPaso(error.paso));
     }
@@ -97,7 +97,7 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
     }
   }
 
-  // Vencimientos of DROGA partidas (docs/specs/reanalisis-partida.md): same
+  // Vencimientos of DROGA partidas (openspec/specs/reanalisis-partida/spec.md): same
   // fail-soft, cheap-aggregate discipline, gated on the permiso the query
   // enforces (`stock.ver`) -- everyone who sees stock alerts, so they warn
   // the DT. It links to the "Gestión DT" tab when the session can
@@ -161,7 +161,7 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
     }
   }
 
-  // The tenant's name and logo for the navbar (docs/specs/logo-farmacia.md). Fail-soft: without it the navbar shows
+  // The tenant's name and logo for the navbar (openspec/specs/logo-farmacia/spec.md). Fail-soft: without it the navbar shows
   // the generic logo and no farmacia name.
   let marca: MarcaTenantVista | null = null;
   try {
@@ -294,7 +294,7 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
     </AppShell>
   );
 
-  // A cuenta de sector (docs/specs/cuentas-de-sector.md): the forms ask which empleado is acting for the acciones con PIN.
+  // A cuenta de sector (openspec/specs/cuentas-de-sector/spec.md): the forms ask which empleado is acting for the acciones con PIN.
   // Only the acciones this account can perform: one it lacks is rejected by authorize() before any PIN matters.
   const permisosConPin = session.sector ? [...session.sector.permisosConPin].filter((permiso) => can(session, permiso)) : null;
   return permisosConPin ? <OperadorProvider permisosConPin={permisosConPin}>{shell}</OperadorProvider> : shell;

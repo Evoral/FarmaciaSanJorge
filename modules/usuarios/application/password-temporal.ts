@@ -1,6 +1,6 @@
 /**
  * The temporary-password pair shared by `crearUsuario` and
- * `restablecerCredencial` (docs/specs/contrasena-temporal.md): the
+ * `restablecerCredencial` (openspec/specs/contrasena-temporal/spec.md): the
  * Administrador types it twice and it must satisfy the TEMPORARY password
  * policy (6 characters, no uppercase; the usuario's own password keeps the
  * full policy). The

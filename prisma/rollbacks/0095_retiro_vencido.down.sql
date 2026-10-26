@@ -68,7 +68,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION fsj.receta_validar_transicion_estado() IS
-  'INV-R08 + docs/specs/libro-recetario-y-contralor.md section 1. No backwards transitions, except (0086, docs/specs/anular-entrega.md) ENTREGADA/ENVIADA_PEND_FIRMA -> PREPARADA once the entrega was moved to fsj.entrega_anulada and the receta is not archived; ANULADA reachable from any non-terminal state; ENTREGADA (otherwise) and ANULADA terminal.';
+  'INV-R08 + openspec/specs/libro-recetario-y-contralor/spec.md section 1. No backwards transitions, except (0086, openspec/specs/anular-entrega/spec.md) ENTREGADA/ENVIADA_PEND_FIRMA -> PREPARADA once the entrega was moved to fsj.entrega_anulada and the receta is not archived; ANULADA reachable from any non-terminal state; ENTREGADA (otherwise) and ANULADA terminal.';
 
 -- 3. INV-ARC-006 / INV-ARC-007 exactly as migration 0051 defined it.
 CREATE OR REPLACE FUNCTION fsj.receta_validar_archivo()

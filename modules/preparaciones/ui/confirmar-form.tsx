@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * The reserva / confirmation form (M11, FASE 8 points 8.2/8.3; docs/specs/reserva-stock-preparacion.md R1, DT decision
+ * The reserva / confirmation form (M11, FASE 8 points 8.2/8.3; openspec/specs/reserva-stock-preparacion/spec.md R1, DT decision
  * 2026-10-15). For every línea it shows, read-only, the AUTOMATIC plan -- which partida (lote, vencimiento, pureza)
  * and how much to take from each, abiertas first then FEFO -- so the lab knows which bottle to grab. The user only
  * types what still needs a human:
- *   - the lot(s) to weigh from, for every línea (docs/specs/pesada-real.md): pre-checked with the automatic plan's
+ *   - the lot(s) to weigh from, for every línea (openspec/specs/pesada-real/spec.md): pre-checked with the automatic plan's
  *     (the oldest first; a recalculation pre-checks the current reserva's); the plan runs over the checked ones, in
  *     the same order. A línea whose partidas differ in purity (R25) warns that the weight depends on the lot;
- *   - the pesada real of a non-manual línea (docs/specs/pesada-real.md): prefilled with the expected weight of the
+ *   - the pesada real of a non-manual línea (openspec/specs/pesada-real/spec.md): prefilled with the expected weight of the
  *     checked lots rounded to the balance (`precision_balanza`); outside `tolerancia_pesada_porcentaje` the form asks
  *     the DT co-firma (`CoFirmaDt`);
  *   - the real quantity of an enrase manual línea (its plan follows it live: `repartirLinea`, the same function the
@@ -80,7 +80,7 @@ export function cantidadValida(texto: string | undefined): Decimal | null {
 }
 
 /**
- * The plan of a línea over the checked lots (docs/specs/pesada-real.md), in consumption order: a non-manual one covers
+ * The plan of a línea over the checked lots (openspec/specs/pesada-real/spec.md), in consumption order: a non-manual one covers
  * its cantidadAPesar in ACTIVE terms (purity per partida); an enrase manual one the typed quantity (línea unit,
  * converted into the droga's unidad base, no purity correction) -- exactly what the server will do. `"elegir"` = no
  * lot checked while the droga has some.
@@ -151,7 +151,7 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
   const [motivos, setMotivos] = useState<Record<string, string>>(() =>
     Object.fromEntries(datos.lineas.flatMap((l) => (l.reserva?.motivoAperturaAdicional ? [[l.id, l.reserva.motivoAperturaAdicional]] : []))),
   );
-  // The checked lots of each línea (docs/specs/pesada-real.md; a recalculation starts from the current reserva's).
+  // The checked lots of each línea (openspec/specs/pesada-real/spec.md; a recalculation starts from the current reserva's).
   const [elegidas, setElegidas] = useState<Record<string, string[]>>(() =>
     Object.fromEntries(datos.lineas.map((l) => [l.id, lotesPorDefecto(l, datos.jornadaActual)])),
   );
@@ -328,7 +328,7 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
 
         {requiereCoFirma ? <CoFirmaDt dts={datos.dts} titulo="Co-firma del Director Técnico (pesada fuera de tolerancia)" /> : null}
 
-        {/* docs/specs/vencimiento-preparado.md R10: dated only when confirming, never on a reserva. */}
+        {/* openspec/specs/vencimiento-preparado/spec.md R10: dated only when confirming, never on a reserva. */}
         {esReserva ? null : (
           <TipoVencimientoSelect id="tipoVencimiento" name="tipoVencimiento" label="Vencimiento del preparado" mesesEstandar={datos.mesesVencimientoPreparado} />
         )}
@@ -410,7 +410,7 @@ function PlanLinea({ linea, plan, catalogo, datos }: { linea: LineaPantalla; pla
 }
 
 /**
- * The lot(s) the línea is weighed from (docs/specs/pesada-real.md; consumption order: abiertas first, then FEFO). With
+ * The lot(s) the línea is weighed from (openspec/specs/pesada-real/spec.md; consumption order: abiertas first, then FEFO). With
  * several checked, the first is used up before the next; one that covers the línea is enough. R25: when the partidas
  * differ in purity the weight depends on the lot, and the block says so.
  */
@@ -495,7 +495,7 @@ function ElegirLotes({
 }
 
 /**
- * The pesada real of a non-manual línea (docs/specs/pesada-real.md): what the balance showed, prefilled with the
+ * The pesada real of a non-manual línea (openspec/specs/pesada-real/spec.md): what the balance showed, prefilled with the
  * expected weight of the checked lots rounded to the balance. Shows the deviation once typed; outside the tolerance
  * the form adds the DT co-firma (the server re-checks everything).
  */

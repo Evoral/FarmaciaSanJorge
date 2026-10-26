@@ -1,6 +1,6 @@
 /**
  * PDF layout for a preparación's etiqueta (M11, point 8.5), a copy of the
- * farmacia's real printed label (docs/specs/etiqueta-preparado.md): a rounded
+ * farmacia's real printed label (openspec/specs/etiqueta-preparado/spec.md): a rounded
  * border; a top band with the logo and, across a vertical rule, the director
  * técnico, the domicilio and the two phones; below, "Rp/" with the fórmula on
  * the left and, on the right, the paciente, the receta number, the dosis, the
@@ -20,7 +20,7 @@
  * the label size the caller chooses (one of the sizes the administrator
  * configured -- modules/etiqueta-tamanos); the layout is not re-flowed per size.
  * The PDF page is the SHEET the farmacia prints on (modules/etiqueta-tamanos, spec
- * docs/specs/hoja-etiquetas.md R6), not the label: the label is drawn inside the cell
+ * openspec/specs/hoja-etiquetas/spec.md R6), not the label: the label is drawn inside the cell
  * (columna, fila) of the sheet's grid the user picked and the rest of the page stays
  * blank, so the printer drops it in that spot.
  *
@@ -346,7 +346,7 @@ function seSuperponen(a: Rectangulo, b: Rectangulo): boolean {
 }
 
 /**
- * Several etiquetas in ONE PDF (the toma's single "Imprimir", docs/specs/hoja-etiquetas.md R14), in the given order:
+ * Several etiquetas in ONE PDF (the toma's single "Imprimir", openspec/specs/hoja-etiquetas/spec.md R14), in the given order:
  * each in its own cell of the SAME sheet while they do not overlap -- the farmacia prints them all on one sheet -- and
  * a new page (sheet) when one would overlap an etiqueta already on the current page (e.g. two left on 1 / 1).
  */

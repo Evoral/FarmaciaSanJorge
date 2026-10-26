@@ -1,5 +1,5 @@
 /**
- * `verificarOperadorEnTx` (docs/specs/cuentas-de-sector.md): in a cuenta de
+ * `verificarOperadorEnTx` (openspec/specs/cuentas-de-sector/spec.md): in a cuenta de
  * sector's shared session, proves WHICH empleado is acting. Called by the
  * use-case pipeline (shared/usecase.ts) for the acciones the farmacia asks a
  * PIN for, in a short transaction of its own that commits BEFORE the
@@ -13,7 +13,7 @@
  * would roll it back and defeat the block.
  *
  * A usuario with a temporary password still to be replaced
- * (`debeCambiarPassword`, docs/specs/contrasena-temporal.md) is not eligible
+ * (`debeCambiarPassword`, openspec/specs/contrasena-temporal/spec.md) is not eligible
  * either: rejected like any other ineligible candidate, without counting a
  * failed PIN attempt.
  *

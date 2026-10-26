@@ -1,5 +1,5 @@
 /**
- * `registrarReanalisisPartida` (docs/specs/reanalisis-partida.md, migration
+ * `registrarReanalisisPartida` (openspec/specs/reanalisis-partida/spec.md, migration
  * 0074). The Director Técnico vigente re-analyses a DROGA partida (vencida,
  * por vencer or vigente) and records the new date -- the "fecha de
  * reanálisis" -- with an optional motivo and respaldo (certificado de

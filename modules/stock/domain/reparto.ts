@@ -10,7 +10,7 @@
  *     VIGENTE (`partida.fecha_vencimiento_vigente`, migration 0074: the
  *     latest reanálisis, else the original date) -- callers must load that
  *     column, never the original `fecha_vencimiento`
- *     (docs/specs/reanalisis-partida.md).
+ *     (openspec/specs/reanalisis-partida/spec.md).
  *   - INV-S16/S18: if an ABIERTA partida (fechaApertura not null) exists
  *     for this droga, it is consumed FIRST -- opening a second one is a
  *     separate [APP] decision (motivo_apertura_adicional) outside this

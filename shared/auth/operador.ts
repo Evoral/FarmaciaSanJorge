@@ -1,5 +1,5 @@
 /**
- * Public "who is acting on a shared session" API (docs/specs/cuentas-de-sector.md).
+ * Public "who is acting on a shared session" API (openspec/specs/cuentas-de-sector/spec.md).
  * Thin facade over `modules/auth` -- see `./session.ts` for why this
  * indirection exists (shared/usecase.ts must not import `modules/*`).
  * The request-scoped carrier of the credential is `./operador-context.ts`.

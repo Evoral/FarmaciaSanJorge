@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Importar lista" (/costos-proveedor/importar, docs/specs/costos-proveedor.md R13): two steps in one screen.
+ * "Importar lista" (/costos-proveedor/importar, openspec/specs/costos-proveedor/spec.md R13): two steps in one screen.
  *
  *   1. proveedor (autocomplete), fecha de la lista and the .xls or .xlsx file. Reading starts as soon as a file is picked
  *      (same interaction as the invoice import, modules/stock/ui/importar-factura-pdf.tsx): the file is sent to

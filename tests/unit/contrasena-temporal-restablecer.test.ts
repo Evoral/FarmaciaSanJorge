@@ -1,6 +1,6 @@
 /**
  * Unit tests for `restablecerCredencial` as "assign a temporary password"
- * (docs/specs/contrasena-temporal.md): stubbed tx, mocked repository, same
+ * (openspec/specs/contrasena-temporal/spec.md): stubbed tx, mocked repository, same
  * style as tests/unit/usuarios-m3-lock-order.test.ts.
  *
  *   CT1: neither the plaintext nor the hash reaches the audit row or the output.

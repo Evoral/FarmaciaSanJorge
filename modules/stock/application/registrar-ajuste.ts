@@ -39,7 +39,7 @@
  * movement are always in the unidad base. Only the saldo-exceeded message
  * and the audit row also carry the quantity as entered.
  *
- * Reservas de stock (migration 0071, docs/specs/reserva-stock-preparacion.md):
+ * Reservas de stock (migration 0071, openspec/specs/reserva-stock-preparacion/spec.md):
  * an ajuste can only consume the FREE part of the partida -- saldo físico
  * minus what preparaciones INICIADA reserved. Otherwise it is refused with
  * the reserved amount and the recetas holding it (release or modify the

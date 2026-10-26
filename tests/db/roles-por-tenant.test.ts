@@ -1,6 +1,6 @@
 /**
  * DB tests for migration 0054 (DP-03 RESUELTA: per-tenant, editable,
- * audited roles -- docs/specs/roles-personalizables.md):
+ * audited roles -- openspec/specs/roles-personalizables/spec.md):
  *   - RLS isolation of fsj.rol / fsj.rol_permiso across tenants (fsj_app);
  *   - composite FK usuario_rol (tenant_id, rol_id): no cross-tenant role;
  *   - FK to the global permiso catalog: an unknown permiso is impossible;

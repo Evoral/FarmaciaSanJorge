@@ -1,6 +1,6 @@
 # Rollback: Receta entregada siempre pagada
 
-Spec: `docs/specs/pago-receta.md` (P4, P5, INV-R14). The feature has a **schema
+Spec: `openspec/specs/pago-receta/spec.md` (P4, P5, INV-R14). The feature has a **schema
 change** (migration `prisma/migrations/20261013120000_0076_receta_entregada_pagada`),
 so it is reverted as code + a new forward migration built from
 `prisma/rollbacks/0076_receta_entregada_pagada.down.sql`.

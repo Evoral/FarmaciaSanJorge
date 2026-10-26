@@ -2,7 +2,7 @@
 
 /**
  * `/admin/accesos/usuarios/[id]` "Asignar contraseña temporal" action (M03,
- * FASE 3 point 3.6, INV-U08; docs/specs/contrasena-temporal.md). The
+ * FASE 3 point 3.6, INV-U08; openspec/specs/contrasena-temporal/spec.md). The
  * Administrador types a new temporary password twice; the usuario's open
  * sessions are closed and they must change it at the next login. Nothing
  * secret comes back, so there is no one-time display.

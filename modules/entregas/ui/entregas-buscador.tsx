@@ -30,7 +30,7 @@ const ETIQUETA_ACCION_ENVIADA = "Esperando retorno";
 
 const numberFormat = new Intl.NumberFormat("es-AR");
 
-/** The row button: "Entregar" for a PREPARADA receta, a look-only "Ver" once the retiro expired (docs/specs/retiro-vencido.md). */
+/** The row button: "Entregar" for a PREPARADA receta, a look-only "Ver" once the retiro expired (openspec/specs/retiro-vencido/spec.md). */
 function etiquetaAccion(estado: EntregaPendienteItem["estado"]): string {
   if (estado === "ENVIADA_PEND_FIRMA") return ETIQUETA_ACCION_ENVIADA;
   if (estado === "RETIRO_VENCIDO") return "Ver";

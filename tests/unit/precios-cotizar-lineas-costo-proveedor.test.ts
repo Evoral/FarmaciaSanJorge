@@ -1,6 +1,6 @@
 /**
  * Which costo de proveedor a cotización is quoted with and how it reaches the
- * calculator (docs/specs/costos-proveedor.md R26, R27, R34; CP14), with the
+ * calculator (openspec/specs/costos-proveedor/spec.md R26, R27, R34; CP14), with the
  * repositories mocked (no DB): `costosProveedorParaCotizar` (the choice) and
  * `cotizarLineas` / `cotizarItemsAcumulado` (the wiring).
  */

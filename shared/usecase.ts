@@ -36,7 +36,7 @@
  *
  * Commands have one more step right after `authorize`: `resolverActor`
  * (below). In a cuenta de sector -- a session shared by the empleados of a
- * work area, docs/specs/cuentas-de-sector.md -- the acciones the farmacia
+ * work area, openspec/specs/cuentas-de-sector/spec.md -- the acciones the farmacia
  * asks a PIN for are attributed to the empleado who identified themselves
  * in that request, not to the shared account. Queries never ask for it.
  *
@@ -120,7 +120,7 @@ export interface DefineCommandConfig<TInput, TOutput> {
    * password (co-firma).
    */
   requireRecentReauth?: { maxAgeMinutes: number };
-  /** Only the flows that resolve a pending step (change the temporary password, configure the PIN) set this: every other use case is blocked while the session has pending steps (docs/specs/contrasena-temporal.md). */
+  /** Only the flows that resolve a pending step (change the temporary password, configure the PIN) set this: every other use case is blocked while the session has pending steps (openspec/specs/contrasena-temporal/spec.md). */
   permitirPasosPendientes?: true;
   handler: (args: CommandHandlerArgs<TInput>) => Promise<CommandHandlerResult<TOutput>>;
 }
@@ -297,7 +297,7 @@ async function authorizeAuditado(session: AuthenticatedSession, casoDeUso: strin
 }
 
 /**
- * Who a command is attributed to (docs/specs/cuentas-de-sector.md). For an
+ * Who a command is attributed to (openspec/specs/cuentas-de-sector/spec.md). For an
  * individual session, and for a cuenta de sector's acciones the farmacia
  * does not ask a PIN for, that is the session itself. For an acción "con
  * PIN" in a cuenta de sector it is the empleado who identified themselves

@@ -72,7 +72,7 @@ The ESLint config enforces most of these rules. Full rationale: `docs/architectu
 - **Shared sessions (cuentas de sector).** A Server Action that runs an acción
   listed in `PERMISOS_CON_PIN_CONFIGURABLES` or `PERMISOS_CON_PIN_SIEMPRE` wraps its body in `conOperador`
   (`shared/auth/operador-context.ts`); never read the acting user from anywhere
-  but `session.usuario`. Spec: `docs/specs/cuentas-de-sector.md`.
+  but `session.usuario`. Spec: `openspec/specs/cuentas-de-sector/spec.md`.
 - Follow the patterns of the nearest existing module; don't introduce new ones
   without a reason stated in the change.
 
@@ -91,7 +91,7 @@ The ESLint config enforces most of these rules. Full rationale: `docs/architectu
 | Change | Do |
 |---|---|
 | Small fix (1–2 files) | Just fix it. |
-| Feature or business-rule change | Read/update `docs/specs/<feature>.md` first. If the implementation changes a rule, update the spec in the same commit. |
+| Feature or business-rule change | Read/update `openspec/specs/<feature>/spec.md` first. A new feature goes through `openspec/changes/<change>/` (workflow: `openspec/README.md`). If the implementation changes a rule, update the spec in the same commit. |
 | Schema change or multi-module change | Spec + `docs/rollbacks/<feature>.md` + `.down.sql`. Prefer a review by a different agent/vendor than the one that implemented it. |
 
 ### Keeping this file useful
@@ -105,7 +105,7 @@ The ESLint config enforces most of these rules. Full rationale: `docs/architectu
 
 | Before touching... | Read |
 |---|---|
-| Any business feature | `docs/specs/<feature>.md` (most specs link the code they govern) |
+| Any business feature | `openspec/specs/<feature>/spec.md` (most specs link the code they govern) |
 | A module you don't know | `modules/README.md` (module map) |
 | Auth, sessions, permissions | `shared/auth/README.md` |
 | Auditing | `shared/audit/README.md` |
@@ -113,4 +113,4 @@ The ESLint config enforces most of these rules. Full rationale: `docs/architectu
 | Deploy | `docs/deploy.md` |
 | Reverting a shipped feature | `docs/rollbacks/<feature>.md` |
 | Original plan (modules `M00`–`M16`, invariants `INV-*`, pending decisions `DP-*`) | `docs/plan-implementacion.md` — search, don't read |
-| Ideas not yet approved | `docs/propuestas/` — not a source of truth |
+| Ideas and changes not yet archived | `openspec/changes/<change>/` — not a source of truth until archived |

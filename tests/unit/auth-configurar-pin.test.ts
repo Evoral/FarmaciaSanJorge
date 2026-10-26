@@ -1,7 +1,7 @@
 /**
  * Unit tests for `modules/auth/application/configurar-pin.ts` («Mi cuenta»):
  * cuentas de sector and usuarios whose only role is Administrador have no PIN
- * (docs/specs/contrasena-temporal.md, CT6/CT9), so the command rejects them
+ * (openspec/specs/contrasena-temporal/spec.md, CT6/CT9), so the command rejects them
  * server-side even though the panel is hidden. Same mocking style as
  * tests/unit/auth-configurar-pin-obligatorio.test.ts.
  */

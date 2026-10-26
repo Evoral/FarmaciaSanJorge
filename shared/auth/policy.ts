@@ -123,7 +123,7 @@ export function validatePassword(password: string): string[] {
 
 /**
  * Policy for a TEMPORARY password typed by the Administrador (user decision,
- * 2026-10-23; docs/specs/contrasena-temporal.md): at least
+ * 2026-10-23; openspec/specs/contrasena-temporal/spec.md): at least
  * `AUTH_POLICY.minTemporaryPasswordLength` characters and no uppercase
  * requirement, since the usuario must replace it on first login. The internal
  * technical guards are the very same objects as in `PASSWORD_REQUIREMENTS`.

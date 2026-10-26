@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Step 1 of docs/specs/contrasena-temporal.md: the usuario replaces the temporary
+ * Step 1 of openspec/specs/contrasena-temporal/spec.md: the usuario replaces the temporary
  * password an administrator set. Submits through `useFormSubmit` so a rejected
  * password (too weak, same as the temporary one...) keeps what was typed.
  */

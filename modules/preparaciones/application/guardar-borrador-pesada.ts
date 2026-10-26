@@ -1,5 +1,5 @@
 /**
- * `guardarBorradorPesada` (migration 0090, docs/specs/pesada-real.md "Pesada en la ficha"): the toma workspace saves
+ * `guardarBorradorPesada` (migration 0090, openspec/specs/pesada-real/spec.md "Pesada en la ficha"): the toma workspace saves
  * each línea of a ficha técnica as the lab fills it in while weighing -- the lots in the order they are used and the
  * real weighing (or an enrase manual línea's quantity, or the INV-S18 motivo) -- so nothing typed is lost before
  * "Marcar como preparada". A draft: nothing is reserved, descontado or registered; the reserva re-validates

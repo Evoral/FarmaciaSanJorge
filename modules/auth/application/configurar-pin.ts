@@ -13,7 +13,7 @@
  * permission for "manage my own credential", granted to every role.
  *
  * Cuentas de sector and usuarios whose only role is Administrador have no
- * PIN (docs/specs/contrasena-temporal.md, CT6/CT9): «Mi cuenta» hides the
+ * PIN (openspec/specs/contrasena-temporal/spec.md, CT6/CT9): «Mi cuenta» hides the
  * panel for them, and this command rejects them server-side as well.
  */
 import { z } from "zod";

@@ -40,9 +40,9 @@ BASE DE REVISIÓN
 FUENTES DE VERDAD (leer antes de evaluar)
 - `AGENTS.md`: reglas no negociables del repositorio.
 - `docs/architecture.md`, `shared/auth/README.md`, `shared/audit/README.md`, `modules/README.md`.
-- `docs/specs/*.md`: reglas de negocio aprobadas; contrasta el código contra ellas.
+- `openspec/specs/*/spec.md`: reglas de negocio aprobadas; contrasta el código contra ellas.
 - `docs/plan-implementacion.md`: NO lo leas completo; busca referencias `INV-*` y `DP-*` concretas.
-- `docs/propuestas/`: no es fuente de verdad.
+- `openspec/changes/` (salvo `archive/`): cambios en curso, no son fuente de verdad.
 - `eslint.config.*`: qué reglas de arquitectura ya se garantizan estáticamente; verifica que existan y que no tengan excepciones en lugar de re-auditarlas a mano.
 Lo que digan estos documentos es una afirmación a verificar, no un hecho.
 
@@ -149,10 +149,10 @@ Pendientes que la parte 1 derivó a esta:
 - `shared/usecase.ts` (`defineCommand`/`defineQuery`): orden efectivo requireSession → authorize → zod → transacción → audit, y diferencias legítimas entre comandos y consultas.
 - Todos los Route Handlers de `app/api/**/route.ts`: para cada uno, indica si pasa por un caso de uso de `application/` o accede a datos por otro camino, qué permiso exige y si valida que el recurso pedido por ID pertenece al tenant (IDOR). Preséntalo como tabla.
 - Server Actions de `app/` y `modules/*/ui/actions.ts`: alguna que llame a infraestructura directamente o que omita `authorize`.
-- `conOperador` (`shared/auth/operador-context.ts`) contra `docs/specs/cuentas-de-sector.md`: todas las acciones de `PERMISOS_CON_PIN_SIEMPRE` y `PERMISOS_CON_PIN_CONFIGURABLES` lo usan; ninguna toma el actor de otra fuente que `session.usuario`; no se puede suplantar al operador.
+- `conOperador` (`shared/auth/operador-context.ts`) contra `openspec/specs/cuentas-de-sector/spec.md`: todas las acciones de `PERMISOS_CON_PIN_SIEMPRE` y `PERMISOS_CON_PIN_CONFIGURABLES` lo usan; ninguna toma el actor de otra fuente que `session.usuario`; no se puede suplantar al operador.
 - PIN y login: límite de intentos, bloqueo, comparación en tiempo constante, algoritmo de hash y parámetros.
 - Sesión: cookies (HttpOnly, Secure, SameSite), expiración, revocación, rotación tras login.
-- Escalamiento de privilegios en roles personalizables (`docs/specs/roles-personalizables.md`): un usuario puede otorgarse permisos que no tiene.
+- Escalamiento de privilegios en roles personalizables (`openspec/specs/roles-personalizables/spec.md`): un usuario puede otorgarse permisos que no tiene.
 - `/api/jobs/*`: validación de `CRON_SECRET` (rechazo sin header, comparación en tiempo constante, comportamiento si la variable no está definida).
 - `/api/health`: no debe exponer versión, estado de conexión ni datos internos.
 - Respuestas de error: no deben revelar stack traces, SQL ni datos de otros tenants.
@@ -180,7 +180,7 @@ Pendientes que las partes 1 y 2 derivaron a esta:
 - Funcionalidades recientes que tocan stock: existencia inicial y relevamiento inicial (migración 0100).
 
 Alcance general
-- Libro recetario (`docs/specs/libro-recetario-y-contralor.md`): correlatividad y unicidad del número de asiento bajo concurrencia (constraint, lock o secuencia), número inicial configurable (migración 0097) y su fijación por el primer cierre firmado, inmutabilidad de cierres firmados (triggers en la base), trazabilidad de cambios.
+- Libro recetario (`openspec/specs/libro-recetario-y-contralor/spec.md`): correlatividad y unicidad del número de asiento bajo concurrencia (constraint, lock o secuencia), número inicial configurable (migración 0097) y su fijación por el primer cierre firmado, inmutabilidad de cierres firmados (triggers en la base), trazabilidad de cambios.
 - Stock: atomicidad de movimientos, reservas (`reserva-stock-preparacion.md`), pesada real (`pesada-real.md`), reglas de stock negativo, orden de locks y riesgo de deadlock o actualizaciones perdidas.
 - Dinero y cantidades: uso de `shared/decimal`; busca aritmética con `number` en precios, costos y cantidades (`reglas-precio.md`, `presupuesto-receta.md`, `pago-receta.md`, `costos-proveedor.md`) y conversiones prematuras a `number`. No marques aritmética no monetaria.
 - Compatibilidad de precisión y escala entre Decimal de la aplicación y columnas `numeric` de la base.
@@ -210,14 +210,14 @@ CONTEXTO DE LAS PARTES 1 A 3 (cerradas, `docs/auditoria/informes/`; no las re-au
 - Rate limiting se resuelve en Vercel Firewall (condición de deploy ya registrada): no lo reportes como hallazgo.
 
 Pendientes que las partes 1 a 3 derivaron a esta
-- Logo (`app/api/farmacia/logo/route.ts` [WIP], `docs/specs/logo-farmacia.md`): tipo real por magic bytes (no solo MIME ni extensión), SVG con scripts o referencias externas, tamaño máximo, almacenamiento en `bytea`, y el `Content-Type`/`Content-Disposition`/`X-Content-Type-Options` con que se sirve de vuelta.
+- Logo (`app/api/farmacia/logo/route.ts` [WIP], `openspec/specs/logo-farmacia/spec.md`): tipo real por magic bytes (no solo MIME ni extensión), SVG con scripts o referencias externas, tamaño máximo, almacenamiento en `bytea`, y el `Content-Type`/`Content-Disposition`/`X-Content-Type-Options` con que se sirve de vuelta.
 - Parsers de archivos subidos por el usuario:
-  - `modules/recetas/domain/receta-pdf-parser.ts` y la extracción con `unpdf` (`docs/specs/importacion-receta-pdf.md`).
-  - Lectura de QR con `jsqr` y `modules/recetas/infrastructure/receta-rcta-api.server.ts` (`docs/specs/importacion-receta-qr.md`): la URL o el dato que sale del QR, ¿puede hacer que el servidor consulte un host arbitrario (SSRF)? Timeouts, tamaño de respuesta, validación de lo que devuelve la API externa.
+  - `modules/recetas/domain/receta-pdf-parser.ts` y la extracción con `unpdf` (`openspec/specs/importacion-receta-pdf/spec.md`).
+  - Lectura de QR con `jsqr` y `modules/recetas/infrastructure/receta-rcta-api.server.ts` (`openspec/specs/importacion-receta-qr/spec.md`): la URL o el dato que sale del QR, ¿puede hacer que el servidor consulte un host arbitrario (SSRF)? Timeouts, tamaño de respuesta, validación de lo que devuelve la API externa.
   - `modules/stock/domain/factura-compra-pdf-parser.ts` (importación de factura de compra).
-  - `modules/costos-proveedor/infrastructure/leer-xls.server.ts` y `leer-xlsx.server.ts` (`docs/specs/costos-proveedor.md`): librería usada, vulnerabilidades conocidas (prototype pollution, ReDoS, zip bomb), límites de filas y tamaño.
+  - `modules/costos-proveedor/infrastructure/leer-xls.server.ts` y `leer-xlsx.server.ts` (`openspec/specs/costos-proveedor/spec.md`): librería usada, vulnerabilidades conocidas (prototype pollution, ReDoS, zip bomb), límites de filas y tamaño.
   - Para todos: límite de tamaño antes de parsear, límite de tiempo, y validación zod de lo extraído antes de que llegue a la base.
-- Exportaciones XLSX con `exceljs` (`app/api/**/xlsx/route.ts`, `docs/specs/exportaciones-excel.md`): inyección de fórmulas en celdas de texto que empiezan con `=`, `+`, `-`, `@`, tabulación o retorno de carro; nombres de paciente, médico, producto y observaciones son texto libre.
+- Exportaciones XLSX con `exceljs` (`app/api/**/xlsx/route.ts`, `openspec/specs/exportaciones-excel/spec.md`): inyección de fórmulas en celdas de texto que empiezan con `=`, `+`, `-`, `@`, tabulación o retorno de carro; nombres de paciente, médico, producto y observaciones son texto libre.
 - PDF con `pdfkit` (`app/api/**/pdf/route.ts`): texto libre interpolado, fuentes o imágenes cargadas desde rutas o URLs derivadas de datos de usuario, nombre de archivo en `Content-Disposition`.
 
 Alcance general

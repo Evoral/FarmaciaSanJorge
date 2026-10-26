@@ -1,4 +1,4 @@
-/** `quitarLogoTenant` (docs/specs/logo-farmacia.md): removes the farmacia's logo; the navbar goes back to the generic one. */
+/** `quitarLogoTenant` (openspec/specs/logo-farmacia/spec.md): removes the farmacia's logo; the navbar goes back to the generic one. */
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { NotFoundError } from "@/shared/errors";

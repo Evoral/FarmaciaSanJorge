@@ -1,6 +1,6 @@
 /**
  * `buscarRepartidores`: the source of every repartidor autocomplete (the envío in the entregas modal, the "Exportar
- * envíos" dialog, docs/specs/envios-repartidores.md "Permisos"). Allowed with `entregas.registrar` OR
+ * envíos" dialog, openspec/specs/envios-repartidores/spec.md "Permisos"). Allowed with `entregas.registrar` OR
  * `repartidores.gestionar`.
  *
  * `defineQuery` takes exactly ONE permiso, so the "either" is two registered queries over the same handler (each one

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The Director Técnico's own actions on a DROGA partida (docs/specs/reanalisis-partida.md), on `/partidas/[id]`
+ * The Director Técnico's own actions on a DROGA partida (openspec/specs/reanalisis-partida/spec.md), on `/partidas/[id]`
  * and inline on each row of "Gestión DT › Vencimientos" (`/cierres/vencimientos`, `compacto` buttons).
  * The page renders them only for a DT vigente (titular or suplente); the commands re-check it, and so does the DB.
  * Each one asks for the DT's OWN password in the same form (no co-firma picker: the DT is the session's usuario).

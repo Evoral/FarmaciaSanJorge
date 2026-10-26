@@ -1,5 +1,5 @@
 /**
- * Existencia inicial / relevamiento inicial (docs/specs/existencia-inicial.md,
+ * Existencia inicial / relevamiento inicial (openspec/specs/existencia-inicial/spec.md,
  * migration 0100). Pure: the window itself is computed in SQL
  * (`fsj.relevamiento_inicial_abierto`, the same function INV-S24 uses), so the
  * app and the DB can never disagree on it; this file holds what the UI and the

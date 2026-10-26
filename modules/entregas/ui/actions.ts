@@ -67,7 +67,7 @@ export async function anularEntregaAction(_prevState: EntregaActionState, formDa
 }
 
 /**
- * "Reactivar" a RETIRO_VENCIDO receta (docs/specs/retiro-vencido.md RV4-RV6). `dtUsuarioId` / `dtPassword` are the DT's
+ * "Reactivar" a RETIRO_VENCIDO receta (openspec/specs/retiro-vencido/spec.md RV4-RV6). `dtUsuarioId` / `dtPassword` are the DT's
  * co-firma, sent only when the form shows it (a preparado vencido); an empty field is "not sent", so the use case, which
  * decides whether the co-firma is needed, answers with the field to fix.
  */

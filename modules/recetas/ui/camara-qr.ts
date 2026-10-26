@@ -1,6 +1,6 @@
 /**
  * Pure decisions behind the camera scanner of the QR import
- * (docs/specs/importacion-receta-qr.md, "Lectura con la cámara"). The scanner
+ * (openspec/specs/importacion-receta-qr/spec.md, "Lectura con la cámara"). The scanner
  * component (escaner-qr-camara.tsx) only gathers plain values from the browser
  * and acts on what these functions answer, so they are testable without a DOM
  * or a camera. Nothing here touches `window`, `navigator` or `document`.

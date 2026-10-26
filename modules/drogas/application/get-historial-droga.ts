@@ -1,5 +1,5 @@
 /**
- * `getHistorialDroga` (docs/specs/historial-droga.md): read-only "every receta
+ * `getHistorialDroga` (openspec/specs/historial-droga/spec.md): read-only "every receta
  * that CONSUMED this droga, and from which partida(s)", for
  * `/catalogos/drogas/[id]/historial`. HEALTH-ADJACENT DATA (recetas, pacientes,
  * Ley 25.326): the URL carries only the opaque droga id, a plain `?page=`

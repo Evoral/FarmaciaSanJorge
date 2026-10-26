@@ -1,0 +1,38 @@
+# OpenSpec / SDD configuration for Farmacia San Jorge.
+# Layout and workflow: openspec/README.md. Project rules: AGENTS.md.
+
+context: |
+  Pharmacy compounding management (recetas magistrales, stock, libro recetario, cierres).
+  Multi-tenant modular monolith: Next.js 16 App Router, React 19, Prisma 7 + Postgres
+  (Supabase, schema fsj), zod 4, decimal.js, Tailwind 4.
+  Business logic in modules/<modulo>/{domain,application,infrastructure,ui}; app/ is routing only.
+  Business vocabulary in Spanish; code comments and technical docs in English.
+
+strict_tdd: false # AGENTS.md: CI is the gate; tests are written/run only when the task asks.
+
+testing:
+  unit: npm test            # vitest, project "unit"
+  db: npm run test:db       # opt-in, FSJ_DB_TESTS=yes, real DB inside a rolled-back tx
+  e2e: npm run test:e2e     # playwright
+  typecheck: npm run typecheck
+  lint: npm run lint        # includes architecture boundaries
+
+rules:
+  proposal:
+    - Record the user's decision with its date ("User decision (YYYY-MM-DD)").
+    - State scope and what is explicitly out of scope.
+  spec:
+    - One capability per feature folder: openspec/specs/<feature>/spec.md.
+    - Never drop an existing rule silently; a removed rule goes under REMOVED with its reason.
+    - Libro recetario rules are append-only (what is recorded is never undone).
+  design:
+    - Follow docs/architecture.md and the nearest existing module; justify any new pattern.
+    - Use cases via defineCommand / defineQuery; money and quantities via decimal.js.
+  tasks:
+    - A schema change lists its migration, prisma/rollbacks/<migration>.down.sql and docs/rollbacks/<feature>.md.
+  apply:
+    - Forms keep user input on error (shared/ui/use-form-submit.ts); edit offers what the alta offers.
+  verify:
+    - State what was NOT verified; never run destructive DB commands (shared Supabase project).
+  archive:
+    - Merge deltas into openspec/specs/<feature>/spec.md and move the change to changes/archive/YYYY-MM-DD-<name>/.

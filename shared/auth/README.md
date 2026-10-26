@@ -18,7 +18,7 @@ relies on) have one place to import "sessions"/"authorization" from.
 the 2026-10-21 decision).
 
 `operador.ts` / `operador-context.ts` / `operador-campos.ts` (cuentas de sector,
-`docs/specs/cuentas-de-sector.md`): on a session shared by the empleados of a
+`openspec/specs/cuentas-de-sector/spec.md`): on a session shared by the empleados of a
 work area, WHO is acting. `operador-context.ts` carries the credential a Server
 Action received (`conOperador(formData, ...)`) to the use-case pipeline for the
 duration of the request; `operador.ts` is the facade over the verification in
@@ -26,7 +26,7 @@ duration of the request; `operador.ts` is the facade over the verification in
 
 ## Pasos pendientes
 
-`docs/specs/contrasena-temporal.md`. The session carries `pasosPendientes`
+`openspec/specs/contrasena-temporal/spec.md`. The session carries `pasosPendientes`
 (`PasoPendiente[]`, `shared/auth/pasos.ts`): `"cambiar-password"` while
 `usuario.debe_cambiar_password` is set, then `"configurar-pin"` for a usuario
 that has no PIN and is not a cuenta de sector, the SISTEMA user, or a usuario

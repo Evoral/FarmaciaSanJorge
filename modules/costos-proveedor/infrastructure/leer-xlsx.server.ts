@@ -1,5 +1,5 @@
 /**
- * Reads an uploaded .xlsx supplier price list (docs/specs/costos-proveedor.md R14) with `exceljs`
+ * Reads an uploaded .xlsx supplier price list (openspec/specs/costos-proveedor/spec.md R14) with `exceljs`
  * (already a dependency; `shared/xlsx/xlsx-report.ts` WRITES workbooks with it). Its .xls twin is
  * `leer-xls.server.ts`; both return a `LibroHojas` (`./libro-hojas.ts`). Interpreting the
  * cells is the pure parser's job (`../domain/parsers/lista-xlsx-crystal.ts`); this file only turns

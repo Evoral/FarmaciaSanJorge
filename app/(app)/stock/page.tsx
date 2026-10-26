@@ -51,7 +51,7 @@ function formatFecha(iso: string): string {
 const numberFormat = new Intl.NumberFormat("es-AR");
 
 /**
- * Vencidas con saldo (docs/specs/reanalisis-partida.md): a droga's is blocked until the DT acts (reanálisis or "marcar
+ * Vencidas con saldo (openspec/specs/reanalisis-partida/spec.md): a droga's is blocked until the DT acts (reanálisis or "marcar
  * como vencida", on the partida); an insumo's only needs a VENCIMIENTO ajuste.
  */
 function notaVencidas(drogas: number, insumos: number): string | undefined {

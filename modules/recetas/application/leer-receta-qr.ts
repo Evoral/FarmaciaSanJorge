@@ -1,6 +1,6 @@
 /**
  * `leerRecetaQr` -- first step of the receta QR import
- * (docs/specs/importacion-receta-qr.md): the QR/link text -> the receta's hash
+ * (openspec/specs/importacion-receta-qr/spec.md): the QR/link text -> the receta's hash
  * -> the RCTA decrypter -> the shared draft -> the same preview as the PDF
  * import. Read-only: NOTHING is written (the confirmation, `recetas.importar`,
  * is what gets audited).

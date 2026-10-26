@@ -1,5 +1,5 @@
 /**
- * How a number TYPED by a user is read (docs/specs/numeros-ingresados.md). The lab writes es-AR numbers -- comma for
+ * How a number TYPED by a user is read (openspec/specs/numeros-ingresados/spec.md). The lab writes es-AR numbers -- comma for
  * decimals, dot for thousands -- while `new Decimal()` reads "1.500" as one and a half: a silent 1000x error in a
  * weight or a price. Every place that turns user input into a quantity or an amount goes through
  * `interpretarNumero`; nothing is ever guessed:

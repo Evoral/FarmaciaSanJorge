@@ -1,6 +1,6 @@
 # Rollback: Trayectoria del paciente (and the Pacientes move out of Catálogos)
 
-Spec: `docs/specs/trayectoria-paciente.md`. Two changes ship in the same
+Spec: `openspec/specs/trayectoria-paciente/spec.md`. Two changes ship in the same
 working tree. They are **independent**, so there are two rollbacks:
 
 - **A. Trayectoria alone** (new tab, use case, indexes): the feature is

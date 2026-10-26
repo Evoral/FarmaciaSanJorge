@@ -11,12 +11,12 @@
  * ENVIADA_PEND_FIRMA). No receta física step: the attribute and INV-R07 were
  * removed (client decision 2026-10-01, migration 0051).
  *
- * Payment (docs/specs/pago-receta.md P3/P4): the entrega may also mark the receta paid, in the same transaction
+ * Payment (openspec/specs/pago-receta/spec.md P3/P4): the entrega may also mark the receta paid, in the same transaction
  * (`pagada` input, raise-only). A RETIRO_PRESENCIAL must leave the receta paid (it becomes ENTREGADA right away); an
  * ENVIO may stay unpaid until its firma is confirmed (confirmar-firma-recibida.ts). The payment is written BEFORE the
  * estado UPDATE: INV-R14 (migration 0076) rejects a receta becoming ENTREGADA unpaid.
  *
- * Repartidor (docs/specs/envios-repartidores.md E1-E4): an ENVIO carries exactly one active repartidor of the tenant
+ * Repartidor (openspec/specs/envios-repartidores/spec.md E1-E4): an ENVIO carries exactly one active repartidor of the tenant
  * (`repartidorId`, required by the input schema; DB backstop INV-ENT-005) and needs a receta with a domicilio; a
  * RETIRO_PRESENCIAL carries none. Both reads happen inside the transaction, after the receta lock. A receta without
  * domicilio cannot be edited from PREPARADA, so the envío form asks for it (`domicilio`) and this command saves it on the

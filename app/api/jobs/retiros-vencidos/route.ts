@@ -1,5 +1,5 @@
 /**
- * `GET|POST /api/jobs/retiros-vencidos` (docs/specs/retiro-vencido.md RV2). Daily job: moves PREPARADA recetas whose retiro
+ * `GET|POST /api/jobs/retiros-vencidos` (openspec/specs/retiro-vencido/spec.md RV2). Daily job: moves PREPARADA recetas whose retiro
  * expired to RETIRO_VENCIDO, for every active tenant.
  *
  * Same authentication as `/api/jobs/plazos-archivo` (see that route for the full rationale): no user session, a shared

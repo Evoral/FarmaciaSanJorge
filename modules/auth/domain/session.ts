@@ -13,7 +13,7 @@ export interface AuthenticatedUsuario {
   apellido: string;
 }
 
-/** Set on the session of a cuenta de sector (`usuario.es_sector`, docs/specs/cuentas-de-sector.md): a shared session per work area. */
+/** Set on the session of a cuenta de sector (`usuario.es_sector`, openspec/specs/cuentas-de-sector/spec.md): a shared session per work area. */
 export interface SesionDeSector {
   /** The acciones this farmacia asks an empleado's PIN for (`fsj.accion_con_pin`), loaded with the session. */
   permisosConPin: ReadonlySet<Permiso>;
@@ -58,13 +58,13 @@ export interface AuthenticatedSession {
   terminal?: TerminalDeOrigen | null;
   /**
    * Steps this usuario must complete before using the app (first element = the
-   * current one; docs/specs/contrasena-temporal.md). Built only by
+   * current one; openspec/specs/contrasena-temporal/spec.md). Built only by
    * `validateSession`; optional so fixtures that omit it mean "none pending".
    */
   pasosPendientes?: readonly PasoPendiente[];
   /**
    * Every role of the usuario is the locked ADMINISTRADOR, so it has no PIN
-   * (docs/specs/contrasena-temporal.md, CT9). Built only by `validateSession`;
+   * (openspec/specs/contrasena-temporal/spec.md, CT9). Built only by `validateSession`;
    * optional so fixtures that omit it mean "not admin-only".
    */
   soloAdministrador?: boolean;

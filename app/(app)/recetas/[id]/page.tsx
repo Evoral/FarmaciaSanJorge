@@ -48,11 +48,11 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
   const puedeEditar = can(session, "recetas.editar") && esEstadoEditable(receta.estado) && receta.itemsConPreparacionIniciada.length === 0;
   // An entrega in course (ENVIADA_PEND_FIRMA) always has its asientos in effect, so this panel could only show the libro
   // block -- next to "Anular entrega" it reads as if reverting the entrega touched the libro. Shown again once the
-  // receta is back to PREPARADA (docs/specs/anular-entrega.md A9).
+  // receta is back to PREPARADA (openspec/specs/anular-entrega/spec.md A9).
   const puedeAnularReceta = can(session, "recetas.anular") && puedeAnular(receta.estado) && !puedeAnularEntrega(receta.estado);
-  // docs/specs/anular-entrega.md: whoever registers entregas can revert one registered by mistake.
+  // openspec/specs/anular-entrega/spec.md: whoever registers entregas can revert one registered by mistake.
   const puedeAnularLaEntrega = can(session, "entregas.registrar") && puedeAnularEntrega(receta.estado) && !receta.archivada;
-  // docs/specs/retiro-vencido.md RV4: a RETIRO_VENCIDO receta is reactivated from the entrega pop-up, unless it is archived
+  // openspec/specs/retiro-vencido/spec.md RV4: a RETIRO_VENCIDO receta is reactivated from the entrega pop-up, unless it is archived
   // (the detail only knows whether there is a lote, which is all `puedeReactivar` asks of `loteArchivoId`).
   const puedeReactivarLaReceta = can(session, "entregas.registrar") && puedeReactivar({ estado: receta.estado, loteArchivoId: receta.archivada ? "archivada" : null });
   // Payment is orthogonal to the estado: it can change after delivery, but not once ANULADA (domain/pago.ts).

@@ -135,7 +135,7 @@ function revalidarPartida(partidaId: string) {
   revalidatePath("/");
 }
 
-/** "Registrar reanálisis" (docs/specs/reanalisis-partida.md): the use case verifies the DT's own password first. */
+/** "Registrar reanálisis" (openspec/specs/reanalisis-partida/spec.md): the use case verifies the DT's own password first. */
 export async function registrarReanalisisAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
   const partidaId = String(formData.get("partidaId") ?? "");
   try {
@@ -153,7 +153,7 @@ export async function registrarReanalisisAction(_prevState: StockActionState, fo
   }
 }
 
-/** "Marcar como vencida" (docs/specs/reanalisis-partida.md): discounts the whole saldo with a VENCIMIENTO ajuste. */
+/** "Marcar como vencida" (openspec/specs/reanalisis-partida/spec.md): discounts the whole saldo with a VENCIMIENTO ajuste. */
 export async function marcarPartidaVencidaAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
   const partidaId = String(formData.get("partidaId") ?? "");
   try {
@@ -170,7 +170,7 @@ export async function marcarPartidaVencidaAction(_prevState: StockActionState, f
   }
 }
 
-/** Existencia inicial (docs/specs/existencia-inicial.md R5): one counted envase per submit, the form resets for the next one. */
+/** Existencia inicial (openspec/specs/existencia-inicial/spec.md R5): one counted envase per submit, the form resets for the next one. */
 export async function ingresarExistenciaInicialAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
   return conOperador(formData, async (): Promise<StockActionState> => {
     try {

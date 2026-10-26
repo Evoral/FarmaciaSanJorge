@@ -1,5 +1,5 @@
 /**
- * Preview of a supplier price list import (docs/specs/costos-proveedor.md R17-R19; CP3, CP5-CP7): `construirVistaPrevia` and
+ * Preview of a supplier price list import (openspec/specs/costos-proveedor/spec.md R17-R19; CP3, CP5-CP7): `construirVistaPrevia` and
  * `evaluarFilasLista`, the pure rules the server builds the preview with and the browser re-evaluates on every edit.
  */
 import { describe, it, expect } from "vitest";

@@ -1,5 +1,5 @@
 /**
- * Unit tests for the daily "retiro vencido" job (docs/specs/retiro-vencido.md RV1-RV3, RV10): the use case
+ * Unit tests for the daily "retiro vencido" job (openspec/specs/retiro-vencido/spec.md RV1-RV3, RV10): the use case
  * (`runVencerRetirosJob`, `modules/entregas/application/vencer-retiros.ts`), the repository's audit/update step
  * (`marcarRetiroVencido`) and the route's constant-time secret check (`app/api/jobs/retiros-vencidos/route.ts`).
  * Modeled on tests/unit/archivo-plazos-job.test.ts. The SQL itself (lock + filter) is covered by the DB-side rules; here we

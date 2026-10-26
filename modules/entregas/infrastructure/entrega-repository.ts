@@ -34,7 +34,7 @@ export async function jornadaActualTenant(tx: Prisma.TransactionClient, tenantId
 }
 
 /**
- * `dias_retiro_vencido` `parametro` row (docs/specs/retiro-vencido.md RV1), with the defensive fallback to the default (30)
+ * `dias_retiro_vencido` `parametro` row (openspec/specs/retiro-vencido/spec.md RV1), with the defensive fallback to the default (30)
  * when the tenant has no usable row -- same discipline as `getMesesVencimientoPreparado`
  * (modules/preparaciones/infrastructure/preparacion-repository.ts). 0 is a valid value (disabled). Reads `fsj.parametro`
  * directly because modules cannot reach into another module's infrastructure layer (`modules/parametros`).
@@ -111,7 +111,7 @@ export async function marcarRecetaPagada(tx: Prisma.TransactionClient, tenantId:
 }
 
 /**
- * docs/specs/envios-repartidores.md E4: writes ONLY `receta.domicilio_paciente` (own copy, narrow on purpose: an envío is
+ * openspec/specs/envios-repartidores/spec.md E4: writes ONLY `receta.domicilio_paciente` (own copy, narrow on purpose: an envío is
  * registered from PREPARADA, where the receta can no longer be edited, so a receta without domicilio gets it here). `fsj_app`
  * holds UPDATE on that column (migration 0070) and no trigger restricts it by estado.
  */
@@ -173,7 +173,7 @@ export interface EntregaMovida {
 /**
  * Migration 0086: copies the receta's entrega to `fsj.entrega_anulada` (with motivo and who) and deletes it, in this
  * order -- the DELETE guard (INV-ENT-004) only lets the row go once its copy exists. null when the receta has no entrega.
- * Migration 0093: the copy keeps the entrega's `repartidor_id` (docs/specs/envios-repartidores.md E6).
+ * Migration 0093: the copy keeps the entrega's `repartidor_id` (openspec/specs/envios-repartidores/spec.md E6).
  */
 export async function moverEntregaAAnuladas(
   tx: Prisma.TransactionClient,
@@ -335,7 +335,7 @@ export interface EntregaPendienteItem {
   fechaIngreso: Date;
   /** ENVIADA_PEND_FIRMA only: whole days since the envío (entrega.entregada_en); null otherwise. The /entregas notice. */
   diasEsperandoFirma: number | null;
-  /** docs/specs/pago-receta.md: the counter sees whether it still has to charge. */
+  /** openspec/specs/pago-receta/spec.md: the counter sees whether it still has to charge. */
   pagada: boolean;
   /** Sum of each ítem's vigente cotización (INV-R06); null when nothing was cotizado or the viewer lacks `cotizaciones.ver`. */
   precio: string | null;
@@ -462,7 +462,7 @@ export async function listEntregasPendientes(tx: Prisma.TransactionClient, filte
 }
 
 // ============================================================================
-// Hoja de envíos de un repartidor (docs/specs/envios-repartidores.md E8-E10).
+// Hoja de envíos de un repartidor (openspec/specs/envios-repartidores/spec.md E8-E10).
 // ============================================================================
 
 /** The tenant's zona horaria: turns "today" and a picked fecha de envío into a jornada (own copy, see module doc comment). */

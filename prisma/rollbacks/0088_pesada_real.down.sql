@@ -2,7 +2,7 @@
 -- Restores 0073's INV-S12 (active consumption = cantidad_a_pesar), drops fsj.pesada_real, the reserva_stock columns
 -- and the tolerancia_pesada_porcentaje parameter. A línea already confirmed with a real weighing that differs from
 -- cantidad_a_pesar keeps its movimientos (the deferred check only runs for new egresos). The code must be reverted
--- too (pesada real field of the "Marcar como preparada" form, planificarConsumoEnTx, docs/specs/pesada-real.md).
+-- too (pesada real field of the "Marcar como preparada" form, planificarConsumoEnTx, openspec/specs/pesada-real/spec.md).
 
 CREATE OR REPLACE FUNCTION fsj.linea_pesaje_validar_consumo(p_tenant_id uuid, p_linea_pesaje_id uuid)
 RETURNS void

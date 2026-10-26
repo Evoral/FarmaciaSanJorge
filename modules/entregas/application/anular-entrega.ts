@@ -1,5 +1,5 @@
 /**
- * `anularEntrega` -- docs/specs/anular-entrega.md. The mostrador reverts an entrega registered by mistake (another
+ * `anularEntrega` -- openspec/specs/anular-entrega/spec.md. The mostrador reverts an entrega registered by mistake (another
  * receta was picked): the receta goes back from ENTREGADA / ENVIADA_PEND_FIRMA to PREPARADA and reappears in
  * /entregas. Same permiso as registering it (`entregas.registrar`, PIN-configurable for cuentas de sector: the
  * Server Action wraps it in `conOperador`); a motivo is required. Lock BEFORE the fresh read (M3).

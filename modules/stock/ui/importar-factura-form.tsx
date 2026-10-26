@@ -15,7 +15,7 @@
  * product; "Recordar" saves the invoice's text as an alias of that droga.
  * A droga picked (or matched) through a synonym shows that synonym with the
  * canonical name as a quiet hint -- display only: the partida is keyed by
- * droga_id alone (docs/specs/sinonimos-droga.md, "Nombre elegido al cargar").
+ * droga_id alone (openspec/specs/sinonimos-droga/spec.md, "Nombre elegido al cargar").
  *
  * Insumos (migration 0063): a product missing from the catalog can be
  * created right here ("Crear «…»", with the clase suggested from its name,
@@ -58,7 +58,7 @@ export interface OpcionConMagnitud extends OpcionSimple {
   clase?: string;
   /** Units only: "kg", "mL"... */
   simbolo?: string;
-  /** Drogas only: vigente synonyms, also searched by the picker (docs/specs/sinonimos-droga.md). */
+  /** Drogas only: vigente synonyms, also searched by the picker (openspec/specs/sinonimos-droga/spec.md). */
   sinonimos?: string[];
 }
 
@@ -166,7 +166,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
       despacho: l.despacho,
       paisOrigen: l.paisOrigen,
       matcheada: l.drogaId !== null,
-      // Matched through a remembered synonym: the field shows the invoice's text, the canonical name as a hint (docs/specs/sinonimos-droga.md).
+      // Matched through a remembered synonym: the field shows the invoice's text, the canonical name as a hint (openspec/specs/sinonimos-droga/spec.md).
       droga: l.drogaId ? { value: l.drogaId, label: l.drogaNombre ?? l.drogaTexto, sinonimo: l.via === "ALIAS" && l.drogaNombre ? l.drogaTexto : null } : null,
       unidadCompraId: l.unidadCompraId ?? "",
       // Shown es-AR (comma decimals): the parser's canonical "1234.5" would read as ambiguous once edited.

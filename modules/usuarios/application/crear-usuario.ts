@@ -1,7 +1,7 @@
 /**
  * `crearUsuario` (M03, FASE 3 point 3.2, INV-U01/INV-U07). No
  * self-registration -- only an ADMINISTRADOR with `usuarios.crear` reaches
- * this. The caller types a TEMPORARY password (docs/specs/contrasena-temporal.md):
+ * this. The caller types a TEMPORARY password (openspec/specs/contrasena-temporal/spec.md):
  * the usuario is created `ACTIVO` with that password's argon2id hash and
  * `debeCambiarPassword`, so at first login they must replace it and set a PIN
  * (no activation credential is generated any more). INV-U07 ("starts
@@ -28,7 +28,7 @@
  * resolved and escalation-checked by `resolverRolesAAsignar` before the
  * usuario is inserted (see cambiar-roles.ts).
  *
- * `esSector` (migration 0077, docs/specs/cuentas-de-sector.md) creates a
+ * `esSector` (migration 0077, openspec/specs/cuentas-de-sector/spec.md) creates a
  * cuenta de sector: one shared session per work area. It is decided HERE and
  * never changes (INV-SEC-002), and such an account never holds
  * ADMINISTRADOR nor DIRECTOR_TECNICO (checked below; INV-SEC-001 is the DB

@@ -1,6 +1,6 @@
 "use server";
 
-/** Server Actions for `/admin/configuracion/farmacia` (FASE 3 point 3.10a; the logo, docs/specs/logo-farmacia.md). */
+/** Server Actions for `/admin/configuracion/farmacia` (FASE 3 point 3.10a; the logo, openspec/specs/logo-farmacia/spec.md). */
 import { editarDatosTenant } from "@/modules/farmacia/application/editar-datos-tenant";
 import { cambiarLogoTenant } from "@/modules/farmacia/application/cambiar-logo-tenant";
 import { quitarLogoTenant } from "@/modules/farmacia/application/quitar-logo-tenant";

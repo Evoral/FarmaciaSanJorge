@@ -138,14 +138,14 @@ enum TipoMovimiento {
   INGRESO_COMPRA
   EGRESO_PREPARACION
   AJUSTE
-  /// Migration 0100: the only ingreso of an EXISTENCIA_INICIAL partida (docs/specs/existencia-inicial.md). Adds saldo, like INGRESO_COMPRA.
+  /// Migration 0100: the only ingreso of an EXISTENCIA_INICIAL partida (openspec/specs/existencia-inicial/spec.md). Adds saldo, like INGRESO_COMPRA.
   INGRESO_INICIAL
 
   @@map("tipo_movimiento")
   @@schema("fsj")
 }
 
-/// Migration 0100 (docs/specs/existencia-inicial.md): COMPRA = a purchase; EXISTENCIA_INICIAL = stock counted at the relevamiento inicial.
+/// Migration 0100 (openspec/specs/existencia-inicial/spec.md): COMPRA = a purchase; EXISTENCIA_INICIAL = stock counted at the relevamiento inicial.
 enum OrigenPartida {
   COMPRA
   EXISTENCIA_INICIAL
@@ -175,7 +175,7 @@ enum OrigenReceta {
   @@schema("fsj")
 }
 
-/// DP-23, migration 0049 (docs/specs/importacion-receta-pdf.md).
+/// DP-23, migration 0049 (openspec/specs/importacion-receta-pdf/spec.md).
 enum JurisdiccionMatricula {
   NACIONAL
   PROVINCIAL
@@ -184,7 +184,7 @@ enum JurisdiccionMatricula {
   @@schema("fsj")
 }
 
-/// M09. docs/specs/libro-recetario-y-contralor.md section 1 (state machine).
+/// M09. openspec/specs/libro-recetario-y-contralor/spec.md section 1 (state machine).
 enum EstadoReceta {
   PENDIENTE_PREPARACION
   EN_PREPARACION
@@ -192,14 +192,14 @@ enum EstadoReceta {
   ENVIADA_PEND_FIRMA
   ENTREGADA
   ANULADA
-  /// Migration 0094 (docs/specs/retiro-vencido.md): a PREPARADA receta nobody picked up within dias_retiro_vencido. Not terminal (reactivable back to PREPARADA); archivable.
+  /// Migration 0094 (openspec/specs/retiro-vencido/spec.md): a PREPARADA receta nobody picked up within dias_retiro_vencido. Not terminal (reactivable back to PREPARADA); archivable.
   RETIRO_VENCIDO
 
   @@map("estado_receta")
   @@schema("fsj")
 }
 
-/// Migration 0096 (docs/specs/vencimiento-preparado.md R9): ESTANDAR = meses_vencimiento_preparado months; the aqueous tipos are fixed day limits.
+/// Migration 0096 (openspec/specs/vencimiento-preparado/spec.md R9): ESTANDAR = meses_vencimiento_preparado months; the aqueous tipos are fixed day limits.
 enum TipoVencimientoPreparado {
   ESTANDAR
   ACUOSA_CON_CONSERVANTE
@@ -229,7 +229,7 @@ enum FormaFarmaceutica {
   @@schema("fsj")
 }
 
-/// docs/specs/ficha-tecnica.md. REPLACES the diagram's es_cantidad_suficiente boolean.
+/// openspec/specs/ficha-tecnica/spec.md. REPLACES the diagram's es_cantidad_suficiente boolean.
 enum ModoExpresion {
   TOTAL
   POR_DOSIS
@@ -270,11 +270,11 @@ model Tenant {
   creadoEn                        DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
   /// M12/spec section 4 (DP-33). NULL = contralor libros kept by hand. INV-L17: never changes once set (migration 0014).
   fechaActivacionContralor        DateTime? @map("fecha_activacion_contralor") @db.Timestamptz(6)
-  /// Migration 0098: navbar logo (docs/specs/logo-farmacia.md). The three columns are all NULL or all set.
+  /// Migration 0098: navbar logo (openspec/specs/logo-farmacia/spec.md). The three columns are all NULL or all set.
   logo                            Bytes?
   logoTipo                        String?   @map("logo_tipo") @db.VarChar(20)
   logoActualizadoEn               DateTime? @map("logo_actualizado_en") @db.Timestamptz(6)
-  /// Migration 0100: the DT's explicit close of the relevamiento inicial (docs/specs/existencia-inicial.md R7). Both NULL or both set, written once (INV-S26). FK to usuario (tenant_id, id) in SQL only.
+  /// Migration 0100: the DT's explicit close of the relevamiento inicial (openspec/specs/existencia-inicial/spec.md R7). Both NULL or both set, written once (INV-S26). FK to usuario (tenant_id, id) in SQL only.
   relevamientoInicialCerradoEn    DateTime? @map("relevamiento_inicial_cerrado_en") @db.Timestamptz(6)
   relevamientoInicialCerradoPorId String?   @map("relevamiento_inicial_cerrado_por_id") @db.Uuid
 
@@ -351,7 +351,7 @@ model Permiso {
   @@schema("fsj")
 }
 
-/// Tenant-scoped (migration 0077, docs/specs/cuentas-de-sector.md): a row means "in a cuenta de sector, this acción asks
+/// Tenant-scoped (migration 0077, openspec/specs/cuentas-de-sector/spec.md): a row means "in a cuenta de sector, this acción asks
 /// for the PIN of the empleado performing it". Only permisos of modules/auth/domain/permisos.ts#PERMISOS_CON_PIN_CONFIGURABLES.
 /// Seeded per tenant by fsj.seed_acciones_con_pin; replaced (delete + insert) by modules/operadores.
 model AccionConPin {
@@ -392,7 +392,7 @@ model Usuario {
   estado              EstadoUsuario @default(PENDIENTE_ACTIVACION)
   passwordHash        String?       @map("password_hash")
   esTecnico           Boolean       @default(false) @map("es_tecnico")
-  /// Migration 0077 (docs/specs/cuentas-de-sector.md): a cuenta de sector -- one shared session per work area (mostrador, laboratorio). Set at creation, immutable (INV-SEC-003); never ADMINISTRADOR / DIRECTOR_TECNICO (INV-SEC-001) nor a designated DT (INV-SEC-002). The acciones in `accion_con_pin` are attributed to the empleado who types their PIN.
+  /// Migration 0077 (openspec/specs/cuentas-de-sector/spec.md): a cuenta de sector -- one shared session per work area (mostrador, laboratorio). Set at creation, immutable (INV-SEC-003); never ADMINISTRADOR / DIRECTOR_TECNICO (INV-SEC-001) nor a designated DT (INV-SEC-002). The acciones in `accion_con_pin` are attributed to the empleado who types their PIN.
   esSector            Boolean       @default(false) @map("es_sector")
   intentosFallidos    Int           @default(0) @map("intentos_fallidos")
   bloqueadoHasta      DateTime?     @map("bloqueado_hasta") @db.Timestamptz(6)
@@ -403,7 +403,7 @@ model Usuario {
   /// Set once `pinIntentosFallidos` reaches AUTH_POLICY.maxFailedPinAttempts. Cleared by a successful PASSWORD re-auth (never by a successful PIN attempt alone reaching it -- that can't happen, PIN success requires NOT being blocked).
   pinBloqueado        Boolean       @default(false) @map("pin_bloqueado")
   pinActualizadoEn    DateTime?     @map("pin_actualizado_en") @db.Timestamptz(6)
-  /// Migration 0097 (docs/specs/contrasena-temporal.md): true while the usuario logs in with an admin-chosen temporary password and must replace it. Set by alta / "Restablecer contraseña", cleared when they change their own password.
+  /// Migration 0097 (openspec/specs/contrasena-temporal/spec.md): true while the usuario logs in with an admin-chosen temporary password and must replace it. Set by alta / "Restablecer contraseña", cleared when they change their own password.
   debeCambiarPassword Boolean       @default(false) @map("debe_cambiar_password")
   creadoPorId       String        @map("creado_por_id") @db.Uuid
   creadoEn            DateTime      @default(now()) @map("creado_en") @db.Timestamptz(6)
@@ -680,7 +680,7 @@ model Droga {
   @@schema("fsj")
 }
 
-/// Synonyms of a droga (docs/specs/sinonimos-droga.md; table from migration
+/// Synonyms of a droga (openspec/specs/sinonimos-droga/spec.md; table from migration
 /// 0049, first-class since 0067). Tenant-scoped; soft delete only
 /// (fechaBaja, one-way -- fsj_app may UPDATE that column alone).
 /// aliasNormalizado is written already normalized
@@ -779,9 +779,9 @@ model Paciente {
   fechaBaja                   DateTime? @map("fecha_baja") @db.Timestamptz(6)
   /// FASE 4 point 4.5 / migration 0029 (INV-G01) -- same convenience column as proveedor.motivoBaja (migration 0027).
   motivoBaja                  String?   @map("motivo_baja")
-  /// Migration 0055 (docs/specs/pacientes-recurrentes.md): opt-in for WhatsApp reminders. Default false = no consent assumed. Column-level UPDATE grant for fsj_app.
+  /// Migration 0055 (openspec/specs/pacientes-recurrentes/spec.md): opt-in for WhatsApp reminders. Default false = no consent assumed. Column-level UPDATE grant for fsj_app.
   aceptaRecordatoriosWhatsapp Boolean   @default(false) @map("acepta_recordatorios_whatsapp")
-  /// Migration 0099 (docs/specs/domicilios.md): updated by an imported receta that brings one, or from the ficha.
+  /// Migration 0099 (openspec/specs/domicilios/spec.md): updated by an imported receta that brings one, or from the ficha.
   domicilio                   String?
   /// Migration 0099: where the envíos go, ficha only. NULL = same as `domicilio`.
   domicilioEntrega            String?   @map("domicilio_entrega")
@@ -924,7 +924,7 @@ model RecetaNumeroContador {
 }
 
 /// Tenant-scoped (M09). Source of truth for the state machine:
-/// docs/specs/libro-recetario-y-contralor.md section 1. numero_interno is
+/// openspec/specs/libro-recetario-y-contralor/spec.md section 1. numero_interno is
 /// assigned by fsj.receta_asignar_numero_interno() -- never set by the app.
 model Receta {
   id                     String       @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
@@ -943,7 +943,7 @@ model Receta {
   motivoAnulacion        String?      @map("motivo_anulacion")
   /// M15, deferred from migration 0011, added in migration 0016. INV-ARC-006: only settable once ENTREGADA/ANULADA/RETIRO_VENCIDO (0095); frozen once set.
   loteArchivoId          String?      @map("lote_archivo_id") @db.Uuid
-  /// Migration 0049 (docs/specs/importacion-receta-pdf.md). Digital platform code (e.g. RCTA); set together with nroRecetaEmisor. No UPDATE grant -- provenance, written once at import.
+  /// Migration 0049 (openspec/specs/importacion-receta-pdf/spec.md). Digital platform code (e.g. RCTA); set together with nroRecetaEmisor. No UPDATE grant -- provenance, written once at import.
   emisor                 String?
   /// Migration 0049. Unique per (tenant, emisor) among non-ANULADA recetas (partial unique index uq_receta_emisor_nro_vigente, not expressible here).
   nroRecetaEmisor        String?      @map("nro_receta_emisor")
@@ -951,22 +951,22 @@ model Receta {
   /// Migration 0049. CIE-10 code, format CHECKed in the DB.
   diagnosticoCodigo      String?      @map("diagnostico_codigo") @db.VarChar(10)
   diagnosticoDescripcion String?      @map("diagnostico_descripcion")
-  /// Migration 0070 (docs/specs/importacion-receta-pdf.md). The patient's home address as written on THIS receta (free text, optional) -- kept per receta, not on the paciente: the address at prescription time is what matters for a claim.
+  /// Migration 0070 (openspec/specs/importacion-receta-pdf/spec.md). The patient's home address as written on THIS receta (free text, optional) -- kept per receta, not on the paciente: the address at prescription time is what matters for a claim.
   domicilioPaciente      String?      @map("domicilio_paciente")
-  /// Migration 0099 (docs/specs/domicilios.md): envío address of this receta. NULL = same as `domicilioPaciente`.
+  /// Migration 0099 (openspec/specs/domicilios/spec.md): envío address of this receta. NULL = same as `domicilioPaciente`.
   domicilioEntrega       String?      @map("domicilio_entrega")
-  /// Migration 0102 (docs/specs/alta-receta-idempotente.md): idempotency key of the manual alta form. Partial unique index uq_receta_envio (tenant_id, envio_id) WHERE envio_id IS NOT NULL (not expressible here).
+  /// Migration 0102 (openspec/specs/alta-receta-idempotente/spec.md): idempotency key of the manual alta form. Partial unique index uq_receta_envio (tenant_id, envio_id) WHERE envio_id IS NOT NULL (not expressible here).
   envioId                String?      @map("envio_id") @db.Uuid
   /// Migration 0057: the lab's "toma" -- who took the receta from the /preparaciones queue and when. Both set or both null (receta_toma_pair_check); cleared by "Cancelar toma". Partial index idx_receta_tenant_tomada_en_curso (not expressible here).
   tomadaPorId            String?      @map("tomada_por_id") @db.Uuid
   tomadaEn               DateTime?    @map("tomada_en") @db.Timestamptz(6)
-  /// Migration 0071 (docs/specs/pago-receta.md). Whether the pharmacy was paid for this receta -- a simple flag, orthogonal to `estado` (no amounts, no medios de pago). Set at alta, at entrega or from the detail; frozen while ANULADA (INV-R13).
+  /// Migration 0071 (openspec/specs/pago-receta/spec.md). Whether the pharmacy was paid for this receta -- a simple flag, orthogonal to `estado` (no amounts, no medios de pago). Set at alta, at entrega or from the detail; frozen while ANULADA (INV-R13).
   pagada                 Boolean      @default(false)
   /// Migration 0071. Server time of the marking; null while unpaid. pagada / pagadaEn / pagadaPorId are set and cleared together (receta_pagada_check).
   pagadaEn               DateTime?    @map("pagada_en") @db.Timestamptz(6)
   /// Migration 0071. The session's usuario who marked it paid (never client input); null while unpaid.
   pagadaPorId            String?      @map("pagada_por_id") @db.Uuid
-  /// Migration 0095 (docs/specs/retiro-vencido.md). When the receta last entered PREPARADA; written only by trg_receta_preparada_en (no UPDATE grant). The retiro vencido job counts dias_retiro_vencido from it.
+  /// Migration 0095 (openspec/specs/retiro-vencido/spec.md). When the receta last entered PREPARADA; written only by trg_receta_preparada_en (no UPDATE grant). The retiro vencido job counts dias_retiro_vencido from it.
   preparadaEn            DateTime?    @map("preparada_en") @db.Timestamptz(6)
 
   paciente          Paciente            @relation(fields: [pacienteId], references: [id])
@@ -988,7 +988,7 @@ model Receta {
   @@schema("fsj")
 }
 
-/// Tenant-scoped (M09) / docs/specs/ficha-tecnica.md "ItemReceta". No
+/// Tenant-scoped (M09) / openspec/specs/ficha-tecnica/spec.md "ItemReceta". No
 /// standalone unidad_medida_id -- see migration 0011 header (spec wins over
 /// the plan's M09 table).
 model ItemReceta {
@@ -1020,7 +1020,7 @@ model ItemReceta {
   @@schema("fsj")
 }
 
-/// Tenant-scoped (M09) / docs/specs/ficha-tecnica.md "ComponenteItemReceta".
+/// Tenant-scoped (M09) / openspec/specs/ficha-tecnica/spec.md "ComponenteItemReceta".
 /// modo_expresion REPLACES es_cantidad_suficiente (binding decision).
 model ComponenteItemReceta {
   id                String        @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
@@ -1072,7 +1072,7 @@ model FichaTecnica {
   @@schema("fsj")
 }
 
-/// Tenant-scoped, fully immutable (M10) / docs/specs/ficha-tecnica.md
+/// Tenant-scoped, fully immutable (M10) / openspec/specs/ficha-tecnica/spec.md
 /// "LineaPesaje". Revised INV-R04 (task binding decision).
 model LineaPesaje {
   id              String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
@@ -1200,7 +1200,7 @@ model Preparacion {
   descartadaPorId    String?                   @map("descartada_por_id") @db.Uuid
   /// Migration 0068 (DP-28 "Vencimiento"): expiry of the preparado, snapshotted at confirmation (jornada + meses_vencimiento_preparado). NULL for one confirmed before 0068. Frozen afterwards (INV-P07).
   fechaVencimiento   DateTime?                 @map("fecha_vencimiento") @db.Date
-  /// Migration 0096 (docs/specs/vencimiento-preparado.md R9-R14): the tipo de vencimiento chosen at confirmation; decides the etiqueta's date format and storage note. NULL for one confirmed before 0096. Frozen afterwards (INV-P07).
+  /// Migration 0096 (openspec/specs/vencimiento-preparado/spec.md R9-R14): the tipo de vencimiento chosen at confirmation; decides the etiqueta's date format and storage note. NULL for one confirmed before 0096. Frozen afterwards (INV-P07).
   tipoVencimiento    TipoVencimientoPreparado? @map("tipo_vencimiento")
   /// 0083: excipiente actually used (toma workspace, optional); copied into the libro asiento fórmula at confirmation. Changes only while INICIADA (INV-P08).
   excipienteTexto    String?                   @map("excipiente_texto") @db.VarChar(120)
@@ -1227,7 +1227,7 @@ model Preparacion {
   @@schema("fsj")
 }
 
-/// Tenant-scoped (migration 0071, docs/specs/reserva-stock-preparacion.md). Stock reserved for a preparación INICIADA: one row per chosen partida of each línea de pesaje; only counts while the preparación is INICIADA. No relations declared (composite FKs live in the DB, like EtiquetaTamano). fsj_app: SELECT/INSERT/DELETE.
+/// Tenant-scoped (migration 0071, openspec/specs/reserva-stock-preparacion/spec.md). Stock reserved for a preparación INICIADA: one row per chosen partida of each línea de pesaje; only counts while the preparación is INICIADA. No relations declared (composite FKs live in the DB, like EtiquetaTamano). fsj_app: SELECT/INSERT/DELETE.
 model ReservaStock {
   id                      String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
   tenantId                String   @map("tenant_id") @db.Uuid
@@ -1256,7 +1256,7 @@ model ReservaStock {
   @@schema("fsj")
 }
 
-/// Tenant-scoped (migration 0092, docs/specs/excipiente-preparacion.md). The draft of a ficha técnica's excipiente:
+/// Tenant-scoped (migration 0092, openspec/specs/excipiente-preparacion/spec.md). The draft of a ficha técnica's excipiente:
 /// a droga of clase EXCIPIENTE and its quantity (droga's unidad base), saved from the toma workspace.
 model ExcipienteBorrador {
   id               String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
@@ -1273,7 +1273,7 @@ model ExcipienteBorrador {
   @@schema("fsj")
 }
 
-/// Tenant-scoped (migration 0090, docs/specs/pesada-real.md "Pesada en la ficha"). The draft of a línea de pesaje's
+/// Tenant-scoped (migration 0090, openspec/specs/pesada-real/spec.md "Pesada en la ficha"). The draft of a línea de pesaje's
 /// weighing, saved from the toma workspace while the lab weighs: the lots in the order they are used and the typed
 /// quantities (línea unit). Never stock/libro/contralor: the reserva re-validates it.
 model PesadaBorrador {
@@ -1293,7 +1293,7 @@ model PesadaBorrador {
   @@schema("fsj")
 }
 
-/// Tenant-scoped, append-only (migration 0074, docs/specs/reanalisis-partida.md). One reanálisis of a DROGA partida
+/// Tenant-scoped, append-only (migration 0074, openspec/specs/reanalisis-partida/spec.md). One reanálisis of a DROGA partida
 /// by a DT vigente (INV-S22); its trigger moves partida.fecha_vencimiento_vigente. fechaVencimientoAnterior is set by
 /// the trigger from the partida (never from input).
 model ReanalisisPartida {
@@ -1314,7 +1314,7 @@ model ReanalisisPartida {
   @@schema("fsj")
 }
 
-/// Tenant-scoped (migration 0079, docs/specs/costos-proveedor.md). Reference price a proveedor
+/// Tenant-scoped (migration 0079, openspec/specs/costos-proveedor/spec.md). Reference price a proveedor
 /// quotes for a droga, used only to QUOTE (the real cost stays in Partida.costoUnitario).
 /// Versioned + immutable except the vigenteHasta close (INV-CP-001/002): a change closes the vigente
 /// version and inserts a new one in one transaction (R2); at most one vigente (vigenteHasta NULL) per
@@ -1401,7 +1401,7 @@ model Etiqueta {
 }
 
 // ============================================================================
-// M12 -- libro recetario, contralor (docs/specs/libro-recetario-y-contralor.md)
+// M12 -- libro recetario, contralor (openspec/specs/libro-recetario-y-contralor/spec.md)
 // M13a -- cierre diario y firma
 // M14/M15 -- entrega, archivo de recetas
 // FASE 1, points 1.12-1.15. See prisma/migrations/.../0014-0017 for the
@@ -1565,7 +1565,7 @@ model AsientoRecetario {
   @@schema("fsj")
 }
 
-/// M12. Immutable. cantidad is cantidad_a_pesar (non-manual) or the real registered quantity (manual-enrase) -- docs/specs/ficha-tecnica.md.
+/// M12. Immutable. cantidad is cantidad_a_pesar (non-manual) or the real registered quantity (manual-enrase) -- openspec/specs/ficha-tecnica/spec.md.
 model DetalleAsiento {
   id                 String  @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
   tenantId           String  @map("tenant_id") @db.Uuid
@@ -1723,7 +1723,7 @@ model Entrega {
   firmaRecibida      Boolean          @default(false) @map("firma_recibida")
   firmaRecibidaEn    DateTime?        @map("firma_recibida_en") @db.Timestamptz(6)
   fechaArchivoReceta DateTime?        @map("fecha_archivo_receta") @db.Date
-  /// Migration 0093 (docs/specs/envios-repartidores.md): who carries an ENVIO. NULL for a retiro (CHECK) and for envios registered before 0093; a new ENVIO needs one (INV-ENT-005, trigger).
+  /// Migration 0093 (openspec/specs/envios-repartidores/spec.md): who carries an ENVIO. NULL for a retiro (CHECK) and for envios registered before 0093; a new ENVIO needs one (INV-ENT-005, trigger).
   repartidorId       String?          @map("repartidor_id") @db.Uuid
 
   receta       Receta      @relation(fields: [recetaId], references: [id])
@@ -1735,7 +1735,7 @@ model Entrega {
   @@schema("fsj")
 }
 
-/// Migration 0086 (docs/specs/anular-entrega.md). Insert-only history of an entrega reverted by mistake: a copy of
+/// Migration 0086 (openspec/specs/anular-entrega/spec.md). Insert-only history of an entrega reverted by mistake: a copy of
 /// the deleted fsj.entrega row plus motivo and who/when. Written with raw SQL (INSERT ... SELECT from the entrega), so
 /// no Prisma relations are declared; the FKs to receta/usuario live in the migration.
 model EntregaAnulada {
@@ -1762,7 +1762,7 @@ model EntregaAnulada {
   @@schema("fsj")
 }
 
-/// Tenant-scoped (migration 0093, docs/specs/envios-repartidores.md): a person who carries the envios of the farmacia. Not a usuario (never logs in). Soft delete via `activo` (fsj_app has no DELETE). The FK (tenant_id, creado_por_id) -> usuario lives in the migration.
+/// Tenant-scoped (migration 0093, openspec/specs/envios-repartidores/spec.md): a person who carries the envios of the farmacia. Not a usuario (never logs in). Soft delete via `activo` (fsj_app has no DELETE). The FK (tenant_id, creado_por_id) -> usuario lives in the migration.
 model Repartidor {
   id          String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
   tenantId    String   @map("tenant_id") @db.Uuid
@@ -1833,7 +1833,7 @@ model EtiquetaTamano {
   @@schema("fsj")
 }
 
-/// Tenant-scoped (migration 0096, docs/specs/hoja-etiquetas.md): the sheet, in mm, the etiqueta PDF page is -- ONE row per tenant (`tenantId` is the PK and the tenancy key). The grid of cells is computed from it and the chosen EtiquetaTamano, never stored. No relation declared (the FK to fsj.tenant lives in the DB, like EtiquetaTamano).
+/// Tenant-scoped (migration 0096, openspec/specs/hoja-etiquetas/spec.md): the sheet, in mm, the etiqueta PDF page is -- ONE row per tenant (`tenantId` is the PK and the tenancy key). The grid of cells is computed from it and the chosen EtiquetaTamano, never stored. No relation declared (the FK to fsj.tenant lives in the DB, like EtiquetaTamano).
 model EtiquetaHoja {
   tenantId  String   @id @map("tenant_id") @db.Uuid
   anchoMm   Decimal  @map("ancho_mm") @db.Decimal(4, 1)

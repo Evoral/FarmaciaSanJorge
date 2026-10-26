@@ -1,6 +1,6 @@
 /**
  * The password step of the Director Técnico's own actions on a partida
- * (docs/specs/reanalisis-partida.md): "Registrar reanálisis" and "Marcar como
+ * (openspec/specs/reanalisis-partida/spec.md): "Registrar reanálisis" and "Marcar como
  * vencida". Only a DT vigente (titular or suplente) may perform them, and they
  * do it themselves: the session's usuario IS the DT, who confirms with THEIR
  * OWN password in the same act (like the cierre firma, user decision 6 --

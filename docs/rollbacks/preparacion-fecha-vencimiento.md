@@ -1,6 +1,6 @@
 # Rollback: Vencimiento del preparado
 
-Spec: `docs/specs/vencimiento-preparado.md`. The feature has a **schema change**
+Spec: `openspec/specs/vencimiento-preparado/spec.md`. The feature has a **schema change**
 (migration `prisma/migrations/20261007120000_0068_preparacion_fecha_vencimiento`),
 so it is reverted as code + a new forward migration built from
 `prisma/rollbacks/0068_preparacion_fecha_vencimiento.down.sql`.
@@ -33,7 +33,7 @@ so it is reverted as code + a new forward migration built from
 
 - `modules/preparaciones/domain/vencimiento.ts`
 - `tests/unit/preparaciones-vencimiento.test.ts`
-- `docs/specs/vencimiento-preparado.md` and this file (optional)
+- `openspec/specs/vencimiento-preparado/spec.md` and this file (optional)
 - `prisma/migrations/20261007120000_0068_preparacion_fecha_vencimiento/` (keep it: applied migrations are history; the down migration undoes it. Delete it only if 0068 was never applied anywhere)
 
 ## Edited files (revert the vencimiento hunks)

@@ -1,5 +1,5 @@
 /**
- * `/costos-proveedor` -- "Vigentes" (docs/specs/costos-proveedor.md, "Interface" 1): the
+ * `/costos-proveedor` -- "Vigentes" (openspec/specs/costos-proveedor/spec.md, "Interface" 1): the
  * reference price each proveedor quotes for each droga, one vigente price per pair, to
  * consult, change by hand (Editar, Agregar costo) or give de baja. These prices are only
  * used to quote cotizaciones; the real cost of every partida is untouched.

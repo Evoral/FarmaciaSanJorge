@@ -1,5 +1,5 @@
 /**
- * `configurarPinObligatorio(pin, pinRepeat)` (docs/specs/contrasena-temporal.md,
+ * `configurarPinObligatorio(pin, pinRepeat)` (openspec/specs/contrasena-temporal/spec.md,
  * step 2). A usuario with no PIN yet sets their first one right after the
  * password step, without being asked for the current password: that was just
  * set by them in step 1. Like `cambiarPasswordTemporal` it opts in to

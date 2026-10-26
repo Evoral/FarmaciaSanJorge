@@ -2,7 +2,7 @@
  * Etiqueta content (modules/preparaciones/domain/etiqueta.ts): vía per
  * forma, Rp/ selection and formatting, receta-number fallback, the
  * persisted text -- plus a smoke test of the PDF layout and where it lands on the sheet
- * (docs/specs/hoja-etiquetas.md R4, R6).
+ * (openspec/specs/hoja-etiquetas/spec.md R4, R6).
  */
 import { inflateSync } from "node:zlib";
 import { describe, it, expect } from "vitest";

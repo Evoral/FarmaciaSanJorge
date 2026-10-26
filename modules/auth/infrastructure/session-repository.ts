@@ -91,14 +91,14 @@ export interface UsuarioConPermisos {
   nombre: string;
   apellido: string;
   estado: string;
-  /** Migration 0077: a cuenta de sector (shared session per work area, docs/specs/cuentas-de-sector.md). */
+  /** Migration 0077: a cuenta de sector (shared session per work area, openspec/specs/cuentas-de-sector/spec.md). */
   esSector: boolean;
   esTecnico: boolean;
-  /** `usuario.debe_cambiar_password`: the password was set by someone else and must be changed (docs/specs/contrasena-temporal.md). */
+  /** `usuario.debe_cambiar_password`: the password was set by someone else and must be changed (openspec/specs/contrasena-temporal/spec.md). */
   debeCambiarPassword: boolean;
   /** Whether a PIN is configured; the hash itself is never exposed. */
   tienePin: boolean;
-  /** Every role is the locked ADMINISTRADOR (`esSoloAdministrador`): no PIN step (docs/specs/contrasena-temporal.md, CT9). */
+  /** Every role is the locked ADMINISTRADOR (`esSoloAdministrador`): no PIN step (openspec/specs/contrasena-temporal/spec.md, CT9). */
   soloAdministrador: boolean;
   permisos: ReadonlySet<Permiso>;
 }

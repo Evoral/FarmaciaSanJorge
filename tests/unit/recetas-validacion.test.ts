@@ -4,7 +4,7 @@
  * file's doc comment), the state machine helpers (mirroring migration
  * 0011's DB trigger), the fecha_prescripcion check, the origen gates
  * (DP-29: DIGITAL_PDF enabled via the PDF import, DIGITAL_FOTO still out
- * of scope -- docs/specs/importacion-receta-pdf.md), the diagnóstico
+ * of scope -- openspec/specs/importacion-receta-pdf/spec.md), the diagnóstico
  * (CIE-10) format and the item's duración del tratamiento.
  */
 import { describe, it, expect } from "vitest";

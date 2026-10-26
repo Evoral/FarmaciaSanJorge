@@ -2,7 +2,7 @@
  * `/admin/configuracion/etiquetas`: the sheet the etiquetas are printed on (size +
  * margin, edited in an inline panel `?hoja=1`) and the label sizes (name + width x
  * height in mm) the farmacia prints on it, with how many of each fit per sheet
- * (docs/specs/hoja-etiquetas.md). The administrator keeps both; when printing, the
+ * (openspec/specs/hoja-etiquetas/spec.md). The administrator keeps both; when printing, the
  * user picks one of the ACTIVE sizes that fit, and a cell on the sheet, in the print
  * dialog (Preparaciones). A new size is created in an inline panel (`?nueva=1`);
  * each row opens its detail for edit / baja / reactivar.

@@ -1,5 +1,5 @@
 /**
- * `listPacientesRecurrentes` (docs/specs/pacientes-recurrentes.md): the
+ * `listPacientesRecurrentes` (openspec/specs/pacientes-recurrentes/spec.md): the
  * patients who periodically order the same preparation, when their next order
  * is expected, and a ready-to-open WhatsApp reminder link. Read-only, gated on
  * `pacientes.gestionar`; reads are not audited (project convention).

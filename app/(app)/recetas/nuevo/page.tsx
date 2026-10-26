@@ -1,4 +1,4 @@
-/** `/recetas/nuevo` (FASE 6 point 6.1): carga manual o importación desde el PDF de una receta digital (docs/specs/importacion-receta-pdf.md). */
+/** `/recetas/nuevo` (FASE 6 point 6.1): carga manual o importación desde el PDF de una receta digital (openspec/specs/importacion-receta-pdf/spec.md). */
 import { redirect } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";

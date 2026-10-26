@@ -4,7 +4,7 @@
  * Deliberately NOT a generic arbitrary-key editor -- the plan says "list
  * and edit the per-tenant parameters that exist", and today that means the
  * two weighing parameters seeded by migration 0012 / scripts/create-tenant.ts
- * (`precision_balanza`, `exceso_pesada_porcentaje` -- docs/specs/ficha-tecnica.md
+ * (`precision_balanza`, `exceso_pesada_porcentaje` -- openspec/specs/ficha-tecnica/spec.md
  * "ParametrosPesaje", rules R7/R8) plus `dias_alerta_vencimiento_partida`
  * (DP-14, plan §9 M00 "Parámetros iniciales" -- FASE 5 point 5.7's alerta
  * de vencimiento window). Adding a known parameter means adding an entry
@@ -66,11 +66,11 @@ function parseDecimalOrNull(valorRaw: string): Decimal | null {
 }
 
 /**
- * `precision_balanza` (docs/specs/ficha-tecnica.md R8: "cantidadAPesar =
+ * `precision_balanza` (openspec/specs/ficha-tecnica/spec.md R8: "cantidadAPesar =
  * cantidadConExceso redondeada a múltiplo de precisionBalanza"). Must be >
  * 0 AND one of the exhaustive allowed set {0.1, 0.01, 0.001} -- per task
  * instruction ("such as 0.1, 0.01 o 0.001", treated as the exhaustive
- * allowed set; docs/specs/ficha-tecnica.md documents only the DEFAULT
+ * allowed set; openspec/specs/ficha-tecnica/spec.md documents only the DEFAULT
  * (0.001) and uses 0.01 in test case T6, it does not itself define a wider
  * range, so there is no spec evidence for anything beyond this task's
  * explicit set). A value that is numerically a power of ten but NOT in this
@@ -90,7 +90,7 @@ function validarPrecisionBalanza(valorRaw: string): ValidacionParametro {
   return { ok: true, valor };
 }
 
-/** `exceso_pesada_porcentaje` (docs/specs/ficha-tecnica.md R7): a percentage, 0-100 inclusive. */
+/** `exceso_pesada_porcentaje` (openspec/specs/ficha-tecnica/spec.md R7): a percentage, 0-100 inclusive. */
 function validarExcesoPesadaPorcentaje(valorRaw: string): ValidacionParametro {
   const valor = parseDecimalOrNull(valorRaw);
   if (!valor) return { ok: false, error: "Debe ser un número válido." };
@@ -100,7 +100,7 @@ function validarExcesoPesadaPorcentaje(valorRaw: string): ValidacionParametro {
   return { ok: true, valor };
 }
 
-/** `tolerancia_pesada_porcentaje` (docs/specs/pesada-real.md): a percentage, 0-100 inclusive. */
+/** `tolerancia_pesada_porcentaje` (openspec/specs/pesada-real/spec.md): a percentage, 0-100 inclusive. */
 function validarToleranciaPesadaPorcentaje(valorRaw: string): ValidacionParametro {
   const valor = parseDecimalOrNull(valorRaw);
   if (!valor) return { ok: false, error: "Debe ser un número válido." };
@@ -120,7 +120,7 @@ function validarDiasAlertaVencimientoPartida(valorRaw: string): ValidacionParame
   return { ok: true, valor };
 }
 
-/** `dias_relevamiento_inicial` (docs/specs/existencia-inicial.md R6): an integer between 1 and three months. */
+/** `dias_relevamiento_inicial` (openspec/specs/existencia-inicial/spec.md R6): an integer between 1 and three months. */
 function validarDiasRelevamientoInicial(valorRaw: string): ValidacionParametro {
   const valor = parseDecimalOrNull(valorRaw);
   if (!valor) return { ok: false, error: "Debe ser un número válido." };
@@ -183,7 +183,7 @@ function validarMesesVencimientoPreparado(valorRaw: string): ValidacionParametro
 }
 
 /**
- * `dias_retiro_vencido` (docs/specs/retiro-vencido.md RV1/RV10): days, counted from `receta.preparada_en`, after which
+ * `dias_retiro_vencido` (openspec/specs/retiro-vencido/spec.md RV1/RV10): days, counted from `receta.preparada_en`, after which
  * a PREPARADA receta nobody picked up moves to RETIRO_VENCIDO. An integer between 0 (disabled) and
  * `DIAS_RETIRO_VENCIDO_MAX`. Changing it recalculates nothing: the next daily run applies the new value.
  */
@@ -213,7 +213,7 @@ export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = 
     label: "Precisión de la balanza",
     descripcion:
       "Precisión de redondeo (múltiplo) usada al calcular la cantidad a pesar de cada línea de pesaje no manual " +
-      "(docs/specs/ficha-tecnica.md, regla R8). Valores permitidos: 0.1, 0.01 o 0.001 (en gramos).",
+      "(openspec/specs/ficha-tecnica/spec.md, regla R8). Valores permitidos: 0.1, 0.01 o 0.001 (en gramos).",
     valorPorDefecto: "0.001",
     validar: validarPrecisionBalanza,
   },
@@ -223,7 +223,7 @@ export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = 
     label: "Exceso de pesada",
     descripcion:
       "Porcentaje adicional aplicado sobre la cantidad teórica de cada línea de pesaje no manual, antes de redondear " +
-      "(docs/specs/ficha-tecnica.md, regla R7). Debe estar entre 0 y 100.",
+      "(openspec/specs/ficha-tecnica/spec.md, regla R7). Debe estar entre 0 y 100.",
     valorPorDefecto: "0",
     validar: validarExcesoPesadaPorcentaje,
   },
@@ -233,7 +233,7 @@ export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = 
     label: "Tolerancia de pesada",
     descripcion:
       "Desvío máximo, en porcentaje, entre la pesada real y la esperada de cada línea no manual (nunca menor que una " +
-      "división de la balanza). Fuera de él se pide la co-firma del Director Técnico (docs/specs/pesada-real.md). Debe estar entre 0 y 100.",
+      "división de la balanza). Fuera de él se pide la co-firma del Director Técnico (openspec/specs/pesada-real/spec.md). Debe estar entre 0 y 100.",
     valorPorDefecto: "5",
     validar: validarToleranciaPesadaPorcentaje,
   },

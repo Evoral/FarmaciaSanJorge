@@ -1,5 +1,5 @@
 /**
- * Pure rules for `costo_proveedor` (docs/specs/costos-proveedor.md, R1-R12,
+ * Pure rules for `costo_proveedor` (openspec/specs/costos-proveedor/spec.md, R1-R12,
  * R26). NO I/O, NO Prisma -- same discipline as modules/precios/domain/regla-precio.ts.
  *
  * A costo de proveedor is the REFERENCE price a supplier quotes for a droga,

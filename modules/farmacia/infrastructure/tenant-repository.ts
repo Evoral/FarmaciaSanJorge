@@ -92,7 +92,7 @@ export async function updateDatosEditablesTenant(
   });
 }
 
-/** True once the tenant has signed a cierre diario: from then on its CUIT is fixed (docs/specs/cuit-farmacia.md). */
+/** True once the tenant has signed a cierre diario: from then on its CUIT is fixed (openspec/specs/cuit-farmacia/spec.md). */
 export async function tenantTieneCierreDiario(tx: Prisma.TransactionClient, tenantId: string): Promise<boolean> {
   const cierre = await tx.cierreDiario.findFirst({ where: { tenantId }, select: { id: true } });
   return cierre !== null;

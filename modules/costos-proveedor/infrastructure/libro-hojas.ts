@@ -1,6 +1,6 @@
 /**
  * What every workbook reader of the supplier price list import hands the application layer
- * (docs/specs/costos-proveedor.md R14): `leer-xlsx.server.ts` (.xlsx, exceljs) and `leer-xls.server.ts` (.xls, the
+ * (openspec/specs/costos-proveedor/spec.md R14): `leer-xlsx.server.ts` (.xlsx, exceljs) and `leer-xls.server.ts` (.xls, the
  * BIFF8 reader written in this repo). The parser (`../domain/parsers/lista-xlsx-crystal.ts`) only sees this shape, so it
  * stays format-agnostic.
  */

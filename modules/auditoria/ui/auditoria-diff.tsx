@@ -47,7 +47,7 @@ function textoDe(contexto: unknown, clave: string): string | null {
   return typeof valor === "string" ? valor : null;
 }
 
-/** `contexto.terminal.usuario`: the cuenta de sector an empleado identified themselves on (shared/audit, docs/specs/cuentas-de-sector.md). */
+/** `contexto.terminal.usuario`: the cuenta de sector an empleado identified themselves on (shared/audit, openspec/specs/cuentas-de-sector/spec.md). */
 function terminalDe(contexto: unknown): string | null {
   if (typeof contexto !== "object" || contexto === null || Array.isArray(contexto)) return null;
   return textoDe((contexto as Record<string, unknown>).terminal, "usuario");

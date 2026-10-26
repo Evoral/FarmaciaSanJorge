@@ -13,7 +13,7 @@
 
 **Tech Stack:** Next.js 16.3 (non-standard, read `AGENTS.md`), React 19 server components, Prisma 7 (`$queryRaw` tagged templates, Postgres schema `fsj`), zod 4 (`z.locales.es()`), Vitest 5 (project `unit`), ESLint boundaries.
 
-**Spec:** `docs/specs/historial-droga.md` (approved 2026-10-07). Sibling reference: `docs/specs/trayectoria-proveedor.md`.
+**Spec:** `openspec/specs/historial-droga/spec.md` (approved 2026-10-07). Sibling reference: `openspec/specs/trayectoria-proveedor/spec.md`.
 
 ---
 
@@ -75,7 +75,7 @@ Copied and adapted from the spec. Every task must respect them.
 | File | Change |
 |---|---|
 | `app/(app)/catalogos/drogas/[id]/page.tsx` | Render `<DrogaTabs>` right under `PageHeader` |
-| `docs/specs/historial-droga.md` | Status line and "Implementation notes" (Task 6) |
+| `openspec/specs/historial-droga/spec.md` | Status line and "Implementation notes" (Task 6) |
 
 ---
 
@@ -121,7 +121,7 @@ export function armarHistorialDroga(cruda: HistorialDrogaCruda, acceso: AccesoHi
 ```ts
 /**
  * Unit tests for `modules/drogas/domain/historial.ts`: pure derivation of the droga
- * Historial (docs/specs/historial-droga.md): partida filter parsing, option helpers,
+ * Historial (openspec/specs/historial-droga/spec.md): partida filter parsing, option helpers,
  * partida label, pagination clamp, URL builder and view-model assembly. No mocks, no DB.
  */
 import { describe, it, expect } from "vitest";
@@ -323,7 +323,7 @@ Expected: FAIL (cannot resolve `@/modules/drogas/domain/historial`).
 
 ```ts
 /**
- * Pure derivation for the droga "Historial" view (docs/specs/historial-droga.md):
+ * Pure derivation for the droga "Historial" view (openspec/specs/historial-droga/spec.md):
  * every receta that CONSUMED a droga (EGRESO_PREPARACION movements of its
  * partidas, reached through preparacion -> item_receta -> receta) and the
  * partida(s) each one came from. No I/O, no Prisma (eslint's
@@ -990,7 +990,7 @@ Expected: FAIL (cannot resolve `@/modules/drogas/infrastructure/historial-reposi
 ```ts
 /**
  * Prisma-backed reads for the droga "Historial" view
- * (docs/specs/historial-droga.md). Every function runs inside an ALREADY OPEN
+ * (openspec/specs/historial-droga/spec.md). Every function runs inside an ALREADY OPEN
  * tenant transaction (RLS-scoped) and filters by `tenantId` explicitly as well:
  * EVERY `FROM` and EVERY `JOIN` of the raw SQL carries its own `tenant_id`
  * (composite-key discipline). HEALTH-ADJACENT DATA (receta, paciente, Ley
@@ -1485,7 +1485,7 @@ Expected: FAIL (cannot resolve `@/modules/drogas/application/get-historial-droga
 
 ```ts
 /**
- * `getHistorialDroga` (docs/specs/historial-droga.md): read-only "every receta
+ * `getHistorialDroga` (openspec/specs/historial-droga/spec.md): read-only "every receta
  * that CONSUMED this droga, and from which partida(s)", for
  * `/catalogos/drogas/[id]/historial`. HEALTH-ADJACENT DATA (recetas, pacientes,
  * Ley 25.326): the URL carries only the opaque droga id, a plain `?page=`
@@ -1768,7 +1768,7 @@ export function HistorialRecetaDetalle({ receta, droga, acceso, catalogo }: Hist
 "use client";
 
 /**
- * "Filtrar por partida" control of the droga Historial table (docs/specs/historial-droga.md,
+ * "Filtrar por partida" control of the droga Historial table (openspec/specs/historial-droga/spec.md,
  * "Filtro por partida"). An AUTOCOMPLETE over the droga's partidas that have at
  * least one consumption and are NOT selected yet (typing narrows them; picking
  * one adds it), plus one chip per selected partida (its × drops that partida,
@@ -1934,7 +1934,7 @@ export function DrogaTabs({ id, conHistorial }: { id: string; conHistorial: bool
 
 ```tsx
 /**
- * `/catalogos/drogas/[id]/historial` (docs/specs/historial-droga.md): read-only
+ * `/catalogos/drogas/[id]/historial` (openspec/specs/historial-droga/spec.md): read-only
  * view of every receta that CONSUMED the droga and from which partida(s), as a
  * `table.data-table` whose rows expand to the detail (`FilaDesplegable`).
  * `[id]` is an opaque UUID and `searchParams` ONLY ever reads `page` (a plain
@@ -2124,7 +2124,7 @@ Render the tabs right under `PageHeader` (the closing of `<PageHeader ... />` an
 ```ts
 /**
  * The droga Historial reads recetas and (optionally) paciente names: its source
- * must never log them (docs/specs/historial-droga.md: "No logging of free-text
+ * must never log them (openspec/specs/historial-droga/spec.md: "No logging of free-text
  * fields or paciente data"). Same source scan as the proveedor Trayectoria.
  */
 import { readFileSync } from "node:fs";
@@ -2174,7 +2174,7 @@ git commit -m "feat(drogas): add the historial tab and page under /catalogos/dro
 ## Task 6: Spec status, implementation notes, final verification
 
 **Files**
-- Modify: `docs/specs/historial-droga.md`
+- Modify: `openspec/specs/historial-droga/spec.md`
 
 - [ ] **Step 1: Update the spec header and add notes.** Replace the status line `Status: approved by user 2026-10-07 — not implemented yet.` with `Status: approved by user 2026-10-07 — implemented (see "Implementation notes" at the end).` Append this section at the end of the file:
 
@@ -2226,13 +2226,13 @@ If anything unrelated to this change fails, report it and do not fix it here.
 - [ ] **Step 3: Commit**
 
 ```bash
-git --literal-pathspecs add docs/specs/historial-droga.md
+git --literal-pathspecs add openspec/specs/historial-droga/spec.md
 git commit -m "docs(specs): mark historial de la droga implemented and record decisions"
 ```
 
 ---
 
-## Self-review checklist (against `docs/specs/historial-droga.md`)
+## Self-review checklist (against `openspec/specs/historial-droga/spec.md`)
 
 - [ ] **Goal / consumed path only.** The SQL only goes `partida → movimiento_stock EGRESO_PREPARACION → preparacion → item_receta → receta`. No `componente_item_receta` anywhere. Pending recetas never appear (Tasks 2 and 5).
 - [ ] **Routes and navigation.**

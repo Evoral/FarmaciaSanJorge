@@ -1,5 +1,5 @@
 /**
- * Prisma/raw-SQL access for the daily "retiro vencido" job (docs/specs/retiro-vencido.md RV1-RV3). Every function runs
+ * Prisma/raw-SQL access for the daily "retiro vencido" job (openspec/specs/retiro-vencido/spec.md RV1-RV3). Every function runs
  * inside an ALREADY OPEN tenant transaction (the job opens one per tenant, see `application/vencer-retiros.ts`).
  *
  * `modules/entregas` cannot reach into `modules/archivo/infrastructure`, so the two tenant helpers the job shares with

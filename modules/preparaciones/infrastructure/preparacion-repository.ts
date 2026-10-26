@@ -112,7 +112,7 @@ export async function getPreparacionActivaDeFicha(
 
 /**
  * The ítem's live preparación (INICIADA or CONFIRMADA) on ANY ficha version -- at most one (migration 0077,
- * `uq_preparacion_item_viva`; docs/specs/reserva-stock-preparacion.md R19). Call after locking the receta/ítem.
+ * `uq_preparacion_item_viva`; openspec/specs/reserva-stock-preparacion/spec.md R19). Call after locking the receta/ítem.
  */
 export async function getPreparacionVivaDeItem(
   tx: Prisma.TransactionClient,
@@ -370,7 +370,7 @@ export interface PartidaElegible {
    * original date), YYYY-MM-DD; null = does not expire (0064). Every expiry decision (INV-S10) uses this one.
    */
   fechaVencimiento: string | null;
-  /** The vigente date comes from a reanálisis (docs/specs/reanalisis-partida.md). */
+  /** The vigente date comes from a reanálisis (openspec/specs/reanalisis-partida/spec.md). */
   reanalizada: boolean;
   fechaApertura: string | null; // ISO instant
   /** Migration 0058: declared purity (percent), `null` = 100%. */
@@ -379,7 +379,7 @@ export interface PartidaElegible {
 
 /**
  * What the OTHER INICIADA preparaciones reserved from partida `p` (migration
- * 0071, docs/specs/reserva-stock-preparacion.md), as `r.reservado`: a
+ * 0071, openspec/specs/reserva-stock-preparacion/spec.md), as `r.reservado`: a
  * `CROSS JOIN LATERAL` for a query over `fsj.partida p`. Reserved stock is
  * not available to anyone else; `preparacionPropiaId`'s own reservas are
  * (it is the one consuming them), `null` = count every reserva.
@@ -593,7 +593,7 @@ export async function insertEgresoPreparacion(tx: Prisma.TransactionClient, inpu
 }
 
 // ============================================================================
-// Reservas de stock (migration 0071, docs/specs/reserva-stock-preparacion.md)
+// Reservas de stock (migration 0071, openspec/specs/reserva-stock-preparacion/spec.md)
 // ============================================================================
 
 /** One chosen partida of a línea. `cantidadManual`/`motivoAperturaAdicional` belong to the línea (same on each of its rows). */
@@ -653,7 +653,7 @@ export async function listReservasDePreparacion(tx: Prisma.TransactionClient, te
 }
 
 /**
- * The weighing parameters of the pesada real (docs/specs/pesada-real.md): `precision_balanza` (GRAMO) and
+ * The weighing parameters of the pesada real (openspec/specs/pesada-real/spec.md): `precision_balanza` (GRAMO) and
  * `tolerancia_pesada_porcentaje`, with the registry's defaults for a tenant without the row.
  */
 export async function getParametrosPesadaReal(
@@ -930,7 +930,7 @@ export interface PreparacionParaEtiqueta extends DatosEtiqueta {
   tenantRazonSocial: string;
   tenantNombreFantasia: string | null;
   tenantMatriculaFarmacia: string | null;
-  /** The receta's current estado (an ANULADA receta prints no etiqueta, docs/specs/reserva-stock-preparacion.md R22). */
+  /** The receta's current estado (an ANULADA receta prints no etiqueta, openspec/specs/reserva-stock-preparacion/spec.md R22). */
   recetaEstado: EstadoReceta;
   /**
    * The preparación's SISTEMA asiento was dejado sin efecto: ANULADO, or it has a rectificativo -- the same
@@ -1055,7 +1055,7 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
 
 /**
  * The director técnico printed on the etiqueta: ALWAYS the TITULAR, never a
- * SUPLENTE (docs/specs/etiqueta-preparado.md R8: the titular is in charge of
+ * SUPLENTE (openspec/specs/etiqueta-preparado/spec.md R8: the titular is in charge of
  * everything), with the matrícula of his designación. The titular vigente on
  * `jornada` (`YYYY-MM-DD`, the confirmation day); if there was none that day,
  * the current titular. Read here, against the shared `tx`, because modules
@@ -1114,7 +1114,7 @@ export async function marcarEtiquetaImpresa(tx: Prisma.TransactionClient, tenant
 export interface EtiquetaParaImprimirDatos extends PreparacionParaEtiqueta {
   etiquetaId: string;
   generadaEn: Date;
-  /** The persisted `etiqueta.contenido` snapshot: what every print lays out (docs/specs/vencimiento-preparado.md R7). */
+  /** The persisted `etiqueta.contenido` snapshot: what every print lays out (openspec/specs/vencimiento-preparado/spec.md R7). */
   contenido: string;
 }
 
@@ -1176,7 +1176,7 @@ const SIN_ETIQUETA_IMPRESA: Prisma.PreparacionWhereInput = { OR: [{ etiqueta: { 
 
 /**
  * Confirmadas also lists the INICIADA preparaciones that hold a reserva ("Marcar como preparada" done, etiquetas not
- * printed yet: docs/specs/reserva-stock-preparacion.md R26). No Prisma relation to `reserva_stock`, so their ids are read
+ * printed yet: openspec/specs/reserva-stock-preparacion/spec.md R26). No Prisma relation to `reserva_stock`, so their ids are read
  * first: reservas only live while a preparación is INICIADA (R4), so this is the lab's work in progress, a handful.
  */
 async function wherePestana(
@@ -1617,7 +1617,7 @@ export interface ListRecetasEnCursoRow {
  * 0057) that are still PENDIENTE_PREPARACION or EN_PREPARACION and have at
  * least one ítem still to prepare: neither CONFIRMADA nor INICIADA with a
  * reserva. Once every ítem is reserved the receta leaves En curso and waits
- * in Confirmadas for its etiquetas (docs/specs/reserva-stock-preparacion.md
+ * in Confirmadas for its etiquetas (openspec/specs/reserva-stock-preparacion/spec.md
  * R26); once every ítem is confirmed it is PREPARADA anyway. The `tomada_por_id`/estado
  * predicates match the partial index idx_receta_tenant_tomada_en_curso.
  * Oldest toma first. Built separately for tests/db.
@@ -1875,7 +1875,7 @@ export interface ItemDeToma {
   componentes: ComponenteDePendiente[];
   /**
    * The ficha the ítem works with: its live preparación's (what was reserved/confirmed -- shown and printed even if a
-   * newer version exists, docs/specs/reserva-stock-preparacion.md R20), else the latest version; `null` when none.
+   * newer version exists, openspec/specs/reserva-stock-preparacion/spec.md R20), else the latest version; `null` when none.
    */
   ficha: FichaDeItemToma | null;
   /** The ítem's CONFIRMADA (first) or INICIADA preparación, on any ficha version; `null` when none (or only DESCARTADA ones). */
@@ -2224,7 +2224,7 @@ export async function upsertBorradorPesada(
 }
 
 // ============================================================================
-// Excipiente (migration 0092, docs/specs/excipiente-preparacion.md)
+// Excipiente (migration 0092, openspec/specs/excipiente-preparacion/spec.md)
 // ============================================================================
 
 /** A droga of clase EXCIPIENTE the toma may choose: its unidad base is the unit of the quantity. */

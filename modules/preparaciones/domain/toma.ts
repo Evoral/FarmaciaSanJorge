@@ -12,7 +12,7 @@
  * together at the receta's "Imprimir etiquetas", once every one holds a
  * reserva, and the receta moves to PREPARADA (an ítem confirmed earlier on
  * its preparación's own screen moved it to EN_PREPARACION;
- * docs/specs/reserva-stock-preparacion.md); releasing a reserva before that
+ * openspec/specs/reserva-stock-preparacion/spec.md); releasing a reserva before that
  * leaves it PENDIENTE_PREPARACION and editable.
  *
  * Rules (enforced by application/tomar-receta.ts and cancelar-toma.ts after
@@ -124,7 +124,7 @@ export function estadoItemToma(preparacion: { estado: "INICIADA" | "CONFIRMADA";
 }
 
 /**
- * The workspace's "Imprimir etiquetas" confirms the receta all at once (docs/specs/reserva-stock-preparacion.md, R13):
+ * The workspace's "Imprimir etiquetas" confirms the receta all at once (openspec/specs/reserva-stock-preparacion/spec.md, R13):
  * every ítem not yet Confirmada must hold a reserva. The 1-based numbers ("Ítem N") of those that do not -- Pendiente or
  * "Confirmación en curso"; empty = it may confirm.
  */

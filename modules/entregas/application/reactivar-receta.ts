@@ -1,5 +1,5 @@
 /**
- * `reactivarReceta` -- docs/specs/retiro-vencido.md RV4-RV6. A receta that went to RETIRO_VENCIDO (nobody picked it up)
+ * `reactivarReceta` -- openspec/specs/retiro-vencido/spec.md RV4-RV6. A receta that went to RETIRO_VENCIDO (nobody picked it up)
  * goes back to PREPARADA when the person shows up; from there it is delivered as always.
  *
  *   RV4: only from RETIRO_VENCIDO and while the receta is not in a lote de archivo (INV-R08, migration 0095, is the

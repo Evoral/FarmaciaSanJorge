@@ -41,7 +41,7 @@ Verificado en el código:
 ### Observación fuera del alcance de seguridad
 
 - Las etiquetas y la hoja de envíos usan siempre `public/logo-etiqueta.png` (San Jorge), no el logo subido por cada
-  farmacia (`docs/specs/logo-farmacia.md`). En un sistema multi-tenant, otra farmacia imprimiría el logo de San Jorge.
+  farmacia (`openspec/specs/logo-farmacia/spec.md`). En un sistema multi-tenant, otra farmacia imprimiría el logo de San Jorge.
   **CORREGIDO** (decisión del usuario): etiqueta y hoja de envíos usan el logo del tenant y los XLSX su nombre
   (`logo-farmacia.md` R6, R7). Sin logo, San Jorge tiene que subirlo para que sus etiquetas lo sigan mostrando.
 

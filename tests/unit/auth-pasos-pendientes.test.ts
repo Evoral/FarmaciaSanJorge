@@ -1,5 +1,5 @@
 /**
- * Pending steps on the session (docs/specs/contrasena-temporal.md): the pure
+ * Pending steps on the session (openspec/specs/contrasena-temporal/spec.md): the pure
  * derivation, the route mapping, the error type, and that `validateSession`
  * carries the result on the session it builds.
  */

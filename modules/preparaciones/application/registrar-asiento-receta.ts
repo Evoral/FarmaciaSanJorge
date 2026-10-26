@@ -1,5 +1,5 @@
 /**
- * D8 (docs/specs/libro-recetario-y-contralor.md §1, migration 0082): the receta's ONE SISTEMA asiento in the libro
+ * D8 (openspec/specs/libro-recetario-y-contralor/spec.md §1, migration 0082): the receta's ONE SISTEMA asiento in the libro
  * recetario, written after every ítem of the transaction was confirmed (`confirmarPreparacionEnTx`,
  * ./confirmar-preparacion.ts), inside the caller's transaction -- by "Imprimir etiquetas" (`confirmarReservasReceta`)
  * with every ítem it confirmed, and by the legacy single path (`confirmarPreparacion`) with its one preparación.

@@ -1,5 +1,5 @@
 /**
- * Pure domain rules for the repartidor catalog (`fsj.repartidor`, migration 0093, docs/specs/envios-repartidores.md).
+ * Pure domain rules for the repartidor catalog (`fsj.repartidor`, migration 0093, openspec/specs/envios-repartidores/spec.md).
  * A repartidor is a person who carries the envios of the farmacia: not a usuario, never logs in. Soft delete via
  * `activo` (an inactive repartidor is not offered for new envios but keeps the ones it already has).
  */

@@ -1,6 +1,6 @@
 /**
- * `/costos-proveedor/nuevo` -- manual entry of a costo de proveedor (docs/specs/
- * costos-proveedor.md R24): add a price for a (droga, proveedor) pair or change the vigente one.
+ * `/costos-proveedor/nuevo` -- manual entry of a costo de proveedor (openspec/specs/
+ * costos-proveedor/spec.md R24): add a price for a (droga, proveedor) pair or change the vigente one.
  * "Editar" and "Cambiar el precio" open it with `?droga=&proveedor=` (opaque uuids): the pair is
  * fixed and the vigente costo prefills the form. The pair, not a costo id, identifies the entry:
  * saving replaces the vigente version, so an id would be stale right after.

@@ -8,7 +8,7 @@
  * preparaciones without a reserva): its reserva is released only by "Liberar reserva" from the
  * receta's toma workspace (`liberarReservaStock`), which
  * runs `descartarPreparacionEnTx` and releases it in the same transaction
- * (docs/specs/reserva-stock-preparacion.md R14). The receta's
+ * (openspec/specs/reserva-stock-preparacion/spec.md R14). The receta's
  * estado never changes here (INV-R08: no backwards transitions): a receta
  * that had no confirmation yet is still PENDIENTE_PREPARACION (starting a
  * preparación no longer moves it) and becomes editable again, since a

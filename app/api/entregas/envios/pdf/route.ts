@@ -1,6 +1,6 @@
 /**
  * `GET /api/entregas/envios/pdf?repartidorId=<uuid>[&fecha=AAAA-MM-DD]` ("Exportar envíos",
- * docs/specs/envios-repartidores.md). Serves the "Hoja de envíos" PDF of one repartidor. Only the repartidor's opaque
+ * openspec/specs/envios-repartidores/spec.md). Serves the "Hoja de envíos" PDF of one repartidor. Only the repartidor's opaque
  * uuid and the fecha travel in the URL (E11, DP-24: never patient data); mirrors
  * `app/api/preparaciones/[id]/etiqueta/pdf/route.ts`, including the error-status mapping. A missing `fecha` means
  * every pending envío of the repartidor.

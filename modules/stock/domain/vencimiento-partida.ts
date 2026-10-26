@@ -1,5 +1,5 @@
 /**
- * Expiry of a partida and its reanálisis (docs/specs/reanalisis-partida.md,
+ * Expiry of a partida and its reanálisis (openspec/specs/reanalisis-partida/spec.md,
  * migration 0074). Pure: no I/O, plain `YYYY-MM-DD` strings (lexically
  * comparable), the jornada always from `fsj.jornada_actual(tenant)`.
  *

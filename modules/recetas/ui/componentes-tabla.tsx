@@ -4,7 +4,7 @@
  * component (no hooks), so both Server and Client Components can render it.
  *
  * A componente loaded through a synonym shows that synonym, with the canonical name as a quiet hint
- * ("Acetaminofén ≈ Paracetamol", docs/specs/sinonimos-droga.md "Nombre elegido al cargar").
+ * ("Acetaminofén ≈ Paracetamol", openspec/specs/sinonimos-droga/spec.md "Nombre elegido al cargar").
  */
 import { MODO_EXPRESION_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 import { ToneBadge } from "@/shared/ui/status-badge";

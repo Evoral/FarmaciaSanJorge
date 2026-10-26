@@ -1,6 +1,6 @@
 # Rollback: Tipo de vencimiento del preparado
 
-Spec: `docs/specs/vencimiento-preparado.md` R9-R14. The feature has a **schema change**
+Spec: `openspec/specs/vencimiento-preparado/spec.md` R9-R14. The feature has a **schema change**
 (migration `prisma/migrations/20261021090000_0096_tipo_vencimiento_preparado`), so it is
 reverted as code + a new forward migration built from
 `prisma/rollbacks/0096_tipo_vencimiento_preparado.down.sql`.

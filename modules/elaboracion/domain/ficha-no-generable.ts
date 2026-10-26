@@ -1,6 +1,6 @@
 /**
  * Why a ficha técnica could not be calculated, as a stable code next to the
- * Spanish message (FASE 7 point 7.2 + docs/specs/presupuesto-receta.md).
+ * Spanish message (FASE 7 point 7.2 + openspec/specs/presupuesto-receta/spec.md).
  * The message is what the farmacéutico reads (unchanged from before); the
  * code is what a caller that must NOT carry free text around -- the
  * post-confirmation generation's redirect notice (modules/recetas) -- keeps.
@@ -13,7 +13,7 @@ import { DomainError } from "@/shared/errors";
 import { dec } from "@/shared/decimal";
 import type { LineaPesajeCalculada } from "./calcular-ficha-tecnica";
 
-/** `V1`..`V9` (docs/specs/ficha-tecnica.md; V3 was removed with the componentes' order, migration 0065) or a missing piece of configuration/data. */
+/** `V1`..`V9` (openspec/specs/ficha-tecnica/spec.md; V3 was removed with the componentes' order, migration 0065) or a missing piece of configuration/data. */
 export type CodigoFichaNoGenerable = "V1" | "V2" | "V4" | "V5" | "V6" | "V7" | "V8" | "V9" | "SIN_UNIDAD_BASE" | "DATOS_INVALIDOS";
 
 export const CODIGOS_FICHA_NO_GENERABLE: readonly CodigoFichaNoGenerable[] = [

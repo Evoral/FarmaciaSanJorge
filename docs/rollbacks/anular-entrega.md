@@ -1,6 +1,6 @@
 # Rollback — Anular entrega (migración 0086)
 
-Spec: `docs/specs/anular-entrega.md`.
+Spec: `openspec/specs/anular-entrega/spec.md`.
 
 ## Código
 

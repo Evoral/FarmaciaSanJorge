@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Manual entry of one costo de proveedor (docs/specs/costos-proveedor.md R24): add a
+ * Manual entry of one costo de proveedor (openspec/specs/costos-proveedor/spec.md R24): add a
  * price or change the vigente one of a (droga, proveedor) pair. It goes through the SAME
  * command as the list import (`registrarCostosProveedor`), so every rule (R3-R12, R23)
  * is enforced there; this form only helps the user get it right:
@@ -40,7 +40,7 @@ export interface DrogaOpcionCosto {
   nombre: string;
   unidadBaseId: string;
   tipoMagnitud: string;
-  /** Vigente synonyms: the picker finds the droga by them too (docs/specs/sinonimos-droga.md). */
+  /** Vigente synonyms: the picker finds the droga by them too (openspec/specs/sinonimos-droga/spec.md). */
   sinonimos: readonly string[];
 }
 

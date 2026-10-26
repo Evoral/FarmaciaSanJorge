@@ -1,6 +1,6 @@
 /**
  * Unit tests for modules/usuarios/domain/roles.ts (DP-03 RESUELTA,
- * docs/specs/roles-personalizables.md): protected roles, escalation rules,
+ * openspec/specs/roles-personalizables/spec.md): protected roles, escalation rules,
  * catalog validation of permisos, code generation, permiso grouping.
  * Roles are per-tenant DATA since migration 0054, so there is no hardcoded
  * role list to test any more -- only the rules.

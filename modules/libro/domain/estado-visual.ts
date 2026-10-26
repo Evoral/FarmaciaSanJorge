@@ -4,7 +4,7 @@
  * `anulacion_asiento` row exists, whether a `RECTIFICATIVO` asiento links
  * back to this one) and returns what the UI should show.
  *
- * docs/specs/libro-recetario-y-contralor.md §1 [DEDUCCIÓN]: "un asiento con
+ * openspec/specs/libro-recetario-y-contralor/spec.md §1 [DEDUCCIÓN]: "un asiento con
  * rectificativo se muestra como 'sin efecto por asiento Nº X', aunque en la
  * base siga VIGENTE" -- the DB never flips `estado` for this case (INV-L18
  * only allows a rectificativo against an asiento whose jornada is already

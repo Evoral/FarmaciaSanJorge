@@ -1,5 +1,5 @@
 /**
- * Pesada real (docs/specs/pesada-real.md): the lab weighs by hand, so a non-manual línea records what the balance
+ * Pesada real (openspec/specs/pesada-real/spec.md): the lab weighs by hand, so a non-manual línea records what the balance
  * showed. Pure and client-safe: the form prefills and flags with it, the server (`planificarConsumoEnTx`) decides
  * with it. Every quantity here is PHYSICAL and in the LÍNEA's unit (the magnitud's base unit, e.g. g).
  *

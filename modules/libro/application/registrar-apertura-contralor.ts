@@ -1,6 +1,6 @@
 /**
  * APERTURA of a controlled droga given alta (or turned controlled) with the
- * contralor digital activo (docs/specs/existencia-inicial.md R12, INV-L15).
+ * contralor digital activo (openspec/specs/existencia-inicial/spec.md R12, INV-L15).
  * In-transaction helpers for the drogas use cases: they run inside the
  * caller's `defineCommand` transaction, so the droga and its APERTURA commit
  * together. The saldo is the manual libro's (0 if the pharmacy never had the

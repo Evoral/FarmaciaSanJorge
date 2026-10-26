@@ -1,6 +1,6 @@
 /**
  * Consent for WhatsApp reminders (`paciente.acepta_recordatorios_whatsapp`,
- * docs/specs/pacientes-recurrentes.md) through the crear/editar use cases:
+ * openspec/specs/pacientes-recurrentes/spec.md) through the crear/editar use cases:
  * it is persisted, audited like every other field (valorAnterior/valorNuevo),
  * takes part in the optimistic-concurrency check, and an omitted value can never
  * silently revoke a consent. Repository mocked, no DB.

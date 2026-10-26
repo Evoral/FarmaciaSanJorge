@@ -31,7 +31,7 @@ export interface CoFirmaDecisionInput {
   estado: string | null;
   /** `usuario.bloqueado_hasta`, or `null` when `found` is `false` or never locked. */
   bloqueadoHasta: Date | null;
-  /** `usuario.debe_cambiar_password`: the password was set by someone else and not replaced yet (docs/specs/contrasena-temporal.md, CT8). */
+  /** `usuario.debe_cambiar_password`: the password was set by someone else and not replaced yet (openspec/specs/contrasena-temporal/spec.md, CT8). */
   debeCambiarPassword: boolean;
   /** Result of `verifyPassword(candidate.passwordHash, rawPassword)` -- ALWAYS computed by the caller, even for `found: false` (constant-time discipline, mirrors login()). */
   passwordMatches: boolean;

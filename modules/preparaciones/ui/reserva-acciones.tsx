@@ -2,7 +2,7 @@
 
 /**
  * The toma workspace's actions on reserved stock: per ítem, and the receta's "Imprimir etiquetas" (migration 0071,
- * docs/specs/reserva-stock-preparacion.md). Liberar and imprimir are behind re-authentication (`ReauthAwareForm`); the
+ * openspec/specs/reserva-stock-preparacion/spec.md). Liberar and imprimir are behind re-authentication (`ReauthAwareForm`); the
  * pérdida asks only for the Director Técnico's password (`SimpleForm` + co-firma, like the stock ajuste):
  *   - `LiberarReservaForm`: "Liberar reserva" -- deletes the reserva and discards the preparación; the ítem is
  *     Pendiente again.
@@ -85,7 +85,7 @@ export interface EtiquetasDeRecetaProps {
   hoja: HojaEtiqueta;
   /** The confirmed ítems that have their etiqueta, in ítem order: the dialog's rows. */
   etiquetas: readonly EtiquetaDeItemParaImprimir[];
-  /** The ítems "Imprimir etiquetas" confirms (reserved), in ítem order: one tipo de vencimiento selector each (docs/specs/vencimiento-preparado.md R10). */
+  /** The ítems "Imprimir etiquetas" confirms (reserved), in ítem order: one tipo de vencimiento selector each (openspec/specs/vencimiento-preparado/spec.md R10). */
   aConfirmar: readonly { preparacionId: string; numero: number; nombre: string }[];
   /** `meses_vencimiento_preparado`, shown in the `ESTANDAR` option. */
   mesesVencimiento: number;

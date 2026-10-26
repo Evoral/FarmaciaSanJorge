@@ -1,5 +1,5 @@
 /**
- * `recetas.presupuestar` (docs/specs/presupuesto-receta.md): the in-memory
+ * `recetas.presupuestar` (openspec/specs/presupuesto-receta/spec.md): the in-memory
  * ficha + cotización of an unsaved receta draft, through the REAL pipeline
  * and the REAL pure calculators, with only the loaders mocked (no DB).
  * Cases: normal price, parcial (CSP in cápsulas), incompleta (faltante),
@@ -63,7 +63,7 @@ const cotizacionRepo = {
 };
 vi.mock("@/modules/precios/infrastructure/cotizacion-repository", () => cotizacionRepo);
 
-// No costo de proveedor for any droga: every línea falls back to partidas (docs/specs/costos-proveedor.md, R27).
+// No costo de proveedor for any droga: every línea falls back to partidas (openspec/specs/costos-proveedor/spec.md, R27).
 vi.mock("@/modules/costos-proveedor/infrastructure/costo-proveedor-repository", () => ({ getCostosProveedorVigentesDeDrogas: vi.fn(async () => []) }));
 
 const getReglaVigente = vi.fn();
@@ -89,7 +89,7 @@ const cremaUrea = {
   componentes: [{ drogaId: D_UREA, cantidad: "10", unidadMedidaId: U_G, modoExpresion: "TOTAL", esPrincipioActivo: true }],
 };
 
-/** docs/specs/ficha-tecnica.md T3: cápsulas with a CSP excipiente -> manual enrase. */
+/** openspec/specs/ficha-tecnica/spec.md T3: cápsulas with a CSP excipiente -> manual enrase. */
 const capsulasMazindol = {
   formaFarmaceutica: "CAPSULA",
   cantidadUnidades: 30,

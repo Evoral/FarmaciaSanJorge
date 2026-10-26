@@ -1,6 +1,6 @@
 /**
  * Costo de proveedor as a cost source of the cotización and the presupuesto
- * (docs/specs/costos-proveedor.md R25-R32; CP12, CP15, CP16). Pure domain, no
+ * (openspec/specs/costos-proveedor/spec.md R25-R32; CP12, CP15, CP16). Pure domain, no
  * DB. CP13 ("without a costo de proveedor everything is as before") is the
  * untouched `precios-calcular-cotizacion.test.ts`; the equality test below
  * only makes the golden rule explicit.

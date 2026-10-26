@@ -1,5 +1,5 @@
 /**
- * PDF "Hoja de envíos" of one repartidor (docs/specs/envios-repartidores.md, "PDF Hoja de envíos"): A4 landscape,
+ * PDF "Hoja de envíos" of one repartidor (openspec/specs/envios-repartidores/spec.md, "PDF Hoja de envíos"): A4 landscape,
  * the envíos he carries that have not come back signed, with address, patient, payment state and room to sign.
  *
  * Unlike the libro recetario sheets (`shared/pdf/hojas.ts`, a legal document with its own neutral format), this sheet

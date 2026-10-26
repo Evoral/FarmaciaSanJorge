@@ -1,6 +1,6 @@
 /**
  * Unit tests for `modules/auth/application/configurar-pin-obligatorio.ts`
- * (docs/specs/contrasena-temporal.md, step 2): everything I/O is mocked,
+ * (openspec/specs/contrasena-temporal/spec.md, step 2): everything I/O is mocked,
  * same style as tests/unit/auth-cambiar-password-temporal.test.ts.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";

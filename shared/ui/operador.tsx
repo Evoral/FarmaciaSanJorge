@@ -2,7 +2,7 @@
 
 /**
  * Client-side contract for "which empleado is acting" in a cuenta de sector
- * (docs/specs/cuentas-de-sector.md). The form plumbing
+ * (openspec/specs/cuentas-de-sector/spec.md). The form plumbing
  * (`./use-form-submit.ts`) only knows this context: it asks `pedir()` for
  * the credential fields and adds them to the `FormData` it submits. The
  * prompt itself (selector of empleados + PIN) and its data live in

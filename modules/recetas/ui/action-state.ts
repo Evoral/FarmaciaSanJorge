@@ -45,5 +45,5 @@ export const IDLE_LEER_RECETA_STATE: LeerRecetaState = { status: "idle" };
 export type LeerRecetaPdfState = LeerRecetaState;
 export const IDLE_LEER_PDF_STATE = IDLE_LEER_RECETA_STATE;
 
-/** Result of the live presupuesto (docs/specs/presupuesto-receta.md). */
+/** Result of the live presupuesto (openspec/specs/presupuesto-receta/spec.md). */
 export type PresupuestoState = { status: "success"; presupuesto: Presupuesto } | { status: "error"; message: string };

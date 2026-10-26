@@ -21,10 +21,10 @@
  *   técnica" only for an ítem that has none, e.g. when the automatic
  *   generation failed; "Imprimir ficha técnica" sits in the actions bar, left
  *   of the ítem's main action) and its actions, every one behind re-authentication
- *   (docs/specs/reserva-stock-preparacion.md: the libro recetario is written
+ *   (openspec/specs/reserva-stock-preparacion/spec.md: the libro recetario is written
  *   at the END of the lab's process, when the etiquetas are printed):
  *     1. Pendiente: the lab fills in the ficha técnica while weighing
- *        (modules/preparaciones/ui/pesaje-en-toma.tsx, docs/specs/pesada-real.md
+ *        (modules/preparaciones/ui/pesaje-en-toma.tsx, openspec/specs/pesada-real/spec.md
  *        "Pesada en la ficha"): a lot selector per línea (oldest first) and a
  *        "Cantidad real pesada" column, each línea saved as it is filled in
  *        (migration 0090), plus the excipiente used, chosen from the catalog

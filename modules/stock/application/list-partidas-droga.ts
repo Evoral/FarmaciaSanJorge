@@ -3,7 +3,7 @@
  * Partidas of ONE droga with their balances -- for `/stock/drogas/[id]` (or
  * the droga's stock detail panel). Plus the jornada and the alert window,
  * so each partida shows its expiry estado on its vencimiento VIGENTE
- * (docs/specs/reanalisis-partida.md).
+ * (openspec/specs/reanalisis-partida/spec.md).
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";

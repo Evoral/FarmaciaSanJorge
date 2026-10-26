@@ -2,7 +2,7 @@
  * `reservarStockPreparacion`: the toma workspace's "Marcar como preparada" (one click, or the dialog of
  * ui/continuar-preparacion-dialog.tsx when an enrase manual quantity must be typed) creates an ítem's preparación
  * (INICIADA) and RESERVES the stock it will use, in ONE transaction (migration 0071,
- * docs/specs/reserva-stock-preparacion.md). The lab still has internal steps after weighing, so nothing is fixed yet:
+ * openspec/specs/reserva-stock-preparacion/spec.md). The lab still has internal steps after weighing, so nothing is fixed yet:
  * no movimiento_stock, no libro recetario asiento, no contralor. That happens at the receta's "Imprimir etiquetas"
  * (`confirmarReservasReceta`, ./confirmar-reservas-receta.ts), or the reserva is released ("Liberar reserva",
  * ./liberar-reserva-stock.ts).
@@ -123,7 +123,7 @@ export function reservasDelPlan(plan: readonly LineaPlanificada[]): ReservaDePre
 }
 
 /**
- * What the audit records of the pesadas reales (docs/specs/pesada-real.md): per línea weighed for real, the expected
+ * What the audit records of the pesadas reales (openspec/specs/pesada-real/spec.md): per línea weighed for real, the expected
  * and real weight (línea unit) and, outside the tolerance, the DT who co-signed. Omitted when there is none.
  */
 export function pesadasDelPlan(plan: readonly LineaPlanificada[]): { pesadasReales?: { droga: string; esperada: string; real: string; autorizadoPorId: string | null }[] } {

@@ -3,13 +3,13 @@
 /**
  * Entrega registration form (11.1/11.2): modalidad radio (RETIRO_PRESENCIAL
  * / ENVIO), shown as two selectable cards, and the "Pagada" switch -- required
- * for RETIRO_PRESENCIAL (the receta becomes ENTREGADA, docs/specs/pago-receta.md
+ * for RETIRO_PRESENCIAL (the receta becomes ENTREGADA, openspec/specs/pago-receta/spec.md
  * P4); an ENVIO may leave unpaid. No receta física checkbox: the
  * attribute was removed (client decision 2026-10-01, migration 0051). See
  * shared/ui/motivo-form.tsx for the same `shared/ui/simple-form.tsx`-wrapping
  * shape.
  *
- * Envío (docs/specs/envios-repartidores.md): choosing it shows the receta's domicilio (read-only) and a required
+ * Envío (openspec/specs/envios-repartidores/spec.md): choosing it shows the receta's domicilio (read-only) and a required
  * "Repartidor" autocomplete over the ACTIVE repartidores. Without a receta domicilio the form asks for one (`domicilio`, saved as the receta's domicilio de entrega by the use case, E4); with no
  * active repartidor the form says so and, for whoever manages the catalog, links to it. The picked repartidor is
  * submitted as `repartidorId` only while "Envío" is chosen (a retiro presencial never carries one, E2).

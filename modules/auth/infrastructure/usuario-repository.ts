@@ -137,7 +137,7 @@ export async function loadUsuarioParaPassword(tx: Prisma.TransactionClient, usua
 }
 
 /**
- * Completes the temporary-password change (docs/specs/contrasena-temporal.md):
+ * Completes the temporary-password change (openspec/specs/contrasena-temporal/spec.md):
  * one UPDATE that stores the usuario's own password hash and clears
  * `debeCambiarPassword`. This is the ONLY code path that clears the flag
  * (CT4, guarded by tests/unit/auth-cambiar-password-temporal.test.ts).

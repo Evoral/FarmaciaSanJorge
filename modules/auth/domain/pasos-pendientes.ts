@@ -1,6 +1,6 @@
 /**
  * Which steps a usuario must complete before using the app
- * (docs/specs/contrasena-temporal.md). Pure -- no I/O.
+ * (openspec/specs/contrasena-temporal/spec.md). Pure -- no I/O.
  */
 import type { PasoPendiente } from "@/shared/auth/pasos";
 

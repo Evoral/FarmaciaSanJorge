@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Mark / unmark a receta as paid from its detail (migration 0071, docs/specs/pago-receta.md). The same "Pagada" switch
+ * Mark / unmark a receta as paid from its detail (migration 0071, openspec/specs/pago-receta/spec.md). The same "Pagada" switch
  * as the alta (./pago-switch.tsx), saved as soon as it is toggled: it flips optimistically and falls
  * back to the server's value if the action fails. `pagadaEn` / `pagadaPorId` are set by the server, the switch only
  * says which state it asks for.

@@ -1,5 +1,5 @@
 /**
- * Cuentas de sector (docs/specs/cuentas-de-sector.md): identifying the
+ * Cuentas de sector (openspec/specs/cuentas-de-sector/spec.md): identifying the
  * empleado who acts from a shared session.
  *
  *   - pure rules: who may be an operador, what a cuenta de sector can never

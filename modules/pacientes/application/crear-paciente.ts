@@ -48,7 +48,7 @@ export const crearPacienteInput = z.object({
   fechaNacimiento: fechaOpcional,
   nroCredencial: textoOpcional,
   sexo: textoOpcional,
-  /** The cliente's domicilio (docs/specs/domicilios.md): the receta import sends the one the document brings. */
+  /** The cliente's domicilio (openspec/specs/domicilios/spec.md): the receta import sends the one the document brings. */
   domicilio: domicilioOpcional,
 });
 
@@ -58,7 +58,7 @@ export type CrearPacienteWireInput = z.input<typeof crearPacienteInput>;
 
 /**
  * `pacientes.crear` (the pacientes form) is the ONLY entry point that can record
- * the consent for WhatsApp reminders (docs/specs/pacientes-recurrentes.md). It is
+ * the consent for WhatsApp reminders (openspec/specs/pacientes-recurrentes/spec.md). It is
  * a separate schema ON PURPOSE: `crearPacienteInput` (also reused by the receta
  * PDF import, `recetas/application/importar-receta.ts`, on client-supplied JSON)
  * keeps its original shape and has no consent field, so a user holding only
@@ -67,7 +67,7 @@ export type CrearPacienteWireInput = z.input<typeof crearPacienteInput>;
  */
 export const crearPacienteConConsentimientoInput = crearPacienteInput.extend({
   aceptaRecordatoriosWhatsapp: z.boolean().default(false),
-  /** The domicilio de entrega is loaded from the ficha only (docs/specs/domicilios.md): the receta flow never sets it. */
+  /** The domicilio de entrega is loaded from the ficha only (openspec/specs/domicilios/spec.md): the receta flow never sets it. */
   domicilioEntrega: domicilioOpcional,
 });
 

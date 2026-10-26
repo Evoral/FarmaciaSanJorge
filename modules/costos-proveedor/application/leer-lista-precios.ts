@@ -1,6 +1,6 @@
 /**
  * `leerListaPrecios` -- first step of the supplier price list import
- * (docs/specs/costos-proveedor.md R13-R18, R21), mirroring
+ * (openspec/specs/costos-proveedor/spec.md R13-R18, R21), mirroring
  * modules/stock/application/leer-factura-compra-pdf.ts: permiso -> trust boundary -> read ->
  * parse -> match. Returns the preview the form is prefilled with; NOTHING is written and the
  * file only lives in memory for the duration of this call.

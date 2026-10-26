@@ -1,5 +1,5 @@
 /**
- * Trust boundary for the farmacia's uploaded logo (docs/specs/logo-farmacia.md). Same order as the PDF imports
+ * Trust boundary for the farmacia's uploaded logo (openspec/specs/logo-farmacia/spec.md). Same order as the PDF imports
  * (shared/pdf/validar-archivo-pdf.ts): `instanceof File`, empty, too big (BEFORE reading it), then the file signature.
  * The media type is DETECTED from the signature, never taken from `file.type` or the extension (client-controlled),
  * and it is what the logo is later served as. SVG is not accepted: it can carry script.

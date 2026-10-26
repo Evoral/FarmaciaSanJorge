@@ -14,7 +14,7 @@
  * quantity to the unidad base (modules/stock/application/registrar-ajuste.ts).
  *
  * When preparaciones hold part of the saldo reserved (migration 0071,
- * docs/specs/reserva-stock-preparacion.md), the header shows the physical
+ * openspec/specs/reserva-stock-preparacion/spec.md), the header shows the physical
  * saldo, the reserved part with its recetas and the free part -- the only one
  * an ajuste may consume (the server enforces it).
  *

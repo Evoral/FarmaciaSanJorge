@@ -1,5 +1,5 @@
 /**
- * Unit tests for `registrarCostosProveedor` and `darDeBajaCostoProveedor` (docs/specs/costos-proveedor.md
+ * Unit tests for `registrarCostosProveedor` and `darDeBajaCostoProveedor` (openspec/specs/costos-proveedor/spec.md
  * R2, R9-R12, R20, R23, R24; CP1-CP6, CP10). The repository is mocked, the domain is the real one: what is
  * under test is the command's ORDER (lock before deciding, plan before writing, close + insert with the same
  * instant) and what it refuses.

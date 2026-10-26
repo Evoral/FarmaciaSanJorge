@@ -30,7 +30,7 @@ export async function GET(request: Request, { params }: RouteParams): Promise<Re
   const { id } = await params;
   const requestId = crypto.randomUUID();
   // `?tamano=<etiqueta_tamano.id>&columna=<n>&fila=<n>` is what the print dialog picked: the label size and the cell of
-  // the sheet (docs/specs/hoja-etiquetas.md R7). Without `tamano` (old links) the use case takes the first active size
+  // the sheet (openspec/specs/hoja-etiquetas/spec.md R7). Without `tamano` (old links) the use case takes the first active size
   // that fits the sheet; without `columna` / `fila`, 1 / 1. An unknown / deactivated / other-tenant size is a 404; a
   // malformed id, or a cell that is not an integer or is outside the grid, a 400.
   const busqueda = new URL(request.url).searchParams;

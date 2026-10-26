@@ -2,7 +2,7 @@
  * Guard for the camera of the QR import. Permissions-Policy is fixed per document
  * response, so a SOFT navigation to `/recetas/nuevo` keeps the `camera=()` of the page
  * it started from and the scanner could never open the camera (next.config.ts,
- * docs/specs/importacion-receta-qr.md). Soft navigations are:
+ * openspec/specs/importacion-receta-qr/spec.md). Soft navigations are:
  *   - a `<Link>` from "next/link";
  *   - `router.push/replace/prefetch` from `useRouter()` ("next/navigation");
  *   - `redirect()` / `permanentRedirect()` from "next/navigation": a Server Action's

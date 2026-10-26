@@ -1,6 +1,6 @@
 # Rollback: Etiqueta del preparado (logo, phones, dosis, paciente)
 
-Spec: `docs/specs/etiqueta-preparado.md`. The feature has a **schema change**
+Spec: `openspec/specs/etiqueta-preparado/spec.md`. The feature has a **schema change**
 (migration `prisma/migrations/20261019120000_0089_tenant_telefonos`), so it is
 reverted as code + a new forward migration built from
 `prisma/rollbacks/0089_tenant_telefonos.down.sql`.

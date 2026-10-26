@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Precio" of the receta being loaded (docs/specs/presupuesto-receta.md):
+ * "Precio" of the receta being loaded (openspec/specs/presupuesto-receta/spec.md):
  * the price the client sees at the counter before anything is saved.
  * Recalculates by itself ~600 ms after the items stop changing -- but only
  * once they are complete enough to price (domain/presupuesto.ts's
