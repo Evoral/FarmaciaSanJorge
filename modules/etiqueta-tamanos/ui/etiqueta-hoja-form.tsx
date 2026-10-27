@@ -11,6 +11,7 @@ import { HOJA_MM_MAX, HOJA_MM_MIN, MARGEN_MM_MAX, MARGEN_MM_MIN } from "@/module
 import type { HojaEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import { TAMANO_MM_MIN } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import { editarEtiquetaHojaAction } from "./actions";
+import { MedidaMmField } from "./medida-mm-field";
 
 export interface EtiquetaHojaFormProps {
   hoja: HojaEtiqueta;
@@ -37,24 +38,9 @@ export function EtiquetaHojaForm({ hoja, disabled, volverA }: EtiquetaHojaFormPr
       }}
     >
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="field">
-          <label htmlFor="hoja-anchoMm" className="field-label">
-            Ancho (mm)
-          </label>
-          <input id="hoja-anchoMm" name="anchoMm" defaultValue={medidaParaInput(hoja.anchoMm)} required disabled={disabled} inputMode="decimal" className="input font-mono" />
-        </div>
-        <div className="field">
-          <label htmlFor="hoja-altoMm" className="field-label">
-            Alto (mm)
-          </label>
-          <input id="hoja-altoMm" name="altoMm" defaultValue={medidaParaInput(hoja.altoMm)} required disabled={disabled} inputMode="decimal" className="input font-mono" />
-        </div>
-        <div className="field">
-          <label htmlFor="hoja-margenMm" className="field-label">
-            Margen (mm)
-          </label>
-          <input id="hoja-margenMm" name="margenMm" defaultValue={medidaParaInput(hoja.margenMm)} required disabled={disabled} inputMode="decimal" className="input font-mono" />
-        </div>
+        <MedidaMmField id="hoja-anchoMm" name="anchoMm" label="Ancho (mm)" defaultValue={medidaParaInput(hoja.anchoMm)} disabled={disabled} />
+        <MedidaMmField id="hoja-altoMm" name="altoMm" label="Alto (mm)" defaultValue={medidaParaInput(hoja.altoMm)} disabled={disabled} />
+        <MedidaMmField id="hoja-margenMm" name="margenMm" label="Margen (mm)" defaultValue={medidaParaInput(hoja.margenMm)} disabled={disabled} />
       </div>
       <p className="field-help -mt-1">
         Hoja entre {HOJA_MM_MIN} y {HOJA_MM_MAX} mm, margen entre {MARGEN_MM_MIN} y {MARGEN_MM_MAX} mm, con un decimal como máximo. Para una hoja apaisada, el ancho es el lado largo. El área útil (la hoja menos los dos márgenes) debe dejar al menos {TAMANO_MM_MIN} mm de cada lado.
