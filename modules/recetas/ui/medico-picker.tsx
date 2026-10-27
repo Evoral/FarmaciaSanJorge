@@ -76,36 +76,39 @@ function CrearMedico({ prefill, onCreado, onCancel }: { prefill: string; onCread
     <>
       <DetachedForm id={formId} ref={crearFormRef} action={crearAction} onSubmit={onSubmit} aria-label="Crear médico" />
       <p className="mb-3 text-sm font-medium text-zinc-900">Nuevo médico</p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="field">
-          <label htmlFor="medico-nombre" className="field-label">
-            Nombre
-          </label>
-          <input id="medico-nombre" name="nombre" required form={formId} autoFocus={apellido !== ""} className="input" />
-        </div>
-        <div className="field">
-          <label htmlFor="medico-apellido" className="field-label">
-            Apellido
-          </label>
-          <input id="medico-apellido" name="apellido" required form={formId} defaultValue={apellido} className="input" />
-        </div>
-        <div className="field">
-          <label htmlFor="medico-matricula" className="field-label">
-            Matrícula
-          </label>
-          <input id="medico-matricula" name="matricula" required form={formId} defaultValue={numero} className="input" />
-        </div>
-        <div className="field">
-          <label htmlFor="medico-matricula-jurisdiccion" className="field-label">
-            Jurisdicción
-          </label>
-          <select id="medico-matricula-jurisdiccion" name="matriculaJurisdiccion" defaultValue="PROVINCIAL" required form={formId} className="input">
-            {JURISDICCIONES_MATRICULA.map((j) => (
-              <option key={j} value={j}>
-                {JURISDICCION_MATRICULA_LABELS[j]}
-              </option>
-            ))}
-          </select>
+      {/* Container query: the picker lives in narrow columns, so viewport breakpoints over-split it. */}
+      <div className="@container">
+        <div className="grid gap-3 @sm:grid-cols-2">
+          <div className="field">
+            <label htmlFor="medico-nombre" className="field-label">
+              Nombre
+            </label>
+            <input id="medico-nombre" name="nombre" required form={formId} autoFocus={apellido !== ""} className="input" />
+          </div>
+          <div className="field">
+            <label htmlFor="medico-apellido" className="field-label">
+              Apellido
+            </label>
+            <input id="medico-apellido" name="apellido" required form={formId} defaultValue={apellido} className="input" />
+          </div>
+          <div className="field">
+            <label htmlFor="medico-matricula" className="field-label">
+              Matrícula
+            </label>
+            <input id="medico-matricula" name="matricula" required form={formId} defaultValue={numero} className="input" />
+          </div>
+          <div className="field">
+            <label htmlFor="medico-matricula-jurisdiccion" className="field-label">
+              Jurisdicción
+            </label>
+            <select id="medico-matricula-jurisdiccion" name="matriculaJurisdiccion" defaultValue="PROVINCIAL" required form={formId} className="input">
+              {JURISDICCIONES_MATRICULA.map((j) => (
+                <option key={j} value={j}>
+                  {JURISDICCION_MATRICULA_LABELS[j]}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
       {crearState.status === "error" ? (

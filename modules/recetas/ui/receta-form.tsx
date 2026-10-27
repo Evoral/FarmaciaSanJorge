@@ -921,9 +921,9 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                 ) : null}
               </div>
 
-              <div className="flex flex-col gap-6 p-4 sm:p-5">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="field sm:col-span-2">
+              <div className="@container flex flex-col gap-6 p-4 sm:p-5">
+                <div className="grid gap-4 @lg:grid-cols-2 @4xl:grid-cols-4">
+                  <div className="field @lg:col-span-2">
                     <label htmlFor={`item-${itemIdx}-desc`} className="field-label">
                       Nombre del preparado
                     </label>
@@ -986,7 +986,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                   ) : null}
 
                   {esFormaCapsular(item.formaFarmaceutica) ? null : (
-                    <div className="field sm:col-span-2">
+                    <div className="field @lg:col-span-2">
                       <span id={`item-${itemIdx}-total-label`} className="field-label">
                         Cantidad total (para csp)
                       </span>
@@ -1006,14 +1006,14 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                     </div>
                   )}
 
-                  <div className="field sm:col-span-2">
+                  <div className="field @lg:col-span-2">
                     <label htmlFor={`item-${itemIdx}-posologia`} className="field-label">
                       Posología
                     </label>
                     <input id={`item-${itemIdx}-posologia`} value={item.posologia} onChange={(e) => actualizarItem(itemIdx, { posologia: e.target.value })} placeholder="Opcional · Ej.: 1 cada 12 horas" className="input" />
                   </div>
 
-                  <div className="field sm:col-span-2">
+                  <div className="field @lg:col-span-2">
                     <label htmlFor={`item-${itemIdx}-obs`} className="field-label">
                       Observaciones
                     </label>
