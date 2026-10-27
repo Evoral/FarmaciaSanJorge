@@ -61,9 +61,9 @@ approved.
 
 ## 8. Seguridad y accesos (44 KB) — review by a different agent is mandatory
 
-- [ ] 8.1 `roles-personalizables`
-- [ ] 8.2 `cuentas-de-sector`
-- [ ] 8.3 `contrasena-temporal`
+- [x] 8.1 `roles-personalizables`
+- [x] 8.2 `cuentas-de-sector`
+- [x] 8.3 `contrasena-temporal`
 
 ## 9. Libro recetario (36 KB) — alone, maximum care
 
