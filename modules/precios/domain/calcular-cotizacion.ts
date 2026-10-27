@@ -23,7 +23,11 @@
  *
  * Manual-enrase and different-magnitud líneas are never costed, whatever the
  * source (R29). The tramo margin and precio mínimo apply to the resulting
- * costo de insumos exactly as before (R31).
+ * costo de insumos WITH IVA (R31, R7a): each línea also gets its IVA -- a
+ * `PROVEEDOR` línea its costo's own alícuota (`costoUnitarioConIva`), a
+ * `PARTIDAS` línea the tenant's (`alicuotaIvaPartidas`; partidas are net).
+ * `subtotal` / `costoInsumos` stay net, `subtotalConIva` / `costoInsumosConIva`
+ * carry the IVA; both are stored.
  *
  * PARTIDAS algorithm: for each NON-manual `linea_pesaje` of the item's LATEST ficha tecnica,
  * cost the quantities the reparto WOULD use if a preparacion confirmed
@@ -74,6 +78,7 @@ import { Decimal, dec } from "@/shared/decimal";
 import { convertirCantidad, mismaMagnitud, type UnidadDeConversion } from "@/shared/decimal/convertir-unidad";
 import { estaVencida, proponerReparto } from "@/modules/stock/domain/reparto";
 import type { PartidaDisponible } from "@/modules/stock/domain/reparto";
+import { aplicarIva } from "@/modules/costos-proveedor/domain/costo-proveedor";
 import { calcularPrecioFinal } from "./regla-precio";
 import type { ReglasPrecio } from "./regla-precio";
 
@@ -98,6 +103,8 @@ export interface LineaCosteoInput {
    * Chosen by the caller (application layer); this module only applies it.
    */
   costoProveedor?: CostoProveedorCosteo | null;
+  /** R7a: percent of IVA a `PARTIDAS` línea gets (the tenant's `alicuota_iva_porcentaje`; partidas are net). Absent = 0. */
+  alicuotaIvaPartidas?: Decimal | string;
 }
 
 /**
@@ -112,6 +119,13 @@ export interface CostoProveedorCosteo {
   precioInformado: string;
   unidadPrecioSimbolo: string;
   costoUnitario: string;
+  /**
+   * R7a: the costo's alícuota and both prices with it; the línea is priced with `costoUnitarioConIva`. ABSENT in every
+   * snapshot calculated before migration 0107 (those were priced without IVA).
+   */
+  alicuotaIva?: string;
+  precioInformadoConIva?: string;
+  costoUnitarioConIva?: string;
   /** `YYYY-MM-DD`. */
   fechaPrecio: string;
 }
@@ -137,7 +151,11 @@ export interface LineaCotizacionDetalle {
   cantidadRequerida: string | null;
   /** Always empty for a `PROVEEDOR` línea (its cost does not come from partidas). */
   partidas: PartidaUsadaDetalle[];
+  /** Net of IVA. */
   subtotal: string;
+  /** R7a: the alícuota applied (percent) and the subtotal with it. ABSENT in every snapshot calculated before migration 0107. */
+  alicuotaIva?: string;
+  subtotalConIva?: string;
   /**
    * In the línea's unit. Present (and > 0) when the eligible stock does not cover the línea. On a `PARTIDAS` línea it
    * means "could not be fully costed" (and makes the cotización `esIncompleta`); on a `PROVEEDOR` línea it is
@@ -185,8 +203,11 @@ export function leerDetalleCotizacion(detalle: CotizacionDetalle): CotizacionDet
 }
 
 export interface CotizacionCalculada {
+  /** Net of IVA. */
   costoInsumos: Decimal;
-  /** The markup of the tramo `costoInsumos` fell into (regla-precio.ts#calcularPrecioFinal). */
+  /** R7a: with each línea's IVA -- what the price is calculated on (tramo + precio mínimo). */
+  costoInsumosConIva: Decimal;
+  /** The markup of the tramo `costoInsumosConIva` fell into (regla-precio.ts#calcularPrecioFinal). */
   margenAplicado: Decimal;
   /** 0-based index of that tramo in the regla's `tramos`. */
   tramoAplicado: number;
@@ -271,6 +292,8 @@ function costearLinea(
   const costoProveedor = linea.costoProveedor ?? null;
   if (costoProveedor) {
     // R25: the WHOLE quantity (stock or not) at the proveedor's costo per unidad base. R28: the faltante is only informational.
+    // R7a: priced with the costo's own IVA, as stored (`costoUnitarioConIva`).
+    const alicuotaIva = costoProveedor.alicuotaIva ?? "0";
     return {
       incompleta: false,
       consumo: partidasUsadas,
@@ -283,6 +306,8 @@ function costearLinea(
         cantidadRequerida: requerida.toString(),
         partidas: [],
         subtotal: requeridaStock.times(dec(costoProveedor.costoUnitario)).toString(),
+        alicuotaIva: dec(alicuotaIva).toString(),
+        subtotalConIva: requeridaStock.times(dec(costoProveedor.costoUnitarioConIva ?? costoProveedor.costoUnitario)).toString(),
         faltante: faltante.greaterThan(0) ? faltante.toFixed() : null,
         fuente: "PROVEEDOR",
         costoProveedor: { ...costoProveedor },
@@ -290,6 +315,7 @@ function costearLinea(
     };
   }
 
+  const alicuotaIvaPartidas = dec(linea.alicuotaIvaPartidas ?? 0);
   return {
     incompleta: faltante.greaterThan(0),
     consumo: partidasUsadas,
@@ -302,6 +328,8 @@ function costearLinea(
       cantidadRequerida: requerida.toString(),
       partidas: partidasUsadas,
       subtotal: subtotal.toString(),
+      alicuotaIva: alicuotaIvaPartidas.toString(),
+      subtotalConIva: aplicarIva(subtotal, alicuotaIvaPartidas).toString(),
       faltante: faltante.greaterThan(0) ? faltante.toFixed() : null,
       fuente: "PARTIDAS",
     },
@@ -316,6 +344,7 @@ function costearItem(
   reglas: ReglasPrecio,
 ): { cotizacion: CotizacionCalculada; consumos: ConsumoSimulado[] } {
   let costoInsumos = new Decimal(0);
+  let costoInsumosConIva = new Decimal(0);
   let esParcial = false;
   let esIncompleta = false;
   const detalleLineas: LineaCotizacionDetalle[] = [];
@@ -359,17 +388,20 @@ function costearItem(
 
     const { detalle, incompleta, consumo } = costearLinea(linea, partidasPorDroga(linea.drogaId), jornadaActual);
     costoInsumos = costoInsumos.plus(dec(detalle.subtotal));
+    costoInsumosConIva = costoInsumosConIva.plus(dec(detalle.subtotalConIva ?? detalle.subtotal));
     if (incompleta) esIncompleta = true;
     detalleLineas.push(detalle);
     for (const usada of consumo) consumos.push({ drogaId: linea.drogaId, partidaId: usada.partidaId, cantidad: usada.cantidad });
   }
 
-  const precio = calcularPrecioFinal(costoInsumos, reglas);
+  // R31 + R7a: the price is calculated on the cost WITH IVA.
+  const precio = calcularPrecioFinal(costoInsumosConIva, reglas);
 
   return {
     consumos,
     cotizacion: {
       costoInsumos,
+      costoInsumosConIva,
       margenAplicado: precio.margenAplicado,
       tramoAplicado: precio.tramoAplicado,
       precioMinimoAplicado: precio.precioMinimoAplicado,

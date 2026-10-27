@@ -84,6 +84,8 @@ export default async function NuevoCostoPage({ searchParams }: NuevoCostoPagePro
         unidadPrecioId: fila.unidadPrecioId,
         unidadPrecioSimbolo: fila.unidadPrecioSimbolo,
         costoUnitario: fila.costoUnitario,
+        alicuotaIva: fila.alicuotaIva,
+        precioInformadoConIva: fila.precioInformadoConIva,
         fechaPrecio: fila.fechaPrecio,
         listaNombreArchivo: fila.listaNombreArchivo,
       }
@@ -110,6 +112,7 @@ export default async function NuevoCostoPage({ searchParams }: NuevoCostoPagePro
             proveedores={proveedores}
             unidades={unidades.map((u) => ({ id: u.id, codigo: u.codigo, simbolo: u.simbolo, tipoMagnitud: u.tipoMagnitud, factorABase: u.factorABase, vigente: u.vigente }))}
             jornadaActual={contexto.jornadaActual}
+            alicuotaIvaPorDefecto={contexto.alicuotaIvaPorDefecto}
             inicial={{
               droga: parElegido ? { id: droga.id, nombre: droga.nombre } : null,
               proveedor: parElegido ? { id: proveedor.id, razonSocial: proveedor.razonSocial } : null,

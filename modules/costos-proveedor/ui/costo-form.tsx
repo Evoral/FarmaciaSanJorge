@@ -17,7 +17,9 @@
  *
  * The controls are named `proveedorId` and `filas.0.<campo>`, the names the command's
  * errors point at, so a refused field is marked and NOTHING typed is lost
- * (`SimpleForm` -> `shared/ui/use-form-submit.ts`). Prices are net of IVA, in pesos (R7).
+ * (`SimpleForm` -> `shared/ui/use-form-submit.ts`). The price is typed net of IVA, in pesos (R7),
+ * with its alícuota de IVA (R7a): the pair's vigente one, else the tenant's, editable; the price
+ * with IVA is previewed with the command's own arithmetic (`calcularConIva`).
  */
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -27,9 +29,10 @@ import { DateInput } from "@/shared/ui/date-input";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { toast } from "@/shared/ui/toast";
 import { dec } from "@/shared/decimal";
+import { formatNumero } from "@/shared/format/cantidad";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { formatearCostoUnitario } from "@/shared/format/monto";
-import { calcularCostoUnidadBase, unidadPrecioPorDefecto } from "../domain/costo-proveedor";
+import { calcularConIva, calcularCostoUnidadBase, unidadPrecioPorDefecto } from "../domain/costo-proveedor";
 import type { TipoMagnitudCosto } from "../domain/costo-proveedor";
 import { antiguedadDias, etiquetaAntiguedad, etiquetaPrecio } from "../domain/presentacion";
 import type { CostoProveedorActionState, CostoVigenteResumen } from "./action-state";
@@ -60,6 +63,8 @@ export interface CostoFormProps {
   unidades: readonly UnidadOpcionCosto[];
   /** `YYYY-MM-DD`: the pharmacy's today (default and maximum of the price's date). */
   jornadaActual: string;
+  /** R7a: the tenant's `alicuota_iva_porcentaje`, what a pair without a vigente costo starts with. */
+  alicuotaIvaPorDefecto: string;
   /** Opened with a pair already chosen ("Editar", or "Cambiar el precio" from the historial): the pair is fixed and `vigente` (if any) prefills price and unit. Both `null` = a blank form. */
   inicial: { droga: { id: string; nombre: string } | null; proveedor: { id: string; razonSocial: string } | null; vigente: CostoVigenteResumen | null };
 }
@@ -80,10 +85,16 @@ function unidadInicial(droga: DrogaOpcionCosto | null, unidades: readonly Unidad
   return unidades.find((u) => u.vigente && u.tipoMagnitud === droga.tipoMagnitud && u.codigo === codigo)?.id ?? "";
 }
 
+/** A plain decimal as typed ("21", "10,5"), or `null`. Only for previews: the command parses it for real. */
+function decimalTipeado(valor: string): string | null {
+  const limpio = valor.trim().replace(/^(\d+),(\d+)$/, "$1.$2");
+  return /^\d+(\.\d+)?$/.test(limpio) ? limpio : null;
+}
+
 /** `costoUnitario` of what is typed, or `null` while the price is not a valid positive decimal. Never throws. */
 function costoPorUnidadBase(precio: string, unidadPrecio: UnidadOpcionCosto | undefined, unidadBase: UnidadOpcionCosto | undefined): string | null {
-  const limpio = precio.trim().replace(/^(\d+),(\d+)$/, "$1.$2");
-  if (!unidadPrecio || !unidadBase || !/^\d+(\.\d+)?$/.test(limpio) || !dec(limpio).greaterThan(0)) return null;
+  const limpio = decimalTipeado(precio);
+  if (!unidadPrecio || !unidadBase || limpio === null || !dec(limpio).greaterThan(0)) return null;
   try {
     const costo = calcularCostoUnidadBase(limpio, unidadPrecio, unidadBase);
     return dec(costo).greaterThan(0) ? costo : null;
@@ -92,7 +103,7 @@ function costoPorUnidadBase(precio: string, unidadPrecio: UnidadOpcionCosto | un
   }
 }
 
-export function CostoForm({ drogas, proveedores, unidades, jornadaActual, inicial }: CostoFormProps) {
+export function CostoForm({ drogas, proveedores, unidades, jornadaActual, alicuotaIvaPorDefecto, inicial }: CostoFormProps) {
   const router = useRouter();
   const buscarDrogas = useMemo(() => filtrarOpciones(drogas.map((d) => ({ value: d.id, label: d.nombre, sinonimos: d.sinonimos }))), [drogas]);
   const buscarProveedores = useMemo(() => filtrarOpciones(proveedores.map((p) => ({ value: p.id, label: p.razonSocial }))), [proveedores]);
@@ -105,6 +116,9 @@ export function CostoForm({ drogas, proveedores, unidades, jornadaActual, inicia
   const [precio, setPrecio] = useState(inicial.vigente?.precioInformado ?? "");
   const [fecha, setFecha] = useState(jornadaActual);
   const [motivo, setMotivo] = useState("");
+  const [alicuota, setAlicuota] = useState(inicial.vigente?.alicuotaIva ?? alicuotaIvaPorDefecto);
+  // Once the user typed an alícuota, choosing another pair never overwrites it.
+  const alicuotaEditada = useRef(false);
   const [vigente, setVigente] = useState<EstadoVigente>(parFijo ? { tipo: "listo", costo: inicial.vigente } : { tipo: "sin-par" });
   // Only the answer to the LAST pair asked about counts: a slow answer for a pair the user already left is ignored.
   const consulta = useRef(0);
@@ -114,6 +128,11 @@ export function CostoForm({ drogas, proveedores, unidades, jornadaActual, inicia
   const unidadPrecio = unidades.find((u) => u.id === unidadId);
   const unidadBase = drogaElegida ? unidades.find((u) => u.id === drogaElegida.unidadBaseId) : undefined;
   const costoUnitario = costoPorUnidadBase(precio, unidadPrecio, unidadBase);
+  const alicuotaValida = decimalTipeado(alicuota);
+  const conIva =
+    costoUnitario !== null && alicuotaValida !== null && dec(alicuotaValida).lessThanOrEqualTo(100)
+      ? calcularConIva({ precioInformado: decimalTipeado(precio)!, costoUnitario, alicuotaIva: alicuotaValida })
+      : null;
 
   async function consultarVigente(drogaId: string | undefined, proveedorId: string | undefined) {
     const numero = ++consulta.current;
@@ -125,6 +144,8 @@ export function CostoForm({ drogas, proveedores, unidades, jornadaActual, inicia
     const respuesta = await obtenerCostoVigenteDelParAction(drogaId, proveedorId);
     if (numero !== consulta.current) return;
     setVigente(respuesta.status === "ok" ? { tipo: "listo", costo: respuesta.costo } : { tipo: "error", mensaje: respuesta.message });
+    // R7a: a pair starts with its vigente alícuota (e.g. a 10,5 % set before), else the tenant's.
+    if (respuesta.status === "ok" && !alicuotaEditada.current) setAlicuota(respuesta.costo?.alicuotaIva ?? alicuotaIvaPorDefecto);
   }
 
   function elegirDroga(opcion: ComboboxOption | null) {
@@ -209,7 +230,8 @@ export function CostoForm({ drogas, proveedores, unidades, jornadaActual, inicia
           <p className="flex items-start gap-1.5 text-zinc-600">
             <Info className="mt-0.5 size-4 shrink-0 text-zinc-400" aria-hidden />
             <span>
-              Costo vigente: <span className="font-mono font-semibold text-zinc-900">{etiquetaPrecio(costoVigente.precioInformado, costoVigente.unidadPrecioSimbolo)}</span> al{" "}
+              Costo vigente: <span className="font-mono font-semibold text-zinc-900">{etiquetaPrecio(costoVigente.precioInformadoConIva, costoVigente.unidadPrecioSimbolo)}</span> con
+              IVA ({etiquetaPrecio(costoVigente.precioInformado, costoVigente.unidadPrecioSimbolo)} + {formatNumero(costoVigente.alicuotaIva, 2)}%) al{" "}
               {formatFechaIso(costoVigente.fechaPrecio)} ({etiquetaAntiguedad(antiguedadDias(costoVigente.fechaPrecio, jornadaActual))}),{" "}
               {costoVigente.listaNombreArchivo ? `de la lista ${costoVigente.listaNombreArchivo}` : "carga manual"}. Al guardar, queda como valor anterior en el historial.
             </span>
@@ -218,10 +240,10 @@ export function CostoForm({ drogas, proveedores, unidades, jornadaActual, inicia
         {vigente.tipo === "listo" && !costoVigente ? <p className="text-zinc-500">Todavía no hay un costo cargado para esta droga y este proveedor.</p> : null}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="field">
           <label htmlFor="costo-precio" className="field-label">
-            Precio informado
+            Precio sin IVA
           </label>
           <input
             id="costo-precio"
@@ -231,6 +253,25 @@ export function CostoForm({ drogas, proveedores, unidades, jornadaActual, inicia
             autoComplete="off"
             value={precio}
             onChange={(e) => setPrecio(e.target.value)}
+            aria-describedby="costo-precio-ayuda"
+            className="input font-mono"
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="costo-alicuota" className="field-label">
+            Alícuota de IVA (%)
+          </label>
+          <input
+            id="costo-alicuota"
+            name="filas.0.alicuotaIva"
+            required
+            inputMode="decimal"
+            autoComplete="off"
+            value={alicuota}
+            onChange={(e) => {
+              alicuotaEditada.current = true;
+              setAlicuota(e.target.value);
+            }}
             aria-describedby="costo-precio-ayuda"
             className="input font-mono"
           />
@@ -264,11 +305,14 @@ export function CostoForm({ drogas, proveedores, unidades, jornadaActual, inicia
         </div>
       </div>
       <p id="costo-precio-ayuda" className="field-help -mt-2">
-        Precio sin IVA, en pesos, por la unidad elegida, como figura en la lista del proveedor (ej.: $ 40.898 el kg: elegí kg e ingresá 40898).
-        {costoUnitario && unidadBase ? (
+        Precio sin IVA, en pesos, por la unidad elegida, como figura en la lista del proveedor (ej.: $ 40.898 el kg: elegí kg e ingresá 40898). La alícuota
+        empieza en la de la farmacia; cambiala si este producto lleva otra (ej.: 10,5).
+        {conIva && unidadPrecio && unidadBase ? (
           <>
             {" "}
-            Equivale a <span className="font-mono font-semibold text-zinc-900">$ {formatearCostoUnitario(costoUnitario)}</span> por {unidadBase.simbolo}.
+            Con IVA: <span className="font-mono font-semibold text-zinc-900">{etiquetaPrecio(conIva.precioInformadoConIva, unidadPrecio.simbolo)}</span>, o sea{" "}
+            <span className="font-mono font-semibold text-zinc-900">$ {formatearCostoUnitario(conIva.costoUnitarioConIva)}</span> por {unidadBase.simbolo} (es lo que se usa
+            para cotizar).
           </>
         ) : null}
       </p>

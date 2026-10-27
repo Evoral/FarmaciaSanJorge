@@ -64,7 +64,11 @@ const cotizacionRepo = {
 vi.mock("@/modules/precios/infrastructure/cotizacion-repository", () => cotizacionRepo);
 
 // No costo de proveedor for any droga: every línea falls back to partidas (openspec/specs/costos-proveedor/spec.md, R27).
-vi.mock("@/modules/costos-proveedor/infrastructure/costo-proveedor-repository", () => ({ getCostosProveedorVigentesDeDrogas: vi.fn(async () => []) }));
+// IVA 0 %: these cases are about the cumulative stock and pricing rules, so their prices stay net.
+vi.mock("@/modules/costos-proveedor/infrastructure/costo-proveedor-repository", () => ({
+  getCostosProveedorVigentesDeDrogas: vi.fn(async () => []),
+  getAlicuotaIvaPorDefecto: vi.fn(async () => "0"),
+}));
 
 const getReglaVigente = vi.fn();
 vi.mock("@/modules/precios/infrastructure/regla-precio-repository", () => ({ getReglaVigente: (...a: unknown[]) => getReglaVigente(...a) }));

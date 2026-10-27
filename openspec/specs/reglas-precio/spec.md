@@ -22,9 +22,11 @@ El precio final de una preparación SHALL calcularse con:
 
 ### Requirement: Costo de una preparación
 
-El costo SHALL ser el costo de insumos de **una** preparación (un ítem / una cotización). Cada ítem se cotiza solo,
-también en el presupuesto de una receta con varios ítems: el tramo y el piso se aplican por ítem, nunca sobre el
-total de la receta.
+El costo SHALL ser el costo de insumos de **una** preparación (un ítem / una cotización), **con IVA**: cada línea
+suma su IVA (la alícuota de su costo de proveedor, o la de la farmacia si se costea con partidas) y el tramo y el piso
+se aplican sobre ese costo con IVA, así el precio al cliente lo incluye (`openspec/specs/costos-proveedor/spec.md`,
+R7a y R31). Cada ítem se cotiza solo, también en el presupuesto de una receta con varios ítems: el tramo y el piso se
+aplican por ítem, nunca sobre el total de la receta.
 
 #### Scenario: RP8 — Dos ítems de una receta
 

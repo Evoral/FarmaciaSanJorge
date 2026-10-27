@@ -28,6 +28,7 @@
  */
 import { Decimal } from "decimal.js";
 import { numeroONull } from "@/shared/decimal/numero-ingresado";
+import { ALICUOTA_IVA_POR_DEFECTO, alicuotaIvaSchema } from "@/modules/costos-proveedor/domain/costo-proveedor";
 import { DIAS_RETIRO_VENCIDO_DEFAULT, DIAS_RETIRO_VENCIDO_MAX } from "@/modules/entregas/domain/retiro-vencido";
 import { MESES_VENCIMIENTO_PREPARADO_MAX } from "@/modules/preparaciones/domain/vencimiento";
 import { DIAS_RELEVAMIENTO_INICIAL_DEFAULT, DIAS_RELEVAMIENTO_INICIAL_MAX } from "@/modules/stock/domain/existencia-inicial";
@@ -43,6 +44,7 @@ export const PARAMETRO_CLAVES = [
   "meses_vencimiento_preparado",
   "dias_retiro_vencido",
   "dias_relevamiento_inicial",
+  "alicuota_iva_porcentaje",
 ] as const;
 
 export type ParametroClave = (typeof PARAMETRO_CLAVES)[number];
@@ -196,6 +198,16 @@ function validarDiasRetiroVencido(valorRaw: string): ValidacionParametro {
   return { ok: true, valor };
 }
 
+/**
+ * `alicuota_iva_porcentaje` (openspec/specs/costos-proveedor/spec.md R7a, migration 0107): the IVA a new costo de
+ * proveedor starts with and a línea costed from partidas gets. Same rule as a costo's own alícuota (0-100), one source.
+ */
+function validarAlicuotaIvaPorcentaje(valorRaw: string): ValidacionParametro {
+  const resultado = alicuotaIvaSchema.safeParse(valorRaw);
+  if (!resultado.success) return { ok: false, error: resultado.error.issues[0]?.message ?? "Debe ser un número válido." };
+  return { ok: true, valor: new Decimal(resultado.data) };
+}
+
 export interface ParametroDefinicion {
   clave: ParametroClave;
   tipo: "NUMERO";
@@ -314,5 +326,16 @@ export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = 
       `Debe ser un entero entre 1 y ${DIAS_RELEVAMIENTO_INICIAL_MAX} (tres meses).`,
     valorPorDefecto: DIAS_RELEVAMIENTO_INICIAL_DEFAULT,
     validar: validarDiasRelevamientoInicial,
+  },
+  alicuota_iva_porcentaje: {
+    clave: "alicuota_iva_porcentaje",
+    tipo: "NUMERO",
+    label: "Alícuota de IVA",
+    descripcion:
+      "Porcentaje de IVA con el que empieza cada costo de proveedor nuevo (se puede cambiar en cada costo) y con el que se " +
+      "cotizan las drogas sin costo de proveedor (sus partidas se cargan sin IVA). Cambiarlo no modifica los costos ya cargados " +
+      "ni las cotizaciones ya calculadas. Debe estar entre 0 y 100.",
+    valorPorDefecto: ALICUOTA_IVA_POR_DEFECTO,
+    validar: validarAlicuotaIvaPorcentaje,
   },
 };

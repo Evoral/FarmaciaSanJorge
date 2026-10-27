@@ -17,6 +17,7 @@
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { AliasDroga } from "@/modules/recetas/domain/importacion-receta";
+import { ALICUOTA_IVA_POR_DEFECTO, parsearAlicuotaIva } from "../domain/costo-proveedor";
 import type { DrogaParaLista, UnidadParaLista, VigenteParaLista } from "../domain/importacion-lista";
 
 export { ahoraServidor } from "@/shared/db/ahora-servidor";
@@ -125,6 +126,9 @@ export interface CostoProveedorVigenteBloqueado {
   precioInformado: string;
   unidadPrecioId: string;
   costoUnitario: string;
+  /** R7a: percent. */
+  alicuotaIva: string;
+  precioInformadoConIva: string;
   /** `YYYY-MM-DD`. */
   fechaPrecio: string;
   vigenteDesde: Date;
@@ -154,12 +158,16 @@ export async function lockVigentes(tx: Prisma.TransactionClient, tenantId: strin
       precio_informado: string;
       unidad_precio_id: string;
       costo_unitario: string;
+      alicuota_iva: string;
+      precio_informado_con_iva: string;
       fecha_precio: string;
       vigente_desde: Date;
     }[]
   >`
     SELECT c.id, c.droga_id, c.proveedor_id, c.precio_informado::text AS precio_informado, c.unidad_precio_id,
-           c.costo_unitario::text AS costo_unitario, to_char(c.fecha_precio, 'YYYY-MM-DD') AS fecha_precio, c.vigente_desde
+           c.costo_unitario::text AS costo_unitario, c.alicuota_iva::text AS alicuota_iva,
+           c.precio_informado_con_iva::text AS precio_informado_con_iva,
+           to_char(c.fecha_precio, 'YYYY-MM-DD') AS fecha_precio, c.vigente_desde
     FROM fsj.costo_proveedor c
     JOIN unnest(${drogaIds}::uuid[], ${proveedorIds}::uuid[]) AS p(droga_id, proveedor_id)
       ON c.droga_id = p.droga_id AND c.proveedor_id = p.proveedor_id
@@ -174,6 +182,8 @@ export async function lockVigentes(tx: Prisma.TransactionClient, tenantId: strin
     precioInformado: row.precio_informado,
     unidadPrecioId: row.unidad_precio_id,
     costoUnitario: row.costo_unitario,
+    alicuotaIva: row.alicuota_iva,
+    precioInformadoConIva: row.precio_informado_con_iva,
     fechaPrecio: row.fecha_precio,
     vigenteDesde: row.vigente_desde,
   }));
@@ -199,13 +209,16 @@ export async function lockCostoPorId(tx: Prisma.TransactionClient, tenantId: str
       precio_informado: string;
       unidad_precio_id: string;
       costo_unitario: string;
+      alicuota_iva: string;
+      precio_informado_con_iva: string;
       fecha_precio: string;
       vigente_desde: Date;
       vigente_hasta: Date | null;
     }[]
   >`
     SELECT c.id, c.droga_id, c.proveedor_id, c.precio_informado::text AS precio_informado, c.unidad_precio_id,
-           c.costo_unitario::text AS costo_unitario, to_char(c.fecha_precio, 'YYYY-MM-DD') AS fecha_precio, c.vigente_desde, c.vigente_hasta
+           c.costo_unitario::text AS costo_unitario, c.alicuota_iva::text AS alicuota_iva,
+           c.precio_informado_con_iva::text AS precio_informado_con_iva, to_char(c.fecha_precio, 'YYYY-MM-DD') AS fecha_precio, c.vigente_desde, c.vigente_hasta
     FROM fsj.costo_proveedor c
     WHERE c.tenant_id = ${tenantId}::uuid AND c.id = ${id}::uuid
     FOR UPDATE OF c
@@ -219,6 +232,8 @@ export async function lockCostoPorId(tx: Prisma.TransactionClient, tenantId: str
     precioInformado: row.precio_informado,
     unidadPrecioId: row.unidad_precio_id,
     costoUnitario: row.costo_unitario,
+    alicuotaIva: row.alicuota_iva,
+    precioInformadoConIva: row.precio_informado_con_iva,
     fechaPrecio: row.fecha_precio,
     vigenteDesde: row.vigente_desde,
     vigenteHasta: row.vigente_hasta,
@@ -239,6 +254,10 @@ export interface NuevoCostoProveedorInput {
   unidadPrecioId: string;
   /** Decimal string, per the droga's unidad base (> 0); computed by the domain (`calcularCostoUnidadBase`). */
   costoUnitario: string;
+  /** R7a: percent, and both prices with it, computed by the domain (`calcularConIva`; DB CHECKs, migration 0107). */
+  alicuotaIva: string;
+  precioInformadoConIva: string;
+  costoUnitarioConIva: string;
   /** `YYYY-MM-DD`. */
   fechaPrecio: string;
   descripcionProveedor: string | null;
@@ -404,6 +423,16 @@ export async function getCostosVigentesDeProveedor(tx: Prisma.TransactionClient,
 // Reads
 // ============================================================================
 
+/**
+ * The tenant's `alicuota_iva_porcentaje` parametro (R7a), with the defensive fallback to `ALICUOTA_IVA_POR_DEFECTO`
+ * for a missing or unreadable row (same discipline as modules/entregas/infrastructure/entrega-repository.ts). Reads
+ * `fsj.parametro` directly: modules can not reach into modules/parametros' infrastructure.
+ */
+export async function getAlicuotaIvaPorDefecto(tx: Prisma.TransactionClient, tenantId: string): Promise<string> {
+  const row = await tx.parametro.findUnique({ where: { tenantId_clave: { tenantId, clave: "alicuota_iva_porcentaje" } }, select: { valor: true } });
+  return parsearAlicuotaIva(row?.valor) ?? ALICUOTA_IVA_POR_DEFECTO;
+}
+
 export interface ListCostosVigentesFilter {
   proveedorId?: string;
   drogaId?: string;
@@ -425,6 +454,10 @@ export interface CostoProveedorListItem {
   unidadPrecioId: string;
   unidadPrecioSimbolo: string;
   costoUnitario: string;
+  /** R7a: percent, and both prices with it. */
+  alicuotaIva: string;
+  precioInformadoConIva: string;
+  costoUnitarioConIva: string;
   /** `YYYY-MM-DD`. */
   fechaPrecio: string;
   descripcionProveedor: string | null;
@@ -461,6 +494,9 @@ export async function listCostosVigentes(tx: Prisma.TransactionClient, tenantId:
       precioInformado: true,
       unidadPrecioId: true,
       costoUnitario: true,
+      alicuotaIva: true,
+      precioInformadoConIva: true,
+      costoUnitarioConIva: true,
       fechaPrecio: true,
       descripcionProveedor: true,
       listaPrecioId: true,
@@ -486,6 +522,9 @@ export async function listCostosVigentes(tx: Prisma.TransactionClient, tenantId:
       unidadPrecioId: row.unidadPrecioId,
       unidadPrecioSimbolo: row.unidadPrecio.simbolo,
       costoUnitario: row.costoUnitario.toFixed(),
+      alicuotaIva: row.alicuotaIva.toFixed(),
+      precioInformadoConIva: row.precioInformadoConIva.toFixed(),
+      costoUnitarioConIva: row.costoUnitarioConIva.toFixed(),
       fechaPrecio: isoDate(row.fechaPrecio),
       descripcionProveedor: row.descripcionProveedor,
       listaPrecioId: row.listaPrecioId,
@@ -504,6 +543,10 @@ export interface HistorialCostoItem {
   precioInformado: string;
   unidadPrecioSimbolo: string;
   costoUnitario: string;
+  /** R7a: percent, and both prices with it. */
+  alicuotaIva: string;
+  precioInformadoConIva: string;
+  costoUnitarioConIva: string;
   /** `YYYY-MM-DD`. */
   fechaPrecio: string;
   descripcionProveedor: string | null;
@@ -531,6 +574,9 @@ export async function listHistorialCosto(tx: Prisma.TransactionClient, tenantId:
       id: true,
       precioInformado: true,
       costoUnitario: true,
+      alicuotaIva: true,
+      precioInformadoConIva: true,
+      costoUnitarioConIva: true,
       fechaPrecio: true,
       descripcionProveedor: true,
       listaPrecioId: true,
@@ -560,6 +606,9 @@ export async function listHistorialCosto(tx: Prisma.TransactionClient, tenantId:
     precioInformado: row.precioInformado.toFixed(),
     unidadPrecioSimbolo: row.unidadPrecio.simbolo,
     costoUnitario: row.costoUnitario.toFixed(),
+    alicuotaIva: row.alicuotaIva.toFixed(),
+    precioInformadoConIva: row.precioInformadoConIva.toFixed(),
+    costoUnitarioConIva: row.costoUnitarioConIva.toFixed(),
     fechaPrecio: isoDate(row.fechaPrecio),
     descripcionProveedor: row.descripcionProveedor,
     listaPrecioId: row.listaPrecioId,
@@ -657,6 +706,10 @@ export interface CostoProveedorCandidato {
   precioInformado: string;
   unidadPrecioSimbolo: string;
   costoUnitario: string;
+  /** R7a: percent, and both prices with it (`costoUnitarioConIva` is what the cotización multiplies). */
+  alicuotaIva: string;
+  precioInformadoConIva: string;
+  costoUnitarioConIva: string;
   /** `YYYY-MM-DD`. */
   fechaPrecio: string;
   vigenteDesde: Date;
@@ -679,6 +732,9 @@ export async function getCostosProveedorVigentesDeDrogas(tx: Prisma.TransactionC
       proveedorId: true,
       precioInformado: true,
       costoUnitario: true,
+      alicuotaIva: true,
+      precioInformadoConIva: true,
+      costoUnitarioConIva: true,
       fechaPrecio: true,
       vigenteDesde: true,
       proveedor: { select: { razonSocial: true, fechaBaja: true } },
@@ -694,6 +750,9 @@ export async function getCostosProveedorVigentesDeDrogas(tx: Prisma.TransactionC
     precioInformado: row.precioInformado.toFixed(),
     unidadPrecioSimbolo: row.unidadPrecio.simbolo,
     costoUnitario: row.costoUnitario.toFixed(),
+    alicuotaIva: row.alicuotaIva.toFixed(),
+    precioInformadoConIva: row.precioInformadoConIva.toFixed(),
+    costoUnitarioConIva: row.costoUnitarioConIva.toFixed(),
     fechaPrecio: isoDate(row.fechaPrecio),
     vigenteDesde: row.vigenteDesde,
   }));

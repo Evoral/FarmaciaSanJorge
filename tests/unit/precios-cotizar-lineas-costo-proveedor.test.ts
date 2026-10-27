@@ -23,6 +23,8 @@ const candidatos: Candidato[] = [];
 const getCostosProveedorVigentesDeDrogas = vi.fn(async (_tx: unknown, _tenant: unknown, drogaIds: readonly string[]) => candidatos.filter((c) => drogaIds.includes(c.drogaId)));
 vi.mock("@/modules/costos-proveedor/infrastructure/costo-proveedor-repository", () => ({
   getCostosProveedorVigentesDeDrogas: (...a: [unknown, unknown, readonly string[]]) => getCostosProveedorVigentesDeDrogas(...a),
+  // 0 %: these tests are about the wiring and the stock, so their prices stay net.
+  getAlicuotaIvaPorDefecto: vi.fn(async () => "0"),
 }));
 
 const partidas = new Map<string, { id: string; cantidadDisponible: string; fechaVencimiento: string; fechaApertura: string | null; costoUnitario: string }[]>();

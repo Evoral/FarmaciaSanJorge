@@ -145,6 +145,8 @@ export interface NuevaCotizacionInput {
   tenantId: string;
   itemRecetaId: string;
   costoInsumos: string;
+  /** R7a (migration 0107): the base the price was calculated on. */
+  costoInsumosConIva: string;
   margenAplicado: string;
   precioMinimoAplicado: boolean;
   precioFinal: string;
@@ -161,6 +163,7 @@ export async function insertCotizacion(tx: Prisma.TransactionClient, input: Nuev
       tenantId: input.tenantId,
       itemRecetaId: input.itemRecetaId,
       costoInsumos: input.costoInsumos,
+      costoInsumosConIva: input.costoInsumosConIva,
       margenAplicado: input.margenAplicado,
       precioMinimoAplicado: input.precioMinimoAplicado,
       precioFinal: input.precioFinal,
@@ -178,6 +181,8 @@ export async function insertCotizacion(tx: Prisma.TransactionClient, input: Nuev
 export interface CotizacionItem {
   id: string;
   costoInsumos: string;
+  /** `null` = calculated before migration 0107: priced on `costoInsumos`, without IVA. */
+  costoInsumosConIva: string | null;
   margenAplicado: string;
   precioMinimoAplicado: boolean;
   precioFinal: string;
@@ -192,6 +197,7 @@ export interface CotizacionItem {
 const COTIZACION_SELECT = {
   id: true,
   costoInsumos: true,
+  costoInsumosConIva: true,
   margenAplicado: true,
   precioMinimoAplicado: true,
   precioFinal: true,
@@ -205,6 +211,7 @@ const COTIZACION_SELECT = {
 function mapCotizacion(row: {
   id: string;
   costoInsumos: Prisma.Decimal;
+  costoInsumosConIva: Prisma.Decimal | null;
   margenAplicado: Prisma.Decimal;
   precioMinimoAplicado: boolean;
   precioFinal: Prisma.Decimal;
@@ -217,6 +224,7 @@ function mapCotizacion(row: {
   return {
     id: row.id,
     costoInsumos: row.costoInsumos.toString(),
+    costoInsumosConIva: row.costoInsumosConIva?.toString() ?? null,
     margenAplicado: row.margenAplicado.toString(),
     precioMinimoAplicado: row.precioMinimoAplicado,
     precioFinal: row.precioFinal.toString(),

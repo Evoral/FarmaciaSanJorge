@@ -59,6 +59,7 @@ function CostoProveedorLinea({ linea }: { linea: LineaCotizacion }) {
             {" · "}
             <span className="whitespace-nowrap font-mono tabular-nums">
               ${formatearMonto(costo.precioInformado)} / {costo.unidadPrecioSimbolo}
+              {costo.alicuotaIva !== undefined ? ` + IVA ${formatNumero(costo.alicuotaIva, 2)}%` : null}
             </span>
             {" · "}
             <span className="whitespace-nowrap tabular-nums">{formatFechaIso(costo.fechaPrecio)}</span>
@@ -132,10 +133,18 @@ export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionIt
           <dd className="mt-1 font-mono text-3xl font-semibold tracking-tight text-zinc-900 tabular-nums">${formatearMonto(cotizacion.precioFinal)}</dd>
           {cotizacion.precioMinimoAplicado ? <dd className="mt-1 text-xs text-zinc-500">Precio mínimo aplicado (el costo + margen quedaba por debajo)</dd> : null}
         </div>
-        <div>
-          <dt className="text-xs text-zinc-500">Costo insumos</dt>
-          <dd className="mt-1 font-mono text-lg font-medium text-zinc-900 tabular-nums">${formatearMonto(cotizacion.costoInsumos)}</dd>
-        </div>
+        {cotizacion.costoInsumosConIva !== null ? (
+          <div>
+            <dt className="text-xs text-zinc-500">Costo insumos con IVA</dt>
+            <dd className="mt-1 font-mono text-lg font-medium text-zinc-900 tabular-nums">${formatearMonto(cotizacion.costoInsumosConIva)}</dd>
+            <dd className="mt-1 font-mono text-xs text-zinc-500 tabular-nums">sin IVA ${formatearMonto(cotizacion.costoInsumos)}</dd>
+          </div>
+        ) : (
+          <div>
+            <dt className="text-xs text-zinc-500">Costo insumos (sin IVA)</dt>
+            <dd className="mt-1 font-mono text-lg font-medium text-zinc-900 tabular-nums">${formatearMonto(cotizacion.costoInsumos)}</dd>
+          </div>
+        )}
         <div>
           <dt className="text-xs text-zinc-500">Margen del tramo</dt>
           <dd className="mt-1 font-mono text-lg font-medium text-zinc-900 tabular-nums">{formatNumero(cotizacion.margenAplicado, 2)}%</dd>
@@ -199,7 +208,19 @@ export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionIt
                 <td className="hidden px-3 py-2.5 md:table-cell">
                   <OrigenCostoLinea linea={linea} />
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">${formatearMonto(linea.subtotal)}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">
+                  {/* R7a: a snapshot from before migration 0107 has no IVA and shows its net subtotal as always. */}
+                  {linea.subtotalConIva !== undefined ? (
+                    <>
+                      ${formatearMonto(linea.subtotalConIva)}
+                      <span className="block text-xs font-normal text-zinc-500">
+                        sin IVA ${formatearMonto(linea.subtotal)} · IVA {formatNumero(linea.alicuotaIva ?? "0", 2)}%
+                      </span>
+                    </>
+                  ) : (
+                    <>${formatearMonto(linea.subtotal)}</>
+                  )}
+                </td>
                 <td className="hidden whitespace-nowrap px-5 py-2.5 text-right font-mono tabular-nums sm:table-cell">
                   {linea.faltante ? (
                     <span className={linea.fuente === "PROVEEDOR" ? "text-zinc-600" : "font-medium text-red-700"}>{textoFaltante(linea)}</span>

@@ -150,6 +150,7 @@ vi.mock("@/shared/auth/session", () => ({
 }));
 
 vi.mock("@/modules/costos-proveedor/infrastructure/costo-proveedor-repository", () => ({
+  getAlicuotaIvaPorDefecto: vi.fn(async () => "21"),
   getContextoTemporal: getContextoTemporalMock,
   jornadaActualTenant: jornadaActualTenantMock,
   getProveedorParaCosto: getProveedorParaCostoMock,
@@ -215,6 +216,8 @@ function vigente(cambios: Record<string, unknown> = {}) {
     precioInformado: "30000",
     unidadPrecioId: UNIDAD_KG_ID,
     costoUnitario: "0.03",
+    alicuotaIva: "21",
+    precioInformadoConIva: "36300",
     fechaPrecio: "2026-09-01",
     vigenteDesde: new Date("2026-09-02T10:00:00.000Z"),
     ...cambios,

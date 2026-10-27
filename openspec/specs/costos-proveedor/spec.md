@@ -97,15 +97,40 @@ row.
 - **WHEN** a row or entry for it is shown
 - **THEN** the unidad de precio defaults to kg and can be changed
 
-### Requirement: R7 — Net of IVA, in pesos
+### Requirement: R7 — Typed net of IVA, in pesos
 
-Prices SHALL be **net of IVA**, in pesos, like partidas. No currency column (the whole system is pesos-only; a
-column with a single possible value would be misleading).
+The precio informado SHALL be typed and imported **net of IVA**, in pesos, as supplier lists write it (like
+partidas). No currency column (the whole system is pesos-only; a column with a single possible value would be
+misleading).
 
-#### Scenario: Price labels
+#### Scenario: Price input label
 
-- **WHEN** a price field is shown
+- **WHEN** the manual form asks for the price
 - **THEN** its label says "sin IVA"
+
+### Requirement: R7a — IVA from the start
+
+Every costo SHALL carry its `alicuota_iva` (percent, 0–100) and both prices with it: `precio_informado_con_iva`
+(precio informado × (1 + alícuota / 100), 6 decimals half-up) and `costo_unitario_con_iva` (costo unitario × the
+same factor, 10 decimals half-up). The net figures are kept too: **both numbers are stored**.
+
+The alícuota SHALL default to the tenant parametro `alicuota_iva_porcentaje` (21, Configuración › Parámetros) and be
+**editable per costo** in the manual form. A row that does not choose one (a list import) keeps the pair's vigente
+alícuota, else takes the parametro's. Changing the parametro never touches costos already stored.
+
+The section SHALL show the price **with IVA** first and the net one, with its alícuota, under it.
+
+#### Scenario: New costo at the default alícuota
+
+- **GIVEN** the parametro at 21
+- **WHEN** $ 40.898 / kg sin IVA is registered without changing the alícuota
+- **THEN** it is stored with alícuota 21, $ 49.486,58 / kg con IVA and both costos por unidad base
+
+#### Scenario: A product at 10,5 %
+
+- **GIVEN** a costo whose alícuota was set to 10,5 by hand
+- **WHEN** the proveedor's next list is imported
+- **THEN** the new version keeps 10,5
 
 ### Requirement: R8 — No future fecha del precio
 
@@ -129,8 +154,8 @@ overwrites a newer price).
 
 ### Requirement: R10 — Sin cambios
 
-Same precio informado, unidad and `fecha_precio` as the vigente SHALL be **sin cambios**, no new version. Same price
-with a later date → new version (the price is confirmed as of a newer date; it matters for R16 and for the
+Same precio informado, unidad, `fecha_precio` and alícuota de IVA (R7a) as the vigente SHALL be **sin cambios**, no
+new version; changing only the alícuota is a new version. Same price with a later date → new version (the price is confirmed as of a newer date; it matters for R16 and for the
 antigüedad shown).
 
 #### Scenario: CP6 — Same price and date
@@ -408,7 +433,8 @@ motivo (optional).
 
 For each non-manual línea, if the droga has at least one **usable** costo de proveedor, the línea's fuente SHALL be
 `PROVEEDOR`: subtotal = cantidad requerida (the ficha's `cantidadAPesar`, converted to the droga's unidad base) ×
-`costo_unitario`, for the **whole** quantity, whether or not there is stock.
+`costo_unitario`, for the **whole** quantity, whether or not there is stock; its subtotal with IVA uses
+`costo_unitario_con_iva` (R7a).
 
 #### Scenario: CP12 — Cotización with costo de proveedor
 
@@ -431,13 +457,14 @@ Usable SHALL mean vigente, proveedor not de baja. With several proveedores, the 
 ### Requirement: R27 — Fallback to partidas
 
 A droga with no usable costo de proveedor SHALL be costed exactly as today (fuente `PARTIDAS`): open first, FEFO,
-blend, faltante. This is an explicit, visible fallback, never a silent 0.
+blend, faltante. This is an explicit, visible fallback, never a silent 0. Partidas are net of IVA, so the línea's
+subtotal with IVA is its subtotal × (1 + `alicuota_iva_porcentaje` / 100) (R7a); the partida itself is not touched.
 
 #### Scenario: CP13 — Cotización without costo de proveedor
 
-- **GIVEN** a droga without a costo de proveedor
+- **GIVEN** a droga without a costo de proveedor and the parametro at 21
 - **WHEN** a cotización is calculated
-- **THEN** the result is identical to today (every existing test unchanged)
+- **THEN** the partidas are split and costed as before, and the línea's subtotal con IVA is that cost × 1,21
 
 ### Requirement: R28 — Faltante of a PROVEEDOR línea is informational
 
@@ -476,20 +503,30 @@ The presupuesto SHALL use the same per-línea rule; its cumulative stock simulat
 
 ### Requirement: R31 — Tramo and precio mínimo on the costo de insumos
 
-The tramo margin and precio mínimo SHALL apply to the resulting costo de insumos exactly as today
-(`openspec/specs/reglas-precio/spec.md`).
+The tramo margin and precio mínimo SHALL apply to the costo de insumos **with IVA** (the sum of every línea's subtotal
+con IVA, R7a; user decision 2026-10-26): the tramo is chosen and the margin applied on it, so the price the client
+sees includes the IVA (`openspec/specs/reglas-precio/spec.md`). `cotizacion.costo_insumos` stays net and
+`cotizacion.costo_insumos_con_iva` stores the base the price was calculated on (NULL = calculated before migration
+0107, priced without IVA).
 
 #### Scenario: CP15 — Receta with mixed fuentes
 
 - **WHEN** a receta has líneas with mixed fuentes
-- **THEN** the costo de insumos is the sum and the tramo is applied once per ítem
+- **THEN** the costo de insumos con IVA is the sum and the tramo is applied once per ítem
+
+#### Scenario: Price includes IVA
+
+- **GIVEN** a costo de insumos of $ 100 net at 21 % and a tramo of +100 %
+- **WHEN** the cotización is calculated
+- **THEN** the costo de insumos con IVA is $ 121 and the precio final $ 242
 
 ### Requirement: R32 — Snapshot of the fuente
 
-Each línea in `cotizacion.detalle` SHALL get `fuente` and, for `PROVEEDOR`, `costoProveedor: { costoProveedorId,
-proveedorId, proveedorNombre, precioInformado, unidadPrecioSimbolo, costoUnitario, fechaPrecio }`; its `partidas`
-list is empty. A detalle **without** `fuente` (every cotización calculated before this feature) is read as
-`PARTIDAS`. No data migration.
+Each línea in `cotizacion.detalle` SHALL get `fuente`, `alicuotaIva` and `subtotalConIva` (`subtotal` stays net) and,
+for `PROVEEDOR`, `costoProveedor: { costoProveedorId, proveedorId, proveedorNombre, precioInformado,
+unidadPrecioSimbolo, costoUnitario, alicuotaIva, precioInformadoConIva, costoUnitarioConIva, fechaPrecio }`; its
+`partidas` list is empty. A detalle **without** `fuente` (every cotización calculated before this feature) is read as
+`PARTIDAS`; one without `subtotalConIva` (before migration 0107) shows its net subtotal. No data migration.
 
 #### Scenario: CP16 — Old detalle without fuente
 
@@ -563,8 +600,8 @@ with the tabs **Vigentes**, **Importar lista**, **Listas importadas** and the **
 
 ### Requirement: Vigentes tab
 
-**Vigentes** (`/costos-proveedor`) SHALL list: droga · proveedor · precio informado (+ unidad) · costo por unidad
-base · fecha del precio (with age) · origen (lista / manual) · actions (editar, historial, dar de baja). Filters:
+**Vigentes** (`/costos-proveedor`) SHALL list: droga · proveedor · precio con IVA (+ unidad; the net one and the
+alícuota under it, R7a) · costo por unidad base con IVA (the net one under it) · fecha del precio (with age) · origen (lista / manual) · actions (editar, historial, dar de baja). Filters:
 proveedor and droga as Combobox (UI rollout rule), pagination. "Agregar costo" button.
 
 #### Scenario: Filtering by proveedor
@@ -683,7 +720,8 @@ Kept here because the new rules are defined against it.
 | R4 | Domain `calcularCostoUnidadBase`. |
 | R5 | Domain validation per row. |
 | R6 | Domain `unidadPrecioPorDefecto`; UI. |
-| R7 | Spec; UI labels say "sin IVA". |
+| R7 | Spec; the manual form's price label says "sin IVA". |
+| R7a | Domain `calcularConIva` / `alicuotaIvaSchema`; DB CHECKs (alícuota 0–100, both prices recomputed, migration 0107); `registrarCostosProveedor` resolves the alícuota (row → vigente → parametro). |
 | R8 | Domain; DB CHECK not possible (jornada is tenant time) → app only. |
 | R9 | Domain `planVersionar`; re-checked inside the command after the lock. |
 | R10 | Domain `planVersionar`. |
@@ -734,7 +772,9 @@ fsj.costo_proveedor                   -- versioned (regla_precio pattern)
   lista_precio_id → lista_precio_proveedor(tenant_id, id) NULL,
   motivo text NULL,
   vigente_desde timestamptz, vigente_hasta timestamptz NULL (> vigente_desde),
-  creado_por_id
+  creado_por_id,
+  -- migration 0107 (R7a); rows before it got 21
+  alicuota_iva numeric 0..100, precio_informado_con_iva numeric, costo_unitario_con_iva numeric
   UNIQUE (tenant_id, droga_id, proveedor_id) WHERE vigente_hasta IS NULL
   INDEX (tenant_id, proveedor_id) WHERE vigente_hasta IS NULL
 ```
@@ -793,7 +833,11 @@ Audit entities `costo_proveedor` and `lista_precio_proveedor` (labels in
   list the base row's PRECIO is per kg/L, while presentation rows are
   inconsistent (some look like a price per package).
 - **Net of IVA** (user decision 2026-10-15), like partidas, so the tramo
-  margins keep comparing like with like.
+  margins keep comparing like with like. **Superseded 2026-10-26 (R7a, R31):**
+  the price is still typed net, but each costo stores its IVA too and the
+  cotización prices on the cost with IVA; partidas get the tenant's
+  `alicuota_iva_porcentaje` (21 by default) at cotización time. Tramo
+  boundaries are now compared against the cost with IVA.
 - **No automatic recalculation of existing cotizaciones** (user decision
   2026-10-15).
 - **.xls native reader instead of a dependency** (user decision 2026-10-15):

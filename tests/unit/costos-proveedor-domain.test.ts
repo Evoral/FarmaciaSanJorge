@@ -130,8 +130,8 @@ describe("filaCostoSchema", () => {
 
   it("parses a valid row; blank optional texts become null and motivo is trimmed", () => {
     const parsed = schema.parse({ ...base, descripcionProveedor: "   ", motivo: "  ajuste de lista  " });
-    expect(parsed).toEqual({ ...base, descripcionProveedor: null, motivo: "ajuste de lista" });
-    expect(schema.parse(base)).toEqual({ ...base, descripcionProveedor: null, motivo: null });
+    expect(parsed).toEqual({ ...base, alicuotaIva: null, descripcionProveedor: null, motivo: "ajuste de lista" });
+    expect(schema.parse(base)).toEqual({ ...base, alicuotaIva: null, descripcionProveedor: null, motivo: null });
   });
 
   it("reports the offending field", () => {

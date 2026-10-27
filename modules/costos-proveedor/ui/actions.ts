@@ -89,6 +89,8 @@ export async function obtenerCostoVigenteDelParAction(drogaId: string, proveedor
         unidadPrecioId: costo.unidadPrecioId,
         unidadPrecioSimbolo: costo.unidadPrecioSimbolo,
         costoUnitario: costo.costoUnitario,
+        alicuotaIva: costo.alicuotaIva,
+        precioInformadoConIva: costo.precioInformadoConIva,
         fechaPrecio: costo.fechaPrecio,
         listaNombreArchivo: costo.listaNombreArchivo,
       },

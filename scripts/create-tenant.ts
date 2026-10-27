@@ -230,6 +230,7 @@ async function main(): Promise<void> {
     // (openspec/specs/retiro-vencido/spec.md) by migration 0095.
     // `dias_relevamiento_inicial` (openspec/specs/existencia-inicial/spec.md) needs no
     // backfill either: fsj.relevamiento_inicial_fecha_limite falls back to 30.
+    // `alicuota_iva_porcentaje` (openspec/specs/costos-proveedor/spec.md R7a) by migration 0107.
     // `dias_alerta_vencimiento_partida` needs no migration/backfill:
     // modules/stock/infrastructure/partida-repository.ts#getDiasAlertaVencimiento
     // falls back to the same default (30) for any tenant without this row.
@@ -245,7 +246,8 @@ async function main(): Promise<void> {
          ($1, 'plazo_archivo_controladas_anios', 'NUMERO', '3', 'Anios de conservacion en archivo fisico para lotes con al menos una receta controlada -- DP-26 PARCIAL, FASE 12 punto 12.1'),
          ($1, 'meses_vencimiento_preparado', 'NUMERO', '3', 'Meses desde la elaboracion tras los cuales vence un preparado; se fija al confirmar la preparacion -- DP-28 Vencimiento'),
          ($1, 'dias_retiro_vencido', 'NUMERO', '30', 'Dias, desde que la receta queda preparada, tras los cuales un preparado que nadie retiro pasa a Retiro vencido; 0 desactiva el vencimiento -- openspec/specs/retiro-vencido/spec.md'),
-         ($1, 'dias_relevamiento_inicial', 'NUMERO', '30', 'Dias, desde el primer cierre diario firmado, durante los cuales se puede cargar existencia inicial si el DT no cerro antes el relevamiento -- openspec/specs/existencia-inicial/spec.md')
+         ($1, 'dias_relevamiento_inicial', 'NUMERO', '30', 'Dias, desde el primer cierre diario firmado, durante los cuales se puede cargar existencia inicial si el DT no cerro antes el relevamiento -- openspec/specs/existencia-inicial/spec.md'),
+         ($1, 'alicuota_iva_porcentaje', 'NUMERO', '21', 'Alicuota de IVA, en porcentaje, que se propone para cada costo de proveedor nuevo y con la que se cotizan las partidas -- openspec/specs/costos-proveedor/spec.md R7a')
        ON CONFLICT (tenant_id, clave) DO NOTHING`,
       [tenantId],
     );

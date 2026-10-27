@@ -13,6 +13,12 @@
  *     `partida.costo_unitario`, so a cotización multiplies the same way
  *     whatever the cost source.
  *
+ * Plus its IVA (R7a, migration 0107): `alicuotaIva` (percent, the tenant's
+ * `alicuota_iva_porcentaje` parametro unless the user changed it for this
+ * costo) and both prices with it, `precioInformadoConIva` and
+ * `costoUnitarioConIva` (`calcularConIva`). A cotización multiplies the
+ * latter.
+ *
  * Dates (`fechaPrecio`) are `YYYY-MM-DD` strings (the jornada convention of
  * the rest of the code base), compared lexicographically.
  */
@@ -20,7 +26,7 @@ import { z } from "zod";
 import { Decimal, dec } from "@/shared/decimal";
 import { convertirCantidad, mismaMagnitud, type UnidadDeConversion } from "@/shared/decimal/convertir-unidad";
 import { DomainError } from "@/shared/errors";
-import { positiveDecimalString, uuid } from "@/shared/validation";
+import { decimalString, positiveDecimalString, uuid } from "@/shared/validation";
 
 // ============================================================================
 // Unit conversion (R4, R5, R6)
@@ -74,6 +80,54 @@ export function calcularCostoUnidadBase(precioInformado: Decimal | string, unida
 }
 
 // ============================================================================
+// IVA (R7a)
+// ============================================================================
+
+/** The `alicuota_iva_porcentaje` parametro's default (migration 0107, scripts/create-tenant.ts), in percent. */
+export const ALICUOTA_IVA_POR_DEFECTO = "21";
+
+/** Decimals of `precioInformadoConIva` (the precio informado is shown with up to 6, presentacion.ts). */
+const PRECIO_CON_IVA_DECIMALES = 6;
+
+/** `alicuotaIva`: a percentage between 0 and 100 inclusive, as typed. Output: the canonical decimal string. */
+export const alicuotaIvaSchema = z
+  .string()
+  .trim()
+  .min(1, "Ingresá la alícuota de IVA.")
+  .pipe(decimalString)
+  .refine((value) => value.greaterThanOrEqualTo(0) && value.lessThanOrEqualTo(100), "La alícuota de IVA debe estar entre 0 y 100.")
+  .transform((value) => value.toFixed());
+
+/**
+ * The raw `fsj.parametro.valor` of `alicuota_iva_porcentaje`, or `null` when missing or not a percentage: callers then
+ * use `ALICUOTA_IVA_POR_DEFECTO` (same defensive fallback as every other parametro read).
+ */
+export function parsearAlicuotaIva(valorRaw: string | null | undefined): string | null {
+  if (valorRaw === null || valorRaw === undefined) return null;
+  const resultado = alicuotaIvaSchema.safeParse(valorRaw);
+  return resultado.success ? resultado.data : null;
+}
+
+/** `monto * (1 + alicuota / 100)`, exact (no rounding): what a cotización applies to a partida's cost (R27). */
+export function aplicarIva(monto: Decimal | string, alicuotaIva: Decimal | string): Decimal {
+  return dec(monto).times(dec(alicuotaIva).dividedBy(100).plus(1));
+}
+
+/**
+ * R7a: both prices of a costo with its IVA, as stored (the DB CHECKs of migration 0107 recompute them the same
+ * way): the precio informado rounded to 6 decimals, the costo per unidad base to `COSTO_DECIMALES`, half-up.
+ */
+export function calcularConIva(input: { precioInformado: Decimal | string; costoUnitario: Decimal | string; alicuotaIva: Decimal | string }): {
+  precioInformadoConIva: string;
+  costoUnitarioConIva: string;
+} {
+  return {
+    precioInformadoConIva: aplicarIva(input.precioInformado, input.alicuotaIva).toDecimalPlaces(PRECIO_CON_IVA_DECIMALES, Decimal.ROUND_HALF_UP).toFixed(),
+    costoUnitarioConIva: aplicarIva(input.costoUnitario, input.alicuotaIva).toDecimalPlaces(COSTO_DECIMALES, Decimal.ROUND_HALF_UP).toFixed(),
+  };
+}
+
+// ============================================================================
 // Row validation (R3, R5, R8)
 // ============================================================================
 
@@ -121,6 +175,11 @@ export function filaCostoSchema(jornadaActual: string) {
     precioInformado: precioInformadoSchema,
     unidadPrecioId: uuid,
     fechaPrecio: fechaPrecioSchema(jornadaActual),
+    /**
+     * R7a: `null`/absent = not chosen (a list import): the command keeps the pair's vigente alícuota, else the
+     * tenant's `alicuota_iva_porcentaje`.
+     */
+    alicuotaIva: z.preprocess((value) => (typeof value === "string" && value.trim() === "" ? null : value), alicuotaIvaSchema.nullish()).transform((value) => value ?? null),
     /** The product text as written on the supplier's list (imports only). */
     descripcionProveedor: textoOpcional,
     motivo: textoOpcional,
@@ -162,6 +221,8 @@ export interface ClaveVersionadoCosto {
   unidadPrecioId: string;
   /** `YYYY-MM-DD`. */
   fechaPrecio: string;
+  /** R7a. Absent on both sides = the same. */
+  alicuotaIva?: Decimal | string;
 }
 
 export interface CostoVigenteParaVersionar extends ClaveVersionadoCosto {
@@ -173,7 +234,7 @@ export type PlanVersionado =
   | { tipo: "INSERTAR" }
   /** Close `cerrarId` (vigente_hasta = the new version's vigente_desde) and insert the new version (R2). */
   | { tipo: "REEMPLAZAR"; cerrarId: string }
-  /** Same precio informado, unidad and fecha as the vigente: nothing to write (R10). */
+  /** Same precio informado, unidad, fecha and alícuota de IVA as the vigente: nothing to write (R10). */
   | { tipo: "SIN_CAMBIOS" }
   /** The vigente has a later fecha_precio: an older price never overwrites a newer one (R9). */
   | { tipo: "RECHAZAR"; motivo: "MAS_ANTIGUA" };
@@ -194,7 +255,8 @@ export function planVersionar(input: { vigente: CostoVigenteParaVersionar | null
   const igual =
     dec(nuevo.precioInformado).equals(dec(vigente.precioInformado)) &&
     nuevo.unidadPrecioId === vigente.unidadPrecioId &&
-    nuevo.fechaPrecio === vigente.fechaPrecio;
+    nuevo.fechaPrecio === vigente.fechaPrecio &&
+    dec(nuevo.alicuotaIva ?? 0).equals(dec(vigente.alicuotaIva ?? 0));
   if (igual) return { tipo: "SIN_CAMBIOS" };
   return { tipo: "REEMPLAZAR", cerrarId: vigente.id };
 }
