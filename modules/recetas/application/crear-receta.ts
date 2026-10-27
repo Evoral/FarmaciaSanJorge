@@ -29,6 +29,7 @@ import {
   duracionTratamientoDiasOpcional,
   esFechaPrescripcionValida,
   esFechaPrescripcionVigente,
+  esFechaValidaDesdeDelMes,
   resumirItemsReceta,
   validarItemsReceta,
   validarOrigenCargaManual,
@@ -175,8 +176,12 @@ export const crearRecetaCommand = defineCommand({
     if (input.fechaValidaDesde !== null && input.fechaValidaDesde < input.fechaPrescripcion) {
       throw new ValidationError("La fecha de validez no puede ser anterior a la fecha de prescripción.");
     }
-    if (!esFechaPrescripcionVigente(input.fechaValidaDesde ?? input.fechaPrescripcion, jornadaActual)) {
-      throw new ValidationError(input.fechaValidaDesde ? "La receta está vencida: pasó más de un mes desde su fecha de validez." : "La receta está vencida: tiene más de un mes desde su prescripción.");
+    if (input.fechaValidaDesde !== null) {
+      if (!esFechaValidaDesdeDelMes(input.fechaValidaDesde, jornadaActual)) {
+        throw new ValidationError("La fecha de validez tiene que ser de este mes.");
+      }
+    } else if (!esFechaPrescripcionVigente(input.fechaPrescripcion, jornadaActual)) {
+      throw new ValidationError("La receta está vencida: tiene más de un mes desde su prescripción.");
     }
 
     const itemsDominio = toItemsInput(input.items);

@@ -55,7 +55,7 @@ import { AdvertenciasImportacion, PanelPersona, ResumenImportacion } from "./imp
 import type { VistaPreviaImportacion } from "../domain/importacion-receta";
 import { JURISDICCIONES_MATRICULA, JURISDICCION_MATRICULA_LABELS } from "@/modules/medicos/domain/medico";
 import type { JurisdiccionMatricula } from "@/modules/medicos/domain/medico";
-import { FORMAS_FARMACEUTICAS, MAX_DOMICILIO_PACIENTE, MODOS_EXPRESION, ORIGEN_RECETA_LABELS, esFormaCapsular, fechaPrescripcionMinima, validarItemsReceta } from "../domain/receta";
+import { FORMAS_FARMACEUTICAS, MAX_DOMICILIO_PACIENTE, MODOS_EXPRESION, ORIGEN_RECETA_LABELS, esFormaCapsular, fechaPrescripcionMinima, ultimoDiaDelMes, validarItemsReceta } from "../domain/receta";
 import { FORMA_FARMACEUTICA_LABELS, MODO_EXPRESION_LABELS } from "@/shared/labels/enum-labels";
 import type { FormaFarmaceutica, ModoExpresion, OrigenReceta } from "../domain/receta";
 import type { UnidadOpcion } from "../infrastructure/receta-repository";
@@ -841,7 +841,9 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                       value={fechaValidaDesde}
                       onValueChange={setFechaValidaDesde}
                       // An edit that keeps the saved date is not re-checked (editar-receta.ts): only the prescription bounds it.
-                      min={mode === "editar" && fechaValidaDesde === inicial?.fechaValidaDesde ? fechaPrescripcion : [fechaPrescripcion, fechaPrescripcionMinima(jornadaDe(new Date()))].sort().at(-1)}
+                      // Otherwise it must fall in the current month (the prescription itself may be older).
+                      min={mode === "editar" && fechaValidaDesde === inicial?.fechaValidaDesde ? fechaPrescripcion : [fechaPrescripcion, `${jornadaDe(new Date()).slice(0, 7)}-01`].sort().at(-1)}
+                      max={mode === "editar" && fechaValidaDesde === inicial?.fechaValidaDesde ? undefined : ultimoDiaDelMes(jornadaDe(new Date()))}
                     />
                   </div>
                 ) : null}

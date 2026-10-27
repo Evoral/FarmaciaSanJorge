@@ -511,13 +511,13 @@ describe("recetas.importar -- confirmation", () => {
     expect(insertRecetaMock).not.toHaveBeenCalled();
   });
 
-  it("counts the month from the 'válida desde' date when the receta has one", async () => {
+  it("accepts an old prescription when its 'válida desde' date is in the current month, and rejects it otherwise", async () => {
     repo.buscarPacientePorIdentificacion.mockResolvedValue(PACIENTE_EXISTENTE);
-    const fresca = { fechaPrescripcion: "2026-08-01", fechaValidaDesde: "2026-08-29" };
-    await expect(importarRecetaCommand.execute(payload(fresca), { session: CON_PERMISO })).resolves.toBeDefined();
+    const delMes = { fechaPrescripcion: "2026-07-01", fechaValidaDesde: "2026-09-01" };
+    await expect(importarRecetaCommand.execute(payload(delMes), { session: CON_PERMISO })).resolves.toBeDefined();
     await expect(
-      importarRecetaCommand.execute(payload({ fechaPrescripcion: "2026-08-01", fechaValidaDesde: "2026-08-28" }), { session: CON_PERMISO }),
-    ).rejects.toThrow(/pasó más de un mes desde su fecha de validez/);
+      importarRecetaCommand.execute(payload({ fechaPrescripcion: "2026-07-01", fechaValidaDesde: "2026-08-31" }), { session: CON_PERMISO }),
+    ).rejects.toThrow(/La fecha de validez tiene que ser de este mes/);
   });
 
   it("rejects a 'válida desde' before the prescription date, like the alta and the edit", async () => {
