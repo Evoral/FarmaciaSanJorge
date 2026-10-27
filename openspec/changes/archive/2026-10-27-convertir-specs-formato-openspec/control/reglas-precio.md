@@ -57,3 +57,11 @@ form-level alert prefixed "Tramos de margen › n.º 2 › Costo hasta: ...", no
 The formula sat in a fenced block inside the "Fórmula del precio final" requirement; the CLI drops fenced blocks
 from requirement text, so `openspec show` returned the requirement without its formula. It is now inline code
 (same formula, unchanged).
+
+## Split for the CI gate (tanda 10)
+
+Rules over the 500-character limit split into requirements that each state one behavior, keeping original wording:
+
+| Original | Split into | Scenarios | Note |
+|---|---|---|---|
+| Costo de una preparación | "Costo de una preparación con IVA", "Cotización por ítem" | "Costo de insumos con IVA" (derived); RP8 (direct) | Split in two (500-character limit). |

@@ -98,3 +98,12 @@ Pre-existing, kept as written:
   import confirm runs in `importarListaPrecios` → `registrarFilasEnTx`.
 - R15's `serverActions.bodySizeLimit` is `experimental.serverActions.bodySizeLimit` (value `4_227_072` = 4 MiB +
   32 KiB multipart margin).
+
+## Split for the CI gate (tanda 10)
+
+Rules over the 500-character limit split into requirements that each state one behavior, keeping original wording:
+
+| Original | Split into | Scenarios | Note |
+|---|---|---|---|
+| R7a | "R7a — Both prices stored with IVA", "R7a — Alícuota default and inheritance", "R7a — Price display with IVA" | "Both prices stored with IVA" (direct); "A product at 10,5 %" (direct); "Price display with IVA" (derived) | Split in three (500-character limit). |
+| R32 | "R32 — Snapshot in cotizacion.detalle", "R32 — Detalle without fuente or subtotalConIva" | "Snapshot stored in cotizacion.detalle" (derived); CP16 (direct) | Split in two (500-character limit). |

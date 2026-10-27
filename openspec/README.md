@@ -30,7 +30,7 @@ the same commit, without a change folder.
 
 ## Status of the migration
 
-The specs moved here 1:1 from `docs/specs/` and keep their original free-form
-content. Converting them to the Requirement / Scenario format is a separate,
-reviewed step (one module at a time), so no rule is lost in the rewrite.
-Rollbacks stay in `docs/rollbacks/`.
+All 34 specs are in the Requirement / Scenario format (change
+`convertir-specs-formato-openspec`, archived). CI validates them with
+`npm run specs:validate`. Spec/code conflicts found during the conversion are
+recorded in the archived change's `control/` tables, pending a rule-update pass.

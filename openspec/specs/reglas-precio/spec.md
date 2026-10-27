@@ -20,12 +20,22 @@ El precio final de una preparación SHALL calcularse con:
 - **WHEN** se cotiza un costo de 15.000
 - **THEN** el precio del tramo es 30.000 y el precio final es 30.000: no se toca
 
-### Requirement: Costo de una preparación
+### Requirement: Costo de una preparación con IVA
 
 El costo SHALL ser el costo de insumos de **una** preparación (un ítem / una cotización), **con IVA**: cada línea
 suma su IVA (la alícuota de su costo de proveedor, o la de la farmacia si se costea con partidas) y el tramo y el piso
 se aplican sobre ese costo con IVA, así el precio al cliente lo incluye (`openspec/specs/costos-proveedor/spec.md`,
-R7a y R31). Cada ítem se cotiza solo, también en el presupuesto de una receta con varios ítems: el tramo y el piso se
+R7a y R31).
+
+#### Scenario: Costo de insumos con IVA
+
+- **GIVEN** las líneas de una preparación con sus alícuotas de IVA
+- **WHEN** se calcula el costo de la preparación
+- **THEN** el costo suma el IVA de cada línea y sobre ese total con IVA se aplican el tramo y el piso
+
+### Requirement: Cotización por ítem
+
+Cada ítem SHALL cotizarse solo, también en el presupuesto de una receta con varios ítems: el tramo y el piso se
 aplican por ítem, nunca sobre el total de la receta.
 
 #### Scenario: RP8 — Dos ítems de una receta

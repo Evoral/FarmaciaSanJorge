@@ -71,7 +71,7 @@ approved.
 
 ## 10. Closing
 
-- [ ] 10.1 Pin `@fission-ai/openspec` as devDependency (a release at least two weeks old)
-- [ ] 10.2 Add `openspec validate --specs --strict` to `.github/workflows/ci.yml`
-- [ ] 10.3 Update "Status of the migration" in `openspec/README.md`
-- [ ] 10.4 Archive this change
+- [x] 10.1 Pin `@fission-ai/openspec` as devDependency (a release at least two weeks old)
+- [x] 10.2 Add `openspec validate --specs --strict` to `.github/workflows/ci.yml`
+- [x] 10.3 Update "Status of the migration" in `openspec/README.md`
+- [x] 10.4 Archive this change

@@ -108,29 +108,38 @@ misleading).
 - **WHEN** the manual form asks for the price
 - **THEN** its label says "sin IVA"
 
-### Requirement: R7a — IVA from the start
+### Requirement: R7a — Both prices stored with IVA
 
 Every costo SHALL carry its `alicuota_iva` (percent, 0–100) and both prices with it: `precio_informado_con_iva`
 (precio informado × (1 + alícuota / 100), 6 decimals half-up) and `costo_unitario_con_iva` (costo unitario × the
 same factor, 10 decimals half-up). The net figures are kept too: **both numbers are stored**.
 
-The alícuota SHALL default to the tenant parametro `alicuota_iva_porcentaje` (21, Configuración › Parámetros) and be
-**editable per costo** in the manual form. A row that does not choose one (a list import) keeps the pair's vigente
-alícuota, else takes the parametro's. Changing the parametro never touches costos already stored.
-
-The section SHALL show the price **with IVA** first and the net one, with its alícuota, under it.
-
-#### Scenario: New costo at the default alícuota
+#### Scenario: Both prices stored with IVA
 
 - **GIVEN** the parametro at 21
 - **WHEN** $ 40.898 / kg sin IVA is registered without changing the alícuota
 - **THEN** it is stored with alícuota 21, $ 49.486,58 / kg con IVA and both costos por unidad base
+
+### Requirement: R7a — Alícuota default and inheritance
+
+The alícuota SHALL default to the tenant parametro `alicuota_iva_porcentaje` (21, Configuración › Parámetros) and be
+**editable per costo** in the manual form. A row that does not choose one (a list import) keeps the pair's vigente
+alícuota, else takes the parametro's. Changing the parametro never touches costos already stored.
 
 #### Scenario: A product at 10,5 %
 
 - **GIVEN** a costo whose alícuota was set to 10,5 by hand
 - **WHEN** the proveedor's next list is imported
 - **THEN** the new version keeps 10,5
+
+### Requirement: R7a — Price display with IVA
+
+The section SHALL show the price **with IVA** first and the net one, with its alícuota, under it.
+
+#### Scenario: Price display with IVA
+
+- **WHEN** a costo is shown in the section
+- **THEN** the price with IVA is shown first and the net one, with its alícuota, under it
 
 ### Requirement: R8 — No future fecha del precio
 
@@ -520,13 +529,22 @@ sees includes the IVA (`openspec/specs/reglas-precio/spec.md`). `cotizacion.cost
 - **WHEN** the cotización is calculated
 - **THEN** the costo de insumos con IVA is $ 121 and the precio final $ 242
 
-### Requirement: R32 — Snapshot of the fuente
+### Requirement: R32 — Snapshot in cotizacion.detalle
 
 Each línea in `cotizacion.detalle` SHALL get `fuente`, `alicuotaIva` and `subtotalConIva` (`subtotal` stays net) and,
 for `PROVEEDOR`, `costoProveedor: { costoProveedorId, proveedorId, proveedorNombre, precioInformado,
 unidadPrecioSimbolo, costoUnitario, alicuotaIva, precioInformadoConIva, costoUnitarioConIva, fechaPrecio }`; its
-`partidas` list is empty. A detalle **without** `fuente` (every cotización calculated before this feature) is read as
-`PARTIDAS`; one without `subtotalConIva` (before migration 0107) shows its net subtotal. No data migration.
+`partidas` list is empty.
+
+#### Scenario: Snapshot stored in cotizacion.detalle
+
+- **WHEN** a cotización with a PROVEEDOR línea is generated
+- **THEN** its detalle stores fuente PROVEEDOR, alicuotaIva, subtotalConIva, the costoProveedor snapshot, and an empty partidas list
+
+### Requirement: R32 — Detalle without fuente or subtotalConIva
+
+A detalle **without** `fuente` (every cotización calculated before this feature) is read as `PARTIDAS`; one
+without `subtotalConIva` (before migration 0107) SHALL show its net subtotal. No data migration.
 
 #### Scenario: CP16 — Old detalle without fuente
 

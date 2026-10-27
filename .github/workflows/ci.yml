@@ -26,6 +26,10 @@ jobs:
 
       - run: npm run lint
 
+      - run: npm run specs:validate
+        env:
+          OPENSPEC_TELEMETRY: '0'
+
       - run: npm test
 
       - name: Build

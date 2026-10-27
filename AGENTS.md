@@ -28,6 +28,7 @@ Prisma 7 + Postgres (Supabase, schema `fsj`), zod 4, decimal.js, Tailwind 4.
 | Unit tests | `npm test` |
 | DB tests (opt-in, `FSJ_DB_TESTS=yes`, real DB inside rolled-back tx) | `npm run test:db` |
 | Regenerate Prisma client | `npm run db:generate` |
+| Validate specs | `npm run specs:validate` |
 
 CI (`.github/workflows/ci.yml`) runs typecheck → lint → test → build. Never run
 `prisma migrate reset` or any destructive DB command: dev and tests share the
