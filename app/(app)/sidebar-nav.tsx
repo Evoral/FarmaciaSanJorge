@@ -237,9 +237,10 @@ export function SidebarNav(props: SidebarNavProps) {
 function Brand({ farmacia, logoSrc }: { farmacia: string | null; logoSrc: string | null }) {
   return (
     <Link href="/" title={farmacia ?? undefined} className="flex min-w-0 max-w-full flex-col items-center gap-2 text-center">
-      <span className="flex size-14 shrink-0 items-center justify-center rounded-lg dark:bg-white">
+      {/* Wide box: a horizontal logo (wordmark) fills the width instead of shrinking to a square's. */}
+      <span className="flex h-14 w-40 max-w-full shrink-0 items-center justify-center rounded-lg dark:bg-white">
         {/* The tenant's logo sits behind the session cookie, which the image optimizer would not send: `unoptimized`. */}
-        {logoSrc ? <Image src={logoSrc} alt="" width={52} height={52} unoptimized priority className="size-13 object-contain" /> : <Image src="/logo.png" alt="" width={52} height={52} priority />}
+        {logoSrc ? <Image src={logoSrc} alt="" width={160} height={56} unoptimized priority className="size-full object-contain" /> : <Image src="/logo.png" alt="" width={52} height={52} priority />}
       </span>
       {/* One line only: a long name is cut with an ellipsis (the full name is the link's title). */}
       {farmacia ? <span className="max-w-full truncate text-sm font-semibold leading-tight text-zinc-900 dark:text-zinc-100">{farmacia}</span> : null}
