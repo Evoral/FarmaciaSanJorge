@@ -67,7 +67,7 @@ approved.
 
 ## 9. Libro recetario (36 KB) — alone, maximum care
 
-- [ ] 9.1 `libro-recetario-y-contralor`
+- [x] 9.1 `libro-recetario-y-contralor`
 
 ## 10. Closing
 
