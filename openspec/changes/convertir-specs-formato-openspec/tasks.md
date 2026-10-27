@@ -48,10 +48,10 @@ approved.
 
 ## 6. Recetas (55 KB)
 
-- [ ] 6.1 `domicilios`
-- [ ] 6.2 `pago-receta`
-- [ ] 6.3 `importacion-receta-pdf`
-- [ ] 6.4 `importacion-receta-qr`
+- [x] 6.1 `domicilios`
+- [x] 6.2 `pago-receta`
+- [x] 6.3 `importacion-receta-pdf`
+- [x] 6.4 `importacion-receta-qr`
 
 ## 7. Entregas (51 KB)
 
