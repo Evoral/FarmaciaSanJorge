@@ -1,4 +1,368 @@
-# SPEC — Retiro vencido (recetas preparadas que nadie retira)
+# Retiro vencido (recetas preparadas que nadie retira)
+
+## Purpose
+
+Una receta en estado `PREPARADA` que nadie retira pasa automáticamente a un estado nuevo, `RETIRO_VENCIDO`, después de N días (parámetro por farmacia, 30 días por defecto, editable por el administrador). La operación es reversible: si la persona concurre a retirar, se reactiva volviendo a `PREPARADA` y se entrega normalmente. Si algún preparado de la receta ya venció, reactivar exige la autorización de un Director Técnico vigente mediante co-firma. Una receta en `RETIRO_VENCIDO` puede archivarse en un lote; una vez archivada, no puede reactivarse (decisión del usuario, 2026-10-20).
+
+## Requirements
+
+### Requirement: Estado RETIRO_VENCIDO y contadores de recetas en curso
+El tipo `fsj.estado_receta` SHALL incluir el valor `RETIRO_VENCIDO`. Este estado no es terminal, pero las recetas en `RETIRO_VENCIDO` no SHALL contar como recetas en curso, quedando excluidas de los contadores de activas del inicio y de la trayectoria del paciente, así como del listado de entregas por defecto.
+
+#### Scenario: Exclusión de contadores de recetas en curso
+- **GIVEN** una receta que pasa al estado `RETIRO_VENCIDO`
+- **WHEN** se calculan los contadores de recetas en curso o activas en inicio y trayectoria
+- **THEN** la receta no se contabiliza entre las recetas en curso
+- **AND** no aparece en el listado por defecto de `/entregas`
+
+#### Scenario: Inclusión tras filtrado explícito
+- **GIVEN** una receta en estado `RETIRO_VENCIDO`
+- **WHEN** el usuario filtra explícitamente por "Retiro vencido" en `/entregas` o `/recetas`
+- **THEN** la receta se muestra en los resultados
+
+### Requirement: Transiciones del estado RETIRO_VENCIDO
+El estado `RETIRO_VENCIDO` solo SHALL admitir transiciones de entrada desde `PREPARADA` (mediante el job diario), y transiciones de salida hacia `PREPARADA` (mediante reactivación) o hacia `ANULADA` (por anulación directa o automática por el libro recetario), conforme a INV-R08.
+
+#### Scenario: Transiciones autorizadas según lista blanca de INV-R08
+- **GIVEN** una receta en estado `PREPARADA`
+- **WHEN** se procesa su vencimiento por el job diario
+- **THEN** la receta pasa a `RETIRO_VENCIDO`
+
+#### Scenario: Transición no autorizada rechazada
+- **GIVEN** una receta en un estado distinto de `PREPARADA`
+- **WHEN** se intenta pasar su estado a `RETIRO_VENCIDO`
+- **THEN** la transición es rechazada por INV-R08
+
+### Requirement: Columna preparada_en y reinicio del reloj
+La tabla `fsj.receta` SHALL registrar la columna `preparada_en` (`timestamptz NULL`), actualizada automáticamente por un trigger cada vez que la receta ingresa al estado `PREPARADA` (desde preparación, anulación de entrega o reactivación), reiniciando el conteo de días para el retiro.
+
+#### Scenario: Actualización de preparada_en al entrar a PREPARADA
+- **GIVEN** una receta que entra al estado `PREPARADA` desde `EN_PREPARACION`
+- **WHEN** se confirma la preparación
+- **THEN** la columna `preparada_en` se establece con la fecha y hora actual
+
+#### Scenario: Reinicio del reloj por reactivación o anulación de entrega
+- **GIVEN** una receta que regresa a `PREPARADA` tras una reactivación o la anulación de una entrega
+- **WHEN** se actualiza el estado de la receta
+- **THEN** el trigger actualiza `preparada_en` reiniciando el plazo de N días para el retiro
+
+### Requirement: Parámetro días para el retiro
+El sistema SHALL disponer del parámetro `dias_retiro_vencido` en `fsj.parametro` de tipo número entero entre 0 y 365, con valor por defecto de 30 días. Si el valor es 0, el vencimiento de retiro SHALL considerarse desactivado. Ante la ausencia del registro en la base de datos, el sistema SHALL utilizar el valor por defecto de 30 días.
+
+#### Scenario: Parámetro dentro del rango permitido
+- **GIVEN** un administrador en la configuración de parámetros
+- **WHEN** guarda un valor entero entre 0 y 365 para `dias_retiro_vencido`
+- **THEN** el valor se almacena exitosamente
+
+#### Scenario: Desactivación con valor cero
+- **GIVEN** un tenant con `dias_retiro_vencido` configurado en 0
+- **WHEN** se evalúa el vencimiento de retiro
+- **THEN** el vencimiento se considera desactivado
+
+#### Scenario: Fallback por parámetro inexistente
+- **GIVEN** un tenant que no posee la fila `dias_retiro_vencido` en `fsj.parametro`
+- **WHEN** el sistema lee el parámetro
+- **THEN** retorna el valor por defecto de 30 días
+
+### Requirement: Fuera de alcance para envíos pendientes de firma
+El vencimiento de retiro SHALL NOT aplicar a recetas en estado `ENVIADA_PEND_FIRMA`. Asimismo, el paso a `RETIRO_VENCIDO` SHALL NOT generar movimientos de stock sobre los insumos de la receta.
+
+#### Scenario: Receta en ENVIADA_PEND_FIRMA no vence por retiro
+- **GIVEN** una receta en estado `ENVIADA_PEND_FIRMA` cuyo plazo de días se cumplió
+- **WHEN** corre el job diario de retiros vencidos
+- **THEN** la receta permanece en `ENVIADA_PEND_FIRMA` y no pasa a `RETIRO_VENCIDO`
+
+#### Scenario: Sin movimientos de stock al pasar a retiro vencido
+- **GIVEN** una receta que pasa a `RETIRO_VENCIDO`
+- **WHEN** se produce la transición de estado
+- **THEN** no se genera ningún movimiento de stock ni egreso de insumos
+
+### Requirement: RV1 — Vencimiento tras N días de jornada
+Una receta en estado `PREPARADA` SHALL transicionar a `RETIRO_VENCIDO` cuando hayan transcurrido N días de jornada (según la zona horaria del tenant) desde `preparada_en`: una receta preparada en la jornada D vence en la primera corrida del job en la jornada D + N. Si el parámetro N es 0, las recetas no SHALL vencer nunca.
+
+#### Scenario: Receta que cumple el plazo de N jornadas
+- **GIVEN** una receta en `PREPARADA` con `preparada_en` en la jornada 2026-10-01 y parámetro `dias_retiro_vencido` igual a 30
+- **WHEN** el job se ejecuta en la jornada 2026-10-31
+- **THEN** la receta pasa al estado `RETIRO_VENCIDO`
+
+#### Scenario: Receta que aún no cumplió el plazo
+- **GIVEN** una receta en `PREPARADA` con `preparada_en` en la jornada 2026-10-01 y parámetro `dias_retiro_vencido` igual a 30
+- **WHEN** el job se ejecuta en la jornada 2026-10-30
+- **THEN** la receta permanece en estado `PREPARADA`
+
+#### Scenario: Tenant con parámetro en 0 (desactivado)
+- **GIVEN** un tenant con parámetro `dias_retiro_vencido` igual a 0
+- **WHEN** el job diario se ejecuta
+- **THEN** ninguna receta pasa a `RETIRO_VENCIDO`
+
+### Requirement: RV2 — Ejecución periódica e idempotencia del job
+El job diario de retiros vencidos SHALL ejecutarse una vez al día recorriendo todos los tenants activos, aislando los errores por tenant de manera que el fallo en uno no detenga a los demás. La ejecución del job SHALL ser idempotente, de modo que ejecuciones repetidas en la misma jornada no alteren el resultado.
+
+#### Scenario: Ejecución idempotente en la misma jornada
+- **GIVEN** una corrida del job que ya procesó las recetas vencidas de la jornada
+- **WHEN** el job vuelve a ejecutarse en la misma jornada
+- **THEN** ninguna receta sufre modificaciones ni se generan duplicados
+
+#### Scenario: Aislamiento de fallos entre tenants
+- **GIVEN** un error en la transacción de un tenant específico durante la corrida del job
+- **WHEN** el job procesa dicho tenant
+- **THEN** el error queda aislado y la corrida continúa procesando los restantes tenants activos
+
+### Requirement: RV3 — Auditoría del pase a retiro vencido por el job
+Por cada receta que pase a `RETIRO_VENCIDO`, el job diario SHALL registrar un evento de auditoría con acción `CAMBIAR_ESTADO` (de `PREPARADA` a `RETIRO_VENCIDO`) a nombre del usuario SISTEMA, indicando en el contexto el plazo aplicado (`diasRetiroVencido`) y la fecha `preparada_en`.
+
+#### Scenario: Registro de auditoría CAMBIAR_ESTADO por el job
+- **GIVEN** una receta que pasa a `RETIRO_VENCIDO` por el job diario
+- **WHEN** concluye la actualización de la receta
+- **THEN** se registra un evento `CAMBIAR_ESTADO` a nombre del usuario SISTEMA con `diasRetiroVencido` y `preparadaEn`
+
+### Requirement: RV4 — Condiciones de reactivación
+La acción de reactivar solo SHALL permitirse sobre recetas en estado `RETIRO_VENCIDO` que no se encuentren en un lote de archivo (`lote_archivo_id` nulo). La reactivación SHALL cambiar el estado de la receta a `PREPARADA`, reiniciar la columna `preparada_en` y registrar una auditoría `CAMBIAR_ESTADO` a nombre del operador actuante.
+
+#### Scenario: Reactivación exitosa de receta sin archivar
+- **GIVEN** una receta en estado `RETIRO_VENCIDO` no archivada
+- **WHEN** un operador ejecuta la acción reactivar
+- **THEN** la receta retorna al estado `PREPARADA`
+- **AND** la columna `preparada_en` se reinicia
+- **AND** se registra una auditoría `CAMBIAR_ESTADO` con el operador actuante
+
+#### Scenario: Rechazo de reactivación en receta archivada
+- **GIVEN** una receta en estado `RETIRO_VENCIDO` que se encuentra en un lote de archivo
+- **WHEN** se intenta reactivar la receta
+- **THEN** la operación es rechazada con mensaje de receta archivada
+
+#### Scenario: Rechazo de reactivación en receta que no está en retiro vencido
+- **GIVEN** una receta en un estado distinto de `RETIRO_VENCIDO`
+- **WHEN** se invoca la acción reactivar
+- **THEN** la acción es rechazada
+
+### Requirement: RV5 — Co-firma del DT por preparado vencido
+Si al menos un preparado de la receta tiene `fecha_vencimiento` anterior a la jornada actual del tenant, la reactivación SHALL exigir en el mismo acto la co-firma de un DT vigente, quien debe seleccionar su nombre e ingresar su contraseña para ser validada en el servidor. Sin una co-firma válida, la reactivación SHALL ser rechazada. Un preparado sin `fecha_vencimiento` no SHALL considerarse vencido.
+
+#### Scenario: Reactivación con preparado vencido y co-firma válida
+- **GIVEN** una receta en `RETIRO_VENCIDO` con un preparado vencido anterior a la jornada actual
+- **WHEN** un DT vigente ingresa su contraseña correcta en el bloque de co-firma y confirma
+- **THEN** la receta es reactivada pasando a `PREPARADA`
+
+#### Scenario: Rechazo por co-firma con contraseña inválida
+- **GIVEN** una receta en `RETIRO_VENCIDO` con un preparado vencido
+- **WHEN** se ingresa una contraseña errónea para el DT
+- **THEN** la reactivación es rechazada y la receta permanece en `RETIRO_VENCIDO`
+
+#### Scenario: Preparado sin fecha de vencimiento no exige co-firma
+- **GIVEN** una receta con preparados antiguos sin `fecha_vencimiento`
+- **WHEN** se reactiva la receta
+- **THEN** no se considera vencido y la reactivación no exige co-firma del DT
+
+#### Scenario: Preparado que vence en la jornada actual no se considera vencido
+- **GIVEN** una receta cuyo preparado tiene `fecha_vencimiento` igual a la jornada actual
+- **WHEN** se reactiva la receta en dicha jornada
+- **THEN** el preparado no se considera vencido y no se exige co-firma
+
+### Requirement: RV6 — Auditoría de co-firma e intentos fallidos
+Al reactivar con co-firma, la co-firma SHALL registrarse en la auditoría de la reactivación: DT que autorizó y las fechas de vencimiento de los preparados vencidos. Un intento fallido SHALL contar como intento fallido del DT, igual que en las otras co-firmas.
+
+#### Scenario: Auditoría de reactivación con co-firma aprobada
+- **GIVEN** una reactivación exitosa con co-firma de DT
+- **WHEN** se registra el evento `CAMBIAR_ESTADO`
+- **THEN** la auditoría incluye `autorizadoPorId` con el DT y los vencimientos de los preparados
+
+#### Scenario: Registro de intento fallido del DT
+- **GIVEN** un intento de reactivación con contraseña incorrecta de un DT vigente
+- **WHEN** falla la verificación de co-firma
+- **THEN** el intento fallido cuenta como intento fallido del DT y se registra la auditoría correspondiente
+
+### Requirement: RV7 — Archivo de recetas en retiro vencido
+Una receta en estado `RETIRO_VENCIDO` SHALL poder ser archivada en un lote de archivo en las mismas condiciones que las recetas entregadas o anuladas. Una vez archivada en un lote, la receta no SHALL poder reactivarse.
+
+#### Scenario: Inclusión de receta en retiro vencido dentro de un lote de archivo
+- **GIVEN** una receta en estado `RETIRO_VENCIDO`
+- **WHEN** se conforma un lote de archivo que incluye la receta
+- **THEN** la receta es asignada al lote de archivo exitosamente
+
+#### Scenario: Bloqueo permanente de reactivación tras el archivo
+- **GIVEN** una receta en `RETIRO_VENCIDO` que ya fue archivada
+- **WHEN** se intenta reactivar la receta
+- **THEN** la acción es rechazada
+
+### Requirement: RV8 — Anulación automática por el libro recetario
+Si se anula el asiento del libro recetario correspondiente a una receta en `RETIRO_VENCIDO`, la receta SHALL pasar automáticamente a estado `ANULADA` al igual que una receta en `PREPARADA`. El estado `RETIRO_VENCIDO` no SHALL formar parte de los estados terminales de la receta.
+
+#### Scenario: Anulación automática al anular asiento del libro
+- **GIVEN** una receta en estado `RETIRO_VENCIDO` con un asiento registrado en el libro
+- **WHEN** se anula dicho asiento en el libro recetario
+- **THEN** la receta pasa automáticamente al estado `ANULADA`
+
+#### Scenario: Anulación manual directa de receta en retiro vencido
+- **GIVEN** una receta en estado `RETIRO_VENCIDO`
+- **WHEN** un usuario habilitado solicita su anulación directa
+- **THEN** la receta es anulada respetando los bloqueos correspondientes a una receta preparada
+
+### Requirement: RV9 — Preservación de la marca de pago
+El paso a `RETIRO_VENCIDO` y la reactivación a `PREPARADA` SHALL NOT modificar la marca de pago (`pagada`) de la receta. La entrega posterior a la reactivación SHALL regirse por las reglas estándar de entrega, exigiendo que la receta esté pagada si es retiro presencial.
+
+#### Scenario: Conservación de marca de pago tras vencer y reactivar
+- **GIVEN** una receta marcada como pagada que pasa a `RETIRO_VENCIDO` y posteriormente se reactiva
+- **WHEN** concluye la reactivación
+- **THEN** la receta conserva su marca de pagada
+
+#### Scenario: Exigencia de pago al entregar receta reactivada
+- **GIVEN** una receta reactivada que se encuentra impaga
+- **WHEN** se intenta registrar su retiro presencial
+- **THEN** el sistema exige que la receta sea marcada como pagada para completar la entrega
+
+### Requirement: RV10 — Aplicación diferida de cambios al parámetro
+Cambiar el parámetro `dias_retiro_vencido` no SHALL recalcular nada en el momento: la próxima corrida del job SHALL utilizar el valor nuevo. Bajar el valor puede vencer de golpe varias recetas en esa corrida; subirlo no SHALL reactivar las recetas que ya vencieron.
+
+#### Scenario: Reducción del parámetro evaluada en la siguiente corrida
+- **GIVEN** un tenant que reduce el valor de `dias_retiro_vencido` de 30 a 15
+- **WHEN** se ejecuta la siguiente corrida del job
+- **THEN** las recetas que hayan alcanzado los 15 días o más de espera pueden vencer de golpe en dicha corrida
+
+#### Scenario: Incremento del parámetro no reactiva recetas vencidas
+- **GIVEN** recetas que ya se encuentran en `RETIRO_VENCIDO` y un tenant que aumenta el parámetro
+- **WHEN** se ejecuta la siguiente corrida del job
+- **THEN** las recetas que ya vencieron no son reactivadas
+
+### Requirement: Permiso para editar parámetro de retiro
+La modificación del parámetro `dias_retiro_vencido` SHALL requerir el permiso `config.editar` y solo SHALL ser accesible para usuarios con rol ADMINISTRADOR.
+
+#### Scenario: Modificación del parámetro por un usuario con permiso
+- **GIVEN** un usuario con rol ADMINISTRADOR y permiso `config.editar`
+- **WHEN** modifica el parámetro `dias_retiro_vencido`
+- **THEN** el cambio se registra exitosamente
+
+#### Scenario: Rechazo a usuarios sin permiso config.editar
+- **GIVEN** un usuario que no cuenta con el permiso `config.editar`
+- **WHEN** intenta modificar el parámetro de retiro
+- **THEN** la acción es rechazada por falta de autorización
+
+### Requirement: Permiso y operador para reactivar
+La acción de reactivar una receta en `RETIRO_VENCIDO` SHALL requerir el permiso `entregas.registrar`. En sesiones sobre cuentas de sector, la acción SHALL requerir la identificación del operador (`conOperador`).
+
+#### Scenario: Reactivación por usuario con permiso entregas.registrar
+- **GIVEN** un usuario con permiso `entregas.registrar` en una receta en `RETIRO_VENCIDO`
+- **WHEN** ejecuta la reactivación
+- **THEN** la acción se autoriza
+
+#### Scenario: Solicitud de operador en cuenta de sector
+- **GIVEN** una sesión que opera bajo una cuenta de sector
+- **WHEN** se intenta reactivar la receta
+- **THEN** la acción solicita la identificación del operador mediante PIN
+
+#### Scenario: Rechazo a usuarios sin permiso entregas.registrar
+- **GIVEN** un usuario sin permiso `entregas.registrar`
+- **WHEN** intenta reactivar la receta
+- **THEN** la acción es rechazada por falta de autorización
+
+### Requirement: Condición de DT vigente para co-firma
+La autorización de reactivación de una receta con preparados vencidos SHALL requerir la condición de Director Técnico vigente mediante co-firma con contraseña personal, no pudiendo suplirse mediante permisos del operador.
+
+#### Scenario: Co-firma realizada por Director Técnico vigente
+- **GIVEN** una receta con preparado vencido
+- **WHEN** un Director Técnico vigente ingresa su contraseña en la co-firma
+- **THEN** la autorización es aceptada
+
+#### Scenario: Rechazo si el usuario seleccionado no es DT vigente
+- **GIVEN** un usuario que no tiene rol de Director Técnico vigente
+- **WHEN** se intenta utilizar sus credenciales para autorizar el preparado vencido
+- **THEN** la co-firma es rechazada
+
+### Requirement: Autenticación del job diario
+La ejecución del job diario de retiros vencidos SHALL autenticarse mediante `CRON_SECRET` y SHALL operar actuando con la identidad del usuario SISTEMA de cada tenant.
+
+#### Scenario: Ejecución autorizada del job con CRON_SECRET
+- **GIVEN** una petición al endpoint del job que incluye la cabecera con `CRON_SECRET`
+- **WHEN** se procesa la solicitud
+- **THEN** el job se ejecuta con la identidad del usuario SISTEMA del tenant
+
+#### Scenario: Rechazo de ejecución sin secreto válido
+- **GIVEN** una petición sin la cabecera `CRON_SECRET` o con un secreto incorrecto
+- **WHEN** se recibe la solicitud
+- **THEN** la ejecución es rechazada
+
+### Requirement: Etiqueta y tono visual del estado
+En todas las pantallas de la aplicación, el estado `RETIRO_VENCIDO` SHALL presentarse con la etiqueta "Retiro vencido" y con un indicador visual (badge) en tono de advertencia (`warn`).
+
+#### Scenario: Presentación visual del estado y badge warn
+- **GIVEN** una receta en estado `RETIRO_VENCIDO`
+- **WHEN** se visualiza en listados, detalle, trayectoria, reportes o exportaciones
+- **THEN** se muestra la etiqueta "Retiro vencido" con badge en tono warn
+
+### Requirement: Filtro de estado en el listado de entregas
+El listado de `/entregas` SHALL mostrar por defecto recetas en estado `PREPARADA` y `ENVIADA_PEND_FIRMA`. El filtro de estado de la página SHALL incluir la opción "Retiro vencido" para permitir listar las recetas vencidas cuando el paciente se presente.
+
+#### Scenario: Listado por defecto sin recetas con retiro vencido
+- **GIVEN** el listado principal de `/entregas` sin filtros aplicados
+- **WHEN** se cargan las entregas
+- **THEN** solo se muestran recetas en `PREPARADA` y `ENVIADA_PEND_FIRMA`
+
+#### Scenario: Filtrado explícito por estado Retiro vencido
+- **GIVEN** el listado de `/entregas`
+- **WHEN** el usuario selecciona "Retiro vencido" en el filtro de estado
+- **THEN** se listan las recetas en `RETIRO_VENCIDO`
+
+### Requirement: Modal de entrega para receta en retiro vencido
+Al abrir el modal de entrega (`/entregas/[recetaId]`) de una receta en `RETIRO_VENCIDO`, el sistema SHALL mostrar la fecha en que venció el plazo y el botón "Reactivar". Si algún preparado está vencido, SHALL mostrar un aviso en rojo y el formulario de co-firma del DT obligatorio. Si la receta está archivada, SHALL mostrar el texto informativo de archivo sin botón. Tras una reactivación exitosa, el modal SHALL continuar abierto mostrando el formulario habitual de entrega.
+
+#### Scenario: Modal de entrega con receta sin preparados vencidos
+- **GIVEN** una receta en `RETIRO_VENCIDO` sin preparados vencidos
+- **WHEN** se abre el modal de entrega
+- **THEN** se muestra el texto del plazo vencido y el botón "Reactivar" sin requerir co-firma
+
+#### Scenario: Modal de entrega con preparado vencido y co-firma obligatoria
+- **GIVEN** una receta en `RETIRO_VENCIDO` con un preparado vencido
+- **WHEN** se abre el modal de entrega
+- **THEN** se muestra el aviso en rojo de preparado vencido y el bloque de co-firma del DT obligatorio
+
+#### Scenario: Modal de entrega con receta archivada
+- **GIVEN** una receta en `RETIRO_VENCIDO` archivada en un lote
+- **WHEN** se abre el modal de entrega
+- **THEN** se muestra el texto "Archivada en el lote …" y no se muestra el botón "Reactivar"
+
+#### Scenario: Modal tras reactivación exitosa
+- **GIVEN** un modal de entrega donde se confirma exitosamente la reactivación
+- **WHEN** la revalidación actualiza la receta a `PREPARADA`
+- **THEN** el modal permanece abierto mostrando el formulario habitual de entrega de una receta preparada
+
+### Requirement: Acceso a reactivar desde el detalle de la receta
+En la página de detalle `/recetas/[id]`, cuando la receta esté en `RETIRO_VENCIDO`, el sistema SHALL mostrar el panel "Retiro vencido" con acceso a reactivar (que abre el modal de entrega), siempre que el usuario cuente con permiso `entregas.registrar` y la receta no esté archivada.
+
+#### Scenario: Panel Retiro vencido con acceso a reactivar
+- **GIVEN** una receta en `RETIRO_VENCIDO` no archivada y un usuario con permiso `entregas.registrar`
+- **WHEN** accede a `/recetas/[id]`
+- **THEN** se muestra el panel "Retiro vencido" con el acceso "Reactivar" que abre el modal de entrega
+
+#### Scenario: Ocultamiento de la acción cuando la receta está archivada
+- **GIVEN** una receta en `RETIRO_VENCIDO` que ha sido archivada
+- **WHEN** el usuario accede al detalle en `/recetas/[id]`
+- **THEN** el acceso a reactivar no se ofrece
+
+### Requirement: Múltiples preparados y vencimientos dispares
+En una receta con varios ítems preparados, si al menos uno de ellos tiene `fecha_vencimiento` anterior a la jornada actual del tenant, el sistema SHALL exigir la co-firma del DT y el aviso en la interfaz SHALL listar individualmente cada preparado vencido.
+
+#### Scenario: Receta con ítems vigentes y un ítem vencido
+- **GIVEN** una receta con varios preparados donde solo uno tiene fecha anterior a la jornada actual
+- **WHEN** se visualiza el formulario de reactivación
+- **THEN** se exige la co-firma del DT y el aviso en rojo lista el preparado que se encuentra vencido
+
+### Requirement: Co-firma obligatoria cuando el operador es DT vigente
+Si el operador que ejecuta la reactivación es un Director Técnico vigente, el sistema SHALL requerir igualmente el ingreso de su contraseña en el bloque de co-firma para autorizar la reactivación con preparados vencidos.
+
+#### Scenario: Operador que a la vez es Director Técnico vigente
+- **GIVEN** un operador autenticado que es Director Técnico vigente
+- **WHEN** reactiva una receta con preparados vencidos
+- **THEN** debe ingresar su propia contraseña en el bloque de co-firma
+
+### Requirement: Recuperación ante omisión de corrida del job
+Si el job diario no se ejecuta en una jornada determinada, la siguiente corrida del job SHALL evaluar la fecha actual y procesar todas las recetas cuyo plazo de días de jornada se encuentre cumplido a esa fecha.
+
+#### Scenario: Corrida posterior a fallo o suspensión del job
+- **GIVEN** un día en que el job diario no se ejecutó
+- **WHEN** se ejecuta la siguiente corrida del job
+- **THEN** se identifican y vencen todas las recetas cuyo plazo se cumplió a la fecha actual
+
+## Estado
 
 > Estado: **implementado 2026-10-20 (migraciones 0094-0095)**; los seis cortes están hechos (ver "Código que lo implementa"). Reversión: `docs/rollbacks/retiro-vencido.md`.
 > Decisiones del usuario (2026-10-20):

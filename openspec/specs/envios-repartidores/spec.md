@@ -1,4 +1,410 @@
-# SPEC — Envíos con repartidor y hoja de envíos del repartidor (PDF)
+# Envíos con repartidor y hoja de envíos del repartidor (PDF)
+
+## Purpose
+
+Los repartidores constituyen un catálogo propio de la farmacia para asignar a cada envío un repartidor responsable y emitir una hoja de ruta en PDF con los envíos pendientes del repartidor, indicando domicilio, paciente y estado del pago. Si una receta a enviar no tiene domicilio, quien registra la entrega lo ingresa en el modal y se guarda en la receta. Asimismo, el repartidor de un envío pendiente de firma puede cambiarse cuando sea necesario (decisión del usuario, 2026-10-20, actualizada 2026-10-23).
+
+## Requirements
+
+### Requirement: E1 — Asignación obligatoria de un repartidor en envíos
+El registro de una entrega bajo la modalidad envío (`ENVIO`) SHALL requerir la asignación de un único repartidor. El sistema SHALL impedir la confirmación del envío si no se ha seleccionado un repartidor.
+
+#### Scenario: Registro exitoso de envío con repartidor
+- **GIVEN** una receta en estado `PREPARADA` con domicilio disponible
+- **WHEN** el usuario selecciona modalidad envío y elige un repartidor activo
+- **THEN** la entrega se registra exitosamente asignando dicho repartidor
+
+#### Scenario: Rechazo de envío sin repartidor
+- **GIVEN** una receta en estado `PREPARADA`
+- **WHEN** se intenta registrar una entrega bajo modalidad envío sin especificar un repartidor
+- **THEN** el sistema rechaza la operación exigiendo la selección de un repartidor
+
+### Requirement: E2 — Prohibición de repartidor en retiros presenciales
+Una entrega bajo modalidad de retiro presencial no SHALL registrar un repartidor. Si la solicitud de registro de retiro presencial incluye un identificador de repartidor, el sistema SHALL rechazar la operación.
+
+#### Scenario: Registro de retiro presencial sin repartidor
+- **GIVEN** una receta en estado `PREPARADA` pagada
+- **WHEN** se registra la entrega bajo modalidad retiro presencial sin repartidor
+- **THEN** la entrega se registra exitosamente
+
+#### Scenario: Rechazo de retiro presencial que envía repartidor
+- **GIVEN** una receta en estado `PREPARADA`
+- **WHEN** se intenta registrar un retiro presencial adjuntando un identificador de repartidor
+- **THEN** el sistema rechaza la solicitud por incompatibilidad con la modalidad
+
+### Requirement: E3 — Requisito de repartidor activo del mismo tenant
+Al registrar un envío o cambiar de repartidor, el repartidor asignado SHALL ser un repartidor activo perteneciente al mismo tenant. La desactivación posterior de un repartidor en el catálogo no SHALL removerlo de los envíos que ya tenga previamente asignados.
+
+#### Scenario: Asignación de repartidor activo del tenant
+- **GIVEN** un repartidor activo perteneciente al tenant de la sesión
+- **WHEN** se lo asigna a un nuevo envío
+- **THEN** la asignación es aceptada
+
+#### Scenario: Rechazo de repartidor inactivo para nueva asignación
+- **GIVEN** un repartidor que se encuentra en estado inactivo
+- **WHEN** se intenta asignarlo al registrar un envío
+- **THEN** el sistema rechaza la asignación
+
+#### Scenario: Rechazo de repartidor de otro tenant
+- **GIVEN** un repartidor existente en otro tenant
+- **WHEN** se intenta utilizar su identificador en el tenant actual
+- **THEN** la operación es rechazada por no encontrarse en el tenant
+
+### Requirement: E4 — Exigencia de domicilio al registrar envío
+Un envío SHALL exigir que la receta cuente con `domicilio_paciente` no vacío al momento de registrarlo. Como una receta solo es editable en `PENDIENTE_PREPARACION` y el envío se registra desde `PREPARADA`, la opción "Envío" en el modal de entrega no SHALL deshabilitarse por falta de domicilio.
+
+#### Scenario: Modal de entrega permite elegir Envío sin domicilio previo
+- **GIVEN** una receta en estado `PREPARADA` que carece de domicilio
+- **WHEN** el usuario abre el modal de entrega
+- **THEN** la opción de modalidad "Envío" permanece habilitada para su selección
+
+#### Scenario: Envío confirmado con domicilio presente
+- **GIVEN** una receta en `PREPARADA` que cuenta con domicilio
+- **WHEN** se registra el envío con un repartidor asignado
+- **THEN** la entrega se completa exitosamente
+
+### Requirement: E4 — Carga de domicilio en receta sin domicilio previo
+Si la receta no tiene domicilio, la sección Envío del modal SHALL mostrar el campo obligatorio "Domicilio de entrega" y `registrarEntrega` SHALL guardarlo en `receta.domicilio_paciente` (solo esa columna) dentro de la misma transacción antes de insertar la entrega, con la normalización de la receta (trim, máx. 300, vacío = no cargado). Sin domicilio en la receta y sin domicilio escrito, la acción SHALL rechazarse con error sobre el campo `domicilio` ("Ingrese el domicilio de entrega.").
+
+#### Scenario: Carga exitosa de domicilio al confirmar envío
+- **GIVEN** una receta en `PREPARADA` sin domicilio registrado
+- **WHEN** se registra el envío ingresando un domicilio válido en el campo correspondiente
+- **THEN** el domicilio se guarda en `receta.domicilio_paciente` (solo esa columna) dentro de la misma transacción
+
+#### Scenario: Rechazo por omisión de domicilio en receta sin domicilio
+- **GIVEN** una receta en `PREPARADA` sin domicilio previo
+- **WHEN** se intenta confirmar el envío dejando vacío el campo "Domicilio de entrega"
+- **THEN** la operación se rechaza con el mensaje "Ingrese el domicilio de entrega." sobre el campo `domicilio`
+
+### Requirement: E4 — Protección de domicilio existente y rechazo en retiro presencial
+Si la receta ya tiene domicilio, el modal SHALL mostrarlo de solo lectura y no enviar el campo; si se recibe un `domicilio` recibido para una receta que ya lo poseía, la solicitud igual SHALL ser rechazada con `ValidationError` sobre `domicilio`. Asimismo, un retiro presencial con `domicilio` recibido SHALL ser rechazado.
+
+#### Scenario: Domicilio existente mostrado como solo lectura
+- **GIVEN** una receta que ya posee domicilio registrado
+- **WHEN** se visualiza la sección de envío en el modal de entrega
+- **THEN** el domicilio se exhibe de solo lectura y no se envía en el formulario
+
+#### Scenario: Rechazo si se envía domicilio para receta que ya lo posee
+- **GIVEN** una receta con domicilio previamente registrado
+- **WHEN** se envía una petición de entrega incluyendo un valor para el campo domicilio
+- **THEN** la solicitud es rechazada con `ValidationError` sobre el campo `domicilio`
+
+#### Scenario: Rechazo si se envía domicilio en retiro presencial
+- **GIVEN** una solicitud de entrega bajo modalidad retiro presencial
+- **WHEN** la petición incluye un valor en el campo domicilio
+- **THEN** la operación es rechazada
+
+### Requirement: E5 — Cambio de repartidor en envío pendiente de firma
+El repartidor de un envío solo SHALL poder cambiarse mientras la receta se encuentre en estado `ENVIADA_PEND_FIRMA`. El nuevo repartidor SHALL ser un repartidor activo del mismo tenant (cumpliendo la regla E3). La acción no SHALL permitir quitar el repartidor dejando el envío sin asignación.
+
+#### Scenario: Cambio exitoso de repartidor en envío pendiente de firma
+- **GIVEN** una receta en estado `ENVIADA_PEND_FIRMA` con un repartidor asignado
+- **WHEN** el usuario ejecuta el cambio seleccionando otro repartidor activo del tenant
+- **THEN** el nuevo repartidor queda registrado en la entrega
+
+#### Scenario: Rechazo de cambio de repartidor en receta en otro estado
+- **GIVEN** una receta en un estado distinto de `ENVIADA_PEND_FIRMA`
+- **WHEN** se intenta cambiar el repartidor de la entrega
+- **THEN** la acción es rechazada
+
+#### Scenario: Rechazo de selección del mismo repartidor actual
+- **GIVEN** un envío con un repartidor asignado
+- **WHEN** se intenta cambiar seleccionando exactamente al mismo repartidor
+- **THEN** la operación es rechazada evitando registrar un cambio redundante
+
+### Requirement: E6 — Repartidor en anulación de entrega
+Al anular una entrega bajo modalidad envío, el identificador del repartidor asignado SHALL preservarse en la columna `repartidor_id` de `fsj.entrega_anulada`. Si la receta vuelve a entregarse posteriormente, el repartidor SHALL seleccionarse nuevamente.
+
+#### Scenario: Preservación de repartidor al anular entrega
+- **GIVEN** una entrega bajo modalidad envío con repartidor asignado
+- **WHEN** la entrega es anulada
+- **THEN** la fila insertada en `fsj.entrega_anulada` conserva el identificador del repartidor
+
+#### Scenario: Nueva selección de repartidor tras anulación
+- **GIVEN** una receta devuelta a `PREPARADA` por anulación de su envío previo
+- **WHEN** se procede a registrar un nuevo envío
+- **THEN** el sistema exige seleccionar el repartidor nuevamente
+
+### Requirement: E7 — Envíos históricos sin repartidor
+Los envíos registrados con anterioridad a la incorporación de repartidores (con `repartidor_id` nulo) SHALL permanecer válidos, permitiendo asignarles un repartidor mediante la regla E5. Mientras no posean repartidor asignado, dichos envíos no SHALL incluirse en la hoja de envíos PDF y el modal de entrega SHALL indicar "Sin repartidor asignado".
+
+#### Scenario: Visualización y asignación en envío histórico
+- **GIVEN** un envío histórico pendiente de firma sin `repartidor_id`
+- **WHEN** se abre el modal de entrega
+- **THEN** se muestra el texto "Sin repartidor asignado" con el botón "Asignar repartidor"
+- **AND** dicho envío no se incluye en la hoja de envíos PDF
+
+### Requirement: E8 — Envíos incluidos en la hoja PDF
+La hoja de envíos en PDF solo SHALL incluir las entregas correspondientes al repartidor seleccionado cuyas recetas se encuentren en estado `ENVIADA_PEND_FIRMA` (habiendo salido de la farmacia y con firma pendiente de recepción).
+
+#### Scenario: Inclusión exclusiva de recetas enviadas pendientes de firma
+- **GIVEN** entregas asignadas a un repartidor en diversos estados
+- **WHEN** se genera la hoja de envíos PDF para dicho repartidor
+- **THEN** solo se listan aquellas recetas en estado `ENVIADA_PEND_FIRMA`
+
+#### Scenario: Exclusión de recetas con firma ya confirmada
+- **GIVEN** un envío cuyo retorno de firma ya fue confirmado
+- **WHEN** se emite la hoja de envíos del repartidor
+- **THEN** el envío completado no aparece en el documento
+
+### Requirement: E9 — Filtro de fecha de envío en la hoja PDF
+La exportación de la hoja de envíos SHALL filtrar por la fecha de envío (`entrega.entregada_en`), convirtiendo el valor a día calendario según la zona horaria del tenant. El filtro de fecha SHALL precargarse por defecto con la jornada actual ("hoy"). Si el campo de fecha se deja vacío, la hoja SHALL incluir todos los envíos pendientes de firma del repartidor independientemente de su fecha.
+
+#### Scenario: Filtro por defecto en la jornada actual
+- **GIVEN** el diálogo de exportación de hoja de envíos
+- **WHEN** se abre el diálogo
+- **THEN** el campo de fecha de envío aparece precargado con la jornada actual
+
+#### Scenario: Exportación con filtro de fecha vacío
+- **GIVEN** un repartidor con envíos de distintas fechas pendientes de firma
+- **WHEN** se exporta la hoja limpiando el campo de fecha
+- **THEN** la hoja incluye todos los envíos pendientes del repartidor
+
+### Requirement: E10 — Visualización del importe condicionado al permiso
+La columna de importe en la hoja de envíos PDF (calculada como la suma de `precio_final` de la última cotización de cada ítem) solo SHALL incluirse si el usuario que genera la exportación cuenta con el permiso `cotizaciones.ver`. Si el usuario carece de dicho permiso, la columna no SHALL figurar en el documento.
+
+#### Scenario: Emisión de PDF por usuario con permiso cotizaciones.ver
+- **GIVEN** un usuario que posee el permiso `cotizaciones.ver`
+- **WHEN** genera la hoja de envíos PDF
+- **THEN** el documento incluye la columna Importe con el precio correspondiente
+
+#### Scenario: Emisión de PDF por usuario sin permiso cotizaciones.ver
+- **GIVEN** un usuario sin el permiso `cotizaciones.ver`
+- **WHEN** genera la hoja de envíos PDF
+- **THEN** el documento no contiene la columna de importe
+
+### Requirement: E11 — Parámetros en la URL del PDF
+La solicitud HTTP de generación del PDF a través de su URL solo SHALL recibir los parámetros `repartidorId` y `fecha`. Ningún dato identificatorio o personal del paciente SHALL transmitirse a través de los parámetros de la URL (DP-24).
+
+#### Scenario: Parámetros autorizados en la URL de descarga
+- **GIVEN** la acción de descarga o visualización del PDF de envíos
+- **WHEN** el cliente realiza la petición GET al endpoint `/api/entregas/envios/pdf`
+- **THEN** la URL solo contiene los query parameters `repartidorId` y `fecha`
+- **AND** no incluye ningún dato del paciente
+
+### Requirement: Catálogo y atributos de repartidores
+El sistema SHALL gestionar un catálogo de repartidores por tenant en `fsj.repartidor`, con campos obligatorios `nombre` y `apellido` (texto no vacío de hasta 100 caracteres), `telefono` (texto no vacío de hasta 30 caracteres) y estado `activo` (booleano, por defecto verdadero). Los repartidores no SHALL eliminarse físicamente de la base de datos, gestionándose únicamente su activación o desactivación.
+
+#### Scenario: Alta de repartidor con datos válidos
+- **GIVEN** los datos de nombre, apellido y teléfono dentro de los límites requeridos
+- **WHEN** se crea un nuevo repartidor
+- **THEN** el repartidor se registra en `fsj.repartidor` con `activo` en verdadero
+
+#### Scenario: Desactivación de repartidor sin borrado físico
+- **GIVEN** un repartidor existente en el catálogo
+- **WHEN** se desactiva el repartidor
+- **THEN** su campo `activo` pasa a falso y la fila permanece en la base de datos
+
+### Requirement: Restricciones de base de datos para repartidor en entregas
+La tabla `fsj.entrega` SHALL exigir que un retiro presencial no tenga repartidor (`repartidor_id IS NULL`). Para toda nueva entrega de modalidad `ENVIO` o actualización de su repartidor, el sistema SHALL exigir mediante el trigger INV-ENT-005 que `repartidor_id` sea no nulo.
+
+#### Scenario: Cumplimiento de CHECK en retiro presencial
+- **GIVEN** una inserción de entrega con modalidad `RETIRO_PRESENCIAL`
+- **WHEN** se persiste en `fsj.entrega`
+- **THEN** la base de datos valida que `repartidor_id` sea `NULL`
+
+#### Scenario: Cumplimiento de INV-ENT-005 en envío nuevo
+- **GIVEN** una nueva entrega con modalidad `ENVIO`
+- **WHEN** se intenta insertar sin `repartidor_id`
+- **THEN** el trigger INV-ENT-005 rechaza la operación
+
+### Requirement: Permiso para gestionar repartidores
+Las operaciones de alta, edición, activación y desactivación de repartidores en el catálogo SHALL requerir el permiso `repartidores.gestionar`.
+
+#### Scenario: Gestión autorizada de repartidores
+- **GIVEN** un usuario con el permiso `repartidores.gestionar`
+- **WHEN** accede a crear o editar un repartidor en `/catalogos/repartidores`
+- **THEN** la acción es autorizada
+
+#### Scenario: Rechazo por carecer de repartidores.gestionar
+- **GIVEN** un usuario sin el permiso `repartidores.gestionar`
+- **WHEN** intenta modificar o crear un repartidor
+- **THEN** el sistema deniega el acceso
+
+### Requirement: Permiso y operador para registrar o cambiar repartidor
+La selección de un repartidor al registrar un envío o su posterior modificación SHALL requerir el permiso `entregas.registrar`. En una cuenta de sector con PIN configurado, la acción de cambiar repartidor SHALL requerir la identificación del operador (`conOperador`).
+
+#### Scenario: Cambio de repartidor con permiso entregas.registrar
+- **GIVEN** un usuario con permiso `entregas.registrar`
+- **WHEN** cambia el repartidor de un envío pendiente
+- **THEN** la operación se autoriza
+
+#### Scenario: Identificación de operador en cuenta de sector
+- **GIVEN** una sesión en cuenta de sector con PIN
+- **WHEN** se ejecuta el cambio de repartidor
+- **THEN** la acción requiere la validación del PIN del operador
+
+### Requirement: Permiso para exportar hoja de envíos
+La exportación de la hoja de envíos en PDF SHALL requerir el permiso `entregas.registrar`. La inclusión de los importes en dicha hoja SHALL requerir adicionalmente el permiso `cotizaciones.ver`.
+
+#### Scenario: Exportación por usuario autorizado en entregas
+- **GIVEN** un usuario con el permiso `entregas.registrar`
+- **WHEN** solicita la exportación de la hoja de envíos
+- **THEN** la generación del PDF es autorizada
+
+#### Scenario: Rechazo de exportación sin permiso entregas.registrar
+- **GIVEN** un usuario sin el permiso `entregas.registrar`
+- **WHEN** intenta solicitar la generación del PDF
+- **THEN** la petición es rechazada
+
+### Requirement: Permisos para búsqueda de repartidores
+La consulta y búsqueda de repartidores en componentes autocomplete SHALL estar autorizada para usuarios que cuenten con el permiso `entregas.registrar` o con el permiso `repartidores.gestionar`.
+
+#### Scenario: Búsqueda autorizada para entregas
+- **GIVEN** un usuario con permiso `entregas.registrar` pero sin `repartidores.gestionar`
+- **WHEN** busca repartidores en el selector del modal de entrega
+- **THEN** la consulta devuelve la lista de repartidores coincidentes
+
+#### Scenario: Búsqueda autorizada para administración
+- **GIVEN** un usuario con permiso `repartidores.gestionar`
+- **WHEN** realiza una búsqueda de repartidores
+- **THEN** la consulta devuelve los resultados correspondientes
+
+### Requirement: Auditoría en el catálogo de repartidores
+Toda operación de alta, modificación, activación o desactivación de un repartidor en el catálogo SHALL registrar un evento de auditoría con acción `CREAR` o `MODIFICAR` sobre la entidad `repartidor`, consignando los valores anteriores y nuevos.
+
+#### Scenario: Registro de auditoría al crear repartidor
+- **GIVEN** la creación exitosa de un repartidor
+- **WHEN** se completa la operación
+- **THEN** se registra una auditoría `CREAR` sobre la entidad `repartidor` con sus datos iniciales
+
+#### Scenario: Registro de auditoría al cambiar estado activo
+- **GIVEN** la activación o desactivación de un repartidor
+- **WHEN** se ejecuta el cambio
+- **THEN** se registra una auditoría `MODIFICAR` sobre `repartidor` con el valor de `activo` anterior y nuevo
+
+### Requirement: Auditoría al registrar envío
+Al registrar un envío, el evento de auditoría `CAMBIAR_ESTADO` de la entrega SHALL incluir `repartidorId` en el nuevo valor. Si se ingresó un nuevo domicilio para la receta, el sistema SHALL registrar previamente una auditoría `MODIFICAR` sobre la entidad `receta` con origen `entrega` registrando el domicilio anterior y el nuevo.
+
+#### Scenario: Auditoría de entrega con repartidor
+- **GIVEN** el registro de un envío con repartidor asignado
+- **WHEN** se registra la entrega
+- **THEN** el evento `CAMBIAR_ESTADO` incluye `repartidorId` en el valor nuevo
+
+#### Scenario: Auditoría de nuevo domicilio en receta al enviar
+- **GIVEN** una receta sin domicilio cuyo domicilio se ingresa al registrar el envío
+- **WHEN** se confirma la entrega
+- **THEN** se registra una auditoría `MODIFICAR` sobre `receta` con origen `entrega` antes del cambio de estado
+
+### Requirement: Auditoría al cambiar repartidor
+La modificación del repartidor asignado a un envío pendiente de firma SHALL registrar un evento de auditoría con acción `MODIFICAR` sobre la entidad `entrega`, consignando los identificadores de repartidor anterior y nuevo.
+
+#### Scenario: Registro de auditoría por cambio de repartidor
+- **GIVEN** un envío pendiente donde se sustituye el repartidor asignado
+- **WHEN** se confirma el cambio
+- **THEN** se registra una auditoría `MODIFICAR` sobre `entrega` con `repartidorId` anterior y nuevo
+
+### Requirement: Pantalla del catálogo de repartidores
+La interfaz en `/catalogos/repartidores` SHALL proveer un listado con nombre, apellido, teléfono y estado activo/inactivo, con búsqueda por texto y filtro por estado. El alta y la edición de repartidores SHALL utilizar un mismo formulario compartido, permitiendo además activar o desactivar cada repartidor.
+
+#### Scenario: Visualización del listado y formulario compartido
+- **GIVEN** un usuario en `/catalogos/repartidores`
+- **WHEN** visualiza la página o abre el alta y edición
+- **THEN** se presentan el listado con filtros y el formulario unificado de alta y edición
+
+### Requirement: Selección de repartidor en el modal de entrega
+Al elegir modalidad "Envío" en el modal de entrega (`/entregas/[recetaId]`), el sistema SHALL mostrar un autocomplete (`Combobox`) con repartidores activos ("Apellido, Nombre · teléfono"). Sin activos, SHALL mostrar el aviso "No hay repartidores cargados" (con enlace al catálogo con `repartidores.gestionar`). "Registrar" SHALL quedar deshabilitado mientras no tenga repartidor o (receta sin domicilio) el campo de domicilio esté vacío. Ante un error, texto y selección SHALL conservarse.
+
+#### Scenario: Selector de repartidores activos disponible
+- **GIVEN** un modal de entrega con modalidad "Envío" seleccionada
+- **WHEN** el usuario interactúa con el campo Repartidor
+- **THEN** el autocomplete muestra los repartidores activos con apellido, nombre y teléfono
+
+#### Scenario: Aviso ante ausencia de repartidores activos
+- **GIVEN** un tenant sin ningún repartidor activo registrado
+- **WHEN** se selecciona la modalidad Envío
+- **THEN** se muestra el aviso "No hay repartidores cargados" y el registro queda inhabilitado
+
+#### Scenario: Botón registrar deshabilitado sin domicilio
+- **GIVEN** una receta sin domicilio en el modal de entrega con repartidor seleccionado
+- **WHEN** el campo "Domicilio de entrega" está vacío
+- **THEN** el botón "Registrar" permanece deshabilitado
+
+#### Scenario: Conservación de datos ante error de formulario
+- **GIVEN** un formulario de entrega con repartidor seleccionado y domicilio ingresado
+- **WHEN** ocurre un error al enviar el formulario
+- **THEN** se conserva el texto ingresado y la selección del repartidor
+
+### Requirement: Visualización y cambio de repartidor en envíos pendientes
+Para una receta en estado `ENVIADA_PEND_FIRMA`, el modal de entrega SHALL mostrar el domicilio de entrega y el repartidor asignado con su teléfono, junto con la acción "Cambiar repartidor". Si se trata de un envío histórico sin repartidor asignado, el modal SHALL indicar "Sin repartidor asignado" y ofrecer la acción "Asignar repartidor".
+
+#### Scenario: Detalle de envío pendiente con repartidor
+- **GIVEN** una receta en `ENVIADA_PEND_FIRMA` con repartidor asignado
+- **WHEN** se abre el modal de entrega
+- **THEN** se muestran domicilio, nombre y teléfono del repartidor y el botón "Cambiar repartidor"
+
+#### Scenario: Detalle de envío pendiente histórico
+- **GIVEN** una receta en `ENVIADA_PEND_FIRMA` de un envío histórico sin repartidor
+- **WHEN** se abre el modal de entrega
+- **THEN** se muestra el texto "Sin repartidor asignado" y el botón "Asignar repartidor"
+
+### Requirement: Diálogo de exportación de envíos en entregas
+En la página `/entregas`, el sistema SHALL proveer la acción "Exportar envíos" que abre un diálogo para seleccionar obligatoriamente un repartidor (listando activos e inactivos, indicando "(inactivo)" en estos últimos) y una fecha de envío opcional precargada con la jornada actual ("hoy").
+
+#### Scenario: Diálogo de exportación con repartidores y fecha
+- **GIVEN** la página `/entregas`
+- **WHEN** el usuario pulsa en "Exportar envíos"
+- **THEN** se despliega el diálogo solicitando el repartidor y mostrando la fecha de hoy precargada
+
+### Requirement: Formato y encabezado de la hoja de envíos en PDF
+La hoja de envíos generada en PDF SHALL formatearse en orientación A4 apaisada. El encabezado del documento SHALL incluir el nombre y teléfonos de la farmacia, el título "Hoja de envíos", el apellido, nombre y teléfono del repartidor seleccionado, el filtro de fecha aplicado (o la indicación "Todos los pendientes"), la fecha y hora de generación y el usuario emisor.
+
+#### Scenario: Generación del encabezado en PDF
+- **GIVEN** la exportación de envíos de un repartidor
+- **WHEN** se genera el documento PDF
+- **THEN** se imprime en A4 apaisado con el encabezado completo de farmacia, repartidor, filtros y fecha de emisión
+
+### Requirement: Filas y columnas de la hoja de envíos en PDF
+La tabla de la hoja de envíos SHALL ordenar las filas por fecha de entrega y número de receta. Cada fila SHALL incluir: número de receta, fecha y hora enviada, paciente y DNI, teléfono, domicilio, cantidad de preparados entregables, estado de pago ("Pagada" o destacando "IMPAGA — cobrar"), importe (con `cotizaciones.ver`) y celda en blanco para firma de recepción. El pie de página SHALL indicar número de hoja, total de envíos y cantidad de envíos impagos.
+
+#### Scenario: Formato de filas con receta impaga destacada
+- **GIVEN** un envío impago en la hoja del repartidor
+- **WHEN** se dibuja la fila correspondiente en la tabla
+- **THEN** la columna de pago muestra "IMPAGA — cobrar" destacado y se provee celda en blanco para la firma
+
+#### Scenario: Orden de los envíos en la tabla
+- **GIVEN** múltiples envíos pendientes para el repartidor
+- **WHEN** se genera la tabla del PDF
+- **THEN** los envíos aparecen ordenados por fecha y hora de entrega (`entregada_en`) y por número interno de receta
+
+### Requirement: Hoja de envíos sin resultados y nombre de archivo
+Si el repartidor no registra envíos pendientes para el filtro seleccionado, el PDF SHALL generarse con su encabezado y la leyenda "Este repartidor no tiene envíos pendientes para este filtro". El nombre del archivo descargado SHALL seguir el formato `envios-<apellido>-<fecha|pendientes>.pdf` sin incorporar datos del paciente.
+
+#### Scenario: Repartidor sin envíos para la fecha
+- **GIVEN** un repartidor seleccionado que no posee envíos pendientes en la fecha elegida
+- **WHEN** se genera el PDF
+- **THEN** se muestra el mensaje informativo de sin envíos pendientes manteniendo el encabezado
+
+#### Scenario: Nombre del archivo descargado
+- **GIVEN** la exportación de envíos para un repartidor de apellido Gómez y fecha 2026-10-20
+- **WHEN** se descarga el documento
+- **THEN** el archivo se nombra `envios-gomez-2026-10-20.pdf`
+
+### Requirement: Repartidor desactivado con envíos pendientes
+Un repartidor que sea desactivado en el catálogo no SHALL aparecer disponible para nuevas asignaciones, pero SHALL continuar asignado a los envíos pendientes que ya poseía y su hoja de envíos SHALL poder ser exportada normalmente.
+
+#### Scenario: Exportación de hoja de repartidor desactivado
+- **GIVEN** un repartidor inactivo que conserva envíos pendientes asignados
+- **WHEN** se genera su hoja de envíos desde el diálogo
+- **THEN** el PDF se emite correctamente listando sus envíos pendientes
+
+### Requirement: Concurrencia en registro y cambio de repartidor
+Las operaciones de registro de envío y de cambio de repartidor SHALL serializarse mediante el bloqueo exclusivo (lock) de la receta dentro de su transacción, impidiendo modificaciones simultáneas incompatibles sobre la asignación del repartidor.
+
+#### Scenario: Intentos concurrentes de modificación de entrega
+- **GIVEN** dos solicitudes simultáneas de asignación o cambio de repartidor sobre la misma receta
+- **WHEN** ambas intentan procesarse concurrentemente
+- **THEN** el lock a nivel de transacción serializa las operaciones garantizando consistencia
+
+### Requirement: Datos vigentes en la generación del PDF
+La generación de la hoja de envíos en PDF SHALL utilizar los datos vigentes del repartidor (como el teléfono) y el domicilio vigente de la receta al momento de la emisión, sin requerir congelamiento histórico de dichos valores.
+
+#### Scenario: Emisión tras actualización de teléfono de repartidor
+- **GIVEN** un repartidor cuyo teléfono fue modificado tras registrarse los envíos
+- **WHEN** se genera la hoja de envíos en PDF
+- **THEN** el encabezado del documento refleja el número de teléfono vigente del repartidor
+
+## Estado
 
 > Estado: **implementado 2026-10-20 (migración 0093)**. Reversión: `docs/rollbacks/envios-repartidores.md`.
 > Decisiones del usuario (2026-10-20, revisadas el mismo día):

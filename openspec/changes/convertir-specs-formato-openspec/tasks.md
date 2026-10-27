@@ -55,9 +55,9 @@ approved.
 
 ## 7. Entregas (51 KB)
 
-- [ ] 7.1 `anular-entrega`
-- [ ] 7.2 `retiro-vencido`
-- [ ] 7.3 `envios-repartidores`
+- [x] 7.1 `anular-entrega`
+- [x] 7.2 `retiro-vencido`
+- [x] 7.3 `envios-repartidores`
 
 ## 8. Seguridad y accesos (44 KB) — review by a different agent is mandatory
 
