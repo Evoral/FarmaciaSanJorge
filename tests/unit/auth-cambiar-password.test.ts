@@ -25,7 +25,7 @@ vi.mock("@/shared/auth/session", () => ({
   requireRecentReauth: vi.fn(),
 }));
 
-const verifyPasswordMock = vi.fn(async () => false);
+const verifyPasswordMock = vi.fn<(plain: string, hash: string) => Promise<boolean>>(async () => false);
 const hashPasswordMock = vi.fn(async (plain: string) => `hashed:${plain.length}`);
 vi.mock("@/modules/auth/domain/password", () => ({
   verifyPassword: (...args: [string, string]) => verifyPasswordMock(...args),
@@ -33,13 +33,13 @@ vi.mock("@/modules/auth/domain/password", () => ({
 }));
 
 const loadUsuarioParaPasswordMock = vi.fn();
-const updatePasswordHashMock = vi.fn(async () => undefined);
+const updatePasswordHashMock = vi.fn<(tx: unknown, usuarioId: string, passwordHash: string) => Promise<undefined>>(async () => undefined);
 vi.mock("@/modules/auth/infrastructure/usuario-repository", () => ({
   loadUsuarioParaPassword: (...args: [unknown, string]) => loadUsuarioParaPasswordMock(...args),
   updatePasswordHash: (...args: [unknown, string, string]) => updatePasswordHashMock(...args),
 }));
 
-const revokeOtherSesionesMock = vi.fn(async () => 1);
+const revokeOtherSesionesMock = vi.fn<(tx: unknown, tenantId: string, usuarioId: string, sesionId: string, ahora: Date) => Promise<number>>(async () => 1);
 vi.mock("@/modules/auth/infrastructure/session-repository", () => ({
   revokeOtherSesionesForUsuario: (...args: [unknown, string, string, string, Date]) => revokeOtherSesionesMock(...args),
 }));

@@ -224,6 +224,7 @@ export async function loadUsuarioParaAccion(tx: Prisma.TransactionClient, tenant
     id: row.id,
     estado: row.estado,
     esTecnico: row.esTecnico,
+    esSector: row.esSector,
     nombre: row.nombre,
     apellido: row.apellido,
     email: row.email,
