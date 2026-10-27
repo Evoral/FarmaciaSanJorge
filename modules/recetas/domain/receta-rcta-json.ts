@@ -13,10 +13,12 @@ import { esDiagnosticoCodigoValido, normalizarDiagnosticoCodigo } from "./receta
 import {
   clasificarRenglonCuerpo,
   colapsar,
+  conItem,
   domicilioDesdeRenglon,
   parsearCuerpo,
   parsearFechaDdMmAaaa,
   RE_TOKEN_UNIDAD_DOSIS,
+  separarBloquesCuerpo,
   separarContactoMedico,
   urlVerificacionRcta,
   type AdvertenciaParser,
@@ -86,27 +88,27 @@ function fallo(codigo: CodigoErrorQr): ResultadoLecturaQr {
   return { ok: false, codigo, mensaje: MENSAJES_LECTURA_QR[codigo] };
 }
 
-function esObjetoVacio(valor: unknown): boolean {
+export function esObjetoVacio(valor: unknown): boolean {
   return typeof valor === "object" && valor !== null && !Array.isArray(valor) && Object.keys(valor).length === 0;
 }
 
 const RE_FECHA_ISO = /^(\d{4}-\d{2}-\d{2})(?:T|$)/;
 
 /** "1992-04-17T00:00:00" -> "1992-04-17"; the "0001-01-01" no-date sentinel, junk and impossible dates -> `null`. */
-function fechaNacimientoIso(valor: string | null): string | null {
+export function fechaNacimientoIso(valor: string | null): string | null {
   const m = valor === null ? null : RE_FECHA_ISO.exec(valor);
   if (!m || m[1] === "0001-01-01") return null;
   const real = new Date(`${m[1]}T00:00:00Z`);
   return Number.isNaN(real.getTime()) || real.toISOString().slice(0, 10) !== m[1] ? null : m[1]!;
 }
 
-function sexoDesdeCodigo(codigo: string | null): string | null {
+export function sexoDesdeCodigo(codigo: string | null): string | null {
   const c = codigo?.toUpperCase();
   return c === "F" ? "Femenino" : c === "M" ? "Masculino" : null;
 }
 
 /** "E660" -> "E66.0"; an already dotted or short valid code is kept; anything else is `null`. */
-function normalizarCodigoDiagnostico(crudo: string): string | null {
+export function normalizarCodigoDiagnostico(crudo: string): string | null {
   const codigo = normalizarDiagnosticoCodigo(crudo).replace(/\s+/g, "");
   if (esDiagnosticoCodigoValido(codigo)) return codigo;
   const conPunto = /^[A-Z][0-9]{2}[0-9A-Z]{1,4}$/.test(codigo) ? `${codigo.slice(0, 3)}.${codigo.slice(3)}` : codigo;
@@ -118,7 +120,7 @@ function jurisdiccionDesdeTipo(tipo: string | null): JurisdiccionMatriculaPdf | 
   return t === "MP" ? "PROVINCIAL" : t === "MN" ? "NACIONAL" : null;
 }
 
-const soloDigitos = (valor: string | null): string | null => {
+export const soloDigitos = (valor: string | null): string | null => {
   const digitos = valor?.replace(/\D/g, "") ?? "";
   return digitos.length > 0 ? digitos : null;
 };
@@ -175,12 +177,6 @@ function hayDato(valor: unknown): boolean {
   return !esObjetoVacio(valor);
 }
 
-/** Names the item in a multi-item receta, before the message's final period. */
-function conItem(mensaje: string, numero: number, total: number): string {
-  if (total <= 1) return mensaje;
-  const sufijo = ` (ítem ${numero})`;
-  return mensaje.endsWith(".") ? `${mensaje.slice(0, -1)}${sufijo}.` : `${mensaje}${sufijo}`;
-}
 
 /** A leading "- " bullet is a list marker, not text; a line that was only a bullet becomes empty. */
 const sinViñeta = (linea: string): string => linea.replace(/^-(?:\s+|$)/, "");
@@ -250,6 +246,20 @@ function mapearItem(
   return { item: parseado.item, domicilioPaciente };
 }
 
+/**
+ * Hand-typed separator lines ("-------", "_--_---") inside one element's text split it into one item per block, the
+ * same rule as the PDF text. The element's notas / código de práctica / CUIR are reported once, on its first block.
+ */
+function separarPorSeparadores(item: ItemRcta): ItemRcta[] {
+  const bloques = separarBloquesCuerpo((item.prescripcion ?? "").split(/\r\n|\r|\n/));
+  if (bloques.length <= 1) return [item];
+  return bloques.map((bloque, i) => ({
+    ...item,
+    prescripcion: bloque.join("\n"),
+    ...(i > 0 ? { notas: undefined, codPractica: undefined, nroCUIR: undefined } : {}),
+  }));
+}
+
 /** Same limit as the confirm input (`diagnosticoDescripcion` in importar-receta.ts). */
 const MAX_DIAGNOSTICO_DESCRIPCION = 2000;
 
@@ -293,7 +303,7 @@ export function mapearRecetaRcta(json: unknown, hash: string): ResultadoLecturaQ
   const diagnostico = mapearDiagnostico(datos, advertencias);
   const avisados = new Set<string>();
   // In order: the first item's domicilio joins the dedupe before the next items are read.
-  const mapeados = datos.prescripcion.map((item, i, todos) => mapearItem(item, i + 1, todos.length, avisados, advertencias));
+  const mapeados = datos.prescripcion.flatMap(separarPorSeparadores).map((item, i, todos) => mapearItem(item, i + 1, todos.length, avisados, advertencias));
   const items = mapeados.map((mapeado) => mapeado.item);
   if (hayDato(datos.practica)) advertencias.push({ codigo: "DATO_NO_IMPORTADO", mensaje: "La receta trae una práctica que no se importa." });
 

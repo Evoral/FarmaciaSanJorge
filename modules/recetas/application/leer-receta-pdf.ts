@@ -8,6 +8,7 @@
  * User decision (2026-10-23): every datum comes from RCTA, so a PDF and a QR of the same receta load the same thing;
  * the PDF only gives its "Ver Link" (same hash as its QR) and the paciente's name (RCTA anonymizes it). Without that
  * link, or when RCTA cannot answer, the read fails with an error: there is no fallback to the PDF's text.
+ * A MisRx PDF (no RCTA link) is read through the MisRx API with the token of the QR printed in its image.
  *
  * Spec order, mandatory: (1) permiso `recetas.crear` -- the use-case pipeline's `authorize()`, before anything else;
  * (2-6) File / size 0 / size > MAX_PDF_BYTES (before reading it) / type / `%PDF-` signature --
@@ -20,7 +21,10 @@ import type { Prisma } from "@/generated/prisma/client";
 import { defineQuery } from "@/shared/usecase";
 import { DomainError, ValidationError } from "@/shared/errors";
 import { normalizarMatricula } from "@/modules/medicos/domain/medico";
-import { validarArchivoRecetaPdf } from "../domain/archivo-receta-pdf";
+import { MAX_PDF_PAGINAS, validarArchivoRecetaPdf } from "../domain/archivo-receta-pdf";
+import { MENSAJES_LECTURA_PDF_MISRX, tokenMisrxDe } from "../domain/receta-misrx";
+import { leerQrsDePdf } from "../infrastructure/receta-pdf-qr.server";
+import { leerRecetaMisrx } from "./lectura-misrx";
 import { parsearRecetaPdf } from "../domain/receta-pdf-parser";
 import { hashDeLinksPdf, MENSAJES_LECTURA_PDF } from "../domain/receta-qr";
 import { conNombrePacienteDelPdf } from "../domain/receta-rcta-json";
@@ -164,7 +168,12 @@ export const leerRecetaPdfQuery = defineQuery({
     const bytes = await validarArchivoRecetaPdf(input.archivo);
     const pdf = await extraerTextoRecetaPdf(bytes);
     const hash = hashDeLinksPdf(pdf.links);
-    if (hash === null) throw new ValidationError(MENSAJES_LECTURA_PDF.SIN_LINK);
+    if (hash === null) {
+      // MisRx: its PDF is one image with no text or link, so the token comes from the QR printed in it.
+      const token = tokenMisrxDe(pdf.links.map((l) => l.uri)) ?? tokenMisrxDe(await leerQrsDePdf(bytes, MAX_PDF_PAGINAS));
+      if (token !== null) return leerRecetaMisrx(token, MENSAJES_LECTURA_PDF_MISRX);
+      throw new ValidationError(MENSAJES_LECTURA_PDF.SIN_LINK);
+    }
     const lectura = await leerRecetaRcta(hash, MENSAJES_LECTURA_PDF);
     // Only the name is taken from the PDF's text; a text the parser cannot read just leaves it to be typed.
     const texto = parsearRecetaPdf(pdf);

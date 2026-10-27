@@ -23,7 +23,7 @@ export const MENSAJES_LECTURA_QR: Readonly<Record<CodigoErrorQr, string>> = {
  * same failures need messages that do not send the user back to the PDF. `SIN_LINK`: the PDF has no RCTA link.
  */
 export const MENSAJES_LECTURA_PDF: Readonly<Record<CodigoErrorQr | "SIN_LINK", string>> = {
-  SIN_LINK: "El PDF no trae el link de verificación de RCTA (\"Ver Link\"): no se puede importar. Cargá la receta a mano.",
+  SIN_LINK: "El PDF no trae el link de verificación de RCTA (\"Ver Link\") ni un QR de MisRx legible: no se puede importar. Cargá la receta a mano.",
   QR_INVALIDO: "RCTA no encontró la receta de este PDF. Cargala a mano.",
   RCTA_NO_DISPONIBLE: "No se pudo consultar RCTA. Probá de nuevo en unos minutos o cargá la receta a mano.",
   FORMATO_INESPERADO: "RCTA devolvió la receta en un formato inesperado. Cargala a mano.",

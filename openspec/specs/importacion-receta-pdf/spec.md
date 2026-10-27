@@ -93,13 +93,23 @@ Del texto del PDF SHALL tomarse **solo el nombre del paciente** (RCTA lo anonimi
 - **WHEN** se lee un PDF cuyo texto el parser no puede leer
 - **THEN** el nombre del paciente queda para escribirlo, con su advertencia
 
+### Requirement: PDF de MisRx
+
+**Decisión del usuario (2026-10-27).** Un PDF de MisRx (Mendoza) es una sola imagen, sin capa de texto ni links. Si el PDF no trae link de RCTA, el token de MisRx SHALL buscarse primero en sus links y después en los QR impresos en sus imágenes (jsQR, salteando las de más de 16 MP); con el token, la receta se lee por la API de MisRx igual que el QR (`importacion-receta-qr`, "Emisor MisRx"), con `MENSAJES_LECTURA_PDF_MISRX`. El texto del PDF no se usa.
+
+#### Scenario: PDF de MisRx con el QR en la imagen
+
+- **GIVEN** un PDF de MisRx sin link de RCTA, con el QR de la receta impreso en su imagen
+- **WHEN** se lee el PDF
+- **THEN** la receta se lee por la API de MisRx con el token de ese QR, sin usar el texto del PDF
+
 ### Requirement: Error sin RCTA
 
-Sin link de RCTA, o si RCTA no encuentra la receta, no responde o responde en otro formato, la lectura SHALL terminar en **error** (`MENSAJES_LECTURA_PDF`), sin volver a leer el texto del PDF. La carga manual sigue disponible.
+Sin link de RCTA ni QR de MisRx legible (ver "PDF de MisRx"), o si RCTA no encuentra la receta, no responde o responde en otro formato, la lectura SHALL terminar en **error** (`MENSAJES_LECTURA_PDF`), sin volver a leer el texto del PDF. La carga manual sigue disponible.
 
 #### Scenario: PDF sin link de RCTA
 
-- **WHEN** se lee un PDF sin link de RCTA
+- **WHEN** se lee un PDF sin link de RCTA ni QR de MisRx legible
 - **THEN** la lectura termina en un error de `MENSAJES_LECTURA_PDF` y no se usan los datos del texto
 - **AND** la carga manual sigue disponible
 
@@ -272,9 +282,50 @@ Cada renglón del cuerpo `Rp./` (entre `Rp./` y `Diagnóstico:`) SHALL clasifica
 - **WHEN** un renglón del cuerpo matchea la regla Componente y también una regla posterior
 - **THEN** se clasifica como Componente
 
+### Requirement: Renglones separadores de ítems
+
+En el PDF, los renglones separadores escritos a mano (solo `-`, `–`, `—`, `_`, `=`, `.`, `*`, 3 o más: `_--_-----`) SHALL dividir el cuerpo en ítems, uno por bloque (los bloques vacíos se descartan); con más de un ítem, las advertencias de cada uno dicen «(ítem N)». Sin separadores, el cuerpo es un solo ítem como antes.
+
+#### Scenario: Tres preparaciones separadas a mano
+
+- **WHEN** el cuerpo tiene tres bloques separados por renglones `-------`
+- **THEN** el borrador tiene tres ítems, cada uno con sus componentes, presentación y posología
+
+### Requirement: Normalización de dosis y componentes antes de clasificar
+
+Antes de clasificar (compartido con el QR, `parsearCuerpo`), el cuerpo SHALL: (1) descartar sin advertencia los separadores que queden; (2) unir a su renglón anterior un renglón que es solo una dosis (`30 mg`) cuando el anterior no termina en dosis (el PDF cortó el componente); (3) separar por `/` un renglón cuyas partes son TODAS componentes (`Vit C 500 mg/ colágeno 100 mg`), sin el `- ` inicial. Si alguna parte no es componente (`1/2 dosis`, `5 mg/ml`) el renglón queda como estaba.
+
+#### Scenario: Drogas separadas por barra con separadores
+
+- **WHEN** el cuerpo tiene `- Bisglicinato de Magnesio 500 mg/ selenio 200 mcg/zinc`, `30 mg`, `_--_------`
+- **THEN** hay tres componentes (Bisglicinato de Magnesio 500 mg, selenio 200 mcg, zinc 30 mg) y el separador no genera advertencia
+
+### Requirement: Presentación en el mismo renglón
+
+Antes de clasificar, el cuerpo SHALL separar una presentación al inicio del renglón de lo que sigue (`X 30 comprimidos 1x día x 30 días` → `30 comprimidos` + `1x día x 30 días`), y un componente seguido de su presentación (`Clomipramina 75 MG x 60 cápsulas` → componente + presentación). Una nota entre paréntesis después de la presentación se lee sin los paréntesis. `comp` / `caps` cuentan como comprimidos / cápsulas.
+
+#### Scenario: Presentación y posología en un renglón
+
+- **WHEN** un renglón empieza con una presentación seguida de posología y duración (`X 30 comprimidos 1x día x 30 días`)
+- **THEN** se separan la presentación y la indicación, y se extraen posología y duración
+
+#### Scenario: Componente y presentación en un renglón
+
+- **WHEN** un renglón es `Clomipramina 75 MG x 60 cápsulas`
+- **THEN** se lee el componente Clomipramina 75 mg y la presentación 60 cápsulas
+
+### Requirement: Posología con duración y dos copias lado a lado
+
+`N x día` SHALL ser posología, y una posología con `x N días` / `por N días` también da la duración si no hay otra. En el PDF, si la página trae dos copias lado a lado, el cuerpo se lee solo de la copia izquierda.
+
+#### Scenario: Dos copias lado a lado
+
+- **WHEN** la página del PDF trae dos copias de la receta lado a lado
+- **THEN** el cuerpo se lee solo de la copia izquierda
+
 ### Requirement: Domicilio en el cuerpo Rp./
 
-Un renglón que empieza con `- ` inmediatamente después de `Rp./` SHALL salir del cuerpo sin advertencia y su texto, sin el `- `, precarga `receta.domicilioPaciente`. Solo ese primer renglón: un `- …` más abajo cae en "Otro".
+Un renglón que empieza con `- ` inmediatamente después de `Rp./` SHALL salir del cuerpo sin advertencia y su texto, sin el `- `, precarga `receta.domicilioPaciente`. Solo ese primer renglón: un `- …` más abajo cae en "Otro". Si ese renglón tiene una unidad de dosis (`mg`, `UI`, `%`…) es un componente, no el domicilio (misma regla que el QR).
 
 #### Scenario: Primer renglón con guion
 
@@ -367,9 +418,9 @@ Un renglón que es a la vez fracción y posología (`Media dosis cada 12 horas`)
 - **WHEN** el cuerpo tiene `Media dosis cada 12 horas`
 - **THEN** `fraccionDosisPorUnidad` es 0.5 y `item.posologia` es `Media dosis cada 12 horas`
 
-### Requirement: Un ítem por receta RCTA
+### Requirement: Un ítem por bloque del cuerpo
 
-Una receta RCTA SHALL tener un único ítem. Si aparecen señales de más de un ítem → advertencia.
+Cada bloque del cuerpo (todo el cuerpo si no hay separadores escritos a mano, ver "Renglones separadores de ítems") SHALL dar un único ítem. Si un bloque muestra señales de más de un ítem → advertencia.
 
 #### Scenario: Señales de dos ítems
 
@@ -693,7 +744,7 @@ El PDF **no se almacena**: vive en memoria durante la lectura y se descarta.
 
 La misma vista previa y confirmación también se alimentan desde el QR o link de la receta: ver `openspec/specs/importacion-receta-qr/spec.md`. El rótulo del origen `DIGITAL_PDF` es "Digital (PDF o QR)".
 
-Fuera de alcance: recetas escaneadas (sin capa de texto), `DIGITAL_FOTO`, obras sociales (DP-30), OCR y LLM.
+Fuera de alcance: recetas escaneadas (sin capa de texto; salvo un PDF de MisRx, que se lee por su QR), `DIGITAL_FOTO`, obras sociales (DP-30), OCR y LLM.
 
 ## Lectura por RCTA
 
@@ -706,6 +757,12 @@ Fuera de alcance: recetas escaneadas (sin capa de texto), `DIGITAL_FOTO`, obras 
 5. Sin link de RCTA, o si RCTA no encuentra la receta, no responde o responde en otro formato: **error** (`MENSAJES_LECTURA_PDF`), sin volver a leer el texto del PDF. La carga manual sigue disponible.
 
 El parser de la Pieza 2 queda como está: hoy solo aporta el nombre del paciente, y sus tests siguen cubriendo el formato del PDF.
+
+## Lectura por MisRx
+
+> **Decisión del usuario (2026-10-27).** Un PDF de MisRx (Mendoza) es una sola imagen, sin capa de texto ni links.
+
+Si el PDF no trae link de RCTA, se busca el token de MisRx primero en sus links y después en los QR impresos en sus imágenes (`leerQrsDePdf`, `infrastructure/receta-pdf-qr.server.ts`: jsQR sobre cada imagen embebida, salteando las de más de 16 MP). Con el token, la receta se lee por la API de MisRx igual que el QR (`importacion-receta-qr`, "Emisor MisRx"), con los mensajes `MENSAJES_LECTURA_PDF_MISRX`. El texto del PDF no se usa. Sin link de RCTA ni QR de MisRx legible: el mismo error `SIN_LINK`.
 
 La confirmación (`recetas.importar`) valida además que "válida desde" no sea anterior a la fecha de prescripción, igual que el alta y la edición.
 
@@ -736,10 +793,10 @@ La confirmación (`recetas.importar`) valida además que "válida desde" no sea 
 | `DNI:` | `paciente.dni` | |
 | `CUIL:` | `paciente.cuil` | |
 | `Sexo:` | `paciente.sexo` | |
-| `F. Nacimiento:` | `paciente.fechaNacimiento` | |
+| `F. Nacimiento:` / `F. Nac.:` | `paciente.fechaNacimiento` | |
 | `N° Credencial:` | `paciente.nroCredencial` | Cobertura y plan se ignoran (DP-30). |
 | Nombre del médico (bloque superior) | `medico.nombre` / `apellido` | Ver "Separación de nombres". |
-| Especialidad (`MÉDICO - MEDICINA GENERAL`) | `medico.especialidad` | Texto después de `MÉDICO - `. |
+| Especialidad (`MÉDICO - MEDICINA GENERAL`) | `medico.especialidad` | Texto después de `MÉDICO - ` / `MÉDICA - `. |
 | `Matrícula Prov.:NNNN` / `MP NNNN` | `medico.matricula` + `jurisdiccion = PROVINCIAL` | `Nac.` / `MN` → `NACIONAL`. |
 | Dirección y teléfono del pie | `medico.direccionRegistrada`, `medico.telefono` | |
 | `Diagnóstico: <código> - <descripción>` | `receta.diagnosticoCodigo`, `receta.diagnosticoDescripcion` | Código CIE-10. |
@@ -751,7 +808,7 @@ Cuerpo `Rp./` (entre `Rp./` y `Diagnóstico:`). Cada renglón se clasifica con l
 
 | Regla | Patrón (ilustrativo) | Resultado |
 |---|---|---|
-| Domicilio del paciente | empieza con `- ` inmediatamente después de `Rp./` | Sale del cuerpo sin advertencia y su texto, sin el `- `, precarga `receta.domicilioPaciente` (ej. `- Avellaneda 14 las Heras` → `Avellaneda 14 las Heras`). Solo ese primer renglón: un `- …` más abajo cae en "Otro". |
+| Domicilio del paciente | empieza con `- ` inmediatamente después de `Rp./`, sin unidad de dosis | Sale del cuerpo sin advertencia y su texto, sin el `- `, precarga `receta.domicilioPaciente` (ej. `- Avellaneda 14 las Heras` → `Avellaneda 14 las Heras`). Solo ese primer renglón: un `- …` más abajo cae en "Otro". |
 | Componente | `^(.+?)\s+(\d+(?:[.,]\d+)?)\s*(mg\|g\|mcg\|µg\|ml\|UI\|%)$` | Componente `POR_DOSIS`, cantidad en es-AR (coma decimal). Si es principio activo no se lee del PDF: lo define la clase de la droga elegida en el catálogo (`DROGA`), al guardar. |
 | Presentación | `^(\d+)\s+(comprimidos?\|c[áa]psulas?\|…)$`, o en orden inverso `^(comprimidos?\|c[áa]psulas?\|…)\s*(:\|x)?\s*(\d+)$` («Cápsulas 30») | `cantidadUnidades` + `formaFarmaceutica` por léxico. |
 | Fracción de dosis | contiene `media dosis` / `½ dosis` | `fraccionDosisPorUnidad = 0.5` (convención de `openspec/specs/ficha-tecnica/spec.md`, asiento 34147) y se duplican las unidades a elaborar (ver abajo). |

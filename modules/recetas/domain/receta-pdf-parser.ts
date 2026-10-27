@@ -58,7 +58,8 @@ export interface RecetaPdfInput {
   links: LinkLite[];
 }
 
-export const CODIGOS_EMISOR = ["RCTA"] as const;
+/** RCTA ("Tu Recetario Digital"); MISRX ("MRx Digital", Mendoza: read only through its QR's API, never from PDF text). */
+export const CODIGOS_EMISOR = ["RCTA", "MISRX"] as const;
 export type CodigoEmisor = (typeof CODIGOS_EMISOR)[number];
 
 export type JurisdiccionMatriculaPdf = "NACIONAL" | "PROVINCIAL";
@@ -344,8 +345,8 @@ export const RE_TOKEN_UNIDAD_DOSIS = new RegExp(`(?<![\\p{L}\\d])(?:${UNIDADES_C
 
 /** Presentation lexicon (normalized, singular/plural) -> FormaFarmaceutica. Only the unit-count forms a "N <forma>" line can express. */
 const LEXICO_PRESENTACION: ReadonlyArray<{ patron: RegExp; forma: FormaFarmaceutica }> = [
-  { patron: /^comprimidos?$/, forma: "COMPRIMIDO" },
-  { patron: /^capsulas?$/, forma: "CAPSULA" },
+  { patron: /^(?:comprimidos?|comps?)$/, forma: "COMPRIMIDO" },
+  { patron: /^(?:capsulas?|caps?)$/, forma: "CAPSULA" },
   { patron: /^ovulos?$/, forma: "OVULO" },
   { patron: /^supositorios?$/, forma: "SUPOSITORIO" },
 ];
@@ -360,16 +361,88 @@ const RE_CADA_N_HORAS = /\bcada\s+(\d+(?:[.,]\d+)?)\s*(?:horas?|hs?)\b\.?/;
 const RES_POSOLOGIA: readonly RegExp[] = [
   RE_CADA_N_HORAS,
   /\b\d+\s+(?:vez|veces)\s+(?:al|por)\s+dia\b/,
+  /\b\d+\s*x\s*dia\b/,
+  /\b\d+\s*(?:comprimidos?|comps?|capsulas?|caps?)\s+(?:al|por)?\s*dia\b/,
   /\b(?:tomar|aplicar|administrar|colocar)\b/,
   /\b(?:en ayunas|antes de|despues de|al acostarse)\b/,
 ];
 /** "Tratamiento por 30 días", optionally followed by free text ("... de uso continuo") that is not kept. */
 const RE_DURACION = /^tratamiento\s+por\s+(\d+)\s+dias?\b/;
+/** A treatment length inside a dosing line ("1x día x 30 días", "cada 8 horas por 7 días"). */
+const RE_DURACION_EN_INDICACION = /\b(?:x|por)\s*(\d+)\s*dias?\b/;
+
+/** A hand-typed separator line ("-------", "_--_---"): visual only, never part of the item. */
+const RE_SEPARADOR = /^[\s\-_=–—.*]{3,}$/;
+/** A line that is only a dose ("30 mg"): the tail of the previous line's last component, wrapped by the PDF. */
+const RE_SOLO_DOSIS = new RegExp(`^\\d+(?:[.,]\\d+)*\\s*(?:${UNIDADES_COMPONENTE})$`, "i");
+const RE_TERMINA_EN_DOSIS = new RegExp(`\\d\\s*(?:${UNIDADES_COMPONENTE})$`, "i");
+
+/**
+ * Several componentes on one line, split by "/" ("Vit C 500 mg/ colágeno 100 mg"), optionally opened by a list
+ * dash: one line per componente, without the dash. Only when EVERY part is a componente, so "1/2 dosis" or a
+ * concentration ("5 mg/ml") stays as it was.
+ */
+function separarComponentes(linea: string): string[] {
+  const partes = linea.split("/").map((p) => colapsar(p).replace(/^-\s+/, ""));
+  return partes.every((p) => clasificarRenglonCuerpo(p).clase === "componente") ? partes : [linea];
+}
+
+const FORMAS_PRESENTACION = "comprimidos?|comps?|c[áa]psulas?|caps?|[óo]vulos?|supositorios?";
+/** "X 30 comprimidos 1x día x 30 días": the presentación first, then the rest of the line on its own. */
+const RE_PRESENTACION_CON_RESTO = new RegExp(`^(?:x\\s*)?(\\d+)\\s+(${FORMAS_PRESENTACION})\\b\\.?\\s*(.*)$`, "i");
+/** "Clomipramina 75 MG x 60 cápsulas (1 caja)": a componente, then its presentación on the same line. */
+const RE_COMPONENTE_CON_PRESENTACION = new RegExp(`^(.+?\\d\\s*(?:${UNIDADES_COMPONENTE}))\\s+x\\s*(\\d+\\s+(?:${FORMAS_PRESENTACION})\\b.*)$`, "i");
+
+function separarPresentacion(linea: string): string[] {
+  const conComponente = RE_COMPONENTE_CON_PRESENTACION.exec(linea);
+  if (conComponente) return [colapsar(conComponente[1]!), ...separarPresentacion(conComponente[2]!)];
+  const m = RE_PRESENTACION_CON_RESTO.exec(linea);
+  if (!m) return [linea];
+  // A note in parentheses after the presentación ("(1 envase - 2 caps día)") is read without them.
+  const resto = colapsar(m[3]!).replace(/^\(\s*(.*?)\s*\)$/, "$1");
+  return resto.length > 0 ? [`${m[1]} ${m[2]}`, resto] : [`${m[1]} ${m[2]}`];
+}
+
+/**
+ * Splits a body at hand-typed separator lines ("-------", "_--_---"): each block is one item. Blocks left empty
+ * are dropped; always at least one block, so a body with no separator is one item as before.
+ */
+export function separarBloquesCuerpo(lineas: readonly string[]): string[][] {
+  const bloques: string[][] = [[]];
+  for (const linea of lineas) {
+    if (RE_SEPARADOR.test(colapsar(linea))) bloques.push([]);
+    else bloques[bloques.length - 1]!.push(linea);
+  }
+  const conTexto = bloques.filter((b) => b.length > 0);
+  return conTexto.length > 0 ? conTexto : [[]];
+}
+
+/** Appends "(ítem N)" to a message when the receta has more than one item. */
+export function conItem(mensaje: string, numero: number, total: number): string {
+  if (total <= 1) return mensaje;
+  const sufijo = ` (ítem ${numero})`;
+  return mensaje.endsWith(".") ? `${mensaje.slice(0, -1)}${sufijo}.` : `${mensaje}${sufijo}`;
+}
+
+/** Body lines as the receta's author meant them: separators dropped, wrapped doses rejoined, "/" lists split. */
+function prepararRenglonesCuerpo(lineas: readonly string[]): string[] {
+  const unidas: string[] = [];
+  for (const linea of lineas.map(colapsar)) {
+    if (RE_SEPARADOR.test(linea)) continue;
+    const anterior = unidas[unidas.length - 1];
+    if (anterior !== undefined && RE_SOLO_DOSIS.test(linea) && !RE_TERMINA_EN_DOSIS.test(anterior)) {
+      unidas[unidas.length - 1] = `${anterior} ${linea}`;
+      continue;
+    }
+    unidas.push(linea);
+  }
+  return unidas.flatMap(separarComponentes).flatMap(separarPresentacion);
+}
 
 export type ClaseRenglon =
   | { clase: "componente"; drogaTexto: string; cantidad: string; unidadTexto: string }
   | { clase: "presentacion"; cantidadUnidades: number; formaFarmaceutica: FormaFarmaceutica }
-  | { clase: "indicacion"; fraccion: boolean; posologia: boolean }
+  | { clase: "indicacion"; fraccion: boolean; posologia: boolean; dias?: number }
   | { clase: "duracion"; dias: number }
   | { clase: "otro" };
 
@@ -403,7 +476,10 @@ export function clasificarRenglonCuerpo(texto: string): ClaseRenglon {
 
   const fraccion = RE_FRACCION.test(normalizado);
   const posologia = RES_POSOLOGIA.some((re) => re.test(normalizado));
-  if (fraccion || posologia) return { clase: "indicacion", fraccion, posologia };
+  if (fraccion || posologia) {
+    const dias = Number(RE_DURACION_EN_INDICACION.exec(normalizado)?.[1] ?? 0);
+    return dias > 0 ? { clase: "indicacion", fraccion, posologia, dias } : { clase: "indicacion", fraccion, posologia };
+  }
 
   const dur = RE_DURACION.exec(normalizado);
   if (dur && Number(dur[1]) > 0) return { clase: "duracion", dias: Number(dur[1]) };
@@ -442,7 +518,7 @@ export function parsearCuerpo(lineas: readonly string[]): ResultadoCuerpo {
     });
   };
 
-  lineas.forEach((texto) => {
+  prepararRenglonesCuerpo(lineas).forEach((texto) => {
     const c = clasificarRenglonCuerpo(texto);
     switch (c.clase) {
       case "componente":
@@ -460,6 +536,7 @@ export function parsearCuerpo(lineas: readonly string[]): ResultadoCuerpo {
       case "indicacion":
         if (c.fraccion) item.fraccionDosisPorUnidad = "0.5";
         if (c.posologia) item.posologia = item.posologia ? `${item.posologia}. ${texto}` : texto;
+        if (c.dias !== undefined && item.duracionTratamientoDias === null) item.duracionTratamientoDias = c.dias;
         return;
       case "duracion":
         item.duracionTratamientoDias = c.dias;
@@ -512,7 +589,7 @@ export function controlarUnidadesVsDuracion(item: Pick<BorradorItem, "cantidadUn
 }
 
 const NUMEROS_EN_LETRAS: Readonly<Record<string, number>> = { una: 1, un: 1, dos: 2, tres: 3, cuatro: 4 };
-const RE_VECES_POR_DIA = /\b(\d+|una|un|dos|tres|cuatro)\s+(?:vez|veces)\s+(?:al|por)\s+dia\b/;
+const RE_VECES_POR_DIA = /\b(\d+|una|un|dos|tres|cuatro)\s*(?:(?:vez|veces)\s+(?:al|por)|x)\s*dia\b/;
 
 /**
  * Tomas per day stated by a posología: "cada N horas" -> 24 / N, "N veces al/por día" -> N; `null` when it
@@ -606,7 +683,18 @@ export function esUrlVerificacionDeEmisor(emisor: CodigoEmisor, uri: string): bo
   switch (emisor) {
     case "RCTA":
       return esLinkDe(uri, RCTA_HOST, RCTA_PATH);
+    case "MISRX":
+      return esLinkDe(uri, MISRX_HOST, MISRX_PATH);
   }
+}
+
+// MisRx ("MRx Digital", Mendoza) -- its QR links to misrx.com.ar/prestacion?token=<uuid>.
+export const MISRX_HOST = "misrx.com.ar";
+const MISRX_PATH = "/prestacion";
+
+/** The emisor's verification link for a receta token (what its QR encodes). */
+export function urlVerificacionMisrx(token: string): string {
+  return `https://${MISRX_HOST}${MISRX_PATH}?token=${token}`;
 }
 
 /** The emisor's verification link for a receta hash (the QR carries the hash; the PDF carries this link). */
@@ -622,7 +710,7 @@ const RE_DIAGNOSTICO = /^Diagn[óo]stico:?\s*(.*)$/i;
 const RE_DIAGNOSTICO_CODIGO = /^([A-Z][0-9]{2}(?:\.[0-9A-Z]{1,4})?)\s*-\s*(.+)$/;
 /** Footer markers that end the body when a receta has no "Diagnóstico:" line. */
 const RE_FIN_CUERPO = /^(FIRMA Y SELLO|Este documento ha sido firmado|Dra?\.\s)/i;
-const RE_ESPECIALIDAD = /^M[ÉE]DICO\s*-\s*(.+)$/i;
+const RE_ESPECIALIDAD = /^M[ÉE]DIC[OA]\s*-\s*(.+)$/i;
 const RE_NRO_RECETA = /^\d{10,}$/;
 
 function parsearRcta(ctx: ContextoParser): ResultadoParserReceta {
@@ -637,6 +725,9 @@ function parsearRcta(ctx: ContextoParser): ResultadoParserReceta {
   // only the left half of the printed area counts. ---
   const bordeDerecho = Math.max(...renglones.flatMap((r) => r.items.map((i) => i.x + i.width)));
   const esNroReceta = (i: TextItemLite) => RE_NRO_RECETA.test(i.str.trim()) && i.x < bordeDerecho / 2;
+  // Some RCTA PDFs print two copies side by side: the body is read from the left copy only, or each row would
+  // mix it with the right copy's text ("Rp./ Indicaciones:").
+  const textoIzquierdo = (r: Renglon) => colapsar(r.segmentos.filter((s) => s.x < bordeDerecho / 2).map((s) => s.texto).join(" "));
   const renglonNro = encabezado.find((r) => r.items.some(esNroReceta));
   const candidatos = (renglonNro?.items ?? []).filter(esNroReceta).sort((a, b) => a.x - b.x);
   const nroRecetaEmisor = candidatos[0]?.str.trim() ?? null;
@@ -657,7 +748,7 @@ function parsearRcta(ctx: ContextoParser): ResultadoParserReceta {
   const dni = primerMatch(segmentosDe(encabezado), /\bDNI:\s*([\d.]+)/i);
   const cuil = primerMatch(segmentosDe(encabezado), /\bCUIL:\s*([\d-]+)/i);
   const sexo = primerMatch(segmentosDe(encabezado), /^Sexo:\s*(.+)$/i);
-  const nacimiento = primerMatch(segmentosDe(encabezado), /F\.?\s*Nacimiento:\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
+  const nacimiento = primerMatch(segmentosDe(encabezado), /F\.?\s*Nac(?:imiento|\.)?:\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
   const credencial = primerMatch(segmentosDe(encabezado), /\bN\S{0,2}\s*Credencial:\s*(\S+)/i);
   const paciente: BorradorPaciente = {
     nombre: pacienteNombre ? separarNombre(pacienteNombre[1]!) : null,
@@ -689,7 +780,7 @@ function parsearRcta(ctx: ContextoParser): ResultadoParserReceta {
   let matricula: string | null = null;
   let matriculaJurisdiccion: JurisdiccionMatriculaPdf | null = null;
   const matEncabezado = primerMatch(segmentosDe(encabezado), /Matr[íi]cula\s*(Prov|Nac)\.?\s*:?\s*([A-Z0-9][A-Z0-9./-]*)/i);
-  const matPie = primerMatch(segmentosDe(iRp >= 0 ? renglones.slice(iRp) : renglones), /^(MP|MN)\s*:?\s*(\d[\d./-]*)$/i);
+  const matPie = primerMatch(segmentosDe(iRp >= 0 ? renglones.slice(iRp) : renglones), /^(MP|MN)\.?\s*:?\s*(\d[\d./-]*)$/i);
   const matriculaPie = matPie ? matPie[2]!.replace(/[./-]+$/, "") : null;
   if (matEncabezado) {
     matriculaJurisdiccion = /^nac/i.test(matEncabezado[1]!) ? "NACIONAL" : "PROVINCIAL";
@@ -709,14 +800,15 @@ function parsearRcta(ctx: ContextoParser): ResultadoParserReceta {
   let diagnosticoCodigo: string | null = null;
   let diagnosticoDescripcion: string | null = null;
   let domicilioPaciente: string | null = null;
-  let item: BorradorItem | null = null;
+  let items: BorradorItem[] = [];
   let finCuerpo = renglones.length;
   if (iRp >= 0) {
     const lineas: string[] = [];
-    const restoRp = RE_RP.exec(renglones[iRp]!.texto)![1]!.trim();
+    const restoRp = RE_RP.exec(textoIzquierdo(renglones[iRp]!))?.[1]?.trim() ?? "";
     if (restoRp.length > 0) lineas.push(restoRp);
     for (let i = iRp + 1; i < renglones.length; i++) {
-      const texto = renglones[i]!.texto;
+      const texto = textoIzquierdo(renglones[i]!);
+      if (texto.length === 0) continue;
       const diag = RE_DIAGNOSTICO.exec(texto);
       if (diag) {
         finCuerpo = i + 1;
@@ -736,12 +828,21 @@ function parsearRcta(ctx: ContextoParser): ResultadoParserReceta {
       }
       lineas.push(texto);
     }
+    // Hand-typed separator lines split the body into items, one preparation each.
+    const bloques = separarBloquesCuerpo(lineas);
     // Spec: a first line starting with "- " right after Rp./ is the patient's domicilio, taken out of the body. PDF only.
-    const conDomicilio = RE_GUION_INICIAL.test(lineas[0] ?? "");
-    if (conDomicilio) domicilioPaciente = domicilioDesdeRenglon(lineas[0]!);
-    const cuerpo = parsearCuerpo(conDomicilio ? lineas.slice(1) : lineas);
-    item = cuerpo.item;
-    advertencias.push(...cuerpo.advertencias);
+    // A "- " line with a dose unit is a componente instead (same rule as the QR import).
+    const primera = bloques[0]![0] ?? "";
+    if (RE_GUION_INICIAL.test(primera) && !RE_TOKEN_UNIDAD_DOSIS.test(primera)) {
+      domicilioPaciente = domicilioDesdeRenglon(primera);
+      bloques[0]!.shift();
+      if (bloques[0]!.length === 0 && bloques.length > 1) bloques.shift();
+    }
+    items = bloques.map((bloque, i) => {
+      const cuerpo = parsearCuerpo(bloque);
+      advertencias.push(...cuerpo.advertencias.map((a) => ({ ...a, mensaje: conItem(a.mensaje, i + 1, bloques.length) })));
+      return cuerpo.item;
+    });
   }
 
   // --- Pie: dirección y teléfono del médico. ---
@@ -760,14 +861,9 @@ function parsearRcta(ctx: ContextoParser): ResultadoParserReceta {
     telefono: contacto?.telefono ?? null,
   };
 
-  const itemFinal: BorradorItem = item ?? {
-    formaFarmaceutica: null,
-    cantidadUnidades: null,
-    fraccionDosisPorUnidad: "1",
-    posologia: null,
-    duracionTratamientoDias: null,
-    componentes: [],
-  };
+  if (items.length === 0) {
+    items = [{ formaFarmaceutica: null, cantidadUnidades: null, fraccionDosisPorUnidad: "1", posologia: null, duracionTratamientoDias: null, componentes: [] }];
+  }
 
   // Missing data the preview must ask for (never blocking here -- only the nro de receta is).
   const faltante = (mensaje: string) => advertencias.push({ codigo: "DATO_FALTANTE", mensaje });
@@ -776,8 +872,12 @@ function parsearRcta(ctx: ContextoParser): ResultadoParserReceta {
   if (!matricula) faltante("No se encontró la matrícula del médico.");
   if (!fechaPrescripcion) faltante("No se encontró la fecha de creación de la receta.");
   if (iRp < 0) faltante("No se encontró el cuerpo de la receta (Rp./).");
-  else if (itemFinal.componentes.length === 0) faltante("No se encontraron componentes con su dosis.");
-  if (iRp >= 0 && itemFinal.cantidadUnidades === null) faltante("No se encontró la cantidad de unidades (por ejemplo, «30 comprimidos»).");
+  else {
+    items.forEach((item, i) => {
+      if (item.componentes.length === 0) faltante(conItem("No se encontraron componentes con su dosis.", i + 1, items.length));
+      if (item.cantidadUnidades === null) faltante(conItem("No se encontró la cantidad de unidades (por ejemplo, «30 comprimidos»).", i + 1, items.length));
+    });
+  }
 
   return {
     ok: true,
@@ -792,7 +892,7 @@ function parsearRcta(ctx: ContextoParser): ResultadoParserReceta {
       domicilioPaciente,
       paciente,
       medico,
-      items: [itemFinal],
+      items,
     },
     advertencias,
   };

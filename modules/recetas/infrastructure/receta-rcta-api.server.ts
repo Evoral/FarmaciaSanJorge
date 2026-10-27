@@ -39,7 +39,7 @@ const STATUS_CON_CUERPO_RECETA_INEXISTENTE: ReadonlySet<number> = new Set([500, 
 const fallo = (codigo: CodigoErrorQr): ResultadoConsultaRcta => ({ ok: false, codigo });
 
 /** The body as text, or `null` when it exceeds the cap (read as a stream and cancelled at the cap, so a huge or endless body is never buffered). */
-async function leerCuerpoAcotado(respuesta: Response): Promise<string | null> {
+export async function leerCuerpoAcotado(respuesta: Response): Promise<string | null> {
   const declarado = Number(respuesta.headers.get("content-length"));
   const lector = respuesta.body?.getReader();
   if (!lector) return "";
@@ -62,10 +62,10 @@ async function leerCuerpoAcotado(respuesta: Response): Promise<string | null> {
   return Buffer.concat(trozos).toString("utf8");
 }
 
-const esJson = (respuesta: Response): boolean => RE_CONTENT_TYPE_JSON.test(respuesta.headers.get("content-type")?.trim() ?? "");
+export const esJson = (respuesta: Response): boolean => RE_CONTENT_TYPE_JSON.test(respuesta.headers.get("content-type")?.trim() ?? "");
 
 /** Releases the connection of a body that will not be read. */
-const descartarCuerpo = (respuesta: Response): Promise<void> => (respuesta.body?.cancel() ?? Promise.resolve()).catch(() => undefined);
+export const descartarCuerpo = (respuesta: Response): Promise<void> => (respuesta.body?.cancel() ?? Promise.resolve()).catch(() => undefined);
 
 async function clasificar(respuesta: Response): Promise<ResultadoConsultaRcta> {
   const { status } = respuesta;

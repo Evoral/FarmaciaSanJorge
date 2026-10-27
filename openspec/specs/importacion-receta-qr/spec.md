@@ -362,6 +362,78 @@ SHALL haber un ítem por elemento de `prescripcion[]`. El texto se divide en ren
 - **WHEN** `prescripcion[]` tiene dos elementos
 - **THEN** la vista previa tiene dos ítems, cada uno armado con el parser de cuerpo del PDF, sin usar `cantidad`
 
+### Requirement: Separadores dentro de un elemento
+
+Si el texto de un elemento de `prescripcion[]` trae renglones separadores escritos a mano (`-------`, `_--_---`), cada bloque SHALL ser un ítem aparte (`separarBloquesCuerpo`, misma regla que el PDF); las notas, el código de práctica y el CUIR del elemento se avisan una sola vez, en su primer bloque.
+
+#### Scenario: Un elemento con tres bloques separados a mano
+
+- **WHEN** el texto de un elemento tiene tres bloques separados por renglones `-------`
+- **THEN** la vista previa tiene tres ítems
+
+### Requirement: Emisor MisRx — texto escaneado
+
+Un QR de MisRx («MRx Digital», Ministerio de Salud de Mendoza, registro RL-2024-91317760) SHALL leerse por la API pública del emisor (decisión del usuario, 2026-10-27). Texto escaneado: `https://misrx.com.ar/prestacion?token=<uuid>`. Se prueba después del hash de RCTA.
+
+#### Scenario: QR de MisRx
+
+- **WHEN** se escanea `https://misrx.com.ar/prestacion?token=<uuid>`
+- **THEN** la receta se lee por la API pública de MisRx
+
+### Requirement: Emisor MisRx — token
+
+`extraerTokenMisrx` (`domain/receta-misrx.ts`) SHALL tomar solo el token (UUID; cualquier carácter no hexadecimal separa sus grupos, por el teclado del lector) y solo si el texto nombra `misrx`; una URL bien formada de otro host se rechaza.
+
+#### Scenario: URL de otro host con un token
+
+- **WHEN** se escanea una URL bien formada de otro host que trae un UUID
+- **THEN** no se toma como token de MisRx
+
+### Requirement: Emisor MisRx — endpoint
+
+La receta MisRx SHALL leerse de un endpoint constante: `GET https://misrx.com.ar/wsmvd/api/prestacion?token=<uuid>` (`infrastructure/receta-misrx-api.server.ts`), mismo timeout, tope de cuerpo y sin redirecciones que RCTA. Un 404 JSON con «inexistente», 400 o 422 → QR no válido; cualquier otra falla → MisRx no disponible.
+
+#### Scenario: Token inexistente
+
+- **WHEN** la API responde 404 con un JSON que dice «inexistente»
+- **THEN** la lectura termina en QR no válido
+
+### Requirement: Emisor MisRx — mapeo de receta y paciente
+
+El mapeo (`mapearRecetaMisrx`) SHALL tomar: `nrorecetario` → nro de receta del emisor (`emisor = MISRX`); `fecha_emision` / `fecha_prestacion` → prescripción / válida desde; `nombres` + `apellido` (sin confirmar la separación), `dni`, `cuil`, `sexo`, `fecha_nacimiento`. `nroafiliado` no se importa: es el número de afiliado de MisRx, no la credencial de la cobertura.
+
+#### Scenario: Número de afiliado
+
+- **WHEN** la respuesta trae `nroafiliado`
+- **THEN** no se importa como credencial de la cobertura
+
+### Requirement: Emisor MisRx — mapeo de médico y diagnóstico
+
+El mapeo SHALL tomar el médico de `medico_nombres` + `medico_apellido`, `matricula` con `tipo_matricula` (`MP…` → provincial, `MN…` → nacional), `especialidad`; y el diagnóstico de `cie10` normalizado (`F320` → `F32.0`) y `descripcion_cie10`.
+
+#### Scenario: CIE-10 sin punto
+
+- **WHEN** la respuesta trae `cie10` `F320`
+- **THEN** el código de diagnóstico es `F32.0`
+
+### Requirement: Emisor MisRx — ítems
+
+SHALL haber un ítem por elemento de `items[]`, con `descripcion` por el parser de cuerpo. Un renglón `droga dosis x N cápsulas (nota)` se separa en componente, presentación y nota (`caps` / `comp` cuentan como cápsulas / comprimidos); una nota que es solo «N caja(s)/envase(s)» se descarta sin aviso.
+
+#### Scenario: Nota de envase
+
+- **WHEN** un ítem es `Clomipramina 75 MG x 60 cápsulas (1 caja)`
+- **THEN** el ítem tiene Clomipramina 75 mg y 60 cápsulas, y «1 caja» se descarta sin aviso
+
+### Requirement: Emisor MisRx — observaciones
+
+Las observaciones (texto libre del médico) SHALL leerse así: un renglón `Domicilio …` precarga el domicilio del paciente hasta la siguiente frase en mayúsculas; con un solo ítem, los renglones de posología o duración se suman a ese ítem; el resto se muestra como aviso informativo y no se guarda.
+
+#### Scenario: Receta MisRx por QR
+
+- **WHEN** se escanea `https://misrx.com.ar/prestacion?token=<uuid>` de una receta con `Clomipramina 75 MG x 60 cápsulas (1 caja)` y observaciones `Clomipramina 2xdia.` / `Domicilio: San Martín 3407 Lujan de Cuyo. RECETA PARA PREPARADO`
+- **THEN** el ítem tiene Clomipramina 75 mg, 60 cápsulas y posología `Clomipramina 2xdia.`, el domicilio es `San Martín 3407 Lujan de Cuyo` y «RECETA PARA PREPARADO» queda como aviso informativo
+
 ### Requirement: Datos no importados
 
 `notas`, `codPractica`, `nroCUIR` y `practica` SHALL generar un aviso "no se importa" y nunca se guardan. Un arreglo, objeto o texto vacío cuenta como **dato ausente** (sin aviso).
