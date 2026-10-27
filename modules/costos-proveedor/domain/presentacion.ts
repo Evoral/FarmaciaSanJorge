@@ -8,7 +8,7 @@ import { formatearCostoUnitario } from "@/shared/format/monto";
 
 const MS_POR_DIA = 86_400_000;
 
-/** A price with its unidad de precio, in pesos (R7): "$ 40.898,00 / kg" -- the precio informado (net) or its value with IVA (R7a). Up to 6 decimals, never rounded to cents. */
+/** A price with its unidad de precio, in pesos (R7): "$ 40.898,00 / kg" -- the precio informado (net) or its value with IVA (R7a). 2 decimals, more only when it would read as "0,00" (`formatearCostoUnitario`). */
 export function etiquetaPrecio(precioInformado: string, unidadSimbolo: string): string {
   return `$ ${formatearCostoUnitario(precioInformado)} / ${unidadSimbolo}`;
 }
