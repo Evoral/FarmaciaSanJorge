@@ -16,9 +16,14 @@ export function isAbsoluteExpired(expiraEn: Date, now: Date): boolean {
   return now.getTime() >= expiraEn.getTime();
 }
 
+/** Idle timeout for a session: a cuenta de sector's shared session gets the longer one (docs/specs/cuentas-de-sector.md, S13). */
+export function idleMinutesFor(esSector: boolean): number {
+  return esSector ? AUTH_POLICY.sessionIdleMinutesSector : AUTH_POLICY.sessionIdleMinutes;
+}
+
 /** True once `now` is more than the idle timeout past the session's last recorded use. */
-export function isIdleExpired(ultimoUsoEn: Date, now: Date): boolean {
-  return now.getTime() - ultimoUsoEn.getTime() > AUTH_POLICY.sessionIdleMinutes * 60 * 1000;
+export function isIdleExpired(ultimoUsoEn: Date, now: Date, esSector = false): boolean {
+  return now.getTime() - ultimoUsoEn.getTime() > idleMinutesFor(esSector) * 60 * 1000;
 }
 
 export interface SessionLifecycleRow {
@@ -39,9 +44,9 @@ export type SessionInvalidReason = "REVOKED" | "ABSOLUTE_EXPIRED" | "IDLE_EXPIRE
  * in again" is enough), but distinguishing it is what makes this testable
  * and debuggable from server logs.
  */
-export function checkSessionLifecycle(session: SessionLifecycleRow, now: Date): SessionInvalidReason | null {
+export function checkSessionLifecycle(session: SessionLifecycleRow, now: Date, esSector = false): SessionInvalidReason | null {
   if (session.revocadaEn !== null) return "REVOKED";
   if (isAbsoluteExpired(session.expiraEn, now)) return "ABSOLUTE_EXPIRED";
-  if (isIdleExpired(session.ultimoUsoEn, now)) return "IDLE_EXPIRED";
+  if (isIdleExpired(session.ultimoUsoEn, now, esSector)) return "IDLE_EXPIRED";
   return null;
 }

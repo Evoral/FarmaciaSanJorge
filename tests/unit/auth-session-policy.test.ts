@@ -42,6 +42,13 @@ describe("isIdleExpired", () => {
   it("true just past the idle window", () => {
     expect(isIdleExpired(ultimoUsoEn, new Date(ultimoUsoEn.getTime() + idleMs + 1))).toBe(true);
   });
+
+  it("a cuenta de sector uses the longer sector window", () => {
+    const sectorMs = AUTH_POLICY.sessionIdleMinutesSector * MINUTE;
+    expect(isIdleExpired(ultimoUsoEn, new Date(ultimoUsoEn.getTime() + idleMs + 1), true)).toBe(false);
+    expect(isIdleExpired(ultimoUsoEn, new Date(ultimoUsoEn.getTime() + sectorMs), true)).toBe(false);
+    expect(isIdleExpired(ultimoUsoEn, new Date(ultimoUsoEn.getTime() + sectorMs + 1), true)).toBe(true);
+  });
 });
 
 describe("checkSessionLifecycle", () => {
@@ -68,5 +75,9 @@ describe("checkSessionLifecycle", () => {
     const idleMs = AUTH_POLICY.sessionIdleMinutes * MINUTE;
     const now = new Date(base.ultimoUsoEn.getTime() + idleMs + 1);
     expect(checkSessionLifecycle(base, now)).toBe("IDLE_EXPIRED");
+  });
+
+  it("a cuenta de sector still hits ABSOLUTE_EXPIRED inside its longer idle window", () => {
+    expect(checkSessionLifecycle(base, base.expiraEn, true)).toBe("ABSOLUTE_EXPIRED");
   });
 });

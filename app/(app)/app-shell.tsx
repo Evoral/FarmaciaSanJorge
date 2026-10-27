@@ -12,16 +12,20 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { SidebarNav, type SidebarNavProps } from "./sidebar-nav";
 import { SIDEBAR_COLLAPSED_COOKIE } from "./sidebar-state";
+import { VigilanteInactividad } from "./vigilante-inactividad";
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
 export function AppShell({
   nav,
   initialCollapsed,
+  idleMinutes,
   children,
 }: {
   nav: Omit<SidebarNavProps, "collapsed" | "onCollapsedChange">;
   initialCollapsed: boolean;
+  /** The session's idle timeout (longer for a cuenta de sector), for `VigilanteInactividad`. */
+  idleMinutes: number;
   children: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
@@ -35,6 +39,7 @@ export function AppShell({
     <div className={`min-h-screen ${collapsed ? "lg:pl-18" : "lg:pl-66"}`}>
       {/* Static glow behind the floating sidebar panel; spans the panel + its gutter only, so page content stays clean and the layer stays small. */}
       <div aria-hidden className={`app-backdrop hidden lg:block ${collapsed ? "lg:w-18" : "lg:w-66"}`} />
+      <VigilanteInactividad idleMinutes={idleMinutes} />
       <SidebarNav {...nav} collapsed={collapsed} onCollapsedChange={changeCollapsed} />
       {children}
     </div>

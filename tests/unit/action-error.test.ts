@@ -5,7 +5,7 @@
  * (same message, same fallback, no `fields` key when there are none).
  */
 import { describe, it, expect } from "vitest";
-import { AppError, AuthorizationError, DomainError, PasosPendientesError, ValidationError } from "@/shared/errors";
+import { AppError, AuthenticationError, AuthorizationError, DomainError, PasosPendientesError, ValidationError } from "@/shared/errors";
 import { actionError } from "@/shared/ui/action-error";
 
 describe("AppError fields", () => {
@@ -45,6 +45,10 @@ describe("actionError", () => {
       href: "/configurar-pin",
     });
     expect(actionError(new PasosPendientesError("cambiar-password"), "x").href).toBe("/cambiar-password");
+  });
+
+  it("points an AuthenticationError at /login", () => {
+    expect(actionError(new AuthenticationError(), "x").href).toBe("/login");
   });
 
   it("never adds an href to any other error", () => {

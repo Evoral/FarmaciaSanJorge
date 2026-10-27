@@ -20,6 +20,9 @@ export const AUTH_POLICY = {
   /** DP-20 pending. Idle session timeout. */
   sessionIdleMinutes: 30,
 
+  /** Resolved value (user decision, 2026-10-26): idle timeout of a cuenta de sector's shared session (docs/specs/cuentas-de-sector.md, S13). Longer because the empleado's PIN guards the acciones con PIN; `sessionAbsoluteHours` still applies. */
+  sessionIdleMinutesSector: 240,
+
   /** DP-20 pending. Absolute session lifetime regardless of activity. */
   sessionAbsoluteHours: 12,
 
