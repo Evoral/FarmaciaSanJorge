@@ -1,5 +1,5 @@
 /**
- * Pure derivation for the droga "Historial" view (docs/specs/historial-droga.md):
+ * Pure derivation for the droga "Historial" view (openspec/specs/historial-droga/spec.md):
  * every receta that CONSUMED a droga (EGRESO_PREPARACION movements of its
  * partidas, reached through preparacion -> item_receta -> receta) and the
  * partida(s) each one came from. No I/O, no Prisma (eslint's

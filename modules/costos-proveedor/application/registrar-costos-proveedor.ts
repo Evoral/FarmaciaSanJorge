@@ -1,6 +1,6 @@
 /**
  * `registrarCostosProveedor` -- THE ONLY writer of `fsj.costo_proveedor`
- * (docs/specs/costos-proveedor.md R20, R23, R24). A manual entry (this file's
+ * (openspec/specs/costos-proveedor/spec.md R20, R23, R24). A manual entry (this file's
  * command, `lista_precio_id` NULL) and a confirmed list import (stage E4) go
  * through the same `registrarFilasEnTx`, so every price is validated, versioned
  * and audited by the same rules.
@@ -18,8 +18,10 @@
  *   4. optimistic check (R23): a row that carries the vigente id the user saw
  *      (`vigenteEsperadoId`, `null` = "there was none") is refused when the
  *      locked vigente is a different one;
- *   5. `planVersionar` per row (R9 refused when older, R10 skipped when equal);
- *      rows with a problem are collected and reported TOGETHER, nothing written;
+ *   5. the row's alícuota de IVA (R7a): the one sent, else the pair's vigente one (a re-imported list keeps a
+ *      10,5 % set by hand), else the tenant's `alicuota_iva_porcentaje`; then `planVersionar` per row (R9
+ *      refused when older, R10 skipped when equal); rows with a problem are collected and reported TOGETHER,
+ *      nothing written;
  *   6. an import (stage E4) creates its `lista_precio_proveedor` HERE, through
  *      `args.crearListaPrecio`, once the plan is known and BEFORE the first write:
  *      the header is append-only (no UPDATE), so it must record the final
@@ -45,11 +47,12 @@ import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { fieldLabel } from "@/shared/labels/field-labels";
 import { uuid } from "@/shared/validation";
-import { detectarDuplicados, filaCostoSchema, planVersionar, validarFilaCosto } from "../domain/costo-proveedor";
+import { calcularConIva, detectarDuplicados, filaCostoSchema, planVersionar, validarFilaCosto } from "../domain/costo-proveedor";
 import type { PlanVersionado } from "../domain/costo-proveedor";
 import {
   ahoraServidor,
   cerrarVigente,
+  getAlicuotaIvaPorDefecto,
   getDrogasParaCosto,
   getProveedorParaCosto,
   getUnidadesParaCosto,
@@ -75,6 +78,7 @@ const filaWire = z.object({
   precioInformado: z.unknown().optional(),
   unidadPrecioId: z.unknown().optional(),
   fechaPrecio: z.unknown().optional(),
+  alicuotaIva: z.unknown().optional(),
   descripcionProveedor: z.unknown().optional(),
   motivo: z.unknown().optional(),
   vigenteEsperadoId: z.unknown().optional(),
@@ -163,13 +167,26 @@ interface AccionPlanificada {
   fila: FilaCostoValidada;
   droga: DrogaParaCosto;
   costoUnitario: string;
+  alicuotaIva: string;
+  precioInformadoConIva: string;
+  costoUnitarioConIva: string;
   plan: PlanVersionado;
   vigente: CostoProveedorVigenteBloqueado | undefined;
 }
 
-/** The price of one version as the audit diff shows it: precio informado with its unit symbol, costo por unidad base and fecha. */
-function resumenCosto(precioInformado: string, unidad: Pick<UnidadCosto, "simbolo"> | undefined, costoUnitario: string, fechaPrecio: string): Prisma.InputJsonObject {
-  return { precioInformado, unidadPrecio: unidad?.simbolo ?? null, costoUnitario, fechaPrecio };
+/** The price of one version as the audit diff shows it: precio informado with its unit symbol, costo por unidad base, IVA and fecha. */
+function resumenCosto(
+  precio: { precioInformado: string; costoUnitario: string; alicuotaIva: string; precioInformadoConIva: string; fechaPrecio: string },
+  unidad: Pick<UnidadCosto, "simbolo"> | undefined,
+): Prisma.InputJsonObject {
+  return {
+    precioInformado: precio.precioInformado,
+    unidadPrecio: unidad?.simbolo ?? null,
+    costoUnitario: precio.costoUnitario,
+    alicuotaIva: precio.alicuotaIva,
+    precioInformadoConIva: precio.precioInformadoConIva,
+    fechaPrecio: precio.fechaPrecio,
+  };
 }
 
 /**
@@ -251,7 +268,9 @@ export async function registrarFilasEnTx(tx: Prisma.TransactionClient, session: 
   );
   const vigentePorDroga = new Map(bloqueados.map((vigente) => [vigente.drogaId, vigente]));
 
-  // 4 + 5. Optimistic check and versioning plan, still without writing.
+  // 4 + 5. Optimistic check, alícuota de IVA (R7a) and versioning plan, still without writing.
+  const necesitaAlicuotaPorDefecto = filas.some((fila) => fila.alicuotaIva === null && !vigentePorDroga.get(fila.drogaId)?.alicuotaIva);
+  const alicuotaPorDefecto = necesitaAlicuotaPorDefecto ? await getAlicuotaIvaPorDefecto(tx, tenantId) : null;
   const planificadas: AccionPlanificada[] = [];
   const erroresPlan: ErrorFila[] = [];
   filas.forEach((fila, indice) => {
@@ -260,9 +279,12 @@ export async function registrarFilasEnTx(tx: Prisma.TransactionClient, session: 
     if (fila.vigenteEsperadoId !== undefined && (vigente?.id ?? null) !== fila.vigenteEsperadoId) {
       throw new DomainError(mensajeConflicto(droga.nombre), { fields: [`filas.${indice}.drogaId`] });
     }
+    const alicuotaIva = fila.alicuotaIva ?? vigente?.alicuotaIva ?? alicuotaPorDefecto!;
     const plan = planVersionar({
-      vigente: vigente ? { id: vigente.id, precioInformado: vigente.precioInformado, unidadPrecioId: vigente.unidadPrecioId, fechaPrecio: vigente.fechaPrecio } : null,
-      nuevo: { precioInformado: fila.precioInformado, unidadPrecioId: fila.unidadPrecioId, fechaPrecio: fila.fechaPrecio },
+      vigente: vigente
+        ? { id: vigente.id, precioInformado: vigente.precioInformado, unidadPrecioId: vigente.unidadPrecioId, fechaPrecio: vigente.fechaPrecio, alicuotaIva: vigente.alicuotaIva }
+        : null,
+      nuevo: { precioInformado: fila.precioInformado, unidadPrecioId: fila.unidadPrecioId, fechaPrecio: fila.fechaPrecio, alicuotaIva },
     });
     if (plan.tipo === "RECHAZAR") {
       erroresPlan.push({
@@ -272,7 +294,9 @@ export async function registrarFilasEnTx(tx: Prisma.TransactionClient, session: 
       });
       return;
     }
-    planificadas.push({ indice, fila, droga, costoUnitario: costosUnitarios.get(indice)!, plan, vigente });
+    const costoUnitario = costosUnitarios.get(indice)!;
+    const conIva = calcularConIva({ precioInformado: fila.precioInformado, costoUnitario, alicuotaIva });
+    planificadas.push({ indice, fila, droga, costoUnitario, alicuotaIva, ...conIva, plan, vigente });
   });
   lanzarSiHayErrores(erroresPlan, total, etiquetaFila);
 
@@ -293,7 +317,7 @@ export async function registrarFilasEnTx(tx: Prisma.TransactionClient, session: 
 
   const resultado: ResultadoRegistroCostos = { insertados: 0, reemplazados: 0, sinCambios: 0, ids: [], filas: [] };
   for (const accion of planificadas) {
-    const { indice, fila, droga, costoUnitario, plan, vigente } = accion;
+    const { indice, fila, droga, costoUnitario, alicuotaIva, precioInformadoConIva, costoUnitarioConIva, plan, vigente } = accion;
     if (plan.tipo === "SIN_CAMBIOS" || ahora === null) {
       resultado.sinCambios += 1;
       resultado.filas.push({ indice, resultado: "SIN_CAMBIOS", id: null });
@@ -308,6 +332,9 @@ export async function registrarFilasEnTx(tx: Prisma.TransactionClient, session: 
       precioInformado: fila.precioInformado,
       unidadPrecioId: fila.unidadPrecioId,
       costoUnitario,
+      alicuotaIva,
+      precioInformadoConIva,
+      costoUnitarioConIva,
       fechaPrecio: fila.fechaPrecio,
       descripcionProveedor: fila.descripcionProveedor,
       listaPrecioId,
@@ -324,12 +351,12 @@ export async function registrarFilasEnTx(tx: Prisma.TransactionClient, session: 
       accion: TipoAccion.CREAR,
       contexto,
       ...(plan.tipo === "REEMPLAZAR" && vigente
-        ? { valorAnterior: resumenCosto(vigente.precioInformado, unidadesVigentes.get(vigente.unidadPrecioId), vigente.costoUnitario, vigente.fechaPrecio) }
+        ? { valorAnterior: resumenCosto(vigente, unidadesVigentes.get(vigente.unidadPrecioId)) }
         : {}),
       valorNuevo: {
         droga: droga.nombre,
         proveedor: proveedor.razonSocial,
-        ...resumenCosto(fila.precioInformado, unidadesVigentes.get(fila.unidadPrecioId), costoUnitario, fila.fechaPrecio),
+        ...resumenCosto({ precioInformado: fila.precioInformado, costoUnitario, alicuotaIva, precioInformadoConIva, fechaPrecio: fila.fechaPrecio }, unidadesVigentes.get(fila.unidadPrecioId)),
         ...(fila.descripcionProveedor ? { descripcionProveedor: fila.descripcionProveedor } : {}),
         ...(fila.motivo ? { motivo: fila.motivo } : {}),
         ...(listaPrecioId ? { listaPrecioId } : {}),

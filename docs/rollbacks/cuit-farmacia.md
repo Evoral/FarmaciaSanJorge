@@ -1,6 +1,6 @@
 # Rollback: CUIT de la farmacia
 
-Spec: `docs/specs/cuit-farmacia.md`. The feature has a **schema change** (migration
+Spec: `openspec/specs/cuit-farmacia/spec.md`. The feature has a **schema change** (migration
 `prisma/migrations/20261024120000_0105_tenant_cuit_antes_primer_cierre`), so it is reverted as code + a new forward
 migration built from `prisma/rollbacks/0105_tenant_cuit_antes_primer_cierre.down.sql`.
 
@@ -17,7 +17,7 @@ migration built from `prisma/rollbacks/0105_tenant_cuit_antes_primer_cierre.down
 
 ## New files (delete on rollback)
 
-- `docs/specs/cuit-farmacia.md`, `prisma/rollbacks/0105_tenant_cuit_antes_primer_cierre.down.sql` and this file
+- `openspec/specs/cuit-farmacia/spec.md`, `prisma/rollbacks/0105_tenant_cuit_antes_primer_cierre.down.sql` and this file
   (optional)
 - `prisma/migrations/20261024120000_0105_tenant_cuit_antes_primer_cierre/` (keep it once applied)
 

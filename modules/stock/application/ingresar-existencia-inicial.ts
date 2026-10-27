@@ -1,5 +1,5 @@
 /**
- * `ingresarExistenciaInicial` (docs/specs/existencia-inicial.md R2-R5). A
+ * `ingresarExistenciaInicial` (openspec/specs/existencia-inicial/spec.md R2-R5). A
  * physical envase counted at the relevamiento inicial becomes a partida of
  * origen EXISTENCIA_INICIAL with its INGRESO_INICIAL, through the SAME rules
  * as a manual purchase alta (`registrarPartidaCompra`): unit conversion,

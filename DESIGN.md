@@ -358,7 +358,7 @@ Motion is short and quiet: `--duration-fast` 120ms for color/background, `--dura
 | `{rounded.pill}` | 999px | Count pills, the status meter bar |
 
 ### Brand imagery
-Logo assets: `public/logo.png` (icon) and `public/logo-etiqueta.png` (icon + wordmark). These are the generic app assets (login, favicon, navbar fallback). Printed documents and XLSX exports carry only the tenant's own uploaded logo (`docs/specs/logo-farmacia.md` R6, R7), never these files. The brand green is the only brand color; no photography or illustration is part of the system.
+Logo assets: `public/logo.png` (icon) and `public/logo-etiqueta.png` (icon + wordmark). These are the generic app assets (login, favicon, navbar fallback). Printed documents and XLSX exports carry only the tenant's own uploaded logo (`openspec/specs/logo-farmacia/spec.md` R6, R7), never these files. The brand green is the only brand color; no photography or illustration is part of the system.
 
 ## Components
 

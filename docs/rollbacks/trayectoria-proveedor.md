@@ -1,6 +1,6 @@
 # Rollback: Trayectoria del proveedor
 
-Spec: `docs/specs/trayectoria-proveedor.md`. The feature is read-only: no data,
+Spec: `openspec/specs/trayectoria-proveedor/spec.md`. The feature is read-only: no data,
 column, constraint, permiso or use-case change to anything that already existed.
 Its only database change is ONE additive index (migration 0056), and that index
 is performance-only (the view returns the same rows without it).

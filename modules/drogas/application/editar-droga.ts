@@ -42,7 +42,7 @@
  * omitted, is derived from the effective `tipoControl` (same rule as
  * `tipoControlValido` / the DB CHECK).
  *
- * "Otros nombres" (docs/specs/sinonimos-droga.md) are saved with the rest of
+ * "Otros nombres" (openspec/specs/sinonimos-droga/spec.md) are saved with the rest of
  * the form, same rows as the alta: `sinonimos` is the full list as edited
  * (row `i` = form field `sinonimo-i`) and `sinonimosCargados` the ids of the
  * synonyms the form showed. Omitted = synonyms
@@ -55,7 +55,7 @@
  *
  * Turning the droga controlled (or into another tipo de control) with the
  * contralor digital activo asks for `saldoAperturaContralor` and writes the
- * APERTURA in the new libro, same as the alta (docs/specs/existencia-inicial.md
+ * APERTURA in the new libro, same as the alta (openspec/specs/existencia-inicial/spec.md
  * R12) -- unless that libro already holds one for the droga.
  */
 import { z } from "zod";
@@ -189,7 +189,7 @@ export const editarDrogaCommand = defineCommand({
     }
 
     // Accent/case-insensitive, against other vigente drogas AND every vigente synonym, this droga's own included
-    // (docs/specs/sinonimos-droga.md). Only when the name changes: an untouched name never blocks other edits.
+    // (openspec/specs/sinonimos-droga/spec.md). Only when the name changes: an untouched name never blocks other edits.
     if (input.nombre !== actual.nombre) {
       const conflicto = await existeNombreVigente(tx, session.tenantId, input.nombre, input.id);
       if (conflicto) throw new ValidationError(mensajeConflictoNombre(conflicto, input.id), { fields: ["nombre"] });

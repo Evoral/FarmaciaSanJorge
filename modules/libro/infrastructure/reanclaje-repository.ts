@@ -1,5 +1,5 @@
 /**
- * Re-anchors of a libro's hash chain (`fsj.libro_reanclaje`, migration 0087, docs/specs/libro-recetario-y-contralor.md
+ * Re-anchors of a libro's hash chain (`fsj.libro_reanclaje`, migration 0087, openspec/specs/libro-recetario-y-contralor/spec.md
  * "Reanclaje de la cadena"). Raw SQL: the table is append-only and only touched by this module.
  */
 import type { Prisma } from "@/generated/prisma/client";

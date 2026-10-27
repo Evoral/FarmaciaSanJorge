@@ -20,7 +20,10 @@ export interface GetCotizacionItemInput {
 
 export interface CotizacionItemOutput {
   id: string;
+  /** Net of IVA. */
   costoInsumos: string;
+  /** R7a: the base the price was calculated on. `null` = calculated before migration 0107 (priced without IVA). */
+  costoInsumosConIva: string | null;
   margenAplicado: string;
   /** The regla's precio mínimo raised the price (migration 0052; always false before it). */
   precioMinimoAplicado: boolean;
@@ -42,6 +45,7 @@ export interface GetCotizacionItemOutput {
 function toOutput(row: {
   id: string;
   costoInsumos: string;
+  costoInsumosConIva: string | null;
   margenAplicado: string;
   precioMinimoAplicado: boolean;
   precioFinal: string;
@@ -55,6 +59,7 @@ function toOutput(row: {
   return {
     id: row.id,
     costoInsumos: row.costoInsumos,
+    costoInsumosConIva: row.costoInsumosConIva,
     margenAplicado: row.margenAplicado,
     precioMinimoAplicado: row.precioMinimoAplicado,
     precioFinal: row.precioFinal,

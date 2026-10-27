@@ -1,5 +1,5 @@
 /**
- * Units at the línea -> stock boundary (docs/specs/reserva-stock-preparacion.md, R12): a línea de pesaje is in its
+ * Units at the línea -> stock boundary (openspec/specs/reserva-stock-preparacion/spec.md, R12): a línea de pesaje is in its
  * magnitud's base unit (g), stock is in the droga's unidad base (mg, mcg...). `planificarConsumoEnTx` converts the
  * línea's quantity into the droga's unidad base before the split, so egresos, reservas and the contralor are in the
  * droga's unidad base while the libro recetario and the "faltan X" message stay in the línea's unit. Mocked

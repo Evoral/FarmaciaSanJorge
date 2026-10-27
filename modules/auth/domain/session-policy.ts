@@ -16,7 +16,7 @@ export function isAbsoluteExpired(expiraEn: Date, now: Date): boolean {
   return now.getTime() >= expiraEn.getTime();
 }
 
-/** Idle timeout for a session: a cuenta de sector's shared session gets the longer one (docs/specs/cuentas-de-sector.md, S13). */
+/** Idle timeout for a session: a cuenta de sector's shared session gets the longer one (openspec/specs/cuentas-de-sector/spec.md, S13). */
 export function idleMinutesFor(esSector: boolean): number {
   return esSector ? AUTH_POLICY.sessionIdleMinutesSector : AUTH_POLICY.sessionIdleMinutes;
 }

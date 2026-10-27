@@ -1,5 +1,5 @@
 -- Rollback of 0067_droga_sinonimos. Apply as a NEW forward migration, together
--- with the code that predates docs/specs/sinonimos-droga.md
+-- with the code that predates openspec/specs/sinonimos-droga/spec.md
 -- (docs/rollbacks/sinonimos-droga.md has the full procedure).
 --
 -- DATA LOSS: the synonyms' texto (as typed) and every removed synonym
@@ -36,7 +36,7 @@ ALTER TABLE fsj.droga_alias DROP CONSTRAINT IF EXISTS droga_alias_texto_no_vacio
 ALTER TABLE fsj.droga_alias DROP COLUMN IF EXISTS texto;
 
 COMMENT ON TABLE fsj.droga_alias IS
-  'docs/specs/importacion-receta-pdf.md "Pieza 4": remembered equivalence between a drug name as written on an imported receta and a droga of the tenant''s catalog. Created on confirmation of an import when the user ticks "recordar esta equivalencia". Append-only for fsj_app (SELECT/INSERT via ALTER DEFAULT PRIVILEGES, no UPDATE/DELETE).';
+  'openspec/specs/importacion-receta-pdf/spec.md "Pieza 4": remembered equivalence between a drug name as written on an imported receta and a droga of the tenant''s catalog. Created on confirmation of an import when the user ticks "recordar esta equivalencia". Append-only for fsj_app (SELECT/INSERT via ALTER DEFAULT PRIVILEGES, no UPDATE/DELETE).';
 
 DROP FUNCTION IF EXISTS fsj.normalizar_nombre(text);
 -- The unaccent extension is left installed: harmless, and something else may use it by then.

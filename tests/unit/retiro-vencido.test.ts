@@ -1,5 +1,5 @@
 /**
- * Unit tests for the pure pieces of docs/specs/retiro-vencido.md (estado, parameter, /entregas filter).
+ * Unit tests for the pure pieces of openspec/specs/retiro-vencido/spec.md (estado, parameter, /entregas filter).
  */
 import { describe, it, expect } from "vitest";
 import {

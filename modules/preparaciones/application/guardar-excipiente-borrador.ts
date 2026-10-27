@@ -1,5 +1,5 @@
 /**
- * `guardarExcipienteBorrador` (migration 0092, docs/specs/excipiente-preparacion.md): the toma workspace saves the
+ * `guardarExcipienteBorrador` (migration 0092, openspec/specs/excipiente-preparacion/spec.md): the toma workspace saves the
  * excipiente of a ficha técnica as it is chosen/typed -- a droga of clase EXCIPIENTE (from the catalog, never free
  * text) and its quantity in the droga's unidad base -- so nothing is lost before "Marcar como preparada". A draft:
  * nothing is reserved; the reserva re-validates it (`reservarExcipienteEnTx`). Only while the ítem has no live

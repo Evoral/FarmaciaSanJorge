@@ -1,5 +1,5 @@
 /**
- * `leer-xlsx.server.ts` (docs/specs/costos-proveedor.md R14): workbooks built in memory with exceljs (several sheets named
+ * `leer-xlsx.server.ts` (openspec/specs/costos-proveedor/spec.md R14): workbooks built in memory with exceljs (several sheets named
  * by date, one of them empty, a formula cell with a cached result, rich text), read back, and parsed with the real
  * Crystal parser end to end. Malformed bytes must surface as a readable `ValidationError`, never a stack trace.
  */

@@ -9,6 +9,7 @@ import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { uuid } from "@/shared/validation";
 import type { TipoAccion } from "@/generated/prisma/enums";
+import { SELECT_ROL_ADMINISTRADOR, esAdministradorDe } from "@/shared/db/usuario-administrador";
 
 const listUsuarioAuditoriaInput = z.object({
   usuarioId: uuid,
@@ -25,7 +26,8 @@ export interface AuditoriaUsuarioRow {
   valorNuevo: unknown;
   motivo: string | null;
   ocurridoEn: Date;
-  usuario: { id: string; nombre: string; apellido: string };
+  /** `esAdministrador`: flagged "(Admin)" when shown (`shared/format/usuario.ts`). */
+  usuario: { id: string; nombre: string; apellido: string; esAdministrador: boolean };
 }
 
 export interface ListUsuarioAuditoriaResult {
@@ -58,13 +60,18 @@ export const listUsuarioAuditoriaQuery = defineQuery({
         valorNuevo: true,
         motivo: true,
         ocurridoEn: true,
-        usuario: { select: { id: true, nombre: true, apellido: true } },
+        usuario: { select: { id: true, nombre: true, apellido: true, ...SELECT_ROL_ADMINISTRADOR } },
       },
     });
 
     const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: session.tenantId }, select: { zonaHoraria: true } });
 
-    return { items: rows, total, page: input.page, pageSize: input.pageSize, zonaHoraria: tenant.zonaHoraria };
+    const items = rows.map(({ usuario, ...row }) => ({
+      ...row,
+      usuario: { id: usuario.id, nombre: usuario.nombre, apellido: usuario.apellido, esAdministrador: esAdministradorDe(usuario) },
+    }));
+
+    return { items, total, page: input.page, pageSize: input.pageSize, zonaHoraria: tenant.zonaHoraria };
   },
 });
 

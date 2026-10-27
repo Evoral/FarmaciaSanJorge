@@ -2,10 +2,10 @@
  * `getPartida` (M07, FASE 5 point 5.2). Read-only, `stock.ver`. Partida
  * detail (droga, proveedor, saldo) for `/partidas/[id]` and the ajuste
  * screen, plus what preparaciones INICIADA reserved of the saldo and their
- * recetas (migration 0071, docs/specs/reserva-stock-preparacion.md): an
+ * recetas (migration 0071, openspec/specs/reserva-stock-preparacion/spec.md): an
  * ajuste can only consume the rest.
  *
- * Expiry (docs/specs/reanalisis-partida.md, migration 0074): the original
+ * Expiry (openspec/specs/reanalisis-partida/spec.md, migration 0074): the original
  * date, the vencimiento vigente and its estado against the jornada, the
  * reanálisis history (newest first), and whether the session's usuario is a
  * DT vigente today -- the page offers "Registrar reanálisis" / "Marcar como

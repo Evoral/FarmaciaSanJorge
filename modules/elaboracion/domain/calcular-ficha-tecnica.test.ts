@@ -1,5 +1,5 @@
 /**
- * T1-T8 from docs/specs/ficha-tecnica.md, reproduced EXACTLY, plus one case
+ * T1-T8 from openspec/specs/ficha-tecnica/spec.md, reproduced EXACTLY, plus one case
  * per validation V1-V9 and a dedicated R3/R7/R8 interplay case (CSP must
  * subtract the UNROUNDED teorica of the other components, never their
  * rounded cantidadAPesar).
@@ -49,7 +49,7 @@ function item(overrides: Partial<ItemRecetaInput>): ItemRecetaInput {
   };
 }
 
-describe("calcularFichaTecnica -- spec test cases (docs/specs/ficha-tecnica.md)", () => {
+describe("calcularFichaTecnica -- spec test cases (openspec/specs/ficha-tecnica/spec.md)", () => {
   it("T1 -- Crema, asiento 34163: acido salicilico 3 g TOTAL + vaselina solida CSP -> 3.000 g / 27.000 g", () => {
     const lineas = calcularFichaTecnica(
       item({ formaFarmaceutica: "CREMA", cantidadTotal: 30, unidadTotal: GRAMO, cantidadUnidades: 1 }),

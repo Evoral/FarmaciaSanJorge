@@ -87,7 +87,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION fsj.receta_validar_transicion_estado() IS
-  'INV-R08 + docs/specs/libro-recetario-y-contralor.md section 1. No backwards transitions; ANULADA reachable from any non-terminal state; ENTREGADA/ANULADA terminal.';
+  'INV-R08 + openspec/specs/libro-recetario-y-contralor/spec.md section 1. No backwards transitions; ANULADA reachable from any non-terminal state; ENTREGADA/ANULADA terminal.';
 
 CREATE TRIGGER trg_receta_validar_transicion_estado
   BEFORE UPDATE OF estado ON fsj.receta

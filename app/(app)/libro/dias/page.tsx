@@ -1,6 +1,6 @@
 /**
  * `/libro/dias`: the libro recetario per day, for a quick look at what is signed and what is owed
- * (docs/specs/libro-recetario-y-contralor.md, "Libro por día"). Only days with asientos are listed: a day without
+ * (openspec/specs/libro-recetario-y-contralor/spec.md, "Libro por día"). Only days with asientos are listed: a day without
  * recetas is not a debt. Signing stays in `/cierres` (one place for the DT's firma); a signed day prints its sheet.
  */
 import Link from "next/link";

@@ -1,5 +1,5 @@
 /**
- * CP11 (docs/specs/costos-proveedor.md R15, R16): the "Lista de medicamentos" Crystal Reports parser. Pure: every
+ * CP11 (openspec/specs/costos-proveedor/spec.md R15, R16): the "Lista de medicamentos" Crystal Reports parser. Pure: every
  * sheet is built here from raw cell values (no binary fixtures; the real file is not in the repo). Descriptions and
  * prices are fictitious but shaped like the real ones.
  */

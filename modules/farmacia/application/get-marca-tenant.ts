@@ -1,5 +1,5 @@
 /**
- * The tenant's brand for the navigation bar (docs/specs/logo-farmacia.md): its name and, when it uploaded one, the
+ * The tenant's brand for the navigation bar (openspec/specs/logo-farmacia/spec.md): its name and, when it uploaded one, the
  * URL of its logo. `logoSrc` carries the logo's version (`logo_actualizado_en`), so a new logo is a new URL and the
  * image can be cached for good. `null` means the generic app logo.
  *

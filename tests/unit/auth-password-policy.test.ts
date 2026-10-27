@@ -88,7 +88,7 @@ describe("shared/auth/policy#validateTemporaryPassword (password typed by the Ad
 
   it("does not loosen the policy of the password the usuario chooses", () => {
     const errors = validatePassword("abc123");
-    expect(errors).toContain("Debe tener al menos 12 caracteres.");
+    expect(errors).toContain(`Debe tener al menos ${AUTH_POLICY.minPasswordLength} caracteres.`);
     expect(errors).toContain("Debe tener al menos una letra mayúscula.");
   });
 });

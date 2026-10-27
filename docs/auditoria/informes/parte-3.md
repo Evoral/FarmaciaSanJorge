@@ -13,7 +13,7 @@ triggers y los 18 `audit: { skip: true }`, y lo que declara conforme es creíble
 BLOCKER y uno de sus hallazgos ya está resuelto en el código.
 
 Desvíos del revisor:
-- P3-01 ignora que `docs/specs/existencia-inicial.md:77` dice que ninguna ruta de la app activa el contralor digital (`tenant.fecha_activacion_contralor` solo se escribe por SQL; confirmado: ningún código lo escribe).
+- P3-01 ignora que `openspec/specs/existencia-inicial/spec.md:77` dice que ninguna ruta de la app activa el contralor digital (`tenant.fecha_activacion_contralor` solo se escribe por SQL; confirmado: ningún código lo escribe).
 - P3-05: el criterio de cierre que propone ya se cumple (`configurar-numeracion-libro.ts:73-74`).
 - Llama P2-01 al arreglo de `crearProductoDesdeFacturaAction` (es P2-04) y cita mal los timestamps de las migraciones 0100 y 0101.
 
@@ -21,7 +21,7 @@ Desvíos del revisor:
 
 | ID | Original | Revisado | Veredicto | Evidencia de la revisión |
 |---|---|---|---|---|
-| P3-01 | BLOCKER | WARNING (bloquea habilitar el contralor digital) | CONFIRMADO, NO ALCANZABLE HOY | Brecha documentada como abierta en `reserva-stock-preparacion.md:117-119` y `existencia-inicial.md:77-80`. Solo ocurre con `fecha_activacion_contralor` cargada, y la app no tiene forma de cargarla. |
+| P3-01 | BLOCKER | WARNING (bloquea habilitar el contralor digital) | CONFIRMADO, NO ALCANZABLE HOY | Brecha documentada como abierta en `openspec/specs/reserva-stock-preparacion/spec.md:117-119` y `openspec/specs/existencia-inicial/spec.md:77-80`. Solo ocurre con `fecha_activacion_contralor` cargada, y la app no tiene forma de cargarla. |
 | P3-02 | CRITICAL | WARNING | CONFIRMADO | `excipiente-preparacion.ts:16` bloquea el excipiente en una segunda sentencia, después de las líneas; `confirmarReservasReceta` bloquea todo en una sola ordenada por id. Deadlock posible si dos preparaciones comparten lotes de droga y de excipiente. Postgres aborta una transacción (error genérico, se reintenta): no hay pérdida de datos. |
 | P3-03 | CRITICAL | CRITICAL (antes del deploy) | CONFIRMADO | `login.ts`: `candidate.intentosFallidos + 1` con un valor leído fuera de la transacción; el PIN escribe `pinIntentosFallidos` absoluto (`usuario-repository.ts:184`). Peticiones paralelas evitan el bloqueo a los 5 intentos: en el login, sin sesión; en el PIN de 4 dígitos, desde una cuenta de sector, para suplantar a otro empleado. |
 | P3-04 | WARNING | WARNING | CONFIRMADO | `0088_pesada_real/migration.sql:87` usa `current_date` (UTC) en lugar de `fsj.jornada_actual(tenant_id)`. Solo afecta entre las 21:00 y las 23:59 de un día en que cambia una designación de DT. |
@@ -41,11 +41,11 @@ Desvíos del revisor:
 
 **En el tiempo**
 - ~~P3-02~~ **CORREGIDO**: reservar, recalcular y registrar pérdida bloquean las partidas candidatas del excipiente en la misma sentencia ordenada por id que las de las líneas (`planificarConsumoEnTx.partidasAdicionales`, `partidasCandidatasExcipienteEnTx`).
-- ~~P3-04~~ **CORREGIDO**: migración `0103_pesada_real_jornada` (+ `.down.sql`); spec `pesada-real.md` y su rollback actualizados.
+- ~~P3-04~~ **CORREGIDO**: migración `0103_pesada_real_jornada` (+ `.down.sql`); spec `openspec/specs/pesada-real/spec.md` y su rollback actualizados.
 - ~~P3-07~~ **CORREGIDO**: `generarFichasYCotizaciones` trata el `AuthorizationError` del caso de uso (que ya resuelve al operador) como "sin permiso" silencioso, igual que el chequeo de sesión.
 - ~~P3-06~~ **CORREGIDO**: migración `0104_forbid_truncate` (+ `.down.sql`): trigger `BEFORE TRUNCATE` en las 32 tablas con `forbid_update_delete`/`forbid_delete`; aplicada y verificada en la base de prueba. Regla en `docs/architecture.md`.
 - ~~P3-08~~ **CORREGIDO**: `dec()` en el filtro bajo mínimo (`droga-repository.ts`) y en `esDecimalPositivo` (`presupuesto.ts`).
-- ~~P3-09~~ **CORREGIDO**: alta manual de receta idempotente (`envio_id`, migración `0102_receta_envio_id`, spec `alta-receta-idempotente.md`). Existencia inicial ya era idempotente por la unicidad de lote.
+- ~~P3-09~~ **CORREGIDO**: alta manual de receta idempotente (`envio_id`, migración `0102_receta_envio_id`, spec `openspec/specs/alta-receta-idempotente/spec.md`). Existencia inicial ya era idempotente por la unicidad de lote.
 
 ---
 

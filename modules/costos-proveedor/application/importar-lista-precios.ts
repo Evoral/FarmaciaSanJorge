@@ -1,6 +1,6 @@
 /**
  * `importarListaPrecios` -- confirmation of a supplier price list import
- * (docs/specs/costos-proveedor.md R13, R19-R23; CP8-CP10). Permiso `costos.proveedor.gestionar`.
+ * (openspec/specs/costos-proveedor/spec.md R13, R19-R23; CP8-CP10). Permiso `costos.proveedor.gestionar`.
  * ONE transaction, ALL OR NOTHING:
  *
  *   1. the fecha de la lista (a real day, not after the jornada, R8) and the file (SHA-256) not
@@ -169,7 +169,7 @@ export const importarListaPreciosCommand = defineCommand({
       },
     });
 
-    // "Recordar equivalencia": the list's text becomes a synonym of the droga the user chose (docs/specs/sinonimos-droga.md).
+    // "Recordar equivalencia": the list's text becomes a synonym of the droga the user chose (openspec/specs/sinonimos-droga/spec.md).
     const aRecordar = input.filas.flatMap((fila, indice) => {
       const drogaId = uuid.safeParse(fila.drogaId);
       const texto = typeof fila.descripcionProveedor === "string" ? limpiarSinonimo(fila.descripcionProveedor) : "";

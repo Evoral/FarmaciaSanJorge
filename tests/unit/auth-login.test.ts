@@ -179,7 +179,7 @@ describe("login: success path", () => {
   });
 });
 
-describe("login: first pending step (docs/specs/contrasena-temporal.md)", () => {
+describe("login: first pending step (openspec/specs/contrasena-temporal/spec.md)", () => {
   const candidate = {
     tenantId: TENANT_ID,
     usuarioId: USUARIO_ID,

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The pesada en la ficha (docs/specs/pesada-real.md "Pesada en la ficha", migration 0090): on a Pendiente ítem of the
+ * The pesada en la ficha (openspec/specs/pesada-real/spec.md "Pesada en la ficha", migration 0090): on a Pendiente ítem of the
  * toma workspace (/preparaciones/recetas/[recetaId]) the lab fills in its ficha técnica WHILE weighing, línea by
  * línea, instead of at the end in a dialog:
  *   - the lot of every línea: a selector with the droga's eligible partidas in consumption order (abiertas first,
@@ -12,7 +12,7 @@
  *   - "Cantidad real pesada": what the balance showed (prefilled with the expected weight rounded to the balance,
  *     following the lots until typed; deviation and tolerance under it), or an enrase manual línea's quantity;
  *   - the INV-S18 motivo, only when asked;
- *   - the excipiente used (migration 0092, docs/specs/excipiente-preparacion.md): a buscador of the drogas of clase
+ *   - the excipiente used (migration 0092, openspec/specs/excipiente-preparacion/spec.md): a buscador of the drogas of clase
  *     EXCIPIENTE (type to filter, never free text) and its quantity in the droga's unidad base; once one is chosen
  *     its quantity is required to confirm. Reserved oldest lot first with the drogas.
  * Each línea is saved as soon as it changes (a lot) or its field is left (`guardarBorradorPesadaAction`), so nothing

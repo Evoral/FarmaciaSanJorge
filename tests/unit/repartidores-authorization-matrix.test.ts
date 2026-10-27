@@ -1,5 +1,5 @@
 /**
- * Authorization matrix for modules/repartidores (docs/specs/envios-repartidores.md, "Permisos"):
+ * Authorization matrix for modules/repartidores (openspec/specs/envios-repartidores/spec.md, "Permisos"):
  *   - the ABM (crear, editar, cambiar estado, listar, ver): `repartidores.gestionar` (categoría `gestion`: ADMINISTRADOR
  *     holds it by category; no predefined role holds it otherwise).
  *   - the autocomplete source: `entregas.registrar` OR `repartidores.gestionar`. `defineQuery` takes ONE permiso, so

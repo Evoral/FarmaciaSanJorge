@@ -53,6 +53,8 @@ export interface DtParaCoFirma {
   usuarioId: string;
   nombre: string;
   apellido: string;
+  /** Also the Administrador: flagged "(Admin)" in the picker (`shared/format/usuario.ts`). */
+  esAdministrador: boolean;
 }
 
 /**
@@ -66,8 +68,12 @@ export interface DtParaCoFirma {
  * boundary, same as every other function in this file).
  */
 export async function listDtVigentesParaCoFirma(tx: Prisma.TransactionClient, tenantId: string): Promise<DtParaCoFirma[]> {
-  const rows = await tx.$queryRaw<{ usuario_id: string; nombre: string; apellido: string }[]>`
-    SELECT DISTINCT u.id AS usuario_id, u.nombre, u.apellido
+  const rows = await tx.$queryRaw<{ usuario_id: string; nombre: string; apellido: string; es_administrador: boolean }[]>`
+    SELECT DISTINCT u.id AS usuario_id, u.nombre, u.apellido,
+      EXISTS (
+        SELECT 1 FROM fsj.usuario_rol ur JOIN fsj.rol r ON r.tenant_id = ur.tenant_id AND r.id = ur.rol_id
+        WHERE ur.tenant_id = u.tenant_id AND ur.usuario_id = u.id AND r.es_administrador
+      ) AS es_administrador
     FROM fsj.usuario u
     JOIN fsj.designacion_director_tecnico d ON d.tenant_id = u.tenant_id AND d.usuario_id = u.id
     WHERE u.tenant_id = ${tenantId}::uuid
@@ -75,7 +81,7 @@ export async function listDtVigentesParaCoFirma(tx: Prisma.TransactionClient, te
       AND fsj.es_dt_vigente(u.id, fsj.jornada_actual(${tenantId}::uuid))
     ORDER BY u.apellido, u.nombre
   `;
-  return rows.map((row) => ({ usuarioId: row.usuario_id, nombre: row.nombre, apellido: row.apellido }));
+  return rows.map((row) => ({ usuarioId: row.usuario_id, nombre: row.nombre, apellido: row.apellido, esAdministrador: row.es_administrador }));
 }
 
 export interface PoliticaBloqueo {

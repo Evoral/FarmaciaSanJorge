@@ -51,7 +51,7 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
   const puedeVerCotizacion = can(session, "cotizaciones.calcular") || can(session, "cotizaciones.ver");
   // Once the item's preparación is CONFIRMADA no new version can ever be prepared, so generating is closed (also refused by generarFichaTecnica).
   const itemConfirmado = versiones.some((v) => v.preparacionActual?.estado === "CONFIRMADA");
-  // Nor while its stock is reserved (an INICIADA preparación): release the reserva first (docs/specs/reserva-stock-preparacion.md R20).
+  // Nor while its stock is reserved (an INICIADA preparación): release the reserva first (openspec/specs/reserva-stock-preparacion/spec.md R20).
   const itemConReserva = versiones.some((v) => v.preparacionActual?.estado === "INICIADA");
   const puedeGenerar = can(session, "fichas.generar") && !itemConfirmado && !itemConReserva;
   const posicion = receta.items.findIndex((i) => i.id === itemId) + 1;
@@ -118,7 +118,7 @@ export default async function FichaTecnicaPage({ params }: FichaTecnicaPageProps
                       ) : null
                     }
                     // No "Preparar" here: a preparación starts only from the receta's toma workspace ("Reservar stock"), so every
-                    // ítem is confirmed by "Imprimir etiqueta(s)" there (docs/specs/reserva-stock-preparacion.md R16). An existing
+                    // ítem is confirmed by "Imprimir etiqueta(s)" there (openspec/specs/reserva-stock-preparacion/spec.md R16). An existing
                     // INICIADA one is still continued from its own screen.
                     acciones={
                       puedeIniciarPreparacion && v.preparacionActual?.estado === "INICIADA" ? (

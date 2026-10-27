@@ -1,5 +1,5 @@
 /**
- * Digital receta PDF parser (docs/specs/importacion-receta-pdf.md, "Pieza 2").
+ * Digital receta PDF parser (openspec/specs/importacion-receta-pdf/spec.md, "Pieza 2").
  * PURE: receives the PDF's positioned text items and its link URIs (already
  * extracted by the infrastructure layer) and returns a draft (`borrador`)
  * plus warnings. No I/O, no PDF library, no runtime dependencies -- tested
@@ -110,7 +110,7 @@ export interface BorradorItem {
   formaFarmaceutica: FormaFarmaceutica | null;
   /** Units to make, not the prescribed count: "30 comprimidos" at media dosis -> 60 (`unidadesAElaborar`). */
   cantidadUnidades: number | null;
-  /** Decimal string: "1" unless the receta says "media dosis" / "½ dosis" ("0.5", docs/specs/ficha-tecnica.md). */
+  /** Decimal string: "1" unless the receta says "media dosis" / "½ dosis" ("0.5", openspec/specs/ficha-tecnica/spec.md). */
   fraccionDosisPorUnidad: string;
   posologia: string | null;
   duracionTratamientoDias: number | null;

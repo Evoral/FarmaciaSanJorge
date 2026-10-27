@@ -32,7 +32,7 @@ Desvíos del revisor:
 
 **Antes del deploy**
 1. ~~P5-05~~ **CORREGIDO**: la clave de idempotencia se renueva durante el render al llegar un resultado exitoso (patrón "información de renders anteriores"), sin `useEffect`.
-2. ~~P5-08 y P5-07~~ **CORREGIDO**: `XlsxReportOptions.logo` recibe el logo del tenant (`getLogoTenant`, PNG o JPEG ajustado a 56 × 56; sin logo o WebP, el banner va sin imagen). Se quitó `outputFileTracingIncludes`: ningún runtime lee `public/`. Spec `logo-farmacia.md` R7, `etiqueta-preparado.md` y `DESIGN.md` alineados.
+2. ~~P5-08 y P5-07~~ **CORREGIDO**: `XlsxReportOptions.logo` recibe el logo del tenant (`getLogoTenant`, PNG o JPEG ajustado a 56 × 56; sin logo o WebP, el banner va sin imagen). Se quitó `outputFileTracingIncludes`: ningún runtime lee `public/`. Spec `openspec/specs/logo-farmacia/spec.md` R7, `openspec/specs/etiqueta-preparado/spec.md` y `DESIGN.md` alineados.
 3. ~~P5-03~~ **CORREGIDO**: `withTenantTransaction` y `withPlatformTransaction` usan `maxWait` 10 s y `timeout` 60 s (por debajo del `statement_timeout` de 120 s). Por eso `maxDuration` de la función debe superar los 60 s (checklist P5-02).
 4. ~~P5-01~~ **CORREGIDO** (primera parte): `REDACT_PATHS` cubre en tres niveles las variantes de PIN y contraseña, `diagnostico*` y `domicilio*`, con un test.
 5. Checklist de deploy:

@@ -1,5 +1,5 @@
 /**
- * `/clientes/seguimiento` (docs/specs/pacientes-recurrentes.md): patients who
+ * `/clientes/seguimiento` (openspec/specs/pacientes-recurrentes/spec.md): patients who
  * periodically order the same preparation, with a one-click WhatsApp reminder.
  * HEALTH-ADJACENT DATA (DP-24, Ley 25.326): `searchParams` ONLY ever reads
  * `ventana` ("todos"; anything else is the default "próximos") and `page` (a

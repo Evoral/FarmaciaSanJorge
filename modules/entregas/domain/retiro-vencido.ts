@@ -1,5 +1,5 @@
 /**
- * Retiro vencido (docs/specs/retiro-vencido.md): a PREPARADA receta that nobody picks up moves, after N days, to
+ * Retiro vencido (openspec/specs/retiro-vencido/spec.md): a PREPARADA receta that nobody picks up moves, after N days, to
  * RETIRO_VENCIDO. N is the per-tenant parameter `dias_retiro_vencido` (default 30, 0 = disabled, RV1/RV10).
  *
  * Pure, no I/O. This file holds the parameter's bounds and its defensive parser, and the date arithmetic of the daily job

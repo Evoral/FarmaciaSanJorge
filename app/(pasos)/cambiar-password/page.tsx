@@ -1,5 +1,5 @@
 /**
- * `/cambiar-password`: step 1 of docs/specs/contrasena-temporal.md. Reads the
+ * `/cambiar-password`: step 1 of openspec/specs/contrasena-temporal/spec.md. Reads the
  * session with the pending-steps opt-out and only renders the form while
  * `cambiar-password` is the step that comes first.
  */

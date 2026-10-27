@@ -1,6 +1,6 @@
 /**
  * `registrarPerdidaReserva`: the toma workspace's "Registrar pérdida" on an
- * ítem whose stock is reserved (docs/specs/reserva-stock-preparacion.md) --
+ * ítem whose stock is reserved (openspec/specs/reserva-stock-preparacion/spec.md) --
  * whoever prepares records that part of a reserved partida was lost (rotura,
  * derrame) during the lab's work. ONE transaction:
  *   1. Lock the preparación, then its receta, then EVERY partida it reserves
@@ -9,7 +9,7 @@
  *      same order as "Imprimir etiquetas" (`confirmarReservasReceta`), and
  *      all the partidas before any single one, so the AJUSTE and the re-plan
  *      only re-lock rows already held and it can not deadlock with a reserva
- *      or a confirmation (docs/specs/reserva-stock-preparacion.md R9/R23).
+ *      or a confirmation (openspec/specs/reserva-stock-preparacion/spec.md R9/R23).
  *   2. The partida must be one this preparación reserves.
  *   3. An AJUSTE through the stock module's own code
  *      (`registrarAjusteEnTx`, modules/stock/application/registrar-ajuste.ts:

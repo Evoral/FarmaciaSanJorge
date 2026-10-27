@@ -507,7 +507,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0031_regla_precio_cotizacion migra
     });
   });
 
-  describe("costos de proveedor (docs/specs/costos-proveedor.md R34, CP18): calculating a cotizacion is read-only on them", () => {
+  describe("costos de proveedor (openspec/specs/costos-proveedor/spec.md R34, CP18): calculating a cotizacion is read-only on them", () => {
     it("reading the vigente costos (what costosProveedorParaCotizar does) and inserting the cotizacion leaves costo_proveedor, lista_precio_proveedor and partida unchanged", async () => {
       await asOwner((client) =>
         inRollbackTx(client, async (tx) => {

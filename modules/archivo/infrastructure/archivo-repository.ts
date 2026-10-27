@@ -141,7 +141,7 @@ export interface RecetaElegibleRow {
   fechaIngreso: string;
 }
 
-/** User decision 4 (+ RV7, docs/specs/retiro-vencido.md): estado ENTREGADA/ANULADA/RETIRO_VENCIDO, sin lote asignado, fecha_ingreso (date part, tenant zona_horaria) dentro del período. DIGITAL_PDF recetas are excluded (no paper to archive -- docs/specs/importacion-receta-pdf.md). `fecha_ingreso` is cast to the TENANT's own zona_horaria, never UTC/server-local -- same discipline `fsj.jornada_actual()` uses server-side. Returns EVERY eligible receta (what `conformarLote` assigns). */
+/** User decision 4 (+ RV7, openspec/specs/retiro-vencido/spec.md): estado ENTREGADA/ANULADA/RETIRO_VENCIDO, sin lote asignado, fecha_ingreso (date part, tenant zona_horaria) dentro del período. DIGITAL_PDF recetas are excluded (no paper to archive -- openspec/specs/importacion-receta-pdf/spec.md). `fecha_ingreso` is cast to the TENANT's own zona_horaria, never UTC/server-local -- same discipline `fsj.jornada_actual()` uses server-side. Returns EVERY eligible receta (what `conformarLote` assigns). */
 export async function listRecetasElegibles(tx: Prisma.TransactionClient, tenantId: string, periodoDesde: string, periodoHasta: string): Promise<RecetaElegibleRow[]> {
   return queryRecetasElegibles(tx, tenantId, periodoDesde, periodoHasta, PrismaRuntime.empty);
 }

@@ -1,5 +1,5 @@
 /**
- * Prisma-backed access for `modules/operadores` (docs/specs/cuentas-de-sector.md):
+ * Prisma-backed access for `modules/operadores` (openspec/specs/cuentas-de-sector/spec.md):
  * `fsj.accion_con_pin` (migration 0077) and the empleados a cuenta de sector
  * can pick. Every function runs inside an already-open tenant transaction.
  *
@@ -10,6 +10,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { PERMISOS_CON_PIN_CONFIGURABLES, esPermisoConPinConfigurable, type Permiso } from "@/modules/auth/domain/permisos";
 import type { AccionConPin } from "../domain/acciones-con-pin";
+import { SELECT_ROL_ADMINISTRADOR, esAdministradorDe } from "@/shared/db/usuario-administrador";
 
 /** Every configurable acción, in catalog order, with whether this farmacia asks a PIN for it. */
 export async function listAccionesConPin(tx: Prisma.TransactionClient, tenantId: string): Promise<AccionConPin[]> {
@@ -42,19 +43,22 @@ export interface OperadorOpcion {
   id: string;
   nombre: string;
   apellido: string;
+  /** Also the Administrador (with an operative role too): flagged "(Admin)" in the selector. */
+  esAdministrador: boolean;
 }
 
 /**
  * The empleados a cuenta de sector offers in its "¿quién sos?" selector:
  * ACTIVO people (never a cuenta de sector nor the technical usuario) who
  * have a PIN configured and no pending password change (a temporary
- * password, docs/specs/contrasena-temporal.md). A blocked PIN is still listed -- its owner must see
+ * password, openspec/specs/contrasena-temporal/spec.md). A blocked PIN is still listed -- its owner must see
  * themselves and be told why it fails.
  */
 export async function listOperadores(tx: Prisma.TransactionClient, tenantId: string): Promise<OperadorOpcion[]> {
-  return tx.usuario.findMany({
+  const rows = await tx.usuario.findMany({
     where: { tenantId, estado: "ACTIVO", esSector: false, esTecnico: false, pinHash: { not: null }, debeCambiarPassword: false },
     orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
-    select: { id: true, nombre: true, apellido: true },
+    select: { id: true, nombre: true, apellido: true, ...SELECT_ROL_ADMINISTRADOR },
   });
+  return rows.map((row) => ({ id: row.id, nombre: row.nombre, apellido: row.apellido, esAdministrador: esAdministradorDe(row) }));
 }

@@ -1,6 +1,6 @@
 /**
  * Pure domain rules for the médico catalog (M06, FASE 4 point 4.4). DP-23
- * is resolved (docs/specs/importacion-receta-pdf.md, migration 0049): a
+ * is resolved (openspec/specs/importacion-receta-pdf/spec.md, migration 0049): a
  * matrícula belongs to a jurisdiction (NACIONAL/PROVINCIAL), and
  * uniqueness among vigente médicos is per (jurisdicción, matrícula).
  * `matriculaString` normalizes every matrícula the SAME way (trim, collapse

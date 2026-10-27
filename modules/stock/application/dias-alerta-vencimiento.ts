@@ -1,7 +1,7 @@
 /**
  * The tenant's `dias_alerta_vencimiento_partida` (DP-14, default 30) inside the
  * caller's transaction, for other modules that show a partida as "por vencer"
- * (docs/specs/reanalisis-partida.md): the preparaciones flow reads it through
+ * (openspec/specs/reanalisis-partida/spec.md): the preparaciones flow reads it through
  * here instead of reaching into this module's infrastructure. Same value the
  * stock alerts use (`alertasStock`).
  */

@@ -1,5 +1,5 @@
 /**
- * Unit tests for `importarListaPrecios` (docs/specs/costos-proveedor.md R13, R20-R23; CP8, CP9, CP10). The repository is mocked, the
+ * Unit tests for `importarListaPrecios` (openspec/specs/costos-proveedor/spec.md R13, R20-R23; CP8, CP9, CP10). The repository is mocked, the
  * domain and `registrarFilasEnTx` are the real ones: what is under test is the command's ALL-OR-NOTHING order (the lista header is
  * inserted only after every row passed, with the final `filas_aplicadas`), the dating of every row with the list's date, the
  * duplicate-file refusal, the optimistic conflict and "recordar equivalencia".
@@ -150,6 +150,7 @@ vi.mock("@/shared/auth/session", () => ({
 }));
 
 vi.mock("@/modules/costos-proveedor/infrastructure/costo-proveedor-repository", () => ({
+  getAlicuotaIvaPorDefecto: vi.fn(async () => "21"),
   getContextoTemporal: getContextoTemporalMock,
   jornadaActualTenant: jornadaActualTenantMock,
   getProveedorParaCosto: getProveedorParaCostoMock,
@@ -215,6 +216,8 @@ function vigente(cambios: Record<string, unknown> = {}) {
     precioInformado: "30000",
     unidadPrecioId: UNIDAD_KG_ID,
     costoUnitario: "0.03",
+    alicuotaIva: "21",
+    precioInformadoConIva: "36300",
     fechaPrecio: "2026-09-01",
     vigenteDesde: new Date("2026-09-02T10:00:00.000Z"),
     ...cambios,

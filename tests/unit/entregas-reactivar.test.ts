@@ -1,5 +1,5 @@
 /**
- * Behavioral tests for "Reactivar" (docs/specs/retiro-vencido.md RV4-RV6) and the pop-up's data
+ * Behavioral tests for "Reactivar" (openspec/specs/retiro-vencido/spec.md RV4-RV6) and the pop-up's data
  * (`getEntregaEstado` for a RETIRO_VENCIDO receta). Mocked repositories/tx, no DB. The stock module's co-firma
  * (`verificarCoFirmaDtEnTx`) runs for real on top of a mocked co-firma repository and password check, so what the
  * tests assert about a rejected co-firma (failed attempt counted, audited, nothing else written) is the real behavior.

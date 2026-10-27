@@ -13,6 +13,7 @@ import { TriangleAlert } from "lucide-react";
 import { solicitarDestruccionAction, autorizarDestruccionAction, registrarDestruccionAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { DateInput } from "@/shared/ui/date-input";
+import { PasswordInput } from "@/shared/ui/password-input";
 
 function PasswordField() {
   return (
@@ -20,7 +21,7 @@ function PasswordField() {
       <label htmlFor="password" className="field-label">
         Tu contraseña
       </label>
-      <input id="password" name="password" type="password" autoComplete="off" required aria-describedby="password-ayuda" className="input" />
+      <PasswordInput id="password" name="password" autoComplete="off" required aria-describedby="password-ayuda" className="input" />
       <p id="password-ayuda" className="field-help">
         Se requiere tu contraseña completa. El PIN no es válido para este trámite.
       </p>

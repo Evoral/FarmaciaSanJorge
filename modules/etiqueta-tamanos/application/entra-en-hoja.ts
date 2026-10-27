@@ -1,5 +1,5 @@
 /**
- * The fit rule of docs/specs/hoja-etiquetas.md R5, shared by crear / editar /
+ * The fit rule of openspec/specs/hoja-etiquetas/spec.md R5, shared by crear / editar /
  * reactivar a size: a label size must fit the sheet at least once. The caller has
  * already locked the sheet row (`lockEtiquetaHojaCompartida`) so no sheet edit can
  * commit between this check and the write.

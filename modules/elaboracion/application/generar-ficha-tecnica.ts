@@ -54,7 +54,7 @@
  *     prepared and would only clutter the item's history. An asiento later
  *     dejado "sin efecto" keeps its CONFIRMADA preparación, so the item
  *     stays closed.
- *   - INICIADA (2026-10-15, docs/specs/reserva-stock-preparacion.md R20):
+ *   - INICIADA (2026-10-15, openspec/specs/reserva-stock-preparacion/spec.md R20):
  *     its stock is reserved on version N; a version N+1 would leave that
  *     reserva on a superseded ficha. Release the reserva first. The reserva
  *     locks the same item_receta row before inserting its preparación, so
@@ -65,7 +65,7 @@
  * ============================================================================
  *
  * The lines themselves come from `calcularLineasFicha` (shared with the
- * in-memory presupuesto, docs/specs/presupuesto-receta.md), which throws
+ * in-memory presupuesto, openspec/specs/presupuesto-receta/spec.md), which throws
  * `FichaNoGenerableError` (a DomainError: same Spanish message as always,
  * plus a stable code). `soloSiDesactualizada` (used by the automatic
  * regeneration after a receta edit) skips the insert when the lines are

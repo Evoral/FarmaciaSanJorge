@@ -1,5 +1,5 @@
 /**
- * `/admin/configuracion/pin` (docs/specs/cuentas-de-sector.md): which acciones
+ * `/admin/configuracion/pin` (openspec/specs/cuentas-de-sector/spec.md): which acciones
  * ask for the PIN of the empleado performing them in a cuenta de sector.
  * Editable only with `config.editar`. The "Configuración" tabs sit under the header.
  */

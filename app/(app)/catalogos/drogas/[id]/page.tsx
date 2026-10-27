@@ -1,4 +1,4 @@
-/** `/catalogos/drogas/[id]` (M06, FASE 4 point 4.2): edit + baja/reactivar + synonyms. Layout: the data form, "Otros nombres" included (same rows as the alta, docs/specs/sinonimos-droga.md), in the main column; the estado and its baja/reactivar action in the aside. */
+/** `/catalogos/drogas/[id]` (M06, FASE 4 point 4.2): edit + baja/reactivar + synonyms. Layout: the data form, "Otros nombres" included (same rows as the alta, openspec/specs/sinonimos-droga/spec.md), in the main column; the estado and its baja/reactivar action in the aside. */
 import { notFound } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";

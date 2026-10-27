@@ -45,20 +45,12 @@ async function createSistemaUser(tx: Client, tenantId: string): Promise<string> 
 }
 
 describe.skipIf(dbTestSkipReason() !== null)("0002_usuarios_roles_permisos migration (fsj schema)", () => {
-  it("every new tenant gets the 6 default roles plus the internal SISTEMA role (fsj.seed_roles_tenant via trg_tenant_seed_roles, migration 0054; LABORATORIO since 0077)", async () => {
+  it("every new tenant gets the 3 default roles plus the internal SISTEMA role (fsj.seed_roles_tenant via trg_tenant_seed_roles, migration 0054; reduced by 0106)", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const tenantId = await insertTenant(tx, "seed");
         const result = await tx.query(`SELECT codigo FROM fsj.rol WHERE tenant_id = $1 ORDER BY codigo`, [tenantId]);
-        expect(result.rows.map((r) => r.codigo as string)).toEqual([
-          "ADMINISTRADOR",
-          "ATENCION_PUBLICO",
-          "DIRECTOR_TECNICO",
-          "FARMACEUTICO",
-          "LABORATORIO",
-          "SISTEMA",
-          "SOLO_CONSULTA",
-        ]);
+        expect(result.rows.map((r) => r.codigo as string)).toEqual(["ADMINISTRADOR", "DIRECTOR_TECNICO", "FARMACEUTICO", "SISTEMA"]);
       }),
     );
   });
@@ -172,6 +164,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0002_usuarios_roles_permisos migra
           [userId, tenantId, `u02d-${Date.now()}@example.com`, sistema],
         );
         const farmaceuticoId = await rolId(tx, tenantId, "FARMACEUTICO");
+        await tx.query("INSERT INTO fsj.rol (tenant_id, codigo, nombre) VALUES ($1, 'ATENCION_PUBLICO', 'Atención al público')", [tenantId]);
         const atpId = await rolId(tx, tenantId, "ATENCION_PUBLICO");
         await tx.query(
           `INSERT INTO fsj.usuario_rol (tenant_id, usuario_id, rol_id, asignado_por_id) VALUES ($1,$2,$3,$4)`,

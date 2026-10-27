@@ -1,0 +1,5 @@
+schema: spec-driven
+created: 2026-10-25
+# Format-only conversion: requirements are restated, not changed, so there are
+# no delta specs. Each tanda edits openspec/specs/<feature>/spec.md directly.
+skip_specs: true

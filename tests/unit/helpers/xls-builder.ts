@@ -1,5 +1,5 @@
 /**
- * Test-only writer of BIFF8 `.xls` files (docs/specs/costos-proveedor.md R14): no binary fixtures live in the repo, the
+ * Test-only writer of BIFF8 `.xls` files (openspec/specs/costos-proveedor/spec.md R14): no binary fixtures live in the repo, the
  * tests of `modules/costos-proveedor/infrastructure/leer-xls.server.ts` build their workbooks with this.
  *
  * Two layers, mirroring the reader:

@@ -1,6 +1,6 @@
 # Rollback — Un asiento por receta (D8, migración 0082)
 
-Spec: `docs/specs/libro-recetario-y-contralor.md` §1 D8.
+Spec: `openspec/specs/libro-recetario-y-contralor/spec.md` §1 D8.
 
 ## Antes de que exista algún asiento por receta
 

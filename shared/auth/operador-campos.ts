@@ -1,6 +1,6 @@
 /**
  * Form field names that carry "which empleado is acting" in a cuenta de
- * sector (docs/specs/cuentas-de-sector.md): added to the submitted
+ * sector (openspec/specs/cuentas-de-sector/spec.md): added to the submitted
  * `FormData` by the form plumbing (shared/ui/use-form-submit.ts) and read
  * server-side by `conOperador` (./operador-context.ts). Pure constants, safe
  * to import from client code.

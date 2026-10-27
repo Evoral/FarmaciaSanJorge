@@ -3,7 +3,7 @@
  * panel's persistent live region (screen readers announce its changes). The
  * component itself (focus, aria attributes) cannot be rendered here -- vitest
  * runs in node, without a DOM -- and is checked by hand (see
- * docs/specs/importacion-receta-qr.md, "verificación manual").
+ * openspec/specs/importacion-receta-qr/spec.md, "verificación manual").
  */
 import { describe, it, expect } from "vitest";
 import { MENSAJE_ANUNCIO_LEIDA, MENSAJE_ANUNCIO_LEYENDO, textoAnuncioLectura } from "@/modules/recetas/ui/anuncio-lectura";

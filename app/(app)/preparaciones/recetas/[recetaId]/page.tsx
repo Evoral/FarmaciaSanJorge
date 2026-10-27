@@ -21,10 +21,10 @@
  *   técnica" only for an ítem that has none, e.g. when the automatic
  *   generation failed; "Imprimir ficha técnica" sits in the actions bar, left
  *   of the ítem's main action) and its actions, every one behind re-authentication
- *   (docs/specs/reserva-stock-preparacion.md: the libro recetario is written
+ *   (openspec/specs/reserva-stock-preparacion/spec.md: the libro recetario is written
  *   at the END of the lab's process, when the etiquetas are printed):
  *     1. Pendiente: the lab fills in the ficha técnica while weighing
- *        (modules/preparaciones/ui/pesaje-en-toma.tsx, docs/specs/pesada-real.md
+ *        (modules/preparaciones/ui/pesaje-en-toma.tsx, openspec/specs/pesada-real/spec.md
  *        "Pesada en la ficha"): a lot selector per línea (oldest first) and a
  *        "Cantidad real pesada" column, each línea saved as it is filled in
  *        (migration 0090), plus the excipiente used, chosen from the catalog
@@ -133,6 +133,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { Avatar } from "@/shared/ui/avatar";
 import { Toaster } from "@/shared/ui/toast";
 import { ArrowLeft, CircleAlert, CircleCheck, FlaskConical, Stethoscope } from "lucide-react";
+import { nombreDeUsuario } from "@/shared/format/usuario";
 
 interface TomaRecetaPageProps {
   params: Promise<{ recetaId: string }>;
@@ -379,7 +380,7 @@ interface AccionesDeItem {
   /** `preparaciones.confirmar`: "Recalcular reserva" and "Registrar pérdida". */
   puedeReservar: boolean;
   /** DTs vigentes for "Registrar pérdida"'s co-firma. */
-  dts: { usuarioId: string; nombre: string; apellido: string }[];
+  dts: { usuarioId: string; nombre: string; apellido: string; esAdministrador: boolean }[];
   /** The session's usuario (is the operator a DT?). */
   usuarioId: string;
 }
@@ -550,7 +551,7 @@ function ItemToma({
                 <PerdidaReservaDialog
                   preparacionId={preparacion.id}
                   partidas={preparacion.reservas}
-                  dts={acciones.dts.map((dt) => ({ id: dt.usuarioId, label: `${dt.nombre} ${dt.apellido}` }))}
+                  dts={acciones.dts.map((dt) => ({ id: dt.usuarioId, label: nombreDeUsuario(dt) }))}
                   operadorEsDt={acciones.dts.some((dt) => dt.usuarioId === acciones.usuarioId)}
                   itemNombre={`Ítem ${numero}: ${nombre}`}
                 />

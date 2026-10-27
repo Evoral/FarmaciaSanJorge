@@ -1,5 +1,5 @@
 /**
- * Unit tests for `modules/stock/domain/vencimiento-partida.ts` (docs/specs/reanalisis-partida.md,
+ * Unit tests for `modules/stock/domain/vencimiento-partida.ts` (openspec/specs/reanalisis-partida/spec.md,
  * migration 0074). Pure domain functions and Zod validation schemas -- no I/O, no DB.
  */
 import { describe, it, expect } from "vitest";

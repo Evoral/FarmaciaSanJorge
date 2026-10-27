@@ -98,7 +98,7 @@ export function LineasFichaTabla({ lineas }: { lineas: readonly LineaDeFichaToma
  * with what to weigh from it (cantidadAPesar (active) x 100 / pureza) in the
  * "A pesar" column, with its g / mg equivalence like the línea's. A partida
  * por vencer carries a compact warning; a vencida one (blocked until the DT
- * acts, docs/specs/reanalisis-partida.md) is listed apart, saying why it is
+ * acts, openspec/specs/reanalisis-partida/spec.md) is listed apart, saying why it is
  * not available.
  */
 function FilasPartidas({ linea, columnas }: { linea: LineaDeFichaToma; columnas: number }) {

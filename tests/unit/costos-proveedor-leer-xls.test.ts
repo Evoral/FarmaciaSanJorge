@@ -1,5 +1,5 @@
 /**
- * `leer-xls.server.ts` (docs/specs/costos-proveedor.md R14): BIFF8 workbooks built in memory by the test-only writer
+ * `leer-xls.server.ts` (openspec/specs/costos-proveedor/spec.md R14): BIFF8 workbooks built in memory by the test-only writer
  * `tests/unit/helpers/xls-builder.ts` (no binary fixtures in the repo), read back. Covers the CFB container (regular
  * FAT, mini stream, several FAT sectors, DIFAT chain, 4096-byte sectors), the record types, strings split across
  * CONTINUE records, sheets located by their BOUNDSHEET offset, and malformed / protected / too old files, which must

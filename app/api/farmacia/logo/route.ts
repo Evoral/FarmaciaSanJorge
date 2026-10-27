@@ -1,5 +1,5 @@
 /**
- * `GET /api/farmacia/logo` (docs/specs/logo-farmacia.md): the current session's tenant logo, for the navigation bar.
+ * `GET /api/farmacia/logo` (openspec/specs/logo-farmacia/spec.md): the current session's tenant logo, for the navigation bar.
  * Any signed-in usuario (`getLogoTenant`'s own `defineQuery` is the authority, not re-checked here). 404 when the
  * tenant has no logo: the navbar then never asks for it and shows the generic `public/logo.png`.
  *

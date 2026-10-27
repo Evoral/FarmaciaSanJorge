@@ -1,5 +1,5 @@
 /**
- * Parser of the supplier price list "Lista de medicamentos" (docs/specs/costos-proveedor.md
+ * Parser of the supplier price list "Lista de medicamentos" (openspec/specs/costos-proveedor/spec.md
  * R16): a Crystal Reports export that the user re-saves as .xlsx. PURE: the input is the
  * raw cell values of ONE sheet (`infrastructure/leer-xlsx.server.ts` reads them), the output
  * the data rows with their price and, when the description ends in a presentation, which one.

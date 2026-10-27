@@ -2,7 +2,7 @@
 
 /**
  * Mounted once in the authenticated layout (`app/(app)/layout.tsx`) for a
- * cuenta de sector (docs/specs/cuentas-de-sector.md): provides
+ * cuenta de sector (openspec/specs/cuentas-de-sector/spec.md): provides
  * `shared/ui/operador.tsx`'s context to every form and renders THE prompt
  * that asks which empleado is acting and their PIN.
  *
@@ -22,6 +22,8 @@ import { CAMPO_OPERADOR_ID, CAMPO_OPERADOR_METODO, CAMPO_OPERADOR_PIN } from "@/
 import { OperadorContextProvider, type CamposDeOperador, type OperadorContextValue } from "@/shared/ui/operador";
 import type { OperadorOpcion } from "../application/list-operadores";
 import { listarOperadoresAction } from "./actions";
+import { PasswordInput } from "@/shared/ui/password-input";
+import { nombreDeUsuario } from "@/shared/format/usuario";
 
 /** The last empleado who identified themselves on this terminal: preselected, so the usual case is "type your PIN". */
 const ULTIMO_OPERADOR_KEY = "fsj.operador.ultimo";
@@ -159,7 +161,7 @@ function OperadorPrompt({ error, onConfirm, onCancel }: OperadorPromptProps) {
             <option value="">{operadores === null ? "Cargando…" : "Seleccioná tu nombre"}</option>
             {(operadores ?? []).map((operador) => (
               <option key={operador.id} value={operador.id}>
-                {operador.apellido}, {operador.nombre}
+                {nombreDeUsuario(operador, "apellido")}
               </option>
             ))}
           </select>
@@ -169,10 +171,9 @@ function OperadorPrompt({ error, onConfirm, onCancel }: OperadorPromptProps) {
           <label htmlFor={pinId} className="field-label">
             PIN
           </label>
-          <input
+          <PasswordInput
             ref={pinRef}
             id={pinId}
-            type="password"
             inputMode="numeric"
             pattern={`\\d{${AUTH_POLICY.pinLength}}`}
             maxLength={AUTH_POLICY.pinLength}

@@ -1,7 +1,7 @@
 /**
  * Automatic ficha técnica + cotización after a receta is confirmed
  * (`recetas.crear` / `recetas.importar`) or edited (`recetas.editar`) --
- * docs/specs/presupuesto-receta.md, "Generación automática al confirmar".
+ * openspec/specs/presupuesto-receta/spec.md, "Generación automática al confirmar".
  *
  * Called by the Server Action AFTER the receta's own transaction
  * committed, and it runs the EXISTING use cases (`fichas.generar`, then

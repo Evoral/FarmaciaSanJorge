@@ -1,7 +1,7 @@
 /**
  * `getHistorialCosto` -- every version of one (droga, proveedor) pair, newest
- * first, for `/costos-proveedor/historial?droga=&proveedor=` (docs/specs/
- * costos-proveedor.md, "Interface" 4). Gated on `stock.valorizado.ver` (R35).
+ * first, for `/costos-proveedor/historial?droga=&proveedor=` (openspec/specs/
+ * costos-proveedor/spec.md, "Interface" 4). Gated on `stock.valorizado.ver` (R35).
  *
  * Returns `null` when the droga or the proveedor is not one of the tenant's
  * (the page answers 404). Each version carries its state: `VIGENTE`,

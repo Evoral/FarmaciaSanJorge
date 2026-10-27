@@ -1,7 +1,7 @@
 /**
  * Whether the tenant's contralor digital is activo, for the droga form: with
  * it, a controlled droga's alta (or an edit that makes it controlled) asks for
- * the saldo de apertura of the manual libro (docs/specs/existencia-inicial.md
+ * the saldo de apertura of the manual libro (openspec/specs/existencia-inicial/spec.md
  * R12). One query per form, each with that form's permiso.
  */
 import { z } from "zod";

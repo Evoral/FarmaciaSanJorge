@@ -1,6 +1,6 @@
 "use server";
 
-/** Server Actions of `modules/operadores` (docs/specs/cuentas-de-sector.md): the operador prompt's selector and `/admin/configuracion/pin`. */
+/** Server Actions of `modules/operadores` (openspec/specs/cuentas-de-sector/spec.md): the operador prompt's selector and `/admin/configuracion/pin`. */
 import { revalidatePath } from "next/cache";
 import { configurarAccionesConPin } from "@/modules/operadores/application/configurar-acciones-con-pin";
 import { listOperadores } from "@/modules/operadores/application/list-operadores";

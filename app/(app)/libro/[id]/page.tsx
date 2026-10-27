@@ -20,6 +20,7 @@ import { tonoEstadoAsiento } from "@/modules/libro/ui/libro-nav";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { PageHeader } from "@/shared/ui/page-header";
 import { ToneBadge } from "@/shared/ui/status-badge";
+import { nombreDeUsuario } from "@/shared/format/usuario";
 
 interface AsientoPageProps {
   params: Promise<{ id: string }>;
@@ -54,7 +55,7 @@ export default async function AsientoPage({ params }: AsientoPageProps) {
     asiento.cierreFirmado &&
     asiento.rectificativoNumeroCorrelativo === null;
   const dts = puedeAnular || puedeRectificar ? await listDtParaCoFirmaLibro() : [];
-  const dtOpciones = dts.map((dt) => ({ id: dt.usuarioId, label: `${dt.nombre} ${dt.apellido}` }));
+  const dtOpciones = dts.map((dt) => ({ id: dt.usuarioId, label: nombreDeUsuario(dt) }));
 
   return (
     <div className="page">

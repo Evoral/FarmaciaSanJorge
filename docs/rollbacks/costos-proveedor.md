@@ -1,6 +1,6 @@
 # Rollback: Costos de proveedores
 
-Spec: `docs/specs/costos-proveedor.md`. The feature has **two schema changes**
+Spec: `openspec/specs/costos-proveedor/spec.md`. The feature has **two schema changes**
 (migrations `0079_costos_proveedor` and `0080_lista_precio_formato_xls`), so it
 is reverted as code + new forward migrations built from
 `prisma/rollbacks/0080_lista_precio_formato_xls.down.sql` and then
@@ -73,7 +73,7 @@ script's header documents the owner-only workaround and why it is discouraged.
 
 - `modules/costos-proveedor/**`
 - `app/(app)/costos-proveedor/**`
-- `docs/specs/costos-proveedor.md` and this file (optional)
+- `openspec/specs/costos-proveedor/spec.md` and this file (optional)
 - `prisma/migrations/<timestamp>_0079_costos_proveedor/` (keep it once applied; the down migration undoes it)
 - `prisma/migrations/20261015180000_0080_lista_precio_formato_xls/` (same: keep it once applied) and `prisma/rollbacks/0080_lista_precio_formato_xls.down.sql`
 - `.xls` support: `modules/costos-proveedor/infrastructure/leer-xls.server.ts`, `libro-hojas.ts` (shared reader shape, also used by `leer-xlsx.server.ts`), `tests/unit/helpers/xls-builder.ts`, `tests/unit/costos-proveedor-leer-xls.test.ts`
@@ -88,4 +88,4 @@ script's header documents the owner-only workaround and why it is discouraged.
 - Stage E5 (cost source of cotizaciones/presupuestos; reverting only these restores today's quoting, the soft rollback): `modules/precios/domain/calcular-cotizacion.ts` (`costoProveedor`, `fuente`, `leerDetalleCotizacion`, `costearItem`), `modules/precios/application/cotizar-lineas.ts` (lookup + `costoProveedor` per línea), `modules/precios/application/get-cotizacion-item.ts` (reads the detalle through `leerDetalleCotizacion`), `modules/precios/ui/cotizacion-detalle.tsx`, `modules/precios/ui/actions.ts` (INCOMPLETA aviso wording), `modules/recetas/domain/presupuesto.ts` (`fuentes`), `modules/recetas/ui/presupuesto-panel.tsx`; plus `tests/unit/recetas-presupuesto.test.ts` (one mock: no costos) and `tests/db/regla-precio-cotizacion.test.ts` (R34 test).
 - .xls support (0080): `modules/costos-proveedor/domain/archivo-lista.ts` (format detection, 4 MiB `MAX_LISTA_BYTES`, `LISTA_BODY_SIZE_LIMIT_BYTES`), `modules/costos-proveedor/application/leer-lista-precios.ts` and `importar-lista-precios.ts` (`formato` `XLS`), `modules/costos-proveedor/domain/importacion-lista.ts`, `modules/costos-proveedor/infrastructure/leer-xlsx.server.ts` (now returns `LibroHojas`), `costo-proveedor-repository.ts` (formato type), `modules/costos-proveedor/ui/importar-lista.tsx`, `app/(app)/costos-proveedor/importar/page.tsx` (copy), `next.config.ts` (`bodySizeLimit` 4_227_072), the comments in `modules/recetas/domain/archivo-receta-pdf.ts`, `prisma/schema.prisma` (doc comment), and the tests `archivo-receta-pdf`, `costos-proveedor-archivo`, `-leer-lista`, `-importar-lista` and `tests/db/costos-proveedor.test.ts` (the formato CHECK case). Rolling back the limit also means restoring the PDF-only `bodySizeLimit` assertion.
 - `app/(app)/layout.tsx`, `app/(app)/sidebar-nav.tsx`: the sidebar entry.
-- `modules/README.md`, `docs/specs/presupuesto-receta.md`, `docs/specs/reglas-precio.md`.
+- `modules/README.md`, `openspec/specs/presupuesto-receta/spec.md`, `openspec/specs/reglas-precio/spec.md`.

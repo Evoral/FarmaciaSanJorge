@@ -1,5 +1,5 @@
 /**
- * Synonyms of a droga (docs/specs/sinonimos-droga.md). A substance is ONE
+ * Synonyms of a droga (openspec/specs/sinonimos-droga/spec.md). A substance is ONE
  * droga; its other names are synonyms, never separate drogas. Within a
  * tenant, among vigente rows, a normalized name (`./normalizar.ts`) is
  * either one droga's name or one droga's synonym -- never both, never

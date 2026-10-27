@@ -1,8 +1,10 @@
 /**
  * `restablecerCredencial` (M03, FASE 3 point 3.6, INV-U08), reworked by
- * docs/specs/contrasena-temporal.md: the Administrador types a NEW TEMPORARY
+ * openspec/specs/contrasena-temporal/spec.md: the Administrador types a NEW TEMPORARY
  * password (twice) for the usuario. It replaces the stored hash, sets
- * `debeCambiarPassword` (so the usuario must change it at the next login),
+ * `debeCambiarPassword` (so the usuario must change it at the next login;
+ * not a cuenta de sector, whose password is definitive and so must meet the
+ * full policy -- openspec/specs/cuentas-de-sector/spec.md),
  * clears the failed-login lock and revokes every open session. The PIN is
  * deliberately left alone (CT5). The plaintext is hashed here and never
  * persisted, returned nor audited (CT1); the caller hands it over in person.
@@ -23,7 +25,7 @@
  */
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
-import { DomainError, NotFoundError } from "@/shared/errors";
+import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { hashPassword } from "@/modules/auth/domain/password";
 import { revokeAllSesionesForUsuarioInTx } from "@/modules/auth/application/revoke-session";
@@ -31,7 +33,7 @@ import { esAccionSobreSiMismo } from "../domain/reglas-admin";
 import type { EstadoUsuario } from "../domain/estado-usuario";
 import { lockUsuarioYAdministradoresActivos } from "../infrastructure/admin-guard";
 import { loadUsuarioParaAccion, cambiarEstadoUsuario, restablecerPasswordTemporal } from "../infrastructure/usuario-repository";
-import { passwordTemporalFields, refinarPasswordTemporal } from "./password-temporal";
+import { erroresDePasswordAsignada, passwordTemporalFields, refinarPasswordTemporal } from "./password-temporal";
 
 const restablecerCredencialInput = z.object({ usuarioId: uuid, ...passwordTemporalFields }).superRefine(refinarPasswordTemporal);
 
@@ -58,9 +60,15 @@ export const restablecerCredencialCommand = defineCommand({
       throw new DomainError("El usuario está dado de baja. La baja es definitiva y no admite restablecimiento de credencial.");
     }
 
+    // The zod refinement applied the temporary policy; a cuenta de sector's password is definitive and needs the full one.
+    const [errorDePolitica] = actual.esSector ? erroresDePasswordAsignada(input.passwordTemporal, true) : [];
+    if (errorDePolitica) {
+      throw new ValidationError(errorDePolitica, { fields: ["passwordTemporal"] });
+    }
+
     const now = new Date();
     const passwordHash = await hashPassword(input.passwordTemporal);
-    await restablecerPasswordTemporal(tx, input.usuarioId, passwordHash);
+    await restablecerPasswordTemporal(tx, input.usuarioId, passwordHash, !actual.esSector);
 
     let estadoResultante: EstadoUsuario = actual.estado;
     if (actual.estado === "PENDIENTE_ACTIVACION") {
@@ -79,7 +87,7 @@ export const restablecerCredencialCommand = defineCommand({
     await revokeAllSesionesForUsuarioInTx(tx, session.tenantId, input.usuarioId, now);
 
     return {
-      output: { estado: estadoResultante },
+      output: { estado: estadoResultante, esSector: actual.esSector },
       audit: {
         entidadId: input.usuarioId,
         valorAnterior: { estado: actual.estado },
@@ -90,6 +98,8 @@ export const restablecerCredencialCommand = defineCommand({
   },
 });
 
-export async function restablecerCredencial(input: RestablecerCredencialInput): Promise<void> {
-  await restablecerCredencialCommand.execute(input);
+/** `esSector`: the password set is definitive (no change pending at login). */
+export async function restablecerCredencial(input: RestablecerCredencialInput): Promise<{ esSector: boolean }> {
+  const { esSector } = await restablecerCredencialCommand.execute(input);
+  return { esSector };
 }

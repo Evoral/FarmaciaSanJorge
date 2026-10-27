@@ -1,6 +1,6 @@
 /**
  * `leerRecetaPdf` -- first step of the receta PDF import
- * (docs/specs/importacion-receta-pdf.md, "Lectura por RCTA"): trust boundary -> extraction -> the PDF's RCTA link ->
+ * (openspec/specs/importacion-receta-pdf/spec.md, "Lectura por RCTA"): trust boundary -> extraction -> the PDF's RCTA link ->
  * the SAME RCTA read as the QR import (./lectura-rcta.ts) -> the paciente's name from the PDF text -> match. Returns
  * the preview the form is prefilled with; NOTHING is written (it is a query: read-only transaction, no audit row --
  * the spec audits the confirmation, `recetas.importar`, not the reading).

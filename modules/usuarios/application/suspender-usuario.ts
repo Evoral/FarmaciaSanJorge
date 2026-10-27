@@ -4,7 +4,7 @@
  * decision 2026-10-21), and revokes every session for the usuario immediately
  * (task's binding decision) -- a suspended usuario must not be able to keep
  * using an already-open session. (No activation credentials exist any more:
- * docs/specs/contrasena-temporal.md.)
+ * openspec/specs/contrasena-temporal/spec.md.)
  *
  * M3 (security review): the target row is locked FIRST
  * (`lockUsuarioYAdministradoresActivos`, single ordered statement -- see

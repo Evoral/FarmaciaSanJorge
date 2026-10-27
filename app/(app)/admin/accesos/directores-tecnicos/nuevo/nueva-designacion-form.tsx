@@ -35,6 +35,7 @@ import type { ComboboxOption } from "@/shared/ui/combobox";
 import { DateInput } from "@/shared/ui/date-input";
 import { errorFieldsOf } from "@/shared/ui/form-parts";
 import { useFieldErrors } from "@/shared/ui/field-errors";
+import { nombreDeUsuario } from "@/shared/format/usuario";
 
 type UsuarioElegible = Awaited<ReturnType<typeof listUsuariosElegiblesDt>>[number];
 
@@ -62,7 +63,7 @@ export function NuevaDesignacionForm({ usuarios }: NuevaDesignacionFormProps) {
   const router = useRouter();
   const [usuario, setUsuario] = useState<ComboboxOption | null>(null);
 
-  const opciones = useMemo(() => usuarios.map((u) => ({ value: u.id, label: `${u.apellido}, ${u.nombre}`, description: `DNI ${u.dni}` })), [usuarios]);
+  const opciones = useMemo(() => usuarios.map((u) => ({ value: u.id, label: nombreDeUsuario(u, "apellido"), description: `DNI ${u.dni}` })), [usuarios]);
   const search = useMemo(() => filtrarOpciones(opciones, 50), [opciones]);
 
   useEffect(() => {

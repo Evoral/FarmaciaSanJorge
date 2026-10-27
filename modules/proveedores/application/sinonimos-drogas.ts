@@ -1,6 +1,6 @@
 /**
  * Synonyms for the droga pickers of this module's screens
- * (docs/specs/sinonimos-droga.md): the pickers filter their options
+ * (openspec/specs/sinonimos-droga/spec.md): the pickers filter their options
  * client-side, so they receive each droga's vigente synonyms as extra
  * search keywords. One query per screen, each behind that screen's own
  * permiso (a synonym is catalog data, nothing more sensitive than the droga

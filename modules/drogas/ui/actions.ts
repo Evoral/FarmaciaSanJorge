@@ -1,6 +1,6 @@
 "use server";
 
-/** Server Actions for `/catalogos/drogas` (FASE 4 point 4.2), synonyms included (docs/specs/sinonimos-droga.md). */
+/** Server Actions for `/catalogos/drogas` (FASE 4 point 4.2), synonyms included (openspec/specs/sinonimos-droga/spec.md). */
 import { revalidatePath } from "next/cache";
 import { crearDroga } from "@/modules/drogas/application/crear-droga";
 import { editarDroga } from "@/modules/drogas/application/editar-droga";

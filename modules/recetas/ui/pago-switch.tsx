@@ -1,6 +1,6 @@
 "use client";
 
-/** The receta's "Pagada" switch (docs/specs/pago-receta.md), one look wherever the payment is set. */
+/** The receta's "Pagada" switch (openspec/specs/pago-receta/spec.md), one look wherever the payment is set. */
 import { formatNumero } from "@/shared/format/cantidad";
 
 function precio(valor: string): string {

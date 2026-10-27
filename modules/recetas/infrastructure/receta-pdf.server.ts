@@ -1,5 +1,5 @@
 /**
- * Receta PDF text extraction (docs/specs/importacion-receta-pdf.md,
+ * Receta PDF text extraction (openspec/specs/importacion-receta-pdf/spec.md,
  * "Pieza 1"): the shared extractor (shared/pdf/extraer-texto-pdf.server.ts)
  * with the receta's page limit and messages. Interpretation is the pure
  * parser's job (../domain/receta-pdf-parser.ts).

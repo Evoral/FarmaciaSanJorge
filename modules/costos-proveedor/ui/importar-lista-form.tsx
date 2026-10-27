@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Editable preview of a supplier price list import (docs/specs/costos-proveedor.md R18-R20), modelled on the
+ * Editable preview of a supplier price list import (openspec/specs/costos-proveedor/spec.md R18-R20), modelled on the
  * supplier invoice import form (modules/stock/ui/importar-factura-form.tsx): what was read from the file, row by
  * row, to review and correct before ONE confirmation that is all or nothing (`importarListaPreciosAction`).
  *
@@ -139,7 +139,7 @@ export function ImportarListaForm({ vista, drogas: drogasDelCatalogo, unidades, 
 
   const [filas, setFilas] = useState<FilaEditable[]>(() =>
     vista.filas.map((fila) => ({
-      // Matched through a remembered synonym: the field shows the list's text, the canonical name as a hint (docs/specs/sinonimos-droga.md).
+      // Matched through a remembered synonym: the field shows the list's text, the canonical name as a hint (openspec/specs/sinonimos-droga/spec.md).
       droga: fila.drogaId ? { value: fila.drogaId, label: fila.drogaNombre ?? fila.descripcion, sinonimo: fila.via === "ALIAS" && fila.drogaNombre ? fila.descripcion : null } : null,
       precio: numeroParaInput(fila.precio),
       unidadPrecioId: fila.unidadPrecioId ?? "",

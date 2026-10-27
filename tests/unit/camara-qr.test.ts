@@ -1,5 +1,5 @@
 /**
- * Unit tests for modules/recetas/ui/camara-qr.ts (docs/specs/importacion-receta-qr.md,
+ * Unit tests for modules/recetas/ui/camara-qr.ts (openspec/specs/importacion-receta-qr/spec.md,
  * camera section; spec cases P58-P62). The scanner component cannot be rendered
  * here (vitest runs in node, without a DOM or a camera), so every decision it
  * takes is a pure function over plain values; the wiring is verified by hand.

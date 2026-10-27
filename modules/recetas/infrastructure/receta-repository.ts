@@ -249,7 +249,7 @@ export interface NuevaRecetaInput {
   nroRecetaEmisor?: string | null;
   urlVerificacion?: string | null;
   fechaValidaDesde?: string | null; // YYYY-MM-DD
-  /** Migration 0102: the manual alta form's idempotency key (docs/specs/alta-receta-idempotente.md). */
+  /** Migration 0102: the manual alta form's idempotency key (openspec/specs/alta-receta-idempotente/spec.md). */
   envioId?: string | null;
   items: NuevoItemInput[];
 }
@@ -500,7 +500,7 @@ export interface RecetaDetalle {
   pagada: boolean;
   pagadaEn: Date | null;
   pagadaPorNombre: string | null;
-  /** In a lote de archivo: its entrega can no longer be reverted (docs/specs/anular-entrega.md). */
+  /** In a lote de archivo: its entrega can no longer be reverted (openspec/specs/anular-entrega/spec.md). */
   archivada: boolean;
   /** The tenant's zona horaria, to show `pagadaEn` (a timestamptz) as the farmacia's local time. */
   zonaHoraria: string;
@@ -785,7 +785,7 @@ export async function anularReceta(tx: Prisma.TransactionClient, tenantId: strin
 }
 
 // ============================================================================
-// Pago (migration 0071, docs/specs/pago-receta.md).
+// Pago (migration 0071, openspec/specs/pago-receta/spec.md).
 // ============================================================================
 
 export interface PagoDeReceta {

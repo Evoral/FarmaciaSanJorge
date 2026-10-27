@@ -1,6 +1,6 @@
 /**
  * Prisma-backed reads for the droga "Historial" view
- * (docs/specs/historial-droga.md). Every function runs inside an ALREADY OPEN
+ * (openspec/specs/historial-droga/spec.md). Every function runs inside an ALREADY OPEN
  * tenant transaction (RLS-scoped) and filters by `tenantId` explicitly as well:
  * EVERY `FROM` and EVERY `JOIN` of the raw SQL carries its own `tenant_id`
  * (composite-key discipline). HEALTH-ADJACENT DATA (receta, paciente, Ley

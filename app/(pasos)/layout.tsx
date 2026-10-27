@@ -1,6 +1,6 @@
 /**
  * Layout for the steps a session must complete before using the app
- * (`/cambiar-password`, `/configurar-pin` -- docs/specs/contrasena-temporal.md).
+ * (`/cambiar-password`, `/configurar-pin` -- openspec/specs/contrasena-temporal/spec.md).
  * No sidebar: until the steps are done the app is not reachable anyway
  * (`app/(app)/layout.tsx` sends the session here). It opts out of the pending-steps
  * gate in `requireSession` because it is the page that resolves them; the pages

@@ -1,6 +1,6 @@
 "use client";
 
-/** `/admin/configuracion/farmacia` edit form (FASE 3 point 3.10a). Only the editable fields -- see modules/farmacia/application/editar-datos-tenant.ts for why the other tenant fields are never even parsed as input. The CUIT field is rendered only while `cuitEditable` (docs/specs/cuit-farmacia.md). The page provides the surrounding panel. */
+/** `/admin/configuracion/farmacia` edit form (FASE 3 point 3.10a). Only the editable fields -- see modules/farmacia/application/editar-datos-tenant.ts for why the other tenant fields are never even parsed as input. The CUIT field is rendered only while `cuitEditable` (openspec/specs/cuit-farmacia/spec.md). The page provides the surrounding panel. */
 import { editarDatosTenantAction } from "./actions";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 

@@ -1,5 +1,5 @@
 /**
- * Relevamiento inicial (docs/specs/existencia-inicial.md R6-R8).
+ * Relevamiento inicial (openspec/specs/existencia-inicial/spec.md R6-R8).
  *
  * - `getRelevamientoInicialQuery`: the window's state, what was loaded per
  *   droga and, with the contralor digital activo, the controlled drogas whose

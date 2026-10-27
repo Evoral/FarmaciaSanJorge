@@ -1,5 +1,5 @@
 /**
- * `/costos-proveedor` -- "Vigentes" (docs/specs/costos-proveedor.md, "Interface" 1): the
+ * `/costos-proveedor` -- "Vigentes" (openspec/specs/costos-proveedor/spec.md, "Interface" 1): the
  * reference price each proveedor quotes for each droga, one vigente price per pair, to
  * consult, change by hand (Editar, Agregar costo) or give de baja. These prices are only
  * used to quote cotizaciones; the real cost of every partida is untouched.
@@ -16,6 +16,7 @@ import { antiguedadDias, etiquetaAntiguedad, etiquetaPrecio } from "@/modules/co
 import { CostoAcciones } from "@/modules/costos-proveedor/ui/costo-acciones";
 import { CostosFiltros } from "@/modules/costos-proveedor/ui/costos-filtros";
 import { CostosTabs } from "@/modules/costos-proveedor/ui/costos-tabs";
+import { formatNumero } from "@/shared/format/cantidad";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { formatearCostoUnitario } from "@/shared/format/monto";
 import { EmptyState } from "@/shared/ui/empty-state";
@@ -141,10 +142,10 @@ export default async function CostosProveedorPage({ searchParams }: CostosProvee
                       Proveedor
                     </th>
                     <th scope="col" className="px-3 py-2 text-right">
-                      Precio informado
+                      Precio con IVA
                     </th>
                     <th scope="col" className="hidden px-3 py-2 text-right md:table-cell">
-                      Costo por unidad base
+                      Costo por unidad base con IVA
                     </th>
                     <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       Fecha del precio
@@ -177,9 +178,17 @@ export default async function CostosProveedorPage({ searchParams }: CostosProvee
                             </>
                           ) : null}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">{etiquetaPrecio(costo.precioInformado, costo.unidadPrecioSimbolo)}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">
+                          {etiquetaPrecio(costo.precioInformadoConIva, costo.unidadPrecioSimbolo)}
+                          <span className="block text-xs text-zinc-500">
+                            sin IVA {etiquetaPrecio(costo.precioInformado, costo.unidadPrecioSimbolo)} · IVA {formatNumero(costo.alicuotaIva, 2)}%
+                          </span>
+                        </td>
                         <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums md:table-cell">
-                          $ {formatearCostoUnitario(costo.costoUnitario)} / {costo.drogaUnidadBaseSimbolo}
+                          $ {formatearCostoUnitario(costo.costoUnitarioConIva)} / {costo.drogaUnidadBaseSimbolo}
+                          <span className="block text-xs text-zinc-500">
+                            sin IVA $ {formatearCostoUnitario(costo.costoUnitario)} / {costo.drogaUnidadBaseSimbolo}
+                          </span>
                         </td>
                         <td className="hidden whitespace-nowrap px-3 py-2.5 sm:table-cell">
                           {formatFechaIso(costo.fechaPrecio)}

@@ -1,5 +1,5 @@
 /**
- * `getTrayectoriaPaciente` (docs/specs/trayectoria-paciente.md): read-only
+ * `getTrayectoriaPaciente` (openspec/specs/trayectoria-paciente/spec.md): read-only
  * "everything this paciente went through, receta by receta", for
  * `/pacientes/[id]/trayectoria`. HEALTH-ADJACENT DATA (DP-24, Ley 25.326):
  * gated on `pacientes.gestionar`, never logged, and the URL carries only the

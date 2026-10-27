@@ -1,6 +1,6 @@
 /**
  * Prisma-backed reads for the paciente "Trayectoria" view
- * (docs/specs/trayectoria-paciente.md). HEALTH-ADJACENT DATA (DP-24, Ley
+ * (openspec/specs/trayectoria-paciente/spec.md). HEALTH-ADJACENT DATA (DP-24, Ley
  * 25.326) -- every function runs inside an ALREADY OPEN tenant transaction
  * (RLS-scoped), filters by `tenantId` explicitly as well (raw SQL included),
  * and NONE of them ever passes a paciente field to a logger.

@@ -20,7 +20,7 @@ const isProd = process.env.NODE_ENV === "production";
 
 /**
  * The whole app denies the camera; only `/recetas/nuevo` (the receta QR import,
- * docs/specs/importacion-receta-qr.md) allows it for its own origin. The two
+ * openspec/specs/importacion-receta-qr/spec.md) allows it for its own origin. The two
  * values differ ONLY in the camera directive.
  */
 const permissionsPolicy = (camera: "()" | "(self)") => `camera=${camera}, microphone=(), geolocation=()`;
@@ -42,7 +42,7 @@ const nextConfig: NextConfig = {
   deprecated: { looseRouteMatching: true },
   logging: {
     // In development Next prints every Server Function call WITH its arguments.
-    // The receta QR import (docs/specs/importacion-receta-qr.md) sends the scanned
+    // The receta QR import (openspec/specs/importacion-receta-qr/spec.md) sends the scanned
     // code, which holds the receta's hash (a bearer capability), as an argument:
     // keep it out of the terminal.
     serverFunctions: false,
@@ -56,8 +56,8 @@ const nextConfig: NextConfig = {
     serverActions: {
       // One limit for every Server Action upload, so it must cover the largest:
       // the receta / factura PDFs weigh up to MAX_PDF_BYTES (1 MiB,
-      // docs/specs/importacion-receta-pdf.md) and the supplier price list up to
-      // MAX_LISTA_BYTES (4 MiB, docs/specs/costos-proveedor.md R15); the raw
+      // openspec/specs/importacion-receta-pdf/spec.md) and the supplier price list up to
+      // MAX_LISTA_BYTES (4 MiB, openspec/specs/costos-proveedor/spec.md R15); the raw
       // multipart body adds framing on top (MULTIPART_MARGIN_BYTES, 32 KiB).
       // So: 4 MiB + 32 KiB (under Vercel's ~4.5 MB request body cap), equal to LISTA_BODY_SIZE_LIMIT_BYTES in
       // modules/costos-proveedor/domain/archivo-lista.ts (asserted, together

@@ -1,7 +1,7 @@
 -- Rollback of 0085_unificar_permiso_entregas (apply as a NEW forward migration).
 -- Re-creates entregas.firma.confirmar, grants it to every role that holds entregas.registrar (the roles that could
 -- confirm a firma after 0085), and restores 0084's fsj.plantilla_rol_permisos(). PIN configuration
--- (fsj.accion_con_pin) for the permiso is not restored: it was off by default (docs/specs/cuentas-de-sector.md).
+-- (fsj.accion_con_pin) for the permiso is not restored: it was off by default (openspec/specs/cuentas-de-sector/spec.md).
 -- The code must be reverted too (modules/auth/domain/permisos.ts, confirmar-firma-recibida.ts, entregas UI).
 
 INSERT INTO fsj.permiso (codigo, descripcion, categoria) VALUES ('entregas.firma.confirmar', 'Confirmar la firma recibida de una entrega', 'operativo')

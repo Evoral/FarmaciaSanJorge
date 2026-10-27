@@ -69,7 +69,7 @@ export async function record(tx: Prisma.TransactionClient, input: AuditRecordInp
   const automatico: Record<string, Prisma.InputJsonValue> = {};
   if (request.requestId) automatico.requestId = request.requestId;
   if (request.userAgent) automatico.userAgent = request.userAgent;
-  // A row authored by the empleado verified in this request (cuenta de sector, docs/specs/cuentas-de-sector.md)
+  // A row authored by the empleado verified in this request (cuenta de sector, openspec/specs/cuentas-de-sector/spec.md)
   // also says which shared terminal they acted from and how they proved who they are.
   const operador = solicitudDeOperador()?.operador;
   if (operador && operador.usuarioId === input.usuarioId) {

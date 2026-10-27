@@ -1,5 +1,5 @@
 /**
- * `getTrayectoriaProveedor` (docs/specs/trayectoria-proveedor.md): read-only
+ * `getTrayectoriaProveedor` (openspec/specs/trayectoria-proveedor/spec.md): read-only
  * "everything this proveedor supplied, partida by partida", for
  * `/proveedores/[id]/historial`. Gated on `proveedores.gestionar`; the URL
  * carries only the opaque proveedor id, a plain `?page=` integer and the

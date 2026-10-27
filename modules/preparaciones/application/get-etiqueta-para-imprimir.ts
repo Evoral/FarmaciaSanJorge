@@ -6,9 +6,9 @@
  *
  * Refuses (DomainError, with the reason) a preparado no longer valid: its
  * receta ANULADA or its asiento dejado sin efecto
- * (docs/specs/reserva-stock-preparacion.md R22). Returns the persisted
+ * (openspec/specs/reserva-stock-preparacion/spec.md R22). Returns the persisted
  * `etiqueta.contenido` snapshot: the PDF prints THAT, not live data
- * (docs/specs/vencimiento-preparado.md R7).
+ * (openspec/specs/vencimiento-preparado/spec.md R7).
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";

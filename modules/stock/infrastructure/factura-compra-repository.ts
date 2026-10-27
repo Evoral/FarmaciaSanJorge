@@ -68,7 +68,7 @@ export async function listAliasesVigentes(tx: Prisma.TransactionClient, tenantId
 
 /**
  * What `aliasNormalizado` already resolves to, for "recordar esta
- * equivalencia" (docs/specs/sinonimos-droga.md): a VIGENTE synonym of a
+ * equivalencia" (openspec/specs/sinonimos-droga/spec.md): a VIGENTE synonym of a
  * VIGENTE droga (`id` = the synonym's), or else -- `esNombre: true`, `id` =
  * the droga's -- the normalized name of a vigente droga (a synonym can never
  * repeat a droga's name, INV-DRG-002). Removed synonyms and synonyms of

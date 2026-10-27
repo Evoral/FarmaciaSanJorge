@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Logo panel of `/admin/configuracion/farmacia` (docs/specs/logo-farmacia.md): preview of what the navbar shows, upload
+ * Logo panel of `/admin/configuracion/farmacia` (openspec/specs/logo-farmacia/spec.md): preview of what the navbar shows, upload
  * and remove. The size is pre-checked here only for a clearer message -- the server's trust boundary
  * (../domain/logo.ts) is the real check. On success `SimpleForm` refreshes the route, so the navbar picks up the new
  * logo right away.

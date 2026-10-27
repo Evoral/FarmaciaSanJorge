@@ -1,7 +1,7 @@
 /**
  * Notices from the automatic ficha técnica + cotización generation that
  * runs right after a receta is confirmed or edited
- * (docs/specs/presupuesto-receta.md, "Generación automática al confirmar").
+ * (openspec/specs/presupuesto-receta/spec.md, "Generación automática al confirmar").
  * That generation runs AFTER the receta committed, as separate use cases,
  * so a failure never undoes the receta -- it only becomes a notice on the
  * receta's detail page.

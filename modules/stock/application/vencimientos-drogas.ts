@@ -1,6 +1,6 @@
 /**
  * Vencimientos of DROGA partidas, the ones that wait on the Director Técnico
- * (docs/specs/reanalisis-partida.md): insumos are excluded, as in the spec.
+ * (openspec/specs/reanalisis-partida/spec.md): insumos are excluded, as in the spec.
  * Read-only, `stock.ver` -- the same permiso as `alertasStock`, whose
  * repository queries they reuse (`alertasVencidasConSaldo` / `alertasPorVencer`).
  *

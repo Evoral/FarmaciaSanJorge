@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Existencia inicial (docs/specs/existencia-inicial.md R3/R5): one physical
+ * Existencia inicial (openspec/specs/existencia-inicial/spec.md R3/R5): one physical
  * envase counted at the relevamiento inicial per submit. Same data as a lote
  * of the manual alta, read from the envase, with the proveedor optional and no
  * vale. Text inputs are uncontrolled: SimpleForm keeps them on an error and

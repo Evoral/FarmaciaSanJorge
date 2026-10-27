@@ -1,6 +1,6 @@
 # Rollback: Logo de la farmacia
 
-Spec: `docs/specs/logo-farmacia.md`. The feature has a **schema change** (migration
+Spec: `openspec/specs/logo-farmacia/spec.md`. The feature has a **schema change** (migration
 `prisma/migrations/20261022120000_0098_tenant_logo`), so it is reverted as code + a new forward migration built
 from `prisma/rollbacks/0098_tenant_logo.down.sql`.
 
@@ -23,7 +23,7 @@ from `prisma/rollbacks/0098_tenant_logo.down.sql`.
 - `modules/farmacia/application/cambiar-logo-tenant.ts`, `quitar-logo-tenant.ts`, `get-marca-tenant.ts`
 - `modules/farmacia/ui/logo-tenant-form.tsx`
 - `app/api/farmacia/logo/route.ts`
-- `docs/specs/logo-farmacia.md`, `prisma/rollbacks/0098_tenant_logo.down.sql` and this file (optional)
+- `openspec/specs/logo-farmacia/spec.md`, `prisma/rollbacks/0098_tenant_logo.down.sql` and this file (optional)
 - `prisma/migrations/20261022120000_0098_tenant_logo/` (keep it once applied)
 
 ## Edited files (revert the logo hunks)

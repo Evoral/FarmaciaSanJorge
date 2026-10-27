@@ -1,6 +1,6 @@
 # Rollback: Pesada real
 
-Spec: `docs/specs/pesada-real.md`. Migration 0088.
+Spec: `openspec/specs/pesada-real/spec.md`. Migration 0088.
 
 ## What it changed
 

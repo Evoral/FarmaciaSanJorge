@@ -1,5 +1,5 @@
 /**
- * `darDeBajaCostoProveedor` (docs/specs/costos-proveedor.md R11): closes the
+ * `darDeBajaCostoProveedor` (openspec/specs/costos-proveedor/spec.md R11): closes the
  * vigente costo of a (droga, proveedor) pair WITHOUT a replacement, so that
  * pair has no costo de proveedor and cotizaciones fall back to partida costing
  * (R27). Motivo required. Nothing is deleted or updated but `vigente_hasta`

@@ -6,7 +6,7 @@
  * suggestion (domain/sugerir-clase.ts) until the user picks one by hand;
  * on edición it is never changed for the user.
  *
- * "Otros nombres" (docs/specs/sinonimos-droga.md) are the same rows on alta
+ * "Otros nombres" (openspec/specs/sinonimos-droga/spec.md) are the same rows on alta
  * and edición (fields `sinonimo-0`, `sinonimo-1`...), saved with the rest of
  * the form; on edición they start with the droga's vigente synonyms and
  * `sinonimosCargados` tells the command which ones the form showed. The name
@@ -63,7 +63,7 @@ export interface DrogaFormProps {
   nombreInicial?: string;
   /** Alta only: called with the created droga instead of navigating (an alta opened in a dialog); the confirmation moves to a toast. */
   onCreada?: (droga: DrogaCreada) => void;
-  /** The contralor digital is activo: making the droga controlled asks for its saldo de apertura (docs/specs/existencia-inicial.md R12). */
+  /** The contralor digital is activo: making the droga controlled asks for its saldo de apertura (openspec/specs/existencia-inicial/spec.md R12). */
   contralorActivo?: boolean;
 }
 

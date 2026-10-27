@@ -1,6 +1,6 @@
 /**
  * Unit tests for `modules/drogas/application/contralor-activo.ts`
- * (docs/specs/existencia-inicial.md R12).
+ * (openspec/specs/existencia-inicial/spec.md R12).
  * Proves that:
  * - contralorActivoParaAltaDrogaQuery requires `drogas.crear`
  * - contralorActivoParaDrogaQuery (edit twin) requires `drogas.editar`

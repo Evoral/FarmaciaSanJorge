@@ -7,7 +7,7 @@ import type { PartidaDisponible } from "@/modules/stock/domain/reparto";
 import { activoDesdeFisico } from "./potencia";
 
 // ============================================================================
-// INV-S18 [PROPUESTA TÉCNICA -- docs/specs/libro-recetario-y-contralor.md
+// INV-S18 [PROPUESTA TÉCNICA -- openspec/specs/libro-recetario-y-contralor/spec.md
 // does not spell this invariant out in full; this is the reading FASE 8's
 // task instructions describe: "si se abre una segunda partida de la misma
 // droga mientras hay una abierta con saldo suficiente, exigir motivo"].

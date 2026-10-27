@@ -131,7 +131,7 @@ export async function getUnidadesBase(tx: Prisma.TransactionClient): Promise<Par
 }
 
 // ============================================================================
-// Read: an in-progress receta draft's references (docs/specs/presupuesto-receta.md)
+// Read: an in-progress receta draft's references (openspec/specs/presupuesto-receta/spec.md)
 // -- the same fields getItemParaFicha/getComponentesParaFicha read from saved
 // rows, looked up by id for a formula that is not saved yet.
 // ============================================================================
@@ -167,7 +167,7 @@ export async function getDrogasParaBorrador(
 }
 
 /**
- * `precision_balanza` / `exceso_pesada_porcentaje` (docs/specs/ficha-tecnica.md
+ * `precision_balanza` / `exceso_pesada_porcentaje` (openspec/specs/ficha-tecnica/spec.md
  * "ParametrosPesaje"), per tenant (`fsj.parametro`, migration 0012 backfills
  * both for every existing tenant and `scripts/create-tenant.ts` seeds them
  * for new ones). Falls back to the spec's own defaults (0.001 / 0) if a row
@@ -238,7 +238,7 @@ export async function getMaxVersionFicha(tx: Prisma.TransactionClient, tenantId:
 /**
  * The estado of the item's LIVE preparación (INICIADA or CONFIRMADA, any ficha version; at most one, migration 0077),
  * `null` when none: `generarFichaTecnica` refuses new versions while it lives (CONFIRMADA: the item is done;
- * INICIADA: its stock is reserved on the current version -- docs/specs/reserva-stock-preparacion.md R20). Read after
+ * INICIADA: its stock is reserved on the current version -- openspec/specs/reserva-stock-preparacion/spec.md R20). Read after
  * `lockItemRecetaParaFicha`: a reserva locks the same row before inserting its preparación, so the two serialize.
  */
 export async function estadoPreparacionVivaDeItem(tx: Prisma.TransactionClient, tenantId: string, itemRecetaId: string): Promise<"INICIADA" | "CONFIRMADA" | null> {

@@ -3,7 +3,7 @@
  * with its candidate partidas (every eligible one of the droga: available, not expired) and the AUTOMATIC plan over
  * them (`repartirLinea`, domain/reparto-linea.ts -- abiertas first, then FEFO; the SAME function and candidates
  * `planificarConsumoEnTx` uses; amounts are PHYSICAL, after the partida's purity correction), so the lab sees which
- * partida to take and how much (docs/specs/reserva-stock-preparacion.md R1, DT decision 2026-10-15). Nothing is
+ * partida to take and how much (openspec/specs/reserva-stock-preparacion/spec.md R1, DT decision 2026-10-15). Nothing is
  * chosen here: the amounts and partidas are display-only, the server recomputes them under its locks. Plus whether
  * today's jornada is already closed (`cierre_diario`), the confirmation's friendly INV-C03 pre-check, shown up front.
  *
@@ -65,7 +65,7 @@ export interface EntradaReservada {
   motivoAperturaAdicional: string | null;
   /** The partidas the reserva draws from (cantidad > 0): the form pre-checks them. */
   partidaIds: string[];
-  /** Non-manual línea: the reserva's pesada real (línea unit), to prefill the field (docs/specs/pesada-real.md). */
+  /** Non-manual línea: the reserva's pesada real (línea unit), to prefill the field (openspec/specs/pesada-real/spec.md). */
   cantidadReal: string | null;
 }
 
@@ -76,12 +76,12 @@ export interface DatosConfirmacion {
   jornadaCerrada: boolean;
   /** `dias_alerta_vencimiento_partida`: the form flags each planned partida por vencer (`estadoVencimientoPartida`). */
   diasAlertaVencimiento: number;
-  /** `meses_vencimiento_preparado`: the months of the `ESTANDAR` tipo de vencimiento, shown in its selector (docs/specs/vencimiento-preparado.md R10). */
+  /** `meses_vencimiento_preparado`: the months of the `ESTANDAR` tipo de vencimiento, shown in its selector (openspec/specs/vencimiento-preparado/spec.md R10). */
   mesesVencimientoPreparado: number;
   lineas: LineaPantalla[];
   /** The global unit catalog, so the form shows stock amounts in a readable unit (`shared/format/cantidad.ts`, display only). */
   unidades: UnidadFormato[];
-  /** Pesada real (docs/specs/pesada-real.md): `precision_balanza` (GRAMO) and `tolerancia_pesada_porcentaje`, to prefill and flag. */
+  /** Pesada real (openspec/specs/pesada-real/spec.md): `precision_balanza` (GRAMO) and `tolerancia_pesada_porcentaje`, to prefill and flag. */
   pesada: { precisionBalanza: string; toleranciaPorcentaje: string };
   /** The DTs vigentes who can co-sign a pesada real outside the tolerance. */
   dts: { id: string; label: string }[];

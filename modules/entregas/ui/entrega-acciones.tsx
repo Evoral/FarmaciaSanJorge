@@ -27,7 +27,7 @@ export interface EntregaAccionesProps {
   /** Migration 0071: the receta is already paid. */
   pagada: boolean;
   itemsExcluidos: number;
-  /** `receta.domicilio_paciente`: where an envío goes (docs/specs/envios-repartidores.md E4). */
+  /** `receta.domicilio_paciente`: where an envío goes (openspec/specs/envios-repartidores/spec.md E4). */
   domicilioEnvio: string | null;
   /** The entrega's repartidor; null for a retiro or an envío registered before migration 0093 (E7). */
   repartidor: RepartidorAsignado | null;
@@ -137,7 +137,7 @@ export function EntregaAcciones({
     );
   }
 
-  // docs/specs/retiro-vencido.md: the retiro expired. Nothing to register until it is reactivated (RV4); once it is, the
+  // openspec/specs/retiro-vencido/spec.md: the retiro expired. Nothing to register until it is reactivated (RV4); once it is, the
   // action's revalidation flips `estado` to PREPARADA and the pop-up stays open on the normal entrega form above.
   if (estado === "RETIRO_VENCIDO") {
     if (!puedeRegistrar || !retiroVencido) {

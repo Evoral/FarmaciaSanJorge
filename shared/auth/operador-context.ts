@@ -1,6 +1,6 @@
 /**
  * Request-scoped carrier for "which empleado is acting" in a cuenta de
- * sector's shared session (docs/specs/cuentas-de-sector.md).
+ * sector's shared session (openspec/specs/cuentas-de-sector/spec.md).
  *
  * A Server Action wraps its body in `conOperador(formData, ...)`. The
  * credential the form sent (`operadorId` + `operadorPin`) then travels

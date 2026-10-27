@@ -1,5 +1,5 @@
 /**
- * `imprimirEtiquetaPdf` on the sheet (docs/specs/hoja-etiquetas.md R6, R7): the PDF page is
+ * `imprimirEtiquetaPdf` on the sheet (openspec/specs/hoja-etiquetas/spec.md R6, R7): the PDF page is
  * the sheet and the etiqueta lands in the chosen cell. Everything that decides the page
  * and the spot -- the sheet, the size (explicit or the first that fits), the cell -- is
  * resolved BEFORE the etiqueta is marked as printed: a size that does not resolve, does

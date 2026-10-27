@@ -1,5 +1,5 @@
 /**
- * Trust boundary for an uploaded receta PDF (docs/specs/importacion-receta-pdf.md,
+ * Trust boundary for an uploaded receta PDF (openspec/specs/importacion-receta-pdf/spec.md,
  * "Pieza 3 -- Frontera de confianza"). The spec's order is mandatory:
  *
  *   1. permiso `recetas.crear` -- the use-case pipeline, BEFORE this runs

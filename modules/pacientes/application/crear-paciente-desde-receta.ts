@@ -1,7 +1,7 @@
 /**
  * `crearPacienteDesdeReceta`: the paciente quick-create of the receta flow
  * (modules/recetas/ui/paciente-picker.tsx, and the PDF import's
- * confirmation later on). docs/specs/importacion-receta-pdf.md "Permisos":
+ * confirmation later on). openspec/specs/importacion-receta-pdf/spec.md "Permisos":
  * `recetas.crear` allows creating pacientes INSIDE the receta flow, without
  * `pacientes.gestionar`; editing and baja/reactivación stay on
  * `pacientes.gestionar` (editar-paciente.ts, dar-de-baja-paciente.ts,

@@ -548,7 +548,7 @@ export async function getCierreDetalle(tx: Prisma.TransactionClient, tenantId: s
 
   // Every asiento of the jornada, not only the ones attached to the cierre: the firma attaches the VIGENTE ones
   // (migration 0075), but the sheet lists the ANULADO ones too, marked "SI" in its Anulado column
-  // (docs/specs/libro-recetario-y-contralor.md, "Impresión"). An asiento can only be anulado before the firma
+  // (openspec/specs/libro-recetario-y-contralor/spec.md, "Impresión"). An asiento can only be anulado before the firma
   // (INV-L02), so these are exactly the ones anulados within the jornada.
   const asientosRecetario = await tx.asientoRecetario.findMany({
     where: { tenantId, fechaAsiento: cierre.fecha },

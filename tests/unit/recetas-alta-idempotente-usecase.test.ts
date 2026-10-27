@@ -1,5 +1,5 @@
 /**
- * T3-09 regression tests: Idempotent manual receta registration (alta-receta-idempotente.md).
+ * T3-09 regression tests: Idempotent manual receta registration (openspec/specs/alta-receta-idempotente/spec.md).
  *
  * Audit finding T3-09:
  * - `crearReceta` with an already-used `envioId` throws `RecetaYaRegistradaError` with the existing receta

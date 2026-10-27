@@ -3,7 +3,7 @@
  * why -- shared by the command (the real guard) and the detail page (what
  * to offer). Pure, no I/O.
  *
- * docs/specs/libro-recetario-y-contralor.md §1 (D2 REVISED): once a
+ * openspec/specs/libro-recetario-y-contralor/spec.md §1 (D2 REVISED): once a
  * preparación is CONFIRMADA its SISTEMA asiento records it in the legal
  * libro. Anulling the receta directly would leave that asiento VIGENTE --
  * the receta would say ANULADA while the libro still records the
@@ -16,7 +16,7 @@
  * that preparación afterwards, which would register a new asiento for an
  * already ANULADA receta -- the same inconsistency, one step later. The
  * preparación has to be discarded first: for a reserved one (the only way a
- * preparación starts since docs/specs/reserva-stock-preparacion.md R16) that
+ * preparación starts since openspec/specs/reserva-stock-preparacion/spec.md R16) that
  * is "Liberar reserva" in the receta's toma workspace (`/preparaciones/recetas/[id]`),
  * not the `/preparaciones/[id]` screen, which refuses a reserved one (R14).
  */

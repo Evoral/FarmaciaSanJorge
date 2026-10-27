@@ -1,5 +1,5 @@
 /**
- * DB tests for prisma/migrations/.../0093_repartidores_envio (docs/specs/envios-repartidores.md): the CHECK that only
+ * DB tests for prisma/migrations/.../0093_repartidores_envio (openspec/specs/envios-repartidores/spec.md): the CHECK that only
  * an ENVIO carries a repartidor, INV-ENT-005 (an ENVIO needs one, and it can be changed but never removed) and the
  * composite FK that keeps the repartidor in the entrega's tenant. See tests/db/helpers.ts for the rollback-transaction
  * safety model and tests/db/fixtures.ts for the shared seed helpers. NOT RUN by the task that wrote them (the DB is

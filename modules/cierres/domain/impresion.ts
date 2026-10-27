@@ -1,5 +1,5 @@
 /**
- * Print order of the libro's daily sheets (docs/specs/libro-recetario-y-contralor.md, "Impresión"): the sheets are
+ * Print order of the libro's daily sheets (openspec/specs/libro-recetario-y-contralor/spec.md, "Impresión"): the sheets are
  * printed in date order. While a signed jornada has never been printed, no later jornada can be printed (nor
  * reprinted); that one and any earlier one can.
  */

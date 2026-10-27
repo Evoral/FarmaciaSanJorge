@@ -1,6 +1,6 @@
 /**
  * Pure decision table: may this usuario act as the empleado ("operador") of
- * a cuenta de sector? (docs/specs/cuentas-de-sector.md) Same shape as
+ * a cuenta de sector? (openspec/specs/cuentas-de-sector/spec.md) Same shape as
  * `./pin-reauth-policy.ts` / `modules/stock/domain/co-firma.ts`: it takes
  * the already-resolved facts and says why not, used only to decide what to
  * write and audit -- never returned to the caller as is.
@@ -22,7 +22,7 @@ export interface CandidatoOperadorInput {
   esTecnico: boolean;
   /**
    * The usuario still has a temporary password to replace
-   * (docs/specs/contrasena-temporal.md): until they do, they cannot identify
+   * (openspec/specs/contrasena-temporal/spec.md): until they do, they cannot identify
    * themselves in a shared session, even with the right PIN.
    */
   debeCambiarPassword: boolean;

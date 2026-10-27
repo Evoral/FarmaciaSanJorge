@@ -1,5 +1,5 @@
 /**
- * `/catalogos/repartidores` (docs/specs/envios-repartidores.md). Search + activo/inactivo filter, plain GET query
+ * `/catalogos/repartidores` (openspec/specs/envios-repartidores/spec.md). Search + activo/inactivo filter, plain GET query
  * params (repartidores are not health data -- no DP-24 URL restriction). The search is an autocomplete (suggestions
  * open the repartidor; its last row filters the list by the typed text).
  */

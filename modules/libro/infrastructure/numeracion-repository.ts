@@ -1,5 +1,5 @@
 /**
- * Initial numbering of the open libros (migration 0097, INV-L26, docs/specs/libro-recetario-y-contralor.md
+ * Initial numbering of the open libros (migration 0097, INV-L26, openspec/specs/libro-recetario-y-contralor/spec.md
  * "Numeración inicial"). Raw SQL: the columns are written only by `fsj.libro_configurar_numeracion` and
  * `fsj.cierre_diario_firmar`.
  */

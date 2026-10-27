@@ -6,7 +6,7 @@
  * in tests, not on message text"). This is the ONLY place that turns a
  * `V<n>` code into the message a farmacéutico actually reads.
  *
- * SOURCE OF TRUTH for the wording: docs/specs/ficha-tecnica.md "Validaciones".
+ * SOURCE OF TRUTH for the wording: openspec/specs/ficha-tecnica/spec.md "Validaciones".
  * V5 gets special billing here because `modules/recetas/domain/receta.ts`
  * deliberately does NOT check it at receta alta time (its own doc comment
  * explains why: V5 needs each componente resolved to its magnitude's base

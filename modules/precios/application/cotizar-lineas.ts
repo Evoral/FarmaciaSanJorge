@@ -6,13 +6,14 @@
  *
  * Also loads, once per call, the costo de proveedor of each droga
  * (`costosProveedorParaCotizar`, read-only): a línea whose droga has one is
- * costed with it, any other from partidas (docs/specs/costos-proveedor.md,
- * R25-R27). The choice itself lives in the pure domain.
+ * costed with it, any other from partidas (openspec/specs/costos-proveedor/spec.md,
+ * R25-R27). The choice itself lives in the pure domain. And the tenant's
+ * alícuota de IVA, which a línea costed from partidas gets (R7a, R27).
  *
  * Shared by `cotizaciones.calcular` (`cotizarLineas`: a saved item's latest
  * ficha, persisted as a cotización) and `recetas.presupuestar`
  * (`cotizarItemsAcumulado`: a draft's items computed in memory against the
- * same stock, persisted nowhere -- docs/specs/presupuesto-receta.md). Not a use
+ * same stock, persisted nowhere -- openspec/specs/presupuesto-receta/spec.md). Not a use
  * case: callers run it inside their own transaction and load the regla
  * themselves (`getReglaVigente`), since "no regla" means an error for one
  * and a message for the other.
@@ -21,7 +22,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { DomainError } from "@/shared/errors";
 import { calcularCotizacion, calcularCotizacionesAcumuladas } from "../domain/calcular-cotizacion";
 import type { CostoProveedorCosteo, CotizacionCalculada, LineaCosteoInput, PartidaCosteo } from "../domain/calcular-cotizacion";
-import { costosProveedorParaCotizar } from "@/modules/costos-proveedor/application/costos-proveedor-para-cotizar";
+import { alicuotaIvaParaCotizar, costosProveedorParaCotizar } from "@/modules/costos-proveedor/application/costos-proveedor-para-cotizar";
 import type { ReglasPrecio } from "../domain/regla-precio";
 import { getPartidasElegiblesDeDroga, getUnidadesBaseDeDrogas, jornadaActualTenant } from "../infrastructure/cotizacion-repository";
 import { getReglaVigente } from "../infrastructure/regla-precio-repository";
@@ -52,15 +53,22 @@ export type LineaACostear = Omit<LineaCosteoInput, "unidadStock">;
 /**
  * Each línea with its droga's unidad base (`unidadStock`): partidas and their costo unitario are in it, the línea is
  * in its magnitud's base unit. A droga that is not found keeps the línea's own unit (it has no partidas either).
+ * Plus its costo de proveedor and the tenant's alícuota de IVA for partidas (R7a).
  */
 async function conUnidadStock(
   tx: Prisma.TransactionClient,
   tenantId: string,
   lineas: readonly LineaACostear[],
   costosProveedor: ReadonlyMap<string, CostoProveedorCosteo>,
+  alicuotaIvaPartidas: string,
 ): Promise<LineaCosteoInput[]> {
   const unidades = await getUnidadesBaseDeDrogas(tx, tenantId, [...new Set(lineas.map((l) => l.drogaId))]);
-  return lineas.map((l) => ({ ...l, unidadStock: unidades.get(l.drogaId) ?? l.unidad, costoProveedor: costosProveedor.get(l.drogaId) ?? null }));
+  return lineas.map((l) => ({
+    ...l,
+    unidadStock: unidades.get(l.drogaId) ?? l.unidad,
+    costoProveedor: costosProveedor.get(l.drogaId) ?? null,
+    alicuotaIvaPartidas,
+  }));
 }
 
 /** Costs ONE item's `lineas` against the full current stock and prices it with `reglas` (the persisted per-item cotización). */
@@ -75,7 +83,8 @@ export async function cotizarLineas(
   const drogaIds = [...new Set(lineas.filter((l) => !l.esEnraseManual).map((l) => l.drogaId))];
   for (const drogaId of drogaIds) partidas.set(drogaId, await getPartidasElegiblesDeDroga(tx, tenantId, drogaId));
   const costosProveedor = await costosProveedorParaCotizar(tx, tenantId, drogaIds);
-  return calcularCotizacion(await conUnidadStock(tx, tenantId, lineas, costosProveedor), (drogaId) => partidas.get(drogaId) ?? [], jornadaActual, reglas);
+  const alicuotaIva = await alicuotaIvaParaCotizar(tx, tenantId);
+  return calcularCotizacion(await conUnidadStock(tx, tenantId, lineas, costosProveedor, alicuotaIva), (drogaId) => partidas.get(drogaId) ?? [], jornadaActual, reglas);
 }
 
 /**
@@ -96,7 +105,8 @@ export async function cotizarItemsAcumulado(
   const drogaIds = [...new Set(items.flatMap((lineas) => lineas.filter((l) => !l.esEnraseManual).map((l) => l.drogaId)))];
   for (const drogaId of drogaIds) partidas.set(drogaId, await getPartidasElegiblesDeDroga(tx, tenantId, drogaId));
   const costosProveedor = await costosProveedorParaCotizar(tx, tenantId, drogaIds);
+  const alicuotaIva = await alicuotaIvaParaCotizar(tx, tenantId);
   const itemsConUnidad: LineaCosteoInput[][] = [];
-  for (const lineas of items) itemsConUnidad.push(await conUnidadStock(tx, tenantId, lineas, costosProveedor));
+  for (const lineas of items) itemsConUnidad.push(await conUnidadStock(tx, tenantId, lineas, costosProveedor, alicuotaIva));
   return calcularCotizacionesAcumuladas(itemsConUnidad, (drogaId) => partidas.get(drogaId) ?? [], jornadaActual, reglas);
 }

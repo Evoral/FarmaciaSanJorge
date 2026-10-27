@@ -1,5 +1,5 @@
 /**
- * `presupuestarReceta` (docs/specs/presupuesto-receta.md): the price of a
+ * `presupuestarReceta` (openspec/specs/presupuesto-receta/spec.md): the price of a
  * receta WHILE it is being loaded -- same draft the form serializes as
  * `itemsJson`, no receta id, nothing saved. Permiso `cotizaciones.calcular`
  * (the same people who may cotizar a saved item).

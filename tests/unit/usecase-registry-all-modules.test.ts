@@ -165,7 +165,7 @@ describe("every registered use case (any module) is structurally forced through 
 });
 
 /**
- * Cuentas de sector (docs/specs/cuentas-de-sector.md): on a shared session,
+ * Cuentas de sector (openspec/specs/cuentas-de-sector/spec.md): on a shared session,
  * an acción the farmacia asks a PIN for is NEVER attributed to the shared
  * account. Whatever the command, if its permiso is "con PIN" and the request
  * identified no empleado, the pipeline rejects it before anything runs --

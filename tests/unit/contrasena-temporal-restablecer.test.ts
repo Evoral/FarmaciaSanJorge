@@ -1,6 +1,6 @@
 /**
  * Unit tests for `restablecerCredencial` as "assign a temporary password"
- * (docs/specs/contrasena-temporal.md): stubbed tx, mocked repository, same
+ * (openspec/specs/contrasena-temporal/spec.md): stubbed tx, mocked repository, same
  * style as tests/unit/usuarios-m3-lock-order.test.ts.
  *
  *   CT1: neither the plaintext nor the hash reaches the audit row or the output.
@@ -28,7 +28,7 @@ vi.mock("@/modules/usuarios/infrastructure/admin-guard", () => ({
 
 const loadUsuarioParaAccionMock = vi.fn(async (...args: unknown[]) => {
   void args;
-  return { id: TARGET_ID, estado: estadoActual, esTecnico: false, roles: ["FARMACEUTICO"], nombre: "N", apellido: "A", email: "n@example.com", dni: "1", numeroMatricula: null };
+  return { id: TARGET_ID, estado: estadoActual, esTecnico: false, esSector: false, roles: ["FARMACEUTICO"], nombre: "N", apellido: "A", email: "n@example.com", dni: "1", numeroMatricula: null };
 });
 const cambiarEstadoUsuarioMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
   void args;
@@ -102,10 +102,11 @@ describe("restablecerCredencial: assigns a temporary password", () => {
   it("ACTIVO: sets hash + flag, resets lock counters, revokes all sessions, never calls cambiarEstadoUsuario, and passes no pin fields", async () => {
     const output = await run();
 
-    expect(output).toEqual({ estado: "ACTIVO" });
+    expect(output).toEqual({ estado: "ACTIVO", esSector: false });
     expect(restablecerPasswordTemporalMock).toHaveBeenCalledTimes(1);
     const args = restablecerPasswordTemporalMock.mock.calls[0]!;
-    expect(args).toHaveLength(3); // (tx, usuarioId, passwordHash): nothing else can carry a PIN change
+    expect(args).toHaveLength(4); // (tx, usuarioId, passwordHash, debeCambiarPassword): nothing else can carry a PIN change
+    expect(args[3]).toBe(true);
     expect(args[1]).toBe(TARGET_ID);
     expect(args[2]).toMatch(/^\$argon2id\$/);
 
@@ -121,7 +122,7 @@ describe("restablecerCredencial: assigns a temporary password", () => {
     estadoActual = "PENDIENTE_ACTIVACION";
     const output = await run();
 
-    expect(output).toEqual({ estado: "ACTIVO" });
+    expect(output).toEqual({ estado: "ACTIVO", esSector: false });
     expect(cambiarEstadoUsuarioMock).toHaveBeenCalledTimes(1);
     expect(cambiarEstadoUsuarioMock).toHaveBeenCalledWith(
       expect.anything(),
@@ -134,7 +135,7 @@ describe("restablecerCredencial: assigns a temporary password", () => {
     estadoActual = "SUSPENDIDO";
     const output = await run();
 
-    expect(output).toEqual({ estado: "SUSPENDIDO" });
+    expect(output).toEqual({ estado: "SUSPENDIDO", esSector: false });
     expect(cambiarEstadoUsuarioMock).not.toHaveBeenCalled();
     expect(restablecerPasswordTemporalMock).toHaveBeenCalledTimes(1);
     expect(auditInput()).toMatchObject({ valorAnterior: { estado: "SUSPENDIDO" }, valorNuevo: { estado: "SUSPENDIDO" } });
@@ -201,5 +202,39 @@ describe("restablecerCredencial: temporary password validation", () => {
     await run({ passwordTemporal: "abc123", passwordTemporalRepeat: "abc123" });
 
     expect(restablecerPasswordTemporalMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("restablecerCredencial: target is a cuenta de sector", () => {
+  beforeEach(() => {
+    loadUsuarioParaAccionMock.mockResolvedValue({
+      id: TARGET_ID,
+      estado: "ACTIVO",
+      esTecnico: false,
+      esSector: true,
+      roles: ["FARMACEUTICO"],
+      nombre: "Laboratorio",
+      apellido: "(Sector)",
+      email: "lab@farmacia.local",
+      dni: "SECTOR-LAB",
+      numeroMatricula: null,
+    });
+  });
+
+  it("rejects a password that satisfies temporary policy but violates full password policy", async () => {
+    const error = await run({ passwordTemporal: "abc123", passwordTemporalRepeat: "abc123" }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).fields).toEqual(["passwordTemporal"]);
+    expect(restablecerPasswordTemporalMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts a full-policy password, calls restablecerPasswordTemporal with debeCambiarPassword = false, and output includes esSector: true", async () => {
+    const output = await run({ passwordTemporal: "ClaveSegura2026!", passwordTemporalRepeat: "ClaveSegura2026!" });
+
+    expect(output).toEqual({ estado: "ACTIVO", esSector: true });
+    expect(restablecerPasswordTemporalMock).toHaveBeenCalledTimes(1);
+    const args = restablecerPasswordTemporalMock.mock.calls[0]!;
+    expect(args[3]).toBe(false); // debeCambiarPassword = false
   });
 });

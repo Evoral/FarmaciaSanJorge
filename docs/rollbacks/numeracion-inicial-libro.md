@@ -1,6 +1,6 @@
 # Rollback — Numeración inicial del libro (migration 0097)
 
-Spec: `docs/specs/libro-recetario-y-contralor.md` §3 "Numeración inicial".
+Spec: `openspec/specs/libro-recetario-y-contralor/spec.md` §3 "Numeración inicial".
 
 ## Before you start
 

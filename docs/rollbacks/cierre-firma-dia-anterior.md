@@ -1,6 +1,6 @@
 # Rollback: Cierre diario firmado al día siguiente
 
-Spec: `docs/specs/libro-recetario-y-contralor.md` §5 (INV-C21, DP-18b revisada,
+Spec: `openspec/specs/libro-recetario-y-contralor/spec.md` §5 (INV-C21, DP-18b revisada,
 DP-18). The feature has a **schema change** (migration
 `prisma/migrations/20261013090000_0075_cierre_firma_dia_anterior`), so it is
 reverted as code + a new forward migration built from

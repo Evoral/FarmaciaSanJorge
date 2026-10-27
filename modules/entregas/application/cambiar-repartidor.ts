@@ -1,5 +1,5 @@
 /**
- * `cambiarRepartidor` -- docs/specs/envios-repartidores.md E5. While an envío waits for its firma
+ * `cambiarRepartidor` -- openspec/specs/envios-repartidores/spec.md E5. While an envío waits for its firma
  * (ENVIADA_PEND_FIRMA) its repartidor can be changed, or assigned for the first time when the envío predates
  * migration 0093 (E7). It can never be removed: INV-ENT-005 (trigger) refuses a NULL repartidor on an ENVIO, and the
  * input requires one.

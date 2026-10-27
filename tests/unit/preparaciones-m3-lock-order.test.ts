@@ -6,7 +6,7 @@
  * requirement), never the raw driver text. Mocked repository/tx, no DB --
  * tests/db covers the real SQL/trigger shape.
  *
- * Contract of docs/specs/reserva-stock-preparacion.md (R1, R19, R23): the partidas are chosen by the system (the
+ * Contract of openspec/specs/reserva-stock-preparacion/spec.md (R1, R19, R23): the partidas are chosen by the system (the
  * client sends no partidaIds), the order of every preparación command is preparación -> receta -> partidas, and a
  * preparación holding a reserva is refused by the plain descartar / confirmar commands.
  */

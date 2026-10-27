@@ -73,7 +73,7 @@ export { soloDigitos };
 /** Longest domicilio accepted, the same cap as the receta's (`MAX_DOMICILIO_PACIENTE`, migration 0070). */
 export const MAX_DOMICILIO = 300;
 
-/** Optional free-text domicilio (migration 0099, docs/specs/domicilios.md). Trimmed; empty -> `null`; absent stays absent (callers read it with `?? null`). */
+/** Optional free-text domicilio (migration 0099, openspec/specs/domicilios/spec.md). Trimmed; empty -> `null`; absent stays absent (callers read it with `?? null`). */
 export const domicilioOpcional = z
   .string()
   .trim()

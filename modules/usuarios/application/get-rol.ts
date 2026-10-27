@@ -12,7 +12,7 @@ import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { uuid } from "@/shared/validation";
 import type { Permiso } from "@/modules/auth/domain/permisos";
-import { proteccionDeRol, ROL_SISTEMA, type PermisoCatalogo } from "../domain/roles";
+import { proteccionDeRol, ROL_SISTEMA, ROLES_VEDADOS_A_SECTOR, type PermisoCatalogo } from "../domain/roles";
 import { findRolById, listCatalogoPermisos } from "../infrastructure/rol-repository";
 import type { RolConPermisos } from "./list-roles-con-permisos";
 import { otorgablesDelActor } from "./roles-asignables";
@@ -33,7 +33,7 @@ export const getRolQuery = defineQuery({
     if (!rol || rol.codigo === ROL_SISTEMA) return null;
     const catalogo = await listCatalogoPermisos(tx);
     const { rolesDelActor, otorgables } = await otorgablesDelActor(tx, session);
-    return { rol: { ...rol, proteccion: proteccionDeRol(rol) }, catalogo, rolesDelActor, otorgables: [...otorgables].sort() };
+    return { rol: { ...rol, proteccion: proteccionDeRol(rol), soloPersonal: ROLES_VEDADOS_A_SECTOR.includes(rol.codigo) }, catalogo, rolesDelActor, otorgables: [...otorgables].sort() };
   },
 });
 

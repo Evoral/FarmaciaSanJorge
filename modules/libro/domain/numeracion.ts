@@ -1,5 +1,5 @@
 /**
- * Initial numbering of a libro (migration 0097, INV-L26, docs/specs/libro-recetario-y-contralor.md "Numeración
+ * Initial numbering of a libro (migration 0097, INV-L26, openspec/specs/libro-recetario-y-contralor/spec.md "Numeración
  * inicial"). A libro starts at 1 or continues the physical book; the first number can change until the first signed
  * cierre covering its asientos. Changing it shifts every existing asiento by the difference. Numbers are decimal
  * strings (bigint columns), compared and shifted with BigInt.

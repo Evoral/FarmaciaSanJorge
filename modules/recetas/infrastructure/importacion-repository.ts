@@ -1,6 +1,6 @@
 /**
  * Prisma-backed lookups/writes for the receta PDF import
- * (docs/specs/importacion-receta-pdf.md, "Pieza 4" and "Confirmación").
+ * (openspec/specs/importacion-receta-pdf/spec.md, "Pieza 4" and "Confirmación").
  * Every function runs inside an ALREADY OPEN tenant transaction. Own
  * minimal copies of the paciente/médico/droga/unidad reads, same
  * convention as receta-repository.ts -- the pure decisions (what matches,
@@ -28,7 +28,7 @@ export interface PacienteParaImportacion extends Record<CampoPacienteImportable,
   nombre: string;
   apellido: string;
   fechaBaja: Date | null;
-  /** Migration 0099 (docs/specs/domicilios.md): read to update the domicilio and to prefill the receta's domicilio de entrega. */
+  /** Migration 0099 (openspec/specs/domicilios/spec.md): read to update the domicilio and to prefill the receta's domicilio de entrega. */
   domicilio: string | null;
   domicilioEntrega: string | null;
 }
@@ -120,7 +120,7 @@ export async function completarPaciente(
 }
 
 /**
- * docs/specs/domicilios.md: an imported receta that brings a domicilio updates the cliente's own (unlike the fields
+ * openspec/specs/domicilios/spec.md: an imported receta that brings a domicilio updates the cliente's own (unlike the fields
  * above, it is overwritten, not only completed). The row is locked and re-read first. Returns the previous value, or
  * `undefined` when nothing changed.
  */
@@ -194,7 +194,7 @@ export async function listAliasesVigentes(tx: Prisma.TransactionClient, tenantId
 
 /**
  * What `aliasNormalizado` already resolves to, for "recordar esta
- * equivalencia" (docs/specs/sinonimos-droga.md): a VIGENTE synonym of a
+ * equivalencia" (openspec/specs/sinonimos-droga/spec.md): a VIGENTE synonym of a
  * VIGENTE droga (`id` = the synonym's), or else -- `esNombre: true`, `id` =
  * the droga's -- the normalized name of a vigente droga (a synonym can never
  * repeat a droga's name, INV-DRG-002). Removed synonyms and synonyms of

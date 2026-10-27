@@ -1,16 +1,19 @@
 /**
  * `/admin/accesos/roles` (M03, FASE 3 point 3.8; DP-03 RESUELTA 2026-10-01):
  * the session tenant's roles with their description, how many usuarios
- * hold each, and their protection. Reading needs `roles.ver` (layout +
+ * hold each (split into personal accounts and cuentas de sector, since a role
+ * is not of either kind by itself -- openspec/specs/cuentas-de-sector/spec.md),
+ * and their protection. Reading needs `roles.ver` (layout +
  * query); the "Nuevo rol" button shows only with `roles.gestionar` -- UX
  * only, every write command authorizes `roles.gestionar` itself. The
  * "Usuarios y accesos" tabs sit under the header.
  */
 import Link from "next/link";
-import { ChevronRight, Lock, Plus, ShieldCheck } from "lucide-react";
+import { ChevronRight, Lock, Plus, ShieldCheck, User, Users } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listRolesConPermisos } from "@/modules/usuarios/application/list-roles-con-permisos";
+import type { RolConPermisos } from "@/modules/usuarios/application/list-roles-con-permisos";
 import type { ProteccionRol } from "@/modules/usuarios/domain/roles";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
@@ -25,6 +28,35 @@ const PROTECCION_BADGE: Record<ProteccionRol, { label: string; title: string } |
 };
 
 const numberFormat = new Intl.NumberFormat("es-AR");
+
+/** Which kind of account holds the role: personal (a person's own login) and/or de sector (a shared session per work area). */
+function TipoDeCuenta({ rol }: { rol: RolConPermisos }) {
+  const personales = rol.cantidadUsuarios - rol.cantidadUsuariosDeSector;
+  const deSector = rol.cantidadUsuariosDeSector;
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      {rol.soloPersonal ? (
+        <span title="Una cuenta de sector nunca puede tener este rol." className="badge inline-flex items-center gap-1 bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+          <User className="size-3" aria-hidden />
+          Solo personal
+        </span>
+      ) : null}
+      {!rol.soloPersonal && personales > 0 ? (
+        <span title={`${numberFormat.format(personales)} ${personales === 1 ? "cuenta personal" : "cuentas personales"}`} className="badge inline-flex items-center gap-1 bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+          <User className="size-3" aria-hidden />
+          Personal · <span className="font-mono tabular-nums">{numberFormat.format(personales)}</span>
+        </span>
+      ) : null}
+      {deSector > 0 ? (
+        <span title={`${numberFormat.format(deSector)} ${deSector === 1 ? "cuenta de sector" : "cuentas de sector"}`} className="badge inline-flex items-center gap-1 bg-sky-50 text-sky-800 dark:bg-sky-950 dark:text-sky-300">
+          <Users className="size-3" aria-hidden />
+          Sector · <span className="font-mono tabular-nums">{numberFormat.format(deSector)}</span>
+        </span>
+      ) : null}
+      {!rol.soloPersonal && rol.cantidadUsuarios === 0 ? <span className="text-zinc-400">Sin usuarios</span> : null}
+    </span>
+  );
+}
 
 export default async function RolesPage() {
   const session = await requireSession();
@@ -75,6 +107,9 @@ export default async function RolesPage() {
                   <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
                     Usuarios
                   </th>
+                  <th scope="col" className="hidden px-3 py-2 sm:table-cell">
+                    Tipo de cuenta
+                  </th>
                   <th scope="col" className="px-3 py-2">
                     <span className="sr-only">Acciones</span>
                   </th>
@@ -104,6 +139,9 @@ export default async function RolesPage() {
                         {rol.esAdministrador ? <span className="font-sans text-zinc-600">Consulta y gestión</span> : rol.permisos.length}
                       </td>
                       <td className="hidden px-3 py-2.5 text-right font-mono tabular-nums sm:table-cell">{rol.cantidadUsuarios}</td>
+                      <td className="hidden px-3 py-2.5 sm:table-cell">
+                        <TipoDeCuenta rol={rol} />
+                      </td>
                       <td className="px-3 py-2.5 text-right">
                         <Link href={`/admin/accesos/roles/${rol.id}`} className="btn btn-ghost btn-sm">
                           {puedeGestionar && rol.proteccion !== "BLOQUEADO" ? "Editar" : "Ver"}

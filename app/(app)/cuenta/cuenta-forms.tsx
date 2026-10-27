@@ -17,8 +17,10 @@ import { useActionState, useEffect, useRef, useState, type RefObject } from "rea
 import { CircleAlert, CircleCheck, KeyRound, ShieldCheck } from "lucide-react";
 import { cambiarPasswordAction, configurarPinAction, type CambiarPasswordFormState, type PinFormState } from "./actions";
 import { NewPasswordFields } from "@/modules/auth/ui/new-password-fields";
+import { NewPinFields } from "@/modules/auth/ui/new-pin-fields";
 import { AUTH_POLICY } from "@/shared/auth/policy";
 import { useFormSubmit } from "@/shared/ui/use-form-submit";
+import { PasswordInput } from "@/shared/ui/password-input";
 
 const initialState: CambiarPasswordFormState = { message: null, success: false };
 const initialPinState: PinFormState = { message: null, success: false };
@@ -74,23 +76,11 @@ function PinSection() {
             <label htmlFor="passwordActual" className="field-label">
               Contraseña actual
             </label>
-            <input id="passwordActual" name="passwordActual" type="password" required autoComplete="current-password" className="input" />
+            <PasswordInput id="passwordActual" name="passwordActual" required autoComplete="current-password" className="input" />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="field">
-              <label htmlFor="pin" className="field-label">
-                Nuevo PIN <span className="font-normal text-zinc-500">({AUTH_POLICY.pinLength} dígitos)</span>
-              </label>
-              <input id="pin" name="pin" type="password" inputMode="numeric" pattern={`\\d{${AUTH_POLICY.pinLength}}`} maxLength={AUTH_POLICY.pinLength} required autoComplete="off" className="input font-mono tracking-[0.3em]" />
-            </div>
-
-            <div className="field">
-              <label htmlFor="pinRepeat" className="field-label">
-                Repetir PIN
-              </label>
-              <input id="pinRepeat" name="pinRepeat" type="password" inputMode="numeric" pattern={`\\d{${AUTH_POLICY.pinLength}}`} maxLength={AUTH_POLICY.pinLength} required autoComplete="off" className="input font-mono tracking-[0.3em]" />
-            </div>
+            <NewPinFields />
           </div>
 
           <Mensaje state={configurarState} messageRef={configurarMessageRef} />
@@ -144,10 +134,9 @@ export function CuentaForms({ mostrarPin }: { mostrarPin: boolean }) {
             <label htmlFor="actual" className="field-label">
               Contraseña actual
             </label>
-            <input
+            <PasswordInput
               id="actual"
               name="actual"
-              type="password"
               required
               autoComplete="current-password"
               value={actual}

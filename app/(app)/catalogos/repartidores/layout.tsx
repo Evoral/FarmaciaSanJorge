@@ -1,4 +1,4 @@
-/** Layout guard for `/catalogos/repartidores/**` (docs/specs/envios-repartidores.md). */
+/** Layout guard for `/catalogos/repartidores/**` (openspec/specs/envios-repartidores/spec.md). */
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/shared/auth/session";

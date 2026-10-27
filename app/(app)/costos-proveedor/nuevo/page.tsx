@@ -1,6 +1,6 @@
 /**
- * `/costos-proveedor/nuevo` -- manual entry of a costo de proveedor (docs/specs/
- * costos-proveedor.md R24): add a price for a (droga, proveedor) pair or change the vigente one.
+ * `/costos-proveedor/nuevo` -- manual entry of a costo de proveedor (openspec/specs/
+ * costos-proveedor/spec.md R24): add a price for a (droga, proveedor) pair or change the vigente one.
  * "Editar" and "Cambiar el precio" open it with `?droga=&proveedor=` (opaque uuids): the pair is
  * fixed and the vigente costo prefills the form. The pair, not a costo id, identifies the entry:
  * saving replaces the vigente version, so an id would be stale right after.
@@ -84,6 +84,8 @@ export default async function NuevoCostoPage({ searchParams }: NuevoCostoPagePro
         unidadPrecioId: fila.unidadPrecioId,
         unidadPrecioSimbolo: fila.unidadPrecioSimbolo,
         costoUnitario: fila.costoUnitario,
+        alicuotaIva: fila.alicuotaIva,
+        precioInformadoConIva: fila.precioInformadoConIva,
         fechaPrecio: fila.fechaPrecio,
         listaNombreArchivo: fila.listaNombreArchivo,
       }
@@ -110,6 +112,7 @@ export default async function NuevoCostoPage({ searchParams }: NuevoCostoPagePro
             proveedores={proveedores}
             unidades={unidades.map((u) => ({ id: u.id, codigo: u.codigo, simbolo: u.simbolo, tipoMagnitud: u.tipoMagnitud, factorABase: u.factorABase, vigente: u.vigente }))}
             jornadaActual={contexto.jornadaActual}
+            alicuotaIvaPorDefecto={contexto.alicuotaIvaPorDefecto}
             inicial={{
               droga: parElegido ? { id: droga.id, nombre: droga.nombre } : null,
               proveedor: parElegido ? { id: proveedor.id, razonSocial: proveedor.razonSocial } : null,

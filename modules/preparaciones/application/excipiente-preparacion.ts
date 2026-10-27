@@ -1,5 +1,5 @@
 /**
- * The excipiente of a preparación (migration 0092, docs/specs/excipiente-preparacion.md): a droga of clase
+ * The excipiente of a preparación (migration 0092, openspec/specs/excipiente-preparacion/spec.md): a droga of clase
  * EXCIPIENTE chosen in the toma workspace's ficha with its quantity (the droga's unidad base). It is not a línea de
  * pesaje -- fichas are immutable and the receta is not altered -- so it has its own steps, run inside the callers'
  * transactions:

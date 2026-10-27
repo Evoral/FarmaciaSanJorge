@@ -11,7 +11,7 @@
  * The summary cells carry no links on purpose (the whole row toggles on
  * click); the link to the receta lives in the detail.
  *
- * Optional blocks and links follow `acceso` (docs/specs/trayectoria-paciente.md,
+ * Optional blocks and links follow `acceso` (openspec/specs/trayectoria-paciente/spec.md,
  * "Visibility per role"): a block the session cannot see is omitted, and a
  * link to a detail page is rendered only when the session holds that page's
  * permiso. HEALTH-ADJACENT DATA (DP-24): the hrefs carry only opaque ids.

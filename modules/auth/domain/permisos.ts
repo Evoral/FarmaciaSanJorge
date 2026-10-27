@@ -27,7 +27,7 @@
  * Keep grouped by module and in the same order as the migrations' permiso
  * lists, to make the DB test's diff readable.
  *
- * Adding a permiso: see docs/specs/roles-personalizables.md ("Cómo agregar
+ * Adding a permiso: see openspec/specs/roles-personalizables/spec.md ("Cómo agregar
  * un permiso nuevo"). A non-operativo one reaches ADMINISTRADOR
  * automatically (`PERMISOS_DE_ADMINISTRADOR`); every other role gets it
  * only through the role editor (or an explicit migration).
@@ -71,9 +71,9 @@ export const PERMISO_CATALOGO = {
   "medicos.gestionar": "gestion",
   "pacientes.gestionar": "gestion",
   "precios.reglas.editar": "gestion",
-  // Import, edit and give de baja supplier reference prices (migration 0079, docs/specs/costos-proveedor.md).
+  // Import, edit and give de baja supplier reference prices (migration 0079, openspec/specs/costos-proveedor/spec.md).
   "costos.proveedor.gestionar": "gestion",
-  // Catálogo de repartidores de envíos (migration 0093, docs/specs/envios-repartidores.md). Not a PIN action.
+  // Catálogo de repartidores de envíos (migration 0093, openspec/specs/envios-repartidores/spec.md). Not a PIN action.
   "repartidores.gestionar": "gestion",
   // Stock.
   "stock.ver": "consulta",
@@ -188,7 +188,7 @@ export const PERMISOS_BASE_DE_ROL = ["auth.login", "auth.logout", "auth.password
 
 /**
  * Permisos a "cuenta de sector" (`usuario.es_sector`, a shared session per
- * work area -- docs/specs/cuentas-de-sector.md) NEVER holds, whatever its
+ * work area -- openspec/specs/cuentas-de-sector/spec.md) NEVER holds, whatever its
  * roles say: the Director Técnico's own acts (they keep an individual
  * session) and the administration of usuarios, roles and configuration. The
  * session loader subtracts them (`permisosEfectivos`).
@@ -216,7 +216,7 @@ export const PERMISOS_VEDADOS_A_SECTOR = [
 
 /**
  * The acciones (permisos) a farmacia can switch "pide PIN" on or off for
- * (`fsj.accion_con_pin`, docs/specs/cuentas-de-sector.md), in catalog order:
+ * (`fsj.accion_con_pin`, openspec/specs/cuentas-de-sector/spec.md), in catalog order:
  * exactly the ones whose Server Actions carry the operador's credential
  * (`conOperador`, shared/auth/operador-context.ts). In a cuenta de sector, a
  * command with one of these switched on is attributed to the empleado who

@@ -5,7 +5,7 @@
  * `drogas.reactivar` permiso (seeded in migration 0002, granted to FAR/DT/ADM
  * same as the other droga actions) -- used directly here, no reuse needed.
  * While it was de baja its name may have been taken by another droga or a
- * synonym (docs/specs/sinonimos-droga.md): then it cannot come back under
+ * synonym (openspec/specs/sinonimos-droga/spec.md): then it cannot come back under
  * that name -- checked here for a readable message, enforced by the DB
  * (migration 0067). Its own synonyms were removed with the baja and are NOT
  * restored.

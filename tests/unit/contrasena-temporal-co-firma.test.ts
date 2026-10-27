@@ -1,5 +1,5 @@
 /**
- * CT8 (docs/specs/contrasena-temporal.md): a DT with `debe_cambiar_password`
+ * CT8 (openspec/specs/contrasena-temporal/spec.md): a DT with `debe_cambiar_password`
  * cannot co-sign (stock, libro, pesada real), even with the right password,
  * and the attempt never counts toward the lockout. Same style as
  * tests/unit/stock-co-firma.test.ts and contrasena-temporal-operadores.test.ts.

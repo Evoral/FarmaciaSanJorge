@@ -1,5 +1,5 @@
 /**
- * `configurarPinObligatorio(pin, pinRepeat)` (docs/specs/contrasena-temporal.md,
+ * `configurarPinObligatorio(pin, pinRepeat)` (openspec/specs/contrasena-temporal/spec.md,
  * step 2). A usuario with no PIN yet sets their first one right after the
  * password step, without being asked for the current password: that was just
  * set by them in step 1. Like `cambiarPasswordTemporal` it opts in to
@@ -16,6 +16,7 @@ import { DomainError } from "@/shared/errors";
 import { validatePin } from "../domain/pin";
 import { hashPassword } from "../domain/password";
 import { loadEsSoloAdministrador, loadUsuarioParaPassword, setPinHash } from "../infrastructure/usuario-repository";
+import { assertPinDisponible } from "./pin-disponible";
 
 const configurarPinObligatorioInput = z
   .object({
@@ -55,6 +56,8 @@ export const configurarPinObligatorioCommand = defineCommand({
     if (usuario.pinHash !== null) {
       throw new DomainError("Ya tenés un PIN configurado. Podés cambiarlo desde «Mi cuenta».");
     }
+
+    await assertPinDisponible(tx, session.tenantId, session.usuario.id, input.pin);
 
     // Same argon2id setup as the real password -- `hashPassword` is generic over the string it hashes.
     const pinHash = await hashPassword(input.pin);

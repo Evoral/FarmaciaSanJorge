@@ -89,12 +89,14 @@ export type RestablecerCredencialState =
 
 export async function restablecerCredencialAction(_prevState: RestablecerCredencialState, formData: FormData): Promise<RestablecerCredencialState> {
   try {
-    await restablecerCredencial({
+    const { esSector } = await restablecerCredencial({
       usuarioId: String(formData.get("usuarioId") ?? ""),
       passwordTemporal: String(formData.get("passwordTemporal") ?? ""),
       passwordTemporalRepeat: String(formData.get("passwordTemporalRepeat") ?? ""),
     });
-    return { status: "success", message: "Contraseña temporal asignada. Se cerraron sus sesiones y tendrá que cambiarla al ingresar." };
+    return esSector
+      ? { status: "success", message: "Contraseña cambiada. Se cerraron las sesiones de la cuenta de sector." }
+      : { status: "success", message: "Contraseña temporal asignada. Se cerraron sus sesiones y tendrá que cambiarla al ingresar." };
   } catch (error) {
     return actionError(error, "No se pudo asignar la contraseña temporal.");
   }

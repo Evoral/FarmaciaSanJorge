@@ -320,7 +320,7 @@ export function mapearRecetaRcta(json: unknown, hash: string): ResultadoLecturaQ
 export const MENSAJE_PDF_SIN_NOMBRE_PACIENTE = "No se encontró el nombre del paciente en el PDF: escribilo para confirmar la importación.";
 
 /**
- * The PDF import (docs/specs/importacion-receta-pdf.md, "Lectura por RCTA"): everything comes from RCTA, like the QR,
+ * The PDF import (openspec/specs/importacion-receta-pdf/spec.md, "Lectura por RCTA"): everything comes from RCTA, like the QR,
  * except the paciente's name, which RCTA anonymizes and the PDF prints. Swaps the QR's "no name" notice for the
  * name found in the PDF, or for the PDF's own notice when there is none.
  */

@@ -1,5 +1,5 @@
 /**
- * Daily job "retiro vencido" (docs/specs/retiro-vencido.md RV1-RV3, RV10): moves every PREPARADA receta whose retiro
+ * Daily job "retiro vencido" (openspec/specs/retiro-vencido/spec.md RV1-RV3, RV10): moves every PREPARADA receta whose retiro
  * expired to RETIRO_VENCIDO. Called by `app/api/jobs/retiros-vencidos/route.ts` (secret-header protected).
  *
  * There is NO authenticated session here: the job iterates EVERY active tenant itself and audits each move as that

@@ -1,5 +1,5 @@
 /**
- * "Acciones con PIN" (docs/specs/cuentas-de-sector.md): which acciones ask
+ * "Acciones con PIN" (openspec/specs/cuentas-de-sector/spec.md): which acciones ask
  * for the PIN of the empleado performing them when the session is a cuenta
  * de sector. Configured per farmacia; the set of acciones that CAN be
  * switched is fixed (`PERMISOS_CON_PIN_CONFIGURABLES`,

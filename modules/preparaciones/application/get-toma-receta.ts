@@ -6,7 +6,7 @@
  * ítem's INICIADA/CONFIRMADA preparación. `null` when the receta does not
  * exist (in this tenant).
  *
- * Per Pendiente ítem (docs/specs/reserva-stock-preparacion.md):
+ * Per Pendiente ítem (openspec/specs/reserva-stock-preparacion/spec.md):
  *   - R18: whether its ficha is still vigente (`evaluarFichaDeItemEnTx`,
  *     modules/elaboracion: the latest version, built from the ítem's current
  *     data); a desactualizada one can not be reserved and the page offers
@@ -56,7 +56,7 @@ export interface FichaDeItemToma extends Omit<FichaDeItemTomaBase, "lineas"> {
 }
 
 export interface ReservaDeItemToma extends ReservaDeItemTomaBase {
-  /** The reserved partida is por vencer ("Vence en 5 días") or vencida (blocked until the DT acts, docs/specs/reanalisis-partida.md); `null` otherwise. */
+  /** The reserved partida is por vencer ("Vence en 5 días") or vencida (blocked until the DT acts, openspec/specs/reanalisis-partida/spec.md); `null` otherwise. */
   avisoVencimiento: string | null;
   vencida: boolean;
 }
@@ -76,7 +76,7 @@ export interface ItemDeToma extends Omit<ItemDeTomaBase, "ficha" | "preparacion"
 
 export interface RecetaDeToma extends Omit<RecetaDeTomaBase, "items"> {
   items: ItemDeToma[];
-  /** `meses_vencimiento_preparado`: the months of the `ESTANDAR` tipo in "Imprimir etiquetas" (docs/specs/vencimiento-preparado.md R10). */
+  /** `meses_vencimiento_preparado`: the months of the `ESTANDAR` tipo in "Imprimir etiquetas" (openspec/specs/vencimiento-preparado/spec.md R10). */
   mesesVencimientoPreparado: number;
 }
 

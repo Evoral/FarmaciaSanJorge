@@ -18,7 +18,7 @@ export interface SugerenciaNavegable {
   label: string;
   /** Short trailing detail (matrícula, símbolo, unidad...). */
   description?: string;
-  /** The synonym the search matched through (drogas, docs/specs/sinonimos-droga.md): shown as a quiet hint after the label. */
+  /** The synonym the search matched through (drogas, openspec/specs/sinonimos-droga/spec.md): shown as a quiet hint after the label. */
   sinonimo?: string | null;
 }
 

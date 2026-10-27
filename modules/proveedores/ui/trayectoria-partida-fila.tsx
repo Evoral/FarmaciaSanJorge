@@ -11,7 +11,7 @@
  * The summary cells carry no links on purpose (the whole row toggles on
  * click); the links live in the detail.
  *
- * Optional blocks follow `acceso` (docs/specs/trayectoria-proveedor.md,
+ * Optional blocks follow `acceso` (openspec/specs/trayectoria-proveedor/spec.md,
  * "Permissions"): a block the session cannot see is omitted, and a link to a
  * detail page is rendered only when the session holds that page's permiso.
  * NEVER a link towards receta / paciente: a preparación is shown with its own

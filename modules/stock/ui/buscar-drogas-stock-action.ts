@@ -3,7 +3,7 @@
 /**
  * Read-only droga search for the stock autocompletes (`/stock`, `/stock/ajustes`, the "Registrar ajuste" droga step).
  * A thin wrapper over the existing `listStockDrogas` query: same `stock.ver` permiso (checked by the query itself),
- * same search (name or vigente synonym, accent-insensitive -- docs/specs/sinonimos-droga.md), no writes. The available stock comes formatted with the same readable unit as the `/stock` table.
+ * same search (name or vigente synonym, accent-insensitive -- openspec/specs/sinonimos-droga/spec.md), no writes. The available stock comes formatted with the same readable unit as the `/stock` table.
  * Drogas are not personal data, but the term still travels as a POST argument, never a URL.
  */
 import { listStockDrogas } from "@/modules/stock/application/list-stock-drogas";

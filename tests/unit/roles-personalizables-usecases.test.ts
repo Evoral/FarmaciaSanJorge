@@ -1,5 +1,5 @@
 /**
- * DP-03 (docs/specs/roles-personalizables.md): the role use cases
+ * DP-03 (openspec/specs/roles-personalizables/spec.md): the role use cases
  * (crearRol / editarRol / eliminarRol) and the role-assignment escalation
  * rule in crearUsuario / cambiarRoles, run through the REAL defineCommand
  * pipeline with a stubbed transaction and mocked repositories (no DB --

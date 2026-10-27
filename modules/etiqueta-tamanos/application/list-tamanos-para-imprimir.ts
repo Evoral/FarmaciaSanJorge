@@ -1,7 +1,7 @@
 /**
  * `listTamanosParaImprimir`: the ACTIVE sizes offered in the "Seleccionar
  * tamaño" dialog when printing an etiqueta, in the admin list's order (by name),
- * keeping only the ones that fit the sheet at least once (docs/specs/hoja-etiquetas.md
+ * keeping only the ones that fit the sheet at least once (openspec/specs/hoja-etiquetas/spec.md
  * R5: a size that does not fit, e.g. wider than 200 mm under the seeded A4 / 5 mm,
  * is not offered). Gated on `etiquetas.imprimir` (FAR/DT), NOT on `config.ver`:
  * whoever prints is not an administrator, and must see the sizes the

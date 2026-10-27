@@ -1,6 +1,6 @@
 /**
  * Unit tests for `modules/stock/domain/existencia-inicial.ts`.
- * Focuses on `diferenciasControladas` (docs/specs/existencia-inicial.md R8):
+ * Focuses on `diferenciasControladas` (openspec/specs/existencia-inicial/spec.md R8):
  * - decimal comparison with dec() (formatting differences do not trigger discrepancy)
  * - saldoContralor = null counts as 0 (no APERTURA yet)
  * - detects mismatches between contralor and physical stock

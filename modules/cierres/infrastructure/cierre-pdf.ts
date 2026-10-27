@@ -1,6 +1,6 @@
 /**
  * PDF of a signed jornada, printed as its sheet of the libro recetario (FASE 10, M13a point 10.2;
- * docs/specs/libro-recetario-y-contralor.md, "Impresión"): A4 landscape, only this jornada (a long day continues on
+ * openspec/specs/libro-recetario-y-contralor/spec.md, "Impresión"): A4 landscape, only this jornada (a long day continues on
  * the next sheets) and "Hoja i de n" on every sheet (`shared/pdf/hojas.ts`). Laid out like the legalized libro: the
  * farmacia, its propietario and the DT top left under a centered "LIBRO RECETARIO", every asiento of the jornada with
  * its whole fórmula de la prescripción, the lotes used and an Anulado column ("SI" for the ones anulados within the

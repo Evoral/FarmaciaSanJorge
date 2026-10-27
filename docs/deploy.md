@@ -79,7 +79,7 @@ Orden en una base completamente nueva: `db:migrate` → `db:bootstrap` → (depl
 
 ## 5. Bootstrap del primer tenant
 
-`scripts/create-tenant.ts` (rol owner vía `DIRECT_URL`, corre BYPASSRLS a propósito -- ver el comentario del script) crea el tenant, su usuario técnico SISTEMA y el primer ADMINISTRADOR, ya `ACTIVO`, con una **contraseña temporal** (solo se guarda su hash; el script nunca la imprime ni la loguea). La contraseña se pasa con `--admin-password-temporal=...` o, si se omite, el script la pide por consola sin mostrarla (preferible: el argumento queda en el historial del shell). Por ser temporal solo exige **al menos 6 caracteres** (sin mayúscula); la que el ADM elija al cambiarla en su primer login sí lleva la política completa (12 caracteres y una mayúscula):
+`scripts/create-tenant.ts` (rol owner vía `DIRECT_URL`, corre BYPASSRLS a propósito -- ver el comentario del script) crea el tenant, su usuario técnico SISTEMA y el primer ADMINISTRADOR, ya `ACTIVO`, con una **contraseña temporal** (solo se guarda su hash; el script nunca la imprime ni la loguea). La contraseña se pasa con `--admin-password-temporal=...` o, si se omite, el script la pide por consola sin mostrarla (preferible: el argumento queda en el historial del shell). Por ser temporal solo exige **al menos 6 caracteres** (sin mayúscula); la que el ADM elija al cambiarla en su primer login sí lleva la política completa (8 caracteres y una mayúscula):
 
 ```
 npm run db:create-tenant -- \
@@ -113,7 +113,7 @@ Tests: `tests/unit/archivo-plazos-job.test.ts` cubre ambos transportes (secreto 
 
 ### Job diario: retiros vencidos
 
-`app/api/jobs/retiros-vencidos/route.ts` pasa a `RETIRO_VENCIDO` las recetas `PREPARADA` cuyo plazo de retiro se cumplió (`docs/specs/retiro-vencido.md`, RV1-RV3). `vercel.json` lo agenda a las `10 6 * * *` (06:10 UTC = 03:10 Argentina), diez minutos después del job de plazos de archivo.
+`app/api/jobs/retiros-vencidos/route.ts` pasa a `RETIRO_VENCIDO` las recetas `PREPARADA` cuyo plazo de retiro se cumplió (`openspec/specs/retiro-vencido/spec.md`, RV1-RV3). `vercel.json` lo agenda a las `10 6 * * *` (06:10 UTC = 03:10 Argentina), diez minutos después del job de plazos de archivo.
 
 - **Autenticación:** idéntica a la del job de plazos (mismo `CRON_SECRET`, mismos dos transportes `GET` + `Authorization: Bearer` y `POST` + `x-cron-secret`, misma comparación constant-time, 503 sin secreto, 404 con credencial ausente o incorrecta). No hay nada nuevo que configurar en Vercel.
 - **Qué hace:** recorre los tenants activos; por tenant, en una transacción propia, lee `dias_retiro_vencido` (0 = desactivado, el tenant se saltea), calcula el instante de corte a partir de la jornada del tenant y mueve las recetas con `preparada_en` anterior al corte, auditando cada una como el usuario SISTEMA del tenant. El error de un tenant no frena a los demás. Responde solo contadores (`tenantsProcesados`, `recetasVencidas`, `tenantsConError`).

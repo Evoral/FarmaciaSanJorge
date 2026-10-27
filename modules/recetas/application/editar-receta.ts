@@ -7,7 +7,7 @@
  * (INICIADA/CONFIRMADA) preparación (domain/receta.ts + infrastructure's
  * `existeFichaConPreparacionParaReceta` -- mirrors INV-R11, migrations
  * 0030/0072). A DESCARTADA preparación (e.g. a released reserva de stock,
- * docs/specs/reserva-stock-preparacion.md) does not block it: the receta is
+ * openspec/specs/reserva-stock-preparacion/spec.md) does not block it: the receta is
  * still PENDIENTE_PREPARACION (it only moves at the first confirmation) and
  * the discarded preparación keeps pointing at its old ficha version.
  *
@@ -22,7 +22,7 @@
  * their change.
  *
  * Removing an item that already has a ficha técnica (or a cotización) is
- * refused with a ValidationError (docs/specs/presupuesto-receta.md, "Edición"):
+ * refused with a ValidationError (openspec/specs/presupuesto-receta/spec.md, "Edición"):
  * fichas/cotizaciones are insert-only and reference the item, and since
  * confirming a receta generates them automatically, almost every item has
  * one. Editing an existing item's content is unaffected (a new ficha
@@ -40,6 +40,7 @@ import {
   esEstadoEditable,
   esFechaPrescripcionValida,
   esFechaPrescripcionVigente,
+  esFechaValidaDesdeDelMes,
   resumirItemsReceta,
   validarItemsReceta,
   validarOrigenCargaManual,
@@ -74,7 +75,7 @@ const itemInput = itemInputAlta.extend({ id: uuid.optional() });
  * the validity changes the alta's checks run again (see the handler). `version` stays hand-written on purpose: it carries the RAW stored
  * values for the compare-and-swap, without the alta's transforms. `pagada` is optional here (a payment forgotten at
  * the alta can be marked while editing): omitted = the payment is left as it is (the toma workspace embeds the form
- * without the switch); sent = the same change as the detail's `marcarPagoReceta` (docs/specs/pago-receta.md P8).
+ * without the switch); sent = the same change as the detail's `marcarPagoReceta` (openspec/specs/pago-receta/spec.md P8).
  */
 const editarRecetaInput = crearRecetaInput.omit({ pagada: true, envioId: true }).extend({
   id: uuid,
@@ -194,8 +195,12 @@ export const editarRecetaCommand = defineCommand({
       if (input.fechaValidaDesde !== null && input.fechaValidaDesde < input.fechaPrescripcion) {
         throw new ValidationError("La fecha de validez no puede ser anterior a la fecha de prescripción.");
       }
-      if (!esFechaPrescripcionVigente(input.fechaValidaDesde ?? input.fechaPrescripcion, jornadaActual)) {
-        throw new ValidationError(input.fechaValidaDesde ? "La receta está vencida: pasó más de un mes desde su fecha de validez." : "La receta está vencida: tiene más de un mes desde su prescripción.");
+      if (input.fechaValidaDesde !== null) {
+        if (!esFechaValidaDesdeDelMes(input.fechaValidaDesde, jornadaActual)) {
+          throw new ValidationError("La fecha de validez tiene que ser de este mes.");
+        }
+      } else if (!esFechaPrescripcionVigente(input.fechaPrescripcion, jornadaActual)) {
+        throw new ValidationError("La receta está vencida: tiene más de un mes desde su prescripción.");
       }
     }
 

@@ -56,7 +56,7 @@ export async function validateSession(rawToken: string, now: Date = new Date()):
       sesionId: sesion.id,
       permisos: usuario.permisos,
       reautenticadaEn: sesion.reautenticadaEn,
-      // A cuenta de sector (docs/specs/cuentas-de-sector.md) carries which acciones ask an empleado's PIN.
+      // A cuenta de sector (openspec/specs/cuentas-de-sector/spec.md) carries which acciones ask an empleado's PIN.
       sector: usuario.esSector ? { permisosConPin: await loadPermisosConPin(tx, tenantId) } : null,
       pasosPendientes: derivarPasosPendientes({
         debeCambiarPassword: usuario.debeCambiarPassword,

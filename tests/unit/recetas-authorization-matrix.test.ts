@@ -12,7 +12,7 @@
  *
  * The receta flow's paciente/médico quick-create commands live in
  * modules/pacientes / modules/medicos but are gated on `recetas.crear`
- * (docs/specs/importacion-receta-pdf.md "Permisos"), so they are covered
+ * (openspec/specs/importacion-receta-pdf/spec.md "Permisos"), so they are covered
  * here, with the recetas role set.
  */
 import { describe, it, expect, vi } from "vitest";
@@ -101,7 +101,7 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
   { name: "recetas.drogas.listar", permiso: "recetas.crear", input: {} },
   { name: "recetas.unidades.listar", permiso: "recetas.crear", input: {} },
   { name: "pacientes.crear-desde-receta", permiso: "recetas.crear", input: { nombre: "N", apellido: "A" } },
-  // PDF import (docs/specs/importacion-receta-pdf.md "Permisos"): both steps on recetas.crear.
+  // PDF import (openspec/specs/importacion-receta-pdf/spec.md "Permisos"): both steps on recetas.crear.
   { name: "recetas.importar.leer", permiso: "recetas.crear", input: { archivo: null } },
   { name: "recetas.importar", permiso: "recetas.crear", input: {} },
   {

@@ -1,7 +1,7 @@
 /**
  * `GET /api/preparaciones/etiquetas/pdf?e=<preparacionId>.<tamanoId>.<columna>.<fila>&e=...`: the toma workspace's
  * single "Imprimir" -- every etiqueta of the receta in ONE PDF, sharing the sheet while they do not overlap
- * (docs/specs/hoja-etiquetas.md R14). Opaque uuids only, no patient data in the URL; same error-status mapping as
+ * (openspec/specs/hoja-etiquetas/spec.md R14). Opaque uuids only, no patient data in the URL; same error-status mapping as
  * `../../[id]/etiqueta/pdf/route.ts`. A malformed `e` is a 400.
  */
 import { NextResponse } from "next/server";

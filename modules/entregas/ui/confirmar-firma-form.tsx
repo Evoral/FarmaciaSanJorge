@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Confirmar firma recibida" (11.2): the envío becomes ENTREGADA, so the receta must end up paid (docs/specs/pago-receta.md
+ * "Confirmar firma recibida" (11.2): the envío becomes ENTREGADA, so the receta must end up paid (openspec/specs/pago-receta/spec.md
  * P4) -- an unpaid one shows the same "Pagada" switch as the alta and the submit waits for it. Same
  * `shared/ui/simple-form.tsx`-wrapping shape as shared/ui/motivo-form.tsx.
  */

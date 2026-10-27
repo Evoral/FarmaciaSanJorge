@@ -1,6 +1,6 @@
 # Rollback: Existencia inicial
 
-Spec: `docs/specs/existencia-inicial.md`. The feature has a **schema change** (migration
+Spec: `openspec/specs/existencia-inicial/spec.md`. The feature has a **schema change** (migration
 `prisma/migrations/20261023120000_0100_existencia_inicial`), so it is reverted as code + a new forward migration
 built from `prisma/rollbacks/0100_existencia_inicial.down.sql`.
 
@@ -35,7 +35,7 @@ remain valid (INV-L15 is unchanged).
 - `modules/stock/ui/existencia-inicial-form.tsx`, `relevamiento-inicial-panel.tsx`
 - `modules/libro/application/registrar-apertura-contralor.ts`
 - `modules/drogas/application/contralor-activo.ts`
-- `docs/specs/existencia-inicial.md`, `prisma/rollbacks/0100_existencia_inicial.down.sql` and this file (optional)
+- `openspec/specs/existencia-inicial/spec.md`, `prisma/rollbacks/0100_existencia_inicial.down.sql` and this file (optional)
 - `prisma/migrations/20261023120000_0100_existencia_inicial/` (keep it once applied)
 
 ## Edited files (revert the existencia inicial hunks)
@@ -60,5 +60,5 @@ remain valid (INV-L15 is unchanged).
   `importar-lista-form.tsx`, `app/(app)/costos-proveedor/importar/page.tsx`, `app/(app)/catalogos/drogas/page.tsx`,
   `app/(app)/catalogos/drogas/[id]/page.tsx`, `modules/libro/infrastructure/contralor-repository.ts`
   (`insertAperturaContralor`, `tieneAperturaContralor`).
-- `docs/specs/libro-recetario-y-contralor.md`: the RESUELTO note back to PENDIENTE.
+- `openspec/specs/libro-recetario-y-contralor/spec.md`: the RESUELTO note back to PENDIENTE.
 - `tests/db/prisma-relation-loading-concurrency.test.ts`: the optional `proveedor` access.

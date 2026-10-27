@@ -1,5 +1,5 @@
 /**
- * `listOperadores` (docs/specs/cuentas-de-sector.md): the empleados a cuenta
+ * `listOperadores` (openspec/specs/cuentas-de-sector/spec.md): the empleados a cuenta
  * de sector offers when an acción asks "¿quién sos?" -- name only, never
  * anything about the PIN beyond the fact that one is configured.
  *

@@ -2,7 +2,7 @@
  * `reactivarEtiquetaTamano`: the mirror of `darDeBajaEtiquetaTamano` -- the
  * size is offered again when printing. ADMINISTRADOR only (`config.editar`);
  * the motivo goes to the audit trail. A size
- * that does not fit the sheet is not reactivated (docs/specs/hoja-etiquetas.md
+ * that does not fit the sheet is not reactivated (openspec/specs/hoja-etiquetas/spec.md
  * R5): the form only has the motivo, so the refusal is a plain domain error and
  * the administrator edits the size first.
  */

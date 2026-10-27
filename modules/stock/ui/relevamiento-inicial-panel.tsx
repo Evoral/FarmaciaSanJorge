@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Relevamiento inicial on /partidas/ingresar (docs/specs/existencia-inicial.md
+ * Relevamiento inicial on /partidas/ingresar (openspec/specs/existencia-inicial/spec.md
  * R6-R8): whether existencia inicial can still be loaded and until when, what
  * was loaded per droga, the controlled drogas whose libro contralor does not
  * match their stock, and -- for the DT vigente only -- "Cerrar relevamiento"
@@ -14,6 +14,7 @@ import { SimpleForm } from "@/shared/ui/simple-form";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { formatCantidadExacta } from "@/shared/format/cantidad";
 import { cerrarRelevamientoInicialAction } from "./actions";
+import { PasswordInput } from "@/shared/ui/password-input";
 
 export interface RelevamientoInicialPanelProps {
   /** `YYYY-MM-DD`, `null` while no cierre diario is signed. */
@@ -80,7 +81,7 @@ export function RelevamientoInicialPanel({
                 <label htmlFor="relevamiento-password" className="field-label">
                   Tu contraseña (Director Técnico)
                 </label>
-                <input id="relevamiento-password" name="password" type="password" autoComplete="current-password" required className="input" />
+                <PasswordInput id="relevamiento-password" name="password" autoComplete="current-password" required className="input" />
               </div>
             </SimpleForm>
           </div>

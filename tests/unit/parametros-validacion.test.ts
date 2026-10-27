@@ -28,7 +28,7 @@ describe("parametros-registry: precision_balanza", () => {
     expect(result.ok).toBe(false);
   });
 
-  // docs/specs/numeros-ingresados.md (N6): exponential notation ("1e-3", "1e3") is refused by
+  // openspec/specs/numeros-ingresados/spec.md (N6): exponential notation ("1e-3", "1e3") is refused by
   // `interpretarNumero` even when the numeric value (0.001) would otherwise be in the allowed set.
   it("rejects exponential notation '1e-3' (refused by N6 even though 0.001 is an allowed value)", () => {
     const result = validar("1e-3");
@@ -135,7 +135,7 @@ describe("editarDatosTenant zod schema: the 3 non-editable tenant fields are nev
     expect(result.success).toBe(true);
   });
 
-  it("accepts the cuit (editable until the first cierre diario, docs/specs/cuit-farmacia.md)", () => {
+  it("accepts the cuit (editable until the first cierre diario, openspec/specs/cuit-farmacia/spec.md)", () => {
     expect(editarDatosTenantInput.safeParse({ ...baseInput, cuit: "30-12345678-9" }).success).toBe(true);
   });
 

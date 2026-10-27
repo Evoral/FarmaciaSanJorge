@@ -1,5 +1,5 @@
 /**
- * Reads an uploaded .xls supplier price list (Excel 97-2003, BIFF8; docs/specs/costos-proveedor.md R14) with NO
+ * Reads an uploaded .xls supplier price list (Excel 97-2003, BIFF8; openspec/specs/costos-proveedor/spec.md R14) with NO
  * dependency: the npm `xlsx` (SheetJS) package is abandoned at 0.18.5 with known vulnerabilities, so the format
  * is read here. It returns the same `LibroHojas` as `leer-xlsx.server.ts` (sheet names in workbook order each
  * flagged when empty, and raw rows for one sheet), so the Crystal parser stays format-agnostic.

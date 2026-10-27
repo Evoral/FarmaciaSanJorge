@@ -1,5 +1,5 @@
 /**
- * Cuentas de sector (docs/specs/cuentas-de-sector.md): how shared/usecase.ts
+ * Cuentas de sector (openspec/specs/cuentas-de-sector/spec.md): how shared/usecase.ts
  * attributes a command run from a shared session. The verification itself
  * (`verificarOperadorEnTx`) is mocked here -- its own rules are covered by
  * tests/unit/cuentas-de-sector-verificar-operador.test.ts -- so these tests

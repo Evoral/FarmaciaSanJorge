@@ -31,7 +31,7 @@ don't read it whole). Cross-cutting platform code (M00) lives in `shared/`.
 |---|---|---|
 | `auditoria` | M01 | Audit log listing and queries (writing goes through `shared/audit`) |
 | `auth` | M02 | Login, sessions, PIN, forced password change, identifying the empleado on a shared session |
-| `usuarios` | M03 | Users, roles and permissions (`docs/specs/roles-personalizables.md`) |
+| `usuarios` | M03 | Users, roles and permissions (`openspec/specs/roles-personalizables/spec.md`) |
 | `operadores` | — | Cuentas de sector: which acciones ask for the empleado's PIN, and the "who is acting" prompt (`cuentas-de-sector`). The verification itself lives in `auth` |
 | `directores-tecnicos` | M04 | Director Técnico designation and who is in charge today |
 | `unidades` | M05 | Units of measure catalog |
@@ -56,4 +56,4 @@ don't read it whole). Cross-cutting platform code (M00) lives in `shared/`.
 
 The dashboard and reports (M16) have no module of their own: the cards live in
 `shared/dashboard/cards.ts` and the reports read through each module's queries.
-Specs referenced above are in `docs/specs/`.
+Specs referenced above are in `openspec/specs/<feature>/spec.md`.

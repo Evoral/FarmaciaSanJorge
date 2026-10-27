@@ -8,7 +8,7 @@
  * `fisicoParaActivo`, domain/potencia.ts -- the same function the
  * confirmation uses.
  *
- * Expiry (docs/specs/reanalisis-partida.md): every date is the vencimiento
+ * Expiry (openspec/specs/reanalisis-partida/spec.md): every date is the vencimiento
  * VIGENTE (the latest reanálisis, else the original one). A partida por
  * vencer carries a compact warning; a vencida one with saldo is listed AFTER
  * the usable ones, flagged `vencida`, so the workspace can say why it is not
@@ -20,7 +20,7 @@
  * so a preview lists exactly what the saved ficha will. Not a use case:
  * callers run it inside their own transaction. Plain reads only.
  *
- * The automatic assignment (docs/specs/reserva-stock-preparacion.md R21):
+ * The automatic assignment (openspec/specs/reserva-stock-preparacion/spec.md R21):
  * `asignacionDeLinea` marks, for a saved ficha's línea, the partidas the
  * reserva will take and how much of each -- the same `repartirLinea` over
  * the same candidates as the reserva (R1) -- or the línea's faltante.

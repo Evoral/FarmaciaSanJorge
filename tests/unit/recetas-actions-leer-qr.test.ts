@@ -8,7 +8,7 @@
  * NOT covered here: P55-P57 (Enter submits once, an empty field does not query,
  * the PDF panel is unchanged and the QR input is focused on load). They are UI
  * behavior and vitest runs in node without a DOM, so they are verified by hand
- * (docs/specs/importacion-receta-qr.md).
+ * (openspec/specs/importacion-receta-qr/spec.md).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AuthorizationError, DomainError, ValidationError } from "@/shared/errors";

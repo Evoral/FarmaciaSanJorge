@@ -146,7 +146,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0013_preparacion_etiqueta migratio
     );
   });
 
-  // Migration 0077 (docs/specs/reserva-stock-preparacion.md R19) tightened
+  // Migration 0077 (openspec/specs/reserva-stock-preparacion/spec.md R19) tightened
   // INV-PRP-003 ("one CONFIRMADA per item_receta") to "one LIVE -- INICIADA
   // or CONFIRMADA -- per item_receta", across ficha versions
   // (uq_preparacion_item_viva). A second preparacion on another ficha of the

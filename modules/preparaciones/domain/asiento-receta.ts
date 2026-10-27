@@ -1,5 +1,5 @@
 /**
- * D8 (docs/specs/libro-recetario-y-contralor.md §1, 2026-10-16): ONE asiento per receta. Pure rules for what that
+ * D8 (openspec/specs/libro-recetario-y-contralor/spec.md §1, 2026-10-16): ONE asiento per receta. Pure rules for what that
  * asiento says and for when the legacy single-preparación path may write it. Persisted by
  * ../application/registrar-asiento-receta.ts (migration 0082).
  */

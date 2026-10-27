@@ -110,7 +110,7 @@ export default async function HomePage() {
   }
 
   if (stock) {
-    // A vencida DROGA partida is blocked until the DT acts (docs/specs/reanalisis-partida.md): its own urgent card, shown
+    // A vencida DROGA partida is blocked until the DT acts (openspec/specs/reanalisis-partida/spec.md): its own urgent card, shown
     // to everyone who sees stock so they tell the DT; the actions themselves are on the partida, for the DT only.
     const vencidasDt = stock.vencidasConSaldo.filter((a) => a.esDroga);
     const vencidasInsumo = stock.vencidasConSaldo.length - vencidasDt.length;

@@ -1,6 +1,6 @@
 /**
  * Automatic ficha técnica + cotización after a receta is confirmed/edited
- * (docs/specs/presupuesto-receta.md): the orchestration
+ * (openspec/specs/presupuesto-receta/spec.md): the orchestration
  * (application/generar-fichas-y-cotizaciones.ts, with the use cases it
  * calls mocked), the redirect notices (domain/avisos-generacion.ts), and
  * the "latest ficha still current" comparison that avoids a duplicate

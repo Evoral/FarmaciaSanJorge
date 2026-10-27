@@ -21,7 +21,7 @@
  * `fields` are marked invalid (`shared/ui/field-errors.ts`). A successful
  * submit navigates to the receta, so there is nothing to reset.
  *
- * `importar` mode (docs/specs/importacion-receta-pdf.md): the same form,
+ * `importar` mode (openspec/specs/importacion-receta-pdf/spec.md): the same form,
  * prefilled from a read PDF's preview (./nueva-receta.tsx). The paciente/
  * médico pickers are replaced by "Nuevo"/"Existente" panels (with
  * nombre/apellido to confirm when the name split was a guess), drogas the
@@ -55,7 +55,7 @@ import { AdvertenciasImportacion, PanelPersona, ResumenImportacion } from "./imp
 import type { VistaPreviaImportacion } from "../domain/importacion-receta";
 import { JURISDICCIONES_MATRICULA, JURISDICCION_MATRICULA_LABELS } from "@/modules/medicos/domain/medico";
 import type { JurisdiccionMatricula } from "@/modules/medicos/domain/medico";
-import { FORMAS_FARMACEUTICAS, MAX_DOMICILIO_PACIENTE, MODOS_EXPRESION, ORIGEN_RECETA_LABELS, esFormaCapsular, fechaPrescripcionMinima, validarItemsReceta } from "../domain/receta";
+import { FORMAS_FARMACEUTICAS, MAX_DOMICILIO_PACIENTE, MODOS_EXPRESION, ORIGEN_RECETA_LABELS, esFormaCapsular, fechaPrescripcionMinima, ultimoDiaDelMes, validarItemsReceta } from "../domain/receta";
 import { FORMA_FARMACEUTICA_LABELS, MODO_EXPRESION_LABELS } from "@/shared/labels/enum-labels";
 import type { FormaFarmaceutica, ModoExpresion, OrigenReceta } from "../domain/receta";
 import type { UnidadOpcion } from "../infrastructure/receta-repository";
@@ -272,7 +272,7 @@ export interface RecetaFormProps {
   inicial?: RecetaFormInicial;
   /** `importar` mode only. */
   vistaPrevia?: VistaPreviaImportacion;
-  /** `cotizaciones.calcular`: show the live price in every mode (docs/specs/presupuesto-receta.md). */
+  /** `cotizaciones.calcular`: show the live price in every mode (openspec/specs/presupuesto-receta/spec.md). */
   puedePresupuestar?: boolean;
   /** `editar` mode only: where to come back after saving when the form is embedded in another screen (an internal /preparaciones path, re-validated by the action -- domain/avisos-generacion.ts#retornoDeEdicion). */
   volverA?: string;
@@ -332,7 +332,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
 
-  // Idempotency key of this alta (docs/specs/alta-receta-idempotente.md): kept across retries, renewed after a success.
+  // Idempotency key of this alta (openspec/specs/alta-receta-idempotente/spec.md): kept across retries, renewed after a success.
   // Adjusted during render when a new result arrives (React's "store information from previous renders" pattern).
   const [envio, setEnvio] = useState(() => ({ id: crypto.randomUUID(), estado: state }));
   if (envio.estado !== state) {
@@ -354,7 +354,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   const [diagnosticoDescripcion, setDiagnosticoDescripcion] = useState(borrador?.diagnosticoDescripcion ?? inicial?.diagnosticoDescripcion ?? "");
   // Stored on the receta, not on the paciente (migration 0070); the PDF import prefills it.
   const [domicilioPaciente, setDomicilioPaciente] = useState(borrador?.domicilioPaciente ?? importacion?.paciente.existente?.domicilio ?? inicial?.domicilioPaciente ?? "");
-  // Migration 0099 (docs/specs/domicilios.md): where the envío goes, "" = the domicilio above. Prefilled from the
+  // Migration 0099 (openspec/specs/domicilios/spec.md): where the envío goes, "" = the domicilio above. Prefilled from the
   // cliente: the imported one matched by the preview, or the one picked in the manual alta (`elegirPaciente`).
   const [domicilioEntrega, setDomicilioEntrega] = useState(importacion?.paciente.existente?.domicilioEntrega ?? inicial?.domicilioEntrega ?? "");
   const pacienteElegidoRef = useRef<string | null>(null);
@@ -483,7 +483,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
       diagnosticoDescripcion,
       domicilioPaciente,
       domicilioEntrega,
-      // Only the document's own domicilio, unchanged, updates the cliente (docs/specs/domicilios.md).
+      // Only the document's own domicilio, unchanged, updates the cliente (openspec/specs/domicilios/spec.md).
       domicilioDelDocumento: !!b.domicilioPaciente && domicilioPaciente.trim() === b.domicilioPaciente.trim(),
       pagada,
       paciente: {
@@ -582,7 +582,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   const errorVisible = clientError ?? (state.status === "error" && state !== errorDescartado ? state.message : null);
 
   /**
-   * A cliente picked in the alta/edit shows its own domicilios (docs/specs/domicilios.md); one it does not have keeps
+   * A cliente picked in the alta/edit shows its own domicilios (openspec/specs/domicilios/spec.md); one it does not have keeps
    * what was typed. The last pick wins if two lookups overlap. Typing a domicilio here never changes the cliente.
    */
   function elegirPaciente(id: string, label: string) {
@@ -841,7 +841,9 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                       value={fechaValidaDesde}
                       onValueChange={setFechaValidaDesde}
                       // An edit that keeps the saved date is not re-checked (editar-receta.ts): only the prescription bounds it.
-                      min={mode === "editar" && fechaValidaDesde === inicial?.fechaValidaDesde ? fechaPrescripcion : [fechaPrescripcion, fechaPrescripcionMinima(jornadaDe(new Date()))].sort().at(-1)}
+                      // Otherwise it must fall in the current month (the prescription itself may be older).
+                      min={mode === "editar" && fechaValidaDesde === inicial?.fechaValidaDesde ? fechaPrescripcion : [fechaPrescripcion, `${jornadaDe(new Date()).slice(0, 7)}-01`].sort().at(-1)}
+                      max={mode === "editar" && fechaValidaDesde === inicial?.fechaValidaDesde ? undefined : ultimoDiaDelMes(jornadaDe(new Date()))}
                     />
                   </div>
                 ) : null}
@@ -921,9 +923,9 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                 ) : null}
               </div>
 
-              <div className="flex flex-col gap-6 p-4 sm:p-5">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="field sm:col-span-2">
+              <div className="@container flex flex-col gap-6 p-4 sm:p-5">
+                <div className="grid gap-4 @lg:grid-cols-2 @4xl:grid-cols-4">
+                  <div className="field @lg:col-span-2">
                     <label htmlFor={`item-${itemIdx}-desc`} className="field-label">
                       Nombre del preparado
                     </label>
@@ -986,7 +988,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                   ) : null}
 
                   {esFormaCapsular(item.formaFarmaceutica) ? null : (
-                    <div className="field sm:col-span-2">
+                    <div className="field @lg:col-span-2">
                       <span id={`item-${itemIdx}-total-label`} className="field-label">
                         Cantidad total (para csp)
                       </span>
@@ -1006,14 +1008,14 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                     </div>
                   )}
 
-                  <div className="field sm:col-span-2">
+                  <div className="field @lg:col-span-2">
                     <label htmlFor={`item-${itemIdx}-posologia`} className="field-label">
                       Posología
                     </label>
                     <input id={`item-${itemIdx}-posologia`} value={item.posologia} onChange={(e) => actualizarItem(itemIdx, { posologia: e.target.value })} placeholder="Opcional · Ej.: 1 cada 12 horas" className="input" />
                   </div>
 
-                  <div className="field sm:col-span-2">
+                  <div className="field @lg:col-span-2">
                     <label htmlFor={`item-${itemIdx}-obs`} className="field-label">
                       Observaciones
                     </label>

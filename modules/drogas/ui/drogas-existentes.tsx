@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Live duplicate check for the droga alta (docs/specs/sinonimos-droga.md):
+ * Live duplicate check for the droga alta (openspec/specs/sinonimos-droga/spec.md):
  * while a name is typed, the drogas that already answer to it -- by name or
  * by a vigente synonym, accents and case ignored -- are looked up and shown,
  * so the same substance is not created twice under another spelling. The

@@ -1,6 +1,6 @@
 /**
  * Unit tests for modules/costos-proveedor/domain/costo-proveedor.ts
- * (docs/specs/costos-proveedor.md: CP1-CP7 domain parts, R4-R10, R18, R26).
+ * (openspec/specs/costos-proveedor/spec.md: CP1-CP7 domain parts, R4-R10, R18, R26).
  */
 import { describe, it, expect } from "vitest";
 import { DomainError } from "@/shared/errors";
@@ -130,8 +130,8 @@ describe("filaCostoSchema", () => {
 
   it("parses a valid row; blank optional texts become null and motivo is trimmed", () => {
     const parsed = schema.parse({ ...base, descripcionProveedor: "   ", motivo: "  ajuste de lista  " });
-    expect(parsed).toEqual({ ...base, descripcionProveedor: null, motivo: "ajuste de lista" });
-    expect(schema.parse(base)).toEqual({ ...base, descripcionProveedor: null, motivo: null });
+    expect(parsed).toEqual({ ...base, alicuotaIva: null, descripcionProveedor: null, motivo: "ajuste de lista" });
+    expect(schema.parse(base)).toEqual({ ...base, alicuotaIva: null, descripcionProveedor: null, motivo: null });
   });
 
   it("reports the offending field", () => {

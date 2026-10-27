@@ -54,9 +54,9 @@ import {
 export interface SidebarNavProps {
   /** Display name of the signed-in usuario. */
   usuario: string;
-  /** The tenant's name under the app name (`null` hides the line). */
+  /** The tenant's name, shown under its logo (`null` hides the line). */
   farmacia: string | null;
-  /** The tenant's own logo (docs/specs/logo-farmacia.md), or `null` for the generic `public/logo.png`. */
+  /** The tenant's own logo (openspec/specs/logo-farmacia/spec.md), or `null` for the generic `public/logo.png`. */
   logoSrc: string | null;
   /** Server action that ends the session. */
   logoutAction: () => Promise<void>;
@@ -183,12 +183,13 @@ export function SidebarNav(props: SidebarNavProps) {
         // `visibility` flips at once when showing (so the toggle effect can focus inside right away) and only after the 200ms slide when hiding.
         className={`glass-panel fixed inset-y-2 left-2 z-50 flex w-60 flex-col motion-reduce:transition-none! lg:inset-y-3 lg:left-3 ${open ? "visible translate-x-0 [transition:translate_200ms_ease-out,visibility_0s]" : "invisible -translate-x-[calc(100%+1rem)] [transition:translate_200ms_ease-out,visibility_0s_linear_200ms]"} ${props.collapsed ? "lg:invisible lg:-translate-x-[calc(100%+1rem)] lg:[transition:translate_200ms_ease-out,visibility_0s_linear_200ms]" : "lg:visible lg:translate-x-0 lg:[transition:translate_200ms_ease-out,visibility_0s]"}`}
       >
-        <div className="flex h-14 shrink-0 items-center justify-between px-4">
+        {/* The buttons are absolutely positioned so the brand is centered on the whole sidebar width. */}
+        <div className="relative flex shrink-0 justify-center px-10 pb-2 pt-4">
           <Brand farmacia={props.farmacia} logoSrc={props.logoSrc} />
-          <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar menú" className="glass-icon-btn -mr-1.5 lg:hidden">
+          <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar menú" className="glass-icon-btn absolute right-2.5 top-3 lg:hidden">
             <X className="size-5" aria-hidden />
           </button>
-          <button ref={collapseButtonRef} type="button" onClick={collapseSidebar} aria-label="Contraer barra lateral" title="Contraer barra lateral" aria-expanded aria-controls="app-sidebar" className="glass-icon-btn -mr-1.5 hidden lg:inline-flex">
+          <button ref={collapseButtonRef} type="button" onClick={collapseSidebar} aria-label="Contraer barra lateral" title="Contraer barra lateral" aria-expanded aria-controls="app-sidebar" className="glass-icon-btn absolute right-2.5 top-3 hidden lg:inline-flex">
             <PanelLeftClose className="size-4" aria-hidden />
           </button>
         </div>
@@ -232,17 +233,17 @@ export function SidebarNav(props: SidebarNavProps) {
   );
 }
 
+/** The farmacia's logo, large and centered, with its name below it. */
 function Brand({ farmacia, logoSrc }: { farmacia: string | null; logoSrc: string | null }) {
   return (
-    <Link href="/" className="flex min-w-0 items-center gap-2.5">
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-md dark:bg-white">
+    <Link href="/" title={farmacia ?? undefined} className="flex min-w-0 max-w-full flex-col items-center gap-2 text-center">
+      {/* Wide box: a horizontal logo (wordmark) fills the width instead of shrinking to a square's. */}
+      <span className="flex h-14 w-40 max-w-full shrink-0 items-center justify-center rounded-lg dark:bg-white">
         {/* The tenant's logo sits behind the session cookie, which the image optimizer would not send: `unoptimized`. */}
-        {logoSrc ? <Image src={logoSrc} alt="" width={28} height={28} unoptimized priority className="size-7 object-contain" /> : <Image src="/logo.png" alt="" width={28} height={28} priority />}
+        {logoSrc ? <Image src={logoSrc} alt="" width={160} height={56} unoptimized priority className="size-full object-contain" /> : <Image src="/logo.png" alt="" width={52} height={52} priority />}
       </span>
-      <span className="flex min-w-0 flex-col leading-tight">
-        <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Lab. Magistral</span>
-        {farmacia ? <span className="truncate text-[11px] text-zinc-500">{farmacia}</span> : null}
-      </span>
+      {/* One line only: a long name is cut with an ellipsis (the full name is the link's title). */}
+      {farmacia ? <span className="max-w-full truncate text-sm font-semibold leading-tight text-zinc-900 dark:text-zinc-100">{farmacia}</span> : null}
     </Link>
   );
 }

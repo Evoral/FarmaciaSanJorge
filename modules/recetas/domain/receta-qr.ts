@@ -19,7 +19,7 @@ export const MENSAJES_LECTURA_QR: Readonly<Record<CodigoErrorQr, string>> = {
 };
 
 /**
- * The PDF import reads the receta through RCTA too (docs/specs/importacion-receta-pdf.md, "Lectura por RCTA"), so the
+ * The PDF import reads the receta through RCTA too (openspec/specs/importacion-receta-pdf/spec.md, "Lectura por RCTA"), so the
  * same failures need messages that do not send the user back to the PDF. `SIN_LINK`: the PDF has no RCTA link.
  */
 export const MENSAJES_LECTURA_PDF: Readonly<Record<CodigoErrorQr | "SIN_LINK", string>> = {

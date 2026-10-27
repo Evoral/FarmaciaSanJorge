@@ -4,8 +4,8 @@
  * `config.editar`); the non-editable fields are shown read-only with a
  * short explanation each, per the task instruction. The CUIT moves from the
  * form to the read-only aside once the first cierre diario is signed
- * (docs/specs/cuit-farmacia.md). Layout: the form and the
- * navbar logo (docs/specs/logo-farmacia.md) in the main column, the read-only
+ * (openspec/specs/cuit-farmacia/spec.md). Layout: the form and the
+ * navbar logo (openspec/specs/logo-farmacia/spec.md) in the main column, the read-only
  * data in the aside. The "Configuración" tabs sit
  * under the header.
  */

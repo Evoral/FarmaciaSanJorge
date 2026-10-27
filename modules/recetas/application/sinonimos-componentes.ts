@@ -1,5 +1,5 @@
 /**
- * The synonym each receta componente was picked by (`drogaAliasId`, migration 0069 -- docs/specs/sinonimos-droga.md,
+ * The synonym each receta componente was picked by (`drogaAliasId`, migration 0069 -- openspec/specs/sinonimos-droga/spec.md,
  * "Nombre elegido al cargar"), checked the same way by `crearReceta`, `editarReceta` and `importarReceta` before
  * anything is written. Display only: the droga stays the componente's identity.
  *

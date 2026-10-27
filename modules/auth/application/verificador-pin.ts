@@ -1,7 +1,7 @@
 /**
  * The PIN implementation of `VerificadorDeIdentidad`
  * (../domain/verificacion-identidad.ts): checks an empleado's own
- * PIN (`AUTH_POLICY.pinLength` digits) when they act from a cuenta de sector (docs/specs/cuentas-de-sector.md).
+ * PIN (`AUTH_POLICY.pinLength` digits) when they act from a cuenta de sector (openspec/specs/cuentas-de-sector/spec.md).
  *
  * Same credential, counter and block as the PIN step-up of `./reautenticar.ts`
  * (`usuario.pin_hash` / `pin_intentos_fallidos` / `pin_bloqueado`,

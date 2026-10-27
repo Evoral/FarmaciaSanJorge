@@ -1,6 +1,6 @@
 # Rollback: Sinónimos de droga
 
-Spec: `docs/specs/sinonimos-droga.md`. The feature has **two schema changes**
+Spec: `openspec/specs/sinonimos-droga/spec.md`. The feature has **two schema changes**
 (migrations `prisma/migrations/20261007090000_0067_droga_sinonimos` and
 `prisma/migrations/20261007180000_0069_componente_sinonimo`), so it is
 reverted as code + new forward migrations built from
@@ -69,7 +69,7 @@ show the canonical name again. Also drops `droga_alias_tenant_id_droga_key`.
 - `modules/recetas/ui/droga-picker.tsx` (`DrogaElegida`, `selectedSinonimo`), `receta-form.tsx`, `receta-form-inicial.ts`, `componentes-tabla.tsx`.
 - `modules/preparaciones/infrastructure/preparacion-repository.ts` (`ComponenteDePendiente.sinonimo`, `listComponentesDePendientesSql`, the toma read).
 - `modules/stock/ui/importar-factura-form.tsx` (line matched through a synonym).
-- `docs/specs/sinonimos-droga.md` ("Nombre elegido al cargar", R9/R10, scenarios 11-14).
+- `openspec/specs/sinonimos-droga/spec.md` ("Nombre elegido al cargar", R9/R10, scenarios 11-14).
 
 ### 0067
 
@@ -84,4 +84,4 @@ show the canonical name again. Also drops `droga_alias_tenant_id_droga_key`.
 - `modules/proveedores/ui/trayectoria-filtro-drogas.tsx`, `app/(app)/proveedores/[id]/historial/page.tsx`.
 - `shared/ui/combobox.tsx` (`sinonimos` / `sinonimo` on `ComboboxOption`, `filtrarOpciones`, the hint), `shared/ui/buscador-navegable.tsx`.
 - `shared/labels/field-labels.ts` (`sinonimo`, `aliasNormalizado`), `shared/errors/mensajes-invariantes.ts` (`INV-DRG-002`, `INV-DRG-003` — keep them while the 0067 migration file exists: the global-messages test scans every migration), `modules/auditoria/domain/presentacion.ts` (`droga_alias` label).
-- `docs/specs/importacion-receta-pdf.md`, `modules/README.md`.
+- `openspec/specs/importacion-receta-pdf/spec.md`, `modules/README.md`.

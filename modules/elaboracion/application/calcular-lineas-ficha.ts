@@ -7,7 +7,7 @@
  *
  * Shared by `fichas.generar` (a saved item, persisted as a new version)
  * and `recetas.presupuestar` (an unsaved draft, computed in memory only --
- * docs/specs/presupuesto-receta.md), so both always agree on the lines.
+ * openspec/specs/presupuesto-receta/spec.md), so both always agree on the lines.
  * Not a use case: callers run it inside their own transaction.
  */
 import type { Prisma } from "@/generated/prisma/client";

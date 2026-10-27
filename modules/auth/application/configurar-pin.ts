@@ -13,7 +13,7 @@
  * permission for "manage my own credential", granted to every role.
  *
  * Cuentas de sector and usuarios whose only role is Administrador have no
- * PIN (docs/specs/contrasena-temporal.md, CT6/CT9): «Mi cuenta» hides the
+ * PIN (openspec/specs/contrasena-temporal/spec.md, CT6/CT9): «Mi cuenta» hides the
  * panel for them, and this command rejects them server-side as well.
  */
 import { z } from "zod";
@@ -22,6 +22,7 @@ import { DomainError } from "@/shared/errors";
 import { validatePin } from "../domain/pin";
 import { hashPassword, verifyPassword } from "../domain/password";
 import { loadEsSoloAdministrador, loadUsuarioParaPassword, setPinHash } from "../infrastructure/usuario-repository";
+import { assertPinDisponible } from "./pin-disponible";
 
 const configurarPinInput = z
   .object({
@@ -60,6 +61,8 @@ export const configurarPinCommand = defineCommand({
     if (!actualMatches) {
       throw new DomainError("La contraseña actual no es correcta.");
     }
+
+    await assertPinDisponible(tx, session.tenantId, session.usuario.id, input.pin);
 
     // Same argon2id setup as the real password (task requirement) --
     // `hashPassword` is generic over the string it hashes.

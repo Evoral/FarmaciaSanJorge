@@ -1,6 +1,6 @@
 # Rollback: excipiente de la preparación
 
-Spec: `docs/specs/excipiente-preparacion.md`. Migration 0092.
+Spec: `openspec/specs/excipiente-preparacion/spec.md`. Migration 0092.
 
 ## What it added
 

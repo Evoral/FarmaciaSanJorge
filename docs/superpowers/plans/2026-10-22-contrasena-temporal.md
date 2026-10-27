@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js 16 App Router, React 19, Prisma 7 + Postgres (schema `fsj`), zod 4, `@node-rs/argon2`, vitest (`unit` and `db` projects).
 
-**Spec:** `docs/specs/contrasena-temporal.md` (approved; items marked **[decisión técnica]** are approved too). Also read `AGENTS.md` and `node_modules/next/dist/docs/` before touching Next APIs.
+**Spec:** `openspec/specs/contrasena-temporal/spec.md` (approved; items marked **[decisión técnica]** are approved too). Also read `AGENTS.md` and `node_modules/next/dist/docs/` before touching Next APIs.
 
 ## Global Constraints
 
@@ -53,7 +53,7 @@ Modified / removed: listed per task.
 **Files:**
 - Create: `prisma/migrations/20261022100000_0097_contrasena_temporal/migration.sql`, `prisma/rollbacks/0097_contrasena_temporal.down.sql`, `docs/rollbacks/contrasena-temporal.md`, `tests/db/contrasena-temporal.test.ts`
 - Modify: `prisma/schema.prisma` (`model Usuario`, next to `pinHash`)
-- Commit also: `docs/specs/contrasena-temporal.md` (currently untracked) and this plan.
+- Commit also: `openspec/specs/contrasena-temporal/spec.md` (currently untracked) and this plan.
 
 **Interfaces:**
 - Produces: Prisma field `Usuario.debeCambiarPassword: boolean` (`@map("debe_cambiar_password")`, `@default(false)`), used by Tasks 2–12.
@@ -68,12 +68,12 @@ Modified / removed: listed per task.
   1. `ALTER TABLE fsj.usuario ADD COLUMN IF NOT EXISTS debe_cambiar_password boolean NOT NULL DEFAULT false;` + `COMMENT ON COLUMN`.
   2. `GRANT UPDATE (debe_cambiar_password) ON fsj.usuario TO fsj_app;`
   3. `UPDATE fsj.credencial_activacion SET revocada_en = now() WHERE usada_en IS NULL AND revocada_en IS NULL;` (a single statement the test can extract; explain in a comment that the table is kept as history and nothing reads or writes it any more).
-- [ ] **Step 4: Schema + rollback.** Add to `model Usuario`: `/// Migration 0097 (docs/specs/contrasena-temporal.md): ...` `debeCambiarPassword Boolean @default(false) @map("debe_cambiar_password")`. `0097_contrasena_temporal.down.sql`: `REVOKE UPDATE (debe_cambiar_password) ON fsj.usuario FROM fsj_app; ALTER TABLE fsj.usuario DROP COLUMN IF EXISTS debe_cambiar_password;` with a header stating DATA LOSS (which users still had a pending change) and that the credentials revoked by 0097 cannot be un-revoked (INV-AU-002; reissue with the old code's "Restablecer credencial"). `docs/rollbacks/contrasena-temporal.md`: copy the structure of `docs/rollbacks/tipo-vencimiento-preparado.md` (what is lost, order: revert code first, then apply the down SQL as a NEW forward migration, new files, edited files list filled in at Task 15).
+- [ ] **Step 4: Schema + rollback.** Add to `model Usuario`: `/// Migration 0097 (openspec/specs/contrasena-temporal/spec.md): ...` `debeCambiarPassword Boolean @default(false) @map("debe_cambiar_password")`. `0097_contrasena_temporal.down.sql`: `REVOKE UPDATE (debe_cambiar_password) ON fsj.usuario FROM fsj_app; ALTER TABLE fsj.usuario DROP COLUMN IF EXISTS debe_cambiar_password;` with a header stating DATA LOSS (which users still had a pending change) and that the credentials revoked by 0097 cannot be un-revoked (INV-AU-002; reissue with the old code's "Restablecer credencial"). `docs/rollbacks/contrasena-temporal.md`: copy the structure of `docs/rollbacks/tipo-vencimiento-preparado.md` (what is lost, order: revert code first, then apply the down SQL as a NEW forward migration, new files, edited files list filled in at Task 15).
 - [ ] **Step 5:** `npm run db:generate`.
 - [ ] **Step 6: GATE — ask the user to confirm**, then `npm run db:migrate` (shared real DB). Then rerun the Step 2 command. Expected: PASS.
 - [ ] **Step 7: Commit**
 ```bash
-git add prisma docs/specs/contrasena-temporal.md docs/superpowers/plans/2026-10-22-contrasena-temporal.md docs/rollbacks/contrasena-temporal.md tests/db/contrasena-temporal.test.ts
+git add prisma openspec/specs/contrasena-temporal/spec.md docs/superpowers/plans/2026-10-22-contrasena-temporal.md docs/rollbacks/contrasena-temporal.md tests/db/contrasena-temporal.test.ts
 git commit -m "feat(auth): migration 0097 adds debe_cambiar_password and revokes live activation credentials"
 ```
 
@@ -343,11 +343,11 @@ git commit -m "feat(auth): migration 0097 adds debe_cambiar_password and revokes
 ### Task 14: Docs
 
 **Files:**
-- Modify: `docs/specs/cuentas-de-sector.md`, `shared/auth/README.md`, `docs/deploy.md` (§5), `docs/specs/contrasena-temporal.md` (status line), `docs/rollbacks/contrasena-temporal.md` (fill the "edited / deleted files" lists from `git diff --stat`)
+- Modify: `openspec/specs/cuentas-de-sector/spec.md`, `shared/auth/README.md`, `docs/deploy.md` (§5), `openspec/specs/contrasena-temporal/spec.md` (status line), `docs/rollbacks/contrasena-temporal.md` (fill the "edited / deleted files" lists from `git diff --stat`)
 
-- [ ] **Step 1:** `cuentas-de-sector.md`: rule S7 now reads "…tenga PIN **y no tenga pendiente el cambio de su contraseña temporal**" with the enforcement point `operador-policy.ts` (`DEBE_CAMBIAR_PASSWORD`) and `operadores-repository.ts`; add one line under "Pantallas" that «Mi cuenta» has no PIN panel for a cuenta de sector and no «Eliminar PIN»; the «Nuevo usuario» bullet mentions the temporary password. Tests list gains `contrasena-temporal-operadores.test.ts`.
+- [ ] **Step 1:** `openspec/specs/cuentas-de-sector/spec.md`: rule S7 now reads "…tenga PIN **y no tenga pendiente el cambio de su contraseña temporal**" with the enforcement point `operador-policy.ts` (`DEBE_CAMBIAR_PASSWORD`) and `operadores-repository.ts`; add one line under "Pantallas" that «Mi cuenta» has no PIN panel for a cuenta de sector and no «Eliminar PIN»; the «Nuevo usuario» bullet mentions the temporary password. Tests list gains `contrasena-temporal-operadores.test.ts`.
 - [ ] **Step 2:** `shared/auth/README.md`: add a short "Pasos pendientes" section (what `pasosPendientes` is, `requireSession({ permitirPasosPendientes: true })`, the `permitirPasosPendientes` flag on `defineCommand`/`defineQuery` and the allowlist test `auth-pasos-registry.test.ts`, the `(pasos)` route group). `deploy.md` §5: the first ADM gets a temporary password (flag or prompt), no activation credential; deliver it in person; the first login forces the password change and the PIN.
-- [ ] **Step 3:** `contrasena-temporal.md`: replace the heading note with "Estado: implementado 2026-10-22 (migración 0097). Reversión: `docs/rollbacks/contrasena-temporal.md`." and add a "Desviaciones" bullet for anything decided differently in Tasks 3, 6, 8, 9 (listed in the final report).
+- [ ] **Step 3:** `openspec/specs/contrasena-temporal/spec.md`: replace the heading note with "Estado: implementado 2026-10-22 (migración 0097). Reversión: `docs/rollbacks/contrasena-temporal.md`." and add a "Desviaciones" bullet for anything decided differently in Tasks 3, 6, 8, 9 (listed in the final report).
 - [ ] **Step 4: Commit** — `docs: temporary password flow in specs, auth README, deploy and rollback`.
 
 ---
