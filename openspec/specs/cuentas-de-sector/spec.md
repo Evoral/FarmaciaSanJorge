@@ -153,12 +153,16 @@ Las consultas (queries) SHALL NOT solicitar PIN. Las sesiones de usuarios indivi
 
 ### Requirement: S13 — Vencimiento por inactividad en cuentas de sector
 
-La sesión de una cuenta de sector MUST vencer tras 4 h sin uso (`AUTH_POLICY.sessionIdleMinutesSector`; decisión del usuario 2026-10-26), mientras que una sesión individual vence a los 30 min (`AUTH_POLICY.sessionIdleMinutes`), manteniendo para todas el mismo vencimiento absoluto de 12 h desde el login. Al vencer, el navegador SHALL redirigir directamente a `/login`: mientras haya actividad (teclas, clics, scroll) el cliente MUST mantener viva la sesión y, ante inactividad, cerrarla antes que el servidor.
+La sesión de una cuenta de sector MUST vencer tras 4 h sin uso (`AUTH_POLICY.sessionIdleMinutesSector`; decisión del usuario 2026-10-26), mientras que una sesión individual vence a los 30 min (`AUTH_POLICY.sessionIdleMinutes`), manteniendo para todas el mismo vencimiento absoluto de 12 h desde el login.
 
 #### Scenario: Sesión de cuenta de sector tras 30 minutos sin uso pero menos de 4 horas
 - **GIVEN** una sesión activa correspondiente a una cuenta de sector
 - **WHEN** transcurren más de 30 minutos pero menos de 4 horas desde el último uso y sin haber alcanzado las 12 horas desde el login
 - **THEN** la sesión permanece vigente
+
+### Requirement: S13 — Redirección a /login al vencer la sesión
+
+Al vencer la sesión, el navegador SHALL redirigir directamente a `/login`: mientras haya actividad (teclas, clics, scroll) el cliente MUST mantener viva la sesión y, ante inactividad, cerrarla antes que el servidor.
 
 #### Scenario: Sesión de cuenta de sector tras 4 horas de inactividad
 - **GIVEN** una sesión activa correspondiente a una cuenta de sector
