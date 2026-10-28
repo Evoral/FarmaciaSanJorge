@@ -40,9 +40,9 @@ export function retornoDeEdicion(valor: unknown): string | null {
 }
 
 export type TipoAviso = "ficha" | "cotizacion";
-export type CodigoAviso = CodigoFichaNoGenerable | "SIN_REGLA_PRECIO" | "SIN_FICHA" | "ERROR";
+export type CodigoAviso = CodigoFichaNoGenerable | "SIN_REGLA_PRECIO" | "SIN_FICHA" | "SIN_COSTO_PROVEEDOR" | "ERROR";
 
-const CODIGOS_AVISO: readonly CodigoAviso[] = [...CODIGOS_FICHA_NO_GENERABLE, "SIN_REGLA_PRECIO", "SIN_FICHA", "ERROR"];
+const CODIGOS_AVISO: readonly CodigoAviso[] = [...CODIGOS_FICHA_NO_GENERABLE, "SIN_REGLA_PRECIO", "SIN_FICHA", "SIN_COSTO_PROVEEDOR", "ERROR"];
 
 export interface AvisoGeneracion {
   tipo: TipoAviso;
@@ -102,6 +102,8 @@ function motivo(codigo: CodigoAviso): string {
       return "no hay regla de precios configurada";
     case "SIN_FICHA":
       return "el ítem no tiene ficha técnica";
+    case "SIN_COSTO_PROVEEDOR":
+      return "alguna droga no tiene precio cargado en costos de proveedor";
     case "ERROR":
       return "ocurrió un error inesperado";
     default:

@@ -79,24 +79,24 @@ mínimo, `openspec/specs/reglas-precio/spec.md`; cada ítem se cotiza con su pro
 - **WHEN** se presupuesta un ítem normal
 - **THEN** precio = max(costo × (1 + margen del tramo/100), precio mínimo) — ver `openspec/specs/reglas-precio/spec.md`
 
-### Requirement: Costo acumulado por droga
+### Requirement: Stock acumulado por droga
 
-El costo SHALL acumularse **por droga en el orden de los ítems**: el primer ítem consume de los saldos elegibles y
-el siguiente ve solo lo que queda. Así, dos ítems que usan la misma droga no pueden aparecer ambos cubiertos. Con el
-reparto acumulado, `Incompleta`, los faltantes y el costo de cada ítem reflejan la receta completa.
+El stock SHALL simularse **por droga en el orden de los ítems**: el primer ítem consume de los saldos elegibles y
+el siguiente ve solo lo que queda. Así, dos ítems que usan la misma droga no pueden aparecer ambos cubiertos: los
+faltantes de cada ítem reflejan la receta completa. El precio no depende del stock (R27).
 
 #### Scenario: PR7 — Dos ítems con la misma droga y stock para uno solo
 
-- **GIVEN** dos ítems con la misma droga y stock para uno solo
+- **GIVEN** dos ítems con la misma droga, con costo de proveedor, y stock para uno solo
 - **WHEN** se presupuesta la receta
-- **THEN** el segundo queda **Incompleta**
+- **THEN** el segundo informa el faltante
 - **AND** aparece la advertencia de stock de la receta
 
 ### Requirement: Origen del costo por línea
 
 Origen del costo por línea (`openspec/specs/costos-proveedor/spec.md`, R25–R30): una droga con costo de proveedor utilizable SHALL
-costearse con él (toda la cantidad × costo, haya o no stock) y una droga sin costo de proveedor, **exactamente como
-antes**, con las partidas (fallback).
+costearse con él (toda la cantidad × costo, haya o no stock). Una droga sin costo de proveedor no tiene precio (R27):
+su ítem no se presupuesta.
 
 #### Scenario: Línea con costo de proveedor y sin stock
 
@@ -108,7 +108,8 @@ antes**, con las partidas (fallback).
 
 - **GIVEN** una droga sin costo de proveedor
 - **WHEN** se presupuesta un ítem que la usa
-- **THEN** la línea se costea con las partidas, exactamente como antes
+- **THEN** el ítem muestra «No se puede dar el precio: {droga} no tiene precio cargado en costos de proveedor.»
+- **AND** no muestra el precio mínimo
 
 ### Requirement: Simulación de stock en todas las líneas
 
@@ -124,7 +125,7 @@ que los faltantes de los ítems siguientes sean correctos; el costo de una líne
 
 ### Requirement: Faltante informativo en líneas de proveedor
 
-El faltante de una línea de proveedor SHALL ser solo informativo («Sin stock suficiente para prepararla») y **no**
+El faltante de una línea SHALL ser solo informativo («Sin stock suficiente para prepararla») y **no**
 marca el ítem como **Incompleta**; la advertencia de stock de la receta sigue mostrando la demanda que supera el
 stock.
 
@@ -168,10 +169,9 @@ calcula nada.
 
 ### Requirement: Ítem calculable
 
-Un ítem calculable SHALL mostrar precio final, costo de insumos y, si corresponde: **Parcial** (algún excipiente se
-completa al preparar: enrase manual, costo 0) e **Incompleta** (stock insuficiente en una línea costeada con
-partidas: se cotiza lo que hay e informa lo que falta por droga; una línea costeada con costo de proveedor no la
-provoca).
+Un ítem calculable SHALL mostrar precio final, costo de insumos y, si corresponde, **Parcial** (algún excipiente se
+completa al preparar: enrase manual, costo 0). El stock insuficiente solo se informa («Sin stock suficiente para
+prepararla»): el costo de proveedor cubre toda la cantidad.
 
 #### Scenario: PR2 — Cápsulas con excipiente CSP
 
@@ -180,13 +180,13 @@ provoca).
 
 #### Scenario: PR3 — Stock insuficiente
 
-- **WHEN** se presupuesta un ítem sin stock suficiente
-- **THEN** el resultado es **Incompleta**, con el faltante por droga
+- **WHEN** se presupuesta un ítem sin stock suficiente y con costo de proveedor
+- **THEN** tiene precio e informa el faltante por droga
 
 ### Requirement: Ítem no calculable
 
-Un ítem no calculable (V1–V9, droga o unidad inexistente o dada de baja) SHALL mostrar un mensaje en lugar del
-precio. No interrumpe el resto.
+Un ítem no calculable (V1–V9, droga o unidad inexistente o dada de baja, droga sin costo de proveedor) SHALL
+mostrar un mensaje en lugar del precio. No interrumpe el resto.
 
 #### Scenario: PR5 — Ítem con V8 o droga dada de baja
 

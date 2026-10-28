@@ -463,24 +463,24 @@ Usable SHALL mean vigente, proveedor not de baja. With several proveedores, the 
 - **THEN** the latest `fecha_precio` is used
 - **AND** a proveedor de baja is ignored
 
-### Requirement: R27 — Fallback to partidas
+### Requirement: R27 — No costo de proveedor, no price
 
-A droga with no usable costo de proveedor SHALL be costed exactly as today (fuente `PARTIDAS`): open first, FEFO,
-blend, faltante. This is an explicit, visible fallback, never a silent 0. Partidas are net of IVA, so the línea's
-subtotal with IVA is its subtotal × (1 + `alicuota_iva_porcentaje` / 100) (R7a); the partida itself is not touched.
+A droga with no usable costo de proveedor SHALL have no price (2026-10-28): partidas never price a línea. The item
+gets no price at all, never the precio mínimo over the other líneas: the cotización is refused and the presupuesto
+shows «No se puede dar el precio: {droga} no tiene precio cargado en costos de proveedor.» instead.
 
 #### Scenario: CP13 — Cotización without costo de proveedor
 
-- **GIVEN** a droga without a costo de proveedor and the parametro at 21
+- **GIVEN** a droga without a costo de proveedor, with stock
 - **WHEN** a cotización is calculated
-- **THEN** the partidas are split and costed as before, and the línea's subtotal con IVA is that cost × 1,21
+- **THEN** it is refused and no price is stored
+- **AND** the presupuesto names the droga without a price
 
 ### Requirement: R28 — Faltante of a PROVEEDOR línea is informational
 
-Stock SHALL still be evaluated for every línea and its `faltante` still recorded. For a `PROVEEDOR` línea the
-faltante is **informational** ("sin stock suficiente para prepararla") and does **not** set `esIncompleta`: the
-cost is complete. `esIncompleta` keeps its meaning "some línea could not be fully costed", which now only happens on
-`PARTIDAS` líneas.
+Stock SHALL still be evaluated for every línea and its `faltante` still recorded. The faltante is
+**informational** ("sin stock suficiente para prepararla") and does **not** set `esIncompleta`: the cost is
+complete. Since R27 no línea is costed from partidas, so `esIncompleta` is always false (kept for old snapshots).
 
 #### Scenario: CP12 — Costo de proveedor without stock
 
@@ -501,8 +501,7 @@ Manual-enrase líneas and líneas whose unit can not be converted (different mag
 
 ### Requirement: R30 — Presupuesto
 
-The presupuesto SHALL use the same per-línea rule; its cumulative stock simulation only affects faltantes and
-`PARTIDAS` líneas.
+The presupuesto SHALL use the same per-línea rule; its cumulative stock simulation only affects faltantes.
 
 #### Scenario: Two ítems with the same proveedor-costed droga
 
@@ -759,7 +758,7 @@ Kept here because the new rules are defined against it.
 | R24 | `registrarCostosProveedor` with origen MANUAL. |
 | R25 | Domain `costearLinea`. |
 | R26 | Infrastructure query + domain `elegirCostoProveedor`. |
-| R27 | Domain `costearLinea` (unchanged branch). |
+| R27 | Domain `costearLinea` (`drogasSinPrecio`); `cotizarLineas` refuses, `presupuestoItemDesdeCotizacion` shows the message. |
 | R28 | Domain `calcularCotizacion`. |
 | R29 | Domain (unchanged). |
 | R30 | `calcularCotizacionesAcumuladas`. |
@@ -846,7 +845,9 @@ Audit entities `costo_proveedor` and `lista_precio_proveedor` (labels in
   2026-10-15). Alternative rejected: leaving the línea uncosted, which would
   make most cotizaciones incomplete until every list is loaded. Side effect,
   wanted: until the first list is loaded every cotización is identical to
-  today's.
+  today's. **Superseded 2026-10-28 (R27):** the price comes only from costos de
+  proveedor; without one there is no price. A partial cost fell to the precio
+  mínimo and quoted the client too low.
 - **Only base rows of the received list** (user decision 2026-10-15): in that
   list the base row's PRECIO is per kg/L, while presentation rows are
   inconsistent (some look like a price per package).

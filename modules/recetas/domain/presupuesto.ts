@@ -7,7 +7,7 @@
  * enough to price" check. No I/O.
  */
 import { Decimal, dec, isPositive } from "@/shared/decimal";
-import type { CotizacionCalculada, FuenteCosto } from "@/modules/precios/domain/calcular-cotizacion";
+import { mensajeSinCostoProveedor, type CotizacionCalculada, type FuenteCosto } from "@/modules/precios/domain/calcular-cotizacion";
 import { numeroONull } from "@/shared/decimal/numero-ingresado";
 
 /**
@@ -76,8 +76,9 @@ export type Presupuesto =
     }
   | { ok: false; mensaje: string };
 
-/** One item's in-memory cotización -> its presupuesto line. */
+/** One item's in-memory cotización -> its presupuesto line. A droga without costo de proveedor: no price, only why (R27). */
 export function presupuestoItemDesdeCotizacion(indice: number, cotizacion: CotizacionCalculada): PresupuestoItem {
+  if (cotizacion.drogasSinPrecio.length > 0) return { indice, ok: false, mensaje: mensajeSinCostoProveedor(cotizacion.drogasSinPrecio) };
   const lineas = cotizacion.detalle.lineas;
   const hayProveedor = lineas.some((l) => l.fuente === "PROVEEDOR");
   // Only líneas that were really costed: not enrase manual, not a unit that could not be converted (0, no partidas, no faltante).

@@ -2,7 +2,7 @@
  * `recetas.presupuestar` (openspec/specs/presupuesto-receta/spec.md): the in-memory
  * ficha + cotización of an unsaved receta draft, through the REAL pipeline
  * and the REAL pure calculators, with only the loaders mocked (no DB).
- * Cases: normal price, parcial (CSP in cápsulas), incompleta (faltante),
+ * Cases: normal price, parcial (CSP in cápsulas), informational faltante,
  * no price rule, invalid items reported as messages (not thrown), and
  * nothing written (INV-R02). Plus the pure helpers of domain/presupuesto.ts.
  */
@@ -31,6 +31,8 @@ const D_UREA = "b0000000-0000-4000-a000-000000000001";
 const D_MAZINDOL = "b0000000-0000-4000-a000-000000000002";
 const D_LACTOSA = "b0000000-0000-4000-a000-000000000003";
 const D_BAJA = "b0000000-0000-4000-a000-000000000004";
+const D_SIN_PRECIO_1 = "b0000000-0000-4000-a000-000000000011";
+const D_SIN_PRECIO_2 = "b0000000-0000-4000-a000-000000000012";
 
 const fichaRepo = {
   getUnidadesBase: vi.fn(async () => ({ MASA: { id: U_G, tipoMagnitud: "MASA", factorABase: "1", simbolo: "g" } })),
@@ -44,6 +46,8 @@ const fichaRepo = {
     [D_MAZINDOL, { nombre: "Mazindol", vigente: true }],
     [D_LACTOSA, { nombre: "Lactosa", vigente: true }],
     [D_BAJA, { nombre: "Droga vieja", vigente: false }],
+    [D_SIN_PRECIO_1, { nombre: "Droga Sin Costo", vigente: true }],
+    [D_SIN_PRECIO_2, { nombre: "Droga Tambien Sin Costo", vigente: true }],
   ])),
   insertFichaConLineas: vi.fn(),
 };
@@ -63,11 +67,30 @@ const cotizacionRepo = {
 };
 vi.mock("@/modules/precios/infrastructure/cotizacion-repository", () => cotizacionRepo);
 
-// No costo de proveedor for any droga: every línea falls back to partidas (openspec/specs/costos-proveedor/spec.md, R27).
-// IVA 0 %: these cases are about the cumulative stock and pricing rules, so their prices stay net.
+type CostoProveedorCandidato = {
+  id: string;
+  drogaId: string;
+  proveedorId: string;
+  proveedorNombre: string;
+  proveedorDeBaja: boolean;
+  precioInformado: string;
+  unidadPrecioSimbolo: string;
+  costoUnitario: string;
+  alicuotaIva: string;
+  precioInformadoConIva: string;
+  costoUnitarioConIva: string;
+  fechaPrecio: string;
+  vigenteDesde: Date;
+};
+
+const costosProveedor = new Map<string, CostoProveedorCandidato>();
 vi.mock("@/modules/costos-proveedor/infrastructure/costo-proveedor-repository", () => ({
-  getCostosProveedorVigentesDeDrogas: vi.fn(async () => []),
-  getAlicuotaIvaPorDefecto: vi.fn(async () => "0"),
+  getCostosProveedorVigentesDeDrogas: vi.fn(async (_tx: unknown, _tenant: unknown, drogaIds: readonly string[]) =>
+    drogaIds.flatMap((id) => {
+      const c = costosProveedor.get(id);
+      return c ? [c] : [];
+    }),
+  ),
 }));
 
 const getReglaVigente = vi.fn();
@@ -121,6 +144,37 @@ beforeEach(() => {
   });
   partidas.clear();
   unidadesStock.clear();
+  costosProveedor.clear();
+  costosProveedor.set(D_UREA, {
+    id: "cp-urea",
+    drogaId: D_UREA,
+    proveedorId: "prov-1",
+    proveedorNombre: "Droguería Sur",
+    proveedorDeBaja: false,
+    precioInformado: "2000",
+    unidadPrecioSimbolo: "kg",
+    costoUnitario: "2",
+    alicuotaIva: "0",
+    precioInformadoConIva: "2000",
+    costoUnitarioConIva: "2",
+    fechaPrecio: "2026-06-01",
+    vigenteDesde: new Date("2026-01-01"),
+  });
+  costosProveedor.set(D_MAZINDOL, {
+    id: "cp-maz",
+    drogaId: D_MAZINDOL,
+    proveedorId: "prov-1",
+    proveedorNombre: "Droguería Sur",
+    proveedorDeBaja: false,
+    precioInformado: "100000",
+    unidadPrecioSimbolo: "kg",
+    costoUnitario: "100",
+    alicuotaIva: "0",
+    precioInformadoConIva: "100000",
+    costoUnitarioConIva: "100",
+    fechaPrecio: "2026-06-01",
+    vigenteDesde: new Date("2026-01-01"),
+  });
   partidas.set(D_UREA, [{ id: "p-urea", cantidadDisponible: "100", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "2" }]);
   partidas.set(D_MAZINDOL, [{ id: "p-maz", cantidadDisponible: "1", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "100" }]);
   fichaRepo.insertFichaConLineas.mockClear();
@@ -130,12 +184,14 @@ beforeEach(() => {
 describe("recetas.presupuestar", () => {
   it("a droga kept in mg is costed from the línea's g converted into mg: 10 g of urea = 10000 mg at $0.002/mg -> $20 cost", async () => {
     unidadesStock.set(D_UREA, { factorABase: "0.001", tipoMagnitud: "MASA" });
+    const cpUrea = costosProveedor.get(D_UREA)!;
+    costosProveedor.set(D_UREA, { ...cpUrea, costoUnitario: "0.002", costoUnitarioConIva: "0.002" });
     partidas.set(D_UREA, [{ id: "p-urea", cantidadDisponible: "15000", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "0.002" }]);
     const p = await presupuestar([cremaUrea, cremaUrea]);
     if (!p.ok) throw new Error("expected ok");
     expect(p.items[0]).toMatchObject({ ok: true, costoInsumos: "20", esIncompleta: false });
     // 15000 mg = 15 g for two items of 10 g: the second misses 5 g, reported in g (the línea's unit).
-    expect(p.items[1]).toMatchObject({ ok: true, costoInsumos: "10", esIncompleta: true, faltantes: [{ drogaNombre: "Urea", cantidad: "5", unidadSimbolo: "g" }] });
+    expect(p.items[1]).toMatchObject({ ok: true, costoInsumos: "20", esIncompleta: false, faltantes: [{ drogaNombre: "Urea", cantidad: "5", unidadSimbolo: "g" }] });
   });
 
   it("prices a normal item: 10 g of urea at $2/g, margen 50% -> $30", async () => {
@@ -144,18 +200,30 @@ describe("recetas.presupuestar", () => {
       ok: true,
       total: "30",
       totalCompleto: true,
-      items: [{ indice: 1, ok: true, precioFinal: "30", costoInsumos: "20", esParcial: false, enraseManual: [], esIncompleta: false, faltantes: [] }],
+      items: [
+        {
+          indice: 1,
+          ok: true,
+          precioFinal: "30",
+          costoInsumos: "20",
+          esParcial: false,
+          enraseManual: [],
+          esIncompleta: false,
+          faltantes: [],
+          fuentes: [{ drogaNombre: "Urea", fuente: "PROVEEDOR", proveedorNombre: "Droguería Sur" }],
+        },
+      ],
       faltantesReceta: [],
     });
   });
 
-  it("two items sharing a droga with stock for only one: the second is incompleta and the receta-level warning appears", async () => {
+  it("two items sharing a droga with stock for only one: both are fully costed, the second reports the faltante, and the receta-level warning appears", async () => {
     // 15 g of urea; each item needs 10 g.
     partidas.set(D_UREA, [{ id: "p-urea", cantidadDisponible: "15", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "2" }]);
     const p = await presupuestar([cremaUrea, cremaUrea]);
     if (!p.ok) throw new Error(p.mensaje);
-    expect(p.items[0]).toMatchObject({ ok: true, esIncompleta: false, costoInsumos: "20", precioFinal: "30" });
-    expect(p.items[1]).toMatchObject({ ok: true, esIncompleta: true, faltantes: [{ drogaNombre: "Urea", cantidad: "5", unidadSimbolo: "g" }], costoInsumos: "10" });
+    expect(p.items[0]).toMatchObject({ ok: true, esIncompleta: false, costoInsumos: "20", precioFinal: "30", faltantes: [] });
+    expect(p.items[1]).toMatchObject({ ok: true, esIncompleta: false, faltantes: [{ drogaNombre: "Urea", cantidad: "5", unidadSimbolo: "g" }], costoInsumos: "20", precioFinal: "30" });
     expect(p.faltantesReceta).toEqual([
       {
         drogaNombre: "Urea",
@@ -176,15 +244,18 @@ describe("recetas.presupuestar", () => {
     expect(p.total).toBe("60");
   });
 
-  it("the cumulative split follows the same reparto: the partida the first item opened is used first by the next", async () => {
+  it("the cumulative split follows the same reparto: stock is consumed open-then-FEFO across items", async () => {
     partidas.set(D_UREA, [
       { id: "p-vence-antes", cantidadDisponible: "12", fechaVencimiento: "2026-12-01", fechaApertura: null, costoUnitario: "1" },
-      { id: "p-vence-despues", cantidadDisponible: "50", fechaVencimiento: "2027-06-01", fechaApertura: null, costoUnitario: "3" },
+      { id: "p-vence-despues", cantidadDisponible: "5", fechaVencimiento: "2027-06-01", fechaApertura: null, costoUnitario: "3" },
     ]);
     const p = await presupuestar([cremaUrea, cremaUrea]);
     if (!p.ok) throw new Error(p.mensaje);
-    // Item 1: 10 g from the earliest-expiring partida ($10). Item 2: its remaining 2 g ($2) + 8 g from the other ($24).
-    expect(p.items.map((i) => (i.ok ? i.costoInsumos : null))).toEqual(["10", "26"]);
+    // Both items cost $20 from costo de proveedor
+    expect(p.items.map((i) => (i.ok ? i.costoInsumos : null))).toEqual(["20", "20"]);
+    // Total stock was 17 g for 20 g demand: item 1 takes 10 (2 left in first partida), item 2 takes 2 + 5 = 7 (faltante: 3)
+    expect(p.items[0]).toMatchObject({ ok: true, faltantes: [] });
+    expect(p.items[1]).toMatchObject({ ok: true, faltantes: [{ drogaNombre: "Urea", cantidad: "3", unidadSimbolo: "g" }] });
   });
 
   it("CSP in cápsulas is parcial: the excipiente is completed when preparing and priced at 0", async () => {
@@ -195,11 +266,11 @@ describe("recetas.presupuestar", () => {
     expect(item).toMatchObject({ ok: true, esParcial: true, enraseManual: ["Lactosa"], costoInsumos: "9", precioFinal: "13.5" });
   });
 
-  it("not enough stock is incompleta, with what is missing per droga, priced with what exists", async () => {
+  it("not enough stock is priced with costo de proveedor, informational faltante recorded, esIncompleta false", async () => {
     partidas.set(D_UREA, [{ id: "p-urea", cantidadDisponible: "4", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "2" }]);
     const p = await presupuestar([cremaUrea]);
     if (!p.ok) throw new Error(p.mensaje);
-    expect(p.items[0]).toMatchObject({ ok: true, esIncompleta: true, faltantes: [{ drogaNombre: "Urea", cantidad: "6", unidadSimbolo: "g" }], precioFinal: "12" });
+    expect(p.items[0]).toMatchObject({ ok: true, esIncompleta: false, faltantes: [{ drogaNombre: "Urea", cantidad: "6", unidadSimbolo: "g" }], precioFinal: "30" });
   });
 
   it("each item is priced on its OWN cost: tramo and floor per item, not on the receta's total", async () => {
@@ -236,6 +307,79 @@ describe("recetas.presupuestar", () => {
     expect(p.items[2]).toEqual({ indice: 3, ok: false, mensaje: "Una o más drogas o unidades del ítem no existen o están dadas de baja." });
     expect(p.total).toBe("30");
     expect(p.totalCompleto).toBe(false);
+  });
+
+  it("an item with a droga without costo de proveedor gets a message instead of a price, never the precio mínimo", async () => {
+    getReglaVigente.mockResolvedValue({
+      id: "r-min",
+      precioMinimo: "5000",
+      tramos: [{ costoHasta: null, margen: "50" }],
+      vigenteDesde: new Date(),
+      creadoPorNombre: "N",
+      creadoPorApellido: "A",
+    });
+    const itemSinCosto = {
+      formaFarmaceutica: "CREMA",
+      cantidadUnidades: 1,
+      fraccionDosisPorUnidad: "1",
+      cantidadTotal: null,
+      unidadTotalId: null,
+      componentes: [{ drogaId: D_SIN_PRECIO_1, cantidad: "10", unidadMedidaId: U_G, modoExpresion: "TOTAL", esPrincipioActivo: true }],
+    };
+    const p = await presupuestar([itemSinCosto]);
+    if (!p.ok) throw new Error(p.mensaje);
+    expect(p.items[0]).toEqual({
+      indice: 1,
+      ok: false,
+      mensaje: "No se puede dar el precio: Droga Sin Costo no tiene precio cargado en costos de proveedor.",
+    });
+    expect(p.total).toBe("0");
+    expect(p.totalCompleto).toBe(false);
+  });
+
+  it("mixed item (one droga with costo, one without): item gets no price, total sums only priced items", async () => {
+    const itemMixto = {
+      formaFarmaceutica: "CREMA",
+      cantidadUnidades: 1,
+      fraccionDosisPorUnidad: "1",
+      cantidadTotal: null,
+      unidadTotalId: null,
+      componentes: [
+        { drogaId: D_UREA, cantidad: "10", unidadMedidaId: U_G, modoExpresion: "TOTAL", esPrincipioActivo: true },
+        { drogaId: D_SIN_PRECIO_1, cantidad: "5", unidadMedidaId: U_G, modoExpresion: "TOTAL", esPrincipioActivo: true },
+      ],
+    };
+    const p = await presupuestar([cremaUrea, itemMixto]);
+    if (!p.ok) throw new Error(p.mensaje);
+    expect(p.items[0]).toMatchObject({ indice: 1, ok: true, precioFinal: "30" });
+    expect(p.items[1]).toEqual({
+      indice: 2,
+      ok: false,
+      mensaje: "No se puede dar el precio: Droga Sin Costo no tiene precio cargado en costos de proveedor.",
+    });
+    expect(p.total).toBe("30");
+    expect(p.totalCompleto).toBe(false);
+  });
+
+  it("several drogas without costo in the same item: message lists them in plural", async () => {
+    const itemVariasSinCosto = {
+      formaFarmaceutica: "CREMA",
+      cantidadUnidades: 1,
+      fraccionDosisPorUnidad: "1",
+      cantidadTotal: null,
+      unidadTotalId: null,
+      componentes: [
+        { drogaId: D_SIN_PRECIO_1, cantidad: "10", unidadMedidaId: U_G, modoExpresion: "TOTAL", esPrincipioActivo: true },
+        { drogaId: D_SIN_PRECIO_2, cantidad: "5", unidadMedidaId: U_G, modoExpresion: "TOTAL", esPrincipioActivo: true },
+      ],
+    };
+    const p = await presupuestar([itemVariasSinCosto]);
+    if (!p.ok) throw new Error(p.mensaje);
+    expect(p.items[0]).toEqual({
+      indice: 1,
+      ok: false,
+      mensaje: "No se puede dar el precio: Droga Sin Costo, Droga Tambien Sin Costo no tienen precio cargado en costos de proveedor.",
+    });
   });
 
   it("writes nothing: no ficha, no cotización (INV-R02)", async () => {

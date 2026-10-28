@@ -130,7 +130,7 @@ describe("calcularCotizacion -- línea con costo de proveedor (R25, R28; CP12)",
 });
 
 describe("calcularCotizacion -- sin costo de proveedor (R27, CP13)", () => {
-  it("`null` and absent costoProveedor give the same result as before the feature: fuente PARTIDAS, partidas blend, faltante, esIncompleta", () => {
+  it("`null` and absent costoProveedor give no price: drogasSinPrecio, subtotal 0, no fuente, partidas empty, esIncompleta false", () => {
     const partidas = [partida({ id: "P1", cantidadDisponible: "4", costoUnitario: "5" })];
     const base = linea({ cantidadAPesar: "10" });
 
@@ -138,40 +138,35 @@ describe("calcularCotizacion -- sin costo de proveedor (R27, CP13)", () => {
     const nulo = calcularCotizacion([{ ...base, costoProveedor: null }], () => partidas, HOY, margenUnico("0"));
 
     expect(nulo).toEqual(ausente);
-    expect(ausente.costoInsumos.toString()).toBe("20"); // 4 g x 5
-    expect(ausente.esIncompleta).toBe(true);
+    expect(ausente.costoInsumos.toString()).toBe("0");
+    expect(ausente.esIncompleta).toBe(false);
+    expect(ausente.drogasSinPrecio).toEqual(["Droga 1"]);
     expect(ausente.detalle.lineas[0]).toMatchObject({
-      fuente: "PARTIDAS",
-      partidas: [{ partidaId: "P1", cantidad: "4", costoUnitario: "5", subtotal: "20" }],
+      partidas: [],
+      subtotal: "0",
       faltante: "6",
     });
+    expect(ausente.detalle.lineas[0]!.fuente).toBeUndefined();
     expect(ausente.detalle.lineas[0]!.costoProveedor).toBeUndefined();
   });
 });
 
-describe("calcularCotizacion -- item with mixed fuentes (CP15, R31)", () => {
-  it("costoInsumos is the sum of both sources and the tramo is chosen ONCE on that sum", () => {
+describe("calcularCotizacion -- item with mixed drogas (CP15, R27, R31)", () => {
+  it("mixed item (one droga with costo, one without): drogasSinPrecio lists the unpriced droga, partidas never cost the missing one", () => {
     const lineas = [
-      linea({ drogaId: "A", drogaNombre: "A", orden: 0, cantidadAPesar: "10", costoProveedor: costo() }), // PROVEEDOR: 10 x 5 = 50
-      linea({ drogaId: "B", drogaNombre: "B", orden: 1, cantidadAPesar: "10" }), // PARTIDAS: 10 x 2 = 20
+      linea({ drogaId: "A", drogaNombre: "Droga A", orden: 0, cantidadAPesar: "10", costoProveedor: costo({ costoUnitario: "5" }) }),
+      linea({ drogaId: "B", drogaNombre: "Droga B", orden: 1, cantidadAPesar: "10", costoProveedor: null }),
     ];
     const partidas: Record<string, PartidaCosteo[]> = { B: [partida({ id: "PB", cantidadDisponible: "100", costoUnitario: "2" })] };
-    // 50 and 20 alone are in the 100% tramo; their sum (70) falls in the 50% one.
-    const reglas: ReglasPrecio = {
-      precioMinimo: "0",
-      tramos: [
-        { costoHasta: "60", margen: "100" },
-        { costoHasta: null, margen: "50" },
-      ],
-    };
 
-    const resultado = calcularCotizacion(lineas, (id) => partidas[id] ?? [], HOY, reglas);
+    const resultado = calcularCotizacion(lineas, (id) => partidas[id] ?? [], HOY, margenUnico("0"));
 
-    expect(resultado.costoInsumos.toString()).toBe("70");
-    expect(resultado.tramoAplicado).toBe(1);
-    expect(resultado.margenAplicado.toString()).toBe("50");
-    expect(resultado.precioFinal.toString()).toBe("105");
-    expect(resultado.detalle.lineas.map((l) => l.fuente)).toEqual(["PROVEEDOR", "PARTIDAS"]);
+    expect(resultado.drogasSinPrecio).toEqual(["Droga B"]);
+    expect(resultado.costoInsumos.toString()).toBe("50");
+    expect(resultado.detalle.lineas[0]!.fuente).toBe("PROVEEDOR");
+    expect(resultado.detalle.lineas[1]!.fuente).toBeUndefined();
+    expect(resultado.detalle.lineas[1]!.partidas).toEqual([]);
+    expect(resultado.detalle.lineas[1]!.subtotal).toBe("0");
     expect(resultado.esIncompleta).toBe(false);
   });
 
@@ -184,13 +179,17 @@ describe("calcularCotizacion -- item with mixed fuentes (CP15, R31)", () => {
     expect(resultado.precioFinal.toString()).toBe("500");
   });
 
-  it("a PARTIDAS línea short of stock still makes the item incomplete next to a PROVEEDOR one (R28)", () => {
-    const lineas = [linea({ drogaId: "A", orden: 0, costoProveedor: costo() }), linea({ drogaId: "B", orden: 1, cantidadAPesar: "10" })];
+  it("droga without costo de proveedor short of stock: reports informational faltante, esIncompleta is false (R28)", () => {
+    const lineas = [
+      linea({ drogaId: "A", drogaNombre: "A", orden: 0, costoProveedor: costo() }),
+      linea({ drogaId: "B", drogaNombre: "B", orden: 1, cantidadAPesar: "10", costoProveedor: null }),
+    ];
     const resultado = calcularCotizacion(lineas, () => [], HOY, margenUnico("0"));
 
-    expect(resultado.esIncompleta).toBe(true);
-    expect(resultado.detalle.lineas[0]!.faltante).toBe("10"); // informational
-    expect(resultado.detalle.lineas[1]!.faltante).toBe("10"); // the one that makes it incomplete
+    expect(resultado.esIncompleta).toBe(false);
+    expect(resultado.drogasSinPrecio).toEqual(["B"]);
+    expect(resultado.detalle.lineas[0]!.faltante).toBe("10");
+    expect(resultado.detalle.lineas[1]!.faltante).toBe("10");
   });
 
   it("the detalle (with the snapshot of the costo) survives a JSON round trip: it is stored as jsonb", () => {
@@ -201,7 +200,7 @@ describe("calcularCotizacion -- item with mixed fuentes (CP15, R31)", () => {
 
 describe("calcularCotizacionesAcumuladas -- presupuesto with costos de proveedor (R30)", () => {
   const A = (cantidad = "10") => linea({ drogaId: "A", drogaNombre: "A", orden: 0, cantidadAPesar: cantidad, costoProveedor: costo() });
-  const B = (cantidad = "10") => linea({ drogaId: "B", drogaNombre: "B", orden: 1, cantidadAPesar: cantidad });
+  const B = (cantidad = "10") => linea({ drogaId: "B", drogaNombre: "B", orden: 1, cantidadAPesar: cantidad, costoProveedor: null });
 
   it("a PROVEEDOR línea costs the same in every item, but still consumes simulated stock so the next item's faltante is right", () => {
     const partidas: Record<string, PartidaCosteo[]> = { A: [partida({ id: "PA", cantidadDisponible: "15", costoUnitario: "1" })] };
@@ -215,20 +214,42 @@ describe("calcularCotizacionesAcumuladas -- presupuesto with costos de proveedor
     expect(segundo!.esIncompleta).toBe(false);
   });
 
-  it("a PARTIDAS línea next to a PROVEEDOR one keeps today's cumulative behaviour: second item runs short and is incomplete", () => {
+  it("every línea, priced or not, consumes stock in the cumulative simulation so later items see the remainder", () => {
     const partidas: Record<string, PartidaCosteo[]> = {
       A: [partida({ id: "PA", cantidadDisponible: "100", costoUnitario: "1" })],
       B: [partida({ id: "PB", cantidadDisponible: "15", costoUnitario: "2" })],
     };
     const [primero, segundo] = calcularCotizacionesAcumuladas([[A(), B()], [A(), B()]], (id) => partidas[id] ?? [], HOY, margenUnico("0"));
 
-    expect(primero!.costoInsumos.toString()).toBe("70"); // A: 10 x 5 (proveedor) + B: 10 x 2 (partidas)
+    expect(primero!.costoInsumos.toString()).toBe("50");
+    expect(primero!.drogasSinPrecio).toEqual(["B"]);
     expect(primero!.esIncompleta).toBe(false);
-    expect(segundo!.costoInsumos.toString()).toBe("60"); // A: 50 (whole) + B: only 5 left x 2
-    expect(segundo!.esIncompleta).toBe(true);
+
+    expect(segundo!.costoInsumos.toString()).toBe("50");
+    expect(segundo!.drogasSinPrecio).toEqual(["B"]);
+    expect(segundo!.esIncompleta).toBe(false);
+
     expect(segundo!.detalle.lineas.map((l) => [l.fuente, l.faltante])).toEqual([
       ["PROVEEDOR", null],
-      ["PARTIDAS", "5"],
+      [undefined, "5"],
+    ]);
+  });
+
+  it("when both drogas have costo de proveedor, both items are priced and the second reports the simulated faltante without esIncompleta", () => {
+    const BConCosto = (cantidad = "10") => linea({ drogaId: "B", drogaNombre: "B", orden: 1, cantidadAPesar: cantidad, costoProveedor: costo({ costoUnitario: "2" }) });
+    const partidas: Record<string, PartidaCosteo[]> = {
+      A: [partida({ id: "PA", cantidadDisponible: "100", costoUnitario: "1" })],
+      B: [partida({ id: "PB", cantidadDisponible: "15", costoUnitario: "2" })],
+    };
+    const [primero, segundo] = calcularCotizacionesAcumuladas([[A(), BConCosto()], [A(), BConCosto()]], (id) => partidas[id] ?? [], HOY, margenUnico("0"));
+
+    expect(primero!.costoInsumos.toString()).toBe("70"); // 10*5 + 10*2
+    expect(primero!.esIncompleta).toBe(false);
+    expect(segundo!.costoInsumos.toString()).toBe("70"); // whole quantity costed at proveedor cost
+    expect(segundo!.esIncompleta).toBe(false);
+    expect(segundo!.detalle.lineas.map((l) => [l.fuente, l.faltante])).toEqual([
+      ["PROVEEDOR", null],
+      ["PROVEEDOR", "5"],
     ]);
   });
 

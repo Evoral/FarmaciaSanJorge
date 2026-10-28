@@ -5,10 +5,9 @@
  * tramos -- domain/regla-precio.ts).
  *
  * Also loads, once per call, the costo de proveedor of each droga
- * (`costosProveedorParaCotizar`, read-only): a línea whose droga has one is
- * costed with it, any other from partidas (openspec/specs/costos-proveedor/spec.md,
- * R25-R27). The choice itself lives in the pure domain. And the tenant's
- * alícuota de IVA, which a línea costed from partidas gets (R7a, R27).
+ * (`costosProveedorParaCotizar`, read-only): it is the ONLY price source; a
+ * droga without one has no price (openspec/specs/costos-proveedor/spec.md,
+ * R25-R27). The partidas only feed the stock faltante.
  *
  * Shared by `cotizaciones.calcular` (`cotizarLineas`: a saved item's latest
  * ficha, persisted as a cotización) and `recetas.presupuestar`
@@ -20,9 +19,9 @@
  */
 import type { Prisma } from "@/generated/prisma/client";
 import { DomainError } from "@/shared/errors";
-import { calcularCotizacion, calcularCotizacionesAcumuladas } from "../domain/calcular-cotizacion";
+import { calcularCotizacion, calcularCotizacionesAcumuladas, mensajeSinCostoProveedor } from "../domain/calcular-cotizacion";
 import type { CostoProveedorCosteo, CotizacionCalculada, LineaCosteoInput, PartidaCosteo } from "../domain/calcular-cotizacion";
-import { alicuotaIvaParaCotizar, costosProveedorParaCotizar } from "@/modules/costos-proveedor/application/costos-proveedor-para-cotizar";
+import { costosProveedorParaCotizar } from "@/modules/costos-proveedor/application/costos-proveedor-para-cotizar";
 import type { ReglasPrecio } from "../domain/regla-precio";
 import { getPartidasElegiblesDeDroga, getUnidadesBaseDeDrogas, jornadaActualTenant } from "../infrastructure/cotizacion-repository";
 import { getReglaVigente } from "../infrastructure/regla-precio-repository";
@@ -35,7 +34,7 @@ export async function cargarReglaPrecioVigente(tx: Prisma.TransactionClient, ten
   return getReglaVigente(tx, tenantId);
 }
 
-export type CodigoCotizacionNoCalculable = "SIN_REGLA_PRECIO" | "SIN_FICHA";
+export type CodigoCotizacionNoCalculable = "SIN_REGLA_PRECIO" | "SIN_FICHA" | "SIN_COSTO_PROVEEDOR";
 
 /** Why a cotización cannot be calculated: the same Spanish message as always, plus a stable code. */
 export class CotizacionNoCalculableError extends DomainError {
@@ -53,25 +52,26 @@ export type LineaACostear = Omit<LineaCosteoInput, "unidadStock">;
 /**
  * Each línea with its droga's unidad base (`unidadStock`): partidas and their costo unitario are in it, the línea is
  * in its magnitud's base unit. A droga that is not found keeps the línea's own unit (it has no partidas either).
- * Plus its costo de proveedor and the tenant's alícuota de IVA for partidas (R7a).
+ * Plus its costo de proveedor.
  */
 async function conUnidadStock(
   tx: Prisma.TransactionClient,
   tenantId: string,
   lineas: readonly LineaACostear[],
   costosProveedor: ReadonlyMap<string, CostoProveedorCosteo>,
-  alicuotaIvaPartidas: string,
 ): Promise<LineaCosteoInput[]> {
   const unidades = await getUnidadesBaseDeDrogas(tx, tenantId, [...new Set(lineas.map((l) => l.drogaId))]);
   return lineas.map((l) => ({
     ...l,
     unidadStock: unidades.get(l.drogaId) ?? l.unidad,
     costoProveedor: costosProveedor.get(l.drogaId) ?? null,
-    alicuotaIvaPartidas,
   }));
 }
 
-/** Costs ONE item's `lineas` against the full current stock and prices it with `reglas` (the persisted per-item cotización). */
+/**
+ * Costs ONE item's `lineas` against the full current stock and prices it with `reglas` (the persisted per-item
+ * cotización). Throws `SIN_COSTO_PROVEEDOR` when some droga has no costo de proveedor (R27): no price is stored.
+ */
 export async function cotizarLineas(
   tx: Prisma.TransactionClient,
   tenantId: string,
@@ -83,8 +83,11 @@ export async function cotizarLineas(
   const drogaIds = [...new Set(lineas.filter((l) => !l.esEnraseManual).map((l) => l.drogaId))];
   for (const drogaId of drogaIds) partidas.set(drogaId, await getPartidasElegiblesDeDroga(tx, tenantId, drogaId));
   const costosProveedor = await costosProveedorParaCotizar(tx, tenantId, drogaIds);
-  const alicuotaIva = await alicuotaIvaParaCotizar(tx, tenantId);
-  return calcularCotizacion(await conUnidadStock(tx, tenantId, lineas, costosProveedor, alicuotaIva), (drogaId) => partidas.get(drogaId) ?? [], jornadaActual, reglas);
+  const cotizacion = calcularCotizacion(await conUnidadStock(tx, tenantId, lineas, costosProveedor), (drogaId) => partidas.get(drogaId) ?? [], jornadaActual, reglas);
+  if (cotizacion.drogasSinPrecio.length > 0) {
+    throw new CotizacionNoCalculableError("SIN_COSTO_PROVEEDOR", mensajeSinCostoProveedor(cotizacion.drogasSinPrecio));
+  }
+  return cotizacion;
 }
 
 /**
@@ -92,7 +95,9 @@ export async function cotizarLineas(
  * (`calcularCotizacionesAcumuladas`): used by the receta presupuesto so two
  * items needing the same droga cannot both look covered. Same reads as
  * `cotizarLineas`, each droga's partidas read once. Each item is still
- * priced on its OWN cost (tramo + floor per item).
+ * priced on its OWN cost (tramo + floor per item). An item with a droga
+ * without costo de proveedor comes back with `drogasSinPrecio`: the caller
+ * shows it without a price (R27).
  */
 export async function cotizarItemsAcumulado(
   tx: Prisma.TransactionClient,
@@ -105,8 +110,7 @@ export async function cotizarItemsAcumulado(
   const drogaIds = [...new Set(items.flatMap((lineas) => lineas.filter((l) => !l.esEnraseManual).map((l) => l.drogaId)))];
   for (const drogaId of drogaIds) partidas.set(drogaId, await getPartidasElegiblesDeDroga(tx, tenantId, drogaId));
   const costosProveedor = await costosProveedorParaCotizar(tx, tenantId, drogaIds);
-  const alicuotaIva = await alicuotaIvaParaCotizar(tx, tenantId);
   const itemsConUnidad: LineaCosteoInput[][] = [];
-  for (const lineas of items) itemsConUnidad.push(await conUnidadStock(tx, tenantId, lineas, costosProveedor, alicuotaIva));
+  for (const lineas of items) itemsConUnidad.push(await conUnidadStock(tx, tenantId, lineas, costosProveedor));
   return calcularCotizacionesAcumuladas(itemsConUnidad, (drogaId) => partidas.get(drogaId) ?? [], jornadaActual, reglas);
 }

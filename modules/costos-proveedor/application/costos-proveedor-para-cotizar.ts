@@ -10,7 +10,7 @@
  */
 import type { Prisma } from "@/generated/prisma/client";
 import { elegirCostoProveedor } from "../domain/costo-proveedor";
-import { getAlicuotaIvaPorDefecto, getCostosProveedorVigentesDeDrogas } from "../infrastructure/costo-proveedor-repository";
+import { getCostosProveedorVigentesDeDrogas } from "../infrastructure/costo-proveedor-repository";
 
 /** The chosen costo, with what the cotización computes with and keeps in its snapshot (R32). */
 export interface CostoProveedorParaCotizar {
@@ -31,17 +31,9 @@ export interface CostoProveedorParaCotizar {
 }
 
 /**
- * The tenant's `alicuota_iva_porcentaje` (R7a, defensive fallback to 21): the IVA a línea costed from partidas gets
- * (R27; a partida's cost is net of IVA). Read-only, inside the caller's transaction.
- */
-export async function alicuotaIvaParaCotizar(tx: Prisma.TransactionClient, tenantId: string): Promise<string> {
-  return getAlicuotaIvaPorDefecto(tx, tenantId);
-}
-
-/**
  * drogaId -> its usable costo de proveedor (R26: vigente, proveedor not de baja; the latest `fecha_precio` wins, a
- * tie goes to the latest `vigente_desde`). A droga with none is ABSENT from the map: the cotización then costs it
- * from partidas (R27). ONE query whatever the number of drogas.
+ * tie goes to the latest `vigente_desde`). A droga with none is ABSENT from the map: the cotización then has no
+ * price (R27). ONE query whatever the number of drogas.
  */
 export async function costosProveedorParaCotizar(
   tx: Prisma.TransactionClient,
