@@ -98,11 +98,11 @@ interface ItemState {
   componentes: ComponenteState[];
 }
 
-function nuevoComponente(): ComponenteState {
-  return { drogaId: "", drogaNombre: "", cantidad: "", unidadMedidaId: "", modoExpresion: "TOTAL" };
+function nuevoComponente(defaultUnidadMedidaId = ""): ComponenteState {
+  return { drogaId: "", drogaNombre: "", cantidad: "", unidadMedidaId: defaultUnidadMedidaId, modoExpresion: "POR_DOSIS" };
 }
 
-function nuevoItem(): ItemState {
+function nuevoItem(defaultUnidadMedidaId = ""): ItemState {
   return {
     descripcion: "",
     formaFarmaceutica: "CAPSULA",
@@ -113,7 +113,7 @@ function nuevoItem(): ItemState {
     observaciones: "",
     posologia: "",
     duracionTratamientoDias: "",
-    componentes: [nuevoComponente()],
+    componentes: [nuevoComponente(defaultUnidadMedidaId)],
   };
 }
 
@@ -363,7 +363,8 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   // Manual alta is always PRESENCIAL; an edit keeps the receta's own origen (domain/receta.ts's validarOrigenCargaManual);
   // an import is DIGITAL_PDF.
   const origen: OrigenReceta = importacion ? "DIGITAL_PDF" : (inicial?.origen ?? "PRESENCIAL");
-  const [items, setItems] = useState<ItemState[]>(() => (importacion ? itemsDesdeVistaPrevia(importacion) : (inicial?.items ?? [nuevoItem()])));
+  const unidadMgId = unidades.find((u) => u.simbolo.toLowerCase() === "mg")?.id ?? "";
+  const [items, setItems] = useState<ItemState[]>(() => (importacion ? itemsDesdeVistaPrevia(importacion) : (inicial?.items ?? [nuevoItem(unidadMgId)])));
   // `importar` mode: the people to create (only used when the preview found no existing one).
   const [pacienteNuevo, setPacienteNuevo] = useState(() => ({
     nombre: borrador?.paciente.nombre?.nombre ?? "",
@@ -428,7 +429,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   }
 
   function agregarItem() {
-    setItems((prev) => [...prev, nuevoItem()]);
+    setItems((prev) => [...prev, nuevoItem(unidadMgId)]);
   }
 
   function quitarItem(idx: number) {
@@ -436,7 +437,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   }
 
   function agregarComponente(itemIdx: number) {
-    setItems((prev) => prev.map((it, i) => (i === itemIdx ? { ...it, componentes: [...it.componentes, nuevoComponente()] } : it)));
+    setItems((prev) => prev.map((it, i) => (i === itemIdx ? { ...it, componentes: [...it.componentes, nuevoComponente(unidadMgId)] } : it)));
   }
 
   function quitarComponente(itemIdx: number, compIdx: number) {

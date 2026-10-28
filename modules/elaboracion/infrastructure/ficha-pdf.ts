@@ -18,7 +18,7 @@
  * again on a page of the measured height.
  */
 import { renderPdf } from "@/shared/pdf/pdf-document";
-import { equivalenciaGramosMg, formatCantidadExacta } from "@/shared/format/cantidad";
+import { cantidadesFichaTecnica, formatCantidadExacta } from "@/shared/format/cantidad";
 import type { FichaParaImprimir, LineaImprimir } from "./ficha-repository";
 
 const PUNTOS_POR_MM = 72 / 25.4;
@@ -45,14 +45,16 @@ const HOLGURA = 4;
 
 function textoCantidad(linea: LineaImprimir): string {
   if (linea.esEnraseManual) return "Enrase manual";
-  return linea.cantidadAPesar ? formatCantidadExacta(linea.cantidadAPesar, linea.unidadSimbolo) : "—";
+  if (!linea.cantidadAPesar) return "—";
+  const info = cantidadesFichaTecnica(linea.cantidadAPesar, linea.unidadSimbolo);
+  return info ? `${info.principal} ${info.simboloPrincipal}` : formatCantidadExacta(linea.cantidadAPesar, linea.unidadSimbolo);
 }
 
 /** "= 500 mg" under the cantidad when the línea is a mass in another unit (g / mg); `null` otherwise. */
 function textoEquivalencia(linea: LineaImprimir): string | null {
   if (linea.esEnraseManual || !linea.cantidadAPesar) return null;
-  const equivalencia = equivalenciaGramosMg(linea.cantidadAPesar, linea.unidadSimbolo);
-  return equivalencia ? `= ${equivalencia}` : null;
+  const info = cantidadesFichaTecnica(linea.cantidadAPesar, linea.unidadSimbolo);
+  return info?.equivalencia ?? null;
 }
 
 function separador(doc: PDFKit.PDFDocument, y: number): number {

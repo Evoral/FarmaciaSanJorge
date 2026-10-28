@@ -10,7 +10,7 @@
  */
 import { Fragment } from "react";
 import { Decimal } from "@/shared/decimal";
-import { equivalenciaGramosMg, formatNumero, formatStockEntero } from "@/shared/format/cantidad";
+import { cantidadesFichaTecnica, formatNumero, formatStockEntero } from "@/shared/format/cantidad";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import type { LineaDeFichaToma, PartidaParaPesar } from "../application/get-toma-receta";
 
@@ -60,10 +60,7 @@ export function LineasFichaTabla({ lineas }: { lineas: readonly LineaDeFichaToma
                 <td className="px-3 py-2 font-medium text-zinc-900">{linea.drogaNombre}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">
                   {linea.cantidadTeorica ? (
-                    <>
-                      {linea.cantidadTeorica} <span className="text-zinc-500">{linea.unidadSimbolo}</span>
-                      <Equivalencia valor={linea.cantidadTeorica} simbolo={linea.unidadSimbolo} />
-                    </>
+                    <CantidadFicha valor={linea.cantidadTeorica} simbolo={linea.unidadSimbolo} />
                   ) : (
                     <Vacio />
                   )}
@@ -74,8 +71,7 @@ export function LineasFichaTabla({ lineas }: { lineas: readonly LineaDeFichaToma
                     <span className="inline-block max-w-[12rem] font-sans font-normal text-zinc-500">Enrase manual (se registra al confirmar)</span>
                   ) : linea.cantidadAPesar ? (
                     <span className="whitespace-nowrap">
-                      {linea.cantidadAPesar} <span className="font-normal text-zinc-500">{linea.unidadSimbolo}</span>
-                      <Equivalencia valor={linea.cantidadAPesar} simbolo={linea.unidadSimbolo} />
+                      <CantidadFicha valor={linea.cantidadAPesar} simbolo={linea.unidadSimbolo} classNameSimbolo="font-normal text-zinc-500" />
                     </span>
                   ) : (
                     <Vacio />
@@ -137,8 +133,7 @@ function FilasPartidas({ linea, columnas }: { linea: LineaDeFichaToma; columnas:
               {p.potenciaDeclarada !== null ? <span className="font-mono text-zinc-700">{formatNumero(p.potenciaDeclarada)} %</span> : <span className="font-mono text-zinc-400">100 %</span>}
             </td>
             <td className={`whitespace-nowrap px-3 text-right font-mono font-medium text-zinc-900 tabular-nums ${padding}`}>
-              {formatNumero(p.cantidadAPesar)} <span className="font-normal text-zinc-500">{linea.unidadSimbolo}</span>
-              <Equivalencia valor={p.cantidadAPesar} simbolo={linea.unidadSimbolo} />
+              <CantidadFicha valor={p.cantidadAPesar} simbolo={linea.unidadSimbolo} classNameSimbolo="font-normal text-zinc-500" />
             </td>
           </tr>
         );
@@ -206,10 +201,35 @@ function LotesDisponibles({ partidas }: { partidas: readonly PartidaParaPesar[] 
   );
 }
 
+export function CantidadFicha({
+  valor,
+  simbolo,
+  classNameSimbolo = "text-zinc-500",
+}: {
+  valor: string;
+  simbolo: string;
+  classNameSimbolo?: string;
+}) {
+  const info = cantidadesFichaTecnica(valor, simbolo);
+  if (!info) {
+    return (
+      <>
+        {formatNumero(valor)} <span className={classNameSimbolo}>{simbolo}</span>
+      </>
+    );
+  }
+  return (
+    <>
+      {info.principal} <span className={classNameSimbolo}>{info.simboloPrincipal}</span>
+      {info.equivalencia ? <span className="block text-xs font-normal text-zinc-500">{info.equivalencia}</span> : null}
+    </>
+  );
+}
+
 /** The same mass in g / mg under the figure, when the línea is weighed by mass. */
 export function Equivalencia({ valor, simbolo }: { valor: string; simbolo: string }) {
-  const equivalencia = equivalenciaGramosMg(valor, simbolo);
-  return equivalencia ? <span className="block text-xs font-normal text-zinc-500">= {equivalencia}</span> : null;
+  const info = cantidadesFichaTecnica(valor, simbolo);
+  return info?.equivalencia ? <span className="block text-xs font-normal text-zinc-500">{info.equivalencia}</span> : null;
 }
 
 export function Vacio() {

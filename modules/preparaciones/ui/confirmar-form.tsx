@@ -121,7 +121,30 @@ export function lotesPorDefecto(linea: LineaPantalla, jornada: string): string[]
   return primera ? [primera.id] : [];
 }
 
-/** A non-manual línea's pesada real: the expected weight (línea unit), its balance-rounded prefill and, once typed, the tolerance check. */
+type UnidadDeLinea = LineaPantalla["unidad"];
+
+/** Línea unit -> mg for a mass (the pesada real is typed in mg); 1 otherwise. GRAMO is MASA's base (factor 1). */
+function factorAMg(unidad: UnidadDeLinea): Decimal {
+  return unidad.tipoMagnitud === "MASA" ? new Decimal(unidad.factorABase).times(1000) : new Decimal(1);
+}
+
+/** The typed pesada real (mg for a mass) back in the línea unit, as the server expects it. */
+export function cantidadRealParaServidor(valor: string | undefined, unidad: UnidadDeLinea): string {
+  if (!valor || valor.trim().length === 0) return "";
+  const d = cantidadValida(valor);
+  if (!d) return valor.trim();
+  return unidad.tipoMagnitud === "MASA" ? d.dividedBy(factorAMg(unidad)).toString() : valor.trim();
+}
+
+/** A saved pesada real (línea unit) as typed in the field (mg for a mass). */
+export function cantidadRealDesdeServidor(valor: Decimal | string | null | undefined, unidad: UnidadDeLinea): string {
+  if (valor === null || valor === undefined) return "";
+  const d = typeof valor === "string" ? cantidadValida(valor) : valor;
+  if (!d) return "";
+  return numeroParaInput(d.times(factorAMg(unidad)).toString());
+}
+
+/** A non-manual línea's pesada real: the expected weight (mg for a mass), its balance-rounded prefill and, once typed, the tolerance check. */
 export interface PesadaDeLinea {
   esperada: Decimal;
   sugerida: string;
@@ -130,12 +153,15 @@ export interface PesadaDeLinea {
 
 export function pesadaDeLinea(linea: LineaPantalla, plan: PlanDeLinea, real: string | undefined, datos: DatosConfirmacion): PesadaDeLinea | null {
   if (linea.esEnraseManual || plan === null || plan === "elegir" || !plan.ok) return null;
+  const factor = factorAMg(linea.unidad);
   const precision = precisionDeLinea(linea.unidad, datos.pesada.precisionBalanza);
-  const esperada = convertirCantidad(new Decimal(plan.totalFisico), linea.unidadStock, linea.unidad);
+  const precisionAjustada = precision ? precision.times(factor) : null;
+  const esperadaEnUnidad = convertirCantidad(new Decimal(plan.totalFisico), linea.unidadStock, linea.unidad);
+  const esperada = esperadaEnUnidad.times(factor);
   // Shown es-AR (comma decimals), like every typed number.
-  const sugerida = numeroParaInput(redondearABalanza(esperada, precision).toFixed());
+  const sugerida = numeroParaInput(redondearABalanza(esperadaEnUnidad, precision).times(factor).toFixed());
   const valor = cantidadValida(real ?? sugerida);
-  return { esperada, sugerida, evaluacion: valor ? evaluarPesada(valor, esperada, datos.pesada.toleranciaPorcentaje, precision) : null };
+  return { esperada, sugerida, evaluacion: valor ? evaluarPesada(valor, esperada, datos.pesada.toleranciaPorcentaje, precisionAjustada) : null };
 }
 
 export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActions }: ConfirmarPreparacionFormProps) {
@@ -157,7 +183,11 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
   );
   // The pesada real the user typed; a línea not typed shows the balance-rounded expected weight, which follows the lots.
   const [reales, setReales] = useState<Record<string, string>>(() =>
-    Object.fromEntries(datos.lineas.flatMap((l) => (l.reserva?.cantidadReal ? [[l.id, numeroParaInput(l.reserva.cantidadReal)]] : []))),
+    Object.fromEntries(
+      datos.lineas.flatMap((l) =>
+        l.reserva?.cantidadReal ? [[l.id, cantidadRealDesdeServidor(l.reserva.cantidadReal, l.unidad)]] : [],
+      ),
+    ),
   );
 
   // Stock amounts are DISPLAYED in a readable unit of the droga's chain (e.g. 999.999,55 mg -> 1.000 g, 2 decimals).
@@ -514,15 +544,16 @@ function PesadaReal({
 }) {
   const campoId = `cantidadReal_${linea.id}`;
   const evaluacion = pesada.evaluacion;
+  const esMasa = linea.unidad.tipoMagnitud === "MASA";
+  const simboloDisplay = esMasa ? "mg" : linea.unidadSimbolo;
   return (
     <div className="flex flex-col gap-2">
       <div className="field max-w-xs">
         <label htmlFor={campoId} className="field-label">
-          Pesada real ({linea.unidadSimbolo})
+          Pesada real ({simboloDisplay})
         </label>
         <input
           id={campoId}
-          name={campoId}
           type="text"
           inputMode="decimal"
           required
@@ -531,8 +562,9 @@ function PesadaReal({
           aria-describedby={`${campoId}_ayuda`}
           className="input font-mono"
         />
+        <input type="hidden" name={campoId} value={cantidadRealParaServidor(valor, linea.unidad)} />
         <p id={`${campoId}_ayuda`} className="field-help">
-          Esperada {formatNumero(pesada.esperada.toString())} {linea.unidadSimbolo}
+          Esperada {formatNumero(pesada.esperada.toString())} {simboloDisplay}
           {evaluacion ? ` · desvío ${evaluacion.desvioPorcentaje.greaterThan(0) ? "+" : ""}${formatNumero(evaluacion.desvioPorcentaje.toString())} %` : null}
           {` · tolerancia ±${formatNumero(tolerancia)} %`}
         </p>

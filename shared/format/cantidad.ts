@@ -153,6 +153,29 @@ export function equivalenciaGramosMg(valor: string, simbolo: string): string | n
   return partes.join(" · ");
 }
 
+export interface CantidadesFichaTecnica {
+  principal: string;
+  simboloPrincipal: string;
+  equivalencia: string | null;
+}
+
+/**
+ * Ficha técnica display: mass values are shown primarily in mg, with their equivalent in grams below
+ * ("= 0,36 g"). Non-mass values keep their original unit with no secondary equivalence.
+ */
+export function cantidadesFichaTecnica(valor: string, simbolo: string): CantidadesFichaTecnica | null {
+  const gramosPorUnidad = GRAMOS_POR_SIMBOLO[simbolo];
+  const numero = parse(valor);
+  if (gramosPorUnidad === undefined || numero === null) return null;
+  const gramos = numero.times(gramosPorUnidad);
+  const mg = gramos.times(1000);
+  return {
+    principal: formatNumero(mg),
+    simboloPrincipal: "mg",
+    equivalencia: `= ${formatNumero(gramos)} g`,
+  };
+}
+
 /** The mass (g) and volume (mL) chains by símbolo, largest unit first: what `formatStockEntero` may scale to. */
 const CADENAS_POR_SIMBOLO: readonly (readonly { simbolo: string; factor: string }[])[] = [
   [
