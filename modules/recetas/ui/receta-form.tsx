@@ -96,7 +96,17 @@ interface ItemState {
   posologia: string;
   duracionTratamientoDias: string;
   componentes: ComponenteState[];
+  /** UI only: the user typed the cantidad de unidades, so the duración no longer fills it (`crear` mode). */
+  cantidadUnidadesEditada?: boolean;
 }
+
+/** The unit noun the "Cantidad de ..." label reads for each countable forma; any other keeps "unidades". */
+const UNIDAD_POR_FORMA: Partial<Record<FormaFarmaceutica, string>> = {
+  CAPSULA: "cápsulas",
+  COMPRIMIDO: "comprimidos",
+  OVULO: "óvulos",
+  SUPOSITORIO: "supositorios",
+};
 
 function nuevoComponente(defaultUnidadMedidaId = ""): ComponenteState {
   return { drogaId: "", drogaNombre: "", cantidad: "", unidadMedidaId: defaultUnidadMedidaId, modoExpresion: "POR_DOSIS" };
@@ -956,7 +966,12 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                       min={1}
                       step={1}
                       value={item.duracionTratamientoDias}
-                      onChange={(e) => actualizarItem(itemIdx, { duracionTratamientoDias: e.target.value })}
+                      onChange={(e) => {
+                        const duracionTratamientoDias = e.target.value;
+                        // Manual alta: one cápsula/comprimido a day is the common case, so the duración fills the cantidad until the user types one.
+                        const autocompletar = mode === "crear" && esFormaCapsular(item.formaFarmaceutica) && !item.cantidadUnidadesEditada && duracionTratamientoDias.trim().length > 0;
+                        actualizarItem(itemIdx, autocompletar ? { duracionTratamientoDias, cantidadUnidades: duracionTratamientoDias } : { duracionTratamientoDias });
+                      }}
                       placeholder="Opcional"
                       aria-label="Duración del tratamiento (días)"
                       className="input"
@@ -965,9 +980,9 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
 
                   <div className="field">
                     <label htmlFor={`item-${itemIdx}-cu`} className="field-label">
-                      Cantidad de unidades
+                      Cantidad de {UNIDAD_POR_FORMA[item.formaFarmaceutica] ?? "unidades"}
                     </label>
-                    <input id={`item-${itemIdx}-cu`} type="number" min={1} step={1} value={item.cantidadUnidades} onChange={(e) => actualizarItem(itemIdx, { cantidadUnidades: e.target.value })} className="input" />
+                    <input id={`item-${itemIdx}-cu`} type="number" min={1} step={1} value={item.cantidadUnidades} onChange={(e) => actualizarItem(itemIdx, { cantidadUnidades: e.target.value, cantidadUnidadesEditada: true })} className="input" />
                   </div>
 
                   {esFormaCapsular(item.formaFarmaceutica) ? (
