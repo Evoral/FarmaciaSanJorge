@@ -19,7 +19,7 @@ Order matters: each block builds on the previous one. Design: `design.md`.
 
 ## 2. Configuration
 
-- [ ] 2.1 `GEMINI_API_KEY` and `GEMINI_MODEL` (optional, default `gemini-2.5-flash`) in `shared/env.ts` (blank → undefined), `.env.example` and `docs/deploy.md`.
+- [x] 2.1 `GEMINI_API_KEY` and `GEMINI_MODEL` (optional, default `gemini-2.5-flash`) in `shared/env.ts` (blank → undefined), `.env.example` and `docs/deploy.md`.
 
 ## 3. Domain (pure)
 

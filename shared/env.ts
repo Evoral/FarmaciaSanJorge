@@ -38,6 +38,14 @@ const envSchema = z.object({
   // `.min(1)`, throwing out of `getEnv()` and breaking every other env
   // read app-wide (`getEnv()` validates the WHOLE schema at once).
   CRON_SECRET: z.preprocess((value) => (typeof value === "string" && value.trim().length === 0 ? undefined : value), z.string().min(1).optional()),
+  // chat-ayuda (CA1): API key for Google Gemini. Optional -- it is a secret,
+  // never logged, server-only; when it is unset the help chat is hidden (CA1).
+  GEMINI_API_KEY: z.preprocess((value) => (typeof value === "string" && value.trim().length === 0 ? undefined : value), z.string().min(1).optional()),
+  // Lets the model change without a deploy of code.
+  GEMINI_MODEL: z.preprocess(
+    (value) => (typeof value === "string" ? (value.trim().length === 0 ? undefined : value.trim()) : undefined),
+    z.string().default("gemini-2.5-flash"),
+  ),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -68,6 +76,8 @@ export function getEnv(): Env {
     DATABASE_URL: process.env.DATABASE_URL,
     LOG_LEVEL: process.env.LOG_LEVEL,
     CRON_SECRET: process.env.CRON_SECRET,
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    GEMINI_MODEL: process.env.GEMINI_MODEL,
   });
 
   if (!parsed.success) {

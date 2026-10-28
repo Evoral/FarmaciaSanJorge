@@ -15,6 +15,8 @@ Fuente de verdad: `shared/env.ts` (validación con zod, la ÚNICA lectura direct
 | `CRON_SECRET` | Recomendada (opcional a nivel de código, pero sin ella el job nunca corre -- responde 503) | `app/api/jobs/plazos-archivo/route.ts` | Ver §5. Vercel puede generarla y setearla automáticamente al agregar el proyecto a Cron Jobs, o se genera a mano (≥16 caracteres aleatorios) y se pega en ambos lugares (env var + nada más -- Vercel la envía sola en el header `Authorization`). |
 | `FSJ_APP_DB_PASSWORD` | Solo para `db:bootstrap` | `scripts/db-bootstrap.ts` (setea el password de `fsj_app`) | NO debe vivir en el proyecto Vercel (no la usa el runtime). Usarla una vez desde una máquina/CI con acceso a `DIRECT_URL`, luego se puede quitar del entorno donde se corrió. |
 | `FSJ_DB_TESTS` | No | `tests/db/**` (`npm run test:db`) | Solo desarrollo/CI de tests contra BD real; no aplica a Vercel. |
+| `GEMINI_API_KEY` | No (opcional) | Chat de ayuda (`modules/ayuda`) | Sin esta clave el chat de ayuda queda oculto en toda la app (CA1). Server-only, nunca se loguea. Debe provenir de un proyecto Google Cloud con facturación activa (tier pago), cuota diaria y alertas de presupuesto (ver §2 y `openspec/changes/chat-ayuda/design.md` §Security). |
+| `GEMINI_MODEL` | No (default `gemini-2.5-flash`) | Chat de ayuda (`modules/ayuda`) | Permite cambiar el modelo de Gemini sin tocar código; en Vercel el cambio de una variable se aplica recién en el próximo deploy (Redeploy desde el dashboard). Si no se define o está en blanco, usa `gemini-2.5-flash`. |
 
 Ninguna de estas variables se loguea nunca (`shared/logging/logger.ts#REDACT_PATHS` redacta `DATABASE_URL`/`DIRECT_URL` como defensa en profundidad) ni se expone en `/api/health` (§6).
 
@@ -22,7 +24,8 @@ Ninguna de estas variables se loguea nunca (`shared/logging/logger.ts#REDACT_PAT
 
 1. Importar el repositorio (framework detectado: Next.js).
 2. **Settings → General → Root Directory**: raíz del repo (donde está `package.json`/`next.config.ts`).
-3. **Settings → Environment Variables**: cargar `DATABASE_URL`, `LOG_LEVEL` (opcional), `CRON_SECRET` para `Production` (y `Preview` si se usan previews contra una BD de verdad -- si no, dejar `Preview` sin `DATABASE_URL` para que esos builds fallen rápido en vez de pegarle a producción por error).
+3. **Settings → Environment Variables**: cargar `DATABASE_URL`, `LOG_LEVEL` (opcional), `CRON_SECRET`, y opcionalmente `GEMINI_API_KEY` y `GEMINI_MODEL` para `Production` (y `Preview` si se usan previews contra una BD de verdad -- si no, dejar `Preview` sin `DATABASE_URL` para que esos builds fallen rápido en vez de pegarle a producción por error).
+   - **Nota sobre `GEMINI_API_KEY`**: la clave debe provenir de un proyecto de Google Cloud con facturación habilitada (tier pago: los prompts y respuestas no se usan para entrenar modelos), una cuota diaria de requests como límite duro y alertas de presupuesto en Cloud Billing. Ver `openspec/changes/chat-ayuda/design.md` §Security para el detalle de términos y costos. Nunca escribir una API key real en archivos versionados ni logs.
 4. **Settings → Functions → Region** (o via `vercel.json`, ya versionado en el repo -- ver abajo): `gru1` (São Paulo).
 5. **Settings → Cron Jobs**: se activa solo con el archivo `vercel.json` del repo (§5) -- no hace falta configurar nada manualmente en el dashboard más que confirmar que aparece listado tras el primer deploy.
 6. Plan: **Vercel Hobby es para uso no comercial** (ver Términos de Vercel) -- una farmacia es un uso comercial, por lo que el proyecto necesita **plan Pro** (o superior) como mínimo.

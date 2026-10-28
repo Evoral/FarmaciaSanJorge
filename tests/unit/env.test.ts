@@ -95,4 +95,64 @@ describe("getEnv", () => {
     });
     expect(getEnv().CRON_SECRET).toBe("s3cr3t");
   });
+
+  it("treats an empty GEMINI_API_KEY the same as unset instead of throwing", () => {
+    setEnv({
+      DATABASE_URL: "postgresql://fsj_app.ref:pw@host:6543/postgres?pgbouncer=true",
+      DIRECT_URL: "postgresql://postgres:pw@host:5432/postgres",
+      GEMINI_API_KEY: "",
+    });
+    expect(() => getEnv()).not.toThrow();
+    expect(getEnv().GEMINI_API_KEY).toBeUndefined();
+  });
+
+  it("treats a whitespace-only GEMINI_API_KEY the same as unset instead of throwing", () => {
+    setEnv({
+      DATABASE_URL: "postgresql://fsj_app.ref:pw@host:6543/postgres?pgbouncer=true",
+      DIRECT_URL: "postgresql://postgres:pw@host:5432/postgres",
+      GEMINI_API_KEY: "   ",
+    });
+    expect(() => getEnv()).not.toThrow();
+    expect(getEnv().GEMINI_API_KEY).toBeUndefined();
+  });
+
+  it("keeps a real GEMINI_API_KEY value untouched", () => {
+    setEnv({
+      DATABASE_URL: "postgresql://fsj_app.ref:pw@host:6543/postgres?pgbouncer=true",
+      DIRECT_URL: "postgresql://postgres:pw@host:5432/postgres",
+      GEMINI_API_KEY: "AIzaSyFakeKey123",
+    });
+    expect(() => getEnv()).not.toThrow();
+    expect(getEnv().GEMINI_API_KEY).toBe("AIzaSyFakeKey123");
+  });
+
+  it("defaults GEMINI_MODEL to gemini-2.5-flash when unset", () => {
+    setEnv({
+      DATABASE_URL: "postgresql://fsj_app.ref:pw@host:6543/postgres?pgbouncer=true",
+      DIRECT_URL: "postgresql://postgres:pw@host:5432/postgres",
+      GEMINI_MODEL: undefined,
+    });
+    expect(() => getEnv()).not.toThrow();
+    expect(getEnv().GEMINI_MODEL).toBe("gemini-2.5-flash");
+  });
+
+  it("defaults GEMINI_MODEL to gemini-2.5-flash when empty or whitespace", () => {
+    setEnv({
+      DATABASE_URL: "postgresql://fsj_app.ref:pw@host:6543/postgres?pgbouncer=true",
+      DIRECT_URL: "postgresql://postgres:pw@host:5432/postgres",
+      GEMINI_MODEL: "   ",
+    });
+    expect(() => getEnv()).not.toThrow();
+    expect(getEnv().GEMINI_MODEL).toBe("gemini-2.5-flash");
+  });
+
+  it("keeps a custom GEMINI_MODEL trimmed", () => {
+    setEnv({
+      DATABASE_URL: "postgresql://fsj_app.ref:pw@host:6543/postgres?pgbouncer=true",
+      DIRECT_URL: "postgresql://postgres:pw@host:5432/postgres",
+      GEMINI_MODEL: "  gemini-2.5-pro  ",
+    });
+    expect(() => getEnv()).not.toThrow();
+    expect(getEnv().GEMINI_MODEL).toBe("gemini-2.5-pro");
+  });
 });
