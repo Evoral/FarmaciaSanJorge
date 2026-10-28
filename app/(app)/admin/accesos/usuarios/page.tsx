@@ -17,6 +17,7 @@ import { listUsuarios } from "@/modules/usuarios/application/list-usuarios";
 import { listRolesAsignables } from "@/modules/usuarios/application/list-roles-asignables";
 import { buscarUsuariosAction } from "@/modules/usuarios/ui/buscar-usuarios-action";
 import { ESTADO_USUARIO_LABELS } from "@/shared/labels/enum-labels";
+import { formatFechaHora } from "@/shared/format/fecha";
 import { FilterForm } from "@/shared/ui/filter-form";
 import { BuscadorNavegable } from "@/shared/ui/buscador-navegable";
 import { PageHeader } from "@/shared/ui/page-header";
@@ -243,7 +244,7 @@ export default async function UsuariosPage({ searchParams }: UsuariosPageProps) 
                           <StatusBadge estado={usuario.estado} />
                         </td>
                         <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono text-xs tabular-nums text-zinc-600 xl:table-cell">
-                          {usuario.ultimoAcceso ? new Date(usuario.ultimoAcceso).toLocaleString("es-AR") : <span className="font-sans text-zinc-400">Sin accesos</span>}
+                          {usuario.ultimoAcceso ? formatFechaHora(usuario.ultimoAcceso, result.zonaHoraria) :<span className="font-sans text-zinc-400">Sin accesos</span>}
                         </td>
                         <td className="px-3 py-2.5 text-right">
                           <Link href={`/admin/accesos/usuarios/${usuario.id}`} aria-label={`Ver a ${nombre}`} className="btn btn-ghost btn-sm btn-icon">
