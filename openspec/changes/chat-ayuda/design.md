@@ -7,7 +7,7 @@ Spec: `specs/chat-ayuda/spec.md` (CA1–CA14). Decisions and scope: `proposal.md
 The guide is **global** (same for every tenant, versioned with the code); authorization is **per tenant**
 (`session.permisos` comes from the tenant's custom roles). The request always runs inside a tenant session.
 
-One chat turn, orchestrated by the thin Server Action (`app/(app)/ayuda-actions.ts`):
+One chat turn, orchestrated by the thin Server Action (`modules/ayuda/ui/actions.ts` — moved from `app/(app)/ayuda-actions.ts` because the 22 existing modules keep their actions in `modules/<m>/ui/actions.ts`, and the chat UI in `modules/ayuda/ui/` must not import from `app/`):
 
 ```
 client: { conversacionId, pregunta, historial[≤6], foco?: entradaId }
@@ -47,9 +47,9 @@ modules/ayuda/
     gemini.server.ts                SDK (@google/genai pinned 2.10.0), timeout, structured output, `import "server-only"`
     consulta-ayuda-repository.ts    Prisma access to fsj.consulta_ayuda
   ui/
+    actions.ts                                  Server Actions (the 22 existing modules keep their actions in modules/<m>/ui/actions.ts, and modules/ayuda/ui/ must not import from app/)
     chat-ayuda.tsx, chat-ayuda-container.tsx    chat (presentational + client state)
 app/(app)/
-  ayuda-actions.ts          Server Actions
   app-shell.tsx             mounts the chat when can(session, "ayuda.consultar") && key configured
 ```
 

@@ -41,9 +41,9 @@ Order matters: each block builds on the previous one. Design: `design.md`.
 
 ## 6. Application and web
 
-- [ ] 6.1 Use cases listed in `design.md` §Module layout (commands skip audit with reason).
-- [ ] 6.2 Human labels for the new input fields in `shared/labels/field-labels.ts` (registry completeness test).
-- [ ] 6.3 `app/(app)/ayuda-actions.ts`: one turn = consult → register (also on error); rating action.
+- [x] 6.1 Use cases listed in `design.md` §Module layout (commands skip audit with reason).
+- [x] 6.2 Human labels for the new input fields in `shared/labels/field-labels.ts` (registry completeness test).
+- [x] 6.3 `modules/ayuda/ui/actions.ts`: one turn = consult → register (also on error); rating action (moved from `app/(app)/ayuda-actions.ts` because the 22 existing modules keep their actions in `modules/<m>/ui/actions.ts`, and the chat UI in `modules/ayuda/ui/` must not import from `app/`).
 - [ ] 6.4 Chat UI: history and focus in state, pending state, keep the typed question on error, plain-text answers, "Ir a" with `next/link`, CA4b card, "¿Te sirvió?".
 - [ ] 6.5 Mount the chat in `app/(app)/app-shell.tsx` only when `can(session, "ayuda.consultar")` and the key is configured.
 
