@@ -31,8 +31,8 @@ Order matters: each block builds on the previous one. Design: `design.md`.
 
 ## 4. Guide content
 
-- [ ] 4.1 Draft `guia-entradas.ts` from `openspec/specs/*` and `app/(app)/` routes (daily-use flows first).
-- [ ] 4.2 User reviews tone and steps.
+- [x] 4.1 Draft `guia-entradas.ts` from `openspec/specs/*` and `app/(app)/` routes (daily-use flows first).
+- [x] 4.2 User reviews tone and steps.
 
 ## 5. Infrastructure
 
