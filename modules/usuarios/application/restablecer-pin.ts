@@ -1,5 +1,5 @@
 /**
- * `restablecerPin` (docs/specs/restablecer-pin.md): the Administrador clears
+ * `restablecerPin` (openspec/specs/contrasena-temporal/spec.md): the Administrador clears
  * a usuario's PIN, e.g. because they forgot it. Only the PIN columns change
  * (hash, failed-attempt counter, block -- RP4): the password, the estado and
  * the roles stay, and no session is revoked (RP5). The PIN is mandatory, so

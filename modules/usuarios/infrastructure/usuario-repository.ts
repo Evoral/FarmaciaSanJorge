@@ -134,7 +134,7 @@ export interface UsuarioDetalle {
   /** Migration 0077: a cuenta de sector (shared session per work area). */
   esSector: boolean;
   roles: string[];
-  /** docs/specs/restablecer-pin.md: PIN state for the detail's "PIN" panel. Booleans only -- the hash never leaves this file. */
+  /** openspec/specs/contrasena-temporal/spec.md: PIN state for the detail's "PIN" panel. Booleans only -- the hash never leaves this file. */
   pinConfigurado: boolean;
   pinBloqueado: boolean;
   /** Every role is the locked ADMINISTRADOR (`esSoloAdministrador`): such a usuario has no PIN. */
@@ -256,7 +256,7 @@ export interface UsuarioParaRestablecerPin {
 }
 
 /**
- * What `restablecerPin` (docs/specs/restablecer-pin.md) needs about the
+ * What `restablecerPin` (openspec/specs/contrasena-temporal/spec.md) needs about the
  * target, read AFTER the caller locked the row (`lockUsuarioYAdministradoresActivos`).
  * `null` for a nonexistent usuario or the technical user, like `loadUsuarioParaAccion`.
  */
@@ -291,7 +291,7 @@ function datosPinLimpio(now: Date) {
 }
 
 /**
- * Clears the usuario's PIN (docs/specs/restablecer-pin.md, RP4). Touches
+ * Clears the usuario's PIN (openspec/specs/contrasena-temporal/spec.md, RP4). Touches
  * nothing else: password, `debe_cambiar_password`, estado and roles stay.
  * The "configurar-pin" step then follows by derivation (`derivarPasosPendientes`).
  */

@@ -54,7 +54,7 @@ export default async function UsuarioDetallePage({ params, searchParams }: Usuar
   const esUnoMismo = usuario.id === session.usuario.id;
   const nombre = `${usuario.apellido}, ${usuario.nombre}`;
   const puedeRestablecer = can(session, "usuarios.credencial.restablecer") && !esUnoMismo && usuario.estado !== "BAJA";
-  // docs/specs/restablecer-pin.md: cuentas de sector and admin-only usuarios have no PIN.
+  // openspec/specs/contrasena-temporal/spec.md: cuentas de sector and admin-only usuarios have no PIN.
   const muestraPin = puedeRestablecer && !usuario.esSector && !usuario.soloAdministrador;
   const estadoPin = !usuario.pinConfigurado ? "Sin configurar (se le pedirá al ingresar)" : usuario.pinBloqueado ? "Bloqueado por intentos fallidos" : "Configurado";
 

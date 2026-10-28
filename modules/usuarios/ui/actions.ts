@@ -103,7 +103,7 @@ export async function restablecerCredencialAction(_prevState: RestablecerCredenc
   }
 }
 
-/** docs/specs/restablecer-pin.md. Not an acción with PIN (`PERMISOS_CON_PIN_*`), so no `conOperador`. */
+/** openspec/specs/contrasena-temporal/spec.md. Not an acción with PIN (`PERMISOS_CON_PIN_*`), so no `conOperador`. */
 export async function restablecerPinAction(_prevState: UsuarioActionState, formData: FormData): Promise<UsuarioActionState> {
   try {
     await restablecerPin({ usuarioId: String(formData.get("usuarioId") ?? "") });

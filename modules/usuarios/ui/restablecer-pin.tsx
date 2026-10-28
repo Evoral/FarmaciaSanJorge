@@ -2,7 +2,7 @@
 
 /**
  * `/admin/accesos/usuarios/[id]` "Restablecer PIN" action
- * (docs/specs/restablecer-pin.md). Two steps like Suspender / Dar de baja
+ * (openspec/specs/contrasena-temporal/spec.md). Two steps like Suspender / Dar de baja
  * (`CollapsibleActionCard` + confirm), without a motivo. On success the card
  * collapses, a toast confirms it and `ReauthAwareForm`'s `router.refresh()`
  * turns the panel's state into "Sin configurar".

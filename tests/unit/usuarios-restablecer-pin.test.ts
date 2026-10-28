@@ -1,5 +1,5 @@
 /**
- * Unit tests for `restablecerPin` (docs/specs/restablecer-pin.md): stubbed tx,
+ * Unit tests for `restablecerPin` (openspec/specs/contrasena-temporal/spec.md): stubbed tx,
  * mocked repository, same style as tests/unit/contrasena-temporal-restablecer.test.ts.
  *
  *   RP2: not on yourself, rejected before any lock or write.
