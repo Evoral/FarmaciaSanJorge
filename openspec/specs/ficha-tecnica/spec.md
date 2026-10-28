@@ -3,7 +3,7 @@
 ## Purpose
 
 Cómo se generan las líneas de pesaje (`LineaPesaje`) de una ficha técnica a partir de un ítem de receta y sus
-componentes: cantidad teórica, conversión de unidades, exceso, redondeo a la balanza, enrase manual y validaciones.
+componentes: cantidad teórica, conversión de unidades, exceso, enrase manual y validaciones.
 
 > Fuente: definición del usuario (DP-06c, 2026-09-21). Fuente de verdad para el punto 7.1 del plan.
 > Las notas marcadas **[ACLARACIÓN]** son deducciones de consistencia entre reglas y casos de prueba; no agregan requisitos nuevos.
@@ -27,11 +27,11 @@ NOT leer ni escribir base de datos.
 
 Todo cálculo SHALL usar numeric/decimal de precisión fija. Float MUST NOT usarse en ningún paso (prohibido).
 
-#### Scenario: Exceso y redondeo sin float
+#### Scenario: Exceso sin float
 
-- **GIVEN** exceso 5 % y precisión 0.01
+- **GIVEN** exceso 5 %
 - **WHEN** se calcula un componente TOTAL 1.234 GRAMO
-- **THEN** la cantidad con exceso es exactamente 1.2957 y la cantidad a pesar 1.30
+- **THEN** la cantidad a pesar es exactamente 1.2957
 
 ### Requirement: Fracción de dosis por unidad
 
@@ -100,27 +100,27 @@ orden de los componentes (cantidad, CS, CSP; luego nombre de droga).
 
 ### Requirement: Parámetros de pesaje
 
-Los `ParametrosPesaje` SHALL ser por tenant, en `parametro`: `precisionBalanza` con default 0.001 (en GRAMO) y
-`excesoPesadaPorcentaje` con default 0.
+Los `ParametrosPesaje` SHALL ser por tenant, en `parametro`: `excesoPesadaPorcentaje` con default 0.
+`precisionBalanza` no interviene en la ficha (R8): la usa la pesada real (`openspec/specs/pesada-real/spec.md`).
 
 #### Scenario: Tenant con los valores por defecto
 
 - **GIVEN** un tenant que no cambió los parámetros de pesaje
 - **WHEN** se calcula una ficha
-- **THEN** usa precisión 0.001 g y exceso 0 %
+- **THEN** usa exceso 0 %
 
 ### Requirement: Línea de pesaje de salida
 
-Cada `LineaPesaje` de salida SHALL llevar `drogaId`; `cantidadTeorica` (Decimal | null), antes de exceso y
-redondeo; `excesoAplicado`, el porcentaje aplicado; `cantidadAPesar` (Decimal | null), redondeada a la balanza;
+Cada `LineaPesaje` de salida SHALL llevar `drogaId`; `cantidadTeorica` (Decimal | null), antes del exceso;
+`excesoAplicado`, el porcentaje aplicado; `cantidadAPesar` (Decimal | null), el activo con exceso, sin redondear;
 `unidadMedida`, la unidad base de la magnitud; `esEnraseManual` (true = la cantidad la registra el farmacéutico al
 preparar); y `orden`.
 
 #### Scenario: Línea de T6
 
-- **GIVEN** exceso 5 % y precisión 0.01
+- **GIVEN** exceso 5 %
 - **WHEN** se calcula un componente TOTAL 1.234 GRAMO
-- **THEN** la línea tiene `cantidadTeorica` 1.234, `excesoAplicado` 5, `cantidadAPesar` 1.30 y `unidadMedida` GRAMO
+- **THEN** la línea tiene `cantidadTeorica` 1.234, `excesoAplicado` 5, `cantidadAPesar` 1.2957 y `unidadMedida` GRAMO
 
 ### Requirement: R1 — TOTAL
 
@@ -210,11 +210,11 @@ R6:** los componentes CS se excluyen tanto de la resta de R3 como de la comproba
 
 Sobre toda línea no manual SHALL aplicarse `cantidadConExceso = cantidadTeorica × (1 + excesoPesadaPorcentaje / 100)`.
 
-#### Scenario: T6 — Exceso y redondeo
+#### Scenario: T6 — Exceso
 
-- **GIVEN** exceso 5 %, precisión 0.01
+- **GIVEN** exceso 5 %
 - **WHEN** se calcula un componente TOTAL 1.234 GRAMO
-- **THEN** teórica 1.234 · con exceso 1.2957 · a pesar 1.30
+- **THEN** teórica 1.234 · a pesar 1.2957
 
 #### Scenario: Línea manual
 
@@ -224,18 +224,20 @@ Sobre toda línea no manual SHALL aplicarse `cantidadConExceso = cantidadTeorica
 
 ### Requirement: R8 — Redondeo
 
-`cantidadAPesar` SHALL ser `cantidadConExceso` redondeada a múltiplo de `precisionBalanza`, modo half-up. El
-cálculo de R3 usa `cantidadTeorica` de los activos, no la cantidad redondeada.
+`cantidadAPesar` SHALL ser `cantidadConExceso` sin redondear: es el principio activo requerido. Lo que se pesa es el
+peso físico de cada partida (activo × 100 / potencia), y la pesada real lo redondea a `precisionBalanza`. El cálculo
+de R3 usa `cantidadTeorica` de los activos.
 
-#### Scenario: Redondeo de T6
+#### Scenario: Dosis menor que la precisión de la balanza
 
-- **GIVEN** precisión 0.01
-- **WHEN** la cantidad con exceso es 1.2957
-- **THEN** la cantidad a pesar es 1.30
+- **GIVEN** precisión 0.001 g y una cápsula con 0,15 mg POR_DOSIS de una droga
+- **WHEN** se calcula la ficha
+- **THEN** la cantidad a pesar es 0.00015 g, no 0
+- **AND** con una partida al 0,1 % la pesada real espera 0,150 g físicos
 
-#### Scenario: CSP con un activo redondeado
+#### Scenario: CSP con un activo con exceso
 
-- **GIVEN** una crema cuyo activo TOTAL tiene una `cantidadAPesar` distinta de su `cantidadTeorica` por el exceso o el redondeo
+- **GIVEN** una crema cuyo activo TOTAL tiene una `cantidadAPesar` distinta de su `cantidadTeorica` por el exceso
 - **WHEN** R3 calcula el CSP
 - **THEN** resta la `cantidadTeorica` del activo, no su `cantidadAPesar`
 
@@ -503,7 +505,7 @@ la cantidad registrada al confirmar (> 0). The consumption (`movimiento_stock`) 
 ### Requirement: No hacer
 
 El cálculo MUST NOT: calcular el CSP de cápsulas por diferencia de peso; restar mg de un sólido a ml de un vehículo;
-usar la cantidad redondeada de los activos para calcular el CSP; recalcular líneas existentes leyendo el maestro;
+usar la cantidad con exceso de los activos para calcular el CSP; redondear el activo a la balanza; recalcular líneas existentes leyendo el maestro;
 permitir que el usuario edite `cantidadAPesar` de una línea no manual; usar float en ningún paso.
 
 #### Scenario: CSP de cápsulas
@@ -571,7 +573,6 @@ CSP        cantidad suficiente para completar cantidadTotal ("vaselina csp 30")
 
 | Campo | Default |
 |---|---|
-| precisionBalanza | 0.001 (en GRAMO) |
 | excesoPesadaPorcentaje | 0 |
 
 ### LineaPesaje (salida)
@@ -579,9 +580,9 @@ CSP        cantidad suficiente para completar cantidadTotal ("vaselina csp 30")
 | Campo | Tipo | Nota |
 |---|---|---|
 | drogaId | UUID | |
-| cantidadTeorica | Decimal \| null | antes de exceso y redondeo |
+| cantidadTeorica | Decimal \| null | antes del exceso |
 | excesoAplicado | Decimal | porcentaje aplicado |
-| cantidadAPesar | Decimal \| null | redondeada a la balanza |
+| cantidadAPesar | Decimal \| null | activo con exceso, sin redondear (R8) |
 | unidadMedida | UnidadMedida | unidad base de la magnitud |
 | esEnraseManual | Boolean | true = la cantidad la registra el farmacéutico al preparar |
 | orden | Integer | posición de la línea: la de su componente según la regla de orden de arriba |
@@ -615,11 +616,8 @@ Las validaciones V1, V2 y V4–V9 son los requirements de igual ID. V3 ya no exi
 
 - No calcular el CSP de cápsulas por diferencia de peso.
 - No restar mg de un sólido a ml de un vehículo.
-- No usar la cantidad redondeada de los activos para calcular el CSP.
+- No usar la cantidad con exceso de los activos para calcular el CSP.
+- No redondear el activo a la balanza: se redondea el peso físico en la pesada real.
 - No recalcular líneas existentes leyendo el maestro.
 - No permitir que el usuario edite `cantidadAPesar` de una línea no manual.
 - No usar float en ningún paso.
-
-## Pendiente de confirmar
-
-- **Redondeo en volumen y unidades.** `precisionBalanza` está definida en GRAMO. No hay regla para redondear una línea no manual de magnitud VOLUMEN (ej. glicerina 10 ml TOTAL) o UNIDADES.

@@ -167,26 +167,20 @@ export async function getDrogasParaBorrador(
 }
 
 /**
- * `precision_balanza` / `exceso_pesada_porcentaje` (openspec/specs/ficha-tecnica/spec.md
+ * `exceso_pesada_porcentaje` (openspec/specs/ficha-tecnica/spec.md
  * "ParametrosPesaje"), per tenant (`fsj.parametro`, migration 0012 backfills
- * both for every existing tenant and `scripts/create-tenant.ts` seeds them
- * for new ones). Falls back to the spec's own defaults (0.001 / 0) if a row
+ * it for every existing tenant and `scripts/create-tenant.ts` seeds it
+ * for new ones). Falls back to the spec's own default (0) if the row
  * is somehow missing, rather than hard-failing generation over a
- * configuration gap the spec already gives a default for.
+ * configuration gap the spec already gives a default for. `precision_balanza`
+ * is not read here: the ficha does not round (R8), the pesada real does.
  */
-export async function getParametrosPesaje(
-  tx: Prisma.TransactionClient,
-  tenantId: string,
-): Promise<{ precisionBalanza: string; excesoPesadaPorcentaje: string }> {
-  const rows = await tx.parametro.findMany({
-    where: { tenantId, clave: { in: ["precision_balanza", "exceso_pesada_porcentaje"] } },
-    select: { clave: true, valor: true },
+export async function getParametrosPesaje(tx: Prisma.TransactionClient, tenantId: string): Promise<{ excesoPesadaPorcentaje: string }> {
+  const row = await tx.parametro.findFirst({
+    where: { tenantId, clave: "exceso_pesada_porcentaje" },
+    select: { valor: true },
   });
-  const porClave = new Map(rows.map((r) => [r.clave, r.valor]));
-  return {
-    precisionBalanza: porClave.get("precision_balanza") ?? "0.001",
-    excesoPesadaPorcentaje: porClave.get("exceso_pesada_porcentaje") ?? "0",
-  };
+  return { excesoPesadaPorcentaje: row?.valor ?? "0" };
 }
 
 // ============================================================================

@@ -68,8 +68,9 @@ function parseDecimalOrNull(valorRaw: string): Decimal | null {
 }
 
 /**
- * `precision_balanza` (openspec/specs/ficha-tecnica/spec.md R8: "cantidadAPesar =
- * cantidadConExceso redondeada a múltiplo de precisionBalanza"). Must be >
+ * `precision_balanza` (openspec/specs/pesada-real/spec.md: the expected PHYSICAL
+ * weight of a línea is rounded to it on the balance; the ficha itself does not
+ * round, openspec/specs/ficha-tecnica/spec.md R8). Must be >
  * 0 AND one of the exhaustive allowed set {0.1, 0.01, 0.001} -- per task
  * instruction ("such as 0.1, 0.01 o 0.001", treated as the exhaustive
  * allowed set; openspec/specs/ficha-tecnica/spec.md documents only the DEFAULT
