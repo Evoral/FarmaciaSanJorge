@@ -7,6 +7,7 @@ import { suspenderUsuario } from "@/modules/usuarios/application/suspender-usuar
 import { reactivarUsuario } from "@/modules/usuarios/application/reactivar-usuario";
 import { darDeBajaUsuario } from "@/modules/usuarios/application/dar-de-baja-usuario";
 import { restablecerCredencial } from "@/modules/usuarios/application/restablecer-credencial";
+import { restablecerPin } from "@/modules/usuarios/application/restablecer-pin";
 import { StepUpRequiredError } from "@/shared/errors";
 import { actionError } from "@/shared/ui/action-error";
 import type { UsuarioActionState } from "@/modules/usuarios/ui/action-state";
@@ -97,5 +98,15 @@ export async function restablecerCredencialAction(_prevState: RestablecerCredenc
     return { status: "success", message: "Contraseña temporal asignada. Se cerraron sus sesiones y tendrá que cambiarla al ingresar." };
   } catch (error) {
     return actionError(error, "No se pudo asignar la contraseña temporal.");
+  }
+}
+
+/** docs/specs/restablecer-pin.md. Not an acción with PIN (`PERMISOS_CON_PIN_*`), so no `conOperador`. */
+export async function restablecerPinAction(_prevState: UsuarioActionState, formData: FormData): Promise<UsuarioActionState> {
+  try {
+    await restablecerPin({ usuarioId: String(formData.get("usuarioId") ?? "") });
+    return { status: "success", message: "PIN restablecido." };
+  } catch (error) {
+    return fromError(error, "No se pudo restablecer el PIN.");
   }
 }

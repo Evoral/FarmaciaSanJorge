@@ -14,6 +14,7 @@
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { EstadoUsuario as PrismaEstadoUsuario } from "@/generated/prisma/enums";
+import { esSoloAdministrador } from "@/modules/auth/domain/pasos-pendientes";
 
 // ============================================================================
 // Listing / detail (3.1, 3.7)
@@ -133,6 +134,11 @@ export interface UsuarioDetalle {
   /** Migration 0077: a cuenta de sector (shared session per work area). */
   esSector: boolean;
   roles: string[];
+  /** docs/specs/restablecer-pin.md: PIN state for the detail's "PIN" panel. Booleans only -- the hash never leaves this file. */
+  pinConfigurado: boolean;
+  pinBloqueado: boolean;
+  /** Every role is the locked ADMINISTRADOR (`esSoloAdministrador`): such a usuario has no PIN. */
+  soloAdministrador: boolean;
 }
 
 /**
@@ -160,7 +166,9 @@ export async function getUsuarioDetalle(tx: Prisma.TransactionClient, tenantId: 
       motivoBaja: true,
       esTecnico: true,
       esSector: true,
-      rolesAsignados: { select: { rol: { select: { codigo: true } } } },
+      pinHash: true,
+      pinBloqueado: true,
+      rolesAsignados: { select: { rol: { select: { codigo: true, esAdministrador: true } } } },
     },
   });
   if (!row || row.esTecnico) return null;
@@ -179,6 +187,9 @@ export async function getUsuarioDetalle(tx: Prisma.TransactionClient, tenantId: 
     motivoBaja: row.motivoBaja,
     esSector: row.esSector,
     roles: row.rolesAsignados.map((asignacion) => asignacion.rol.codigo),
+    pinConfigurado: row.pinHash !== null,
+    pinBloqueado: row.pinBloqueado,
+    soloAdministrador: esSoloAdministrador(row.rolesAsignados.map((asignacion) => asignacion.rol)),
   };
 }
 
@@ -229,6 +240,60 @@ export async function loadUsuarioParaAccion(tx: Prisma.TransactionClient, tenant
     numeroMatricula: row.numeroMatricula,
     roles: row.rolesAsignados.map((asignacion) => asignacion.rol.codigo),
   };
+}
+
+export interface UsuarioParaRestablecerPin {
+  id: string;
+  estado: PrismaEstadoUsuario;
+  esSector: boolean;
+  soloAdministrador: boolean;
+  /** Whether a PIN is set -- never the hash itself. */
+  tienePin: boolean;
+  pinBloqueado: boolean;
+}
+
+/**
+ * What `restablecerPin` (docs/specs/restablecer-pin.md) needs about the
+ * target, read AFTER the caller locked the row (`lockUsuarioYAdministradoresActivos`).
+ * `null` for a nonexistent usuario or the technical user, like `loadUsuarioParaAccion`.
+ */
+export async function loadUsuarioParaRestablecerPin(tx: Prisma.TransactionClient, tenantId: string, usuarioId: string): Promise<UsuarioParaRestablecerPin | null> {
+  const row = await tx.usuario.findUnique({
+    where: { id: usuarioId, tenantId },
+    select: {
+      id: true,
+      estado: true,
+      esTecnico: true,
+      esSector: true,
+      pinHash: true,
+      pinBloqueado: true,
+      rolesAsignados: { select: { rol: { select: { esAdministrador: true } } } },
+    },
+  });
+  if (!row || row.esTecnico) return null;
+
+  return {
+    id: row.id,
+    estado: row.estado,
+    esSector: row.esSector,
+    soloAdministrador: esSoloAdministrador(row.rolesAsignados.map((asignacion) => asignacion.rol)),
+    tienePin: row.pinHash !== null,
+    pinBloqueado: row.pinBloqueado,
+  };
+}
+
+/** The columns that clear a PIN: no hash, counter and block reset. Shared by `limpiarPin` and `cambiarEstadoUsuario`. */
+function datosPinLimpio(now: Date) {
+  return { pinHash: null, pinIntentosFallidos: 0, pinBloqueado: false, pinActualizadoEn: now };
+}
+
+/**
+ * Clears the usuario's PIN (docs/specs/restablecer-pin.md, RP4). Touches
+ * nothing else: password, `debe_cambiar_password`, estado and roles stay.
+ * The "configurar-pin" step then follows by derivation (`derivarPasosPendientes`).
+ */
+export async function limpiarPin(tx: Prisma.TransactionClient, usuarioId: string, now: Date): Promise<void> {
+  await tx.usuario.update({ where: { id: usuarioId }, data: datosPinLimpio(now) });
 }
 
 // ============================================================================
@@ -418,9 +483,7 @@ export async function cambiarEstadoUsuario(tx: Prisma.TransactionClient, input: 
     data: {
       estado: input.estadoNuevo,
       ...(input.bajaColumns ? { fechaBaja: input.bajaColumns.fechaBaja, motivoBaja: input.bajaColumns.motivoBaja } : {}),
-      ...(input.estadoNuevo !== "ACTIVO"
-        ? { pinHash: null, pinIntentosFallidos: 0, pinBloqueado: false, pinActualizadoEn: input.now }
-        : {}),
+      ...(input.estadoNuevo !== "ACTIVO" ? datosPinLimpio(input.now) : {}),
     },
   });
 

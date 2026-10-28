@@ -20,6 +20,7 @@ import { RolesForm } from "@/modules/usuarios/ui/roles-form";
 import { listRolesAsignables } from "@/modules/usuarios/application/list-roles-asignables";
 import { EstadoAcciones } from "@/modules/usuarios/ui/estado-acciones";
 import { RestablecerCredencial } from "@/modules/usuarios/ui/restablecer-credencial";
+import { RestablecerPin } from "@/modules/usuarios/ui/restablecer-pin";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
@@ -52,6 +53,9 @@ export default async function UsuarioDetallePage({ params, searchParams }: Usuar
   const esUnoMismo = usuario.id === session.usuario.id;
   const nombre = `${usuario.apellido}, ${usuario.nombre}`;
   const puedeRestablecer = can(session, "usuarios.credencial.restablecer") && !esUnoMismo && usuario.estado !== "BAJA";
+  // docs/specs/restablecer-pin.md: cuentas de sector and admin-only usuarios have no PIN.
+  const muestraPin = puedeRestablecer && !usuario.esSector && !usuario.soloAdministrador;
+  const estadoPin = !usuario.pinConfigurado ? "Sin configurar (se le pedirá al ingresar)" : usuario.pinBloqueado ? "Bloqueado por intentos fallidos" : "Configurado";
 
   return (
     <>
@@ -116,6 +120,20 @@ export default async function UsuarioDetallePage({ params, searchParams }: Usuar
                 <div className="panel-body">
                   <RestablecerCredencial usuarioId={usuario.id} />
                 </div>
+              </section>
+            ) : null}
+
+            {muestraPin ? (
+              <section className="panel" aria-labelledby="pin-heading">
+                <div className="panel-header">
+                  <h2 id="pin-heading">PIN</h2>
+                  <p>{estadoPin}</p>
+                </div>
+                {usuario.pinConfigurado ? (
+                  <div className="panel-body">
+                    <RestablecerPin usuarioId={usuario.id} />
+                  </div>
+                ) : null}
               </section>
             ) : null}
           </aside>

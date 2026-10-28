@@ -21,7 +21,7 @@ const AYUDA_PERMISO: Readonly<Record<PermisoAsignable, string>> = {
   "usuarios.suspender": "Bloquear temporalmente el acceso de un usuario sin darlo de baja.",
   "usuarios.reactivar": "Devolverle el acceso a un usuario suspendido.",
   "usuarios.baja": "Dar de baja definitiva a un usuario. Su historial se conserva.",
-  "usuarios.credencial.restablecer": "Generar un nuevo código de activación para que el usuario vuelva a entrar (por ejemplo, si olvidó la contraseña).",
+  "usuarios.credencial.restablecer": "Asignar una contraseña temporal nueva (por ejemplo, si el usuario olvidó la contraseña) o borrar su PIN para que configure uno nuevo al ingresar.",
   "usuarios.auditoria.ver": "Ver el historial de cambios hechos sobre los usuarios: altas, bajas, cambios de roles.",
   "dt.designar": "Nombrar al Director Técnico de la farmacia.",
   "dt.cesar": "Terminar la designación del Director Técnico actual.",
