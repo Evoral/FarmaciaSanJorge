@@ -7,8 +7,9 @@
  *   - the lot of every línea: a selector with the droga's eligible partidas in consumption order (abiertas first,
  *     then FEFO), the oldest preselected (`lotesPorDefecto`); with partidas of different purity each option shows it.
  *     When the chosen lot does not cover the línea, "Agregar otro lote" adds another: the chosen lots are drained in
- *     consumption order whatever the order they were picked in (the server's `repartirPesadaReal`). A lot whose purity
- *     changes the weight shows what to weigh from it in the "A pesar" column;
+ *     consumption order whatever the order they were picked in (the server's `repartirPesadaReal`). "A pesar" is the
+ *     PHYSICAL weight over the chosen lots (purity-corrected, rounded to the balance; the active is the "Teórica"
+ *     next to it); split over several lots, each lot's row shows its own share;
  *   - "Cantidad real pesada": what the balance showed (prefilled with the expected weight rounded to the balance,
  *     following the lots until typed; deviation and tolerance under it), or an enrase manual línea's quantity;
  *   - the INV-S18 motivo, only when asked;
@@ -41,7 +42,7 @@ import { estadoVencimientoPartida } from "@/modules/stock/domain/vencimiento-par
 import type { DatosConfirmacion, LineaPantalla } from "../application/datos-confirmacion";
 import type { LineaDeFichaToma } from "../application/get-toma-receta";
 import { precisionDeLinea, redondearABalanza } from "../domain/pesada-real";
-import { cantidadRealDesdeServidor, cantidadRealParaServidor, cantidadValida, factorAMg, lotesPorDefecto, pesadaDeLinea, planDeLinea, type PesadaDeLinea, type PlanDeLinea } from "./confirmar-form";
+import { cantidadRealDesdeServidor, cantidadRealParaServidor, cantidadValida, lotesPorDefecto, pesadaDeLinea, planDeLinea, type PesadaDeLinea, type PlanDeLinea } from "./confirmar-form";
 import { CantidadFicha, LotesVencidos, Vacio, conExceso } from "./lineas-ficha-tabla";
 import { guardarBorradorPesadaAction, guardarExcipienteBorradorAction, reservarStockAction } from "./actions";
 import { IDLE_STATE } from "./action-state";
@@ -329,9 +330,12 @@ function FilasLinea({
   const sinStock = plan !== null && plan !== "elegir" && !plan.ok;
   const libres = partidas.filter((p) => !lotes.includes(p.id));
   const precision = precisionDeLinea(linea.unidad, datos.pesada.precisionBalanza);
-  // What to weigh from each lot (línea unit): only worth a column when it is not simply the línea's "A pesar".
-  const partes = plan !== null && plan !== "elegir" && plan.ok ? plan.partes : [];
-  const mostrarPartes = !linea.esEnraseManual && partes.length > 0 && (partes.length > 1 || (pesada !== null && linea.cantidadAPesar !== null && !pesada.esperada.equals(new Decimal(linea.cantidadAPesar).times(factorAMg(linea.unidad)))));
+  const planOk = plan !== null && plan !== "elegir" && plan.ok ? plan : null;
+  const partes = planOk ? planOk.partes : [];
+  // "A pesar": the physical weight over the chosen lots, rounded to the balance; the ficha's active only while no lot covers the línea.
+  const aPesar = planOk ? redondearABalanza(convertirCantidad(new Decimal(planOk.totalFisico), linea.unidadStock, linea.unidad), precision).toFixed() : linea.cantidadAPesar;
+  // What to weigh from each lot: only when the línea is split over several, otherwise it is "A pesar" itself.
+  const mostrarPartes = !linea.esEnraseManual && partes.length > 1;
   const vencidas = (ficha?.partidas ?? []).filter((p) => p.vencida);
   const motivoId = `motivoApertura_${linea.id}`;
   // Every row of the línea but its last drops the row border: one visual group.
@@ -352,9 +356,9 @@ function FilasLinea({
         <td className="px-3 py-2 text-right font-mono font-semibold text-zinc-900 tabular-nums">
           {linea.esEnraseManual ? (
             <span className="inline-block max-w-[12rem] font-sans font-normal text-zinc-500">Enrase manual</span>
-          ) : linea.cantidadAPesar ? (
+          ) : aPesar ? (
             <span className="whitespace-nowrap">
-              <CantidadFicha valor={linea.cantidadAPesar} simbolo={linea.unidadSimbolo} classNameSimbolo="font-normal text-zinc-500" />
+              <CantidadFicha valor={aPesar} simbolo={linea.unidadSimbolo} classNameSimbolo="font-normal text-zinc-500" />
             </span>
           ) : (
             <Vacio />

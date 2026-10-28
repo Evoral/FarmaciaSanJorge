@@ -271,7 +271,8 @@ option: lote and stock disponible (whole numbers, largest unit); plus the purity
 
 In the P8 lot selector, "Agregar otro lote" SHALL add another lot when the chosen ones do not cover the línea (or
 to split on purpose); the chosen lots are drained in consumption order whatever the order they were picked in
-(P1/P4). A lot whose purity changes the weight shows what to weigh from it in the "A pesar" column.
+(P1/P4). "A pesar" shows the physical weight over the chosen lots (purity-corrected, rounded to the balance);
+split over several lots, each lot's row shows its own share.
 
 #### Scenario: Lots picked out of order
 
@@ -281,8 +282,9 @@ to split on purpose); the chosen lots are drained in consumption order whatever 
 
 #### Scenario: Lot with a different purity
 
-- **WHEN** a chosen lot's purity changes the weight
-- **THEN** the "A pesar" column shows what to weigh from it
+- **GIVEN** 4,5 mg of active and one chosen lot at 0,1 %
+- **WHEN** the línea is shown
+- **THEN** "A pesar" shows one figure, 4.500 mg, and the lot's row shows none
 
 ### Requirement: P9 — Cantidad real pesada column
 
