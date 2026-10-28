@@ -36,8 +36,8 @@ Order matters: each block builds on the previous one. Design: `design.md`.
 
 ## 5. Infrastructure
 
-- [ ] 5.1 `npm install --save-exact @google/genai@2.10.0`; `gemini.server.ts` uses the SDK, `server-only`, model from env, thinking level `low`, timeout, per-request enum schema, zod re-parse, typed error.
-- [ ] 5.2 `consulta-ayuda-repository.ts`: insert and own-row rating update.
+- [x] 5.1 `npm install --save-exact @google/genai@2.10.0`; `gemini.server.ts` uses the SDK, `server-only`, model from env, thinking level `low`, timeout, per-request enum schema, zod re-parse, typed error.
+- [x] 5.2 `consulta-ayuda-repository.ts`: insert and own-row rating update.
 
 ## 6. Application and web
 
