@@ -1,5 +1,5 @@
 /**
- * DB tests for prisma/migrations/20261012090000_0074_reanalisis_partida (docs/specs/reanalisis-partida.md).
+ * DB tests for prisma/migrations/20261012090000_0074_reanalisis_partida (openspec/specs/reanalisis-partida/spec.md).
  *
  * Covers:
  * - INSERT partida copies fecha_vencimiento into fecha_vencimiento_vigente (client value ignored)

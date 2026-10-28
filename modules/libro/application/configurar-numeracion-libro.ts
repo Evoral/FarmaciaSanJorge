@@ -1,7 +1,7 @@
 /**
  * `configurarNumeracionLibro` -- the DT sets the first number of a libro (recetario or contralor) from
  * `/libro/numeracion`: 1 to start from scratch, or the next number of the physical book to continue it (migration
- * 0097, INV-L26, docs/specs/libro-recetario-y-contralor.md "Numeración inicial").
+ * 0097, INV-L26, openspec/specs/libro-recetario-y-contralor/spec.md "Numeración inicial").
  *
  * Allowed until the first signed cierre covering the libro's asientos fixes it. Asientos already registered are
  * renumbered by the difference and their hash chain recomputed in the DB (`fsj.libro_configurar_numeracion`), which
@@ -41,6 +41,9 @@ export const configurarNumeracionLibroCommand = defineCommand({
     const libro = (await listNumeracionLibros(tx, session.tenantId)).find((l) => l.libroId === input.libroId);
     if (!libro) throw new DomainError("El libro no existe o ya está cerrado.");
     if (libro.fijadaEnJornada !== null) throw new DomainError(mensajeParaInvarianteNumeracion("INV-L26"));
+    if (libro.contralorManual) {
+      throw new DomainError("Los libros contralor se llevan en forma manual: esta farmacia no activó el contralor digital, así que no hay numeración que configurar.");
+    }
     if (libro.tieneReanclaje) {
       throw new DomainError("Este libro tiene un reanclaje de la cadena registrado: su numeración ya no se puede cambiar. Contactá a soporte.");
     }

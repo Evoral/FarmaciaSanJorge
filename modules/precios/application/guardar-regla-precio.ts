@@ -2,7 +2,7 @@
  * `guardarReglaPrecio` (M08, FASE 4 point 4.6, DP-09 RESUELTA). ADM, DT
  * (plan §7: `precios.reglas.editar`). Saves a new version of the price
  * rule set: precio mínimo + margin tramos by cost (2026-10-01 rule,
- * docs/specs/reglas-precio.md). The input is validated by the pure
+ * openspec/specs/reglas-precio/spec.md). The input is validated by the pure
  * `validarReglasPrecio` (the DB re-checks the tramo set at COMMIT,
  * INV-PR-002 -- migration 0052).
  *

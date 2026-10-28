@@ -1,7 +1,7 @@
 /**
  * `crearMedicoDesdeReceta`: the médico quick-create of the receta flow
  * (modules/recetas/ui/medico-picker.tsx, and the PDF import's confirmation
- * later on). docs/specs/importacion-receta-pdf.md "Permisos":
+ * later on). openspec/specs/importacion-receta-pdf/spec.md "Permisos":
  * `recetas.crear` allows creating médicos INSIDE the receta flow, without
  * `medicos.gestionar`; editing and baja/reactivación stay on
  * `medicos.gestionar` (editar-medico.ts, dar-de-baja-medico.ts,

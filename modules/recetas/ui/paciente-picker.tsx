@@ -77,30 +77,33 @@ function CrearPaciente({ prefill, onCreado, onCancel }: { prefill: string; onCre
     <>
       <DetachedForm id={formId} ref={crearFormRef} action={crearAction} onSubmit={onSubmit} aria-label="Crear paciente" />
       <p className="mb-3 text-sm font-medium text-zinc-900">Nuevo paciente</p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="field">
-          <label htmlFor="paciente-nombre" className="field-label">
-            Nombre
-          </label>
-          <input id="paciente-nombre" name="nombre" required form={formId} autoFocus={apellido !== ""} className="input" />
-        </div>
-        <div className="field">
-          <label htmlFor="paciente-apellido" className="field-label">
-            Apellido
-          </label>
-          <input id="paciente-apellido" name="apellido" required form={formId} defaultValue={apellido} className="input" />
-        </div>
-        <div className="field">
-          <label htmlFor="paciente-dni" className="field-label">
-            DNI (opcional)
-          </label>
-          <input id="paciente-dni" name="dni" inputMode="numeric" form={formId} defaultValue={numero} className="input" />
-        </div>
-        <div className="field">
-          <label htmlFor="paciente-telefono" className="field-label">
-            Teléfono (opcional)
-          </label>
-          <input id="paciente-telefono" name="telefono" type="tel" form={formId} autoComplete="off" className="input" />
+      {/* Container query: the picker lives in narrow columns, so viewport breakpoints over-split it. */}
+      <div className="@container">
+        <div className="grid gap-3 @sm:grid-cols-2">
+          <div className="field">
+            <label htmlFor="paciente-nombre" className="field-label">
+              Nombre
+            </label>
+            <input id="paciente-nombre" name="nombre" required form={formId} autoFocus={apellido !== ""} className="input" />
+          </div>
+          <div className="field">
+            <label htmlFor="paciente-apellido" className="field-label">
+              Apellido
+            </label>
+            <input id="paciente-apellido" name="apellido" required form={formId} defaultValue={apellido} className="input" />
+          </div>
+          <div className="field">
+            <label htmlFor="paciente-dni" className="field-label">
+              DNI (opcional)
+            </label>
+            <input id="paciente-dni" name="dni" inputMode="numeric" form={formId} defaultValue={numero} className="input" />
+          </div>
+          <div className="field">
+            <label htmlFor="paciente-telefono" className="field-label">
+              Teléfono (opcional)
+            </label>
+            <input id="paciente-telefono" name="telefono" type="tel" form={formId} autoComplete="off" className="input" />
+          </div>
         </div>
       </div>
       {crearState.status === "error" ? (

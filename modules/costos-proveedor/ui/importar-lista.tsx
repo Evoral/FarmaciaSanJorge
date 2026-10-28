@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Importar lista" (/costos-proveedor/importar, docs/specs/costos-proveedor.md R13): two steps in one screen.
+ * "Importar lista" (/costos-proveedor/importar, openspec/specs/costos-proveedor/spec.md R13): two steps in one screen.
  *
  *   1. proveedor (autocomplete), fecha de la lista and the .xls or .xlsx file. Reading starts as soon as a file is picked
  *      (same interaction as the invoice import, modules/stock/ui/importar-factura-pdf.tsx): the file is sent to
@@ -36,6 +36,8 @@ export interface ImportarListaProps {
   jornadaActual: string;
   /** Units for the "Nuevo insumo" alta of a "sin asociar" row; `null` without `drogas.crear`. */
   unidadesAltaDroga: UnidadOpcion[] | null;
+  /** For that alta: the contralor digital is activo. */
+  contralorActivo?: boolean;
 }
 
 /** Starting over remounts the step (a fresh `useActionState`, no stale error). */
@@ -44,7 +46,7 @@ export function ImportarLista(props: ImportarListaProps) {
   return <ImportarListaPaso key={intento} {...props} onReiniciar={() => setIntento((n) => n + 1)} />;
 }
 
-function ImportarListaPaso({ proveedores, drogas, unidades, jornadaActual, unidadesAltaDroga, onReiniciar }: ImportarListaProps & { onReiniciar: () => void }) {
+function ImportarListaPaso({ proveedores, drogas, unidades, jornadaActual, unidadesAltaDroga, contralorActivo, onReiniciar }: ImportarListaProps & { onReiniciar: () => void }) {
   const router = useRouter();
   const [state, formAction, isPending] = useActionState(leerListaPreciosAction, IDLE_LEER_LISTA_STATE);
   const { onSubmit } = useFormSubmit(formAction);
@@ -156,6 +158,7 @@ function ImportarListaPaso({ proveedores, drogas, unidades, jornadaActual, unida
 
         <ImportarListaForm key={`${vista.hashSha256}|${vista.hoja}`} vista={vista} drogas={drogas} unidades={unidades}
           unidadesAltaDroga={unidadesAltaDroga}
+          contralorActivo={contralorActivo}
           onImportada={() => router.push("/costos-proveedor/listas")}
         />
       </div>

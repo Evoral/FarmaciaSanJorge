@@ -1,5 +1,5 @@
 /**
- * Authorization matrix test for modules/costos-proveedor (docs/specs/costos-proveedor.md R35, R36, CP19):
+ * Authorization matrix test for modules/costos-proveedor (openspec/specs/costos-proveedor/spec.md R35, R36, CP19):
  *   - consulting the vigentes, the history and the imported lists: `stock.valorizado.ver` (ADMINISTRADOR, DIRECTOR_TECNICO, FARMACEUTICO);
  *   - registering costos by hand, reading and importing a supplier list, and dando de baja: `costos.proveedor.gestionar`
  *     (categoría `gestion`: ADMINISTRADOR holds it by default; any other role only through the role editor).

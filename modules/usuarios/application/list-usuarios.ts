@@ -30,7 +30,7 @@ export const listUsuariosQuery = defineQuery({
   permiso: "usuarios.listar",
   input: listUsuariosInput,
   handler: async ({ tx, session, input }) => {
-    return listUsuariosRepo(tx, {
+    const result = await listUsuariosRepo(tx, {
       tenantId: session.tenantId,
       search: input.search,
       estado: input.estado,
@@ -38,9 +38,12 @@ export const listUsuariosQuery = defineQuery({
       page: input.page,
       pageSize: input.pageSize,
     });
+    const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: session.tenantId }, select: { zonaHoraria: true } });
+    return { ...result, zonaHoraria: tenant.zonaHoraria };
   },
 });
 
-export async function listUsuarios(input: ListUsuariosInput): Promise<ListUsuariosResult> {
+/** `zonaHoraria`: the tenant's time zone, so `ultimoAcceso` is shown in pharmacy time, not the server's (UTC on Vercel). */
+export async function listUsuarios(input: ListUsuariosInput): Promise<ListUsuariosResult & { zonaHoraria: string }> {
   return listUsuariosQuery.execute(input);
 }

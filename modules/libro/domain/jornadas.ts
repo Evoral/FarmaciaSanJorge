@@ -1,5 +1,5 @@
 /**
- * The libro recetario seen per day (`/libro/dias`, docs/specs/libro-recetario-y-contralor.md, "Libro por día"): only
+ * The libro recetario seen per day (`/libro/dias`, openspec/specs/libro-recetario-y-contralor/spec.md, "Libro por día"): only
  * days with at least one asiento are listed -- a day without recetas (weekend, holiday, nobody came) is not a debt.
  * A listed day owes its firma when it is over and still has a VIGENTE asiento without cierre (DP-18d, the same rule
  * as the /cierres pending list).

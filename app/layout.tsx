@@ -15,8 +15,8 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Farmacia San Jorge",
-  description: "Laboratorio magistral — Farmacia San Jorge",
+  title: "Farmacia Magistral",
+  description: "Farmacia Magistral",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

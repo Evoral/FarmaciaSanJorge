@@ -1,8 +1,10 @@
 /**
  * `getDatosTenant` (FASE 3 point 3.10a): returns the FULL institutional
- * record of the current session's tenant -- including the 4 non-editable
- * fields (cuit, zonaHoraria, fechaBaja, fechaActivacionContralor) -- so the
+ * record of the current session's tenant -- including the non-editable
+ * fields (zonaHoraria, fechaBaja, fechaActivacionContralor) -- so the
  * UI can show them read-only with an explanation instead of hiding them.
+ * `cuitEditable` tells the UI whether the CUIT is still editable (no cierre
+ * diario signed yet, openspec/specs/cuit-farmacia/spec.md).
  * Gated on `config.ver`, which migration 0046 (user decision 2026-09-28)
  * narrowed to ADMINISTRADOR only -- it was granted to all five roles by
  * migration 0002. Other flows that need tenant fields (labels, jornada /
@@ -12,10 +14,12 @@
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { NotFoundError } from "@/shared/errors";
-import { getTenantDetalle } from "../infrastructure/tenant-repository";
+import { getTenantDetalle, tenantTieneCierreDiario } from "../infrastructure/tenant-repository";
 import type { TenantDetalle } from "../infrastructure/tenant-repository";
 
 const getDatosTenantInput = z.object({});
+
+export type DatosTenant = TenantDetalle & { cuitEditable: boolean };
 
 export const getDatosTenantQuery = defineQuery({
   name: "farmacia.getDatosTenant",
@@ -29,10 +33,10 @@ export const getDatosTenantQuery = defineQuery({
       // defense-in-depth check beats returning `null` silently.
       throw new NotFoundError("No se encontró la farmacia.");
     }
-    return tenant;
+    return { ...tenant, cuitEditable: !(await tenantTieneCierreDiario(tx, session.tenantId)) };
   },
 });
 
-export async function getDatosTenant(): Promise<TenantDetalle> {
+export async function getDatosTenant(): Promise<DatosTenant> {
   return getDatosTenantQuery.execute({});
 }

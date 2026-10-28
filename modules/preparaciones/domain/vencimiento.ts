@@ -65,7 +65,7 @@ export function calcularVencimientoPreparado(fechaElaboracion: string, meses: nu
 }
 
 /**
- * Tipo de vencimiento (docs/specs/vencimiento-preparado.md R9-R14, migration 0096): chosen per ítem when confirming.
+ * Tipo de vencimiento (openspec/specs/vencimiento-preparado/spec.md R9-R14, migration 0096): chosen per ítem when confirming.
  * `ESTANDAR` is the parameter's months; the aqueous tipos are regulatory day limits for preparados without a
  * monograph -- constants, never tenant parameters, so a farmacia cannot lengthen them.
  */

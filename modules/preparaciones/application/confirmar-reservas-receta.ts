@@ -1,9 +1,9 @@
 /**
- * `confirmarReservasReceta`: the toma workspace's "Imprimir etiquetas" (docs/specs/reserva-stock-preparacion.md, R13)
+ * `confirmarReservasReceta`: the toma workspace's "Imprimir etiquetas" (openspec/specs/reserva-stock-preparacion/spec.md, R13)
  * -- the end of the lab's process and the ONLY point where a reserved ítem becomes fixed (there is no single-ítem
  * variant). Confirms EVERY ítem of the receta from its reserva (`confirmarDesdeReservasEnTx`,
  * ./confirmar-desde-reservas.ts), in ONE transaction and in ítem order ("Ítem N" of the toma workspace), then writes the
- * receta's ONE asiento in the libro recetario with all of them (D8, docs/specs/libro-recetario-y-contralor.md §1:
+ * receta's ONE asiento in the libro recetario with all of them (D8, openspec/specs/libro-recetario-y-contralor/spec.md §1:
  * `registrarAsientoRecetaEnTx`, ./registrar-asiento-receta.ts -- one number, one snapshot, the asiento_contralor
  * EGRESO rows right after it) and finally generates each ítem's etiqueta, which prints that asiento's Nº.
  *
@@ -50,7 +50,7 @@ import {
   type ReservaDePreparacion,
 } from "../infrastructure/preparacion-repository";
 
-/** docs/specs/vencimiento-preparado.md R10: per preparación, the tipo chosen in "Imprimir etiquetas"; one missing = `ESTANDAR`. */
+/** openspec/specs/vencimiento-preparado/spec.md R10: per preparación, the tipo chosen in "Imprimir etiquetas"; one missing = `ESTANDAR`. */
 const confirmarReservasRecetaInput = z.object({
   recetaId: uuid,
   tiposVencimiento: z.record(uuid, z.enum(TIPOS_VENCIMIENTO_PREPARADO)).default({}),

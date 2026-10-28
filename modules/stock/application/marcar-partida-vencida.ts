@@ -1,5 +1,5 @@
 /**
- * `marcarPartidaVencida` (docs/specs/reanalisis-partida.md). The Director
+ * `marcarPartidaVencida` (openspec/specs/reanalisis-partida/spec.md). The Director
  * Técnico vigente decides that an expired DROGA partida will not be
  * re-analysed: its WHOLE remaining saldo is discounted with an AJUSTE of
  * motivo VENCIMIENTO and the partida is terminal (saldo 0: it can never

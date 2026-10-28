@@ -1,6 +1,6 @@
 /**
  * Unit tests for modules/recetas/domain/receta-pdf-parser.ts and
- * modules/recetas/domain/normalizar.ts (docs/specs/importacion-receta-pdf.md,
+ * modules/recetas/domain/normalizar.ts (openspec/specs/importacion-receta-pdf/spec.md,
  * cases P1-P5 and the normalization half of P7).
  *
  * Fixtures are hand-built text items laid out like a real RCTA receta

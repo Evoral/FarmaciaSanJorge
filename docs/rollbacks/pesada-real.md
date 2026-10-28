@@ -1,6 +1,6 @@
 # Rollback: Pesada real
 
-Spec: `docs/specs/pesada-real.md`. Migration 0088.
+Spec: `openspec/specs/pesada-real/spec.md`. Migration 0088.
 
 ## What it changed
 
@@ -31,3 +31,7 @@ Spec: `docs/specs/pesada-real.md`. Migration 0088.
 
 Líneas already confirmed with a real weighing keep their movimientos (the deferred INV-S12 only runs for new
 egresos). Reservas holding a `cantidad_real` lose it: the next "Imprimir etiquetas" consumes the theoretical weight.
+
+## Migration 0103 (2026-10-23)
+
+`0103_pesada_real_jornada` only redefines `fsj.pesada_real_validar_autorizacion` to use `fsj.jornada_actual(tenant_id)` instead of `current_date`. Revert it alone with `prisma/rollbacks/0103_pesada_real_jornada.down.sql` as a NEW forward migration; rolling back 0088 drops the trigger function anyway.

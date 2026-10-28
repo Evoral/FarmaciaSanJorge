@@ -1,7 +1,7 @@
 /**
  * Text normalization for droga names and synonyms
- * (docs/specs/sinonimos-droga.md) and the PDF imports' match step
- * (docs/specs/importacion-receta-pdf.md, "Pieza 4 -- Match"): lowercase,
+ * (openspec/specs/sinonimos-droga/spec.md) and the PDF imports' match step
+ * (openspec/specs/importacion-receta-pdf/spec.md, "Pieza 4 -- Match"): lowercase,
  * NFD without diacritics, whitespace collapsed, trimmed. Matching compares
  * the normalized forms EXACTLY -- no fuzzy matching, so a misspelling
  * never matches ("Cafeína" = "cafeina", but "Cafeina" != "Cafeinna").

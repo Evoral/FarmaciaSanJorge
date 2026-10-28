@@ -1,5 +1,5 @@
 /**
- * `/configurar-pin`: step 2 of docs/specs/contrasena-temporal.md. Reads the
+ * `/configurar-pin`: step 2 of openspec/specs/contrasena-temporal/spec.md. Reads the
  * session with the pending-steps opt-out and only renders the form while
  * `configurar-pin` is the step that comes first.
  */

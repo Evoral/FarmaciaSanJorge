@@ -1,6 +1,6 @@
 /**
  * `recalcularReservaStock`: the toma workspace's "Recalcular reserva" (formerly "Modificar reserva") on an ítem whose
- * stock is reserved (docs/specs/reserva-stock-preparacion.md R1b): re-plans the reserva AUTOMATICALLY over every
+ * stock is reserved (openspec/specs/reserva-stock-preparacion/spec.md R1b): re-plans the reserva AUTOMATICALLY over every
  * eligible partida (R1: abiertas first, then FEFO) and REPLACES the preparación's reservas, in ONE transaction. Same
  * preparación (still INICIADA), nothing discarded, no stock movement, no asiento. One click from the ítem (e.g. when
  * "Imprimir etiquetas" would fail because an ajuste or an expired partida broke the reserva, R5) or from the dialog,
@@ -35,7 +35,7 @@ import {
   type LineaEntradaInput,
 } from "./confirmar-preparacion";
 import { pesadasDelPlan, reservasDelPlan, resumenDelPlan } from "./reservar-stock-preparacion";
-import { guardarReservaExcipienteEnTx, replanificarExcipienteEnTx } from "./excipiente-preparacion";
+import { guardarReservaExcipienteEnTx, partidasCandidatasExcipienteEnTx, replanificarExcipienteEnTx } from "./excipiente-preparacion";
 import { autorizacionDePesadaReal } from "./co-firma-pesada-real";
 import {
   deleteReservasDePreparacion,
@@ -90,7 +90,7 @@ export function entradasDeReserva(reservas: readonly ReservaDePreparacion[], env
 }
 
 /**
- * The reserva's stored DT co-firmas (docs/specs/pesada-real.md) that still hold: a línea keeps its co-firma only while
+ * The reserva's stored DT co-firmas (openspec/specs/pesada-real/spec.md) that still hold: a línea keeps its co-firma only while
  * its pesada real is the one the DT authorized. A new pesada outside the tolerance needs a new co-firma.
  */
 export function autorizacionesDeReserva(reservas: readonly ReservaDePreparacion[], entradas: readonly LineaEntrada[]): Map<string, string> {
@@ -133,6 +133,7 @@ export const recalcularReservaStockCommand = defineCommand({
       const jornada = await jornadaActualTenant(tx, session.tenantId);
       const entradas = entradasDeReserva(anteriores, input.lineas);
       const plan = await planificarConsumoEnTx(tx, session.tenantId, {
+        partidasAdicionales: await partidasCandidatasExcipienteEnTx(tx, session.tenantId, { preparacionId: input.preparacionId }),
         preparacionId: input.preparacionId,
         fichaTecnicaId: preparacion.fichaTecnicaId,
         seleccion: { modo: "automatica", entradas, pesadaAutorizadaPorId: input.pesadaAutorizadaPorId, autorizacionesPorLinea: autorizacionesDeReserva(anteriores, entradas) },

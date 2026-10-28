@@ -7,7 +7,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 import { AuthorizationError } from "@/shared/errors";
-import type { Permiso } from "@/modules/auth/domain/permisos";
+import { PERMISOS_CON_PIN_CONFIGURABLES, type Permiso } from "@/modules/auth/domain/permisos";
 
 vi.mock("@/shared/audit", () => ({
   record: vi.fn(async () => undefined),
@@ -98,6 +98,16 @@ vi.mock("@/modules/auth/domain/password", () => ({
   verifyPassword: vi.fn(async () => true),
 }));
 
+vi.mock("@/modules/stock/infrastructure/existencia-inicial-repository", () => ({
+  lockTenantRelevamientoCompartido: vi.fn(async () => undefined),
+  relevamientoInicialAbierto: vi.fn(async () => true),
+  lockTenantRelevamiento: vi.fn(async () => undefined),
+  getEstadoRelevamientoInicial: vi.fn(async () => ({ abierto: true, cerradoEn: null, cerradoPor: null, fechaLimite: "2026-07-01" })),
+  listSaldosControladas: vi.fn(async () => []),
+  contarExistenciaInicialPorDroga: vi.fn(async () => []),
+  cerrarRelevamientoInicial: vi.fn(async () => new Date("2026-06-15T12:00:00Z")),
+}));
+
 await import("@/modules/stock/application/ingresar-partida");
 await import("@/modules/stock/application/list-stock-drogas");
 await import("@/modules/stock/application/list-partidas-droga");
@@ -111,6 +121,9 @@ await import("@/modules/stock/application/list-dt-para-co-firma");
 await import("@/modules/stock/application/reanalizar-partida");
 await import("@/modules/stock/application/marcar-partida-vencida");
 await import("@/modules/stock/application/verificar-password-dt-partida");
+await import("@/modules/stock/application/ingresar-existencia-inicial");
+await import("@/modules/stock/application/cerrar-relevamiento-inicial");
+
 
 const { listRegisteredUseCasesForTests } = await import("@/shared/usecase");
 
@@ -189,6 +202,22 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
       password: "correcta",
     },
   },
+  {
+    name: "stock.partida.existencia_inicial",
+    permiso: "stock.partida.ingresar",
+    input: {
+      drogaId: DROGA_ID,
+      lote: "L1",
+      cantidadCompra: "5",
+      unidadCompraId: UNIDAD_ID,
+      costoUnitario: "10",
+    },
+  },
+  {
+    name: "stock.relevamiento_inicial.cerrar",
+    permiso: "stock.ajuste.autorizar",
+    input: {},
+  },
 ];
 
 function sessionForRol(rol: Rol): AuthenticatedSession {
@@ -262,5 +291,15 @@ describe("FASE 5 (stock) authorization matrix -- DIRECTOR_TECNICO without a vige
         { session },
       ),
     ).rejects.toThrow("Solo el Director Técnico vigente (titular o suplente) puede marcar una partida como vencida.");
+  });
+});
+
+describe("FASE 5 (stock) PIN requirement on cuenta de sector", () => {
+  it("stock.partida.ingresar (used by stock.partida.existencia_inicial) is PIN-configurable", () => {
+    expect(PERMISOS_CON_PIN_CONFIGURABLES).toContain("stock.partida.ingresar");
+  });
+
+  it("stock.ajuste.autorizar (used by stock.relevamiento_inicial.cerrar) is NOT PIN-configurable (requires DT password)", () => {
+    expect(PERMISOS_CON_PIN_CONFIGURABLES).not.toContain("stock.ajuste.autorizar");
   });
 });

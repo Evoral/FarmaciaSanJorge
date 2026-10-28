@@ -5,7 +5,7 @@
  * 0013) -- the app-level pre-check below exists purely to give a clear
  * Spanish message instead of a raw unique-violation.
  *
- * Starting does NOT move the receta's estado (docs/specs/reserva-stock-preparacion.md):
+ * Starting does NOT move the receta's estado (openspec/specs/reserva-stock-preparacion/spec.md):
  * a receta stays PENDIENTE_PREPARACION until its first preparación is
  * CONFIRMADA (`confirmarPreparacionEnTx` moves it to EN_PREPARACION), so a
  * preparación discarded before that -- a released reserva de stock -- leaves
@@ -15,7 +15,7 @@
  * terminal receta (ENTREGADA/ANULADA) can never start a new preparación.
  *
  * No Server Action exposes this command any more: the ficha técnica screen's
- * "Preparar" was removed (docs/specs/reserva-stock-preparacion.md R16), so a
+ * "Preparar" was removed (openspec/specs/reserva-stock-preparacion/spec.md R16), so a
  * preparación starts only through `iniciarPreparacionEnTx` inside
  * `reservarStockPreparacion`, always with its reserva.
  *
@@ -26,7 +26,7 @@
  * always listed under En curso (taken + PENDIENTE_PREPARACION or
  * EN_PREPARACION).
  *
- * Checks, all under locks taken BEFORE the INSERT (docs/specs/reserva-stock-preparacion.md
+ * Checks, all under locks taken BEFORE the INSERT (openspec/specs/reserva-stock-preparacion/spec.md
  * R18/R19/R23/R24): the ficha's advisory lock, then the receta FOR UPDATE
  * (its estado re-read: only PENDIENTE_PREPARACION / EN_PREPARACION), then
  * the item_receta FOR UPDATE (serializes with `fichas.generar`), then:

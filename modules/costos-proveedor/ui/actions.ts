@@ -1,6 +1,6 @@
 "use server";
 
-/** Server Actions for `/costos-proveedor` (docs/specs/costos-proveedor.md): manual entry, baja, the vigente lookup of the form, and the list import (read + confirm). */
+/** Server Actions for `/costos-proveedor` (openspec/specs/costos-proveedor/spec.md): manual entry, baja, the vigente lookup of the form, and the list import (read + confirm). */
 import { revalidatePath } from "next/cache";
 import { listarCostosVigentes } from "@/modules/costos-proveedor/application/listar-costos-vigentes";
 import { registrarCostosProveedor } from "@/modules/costos-proveedor/application/registrar-costos-proveedor";
@@ -89,6 +89,8 @@ export async function obtenerCostoVigenteDelParAction(drogaId: string, proveedor
         unidadPrecioId: costo.unidadPrecioId,
         unidadPrecioSimbolo: costo.unidadPrecioSimbolo,
         costoUnitario: costo.costoUnitario,
+        alicuotaIva: costo.alicuotaIva,
+        precioInformadoConIva: costo.precioInformadoConIva,
         fechaPrecio: costo.fechaPrecio,
         listaNombreArchivo: costo.listaNombreArchivo,
       },

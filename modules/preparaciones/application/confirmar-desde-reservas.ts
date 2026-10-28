@@ -1,5 +1,5 @@
 /**
- * Confirming a preparación from its reserva de stock (migration 0071, docs/specs/reserva-stock-preparacion.md): the
+ * Confirming a preparación from its reserva de stock (migration 0071, openspec/specs/reserva-stock-preparacion/spec.md): the
  * per-ítem work of the toma workspace's "Imprimir etiquetas" (`confirmarReservasReceta`,
  * ./confirmar-reservas-receta.ts), inside the caller's transaction, once the caller holds the locks (preparación, then
  * receta, then -- optionally -- partidas) and read the reservas: rebuild the confirmation input from the reservas (per

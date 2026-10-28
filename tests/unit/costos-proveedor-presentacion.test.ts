@@ -50,9 +50,9 @@ describe("clasificarVersiones", () => {
 });
 
 describe("etiquetaPrecio", () => {
-  it("shows the precio informado with its unit, es-AR, at least 2 decimals", () => {
+  it("shows the precio informado with its unit, es-AR, 2 decimals", () => {
     expect(etiquetaPrecio("40898", "kg")).toBe("$ 40.898,00 / kg");
     expect(etiquetaPrecio("40898.5", "kg")).toBe("$ 40.898,50 / kg");
-    expect(etiquetaPrecio("12.3456", "L")).toBe("$ 12,3456 / L");
+    expect(etiquetaPrecio("12.3456", "L")).toBe("$ 12,35 / L");
   });
 });

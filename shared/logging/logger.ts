@@ -51,7 +51,31 @@ export const REDACT_PATHS = [
   "*.paciente.email",
   "paciente.nroCredencial",
   "*.paciente.nroCredencial",
+  // Security audit P5-01: PINs (operador, reautenticación, alta) and password
+  // variants, plus the health and address fields of a receta, whose keys are
+  // unambiguous enough to redact at any of the three levels a log call nests.
+  ...enTresNiveles([
+    "pin",
+    "pinRepeat",
+    "pinHash",
+    "operadorPin",
+    "passwordActual",
+    "passwordHash",
+    "passwordTemporal",
+    "passwordTemporalRepeat",
+    "diagnostico",
+    "diagnosticoCodigo",
+    "diagnosticoDescripcion",
+    "domicilio",
+    "domicilioPaciente",
+    "domicilioEntrega",
+    "domicilioEnvio",
+  ]),
 ];
+
+function enTresNiveles(claves: readonly string[]): string[] {
+  return claves.flatMap((clave) => [clave, `*.${clave}`, `*.*.${clave}`]);
+}
 
 let instance: pino.Logger | undefined;
 

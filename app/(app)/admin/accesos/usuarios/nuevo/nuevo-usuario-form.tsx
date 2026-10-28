@@ -4,7 +4,9 @@
  * Client form of `/admin/accesos/usuarios/nuevo` (M03, FASE 3 point 3.2); the
  * server page (`./page.tsx`) loads the tenant's assignable roles (DP-03:
  * per-tenant data) and passes them in as `roles`. The Administrador types a
- * temporary password (twice, with the live requirements checklist); on
+ * temporary password (twice, with the live requirements checklist) -- for a
+ * cuenta de sector it is the definitive one (full policy: it never changes
+ * its own password, openspec/specs/cuentas-de-sector/spec.md); on
  * success the Server Action redirects to the new usuario's detail page, so
  * no secret is ever shown back nor put in a URL.
  *
@@ -26,7 +28,7 @@ import { crearUsuarioAction, type CrearUsuarioFormState } from "./actions";
 import { ReauthPrompt, useReauthPrompt } from "@/modules/auth/ui/reauth-prompt";
 import { useReauthFormSubmit } from "@/modules/auth/ui/use-reauth-form-submit";
 import { NewPasswordFields } from "@/modules/auth/ui/new-password-fields";
-import { TEMPORARY_PASSWORD_REQUIREMENTS } from "@/shared/auth/policy";
+import { PASSWORD_REQUIREMENTS, TEMPORARY_PASSWORD_REQUIREMENTS } from "@/shared/auth/policy";
 import { errorFieldsOf } from "@/shared/ui/form-parts";
 import { useFieldErrors } from "@/shared/ui/field-errors";
 import { PageHeader } from "@/shared/ui/page-header";
@@ -50,7 +52,7 @@ export function NuevoUsuarioForm({ roles }: { roles: readonly { codigo: string; 
   const { onSubmit, resubmit } = useReauthFormSubmit(formAction);
   const formRef = useRef<HTMLFormElement>(null);
   const alertRef = useRef<HTMLDivElement>(null);
-  // A cuenta de sector (docs/specs/cuentas-de-sector.md) asks only for the sector's name and its login email.
+  // A cuenta de sector (openspec/specs/cuentas-de-sector/spec.md) asks only for the sector's name and its login email.
   const [esSector, setEsSector] = useState(false);
   const [passwordValid, setPasswordValid] = useState(false);
 
@@ -68,7 +70,11 @@ export function NuevoUsuarioForm({ roles }: { roles: readonly { codigo: string; 
       <PageHeader
         breadcrumbs={[...BREADCRUMBS, { label: "Nuevo usuario" }]}
         title="Nuevo usuario"
-        description="Queda activo con la contraseña temporal que elijas; tendrá que cambiarla y configurar su PIN al ingresar. Entregásela en mano: no hay envío automático."
+        description={
+          esSector
+            ? "Queda activa con la contraseña que elijas, que no se cambia al ingresar ni pide PIN. Entregásela en mano al puesto: no hay envío automático."
+            : "Queda activo con la contraseña temporal que elijas; tendrá que cambiarla y configurar su PIN al ingresar. Entregásela en mano: no hay envío automático."
+        }
       />
 
       <form ref={formRef} action={formAction} onSubmit={onSubmit} noValidate className="panel">
@@ -77,13 +83,14 @@ export function NuevoUsuarioForm({ roles }: { roles: readonly { codigo: string; 
         </div>
         <div className="panel-body flex flex-col gap-5">
           {/* First: it decides which fields the form asks for (a sector is not a person -- no apellido, DNI nor matrícula). */}
-          <label className="choice-row items-start">
-            <input type="checkbox" name="esSector" checked={esSector} onChange={(event) => setEsSector(event.target.checked)} className="mt-0.5 size-4" />
+          <label className="choice-row toggle-switch items-start">
+            <input type="checkbox" role="switch" name="esSector" checked={esSector} onChange={(event) => setEsSector(event.target.checked)} className="mt-0.5" />
             <span>
               <span className="font-medium text-zinc-900">Cuenta de sector</span>
               <span className="block text-[0.8125rem] text-zinc-500">
-                Una sesión compartida por puesto de trabajo (mostrador, laboratorio), no una persona. En las acciones que piden PIN, cada empleado se identifica con el suyo. No
-                admite los roles Administrador ni Director Técnico y no se puede cambiar después.
+                {esSector
+                  ? "Una sesión compartida por puesto de trabajo (mostrador, laboratorio), no una persona. No tiene PIN ni cambia su contraseña: en las acciones que piden PIN, cada empleado se identifica con el suyo. No admite los roles Administrador ni Director Técnico y no se puede cambiar después."
+                  : "Apagado: cuenta personal de una persona, con su propia contraseña y su PIN. Encendelo para una sesión compartida por puesto de trabajo (mostrador, laboratorio). No se puede cambiar después."}
               </span>
             </span>
           </label>
@@ -150,9 +157,9 @@ export function NuevoUsuarioForm({ roles }: { roles: readonly { codigo: string; 
             <NewPasswordFields
               name="passwordTemporal"
               repeatName="passwordTemporalRepeat"
-              label="Contraseña temporal"
-              repeatLabel="Repetir contraseña temporal"
-              requirements={TEMPORARY_PASSWORD_REQUIREMENTS}
+              label={esSector ? "Contraseña" : "Contraseña temporal"}
+              repeatLabel={esSector ? "Repetir contraseña" : "Repetir contraseña temporal"}
+              requirements={esSector ? PASSWORD_REQUIREMENTS : TEMPORARY_PASSWORD_REQUIREMENTS}
               onValidityChange={setPasswordValid}
             />
           </div>

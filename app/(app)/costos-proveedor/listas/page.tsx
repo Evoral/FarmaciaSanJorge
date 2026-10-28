@@ -1,5 +1,5 @@
 /**
- * `/costos-proveedor/listas` -- "Listas importadas" (docs/specs/costos-proveedor.md, "Interface" 3): every
+ * `/costos-proveedor/listas` -- "Listas importadas" (openspec/specs/costos-proveedor/spec.md, "Interface" 3): every
  * supplier price list imported, newest first, with its proveedor, the date of the list, the file, how many rows
  * were read and how many became a new price, and who registered it and when. Lists are append-only: nothing is
  * edited or deleted here.

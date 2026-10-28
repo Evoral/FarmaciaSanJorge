@@ -1,6 +1,6 @@
 /**
  * `/costos-proveedor/historial?droga=&proveedor=` -- every version of the costo de proveedor of
- * one (droga, proveedor) pair, newest first (docs/specs/costos-proveedor.md, "Interface" 4):
+ * one (droga, proveedor) pair, newest first (openspec/specs/costos-proveedor/spec.md, "Interface" 4):
  * precio informado, costo por unidad base, fecha del precio, origen (lista or manual), motivo,
  * who loaded it, its vigencia and its state (Vigente / Reemplazado / Dado de baja, with the
  * baja's motivo). Nothing here is ever edited: a change is a new version (R2).
@@ -15,6 +15,7 @@ import { CircleDollarSign, Pencil } from "lucide-react";
 import { getHistorialCosto } from "@/modules/costos-proveedor/application/get-historial-costo";
 import { ESTADO_VERSION_LABELS, etiquetaPrecio } from "@/modules/costos-proveedor/domain/presentacion";
 import type { EstadoVersionCosto } from "@/modules/costos-proveedor/domain/presentacion";
+import { formatNumero } from "@/shared/format/cantidad";
 import { formatFechaHora, formatFechaIso } from "@/shared/format/fecha";
 import { formatearCostoUnitario } from "@/shared/format/monto";
 import { EmptyState } from "@/shared/ui/empty-state";
@@ -92,10 +93,10 @@ export default async function HistorialCostoPage({ searchParams }: HistorialCost
                 <thead>
                   <tr>
                     <th scope="col" className="px-3 py-2 text-right">
-                      Precio informado
+                      Precio con IVA
                     </th>
                     <th scope="col" className="hidden px-3 py-2 text-right md:table-cell">
-                      Costo por {droga.unidadBaseSimbolo || "unidad base"}
+                      Costo por {droga.unidadBaseSimbolo || "unidad base"} con IVA
                     </th>
                     <th scope="col" className="px-3 py-2">
                       Fecha del precio
@@ -123,9 +124,17 @@ export default async function HistorialCostoPage({ searchParams }: HistorialCost
                 <tbody>
                   {versiones.map((version) => (
                     <tr key={version.id}>
-                      <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">{etiquetaPrecio(version.precioInformado, version.unidadPrecioSimbolo)}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">
+                        {etiquetaPrecio(version.precioInformadoConIva, version.unidadPrecioSimbolo)}
+                        <span className="block text-xs text-zinc-500">
+                          sin IVA {etiquetaPrecio(version.precioInformado, version.unidadPrecioSimbolo)} · IVA {formatNumero(version.alicuotaIva, 2)}%
+                        </span>
+                      </td>
                       <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums md:table-cell">
-                        $ {formatearCostoUnitario(version.costoUnitario)} / {droga.unidadBaseSimbolo}
+                        $ {formatearCostoUnitario(version.costoUnitarioConIva)} / {droga.unidadBaseSimbolo}
+                        <span className="block text-xs text-zinc-500">
+                          sin IVA $ {formatearCostoUnitario(version.costoUnitario)} / {droga.unidadBaseSimbolo}
+                        </span>
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5">{formatFechaIso(version.fechaPrecio)}</td>
                       <td className="hidden px-3 py-2.5 lg:table-cell">

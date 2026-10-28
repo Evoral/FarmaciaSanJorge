@@ -94,17 +94,27 @@ export async function recordLoginSuccess(tx: Prisma.TransactionClient, usuarioId
   });
 }
 
-export interface LoginFailureUpdate {
-  intentosFallidos: number;
-  bloqueadoHasta: Date | null;
+export interface PoliticaBloqueo {
+  maxIntentos: number;
+  /** Lockout expiry applied when this failure reaches `maxIntentos`. */
+  bloqueadoHasta: Date;
 }
 
-/** Failed login (wrong password) for a KNOWN usuario (FASE 2 point 2.2): persists the new attempt count and, once the threshold is reached, the lockout expiry -- caller (login.ts) computes both via AUTH_POLICY before calling this. */
-export async function recordLoginFailure(tx: Prisma.TransactionClient, usuarioId: string, update: LoginFailureUpdate): Promise<void> {
-  await tx.usuario.update({
-    where: { id: usuarioId },
-    data: { intentosFallidos: update.intentosFallidos, bloqueadoHasta: update.bloqueadoHasta },
-  });
+/**
+ * Failed login (wrong password) for a KNOWN usuario (FASE 2 point 2.2). The
+ * count is incremented by the UPDATE itself (audit P3-03): concurrent
+ * failures serialize on the row and never overwrite each other, so parallel
+ * attempts cannot dodge the lockout. Returns the new count.
+ */
+export async function recordLoginFailure(tx: Prisma.TransactionClient, usuarioId: string, politica: PoliticaBloqueo): Promise<number> {
+  const rows = await tx.$queryRaw<{ intentos_fallidos: number }[]>`
+    UPDATE fsj.usuario
+    SET intentos_fallidos = intentos_fallidos + 1,
+        bloqueado_hasta = CASE WHEN intentos_fallidos + 1 >= ${politica.maxIntentos} THEN ${politica.bloqueadoHasta}::timestamptz ELSE NULL END
+    WHERE id = ${usuarioId}::uuid
+    RETURNING intentos_fallidos
+  `;
+  return rows[0]?.intentos_fallidos ?? 0;
 }
 
 export interface UsuarioEmailRow {
@@ -127,7 +137,7 @@ export async function loadUsuarioParaPassword(tx: Prisma.TransactionClient, usua
 }
 
 /**
- * Completes the temporary-password change (docs/specs/contrasena-temporal.md):
+ * Completes the temporary-password change (openspec/specs/contrasena-temporal/spec.md):
  * one UPDATE that stores the usuario's own password hash and clears
  * `debeCambiarPassword`. This is the ONLY code path that clears the flag
  * (CT4, guarded by tests/unit/auth-cambiar-password-temporal.test.ts).
@@ -159,6 +169,20 @@ export async function loadPinEstado(tx: Prisma.TransactionClient, usuarioId: str
   });
 }
 
+/**
+ * The PIN hashes of the empleados a cuenta de sector can be operated by (`identificarPorPin`): ACTIVO people, never a
+ * cuenta de sector nor the technical usuario, with a PIN and no pending password change
+ * (openspec/specs/contrasena-temporal/spec.md). A blocked PIN still counts: the PIN is only an identifier there.
+ * Never returns the hashes to a caller outside modules/auth.
+ */
+export async function loadPinHashesDeOperadores(tx: Prisma.TransactionClient, tenantId: string): Promise<{ id: string; pinHash: string }[]> {
+  const rows = await tx.usuario.findMany({
+    where: { tenantId, estado: "ACTIVO", esSector: false, esTecnico: false, pinHash: { not: null }, debeCambiarPassword: false },
+    select: { id: true, pinHash: true },
+  });
+  return rows.flatMap((row) => (row.pinHash ? [{ id: row.id, pinHash: row.pinHash }] : []));
+}
+
 /** Sets/changes the PIN (`configurarPin`): stores the new hash and resets the failed-attempt counter/block -- a freshly (re)set PIN starts clean. */
 export async function setPinHash(tx: Prisma.TransactionClient, usuarioId: string, pinHash: string, now: Date): Promise<void> {
   await tx.usuario.update({
@@ -167,20 +191,37 @@ export async function setPinHash(tx: Prisma.TransactionClient, usuarioId: string
   });
 }
 
+/**
+ * The PIN hashes of every OTHER usuario of the tenant (no two usuarios share a PIN, user decision 2026-10-26). Takes a
+ * per-tenant transaction-scoped advisory lock first, so two usuarios choosing the same PIN at once are serialized:
+ * the second one sees the first one's hash. Never returns the hashes to a caller outside the PIN uniqueness check.
+ */
+export async function loadPinHashesDeOtros(tx: Prisma.TransactionClient, tenantId: string, usuarioId: string): Promise<string[]> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('fsj.pin:' || ${tenantId}::text))`;
+  const rows = await tx.usuario.findMany({
+    where: { tenantId, id: { not: usuarioId }, pinHash: { not: null } },
+    select: { pinHash: true },
+  });
+  return rows.flatMap((row) => (row.pinHash ? [row.pinHash] : []));
+}
+
 /** A successful PASSWORD re-auth resets the PIN counter AND unblocks it (task's binding decision) -- called unconditionally on the password branch's success path, never read-then-write (idempotent regardless of prior state). */
 export async function resetPinLockout(tx: Prisma.TransactionClient, usuarioId: string): Promise<void> {
   await tx.usuario.update({ where: { id: usuarioId }, data: { pinIntentosFallidos: 0, pinBloqueado: false } });
 }
 
-export interface PinFailureUpdate {
-  pinIntentosFallidos: number;
-  pinBloqueado: boolean;
-}
-
-/** Persists a failed PIN attempt (and the block, once the threshold is reached) -- caller (`reautenticar.ts`) computes both via `AUTH_POLICY.maxFailedPinAttempts`. */
-export async function recordPinFailure(tx: Prisma.TransactionClient, usuarioId: string, update: PinFailureUpdate): Promise<void> {
-  await tx.usuario.update({
-    where: { id: usuarioId },
-    data: { pinIntentosFallidos: update.pinIntentosFallidos, pinBloqueado: update.pinBloqueado },
-  });
+/**
+ * Persists a failed PIN attempt and, once `maxIntentos` is reached, the block.
+ * Incremented by the UPDATE itself (audit P3-03), like `recordLoginFailure`:
+ * parallel guesses at a 4-digit PIN cannot dodge the block. Returns the new count.
+ */
+export async function recordPinFailure(tx: Prisma.TransactionClient, usuarioId: string, maxIntentos: number): Promise<number> {
+  const rows = await tx.$queryRaw<{ pin_intentos_fallidos: number }[]>`
+    UPDATE fsj.usuario
+    SET pin_intentos_fallidos = pin_intentos_fallidos + 1,
+        pin_bloqueado = pin_intentos_fallidos + 1 >= ${maxIntentos}
+    WHERE id = ${usuarioId}::uuid
+    RETURNING pin_intentos_fallidos
+  `;
+  return rows[0]?.pin_intentos_fallidos ?? 0;
 }

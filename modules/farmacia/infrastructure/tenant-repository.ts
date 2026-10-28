@@ -58,13 +58,15 @@ export interface DatosEditablesTenant {
   matriculaFarmacia: string | null;
   telefonoFijo: string | null;
   telefonoCelular: string | null;
+  /** Omitted = unchanged. Writable only before the first cierre diario (migration 0105, INV-PL-005). */
+  cuit?: string;
 }
 
 /**
  * Updates ONLY the columns fsj_app is granted UPDATE on: migration 0020
- * (razon_social, nombre_fantasia, domicilio, matricula_farmacia) and 0089
- * (telefono_fijo, telefono_celular).
- * Never touches cuit / zona_horaria / fecha_baja / fecha_activacion_contralor
+ * (razon_social, nombre_fantasia, domicilio, matricula_farmacia), 0089
+ * (telefono_fijo, telefono_celular) and 0105 (cuit, guarded by a trigger).
+ * Never touches zona_horaria / fecha_baja / fecha_activacion_contralor
  * -- defense in depth on top of (a) the zod schema in
  * ../application/editar-datos-tenant.ts not even accepting those fields as
  * input, and (b) the column-level GRANT (migration 0020) that would reject
@@ -85,6 +87,53 @@ export async function updateDatosEditablesTenant(
       matriculaFarmacia: datos.matriculaFarmacia,
       telefonoFijo: datos.telefonoFijo,
       telefonoCelular: datos.telefonoCelular,
+      ...(datos.cuit !== undefined ? { cuit: datos.cuit } : {}),
     },
+  });
+}
+
+/** True once the tenant has signed a cierre diario: from then on its CUIT is fixed (openspec/specs/cuit-farmacia/spec.md). */
+export async function tenantTieneCierreDiario(tx: Prisma.TransactionClient, tenantId: string): Promise<boolean> {
+  const cierre = await tx.cierreDiario.findFirst({ where: { tenantId }, select: { id: true } });
+  return cierre !== null;
+}
+
+/** What the navbar shows for the tenant: its name and the version of its logo (`null` = no logo, the generic one is shown). Never loads the image bytes. */
+export interface MarcaTenant {
+  nombre: string;
+  logoTipo: string | null;
+  logoActualizadoEn: Date | null;
+}
+
+export async function getMarcaTenant(tx: Prisma.TransactionClient, tenantId: string): Promise<MarcaTenant | null> {
+  const row = await tx.tenant.findUnique({
+    where: { id: tenantId },
+    select: { razonSocial: true, nombreFantasia: true, logoTipo: true, logoActualizadoEn: true },
+  });
+  if (!row) return null;
+  return { nombre: row.nombreFantasia ?? row.razonSocial, logoTipo: row.logoTipo, logoActualizadoEn: row.logoActualizadoEn };
+}
+
+export interface LogoTenant {
+  bytes: Uint8Array<ArrayBuffer>;
+  tipo: string;
+}
+
+/** `null` when the tenant has no logo (migration 0098 keeps the columns all NULL or all set). */
+export async function getLogoTenant(tx: Prisma.TransactionClient, tenantId: string): Promise<LogoTenant | null> {
+  const row = await tx.tenant.findUnique({ where: { id: tenantId }, select: { logo: true, logoTipo: true } });
+  if (!row?.logo || !row.logoTipo) return null;
+  return { bytes: new Uint8Array(row.logo), tipo: row.logoTipo };
+}
+
+/** Sets (or, with `null`, removes) the logo. Only the columns migration 0098 grants UPDATE on. */
+export async function updateLogoTenant(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  logo: { bytes: Uint8Array<ArrayBuffer>; tipo: string; actualizadoEn: Date } | null,
+): Promise<void> {
+  await tx.tenant.update({
+    where: { id: tenantId },
+    data: logo ? { logo: logo.bytes, logoTipo: logo.tipo, logoActualizadoEn: logo.actualizadoEn } : { logo: null, logoTipo: null, logoActualizadoEn: null },
   });
 }

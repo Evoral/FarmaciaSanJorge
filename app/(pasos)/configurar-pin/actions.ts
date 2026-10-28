@@ -1,6 +1,6 @@
 "use server";
 
-/** Server Action for `/configurar-pin` (docs/specs/contrasena-temporal.md, step 2). */
+/** Server Action for `/configurar-pin` (openspec/specs/contrasena-temporal/spec.md, step 2). */
 import { redirect } from "next/navigation";
 import { configurarPinObligatorio } from "@/modules/auth/application/configurar-pin-obligatorio";
 import { actionError } from "@/shared/ui/action-error";

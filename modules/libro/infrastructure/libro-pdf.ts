@@ -1,6 +1,6 @@
 /**
  * PDF layout for the libro recetario export (FASE 9, M12 point 9.1), printed as the libro's sheets
- * (docs/specs/libro-recetario-y-contralor.md, "Impresión"): A4 landscape, one jornada per sheet group -- each day
+ * (openspec/specs/libro-recetario-y-contralor/spec.md, "Impresión"): A4 landscape, one jornada per sheet group -- each day
  * starts on a new sheet, a long day continues on the next ones, two days never share a sheet -- and "Hoja i de n"
  * numbered within each day. The table and the sheet helpers live in `shared/pdf/hojas.ts` (every cell wraps: the
  * whole fórmula de la prescripción is printed). Reuses `shared/pdf/pdf-document.ts#renderPdf`.
@@ -44,7 +44,7 @@ function porJornada(items: readonly AsientoListItem[]): Array<{ fecha: string; a
 
 /**
  * No estado column: only "SI" under Anulado for an ANULADO asiento, like the signed sheet
- * (docs/specs/libro-recetario-y-contralor.md, "Impresión").
+ * (openspec/specs/libro-recetario-y-contralor/spec.md, "Impresión").
  */
 function fila(item: AsientoListItem): CeldaTabla[] {
   const numero: CeldaTabla =

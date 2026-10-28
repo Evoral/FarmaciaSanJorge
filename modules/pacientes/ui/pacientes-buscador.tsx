@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Search + results for `/pacientes` (FASE 4 point 4.5, DP-24). The search term (apellido or DNI -- both identifying)
+ * Search + results for `/clientes` (FASE 4 point 4.5, DP-24). The search term (apellido or DNI -- both identifying)
  * only ever travels through `buscarPacientesAction` (a POST'd Server Action call, never a `<form method="get">` page
  * navigation), so it never appears in the URL/query string. Starts from the server-rendered
  * `itemsIniciales`/`totalInicial` (the page's own default, non-identifying `estado`-filtered listing).
@@ -15,7 +15,7 @@ import { useActionState, useCallback, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, ListFilter, SearchX, Users } from "lucide-react";
+import { ChevronRight, ListFilter, MessageCircle, SearchX, Users } from "lucide-react";
 import { buscarPacientesAction } from "./buscar-pacientes-action";
 import type { BuscarPacientesState, PacienteListItem } from "./buscar-pacientes-action";
 import { useFormSubmit } from "@/shared/ui/use-form-submit";
@@ -79,7 +79,7 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
 
   return (
     <div className="flex flex-col gap-4">
-      <form ref={formRef} action={formAction} onSubmit={onSubmit} aria-label="Filtrar pacientes" aria-busy={isPending} hidden>
+      <form ref={formRef} action={formAction} onSubmit={onSubmit} aria-label="Filtrar clientes" aria-busy={isPending} hidden>
         <input ref={qRef} type="hidden" name="q" defaultValue="" />
         <input type="hidden" name="estado" value={estado} />
       </form>
@@ -89,7 +89,7 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
           <div className="min-w-0 flex-1 md:w-96 md:flex-none">
             <Combobox
               id="pacientes-buscar"
-              label="Buscar paciente"
+              label="Buscar cliente"
               hideLabel
               placeholder="Buscar por apellido o DNI"
               search={search}
@@ -99,10 +99,10 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
                   if (busquedaAplicada) filtrarTabla("");
                   return;
                 }
-                router.push(`/pacientes/${option.value}`);
+                router.push(`/clientes/${option.value}`);
               }}
               actionOption={{
-                label: (q) => (q ? `Ver todas las coincidencias de “${q}”` : "Ver todos los pacientes"),
+                label: (q) => (q ? `Ver todas las coincidencias de “${q}”` : "Ver todos los clientes"),
                 onSelect: filtrarTabla,
                 icon: <ListFilter className="size-4 flex-none" aria-hidden />,
               }}
@@ -122,7 +122,7 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
       <div className="list-panel transition-opacity" style={{ opacity: isPending ? 0.55 : 1 }}>
         <div className="list-toolbar">
           <p role="status">
-            <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(state.total)}</span> {state.total === 1 ? "paciente" : "pacientes"}
+            <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(state.total)}</span> {state.total === 1 ? "cliente" : "clientes"}
             {conBusqueda ? <span className="text-zinc-500"> para “{busquedaAplicada}”</span> : null}
           </p>
           {isPending ? (
@@ -135,9 +135,9 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
 
         {state.items.length === 0 ? (
           conBusqueda ? (
-            <EmptyState icon={<SearchX className="size-5" />} title="Sin resultados" description="Ningún paciente coincide con esa búsqueda." />
+            <EmptyState icon={<SearchX className="size-5" />} title="Sin resultados" description="Ningún cliente coincide con esa búsqueda." />
           ) : (
-            vacio ?? <EmptyState icon={<Users className="size-5" />} title="Todavía no hay pacientes" />
+            vacio ?? <EmptyState icon={<Users className="size-5" />} title="Todavía no hay clientes" />
           )
         ) : (
           <div className="table-wrap">
@@ -145,7 +145,7 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
               <thead>
                 <tr>
                   <th scope="col" className="px-3 py-2">
-                    Paciente
+                    Cliente
                   </th>
                   <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                     DNI
@@ -168,7 +168,7 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
                           <Avatar name={nombre} />
                           <span className="min-w-0">
                             <Link
-                              href={`/pacientes/${paciente.id}`}
+                              href={`/clientes/${paciente.id}`}
                               title={nombre}
                               className="block max-w-[16rem] truncate font-medium text-zinc-900 underline-offset-2 hover:underline"
                             >
@@ -190,11 +190,24 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
                       </td>
                       <td className="px-3 py-2.5">
                         <span className="flex items-center justify-end gap-1">
-                          <Link href={`/pacientes/${paciente.id}/historial`} className="btn btn-ghost btn-sm" aria-label={`Ver el historial de ${paciente.nombre} ${paciente.apellido}`}>
+                          {paciente.whatsappUrl ? (
+                            <a
+                              href={paciente.whatsappUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-ghost btn-sm"
+                              aria-label={`Abrir WhatsApp con ${paciente.nombre} ${paciente.apellido} (se abre en una pestaña nueva)`}
+                            >
+                              <MessageCircle className="size-3.5" aria-hidden />
+                              <span className="hidden sm:inline">WhatsApp</span>
+                            </a>
+                          ) : null}
+                          <Link href={`/clientes/${paciente.id}/historial`} className="btn btn-ghost btn-sm" aria-label={`Ver el historial de ${paciente.nombre} ${paciente.apellido}`}>
                             <span className="hidden sm:inline">Historial</span>
                             <span className="sm:hidden">Ver</span>
                           </Link>
-                          <Link href={`/pacientes/${paciente.id}`} aria-label={`Ver los datos de ${paciente.nombre} ${paciente.apellido}`} className="btn btn-ghost btn-sm btn-icon">
+                          <Link href={`/clientes/${paciente.id}`} aria-label={`Editar los datos de ${paciente.nombre} ${paciente.apellido}`} className="btn btn-ghost btn-sm">
+                            <span className="hidden sm:inline">Editar</span>
                             <ChevronRight className="size-4" aria-hidden />
                           </Link>
                         </span>

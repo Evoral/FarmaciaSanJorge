@@ -1,6 +1,6 @@
 /**
  * `editarEtiquetaHoja`: changes the sheet (ancho, alto, margen in mm) the etiquetas
- * are printed on (docs/specs/hoja-etiquetas.md R1, R2, R5, R13). ADMINISTRADOR only
+ * are printed on (openspec/specs/hoja-etiquetas/spec.md R1, R2, R5, R13). ADMINISTRADOR only
  * (`config.editar`), audited like the sizes (before /
  * after values of the three measures).
  *

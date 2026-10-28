@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The Director Técnico's own actions on a DROGA partida (docs/specs/reanalisis-partida.md), on `/partidas/[id]`
+ * The Director Técnico's own actions on a DROGA partida (openspec/specs/reanalisis-partida/spec.md), on `/partidas/[id]`
  * and inline on each row of "Gestión DT › Vencimientos" (`/cierres/vencimientos`, `compacto` buttons).
  * The page renders them only for a DT vigente (titular or suplente); the commands re-check it, and so does the DB.
  * Each one asks for the DT's OWN password in the same form (no co-firma picker: the DT is the session's usuario).
@@ -18,6 +18,7 @@ import { SimpleForm } from "@/shared/ui/simple-form";
 import { DateInput } from "@/shared/ui/date-input";
 import { toast } from "@/shared/ui/toast";
 import { marcarPartidaVencidaAction, registrarReanalisisAction } from "./actions";
+import { PasswordInput } from "@/shared/ui/password-input";
 
 const DIALOG_CLASS =
   "card m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-lg p-0 text-left text-foreground shadow-lg backdrop:bg-black/40 dark:border-zinc-800 dark:bg-zinc-900";
@@ -60,7 +61,7 @@ function PasswordDt({ id }: { id: string }) {
       <label htmlFor={id} className="field-label">
         Tu contraseña (Director Técnico)
       </label>
-      <input id={id} name="password" type="password" autoComplete="current-password" required className="input" />
+      <PasswordInput id={id} name="password" autoComplete="current-password" required className="input" />
     </div>
   );
 }

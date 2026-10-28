@@ -1,6 +1,6 @@
 /**
  * Which costo de proveedor a cotización is quoted with and how it reaches the
- * calculator (docs/specs/costos-proveedor.md R26, R27, R34; CP14), with the
+ * calculator (openspec/specs/costos-proveedor/spec.md R26, R27, R34; CP14), with the
  * repositories mocked (no DB): `costosProveedorParaCotizar` (the choice) and
  * `cotizarLineas` / `cotizarItemsAcumulado` (the wiring).
  */
@@ -95,7 +95,7 @@ describe("costosProveedorParaCotizar (R26, CP14)", () => {
     expect((await costosProveedorParaCotizar(TX, TENANT, ["d1"])).get("d1")?.costoProveedorId).toBe("c-ok");
   });
 
-  it("a droga whose only costos belong to proveedores de baja, or that has none, is absent from the map (-> PARTIDAS)", async () => {
+  it("a droga whose only costos belong to proveedores de baja, or that has none, is absent from the map (-> no price)", async () => {
     candidatos.push(candidato({ id: "c-baja", drogaId: "d1", proveedorId: "p1", proveedorDeBaja: true }));
     const elegidos = await costosProveedorParaCotizar(TX, TENANT, ["d1", "d2"]);
 
@@ -123,19 +123,26 @@ describe("costosProveedorParaCotizar (R26, CP14)", () => {
 });
 
 describe("cotizarLineas -- wiring (R25, R27)", () => {
-  it("a droga with costo de proveedor is PROVEEDOR; one without falls back to PARTIDAS in the same cotización", async () => {
+  it("throws CotizacionNoCalculableError with SIN_COSTO_PROVEEDOR when a droga has no costo de proveedor (R27)", async () => {
     candidatos.push(candidato({ id: "c1", drogaId: "d1", proveedorId: "p1", costoUnitario: "5" }));
     partidas.set("d1", [{ id: "P1", cantidadDisponible: "100", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "1" }]);
     partidas.set("d2", [{ id: "P2", cantidadDisponible: "100", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "2" }]);
 
-    const cot = await cotizarLineas(TX, TENANT, [lineaFicha("d1", 0), lineaFicha("d2", 1)], REGLAS);
-
-    expect(cot.detalle.lineas.map((l) => l.fuente)).toEqual(["PROVEEDOR", "PARTIDAS"]);
-    expect(cot.costoInsumos.toString()).toBe("70"); // 10 x 5 + 10 x 2
-    expect(cot.detalle.lineas[1]!.partidas).toHaveLength(1);
+    await expect(cotizarLineas(TX, TENANT, [lineaFicha("d1", 0), lineaFicha("d2", 1)], REGLAS)).rejects.toMatchObject({
+      codigo: "SIN_COSTO_PROVEEDOR",
+      message: "No se puede dar el precio: D2 no tiene precio cargado en costos de proveedor.",
+    });
   });
 
-  it("looks the costos up once, for the non-manual drogas only; with none, the result is today's (every línea PARTIDAS)", async () => {
+  it("throws SIN_COSTO_PROVEEDOR with plural message when several drogas have no costo de proveedor", async () => {
+    await expect(cotizarLineas(TX, TENANT, [lineaFicha("d1", 0), lineaFicha("d2", 1)], REGLAS)).rejects.toMatchObject({
+      codigo: "SIN_COSTO_PROVEEDOR",
+      message: "No se puede dar el precio: D1, D2 no tienen precio cargado en costos de proveedor.",
+    });
+  });
+
+  it("looks the costos up once, for the non-manual drogas only; manual-enrase líneas are excluded from the lookup", async () => {
+    candidatos.push(candidato({ id: "c1", drogaId: "d1", proveedorId: "p1", costoUnitario: "3" }));
     partidas.set("d1", [{ id: "P1", cantidadDisponible: "100", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "3" }]);
 
     const cot = await cotizarLineas(TX, TENANT, [lineaFicha("d1", 0), lineaFicha("excipiente", 1, null, true)], REGLAS);
@@ -143,13 +150,15 @@ describe("cotizarLineas -- wiring (R25, R27)", () => {
     expect(getCostosProveedorVigentesDeDrogas).toHaveBeenCalledTimes(1);
     expect(getCostosProveedorVigentesDeDrogas.mock.calls[0]![2]).toEqual(["d1"]);
     expect(cot.costoInsumos.toString()).toBe("30");
-    expect(cot.detalle.lineas.every((l) => l.fuente === "PARTIDAS" && l.costoProveedor === undefined)).toBe(true);
+    expect(cot.detalle.lineas[0]!.fuente).toBe("PROVEEDOR");
+    expect(cot.detalle.lineas[1]!.esEnraseManual).toBe(true);
     expect(cot.esParcial).toBe(true);
+    expect(cot.esIncompleta).toBe(false);
   });
 });
 
 describe("cotizarItemsAcumulado -- wiring (R30)", () => {
-  it("loads the costos once for all items; the PROVEEDOR línea still takes simulated stock from the next item's partidas-costed one", async () => {
+  it("loads the costos once for all items; the PROVEEDOR línea still takes simulated stock from the next item", async () => {
     candidatos.push(candidato({ id: "c1", drogaId: "d1", proveedorId: "p1", costoUnitario: "5" }));
     partidas.set("d1", [{ id: "P1", cantidadDisponible: "15", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "1" }]);
 
@@ -162,17 +171,32 @@ describe("cotizarItemsAcumulado -- wiring (R30)", () => {
     expect(segundo!.esIncompleta).toBe(false);
   });
 
-  it("presupuesto item: `fuentes` appear only when some línea is costed from a proveedor", async () => {
+  it("returns cotizaciones with drogasSinPrecio without throwing; presupuesto item displays message and no price", async () => {
     candidatos.push(candidato({ id: "c1", drogaId: "d1", proveedorId: "p1", proveedorNombre: "Droguería Sur", costoUnitario: "5" }));
     partidas.set("d2", [{ id: "P2", cantidadDisponible: "100", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "2" }]);
 
-    const [mixto] = await cotizarItemsAcumulado(TX, TENANT, [[lineaFicha("d1", 0), lineaFicha("d2", 1), lineaFicha("excipiente", 2, null, true)]], REGLAS);
-    const [soloPartidas] = await cotizarItemsAcumulado(TX, TENANT, [[lineaFicha("d2", 0)]], REGLAS);
+    const [itemConCosto, itemSinCosto] = await cotizarItemsAcumulado(
+      TX,
+      TENANT,
+      [[lineaFicha("d1", 0), lineaFicha("excipiente", 1, null, true)], [lineaFicha("d2", 0)]],
+      REGLAS,
+    );
 
-    const itemMixto = presupuestoItemDesdeCotizacion(1, mixto!);
-    expect(itemMixto).toMatchObject({ ok: true, fuentes: [{ drogaNombre: "D1", fuente: "PROVEEDOR", proveedorNombre: "Droguería Sur" }, { drogaNombre: "D2", fuente: "PARTIDAS" }] });
-    // The shortage of the proveedor línea (all of d1: no stock) is reported but does not make the item incomplete.
-    expect(itemMixto).toMatchObject({ esIncompleta: false, faltantes: [{ drogaNombre: "D1", cantidad: "10", unidadSimbolo: "g" }] });
-    expect(presupuestoItemDesdeCotizacion(1, soloPartidas!)).not.toHaveProperty("fuentes");
+    expect(itemConCosto!.drogasSinPrecio).toEqual([]);
+    expect(itemSinCosto!.drogasSinPrecio).toEqual(["D2"]);
+
+    const pConCosto = presupuestoItemDesdeCotizacion(1, itemConCosto!);
+    const pSinCosto = presupuestoItemDesdeCotizacion(2, itemSinCosto!);
+
+    expect(pConCosto).toMatchObject({
+      ok: true,
+      precioFinal: "50",
+      fuentes: [{ drogaNombre: "D1", fuente: "PROVEEDOR", proveedorNombre: "Droguería Sur" }],
+    });
+    expect(pSinCosto).toEqual({
+      indice: 2,
+      ok: false,
+      mensaje: "No se puede dar el precio: D2 no tiene precio cargado en costos de proveedor.",
+    });
   });
 });

@@ -1,6 +1,6 @@
 # Rollback: Reanálisis de partida
 
-Spec: `docs/specs/reanalisis-partida.md`. The feature has a **schema change**
+Spec: `openspec/specs/reanalisis-partida/spec.md`. The feature has a **schema change**
 (migration `prisma/migrations/20261012090000_0074_reanalisis_partida`), so it is
 reverted as code + a new forward migration built from
 `prisma/rollbacks/0074_reanalisis_partida.down.sql`.
@@ -43,7 +43,7 @@ SELECT r.*, p.lote FROM fsj.reanalisis_partida r JOIN fsj.partida p ON p.tenant_
 - `modules/stock/application/verificar-password-dt-partida.ts`
 - `modules/stock/application/dias-alerta-vencimiento.ts`
 - `modules/stock/ui/acciones-dt-partida.tsx`
-- `docs/specs/reanalisis-partida.md` and this file (optional)
+- `openspec/specs/reanalisis-partida/spec.md` and this file (optional)
 - `prisma/migrations/20261012090000_0074_reanalisis_partida/` (keep it once applied; the down migration undoes it)
 
 ## Edited files (revert the reanálisis hunks)

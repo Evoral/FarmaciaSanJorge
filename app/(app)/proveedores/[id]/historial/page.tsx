@@ -1,5 +1,5 @@
 /**
- * `/proveedores/[id]/historial` (docs/specs/trayectoria-proveedor.md):
+ * `/proveedores/[id]/historial` (openspec/specs/trayectoria-proveedor/spec.md):
  * read-only view of everything a proveedor supplied, partida by partida, as a
  * `table.data-table` whose rows expand to the detail (`FilaDesplegable`).
  * `[id]` is an opaque UUID and `searchParams` ONLY ever reads `page` (a plain

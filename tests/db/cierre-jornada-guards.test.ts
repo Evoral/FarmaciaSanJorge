@@ -129,6 +129,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0019_cierre_jornada_guards (fsj sc
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const tenantId = await insertTenant(tx, "c03con");
+        await tx.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
         const sistema = await createSistemaUser(tx, tenantId);
         await crearLibrosRubricados(tx, tenantId, sistema);
         const unidadResult = await tx.query(

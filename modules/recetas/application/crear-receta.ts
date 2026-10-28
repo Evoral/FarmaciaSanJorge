@@ -29,6 +29,7 @@ import {
   duracionTratamientoDiasOpcional,
   esFechaPrescripcionValida,
   esFechaPrescripcionVigente,
+  esFechaValidaDesdeDelMes,
   resumirItemsReceta,
   validarItemsReceta,
   validarOrigenCargaManual,
@@ -39,6 +40,7 @@ import {
   getMedicoRefParaReceta,
   getNombresParaResumen,
   getPacienteRefParaReceta,
+  buscarRecetaPorEnvio,
   insertRecetaConItems,
   jornadaActualTenant,
   unidadesInvalidas,
@@ -104,10 +106,21 @@ export const crearRecetaInput = z.object({
   diagnosticoCodigo: diagnosticoCodigoOpcional,
   diagnosticoDescripcion: textoOpcional,
   domicilioPaciente: domicilioPacienteOpcional,
+  /** Migration 0099 (openspec/specs/domicilios/spec.md): where the envío goes; `null` = the domicilio above. */
+  domicilioEntrega: domicilioPacienteOpcional,
   /** Migration 0071: the receta is created already paid. The server sets who and when (`pagadaEn`/`pagadaPorId`), never the client. */
   pagada: z.boolean().default(false),
   items: z.array(itemInput).min(1, "La receta debe tener al menos un ítem."),
+  /** Migration 0102 (openspec/specs/alta-receta-idempotente/spec.md): generated once per form instance; a resubmit finds the receta it already created. */
+  envioId: uuid.optional(),
 });
+
+/** A resubmit of an alta that already committed (lost response): nothing is written, the action shows the existing receta. */
+export class RecetaYaRegistradaError extends DomainError {
+  constructor(readonly receta: { id: string; numeroInterno: string }) {
+    super(`La receta ya fue registrada (N° ${receta.numeroInterno}).`);
+  }
+}
 
 export type CrearRecetaInput = z.infer<typeof crearRecetaInput>;
 /** Pre-transform wire shape (what modules/recetas/ui/actions.ts hands in after JSON.parse-ing the form's serialized items). */
@@ -143,6 +156,10 @@ export const crearRecetaCommand = defineCommand({
   audit: { entidad: "receta", accion: TipoAccion.CREAR },
   handler: async ({ tx, session, input }) => {
     validarOrigenCargaManual(input.origen, null);
+    if (input.envioId) {
+      const existente = await buscarRecetaPorEnvio(tx, session.tenantId, input.envioId);
+      if (existente) throw new RecetaYaRegistradaError(existente);
+    }
 
     const paciente = await getPacienteRefParaReceta(tx, session.tenantId, input.pacienteId);
     if (!paciente) throw new NotFoundError("Paciente no encontrado.");
@@ -159,8 +176,12 @@ export const crearRecetaCommand = defineCommand({
     if (input.fechaValidaDesde !== null && input.fechaValidaDesde < input.fechaPrescripcion) {
       throw new ValidationError("La fecha de validez no puede ser anterior a la fecha de prescripción.");
     }
-    if (!esFechaPrescripcionVigente(input.fechaValidaDesde ?? input.fechaPrescripcion, jornadaActual)) {
-      throw new ValidationError(input.fechaValidaDesde ? "La receta está vencida: pasó más de un mes desde su fecha de validez." : "La receta está vencida: tiene más de un mes desde su prescripción.");
+    if (input.fechaValidaDesde !== null) {
+      if (!esFechaValidaDesdeDelMes(input.fechaValidaDesde, jornadaActual)) {
+        throw new ValidationError("La fecha de validez tiene que ser de este mes.");
+      }
+    } else if (!esFechaPrescripcionVigente(input.fechaPrescripcion, jornadaActual)) {
+      throw new ValidationError("La receta está vencida: tiene más de un mes desde su prescripción.");
     }
 
     const itemsDominio = toItemsInput(input.items);
@@ -196,7 +217,9 @@ export const crearRecetaCommand = defineCommand({
       diagnosticoCodigo: input.diagnosticoCodigo,
       diagnosticoDescripcion: input.diagnosticoDescripcion,
       domicilioPaciente: input.domicilioPaciente,
+      domicilioEntrega: input.domicilioEntrega,
       pagada: input.pagada,
+      envioId: input.envioId ?? null,
       items: input.items.map((item) => ({
         descripcion: item.descripcion,
         formaFarmaceutica: item.formaFarmaceutica,
@@ -234,6 +257,7 @@ export const crearRecetaCommand = defineCommand({
           diagnosticoCodigo: input.diagnosticoCodigo,
           diagnosticoDescripcion: input.diagnosticoDescripcion,
           domicilioPaciente: input.domicilioPaciente,
+          domicilioEntrega: input.domicilioEntrega,
           pagada: input.pagada,
           numeroInterno: nueva.numeroInterno,
           items: input.items,

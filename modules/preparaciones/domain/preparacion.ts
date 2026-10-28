@@ -11,7 +11,7 @@
  *   - INV-S18: opening a partida that would NOT have been necessary (an
  *     already-open partida for the same droga alone covers the requirement)
  *     requires an explicit motivo.
- *   - Manual-enrase lines (docs/specs/ficha-tecnica.md): the pharmacist
+ *   - Manual-enrase lines (openspec/specs/ficha-tecnica/spec.md): the pharmacist
  *     types the REAL quantity used at confirmation time; it must be > 0.
  */
 import { Decimal } from "@/shared/decimal";
@@ -19,7 +19,7 @@ import { ValidationError } from "@/shared/errors";
 
 // ============================================================================
 // Manual-enrase line: the real quantity, typed by the pharmacist at
-// confirmation (docs/specs/ficha-tecnica.md, revised INV-S12).
+// confirmation (openspec/specs/ficha-tecnica/spec.md, revised INV-S12).
 // ============================================================================
 
 /** Throws `ValidationError` unless `cantidad` is a finite, strictly positive `Decimal`. */

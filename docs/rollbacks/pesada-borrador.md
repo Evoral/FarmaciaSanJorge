@@ -1,6 +1,6 @@
 # Rollback: pesada en la ficha (pesada en borrador)
 
-Spec: `docs/specs/pesada-real.md` P8-P12. Migration 0090.
+Spec: `openspec/specs/pesada-real/spec.md` P8-P12. Migration 0090.
 
 ## What it added
 

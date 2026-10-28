@@ -32,6 +32,7 @@ export const cuilOpcional = z
   .string()
   .trim()
   .optional()
+  .nullable()
   .transform((value, ctx) => {
     if (!value || value.length === 0) return null;
     const digits = soloDigitos(value);
@@ -56,6 +57,7 @@ export const dniOpcional = z
   .string()
   .trim()
   .optional()
+  .nullable()
   .transform((value, ctx) => {
     if (!value || value.length === 0) return null;
     const digits = soloDigitos(value);
@@ -67,3 +69,15 @@ export const dniOpcional = z
   });
 
 export { soloDigitos };
+
+/** Longest domicilio accepted, the same cap as the receta's (`MAX_DOMICILIO_PACIENTE`, migration 0070). */
+export const MAX_DOMICILIO = 300;
+
+/** Optional free-text domicilio (migration 0099, openspec/specs/domicilios/spec.md). Trimmed; empty -> `null`; absent stays absent (callers read it with `?? null`). */
+export const domicilioOpcional = z
+  .string()
+  .trim()
+  .max(MAX_DOMICILIO, `El domicilio no puede superar los ${MAX_DOMICILIO} caracteres.`)
+  .nullable()
+  .transform((v) => (v && v.length > 0 ? v : null))
+  .optional();

@@ -19,11 +19,11 @@
  *         PENDIENTE_PREPARACION / EN_PREPARACION may get an asiento (an
  *         ANULADA or terminal receta is refused, never silently skipped);
  *         the preparación's ficha must still be the ítem's LATEST version
- *         (docs/specs/reserva-stock-preparacion.md R19/R24). The receta is
+ *         (openspec/specs/reserva-stock-preparacion/spec.md R19/R24). The receta is
  *         locked BEFORE the partidas: preparación -> receta -> partidas, the
  *         order of every preparación command (R23).
  *      c-e. `planificarConsumoEnTx`: the líneas are the ficha's; the
- *         partidas are chosen by the SYSTEM (docs/specs/reserva-stock-preparacion.md
+ *         partidas are chosen by the SYSTEM (openspec/specs/reserva-stock-preparacion/spec.md
  *         R1, DT decision 2026-10-15): every eligible partida of each
  *         línea's droga ("automatica"), or the partidas a reserva holds
  *         ("reservada", "Imprimir etiquetas"), locked in ONE id-ordered
@@ -49,7 +49,7 @@
  *      f. The ítem's libro data -- its fórmula text, its `detalle_asiento`
  *         lines and the controlled movimientos still owed an
  *         `asiento_contralor` -- is RETURNED, not written: D8 (one asiento
- *         per receta, docs/specs/libro-recetario-y-contralor.md §1) writes
+ *         per receta, openspec/specs/libro-recetario-y-contralor/spec.md §1) writes
  *         ONE `asiento_recetario` for every ítem confirmed in the
  *         transaction, after the last one (`registrarAsientoRecetaEnTx`,
  *         ./registrar-asiento-receta.ts). Insumos (droga.clase
@@ -65,7 +65,7 @@
  *         snapshot: changing the parameter later never moves it.
  *      h. UPDATE the receta's estado: PENDIENTE_PREPARACION ->
  *         EN_PREPARACION on its FIRST confirmation (starting or reserving a
- *         preparación no longer moves it -- docs/specs/reserva-stock-preparacion.md),
+ *         preparación no longer moves it -- openspec/specs/reserva-stock-preparacion/spec.md),
  *         then EN_PREPARACION -> PREPARADA once EVERY item_receta of the
  *         receta has a CONFIRMADA preparación (INV-P03.4). Both are forward
  *         moves the DB state machine allows, one after the other.
@@ -78,7 +78,7 @@
  * "Imprimir etiquetas" (`confirmarReservasReceta`, ./confirmar-reservas-receta.ts,
  * via ./confirmar-desde-reservas.ts) runs the very same confirmation from each
  * preparación's reserva de stock (migration 0071,
- * docs/specs/reserva-stock-preparacion.md), every ítem of the receta in one
+ * openspec/specs/reserva-stock-preparacion/spec.md), every ítem of the receta in one
  * transaction, then writes the receta's ONE asiento and the etiquetas; the
  * reservas are deleted in that same transaction.
  *
@@ -160,9 +160,9 @@ export const lineaEntradaInput = z.object({
   /** Required (and validated > 0) ONLY for esEnraseManual lines -- the DB is what says whether a línea is manual, never client input. In the línea's unit. */
   cantidadManual: decimalString.optional(),
   motivoAperturaAdicional: nonEmptyString.optional(),
-  /** The partidas chosen to weigh from (docs/specs/pesada-real.md; the form pre-checks the automatic plan's). Required when the línea's candidates differ in purity (R25). */
+  /** The partidas chosen to weigh from (openspec/specs/pesada-real/spec.md; the form pre-checks the automatic plan's). Required when the línea's candidates differ in purity (R25). */
   partidaIds: z.array(uuid).optional(),
-  /** Non-manual líneas: the real weighed (physical) quantity, in the línea's unit (docs/specs/pesada-real.md). Ignored for an enrase manual línea. */
+  /** Non-manual líneas: the real weighed (physical) quantity, in the línea's unit (openspec/specs/pesada-real/spec.md). Ignored for an enrase manual línea. */
   cantidadReal: decimalString.optional(),
 });
 
@@ -178,13 +178,13 @@ export interface LineaEntradaInput {
 }
 
 /**
- * The DT co-firma of a pesada real outside the tolerance (docs/specs/pesada-real.md). Set ONLY by the public wrappers
+ * The DT co-firma of a pesada real outside the tolerance (openspec/specs/pesada-real/spec.md). Set ONLY by the public wrappers
  * (`confirmarPreparacion`, `reservarStockPreparacion`, `recalcularReservaStock`) from `autorizacionDePesadaReal`'s
  * password check -- never from client input. The DB re-checks it is a DT vigente (migration 0088).
  */
 export const pesadaAutorizadaPorIdInput = uuid.optional();
 
-/** docs/specs/vencimiento-preparado.md R10: the tipo chosen when confirming; missing = `ESTANDAR`. */
+/** openspec/specs/vencimiento-preparado/spec.md R10: the tipo chosen when confirming; missing = `ESTANDAR`. */
 export const tipoVencimientoInput = z.enum(TIPOS_VENCIMIENTO_PREPARADO).default(TIPO_VENCIMIENTO_DEFAULT);
 
 /** What the reserva / confirmation form sends for a pesada real outside the tolerance (verified, never stored as typed). */
@@ -212,7 +212,7 @@ export interface LineaReservada {
   partidaIds: string[];
   cantidadManual?: Decimal;
   motivoAperturaAdicional?: string;
-  /** Non-manual línea weighed for real: physical, línea unit (docs/specs/pesada-real.md). */
+  /** Non-manual línea weighed for real: physical, línea unit (openspec/specs/pesada-real/spec.md). */
   cantidadReal?: Decimal;
   /** The DT who co-signed `cantidadReal` outside the tolerance. */
   pesadaAutorizadaPorId?: string;
@@ -225,7 +225,7 @@ export interface CandidatosAutomaticos {
 }
 
 /**
- * Where the partidas of each línea come from (docs/specs/reserva-stock-preparacion.md R1):
+ * Where the partidas of each línea come from (openspec/specs/reserva-stock-preparacion/spec.md R1):
  *   - "automatica": every eligible partida of the línea's droga, split abiertas first then FEFO; only the partidas the
  *     split draws from are "chosen". `candidatos` may be passed when the caller already locked them (Registrar pérdida).
  *   - "reservada": the partidas a reserva holds ("Imprimir etiquetas"), re-split against fresh balances.
@@ -235,7 +235,7 @@ export type SeleccionDePartidas =
       modo: "automatica";
       entradas: readonly LineaEntrada[];
       candidatos?: CandidatosAutomaticos;
-      /** A fresh DT co-firma (docs/specs/pesada-real.md), for every línea whose pesada real is outside the tolerance. */
+      /** A fresh DT co-firma (openspec/specs/pesada-real/spec.md), for every línea whose pesada real is outside the tolerance. */
       pesadaAutorizadaPorId?: string;
       /** Per línea, a reserva's stored co-firma still valid for the same pesada real (`autorizacionesDeReserva`). */
       autorizacionesPorLinea?: ReadonlyMap<string, string>;
@@ -575,7 +575,7 @@ export interface LineaPlanificada {
   esDesvio: boolean;
   /** The partidas drawn from, as read after the lock. */
   partidas: readonly PartidaFresca[];
-  /** A non-manual línea weighed for real (docs/specs/pesada-real.md): what `fsj.pesada_real` records. Línea unit. */
+  /** A non-manual línea weighed for real (openspec/specs/pesada-real/spec.md): what `fsj.pesada_real` records. Línea unit. */
   pesada: PesadaPlanificada | null;
 }
 
@@ -631,7 +631,14 @@ export function partidaIdsDeCandidatos(candidatos: CandidatosAutomaticos): strin
 export async function planificarConsumoEnTx(
   tx: Prisma.TransactionClient,
   tenantId: string,
-  input: { preparacionId: string; fichaTecnicaId: string; seleccion: SeleccionDePartidas; jornada: string },
+  input: {
+    preparacionId: string;
+    fichaTecnicaId: string;
+    seleccion: SeleccionDePartidas;
+    jornada: string;
+    /** Other partidas the caller will lock later in this transaction (the excipiente's): locked here, in the same statement. */
+    partidasAdicionales?: readonly string[];
+  },
 ): Promise<LineaPlanificada[]> {
   const { jornada, seleccion } = input;
   const automatica = seleccion.modo === "automatica";
@@ -680,7 +687,7 @@ export async function planificarConsumoEnTx(
   //    statement (see this file's doc comment), then re-read them.
   // ------------------------------------------------------------------
   const todosLosPartidaIds = [...new Set([...elegidoPorLinea.values()].flatMap((l) => l.partidaIds))];
-  const lockedPartidaIds = new Set(await lockPartidasParaConfirmacion(tx, tenantId, todosLosPartidaIds));
+  const lockedPartidaIds = new Set(await lockPartidasParaConfirmacion(tx, tenantId, [...new Set([...todosLosPartidaIds, ...(input.partidasAdicionales ?? [])])]));
   const faltante = todosLosPartidaIds.find((id) => !lockedPartidaIds.has(id));
   if (faltante) throw new NotFoundError(`Partida no encontrada: ${faltante}.`);
 
@@ -743,7 +750,7 @@ export async function planificarConsumoEnTx(
     }
     const usables = frescas.filter((p) => !estaVencida(p.fechaVencimiento, jornada));
 
-    // The lots the user checked (docs/specs/pesada-real.md: the form pre-checks the automatic plan's): the split runs
+    // The lots the user checked (openspec/specs/pesada-real/spec.md: the form pre-checks the automatic plan's): the split runs
     // over those only (still abiertas first, then FEFO). Required when the candidates differ in purity (R25): the
     // weight depends on the lot. A reserva already holds the chosen ones.
     let aRepartir: readonly PartidaFresca[] = usables;
@@ -777,7 +784,7 @@ export async function planificarConsumoEnTx(
       continue;
     }
 
-    // Pesada real (docs/specs/pesada-real.md): the línea consumes what the balance showed, drained over the same
+    // Pesada real (openspec/specs/pesada-real/spec.md): the línea consumes what the balance showed, drained over the same
     // partidas; the plan above is what was EXPECTED. Outside the tolerance the DT must have co-signed.
     let split = resultado.partes;
     let pesada: PesadaPlanificada | null = null;

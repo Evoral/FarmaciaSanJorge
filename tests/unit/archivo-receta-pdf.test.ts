@@ -1,5 +1,5 @@
 /**
- * P8 (docs/specs/importacion-receta-pdf.md, "Pieza 3 -- Frontera de
+ * P8 (openspec/specs/importacion-receta-pdf/spec.md, "Pieza 3 -- Frontera de
  * confianza"): the uploaded file's checks, in the spec's mandatory order,
  * plus the alignment between EVERY upload limit (the PDF's MAX_PDF_BYTES and
  * the supplier price list's MAX_LISTA_BYTES) and next.config.ts's Server

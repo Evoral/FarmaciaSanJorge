@@ -21,7 +21,7 @@
  *
  * Confirmadas / Descartadas list preparaciones. Confirmadas also lists the
  * ítems marked as preparados whose etiquetas were not printed yet (stock
- * reservado, docs/specs/reserva-stock-preparacion.md R26): "Imprimir" opens
+ * reservado, openspec/specs/reserva-stock-preparacion/spec.md R26): "Imprimir" opens
  * the toma workspace with "Imprimir etiquetas" already open (it confirms the
  * whole receta, R13), and "Editar preparación" opens that workspace as is
  * (where "Liberar reserva" sends the ítem back to Pendiente).

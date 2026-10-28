@@ -15,6 +15,7 @@ import type { TipoMovimiento, MotivoAjuste as PrismaMotivoAjuste } from "@/gener
 import { DIAS_ALERTA_VENCIMIENTO_PARTIDA_DEFAULT, type OrdenStockDrogas } from "../domain/partida";
 import { rangoDeJornadas } from "@/shared/time/jornada";
 import { drogaCoincideSql, sinonimoCoincidenteSql } from "@/shared/db/busqueda-droga";
+import { ETIQUETA_SIN_PROVEEDOR } from "@/shared/labels/enum-labels";
 
 // ============================================================================
 // jornada helper (fsj.jornada_actual(tenantId)) -- see migration 0014.
@@ -44,7 +45,7 @@ export interface StockDrogaItem {
   bajoMinimo: boolean;
   /** Earliest vencimiento VIGENTE (`fecha_vencimiento_vigente`, migration 0074) among partidas with balance (YYYY-MM-DD), `null` when none has balance. */
   proximoVencimiento: string | null;
-  /** The synonym the search matched through, when the name itself did not match (docs/specs/sinonimos-droga.md). */
+  /** The synonym the search matched through, when the name itself did not match (openspec/specs/sinonimos-droga/spec.md). */
   sinonimoCoincidente: string | null;
 }
 
@@ -215,7 +216,7 @@ export function listStockDrogasSql(filter: ListStockDrogasFilter): Prisma.Sql {
 export interface PartidaListItem {
   id: string;
   lote: string;
-  proveedorId: string;
+  proveedorId: string | null;
   proveedorRazonSocial: string;
   costoUnitario: string;
   cantidadInicial: string;
@@ -290,7 +291,7 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
       id: row.id,
       lote: row.lote,
       proveedorId: row.proveedorId,
-      proveedorRazonSocial: row.proveedor.razonSocial,
+      proveedorRazonSocial: row.proveedor?.razonSocial ?? ETIQUETA_SIN_PROVEEDOR,
       costoUnitario: row.costoUnitario.toString(),
       cantidadInicial: row.cantidadInicial.toString(),
       cantidadDisponible: row.cantidadDisponible.toString(),
@@ -307,7 +308,7 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
 }
 
 // ============================================================================
-// `/partidas` (docs/specs/historial-partidas.md): every partida of the
+// `/partidas` (openspec/specs/historial-partidas/spec.md): every partida of the
 // tenant, across all drogas (insumos included: they are drogas with another
 // `clase`), newest ingreso first. Agotadas included unless `soloConSaldo`.
 // ============================================================================
@@ -320,7 +321,7 @@ export interface PartidaHistorialItem {
   /** The droga unidad base -- every quantity of the partida is recorded in it. */
   unidadBaseId: string;
   unidadBaseSimbolo: string;
-  proveedorId: string;
+  proveedorId: string | null;
   proveedorRazonSocial: string;
   cantidadInicial: string;
   cantidadDisponible: string;
@@ -420,7 +421,7 @@ export async function listPartidasHistorial(tx: Prisma.TransactionClient, filter
       unidadBaseId: row.droga.unidadBaseId,
       unidadBaseSimbolo: row.droga.unidadBase.simbolo,
       proveedorId: row.proveedorId,
-      proveedorRazonSocial: row.proveedor.razonSocial,
+      proveedorRazonSocial: row.proveedor?.razonSocial ?? ETIQUETA_SIN_PROVEEDOR,
       cantidadInicial: row.cantidadInicial.toString(),
       cantidadDisponible: row.cantidadDisponible.toString(),
       fechaIngreso: row.fechaIngreso,
@@ -452,7 +453,7 @@ export interface PartidaParaAccion {
   /** The droga unidad base -- every quantity of the partida is recorded in it. */
   unidadBaseId: string;
   unidadBaseSimbolo: string;
-  proveedorId: string;
+  proveedorId: string | null;
   proveedorRazonSocial: string;
   lote: string;
   costoUnitario: string;
@@ -466,6 +467,8 @@ export interface PartidaParaAccion {
   fechaApertura: Date | null;
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
+  /** Migration 0100: COMPRA or EXISTENCIA_INICIAL (openspec/specs/existencia-inicial/spec.md R10). */
+  origen: "COMPRA" | "EXISTENCIA_INICIAL";
 }
 
 export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<PartidaParaAccion | null> {
@@ -484,6 +487,7 @@ export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantI
       fechaVencimientoVigente: true,
       fechaApertura: true,
       potenciaDeclarada: true,
+      origen: true,
       droga: { select: { nombre: true, clase: true, unidadBaseId: true, unidadBase: { select: { simbolo: true } } } },
       proveedor: { select: { razonSocial: true } },
     },
@@ -497,7 +501,7 @@ export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantI
     unidadBaseId: row.droga.unidadBaseId,
     unidadBaseSimbolo: row.droga.unidadBase.simbolo,
     proveedorId: row.proveedorId,
-    proveedorRazonSocial: row.proveedor.razonSocial,
+    proveedorRazonSocial: row.proveedor?.razonSocial ?? ETIQUETA_SIN_PROVEEDOR,
     lote: row.lote,
     costoUnitario: row.costoUnitario.toString(),
     cantidadInicial: row.cantidadInicial.toString(),
@@ -507,6 +511,7 @@ export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantI
     fechaVencimientoVigente: row.fechaVencimientoVigente,
     fechaApertura: row.fechaApertura,
     potenciaDeclarada: row.potenciaDeclarada?.toString() ?? null,
+    origen: row.origen,
   };
 }
 
@@ -535,9 +540,11 @@ export async function lockPartidaParaAccion(tx: Prisma.TransactionClient, tenant
 // ============================================================================
 
 export interface NuevaPartidaInput {
+  /** Default COMPRA (INGRESO_COMPRA). EXISTENCIA_INICIAL writes INGRESO_INICIAL (migration 0100, INV-S25). */
+  origen?: "COMPRA" | "EXISTENCIA_INICIAL";
   tenantId: string;
   drogaId: string;
-  proveedorId: string;
+  proveedorId: string | null;
   lote: string;
   costoUnitario: string;
   /** Already converted to the droga's unidad base -- see ingresar-partida.ts. */
@@ -555,7 +562,8 @@ export interface NuevaPartidaInput {
 }
 
 /** `uq (tenant, droga, proveedor, lote)` pre-check, for a clear message on the lote field instead of a generic unique violation. */
-export async function existePartidaLote(tx: Prisma.TransactionClient, tenantId: string, drogaId: string, proveedorId: string, lote: string): Promise<boolean> {
+/** `proveedorId` null = among the partidas without proveedor (uq_partida_lote_sin_proveedor, migration 0100). */
+export async function existePartidaLote(tx: Prisma.TransactionClient, tenantId: string, drogaId: string, proveedorId: string | null, lote: string): Promise<boolean> {
   const row = await tx.partida.findFirst({ where: { tenantId, drogaId, proveedorId, lote }, select: { id: true } });
   return row !== null;
 }
@@ -638,7 +646,7 @@ export async function getFechaActivacionContralor(tx: Prisma.TransactionClient, 
  * this atomic by COMMIT time (both succeed, or the whole transaction rolls
  * back), not the ordering of these two statements.
  */
-export async function insertPartidaConIngreso(tx: Prisma.TransactionClient, input: NuevaPartidaInput): Promise<{ id: string }> {
+export async function insertPartidaConIngreso(tx: Prisma.TransactionClient, input: NuevaPartidaInput): Promise<{ id: string; movimientoId: string }> {
   const partida = await tx.partida.create({
     data: {
       tenantId: input.tenantId,
@@ -652,22 +660,70 @@ export async function insertPartidaConIngreso(tx: Prisma.TransactionClient, inpu
       comprobanteCompraId: input.comprobanteCompraId ?? null,
       despachoImportacion: input.despachoImportacion ?? null,
       paisOrigen: input.paisOrigen ?? null,
+      origen: input.origen ?? "COMPRA",
     },
     select: { id: true },
   });
 
-  await tx.movimientoStock.create({
+  const movimiento = await tx.movimientoStock.create({
     data: {
       tenantId: input.tenantId,
       partidaId: partida.id,
-      tipo: "INGRESO_COMPRA" as TipoMovimiento,
+      tipo: (input.origen === "EXISTENCIA_INICIAL" ? "INGRESO_INICIAL" : "INGRESO_COMPRA") as TipoMovimiento,
       cantidad: input.cantidadInicialBase,
       registradoPorId: input.registradoPorId,
       numeroValeAdquisicion: input.numeroValeAdquisicion ?? undefined,
     },
+    select: { id: true },
   });
 
-  return partida;
+  return { id: partida.id, movimientoId: movimiento.id };
+}
+
+const PLACEHOLDER_UUID = "00000000-0000-0000-0000-000000000000";
+const PLACEHOLDER_DATE = new Date(0);
+
+export interface NuevoAsientoContralorStockInput {
+  tenantId: string;
+  tipo: "INGRESO" | "AJUSTE";
+  drogaId: string;
+  drogaDescripcion: string;
+  /** In the droga's unidad base, like the movimiento. */
+  cantidad: string;
+  unidadMedidaId: string;
+  movimientoStockId: string;
+  /** INGRESO only (asiento_contralor_tipo_check). */
+  numeroValeAdquisicion: string | null;
+  registradoPorId: string;
+}
+
+/**
+ * INSERT `asiento_contralor` for a compra (INGRESO) or an ajuste (AJUSTE) of a controlled droga -- INV-L08, same
+ * transaction as the movimiento. `fsj.asiento_contralor_preparar` assigns libro, número, fecha, saldos and hash: the
+ * placeholders below are overwritten (same pattern as the preparación's EGRESO).
+ */
+export async function insertAsientoContralorStock(tx: Prisma.TransactionClient, input: NuevoAsientoContralorStockInput): Promise<{ id: string }> {
+  return tx.asientoContralor.create({
+    data: {
+      tenantId: input.tenantId,
+      libroId: PLACEHOLDER_UUID,
+      numeroCorrelativo: BigInt(0),
+      fechaAsiento: PLACEHOLDER_DATE,
+      tipoMovimiento: input.tipo,
+      drogaId: input.drogaId,
+      drogaDescripcion: input.drogaDescripcion,
+      cantidad: input.cantidad,
+      unidadMedidaId: input.unidadMedidaId,
+      saldoAnterior: "0",
+      saldoPosterior: "0",
+      movimientoStockId: input.movimientoStockId,
+      numeroValeAdquisicion: input.numeroValeAdquisicion,
+      hashIntegridad: "",
+      hashAnterior: "",
+      registradoPorId: input.registradoPorId,
+    },
+    select: { id: true },
+  });
 }
 
 // ============================================================================
@@ -684,7 +740,7 @@ export interface NuevoAjusteInput {
   observacion: string;
   registradoPorId: string;
   autorizadoPorId: string;
-  /** A pérdida registered during a preparación (docs/specs/reserva-stock-preparacion.md): `movimiento_stock.preparacion_id` (nullable, FK since 0013). */
+  /** A pérdida registered during a preparación (openspec/specs/reserva-stock-preparacion/spec.md): `movimiento_stock.preparacion_id` (nullable, FK since 0013). */
   preparacionId?: string | null;
 }
 
@@ -723,7 +779,7 @@ export async function reservadoPorPartida(tx: Prisma.TransactionClient, tenantId
 
 /**
  * Stock of `partidaId` reserved by preparaciones INICIADA (fsj.reserva_stock, migration 0071,
- * docs/specs/reserva-stock-preparacion.md), except `excluirPreparacionId`'s own, plus the receta Nº of each of them.
+ * openspec/specs/reserva-stock-preparacion/spec.md), except `excluirPreparacionId`'s own, plus the receta Nº of each of them.
  * Own small read of the preparaciones tables (each module keeps its own cross-module reads, like
  * modules/preparaciones/infrastructure/preparacion-repository.ts does).
  * Read AFTER `lockPartidaParaAccion`: a reserva is written only under the same partida lock.
@@ -1105,7 +1161,7 @@ export interface AlertaPorVencer {
   fechaVencimiento: Date;
   /** The ORIGINAL (printed) vencimiento; differs from `fechaVencimiento` only when `reanalizada`. */
   fechaVencimientoOriginal: Date;
-  /** A DROGA partida (migration 0063): blocked when vencida until the DT acts; re-analysable (docs/specs/reanalisis-partida.md). */
+  /** A DROGA partida (migration 0063): blocked when vencida until the DT acts; re-analysable (openspec/specs/reanalisis-partida/spec.md). */
   esDroga: boolean;
   /** The vigente date comes from a reanálisis (differs from the original one). */
   reanalizada: boolean;
@@ -1113,7 +1169,7 @@ export interface AlertaPorVencer {
 
 /**
  * An expired partida that STILL has balance. `esDroga` = blocked until the DT acts (reanálisis or "marcar como
- * vencida", docs/specs/reanalisis-partida.md); an insumo's suggests a VENCIMIENTO ajuste (plan §9 M07 historia 6).
+ * vencida", openspec/specs/reanalisis-partida/spec.md); an insumo's suggests a VENCIMIENTO ajuste (plan §9 M07 historia 6).
  */
 export type AlertaVencidaConSaldo = AlertaPorVencer;
 
@@ -1152,13 +1208,13 @@ function alertaDesdeRow(row: AlertaVencimientoRow): AlertaPorVencer {
 /** Partidas with balance whose vencimiento VIGENTE falls within `[jornadaActual, jornadaActual + diasAlerta]` -- excludes already-expired ones (those are `alertasVencidasConSaldo`'s job). */
 export async function alertasPorVencer(tx: Prisma.TransactionClient, tenantId: string, diasAlerta: number): Promise<AlertaPorVencer[]> {
   const rows = await tx.$queryRaw<AlertaVencimientoRow[]>`
-    SELECT p.id AS partida_id, d.id AS droga_id, d.nombre, p.lote, pv.razon_social AS proveedor_razon_social,
+    SELECT p.id AS partida_id, d.id AS droga_id, d.nombre, p.lote, coalesce(pv.razon_social, ${ETIQUETA_SIN_PROVEEDOR}) AS proveedor_razon_social,
       p.cantidad_disponible::text, u.id AS unidad_base_id, u.simbolo AS unidad_base_simbolo,
       p.fecha_vencimiento_vigente, p.fecha_vencimiento,
       d.clase = 'DROGA' AS es_droga, p.fecha_vencimiento_vigente IS DISTINCT FROM p.fecha_vencimiento AS reanalizada
     FROM fsj.partida p
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
-    JOIN fsj.proveedor pv ON pv.tenant_id = p.tenant_id AND pv.id = p.proveedor_id
+    LEFT JOIN fsj.proveedor pv ON pv.tenant_id = p.tenant_id AND pv.id = p.proveedor_id
     JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
     WHERE p.tenant_id = ${tenantId}::uuid
       AND p.cantidad_disponible > 0
@@ -1172,13 +1228,13 @@ export async function alertasPorVencer(tx: Prisma.TransactionClient, tenantId: s
 /** Expired partidas (vencimiento VIGENTE < jornada) that STILL have balance. */
 export async function alertasVencidasConSaldo(tx: Prisma.TransactionClient, tenantId: string): Promise<AlertaVencidaConSaldo[]> {
   const rows = await tx.$queryRaw<AlertaVencimientoRow[]>`
-    SELECT p.id AS partida_id, d.id AS droga_id, d.nombre, p.lote, pv.razon_social AS proveedor_razon_social,
+    SELECT p.id AS partida_id, d.id AS droga_id, d.nombre, p.lote, coalesce(pv.razon_social, ${ETIQUETA_SIN_PROVEEDOR}) AS proveedor_razon_social,
       p.cantidad_disponible::text, u.id AS unidad_base_id, u.simbolo AS unidad_base_simbolo,
       p.fecha_vencimiento_vigente, p.fecha_vencimiento,
       d.clase = 'DROGA' AS es_droga, p.fecha_vencimiento_vigente IS DISTINCT FROM p.fecha_vencimiento AS reanalizada
     FROM fsj.partida p
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
-    JOIN fsj.proveedor pv ON pv.tenant_id = p.tenant_id AND pv.id = p.proveedor_id
+    LEFT JOIN fsj.proveedor pv ON pv.tenant_id = p.tenant_id AND pv.id = p.proveedor_id
     JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
     WHERE p.tenant_id = ${tenantId}::uuid
       AND p.cantidad_disponible > 0
@@ -1198,7 +1254,7 @@ export interface ResumenVencimientosDrogas {
 /**
  * One aggregate row for the app-wide banner: the same predicates as `alertasVencidasConSaldo` /
  * `alertasPorVencer` above (keep them in sync), restricted to DROGA partidas -- the ones that wait on the DT
- * (docs/specs/reanalisis-partida.md) -- and counted per droga instead of listed.
+ * (openspec/specs/reanalisis-partida/spec.md) -- and counted per droga instead of listed.
  */
 export async function resumenVencimientosDrogas(tx: Prisma.TransactionClient, tenantId: string, diasAlerta: number): Promise<ResumenVencimientosDrogas> {
   const rows = await tx.$queryRaw<{ drogas_vencidas: number; drogas_por_vencer: number }[]>`
@@ -1220,7 +1276,7 @@ export async function resumenVencimientosDrogas(tx: Prisma.TransactionClient, te
 }
 
 // ============================================================================
-// Reanálisis de partida (migration 0074, docs/specs/reanalisis-partida.md):
+// Reanálisis de partida (migration 0074, openspec/specs/reanalisis-partida/spec.md):
 // append-only rows; the DB trigger moves partida.fecha_vencimiento_vigente
 // and re-checks INV-S22 (droga, saldo, date, DT vigente).
 // ============================================================================

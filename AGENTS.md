@@ -1,6 +1,6 @@
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 
@@ -28,6 +28,7 @@ Prisma 7 + Postgres (Supabase, schema `fsj`), zod 4, decimal.js, Tailwind 4.
 | Unit tests | `npm test` |
 | DB tests (opt-in, `FSJ_DB_TESTS=yes`, real DB inside rolled-back tx) | `npm run test:db` |
 | Regenerate Prisma client | `npm run db:generate` |
+| Validate specs | `npm run specs:validate` |
 
 CI (`.github/workflows/ci.yml`) runs typecheck → lint → test → build. Never run
 `prisma migrate reset` or any destructive DB command: dev and tests share the
@@ -47,6 +48,12 @@ one real Supabase project.
 - Money and quantities use `decimal.js` (`shared/decimal`), never JS `number` arithmetic.
 - Schema changes: new migration in `prisma/migrations/` (triggers, RLS and grants
   are hand-written SQL) plus its `prisma/rollbacks/<migration>.down.sql`.
+- `SECURITY DEFINER` functions bypass RLS: always `SET search_path = fsj, extensions`;
+  if they take `p_tenant_id`, refuse it first when `IS DISTINCT FROM fsj.current_tenant_id()`.
+  Never grant EXECUTE to PUBLIC; new `fsj` routines reach `fsj_app` by default privileges,
+  so `REVOKE ... FROM fsj_app` the ones the app must not call (migration 0101).
+- `DIRECT_URL` (owner, bypasses RLS) is never read by runtime code nor added to
+  `shared/env.ts`; only `scripts/` and `prisma.config.ts` read it.
 
 The ESLint config enforces most of these rules. Full rationale: `docs/architecture.md`.
 
@@ -66,7 +73,7 @@ The ESLint config enforces most of these rules. Full rationale: `docs/architectu
 - **Shared sessions (cuentas de sector).** A Server Action that runs an acción
   listed in `PERMISOS_CON_PIN_CONFIGURABLES` or `PERMISOS_CON_PIN_SIEMPRE` wraps its body in `conOperador`
   (`shared/auth/operador-context.ts`); never read the acting user from anywhere
-  but `session.usuario`. Spec: `docs/specs/cuentas-de-sector.md`.
+  but `session.usuario`. Spec: `openspec/specs/cuentas-de-sector/spec.md`.
 - Follow the patterns of the nearest existing module; don't introduce new ones
   without a reason stated in the change.
 
@@ -85,7 +92,7 @@ The ESLint config enforces most of these rules. Full rationale: `docs/architectu
 | Change | Do |
 |---|---|
 | Small fix (1–2 files) | Just fix it. |
-| Feature or business-rule change | Read/update `docs/specs/<feature>.md` first. If the implementation changes a rule, update the spec in the same commit. |
+| Feature or business-rule change | Read/update `openspec/specs/<feature>/spec.md` first. A new feature goes through `openspec/changes/<change>/` (workflow: `openspec/README.md`). If the implementation changes a rule, update the spec in the same commit. |
 | Schema change or multi-module change | Spec + `docs/rollbacks/<feature>.md` + `.down.sql`. Prefer a review by a different agent/vendor than the one that implemented it. |
 
 ### Keeping this file useful
@@ -99,7 +106,7 @@ The ESLint config enforces most of these rules. Full rationale: `docs/architectu
 
 | Before touching... | Read |
 |---|---|
-| Any business feature | `docs/specs/<feature>.md` (most specs link the code they govern) |
+| Any business feature | `openspec/specs/<feature>/spec.md` (most specs link the code they govern) |
 | A module you don't know | `modules/README.md` (module map) |
 | Auth, sessions, permissions | `shared/auth/README.md` |
 | Auditing | `shared/audit/README.md` |
@@ -107,4 +114,4 @@ The ESLint config enforces most of these rules. Full rationale: `docs/architectu
 | Deploy | `docs/deploy.md` |
 | Reverting a shipped feature | `docs/rollbacks/<feature>.md` |
 | Original plan (modules `M00`–`M16`, invariants `INV-*`, pending decisions `DP-*`) | `docs/plan-implementacion.md` — search, don't read |
-| Ideas not yet approved | `docs/propuestas/` — not a source of truth |
+| Ideas and changes not yet archived | `openspec/changes/<change>/` — not a source of truth until archived |

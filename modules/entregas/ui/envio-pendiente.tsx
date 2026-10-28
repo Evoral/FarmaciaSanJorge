@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * What the entrega panel shows for an envío waiting for its firma (ENVIADA_PEND_FIRMA, docs/specs/envios-repartidores.md):
+ * What the entrega panel shows for an envío waiting for its firma (ENVIADA_PEND_FIRMA, openspec/specs/envios-repartidores/spec.md):
  * the domicilio it goes to, its repartidor (nombre, apellido, teléfono) or "Sin repartidor asignado" for an envío
  * registered before migration 0093 (E7), and -- for whoever can register entregas -- the button that opens the
  * repartidor autocomplete (E5): "Cambiar repartidor", or "Asignar repartidor" when there is none.
@@ -22,7 +22,7 @@ export interface RepartidorAsignado {
 
 export interface EnvioPendienteProps {
   recetaId: string;
-  domicilioPaciente: string | null;
+  domicilioEnvio: string | null;
   repartidor: RepartidorAsignado | null;
   /** `entregas.registrar`: may change the repartidor. */
   puedeCambiar: boolean;
@@ -35,7 +35,7 @@ export interface EnvioPendienteProps {
 
 export function EnvioPendiente({
   recetaId,
-  domicilioPaciente,
+  domicilioEnvio,
   repartidor,
   puedeCambiar,
   hayRepartidoresActivos,
@@ -43,7 +43,7 @@ export function EnvioPendiente({
   cambiarAction,
 }: EnvioPendienteProps) {
   const [editando, setEditando] = useState(false);
-  const domicilio = domicilioPaciente?.trim() ?? "";
+  const domicilio = domicilioEnvio?.trim() ?? "";
 
   return (
     <div className="flex flex-col gap-3">

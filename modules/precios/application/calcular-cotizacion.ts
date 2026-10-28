@@ -16,7 +16,7 @@
  *
  * The costing itself (jornada + partidas + pure calculator) is
  * `cotizarLineas`, shared with the in-memory presupuesto of a receta draft
- * (docs/specs/presupuesto-receta.md); the "no ficha" / "no regla" errors
+ * (openspec/specs/presupuesto-receta/spec.md); the "no ficha" / "no regla" errors
  * are `CotizacionNoCalculableError` (same messages, plus a stable code).
  */
 import { z } from "zod";
@@ -37,6 +37,7 @@ export interface CalcularCotizacionInput {
 export interface CalcularCotizacionOutput {
   id: string;
   costoInsumos: string;
+  costoInsumosConIva: string;
   margenAplicado: string;
   precioMinimoAplicado: boolean;
   precioFinal: string;
@@ -87,6 +88,7 @@ export const calcularCotizacionCommand = defineCommand({
       tenantId: session.tenantId,
       itemRecetaId: input.itemRecetaId,
       costoInsumos: resultado.costoInsumos.toString(),
+      costoInsumosConIva: resultado.costoInsumosConIva.toString(),
       margenAplicado: resultado.margenAplicado.toString(),
       precioMinimoAplicado: resultado.precioMinimoAplicado,
       precioFinal: resultado.precioFinal.toString(),
@@ -106,6 +108,7 @@ export const calcularCotizacionCommand = defineCommand({
       output: {
         id: nueva.id,
         costoInsumos: resultado.costoInsumos.toString(),
+        costoInsumosConIva: resultado.costoInsumosConIva.toString(),
         margenAplicado: resultado.margenAplicado.toString(),
         precioMinimoAplicado: resultado.precioMinimoAplicado,
         precioFinal: resultado.precioFinal.toString(),

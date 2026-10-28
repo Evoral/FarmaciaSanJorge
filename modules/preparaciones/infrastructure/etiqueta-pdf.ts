@@ -1,6 +1,6 @@
 /**
  * PDF layout for a preparación's etiqueta (M11, point 8.5), a copy of the
- * farmacia's real printed label (docs/specs/etiqueta-preparado.md): a rounded
+ * farmacia's real printed label (openspec/specs/etiqueta-preparado/spec.md): a rounded
  * border; a top band with the logo and, across a vertical rule, the director
  * técnico, the domicilio and the two phones; below, "Rp/" with the fórmula on
  * the left and, on the right, the paciente, the receta number, the dosis, the
@@ -20,7 +20,7 @@
  * the label size the caller chooses (one of the sizes the administrator
  * configured -- modules/etiqueta-tamanos); the layout is not re-flowed per size.
  * The PDF page is the SHEET the farmacia prints on (modules/etiqueta-tamanos, spec
- * docs/specs/hoja-etiquetas.md R6), not the label: the label is drawn inside the cell
+ * openspec/specs/hoja-etiquetas/spec.md R6), not the label: the label is drawn inside the cell
  * (columna, fila) of the sheet's grid the user picked and the rest of the page stays
  * blank, so the printer drops it in that spot.
  *
@@ -29,7 +29,7 @@
  * exactly one page; several (`buildEtiquetasPdf`) share a page unless they overlap.
  */
 import { renderPdf } from "@/shared/pdf/pdf-document";
-import { LOGO_FARMACIA_PROPORCION, logoFarmacia } from "@/shared/pdf/logo";
+import type { LogoPdf } from "@/shared/pdf/logo";
 import { posicionCelda } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import type { Celda, HojaEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import type { TamanoEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
@@ -42,7 +42,7 @@ const PT_POR_MM = 72 / 25.4;
 const DW = 100 * PT_POR_MM;
 const DH = 42 * PT_POR_MM;
 
-/** The logo's green (public/logo-etiqueta.png), also the quantity's. */
+/** The brand green, also the quantity's. */
 const VERDE = "#1cb78c";
 const VERDE_TELEFONO = "#3eb548";
 const VERDE_WHATSAPP = "#1ca94a";
@@ -152,12 +152,15 @@ export function tamanoFuenteRp(lineas: number): number {
   return lineas <= tabla.length ? tabla[Math.max(lineas, 1) - 1]! : Math.max(3.5, 42 / (lineas * 1.2));
 }
 
-function dibujarBanda(doc: Doc, c: ContenidoEtiqueta): void {
-  const icono = logoFarmacia();
-  if (icono) {
-    const ancho = 89.9;
-    const alto = ancho / LOGO_FARMACIA_PROPORCION;
-    doc.image(icono, 20.5, (BORDE + BANDA_Y - alto) / 2, { width: ancho, height: alto });
+/** The box the tenant's logo fits in, keeping its proportion. */
+const LOGO_ANCHO_MAX = 89.9;
+const LOGO_ALTO_MAX = 30.2;
+
+function dibujarBanda(doc: Doc, c: ContenidoEtiqueta, logo: LogoPdf | null): void {
+  if (logo) {
+    const alto = Math.min(LOGO_ANCHO_MAX / logo.proporcion, LOGO_ALTO_MAX);
+    const ancho = alto * logo.proporcion;
+    doc.image(logo.imagen, 20.5, (BORDE + BANDA_Y - alto) / 2, { width: ancho, height: alto });
   }
 
   const x = 124;
@@ -289,7 +292,7 @@ export function colocarEtiqueta(tamano: TamanoEtiqueta, hoja: HojaEtiqueta, celd
 }
 
 /** Draws one etiqueta on the current page, its design space placed by `colocacion`. */
-function dibujarEtiqueta(doc: PDFKit.PDFDocument, contenido: ContenidoEtiqueta, colocacion: ColocacionEtiqueta): void {
+function dibujarEtiqueta(doc: PDFKit.PDFDocument, contenido: ContenidoEtiqueta, colocacion: ColocacionEtiqueta, logo: LogoPdf | null): void {
   doc.save();
   doc.translate(colocacion.x, colocacion.y).scale(colocacion.escala);
 
@@ -300,7 +303,7 @@ function dibujarEtiqueta(doc: PDFKit.PDFDocument, contenido: ContenidoEtiqueta, 
   regla(doc, PANEL_DIV_X, 43.4, PANEL_DIV_X, 99.6, 1.2);
   regla(doc, REGLA_MARGEN, PIE_Y, DW - REGLA_MARGEN, PIE_Y, 1.6);
 
-  dibujarBanda(doc, contenido);
+  dibujarBanda(doc, contenido, logo);
   dibujarRp(doc, contenido);
   dibujarPanel(doc, contenido);
   dibujarPie(doc, contenido);
@@ -309,8 +312,14 @@ function dibujarEtiqueta(doc: PDFKit.PDFDocument, contenido: ContenidoEtiqueta, 
 }
 
 /** Renders the sheet (`hoja`, mm) as ONE page with the etiqueta of `tamano` (mm) drawn in the cell `celda` (1-based). The caller checks that the cell is in the grid (`celdaValida`). */
-export function buildEtiquetaPdf(contenido: ContenidoEtiqueta, tamano: TamanoEtiqueta, hoja: HojaEtiqueta, celda: Celda = { columna: 1, fila: 1 }): Promise<Buffer> {
-  return buildEtiquetasPdf([{ contenido, tamano, celda }], hoja);
+export function buildEtiquetaPdf(
+  contenido: ContenidoEtiqueta,
+  tamano: TamanoEtiqueta,
+  hoja: HojaEtiqueta,
+  celda: Celda = { columna: 1, fila: 1 },
+  logo: LogoPdf | null = null,
+): Promise<Buffer> {
+  return buildEtiquetasPdf([{ contenido, tamano, celda }], hoja, logo);
 }
 
 /** One etiqueta of a multi-etiqueta print: what, at which size, in which cell. */
@@ -337,11 +346,11 @@ function seSuperponen(a: Rectangulo, b: Rectangulo): boolean {
 }
 
 /**
- * Several etiquetas in ONE PDF (the toma's single "Imprimir", docs/specs/hoja-etiquetas.md R14), in the given order:
+ * Several etiquetas in ONE PDF (the toma's single "Imprimir", openspec/specs/hoja-etiquetas/spec.md R14), in the given order:
  * each in its own cell of the SAME sheet while they do not overlap -- the farmacia prints them all on one sheet -- and
  * a new page (sheet) when one would overlap an etiqueta already on the current page (e.g. two left on 1 / 1).
  */
-export function buildEtiquetasPdf(etiquetas: readonly EtiquetaEnHoja[], hoja: HojaEtiqueta): Promise<Buffer> {
+export function buildEtiquetasPdf(etiquetas: readonly EtiquetaEnHoja[], hoja: HojaEtiqueta, logo: LogoPdf | null = null): Promise<Buffer> {
   const pagina: [number, number] = [hoja.anchoMm * PT_POR_MM, hoja.altoMm * PT_POR_MM];
   return renderPdf(
     (doc) => {
@@ -353,7 +362,7 @@ export function buildEtiquetasPdf(etiquetas: readonly EtiquetaEnHoja[], hoja: Ho
           ocupados = [];
         }
         ocupados.push(rectangulo);
-        dibujarEtiqueta(doc, etiqueta.contenido, colocarEtiqueta(etiqueta.tamano, hoja, etiqueta.celda));
+        dibujarEtiqueta(doc, etiqueta.contenido, colocarEtiqueta(etiqueta.tamano, hoja, etiqueta.celda), logo);
       }
     },
     { size: pagina, margin: 0 },

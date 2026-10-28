@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 /**
  * "Eliminar PIN" is gone: with the PIN mandatory for non-sector usuarios,
- * deleting it makes no sense (docs/specs/contrasena-temporal.md).
+ * deleting it makes no sense (openspec/specs/contrasena-temporal/spec.md).
  */
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";

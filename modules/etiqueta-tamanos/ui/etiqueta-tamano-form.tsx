@@ -12,6 +12,7 @@ import { areaUtilMm } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import type { HojaEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import { NOMBRE_MAX_LENGTH, TAMANO_MM_MAX, TAMANO_MM_MIN, formatearMedidas } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import { crearEtiquetaTamanoAction, editarEtiquetaTamanoAction } from "./actions";
+import { MedidaMmField } from "./medida-mm-field";
 
 export interface EtiquetaTamanoFormProps {
   mode: "crear" | "editar";
@@ -53,18 +54,8 @@ export function EtiquetaTamanoForm({ mode, tamano, hoja, disabled, volverA }: Et
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="field">
-          <label htmlFor="anchoMm" className="field-label">
-            Ancho (mm)
-          </label>
-          <input id="anchoMm" name="anchoMm" defaultValue={medidaParaInput(tamano?.anchoMm)} required disabled={disabled} inputMode="decimal" className="input font-mono" />
-        </div>
-        <div className="field">
-          <label htmlFor="altoMm" className="field-label">
-            Alto (mm)
-          </label>
-          <input id="altoMm" name="altoMm" defaultValue={medidaParaInput(tamano?.altoMm)} required disabled={disabled} inputMode="decimal" className="input font-mono" />
-        </div>
+        <MedidaMmField id="anchoMm" name="anchoMm" label="Ancho (mm)" defaultValue={medidaParaInput(tamano?.anchoMm)} disabled={disabled} />
+        <MedidaMmField id="altoMm" name="altoMm" label="Alto (mm)" defaultValue={medidaParaInput(tamano?.altoMm)} disabled={disabled} />
       </div>
       <p className="field-help -mt-1">
         Entre {TAMANO_MM_MIN} y {TAMANO_MM_MAX} mm, con un decimal como máximo. El ancho es el lado largo (la etiqueta se imprime en apaisado).

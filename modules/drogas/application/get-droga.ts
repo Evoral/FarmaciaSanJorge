@@ -13,7 +13,7 @@ const getDrogaInput = z.object({ id: uuid });
 export interface DrogaDetalle extends DrogaParaAccion {
   /** DP-12 (task's conservative rule): the UI disables unidadBaseId/esControlada/tipoControl when true -- see modules/drogas/application/editar-droga.ts for the enforced version of this check. */
   tienePartidas: boolean;
-  /** Vigente synonyms (docs/specs/sinonimos-droga.md), alphabetical. */
+  /** Vigente synonyms (openspec/specs/sinonimos-droga/spec.md), alphabetical. */
   sinonimos: SinonimoDroga[];
 }
 

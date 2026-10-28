@@ -11,6 +11,9 @@ export interface CostoVigenteResumen {
   unidadPrecioId: string;
   unidadPrecioSimbolo: string;
   costoUnitario: string;
+  /** R7a: percent; a change of price starts with it. */
+  alicuotaIva: string;
+  precioInformadoConIva: string;
   /** `YYYY-MM-DD`. */
   fechaPrecio: string;
   /** `null` = a manual entry. */

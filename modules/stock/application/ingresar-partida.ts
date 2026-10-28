@@ -20,7 +20,10 @@
  * invoice import (./importar-factura-compra.ts, one call per lote): there
  * the cost comes per unidad de compra (the invoice's price) and is divided
  * by the same `fsj.convertir` factor, and `campo` prefixes each error's
- * field with the lote's row so the right input is marked.
+ * field with the lote's row so the right input is marked. The existencia
+ * inicial alta (./ingresar-existencia-inicial.ts, openspec/specs/existencia-inicial/spec.md)
+ * runs the same rules with `origen: "EXISTENCIA_INICIAL"`: proveedor
+ * optional, no vale, INGRESO_INICIAL, only while the relevamiento is open.
  */
 import { z } from "zod";
 import Decimal from "decimal.js";
@@ -35,6 +38,7 @@ import {
   nonNegativeDecimalString,
   potenciaDeclaradaString,
   esFechaVencimientoFutura,
+  requiereAsientoContralor,
 } from "../domain/partida";
 import {
   getDrogaParaIngreso,
@@ -45,8 +49,11 @@ import {
   convertirUnidad,
   jornadaActualTenant,
   insertPartidaConIngreso,
+  insertAsientoContralorStock,
   existePartidaLote,
 } from "../infrastructure/partida-repository";
+import { lockTenantRelevamientoCompartido, relevamientoInicialAbierto } from "../infrastructure/existencia-inicial-repository";
+import { MENSAJE_RELEVAMIENTO_CERRADO } from "../domain/existencia-inicial";
 
 const ingresarPartidaInput = z.object({
   drogaId: uuid,
@@ -76,8 +83,11 @@ export interface IngresarPartidaInput {
 
 /** One purchase lote, every value already validated by the caller's zod schema (decimals as strings). */
 export interface PartidaCompraInput {
+  /** Default COMPRA. EXISTENCIA_INICIAL: proveedor optional, no vale, INGRESO_INICIAL (migration 0100). */
+  origen?: "COMPRA" | "EXISTENCIA_INICIAL";
   drogaId: string;
-  proveedorId: string;
+  /** Required for a COMPRA; `null` only for an EXISTENCIA_INICIAL. */
+  proveedorId: string | null;
   lote: string;
   /** Absent = does not expire: only for an insumo (droga.clase <> DROGA, migration 0064). */
   fechaVencimiento?: string;
@@ -94,7 +104,7 @@ export interface PartidaCompraInput {
 }
 
 /**
- * Validates and inserts one partida with its INGRESO_COMPRA movement;
+ * Validates and inserts one partida with its ingreso movement (INGRESO_COMPRA, or INGRESO_INICIAL for an existencia inicial);
  * returns its id and the audit `valorNuevo`. `campo` maps a field name to
  * the form's control name (errors point at it).
  */
@@ -108,12 +118,24 @@ export async function registrarPartidaCompra(
   if (!droga) throw new NotFoundError("Droga no encontrada.");
   if (droga.fechaBaja !== null) throw new DomainError(`La droga ${droga.nombre} está dada de baja.`, { fields: [campo("drogaId")] });
 
-  const proveedor = await getProveedorParaIngreso(tx, session.tenantId, input.proveedorId);
-  if (!proveedor) throw new NotFoundError("Proveedor no encontrado.");
-  if (proveedor.fechaBaja !== null) throw new DomainError("El proveedor está dado de baja.", { fields: ["proveedorId"] });
+  const origen = input.origen ?? "COMPRA";
+  if (origen === "EXISTENCIA_INICIAL") {
+    await lockTenantRelevamientoCompartido(tx, session.tenantId);
+    if (!(await relevamientoInicialAbierto(tx, session.tenantId))) throw new DomainError(MENSAJE_RELEVAMIENTO_CERRADO);
+  }
+
+  let proveedor: Awaited<ReturnType<typeof getProveedorParaIngreso>> = null;
+  if (input.proveedorId) {
+    proveedor = await getProveedorParaIngreso(tx, session.tenantId, input.proveedorId);
+    if (!proveedor) throw new NotFoundError("Proveedor no encontrado.");
+    if (proveedor.fechaBaja !== null) throw new DomainError("El proveedor está dado de baja.", { fields: ["proveedorId"] });
+  } else if (origen === "COMPRA") {
+    throw new ValidationError("Elegí el proveedor de la compra.", { fields: ["proveedorId"] });
+  }
 
   if (await existePartidaLote(tx, session.tenantId, input.drogaId, input.proveedorId, input.lote)) {
-    throw new ValidationError(`Ya existe una partida de ${droga.nombre} con el lote ${input.lote} de este proveedor.`, { fields: [campo("lote")] });
+    const deQuien = input.proveedorId ? "de este proveedor" : "sin proveedor";
+    throw new ValidationError(`Ya existe una partida de ${droga.nombre} con el lote ${input.lote} ${deQuien}.`, { fields: [campo("lote")] });
   }
 
   const jornadaActual = await jornadaActualTenant(tx, session.tenantId);
@@ -131,7 +153,8 @@ export async function registrarPartidaCompra(
   // fsj.movimiento_stock_validar_vale -- this is a fast app-level check
   // for a clear Spanish message; the DB trigger is the real invariant).
   const fechaActivacionContralor = await getFechaActivacionContralor(tx, session.tenantId);
-  const requiereVale = droga.tipoControl !== "NINGUNO" && fechaActivacionContralor !== null;
+  // An existencia inicial carries no vale: the droga's APERTURA asiento already holds that stock (spec R8).
+  const requiereVale = origen === "COMPRA" && droga.tipoControl !== "NINGUNO" && fechaActivacionContralor !== null;
   if (requiereVale && !input.numeroValeAdquisicion) {
     throw new ValidationError(`${droga.nombre} es controlada y el contralor está activo: el número de vale de adquisición es obligatorio.`, {
       fields: [campo("numeroValeAdquisicion")],
@@ -164,6 +187,7 @@ export async function registrarPartidaCompra(
           .toString();
 
   const nueva = await insertPartidaConIngreso(tx, {
+    origen,
     tenantId: session.tenantId,
     drogaId: input.drogaId,
     proveedorId: input.proveedorId,
@@ -172,20 +196,36 @@ export async function registrarPartidaCompra(
     cantidadInicialBase,
     fechaVencimiento: input.fechaVencimiento ?? null,
     registradoPorId: session.usuario.id,
-    numeroValeAdquisicion: input.numeroValeAdquisicion ?? null,
+    numeroValeAdquisicion: origen === "COMPRA" ? (input.numeroValeAdquisicion ?? null) : null,
     potenciaDeclarada: input.potenciaDeclarada ?? null,
     comprobanteCompraId: input.comprobanteCompraId ?? null,
     despachoImportacion: input.despachoImportacion ?? null,
     paisOrigen: input.paisOrigen ?? null,
   });
 
+  // INV-L08: a compra of a controlled droga with the contralor activo is an INGRESO of its libro (security audit P3-01).
+  if (origen === "COMPRA" && requiereAsientoContralor(droga.tipoControl, fechaActivacionContralor, new Date())) {
+    await insertAsientoContralorStock(tx, {
+      tenantId: session.tenantId,
+      tipo: "INGRESO",
+      drogaId: input.drogaId,
+      drogaDescripcion: droga.nombre,
+      cantidad: cantidadInicialBase,
+      unidadMedidaId: droga.unidadBaseId,
+      movimientoStockId: nueva.movimientoId,
+      numeroValeAdquisicion: input.numeroValeAdquisicion ?? null,
+      registradoPorId: session.usuario.id,
+    });
+  }
+
   return {
     id: nueva.id,
     valorNuevo: {
+      ...(origen === "EXISTENCIA_INICIAL" ? { origen } : {}),
       drogaId: input.drogaId,
       droga: droga.nombre,
       proveedorId: input.proveedorId,
-      proveedor: proveedor.razonSocial,
+      proveedor: proveedor?.razonSocial ?? null,
       lote: input.lote,
       fechaVencimiento: input.fechaVencimiento ?? null,
       cantidadCompra: input.cantidadCompra,
@@ -193,7 +233,7 @@ export async function registrarPartidaCompra(
       unidadCompra: await getEtiquetaUnidad(tx, input.unidadCompraId),
       cantidadInicialBase,
       costoUnitario,
-      numeroValeAdquisicion: input.numeroValeAdquisicion ?? null,
+      numeroValeAdquisicion: origen === "COMPRA" ? (input.numeroValeAdquisicion ?? null) : null,
       potenciaDeclarada: input.potenciaDeclarada ?? null,
       ...(input.comprobanteCompraId
         ? { comprobanteCompraId: input.comprobanteCompraId, despachoImportacion: input.despachoImportacion ?? null, paisOrigen: input.paisOrigen ?? null }

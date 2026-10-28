@@ -187,7 +187,7 @@ describe("getHistorialDrogaCruda", () => {
     expect(sql).toContain("p.droga_id = ?::uuid");
     expect(sql).toContain("EXISTS");
     expect(sql).toContain("m.tipo = 'EGRESO_PREPARACION'");
-    expect(sql).toContain("pv.razon_social AS proveedor");
+    expect(sql).toContain("coalesce(pv.razon_social, ?) AS proveedor");
     expect(sql).toContain("ORDER BY p.fecha_ingreso DESC, p.id DESC");
     expect(values).toEqual(expect.arrayContaining([TENANT, DROGA]));
   });

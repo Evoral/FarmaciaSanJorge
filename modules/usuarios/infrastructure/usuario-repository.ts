@@ -197,6 +197,7 @@ export interface UsuarioParaAccion {
   id: string;
   estado: PrismaEstadoUsuario;
   esTecnico: boolean;
+  esSector: boolean;
   roles: string[];
   nombre: string;
   apellido: string;
@@ -219,6 +220,7 @@ export async function loadUsuarioParaAccion(tx: Prisma.TransactionClient, tenant
       id: true,
       estado: true,
       esTecnico: true,
+      esSector: true,
       nombre: true,
       apellido: true,
       email: true,
@@ -233,6 +235,7 @@ export async function loadUsuarioParaAccion(tx: Prisma.TransactionClient, tenant
     id: row.id,
     estado: row.estado,
     esTecnico: row.esTecnico,
+    esSector: row.esSector,
     nombre: row.nombre,
     apellido: row.apellido,
     email: row.email,
@@ -336,7 +339,7 @@ export interface NuevoUsuarioInput {
   numeroMatricula: string | null;
   /** Migration 0077: a cuenta de sector. Only ever set here (immutable, INV-SEC-002). */
   esSector?: boolean;
-  /** argon2id hash of the temporary password the Administrador typed (docs/specs/contrasena-temporal.md). */
+  /** argon2id hash of the temporary password the Administrador typed (openspec/specs/contrasena-temporal/spec.md). */
   passwordHash: string;
   creadoPorId: string;
 }
@@ -353,9 +356,10 @@ export async function insertUsuario(tx: Prisma.TransactionClient, input: NuevoUs
       esSector: input.esSector ?? false,
       creadoPorId: input.creadoPorId,
       // Active from the start, with a temporary password the usuario must replace (and a PIN to set) at first login.
+      // A cuenta de sector never changes its password: the one the Administrador set is definitive.
       passwordHash: input.passwordHash,
       estado: "ACTIVO",
-      debeCambiarPassword: true,
+      debeCambiarPassword: !input.esSector,
     },
     select: { id: true },
   });
@@ -500,15 +504,16 @@ export async function cambiarEstadoUsuario(tx: Prisma.TransactionClient, input: 
 }
 
 /**
- * "Restablecer contraseña" (docs/specs/contrasena-temporal.md): one UPDATE that
- * replaces the hash with the temporary one, flags `debeCambiarPassword` and
- * clears the failed-login lock. It NEVER touches the PIN columns (CT5): the
+ * "Restablecer contraseña" (openspec/specs/contrasena-temporal/spec.md): one UPDATE that
+ * replaces the hash with the temporary one, flags `debeCambiarPassword` (not
+ * for a cuenta de sector: its password is definitive) and clears the
+ * failed-login lock. It NEVER touches the PIN columns (CT5): the
  * usuario keeps their PIN.
  */
-export async function restablecerPasswordTemporal(tx: Prisma.TransactionClient, usuarioId: string, passwordHash: string): Promise<void> {
+export async function restablecerPasswordTemporal(tx: Prisma.TransactionClient, usuarioId: string, passwordHash: string, debeCambiarPassword = true): Promise<void> {
   await tx.usuario.update({
     where: { id: usuarioId },
-    data: { passwordHash, debeCambiarPassword: true, intentosFallidos: 0, bloqueadoHasta: null },
+    data: { passwordHash, debeCambiarPassword, intentosFallidos: 0, bloqueadoHasta: null },
   });
 }
 

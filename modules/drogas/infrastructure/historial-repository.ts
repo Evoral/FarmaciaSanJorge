@@ -1,6 +1,6 @@
 /**
  * Prisma-backed reads for the droga "Historial" view
- * (docs/specs/historial-droga.md). Every function runs inside an ALREADY OPEN
+ * (openspec/specs/historial-droga/spec.md). Every function runs inside an ALREADY OPEN
  * tenant transaction (RLS-scoped) and filters by `tenantId` explicitly as well:
  * EVERY `FROM` and EVERY `JOIN` of the raw SQL carries its own `tenant_id`
  * (composite-key discipline). HEALTH-ADJACENT DATA (receta, paciente, Ley
@@ -41,6 +41,7 @@
  * receta columns the shared DB dropped.
  */
 import type { Prisma } from "@/generated/prisma/client";
+import { ETIQUETA_SIN_PROVEEDOR } from "@/shared/labels/enum-labels";
 import { calcularPaginacion, filtrarPartidasDeLaDroga } from "../domain/historial";
 import type {
   AccesoHistorialDroga,
@@ -72,9 +73,9 @@ export async function readDroga(tx: Prisma.TransactionClient, tenantId: string, 
  */
 export async function readPartidasConConsumo(tx: Prisma.TransactionClient, tenantId: string, drogaId: string): Promise<PartidaOpcion[]> {
   const rows = await tx.$queryRaw<{ id: string; lote: string; fecha_vencimiento: Date | null; proveedor: string }[]>`
-    SELECT p.id, p.lote, p.fecha_vencimiento, pv.razon_social AS proveedor
+    SELECT p.id, p.lote, p.fecha_vencimiento, coalesce(pv.razon_social, ${ETIQUETA_SIN_PROVEEDOR}) AS proveedor
     FROM fsj.partida p
-    JOIN fsj.proveedor pv ON pv.tenant_id = ${tenantId}::uuid AND pv.id = p.proveedor_id
+    LEFT JOIN fsj.proveedor pv ON pv.tenant_id = ${tenantId}::uuid AND pv.id = p.proveedor_id
     WHERE p.tenant_id = ${tenantId}::uuid
       AND p.droga_id = ${drogaId}::uuid
       AND EXISTS (
@@ -195,13 +196,13 @@ export async function readPartidasConsumidas(tx: Prisma.TransactionClient, tenan
       p.id AS partida_id,
       p.lote,
       p.fecha_vencimiento,
-      pv.razon_social AS proveedor,
+      coalesce(pv.razon_social, ${ETIQUETA_SIN_PROVEEDOR}) AS proveedor,
       sum(m.cantidad)::text AS cantidad
     FROM fsj.partida p
     JOIN fsj.movimiento_stock m ON m.tenant_id = ${tenantId}::uuid AND m.partida_id = p.id AND m.tipo = 'EGRESO_PREPARACION'
     JOIN fsj.preparacion pr ON pr.tenant_id = ${tenantId}::uuid AND pr.id = m.preparacion_id
     JOIN fsj.item_receta ir ON ir.tenant_id = ${tenantId}::uuid AND ir.id = pr.item_receta_id AND ir.receta_id = ANY(${recetaIds}::uuid[])
-    JOIN fsj.proveedor pv ON pv.tenant_id = ${tenantId}::uuid AND pv.id = p.proveedor_id
+    LEFT JOIN fsj.proveedor pv ON pv.tenant_id = ${tenantId}::uuid AND pv.id = p.proveedor_id
     WHERE p.tenant_id = ${tenantId}::uuid AND p.droga_id = ${drogaId}::uuid
     GROUP BY ir.receta_id, p.id, p.lote, p.fecha_vencimiento, p.fecha_ingreso, pv.razon_social
     ORDER BY ir.receta_id, p.fecha_ingreso DESC, p.id DESC

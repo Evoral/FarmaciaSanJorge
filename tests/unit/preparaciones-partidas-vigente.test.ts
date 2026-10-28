@@ -1,6 +1,6 @@
 /**
  * The preparation flow reads a partida's vencimiento VIGENTE, never its original date
- * (docs/specs/reanalisis-partida.md, R5/R8/R11):
+ * (openspec/specs/reanalisis-partida/spec.md, R5/R8/R11):
  * - `listPartidasElegiblesDroga` selects `fecha_vencimiento_vigente` as the partida's `fechaVencimiento` (the date
  *   `ordenarParaConsumo` / `proponerReparto` / `estaVencida` evaluate) and flags `reanalizada`.
  * - `cargarPartidasPorDroga` + `partidasDeLinea`: a reanalizada partida (original date past, vigente future) is

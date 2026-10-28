@@ -6,8 +6,8 @@
  */
 import { describe, it, expect } from "vitest";
 import { Decimal } from "decimal.js";
-import { calcularCotizacion, calcularCotizacionesAcumuladas } from "@/modules/precios/domain/calcular-cotizacion";
-import type { LineaCosteoInput, PartidaCosteo } from "@/modules/precios/domain/calcular-cotizacion";
+import { calcularCotizacion, calcularCotizacionesAcumuladas, mensajeSinCostoProveedor } from "@/modules/precios/domain/calcular-cotizacion";
+import type { CostoProveedorCosteo, LineaCosteoInput, PartidaCosteo } from "@/modules/precios/domain/calcular-cotizacion";
 import type { ReglasPrecio } from "@/modules/precios/domain/regla-precio";
 
 const HOY = "2026-06-15";
@@ -30,7 +30,20 @@ const GRAMO = { factorABase: "1", tipoMagnitud: "MASA" };
 const MILIGRAMO = { factorABase: "0.001", tipoMagnitud: "MASA" };
 const MILILITRO = { factorABase: "1", tipoMagnitud: "VOLUMEN" };
 
-function linea(overrides: Partial<LineaCosteoInput>): LineaCosteoInput {
+function costo(overrides: Partial<CostoProveedorCosteo> = {}): CostoProveedorCosteo {
+  return {
+    costoProveedorId: "cp-1",
+    proveedorId: "prov-1",
+    proveedorNombre: "Droguería Sur",
+    precioInformado: "5000",
+    unidadPrecioSimbolo: "kg",
+    costoUnitario: "5",
+    fechaPrecio: "2026-06-01",
+    ...overrides,
+  };
+}
+
+function linea(overrides: Partial<LineaCosteoInput> = {}): LineaCosteoInput {
   return {
     drogaId: "droga-1",
     drogaNombre: "Droga 1",
@@ -40,11 +53,12 @@ function linea(overrides: Partial<LineaCosteoInput>): LineaCosteoInput {
     cantidadAPesar: "10",
     esEnraseManual: false,
     orden: 0,
+    costoProveedor: costo(),
     ...overrides,
   };
 }
 
-function partida(overrides: Partial<PartidaCosteo>): PartidaCosteo {
+function partida(overrides: Partial<PartidaCosteo> = {}): PartidaCosteo {
   return {
     id: "P1",
     cantidadDisponible: "100",
@@ -68,7 +82,9 @@ describe("calcularCotizacion", () => {
     expect(resultado.esParcial).toBe(false);
     expect(resultado.esIncompleta).toBe(false);
     expect(resultado.detalle.lineas).toHaveLength(1);
-    expect(resultado.detalle.lineas[0].partidas).toEqual([{ partidaId: "P1", cantidad: "10", costoUnitario: "5", subtotal: "50" }]);
+    expect(resultado.detalle.lineas[0]!.fuente).toBe("PROVEEDOR");
+    expect(resultado.detalle.lineas[0]!.partidas).toEqual([]);
+    expect(resultado.detalle.lineas[0]!.subtotal).toBe("50");
   });
 
   it("margen 0: precioFinal equals costoInsumos -- selling at cost (DP-09)", () => {
@@ -83,8 +99,8 @@ describe("calcularCotizacion", () => {
 
   it("a manual-enrase linea contributes ZERO to costoInsumos and marks the cotizacion esParcial -- never invents a quantity", () => {
     const lineas = [
-      linea({ orden: 0, drogaId: "activo", cantidadAPesar: "3", esEnraseManual: false }),
-      linea({ orden: 1, drogaId: "excipiente", cantidadAPesar: null, esEnraseManual: true }),
+      linea({ orden: 0, drogaId: "activo", cantidadAPesar: "3", costoProveedor: costo({ costoUnitario: "10" }) }),
+      linea({ orden: 1, drogaId: "excipiente", cantidadAPesar: null, esEnraseManual: true, costoProveedor: null }),
     ];
     const partidas = { activo: [partida({ id: "PA", costoUnitario: "10" })] };
 
@@ -100,71 +116,77 @@ describe("calcularCotizacion", () => {
     expect(manualDetalle.partidas).toEqual([]);
   });
 
-  it("insufficient stock: costs what EXISTS (does not fail), flags esIncompleta, and records the exact faltante", () => {
-    const lineas = [linea({ cantidadAPesar: "10" })];
+  it("droga without costo de proveedor: no price (drogasSinPrecio, subtotal 0), faltante still reported from stock, esIncompleta false", () => {
+    const lineas = [linea({ cantidadAPesar: "10", costoProveedor: null })];
     // Only 4 available, 10 requested.
     const partidas = { "droga-1": [partida({ id: "P1", cantidadDisponible: "4", costoUnitario: "5" })] };
 
     const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, margenUnico("100"));
 
-    expect(resultado.esIncompleta).toBe(true);
-    expect(resultado.costoInsumos.toString()).toBe("20"); // 4 * 5 -- cost what exists
-    const detalle = resultado.detalle.lineas[0];
+    expect(resultado.esIncompleta).toBe(false);
+    expect(resultado.drogasSinPrecio).toEqual(["Droga 1"]);
+    expect(resultado.costoInsumos.toString()).toBe("0");
+    const detalle = resultado.detalle.lineas[0]!;
+    expect(detalle.subtotal).toBe("0");
     expect(detalle.faltante).toBe("6");
-    expect(detalle.partidas).toEqual([{ partidaId: "P1", cantidad: "4", costoUnitario: "5", subtotal: "20" }]);
-    expect(resultado.precioFinal.toString()).toBe("40"); // 20 + 100% of 20
+    expect(detalle.partidas).toEqual([]);
+    expect(detalle.fuente).toBeUndefined();
   });
 
-  it("insufficient stock with ZERO eligible partidas (droga with no stock at all): costoInsumos 0 for that linea, faltante = full requested quantity", () => {
-    const lineas = [linea({ cantidadAPesar: "7" })];
+  it("insufficient stock with ZERO eligible partidas and no costo de proveedor: no price, faltante = full requested quantity, esIncompleta false", () => {
+    const lineas = [linea({ cantidadAPesar: "7", costoProveedor: null })];
 
     const resultado = calcularCotizacion(lineas, () => [], HOY, margenUnico("100"));
 
-    expect(resultado.esIncompleta).toBe(true);
+    expect(resultado.esIncompleta).toBe(false);
+    expect(resultado.drogasSinPrecio).toEqual(["Droga 1"]);
     expect(resultado.costoInsumos.toString()).toBe("0");
-    expect(resultado.detalle.lineas[0].faltante).toBe("7");
-    expect(resultado.detalle.lineas[0].partidas).toEqual([]);
+    expect(resultado.detalle.lineas[0]!.faltante).toBe("7");
+    expect(resultado.detalle.lineas[0]!.partidas).toEqual([]);
+    expect(resultado.detalle.lineas[0]!.subtotal).toBe("0");
   });
 
-  it("expired partidas are never costed (same INV-S10 eligibility as modules/stock/domain/reparto.ts)", () => {
-    const lineas = [linea({ cantidadAPesar: "10" })];
+  it("expired partidas are never costed and excluded from eligible stock for faltante (INV-S10 eligibility)", () => {
+    const lineas = [linea({ cantidadAPesar: "10", costoProveedor: costo({ costoUnitario: "9" }) })];
     const partidas = {
       "droga-1": [
         partida({ id: "VENCIDA", cantidadDisponible: "100", fechaVencimiento: "2026-01-01", costoUnitario: "1" }),
-        partida({ id: "VIGENTE", cantidadDisponible: "10", fechaVencimiento: "2026-12-31", costoUnitario: "9" }),
+        partida({ id: "VIGENTE", cantidadDisponible: "4", fechaVencimiento: "2026-12-31", costoUnitario: "9" }),
       ],
     };
 
     const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, margenUnico("100"));
 
     expect(resultado.esIncompleta).toBe(false);
-    expect(resultado.detalle.lineas[0].partidas).toEqual([{ partidaId: "VIGENTE", cantidad: "10", costoUnitario: "9", subtotal: "90" }]);
-    expect(resultado.costoInsumos.toString()).toBe("90");
+    expect(resultado.costoInsumos.toString()).toBe("90"); // 10 * 9
+    expect(resultado.detalle.lineas[0]!.partidas).toEqual([]);
+    expect(resultado.detalle.lineas[0]!.faltante).toBe("6"); // 10 - 4 eligible (expired 100 ignored)
   });
 
-  it("open partida consumed first, then FEFO for the rest -- exactly the order modules/stock/domain/reparto.ts#proponerReparto decides, reused (not reimplemented)", () => {
-    const lineas = [linea({ cantidadAPesar: "20" })];
-    const partidas = {
-      "droga-1": [
-        partida({ id: "ABIERTA", cantidadDisponible: "5", fechaVencimiento: "2027-01-01", fechaApertura: "2026-06-01T10:00:00Z", costoUnitario: "2" }),
-        partida({ id: "CERRADA_TEMPRANA", cantidadDisponible: "100", fechaVencimiento: "2026-07-01", costoUnitario: "3" }),
-        partida({ id: "CERRADA_TARDIA", cantidadDisponible: "100", fechaVencimiento: "2026-08-01", costoUnitario: "4" }),
-      ],
-    };
+  it("open partida consumed first, then FEFO for the rest in stock simulation", () => {
+    const lineas1 = [linea({ cantidadAPesar: "10", costoProveedor: costo({ costoUnitario: "2" }) })];
+    const lineas2 = [linea({ cantidadAPesar: "10", costoProveedor: costo({ costoUnitario: "2" }) })];
+    const partidas = [
+      partida({ id: "ABIERTA", cantidadDisponible: "5", fechaVencimiento: "2027-01-01", fechaApertura: "2026-06-01T10:00:00Z" }),
+      partida({ id: "CERRADA_TEMPRANA", cantidadDisponible: "10", fechaVencimiento: "2026-07-01" }),
+      partida({ id: "CERRADA_TARDIA", cantidadDisponible: "10", fechaVencimiento: "2026-08-01" }),
+    ];
 
-    const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, margenUnico("100"));
+    const [primero, segundo] = calcularCotizacionesAcumuladas([lineas1, lineas2], () => partidas, HOY, margenUnico("0"));
 
-    expect(resultado.detalle.lineas[0].partidas).toEqual([
-      { partidaId: "ABIERTA", cantidad: "5", costoUnitario: "2", subtotal: "10" },
-      { partidaId: "CERRADA_TEMPRANA", cantidad: "15", costoUnitario: "3", subtotal: "45" },
-    ]);
-    expect(resultado.costoInsumos.toString()).toBe("55"); // 10 + 45
+    // Both items cost $20 from costoProveedor
+    expect(primero!.costoInsumos.toString()).toBe("20");
+    expect(segundo!.costoInsumos.toString()).toBe("20");
+    expect(primero!.detalle.lineas[0]!.faltante).toBeNull();
+    expect(segundo!.detalle.lineas[0]!.faltante).toBeNull();
+    expect(primero!.detalle.lineas[0]!.partidas).toEqual([]);
+    expect(segundo!.detalle.lineas[0]!.partidas).toEqual([]);
   });
 
   it("multiple drogas: costoInsumos is the sum across every linea's own subtotal", () => {
     const lineas = [
-      linea({ orden: 0, drogaId: "a", cantidadAPesar: "2" }),
-      linea({ orden: 1, drogaId: "b", cantidadAPesar: "3" }),
+      linea({ orden: 0, drogaId: "a", drogaNombre: "a", cantidadAPesar: "2", costoProveedor: costo({ costoUnitario: "10" }) }),
+      linea({ orden: 1, drogaId: "b", drogaNombre: "b", cantidadAPesar: "3", costoProveedor: costo({ costoUnitario: "100" }) }),
     ];
     const partidas = {
       a: [partida({ id: "PA", costoUnitario: "10" })],
@@ -174,10 +196,12 @@ describe("calcularCotizacion", () => {
     const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, margenUnico("100"));
 
     expect(resultado.costoInsumos.toString()).toBe("320"); // (2*10) + (3*100)
+    expect(resultado.precioFinal.toString()).toBe("640");
+    expect(resultado.esIncompleta).toBe(false);
   });
 
   it("uses Decimal precision throughout -- never float (INV-PL-003)", () => {
-    const lineas = [linea({ cantidadAPesar: "0.1" })];
+    const lineas = [linea({ cantidadAPesar: "0.1", costoProveedor: costo({ costoUnitario: "0.2" }) })];
     const partidas = { "droga-1": [partida({ costoUnitario: "0.2" })] };
 
     const resultado = calcularCotizacion(lineas, (id) => partidas[id as keyof typeof partidas] ?? [], HOY, margenUnico("100"));
@@ -189,10 +213,13 @@ describe("calcularCotizacion", () => {
 });
 
 describe("calcularCotizacion -- price rules by tramo + floor (2026-10-01)", () => {
-  const costo = (total: string) => ({ lineas: [linea({ cantidadAPesar: total })], partidas: [partida({ costoUnitario: "1", cantidadDisponible: "1000000" })] });
+  const costoFixture = (total: string) => ({
+    lineas: [linea({ cantidadAPesar: total, costoProveedor: costo({ costoUnitario: "1" }) })],
+    partidas: [partida({ costoUnitario: "1", cantidadDisponible: "1000000" })],
+  });
 
   it("records the tramo markup actually used and the tramo index", () => {
-    const { lineas, partidas } = costo("100001");
+    const { lineas, partidas } = costoFixture("100001");
     const resultado = calcularCotizacion(lineas, () => partidas, HOY, REGLAS_EJEMPLO);
     expect(resultado.costoInsumos.toString()).toBe("100001");
     expect(resultado.margenAplicado.toString()).toBe("70");
@@ -202,7 +229,7 @@ describe("calcularCotizacion -- price rules by tramo + floor (2026-10-01)", () =
   });
 
   it("flags the floor when it raised the price, keeping the tramo markup as margenAplicado", () => {
-    const { lineas, partidas } = costo("5000");
+    const { lineas, partidas } = costoFixture("5000");
     const resultado = calcularCotizacion(lineas, () => partidas, HOY, REGLAS_EJEMPLO);
     expect(resultado.margenAplicado.toString()).toBe("100");
     expect(resultado.precioMinimoAplicado).toBe(true);
@@ -210,7 +237,7 @@ describe("calcularCotizacion -- price rules by tramo + floor (2026-10-01)", () =
   });
 
   it("calcularCotizacionesAcumuladas prices EACH item on its own cost (never on the receta's total)", () => {
-    const lineas = [linea({ cantidadAPesar: "60000" })];
+    const lineas = [linea({ cantidadAPesar: "60000", costoProveedor: costo({ costoUnitario: "1" }) })];
     const partidas = [partida({ costoUnitario: "1", cantidadDisponible: "1000000" })];
     const [primero, segundo] = calcularCotizacionesAcumuladas([lineas, lineas], () => partidas, HOY, REGLAS_EJEMPLO);
     // 60000 + 60000 = 120000 would fall in the 70% tramo; each item alone is in the 100% tramo.
@@ -222,42 +249,43 @@ describe("calcularCotizacion -- price rules by tramo + floor (2026-10-01)", () =
 
 describe("calcularCotizacion -- units: línea in its magnitud's base, stock in the droga's unidad base", () => {
   it("converts a línea in g into a droga kept in mg before splitting and costing (950 g -> 950000 mg)", () => {
-    const lineas = [linea({ cantidadAPesar: "950", unidad: GRAMO, unidadStock: MILIGRAMO })];
+    const lineas = [linea({ cantidadAPesar: "950", unidad: GRAMO, unidadStock: MILIGRAMO, costoProveedor: costo({ costoUnitario: "0.01" }) })];
     // costoUnitario is per mg (the droga's unidad base).
     const partidas = [partida({ id: "P1", cantidadDisponible: "1000000", costoUnitario: "0.01" })];
 
     const resultado = calcularCotizacion(lineas, () => partidas, HOY, margenUnico("0"));
 
-    expect(resultado.detalle.lineas[0]!.partidas).toEqual([{ partidaId: "P1", cantidad: "950000", costoUnitario: "0.01", subtotal: "9500" }]);
+    expect(resultado.detalle.lineas[0]!.partidas).toEqual([]);
     expect(resultado.detalle.lineas[0]!.cantidadRequerida).toBe("950");
     expect(resultado.costoInsumos.toString()).toBe("9500");
     expect(resultado.esIncompleta).toBe(false);
   });
 
   it("reports the faltante back in the línea's unit", () => {
-    const lineas = [linea({ cantidadAPesar: "950", unidad: GRAMO, unidadStock: MILIGRAMO })];
+    const lineas = [linea({ cantidadAPesar: "950", unidad: GRAMO, unidadStock: MILIGRAMO, costoProveedor: costo({ costoUnitario: "0.01" }) })];
     const partidas = [partida({ id: "P1", cantidadDisponible: "500000", costoUnitario: "0.01" })];
 
     const resultado = calcularCotizacion(lineas, () => partidas, HOY, margenUnico("0"));
 
-    expect(resultado.esIncompleta).toBe(true);
+    expect(resultado.esIncompleta).toBe(false);
     expect(resultado.detalle.lineas[0]!.faltante).toBe("450"); // g
-    expect(resultado.detalle.lineas[0]!.partidas[0]!.cantidad).toBe("500000"); // mg
+    expect(resultado.detalle.lineas[0]!.partidas).toEqual([]);
+    expect(resultado.costoInsumos.toString()).toBe("9500");
   });
 
   it("calcularCotizacionesAcumuladas subtracts what each item used in the droga's unidad base", () => {
-    const lineas = [linea({ cantidadAPesar: "600", unidad: GRAMO, unidadStock: MILIGRAMO })];
+    const lineas = [linea({ cantidadAPesar: "600", unidad: GRAMO, unidadStock: MILIGRAMO, costoProveedor: costo({ costoUnitario: "0.01" }) })];
     const partidas = [partida({ id: "P1", cantidadDisponible: "1000000", costoUnitario: "0.01" })];
 
     const [primero, segundo] = calcularCotizacionesAcumuladas([lineas, lineas], () => partidas, HOY, margenUnico("0"));
 
     expect(primero!.esIncompleta).toBe(false);
-    expect(segundo!.esIncompleta).toBe(true);
+    expect(segundo!.esIncompleta).toBe(false);
     expect(segundo!.detalle.lineas[0]!.faltante).toBe("200"); // 1200 g needed, 1000 g in stock
   });
 
   it("a línea that can not be converted (different magnitud) is not costed: 0, esParcial, no invented faltante", () => {
-    const lineas = [linea({ cantidadAPesar: "10", unidad: MILILITRO, unidadStock: GRAMO })];
+    const lineas = [linea({ cantidadAPesar: "10", unidad: MILILITRO, unidadStock: GRAMO, costoProveedor: costo() })];
     const partidas = [partida({ id: "P1", cantidadDisponible: "1000", costoUnitario: "5" })];
 
     const resultado = calcularCotizacion(lineas, () => partidas, HOY, margenUnico("0"));
@@ -266,5 +294,15 @@ describe("calcularCotizacion -- units: línea in its magnitud's base, stock in t
     expect(resultado.esParcial).toBe(true);
     expect(resultado.esIncompleta).toBe(false);
     expect(resultado.detalle.lineas[0]!.partidas).toEqual([]);
+  });
+});
+
+describe("mensajeSinCostoProveedor", () => {
+  it("formats singular message for one droga without price", () => {
+    expect(mensajeSinCostoProveedor(["Urea"])).toBe("No se puede dar el precio: Urea no tiene precio cargado en costos de proveedor.");
+  });
+
+  it("formats plural message with joined names for several drogas without price", () => {
+    expect(mensajeSinCostoProveedor(["Urea", "Mazindol"])).toBe("No se puede dar el precio: Urea, Mazindol no tienen precio cargado en costos de proveedor.");
   });
 });

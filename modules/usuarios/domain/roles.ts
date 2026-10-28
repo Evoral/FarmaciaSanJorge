@@ -1,5 +1,5 @@
 /**
- * Role rules (M03, DP-03 RESUELTA 2026-10-01 -- docs/specs/roles-personalizables.md).
+ * Role rules (M03, DP-03 RESUELTA 2026-10-01 -- openspec/specs/roles-personalizables/spec.md).
  * Pure: no I/O. Roles are per-tenant rows (`fsj.rol`, migration 0054); the
  * set of roles is DATA, not code. Only the three codes business rules
  * depend on are constants here:
@@ -15,8 +15,9 @@
  *   - `SISTEMA`: internal role of the per-tenant technical user (migration
  *     0002). Hidden from every listing/picker, never assignable, untouchable.
  *
- * Every other role (the default FARMACEUTICO / ATENCION_PUBLICO /
- * SOLO_CONSULTA and any custom role) is fully editable and deletable while
+ * Every other role (the default FARMACEUTICO -- plus LABORATORIO /
+ * ATENCION_PUBLICO / SOLO_CONSULTA in tenants created before migration 0106 --
+ * and any custom role) is fully editable and deletable while
  * no usuario holds it. The same rules are enforced by DB triggers
  * (INV-ROL-001..005, migration 0054); the checks here give the clear
  * Spanish message first.
@@ -30,7 +31,7 @@ export const ROL_DIRECTOR_TECNICO = "DIRECTOR_TECNICO" as const;
 /** The one non-assignable, internal role code (migration 0002). Used to filter it out of any role/user listing that must never expose it. */
 export const ROL_SISTEMA = "SISTEMA" as const;
 
-/** Roles a cuenta de sector (`usuario.es_sector`, a shared session per work area) can never hold -- INV-SEC-001, migration 0077 (docs/specs/cuentas-de-sector.md). */
+/** Roles a cuenta de sector (`usuario.es_sector`, a shared session per work area) can never hold -- INV-SEC-001, migration 0077 (openspec/specs/cuentas-de-sector/spec.md). */
 export const ROLES_VEDADOS_A_SECTOR: readonly string[] = [ROL_ADMINISTRADOR, ROL_DIRECTOR_TECNICO];
 
 /** Format of every `rol.codigo` (DB CHECK rol_codigo_formato, migration 0054). */
@@ -256,7 +257,7 @@ export const GRUPO_PERMISO_LABELS: Readonly<Record<string, string>> = {
   proveedores: "Proveedores",
   medicos: "Médicos",
   repartidores: "Repartidores",
-  pacientes: "Pacientes",
+  pacientes: "Clientes",
   precios: "Precios",
   costos: "Costos de proveedores",
   stock: "Stock",

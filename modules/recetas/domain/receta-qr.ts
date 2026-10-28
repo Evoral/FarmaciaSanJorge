@@ -18,6 +18,17 @@ export const MENSAJES_LECTURA_QR: Readonly<Record<CodigoErrorQr, string>> = {
   FORMATO_INESPERADO: "RCTA devolvió la receta en un formato inesperado. Importá el PDF.",
 };
 
+/**
+ * The PDF import reads the receta through RCTA too (openspec/specs/importacion-receta-pdf/spec.md, "Lectura por RCTA"), so the
+ * same failures need messages that do not send the user back to the PDF. `SIN_LINK`: the PDF has no RCTA link.
+ */
+export const MENSAJES_LECTURA_PDF: Readonly<Record<CodigoErrorQr | "SIN_LINK", string>> = {
+  SIN_LINK: "El PDF no trae el link de verificación de RCTA (\"Ver Link\") ni un QR de MisRx legible: no se puede importar. Cargá la receta a mano.",
+  QR_INVALIDO: "RCTA no encontró la receta de este PDF. Cargala a mano.",
+  RCTA_NO_DISPONIBLE: "No se pudo consultar RCTA. Probá de nuevo en unos minutos o cargá la receta a mano.",
+  FORMATO_INESPERADO: "RCTA devolvió la receta en un formato inesperado. Cargala a mano.",
+};
+
 /** Same draft + notices the PDF parser produces, or a coded failure with its user-facing message. */
 export type ResultadoLecturaQr =
   | { ok: true; borrador: BorradorReceta; advertencias: AdvertenciaParser[] }
@@ -68,4 +79,16 @@ export function extraerHashRcta(texto: string): string | null {
   const hashes = new Set((limpio.match(RE_HASH) ?? []).map((h) => h.toUpperCase()));
   if (hashes.size !== 1) return null;
   return [...hashes][0]!;
+}
+
+/**
+ * The receta hash of a PDF: its RCTA verification link ("Ver Link") carries the same hash as the QR printed next to
+ * it, so the PDF import reads RCTA like the QR import instead of decoding the QR image. `null` when no link yields one.
+ */
+export function hashDeLinksPdf(links: readonly { uri: string }[]): string | null {
+  for (const link of links) {
+    const hash = extraerHashRcta(link.uri);
+    if (hash !== null) return hash;
+  }
+  return null;
 }

@@ -9,7 +9,7 @@
  * the print attempt -- consistent with the fact that impression itself
  * carries no audit trail either way (plan §14).
  *
- * The PDF is the SHEET (modules/etiqueta-tamanos, docs/specs/hoja-etiquetas.md) with
+ * The PDF is the SHEET (modules/etiqueta-tamanos, openspec/specs/hoja-etiquetas/spec.md) with
  * the etiqueta drawn in one cell of it. What decides the page and the spot is
  * resolved FIRST, before anything is marked as printed (R7):
  *   - the sheet of the farmacia;
@@ -23,11 +23,11 @@
  * WHAT is printed is the persisted `etiqueta.contenido` snapshot, parsed back
  * (`parsearContenidoEtiqueta`), so a reprint is exactly the etiqueta
  * recorded at its generation even if the médico, the DT or the farmacia's
- * data changed since (docs/specs/vencimiento-preparado.md R7). Only an
+ * data changed since (openspec/specs/vencimiento-preparado/spec.md R7). Only an
  * etiqueta stored in an older text layout that does not parse is rebuilt
  * from the preparación's data (`armarContenidoEtiqueta`), as before. A
  * preparado no longer valid is refused by `getEtiquetaParaImprimir` before
- * anything is marked (docs/specs/reserva-stock-preparacion.md R22).
+ * anything is marked (openspec/specs/reserva-stock-preparacion/spec.md R22).
  */
 import { getHojaParaImprimir } from "@/modules/etiqueta-tamanos/application/get-hoja-para-imprimir";
 import { getTamanoParaImprimir } from "@/modules/etiqueta-tamanos/application/get-tamano-para-imprimir";
@@ -39,6 +39,8 @@ import { NotFoundError, ValidationError } from "@/shared/errors";
 import { getEtiquetaParaImprimir } from "./get-etiqueta-para-imprimir";
 import { marcarEtiquetaImpresa } from "./marcar-etiqueta-impresa";
 import { armarContenidoEtiqueta, parsearContenidoEtiqueta } from "../domain/etiqueta";
+import { getLogoTenant } from "@/modules/farmacia/application/get-marca-tenant";
+import { logoParaPdf } from "@/shared/pdf/logo";
 import { buildEtiquetaPdf, buildEtiquetasPdf } from "../infrastructure/etiqueta-pdf";
 
 export interface EtiquetaPdfResult {
@@ -85,7 +87,8 @@ export async function imprimirEtiquetaPdf(preparacionId: string, opciones: Opcio
 
   const datos = await getEtiquetaParaImprimir(preparacionId);
   await marcarEtiquetaImpresa(datos.etiquetaId);
-  const pdf = await buildEtiquetaPdf(parsearContenidoEtiqueta(datos.contenido) ?? armarContenidoEtiqueta(datos), tamano, hoja, celda);
+  const logo = logoParaPdf(await getLogoTenant());
+  const pdf = await buildEtiquetaPdf(parsearContenidoEtiqueta(datos.contenido) ?? armarContenidoEtiqueta(datos), tamano, hoja, celda, logo);
   return { preparacionId, pdf };
 }
 
@@ -99,7 +102,7 @@ export const SIN_ETIQUETAS_MESSAGE = "No se indicó ninguna etiqueta para imprim
 const MAX_ETIQUETAS = 50;
 
 /**
- * Several etiquetas in ONE PDF (the toma's single "Imprimir", docs/specs/hoja-etiquetas.md R14), in the given order,
+ * Several etiquetas in ONE PDF (the toma's single "Imprimir", openspec/specs/hoja-etiquetas/spec.md R14), in the given order,
  * sharing the sheet while they do not overlap. All or nothing: every size, cell and etiqueta is resolved before any
  * is marked as printed, so one refused etiqueta prints (and marks) none.
  */
@@ -115,8 +118,10 @@ export async function imprimirEtiquetasPdf(pedidas: readonly EtiquetaPedida[]): 
   }
   for (const { datos } of etiquetas) await marcarEtiquetaImpresa(datos.etiquetaId);
 
+  const logo = logoParaPdf(await getLogoTenant());
   return buildEtiquetasPdf(
     etiquetas.map(({ datos, tamano, celda }) => ({ contenido: parsearContenidoEtiqueta(datos.contenido) ?? armarContenidoEtiqueta(datos), tamano, celda })),
     hoja,
+    logo,
   );
 }

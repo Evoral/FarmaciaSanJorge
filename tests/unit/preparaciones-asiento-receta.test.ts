@@ -1,5 +1,5 @@
 /**
- * D8 (docs/specs/libro-recetario-y-contralor.md §1, 2026-10-16): one asiento per receta.
+ * D8 (openspec/specs/libro-recetario-y-contralor/spec.md §1, 2026-10-16): one asiento per receta.
  *   - modules/preparaciones/domain/asiento-receta.ts: the fórmula text (each ítem's drogas joined by " | "), the detalle
  *     lines (ítem order, then each ítem's own order, `orden` continuous from 1), the asiento_preparacion order, and the
  *     legacy single path's rule (refused while another ítem is not CONFIRMADA).

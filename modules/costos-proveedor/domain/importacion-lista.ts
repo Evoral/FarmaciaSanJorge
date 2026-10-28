@@ -1,5 +1,5 @@
 /**
- * Preview of a supplier price list import (docs/specs/costos-proveedor.md R13, R17-R19). PURE: no
+ * Preview of a supplier price list import (openspec/specs/costos-proveedor/spec.md R13, R17-R19). PURE: no
  * I/O, no Prisma. Shared by the server (`leerListaPrecios` builds the first preview) and the
  * browser (`importar-lista-form.tsx` re-evaluates every row the moment the user picks another
  * droga, edits a price, changes a unit or omits a row), so both sides apply EXACTLY the same rules.

@@ -1,6 +1,6 @@
 /**
  * Unit tests for `marcarPartidaVencida` and `registrarReanalisisPartida`
- * (docs/specs/reanalisis-partida.md, migration 0074).
+ * (openspec/specs/reanalisis-partida/spec.md, migration 0074).
  *
  * Covers:
  * - `marcarPartidaVencida`: M3 lock-before-read order; discounts the entire saldo via VENCIMIENTO ajuste;
@@ -122,6 +122,10 @@ vi.mock("@/modules/stock/infrastructure/partida-repository", () => ({
   jornadaActualTenant: async () => JORNADA,
   convertirUnidad: convertirUnidadMock,
   getUnidadesParaConversion: getUnidadesParaConversionMock,
+  // Contralor inactive: no asiento_contralor (INV-L08 path covered in stock-contralor-asientos.test.ts).
+  getDrogaParaIngreso: async () => ({ tipoControl: "NINGUNO" }),
+  getFechaActivacionContralor: async () => null,
+  insertAsientoContralorStock: vi.fn(),
 }));
 
 vi.mock("@/modules/stock/infrastructure/co-firma-repository", () => ({
@@ -466,7 +470,7 @@ describe("wrong DT password lockout and audit path", () => {
     expect(recordCoFirmaFailureMock).toHaveBeenCalledWith(
       expect.anything(),
       DT_ID,
-      { intentosFallidos: 1, bloqueadoHasta: null },
+      { maxIntentos: 5, bloqueadoHasta: expect.any(Date) },
     );
   });
 
@@ -489,7 +493,7 @@ describe("wrong DT password lockout and audit path", () => {
     expect(recordCoFirmaFailureMock).toHaveBeenCalledWith(
       expect.anything(),
       DT_ID,
-      { intentosFallidos: 1, bloqueadoHasta: null },
+      { maxIntentos: 5, bloqueadoHasta: expect.any(Date) },
     );
   });
 
@@ -512,10 +516,7 @@ describe("wrong DT password lockout and audit path", () => {
     expect(recordCoFirmaFailureMock).toHaveBeenCalledWith(
       expect.anything(),
       DT_ID,
-      expect.objectContaining({
-        intentosFallidos: 5,
-        bloqueadoHasta: expect.any(Date),
-      }),
+      { maxIntentos: 5, bloqueadoHasta: expect.any(Date) },
     );
   });
 });

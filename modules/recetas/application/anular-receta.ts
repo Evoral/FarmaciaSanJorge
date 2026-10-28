@@ -10,7 +10,7 @@
  *     modules/libro/application/asientos-en-efecto.ts): the libro would
  *     keep recording the preparación of an ANULADA receta. The asiento is
  *     anulled/rectified from the Libro (DT co-signature) and D2 then
- *     anulls the receta by itself (docs/specs/libro-recetario-y-contralor.md §1);
+ *     anulls the receta by itself (openspec/specs/libro-recetario-y-contralor/spec.md §1);
  *   - while any preparación is still INICIADA: confirming it afterwards
  *     would create that same asiento for an ANULADA receta.
  *

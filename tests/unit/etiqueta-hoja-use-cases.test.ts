@@ -1,5 +1,5 @@
 /**
- * Use cases of the sheet (docs/specs/hoja-etiquetas.md R2, R5, R7, R13): the input
+ * Use cases of the sheet (openspec/specs/hoja-etiquetas/spec.md R2, R5, R7, R13): the input
  * schema of `editarEtiquetaHoja`, the "no active size may stop fitting" rule, the
  * fit check of crear / editar / reactivar a size, and the print list that hides the
  * sizes that do not fit. The pipeline's edges and both repositories are mocked (same

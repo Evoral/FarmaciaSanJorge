@@ -20,6 +20,9 @@ export const AUTH_POLICY = {
   /** DP-20 pending. Idle session timeout. */
   sessionIdleMinutes: 30,
 
+  /** Resolved value (user decision, 2026-10-26): idle timeout of a cuenta de sector's shared session (openspec/specs/cuentas-de-sector/spec.md, S13). Longer because the empleado's PIN guards the acciones con PIN; `sessionAbsoluteHours` still applies. */
+  sessionIdleMinutesSector: 240,
+
   /** DP-20 pending. Absolute session lifetime regardless of activity. */
   sessionAbsoluteHours: 12,
 
@@ -29,8 +32,8 @@ export const AUTH_POLICY = {
   /** DP-20 pending. Lockout duration once maxFailedLoginAttempts is reached. */
   lockoutMinutes: 15,
 
-  /** DP-20 pending. Minimum password length for INV-AU-001 (titular-set passwords). */
-  minPasswordLength: 12,
+  /** Minimum password length for INV-AU-001 (titular-set passwords). User decision 2026-10-26: 8 (was 12). */
+  minPasswordLength: 8,
 
   /** Resolved value (user decision, 2026-10-23): minimum length of a TEMPORARY password typed by the Administrador (alta, "Restablecer credencial", first admin of create-tenant). It is short on purpose: the usuario replaces it on first login with a password of their own, which keeps the full `minPasswordLength` + uppercase policy. */
   minTemporaryPasswordLength: 6,
@@ -123,7 +126,7 @@ export function validatePassword(password: string): string[] {
 
 /**
  * Policy for a TEMPORARY password typed by the Administrador (user decision,
- * 2026-10-23; docs/specs/contrasena-temporal.md): at least
+ * 2026-10-23; openspec/specs/contrasena-temporal/spec.md): at least
  * `AUTH_POLICY.minTemporaryPasswordLength` characters and no uppercase
  * requirement, since the usuario must replace it on first login. The internal
  * technical guards are the very same objects as in `PASSWORD_REQUIREMENTS`.

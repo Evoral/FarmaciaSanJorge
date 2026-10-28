@@ -15,7 +15,7 @@
  * product; "Recordar" saves the invoice's text as an alias of that droga.
  * A droga picked (or matched) through a synonym shows that synonym with the
  * canonical name as a quiet hint -- display only: the partida is keyed by
- * droga_id alone (docs/specs/sinonimos-droga.md, "Nombre elegido al cargar").
+ * droga_id alone (openspec/specs/sinonimos-droga/spec.md, "Nombre elegido al cargar").
  *
  * Insumos (migration 0063): a product missing from the catalog can be
  * created right here ("Crear «…»", with the clase suggested from its name,
@@ -34,6 +34,8 @@ import { crearProductoDesdeFacturaAction, importarFacturaCompraAction } from "./
 import { formatearComprobante } from "../domain/importacion-factura-compra";
 import type { VistaPreviaFactura } from "../domain/importacion-factura-compra";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { useOperador } from "@/shared/ui/operador";
+import { CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
 import { DateInput } from "@/shared/ui/date-input";
 import { Combobox, filtrarOpciones, type ComboboxOption } from "@/shared/ui/combobox";
 import { RecordarSinonimoSwitch } from "@/shared/ui/recordar-sinonimo-switch";
@@ -56,7 +58,7 @@ export interface OpcionConMagnitud extends OpcionSimple {
   clase?: string;
   /** Units only: "kg", "mL"... */
   simbolo?: string;
-  /** Drogas only: vigente synonyms, also searched by the picker (docs/specs/sinonimos-droga.md). */
+  /** Drogas only: vigente synonyms, also searched by the picker (openspec/specs/sinonimos-droga/spec.md). */
   sinonimos?: string[];
 }
 
@@ -146,6 +148,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
   const [drogas, setDrogas] = useState(drogasIniciales);
   const [alta, setAlta] = useState<AltaProducto | null>(null);
   const [creando, startCreando] = useTransition();
+  const operador = useOperador();
   const { comprobante } = vistaPrevia;
   const [proveedor, setProveedor] = useState<ComboboxOption | null>(
     vistaPrevia.proveedor ? { value: vistaPrevia.proveedor.id, label: vistaPrevia.proveedor.razonSocial } : null,
@@ -163,7 +166,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
       despacho: l.despacho,
       paisOrigen: l.paisOrigen,
       matcheada: l.drogaId !== null,
-      // Matched through a remembered synonym: the field shows the invoice's text, the canonical name as a hint (docs/specs/sinonimos-droga.md).
+      // Matched through a remembered synonym: the field shows the invoice's text, the canonical name as a hint (openspec/specs/sinonimos-droga/spec.md).
       droga: l.drogaId ? { value: l.drogaId, label: l.drogaNombre ?? l.drogaTexto, sinonimo: l.via === "ALIAS" && l.drogaNombre ? l.drogaTexto : null } : null,
       unidadCompraId: l.unidadCompraId ?? "",
       // Shown es-AR (comma decimals): the parser's canonical "1234.5" would read as ambiguous once edited.
@@ -229,14 +232,41 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
       return;
     }
     startCreando(async () => {
-      const resultado = await crearProductoDesdeFacturaAction({ nombre: nombre.trim(), unidadBaseId, clase });
-      if (resultado.status === "error") {
-        setAlta((actual) => (actual ? { ...actual, error: resultado.message } : actual));
+      const datos = new FormData();
+      datos.set("nombre", nombre.trim());
+      datos.set("unidadBaseId", unidadBaseId);
+      datos.set("clase", clase);
+      // Cuenta de sector: who creates it (+ PIN), asked up front when the farmacia requires it,
+      // or after the server says so -- the same flow useFormSubmit runs for a submitted form.
+      let pedirOperador = operador.requierePin("drogas.crear");
+      let errorOperador: string | undefined;
+      let resultado: Awaited<ReturnType<typeof crearProductoDesdeFacturaAction>>;
+      for (;;) {
+        if (pedirOperador) {
+          const campos = await operador.pedir(errorOperador);
+          if (!campos) return;
+          for (const [campo, valor] of Object.entries(campos)) datos.set(campo, valor);
+        }
+        resultado = await crearProductoDesdeFacturaAction(datos);
+        if (resultado.status === "operador-required") {
+          pedirOperador = true;
+          errorOperador = undefined;
+        } else if (resultado.status === "error" && resultado.fields?.includes(CAMPO_OPERADOR_PIN)) {
+          pedirOperador = true;
+          errorOperador = resultado.message;
+        } else {
+          break;
+        }
+      }
+      const final = resultado;
+      if (final.status === "error") {
+        setAlta((actual) => (actual ? { ...actual, error: final.message } : actual));
         return;
       }
-      setDrogas((actuales) => [...actuales, { id: resultado.id, label: nombre.trim(), tipoMagnitud: unidad.tipoMagnitud, clase }]);
+      if (final.status !== "success") return;
+      setDrogas((actuales) => [...actuales, { id: final.id, label: nombre.trim(), tipoMagnitud: unidad.tipoMagnitud, clase }]);
       setAlta(null);
-      elegirDroga(indice, { value: resultado.id, label: nombre.trim() });
+      elegirDroga(indice, { value: final.id, label: nombre.trim() });
     });
   }
 

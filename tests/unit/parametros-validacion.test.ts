@@ -28,20 +28,11 @@ describe("parametros-registry: precision_balanza", () => {
     expect(result.ok).toBe(false);
   });
 
-  // FASE 3 point 3.9 review finding N3: exponential notation and
-  // whitespace weren't exercised before. Decimal.js parses exponential
-  // notation natively (new Decimal("1e-3").equals(new Decimal("0.001")) ===
-  // true), so "1e-3" is just another spelling of an already-allowed value
-  // and must be ACCEPTED; "1e3" is a valid, finite number (1000) that is
-  // simply not in the allowed {0.1, 0.01, 0.001} set, same as "1" already
-  // above, so it must be REJECTED -- neither case needed a code change,
-  // only test coverage for behavior the implementation already had.
-  it("accepts exponential notation '1e-3' (normalizes to 0.001, an allowed value)", () => {
+  // openspec/specs/numeros-ingresados/spec.md (N6): exponential notation ("1e-3", "1e3") is refused by
+  // `interpretarNumero` even when the numeric value (0.001) would otherwise be in the allowed set.
+  it("rejects exponential notation '1e-3' (refused by N6 even though 0.001 is an allowed value)", () => {
     const result = validar("1e-3");
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.valor.equals("0.001")).toBe(true);
-    }
+    expect(result.ok).toBe(false);
   });
 
   it("rejects exponential notation '1e3' (a valid number, 1000, but not in the allowed set)", () => {
@@ -131,7 +122,7 @@ describe("parametros-registry: dias_retiro_vencido", () => {
   });
 });
 
-describe("editarDatosTenant zod schema: the 4 non-editable tenant fields are never accepted", () => {
+describe("editarDatosTenant zod schema: the 3 non-editable tenant fields are never accepted", () => {
   const baseInput = { razonSocial: "Farmacia Test" };
 
   it("accepts the 4 editable fields", () => {
@@ -144,7 +135,11 @@ describe("editarDatosTenant zod schema: the 4 non-editable tenant fields are nev
     expect(result.success).toBe(true);
   });
 
-  it.each(["cuit", "zonaHoraria", "fechaBaja", "fechaActivacionContralor"])(
+  it("accepts the cuit (editable until the first cierre diario, openspec/specs/cuit-farmacia/spec.md)", () => {
+    expect(editarDatosTenantInput.safeParse({ ...baseInput, cuit: "30-12345678-9" }).success).toBe(true);
+  });
+
+  it.each(["zonaHoraria", "fechaBaja", "fechaActivacionContralor"])(
     "rejects (safeParse fails) when the input carries the non-editable field %s",
     (fieldName) => {
       const result = editarDatosTenantInput.safeParse({ ...baseInput, [fieldName]: "anything" });

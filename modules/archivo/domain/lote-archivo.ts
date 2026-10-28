@@ -63,7 +63,7 @@ export type EstadoRecetaArchivable = "ENTREGADA" | "ANULADA" | "RETIRO_VENCIDO";
 
 export interface RecetaCandidataArchivo {
   estado: string;
-  /** M09 `OrigenReceta`. DIGITAL_PDF recetas have no paper to archive (docs/specs/importacion-receta-pdf.md, "Archivo físico"). */
+  /** M09 `OrigenReceta`. DIGITAL_PDF recetas have no paper to archive (openspec/specs/importacion-receta-pdf/spec.md, "Archivo físico"). */
   origen: string;
   loteArchivoId: string | null;
   /** `YYYY-MM-DD` (fecha_ingreso's date part in the tenant's zona_horaria -- computed by the repository, never by `new Date()` here). */
@@ -71,14 +71,14 @@ export interface RecetaCandidataArchivo {
 }
 
 /**
- * User decision 4: eligible = ENTREGADA, ANULADA or RETIRO_VENCIDO (RV7, docs/specs/retiro-vencido.md: a receta whose
+ * User decision 4: eligible = ENTREGADA, ANULADA or RETIRO_VENCIDO (RV7, openspec/specs/retiro-vencido/spec.md: a receta whose
  * retiro expired is archivable like the other two), not already archived,
  * and `fecha_ingreso` within the lote's período. The former
  * "receta física recibida" condition went away with the column (client
  * decision 2026-10-01, migration 0051): every non-digital receta has its
  * paper, so an ANULADA one is archivable too. DIGITAL_PDF recetas are never
  * eligible: there is no paper to archive or destroy
- * (docs/specs/importacion-receta-pdf.md).
+ * (openspec/specs/importacion-receta-pdf/spec.md).
  */
 export function esRecetaElegibleParaArchivo(receta: RecetaCandidataArchivo, periodoDesde: string, periodoHasta: string): boolean {
   if (receta.origen === "DIGITAL_PDF") return false;

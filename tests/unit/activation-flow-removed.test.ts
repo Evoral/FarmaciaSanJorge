@@ -1,5 +1,5 @@
 /**
- * Guard: the activation-by-code flow is gone for good (docs/specs/contrasena-temporal.md).
+ * Guard: the activation-by-code flow is gone for good (openspec/specs/contrasena-temporal/spec.md).
  * Source-text assertions only -- `proxy.ts` does not export `PUBLIC_PATHS`.
  */
 import { describe, it, expect } from "vitest";

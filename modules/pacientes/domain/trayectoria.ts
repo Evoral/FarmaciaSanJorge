@@ -1,6 +1,6 @@
 /**
  * Pure derivation for the paciente "Trayectoria" view
- * (docs/specs/trayectoria-paciente.md): everything a paciente went through,
+ * (openspec/specs/trayectoria-paciente/spec.md): everything a paciente went through,
  * receta by receta -- Ingreso -> Preparación -> Libro -> Entrega -> Archivo.
  * No I/O, no Prisma (eslint's domainBoundaryPatterns enforce this).
  *
@@ -327,7 +327,7 @@ export function calcularResumen(grupos: readonly GrupoRecetasCrudo[]): ResumenTr
     total += g.cantidad;
     if (g.estado === "ENTREGADA") entregadas += g.cantidad;
     if (g.estado === "ANULADA") anuladas += g.cantidad;
-    // RETIRO_VENCIDO is not terminal but nobody is working on it: it is not "en curso" (docs/specs/retiro-vencido.md).
+    // RETIRO_VENCIDO is not terminal but nobody is working on it: it is not "en curso" (openspec/specs/retiro-vencido/spec.md).
     if (esRecetaEnCurso(g.estado)) enCurso += g.cantidad;
     if (g.ultimaIngreso && (ultimaAtencion === null || g.ultimaIngreso > ultimaAtencion)) ultimaAtencion = g.ultimaIngreso;
   }

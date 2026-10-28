@@ -10,7 +10,8 @@ import { exportarRecetasXlsx, MAX_EXPORT_ROWS } from "@/modules/recetas/applicat
 import { ESTADOS_RECETA } from "@/modules/recetas/domain/receta";
 import { etiquetaPago, parseFiltroPagoReceta } from "@/modules/recetas/domain/pago";
 import { ESTADO_RECETA_LABELS, ORIGEN_RECETA_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
-import { XLSX_CONTENT_TYPE, XlsxReport } from "@/shared/xlsx/xlsx-report";
+import { XLSX_CONTENT_TYPE, XlsxReport, type XlsxReportOptions } from "@/shared/xlsx/xlsx-report";
+import { getLogoTenant, getMarcaTenant } from "@/modules/farmacia/application/get-marca-tenant";
 import { AppError, type AppErrorCode, toSafeError } from "@/shared/errors";
 
 const STATUS_BY_CODE: Record<AppErrorCode, number> = {
@@ -34,7 +35,12 @@ export async function GET(request: Request): Promise<Response> {
   const estado = estadoParam && (ESTADOS_RECETA as readonly string[]).includes(estadoParam) ? (estadoParam as (typeof ESTADOS_RECETA)[number]) : undefined;
 
   let resultado;
+  let farmacia = "";
+  let logo: XlsxReportOptions["logo"] = null;
   try {
+    const [marca, logoTenant] = await Promise.all([getMarcaTenant(), getLogoTenant()]);
+    farmacia = marca?.nombre ?? "";
+    logo = logoTenant;
     resultado = await exportarRecetasXlsx({
       estado,
       numeroInterno: q.get("numero") || undefined,
@@ -52,6 +58,8 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const report = new XlsxReport({
+    farmacia,
+    logo,
     title: "Reporte de recetas",
     description:
       "Recetas magistrales que cumplen los filtros aplicados, con su número interno, fechas de ingreso y prescripción, estado, origen, paciente, médico y si están pagadas.",

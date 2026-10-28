@@ -33,6 +33,7 @@ import { EmptyState } from "@/shared/ui/empty-state";
 import { Avatar } from "@/shared/ui/avatar";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { tonoAccion } from "@/modules/auditoria/ui/tono-accion";
+import { nombreDeUsuario } from "@/shared/format/usuario";
 
 const PAGE_SIZE = 50;
 
@@ -105,7 +106,7 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
     return query ? `/auditoria?${query}` : "/auditoria";
   }
 
-  const opcionesUsuario = usuariosFiltro.map((u) => ({ value: u.id, label: `${u.apellido}, ${u.nombre}` }));
+  const opcionesUsuario = usuariosFiltro.map((u) => ({ value: u.id, label: nombreDeUsuario(u, "apellido") }));
   const usuarioElegido = opcionesUsuario.find((o) => o.value === usuarioId);
 
   const chips: { key: FilterParam; label: string; value: string }[] = [];
@@ -273,13 +274,13 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
                 </thead>
                 <tbody>
                   {result.items.map((registro) => {
-                    const actor = `${registro.usuario.nombre} ${registro.usuario.apellido}`;
+                    const actor = nombreDeUsuario(registro.usuario);
                     return (
                       <tr key={registro.id} className="align-top">
                         <td className="hidden whitespace-nowrap px-3 py-3 font-mono text-xs tabular-nums text-zinc-600 md:table-cell">{formatearFechaHora(registro.ocurridoEn, result.zonaHoraria)}</td>
                         <td className="px-3 py-3 md:min-w-[16rem]">
                           <div className="flex gap-2.5">
-                            <Avatar name={actor} />
+                            <Avatar name={nombreDeUsuario({ ...registro.usuario, esAdministrador: false })} />
                             <div className="min-w-0 flex-1">
                               <p className="mb-1 whitespace-nowrap font-mono text-xs tabular-nums text-zinc-600 md:hidden">{formatearFechaHora(registro.ocurridoEn, result.zonaHoraria)}</p>
                               <p className="break-words font-medium text-zinc-900">{describirRegistro(actor, registro.accion, registro.entidad)}</p>
@@ -293,7 +294,7 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
                               ) : null}
                               {registro.autorizadoPor ? (
                                 <p className="mt-1 text-[0.8125rem]">
-                                  <span className="text-zinc-500">Autorizó:</span> {registro.autorizadoPor.nombre} {registro.autorizadoPor.apellido}
+                                  <span className="text-zinc-500">Autorizó:</span> {nombreDeUsuario(registro.autorizadoPor)}
                                 </p>
                               ) : null}
                               {/* Phones: the Cambios column is hidden, so the diff goes under the description. */}

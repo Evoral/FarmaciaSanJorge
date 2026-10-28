@@ -1,6 +1,6 @@
 /**
  * Prisma access to `fsj.droga_alias` as the drogas module manages it:
- * a droga's synonyms (docs/specs/sinonimos-droga.md, migration 0067).
+ * a droga's synonyms (openspec/specs/sinonimos-droga/spec.md, migration 0067).
  * Runs inside the caller's ALREADY OPEN tenant transaction. The DB owns the
  * hard rules (vigente-only uniqueness, INV-DRG-002 name/synonym exclusivity,
  * INV-DRG-003 removal is final, removal on droga baja); the use cases check

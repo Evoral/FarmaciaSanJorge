@@ -4,7 +4,7 @@
  * "Imprimir etiqueta": the button opens a "Seleccionar tamaño y posición" dialog with the
  * active sizes the administrator configured (modules/etiqueta-tamanos) and the cell of the
  * sheet to print in (`./posicion-en-hoja.tsx`); confirming opens the etiqueta PDF -- the whole
- * sheet, with the etiqueta in that cell (docs/specs/hoja-etiquetas.md) -- in a new tab. Native
+ * sheet, with the etiqueta in that cell (openspec/specs/hoja-etiquetas/spec.md) -- in a new tab. Native
  * `<dialog>` opened with `showModal()` (same pattern as `./ver-receta-pendiente-dialog.tsx`):
  * focus is trapped and returned to the trigger by the browser, Escape closes it natively, and a
  * click on the backdrop closes it too.
@@ -218,7 +218,7 @@ export interface EtiquetaDeItemParaImprimir {
 /** The confirmation the dialog runs first, while the receta still has ítems to confirm (./reserva-acciones.tsx). */
 export interface ConfirmacionDeEtiquetas {
   recetaId: string;
-  /** The ítems to confirm (reserved), in ítem order: one tipo de vencimiento selector each (docs/specs/vencimiento-preparado.md R10). */
+  /** The ítems to confirm (reserved), in ítem order: one tipo de vencimiento selector each (openspec/specs/vencimiento-preparado/spec.md R10). */
   items: readonly { preparacionId: string; numero: number; nombre: string }[];
   /** `meses_vencimiento_preparado`, shown in the `ESTANDAR` option. */
   mesesVencimiento: number;
@@ -329,7 +329,10 @@ export function SeleccionarEtiquetasDialog({ etiquetas, tamanos, hoja, abrirAlMo
     setImpresas((anteriores) => new Set(anteriores).add(preparacionId));
   }
 
-  /** The "Imprimir" click, before the confirmation runs: open the tab now, while the click still counts as a user gesture. */
+  /**
+   * Right before the confirmation is sent -- after "who is acting" in a cuenta de sector, so no tab sits loading behind
+   * the PIN prompt: open the tab now, while the click still counts as a user gesture.
+   */
   function abrirVentanaParaPdf() {
     hrefConfirmacionRef.current = hrefConfirmacion();
     if (!hrefConfirmacionRef.current || (ventanaRef.current && !ventanaRef.current.closed)) return;
@@ -341,8 +344,9 @@ export function SeleccionarEtiquetasDialog({ etiquetas, tamanos, hoja, abrirAlMo
   /** Confirms the receta; on success the etiquetas' ONE PDF opens in the tab opened by the click, and the dialog closes. */
   async function confirmarEImprimir(prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
     const state = await confirmacion!.confirmar(prevState, formData);
-    // A re-authentication or "who is acting" prompt re-submits: keep the tab for it.
-    if (state.status === "reauth-required" || state.status === "operador-required") return state;
+    // A re-authentication prompt re-submits: keep the tab for it. A "who is acting" prompt closes it below and opens
+    // another once answered (`abrirVentanaParaPdf`).
+    if (state.status === "reauth-required") return state;
     const href = hrefConfirmacionRef.current;
     if (state.status !== "success" || !href) {
       cerrarVentanaVacia();
@@ -458,29 +462,27 @@ export function SeleccionarEtiquetasDialog({ etiquetas, tamanos, hoja, abrirAlMo
           ) : null}
 
           {confirmacion ? (
-            // Capture phase: runs on the click's submit, before the form's own handler and the async action.
-            <div onSubmitCapture={abrirVentanaParaPdf}>
-              <ReauthAwareForm
-                action={confirmarEImprimir}
-                accion={["preparaciones.confirmar", "etiquetas.generar"]}
-                submitLabel={sinTamanos ? "Confirmar" : "Imprimir"}
-                pendingLabel={sinTamanos ? "Confirmando…" : "Imprimiendo…"}
-                className="flex flex-col gap-4"
-                extraActions={
-                  <button type="button" onClick={cerrar} className="btn btn-secondary">
-                    Cancelar
-                  </button>
-                }
-              >
-                <input type="hidden" name="recetaId" value={confirmacion.recetaId} />
-                {lista}
-                {sinTamanos ? null : <AvisoTamanoReal />}
-                <div role="note" className="alert alert-warn">
-                  <CircleAlert aria-hidden />
-                  <p>Al imprimir, se registran todos los ítems en el libro recetario y se descuenta el stock. No se puede deshacer.</p>
-                </div>
-              </ReauthAwareForm>
-            </div>
+            <ReauthAwareForm
+              action={confirmarEImprimir}
+              accion={["preparaciones.confirmar", "etiquetas.generar"]}
+              antesDeEnviar={abrirVentanaParaPdf}
+              submitLabel={sinTamanos ? "Confirmar" : "Imprimir"}
+              pendingLabel={sinTamanos ? "Confirmando…" : "Imprimiendo…"}
+              className="flex flex-col gap-4"
+              extraActions={
+                <button type="button" onClick={cerrar} className="btn btn-secondary">
+                  Cancelar
+                </button>
+              }
+            >
+              <input type="hidden" name="recetaId" value={confirmacion.recetaId} />
+              {lista}
+              {sinTamanos ? null : <AvisoTamanoReal />}
+              <div role="note" className="alert alert-warn">
+                <CircleAlert aria-hidden />
+                <p>Al imprimir, se registran todos los ítems en el libro recetario y se descuenta el stock. No se puede deshacer.</p>
+              </div>
+            </ReauthAwareForm>
           ) : (
             <>
               {sinTamanos ? <SinTamanos /> : lista}

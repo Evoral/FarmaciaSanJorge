@@ -1,6 +1,6 @@
 /**
  * `getRecalculoDeReserva`: what the toma workspace's "Recalcular reserva" dialog (ui/continuar-preparacion-dialog.tsx)
- * shows for a preparación whose stock is reserved (docs/specs/reserva-stock-preparacion.md R1b): the same automatic
+ * shows for a preparación whose stock is reserved (openspec/specs/reserva-stock-preparacion/spec.md R1b): the same automatic
  * plan as the "Marcar como preparada" dialog (./datos-confirmacion.ts) with the preparación's OWN reservas available
  * to it, plus each línea's current entrada (enrase manual quantity, motivo, the partidas it draws from -- R25) to
  * prefill the form. Read-only, `preparaciones.iniciar` (same as every confirmation read); the change is written by

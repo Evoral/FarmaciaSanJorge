@@ -1,5 +1,5 @@
 /**
- * Layout guard for `/costos-proveedor/**` (docs/specs/costos-proveedor.md R35). Its own
+ * Layout guard for `/costos-proveedor/**` (openspec/specs/costos-proveedor/spec.md R35). Its own
  * sidebar entry under "Gestión", gated on `stock.valorizado.ver` (the permiso that gates
  * money everywhere else), the same one the consultation use cases require. The write
  * pages and actions check `costos.proveedor.gestionar` on top (R36). Provides the `.page`

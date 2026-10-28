@@ -1,6 +1,6 @@
 # Rollback: stock in the droga's unidad base (R12)
 
-Spec: `docs/specs/reserva-stock-preparacion.md`, rule R12. Schema change:
+Spec: `openspec/specs/reserva-stock-preparacion/spec.md`, rule R12. Schema change:
 migration `prisma/migrations/20261008150000_0073_consumo_linea_en_unidad_base_droga`
 (INV-S12 compares in the droga's unidad base). Reverted as code + a NEW forward
 migration built from `prisma/rollbacks/0073_consumo_linea_en_unidad_base_droga.down.sql`.

@@ -1,6 +1,6 @@
 # Rollback: Etiquetas sobre hoja (posición en la hoja)
 
-Spec: `docs/specs/hoja-etiquetas.md`. The feature has a **schema change**
+Spec: `openspec/specs/hoja-etiquetas/spec.md`. The feature has a **schema change**
 (migration `prisma/migrations/20261021120000_0096_etiqueta_hoja`), so it is
 reverted as code + a new forward migration built from
 `prisma/rollbacks/0096_etiqueta_hoja.down.sql`.

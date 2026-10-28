@@ -1,19 +1,22 @@
 /**
- * Cuentas de sector (docs/specs/cuentas-de-sector.md): identifying the
- * empleado who acts from a shared session.
+ * Cuentas de sector (openspec/specs/cuentas-de-sector/spec.md): identifying the
+ * empleado who acts from a shared session by PIN alone (no user selector).
  *
  *   - pure rules: who may be an operador, what a cuenta de sector can never
  *     hold, which acciones are configurable;
- *   - `verificarOperadorEnTx` with the repositories mocked: an accepted PIN,
- *     every rejection (wrong / blocked / no PIN / not an empleado / other
- *     tenant / malformed), the failed-attempt counter, the audit of a
- *     rejection, and that argon2 ALWAYS runs.
+ *   - `loadPinHashesDeOperadores` candidate query: excludes inactive, sector,
+ *     technical, users without PIN, and users with a pending password change;
+ *   - `verificarOperadorEnTx` with repositories mocked: one match -> ok with
+ *     that operador; no match -> NO_RECONOCIDA; two matches -> AMBIGUA;
+ *     auditing always targets the cuenta de sector without recording the PIN;
+ *     no failed-attempt counter or lockout writes ever; malformed credentials;
+ *     and `usuarioId` in the credential ignored.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import type { Prisma } from "@/generated/prisma/client";
 import type { AuthenticatedSession } from "@/shared/auth/session";
-import { AUTH_POLICY } from "@/shared/auth/policy";
 import { decideCandidatoOperador } from "@/modules/auth/domain/operador-policy";
 import {
   PERMISO_CATALOGO,
@@ -48,22 +51,12 @@ vi.mock("@/modules/auth/infrastructure/session-repository", () => ({
   loadUsuarioConPermisos: (...args: unknown[]) => loadUsuarioConPermisosMock(...args),
 }));
 
-const loadPinEstadoMock = vi.fn(async (...args: unknown[]): Promise<unknown> => {
+const loadPinHashesDeOperadoresMock = vi.fn(async (...args: unknown[]): Promise<{ id: string; pinHash: string }[]> => {
   void args;
-  return null;
-});
-const recordPinFailureMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
-  void args;
-  return undefined;
-});
-const resetPinLockoutMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
-  void args;
-  return undefined;
+  return [];
 });
 vi.mock("@/modules/auth/infrastructure/usuario-repository", () => ({
-  loadPinEstado: (...args: unknown[]) => loadPinEstadoMock(...args),
-  recordPinFailure: (...args: unknown[]) => recordPinFailureMock(...args),
-  resetPinLockout: (...args: unknown[]) => resetPinLockoutMock(...args),
+  loadPinHashesDeOperadores: (...args: unknown[]) => loadPinHashesDeOperadoresMock(...args),
 }));
 
 const { verificarOperadorEnTx, MENSAJE_OPERADOR_RECHAZADO } = await import("@/modules/auth/application/verificar-operador");
@@ -99,15 +92,13 @@ function empleado(extra: Record<string, unknown> = {}) {
   };
 }
 
-const credencial = (pin = "4829") => ({ usuarioId: EMPLEADO_ID, prueba: { metodo: "PIN", pin } });
+const credencial = (pin = "4829") => ({ prueba: { metodo: "PIN" as const, pin } });
 
 beforeEach(() => {
   auditRecordMock.mockClear();
   verifyPasswordMock.mockReset().mockResolvedValue(false);
   loadUsuarioConPermisosMock.mockReset().mockResolvedValue(empleado());
-  loadPinEstadoMock.mockReset().mockResolvedValue({ pinHash: "hash", pinBloqueado: false, pinIntentosFallidos: 0 });
-  recordPinFailureMock.mockClear();
-  resetPinLockoutMock.mockClear();
+  loadPinHashesDeOperadoresMock.mockReset().mockResolvedValue([{ id: EMPLEADO_ID, pinHash: "hash-ana" }]);
 });
 
 describe("reglas puras", () => {
@@ -159,89 +150,189 @@ describe("reglas puras", () => {
   });
 });
 
+describe("loadPinHashesDeOperadores (candidate query)", () => {
+  it("candidate query excludes debeCambiarPassword/inactive/sector/técnico (assert the findMany where)", async () => {
+    const { loadPinHashesDeOperadores } = await vi.importActual<typeof import("@/modules/auth/infrastructure/usuario-repository")>(
+      "@/modules/auth/infrastructure/usuario-repository",
+    );
+
+    const findMany = vi.fn().mockResolvedValue([
+      { id: EMPLEADO_ID, pinHash: "hash-ana" },
+      { id: "sin-pin", pinHash: null },
+    ]);
+    const fakeTx = { usuario: { findMany } } as unknown as Prisma.TransactionClient;
+
+    const result = await loadPinHashesDeOperadores(fakeTx, TENANT_ID);
+
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        tenantId: TENANT_ID,
+        estado: "ACTIVO",
+        esSector: false,
+        esTecnico: false,
+        pinHash: { not: null },
+        debeCambiarPassword: false,
+      },
+      select: { id: true, pinHash: true },
+    });
+    expect(result).toEqual([{ id: EMPLEADO_ID, pinHash: "hash-ana" }]);
+  });
+});
+
 describe("verificarOperadorEnTx", () => {
-  it("PIN correcto: devuelve al empleado con SUS permisos, reinicia el contador y no audita", async () => {
+  it("PIN correcto con coincidencia única: devuelve al empleado con SUS permisos y no audita", async () => {
     verifyPasswordMock.mockResolvedValue(true);
     const resultado = await verificarOperadorEnTx(TX, sector, credencial());
     expect(resultado).toEqual({
       ok: true,
       metodo: "PIN",
-      operador: { id: EMPLEADO_ID, email: "ana@example.com", nombre: "Ana", apellido: "Gómez", permisos: new Set(["preparaciones.confirmar"]) },
+      operador: {
+        id: EMPLEADO_ID,
+        email: "ana@example.com",
+        nombre: "Ana",
+        apellido: "Gómez",
+        permisos: new Set(["preparaciones.confirmar"]),
+      },
     });
-    expect(verifyPasswordMock).toHaveBeenCalledWith("hash", "4829");
-    expect(resetPinLockoutMock).toHaveBeenCalledWith(TX, EMPLEADO_ID);
+    expect(verifyPasswordMock).toHaveBeenCalledWith("hash-ana", "4829");
     expect(auditRecordMock).not.toHaveBeenCalled();
   });
 
-  it("PIN incorrecto: no lanza, cuenta el intento y audita el rechazo a nombre de la cuenta de sector", async () => {
+  it("sin coincidencia: mensaje NO_RECONOCIDA y audita a nombre de la cuenta de sector sin incluir el PIN", async () => {
+    verifyPasswordMock.mockResolvedValue(false);
     const resultado = await verificarOperadorEnTx(TX, sector, credencial("0000"));
-    expect(resultado).toEqual({ ok: false, message: "El PIN no es correcto." });
-    expect(recordPinFailureMock).toHaveBeenCalledWith(TX, EMPLEADO_ID, { pinIntentosFallidos: 1, pinBloqueado: false });
+    expect(resultado).toEqual({
+      ok: false,
+      message: "El PIN no corresponde a ningún empleado habilitado.",
+    });
     expect(auditRecordMock).toHaveBeenCalledTimes(1);
     expect(auditRecordMock.mock.calls[0]![1]).toMatchObject({
       tenantId: TENANT_ID,
       usuarioId: SECTOR_ID,
       entidad: "operador",
-      entidadId: EMPLEADO_ID,
+      entidadId: SECTOR_ID,
       accion: "AUTORIZAR",
       contexto: { sesionId: "sesion-sector" },
     });
+    expect((auditRecordMock.mock.calls[0]![1] as { motivo: string }).motivo).toContain("NO_RECONOCIDA");
     // The PIN never reaches the audit row.
     expect(JSON.stringify(auditRecordMock.mock.calls[0]![1])).not.toContain("0000");
   });
 
-  it("el intento que alcanza el máximo bloquea el PIN y lo deja dicho en la auditoría", async () => {
-    loadPinEstadoMock.mockResolvedValue({ pinHash: "hash", pinBloqueado: false, pinIntentosFallidos: AUTH_POLICY.maxFailedPinAttempts - 1 });
-    await verificarOperadorEnTx(TX, sector, credencial("0000"));
-    expect(recordPinFailureMock).toHaveBeenCalledWith(TX, EMPLEADO_ID, { pinIntentosFallidos: AUTH_POLICY.maxFailedPinAttempts, pinBloqueado: true });
-    expect((auditRecordMock.mock.calls[0]![1] as { motivo: string }).motivo).toContain("PIN bloqueado");
-  });
-
-  it("PIN bloqueado: se rechaza aunque coincida, sin sumar intentos", async () => {
+  it("dos coincidencias: mensaje AMBIGUA y audita el rechazo a nombre de la cuenta de sector", async () => {
+    loadPinHashesDeOperadoresMock.mockResolvedValue([
+      { id: EMPLEADO_ID, pinHash: "hash-1" },
+      { id: "44444444-4444-4444-a444-444444444444", pinHash: "hash-2" },
+    ]);
     verifyPasswordMock.mockResolvedValue(true);
-    loadPinEstadoMock.mockResolvedValue({ pinHash: "hash", pinBloqueado: true, pinIntentosFallidos: 5 });
+
     const resultado = await verificarOperadorEnTx(TX, sector, credencial());
-    expect(resultado.ok).toBe(false);
-    expect(resultado).toMatchObject({ message: expect.stringContaining("bloqueado") });
-    expect(recordPinFailureMock).not.toHaveBeenCalled();
-    expect(resetPinLockoutMock).not.toHaveBeenCalled();
+
+    expect(resultado).toEqual({
+      ok: false,
+      message: "Ese PIN lo tiene más de un empleado. Cambialo desde «Mi cuenta» para poder identificarte.",
+    });
+    expect(auditRecordMock).toHaveBeenCalledTimes(1);
+    expect(auditRecordMock.mock.calls[0]![1]).toMatchObject({
+      tenantId: TENANT_ID,
+      usuarioId: SECTOR_ID,
+      entidad: "operador",
+      entidadId: SECTOR_ID,
+      accion: "AUTORIZAR",
+      contexto: { sesionId: "sesion-sector" },
+    });
+    expect((auditRecordMock.mock.calls[0]![1] as { motivo: string }).motivo).toContain("AMBIGUA");
   });
 
-  it("empleado sin PIN configurado: se rechaza con su propio mensaje", async () => {
-    loadPinEstadoMock.mockResolvedValue({ pinHash: null, pinBloqueado: false, pinIntentosFallidos: 0 });
+  it("verifica argon2 contra todos los candidatos sin corte temprano", async () => {
+    loadPinHashesDeOperadoresMock.mockResolvedValue([
+      { id: EMPLEADO_ID, pinHash: "hash-1" },
+      { id: "44444444-4444-4444-a444-444444444444", pinHash: "hash-2" },
+      { id: "55555555-5555-4555-a555-555555555555", pinHash: "hash-3" },
+    ]);
+    // First candidate matches, but all 3 must still be evaluated to detect ambiguity.
+    verifyPasswordMock.mockImplementation(async (hash: unknown) => hash === "hash-1");
+
     const resultado = await verificarOperadorEnTx(TX, sector, credencial());
-    expect(resultado).toMatchObject({ ok: false, message: expect.stringContaining("no tiene un PIN") });
-    expect(recordPinFailureMock).not.toHaveBeenCalled();
+
+    expect(resultado.ok).toBe(true);
+    expect(verifyPasswordMock).toHaveBeenCalledTimes(3);
+    expect(verifyPasswordMock).toHaveBeenCalledWith("hash-1", "4829");
+    expect(verifyPasswordMock).toHaveBeenCalledWith("hash-2", "4829");
+    expect(verifyPasswordMock).toHaveBeenCalledWith("hash-3", "4829");
+  });
+
+  it("nunca escribe contadores ni bloquea el PIN", async () => {
+    verifyPasswordMock.mockResolvedValue(false);
+    // Multiple failed attempts
+    for (let i = 0; i < 5; i++) {
+      const res = await verificarOperadorEnTx(TX, sector, credencial("0000"));
+      expect(res.ok).toBe(false);
+    }
+    // TX is not touched with counter updates
+    expect(TX).not.toHaveProperty("$executeRaw");
+    expect(TX).not.toHaveProperty("$queryRaw");
+  });
+
+  it("usuarioId en la credencial es ignorado y se identifica puramente por PIN", async () => {
+    verifyPasswordMock.mockResolvedValue(true);
+    const credencialConUsuario = {
+      usuarioId: "algun-otro-id-o-invalido",
+      prueba: { metodo: "PIN" as const, pin: "4829" },
+    };
+
+    const resultado = await verificarOperadorEnTx(TX, sector, credencialConUsuario);
+
+    expect(resultado).toEqual({
+      ok: true,
+      metodo: "PIN",
+      operador: {
+        id: EMPLEADO_ID,
+        email: "ana@example.com",
+        nombre: "Ana",
+        apellido: "Gómez",
+        permisos: new Set(["preparaciones.confirmar"]),
+      },
+    });
   });
 
   it.each([
-    ["usuario inexistente", null],
+    ["sin prueba", {}],
+    ["sin pin", { prueba: { metodo: "PIN" } }],
+    ["método desconocido", { prueba: { metodo: "HUELLA", pin: "4829" } }],
+    ["PIN vacío", { prueba: { metodo: "PIN", pin: "" } }],
+    ["PIN demasiado largo (>64)", { prueba: { metodo: "PIN", pin: "1".repeat(65) } }],
+  ])("credencial mal formada (%s): se rechaza con mensaje genérico sin consultar candidatos ni auditar", async (_caso, malFormada) => {
+    const resultado = await verificarOperadorEnTx(TX, sector, malFormada);
+    expect(resultado).toEqual({ ok: false, message: MENSAJE_OPERADOR_RECHAZADO });
+    expect(loadPinHashesDeOperadoresMock).not.toHaveBeenCalled();
+    expect(verifyPasswordMock).not.toHaveBeenCalled();
+    expect(auditRecordMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["usuario no encontrado en loadUsuarioConPermisos", null],
     ["usuario de otra farmacia", empleado({ tenantId: OTRO_TENANT_ID })],
     ["otra cuenta de sector", empleado({ esSector: true })],
     ["el usuario técnico", empleado({ esTecnico: true })],
     ["usuario suspendido", empleado({ estado: "SUSPENDIDO" })],
-  ])("%s: mensaje genérico, argon2 corre igual, nunca se lee ni se toca su PIN", async (_caso, candidato) => {
+    ["usuario con cambio de contraseña pendiente", empleado({ debeCambiarPassword: true })],
+  ])("re-chequeo de candidato (%s): rechaza con mensaje genérico y audita a nombre de la cuenta de sector", async (_caso, candidato) => {
     verifyPasswordMock.mockResolvedValue(true);
     loadUsuarioConPermisosMock.mockResolvedValue(candidato);
-    const resultado = await verificarOperadorEnTx(TX, sector, credencial());
-    expect(resultado).toEqual({ ok: false, message: MENSAJE_OPERADOR_RECHAZADO });
-    // Constant work: a real verification against the dummy hash.
-    expect(verifyPasswordMock).toHaveBeenCalledWith(null, "4829");
-    expect(loadPinEstadoMock).not.toHaveBeenCalled();
-    expect(recordPinFailureMock).not.toHaveBeenCalled();
-    expect(resetPinLockoutMock).not.toHaveBeenCalled();
-    expect(auditRecordMock).toHaveBeenCalledTimes(1);
-  });
 
-  it.each([
-    ["sin usuario", { prueba: { metodo: "PIN", pin: "4829" } }],
-    ["id que no es un UUID", { usuarioId: "ana", prueba: { metodo: "PIN", pin: "4829" } }],
-    ["método desconocido", { usuarioId: EMPLEADO_ID, prueba: { metodo: "HUELLA", pin: "4829" } }],
-    ["PIN vacío", { usuarioId: EMPLEADO_ID, prueba: { metodo: "PIN", pin: "" } }],
-  ])("credencial mal formada (%s): se rechaza sin consultar nada", async (_caso, malFormada) => {
-    const resultado = await verificarOperadorEnTx(TX, sector, malFormada);
+    const resultado = await verificarOperadorEnTx(TX, sector, credencial());
+
     expect(resultado).toEqual({ ok: false, message: MENSAJE_OPERADOR_RECHAZADO });
-    expect(loadUsuarioConPermisosMock).not.toHaveBeenCalled();
-    expect(verifyPasswordMock).not.toHaveBeenCalled();
+    expect(auditRecordMock).toHaveBeenCalledTimes(1);
+    expect(auditRecordMock.mock.calls[0]![1]).toMatchObject({
+      tenantId: TENANT_ID,
+      usuarioId: SECTOR_ID,
+      entidad: "operador",
+      entidadId: SECTOR_ID,
+      accion: "AUTORIZAR",
+      contexto: { sesionId: "sesion-sector" },
+    });
   });
 });

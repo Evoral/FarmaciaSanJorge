@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Reactivar" a RETIRO_VENCIDO receta (docs/specs/retiro-vencido.md RV4-RV6): it goes back to Preparada and can be
+ * "Reactivar" a RETIRO_VENCIDO receta (openspec/specs/retiro-vencido/spec.md RV4-RV6): it goes back to Preparada and can be
  * delivered as always. When a preparado is already vencido the same form carries the Director Técnico's co-firma (the DT
  * picks themselves and types their own password); the use case decides whether it is needed, this form only mirrors what
  * it will ask. Same `SimpleForm` shape as the other entrega forms: what the user typed survives an error, and on success

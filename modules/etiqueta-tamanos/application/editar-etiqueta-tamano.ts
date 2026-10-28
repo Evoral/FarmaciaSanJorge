@@ -3,7 +3,7 @@
  * ADMINISTRADOR only (`config.editar`). Past
  * etiquetas are not affected: the size is only used at the moment of
  * printing (the PDF is rendered on demand, nothing stores the size). The
- * measures must fit the sheet at least once (docs/specs/hoja-etiquetas.md R5),
+ * measures must fit the sheet at least once (openspec/specs/hoja-etiquetas/spec.md R5),
  * so a size that does not fit is edited to fit (or deactivated).
  *
  * Locks the row FIRST and reads its current state with a fresh statement

@@ -79,6 +79,6 @@ CREATE CONSTRAINT TRIGGER trg_componente_csp_orden
   FOR EACH ROW EXECUTE FUNCTION fsj.trg_componente_check_csp_orden();
 
 COMMENT ON TABLE fsj.componente_item_receta IS
-  'M09 / docs/specs/ficha-tecnica.md "ComponenteItemReceta". modo_expresion REPLACES the diagram''s es_cantidad_suficiente boolean (binding decision). V1 (>=1 component per item), V2 (<=1 CSP per item), V3 (CSP must be the last orden) are enforced below.';
+  'M09 / openspec/specs/ficha-tecnica/spec.md "ComponenteItemReceta". modo_expresion REPLACES the diagram''s es_cantidad_suficiente boolean (binding decision). V1 (>=1 component per item), V2 (<=1 CSP per item), V3 (CSP must be the last orden) are enforced below.';
 
 COMMENT ON COLUMN fsj.componente_item_receta.es_principio_activo IS NULL;

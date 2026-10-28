@@ -1,6 +1,6 @@
 /**
  * Pure derivation for the proveedor "Trayectoria" view
- * (docs/specs/trayectoria-proveedor.md): every partida (= ingreso, INV-STK-002)
+ * (openspec/specs/trayectoria-proveedor/spec.md): every partida (= ingreso, INV-STK-002)
  * a proveedor supplied, with its movements and the optional blocks the session
  * may see. No I/O, no Prisma (eslint's domainBoundaryPatterns enforce this).
  *
@@ -211,7 +211,7 @@ export interface PartidaCruda {
   costoUnitario: string | null;
 }
 
-export type TipoMovimientoValor = "INGRESO_COMPRA" | "EGRESO_PREPARACION" | "AJUSTE";
+export type TipoMovimientoValor = "INGRESO_COMPRA" | "INGRESO_INICIAL" | "EGRESO_PREPARACION" | "AJUSTE";
 
 export interface MovimientoCrudo {
   id: string;

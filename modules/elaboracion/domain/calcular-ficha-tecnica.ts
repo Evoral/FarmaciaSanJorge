@@ -4,7 +4,7 @@
  * access, no I/O -- see tests/unit/calcular-ficha-tecnica.test.ts (T1-T8
  * from the spec, plus one case per V1-V9 and the R7/R8 interplay).
  *
- * SOURCE OF TRUTH: docs/specs/ficha-tecnica.md. Implements rules R1-R9 and
+ * SOURCE OF TRUTH: openspec/specs/ficha-tecnica/spec.md. Implements rules R1-R9 and
  * validations V1-V9 EXACTLY as written there -- read that file before
  * changing anything here, it is more precise than this comment.
  *
@@ -12,14 +12,13 @@
  * never used for a quantity, per INV-PL-003 / the spec's own "No usar
  * float en ningun paso".
  *
- * PENDING CONFIRMATION (spec section "Pendiente de confirmar"):
- * `precisionBalanza` is defined in GRAMO (MASA) only. There is no rule for
- * rounding a non-manual line of magnitude VOLUMEN or UNIDADES (e.g.
- * glicerina 10 ml TOTAL). This implementation applies `precisionBalanza`
- * ONLY to MASA lines (see `redondearAMultiplo` call site below) and leaves
- * VOLUMEN/UNIDADES lines at full Decimal precision (exceso applied, no
- * rounding) -- flagged here and in the delivery report, not a guess to be
- * relied on without confirming with the pharmacist.
+ * No rounding to the balance here (spec R8, 2026-10-28): `cantidadAPesar` is
+ * the ACTIVE ingredient required, at full Decimal precision. What goes on the
+ * balance is the PHYSICAL weight of each partida (active x 100 / potencia),
+ * and the pesada real rounds THAT to `precision_balanza`
+ * (modules/preparaciones/domain/pesada-real.ts). Rounding the active first
+ * turned small doses of diluted drugs (e.g. 0,15 mg of a 0,1 % lot = 150 mg
+ * physical) into 0.
  */
 import { Decimal, dec } from "@/shared/decimal";
 import { DomainError } from "@/shared/errors";
@@ -81,8 +80,6 @@ export interface ComponenteInput {
 }
 
 export interface ParametrosPesaje {
-  /** In GRAMO -- see the "Pending confirmation" note above for non-MASA lines. */
-  precisionBalanza: Decimal | string | number;
   excesoPesadaPorcentaje: Decimal | string | number;
 }
 
@@ -119,30 +116,14 @@ function aBase(valor: Decimal, unidad: UnidadMedidaRef): Decimal {
   return valor.times(dec(unidad.factorABase));
 }
 
-/** R8: rounds `valor` to the nearest multiple of `precision`, half-up. */
-function redondearAMultiplo(valor: Decimal, precision: Decimal): Decimal {
-  if (precision.isZero()) return valor;
-  return valor.dividedBy(precision).toDecimalPlaces(0, Decimal.ROUND_HALF_UP).times(precision);
-}
-
-/** R7 + R8 (MASA only -- see the module doc comment's "Pending confirmation" note). */
-function calcularLineaNoManual(
-  c: ComponenteInput,
-  orden: number,
-  teorica: Decimal,
-  excesoPct: Decimal,
-  precisionBalanza: Decimal,
-  unidadBase: UnidadMedidaRef,
-): LineaPesajeCalculada {
-  const conExceso = teorica.times(dec(1).plus(excesoPct.dividedBy(100)));
-  const aPesar = unidadBase.tipoMagnitud === "MASA" ? redondearAMultiplo(conExceso, precisionBalanza) : conExceso;
-
+/** R7 + R8 (no rounding -- see the module doc comment). */
+function calcularLineaNoManual(c: ComponenteInput, orden: number, teorica: Decimal, excesoPct: Decimal, unidadBase: UnidadMedidaRef): LineaPesajeCalculada {
   return {
     drogaId: c.drogaId,
     drogaNombre: c.drogaNombre,
     cantidadTeorica: teorica,
     excesoAplicado: excesoPct,
-    cantidadAPesar: aPesar,
+    cantidadAPesar: teorica.times(dec(1).plus(excesoPct.dividedBy(100))),
     unidadMedida: unidadBase,
     esEnraseManual: false,
     orden,
@@ -235,7 +216,6 @@ export function calcularFichaTecnica(
   }
 
   const excesoPct = dec(parametros.excesoPesadaPorcentaje);
-  const precisionBalanza = dec(parametros.precisionBalanza);
 
   const lineas: LineaPesajeCalculada[] = [];
 
@@ -250,7 +230,7 @@ export function calcularFichaTecnica(
 
     if (c.modoExpresion === "TOTAL" || c.modoExpresion === "POR_DOSIS") {
       const teorica = teoricaPorComponente.get(c)!;
-      lineas.push(calcularLineaNoManual(c, orden, teorica, excesoPct, precisionBalanza, unidadBaseComponente));
+      lineas.push(calcularLineaNoManual(c, orden, teorica, excesoPct, unidadBaseComponente));
       continue;
     }
 
@@ -288,7 +268,7 @@ export function calcularFichaTecnica(
       fail("V5", `CSP result is <= 0 (total ${totalEnBase.toString()}, components sum ${sumaOtros.toString()})`);
     }
 
-    lineas.push(calcularLineaNoManual(c, orden, teoricaCsp, excesoPct, precisionBalanza, unidadesBase[magnitudTotal]));
+    lineas.push(calcularLineaNoManual(c, orden, teoricaCsp, excesoPct, unidadesBase[magnitudTotal]));
   }
 
   return lineas;

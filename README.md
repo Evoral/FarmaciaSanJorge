@@ -11,7 +11,7 @@ point it at a local/Docker/embedded Postgres.
    - the **direct** connection string (port `5432`, role `postgres`) into `DIRECT_URL`
    - see `.env.example` for the exact format, including the `fsj_app.<project-ref>` pooler username
 2. Pick a strong password for the `fsj_app` runtime role and put it in `FSJ_APP_DB_PASSWORD` (used only by `db:bootstrap`, never committed).
-3. **Important**: in the Supabase dashboard, do **not** add `fsj` to *Data API > Exposed schemas*. The app schema must stay unreachable from PostgREST/Supabase Auth -- see `docs/architecture.md`.
+3. **Important**: in the Supabase dashboard, do **not** add `fsj` to *Data API > Exposed schemas*. The app schema must stay unreachable from PostgREST/Supabase Auth -- see `docs/architecture.md`. Leave the Data API disabled: migration 0108 points PostgREST at the empty schema `pgrst_no_exposed_schemas`, which silences the `schema "pg_pgrst_no_exposed_schemas" does not exist` log noise Supabase produces otherwise. From then on the dashboard's *Exposed schemas* setting has no effect (see `docs/rollbacks/postgrest-schema-vacio.md` to undo it).
 
 ### DB tests run against the real database (temporary)
 

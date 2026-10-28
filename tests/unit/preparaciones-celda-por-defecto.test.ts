@@ -1,5 +1,5 @@
 /**
- * The default cell of the toma dialog's rows (docs/specs/hoja-etiquetas.md R11): the next cell in reading
+ * The default cell of the toma dialog's rows (openspec/specs/hoja-etiquetas/spec.md R11): the next cell in reading
  * order after the last printed one, only between rows of the same size.
  */
 import { describe, it, expect } from "vitest";

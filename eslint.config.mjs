@@ -70,7 +70,7 @@ const eslintConfig = defineConfig([
     // the DT's session-driven "Actualizar plazos" button) still goes
     // through defineCommand normally.
     // modules/entregas/application/vencer-retiros.ts: the daily "retiro
-    // vencido" job (app/api/jobs/retiros-vencidos, docs/specs/retiro-vencido.md
+    // vencido" job (app/api/jobs/retiros-vencidos, openspec/specs/retiro-vencido/spec.md
     // RV2) is the same case -- no session, secret-protected, iterates every
     // tenant -- and this file only exports that one job runner
     // (`runVencerRetirosJob`).

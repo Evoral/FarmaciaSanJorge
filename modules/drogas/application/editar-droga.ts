@@ -42,7 +42,7 @@
  * omitted, is derived from the effective `tipoControl` (same rule as
  * `tipoControlValido` / the DB CHECK).
  *
- * "Otros nombres" (docs/specs/sinonimos-droga.md) are saved with the rest of
+ * "Otros nombres" (openspec/specs/sinonimos-droga/spec.md) are saved with the rest of
  * the form, same rows as the alta: `sinonimos` is the full list as edited
  * (row `i` = form field `sinonimo-i`) and `sinonimosCargados` the ids of the
  * synonyms the form showed. Omitted = synonyms
@@ -52,6 +52,11 @@
  * Removals run before the name check, so the droga can be renamed to one of
  * its own synonyms in the same save. Each change is audited as its own
  * `droga_alias` row.
+ *
+ * Turning the droga controlled (or into another tipo de control) with the
+ * contralor digital activo asks for `saldoAperturaContralor` and writes the
+ * APERTURA in the new libro, same as the alta (openspec/specs/existencia-inicial/spec.md
+ * R12) -- unless that libro already holds one for the droga.
  */
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
@@ -81,6 +86,7 @@ import {
   updateDrogaDatos,
 } from "../infrastructure/droga-repository";
 import { insertSinonimo, listSinonimosDeDroga, quitarSinonimo } from "../infrastructure/sinonimo-repository";
+import { registrarAperturaContralorEnTx, requiereAperturaContralorEnTx } from "@/modules/libro/application/registrar-apertura-contralor";
 
 const editarDrogaInput = z.object({
   id: uuid,
@@ -93,6 +99,8 @@ const editarDrogaInput = z.object({
   stockMinimo: nonNegativeDecimalString,
   sinonimos: z.array(z.string().max(SINONIMO_MAX_LARGO, `Como máximo ${SINONIMO_MAX_LARGO} caracteres.`)).max(50).optional(),
   sinonimosCargados: z.array(uuid).max(50).default([]),
+  /** Required only when the edit makes the droga controlled with the contralor activo (R12); ignored otherwise. */
+  saldoAperturaContralor: nonNegativeDecimalString.optional(),
   version: z.object({
     nombre: z.string(),
     unidadBaseId: z.string(),
@@ -116,6 +124,8 @@ export interface EditarDrogaInput {
   sinonimos?: string[];
   /** Ids of the synonyms the form showed when loaded. */
   sinonimosCargados?: string[];
+  /** The manual libro contralor's saldo (unidad base), see the alta. */
+  saldoAperturaContralor?: string;
   version: { nombre: string; unidadBaseId: string; esControlada: boolean; tipoControl: string; clase: string; stockMinimo: string };
 }
 
@@ -179,7 +189,7 @@ export const editarDrogaCommand = defineCommand({
     }
 
     // Accent/case-insensitive, against other vigente drogas AND every vigente synonym, this droga's own included
-    // (docs/specs/sinonimos-droga.md). Only when the name changes: an untouched name never blocks other edits.
+    // (openspec/specs/sinonimos-droga/spec.md). Only when the name changes: an untouched name never blocks other edits.
     if (input.nombre !== actual.nombre) {
       const conflicto = await existeNombreVigente(tx, session.tenantId, input.nombre, input.id);
       if (conflicto) throw new ValidationError(mensajeConflictoNombre(conflicto, input.id), { fields: ["nombre"] });
@@ -195,6 +205,15 @@ export const editarDrogaCommand = defineCommand({
           "No se puede cambiar la unidad base, si es controlada o el tipo de control de una droga que ya tiene partidas: afectaría la continuidad del libro de contralor.",
         );
       }
+    }
+
+    const requiereApertura =
+      cambiaClasificacion && tipoControl !== actual.tipoControl && (await requiereAperturaContralorEnTx(tx, session.tenantId, input.id, tipoControl));
+    if (requiereApertura && input.saldoAperturaContralor === undefined) {
+      throw new ValidationError(
+        "El contralor está activo: cargá el saldo de apertura de la droga (el del libro manual, 0 si la farmacia nunca la tuvo).",
+        { fields: ["saldoAperturaContralor"] },
+      );
     }
 
     const updated = await updateDrogaDatos(
@@ -217,6 +236,16 @@ export const editarDrogaCommand = defineCommand({
       },
     );
     if (!updated) throw new ConflictError(CONCURRENCY_MESSAGE);
+
+    if (requiereApertura && input.saldoAperturaContralor !== undefined && tipoControl !== "NINGUNO") {
+      await registrarAperturaContralorEnTx(tx, session, {
+        drogaId: input.id,
+        drogaNombre: input.nombre,
+        tipoControl,
+        saldo: input.saldoAperturaContralor.toString(),
+        unidadMedidaId: unidadBaseId,
+      });
+    }
 
     if (sinonimos) {
       for (const nuevo of sinonimos.agregar) {

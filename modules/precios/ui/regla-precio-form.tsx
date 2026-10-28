@@ -3,7 +3,7 @@
 /**
  * `/admin/configuracion/precios`'s "nueva versión" form (ADM/DT,
  * `precios.reglas.editar`): precio mínimo + a dynamic list of margin tramos
- * by cost (docs/specs/reglas-precio.md). The last row is always "sin tope"
+ * by cost (openspec/specs/reglas-precio/spec.md). The last row is always "sin tope"
  * (submitted as an empty `tramoCostoHasta`); rows are added before it.
  * Starts from the vigente rules; the page remounts it (React `key`) after a
  * new version is saved. Validation lives server-side (the use case runs the

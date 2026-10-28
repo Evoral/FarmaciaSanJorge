@@ -4,6 +4,7 @@
  * ajuste and the libro anulación/rectificativo forms. Submits `dtUsuarioId` and `dtPassword`. Presentational only.
  */
 import { ShieldCheck } from "lucide-react";
+import { PasswordInput } from "@/shared/ui/password-input";
 
 export interface CoFirmaDtOpcion {
   id: string;
@@ -57,7 +58,7 @@ export function CoFirmaDt({ dts, idSuffix = "", operadorEsDt = false, titulo = "
           <label htmlFor={passwordId} className="field-label">
             Contraseña del Director Técnico
           </label>
-          <input id={passwordId} name="dtPassword" type="password" autoComplete="off" required className="input" />
+          <PasswordInput id={passwordId} name="dtPassword" autoComplete="off" required className="input" />
         </div>
       </div>
     </fieldset>

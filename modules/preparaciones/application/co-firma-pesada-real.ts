@@ -1,5 +1,5 @@
 /**
- * The DT co-firma of a pesada real outside the tolerance (docs/specs/pesada-real.md), in the "Marcar como preparada"
+ * The DT co-firma of a pesada real outside the tolerance (openspec/specs/pesada-real/spec.md), in the "Marcar como preparada"
  * / "Recalcular reserva" / confirmation form itself: the DT picks themselves and types their own password. Verified in
  * its own transaction (the stock co-firma, `verificarCoFirmaDtEnTx`: failed attempts are audited and count towards the
  * DT's lockout), then the command runs with the verified DT id -- the same structure as "Registrar pérdida"

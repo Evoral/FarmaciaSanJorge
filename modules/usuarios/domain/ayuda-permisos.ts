@@ -38,7 +38,7 @@ const AYUDA_PERMISO: Readonly<Record<PermisoAsignable, string>> = {
   "drogas.reactivar": "Volver a habilitar una droga dada de baja.",
   "proveedores.gestionar": "Dar de alta, modificar y dar de baja proveedores.",
   "medicos.gestionar": "Dar de alta, modificar y dar de baja médicos prescriptores.",
-  "pacientes.gestionar": "Dar de alta, modificar y dar de baja pacientes.",
+  "pacientes.gestionar": "Dar de alta, modificar y dar de baja clientes.",
   "precios.reglas.editar": "Cambiar cómo se calcula el precio de venta (márgenes, honorarios, redondeos).",
   "costos.proveedor.gestionar": "Cargar, importar y actualizar las listas de precios de los proveedores.",
   "repartidores.gestionar": "Dar de alta, modificar y dar de baja los repartidores de envíos.",

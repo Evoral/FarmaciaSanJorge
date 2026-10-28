@@ -31,6 +31,7 @@ export interface PacienteListItem {
   nombre: string;
   apellido: string;
   dni: string | null;
+  telefono: string | null;
   fechaBaja: Date | null;
   motivoBaja: string | null;
 }
@@ -65,7 +66,7 @@ export async function listPacientes(tx: Prisma.TransactionClient, filter: ListPa
     orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
     skip,
     take: filter.pageSize,
-    select: { id: true, nombre: true, apellido: true, dni: true, fechaBaja: true, motivoBaja: true },
+    select: { id: true, nombre: true, apellido: true, dni: true, telefono: true, fechaBaja: true, motivoBaja: true },
   });
 
   return { items: rows, total, page: filter.page, pageSize: filter.pageSize };
@@ -87,6 +88,8 @@ export interface PacienteParaAccion {
   nroCredencial: string | null;
   sexo: string | null;
   aceptaRecordatoriosWhatsapp: boolean;
+  domicilio: string | null;
+  domicilioEntrega: string | null;
   fechaBaja: Date | null;
   motivoBaja: string | null;
 }
@@ -103,6 +106,8 @@ const SELECT_PARA_ACCION = {
   nroCredencial: true,
   sexo: true,
   aceptaRecordatoriosWhatsapp: true,
+  domicilio: true,
+  domicilioEntrega: true,
   fechaBaja: true,
   motivoBaja: true,
 } as const;
@@ -151,6 +156,8 @@ export interface NuevoPacienteInput {
   nroCredencial: string | null;
   sexo: string | null;
   aceptaRecordatoriosWhatsapp: boolean;
+  domicilio: string | null;
+  domicilioEntrega: string | null;
 }
 
 export async function insertPaciente(tx: Prisma.TransactionClient, input: NuevoPacienteInput): Promise<{ id: string }> {
@@ -167,6 +174,8 @@ export async function insertPaciente(tx: Prisma.TransactionClient, input: NuevoP
       nroCredencial: input.nroCredencial,
       sexo: input.sexo,
       aceptaRecordatoriosWhatsapp: input.aceptaRecordatoriosWhatsapp,
+      domicilio: input.domicilio,
+      domicilioEntrega: input.domicilioEntrega,
     },
     select: { id: true },
   });
@@ -184,6 +193,8 @@ export interface EditarPacienteInput {
   nroCredencial: string | null;
   sexo: string | null;
   aceptaRecordatoriosWhatsapp: boolean;
+  domicilio: string | null;
+  domicilioEntrega: string | null;
 }
 
 export interface EditarPacienteVersion {
@@ -197,6 +208,8 @@ export interface EditarPacienteVersion {
   nroCredencial: string | null;
   sexo: string | null;
   aceptaRecordatoriosWhatsapp: boolean;
+  domicilio: string | null;
+  domicilioEntrega: string | null;
 }
 
 export async function updatePacienteDatos(
@@ -219,6 +232,8 @@ export async function updatePacienteDatos(
       nroCredencial: version.nroCredencial,
       sexo: version.sexo,
       aceptaRecordatoriosWhatsapp: version.aceptaRecordatoriosWhatsapp,
+      domicilio: version.domicilio,
+      domicilioEntrega: version.domicilioEntrega,
     },
     data: {
       nombre: input.nombre,
@@ -231,6 +246,8 @@ export async function updatePacienteDatos(
       nroCredencial: input.nroCredencial,
       sexo: input.sexo,
       aceptaRecordatoriosWhatsapp: input.aceptaRecordatoriosWhatsapp,
+      domicilio: input.domicilio,
+      domicilioEntrega: input.domicilioEntrega,
     },
   });
   return result.count === 1;

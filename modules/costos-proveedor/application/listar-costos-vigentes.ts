@@ -1,6 +1,6 @@
 /**
  * `listarCostosVigentes` -- the "Vigentes" tab of `/costos-proveedor`
- * (docs/specs/costos-proveedor.md, "Interface"): one vigente costo per
+ * (openspec/specs/costos-proveedor/spec.md, "Interface"): one vigente costo per
  * (droga, proveedor), by droga name then proveedor, filtered by proveedor
  * and/or droga, paginated. Gated on `stock.valorizado.ver` (R35: the permiso
  * that gates money everywhere else).
@@ -18,6 +18,7 @@ import { defineQuery } from "@/shared/usecase";
 import { can } from "@/shared/auth/authorize";
 import { uuid } from "@/shared/validation";
 import {
+  getAlicuotaIvaPorDefecto,
   getContextoTemporal,
   getDrogasParaCosto,
   getProveedorParaCosto,
@@ -46,6 +47,8 @@ export interface CostosVigentesResultado {
   jornadaActual: string;
   zonaHoraria: string;
   puedeGestionar: boolean;
+  /** R7a: the tenant's `alicuota_iva_porcentaje`, what a new costo starts with in the manual form. */
+  alicuotaIvaPorDefecto: string;
   /** The droga / proveedor of the active filters, when they exist (a stale or foreign id yields `null`). */
   drogaFiltro: { id: string; nombre: string } | null;
   proveedorFiltro: { id: string; razonSocial: string } | null;
@@ -64,6 +67,7 @@ export const listarCostosVigentesQuery = defineQuery({
       ...lista,
       ...contexto,
       puedeGestionar: can(session, "costos.proveedor.gestionar"),
+      alicuotaIvaPorDefecto: await getAlicuotaIvaPorDefecto(tx, session.tenantId),
       drogaFiltro: droga ? { id: droga.id, nombre: droga.nombre } : null,
       proveedorFiltro: proveedor ? { id: proveedor.id, razonSocial: proveedor.razonSocial } : null,
     };

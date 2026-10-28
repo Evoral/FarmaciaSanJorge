@@ -3,7 +3,7 @@
  * take the focus back once a reading finishes. The component itself cannot be
  * rendered here (vitest runs in node, without a DOM), so the decision is a
  * pure function over the active element; the wiring is checked by hand (see
- * docs/specs/importacion-receta-qr.md, "verificación manual").
+ * openspec/specs/importacion-receta-qr/spec.md, "verificación manual").
  */
 import { describe, it, expect } from "vitest";
 import { debeRecuperarFoco } from "@/modules/recetas/ui/foco-lectura";

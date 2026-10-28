@@ -1,6 +1,6 @@
 # Rollback: Cuentas de sector e identificación del empleado por PIN
 
-Spec: `docs/specs/cuentas-de-sector.md`. The feature has a **schema change**
+Spec: `openspec/specs/cuentas-de-sector/spec.md`. The feature has a **schema change**
 (migration `prisma/migrations/20261013150000_0077_cuentas_de_sector`), so it
 is reverted as code + a new forward migration built from
 `prisma/rollbacks/0077_cuentas_de_sector.down.sql`.

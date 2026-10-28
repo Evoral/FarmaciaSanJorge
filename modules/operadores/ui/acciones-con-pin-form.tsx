@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * `/admin/configuracion/pin` (docs/specs/cuentas-de-sector.md): one switch
+ * `/admin/configuracion/pin` (openspec/specs/cuentas-de-sector/spec.md): one switch
  * per configurable acción, grouped by module like the role editor
  * (modules/usuarios/ui/rol-form.tsx). On = in a cuenta de sector, that
  * acción asks for the PIN of the empleado performing it and is registered

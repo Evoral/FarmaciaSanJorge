@@ -25,6 +25,8 @@ export interface RolDetalle {
   permisos: Permiso[];
   /** usuarios currently holding the role (any estado). */
   cantidadUsuarios: number;
+  /** How many of `cantidadUsuarios` are cuentas de sector (`usuario.es_sector`); the rest are personal accounts. */
+  cantidadUsuariosDeSector: number;
 }
 
 const ROL_DETALLE_SELECT = {
@@ -34,7 +36,7 @@ const ROL_DETALLE_SELECT = {
   descripcion: true,
   esAdministrador: true,
   permisos: { select: { permiso: { select: { codigo: true } } } },
-  _count: { select: { asignaciones: true } },
+  asignaciones: { select: { usuario: { select: { esSector: true } } } },
 } as const;
 
 type RolDetalleRow = Prisma.RolGetPayload<{ select: typeof ROL_DETALLE_SELECT }>;
@@ -56,7 +58,8 @@ function toRolDetalle(row: RolDetalleRow): RolDetalle {
       row.esAdministrador,
       row.permisos.map((p) => p.permiso.codigo),
     ),
-    cantidadUsuarios: row._count.asignaciones,
+    cantidadUsuarios: row.asignaciones.length,
+    cantidadUsuariosDeSector: row.asignaciones.filter((asignacion) => asignacion.usuario.esSector).length,
   };
 }
 

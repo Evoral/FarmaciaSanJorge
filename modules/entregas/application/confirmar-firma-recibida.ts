@@ -11,7 +11,7 @@
  * UPDATE first, receta estado UPDATE second -- so migration 0040's
  * INV-ENT-002 trigger sees the right state at the right time.
  *
- * Payment (docs/specs/pago-receta.md P4): the receta becomes ENTREGADA here, so it must end up paid -- already paid,
+ * Payment (openspec/specs/pago-receta/spec.md P4): the receta becomes ENTREGADA here, so it must end up paid -- already paid,
  * or marked paid by this same command (`pagada` input, raise-only), BEFORE the estado UPDATE (INV-R14, migration 0076).
  */
 import { z } from "zod";

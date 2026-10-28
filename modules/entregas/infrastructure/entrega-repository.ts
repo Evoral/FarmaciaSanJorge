@@ -16,7 +16,7 @@ import type { FormaFarmaceutica } from "@/generated/prisma/enums";
 import type { EstadoReceta } from "@/modules/recetas/domain/receta";
 import { FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
 import { rangoDeJornadas } from "@/shared/time/jornada";
-import { calcularItemsEntregables } from "../domain/entrega";
+import { calcularItemsEntregables, domicilioDeEnvio } from "../domain/entrega";
 import type { ModalidadEntrega, ItemParaEntrega } from "../domain/entrega";
 import { parseDiasRetiroVencido } from "../domain/retiro-vencido";
 import type { PreparadoConVencimiento } from "../domain/retiro-vencido";
@@ -34,7 +34,7 @@ export async function jornadaActualTenant(tx: Prisma.TransactionClient, tenantId
 }
 
 /**
- * `dias_retiro_vencido` `parametro` row (docs/specs/retiro-vencido.md RV1), with the defensive fallback to the default (30)
+ * `dias_retiro_vencido` `parametro` row (openspec/specs/retiro-vencido/spec.md RV1), with the defensive fallback to the default (30)
  * when the tenant has no usable row -- same discipline as `getMesesVencimientoPreparado`
  * (modules/preparaciones/infrastructure/preparacion-repository.ts). 0 is a valid value (disabled). Reads `fsj.parametro`
  * directly because modules cannot reach into another module's infrastructure layer (`modules/parametros`).
@@ -65,14 +65,15 @@ export interface RecetaParaEntrega {
   estado: EstadoReceta;
   /** Migration 0071 -- whether the receta is already paid. ENTREGADA requires it (INV-R14, migration 0076); only an ENVIO may leave unpaid. */
   pagada: boolean;
-  /** `receta.domicilio_paciente` (migration 0070): where an ENVIO goes (docs/specs/envios-repartidores.md E4). */
+  /** `receta.domicilio_paciente` (migration 0070) and `domicilio_entrega` (0099): an ENVIO goes to `domicilioDeEnvio` of both (E4). */
   domicilioPaciente: string | null;
+  domicilioEntrega: string | null;
 }
 
 export async function getRecetaParaEntrega(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<RecetaParaEntrega | null> {
   return tx.receta.findUnique({
     where: { id, tenantId },
-    select: { id: true, estado: true, pagada: true, domicilioPaciente: true },
+    select: { id: true, estado: true, pagada: true, domicilioPaciente: true, domicilioEntrega: true },
   }) as Promise<RecetaParaEntrega | null>;
 }
 
@@ -110,12 +111,12 @@ export async function marcarRecetaPagada(tx: Prisma.TransactionClient, tenantId:
 }
 
 /**
- * docs/specs/envios-repartidores.md E4: writes ONLY `receta.domicilio_paciente` (own copy, narrow on purpose: an envío is
+ * openspec/specs/envios-repartidores/spec.md E4: writes ONLY `receta.domicilio_paciente` (own copy, narrow on purpose: an envío is
  * registered from PREPARADA, where the receta can no longer be edited, so a receta without domicilio gets it here). `fsj_app`
  * holds UPDATE on that column (migration 0070) and no trigger restricts it by estado.
  */
 export async function actualizarDomicilioReceta(tx: Prisma.TransactionClient, tenantId: string, id: string, domicilio: string): Promise<void> {
-  await tx.receta.update({ where: { id, tenantId }, data: { domicilioPaciente: domicilio } });
+  await tx.receta.update({ where: { id, tenantId }, data: { domicilioEntrega: domicilio } });
 }
 
 /** Clears the receta's payment flag, the three columns together (receta_pagada_check). Only for a receta that is no longer ENTREGADA (INV-R14). */
@@ -172,7 +173,7 @@ export interface EntregaMovida {
 /**
  * Migration 0086: copies the receta's entrega to `fsj.entrega_anulada` (with motivo and who) and deletes it, in this
  * order -- the DELETE guard (INV-ENT-004) only lets the row go once its copy exists. null when the receta has no entrega.
- * Migration 0093: the copy keeps the entrega's `repartidor_id` (docs/specs/envios-repartidores.md E6).
+ * Migration 0093: the copy keeps the entrega's `repartidor_id` (openspec/specs/envios-repartidores/spec.md E6).
  */
 export async function moverEntregaAAnuladas(
   tx: Prisma.TransactionClient,
@@ -334,7 +335,7 @@ export interface EntregaPendienteItem {
   fechaIngreso: Date;
   /** ENVIADA_PEND_FIRMA only: whole days since the envío (entrega.entregada_en); null otherwise. The /entregas notice. */
   diasEsperandoFirma: number | null;
-  /** docs/specs/pago-receta.md: the counter sees whether it still has to charge. */
+  /** openspec/specs/pago-receta/spec.md: the counter sees whether it still has to charge. */
   pagada: boolean;
   /** Sum of each ítem's vigente cotización (INV-R06); null when nothing was cotizado or the viewer lacks `cotizaciones.ver`. */
   precio: string | null;
@@ -461,7 +462,7 @@ export async function listEntregasPendientes(tx: Prisma.TransactionClient, filte
 }
 
 // ============================================================================
-// Hoja de envíos de un repartidor (docs/specs/envios-repartidores.md E8-E10).
+// Hoja de envíos de un repartidor (openspec/specs/envios-repartidores/spec.md E8-E10).
 // ============================================================================
 
 /** The tenant's zona horaria: turns "today" and a picked fecha de envío into a jornada (own copy, see module doc comment). */
@@ -493,7 +494,7 @@ export interface EnvioDeRepartidor {
   pacienteNombre: string;
   pacienteDni: string | null;
   pacienteTelefono: string | null;
-  /** `receta.domicilio_paciente` as it is now (not frozen at the envío). */
+  /** `domicilioDeEnvio` of the receta as it is now (not frozen at the envío). */
   domicilio: string | null;
   pagada: boolean;
   /** Ítems entregables (`calcularItemsEntregables`): the ones whose asiento is still VIGENTE; the excluded ones are not delivered. */
@@ -535,6 +536,7 @@ export async function listEnviosDeRepartidor(tx: Prisma.TransactionClient, filte
       id: true,
       numeroInterno: true,
       domicilioPaciente: true,
+      domicilioEntrega: true,
       pagada: true,
       paciente: { select: { apellido: true, nombre: true, dni: true, telefono: true } },
       entrega: { select: { entregadaEn: true } },
@@ -556,7 +558,7 @@ export async function listEnviosDeRepartidor(tx: Prisma.TransactionClient, filte
             pacienteNombre: r.paciente.nombre,
             pacienteDni: r.paciente.dni,
             pacienteTelefono: r.paciente.telefono,
-            domicilio: r.domicilioPaciente,
+            domicilio: domicilioDeEnvio(r.domicilioPaciente, r.domicilioEntrega),
             pagada: r.pagada,
             itemsPreparados: calcularItemsEntregables(itemsPorReceta.get(r.id) ?? []).entregables.length,
             precio: precios.get(r.id)?.precio ?? null,

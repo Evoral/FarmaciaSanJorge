@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Filtrar por droga" control of the proveedor Trayectoria partidas table (docs/specs/trayectoria-proveedor.md, "Filtro
+ * "Filtrar por droga" control of the proveedor Trayectoria partidas table (openspec/specs/trayectoria-proveedor/spec.md, "Filtro
  * por droga"). An AUTOCOMPLETE over the proveedor's drogas that are NOT selected yet (typing narrows them; picking one
  * adds it), plus one chip per selected droga (its × drops that droga). Same URL contract as before: repeated
  * `?droga=a&droga=b`, `page` dropped on every change. The options and the selection come from the use case (already
@@ -21,7 +21,7 @@ export interface TrayectoriaFiltroDrogasProps {
   restantes: readonly DrogaOpcion[];
   /** The trayectoria's URL without query string. */
   baseHref: string;
-  /** droga id -> vigente synonyms: typing one also finds the droga (docs/specs/sinonimos-droga.md). */
+  /** droga id -> vigente synonyms: typing one also finds the droga (openspec/specs/sinonimos-droga/spec.md). */
   sinonimos?: Readonly<Record<string, readonly string[]>>;
 }
 

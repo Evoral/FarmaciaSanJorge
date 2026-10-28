@@ -1,5 +1,5 @@
 /**
- * Vigente synonyms of the tenant's drogas (docs/specs/sinonimos-droga.md),
+ * Vigente synonyms of the tenant's drogas (openspec/specs/sinonimos-droga/spec.md),
  * for the client-filtered droga picker of the proveedor Trayectoria: typing a
  * synonym finds the droga. A separate read
  * (not folded into `readDrogasConPartidas` / `readDrogasDisponibles`) so

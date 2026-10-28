@@ -21,9 +21,10 @@ const envSchema = z.object({
   DATABASE_URL: z
     .string()
     .min(1, "DATABASE_URL is required (Supabase pooler connection, role fsj_app)"),
-  DIRECT_URL: z
-    .string()
-    .min(1, "DIRECT_URL is required (Supabase direct connection, role postgres)"),
+  // DIRECT_URL (owner role `postgres`, bypasses RLS) is deliberately NOT part
+  // of the runtime schema: the app never uses it, so requiring it would force
+  // the owner credential into the runtime env (Vercel). Only scripts/ and
+  // prisma.config.ts read it, straight from process.env, and they check it.
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
@@ -65,7 +66,6 @@ export function getEnv(): Env {
   const parsed = envSchema.safeParse({
     NODE_ENV: process.env.NODE_ENV,
     DATABASE_URL: process.env.DATABASE_URL,
-    DIRECT_URL: process.env.DIRECT_URL,
     LOG_LEVEL: process.env.LOG_LEVEL,
     CRON_SECRET: process.env.CRON_SECRET,
   });

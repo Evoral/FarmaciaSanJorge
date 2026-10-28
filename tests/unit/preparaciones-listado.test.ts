@@ -109,16 +109,26 @@ function fakeTx() {
     void args;
     return 1;
   });
+  const reservaFindMany = vi.fn(async (...args: unknown[]) => {
+    void args;
+    return [] as { preparacionId: string }[];
+  });
   return {
-    tx: { preparacion: { findMany, count }, tenant: { findUniqueOrThrow: vi.fn(async () => ({ zonaHoraria: "America/Argentina/Mendoza" })) } },
+    tx: {
+      preparacion: { findMany, count },
+      reservaStock: { findMany: reservaFindMany },
+      tenant: { findUniqueOrThrow: vi.fn(async () => ({ zonaHoraria: "America/Argentina/Mendoza" })) },
+    },
     findMany,
     count,
+    reservaFindMany,
   };
 }
 
 describe("listPreparaciones (repository): filters in the query", () => {
   it("número, fechas (tenant's calendar days) and 'sin etiqueta impresa' become the WHERE; the etiqueta comes in the same query", async () => {
-    const { tx, findMany } = fakeTx();
+    const { tx, findMany, reservaFindMany } = fakeTx();
+    reservaFindMany.mockResolvedValueOnce([{ preparacionId: "p-res-1" }]);
     const result = await listPreparaciones(tx as never, {
       tenantId: "t1",
       estado: "CONFIRMADA",
@@ -129,6 +139,11 @@ describe("listPreparaciones (repository): filters in the query", () => {
       page: 1,
       pageSize: 20,
     });
+    expect(reservaFindMany).toHaveBeenCalledWith({
+      where: { tenantId: "t1" },
+      distinct: ["preparacionId"],
+      select: { preparacionId: true },
+    });
     const args = findMany.mock.calls[0]![0] as { where: { AND: unknown[] }; select: Record<string, unknown> };
     expect(args.where.AND).toEqual([
       {
@@ -137,7 +152,7 @@ describe("listPreparaciones (repository): filters in the query", () => {
         // 00:00 in Mendoza (UTC-3) = 03:00 UTC; "hasta" is exclusive at the next day's start.
         iniciadaEn: { gte: new Date("2026-09-01T03:00:00.000Z"), lt: new Date("2026-10-01T03:00:00.000Z") },
       },
-      { estado: "CONFIRMADA" },
+      { OR: [{ estado: "CONFIRMADA" }, { estado: "INICIADA", id: { in: ["p-res-1"] } }] },
       { OR: [{ etiqueta: { is: null } }, { etiqueta: { is: { impresa: false } } }] },
     ]);
     expect(args.select.etiqueta).toEqual({ select: { impresa: true } });

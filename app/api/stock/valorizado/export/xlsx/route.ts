@@ -5,7 +5,8 @@
  */
 import { NextResponse } from "next/server";
 import { exportarValorizadoDatos, MAX_EXPORT_ROWS } from "@/modules/stock/application/reporte-valorizado";
-import { XLSX_CONTENT_TYPE, XlsxReport } from "@/shared/xlsx/xlsx-report";
+import { XLSX_CONTENT_TYPE, XlsxReport, type XlsxReportOptions } from "@/shared/xlsx/xlsx-report";
+import { getLogoTenant, getMarcaTenant } from "@/modules/farmacia/application/get-marca-tenant";
 import { AppError, type AppErrorCode, toSafeError } from "@/shared/errors";
 
 const STATUS_BY_CODE: Record<AppErrorCode, number> = {
@@ -27,7 +28,12 @@ export async function GET(request: Request): Promise<Response> {
   const q = url.searchParams;
 
   let resultado;
+  let farmacia = "";
+  let logo: XlsxReportOptions["logo"] = null;
   try {
+    const [marca, logoTenant] = await Promise.all([getMarcaTenant(), getLogoTenant()]);
+    farmacia = marca?.nombre ?? "";
+    logo = logoTenant;
     resultado = await exportarValorizadoDatos({
       search: q.get("search") || undefined,
       incluirVencidas: q.get("incluirVencidas") !== "0",
@@ -42,6 +48,8 @@ export async function GET(request: Request): Promise<Response> {
 
   // Cantidad reservada (migration 0071) is informational: Valor is the physical saldo's.
   const report = new XlsxReport({
+    farmacia,
+    logo,
     title: "Stock valorizado",
     description:
       "Saldo físico de cada lote valuado a su costo unitario, con subtotal por droga y total general. La cantidad reservada por preparaciones en curso es informativa y no se descuenta del valor.",

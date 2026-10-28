@@ -55,12 +55,18 @@ export interface DtParaCoFirma {
   usuarioId: string;
   nombre: string;
   apellido: string;
+  /** Also the Administrador: flagged "(Admin)" in the picker (`shared/format/usuario.ts`). */
+  esAdministrador: boolean;
 }
 
 /** Usuarios currently DT vigente (TITULAR or SUPLENTE, today) -- feeds the anulación form's DT picker. */
 export async function listDtVigentesParaCoFirma(tx: Prisma.TransactionClient, tenantId: string): Promise<DtParaCoFirma[]> {
-  const rows = await tx.$queryRaw<{ usuario_id: string; nombre: string; apellido: string }[]>`
-    SELECT DISTINCT u.id AS usuario_id, u.nombre, u.apellido
+  const rows = await tx.$queryRaw<{ usuario_id: string; nombre: string; apellido: string; es_administrador: boolean }[]>`
+    SELECT DISTINCT u.id AS usuario_id, u.nombre, u.apellido,
+      EXISTS (
+        SELECT 1 FROM fsj.usuario_rol ur JOIN fsj.rol r ON r.tenant_id = ur.tenant_id AND r.id = ur.rol_id
+        WHERE ur.tenant_id = u.tenant_id AND ur.usuario_id = u.id AND r.es_administrador
+      ) AS es_administrador
     FROM fsj.usuario u
     JOIN fsj.designacion_director_tecnico d ON d.tenant_id = u.tenant_id AND d.usuario_id = u.id
     WHERE u.tenant_id = ${tenantId}::uuid
@@ -68,19 +74,25 @@ export async function listDtVigentesParaCoFirma(tx: Prisma.TransactionClient, te
       AND fsj.es_dt_vigente(u.id, fsj.jornada_actual(${tenantId}::uuid))
     ORDER BY u.apellido, u.nombre
   `;
-  return rows.map((row) => ({ usuarioId: row.usuario_id, nombre: row.nombre, apellido: row.apellido }));
+  return rows.map((row) => ({ usuarioId: row.usuario_id, nombre: row.nombre, apellido: row.apellido, esAdministrador: row.es_administrador }));
 }
 
-export interface CoFirmaFailureUpdate {
-  intentosFallidos: number;
-  bloqueadoHasta: Date | null;
+export interface PoliticaBloqueo {
+  maxIntentos: number;
+  /** Lockout expiry applied when this failure reaches `maxIntentos`. */
+  bloqueadoHasta: Date;
 }
 
-export async function recordCoFirmaFailure(tx: Prisma.TransactionClient, usuarioId: string, update: CoFirmaFailureUpdate): Promise<void> {
-  await tx.usuario.update({
-    where: { id: usuarioId },
-    data: { intentosFallidos: update.intentosFallidos, bloqueadoHasta: update.bloqueadoHasta },
-  });
+/** Atomic increment (audit P3-03), same as `modules/auth/infrastructure/usuario-repository.ts#recordLoginFailure`. Returns the new count. */
+export async function recordCoFirmaFailure(tx: Prisma.TransactionClient, usuarioId: string, politica: PoliticaBloqueo): Promise<number> {
+  const rows = await tx.$queryRaw<{ intentos_fallidos: number }[]>`
+    UPDATE fsj.usuario
+    SET intentos_fallidos = intentos_fallidos + 1,
+        bloqueado_hasta = CASE WHEN intentos_fallidos + 1 >= ${politica.maxIntentos} THEN ${politica.bloqueadoHasta}::timestamptz ELSE NULL END
+    WHERE id = ${usuarioId}::uuid
+    RETURNING intentos_fallidos
+  `;
+  return rows[0]?.intentos_fallidos ?? 0;
 }
 
 export async function recordCoFirmaSuccess(tx: Prisma.TransactionClient, usuarioId: string): Promise<void> {

@@ -1,6 +1,6 @@
 "use client";
 
-/** `/admin/configuracion/farmacia` edit form (FASE 3 point 3.10a). Only the editable fields -- see modules/farmacia/application/editar-datos-tenant.ts for why the other 4 tenant fields are never even parsed as input. The page provides the surrounding panel. */
+/** `/admin/configuracion/farmacia` edit form (FASE 3 point 3.10a). Only the editable fields -- see modules/farmacia/application/editar-datos-tenant.ts for why the other tenant fields are never even parsed as input. The CUIT field is rendered only while `cuitEditable` (openspec/specs/cuit-farmacia/spec.md). The page provides the surrounding panel. */
 import { editarDatosTenantAction } from "./actions";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 
@@ -12,6 +12,8 @@ export interface EditarDatosTenantFormProps {
     matriculaFarmacia: string | null;
     telefonoFijo: string | null;
     telefonoCelular: string | null;
+    cuit: string;
+    cuitEditable: boolean;
   };
   disabled: boolean;
 }
@@ -32,6 +34,14 @@ export function EditarDatosTenantForm({ tenant, disabled }: EditarDatosTenantFor
           </label>
           <input id="tenant-nombre-fantasia" name="nombreFantasia" defaultValue={tenant.nombreFantasia ?? ""} disabled={disabled} className="input" />
         </div>
+        {tenant.cuitEditable ? (
+          <div className="field sm:col-span-2">
+            <label htmlFor="tenant-cuit" className="field-label">
+              CUIT <span className="font-normal text-zinc-500">(editable hasta firmar el primer cierre diario)</span>
+            </label>
+            <input id="tenant-cuit" name="cuit" defaultValue={tenant.cuit} required maxLength={20} disabled={disabled} className="input font-mono" />
+          </div>
+        ) : null}
         <div className="field sm:col-span-2">
           <label htmlFor="tenant-domicilio" className="field-label">
             Domicilio <span className="font-normal text-zinc-500">(opcional)</span>

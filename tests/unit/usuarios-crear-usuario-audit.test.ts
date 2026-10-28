@@ -169,12 +169,34 @@ describe("crearUsuario: temporary password", () => {
     expect(insertUsuarioMock).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ["a person", persona],
-    ["a cuenta de sector", sector],
-  ])("accepts a 6-character lowercase temporary password for %s", async (_label, base) => {
-    await crearUsuarioCommand.execute({ ...base, passwordTemporal: "abc123", passwordTemporalRepeat: "abc123" }, { session: fakeSession() });
+  it("accepts a 6-character lowercase temporary password for a person", async () => {
+    await crearUsuarioCommand.execute({ ...persona, passwordTemporal: "abc123", passwordTemporalRepeat: "abc123" }, { session: fakeSession() });
     expect(insertUsuarioMock).toHaveBeenCalledTimes(1);
+    expect(insertUsuarioMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ esSector: false }),
+    );
+  });
+
+  it("rejects a 6-character lowercase password for a cuenta de sector (requires full policy)", async () => {
+    const error = await crearUsuarioCommand
+      .execute({ ...sector, passwordTemporal: "abc123", passwordTemporalRepeat: "abc123" }, { session: fakeSession() })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).fields).toEqual(["passwordTemporal"]);
+    expect(insertUsuarioMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts a full-policy password for a cuenta de sector", async () => {
+    await crearUsuarioCommand.execute(
+      { ...sector, passwordTemporal: PASSWORD_TEMPORAL, passwordTemporalRepeat: PASSWORD_TEMPORAL },
+      { session: fakeSession() },
+    );
+    expect(insertUsuarioMock).toHaveBeenCalledTimes(1);
+    expect(insertUsuarioMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ esSector: true }),
+    );
   });
 
   it.each([

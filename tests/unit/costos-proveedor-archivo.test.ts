@@ -1,5 +1,5 @@
 /**
- * R14, R15 (docs/specs/costos-proveedor.md): the uploaded supplier list's checks, in order (format detected from the
+ * R14, R15 (openspec/specs/costos-proveedor/spec.md): the uploaded supplier list's checks, in order (format detected from the
  * signature, .xls and .xlsx both accepted), its own 4 MiB limit, and the alignment between that limit and
  * next.config.ts's Server Actions body limit (same discipline as tests/unit/archivo-receta-pdf.test.ts).
  */

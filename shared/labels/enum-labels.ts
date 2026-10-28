@@ -23,6 +23,7 @@ import type {
   OrigenReceta,
   TipoLibro,
   TipoMovimiento,
+  OrigenPartida,
   TipoMovimientoContralor,
 } from "@/generated/prisma/enums";
 
@@ -88,7 +89,17 @@ export const TIPO_MOVIMIENTO_LABELS: Readonly<Record<TipoMovimiento, string>> = 
   INGRESO_COMPRA: "Ingreso de compra",
   EGRESO_PREPARACION: "Egreso por preparación",
   AJUSTE: "Ajuste",
+  INGRESO_INICIAL: "Existencia inicial",
 };
+
+/** Partida origin (openspec/specs/existencia-inicial/spec.md). */
+export const ORIGEN_PARTIDA_LABELS: Readonly<Record<OrigenPartida, string>> = {
+  COMPRA: "Compra",
+  EXISTENCIA_INICIAL: "Existencia inicial",
+};
+
+/** What a partida de existencia inicial without proveedor shows where a proveedor goes (migration 0100). */
+export const ETIQUETA_SIN_PROVEEDOR = "Sin proveedor (existencia inicial)";
 
 /** Libro contralor movements. */
 export const TIPO_MOVIMIENTO_CONTRALOR_LABELS: Readonly<Record<TipoMovimientoContralor, string>> = {

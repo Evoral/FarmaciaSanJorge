@@ -6,7 +6,7 @@
  * does not even split it into columns (it expects `;`, not `,`).
  *
  * Layout of every sheet:
- *   - rows 1-5: the logo (`public/logo.png`) next to the farmacia name,
+ *   - rows 1-5: the tenant's own logo (when it uploaded a PNG or JPEG) next to the farmacia name,
  *     the report title, a short description of what it contains, the
  *     emission date and the applied filters;
  *   - a brand-colored rule, then the column header (brand green, white
@@ -20,10 +20,9 @@
  * value -- exceljs only emits a formula for an explicit `{ formula }` object,
  * so user text starting with `=`/`+`/`-`/`@` can never become one.
  */
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import ExcelJS from "exceljs";
 import { formatFechaHora } from "@/shared/format/fecha";
+import { logoParaPdf } from "@/shared/pdf/logo";
 
 /**
  * Zone instants (fecha de ingreso, fecha de firma, emisión) are shown in: the
@@ -34,7 +33,6 @@ export const REPORT_TIME_ZONE = "America/Argentina/Mendoza";
 
 export const XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-const BRAND_NAME = "Farmacia San Jorge";
 
 /** ARGB versions of the `app/globals.css` theme tokens. */
 const COLOR = {
@@ -93,6 +91,10 @@ export interface XlsxColumn {
 export type XlsxCell = string | number | Date | null | undefined;
 
 export interface XlsxReportOptions {
+  /** The tenant's name (nombre de fantasía or razón social): each farmacia's export carries its own, never a fixed brand. */
+  farmacia: string;
+  /** The tenant's uploaded logo (`getLogoTenant`), never a fixed file (openspec/specs/logo-farmacia/spec.md R6). Excel shows PNG and JPEG only: anything else, or none, draws the banner without it. */
+  logo?: { bytes: Uint8Array; tipo: string } | null;
   title: string;
   /** One or two sentences under the title saying what the export contains. */
   description: string;
@@ -107,20 +109,6 @@ export interface XlsxReportOptions {
 
 const DECIMAL_STRING = /^-?\d+(\.\d+)?$/;
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-let logoCache: Buffer | null | undefined;
-
-/** `public/logo.png`, read once. Missing file -> the sheet is drawn without it. */
-function logo(): Buffer | null {
-  if (logoCache === undefined) {
-    try {
-      logoCache = readFileSync(path.join(process.cwd(), "public", "logo.png"));
-    } catch {
-      logoCache = null;
-    }
-  }
-  return logoCache;
-}
 
 /**
  * The wall-clock time of `instant` in `timeZone`, as a `Date` whose UTC
@@ -142,8 +130,21 @@ export function toExcelWallClock(instant: Date, timeZone: string): Date {
   return new Date(Date.UTC(part("year"), part("month") - 1, part("day"), part("hour"), part("minute"), part("second")));
 }
 
+/** Text that a spreadsheet would turn into a formula if the user edits the cell (OWASP CSV/formula injection). */
+const PREFIJO_FORMULA = /^[=+\-@\t\r]/;
+
+/** Stored text, quoted with `'` when it starts like a formula (security audit P4-03). */
+export function textoSeguro(texto: string): string {
+  return PREFIJO_FORMULA.test(texto) ? `'${texto}` : texto;
+}
+
 /** Converts a raw value to what the column's format stores. Unparseable input is kept as text, never dropped. */
 export function toCellValue(value: XlsxCell, format: XlsxColumnFormat, timeZone: string): string | number | Date | null {
+  const convertido = convertir(value, format, timeZone);
+  return typeof convertido === "string" ? textoSeguro(convertido) : convertido;
+}
+
+function convertir(value: XlsxCell, format: XlsxColumnFormat, timeZone: string): string | number | Date | null {
   if (value === null || value === undefined || value === "") return null;
   switch (format) {
     case "integer":
@@ -180,12 +181,12 @@ export class XlsxReport {
   constructor(options: XlsxReportOptions) {
     this.columns = options.columns;
     this.timeZone = options.timeZone ?? REPORT_TIME_ZONE;
-    this.workbook.creator = BRAND_NAME;
+    this.workbook.creator = options.farmacia;
     this.workbook.created = options.issuedAt;
     this.sheet = this.workbook.addWorksheet(options.sheetName.slice(0, 31), {
       views: [{ state: "frozen", ySplit: HEADER_ROW, showGridLines: false }],
       pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: `${HEADER_ROW}:${HEADER_ROW}` },
-      headerFooter: { oddFooter: `&L&8${BRAND_NAME} · ${options.title}&R&8Página &P de &N` },
+      headerFooter: { oddFooter: `&L&8${options.farmacia} · ${options.title}&R&8Página &P de &N` },
     });
     this.sheet.columns = this.columns.map((column, index) => ({
       width: index === 0 ? Math.max(column.width, FIRST_DATA_COLUMN_MIN_WIDTH) : column.width,
@@ -249,7 +250,7 @@ export class XlsxReport {
     const textColumn = this.columns.length > 1 ? 2 : 1;
     const bannerWidth = this.columns.slice(textColumn - 1).reduce((total, column) => total + column.width, 0);
     const lines: [string, Partial<ExcelJS.Font>, number][] = [
-      [BRAND_NAME, { size: 16, bold: true, color: { argb: COLOR.primary } }, 24],
+      [options.farmacia, { size: 16, bold: true, color: { argb: COLOR.primary } }, 24],
       [options.title, { size: 13, bold: true, color: { argb: COLOR.ink } }, 20],
       [options.description, { size: 10, italic: true, color: { argb: COLOR.ink } }, wrappedHeight(options.description, bannerWidth)],
       [`Fecha de emisión: ${formatFechaHora(options.issuedAt, this.timeZone)}`, { size: 10, color: { argb: COLOR.muted } }, 16],
@@ -271,11 +272,15 @@ export class XlsxReport {
     for (let col = 1; col <= this.columns.length; col++) rule.getCell(col).border = { bottom: { style: "medium", color: { argb: COLOR.brand } } };
     this.sheet.getRow(BANNER_ROWS + 2).height = 8;
 
-    const image = logo();
+    const image = logoParaPdf(options.logo ?? null);
     if (image) {
+      // Fit in a 56 x 56 box, keeping the image's own proportion.
+      const width = image.proporcion >= 1 ? 56 : 56 * image.proporcion;
+      const height = image.proporcion >= 1 ? 56 / image.proporcion : 56;
+      const extension = options.logo?.tipo === "image/png" ? "png" : "jpeg";
       // exceljs types `buffer` as its own Buffer alias; a Node Buffer is what it reads at runtime.
-      const imageId = this.workbook.addImage({ buffer: image as unknown as ExcelJS.Buffer, extension: "png" });
-      this.sheet.addImage(imageId, { tl: { col: 0.15, row: 0.3 }, ext: { width: 56, height: 56 }, editAs: "oneCell" });
+      const imageId = this.workbook.addImage({ buffer: image.imagen as unknown as ExcelJS.Buffer, extension });
+      this.sheet.addImage(imageId, { tl: { col: 0.15, row: 0.3 }, ext: { width, height }, editAs: "oneCell" });
     }
   }
 

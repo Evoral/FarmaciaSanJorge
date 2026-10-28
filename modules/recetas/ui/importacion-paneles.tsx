@@ -2,7 +2,7 @@
 
 /**
  * Presentational pieces of the receta form's `importar` mode
- * (docs/specs/importacion-receta-pdf.md): the receta's digital provenance,
+ * (openspec/specs/importacion-receta-pdf/spec.md): the receta's digital provenance,
  * the warnings list, and one panel per person (paciente/médico) showing
  * whether it will be created ("Nuevo") or already exists ("Existente",
  * with the empty fields the PDF will complete). The editable inputs a panel

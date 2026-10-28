@@ -1,5 +1,5 @@
 /**
- * `crearRepartidor`: adds a person to the catalog of repartidores (docs/specs/envios-repartidores.md). Gated on
+ * `crearRepartidor`: adds a person to the catalog of repartidores (openspec/specs/envios-repartidores/spec.md). Gated on
  * `repartidores.gestionar` (categoría `gestion`: ADMINISTRADOR, or whoever the role editor gives it to). Not a PIN
  * action, so no `conOperador` wrapping in the Server Action.
  */

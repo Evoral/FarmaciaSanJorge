@@ -1,5 +1,5 @@
 /**
- * T1-T8 from docs/specs/ficha-tecnica.md, reproduced EXACTLY, plus one case
+ * T1-T8 from openspec/specs/ficha-tecnica/spec.md, reproduced EXACTLY, plus one case
  * per validation V1-V9 and a dedicated R3/R7/R8 interplay case (CSP must
  * subtract the UNROUNDED teorica of the other components, never their
  * rounded cantidadAPesar).
@@ -23,7 +23,7 @@ const UNIDAD: UnidadMedidaRef = { id: "unidad", tipoMagnitud: "UNIDADES", factor
 
 const UNIDADES_BASE = { MASA: GRAMO, VOLUMEN: MILILITRO, UNIDADES: UNIDAD };
 
-const SIN_EXCESO: ParametrosPesaje = { precisionBalanza: 0.001, excesoPesadaPorcentaje: 0 };
+const SIN_EXCESO: ParametrosPesaje = { excesoPesadaPorcentaje: 0 };
 
 function componente(overrides: Partial<ComponenteInput>): ComponenteInput {
   return {
@@ -49,7 +49,7 @@ function item(overrides: Partial<ItemRecetaInput>): ItemRecetaInput {
   };
 }
 
-describe("calcularFichaTecnica -- spec test cases (docs/specs/ficha-tecnica.md)", () => {
+describe("calcularFichaTecnica -- spec test cases (openspec/specs/ficha-tecnica/spec.md)", () => {
   it("T1 -- Crema, asiento 34163: acido salicilico 3 g TOTAL + vaselina solida CSP -> 3.000 g / 27.000 g", () => {
     const lineas = calcularFichaTecnica(
       item({ formaFarmaceutica: "CREMA", cantidadTotal: 30, unidadTotal: GRAMO, cantidadUnidades: 1 }),
@@ -130,16 +130,27 @@ describe("calcularFichaTecnica -- spec test cases (docs/specs/ficha-tecnica.md)"
     expect(lineas[0]!.cantidadAPesar!.equals(dec("1.200"))).toBe(true);
   });
 
-  it("T6 -- exceso y redondeo: exceso 5%, precision 0.01, TOTAL 1.234 g -> teorica 1.234, con exceso 1.2957, a pesar 1.30", () => {
+  it("T6 -- exceso: exceso 5%, TOTAL 1.234 g -> teorica 1.234, a pesar 1.2957 (R8: not rounded to the balance)", () => {
     const lineas = calcularFichaTecnica(
       item({ cantidadTotal: null, unidadTotal: null }),
       [componente({ cantidad: 1.234, unidadMedida: GRAMO, modoExpresion: "TOTAL", })],
-      { precisionBalanza: 0.01, excesoPesadaPorcentaje: 5 },
+      { excesoPesadaPorcentaje: 5 },
       UNIDADES_BASE,
     );
 
     expect(lineas[0]!.cantidadTeorica!.toString()).toBe("1.234");
-    expect(lineas[0]!.cantidadAPesar!.toString()).toBe("1.3");
+    expect(lineas[0]!.cantidadAPesar!.toString()).toBe("1.2957");
+  });
+
+  it("R8 -- a dose below the balance precision is kept, never rounded to 0 (0.15 mg POR_DOSIS x 1 capsule)", () => {
+    const lineas = calcularFichaTecnica(
+      item({ formaFarmaceutica: "CAPSULA", cantidadUnidades: 1, fraccionDosisPorUnidad: 1 }),
+      [componente({ cantidad: 0.15, unidadMedida: MILIGRAMO, modoExpresion: "POR_DOSIS", })],
+      SIN_EXCESO,
+      UNIDADES_BASE,
+    );
+
+    expect(lineas[0]!.cantidadAPesar!.toString()).toBe("0.00015");
   });
 
   it("T7 -- error V5: CREMA total 30 g, activo 31 g TOTAL, CSP -> componentes superan el total", () => {
@@ -324,38 +335,37 @@ describe("calcularFichaTecnica -- validations V1-V9 (one case each, beyond T7/T8
 });
 
 describe("calcularFichaTecnica -- R3/R7/R8 interplay", () => {
-  it("R3 subtracts the UNROUNDED teorica of the active, never its rounded cantidadAPesar", () => {
+  it("R3 subtracts the teorica of the active, never its cantidadAPesar with exceso", () => {
     const lineas = calcularFichaTecnica(
       item({ formaFarmaceutica: "CREMA", cantidadTotal: 20, unidadTotal: GRAMO }),
       [
         componente({ drogaId: "activo", cantidad: 3.0005, unidadMedida: GRAMO, modoExpresion: "TOTAL", }),
         componente({ drogaId: "excipiente", unidadMedida: GRAMO, modoExpresion: "CSP", }),
       ],
-      { precisionBalanza: 0.01, excesoPesadaPorcentaje: 10 },
+      { excesoPesadaPorcentaje: 10 },
       UNIDADES_BASE,
     );
 
     const activo = lineas.find((l) => l.drogaId === "activo")!;
     const excipiente = lineas.find((l) => l.drogaId === "excipiente")!;
 
-    // Activo: teorica 3.0005, con exceso 3.30055, a pesar (redondeo 0.01) 3.30
-    // -- rounding visibly changes the weighed value vs. the theoretical one.
+    // Activo: teorica 3.0005, a pesar (con exceso) 3.30055.
     expect(activo.cantidadTeorica!.toString()).toBe("3.0005");
-    expect(activo.cantidadAPesar!.toString()).toBe("3.3");
+    expect(activo.cantidadAPesar!.toString()).toBe("3.30055");
 
-    // Excipiente CSP must use 3.0005 (teorica), NOT 3.30 (cantidadAPesar):
-    // 20 - 3.0005 = 16.9995 -- not 20 - 3.30 = 16.70.
+    // Excipiente CSP must use 3.0005 (teorica), NOT 3.30055 (cantidadAPesar):
+    // 20 - 3.0005 = 16.9995 -- not 20 - 3.30055 = 16.69945.
     expect(excipiente.cantidadTeorica!.toString()).toBe("16.9995");
-    expect(dec(excipiente.cantidadTeorica!).equals(dec("16.70"))).toBe(false);
-    // con exceso: 16.9995 * 1.10 = 18.69945 -> redondeado a 0.01 -> 18.70
-    expect(excipiente.cantidadAPesar!.toString()).toBe("18.7");
+    expect(dec(excipiente.cantidadTeorica!).equals(dec("16.69945"))).toBe(false);
+    // con exceso: 16.9995 * 1.10 = 18.69945
+    expect(excipiente.cantidadAPesar!.toString()).toBe("18.69945");
   });
 
-  it("non-MASA non-manual lines are NOT rounded to precisionBalanza (pending confirmation, see module doc comment)", () => {
+  it("non-MASA non-manual lines are not rounded either", () => {
     const lineas = calcularFichaTecnica(
       item({ formaFarmaceutica: "JARABE", cantidadTotal: null, unidadTotal: null }),
       [componente({ cantidad: 10.123456, unidadMedida: MILILITRO, modoExpresion: "TOTAL", })],
-      { precisionBalanza: 0.01, excesoPesadaPorcentaje: 0 },
+      SIN_EXCESO,
       UNIDADES_BASE,
     );
 

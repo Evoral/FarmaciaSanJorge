@@ -1,9 +1,12 @@
 /** Unit tests for `shared/xlsx/xlsx-report.ts`: branded banner, typed cells (dates, numbers), styling, and formula safety. Each workbook is written and read back with exceljs. */
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it, expect } from "vitest";
 import ExcelJS from "exceljs";
 import { XlsxReport, toCellValue, toExcelWallClock, type XlsxReportOptions } from "@/shared/xlsx/xlsx-report";
 
 const OPTIONS: XlsxReportOptions = {
+  farmacia: "Farmacia Ejemplo",
   title: "Kardex de movimientos de stock",
   description: "Movimientos de stock de cada lote: ingresos por compra, egresos por preparación y ajustes.",
   sheetName: "Kardex",
@@ -31,6 +34,17 @@ describe("toExcelWallClock", () => {
 
   it("rolls back the calendar day when it is still the previous day locally", () => {
     expect(toExcelWallClock(new Date("2026-01-01T01:30:00Z"), "America/Argentina/Mendoza").toISOString()).toBe("2025-12-31T22:30:00.000Z");
+  });
+});
+
+describe("formula injection (audit P4-03)", () => {
+  it("quotes text that a spreadsheet would read as a formula, in any column format", () => {
+    expect(toCellValue('=HYPERLINK("http://x","y")', "text", "UTC")).toBe(`'=HYPERLINK("http://x","y")`);
+    expect(toCellValue("@SUM(A1)", "text", "UTC")).toBe("'@SUM(A1)");
+    expect(toCellValue("+54 261", "text", "UTC")).toBe("'+54 261");
+    expect(toCellValue("=1+1", "decimal", "UTC")).toBe("'=1+1");
+    expect(toCellValue("Pérez", "text", "UTC")).toBe("Pérez");
+    expect(toCellValue("-3", "money", "UTC")).toBe(-3);
   });
 });
 
@@ -62,7 +76,7 @@ describe("toCellValue", () => {
 describe("XlsxReport", () => {
   it("writes the banner: farmacia name, title, emission date (dd/mm/aaaa hh:mm) and filters", async () => {
     const sheet = await readBack(new XlsxReport(OPTIONS));
-    expect(sheet.getCell("B1").value).toBe("Farmacia San Jorge");
+    expect(sheet.getCell("B1").value).toBe("Farmacia Ejemplo");
     expect(sheet.getCell("B2").value).toBe("Kardex de movimientos de stock");
     expect(sheet.getCell("B4").value).toBe("Fecha de emisión: 14/10/2026 12:04");
     expect(sheet.getCell("B5").value).toBe("Filtros: Tipo: AJUSTE · Fechas: 2026-10-01 a 2026-10-14");
@@ -84,9 +98,12 @@ describe("XlsxReport", () => {
     expect(sheet.getCell("B5").value).toBe("Filtros: Sin filtros");
   });
 
-  it("puts the logo on the sheet", async () => {
-    const sheet = await readBack(new XlsxReport(OPTIONS));
-    expect(sheet.getImages()).toHaveLength(1);
+  it("puts the tenant's own logo on the sheet, and none without one (openspec/specs/logo-farmacia/spec.md R7)", async () => {
+    const bytes = readFileSync(path.join(process.cwd(), "public", "logo.png"));
+    const conLogo = await readBack(new XlsxReport({ ...OPTIONS, logo: { bytes, tipo: "image/png" } }));
+    expect(conLogo.getImages()).toHaveLength(1);
+    expect((await readBack(new XlsxReport(OPTIONS))).getImages()).toHaveLength(0);
+    expect((await readBack(new XlsxReport({ ...OPTIONS, logo: { bytes, tipo: "image/webp" } }))).getImages()).toHaveLength(0);
   });
 
   it("writes one column per field under a brand-green header, frozen and with auto-filter", async () => {
@@ -119,7 +136,7 @@ describe("XlsxReport", () => {
     const sheet = await readBack(report);
     const cell = sheet.getRow(9).getCell(2);
     expect(cell.type).toBe(ExcelJS.ValueType.String);
-    expect(cell.value).toBe("=HYPERLINK(\"http://x\")");
+    expect(cell.value).toBe("'=HYPERLINK(\"http://x\")");
   });
 
   it("stripes every other data row across the full width, including trailing empty cells", async () => {

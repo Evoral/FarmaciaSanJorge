@@ -42,7 +42,7 @@
  * event at all), so callers drive their submit button from
  * `useActionState`'s third return value (`isPending`) instead.
  *
- * CUENTAS DE SECTOR (docs/specs/cuentas-de-sector.md): on a shared session,
+ * CUENTAS DE SECTOR (openspec/specs/cuentas-de-sector/spec.md): on a shared session,
  * some acciones must say which empleado performs them. With `opciones`,
  * this hook asks for it (`./operador.tsx`'s prompt: who + PIN) and submits
  * the SAME `FormData` with the credential fields added:
@@ -71,6 +71,12 @@ export interface FormSubmitOptions {
   estado?: { status: string; message?: string; fields?: readonly string[] };
   /** The permiso of the action this form submits -- several when the action also performs another acción (saving a receta regenerates its fichas técnicas). */
   accion?: string | readonly string[];
+  /**
+   * Runs right before each submit is dispatched -- after "who is acting" was answered, when it is asked -- while the
+   * click (the submit's, or the prompt's "Confirmar") still counts as a user gesture: e.g. opening the tab a PDF will
+   * load in. Not called by `resubmit()`.
+   */
+  antesDeEnviar?: () => void;
 }
 
 export function useFormSubmit(formAction: (payload: FormData) => void, opciones?: FormSubmitOptions): FormSubmit {
@@ -79,18 +85,31 @@ export function useFormSubmit(formAction: (payload: FormData) => void, opciones?
   const operador = useOperador();
   const estado = opciones?.estado;
   const accion = opciones?.accion;
+  const antesDeEnviar = opciones?.antesDeEnviar;
+  const antesDeEnviarRef = useRef(antesDeEnviar);
+  useEffect(() => {
+    antesDeEnviarRef.current = antesDeEnviar;
+  }, [antesDeEnviar]);
 
   const despachar = useCallback((formData: FormData) => startTransition(() => formAction(formData)), [formAction]);
+
+  const enviar = useCallback(
+    (formData: FormData) => {
+      antesDeEnviarRef.current?.();
+      despachar(formData);
+    },
+    [despachar],
+  );
 
   const despacharConOperador = useCallback(
     (formData: FormData, error?: string) => {
       void operador.pedir(error).then((campos) => {
         if (!campos) return;
         for (const [nombre, valor] of Object.entries(campos)) formData.set(nombre, valor);
-        despachar(formData);
+        enviar(formData);
       });
     },
-    [operador, despachar],
+    [operador, enviar],
   );
 
   const onSubmit = useCallback(
@@ -104,9 +123,9 @@ export function useFormSubmit(formAction: (payload: FormData) => void, opciones?
       lastFormData.current = formData;
       const acciones = accion === undefined ? [] : typeof accion === "string" ? [accion] : accion;
       if (acciones.some((codigo) => operador.requierePin(codigo))) despacharConOperador(formData);
-      else despachar(formData);
+      else enviar(formData);
     },
-    [operador, accion, despachar, despacharConOperador],
+    [operador, accion, enviar, despacharConOperador],
   );
 
   const resubmit = useCallback(() => {

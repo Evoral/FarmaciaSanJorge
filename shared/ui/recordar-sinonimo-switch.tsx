@@ -1,7 +1,7 @@
 /**
  * The "recordar equivalencia" switch of every import that matches text to a droga (lista de precios, factura,
  * receta): on confirm, the imported text is saved as a synonym ("Otros nombres") of the droga the user picked, so
- * the next imports match it on their own (docs/specs/sinonimos-droga.md). The copy spells that out, because
+ * the next imports match it on their own (openspec/specs/sinonimos-droga/spec.md). The copy spells that out, because
  * "recordar como esta droga" alone does not say what is stored nor that it applies beyond this import.
  */
 export function RecordarSinonimoSwitch({

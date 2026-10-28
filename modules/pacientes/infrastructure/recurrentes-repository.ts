@@ -1,6 +1,6 @@
 /**
  * Prisma-backed read for the "Pacientes recurrentes" view
- * (docs/specs/pacientes-recurrentes.md). HEALTH-ADJACENT DATA (DP-24, Ley
+ * (openspec/specs/pacientes-recurrentes/spec.md). HEALTH-ADJACENT DATA (DP-24, Ley
  * 25.326) -- runs inside an ALREADY OPEN tenant transaction (RLS-scoped),
  * filters by `tenantId` explicitly in every `where` as well (nested relations
  * included), and NEVER passes a paciente field to a logger.
@@ -19,7 +19,7 @@
  * query that selects every receta column (a bare `findMany`/`findUnique`, an
  * `include`, a nested `include`) fails at runtime with "column does not
  * exist". The `where` filters below only reference columns that exist.
- * See docs/specs/trayectoria-paciente.md and trayectoria-repository.ts.
+ * See openspec/specs/trayectoria-paciente/spec.md and trayectoria-repository.ts.
  */
 import type { Prisma } from "@/generated/prisma/client";
 import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";

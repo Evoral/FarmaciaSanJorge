@@ -1,6 +1,6 @@
 /**
  * `registrarPerdidaReserva`: the toma workspace's "Registrar pérdida" on an
- * ítem whose stock is reserved (docs/specs/reserva-stock-preparacion.md) --
+ * ítem whose stock is reserved (openspec/specs/reserva-stock-preparacion/spec.md) --
  * whoever prepares records that part of a reserved partida was lost (rotura,
  * derrame) during the lab's work. ONE transaction:
  *   1. Lock the preparación, then its receta, then EVERY partida it reserves
@@ -9,7 +9,7 @@
  *      same order as "Imprimir etiquetas" (`confirmarReservasReceta`), and
  *      all the partidas before any single one, so the AJUSTE and the re-plan
  *      only re-lock rows already held and it can not deadlock with a reserva
- *      or a confirmation (docs/specs/reserva-stock-preparacion.md R9/R23).
+ *      or a confirmation (openspec/specs/reserva-stock-preparacion/spec.md R9/R23).
  *   2. The partida must be one this preparación reserves.
  *   3. An AJUSTE through the stock module's own code
  *      (`registrarAjusteEnTx`, modules/stock/application/registrar-ajuste.ts:
@@ -50,7 +50,7 @@ import { MOTIVOS_PERDIDA, type MotivoPerdida } from "../domain/perdida";
 import { candidatosAutomaticosEnTx, partidaIdsDeCandidatos, planificarConsumoEnTx } from "./confirmar-preparacion";
 import { autorizacionesDeReserva, entradasDeReserva } from "./recalcular-reserva-stock";
 import { reservasDelPlan } from "./reservar-stock-preparacion";
-import { guardarReservaExcipienteEnTx, partidasReservadasExcipienteEnTx, replanificarExcipienteEnTx } from "./excipiente-preparacion";
+import { guardarReservaExcipienteEnTx, partidasCandidatasExcipienteEnTx, partidasReservadasExcipienteEnTx, replanificarExcipienteEnTx } from "./excipiente-preparacion";
 import {
   deleteReservasDePreparacion,
   getPreparacionParaAccion,
@@ -122,7 +122,10 @@ const registrarPerdidaInternalCommand = defineCommand({
     const reservas = await listReservasDePreparacion(tx, session.tenantId, input.preparacionId);
     if (reservas.length === 0) throw new DomainError("Esta preparación no tiene stock reservado.");
     // The excipiente's reserved partidas (migration 0092): a pérdida may be registered on them too.
-    const partidasExcipiente = await partidasReservadasExcipienteEnTx(tx, session.tenantId, input.preparacionId);
+    const partidasExcipiente = [
+      ...(await partidasReservadasExcipienteEnTx(tx, session.tenantId, input.preparacionId)),
+      ...(await partidasCandidatasExcipienteEnTx(tx, session.tenantId, { preparacionId: input.preparacionId })),
+    ];
     // Every partida the AJUSTE or the re-plan may touch, in one id-ordered statement (read before locking, as always).
     const jornada = await jornadaActualTenant(tx, session.tenantId);
     const candidatos = await candidatosAutomaticosEnTx(tx, session.tenantId, { preparacionId: input.preparacionId, fichaTecnicaId: preparacion.fichaTecnicaId, jornada });

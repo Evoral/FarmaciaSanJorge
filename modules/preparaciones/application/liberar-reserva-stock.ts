@@ -1,7 +1,7 @@
 /**
  * `liberarReservaStock`: the toma workspace's "Liberar reserva" on an ítem
  * whose stock is reserved (migration 0071,
- * docs/specs/reserva-stock-preparacion.md). Deletes the preparación's
+ * openspec/specs/reserva-stock-preparacion/spec.md). Deletes the preparación's
  * reservas and discards it (DESCARTADA, the same write as
  * `descartarPreparacion`: no stock movement, receta estado untouched),
  * in ONE transaction, so the ítem is Pendiente again and can be reserved

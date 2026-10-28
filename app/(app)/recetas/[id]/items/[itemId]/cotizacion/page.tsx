@@ -121,7 +121,7 @@ export default async function CotizacionPage({ params }: CotizacionPageProps) {
                           <span className="block whitespace-nowrap tabular-nums">{fechaHora(c.calculadaEn)}</span>
                           {/* Phones: costo, margen and the observaciones travel under the date. */}
                           <span className="block whitespace-nowrap font-mono text-xs text-zinc-500 tabular-nums sm:hidden">
-                            ${formatearMonto(c.costoInsumos)} + {formatNumero(c.margenAplicado, 2)}%
+                            ${formatearMonto(c.costoInsumosConIva ?? c.costoInsumos)} + {formatNumero(c.margenAplicado, 2)}%
                           </span>
                           {c.precioMinimoAplicado || c.esParcial || c.esIncompleta ? (
                             <span className="mt-1 flex flex-wrap gap-1.5 sm:hidden">
@@ -131,7 +131,8 @@ export default async function CotizacionPage({ params }: CotizacionPageProps) {
                             </span>
                           ) : null}
                         </td>
-                        <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums sm:table-cell">${formatearMonto(c.costoInsumos)}</td>
+                        {/* R7a: the base the price was calculated on (with IVA from migration 0107 on, net before). */}
+                        <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums sm:table-cell">${formatearMonto(c.costoInsumosConIva ?? c.costoInsumos)}</td>
                         <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums sm:table-cell">{formatNumero(c.margenAplicado, 2)}%</td>
                         <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">${formatearMonto(c.precioFinal)}</td>
                         <td className="hidden px-5 py-2.5 sm:table-cell">

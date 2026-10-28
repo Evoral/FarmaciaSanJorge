@@ -1,6 +1,6 @@
 # Rollback: Contraseña temporal
 
-Spec: `docs/specs/contrasena-temporal.md`. The feature has a **schema change** (migration
+Spec: `openspec/specs/contrasena-temporal/spec.md`. The feature has a **schema change** (migration
 `prisma/migrations/20261022100000_0097_contrasena_temporal`), so it is reverted as code + a new
 forward migration built from `prisma/rollbacks/0097_contrasena_temporal.down.sql`.
 
@@ -52,7 +52,7 @@ forward migration built from `prisma/rollbacks/0097_contrasena_temporal.down.sql
   error-code map of the `app/api/**/route.ts` handlers (cierres, entregas, fichas-tecnicas, libro,
   preparaciones, recetas, stock).
 - `scripts/create-tenant.ts` (temporary password instead of the activation credential), `modules/README.md`.
-- Docs: `docs/specs/cuentas-de-sector.md` (S7, Pantallas), `shared/auth/README.md`, `docs/deploy.md` §5.
+- Docs: `openspec/specs/cuentas-de-sector/spec.md` (S7, Pantallas), `shared/auth/README.md`, `docs/deploy.md` §5.
 - Tests: `tests/db/{inv-u07-actor-activo,usuarios-admin}.test.ts`,
   `tests/unit/{action-error,auth-login,auth-pin-never-for-login-or-cofirma,auth-policy,cuentas-de-sector-alta,cuentas-de-sector-verificar-operador,roles-personalizables-usecases,usecase,usuarios-authorization-matrix,usuarios-crear-usuario-audit,usuarios-m3-lock-order,stock-co-firma,usuarios-usecase-registry}.test.ts`.
 

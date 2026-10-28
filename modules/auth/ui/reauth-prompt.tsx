@@ -23,6 +23,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { CircleAlert } from "lucide-react";
 import { AUTH_POLICY } from "@/shared/auth/policy";
 import { reautenticarAction, pinDisponibleAction } from "./actions";
+import { PasswordInput } from "@/shared/ui/password-input";
 
 export interface ReauthPromptProps {
   /** Called once re-authentication succeeds -- the caller retries its original action from here. */
@@ -103,10 +104,9 @@ export function ReauthPrompt({ onReauthenticated, onCancel }: ReauthPromptProps)
             <label htmlFor="reauth-pin" className="mb-1 block text-sm font-medium">
               PIN
             </label>
-            <input
+            <PasswordInput
               id="reauth-pin"
               name="pin"
-              type="password"
               inputMode="numeric"
               pattern={`\\d{${AUTH_POLICY.pinLength}}`}
               maxLength={AUTH_POLICY.pinLength}
@@ -121,10 +121,9 @@ export function ReauthPrompt({ onReauthenticated, onCancel }: ReauthPromptProps)
             <label htmlFor="reauth-password" className="mb-1 block text-sm font-medium">
               Contraseña
             </label>
-            <input
+            <PasswordInput
               id="reauth-password"
               name="password"
-              type="password"
               required
               autoComplete="current-password"
               autoFocus

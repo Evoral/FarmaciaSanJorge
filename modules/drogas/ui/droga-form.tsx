@@ -6,7 +6,7 @@
  * suggestion (domain/sugerir-clase.ts) until the user picks one by hand;
  * on edición it is never changed for the user.
  *
- * "Otros nombres" (docs/specs/sinonimos-droga.md) are the same rows on alta
+ * "Otros nombres" (openspec/specs/sinonimos-droga/spec.md) are the same rows on alta
  * and edición (fields `sinonimo-0`, `sinonimo-1`...), saved with the rest of
  * the form; on edición they start with the droga's vigente synonyms and
  * `sinonimosCargados` tells the command which ones the form showed. The name
@@ -63,9 +63,11 @@ export interface DrogaFormProps {
   nombreInicial?: string;
   /** Alta only: called with the created droga instead of navigating (an alta opened in a dialog); the confirmation moves to a toast. */
   onCreada?: (droga: DrogaCreada) => void;
+  /** The contralor digital is activo: making the droga controlled asks for its saldo de apertura (openspec/specs/existencia-inicial/spec.md R12). */
+  contralorActivo?: boolean;
 }
 
-export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInicial = "", onCreada }: DrogaFormProps) {
+export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInicial = "", onCreada, contralorActivo = false }: DrogaFormProps) {
   const router = useRouter();
   const action = mode === "crear" ? crearDrogaAction : editarDrogaAction;
   const clasificacionDisabled = disabled || (mode === "editar" && (droga?.tienePartidas ?? false));
@@ -76,6 +78,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
   const [nombre, setNombre] = useState(nombreDeArranque);
   const [sinonimos, setSinonimos] = useState(() => filasCargadas(droga));
   const [siguienteKey, setSiguienteKey] = useState(0);
+  const [tipoControl, setTipoControl] = useState(droga?.tipoControl ?? "NINGUNO");
   const avisoId = useId();
 
   // After a save the page re-renders with the stored droga: start again from it (new synonym ids, maybe a new name).
@@ -102,6 +105,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
     !!droga && (sinonimos.some((f) => !f.guardadoId && normalizarTexto(f.texto).length > 0) || droga.sinonimos.some((s) => !guardadosVisibles.has(s.id)));
 
   const esAlta = mode === "crear";
+  const pideSaldoApertura = contralorActivo && tipoControl !== "NINGUNO" && (esAlta || tipoControl !== droga?.tipoControl);
   const cambiaNombre = esAlta || normalizarTexto(nombre) !== normalizarTexto(droga?.nombre ?? "");
   const existentes = sinEstaDroga(useDrogasExistentes(cambiaNombre ? nombre : ""), droga?.id);
   const nombreOcupado = coincidenciaExacta(nombre, existentes)?.baja === false;
@@ -269,7 +273,14 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
           <label htmlFor="tipoControl" className="field-label">
             Tipo de control
           </label>
-          <select id="tipoControl" name="tipoControl" defaultValue={droga?.tipoControl ?? "NINGUNO"} disabled={clasificacionDisabled} className="input">
+          <select
+            id="tipoControl"
+            name="tipoControl"
+            defaultValue={droga?.tipoControl ?? "NINGUNO"}
+            disabled={clasificacionDisabled}
+            onChange={(e) => setTipoControl(e.target.value)}
+            className="input"
+          >
             {TIPOS_CONTROL.map((tipo) => (
               <option key={tipo} value={tipo}>
                 {TIPO_CONTROL_LABELS[tipo]}
@@ -284,6 +295,26 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
       </p>
       {clasificacionDisabled && mode === "editar" ? (
         <p className="field-help -mt-1">Esta droga ya tiene partidas: la unidad base y el tipo de control no se pueden modificar.</p>
+      ) : null}
+
+      {pideSaldoApertura ? (
+        <div className="field sm:max-w-[50%]">
+          <label htmlFor="saldoAperturaContralor" className="field-label">
+            Saldo de apertura del libro contralor
+          </label>
+          <input
+            id="saldoAperturaContralor"
+            name="saldoAperturaContralor"
+            required
+            disabled={disabled}
+            inputMode="decimal"
+            aria-describedby="saldo-apertura-ayuda"
+            className="input font-mono"
+          />
+          <p id="saldo-apertura-ayuda" className="field-help">
+            El saldo que figura en el libro manual para esta droga, en su unidad base (0 si la farmacia nunca la tuvo). Abre su cuenta en el libro contralor.
+          </p>
+        </div>
       ) : null}
 
       <div className="field sm:max-w-[50%]">

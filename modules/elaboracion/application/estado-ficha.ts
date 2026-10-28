@@ -1,6 +1,6 @@
 /**
- * Is a ficha técnica still VIGENTE for its ítem? (docs/specs/reserva-stock-preparacion.md R18,
- * docs/specs/ficha-tecnica.md "Versiones, vigencia y preparación"). A ficha is vigente when:
+ * Is a ficha técnica still VIGENTE for its ítem? (openspec/specs/reserva-stock-preparacion/spec.md R18,
+ * openspec/specs/ficha-tecnica/spec.md "Versiones, vigencia y preparación"). A ficha is vigente when:
  *   (a) it is the ítem's LATEST version, and
  *   (b) recomputing the ítem's líneas from its CURRENT data (forma, totals, componentes, cantidades) with the current
  *       weighing parameters gives exactly its líneas (`mismasLineasPesaje`).

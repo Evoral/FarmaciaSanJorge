@@ -452,14 +452,15 @@ describe("formatearMonto / formatearCostoUnitario", () => {
     expect(formatearMonto("1234567.891")).toBe("1.234.567,89");
   });
 
-  it("formatearCostoUnitario: at least two decimals, up to six, so a sub-cent cost never reads as 0,00", () => {
+  it("formatearCostoUnitario: two decimals, more (up to six) only so a sub-cent cost never reads as 0,00", () => {
     expect(formatearCostoUnitario("12.5")).toBe("12,50");
-    expect(formatearCostoUnitario("0.0035")).toBe("0,0035");
+    expect(formatearCostoUnitario("0.0035")).toBe("0,004"); // more decimals only until it does not read as 0,00
+    expect(formatearCostoUnitario("0.0303")).toBe("0,03");
     expect(formatearCostoUnitario("0.0000005")).toBe("0,000001"); // rounds half up to the smallest shown step
     expect(formatearCostoUnitario("0.0000004")).toBe("< 0,000001"); // non-zero but below it: never "free"
     expect(formatearCostoUnitario("1e-12")).toBe("< 0,000001");
     expect(formatearCostoUnitario("-0.0000004")).toBe("> -0,000001");
-    expect(formatearCostoUnitario("1234.123456789")).toBe("1.234,123457");
+    expect(formatearCostoUnitario("1234.123456789")).toBe("1.234,12");
     expect(formatearCostoUnitario("0")).toBe("0,00");
   });
 });

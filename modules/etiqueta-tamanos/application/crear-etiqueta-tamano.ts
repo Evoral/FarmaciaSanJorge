@@ -4,7 +4,7 @@
  * password re-authentication (user decision, 2026-10-21). The name must be
  * unique per tenant, case-insensitively (the unique index of migration 0066
  * is the authority; the pre-check just gives a clear message). The size must
- * fit the sheet at least once (docs/specs/hoja-etiquetas.md R5).
+ * fit the sheet at least once (openspec/specs/hoja-etiquetas/spec.md R5).
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";

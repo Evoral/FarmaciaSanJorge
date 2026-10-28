@@ -1,6 +1,6 @@
 /**
  * Automatic ficha técnica + cotización after a receta is confirmed/edited
- * (docs/specs/presupuesto-receta.md): the orchestration
+ * (openspec/specs/presupuesto-receta/spec.md): the orchestration
  * (application/generar-fichas-y-cotizaciones.ts, with the use cases it
  * calls mocked), the redirect notices (domain/avisos-generacion.ts), and
  * the "latest ficha still current" comparison that avoids a duplicate
@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
+import { AuthorizationError } from "@/shared/errors";
 import { Decimal } from "@/shared/decimal";
 import { FichaNoGenerableError, mismasLineasPesaje } from "@/modules/elaboracion/domain/ficha-no-generable";
 import type { LineaPesajeCalculada } from "@/modules/elaboracion/domain/calcular-ficha-tecnica";
@@ -91,6 +92,23 @@ describe("generarFichasYCotizaciones", () => {
     await generarFichasYCotizaciones("r1", { soloSiDesactualizadas: true });
     expect(generarFichaMock).toHaveBeenCalledWith({ itemRecetaId: "i1", soloSiDesactualizada: true });
     expect(cotizarMock.mock.calls).toEqual([[{ itemRecetaId: "i2" }]]);
+  });
+
+  it("P3-07: returns silently without warnings when a use case throws AuthorizationError for the operator", async () => {
+    sesion = conPermisos("fichas.generar", "cotizaciones.calcular");
+
+    // Case 1: generarFichaTecnica throws AuthorizationError (e.g. operador lacks fichas.generar)
+    generarFichaMock.mockRejectedValueOnce(new AuthorizationError("No tenés permiso para generar fichas técnicas."));
+    const avisosFicha = await generarFichasYCotizaciones("r1", { soloSiDesactualizadas: false });
+    expect(avisosFicha).toEqual([]);
+
+    // Case 2: calcularCotizacionItem throws AuthorizationError (e.g. operador lacks cotizaciones.calcular)
+    generarFichaMock.mockReset().mockResolvedValue({ id: "f", version: 1, generada: true, lineas: [] });
+    cotizarMock.mockReset().mockRejectedValueOnce(new AuthorizationError("No tenés permiso para calcular cotizaciones."));
+    const avisosCotiz = await generarFichasYCotizaciones("r1", { soloSiDesactualizadas: false });
+    // Item 1 had AuthorizationError on cotización -> no avisos, and subsequent item skips cotización
+    expect(avisosCotiz).toEqual([]);
+    expect(cotizarMock).toHaveBeenCalledTimes(1);
   });
 });
 

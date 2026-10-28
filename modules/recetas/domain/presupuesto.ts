@@ -1,13 +1,13 @@
 /**
- * Presupuesto of a receta being loaded (docs/specs/presupuesto-receta.md):
+ * Presupuesto of a receta being loaded (openspec/specs/presupuesto-receta/spec.md):
  * the price shown at the counter BEFORE anything is saved, so the client
  * can decide whether to go on. Pure: the shapes returned by
  * `recetas.presupuestar`, how one item's in-memory cotización becomes a
  * presupuesto line, the total, and the form's "is the draft complete
  * enough to price" check. No I/O.
  */
-import { Decimal, dec } from "@/shared/decimal";
-import type { CotizacionCalculada, FuenteCosto } from "@/modules/precios/domain/calcular-cotizacion";
+import { Decimal, dec, isPositive } from "@/shared/decimal";
+import { mensajeSinCostoProveedor, type CotizacionCalculada, type FuenteCosto } from "@/modules/precios/domain/calcular-cotizacion";
 import { numeroONull } from "@/shared/decimal/numero-ingresado";
 
 /**
@@ -33,7 +33,7 @@ export interface FaltanteStock {
   unidadSimbolo: string;
 }
 
-/** Where one costed línea of an item got its cost (docs/specs/costos-proveedor.md, R30). */
+/** Where one costed línea of an item got its cost (openspec/specs/costos-proveedor/spec.md, R30). */
 export interface FuenteCostoLinea {
   drogaNombre: string;
   fuente: FuenteCosto;
@@ -76,8 +76,9 @@ export type Presupuesto =
     }
   | { ok: false; mensaje: string };
 
-/** One item's in-memory cotización -> its presupuesto line. */
+/** One item's in-memory cotización -> its presupuesto line. A droga without costo de proveedor: no price, only why (R27). */
 export function presupuestoItemDesdeCotizacion(indice: number, cotizacion: CotizacionCalculada): PresupuestoItem {
+  if (cotizacion.drogasSinPrecio.length > 0) return { indice, ok: false, mensaje: mensajeSinCostoProveedor(cotizacion.drogasSinPrecio) };
   const lineas = cotizacion.detalle.lineas;
   const hayProveedor = lineas.some((l) => l.fuente === "PROVEEDOR");
   // Only líneas that were really costed: not enrase manual, not a unit that could not be converted (0, no partidas, no faltante).
@@ -170,7 +171,7 @@ export interface ItemPresupuestable {
 /** As typed (`numeroONull`: comma decimals; an ambiguous "1.500" is not ready until the user fixes it). */
 function esDecimalPositivo(valor: string | null): boolean {
   const numero = numeroONull(valor);
-  return numero !== null && !numero.startsWith("-") && Number(numero) > 0;
+  return numero !== null && isPositive(dec(numero));
 }
 
 /**

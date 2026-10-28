@@ -1,6 +1,6 @@
 /**
  * `editarRepartidor`: changes the nombre / apellido / telefono of a repartidor (`repartidores.gestionar`). The PDF
- * "Hoja de envíos" shows the current data (docs/specs/envios-repartidores.md, "Repartidor editado": no snapshot).
+ * "Hoja de envíos" shows the current data (openspec/specs/envios-repartidores/spec.md, "Repartidor editado": no snapshot).
  *
  * Locks the row FIRST and reads its current state with a fresh statement afterwards, like
  * modules/etiqueta-tamanos/application/editar-etiqueta-tamano.ts.

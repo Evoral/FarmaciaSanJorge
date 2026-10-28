@@ -7,7 +7,8 @@ import { NextResponse } from "next/server";
 import { exportarKardexXlsx, MAX_EXPORT_ROWS } from "@/modules/stock/application/reporte-kardex";
 import { MOTIVO_AJUSTE_LABELS } from "@/modules/stock/domain/partida";
 import { TIPO_MOVIMIENTO_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
-import { XLSX_CONTENT_TYPE, XlsxReport } from "@/shared/xlsx/xlsx-report";
+import { XLSX_CONTENT_TYPE, XlsxReport, type XlsxReportOptions } from "@/shared/xlsx/xlsx-report";
+import { getLogoTenant, getMarcaTenant } from "@/modules/farmacia/application/get-marca-tenant";
 import { AppError, type AppErrorCode, toSafeError } from "@/shared/errors";
 
 const STATUS_BY_CODE: Record<AppErrorCode, number> = {
@@ -29,11 +30,16 @@ export async function GET(request: Request): Promise<Response> {
   const q = url.searchParams;
 
   let resultado;
+  let farmacia = "";
+  let logo: XlsxReportOptions["logo"] = null;
   try {
+    const [marca, logoTenant] = await Promise.all([getMarcaTenant(), getLogoTenant()]);
+    farmacia = marca?.nombre ?? "";
+    logo = logoTenant;
     resultado = await exportarKardexXlsx({
       partidaId: q.get("partidaId") || undefined,
       drogaId: q.get("drogaId") || undefined,
-      tipo: (q.get("tipo") as "INGRESO_COMPRA" | "EGRESO_PREPARACION" | "AJUSTE" | null) || undefined,
+      tipo: (q.get("tipo") as "INGRESO_COMPRA" | "INGRESO_INICIAL" | "EGRESO_PREPARACION" | "AJUSTE" | null) || undefined,
       desde: q.get("desde") || undefined,
       hasta: q.get("hasta") || undefined,
     });
@@ -45,6 +51,8 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const report = new XlsxReport({
+    farmacia,
+    logo,
     title: "Kardex de movimientos de stock",
     description:
       "Movimientos de stock de cada lote: ingresos por compra, egresos por preparación y ajustes, con la cantidad, el motivo y quién los registró o autorizó.",

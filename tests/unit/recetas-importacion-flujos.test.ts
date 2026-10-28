@@ -1,9 +1,11 @@
 /**
  * Receta PDF import through the REAL use-case pipeline, with the
- * repositories, the extractor and the transaction mocked (no DB, no PDF):
+ * repositories, the extractor, RCTA and the transaction mocked (no DB, no PDF, no network):
  *
  *   - `recetas.importar.leer`: P8's "permiso first" (the file is not even
- *     looked at without `recetas.crear`), the match (P7/P9 wiring) and P6
+ *     looked at without `recetas.crear`), the read through RCTA (the PDF's
+ *     link -> the same RCTA read as the QR; only the paciente's name comes
+ *     from the PDF text), the match (P7/P9 wiring) and P6
  *     (duplicate -> error with the existing número interno; the lookup
  *     ignores ANULADA recetas);
  *   - `recetas.importar`: input schema, alta vs. completion of
@@ -17,7 +19,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 import { AuthorizationError, ConflictError, DomainError, ValidationError } from "@/shared/errors";
-import type { TextItemLite } from "@/modules/recetas/domain/receta-pdf-parser";
+import { parsearRecetaPdf, type TextItemLite } from "@/modules/recetas/domain/receta-pdf-parser";
+import { MENSAJES_LECTURA_PDF } from "@/modules/recetas/domain/receta-qr";
+import { MENSAJE_QR_SIN_NOMBRE_PACIENTE } from "@/modules/recetas/domain/receta-rcta-json";
 
 const auditRecordMock = vi.fn(async (...args: unknown[]) => {
   void args;
@@ -43,6 +47,19 @@ vi.mock("@/shared/auth/session", () => ({
 const extraerMock = vi.fn();
 vi.mock("@/modules/recetas/infrastructure/receta-pdf.server", () => ({
   extraerTextoRecetaPdf: (...args: unknown[]) => extraerMock(...args),
+}));
+
+// RCTA: the adapter answers, and the mapping is replaced by the PDF parser's own draft of the same synthetic receta
+// (with the name dropped, as RCTA anonymizes it), so the match expectations below keep their data. The real mapping
+// has its own tests (receta-rcta-json.test.ts).
+const consultarRctaMock = vi.fn();
+vi.mock("@/modules/recetas/infrastructure/receta-rcta-api.server", () => ({
+  consultarRecetaRcta: (...args: unknown[]) => consultarRctaMock(...args),
+}));
+const mapearRctaMock = vi.fn();
+vi.mock("@/modules/recetas/domain/receta-rcta-json", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/modules/recetas/domain/receta-rcta-json")>()),
+  mapearRecetaRcta: (...args: unknown[]) => mapearRctaMock(...args),
 }));
 
 const repo = {
@@ -106,6 +123,7 @@ const DROGA_ID = "55555555-5555-4555-a555-555555555555";
 const OTRA_DROGA_ID = "66666666-6666-4666-a666-666666666666";
 const UNIDAD_ID = "77777777-7777-4777-a777-777777777777";
 const CUIL = "27289991110"; // fictitious, valid check digit
+const HASH = "A".repeat(64);
 
 function session(permisos: string[]): AuthenticatedSession {
   return {
@@ -146,7 +164,18 @@ function recetaExtraida() {
     ...renglon("30 comprimidos", 27, 181, 13.7),
     ...renglon("Diagnóstico: E66.0 - OBESIDAD", 27, 192, 13.7),
   ];
-  return { pages: [items], links: [{ uri: "https://verumrp.com.ar/prescripcion/TESTHASH0001" }] };
+  return { pages: [items], links: [{ uri: `https://verumrp.com.ar/prescripcion/${HASH}` }] };
+}
+
+/** What the mocked RCTA read returns: the parser's draft of `recetaExtraida()`, without the paciente's name. */
+function lecturaRcta() {
+  const parseado = parsearRecetaPdf(recetaExtraida());
+  if (!parseado.ok) throw new Error("the synthetic receta must parse");
+  return {
+    ok: true as const,
+    borrador: { ...parseado.borrador, paciente: { ...parseado.borrador.paciente, nombre: null } },
+    advertencias: [...parseado.advertencias, { codigo: "DATO_FALTANTE" as const, mensaje: MENSAJE_QR_SIN_NOMBRE_PACIENTE }],
+  };
 }
 
 function pdfFile(): File {
@@ -156,6 +185,8 @@ function pdfFile(): File {
 beforeEach(() => {
   auditRecordMock.mockClear();
   extraerMock.mockReset().mockResolvedValue(recetaExtraida());
+  consultarRctaMock.mockReset().mockResolvedValue({ ok: true, json: {} });
+  mapearRctaMock.mockReset().mockImplementation(lecturaRcta);
   for (const fn of Object.values(repo)) fn.mockReset();
   repo.buscarRecetaImportada.mockResolvedValue(null);
   repo.buscarPacientePorIdentificacion.mockResolvedValue(null);
@@ -190,10 +221,26 @@ describe("recetas.importar.leer -- trust boundary order (P8)", () => {
     expect(extraerMock).not.toHaveBeenCalled();
   });
 
-  it("an unrecognized emisor surfaces as a ValidationError, nothing is matched", async () => {
+  it("a PDF without the RCTA link is an error: RCTA is never called and nothing is matched (no fallback to the text)", async () => {
     extraerMock.mockResolvedValue({ ...recetaExtraida(), links: [] });
-    await expect(leerRecetaPdfQuery.execute({ archivo: pdfFile() }, { session: CON_PERMISO })).rejects.toThrow("Formato de receta no reconocido.");
+    await expect(leerRecetaPdfQuery.execute({ archivo: pdfFile() }, { session: CON_PERMISO })).rejects.toThrow(MENSAJES_LECTURA_PDF.SIN_LINK);
+    expect(consultarRctaMock).not.toHaveBeenCalled();
     expect(repo.buscarRecetaImportada).not.toHaveBeenCalled();
+  });
+
+  it("RCTA down is an error with the PDF's own message, nothing is matched", async () => {
+    consultarRctaMock.mockResolvedValue({ ok: false, codigo: "RCTA_NO_DISPONIBLE" });
+    await expect(leerRecetaPdfQuery.execute({ archivo: pdfFile() }, { session: CON_PERMISO })).rejects.toThrow(MENSAJES_LECTURA_PDF.RCTA_NO_DISPONIBLE);
+    expect(repo.buscarRecetaImportada).not.toHaveBeenCalled();
+  });
+});
+
+describe("recetas.importar.leer -- read through RCTA", () => {
+  it("RCTA is asked for the hash of the PDF's link; the paciente's name comes from the PDF text and replaces the QR's notice", async () => {
+    const vista = await leerRecetaPdfQuery.execute({ archivo: pdfFile() }, { session: CON_PERMISO });
+    expect(consultarRctaMock).toHaveBeenCalledWith(HASH);
+    expect(vista.borrador.paciente.nombre?.nombreCompleto).toBe("Ana Suárez");
+    expect(vista.advertencias.map((a) => a.mensaje)).not.toContain(MENSAJE_QR_SIN_NOMBRE_PACIENTE);
   });
 });
 
@@ -464,13 +511,21 @@ describe("recetas.importar -- confirmation", () => {
     expect(insertRecetaMock).not.toHaveBeenCalled();
   });
 
-  it("counts the month from the 'válida desde' date when the receta has one", async () => {
+  it("accepts an old prescription when its 'válida desde' date is in the current month, and rejects it otherwise", async () => {
     repo.buscarPacientePorIdentificacion.mockResolvedValue(PACIENTE_EXISTENTE);
-    const fresca = { fechaPrescripcion: "2026-08-01", fechaValidaDesde: "2026-08-29" };
-    await expect(importarRecetaCommand.execute(payload(fresca), { session: CON_PERMISO })).resolves.toBeDefined();
+    const delMes = { fechaPrescripcion: "2026-07-01", fechaValidaDesde: "2026-09-01" };
+    await expect(importarRecetaCommand.execute(payload(delMes), { session: CON_PERMISO })).resolves.toBeDefined();
     await expect(
-      importarRecetaCommand.execute(payload({ fechaPrescripcion: "2026-08-01", fechaValidaDesde: "2026-08-28" }), { session: CON_PERMISO }),
-    ).rejects.toThrow(/pasó más de un mes desde su fecha de validez/);
+      importarRecetaCommand.execute(payload({ fechaPrescripcion: "2026-07-01", fechaValidaDesde: "2026-08-31" }), { session: CON_PERMISO }),
+    ).rejects.toThrow(/La fecha de validez tiene que ser de este mes/);
+  });
+
+  it("rejects a 'válida desde' before the prescription date, like the alta and the edit", async () => {
+    repo.buscarPacientePorIdentificacion.mockResolvedValue(PACIENTE_EXISTENTE);
+    await expect(
+      importarRecetaCommand.execute(payload({ fechaPrescripcion: "2026-09-10", fechaValidaDesde: "2026-09-09" }), { session: CON_PERMISO }),
+    ).rejects.toThrow("La fecha de validez no puede ser anterior a la fecha de prescripción.");
+    expect(insertRecetaMock).not.toHaveBeenCalled();
   });
 
   it("sets each componente's principio activo flag from the droga's clase, never from the payload", async () => {

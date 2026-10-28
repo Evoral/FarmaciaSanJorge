@@ -10,19 +10,27 @@
  * for why this compare-and-swap approach is used instead of a dedicated
  * version/`actualizado_en` column (none exists on `fsj.usuario`, and this
  * task must not add a migration).
+ *
+ * A cuenta de sector (openspec/specs/cuentas-de-sector/spec.md) is edited the
+ * way it is created: only its name (sent as `nombre`) and email. apellido and
+ * DNI are derived again from the name (`../domain/cuenta-de-sector.ts`) and it
+ * has no matrícula, so the submitted apellido/dni/numeroMatricula are ignored.
  */
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { ConflictError, NotFoundError, ValidationError } from "@/shared/errors";
 import { email as emailSchema, nonEmptyString, uuid } from "@/shared/validation";
+import { identidadDeCuentaDeSector } from "../domain/cuenta-de-sector";
 import { loadUsuarioParaAccion, existeEmail, existeDni, updateUsuarioDatosPersonales } from "../infrastructure/usuario-repository";
 
 const editarUsuarioInput = z.object({
   id: uuid,
   nombre: nonEmptyString,
-  apellido: nonEmptyString,
+  /** Required for a person; ignored for a cuenta de sector (derived from `nombre`). */
+  apellido: z.string().trim().default(""),
   email: emailSchema,
-  dni: nonEmptyString,
+  /** Required for a person; ignored for a cuenta de sector (derived from `nombre`). */
+  dni: z.string().trim().default(""),
   numeroMatricula: z.string().trim().max(100).optional(),
   version: z.object({
     nombre: z.string(),
@@ -33,7 +41,8 @@ const editarUsuarioInput = z.object({
   }),
 });
 
-export type EditarUsuarioInput = z.infer<typeof editarUsuarioInput>;
+/** Pre-default wire shape: a cuenta de sector may omit `apellido` and `dni`. */
+export type EditarUsuarioInput = z.input<typeof editarUsuarioInput>;
 
 export const CONCURRENCY_MESSAGE = "El usuario fue modificado por otra persona, recargá.";
 
@@ -56,17 +65,28 @@ export const editarUsuarioCommand = defineCommand({
       throw new ConflictError(CONCURRENCY_MESSAGE);
     }
 
-    if (input.email !== actual.email && (await existeEmail(tx, input.email, input.id))) {
-      throw new ValidationError("Ya existe un usuario con ese email.");
+    const identidad = actual.esSector ? identidadDeCuentaDeSector(input.nombre) : { nombre: input.nombre, apellido: input.apellido, dni: input.dni };
+    if (!identidad) {
+      throw new ValidationError("El nombre del sector debe tener al menos una letra o un número.", { fields: ["nombre"] });
     }
-    if (input.dni !== actual.dni && (await existeDni(tx, session.tenantId, input.dni, input.id))) {
-      throw new ValidationError("Ya existe un usuario con ese DNI en esta farmacia.");
+    if (!actual.esSector) {
+      const vacios = (["apellido", "dni"] as const).filter((campo) => !identidad[campo]);
+      if (vacios.length > 0) throw new ValidationError("Este campo no puede estar vacío.", { fields: [...vacios] });
     }
 
-    const numeroMatriculaNuevo = input.numeroMatricula ?? null;
+    if (input.email !== actual.email && (await existeEmail(tx, input.email, input.id))) {
+      throw new ValidationError("Ya existe un usuario con ese email.", { fields: ["email"] });
+    }
+    if (identidad.dni !== actual.dni && (await existeDni(tx, session.tenantId, identidad.dni, input.id))) {
+      throw new ValidationError(actual.esSector ? "Ya existe una cuenta de sector con ese nombre." : "Ya existe un usuario con ese DNI en esta farmacia.", {
+        fields: [actual.esSector ? "nombre" : "dni"],
+      });
+    }
+
+    const numeroMatriculaNuevo = actual.esSector ? null : (input.numeroMatricula ?? null);
     const updated = await updateUsuarioDatosPersonales(
       tx,
-      { id: input.id, nombre: input.nombre, apellido: input.apellido, email: input.email, dni: input.dni, numeroMatricula: numeroMatriculaNuevo },
+      { id: input.id, nombre: identidad.nombre, apellido: identidad.apellido, email: input.email, dni: identidad.dni, numeroMatricula: numeroMatriculaNuevo },
       {
         nombre: actual.nombre,
         apellido: actual.apellido,
@@ -85,7 +105,7 @@ export const editarUsuarioCommand = defineCommand({
       audit: {
         entidadId: input.id,
         valorAnterior: { nombre: actual.nombre, apellido: actual.apellido, email: actual.email, dni: actual.dni, numeroMatricula: actual.numeroMatricula },
-        valorNuevo: { nombre: input.nombre, apellido: input.apellido, email: input.email, dni: input.dni, numeroMatricula: numeroMatriculaNuevo },
+        valorNuevo: { nombre: identidad.nombre, apellido: identidad.apellido, email: input.email, dni: identidad.dni, numeroMatricula: numeroMatriculaNuevo },
       },
     };
   },

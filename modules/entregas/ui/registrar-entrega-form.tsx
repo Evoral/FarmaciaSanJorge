@@ -3,14 +3,14 @@
 /**
  * Entrega registration form (11.1/11.2): modalidad radio (RETIRO_PRESENCIAL
  * / ENVIO), shown as two selectable cards, and the "Pagada" switch -- required
- * for RETIRO_PRESENCIAL (the receta becomes ENTREGADA, docs/specs/pago-receta.md
+ * for RETIRO_PRESENCIAL (the receta becomes ENTREGADA, openspec/specs/pago-receta/spec.md
  * P4); an ENVIO may leave unpaid. No receta física checkbox: the
  * attribute was removed (client decision 2026-10-01, migration 0051). See
  * shared/ui/motivo-form.tsx for the same `shared/ui/simple-form.tsx`-wrapping
  * shape.
  *
- * Envío (docs/specs/envios-repartidores.md): choosing it shows the receta's domicilio (read-only) and a required
- * "Repartidor" autocomplete over the ACTIVE repartidores. Without a receta domicilio the form asks for one (`domicilio`, saved on the receta by the use case, E4); with no
+ * Envío (openspec/specs/envios-repartidores/spec.md): choosing it shows the receta's domicilio (read-only) and a required
+ * "Repartidor" autocomplete over the ACTIVE repartidores. Without a receta domicilio the form asks for one (`domicilio`, saved as the receta's domicilio de entrega by the use case, E4); with no
  * active repartidor the form says so and, for whoever manages the catalog, links to it. The picked repartidor is
  * submitted as `repartidorId` only while "Envío" is chosen (a retiro presencial never carries one, E2).
  */
@@ -32,8 +32,8 @@ export interface RegistrarEntregaFormProps {
   recetaId: string;
   /** The receta is already paid: the switch shows on and locked (the entrega never lowers the payment). */
   pagada: boolean;
-  /** `receta.domicilio_paciente`; blank or null means the person registering types the domicilio de entrega (E4). */
-  domicilioPaciente: string | null;
+  /** Where the envío goes (`domicilioDeEnvio`: the receta's domicilio de entrega, else its domicilio); blank or null means the person registering types the domicilio de entrega (E4). */
+  domicilioEnvio: string | null;
   /** The tenant has at least one active repartidor to pick. */
   hayRepartidoresActivos: boolean;
   /** `repartidores.gestionar`: the "No hay repartidores" notice links to the catalog only for who can open it. */
@@ -46,7 +46,7 @@ export function RegistrarEntregaForm({
   action,
   recetaId,
   pagada,
-  domicilioPaciente,
+  domicilioEnvio,
   hayRepartidoresActivos,
   puedeGestionarRepartidores,
   onSuccess,
@@ -58,7 +58,7 @@ export function RegistrarEntregaForm({
   // saved on the receta by the use case (E4). The state survives a server error (useFormSubmit never resets on error).
   const [domicilioEscrito, setDomicilioEscrito] = useState("");
   const domicilioInputId = useId();
-  const domicilio = domicilioPaciente?.trim() ?? "";
+  const domicilio = domicilioEnvio?.trim() ?? "";
   const recetaTieneDomicilio = domicilio.length > 0;
   const faltaPago = modalidad === "RETIRO_PRESENCIAL" && !pagada && !pagarAhora;
   const faltaRepartidor = modalidad === "ENVIO" && !repartidor;

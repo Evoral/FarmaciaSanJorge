@@ -36,7 +36,7 @@
  *
  * Commands have one more step right after `authorize`: `resolverActor`
  * (below). In a cuenta de sector -- a session shared by the empleados of a
- * work area, docs/specs/cuentas-de-sector.md -- the acciones the farmacia
+ * work area, openspec/specs/cuentas-de-sector/spec.md -- the acciones the farmacia
  * asks a PIN for are attributed to the empleado who identified themselves
  * in that request, not to the shared account. Queries never ask for it.
  *
@@ -54,7 +54,7 @@ import { authorize } from "@/shared/auth/authorize";
 import type { Permiso } from "@/shared/auth/authorize";
 import { verificarOperadorEnTx } from "@/shared/auth/operador";
 import type { VerificacionDeOperador } from "@/shared/auth/operador";
-import { solicitudDeOperador } from "@/shared/auth/operador-context";
+import { solicitudDeOperador, type SolicitudDeOperador } from "@/shared/auth/operador-context";
 import { CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
 import { withTenantTransaction } from "@/shared/db/transaction";
 import { AuthorizationError, DomainError, OperadorRequeridoError, ValidationError, mapDbError } from "@/shared/errors";
@@ -120,7 +120,7 @@ export interface DefineCommandConfig<TInput, TOutput> {
    * password (co-firma).
    */
   requireRecentReauth?: { maxAgeMinutes: number };
-  /** Only the flows that resolve a pending step (change the temporary password, configure the PIN) set this: every other use case is blocked while the session has pending steps (docs/specs/contrasena-temporal.md). */
+  /** Only the flows that resolve a pending step (change the temporary password, configure the PIN) set this: every other use case is blocked while the session has pending steps (openspec/specs/contrasena-temporal/spec.md). */
   permitirPasosPendientes?: true;
   handler: (args: CommandHandlerArgs<TInput>) => Promise<CommandHandlerResult<TOutput>>;
 }
@@ -296,8 +296,17 @@ async function authorizeAuditado(session: AuthenticatedSession, casoDeUso: strin
   }
 }
 
+/** The request's operador credential, verified once per request (memoized on the request); a rejection throws on the PIN field. */
+async function operadorVerificado(session: AuthenticatedSession, solicitud: SolicitudDeOperador): Promise<Extract<VerificacionDeOperador, { ok: true }>> {
+  const { credencial } = solicitud;
+  solicitud.verificacion ??= withTenantTransaction(session.tenantId, (tx) => verificarOperadorEnTx(tx, session, credencial));
+  const verificacion = (await solicitud.verificacion) as VerificacionDeOperador;
+  if (!verificacion.ok) throw new DomainError(verificacion.message, { fields: [CAMPO_OPERADOR_PIN] });
+  return verificacion;
+}
+
 /**
- * Who a command is attributed to (docs/specs/cuentas-de-sector.md). For an
+ * Who a command is attributed to (openspec/specs/cuentas-de-sector/spec.md). For an
  * individual session, and for a cuenta de sector's acciones the farmacia
  * does not ask a PIN for, that is the session itself. For an acción "con
  * PIN" in a cuenta de sector it is the empleado who identified themselves
@@ -307,9 +316,9 @@ async function authorizeAuditado(session: AuthenticatedSession, casoDeUso: strin
  *     transaction of the command opens (the form then asks who is acting and
  *     resubmits);
  *   - the credential is verified in a short transaction of its own, so the
- *     failed-attempt counter and the audit of a rejection are committed
- *     whatever happens next -- once per request (an action that chains two
- *     commands verifies the PIN a single time);
+ *     audit of a rejection is committed whatever happens next -- once per
+ *     request (an action that chains two commands verifies the PIN a single
+ *     time);
  *   - the empleado must hold the permiso THEMSELVES (`authorizeAuditado`,
  *     denial audited under their name).
  *
@@ -319,22 +328,20 @@ async function authorizeAuditado(session: AuthenticatedSession, casoDeUso: strin
  * cuenta de sector ∩ empleado, and `terminal` = where they acted from.
  */
 async function resolverActor(session: AuthenticatedSession, casoDeUso: string, permiso: Permiso): Promise<AuthenticatedSession> {
-  if (!session.sector?.permisosConPin.has(permiso)) return session;
-
   const solicitud = solicitudDeOperador();
+  if (!session.sector?.permisosConPin.has(permiso)) {
+    // A PIN the request carries is checked anyway, before this command runs: an action that chains a command without
+    // PIN and one with PIN (saving a receta, then generating its fichas) must not commit the first on a wrong PIN.
+    if (session.sector && solicitud?.credencial) await operadorVerificado(session, solicitud);
+    return session;
+  }
+
   if (!solicitud?.credencial) {
     if (solicitud) solicitud.requerido = true;
     throw new OperadorRequeridoError();
   }
 
-  const { credencial } = solicitud;
-  solicitud.verificacion ??= withTenantTransaction(session.tenantId, (tx) => verificarOperadorEnTx(tx, session, credencial));
-  const verificacion = (await solicitud.verificacion) as VerificacionDeOperador;
-  if (!verificacion.ok) {
-    throw new DomainError(verificacion.message, { fields: [CAMPO_OPERADOR_PIN] });
-  }
-
-  const { operador, metodo } = verificacion;
+  const { operador, metodo } = await operadorVerificado(session, solicitud);
   const terminal = { usuarioId: session.usuario.id, nombre: `${session.usuario.nombre} ${session.usuario.apellido}`.trim(), sesionId: session.sesionId, verificacion: metodo };
   solicitud.operador = { usuarioId: operador.id, terminal: { usuarioId: terminal.usuarioId, usuario: terminal.nombre, sesionId: terminal.sesionId }, verificacion: metodo };
 

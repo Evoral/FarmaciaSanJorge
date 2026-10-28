@@ -1,6 +1,6 @@
 /**
  * Pure derivation for the "Pacientes recurrentes" view
- * (docs/specs/pacientes-recurrentes.md): patients who periodically order the
+ * (openspec/specs/pacientes-recurrentes/spec.md): patients who periodically order the
  * same preparation, when their next order is expected, and the prefilled
  * WhatsApp reminder. No I/O, no Prisma (eslint's domainBoundaryPatterns
  * enforce this).
@@ -174,7 +174,7 @@ export function inicioVentanaRecurrentes(ahora: Date, zonaHoraria: string): Date
 /**
  * `formaFarmaceutica` + the SORTED componentes as `(drogaId, cantidad,
  * unidadMedidaId, modoExpresion)`. Two items with the same signature are "the
- * same thing" (docs/specs/pacientes-recurrentes.md). Details that matter:
+ * same thing" (openspec/specs/pacientes-recurrentes/spec.md). Details that matter:
  *  - order of componentes is irrelevant (sorted);
  *  - the cantidad is compared as a NUMBER (`0.50` and `0.5` are equal: the
  *    `numeric` column keeps whatever scale was typed), so a different cantidad
@@ -327,7 +327,7 @@ export function calcularRecurrentes(items: readonly ItemRecurrenteCrudo[], zonaH
   const ordenados = [...items].sort((a, b) => a.id.localeCompare(b.id));
   for (const item of ordenados) {
     // Only ANULADA is skipped. A RETIRO_VENCIDO receta was prescribed and prepared, so it still counts as the paciente's
-    // treatment history for the recurrence interval, exactly like a PREPARADA one (docs/specs/retiro-vencido.md).
+    // treatment history for the recurrence interval, exactly like a PREPARADA one (openspec/specs/retiro-vencido/spec.md).
     if (item.receta.estado === "ANULADA" || item.paciente.fechaBaja !== null) continue;
     const clave = `${item.paciente.id}\u0000${firmaFormula(item)}`;
     const grupo = grupos.get(clave);
@@ -473,7 +473,7 @@ export function evaluarWhatsapp(aceptaRecordatorios: boolean, telefono: string |
   return { disponible: true, telefono: normalizado };
 }
 
-/** The reminder text a person reviews and sends (docs/specs/pacientes-recurrentes.md, "WhatsApp"). */
+/** The reminder text a person reviews and sends (openspec/specs/pacientes-recurrentes/spec.md, "WhatsApp"). */
 export function construirMensajeRecordatorio(datos: { nombre: string; farmacia: string; formula: string }): string {
   const nombre = datos.nombre.trim().replace(/\s+/g, " ");
   const formula = datos.formula.trim();

@@ -1,5 +1,5 @@
 /**
- * The fórmula de la prescripción of one ítem as the libro recetario records it (docs/specs/libro-recetario-y-contralor.md,
+ * The fórmula de la prescripción of one ítem as the libro recetario records it (openspec/specs/libro-recetario-y-contralor/spec.md,
  * "Fórmula de la prescripción"): as it came in the receta -- EVERY componente (controlled or not, excipientes
  * included) with its prescribed quantity, then the excipiente actually used (typed in the toma workspace, migration
  * 0083) as "c.s.p.", then the quantity and forma ("60 Cápsulas (1 cápsula = ½ dosis)", "Crema c.s.p. 100 g").

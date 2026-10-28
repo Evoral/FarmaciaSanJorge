@@ -1,7 +1,6 @@
 /**
- * Prisma-backed access for `modules/operadores` (docs/specs/cuentas-de-sector.md):
- * `fsj.accion_con_pin` (migration 0077) and the empleados a cuenta de sector
- * can pick. Every function runs inside an already-open tenant transaction.
+ * Prisma-backed access for `modules/operadores` (openspec/specs/cuentas-de-sector/spec.md):
+ * `fsj.accion_con_pin` (migration 0077). Every function runs inside an already-open tenant transaction.
  *
  * `fsj.accion_con_pin` is also read by the session loader
  * (modules/auth/infrastructure/session-repository.ts#loadPermisosConPin),
@@ -36,25 +35,4 @@ export async function replaceAccionesConPin(tx: Prisma.TransactionClient, tenant
   if (permisos.length > 0) {
     await tx.accionConPin.createMany({ data: permisos.map((permiso) => ({ tenantId, permisoId: permiso.id })) });
   }
-}
-
-export interface OperadorOpcion {
-  id: string;
-  nombre: string;
-  apellido: string;
-}
-
-/**
- * The empleados a cuenta de sector offers in its "¿quién sos?" selector:
- * ACTIVO people (never a cuenta de sector nor the technical usuario) who
- * have a PIN configured and no pending password change (a temporary
- * password, docs/specs/contrasena-temporal.md). A blocked PIN is still listed -- its owner must see
- * themselves and be told why it fails.
- */
-export async function listOperadores(tx: Prisma.TransactionClient, tenantId: string): Promise<OperadorOpcion[]> {
-  return tx.usuario.findMany({
-    where: { tenantId, estado: "ACTIVO", esSector: false, esTecnico: false, pinHash: { not: null }, debeCambiarPassword: false },
-    orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
-    select: { id: true, nombre: true, apellido: true },
-  });
 }

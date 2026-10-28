@@ -26,6 +26,7 @@ import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
 import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
 import { Toaster, ToastOnMount } from "@/shared/ui/toast";
+import { nombreDeUsuario } from "@/shared/format/usuario";
 
 const HISTORIAL_PAGE_SIZE = 20;
 
@@ -84,7 +85,7 @@ export default async function UsuarioDetallePage({ params, searchParams }: Usuar
         <div className="split-layout">
           <section aria-labelledby="datos-heading" className="panel min-w-0">
             <div className="panel-header">
-              <h2 id="datos-heading">Datos personales</h2>
+              <h2 id="datos-heading">{usuario.esSector ? "Datos del sector" : "Datos personales"}</h2>
             </div>
             <div className="panel-body">
               <EditarDatosForm usuario={usuario} disabled={!can(session, "usuarios.editar")} />
@@ -115,10 +116,14 @@ export default async function UsuarioDetallePage({ params, searchParams }: Usuar
               <section className="panel" aria-labelledby="credencial-heading">
                 <div className="panel-header">
                   <h2 id="credencial-heading">Credencial</h2>
-                  <p>Asigná una contraseña temporal nueva. Cierra las sesiones abiertas y la persona tendrá que cambiarla al ingresar; su PIN se conserva.</p>
+                  <p>
+                    {usuario.esSector
+                      ? "Cambiá la contraseña de la cuenta de sector (la cuenta no puede cambiarla por sí misma). Cierra las sesiones abiertas."
+                      : "Asigná una contraseña temporal nueva. Cierra las sesiones abiertas y la persona tendrá que cambiarla al ingresar; su PIN se conserva."}
+                  </p>
                 </div>
                 <div className="panel-body">
-                  <RestablecerCredencial usuarioId={usuario.id} />
+                  <RestablecerCredencial usuarioId={usuario.id} esSector={usuario.esSector} />
                 </div>
               </section>
             ) : null}
@@ -197,7 +202,7 @@ async function HistorialAuditoria({ usuarioId, page }: { usuarioId: string; page
                   <td className="hidden whitespace-nowrap px-3 py-3 font-mono text-xs tabular-nums text-zinc-600 md:table-cell">{formatearFechaHora(row.ocurridoEn, result.zonaHoraria)}</td>
                   <td className="px-3 py-3 md:min-w-[14rem]">
                     <p className="mb-1 whitespace-nowrap font-mono text-xs tabular-nums text-zinc-600 md:hidden">{formatearFechaHora(row.ocurridoEn, result.zonaHoraria)}</p>
-                    <p className="break-words font-medium text-zinc-900">{describirRegistro(`${row.usuario.nombre} ${row.usuario.apellido}`, row.accion, "usuario")}</p>
+                    <p className="break-words font-medium text-zinc-900">{describirRegistro(nombreDeUsuario(row.usuario), row.accion, "usuario")}</p>
                     <p className="mt-1">
                       <ToneBadge tone={tonoAccion(row.accion)}>{ACCION_LABELS[row.accion] ?? row.accion}</ToneBadge>
                     </p>

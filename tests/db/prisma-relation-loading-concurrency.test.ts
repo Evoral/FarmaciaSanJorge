@@ -206,7 +206,7 @@ describe.skipIf(dbTestSkipReason() !== null)("Prisma relation loading inside an 
     expect(result).toHaveLength(2);
     for (const partida of result) {
       expect(partida.droga.nombre).toMatch(/^Droga-/);
-      expect(partida.proveedor.razonSocial).toBe("Prov");
+      expect(partida.proveedor?.razonSocial).toBe("Prov");
       expect(partida.movimientos).toEqual([{ tipo: "INGRESO_COMPRA", registradoPor: { nombre: "Sistema" } }]);
     }
     expect(peak).toBe(1);

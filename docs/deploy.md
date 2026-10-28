@@ -10,7 +10,7 @@ Fuente de verdad: `shared/env.ts` (validación con zod, la ÚNICA lectura direct
 |---|---|---|---|
 | `NODE_ENV` | No (Vercel la fija) | toda la app | Vercel la setea a `production` en runtime automáticamente; no hace falta declararla a mano. |
 | `DATABASE_URL` | Sí | runtime (`shared/db/client.ts`), `prisma migrate deploy` vía `DIRECT_URL` (ver §4) | Connection string del **pooler de Supabase** (Supavisor, modo TRANSACTION, puerto 6543), rol restringido `fsj_app`. Ver §3 para los parámetros obligatorios. |
-| `DIRECT_URL` | Sí | SOLO migraciones/bootstrap (`scripts/db-migrate.ts`, `scripts/db-bootstrap.ts`, `scripts/create-tenant.ts`) -- nunca en runtime de la app | Connection directa (puerto 5432), rol owner `postgres`. En Vercel solo hace falta si se dispara una migración desde CI/Vercel (no recomendado, ver §4) -- para migración manual/CI externo alcanza con tenerla en ese entorno, no en el proyecto Vercel. |
+| `DIRECT_URL` | No en Vercel (la app no la lee: `shared/env.ts` no la exige) | SOLO migraciones/bootstrap (`scripts/db-migrate.ts`, `scripts/db-bootstrap.ts`, `scripts/create-tenant.ts`) -- nunca en runtime de la app | Connection directa (puerto 5432), rol owner `postgres`. En Vercel solo hace falta si se dispara una migración desde CI/Vercel (no recomendado, ver §4) -- para migración manual/CI externo alcanza con tenerla en ese entorno, no en el proyecto Vercel. |
 | `LOG_LEVEL` | No (default `info`) | `shared/logging/logger.ts` | `info` es razonable para producción; `debug`/`trace` solo para diagnóstico puntual (nunca dejar en `trace` de forma permanente -- volumen de logs). |
 | `CRON_SECRET` | Recomendada (opcional a nivel de código, pero sin ella el job nunca corre -- responde 503) | `app/api/jobs/plazos-archivo/route.ts` | Ver §5. Vercel puede generarla y setearla automáticamente al agregar el proyecto a Cron Jobs, o se genera a mano (≥16 caracteres aleatorios) y se pega en ambos lugares (env var + nada más -- Vercel la envía sola en el header `Authorization`). |
 | `FSJ_APP_DB_PASSWORD` | Solo para `db:bootstrap` | `scripts/db-bootstrap.ts` (setea el password de `fsj_app`) | NO debe vivir en el proyecto Vercel (no la usa el runtime). Usarla una vez desde una máquina/CI con acceso a `DIRECT_URL`, luego se puede quitar del entorno donde se corrió. |
@@ -79,7 +79,7 @@ Orden en una base completamente nueva: `db:migrate` → `db:bootstrap` → (depl
 
 ## 5. Bootstrap del primer tenant
 
-`scripts/create-tenant.ts` (rol owner vía `DIRECT_URL`, corre BYPASSRLS a propósito -- ver el comentario del script) crea el tenant, su usuario técnico SISTEMA y el primer ADMINISTRADOR, ya `ACTIVO`, con una **contraseña temporal** (solo se guarda su hash; el script nunca la imprime ni la loguea). La contraseña se pasa con `--admin-password-temporal=...` o, si se omite, el script la pide por consola sin mostrarla (preferible: el argumento queda en el historial del shell). Por ser temporal solo exige **al menos 6 caracteres** (sin mayúscula); la que el ADM elija al cambiarla en su primer login sí lleva la política completa (12 caracteres y una mayúscula):
+`scripts/create-tenant.ts` (rol owner vía `DIRECT_URL`, corre BYPASSRLS a propósito -- ver el comentario del script) crea el tenant, su usuario técnico SISTEMA y el primer ADMINISTRADOR, ya `ACTIVO`, con una **contraseña temporal** (solo se guarda su hash; el script nunca la imprime ni la loguea). La contraseña se pasa con `--admin-password-temporal=...` o, si se omite, el script la pide por consola sin mostrarla (preferible: el argumento queda en el historial del shell). Por ser temporal solo exige **al menos 6 caracteres** (sin mayúscula); la que el ADM elija al cambiarla en su primer login sí lleva la política completa (8 caracteres y una mayúscula):
 
 ```
 npm run db:create-tenant -- \
@@ -113,7 +113,7 @@ Tests: `tests/unit/archivo-plazos-job.test.ts` cubre ambos transportes (secreto 
 
 ### Job diario: retiros vencidos
 
-`app/api/jobs/retiros-vencidos/route.ts` pasa a `RETIRO_VENCIDO` las recetas `PREPARADA` cuyo plazo de retiro se cumplió (`docs/specs/retiro-vencido.md`, RV1-RV3). `vercel.json` lo agenda a las `10 6 * * *` (06:10 UTC = 03:10 Argentina), diez minutos después del job de plazos de archivo.
+`app/api/jobs/retiros-vencidos/route.ts` pasa a `RETIRO_VENCIDO` las recetas `PREPARADA` cuyo plazo de retiro se cumplió (`openspec/specs/retiro-vencido/spec.md`, RV1-RV3). `vercel.json` lo agenda a las `10 6 * * *` (06:10 UTC = 03:10 Argentina), diez minutos después del job de plazos de archivo.
 
 - **Autenticación:** idéntica a la del job de plazos (mismo `CRON_SECRET`, mismos dos transportes `GET` + `Authorization: Bearer` y `POST` + `x-cron-secret`, misma comparación constant-time, 503 sin secreto, 404 con credencial ausente o incorrecta). No hay nada nuevo que configurar en Vercel.
 - **Qué hace:** recorre los tenants activos; por tenant, en una transacción propia, lee `dias_retiro_vencido` (0 = desactivado, el tenant se saltea), calcula el instante de corte a partir de la jornada del tenant y mueve las recetas con `preparada_en` anterior al corte, auditando cada una como el usuario SISTEMA del tenant. El error de un tenant no frena a los demás. Responde solo contadores (`tenantsProcesados`, `recetasVencidas`, `tenantsConError`).

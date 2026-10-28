@@ -19,6 +19,7 @@
 import { useEffect, useId, useState } from "react";
 import { Check, X } from "lucide-react";
 import { PASSWORD_REQUIREMENTS, type PasswordRequirement } from "@/shared/auth/policy";
+import { PasswordInput } from "@/shared/ui/password-input";
 
 export interface NewPasswordFieldsProps {
   /** Form field name of the new password (e.g. "password", "nueva"). */
@@ -63,10 +64,9 @@ export function NewPasswordFields({
         <label htmlFor={name} className="field-label">
           {label}
         </label>
-        <input
+        <PasswordInput
           id={name}
           name={name}
-          type="password"
           required
           autoComplete="new-password"
           aria-describedby={started ? checklistId : undefined}
@@ -80,10 +80,9 @@ export function NewPasswordFields({
         <label htmlFor={repeatName} className="field-label">
           {repeatLabel}
         </label>
-        <input
+        <PasswordInput
           id={repeatName}
           name={repeatName}
-          type="password"
           required
           autoComplete="new-password"
           aria-describedby={started ? checklistId : undefined}

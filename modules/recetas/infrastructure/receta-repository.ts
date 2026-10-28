@@ -241,6 +241,7 @@ export interface NuevaRecetaInput {
   diagnosticoDescripcion: string | null;
   /** Migration 0070 -- the patient's home address as written on this receta. */
   domicilioPaciente: string | null;
+  domicilioEntrega: string | null;
   /** Migration 0071 -- the receta is created already paid (`registradaPorId` is who marked it, now). Default unpaid. */
   pagada?: boolean;
   /** PDF import only (migration 0049): the emisor's provenance and the "Válida desde" date. */
@@ -248,6 +249,8 @@ export interface NuevaRecetaInput {
   nroRecetaEmisor?: string | null;
   urlVerificacion?: string | null;
   fechaValidaDesde?: string | null; // YYYY-MM-DD
+  /** Migration 0102: the manual alta form's idempotency key (openspec/specs/alta-receta-idempotente/spec.md). */
+  envioId?: string | null;
   items: NuevoItemInput[];
 }
 
@@ -273,6 +276,12 @@ async function insertComponentes(
   }
 }
 
+/** The receta a previous submit of the same alta form already created (migration 0102), if any. */
+export async function buscarRecetaPorEnvio(tx: Prisma.TransactionClient, tenantId: string, envioId: string): Promise<{ id: string; numeroInterno: string } | null> {
+  const row = await tx.receta.findFirst({ where: { tenantId, envioId }, select: { id: true, numeroInterno: true } });
+  return row ? { id: row.id, numeroInterno: row.numeroInterno.toString() } : null;
+}
+
 export async function insertRecetaConItems(tx: Prisma.TransactionClient, input: NuevaRecetaInput): Promise<{ id: string; numeroInterno: string }> {
   const receta = await tx.receta.create({
     data: {
@@ -287,11 +296,13 @@ export async function insertRecetaConItems(tx: Prisma.TransactionClient, input: 
       diagnosticoCodigo: input.diagnosticoCodigo,
       diagnosticoDescripcion: input.diagnosticoDescripcion,
       domicilioPaciente: input.domicilioPaciente,
+      domicilioEntrega: input.domicilioEntrega,
       ...(input.pagada ? { pagada: true, pagadaEn: new Date(), pagadaPorId: input.registradaPorId } : {}),
       emisor: input.emisor ?? null,
       nroRecetaEmisor: input.nroRecetaEmisor ?? null,
       urlVerificacion: input.urlVerificacion ?? null,
       fechaValidaDesde: input.fechaValidaDesde ? new Date(`${input.fechaValidaDesde}T00:00:00Z`) : null,
+      envioId: input.envioId ?? null,
     },
     select: { id: true, numeroInterno: true },
   });
@@ -335,6 +346,7 @@ export interface RecetaParaAccion {
   diagnosticoCodigo: string | null;
   diagnosticoDescripcion: string | null;
   domicilioPaciente: string | null;
+  domicilioEntrega: string | null;
 }
 
 const SELECT_PARA_ACCION = {
@@ -349,6 +361,7 @@ const SELECT_PARA_ACCION = {
   diagnosticoCodigo: true,
   diagnosticoDescripcion: true,
   domicilioPaciente: true,
+  domicilioEntrega: true,
 } as const;
 
 export async function getRecetaParaAccion(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<RecetaParaAccion | null> {
@@ -482,11 +495,12 @@ export interface RecetaDetalle {
   diagnosticoDescripcion: string | null;
   /** Migration 0070 -- the patient's home address as written on this receta. */
   domicilioPaciente: string | null;
+  domicilioEntrega: string | null;
   /** Migration 0071 -- payment flag; `pagadaEn` / `pagadaPorNombre` ("Apellido, Nombre") are null while unpaid. */
   pagada: boolean;
   pagadaEn: Date | null;
   pagadaPorNombre: string | null;
-  /** In a lote de archivo: its entrega can no longer be reverted (docs/specs/anular-entrega.md). */
+  /** In a lote de archivo: its entrega can no longer be reverted (openspec/specs/anular-entrega/spec.md). */
   archivada: boolean;
   /** The tenant's zona horaria, to show `pagadaEn` (a timestamptz) as the farmacia's local time. */
   zonaHoraria: string;
@@ -540,6 +554,7 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
     diagnosticoCodigo: receta.diagnosticoCodigo,
     diagnosticoDescripcion: receta.diagnosticoDescripcion,
     domicilioPaciente: receta.domicilioPaciente,
+    domicilioEntrega: receta.domicilioEntrega,
     pagada: receta.pagada,
     pagadaEn: receta.pagadaEn,
     pagadaPorNombre: receta.pagadaPor ? `${receta.pagadaPor.apellido}, ${receta.pagadaPor.nombre}` : null,
@@ -594,6 +609,7 @@ export interface EditarRecetaHeaderInput {
   diagnosticoCodigo: string | null;
   diagnosticoDescripcion: string | null;
   domicilioPaciente: string | null;
+  domicilioEntrega: string | null;
 }
 
 export interface EditarRecetaHeaderVersion {
@@ -605,6 +621,7 @@ export interface EditarRecetaHeaderVersion {
   diagnosticoCodigo: string | null;
   diagnosticoDescripcion: string | null;
   domicilioPaciente: string | null;
+  domicilioEntrega: string | null;
 }
 
 export async function updateRecetaHeader(
@@ -625,6 +642,7 @@ export async function updateRecetaHeader(
       diagnosticoCodigo: version.diagnosticoCodigo,
       diagnosticoDescripcion: version.diagnosticoDescripcion,
       domicilioPaciente: version.domicilioPaciente,
+      domicilioEntrega: version.domicilioEntrega,
     },
     data: {
       pacienteId: input.pacienteId,
@@ -635,6 +653,7 @@ export async function updateRecetaHeader(
       diagnosticoCodigo: input.diagnosticoCodigo,
       diagnosticoDescripcion: input.diagnosticoDescripcion,
       domicilioPaciente: input.domicilioPaciente,
+      domicilioEntrega: input.domicilioEntrega,
     },
   });
   return result.count === 1;
@@ -766,7 +785,7 @@ export async function anularReceta(tx: Prisma.TransactionClient, tenantId: strin
 }
 
 // ============================================================================
-// Pago (migration 0071, docs/specs/pago-receta.md).
+// Pago (migration 0071, openspec/specs/pago-receta/spec.md).
 // ============================================================================
 
 export interface PagoDeReceta {

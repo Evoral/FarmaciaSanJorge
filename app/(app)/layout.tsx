@@ -14,6 +14,7 @@ import { requireSession, clearSessionCookie } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { AuthenticationError, PasosPendientesError } from "@/shared/errors";
 import { rutaDelPaso } from "@/shared/auth/pasos";
+import { AUTH_POLICY } from "@/shared/auth/policy";
 import { logout } from "@/modules/auth/application/logout";
 import { resumenJornadasPendientes } from "@/modules/cierres/application/list-jornadas-pendientes";
 import { resumenDestruccion } from "@/modules/archivo/application/resumen-destruccion";
@@ -21,6 +22,7 @@ import { resumenVencimientosDrogas } from "@/modules/stock/application/vencimien
 import { resumenBajoMinimo } from "@/modules/stock/application/alertas-stock";
 import { resumenIntegridad, type LibroQuebrado } from "@/modules/libro/application/resumen-integridad";
 import { etiquetaLibro } from "@/modules/libro/domain/integridad";
+import { getMarcaTenant, type MarcaTenantVista } from "@/modules/farmacia/application/get-marca-tenant";
 import { getLogger } from "@/shared/logging/logger";
 import { OperadorProvider } from "@/modules/operadores/ui/operador-provider";
 import { AppShell } from "./app-shell";
@@ -35,7 +37,7 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
     if (error instanceof AuthenticationError) {
       redirect("/login");
     }
-    // A temporary password or a missing PIN must be resolved first (docs/specs/contrasena-temporal.md).
+    // A temporary password or a missing PIN must be resolved first (openspec/specs/contrasena-temporal/spec.md).
     if (error instanceof PasosPendientesError) {
       redirect(rutaDelPaso(error.paso));
     }
@@ -96,7 +98,7 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
     }
   }
 
-  // Vencimientos of DROGA partidas (docs/specs/reanalisis-partida.md): same
+  // Vencimientos of DROGA partidas (openspec/specs/reanalisis-partida/spec.md): same
   // fail-soft, cheap-aggregate discipline, gated on the permiso the query
   // enforces (`stock.ver`) -- everyone who sees stock alerts, so they warn
   // the DT. It links to the "Gestión DT" tab when the session can
@@ -158,6 +160,15 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
     } catch (error) {
       getLogger().error({ error }, "Failed to load libro integridad banner summary");
     }
+  }
+
+  // The tenant's name and logo for the navbar (openspec/specs/logo-farmacia/spec.md). Fail-soft: without it the navbar shows
+  // the generic logo and no farmacia name.
+  let marca: MarcaTenantVista | null = null;
+  try {
+    marca = await getMarcaTenant();
+  } catch (error) {
+    getLogger().error({ error }, "Failed to load the tenant brand for the navbar");
   }
 
   const sidebarCollapsed = (await cookies()).get(SIDEBAR_COLLAPSED_COOKIE)?.value === "1";
@@ -254,8 +265,11 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
   const shell = (
     <AppShell
       initialCollapsed={sidebarCollapsed}
+      idleMinutes={session.sector ? AUTH_POLICY.sessionIdleMinutesSector : AUTH_POLICY.sessionIdleMinutes}
       nav={{
         usuario: `${session.usuario.nombre} ${session.usuario.apellido}`,
+        farmacia: marca?.nombre ?? null,
+        logoSrc: marca?.logoSrc ?? null,
         logoutAction,
         cierresPendientes: resumenCierres?.cantidad ?? 0,
         puedeAuditoria: can(session, "auditoria.ver"),
@@ -282,7 +296,7 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
     </AppShell>
   );
 
-  // A cuenta de sector (docs/specs/cuentas-de-sector.md): the forms ask which empleado is acting for the acciones con PIN.
+  // A cuenta de sector (openspec/specs/cuentas-de-sector/spec.md): the forms ask which empleado is acting for the acciones con PIN.
   // Only the acciones this account can perform: one it lacks is rejected by authorize() before any PIN matters.
   const permisosConPin = session.sector ? [...session.sector.permisosConPin].filter((permiso) => can(session, permiso)) : null;
   return permisosConPin ? <OperadorProvider permisosConPin={permisosConPin}>{shell}</OperadorProvider> : shell;

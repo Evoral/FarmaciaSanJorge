@@ -30,6 +30,7 @@ import { DrogaBuscador } from "@/modules/stock/ui/droga-buscador";
 import { conRetornoAjuste, retornoAjuste, type RetornoAjuste } from "@/modules/stock/domain/ajustes-listado";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
+import { nombreDeUsuario } from "@/shared/format/usuario";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SELECCION_PAGE_SIZE = 20;
@@ -123,7 +124,7 @@ export default async function NuevoAjustePage({ searchParams }: NuevoAjustePageP
         saldoSecundario={saldo.secundaria?.texto ?? null}
         unidades={unidades}
         unidadPorDefectoId={saldo.primaria.unidadId}
-        dts={dts.map((dt) => ({ id: dt.usuarioId, label: `${dt.nombre} ${dt.apellido}` }))}
+        dts={dts.map((dt) => ({ id: dt.usuarioId, label: nombreDeUsuario(dt) }))}
         reserva={reserva}
         operadorEsDt={operadorEsDt}
         volverA={volverA}

@@ -4,13 +4,13 @@
  * Layout: the kardex (what happened) in the main column; the balance as the lead number, the partida's data and
  * the cost correction in the aside.
  *
- * Expiry (docs/specs/reanalisis-partida.md): the vencimiento VIGENTE with its estado, the original date when a
+ * Expiry (openspec/specs/reanalisis-partida/spec.md): the vencimiento VIGENTE with its estado, the original date when a
  * reanálisis moved it, and the reanálisis history under the kardex. A vencida DROGA partida with saldo is blocked
  * until the DT acts: everyone sees "requiere acción del DT"; only a DT vigente gets "Registrar reanálisis" /
  * "Marcar como vencida" (a por vencer or vigente droga partida: reanálisis only).
  *
  * "Historial" (lot tracing: which recetas consumed this partida) opens the droga's historial already filtered by
- * this partida (docs/specs/historial-droga.md) -- shown only when that page would open, never a redirect.
+ * this partida (openspec/specs/historial-droga/spec.md) -- shown only when that page would open, never a redirect.
  */
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -109,7 +109,10 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
         title={partida.drogaNombre}
         description={
           <>
-            Lote <span className="font-mono text-zinc-900">{partida.lote}</span> de {partida.proveedorRazonSocial}
+            Lote <span className="font-mono text-zinc-900">{partida.lote}</span>
+            {partida.origen === "EXISTENCIA_INICIAL"
+              ? `${partida.proveedorId ? ` de ${partida.proveedorRazonSocial}` : ""} · existencia inicial`
+              : ` de ${partida.proveedorRazonSocial}`}
           </>
         }
         actions={

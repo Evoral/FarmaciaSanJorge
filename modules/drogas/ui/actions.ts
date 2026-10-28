@@ -1,6 +1,6 @@
 "use server";
 
-/** Server Actions for `/catalogos/drogas` (FASE 4 point 4.2), synonyms included (docs/specs/sinonimos-droga.md). */
+/** Server Actions for `/catalogos/drogas` (FASE 4 point 4.2), synonyms included (openspec/specs/sinonimos-droga/spec.md). */
 import { revalidatePath } from "next/cache";
 import { crearDroga } from "@/modules/drogas/application/crear-droga";
 import { editarDroga } from "@/modules/drogas/application/editar-droga";
@@ -49,6 +49,7 @@ export async function crearDrogaAction(_prevState: DrogaActionState, formData: F
         tipoControl: optionalField(formData, "tipoControl"),
         clase: optionalField(formData, "clase"),
         stockMinimo: String(formData.get("stockMinimo") ?? "0"),
+        saldoAperturaContralor: optionalField(formData, "saldoAperturaContralor"),
         sinonimos: sinonimosDelForm(formData),
       });
       revalidatePath("/catalogos/drogas");
@@ -70,6 +71,7 @@ export async function editarDrogaAction(_prevState: DrogaActionState, formData: 
         tipoControl: optionalField(formData, "tipoControl"),
         clase: optionalField(formData, "clase"),
         stockMinimo: String(formData.get("stockMinimo") ?? "0"),
+        saldoAperturaContralor: optionalField(formData, "saldoAperturaContralor"),
         // The "Otros nombres" rows travel only when the form rendered them enabled (marker field).
         ...(formData.has("sinonimosEnviados")
           ? { sinonimos: sinonimosDelForm(formData), sinonimosCargados: formData.getAll("sinonimosCargados").map(String) }

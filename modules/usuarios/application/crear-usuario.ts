@@ -1,7 +1,7 @@
 /**
  * `crearUsuario` (M03, FASE 3 point 3.2, INV-U01/INV-U07). No
  * self-registration -- only an ADMINISTRADOR with `usuarios.crear` reaches
- * this. The caller types a TEMPORARY password (docs/specs/contrasena-temporal.md):
+ * this. The caller types a TEMPORARY password (openspec/specs/contrasena-temporal/spec.md):
  * the usuario is created `ACTIVO` with that password's argon2id hash and
  * `debeCambiarPassword`, so at first login they must replace it and set a PIN
  * (no activation credential is generated any more). INV-U07 ("starts
@@ -28,14 +28,15 @@
  * resolved and escalation-checked by `resolverRolesAAsignar` before the
  * usuario is inserted (see cambiar-roles.ts).
  *
- * `esSector` (migration 0077, docs/specs/cuentas-de-sector.md) creates a
+ * `esSector` (migration 0077, openspec/specs/cuentas-de-sector/spec.md) creates a
  * cuenta de sector: one shared session per work area. It is decided HERE and
  * never changes (INV-SEC-002), and such an account never holds
  * ADMINISTRADOR nor DIRECTOR_TECNICO (checked below; INV-SEC-001 is the DB
  * backstop, also for later role changes). A cuenta de sector is a work area,
  * not a person: the form asks only its name and its email (the login
  * identifier); apellido and DNI are derived (`../domain/cuenta-de-sector.ts`)
- * and it has no matrícula.
+ * and it has no matrícula. It never changes its own password, so the one
+ * typed here is definitive: full password policy and no pending change.
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
@@ -69,11 +70,11 @@ const crearUsuarioInput = z
       .transform((roles) => [...new Set(roles)]),
     /** A cuenta de sector (shared session per work area) instead of a person's own account. */
     esSector: z.boolean().default(false),
-    /** The temporary password the Administrador hands over in person (replaced by the usuario at first login). */
+    /** The temporary password the Administrador hands over in person (replaced by the usuario at first login; definitive for a cuenta de sector). */
     ...passwordTemporalFields,
   })
   .superRefine((value, ctx) => {
-    refinarPasswordTemporal(value, ctx);
+    refinarPasswordTemporal(value, ctx, value.esSector);
     // A cuenta de sector is not a person: apellido and DNI are derived, not asked.
     if (!value.esSector) {
       for (const campo of ["apellido", "dni"] as const) {

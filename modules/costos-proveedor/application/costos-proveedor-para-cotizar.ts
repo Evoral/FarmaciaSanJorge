@@ -1,5 +1,5 @@
 /**
- * The costo de proveedor each droga is quoted with (docs/specs/costos-proveedor.md, R25/R26/R34), for the
+ * The costo de proveedor each droga is quoted with (openspec/specs/costos-proveedor/spec.md, R25/R26/R34), for the
  * cotización and the presupuesto of `modules/precios`.
  *
  * NOT a use case: it runs inside the transaction of the caller (`cotizarLineas` / `cotizarItemsAcumulado`, which are
@@ -22,14 +22,18 @@ export interface CostoProveedorParaCotizar {
   unidadPrecioSimbolo: string;
   /** Per the droga's unidad base, the same convention as `partida.costo_unitario`. */
   costoUnitario: string;
+  /** R7a: percent, and both prices with it; `costoUnitarioConIva` is what the línea is priced with (R25). */
+  alicuotaIva: string;
+  precioInformadoConIva: string;
+  costoUnitarioConIva: string;
   /** `YYYY-MM-DD`. */
   fechaPrecio: string;
 }
 
 /**
  * drogaId -> its usable costo de proveedor (R26: vigente, proveedor not de baja; the latest `fecha_precio` wins, a
- * tie goes to the latest `vigente_desde`). A droga with none is ABSENT from the map: the cotización then costs it
- * from partidas (R27). ONE query whatever the number of drogas.
+ * tie goes to the latest `vigente_desde`). A droga with none is ABSENT from the map: the cotización then has no
+ * price (R27). ONE query whatever the number of drogas.
  */
 export async function costosProveedorParaCotizar(
   tx: Prisma.TransactionClient,
@@ -55,6 +59,9 @@ export async function costosProveedorParaCotizar(
       precioInformado: elegido.precioInformado,
       unidadPrecioSimbolo: elegido.unidadPrecioSimbolo,
       costoUnitario: elegido.costoUnitario,
+      alicuotaIva: elegido.alicuotaIva,
+      precioInformadoConIva: elegido.precioInformadoConIva,
+      costoUnitarioConIva: elegido.costoUnitarioConIva,
       fechaPrecio: elegido.fechaPrecio,
     });
   }

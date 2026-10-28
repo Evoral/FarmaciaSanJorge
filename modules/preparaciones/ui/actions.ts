@@ -89,13 +89,13 @@ export async function descartarPreparacionAction(_prevState: PreparacionActionSt
 
 /**
  * Parses the reserva / confirmation form's per-línea entradas back into `LineaEntradaInput[]` (2026-10-15: the
- * partidas are the system's, docs/specs/reserva-stock-preparacion.md R1 -- except a línea whose partidas differ in
+ * partidas are the system's, openspec/specs/reserva-stock-preparacion/spec.md R1 -- except a línea whose partidas differ in
  * purity, R25). Field names (built by `modules/preparaciones/ui/confirmar-form.tsx`):
  *   - `lineaIds` (repeated, one per línea with something to type)
  *   - `cantidadManual_<lineaId>` (manual-enrase lines only)
  *   - `motivoApertura_<lineaId>` (optional, INV-S18)
- *   - `partidas_<lineaId>` (repeated checkbox: the lots the línea is weighed from, docs/specs/pesada-real.md)
- *   - `cantidadReal_<lineaId>` (non-manual lines: the real weighing, docs/specs/pesada-real.md)
+ *   - `partidas_<lineaId>` (repeated checkbox: the lots the línea is weighed from, openspec/specs/pesada-real/spec.md)
+ *   - `cantidadReal_<lineaId>` (non-manual lines: the real weighing, openspec/specs/pesada-real/spec.md)
  * A one-click form sends none of them. `dtUsuarioId` / `dtPassword` (the DT co-firma of a pesada real outside the
  * tolerance) are read by `coFirmaPesada`.
  */

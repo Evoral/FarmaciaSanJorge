@@ -1,5 +1,5 @@
 /**
- * `/costos-proveedor/importar` -- "Importar lista" (docs/specs/costos-proveedor.md, "Interface" 2, R13-R23): pick
+ * `/costos-proveedor/importar` -- "Importar lista" (openspec/specs/costos-proveedor/spec.md, "Interface" 2, R13-R23): pick
  * the proveedor, the date of the list and the .xls or .xlsx; review the preview; confirm. Nothing is saved before the
  * confirmation, and the file is read in memory and never stored.
  *
@@ -16,6 +16,7 @@ import { CostosTabs } from "@/modules/costos-proveedor/ui/costos-tabs";
 import { ImportarLista } from "@/modules/costos-proveedor/ui/importar-lista";
 import { listDrogasOpciones } from "@/modules/drogas/application/list-drogas-opciones";
 import { listUnidadesVigentesParaDroga } from "@/modules/drogas/application/list-unidades-vigentes";
+import { contralorActivoParaAltaDroga } from "@/modules/drogas/application/contralor-activo";
 import { listProveedoresOpciones } from "@/modules/proveedores/application/list-proveedores-opciones";
 import { getCatalogoUnidades } from "@/modules/unidades/application/catalogo-unidades";
 import { can } from "@/shared/auth/authorize";
@@ -65,12 +66,13 @@ export default async function ImportarListaPage() {
 
   // "Nuevo insumo" on a "sin asociar" row: the same alta as /catalogos/drogas, only with `drogas.crear`.
   const puedeCrearDroga = can(session, "drogas.crear");
-  const [drogas, proveedores, { unidades }, contexto, unidadesAltaDroga] = await Promise.all([
+  const [drogas, proveedores, { unidades }, contexto, unidadesAltaDroga, contralorActivo] = await Promise.all([
     listDrogasOpciones(),
     listProveedoresOpciones(),
     getCatalogoUnidades(),
     listarCostosVigentes({ page: 1, pageSize: 1 }),
     puedeCrearDroga ? listUnidadesVigentesParaDroga() : Promise.resolve(null),
+    puedeCrearDroga ? contralorActivoParaAltaDroga() : Promise.resolve(false),
   ]);
 
   return (
@@ -83,6 +85,7 @@ export default async function ImportarListaPage() {
         unidades={unidades.map((u) => ({ id: u.id, codigo: u.codigo, simbolo: u.simbolo, tipoMagnitud: u.tipoMagnitud, factorABase: u.factorABase, vigente: u.vigente }))}
         jornadaActual={contexto.jornadaActual}
         unidadesAltaDroga={unidadesAltaDroga}
+        contralorActivo={contralorActivo}
       />
     </>
   );

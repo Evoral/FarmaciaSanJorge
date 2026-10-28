@@ -30,6 +30,17 @@ describe("logger redaction", () => {
     expect(line.password).toBe("[REDACTED]");
   });
 
+  it("redacts PINs and a receta's health and address fields at any nesting level (audit P5-01)", () => {
+    const line = captureLogLine((log) =>
+      log.info({ operadorPin: "1234", input: { pin: "5678", receta: { diagnosticoDescripcion: "x", domicilioEntrega: "y" } } }, "failed"),
+    );
+    expect(line.operadorPin).toBe("[REDACTED]");
+    const input = line.input as { pin: unknown; receta: Record<string, unknown> };
+    expect(input.pin).toBe("[REDACTED]");
+    expect(input.receta.diagnosticoDescripcion).toBe("[REDACTED]");
+    expect(input.receta.domicilioEntrega).toBe("[REDACTED]");
+  });
+
   it("redacts a nested token field", () => {
     const line = captureLogLine((log) => log.info({ session: { token: "abc123" } }, "session created"));
     expect((line.session as Record<string, unknown>).token).toBe("[REDACTED]");

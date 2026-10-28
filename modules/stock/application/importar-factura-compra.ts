@@ -156,7 +156,7 @@ export const importarFacturaCompraCommand = defineCommand({
       partidas,
     });
 
-    // "Recordar esta equivalencia" = add the text as a synonym of the chosen droga (docs/specs/sinonimos-droga.md):
+    // "Recordar esta equivalencia" = add the text as a synonym of the chosen droga (openspec/specs/sinonimos-droga/spec.md):
     // idempotent for the same droga, a conflict when a vigente synonym points to another one. A text that already IS
     // a vigente droga's name is never remembered (a synonym cannot repeat a droga's name): it resolves by name.
     const aliasVistos = new Set<string>();

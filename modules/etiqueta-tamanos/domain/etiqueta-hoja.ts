@@ -1,6 +1,6 @@
 /**
  * Pure domain rules for the sheet the etiquetas are printed on
- * (`fsj.etiqueta_hoja`, migration 0096, docs/specs/hoja-etiquetas.md). The etiqueta
+ * (`fsj.etiqueta_hoja`, migration 0096, openspec/specs/hoja-etiquetas/spec.md). The etiqueta
  * PDF page IS the sheet; a label size (`etiqueta-tamano.ts`) is the etiqueta inside it.
  * The grid of cells is computed from the sheet, its margin and the label size, never
  * stored.

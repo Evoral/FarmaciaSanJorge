@@ -7,7 +7,7 @@ describe("shared/auth/policy", () => {
     expect(AUTH_POLICY.sessionAbsoluteHours).toBeGreaterThan(0);
     expect(AUTH_POLICY.maxFailedLoginAttempts).toBeGreaterThan(0);
     expect(AUTH_POLICY.lockoutMinutes).toBeGreaterThan(0);
-    expect(AUTH_POLICY.minPasswordLength).toBeGreaterThanOrEqual(12);
+    expect(AUTH_POLICY.minPasswordLength).toBeGreaterThanOrEqual(8);
     expect(AUTH_POLICY.reauthWindowMinutes).toBeGreaterThan(0);
   });
 

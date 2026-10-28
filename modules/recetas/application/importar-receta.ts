@@ -1,6 +1,6 @@
 /**
  * `importarReceta` -- confirmation of a receta PDF import
- * (docs/specs/importacion-receta-pdf.md, "Confirmación -- comando
+ * (openspec/specs/importacion-receta-pdf/spec.md, "Confirmación -- comando
  * `recetas.importar`"). Permiso `recetas.crear`. ONE transaction:
  *
  *   1. paciente and médico: alta if new, otherwise complete ONLY their
@@ -14,7 +14,7 @@
  *      (`drogaAliasId`, migration 0069; see below);
  *   4. one audit row per alta/modificación (INV-A01).
  *
- * Synonyms of the componentes (docs/specs/sinonimos-droga.md, "Nombre
+ * Synonyms of the componentes (openspec/specs/sinonimos-droga/spec.md, "Nombre
  * elegido al cargar"): a componente the preview matched through a synonym
  * arrives with that `drogaAliasId` (validated like the manual alta). For
  * "recordar esta equivalencia", the client also says which componentes
@@ -52,7 +52,7 @@ import { ConflictError, DomainError, ValidationError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { crearPacienteHandler, crearPacienteInput } from "@/modules/pacientes/application/crear-paciente";
 import { crearMedicoHandler, crearMedicoInput } from "@/modules/medicos/application/crear-medico";
-import { diagnosticoCodigoOpcional, domicilioPacienteOpcional, esFechaPrescripcionValida, esFechaPrescripcionVigente, resumirItemsReceta, validarItemsReceta, validarOrigenHabilitado } from "../domain/receta";
+import { diagnosticoCodigoOpcional, domicilioPacienteOpcional, esFechaPrescripcionValida, esFechaPrescripcionVigente, esFechaValidaDesdeDelMes, resumirItemsReceta, validarItemsReceta, validarOrigenHabilitado } from "../domain/receta";
 import type { ComponenteInput, ItemInput } from "../domain/receta";
 import { CODIGOS_EMISOR, esUrlVerificacionDeEmisor } from "../domain/receta-pdf-parser";
 import { limpiarSinonimo } from "@/modules/drogas/domain/sinonimo";
@@ -76,6 +76,7 @@ import {
   buscarRecetaImportada,
   completarMedico,
   completarPaciente,
+  actualizarDomicilioPaciente,
   getDrogaAlias,
   insertDrogaAlias,
 } from "../infrastructure/importacion-repository";
@@ -102,6 +103,13 @@ export const importarRecetaInput = z
     diagnosticoDescripcion: textoOpcional,
     /** The patient's domicilio as printed on the receta (migration 0070) -- stored on the receta, never on the paciente. */
     domicilioPaciente: domicilioPacienteOpcional,
+    /** Migration 0099: where the envío goes (NULL = the domicilio above). Prefilled from the cliente, never written to it. */
+    domicilioEntrega: domicilioPacienteOpcional,
+    /**
+     * `true` when `domicilioPaciente` is the one the document brought, unchanged (openspec/specs/domicilios/spec.md): only then it
+     * becomes the cliente's. One typed or corrected by hand stays on the receta. Omitted = `false`.
+     */
+    domicilioDelDocumento: z.boolean().default(false),
     /** Migration 0071: the receta is imported already paid. The server sets who and when, never the client. */
     pagada: z.boolean().default(false),
     /** `existenteId`: what the preview matched (`null` = alta). `datos`: the PDF's data, as confirmed by the user. */
@@ -175,15 +183,19 @@ async function auditar(
   await auditRecord(tx, { tenantId: session.tenantId, usuarioId: session.usuario.id, entidad, entidadId, accion, contexto: { origen: "importacion_receta_pdf", fuente }, ...valores });
 }
 
-/** Alta or completion of the paciente; returns its id and a readable name for the receta's audit row. */
-async function resolverPaciente(ctx: Contexto, input: ImportarRecetaInput["paciente"]): Promise<{ id: string; nombre: string }> {
+/**
+ * Alta or completion of the paciente; returns its id and a readable name for the receta's audit row. The receta's
+ * domicilio, when it brings one, becomes the cliente's (openspec/specs/domicilios/spec.md): set at the alta, overwritten on an
+ * existing cliente. Its domicilio de entrega is never touched (ficha only).
+ */
+async function resolverPaciente(ctx: Contexto, input: ImportarRecetaInput["paciente"], domicilio: string | null): Promise<{ id: string; nombre: string }> {
   const { tx, session } = ctx;
   const datos = input.datos;
   const existente = await buscarPacientePorIdentificacion(tx, session.tenantId, datos.cuil, datos.dni);
   if ((existente?.id ?? null) !== input.existenteId) throw new ConflictError(MENSAJE_CAMBIOS_DESDE_LECTURA);
 
   if (!existente) {
-    const alta = await crearPacienteHandler({ tx, session, input: datos });
+    const alta = await crearPacienteHandler({ tx, session, input: { ...datos, domicilio } });
     await auditar(ctx, "paciente", alta.output.id, TipoAccion.CREAR, { valorNuevo: alta.audit!.valorNuevo! });
     return { id: alta.output.id, nombre: `${datos.nombre} ${datos.apellido}` };
   }
@@ -203,6 +215,10 @@ async function resolverPaciente(ctx: Contexto, input: ImportarRecetaInput["pacie
       valorAnterior: Object.fromEntries(Object.keys(escritos).map((campo) => [campo, null])),
       valorNuevo: escritos,
     });
+  }
+  if (domicilio) {
+    const cambio = await actualizarDomicilioPaciente(tx, session.tenantId, existente.id, domicilio);
+    if (cambio) await auditar(ctx, "paciente", existente.id, TipoAccion.MODIFICAR, { valorAnterior: { domicilio: cambio.anterior }, valorNuevo: { domicilio } });
   }
   return { id: existente.id, nombre: `${existente.nombre} ${existente.apellido}` };
 }
@@ -250,8 +266,16 @@ export const importarRecetaCommand = defineCommand({
     if (!esFechaPrescripcionValida(input.fechaPrescripcion, jornadaActual)) {
       throw new ValidationError("La fecha de prescripción no puede ser futura.");
     }
-    if (!esFechaPrescripcionVigente(input.fechaValidaDesde ?? input.fechaPrescripcion, jornadaActual)) {
-      throw new ValidationError(input.fechaValidaDesde ? "La receta está vencida: pasó más de un mes desde su fecha de validez." : "La receta está vencida: tiene más de un mes desde su prescripción.");
+    // Same rule as the alta and the edit (crear-receta.ts, editar-receta.ts): the validity never starts before the prescription.
+    if (input.fechaValidaDesde !== null && input.fechaValidaDesde < input.fechaPrescripcion) {
+      throw new ValidationError("La fecha de validez no puede ser anterior a la fecha de prescripción.");
+    }
+    if (input.fechaValidaDesde !== null) {
+      if (!esFechaValidaDesdeDelMes(input.fechaValidaDesde, jornadaActual)) {
+        throw new ValidationError("La fecha de validez tiene que ser de este mes.");
+      }
+    } else if (!esFechaPrescripcionVigente(input.fechaPrescripcion, jornadaActual)) {
+      throw new ValidationError("La receta está vencida: tiene más de un mes desde su prescripción.");
     }
 
     const itemsDominio = toItemsInput(input.items);
@@ -273,11 +297,11 @@ export const importarRecetaCommand = defineCommand({
       throw new ValidationError("Una o más unidades de medida seleccionadas no existen o están dadas de baja.");
     }
 
-    const paciente = await resolverPaciente(ctx, input.paciente);
+    const paciente = await resolverPaciente(ctx, input.paciente, input.domicilioDelDocumento ? input.domicilioPaciente : null);
     const medico = await resolverMedico(ctx, input.medico);
     const nombresBase = await getNombresParaResumen(tx, session.tenantId, drogaIds, unidadIds);
 
-    // "Recordar esta equivalencia" = add the text as a synonym of the chosen droga (docs/specs/sinonimos-droga.md):
+    // "Recordar esta equivalencia" = add the text as a synonym of the chosen droga (openspec/specs/sinonimos-droga/spec.md):
     // idempotent for the same droga, a conflict when a vigente synonym points to another one. A text that already IS
     // a vigente droga's name is never remembered (a synonym cannot repeat a droga's name): it resolves by name.
     // Their audit rows are written after the receta's, as before.
@@ -328,6 +352,7 @@ export const importarRecetaCommand = defineCommand({
       diagnosticoCodigo: input.diagnosticoCodigo,
       diagnosticoDescripcion: input.diagnosticoDescripcion,
       domicilioPaciente: input.domicilioPaciente,
+      domicilioEntrega: input.domicilioEntrega,
       pagada: input.pagada,
       emisor: input.emisor,
       nroRecetaEmisor: input.nroRecetaEmisor,
@@ -361,6 +386,7 @@ export const importarRecetaCommand = defineCommand({
         diagnosticoCodigo: input.diagnosticoCodigo,
         diagnosticoDescripcion: input.diagnosticoDescripcion,
         domicilioPaciente: input.domicilioPaciente,
+        domicilioEntrega: input.domicilioEntrega,
         pagada: input.pagada,
         numeroInterno: nueva.numeroInterno,
         items: input.items,

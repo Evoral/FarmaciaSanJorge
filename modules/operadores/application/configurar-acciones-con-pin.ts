@@ -1,5 +1,5 @@
 /**
- * `configurarAccionesConPin` (docs/specs/cuentas-de-sector.md): replaces the
+ * `configurarAccionesConPin` (openspec/specs/cuentas-de-sector/spec.md): replaces the
  * farmacia's set of acciones that ask for an empleado's PIN in a cuenta de
  * sector. `acciones` is the COMPLETE new set (the screen submits every
  * switch that is on), limited to `PERMISOS_CON_PIN_CONFIGURABLES` by zod.

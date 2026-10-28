@@ -1,6 +1,6 @@
 # Rollback: Domicilio del paciente per receta (`receta.domicilio_paciente`)
 
-Spec: `docs/specs/importacion-receta-pdf.md`, "Domicilio del paciente". Note (2026-10-20): `registrarEntrega` (`modules/entregas`) also writes this column, for an envío of a receta that has none (`docs/specs/envios-repartidores.md` E4); if the column is dropped, that command must lose its `domicilio` input first. One database
+Spec: `openspec/specs/importacion-receta-pdf/spec.md`, "Domicilio del paciente". Note (2026-10-20): `registrarEntrega` (`modules/entregas`) also writes this column, for an envío of a receta that has none (`openspec/specs/envios-repartidores/spec.md` E4); if the column is dropped, that command must lose its `domicilio` input first. One database
 change (migration 0070: a nullable text column on `fsj.receta`) and the code that
 reads and writes it: manual alta, edit, PDF import (the first `- …` line after
 `Rp./`), the receta detail and the `/preparaciones` toma workspace.
@@ -40,10 +40,10 @@ forward direction: **APPLY 0070 BEFORE deploying this code.**
 - `modules/recetas/ui/actions.ts`: `domicilioPaciente` in `crearRecetaAction` and `editarRecetaAction` (and `versionDomicilioPaciente`).
 - `app/(app)/recetas/[id]/page.tsx` and `app/(app)/preparaciones/recetas/[recetaId]/page.tsx`: the "Domicilio:" line under the paciente.
 - `shared/labels/field-labels.ts`: the `domicilioPaciente` entry (`tests/unit/usecase-registry-all-modules.test.ts` fails if an input key has no label, not the other way round).
-- `docs/specs/importacion-receta-pdf.md`: the "Domicilio del paciente" section, the header-table row, the body rule (back to "Ignorado"), confirmation step 2, P1 and the 0070 note.
+- `openspec/specs/importacion-receta-pdf/spec.md`: the "Domicilio del paciente" section, the header-table row, the body rule (back to "Ignorado"), confirmation step 2, P1 and the 0070 note.
 - `tests/unit/receta-pdf-parser.test.ts`: the domicilio assertions in P1, P3 and the "PDF flow" test.
 - `tests/unit/receta-rcta-json.test.ts`: the "bulleted first leading line" test (back to expecting the informational notice).
-- `docs/specs/importacion-receta-qr.md`: the "Domicilio del paciente" bullet and the P40–P45 note.
+- `openspec/specs/importacion-receta-qr/spec.md`: the "Domicilio del paciente" bullet and the P40–P45 note.
 - `tests/unit/recetas-m3-lock-order.test.ts`: `domicilioPaciente: null` in the `recetaPendiente` fixture.
 
 ## Steps

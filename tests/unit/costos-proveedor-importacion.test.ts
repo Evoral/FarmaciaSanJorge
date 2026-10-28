@@ -1,5 +1,5 @@
 /**
- * Preview of a supplier price list import (docs/specs/costos-proveedor.md R17-R19; CP3, CP5-CP7): `construirVistaPrevia` and
+ * Preview of a supplier price list import (openspec/specs/costos-proveedor/spec.md R17-R19; CP3, CP5-CP7): `construirVistaPrevia` and
  * `evaluarFilasLista`, the pure rules the server builds the preview with and the browser re-evaluates on every edit.
  */
 import { describe, it, expect } from "vitest";
@@ -310,7 +310,7 @@ describe("parsearPrecioIngresado", () => {
   it.each([
     ["40898", "40898"],
     ["40898.5", "40898.5"],
-    ["1.125", "1.125"], // the dot of a plain number is a DECIMAL point: what the preview shows reads back unchanged
+    ["1.25", "1.25"], // an unambiguous dot (not 3 fractional digits) is a DECIMAL point: what the preview shows reads back unchanged
     ["007.50", "7.5"],
     ["40.898,50", "40898.5"],
     ["40898,5", "40898.5"],
@@ -320,7 +320,7 @@ describe("parsearPrecioIngresado", () => {
     expect(parsearPrecioIngresado(texto)).toBe(canonico);
   });
 
-  it.each([[""], ["   "], ["abc"], ["1e3"], ["-5"], ["1,2,3"], ["12.5.1"], [null], [undefined]])("%j is not a price", (texto) => {
+  it.each([[""], ["   "], ["abc"], ["1e3"], ["1.125"], ["-5"], ["1,2,3"], ["12.5.1"], [null], [undefined]])("%j is not a price", (texto) => {
     expect(parsearPrecioIngresado(texto as string | null | undefined)).toBeNull();
   });
 });

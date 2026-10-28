@@ -31,8 +31,8 @@
  * `cambiar-password.ts`, `restablecer-credencial.ts`
  * and both `verificar-co-firma-dt.ts` files never read `pin_hash` at all;
  * `pin_hash` is only ever compared against user input inside modules/auth:
- * here, and in `./verificador-pin.ts` (the empleado identifying themselves
- * on a cuenta de sector, docs/specs/cuentas-de-sector.md).
+ * here, and in `./identificador-pin.ts` (the empleado identifying themselves
+ * on a cuenta de sector, openspec/specs/cuentas-de-sector/spec.md).
  *
  * D (user decision, PIN re-auth feature): a successful PASSWORD re-auth
  * resets the PIN failed-attempt counter AND unblocks it (`resetPinLockout`)
@@ -119,9 +119,8 @@ export const reautenticarCommand = defineCommand<ReautenticarInput, Reautenticar
     }
 
     if (decision === "WRONG_PIN") {
-      const pinIntentosFallidos = pinEstado.pinIntentosFallidos + 1;
+      const pinIntentosFallidos = await recordPinFailure(tx, session.usuario.id, AUTH_POLICY.maxFailedPinAttempts);
       const pinBloqueado = pinIntentosFallidos >= AUTH_POLICY.maxFailedPinAttempts;
-      await recordPinFailure(tx, session.usuario.id, { pinIntentosFallidos, pinBloqueado });
 
       if (pinBloqueado) {
         // INV-A01: the ONE PIN-related event this command audits (task

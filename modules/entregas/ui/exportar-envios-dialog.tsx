@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Exportar envíos" (docs/specs/envios-repartidores.md, "Listado de entregas"): the button in the `/entregas` header
+ * "Exportar envíos" (openspec/specs/envios-repartidores/spec.md, "Listado de entregas"): the button in the `/entregas` header
  * opens a dialog to pick the repartidor (required; inactive ones are listed too, marked "(inactivo)", because they can
  * still carry pending envíos) and the fecha de envío (preselected to today in the farmacia's time zone, which the page
  * computes; clearable for "every pending envío"). "Exportar" opens the "Hoja de envíos" PDF in a new tab.

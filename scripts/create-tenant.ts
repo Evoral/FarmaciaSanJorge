@@ -1,7 +1,7 @@
 /**
  * Platform-operator CLI (DP-04/DP-37): creates a new tenant, its per-tenant
  * SISTEMA technical user, and the tenant's first ADMINISTRADOR -- with a
- * temporary password the operator chooses (docs/specs/contrasena-temporal.md).
+ * temporary password the operator chooses (openspec/specs/contrasena-temporal/spec.md).
  *
  * There is no "operator console" UI yet (DP-37 is unresolved on whether one
  * ever exists) -- this script IS the FASE 1 delivery mechanism for the
@@ -176,7 +176,8 @@ async function main(): Promise<void> {
     );
     const tenantId = tenantResult.rows[0]!.id;
 
-    // Default roles of the tenant (DP-03, migration 0054): roles are
+    // Default roles of the tenant (DP-03, migration 0054; since 0106 only
+    // ADMINISTRADOR, DIRECTOR_TECNICO, FARMACEUTICO and SISTEMA): roles are
     // per-tenant rows. The AFTER INSERT trigger on fsj.tenant already ran
     // this same function; calling it explicitly keeps the dependency visible
     // here and is a no-op on a tenant that already has its roles.
@@ -216,7 +217,7 @@ async function main(): Promise<void> {
     );
 
     // Per-tenant weighing parameters (M10, FASE 1 point 1.10 --
-    // docs/specs/ficha-tecnica.md "ParametrosPesaje") + the stock
+    // openspec/specs/ficha-tecnica/spec.md "ParametrosPesaje") + the stock
     // vencimiento-alert window (M07, FASE 5 point 5.7, DP-14) + the cierre
     // diario firma-plazo (M13a, FASE 10 point 10.1, DP-18 RESUELTA). Also
     // backfilled for pre-existing tenants by migration 0012 (the first two)
@@ -226,22 +227,27 @@ async function main(): Promise<void> {
     // when those migrations ran) ends up with the same rows.
     // `meses_vencimiento_preparado` (DP-28 "Vencimiento") is also backfilled
     // for pre-existing tenants, by migration 0068; `dias_retiro_vencido`
-    // (docs/specs/retiro-vencido.md) by migration 0095.
+    // (openspec/specs/retiro-vencido/spec.md) by migration 0095.
+    // `dias_relevamiento_inicial` (openspec/specs/existencia-inicial/spec.md) needs no
+    // backfill either: fsj.relevamiento_inicial_fecha_limite falls back to 30.
+    // `alicuota_iva_porcentaje` (openspec/specs/costos-proveedor/spec.md R7a) by migration 0107.
     // `dias_alerta_vencimiento_partida` needs no migration/backfill:
     // modules/stock/infrastructure/partida-repository.ts#getDiasAlertaVencimiento
     // falls back to the same default (30) for any tenant without this row.
     await client.query(
       `INSERT INTO fsj.parametro (tenant_id, clave, tipo, valor, descripcion)
        VALUES
-         ($1, 'precision_balanza', 'NUMERO', '0.001', 'Precision de la balanza para redondeo de linea_pesaje (GRAMO) -- docs/specs/ficha-tecnica.md R8'),
-         ($1, 'exceso_pesada_porcentaje', 'NUMERO', '0', 'Porcentaje de exceso de pesada aplicado a lineas no manuales -- docs/specs/ficha-tecnica.md R7'),
-         ($1, 'tolerancia_pesada_porcentaje', 'NUMERO', '5', 'Desvio maximo, en porcentaje, entre la pesada real y la esperada; fuera de el se pide la co-firma del Director Tecnico -- docs/specs/pesada-real.md'),
+         ($1, 'precision_balanza', 'NUMERO', '0.001', 'Precision de la balanza para redondeo de linea_pesaje (GRAMO) -- openspec/specs/ficha-tecnica/spec.md R8'),
+         ($1, 'exceso_pesada_porcentaje', 'NUMERO', '0', 'Porcentaje de exceso de pesada aplicado a lineas no manuales -- openspec/specs/ficha-tecnica/spec.md R7'),
+         ($1, 'tolerancia_pesada_porcentaje', 'NUMERO', '5', 'Desvio maximo, en porcentaje, entre la pesada real y la esperada; fuera de el se pide la co-firma del Director Tecnico -- openspec/specs/pesada-real/spec.md'),
          ($1, 'dias_alerta_vencimiento_partida', 'NUMERO', '30', 'Dias de anticipacion para la alerta de partidas por vencer -- DP-14, FASE 5 punto 5.7'),
          ($1, 'plazo_firma_dias', 'NUMERO', '0', 'Dias corridos de gracia, despues del dia siguiente a la jornada, para firmar el cierre diario en termino (0 = solo el dia siguiente) -- DP-18'),
          ($1, 'plazo_archivo_comun_anios', 'NUMERO', '2', 'Anios de conservacion en archivo fisico para lotes sin recetas controladas -- DP-26 PARCIAL, FASE 12 punto 12.1'),
          ($1, 'plazo_archivo_controladas_anios', 'NUMERO', '3', 'Anios de conservacion en archivo fisico para lotes con al menos una receta controlada -- DP-26 PARCIAL, FASE 12 punto 12.1'),
          ($1, 'meses_vencimiento_preparado', 'NUMERO', '3', 'Meses desde la elaboracion tras los cuales vence un preparado; se fija al confirmar la preparacion -- DP-28 Vencimiento'),
-         ($1, 'dias_retiro_vencido', 'NUMERO', '30', 'Dias, desde que la receta queda preparada, tras los cuales un preparado que nadie retiro pasa a Retiro vencido; 0 desactiva el vencimiento -- docs/specs/retiro-vencido.md')
+         ($1, 'dias_retiro_vencido', 'NUMERO', '30', 'Dias, desde que la receta queda preparada, tras los cuales un preparado que nadie retiro pasa a Retiro vencido; 0 desactiva el vencimiento -- openspec/specs/retiro-vencido/spec.md'),
+         ($1, 'dias_relevamiento_inicial', 'NUMERO', '30', 'Dias, desde el primer cierre diario firmado, durante los cuales se puede cargar existencia inicial si el DT no cerro antes el relevamiento -- openspec/specs/existencia-inicial/spec.md'),
+         ($1, 'alicuota_iva_porcentaje', 'NUMERO', '21', 'Alicuota de IVA, en porcentaje, que se propone para cada costo de proveedor nuevo y con la que se cotizan las partidas -- openspec/specs/costos-proveedor/spec.md R7a')
        ON CONFLICT (tenant_id, clave) DO NOTHING`,
       [tenantId],
     );
@@ -269,7 +275,7 @@ async function main(): Promise<void> {
       [tenantId, HOJA_PREDETERMINADA.anchoMm, HOJA_PREDETERMINADA.altoMm, HOJA_PREDETERMINADA.margenMm],
     );
 
-    // libro_rubricado (M12, FASE 1 point 1.12 -- docs/specs/libro-recetario-y-contralor.md):
+    // libro_rubricado (M12, FASE 1 point 1.12 -- openspec/specs/libro-recetario-y-contralor/spec.md):
     // every tenant gets all 3 tipos, open from day one (RECETARIO is
     // required for every preparacion regardless of whether the contralor
     // is ever activated; see migration 0014 header for why PSICOTROPICO/

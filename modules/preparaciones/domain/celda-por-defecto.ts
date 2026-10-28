@@ -1,5 +1,5 @@
 /**
- * Default cell of an ítem row in the toma's "Imprimir etiquetas" dialog (docs/specs/hoja-etiquetas.md R11).
+ * Default cell of an ítem row in the toma's "Imprimir etiquetas" dialog (openspec/specs/hoja-etiquetas/spec.md R11).
  * Pure; nothing is persisted: the dialog keeps the last printed cell only while it is open.
  *
  * The farmacia feeds the same sheet back and prints the next etiqueta in the next free spot, so once an ítem

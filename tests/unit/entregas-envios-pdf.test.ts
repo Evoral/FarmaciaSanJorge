@@ -1,5 +1,5 @@
 /**
- * "Exportar envíos" (docs/specs/envios-repartidores.md, plan item 6): input validation of `imprimirEnviosPdf`, the
+ * "Exportar envíos" (openspec/specs/envios-repartidores/spec.md, plan item 6): input validation of `imprimirEnviosPdf`, the
  * `cotizaciones.ver` gate of the Importe column (E10), the repartidor lookup, the file name (no patient data), the
  * pure rules of the hoja (`domain/hoja-envios.ts`), the table's shape and a PDF smoke test. Mocked repository/tx, no
  * DB: the SQL of `listEnviosDeRepartidor` is covered by the shared DB, not here.
@@ -18,6 +18,9 @@ import {
   textoPagoHoja,
 } from "@/modules/entregas/domain/hoja-envios";
 import type { EnvioDeRepartidor } from "@/modules/entregas/infrastructure/entrega-repository";
+
+// The tenant's logo is read through its own query (session): none here.
+vi.mock("@/modules/farmacia/application/get-marca-tenant", () => ({ getLogoTenant: async () => null }));
 
 vi.mock("@/shared/audit", () => ({
   record: vi.fn(async () => undefined),
@@ -239,6 +242,7 @@ describe("hoja de envíos -- table", () => {
 describe("hoja de envíos -- PDF", () => {
   const datos = (envios: EnvioDeRepartidor[], conImporte: boolean) => ({
     farmacia: { nombre: "Farmacia Ejemplo", telefonoFijo: "261 400-0000", telefonoCelular: "261 15 555-0000" },
+    logo: null,
     repartidor: { id: REPARTIDOR_ID, nombre: "Luis", apellido: "Núñez", telefono: "261 444-1111" },
     fecha: "2026-10-20" as string | null,
     envios,

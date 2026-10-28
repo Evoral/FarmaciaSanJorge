@@ -26,7 +26,7 @@
  *   `sinonimo` (the whole option reaches `onChange`): while it is the
  *   value, the field shows the synonym the user chose, followed by the
  *   canonical `label` as a quiet hint ("Acetaminofén ≈ Paracetamol",
- *   docs/specs/sinonimos-droga.md "Nombre elegido al cargar"). Parents that
+ *   openspec/specs/sinonimos-droga/spec.md "Nombre elegido al cargar"). Parents that
  *   keep the picked option as their `value` get this for free.
  *
  * - `floating`: the list is laid out `position: fixed` over the field, so a
@@ -45,7 +45,7 @@ export interface ComboboxOption {
   label: string;
   /** Short trailing detail (code, matrícula, unidad...). */
   description?: string;
-  /** Other names the option is also found by (a droga's synonyms, docs/specs/sinonimos-droga.md): searched by `filtrarOpciones`, never shown as such. */
+  /** Other names the option is also found by (a droga's synonyms, openspec/specs/sinonimos-droga/spec.md): searched by `filtrarOpciones`, never shown as such. */
   sinonimos?: readonly string[];
   /**
    * The synonym the query matched through, when the label itself did not match: in the list, a quiet hint after the

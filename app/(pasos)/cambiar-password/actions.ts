@@ -1,6 +1,6 @@
 "use server";
 
-/** Server Action for `/cambiar-password` (docs/specs/contrasena-temporal.md, step 1). */
+/** Server Action for `/cambiar-password` (openspec/specs/contrasena-temporal/spec.md, step 1). */
 import { redirect } from "next/navigation";
 import { cambiarPasswordTemporal } from "@/modules/auth/application/cambiar-password-temporal";
 import { actionError } from "@/shared/ui/action-error";

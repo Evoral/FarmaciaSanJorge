@@ -1,5 +1,5 @@
 /**
- * `imprimirEtiquetaPdf` on the sheet (docs/specs/hoja-etiquetas.md R6, R7): the PDF page is
+ * `imprimirEtiquetaPdf` on the sheet (openspec/specs/hoja-etiquetas/spec.md R6, R7): the PDF page is
  * the sheet and the etiqueta lands in the chosen cell. Everything that decides the page
  * and the spot -- the sheet, the size (explicit or the first that fits), the cell -- is
  * resolved BEFORE the etiqueta is marked as printed: a size that does not resolve, does
@@ -45,6 +45,9 @@ const marcarEtiquetaImpresaMock = vi.fn<(etiquetaId: string) => Promise<undefine
 const getTamanoParaImprimirMock = vi.fn<(tamanoId: string) => Promise<Tamano>>();
 const listTamanosParaImprimirMock = vi.fn<() => Promise<Tamano[]>>();
 const getHojaParaImprimirMock = vi.fn<() => Promise<typeof A4>>();
+
+// The tenant's logo is read through its own query (session): none here.
+vi.mock("@/modules/farmacia/application/get-marca-tenant", () => ({ getLogoTenant: async () => null }));
 
 vi.mock("@/modules/preparaciones/application/get-etiqueta-para-imprimir", () => ({ getEtiquetaParaImprimir: (arg: string) => getEtiquetaParaImprimirMock(arg) }));
 vi.mock("@/modules/preparaciones/application/marcar-etiqueta-impresa", () => ({ marcarEtiquetaImpresa: (arg: string) => marcarEtiquetaImpresaMock(arg) }));

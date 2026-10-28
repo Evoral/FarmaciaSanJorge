@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Anular entrega" on `/recetas/[id]` (docs/specs/anular-entrega.md): the mostrador picked the wrong receta when
+ * "Anular entrega" on `/recetas/[id]` (openspec/specs/anular-entrega/spec.md): the mostrador picked the wrong receta when
  * registering a retiro or envío. Same `CollapsibleActionCard` + motivo shape as shared/ui/motivo-form.tsx, plus the
  * "Pagada" switch of the alta and the entrega (shown on, the user turns it off when the payment was a mistake too).
  * Deliberately NOT styled as a danger action: it only puts the receta back in /entregas and touches neither the

@@ -1,6 +1,6 @@
 /**
  * Etiqueta content (M11, point 8.5): what goes on the printed label, modeled
- * on the farmacia's real label (docs/specs/etiqueta-preparado.md): top band
+ * on the farmacia's real label (openspec/specs/etiqueta-preparado/spec.md): top band
  * with the brand, the director técnico, the domicilio and the two phones;
  * "Rp/" with the fórmula; the paciente, receta number, dosis, quantity with
  * its forma, vía and fracción de dosis, and the vencimiento; the médico. Pure, no I/O. `infrastructure/etiqueta-pdf.ts`
@@ -110,7 +110,7 @@ export const VENCE_ETIQUETA = "Vence: ______";
  * DP-28 "Vencimiento" (resolved 2026-10-07): "Vence: MM/YY" from the
  * `YYYY-MM-DD` snapshot -- the month and year of the expiry date, e.g.
  * "2026-03-31" -> "Vence: 03/26". A tipo counted in days prints the day too,
- * "Vence: 04/11/26" (docs/specs/vencimiento-preparado.md R12). `null` keeps `VENCE_ETIQUETA`.
+ * "Vence: 04/11/26" (openspec/specs/vencimiento-preparado/spec.md R12). `null` keeps `VENCE_ETIQUETA`.
  */
 export function formatearVenceEtiqueta(fechaVencimiento: string | null, tipo: TipoVencimientoPreparado | null = null): string {
   if (fechaVencimiento === null) return VENCE_ETIQUETA;
@@ -207,7 +207,7 @@ const UNIDAD_DOSIS: Readonly<Record<string, string>> = {
 /**
  * "Dosis" as the paciente reads it: units to take per day (2026-10-19, the farmacia writes "2 cáp/día" for
  * "Media dosis cada 12 horas"). Units per toma = doses per toma / dose fraction of one unit (one unit per toma when
- * the unit already holds the prescribed fraction, docs/specs/importacion-receta-pdf.md), times the tomas per day
+ * the unit already holds the prescribed fraction, openspec/specs/importacion-receta-pdf/spec.md), times the tomas per day
  * ("cada N horas" -> 24 / N, "N veces al día"). Falls back to the posología as written when the form is not counted
  * in units or the text states no frequency.
  */
@@ -294,7 +294,7 @@ export function armarContenidoEtiqueta(datos: DatosEtiqueta): ContenidoEtiqueta 
 }
 
 /**
- * Why a CONFIRMADA preparación's etiqueta can no longer be generated or printed (docs/specs/reserva-stock-preparacion.md
+ * Why a CONFIRMADA preparación's etiqueta can no longer be generated or printed (openspec/specs/reserva-stock-preparacion/spec.md
  * R22), `null` when it can: its receta was ANULADA, or its asiento in the libro recetario was dejado sin efecto
  * (anulado or rectificado) -- the preparado is no longer valid.
  */
@@ -307,7 +307,7 @@ export function motivoEtiquetaNoImprimible(datos: { recetaEstado: string; asient
   return null;
 }
 
-/** URL of the etiqueta PDF route for a preparación: the size (`etiqueta_tamano.id`) and the cell (columna, fila, 1-based) of the sheet chosen in the print dialog (docs/specs/hoja-etiquetas.md R7). */
+/** URL of the etiqueta PDF route for a preparación: the size (`etiqueta_tamano.id`) and the cell (columna, fila, 1-based) of the sheet chosen in the print dialog (openspec/specs/hoja-etiquetas/spec.md R7). */
 export function hrefEtiquetaPdf(preparacionId: string, tamanoId: string, celda: { columna: number; fila: number }): string {
   return `/api/preparaciones/${encodeURIComponent(preparacionId)}/etiqueta/pdf?tamano=${encodeURIComponent(tamanoId)}&columna=${celda.columna}&fila=${celda.fila}`;
 }
@@ -319,7 +319,7 @@ export interface EtiquetaEnPdf {
   celda: { columna: number; fila: number };
 }
 
-/** The toma's single "Imprimir" (docs/specs/hoja-etiquetas.md R14): every etiqueta in ONE PDF, in this order. */
+/** The toma's single "Imprimir" (openspec/specs/hoja-etiquetas/spec.md R14): every etiqueta in ONE PDF, in this order. */
 export function hrefEtiquetasPdf(etiquetas: readonly EtiquetaEnPdf[]): string {
   const query = etiquetas.map((e) => `e=${encodeURIComponent(`${e.preparacionId}.${e.tamanoId}.${e.celda.columna}.${e.celda.fila}`)}`).join("&");
   return `/api/preparaciones/etiquetas/pdf?${query}`;
@@ -370,7 +370,7 @@ const PREFIJO_FRACCION = "Por unidad: ";
 /**
  * The inverse of `formatearContenidoEtiqueta`: the persisted `etiqueta.contenido` snapshot back into the fields the
  * PDF lays out, so every print (first or reprint) shows exactly what was recorded when the etiqueta was generated --
- * never a rebuild from live data (docs/specs/vencimiento-preparado.md R7). `null` when the text is not in this
+ * never a rebuild from live data (openspec/specs/vencimiento-preparado/spec.md R7). `null` when the text is not in this
  * layout (an etiqueta stored by an older formatter): the caller then rebuilds it from the preparación's data, as
  * before. `formatearContenidoEtiqueta` + this function round-trip every `ContenidoEtiqueta` whose free texts are
  * single-line (the formatter's own precondition: it joins lines with "\n").

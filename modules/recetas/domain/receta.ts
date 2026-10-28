@@ -2,14 +2,14 @@
  * Pure domain rules for M09 (recetas), FASE 6 points 6.1/6.3/6.5. No I/O, no
  * Prisma (eslint's domainBoundaryPatterns enforce this structurally).
  *
- * Source of truth for the state machine: docs/specs/libro-recetario-y-contralor.md
+ * Source of truth for the state machine: openspec/specs/libro-recetario-y-contralor/spec.md
  * section 1, already implemented as a DB trigger
  * (fsj.receta_validar_transicion_estado, migration 0011) -- the helpers
  * below MIRROR that trigger for fast, clear-message app-level pre-checks;
  * the DB remains the real backstop (docs/architecture.md's use-case
  * pattern).
  *
- * Source of truth for V1-V9: docs/specs/ficha-tecnica.md, already
+ * Source of truth for V1-V9: openspec/specs/ficha-tecnica/spec.md, already
  * implemented as DB CHECKs/deferred constraint triggers (migration 0011)
  * PLUS a full pure calculator (modules/elaboracion/domain/calcular-ficha-tecnica.ts,
  * FASE 1 point 1.10). V1/V2/V6/V7/V8/V9 are re-implemented here (cheap,
@@ -63,7 +63,7 @@ export type OrigenReceta = "PRESENCIAL" | "DIGITAL_PDF" | "DIGITAL_FOTO";
 export const ORIGENES_RECETA = ["PRESENCIAL", "DIGITAL_PDF", "DIGITAL_FOTO"] as const satisfies readonly OrigenReceta[];
 
 /**
- * DP-29 (docs/specs/importacion-receta-pdf.md): DIGITAL_PDF is enabled --
+ * DP-29 (openspec/specs/importacion-receta-pdf/spec.md): DIGITAL_PDF is enabled --
  * the PDF is read to prefill the receta and discarded, never stored, so
  * the receta carries the emisor's own number (`nroRecetaEmisor`) instead
  * of an attachment (migration 0049's `receta_adjunto_digital_check`).
@@ -183,7 +183,7 @@ export const ESTADOS_TERMINALES: ReadonlySet<EstadoReceta> = new Set(["ENTREGADA
 
 /**
  * INV-R08. Mirrors fsj.receta_validar_transicion_estado (migration 0011, last redefined by 0095). RETIRO_VENCIDO is NOT
- * terminal: it can be reactivated back to PREPARADA or annulled (docs/specs/retiro-vencido.md).
+ * terminal: it can be reactivated back to PREPARADA or annulled (openspec/specs/retiro-vencido/spec.md).
  */
 export function esEstadoTerminal(estado: EstadoReceta): boolean {
   return ESTADOS_TERMINALES.has(estado);
@@ -215,7 +215,7 @@ export function puedeAnular(estado: EstadoReceta): boolean {
  * `existeFichaConPreparacionParaReceta`; a DESCARTADA one does not count,
  * migration 0072) so it is NOT part of this pure function -- callers must
  * check both. A receta with stock reserved for an ítem is still
- * PENDIENTE_PREPARACION (docs/specs/reserva-stock-preparacion.md) but not
+ * PENDIENTE_PREPARACION (openspec/specs/reserva-stock-preparacion/spec.md) but not
  * editable until the reserva is released.
  */
 export function esEstadoEditable(estado: EstadoReceta): boolean {
@@ -250,6 +250,20 @@ export function esFechaPrescripcionVigente(fechaPrescripcion: string, jornadaAct
   return fechaPrescripcion >= fechaPrescripcionMinima(jornadaActual);
 }
 
+/**
+ * A receta with its own `fechaValidaDesde` may carry an old prescription, but
+ * it can only be used in the calendar month of `jornadaActual`.
+ */
+export function esFechaValidaDesdeDelMes(fechaValidaDesde: string, jornadaActual: string): boolean {
+  return fechaValidaDesde.slice(0, 7) === jornadaActual.slice(0, 7);
+}
+
+/** Last day (`YYYY-MM-DD`) of the calendar month of `jornadaActual`. */
+export function ultimoDiaDelMes(jornadaActual: string): string {
+  const [year, month] = jornadaActual.split("-").map(Number);
+  return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+}
+
 // ============================================================================
 // V1-V9 (app-level pre-check, minus V5 -- see module doc comment)
 // ============================================================================
@@ -281,7 +295,7 @@ export interface ItemInput {
 }
 
 /**
- * A V1-V9 rule violation (docs/specs/ficha-tecnica.md; V3 was removed with
+ * A V1-V9 rule violation (openspec/specs/ficha-tecnica/spec.md; V3 was removed with
  * the componentes' order, migration 0065). `regla` keeps the spec code for
  * tests and diagnostics; the user-facing message never includes it.
  */
@@ -377,7 +391,7 @@ export function validarItemsReceta(items: ItemInput[]): void {
       throw new ReglaRecetaError("V2", `El ítem ${n} tiene más de un componente csp (solo se permite uno).`);
     }
 
-    // V4 -- solo aplica a formas no capsulares (docs/specs/ficha-tecnica.md, aclaración de T3).
+    // V4 -- solo aplica a formas no capsulares (openspec/specs/ficha-tecnica/spec.md, aclaración de T3).
     const esCapsular = esFormaCapsular(item.formaFarmaceutica);
     if (csp.length === 1 && !esCapsular && (item.cantidadTotal === null || item.unidadTotalId === null)) {
       throw new ReglaRecetaError(

@@ -7,7 +7,7 @@
  * the picker's own filtering (UI-only) be the sole defense. `clase`
  * (migration 0063) defaults to DROGA; an insumo cannot be controlled.
  * The name must be free after normalization: no vigente droga and no vigente
- * synonym may already hold it (docs/specs/sinonimos-droga.md; the DB
+ * synonym may already hold it (openspec/specs/sinonimos-droga/spec.md; the DB
  * re-checks: migration 0067).
  *
  * `sinonimos` lets the alta register the droga's other names in the same
@@ -16,6 +16,11 @@
  * checked like `agregarSinonimo` (not the new name, not repeated, not held by
  * any vigente droga or synonym) BEFORE the droga is inserted, and audited as
  * its own `droga_alias` row.
+ *
+ * With the contralor digital activo, a controlled droga's alta also writes its
+ * APERTURA asiento with `saldoAperturaContralor` -- the manual libro's saldo, 0
+ * if the pharmacy never had it (openspec/specs/existencia-inicial/spec.md R12). Without
+ * it every later movement of the droga would be refused (INV-L15).
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
@@ -27,6 +32,7 @@ import { normalizarTexto } from "../domain/normalizar";
 import { SINONIMO_MAX_LARGO, limpiarSinonimo, mensajeConflictoNombre } from "../domain/sinonimo";
 import { existeNombreVigente, insertDroga } from "../infrastructure/droga-repository";
 import { insertSinonimo } from "../infrastructure/sinonimo-repository";
+import { registrarAperturaContralorEnTx, requiereAperturaContralorEnTx } from "@/modules/libro/application/registrar-apertura-contralor";
 
 const crearDrogaInput = z.object({
   nombre: nonEmptyString,
@@ -36,6 +42,8 @@ const crearDrogaInput = z.object({
   clase: z.enum(CLASES_DROGA).default("DROGA"),
   stockMinimo: nonNegativeDecimalString,
   sinonimos: z.array(z.string().max(SINONIMO_MAX_LARGO, `Como máximo ${SINONIMO_MAX_LARGO} caracteres.`)).max(20).default([]),
+  /** Required only for a controlled droga with the contralor activo (R12); ignored otherwise. */
+  saldoAperturaContralor: nonNegativeDecimalString.optional(),
 });
 
 /** PRE-parse shape -- see modules/unidades/application/crear-unidad.ts's `CrearUnidadInput` doc comment for why this is hand-written (stockMinimo is a raw string here, a `Decimal` only after the zod schema's own transform). */
@@ -48,6 +56,8 @@ export interface CrearDrogaInput {
   stockMinimo: string;
   /** Other names of the droga, positional (entry `i` = form field `sinonimo-i`); blanks are skipped. */
   sinonimos?: string[];
+  /** The manual libro contralor's saldo (unidad base): asked only for a controlled droga with the contralor activo. */
+  saldoAperturaContralor?: string;
 }
 
 export const crearDrogaCommand = defineCommand({
@@ -67,10 +77,18 @@ export const crearDrogaCommand = defineCommand({
     if (!unidad) throw new NotFoundError("Unidad de medida no encontrada.");
     if (unidad.fechaBaja !== null) throw new DomainError("La unidad de medida elegida está dada de baja.");
 
-    // Accent/case-insensitive, against vigente drogas AND synonyms (docs/specs/sinonimos-droga.md): another
+    // Accent/case-insensitive, against vigente drogas AND synonyms (openspec/specs/sinonimos-droga/spec.md): another
     // name for an existing substance is a synonym of that droga, never a second droga.
     const conflicto = await existeNombreVigente(tx, session.tenantId, input.nombre);
     if (conflicto) throw new ValidationError(mensajeConflictoNombre(conflicto), { fields: ["nombre"] });
+
+    const requiereApertura = await requiereAperturaContralorEnTx(tx, session.tenantId, null, input.tipoControl);
+    if (requiereApertura && input.saldoAperturaContralor === undefined) {
+      throw new ValidationError(
+        "El contralor está activo: cargá el saldo de apertura de la droga (el del libro manual, 0 si la farmacia nunca la tuvo).",
+        { fields: ["saldoAperturaContralor"] },
+      );
+    }
 
     const nombreNormalizado = normalizarTexto(input.nombre);
     const sinonimos: { texto: string; aliasNormalizado: string }[] = [];
@@ -95,6 +113,16 @@ export const crearDrogaCommand = defineCommand({
       clase: input.clase,
       stockMinimo: input.stockMinimo.toString(),
     });
+
+    if (requiereApertura && input.saldoAperturaContralor !== undefined && input.tipoControl !== "NINGUNO") {
+      await registrarAperturaContralorEnTx(tx, session, {
+        drogaId: nueva.id,
+        drogaNombre: input.nombre,
+        tipoControl: input.tipoControl,
+        saldo: input.saldoAperturaContralor.toString(),
+        unidadMedidaId: input.unidadBaseId,
+      });
+    }
 
     for (const sinonimo of sinonimos) {
       const alias = await insertSinonimo(tx, { tenantId: session.tenantId, drogaId: nueva.id, ...sinonimo, creadoPorId: session.usuario.id });
@@ -121,6 +149,7 @@ export const crearDrogaCommand = defineCommand({
           clase: input.clase,
           stockMinimo: input.stockMinimo.toString(),
           ...(sinonimos.length > 0 ? { sinonimos: sinonimos.map((s) => s.texto) } : {}),
+          ...(requiereApertura && input.saldoAperturaContralor !== undefined ? { saldoAperturaContralor: input.saldoAperturaContralor.toString() } : {}),
         },
       },
     };

@@ -1,6 +1,6 @@
 /**
  * Prisma-backed reads for the proveedor "Trayectoria" view
- * (docs/specs/trayectoria-proveedor.md). Every function runs inside an ALREADY
+ * (openspec/specs/trayectoria-proveedor/spec.md). Every function runs inside an ALREADY
  * OPEN tenant transaction (RLS-scoped) and filters by `tenantId` explicitly as
  * well (raw SQL included). No function passes a free-text field (observación,
  * motivo) to a logger.
@@ -170,7 +170,7 @@ function partidaSelect(costos: boolean) {
     id: true,
     lote: true,
     fechaIngreso: true,
-    // The vencimiento VIGENTE (migration 0074, docs/specs/reanalisis-partida.md): the estado and the shown date.
+    // The vencimiento VIGENTE (migration 0074, openspec/specs/reanalisis-partida/spec.md): the estado and the shown date.
     fechaVencimientoVigente: true,
     fechaApertura: true,
     cantidadInicial: true,

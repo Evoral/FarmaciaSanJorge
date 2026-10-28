@@ -1,6 +1,6 @@
 /**
  * Trust boundary for an uploaded PDF, shared by every PDF import (spec order
- * from docs/specs/importacion-receta-pdf.md, "Pieza 3"; the caller's
+ * from openspec/specs/importacion-receta-pdf/spec.md, "Pieza 3"; the caller's
  * use-case pipeline checks the permiso BEFORE this runs):
  *
  *   1. `instanceof File`;

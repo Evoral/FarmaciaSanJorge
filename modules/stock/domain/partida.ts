@@ -177,3 +177,12 @@ export const ORDEN_STOCK_DROGAS_LABELS: Record<OrdenStockDrogas, string> = {
   stock: "Stock disponible",
   vencimiento: "Próximo vencimiento",
 };
+
+/**
+ * Whether a movimiento of this droga needs its `asiento_contralor` (INV-L08, `fsj.movimiento_stock_validar_contralor`):
+ * a controlled droga once the tenant's contralor digital is active. INGRESO_INICIAL never does (its stock is in the
+ * droga's APERTURA).
+ */
+export function requiereAsientoContralor(tipoControl: string, fechaActivacionContralor: Date | null, ahora: Date): boolean {
+  return tipoControl !== "NINGUNO" && fechaActivacionContralor !== null && fechaActivacionContralor.getTime() <= ahora.getTime();
+}

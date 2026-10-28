@@ -26,7 +26,7 @@ export interface DrogaExistente {
 }
 
 /**
- * Live duplicate check while creating a droga (docs/specs/sinonimos-droga.md): drogas, vigente or not, whose name or
+ * Live duplicate check while creating a droga (openspec/specs/sinonimos-droga/spec.md): drogas, vigente or not, whose name or
  * vigente synonym contains the typed text (accent- and case-insensitive). The command re-checks on submit.
  */
 export async function buscarDrogasExistentesAction(texto: string): Promise<DrogaExistente[]> {

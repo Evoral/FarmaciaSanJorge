@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * The reserva / confirmation form (M11, FASE 8 points 8.2/8.3; docs/specs/reserva-stock-preparacion.md R1, DT decision
+ * The reserva / confirmation form (M11, FASE 8 points 8.2/8.3; openspec/specs/reserva-stock-preparacion/spec.md R1, DT decision
  * 2026-10-15). For every línea it shows, read-only, the AUTOMATIC plan -- which partida (lote, vencimiento, pureza)
  * and how much to take from each, abiertas first then FEFO -- so the lab knows which bottle to grab. The user only
  * types what still needs a human:
- *   - the lot(s) to weigh from, for every línea (docs/specs/pesada-real.md): pre-checked with the automatic plan's
+ *   - the lot(s) to weigh from, for every línea (openspec/specs/pesada-real/spec.md): pre-checked with the automatic plan's
  *     (the oldest first; a recalculation pre-checks the current reserva's); the plan runs over the checked ones, in
  *     the same order. A línea whose partidas differ in purity (R25) warns that the weight depends on the lot;
- *   - the pesada real of a non-manual línea (docs/specs/pesada-real.md): prefilled with the expected weight of the
+ *   - the pesada real of a non-manual línea (openspec/specs/pesada-real/spec.md): prefilled with the expected weight of the
  *     checked lots rounded to the balance (`precision_balanza`); outside `tolerancia_pesada_porcentaje` the form asks
  *     the DT co-firma (`CoFirmaDt`);
  *   - the real quantity of an enrase manual línea (its plan follows it live: `repartirLinea`, the same function the
@@ -80,7 +80,7 @@ export function cantidadValida(texto: string | undefined): Decimal | null {
 }
 
 /**
- * The plan of a línea over the checked lots (docs/specs/pesada-real.md), in consumption order: a non-manual one covers
+ * The plan of a línea over the checked lots (openspec/specs/pesada-real/spec.md), in consumption order: a non-manual one covers
  * its cantidadAPesar in ACTIVE terms (purity per partida); an enrase manual one the typed quantity (línea unit,
  * converted into the droga's unidad base, no purity correction) -- exactly what the server will do. `"elegir"` = no
  * lot checked while the droga has some.
@@ -121,7 +121,30 @@ export function lotesPorDefecto(linea: LineaPantalla, jornada: string): string[]
   return primera ? [primera.id] : [];
 }
 
-/** A non-manual línea's pesada real: the expected weight (línea unit), its balance-rounded prefill and, once typed, the tolerance check. */
+type UnidadDeLinea = LineaPantalla["unidad"];
+
+/** Línea unit -> mg for a mass (the pesada real is typed in mg); 1 otherwise. GRAMO is MASA's base (factor 1). */
+export function factorAMg(unidad: UnidadDeLinea): Decimal {
+  return unidad.tipoMagnitud === "MASA" ? new Decimal(unidad.factorABase).times(1000) : new Decimal(1);
+}
+
+/** The typed pesada real (mg for a mass) back in the línea unit, as the server expects it. */
+export function cantidadRealParaServidor(valor: string | undefined, unidad: UnidadDeLinea): string {
+  if (!valor || valor.trim().length === 0) return "";
+  const d = cantidadValida(valor);
+  if (!d) return valor.trim();
+  return unidad.tipoMagnitud === "MASA" ? d.dividedBy(factorAMg(unidad)).toString() : valor.trim();
+}
+
+/** A saved pesada real (línea unit) as typed in the field (mg for a mass). */
+export function cantidadRealDesdeServidor(valor: Decimal | string | null | undefined, unidad: UnidadDeLinea): string {
+  if (valor === null || valor === undefined) return "";
+  const d = typeof valor === "string" ? cantidadValida(valor) : valor;
+  if (!d) return "";
+  return numeroParaInput(d.times(factorAMg(unidad)).toString());
+}
+
+/** A non-manual línea's pesada real: the expected weight (mg for a mass), its balance-rounded prefill and, once typed, the tolerance check. */
 export interface PesadaDeLinea {
   esperada: Decimal;
   sugerida: string;
@@ -130,12 +153,15 @@ export interface PesadaDeLinea {
 
 export function pesadaDeLinea(linea: LineaPantalla, plan: PlanDeLinea, real: string | undefined, datos: DatosConfirmacion): PesadaDeLinea | null {
   if (linea.esEnraseManual || plan === null || plan === "elegir" || !plan.ok) return null;
+  const factor = factorAMg(linea.unidad);
   const precision = precisionDeLinea(linea.unidad, datos.pesada.precisionBalanza);
-  const esperada = convertirCantidad(new Decimal(plan.totalFisico), linea.unidadStock, linea.unidad);
+  const precisionAjustada = precision ? precision.times(factor) : null;
+  const esperadaEnUnidad = convertirCantidad(new Decimal(plan.totalFisico), linea.unidadStock, linea.unidad);
+  const esperada = esperadaEnUnidad.times(factor);
   // Shown es-AR (comma decimals), like every typed number.
-  const sugerida = numeroParaInput(redondearABalanza(esperada, precision).toFixed());
+  const sugerida = numeroParaInput(redondearABalanza(esperadaEnUnidad, precision).times(factor).toFixed());
   const valor = cantidadValida(real ?? sugerida);
-  return { esperada, sugerida, evaluacion: valor ? evaluarPesada(valor, esperada, datos.pesada.toleranciaPorcentaje, precision) : null };
+  return { esperada, sugerida, evaluacion: valor ? evaluarPesada(valor, esperada, datos.pesada.toleranciaPorcentaje, precisionAjustada) : null };
 }
 
 export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActions }: ConfirmarPreparacionFormProps) {
@@ -151,13 +177,17 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
   const [motivos, setMotivos] = useState<Record<string, string>>(() =>
     Object.fromEntries(datos.lineas.flatMap((l) => (l.reserva?.motivoAperturaAdicional ? [[l.id, l.reserva.motivoAperturaAdicional]] : []))),
   );
-  // The checked lots of each línea (docs/specs/pesada-real.md; a recalculation starts from the current reserva's).
+  // The checked lots of each línea (openspec/specs/pesada-real/spec.md; a recalculation starts from the current reserva's).
   const [elegidas, setElegidas] = useState<Record<string, string[]>>(() =>
     Object.fromEntries(datos.lineas.map((l) => [l.id, lotesPorDefecto(l, datos.jornadaActual)])),
   );
   // The pesada real the user typed; a línea not typed shows the balance-rounded expected weight, which follows the lots.
   const [reales, setReales] = useState<Record<string, string>>(() =>
-    Object.fromEntries(datos.lineas.flatMap((l) => (l.reserva?.cantidadReal ? [[l.id, numeroParaInput(l.reserva.cantidadReal)]] : []))),
+    Object.fromEntries(
+      datos.lineas.flatMap((l) =>
+        l.reserva?.cantidadReal ? [[l.id, cantidadRealDesdeServidor(l.reserva.cantidadReal, l.unidad)]] : [],
+      ),
+    ),
   );
 
   // Stock amounts are DISPLAYED in a readable unit of the droga's chain (e.g. 999.999,55 mg -> 1.000 g, 2 decimals).
@@ -328,7 +358,7 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
 
         {requiereCoFirma ? <CoFirmaDt dts={datos.dts} titulo="Co-firma del Director Técnico (pesada fuera de tolerancia)" /> : null}
 
-        {/* docs/specs/vencimiento-preparado.md R10: dated only when confirming, never on a reserva. */}
+        {/* openspec/specs/vencimiento-preparado/spec.md R10: dated only when confirming, never on a reserva. */}
         {esReserva ? null : (
           <TipoVencimientoSelect id="tipoVencimiento" name="tipoVencimiento" label="Vencimiento del preparado" mesesEstandar={datos.mesesVencimientoPreparado} />
         )}
@@ -410,7 +440,7 @@ function PlanLinea({ linea, plan, catalogo, datos }: { linea: LineaPantalla; pla
 }
 
 /**
- * The lot(s) the línea is weighed from (docs/specs/pesada-real.md; consumption order: abiertas first, then FEFO). With
+ * The lot(s) the línea is weighed from (openspec/specs/pesada-real/spec.md; consumption order: abiertas first, then FEFO). With
  * several checked, the first is used up before the next; one that covers the línea is enough. R25: when the partidas
  * differ in purity the weight depends on the lot, and the block says so.
  */
@@ -495,7 +525,7 @@ function ElegirLotes({
 }
 
 /**
- * The pesada real of a non-manual línea (docs/specs/pesada-real.md): what the balance showed, prefilled with the
+ * The pesada real of a non-manual línea (openspec/specs/pesada-real/spec.md): what the balance showed, prefilled with the
  * expected weight of the checked lots rounded to the balance. Shows the deviation once typed; outside the tolerance
  * the form adds the DT co-firma (the server re-checks everything).
  */
@@ -514,15 +544,16 @@ function PesadaReal({
 }) {
   const campoId = `cantidadReal_${linea.id}`;
   const evaluacion = pesada.evaluacion;
+  const esMasa = linea.unidad.tipoMagnitud === "MASA";
+  const simboloDisplay = esMasa ? "mg" : linea.unidadSimbolo;
   return (
     <div className="flex flex-col gap-2">
       <div className="field max-w-xs">
         <label htmlFor={campoId} className="field-label">
-          Pesada real ({linea.unidadSimbolo})
+          Pesada real ({simboloDisplay})
         </label>
         <input
           id={campoId}
-          name={campoId}
           type="text"
           inputMode="decimal"
           required
@@ -531,8 +562,9 @@ function PesadaReal({
           aria-describedby={`${campoId}_ayuda`}
           className="input font-mono"
         />
+        <input type="hidden" name={campoId} value={cantidadRealParaServidor(valor, linea.unidad)} />
         <p id={`${campoId}_ayuda`} className="field-help">
-          Esperada {formatNumero(pesada.esperada.toString())} {linea.unidadSimbolo}
+          Esperada {formatNumero(pesada.esperada.toString())} {simboloDisplay}
           {evaluacion ? ` · desvío ${evaluacion.desvioPorcentaje.greaterThan(0) ? "+" : ""}${formatNumero(evaluacion.desvioPorcentaje.toString())} %` : null}
           {` · tolerancia ±${formatNumero(tolerancia)} %`}
         </p>

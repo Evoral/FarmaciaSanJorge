@@ -4,9 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:desarrollo": "tsx scripts/dev.ts .env.desarrollo",
+    "dev:prod": "tsx scripts/dev.ts .env.prod",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "specs:validate": "openspec validate --specs --strict --no-interactive",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run --project unit",
     "test:db": "vitest run --project db",
@@ -39,6 +42,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@fission-ai/openspec": "1.14.1",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24.13.5",

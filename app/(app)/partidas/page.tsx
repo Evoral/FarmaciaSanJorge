@@ -1,5 +1,5 @@
 /**
- * `/partidas` (docs/specs/historial-partidas.md): every partida of the
+ * `/partidas` (openspec/specs/historial-partidas/spec.md): every partida of the
  * tenant across all drogas (insumos included), agotadas included -- a history
  * to find a lote, its proveedor and its estado. Newest ingreso first.
  * Filters, all in the URL: droga (autocomplete, `drogaId`), lote (`q`),
@@ -287,7 +287,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
                         <td className="hidden px-3 py-2.5 md:table-cell">{partida.proveedorRazonSocial}</td>
                         {/* fecha_ingreso is a timestamptz: shown as the farmacia's own calendar day. */}
                         <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums sm:table-cell">{formatFecha(partida.fechaIngreso, result.zonaHoraria)}</td>
-                        {/* The vencimiento VIGENTE (docs/specs/reanalisis-partida.md): a reanálisis may have moved it from the original date. */}
+                        {/* The vencimiento VIGENTE (openspec/specs/reanalisis-partida/spec.md): a reanálisis may have moved it from the original date. */}
                         <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">
                           {partida.fechaVencimientoVigente ? formatFecha(partida.fechaVencimientoVigente) : "No vence"}
                           {reanalizada ? (

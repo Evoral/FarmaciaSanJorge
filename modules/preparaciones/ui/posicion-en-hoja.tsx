@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Posición en la hoja" (docs/specs/hoja-etiquetas.md R8, R9): the cell of the sheet an
+ * "Posición en la hoja" (openspec/specs/hoja-etiquetas/spec.md R8, R9): the cell of the sheet an
  * etiqueta is printed in. A clickable grid drawn in the SHEET's proportions with one cell per
  * position that fits (the grid is anchored at the sheet's margin, cells touch, leftover space goes
  * to the right and bottom -- the same geometry as `posicionCelda`, so what the user sees is what

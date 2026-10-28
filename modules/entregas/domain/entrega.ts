@@ -29,7 +29,7 @@ export function puedeRegistrarEntrega(estado: EstadoReceta): boolean {
 
 /**
  * The estados `/entregas` can be filtered by. The default listing (no estado chosen) is PREPARADA + ENVIADA_PEND_FIRMA only:
- * RETIRO_VENCIDO (docs/specs/retiro-vencido.md) shows up only when asked for, so the counter finds the receta when the
+ * RETIRO_VENCIDO (openspec/specs/retiro-vencido/spec.md) shows up only when asked for, so the counter finds the receta when the
  * person finally appears.
  */
 export const ESTADOS_FILTRO_ENTREGAS = ["PREPARADA", "ENVIADA_PEND_FIRMA", "RETIRO_VENCIDO"] as const satisfies readonly EstadoReceta[];
@@ -40,7 +40,7 @@ export function estadoFiltroEntregas(valor: string | null | undefined): EstadoFi
   return ESTADOS_FILTRO_ENTREGAS.find((estado) => estado === valor);
 }
 
-/** docs/specs/anular-entrega.md A1: an entrega registered by mistake is reverted from either estado it reaches. */
+/** openspec/specs/anular-entrega/spec.md A1: an entrega registered by mistake is reverted from either estado it reaches. */
 export function puedeAnularEntrega(estado: EstadoReceta): boolean {
   return estado === "ENTREGADA" || estado === "ENVIADA_PEND_FIRMA";
 }
@@ -49,7 +49,7 @@ export const MENSAJE_ANULAR_ENTREGA_ARCHIVADA = "La receta ya está en un lote d
 export const MENSAJE_ANULAR_ENTREGA_SIN_ITEMS =
   "Todos los ítems de la receta quedaron sin efecto en el libro: no volvería a poder entregarse, así que su entrega no se anula.";
 
-/** docs/specs/anular-entrega.md A3: refused for an archived receta, and when the receta would come back with nothing left to deliver. */
+/** openspec/specs/anular-entrega/spec.md A3: refused for an archived receta, and when the receta would come back with nothing left to deliver. */
 export function validarAnularEntrega(input: { archivada: boolean; items: readonly ItemParaEntrega[] }): void {
   if (input.archivada) throw new ValidationError(MENSAJE_ANULAR_ENTREGA_ARCHIVADA);
   if (calcularItemsEntregables(input.items).entregables.length === 0) throw new ValidationError(MENSAJE_ANULAR_ENTREGA_SIN_ITEMS);
@@ -101,7 +101,7 @@ export function estadoDestinoEntrega(modalidad: ModalidadEntrega): EstadoReceta 
 }
 
 // ============================================================================
-// Envíos con repartidor (docs/specs/envios-repartidores.md E1-E5).
+// Envíos con repartidor (openspec/specs/envios-repartidores/spec.md E1-E5).
 // ============================================================================
 
 export const MENSAJE_ENVIO_SIN_REPARTIDOR = "Elija el repartidor que lleva el envío.";
@@ -124,17 +124,28 @@ export function mensajeRepartidorSegunModalidad(modalidad: ModalidadEntrega, rep
   return null;
 }
 
-/** E4: the domicilio of an envío is the receta's `domicilio_paciente`; blank (null, empty or whitespace) means there is none. */
-export function recetaTieneDomicilio(domicilioPaciente: string | null | undefined): boolean {
-  return domicilioPaciente != null && domicilioPaciente.trim().length > 0;
+/** E4: whether a domicilio is loaded; blank (null, empty or whitespace) means there is none. */
+export function recetaTieneDomicilio(domicilio: string | null | undefined): boolean {
+  return domicilio != null && domicilio.trim().length > 0;
 }
 
 /**
- * E4: the domicilio an ENVIO goes to is `receta.domicilio_paciente`. A receta is only editable in PENDIENTE_PREPARACION
- * but an envío is registered from PREPARADA, so when the receta has none the person registering types it (`ingresado`,
- * already trimmed; blank = not typed) and the use case saves it on the receta. Returns the domicilio to save, or `null`
- * when the receta already has one (nothing to write). Rejects (both on the `domicilio` field) a receta without domicilio
- * and none typed, and a typed one when the receta already has its own: the receta's value is never overwritten from here.
+ * E4 / openspec/specs/domicilios/spec.md: an envío goes to the receta's `domicilio_entrega` (migration 0099) or, when it has
+ * none, to the `domicilio_paciente` written on the receta. `null` when the receta has neither.
+ */
+export function domicilioDeEnvio(domicilioPaciente: string | null | undefined, domicilioEntrega: string | null | undefined): string | null {
+  if (recetaTieneDomicilio(domicilioEntrega)) return domicilioEntrega!;
+  if (recetaTieneDomicilio(domicilioPaciente)) return domicilioPaciente!;
+  return null;
+}
+
+/**
+ * E4: the domicilio an ENVIO goes to is `domicilioDeEnvio` (pass its result as `domicilioReceta`). A receta is only
+ * editable in PENDIENTE_PREPARACION but an envío is registered from PREPARADA, so when the receta has none the person
+ * registering types it (`ingresado`, already trimmed; blank = not typed) and the use case saves it as the receta's
+ * domicilio de entrega (never as the domicilio written on the receta). Returns the domicilio to save, or `null` when the
+ * receta already has one (nothing to write). Rejects (both on the `domicilio` field) a receta without domicilio and none
+ * typed, and a typed one when the receta already has its own: the receta's value is never overwritten from here.
  */
 export function resolverDomicilioParaEnvio(domicilioReceta: string | null | undefined, ingresado: string | null | undefined): string | null {
   const escrito = ingresado?.trim() ?? "";
@@ -160,7 +171,7 @@ export function puedeCambiarRepartidor(estado: EstadoReceta): boolean {
 export const MENSAJE_ENTREGA_REQUIERE_PAGO ="Para entregar la receta tiene que quedar pagada: activá “Marcar como pagada”.";
 
 /**
- * Pago rule (docs/specs/pago-receta.md P4, user decision 2026-10-13): a receta only reaches ENTREGADA paid, so every
+ * Pago rule (openspec/specs/pago-receta/spec.md P4, user decision 2026-10-13): a receta only reaches ENTREGADA paid, so every
  * delivered receta keeps its payment record. RETIRO_PRESENCIAL reaches ENTREGADA at registration; an ENVIO may stay
  * unpaid while ENVIADA_PEND_FIRMA and must be paid when its firma is confirmed. DB backstop: INV-R14 (migration 0076).
  */

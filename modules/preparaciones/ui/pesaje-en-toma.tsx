@@ -1,18 +1,19 @@
 "use client";
 
 /**
- * The pesada en la ficha (docs/specs/pesada-real.md "Pesada en la ficha", migration 0090): on a Pendiente ítem of the
+ * The pesada en la ficha (openspec/specs/pesada-real/spec.md "Pesada en la ficha", migration 0090): on a Pendiente ítem of the
  * toma workspace (/preparaciones/recetas/[recetaId]) the lab fills in its ficha técnica WHILE weighing, línea by
  * línea, instead of at the end in a dialog:
  *   - the lot of every línea: a selector with the droga's eligible partidas in consumption order (abiertas first,
  *     then FEFO), the oldest preselected (`lotesPorDefecto`); with partidas of different purity each option shows it.
  *     When the chosen lot does not cover the línea, "Agregar otro lote" adds another: the chosen lots are drained in
- *     consumption order whatever the order they were picked in (the server's `repartirPesadaReal`). A lot whose purity
- *     changes the weight shows what to weigh from it in the "A pesar" column;
+ *     consumption order whatever the order they were picked in (the server's `repartirPesadaReal`). "A pesar" is the
+ *     PHYSICAL weight over the chosen lots (purity-corrected, rounded to the balance; the active is the "Teórica"
+ *     next to it); split over several lots, each lot's row shows its own share;
  *   - "Cantidad real pesada": what the balance showed (prefilled with the expected weight rounded to the balance,
  *     following the lots until typed; deviation and tolerance under it), or an enrase manual línea's quantity;
  *   - the INV-S18 motivo, only when asked;
- *   - the excipiente used (migration 0092, docs/specs/excipiente-preparacion.md): a buscador of the drogas of clase
+ *   - the excipiente used (migration 0092, openspec/specs/excipiente-preparacion/spec.md): a buscador of the drogas of clase
  *     EXCIPIENTE (type to filter, never free text) and its quantity in the droga's unidad base; once one is chosen
  *     its quantity is required to confirm. Reserved oldest lot first with the drogas.
  * Each línea is saved as soon as it changes (a lot) or its field is left (`guardarBorradorPesadaAction`), so nothing
@@ -41,8 +42,8 @@ import { estadoVencimientoPartida } from "@/modules/stock/domain/vencimiento-par
 import type { DatosConfirmacion, LineaPantalla } from "../application/datos-confirmacion";
 import type { LineaDeFichaToma } from "../application/get-toma-receta";
 import { precisionDeLinea, redondearABalanza } from "../domain/pesada-real";
-import { cantidadValida, lotesPorDefecto, pesadaDeLinea, planDeLinea, type PesadaDeLinea, type PlanDeLinea } from "./confirmar-form";
-import { Equivalencia, LotesVencidos, Vacio, conExceso } from "./lineas-ficha-tabla";
+import { cantidadRealDesdeServidor, cantidadRealParaServidor, cantidadValida, lotesPorDefecto, pesadaDeLinea, planDeLinea, type PesadaDeLinea, type PlanDeLinea } from "./confirmar-form";
+import { CantidadFicha, LotesVencidos, Vacio, conExceso } from "./lineas-ficha-tabla";
 import { guardarBorradorPesadaAction, guardarExcipienteBorradorAction, reservarStockAction } from "./actions";
 import { IDLE_STATE } from "./action-state";
 
@@ -94,7 +95,11 @@ function lotesIniciales(linea: LineaPantalla, jornada: string): string[] {
 export function PesajeProvider({ datos, children }: { datos: DatosConfirmacion; children: ReactNode }) {
   const [elegidas, setElegidas] = useState<Record<string, string[]>>(() => Object.fromEntries(datos.lineas.map((l) => [l.id, lotesIniciales(l, datos.jornadaActual)])));
   const [reales, setReales] = useState<Record<string, string>>(() =>
-    Object.fromEntries(datos.lineas.flatMap((l) => (l.reserva?.cantidadReal ? [[l.id, numeroParaInput(l.reserva.cantidadReal)]] : []))),
+    Object.fromEntries(
+      datos.lineas.flatMap((l) =>
+        l.reserva?.cantidadReal ? [[l.id, cantidadRealDesdeServidor(l.reserva.cantidadReal, l.unidad)]] : [],
+      ),
+    ),
   );
   const [manuales, setManuales] = useState<Record<string, string>>(() =>
     Object.fromEntries(datos.lineas.flatMap((l) => (l.reserva?.cantidadManual ? [[l.id, numeroParaInput(l.reserva.cantidadManual)]] : []))),
@@ -157,7 +162,7 @@ export function PesajeProvider({ datos, children }: { datos: DatosConfirmacion; 
           key={linea.id}
           lineaId={linea.id}
           partidaIds={elegidas[linea.id] ?? []}
-          cantidadReal={linea.esEnraseManual ? "" : (reales[linea.id] ?? "")}
+          cantidadReal={linea.esEnraseManual ? "" : cantidadRealParaServidor(reales[linea.id], linea.unidad)}
           cantidadManual={linea.esEnraseManual ? (manuales[linea.id] ?? "") : ""}
           motivo={motivos[linea.id] ?? ""}
           version={versiones[linea.id] ?? 0}
@@ -325,9 +330,12 @@ function FilasLinea({
   const sinStock = plan !== null && plan !== "elegir" && !plan.ok;
   const libres = partidas.filter((p) => !lotes.includes(p.id));
   const precision = precisionDeLinea(linea.unidad, datos.pesada.precisionBalanza);
-  // What to weigh from each lot (línea unit): only worth a column when it is not simply the línea's "A pesar".
-  const partes = plan !== null && plan !== "elegir" && plan.ok ? plan.partes : [];
-  const mostrarPartes = !linea.esEnraseManual && partes.length > 0 && (partes.length > 1 || (pesada !== null && linea.cantidadAPesar !== null && !pesada.esperada.equals(linea.cantidadAPesar)));
+  const planOk = plan !== null && plan !== "elegir" && plan.ok ? plan : null;
+  const partes = planOk ? planOk.partes : [];
+  // "A pesar": the physical weight over the chosen lots, rounded to the balance; the ficha's active only while no lot covers the línea.
+  const aPesar = planOk ? redondearABalanza(convertirCantidad(new Decimal(planOk.totalFisico), linea.unidadStock, linea.unidad), precision).toFixed() : linea.cantidadAPesar;
+  // What to weigh from each lot: only when the línea is split over several, otherwise it is "A pesar" itself.
+  const mostrarPartes = !linea.esEnraseManual && partes.length > 1;
   const vencidas = (ficha?.partidas ?? []).filter((p) => p.vencida);
   const motivoId = `motivoApertura_${linea.id}`;
   // Every row of the línea but its last drops the row border: one visual group.
@@ -339,10 +347,7 @@ function FilasLinea({
         <td className="px-3 py-2 font-medium text-zinc-900">{linea.drogaNombre}</td>
         <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">
           {ficha?.cantidadTeorica ? (
-            <>
-              {ficha.cantidadTeorica} <span className="text-zinc-500">{ficha.unidadSimbolo}</span>
-              <Equivalencia valor={ficha.cantidadTeorica} simbolo={ficha.unidadSimbolo} />
-            </>
+            <CantidadFicha valor={ficha.cantidadTeorica} simbolo={ficha.unidadSimbolo} />
           ) : (
             <Vacio />
           )}
@@ -351,10 +356,9 @@ function FilasLinea({
         <td className="px-3 py-2 text-right font-mono font-semibold text-zinc-900 tabular-nums">
           {linea.esEnraseManual ? (
             <span className="inline-block max-w-[12rem] font-sans font-normal text-zinc-500">Enrase manual</span>
-          ) : linea.cantidadAPesar ? (
+          ) : aPesar ? (
             <span className="whitespace-nowrap">
-              {linea.cantidadAPesar} <span className="font-normal text-zinc-500">{linea.unidadSimbolo}</span>
-              <Equivalencia valor={linea.cantidadAPesar} simbolo={linea.unidadSimbolo} />
+              <CantidadFicha valor={aPesar} simbolo={linea.unidadSimbolo} classNameSimbolo="font-normal text-zinc-500" />
             </span>
           ) : (
             <Vacio />
@@ -575,12 +579,7 @@ function etiquetaLote(p: LineaPantalla["partidasElegibles"][number], conPureza: 
 }
 
 function CantidadDeLote({ cantidad, simbolo }: { cantidad: string; simbolo: string }) {
-  return (
-    <>
-      {formatNumero(cantidad)} <span className="font-normal text-zinc-500">{simbolo}</span>
-      <Equivalencia valor={cantidad} simbolo={simbolo} />
-    </>
-  );
+  return <CantidadFicha valor={cantidad} simbolo={simbolo} classNameSimbolo="font-normal text-zinc-500" />;
 }
 
 /** The línea's "Cantidad real pesada" field: the balance's reading (non-manual) or the enrase manual quantity. Saved when left. */
@@ -593,6 +592,8 @@ function CantidadReal({ linea, pesada }: { linea: LineaPantalla; pesada: PesadaD
   const valor = linea.esEnraseManual ? (manuales[linea.id] ?? "") : (reales[linea.id] ?? pesada!.sugerida);
   const evaluacion = pesada?.evaluacion ?? null;
   const guardado = guardados[linea.id];
+  const esMasa = !linea.esEnraseManual && linea.unidad.tipoMagnitud === "MASA";
+  const simboloDisplay = esMasa ? "mg" : linea.unidadSimbolo;
   return (
     <div className="ml-auto flex max-w-[11rem] flex-col items-end gap-1">
       <div className="flex items-center gap-1.5">
@@ -610,13 +611,13 @@ function CantidadReal({ linea, pesada }: { linea: LineaPantalla; pesada: PesadaD
               guardar(linea.id);
             }
           }}
-          aria-label={`Cantidad real pesada de ${linea.drogaNombre} (${linea.unidadSimbolo})`}
+          aria-label={`Cantidad real pesada de ${linea.drogaNombre} (${simboloDisplay})`}
           title={AYUDA_NUMERO}
           aria-invalid={evaluacion?.fueraDeTolerancia || guardado?.estado === "error" ? true : undefined}
           aria-describedby={`${id}-ayuda`}
           className="input h-8 w-24 py-0 text-right font-mono"
         />
-        <span className="text-xs text-zinc-500">{linea.unidadSimbolo}</span>
+        <span className="text-xs text-zinc-500">{simboloDisplay}</span>
       </div>
       <p id={`${id}-ayuda`} className="text-right text-xs text-zinc-500" aria-live="polite">
         {linea.esEnraseManual ? null : (
@@ -712,6 +713,8 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
             {datos.lineas.map((linea, i) => {
               const pesada = pesadas[i];
               const real = linea.esEnraseManual ? manuales[linea.id] : (reales[linea.id] ?? pesada?.sugerida);
+              const esMasa = !linea.esEnraseManual && linea.unidad.tipoMagnitud === "MASA";
+              const simboloDisplay = esMasa ? "mg" : linea.unidadSimbolo;
               return (
                 <li key={linea.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2">
                   <span className="min-w-0">
@@ -723,7 +726,7 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
                   <span className="flex items-center gap-2">
                     {pesada?.evaluacion?.fueraDeTolerancia ? <ToneBadge tone="warn">Fuera de tolerancia</ToneBadge> : null}
                     <span className="font-mono font-semibold tabular-nums text-zinc-900">
-                      {real?.trim() ? `${cantidadValida(real) ? formatNumero(cantidadValida(real)!) : real} ${linea.unidadSimbolo}` : "—"}
+                      {real?.trim() ? `${cantidadValida(real) ? formatNumero(cantidadValida(real)!) : real} ${simboloDisplay}` : "—"}
                     </span>
                   </span>
                 </li>
@@ -788,7 +791,7 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
                   {linea.esEnraseManual ? (
                     <input type="hidden" name={`cantidadManual_${linea.id}`} value={manuales[linea.id] ?? ""} />
                   ) : pesadas[i] ? (
-                    <input type="hidden" name={`cantidadReal_${linea.id}`} value={reales[linea.id] ?? pesadas[i]!.sugerida} />
+                    <input type="hidden" name={`cantidadReal_${linea.id}`} value={cantidadRealParaServidor(reales[linea.id] ?? pesadas[i]!.sugerida, linea.unidad)} />
                   ) : null}
                   {plan !== null && plan !== "elegir" && plan.ok && plan.requiereMotivo ? (
                     <input type="hidden" name={`motivoApertura_${linea.id}`} value={motivos[linea.id] ?? ""} />

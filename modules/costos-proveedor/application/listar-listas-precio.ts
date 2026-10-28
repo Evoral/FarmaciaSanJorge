@@ -1,6 +1,6 @@
 /**
  * `listarListasPrecio` -- the "Listas importadas" tab of `/costos-proveedor`
- * (docs/specs/costos-proveedor.md, "Interface" 3): every imported supplier price list, newest
+ * (openspec/specs/costos-proveedor/spec.md, "Interface" 3): every imported supplier price list, newest
  * first, optionally filtered by proveedor, paginated. Gated on `stock.valorizado.ver` (R35: the
  * permiso that gates money everywhere else; consulting is not the same as importing).
  *

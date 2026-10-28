@@ -5,7 +5,7 @@
  * and médico search/quick-create REUSE modules/pacientes' and
  * modules/medicos' own application-layer use cases directly (`listPacientes`/
  * `crearPacienteDesdeReceta`, `listMedicos`/`crearMedicoDesdeReceta` -- the
- * quick-creates are gated on `recetas.crear`, docs/specs/importacion-receta-pdf.md
+ * quick-creates are gated on `recetas.crear`, openspec/specs/importacion-receta-pdf/spec.md
  * "Permisos") -- not their `ui/actions.ts`
  * (which don't return the created id, needed here to auto-select the new
  * paciente/médico in the receta form) and not their `infrastructure/`
@@ -14,7 +14,7 @@
  * legitimate cross-module entry point).
  */
 import { revalidatePath } from "next/cache";
-import { crearReceta } from "@/modules/recetas/application/crear-receta";
+import { crearReceta, RecetaYaRegistradaError } from "@/modules/recetas/application/crear-receta";
 import { leerRecetaPdf } from "@/modules/recetas/application/leer-receta-pdf";
 import { leerRecetaQr } from "@/modules/recetas/application/leer-receta-qr";
 import { importarReceta } from "@/modules/recetas/application/importar-receta";
@@ -27,6 +27,7 @@ import { marcarPagoReceta } from "@/modules/recetas/application/marcar-pago-rece
 import { listDrogasParaReceta } from "@/modules/recetas/application/list-drogas-para-receta";
 import type { DrogaOpcion } from "@/modules/recetas/application/list-drogas-para-receta";
 import { listPacientes } from "@/modules/pacientes/application/list-pacientes";
+import { getPaciente } from "@/modules/pacientes/application/get-paciente";
 import { crearPacienteDesdeReceta } from "@/modules/pacientes/application/crear-paciente-desde-receta";
 import { listMedicos } from "@/modules/medicos/application/list-medicos";
 import { crearMedicoDesdeReceta } from "@/modules/medicos/application/crear-medico-desde-receta";
@@ -60,11 +61,19 @@ export async function crearRecetaAction(_prevState: RecetaActionState, formData:
         diagnosticoCodigo: String(formData.get("diagnosticoCodigo") ?? ""),
         diagnosticoDescripcion: String(formData.get("diagnosticoDescripcion") ?? ""),
         domicilioPaciente: String(formData.get("domicilioPaciente") ?? ""),
+        domicilioEntrega: String(formData.get("domicilioEntrega") ?? ""),
         pagada: formData.get("pagada") === "on",
+        envioId: String(formData.get("envioId") ?? "") || undefined,
         items,
       });
       revalidatePath("/recetas");
     } catch (error) {
+      // A resubmit after a lost response: show the receta the first submit created (its fichas are completed if missing).
+      if (error instanceof RecetaYaRegistradaError) {
+        nueva = error.receta;
+        const avisos = await generarFichasYCotizaciones(nueva.id, { soloSiDesactualizadas: true });
+        return { status: "success", message: "La receta ya estaba registrada.", id: nueva.id, numeroInterno: nueva.numeroInterno, redirigirA: urlTrasRegistrar(nueva.id, avisos) };
+      }
       return fromError(error, "No se pudo crear la receta.");
     }
     const avisos = await generarFichasYCotizaciones(nueva.id, { soloSiDesactualizadas: false });
@@ -90,6 +99,7 @@ export async function editarRecetaAction(_prevState: RecetaActionState, formData
         diagnosticoCodigo: String(formData.get("diagnosticoCodigo") ?? ""),
         diagnosticoDescripcion: String(formData.get("diagnosticoDescripcion") ?? ""),
         domicilioPaciente: String(formData.get("domicilioPaciente") ?? ""),
+        domicilioEntrega: String(formData.get("domicilioEntrega") ?? ""),
         // Absent when the form has no payment switch (the toma workspace): the payment is left untouched.
         pagada: formData.has("pagada") ? formData.get("pagada") === "true" : undefined,
         items,
@@ -103,6 +113,7 @@ export async function editarRecetaAction(_prevState: RecetaActionState, formData
           diagnosticoCodigo: formData.get("versionDiagnosticoCodigo") ? String(formData.get("versionDiagnosticoCodigo")) : null,
           diagnosticoDescripcion: formData.get("versionDiagnosticoDescripcion") ? String(formData.get("versionDiagnosticoDescripcion")) : null,
           domicilioPaciente: formData.get("versionDomicilioPaciente") ? String(formData.get("versionDomicilioPaciente")) : null,
+          domicilioEntrega: formData.get("versionDomicilioEntrega") ? String(formData.get("versionDomicilioEntrega")) : null,
         },
       });
       revalidatePath("/recetas");
@@ -118,7 +129,7 @@ export async function editarRecetaAction(_prevState: RecetaActionState, formData
 }
 
 /**
- * Live presupuesto of the receta being loaded (docs/specs/presupuesto-receta.md):
+ * Live presupuesto of the receta being loaded (openspec/specs/presupuesto-receta/spec.md):
  * called from the form (debounced), not a `<form action>`. Writes nothing.
  */
 export async function presupuestarRecetaAction(itemsJson: string): Promise<PresupuestoState> {
@@ -131,7 +142,7 @@ export async function presupuestarRecetaAction(itemsJson: string): Promise<Presu
 }
 
 // ============================================================================
-// Importación desde PDF (docs/specs/importacion-receta-pdf.md): read (a
+// Importación desde PDF (openspec/specs/importacion-receta-pdf/spec.md): read (a
 // query -- nothing is saved) and confirm (`recetas.importar`). The file
 // travels only in this POST's multipart body and lives in memory.
 // ============================================================================
@@ -225,6 +236,21 @@ export async function buscarPacientesParaRecetaAction(prevState: BuscarPersonaSt
   } catch (error) {
     const message = actionErrorMessage(error, "No se pudo buscar pacientes.");
     return { status: "error", message, items: prevState.items };
+  }
+}
+
+/**
+ * The picked cliente's domicilios, to prefill the receta (openspec/specs/domicilios/spec.md). Same use case and permiso as the
+ * cliente's ficha (`getPaciente`, `pacientes.gestionar`, like the search above); POST only, never a URL (DP-24).
+ * `null` when it cannot be read: the receta form then just keeps what was typed.
+ */
+export async function domiciliosPacienteParaRecetaAction(id: string): Promise<{ domicilio: string | null; domicilioEntrega: string | null } | null> {
+  try {
+    const paciente = await getPaciente(id);
+    return paciente ? { domicilio: paciente.domicilio, domicilioEntrega: paciente.domicilioEntrega } : null;
+  } catch (error) {
+    actionErrorMessage(error, "No se pudieron leer los domicilios del cliente.");
+    return null;
   }
 }
 

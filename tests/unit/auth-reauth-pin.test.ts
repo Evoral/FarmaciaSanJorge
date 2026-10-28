@@ -42,9 +42,9 @@ const resetPinLockoutMock = vi.fn(async (...args: unknown[]) => {
   void args;
   return undefined;
 });
-const recordPinFailureMock = vi.fn(async (...args: unknown[]) => {
+const recordPinFailureMock = vi.fn(async (...args: unknown[]): Promise<number> => {
   void args;
-  return undefined;
+  return 0;
 });
 vi.mock("@/modules/auth/infrastructure/usuario-repository", () => ({
   loadUsuarioParaPassword: (...args: unknown[]) => loadUsuarioParaPasswordMock(...args),
@@ -106,17 +106,20 @@ describe("reautenticar: PIN branch", () => {
   it("wrong PIN below the threshold -> rejected, counter incremented, not yet blocked, not audited", async () => {
     loadPinEstadoMock.mockResolvedValue({ pinHash: "hash", pinBloqueado: false, pinIntentosFallidos: 2 });
     verifyPasswordMock.mockResolvedValue(false);
+    recordPinFailureMock.mockResolvedValueOnce(3);
     const result = await execute({ pin: "0000" });
     expect(result).toEqual({ ok: false, message: "El PIN no es correcto." });
-    expect(recordPinFailureMock).toHaveBeenCalledWith(expect.anything(), USUARIO_ID, { pinIntentosFallidos: 3, pinBloqueado: false });
+    expect(recordPinFailureMock).toHaveBeenCalledWith(expect.anything(), USUARIO_ID, 5);
   });
 
   it("the 5th consecutive wrong PIN blocks it (AUTH_POLICY.maxFailedPinAttempts)", async () => {
     loadPinEstadoMock.mockResolvedValue({ pinHash: "hash", pinBloqueado: false, pinIntentosFallidos: 4 });
     verifyPasswordMock.mockResolvedValue(false);
+    // The counter and the block are computed in SQL; the repository returns the new count.
+    recordPinFailureMock.mockResolvedValueOnce(5);
     const result = await execute({ pin: "0000" });
     expect(result).toEqual({ ok: false, message: "El PIN no es correcto." });
-    expect(recordPinFailureMock).toHaveBeenCalledWith(expect.anything(), USUARIO_ID, { pinIntentosFallidos: 5, pinBloqueado: true });
+    expect(recordPinFailureMock).toHaveBeenCalledWith(expect.anything(), USUARIO_ID, 5);
   });
 
   it("failed PIN attempts never touch the password lockout (no login repository call exists in this module at all)", async () => {

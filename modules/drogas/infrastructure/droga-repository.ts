@@ -12,6 +12,7 @@
  */
 import type { Prisma } from "@/generated/prisma/client";
 import type { ClaseDroga as PrismaClaseDroga, TipoControl as PrismaTipoControl } from "@/generated/prisma/enums";
+import { dec } from "@/shared/decimal";
 import { buscarDrogasPorTexto, listSinonimosVigentes } from "@/shared/db/busqueda-droga";
 import type { ConflictoNombreDroga } from "../domain/sinonimo";
 
@@ -57,7 +58,7 @@ export interface DrogaListItem {
   stockDisponible: string;
   fechaBaja: Date | null;
   motivoBaja: string | null;
-  /** Vigente synonyms, as typed (docs/specs/sinonimos-droga.md). */
+  /** Vigente synonyms, as typed (openspec/specs/sinonimos-droga/spec.md). */
   sinonimos: string[];
   /** The synonym the search matched through, when the name itself did not match. */
   sinonimoCoincidente: string | null;
@@ -94,7 +95,7 @@ function buildWhere(filter: ListDrogasFilter, coincidencias: Map<string, string 
  */
 export async function listDrogas(tx: Prisma.TransactionClient, filter: ListDrogasFilter): Promise<ListDrogasResult> {
   const search = filter.search?.trim() ?? "";
-  // Name OR vigente synonym, accent-insensitive (docs/specs/sinonimos-droga.md); the other filters stay a Prisma WHERE.
+  // Name OR vigente synonym, accent-insensitive (openspec/specs/sinonimos-droga/spec.md); the other filters stay a Prisma WHERE.
   const coincidencias = search.length > 0 ? await buscarDrogasPorTexto(tx, filter.tenantId, search) : null;
   const where = buildWhere(filter, coincidencias);
   const stock = await loadStockPorDroga(tx, filter.tenantId);
@@ -110,8 +111,8 @@ export async function listDrogas(tx: Prisma.TransactionClient, filter: ListDroga
       select: { id: true, nombre: true, unidadBaseId: true, esControlada: true, tipoControl: true, clase: true, stockMinimo: true, fechaBaja: true, motivoBaja: true, unidadBase: { select: { simbolo: true } } },
     });
     const withStock = rows
-      .map((row) => ({ row, disponible: Number(stock.get(row.id) ?? "0") }))
-      .filter(({ row, disponible }) => disponible < Number(row.stockMinimo.toString()));
+      .map((row) => ({ row, disponible: dec(stock.get(row.id) ?? "0") }))
+      .filter(({ row, disponible }) => disponible.lessThan(dec(row.stockMinimo.toString())));
 
     const total = withStock.length;
     const skip = (filter.page - 1) * filter.pageSize;
@@ -374,7 +375,7 @@ export interface DrogaOpcion {
   /** `tipo_magnitud` of the unidad base: lets a unit picker (e.g. `/partidas/ingresar`'s "Unidad de compra") offer only convertible units. */
   tipoMagnitud: string;
   clase: PrismaClaseDroga;
-  /** Vigente synonyms, as typed: client-filtered pickers search them too (docs/specs/sinonimos-droga.md). */
+  /** Vigente synonyms, as typed: client-filtered pickers search them too (openspec/specs/sinonimos-droga/spec.md). */
   sinonimos: string[];
 }
 

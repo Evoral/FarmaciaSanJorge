@@ -11,12 +11,12 @@
  * ENVIADA_PEND_FIRMA). No receta física step: the attribute and INV-R07 were
  * removed (client decision 2026-10-01, migration 0051).
  *
- * Payment (docs/specs/pago-receta.md P3/P4): the entrega may also mark the receta paid, in the same transaction
+ * Payment (openspec/specs/pago-receta/spec.md P3/P4): the entrega may also mark the receta paid, in the same transaction
  * (`pagada` input, raise-only). A RETIRO_PRESENCIAL must leave the receta paid (it becomes ENTREGADA right away); an
  * ENVIO may stay unpaid until its firma is confirmed (confirmar-firma-recibida.ts). The payment is written BEFORE the
  * estado UPDATE: INV-R14 (migration 0076) rejects a receta becoming ENTREGADA unpaid.
  *
- * Repartidor (docs/specs/envios-repartidores.md E1-E4): an ENVIO carries exactly one active repartidor of the tenant
+ * Repartidor (openspec/specs/envios-repartidores/spec.md E1-E4): an ENVIO carries exactly one active repartidor of the tenant
  * (`repartidorId`, required by the input schema; DB backstop INV-ENT-005) and needs a receta with a domicilio; a
  * RETIRO_PRESENCIAL carries none. Both reads happen inside the transaction, after the receta lock. A receta without
  * domicilio cannot be edited from PREPARADA, so the envío form asks for it (`domicilio`) and this command saves it on the
@@ -40,6 +40,7 @@ import {
   validarPagoAlEntregar,
   mensajeRepartidorSegunModalidad,
   resolverDomicilioParaEnvio,
+  domicilioDeEnvio,
   MENSAJE_RETIRO_CON_DOMICILIO,
   validarRepartidorAsignable,
 } from "../domain/entrega";
@@ -112,7 +113,7 @@ export const registrarEntregaCommand = defineCommand({
 
     let domicilioNuevo: string | null = null;
     if (input.modalidad === "ENVIO") {
-      domicilioNuevo = resolverDomicilioParaEnvio(receta.domicilioPaciente, input.domicilio);
+      domicilioNuevo = resolverDomicilioParaEnvio(domicilioDeEnvio(receta.domicilioPaciente, receta.domicilioEntrega), input.domicilio);
       validarRepartidorAsignable(await getRepartidorParaAsignar(tx, session.tenantId, input.repartidorId!));
     }
 
@@ -121,8 +122,9 @@ export const registrarEntregaCommand = defineCommand({
     }
 
     try {
-      // E4: a receta without domicilio gets the typed one (only that column) BEFORE the entrega is inserted. Audited on the
-      // receta's own history, like the payment below.
+      // E4: a receta without domicilio gets the typed one as its domicilio de entrega (only that column, migration 0099;
+      // the domicilio written on the receta is never touched) BEFORE the entrega is inserted. Audited on the receta's own
+      // history, like the payment below.
       if (domicilioNuevo !== null) {
         await actualizarDomicilioReceta(tx, session.tenantId, input.recetaId, domicilioNuevo);
         await auditRecord(tx, {
@@ -131,8 +133,8 @@ export const registrarEntregaCommand = defineCommand({
           entidad: "receta",
           entidadId: input.recetaId,
           accion: TipoAccion.MODIFICAR,
-          valorAnterior: { domicilioPaciente: receta.domicilioPaciente },
-          valorNuevo: { domicilioPaciente: domicilioNuevo },
+          valorAnterior: { domicilioEntrega: receta.domicilioEntrega },
+          valorNuevo: { domicilioEntrega: domicilioNuevo },
           contexto: { origen: "entrega" },
         });
       }

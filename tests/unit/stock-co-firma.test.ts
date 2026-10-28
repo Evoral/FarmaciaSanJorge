@@ -173,7 +173,7 @@ describe("verificarCoFirmaDt", () => {
 
     const result = await verificarCoFirmaDt({ dtUsuarioId: DT_ID, password: "wrong" });
     expect(result).toEqual({ ok: false, message: CO_FIRMA_GENERIC_ERROR });
-    expect(recordCoFirmaFailureMock).toHaveBeenCalledWith(expect.anything(), DT_ID, { intentosFallidos: 1, bloqueadoHasta: null });
+    expect(recordCoFirmaFailureMock).toHaveBeenCalledWith(expect.anything(), DT_ID, { maxIntentos: 5, bloqueadoHasta: expect.any(Date) });
   });
 
   it("inactive: found, correct password, but estado !== ACTIVO -> generic rejection", async () => {

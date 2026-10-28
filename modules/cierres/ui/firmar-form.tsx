@@ -20,6 +20,7 @@ import { firmarCierreAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { MOTIVO_DEMORA_VALUES, MOTIVO_DEMORA_LABELS } from "../domain/motivo-demora";
+import { PasswordInput } from "@/shared/ui/password-input";
 
 export interface NumeracionPorConfirmar {
   libroId: string;
@@ -120,7 +121,7 @@ export function FirmarForm({ fecha, fueraDeTermino, numeracionPorConfirmar }: Fi
             <label htmlFor="password" className="field-label">
               Tu contraseña
             </label>
-            <input id="password" name="password" type="password" autoComplete="off" required aria-describedby="password-ayuda" className="input" />
+            <PasswordInput id="password" name="password" autoComplete="off" required aria-describedby="password-ayuda" className="input" />
             <p id="password-ayuda" className="field-help">
               Se requiere tu contraseña completa. El PIN no es válido para firmar.
             </p>

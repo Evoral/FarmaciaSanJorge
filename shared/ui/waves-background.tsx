@@ -6,7 +6,7 @@
  * (aria-hidden, no pointer events), drawn on a canvas behind the page.
  *
  * Follows the app skin: the stroke is read from the `--color-brand` token
- * at mount, over the `canvas` surface color. Styling goes through Tailwind
+ * at mount, over the white `surface` color. Styling goes through Tailwind
  * classes only -- the production CSP has no 'unsafe-inline' for styles.
  *
  * With `prefers-reduced-motion: reduce` it draws a single static frame.
@@ -211,7 +211,7 @@ export function WavesBackground() {
   }, []);
 
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-canvas">
+    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-surface">
       <canvas ref={canvasRef} className="absolute inset-0 size-full" />
     </div>
   );
