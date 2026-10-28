@@ -57,6 +57,8 @@ export interface ReauthAwareFormProps<S extends FormActionState> {
   onSuccess?: (state: SuccessState<S>) => void;
   /** The permiso of the action: in a cuenta de sector that asks a PIN for it, "who is acting" is asked before the first submit (see `shared/ui/use-form-submit.ts`). */
   accion?: string | readonly string[];
+  /** Runs right before each submit is dispatched, after "who is acting" (see `shared/ui/use-form-submit.ts`). */
+  antesDeEnviar?: () => void;
 }
 
 export function ReauthAwareForm<S extends FormActionState>({
@@ -72,10 +74,11 @@ export function ReauthAwareForm<S extends FormActionState>({
   extraActions,
   onSuccess,
   accion,
+  antesDeEnviar,
 }: ReauthAwareFormProps<S>) {
   const [state, formAction, isPending] = useActionState(action, { status: "idle" } as Awaited<S>);
   const reauth = useReauthPrompt(state);
-  const { onSubmit, resubmit } = useReauthFormSubmit(formAction, { estado: state, accion });
+  const { onSubmit, resubmit } = useReauthFormSubmit(formAction, { estado: state, accion, antesDeEnviar });
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
 
