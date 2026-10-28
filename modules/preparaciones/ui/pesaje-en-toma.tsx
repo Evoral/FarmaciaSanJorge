@@ -41,7 +41,7 @@ import { estadoVencimientoPartida } from "@/modules/stock/domain/vencimiento-par
 import type { DatosConfirmacion, LineaPantalla } from "../application/datos-confirmacion";
 import type { LineaDeFichaToma } from "../application/get-toma-receta";
 import { precisionDeLinea, redondearABalanza } from "../domain/pesada-real";
-import { cantidadRealDesdeServidor, cantidadRealParaServidor, cantidadValida, lotesPorDefecto, pesadaDeLinea, planDeLinea, type PesadaDeLinea, type PlanDeLinea } from "./confirmar-form";
+import { cantidadRealDesdeServidor, cantidadRealParaServidor, cantidadValida, factorAMg, lotesPorDefecto, pesadaDeLinea, planDeLinea, type PesadaDeLinea, type PlanDeLinea } from "./confirmar-form";
 import { CantidadFicha, LotesVencidos, Vacio, conExceso } from "./lineas-ficha-tabla";
 import { guardarBorradorPesadaAction, guardarExcipienteBorradorAction, reservarStockAction } from "./actions";
 import { IDLE_STATE } from "./action-state";
@@ -331,7 +331,7 @@ function FilasLinea({
   const precision = precisionDeLinea(linea.unidad, datos.pesada.precisionBalanza);
   // What to weigh from each lot (línea unit): only worth a column when it is not simply the línea's "A pesar".
   const partes = plan !== null && plan !== "elegir" && plan.ok ? plan.partes : [];
-  const mostrarPartes = !linea.esEnraseManual && partes.length > 0 && (partes.length > 1 || (pesada !== null && linea.cantidadAPesar !== null && !pesada.esperada.equals(linea.cantidadAPesar)));
+  const mostrarPartes = !linea.esEnraseManual && partes.length > 0 && (partes.length > 1 || (pesada !== null && linea.cantidadAPesar !== null && !pesada.esperada.equals(new Decimal(linea.cantidadAPesar).times(factorAMg(linea.unidad)))));
   const vencidas = (ficha?.partidas ?? []).filter((p) => p.vencida);
   const motivoId = `motivoApertura_${linea.id}`;
   // Every row of the línea but its last drops the row border: one visual group.

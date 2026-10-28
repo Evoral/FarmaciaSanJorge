@@ -124,7 +124,7 @@ export function lotesPorDefecto(linea: LineaPantalla, jornada: string): string[]
 type UnidadDeLinea = LineaPantalla["unidad"];
 
 /** Línea unit -> mg for a mass (the pesada real is typed in mg); 1 otherwise. GRAMO is MASA's base (factor 1). */
-function factorAMg(unidad: UnidadDeLinea): Decimal {
+export function factorAMg(unidad: UnidadDeLinea): Decimal {
   return unidad.tipoMagnitud === "MASA" ? new Decimal(unidad.factorABase).times(1000) : new Decimal(1);
 }
 
