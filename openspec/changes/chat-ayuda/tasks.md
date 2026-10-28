@@ -23,11 +23,11 @@ Order matters: each block builds on the previous one. Design: `design.md`.
 
 ## 3. Domain (pure)
 
-- [ ] 3.1 `guia.ts`: `EntradaGuia` type.
-- [ ] 3.2 `filtrar-guia.ts`: all-required semantics.
-- [ ] 3.3 `armar-contexto.ts`: fixed rules + index sorted by id + focus details + history + question; history/question limits.
-- [ ] 3.4 `resolver-respuesta.ts`: model output → answer + entry from the guide; `null` → CA4b card.
-- [ ] 3.5 `consulta-ayuda.ts`: resultado values.
+- [x] 3.1 `guia.ts`: `EntradaGuia` type.
+- [x] 3.2 `filtrar-guia.ts`: all-required semantics.
+- [x] 3.3 `armar-contexto.ts`: fixed rules + index sorted by id + focus details + history + question; history/question limits.
+- [x] 3.4 `resolver-respuesta.ts`: model output → answer + entry from the guide; `null` → CA4b card.
+- [x] 3.5 `consulta-ayuda.ts`: resultado values.
 
 ## 4. Guide content
 
