@@ -5,6 +5,5 @@
  * server-side by `conOperador` (./operador-context.ts). Pure constants, safe
  * to import from client code.
  */
-export const CAMPO_OPERADOR_ID = "operadorId";
 export const CAMPO_OPERADOR_METODO = "operadorMetodo";
 export const CAMPO_OPERADOR_PIN = "operadorPin";

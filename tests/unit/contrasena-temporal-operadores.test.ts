@@ -33,26 +33,15 @@ vi.mock("@/modules/auth/infrastructure/session-repository", () => ({
   loadUsuarioConPermisos: (...args: unknown[]) => loadUsuarioConPermisosMock(...args),
 }));
 
-const loadPinEstadoMock = vi.fn(async (...args: unknown[]): Promise<unknown> => {
+const loadPinHashesDeOperadoresMock = vi.fn(async (...args: unknown[]): Promise<{ id: string; pinHash: string }[]> => {
   void args;
-  return null;
-});
-const recordPinFailureMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
-  void args;
-  return undefined;
-});
-const resetPinLockoutMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
-  void args;
-  return undefined;
+  return [];
 });
 vi.mock("@/modules/auth/infrastructure/usuario-repository", () => ({
-  loadPinEstado: (...args: unknown[]) => loadPinEstadoMock(...args),
-  recordPinFailure: (...args: unknown[]) => recordPinFailureMock(...args),
-  resetPinLockout: (...args: unknown[]) => resetPinLockoutMock(...args),
+  loadPinHashesDeOperadores: (...args: unknown[]) => loadPinHashesDeOperadoresMock(...args),
 }));
 
 const { verificarOperadorEnTx, MENSAJE_OPERADOR_RECHAZADO } = await import("@/modules/auth/application/verificar-operador");
-const { listOperadores } = await import("@/modules/operadores/infrastructure/operadores-repository");
 
 const TENANT_ID = "11111111-1111-1111-1111-111111111111";
 const SECTOR_ID = "22222222-2222-4222-a222-222222222222";
@@ -84,15 +73,13 @@ function empleado(extra: Record<string, unknown> = {}) {
   };
 }
 
-const credencial = (pin = "4829") => ({ usuarioId: EMPLEADO_ID, prueba: { metodo: "PIN", pin } });
+const credencial = (pin = "4829") => ({ prueba: { metodo: "PIN" as const, pin } });
 
 beforeEach(() => {
   auditRecordMock.mockClear();
   verifyPasswordMock.mockReset().mockResolvedValue(false);
   loadUsuarioConPermisosMock.mockReset().mockResolvedValue(empleado());
-  loadPinEstadoMock.mockReset().mockResolvedValue({ pinHash: "hash", pinBloqueado: false, pinIntentosFallidos: 0 });
-  recordPinFailureMock.mockClear();
-  resetPinLockoutMock.mockClear();
+  loadPinHashesDeOperadoresMock.mockReset().mockResolvedValue([{ id: EMPLEADO_ID, pinHash: "hash" }]);
 });
 
 describe("decideCandidatoOperador with a pending password change", () => {
@@ -120,35 +107,11 @@ describe("verificarOperadorEnTx with a pending password change", () => {
     const resultado = await verificarOperadorEnTx(TX, sector, credencial());
 
     expect(resultado).toEqual({ ok: false, message: MENSAJE_OPERADOR_RECHAZADO });
-    // No failed attempt is counted, and the PIN lockout is untouched.
-    expect(recordPinFailureMock).not.toHaveBeenCalled();
-    expect(resetPinLockoutMock).not.toHaveBeenCalled();
-    // Constant work: argon2 still runs once (against the dummy hash).
     expect(verifyPasswordMock).toHaveBeenCalledTimes(1);
-    expect(verifyPasswordMock).toHaveBeenCalledWith(null, "4829");
-    expect(loadPinEstadoMock).not.toHaveBeenCalled();
-    // One rejected-attempt audit naming the internal reason.
+    expect(verifyPasswordMock).toHaveBeenCalledWith("hash", "4829");
+    // One rejected-attempt audit targeting the cuenta de sector naming the internal reason.
     expect(auditRecordMock).toHaveBeenCalledTimes(1);
-    expect(auditRecordMock.mock.calls[0]![1]).toMatchObject({ entidad: "operador", entidadId: EMPLEADO_ID, accion: "AUTORIZAR", usuarioId: SECTOR_ID });
+    expect(auditRecordMock.mock.calls[0]![1]).toMatchObject({ entidad: "operador", entidadId: SECTOR_ID, accion: "AUTORIZAR", usuarioId: SECTOR_ID });
     expect((auditRecordMock.mock.calls[0]![1] as { motivo: string }).motivo).toContain("DEBE_CAMBIAR_PASSWORD");
-  });
-});
-
-describe("listOperadores", () => {
-  it("excludes usuarios with a pending password change", async () => {
-    const findMany = vi.fn(async (args: { where: unknown }) => (void args, []));
-    const tx = { usuario: { findMany } } as never;
-
-    await listOperadores(tx, TENANT_ID);
-
-    expect(findMany).toHaveBeenCalledTimes(1);
-    expect(findMany.mock.calls[0]![0].where).toEqual({
-      tenantId: TENANT_ID,
-      estado: "ACTIVO",
-      esSector: false,
-      esTecnico: false,
-      pinHash: { not: null },
-      debeCambiarPassword: false,
-    });
   });
 });

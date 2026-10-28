@@ -3,7 +3,7 @@
  * URL of its logo. `logoSrc` carries the logo's version (`logo_actualizado_en`), so a new logo is a new URL and the
  * image can be cached for good. `null` means the generic app logo.
  *
- * `permiso: "auth.login"` is the same deliberate reuse as `listOperadores`: every role always holds it
+ * `permiso: "auth.login"` is a deliberate reuse: every role always holds it
  * (PERMISOS_BASE_DE_ROL), and every signed-in usuario sees the navbar. `getLogoTenant` serves the bytes.
  */
 import { z } from "zod";

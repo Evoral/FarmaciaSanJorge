@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 import type { Permiso } from "@/modules/auth/domain/permisos";
 import type { VerificacionDeOperador } from "@/shared/auth/operador";
-import { CAMPO_OPERADOR_ID, CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
+import { CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
@@ -116,7 +116,6 @@ describe("T2-04: crearProductoDesdeFacturaAction in sector accounts", () => {
     formData.set("nombre", "Ibuprofeno");
     formData.set("unidadBaseId", UNIDAD_ID);
     formData.set("clase", "DROGA");
-    formData.set(CAMPO_OPERADOR_ID, EMPLEADO_ID);
     formData.set(CAMPO_OPERADOR_PIN, "1234");
 
     const result = await crearProductoDesdeFacturaAction(formData);

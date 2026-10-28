@@ -169,6 +169,20 @@ export async function loadPinEstado(tx: Prisma.TransactionClient, usuarioId: str
   });
 }
 
+/**
+ * The PIN hashes of the empleados a cuenta de sector can be operated by (`identificarPorPin`): ACTIVO people, never a
+ * cuenta de sector nor the technical usuario, with a PIN and no pending password change
+ * (openspec/specs/contrasena-temporal/spec.md). A blocked PIN still counts: the PIN is only an identifier there.
+ * Never returns the hashes to a caller outside modules/auth.
+ */
+export async function loadPinHashesDeOperadores(tx: Prisma.TransactionClient, tenantId: string): Promise<{ id: string; pinHash: string }[]> {
+  const rows = await tx.usuario.findMany({
+    where: { tenantId, estado: "ACTIVO", esSector: false, esTecnico: false, pinHash: { not: null }, debeCambiarPassword: false },
+    select: { id: true, pinHash: true },
+  });
+  return rows.flatMap((row) => (row.pinHash ? [{ id: row.id, pinHash: row.pinHash }] : []));
+}
+
 /** Sets/changes the PIN (`configurarPin`): stores the new hash and resets the failed-attempt counter/block -- a freshly (re)set PIN starts clean. */
 export async function setPinHash(tx: Prisma.TransactionClient, usuarioId: string, pinHash: string, now: Date): Promise<void> {
   await tx.usuario.update({

@@ -11,7 +11,7 @@ import { z } from "zod";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 import type { VerificacionDeOperador } from "@/shared/auth/operador";
 import { AuthorizationError, DomainError, OperadorRequeridoError, StepUpRequiredError } from "@/shared/errors";
-import { CAMPO_OPERADOR_ID, CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
+import { CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
 
 const auditRecordMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
   void args;
@@ -72,7 +72,7 @@ function empleadoVerificado(permisos: string[]): VerificacionDeOperador {
   };
 }
 
-const CREDENCIAL = { usuarioId: EMPLEADO_ID, prueba: { metodo: "PIN", pin: "4829" } };
+const CREDENCIAL = { prueba: { metodo: "PIN", pin: "4829" } };
 
 /** A command guarded on `preparaciones.confirmar` that reports the session its handler received. */
 function comandoQueInforma(opciones: { requireRecentReauth?: boolean } = {}) {
@@ -168,14 +168,25 @@ describe("acción con PIN en una cuenta de sector", () => {
 });
 
 describe("lo que NO pide PIN", () => {
-  it("una acción sin PIN en la cuenta de sector queda a nombre de la cuenta, aunque la solicitud traiga una credencial", async () => {
+  it("una acción sin PIN en la cuenta de sector queda a nombre de la cuenta, aunque la solicitud traiga una credencial (que igual se verifica)", async () => {
+    verificarOperadorMock.mockResolvedValue(empleadoVerificado(["preparaciones.confirmar"]));
     const sector = sesionDeSector(["preparaciones.confirmar"], ["stock.ajuste.registrar"]);
     const comando = comandoQueInforma();
     const recibida = await ejecutarConOperador(CREDENCIAL, () => comando.execute({}, { session: sector }));
     expect(recibida.usuario.id).toBe(SECTOR_ID);
     expect(recibida.terminal ?? null).toBeNull();
-    expect(verificarOperadorMock).not.toHaveBeenCalled();
+    expect(verificarOperadorMock).toHaveBeenCalledTimes(1);
     expect(auditRecordMock.mock.calls[0]![1]).toMatchObject({ usuarioId: SECTOR_ID });
+  });
+
+  it("con un PIN erróneo en la solicitud, una acción sin PIN tampoco corre: se rechaza en el campo PIN sin ejecutar el comando", async () => {
+    verificarOperadorMock.mockResolvedValue({ ok: false, message: "El PIN no corresponde a ningún empleado habilitado." });
+    const sector = sesionDeSector(["preparaciones.confirmar"], ["stock.ajuste.registrar"]);
+    const comando = comandoQueInforma();
+    const error = await ejecutarConOperador(CREDENCIAL, () => comando.execute({}, { session: sector })).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(DomainError);
+    expect((error as DomainError).message).toBe("El PIN no corresponde a ningún empleado habilitado.");
+    expect(auditRecordMock).not.toHaveBeenCalled();
   });
 
   it("una sesión individual nunca pide PIN y conserva su step-up", async () => {
@@ -217,13 +228,13 @@ describe("conOperador (Server Actions)", () => {
 
   it("con los campos del operador: la credencial llega al pipeline y la acción se completa", async () => {
     verificarOperadorMock.mockResolvedValue(empleadoVerificado(["preparaciones.confirmar"]));
-    await expect(conOperador(formData({ [CAMPO_OPERADOR_ID]: EMPLEADO_ID, [CAMPO_OPERADOR_PIN]: "4829" }), accion)).resolves.toEqual({ status: "success" });
-    expect(verificarOperadorMock).toHaveBeenCalledWith(expect.anything(), sector, { usuarioId: EMPLEADO_ID, prueba: { metodo: "PIN", pin: "4829" } });
+    await expect(conOperador(formData({ [CAMPO_OPERADOR_PIN]: "4829" }), accion)).resolves.toEqual({ status: "success" });
+    expect(verificarOperadorMock).toHaveBeenCalledWith(expect.anything(), sector, { prueba: { metodo: "PIN", pin: "4829" } });
   });
 
   it("un PIN rechazado sigue siendo un error (con su mensaje), no un operador-required", async () => {
     verificarOperadorMock.mockResolvedValue({ ok: false, message: "El PIN no es correcto." });
-    await expect(conOperador(formData({ [CAMPO_OPERADOR_ID]: EMPLEADO_ID, [CAMPO_OPERADOR_PIN]: "0000" }), accion)).resolves.toEqual({
+    await expect(conOperador(formData({ [CAMPO_OPERADOR_PIN]: "0000" }), accion)).resolves.toEqual({
       status: "error",
       message: "El PIN no es correcto.",
     });

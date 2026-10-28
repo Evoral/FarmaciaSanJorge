@@ -179,14 +179,13 @@ describe("CT4: only completarCambioPasswordTemporal clears debeCambiarPassword",
    * an entry must be a conscious, reviewed decision (a read-side WHERE
    * filter is fine, a write is not).
    *
-   * - usuario-repository.ts: the clearing write itself.
-   * - operadores-repository.ts: a WHERE read filter in `listOperadores`
-   *   (cannot clear the flag).
+   * - usuario-repository.ts: the clearing write itself and a WHERE filter in
+   *   `loadPinHashesDeOperadores`.
    *
    * The co-firma repositories (CT8) filter with raw SQL
    * (`u.debe_cambiar_password = false`), so they do not contain the literal.
    */
-  const ALLOWED_FILES = ["modules/auth/infrastructure/usuario-repository.ts", "modules/operadores/infrastructure/operadores-repository.ts"];
+  const ALLOWED_FILES = ["modules/auth/infrastructure/usuario-repository.ts"];
   const NEEDLE = "debeCambiarPassword: false";
 
   function walk(dir: string, out: string[]): string[] {

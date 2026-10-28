@@ -5,7 +5,7 @@
  * (openspec/specs/cuentas-de-sector/spec.md). The form plumbing
  * (`./use-form-submit.ts`) only knows this context: it asks `pedir()` for
  * the credential fields and adds them to the `FormData` it submits. The
- * prompt itself (selector of empleados + PIN) and its data live in
+ * prompt itself (the empleado's PIN, which alone identifies them) lives in
  * `modules/operadores/ui/operador-provider.tsx`, mounted once in the
  * authenticated layout -- so `shared/ui` never imports a module.
  *

@@ -31,7 +31,7 @@
  * `cambiar-password.ts`, `restablecer-credencial.ts`
  * and both `verificar-co-firma-dt.ts` files never read `pin_hash` at all;
  * `pin_hash` is only ever compared against user input inside modules/auth:
- * here, and in `./verificador-pin.ts` (the empleado identifying themselves
+ * here, and in `./identificador-pin.ts` (the empleado identifying themselves
  * on a cuenta de sector, openspec/specs/cuentas-de-sector/spec.md).
  *
  * D (user decision, PIN re-auth feature): a successful PASSWORD re-auth

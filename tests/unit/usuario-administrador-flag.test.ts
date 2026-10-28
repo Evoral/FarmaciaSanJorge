@@ -5,7 +5,6 @@
  * - Mapped in:
  *   - `modules/auditoria/infrastructure/auditoria-repository.ts` (listRegistroAuditoria, listUsuariosParaFiltro)
  *   - `modules/usuarios/application/list-usuario-auditoria.ts` (listUsuarioAuditoriaQuery)
- *   - `modules/operadores/infrastructure/operadores-repository.ts` (listOperadores)
  *   - `modules/directores-tecnicos/infrastructure/designacion-repository.ts` (listUsuariosElegibles)
  *   - `modules/stock/infrastructure/co-firma-repository.ts` (listDtVigentesParaCoFirma)
  *   - `modules/libro/infrastructure/co-firma-repository.ts` (listDtVigentesParaCoFirma)
@@ -198,30 +197,6 @@ describe("listUsuarioAuditoriaQuery", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0].usuario.esAdministrador).toBe(true);
-  });
-});
-
-describe("operadores-repository: listOperadores", () => {
-  it("listOperadores maps esAdministrador on each operador option", async () => {
-    const { listOperadores } = await import("@/modules/operadores/infrastructure/operadores-repository");
-
-    const fakeRows = [
-      { id: "op-1", nombre: "Marcos", apellido: "Díaz", rolesAsignados: [{ rolId: "r-admin" }] },
-      { id: "op-2", nombre: "Laura", apellido: "Paz", rolesAsignados: [] },
-    ];
-
-    const fakeTx = {
-      usuario: {
-        findMany: vi.fn().mockResolvedValue(fakeRows),
-      },
-    } as unknown as Prisma.TransactionClient;
-
-    const result = await listOperadores(fakeTx, "t-1");
-
-    expect(result).toEqual([
-      { id: "op-1", nombre: "Marcos", apellido: "Díaz", esAdministrador: true },
-      { id: "op-2", nombre: "Laura", apellido: "Paz", esAdministrador: false },
-    ]);
   });
 });
 

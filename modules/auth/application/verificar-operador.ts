@@ -1,60 +1,54 @@
 /**
  * `verificarOperadorEnTx` (openspec/specs/cuentas-de-sector/spec.md): in a cuenta de
- * sector's shared session, proves WHICH empleado is acting. Called by the
- * use-case pipeline (shared/usecase.ts) for the acciones the farmacia asks a
- * PIN for, in a short transaction of its own that commits BEFORE the
- * command's transaction opens.
+ * sector's shared session, identifies WHICH empleado is acting from their PIN
+ * alone -- no "¿quién sos?" selector (user decision 2026-10-28): no two
+ * usuarios of a farmacia share a PIN. Called by the use-case pipeline
+ * (shared/usecase.ts) for the acciones the farmacia asks a PIN for, in a short
+ * transaction of its own that commits BEFORE the command's transaction opens.
  *
  * Like the DT's co-firma (modules/stock/application/verificar-co-firma-dt.ts)
- * this authenticates a DIFFERENT usuario than the session's, who has no
- * session here: it never creates one, it only says who they are. It never
- * throws for a rejected proof -- it returns `{ ok: false }` -- because the
- * failed-attempt counter written by the verifier must be committed: a throw
- * would roll it back and defeat the block.
+ * this names a DIFFERENT usuario than the session's, who has no session here:
+ * it never creates one, it only says who they are. It never throws for a
+ * rejected proof -- it returns `{ ok: false }` -- so the audit row of the
+ * rejection is committed.
  *
- * A usuario with a temporary password still to be replaced
- * (`debeCambiarPassword`, openspec/specs/contrasena-temporal/spec.md) is not eligible
- * either: rejected like any other ineligible candidate, without counting a
- * failed PIN attempt.
+ * The candidates are the empleados eligible as operador (ACTIVO, not a cuenta
+ * de sector nor the technical usuario, with a PIN and no pending password
+ * change, openspec/specs/contrasena-temporal/spec.md). The PIN is an
+ * identifier, not a secret guarded by attempts: no failed-attempt counter and
+ * no block (the user's call; a fingerprint or face reader is meant to replace it).
  *
  * NOT a use case: the pipeline is its only caller, with the session it
  * already authorized. Whether the empleado HOLDS the permiso of the act is
  * the pipeline's next check, not this function's.
  *
- * The method is pluggable (`VERIFICADORES`, ../domain/verificacion-identidad.ts):
+ * The method is pluggable (`IDENTIFICADORES`, ../domain/verificacion-identidad.ts):
  * the PIN today. `usuario.pin_hash` is still compared only inside
  * modules/auth (here and in ./reautenticar.ts).
  *
  * AUDIT: every rejected attempt is audited (as the co-firma does), authored
- * by the cuenta de sector -- the only identity actually proven at that
- * point -- and targeting the usuario the proof was presented for. A
- * successful one is not: the act it enables carries the empleado as its
- * author and the terminal in its `contexto`.
- *
- * A PIN can be blocked from the shared terminal by someone guessing a
- * colleague's (accepted, same tradeoff as the co-firma's lockout): it never
- * locks the account itself, and the empleado unblocks it by re-authenticating
- * with their password or setting a new PIN from /cuenta.
+ * by and targeting the cuenta de sector -- the only identity actually proven
+ * at that point. A successful one is not: the act it enables carries the
+ * empleado as its author and the terminal in its `contexto`.
  */
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { record as auditRecord, TipoAccion } from "@/shared/audit";
-import { uuid } from "@/shared/validation";
 import type { AuthenticatedSession } from "../domain/session";
 import type { Permiso } from "../domain/permisos";
 import { decideCandidatoOperador } from "../domain/operador-policy";
-import type { MetodoVerificacion, RechazoVerificacion, VerificadorDeIdentidad } from "../domain/verificacion-identidad";
+import type { IdentificadorDeEmpleado, MetodoVerificacion, RechazoIdentificacion } from "../domain/verificacion-identidad";
 import { loadUsuarioConPermisos } from "../infrastructure/session-repository";
-import { verificadorPin } from "./verificador-pin";
+import { identificadorPin, type ContextoIdentificacion } from "./identificador-pin";
 
-/** One verifier per method. Adding a method = one more `PruebaDeIdentidad` variant, one more entry here and in `pruebaDeIdentidadInput`. */
-const VERIFICADORES: { [M in MetodoVerificacion]: VerificadorDeIdentidad<M, Prisma.TransactionClient> } = {
-  PIN: verificadorPin,
+/** One identifier per method. Adding a method = one more `PruebaDeIdentidad` variant, one more entry here and in `pruebaDeIdentidadInput`. */
+const IDENTIFICADORES: { [M in MetodoVerificacion]: IdentificadorDeEmpleado<M, ContextoIdentificacion> } = {
+  PIN: identificadorPin,
 };
 
 const pruebaDeIdentidadInput = z.discriminatedUnion("metodo", [z.object({ metodo: z.literal("PIN"), pin: z.string().min(1).max(64) })]);
 
-const credencialOperadorInput = z.object({ usuarioId: uuid, prueba: pruebaDeIdentidadInput });
+const credencialOperadorInput = z.object({ prueba: pruebaDeIdentidadInput });
 
 export interface OperadorVerificado {
   id: string;
@@ -67,39 +61,34 @@ export interface OperadorVerificado {
 
 export type VerificacionDeOperador = { ok: true; operador: OperadorVerificado; metodo: MetodoVerificacion } | { ok: false; message: string };
 
-export const MENSAJE_OPERADOR_RECHAZADO = "No se pudo verificar al empleado. Revisá quién está elegido y volvé a ingresar el PIN.";
+export const MENSAJE_OPERADOR_RECHAZADO = "No se pudo identificar al empleado. Volvé a ingresar el PIN.";
 
-const MENSAJES_RECHAZO: Record<RechazoVerificacion, string> = {
-  INCORRECTA: "El PIN no es correcto.",
-  BLOQUEADA: "Ese PIN está bloqueado. Su titular lo desbloquea desde «Mi cuenta», con su contraseña.",
-  SIN_CREDENCIAL: "Ese empleado no tiene un PIN configurado. Lo configura desde «Mi cuenta».",
+const MENSAJES_RECHAZO: Record<RechazoIdentificacion, string> = {
+  NO_RECONOCIDA: "El PIN no corresponde a ningún empleado habilitado.",
+  AMBIGUA: "Ese PIN lo tiene más de un empleado. Cambialo desde «Mi cuenta» para poder identificarte.",
 };
 
-/**
- * `credencial` is what the request carried, untrusted (`conOperador`,
- * shared/auth/operador-context.ts): the id only selects WHO must prove their
- * identity; `session.tenantId` scopes the lookup.
- */
+/** `credencial` is what the request carried, untrusted (`conOperador`, shared/auth/operador-context.ts); `session.tenantId` scopes the lookup. */
 export async function verificarOperadorEnTx(tx: Prisma.TransactionClient, session: AuthenticatedSession, credencial: unknown): Promise<VerificacionDeOperador> {
   const parsed = credencialOperadorInput.safeParse(credencial);
   if (!parsed.success) return { ok: false, message: MENSAJE_OPERADOR_RECHAZADO };
-  const { usuarioId, prueba } = parsed.data;
+  const { prueba } = parsed.data;
 
-  const candidato = await loadUsuarioConPermisos(tx, usuarioId);
-  const encontrado = candidato !== null && candidato.tenantId === session.tenantId;
-  const candidatura = decideCandidatoOperador({
-    encontrado,
-    estado: encontrado ? candidato.estado : null,
-    esSector: encontrado ? candidato.esSector : false,
-    esTecnico: encontrado ? candidato.esTecnico : false,
-    debeCambiarPassword: encontrado ? candidato.debeCambiarPassword : false,
-  });
+  const identificacion = await IDENTIFICADORES[prueba.metodo].identificar({ tx, tenantId: session.tenantId }, prueba);
+  const candidato = identificacion.ok ? await loadUsuarioConPermisos(tx, identificacion.usuarioId) : null;
+  // The identifier only offers eligible empleados; re-checked on the loaded row so the rule has one source.
+  const candidatura =
+    candidato && candidato.tenantId === session.tenantId
+      ? decideCandidatoOperador({
+          encontrado: true,
+          estado: candidato.estado,
+          esSector: candidato.esSector,
+          esTecnico: candidato.esTecnico,
+          debeCambiarPassword: candidato.debeCambiarPassword,
+        })
+      : "NO_ENCONTRADO";
 
-  // The verifier always runs, with no usuario when the candidate is not eligible (constant work, see ./verificador-pin.ts).
-  // A pending password change makes the candidate ineligible: their PIN is neither checked nor counted as a failed attempt.
-  const verificacion = await VERIFICADORES[prueba.metodo].verificar(tx, candidatura === "OK" ? usuarioId : null, prueba);
-
-  if (candidatura === "OK" && verificacion.ok && candidato) {
+  if (candidatura === "OK" && candidato) {
     return {
       ok: true,
       metodo: prueba.metodo,
@@ -107,20 +96,17 @@ export async function verificarOperadorEnTx(tx: Prisma.TransactionClient, sessio
     };
   }
 
-  const motivoInterno = candidatura !== "OK" ? candidatura : verificacion.ok ? "OK" : verificacion.motivo;
-  const bloqueoAlcanzado = !verificacion.ok && verificacion.bloqueoAlcanzado === true;
+  const motivoInterno = identificacion.ok ? candidatura : identificacion.motivo;
   await auditRecord(tx, {
     tenantId: session.tenantId,
     usuarioId: session.usuario.id,
     entidad: "operador",
-    entidadId: usuarioId,
+    entidadId: session.usuario.id,
     accion: TipoAccion.AUTORIZAR,
-    // Internal detail for auditoria.ver -- the terminal only ever sees the messages below.
-    motivo: `Identificación de empleado rechazada (método ${prueba.metodo}, motivo interno: ${motivoInterno})${bloqueoAlcanzado ? ". PIN bloqueado por intentos fallidos consecutivos." : "."}`,
+    // Internal detail for auditoria.ver -- the terminal only ever sees the messages below. Never the PIN.
+    motivo: `Identificación de empleado rechazada (método ${prueba.metodo}, motivo interno: ${motivoInterno}).`,
     contexto: { sesionId: session.sesionId },
   });
 
-  // A non-eligible candidate gets the generic message; the selector only offers eligible empleados anyway.
-  const message = candidatura === "OK" && !verificacion.ok ? MENSAJES_RECHAZO[verificacion.motivo] : MENSAJE_OPERADOR_RECHAZADO;
-  return { ok: false, message };
+  return { ok: false, message: identificacion.ok ? MENSAJE_OPERADOR_RECHAZADO : MENSAJES_RECHAZO[identificacion.motivo] };
 }

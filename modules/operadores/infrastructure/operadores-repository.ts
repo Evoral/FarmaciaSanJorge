@@ -1,7 +1,6 @@
 /**
  * Prisma-backed access for `modules/operadores` (openspec/specs/cuentas-de-sector/spec.md):
- * `fsj.accion_con_pin` (migration 0077) and the empleados a cuenta de sector
- * can pick. Every function runs inside an already-open tenant transaction.
+ * `fsj.accion_con_pin` (migration 0077). Every function runs inside an already-open tenant transaction.
  *
  * `fsj.accion_con_pin` is also read by the session loader
  * (modules/auth/infrastructure/session-repository.ts#loadPermisosConPin),
@@ -10,7 +9,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { PERMISOS_CON_PIN_CONFIGURABLES, esPermisoConPinConfigurable, type Permiso } from "@/modules/auth/domain/permisos";
 import type { AccionConPin } from "../domain/acciones-con-pin";
-import { SELECT_ROL_ADMINISTRADOR, esAdministradorDe } from "@/shared/db/usuario-administrador";
 
 /** Every configurable acción, in catalog order, with whether this farmacia asks a PIN for it. */
 export async function listAccionesConPin(tx: Prisma.TransactionClient, tenantId: string): Promise<AccionConPin[]> {
@@ -37,28 +35,4 @@ export async function replaceAccionesConPin(tx: Prisma.TransactionClient, tenant
   if (permisos.length > 0) {
     await tx.accionConPin.createMany({ data: permisos.map((permiso) => ({ tenantId, permisoId: permiso.id })) });
   }
-}
-
-export interface OperadorOpcion {
-  id: string;
-  nombre: string;
-  apellido: string;
-  /** Also the Administrador (with an operative role too): flagged "(Admin)" in the selector. */
-  esAdministrador: boolean;
-}
-
-/**
- * The empleados a cuenta de sector offers in its "¿quién sos?" selector:
- * ACTIVO people (never a cuenta de sector nor the technical usuario) who
- * have a PIN configured and no pending password change (a temporary
- * password, openspec/specs/contrasena-temporal/spec.md). A blocked PIN is still listed -- its owner must see
- * themselves and be told why it fails.
- */
-export async function listOperadores(tx: Prisma.TransactionClient, tenantId: string): Promise<OperadorOpcion[]> {
-  const rows = await tx.usuario.findMany({
-    where: { tenantId, estado: "ACTIVO", esSector: false, esTecnico: false, pinHash: { not: null }, debeCambiarPassword: false },
-    orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
-    select: { id: true, nombre: true, apellido: true, ...SELECT_ROL_ADMINISTRADOR },
-  });
-  return rows.map((row) => ({ id: row.id, nombre: row.nombre, apellido: row.apellido, esAdministrador: esAdministradorDe(row) }));
 }

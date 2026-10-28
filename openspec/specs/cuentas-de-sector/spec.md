@@ -2,7 +2,7 @@
 
 ## Purpose
 
-En el mostrador y en el laboratorio varios empleados usan la misma computadora. Para no iniciar y cerrar sesión todo el tiempo, cada puesto tiene una cuenta de sector con sesión compartida, requiriendo identificación por PIN del empleado en acciones sensibles (decisiones del usuario del 2026-10-13, 2026-10-21 y 2026-10-26).
+En el mostrador y en el laboratorio varios empleados usan la misma computadora. Para no iniciar y cerrar sesión todo el tiempo, cada puesto tiene una cuenta de sector con sesión compartida, requiriendo identificación por PIN del empleado en acciones sensibles. El PIN solo identifica al empleado, sin selector de usuarios: como no hay dos PIN iguales en la farmacia, alcanza con ingresarlo (decisiones del usuario del 2026-10-13, 2026-10-21, 2026-10-26 y 2026-10-28).
 
 ## Requirements
 
@@ -23,12 +23,17 @@ El PIN del empleado MUST verificarse en cada acción individual sin mantener un 
 #### Scenario: Dos acciones consecutivas en la misma cuenta de sector
 - **GIVEN** una cuenta de sector donde un empleado se identificó con su PIN para una acción previa
 - **WHEN** se solicita una nueva acción posterior que requiere PIN
-- **THEN** el sistema exige nuevamente la selección de empleado y el ingreso del PIN
+- **THEN** el sistema exige nuevamente el ingreso del PIN
 
 #### Scenario: Acción que encadena múltiples comandos en una única solicitud
 - **GIVEN** una cuenta de sector y una solicitud que involucra la ejecución de varios comandos encadenados con PIN
 - **WHEN** se procesa la solicitud
 - **THEN** el sistema verifica el PIN una sola vez para toda la secuencia de comandos
+
+#### Scenario: Acción compuesta con un comando sin PIN y otro con PIN
+- **GIVEN** una cuenta de sector donde `recetas.crear` no pide PIN y `fichas.generar` sí
+- **WHEN** se guarda una receta con un PIN que no corresponde a ningún empleado
+- **THEN** la receta no se guarda: el PIN que trae la solicitud se verifica antes de cada comando, aunque ese comando no pida PIN, y la acción se rechaza en el campo PIN
 
 ### Requirement: S3 — Intersección de permisos entre sector y empleado
 
@@ -74,40 +79,45 @@ Una acción ejecutada en una cuenta de sector que no requiera PIN SHALL quedar r
 
 ### Requirement: S7 — Condiciones para calificar como operador
 
-Solo un usuario de la farmacia en estado ACTIVO que no sea cuenta de sector ni usuario técnico, que posea PIN configurado y que no tenga cambio de contraseña temporal pendiente (debeCambiarPassword; no cuenta como intento fallido de PIN) SHALL ser admitido como operador para identificación con PIN.
+Solo un usuario de la farmacia en estado ACTIVO que no sea cuenta de sector ni usuario técnico, que posea PIN configurado y que no tenga cambio de contraseña temporal pendiente (debeCambiarPassword) SHALL ser admitido como operador para identificación con PIN.
 
 #### Scenario: Empleado activo con PIN y sin cambio de contraseña pendiente
 - **GIVEN** un usuario en estado ACTIVO, con PIN establecido, sin ser cuenta de sector ni usuario técnico, y con debeCambiarPassword en falso
-- **WHEN** se consulta el listado de operadores disponibles o se valida su identidad
+- **WHEN** ingresa su PIN en una cuenta de sector
 - **THEN** el sistema lo admite como operador válido
 
 #### Scenario: Usuario con cambio de contraseña temporal pendiente
 - **GIVEN** un usuario que tiene debeCambiarPassword en verdadero
-- **WHEN** se intenta seleccionar o validar como operador en una cuenta de sector
-- **THEN** el sistema no lo admite como operador y la condición no computa como intento fallido de PIN
+- **WHEN** ingresa su PIN en una cuenta de sector
+- **THEN** el sistema no lo admite como operador
 
-### Requirement: S8 — Límite de intentos fallidos y bloqueo de PIN
+### Requirement: S8 — Identificación solo por PIN, sin bloqueo por intentos
 
-Cada verificación de PIN rechazada MUST incrementar el contador de intentos fallidos del empleado en su propia transacción. Al alcanzar AUTH_POLICY.maxFailedPinAttempts, el PIN MUST quedar bloqueado sin bloquear la cuenta de usuario, requiriendo reautenticación con contraseña o nuevo PIN para su desbloqueo.
+En una cuenta de sector el empleado SHALL identificarse solo con su PIN, sin elegir su nombre. El PIN MUST coincidir con el de exactamente un empleado admitido como operador (S7); si no coincide con ninguno o con más de uno, la acción MUST rechazarse sin atribuirse a nadie. Un PIN rechazado SHALL NOT sumar intentos ni bloquear ningún PIN: identifica, no protege (decisión del usuario 2026-10-28).
 
-#### Scenario: Quinto intento consecutivo de PIN incorrecto
-- **GIVEN** un empleado con 4 intentos fallidos previos acumulados en su PIN
-- **WHEN** ingresa un PIN erróneo en su quinto intento
-- **THEN** el contador se incrementa a 5 y el PIN queda bloqueado para operar
+#### Scenario: PIN de un empleado habilitado
+- **GIVEN** una cuenta de sector y un empleado admitido como operador
+- **WHEN** se ingresa su PIN en una acción con PIN
+- **THEN** la acción se ejecuta a nombre de ese empleado, sin haber elegido su nombre
 
-#### Scenario: Desbloqueo de PIN por el titular
-- **GIVEN** un empleado con su PIN bloqueado
-- **WHEN** el titular se reautentica exitosamente con su contraseña o configura un nuevo PIN
-- **THEN** el PIN queda desbloqueado y su contador de intentos se reinicia
+#### Scenario: PIN que no corresponde a ningún empleado
+- **GIVEN** una cuenta de sector
+- **WHEN** se ingresa un PIN que no es el de ningún empleado admitido como operador
+- **THEN** la acción se rechaza con «El PIN no corresponde a ningún empleado habilitado.» y ningún contador de intentos cambia
+
+#### Scenario: PIN compartido por dos empleados
+- **GIVEN** dos empleados de la farmacia con el mismo PIN, configurado antes de exigirse la unicidad
+- **WHEN** se ingresa ese PIN en una cuenta de sector
+- **THEN** la acción se rechaza pidiendo que se cambie el PIN desde «Mi cuenta»
 
 ### Requirement: S9 — Auditoría de intentos de identificación rechazados
 
-Cada intento de identificación de operador rechazado MUST auditarse a nombre de la cuenta de sector con entidad operador y acción AUTORIZAR, registrando como destino al usuario seleccionado y sin almacenar jamás el PIN ingresado.
+Cada intento de identificación de operador rechazado MUST auditarse a nombre de la cuenta de sector con entidad operador y acción AUTORIZAR, registrando como destino a la propia cuenta de sector (no hay usuario seleccionado) y sin almacenar jamás el PIN ingresado.
 
 #### Scenario: Registro de auditoría ante PIN incorrecto
 - **GIVEN** un intento de identificación en cuenta de sector con PIN inválido
 - **WHEN** el sistema rechaza la autenticación
-- **THEN** se emite un registro de auditoría a nombre de la cuenta de sector, indicando el usuario seleccionado y sin incluir el PIN
+- **THEN** se emite un registro de auditoría a nombre de la cuenta de sector, con el motivo interno del rechazo y sin incluir el PIN
 
 ### Requirement: S10 — Exclusión de roles y permisos vedados en cuentas de sector
 
@@ -189,7 +199,7 @@ El valor del campo usuario.es_sector MUST definirse durante la creación del usu
 
 ### Requirement: Unicidad de PIN por farmacia
 
-Dos usuarios de la misma farmacia SHALL NOT compartir el mismo PIN. Al elegirlo en Mi cuenta o en el paso obligatorio, el sistema MUST verificar contra el hash de cada otro usuario de la farmacia bajo lock consultivo, rechazando coincidencias con el mensaje «Ese PIN no se puede usar. Elegí otro.».
+Dos usuarios de la misma farmacia SHALL NOT compartir el mismo PIN: es lo que permite identificar al empleado solo por su PIN (S8). Al elegirlo en Mi cuenta o en el paso obligatorio, el sistema MUST verificar contra el hash de cada otro usuario de la farmacia bajo lock consultivo, rechazando coincidencias con el mensaje «Ese PIN no se puede usar. Elegí otro.».
 
 #### Scenario: Empleado elige PIN ya en uso por otro empleado de la misma farmacia
 - **GIVEN** un empleado de la farmacia que ya tiene configurado un PIN determinado
@@ -317,7 +327,7 @@ En la pantalla /cuenta, una cuenta de sector SHALL NOT visualizar paneles de cam
 
 ### Requirement: Manejo de operador en Server Actions mediante conOperador
 
-Toda Server Action que ejecute un caso de uso con acción configurable MUST envolver su ejecución en la utilidad conOperador para capturar operadorId y operadorPin. Si una acción con PIN no es envuelta por conOperador, el comando MUST rechazarse en cuenta de sector con un mensaje explícito.
+Toda Server Action que ejecute un caso de uso con acción configurable MUST envolver su ejecución en la utilidad conOperador para capturar operadorPin. Si una acción con PIN no es envuelta por conOperador, el comando MUST rechazarse en cuenta de sector con un mensaje explícito.
 
 #### Scenario: Ejecución de Server Action con conOperador
 - **GIVEN** una Server Action que invoca un caso de uso con PIN envuelta en conOperador
@@ -389,7 +399,7 @@ No hay permisos nuevos ni valores nuevos de `tipo_accion`. `registro_auditoria` 
 origen va en su `contexto` (JSON).
 
 El PIN es el de siempre (migración 0037), ahora de **4 dígitos** (`AUTH_POLICY.pinLength`; la migración 0078 borró los
-PIN de 6 dígitos que existían): hash argon2, contador y bloqueo propios. Cada empleado lo
+PIN de 6 dígitos que existían): hash argon2 (su contador y bloqueo rigen solo para la reautenticación por PIN). Cada empleado lo
 configura desde «Mi cuenta» con su propio usuario; nadie más lo conoce.
 
 **Dos usuarios de la misma farmacia nunca comparten PIN** (decisión del usuario 2026-10-26). Como el PIN se guarda
@@ -405,14 +415,14 @@ queda auditado por S9).
 | # | Regla | Dónde se hace cumplir |
 |---|---|---|
 | S1 | Una acción **con PIN** en una cuenta de sector no corre sin un empleado identificado en esa misma solicitud: se rechaza antes de abrir ninguna transacción. Vale para **todo** comando, presente o futuro. | `resolverActor` (`shared/usecase.ts`); `tests/unit/usecase-registry-all-modules.test.ts`. |
-| S2 | El PIN se verifica **en cada acción** (no hay "operador activo" por un rato). Una acción que encadena varios comandos lo verifica una sola vez. | `resolverActor`; `shared/auth/operador-context.ts`. |
+| S2 | El PIN se verifica **en cada acción** (no hay "operador activo" por un rato). Una acción que encadena varios comandos lo verifica una sola vez, **antes del primero**: si la solicitud trae PIN, también lo verifica un comando que no lo pide, así un PIN erróneo no deja guardado nada. | `resolverActor`; `shared/auth/operador-context.ts`. |
 | S3 | La acción solo se permite si la tiene **la cuenta del sector Y el empleado** en sus propios roles. El de laboratorio no puede firmar nada del mostrador y viceversa. Los permisos del acto son la intersección. | `authorizeAuditado` sobre ambos; un rechazo queda auditado (`ACCESO_DENEGADO`) a nombre del empleado. |
 | S4 | Atribución: el handler recibe al empleado como `session.usuario`, así que `registrada_por_id`, `preparada_por_id`, `entregada_por_id`, `registrado_por_id`, etc. y `registro_auditoria.usuario_id` son suyos. | `resolverActor`. Ningún handler cambió. |
 | S5 | Toda fila de auditoría a nombre del empleado lleva `contexto.terminal = { usuarioId, usuario, sesionId }` (la cuenta de sector) y `contexto.verificacion` (`"PIN"`). | `shared/audit/index.ts`; visible en `/auditoria`. |
 | S6 | Una acción **sin PIN** en una cuenta de sector queda a nombre de la cuenta del sector (decisión explícita para el mostrador). | `resolverActor`. |
-| S7 | Puede ser empleado ("operador") un usuario `ACTIVO` de la farmacia que no sea cuenta de sector ni el usuario técnico, y que tenga PIN y no tenga un cambio de contraseña temporal pendiente (`debeCambiarPassword`; no cuenta como intento fallido de PIN, ver `openspec/specs/contrasena-temporal/spec.md`). | `decideCandidatoOperador` (`modules/auth/domain/operador-policy.ts`, decisión `DEBE_CAMBIAR_PASSWORD`), `operadores-repository.ts` (el selector solo lista empleados sin cambio pendiente), `verificador-pin.ts`. |
-| S8 | Un PIN rechazado suma al contador del empleado; al quinto se bloquea (`AUTH_POLICY.maxFailedPinAttempts`). Lo desbloquea su titular reautenticándose con contraseña o configurando un PIN nuevo. Nunca bloquea la cuenta en sí. | `verificador-pin.ts`; el contador se confirma aunque el acto falle (transacción propia). |
-| S9 | Cada identificación rechazada se audita (`entidad = operador`, acción `AUTORIZAR`) a nombre de la cuenta de sector, apuntando al usuario elegido. El PIN nunca se registra. | `verificar-operador.ts`. |
+| S7 | Puede ser empleado ("operador") un usuario `ACTIVO` de la farmacia que no sea cuenta de sector ni el usuario técnico, y que tenga PIN y no tenga un cambio de contraseña temporal pendiente (`debeCambiarPassword`, ver `openspec/specs/contrasena-temporal/spec.md`). | `loadPinHashesDeOperadores` (`modules/auth/infrastructure/usuario-repository.ts`, solo esos candidatos), `decideCandidatoOperador` (`modules/auth/domain/operador-policy.ts`) sobre el identificado. |
+| S8 | El empleado se identifica **solo con su PIN**, sin selector: se compara contra el hash de cada operador posible (S7) y debe coincidir con exactamente uno. Un PIN rechazado no suma intentos ni bloquea nada: es un identificador (decisión 2026-10-28). | `identificador-pin.ts`; `verificar-operador.ts`. |
+| S9 | Cada identificación rechazada se audita (`entidad = operador`, acción `AUTORIZAR`) a nombre de la cuenta de sector y apuntando a ella (no hay usuario elegido). El PIN nunca se registra. | `verificar-operador.ts`. |
 | S10 | Una cuenta de sector nunca tiene `ADMINISTRADOR` ni `DIRECTOR_TECNICO` (y por eso nunca puede ser designada DT), y nunca conserva los permisos de `PERMISOS_VEDADOS_A_SECTOR`, diga lo que diga su rol. | `crearUsuario`; INV-SEC-001; `permisosEfectivos` (`modules/auth/domain/permisos.ts`). |
 | S11 | Ningún acto pide reautenticación con contraseña (decisión 2026-10-21; la excepción es `reanclarLibro`, que solo hace el DT): en una cuenta de sector el PIN del empleado identifica al que actúa, y no se le pide además la contraseña de la cuenta. | `defineCommand`. |
 | S12 | Las consultas nunca piden PIN. Una sesión individual nunca pide PIN de empleado ni reautenticación con contraseña: la propia sesión identifica a quien actúa. Solo se pide la contraseña **del DT** donde el DT autoriza (co-firma de ajustes y anulaciones, firma de cierre, destrucción de archivo), sea cual sea el perfil de quien opera. | `defineQuery`; `resolverActor`. |
@@ -451,22 +461,23 @@ el conjunto antes y después) y rige desde la próxima acción de cada cuenta de
 - **Un DT puede identificarse con su PIN** en una cuenta de sector para actos que no son exclusivos del DT.
 - **"Crear producto" dentro de la importación de factura** no pasa por un formulario: si `drogas.crear` pide PIN,
   desde una cuenta de sector se rechaza con un mensaje claro; el alta se hace desde Catálogos › Drogas.
-- Cualquiera en la terminal puede agotar los intentos del PIN de un compañero y bloqueárselo. Queda auditado
-  (S9). Es el mismo compromiso ya aceptado para la co-firma del DT.
+- Sin límite de intentos, alguien en la terminal puede probar PINs hasta dar con el de un compañero. Cada rechazo
+  queda auditado (S9). Aceptado: el PIN identifica, no protege (decisión 2026-10-28).
 
 ## Verificación (preparada para biometría)
 
 `modules/auth/domain/verificacion-identidad.ts` define el contrato: `MetodoVerificacion`, la unión discriminada
-`PruebaDeIdentidad` y la interfaz `VerificadorDeIdentidad`. Hoy hay una implementación, `verificador-pin.ts`.
+`PruebaDeIdentidad` y la interfaz `IdentificadorDeEmpleado`: la prueba sola dice quién es, como lo haría una huella o
+un rostro. Hoy hay una implementación, `identificador-pin.ts`.
 
-Agregar un método (WebAuthn, huella): una variante más de `PruebaDeIdentidad`, un verificador más en `VERIFICADORES`
+Agregar un método (WebAuthn, huella): una variante más de `PruebaDeIdentidad`, un identificador más en `IDENTIFICADORES`
 (`modules/auth/application/verificar-operador.ts`) y su entrada en el diálogo. El pipeline, la auditoría
 (`contexto.verificacion` registra el método) y los comandos no cambian.
 
 ## Cómo viaja la credencial
 
 1. El formulario envía; si la acción pide PIN se abre el diálogo «¿Quién realiza esta acción?»
-   (`modules/operadores/ui/operador-provider.tsx`), que agrega `operadorId` + `operadorPin` al mismo `FormData`
+   (`modules/operadores/ui/operador-provider.tsx`), que agrega `operadorPin` al mismo `FormData`
    (`shared/ui/use-form-submit.ts`). Lo que el usuario cargó no se pierde. El formulario que declara su `accion`
    lo abre antes del primer envío; el que no, lo abre cuando el servidor responde `operador-required`.
 2. La Server Action envuelve su cuerpo en `conOperador(formData, …)` (`shared/auth/operador-context.ts`), que deja
@@ -506,10 +517,10 @@ en una cuenta de sector el comando se rechaza con un mensaje claro: nunca se atr
 ## Código
 
 - Dominio y verificación: `modules/auth/domain/{permisos,session,verificacion-identidad,operador-policy}.ts`,
-  `modules/auth/application/{verificar-operador,verificador-pin,validate-session}.ts`.
+  `modules/auth/application/{verificar-operador,identificador-pin,validate-session}.ts`.
 - Pipeline: `shared/usecase.ts` (`resolverActor`), `shared/auth/{operador,operador-context,operador-campos}.ts`,
   `shared/audit/index.ts`.
-- Configuración y selector: `modules/operadores/`.
+- Configuración y diálogo del PIN: `modules/operadores/`.
 - Tests: `tests/unit/cuentas-de-sector-*.test.ts`, `tests/unit/contrasena-temporal-operadores.test.ts`,
   `tests/unit/usecase-registry-all-modules.test.ts`,
   `tests/db/auth-permisos.test.ts` (plantilla de roles).

@@ -4,7 +4,9 @@
  * Mounted once in the authenticated layout (`app/(app)/layout.tsx`) for a
  * cuenta de sector (openspec/specs/cuentas-de-sector/spec.md): provides
  * `shared/ui/operador.tsx`'s context to every form and renders THE prompt
- * that asks which empleado is acting and their PIN.
+ * that asks the acting empleado's PIN. The PIN alone identifies them (no two
+ * usuarios of a farmacia share one): there is no "¿quién sos?" selector
+ * (user decision 2026-10-28).
  *
  * The form plumbing (`shared/ui/use-form-submit.ts`) calls `pedir()`; the
  * promise resolves with the credential fields it adds to the submit, or
@@ -18,15 +20,9 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { CircleAlert, UserRoundCheck } from "lucide-react";
 import { AUTH_POLICY } from "@/shared/auth/policy";
-import { CAMPO_OPERADOR_ID, CAMPO_OPERADOR_METODO, CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
+import { CAMPO_OPERADOR_METODO, CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
 import { OperadorContextProvider, type CamposDeOperador, type OperadorContextValue } from "@/shared/ui/operador";
-import type { OperadorOpcion } from "../application/list-operadores";
-import { listarOperadoresAction } from "./actions";
 import { PasswordInput } from "@/shared/ui/password-input";
-import { nombreDeUsuario } from "@/shared/format/usuario";
-
-/** The last empleado who identified themselves on this terminal: preselected, so the usual case is "type your PIN". */
-const ULTIMO_OPERADOR_KEY = "fsj.operador.ultimo";
 
 interface Pedido {
   error?: string;
@@ -81,56 +77,22 @@ interface OperadorPromptProps {
 function OperadorPrompt({ error, onConfirm, onCancel }: OperadorPromptProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const pinRef = useRef<HTMLInputElement>(null);
-  const selectRef = useRef<HTMLSelectElement>(null);
   const tituloId = useId();
-  const operadorId = useId();
   const pinId = useId();
-  const [operadores, setOperadores] = useState<OperadorOpcion[] | null>(null);
-  const [errorCarga, setErrorCarga] = useState<string | null>(null);
-  const [elegido, setElegido] = useState("");
+  const [pin, setPin] = useState("");
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
+    pinRef.current?.focus();
   }, []);
-
-  useEffect(() => {
-    let vigente = true;
-    listarOperadoresAction().then((resultado) => {
-      if (!vigente) return;
-      if (resultado.status === "error") {
-        setErrorCarga(resultado.message);
-        setOperadores([]);
-        return;
-      }
-      const ultimo = window.localStorage.getItem(ULTIMO_OPERADOR_KEY);
-      const preseleccion = resultado.operadores.length === 1 ? resultado.operadores[0]!.id : resultado.operadores.some((o) => o.id === ultimo) ? ultimo! : "";
-      setOperadores(resultado.operadores);
-      setElegido(preseleccion);
-    });
-    return () => {
-      vigente = false;
-    };
-  }, []);
-
-  // Once the list is in: straight to the PIN when the empleado is already chosen.
-  useEffect(() => {
-    if (operadores === null) return;
-    if (elegido) pinRef.current?.focus();
-    else selectRef.current?.focus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [operadores]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    const pin = pinRef.current?.value ?? "";
-    if (!elegido || pin.length === 0) return;
-    window.localStorage.setItem(ULTIMO_OPERADOR_KEY, elegido);
-    onConfirm({ [CAMPO_OPERADOR_ID]: elegido, [CAMPO_OPERADOR_METODO]: "PIN", [CAMPO_OPERADOR_PIN]: pin });
+    if (pin.length === 0) return;
+    onConfirm({ [CAMPO_OPERADOR_METODO]: "PIN", [CAMPO_OPERADOR_PIN]: pin });
   }
-
-  const sinOperadores = operadores !== null && operadores.length === 0 && !errorCarga;
 
   return (
     <dialog
@@ -149,22 +111,8 @@ function OperadorPrompt({ error, onConfirm, onCancel }: OperadorPromptProps) {
             <h2 id={tituloId} className="text-lg font-semibold">
               ¿Quién realiza esta acción?
             </h2>
-            <p className="text-sm text-zinc-600">Elegite e ingresá tu PIN. La acción queda registrada a tu nombre.</p>
+            <p className="text-sm text-zinc-600">Ingresá tu PIN. La acción queda registrada a tu nombre.</p>
           </div>
-        </div>
-
-        <div className="field">
-          <label htmlFor={operadorId} className="field-label">
-            Empleado
-          </label>
-          <select ref={selectRef} id={operadorId} required value={elegido} onChange={(event) => setElegido(event.target.value)} disabled={operadores === null} className="input">
-            <option value="">{operadores === null ? "Cargando…" : "Seleccioná tu nombre"}</option>
-            {(operadores ?? []).map((operador) => (
-              <option key={operador.id} value={operador.id}>
-                {nombreDeUsuario(operador, "apellido")}
-              </option>
-            ))}
-          </select>
         </div>
 
         <div className="field">
@@ -174,6 +122,8 @@ function OperadorPrompt({ error, onConfirm, onCancel }: OperadorPromptProps) {
           <PasswordInput
             ref={pinRef}
             id={pinId}
+            value={pin}
+            onChange={(event) => setPin(event.target.value)}
             inputMode="numeric"
             pattern={`\\d{${AUTH_POLICY.pinLength}}`}
             maxLength={AUTH_POLICY.pinLength}
@@ -183,16 +133,10 @@ function OperadorPrompt({ error, onConfirm, onCancel }: OperadorPromptProps) {
           />
         </div>
 
-        {sinOperadores ? (
-          <p role="note" className="text-sm text-zinc-600">
-            Ningún empleado tiene un PIN configurado todavía. Cada uno lo configura desde «Mi cuenta», con su propio usuario.
-          </p>
-        ) : null}
-
-        {error || errorCarga ? (
+        {error ? (
           <div role="alert" className="alert alert-danger">
             <CircleAlert aria-hidden />
-            <p>{error ?? errorCarga}</p>
+            <p>{error}</p>
           </div>
         ) : null}
 
@@ -200,7 +144,7 @@ function OperadorPrompt({ error, onConfirm, onCancel }: OperadorPromptProps) {
           <button type="button" onClick={onCancel} className="btn btn-secondary">
             Cancelar
           </button>
-          <button type="submit" disabled={!elegido} className="btn btn-primary">
+          <button type="submit" disabled={pin.length === 0} className="btn btn-primary">
             Confirmar
           </button>
         </div>
