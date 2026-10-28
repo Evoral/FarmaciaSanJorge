@@ -121,6 +121,8 @@ export const PERMISO_CATALOGO = {
   "reportes.usuarios": "consulta",
   "reportes.auditoria": "consulta",
   "auditoria.ver": "consulta",
+  // Chat de ayuda (openspec/specs/chat-ayuda/spec.md).
+  "ayuda.consultar": "consulta",
 } as const satisfies Readonly<Record<string, CategoriaPermiso>>;
 
 /**

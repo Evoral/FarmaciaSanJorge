@@ -78,6 +78,7 @@ const AYUDA_PERMISO: Readonly<Record<PermisoAsignable, string>> = {
   "reportes.usuarios": "Ver reportes de actividad de los usuarios.",
   "reportes.auditoria": "Ver reportes armados a partir del registro de auditoría.",
   "auditoria.ver": "Ver el registro de quién hizo qué y cuándo en el sistema.",
+  "ayuda.consultar": "Usar el chat de ayuda para consultar cómo realizar tareas en el sistema.",
 };
 
 /** Help text for `codigo`, or `undefined` for a code without one (e.g. a `sistema` permiso). */

@@ -273,6 +273,7 @@ export const GRUPO_PERMISO_LABELS: Readonly<Record<string, string>> = {
   archivo: "Archivo de recetas",
   reportes: "Reportes",
   auditoria: "Auditoría",
+  ayuda: "Ayuda",
 };
 
 export function etiquetaGrupoPermiso(grupo: string): string {
