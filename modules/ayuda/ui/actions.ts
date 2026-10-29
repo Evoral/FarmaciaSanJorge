@@ -71,8 +71,12 @@ export async function consultarAyudaAction(
     });
     consultaId = registro.consultaId;
   } catch (regError) {
+    const err = regError as { name?: string; code?: unknown } | null | undefined;
     getLogger().error(
-      { err: regError },
+      {
+        name: err?.name ?? "Error",
+        ...(err?.code !== undefined ? { code: err.code } : {}),
+      },
       "Error al registrar la consulta de ayuda"
     );
   }
