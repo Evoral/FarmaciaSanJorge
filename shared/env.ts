@@ -44,7 +44,7 @@ const envSchema = z.object({
   // Lets the model change without a deploy of code.
   GEMINI_MODEL: z.preprocess(
     (value) => (typeof value === "string" ? (value.trim().length === 0 ? undefined : value.trim()) : undefined),
-    z.string().default("gemini-2.5-flash"),
+    z.string().default("gemini-3.5-flash-lite"),
   ),
 });
 

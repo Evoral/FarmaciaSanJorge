@@ -19,7 +19,7 @@ Order matters: each block builds on the previous one. Design: `design.md`.
 
 ## 2. Configuration
 
-- [x] 2.1 `GEMINI_API_KEY` and `GEMINI_MODEL` (optional, default `gemini-2.5-flash`) in `shared/env.ts` (blank → undefined), `.env.example` and `docs/deploy.md`.
+- [x] 2.1 `GEMINI_API_KEY` and `GEMINI_MODEL` (optional, default `gemini-3.5-flash-lite`) in `shared/env.ts` (blank → undefined), `.env.example` and `docs/deploy.md`.
 
 ## 3. Domain (pure)
 
@@ -36,7 +36,7 @@ Order matters: each block builds on the previous one. Design: `design.md`.
 
 ## 5. Infrastructure
 
-- [x] 5.1 `npm install --save-exact @google/genai@2.10.0`; `gemini.server.ts` uses the SDK, `server-only`, model from env, thinking level `low`, timeout, per-request enum schema, zod re-parse, typed error.
+- [x] 5.1 `npm install --save-exact @google/genai@2.10.0`; `gemini.server.ts` uses the SDK, `server-only`, model from env, lowest thinking level the model accepts (`minimal`, or `low` on `gemini-2.5-*`), timeout, per-request enum schema, zod re-parse, typed error.
 - [x] 5.2 `consulta-ayuda-repository.ts`: insert and own-row rating update.
 
 ## 6. Application and web

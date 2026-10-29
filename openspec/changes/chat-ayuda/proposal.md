@@ -13,7 +13,7 @@ la pregunta en lenguaje natural y responda **cómo llegar** a la acción: secci�
 - Un botón de ayuda en la app abre un chat. El usuario pregunta; la respuesta es corta y dice dónde ir y qué tocar,
   con un botón "Ir a …" que lleva a la pantalla.
 - Admite repreguntas sobre lo mismo ("no entiendo cómo importar el PDF").
-- Un LLM barato (Gemini 2.5 Flash, configurable) interpreta la pregunta y redacta la respuesta, **solo** a partir de una guía de
+- Un LLM barato (Gemini 3.5 Flash-Lite, configurable) interpreta la pregunta y redacta la respuesta, **solo** a partir de una guía de
   uso escrita y revisada por nosotros. No inventa pantallas, botones ni rutas.
 
 ## Decisiones del usuario (2026-10-28)
@@ -60,5 +60,5 @@ la pregunta en lenguaje natural y responda **cómo llegar** a la acción: secci�
 
 ## Decisiones pendientes
 
-- **Precio vigente del proveedor (verificado 2026-10-28, https://ai.google.dev/gemini-api/docs/pricing):** `gemini-2.5-flash` en nivel pago cuesta USD 0,30 por 1M tokens de entrada, USD 2,50 por 1M tokens de salida (pensamiento incluido) y USD 0,03 por 1M tokens de entrada cacheada (cache implícito activo por defecto).
+- **Precio vigente del proveedor (verificado 2026-10-28, https://ai.google.dev/gemini-api/docs/pricing):** `gemini-3.5-flash-lite` (igual que `gemini-2.5-flash`, que Google no habilita a claves sin uso previo de los 2.5) en nivel pago cuesta USD 0,30 por 1M tokens de entrada, USD 2,50 por 1M tokens de salida (pensamiento incluido) y USD 0,03 por 1M tokens de entrada cacheada (cache implícito activo por defecto).
 - **Crear la clave en un proyecto de Cloud con facturación, cuota diaria de requests y alertas de gasto (lo hace el usuario).**

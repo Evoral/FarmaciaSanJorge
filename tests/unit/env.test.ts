@@ -126,24 +126,24 @@ describe("getEnv", () => {
     expect(getEnv().GEMINI_API_KEY).toBe("AIzaSyFakeKey123");
   });
 
-  it("defaults GEMINI_MODEL to gemini-2.5-flash when unset", () => {
+  it("defaults GEMINI_MODEL to gemini-3.5-flash-lite when unset", () => {
     setEnv({
       DATABASE_URL: "postgresql://fsj_app.ref:pw@host:6543/postgres?pgbouncer=true",
       DIRECT_URL: "postgresql://postgres:pw@host:5432/postgres",
       GEMINI_MODEL: undefined,
     });
     expect(() => getEnv()).not.toThrow();
-    expect(getEnv().GEMINI_MODEL).toBe("gemini-2.5-flash");
+    expect(getEnv().GEMINI_MODEL).toBe("gemini-3.5-flash-lite");
   });
 
-  it("defaults GEMINI_MODEL to gemini-2.5-flash when empty or whitespace", () => {
+  it("defaults GEMINI_MODEL to gemini-3.5-flash-lite when empty or whitespace", () => {
     setEnv({
       DATABASE_URL: "postgresql://fsj_app.ref:pw@host:6543/postgres?pgbouncer=true",
       DIRECT_URL: "postgresql://postgres:pw@host:5432/postgres",
       GEMINI_MODEL: "   ",
     });
     expect(() => getEnv()).not.toThrow();
-    expect(getEnv().GEMINI_MODEL).toBe("gemini-2.5-flash");
+    expect(getEnv().GEMINI_MODEL).toBe("gemini-3.5-flash-lite");
   });
 
   it("keeps a custom GEMINI_MODEL trimmed", () => {

@@ -16,7 +16,7 @@ Fuente de verdad: `shared/env.ts` (validación con zod, la ÚNICA lectura direct
 | `FSJ_APP_DB_PASSWORD` | Solo para `db:bootstrap` | `scripts/db-bootstrap.ts` (setea el password de `fsj_app`) | NO debe vivir en el proyecto Vercel (no la usa el runtime). Usarla una vez desde una máquina/CI con acceso a `DIRECT_URL`, luego se puede quitar del entorno donde se corrió. |
 | `FSJ_DB_TESTS` | No | `tests/db/**` (`npm run test:db`) | Solo desarrollo/CI de tests contra BD real; no aplica a Vercel. |
 | `GEMINI_API_KEY` | No (opcional) | Chat de ayuda (`modules/ayuda`) | Sin esta clave el chat de ayuda queda oculto en toda la app (CA1). Server-only, nunca se loguea. Debe provenir de un proyecto Google Cloud con facturación activa (tier pago), cuota diaria y alertas de presupuesto (ver §2 y `openspec/changes/chat-ayuda/design.md` §Security). |
-| `GEMINI_MODEL` | No (default `gemini-2.5-flash`) | Chat de ayuda (`modules/ayuda`) | Permite cambiar el modelo de Gemini sin tocar código; en Vercel el cambio de una variable se aplica recién en el próximo deploy (Redeploy desde el dashboard). Si no se define o está en blanco, usa `gemini-2.5-flash`. |
+| `GEMINI_MODEL` | No (default `gemini-3.5-flash-lite`) | Chat de ayuda (`modules/ayuda`) | Permite cambiar el modelo de Gemini sin tocar código; en Vercel el cambio de una variable se aplica recién en el próximo deploy (Redeploy desde el dashboard). Si no se define o está en blanco, usa `gemini-3.5-flash-lite`. |
 
 Ninguna de estas variables se loguea nunca (`shared/logging/logger.ts#REDACT_PATHS` redacta `DATABASE_URL`/`DIRECT_URL` como defensa en profundidad) ni se expone en `/api/health` (§6).
 

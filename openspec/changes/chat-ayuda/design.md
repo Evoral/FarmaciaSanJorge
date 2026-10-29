@@ -124,8 +124,8 @@ type EntradaGuia = {
 ## Model call
 
 - Official SDK `@google/genai` pinned to `2.10.0` (no caret), used exclusively in `modules/ayuda/infrastructure/gemini.server.ts` with `import "server-only"`.
-- Model: `gemini-2.5-flash` by default, overridable via optional `GEMINI_MODEL` env var.
-- Thinking: `gemini-2.5-flash` cannot disable thinking. Set the lowest supported thinking level (`low`) explicitly on every call. Output tokens, thinking included, are billed at the output rate ($2.50/1M).
+- Model: `gemini-3.5-flash-lite` by default, overridable via optional `GEMINI_MODEL` env var. `gemini-2.5-flash` was the first choice, but Google answers 404 to keys without previous 2.5 usage (User decision 2026-10-29); same price.
+- Thinking: set the lowest level the model accepts on every call: `minimal` (the default of `gemini-3.5-flash-lite`), or `low` for `gemini-2.5-*`, which has no `minimal`. Forcing `low` on a newer model made answers hit the 10 s limit. Output tokens, thinking included, are billed at the output rate ($2.50/1M).
 - Low temperature; timeout (~10 s) configured via SDK request options or an abort signal. Timeout or non-2xx → typed error → CA11.
 - Structured output: configured using the SDK's JSON schema config with the per-request enum of permitted ids (`{ respuesta: string, entradaId: enum(ids of permitidas) | null, necesitaDetalle: boolean }`), re-parsed with zod on the server.
 - The model never returns a route: `resolverRespuesta` maps `entradaId` → `ruta` (CA6).
@@ -141,7 +141,7 @@ type EntradaGuia = {
 - **Plain-text rendering** of model output (no markdown/HTML, never `dangerouslySetInnerHTML`). "Ir a" uses the
   server-resolved `ruta` with `next/link`.
 - **API key and model**: `GEMINI_API_KEY` and `GEMINI_MODEL` are both optional in `shared/env.ts`, server-only
-  (blank → undefined; model defaults to `gemini-2.5-flash`); read only in `gemini.server.ts`. Paid tier key.
+  (blank → undefined; model defaults to `gemini-3.5-flash-lite`); read only in `gemini.server.ts`. Paid tier key.
 - **Paid-tier data terms (checked 2026-10-28)**:
   - Prompts and responses are not used to improve Google products on paid services (https://ai.google.dev/gemini-api/terms).
   - Google logs prompts and responses for a limited period, solely to detect policy violations and meet legal requirements (same URL). The usage policies state a 55-day retention for prompts and output, without separating paid from free use (https://ai.google.dev/gemini-api/docs/usage-policies). Whether this logging can be disabled: unverified.

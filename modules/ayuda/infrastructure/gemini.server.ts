@@ -76,16 +76,28 @@ function obtenerCliente(apiKey: string): GoogleGenAI {
 function registrarFallo(
   tipo: TipoErrorProveedorAyuda,
   model: string,
-  statusHttp?: number
+  statusHttp?: number,
+  diagnostico?: { errorName: string; errorMessage?: string }
 ): void {
   getLogger().warn(
     {
       tipo,
       ...(statusHttp !== undefined ? { statusHttp } : {}),
       model,
+      ...diagnostico,
     },
     "Fallo en consulta al proveedor de ayuda"
   );
+}
+
+/**
+ * Lowest thinking level the model accepts: `gemini-2.5-*` models only support
+ * low/medium/high, newer ones also `minimal` (their default). Forcing `low` on
+ * a newer model makes it think more than its default and pushes some answers
+ * past the 10 s limit.
+ */
+function nivelDePensamiento(model: string): ThinkingLevel {
+  return model.startsWith("gemini-2.5") ? ThinkingLevel.LOW : ThinkingLevel.MINIMAL;
 }
 
 export type ParametrosConsultaModelo = {
@@ -172,7 +184,7 @@ export async function consultarModeloAyuda({
         systemInstruction: contexto.sistema,
         temperature: 0.2,
         thinkingConfig: {
-          thinkingLevel: ThinkingLevel.LOW,
+          thinkingLevel: nivelDePensamiento(model),
         },
         responseMimeType: "application/json",
         responseSchema,
@@ -223,7 +235,14 @@ export async function consultarModeloAyuda({
           ? (error as { status: number }).status
           : undefined;
 
-    registrarFallo("proveedor", model, statusHttp);
+    // SDK and Google API messages describe the technical failure and never
+    // echo the prompt, so they are safe to log; cause and request are not.
+    registrarFallo("proveedor", model, statusHttp, {
+      errorName: error instanceof Error ? error.name : "unknown",
+      ...(error instanceof Error && error.message
+        ? { errorMessage: error.message.slice(0, 300) }
+        : {}),
+    });
     throw new ErrorProveedorAyuda(
       "proveedor",
       "Error al comunicarse con el proveedor del modelo",
