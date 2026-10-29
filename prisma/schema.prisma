@@ -1234,7 +1234,7 @@ model ReservaStock {
   id                      String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
   tenantId                String   @map("tenant_id") @db.Uuid
   preparacionId           String   @map("preparacion_id") @db.Uuid
-  /// NULL = the preparación's excipiente (migration 0092), never a línea de pesaje.
+  /// NULL = the preparación's excipiente (migration 0092) or one of its insumos (migration 0110), never a línea de pesaje.
   lineaPesajeId           String?  @map("linea_pesaje_id") @db.Uuid
   partidaId               String   @map("partida_id") @db.Uuid
   /// Physical quantity the split takes from this partida; 0 = chosen but not needed by the split.
@@ -1272,6 +1272,59 @@ model ExcipienteBorrador {
   @@unique([tenantId, id])
   @@unique([tenantId, fichaTecnicaId], map: "excipiente_borrador_ficha_key")
   @@map("excipiente_borrador")
+  @@schema("fsj")
+}
+
+/// Migration 0110 (openspec/specs/insumos-preparacion/spec.md): the kind of an insumo of the preparación.
+/// MATERIAL = the one droga of clase MATERIAL (e.g. the cápsula type); ADICIONAL = any extra droga of clase EXCIPIENTE or MATERIAL.
+enum TipoInsumo {
+  MATERIAL
+  ADICIONAL
+
+  @@map("tipo_insumo")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (migration 0110, openspec/specs/insumos-preparacion/spec.md). The material and insumos adicionales a
+/// preparación used: reserved and descontado with it without línea de pesaje. Written only while INICIADA (INV-P08);
+/// a droga at most once per preparación, never its excipiente; at most one MATERIAL (partial unique index).
+model InsumoPreparacion {
+  id            String     @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId      String     @map("tenant_id") @db.Uuid
+  preparacionId String     @map("preparacion_id") @db.Uuid
+  tipo          TipoInsumo
+  orden         Int        @db.SmallInt
+  drogaId       String     @map("droga_id") @db.Uuid
+  /// The droga's unidad base.
+  cantidad      Decimal    @db.Decimal
+  /// "Aerosil 0,5 g": what the libro's fórmula carries (adicionales of clase EXCIPIENTE only).
+  texto         String     @db.VarChar(120)
+  creadoEn      DateTime   @default(now()) @map("creado_en") @db.Timestamptz(6)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, preparacionId, drogaId], map: "insumo_preparacion_droga_key")
+  @@unique([tenantId, preparacionId, orden], map: "insumo_preparacion_orden_key")
+  @@map("insumo_preparacion")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (migration 0110). The draft of a ficha técnica's material and insumos adicionales (one row each, in
+/// `orden`), saved from the toma workspace; replaced as a whole on every save. Never stock/libro: the reserva re-validates it.
+model InsumoBorrador {
+  id               String     @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId         String     @map("tenant_id") @db.Uuid
+  fichaTecnicaId   String     @map("ficha_tecnica_id") @db.Uuid
+  tipo             TipoInsumo
+  orden            Int        @db.SmallInt
+  /// NULL = none chosen (e.g. the cápsulas' count pre-filled, no material yet).
+  drogaId          String?    @map("droga_id") @db.Uuid
+  cantidad         Decimal?   @db.Decimal
+  actualizadoPorId String     @map("actualizado_por_id") @db.Uuid
+  actualizadoEn    DateTime   @default(now()) @map("actualizado_en") @db.Timestamptz(6)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, fichaTecnicaId, orden], map: "insumo_borrador_orden_key")
+  @@map("insumo_borrador")
   @@schema("fsj")
 }
 

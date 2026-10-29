@@ -39,7 +39,7 @@ import {
   getMesesVencimientoPreparado,
   existeCierreParaJornada,
 } from "../infrastructure/preparacion-repository";
-import type { ExcipienteParaToma, LineaParaPantalla, PartidaElegible } from "../infrastructure/preparacion-repository";
+import type { ExcipienteParaToma, InsumoBorradorFila, InsumoParaToma, LineaParaPantalla, PartidaElegible } from "../infrastructure/preparacion-repository";
 
 export interface LineaPantalla extends LineaParaPantalla {
   /** Every eligible partida of the droga, not expired, in id order: the automatic plan's candidates (the form previews an enrase manual línea over them). */
@@ -92,6 +92,15 @@ export interface DatosConfirmacion {
   excipiente?: {
     opciones: ExcipienteParaToma[];
     borrador: { drogaId: string | null; cantidad: string | null } | null;
+  };
+  /**
+   * Same, migration 0110: the drogas of clase EXCIPIENTE or MATERIAL the material / insumos adicionales may choose
+   * from, their saved draft and, for a CAPSULA ítem, its number of cápsulas (the Material row's pre-fill).
+   */
+  insumos?: {
+    opciones: InsumoParaToma[];
+    borrador: InsumoBorradorFila[];
+    capsulas: string | null;
   };
 }
 

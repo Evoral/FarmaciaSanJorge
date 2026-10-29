@@ -38,6 +38,9 @@ import {
 } from "./confirmar-preparacion";
 import { autorizacionDePesadaReal } from "./co-firma-pesada-real";
 import { partidasCandidatasExcipienteEnTx, reservarExcipienteEnTx } from "./excipiente-preparacion";
+import { partidasCandidatasInsumosEnTx, reservarInsumosEnTx } from "./insumos-preparacion";
+import { INSUMOS_MAX } from "./guardar-insumos-borrador";
+import { TIPOS_INSUMO, type TipoInsumo } from "../domain/insumo";
 import { insertReservas, jornadaActualTenant, type ReservaDePreparacion } from "../infrastructure/preparacion-repository";
 
 const reservarStockPreparacionInput = z.object({
@@ -47,12 +50,15 @@ const reservarStockPreparacionInput = z.object({
   pesadaAutorizadaPorId: pesadaAutorizadaPorIdInput,
   /** The excipiente used (migration 0092): a droga of clase EXCIPIENTE and its quantity in the droga's unidad base; reserved oldest lot first. */
   excipiente: z.object({ drogaId: uuid, cantidad: decimalString }).optional(),
+  /** The material and insumos adicionales (migration 0110): only the ones with a droga chosen; reserved oldest lot first. */
+  insumos: z.array(z.object({ tipo: z.enum(TIPOS_INSUMO), drogaId: uuid, cantidad: decimalString })).max(INSUMOS_MAX).default([]),
 });
 
 export interface ReservarStockPreparacionInput extends CoFirmaPesadaInput {
   fichaTecnicaId: string;
   lineas?: LineaEntradaInput[];
   excipiente?: { drogaId: string; cantidad: string };
+  insumos?: { tipo: TipoInsumo; drogaId: string; cantidad: string }[];
 }
 
 export const reservarStockPreparacionCommand = defineCommand({
@@ -70,8 +76,9 @@ export const reservarStockPreparacionCommand = defineCommand({
       const partidasExcipiente = input.excipiente
         ? await partidasCandidatasExcipienteEnTx(tx, session.tenantId, { preparacionId: iniciada.id, drogaId: input.excipiente.drogaId })
         : [];
+      const partidasInsumos = await partidasCandidatasInsumosEnTx(tx, session.tenantId, { preparacionId: iniciada.id, drogaIds: input.insumos.map((i) => i.drogaId) });
       const plan = await planificarConsumoEnTx(tx, session.tenantId, {
-        partidasAdicionales: partidasExcipiente,
+        partidasAdicionales: [...partidasExcipiente, ...partidasInsumos],
         preparacionId: iniciada.id,
         fichaTecnicaId: input.fichaTecnicaId,
         seleccion: { modo: "automatica", entradas: input.lineas, pesadaAutorizadaPorId: input.pesadaAutorizadaPorId },
@@ -80,6 +87,7 @@ export const reservarStockPreparacionCommand = defineCommand({
 
       await insertReservas(tx, { tenantId: session.tenantId, preparacionId: iniciada.id, reservadaPorId: session.usuario.id, reservas: reservasDelPlan(plan) });
       const excipiente = await reservarExcipienteEnTx(tx, session, { preparacionId: iniciada.id, excipiente: input.excipiente ?? null, jornada });
+      const insumos = await reservarInsumosEnTx(tx, session, { preparacionId: iniciada.id, insumos: input.insumos, jornada });
 
       return {
         output: { id: iniciada.id },
@@ -93,6 +101,7 @@ export const reservarStockPreparacionCommand = defineCommand({
             reservaStock: resumenDelPlan(plan),
             ...pesadasDelPlan(plan),
             ...(excipiente ? { excipiente } : {}),
+            ...(insumos.length > 0 ? { insumos } : {}),
           },
         },
       };

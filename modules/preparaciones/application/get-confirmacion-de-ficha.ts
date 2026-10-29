@@ -10,13 +10,23 @@
  * automatic plan. Stock reserved by other preparaciones is not available.
  * Each línea carries its pesada en borrador (migration 0090,
  * ./guardar-borrador-pesada.ts) as `reserva`, which prefills the fields; plus
- * the excipientes to choose from and the excipiente's draft (migration 0092).
+ * the excipientes to choose from and the excipiente's draft (migration 0092), and the material / insumos
+ * adicionales to choose from, their draft and the cápsulas' pre-fill (migration 0110).
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
-import { getBorradoresDeFicha, getExcipienteBorrador, getFichaParaIniciar, listExcipientesParaToma } from "../infrastructure/preparacion-repository";
+import { cantidadCapsulas } from "../domain/insumo";
+import {
+  getBorradoresDeFicha,
+  getExcipienteBorrador,
+  getFichaParaIniciar,
+  getFormaDeItemDeFicha,
+  listExcipientesParaToma,
+  listInsumosBorrador,
+  listInsumosParaToma,
+} from "../infrastructure/preparacion-repository";
 import { construirDatosConfirmacion, type DatosConfirmacion } from "./datos-confirmacion";
 
 const getConfirmacionDeFichaInput = z.object({ fichaTecnicaId: uuid });
@@ -30,10 +40,12 @@ export const getConfirmacionDeFichaQuery = defineQuery({
     if (!ficha) throw new NotFoundError("Ficha técnica no encontrada.");
     const datos = await construirDatosConfirmacion(tx, session.tenantId, ficha.id);
     const borradores = await getBorradoresDeFicha(tx, session.tenantId, ficha.id);
+    const forma = await getFormaDeItemDeFicha(tx, session.tenantId, ficha.id);
     return {
       ...datos,
       lineas: datos.lineas.map((linea) => ({ ...linea, reserva: borradores.get(linea.id) ?? null })),
       excipiente: { opciones: await listExcipientesParaToma(tx, session.tenantId), borrador: await getExcipienteBorrador(tx, session.tenantId, ficha.id) },
+      insumos: { opciones: await listInsumosParaToma(tx, session.tenantId), borrador: await listInsumosBorrador(tx, session.tenantId, ficha.id), capsulas: forma ? cantidadCapsulas(forma) : null },
     };
   },
 });

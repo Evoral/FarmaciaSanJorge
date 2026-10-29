@@ -36,6 +36,7 @@ import {
 } from "./confirmar-preparacion";
 import { pesadasDelPlan, reservasDelPlan, resumenDelPlan } from "./reservar-stock-preparacion";
 import { guardarReservaExcipienteEnTx, partidasCandidatasExcipienteEnTx, replanificarExcipienteEnTx } from "./excipiente-preparacion";
+import { guardarReservaInsumosEnTx, partidasCandidatasInsumosEnTx, replanificarInsumosEnTx } from "./insumos-preparacion";
 import { autorizacionDePesadaReal } from "./co-firma-pesada-real";
 import {
   deleteReservasDePreparacion,
@@ -133,18 +134,23 @@ export const recalcularReservaStockCommand = defineCommand({
       const jornada = await jornadaActualTenant(tx, session.tenantId);
       const entradas = entradasDeReserva(anteriores, input.lineas);
       const plan = await planificarConsumoEnTx(tx, session.tenantId, {
-        partidasAdicionales: await partidasCandidatasExcipienteEnTx(tx, session.tenantId, { preparacionId: input.preparacionId }),
+        partidasAdicionales: [
+          ...(await partidasCandidatasExcipienteEnTx(tx, session.tenantId, { preparacionId: input.preparacionId })),
+          ...(await partidasCandidatasInsumosEnTx(tx, session.tenantId, { preparacionId: input.preparacionId })),
+        ],
         preparacionId: input.preparacionId,
         fichaTecnicaId: preparacion.fichaTecnicaId,
         seleccion: { modo: "automatica", entradas, pesadaAutorizadaPorId: input.pesadaAutorizadaPorId, autorizacionesPorLinea: autorizacionesDeReserva(anteriores, entradas) },
         jornada,
       });
 
-      // The excipiente (migration 0092) is re-planned too, before anything is deleted.
+      // The excipiente (migration 0092) and the insumos (0110) are re-planned too, before anything is deleted.
       const excipiente = await replanificarExcipienteEnTx(tx, session, { preparacionId: input.preparacionId, jornada });
+      const insumos = await replanificarInsumosEnTx(tx, session, { preparacionId: input.preparacionId, jornada });
       await deleteReservasDePreparacion(tx, session.tenantId, input.preparacionId);
       await insertReservas(tx, { tenantId: session.tenantId, preparacionId: input.preparacionId, reservadaPorId: session.usuario.id, reservas: reservasDelPlan(plan) });
       await guardarReservaExcipienteEnTx(tx, session, input.preparacionId, excipiente);
+      await guardarReservaInsumosEnTx(tx, session, input.preparacionId, insumos);
 
       return {
         output: { id: input.preparacionId },
@@ -155,7 +161,7 @@ export const recalcularReservaStockCommand = defineCommand({
               .filter((r) => r.cantidad !== "0")
               .map((r) => ({ lineaPesajeId: r.lineaPesajeId, partidaId: r.partidaId, cantidad: r.cantidad })),
           },
-          valorNuevo: { reservaStock: resumenDelPlan(plan), ...pesadasDelPlan(plan), ...(excipiente ? { excipiente } : {}) },
+          valorNuevo: { reservaStock: resumenDelPlan(plan), ...pesadasDelPlan(plan), ...(excipiente ? { excipiente } : {}), ...(insumos.length > 0 ? { insumos } : {}) },
         },
       };
     } catch (e) {

@@ -129,6 +129,8 @@ const repo = {
   listReservasDePreparacion: vi.fn(async (_tx: unknown, _tenant: string, id: string) => [
     { lineaPesajeId: `l-${id}`, partidaId: `p-${id}`, cantidad: "1", cantidadManual: null, motivoAperturaAdicional: null },
   ]),
+  // No excipiente / insumo reservas (no línea, migrations 0092/0110).
+  listReservasSinLinea: vi.fn(async () => []),
   lockPartidasParaConfirmacion: vi.fn(async (_tx: unknown, _tenant: string, ids: string[]) => [...ids]),
   getAsientoSistemaDeReceta: vi.fn(async () => null as { numeroCorrelativo: string } | null),
   insertAsientoRecetario: vi.fn(async (...args: unknown[]) => {

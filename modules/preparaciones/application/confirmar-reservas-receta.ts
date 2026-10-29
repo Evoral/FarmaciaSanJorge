@@ -43,6 +43,7 @@ import {
   listItemIdsDeReceta,
   listPreparacionesVivasDeItems,
   listReservasDePreparacion,
+  listReservasSinLinea,
   lockPartidasParaConfirmacion,
   lockPreparacionesParaAccion,
   lockRecetaParaTransicion,
@@ -112,7 +113,10 @@ export const confirmarReservasRecetaCommand = defineCommand({
     if (aConfirmar.length === 0) throw new DomainError("Todos los ítems de esta receta ya están confirmados.");
 
     // 3. Every partida, before the asiento.
-    await lockPartidasParaConfirmacion(tx, session.tenantId, [...new Set(aConfirmar.flatMap((c) => c.reservas.map((r) => r.partidaId)))]);
+    // The excipiente's and insumos' partidas (no línea, migrations 0092/0110) in the same statement: one lock order.
+    const partidasSinLinea: string[] = [];
+    for (const { preparacionId } of aConfirmar) partidasSinLinea.push(...(await listReservasSinLinea(tx, session.tenantId, preparacionId)).map((r) => r.partidaId));
+    await lockPartidasParaConfirmacion(tx, session.tenantId, [...new Set([...aConfirmar.flatMap((c) => c.reservas.map((r) => r.partidaId)), ...partidasSinLinea])]);
 
     // 4. Every ítem: stock, CONFIRMADA, its libro data.
     const items: ItemParaAsiento[] = [];

@@ -21,6 +21,8 @@ import { generarEtiqueta } from "@/modules/preparaciones/application/generar-eti
 import { previsualizarFichas } from "@/modules/preparaciones/application/previsualizar-fichas";
 import { guardarBorradorPesada } from "@/modules/preparaciones/application/guardar-borrador-pesada";
 import { guardarExcipienteBorrador } from "@/modules/preparaciones/application/guardar-excipiente-borrador";
+import { guardarInsumosBorrador } from "@/modules/preparaciones/application/guardar-insumos-borrador";
+import type { TipoInsumo } from "@/modules/preparaciones/domain/insumo";
 import { StepUpRequiredError } from "@/shared/errors";
 import { conOperador } from "@/shared/auth/operador-context";
 import { actionError, actionErrorMessage } from "@/shared/ui/action-error";
@@ -200,6 +202,37 @@ export async function guardarExcipienteBorradorAction(_prevState: PreparacionAct
   });
 }
 
+/**
+ * The insumos rows a form sends (migration 0110): parallel `insumoTipo` / `insumoDrogaId` / `insumoCantidad` fields,
+ * one entry per row, in order. An unknown tipo is sent as is (zod refuses it).
+ */
+function insumosDe(formData: FormData): { tipo: TipoInsumo; drogaId: string; cantidad: string }[] {
+  const tipos = formData.getAll("insumoTipo").map(String);
+  const drogas = formData.getAll("insumoDrogaId").map(String);
+  const cantidades = formData.getAll("insumoCantidad").map(String);
+  return tipos.map((tipo, i) => ({
+    tipo: tipo as TipoInsumo,
+    drogaId: (drogas[i] ?? "").trim(),
+    cantidad: (cantidades[i] ?? "").trim(),
+  }));
+}
+
+/** Toma workspace: saves the ficha's material / insumos adicionales draft (migration 0110), the whole list, as it changes. */
+export async function guardarInsumosBorradorAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
+  return conOperador(formData, async (): Promise<PreparacionActionState> => {
+    const fichaTecnicaId = String(formData.get("fichaTecnicaId") ?? "");
+    try {
+      await guardarInsumosBorrador({
+        fichaTecnicaId,
+        insumos: insumosDe(formData).map((i) => ({ tipo: i.tipo, drogaId: i.drogaId || null, cantidad: i.cantidad || undefined })),
+      });
+      return { status: "success", id: fichaTecnicaId };
+    } catch (error) {
+      return actionError(error, "No se pudieron guardar los insumos.");
+    }
+  });
+}
+
 /** The excipiente the reserva form sends (migration 0092): only when one is chosen; its quantity is then required. */
 function excipienteDe(formData: FormData): { drogaId: string; cantidad: string } | undefined {
   const drogaId = String(formData.get("excipienteDrogaId") ?? "").trim();
@@ -218,6 +251,8 @@ export async function reservarStockAction(_prevState: PreparacionActionState, fo
         fichaTecnicaId: String(formData.get("fichaTecnicaId") ?? ""),
         lineas: parseEntradas(formData),
         excipiente: excipienteDe(formData),
+        // Only the rows with a droga chosen (a cápsulas' count without a material is ignored, migration 0110).
+        insumos: insumosDe(formData).filter((i) => i.drogaId),
         ...coFirmaPesada(formData),
       });
       revalidatePath("/preparaciones");

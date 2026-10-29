@@ -50,7 +50,8 @@ import { MOTIVOS_PERDIDA, type MotivoPerdida } from "../domain/perdida";
 import { candidatosAutomaticosEnTx, partidaIdsDeCandidatos, planificarConsumoEnTx } from "./confirmar-preparacion";
 import { autorizacionesDeReserva, entradasDeReserva } from "./recalcular-reserva-stock";
 import { reservasDelPlan } from "./reservar-stock-preparacion";
-import { guardarReservaExcipienteEnTx, partidasCandidatasExcipienteEnTx, partidasReservadasExcipienteEnTx, replanificarExcipienteEnTx } from "./excipiente-preparacion";
+import { guardarReservaExcipienteEnTx, partidasCandidatasExcipienteEnTx, partidasReservadasSinLineaEnTx, replanificarExcipienteEnTx } from "./excipiente-preparacion";
+import { guardarReservaInsumosEnTx, partidasCandidatasInsumosEnTx, replanificarInsumosEnTx } from "./insumos-preparacion";
 import {
   deleteReservasDePreparacion,
   getPreparacionParaAccion,
@@ -121,10 +122,11 @@ const registrarPerdidaInternalCommand = defineCommand({
 
     const reservas = await listReservasDePreparacion(tx, session.tenantId, input.preparacionId);
     if (reservas.length === 0) throw new DomainError("Esta preparación no tiene stock reservado.");
-    // The excipiente's reserved partidas (migration 0092): a pérdida may be registered on them too.
+    // The excipiente's and insumos' reserved partidas (migrations 0092/0110): a pérdida may be registered on them too.
     const partidasExcipiente = [
-      ...(await partidasReservadasExcipienteEnTx(tx, session.tenantId, input.preparacionId)),
+      ...(await partidasReservadasSinLineaEnTx(tx, session.tenantId, input.preparacionId)),
       ...(await partidasCandidatasExcipienteEnTx(tx, session.tenantId, { preparacionId: input.preparacionId })),
+      ...(await partidasCandidatasInsumosEnTx(tx, session.tenantId, { preparacionId: input.preparacionId })),
     ];
     // Every partida the AJUSTE or the re-plan may touch, in one id-ordered statement (read before locking, as always).
     const jornada = await jornadaActualTenant(tx, session.tenantId);
@@ -156,11 +158,13 @@ const registrarPerdidaInternalCommand = defineCommand({
         seleccion: { modo: "automatica", entradas, candidatos, autorizacionesPorLinea: autorizacionesDeReserva(reservas, entradas) },
         jornada,
       });
-      // The excipiente too, computed BEFORE anything is deleted: a shortfall leaves the whole reserva as it was.
+      // The excipiente and the insumos too, computed BEFORE anything is deleted: a shortfall leaves the whole reserva as it was.
       const excipiente = await replanificarExcipienteEnTx(tx, session, { preparacionId: input.preparacionId, jornada });
+      const insumos = await replanificarInsumosEnTx(tx, session, { preparacionId: input.preparacionId, jornada });
       await deleteReservasDePreparacion(tx, session.tenantId, input.preparacionId);
       await insertReservas(tx, { tenantId: session.tenantId, preparacionId: input.preparacionId, reservadaPorId: session.usuario.id, reservas: reservasDelPlan(plan) });
       await guardarReservaExcipienteEnTx(tx, session, input.preparacionId, excipiente);
+      await guardarReservaInsumosEnTx(tx, session, input.preparacionId, insumos);
     } catch (e) {
       // The planner only throws its own checks (it writes nothing): the pérdida stands, the reserva stays as it was.
       if (!(e instanceof DomainError || e instanceof NotFoundError)) throw e;

@@ -136,7 +136,9 @@ the **fórmula** ("excipiente utilizado"), not a detalle line (insumos are left 
 
 The excipiente SHALL have **no línea de pesaje**: fichas are immutable and the prescription is not altered, so its
 reserva and egreso have `linea_pesaje_id` NULL -- allowed by the DB ONLY for the preparación's excipiente (the
-partida's droga = `preparacion.excipiente_droga_id`, a droga of clase EXCIPIENTE).
+partida's droga = `preparacion.excipiente_droga_id`, a droga of clase EXCIPIENTE) or one of its insumos (migration
+0110, `openspec/specs/insumos-preparacion/spec.md` I10). A droga is never both, so the excipiente's línea-less rows
+are the ones of its droga.
 
 #### Scenario: Excipiente reserva
 
@@ -145,7 +147,7 @@ partida's droga = `preparacion.excipiente_droga_id`, a droga of clase EXCIPIENTE
 
 #### Scenario: Another droga without a línea
 
-- **WHEN** a reserva or egreso with `linea_pesaje_id` NULL is written for a partida whose droga is not the preparación's `excipiente_droga_id`
+- **WHEN** a reserva or egreso with `linea_pesaje_id` NULL is written for a partida whose droga is neither the preparación's `excipiente_droga_id` nor one of its insumos
 - **THEN** the DB refuses it
 
 ### Requirement: E8 — Read-only once reserved
@@ -213,7 +215,8 @@ Reservations made before 0092 SHALL keep their free-text excipiente; they show i
 ## Status
 
 Status: implemented 2026-10-19 (migration 0092). Rollback: `docs/rollbacks/excipiente-preparacion.md`.
-Replaces the free-text "Excipiente utilizado" of a reserved ítem (migration 0083).
+Replaces the free-text "Excipiente utilizado" of a reserved ítem (migration 0083). E7 modified 2026-10-29 by change
+`insumos-preparacion` (migration 0110): the material and insumos adicionales below the excipiente.
 
 ## Enforcement
 
@@ -225,7 +228,7 @@ Replaces the free-text "Excipiente utilizado" of a reserved ítem (migration 008
 | E4 | `reservarExcipienteEnTx` (`application/excipiente-preparacion.ts`) |
 | E5 | `replanificarExcipienteEnTx`, `guardarReservaExcipienteEnTx` |
 | E6 | `consumirExcipienteEnTx`; `confirmarPreparacionEnTx` |
-| E7 | Migration 0092 triggers |
+| E7 | Migration 0092 triggers (relaxed by 0110 for the insumos) |
 | E8 | Toma page |
 | E9 | `MarcarPreparadaDialog`, `BuscadorExcipiente` / `CantidadExcipiente` (`ui/pesaje-en-toma.tsx`) |
 
