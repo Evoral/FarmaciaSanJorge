@@ -48,6 +48,7 @@ const AYUDA_PERMISO: Readonly<Record<PermisoAsignable, string>> = {
   "stock.partida.costo.corregir": "Corregir el costo cargado de una partida. No cambia la cantidad.",
   "stock.ajuste.registrar": "Cargar una corrección de cantidad de stock (rotura, faltante, sobrante).",
   "stock.ajuste.autorizar": "Aprobar o rechazar los ajustes de stock que cargó otra persona.",
+  "stock.lote.elaborar": "Elaborar en la farmacia un lote o una dilución a partir de las partidas de sus componentes.",
   "recetas.crear": "Cargar una receta magistral nueva.",
   "recetas.editar": "Modificar una receta cargada que todavía no se preparó.",
   "recetas.anular": "Anular una receta para que no siga su curso.",

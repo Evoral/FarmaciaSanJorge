@@ -90,16 +90,27 @@ export const TIPO_MOVIMIENTO_LABELS: Readonly<Record<TipoMovimiento, string>> = 
   EGRESO_PREPARACION: "Egreso por preparación",
   AJUSTE: "Ajuste",
   INGRESO_INICIAL: "Existencia inicial",
+  INGRESO_ELABORACION: "Ingreso por elaboración",
+  EGRESO_ELABORACION: "Egreso por elaboración",
 };
 
-/** Partida origin (openspec/specs/existencia-inicial/spec.md). */
+/** Partida origin (openspec/specs/existencia-inicial/spec.md, openspec/changes/lotes-elaborados). */
 export const ORIGEN_PARTIDA_LABELS: Readonly<Record<OrigenPartida, string>> = {
   COMPRA: "Compra",
   EXISTENCIA_INICIAL: "Existencia inicial",
+  ELABORACION_PROPIA: "Elaborado en farmacia",
 };
 
 /** What a partida de existencia inicial without proveedor shows where a proveedor goes (migration 0100). */
 export const ETIQUETA_SIN_PROVEEDOR = "Sin proveedor (existencia inicial)";
+
+/** What a partida made in the farmacia shows where a proveedor goes (migration 0111). */
+export const ETIQUETA_ELABORADO_EN_FARMACIA = "Elaborado en farmacia";
+
+/** The label shown instead of a proveedor for a partida without one, by its origen. */
+export function etiquetaSinProveedor(origen: OrigenPartida): string {
+  return origen === "ELABORACION_PROPIA" ? ETIQUETA_ELABORADO_EN_FARMACIA : ETIQUETA_SIN_PROVEEDOR;
+}
 
 /** Libro contralor movements. */
 export const TIPO_MOVIMIENTO_CONTRALOR_LABELS: Readonly<Record<TipoMovimientoContralor, string>> = {

@@ -131,6 +131,13 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   "INV-S17": "La fecha de apertura de la partida ya fue registrada y no se puede cambiar.",
   "INV-STK-002": "No se pudo registrar el ingreso de la partida: la cantidad ingresada no coincide con su cantidad inicial. Volvé a intentarlo.",
 
+  // Lotes elaborados (migration 0111, openspec/changes/lotes-elaborados)
+  "INV-EL1": "No se pudo registrar el lote elaborado: su ingreso no coincide con la cantidad producida. Volvé a intentarlo.",
+  "INV-EL2": "Un lote elaborado tiene que consumir al menos un lote, y nunca a sí mismo.",
+  "INV-EL3": "La dilución no conserva el principio activo consumido, o el lote consume la misma droga que produce: revisá las cantidades.",
+  "INV-EL4": "El lote elaborado no puede vencer después que los lotes que consume.",
+  "INV-EL5": "Una fórmula tiene un solo nivel: un componente no puede ser la misma droga ni tener su propia fórmula.",
+
   // Roles (migration 0054, DP-03)
   "INV-ROL-001": "El código de un rol no se puede cambiar.",
   "INV-ROL-002": "El rol Administrador y el rol interno del sistema no se pueden modificar ni eliminar.",

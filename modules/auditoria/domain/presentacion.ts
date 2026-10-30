@@ -40,6 +40,7 @@ export const ENTIDADES: Readonly<Record<string, EntidadInfo>> = {
   etiqueta_hoja: { nombre: "hoja de impresión de etiquetas", articulo: "la" },
   etiqueta_tamano: { nombre: "tamaño de etiqueta", articulo: "el" },
   ficha_tecnica: { nombre: "ficha técnica", articulo: "la" },
+  formula_elaboracion: { nombre: "fórmula de elaboración", articulo: "la" },
   libro_contralor: { nombre: "libro contralor", articulo: "el" },
   libro_recetario: { nombre: "libro recetario", articulo: "el" },
   libro_reanclaje: { nombre: "reanclaje de la cadena de un libro", articulo: "el" },

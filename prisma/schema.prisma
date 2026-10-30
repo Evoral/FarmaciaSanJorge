@@ -140,17 +140,32 @@ enum TipoMovimiento {
   AJUSTE
   /// Migration 0100: the only ingreso of an EXISTENCIA_INICIAL partida (openspec/specs/existencia-inicial/spec.md). Adds saldo, like INGRESO_COMPRA.
   INGRESO_INICIAL
+  /// Migration 0111: the only ingreso of an ELABORACION_PROPIA partida (openspec/changes/lotes-elaborados). Adds saldo.
+  INGRESO_ELABORACION
+  /// Migration 0111: a component consumed by an elaboración (fsj.elaboracion_lote). Subtracts; refused on an expired partida (INV-S10).
+  EGRESO_ELABORACION
 
   @@map("tipo_movimiento")
   @@schema("fsj")
 }
 
 /// Migration 0100 (openspec/specs/existencia-inicial/spec.md): COMPRA = a purchase; EXISTENCIA_INICIAL = stock counted at the relevamiento inicial.
+/// Migration 0111 (openspec/changes/lotes-elaborados): ELABORACION_PROPIA = made in the farmacia (fsj.elaboracion_lote), no proveedor.
 enum OrigenPartida {
   COMPRA
   EXISTENCIA_INICIAL
+  ELABORACION_PROPIA
 
   @@map("origen_partida")
+  @@schema("fsj")
+}
+
+/// Migration 0111: DILUCION = a partida of the SAME droga with its computed potencia; FORMULA = another droga, from its fórmula.
+enum TipoElaboracion {
+  DILUCION
+  FORMULA
+
+  @@map("tipo_elaboracion")
   @@schema("fsj")
 }
 
@@ -893,6 +908,8 @@ model MovimientoStock {
   lineaPesajeId         String?        @map("linea_pesaje_id") @db.Uuid
   /// Migration 0058: snapshot of the purity (percent) used to compute this EGRESO_PREPARACION's physical quantity (100 = partida without declared purity). NULL for every other movement and for manual-enrase lines (no correction).
   potenciaAplicada      Decimal?       @map("potencia_aplicada") @db.Decimal
+  /// Migration 0111: the elaboración an INGRESO_ELABORACION / EGRESO_ELABORACION belongs to; NULL for every other tipo.
+  elaboracionLoteId     String?        @map("elaboracion_lote_id") @db.Uuid
 
   partida          Partida           @relation(fields: [partidaId], references: [id])
   registradoPor    Usuario           @relation("MovimientoRegistradoPor", fields: [registradoPorId], references: [id])
@@ -1345,6 +1362,60 @@ model PesadaBorrador {
   @@unique([tenantId, id])
   @@unique([tenantId, lineaPesajeId], map: "pesada_borrador_linea_key")
   @@map("pesada_borrador")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped, immutable (migration 0111, openspec/changes/lotes-elaborados). One elaboración: the produced partida
+/// (origen ELABORACION_PROPIA; its cantidadInicial is the cantidad producida) and who made it. Its movements point at it
+/// (MovimientoStock.elaboracionLoteId). INV-EL1..EL4 checked at commit (fsj.elaboracion_lote_validar).
+model ElaboracionLote {
+  id             String          @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId       String          @map("tenant_id") @db.Uuid
+  partidaId      String          @map("partida_id") @db.Uuid
+  tipo           TipoElaboracion
+  /// The fórmula it was precargado from; NULL for a DILUCION.
+  formulaId      String?         @map("formula_id") @db.Uuid
+  elaboradoPorId String          @map("elaborado_por_id") @db.Uuid
+  registradoEn   DateTime        @default(now()) @map("registrado_en") @db.Timestamptz(6)
+  observacion    String?
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, partidaId], map: "elaboracion_lote_partida_key")
+  @@map("elaboracion_lote")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (migration 0111). A droga's fórmula, one per droga: its components per cantidadReferencia of the
+/// product, every quantity in its droga's unidad base. One level only (INV-EL5). Components replaced on every save.
+model FormulaElaboracion {
+  id                 String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId           String   @map("tenant_id") @db.Uuid
+  drogaId            String   @map("droga_id") @db.Uuid
+  /// The produced droga's unidad base.
+  cantidadReferencia Decimal  @map("cantidad_referencia") @db.Decimal
+  actualizadaPorId   String   @map("actualizada_por_id") @db.Uuid
+  actualizadaEn      DateTime @default(now()) @map("actualizada_en") @db.Timestamptz(6)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, drogaId], map: "formula_elaboracion_droga_key")
+  @@map("formula_elaboracion")
+  @@schema("fsj")
+}
+
+/// Tenant-scoped (migration 0111). A component of a FormulaElaboracion: never its own droga nor a droga with a fórmula (INV-EL5).
+model FormulaElaboracionComponente {
+  id        String  @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId  String  @map("tenant_id") @db.Uuid
+  formulaId String  @map("formula_id") @db.Uuid
+  orden     Int     @db.SmallInt
+  drogaId   String  @map("droga_id") @db.Uuid
+  /// The component droga's unidad base.
+  cantidad  Decimal @db.Decimal
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, formulaId, drogaId], map: "formula_elaboracion_componente_droga_key")
+  @@unique([tenantId, formulaId, orden], map: "formula_elaboracion_componente_orden_key")
+  @@map("formula_elaboracion_componente")
   @@schema("fsj")
 }
 
