@@ -12,6 +12,7 @@ import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listDrogas } from "@/modules/drogas/application/list-drogas";
 import { listUnidadesVigentesParaDroga } from "@/modules/drogas/application/list-unidades-vigentes";
+import { listDrogasOpciones } from "@/modules/drogas/application/list-drogas-opciones";
 import { contralorActivoParaAltaDroga } from "@/modules/drogas/application/contralor-activo";
 import { CLASES_DROGA, CLASE_DROGA_LABELS, TIPO_CONTROL_LABELS, type ClaseDroga } from "@/modules/drogas/domain/droga";
 import { DrogaForm } from "@/modules/drogas/ui/droga-form";
@@ -33,6 +34,10 @@ import { Toaster } from "@/shared/ui/toast";
 import { ToneBadge } from "@/shared/ui/status-badge";
 
 const PAGE_SIZE = 20;
+
+function aComponenteOpcion(d: { id: string; nombre: string; unidadBaseSimbolo: string; sinonimos: string[] }) {
+  return { id: d.id, nombre: d.nombre, unidadBaseSimbolo: d.unidadBaseSimbolo, sinonimos: d.sinonimos };
+}
 
 type ParamDrogas = "q" | "clase" | "controladas" | "bajoMinimo" | "estado";
 
@@ -82,6 +87,8 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
 
   const unidades = puedeCrear && params.nueva ? await listUnidadesVigentesParaDroga() : [];
   const contralorActivo = puedeCrear && params.nueva ? await contralorActivoParaAltaDroga() : false;
+  // The fórmula's component picker reads the catalog (`drogas.editar`): without it the alta does not offer a fórmula.
+  const opcionesFormula = puedeCrear && params.nueva && can(session, "drogas.editar") ? await listDrogasOpciones() : null;
 
   const chips: { key: ParamDrogas; label: string; value?: string }[] = [];
   if (params.q) chips.push({ key: "q", label: "Búsqueda", value: params.q });
@@ -118,7 +125,14 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
             </Link>
           </div>
           <div className="panel-body">
-            <DrogaForm mode="crear" unidades={unidades} disabled={!puedeCrear} volverA="/catalogos/drogas" contralorActivo={contralorActivo} />
+            <DrogaForm
+              mode="crear"
+              unidades={unidades}
+              disabled={!puedeCrear}
+              volverA="/catalogos/drogas"
+              contralorActivo={contralorActivo}
+              formula={opcionesFormula ? { opciones: opcionesFormula.map(aComponenteOpcion), inicial: null, esComponenteDe: [] } : undefined}
+            />
           </div>
         </section>
       ) : null}
@@ -251,7 +265,7 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
                 </thead>
                 <tbody>
                   {result.items.map((droga) => {
-                    const bajoElMinimo = new Decimal(droga.stockDisponible).lessThan(droga.stockMinimo);
+                    const bajoElMinimo = new Decimal(droga.stockActivo).lessThan(droga.stockMinimo);
                     const [disponible, minimo] = formatCantidadesFila([droga.stockDisponible, droga.stockMinimo], { id: droga.unidadBaseId, simbolo: droga.unidadBaseSimbolo }, catalogo);
                     const control = TIPO_CONTROL_LABELS[droga.tipoControl as keyof typeof TIPO_CONTROL_LABELS] ?? droga.tipoControl;
                     return (

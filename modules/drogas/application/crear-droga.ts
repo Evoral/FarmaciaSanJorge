@@ -33,6 +33,7 @@ import { SINONIMO_MAX_LARGO, limpiarSinonimo, mensajeConflictoNombre } from "../
 import { existeNombreVigente, insertDroga } from "../infrastructure/droga-repository";
 import { insertSinonimo } from "../infrastructure/sinonimo-repository";
 import { registrarAperturaContralorEnTx, requiereAperturaContralorEnTx } from "@/modules/libro/application/registrar-apertura-contralor";
+import { aplicarFormulaEnTx, formulaInput, type FormulaInputCrudo } from "./guardar-formula";
 
 const crearDrogaInput = z.object({
   nombre: nonEmptyString,
@@ -44,6 +45,8 @@ const crearDrogaInput = z.object({
   sinonimos: z.array(z.string().max(SINONIMO_MAX_LARGO, `Como máximo ${SINONIMO_MAX_LARGO} caracteres.`)).max(20).default([]),
   /** Required only for a controlled droga with the contralor activo (R12); ignored otherwise. */
   saldoAperturaContralor: nonNegativeDecimalString.optional(),
+  /** openspec/changes/lotes-elaborados EL3: the droga is elaborated in the farmacia from this fórmula. */
+  formula: formulaInput.default(null),
 });
 
 /** PRE-parse shape -- see modules/unidades/application/crear-unidad.ts's `CrearUnidadInput` doc comment for why this is hand-written (stockMinimo is a raw string here, a `Decimal` only after the zod schema's own transform). */
@@ -58,6 +61,8 @@ export interface CrearDrogaInput {
   sinonimos?: string[];
   /** The manual libro contralor's saldo (unidad base): asked only for a controlled droga with the contralor activo. */
   saldoAperturaContralor?: string;
+  /** Its fórmula, when the farmacia elaborates it (saved in the same transaction). */
+  formula?: FormulaInputCrudo | null;
 }
 
 export const crearDrogaCommand = defineCommand({
@@ -135,6 +140,8 @@ export const crearDrogaCommand = defineCommand({
         valorNuevo: { sinonimo: sinonimo.texto, aliasNormalizado: sinonimo.aliasNormalizado, drogaId: nueva.id, droga: input.nombre },
       });
     }
+
+    if (input.formula) await aplicarFormulaEnTx(tx, session, nueva.id, input.formula);
 
     return {
       output: { id: nueva.id, nombre: input.nombre, unidadBaseId: input.unidadBaseId, sinonimos: sinonimos.map((s) => s.texto) },

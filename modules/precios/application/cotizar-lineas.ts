@@ -5,9 +5,10 @@
  * tramos -- domain/regla-precio.ts).
  *
  * Also loads, once per call, the costo de proveedor of each droga
- * (`costosProveedorParaCotizar`, read-only): it is the ONLY price source; a
- * droga without one has no price (openspec/specs/costos-proveedor/spec.md,
- * R25-R27). The partidas only feed the stock faltante.
+ * (`costosParaCotizar`, read-only): it is the ONLY price source -- directly,
+ * or through the droga's fórmula when it has none (R38); a droga with
+ * neither has no price (openspec/specs/costos-proveedor/spec.md, R25-R27).
+ * The partidas only feed the stock faltante.
  *
  * Shared by `cotizaciones.calcular` (`cotizarLineas`: a saved item's latest
  * ficha, persisted as a cotización) and `recetas.presupuestar`
@@ -20,8 +21,8 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { DomainError } from "@/shared/errors";
 import { calcularCotizacion, calcularCotizacionesAcumuladas, mensajeSinCostoProveedor } from "../domain/calcular-cotizacion";
-import type { CostoProveedorCosteo, CotizacionCalculada, LineaCosteoInput, PartidaCosteo } from "../domain/calcular-cotizacion";
-import { costosProveedorParaCotizar } from "@/modules/costos-proveedor/application/costos-proveedor-para-cotizar";
+import type { CotizacionCalculada, LineaCosteoInput, PartidaCosteo } from "../domain/calcular-cotizacion";
+import { costosParaCotizar, type CostosParaCotizar } from "@/modules/costos-proveedor/application/costos-proveedor-para-cotizar";
 import type { ReglasPrecio } from "../domain/regla-precio";
 import { getPartidasElegiblesDeDroga, getUnidadesBaseDeDrogas, jornadaActualTenant } from "../infrastructure/cotizacion-repository";
 import { getReglaVigente } from "../infrastructure/regla-precio-repository";
@@ -52,19 +53,21 @@ export type LineaACostear = Omit<LineaCosteoInput, "unidadStock">;
 /**
  * Each línea with its droga's unidad base (`unidadStock`): partidas and their costo unitario are in it, the línea is
  * in its magnitud's base unit. A droga that is not found keeps the línea's own unit (it has no partidas either).
- * Plus its costo de proveedor.
+ * Plus its costo de proveedor, or its fórmula's cost (R38) / the components without one (R27).
  */
 async function conUnidadStock(
   tx: Prisma.TransactionClient,
   tenantId: string,
   lineas: readonly LineaACostear[],
-  costosProveedor: ReadonlyMap<string, CostoProveedorCosteo>,
+  costos: CostosParaCotizar,
 ): Promise<LineaCosteoInput[]> {
   const unidades = await getUnidadesBaseDeDrogas(tx, tenantId, [...new Set(lineas.map((l) => l.drogaId))]);
   return lineas.map((l) => ({
     ...l,
     unidadStock: unidades.get(l.drogaId) ?? l.unidad,
-    costoProveedor: costosProveedor.get(l.drogaId) ?? null,
+    costoProveedor: costos.proveedor.get(l.drogaId) ?? null,
+    costoFormula: costos.formula.get(l.drogaId) ?? null,
+    componentesSinCosto: costos.componentesSinCosto.get(l.drogaId),
   }));
 }
 
@@ -82,8 +85,8 @@ export async function cotizarLineas(
   const partidas = new Map<string, PartidaCosteo[]>();
   const drogaIds = [...new Set(lineas.filter((l) => !l.esEnraseManual).map((l) => l.drogaId))];
   for (const drogaId of drogaIds) partidas.set(drogaId, await getPartidasElegiblesDeDroga(tx, tenantId, drogaId));
-  const costosProveedor = await costosProveedorParaCotizar(tx, tenantId, drogaIds);
-  const cotizacion = calcularCotizacion(await conUnidadStock(tx, tenantId, lineas, costosProveedor), (drogaId) => partidas.get(drogaId) ?? [], jornadaActual, reglas);
+  const costos = await costosParaCotizar(tx, tenantId, drogaIds);
+  const cotizacion = calcularCotizacion(await conUnidadStock(tx, tenantId, lineas, costos), (drogaId) => partidas.get(drogaId) ?? [], jornadaActual, reglas);
   if (cotizacion.drogasSinPrecio.length > 0) {
     throw new CotizacionNoCalculableError("SIN_COSTO_PROVEEDOR", mensajeSinCostoProveedor(cotizacion.drogasSinPrecio));
   }
@@ -109,8 +112,8 @@ export async function cotizarItemsAcumulado(
   const partidas = new Map<string, PartidaCosteo[]>();
   const drogaIds = [...new Set(items.flatMap((lineas) => lineas.filter((l) => !l.esEnraseManual).map((l) => l.drogaId)))];
   for (const drogaId of drogaIds) partidas.set(drogaId, await getPartidasElegiblesDeDroga(tx, tenantId, drogaId));
-  const costosProveedor = await costosProveedorParaCotizar(tx, tenantId, drogaIds);
+  const costos = await costosParaCotizar(tx, tenantId, drogaIds);
   const itemsConUnidad: LineaCosteoInput[][] = [];
-  for (const lineas of items) itemsConUnidad.push(await conUnidadStock(tx, tenantId, lineas, costosProveedor));
+  for (const lineas of items) itemsConUnidad.push(await conUnidadStock(tx, tenantId, lineas, costos));
   return calcularCotizacionesAcumuladas(itemsConUnidad, (drogaId) => partidas.get(drogaId) ?? [], jornadaActual, reglas);
 }

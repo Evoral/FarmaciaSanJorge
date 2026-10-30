@@ -77,9 +77,45 @@ function CostoProveedorLinea({ linea }: { linea: LineaCotizacion }) {
   );
 }
 
-/** The "Partidas usadas" cell: the costo de proveedor or the partida breakdown (labelled, except for an old snapshot that never said). */
+/**
+ * `FORMULA` línea (R38): priced from its fórmula's components' costos de proveedor -- each component with its proveedor
+ * and cost with IVA, then the línea's arithmetic. Like a `PROVEEDOR` línea, its faltante is information (R28).
+ */
+function CostoFormulaLinea({ linea }: { linea: LineaCotizacion }) {
+  const formula = linea.costoFormula;
+  const cantidad = linea.cantidadRequerida !== null ? dec(linea.cantidadRequerida) : null;
+  const costoPorUnidadLinea = cantidad !== null && cantidad.greaterThan(0) ? dec(linea.subtotal).dividedBy(cantidad).toString() : null;
+  return (
+    <div className="flex flex-col gap-0.5 text-xs text-zinc-600">
+      <span className="font-medium text-zinc-800">Costo desde su fórmula (sin costo de proveedor propio)</span>
+      {formula ? (
+        <ul className="flex flex-col gap-0.5">
+          {formula.componentes.map((c) => (
+            <li key={c.drogaNombre}>
+              {formatNumero(c.cantidad)} {c.unidadSimbolo} de {c.drogaNombre} · {c.proveedorNombre} ·{" "}
+              <span className="whitespace-nowrap font-mono tabular-nums">${formatearCostoUnitario(c.costoUnitarioConIva)} / {c.unidadSimbolo} con IVA</span>
+            </li>
+          ))}
+          <li className="text-zinc-500">
+            Por cada {formatNumero(formula.cantidadReferencia)} de producto
+          </li>
+        </ul>
+      ) : null}
+      {costoPorUnidadLinea !== null ? (
+        <span className="font-mono tabular-nums md:whitespace-nowrap">
+          {formatNumero(linea.cantidadRequerida ?? "0")} {linea.unidadSimbolo} × ${formatearCostoUnitario(costoPorUnidadLinea)} / {linea.unidadSimbolo} ={" "}
+          <span className="text-zinc-900">${formatearMonto(linea.subtotal)}</span>
+        </span>
+      ) : null}
+      {linea.faltante ? <span>Sin stock suficiente para prepararla (faltan {textoFaltante(linea)})</span> : null}
+    </div>
+  );
+}
+
+/** The "Partidas usadas" cell: the costo de proveedor, the fórmula's, or the partida breakdown (labelled, except for an old snapshot that never said). */
 function OrigenCostoLinea({ linea }: { linea: LineaCotizacion }) {
   if (linea.fuente === "PROVEEDOR") return <CostoProveedorLinea linea={linea} />;
+  if (linea.fuente === "FORMULA") return <CostoFormulaLinea linea={linea} />;
   // Only a línea that was really costed from partidas gets the label (not enrase manual / uncostable units), and an old snapshot never does.
   const etiquetada = linea.fuenteRegistrada && !linea.esEnraseManual && (linea.partidas.length > 0 || linea.faltante !== null);
   return (
@@ -109,7 +145,7 @@ function PartidasLinea({ linea }: { linea: LineaCotizacion }) {
 }
 
 export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionItemOutput }) {
-  const hayProveedor = cotizacion.detalle.lineas.some((l) => l.fuente === "PROVEEDOR");
+  const hayProveedor = cotizacion.detalle.lineas.some((l) => l.fuente === "PROVEEDOR" || l.fuente === "FORMULA");
   return (
     <section className="panel" aria-labelledby="cotizacion-vigente-heading">
       <div className="panel-header flex flex-wrap items-center justify-between gap-2">
@@ -182,8 +218,8 @@ export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionIt
                   <span className="block text-xs text-zinc-600 sm:hidden">
                     <CantidadLinea linea={linea} />
                   </span>
-                  {linea.fuente === "PROVEEDOR" ? (
-                    // The faltante of a línea costed from a proveedor is informational: it travels inside its note, not as a red alert.
+                  {linea.fuente === "PROVEEDOR" || linea.fuente === "FORMULA" ? (
+                    // The faltante of a línea costed from a proveedor (or its fórmula's) is informational: it travels inside its note, not as a red alert.
                     <span className="mt-1 block md:hidden">
                       <OrigenCostoLinea linea={linea} />
                     </span>
@@ -214,7 +250,8 @@ export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionIt
                     <>
                       ${formatearMonto(linea.subtotalConIva)}
                       <span className="block text-xs font-normal text-zinc-500">
-                        sin IVA ${formatearMonto(linea.subtotal)} · IVA {formatNumero(linea.alicuotaIva ?? "0", 2)}%
+                        sin IVA ${formatearMonto(linea.subtotal)}
+                        {linea.alicuotaIva !== undefined ? ` · IVA ${formatNumero(linea.alicuotaIva, 2)}%` : linea.fuente === "FORMULA" ? " · IVA de cada componente" : " · IVA 0%"}
                       </span>
                     </>
                   ) : (
@@ -223,7 +260,7 @@ export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionIt
                 </td>
                 <td className="hidden whitespace-nowrap px-5 py-2.5 text-right font-mono tabular-nums sm:table-cell">
                   {linea.faltante ? (
-                    <span className={linea.fuente === "PROVEEDOR" ? "text-zinc-600" : "font-medium text-red-700"}>{textoFaltante(linea)}</span>
+                    <span className={linea.fuente === "PROVEEDOR" || linea.fuente === "FORMULA" ? "text-zinc-600" : "font-medium text-red-700"}>{textoFaltante(linea)}</span>
                   ) : (
                     <Vacio label="Sin faltante" />
                   )}

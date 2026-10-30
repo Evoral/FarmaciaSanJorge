@@ -31,10 +31,19 @@ function Badge({ children }: { children: ReactNode }) {
   );
 }
 
-/** The proveedor name when `drogaNombre` is costed from a costo de proveedor (`""` if the name is missing), `undefined` otherwise. */
+/**
+ * The proveedor name when `drogaNombre` is costed from a costo de proveedor, directly or through its fórmula (R38;
+ * `""` when there is no single name), `undefined` otherwise.
+ */
 function proveedorDe(fuentes: FuenteCostoLinea[] | undefined, drogaNombre: string): string | undefined {
-  const fuente = fuentes?.find((f) => f.drogaNombre === drogaNombre && f.fuente === "PROVEEDOR");
+  const fuente = fuentes?.find((f) => f.drogaNombre === drogaNombre && (f.fuente === "PROVEEDOR" || f.fuente === "FORMULA"));
   return fuente ? (fuente.proveedorNombre ?? "") : undefined;
+}
+
+function textoFuente(f: FuenteCostoLinea): string {
+  if (f.fuente === "PROVEEDOR") return `costo de proveedor${f.proveedorNombre ? ` (${f.proveedorNombre})` : ""}`;
+  if (f.fuente === "FORMULA") return "costo desde su fórmula";
+  return "costo de partidas";
 }
 
 export function PresupuestoPanel({ items, pago }: { items: ItemPresupuestable[]; pago?: PagoPanel }) {
@@ -140,7 +149,7 @@ export function PresupuestoPanel({ items, pago }: { items: ItemPresupuestable[];
                         {item.fuentes.map((f, i) => (
                           <span key={f.drogaNombre}>
                             {i > 0 ? " · " : null}
-                            {f.drogaNombre}: {f.fuente === "PROVEEDOR" ? `costo de proveedor${f.proveedorNombre ? ` (${f.proveedorNombre})` : ""}` : "costo de partidas"}
+                            {f.drogaNombre}: {textoFuente(f)}
                           </span>
                         ))}
                       </span>

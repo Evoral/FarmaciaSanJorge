@@ -6,6 +6,8 @@ import { getDroga } from "@/modules/drogas/application/get-droga";
 import { listUnidadesVigentesParaDroga } from "@/modules/drogas/application/list-unidades-vigentes";
 import { contralorActivoParaDroga } from "@/modules/drogas/application/contralor-activo";
 import { DrogaForm } from "@/modules/drogas/ui/droga-form";
+import { listDrogasOpciones } from "@/modules/drogas/application/list-drogas-opciones";
+import { verFormula } from "@/modules/drogas/application/formula-de-droga";
 import { MotivoForm } from "@/shared/ui/motivo-form";
 import { darDeBajaDrogaAction, reactivarDrogaAction } from "@/modules/drogas/ui/actions";
 import { PageHeader } from "@/shared/ui/page-header";
@@ -24,8 +26,13 @@ export default async function DrogaDetallePage({ params }: DrogaDetallePageProps
   const droga = await getDroga(id);
   if (!droga) notFound();
 
-  const [unidades, contralorActivo] = await Promise.all([listUnidadesVigentesParaDroga(), contralorActivoParaDroga()]);
   const puedeEditar = can(session, "drogas.editar");
+  const [unidades, contralorActivo, formula, opcionesFormula] = await Promise.all([
+    listUnidadesVigentesParaDroga(),
+    contralorActivoParaDroga(),
+    puedeEditar ? verFormula({ drogaId: id }) : Promise.resolve(null),
+    puedeEditar ? listDrogasOpciones() : Promise.resolve(null),
+  ]);
   const puedeBaja = can(session, "drogas.baja");
   const puedeReactivar = can(session, "drogas.reactivar");
 
@@ -50,7 +57,22 @@ export default async function DrogaDetallePage({ params }: DrogaDetallePageProps
               {!puedeEditar ? <p>Solo lectura: no tenés permiso para editar drogas.</p> : null}
             </div>
             <div className="panel-body">
-              <DrogaForm mode="editar" unidades={unidades} droga={droga} disabled={!puedeEditar} contralorActivo={contralorActivo} />
+              <DrogaForm
+                mode="editar"
+                unidades={unidades}
+                droga={droga}
+                disabled={!puedeEditar}
+                contralorActivo={contralorActivo}
+                formula={
+                  formula && opcionesFormula
+                    ? {
+                        opciones: opcionesFormula.map((d) => ({ id: d.id, nombre: d.nombre, unidadBaseSimbolo: d.unidadBaseSimbolo, sinonimos: d.sinonimos })),
+                        inicial: formula.formula,
+                        esComponenteDe: formula.esComponenteDe,
+                      }
+                    : undefined
+                }
+              />
             </div>
           </section>
         </div>

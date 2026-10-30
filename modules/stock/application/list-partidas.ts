@@ -13,6 +13,8 @@ import { uuid } from "@/shared/validation";
 import { esFechaIso } from "../domain/ajustes-listado";
 import { getDiasAlertaVencimiento, jornadaActualTenant, listPartidasHistorial } from "../infrastructure/partida-repository";
 import type { ListPartidasHistorialResult } from "../infrastructure/partida-repository";
+import { tiposElaboracionDePartidas } from "../infrastructure/elaboracion-lote-repository";
+import type { TipoElaboracion } from "@/generated/prisma/enums";
 
 const fechaIso = z.string().refine(esFechaIso, { message: "Ingresá una fecha válida." });
 
@@ -25,6 +27,7 @@ const listPartidasInput = z
     hasta: fechaIso.optional(),
     soloConSaldo: z.boolean().optional(),
     soloVencidas: z.boolean().optional(),
+    soloElaboradas: z.boolean().optional(),
     page: z.number().int().min(1).default(1),
     pageSize: z.number().int().min(1).max(100).default(20),
   })
@@ -36,6 +39,8 @@ const listPartidasInput = z
 export type ListPartidasInput = z.input<typeof listPartidasInput>;
 
 export interface ListPartidasResultado extends ListPartidasHistorialResult {
+  /** partidaId -> DILUCION / FORMULA, for the page's elaborated lots (migration 0111). */
+  tiposElaboracion: Record<string, TipoElaboracion>;
   /** YYYY-MM-DD. */
   jornadaActual: string;
   diasAlertaVencimiento: number;
@@ -55,11 +60,13 @@ export const listPartidasQuery = defineQuery({
       hasta: input.hasta,
       soloConSaldo: input.soloConSaldo,
       soloVencidas: input.soloVencidas,
+      soloElaboradas: input.soloElaboradas,
       page: input.page,
       pageSize: input.pageSize,
     });
     return {
       ...result,
+      tiposElaboracion: Object.fromEntries(await tiposElaboracionDePartidas(tx, session.tenantId, result.items.map((p) => p.id))),
       jornadaActual: await jornadaActualTenant(tx, session.tenantId),
       diasAlertaVencimiento: await getDiasAlertaVencimiento(tx, session.tenantId),
     };

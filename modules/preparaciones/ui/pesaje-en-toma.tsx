@@ -46,7 +46,8 @@ import { ordenarParaConsumo } from "@/modules/stock/domain/reparto";
 import { estadoVencimientoPartida } from "@/modules/stock/domain/vencimiento-partida";
 import type { DatosConfirmacion, LineaPantalla } from "../application/datos-confirmacion";
 import type { LineaDeFichaToma } from "../application/get-toma-receta";
-import { precisionDeLinea, redondearABalanza } from "../domain/pesada-real";
+import { precisionDeLinea, sugerenciaPesadaReal } from "../domain/pesada-real";
+import { AvisoBajoLaBalanza } from "./aviso-bajo-la-balanza";
 import { cantidadRealDesdeServidor, cantidadRealParaServidor, cantidadValida, lotesPorDefecto, pesadaDeLinea, planDeLinea, type PesadaDeLinea, type PlanDeLinea } from "./confirmar-form";
 import { CantidadFicha, LotesVencidos, Vacio, conExceso } from "./lineas-ficha-tabla";
 import type { TipoInsumo } from "../domain/insumo";
@@ -467,8 +468,8 @@ function FilasLinea({
   const precision = precisionDeLinea(linea.unidad, datos.pesada.precisionBalanza);
   const planOk = plan !== null && plan !== "elegir" && plan.ok ? plan : null;
   const partes = planOk ? planOk.partes : [];
-  // "A pesar": the physical weight over the chosen lots, rounded to the balance; the ficha's active only while no lot covers the línea.
-  const aPesar = planOk ? redondearABalanza(convertirCantidad(new Decimal(planOk.totalFisico), linea.unidadStock, linea.unidad), precision).toFixed() : linea.cantidadAPesar;
+  // "A pesar": the physical weight over the chosen lots, rounded to the balance (exact below one division, P13); the ficha's active only while no lot covers the línea.
+  const aPesar = planOk ? sugerenciaPesadaReal(convertirCantidad(new Decimal(planOk.totalFisico), linea.unidadStock, linea.unidad), precision).toFixed() : linea.cantidadAPesar;
   // What to weigh from each lot: only when the línea is split over several, otherwise it is "A pesar" itself.
   const mostrarPartes = !linea.esEnraseManual && partes.length > 1;
   const vencidas = (ficha?.partidas ?? []).filter((p) => p.vencida);
@@ -543,7 +544,7 @@ function FilasLinea({
               </td>
               <td className={`whitespace-nowrap px-3 text-right font-mono font-medium text-zinc-900 tabular-nums ${ultimaFila ? "pb-3 pt-0.5" : "py-0.5"}`}>
                 {mostrarPartes && parte ? (
-                  <CantidadDeLote cantidad={redondearABalanza(convertirCantidad(new Decimal(parte.cantidad), linea.unidadStock, linea.unidad), precision).toFixed()} simbolo={linea.unidadSimbolo} />
+                  <CantidadDeLote cantidad={sugerenciaPesadaReal(convertirCantidad(new Decimal(parte.cantidad), linea.unidadStock, linea.unidad), precision).toFixed()} simbolo={linea.unidadSimbolo} />
                 ) : null}
               </td>
               <td className={ultimaFila ? "pb-3" : undefined} />
@@ -595,6 +596,21 @@ function FilasLinea({
               />
               <p className="field-help">Se abre una partida nueva aunque la que ya está abierta alcanza: indicá por qué.</p>
             </div>
+          </td>
+        </tr>
+      ) : null}
+
+      {pesada?.bajoLaBalanza ? (
+        <tr className={vencidas.length > 0 ? "border-b-0" : undefined}>
+          <td colSpan={columnas} className="pb-3 pl-6 pr-3 pt-0.5">
+            <AvisoBajoLaBalanza
+              linea={linea}
+              elegidas={lotes}
+              onUsar={(partidaId) => setLotes(linea.id, [partidaId])}
+              puedeElaborar={datos.puedeElaborarLote === true}
+              // The dialog's form refreshes the page on success, which lists the new lot for this línea.
+              onDilucionCreada={(partidaId) => setLotes(linea.id, [partidaId])}
+            />
           </td>
         </tr>
       ) : null}

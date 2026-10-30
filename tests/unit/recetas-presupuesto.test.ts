@@ -66,6 +66,8 @@ const cotizacionRepo = {
   insertCotizacion: vi.fn(),
 };
 vi.mock("@/modules/precios/infrastructure/cotizacion-repository", () => cotizacionRepo);
+// No droga has a fórmula: the cost fallback (R38) never applies here.
+vi.mock("@/modules/drogas/application/formula-de-droga", () => ({ formulasDeDrogasEnTx: vi.fn(async () => new Map()) }));
 
 type CostoProveedorCandidato = {
   id: string;

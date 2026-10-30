@@ -8,6 +8,7 @@
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
+import { can } from "@/shared/auth/authorize";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { dec } from "@/shared/decimal";
@@ -34,7 +35,7 @@ export const getRecalculoDeReservaQuery = defineQuery({
     }
 
     const datos = await construirDatosConfirmacion(tx, session.tenantId, preparacion.fichaTecnicaId, preparacion.id);
-    return { ...datos, lineas: datos.lineas.map((linea) => ({ ...linea, reserva: porLinea.get(linea.id) ?? null })) };
+    return { ...datos, puedeElaborarLote: can(session, "stock.lote.elaborar"), lineas: datos.lineas.map((linea) => ({ ...linea, reserva: porLinea.get(linea.id) ?? null })) };
   },
 });
 

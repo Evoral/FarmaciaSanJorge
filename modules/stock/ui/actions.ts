@@ -11,6 +11,8 @@ import { registrarReanalisisPartida } from "@/modules/stock/application/reanaliz
 import { marcarPartidaVencida } from "@/modules/stock/application/marcar-partida-vencida";
 import { ingresarExistenciaInicial } from "@/modules/stock/application/ingresar-existencia-inicial";
 import { cerrarRelevamientoInicial } from "@/modules/stock/application/cerrar-relevamiento-inicial";
+import { elaborarLote } from "@/modules/stock/application/elaborar-lote";
+import { datosParaElaborar, type DatosParaElaborar } from "@/modules/stock/application/datos-para-elaborar";
 import { listarCostosVigentes } from "@/modules/costos-proveedor/application/listar-costos-vigentes";
 import type { MotivoAjuste } from "@/modules/stock/domain/partida";
 import { PARAM_VOLVER_AJUSTE, retornoAjuste, retornoAjusteRegistrado } from "@/modules/stock/domain/ajustes-listado";
@@ -211,5 +213,48 @@ export async function costoSugeridoExistenciaInicialAction(drogaId: string, prov
     return items[0]?.costoUnitario ?? null;
   } catch {
     return null;
+  }
+}
+
+/** The consumed lots of "Elaborar lote": one `cantidad_<partidaId>` field per lot, blanks skipped (the command reports a rejected one by that same name). */
+function consumosDelForm(formData: FormData): { partidaId: string; cantidad: string }[] {
+  const consumos: { partidaId: string; cantidad: string }[] = [];
+  for (const [key, value] of formData.entries()) {
+    const match = /^cantidad_([0-9a-f-]{36})$/i.exec(key);
+    if (match && String(value).trim() !== "") consumos.push({ partidaId: match[1]!, cantidad: String(value) });
+  }
+  return consumos;
+}
+
+/** "Elaborar lote" (openspec/changes/lotes-elaborados): one dilución or fórmula lot; returns the new partida to its dialog. */
+export async function elaborarLoteAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
+  return conOperador(formData, async (): Promise<StockActionState> => {
+    try {
+      const { partidaId } = await elaborarLote({
+        tipo: String(formData.get("tipo") ?? "") as "DILUCION" | "FORMULA",
+        drogaProducidaId: String(formData.get("drogaProducidaId") ?? ""),
+        formulaId: opcional(formData, "formulaId"),
+        cantidadProducida: String(formData.get("cantidadProducida") ?? ""),
+        fechaVencimiento: opcional(formData, "fechaVencimiento"),
+        observacion: opcional(formData, "observacion"),
+        consumos: consumosDelForm(formData),
+      });
+      revalidatePath("/stock");
+      revalidatePath("/partidas");
+      return { status: "success", message: "Lote elaborado: la partida ya está en el stock.", partidaId };
+    } catch (error) {
+      return fromError(error, "No se pudo elaborar el lote.");
+    }
+  });
+}
+
+export type DatosParaElaborarState = { status: "success"; datos: DatosParaElaborar } | { status: "error"; message: string };
+
+/** The "Elaborar lote" form's data for a produced droga, refetched when the user adds a component droga. Read-only. */
+export async function datosParaElaborarAction(drogaProducidaId: string, drogaIds: string[] = []): Promise<DatosParaElaborarState> {
+  try {
+    return { status: "success", datos: await datosParaElaborar({ drogaProducidaId: String(drogaProducidaId), drogaIds: drogaIds.map(String) }) };
+  } catch (error) {
+    return { status: "error", message: actionErrorMessage(error, "No se pudieron cargar los lotes para elaborar.") };
   }
 }

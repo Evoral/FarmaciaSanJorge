@@ -6,6 +6,9 @@
  *   - Prefill: the expected physical weight (purity-corrected) rounded half-up to the balance (`precision_balanza`,
  *     defined in GRAMO -- the base unit of MASA, the unit a MASA línea is in). 0,0455 g -> 0,046 g; 0,0454 g -> 0,045 g.
  *     A línea of another magnitud (volumen, unidades) is not rounded: no balance applies.
+ *   - Below one balance division (P13, openspec/changes/lotes-elaborados): the system does not limit it -- the prefill
+ *     is the EXACT esperada (rounding would give 0, or a whole division) and the preparer decides: dilute in the
+ *     moment, or weigh from a diluted lot.
  *   - Tolerance: |real - esperada| <= margen, margen = max(esperada x tolerancia %, one balance division) -- never
  *     stricter than what the balance can show. Outside it the DT co-signs.
  */
@@ -23,6 +26,17 @@ export function redondearABalanza(cantidad: Decimal | string, precision: Decimal
   const valor = dec(cantidad);
   if (!precision || !precision.greaterThan(0)) return valor;
   return valor.toNearest(precision, Decimal.ROUND_HALF_UP);
+}
+
+/** P13: `true` when the expected physical weight is below one balance division (never for a línea off the balance). */
+export function bajoLaBalanza(esperada: Decimal | string, precision: Decimal | null): boolean {
+  if (!precision || !precision.greaterThan(0)) return false;
+  return dec(esperada).lessThan(precision);
+}
+
+/** The pesada real's prefill: the esperada rounded to the balance, or the EXACT esperada below one division (P13). */
+export function sugerenciaPesadaReal(esperada: Decimal | string, precision: Decimal | null): Decimal {
+  return bajoLaBalanza(esperada, precision) ? dec(esperada) : redondearABalanza(esperada, precision);
 }
 
 export interface EvaluacionPesada {

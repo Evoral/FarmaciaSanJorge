@@ -27,6 +27,7 @@ import { Check, Plus, X } from "lucide-react";
 import { crearDrogaAction, editarDrogaAction } from "./actions";
 import type { DrogaCreada } from "./action-state";
 import { DrogasExistentesAviso, coincidenciaExacta, useDrogasExistentes } from "./drogas-existentes";
+import { FormulaEditor, type ComponenteOpcion, type FormulaInicial } from "./formula-editor";
 import { normalizarTexto } from "../domain/normalizar";
 import { SINONIMO_MAX_LARGO } from "../domain/sinonimo";
 import { SimpleForm } from "@/shared/ui/simple-form";
@@ -65,9 +66,14 @@ export interface DrogaFormProps {
   onCreada?: (droga: DrogaCreada) => void;
   /** The contralor digital is activo: making the droga controlled asks for its saldo de apertura (openspec/specs/existencia-inicial/spec.md R12). */
   contralorActivo?: boolean;
+  /**
+   * "Se elabora en la farmacia" (openspec/changes/lotes-elaborados EL3), the same section on alta and edición. Absent =
+   * not offered (e.g. the quick alta from an invoice import): the command then leaves the fórmula untouched.
+   */
+  formula?: { opciones: readonly ComponenteOpcion[]; inicial: FormulaInicial | null; esComponenteDe: readonly string[] };
 }
 
-export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInicial = "", onCreada, contralorActivo = false }: DrogaFormProps) {
+export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInicial = "", onCreada, contralorActivo = false, formula }: DrogaFormProps) {
   const router = useRouter();
   const action = mode === "crear" ? crearDrogaAction : editarDrogaAction;
   const clasificacionDisabled = disabled || (mode === "editar" && (droga?.tienePartidas ?? false));
@@ -79,6 +85,8 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
   const [sinonimos, setSinonimos] = useState(() => filasCargadas(droga));
   const [siguienteKey, setSiguienteKey] = useState(0);
   const [tipoControl, setTipoControl] = useState(droga?.tipoControl ?? "NINGUNO");
+  // Bumped after each alta so the fórmula section starts empty for the next one.
+  const [altas, setAltas] = useState(0);
   const avisoId = useId();
 
   // After a save the page re-renders with the stored droga: start again from it (new synonym ids, maybe a new name).
@@ -118,6 +126,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
   function onSuccess(state: { message?: string; droga?: DrogaCreada }) {
     setNombre("");
     setSinonimos([]);
+    setAltas((n) => n + 1);
     if (onCreada && state.droga) {
       if (state.message) toast(state.message);
       onCreada(state.droga);
@@ -322,7 +331,19 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
           Stock mínimo
         </label>
         <input id="stockMinimo" name="stockMinimo" defaultValue={numeroParaInput(droga?.stockMinimo ?? "0")} required disabled={disabled} inputMode="decimal" className="input font-mono" />
+        <p className="field-help">En principio activo: con lotes diluidos, la alerta compara el stock activo.</p>
       </div>
+
+      {formula ? (
+        <FormulaEditor
+          key={altas}
+          opciones={formula.opciones}
+          inicial={formula.inicial}
+          drogaId={droga?.id}
+          esComponenteDe={formula.esComponenteDe}
+          disabled={disabled}
+        />
+      ) : null}
     </SimpleForm>
   );
 }

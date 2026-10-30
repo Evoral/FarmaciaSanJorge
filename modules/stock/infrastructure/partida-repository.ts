@@ -11,11 +11,11 @@
  * every stock read here goes through `fsj.v_stock_droga`.
  */
 import { Prisma } from "@/generated/prisma/client";
-import type { TipoMovimiento, MotivoAjuste as PrismaMotivoAjuste } from "@/generated/prisma/enums";
+import type { OrigenPartida, TipoMovimiento, MotivoAjuste as PrismaMotivoAjuste } from "@/generated/prisma/enums";
 import { DIAS_ALERTA_VENCIMIENTO_PARTIDA_DEFAULT, type OrdenStockDrogas } from "../domain/partida";
 import { rangoDeJornadas } from "@/shared/time/jornada";
 import { drogaCoincideSql, sinonimoCoincidenteSql } from "@/shared/db/busqueda-droga";
-import { ETIQUETA_SIN_PROVEEDOR } from "@/shared/labels/enum-labels";
+import { ETIQUETA_ELABORADO_EN_FARMACIA, ETIQUETA_SIN_PROVEEDOR, etiquetaSinProveedor } from "@/shared/labels/enum-labels";
 
 // ============================================================================
 // jornada helper (fsj.jornada_actual(tenantId)) -- see migration 0014.
@@ -40,8 +40,11 @@ export interface StockDrogaItem {
   unidadId: string;
   unidadSimbolo: string;
   stockMinimo: string;
+  /** PHYSICAL stock (what is in the bottles). */
   stockDisponible: string;
-  /** `stock_disponible < stock_minimo`, compared in SQL (numeric). */
+  /** Active ingredient (`stock_activo`, migration 0111): each partida weighted by its potencia; what the fichas draw. */
+  stockActivo: string;
+  /** `stock_activo < stock_minimo`, compared in SQL (numeric): the mínimo is in active terms (lotes-elaborados). */
   bajoMinimo: boolean;
   /** Earliest vencimiento VIGENTE (`fecha_vencimiento_vigente`, migration 0074) among partidas with balance (YYYY-MM-DD), `null` when none has balance. */
   proximoVencimiento: string | null;
@@ -106,6 +109,7 @@ export async function listStockDrogas(tx: Prisma.TransactionClient, filter: List
         unidadSimbolo: row.simbolo!,
         stockMinimo: row.stock_minimo!,
         stockDisponible: row.stock_disponible!,
+        stockActivo: row.stock_activo!,
         bajoMinimo: row.bajo_minimo === true,
         proximoVencimiento: row.proximo_vencimiento,
         sinonimoCoincidente: row.sinonimo,
@@ -125,6 +129,7 @@ export interface ListStockDrogasRow {
   simbolo: string | null;
   stock_minimo: string | null;
   stock_disponible: string | null;
+  stock_activo: string | null;
   bajo_minimo: boolean | null;
   proximo_vencimiento: string | null;
   sinonimo: string | null;
@@ -145,6 +150,7 @@ export function listStockDrogasSql(filter: ListStockDrogasFilter): Prisma.Sql {
         d.stock_minimo,
         ${sinonimoCoincidenteSql("d", search)} AS sinonimo,
         coalesce(v.stock_disponible, 0) AS stock_disponible,
+        coalesce(v.stock_activo, 0) AS stock_activo,
         coalesce(v.stock_disponible, 0) * u.factor_a_base AS stock_en_base,
         (
           SELECT min(p.fecha_vencimiento_vigente)
@@ -158,7 +164,7 @@ export function listStockDrogasSql(filter: ListStockDrogasFilter): Prisma.Sql {
         AND d.fecha_baja IS NULL
         AND ${drogaCoincideSql("d", search)}
         AND (NOT ${filter.soloControladas ?? false}::boolean OR d.es_controlada)
-        AND (NOT ${filter.soloBajoMinimo ?? false}::boolean OR coalesce(v.stock_disponible, 0) < d.stock_minimo)
+        AND (NOT ${filter.soloBajoMinimo ?? false}::boolean OR coalesce(v.stock_activo, 0) < d.stock_minimo)
         AND (NOT ${filter.soloSinStock ?? false}::boolean OR coalesce(v.stock_disponible, 0) = 0)
         AND (
           NOT ${filter.conPartidasPorVencer ?? false}::boolean
@@ -192,7 +198,8 @@ export function listStockDrogasSql(filter: ListStockDrogasFilter): Prisma.Sql {
       f.simbolo,
       f.stock_minimo::text AS stock_minimo,
       f.stock_disponible::text AS stock_disponible,
-      f.stock_disponible < f.stock_minimo AS bajo_minimo,
+      f.stock_activo::text AS stock_activo,
+      f.stock_activo < f.stock_minimo AS bajo_minimo,
       f.proximo_vencimiento::text AS proximo_vencimiento,
       f.sinonimo
     FROM (SELECT count(*)::int AS total FROM filtradas) t
@@ -279,6 +286,7 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
       fechaVencimiento: true,
       fechaVencimientoVigente: true,
       fechaApertura: true,
+      origen: true,
       proveedor: { select: { razonSocial: true } },
     },
   });
@@ -291,7 +299,7 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
       id: row.id,
       lote: row.lote,
       proveedorId: row.proveedorId,
-      proveedorRazonSocial: row.proveedor?.razonSocial ?? ETIQUETA_SIN_PROVEEDOR,
+      proveedorRazonSocial: row.proveedor?.razonSocial ?? etiquetaSinProveedor(row.origen),
       costoUnitario: row.costoUnitario.toString(),
       cantidadInicial: row.cantidadInicial.toString(),
       cantidadDisponible: row.cantidadDisponible.toString(),
@@ -331,6 +339,9 @@ export interface PartidaHistorialItem {
   /** The vencimiento VIGENTE (migration 0074). Every expiry decision uses this one. */
   fechaVencimientoVigente: Date | null;
   fechaApertura: Date | null;
+  origen: OrigenPartida;
+  /** Migration 0058: declared purity (percent), `null` = 100 %. A dilución's is its concentration. */
+  potenciaDeclarada: string | null;
 }
 
 export interface ListPartidasHistorialFilter {
@@ -344,6 +355,8 @@ export interface ListPartidasHistorialFilter {
   hasta?: string;
   soloConSaldo?: boolean;
   soloVencidas?: boolean;
+  /** Only lots elaborated in the farmacia (origen ELABORACION_PROPIA, migration 0111). */
+  soloElaboradas?: boolean;
   page: number;
   pageSize: number;
 }
@@ -368,6 +381,7 @@ export async function listPartidasHistorial(tx: Prisma.TransactionClient, filter
   if (filter.proveedorId) where.proveedorId = filter.proveedorId;
   if (filter.lote) where.lote = { contains: filter.lote, mode: "insensitive" };
   if (filter.soloConSaldo) where.cantidadDisponible = { gt: 0 };
+  if (filter.soloElaboradas) where.origen = "ELABORACION_PROPIA";
   if (filter.soloVencidas) {
     const jornada = await jornadaActualTenant(tx, filter.tenantId);
     where.fechaVencimientoVigente = { lt: new Date(`${jornada}T00:00:00Z`) };
@@ -399,6 +413,8 @@ export async function listPartidasHistorial(tx: Prisma.TransactionClient, filter
       fechaVencimiento: true,
       fechaVencimientoVigente: true,
       fechaApertura: true,
+      origen: true,
+      potenciaDeclarada: true,
       droga: { select: { nombre: true, unidadBaseId: true, unidadBase: { select: { simbolo: true } } } },
       proveedor: { select: { razonSocial: true } },
     },
@@ -421,13 +437,15 @@ export async function listPartidasHistorial(tx: Prisma.TransactionClient, filter
       unidadBaseId: row.droga.unidadBaseId,
       unidadBaseSimbolo: row.droga.unidadBase.simbolo,
       proveedorId: row.proveedorId,
-      proveedorRazonSocial: row.proveedor?.razonSocial ?? ETIQUETA_SIN_PROVEEDOR,
+      proveedorRazonSocial: row.proveedor?.razonSocial ?? etiquetaSinProveedor(row.origen),
       cantidadInicial: row.cantidadInicial.toString(),
       cantidadDisponible: row.cantidadDisponible.toString(),
       fechaIngreso: row.fechaIngreso,
       fechaVencimiento: row.fechaVencimiento,
       fechaVencimientoVigente: row.fechaVencimientoVigente,
       fechaApertura: row.fechaApertura,
+      origen: row.origen,
+      potenciaDeclarada: row.potenciaDeclarada?.toString() ?? null,
     })),
     total,
     page: filter.page,
@@ -467,8 +485,8 @@ export interface PartidaParaAccion {
   fechaApertura: Date | null;
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
-  /** Migration 0100: COMPRA or EXISTENCIA_INICIAL (openspec/specs/existencia-inicial/spec.md R10). */
-  origen: "COMPRA" | "EXISTENCIA_INICIAL";
+  /** Migration 0100: COMPRA or EXISTENCIA_INICIAL (openspec/specs/existencia-inicial/spec.md R10); 0111: ELABORACION_PROPIA. */
+  origen: OrigenPartida;
 }
 
 export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<PartidaParaAccion | null> {
@@ -501,7 +519,7 @@ export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantI
     unidadBaseId: row.droga.unidadBaseId,
     unidadBaseSimbolo: row.droga.unidadBase.simbolo,
     proveedorId: row.proveedorId,
-    proveedorRazonSocial: row.proveedor?.razonSocial ?? ETIQUETA_SIN_PROVEEDOR,
+    proveedorRazonSocial: row.proveedor?.razonSocial ?? etiquetaSinProveedor(row.origen),
     lote: row.lote,
     costoUnitario: row.costoUnitario.toString(),
     cantidadInicial: row.cantidadInicial.toString(),
@@ -1111,20 +1129,23 @@ export async function listAjustes(tx: Prisma.TransactionClient, filter: ListAjus
 // never `new Date()`/CURRENT_DATE.
 // ============================================================================
 
+/** A droga whose ACTIVE stock (`stock_activo`, migration 0111) is below its `stock_minimo`. */
 export interface AlertaBajoMinimo {
   drogaId: string;
   drogaNombre: string;
   stockMinimo: string;
   stockDisponible: string;
+  stockActivo: string;
 }
 
 export async function alertasBajoMinimo(tx: Prisma.TransactionClient, tenantId: string): Promise<AlertaBajoMinimo[]> {
-  const rows = await tx.$queryRaw<{ droga_id: string; nombre: string; stock_minimo: string; stock_disponible: string }[]>`
-    SELECT d.id AS droga_id, d.nombre, d.stock_minimo::text, coalesce(v.stock_disponible, 0)::text AS stock_disponible
+  const rows = await tx.$queryRaw<{ droga_id: string; nombre: string; stock_minimo: string; stock_disponible: string; stock_activo: string }[]>`
+    SELECT d.id AS droga_id, d.nombre, d.stock_minimo::text, coalesce(v.stock_disponible, 0)::text AS stock_disponible,
+      coalesce(v.stock_activo, 0)::text AS stock_activo
     FROM fsj.droga d
     LEFT JOIN fsj.v_stock_droga v ON v.tenant_id = d.tenant_id AND v.droga_id = d.id
     WHERE d.tenant_id = ${tenantId}::uuid AND d.fecha_baja IS NULL
-      AND coalesce(v.stock_disponible, 0) < d.stock_minimo
+      AND coalesce(v.stock_activo, 0) < d.stock_minimo
     ORDER BY d.nombre ASC
   `;
   return rows.map((row) => ({
@@ -1132,6 +1153,7 @@ export async function alertasBajoMinimo(tx: Prisma.TransactionClient, tenantId: 
     drogaNombre: row.nombre,
     stockMinimo: row.stock_minimo,
     stockDisponible: row.stock_disponible,
+    stockActivo: row.stock_activo,
   }));
 }
 
@@ -1142,7 +1164,7 @@ export async function contarDrogasBajoMinimo(tx: Prisma.TransactionClient, tenan
     FROM fsj.droga d
     LEFT JOIN fsj.v_stock_droga v ON v.tenant_id = d.tenant_id AND v.droga_id = d.id
     WHERE d.tenant_id = ${tenantId}::uuid AND d.fecha_baja IS NULL
-      AND coalesce(v.stock_disponible, 0) < d.stock_minimo
+      AND coalesce(v.stock_activo, 0) < d.stock_minimo
   `;
   return rows[0]?.cantidad ?? 0;
 }
@@ -1208,7 +1230,7 @@ function alertaDesdeRow(row: AlertaVencimientoRow): AlertaPorVencer {
 /** Partidas with balance whose vencimiento VIGENTE falls within `[jornadaActual, jornadaActual + diasAlerta]` -- excludes already-expired ones (those are `alertasVencidasConSaldo`'s job). */
 export async function alertasPorVencer(tx: Prisma.TransactionClient, tenantId: string, diasAlerta: number): Promise<AlertaPorVencer[]> {
   const rows = await tx.$queryRaw<AlertaVencimientoRow[]>`
-    SELECT p.id AS partida_id, d.id AS droga_id, d.nombre, p.lote, coalesce(pv.razon_social, ${ETIQUETA_SIN_PROVEEDOR}) AS proveedor_razon_social,
+    SELECT p.id AS partida_id, d.id AS droga_id, d.nombre, p.lote, coalesce(pv.razon_social, CASE WHEN p.origen = 'ELABORACION_PROPIA' THEN ${ETIQUETA_ELABORADO_EN_FARMACIA} ELSE ${ETIQUETA_SIN_PROVEEDOR} END) AS proveedor_razon_social,
       p.cantidad_disponible::text, u.id AS unidad_base_id, u.simbolo AS unidad_base_simbolo,
       p.fecha_vencimiento_vigente, p.fecha_vencimiento,
       d.clase = 'DROGA' AS es_droga, p.fecha_vencimiento_vigente IS DISTINCT FROM p.fecha_vencimiento AS reanalizada
@@ -1228,7 +1250,7 @@ export async function alertasPorVencer(tx: Prisma.TransactionClient, tenantId: s
 /** Expired partidas (vencimiento VIGENTE < jornada) that STILL have balance. */
 export async function alertasVencidasConSaldo(tx: Prisma.TransactionClient, tenantId: string): Promise<AlertaVencidaConSaldo[]> {
   const rows = await tx.$queryRaw<AlertaVencimientoRow[]>`
-    SELECT p.id AS partida_id, d.id AS droga_id, d.nombre, p.lote, coalesce(pv.razon_social, ${ETIQUETA_SIN_PROVEEDOR}) AS proveedor_razon_social,
+    SELECT p.id AS partida_id, d.id AS droga_id, d.nombre, p.lote, coalesce(pv.razon_social, CASE WHEN p.origen = 'ELABORACION_PROPIA' THEN ${ETIQUETA_ELABORADO_EN_FARMACIA} ELSE ${ETIQUETA_SIN_PROVEEDOR} END) AS proveedor_razon_social,
       p.cantidad_disponible::text, u.id AS unidad_base_id, u.simbolo AS unidad_base_simbolo,
       p.fecha_vencimiento_vigente, p.fecha_vencimiento,
       d.clase = 'DROGA' AS es_droga, p.fecha_vencimiento_vigente IS DISTINCT FROM p.fecha_vencimiento AS reanalizada

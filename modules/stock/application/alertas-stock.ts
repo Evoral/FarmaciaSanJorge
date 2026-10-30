@@ -1,7 +1,7 @@
 /**
  * `alertasStock` (M07, FASE 5 point 5.7). Read-only, `stock.ver`. Three
  * independent alerts (plan §9 M07 historia 6):
- *   - drogas below `stock_minimo` (from `fsj.v_stock_droga`, never summed).
+ *   - drogas whose ACTIVE stock is below `stock_minimo` (`stock_activo` of `fsj.v_stock_droga`, never summed).
  *   - partidas expiring within `dias_alerta_vencimiento_partida` days of
  *     the tenant's jornada (DP-14).
  *   - already-expired partidas that still carry a balance -- suggests a

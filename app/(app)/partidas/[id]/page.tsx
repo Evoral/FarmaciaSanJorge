@@ -11,10 +11,13 @@
  *
  * "Historial" (lot tracing: which recetas consumed this partida) opens the droga's historial already filtered by
  * this partida (openspec/specs/historial-droga/spec.md) -- shown only when that page would open, never a redirect.
+ *
+ * Lotes elaborados (openspec/changes/lotes-elaborados): an elaborated partida shows what it was made from; any
+ * partida lists the lots elaborated from it; "Diluir" opens "Elaborar lote" with this partida as the dilución's.
  */
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CircleAlert, FlaskConical, History, ScrollText, SlidersHorizontal, TriangleAlert } from "lucide-react";
+import { CircleAlert, FlaskConical, History, Pipette, ScrollText, SlidersHorizontal, TriangleAlert } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getPartida } from "@/modules/stock/application/get-partida";
@@ -36,6 +39,7 @@ import { dec } from "@/shared/decimal";
 import { formatFecha as formatFechaCalendario } from "@/shared/format/fecha";
 import { textoPorVencer } from "@/modules/stock/domain/vencimiento-partida";
 import { MarcarVencidaDialog, ReanalisisDialog } from "@/modules/stock/ui/acciones-dt-partida";
+import { ElaborarLoteDialog } from "@/modules/stock/ui/elaborar-lote-dialog";
 
 function formatFecha(fecha: Date): string {
   return new Intl.DateTimeFormat("es-AR", { timeZone: "UTC", dateStyle: "short", timeStyle: "short" }).format(fecha);
@@ -90,6 +94,9 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
   // Only a DT vigente acts; only on a DROGA partida with saldo (saldo 0 is terminal).
   const dtPuedeActuar = partida.sesionEsDtVigente && can(session, "stock.ajuste.autorizar") && esDroga && tieneSaldo && vigenteIso !== null;
   const partidaNombre = `${partida.drogaNombre} · lote ${partida.lote}`;
+  // A partida that can be consumed today can be diluted (EL1).
+  const puedeDiluir = can(session, "stock.lote.elaborar") && esDroga && tieneSaldo && !vencida;
+  const elaboracion = partida.elaboracion;
 
   // Kardex page links keep any other query param of the page.
   function kardexPageHref(targetPage: number): string {
@@ -112,12 +119,26 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
             Lote <span className="font-mono text-zinc-900">{partida.lote}</span>
             {partida.origen === "EXISTENCIA_INICIAL"
               ? `${partida.proveedorId ? ` de ${partida.proveedorRazonSocial}` : ""} · existencia inicial`
-              : ` de ${partida.proveedorRazonSocial}`}
+              : partida.origen === "ELABORACION_PROPIA"
+                ? elaboracion?.tipo === "DILUCION"
+                  ? ` · dilución elaborada en la farmacia${partida.potenciaDeclarada !== null ? ` al ${partida.potenciaDeclarada} %` : ""}`
+                  : " · elaborado en la farmacia"
+                : ` de ${partida.proveedorRazonSocial}`}
           </>
         }
         actions={
-          puedeVerHistorial || puedeAjustar ? (
+          puedeVerHistorial || puedeAjustar || puedeDiluir ? (
             <>
+              {puedeDiluir ? (
+                <ElaborarLoteDialog
+                  label="Diluir"
+                  icon={<Pipette className="size-4" aria-hidden />}
+                  className="btn btn-secondary"
+                  title="Elaborar una dilución con este lote"
+                  drogaId={partida.drogaId}
+                  partidaId={partida.id}
+                />
+              ) : null}
               {puedeVerHistorial ? (
                 <Link
                   href={hrefHistorialDroga(`/catalogos/drogas/${partida.drogaId}/historial`, [partida.id])}
@@ -176,6 +197,79 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
 
       <div className="split-layout">
         <div className="flex min-w-0 flex-col gap-4">
+          {elaboracion ? (
+            <section aria-labelledby="elaboracion-heading" className="panel min-w-0">
+              <div className="panel-header">
+                <h2 id="elaboracion-heading">{elaboracion.tipo === "DILUCION" ? "Dilución" : "Elaboración"}</h2>
+                <p>
+                  Elaborado por {elaboracion.elaboradoPorNombre} {elaboracion.elaboradoPorApellido} el {formatFecha(elaboracion.registradoEn)}
+                  {elaboracion.conFormula ? ", desde la fórmula de la droga" : ""}.{elaboracion.observacion ? ` ${elaboracion.observacion}` : ""}
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col" className="px-5 py-2">
+                        Lote consumido
+                      </th>
+                      <th scope="col" className="px-3 py-2">
+                        Droga
+                      </th>
+                      <th scope="col" className="hidden px-3 py-2 sm:table-cell">
+                        Pureza
+                      </th>
+                      <th scope="col" className="px-5 py-2 text-right">
+                        Cantidad
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {elaboracion.consumos.map((c) => (
+                      <tr key={c.partidaId}>
+                        <td className="px-5 py-2.5">
+                          <Link href={`/partidas/${c.partidaId}`} className="font-mono font-semibold underline-offset-2 hover:underline">
+                            {c.lote}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-2.5">{c.drogaNombre}</td>
+                        <td className="hidden px-3 py-2.5 font-mono tabular-nums sm:table-cell">{c.potenciaDeclarada !== null ? `${c.potenciaDeclarada} %` : "100 %"}</td>
+                        <td className="whitespace-nowrap px-5 py-2.5 text-right font-mono tabular-nums">
+                          <Cantidad valor={formatCantidad(c.cantidad, { id: c.unidadId, simbolo: c.unidadSimbolo }, catalogo)} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
+
+          {partida.lotesElaborados.length > 0 ? (
+            <section aria-labelledby="elaborados-heading" className="panel min-w-0">
+              <div className="panel-header">
+                <h2 id="elaborados-heading">Lotes elaborados con esta partida</h2>
+              </div>
+              <ul className="divide-y divide-zinc-100">
+                {partida.lotesElaborados.map((l) => (
+                  <li key={l.partidaId} className="flex flex-wrap items-center justify-between gap-2 px-5 py-2.5 text-[0.8125rem]">
+                    <span>
+                      <Link href={`/partidas/${l.partidaId}`} className="font-mono font-semibold underline-offset-2 hover:underline">
+                        {l.lote}
+                      </Link>{" "}
+                      <span className="text-zinc-600">
+                        · {l.drogaNombre} · {l.tipo === "DILUCION" ? "dilución" : "elaborado"}
+                      </span>
+                    </span>
+                    <span className="font-mono tabular-nums text-zinc-700">
+                      <Cantidad valor={formatCantidad(l.cantidadConsumida, unidad, catalogo)} /> usados
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
           <section aria-labelledby="kardex-heading" className="panel min-w-0">
             <div className="panel-header">
               <h2 id="kardex-heading">Kardex de movimientos</h2>

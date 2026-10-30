@@ -9,7 +9,9 @@
  * someone see the proveedor and price used (R37), not `stock.valorizado.ver`.
  */
 import type { Prisma } from "@/generated/prisma/client";
+import { formulasDeDrogasEnTx } from "@/modules/drogas/application/formula-de-droga";
 import { elegirCostoProveedor } from "../domain/costo-proveedor";
+import { costoDesdeFormula } from "../domain/costo-desde-formula";
 import { getCostosProveedorVigentesDeDrogas } from "../infrastructure/costo-proveedor-repository";
 
 /** The chosen costo, with what the cotización computes with and keeps in its snapshot (R32). */
@@ -66,4 +68,58 @@ export async function costosProveedorParaCotizar(
     });
   }
   return elegidos;
+}
+
+/** R38: what a droga's fórmula costs from its components' costos de proveedor (`CostoFormulaCosteo` of modules/precios). */
+export interface CostoFormulaParaCotizar {
+  cantidadReferencia: string;
+  /** Per the droga's unidad base. */
+  costoUnitario: string;
+  costoUnitarioConIva: string;
+  componentes: { drogaNombre: string; cantidad: string; unidadSimbolo: string; proveedorNombre: string; costoUnitarioConIva: string }[];
+}
+
+export interface CostosParaCotizar {
+  /** drogaId -> its usable costo de proveedor (R26). */
+  proveedor: Map<string, CostoProveedorParaCotizar>;
+  /** drogaId -> its fórmula's cost, only for drogas WITHOUT a usable costo de proveedor (R38). */
+  formula: Map<string, CostoFormulaParaCotizar>;
+  /** drogaId -> the names of its fórmula's components without a costo de proveedor (R27 names them). */
+  componentesSinCosto: Map<string, string[]>;
+}
+
+/**
+ * `costosProveedorParaCotizar` plus the fórmula fallback (R38): a droga without a usable costo de proveedor but with
+ * a fórmula is costed from its components' (one level only, INV-EL5: a component never has a fórmula). A droga with
+ * neither is absent from both maps (no price, R27). Read-only.
+ */
+export async function costosParaCotizar(tx: Prisma.TransactionClient, tenantId: string, drogaIds: readonly string[]): Promise<CostosParaCotizar> {
+  const proveedor = await costosProveedorParaCotizar(tx, tenantId, drogaIds);
+  const formula = new Map<string, CostoFormulaParaCotizar>();
+  const componentesSinCosto = new Map<string, string[]>();
+  const sinCosto = drogaIds.filter((id) => !proveedor.has(id));
+  if (sinCosto.length === 0) return { proveedor, formula, componentesSinCosto };
+
+  const formulas = await formulasDeDrogasEnTx(tx, tenantId, sinCosto);
+  if (formulas.size === 0) return { proveedor, formula, componentesSinCosto };
+  const componenteIds = [...new Set([...formulas.values()].flatMap((f) => f.componentes.map((c) => c.drogaId)))];
+  const costosComponentes = await costosProveedorParaCotizar(tx, tenantId, componenteIds);
+
+  for (const [drogaId, f] of formulas) {
+    const resultado = costoDesdeFormula(f, costosComponentes);
+    if (!resultado.ok) {
+      if (resultado.sinCosto.length > 0) componentesSinCosto.set(drogaId, resultado.sinCosto);
+      continue;
+    }
+    formula.set(drogaId, {
+      cantidadReferencia: f.cantidadReferencia,
+      costoUnitario: resultado.costoUnitario.toString(),
+      costoUnitarioConIva: resultado.costoUnitarioConIva.toString(),
+      componentes: f.componentes.map((c) => {
+        const costo = costosComponentes.get(c.drogaId)!;
+        return { drogaNombre: c.drogaNombre, cantidad: c.cantidad, unidadSimbolo: c.unidadBaseSimbolo, proveedorNombre: costo.proveedorNombre, costoUnitarioConIva: costo.costoUnitarioConIva };
+      }),
+    });
+  }
+  return { proveedor, formula, componentesSinCosto };
 }

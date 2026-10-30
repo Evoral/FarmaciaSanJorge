@@ -22,11 +22,12 @@ import type { ConflictoNombreDroga } from "../domain/sinonimo";
 // partida.cantidad_disponible in application code when this view exists.
 // ============================================================================
 
-async function loadStockPorDroga(tx: Prisma.TransactionClient, tenantId: string): Promise<Map<string, string>> {
-  const rows = await tx.$queryRaw<{ droga_id: string; stock_disponible: string }[]>`
-    SELECT droga_id, stock_disponible::text FROM fsj.v_stock_droga WHERE tenant_id = ${tenantId}::uuid
+/** drogaId -> its physical (`disponible`) and active (`activo`, migration 0111) stock. */
+async function loadStockPorDroga(tx: Prisma.TransactionClient, tenantId: string): Promise<Map<string, { disponible: string; activo: string }>> {
+  const rows = await tx.$queryRaw<{ droga_id: string; stock_disponible: string; stock_activo: string }[]>`
+    SELECT droga_id, stock_disponible::text, stock_activo::text FROM fsj.v_stock_droga WHERE tenant_id = ${tenantId}::uuid
   `;
-  return new Map(rows.map((row) => [row.droga_id, row.stock_disponible]));
+  return new Map(rows.map((row) => [row.droga_id, { disponible: row.stock_disponible, activo: row.stock_activo }]));
 }
 
 // ============================================================================
@@ -39,7 +40,7 @@ export interface ListDrogasFilter {
   soloControladas?: boolean;
   /** Migration 0063. */
   clase?: PrismaClaseDroga;
-  /** `true` = only drogas whose stock_disponible < stock_minimo. */
+  /** `true` = only drogas whose stock_activo < stock_minimo (the mínimo is in active terms, migration 0111). */
   bajoMinimo?: boolean;
   soloVigentes?: boolean;
   page: number;
@@ -56,6 +57,8 @@ export interface DrogaListItem {
   clase: PrismaClaseDroga;
   stockMinimo: string;
   stockDisponible: string;
+  /** Active stock (`stock_activo`, migration 0111): what the mínimo is compared with. */
+  stockActivo: string;
   fechaBaja: Date | null;
   motivoBaja: string | null;
   /** Vigente synonyms, as typed (openspec/specs/sinonimos-droga/spec.md). */
@@ -111,8 +114,9 @@ export async function listDrogas(tx: Prisma.TransactionClient, filter: ListDroga
       select: { id: true, nombre: true, unidadBaseId: true, esControlada: true, tipoControl: true, clase: true, stockMinimo: true, fechaBaja: true, motivoBaja: true, unidadBase: { select: { simbolo: true } } },
     });
     const withStock = rows
-      .map((row) => ({ row, disponible: dec(stock.get(row.id) ?? "0") }))
-      .filter(({ row, disponible }) => disponible.lessThan(dec(row.stockMinimo.toString())));
+      // The mínimo is in active terms (lotes-elaborados), like the stock alerts.
+      .map((row) => ({ row, activo: dec(stock.get(row.id)?.activo ?? "0") }))
+      .filter(({ row, activo }) => activo.lessThan(dec(row.stockMinimo.toString())));
 
     const total = withStock.length;
     const skip = (filter.page - 1) * filter.pageSize;
@@ -129,7 +133,8 @@ export async function listDrogas(tx: Prisma.TransactionClient, filter: ListDroga
         tipoControl: row.tipoControl,
         clase: row.clase,
         stockMinimo: row.stockMinimo.toString(),
-        stockDisponible: stock.get(row.id) ?? "0",
+        stockDisponible: stock.get(row.id)?.disponible ?? "0",
+        stockActivo: stock.get(row.id)?.activo ?? "0",
         fechaBaja: row.fechaBaja,
         motivoBaja: row.motivoBaja,
         ...extrasDe(row.id),
@@ -161,7 +166,8 @@ export async function listDrogas(tx: Prisma.TransactionClient, filter: ListDroga
       tipoControl: row.tipoControl,
       clase: row.clase,
       stockMinimo: row.stockMinimo.toString(),
-      stockDisponible: stock.get(row.id) ?? "0",
+      stockDisponible: stock.get(row.id)?.disponible ?? "0",
+        stockActivo: stock.get(row.id)?.activo ?? "0",
       fechaBaja: row.fechaBaja,
       motivoBaja: row.motivoBaja,
       ...extrasDe(row.id),
@@ -374,6 +380,8 @@ export interface DrogaOpcion {
   unidadBaseId: string;
   /** `tipo_magnitud` of the unidad base: lets a unit picker (e.g. `/partidas/ingresar`'s "Unidad de compra") offer only convertible units. */
   tipoMagnitud: string;
+  /** Símbolo of the unidad base: the unit a fórmula component's quantity is typed in. */
+  unidadBaseSimbolo: string;
   clase: PrismaClaseDroga;
   /** Vigente synonyms, as typed: client-filtered pickers search them too (openspec/specs/sinonimos-droga/spec.md). */
   sinonimos: string[];
@@ -384,7 +392,7 @@ export async function listDrogasOpciones(tx: Prisma.TransactionClient, tenantId:
   const rows = await tx.droga.findMany({
     where: { tenantId, fechaBaja: null },
     orderBy: [{ nombre: "asc" }],
-    select: { id: true, nombre: true, unidadBaseId: true, clase: true, unidadBase: { select: { tipoMagnitud: true } } },
+    select: { id: true, nombre: true, unidadBaseId: true, clase: true, unidadBase: { select: { tipoMagnitud: true, simbolo: true } } },
   });
   const sinonimos = await listSinonimosVigentes(tx, tenantId);
   return rows.map((row) => ({
@@ -392,6 +400,7 @@ export async function listDrogasOpciones(tx: Prisma.TransactionClient, tenantId:
     nombre: row.nombre,
     unidadBaseId: row.unidadBaseId,
     tipoMagnitud: row.unidadBase.tipoMagnitud,
+    unidadBaseSimbolo: row.unidadBase.simbolo,
     clase: row.clase,
     sinonimos: sinonimos.get(row.id) ?? [],
   }));

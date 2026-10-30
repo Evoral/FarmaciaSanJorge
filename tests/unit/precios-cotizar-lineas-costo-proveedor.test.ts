@@ -33,6 +33,9 @@ const cotizacionRepo = {
 };
 vi.mock("@/modules/precios/infrastructure/cotizacion-repository", () => cotizacionRepo);
 vi.mock("@/modules/precios/infrastructure/regla-precio-repository", () => ({ getReglaVigente: vi.fn() }));
+vi.mock("@/modules/drogas/infrastructure/formula-repository", () => ({
+  getFormulasDeDrogas: vi.fn(async () => new Map()),
+}));
 
 const { costosProveedorParaCotizar } = await import("@/modules/costos-proveedor/application/costos-proveedor-para-cotizar");
 const { cotizarLineas, cotizarItemsAcumulado } = await import("@/modules/precios/application/cotizar-lineas");

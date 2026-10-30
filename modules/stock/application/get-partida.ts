@@ -25,6 +25,10 @@ import {
 } from "../infrastructure/partida-repository";
 import type { PartidaParaAccion, ReanalisisItem } from "../infrastructure/partida-repository";
 import { esDtVigenteHoy } from "../infrastructure/co-firma-repository";
+import { getElaboracionDePartida, listLotesElaboradosDesde, type ElaboracionDePartida } from "../infrastructure/elaboracion-lote-repository";
+import type { TipoElaboracion } from "@/generated/prisma/enums";
+
+export type { ElaboracionDePartida };
 
 export type { ReanalisisItem };
 
@@ -42,6 +46,10 @@ export interface PartidaDetalle extends PartidaParaAccion {
   reanalisis: ReanalisisItem[];
   /** The session's usuario is a DT vigente (titular or suplente) today. */
   sesionEsDtVigente: boolean;
+  /** How it was elaborated in the farmacia (origen ELABORACION_PROPIA, migration 0111), `null` otherwise. */
+  elaboracion: ElaboracionDePartida | null;
+  /** The lots elaborated from this partida, newest first. */
+  lotesElaborados: { partidaId: string; lote: string; drogaNombre: string; tipo: TipoElaboracion; cantidadConsumida: string }[];
 }
 
 const getPartidaInput = z.object({ id: uuid });
@@ -66,6 +74,8 @@ export const getPartidaQuery = defineQuery({
       estadoVencimiento: estadoVencimientoPartida(vigente, jornadaActual, diasAlertaVencimiento),
       reanalisis: await listReanalisisDePartida(tx, session.tenantId, partida.id),
       sesionEsDtVigente: await esDtVigenteHoy(tx, session.tenantId, session.usuario.id),
+      elaboracion: partida.origen === "ELABORACION_PROPIA" ? await getElaboracionDePartida(tx, session.tenantId, partida.id) : null,
+      lotesElaborados: await listLotesElaboradosDesde(tx, session.tenantId, partida.id),
     };
     return detalle;
   },

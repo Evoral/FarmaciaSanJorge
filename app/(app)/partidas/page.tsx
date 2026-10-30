@@ -4,22 +4,25 @@
  * to find a lote, its proveedor and its estado. Newest ingreso first.
  * Filters, all in the URL: droga (autocomplete, `drogaId`), lote (`q`),
  * proveedor (`proveedorId`), fecha de ingreso (`desde`/`hasta`), "Solo con
- * saldo" (`saldo=1`), "Solo vencidas" (`vencidas=1`); `unidades=base` is the
+ * saldo" (`saldo=1`), "Solo vencidas" (`vencidas=1`), "Solo elaborados"
+ * (`elaborados=1`, lots elaborated in the farmacia, openspec/changes/lotes-elaborados); `unidades=base` is the
  * same display option as `/stock`'s "Unificar unidades".
  * Partida management starts here: "Nuevo ingreso" (`/partidas/ingresar`,
- * `stock.partida.ingresar`) lives in this header, not on `/stock`.
+ * `stock.partida.ingresar`) lives in this header, not on `/stock`, and so does
+ * "Elaborar lote" (a dialog, `stock.lote.elaborar`).
  * Section guard: `app/(app)/stock/layout.tsx` (`stock.ver`).
  */
 import Link from "next/link";
-import { ChevronRight, CircleAlert, History, PackagePlus, SearchX } from "lucide-react";
+import { ChevronRight, CircleAlert, FlaskConical, History, PackagePlus, SearchX } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listPartidas } from "@/modules/stock/application/list-partidas";
 import { esFechaIso } from "@/modules/stock/domain/ajustes-listado";
 import { estadoVencimientoPartida } from "@/modules/stock/domain/vencimiento-partida";
 import { KardexDrogaFiltro } from "@/modules/stock/ui/kardex-droga-filtro";
+import { ElaborarLoteDialog } from "@/modules/stock/ui/elaborar-lote-dialog";
 import { getCatalogoUnidades } from "@/modules/unidades/application/catalogo-unidades";
-import { formatCantidadesFila, type ModoCantidad } from "@/shared/format/cantidad";
+import { formatCantidadesFila, formatNumero, type ModoCantidad } from "@/shared/format/cantidad";
 import { formatFecha } from "@/shared/format/fecha";
 import { Cantidad } from "@/shared/ui/cantidad";
 import { DateInput } from "@/shared/ui/date-input";
@@ -45,6 +48,7 @@ interface HistorialPartidasPageProps {
     hasta?: string;
     saldo?: string;
     vencidas?: string;
+    elaborados?: string;
     unidades?: string;
     page?: string;
   }>;
@@ -55,6 +59,7 @@ const numberFormat = new Intl.NumberFormat("es-AR");
 export default async function HistorialPartidasPage({ searchParams }: HistorialPartidasPageProps) {
   const session = await requireSession();
   const puedeIngresar = can(session, "stock.partida.ingresar");
+  const puedeElaborar = can(session, "stock.lote.elaborar");
   const params = await searchParams;
   const drogaId = params.drogaId && UUID_PATTERN.test(params.drogaId) ? params.drogaId : "";
   const proveedorId = params.proveedorId && UUID_PATTERN.test(params.proveedorId) ? params.proveedorId : "";
@@ -63,6 +68,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
   const hasta = params.hasta && esFechaIso(params.hasta) ? params.hasta : "";
   const soloConSaldo = params.saldo === "1";
   const soloVencidas = params.vencidas === "1";
+  const soloElaboradas = params.elaborados === "1";
   const modo: ModoCantidad = params.unidades === "base" ? "base" : "auto";
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
   // Checked here so an inverted range shows a message instead of the use case's ValidationError.
@@ -78,6 +84,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
       hasta: rangoInvalido ? undefined : hasta || undefined,
       soloConSaldo,
       soloVencidas,
+      soloElaboradas,
       page,
       pageSize: PAGE_SIZE,
     }),
@@ -94,6 +101,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
     if (hasta) qs.set("hasta", hasta);
     if (soloConSaldo) qs.set("saldo", "1");
     if (soloVencidas) qs.set("vencidas", "1");
+    if (soloElaboradas) qs.set("elaborados", "1");
     if (modo === "base") qs.set("unidades", "base");
     if (targetPage !== undefined) qs.set("page", String(targetPage));
     return qs.toString();
@@ -105,7 +113,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
 
   const filtrosHref = query() ? `${BASE_PATH}?${query()}` : BASE_PATH;
   const drogaFiltrada = drogaId ? { id: drogaId, nombre: result.droga?.nombre ?? "Droga seleccionada" } : null;
-  const hayFiltrosForm = Boolean(q || proveedorId || desde || hasta || soloConSaldo || soloVencidas);
+  const hayFiltrosForm = Boolean(q || proveedorId || desde || hasta || soloConSaldo || soloVencidas || soloElaboradas);
   const hayFiltros = hayFiltrosForm || Boolean(drogaId);
 
   return (
@@ -115,11 +123,18 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
         title="Partidas"
         description="Historial de todas las partidas ingresadas, incluidas las agotadas."
         actions={
-          puedeIngresar ? (
-            <Link href="/partidas/ingresar" className="btn btn-primary">
-              <PackagePlus className="size-4" aria-hidden />
-              Nuevo ingreso
-            </Link>
+          puedeIngresar || puedeElaborar ? (
+            <>
+              {puedeElaborar ? (
+                <ElaborarLoteDialog label="Elaborar lote" icon={<FlaskConical className="size-4" aria-hidden />} className="btn btn-secondary" />
+              ) : null}
+              {puedeIngresar ? (
+                <Link href="/partidas/ingresar" className="btn btn-primary">
+                  <PackagePlus className="size-4" aria-hidden />
+                  Nuevo ingreso
+                </Link>
+              ) : null}
+            </>
           ) : null
         }
       />
@@ -170,6 +185,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
               options={[
                 { name: "saldo", label: "Solo con saldo", checked: soloConSaldo },
                 { name: "vencidas", label: "Solo vencidas", checked: soloVencidas },
+                { name: "elaborados", label: "Solo elaborados en la farmacia", checked: soloElaboradas },
               ]}
             />
             <label className="toggle-switch">
@@ -269,6 +285,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
                     );
                     const conSaldo = partida.cantidadDisponible !== "0";
                     const reanalizada = partida.fechaVencimientoVigente?.getTime() !== partida.fechaVencimiento?.getTime();
+                    const elaboracion = result.tiposElaboracion[partida.id];
                     return (
                       <tr key={partida.id}>
                         <td className="px-3 py-2.5">
@@ -315,6 +332,13 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
                           <span className="flex flex-wrap gap-1">
                             {conSaldo && (vencimiento === "VENCIDA" || vencimiento === "POR_VENCER") ? <StatusBadge estado={vencimiento} /> : null}
                             {conSaldo ? null : <StatusBadge estado="AGOTADA" />}
+                            {elaboracion === "DILUCION" ? (
+                              <ToneBadge tone="success" title="Elaborado en la farmacia">
+                                Dilución {partida.potenciaDeclarada ? `${formatNumero(partida.potenciaDeclarada, 6)} %` : ""}
+                              </ToneBadge>
+                            ) : elaboracion === "FORMULA" ? (
+                              <ToneBadge tone="success">Elaborado</ToneBadge>
+                            ) : null}
                             <ToneBadge tone="neutral">{partida.fechaApertura ? "Abierta" : "Cerrada"}</ToneBadge>
                           </span>
                         </td>

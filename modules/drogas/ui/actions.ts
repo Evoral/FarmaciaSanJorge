@@ -6,6 +6,7 @@ import { crearDroga } from "@/modules/drogas/application/crear-droga";
 import { editarDroga } from "@/modules/drogas/application/editar-droga";
 import { darDeBajaDroga } from "@/modules/drogas/application/dar-de-baja-droga";
 import { reactivarDroga } from "@/modules/drogas/application/reactivar-droga";
+import type { FormulaInputCrudo } from "@/modules/drogas/application/guardar-formula";
 import { conOperador } from "@/shared/auth/operador-context";
 import { actionError } from "@/shared/ui/action-error";
 import type { DrogaActionState } from "./action-state";
@@ -30,6 +31,22 @@ function sinonimosDelForm(formData: FormData): string[] {
   return Array.from(sinonimos, (s) => s ?? "");
 }
 
+/**
+ * The fórmula section (openspec/changes/lotes-elaborados EL3): only when the form rendered it enabled (marker
+ * `formulaEnviada`, else `undefined` = untouched). Unchecked "Tiene fórmula" = `null` (none); otherwise the
+ * `cantidadReferencia` and one `componente_<drogaId>` field per component, in form order.
+ */
+function formulaDelForm(formData: FormData): FormulaInputCrudo | null | undefined {
+  if (!formData.has("formulaEnviada")) return undefined;
+  if (!formData.has("tieneFormula")) return null;
+  const componentes: FormulaInputCrudo["componentes"] = [];
+  for (const [key, value] of formData.entries()) {
+    const match = /^componente_([0-9a-f-]{36})$/i.exec(key);
+    if (match) componentes.push({ drogaId: match[1]!, cantidad: String(value) });
+  }
+  return { cantidadReferencia: String(formData.get("cantidadReferencia") ?? ""), componentes };
+}
+
 /** «A», «B» y «C». */
 function listaNombres(nombres: readonly string[]): string {
   const citados = nombres.map((n) => `«${n}»`);
@@ -51,6 +68,7 @@ export async function crearDrogaAction(_prevState: DrogaActionState, formData: F
         stockMinimo: String(formData.get("stockMinimo") ?? "0"),
         saldoAperturaContralor: optionalField(formData, "saldoAperturaContralor"),
         sinonimos: sinonimosDelForm(formData),
+        formula: formulaDelForm(formData) ?? null,
       });
       revalidatePath("/catalogos/drogas");
       const otros = creada.sinonimos.length > 0 ? ` con ${creada.sinonimos.length === 1 ? "otro nombre" : "otros nombres"}: ${listaNombres(creada.sinonimos)}` : "";
@@ -76,6 +94,7 @@ export async function editarDrogaAction(_prevState: DrogaActionState, formData: 
         ...(formData.has("sinonimosEnviados")
           ? { sinonimos: sinonimosDelForm(formData), sinonimosCargados: formData.getAll("sinonimosCargados").map(String) }
           : {}),
+        formula: formulaDelForm(formData),
         version: {
           nombre: String(formData.get("versionNombre") ?? ""),
           unidadBaseId: String(formData.get("versionUnidadBaseId") ?? ""),
@@ -120,3 +139,4 @@ export async function reactivarDrogaAction(_prevState: DrogaActionState, formDat
     }
   });
 }
+

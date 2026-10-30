@@ -27,6 +27,7 @@ import { convertirCantidad, mismaMagnitud } from "@/shared/decimal/convertir-uni
 import { estaVencida } from "@/modules/stock/domain/reparto";
 import { requiereMotivoAperturaAdicional } from "../domain/apertura-adicional";
 import { repartirLinea } from "../domain/reparto-linea";
+import { bajoLaBalanza, precisionDeLinea } from "../domain/pesada-real";
 import type { UnidadFormato } from "@/shared/format/cantidad";
 import { diasAlertaVencimientoEnTx } from "@/modules/stock/application/dias-alerta-vencimiento";
 import { listDtParaCoFirmaEnTx } from "@/modules/stock/application/list-dt-para-co-firma";
@@ -55,6 +56,12 @@ export interface LineaPantalla extends LineaParaPantalla {
   faltante: string | null;
   /** INV-S18 over the plan: never with the automatic order (abiertas first), kept so the form asks the motivo if the rule ever says so. */
   requiereMotivo: boolean;
+  /**
+   * P13: the dose itself (the ficha's active, línea unit) is below one balance division, so a lot at 100 % can not be
+   * weighed on the balance: the form offers the droga's diluted lots (`partidasElegibles` with `esDilucion`) or
+   * creating one. Which lots are chosen can change it: the form's live flag is `PesadaDeLinea.bajoLaBalanza`.
+   */
+  bajoLaBalanza: boolean;
   /** Recalculating a reserva (./get-recalculo-de-reserva.ts): its current entrada; before any reserva: the pesada en borrador (migration 0090). Prefills the form. */
   reserva?: EntradaReservada | null;
 }
@@ -102,6 +109,8 @@ export interface DatosConfirmacion {
     borrador: InsumoBorradorFila[];
     capsulas: string | null;
   };
+  /** `stock.lote.elaborar`: a dose below the balance offers creating a dilución (openspec/changes/lotes-elaborados P13). */
+  puedeElaborarLote?: boolean;
 }
 
 export async function construirDatosConfirmacion(
@@ -112,13 +121,16 @@ export async function construirDatosConfirmacion(
 ): Promise<DatosConfirmacion> {
   const jornada = await jornadaActualTenant(tx, tenantId);
   const lineasDb = await getLineasParaPreparacion(tx, tenantId, fichaTecnicaId);
+  const pesada = await getParametrosPesadaReal(tx, tenantId);
 
   const lineas: LineaPantalla[] = [];
   for (const linea of lineasDb) {
     const partidasElegibles = (await listPartidasElegiblesDroga(tx, tenantId, linea.drogaId, preparacionPropiaId)).filter(
       (p) => !estaVencida(p.fechaVencimiento, jornada),
     );
-    const sinPlan = { ...linea, partidasElegibles, propuesta: null, stockInsuficiente: false, faltante: null, requiereMotivo: false };
+    const dosisBajoLaBalanza =
+      !linea.esEnraseManual && linea.cantidadAPesar !== null && bajoLaBalanza(linea.cantidadAPesar, precisionDeLinea(linea.unidad, pesada.precisionBalanza));
+    const sinPlan = { ...linea, partidasElegibles, propuesta: null, stockInsuficiente: false, faltante: null, requiereMotivo: false, bajoLaBalanza: dosisBajoLaBalanza };
 
     // A línea whose unit can not be converted into the droga's unidad base gets no plan: the server refuses it with its own message.
     if (linea.esEnraseManual || !linea.cantidadAPesar || !mismaMagnitud(linea.unidad, linea.unidadStock)) {
@@ -154,7 +166,7 @@ export async function construirDatosConfirmacion(
     mesesVencimientoPreparado: await getMesesVencimientoPreparado(tx, tenantId),
     lineas,
     unidades: await listUnidadesFormato(tx),
-    pesada: await getParametrosPesadaReal(tx, tenantId),
+    pesada,
     dts: (await listDtParaCoFirmaEnTx(tx, tenantId)).map((dt) => ({ id: dt.usuarioId, label: `${dt.nombre} ${dt.apellido}` })),
   };
 }
