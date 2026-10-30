@@ -81,6 +81,8 @@ export const PERMISO_CATALOGO = {
   "stock.partida.ingresar": "operativo",
   // Corrects a partida's cost (money), not its quantity: no stock movement. Held by ADMINISTRADOR before DP-03.
   "stock.partida.costo.corregir": "gestion",
+  // Corrects a partida's declared purity (potency), affecting only future preparations: no stock movement.
+  "stock.partida.potencia.corregir": "gestion",
   "stock.ajuste.registrar": "operativo",
   "stock.ajuste.autorizar": "operativo",
   // Recetas, fichas, presupuestos, preparaciones, etiquetas.

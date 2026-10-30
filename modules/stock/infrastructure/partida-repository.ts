@@ -825,6 +825,31 @@ export async function updateCostoPartida(tx: Prisma.TransactionClient, input: Co
   return result.count === 1;
 }
 
+export interface CorregirPotenciaInput {
+  tenantId: string;
+  id: string;
+  potenciaNueva: string | null;
+  potenciaAnterior: string | null;
+}
+
+/**
+ * Updates `partida.potencia_declarada` with optimistic concurrency against `potenciaAnterior`.
+ * NULL = 100% (no correction).
+ */
+export async function updatePotenciaPartida(tx: Prisma.TransactionClient, input: CorregirPotenciaInput): Promise<boolean> {
+  const result = await tx.partida.updateMany({
+    where: {
+      id: input.id,
+      tenantId: input.tenantId,
+      potenciaDeclarada: input.potenciaAnterior !== null ? new Prisma.Decimal(input.potenciaAnterior) : null,
+    },
+    data: {
+      potenciaDeclarada: input.potenciaNueva !== null ? new Prisma.Decimal(input.potenciaNueva) : null,
+    },
+  });
+  return result.count === 1;
+}
+
 // ============================================================================
 // 5.2: kardex de movimientos (filtros + paginación)
 // ============================================================================

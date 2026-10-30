@@ -46,6 +46,7 @@ const AYUDA_PERMISO: Readonly<Record<PermisoAsignable, string>> = {
   "stock.valorizado.ver": "Ver el stock con su costo en pesos.",
   "stock.partida.ingresar": "Registrar la entrada de mercadería nueva (una partida con lote y vencimiento).",
   "stock.partida.costo.corregir": "Corregir el costo cargado de una partida. No cambia la cantidad.",
+  "stock.partida.potencia.corregir": "Corregir la pureza (potencia) cargada de una partida. Aplica solo a futuras preparaciones.",
   "stock.ajuste.registrar": "Cargar una corrección de cantidad de stock (rotura, faltante, sobrante).",
   "stock.ajuste.autorizar": "Aprobar o rechazar los ajustes de stock que cargó otra persona.",
   "recetas.crear": "Cargar una receta magistral nueva.",

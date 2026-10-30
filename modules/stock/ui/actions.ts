@@ -4,6 +4,7 @@
 import { revalidatePath } from "next/cache";
 import { registrarAjusteStock } from "@/modules/stock/application/registrar-ajuste";
 import { corregirCostoPartida } from "@/modules/stock/application/corregir-costo-partida";
+import { corregirPotenciaPartida } from "@/modules/stock/application/corregir-potencia-partida";
 import { crearDroga } from "@/modules/drogas/application/crear-droga";
 import { leerFacturaCompraPdf } from "@/modules/stock/application/leer-factura-compra-pdf";
 import { importarFacturaCompra } from "@/modules/stock/application/importar-factura-compra";
@@ -108,17 +109,33 @@ export async function registrarAjusteAction(_prevState: StockActionState, formDa
   });
 }
 
-export async function corregirCostoPartidaAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
+export async function corregirCostoPartidaAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
+  try {
+    await corregirCostoPartida({
+      id: String(formData.get("id") ?? ""),
+      costoUnitarioNuevo: String(formData.get("costoUnitarioNuevo") ?? ""),
+      motivo: String(formData.get("motivo") ?? ""),
+    });
+    revalidatePath("/stock");
+    return { status: "success", message: "Costo corregido." };
+  } catch (error) {
+    return fromError(error, "No se pudo corregir el costo.");
+  }
+}
+
+export async function corregirPotenciaPartidaAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
+  const id = String(formData.get("id") ?? "");
   try {
-    await corregirCostoPartida({
-      id: String(formData.get("id") ?? ""),
-      costoUnitarioNuevo: String(formData.get("costoUnitarioNuevo") ?? ""),
+    await corregirPotenciaPartida({
+      id,
+      potenciaDeclaradaNueva: opcional(formData, "potenciaDeclaradaNueva"),
       motivo: String(formData.get("motivo") ?? ""),
     });
     revalidatePath("/stock");
-    return { status: "success", message: "Costo corregido." };
+    revalidatePath(`/partidas/${id}`);
+    return { status: "success", message: "Pureza corregida." };
   } catch (error) {
-    return fromError(error, "No se pudo corregir el costo.");
+    return fromError(error, "No se pudo corregir la pureza.");
   }
 }
 

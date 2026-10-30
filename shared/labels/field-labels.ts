@@ -329,6 +329,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   letra: "Letra",
   paisOrigen: "País de origen",
   potenciaDeclarada: "Potencia declarada",
+  potenciaDeclaradaNueva: "Pureza nueva",
   precioUnitario: "Precio unitario",
   puntoVenta: "Punto de venta",
   sinonimos: "Sinónimos",

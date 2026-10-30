@@ -108,6 +108,7 @@ const EXPECTED_ROL_PERMISOS: Record<string, string[]> = {
     "stock.ajuste.autorizar",
     "stock.ajuste.registrar",
     "stock.partida.costo.corregir",
+    "stock.partida.potencia.corregir",
     "stock.partida.ingresar",
     "stock.valorizado.ver",
     "stock.ver",

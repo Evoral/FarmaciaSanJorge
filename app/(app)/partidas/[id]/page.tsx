@@ -23,6 +23,7 @@ import { hrefHistorialDroga } from "@/modules/drogas/domain/historial";
 import { kardexMovimientos } from "@/modules/stock/application/kardex-movimientos";
 import { NotFoundError } from "@/shared/errors";
 import { CorregirCostoForm } from "@/modules/stock/ui/corregir-costo-form";
+import { CorregirPotenciaForm } from "@/modules/stock/ui/corregir-potencia-form";
 import { getCatalogoUnidades } from "@/modules/unidades/application/catalogo-unidades";
 import { formatCantidad, formatCantidadesFila } from "@/shared/format/cantidad";
 import { Cantidad } from "@/shared/ui/cantidad";
@@ -76,6 +77,7 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
   // Saldo and cantidad inicial side by side: one unit for both (and for the part reserved by preparaciones, migration 0071).
   const [disponible, inicial, reservada] = formatCantidadesFila([partida.cantidadDisponible, partida.cantidadInicial, partida.cantidadReservada], unidad, catalogo);
   const puedeCorregirCosto = can(session, "stock.partida.costo.corregir");
+  const puedeCorregirPotencia = can(session, "stock.partida.potencia.corregir");
   const puedeAjustar = can(session, "stock.ajuste.registrar");
   // Same gates as /catalogos/drogas/[id]/historial (its section guard + its use case), so the link never redirects.
   const puedeVerHistorial = can(session, "drogas.editar") && puedeVerHistorialDroga(session);
@@ -364,6 +366,17 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
               </div>
               <div className="panel-body">
                 <CorregirCostoForm partidaId={partida.id} costoUnitarioActual={partida.costoUnitario} />
+              </div>
+            </section>
+          ) : null}
+
+          {puedeCorregirPotencia ? (
+            <section className="panel" aria-labelledby="corregir-potencia-heading">
+              <div className="panel-header">
+                <h2 id="corregir-potencia-heading">Corregir pureza</h2>
+              </div>
+              <div className="panel-body">
+                <CorregirPotenciaForm partidaId={partida.id} potenciaActual={partida.potenciaDeclarada} />
               </div>
             </section>
           ) : null}
