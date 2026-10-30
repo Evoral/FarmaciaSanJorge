@@ -9,7 +9,7 @@ import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { decimalString, uuid } from "@/shared/validation";
-import { getDrogaExcipiente, getFichaParaIniciar, getPreparacionActivaDeFicha, upsertExcipienteBorrador } from "../infrastructure/preparacion-repository";
+import { getDrogaExcipiente, getFichaParaIniciar, getPreparacionActivaDeFicha, listInsumosBorrador, upsertExcipienteBorrador } from "../infrastructure/preparacion-repository";
 
 const guardarExcipienteBorradorInput = z.object({
   fichaTecnicaId: uuid,
@@ -31,6 +31,10 @@ export const guardarExcipienteBorradorCommand = defineCommand({
     if (input.drogaId) {
       const droga = await getDrogaExcipiente(tx, session.tenantId, input.drogaId);
       if (!droga?.esExcipiente || !droga.vigente) throw new DomainError("Elegí un excipiente del listado.", { fields: ["excipienteDrogaId"] });
+      // A droga is the excipiente or one insumo, never both (migration 0110).
+      if ((await listInsumosBorrador(tx, session.tenantId, input.fichaTecnicaId)).some((i) => i.drogaId === input.drogaId)) {
+        throw new DomainError(`${droga.nombre} ya está cargado como material o insumo: no lo elijas también como excipiente.`, { fields: ["excipienteDrogaId"] });
+      }
     }
     if (input.cantidad && !input.cantidad.greaterThan(0)) throw new DomainError("La cantidad debe ser mayor que 0.", { fields: ["excipienteCantidad"] });
 

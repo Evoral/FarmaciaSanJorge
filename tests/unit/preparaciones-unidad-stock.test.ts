@@ -104,6 +104,8 @@ const repo = {
   listReservasDePreparacion: vi.fn(async () => [] as unknown[]),
   getParametrosPesadaReal: vi.fn(async () => ({ precisionBalanza: "0.001", toleranciaPorcentaje: "5" })),
   getExcipienteDePreparacion: vi.fn(async () => null),
+  // No material / insumos adicionales (migration 0110).
+  listInsumosDePreparacion: vi.fn(async () => []),
   getUltimaFichaDeItem: vi.fn(async () => ({ id: FICHA_ID, version: 1 })),
   listItemIdsDeReceta: vi.fn(async () => ["item-1"]),
   listPreparacionesVivasDeItems: vi.fn(async () => [{ id: PREPARACION_ID, itemRecetaId: "item-1", estado: "INICIADA", etiquetaId: null }]),

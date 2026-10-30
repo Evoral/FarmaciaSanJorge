@@ -29,7 +29,8 @@
  *        "Cantidad real pesada" column, each línea saved as it is filled in
  *        (migration 0090), plus the excipiente used, chosen from the catalog
  *        with its quantity (migration 0092, reserved and descontado with the
- *        drogas; read-only once reserved). "Marcar como preparada" only confirms in a dialog
+ *        drogas; read-only once reserved), and likewise the material and insumos
+ *        adicionales (migration 0110). "Marcar como preparada" only confirms in a dialog
  *        (DT co-firma outside the tolerance, re-authentication): it creates the
  *        preparación (INICIADA) and reserves its stock (`preparaciones.reservarStock`) --
  *        no stock movement, no asiento; while it lives the receta can not
@@ -511,13 +512,34 @@ function ItemToma({
         ) : null}
       </div>
 
-      {estado === "RESERVADA" && preparacion?.excipiente ? (
+      {estado === "RESERVADA" && (preparacion?.excipiente || (preparacion?.insumos.length ?? 0) > 0) ? (
         // Excipiente used: chosen from the catalog in the ficha before reserving (migration 0092), its stock reserved
         // with the drogas; read-only here (to change it, "Liberar reserva"). Goes into the libro at "Imprimir etiquetas".
-        <div className="border-t border-zinc-100 px-4 py-3 sm:px-5">
-          <p className="text-sm text-zinc-600">
-            Excipiente utilizado: <span className="font-medium text-zinc-900">{preparacion.excipiente}</span>
-          </p>
+        // The material and insumos adicionales (migration 0110): the same, read-only.
+        <div className="flex flex-col gap-1 border-t border-zinc-100 px-4 py-3 text-sm text-zinc-600 sm:px-5">
+          {preparacion?.excipiente ? (
+            <p>
+              Excipiente utilizado: <span className="font-medium text-zinc-900">{preparacion.excipiente}</span>
+            </p>
+          ) : null}
+          {preparacion?.insumos
+            .filter((i) => i.tipo === "MATERIAL")
+            .map((i) => (
+              <p key={i.texto}>
+                Material utilizado: <span className="font-medium text-zinc-900">{i.texto}</span>
+              </p>
+            ))}
+          {preparacion && preparacion.insumos.some((i) => i.tipo === "ADICIONAL") ? (
+            <p>
+              Insumos adicionales:{" "}
+              <span className="font-medium text-zinc-900">
+                {preparacion.insumos
+                  .filter((i) => i.tipo === "ADICIONAL")
+                  .map((i) => i.texto)
+                  .join("; ")}
+              </span>
+            </p>
+          ) : null}
         </div>
       ) : null}
 

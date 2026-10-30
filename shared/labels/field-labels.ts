@@ -100,6 +100,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   partidaIds: "Partidas",
   preparacionId: "Preparación",
   excipiente: "Excipiente utilizado",
+  insumos: "Material e insumos",
   proveedorId: "Proveedor",
   recetaId: "Receta",
   repartidorId: "Repartidor",

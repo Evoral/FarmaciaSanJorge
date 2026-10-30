@@ -263,6 +263,8 @@ vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => (
   insertPesadaReal: vi.fn(async () => undefined),
   // No structured excipiente (migration 0092): the confirmation consumes no excipiente stock.
   getExcipienteDePreparacion: vi.fn(async () => null),
+  // No material / insumos adicionales (migration 0110).
+  listInsumosDePreparacion: vi.fn(async () => []),
 }));
 
 const { iniciarPreparacionCommand } = await import("@/modules/preparaciones/application/iniciar-preparacion");

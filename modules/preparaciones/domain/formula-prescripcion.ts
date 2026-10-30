@@ -2,7 +2,8 @@
  * The fórmula de la prescripción of one ítem as the libro recetario records it (openspec/specs/libro-recetario-y-contralor/spec.md,
  * "Fórmula de la prescripción"): as it came in the receta -- EVERY componente (controlled or not, excipientes
  * included) with its prescribed quantity, then the excipiente actually used (typed in the toma workspace, migration
- * 0083) as "c.s.p.", then the quantity and forma ("60 Cápsulas (1 cápsula = ½ dosis)", "Crema c.s.p. 100 g").
+ * 0083) as "c.s.p." and the insumos adicionales of clase EXCIPIENTE with their quantity (migration 0110; the material
+ * never), then the quantity and forma ("60 Cápsulas (1 cápsula = ½ dosis)", "Crema c.s.p. 100 g").
  * Pure, no I/O.
  *
  * "Minoxidil 5 mg; Finasteride 1 mg; Ludipress c.s.p. — 60 Cápsulas (1 cápsula = ½ dosis)"
@@ -43,6 +44,8 @@ export interface ItemPrescripto {
   componentes: readonly ComponentePrescripto[];
   /** The excipiente actually used (toma workspace), `null` when not informed. */
   excipiente: string | null;
+  /** Insumos adicionales of clase EXCIPIENTE used, with their quantity ("Aerosil 0,5 g"), migration 0110. */
+  adicionales?: readonly string[];
 }
 
 function lineaComponente(c: ComponentePrescripto): string {
@@ -77,5 +80,9 @@ export function formatearFormulaPrescripcion(item: ItemPrescripto): string {
   const lineas = ordenarComponentes(item.componentes).map(lineaComponente);
   const excipiente = normalizarExcipiente(item.excipiente);
   if (excipiente) lineas.push(`${excipiente} c.s.p.`);
+  for (const adicional of item.adicionales ?? []) {
+    const texto = normalizarExcipiente(adicional);
+    if (texto) lineas.push(texto);
+  }
   return `${lineas.join("; ")} — ${cantidadYForma(item)}`;
 }
