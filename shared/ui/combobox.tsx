@@ -29,8 +29,10 @@
  *   openspec/specs/sinonimos-droga/spec.md "Nombre elegido al cargar"). Parents that
  *   keep the picked option as their `value` get this for free.
  *
- * - `floating`: the list is laid out `position: fixed` over the field, so a
- *   scrolling container (a `<dialog>` with a max height) never clips it.
+ * - Inside a `<dialog>` the list is laid out `position: fixed` over the
+ *   field, so the dialog's scrolling box (it has a max height) never clips
+ *   it. Automatic: no prop to remember. `floating` forces the same anywhere
+ *   else a scrolling container would clip it (a table with overflow).
  *
  * Sources that touch personal data (pacientes, DP-24) must search through
  * a Server Action (POST), never through the URL.
@@ -87,7 +89,7 @@ export interface ComboboxProps {
    * first suggestion.
    */
   enterRunsAction?: boolean;
-  /** Lay the list out `position: fixed` over the field: it escapes a scrolling container (a dialog) instead of being clipped. */
+  /** Lay the list out `position: fixed` over the field outside a `<dialog>` too (inside one it always is): it escapes a scrolling container instead of being clipped. */
   floating?: boolean;
 }
 
@@ -131,11 +133,14 @@ export function filtrarOpciones(options: readonly ComboboxOption[], limit = 30) 
 
 type Status = "idle" | "loading" | "error" | "ready";
 
-/** `floating`: the list's fixed box under the field, kept in place while anything scrolls or the window resizes. */
-function usePosicionFlotante(controlRef: RefObject<HTMLDivElement | null>, activa: boolean): CSSProperties | null {
+/**
+ * The list's fixed box under the field, kept in place while anything scrolls or the window resizes. Always inside a
+ * `<dialog>` (its max height scrolls and would clip the list), or anywhere with `floating`.
+ */
+function usePosicionFlotante(controlRef: RefObject<HTMLDivElement | null>, abierta: boolean, forzada: boolean): CSSProperties | null {
   const [posicion, setPosicion] = useState<CSSProperties | null>(null);
   useLayoutEffect(() => {
-    if (!activa) return;
+    if (!abierta || (!forzada && !controlRef.current?.closest("dialog"))) return;
     function ubicar() {
       const rect = controlRef.current?.getBoundingClientRect();
       if (rect) setPosicion({ position: "fixed", top: rect.bottom + 6, left: rect.left, width: rect.width, right: "auto" });
@@ -147,9 +152,9 @@ function usePosicionFlotante(controlRef: RefObject<HTMLDivElement | null>, activ
       window.removeEventListener("scroll", ubicar, true);
       window.removeEventListener("resize", ubicar);
     };
-  }, [controlRef, activa]);
+  }, [controlRef, abierta, forzada]);
   // A stale box from the previous opening is never used: the effect re-measures before paint.
-  return activa ? posicion : null;
+  return abierta ? posicion : null;
 }
 
 export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, search, value, onChange, name, helperText, disabled, size = "md", actionOption, enterRunsAction = false, floating = false }: ComboboxProps) {
@@ -330,7 +335,7 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
   const nombrePrincipalId = `${autoId}-principal`;
   const describedBy = [helperText ? helpId : null, nombrePrincipal ? nombrePrincipalId : null].filter(Boolean).join(" ") || undefined;
   const activeId = open && activeIndex >= 0 ? `${autoId}-opt-${activeIndex}` : undefined;
-  const posicion = usePosicionFlotante(controlRef, floating && showList);
+  const posicion = usePosicionFlotante(controlRef, showList, floating);
 
   return (
     <div className="field min-w-0">
