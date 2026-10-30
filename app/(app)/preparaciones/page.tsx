@@ -318,11 +318,11 @@ function nombreItem(item: Pick<ItemPendiente, "itemDescripcion" | "formaFarmaceu
 /** Receta Nº cell: the number plus, on small screens, the data of the hidden columns. */
 function CeldaReceta({ recetaId, numero, paciente, extra }: { recetaId: string; numero: string; paciente: string; extra?: ReactNode }) {
   return (
-    <td className="px-3 py-2.5">
+    <td className="px-2 py-2.5 sm:px-3">
       <Link href={`/recetas/${recetaId}`} className="font-mono font-semibold underline-offset-2 hover:underline">
         {numero}
       </Link>
-      <span className="block max-w-[12rem] truncate text-xs text-zinc-600 md:hidden" title={paciente}>
+      <span className="block max-w-[8.5rem] truncate text-xs text-zinc-600 sm:max-w-[12rem] md:hidden" title={paciente}>
         {paciente}
       </span>
       {extra ? <span className="block text-xs text-zinc-500 tabular-nums lg:hidden">{extra}</span> : null}
@@ -345,7 +345,7 @@ function CeldaPaciente({ nombre }: { nombre: string }) {
 
 function Th({ children, className }: { children?: ReactNode; className?: string }) {
   return (
-    <th scope="col" className={`px-3 py-2 ${className ?? ""}`}>
+    <th scope="col" className={`px-2 py-2 sm:px-3 ${className ?? ""}`}>
       {children}
     </th>
   );
@@ -374,11 +374,11 @@ function TablaPendientes({ result, puedeTomar }: { result: ListRecetasPendientes
             return (
               <tr key={receta.recetaId}>
                 <CeldaReceta recetaId={receta.recetaId} numero={receta.recetaNumeroInterno} paciente={paciente} extra={`Ingresada ${ingresada}`} />
-                <td className="max-w-[32ch] px-3 py-2.5 text-zinc-700">{resumenItemsPendientes(receta.items.map(nombreItem), totalItems)}</td>
+                <td className="max-w-[10rem] px-2 py-2.5 text-zinc-700 sm:max-w-[32ch] sm:px-3">{resumenItemsPendientes(receta.items.map(nombreItem), totalItems)}</td>
                 <CeldaPaciente nombre={paciente} />
                 <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums lg:table-cell">{ingresada}</td>
-                <td className="px-3 py-2.5">
-                  <div className="flex flex-wrap items-start justify-end gap-2">
+                <td className="px-2 py-2.5 sm:px-3">
+                  <div className="flex flex-wrap items-start justify-end gap-1.5 sm:gap-2">
                     <VerRecetaPendienteDialog
                       receta={{
                         recetaNumeroInterno: receta.recetaNumeroInterno,
@@ -446,7 +446,7 @@ function TablaEnCurso({ result }: { result: ListRecetasEnCursoOutput }) {
             return (
               <tr key={receta.recetaId}>
                 <CeldaReceta recetaId={receta.recetaId} numero={receta.recetaNumeroInterno} paciente={paciente} extra={`Tomada por ${receta.tomadaPorNombre}, ${tomada}`} />
-                <td className="px-3 py-2.5">
+                <td className="px-2 py-2.5 sm:px-3">
                   <Progreso confirmados={receta.itemsConfirmados} total={receta.totalItems} />
                 </td>
                 <CeldaPaciente nombre={paciente} />
@@ -457,7 +457,7 @@ function TablaEnCurso({ result }: { result: ListRecetasEnCursoOutput }) {
                   </span>
                 </td>
                 <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums lg:table-cell">{tomada}</td>
-                <td className="px-3 py-2.5">
+                <td className="px-2 py-2.5 sm:px-3">
                   <div className="flex justify-end">
                     <Link href={hrefToma(receta.recetaId)} className="btn btn-primary btn-sm">
                       <FlaskConical className="size-3.5" aria-hidden />
@@ -499,7 +499,7 @@ function TablaPreparaciones({
             <Th className="hidden md:table-cell">Paciente</Th>
             <Th className="hidden lg:table-cell">Iniciada</Th>
             {esConfirmadas ? <Th className="hidden lg:table-cell">Confirmada</Th> : null}
-            {esConfirmadas ? <Th>Etiqueta</Th> : null}
+            {esConfirmadas ? <Th className="hidden sm:table-cell">Etiqueta</Th> : null}
             <Th>
               <span className="sr-only">Acciones</span>
             </Th>
@@ -519,7 +519,18 @@ function TablaPreparaciones({
                   paciente={paciente}
                   extra={esConfirmadas && confirmada ? `Confirmada ${confirmada}` : `Iniciada ${iniciada}`}
                 />
-                <td className="max-w-[32ch] px-3 py-2.5 text-zinc-700">{p.itemDescripcion ?? etiquetaDe(FORMA_FARMACEUTICA_LABELS, p.formaFarmaceutica)}</td>
+                <td className="max-w-[10rem] px-2 py-2.5 text-zinc-700 sm:max-w-[32ch] sm:px-3">
+                  {p.itemDescripcion ?? etiquetaDe(FORMA_FARMACEUTICA_LABELS, p.formaFarmaceutica)}
+                  {esConfirmadas ? (
+                    <span className="mt-1 block sm:hidden">
+                      {p.estado === "INICIADA" ? (
+                        <ToneBadge tone="warn">Sin imprimir</ToneBadge>
+                      ) : (
+                        <ToneBadge tone={TONO_ETIQUETA[etiqueta]}>{ESTADO_ETIQUETA_LABELS[etiqueta]}</ToneBadge>
+                      )}
+                    </span>
+                  ) : null}
+                </td>
                 <CeldaPaciente nombre={paciente} />
                 <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums lg:table-cell">{iniciada}</td>
                 {esConfirmadas ? (
@@ -532,7 +543,7 @@ function TablaPreparaciones({
                   </td>
                 ) : null}
                 {esConfirmadas ? (
-                  <td className="px-3 py-2.5">
+                  <td className="hidden px-2 py-2.5 sm:table-cell sm:px-3">
                     {p.estado === "INICIADA" ? (
                       <ToneBadge tone="warn">Sin imprimir</ToneBadge>
                     ) : (
@@ -540,8 +551,8 @@ function TablaPreparaciones({
                     )}
                   </td>
                 ) : null}
-                <td className="px-3 py-2.5">
-                  <div className="flex flex-wrap items-start justify-end gap-2">
+                <td className="px-2 py-2.5 sm:px-3">
+                  <div className="flex flex-wrap items-start justify-end gap-1.5 sm:gap-2">
                     <AccionFila
                       preparacion={p}
                       zonaHoraria={result.zonaHoraria}

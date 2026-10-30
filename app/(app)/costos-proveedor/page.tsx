@@ -135,13 +135,13 @@ export default async function CostosProveedorPage({ searchParams }: CostosProvee
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="px-2 py-2 sm:px-3">
                       Droga
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-2 py-2 sm:table-cell sm:px-3">
                       Proveedor
                     </th>
-                    <th scope="col" className="px-3 py-2 text-right">
+                    <th scope="col" className="px-2 py-2 text-right sm:px-3">
                       Precio con IVA
                     </th>
                     <th scope="col" className="hidden px-3 py-2 text-right md:table-cell">
@@ -153,7 +153,7 @@ export default async function CostosProveedorPage({ searchParams }: CostosProvee
                     <th scope="col" className="hidden px-3 py-2 lg:table-cell">
                       Origen
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="px-2 py-2 sm:px-3">
                       <span className="sr-only">Acciones</span>
                     </th>
                   </tr>
@@ -163,11 +163,15 @@ export default async function CostosProveedorPage({ searchParams }: CostosProvee
                     const etiqueta = `${costo.drogaNombre} · ${costo.proveedorRazonSocial}`;
                     return (
                       <tr key={costo.id}>
-                        <td className="px-3 py-2.5 font-medium text-zinc-900">
+                        <td className="px-2 py-2.5 font-medium text-zinc-900 sm:px-3">
                           {costo.drogaNombre}
+                          <span className="block text-xs font-normal text-zinc-600 sm:hidden">
+                            {costo.proveedorRazonSocial}
+                            {costo.proveedorDeBaja ? " (de baja)" : ""}
+                          </span>
                           {costo.descripcionProveedor ? <span className="block text-xs font-normal text-zinc-500">{costo.descripcionProveedor}</span> : null}
                         </td>
-                        <td className="px-3 py-2.5">
+                        <td className="hidden px-2 py-2.5 sm:table-cell sm:px-3">
                           {costo.proveedorRazonSocial}
                           {costo.proveedorDeBaja ? (
                             <>
@@ -178,7 +182,7 @@ export default async function CostosProveedorPage({ searchParams }: CostosProvee
                             </>
                           ) : null}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">
+                        <td className="whitespace-nowrap px-2 py-2.5 text-right font-mono tabular-nums sm:px-3">
                           {etiquetaPrecio(costo.precioInformadoConIva, costo.unidadPrecioSimbolo)}
                           <span className="block text-xs text-zinc-500">
                             sin IVA {etiquetaPrecio(costo.precioInformado, costo.unidadPrecioSimbolo)} · IVA {formatNumero(costo.alicuotaIva, 2)}%
@@ -197,7 +201,7 @@ export default async function CostosProveedorPage({ searchParams }: CostosProvee
                         <td className="hidden px-3 py-2.5 lg:table-cell">
                           {costo.listaNombreArchivo ? <span className="break-all">{costo.listaNombreArchivo}</span> : <span className="text-zinc-500">Manual</span>}
                         </td>
-                        <td className="px-3 py-2.5">
+                        <td className="px-2 py-2.5 sm:px-3">
                           <span className="flex items-center justify-end">
                             <CostoAcciones costoId={costo.id} drogaId={costo.drogaId} proveedorId={costo.proveedorId} etiqueta={etiqueta} puedeGestionar={puedeGestionar} />
                           </span>

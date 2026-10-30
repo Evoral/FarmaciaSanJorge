@@ -160,9 +160,9 @@ export function ImprimirEtiquetaDialog({ preparacionId, tamanos, hoja, variant =
         type="button"
         onClick={() => dialogRef.current?.showModal()}
         aria-haspopup="dialog"
-        className={`btn ${variant === "primary" ? "btn-primary" : "btn-secondary"}${small ? " btn-sm relative w-44 justify-center px-8" : ""}`}
+        className={`btn ${variant === "primary" ? "btn-primary" : "btn-secondary"}${small ? " btn-sm sm:relative sm:w-44 sm:justify-center sm:px-8" : ""}`}
       >
-        <Printer className={small ? "absolute left-2.5 size-3.5" : "size-4"} aria-hidden />
+        <Printer className={small ? "size-3.5 sm:absolute sm:left-2.5" : "size-4"} aria-hidden />
         {reimprimir ? "Reimprimir" : "Imprimir etiqueta"}
       </button>
       <dialog ref={dialogRef} aria-labelledby={tituloId} {...cierrePorFondo} className={`${CLASE_DIALOG} max-w-md`}>

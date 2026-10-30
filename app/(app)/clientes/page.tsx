@@ -90,7 +90,7 @@ export default async function PacientesPage({ searchParams }: PacientesPageProps
         estado={estado}
         filtros={
           <FilterForm aria-label="Filtro de estado de clientes" hasActiveFilters={false}>
-            <div className="field">
+            <div className="field w-full sm:w-auto">
               <label htmlFor="estado" className="sr-only">
                 Estado
               </label>

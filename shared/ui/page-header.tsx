@@ -46,7 +46,7 @@ export function PageHeader({ title, description, breadcrumbs, actions }: PageHea
         <h1 className="text-2xl font-semibold">{title}</h1>
         {description ? <p className="mt-1 max-w-[65ch] text-sm text-zinc-600">{description}</p> : null}
       </div>
-      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+      {actions ? <div className="relative flex flex-wrap items-center gap-2">{actions}</div> : null}
     </header>
   );
 }

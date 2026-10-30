@@ -195,7 +195,7 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
                       <table className="data-table">
                         <thead>
                           <tr>
-                            <th scope="col" className="px-3 py-2">
+                            <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                               Nº
                             </th>
                             <th scope="col" className="px-3 py-2">
@@ -207,7 +207,7 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
                             <th scope="col" className="hidden px-3 py-2 lg:table-cell">
                               Fórmula
                             </th>
-                            <th scope="col" className="px-3 py-2">
+                            <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                               Estado
                             </th>
                             {puedeVerLibro ? (
@@ -220,7 +220,7 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
                         <tbody>
                           {asientos.items.map((item) => (
                             <tr key={item.id}>
-                              <td className="px-3 py-2.5">
+                              <td className="hidden px-3 py-2.5 sm:table-cell">
                                 {puedeVerLibro ? (
                                   <Link href={`/libro/${item.id}`} className="font-mono font-semibold underline-offset-2 hover:underline">
                                     {item.numeroCorrelativo}
@@ -231,8 +231,21 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
                                 {item.esRectificativo ? <span className="block text-xs text-zinc-500">Rectifica Nº {item.asientoOriginalNumeroCorrelativo}</span> : null}
                               </td>
                               <td className="px-3 py-2.5 text-zinc-900">
-                                <span className="block max-w-[16rem] break-words">{item.pacienteTexto}</span>
+                                <div className="mb-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs text-zinc-500 sm:hidden">
+                                  {puedeVerLibro ? (
+                                    <Link href={`/libro/${item.id}`} className="font-mono font-semibold underline-offset-2 hover:underline">
+                                      Nº {item.numeroCorrelativo}
+                                    </Link>
+                                  ) : (
+                                    <span className="font-mono font-semibold text-zinc-900">Nº {item.numeroCorrelativo}</span>
+                                  )}
+                                  {item.esRectificativo ? <span>· Rectifica Nº {item.asientoOriginalNumeroCorrelativo}</span> : null}
+                                </div>
+                                <span className="block max-w-[16rem] break-words font-medium sm:font-normal">{item.pacienteTexto}</span>
                                 <span className="block max-w-[16rem] break-words text-xs text-zinc-500 md:hidden">{item.medicoTexto}</span>
+                                <span className="mt-1.5 block sm:hidden">
+                                  <ToneBadge tone={tonoEstadoAsiento(item.estadoVisual.kind)}>{etiquetaEstadoVisual(item.estadoVisual)}</ToneBadge>
+                                </span>
                               </td>
                               <td className="hidden px-3 py-2.5 md:table-cell">
                                 <span className="block max-w-[16rem] break-words">{item.medicoTexto}</span>
@@ -242,7 +255,7 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
                                   {item.formulaTexto}
                                 </span>
                               </td>
-                              <td className="px-3 py-2.5">
+                              <td className="hidden px-3 py-2.5 sm:table-cell">
                                 <ToneBadge tone={tonoEstadoAsiento(item.estadoVisual.kind)}>{etiquetaEstadoVisual(item.estadoVisual)}</ToneBadge>
                               </td>
                               {puedeVerLibro ? (

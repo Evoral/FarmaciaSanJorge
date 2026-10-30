@@ -184,10 +184,10 @@ async function DrogasParaAjuste({ q, catalogo, volverA }: { q: string; catalogo:
                 return (
                   <li key={item.drogaId}>
                     <Link href={conRetornoAjuste(`/stock/ajustes/nuevo?${qs.toString()}`, volverA)} className="pick-row" aria-label={`Elegir partida de ${item.drogaNombre}`}>
-                      <span className="min-w-0 flex-1 truncate font-medium text-zinc-900">{item.drogaNombre}</span>
-                      <span className="text-right">
-                        <span className="block text-xs text-zinc-500">Disponible</span>
-                        <span className="font-mono text-zinc-900 tabular-nums">
+                      <span className="min-w-0 flex-1 line-clamp-2 leading-snug font-medium text-zinc-900 sm:truncate">{item.drogaNombre}</span>
+                      <span className="flex-none text-right leading-tight">
+                        <span className="block text-[10px] text-zinc-400 sm:text-xs sm:text-zinc-500">Disponible</span>
+                        <span className="font-mono text-xs text-zinc-700 tabular-nums sm:text-sm sm:text-zinc-900">
                           <Cantidad valor={formatCantidad(item.stockDisponible, { id: item.unidadId, simbolo: item.unidadSimbolo }, catalogo)} />
                         </span>
                       </span>
@@ -233,13 +233,13 @@ async function PartidasConSaldo({ drogaId, pasoUnoHref, catalogo, volverA }: { d
                     <span className="text-zinc-500">Lote </span>
                     <span className="font-mono font-semibold text-zinc-900">{partida.lote}</span>
                   </span>
-                  <span className="block truncate text-xs text-zinc-500">
+                  <span className="block line-clamp-2 text-xs text-zinc-500 sm:truncate">
                     {partida.proveedorRazonSocial} · {partida.fechaVencimientoVigente ? <>vence <span className="tabular-nums">{formatFecha(partida.fechaVencimientoVigente)}</span></> : "no vence"}
                   </span>
                 </span>
-                <span className="text-right">
-                  <span className="block text-xs text-zinc-500">Saldo</span>
-                  <span className="font-mono text-zinc-900 tabular-nums">
+                <span className="flex-none text-right leading-tight">
+                  <span className="block text-[10px] text-zinc-400 sm:text-xs sm:text-zinc-500">Saldo</span>
+                  <span className="font-mono text-xs text-zinc-700 tabular-nums sm:text-sm sm:text-zinc-900">
                     {unidad ? <Cantidad valor={formatCantidad(partida.cantidadDisponible, unidad, catalogo)} /> : partida.cantidadDisponible}
                   </span>
                 </span>

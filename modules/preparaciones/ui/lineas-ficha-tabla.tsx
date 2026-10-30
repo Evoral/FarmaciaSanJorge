@@ -37,18 +37,18 @@ export function LineasFichaTabla({ lineas }: { lineas: readonly LineaDeFichaToma
         <caption className="sr-only">Líneas de pesaje</caption>
         <thead>
           <tr>
-            <th scope="col" className="px-3 py-2">
+            <th scope="col" className="px-2 py-2 sm:px-3">
               Droga
             </th>
-            <th scope="col" className="px-3 py-2 text-right">
+            <th scope="col" className="px-2 py-2 text-right sm:px-3">
               Teórica
             </th>
             {exceso ? (
-              <th scope="col" className="px-3 py-2 text-right">
+              <th scope="col" className="px-2 py-2 text-right sm:px-3">
                 Exceso %
               </th>
             ) : null}
-            <th scope="col" className="px-3 py-2 text-right">
+            <th scope="col" className="px-2 py-2 text-right sm:px-3">
               A pesar
             </th>
           </tr>
@@ -57,16 +57,16 @@ export function LineasFichaTabla({ lineas }: { lineas: readonly LineaDeFichaToma
           {lineas.map((linea) => (
             <Fragment key={linea.orden}>
               <tr>
-                <td className="px-3 py-2 font-medium text-zinc-900">{linea.drogaNombre}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">
+                <td className="px-2 py-2 font-medium text-zinc-900 sm:px-3">{linea.drogaNombre}</td>
+                <td className="whitespace-nowrap px-2 py-2 text-right font-mono tabular-nums sm:px-3">
                   {linea.cantidadTeorica ? (
                     <CantidadFicha valor={linea.cantidadTeorica} simbolo={linea.unidadSimbolo} />
                   ) : (
                     <Vacio />
                   )}
                 </td>
-                {exceso ? <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">{linea.excesoAplicado}</td> : null}
-                <td className="px-3 py-2 text-right font-mono font-semibold text-zinc-900 tabular-nums">
+                {exceso ? <td className="whitespace-nowrap px-2 py-2 text-right font-mono tabular-nums sm:px-3">{linea.excesoAplicado}</td> : null}
+                <td className="px-2 py-2 text-right font-mono font-semibold text-zinc-900 tabular-nums sm:px-3">
                   {linea.esEnraseManual ? (
                     <span className="inline-block max-w-[12rem] font-sans font-normal text-zinc-500">Enrase manual (se registra al confirmar)</span>
                   ) : linea.cantidadAPesar ? (

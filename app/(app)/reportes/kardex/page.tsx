@@ -111,10 +111,10 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
 
       <section aria-label="Filtros" className="mb-4">
         <div className="filter-bar">
-          <div className="min-w-0 flex-1 md:w-80 md:flex-none">
+          <div className="w-full min-w-0 md:w-80 md:flex-none">
             <KardexDrogaFiltro href={filtersHref()} seleccion={drogaFiltrada} />
           </div>
-          <FilterForm className="flex flex-wrap items-end gap-3" aria-label="Filtros de kardex" hasActiveFilters={false}>
+          <FilterForm className="flex w-full min-w-0 flex-wrap items-end gap-3 md:w-auto md:flex-1" aria-label="Filtros de kardex" hasActiveFilters={false}>
             {/* The droga is chosen in the autocomplete; this keeps it while the other filters change. */}
             <input type="hidden" name="drogaId" value={params.drogaId ?? ""} />
             <div className="field">
@@ -207,19 +207,19 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       Fecha
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="px-2.5 py-2 sm:px-3">
                       Droga
                     </th>
                     <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       Lote
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="px-2.5 py-2 sm:px-3">
                       Tipo
                     </th>
-                    <th scope="col" className="px-3 py-2 text-right">
+                    <th scope="col" className="px-2.5 py-2 text-right sm:px-3">
                       Cantidad
                     </th>
                     <th scope="col" className="hidden px-3 py-2 lg:table-cell">
@@ -233,16 +233,17 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
                 <tbody>
                   {result.items.map((mov) => (
                     <tr key={mov.id}>
-                      <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs tabular-nums">{new Date(mov.registradoEn).toLocaleString("es-AR")}</td>
-                      <td className="px-3 py-2.5">
+                      <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono text-xs tabular-nums sm:table-cell">{new Date(mov.registradoEn).toLocaleString("es-AR")}</td>
+                      <td className="px-2.5 py-2.5 sm:px-3">
                         <span className="font-medium text-zinc-900">{mov.drogaNombre}</span>
                         <span className="block font-mono text-xs text-zinc-500 sm:hidden">Lote {mov.lote}</span>
+                        <span className="block text-xs text-zinc-400 tabular-nums sm:hidden">{new Date(mov.registradoEn).toLocaleString("es-AR")}</span>
                       </td>
                       <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono sm:table-cell">{mov.lote}</td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-2.5 py-2.5 sm:px-3">
                         <ToneBadge tone={TONO_TIPO[mov.tipo] ?? "neutral"}>{etiquetaDe(TIPO_MOVIMIENTO_LABELS, mov.tipo)}</ToneBadge>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">
+                      <td className="whitespace-nowrap px-2.5 py-2.5 text-right font-mono tabular-nums sm:px-3">
                         <Cantidad valor={formatCantidad(mov.cantidad, { id: mov.unidadId, simbolo: mov.unidadSimbolo }, catalogo)} />
                       </td>
                       <td className="hidden px-3 py-2.5 lg:table-cell">{mov.motivoAjuste ? etiquetaDe(MOTIVO_AJUSTE_LABELS, mov.motivoAjuste) : (mov.observacion ?? <span className="text-zinc-400">-</span>)}</td>

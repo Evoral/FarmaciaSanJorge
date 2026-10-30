@@ -51,7 +51,7 @@ export function buttonClassName(variant: ButtonVariant = "primary", size?: "sm")
 }
 
 export function formClassName(layout: FormLayout, className?: string): string {
-  const base = layout === "inline" ? "relative inline-flex" : "flex flex-col gap-4";
+  const base = layout === "inline" ? "relative inline-flex" : "flex min-w-0 flex-col gap-4";
   return className ? `${base} ${className}` : base;
 }
 

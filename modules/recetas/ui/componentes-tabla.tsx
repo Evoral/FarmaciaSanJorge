@@ -25,21 +25,22 @@ export interface ComponenteVista {
 
 export function ComponentesTabla({ componentes }: { componentes: readonly ComponenteVista[] }) {
   if (componentes.length === 0) return <p className="text-sm text-zinc-500">El ítem no tiene componentes cargados.</p>;
+  const tienePrincipioActivo = componentes.some((c) => c.esPrincipioActivo);
   return (
     <div className="overflow-x-auto">
       <table className="data-table">
         <thead>
           <tr>
-            <th scope="col" className="px-3 py-2">
+            <th scope="col" className="px-2 py-2 sm:px-3">
               Droga
             </th>
-            <th scope="col" className="px-3 py-2 text-right">
+            <th scope="col" className="px-2 py-2 text-right sm:px-3">
               Cantidad
             </th>
-            <th scope="col" className="px-3 py-2">
+            <th scope="col" className="px-2 py-2 sm:px-3">
               Modo
             </th>
-            <th scope="col" className="px-3 py-2">
+            <th scope="col" className={tienePrincipioActivo ? "px-1.5 py-2 sm:px-3" : "w-0 p-0"}>
               <span className="sr-only">Principio activo</span>
             </th>
           </tr>
@@ -47,7 +48,7 @@ export function ComponentesTabla({ componentes }: { componentes: readonly Compon
         <tbody>
           {componentes.map((c) => (
             <tr key={c.id}>
-              <td className="px-3 py-2 font-medium text-zinc-900">
+              <td className="px-2 py-2 font-medium text-zinc-900 sm:px-3">
                 {c.sinonimo ? (
                   <>
                     {c.sinonimo}
@@ -57,7 +58,7 @@ export function ComponentesTabla({ componentes }: { componentes: readonly Compon
                   c.drogaNombre
                 )}
               </td>
-              <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">
+              <td className="whitespace-nowrap px-2 py-2 text-right font-mono tabular-nums sm:px-3">
                 {c.cantidad ? (
                   <>
                     {c.cantidad} <span className="text-zinc-500">{c.unidadMedidaSimbolo}</span>
@@ -68,8 +69,14 @@ export function ComponentesTabla({ componentes }: { componentes: readonly Compon
                   </span>
                 )}
               </td>
-              <td className="px-3 py-2 text-zinc-600">{etiquetaDe(MODO_EXPRESION_LABELS, c.modoExpresion)}</td>
-              <td className="px-3 py-2">
+              <td className="px-2 py-2 text-zinc-600 sm:px-3">{etiquetaDe(MODO_EXPRESION_LABELS, c.modoExpresion)}</td>
+              <td
+                className={
+                  tienePrincipioActivo
+                    ? "px-1.5 py-2 text-right sm:px-3 sm:text-left [&>.badge]:whitespace-normal [&>.badge]:text-center sm:[&>.badge]:whitespace-nowrap"
+                    : "w-0 p-0"
+                }
+              >
                 {c.esPrincipioActivo ? (
                   <ToneBadge tone="success">Principio activo</ToneBadge>
                 ) : (

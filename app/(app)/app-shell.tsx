@@ -36,7 +36,7 @@ export function AppShell({
   }
 
   return (
-    <div className={`min-h-screen ${collapsed ? "lg:pl-18" : "lg:pl-66"}`}>
+    <div className={`min-h-screen w-full min-w-0 max-w-full overflow-x-clip ${collapsed ? "lg:pl-18" : "lg:pl-66"}`}>
       {/* Static glow behind the floating sidebar panel; spans the panel + its gutter only, so page content stays clean and the layer stays small. */}
       <div aria-hidden className={`app-backdrop hidden lg:block ${collapsed ? "lg:w-18" : "lg:w-66"}`} />
       <VigilanteInactividad idleMinutes={idleMinutes} />

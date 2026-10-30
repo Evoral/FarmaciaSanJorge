@@ -83,14 +83,14 @@ export function AjusteForm({
 
   return (
     <div className="panel max-w-2xl">
-      <div className="border-b border-zinc-100 p-5">
+      <div className="border-b border-zinc-100 p-4 sm:p-5">
         <p className="text-sm font-medium text-zinc-900">{drogaNombre}</p>
         <p className="text-xs text-zinc-500">
           Lote <span className="font-mono">{lote}</span> · {reserva ? "Saldo físico" : "Saldo disponible"}
         </p>
-        <p className="mt-2 font-mono text-3xl font-semibold tracking-tight text-zinc-900 tabular-nums">
+        <p className="mt-2 font-mono text-2xl font-semibold tracking-tight text-zinc-900 tabular-nums sm:text-3xl">
           {saldoPrincipal}
-          {saldoSecundario ? <span className="ml-3 text-base font-normal text-zinc-500">{saldoSecundario}</span> : null}
+          {saldoSecundario ? <span className="block text-sm font-normal text-zinc-500 sm:ml-3 sm:inline sm:text-base">{saldoSecundario}</span> : null}
         </p>
         {reserva ? (
           <dl className="mt-3 grid gap-x-8 gap-y-1 text-sm sm:grid-cols-2">
@@ -111,20 +111,20 @@ export function AjusteForm({
           <input type="hidden" name="partidaId" value={partidaId} />
           <input type="hidden" name={PARAM_VOLVER_AJUSTE} value={volverA} />
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="field">
               <label htmlFor="cantidad" className="field-label">
                 Cantidad a descontar
               </label>
-              <div className="flex items-center gap-2">
-                <input id="cantidad" name="cantidad" type="text" inputMode="decimal" required className="input min-w-0 flex-1 font-mono" />
+              <div className="flex min-w-0 items-center gap-2">
+                <input id="cantidad" name="cantidad" type="text" inputMode="decimal" required className="input min-w-0 w-full flex-1 font-mono" />
                 {unidadFija ? (
                   <>
                     <input type="hidden" name="unidadId" value={unidadFija.id} />
                     <span className="text-sm font-medium text-zinc-700">{unidadFija.simbolo}</span>
                   </>
                 ) : (
-                  <select id="unidadId" name="unidadId" required defaultValue={unidadPorDefectoId} aria-label="Unidad de la cantidad a descontar" className="input w-24">
+                  <select id="unidadId" name="unidadId" required defaultValue={unidadPorDefectoId} aria-label="Unidad de la cantidad a descontar" className="input w-20 flex-none sm:w-24">
                     {unidades.map((unidad) => (
                       <option key={unidad.id} value={unidad.id}>
                         {unidad.simbolo}

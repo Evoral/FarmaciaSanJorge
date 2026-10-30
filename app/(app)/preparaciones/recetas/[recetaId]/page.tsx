@@ -286,13 +286,13 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
       <AvisosGeneracion exito={guardada ? "Receta actualizada." : undefined} avisos={avisos} />
 
       <section aria-label="Resumen de la toma" className="panel mb-8">
-        <div className="grid gap-5 p-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="grid gap-5 p-4 sm:p-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
           <div className="person-block">
             <Avatar name={paciente} />
             <div className="min-w-0">
               <p className="text-xs text-zinc-500">Paciente</p>
               <p className="truncate font-medium text-zinc-900">{paciente}</p>
-              {receta.domicilioPaciente ? <p className="text-xs text-zinc-500">Domicilio: {receta.domicilioPaciente}</p> : null}
+              {receta.domicilioPaciente ? <p className="break-words text-xs text-zinc-500">Domicilio: {receta.domicilioPaciente}</p> : null}
             </div>
           </div>
           <div className="person-block">
@@ -321,7 +321,7 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
             <p className="text-sm font-medium text-zinc-900">{etiquetaProgreso(confirmados, receta.items.length)}</p>
           </div>
         </div>
-        <dl className="grid gap-x-8 gap-y-4 border-t border-zinc-100 px-5 py-4 text-sm sm:grid-cols-3">
+        <dl className="grid gap-x-8 gap-y-4 border-t border-zinc-100 px-4 py-4 text-sm sm:grid-cols-3 sm:px-5">
           <div>
             <dt className="text-xs text-zinc-500">Origen</dt>
             <dd className="text-zinc-900">{etiquetaDe(ORIGEN_RECETA_LABELS, receta.origen)}</dd>
@@ -431,22 +431,22 @@ function ItemToma({
       <div className="flex flex-col gap-5 p-4 sm:p-5">
         {datosOcultables ? (
           <SoloConEdicionCerrada>
-            <div className="border-b border-zinc-100 pb-4">
+            <div className="min-w-0 border-b border-zinc-100 pb-4">
               <ItemDatos item={item} />
             </div>
           </SoloConEdicionCerrada>
         ) : (
-          <div className="border-b border-zinc-100 pb-4">
+          <div className="min-w-0 border-b border-zinc-100 pb-4">
             <ItemDatos item={item} />
           </div>
         )}
 
-        <div>
+        <div className="min-w-0">
           {/* The saved ficha; replaced by the live preview while the form has unsaved changes to this ítem. */}
           <FichaTecnicaEnToma itemId={item.id}>
             <h4 className="mb-3 text-sm font-semibold text-zinc-900">Ficha técnica</h4>
             {ficha ? (
-              <div className="flex flex-col gap-3">
+              <div className="flex min-w-0 flex-col gap-3">
                 <FichaVersionResumen
                   fichaTecnicaId={ficha.id}
                   version={ficha.version}
@@ -542,7 +542,7 @@ function ItemToma({
             </RequiereRecetaGuardada>
           ) : null}
         </div>
-        <div className="flex max-w-full flex-col gap-2">
+        <div className="flex w-full max-w-full flex-col gap-2 sm:w-auto">
           {estado === "RESERVADA" && preparacion && (acciones.puedeReservar || acciones.puedeLiberar) ? (
             <div className="flex flex-wrap items-center justify-end gap-2">
               {acciones.puedeReservar ? <ContinuarPreparacionDialog objetivo={{ reservaDePreparacionId: preparacion.id }} itemNombre={`Ítem ${numero}: ${nombre}`} /> : null}
@@ -558,8 +558,8 @@ function ItemToma({
               ) : null}
             </div>
           ) : null}
-          {/* One equal column per button. */}
-          <div className="grid auto-cols-fr grid-flow-col gap-2 [&>.btn]:w-full">
+          {/* Full-width stacked on phones; one equal column per button from sm+. */}
+          <div className="grid grid-cols-1 gap-2 sm:auto-cols-fr sm:grid-flow-col sm:grid-cols-none [&>.btn]:w-full">
             {estado === "CONFIRMADA" && preparacion ? (
               <>
                 {imprimirFicha}

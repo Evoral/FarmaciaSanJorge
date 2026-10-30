@@ -83,7 +83,7 @@ export default async function HistorialCierresPage({ searchParams }: HistorialCi
 
       <section aria-label="Filtros" className="mb-4">
         <FilterForm className="filter-bar" aria-label="Filtros del historial de cierres" hasActiveFilters={false}>
-          <div className="field">
+          <div className="field w-full sm:w-auto">
             <span id="historial-fecha-label" className="field-label">
               Jornada
             </span>
@@ -160,13 +160,13 @@ export default async function HistorialCierresPage({ searchParams }: HistorialCi
                     <th scope="col" className="hidden px-3 py-2 md:table-cell">
                       Director Técnico
                     </th>
-                    <th scope="col" className="px-3 py-2 text-right">
+                    <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
                       Asientos
                     </th>
                     <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       Firmado
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       Estado
                     </th>
                     <th scope="col" className="px-3 py-2">
@@ -178,19 +178,28 @@ export default async function HistorialCierresPage({ searchParams }: HistorialCi
                   {historial.items.map((item) => (
                     <tr key={item.id}>
                       <td className="px-3 py-2.5">
-                        <Link href={`/cierres/${item.id}`} className="font-mono font-semibold underline-offset-2 hover:underline">
-                          {formatFechaIso(item.fecha)}
-                        </Link>
-                        <span className="block max-w-[12rem] truncate text-xs text-zinc-500 md:hidden" title={`${item.directorTecnicoApellido}, ${item.directorTecnicoNombre}`}>
+                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                          <Link href={`/cierres/${item.id}`} className="font-mono font-semibold underline-offset-2 hover:underline">
+                            {formatFechaIso(item.fecha)}
+                          </Link>
+                          <span className="whitespace-nowrap text-xs text-zinc-500 tabular-nums sm:hidden">
+                            · {item.cantidadAsientos} {item.cantidadAsientos === 1 ? "asiento" : "asientos"}
+                          </span>
+                        </div>
+                        <span className="block max-w-[14rem] truncate text-xs text-zinc-500 md:hidden" title={`${item.directorTecnicoApellido}, ${item.directorTecnicoNombre}`}>
                           {item.directorTecnicoApellido}, {item.directorTecnicoNombre}
                         </span>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 sm:hidden">
+                          <ToneBadge tone={item.fueraDeTermino ? "warn" : "success"}>{item.fueraDeTermino ? "Fuera de término" : "En término"}</ToneBadge>
+                          <span className="text-xs text-zinc-500 tabular-nums">{fechaFirmaFormat.format(item.fechaFirma)}</span>
+                        </div>
                       </td>
                       <td className="hidden px-3 py-2.5 md:table-cell">
                         {item.directorTecnicoApellido}, {item.directorTecnicoNombre}
                       </td>
-                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">{item.cantidadAsientos}</td>
+                      <td className="hidden px-3 py-2.5 text-right font-mono tabular-nums sm:table-cell">{item.cantidadAsientos}</td>
                       <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums sm:table-cell">{fechaFirmaFormat.format(item.fechaFirma)}</td>
-                      <td className="px-3 py-2.5">
+                      <td className="hidden px-3 py-2.5 sm:table-cell">
                         <ToneBadge tone={item.fueraDeTermino ? "warn" : "success"}>{item.fueraDeTermino ? "Fuera de término" : "En término"}</ToneBadge>
                       </td>
                       <td className="px-3 py-2.5 text-right">

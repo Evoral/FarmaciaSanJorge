@@ -188,7 +188,7 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th scope="col" className="px-5 py-2">
+                      <th scope="col" className="hidden px-5 py-2 sm:table-cell">
                         Fecha
                       </th>
                       <th scope="col" className="px-3 py-2">
@@ -208,14 +208,19 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
                   <tbody>
                     {kardex.items.map((mov) => (
                       <tr key={mov.id}>
-                        <td className="whitespace-nowrap px-5 py-2.5 tabular-nums">{formatFecha(mov.registradoEn)}</td>
+                        <td className="hidden whitespace-nowrap px-5 py-2.5 tabular-nums sm:table-cell">{formatFecha(mov.registradoEn)}</td>
                         <td className="px-3 py-2.5">
                           <ToneBadge tone="neutral">{etiquetaDe(TIPO_MOVIMIENTO_LABELS, mov.tipo)}</ToneBadge>
                           {mov.motivoAjuste ?? mov.observacion ? (
-                            <span className="mt-1 block max-w-[16rem] break-words text-xs text-zinc-500 md:hidden">{mov.motivoAjuste ?? mov.observacion}</span>
+                            <span className="mt-1 block max-w-[16rem] break-words text-xs text-zinc-600 md:hidden">{mov.motivoAjuste ?? mov.observacion}</span>
                           ) : null}
+                          <span className="mt-0.5 block text-xs text-zinc-400 tabular-nums sm:hidden">{formatFecha(mov.registradoEn)}</span>
+                          <span className="mt-0.5 block text-xs text-zinc-500 lg:hidden">
+                            {mov.registradoPorNombre} {mov.registradoPorApellido}
+                            {mov.autorizadoPorNombre ? ` · Aut. ${mov.autorizadoPorNombre} ${mov.autorizadoPorApellido}` : ""}
+                          </span>
                         </td>
-                        <td className="px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">
                           <Cantidad valor={formatCantidad(mov.cantidad, { id: mov.unidadId, simbolo: mov.unidadSimbolo }, catalogo)} />
                         </td>
                         <td className="hidden max-w-[28ch] break-words px-3 py-2.5 text-zinc-700 md:table-cell">
@@ -289,6 +294,9 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
                             {r.respaldo ? <span className="block">{r.respaldo}</span> : null}
                             {r.motivo ? <span className="block text-xs text-zinc-500">{r.motivo}</span> : null}
                             {r.respaldo || r.motivo ? null : <Vacio label="Sin respaldo ni motivo" />}
+                            <span className="mt-0.5 block text-xs text-zinc-500 lg:hidden">
+                              DT: {r.registradoPorNombre} {r.registradoPorApellido}
+                            </span>
                           </td>
                           <td className="hidden px-5 py-2.5 text-xs text-zinc-900 lg:table-cell">
                             {r.registradoPorNombre} {r.registradoPorApellido}
@@ -329,7 +337,7 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
                 <dt>Pureza</dt>
                 <dd className="font-mono tabular-nums">{partida.potenciaDeclarada !== null ? `${partida.potenciaDeclarada} %` : "No declarada (100 %)"}</dd>
                 <dt>{reanalizada ? "Vencimiento vigente" : "Vencimiento"}</dt>
-                <dd className="flex flex-wrap items-center gap-1.5 tabular-nums">
+                <dd className="flex flex-wrap items-center justify-end gap-1.5 tabular-nums">
                   {partida.fechaVencimientoVigente ? formatFechaCalendario(partida.fechaVencimientoVigente) : "No vence"}
                   {tieneSaldo && vencida ? <StatusBadge estado="VENCIDA" /> : null}
                   {tieneSaldo && porVencer ? <StatusBadge estado="POR_VENCER" /> : null}

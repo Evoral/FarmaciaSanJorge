@@ -15,7 +15,7 @@ import { useActionState, useCallback, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, ListFilter, MessageCircle, SearchX, Users } from "lucide-react";
+import { ChevronRight, History, ListFilter, MessageCircle, SearchX, Users } from "lucide-react";
 import { buscarPacientesAction } from "./buscar-pacientes-action";
 import type { BuscarPacientesState, PacienteListItem } from "./buscar-pacientes-action";
 import { useFormSubmit } from "@/shared/ui/use-form-submit";
@@ -86,7 +86,7 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
 
       <section aria-label="Búsqueda y filtros">
         <div className="filter-bar">
-          <div className="min-w-0 flex-1 md:w-96 md:flex-none">
+          <div className="w-full min-w-0 md:w-96 md:flex-none">
             <Combobox
               id="pacientes-buscar"
               label="Buscar cliente"
@@ -150,7 +150,7 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
                   <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                     DNI
                   </th>
-                  <th scope="col" className="px-3 py-2">
+                  <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                     Estado
                   </th>
                   <th scope="col" className="px-3 py-2">
@@ -167,13 +167,18 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
                         <span className="flex min-w-0 items-center gap-2.5">
                           <Avatar name={nombre} />
                           <span className="min-w-0">
-                            <Link
-                              href={`/clientes/${paciente.id}`}
-                              title={nombre}
-                              className="block max-w-[16rem] truncate font-medium text-zinc-900 underline-offset-2 hover:underline"
-                            >
-                              {nombre}
-                            </Link>
+                            <span className="flex flex-wrap items-center gap-1.5">
+                              <Link
+                                href={`/clientes/${paciente.id}`}
+                                title={nombre}
+                                className="truncate font-medium text-zinc-900 underline-offset-2 hover:underline"
+                              >
+                                {nombre}
+                              </Link>
+                              <span className="sm:hidden">
+                                <ToneBadge tone={paciente.fechaBaja ? "neutral" : "success"}>{paciente.fechaBaja ? "Baja" : "Vigente"}</ToneBadge>
+                              </span>
+                            </span>
                             {paciente.dni ? <span className="block font-mono text-xs text-zinc-500 sm:hidden">DNI {paciente.dni}</span> : null}
                           </span>
                         </span>
@@ -185,7 +190,7 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="hidden px-3 py-2.5 sm:table-cell">
                         <ToneBadge tone={paciente.fechaBaja ? "neutral" : "success"}>{paciente.fechaBaja ? "Baja" : "Vigente"}</ToneBadge>
                       </td>
                       <td className="px-3 py-2.5">
@@ -195,18 +200,18 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
                               href={paciente.whatsappUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="btn btn-ghost btn-sm"
+                              className="btn btn-ghost btn-sm btn-icon sm:btn-sm sm:w-auto"
                               aria-label={`Abrir WhatsApp con ${paciente.nombre} ${paciente.apellido} (se abre en una pestaña nueva)`}
                             >
                               <MessageCircle className="size-3.5" aria-hidden />
                               <span className="hidden sm:inline">WhatsApp</span>
                             </a>
                           ) : null}
-                          <Link href={`/clientes/${paciente.id}/historial`} className="btn btn-ghost btn-sm" aria-label={`Ver el historial de ${paciente.nombre} ${paciente.apellido}`}>
+                          <Link href={`/clientes/${paciente.id}/historial`} className="btn btn-ghost btn-sm btn-icon sm:btn-sm sm:w-auto" aria-label={`Ver el historial de ${paciente.nombre} ${paciente.apellido}`}>
+                            <History className="size-3.5" aria-hidden />
                             <span className="hidden sm:inline">Historial</span>
-                            <span className="sm:hidden">Ver</span>
                           </Link>
-                          <Link href={`/clientes/${paciente.id}`} aria-label={`Editar los datos de ${paciente.nombre} ${paciente.apellido}`} className="btn btn-ghost btn-sm">
+                          <Link href={`/clientes/${paciente.id}`} aria-label={`Editar los datos de ${paciente.nombre} ${paciente.apellido}`} className="btn btn-ghost btn-sm btn-icon">
                             <span className="hidden sm:inline">Editar</span>
                             <ChevronRight className="size-4" aria-hidden />
                           </Link>

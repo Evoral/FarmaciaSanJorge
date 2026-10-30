@@ -35,11 +35,11 @@ export default async function NumeracionLibroPage() {
           const headingId = `numeracion-${l.libroId}`;
           return (
             <section key={l.libroId} className="panel" aria-labelledby={headingId}>
-              <div className="panel-header flex items-center gap-3">
+              <div className="panel-header flex flex-wrap items-center gap-3">
                 <span className="tone-tile" data-tone={bloqueada ? "neutral" : "warn"} aria-hidden>
                   {bloqueada ? <Lock /> : <Hash />}
                 </span>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 basis-40">
                   <h2 id={headingId}>{etiquetaLibro(l.tipo)}</h2>
                   <p className="text-[0.8125rem] text-zinc-600">
                     Primer asiento: <span className="font-mono font-semibold text-zinc-900 tabular-nums">Nº {l.numeroInicial}</span>

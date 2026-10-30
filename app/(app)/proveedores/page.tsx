@@ -4,7 +4,7 @@
  * filters the list by the typed text).
  */
 import Link from "next/link";
-import { ChevronRight, Plus, SearchX, Truck, X } from "lucide-react";
+import { ChevronRight, History, Plus, SearchX, Truck, X } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listProveedores } from "@/modules/proveedores/application/list-proveedores";
@@ -91,7 +91,7 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
         <FilterForm className="filter-bar" aria-label="Filtros de búsqueda de proveedores" hasActiveFilters={false}>
           {/* The search lives in the autocomplete (outside the form's own fields): keep it while other filters change. */}
           <input type="hidden" name="q" value={params.q ?? ""} />
-          <div className="min-w-0 flex-1 md:w-80 md:flex-none">
+          <div className="w-full min-w-0 md:w-80 md:flex-none">
             <BuscadorNavegable
               id="q-buscar"
               label="Buscar proveedor"
@@ -103,7 +103,7 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
               textoVerTodos="Ver todos los proveedores"
             />
           </div>
-          <div className="field">
+          <div className="field w-full sm:w-auto">
             <label htmlFor="estado" className="sr-only">
               Estado
             </label>
@@ -175,7 +175,7 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
                     <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       CUIT
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       Estado
                     </th>
                     <th scope="col" className="px-3 py-2">
@@ -187,20 +187,25 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
                   {result.items.map((proveedor) => (
                     <tr key={proveedor.id}>
                       <td className="px-3 py-2.5">
-                        <Link href={`/proveedores/${proveedor.id}`} className="font-medium text-zinc-900 underline-offset-2 hover:underline">
-                          {proveedor.razonSocial}
-                        </Link>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Link href={`/proveedores/${proveedor.id}`} className="font-medium text-zinc-900 underline-offset-2 hover:underline">
+                            {proveedor.razonSocial}
+                          </Link>
+                          <span className="sm:hidden">
+                            <ToneBadge tone={proveedor.fechaBaja ? "neutral" : "success"}>{proveedor.fechaBaja ? "Baja" : "Vigente"}</ToneBadge>
+                          </span>
+                        </div>
                         <span className="block font-mono text-xs text-zinc-500 sm:hidden">{formatCuit(proveedor.cuit)}</span>
                       </td>
                       <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono sm:table-cell">{formatCuit(proveedor.cuit)}</td>
-                      <td className="px-3 py-2.5">
+                      <td className="hidden px-3 py-2.5 sm:table-cell">
                         <ToneBadge tone={proveedor.fechaBaja ? "neutral" : "success"}>{proveedor.fechaBaja ? "Baja" : "Vigente"}</ToneBadge>
                       </td>
                       <td className="px-3 py-2.5">
                         <span className="flex items-center justify-end gap-1">
-                          <Link href={`/proveedores/${proveedor.id}/historial`} className="btn btn-ghost btn-sm" aria-label={`Ver el historial de ${proveedor.razonSocial}`}>
+                          <Link href={`/proveedores/${proveedor.id}/historial`} className="btn btn-ghost btn-sm btn-icon sm:btn-sm sm:w-auto" aria-label={`Ver el historial de ${proveedor.razonSocial}`}>
+                            <History className="size-3.5" aria-hidden />
                             <span className="hidden sm:inline">Historial</span>
-                            <span className="sm:hidden">Ver</span>
                           </Link>
                           <Link href={`/proveedores/${proveedor.id}`} aria-label={`Ver los datos de ${proveedor.razonSocial}`} className="btn btn-ghost btn-sm btn-icon">
                             <ChevronRight className="size-4" aria-hidden />

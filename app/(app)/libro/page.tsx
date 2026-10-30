@@ -215,7 +215,7 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       Nº
                     </th>
                     <th scope="col" className="hidden px-3 py-2 sm:table-cell">
@@ -230,7 +230,7 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
                     <th scope="col" className="hidden px-3 py-2 md:table-cell">
                       Médico
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       Estado
                     </th>
                     <th scope="col" className="hidden px-3 py-2 sm:table-cell">
@@ -250,26 +250,38 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
                     });
                     return (
                       <tr key={item.id}>
-                        <td className="px-3 py-2.5">
+                        <td className="hidden px-3 py-2.5 sm:table-cell">
                           <Link href={`/libro/${item.id}`} className="font-mono font-semibold underline-offset-2 hover:underline">
                             {item.numeroCorrelativo}
                           </Link>
                           {item.origen === "RECTIFICATIVO" ? <span className="block whitespace-nowrap text-xs text-zinc-500">Rectifica Nº {item.asientoOriginalNumeroCorrelativo}</span> : null}
-                          <span className="block whitespace-nowrap text-xs text-zinc-500 tabular-nums sm:hidden">{formatFechaIso(item.fechaAsiento)}</span>
-                          {item.recetaNumeroInterno ? <span className="block whitespace-nowrap text-xs text-zinc-500 sm:hidden">Receta Nº {item.recetaNumeroInterno}</span> : null}
                         </td>
                         <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums sm:table-cell">{formatFechaIso(item.fechaAsiento)}</td>
                         <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono sm:table-cell">{item.recetaNumeroInterno ?? "—"}</td>
                         <td className="px-3 py-2.5 text-zinc-900">
-                          <span className="block max-w-[16rem] break-words">{item.pacienteTexto}</span>
+                          <div className="mb-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs text-zinc-500 sm:hidden">
+                            <Link href={`/libro/${item.id}`} className="font-mono font-semibold underline-offset-2 hover:underline">
+                              Nº {item.numeroCorrelativo}
+                            </Link>
+                            <span className="tabular-nums">{formatFechaIso(item.fechaAsiento)}</span>
+                            {item.recetaNumeroInterno ? <span>· Receta Nº {item.recetaNumeroInterno}</span> : null}
+                            {item.origen === "RECTIFICATIVO" ? <span>· Rectifica Nº {item.asientoOriginalNumeroCorrelativo}</span> : null}
+                          </div>
+                          <span className="block max-w-[16rem] break-words font-medium sm:font-normal">{item.pacienteTexto}</span>
                           <span className="block max-w-[16rem] break-words text-xs text-zinc-500 md:hidden">{item.medicoTexto}</span>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2 sm:hidden">
+                            <ToneBadge tone={tonoEstadoAsiento(estadoVisual.kind)}>{etiquetaEstadoVisual(estadoVisual)}</ToneBadge>
+                            <span className="inline-flex items-center gap-1 text-xs text-zinc-500">
+                              {item.cierreFirmado ? <Lock className="size-3" aria-hidden /> : <LockOpen className="size-3" aria-hidden />}
+                              {item.cierreFirmado ? "Firmado" : "Sin firmar"}
+                            </span>
+                          </div>
                         </td>
                         <td className="hidden px-3 py-2.5 md:table-cell">
                           <span className="block max-w-[16rem] break-words">{item.medicoTexto}</span>
                         </td>
-                        <td className="px-3 py-2.5">
+                        <td className="hidden px-3 py-2.5 sm:table-cell">
                           <ToneBadge tone={tonoEstadoAsiento(estadoVisual.kind)}>{etiquetaEstadoVisual(estadoVisual)}</ToneBadge>
-                          <span className="mt-1 block whitespace-nowrap text-xs text-zinc-500 sm:hidden">{item.cierreFirmado ? "Firmado" : "Sin firmar"}</span>
                         </td>
                         <td className="hidden whitespace-nowrap px-3 py-2.5 sm:table-cell">
                           <span className={`inline-flex items-center gap-1 text-xs ${item.cierreFirmado ? "text-zinc-700" : "text-zinc-500"}`}>

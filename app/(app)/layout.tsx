@@ -290,7 +290,7 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
       }}
     >
       <NoticeBar avisos={avisos} />
-      <main>{children}</main>
+      <main className="min-w-0 max-w-full">{children}</main>
       {/* `@modal`: intercepted routes opened as pop-ups over the current page (e.g. `(.)entregas/[recetaId]`). */}
       {modal}
     </AppShell>

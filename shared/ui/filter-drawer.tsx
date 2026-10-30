@@ -28,10 +28,13 @@ export function FilterDrawer({ activeCount, children }: FilterDrawerProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     closeRef.current?.focus();
+    const detailsList = Array.from(panelRef.current?.querySelectorAll<HTMLDetailsElement>("details.filter-select") ?? []);
+    for (const details of detailsList) details.open = true;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     function onKeyDown(event: KeyboardEvent) {
@@ -41,6 +44,7 @@ export function FilterDrawer({ activeCount, children }: FilterDrawerProps) {
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
+      for (const details of detailsList) details.open = false;
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [open]);
@@ -66,6 +70,7 @@ export function FilterDrawer({ activeCount, children }: FilterDrawerProps) {
       </button>
       {open ? <div className="filter-drawer-backdrop" aria-hidden onClick={close} /> : null}
       <div
+        ref={panelRef}
         id={panelId}
         className="filter-drawer-panel"
         data-open={open || undefined}

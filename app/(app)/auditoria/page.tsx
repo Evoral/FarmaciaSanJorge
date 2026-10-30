@@ -17,12 +17,12 @@
  * filters live behind "Más filtros".
  */
 import Link from "next/link";
-import { CircleAlert, ScrollText, SearchX, X } from "lucide-react";
+import { ChevronDown, CircleAlert, ScrollText, SearchX, X } from "lucide-react";
 import { TipoAccion } from "@/generated/prisma/enums";
 import { listRegistroAuditoria } from "@/modules/auditoria/application/list-registro-auditoria";
 import { listUsuariosParaFiltro } from "@/modules/auditoria/application/list-usuarios-para-filtro";
 import { AuditoriaDiff } from "@/modules/auditoria/ui/auditoria-diff";
-import { ACCION_LABELS, ENTIDADES, describirRegistro, etiquetaEntidad, formatearFechaHora } from "@/modules/auditoria/domain/presentacion";
+import { ACCION_LABELS, ENTIDADES, calcularCambios, describirRegistro, etiquetaEntidad, formatearFechaHora } from "@/modules/auditoria/domain/presentacion";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { DateInput } from "@/shared/ui/date-input";
 import { FilterForm } from "@/shared/ui/filter-form";
@@ -128,7 +128,7 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
 
       <section aria-label="Filtros" className="mb-4">
         <div className="filter-bar">
-          <div className="min-w-0 flex-1 md:w-72 md:flex-none">
+          <div className="w-full min-w-0 md:w-72 md:flex-none">
             <FiltroOpciones
               id="auditoria-usuario"
               label="Usuario"
@@ -140,14 +140,14 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
               resetParams={["cursor"]}
             />
           </div>
-          <FilterForm className="flex flex-wrap items-end gap-3" aria-label="Filtros de auditoría" hasActiveFilters={false}>
+          <FilterForm className="flex w-full min-w-0 flex-wrap items-center gap-2.5 md:w-auto md:flex-1 md:items-end md:gap-3" aria-label="Filtros de auditoría" hasActiveFilters={false}>
             {/* The usuario is chosen in the autocomplete; this keeps it while the other filters change. */}
             <input type="hidden" name="usuarioId" value={usuarioId ?? ""} />
-            <div className="field">
+            <div className="field min-w-0 flex-1 md:w-56 md:flex-none">
               <label htmlFor="accion" className="sr-only">
                 Acción
               </label>
-              <select id="accion" name="accion" defaultValue={accion ?? ""} className="input">
+              <select id="accion" name="accion" defaultValue={accion ?? ""} className="input w-full min-w-0 truncate">
                 <option value="">Todas las acciones</option>
                 {ACCION_VALUES.map((codigo) => (
                   <option key={codigo} value={codigo}>
@@ -275,6 +275,8 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
                 <tbody>
                   {result.items.map((registro) => {
                     const actor = nombreDeUsuario(registro.usuario);
+                    const cambios = calcularCambios(registro.valorAnterior, registro.valorNuevo, result.zonaHoraria);
+                    const cantCambios = cambios.length;
                     return (
                       <tr key={registro.id} className="align-top">
                         <td className="hidden whitespace-nowrap px-3 py-3 font-mono text-xs tabular-nums text-zinc-600 md:table-cell">{formatearFechaHora(registro.ocurridoEn, result.zonaHoraria)}</td>
@@ -282,9 +284,12 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
                           <div className="flex gap-2.5">
                             <Avatar name={nombreDeUsuario({ ...registro.usuario, esAdministrador: false })} />
                             <div className="min-w-0 flex-1">
-                              <p className="mb-1 whitespace-nowrap font-mono text-xs tabular-nums text-zinc-600 md:hidden">{formatearFechaHora(registro.ocurridoEn, result.zonaHoraria)}</p>
+                              <div className="mb-1 flex flex-wrap items-center gap-2 md:hidden">
+                                <span className="font-mono text-xs tabular-nums text-zinc-500">{formatearFechaHora(registro.ocurridoEn, result.zonaHoraria)}</span>
+                                <ToneBadge tone={tonoAccion(registro.accion)}>{ACCION_LABELS[registro.accion] ?? registro.accion}</ToneBadge>
+                              </div>
                               <p className="break-words font-medium text-zinc-900">{describirRegistro(actor, registro.accion, registro.entidad)}</p>
-                              <p className="mt-1">
+                              <p className="mt-1 hidden md:block">
                                 <ToneBadge tone={tonoAccion(registro.accion)}>{ACCION_LABELS[registro.accion] ?? registro.accion}</ToneBadge>
                               </p>
                               {registro.motivo ? (
@@ -297,18 +302,24 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
                                   <span className="text-zinc-500">Autorizó:</span> {nombreDeUsuario(registro.autorizadoPor)}
                                 </p>
                               ) : null}
-                              {/* Phones: the Cambios column is hidden, so the diff goes under the description. */}
-                              <div className="mt-3 md:hidden">
-                                <AuditoriaDiff
-                                  entidad={registro.entidad}
-                                  entidadId={registro.entidadId}
-                                  valorAnterior={registro.valorAnterior}
-                                  valorNuevo={registro.valorNuevo}
-                                  zonaHoraria={result.zonaHoraria}
-                                  ip={registro.ip}
-                                  contexto={registro.contexto}
-                                />
-                              </div>
+                              {/* Phones: collapsible diff so browsing is compact and doesn't require endless scrolling */}
+                              <details className="group mt-2 rounded-md border border-zinc-200/80 bg-zinc-50/70 p-2 text-xs md:hidden">
+                                <summary className="flex cursor-pointer items-center justify-between font-medium text-zinc-700 select-none hover:text-zinc-900">
+                                  <span>{cantCambios > 0 ? `Ver cambios (${cantCambios})` : "Ver detalle"}</span>
+                                  <ChevronDown className="size-3.5 text-zinc-400 transition-transform group-open:rotate-180" aria-hidden />
+                                </summary>
+                                <div className="mt-2 border-t border-zinc-200/60 pt-2">
+                                  <AuditoriaDiff
+                                    entidad={registro.entidad}
+                                    entidadId={registro.entidadId}
+                                    valorAnterior={registro.valorAnterior}
+                                    valorNuevo={registro.valorNuevo}
+                                    zonaHoraria={result.zonaHoraria}
+                                    ip={registro.ip}
+                                    contexto={registro.contexto}
+                                  />
+                                </div>
+                              </details>
                             </div>
                           </div>
                         </td>

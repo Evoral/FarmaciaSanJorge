@@ -39,7 +39,7 @@ export function CoFirmaDt({ dts, idSuffix = "", operadorEsDt = false, titulo = "
         </div>
       </div>
       {/* items-end: a label that wraps to two lines must not push its input below the other one. */}
-      <div className="grid gap-4 sm:grid-cols-2 sm:items-end">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end">
         <div className="field">
           <label htmlFor={dtId} className="field-label">
             Director Técnico

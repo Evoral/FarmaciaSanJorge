@@ -15,6 +15,7 @@ import { TabNav } from "@/shared/ui/tab-nav";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
 import { ToneBadge } from "@/shared/ui/status-badge";
+import { Toaster } from "@/shared/ui/toast";
 
 const PAGE_SIZE = 20;
 
@@ -92,6 +93,8 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
           ) : null
         }
       />
+
+      <Toaster />
 
       <div role="note" className="alert alert-info mb-5">
         <Info aria-hidden />
@@ -196,7 +199,7 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
                     <th scope="col" className="px-3 py-2">
                       Lote
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       Período
                     </th>
                     <th scope="col" className="hidden px-3 py-2 md:table-cell">
@@ -220,18 +223,21 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
                         <Link href={`/archivo/${item.id}`} className="whitespace-nowrap font-mono font-semibold underline-offset-2 hover:underline">
                           Nº {item.numero}
                         </Link>
+                        <span className="mt-0.5 block text-xs text-zinc-500 tabular-nums sm:hidden">
+                          {formatFechaIso(item.periodoDesde)} <span className="text-zinc-400">a</span> {formatFechaIso(item.periodoHasta)}
+                        </span>
+                        <span className="block max-w-[12rem] truncate text-xs text-zinc-500 md:hidden" title={item.ubicacion}>
+                          {item.ubicacion}
+                        </span>
                         {item.incluyeControladas ? (
                           <span className="mt-1 block">
                             <ToneBadge tone="neutral">Incluye controladas</ToneBadge>
                           </span>
                         ) : null}
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="hidden px-3 py-2.5 sm:table-cell">
                         <span className="block whitespace-nowrap tabular-nums">
                           {formatFechaIso(item.periodoDesde)} <span className="text-zinc-400">a</span> {formatFechaIso(item.periodoHasta)}
-                        </span>
-                        <span className="block max-w-[12rem] truncate text-xs text-zinc-500 md:hidden" title={item.ubicacion}>
-                          {item.ubicacion}
                         </span>
                       </td>
                       <td className="hidden px-3 py-2.5 md:table-cell">

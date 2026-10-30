@@ -18,7 +18,7 @@ export function CancelarTomaForm({ recetaId }: { recetaId: string }) {
   const [confirmando, setConfirmando] = useState(false);
 
   return (
-    <div className="relative">
+    <div className="md:relative">
       <button type="button" onClick={() => setConfirmando((v) => !v)} aria-expanded={confirmando} className="btn btn-secondary">
         Cancelar toma
       </button>
@@ -29,7 +29,7 @@ export function CancelarTomaForm({ recetaId }: { recetaId: string }) {
           onKeyDown={(event) => {
             if (event.key === "Escape") setConfirmando(false);
           }}
-          className="card absolute right-0 top-full z-20 mt-2 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-3 p-4 text-sm shadow-lg"
+          className="card absolute left-0 right-0 top-full z-20 mt-2 flex max-w-[calc(100vw-2rem)] flex-col gap-3 p-4 text-sm shadow-lg sm:right-auto sm:w-80 md:left-auto md:right-0"
         >
           <p>La receta vuelve a Pendientes y cualquier usuario del laboratorio la puede tomar. ¿Cancelar la toma?</p>
           <SimpleForm

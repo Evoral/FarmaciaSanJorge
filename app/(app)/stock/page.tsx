@@ -284,7 +284,7 @@ export default async function StockPage({ searchParams }: StockPageProps) {
                     <th scope="col" className="px-3 py-2">
                       Droga
                     </th>
-                    <th scope="col" className="px-3 py-2 text-right">
+                    <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
                       Disponible
                     </th>
                     <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
@@ -311,11 +311,19 @@ export default async function StockPage({ searchParams }: StockPageProps) {
                             </Link>
                             {item.bajoMinimo ? <ToneBadge tone="warn">Bajo mínimo</ToneBadge> : null}
                           </span>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs sm:hidden">
+                            <span className={item.bajoMinimo ? "font-semibold text-red-700" : "font-mono text-zinc-700"}>
+                              Disp: <Cantidad valor={disponible!} />
+                            </span>
+                            {item.proximoVencimiento ? (
+                              <span className="text-zinc-500 tabular-nums">· Vence {formatFecha(item.proximoVencimiento)}</span>
+                            ) : null}
+                          </div>
                           {item.proximoVencimiento ? (
-                            <span className="block text-xs text-zinc-500 tabular-nums md:hidden">Vence {formatFecha(item.proximoVencimiento)}</span>
+                            <span className="hidden text-xs text-zinc-500 tabular-nums sm:block md:hidden">Vence {formatFecha(item.proximoVencimiento)}</span>
                           ) : null}
                         </td>
-                        <td className={`px-3 py-2.5 text-right font-mono tabular-nums ${item.bajoMinimo ? "font-semibold text-red-700" : "text-zinc-900"}`}>
+                        <td className={`hidden px-3 py-2.5 text-right font-mono tabular-nums sm:table-cell ${item.bajoMinimo ? "font-semibold text-red-700" : "text-zinc-900"}`}>
                           <Cantidad valor={disponible!} />
                         </td>
                         <td className="hidden px-3 py-2.5 text-right font-mono text-zinc-500 tabular-nums sm:table-cell">
@@ -333,12 +341,12 @@ export default async function StockPage({ searchParams }: StockPageProps) {
                         <td className="px-3 py-2.5 text-right">
                           <div className="flex justify-end gap-1">
                             {conHistorial ? (
-                              <Link href={`/catalogos/drogas/${item.drogaId}/historial`} aria-label={`Ver historial de ${item.drogaNombre}`} className="btn btn-ghost btn-sm">
+                              <Link href={`/catalogos/drogas/${item.drogaId}/historial`} aria-label={`Ver historial de ${item.drogaNombre}`} className="btn btn-ghost btn-sm btn-icon sm:btn-sm sm:w-auto">
                                 <History className="size-3.5" aria-hidden />
                                 <span className="hidden sm:inline">Historial</span>
                               </Link>
                             ) : null}
-                            <Link href={partidasHref} aria-label={`Ver partidas de ${item.drogaNombre}`} className="btn btn-ghost btn-sm">
+                            <Link href={partidasHref} aria-label={`Ver partidas de ${item.drogaNombre}`} className="btn btn-ghost btn-sm btn-icon sm:btn-sm sm:w-auto">
                               <span className="hidden sm:inline">Partidas</span>
                               <ChevronRight className="size-3.5" aria-hidden />
                             </Link>

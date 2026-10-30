@@ -112,17 +112,17 @@ export default async function AsientoPage({ params }: AsientoPageProps) {
             <div className="panel-header">
               <h2 id="detalle-heading">Detalle</h2>
             </div>
-            <div className="overflow-x-auto">
+            <div className="table-wrap">
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th scope="col" className="px-5 py-2">
+                    <th scope="col" className="px-3 py-2 sm:px-5">
                       Descripción
                     </th>
                     <th scope="col" className="px-3 py-2 text-right">
                       Cantidad
                     </th>
-                    <th scope="col" className="px-5 py-2">
+                    <th scope="col" className="hidden px-5 py-2 sm:table-cell">
                       Unidad
                     </th>
                   </tr>
@@ -130,9 +130,12 @@ export default async function AsientoPage({ params }: AsientoPageProps) {
                 <tbody>
                   {asiento.detalles.map((d) => (
                     <tr key={d.orden}>
-                      <td className="px-5 py-2.5 text-zinc-900">{d.descripcion}</td>
-                      <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">{d.cantidad}</td>
-                      <td className="px-5 py-2.5 text-zinc-600">{d.unidadTexto}</td>
+                      <td className="px-3 py-2.5 text-zinc-900 sm:px-5">{d.descripcion}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">
+                        {d.cantidad}
+                        <span className="font-sans text-zinc-600 sm:hidden"> {d.unidadTexto}</span>
+                      </td>
+                      <td className="hidden px-5 py-2.5 text-zinc-600 sm:table-cell">{d.unidadTexto}</td>
                     </tr>
                   ))}
                 </tbody>

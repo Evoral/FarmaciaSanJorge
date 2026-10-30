@@ -51,9 +51,9 @@ export function RouteDialog({ title, subtitle, children }: RouteDialogProps) {
         onClick={(event) => {
           if (event.target === event.currentTarget) cerrar();
         }}
-        className="card m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-md p-0 text-left text-foreground shadow-lg backdrop:bg-black/40 dark:border-zinc-800 dark:bg-zinc-900"
+        className="card fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-x-hidden overflow-y-auto p-0 text-left text-foreground shadow-lg backdrop:bg-black/40 dark:border-zinc-800 dark:bg-zinc-900"
       >
-        <div className="flex flex-col gap-4 p-5">
+        <div className="flex flex-col gap-4 p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h2 id={tituloId} className="text-lg font-semibold">

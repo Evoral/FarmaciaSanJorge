@@ -126,14 +126,14 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
 
       <section aria-label="Filtros" className="mb-4">
         <div className="filter-bar">
-          <div className="min-w-0 flex-1 md:w-80 md:flex-none">
+          <div className="w-full min-w-0 md:w-80 md:flex-none">
             <KardexDrogaFiltro href={filtrosHref} seleccion={drogaFiltrada} />
           </div>
-          <FilterForm className="flex flex-wrap items-end gap-3" aria-label="Filtros de partidas" hasActiveFilters={hayFiltrosForm}>
+          <FilterForm className="flex w-full min-w-0 flex-wrap items-center gap-2.5 md:w-auto md:flex-1 md:items-end md:gap-3" aria-label="Filtros de partidas" hasActiveFilters={hayFiltrosForm}>
             {/* The droga is chosen in the autocomplete; this keeps it while the other filters change. */}
             <input type="hidden" name="drogaId" value={drogaId} />
-            <SearchField id="q" name="q" label="Lote" hideLabel defaultValue={q} placeholder="Buscar lote" className="min-w-0 flex-1 md:w-56 md:flex-none" />
-            <FilterDrawer activeCount={(proveedorId ? 1 : 0) + (desde ? 1 : 0) + (hasta ? 1 : 0)}>
+            <SearchField id="q" name="q" label="Lote" hideLabel defaultValue={q} placeholder="Buscar lote" className="min-w-[11rem] flex-1 md:w-56 md:flex-none" />
+            <FilterDrawer activeCount={(proveedorId ? 1 : 0) + (desde ? 1 : 0) + (hasta ? 1 : 0) + (soloConSaldo ? 1 : 0) + (soloVencidas ? 1 : 0)}>
               <div className="field">
                 <label htmlFor="proveedorId" className="field-label">
                   Proveedor
@@ -165,17 +165,17 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
                   <DateInput id="hasta" name="hasta" defaultValue={hasta} />
                 </div>
               </div>
+              <FilterMultiSelect
+                options={[
+                  { name: "saldo", label: "Solo con saldo", checked: soloConSaldo },
+                  { name: "vencidas", label: "Solo vencidas", checked: soloVencidas },
+                ]}
+              />
+              <label className="toggle-switch">
+                <input type="checkbox" role="switch" name="unidades" value="base" defaultChecked={modo === "base"} data-preserve-on-clear="" />
+                Unificar unidades
+              </label>
             </FilterDrawer>
-            <FilterMultiSelect
-              options={[
-                { name: "saldo", label: "Solo con saldo", checked: soloConSaldo },
-                { name: "vencidas", label: "Solo vencidas", checked: soloVencidas },
-              ]}
-            />
-            <label className="toggle-switch">
-              <input type="checkbox" role="switch" name="unidades" value="base" defaultChecked={modo === "base"} data-preserve-on-clear="" />
-              Unificar unidades
-            </label>
           </FilterForm>
         </div>
       </section>
@@ -228,10 +228,10 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="px-2.5 py-2 sm:px-3">
                       Lote
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-2 py-2 sm:table-cell sm:px-3">
                       Droga
                     </th>
                     <th scope="col" className="hidden px-3 py-2 md:table-cell">
@@ -240,16 +240,16 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
                     <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       Ingreso
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-2 py-2 sm:table-cell sm:px-3">
                       Vencimiento
                     </th>
-                    <th scope="col" className="px-3 py-2 text-right">
-                      Saldo / Inicial
+                    <th scope="col" className="px-2.5 py-2 text-right sm:px-3">
+                      Saldo <span className="hidden sm:inline">/ Inicial</span>
                     </th>
                     <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       Estado
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="px-2 py-2 sm:px-3">
                       <span className="sr-only">Acciones</span>
                     </th>
                   </tr>
@@ -271,15 +271,22 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
                     const reanalizada = partida.fechaVencimientoVigente?.getTime() !== partida.fechaVencimiento?.getTime();
                     return (
                       <tr key={partida.id}>
-                        <td className="px-3 py-2.5">
+                        <td className="px-2.5 py-2.5 sm:px-3">
                           <Link href={`/partidas/${partida.id}`} className="font-mono font-semibold underline-offset-2 hover:underline">
                             {partida.lote}
                           </Link>
-                          <span className="block max-w-[12rem] truncate text-xs text-zinc-500 md:hidden" title={partida.proveedorRazonSocial}>
+                          <span className="mt-0.5 block font-medium text-zinc-800 sm:hidden">
+                            {partida.drogaNombre}
+                          </span>
+                          <span className="block text-xs text-zinc-500 md:hidden">
                             {partida.proveedorRazonSocial}
+                            <span className="sm:hidden">
+                              {" · "}
+                              {partida.fechaVencimientoVigente ? <span className="tabular-nums">Vto. {formatFecha(partida.fechaVencimientoVigente)}</span> : "No vence"}
+                            </span>
                           </span>
                         </td>
-                        <td className="px-3 py-2.5">
+                        <td className="hidden px-2 py-2.5 sm:table-cell sm:px-3">
                           <Link href={`/partidas?drogaId=${partida.drogaId}`} className="underline-offset-2 hover:underline">
                             {partida.drogaNombre}
                           </Link>
@@ -288,7 +295,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
                         {/* fecha_ingreso is a timestamptz: shown as the farmacia's own calendar day. */}
                         <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums sm:table-cell">{formatFecha(partida.fechaIngreso, result.zonaHoraria)}</td>
                         {/* The vencimiento VIGENTE (openspec/specs/reanalisis-partida/spec.md): a reanálisis may have moved it from the original date. */}
-                        <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">
+                        <td className="hidden whitespace-nowrap px-2 py-2.5 tabular-nums sm:table-cell sm:px-3">
                           {partida.fechaVencimientoVigente ? formatFecha(partida.fechaVencimientoVigente) : "No vence"}
                           {reanalizada ? (
                             <span className="block text-xs text-zinc-500" title={partida.fechaVencimiento ? `Vencimiento original: ${formatFecha(partida.fechaVencimiento)}` : undefined}>
@@ -296,14 +303,15 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
                             </span>
                           ) : null}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">
+                        <td className="whitespace-nowrap px-2.5 py-2.5 text-right font-mono tabular-nums sm:px-3">
                           {disponible && inicial ? (
                             <>
                               <span className="font-medium text-zinc-900">
                                 <Cantidad valor={disponible} />
                               </span>
-                              <span className="text-zinc-400"> / </span>
-                              <span className="text-zinc-500">
+                              <span className="hidden text-zinc-400 sm:inline"> / </span>
+                              <span className="block text-xs text-zinc-500 sm:inline sm:text-[length:inherit]">
+                                <span className="font-sans sm:hidden">de </span>
                                 <Cantidad valor={inicial} />
                               </span>
                             </>
@@ -318,7 +326,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
                             <ToneBadge tone="neutral">{partida.fechaApertura ? "Abierta" : "Cerrada"}</ToneBadge>
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 text-right">
+                        <td className="px-2 py-2.5 text-right sm:px-3">
                           <Link href={`/partidas/${partida.id}`} aria-label={`Ver la partida ${partida.lote}`} className="btn btn-ghost btn-sm btn-icon">
                             <ChevronRight className="size-4" aria-hidden />
                           </Link>

@@ -80,7 +80,7 @@ export default async function ReporteCumplimientoPage({ searchParams }: ReporteC
 
       <section aria-label="Filtros" className="mb-4">
         <FilterForm className="filter-bar" aria-label="Filtros del reporte de cumplimiento" hasActiveFilters={false}>
-          <div className="field">
+          <div className="field w-full sm:w-auto">
             <span id="reporte-fecha-label" className="field-label">
               Jornada
             </span>
@@ -157,7 +157,7 @@ export default async function ReporteCumplimientoPage({ searchParams }: ReporteC
                     <th scope="col" className="px-3 py-2 text-right">
                       Demora (días)
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       Término
                     </th>
                     <th scope="col" className="hidden px-3 py-2 lg:table-cell">
@@ -169,37 +169,53 @@ export default async function ReporteCumplimientoPage({ searchParams }: ReporteC
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item) => (
-                    <tr key={item.fecha}>
-                      <td className="px-3 py-2.5 font-mono font-semibold text-zinc-900 tabular-nums">{formatFechaIso(item.fecha)}</td>
-                      <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums sm:table-cell">
-                        {new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(item.fechaFirma)}
-                      </td>
-                      <td className={`px-3 py-2.5 text-right font-mono tabular-nums ${item.fueraDeTermino ? "font-semibold text-amber-700" : ""}`}>{item.demoraDias}</td>
-                      <td className="px-3 py-2.5">
-                        <ToneBadge tone={item.fueraDeTermino ? "warn" : "success"}>{item.fueraDeTermino ? "Fuera" : "En término"}</ToneBadge>
-                      </td>
-                      <td className="hidden px-3 py-2.5 text-zinc-700 lg:table-cell">
-                        {item.motivoDemora ? (
-                          <>
-                            {MOTIVO_DEMORA_LABELS[item.motivoDemora as MotivoDemoraValue] ?? item.motivoDemora}
-                            {item.motivoDemoraDetalle ? (
-                              <span className="line-clamp-2 block max-w-xs break-words text-xs text-zinc-500" title={item.motivoDemoraDetalle}>
-                                {item.motivoDemoraDetalle}
-                              </span>
-                            ) : null}
-                          </>
-                        ) : (
-                          <span className="text-zinc-400">
-                            -<span className="sr-only">Sin motivo</span>
+                  {items.map((item) => {
+                    const fechaFirmaTexto = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(item.fechaFirma);
+                    return (
+                      <tr key={item.fecha}>
+                        <td className="px-3 py-2.5">
+                          <span className="block font-mono font-semibold text-zinc-900 tabular-nums">{formatFechaIso(item.fecha)}</span>
+                          <span className="block max-w-[14rem] truncate text-xs text-zinc-500 md:hidden" title={`${item.directorTecnicoApellido}, ${item.directorTecnicoNombre}`}>
+                            {item.directorTecnicoApellido}, {item.directorTecnicoNombre}
                           </span>
-                        )}
-                      </td>
-                      <td className="hidden px-3 py-2.5 md:table-cell">
-                        {item.directorTecnicoApellido}, {item.directorTecnicoNombre}
-                      </td>
-                    </tr>
-                  ))}
+                          <div className="mt-1 flex flex-wrap items-center gap-2 sm:hidden">
+                            <ToneBadge tone={item.fueraDeTermino ? "warn" : "success"}>{item.fueraDeTermino ? "Fuera" : "En término"}</ToneBadge>
+                            <span className="text-xs text-zinc-500 tabular-nums">{fechaFirmaTexto}</span>
+                          </div>
+                          {item.motivoDemora ? (
+                            <span className="mt-1 block max-w-[16rem] break-words text-xs text-zinc-600 lg:hidden">
+                              {MOTIVO_DEMORA_LABELS[item.motivoDemora as MotivoDemoraValue] ?? item.motivoDemora}
+                              {item.motivoDemoraDetalle ? ` · ${item.motivoDemoraDetalle}` : ""}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums sm:table-cell">{fechaFirmaTexto}</td>
+                        <td className={`px-3 py-2.5 text-right font-mono tabular-nums ${item.fueraDeTermino ? "font-semibold text-amber-700" : ""}`}>{item.demoraDias}</td>
+                        <td className="hidden px-3 py-2.5 sm:table-cell">
+                          <ToneBadge tone={item.fueraDeTermino ? "warn" : "success"}>{item.fueraDeTermino ? "Fuera" : "En término"}</ToneBadge>
+                        </td>
+                        <td className="hidden px-3 py-2.5 text-zinc-700 lg:table-cell">
+                          {item.motivoDemora ? (
+                            <>
+                              {MOTIVO_DEMORA_LABELS[item.motivoDemora as MotivoDemoraValue] ?? item.motivoDemora}
+                              {item.motivoDemoraDetalle ? (
+                                <span className="line-clamp-2 block max-w-xs break-words text-xs text-zinc-500" title={item.motivoDemoraDetalle}>
+                                  {item.motivoDemoraDetalle}
+                                </span>
+                              ) : null}
+                            </>
+                          ) : (
+                            <span className="text-zinc-400">
+                              -<span className="sr-only">Sin motivo</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="hidden px-3 py-2.5 md:table-cell">
+                          {item.directorTecnicoApellido}, {item.directorTecnicoNombre}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

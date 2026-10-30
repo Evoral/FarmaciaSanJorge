@@ -131,10 +131,10 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
         <FilterForm className="filter-bar" aria-label="Filtros de libros contralor" hasActiveFilters={false}>
           {/* The droga lives in the autocomplete (outside the form's own fields): keep it while other filters change. */}
           <input type="hidden" name="drogaId" value={params.drogaId ?? ""} />
-          <div className="min-w-0 flex-1 md:w-72 md:flex-none">
+          <div className="w-full min-w-0 md:w-72 md:flex-none">
             <DrogaContralorBuscador listaHref={sinFiltroHref("drogaId")} drogaActual={params.drogaId ? { id: params.drogaId, nombre: drogaActualNombre } : undefined} />
           </div>
-          <div className="field">
+          <div className="field w-full sm:w-auto">
             <label htmlFor="tipoLibro" className="field-label">
               Libro
             </label>
@@ -144,7 +144,7 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
               <option value="ESTUPEFACIENTE">Estupefacientes</option>
             </select>
           </div>
-          <div className="field">
+          <div className="field w-full sm:w-auto">
             <span id="contralor-fecha-label" className="field-label">
               Fecha
             </span>
@@ -203,7 +203,7 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       Nº
                     </th>
                     <th scope="col" className="hidden px-3 py-2 sm:table-cell">
@@ -221,7 +221,7 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
                     <th scope="col" className="hidden px-3 py-2 text-right lg:table-cell">
                       Saldo anterior
                     </th>
-                    <th scope="col" className="px-3 py-2 text-right">
+                    <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
                       Saldo
                     </th>
                     <th scope="col" className="hidden px-3 py-2 xl:table-cell">
@@ -235,15 +235,23 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
                 <tbody>
                   {result.items.map((item) => (
                     <tr key={item.id}>
-                      <td className="px-3 py-2.5">
+                      <td className="hidden px-3 py-2.5 sm:table-cell">
                         <span className="block font-mono font-semibold text-zinc-900 tabular-nums">{item.numeroCorrelativo}</span>
-                        <span className="block whitespace-nowrap text-xs text-zinc-500 tabular-nums sm:hidden">{formatFechaIso(item.fechaAsiento)}</span>
                       </td>
                       <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums sm:table-cell">{formatFechaIso(item.fechaAsiento)}</td>
                       <td className="hidden px-3 py-2.5 md:table-cell">
                         <ToneBadge tone="neutral">{TIPO_MOVIMIENTO_LABELS[item.tipoMovimiento] ?? item.tipoMovimiento}</ToneBadge>
                       </td>
                       <td className="px-3 py-2.5 text-zinc-900">
+                        <div className="mb-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs text-zinc-500 sm:hidden">
+                          <span className="font-mono font-semibold text-zinc-900 tabular-nums">Nº {item.numeroCorrelativo}</span>
+                          <span className="tabular-nums">{formatFechaIso(item.fechaAsiento)}</span>
+                          {item.asientoRecetarioId ? (
+                            <Link href={`/libro/${item.asientoRecetarioId}`} className="font-mono underline-offset-2 hover:underline">
+                              · Recetario Nº {item.asientoRecetarioNumero}
+                            </Link>
+                          ) : null}
+                        </div>
                         <span className="line-clamp-2 block max-w-xs break-words" title={item.drogaDescripcion}>
                           {item.drogaDescripcion}
                         </span>
@@ -253,9 +261,14 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
                         </span>
                       </td>
                       {/* Legal record: exact quantities in the recorded unit (only trailing zeros stripped), never converted or rounded. */}
-                      <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">{formatCantidadExacta(item.cantidad, item.unidadSimbolo)}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">
+                        {formatCantidadExacta(item.cantidad, item.unidadSimbolo)}
+                        <span className="mt-0.5 block font-sans text-xs text-zinc-500 sm:hidden">
+                          Saldo: <span className="font-mono font-medium text-zinc-900">{formatCantidadExacta(item.saldoPosterior, "")}</span>
+                        </span>
+                      </td>
                       <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono text-zinc-500 tabular-nums lg:table-cell">{formatCantidadExacta(item.saldoAnterior, "")}</td>
-                      <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">{formatCantidadExacta(item.saldoPosterior, "")}</td>
+                      <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums sm:table-cell">{formatCantidadExacta(item.saldoPosterior, "")}</td>
                       <td className="hidden px-3 py-2.5 font-mono xl:table-cell">{item.numeroValeAdquisicion ?? <Vacio label="Sin vale" />}</td>
                       <td className="hidden px-3 py-2.5 md:table-cell">
                         {item.asientoRecetarioId ? (

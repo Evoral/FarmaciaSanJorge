@@ -140,10 +140,10 @@ function TablaVencimientos({ filas, vencida, catalogo, jornadaActual, dtPuedeAct
             <th scope="col" className="hidden px-3 py-2 lg:table-cell">
               Proveedor
             </th>
-            <th scope="col" className="px-3 py-2">
+            <th scope="col" className="hidden px-3 py-2 sm:table-cell">
               Vencimiento
             </th>
-            <th scope="col" className="px-3 py-2 text-right">
+            <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
               Saldo
             </th>
             <th scope="col" className="px-3 py-2">
@@ -156,6 +156,7 @@ function TablaVencimientos({ filas, vencida, catalogo, jornadaActual, dtPuedeAct
             const vigenteIso = isoDe(fila.fechaVencimiento);
             const saldo = formatCantidad(fila.cantidadDisponible, { id: fila.unidadBaseId, simbolo: fila.unidadBaseSimbolo }, catalogo);
             const partidaNombre = `${fila.drogaNombre} · lote ${fila.lote}`;
+            const badgeTexto = vencida ? textoVencida(vigenteIso, jornadaActual) : textoPorVencer(vigenteIso, jornadaActual);
             return (
               <tr key={fila.partidaId}>
                 <td className="px-3 py-2.5">
@@ -164,24 +165,36 @@ function TablaVencimientos({ filas, vencida, catalogo, jornadaActual, dtPuedeAct
                     Lote <span className="font-mono">{fila.lote}</span>
                     <span className="lg:hidden"> · {fila.proveedorRazonSocial}</span>
                   </span>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:hidden">
+                    <ToneBadge tone={vencida ? "danger" : "warn"}>{badgeTexto}</ToneBadge>
+                    <span className="text-zinc-600 tabular-nums">Vto. {formatFecha(fila.fechaVencimiento)}</span>
+                    <span className="font-mono font-medium text-zinc-900 tabular-nums">
+                      · <Cantidad valor={saldo} />
+                    </span>
+                    {fila.reanalizada ? (
+                      <span className="text-zinc-500">
+                        · Reanalizada (orig. <span className="tabular-nums">{formatFecha(fila.fechaVencimientoOriginal)}</span>)
+                      </span>
+                    ) : null}
+                  </div>
                 </td>
                 <td className="hidden px-3 py-2.5 text-zinc-700 lg:table-cell">{fila.proveedorRazonSocial}</td>
-                <td className="px-3 py-2.5">
+                <td className="hidden px-3 py-2.5 sm:table-cell">
                   <span className="block whitespace-nowrap font-medium tabular-nums text-zinc-900">{formatFecha(fila.fechaVencimiento)}</span>
                   {fila.reanalizada ? (
-                    <span className="block whitespace-nowrap text-xs text-zinc-500">
+                    <span className="block text-xs text-zinc-500">
                       Reanalizada · original <span className="tabular-nums">{formatFecha(fila.fechaVencimientoOriginal)}</span>
                     </span>
                   ) : null}
                   <span className="mt-1 block">
-                    <ToneBadge tone={vencida ? "danger" : "warn"}>{vencida ? textoVencida(vigenteIso, jornadaActual) : textoPorVencer(vigenteIso, jornadaActual)}</ToneBadge>
+                    <ToneBadge tone={vencida ? "danger" : "warn"}>{badgeTexto}</ToneBadge>
                   </span>
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">
+                <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums sm:table-cell">
                   <Cantidad valor={saldo} />
                 </td>
                 <td className="px-3 py-2.5">
-                  <div className="flex items-center justify-end gap-1.5 md:flex-wrap md:gap-2">
+                  <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2">
                     {dtPuedeActuar ? (
                       <>
                         <ReanalisisDialog partidaId={fila.partidaId} partidaNombre={partidaNombre} jornadaActual={jornadaActual} destacado={vencida} compacto />

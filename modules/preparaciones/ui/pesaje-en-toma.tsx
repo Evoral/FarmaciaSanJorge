@@ -270,12 +270,10 @@ export function PesajeTabla({ lineasFicha }: { lineasFicha: readonly LineaDeFich
   const exceso = conExceso(lineasFicha);
   const columnas = exceso ? 5 : 4;
   return (
-    // overflow-visible: the excipiente Combobox popover must float over the card,
-    // not open a scroll box inside the table (hard to drive on a tablet).
-    <div className="table-wrap overflow-visible">
-      <table className="data-table">
+    <div className="table-wrap">
+      <table className="data-table block md:table">
         <caption className="sr-only">Líneas de pesaje</caption>
-        <thead>
+        <thead className="hidden md:table-header-group">
           <tr>
             <th scope="col" className="px-3 py-2">
               Droga
@@ -296,14 +294,14 @@ export function PesajeTabla({ lineasFicha }: { lineasFicha: readonly LineaDeFich
             </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="block md:table-row-group">
           {datos.lineas.map((linea, indice) => (
             <FilasLinea key={linea.id} linea={linea} indice={indice} ficha={lineasFicha.find((l) => l.orden === linea.orden)} exceso={exceso} columnas={columnas} />
           ))}
           <FilaExcipiente columnas={columnas} />
         </tbody>
       </table>
-      <p className="px-3 py-2 text-xs text-zinc-500">{AYUDA_NUMERO}</p>
+      <p className="border-t border-zinc-100 px-3 py-2 text-xs text-zinc-500">{AYUDA_NUMERO}</p>
     </div>
   );
 }
@@ -343,17 +341,24 @@ function FilasLinea({
 
   return (
     <>
-      <tr className="border-b-0">
-        <td className="px-3 py-2 font-medium text-zinc-900">{linea.drogaNombre}</td>
-        <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">
+      <tr className={`border-b-0 grid ${exceso ? "grid-cols-3" : "grid-cols-2"} gap-x-3 gap-y-2.5 px-3 pt-3 pb-2 md:table-row md:p-0`}>
+        <td className="col-span-full p-0 font-medium text-zinc-900 md:px-3 md:py-2">{linea.drogaNombre}</td>
+        <td className="p-0 text-left font-mono tabular-nums md:whitespace-nowrap md:px-3 md:py-2 md:text-right">
+          <span className="mb-0.5 block font-sans text-[11px] font-medium uppercase tracking-wider text-zinc-500 md:hidden">Teórica</span>
           {ficha?.cantidadTeorica ? (
             <CantidadFicha valor={ficha.cantidadTeorica} simbolo={ficha.unidadSimbolo} />
           ) : (
             <Vacio />
           )}
         </td>
-        {exceso ? <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">{ficha?.excesoAplicado}</td> : null}
-        <td className="px-3 py-2 text-right font-mono font-semibold text-zinc-900 tabular-nums">
+        {exceso ? (
+          <td className="p-0 text-left font-mono tabular-nums md:whitespace-nowrap md:px-3 md:py-2 md:text-right">
+            <span className="mb-0.5 block font-sans text-[11px] font-medium uppercase tracking-wider text-zinc-500 md:hidden">Exceso %</span>
+            {ficha?.excesoAplicado}
+          </td>
+        ) : null}
+        <td className="p-0 text-left font-mono font-semibold text-zinc-900 tabular-nums md:px-3 md:py-2 md:text-right">
+          <span className="mb-0.5 block font-sans text-[11px] font-medium uppercase tracking-wider text-zinc-500 md:hidden">A pesar</span>
           {linea.esEnraseManual ? (
             <span className="inline-block max-w-[12rem] font-sans font-normal text-zinc-500">Enrase manual</span>
           ) : aPesar ? (
@@ -364,14 +369,15 @@ function FilasLinea({
             <Vacio />
           )}
         </td>
-        <td className="px-3 py-2 text-right align-top">
+        <td className="col-span-full p-0 text-left align-top md:px-3 md:py-2 md:text-right">
+          <span className="mb-1 block font-sans text-[11px] font-medium uppercase tracking-wider text-zinc-500 md:hidden">Cantidad real pesada</span>
           <CantidadReal linea={linea} pesada={pesada} />
         </td>
       </tr>
 
       {partidas.length === 0 ? (
-        <tr className={vencidas.length > 0 || sinStock ? "border-b-0" : undefined}>
-          <td colSpan={columnas} className="px-3 pb-3 pt-0 text-xs text-zinc-500">
+        <tr className={`block md:table-row ${vencidas.length > 0 || sinStock ? "border-b-0" : ""}`}>
+          <td colSpan={columnas} className="block px-3 pb-3 pt-0 text-xs text-zinc-500 md:table-cell">
             Sin partidas disponibles para esta droga.
           </td>
         </tr>
@@ -381,8 +387,8 @@ function FilasLinea({
           const parte = partes.find((p) => p.partidaId === partidaId);
           const ultimaFila = k === lotes.length - 1 && !(sinStock || libres.length > 0) && vencidas.length === 0 && !ultimaFilaMotivo;
           return (
-            <tr key={partidaId} className={ultimaFila ? undefined : "border-b-0"}>
-              <td colSpan={columnas - 2} className={`pl-6 pr-3 ${ultimaFila ? "pb-3 pt-0.5" : "py-0.5"}`}>
+            <tr key={partidaId} className={`block px-3 md:table-row md:px-0 ${ultimaFila ? "pb-3 pt-1 md:p-0" : "border-b-0 py-1 md:p-0"}`}>
+              <td colSpan={columnas - 2} className={`block p-0 md:table-cell md:pl-6 md:pr-3 ${ultimaFila ? "md:pb-3 md:pt-0.5" : "md:py-0.5"}`}>
                 <div className="flex items-center gap-2 text-xs text-zinc-500">
                   <label htmlFor={`partidas_${linea.id}_${k}`} className="shrink-0">
                     {k === 0 ? "Lote" : "y"}
@@ -391,7 +397,7 @@ function FilasLinea({
                     id={`partidas_${linea.id}_${k}`}
                     value={partidaId}
                     onChange={(event) => setLotes(linea.id, lotes.map((id, i) => (i === k ? event.target.value : id)))}
-                    className="input h-8 min-w-0 max-w-full py-0 font-mono text-xs"
+                    className="input h-8 w-full min-w-0 max-w-full flex-1 truncate py-0 font-mono text-xs sm:w-auto sm:flex-initial"
                   >
                     {opciones.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -400,35 +406,44 @@ function FilasLinea({
                     ))}
                   </select>
                   {k > 0 ? (
-                    <button type="button" onClick={() => setLotes(linea.id, lotes.filter((_, i) => i !== k))} aria-label="Quitar este lote" className="btn btn-ghost btn-sm">
+                    <button type="button" onClick={() => setLotes(linea.id, lotes.filter((_, i) => i !== k))} aria-label="Quitar este lote" className="btn btn-ghost btn-sm shrink-0">
                       <X className="size-3.5" aria-hidden />
                     </button>
                   ) : null}
                 </div>
               </td>
-              <td className={`whitespace-nowrap px-3 text-right font-mono font-medium text-zinc-900 tabular-nums ${ultimaFila ? "pb-3 pt-0.5" : "py-0.5"}`}>
+              <td
+                className={`${mostrarPartes && parte ? "block pt-1" : "hidden"} whitespace-nowrap p-0 text-right font-mono font-medium text-zinc-900 tabular-nums md:table-cell md:px-3 ${
+                  ultimaFila ? "md:pb-3 md:pt-0.5" : "md:py-0.5"
+                }`}
+              >
                 {mostrarPartes && parte ? (
-                  <CantidadDeLote cantidad={redondearABalanza(convertirCantidad(new Decimal(parte.cantidad), linea.unidadStock, linea.unidad), precision).toFixed()} simbolo={linea.unidadSimbolo} />
+                  <>
+                    <span className="mr-1.5 font-sans text-xs font-normal text-zinc-500 md:hidden">De este lote:</span>
+                    <CantidadDeLote cantidad={redondearABalanza(convertirCantidad(new Decimal(parte.cantidad), linea.unidadStock, linea.unidad), precision).toFixed()} simbolo={linea.unidadSimbolo} />
+                  </>
                 ) : null}
               </td>
-              <td className={ultimaFila ? "pb-3" : undefined} />
+              <td className={`hidden md:table-cell ${ultimaFila ? "md:pb-3" : ""}`} />
             </tr>
           );
         })
       )}
 
       {partidas.length > 0 && (sinStock || libres.length > 0) ? (
-        <tr className={vencidas.length > 0 || ultimaFilaMotivo ? "border-b-0" : undefined}>
-          <td colSpan={columnas} className="pb-3 pl-6 pr-3 pt-0.5">
+        <tr className={`block md:table-row ${vencidas.length > 0 || ultimaFilaMotivo ? "border-b-0" : ""}`}>
+          <td colSpan={columnas} className="block px-3 pb-3 pt-1 md:table-cell md:pl-6 md:pr-3 md:pt-0.5">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               {sinStock ? (
                 <span className="flex items-center gap-1 text-red-700 dark:text-red-300">
-                  <CircleAlert className="size-3.5" aria-hidden />
-                  Stock insuficiente en {lotes.length === 1 ? "el lote elegido" : "los lotes elegidos"}: faltan{" "}
-                  <span className="font-mono">
-                    {formatNumero(plan.faltante)} {linea.unidadSimbolo}
+                  <CircleAlert className="size-3.5 shrink-0" aria-hidden />
+                  <span>
+                    Stock insuficiente en {lotes.length === 1 ? "el lote elegido" : "los lotes elegidos"}: faltan{" "}
+                    <span className="font-mono">
+                      {formatNumero(plan.faltante)} {linea.unidadSimbolo}
+                    </span>
+                    .
                   </span>
-                  .
                 </span>
               ) : lotes.length > 1 ? (
                 <span className="text-zinc-500">Se termina primero el lote abierto o el que vence antes, y el resto sale del otro.</span>
@@ -445,8 +460,8 @@ function FilasLinea({
       ) : null}
 
       {ultimaFilaMotivo ? (
-        <tr className={vencidas.length > 0 ? "border-b-0" : undefined}>
-          <td colSpan={columnas} className="pb-3 pl-6 pr-3 pt-0.5">
+        <tr className={`block md:table-row ${vencidas.length > 0 ? "border-b-0" : ""}`}>
+          <td colSpan={columnas} className="block px-3 pb-3 pt-1 md:table-cell md:pl-6 md:pr-3 md:pt-0.5">
             <div className="field max-w-md">
               <label htmlFor={motivoId} className="field-label">
                 Motivo de apertura adicional
@@ -465,8 +480,8 @@ function FilasLinea({
       ) : null}
 
       {vencidas.length > 0 ? (
-        <tr>
-          <td colSpan={columnas} className="pb-3 pl-6 pr-3 pt-0.5">
+        <tr className="block md:table-row">
+          <td colSpan={columnas} className="block px-3 pb-3 pt-1 md:table-cell md:pl-6 md:pr-3 md:pt-0.5">
             <LotesVencidos vencidas={vencidas} />
           </td>
         </tr>
@@ -482,14 +497,16 @@ function FilasLinea({
 function FilaExcipiente({ columnas }: { columnas: number }) {
   const { excipiente } = usePesaje();
   if (!excipiente) return null;
+  const tieneElegido = excipiente.opciones.some((o) => o.id === excipiente.drogaId);
 
   return (
-    <tr className="border-t border-zinc-200">
-      <td className="px-3 py-2 align-top font-medium text-zinc-900">Excipiente</td>
-      <td colSpan={columnas - 2} className="px-3 py-2 align-top">
-        <BuscadorExcipiente />
+    <tr className="block border-t border-zinc-200 px-3 py-3 md:table-row md:p-0">
+      <td className="block p-0 pb-1.5 align-top font-medium text-zinc-900 md:table-cell md:px-3 md:py-2">Excipiente</td>
+      <td colSpan={columnas - 2} className="block p-0 align-top md:table-cell md:px-3 md:py-2">
+        <BuscadorExcipiente flotante />
       </td>
-      <td className="px-3 py-2 text-right align-top">
+      <td className={`${tieneElegido ? "block pt-2.5" : "hidden"} p-0 text-left align-top md:table-cell md:px-3 md:py-2 md:text-right`}>
+        <span className="mb-1 block font-sans text-[11px] font-medium uppercase tracking-wider text-zinc-500 md:hidden">Cantidad real pesada</span>
         <CantidadExcipiente />
       </td>
     </tr>
@@ -536,7 +553,7 @@ function CantidadExcipiente() {
   const faltaCantidad = cantidadValida(excipiente.cantidad) === null;
 
   return (
-    <div className="ml-auto flex max-w-[11rem] flex-col items-end gap-1">
+    <div className="flex flex-col items-start gap-1 md:ml-auto md:max-w-[11rem] md:items-end">
       <div className="flex items-center gap-1.5">
         <input
           id={id}
@@ -559,7 +576,7 @@ function CantidadExcipiente() {
         />
         <span className="text-xs text-zinc-500">{elegido.unidadSimbolo}</span>
       </div>
-      <p id={`${id}-ayuda`} className="text-right text-xs text-zinc-500" aria-live="polite">
+      <p id={`${id}-ayuda`} className="text-left text-xs text-zinc-500 md:text-right" aria-live="polite">
         {faltaCantidad ? <span className="block text-amber-700 dark:text-amber-300">Ingresá la cantidad.</span> : null}
         {guardado?.estado === "error" ? <span className="block text-red-700 dark:text-red-300">{guardado.mensaje}</span> : guardado?.estado === "guardando" ? <span className="block">Guardando…</span> : guardado?.estado === "guardado" ? <span className="block">Guardado</span> : null}
       </p>
@@ -595,7 +612,7 @@ function CantidadReal({ linea, pesada }: { linea: LineaPantalla; pesada: PesadaD
   const esMasa = !linea.esEnraseManual && linea.unidad.tipoMagnitud === "MASA";
   const simboloDisplay = esMasa ? "mg" : linea.unidadSimbolo;
   return (
-    <div className="ml-auto flex max-w-[11rem] flex-col items-end gap-1">
+    <div className="flex flex-col items-start gap-1 md:ml-auto md:max-w-[11rem] md:items-end">
       <div className="flex items-center gap-1.5">
         <input
           id={id}
@@ -619,7 +636,7 @@ function CantidadReal({ linea, pesada }: { linea: LineaPantalla; pesada: PesadaD
         />
         <span className="text-xs text-zinc-500">{simboloDisplay}</span>
       </div>
-      <p id={`${id}-ayuda`} className="text-right text-xs text-zinc-500" aria-live="polite">
+      <p id={`${id}-ayuda`} className="text-left text-xs text-zinc-500 md:text-right" aria-live="polite">
         {linea.esEnraseManual ? null : (
           <span className={evaluacion?.fueraDeTolerancia ? "text-amber-700 dark:text-amber-300" : undefined}>
             {evaluacion ? `Desvío ${evaluacion.desvioPorcentaje.greaterThan(0) ? "+" : ""}${formatNumero(evaluacion.desvioPorcentaje.toString())} % (±${formatNumero(datos.pesada.toleranciaPorcentaje)} %)` : null}
@@ -670,9 +687,9 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
       <dialog
         ref={dialogRef}
         aria-labelledby={tituloId}
-        className="card m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-2xl p-0 text-left text-foreground shadow-lg backdrop:bg-black/40 dark:border-zinc-800 dark:bg-zinc-900"
+        className="card m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto p-0 text-left text-foreground shadow-lg backdrop:bg-black/40 dark:border-zinc-800 dark:bg-zinc-900"
       >
-        <div className="flex flex-col gap-4 p-5">
+        <div className="flex flex-col gap-4 p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h2 id={tituloId} className="text-lg font-semibold">
@@ -736,7 +753,7 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
               <li className="flex flex-col gap-2 py-2">
                 <span className="text-xs text-zinc-500">No agregaste el excipiente en la ficha. Si usaste uno, buscalo acá con su cantidad.</span>
                 <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-[12rem] flex-1">
                     <BuscadorExcipiente flotante />
                   </div>
                   <CantidadExcipiente />

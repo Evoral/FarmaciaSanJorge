@@ -463,15 +463,18 @@ function CalendarBody({
 function computePosition(anchor: HTMLElement | null, container: HTMLElement | null): { left: number; top?: number; bottom?: number } {
   if (!anchor) return { left: 0 };
   const rect = anchor.getBoundingClientRect();
-  const left = Math.max(8, Math.min(rect.left, window.innerWidth - POPOVER_WIDTH - 8));
-  const fitsBelow = rect.bottom + GAP + POPOVER_MAX_HEIGHT <= window.innerHeight;
+  const vw = Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth);
+  const vh = window.visualViewport?.height ?? window.innerHeight;
+  const left = Math.max(8, Math.min(rect.left, vw - POPOVER_WIDTH - 8));
+  const fitsBelow = rect.bottom + GAP + POPOVER_MAX_HEIGHT <= vh;
   const fitsAbove = rect.top - GAP - POPOVER_MAX_HEIGHT >= 0;
+  const clampedTop = Math.max(8, Math.min(rect.bottom + GAP, vh - POPOVER_MAX_HEIGHT - 8));
   const origin = fixedContainingBlockOrigin(container);
   if (!origin) {
-    return !fitsBelow && fitsAbove ? { left, bottom: window.innerHeight - rect.top + GAP } : { left, top: rect.bottom + GAP };
+    return !fitsBelow && fitsAbove ? { left, bottom: window.innerHeight - rect.top + GAP } : { left, top: fitsBelow ? rect.bottom + GAP : clampedTop };
   }
   const x = left - origin.left;
-  return !fitsBelow && fitsAbove ? { left: x, top: rect.top - GAP - POPOVER_MAX_HEIGHT - origin.top } : { left: x, top: rect.bottom + GAP - origin.top };
+  return !fitsBelow && fitsAbove ? { left: x, top: rect.top - GAP - POPOVER_MAX_HEIGHT - origin.top } : { left: x, top: (fitsBelow ? rect.bottom + GAP : clampedTop) - origin.top };
 }
 
 /** The viewport offset of `container`'s padding box when it is the containing block of its fixed descendants, else null. */

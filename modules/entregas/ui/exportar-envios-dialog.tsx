@@ -17,7 +17,7 @@ import { DateInput } from "@/shared/ui/date-input";
 import { buscarRepartidoresParaCombobox } from "@/modules/repartidores/ui/repartidor-search";
 
 const CLASE_DIALOG =
-  "card m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-md overflow-visible p-0 text-left text-foreground shadow-lg backdrop:bg-black/40 dark:border-zinc-800 dark:bg-zinc-900";
+  "card fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-x-hidden overflow-y-auto p-0 text-left text-foreground shadow-lg backdrop:bg-black/40 dark:border-zinc-800 dark:bg-zinc-900";
 
 /** Active and inactive repartidores: an inactive one can still have pending envíos (E3). */
 const buscarRepartidores = buscarRepartidoresParaCombobox(false);
@@ -70,7 +70,7 @@ export function ExportarEnviosDialog({ fechaHoy }: ExportarEnviosDialogProps) {
         Exportar envíos
       </button>
       <dialog ref={dialogRef} aria-labelledby={tituloId} onPointerDown={alPresionar} onClick={alHacerClick} className={CLASE_DIALOG}>
-        <div className="p-5">
+        <div tabIndex={-1} autoFocus className="p-4 outline-none sm:p-5">
           <h2 id={tituloId} className="text-lg font-semibold">
             Exportar envíos
           </h2>
@@ -83,6 +83,7 @@ export function ExportarEnviosDialog({ fechaHoy }: ExportarEnviosDialogProps) {
               search={buscarRepartidores}
               value={repartidor}
               onChange={setRepartidor}
+              floating
               helperText="Los repartidores inactivos aparecen marcados: pueden tener envíos pendientes."
             />
 

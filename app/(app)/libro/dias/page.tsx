@@ -90,13 +90,13 @@ export default async function LibroDiasPage({ searchParams }: LibroDiasPageProps
                   <th scope="col" className="px-3 py-2">
                     Fecha
                   </th>
-                  <th scope="col" className="px-3 py-2 text-right">
+                  <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
                     Asientos
                   </th>
-                  <th scope="col" className="px-3 py-2">
+                  <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                     Firma
                   </th>
-                  <th scope="col" className="px-3 py-2">
+                  <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                     Impresión
                   </th>
                   <th scope="col" className="px-3 py-2">
@@ -107,24 +107,36 @@ export default async function LibroDiasPage({ searchParams }: LibroDiasPageProps
               <tbody>
                 {result.items.map((dia) => (
                   <tr key={dia.fecha}>
-                    <td className="whitespace-nowrap px-3 py-2.5 font-medium tabular-nums">{formatFechaIso(dia.fecha)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{dia.asientos}</td>
                     <td className="px-3 py-2.5">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <span className="whitespace-nowrap font-medium text-zinc-900 tabular-nums">{formatFechaIso(dia.fecha)}</span>
+                        <span className="whitespace-nowrap text-xs text-zinc-500 tabular-nums sm:hidden">
+                          · {dia.asientos} {dia.asientos === 1 ? "asiento" : "asientos"}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 sm:hidden">
+                        <ToneBadge tone={TONO[dia.estado]}>{ESTADO_JORNADA_LIBRO_LABELS[dia.estado]}</ToneBadge>
+                        {dia.cierreId ? <ToneBadge tone={dia.impresa ? "success" : "warn"}>{dia.impresa ? "Impresa" : "Sin imprimir"}</ToneBadge> : null}
+                      </div>
+                    </td>
+                    <td className="hidden px-3 py-2.5 text-right tabular-nums sm:table-cell">{dia.asientos}</td>
+                    <td className="hidden px-3 py-2.5 sm:table-cell">
                       <ToneBadge tone={TONO[dia.estado]}>{ESTADO_JORNADA_LIBRO_LABELS[dia.estado]}</ToneBadge>
                     </td>
-                    <td className="px-3 py-2.5">{dia.cierreId ? <ToneBadge tone={dia.impresa ? "success" : "warn"}>{dia.impresa ? "Impresa" : "Sin imprimir"}</ToneBadge> : <span className="text-zinc-400">—</span>}</td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex flex-wrap items-center justify-end gap-2">
+                    <td className="hidden px-3 py-2.5 sm:table-cell">{dia.cierreId ? <ToneBadge tone={dia.impresa ? "success" : "warn"}>{dia.impresa ? "Impresa" : "Sin imprimir"}</ToneBadge> : <span className="text-zinc-400">—</span>}</td>
+                    <td className="px-3 py-2.5 text-right">
+                      <div className="flex items-center justify-end gap-1.5 sm:flex-wrap sm:gap-2">
                         {dia.cierreId && puedeImprimir ? (
                           puedeImprimirJornada(dia.fecha, result.primerSinImprimir) ? (
                             <ImprimirHojaLink cierreId={dia.cierreId} className="btn btn-secondary btn-sm">
                               <Printer className="size-4" aria-hidden />
-                              {dia.impresa ? "Reimprimir hoja" : "Imprimir hoja"}
+                              {dia.impresa ? "Reimprimir" : "Imprimir"}
+                              <span className="sr-only sm:not-sr-only"> hoja</span>
                             </ImprimirHojaLink>
                           ) : (
                             <button type="button" disabled title={mensajeImpresionFueraDeOrden(result.primerSinImprimir!)} className="btn btn-secondary btn-sm">
                               <Printer className="size-4" aria-hidden />
-                              Imprimir hoja
+                              Imprimir<span className="sr-only sm:not-sr-only"> hoja</span>
                             </button>
                           )
                         ) : null}

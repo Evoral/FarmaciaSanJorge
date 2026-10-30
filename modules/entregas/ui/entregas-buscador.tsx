@@ -109,7 +109,7 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion, fil
   }, [estado, numero, ingresoDesde, ingresoHasta]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 max-w-full flex-col gap-4">
       <form ref={formRef} action={formAction} onSubmit={onSubmit} aria-label="Filtrar entregas pendientes" aria-busy={isPending} hidden>
         <input ref={qRef} type="hidden" name="q" defaultValue="" />
         <input type="hidden" name="estado" value={estado} readOnly />
@@ -119,7 +119,7 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion, fil
       </form>
 
       <div className="filter-bar">
-        <div className="min-w-0 flex-1 md:w-96 md:flex-none">
+        <div className="w-full min-w-0 md:w-96 md:flex-none">
           <Combobox
             id="entregas-paciente"
             label="Buscar por paciente"
@@ -185,7 +185,7 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion, fil
             <table className="data-table">
               <thead>
                 <tr>
-                  <th scope="col" className="px-3 py-2">
+                  <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                     Nº
                   </th>
                   <th scope="col" className="px-3 py-2">
@@ -194,7 +194,7 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion, fil
                   <th scope="col" className="hidden px-3 py-2 md:table-cell">
                     Médico
                   </th>
-                  <th scope="col" className="px-3 py-2">
+                  <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                     Estado
                   </th>
                   {mostrarPrecio ? (
@@ -202,10 +202,10 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion, fil
                       Precio
                     </th>
                   ) : null}
-                  <th scope="col" className="px-3 py-2">
+                  <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                     Pago
                   </th>
-                  <th scope="col" className="px-3 py-2">
+                  <th scope="col" className="w-8 px-1.5 py-2 sm:w-auto sm:px-3">
                     <span className="sr-only">Acciones</span>
                   </th>
                 </tr>
@@ -215,28 +215,50 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion, fil
                   const paciente = `${r.pacienteNombre} ${r.pacienteApellido}`;
                   return (
                     <tr key={r.id}>
-                      <td className="px-3 py-2.5">
+                      <td className="hidden px-3 py-2.5 sm:table-cell">
                         <Link href={`/entregas/${r.id}`} className="font-mono font-semibold underline-offset-2 hover:underline">
                           {r.numeroInterno}
                         </Link>
                       </td>
                       <td className="px-3 py-2.5">
                         <span className="flex min-w-0 items-center gap-2.5">
-                          <Avatar name={paciente} />
+                          <span className="hidden sm:inline-flex">
+                            <Avatar name={paciente} />
+                          </span>
                           <span className="min-w-0">
-                            <span className="block max-w-[16rem] truncate font-medium text-zinc-900" title={paciente}>
-                              {paciente}
+                            <span className="flex min-w-0 items-baseline gap-1.5">
+                              <Link href={`/entregas/${r.id}`} className="shrink-0 font-mono text-xs font-semibold underline-offset-2 hover:underline sm:hidden">
+                                #{r.numeroInterno}
+                              </Link>
+                              <span className="block max-w-[12rem] truncate font-medium text-zinc-900 sm:max-w-[16rem]" title={paciente}>
+                                {paciente}
+                              </span>
                             </span>
-                            <span className="block max-w-[12rem] truncate text-xs text-zinc-500 md:hidden" title={`${r.medicoApellido}, ${r.medicoNombre}`}>
+                            <span className="block max-w-[14rem] truncate text-xs text-zinc-500 sm:max-w-[12rem] md:hidden" title={`${r.medicoApellido}, ${r.medicoNombre}`}>
                               {r.medicoApellido}, {r.medicoNombre}
                             </span>
+                            <span className="mt-1 flex flex-wrap items-center gap-1 sm:hidden">
+                              <StatusBadge estado={r.estado} />
+                              <ToneBadge tone={r.pagada ? "success" : "warn"}>{r.pagada ? "Pagada" : "Impaga"}</ToneBadge>
+                              {mostrarPrecio && r.precio !== null ? (
+                                <span className="font-mono text-xs text-zinc-600 tabular-nums">
+                                  $ {formatearMonto(r.precio)}
+                                  {r.precioIncompleto ? " (parcial)" : ""}
+                                </span>
+                              ) : null}
+                            </span>
+                            {r.estado === "ENVIADA_PEND_FIRMA" && typeof r.diasEsperandoFirma === "number" ? (
+                              <span className="mt-0.5 block text-xs text-amber-700 sm:hidden" title="Días desde el envío sin la firma de recepción">
+                                {textoEsperandoFirma(r.diasEsperandoFirma)}
+                              </span>
+                            ) : null}
                           </span>
                         </span>
                       </td>
                       <td className="hidden px-3 py-2.5 md:table-cell">
                         {r.medicoApellido}, {r.medicoNombre}
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="hidden px-3 py-2.5 sm:table-cell">
                         <StatusBadge estado={r.estado} />
                         {r.estado === "ENVIADA_PEND_FIRMA" && typeof r.diasEsperandoFirma === "number" ? (
                           <span className="mt-1 block text-xs text-amber-700" title="Días desde el envío sin la firma de recepción">
@@ -260,11 +282,11 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion, fil
                           )}
                         </td>
                       ) : null}
-                      <td className="px-3 py-2.5">
+                      <td className="hidden px-3 py-2.5 sm:table-cell">
                         <ToneBadge tone={r.pagada ? "success" : "warn"}>{r.pagada ? "Pagada" : "Impaga"}</ToneBadge>
                       </td>
-                      <td className="px-3 py-2.5 text-right">
-                        <Link href={`/entregas/${r.id}`} aria-label={`Gestionar la entrega de la receta Nº ${r.numeroInterno}`} className="btn btn-ghost btn-sm">
+                      <td className="w-8 px-1.5 py-2.5 text-right sm:w-auto sm:px-3">
+                        <Link href={`/entregas/${r.id}`} aria-label={`Gestionar la entrega de la receta Nº ${r.numeroInterno}`} className="btn btn-ghost btn-sm btn-icon sm:px-2">
                           <span className="hidden sm:inline">{etiquetaAccion(r.estado)}</span>
                           <ChevronRight className="size-3.5" aria-hidden />
                         </Link>

@@ -223,13 +223,13 @@ export async function AjustesListado({ params, basePath, breadcrumbs, title = "A
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       Fecha
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="px-2.5 py-2 sm:px-3">
                       Droga
                     </th>
-                    <th scope="col" className="px-3 py-2 text-right">
+                    <th scope="col" className="px-2.5 py-2 text-right sm:px-3">
                       Cantidad
                     </th>
                     <th scope="col" className="hidden px-3 py-2 sm:table-cell">
@@ -241,60 +241,66 @@ export async function AjustesListado({ params, basePath, breadcrumbs, title = "A
                     <th scope="col" className="hidden px-3 py-2 lg:table-cell">
                       Registrado / autorizado (DT)
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="px-2 py-2 sm:px-3">
                       <span className="sr-only">Acciones</span>
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {result.items.map((ajuste) => (
-                    <tr key={ajuste.id}>
-                      <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">{formatFechaHora(ajuste.registradoEn, result.zonaHoraria)}</td>
-                      <td className="px-3 py-2.5">
-                        <span className="block font-medium text-zinc-900">{ajuste.drogaNombre}</span>
-                        <span className="block text-xs text-zinc-500">
-                          Lote <span className="font-mono">{ajuste.lote}</span>
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">
-                        <Cantidad valor={formatCantidad(ajuste.cantidad, { id: ajuste.unidadId, simbolo: ajuste.unidadSimbolo }, catalogo)} />
-                      </td>
-                      <td className="hidden px-3 py-2.5 sm:table-cell">
-                        <ToneBadge tone="neutral">{MOTIVO_AJUSTE_LABELS[ajuste.motivoAjuste] ?? ajuste.motivoAjuste}</ToneBadge>
-                      </td>
-                      <td className="hidden px-3 py-2.5 xl:table-cell">
-                        {ajuste.observacion ? (
-                          <span title={ajuste.observacion} className="block max-w-xs truncate text-zinc-700">
-                            {ajuste.observacion}
+                  {result.items.map((ajuste) => {
+                    const fechaHora = formatFechaHora(ajuste.registradoEn, result.zonaHoraria);
+                    const motivoLabel = MOTIVO_AJUSTE_LABELS[ajuste.motivoAjuste] ?? ajuste.motivoAjuste;
+                    return (
+                      <tr key={ajuste.id}>
+                        <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums sm:table-cell">{fechaHora}</td>
+                        <td className="px-2.5 py-2.5 sm:px-3">
+                          <span className="block font-medium text-zinc-900">{ajuste.drogaNombre}</span>
+                          <span className="block text-xs text-zinc-500">
+                            Lote <span className="font-mono">{ajuste.lote}</span>
+                            <span className="sm:hidden"> · {motivoLabel}</span>
                           </span>
-                        ) : (
-                          <span className="text-zinc-400">
-                            -<span className="sr-only">Sin observación</span>
+                          <span className="block text-xs text-zinc-400 tabular-nums sm:hidden">{fechaHora}</span>
+                        </td>
+                        <td className="whitespace-nowrap px-2.5 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums sm:px-3">
+                          <Cantidad valor={formatCantidad(ajuste.cantidad, { id: ajuste.unidadId, simbolo: ajuste.unidadSimbolo }, catalogo)} />
+                        </td>
+                        <td className="hidden px-3 py-2.5 sm:table-cell">
+                          <ToneBadge tone="neutral">{motivoLabel}</ToneBadge>
+                        </td>
+                        <td className="hidden px-3 py-2.5 xl:table-cell">
+                          {ajuste.observacion ? (
+                            <span title={ajuste.observacion} className="block max-w-xs truncate text-zinc-700">
+                              {ajuste.observacion}
+                            </span>
+                          ) : (
+                            <span className="text-zinc-400">
+                              -<span className="sr-only">Sin observación</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="hidden px-3 py-2.5 text-xs lg:table-cell">
+                          <span className="block text-zinc-900">
+                            {ajuste.registradoPorNombre} {ajuste.registradoPorApellido}
                           </span>
-                        )}
-                      </td>
-                      <td className="hidden px-3 py-2.5 text-xs lg:table-cell">
-                        <span className="block text-zinc-900">
-                          {ajuste.registradoPorNombre} {ajuste.registradoPorApellido}
-                        </span>
-                        {ajuste.autorizadoPorNombre ? (
-                          <span className="block text-zinc-500">
-                            Autorizó {ajuste.autorizadoPorNombre} {ajuste.autorizadoPorApellido}
-                          </span>
-                        ) : null}
-                      </td>
-                      <td className="px-3 py-2.5 text-right">
-                        <Link
-                          href={`/partidas/${ajuste.partidaId}`}
-                          aria-label={`Ver detalle de la partida ${ajuste.lote} de ${ajuste.drogaNombre}`}
-                          className="btn btn-ghost btn-sm"
-                        >
-                          <span className="hidden sm:inline">Partida</span>
-                          <ChevronRight className="size-3.5" aria-hidden />
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
+                          {ajuste.autorizadoPorNombre ? (
+                            <span className="block text-zinc-500">
+                              Autorizó {ajuste.autorizadoPorNombre} {ajuste.autorizadoPorApellido}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="px-2 py-2.5 text-right sm:px-3">
+                          <Link
+                            href={`/partidas/${ajuste.partidaId}`}
+                            aria-label={`Ver detalle de la partida ${ajuste.lote} de ${ajuste.drogaNombre}`}
+                            className="btn btn-ghost btn-sm"
+                          >
+                            <span className="hidden sm:inline">Partida</span>
+                            <ChevronRight className="size-3.5" aria-hidden />
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -151,6 +151,20 @@ export function SidebarNav(props: SidebarNavProps) {
     else if (target === "collapse-button") collapseButtonRef.current?.focus();
   }, [collapsed]);
 
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenedAt(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
   function collapseSidebar() {
     focusAfterToggle.current = "expand-button";
     props.onCollapsedChange(true);
@@ -167,10 +181,10 @@ export function SidebarNav(props: SidebarNavProps) {
     <>
       {/* Mobile top bar */}
       <div className="glass sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-zinc-200/70 px-4 lg:hidden dark:border-zinc-800/70">
-        <button type="button" onClick={() => setOpen(true)} aria-label="Abrir menú" aria-expanded={open} aria-controls="app-sidebar" className="glass-icon-btn -ml-1.5">
+        <button type="button" onClick={() => setOpen(true)} aria-label="Abrir menú" aria-expanded={open} aria-controls="app-sidebar" className="glass-icon-btn -ml-1.5 shrink-0">
           <Menu className="size-5" aria-hidden />
         </button>
-        <Brand farmacia={props.farmacia} logoSrc={props.logoSrc} />
+        <Brand farmacia={props.farmacia} logoSrc={props.logoSrc} compact />
       </div>
 
       {open ? <div className="fixed inset-0 z-40 bg-zinc-900/30 lg:hidden" onClick={() => setOpen(false)} aria-hidden /> : null}
@@ -233,8 +247,22 @@ export function SidebarNav(props: SidebarNavProps) {
   );
 }
 
-/** The farmacia's logo, large and centered, with its name below it. */
-function Brand({ farmacia, logoSrc }: { farmacia: string | null; logoSrc: string | null }) {
+/** The farmacia's logo, large and centered in the sidebar, or logo-only in the mobile top bar (`compact`). */
+function Brand({ farmacia, logoSrc, compact = false }: { farmacia: string | null; logoSrc: string | null; compact?: boolean }) {
+  if (compact) {
+    return (
+      <Link href="/" title={farmacia ?? undefined} aria-label={farmacia ?? "Inicio"} className="flex min-w-0 items-center">
+        <span className={`flex h-10 shrink-0 items-center justify-center rounded-md dark:bg-white ${logoSrc ? "w-36" : "w-10"}`}>
+          {logoSrc ? (
+            <Image src={logoSrc} alt="" width={144} height={40} unoptimized priority className="size-full object-contain object-left" />
+          ) : (
+            <Image src="/logo.png" alt="" width={36} height={36} priority className="size-9 object-contain" />
+          )}
+        </span>
+      </Link>
+    );
+  }
+
   return (
     <Link href="/" title={farmacia ?? undefined} className="flex min-w-0 max-w-full flex-col items-center gap-2 text-center">
       {/* Wide box: a horizontal logo (wordmark) fills the width instead of shrinking to a square's. */}

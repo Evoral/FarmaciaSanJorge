@@ -235,13 +235,13 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
                     <th scope="col" className="hidden px-3 py-2 md:table-cell">
                       Control
                     </th>
-                    <th scope="col" className="px-3 py-2 text-right">
+                    <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
                       Disponible
                     </th>
                     <th scope="col" className="hidden px-3 py-2 text-right lg:table-cell">
                       Mínimo
                     </th>
-                    <th scope="col" className="px-3 py-2">
+                    <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                       Estado
                     </th>
                     <th scope="col" className="px-3 py-2">
@@ -257,15 +257,23 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
                     return (
                       <tr key={droga.id}>
                         <td className="px-3 py-2.5">
-                          <Link href={`/catalogos/drogas/${droga.id}`} className="font-medium text-zinc-900 underline-offset-2 hover:underline">
-                            {droga.nombre}
-                          </Link>
-                          {droga.clase !== "DROGA" ? (
-                            <>
-                              {" "}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Link href={`/catalogos/drogas/${droga.id}`} className="font-medium text-zinc-900 underline-offset-2 hover:underline">
+                              {droga.nombre}
+                            </Link>
+                            <span className="sm:hidden">
+                              <ToneBadge tone={droga.fechaBaja ? "neutral" : "success"}>{droga.fechaBaja ? "Baja" : "Vigente"}</ToneBadge>
+                            </span>
+                            {droga.clase !== "DROGA" ? (
                               <ToneBadge tone="neutral">{CLASE_DROGA_LABELS[droga.clase]}</ToneBadge>
-                            </>
-                          ) : null}
+                            ) : null}
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs sm:hidden">
+                            <span className={bajoElMinimo ? "font-semibold text-red-700" : "font-mono text-zinc-700"}>
+                              Disp: <Cantidad valor={disponible!} />
+                            </span>
+                            {droga.tipoControl !== "NINGUNO" ? <span className="text-zinc-500">· {control}</span> : null}
+                          </div>
                           {droga.sinonimos.length > 0 ? (
                             <span className="block max-w-xs truncate text-xs text-zinc-400" title={`Otros nombres: ${droga.sinonimos.join(", ")}`}>
                               <span aria-hidden>≈ </span>
@@ -273,17 +281,17 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
                               {droga.sinonimos.join(", ")}
                             </span>
                           ) : null}
-                          {droga.tipoControl !== "NINGUNO" ? <span className="block text-xs text-zinc-500 md:hidden">{control}</span> : null}
+                          {droga.tipoControl !== "NINGUNO" ? <span className="hidden text-xs text-zinc-500 sm:block md:hidden">{control}</span> : null}
                         </td>
                         <td className="hidden px-3 py-2.5 font-mono sm:table-cell">{droga.unidadBaseSimbolo}</td>
                         <td className="hidden px-3 py-2.5 md:table-cell">{droga.tipoControl !== "NINGUNO" ? <ToneBadge tone="neutral">{control}</ToneBadge> : <span className="text-zinc-500">{control}</span>}</td>
-                        <td className={`whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums ${bajoElMinimo ? "font-semibold text-red-700" : "text-zinc-900"}`}>
+                        <td className={`hidden whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums sm:table-cell ${bajoElMinimo ? "font-semibold text-red-700" : "text-zinc-900"}`}>
                           <Cantidad valor={disponible!} />
                         </td>
                         <td className="hidden whitespace-nowrap px-3 py-2.5 text-right font-mono text-zinc-500 tabular-nums lg:table-cell">
                           <Cantidad valor={minimo!} />
                         </td>
-                        <td className="px-3 py-2.5">
+                        <td className="hidden px-3 py-2.5 sm:table-cell">
                           <ToneBadge tone={droga.fechaBaja ? "neutral" : "success"}>{droga.fechaBaja ? "Baja" : "Vigente"}</ToneBadge>
                         </td>
                         <td className="px-3 py-2.5 text-right">

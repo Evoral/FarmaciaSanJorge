@@ -62,6 +62,7 @@ export function FilterMultiSelect({ options, label = "Filtros" }: FilterMultiSel
     if (!open) return;
     function onPointerDown(event: PointerEvent) {
       const details = detailsRef.current;
+      if (details?.closest(".filter-drawer-panel[data-open]")) return;
       if (details && !details.contains(event.target as Node)) details.open = false;
     }
     document.addEventListener("pointerdown", onPointerDown);
@@ -89,6 +90,7 @@ export function FilterMultiSelect({ options, label = "Filtros" }: FilterMultiSel
 
   function onBlur(event: FocusEvent<HTMLDetailsElement>) {
     const next = event.relatedTarget as Node | null;
+    if (detailsRef.current?.closest(".filter-drawer-panel[data-open]")) return;
     if (next && !detailsRef.current?.contains(next)) close(false);
   }
 

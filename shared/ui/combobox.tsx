@@ -138,7 +138,13 @@ function usePosicionFlotante(controlRef: RefObject<HTMLDivElement | null>, activ
     if (!activa) return;
     function ubicar() {
       const rect = controlRef.current?.getBoundingClientRect();
-      if (rect) setPosicion({ position: "fixed", top: rect.bottom + 6, left: rect.left, width: rect.width, right: "auto" });
+      if (!rect) return;
+      const vw = document.documentElement.clientWidth || window.innerWidth;
+      const vh = window.visualViewport?.height ?? window.innerHeight;
+      const width = Math.min(rect.width, vw - 16);
+      const left = Math.max(8, Math.min(rect.left, vw - width - 8));
+      const maxHeight = Math.max(120, vh - rect.bottom - 14);
+      setPosicion({ position: "fixed", top: rect.bottom + 6, left, width, right: "auto", maxHeight, overflowY: "auto" });
     }
     ubicar();
     window.addEventListener("scroll", ubicar, true);

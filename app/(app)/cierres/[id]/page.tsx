@@ -84,14 +84,14 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
             {cierre.asientosRecetario.length === 0 ? (
               <EmptyState icon={<BookOpen className="size-5" />} title="Sin asientos de recetario en esta jornada" />
             ) : (
-              <div className="overflow-x-auto">
+              <div className="table-wrap">
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th scope="col" className="px-5 py-2">
+                      <th scope="col" className="px-3 py-2 sm:px-5">
                         Nº
                       </th>
-                      <th scope="col" className="px-3 py-2">
+                      <th scope="col" className="hidden px-3 py-2 sm:table-cell">
                         Estado
                       </th>
                       <th scope="col" className="px-3 py-2">
@@ -108,13 +108,16 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
                   <tbody>
                     {cierre.asientosRecetario.map((a) => (
                       <tr key={a.numeroCorrelativo} className="align-top">
-                        <td className="px-5 py-2.5 font-mono font-semibold text-zinc-900 tabular-nums">{a.numeroCorrelativo}</td>
-                        <td className="px-3 py-2.5">
+                        <td className="px-3 py-2.5 font-mono font-semibold text-zinc-900 tabular-nums sm:px-5">{a.numeroCorrelativo}</td>
+                        <td className="hidden px-3 py-2.5 sm:table-cell">
                           <ToneBadge tone="neutral">{a.estadoVisual}</ToneBadge>
                         </td>
                         <td className="px-3 py-2.5 text-zinc-900">
                           {a.pacienteTexto}
                           <span className="block text-xs text-zinc-500 md:hidden">{a.medicoTexto}</span>
+                          <span className="mt-1 block sm:hidden">
+                            <ToneBadge tone="neutral">{a.estadoVisual}</ToneBadge>
+                          </span>
                         </td>
                         <td className="hidden px-3 py-2.5 md:table-cell">{a.medicoTexto}</td>
                         <td className="hidden max-w-[36ch] px-5 py-2.5 text-zinc-700 lg:table-cell">{a.formulaTexto}</td>
@@ -135,11 +138,11 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
             {cierre.asientosContralor.length === 0 ? (
               <EmptyState icon={<BookOpen className="size-5" />} title="Sin asientos de contralor en esta jornada" />
             ) : (
-              <div className="overflow-x-auto">
+              <div className="table-wrap">
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th scope="col" className="px-5 py-2">
+                      <th scope="col" className="hidden px-5 py-2 sm:table-cell">
                         Nº
                       </th>
                       <th scope="col" className="hidden px-3 py-2 md:table-cell">
@@ -154,7 +157,7 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
                       <th scope="col" className="px-3 py-2 text-right">
                         Cantidad
                       </th>
-                      <th scope="col" className="px-5 py-2 text-right">
+                      <th scope="col" className="hidden px-5 py-2 text-right sm:table-cell">
                         Saldo
                       </th>
                     </tr>
@@ -162,9 +165,10 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
                   <tbody>
                     {cierre.asientosContralor.map((a, i) => (
                       <tr key={`${a.tipoLibro}-${a.numeroCorrelativo}-${i}`}>
-                        <td className="px-5 py-2.5 font-mono font-semibold text-zinc-900 tabular-nums">{a.numeroCorrelativo}</td>
+                        <td className="hidden px-5 py-2.5 font-mono font-semibold text-zinc-900 tabular-nums sm:table-cell">{a.numeroCorrelativo}</td>
                         <td className="hidden px-3 py-2.5 md:table-cell">{etiquetaDe(TIPO_LIBRO_LABELS, a.tipoLibro)}</td>
                         <td className="px-3 py-2.5 text-zinc-900">
+                          <span className="mb-0.5 block font-mono text-xs font-semibold text-zinc-900 tabular-nums sm:hidden">Nº {a.numeroCorrelativo}</span>
                           <span className="line-clamp-2 block max-w-xs break-words" title={a.drogaDescripcion}>
                             {a.drogaDescripcion}
                           </span>
@@ -177,8 +181,13 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
                         <td className="hidden px-3 py-2.5 sm:table-cell">
                           <ToneBadge tone="neutral">{etiquetaDe(TIPO_MOVIMIENTO_CONTRALOR_LABELS, a.tipoMovimiento)}</ToneBadge>
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">{a.cantidad}</td>
-                        <td className="whitespace-nowrap px-5 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">{a.saldoPosterior}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">
+                          {a.cantidad}
+                          <span className="mt-0.5 block font-sans text-xs text-zinc-500 sm:hidden">
+                            Saldo: <span className="font-mono font-medium text-zinc-900">{a.saldoPosterior}</span>
+                          </span>
+                        </td>
+                        <td className="hidden whitespace-nowrap px-5 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums sm:table-cell">{a.saldoPosterior}</td>
                       </tr>
                     ))}
                   </tbody>

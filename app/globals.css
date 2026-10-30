@@ -110,6 +110,11 @@
 }
 
 @layer base {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: clip;
+  }
   body {
     background: var(--background);
     color: var(--foreground);
@@ -161,6 +166,7 @@
   .page {
     width: 100%;
     max-width: 80rem;
+    min-width: 0;
     padding: 1.5rem 1rem 3rem;
   }
   @media (min-width: 640px) {
@@ -262,6 +268,8 @@
 
   /* Form controls. */
   .input {
+    min-width: 0;
+    max-width: 100%;
     border: 1px solid var(--color-zinc-300);
     border-radius: var(--radius-md);
     background: var(--surface);
@@ -309,6 +317,9 @@
     background-position: right 0.625rem center;
     background-repeat: no-repeat;
     background-size: 1rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     cursor: pointer;
   }
   select.input:disabled {
@@ -348,6 +359,7 @@
     /* The open list: same floating surface as .popover. */
     select.input::picker(select) {
       margin-block: 6px;
+      max-width: calc(100vw - 2rem);
       max-height: min(18rem, 50dvh);
       min-width: anchor-size(width);
       overflow-y: auto;
@@ -388,7 +400,7 @@
       padding: 0.4375rem 0.5rem;
       font-size: 0.8125rem;
       color: var(--color-zinc-800);
-      white-space: nowrap;
+      white-space: normal;
       cursor: pointer;
       transition: background-color var(--duration-fast) ease;
     }
@@ -425,6 +437,8 @@
 
   /* Surfaces. */
   .card {
+    min-width: 0;
+    max-width: 100%;
     border: 1px solid var(--color-zinc-200);
     border-radius: var(--radius-lg);
     background: var(--surface);
@@ -432,6 +446,10 @@
 
   /* Data tables. */
   .table-wrap {
+    width: 100%;
+    contain: inline-size;
+    min-width: 0;
+    max-width: 100%;
     overflow-x: auto;
     border: 1px solid var(--color-zinc-200);
     border-radius: var(--radius-md);
@@ -627,6 +645,7 @@
     transform: rotate(180deg);
   }
   .filter-select-menu {
+    max-width: calc(100vw - 2rem);
     position: absolute;
     z-index: 40;
     top: calc(100% + 6px);
@@ -1009,6 +1028,10 @@
     background-color: var(--tone);
   }
   .status-tabs {
+    width: 100%;
+    contain: inline-size;
+    min-width: 0;
+    max-width: 100%;
     display: flex;
     overflow-x: auto;
     scroll-snap-type: x proximity;
@@ -1122,12 +1145,16 @@
 
   /* Filter bar. */
   .filter-bar {
+    min-width: 0;
+    max-width: 100%;
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
     gap: 0.75rem;
   }
   .field {
+    min-width: 0;
+    max-width: 100%;
     display: flex;
     flex-direction: column;
     gap: 0.375rem;
@@ -1152,6 +1179,8 @@
     color: var(--color-zinc-500);
   }
   .search-field {
+    width: 100%;
+    min-width: 0;
     position: relative;
     display: flex;
     align-items: center;
@@ -1326,11 +1355,34 @@
     .filter-drawer-panel .combobox {
       width: 100%;
     }
-    .filter-drawer-panel .range-field > .date-input {
+    .filter-bar > .flex-1,
+    .filter-bar > form.contents > .flex-1 {
+      flex-basis: 11rem;
+    }
+    .filter-bar .range-field {
+      width: 100%;
+    }
+    .filter-bar .range-field > .date-input,
+    .filter-drawer-panel .range-field > .date-input,
+    .filter-drawer-panel .range-field > .input {
       width: auto;
       min-width: 0;
       flex: 1;
     }
+    .filter-drawer-panel .filter-select::details-content {
+      display: contents;
+      content-visibility: visible;
+    }
+    .filter-drawer-panel .filter-select-menu {
+      position: static;
+      display: flex;
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      padding: 0;
+      box-shadow: none;
+    }
+    .filter-drawer-panel .filter-select-button,
     .filter-drawer-panel .filter-popover-trigger {
       display: none;
     }
@@ -1412,6 +1464,9 @@
     color: var(--color-ink);
   }
   .option-description {
+    max-width: 55%;
+    overflow: hidden;
+    text-overflow: ellipsis;
     margin-left: auto;
     font-family: var(--font-mono), ui-monospace, monospace;
     font-size: 0.6875rem;
@@ -1423,6 +1478,7 @@
   .menu {
     position: fixed;
     z-index: 60;
+    width: auto;
     min-width: 11rem;
   }
   .menu-item {
@@ -1465,11 +1521,14 @@
 
   /* List panel: toolbar + table + pagination in one surface. */
   .list-panel {
+    min-width: 0;
+    max-width: 100%;
     border: 1px solid var(--color-zinc-200);
     border-radius: var(--radius-lg);
     background: var(--surface);
   }
-  .list-panel .table-wrap {
+  .list-panel .table-wrap,
+  .panel .table-wrap {
     border: 0;
     border-radius: 0;
   }
@@ -1610,6 +1669,8 @@
   /* Pending results: FilterForm sets aria-busy while its navigation runs. */
   .list-region {
     position: relative;
+    min-width: 0;
+    max-width: 100%;
     transition: opacity var(--duration-base) ease;
   }
   .list-view:has(form[aria-busy="true"]) .list-region {
@@ -1687,6 +1748,10 @@
 
   /* Link tabs (shared/ui/tab-nav.tsx). */
   .tab-nav {
+    width: 100%;
+    contain: inline-size;
+    min-width: 0;
+    max-width: 100%;
     display: flex;
     gap: 0.25rem;
     margin-bottom: 1.25rem;
@@ -1771,6 +1836,8 @@
     }
   }
   .panel {
+    min-width: 0;
+    max-width: 100%;
     border: 1px solid var(--color-zinc-200);
     border-radius: var(--radius-lg);
     background-color: var(--surface);
@@ -2008,6 +2075,8 @@
   .notice-bar-item {
     display: flex;
     align-items: baseline;
+    min-width: 0;
+    flex-wrap: wrap;
     gap: 0.125rem 0.5rem;
   }
   .notice-bar-dot {
@@ -2088,6 +2157,20 @@
     background-color: var(--color-ink);
     color: #fff;
   }
+  @media (max-width: 639px) {
+    .stepper {
+      flex-wrap: nowrap;
+      gap: 0.375rem;
+    }
+    .stepper > li {
+      gap: 0.375rem;
+      white-space: nowrap;
+    }
+    .stepper > li + li::before {
+      width: 0.75rem;
+      margin-right: 0;
+    }
+  }
   .stepper a:hover {
     color: var(--color-zinc-900);
     text-decoration: underline;
@@ -2149,6 +2232,12 @@
     color: inherit;
     transition: background-color var(--duration-fast) ease;
   }
+  @media (max-width: 639px) {
+    .pick-row {
+      gap: 0.5rem;
+      padding: 0.625rem 0.75rem;
+    }
+  }
   li:last-child > .pick-row {
     border-bottom: 0;
   }
@@ -2194,6 +2283,7 @@
   .summary-dl {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
+    align-items: baseline;
     gap: 0.5rem 1rem;
     font-size: 0.8125rem;
   }
@@ -2207,6 +2297,14 @@
     white-space: nowrap;
     color: var(--color-zinc-900);
   }
+  .summary-dl dd {
+    min-width: 0;
+    overflow: visible;
+    text-align: right;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
   .summary-dl dd[data-empty] {
     color: var(--color-zinc-400);
   }
@@ -2214,9 +2312,10 @@
   /* Section heading inside a page (h2 + optional trailing link/meta). */
   .section-heading {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
     justify-content: space-between;
-    gap: 0.75rem;
+    gap: 0.25rem 0.75rem;
     margin-bottom: 0.75rem;
   }
   .section-heading > h2 {
