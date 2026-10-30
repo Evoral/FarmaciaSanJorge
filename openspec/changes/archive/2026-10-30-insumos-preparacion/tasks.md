@@ -30,4 +30,4 @@ Design: `design.md`.
 - [x] 4.1 `openspec/specs/insumos-preparacion/spec.md` (I1-I12); E7 of `excipiente-preparacion` modified; `npm run specs:validate`.
 - [x] 4.2 `npm run typecheck`, `npm run lint`; unit test mocks updated for the new repository functions; `insumos` field label.
 - [ ] 4.3 Manual check in the app after 0110 is applied (cápsulas ítem, adicional, recalcular, pérdida, imprimir etiquetas, libro fórmula).
-- [ ] 4.4 Archive the change (`changes/archive/YYYY-MM-DD-insumos-preparacion/`) WITHOUT merging specs (`openspec archive insumos-preparacion --skip-specs`): the main specs are already merged.
+- [x] 4.4 Archive the change (`changes/archive/YYYY-MM-DD-insumos-preparacion/`) WITHOUT merging specs (`openspec archive insumos-preparacion --skip-specs`): the main specs are already merged.
