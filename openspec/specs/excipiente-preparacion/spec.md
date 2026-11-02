@@ -32,18 +32,52 @@ with the pesada en la ficha, `openspec/specs/pesada-real/spec.md` P8-P12), with 
 
 ### Requirement: E1 — Excipiente quantity in the unidad base
 
-The "Excipiente" row of E1 SHALL take the excipiente's quantity in the droga's **unidad base**, in the "Cantidad
-real pesada" column. The excipiente is optional.
+The "Excipiente" row of E1 SHALL take the weight typed (the weight of the whole, or per unit; E1b) in the droga's
+**unidad base**, in the "Cantidad real pesada" column. The excipiente is optional.
 
 #### Scenario: Quantity typed
 
 - **WHEN** the user chooses an excipiente
-- **THEN** its quantity is typed in the "Cantidad real pesada" column, in the droga's unidad base
+- **THEN** its weight is typed in the "Cantidad real pesada" column, in the droga's unidad base
 
 #### Scenario: No excipiente
 
 - **WHEN** the ítem is marked as preparada without an excipiente
 - **THEN** nothing is refused for the missing excipiente
+
+### Requirement: E1b — c.s.p.: the weight typed minus the drogas
+
+The user SHALL type the weight of the whole, not the excipiente's. The excipiente to weigh SHALL be that weight minus the ficha's drogas (their cantidad a pesar): `total − drogas`, or `peso por unidad × unidades − drogas`. That quantity is shown in the toma ("A pesar"), printed in the ficha, reserved and descontado. A weight that does not exceed the drogas SHALL be refused. Code: `modules/preparaciones/domain/excipiente-por-unidad.ts`.
+
+#### Scenario: c.s.p.
+
+- **GIVEN** 30 cápsulas of ½ dosis (15 dosis) with Minoxidil 5 mg per dosis (0,075 g)
+- **WHEN** the user types Total (c.s.p.) 12 g of Ludipress
+- **THEN** the excipiente to weigh is 11,925 g
+
+#### Scenario: Weight below the drogas
+
+- **WHEN** the weight typed does not exceed the drogas
+- **THEN** the toma warns and Marcar como preparada is refused
+
+### Requirement: E1c — Por unidad
+
+Formas counted by units (CAPSULA, COMPRIMIDO, OVULO, SUPOSITORIO) MAY type it por unidad ("Por cápsula": one cápsula's weight, even when a cápsula holds half a dosis) or Total (c.s.p.); other formas only the total; never per dosis. Typed por unidad the ficha SHALL print "= 0,3975 g por cápsula" under the total and the libro's fórmula carries the excipiente per dosis ("Ludipress 0,795 g c.s.p."), as c.s.p. "Ludipress c.s.p.".
+
+#### Scenario: Por cápsula
+
+- **GIVEN** the same ítem
+- **WHEN** the user types Por cápsula 0,4 g of Ludipress
+- **THEN** the excipiente to weigh is 0,4 g × 30 − 0,075 g = 11,925 g (0,3975 g por cápsula) and the libro reads "Ludipress 0,795 g c.s.p."
+
+### Requirement: E1d — Nothing subtracted when not a weight
+
+When the excipiente or any droga of the ficha is not a weight (a volume, units, an enrase manual) nothing SHALL be subtracted: the weight typed is the excipiente's (an enrase) and the toma says so.
+
+#### Scenario: A droga that is not a weight
+
+- **WHEN** a droga of the ficha is in mL or an enrase manual
+- **THEN** nothing is subtracted and the toma says so
 
 ### Requirement: E2 — Saved as it is filled in
 
@@ -69,7 +103,7 @@ draft per ficha técnica (`fsj.excipiente_borrador`). Refused once the ítem has
 
 ### Requirement: E3 — Quantity required once chosen
 
-The excipiente's **quantity is required once chosen**: with an excipiente chosen and no quantity, "Marcar como preparada" SHALL be
+The excipiente's **quantity (weight) is required once chosen**: with an excipiente chosen and no quantity, "Marcar como preparada" SHALL be
 blocked ("Falta la cantidad del excipiente") and the server refuses it.
 
 #### Scenario: Excipiente without quantity
@@ -88,8 +122,7 @@ blocked ("Falta la cantidad del excipiente") and the server refuses it.
 
 The excipiente SHALL be **reserved with the drogas**, oldest lot first, automatic (abiertas, then FEFO; physical,
 no purity correction -- `repartirLinea` as an enrase), over the stock not reserved by others. A shortfall refuses
-the reserva with what is missing. The preparación keeps the droga, the quantity and the fórmula's text ("Ludipress
-12,5 g", `excipiente_texto`).
+the reserva with what is missing. The preparación keeps the droga, the quantity (after subtracting the drogas, E1b) and the fórmula's text ("Ludipress 0,795 g" per dosis, "Ludipress" as c.s.p., `excipiente_texto`).
 
 #### Scenario: Excipiente reserved
 
@@ -199,7 +232,7 @@ The excipiente's unit SHALL be the droga's unidad base (no unit selector).
 
 #### Scenario: Quantity field
 
-- **WHEN** the user types the excipiente's quantity
+- **WHEN** the user types the excipiente's weight
 - **THEN** it is in the droga's unidad base and no unit can be chosen
 
 ### Requirement: Reservations made before 0092

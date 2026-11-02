@@ -20,6 +20,14 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { TipoMagnitud, UnidadMedidaRef, LineaPesajeCalculada, FormaFarmaceutica, ModoExpresion } from "../domain/calcular-ficha-tecnica";
 import type { LineaPesajeGuardada } from "../domain/ficha-no-generable";
+import {
+  cantidadExcipienteAPesar,
+  pesoDeDrogas,
+  textoExcipientePorUnidad,
+  unidadesDelItem,
+  type ItemDosificable,
+  type LineaConPeso,
+} from "@/modules/preparaciones/domain/excipiente-por-unidad";
 
 // ============================================================================
 // Read: item_receta + componentes (calculator inputs)
@@ -60,7 +68,7 @@ export async function getItemParaFicha(tx: Prisma.TransactionClient, tenantId: s
       cantidadUnidades: true,
       fraccionDosisPorUnidad: true,
       unidadTotalId: true,
-      unidadTotal: { select: { id: true, tipoMagnitud: true, factorABase: true } },
+      unidadTotal: { select: { id: true, tipoMagnitud: true, factorABase: true, simbolo: true } },
     },
   });
   if (!item) return null;
@@ -71,7 +79,7 @@ export async function getItemParaFicha(tx: Prisma.TransactionClient, tenantId: s
     formaFarmaceutica: item.formaFarmaceutica as FormaFarmaceutica,
     cantidadTotal: item.cantidadTotal ? item.cantidadTotal.toString() : null,
     unidadTotal: item.unidadTotal
-      ? { id: item.unidadTotal.id, tipoMagnitud: item.unidadTotal.tipoMagnitud as TipoMagnitud, factorABase: item.unidadTotal.factorABase.toString() }
+      ? unidadRef(item.unidadTotal)
       : null,
     cantidadUnidades: item.cantidadUnidades,
     fraccionDosisPorUnidad: item.fraccionDosisPorUnidad.toString(),
@@ -84,6 +92,12 @@ export interface ComponenteParaFicha {
   cantidad: string | null;
   unidadMedida: UnidadMedidaRef;
   modoExpresion: ModoExpresion;
+  unidadReferencia: UnidadMedidaRef | null;
+}
+
+/** The calculator's view of a unidad_medida row (símbolo included: a concentration line's text uses it). */
+function unidadRef(u: { id: string; tipoMagnitud: string; factorABase: { toString(): string }; simbolo: string }): UnidadMedidaRef {
+  return { id: u.id, tipoMagnitud: u.tipoMagnitud as TipoMagnitud, factorABase: u.factorABase.toString(), simbolo: u.simbolo };
 }
 
 /** The item's componentes, unordered -- `calcularFichaTecnica` sorts them (`ordenarComponentes`). */
@@ -95,7 +109,8 @@ export async function getComponentesParaFicha(tx: Prisma.TransactionClient, tena
       cantidad: true,
       modoExpresion: true,
       droga: { select: { nombre: true } },
-      unidadMedida: { select: { id: true, tipoMagnitud: true, factorABase: true } },
+      unidadMedida: { select: { id: true, tipoMagnitud: true, factorABase: true, simbolo: true } },
+      unidadReferencia: { select: { id: true, tipoMagnitud: true, factorABase: true, simbolo: true } },
     },
   });
 
@@ -103,8 +118,9 @@ export async function getComponentesParaFicha(tx: Prisma.TransactionClient, tena
     drogaId: r.drogaId,
     drogaNombre: r.droga.nombre,
     cantidad: r.cantidad ? r.cantidad.toString() : null,
-    unidadMedida: { id: r.unidadMedida.id, tipoMagnitud: r.unidadMedida.tipoMagnitud as TipoMagnitud, factorABase: r.unidadMedida.factorABase.toString() },
+    unidadMedida: unidadRef(r.unidadMedida),
     modoExpresion: r.modoExpresion as ModoExpresion,
+    unidadReferencia: r.unidadReferencia ? unidadRef(r.unidadReferencia) : null,
   }));
 }
 
@@ -146,14 +162,9 @@ export async function getUnidadesParaBorrador(tx: Prisma.TransactionClient, ids:
   if (ids.length === 0) return new Map();
   const rows = await tx.unidadMedida.findMany({
     where: { id: { in: [...new Set(ids)] } },
-    select: { id: true, tipoMagnitud: true, factorABase: true, fechaBaja: true },
+    select: { id: true, tipoMagnitud: true, factorABase: true, simbolo: true, fechaBaja: true },
   });
-  return new Map(
-    rows.map((r) => [
-      r.id,
-      { ref: { id: r.id, tipoMagnitud: r.tipoMagnitud as TipoMagnitud, factorABase: r.factorABase.toString() }, vigente: r.fechaBaja === null },
-    ]),
-  );
+  return new Map(rows.map((r) => [r.id, { ref: unidadRef(r), vigente: r.fechaBaja === null }]));
 }
 
 export async function getDrogasParaBorrador(
@@ -200,7 +211,7 @@ export async function getLineasUltimaFicha(
       id: true,
       version: true,
       lineas: {
-        select: { drogaId: true, cantidadTeorica: true, excesoAplicado: true, cantidadAPesar: true, unidadMedidaId: true, esEnraseManual: true },
+        select: { drogaId: true, cantidadTeorica: true, excesoAplicado: true, cantidadAPesar: true, unidadMedidaId: true, esEnraseManual: true, prescripcion: true },
       },
     },
   });
@@ -215,6 +226,7 @@ export async function getLineasUltimaFicha(
       cantidadAPesar: l.cantidadAPesar ? l.cantidadAPesar.toString() : null,
       unidadMedidaId: l.unidadMedidaId,
       esEnraseManual: l.esEnraseManual,
+      prescripcion: l.prescripcion,
     })),
   };
 }
@@ -277,6 +289,7 @@ export async function insertFichaConLineas(tx: Prisma.TransactionClient, input: 
         unidadMedidaId: linea.unidadMedida.id,
         esEnraseManual: linea.esEnraseManual,
         orden: linea.orden,
+        prescripcion: linea.prescripcion ?? null,
       },
     });
   }
@@ -334,6 +347,8 @@ export interface LineaImprimir {
   unidadSimbolo: string;
   esEnraseManual: boolean;
   orden: number;
+  /** A concentration line's prescription and breakdown ("5 % × 30 mL", migration 0112). */
+  prescripcion: string | null;
 }
 
 export interface FichaParaImprimir {
@@ -358,6 +373,101 @@ export interface FichaParaImprimir {
   tenantDomicilio: string | null;
   tenantMatriculaFarmacia: string | null;
   lineas: LineaImprimir[];
+  /** The excipiente, then the material and the adicionales (insumos-preparacion), listed under the líneas. */
+  insumos: InsumoImprimir[];
+}
+
+/** An excipiente or insumo row of the printed list; `cantidad` in the droga's unidad base, `null` when unknown. */
+export interface InsumoImprimir {
+  nombre: string;
+  cantidad: string | null;
+  unidadSimbolo: string;
+  /** An excipiente typed per unidad (migration 0113): "= 0,3975 g por cápsula", under its total; `null` otherwise. */
+  detalle: string | null;
+}
+
+/** `por_unidad`: the excipiente typed per unidad (0113) -- in one unit once stored, the weight typed in a draft -- NULL otherwise. */
+type FilaInsumo = { nombre: string; cantidad: string | null; simbolo: string; por_unidad: string | null; factor_a_base: string; tipo_magnitud: string; es_excipiente: boolean };
+
+/**
+ * The ficha's excipiente and insumos: those of its live preparación once started (stored with it, the
+ * ones reserved and descontados), else the drafts typed before starting (borradores without a droga skipped). A draft
+ * excipiente is the weight typed minus the ficha's drogas (`lineas`), as the reserva will compute it.
+ */
+async function getInsumosParaImprimir(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  fichaId: string,
+  item: ItemDosificable,
+  lineas: readonly LineaConPeso[],
+): Promise<InsumoImprimir[]> {
+  const preparacion = await tx.preparacion.findFirst({
+    where: { tenantId, fichaTecnicaId: fichaId, estado: { in: ["INICIADA", "CONFIRMADA"] } },
+    select: { id: true, excipienteDrogaId: true, excipienteTexto: true },
+  });
+  const filas = preparacion
+    ? await tx.$queryRaw<FilaInsumo[]>`
+        SELECT d.nombre::text AS nombre, x.cantidad::text AS cantidad, u.simbolo, x.por_unidad::text AS por_unidad,
+               u.factor_a_base::text AS factor_a_base, u.tipo_magnitud::text AS tipo_magnitud, (x.grupo = 0) AS es_excipiente
+        FROM (
+          SELECT 0 AS grupo, 0 AS orden, p.excipiente_droga_id AS droga_id, p.excipiente_cantidad AS cantidad, p.excipiente_cantidad_por_unidad AS por_unidad
+          FROM fsj.preparacion p
+          WHERE p.tenant_id = ${tenantId}::uuid AND p.id = ${preparacion.id}::uuid AND p.excipiente_droga_id IS NOT NULL
+          UNION ALL
+          SELECT 1, i.orden, i.droga_id, i.cantidad, NULL
+          FROM fsj.insumo_preparacion i
+          WHERE i.tenant_id = ${tenantId}::uuid AND i.preparacion_id = ${preparacion.id}::uuid
+        ) x
+        JOIN fsj.droga d ON d.tenant_id = ${tenantId}::uuid AND d.id = x.droga_id
+        JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
+        ORDER BY x.grupo, x.orden
+      `
+    : await tx.$queryRaw<FilaInsumo[]>`
+        SELECT d.nombre::text AS nombre, x.cantidad::text AS cantidad, u.simbolo, x.por_unidad::text AS por_unidad,
+               u.factor_a_base::text AS factor_a_base, u.tipo_magnitud::text AS tipo_magnitud, (x.grupo = 0) AS es_excipiente
+        FROM (
+          SELECT 0 AS grupo, 0 AS orden, e.droga_id, e.cantidad, CASE WHEN e.por_unidad THEN e.cantidad END AS por_unidad
+          FROM fsj.excipiente_borrador e
+          WHERE e.tenant_id = ${tenantId}::uuid AND e.ficha_tecnica_id = ${fichaId}::uuid AND e.droga_id IS NOT NULL
+          UNION ALL
+          SELECT 1, i.orden, i.droga_id, i.cantidad, NULL
+          FROM fsj.insumo_borrador i
+          WHERE i.tenant_id = ${tenantId}::uuid AND i.ficha_tecnica_id = ${fichaId}::uuid AND i.droga_id IS NOT NULL
+        ) x
+        JOIN fsj.droga d ON d.tenant_id = ${tenantId}::uuid AND d.id = x.droga_id
+        JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
+        ORDER BY x.grupo, x.orden
+      `;
+  const unidades = unidadesDelItem(item);
+  const insumos = filas.map((f): InsumoImprimir => {
+    const fila = { nombre: f.nombre, cantidad: f.cantidad, unidadSimbolo: f.simbolo, detalle: null };
+    if (!f.cantidad) return fila;
+    // The preparación stores the excipiente to weigh (total and per unidad); a draft only the weight typed.
+    if (preparacion) {
+      if (!f.por_unidad || !unidades) return fila;
+      return { ...fila, detalle: textoExcipientePorUnidad(f.por_unidad, f.simbolo, unidades.singular) };
+    }
+    if (!f.es_excipiente) return fila;
+    if (f.por_unidad && !unidades) return fila;
+    const aPesar = cantidadExcipienteAPesar({
+      cantidad: f.cantidad,
+      unidades: f.por_unidad ? unidades : null,
+      pesoDrogas: pesoDeDrogas(lineas),
+      unidad: { factorABase: f.factor_a_base, tipoMagnitud: f.tipo_magnitud },
+    });
+    // The drogas weigh as much as the weight typed: nothing to print until it is fixed in the toma.
+    if (!aPesar.total.greaterThan(0)) return { ...fila, cantidad: null };
+    return {
+      ...fila,
+      cantidad: aPesar.total.toString(),
+      detalle: aPesar.porUnidad && unidades ? textoExcipientePorUnidad(aPesar.porUnidad, f.simbolo, unidades.singular) : null,
+    };
+  });
+  // A preparación from before migration 0092 kept its excipiente as text only.
+  if (preparacion && !preparacion.excipienteDrogaId && preparacion.excipienteTexto) {
+    insumos.unshift({ nombre: preparacion.excipienteTexto, cantidad: null, unidadSimbolo: "", detalle: null });
+  }
+  return insumos;
 }
 
 export async function getFichaParaImprimir(tx: Prisma.TransactionClient, tenantId: string, fichaId: string): Promise<FichaParaImprimir | null> {
@@ -377,7 +487,8 @@ export async function getFichaParaImprimir(tx: Prisma.TransactionClient, tenantI
           cantidadAPesar: true,
           orden: true,
           esEnraseManual: true,
-          unidadMedida: { select: { simbolo: true } },
+          prescripcion: true,
+          unidadMedida: { select: { simbolo: true, factorABase: true, tipoMagnitud: true } },
         },
       },
       itemReceta: {
@@ -385,6 +496,7 @@ export async function getFichaParaImprimir(tx: Prisma.TransactionClient, tenantI
           descripcion: true,
           formaFarmaceutica: true,
           cantidadUnidades: true,
+          fraccionDosisPorUnidad: true,
           cantidadTotal: true,
           unidadTotal: { select: { simbolo: true } },
           receta: {
@@ -441,6 +553,88 @@ export async function getFichaParaImprimir(tx: Prisma.TransactionClient, tenantI
       unidadSimbolo: l.unidadMedida.simbolo,
       esEnraseManual: l.esEnraseManual,
       orden: l.orden,
+      prescripcion: l.prescripcion,
     })),
+    insumos: await getInsumosParaImprimir(tx, tenantId, ficha.id, {
+      formaFarmaceutica: ficha.itemReceta.formaFarmaceutica,
+      cantidadUnidades: ficha.itemReceta.cantidadUnidades,
+      fraccionDosisPorUnidad: ficha.itemReceta.fraccionDosisPorUnidad.toString(),
+    }, ficha.lineas.map((l) => ({
+      cantidadAPesar: l.cantidadAPesar ? l.cantidadAPesar.toString() : null,
+      esEnraseManual: l.esEnraseManual,
+      unidad: { factorABase: l.unidadMedida.factorABase.toString(), tipoMagnitud: l.unidadMedida.tipoMagnitud },
+    }))),
   };
+}
+
+/**
+ * Carries the toma workspace's drafts of the item's previous ficha version over to the new one, so editing the
+ * receta forgets nothing that was being prepared (the drafts are keyed by ficha / línea, and a new version has new
+ * ids). Runs in `generarFichaTecnica`'s transaction, which only creates a version while the item has no live
+ * preparación, i.e. while these drafts are all there is.
+ *   - excipiente (0092/0113) and material / insumos adicionales (0110): copied as typed. An excipiente typed per
+ *     unidad keeps its weight only while the forma is still counted by units (`porUnidadValido`): one unit's weight
+ *     would otherwise read as the preparado's.
+ *   - pesada en borrador (0090), matched línea by línea by droga (the n-th línea of a droga to the n-th): the lots
+ *     and the motivo always; the pesada real only when the amount to weigh is unchanged (else it weighed something
+ *     else); the enrase manual quantity only while both líneas are enrase manual.
+ * Drafts already present on the new version (none: it was just inserted) are left alone.
+ */
+export async function trasladarBorradoresDeFicha(
+  tx: Prisma.TransactionClient,
+  input: { tenantId: string; fichaNuevaId: string; porUnidadValido: boolean },
+): Promise<void> {
+  const { tenantId, fichaNuevaId } = input;
+  const anterior = await tx.$queryRaw<{ id: string }[]>`
+    SELECT a.id
+    FROM fsj.ficha_tecnica n
+    JOIN fsj.ficha_tecnica a ON a.tenant_id = n.tenant_id AND a.item_receta_id = n.item_receta_id AND a.version < n.version
+    WHERE n.tenant_id = ${tenantId}::uuid AND n.id = ${fichaNuevaId}::uuid
+    ORDER BY a.version DESC
+    LIMIT 1
+  `;
+  const fichaAnteriorId = anterior[0]?.id;
+  if (!fichaAnteriorId) return;
+
+  await tx.$executeRaw`
+    INSERT INTO fsj.excipiente_borrador (tenant_id, ficha_tecnica_id, droga_id, cantidad, por_unidad, actualizado_por_id, actualizado_en)
+    SELECT e.tenant_id, ${fichaNuevaId}::uuid, e.droga_id,
+      CASE WHEN e.por_unidad AND NOT ${input.porUnidadValido} THEN NULL ELSE e.cantidad END,
+      e.por_unidad AND ${input.porUnidadValido},
+      e.actualizado_por_id, e.actualizado_en
+    FROM fsj.excipiente_borrador e
+    WHERE e.tenant_id = ${tenantId}::uuid AND e.ficha_tecnica_id = ${fichaAnteriorId}::uuid
+    ON CONFLICT DO NOTHING
+  `;
+  await tx.$executeRaw`
+    INSERT INTO fsj.insumo_borrador (tenant_id, ficha_tecnica_id, tipo, orden, droga_id, cantidad, actualizado_por_id, actualizado_en)
+    SELECT i.tenant_id, ${fichaNuevaId}::uuid, i.tipo, i.orden, i.droga_id, i.cantidad, i.actualizado_por_id, i.actualizado_en
+    FROM fsj.insumo_borrador i
+    WHERE i.tenant_id = ${tenantId}::uuid AND i.ficha_tecnica_id = ${fichaAnteriorId}::uuid
+    ON CONFLICT DO NOTHING
+  `;
+  await tx.$executeRaw`
+    WITH viejas AS (
+      SELECT l.id, l.droga_id, l.cantidad_a_pesar, l.unidad_medida_id, l.es_enrase_manual,
+        row_number() OVER (PARTITION BY l.droga_id ORDER BY l.orden) AS n
+      FROM fsj.linea_pesaje l
+      WHERE l.tenant_id = ${tenantId}::uuid AND l.ficha_tecnica_id = ${fichaAnteriorId}::uuid
+    ), nuevas AS (
+      SELECT l.id, l.droga_id, l.cantidad_a_pesar, l.unidad_medida_id, l.es_enrase_manual,
+        row_number() OVER (PARTITION BY l.droga_id ORDER BY l.orden) AS n
+      FROM fsj.linea_pesaje l
+      WHERE l.tenant_id = ${tenantId}::uuid AND l.ficha_tecnica_id = ${fichaNuevaId}::uuid
+    )
+    INSERT INTO fsj.pesada_borrador (tenant_id, linea_pesaje_id, partida_ids, cantidad_real, cantidad_manual, motivo_apertura_adicional, actualizado_por_id, actualizado_en)
+    SELECT b.tenant_id, nu.id, b.partida_ids,
+      CASE WHEN NOT nu.es_enrase_manual AND NOT v.es_enrase_manual AND nu.unidad_medida_id = v.unidad_medida_id
+             AND nu.cantidad_a_pesar = v.cantidad_a_pesar THEN b.cantidad_real END,
+      CASE WHEN nu.es_enrase_manual AND v.es_enrase_manual THEN b.cantidad_manual END,
+      b.motivo_apertura_adicional, b.actualizado_por_id, b.actualizado_en
+    FROM fsj.pesada_borrador b
+    JOIN viejas v ON v.id = b.linea_pesaje_id
+    JOIN nuevas nu ON nu.droga_id = v.droga_id AND nu.n = v.n
+    WHERE b.tenant_id = ${tenantId}::uuid
+    ON CONFLICT DO NOTHING
+  `;
 }

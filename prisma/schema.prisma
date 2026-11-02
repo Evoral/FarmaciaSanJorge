@@ -1234,6 +1234,8 @@ model Preparacion {
   /// 0092: the excipiente used (droga of clase EXCIPIENTE) and its quantity in the droga's unidad base; reserved and descontado with the preparación. Changes only while INICIADA (INV-P08).
   excipienteDrogaId  String?                   @map("excipiente_droga_id") @db.Uuid
   excipienteCantidad Decimal?                  @map("excipiente_cantidad") @db.Decimal
+  /// 0113: the excipiente in one unit (formas counted by units), NULL when typed as c.s.p.; excipienteCantidad is the total.
+  excipienteCantidadPorUnidad Decimal?         @map("excipiente_cantidad_por_unidad") @db.Decimal
 
   fichaTecnica       FichaTecnica        @relation(fields: [fichaTecnicaId], references: [id])
   iniciadaPor        Usuario             @relation("PreparacionIniciadaPor", fields: [iniciadaPorId], references: [id])
@@ -1291,6 +1293,8 @@ model ExcipienteBorrador {
   fichaTecnicaId   String   @map("ficha_tecnica_id") @db.Uuid
   drogaId          String?  @map("droga_id") @db.Uuid
   cantidad         Decimal? @db.Decimal
+  /// 0113: `cantidad` is one unit's weight (true) or the preparado's, c.s.p. (false).
+  porUnidad        Boolean  @default(false) @map("por_unidad")
   actualizadoPorId String   @map("actualizado_por_id") @db.Uuid
   actualizadoEn    DateTime @default(now()) @map("actualizado_en") @db.Timestamptz(6)
 

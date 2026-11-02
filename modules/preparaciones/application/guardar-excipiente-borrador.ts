@@ -1,7 +1,7 @@
 /**
  * `guardarExcipienteBorrador` (migration 0092, openspec/specs/excipiente-preparacion/spec.md): the toma workspace saves the
  * excipiente of a ficha técnica as it is chosen/typed -- a droga of clase EXCIPIENTE (from the catalog, never free
- * text) and its quantity in the droga's unidad base -- so nothing is lost before "Marcar como preparada". A draft:
+ * text) and a weight in the droga's unidad base, of one unit or of the preparado (migration 0113) -- so nothing is lost before "Marcar como preparada". A draft:
  * nothing is reserved; the reserva re-validates it (`reservarExcipienteEnTx`). Only while the ítem has no live
  * preparación. Permiso `preparaciones.confirmar`, no re-authentication -- like the pesada en borrador.
  */
@@ -9,6 +9,7 @@ import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { decimalString, uuid } from "@/shared/validation";
+import { unidadesParaExcipiente } from "./excipiente-preparacion";
 import { getDrogaExcipiente, getFichaParaIniciar, getPreparacionActivaDeFicha, listInsumosBorrador, upsertExcipienteBorrador } from "../infrastructure/preparacion-repository";
 
 const guardarExcipienteBorradorInput = z.object({
@@ -16,6 +17,8 @@ const guardarExcipienteBorradorInput = z.object({
   /** `null` = no excipiente. */
   drogaId: uuid.nullable(),
   cantidad: decimalString.optional(),
+  /** `cantidad` is one unit's weight (only in a forma counted by units, migration 0113) instead of the preparado's. */
+  porUnidad: z.boolean().default(false),
 });
 
 export const guardarExcipienteBorradorCommand = defineCommand({
@@ -37,8 +40,9 @@ export const guardarExcipienteBorradorCommand = defineCommand({
       }
     }
     if (input.cantidad && !input.cantidad.greaterThan(0)) throw new DomainError("La cantidad debe ser mayor que 0.", { fields: ["excipienteCantidad"] });
+    if (input.porUnidad) await unidadesParaExcipiente(tx, session.tenantId, input.fichaTecnicaId);
 
-    const nuevo = { drogaId: input.drogaId, cantidad: input.cantidad?.toString() ?? null };
+    const nuevo = { drogaId: input.drogaId, cantidad: input.cantidad?.toString() ?? null, porUnidad: input.porUnidad };
     const anterior = await upsertExcipienteBorrador(tx, { tenantId: session.tenantId, fichaTecnicaId: input.fichaTecnicaId, ...nuevo, actualizadoPorId: session.usuario.id });
     return {
       output: nuevo,
@@ -47,6 +51,6 @@ export const guardarExcipienteBorradorCommand = defineCommand({
   },
 });
 
-export async function guardarExcipienteBorrador(input: z.input<typeof guardarExcipienteBorradorInput>): Promise<{ drogaId: string | null; cantidad: string | null }> {
+export async function guardarExcipienteBorrador(input: z.input<typeof guardarExcipienteBorradorInput>): Promise<{ drogaId: string | null; cantidad: string | null; porUnidad: boolean }> {
   return guardarExcipienteBorradorCommand.execute(input);
 }

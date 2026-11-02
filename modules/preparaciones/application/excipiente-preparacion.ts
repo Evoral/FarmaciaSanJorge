@@ -5,7 +5,9 @@
  * transactions:
  *   - `reservarExcipienteEnTx` ("Marcar como preparada"): the oldest lots first, automatic (abiertas, then FEFO,
  *     `repartirLinea` as an enrase: physical, no purity correction), one `reserva_stock` row per partida without
- *     línea; the preparación keeps the droga, the quantity and the fórmula's text ("Ludipress 12,5 g").
+ *     línea; the preparación keeps the droga, the total, the quantity per unidad when typed so (migration 0113) and
+ *     the fórmula's text ("Ludipress 0,795 g" per dosis, "Ludipress" as c.s.p.). What is typed is a weight (the
+ *     preparado's, or one cápsula's): the drogas of the ficha are subtracted (`cantidadExcipienteAPesar`).
  *   - `replanificarExcipienteEnTx` + `guardarReservaExcipienteEnTx` ("Recalcular reserva", "Registrar pérdida"):
  *     the same plan again, computed before the caller deletes the reservas and written after.
  *   - `consumirExcipienteEnTx` ("Imprimir etiquetas"): EGRESO_PREPARACION without línea over the reserved partidas,
@@ -25,11 +27,14 @@ import { Decimal, dec } from "@/shared/decimal";
 import { DomainError } from "@/shared/errors";
 import { formatNumero } from "@/shared/format/cantidad";
 import { estaVencida } from "@/modules/stock/domain/reparto";
+import { cantidadExcipienteAPesar, pesoDeDrogas, textoFormulaExcipiente, unidadesDelItem, type UnidadesDelItem } from "../domain/excipiente-por-unidad";
 import { repartirLinea } from "../domain/reparto-linea";
 import {
   deleteReservasSinLinea,
   getDrogaExcipiente,
   getExcipienteDePreparacion,
+  getFormaDeItemDeFicha,
+  getLineasParaPreparacion,
   getPartidasFrescas,
   insertEgresoPreparacion,
   insertReservasSinLinea,
@@ -40,16 +45,26 @@ import {
   setExcipienteEstructurado,
 } from "../infrastructure/preparacion-repository";
 
-/** The excipiente to reserve: a droga of clase EXCIPIENTE and its quantity in the droga's unidad base. */
+/**
+ * The excipiente to reserve: a droga of clase EXCIPIENTE and a weight in the droga's unidad base -- one unit's
+ * (`porUnidad`, migration 0113: only in a forma counted by units) or the preparado's (c.s.p.).
+ */
 export interface ExcipienteAReservar {
   drogaId: string;
   cantidad: Decimal;
+  porUnidad: boolean;
 }
 
 /** What the audit records of the excipiente's reserva (a type alias: it goes into the audit's JSON as is). */
 export type ResumenExcipiente = {
   droga: string;
+  /** The total. */
   cantidad: string;
+  /** Typed per unidad (migration 0113): the excipiente in one unit and the ítem's units. */
+  porUnidad?: { cantidad: string; unidades: string };
+  /** The weight typed (the preparado's, or one unit's) and the drogas subtracted from it, when they were. */
+  cargado?: string;
+  drogasRestadas?: string;
   partidas: { partidaId: string; cantidad: string }[];
 };
 
@@ -98,11 +113,21 @@ function planificar(tx: Prisma.TransactionClient, tenantId: string, input: PlanS
   return planificarSinLinea(tx, tenantId, { fields: ["excipienteCantidad"], ...input });
 }
 
+/** The units of the ficha's ítem for an excipiente typed per unidad; refused when its forma is not counted by units. */
+export async function unidadesParaExcipiente(tx: Prisma.TransactionClient, tenantId: string, fichaTecnicaId: string): Promise<UnidadesDelItem> {
+  const item = await getFormaDeItemDeFicha(tx, tenantId, fichaTecnicaId);
+  const unidades = item ? unidadesDelItem(item) : null;
+  if (!unidades) {
+    throw new DomainError("Esta forma farmacéutica no se cuenta por unidades: cargá el excipiente como c.s.p. (el peso total).", { fields: ["excipienteCantidad"] });
+  }
+  return unidades;
+}
+
 /** Reserves the excipiente of a just-created preparación (INICIADA) and records it on the preparación. `null` = none chosen. */
 export async function reservarExcipienteEnTx(
   tx: Prisma.TransactionClient,
   session: AuthenticatedSession,
-  input: { preparacionId: string; excipiente: ExcipienteAReservar | null; jornada: string },
+  input: { preparacionId: string; fichaTecnicaId: string; excipiente: ExcipienteAReservar | null; jornada: string },
 ): Promise<ResumenExcipiente | null> {
   if (!input.excipiente) return null;
   const { tenantId } = session;
@@ -112,25 +137,46 @@ export async function reservarExcipienteEnTx(
     throw new DomainError(`${droga.nombre} ya está cargado como material o insumo: no puede ser también el excipiente.`, { fields: ["excipienteDrogaId"] });
   }
   if (!input.excipiente.cantidad.greaterThan(0)) throw new DomainError("La cantidad del excipiente debe ser mayor que 0.", { fields: ["excipienteCantidad"] });
+  const unidades = input.excipiente.porUnidad ? await unidadesParaExcipiente(tx, tenantId, input.fichaTecnicaId) : null;
+  const aPesar = cantidadExcipienteAPesar({
+    cantidad: input.excipiente.cantidad,
+    unidades,
+    pesoDrogas: pesoDeDrogas(await getLineasParaPreparacion(tx, tenantId, input.fichaTecnicaId)),
+    unidad: droga.unidad,
+  });
+  if (!aPesar.total.greaterThan(0)) {
+    const typed = `${formatNumero(input.excipiente.cantidad.toString())} ${droga.unidadSimbolo}${unidades ? ` por ${unidades.singular}` : ""}`;
+    throw new DomainError(`El peso cargado (${typed}) no alcanza para las drogas (${formatNumero(aPesar.drogas!.toString())} ${droga.unidadSimbolo}).`, { fields: ["excipienteCantidad"] });
+  }
+  const total = aPesar.total;
 
   // The fórmula's text is set first: the reserva rows' trigger checks the preparación's excipiente droga.
   await setExcipienteEstructurado(tx, tenantId, input.preparacionId, {
     drogaId: droga.id,
-    cantidad: input.excipiente.cantidad.toString(),
-    texto: `${droga.nombre} ${formatNumero(input.excipiente.cantidad.toString())} ${droga.unidadSimbolo}`,
+    cantidad: total.toString(),
+    cantidadPorUnidad: aPesar.porUnidad ? aPesar.porUnidad.toString() : null,
+    texto: textoFormulaExcipiente(droga.nombre, droga.unidadSimbolo, aPesar.porDosis),
   });
   const candidatas = await listPartidasElegiblesDroga(tx, tenantId, droga.id, input.preparacionId);
   const partes = await planificar(tx, tenantId, {
     preparacionId: input.preparacionId,
     droga,
-    cantidad: input.excipiente.cantidad,
+    cantidad: total,
     partidaIds: candidatas.map((p) => p.id),
     jornada: input.jornada,
     mensajeFaltante: "Ingresá stock del excipiente o elegí otro.",
   });
   const filas = partes.map((p) => ({ partidaId: p.partidaId, cantidad: p.cantidad.toString() }));
   await insertReservasSinLinea(tx, { tenantId, preparacionId: input.preparacionId, reservadaPorId: session.usuario.id, partes: filas });
-  return { droga: droga.nombre, cantidad: `${input.excipiente.cantidad.toString()} ${droga.unidadSimbolo}`, partidas: filas };
+  return {
+    droga: droga.nombre,
+    cantidad: `${total.toString()} ${droga.unidadSimbolo}`,
+    ...(unidades && aPesar.porUnidad ? { porUnidad: { cantidad: `${aPesar.porUnidad.toString()} ${droga.unidadSimbolo}`, unidades: unidades.cantidad.toString() } } : {}),
+    ...(aPesar.drogas
+      ? { cargado: `${input.excipiente.cantidad.toString()} ${droga.unidadSimbolo}${unidades ? ` por ${unidades.singular}` : ""}`, drogasRestadas: `${aPesar.drogas.toString()} ${droga.unidadSimbolo}` }
+      : {}),
+    partidas: filas,
+  };
 }
 
 /**

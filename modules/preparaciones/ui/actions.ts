@@ -194,7 +194,7 @@ export async function guardarExcipienteBorradorAction(_prevState: PreparacionAct
     const drogaId = String(formData.get("excipienteDrogaId") ?? "").trim();
     const cantidad = String(formData.get("excipienteCantidad") ?? "").trim();
     try {
-      await guardarExcipienteBorrador({ fichaTecnicaId, drogaId: drogaId || null, cantidad: cantidad || undefined });
+      await guardarExcipienteBorrador({ fichaTecnicaId, drogaId: drogaId || null, cantidad: cantidad || undefined, porUnidad: formData.get("excipientePorUnidad") === "on" });
       return { status: "success", id: fichaTecnicaId };
     } catch (error) {
       return actionError(error, "No se pudo guardar el excipiente.");
@@ -233,10 +233,10 @@ export async function guardarInsumosBorradorAction(_prevState: PreparacionAction
   });
 }
 
-/** The excipiente the reserva form sends (migration 0092): only when one is chosen; its quantity is then required. */
-function excipienteDe(formData: FormData): { drogaId: string; cantidad: string } | undefined {
+/** The excipiente the reserva form sends (migration 0092): only when one is chosen; its quantity (per dosis or the total, 0113) is then required. */
+function excipienteDe(formData: FormData): { drogaId: string; cantidad: string; porUnidad: boolean } | undefined {
   const drogaId = String(formData.get("excipienteDrogaId") ?? "").trim();
-  return drogaId ? { drogaId, cantidad: String(formData.get("excipienteCantidad") ?? "") } : undefined;
+  return drogaId ? { drogaId, cantidad: String(formData.get("excipienteCantidad") ?? ""), porUnidad: formData.get("excipientePorUnidad") === "on" } : undefined;
 }
 
 /**

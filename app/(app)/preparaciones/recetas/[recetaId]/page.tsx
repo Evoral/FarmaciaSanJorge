@@ -615,5 +615,13 @@ function ItemToma({
       </div>
     </article>
   );
-  return pesaje ? <PesajeProvider datos={pesaje}>{tarjeta}</PesajeProvider> : tarjeta;
+  // Keyed by ficha: after an edit generates a new version, the workspace restarts from its (carried-over) drafts
+  // instead of keeping the previous version's línea ids, which no longer save.
+  return pesaje ? (
+    <PesajeProvider key={pesaje.fichaTecnicaId} datos={pesaje}>
+      {tarjeta}
+    </PesajeProvider>
+  ) : (
+    tarjeta
+  );
 }
