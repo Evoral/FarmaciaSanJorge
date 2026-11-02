@@ -662,15 +662,25 @@ La hoja del día SHALL seguir el formato del libro legalizado (2026-10-17): "LIB
 - **WHEN** se imprime la hoja del día
 - **THEN** arriba a la izquierda va la razón social y no se repite como propietario
 
-### Requirement: Impresión — tabla y firma
+### Requirement: Impresión — tabla de asientos
 
-Después del encabezado, la hoja del día SHALL llevar la tabla de asientos (Nº, paciente, médico, **fórmula de la prescripción completa** -- cada celda crece lo necesario, nunca se corta --, **Lote** y **Anulado**). La línea "Firma y aclaración del Farmacéutico", con farmacia, propietario y domicilio debajo, va centrada y **siempre en el mismo lugar: al pie de la última hoja de la jornada**.
+Después del encabezado, la hoja del día SHALL llevar la tabla de asientos (Nº, paciente, médico, **fórmula de la prescripción completa** -- una droga debajo de la otra, con la cantidad y forma en su propia línea (2026-10-30; solo visualización, `formulaParaHoja`: el `formula_texto` guardado no cambia); cada celda crece lo necesario, nunca se corta --, **Lote** y **Anulado**).
 
 #### Scenario: Fórmula larga
 
 - **GIVEN** un asiento con una fórmula larga
 - **WHEN** se imprime la hoja del día
 - **THEN** su celda crece lo necesario y la fórmula no se corta
+
+### Requirement: Impresión — pie y firma
+
+La línea "Firma y aclaración del Farmacéutico", con farmacia, propietario y domicilio debajo, SHALL ir centrada y **siempre en el mismo lugar: al pie de la última hoja de la jornada**.
+
+#### Scenario: Pie en la última hoja
+
+- **GIVEN** una jornada firmada
+- **WHEN** se imprime la hoja del día
+- **THEN** la línea de firma va centrada al pie de la última hoja
 
 ### Requirement: Impresión — firma en hoja nueva y lo que no lleva
 
@@ -723,17 +733,23 @@ Un asiento "sin efecto por rectificativo" no SHALL marcarse en la hoja: sigue vi
 
 ### Requirement: Lote en la hoja
 
-Lote en la hoja (2026-10-17). La columna Lote de la hoja del cierre SHALL mostrar, por asiento, una línea por droga usada con sus lotes: "Droga: lote, lote", por nombre de droga. Sale de asiento → sus preparaciones (`preparacion_id` legacy o `asiento_preparacion`, D8; un RECTIFICATIVO, por su asiento original) → `movimiento_stock` EGRESO_PREPARACION → `partida.lote` (`cierre-repository.ts#lotesPorAsiento`).
+Lote en la hoja (2026-10-17). La columna Lote de la hoja del cierre SHALL mostrar, por asiento, una línea por droga **psicotrópica o estupefaciente** usada con sus lotes (2026-10-30: el resto de las drogas no lleva lote): "Droga: lote, lote", por nombre de droga. Sale de asiento → sus preparaciones (`preparacion_id` legacy o `asiento_preparacion`, D8; un RECTIFICATIVO, por su asiento original) → `movimiento_stock` EGRESO_PREPARACION → `partida.lote` (`cierre-repository.ts#lotesPorAsiento`).
 
 #### Scenario: Droga de dos partidas
 
-- **GIVEN** un asiento cuya preparación usó una droga de dos partidas
+- **GIVEN** un asiento cuya preparación usó una droga psicotrópica o estupefaciente de dos partidas
 - **WHEN** se imprime la hoja del cierre
 - **THEN** la columna Lote muestra "Droga: lote, lote" para esa droga
 
+#### Scenario: Droga no controlada
+
+- **GIVEN** un asiento cuya preparación usó solo drogas que no son psicotrópicas ni estupefacientes
+- **WHEN** se imprime la hoja del cierre
+- **THEN** la columna Lote queda vacía
+
 ### Requirement: Lote — solo visualización
 
-La columna Lote SHALL ser SOLO de visualización, como "Receta Nº": no es una columna del asiento, no está en su hash y no cambia la tabla. Un asiento sin preparaciones (histórico) queda vacío. Incluye todo lo pesado, controlado o no. La exportación PDF de `/libro` todavía no la lleva, ni tampoco el encabezado y el pie del legalizado (no tiene los datos del tenant ni del DT de cada jornada).
+La columna Lote SHALL ser SOLO de visualización, como "Receta Nº": no es una columna del asiento, no está en su hash y no cambia la tabla. Un asiento sin preparaciones (histórico) o sin psicotrópicos ni estupefacientes queda vacío. La exportación PDF de `/libro` todavía no la lleva, ni tampoco el encabezado y el pie del legalizado (no tiene los datos del tenant ni del DT de cada jornada).
 
 #### Scenario: Exportación PDF de /libro
 
@@ -779,6 +795,18 @@ Fórmula de la prescripción (2026-10-16). La fórmula de cada ítem en el asien
 - **GIVEN** un ítem de Minoxidil 5 mg y Finasteride 1 mg, Ludipress como excipiente, 60 cápsulas de ½ dosis
 - **WHEN** se escribe su asiento
 - **THEN** la fórmula es "Minoxidil 5 mg; Finasteride 1 mg; Ludipress c.s.p. — 60 Cápsulas (1 cápsula = ½ dosis)"
+
+### Requirement: Fórmula — excipiente por unidad o c.s.p.
+
+Un excipiente cargado por unidad SHALL aparecer en la fórmula con su cantidad por dosis ("Ludipress 0,795 g c.s.p."), mientras que como c.s.p. aparece sin cantidad ("Ludipress c.s.p."). El excipiente nunca genera una línea en `detalle_asiento`.
+
+#### Scenario: Excipiente cargado por unidad vs c.s.p. (ejemplo 30 cápsulas)
+
+- **GIVEN** un ítem de 30 cápsulas de ½ dosis (15 dosis) con Minoxidil 5 mg por dosis y Ludipress como excipiente
+- **WHEN** el excipiente se cargó por unidad (0,4 g por cápsula, total 11,925 g descontadas las drogas)
+- **THEN** la fórmula es "Minoxidil 5 mg; Ludipress 0,795 g c.s.p. — 30 Cápsulas (1 cápsula = ½ dosis)"
+- **WHEN** el excipiente se cargó como c.s.p. (12 g total, 11,925 g descontadas las drogas)
+- **THEN** la fórmula es "Minoxidil 5 mg; Ludipress c.s.p. — 30 Cápsulas (1 cápsula = ½ dosis)"
 
 ### Requirement: Fórmula — ejemplos, detalle y asientos anteriores
 

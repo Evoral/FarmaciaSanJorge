@@ -481,7 +481,8 @@ export interface CierreDetalle {
  * The partida lotes each asiento of the jornada used, for the sheet's Lote column: asiento -> its preparaciones
  * (legacy per-ítem `preparacion_id`, or por-receta `asiento_preparacion`, D8; a RECTIFICATIVO through its original
  * asiento, like `recetaNumeroInterno`) -> `movimiento_stock` EGRESO_PREPARACION -> `partida.lote`. Display-only: not
- * an asiento column, not hashed. One line per droga, "Droga: lote, lote", by droga name; an asiento without
+ * an asiento column, not hashed. Only controlled drogas, psicotrópico or estupefaciente (user decision
+ * 2026-10-30). One line per droga, "Droga: lote, lote", by droga name; an asiento without controlled drogas or
  * preparaciones (historic) has no entry.
  */
 async function lotesPorAsiento(tx: Prisma.TransactionClient, tenantId: string, fecha: string): Promise<Map<string, string[]>> {
@@ -500,7 +501,7 @@ async function lotesPorAsiento(tx: Prisma.TransactionClient, tenantId: string, f
     ) x
     JOIN fsj.movimiento_stock m ON m.tenant_id = ${tenantId}::uuid AND m.preparacion_id = x.preparacion_id AND m.tipo = 'EGRESO_PREPARACION'
     JOIN fsj.partida p ON p.tenant_id = ${tenantId}::uuid AND p.id = m.partida_id
-    JOIN fsj.droga d ON d.tenant_id = ${tenantId}::uuid AND d.id = p.droga_id
+    JOIN fsj.droga d ON d.tenant_id = ${tenantId}::uuid AND d.id = p.droga_id AND d.tipo_control IN ('PSICOTROPICO', 'ESTUPEFACIENTE')
     GROUP BY x.asiento_id, d.nombre
     ORDER BY x.asiento_id, d.nombre
   `;
