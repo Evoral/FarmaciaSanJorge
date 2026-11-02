@@ -42,6 +42,10 @@ import {
   esFechaPrescripcionVigente,
   esFechaValidaDesdeDelMes,
   resumirItemsReceta,
+  conUnidadBaseEnPorcentajes,
+  unidadDeComponente,
+  validarConcentracionesReceta,
+  validarCorduraConcentraciones,
   validarItemsReceta,
   validarOrigenCargaManual,
 } from "../domain/receta";
@@ -51,6 +55,8 @@ import {
   existeFichaConPreparacionParaReceta,
   getMedicoRefParaReceta,
   itemsConFichaOCotizacion,
+  getMagnitudesDeUnidades,
+  getUnidadesParaCordura,
   getNombresParaResumen,
   getPacienteRefParaReceta,
   getRecetaParaAccion,
@@ -118,6 +124,7 @@ function toItemsInput(items: EditarRecetaInput["items"]): ItemInput[] {
         cantidad: c.cantidad,
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
+        unidadReferenciaId: c.unidadReferenciaId ?? null,
         drogaAliasId: c.drogaAliasId ?? null,
       }),
     ),
@@ -212,11 +219,12 @@ export const editarRecetaCommand = defineCommand({
     if (!medico) throw new NotFoundError("Médico no encontrado.");
     if (medico.fechaBaja !== null) throw new DomainError("El médico está dado de baja.");
 
-    const itemsDominio = toItemsInput(input.items);
+    let itemsDominio = toItemsInput(input.items);
     validarItemsReceta(itemsDominio);
 
     const drogaIds = itemsDominio.flatMap((item) => item.componentes.map((c) => c.drogaId));
     const drogas = await clasificarDrogasDeReceta(tx, session.tenantId, drogaIds);
+    itemsDominio = conUnidadBaseEnPorcentajes(itemsDominio, drogas.unidadesBase);
     if (drogas.invalidas.length > 0) {
       throw new ValidationError("Una o más drogas seleccionadas no existen o están dadas de baja.");
     }
@@ -228,12 +236,14 @@ export const editarRecetaCommand = defineCommand({
       listSinonimosGuardadosDeReceta(tx, session.tenantId, input.id),
     );
     const unidadIds = [
-      ...itemsDominio.flatMap((item) => item.componentes.map((c) => c.unidadMedidaId)),
+      ...itemsDominio.flatMap((item) => item.componentes.flatMap((c) => (c.unidadReferenciaId ? [c.unidadMedidaId, c.unidadReferenciaId] : [c.unidadMedidaId]))),
       ...itemsDominio.flatMap((item) => (item.unidadTotalId ? [item.unidadTotalId] : [])),
     ];
     if ((await unidadesInvalidas(tx, unidadIds)).length > 0) {
       throw new ValidationError("Una o más unidades de medida seleccionadas no existen o están dadas de baja.");
     }
+    validarConcentracionesReceta(itemsDominio, await getMagnitudesDeUnidades(tx, unidadIds));
+    validarCorduraConcentraciones(itemsDominio, await getUnidadesParaCordura(tx, unidadIds));
 
     const headerUpdated = await updateRecetaHeader(
       tx,
@@ -275,8 +285,9 @@ export const editarRecetaCommand = defineCommand({
         componentes: item.componentes.map((c) => ({
           drogaId: c.drogaId,
           cantidad: c.cantidad,
-          unidadMedidaId: c.unidadMedidaId,
+          unidadMedidaId: unidadDeComponente(c, drogas.unidadesBase),
           modoExpresion: c.modoExpresion,
+          unidadReferenciaId: c.unidadReferenciaId ?? null,
           esPrincipioActivo: drogas.principiosActivos.has(c.drogaId),
           drogaAliasId: c.drogaAliasId ?? null,
         })),

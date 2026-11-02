@@ -363,6 +363,26 @@ cantidad no nula.
 - **WHEN** se calcula un ítem con `cantidadUnidades` 0
 - **THEN** devuelve error y no genera ficha
 
+### Requirement: V12 — Concentración mayor que el preparado
+
+Al crear, editar o importar una receta (2026-11-02), un componente expresado como concentración NO SHALL dar más que
+todo el preparado: la receta se rechaza con la cuenta a la vista. Se compara en la unidad base de cada magnitud (g, mL),
+así que un volumen contra una masa se lee a 1 g/mL: es una cota gruesa, alcanza para atrapar un valor o un «por»
+equivocados. (`validarCorduraConcentraciones`, `modules/recetas/domain/receta.ts`.) Las recetas ya guardadas no se
+revisan hasta que se editan.
+
+#### Scenario: «Por» equivocado
+
+- **GIVEN** una crema de 30 g con Aceite de cade en concentración 2,3 mL por mg
+- **WHEN** se guarda la receta
+- **THEN** se rechaza: "el componente 1 (2,3 mL/mg × 30 g) da 69.000 mL: más que todo el preparado. Revisá el valor y el «por»."
+
+#### Scenario: Concentración razonable
+
+- **GIVEN** la misma crema con Aceite de cade al 2,3 %
+- **WHEN** se guarda la receta
+- **THEN** se acepta (0,69 del total)
+
 ### Requirement: Casos de prueba exactos
 
 Los casos de prueba T1–T8 SHALL pasar exactos. Cada uno es un escenario de la regla que ejercita: T1 y T2 en R3, T3

@@ -47,6 +47,7 @@ export const MODO_EXPRESION_LABELS: Readonly<Record<ModoExpresion, string>> = {
   POR_DOSIS: "Por dosis",
   CS: "c.s.",
   CSP: "c.s.p.",
+  CONCENTRACION: "Concentración",
 };
 
 export const ESTADO_RECETA_LABELS: Readonly<Record<EstadoReceta, string>> = {

@@ -77,6 +77,10 @@ interface ComponenteState {
   cantidad: string;
   unidadMedidaId: string;
   modoExpresion: ModoExpresion;
+  /** CONCENTRACION only (migration 0112): the "por" unit of "5 mg/mL"; "" or omitted = %. */
+  unidadReferenciaId?: string;
+  /** The picked droga's unidad base: a % is always in it (its magnitude says whether it is weighed or measured). */
+  unidadBaseId?: string;
   /** `importar` mode: the drug name as printed on the receta. */
   drogaTexto?: string;
   /** `importar` mode: the catalog had no match -- the user picks it and may remember the equivalence. */
@@ -158,9 +162,33 @@ function opcionFraccion(valor: string): string {
   return FRACCIONES_DOSIS.find((f) => Number(f.valor) === Number(valor))?.valor ?? valor;
 }
 
-/** Switching forma drops the fields it does not use: the fraction outside capsular forms, the c.s.p. total inside them. */
-function cambioDeForma(formaFarmaceutica: FormaFarmaceutica): Partial<ItemState> {
-  return esFormaCapsular(formaFarmaceutica) ? { formaFarmaceutica, cantidadTotal: "", unidadTotalId: "" } : { formaFarmaceutica, fraccionDosisPorUnidad: "1" };
+/** Semisolid and powder formas are prepared by mass; every other non-capsular forma by volume. */
+const FORMAS_EN_GRAMOS: ReadonlySet<FormaFarmaceutica> = new Set(["CREMA", "GEL", "UNGUENTO", "POLVO"]);
+
+/** Ids of the units a non-capsular forma preselects for its c.s.p. total ("" when the catalog lacks them). */
+interface UnidadesTotalPorDefecto {
+  gramoId: string;
+  mililitroId: string;
+}
+
+/** The usual unit of the total to prepare: g or mL by forma, none for capsular formas. */
+function unidadTotalPorDefecto(forma: FormaFarmaceutica, defaults: UnidadesTotalPorDefecto): string {
+  if (esFormaCapsular(forma)) return "";
+  return FORMAS_EN_GRAMOS.has(forma) ? defaults.gramoId : defaults.mililitroId;
+}
+
+/**
+ * Switching forma drops the fields it does not use: the fraction outside capsular forms, the c.s.p. total inside them.
+ * The total's unit follows the new forma's default unless the user picked a different one.
+ */
+function cambioDeForma(item: ItemState, formaFarmaceutica: FormaFarmaceutica, defaults: UnidadesTotalPorDefecto): Partial<ItemState> {
+  if (esFormaCapsular(formaFarmaceutica)) return { formaFarmaceutica, cantidadTotal: "", unidadTotalId: "" };
+  const elegidaPorUsuario = item.unidadTotalId !== "" && item.unidadTotalId !== unidadTotalPorDefecto(item.formaFarmaceutica, defaults);
+  return {
+    formaFarmaceutica,
+    fraccionDosisPorUnidad: "1",
+    unidadTotalId: elegidaPorUsuario ? item.unidadTotalId : unidadTotalPorDefecto(formaFarmaceutica, defaults),
+  };
 }
 
 function FormSection({ title, description, children, id }: { title: string; description?: string; children: ReactNode; id: string }) {
@@ -194,6 +222,7 @@ function itemParaEnvio(it: ItemState) {
       cantidad: c.cantidad.trim().length > 0 ? c.cantidad.trim() : null,
       unidadMedidaId: c.unidadMedidaId,
       modoExpresion: c.modoExpresion,
+      unidadReferenciaId: c.modoExpresion === "CONCENTRACION" && c.unidadReferenciaId ? c.unidadReferenciaId : null,
     })),
   };
 }
@@ -266,6 +295,42 @@ export interface RecetaFormInicial {
 }
 
 /** Unit options in server order: masa, volumen, unidades, each smallest unit first. */
+/** The magnitude of a unidad id of the catalog (`undefined` when not chosen / unknown). */
+function magnitudDe(unidadId: string, unidades: readonly UnidadOpcion[]): string | undefined {
+  return unidades.find((u) => u.id === unidadId)?.tipoMagnitud;
+}
+
+/**
+ * The "por" unit a concentration starts with: the item's total unit when it is masa or volumen (a crema in g ->
+ * "mg por g", gotas in mL -> "mg por mL"), else mL. A "por" of another magnitude than the total cannot be computed (V11).
+ */
+function referenciaPorDefecto(unidadTotalId: string, unidades: readonly UnidadOpcion[], mililitroId: string): string {
+  const magnitud = magnitudDe(unidadTotalId, unidades);
+  return magnitud === "MASA" || magnitud === "VOLUMEN" ? unidadTotalId : mililitroId;
+}
+
+/** The item's componentes once its total is in `unidadTotalId`: a "por" unit of another magnitude follows the total. */
+function referenciasSegunTotal(componentes: ComponenteState[], unidadTotalId: string, unidades: readonly UnidadOpcion[]): ComponenteState[] {
+  const magnitud = magnitudDe(unidadTotalId, unidades);
+  if (magnitud !== "MASA" && magnitud !== "VOLUMEN") return componentes;
+  return componentes.map((c) =>
+    c.modoExpresion === "CONCENTRACION" && c.unidadReferenciaId && magnitudDe(c.unidadReferenciaId, unidades) !== magnitud ? { ...c, unidadReferenciaId: unidadTotalId } : c,
+  );
+}
+
+/** The unit selector's "% del total" option (Concentración only): not a unidad id, never submitted. */
+const PORCENTAJE = "%";
+
+/** A % concentration (CONCENTRACION without a "por" unit): its unit is the droga's unidad base, not chosen by the user. */
+function esPorcentaje(c: Pick<ComponenteState, "modoExpresion" | "unidadReferenciaId">): boolean {
+  return c.modoExpresion === "CONCENTRACION" && !c.unidadReferenciaId;
+}
+
+/** The unit patch a % needs (the droga's unidad base, when known); nothing otherwise. The server applies the same rule. */
+function unidadDePorcentaje(c: ComponenteState): Partial<ComponenteState> {
+  return esPorcentaje(c) && c.unidadBaseId ? { unidadMedidaId: c.unidadBaseId } : {};
+}
+
 function OpcionesUnidad({ unidades }: { unidades: UnidadOpcion[] }) {
   return unidades.map((u) => (
     <option key={u.id} value={u.id}>
@@ -293,14 +358,14 @@ export interface RecetaFormProps {
 }
 
 /** The receta form's starting state for an imported PDF: the draft's data plus the catalog matches. */
-function itemsDesdeVistaPrevia(vista: VistaPreviaImportacion): ItemState[] {
+function itemsDesdeVistaPrevia(vista: VistaPreviaImportacion, defaults: UnidadesTotalPorDefecto): ItemState[] {
   return vista.borrador.items.map((item, itemIdx) => ({
     descripcion: "",
     formaFarmaceutica: item.formaFarmaceutica ?? "COMPRIMIDO",
     cantidadUnidades: item.cantidadUnidades !== null ? String(item.cantidadUnidades) : "",
     fraccionDosisPorUnidad: item.fraccionDosisPorUnidad,
     cantidadTotal: "",
-    unidadTotalId: "",
+    unidadTotalId: unidadTotalPorDefecto(item.formaFarmaceutica ?? "COMPRIMIDO", defaults),
     observaciones: "",
     posologia: item.posologia ?? "",
     duracionTratamientoDias: item.duracionTratamientoDias !== null ? String(item.duracionTratamientoDias) : "",
@@ -374,7 +439,11 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   // an import is DIGITAL_PDF.
   const origen: OrigenReceta = importacion ? "DIGITAL_PDF" : (inicial?.origen ?? "PRESENCIAL");
   const unidadMgId = unidades.find((u) => u.simbolo.toLowerCase() === "mg")?.id ?? "";
-  const [items, setItems] = useState<ItemState[]>(() => (importacion ? itemsDesdeVistaPrevia(importacion) : (inicial?.items ?? [nuevoItem(unidadMgId)])));
+  const unidadesTotal: UnidadesTotalPorDefecto = {
+    gramoId: unidades.find((u) => u.simbolo.toLowerCase() === "g")?.id ?? "",
+    mililitroId: unidades.find((u) => u.simbolo.toLowerCase() === "ml")?.id ?? "",
+  };
+  const [items, setItems] = useState<ItemState[]>(() => (importacion ? itemsDesdeVistaPrevia(importacion, unidadesTotal) : (inicial?.items ?? [nuevoItem(unidadMgId)])));
   // `importar` mode: the people to create (only used when the preview found no existing one).
   const [pacienteNuevo, setPacienteNuevo] = useState(() => ({
     nombre: borrador?.paciente.nombre?.nombre ?? "",
@@ -947,7 +1016,10 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                     <label htmlFor={`item-${itemIdx}-forma`} className="field-label">
                       Tipo de preparado
                     </label>
-                    <select id={`item-${itemIdx}-forma`} value={item.formaFarmaceutica} onChange={(e) => actualizarItem(itemIdx, cambioDeForma(e.target.value as FormaFarmaceutica))} className="input">
+                    <select id={`item-${itemIdx}-forma`} value={item.formaFarmaceutica} onChange={(e) => {
+                        const cambio = cambioDeForma(item, e.target.value as FormaFarmaceutica, unidadesTotal);
+                        actualizarItem(itemIdx, cambio.unidadTotalId ? { ...cambio, componentes: referenciasSegunTotal(item.componentes, cambio.unidadTotalId, unidades) } : cambio);
+                      }} className="input">
                       {FORMAS_FARMACEUTICAS.map((f) => (
                         <option key={f} value={f}>
                           {FORMA_FARMACEUTICA_LABELS[f]}
@@ -1006,17 +1078,17 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                   {esFormaCapsular(item.formaFarmaceutica) ? null : (
                     <div className="field @lg:col-span-2">
                       <span id={`item-${itemIdx}-total-label`} className="field-label">
-                        Cantidad total (para csp)
+                        Cantidad de {FORMA_FARMACEUTICA_LABELS[item.formaFarmaceutica].toLowerCase()} a preparar
                       </span>
                       <div className="flex gap-2" role="group" aria-labelledby={`item-${itemIdx}-total-label`}>
                         <label htmlFor={`item-${itemIdx}-total`} className="sr-only">
-                          Cantidad total (para csp)
+                          Cantidad de {FORMA_FARMACEUTICA_LABELS[item.formaFarmaceutica].toLowerCase()} a preparar
                         </label>
                         <input id={`item-${itemIdx}-total`} type="text" inputMode="decimal" value={item.cantidadTotal} onChange={(e) => actualizarItem(itemIdx, { cantidadTotal: e.target.value })} className="input w-28 flex-none" />
                         <label htmlFor={`item-${itemIdx}-unidad-total`} className="sr-only">
                           Unidad del total
                         </label>
-                        <select id={`item-${itemIdx}-unidad-total`} value={item.unidadTotalId} onChange={(e) => actualizarItem(itemIdx, { unidadTotalId: e.target.value })} className="input min-w-0 flex-1">
+                        <select id={`item-${itemIdx}-unidad-total`} value={item.unidadTotalId} onChange={(e) => actualizarItem(itemIdx, { unidadTotalId: e.target.value, componentes: referenciasSegunTotal(item.componentes, e.target.value, unidades) })} className="input min-w-0 flex-1">
                           <option value="">Sin unidad</option>
                           <OpcionesUnidad unidades={unidades} />
                         </select>
@@ -1046,7 +1118,8 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
 
                   <ol>
                     {item.componentes.map((c, compIdx) => (
-                      <li key={compIdx} className="repeat-row">
+                      // pb-20: room below the row for the "Por" selector, which hangs under Unidad.
+                      <li key={compIdx}className={c.modoExpresion === "CONCENTRACION" && !esPorcentaje(c) ? "repeat-row pb-20" : "repeat-row"}>
                         {importacion && c.drogaTexto ? (
                           <p className="flex w-full flex-wrap items-center gap-2 text-xs text-zinc-600">
                             En la receta: «{c.drogaTexto}»
@@ -1064,6 +1137,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                             selectedId={c.drogaId}
                             selectedLabel={c.drogaNombre}
                             selectedSinonimo={c.sinonimo}
+                            selectedSinonimoId={c.drogaAliasId}
                             onSelect={(droga) =>
                               // A new pick (or a clear) always replaces the synonym: it belongs to the droga it was picked with.
                               actualizarComponente(itemIdx, compIdx, {
@@ -1071,7 +1145,8 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                                 drogaNombre: droga?.nombre ?? "",
                                 drogaAliasId: droga?.drogaAliasId ?? null,
                                 sinonimo: droga?.sinonimo ?? null,
-                                unidadMedidaId: droga ? c.unidadMedidaId || droga.unidadBaseId : "",
+                                unidadBaseId: droga?.unidadBaseId,
+                                unidadMedidaId: droga ? (esPorcentaje(c) ? droga.unidadBaseId : c.unidadMedidaId || droga.unidadBaseId) : "",
                               })
                             }
                           />
@@ -1084,11 +1159,23 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                           <select
                             id={`item-${itemIdx}-comp-${compIdx}-modo`}
                             value={c.modoExpresion}
-                            onChange={(e) => actualizarComponente(itemIdx, compIdx, { modoExpresion: e.target.value as ModoExpresion, cantidad: e.target.value === "CS" || e.target.value === "CSP" ? "" : c.cantidad })}
+                            onChange={(e) => {
+                              const modoExpresion = e.target.value as ModoExpresion;
+                              const cantidad = modoExpresion === "CS" || modoExpresion === "CSP" ? "" : c.cantidad;
+                              // Concentración starts as the usual "mg por mL"; leaving it drops the "por" unit.
+                              const patchUnidades =
+                                modoExpresion === "CONCENTRACION" && c.modoExpresion !== "CONCENTRACION"
+                                  ? { unidadMedidaId: unidadMgId || c.unidadMedidaId, unidadReferenciaId: referenciaPorDefecto(item.unidadTotalId, unidades, unidadesTotal.mililitroId) }
+                                  : modoExpresion !== "CONCENTRACION"
+                                    ? { unidadReferenciaId: "" }
+                                    : {};
+                              actualizarComponente(itemIdx, compIdx, { modoExpresion, cantidad, ...patchUnidades });
+                            }}
                             aria-label={`Componente ${compIdx + 1}: modo de expresión`}
                             className="input input-sm"
                           >
-                            {MODOS_EXPRESION.map((m) => (
+                            {/* No concentration on cápsulas/comprimidos (V10); one already chosen stays visible so its value is not silently re-read as another mode. */}
+                            {MODOS_EXPRESION.filter((m) => m !== "CONCENTRACION" || !esFormaCapsular(item.formaFarmaceutica) || c.modoExpresion === "CONCENTRACION").map((m) => (
                               <option key={m} value={m}>
                                 {MODO_EXPRESION_LABELS[m]}
                               </option>
@@ -1096,10 +1183,10 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                           </select>
                         </div>
 
-                        {c.modoExpresion === "TOTAL" || c.modoExpresion === "POR_DOSIS" ? (
+                        {c.modoExpresion === "TOTAL" || c.modoExpresion === "POR_DOSIS" || c.modoExpresion === "CONCENTRACION" ? (
                           <div className="field w-24">
                             <label htmlFor={`item-${itemIdx}-comp-${compIdx}-cant`} className="field-label">
-                              Cantidad
+                              {c.modoExpresion === "CONCENTRACION" ? "Valor" : "Cantidad"}
                             </label>
                             <input
                               id={`item-${itemIdx}-comp-${compIdx}-cant`}
@@ -1113,20 +1200,59 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                           </div>
                         ) : null}
 
-                        <div className="field w-36">
-                          <label htmlFor={`item-${itemIdx}-comp-${compIdx}-unidad`} className="field-label">
-                            Unidad
-                          </label>
-                          <select
-                            id={`item-${itemIdx}-comp-${compIdx}-unidad`}
-                            value={c.unidadMedidaId}
-                            onChange={(e) => actualizarComponente(itemIdx, compIdx, { unidadMedidaId: e.target.value })}
-                            aria-label={`Componente ${compIdx + 1}: unidad`}
-                            className="input input-sm"
-                          >
-                            <option value="">Elegir unidad</option>
-                            <OpcionesUnidad unidades={unidades} />
-                          </select>
+                        {/* Unidad stays in line with Droga / Modo / Valor; "Por" hangs right under it (the row is bottom-aligned). */}
+                        <div className="relative w-36">
+                          <div className="field">
+                            <label htmlFor={`item-${itemIdx}-comp-${compIdx}-unidad`} className="field-label">
+                              Unidad
+                            </label>
+                            <select
+                              id={`item-${itemIdx}-comp-${compIdx}-unidad`}
+                              value={esPorcentaje(c) ? PORCENTAJE : c.unidadMedidaId}
+                              onChange={(e) =>
+                                actualizarComponente(
+                                  itemIdx,
+                                  compIdx,
+                                  e.target.value === PORCENTAJE
+                                    ? { unidadReferenciaId: "", ...unidadDePorcentaje({ ...c, unidadReferenciaId: "" }) }
+                                    : {
+                                        unidadMedidaId: e.target.value,
+                                        ...(esPorcentaje(c) ? { unidadReferenciaId: referenciaPorDefecto(item.unidadTotalId, unidades, unidadesTotal.mililitroId) } : {}),
+                                      },
+                                )
+                              }
+                              aria-label={`Componente ${compIdx + 1}: unidad`}
+                              className="input input-sm"
+                            >
+                              <option value="">Elegir unidad</option>
+                              {c.modoExpresion === "CONCENTRACION" ? <option value={PORCENTAJE}>% del total</option> : null}
+                              <OpcionesUnidad unidades={unidades} />
+                            </select>
+                          </div>
+
+                          {c.modoExpresion === "CONCENTRACION" && !esPorcentaje(c) ? (
+                            <div className="field absolute inset-x-0 top-full mt-2">
+                              <label htmlFor={`item-${itemIdx}-comp-${compIdx}-por`} className="field-label">
+                                Por
+                              </label>
+                              <select
+                                id={`item-${itemIdx}-comp-${compIdx}-por`}
+                                value={c.unidadReferenciaId}
+                                onChange={(e) => actualizarComponente(itemIdx, compIdx, { unidadReferenciaId: e.target.value })}
+                                aria-label={`Componente ${compIdx + 1}: concentración por`}
+                                className="input input-sm"
+                              >
+                                {/* Only units of the total's magnitude: a crema in g offers "por g", never "por mL" (V11). */}
+                                {unidades
+                                  .filter((u) => (u.tipoMagnitud === "MASA" || u.tipoMagnitud === "VOLUMEN") && (u.tipoMagnitud === (magnitudDe(item.unidadTotalId, unidades) ?? u.tipoMagnitud) || u.id === c.unidadReferenciaId))
+                                  .map((u) => (
+                                    <option key={u.id} value={u.id}>
+                                      por {u.simbolo}
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+                          ) : null}
                         </div>
 
                         {item.componentes.length > 1 ? (

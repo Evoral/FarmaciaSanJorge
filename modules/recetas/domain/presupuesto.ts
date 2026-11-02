@@ -159,7 +159,7 @@ export interface ComponentePresupuestable {
   drogaId: string;
   cantidad: string | null;
   unidadMedidaId: string;
-  modoExpresion: "TOTAL" | "POR_DOSIS" | "CS" | "CSP";
+  modoExpresion: "TOTAL" | "POR_DOSIS" | "CS" | "CSP" | "CONCENTRACION";
 }
 
 export interface ItemPresupuestable {
@@ -179,7 +179,7 @@ function esDecimalPositivo(valor: string | null): boolean {
 /**
  * Every item has a whole number of units, a valid fracción, a complete
  * (or absent) total, and every componente has its droga, its unidad and a
- * valid cantidad (> 0 for TOTAL/POR_DOSIS, none for CS/CSP). The V1-V9
+ * valid cantidad (> 0 for TOTAL/POR_DOSIS/CONCENTRACION, none for CS/CSP). The V1-V9
  * rules proper are NOT re-checked here: the server reports them per item.
  */
 export function itemsListosParaPresupuesto(items: readonly ItemPresupuestable[]): boolean {
@@ -197,7 +197,9 @@ export function itemsListosParaPresupuesto(items: readonly ItemPresupuestable[])
           (c) =>
             c.drogaId.length > 0 &&
             c.unidadMedidaId.length > 0 &&
-            (c.modoExpresion === "TOTAL" || c.modoExpresion === "POR_DOSIS" ? esDecimalPositivo(c.cantidad) : c.cantidad === null),
+            (c.modoExpresion === "TOTAL" || c.modoExpresion === "POR_DOSIS" || c.modoExpresion === "CONCENTRACION"
+              ? esDecimalPositivo(c.cantidad)
+              : c.cantidad === null),
         ),
     )
   );

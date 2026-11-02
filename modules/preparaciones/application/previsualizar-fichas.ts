@@ -65,6 +65,7 @@ async function lineasDelItem(tx: Prisma.TransactionClient, tenantId: string, ite
     unidadSimbolo: l.unidadSimbolo,
     esEnraseManual: l.esEnraseManual,
     orden: l.orden,
+    prescripcion: l.prescripcion ?? null,
     unidad: { factorABase: l.unidadMedida.factorABase.toString(), tipoMagnitud: l.unidadMedida.tipoMagnitud },
   }));
 }

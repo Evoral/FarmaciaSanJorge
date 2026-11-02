@@ -9,12 +9,13 @@
  * here that duplicates a check exists purely to produce a clear Spanish
  * message before the DB rejects it.
  */
-import type { Prisma } from "@/generated/prisma/client";
-import type { EstadoReceta, FormaFarmaceutica, ModoExpresion, OrigenReceta } from "../domain/receta";
+import { Prisma } from "@/generated/prisma/client";
+import type { EstadoReceta, FormaFarmaceutica, ModoExpresion, OrigenReceta, UnidadParaCordura } from "../domain/receta";
 import type { FiltroPagoReceta } from "../domain/pago";
 import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
 import { rangoDeJornadas } from "@/shared/time/jornada";
-import { drogaCoincideSql, sinonimoCoincidenteSql } from "@/shared/db/busqueda-droga";
+import { busquedaDrogaLike, patron } from "@/shared/db/busqueda-droga";
+import { simboloParaMostrar } from "@/modules/elaboracion/domain/concentracion";
 
 // ============================================================================
 // Tenant jornada (fecha_prescripcion <= hoy check) -- own copy per module,
@@ -70,21 +71,24 @@ export interface DrogasDeReceta {
   principiosActivos: ReadonlySet<string>;
   /** Names of the vigente drogas whose clase is MATERIAL (capsules, containers): never prescribed, so a receta may not reference them. */
   materiales: string[];
+  /** droga id -> its unidad base id, for every vigente droga: a % concentration is stored in it (migration 0112). */
+  unidadesBase: ReadonlyMap<string, string>;
 }
 
 /** ONE read of the drogas a receta's componentes (and import aliases) reference: which are invalid, which are materiales, and which are principios activos. */
 export async function clasificarDrogasDeReceta(tx: Prisma.TransactionClient, tenantId: string, drogaIds: string[]): Promise<DrogasDeReceta> {
-  if (drogaIds.length === 0) return { invalidas: [], principiosActivos: new Set(), materiales: [] };
+  if (drogaIds.length === 0) return { invalidas: [], principiosActivos: new Set(), materiales: [], unidadesBase: new Map() };
   const unicos = Array.from(new Set(drogaIds));
   const vigentes = await tx.droga.findMany({
     where: { tenantId, id: { in: unicos }, fechaBaja: null },
-    select: { id: true, nombre: true, clase: true },
+    select: { id: true, nombre: true, clase: true, unidadBaseId: true },
   });
   const vigentesSet = new Set(vigentes.map((d) => d.id));
   return {
     invalidas: unicos.filter((id) => !vigentesSet.has(id)),
     principiosActivos: new Set(vigentes.filter((d) => d.clase === "DROGA").map((d) => d.id)),
     materiales: vigentes.filter((d) => d.clase === "MATERIAL").map((d) => d.nombre),
+    unidadesBase: new Map(vigentes.map((d) => [d.id, d.unidadBaseId])),
   };
 }
 
@@ -95,6 +99,23 @@ export async function unidadesInvalidas(tx: Prisma.TransactionClient, unidadIds:
   const vigentes = await tx.unidadMedida.findMany({ where: { id: { in: unicos }, fechaBaja: null }, select: { id: true } });
   const vigentesSet = new Set(vigentes.map((u) => u.id));
   return unicos.filter((id) => !vigentesSet.has(id));
+}
+
+/** unidad id -> tipo_magnitud, for the concentration checks (recetas/domain#validarConcentracionesReceta). */
+export async function getMagnitudesDeUnidades(tx: Prisma.TransactionClient, unidadIds: string[]): Promise<Map<string, string>> {
+  if (unidadIds.length === 0) return new Map();
+  const unidades = await tx.unidadMedida.findMany({ where: { id: { in: [...new Set(unidadIds)] } }, select: { id: true, tipoMagnitud: true } });
+  return new Map(unidades.map((u) => [u.id, u.tipoMagnitud]));
+}
+
+/** unidad id -> magnitude, factor and symbol, for the V12 sanity check (recetas/domain#validarCorduraConcentraciones). */
+export async function getUnidadesParaCordura(tx: Prisma.TransactionClient, unidadIds: string[]): Promise<Map<string, UnidadParaCordura>> {
+  if (unidadIds.length === 0) return new Map();
+  const unidades = await tx.unidadMedida.findMany({
+    where: { id: { in: [...new Set(unidadIds)] } },
+    select: { id: true, tipoMagnitud: true, factorABase: true, simbolo: true },
+  });
+  return new Map(unidades.map((u) => [u.id, { tipoMagnitud: u.tipoMagnitud, factorABase: u.factorABase.toString(), simbolo: u.simbolo }]));
 }
 
 /** Names for the audit trail's readable item summary (recetas/domain#resumirItemsReceta): droga id -> nombre, unidad id -> símbolo. Includes drogas/unidades given de baja (history must still resolve). */
@@ -121,14 +142,17 @@ export interface DrogaOpcion {
   nombre: string;
   unidadBaseId: string;
   unidadBaseSimbolo: string;
-  /** The synonym the search matched through, when the name itself did not match -- a display hint only. */
+  /** The synonym this option stands for, `null` for the droga's own name. */
   sinonimo: string | null;
   /** That synonym's id: picking the option stores it on the componente (migration 0069, the name the user chose). */
   sinonimoId: string | null;
 }
 
 /**
- * Vigente drogas whose name or vigente synonym contains `search` (accent-insensitive, shared/db/busqueda-droga.ts); name matches first.
+ * Vigente drogas whose name or vigente synonym contains `search` (accent-insensitive, shared/db/busqueda-droga.ts), as
+ * one option per name AND one per matching synonym: a synonym that is part of the name ("Citronella" of "Ac.
+ * Citronella") is still offered, so the receta is loaded as the médico wrote it and the etiqueta prints that name
+ * (openspec/specs/sinonimos-droga/spec.md R9). An exact match comes first, then names, then synonyms.
  * MATERIAL rows (capsules, containers -- migration 0063) are never prescribed, so they are left out; DROGA and EXCIPIENTE are.
  */
 export async function listDrogasParaReceta(
@@ -137,18 +161,31 @@ export async function listDrogasParaReceta(
   search?: string,
   limit = 20,
 ): Promise<DrogaOpcion[]> {
+  const like = busquedaDrogaLike(search);
+  const texto = (search ?? "").trim().slice(0, 100);
   const rows = await tx.$queryRaw<{ id: string; nombre: string; unidad_base_id: string; simbolo: string; sinonimo: string | null; sinonimo_id: string | null }[]>`
-    SELECT * FROM (
-      SELECT d.id, d.nombre::text AS nombre, d.unidad_base_id, u.simbolo,
-        ${sinonimoCoincidenteSql("d", search)} AS sinonimo, ${sinonimoCoincidenteSql("d", search, "id")} AS sinonimo_id
+    SELECT id, nombre, unidad_base_id, simbolo, sinonimo, sinonimo_id FROM (
+      SELECT d.id, d.nombre::text AS nombre, d.unidad_base_id, u.simbolo, NULL::text AS sinonimo, NULL::text AS sinonimo_id,
+        fsj.normalizar_nombre(d.nombre) = fsj.normalizar_nombre(${texto}::text) AS exacto
       FROM fsj.droga d
       JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
       WHERE d.tenant_id = ${tenantId}::uuid
         AND d.fecha_baja IS NULL
         AND d.clase <> 'MATERIAL'
-        AND ${drogaCoincideSql("d", search)}
+        AND ${like === null ? Prisma.sql`TRUE` : Prisma.sql`fsj.normalizar_nombre(d.nombre) LIKE ${patron(like)}`}
+      UNION ALL
+      SELECT d.id, d.nombre::text, d.unidad_base_id, u.simbolo, da.texto::text, da.id::text,
+        fsj.normalizar_nombre(da.alias_normalizado) = fsj.normalizar_nombre(${texto}::text)
+      FROM fsj.droga_alias da
+      JOIN fsj.droga d ON d.id = da.droga_id AND d.tenant_id = da.tenant_id
+      JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
+      WHERE da.tenant_id = ${tenantId}::uuid
+        AND da.fecha_baja IS NULL
+        AND d.fecha_baja IS NULL
+        AND d.clase <> 'MATERIAL'
+        AND ${like === null ? Prisma.sql`FALSE` : Prisma.sql`fsj.normalizar_nombre(da.alias_normalizado) LIKE ${patron(like)}`}
     ) t
-    ORDER BY (t.sinonimo IS NOT NULL), t.nombre, t.id
+    ORDER BY t.exacto DESC, (t.sinonimo IS NOT NULL), t.nombre, t.sinonimo, t.id
     LIMIT ${limit}::int
   `;
   return rows.map((r) => ({ id: r.id, nombre: r.nombre, unidadBaseId: r.unidad_base_id, unidadBaseSimbolo: r.simbolo, sinonimo: r.sinonimo, sinonimoId: r.sinonimo_id }));
@@ -211,6 +248,8 @@ export interface NuevoComponenteInput {
   cantidad: string | null;
   unidadMedidaId: string;
   modoExpresion: ModoExpresion;
+  /** CONCENTRACION only (migration 0112): the denominator unit of "5 mg/mL"; omitted/null = %. */
+  unidadReferenciaId?: string | null;
   /** Snapshot of the droga's clase = DROGA, resolved by the use case (`clasificarDrogasDeReceta`). */
   esPrincipioActivo: boolean;
   /** The synonym of `drogaId` the componente was picked by (migration 0069), validated by the use case; omitted/null = canonical name. */
@@ -269,6 +308,7 @@ async function insertComponentes(
         cantidad: c.cantidad,
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
+        unidadReferenciaId: c.unidadReferenciaId ?? null,
         esPrincipioActivo: c.esPrincipioActivo,
         drogaAliasId: c.drogaAliasId ?? null,
       },
@@ -413,6 +453,9 @@ export interface ComponenteDetalle {
   unidadMedidaId: string;
   unidadMedidaSimbolo: string;
   modoExpresion: ModoExpresion;
+  /** CONCENTRACION only (migration 0112): "mL" of "5 mg/mL"; null = %. */
+  unidadReferenciaId: string | null;
+  unidadReferenciaSimbolo: string | null;
   esPrincipioActivo: boolean;
 }
 
@@ -523,7 +566,12 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
         include: {
           unidadTotal: { select: { simbolo: true } },
           componentes: {
-            include: { droga: { select: { nombre: true } }, drogaAlias: { select: { texto: true } }, unidadMedida: { select: { simbolo: true } } },
+            include: {
+              droga: { select: { nombre: true } },
+              drogaAlias: { select: { texto: true } },
+              unidadMedida: { select: { simbolo: true } },
+              unidadReferencia: { select: { simbolo: true } },
+            },
           },
         },
       },
@@ -585,8 +633,10 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
           sinonimo: c.drogaAlias?.texto ?? null,
           cantidad: c.cantidad ? c.cantidad.toString() : null,
           unidadMedidaId: c.unidadMedidaId,
-          unidadMedidaSimbolo: c.unidadMedida.simbolo,
+          unidadMedidaSimbolo: simboloParaMostrar(c.modoExpresion, c.unidadMedida.simbolo, c.unidadReferencia?.simbolo ?? null),
           modoExpresion: c.modoExpresion,
+          unidadReferenciaId: c.unidadReferenciaId,
+          unidadReferenciaSimbolo: c.unidadReferencia?.simbolo ?? null,
           esPrincipioActivo: c.esPrincipioActivo,
         })),
       ),

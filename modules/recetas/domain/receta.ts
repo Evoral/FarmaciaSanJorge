@@ -25,9 +25,11 @@
  * documented as a deliberate scope boundary, not an oversight.
  */
 import { z } from "zod";
-import { Decimal } from "@/shared/decimal";
+import { Decimal, dec } from "@/shared/decimal";
 import { ValidationError } from "@/shared/errors";
+import { formatNumero } from "@/shared/format/cantidad";
 import type { FormaFarmaceutica, ModoExpresion } from "@/modules/elaboracion/domain/calcular-ficha-tecnica";
+import { cantidadDesdeConcentracion, problemaConcentracion, textoConcentracion } from "@/modules/elaboracion/domain/concentracion";
 import { FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
 
 export type { FormaFarmaceutica, ModoExpresion };
@@ -47,7 +49,7 @@ export const FORMAS_FARMACEUTICAS = [
   "LOCION",
 ] as const satisfies readonly FormaFarmaceutica[];
 
-export const MODOS_EXPRESION = ["TOTAL", "POR_DOSIS", "CS", "CSP"] as const satisfies readonly ModoExpresion[];
+export const MODOS_EXPRESION = ["TOTAL", "POR_DOSIS", "CS", "CSP", "CONCENTRACION"] as const satisfies readonly ModoExpresion[];
 
 // Labels: shared/labels/enum-labels.ts (one map per enum, re-exported here for this module's callers).
 export { FORMA_FARMACEUTICA_LABELS, ORIGEN_RECETA_LABELS } from "@/shared/labels/enum-labels";
@@ -270,10 +272,12 @@ export function ultimoDiaDelMes(jornadaActual: string): string {
 
 export interface ComponenteInput {
   drogaId: string;
-  /** Decimal string, or `null` for CS/CSP (V7). */
+  /** Decimal string, or `null` for CS/CSP (V7). For CONCENTRACION, the prescribed value (5 in "5 %"). */
   cantidad: string | null;
   unidadMedidaId: string;
   modoExpresion: ModoExpresion;
+  /** CONCENTRACION only (migration 0112): the denominator of "5 mg/mL" (mL); null/omitted = %. */
+  unidadReferenciaId?: string | null;
   /** The synonym of the droga it was picked by (migration 0069, display only); omitted/null = canonical name. */
   drogaAliasId?: string | null;
 }
@@ -299,7 +303,7 @@ export interface ItemInput {
  * the componentes' order, migration 0065). `regla` keeps the spec code for
  * tests and diagnostics; the user-facing message never includes it.
  */
-export type ReglaReceta = "V1" | "V2" | "V4" | "V6" | "V7" | "V8" | "V9";
+export type ReglaReceta = "V1" | "V2" | "V4" | "V6" | "V7" | "V8" | "V9" | "V10" | "V11" | "V12";
 
 export class ReglaRecetaError extends ValidationError {
   readonly regla: ReglaReceta;
@@ -371,7 +375,7 @@ export function validarItemsReceta(items: ItemInput[]): void {
     // V6 / V7, per componente.
     item.componentes.forEach((c, compIdx) => {
       const m = compIdx + 1;
-      const requiereCantidad = c.modoExpresion === "TOTAL" || c.modoExpresion === "POR_DOSIS";
+      const requiereCantidad = c.modoExpresion === "TOTAL" || c.modoExpresion === "POR_DOSIS" || c.modoExpresion === "CONCENTRACION";
       if (requiereCantidad) {
         if (c.cantidad === null) {
           throw new ReglaRecetaError("V6", `En el ítem ${n}, el componente ${m} (${c.modoExpresion}) requiere una cantidad mayor que 0.`);
@@ -383,7 +387,19 @@ export function validarItemsReceta(items: ItemInput[]): void {
       } else if (c.cantidad !== null) {
         throw new ReglaRecetaError("V7", `En el ítem ${n}, el componente ${m} (${c.modoExpresion}) no debe tener cantidad.`);
       }
+      if (c.modoExpresion !== "CONCENTRACION" && c.unidadReferenciaId) {
+        throw new ReglaRecetaError("V7", `En el ítem ${n}, el componente ${m} solo lleva unidad de referencia si se expresa como concentración.`);
+      }
     });
+
+    // V10 (the part that needs no unit catalog; validarConcentracionesReceta checks the magnitudes).
+    const conConcentracion = item.componentes.some((c) => c.modoExpresion === "CONCENTRACION");
+    if (conConcentracion && (esFormaCapsular(item.formaFarmaceutica) || item.cantidadTotal === null || item.unidadTotalId === null)) {
+      throw new ReglaRecetaError(
+        "V10",
+        `En el ítem ${n}, un componente expresado como concentración requiere un preparado que no sea cápsula ni comprimido, con la cantidad a preparar y su unidad.`,
+      );
+    }
 
     // V2
     const csp = item.componentes.filter((c) => c.modoExpresion === "CSP");
@@ -399,6 +415,92 @@ export function validarItemsReceta(items: ItemInput[]): void {
         `En el ítem ${n}, un componente csp en una forma no capsular requiere cargar la cantidad total y su unidad.`,
       );
     }
+  });
+}
+
+/**
+ * The unit a componente is stored with. A % concentration has no unit of its own: it is the droga's unidad base
+ * (its magnitude says whether the active is weighed or measured -- p/p, p/v, v/v, v/p), whatever the client sent.
+ */
+export function unidadDeComponente(
+  c: Pick<ComponenteInput, "drogaId" | "unidadMedidaId" | "modoExpresion" | "unidadReferenciaId">,
+  unidadesBase: ReadonlyMap<string, string>,
+): string {
+  if (c.modoExpresion !== "CONCENTRACION" || c.unidadReferenciaId) return c.unidadMedidaId;
+  return unidadesBase.get(c.drogaId) ?? c.unidadMedidaId;
+}
+
+/** `items` with every % concentration in its droga's unidad base (`unidadDeComponente`). */
+export function conUnidadBaseEnPorcentajes(items: readonly ItemInput[], unidadesBase: ReadonlyMap<string, string>): ItemInput[] {
+  return items.map((item) => ({ ...item, componentes: item.componentes.map((c) => ({ ...c, unidadMedidaId: unidadDeComponente(c, unidadesBase) })) }));
+}
+
+/**
+ * V10 / V11 with the unit catalog (migration 0112): a concentration needs the item's total in masa or volumen, a %
+ * a componente in masa or volumen, and a "per unit" reference of the same magnitude as the total. `magnitudes`
+ * maps every unidad id of the items to its tipo_magnitud (unknown ids are left to the "unidad inválida" check).
+ * Run after `validarItemsReceta`, which already refused a concentration without a total or on a capsular forma.
+ */
+export function validarConcentracionesReceta(items: readonly ItemInput[], magnitudes: ReadonlyMap<string, string>): void {
+  items.forEach((item, itemIdx) => {
+    const n = itemIdx + 1;
+    item.componentes.forEach((c, compIdx) => {
+      if (c.modoExpresion !== "CONCENTRACION") return;
+      const unidad = magnitudes.get(c.unidadMedidaId);
+      const total = item.unidadTotalId ? magnitudes.get(item.unidadTotalId) : undefined;
+      const referencia = c.unidadReferenciaId ? magnitudes.get(c.unidadReferenciaId) : null;
+      if (unidad === undefined || total === undefined || referencia === undefined) return;
+      const problema = problemaConcentracion({ tipoMagnitud: unidad }, referencia === null ? null : { tipoMagnitud: referencia }, { tipoMagnitud: total });
+      const m = compIdx + 1;
+      if (problema === "TOTAL_SIN_MAGNITUD") {
+        throw new ReglaRecetaError("V10", `En el ítem ${n}, la concentración del componente ${m} requiere la cantidad a preparar en masa o volumen (g, mL…).`);
+      }
+      if (problema === "PORCENTAJE_SIN_MAGNITUD") {
+        throw new ReglaRecetaError("V11", `En el ítem ${n}, el componente ${m} expresado en % tiene que estar en una unidad de masa o volumen.`);
+      }
+      if (problema === "REFERENCIA_OTRA_MAGNITUD") {
+        throw new ReglaRecetaError(
+          "V11",
+          `En el ítem ${n}, la concentración del componente ${m} tiene que ser «por» una unidad de la misma magnitud que la cantidad a preparar.`,
+        );
+      }
+    });
+  });
+}
+
+/** The fields of a `fsj.unidad_medida` row the V12 sanity check needs. */
+export interface UnidadParaCordura {
+  tipoMagnitud: string;
+  factorABase: string;
+  simbolo: string;
+}
+
+/**
+ * V12 (sanity, user decision 2026-11-02): a concentration SHALL NOT yield more than the whole preparado -- "2,3 mL
+ * por mg" in a crema of 30 g asks 69.000 mL. Compared in each magnitude's base unit (g, mL), so a volume against a
+ * mass is read at 1 g/mL: a rough bound, enough to catch a wrong value or a wrong «por». Run after
+ * `validarConcentracionesReceta` (the magnitudes are already valid); unknown ids are left to the "unidad inválida" check.
+ */
+export function validarCorduraConcentraciones(items: readonly ItemInput[], unidades: ReadonlyMap<string, UnidadParaCordura>): void {
+  items.forEach((item, itemIdx) => {
+    const total = item.unidadTotalId ? unidades.get(item.unidadTotalId) : undefined;
+    const cantidadTotal = item.cantidadTotal;
+    if (!total || cantidadTotal === null) return;
+    const totalEnBase = dec(cantidadTotal).times(total.factorABase);
+    item.componentes.forEach((c, compIdx) => {
+      if (c.modoExpresion !== "CONCENTRACION" || c.cantidad === null) return;
+      const unidad = unidades.get(c.unidadMedidaId);
+      const referencia = c.unidadReferenciaId ? unidades.get(c.unidadReferenciaId) : null;
+      if (!unidad || referencia === undefined) return;
+      const cantidadEnBase = cantidadDesdeConcentracion(c.cantidad, unidad, referencia, totalEnBase);
+      if (!cantidadEnBase.greaterThan(totalEnBase)) return;
+      const prescripta = textoConcentracion(formatNumero(c.cantidad), unidad.simbolo, referencia?.simbolo ?? null);
+      const resultado = formatNumero(cantidadEnBase.dividedBy(unidad.factorABase).toDecimalPlaces(4).toString());
+      throw new ReglaRecetaError(
+        "V12",
+        `En el ítem ${itemIdx + 1}, el componente ${compIdx + 1} (${prescripta} × ${formatNumero(cantidadTotal)} ${total.simbolo}) da ${resultado} ${unidad.simbolo}: más que todo el preparado. Revisá el valor y el «por».`,
+      );
+    });
   });
 }
 
@@ -424,6 +526,10 @@ function resumirComponente(c: ComponenteInput, nombres: NombresParaResumen): str
   const unidad = nombres.unidades.get(c.unidadMedidaId) ?? "";
   if (c.modoExpresion === "CS") return `${droga} c.s.`;
   if (c.modoExpresion === "CSP") return `${droga} c.s.p.`;
+  if (c.modoExpresion === "CONCENTRACION") {
+    const referencia = c.unidadReferenciaId ? (nombres.unidades.get(c.unidadReferenciaId) ?? "") : null;
+    return `${droga} ${textoConcentracion(c.cantidad ?? "", unidad, referencia)}`;
+  }
   const cantidad = `${c.cantidad ?? ""} ${unidad}`.trim();
   return `${droga} ${cantidad}${c.modoExpresion === "POR_DOSIS" ? " por dosis" : ""}`;
 }

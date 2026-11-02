@@ -232,6 +232,33 @@ Enrase manual líneas SHALL be unchanged: their typed quantity already is the re
 - **WHEN** the pharmacist types the quantity of an enrase manual línea
 - **THEN** that quantity is the real one and no tolerance is checked
 
+### Requirement: P7b — Línea en otra magnitud
+
+A línea whose unit can not be converted into the droga's stock unit (prescribed
+in mL, stock in g: no density) SHALL be weighed on the balance: the pharmacist
+types the physical quantity in the stock unit and the línea works as an enrase
+manual one (P7). The prescription SHALL be a reference only, never a prefill.
+Code: `getLineasParaPreparacion` (`modules/preparaciones/infrastructure/preparacion-repository.ts`).
+
+#### Scenario: Liquid prescribed in mL, stock in g
+
+- **GIVEN** a línea of 2,3 mL of a droga whose stock is in g
+- **WHEN** the pharmacist opens the ficha's weighing
+- **THEN** the línea shows "Receta pide 2,3 mL" and an empty quantity field in g
+
+#### Scenario: Grams typed
+
+- **GIVEN** that línea
+- **WHEN** the pharmacist types 2,1 g and marks the preparación as preparada
+- **THEN** 2,1 g are reserved and descontado, the libro's detalle records
+  2,1 g and its fórmula keeps 2,3 mL
+
+#### Scenario: No quantity typed
+
+- **GIVEN** that línea without a quantity
+- **WHEN** the pharmacist marks the preparación as preparada
+- **THEN** it is refused: the línea is missing its real quantity
+
 ### Requirement: Weighing in the ficha
 
 The pharmacist weighs and assembles step by step; leaving everything for the end risks forgetting a weighing. So
