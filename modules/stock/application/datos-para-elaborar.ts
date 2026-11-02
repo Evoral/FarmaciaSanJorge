@@ -71,8 +71,8 @@ export const datosParaElaborarQuery = defineQuery({
       formula,
       partidasPorDroga,
       proximoLote: {
-        DILUCION: codigoLoteElaborado("DILUCION", jornada, await contarLotesConPrefijo(tx, tenantId, prefijoLoteElaborado("DILUCION", jornada))),
-        FORMULA: codigoLoteElaborado("FORMULA", jornada, await contarLotesConPrefijo(tx, tenantId, prefijoLoteElaborado("FORMULA", jornada))),
+        DILUCION: codigoLoteElaborado("DILUCION", await contarLotesConPrefijo(tx, tenantId, prefijoLoteElaborado("DILUCION"))),
+        FORMULA: codigoLoteElaborado("FORMULA", await contarLotesConPrefijo(tx, tenantId, prefijoLoteElaborado("FORMULA"))),
       },
       jornada,
       contralorActivo: (await getFechaActivacionContralor(tx, tenantId)) !== null,

@@ -79,8 +79,8 @@ function tamanoElegido(tamanos: readonly EtiquetaTamano[], elegido: string | und
   return tamanos.find((t) => t.id === elegido) ?? tamanos[0];
 }
 
-function abrirPdf(preparacionId: string, tamanoId: string, celda: Celda) {
-  window.open(hrefEtiquetaPdf(preparacionId, tamanoId, celda), "_blank", "noreferrer");
+function abrirPdf(href: string) {
+  window.open(href, "_blank", "noreferrer");
 }
 
 function SinTamanos() {
@@ -111,7 +111,10 @@ function OpcionesTamano({ tamanos }: { tamanos: readonly EtiquetaTamano[] }) {
 }
 
 export interface ImprimirEtiquetaDialogProps {
-  preparacionId: string;
+  /** The preparación whose etiqueta prints (unless `pdfUrl` says otherwise). */
+  preparacionId?: string;
+  /** Another etiqueta route taking the same `?tamano=&columna=&fila=` (an elaborated lot's, modules/stock/domain/etiqueta-lote.ts). */
+  pdfUrl?: string;
   /** The active sizes that fit the sheet. */
   tamanos: readonly EtiquetaTamano[];
   hoja: HojaEtiqueta;
@@ -124,7 +127,16 @@ export interface ImprimirEtiquetaDialogProps {
   reimprimir?: boolean;
 }
 
-export function ImprimirEtiquetaDialog({ preparacionId, tamanos, hoja, variant = "secondary", small = true, abrirAlMontar = false, reimprimir = false }: ImprimirEtiquetaDialogProps) {
+export function ImprimirEtiquetaDialog({
+  preparacionId,
+  pdfUrl,
+  tamanos,
+  hoja,
+  variant = "secondary",
+  small = true,
+  abrirAlMontar = false,
+  reimprimir = false,
+}: ImprimirEtiquetaDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cierrePorFondo = useCierrePorFondo(dialogRef);
   const tituloId = useId();
@@ -150,7 +162,11 @@ export function ImprimirEtiquetaDialog({ preparacionId, tamanos, hoja, variant =
 
   function imprimir() {
     if (!tamano) return;
-    abrirPdf(preparacionId, tamano.id, celda);
+    abrirPdf(
+      pdfUrl
+        ? `${pdfUrl}?tamano=${encodeURIComponent(tamano.id)}&columna=${celda.columna}&fila=${celda.fila}`
+        : hrefEtiquetaPdf(preparacionId ?? "", tamano.id, celda),
+    );
     cerrar();
   }
 
@@ -257,6 +273,8 @@ export function SeleccionarEtiquetasDialog({ etiquetas, tamanos, hoja, abrirAlMo
   const [ultima, setUltima] = useState<UltimaImpresion | null>(null);
   // The browser blocked the tab: the confirmed etiquetas' PDF, offered as a link instead.
   const [pdfBloqueado, setPdfBloqueado] = useState<string | null>(null);
+  // Bumped on every closing: the native <dialog> stays mounted, and so would the confirmation's last error.
+  const [apertura, setApertura] = useState(0);
   // The tab opened during the "Imprimir" click (a user gesture, so no popup blocker), pointed at the PDF once confirmed.
   const ventanaRef = useRef<Window | null>(null);
   const hrefConfirmacionRef = useRef<string | null>(null);
@@ -270,6 +288,7 @@ export function SeleccionarEtiquetasDialog({ etiquetas, tamanos, hoja, abrirAlMo
 
   // R11: closing the dialog forgets the positions (nothing is persisted).
   function alCerrar() {
+    setApertura((n) => n + 1);
     setCeldas({});
     setUltima(null);
     setPdfBloqueado(null);
@@ -322,7 +341,7 @@ export function SeleccionarEtiquetasDialog({ etiquetas, tamanos, hoja, abrirAlMo
   function imprimir(preparacionId: string) {
     const fila = estados.get(preparacionId);
     if (!fila) return;
-    abrirPdf(preparacionId, fila.tamano.id, fila.celda);
+    abrirPdf(hrefEtiquetaPdf(preparacionId, fila.tamano.id, fila.celda));
     // Freeze the printed cell on its row (it must not follow the "next cell" default once printed) and move the default on.
     setCeldas((anteriores) => ({ ...anteriores, [preparacionId]: fila.celda }));
     setUltima({ tamanoId: fila.tamano.id, celda: fila.celda });
@@ -463,6 +482,7 @@ export function SeleccionarEtiquetasDialog({ etiquetas, tamanos, hoja, abrirAlMo
 
           {confirmacion ? (
             <ReauthAwareForm
+              key={apertura}
               action={confirmarEImprimir}
               accion={["preparaciones.confirmar", "etiquetas.generar"]}
               antesDeEnviar={abrirVentanaParaPdf}

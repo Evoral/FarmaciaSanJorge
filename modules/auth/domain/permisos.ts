@@ -252,7 +252,7 @@ export const PERMISOS_CON_PIN_SIEMPRE = ["recetas.anular"] as const satisfies re
 
 /**
  * What a new farmacia starts with (mirrors `fsj.seed_acciones_con_pin`,
- * migration 0077): the laboratorio / stock / drogas acts ask for the PIN,
+ * migration 0077, latest 0116): the laboratorio / stock / drogas acts ask for the PIN,
  * the mostrador ones (recetas, presupuestos, entregas) do not.
  */
 export const PERMISOS_CON_PIN_POR_DEFECTO = [
@@ -262,6 +262,7 @@ export const PERMISOS_CON_PIN_POR_DEFECTO = [
   "drogas.reactivar",
   "stock.partida.ingresar",
   "stock.ajuste.registrar",
+  "stock.lote.elaborar",
   "fichas.generar",
   "preparaciones.iniciar",
   "preparaciones.descartar",

@@ -1390,6 +1390,10 @@ model ElaboracionLote {
   elaboradoPorId String          @map("elaborado_por_id") @db.Uuid
   registradoEn   DateTime        @default(now()) @map("registrado_en") @db.Timestamptz(6)
   observacion    String?
+  /// Migration 0115: printed on the lot's etiqueta ("Clonazepam 1:100").
+  nombre         String
+  /// Migration 0115: printed on the lot's etiqueta; NULL = none.
+  aspecto        String?
 
   @@unique([tenantId, id])
   @@unique([tenantId, partidaId], map: "elaboracion_lote_partida_key")

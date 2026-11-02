@@ -9,16 +9,27 @@
  *
  * Rendered in a portal: the pesaje's trigger sits inside another form, and a `<form>` can not nest. React still
  * bubbles events through the component tree, so the dialog stops the submit before it reaches that outer form.
+ *
+ * Once elaborated, the dialog stays open on the result and OFFERS the lot's etiqueta ("Imprimir etiqueta", the same
+ * size-and-position dialog as a preparado's): printing is the user's choice, never automatic. Closing it hands the
+ * new partida on (`onElaborado`, or the page refreshes); "Ver lote" opens it.
  */
 import { useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { CircleAlert, X } from "lucide-react";
-import { toast } from "@/shared/ui/toast";
+import { CircleAlert, CircleCheck, X } from "lucide-react";
+import type { HojaEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
+import type { EtiquetaTamano } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
+import { ImprimirEtiquetaDialog } from "@/modules/preparaciones/ui/imprimir-etiqueta-dialog";
+import { hrefEtiquetaLotePdf } from "../domain/etiqueta-lote";
 import { ElaborarLoteForm, type ElaborarLoteFormProps } from "./elaborar-lote-form";
-import { datosParaElaborarAction } from "./actions";
+import { datosParaElaborarAction, opcionesEtiquetaLoteAction } from "./actions";
 
-type Contenido = { status: "listo"; inicial: ElaborarLoteFormProps["inicial"] } | { status: "error"; message: string };
+type Contenido =
+  | { status: "listo"; inicial: ElaborarLoteFormProps["inicial"] }
+  | { status: "error"; message: string }
+  /** `impresion`: the print dialog's data; `null` when the session may not print. */
+  | { status: "elaborado"; partidaId: string; message: string | undefined; impresion: { tamanos: EtiquetaTamano[]; hoja: HojaEtiqueta } | null };
 
 export interface ElaborarLoteDialogProps {
   /** The trigger button: its text, icon, classes and tooltip. */
@@ -30,7 +41,7 @@ export interface ElaborarLoteDialogProps {
   drogaId?: string;
   /** The lot whose quantity gets the focus (a partida's "Diluir"). */
   partidaId?: string;
-  /** After the lot is elaborated (dialog closed, message toasted). By default, opens the new partida. */
+  /** When the dialog closes after the lot is elaborated. By default, the page refreshes. */
   onElaborado?: (partidaId: string) => void;
 }
 
@@ -43,6 +54,8 @@ export function ElaborarLoteDialog({ label, icon, className, title, drogaId, par
   const [abierto, setAbierto] = useState(false);
   /** `null` while the droga's lots load. */
   const [contenido, setContenido] = useState<Contenido | null>(null);
+  /** The partida elaborated in this opening, handed on when the dialog closes. */
+  const elaboradaRef = useRef<string | null>(null);
 
   async function abrir() {
     const apertura = ++aperturaRef.current;
@@ -85,6 +98,12 @@ export function ElaborarLoteDialog({ label, icon, className, title, drogaId, par
                 aperturaRef.current++;
                 setAbierto(false);
                 setContenido(null);
+                const elaborada = elaboradaRef.current;
+                elaboradaRef.current = null;
+                if (elaborada) {
+                  if (onElaborado) onElaborado(elaborada);
+                  else router.refresh();
+                }
               }}
               onSubmit={(event) => event.stopPropagation()}
               className="card m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-4xl p-0 text-left text-foreground shadow-lg backdrop:bg-black/40 dark:border-zinc-800 dark:bg-zinc-900"
@@ -106,6 +125,40 @@ export function ElaborarLoteDialog({ label, icon, className, title, drogaId, par
                   <p role="status" className="text-sm text-zinc-500">
                     Cargando lotes…
                   </p>
+                ) : contenido.status === "elaborado" ? (
+                  <>
+                    <div role="status" className="alert alert-success">
+                      <CircleCheck aria-hidden />
+                      <p>{contenido.message ?? "Lote elaborado."}</p>
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {contenido.impresion ? (
+                        <ImprimirEtiquetaDialog
+                          pdfUrl={hrefEtiquetaLotePdf(contenido.partidaId)}
+                          tamanos={contenido.impresion.tamanos}
+                          hoja={contenido.impresion.hoja}
+                          variant="primary"
+                          small={false}
+                        />
+                      ) : null}
+                      {onElaborado ? null : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            elaboradaRef.current = null;
+                            cerrar();
+                            router.push(`/partidas/${contenido.partidaId}`);
+                          }}
+                          className="btn btn-secondary"
+                        >
+                          Ver lote
+                        </button>
+                      )}
+                      <button type="button" onClick={cerrar} className="btn btn-secondary">
+                        Cerrar
+                      </button>
+                    </div>
+                  </>
                 ) : contenido.status === "error" ? (
                   <>
                     <div role="alert" className="alert alert-danger">
@@ -118,11 +171,12 @@ export function ElaborarLoteDialog({ label, icon, className, title, drogaId, par
                   <ElaborarLoteForm
                     inicial={contenido.inicial}
                     extraActions={cancelar}
-                    onElaborado={(nuevaPartidaId, message) => {
-                      if (message) toast(message);
-                      cerrar();
-                      if (onElaborado) onElaborado(nuevaPartidaId);
-                      else router.push(`/partidas/${nuevaPartidaId}`);
+                    onElaborado={async (nuevaPartidaId, message) => {
+                      const apertura = aperturaRef.current;
+                      elaboradaRef.current = nuevaPartidaId;
+                      const impresion = await opcionesEtiquetaLoteAction();
+                      if (aperturaRef.current !== apertura) return;
+                      setContenido({ status: "elaborado", partidaId: nuevaPartidaId, message, impresion });
                     }}
                   />
                 )}

@@ -378,6 +378,7 @@ describe("confirmar-form -- pesadaDeLinea P13", () => {
     propuesta: null,
     stockInsuficiente: false,
     faltante: null,
+    cantidadPrescripta: null,
     requiereMotivo: false,
     bajoLaBalanza: true,
     orden: 1,

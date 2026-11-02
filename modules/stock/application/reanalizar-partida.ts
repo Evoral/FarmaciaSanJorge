@@ -28,6 +28,7 @@ import { uuid } from "@/shared/validation";
 import { MENSAJES_RECHAZO_REANALISIS, reanalisisCampos, rechazoReanalisis } from "../domain/vencimiento-partida";
 import { dec } from "@/shared/decimal";
 import { getPartidaParaAccion, insertReanalisis, jornadaActualTenant, lockPartidaParaAccion } from "../infrastructure/partida-repository";
+import { loteSigueADrogas, lotesElaboradosConSaldo } from "../infrastructure/elaboracion-lote-repository";
 import { esDtVigenteHoy } from "../infrastructure/co-firma-repository";
 import { verificarPasswordDtPartidaCommand } from "./verificar-password-dt-partida";
 
@@ -65,7 +66,13 @@ const reanalizarPartidaInternalCommand = defineCommand({
 
     const jornada = await jornadaActualTenant(tx, session.tenantId);
     const rechazo = rechazoReanalisis(
-      { drogaClase: partida.drogaClase, tieneSaldo: dec(partida.cantidadDisponible).greaterThan(0), fechaVencimientoVigente: fechaIso(partida.fechaVencimientoVigente) },
+      {
+        drogaClase: partida.drogaClase,
+        tieneSaldo: dec(partida.cantidadDisponible).greaterThan(0),
+        fechaVencimientoVigente: fechaIso(partida.fechaVencimientoVigente),
+        sigueASusDrogas: await loteSigueADrogas(tx, session.tenantId, partida.id),
+        lotesElaboradosConSaldo: (await lotesElaboradosConSaldo(tx, session.tenantId, partida.id)).length > 0,
+      },
       input.fechaReanalisis,
       jornada,
     );

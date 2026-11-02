@@ -27,6 +27,9 @@
  * Every text is drawn with `lineBreak: false` at explicit coordinates (no
  * automatic wrapping, hence no automatic page breaks): a single label is always
  * exactly one page; several (`buildEtiquetasPdf`) share a page unless they overlap.
+ *
+ * `buildEtiquetaLotePdf`: the etiqueta of a lot elaborated in the farmacia (modules/stock/domain/etiqueta-lote.ts) --
+ * the same frame and top band, the lot's name under "Rp/" and its lote, origen, months and aspecto in the panel.
  */
 import { renderPdf } from "@/shared/pdf/pdf-document";
 import type { LogoPdf } from "@/shared/pdf/logo";
@@ -35,6 +38,7 @@ import type { Celda, HojaEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiq
 import type { TamanoEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import { columnasRp } from "../domain/etiqueta";
 import type { ContenidoEtiqueta } from "../domain/etiqueta";
+import type { ContenidoEtiquetaLote } from "@/modules/stock/domain/etiqueta-lote";
 
 const PT_POR_MM = 72 / 25.4;
 
@@ -156,7 +160,10 @@ export function tamanoFuenteRp(lineas: number): number {
 const LOGO_ANCHO_MAX = 89.9;
 const LOGO_ALTO_MAX = 30.2;
 
-function dibujarBanda(doc: Doc, c: ContenidoEtiqueta, logo: LogoPdf | null): void {
+/** The top band is the same on a preparado's and on an elaborated lot's etiqueta. */
+type DatosBanda = Pick<ContenidoEtiqueta, "directorTecnico" | "domicilio" | "telefonoFijo" | "celular">;
+
+function dibujarBanda(doc: Doc, c: DatosBanda, logo: LogoPdf | null): void {
   if (logo) {
     const alto = Math.min(LOGO_ANCHO_MAX / logo.proporcion, LOGO_ALTO_MAX);
     const ancho = alto * logo.proporcion;
@@ -291,18 +298,21 @@ export function colocarEtiqueta(tamano: TamanoEtiqueta, hoja: HojaEtiqueta, celd
   return { x: xMm * PT_POR_MM + (ancho - DW * escala) / 2, y: yMm * PT_POR_MM + (alto - DH * escala) / 2, escala };
 }
 
-/** Draws one etiqueta on the current page, its design space placed by `colocacion`. */
-function dibujarEtiqueta(doc: PDFKit.PDFDocument, contenido: ContenidoEtiqueta, colocacion: ColocacionEtiqueta, logo: LogoPdf | null): void {
-  doc.save();
-  doc.translate(colocacion.x, colocacion.y).scale(colocacion.escala);
-
-  // Frame and rules.
+/** Frame and rules, shared by both etiquetas. */
+function dibujarMarco(doc: Doc): void {
   doc.roundedRect(BORDE, BORDE, DW - 2 * BORDE, DH - 2 * BORDE, 12).lineWidth(1.1).strokeColor(NEGRO).stroke();
   regla(doc, BANDA_DIV_X, 8.6, BANDA_DIV_X, 37.8, 1);
   regla(doc, REGLA_MARGEN, BANDA_Y, DW - REGLA_MARGEN, BANDA_Y, 1.6);
   regla(doc, PANEL_DIV_X, 43.4, PANEL_DIV_X, 99.6, 1.2);
   regla(doc, REGLA_MARGEN, PIE_Y, DW - REGLA_MARGEN, PIE_Y, 1.6);
+}
 
+/** Draws one etiqueta on the current page, its design space placed by `colocacion`. */
+function dibujarEtiqueta(doc: PDFKit.PDFDocument, contenido: ContenidoEtiqueta, colocacion: ColocacionEtiqueta, logo: LogoPdf | null): void {
+  doc.save();
+  doc.translate(colocacion.x, colocacion.y).scale(colocacion.escala);
+
+  dibujarMarco(doc);
   dibujarBanda(doc, contenido, logo);
   dibujarRp(doc, contenido);
   dibujarPanel(doc, contenido);
@@ -364,6 +374,54 @@ export function buildEtiquetasPdf(etiquetas: readonly EtiquetaEnHoja[], hoja: Ho
         ocupados.push(rectangulo);
         dibujarEtiqueta(doc, etiqueta.contenido, colocarEtiqueta(etiqueta.tamano, hoja, etiqueta.celda), logo);
       }
+    },
+    { size: pagina, margin: 0 },
+  );
+}
+
+/** The lot's name under "Rp/": large, centered, up to two lines. */
+function dibujarNombreLote(doc: Doc, nombre: string): void {
+  linea(doc, [{ texto: "Rp/", fuente: "Helvetica" }], 13.5, 43.7, 6.5, NEGRO);
+  const x = 21.4;
+  const ancho = PANEL_DIV_X - 2.5 - x;
+  const arriba = 50;
+  const abajo = PIE_Y - 3.6;
+  const { lineas, tamano } = envolver(doc, nombre, 16, ancho, 2);
+  const primeraY = arriba + (abajo - arriba - lineas.length * tamano * INTERLINEA_RP) / 2;
+  lineas.forEach((l, i) => texto(doc, l, x + ancho / 2, primeraY + i * tamano * INTERLINEA_RP, tamano, ancho, NEGRO, true));
+}
+
+/** Lote, origen, elaboration and vencimiento, aspecto and the storage note, centered on the panel. */
+function dibujarPanelLote(doc: Doc, c: ContenidoEtiquetaLote): void {
+  const centro = (PANEL_DIV_X + DERECHA) / 2;
+  const ancho = DERECHA - PANEL_DIV_X - 6;
+  texto(doc, `Lote: ${c.lote}`, centro, 47.5, 7.8, ancho, NEGRO, true);
+  if (c.origen) texto(doc, `Origen: ${c.origen}`, centro, 56.5, 6, ancho, NEGRO, true);
+  texto(doc, `Elab: ${c.elaborado}`, centro, 64.5, 7.8, ancho, NEGRO, true);
+  texto(doc, `Vence: ${c.vence}`, centro, 73.5, 7.8, ancho, NEGRO, true);
+  if (c.aspecto) texto(doc, `Aspecto: ${c.aspecto}`, centro, 84, 6, ancho, NEGRO, true);
+  texto(doc, c.conservacion, centro, 93.5, 5, ancho, ROJO, true);
+}
+
+/** Renders the sheet as ONE page with an elaborated lot's etiqueta of `tamano` in the cell `celda` (same placement as `buildEtiquetaPdf`). */
+export function buildEtiquetaLotePdf(
+  contenido: ContenidoEtiquetaLote,
+  tamano: TamanoEtiqueta,
+  hoja: HojaEtiqueta,
+  celda: Celda = { columna: 1, fila: 1 },
+  logo: LogoPdf | null = null,
+): Promise<Buffer> {
+  const pagina: [number, number] = [hoja.anchoMm * PT_POR_MM, hoja.altoMm * PT_POR_MM];
+  const colocacion = colocarEtiqueta(tamano, hoja, celda);
+  return renderPdf(
+    (doc) => {
+      doc.save();
+      doc.translate(colocacion.x, colocacion.y).scale(colocacion.escala);
+      dibujarMarco(doc);
+      dibujarBanda(doc, contenido, logo);
+      dibujarNombreLote(doc, contenido.nombre);
+      dibujarPanelLote(doc, contenido);
+      doc.restore();
     },
     { size: pagina, margin: 0 },
   );

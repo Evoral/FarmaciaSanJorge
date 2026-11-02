@@ -23,8 +23,7 @@ import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { positiveDecimalString, uuid } from "@/shared/validation";
 import { formulasDeDrogasEnTx } from "@/modules/drogas/application/formula-de-droga";
-import { isoDate } from "../domain/partida";
-import { MENSAJE_CONTRALOR_ELABORACION, codigoLoteElaborado, prefijoLoteElaborado, validarElaboracion } from "../domain/elaboracion-lote";
+import { MENSAJE_CONTRALOR_ELABORACION, NOMBRE_LOTE_MAX, codigoLoteElaborado, prefijoLoteElaborado, validarElaboracion } from "../domain/elaboracion-lote";
 import { existePartidaLote, getFechaActivacionContralor, jornadaActualTenant } from "../infrastructure/partida-repository";
 import {
   contarLotesConPrefijo,
@@ -40,8 +39,9 @@ const elaborarLoteInput = z.object({
   drogaProducidaId: uuid,
   formulaId: uuid.optional(),
   cantidadProducida: positiveDecimalString,
-  /** Absent = the earliest vencimiento consumed (EL5). */
-  fechaVencimiento: isoDate.optional(),
+  /** Printed on the lot's etiqueta (migration 0115). */
+  nombre: z.string().trim().min(1, "Indicá el nombre del lote.").max(NOMBRE_LOTE_MAX, `El nombre admite hasta ${NOMBRE_LOTE_MAX} caracteres.`),
+  aspecto: z.string().trim().max(NOMBRE_LOTE_MAX, `El aspecto admite hasta ${NOMBRE_LOTE_MAX} caracteres.`).optional(),
   observacion: z.string().trim().max(500).optional(),
   consumos: z
     .array(z.object({ partidaId: uuid, cantidad: positiveDecimalString }))
@@ -54,7 +54,8 @@ export interface ElaborarLoteInput {
   drogaProducidaId: string;
   formulaId?: string;
   cantidadProducida: string;
-  fechaVencimiento?: string;
+  nombre: string;
+  aspecto?: string;
   observacion?: string;
   consumos: { partidaId: string; cantidad: string }[];
 }
@@ -97,6 +98,7 @@ export const elaborarLoteCommand = defineCommand({
         costoUnitario: p.costoUnitario,
         potenciaDeclarada: p.potenciaDeclarada,
         fechaVencimiento: p.fechaVencimiento,
+        drogaClase: p.drogaClase,
       };
     });
     const lote = validarElaboracion({
@@ -104,16 +106,15 @@ export const elaborarLoteCommand = defineCommand({
       drogaProducidaId: droga.id,
       drogaProducidaRequiereVencimiento: droga.clase === "DROGA",
       cantidadProducida: input.cantidadProducida,
-      fechaVencimiento: input.fechaVencimiento ?? null,
       consumos,
       jornada,
     });
 
-    // EL9: the next free number of the tipo in the jornada (a lot typed by hand with the same code is skipped).
+    // EL9: the tipo's next free correlative (a lot typed by hand with the same code is skipped).
     await lockNumeracionLotesElaborados(tx, tenantId);
-    let usados = await contarLotesConPrefijo(tx, tenantId, prefijoLoteElaborado(input.tipo, jornada));
-    let codigo = codigoLoteElaborado(input.tipo, jornada, usados);
-    while (await existePartidaLote(tx, tenantId, droga.id, null, codigo)) codigo = codigoLoteElaborado(input.tipo, jornada, ++usados);
+    let usados = await contarLotesConPrefijo(tx, tenantId, prefijoLoteElaborado(input.tipo));
+    let codigo = codigoLoteElaborado(input.tipo, usados);
+    while (await existePartidaLote(tx, tenantId, droga.id, null, codigo)) codigo = codigoLoteElaborado(input.tipo, ++usados);
 
     const { partidaId, elaboracionLoteId } = await insertLoteElaborado(tx, {
       tenantId,
@@ -125,6 +126,8 @@ export const elaborarLoteCommand = defineCommand({
       costoUnitario: lote.costoUnitario.toString(),
       potenciaDeclarada: lote.potenciaDeclarada?.toString() ?? null,
       fechaVencimiento: lote.fechaVencimiento,
+      nombre: input.nombre,
+      aspecto: input.aspecto || null,
       observacion: input.observacion ?? null,
       usuarioId: session.usuario.id,
       consumos: consumos.map((c) => ({ partidaId: c.partidaId, cantidad: c.cantidad.toString() })),
@@ -140,6 +143,8 @@ export const elaborarLoteCommand = defineCommand({
           tipo: input.tipo,
           droga: droga.nombre,
           lote: codigo,
+          nombre: input.nombre,
+          aspecto: input.aspecto || null,
           cantidadProducida: `${input.cantidadProducida.toString()} ${droga.unidadBaseSimbolo}`,
           potenciaDeclarada: lote.potenciaDeclarada?.toString() ?? null,
           costoUnitario: lote.costoUnitario.toString(),

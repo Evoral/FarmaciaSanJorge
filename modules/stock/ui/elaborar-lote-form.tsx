@@ -13,21 +13,36 @@
  * other units (a solid in a liquid) it can not be summed and is typed.
  *
  * Shown live, from the same pure functions the command validates with: the dilución's concentration, the lot's cost
- * per unit (only with `stock.valorizado.ver`: the lots come without costo otherwise) and the latest vencimiento it
- * may have. Everything typed survives an error (`SimpleForm`); on success it hands the new partida to its dialog
- * (./elaborar-lote-dialog.tsx).
+ * per unit (only with `stock.valorizado.ver`: the lots come without costo otherwise) and its vencimiento, not chosen:
+ * the earliest of the active drugs it consumes (EL5). The lot's name for its etiqueta is suggested from the droga and,
+ * for a dilución, its proportion ("Clonazepam 1:100"); once typed, the user's name stays.
+ *
+ * Every mass is shown and typed in mg, with its grams in grey below (as on the ficha técnica); each quantity reaches
+ * the command in its droga's unidad base through a hidden input (`CantidadEnFormulario`). Everything typed survives an
+ * error (`SimpleForm`); on success it hands the new partida to its dialog (./elaborar-lote-dialog.tsx).
  */
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CircleAlert, Plus, Wand2, X } from "lucide-react";
 import { SimpleForm } from "@/shared/ui/simple-form";
-import { DateInput } from "@/shared/ui/date-input";
+import { FIELD_ERROR_EVENT, type FieldErrorEventDetail } from "@/shared/ui/field-errors";
 import { Combobox, type ComboboxOption } from "@/shared/ui/combobox";
 import { dec } from "@/shared/decimal";
 import { interpretarNumero, numeroParaInput } from "@/shared/decimal/numero-ingresado";
 import { formatNumero } from "@/shared/format/cantidad";
 import { formatFecha } from "@/shared/format/fecha";
 import { escalarFormula } from "@/modules/drogas/domain/formula";
-import { MENSAJE_CONTRALOR_ELABORACION, costoUnitarioDeLote, potenciaDeDilucion, vencimientoMaximo, type ConsumoElaboracion } from "../domain/elaboracion-lote";
+import {
+  MENSAJE_CONTRALOR_ELABORACION,
+  NOMBRE_LOTE_MAX,
+  aUnidadBase,
+  aUnidadDeFormulario,
+  costoUnitarioDeLote,
+  nombreSugeridoLote,
+  potenciaDeDilucion,
+  simboloEnFormulario,
+  vencimientoDelLote,
+  type ConsumoElaboracion,
+} from "../domain/elaboracion-lote";
 import type { DatosParaElaborar, PartidaElegibleParaElaborar } from "../application/datos-para-elaborar";
 import { datosParaElaborarAction, elaborarLoteAction } from "./actions";
 import { buscarDrogasStockAction } from "./buscar-drogas-stock-action";
@@ -50,6 +65,17 @@ function cantidadValida(texto: string | undefined): string | null {
   return numero.ok && dec(numero.valor).greaterThan(0) ? numero.valor : null;
 }
 
+/** "= 0,5 g" under a mass shown in mg; `null` for any other unit or an empty value. */
+function enGramos(valorFormulario: string | null, simbolo: string): string | null {
+  if (!valorFormulario || simboloEnFormulario(simbolo) !== "mg") return null;
+  return `= ${formatNumero(dec(valorFormulario).dividedBy(1000))} g`;
+}
+
+/** A quantity of unidad base `simbolo` as the form shows it: "500 mg". */
+function textoEnFormulario(valorBase: string, simbolo: string): string {
+  return `${formatNumero(aUnidadDeFormulario(valorBase, simbolo))} ${simboloEnFormulario(simbolo)}`;
+}
+
 async function buscarDrogas(q: string): Promise<readonly ComboboxOption[]> {
   const items = await buscarDrogasStockAction(q);
   return items.map((item) => ({ value: item.drogaId, label: item.drogaNombre, description: item.disponible, sinonimo: item.sinonimo ?? undefined }));
@@ -64,6 +90,8 @@ export function ElaborarLoteForm({ inicial, onElaborado, extraActions }: Elabora
   const [cantidades, setCantidades] = useState<Record<string, string>>({});
   /** What the user typed; `null` = follow the sum of what is used. */
   const [producidaEditada, setProducidaEditada] = useState<string | null>(null);
+  /** `null` = the suggested name (`nombreSugeridoLote`), which follows the droga and the dilución's proportion. */
+  const [nombreEditado, setNombreEditado] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
   const consulta = useRef(0);
@@ -88,6 +116,7 @@ export function ElaborarLoteForm({ inicial, onElaborado, extraActions }: Elabora
     setExtras([]);
     setCantidades({});
     setProducidaEditada(null);
+    setNombreEditado(null);
     setDatos(null);
     if (opcion) void cargar(opcion.value, []);
   }
@@ -133,26 +162,35 @@ export function ElaborarLoteForm({ inicial, onElaborado, extraActions }: Elabora
         lote: p.lote,
         drogaId: p.drogaId,
         drogaNombre: p.drogaNombre,
-        cantidad,
+        cantidad: aUnidadBase(cantidad, p.unidadBaseSimbolo).toFixed(),
         cantidadDisponible: p.cantidadDisponible,
         costoUnitario: p.costoUnitario ?? "0",
         potenciaDeclarada: p.potenciaDeclarada,
         fechaVencimiento: p.fechaVencimiento,
+        drogaClase: p.drogaClase,
       },
     ];
   });
-  // The sum of what is used, only when every lot used is in the produced droga's unidad base.
+  // In the form's unit (mg for a mass): the sum of what is used, only when every lot used is in the produced droga's.
+  const simboloProducido = datos ? simboloEnFormulario(datos.droga.unidadBaseSimbolo) : "";
+  const simboloDe = (partidaId: string) => simboloEnFormulario(partidasVisibles.find((p) => p.id === partidaId)?.unidadBaseSimbolo ?? "");
   const suma =
-    datos && consumos.length > 0 && consumos.every((c) => partidasVisibles.find((p) => p.id === c.partidaId)?.unidadBaseSimbolo === datos.droga.unidadBaseSimbolo)
-      ? consumos.reduce((total, c) => total.plus(dec(c.cantidad)), dec(0))
+    datos && consumos.length > 0 && consumos.every((c) => simboloDe(c.partidaId) === simboloProducido)
+      ? consumos.reduce((total, c) => total.plus(dec(cantidadValida(cantidades[c.partidaId]) ?? 0)), dec(0))
       : null;
   const cantidadProducida = producidaEditada ?? (suma ? numeroParaInput(suma.toFixed()) : "");
-  const producida = cantidadValida(cantidadProducida);
-  const sumaDistinta = suma !== null && producidaEditada !== null && (producida === null || !suma.equals(dec(producida)));
+  const producidaEnFormulario = cantidadValida(cantidadProducida);
+  /** The cantidad producida in the produced droga's unidad base. */
+  const producida = datos && producidaEnFormulario ? aUnidadBase(producidaEnFormulario, datos.droga.unidadBaseSimbolo).toFixed() : null;
+  const sumaDistinta = suma !== null && producidaEditada !== null && (producidaEnFormulario === null || !suma.equals(dec(producidaEnFormulario)));
+  // Red until it is filled: with lots in different units (mL and mg) nothing can be summed and it must be typed.
+  const producidaPendiente = consumos.length > 0 && producida === null;
+  const unidadesUsadas = [...new Set(consumos.map((c) => simboloDe(c.partidaId)))];
   const potencia = datos && tipo === "DILUCION" && producida && consumos.some((c) => c.drogaId === datos.droga.id) ? potenciaDeDilucion(consumos, datos.droga.id, producida) : null;
   const conCosto = consumos.length > 0 && consumos.every((c) => partidasVisibles.find((p) => p.id === c.partidaId)?.costoUnitario !== null);
   const costo = conCosto && producida ? costoUnitarioDeLote(consumos, producida) : null;
-  const vencimiento = vencimientoMaximo(consumos);
+  const vencimiento = vencimientoDelLote(consumos);
+  const nombre = nombreEditado ?? (datos ? nombreSugeridoLote(datos.droga.nombre, potencia) : "");
   const controlada = datos !== null && (datos.droga.tipoControl !== "NINGUNO" || consumos.some((c) => partidasVisibles.find((p) => p.id === c.partidaId)?.drogaTipoControl !== "NINGUNO"));
   const bloqueadaPorContralor = datos?.contralorActivo === true && controlada;
 
@@ -161,12 +199,17 @@ export function ElaborarLoteForm({ inicial, onElaborado, extraActions }: Elabora
     if (!datos?.formula || !producida) return;
     const nuevas: Record<string, string> = {};
     for (const componente of escalarFormula({ drogaId: datos.droga.id, cantidadReferencia: datos.formula.cantidadReferencia, componentes: datos.formula.componentes }, producida)) {
+      // The fórmula is in ACTIVE: each lot gives its active (quantity x its pureza), as on the ficha técnica.
       let resto = componente.cantidad;
       for (const p of datos.partidasPorDroga[componente.drogaId] ?? []) {
         if (!resto.greaterThan(0)) break;
-        const toma = resto.greaterThan(dec(p.cantidadDisponible)) ? dec(p.cantidadDisponible) : resto;
-        nuevas[p.id] = numeroParaInput(toma.toDecimalPlaces(4).toFixed());
-        resto = resto.minus(toma);
+        const pureza = dec(p.potenciaDeclarada ?? 100).dividedBy(100);
+        if (!pureza.greaterThan(0)) continue;
+        const activoDisponible = dec(p.cantidadDisponible).times(pureza);
+        const activo = resto.greaterThan(activoDisponible) ? activoDisponible : resto;
+        const toma = activo.equals(activoDisponible) ? dec(p.cantidadDisponible) : activo.dividedBy(pureza);
+        nuevas[p.id] = numeroParaInput(aUnidadDeFormulario(toma, p.unidadBaseSimbolo).toDecimalPlaces(4).toFixed());
+        resto = resto.minus(activo);
       }
     }
     setCantidades(nuevas);
@@ -236,51 +279,18 @@ export function ElaborarLoteForm({ inicial, onElaborado, extraActions }: Elabora
             </div>
           ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="field">
-              <label htmlFor="cantidadProducida" className="field-label">
-                Cantidad producida <span className="font-normal text-zinc-400">({datos.droga.unidadBaseSimbolo})</span>
-              </label>
-              <input
-                id="cantidadProducida"
-                name="cantidadProducida"
-                value={cantidadProducida}
-                onChange={(e) => setProducidaEditada(e.target.value)}
-                required
-                inputMode="decimal"
-                autoComplete="off"
-                className="input font-mono"
-              />
-              <p className="field-help">
-                {sumaDistinta ? (
-                  <>
-                    Lo usado suma {formatNumero(suma)} {datos.droga.unidadBaseSimbolo}.{" "}
-                    <button type="button" onClick={() => setProducidaEditada(null)} className="underline">
-                      Usar la suma
-                    </button>
-                  </>
-                ) : suma !== null ? (
-                  "La suma de lo usado. Corregila si hubo pérdida."
-                ) : consumos.length > 0 ? (
-                  "Lo usado está en otras unidades: indicá el total del lote obtenido."
-                ) : (
-                  "Total del lote obtenido: se completa con la suma de lo usado."
-                )}
-              </p>
-            </div>
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="field">
               <span className="field-label">Lote</span>
               <p className="py-1.5 font-mono text-[0.8125rem] font-semibold text-zinc-900">{datos.proximoLote[tipo]}</p>
               <p className="field-help">Lo asigna el sistema al elaborar.</p>
             </div>
             <div className="field">
-              <label htmlFor="fechaVencimiento" className="field-label">
-                Vencimiento <span className="font-normal text-zinc-400">(opcional)</span>
-              </label>
-              <DateInput id="fechaVencimiento" name="fechaVencimiento" />
-              <p className="field-help">
-                {vencimiento ? `Vacío: ${formatFecha(new Date(`${vencimiento}T00:00:00Z`))}, el del primer componente que vence. No puede ser posterior.` : "Vacío: el del primer componente que vence."}
+              <span className="field-label">Vencimiento</span>
+              <p className="py-1.5 text-[0.8125rem] font-semibold text-zinc-900">
+                {vencimiento ? formatFecha(new Date(`${vencimiento}T00:00:00Z`)) : "—"}
               </p>
+              <p className="field-help">El de la droga activa que vence primero. Sigue sus reanálisis y se descarta con ella.</p>
             </div>
           </div>
 
@@ -288,8 +298,8 @@ export function ElaborarLoteForm({ inicial, onElaborado, extraActions }: Elabora
             datos.formula ? (
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-[0.8125rem]">
                 <span className="text-zinc-700">
-                  Fórmula: por cada {formatNumero(datos.formula.cantidadReferencia)} {datos.droga.unidadBaseSimbolo},{" "}
-                  {datos.formula.componentes.map((c) => `${formatNumero(c.cantidad)} ${c.unidadBaseSimbolo} de ${c.drogaNombre}`).join(", ")}.
+                  Fórmula: por cada {textoEnFormulario(datos.formula.cantidadReferencia, datos.droga.unidadBaseSimbolo)},{" "}
+                  {datos.formula.componentes.map((c) => `${textoEnFormulario(c.cantidad, c.unidadBaseSimbolo)} de ${c.drogaNombre}`).join(", ")}.
                 </span>
                 <button type="button" onClick={precargar} disabled={!producida} className="btn btn-secondary btn-sm">
                   <Wand2 className="size-4" aria-hidden />
@@ -317,6 +327,41 @@ export function ElaborarLoteForm({ inicial, onElaborado, extraActions }: Elabora
                 onCantidad={(partidaId, valor) => setCantidades((actuales) => ({ ...actuales, [partidaId]: valor }))}
               />
             ))}
+            {/* The total under the "Usar" column: same right edge as the lots' inputs (border + px-3 of each group). */}
+            <div className="flex flex-col items-end gap-1 border border-transparent px-3">
+              <div className="flex items-center gap-3">
+                <label htmlFor="cantidadProducida" className="text-[0.8125rem] font-semibold text-zinc-900">
+                  Cantidad producida ({simboloProducido})
+                </label>
+                <div className="text-right">
+                  <CantidadEnFormulario
+                    id="cantidadProducida"
+                    name="cantidadProducida"
+                    simbolo={datos.droga.unidadBaseSimbolo}
+                    valor={cantidadProducida}
+                    onChange={setProducidaEditada}
+                    required
+                    pendiente={producidaPendiente}
+                  />
+                </div>
+              </div>
+              <p className={`text-right text-xs ${producidaPendiente ? "text-red-600" : "text-zinc-500"}`}>
+                {sumaDistinta ? (
+                  <>
+                    Lo usado suma {formatNumero(suma)} {simboloProducido}.{" "}
+                    <button type="button" onClick={() => setProducidaEditada(null)} className="underline">
+                      Usar la suma
+                    </button>
+                  </>
+                ) : suma !== null ? (
+                  "La suma de lo usado. Corregila si hubo pérdida."
+                ) : consumos.length > 0 ? (
+                  `Lo usado está en distintas unidades (${unidadesUsadas.join(" y ")}): indicá el total del lote obtenido.`
+                ) : (
+                  "Se completa con la suma de lo usado."
+                )}
+              </p>
+            </div>
           </div>
 
           <Combobox
@@ -334,6 +379,41 @@ export function ElaborarLoteForm({ inicial, onElaborado, extraActions }: Elabora
               </span>
             }
           />
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="field">
+              <label htmlFor="nombre" className="field-label">
+                Nombre en la etiqueta
+              </label>
+              <input
+                id="nombre"
+                name="nombre"
+                value={nombre}
+                onChange={(e) => setNombreEditado(e.target.value)}
+                maxLength={NOMBRE_LOTE_MAX}
+                required
+                autoComplete="off"
+                className="input"
+              />
+              <p className="field-help">
+                {nombreEditado !== null ? (
+                  <button type="button" onClick={() => setNombreEditado(null)} className="underline">
+                    Usar el sugerido
+                  </button>
+                ) : tipo === "DILUCION" ? (
+                  "Sugerido con la proporción de la dilución. Podés cambiarlo."
+                ) : (
+                  "Sugerido con el nombre de la droga. Podés cambiarlo."
+                )}
+              </p>
+            </div>
+            <div className="field">
+              <label htmlFor="aspecto" className="field-label">
+                Aspecto <span className="font-normal text-zinc-400">(opcional)</span>
+              </label>
+              <input id="aspecto" name="aspecto" maxLength={NOMBRE_LOTE_MAX} placeholder="Crema blanca" autoComplete="off" className="input" />
+            </div>
+          </div>
 
           <div className="field">
             <label htmlFor="observacion" className="field-label">
@@ -391,7 +471,7 @@ function GrupoDeLotes({
       <div className="flex items-center justify-between gap-2 border-b border-zinc-100 px-3 py-1">
         <h3 className="py-1 text-[0.8125rem] font-semibold text-zinc-900">
           {nombre}
-          {porFormula ? <span className="ml-2 font-normal text-zinc-500">({formatNumero(porFormula)} {simbolo} por fórmula)</span> : null}
+          {porFormula ? <span className="ml-2 font-normal text-zinc-500">({textoEnFormulario(porFormula, simbolo)} por fórmula)</span> : null}
         </h3>
         {onQuitar ? (
           <button type="button" onClick={onQuitar} aria-label={`Quitar ${nombre}`} className="btn btn-ghost btn-sm btn-icon">
@@ -415,7 +495,7 @@ function GrupoDeLotes({
                 Disponible
               </th>
               <th scope="col" className="px-3 py-1.5 text-right">
-                Usar ({simbolo})
+                Usar ({simboloEnFormulario(simbolo)})
               </th>
             </tr>
           </thead>
@@ -437,23 +517,17 @@ function GrupoDeLotes({
                     {p.fechaVencimiento ? formatFecha(new Date(`${p.fechaVencimiento}T00:00:00Z`)) : "No vence"}
                   </td>
                   <td className="whitespace-nowrap px-3 py-1.5 text-right font-mono tabular-nums">
-                    {formatNumero(p.cantidadDisponible)} {p.unidadBaseSimbolo}
+                    {textoEnFormulario(p.cantidadDisponible, p.unidadBaseSimbolo)}
+                    <EnGramos valor={aUnidadDeFormulario(p.cantidadDisponible, p.unidadBaseSimbolo).toFixed()} simbolo={p.unidadBaseSimbolo} />
                   </td>
-                  <td className="px-3 py-1.5 text-right">
-                    <input
+                  <td className="px-3 py-1.5 text-right align-top">
+                    <CantidadEnFormulario
                       id={id}
                       name={id}
-                      value={cantidades[p.id] ?? ""}
-                      onChange={(e) => onCantidad(p.id, e.target.value)}
-                      ref={(el) => {
-                        if (el && enfocar.current === p.id) {
-                          enfocar.current = null;
-                          el.focus();
-                        }
-                      }}
-                      inputMode="decimal"
-                      autoComplete="off"
-                      className="input w-28 text-right font-mono"
+                      simbolo={p.unidadBaseSimbolo}
+                      valor={cantidades[p.id] ?? ""}
+                      onChange={(valor) => onCantidad(p.id, valor)}
+                      enfocar={enfocar.current === p.id ? () => (enfocar.current = null) : undefined}
                     />
                   </td>
                 </tr>
@@ -463,5 +537,85 @@ function GrupoDeLotes({
         </table>
       )}
     </section>
+  );
+}
+
+/** The grams in grey under a mass shown in mg (nothing for another unit). */
+function EnGramos({ valor, simbolo }: { valor: string | null; simbolo: string }) {
+  const texto = enGramos(valor, simbolo);
+  return texto ? <span className="block text-xs font-normal text-zinc-500">{texto}</span> : null;
+}
+
+/**
+ * A quantity typed in the form's unit (mg for a mass), its grams in grey below, submitted in the droga's unidad base
+ * through a hidden input named `name`. A server error on that name marks the visible input (FIELD_ERROR_EVENT, same
+ * contract as shared/ui/date-input.tsx); `pendiente` keeps it red while it is still to be filled.
+ */
+function CantidadEnFormulario({
+  id,
+  name,
+  simbolo,
+  valor,
+  onChange,
+  required = false,
+  pendiente = false,
+  enfocar,
+}: {
+  id: string;
+  name: string;
+  /** The droga's unidad base. */
+  simbolo: string;
+  /** As typed, in the form's unit. */
+  valor: string;
+  onChange: (valor: string) => void;
+  required?: boolean;
+  pendiente?: boolean;
+  /** Focus this input once mounted (a partida's "Diluir"); called when it does. */
+  enfocar?: () => void;
+}) {
+  const hiddenRef = useRef<HTMLInputElement>(null);
+  const visibleRef = useRef<HTMLInputElement>(null);
+  const [errorDelServidor, setErrorDelServidor] = useState(false);
+
+  useEffect(() => {
+    const hidden = hiddenRef.current;
+    if (!hidden) return;
+    function onFieldError(event: Event) {
+      const detail = (event as CustomEvent<FieldErrorEventDetail>).detail;
+      event.preventDefault();
+      detail.focusTarget = visibleRef.current;
+      setErrorDelServidor(detail.invalid);
+    }
+    hidden.addEventListener(FIELD_ERROR_EVENT, onFieldError);
+    return () => hidden.removeEventListener(FIELD_ERROR_EVENT, onFieldError);
+  }, []);
+
+  useEffect(() => {
+    if (!enfocar) return;
+    visibleRef.current?.focus();
+    enfocar();
+  }, [enfocar]);
+
+  const valido = cantidadValida(valor);
+  return (
+    <>
+      <input
+        id={id}
+        ref={visibleRef}
+        value={valor}
+        onChange={(e) => {
+          setErrorDelServidor(false);
+          onChange(e.target.value);
+        }}
+        required={required}
+        inputMode="decimal"
+        autoComplete="off"
+        aria-invalid={errorDelServidor || pendiente || undefined}
+        className="input w-28 text-right font-mono"
+      />
+      {/* An unreadable value goes as typed: the command refuses it on this field. */}
+      <input ref={hiddenRef} type="hidden" name={name} value={valido ? aUnidadBase(valido, simbolo).toFixed() : valor} />
+      <EnGramos valor={valido} simbolo={simbolo} />
+    </>
   );
 }
