@@ -110,7 +110,7 @@ describe("guardarInsumosBorrador (I1, I2, I3, I4, I8)", () => {
         return { id, nombre: "Ludipress", clase: "EXCIPIENTE", vigente: true, unidadSimbolo: "g" };
       }
       if (id === DROGA_ADICIONAL_ID) {
-        return { id, nombre: "Aerosil", clase: "EXCIPIENTE", vigente: true, unidadSimbolo: "g" };
+        return { id, nombre: "Frasco ámbar", clase: "MATERIAL", vigente: true, unidadSimbolo: "g" };
       }
       if (id === DROGA_COMUN_ID) {
         return { id, nombre: "Ibuprofeno", clase: "DROGA", vigente: true, unidadSimbolo: "g" };
@@ -195,17 +195,17 @@ describe("guardarInsumosBorrador (I1, I2, I3, I4, I8)", () => {
     const { guardarInsumosBorradorCommand } = await import(
       "@/modules/preparaciones/application/guardar-insumos-borrador"
     );
-    getExcipienteBorradorMock.mockResolvedValue({ drogaId: DROGA_EXCIPIENTE_ID, cantidad: "10" });
+    getExcipienteBorradorMock.mockResolvedValue({ drogaId: DROGA_ADICIONAL_ID, cantidad: "10", porUnidad: false });
 
     await expect(
       guardarInsumosBorradorCommand.execute(
         {
           fichaTecnicaId: FICHA_ID,
-          insumos: [{ tipo: "ADICIONAL", drogaId: DROGA_EXCIPIENTE_ID, cantidad: "1" }],
+          insumos: [{ tipo: "ADICIONAL", drogaId: DROGA_ADICIONAL_ID, cantidad: "1" }],
         },
         { session },
       ),
-    ).rejects.toThrow("Ludipress ya está elegido como excipiente: no lo cargues también como material o insumo.");
+    ).rejects.toThrow("Frasco ámbar ya está elegido como excipiente: no lo cargues también como material o insumo.");
   });
 
   it("refuses when the same droga appears in two insumo rows (I8)", async () => {
@@ -224,7 +224,7 @@ describe("guardarInsumosBorrador (I1, I2, I3, I4, I8)", () => {
         },
         { session },
       ),
-    ).rejects.toThrow("Aerosil está cargado dos veces: dejalo en una sola fila con la cantidad total.");
+    ).rejects.toThrow("Frasco ámbar está cargado dos veces: dejalo en una sola fila con la cantidad total.");
   });
 
   it("accepts a MATERIAL with a quantity and no droga (the cápsulas pre-fill) and saves it (I2)", async () => {
@@ -269,7 +269,7 @@ describe("guardarInsumosBorrador (I1, I2, I3, I4, I8)", () => {
     expect(result.insumos).toEqual([{ tipo: "ADICIONAL", drogaId: DROGA_ADICIONAL_ID, cantidad: "1" }]);
   });
 
-  it("enforces clase rules: MATERIAL requires clase MATERIAL; ADICIONAL requires EXCIPIENTE or MATERIAL; never DROGA", async () => {
+  it("enforces clase rules: MATERIAL and ADICIONAL both require clase MATERIAL; EXCIPIENTE and DROGA are refused", async () => {
     const { guardarInsumosBorradorCommand } = await import(
       "@/modules/preparaciones/application/guardar-insumos-borrador"
     );
@@ -283,7 +283,7 @@ describe("guardarInsumosBorrador (I1, I2, I3, I4, I8)", () => {
         },
         { session },
       ),
-    ).rejects.toThrow("Elegí un material del listado.");
+    ).rejects.toThrow("Solo se admite un excipiente: Ludipress no puede ir como insumo.");
 
     // MATERIAL with clase DROGA -> rejected
     await expect(
@@ -305,7 +305,18 @@ describe("guardarInsumosBorrador (I1, I2, I3, I4, I8)", () => {
         },
         { session },
       ),
-    ).rejects.toThrow("Elegí un excipiente o material del listado.");
+    ).rejects.toThrow("Elegí un material del listado.");
+
+    // ADICIONAL with clase EXCIPIENTE -> rejected
+    await expect(
+      guardarInsumosBorradorCommand.execute(
+        {
+          fichaTecnicaId: FICHA_ID,
+          insumos: [{ tipo: "ADICIONAL", drogaId: DROGA_EXCIPIENTE_ID, cantidad: "10" }],
+        },
+        { session },
+      ),
+    ).rejects.toThrow("Solo se admite un excipiente: Ludipress no puede ir como insumo.");
 
     // ADICIONAL with clase MATERIAL -> accepted
     await expect(
@@ -317,6 +328,22 @@ describe("guardarInsumosBorrador (I1, I2, I3, I4, I8)", () => {
         { session },
       ),
     ).resolves.toBeDefined();
+  });
+
+  it("refuses an EXCIPIENTE as ADICIONAL with clear message", async () => {
+    const { guardarInsumosBorradorCommand } = await import(
+      "@/modules/preparaciones/application/guardar-insumos-borrador"
+    );
+
+    await expect(
+      guardarInsumosBorradorCommand.execute(
+        {
+          fichaTecnicaId: FICHA_ID,
+          insumos: [{ tipo: "ADICIONAL", drogaId: DROGA_EXCIPIENTE_ID, cantidad: "1" }],
+        },
+        { session },
+      ),
+    ).rejects.toThrow("Solo se admite un excipiente: Ludipress no puede ir como insumo.");
   });
 
   it("refuses a droga dada de baja (vigente: false)", async () => {
@@ -396,7 +423,7 @@ describe("validarInsumosEnTx (I5, I6, I8)", () => {
         return { id, nombre: "Cápsula vacía Nº 0", clase: "MATERIAL", vigente: true, unidadSimbolo: "u" };
       }
       if (id === DROGA_ADICIONAL_ID) {
-        return { id, nombre: "Aerosil", clase: "EXCIPIENTE", vigente: true, unidadSimbolo: "g" };
+        return { id, nombre: "Frasco ámbar", clase: "MATERIAL", vigente: true, unidadSimbolo: "g" };
       }
       return null;
     });
@@ -445,7 +472,7 @@ describe("reservarInsumosEnTx (I6)", () => {
         return { id, nombre: "Cápsula vacía Nº 0", clase: "MATERIAL", vigente: true, unidadSimbolo: "u" };
       }
       if (id === DROGA_ADICIONAL_ID) {
-        return { id, nombre: "Aerosil", clase: "EXCIPIENTE", vigente: true, unidadSimbolo: "g" };
+        return { id, nombre: "Frasco ámbar", clase: "MATERIAL", vigente: true, unidadSimbolo: "g" };
       }
       return null;
     });
@@ -552,7 +579,7 @@ describe("reservarInsumosEnTx (I6)", () => {
             tipo: "ADICIONAL",
             drogaId: DROGA_ADICIONAL_ID,
             cantidad: "0.5",
-            texto: "Aerosil 0,5 g",
+            texto: "Frasco ámbar 0,5 g",
           },
         ],
       }),
@@ -670,7 +697,7 @@ describe("replanificarInsumosEnTx and guardarReservaInsumosEnTx (I7)", () => {
       {
         tipo: "ADICIONAL" as const,
         drogaId: DROGA_ADICIONAL_ID,
-        droga: "Aerosil",
+        droga: "Frasco ámbar",
         cantidad: "0.5 g",
         partidas: [{ partidaId: "p-adi-new", cantidad: "0.5" }],
       },

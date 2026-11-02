@@ -25,6 +25,12 @@ export interface PartidaConEstadoApertura extends PartidaDisponible {
   elegida: boolean;
   /** `partida.potencia_declarada` (percent, `null`/omitted = 100%). When given, balances are compared in ACTIVE terms (domain/potencia.ts). */
   potenciaDeclarada?: string | null;
+  /**
+   * A lot elaborated in the farmacia (dilución or fórmula, origen ELABORACION_PROPIA). It is outside INV-S18 on both
+   * sides: it is opened precisely to weigh what a pure lot can not, so opening it needs no motivo, and its balance
+   * does not make opening a supplier lot "unnecessary".
+   */
+  elaborada?: boolean;
 }
 
 /**
@@ -43,7 +49,7 @@ export function requiereMotivoAperturaAdicional(
   const vigentes = (p: PartidaConEstadoApertura) => p.fechaVencimiento === null || p.fechaVencimiento >= jornadaActual;
 
   const saldoAbiertasVigentes = partidas
-    .filter((p) => p.fechaApertura !== null && vigentes(p))
+    .filter((p) => !p.elaborada && p.fechaApertura !== null && vigentes(p))
     .reduce((acc, p) => acc.plus(activoDesdeFisico(p.cantidadDisponible, p.potenciaDeclarada)), new Decimal(0));
 
   if (saldoAbiertasVigentes.lessThan(cantidadRequerida)) {
@@ -52,5 +58,5 @@ export function requiereMotivoAperturaAdicional(
     return false;
   }
 
-  return partidas.some((p) => p.elegida && p.fechaApertura === null);
+  return partidas.some((p) => p.elegida && !p.elaborada && p.fechaApertura === null);
 }

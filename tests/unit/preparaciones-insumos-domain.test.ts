@@ -22,8 +22,8 @@ describe("insumos domain: claseAdmitida (I1, I3, I6)", () => {
     expect(claseAdmitida("MATERIAL", "DROGA")).toBe(false);
   });
 
-  it("ADICIONAL admits drogas of clase EXCIPIENTE or MATERIAL, never DROGA", () => {
-    expect(claseAdmitida("ADICIONAL", "EXCIPIENTE")).toBe(true);
+  it("ADICIONAL admits only drogas of clase MATERIAL, never EXCIPIENTE or DROGA", () => {
+    expect(claseAdmitida("ADICIONAL", "EXCIPIENTE")).toBe(false);
     expect(claseAdmitida("ADICIONAL", "MATERIAL")).toBe(true);
     expect(claseAdmitida("ADICIONAL", "DROGA")).toBe(false);
   });
