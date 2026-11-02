@@ -22,7 +22,7 @@ export default async function ParametrosPage() {
       <PageHeader
         breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Configuración" }, { label: "Parámetros" }]}
         title="Parámetros de la farmacia"
-        description="Valores propios de la farmacia: pesaje de las fichas técnicas, alertas y plazos de vencimiento, archivo y retiro de recetas preparadas."
+        description="Valores propios de la farmacia: pesaje de las fichas técnicas, alertas y plazos de vencimiento, archivo y retiro de recetas preparadas, y el lector de QR de recetas."
       />
 
       <SectionTabs ariaLabel="Secciones de configuración" links={configuracionSections(session)} />
@@ -37,7 +37,7 @@ export default async function ParametrosPage() {
 
       <div className="grid max-w-3xl gap-4 md:grid-cols-2">
         {parametros.map((parametro) => (
-          <ParametroForm key={parametro.clave} clave={parametro.clave} label={parametro.label} descripcion={parametro.descripcion} valor={parametro.valor} disabled={!puedeEditar} />
+          <ParametroForm key={parametro.clave} clave={parametro.clave} label={parametro.label} descripcion={parametro.descripcion} valor={parametro.valor} opciones={parametro.opciones} disabled={!puedeEditar} />
         ))}
       </div>
     </>

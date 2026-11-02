@@ -122,6 +122,34 @@ describe("parametros-registry: dias_retiro_vencido", () => {
   });
 });
 
+// openspec/changes/lector-qr-configurable (P77): an OPCION parametro accepts only a listed value, exact match.
+describe("parametros-registry: lector_qr_receta", () => {
+  const def = PARAMETROS_REGISTRY.lector_qr_receta;
+
+  it("is an OPCION parametro with the default CAMARA", () => {
+    expect(def.tipo).toBe("OPCION");
+    expect(def.valorPorDefecto).toBe("CAMARA");
+    expect(def.validar(def.valorPorDefecto)).toEqual({ ok: true, valor: "CAMARA" });
+  });
+
+  it.each(["CAMARA", "LECTOR"])("accepts %s", (valor) => {
+    expect(def.validar(valor)).toEqual({ ok: true, valor });
+  });
+
+  it.each(["camara", "Lector", "AMBOS", "", "FARMACIA"])("rejects %j", (valor) => {
+    expect(def.validar(valor)).toEqual({ ok: false, error: "Elegí una de las opciones." });
+  });
+});
+
+describe("parametros-registry: numeric parametros store the normalized number", () => {
+  it.each([
+    ["precision_balanza", " 0,010 ", "0.01"],
+    ["exceso_pesada_porcentaje", "5", "5"],
+  ] as const)("%s: %j -> %s", (clave, valorRaw, esperado) => {
+    expect(PARAMETROS_REGISTRY[clave].validar(valorRaw)).toEqual({ ok: true, valor: esperado });
+  });
+});
+
 describe("editarDatosTenant zod schema: the 3 non-editable tenant fields are never accepted", () => {
   const baseInput = { razonSocial: "Farmacia Test" };
 

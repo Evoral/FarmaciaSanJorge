@@ -12,6 +12,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { EstadoReceta, FormaFarmaceutica, ModoExpresion, OrigenReceta } from "../domain/receta";
 import type { FiltroPagoReceta } from "../domain/pago";
+import { MODO_LECTOR_QR_POR_DEFECTO, parseModoLectorQr, type ModoLectorQr } from "../domain/modo-lector-qr";
 import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
 import { rangoDeJornadas } from "@/shared/time/jornada";
 import { drogaCoincideSql, sinonimoCoincidenteSql } from "@/shared/db/busqueda-droga";
@@ -200,6 +201,19 @@ export async function listUnidadesParaReceta(tx: Prisma.TransactionClient): Prom
     select: { id: true, nombre: true, simbolo: true, tipoMagnitud: true },
   });
   return rows;
+}
+
+/**
+ * The farmacia's modo del lector (`lector_qr_receta`, openspec/specs/importacion-receta-qr/spec.md «Modo de la
+ * farmacia»). Read here, not through `parametros`' infrastructure (module boundary), with the same fallback as
+ * `stock/infrastructure/partida-repository.ts#getDiasAlertaVencimiento`: no row or an unknown value is CAMARA.
+ */
+export async function getModoLectorQrFarmacia(tx: Prisma.TransactionClient, tenantId: string): Promise<ModoLectorQr> {
+  const row = await tx.parametro.findUnique({
+    where: { tenantId_clave: { tenantId, clave: "lector_qr_receta" } },
+    select: { valor: true },
+  });
+  return parseModoLectorQr(row?.valor) ?? MODO_LECTOR_QR_POR_DEFECTO;
 }
 
 // ============================================================================

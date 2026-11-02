@@ -29,6 +29,12 @@
  * scanned) closes the scanner; a camera decode that arrives while a reading is in flight is
  * announced, never dropped silently. A reading that came from the camera does not move the focus
  * (it would open the on-screen keyboard of a phone over the preview).
+ *
+ * Modo del lector (spec «Modo del lector» to «El modo no cambia la lectura»): the farmacia's mode comes from the
+ * server; "En este equipo" can override it, stored in this browser (preferencia-lector-qr.ts). In LECTOR mode the
+ * camera button, its notice and the scanner are not rendered; switching to it with the camera open closes it. The
+ * selector sits outside the form and after the input, so the input keeps the focus and a USB scan always lands in it.
+ * The mode only changes what is shown: the reading path is the same in both.
  */
 import { useActionState, useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { AlertCircle, Camera, QrCode, X } from "lucide-react";
@@ -38,7 +44,16 @@ import { MENSAJE_ANUNCIO_LEYENDO, textoAnuncioLectura } from "./anuncio-lectura"
 import { MENSAJE_CAMARA_CERRADA, MENSAJE_CAMARA_LECTURA_EN_CURSO, enviarFormulario, mensajeEstadoCamara, soporteCamara } from "./camara-qr";
 import { EscanerQrCamara, leerEntornoCamara } from "./escaner-qr-camara";
 import { debeRecuperarFoco } from "./foco-lectura";
+import { almacenDelNavegador, guardarPreferenciaLectorQr, leerPreferenciaLectorQr } from "./preferencia-lector-qr";
 import type { VistaPreviaImportacion } from "../domain/importacion-receta";
+import {
+  ELECCION_EQUIPO_SEGUN_FARMACIA,
+  ETIQUETA_MODO_LECTOR_QR,
+  MODOS_LECTOR_QR,
+  resolverModoLectorQr,
+  type EleccionEquipoLectorQr,
+  type ModoLectorQr,
+} from "../domain/modo-lector-qr";
 import { useFormSubmit } from "@/shared/ui/use-form-submit";
 
 export interface ImportarRecetaQrProps {
@@ -47,12 +62,27 @@ export interface ImportarRecetaQrProps {
   importando: boolean;
   /** Focus the input on mount. The parent turns it off once a receta was read, so a remount does not steal the focus. Default: true. */
   autoEnfocar?: boolean;
+  /** The farmacia's modo del lector (`lector_qr_receta`); "En este equipo" can override it. */
+  modoLectorFarmacia: ModoLectorQr;
+  /** Keys the equipo's choice per farmacia. */
+  tenantId: string;
 }
 
 /** The camera support never changes while the page is open: nothing to subscribe to. */
 const noSuscribirse = () => () => {};
 
-export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar = true }: ImportarRecetaQrProps) {
+/** Another tab changing this equipo's choice applies here too. */
+const suscribirseAlAlmacen = (avisar: () => void) => {
+  window.addEventListener("storage", avisar);
+  return () => window.removeEventListener("storage", avisar);
+};
+
+const TEXTO_POR_MODO: Record<ModoLectorQr, { ayuda: string; placeholder: string }> = {
+  CAMARA: { ayuda: "Usá el lector, pegá el link o escaneá con la cámara.", placeholder: "Escaneá el QR o pegá el link" },
+  LECTOR: { ayuda: "Escaneá el QR con el lector o pegá el link.", placeholder: "Escaneá el QR con el lector o pegá el link" },
+};
+
+export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar = true, modoLectorFarmacia, tenantId }: ImportarRecetaQrProps) {
   const [state, formAction, isPending] = useActionState(leerRecetaQrAction, IDLE_LEER_RECETA_STATE);
   const { onSubmit } = useFormSubmit(formAction);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -67,6 +97,16 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
     () => soporteCamara(leerEntornoCamara(false)),
     () => null,
   );
+  // null on the server and during hydration (the browser's choice is unknown there): the farmacia's mode until mounted.
+  const eleccionGuardada = useSyncExternalStore(
+    suscribirseAlAlmacen,
+    () => leerPreferenciaLectorQr(almacenDelNavegador(), tenantId),
+    () => null,
+  );
+  /** The choice made on this page: it holds even when the browser refuses to save it. */
+  const [eleccionEnPagina, setEleccionEnPagina] = useState<EleccionEquipoLectorQr | null>(null);
+  const eleccionEquipo = eleccionEnPagina ?? eleccionGuardada ?? ELECCION_EQUIPO_SEGUN_FARMACIA;
+  const modo = resolverModoLectorQr({ farmacia: modoLectorFarmacia, equipo: eleccionEquipo });
   /** Set on submit, cleared when a result arrives: closes the gap before `isPending` turns true. */
   const enVuelo = useRef(false);
   /** Who started the reading in flight, and who starts the next one (set only around the camera's own submit). */
@@ -75,6 +115,7 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
   const inputId = useId();
   const errorId = useId();
   const avisoCamaraId = useId();
+  const selectorEquipoId = useId();
 
   const enfocarYSeleccionar = () => {
     inputRef.current?.focus();
@@ -145,11 +186,23 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
     enfocarYSeleccionar();
   };
 
+  // Saved per farmacia in this browser; the focus stays where it is (on the selector).
+  const alElegirEnEquipo = (eleccion: EleccionEquipoLectorQr) => {
+    guardarPreferenciaLectorQr(almacenDelNavegador(), tenantId, eleccion);
+    setEleccionEnPagina(eleccion);
+    // Lector USB has no scanner: an open camera closes (unmounting it stops every track).
+    if (camaraAbierta && resolverModoLectorQr({ farmacia: modoLectorFarmacia, equipo: eleccion }) === "LECTOR") {
+      setCamaraAbierta(false);
+      setAnuncioCamara(MENSAJE_CAMARA_CERRADA);
+    }
+  };
+
   const mostrarError = state.status === "error" && !isPending;
   // Only a problem with the typed code marks the input invalid; an outage or a permission error is not the input's fault.
   const entradaInvalida = mostrarError && state.campo === "codigo";
   const anuncio = textoAnuncioLectura({ isPending, status: state.status, importando }) || anuncioCamara;
   const camaraDisponible = soporte !== null && soporte !== "inseguro" && soporte !== "sin-api";
+  const conCamara = modo === "CAMARA";
 
   return (
     <section ref={panelRef} aria-labelledby="importar-qr-heading">
@@ -163,7 +216,7 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
               {importando ? "Receta importada con QR" : "Con el QR o el link de la receta"}
             </h3>
             <p className="mt-0.5 text-[0.8125rem] text-zinc-500">
-              Usá el lector, pegá el link o escaneá con la cámara.
+              {TEXTO_POR_MODO[modo].ayuda}
             </p>
           </div>
         </div>
@@ -188,13 +241,13 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
             onChange={alCambiarTexto}
             aria-invalid={entradaInvalida ? true : undefined}
             aria-describedby={mostrarError ? errorId : undefined}
-            placeholder="Escaneá el QR o pegá el link"
+            placeholder={TEXTO_POR_MODO[modo].placeholder}
             className="input min-w-0 flex-1"
           />
           {/* Hidden: Enter and `enviarFormulario`'s pre-Safari-16 fallback still submit through it. */}
           <button type="submit" disabled={isPending} hidden tabIndex={-1} aria-hidden />
           {isPending ? <span className="spinner" aria-hidden title={MENSAJE_ANUNCIO_LEYENDO} /> : null}
-          {soporte === null ? null : (
+          {soporte === null || !conCamara ? null : (
             <button
               ref={botonCamaraRef}
               type="button"
@@ -220,12 +273,29 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
           </p>
         </form>
       </div>
-      {soporte !== null && !camaraDisponible ? (
+      {/* Outside the form: changing it never submits. After the input in tab order: the input keeps the first focus. */}
+      <div className="flex items-center justify-end gap-2 px-4 pb-3 text-[0.8125rem] text-zinc-500 sm:px-5">
+        <label htmlFor={selectorEquipoId}>En este equipo</label>
+        <select
+          id={selectorEquipoId}
+          value={eleccionEquipo}
+          onChange={(event) => alElegirEnEquipo(event.target.value as EleccionEquipoLectorQr)}
+          className="input input-sm w-auto"
+        >
+          <option value={ELECCION_EQUIPO_SEGUN_FARMACIA}>Según la farmacia ({ETIQUETA_MODO_LECTOR_QR[modoLectorFarmacia]})</option>
+          {MODOS_LECTOR_QR.map((opcion) => (
+            <option key={opcion} value={opcion}>
+              {ETIQUETA_MODO_LECTOR_QR[opcion]}
+            </option>
+          ))}
+        </select>
+      </div>
+      {conCamara && soporte !== null && !camaraDisponible ? (
         <p id={avisoCamaraId} className="px-4 pb-4 text-[0.8125rem] text-zinc-500 sm:px-5">
           {mensajeEstadoCamara(soporte)}
         </p>
       ) : null}
-      {camaraAbierta ? (
+      {conCamara && camaraAbierta ? (
         <div className="px-4 pb-4 sm:px-5">
           <EscanerQrCamara onLeido={alLeerConCamara} onCerrar={alCerrarCamara} onAnunciar={setAnuncioCamara} />
         </div>

@@ -16,9 +16,18 @@ import { ImportarRecetaPdf } from "./importar-receta-pdf";
 import { ImportarRecetaQr } from "./importar-receta-qr";
 import { RecetaForm } from "./receta-form";
 import type { FuenteImportacion, VistaPreviaImportacion } from "../domain/importacion-receta";
+import type { ModoLectorQr } from "../domain/modo-lector-qr";
 import type { UnidadOpcion } from "../infrastructure/receta-repository";
 
-export function NuevaReceta({ unidades, puedePresupuestar }: { unidades: UnidadOpcion[]; puedePresupuestar: boolean }) {
+export interface NuevaRecetaProps {
+  unidades: UnidadOpcion[];
+  puedePresupuestar: boolean;
+  /** The farmacia's modo del lector for the QR panel. */
+  modoLectorFarmacia: ModoLectorQr;
+  tenantId: string;
+}
+
+export function NuevaReceta({ unidades, puedePresupuestar, modoLectorFarmacia, tenantId }: NuevaRecetaProps) {
   const [vistaPrevia, setVistaPrevia] = useState<VistaPreviaImportacion | null>(null);
   const [lecturas, setLecturas] = useState<Record<FuenteImportacion, number>>({ PDF: 0, QR: 0 });
 
@@ -38,7 +47,10 @@ export function NuevaReceta({ unidades, puedePresupuestar }: { unidades: UnidadO
         </div>
         <div className="divide-y divide-zinc-100">
           <ImportarRecetaPdf key={`pdf-${lecturas.QR}`} importando={vistaPrevia?.fuente === "PDF"} onLeida={onLeida} onDescartar={onDescartar} />
-          <ImportarRecetaQr key={`qr-${lecturas.PDF}`} importando={vistaPrevia?.fuente === "QR"} onLeida={onLeida} onDescartar={onDescartar} autoEnfocar={totalLecturas === 0} />
+          <ImportarRecetaQr key={`qr-${lecturas.PDF}`} importando={vistaPrevia?.fuente === "QR"} onLeida={onLeida} onDescartar={onDescartar} autoEnfocar={totalLecturas === 0}
+            modoLectorFarmacia={modoLectorFarmacia}
+            tenantId={tenantId}
+          />
         </div>
       </div>
       {vistaPrevia ? (

@@ -4,7 +4,7 @@
  *   - recetas.crear / recetas.editar: ATP, FAR, DT
  *   - recetas.anular: FAR, DT ONLY (unlike the other two -- ATP cannot anular)
  * (`recetas.fisica.registrar` was removed by migration 0051.)
- * Reads (recetas.ver/listar/drogas.listar/unidades.listar) reuse
+ * Reads (recetas.ver/listar/drogas.listar/unidades.listar/modoLectorQr.ver) reuse
  * `recetas.crear` (see
  * modules/recetas/application/get-receta.ts's doc comment) -- same role set
  * as the writes, so this file does not duplicate those cases beyond
@@ -44,6 +44,7 @@ await import("@/modules/recetas/application/get-receta");
 await import("@/modules/recetas/application/list-recetas");
 await import("@/modules/recetas/application/list-drogas-para-receta");
 await import("@/modules/recetas/application/list-unidades-para-receta");
+await import("@/modules/recetas/application/get-modo-lector-qr");
 await import("@/modules/pacientes/application/crear-paciente-desde-receta");
 await import("@/modules/medicos/application/crear-medico-desde-receta");
 await import("@/modules/recetas/application/leer-receta-pdf");
@@ -100,6 +101,7 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
   { name: "recetas.listar", permiso: "recetas.crear", input: {} },
   { name: "recetas.drogas.listar", permiso: "recetas.crear", input: {} },
   { name: "recetas.unidades.listar", permiso: "recetas.crear", input: {} },
+  { name: "recetas.modoLectorQr.ver", permiso: "recetas.crear", input: {} },
   { name: "pacientes.crear-desde-receta", permiso: "recetas.crear", input: { nombre: "N", apellido: "A" } },
   // PDF import (openspec/specs/importacion-receta-pdf/spec.md "Permisos"): both steps on recetas.crear.
   { name: "recetas.importar.leer", permiso: "recetas.crear", input: { archivo: null } },

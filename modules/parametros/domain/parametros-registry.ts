@@ -31,6 +31,7 @@ import { numeroONull } from "@/shared/decimal/numero-ingresado";
 import { ALICUOTA_IVA_POR_DEFECTO, alicuotaIvaSchema } from "@/modules/costos-proveedor/domain/costo-proveedor";
 import { DIAS_RETIRO_VENCIDO_DEFAULT, DIAS_RETIRO_VENCIDO_MAX } from "@/modules/entregas/domain/retiro-vencido";
 import { MESES_VENCIMIENTO_PREPARADO_MAX } from "@/modules/preparaciones/domain/vencimiento";
+import { ETIQUETA_MODO_LECTOR_QR, MODO_LECTOR_QR_POR_DEFECTO, MODOS_LECTOR_QR } from "@/modules/recetas/domain/modo-lector-qr";
 import { DIAS_RELEVAMIENTO_INICIAL_DEFAULT, DIAS_RELEVAMIENTO_INICIAL_MAX } from "@/modules/stock/domain/existencia-inicial";
 
 export const PARAMETRO_CLAVES = [
@@ -45,6 +46,7 @@ export const PARAMETRO_CLAVES = [
   "dias_retiro_vencido",
   "dias_relevamiento_inicial",
   "alicuota_iva_porcentaje",
+  "lector_qr_receta",
 ] as const;
 
 export type ParametroClave = (typeof PARAMETRO_CLAVES)[number];
@@ -55,7 +57,8 @@ export function isParametroClave(value: string): value is ParametroClave {
   return PARAMETRO_CLAVE_SET.has(value);
 }
 
-export type ValidacionParametro = { ok: true; valor: Decimal } | { ok: false; error: string };
+/** `valor` is the normalized text that gets stored (a number in its `Decimal#toString` form, an option as listed). */
+export type ValidacionParametro = { ok: true; valor: string } | { ok: false; error: string };
 
 function parseDecimalOrNull(valorRaw: string): Decimal | null {
   const trimmed = valorRaw.trim();
@@ -90,7 +93,7 @@ function validarPrecisionBalanza(valorRaw: string): ValidacionParametro {
   if (!permitido) {
     return { ok: false, error: "Debe ser uno de los siguientes valores: 0.1, 0.01 o 0.001." };
   }
-  return { ok: true, valor };
+  return { ok: true, valor: valor.toString() };
 }
 
 /** `exceso_pesada_porcentaje` (openspec/specs/ficha-tecnica/spec.md R7): a percentage, 0-100 inclusive. */
@@ -100,7 +103,7 @@ function validarExcesoPesadaPorcentaje(valorRaw: string): ValidacionParametro {
   if (valor.lessThan(0) || valor.greaterThan(100)) {
     return { ok: false, error: "Debe estar entre 0 y 100." };
   }
-  return { ok: true, valor };
+  return { ok: true, valor: valor.toString() };
 }
 
 /** `tolerancia_pesada_porcentaje` (openspec/specs/pesada-real/spec.md): a percentage, 0-100 inclusive. */
@@ -110,7 +113,7 @@ function validarToleranciaPesadaPorcentaje(valorRaw: string): ValidacionParametr
   if (valor.lessThan(0) || valor.greaterThan(100)) {
     return { ok: false, error: "Debe estar entre 0 y 100." };
   }
-  return { ok: true, valor };
+  return { ok: true, valor: valor.toString() };
 }
 
 /** `dias_alerta_vencimiento_partida` (DP-14, FASE 5 point 5.7): a positive integer. */
@@ -120,7 +123,7 @@ function validarDiasAlertaVencimientoPartida(valorRaw: string): ValidacionParame
   if (!valor.isInteger() || valor.lessThanOrEqualTo(0)) {
     return { ok: false, error: "Debe ser un número entero mayor que cero." };
   }
-  return { ok: true, valor };
+  return { ok: true, valor: valor.toString() };
 }
 
 /** `dias_relevamiento_inicial` (openspec/specs/existencia-inicial/spec.md R6): an integer between 1 and three months. */
@@ -130,7 +133,7 @@ function validarDiasRelevamientoInicial(valorRaw: string): ValidacionParametro {
   if (!valor.isInteger() || valor.lessThan(1) || valor.greaterThan(DIAS_RELEVAMIENTO_INICIAL_MAX)) {
     return { ok: false, error: `Debe ser un número entero entre 1 y ${DIAS_RELEVAMIENTO_INICIAL_MAX}.` };
   }
-  return { ok: true, valor };
+  return { ok: true, valor: valor.toString() };
 }
 
 /**
@@ -146,7 +149,7 @@ function validarPlazoFirmaDias(valorRaw: string): ValidacionParametro {
   if (!valor.isInteger() || valor.lessThan(0)) {
     return { ok: false, error: "Debe ser un número entero mayor o igual que cero." };
   }
-  return { ok: true, valor };
+  return { ok: true, valor: valor.toString() };
 }
 
 /**
@@ -165,7 +168,7 @@ function validarPlazoArchivoAnios(valorRaw: string): ValidacionParametro {
   if (!valor.isInteger() || valor.lessThan(1)) {
     return { ok: false, error: "Debe ser un número entero mayor o igual que uno." };
   }
-  return { ok: true, valor };
+  return { ok: true, valor: valor.toString() };
 }
 
 /**
@@ -182,7 +185,7 @@ function validarMesesVencimientoPreparado(valorRaw: string): ValidacionParametro
   if (!valor.isInteger() || valor.lessThan(1) || valor.greaterThan(MESES_VENCIMIENTO_PREPARADO_MAX)) {
     return { ok: false, error: `Debe ser un número entero entre 1 y ${MESES_VENCIMIENTO_PREPARADO_MAX}.` };
   }
-  return { ok: true, valor };
+  return { ok: true, valor: valor.toString() };
 }
 
 /**
@@ -196,7 +199,7 @@ function validarDiasRetiroVencido(valorRaw: string): ValidacionParametro {
   if (!valor.isInteger() || valor.lessThan(0) || valor.greaterThan(DIAS_RETIRO_VENCIDO_MAX)) {
     return { ok: false, error: `Debe ser un número entero entre 0 y ${DIAS_RETIRO_VENCIDO_MAX}.` };
   }
-  return { ok: true, valor };
+  return { ok: true, valor: valor.toString() };
 }
 
 /**
@@ -206,18 +209,37 @@ function validarDiasRetiroVencido(valorRaw: string): ValidacionParametro {
 function validarAlicuotaIvaPorcentaje(valorRaw: string): ValidacionParametro {
   const resultado = alicuotaIvaSchema.safeParse(valorRaw);
   if (!resultado.success) return { ok: false, error: resultado.error.issues[0]?.message ?? "Debe ser un número válido." };
-  return { ok: true, valor: new Decimal(resultado.data) };
+  return { ok: true, valor: new Decimal(resultado.data).toString() };
 }
 
-export interface ParametroDefinicion {
+export interface ParametroOpcion {
+  valor: string;
+  label: string;
+}
+
+/**
+ * An OPCION parametro is picked from a fixed list (a `<select>` in the form): only a listed `valor`, exact match, is
+ * accepted. Stored with `tipo = 'TEXTO'` in `fsj.parametro`.
+ */
+function validarOpcion(opciones: readonly ParametroOpcion[]): (valorRaw: string) => ValidacionParametro {
+  return (valorRaw) =>
+    opciones.some((opcion) => opcion.valor === valorRaw) ? { ok: true, valor: valorRaw } : { ok: false, error: "Elegí una de las opciones." };
+}
+
+interface ParametroDefinicionBase {
   clave: ParametroClave;
-  tipo: "NUMERO";
   label: string;
   descripcion: string;
   /** Same default scripts/create-tenant.ts and migration 0012 seed for a new tenant -- used as a defensive fallback when a tenant somehow has no row yet (see list-parametros.ts). */
   valorPorDefecto: string;
   validar: (valorRaw: string) => ValidacionParametro;
 }
+
+export type ParametroDefinicion =
+  | (ParametroDefinicionBase & { tipo: "NUMERO" })
+  | (ParametroDefinicionBase & { tipo: "OPCION"; opciones: readonly ParametroOpcion[] });
+
+const OPCIONES_LECTOR_QR: readonly ParametroOpcion[] = MODOS_LECTOR_QR.map((modo) => ({ valor: modo, label: ETIQUETA_MODO_LECTOR_QR[modo] }));
 
 export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = {
   precision_balanza: {
@@ -338,5 +360,17 @@ export const PARAMETROS_REGISTRY: Record<ParametroClave, ParametroDefinicion> = 
       "ni las cotizaciones ya calculadas. Debe estar entre 0 y 100.",
     valorPorDefecto: ALICUOTA_IVA_POR_DEFECTO,
     validar: validarAlicuotaIvaPorcentaje,
+  },
+  lector_qr_receta: {
+    clave: "lector_qr_receta",
+    tipo: "OPCION",
+    label: "Lector de QR de recetas",
+    descripcion:
+      "Cómo se escanea el QR de una receta digital en Nueva receta. Cámara: el panel ofrece la cámara del equipo (un " +
+      "lector USB también funciona). Lector USB: el panel no muestra la cámara. Es el valor con el que arrancan todos los " +
+      "equipos; cada equipo puede cambiarlo para sí en el propio panel.",
+    opciones: OPCIONES_LECTOR_QR,
+    valorPorDefecto: MODO_LECTOR_QR_POR_DEFECTO,
+    validar: validarOpcion(OPCIONES_LECTOR_QR),
   },
 };

@@ -16,7 +16,7 @@
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
-import { PARAMETRO_CLAVES, PARAMETROS_REGISTRY } from "../domain/parametros-registry";
+import { PARAMETRO_CLAVES, PARAMETROS_REGISTRY, type ParametroOpcion } from "../domain/parametros-registry";
 import { listParametrosTenant } from "../infrastructure/parametro-repository";
 
 const listParametrosInput = z.object({});
@@ -27,6 +27,8 @@ export interface ParametroListItem {
   descripcion: string;
   valor: string;
   actualizadoEn: Date | null;
+  /** Set for an OPCION parametro (rendered as a `<select>`); absent for a number. */
+  opciones?: readonly ParametroOpcion[];
 }
 
 export const listParametrosQuery = defineQuery({
@@ -46,6 +48,7 @@ export const listParametrosQuery = defineQuery({
         descripcion: definicion.descripcion,
         valor: row?.valor ?? definicion.valorPorDefecto,
         actualizadoEn: row?.actualizadoEn ?? null,
+        ...(definicion.tipo === "OPCION" ? { opciones: definicion.opciones } : {}),
       };
     });
   },

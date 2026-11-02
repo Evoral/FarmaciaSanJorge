@@ -41,7 +41,7 @@ export const editarParametroCommand = defineCommand({
     if (!validacion.ok) {
       throw new DomainError(validacion.error);
     }
-    const valorNormalizado = validacion.valor.toString();
+    const valorNormalizado = validacion.valor;
 
     const actual = await getParametroTenant(tx, session.tenantId, input.clave);
     if (!actual) {
