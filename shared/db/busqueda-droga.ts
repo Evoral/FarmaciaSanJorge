@@ -24,7 +24,8 @@ export function busquedaDrogaLike(busqueda: string | null | undefined): string |
   return texto.replace(/[\\%_]/g, "\\$&");
 }
 
-function patron(busqueda: string): Prisma.Sql {
+/** The LIKE pattern of a `busquedaDrogaLike` query: a substring of a normalized name or synonym. */
+export function patron(busqueda: string): Prisma.Sql {
   return Prisma.sql`('%' || fsj.normalizar_nombre(${busqueda}::text) || '%')`;
 }
 
