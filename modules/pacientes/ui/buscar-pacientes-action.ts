@@ -4,7 +4,7 @@
  * Search Server Action for `/clientes` (FASE 4 point 4.5,
  * DP-24). Deliberately SEPARATE from `page.tsx`'s GET `searchParams` (which
  * only ever reads the non-identifying `estado`/`page`/`nuevo` params -- see
- * that file's doc comment) -- the search term itself (apellido or DNI, both
+ * that file's doc comment) -- the search term itself (nombre, apellido or DNI, both
  * identifying for a paciente) is submitted here as a POST'd `FormData`
  * field and NEVER touches the URL/query string, per the task's binding
  * rule: "never put patient data in URLs or query strings". The client

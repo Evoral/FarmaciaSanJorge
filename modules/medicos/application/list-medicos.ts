@@ -1,7 +1,7 @@
 /**
  * `listMedicos` (M06, FASE 4 point 4.4). Read-only, gated on the same
  * single `medicos.gestionar` permiso as every other action in this module
- * (plan §7: "medicos.*"). Search matches apellido/matrícula (plan §9 M06:
+ * (plan §7: "medicos.*"). Search matches nombre/apellido/matrícula (plan §9 M06:
  * "Búsqueda por matrícula/apellido").
  */
 import { z } from "zod";

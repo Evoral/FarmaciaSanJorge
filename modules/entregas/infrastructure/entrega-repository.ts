@@ -16,6 +16,7 @@ import type { FormaFarmaceutica } from "@/generated/prisma/enums";
 import type { EstadoReceta } from "@/modules/recetas/domain/receta";
 import { FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
 import { rangoDeJornadas } from "@/shared/time/jornada";
+import { buscarPersonasPorNombre } from "@/shared/db/busqueda-persona";
 import { calcularItemsEntregables, domicilioDeEnvio } from "../domain/entrega";
 import type { ModalidadEntrega, ItemParaEntrega } from "../domain/entrega";
 import { parseDiasRetiroVencido } from "../domain/retiro-vencido";
@@ -408,15 +409,9 @@ export async function listEntregasPendientes(tx: Prisma.TransactionClient, filte
       ? { numeroInterno: BigInt(filter.numeroInterno.trim().replace(/[^0-9]/g, "") || "-1") }
       : {}),
     ...(filter.ingresoDesde || filter.ingresoHasta ? { fechaIngreso: await rangoIngreso(tx, filter) } : {}),
+    // The paciente's nombre and apellido: the shared persona rule (every word, any order, accent-insensitive).
     ...(filter.search && filter.search.trim().length > 0
-      ? {
-          paciente: {
-            OR: [
-              { nombre: { contains: filter.search.trim(), mode: "insensitive" as const } },
-              { apellido: { contains: filter.search.trim(), mode: "insensitive" as const } },
-            ],
-          },
-        }
+      ? { pacienteId: { in: await buscarPersonasPorNombre(tx, "paciente", filter.tenantId, filter.search) } }
       : {}),
   };
   const skip = (filter.page - 1) * filter.pageSize;

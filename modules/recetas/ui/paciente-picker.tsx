@@ -38,7 +38,7 @@ export function PacientePicker({ selectedId, selectedLabel, onSelect, disabled }
       id="paciente-q"
       label="Paciente"
       entidad="paciente"
-      placeholder="Apellido o DNI"
+      placeholder="Nombre, apellido o DNI"
       search={search}
       selectedId={selectedId}
       selectedLabel={selectedLabel}

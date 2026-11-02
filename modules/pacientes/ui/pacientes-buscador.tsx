@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Search + results for `/clientes` (FASE 4 point 4.5, DP-24). The search term (apellido or DNI -- both identifying)
+ * Search + results for `/clientes` (FASE 4 point 4.5, DP-24). The search term (nombre, apellido or DNI -- both identifying)
  * only ever travels through `buscarPacientesAction` (a POST'd Server Action call, never a `<form method="get">` page
  * navigation), so it never appears in the URL/query string. Starts from the server-rendered
  * `itemsIniciales`/`totalInicial` (the page's own default, non-identifying `estado`-filtered listing).
@@ -91,7 +91,7 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
               id="pacientes-buscar"
               label="Buscar cliente"
               hideLabel
-              placeholder="Buscar por apellido o DNI"
+              placeholder="Buscar por nombre, apellido o DNI"
               search={search}
               value={busquedaAplicada ? { value: "", label: busquedaAplicada } : null}
               onChange={(option) => {
