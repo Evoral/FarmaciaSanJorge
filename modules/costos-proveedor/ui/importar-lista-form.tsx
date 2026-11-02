@@ -441,7 +441,7 @@ export function ImportarListaForm({ vista, drogas: drogasDelCatalogo, unidades, 
                                 label={`Droga de la fila ${original.numeroFila}`}
                                 hideLabel
                                 size="sm"
-                                placeholder="Buscar droga"
+                                placeholder="Buscar insumo"
                                 search={buscarDrogas}
                                 value={fila.droga}
                                 onChange={(droga) => elegirDroga(i, droga)}

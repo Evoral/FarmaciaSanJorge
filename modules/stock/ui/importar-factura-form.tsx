@@ -483,7 +483,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
                       <Combobox
                         id={`lineas.${i}.drogaId-buscar`}
                         label="Droga"
-                        placeholder="Buscar droga"
+                        placeholder="Buscar insumo"
                         name={`lineas.${i}.drogaId`}
                         search={buscarDrogas}
                         value={l.droga}

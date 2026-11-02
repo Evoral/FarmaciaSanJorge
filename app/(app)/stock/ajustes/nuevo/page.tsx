@@ -53,7 +53,7 @@ type Paso = 1 | 2 | 3;
 /** The flow's position; finished steps link back (step 2 only when its droga is known). */
 function Pasos({ actual, pasoUnoHref, pasoDosHref }: { actual: Paso; pasoUnoHref: string; pasoDosHref?: string }) {
   const pasos: { n: Paso; label: string; href?: string }[] = [
-    { n: 1, label: "Droga", href: pasoUnoHref },
+    { n: 1, label: "Insumo", href: pasoUnoHref },
     { n: 2, label: "Partida", href: pasoDosHref },
     { n: 3, label: "Ajuste" },
   ];
@@ -142,7 +142,7 @@ async function SeleccionPartida({ q, drogaId, volverA }: { q: string; drogaId: s
 
   return (
     <div className="page list-view">
-      <PageHeader breadcrumbs={breadcrumbs(volverA)} title="Registrar ajuste / merma" description="Elegí la droga y luego la partida sobre la que se registra el ajuste." />
+      <PageHeader breadcrumbs={breadcrumbs(volverA)} title="Registrar ajuste / merma" description="Elegí el insumo (droga, excipiente o material) y luego la partida sobre la que se registra el ajuste." />
       <Pasos actual={drogaId ? 2 : 1} pasoUnoHref={pasoUnoHref} />
       <div className="max-w-3xl">
         {drogaId ? (
@@ -164,7 +164,7 @@ async function DrogasParaAjuste({ q, catalogo, volverA }: { q: string; catalogo:
         <DrogaBuscador
           id="droga-ajuste"
           label="Droga"
-          placeholder="Escribí el nombre de la droga"
+          placeholder="Escribí el nombre del insumo"
           busquedaActual={q || undefined}
           alElegir={{ href: conRetornoAjuste(q ? `/stock/ajustes/nuevo?${new URLSearchParams({ q }).toString()}` : "/stock/ajustes/nuevo", volverA), param: "drogaId", valor: "id" }}
           alBuscar={{ href: conRetornoAjuste("/stock/ajustes/nuevo", volverA), param: "q", texto: "Ver todas las coincidencias de “{q}”", textoSinBusqueda: "Ver todas las drogas" }}

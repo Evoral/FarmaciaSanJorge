@@ -59,7 +59,7 @@ export function ExistenciaInicialForm({ drogas, proveedores, unidades }: Existen
         <Combobox
           id="drogaId-buscar"
           label="Droga o insumo"
-          placeholder="Buscar droga"
+          placeholder="Buscar insumo"
           name="drogaId"
           search={buscarDrogas}
           value={droga}

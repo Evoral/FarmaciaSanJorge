@@ -125,9 +125,9 @@ export async function AjustesListado({ params, basePath, breadcrumbs, title = "A
           <div className="min-w-0 flex-1 md:w-80 md:flex-none">
             <DrogaBuscador
               id="q-buscar"
-              label="Buscar droga o lote"
+              label="Buscar insumo o lote"
               hideLabel
-              placeholder="Buscar droga o lote"
+              placeholder="Buscar insumo o lote"
               busquedaActual={filtros.q}
               alElegir={{ href: hrefCon({ q: undefined }), param: "q", valor: "nombre" }}
               alBuscar={{ href: hrefCon({ q: undefined }), param: "q", texto: "Buscar “{q}” (droga o lote)", textoSinBusqueda: "Ver todos los ajustes" }}

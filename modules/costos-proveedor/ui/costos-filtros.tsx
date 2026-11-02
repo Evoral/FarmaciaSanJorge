@@ -46,7 +46,7 @@ export function CostosFiltros({ droga, proveedor, hayFiltros }: CostosFiltrosPro
     <div className="filter-bar items-end">
       <FilterForm className="flex min-w-0 flex-1 flex-wrap items-end gap-3" aria-label="Filtros de costos de proveedores" hasActiveFilters={false}>
         <div className="min-w-0 flex-1 md:w-72 md:flex-none">
-          <Combobox id="filtro-droga" label="Droga" hideLabel placeholder="Filtrar por droga" name="droga" search={buscarDrogas} value={drogaOpcion} onChange={setDrogaOpcion} />
+          <Combobox id="filtro-droga" label="Insumo" hideLabel placeholder="Filtrar por insumo" name="droga" search={buscarDrogas} value={drogaOpcion} onChange={setDrogaOpcion} />
         </div>
         <div className="min-w-0 flex-1 md:w-72 md:flex-none">
           <Combobox

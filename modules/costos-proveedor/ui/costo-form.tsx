@@ -208,7 +208,7 @@ export function CostoForm({ drogas, proveedores, unidades, jornadaActual, alicuo
         <Combobox
           id="costo-droga"
           label="Droga"
-          placeholder="Buscar droga"
+          placeholder="Buscar insumo"
           name="filas.0.drogaId"
           search={buscarDrogas}
           value={droga}

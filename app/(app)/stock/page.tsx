@@ -182,9 +182,9 @@ export default async function StockPage({ searchParams }: StockPageProps) {
           <div className="min-w-0 flex-1 md:w-80 md:flex-none">
             <DrogaBuscador
               id="q-buscar"
-              label="Buscar droga"
+              label="Buscar insumo"
               hideLabel
-              placeholder="Buscar droga"
+              placeholder="Buscar insumo"
               busquedaActual={q}
               alElegir={{ href: modo === "base" ? "/partidas?saldo=1&unidades=base" : "/partidas?saldo=1", param: "drogaId", valor: "id" }}
               alBuscar={{ href: sinFiltroHref("q"), param: "q", texto: "Buscar “{q}” en la lista", textoSinBusqueda: "Ver todas las drogas" }}

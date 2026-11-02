@@ -144,8 +144,8 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
           <div className="min-w-0 flex-1 md:w-80 md:flex-none">
             <BuscadorNavegable
               id="q-buscar"
-              label="Buscar droga"
-              placeholder="Buscar droga por nombre"
+              label="Buscar insumo"
+              placeholder="Buscar insumo por nombre (droga, excipiente o material)"
               buscar={buscarDrogasCatalogoAction}
               detalleHref="/catalogos/drogas/{id}"
               listaHref={sinFiltroHref("q")}
