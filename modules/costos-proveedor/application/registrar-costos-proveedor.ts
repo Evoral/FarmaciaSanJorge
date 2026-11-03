@@ -26,23 +26,24 @@
  *      `args.crearListaPrecio`, once the plan is known and BEFORE the first write:
  *      the header is append-only (no UPDATE), so it must record the final
  *      `filas_aplicadas`, and the costo rows reference it (FK), so it must exist first;
- *   7. one server instant (`ahoraServidor`): `cerrarVigente` +
- *      `insertCostoProveedor` with that SAME instant (R2), and one audit record
- *      per created costo.
+ *   7. one server instant (`ahoraServidor`): `cerrarVigentes` +
+ *      `insertCostosProveedor` with that SAME instant (R2), and one audit record
+ *      per created costo -- all in batches, not one round trip per row.
  *
  * Row errors point at the row's control (`filas.<i>.<campo>`), like
  * modules/stock/application/importar-factura-compra.ts, so the form keeps what
  * was typed and marks the offending field.
  *
  * Audit: the pipeline's built-in audit writes exactly one record, and this
- * command creates one per costo, so it opts out and calls `audit.record` itself
+ * command creates one per costo, so it opts out and calls `audit.recordMany` itself
  * inside the same transaction (same as importarFacturaCompra).
  */
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import type { AuthenticatedSession } from "@/shared/auth/session";
-import { record as auditRecord } from "@/shared/audit";
+import { recordMany as auditRecordMany, type AuditRecordInput } from "@/shared/audit";
 import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { fieldLabel } from "@/shared/labels/field-labels";
@@ -51,16 +52,16 @@ import { calcularConIva, detectarDuplicados, filaCostoSchema, planVersionar, val
 import type { PlanVersionado } from "../domain/costo-proveedor";
 import {
   ahoraServidor,
-  cerrarVigente,
+  cerrarVigentes,
   getAlicuotaIvaPorDefecto,
   getDrogasParaCosto,
   getProveedorParaCosto,
   getUnidadesParaCosto,
-  insertCostoProveedor,
+  insertCostosProveedor,
   jornadaActualTenant,
   lockVigentes,
 } from "../infrastructure/costo-proveedor-repository";
-import type { CostoProveedorVigenteBloqueado, DrogaParaCosto, UnidadCosto } from "../infrastructure/costo-proveedor-repository";
+import type { CostoProveedorVigenteBloqueado, DrogaParaCosto, NuevoCostoProveedorInput, UnidadCosto } from "../infrastructure/costo-proveedor-repository";
 
 /** Same ceiling as the list import's data rows (R15). */
 export const MAX_FILAS_COSTOS = 5000;
@@ -310,12 +311,16 @@ export async function registrarFilasEnTx(tx: Prisma.TransactionClient, session: 
     });
   }
 
-  // 7. Write: close + insert with the SAME server instant, one audit record per created costo.
+  // 7. Write: close + insert with the SAME server instant, one audit record per created costo -- in batches (one
+  // statement for the closes, one per 500 inserts and audit rows), so a list of ~700 rows is a handful of round trips.
   const unidadesFaltantes = aEscribir.flatMap((accion) => (accion.vigente && !unidades.has(accion.vigente.unidadPrecioId) ? [accion.vigente.unidadPrecioId] : []));
   const unidadesVigentes = unidadesFaltantes.length > 0 ? new Map([...unidades, ...(await getUnidadesParaCosto(tx, unidadesFaltantes))]) : unidades;
   const ahora = aEscribir.length > 0 ? await ahoraServidor(tx) : null;
 
   const resultado: ResultadoRegistroCostos = { insertados: 0, reemplazados: 0, sinCambios: 0, ids: [], filas: [] };
+  const aCerrar: string[] = [];
+  const nuevos: NuevoCostoProveedorInput[] = [];
+  const auditorias: AuditRecordInput[] = [];
   for (const accion of planificadas) {
     const { indice, fila, droga, costoUnitario, alicuotaIva, precioInformadoConIva, costoUnitarioConIva, plan, vigente } = accion;
     if (plan.tipo === "SIN_CAMBIOS" || ahora === null) {
@@ -323,9 +328,11 @@ export async function registrarFilasEnTx(tx: Prisma.TransactionClient, session: 
       resultado.filas.push({ indice, resultado: "SIN_CAMBIOS", id: null });
       continue;
     }
-    if (plan.tipo === "REEMPLAZAR") await cerrarVigente(tx, tenantId, plan.cerrarId, ahora);
+    if (plan.tipo === "REEMPLAZAR") aCerrar.push(plan.cerrarId);
 
-    const creado = await insertCostoProveedor(tx, {
+    const creado = { id: randomUUID() };
+    nuevos.push({
+      id: creado.id,
       tenantId,
       drogaId: fila.drogaId,
       proveedorId,
@@ -343,7 +350,7 @@ export async function registrarFilasEnTx(tx: Prisma.TransactionClient, session: 
       creadoPorId: session.usuario.id,
     });
 
-    await auditRecord(tx, {
+    auditorias.push({
       tenantId,
       usuarioId: session.usuario.id,
       entidad: "costo_proveedor",
@@ -368,6 +375,10 @@ export async function registrarFilasEnTx(tx: Prisma.TransactionClient, session: 
     else resultado.insertados += 1;
     resultado.filas.push({ indice, resultado: plan.tipo === "REEMPLAZAR" ? "REEMPLAZADO" : "INSERTADO", id: creado.id });
   }
+  // Closes first: the partial unique index allows one vigente per pair (R1).
+  if (ahora !== null) await cerrarVigentes(tx, tenantId, aCerrar, ahora);
+  await insertCostosProveedor(tx, nuevos);
+  await auditRecordMany(tx, auditorias);
   return resultado;
 }
 

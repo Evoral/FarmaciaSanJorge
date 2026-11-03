@@ -56,6 +56,7 @@ function vigente(cambios: Partial<VigenteParaLista> = {}): VigenteParaLista {
     // 30.000 $/kg per mg (1 kg = 1.000.000 mg).
     costoUnitario: "0.03",
     fechaPrecio: "2026-09-01",
+    alicuotaIva: "21",
     ...cambios,
   };
 }
@@ -186,7 +187,17 @@ describe("construirVistaPrevia -- row states (R18)", () => {
       ],
       { vigentes: [vigente({ fechaPrecio: FECHA_LISTA })] },
     );
-    expect(resumen).toEqual({ ASOCIADA: 1, SIN_ASOCIAR: 1, DUPLICADA: 2, PRECIO_INVALIDO: 1, MAS_ANTIGUA: 0, SIN_CAMBIOS: 1, OMITIDA_PRESENTACION: 1, OMITIDA: 0 });
+    expect(resumen).toEqual({
+      ASOCIADA: 1,
+      SIN_ASOCIAR: 1,
+      DUPLICADA: 2,
+      PRECIO_INVALIDO: 1,
+      MAS_ANTIGUA: 0,
+      SIN_CAMBIOS: 1,
+      OMITIDA_PRESENTACION: 1,
+      OMITIDA_UNIDAD: 0,
+      OMITIDA: 0,
+    });
     expect(Object.keys(resumen).sort()).toEqual([...ESTADOS_FILA_LISTA].sort());
     expect(Object.values(resumen).reduce((a, b) => a + b, 0)).toBe(filas.length);
   });
@@ -215,7 +226,7 @@ describe("construirVistaPrevia -- variation (R18)", () => {
 
   it("compares the cost per unidad base, so a change of unit does not read as a 1000x jump", () => {
     // 30 $/g is 30.000 $/kg: no variation. The vigente is in kg, the list row is typed in g.
-    const entradas: EntradaFilaLista[] = [{ drogaId: PARACETAMOL.id, precio: "30", unidadPrecioId: U_G, omitida: false, presentacion: null }];
+    const entradas: EntradaFilaLista[] = [{ drogaId: PARACETAMOL.id, precio: "30", unidadPrecioId: U_G, omitida: false, presentacion: null, unidadListaId: null, alicuotaIva: null }];
     const contexto = contextoDe([vigente()]);
     expect(evaluarFilasLista(contexto, entradas)[0]).toMatchObject({ variacionPct: "0.0", variacionAlta: false, costoUnitario: "0.03" });
   });
@@ -223,6 +234,52 @@ describe("construirVistaPrevia -- variation (R18)", () => {
   it("is null without a vigente", () => {
     const { filas } = vistaPrevia([fila(2, "Paracetamol", "33000")]);
     expect(filas[0]).toMatchObject({ variacionPct: null, variacionAlta: false });
+  });
+});
+
+/** A Catálogo row (R16c): the list states its unit and, for an exempt product, alícuota 0. */
+function filaCatalogo(numeroFila: number, descripcion: string, precio: string, codigo: "KILOGRAMO" | "GRAMO" | "LITRO" | "UNIDAD" | null, um: string, alicuotaIva: string | null = null): FilaListaLeida {
+  return { numeroFila, descripcion, precio, presentacion: null, unidadLista: { um, codigo, porMillar: false }, alicuotaIva };
+}
+
+describe("construirVistaPrevia -- Catálogo rows (R16c, R18)", () => {
+  it("starts the row at the unit the list states, not the magnitud's default", () => {
+    const { filas } = vistaPrevia([filaCatalogo(2, "Paracetamol", "40.898", "GRAMO", "G")]);
+    expect(filas[0]).toMatchObject({ unidadPrecioId: U_G, um: "G", unidadListaId: U_G, estado: "ASOCIADA" });
+  });
+
+  it("omits a row priced in a unit of another magnitud, without blocking and with the reason", () => {
+    const { filas, resumen } = vistaPrevia([filaCatalogo(2, "Paracetamol", "64664.38", "LITRO", "L"), filaCatalogo(3, "Aceite de girasol", "18494", "LITRO", "L")]);
+    expect(filas.map((f) => f.estado)).toEqual(["OMITIDA_UNIDAD", "ASOCIADA"]);
+    expect(filas[0]!.mensaje).toBe("La lista da el precio por L y Paracetamol se mide en mg (masa): sin densidad no se puede convertir.");
+    expect(resumen.DUPLICADA + resumen.PRECIO_INVALIDO).toBe(0);
+  });
+
+  it("does not count a row omitted for its unit as a duplicate", () => {
+    const { filas } = vistaPrevia([filaCatalogo(2, "Paracetamol", "40898", "KILOGRAMO", "Kg"), filaCatalogo(3, "PARACETAMOL", "64664", "LITRO", "L")]);
+    expect(filas.map((f) => f.estado)).toEqual(["ASOCIADA", "OMITIDA_UNIDAD"]);
+  });
+
+  it("leaves a UM without equivalent with no unit, as a row the user must complete", () => {
+    const { filas } = vistaPrevia([filaCatalogo(2, "Paracetamol", "40898", null, "CJ")]);
+    expect(filas[0]).toMatchObject({ unidadPrecioId: null, estado: "PRECIO_INVALIDO" });
+  });
+
+  it("an exempt row over a vigente at 21 % is a new version, not sin cambios (R7a)", () => {
+    const igual = { vigentes: [vigente({ fechaPrecio: FECHA_LISTA })] };
+    expect(vistaPrevia([filaCatalogo(2, "Paracetamol", "30000", "KILOGRAMO", "Kg")], igual).filas[0]!.estado).toBe("SIN_CAMBIOS");
+    expect(vistaPrevia([filaCatalogo(2, "Paracetamol", "30000", "KILOGRAMO", "Kg", "0")], igual).filas[0]).toMatchObject({ estado: "ASOCIADA", alicuotaIva: "0" });
+  });
+});
+
+describe("evaluarFilasLista -- a unit of another magnitud picked by the user", () => {
+  it("is omitida (unidad) only while the row keeps the list's own unit; another unit is evaluated as usual", () => {
+    const entrada: EntradaFilaLista = { drogaId: PARACETAMOL.id, precio: "64664", unidadPrecioId: U_L, omitida: false, presentacion: null, unidadListaId: U_L, alicuotaIva: null };
+    const estado = (cambios: Partial<EntradaFilaLista>) => evaluarFilasLista(contextoDe(), [{ ...entrada, ...cambios }])[0]!.estado;
+    expect(estado({})).toBe("OMITIDA_UNIDAD");
+    expect(estado({ unidadPrecioId: U_KG })).toBe("ASOCIADA");
+    // R5: a unit of another magnitud chosen by hand is still an error.
+    expect(estado({ unidadListaId: null })).toBe("PRECIO_INVALIDO");
   });
 });
 
@@ -236,7 +293,16 @@ function contextoDe(vigentes: VigenteParaLista[] = [], fechaLista = FECHA_LISTA)
 }
 
 describe("evaluarFilasLista -- the browser's re-evaluation after an edit", () => {
-  const base = (cambios: Partial<EntradaFilaLista> = {}): EntradaFilaLista => ({ drogaId: PARACETAMOL.id, precio: "40898", unidadPrecioId: U_KG, omitida: false, presentacion: null, ...cambios });
+  const base = (cambios: Partial<EntradaFilaLista> = {}): EntradaFilaLista => ({
+    drogaId: PARACETAMOL.id,
+    precio: "40898",
+    unidadPrecioId: U_KG,
+    omitida: false,
+    presentacion: null,
+    unidadListaId: null,
+    alicuotaIva: null,
+    ...cambios,
+  });
   const estados = (entradas: EntradaFilaLista[], vigentes: VigenteParaLista[] = []) => evaluarFilasLista(contextoDe(vigentes), entradas).map((e) => e.estado);
 
   it("omitting one of two duplicated rows resolves the group (CP7)", () => {

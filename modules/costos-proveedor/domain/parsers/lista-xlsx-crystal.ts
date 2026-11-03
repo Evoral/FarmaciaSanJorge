@@ -44,6 +44,22 @@ export interface FilaListaLeida {
   precio: string | null;
   /** The presentation suffix ("Bidon X 10", "X 0.050"), when the row is a presentation row (R16): those are listed as omitted. `null` for a base row. */
   presentacion: string | null;
+  /** Catálogo layout only (R16c, ./lista-catalogo.ts): the unit the row states. Absent for the Lista de medicamentos. */
+  unidadLista?: UnidadListaLeida | null;
+  /** Catálogo layout only (R16c): `"0"` for an exempt row (`Tipo Iva` E); `null`/absent = no alícuota chosen (R7a). */
+  alicuotaIva?: string | null;
+}
+
+/** The catalog units a list's UM can name (`unidad_medida.codigo`). */
+export type CodigoUnidadLista = "KILOGRAMO" | "GRAMO" | "LITRO" | "UNIDAD";
+
+export interface UnidadListaLeida {
+  /** The UM as written on the list ("Kg", "L", "Mi"...). */
+  um: string;
+  /** The catalog unit it maps to; `null` = a UM with no equivalent (the row gets no unit). */
+  codigo: CodigoUnidadLista | null;
+  /** `Mi` (millar): the list priced 1000 u and `precio` is already divided by 1000. */
+  porMillar: boolean;
 }
 
 export interface ResultadoParseoLista {
@@ -52,13 +68,14 @@ export interface ResultadoParseoLista {
 }
 
 export const MENSAJES_PARSER_LISTA = {
-  sinEncabezado: "No se encontró la fila de encabezado (DESCRIPCION y PRECIO) en la hoja. ¿Es la lista de medicamentos del proveedor?",
+  sinEncabezado:
+    "No se encontró la fila de encabezado en la hoja: ni DESCRIPCION y PRECIO (lista de medicamentos) ni Codigo Producto, Descripción, UM, Precio y Tipo Iva (listado de precios: catálogo). ¿Es una lista de precios del proveedor?",
   /** "5.000" spelled out: `MAX_FILAS_LISTA` (asserted by the parser test). */
   demasiadasFilas: "La hoja tiene más de 5.000 filas de productos; no parece una lista de precios.",
 } as const;
 
 /** Header cells are compared without case, accents or extra spaces. */
-function normalizarCelda(celda: CeldaCruda | undefined): string {
+export function normalizarCelda(celda: CeldaCruda | undefined): string {
   if (typeof celda !== "string") return "";
   return celda
     .normalize("NFD")
@@ -68,7 +85,7 @@ function normalizarCelda(celda: CeldaCruda | undefined): string {
     .toLowerCase();
 }
 
-function colapsarEspacios(texto: string): string {
+export function colapsarEspacios(texto: string): string {
   return texto.replace(/\s+/g, " ").trim();
 }
 
@@ -78,7 +95,7 @@ function textoDe(celda: CeldaCruda | undefined): string {
   return "";
 }
 
-function estaVacia(fila: FilaCruda): boolean {
+export function estaVacia(fila: FilaCruda): boolean {
   return fila.every((celda) => celda === null || celda === undefined || (typeof celda === "string" && celda.trim() === ""));
 }
 
@@ -135,7 +152,7 @@ export function detectarPresentacion(descripcion: string): string | null {
 /** Digits Excel keeps of a double: see the module doc comment. */
 const DIGITOS_SIGNIFICATIVOS = 15;
 
-function precioDe(celda: CeldaCruda | undefined): string | null {
+export function precioDe(celda: CeldaCruda | undefined): string | null {
   if (typeof celda === "number") {
     if (!Number.isFinite(celda)) return null;
     const valor = dec(celda).toSignificantDigits(DIGITOS_SIGNIFICATIVOS);

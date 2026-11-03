@@ -27,7 +27,7 @@ import { validarArchivoLista } from "../domain/archivo-lista";
 import type { FormatoLista } from "../domain/archivo-lista";
 import { construirVistaPrevia, hojaPorDefecto, mensajeFechaListaInvalida, mensajeListaYaImportada } from "../domain/importacion-lista";
 import type { HojaLibro, VistaPreviaLista } from "../domain/importacion-lista";
-import { parsearListaCrystal } from "../domain/parsers/lista-xlsx-crystal";
+import { parsearLista } from "../domain/parsers/parsear-lista";
 import type { ResultadoParseoLista } from "../domain/parsers/lista-xlsx-crystal";
 import { hashSha256, leerLibroXlsx } from "../infrastructure/leer-xlsx.server";
 import { leerLibroXls } from "../infrastructure/leer-xls.server";
@@ -80,7 +80,7 @@ export const leerListaPreciosQuery = defineQuery({
     const libro = formato === "XLS" ? leerLibroXls(bytes) : await leerLibroXlsx(bytes);
     const hoja = input.hoja ?? hojaPorDefecto(libro.hojas);
     if (hoja === null) throw new ValidationError("El archivo no tiene ninguna hoja con datos.");
-    const parseo = parsearListaCrystal(libro.leerHoja(hoja));
+    const parseo = parsearLista(libro.leerHoja(hoja));
     return { nombreArchivo: nombreArchivoDe(input.archivo as File, formato), hashSha256: hashSha256(bytes), formato, hojas: libro.hojas, hoja, parseo };
   },
   handler: async ({ tx, session, input, prepared }): Promise<VistaPreviaLista> => {

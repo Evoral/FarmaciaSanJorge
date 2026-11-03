@@ -112,8 +112,13 @@ const {
 
 vi.mock("@/shared/audit", () => ({
   record: auditRecordMock,
+  recordMany: async (tx: unknown, inputs: readonly unknown[]) => {
+    for (const input of inputs) await auditRecordMock(tx, input);
+  },
   TipoAccion: new Proxy({}, { get: (_t, prop) => String(prop) }),
 }));
+
+vi.mock("node:crypto", async (importOriginal) => ({ ...(await importOriginal<typeof import("node:crypto")>()), randomUUID: () => NUEVO_ID }));
 
 vi.mock("@/shared/db/transaction", () => ({
   withTenantTransaction: (...args: [string, (tx: unknown) => unknown]) => withTenantTransactionMock(...args),
@@ -135,7 +140,12 @@ vi.mock("@/modules/costos-proveedor/infrastructure/costo-proveedor-repository", 
   lockVigentes: lockVigentesMock,
   lockCostoPorId: lockCostoPorIdMock,
   cerrarVigente: cerrarVigenteMock,
-  insertCostoProveedor: insertCostoProveedorMock,
+  cerrarVigentes: async (tx: unknown, tenantId: string, ids: readonly string[], instante: Date) => {
+    for (const id of ids) await cerrarVigenteMock(tx, tenantId, id, instante);
+  },
+  insertCostosProveedor: async (tx: unknown, inputs: readonly unknown[]) => {
+    for (const input of inputs) await insertCostoProveedorMock(tx, input);
+  },
   ahoraServidor: ahoraServidorMock,
 }));
 

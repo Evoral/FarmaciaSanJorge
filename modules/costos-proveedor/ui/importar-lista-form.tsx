@@ -41,7 +41,7 @@ import {
   ESTADO_FILA_LISTA_LABELS,
   evaluarFilasLista,
   resumirEstados,
-  unidadPrecioInicial,
+  unidadPrecioDeFila,
   type ContextoEvaluacionLista,
   type EstadoFilaLista,
   type UnidadParaLista,
@@ -65,6 +65,7 @@ const TONO_ESTADO: Readonly<Record<EstadoFilaLista, BadgeTone>> = {
   MAS_ANTIGUA: "warn",
   SIN_CAMBIOS: "neutral",
   OMITIDA_PRESENTACION: "neutral",
+  OMITIDA_UNIDAD: "neutral",
   OMITIDA: "neutral",
 };
 
@@ -76,7 +77,8 @@ const AYUDA_ESTADO: Readonly<Record<EstadoFilaLista, string>> = {
   PRECIO_INVALIDO: "Falta el precio o no es válido: corregilo o omití la fila.",
   MAS_ANTIGUA: "El proveedor ya tiene un precio más nuevo que esta lista: no lo reemplaza.",
   SIN_CAMBIOS: "Mismo precio, unidad y fecha que el costo vigente: no se carga nada.",
-  OMITIDA_PRESENTACION: "La descripción termina en una presentación (envase): solo se importan las filas base, por kg / L / u.",
+  OMITIDA_PRESENTACION: "La fila es una presentación (envase): solo se importan las filas base del producto.",
+  OMITIDA_UNIDAD: "La lista da el precio en una unidad de otra magnitud que la droga (por ejemplo por litro y la droga en mg): sin densidad no se puede convertir, no se carga.",
   OMITIDA: "La dejaste afuera.",
 };
 
@@ -164,6 +166,8 @@ export function ImportarListaForm({ vista, drogas: drogasDelCatalogo, unidades, 
           unidadPrecioId: fila.unidadPrecioId || null,
           omitida: fila.omitida,
           presentacion: vista.filas[i]!.presentacion,
+          unidadListaId: vista.filas[i]!.unidadListaId,
+          alicuotaIva: vista.filas[i]!.alicuotaIva,
         })),
       ),
     [contexto, filas, vista.filas],
@@ -199,10 +203,12 @@ export function ImportarListaForm({ vista, drogas: drogasDelCatalogo, unidades, 
         const original = vista.filas[i]!;
         return {
           drogaId: fila.droga!.value,
-          precioInformado: evaluaciones[i]!.precioCanonico,
+          // Comma decimals, as typed: the server reads the price like any typed number and refuses "129.339" as ambiguous.
+          precioInformado: numeroParaInput(evaluaciones[i]!.precioCanonico),
           unidadPrecioId: fila.unidadPrecioId,
           descripcionProveedor: original.descripcion,
           vigenteEsperadoId: contexto.vigentePorDroga.get(fila.droga!.value)?.id ?? null,
+          ...(original.alicuotaIva !== null ? { alicuotaIva: original.alicuotaIva } : {}),
           ...(fila.recordar && fila.droga!.value !== original.drogaId ? { recordarEquivalencia: true } : {}),
           numeroFila: original.numeroFila,
         };
@@ -255,12 +261,12 @@ export function ImportarListaForm({ vista, drogas: drogasDelCatalogo, unidades, 
   function elegirDroga(indice: number, droga: ComboboxOption | null, conocida?: DrogaOpcionCosto) {
     const nueva = droga ? (conocida ?? drogas.find((d) => d.id === droga.value)) : undefined;
     const unidadActual = unidades.find((u) => u.id === filas[indice]!.unidadPrecioId);
-    // Keep the unit when it still fits the new droga's magnitud; otherwise start at the magnitud's default (R6).
+    // Keep the unit when it still fits the new droga's magnitud; otherwise start at the list's own (R16c) or the magnitud's default (R6).
     const sigueValida = nueva !== undefined && unidadActual !== undefined && unidadActual.vigente && unidadActual.tipoMagnitud === nueva.tipoMagnitud;
     editar(indice, {
       droga,
       omitida: droga ? false : filas[indice]!.omitida,
-      unidadPrecioId: sigueValida ? filas[indice]!.unidadPrecioId : nueva ? (unidadPrecioInicial(nueva.tipoMagnitud, unidadesLista) ?? "") : "",
+      unidadPrecioId: sigueValida ? filas[indice]!.unidadPrecioId : nueva ? (unidadPrecioDeFila(vista.filas[indice]!, nueva.tipoMagnitud, unidadesLista) ?? "") : "",
     });
   }
 
@@ -311,6 +317,8 @@ export function ImportarListaForm({ vista, drogas: drogasDelCatalogo, unidades, 
   }
 
   const omitidasPresentacion = resumen.OMITIDA_PRESENTACION;
+  /** Catálogo (R16c): the list states each row's unit and IVA, shown next to the row. */
+  const conDatosDeLista = vista.filas.some((fila) => fila.um !== null);
 
   const filaEnAlta = altaFila === null ? null : vista.filas[altaFila]!;
 
@@ -346,7 +354,8 @@ export function ImportarListaForm({ vista, drogas: drogasDelCatalogo, unidades, 
 
         <p className="text-sm text-zinc-600">
           Se leyeron <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(vista.filasLeidas)}</span> filas de la hoja «{vista.hoja}»
-          {omitidasPresentacion > 0 ? `; ${numberFormat.format(omitidasPresentacion)} son presentaciones y se omiten` : ""}. Los precios son sin IVA, por kg / L / u. No se guarda nada
+          {omitidasPresentacion > 0 ? `; ${numberFormat.format(omitidasPresentacion)} son presentaciones y se omiten` : ""}. Los precios son sin IVA,{" "}
+          {conDatosDeLista ? "por la unidad que indica la lista en cada fila" : "por kg / L / u"}. No se guarda nada
           hasta que confirmes.
         </p>
 
@@ -393,6 +402,11 @@ export function ImportarListaForm({ vista, drogas: drogasDelCatalogo, unidades, 
                     <th scope="col" className="px-3 py-2">
                       Precio (sin IVA)
                     </th>
+                    {conDatosDeLista ? (
+                      <th scope="col" className="px-3 py-2">
+                        IVA
+                      </th>
+                    ) : null}
                     <th scope="col" className="px-3 py-2">
                       Vigente → nuevo
                     </th>
@@ -412,7 +426,9 @@ export function ImportarListaForm({ vista, drogas: drogasDelCatalogo, unidades, 
                     const unidadesDeLaDroga = drogaElegida ? unidades.filter((u) => u.vigente && u.tipoMagnitud === drogaElegida.tipoMagnitud) : [];
                     const simboloUnidad = unidades.find((u) => u.id === fila.unidadPrecioId)?.simbolo;
                     const vigente = fila.droga ? (contexto.vigentePorDroga.get(fila.droga.value) ?? null) : null;
-                    const atenuada = evaluacion.estado === "OMITIDA" || evaluacion.estado === "OMITIDA_PRESENTACION";
+                    const atenuada = evaluacion.estado === "OMITIDA" || evaluacion.estado === "OMITIDA_PRESENTACION" || evaluacion.estado === "OMITIDA_UNIDAD";
+                    // The list's own unit stays selectable even when it is of another magnitud (the row is then omitida (unidad)).
+                    const unidadLista = original.unidadListaId && !unidadesDeLaDroga.some((u) => u.id === original.unidadListaId) ? unidades.find((u) => u.id === original.unidadListaId) : undefined;
                     return (
                       <tr key={original.numeroFila} className={marcas ? "bg-red-50 dark:bg-red-950" : atenuada ? "text-zinc-500" : undefined}>
                         <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums text-zinc-500">{original.numeroFila}</td>
@@ -481,8 +497,15 @@ export function ImportarListaForm({ vista, drogas: drogasDelCatalogo, unidades, 
                                   {u.simbolo}
                                 </option>
                               ))}
+                              {unidadLista ? <option value={unidadLista.id}>{unidadLista.simbolo} (de la lista)</option> : null}
                             </select>
                           )}
+                          {!esPresentacion && original.um !== null ? (
+                            <span className="block text-xs text-zinc-500">
+                              Lista: {original.um}
+                              {original.porMillar ? " (por millar: precio ÷ 1000)" : ""}
+                            </span>
+                          ) : null}
                         </td>
                         <td className="px-3 py-2.5">
                           {esPresentacion ? null : (
@@ -498,6 +521,11 @@ export function ImportarListaForm({ vista, drogas: drogasDelCatalogo, unidades, 
                             />
                           )}
                         </td>
+                        {conDatosDeLista ? (
+                          <td className="whitespace-nowrap px-3 py-2.5 text-[0.8125rem]" title="Exento: 0 %. Gravado: la alícuota del costo vigente o la de Parámetros.">
+                            {esPresentacion ? null : original.alicuotaIva === "0" ? "Exento" : "Gravado"}
+                          </td>
+                        ) : null}
                         <td className="whitespace-nowrap px-3 py-2.5 text-[0.8125rem]">
                           {esPresentacion || !fila.droga ? (
                             <span className="text-zinc-400">—</span>

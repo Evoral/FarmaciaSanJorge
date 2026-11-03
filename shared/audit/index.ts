@@ -19,7 +19,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { TipoAccion } from "@/generated/prisma/client";
 import { solicitudDeOperador } from "@/shared/auth/operador-context";
-import { getRequestContext } from "./request-context";
+import { getRequestContext, type RequestContext } from "./request-context";
 
 export { TipoAccion };
 
@@ -65,13 +65,33 @@ function esObjetoPlano(value: unknown): value is Record<string, Prisma.InputJson
  * `contexto.verificacion` (the method, e.g. "PIN").
  */
 export async function record(tx: Prisma.TransactionClient, input: AuditRecordInput): Promise<void> {
+  await tx.registroAuditoria.create({ data: datosDeRegistro(input, await getRequestContext(), solicitudDeOperador()?.operador) });
+}
+
+/** Rows per `createMany` statement in `recordMany`: keeps each statement's bind parameters well under Postgres' limit. */
+const REGISTROS_POR_LOTE = 500;
+
+/**
+ * `record` for many rows of ONE request (e.g. one per costo of an imported price list): the same rows, with the
+ * request context and operador read once, written with `createMany` in batches instead of one round trip each.
+ */
+export async function recordMany(tx: Prisma.TransactionClient, inputs: readonly AuditRecordInput[]): Promise<void> {
+  if (inputs.length === 0) return;
   const request = await getRequestContext();
+  const operador = solicitudDeOperador()?.operador;
+  for (let inicio = 0; inicio < inputs.length; inicio += REGISTROS_POR_LOTE) {
+    await tx.registroAuditoria.createMany({ data: inputs.slice(inicio, inicio + REGISTROS_POR_LOTE).map((input) => datosDeRegistro(input, request, operador)) });
+  }
+}
+
+type OperadorDeSolicitud = NonNullable<ReturnType<typeof solicitudDeOperador>>["operador"];
+
+function datosDeRegistro(input: AuditRecordInput, request: RequestContext, operador: OperadorDeSolicitud | undefined): Prisma.RegistroAuditoriaCreateManyInput {
   const automatico: Record<string, Prisma.InputJsonValue> = {};
   if (request.requestId) automatico.requestId = request.requestId;
   if (request.userAgent) automatico.userAgent = request.userAgent;
   // A row authored by the empleado verified in this request (cuenta de sector, openspec/specs/cuentas-de-sector/spec.md)
   // also says which shared terminal they acted from and how they proved who they are.
-  const operador = solicitudDeOperador()?.operador;
   if (operador && operador.usuarioId === input.usuarioId) {
     automatico.terminal = operador.terminal;
     automatico.verificacion = operador.verificacion;
@@ -85,19 +105,17 @@ export async function record(tx: Prisma.TransactionClient, input: AuditRecordInp
         ? { ...automatico, ...input.contexto }
         : { ...automatico, datos: input.contexto };
 
-  await tx.registroAuditoria.create({
-    data: {
-      tenantId: input.tenantId,
-      usuarioId: input.usuarioId,
-      entidad: input.entidad,
-      entidadId: input.entidadId,
-      accion: input.accion,
-      valorAnterior: input.valorAnterior ?? undefined,
-      valorNuevo: input.valorNuevo ?? undefined,
-      motivo: input.motivo,
-      autorizadoPorId: input.autorizadoPorId,
-      contexto,
-      ip: input.ip ?? request.ip ?? undefined,
-    },
-  });
+  return {
+    tenantId: input.tenantId,
+    usuarioId: input.usuarioId,
+    entidad: input.entidad,
+    entidadId: input.entidadId,
+    accion: input.accion,
+    valorAnterior: input.valorAnterior ?? undefined,
+    valorNuevo: input.valorNuevo ?? undefined,
+    motivo: input.motivo,
+    autorizadoPorId: input.autorizadoPorId,
+    contexto,
+    ip: input.ip ?? request.ip ?? undefined,
+  };
 }

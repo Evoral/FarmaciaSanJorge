@@ -135,6 +135,9 @@ const {
 
 vi.mock("@/shared/audit", () => ({
   record: auditRecordMock,
+  recordMany: async (tx: unknown, inputs: readonly unknown[]) => {
+    for (const input of inputs) await auditRecordMock(tx, input);
+  },
   TipoAccion: new Proxy({}, { get: (_t, prop) => String(prop) }),
 }));
 
@@ -158,7 +161,12 @@ vi.mock("@/modules/costos-proveedor/infrastructure/costo-proveedor-repository", 
   getUnidadesParaCosto: getUnidadesParaCostoMock,
   lockVigentes: lockVigentesMock,
   cerrarVigente: cerrarVigenteMock,
-  insertCostoProveedor: insertCostoProveedorMock,
+  cerrarVigentes: async (tx: unknown, tenantId: string, ids: readonly string[], instante: Date) => {
+    for (const id of ids) await cerrarVigenteMock(tx, tenantId, id, instante);
+  },
+  insertCostosProveedor: async (tx: unknown, inputs: readonly unknown[]) => {
+    for (const input of inputs) await insertCostoProveedorMock(tx, input);
+  },
   ahoraServidor: ahoraServidorMock,
   buscarListaPorHash: buscarListaPorHashMock,
   insertListaPrecioProveedor: insertListaPrecioProveedorMock,
@@ -243,6 +251,13 @@ beforeEach(() => {
   state.proveedor = { id: PROVEEDOR_ID, razonSocial: "Droguería Sur", fechaBaja: null };
   for (const droga of state.drogas.values()) droga.fechaBaja = null;
   for (const unidad of state.unidades.values()) unidad.fechaBaja = null;
+});
+
+describe("importarListaPrecios -- alícuota from the list (R16c, R7a)", () => {
+  it("stores an exempt row with alícuota 0 and a row without one with the parametro's", async () => {
+    await importar(lista([fila({ alicuotaIva: "0" }), fila({ drogaId: DROGA_2_ID, precioInformado: "1200", numeroFila: 58 })]));
+    expect(insertCostoProveedorMock.mock.calls.map((llamada) => (llamada[1] as { alicuotaIva: string }).alicuotaIva)).toEqual(["0", "21"]);
+  });
 });
 
 describe("importarListaPrecios -- the happy path", () => {

@@ -5,9 +5,11 @@
  * droga, edits a price, changes a unit or omits a row), so both sides apply EXACTLY the same rules.
  *
  * Row states (R18), in precedence order -- the first that applies wins:
- *   1. OMITIDA_PRESENTACION: the description ends in a presentation (R16); never imported.
+ *   1. OMITIDA_PRESENTACION: the row is a presentation (R16); never imported.
  *   2. OMITIDA: the user left the row out.
  *   3. SIN_ASOCIAR: no droga yet (nothing matched, none picked); left out unless the user picks one.
+ *   3b. OMITIDA_UNIDAD: the row still has the unit the LIST states (Catálogo, R16c) and it is of another magnitud
+ *      than the droga (a price per L for a droga in mg): not imported, not blocking, no conversion (R5, R18).
  *   4. DUPLICADA: the same droga is on another row that is still in; ALL of the group are flagged
  *      and the user must omit all but one (CP7). Blocks the confirmation.
  *   5. PRECIO_INVALIDO: no price, not a number, <= 0, a unit that does not fit the droga or a cost
@@ -26,9 +28,19 @@ import { detectarDuplicados, esFechaIsoReal, planVersionar, unidadPrecioPorDefec
 import type { TipoMagnitudCosto, UnidadParaCosto } from "./costo-proveedor";
 import type { FormatoLista } from "./archivo-lista";
 import type { FilaListaLeida } from "./parsers/lista-xlsx-crystal";
-import { interpretarNumero } from "@/shared/decimal/numero-ingresado";
+import { interpretarNumero, numeroParaInput } from "@/shared/decimal/numero-ingresado";
 
-export const ESTADOS_FILA_LISTA = ["ASOCIADA", "SIN_ASOCIAR", "DUPLICADA", "PRECIO_INVALIDO", "MAS_ANTIGUA", "SIN_CAMBIOS", "OMITIDA_PRESENTACION", "OMITIDA"] as const;
+export const ESTADOS_FILA_LISTA = [
+  "ASOCIADA",
+  "SIN_ASOCIAR",
+  "DUPLICADA",
+  "PRECIO_INVALIDO",
+  "MAS_ANTIGUA",
+  "SIN_CAMBIOS",
+  "OMITIDA_PRESENTACION",
+  "OMITIDA_UNIDAD",
+  "OMITIDA",
+] as const;
 export type EstadoFilaLista = (typeof ESTADOS_FILA_LISTA)[number];
 
 export const ESTADO_FILA_LISTA_LABELS: Readonly<Record<EstadoFilaLista, string>> = {
@@ -39,6 +51,7 @@ export const ESTADO_FILA_LISTA_LABELS: Readonly<Record<EstadoFilaLista, string>>
   MAS_ANTIGUA: "Más antigua",
   SIN_CAMBIOS: "Sin cambios",
   OMITIDA_PRESENTACION: "Omitida (presentación)",
+  OMITIDA_UNIDAD: "Omitida (unidad)",
   OMITIDA: "Omitida",
 };
 
@@ -81,6 +94,8 @@ export interface VigenteParaLista {
   costoUnitario: string;
   /** `YYYY-MM-DD`. */
   fechaPrecio: string;
+  /** R7a: what a row that chooses no alícuota keeps. */
+  alicuotaIva: string;
 }
 
 export interface ContextoEvaluacionLista {
@@ -100,6 +115,10 @@ export interface EntradaFilaLista {
   omitida: boolean;
   /** The presentation suffix of the description (R16); a row with one is never imported. */
   presentacion: string | null;
+  /** The unit the list states for the row (Catálogo, R16c), resolved in the catalog; `null` when the layout states none or it has no equivalent. */
+  unidadListaId: string | null;
+  /** R16c / R7a: the alícuota the list sets (`"0"` exempt); `null` = none chosen, the vigente's or the parametro's applies. */
+  alicuotaIva: string | null;
 }
 
 export interface EvaluacionFilaLista {
@@ -198,13 +217,28 @@ function evaluarPrecio(
   return { precio, costoUnitario: validacion.costoUnitario, mensaje: null };
 }
 
+const MAGNITUD_LABELS: Readonly<Record<string, string>> = { MASA: "masa", VOLUMEN: "volumen", UNIDADES: "unidades" };
+
+/** R18 "omitida (unidad)": why the row is left out, or `null` when its unit is not the list's own of another magnitud. */
+function mensajeUnidadIncompatible(contexto: ContextoEvaluacionLista, entrada: EntradaFilaLista, droga: DrogaParaLista): string | null {
+  if (entrada.unidadListaId === null || entrada.unidadPrecioId !== entrada.unidadListaId) return null;
+  const unidadLista = contexto.unidades.get(entrada.unidadListaId);
+  const unidadBase = contexto.unidades.get(droga.unidadBaseId);
+  if (!unidadLista || !unidadBase || unidadLista.tipoMagnitud === unidadBase.tipoMagnitud) return null;
+  const magnitud = MAGNITUD_LABELS[unidadBase.tipoMagnitud] ?? unidadBase.tipoMagnitud.toLowerCase();
+  return `La lista da el precio por ${unidadLista.simbolo} y ${droga.nombre} se mide en ${unidadBase.simbolo} (${magnitud}): sin densidad no se puede convertir.`;
+}
+
 /**
  * The state of every row (see the module doc comment for the precedence), plus the price / variation
  * each one shows. Same length and order as `entradas`.
  */
 export function evaluarFilasLista(contexto: ContextoEvaluacionLista, entradas: readonly EntradaFilaLista[]): EvaluacionFilaLista[] {
   const drogaDe = (entrada: EntradaFilaLista) => (entrada.drogaId ? contexto.drogas.get(entrada.drogaId) : undefined);
-  const enJuego = (entrada: EntradaFilaLista) => entrada.presentacion === null && !entrada.omitida && drogaDe(entrada) !== undefined;
+  const enJuego = (entrada: EntradaFilaLista) => {
+    const droga = drogaDe(entrada);
+    return entrada.presentacion === null && !entrada.omitida && droga !== undefined && mensajeUnidadIncompatible(contexto, entrada, droga) === null;
+  };
   const duplicadas = new Set(detectarDuplicados(entradas.map((entrada) => ({ drogaId: enJuego(entrada) ? entrada.drogaId : null }))));
 
   return entradas.map((entrada, indice): EvaluacionFilaLista => {
@@ -213,6 +247,8 @@ export function evaluarFilasLista(contexto: ContextoEvaluacionLista, entradas: r
     if (entrada.omitida) return { ...base, estado: "OMITIDA" };
     const droga = drogaDe(entrada);
     if (!droga) return { ...base, estado: "SIN_ASOCIAR" };
+    const unidadIncompatible = mensajeUnidadIncompatible(contexto, entrada, droga);
+    if (unidadIncompatible) return { ...base, estado: "OMITIDA_UNIDAD", mensaje: unidadIncompatible };
 
     const { precio, costoUnitario, mensaje } = evaluarPrecio(contexto, entrada, droga);
     const vigente = contexto.vigentePorDroga.get(droga.id) ?? null;
@@ -222,9 +258,12 @@ export function evaluarFilasLista(contexto: ContextoEvaluacionLista, entradas: r
     if (duplicadas.has(indice)) return { ...resultado, estado: "DUPLICADA", mensaje: "La droga está en más de una fila de la lista: dejá solo una." };
     if (costoUnitario === null || precio === null || !entrada.unidadPrecioId) return { ...resultado, estado: "PRECIO_INVALIDO" };
 
+    // R7a: compare with the alícuota the confirmation will store -- the row's, else the vigente's -- so an exempt row over a 21 % vigente is a new version.
     const plan = planVersionar({
-      vigente: vigente ? { id: vigente.id, precioInformado: vigente.precioInformado, unidadPrecioId: vigente.unidadPrecioId, fechaPrecio: vigente.fechaPrecio } : null,
-      nuevo: { precioInformado: precio, unidadPrecioId: entrada.unidadPrecioId, fechaPrecio: contexto.fechaLista },
+      vigente: vigente
+        ? { id: vigente.id, precioInformado: vigente.precioInformado, unidadPrecioId: vigente.unidadPrecioId, fechaPrecio: vigente.fechaPrecio, alicuotaIva: vigente.alicuotaIva }
+        : null,
+      nuevo: { precioInformado: precio, unidadPrecioId: entrada.unidadPrecioId, fechaPrecio: contexto.fechaLista, alicuotaIva: entrada.alicuotaIva ?? vigente?.alicuotaIva },
     });
     if (plan.tipo === "RECHAZAR") {
       return { ...resultado, estado: "MAS_ANTIGUA", mensaje: `Ya hay un precio de este proveedor con fecha ${formatFechaIso(vigente!.fechaPrecio)}, más nuevo que la lista.` };
@@ -255,8 +294,16 @@ export interface FilaVistaPreviaLista {
   drogaId: string | null;
   drogaNombre: string | null;
   via: ViaMatchDroga | null;
-  /** R6: the default unidad de precio of the matched droga's magnitud, `null` while there is no droga. */
+  /** R6 / R16c: the unidad de precio the row starts with (`unidadPrecioDeFila`), `null` while there is no droga. */
   unidadPrecioId: string | null;
+  /** Catálogo (R16c): the UM as written, `null` for a layout without one. */
+  um: string | null;
+  /** Catálogo: the list priced 1000 u (`Mi`) and `precio` is already per u. */
+  porMillar: boolean;
+  /** Catálogo: the list's unit resolved in the catalog (`null` = none stated, or no equivalent). */
+  unidadListaId: string | null;
+  /** R16c: `"0"` for an exempt row, `null` = none chosen (R7a). */
+  alicuotaIva: string | null;
   /** The vigente costo of the matched droga for this proveedor. */
   vigente: VigenteParaLista | null;
   estado: EstadoFilaLista;
@@ -296,6 +343,18 @@ export function unidadPrecioInicial(tipoMagnitud: string, unidades: readonly Uni
   return unidades.find((u) => u.vigente && u.tipoMagnitud === tipoMagnitud && u.codigo === codigo)?.id ?? null;
 }
 
+/**
+ * The unidad de precio a ROW starts with once it has a droga: the list's own when the layout states one (Catálogo,
+ * R16c; `null` for a UM with no equivalent, the user picks it), else the R6 default of the droga's magnitud.
+ */
+export function unidadPrecioDeFila(
+  fila: Pick<FilaVistaPreviaLista, "um" | "unidadListaId">,
+  tipoMagnitud: string,
+  unidades: readonly UnidadParaLista[],
+): string | null {
+  return fila.um !== null ? fila.unidadListaId : unidadPrecioInicial(tipoMagnitud, unidades);
+}
+
 export interface EntradaVistaPrevia {
   filas: readonly FilaListaLeida[];
   /** Vigente drogas only (R12). */
@@ -320,23 +379,28 @@ export function construirVistaPrevia(entrada: EntradaVistaPrevia): Pick<VistaPre
   const contexto: ContextoEvaluacionLista = { fechaLista: entrada.fechaLista, drogas, unidades, vigentePorDroga };
 
   const candidatas = entrada.drogas.map((droga) => ({ id: droga.id, nombre: droga.nombre }));
+  const idDeUnidad = (codigo: string | null | undefined) => (codigo ? (entrada.unidades.find((u) => u.vigente && u.codigo === codigo)?.id ?? null) : null);
   const emparejadas = entrada.filas.map((fila) => {
     // A presentation row is never imported: no point matching it.
     const match = fila.presentacion === null ? resolverDroga(fila.descripcion, entrada.aliases, candidatas) : null;
     const droga = match ? drogas.get(match.drogaId) : undefined;
-    return { fila, match, droga };
+    const lista = { um: fila.unidadLista?.um ?? null, unidadListaId: idDeUnidad(fila.unidadLista?.codigo) };
+    return { fila, match, droga, lista };
   });
 
-  const entradas: EntradaFilaLista[] = emparejadas.map(({ fila, droga }) => ({
+  const entradas: EntradaFilaLista[] = emparejadas.map(({ fila, droga, lista }) => ({
     drogaId: droga?.id ?? null,
-    precio: fila.precio,
-    unidadPrecioId: droga ? unidadPrecioInicial(droga.tipoMagnitud, entrada.unidades) : null,
+    // As the form prefills it ("129,339"): read as typed, the canonical "129.339" would be refused as ambiguous.
+    precio: numeroParaInput(fila.precio),
+    unidadPrecioId: droga ? unidadPrecioDeFila(lista, droga.tipoMagnitud, entrada.unidades) : null,
     omitida: false,
     presentacion: fila.presentacion,
+    unidadListaId: lista.unidadListaId,
+    alicuotaIva: fila.alicuotaIva ?? null,
   }));
   const evaluaciones = evaluarFilasLista(contexto, entradas);
 
-  const filas = emparejadas.map(({ fila, match, droga }, indice): FilaVistaPreviaLista => {
+  const filas = emparejadas.map(({ fila, match, droga, lista }, indice): FilaVistaPreviaLista => {
     const evaluacion = evaluaciones[indice]!;
     return {
       numeroFila: fila.numeroFila,
@@ -347,6 +411,10 @@ export function construirVistaPrevia(entrada: EntradaVistaPrevia): Pick<VistaPre
       drogaNombre: droga?.nombre ?? null,
       via: droga ? (match?.via ?? null) : null,
       unidadPrecioId: entradas[indice]!.unidadPrecioId,
+      um: lista.um,
+      porMillar: fila.unidadLista?.porMillar ?? false,
+      unidadListaId: lista.unidadListaId,
+      alicuotaIva: fila.alicuotaIva ?? null,
       vigente: droga ? (vigentePorDroga.get(droga.id) ?? null) : null,
       estado: evaluacion.estado,
       variacionPct: evaluacion.variacionPct,

@@ -59,6 +59,8 @@ const filaImportacionWire = z.object({
   vigenteEsperadoId: z.unknown().optional(),
   /** "Recordar equivalencia": save the list's text as a synonym of the chosen droga. */
   recordarEquivalencia: z.boolean().optional(),
+  /** R16c: the alícuota the list sets (Catálogo "Tipo Iva" E -> "0"); absent = none chosen, R7a. Validated by `registrarFilasEnTx`. */
+  alicuotaIva: z.unknown().optional(),
   /** The row's number in the sheet: only to name it in an error message. */
   numeroFila: z.number().int().positive().optional(),
 });
