@@ -113,6 +113,11 @@ La confirmación SHALL usar el mismo flujo que el PDF: el mismo comando `recetas
 - **WHEN** se confirma una receta sin fecha de validez y con más de un mes desde su prescripción, o con una fecha de validez de hace más de un mes o posterior al mes en curso
 - **THEN** se rechaza
 
+#### Scenario: Validez del mes anterior
+
+- **WHEN** se confirma una receta con fecha de validez del mes anterior y de hace menos de un mes
+- **THEN** se acepta aunque la prescripción sea más antigua
+
 ### Requirement: Texto escaneado solo por POST
 
 El texto escaneado SHALL viajar solo por POST (Server Action), nunca en una URL de esta aplicación.
