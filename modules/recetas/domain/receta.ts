@@ -251,11 +251,12 @@ export function esFechaPrescripcionVigente(fechaPrescripcion: string, jornadaAct
 }
 
 /**
- * A receta with its own `fechaValidaDesde` may carry an old prescription, but
- * it can only be used in the calendar month of `jornadaActual`.
+ * A receta with its own `fechaValidaDesde` may carry an old prescription: it
+ * lasts one calendar month from that date (same limit as `fechaPrescripcionMinima`),
+ * and a later date is accepted only within the calendar month of `jornadaActual`.
  */
-export function esFechaValidaDesdeDelMes(fechaValidaDesde: string, jornadaActual: string): boolean {
-  return fechaValidaDesde.slice(0, 7) === jornadaActual.slice(0, 7);
+export function esFechaValidaDesdeVigente(fechaValidaDesde: string, jornadaActual: string): boolean {
+  return fechaValidaDesde >= fechaPrescripcionMinima(jornadaActual) && fechaValidaDesde <= ultimoDiaDelMes(jornadaActual);
 }
 
 /** Last day (`YYYY-MM-DD`) of the calendar month of `jornadaActual`. */

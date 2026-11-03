@@ -100,7 +100,7 @@ El match con paciente, médico, drogas y unidades, y la detección de receta dup
 
 ### Requirement: Flujo — confirmación igual que el PDF
 
-La confirmación SHALL usar el mismo flujo que el PDF: el mismo comando `recetas.importar`, con sus mismas reglas (V1–V9, el `principio activo` de cada componente según la clase de la droga, y que la receta no tenga más de un mes desde su prescripción o, si trae fecha de validez, que esa fecha sea del mes en curso aunque la prescripción sea más antigua; una receta vencida se rechaza al confirmar).
+La confirmación SHALL usar el mismo flujo que el PDF: el mismo comando `recetas.importar`, con sus mismas reglas (V1–V9, el `principio activo` de cada componente según la clase de la droga, y que la receta no tenga más de un mes desde su prescripción o, si trae fecha de validez, que no tenga más de un mes desde esa fecha ni sea posterior al mes en curso, aunque la prescripción sea más antigua; una receta vencida se rechaza al confirmar).
 
 #### Scenario: P73 — Vigencia y principio activo
 
@@ -110,7 +110,7 @@ La confirmación SHALL usar el mismo flujo que el PDF: el mismo comando `recetas
 
 #### Scenario: Receta vencida
 
-- **WHEN** se confirma una receta sin fecha de validez y con más de un mes desde su prescripción, o con una fecha de validez que no es del mes en curso
+- **WHEN** se confirma una receta sin fecha de validez y con más de un mes desde su prescripción, o con una fecha de validez de hace más de un mes o posterior al mes en curso
 - **THEN** se rechaza
 
 ### Requirement: Texto escaneado solo por POST

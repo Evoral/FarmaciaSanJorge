@@ -52,7 +52,7 @@ import { ConflictError, DomainError, ValidationError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { crearPacienteHandler, crearPacienteInput } from "@/modules/pacientes/application/crear-paciente";
 import { crearMedicoHandler, crearMedicoInput } from "@/modules/medicos/application/crear-medico";
-import { diagnosticoCodigoOpcional, domicilioPacienteOpcional, esFechaPrescripcionValida, esFechaPrescripcionVigente, esFechaValidaDesdeDelMes, resumirItemsReceta, validarItemsReceta, validarOrigenHabilitado } from "../domain/receta";
+import { diagnosticoCodigoOpcional, domicilioPacienteOpcional, esFechaPrescripcionValida, esFechaPrescripcionVigente, esFechaValidaDesdeVigente, resumirItemsReceta, validarItemsReceta, validarOrigenHabilitado } from "../domain/receta";
 import type { ComponenteInput, ItemInput } from "../domain/receta";
 import { CODIGOS_EMISOR, esUrlVerificacionDeEmisor } from "../domain/receta-pdf-parser";
 import { limpiarSinonimo } from "@/modules/drogas/domain/sinonimo";
@@ -271,8 +271,8 @@ export const importarRecetaCommand = defineCommand({
       throw new ValidationError("La fecha de validez no puede ser anterior a la fecha de prescripción.");
     }
     if (input.fechaValidaDesde !== null) {
-      if (!esFechaValidaDesdeDelMes(input.fechaValidaDesde, jornadaActual)) {
-        throw new ValidationError("La fecha de validez tiene que ser de este mes.");
+      if (!esFechaValidaDesdeVigente(input.fechaValidaDesde, jornadaActual)) {
+        throw new ValidationError("La fecha de validez no puede tener más de un mes ni ser de un mes próximo.");
       }
     } else if (!esFechaPrescripcionVigente(input.fechaPrescripcion, jornadaActual)) {
       throw new ValidationError("La receta está vencida: tiene más de un mes desde su prescripción.");

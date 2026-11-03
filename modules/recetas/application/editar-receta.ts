@@ -40,7 +40,7 @@ import {
   esEstadoEditable,
   esFechaPrescripcionValida,
   esFechaPrescripcionVigente,
-  esFechaValidaDesdeDelMes,
+  esFechaValidaDesdeVigente,
   resumirItemsReceta,
   validarItemsReceta,
   validarOrigenCargaManual,
@@ -196,8 +196,8 @@ export const editarRecetaCommand = defineCommand({
         throw new ValidationError("La fecha de validez no puede ser anterior a la fecha de prescripción.");
       }
       if (input.fechaValidaDesde !== null) {
-        if (!esFechaValidaDesdeDelMes(input.fechaValidaDesde, jornadaActual)) {
-          throw new ValidationError("La fecha de validez tiene que ser de este mes.");
+        if (!esFechaValidaDesdeVigente(input.fechaValidaDesde, jornadaActual)) {
+          throw new ValidationError("La fecha de validez no puede tener más de un mes ni ser de un mes próximo.");
         }
       } else if (!esFechaPrescripcionVigente(input.fechaPrescripcion, jornadaActual)) {
         throw new ValidationError("La receta está vencida: tiene más de un mes desde su prescripción.");

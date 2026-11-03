@@ -852,8 +852,8 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                       value={fechaValidaDesde}
                       onValueChange={setFechaValidaDesde}
                       // An edit that keeps the saved date is not re-checked (editar-receta.ts): only the prescription bounds it.
-                      // Otherwise it must fall in the current month (the prescription itself may be older).
-                      min={mode === "editar" && fechaValidaDesde === inicial?.fechaValidaDesde ? fechaPrescripcion : [fechaPrescripcion, `${jornadaDe(new Date()).slice(0, 7)}-01`].sort().at(-1)}
+                      // Otherwise it must fall from one month back to the end of the current month (the prescription itself may be older).
+                      min={mode === "editar" && fechaValidaDesde === inicial?.fechaValidaDesde ? fechaPrescripcion : [fechaPrescripcion, fechaPrescripcionMinima(jornadaDe(new Date()))].sort().at(-1)}
                       max={mode === "editar" && fechaValidaDesde === inicial?.fechaValidaDesde ? undefined : ultimoDiaDelMes(jornadaDe(new Date()))}
                     />
                   </div>
