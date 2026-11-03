@@ -32,6 +32,8 @@ export interface FormulaEditorProps {
   /** Drogas whose fórmula uses this one: it can not have its own (one level, INV-EL5). */
   esComponenteDe: readonly string[];
   disabled: boolean;
+  /** The edited droga's unidad base símbolo, next to the cantidad de referencia; `null` until one is chosen. */
+  unidadSimbolo: string | null;
 }
 
 interface Fila {
@@ -41,7 +43,7 @@ interface Fila {
   cantidad: string;
 }
 
-export function FormulaEditor({ opciones, inicial, drogaId, esComponenteDe, disabled }: FormulaEditorProps) {
+export function FormulaEditor({ opciones, inicial, drogaId, esComponenteDe, disabled, unidadSimbolo }: FormulaEditorProps) {
   const [tiene, setTiene] = useState(inicial !== null);
   const [referencia, setReferencia] = useState(inicial ? numeroParaInput(inicial.cantidadReferencia) : "");
   const [filas, setFilas] = useState<Fila[]>(() =>
@@ -84,18 +86,27 @@ export function FormulaEditor({ opciones, inicial, drogaId, esComponenteDe, disa
         <div className="mt-2 flex flex-col gap-3 rounded-md border border-zinc-200 p-3">
           <div className="field sm:max-w-[50%]">
             <label htmlFor="cantidadReferencia" className="field-label">
-              Cantidad de referencia <span className="font-normal text-zinc-400">(en la unidad base)</span>
+              Cantidad que rinde la fórmula
             </label>
-            <input
-              id="cantidadReferencia"
-              name="cantidadReferencia"
-              value={referencia}
-              onChange={(e) => setReferencia(e.target.value)}
-              required
-              inputMode="decimal"
-              autoComplete="off"
-              className="input font-mono"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                id="cantidadReferencia"
+                name="cantidadReferencia"
+                value={referencia}
+                onChange={(e) => setReferencia(e.target.value)}
+                required
+                inputMode="decimal"
+                autoComplete="off"
+                aria-describedby="cantidadReferencia-ayuda"
+                className="input font-mono"
+              />
+              <span className="shrink-0 text-xs text-zinc-500">{unidadSimbolo ?? "unidad base"}</span>
+            </div>
+            <p id="cantidadReferencia-ayuda" className="field-help">
+              El «para» de tu fórmula: si dice «para 1000 {unidadSimbolo ?? "g"}», poné 1000. Al elaborar un lote, los componentes se
+              escalan a lo que vayas a producir. No hace falta que sumen esta cantidad: pueden ir en otras unidades (agua en mL) o
+              perderse al elaborar (evaporación); lo que cuenta es la proporción.
+            </p>
           </div>
 
           <div className="flex flex-col gap-2" role="group" aria-label="Componentes" data-field="componentes">
