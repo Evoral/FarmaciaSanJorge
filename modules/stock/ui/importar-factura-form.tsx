@@ -291,7 +291,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
   function payload() {
     const equivalencias = new Map<string, string>();
     for (const l of activas) {
-      if (!l.matcheada && l.recordar && l.droga) equivalencias.set(l.drogaTexto, l.droga.value);
+      if (!l.matcheada && l.recordar && l.droga && l.drogaTexto.trim()) equivalencias.set(l.drogaTexto, l.droga.value);
     }
     return {
       origen: manual ? "manual" : "pdf",
@@ -495,7 +495,8 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
                           <ToneBadge tone="neutral">{CLASE_DROGA_LABELS[clase]}</ToneBadge> Lleva stock y costo; no va al libro recetario.
                         </p>
                       ) : null}
-                      {!l.matcheada && l.droga && primeraDelProducto ? (
+                      {/* A manual lote has no invoice text to remember. */}
+                      {!l.matcheada && l.droga && l.drogaTexto.trim() && primeraDelProducto ? (
                         <RecordarSinonimoSwitch texto={l.drogaTexto} drogaNombre={l.droga.label} checked={l.recordar} onChange={(recordar) => actualizar(i, { recordar })} />
                       ) : null}
                     </div>
