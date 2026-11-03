@@ -120,6 +120,8 @@ describe("rechazoReanalisis", () => {
     drogaClase: "DROGA",
     tieneSaldo: true,
     fechaVencimientoVigente: "2026-06-10",
+    sigueASusDrogas: false,
+    lotesElaboradosConSaldo: false,
   };
 
   it("returns NO_ES_DROGA when drogaClase is not DROGA", () => {
@@ -132,9 +134,39 @@ describe("rechazoReanalisis", () => {
     expect(rechazoReanalisis(partida, "2026-12-31", JORNADA)).toBe("NO_ES_DROGA");
   });
 
-  it("returns SIN_SALDO when partida has no remaining balance (saldo 0 is terminal)", () => {
-    const partida: PartidaParaVencimiento = { ...partidaValida, tieneSaldo: false };
+  it("returns NO_ES_DROGA before SIGUE_A_SUS_DROGAS if both apply", () => {
+    const partida: PartidaParaVencimiento = { ...partidaValida, drogaClase: "EXCIPIENTE", sigueASusDrogas: true };
+    expect(rechazoReanalisis(partida, "2026-12-31", JORNADA)).toBe("NO_ES_DROGA");
+  });
+
+  it("returns SIGUE_A_SUS_DROGAS when the lot was elaborated from active drugs", () => {
+    const partida: PartidaParaVencimiento = { ...partidaValida, sigueASusDrogas: true };
+    expect(rechazoReanalisis(partida, "2026-12-31", JORNADA)).toBe("SIGUE_A_SUS_DROGAS");
+  });
+
+  it("returns SIGUE_A_SUS_DROGAS before SIN_SALDO and before FECHA_NO_FUTURA", () => {
+    const partida: PartidaParaVencimiento = {
+      ...partidaValida,
+      sigueASusDrogas: true,
+      tieneSaldo: false,
+      lotesElaboradosConSaldo: false,
+    };
+    expect(rechazoReanalisis(partida, JORNADA, JORNADA)).toBe("SIGUE_A_SUS_DROGAS");
+  });
+
+  it("returns SIN_SALDO when partida has no balance AND no dependent lot with balance", () => {
+    const partida: PartidaParaVencimiento = { ...partidaValida, tieneSaldo: false, lotesElaboradosConSaldo: false };
     expect(rechazoReanalisis(partida, "2026-12-31", JORNADA)).toBe("SIN_SALDO");
+  });
+
+  it("accepts a partida with saldo 0 when a dependent lot still has saldo", () => {
+    const partida: PartidaParaVencimiento = { ...partidaValida, tieneSaldo: false, lotesElaboradosConSaldo: true };
+    expect(rechazoReanalisis(partida, "2026-12-31", JORNADA)).toBeNull();
+  });
+
+  it("returns SIN_SALDO before FECHA_NO_FUTURA", () => {
+    const partida: PartidaParaVencimiento = { ...partidaValida, tieneSaldo: false, lotesElaboradosConSaldo: false };
+    expect(rechazoReanalisis(partida, JORNADA, JORNADA)).toBe("SIN_SALDO");
   });
 
   it("returns FECHA_NO_FUTURA when fechaReanalisis is on or before jornada", () => {
@@ -164,6 +196,8 @@ describe("rechazoMarcarVencida", () => {
     drogaClase: "DROGA",
     tieneSaldo: true,
     fechaVencimientoVigente: "2026-06-14",
+    sigueASusDrogas: false,
+    lotesElaboradosConSaldo: false,
   };
 
   it("returns NO_ES_DROGA when drogaClase is not DROGA", () => {
@@ -176,8 +210,33 @@ describe("rechazoMarcarVencida", () => {
     expect(rechazoMarcarVencida(partida, JORNADA)).toBe("NO_ES_DROGA");
   });
 
-  it("returns SIN_SALDO when partida has no balance", () => {
-    const partida: PartidaParaVencimiento = { ...partidaVencida, tieneSaldo: false };
+  it("returns NO_ES_DROGA before SIN_SALDO if both apply", () => {
+    const partida: PartidaParaVencimiento = {
+      ...partidaVencida,
+      drogaClase: "MATERIAL",
+      tieneSaldo: false,
+      lotesElaboradosConSaldo: false,
+    };
+    expect(rechazoMarcarVencida(partida, JORNADA)).toBe("NO_ES_DROGA");
+  });
+
+  it("returns SIN_SALDO when partida has no balance AND no dependent lot with balance", () => {
+    const partida: PartidaParaVencimiento = { ...partidaVencida, tieneSaldo: false, lotesElaboradosConSaldo: false };
+    expect(rechazoMarcarVencida(partida, JORNADA)).toBe("SIN_SALDO");
+  });
+
+  it("accepts a partida with saldo 0 when a dependent lot still has saldo", () => {
+    const partida: PartidaParaVencimiento = { ...partidaVencida, tieneSaldo: false, lotesElaboradosConSaldo: true };
+    expect(rechazoMarcarVencida(partida, JORNADA)).toBeNull();
+  });
+
+  it("returns SIN_SALDO before NO_VENCIDA if both apply", () => {
+    const partida: PartidaParaVencimiento = {
+      ...partidaVencida,
+      tieneSaldo: false,
+      lotesElaboradosConSaldo: false,
+      fechaVencimientoVigente: "2026-06-20",
+    };
     expect(rechazoMarcarVencida(partida, JORNADA)).toBe("SIN_SALDO");
   });
 

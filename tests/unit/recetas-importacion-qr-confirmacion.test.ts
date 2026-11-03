@@ -24,6 +24,8 @@ vi.mock("@/modules/recetas/infrastructure/receta-repository", () => ({
   clasificarDrogasDeReceta: async () => ({ invalidas: [], principiosActivos: new Set<string>(), materiales: [] }),
   unidadesInvalidas: async () => [],
   jornadaActualTenant: async () => "2026-09-29",
+  getMagnitudesDeUnidades: async () => new Map(),
+  getUnidadesParaCordura: async () => new Map(),
   insertRecetaConItems: async () => ({ id: "99999999-9999-4999-a999-999999999999", numeroInterno: "77" }),
   getNombresParaResumen: async () => ({ drogas: new Map(), unidades: new Map() }),
 }));

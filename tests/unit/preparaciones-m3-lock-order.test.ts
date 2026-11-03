@@ -151,7 +151,7 @@ const existeCierreParaJornadaMock = vi.fn(async (...args: unknown[]) => {
 const getLineasParaPreparacionMock = vi.fn(async (...args: unknown[]) => {
   void args;
   return [
-    { id: LINEA_ID, drogaId: "droga-1", drogaNombre: "Droga X", cantidadAPesar: "10", unidadMedidaId: "u1", unidadSimbolo: "g", unidad: { factorABase: "1", tipoMagnitud: "MASA" }, unidadStock: { id: "u1", simbolo: "g", factorABase: "1", tipoMagnitud: "MASA" }, esEnraseManual: false, orden: 0 },
+    { id: LINEA_ID, drogaId: "droga-1", drogaNombre: "Droga X", cantidadAPesar: "10", unidadMedidaId: "u1", unidadSimbolo: "g", unidad: { factorABase: "1", tipoMagnitud: "MASA" }, unidadStock: { id: "u1", simbolo: "g", factorABase: "1", tipoMagnitud: "MASA" }, esEnraseManual: false, cantidadPrescripta: null, orden: 0 },
   ];
 });
 const listPartidasElegiblesDrogaMock = vi.fn(async (...args: unknown[]) => {
@@ -321,7 +321,7 @@ beforeEach(() => {
   getMesesVencimientoPreparadoMock.mockResolvedValue(3);
   existeCierreParaJornadaMock.mockResolvedValue(false);
   getLineasParaPreparacionMock.mockResolvedValue([
-    { id: LINEA_ID, drogaId: "droga-1", drogaNombre: "Droga X", cantidadAPesar: "10", unidadMedidaId: "u1", unidadSimbolo: "g", unidad: { factorABase: "1", tipoMagnitud: "MASA" }, unidadStock: { id: "u1", simbolo: "g", factorABase: "1", tipoMagnitud: "MASA" }, esEnraseManual: false, orden: 0 },
+    { id: LINEA_ID, drogaId: "droga-1", drogaNombre: "Droga X", cantidadAPesar: "10", unidadMedidaId: "u1", unidadSimbolo: "g", unidad: { factorABase: "1", tipoMagnitud: "MASA" }, unidadStock: { id: "u1", simbolo: "g", factorABase: "1", tipoMagnitud: "MASA" }, esEnraseManual: false, cantidadPrescripta: null, orden: 0 },
   ]);
   listPartidasElegiblesDrogaMock.mockResolvedValue([{ id: PARTIDA_ID, lote: "L1", cantidadDisponible: "100", fechaVencimiento: "2099-12-31", fechaApertura: null }]);
   lockPartidasParaConfirmacionMock.mockImplementation(async () => {

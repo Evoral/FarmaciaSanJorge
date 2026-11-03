@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { CO_FIRMA_GENERIC_ERROR } from "@/modules/stock/application/verificar-co-firma-dt";
+import { observacionLoteElaboradoVencido } from "@/modules/stock/domain/vencimiento-partida";
 
 const {
   TENANT_ID,
@@ -36,6 +37,8 @@ const {
   recordCoFirmaFailureMock,
   recordCoFirmaSuccessMock,
   verifyPasswordMock,
+  lotesElaboradosConSaldoMock,
+  loteSigueADrogasMock,
 } = vi.hoisted(() => {
   const callOrder: string[] = [];
   const TENANT_ID = "11111111-1111-1111-1111-111111111111";
@@ -60,7 +63,7 @@ const {
       async (tenantId: string, fn: (tx: unknown) => unknown) =>
         fn({ __fakeTx: true, tenantId }),
     ),
-    lockPartidaMock: vi.fn(async () => {
+    lockPartidaMock: vi.fn(async (..._args: unknown[]) => {
       callOrder.push("lock");
       return true;
     }),
@@ -91,6 +94,8 @@ const {
     recordCoFirmaFailureMock: vi.fn(async () => undefined),
     recordCoFirmaSuccessMock: vi.fn(async () => undefined),
     verifyPasswordMock: vi.fn(async () => true),
+    lotesElaboradosConSaldoMock: vi.fn(async () => [] as string[]),
+    loteSigueADrogasMock: vi.fn(async () => false),
   };
 });
 
@@ -135,6 +140,11 @@ vi.mock("@/modules/stock/infrastructure/co-firma-repository", () => ({
   recordCoFirmaSuccess: recordCoFirmaSuccessMock,
 }));
 
+vi.mock("@/modules/stock/infrastructure/elaboracion-lote-repository", () => ({
+  lotesElaboradosConSaldo: lotesElaboradosConSaldoMock,
+  loteSigueADrogas: loteSigueADrogasMock,
+}));
+
 vi.mock("@/modules/auth/domain/password", () => ({
   verifyPassword: verifyPasswordMock,
 }));
@@ -176,7 +186,10 @@ const partidaVencidaBase = {
 describe("marcarPartidaVencida", () => {
   beforeEach(() => {
     callOrder.length = 0;
-    lockPartidaMock.mockClear();
+    lockPartidaMock.mockReset().mockImplementation(async (..._args: unknown[]) => {
+      callOrder.push("lock");
+      return true;
+    });
     getPartidaParaAccionMock.mockReset().mockResolvedValue({ ...partidaVencidaBase });
     insertAjusteMock.mockClear();
     auditRecordMock.mockClear();
@@ -190,6 +203,7 @@ describe("marcarPartidaVencida", () => {
     });
     esDtVigenteHoyMock.mockReset().mockResolvedValue(true);
     verifyPasswordMock.mockReset().mockResolvedValue(true);
+    lotesElaboradosConSaldoMock.mockReset().mockResolvedValue([]);
   });
 
   it("locks the partida BEFORE reading its saldo and executes one VENCIMIENTO ajuste for the exact remaining saldo", async () => {
@@ -291,12 +305,118 @@ describe("marcarPartidaVencida", () => {
 
     expect(getPartidaParaAccionMock).not.toHaveBeenCalled();
   });
+
+  it("accepts a DROGA with saldo 0 when a dependent lot has saldo, discounting only the dependent lot", async () => {
+    const DEP_ID = "dep-0001-0000-0000-000000000001";
+    getPartidaParaAccionMock.mockImplementation(async (_tx: unknown, _tenantId: string, id: string) => {
+      if (id === PARTIDA_ID) {
+        return { ...partidaVencidaBase, cantidadDisponible: "0" };
+      }
+      if (id === DEP_ID) {
+        return {
+          ...partidaVencidaBase,
+          id: DEP_ID,
+          lote: "FSJ-DIL-0001",
+          cantidadDisponible: "25",
+        };
+      }
+      return null;
+    });
+    lotesElaboradosConSaldoMock.mockResolvedValue([DEP_ID]);
+
+    const result = await marcarPartidaVencida(
+      { partidaId: PARTIDA_ID, password: "password-dt" },
+      { session: fakeDtSession() },
+    );
+
+    expect(result).toEqual({ id: "mov-ajuste-1" });
+    expect(insertAjusteMock).toHaveBeenCalledTimes(1);
+    expect(insertAjusteMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        partidaId: DEP_ID,
+        cantidad: "25",
+        motivoAjuste: "VENCIMIENTO",
+        observacion: observacionLoteElaboradoVencido(partidaVencidaBase.lote),
+      }),
+    );
+  });
+
+  it("discards each dependent lot with its whole saldo in id order after its own lock, with observacionLoteElaboradoVencido", async () => {
+    const DEP_1 = "11111111-aaaa-0000-0000-000000000001";
+    const DEP_2 = "22222222-bbbb-0000-0000-000000000002";
+    const locks: string[] = [];
+
+    lockPartidaMock.mockImplementation(async (_tx?: unknown, _tenantId?: string, id?: string) => {
+      if (id) locks.push(id);
+      return true;
+    });
+
+    getPartidaParaAccionMock.mockImplementation(async (_tx: unknown, _tenantId: string, id: string) => {
+      if (id === PARTIDA_ID) return { ...partidaVencidaBase, cantidadDisponible: "100" };
+      if (id === DEP_1) return { ...partidaVencidaBase, id: DEP_1, lote: "FSJ-DIL-0001", cantidadDisponible: "20" };
+      if (id === DEP_2) return { ...partidaVencidaBase, id: DEP_2, lote: "FSJ-DIL-0002", cantidadDisponible: "30" };
+      return null;
+    });
+
+    lotesElaboradosConSaldoMock.mockResolvedValue([DEP_1, DEP_2]);
+
+    await marcarPartidaVencida(
+      { partidaId: PARTIDA_ID, password: "password-dt" },
+      { session: fakeDtSession() },
+    );
+
+    // Initial check locked PARTIDA_ID, then registrarAjusteEnTx locked PARTIDA_ID;
+    // then for DEP_1: lock DEP_1, then registrarAjusteEnTx locked DEP_1;
+    // then for DEP_2: lock DEP_2, then registrarAjusteEnTx locked DEP_2.
+    expect(locks).toEqual([PARTIDA_ID, PARTIDA_ID, DEP_1, DEP_1, DEP_2, DEP_2]);
+
+    expect(insertAjusteMock).toHaveBeenCalledTimes(3);
+    // 1st: the drug itself
+    expect(insertAjusteMock).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      expect.objectContaining({ partidaId: PARTIDA_ID, cantidad: "100" }),
+    );
+    // 2nd: dep 1
+    expect(insertAjusteMock).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      expect.objectContaining({
+        partidaId: DEP_1,
+        cantidad: "20",
+        observacion: observacionLoteElaboradoVencido(partidaVencidaBase.lote),
+      }),
+    );
+    // 3rd: dep 2
+    expect(insertAjusteMock).toHaveBeenNthCalledWith(
+      3,
+      expect.anything(),
+      expect.objectContaining({
+        partidaId: DEP_2,
+        cantidad: "30",
+        observacion: observacionLoteElaboradoVencido(partidaVencidaBase.lote),
+      }),
+    );
+
+    expect(auditRecordMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        valorNuevo: expect.objectContaining({
+          lotesElaboradosDescartados: ["FSJ-DIL-0001", "FSJ-DIL-0002"],
+        }),
+      }),
+    );
+  });
 });
 
 describe("registrarReanalisisPartida", () => {
   beforeEach(() => {
     callOrder.length = 0;
-    lockPartidaMock.mockClear();
+    lockPartidaMock.mockReset().mockImplementation(async (..._args: unknown[]) => {
+      callOrder.push("lock");
+      return true;
+    });
     getPartidaParaAccionMock.mockReset().mockResolvedValue({ ...partidaVencidaBase });
     insertReanalisisMock.mockClear();
     auditRecordMock.mockClear();
@@ -309,6 +429,8 @@ describe("registrarReanalisisPartida", () => {
     });
     esDtVigenteHoyMock.mockReset().mockResolvedValue(true);
     verifyPasswordMock.mockReset().mockResolvedValue(true);
+    lotesElaboradosConSaldoMock.mockReset().mockResolvedValue([]);
+    loteSigueADrogasMock.mockReset().mockResolvedValue(false);
   });
 
   it("locks the partida, inserts reanálisis, and audits inside the same transaction", async () => {
@@ -403,6 +525,35 @@ describe("registrarReanalisisPartida", () => {
     ).rejects.toBeInstanceOf(DomainError);
 
     expect(insertReanalisisMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses reanálisis of an elaborated lot with SIGUE_A_SUS_DROGAS message", async () => {
+    loteSigueADrogasMock.mockResolvedValue(true);
+
+    await expect(
+      registrarReanalisisPartida(
+        { partidaId: PARTIDA_ID, fechaReanalisis: "2027-01-01", password: "password-dt" },
+        { session: fakeDtSession() },
+      ),
+    ).rejects.toThrow("Es un lote elaborado: su vencimiento sigue al de la droga con la que se hizo. Registrá el reanálisis en esa droga.");
+
+    expect(insertReanalisisMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts a DROGA with saldo 0 when a dependent lot still has saldo", async () => {
+    getPartidaParaAccionMock.mockResolvedValue({
+      ...partidaVencidaBase,
+      cantidadDisponible: "0",
+    });
+    lotesElaboradosConSaldoMock.mockResolvedValue(["dep-lote-1"]);
+
+    const result = await registrarReanalisisPartida(
+      { partidaId: PARTIDA_ID, fechaReanalisis: "2027-01-15", password: "password-dt" },
+      { session: fakeDtSession() },
+    );
+
+    expect(result).toEqual({ id: "rean-1" });
+    expect(insertReanalisisMock).toHaveBeenCalled();
   });
 
   it("rejects when the session DT is not vigente today during password verification", async () => {

@@ -60,6 +60,7 @@ function lineaCafeina(overrides: Record<string, unknown> = {}, unidadStock: Unid
     unidad: GRAMO,
     unidadStock,
     esEnraseManual: false,
+    cantidadPrescripta: null,
     orden: 0,
     ...overrides,
   };
