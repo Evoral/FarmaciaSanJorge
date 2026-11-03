@@ -7,6 +7,7 @@
 import { describe, it, expect } from "vitest";
 import { DomainError } from "@/shared/errors";
 import { dec } from "@/shared/decimal";
+import { formatNumero } from "@/shared/format/cantidad";
 import {
   costoUnitarioDeLote,
   potenciaDeDilucion,
@@ -265,6 +266,13 @@ describe("elaboracion-lote -- nombreSugeridoLote (0115)", () => {
 
   it("suggests percentage otherwise", () => {
     expect(nombreSugeridoLote("Clonazepam", dec(3))).toBe("Clonazepam 3 %");
+  });
+
+  it("formats non-proportion percentages to 3 significant digits using formatNumero (comma decimal separator)", () => {
+    expect(formatNumero(dec("45.4545").toSignificantDigits(3))).toBe("45,5");
+    expect(formatNumero(dec("12.345").toSignificantDigits(3))).toBe("12,3");
+    expect(nombreSugeridoLote("Clonazepam", dec("45.4545"))).toBe("Clonazepam 45,5 %");
+    expect(nombreSugeridoLote("Clonazepam", dec("12.345"))).toBe("Clonazepam 12,3 %");
   });
 
   it("returns droga name when potencia is null or non-positive", () => {

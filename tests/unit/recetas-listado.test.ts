@@ -8,6 +8,17 @@ import { listRecetas } from "@/modules/recetas/infrastructure/receta-repository"
 import { formatFecha } from "@/shared/format/fecha";
 import { urlTrasEditar, urlTrasRegistrar } from "@/modules/recetas/domain/avisos-generacion";
 
+const buscarPersonasPorNombreMock = vi.fn(async (_tx: unknown, tabla: string, _tenantId: string, _busqueda: string) => {
+  if (tabla === "paciente") return ["pac-1", "pac-2"];
+  if (tabla === "medico") return ["med-1"];
+  return [];
+});
+
+vi.mock("@/shared/db/busqueda-persona", () => ({
+  buscarPersonasPorNombre: (...args: unknown[]) =>
+    buscarPersonasPorNombreMock(...(args as [unknown, string, string, string])),
+}));
+
 function fila(id: string, estado: string) {
   return {
     id,
@@ -47,6 +58,123 @@ describe("listRecetas (repository)", () => {
     // Only the PENDIENTE_PREPARACION ids are checked.
     expect(queryRaw.mock.calls[0]).toContainEqual(["r1", "r2"]);
     expect(result.zonaHoraria).toBe("America/Argentina/Mendoza");
+  });
+
+  it("builds where.AND with trimmed paciente filter matching by name IDs, DNI and CUIL", async () => {
+    buscarPersonasPorNombreMock.mockClear();
+    const countMock = vi.fn(async () => 2);
+    const findManyMock = vi.fn(async () => [fila("r1", "PREPARADA"), fila("r2", "PREPARADA")]);
+    const tx = {
+      receta: { count: countMock, findMany: findManyMock },
+      tenant: { findUniqueOrThrow: vi.fn(async () => ({ zonaHoraria: "America/Argentina/Mendoza" })) },
+      $queryRaw: vi.fn(async () => []),
+    };
+
+    await listRecetas(tx as never, { tenantId: "t1", page: 1, pageSize: 2, paciente: "  Juan Perez  " });
+
+    expect(buscarPersonasPorNombreMock).toHaveBeenCalledWith(tx, "paciente", "t1", "Juan Perez");
+    const expectedWhere = {
+      tenantId: "t1",
+      AND: [
+        {
+          OR: [
+            { pacienteId: { in: ["pac-1", "pac-2"] } },
+            { paciente: { dni: { contains: "Juan Perez" } } },
+            { paciente: { cuil: { contains: "Juan Perez" } } },
+          ],
+        },
+      ],
+    };
+    expect(findManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expectedWhere }));
+    expect(countMock).toHaveBeenCalledWith({ where: expectedWhere });
+  });
+
+  it("builds where.AND with trimmed médico filter matching by name IDs and matrícula (insensitive)", async () => {
+    buscarPersonasPorNombreMock.mockClear();
+    const countMock = vi.fn(async () => 2);
+    const findManyMock = vi.fn(async () => [fila("r1", "PREPARADA"), fila("r2", "PREPARADA")]);
+    const tx = {
+      receta: { count: countMock, findMany: findManyMock },
+      tenant: { findUniqueOrThrow: vi.fn(async () => ({ zonaHoraria: "America/Argentina/Mendoza" })) },
+      $queryRaw: vi.fn(async () => []),
+    };
+
+    await listRecetas(tx as never, { tenantId: "t1", page: 1, pageSize: 2, medico: "  Dra. Ríos  " });
+
+    expect(buscarPersonasPorNombreMock).toHaveBeenCalledWith(tx, "medico", "t1", "Dra. Ríos");
+    const expectedWhere = {
+      tenantId: "t1",
+      AND: [
+        {
+          OR: [
+            { medicoId: { in: ["med-1"] } },
+            { medico: { matricula: { contains: "Dra. Ríos", mode: "insensitive" } } },
+          ],
+        },
+      ],
+    };
+    expect(findManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expectedWhere }));
+    expect(countMock).toHaveBeenCalledWith({ where: expectedWhere });
+  });
+
+  it("combines both paciente and médico in where.AND when both filters are provided", async () => {
+    buscarPersonasPorNombreMock.mockClear();
+    const countMock = vi.fn(async () => 2);
+    const findManyMock = vi.fn(async () => [fila("r1", "PREPARADA"), fila("r2", "PREPARADA")]);
+    const tx = {
+      receta: { count: countMock, findMany: findManyMock },
+      tenant: { findUniqueOrThrow: vi.fn(async () => ({ zonaHoraria: "America/Argentina/Mendoza" })) },
+      $queryRaw: vi.fn(async () => []),
+    };
+
+    await listRecetas(tx as never, { tenantId: "t1", page: 1, pageSize: 2, paciente: "  Juan  ", medico: "  Ríos  " });
+
+    expect(buscarPersonasPorNombreMock).toHaveBeenCalledWith(tx, "paciente", "t1", "Juan");
+    expect(buscarPersonasPorNombreMock).toHaveBeenCalledWith(tx, "medico", "t1", "Ríos");
+    const expectedWhere = {
+      tenantId: "t1",
+      AND: [
+        {
+          OR: [
+            { pacienteId: { in: ["pac-1", "pac-2"] } },
+            { paciente: { dni: { contains: "Juan" } } },
+            { paciente: { cuil: { contains: "Juan" } } },
+          ],
+        },
+        {
+          OR: [
+            { medicoId: { in: ["med-1"] } },
+            { medico: { matricula: { contains: "Ríos", mode: "insensitive" } } },
+          ],
+        },
+      ],
+    };
+    expect(findManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expectedWhere }));
+    expect(countMock).toHaveBeenCalledWith({ where: expectedWhere });
+  });
+
+  it("omits AND key from where when paciente/médico are empty or only whitespace, or omitted", async () => {
+    buscarPersonasPorNombreMock.mockClear();
+    const countMock = vi.fn(async () => 2);
+    const findManyMock = vi.fn(async () => [fila("r1", "PREPARADA"), fila("r2", "PREPARADA")]);
+    const tx = {
+      receta: { count: countMock, findMany: findManyMock },
+      tenant: { findUniqueOrThrow: vi.fn(async () => ({ zonaHoraria: "America/Argentina/Mendoza" })) },
+      $queryRaw: vi.fn(async () => []),
+    };
+
+    await listRecetas(tx as never, { tenantId: "t1", page: 1, pageSize: 2, paciente: "   ", medico: "" });
+    expect(buscarPersonasPorNombreMock).not.toHaveBeenCalled();
+    const whereWithWhitespace = (findManyMock.mock.calls[0] as unknown as [{ where: Record<string, unknown> }])[0].where;
+    expect("AND" in whereWithWhitespace).toBe(false);
+    expect(whereWithWhitespace).toEqual({ tenantId: "t1" });
+
+    findManyMock.mockClear();
+    countMock.mockClear();
+    await listRecetas(tx as never, { tenantId: "t1", page: 1, pageSize: 2 });
+    const whereWithoutFilters = (findManyMock.mock.calls[0] as unknown as [{ where: Record<string, unknown> }])[0].where;
+    expect("AND" in whereWithoutFilters).toBe(false);
+    expect(whereWithoutFilters).toEqual({ tenantId: "t1" });
   });
 });
 

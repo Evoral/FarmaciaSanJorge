@@ -347,7 +347,8 @@ describe("marcarPartidaVencida", () => {
     const DEP_2 = "22222222-bbbb-0000-0000-000000000002";
     const locks: string[] = [];
 
-    lockPartidaMock.mockImplementation(async (_tx?: unknown, _tenantId?: string, id?: string) => {
+    lockPartidaMock.mockImplementation(async (...args: unknown[]) => {
+      const id = args[2] as string | undefined;
       if (id) locks.push(id);
       return true;
     });
