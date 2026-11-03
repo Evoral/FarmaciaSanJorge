@@ -4,8 +4,9 @@
  * OPEN tenant transaction (RLS-scoped) and NONE of them ever pass a
  * paciente field to a logger (see shared/logging/logger.ts's redact list
  * for the defense-in-depth net). The DB is authoritative for cuil/dni
- * FORMAT (migration 0029) and cuil uniqueness (migration 0007, survives
- * baja -- no partial `WHERE fecha_baja IS NULL`, unlike medico.matricula);
+ * FORMAT (migration 0029), cuil uniqueness (migration 0007) and dni
+ * uniqueness (migration 0116); both survive baja -- no partial
+ * `WHERE fecha_baja IS NULL`, unlike medico.matricula;
  * the CUIL check-digit algorithm lives in
  * `modules/pacientes/domain/paciente.ts` (application layer).
  */
@@ -135,6 +136,15 @@ export async function lockPacienteParaAccion(tx: Prisma.TransactionClient, tenan
 export async function existeCuil(tx: Prisma.TransactionClient, tenantId: string, cuil: string, excludeId?: string): Promise<boolean> {
   const row = await tx.paciente.findFirst({
     where: { tenantId, cuil, ...(excludeId ? { id: { not: excludeId } } : {}) },
+    select: { id: true },
+  });
+  return row !== null;
+}
+
+/** `true` if some OTHER paciente in the SAME tenant already has this dni -- migration 0116's `uq_paciente_dni`, unique regardless of baja like the cuil. */
+export async function existeDni(tx: Prisma.TransactionClient, tenantId: string, dni: string, excludeId?: string): Promise<boolean> {
+  const row = await tx.paciente.findFirst({
+    where: { tenantId, dni, ...(excludeId ? { id: { not: excludeId } } : {}) },
     select: { id: true },
   });
   return row !== null;

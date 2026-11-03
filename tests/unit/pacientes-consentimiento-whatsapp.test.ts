@@ -39,6 +39,7 @@ const updatePacienteDatosMock = vi.fn(async (...args: unknown[]) => {
 vi.mock("@/modules/pacientes/infrastructure/paciente-repository", () => ({
   insertPaciente: (...args: unknown[]) => insertPacienteMock(...args),
   existeCuil: vi.fn(async () => false),
+  existeDni: vi.fn(async () => false),
   lockPacienteParaAccion: vi.fn(async () => true),
   getPacienteParaAccion: (...args: unknown[]) => getPacienteParaAccionMock(...args),
   updatePacienteDatos: (...args: unknown[]) => updatePacienteDatosMock(...args),

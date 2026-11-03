@@ -17,8 +17,10 @@ import {
   esEstadoEditable,
   esEstadoTerminal,
   esFechaPrescripcionValida,
+  esFechaValidaDesdeVigente,
   esRecetaEnCurso,
   puedeAnular,
+  ultimoDiaDelMes,
   validarItemsReceta,
   validarOrigenCargaManual,
   validarOrigenHabilitado,
@@ -213,6 +215,35 @@ describe("esFechaPrescripcionValida", () => {
 
   it("rejects a future date", () => {
     expect(esFechaPrescripcionValida("2026-06-16", "2026-06-15")).toBe(false);
+  });
+});
+
+describe("esFechaValidaDesdeVigente", () => {
+  it("accepts dates within one month back or up to the end of the current month (jornada 2026-11-03)", () => {
+    const jornada = "2026-11-03";
+    expect(esFechaValidaDesdeVigente("2026-10-03", jornada)).toBe(true);
+    expect(esFechaValidaDesdeVigente("2026-10-02", jornada)).toBe(false);
+    expect(esFechaValidaDesdeVigente("2026-11-03", jornada)).toBe(true);
+    expect(esFechaValidaDesdeVigente("2026-11-30", jornada)).toBe(true);
+    expect(esFechaValidaDesdeVigente("2026-12-01", jornada)).toBe(false);
+  });
+
+  it("clamps to previous month's last day (jornada 2026-03-31)", () => {
+    const jornada = "2026-03-31";
+    expect(esFechaValidaDesdeVigente("2026-02-28", jornada)).toBe(true);
+    expect(esFechaValidaDesdeVigente("2026-02-27", jornada)).toBe(false);
+  });
+
+  it("handles year boundary (jornada 2026-01-15)", () => {
+    const jornada = "2026-01-15";
+    expect(esFechaValidaDesdeVigente("2025-12-15", jornada)).toBe(true);
+    expect(esFechaValidaDesdeVigente("2025-12-14", jornada)).toBe(false);
+  });
+});
+
+describe("ultimoDiaDelMes", () => {
+  it("returns 2028-02-29 for February in a leap year", () => {
+    expect(ultimoDiaDelMes("2028-02-15")).toBe("2028-02-29");
   });
 });
 
