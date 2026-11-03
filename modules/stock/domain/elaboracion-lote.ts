@@ -107,14 +107,15 @@ export const NOMBRE_LOTE_MAX = 120;
 
 /**
  * The name the lot's etiqueta suggests (the user edits it): a dilución reads as its proportion, "Clonazepam 1:100" for
- * 1 %, when 100 / potencia is a whole number (within 0.5 %); otherwise its percentage. A fórmula lot, its droga.
+ * 1 %, when 100 / potencia is a whole number (within 0.5 %); otherwise its percentage to 3 significant digits
+ * ("45,5 %", "0,455 %": the exact potencia is the partida's, not the name's). A fórmula lot, its droga.
  */
 export function nombreSugeridoLote(drogaNombre: string, potenciaDilucion: Decimal | null): string {
   if (potenciaDilucion === null || !potenciaDilucion.greaterThan(0)) return drogaNombre;
   const proporcion = dec(100).dividedBy(potenciaDilucion);
   const entera = proporcion.toDecimalPlaces(0);
   if (entera.greaterThan(1) && proporcion.minus(entera).abs().lessThanOrEqualTo(entera.times("0.005"))) return `${drogaNombre} 1:${entera.toFixed()}`;
-  return `${drogaNombre} ${formatNumero(potenciaDilucion.toDecimalPlaces(4))} %`;
+  return `${drogaNombre} ${formatNumero(potenciaDilucion.toSignificantDigits(3))} %`;
 }
 
 /** A dilución's potencia (percent): the active consumed of its droga over the cantidad producida, rounded down. */
