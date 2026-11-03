@@ -13,9 +13,10 @@
  * - Visible states: loading, error (with retry), no matches, selected.
  * - `actionOption`: a last action row for the typed text (also reachable
  *   by keyboard): "Crear paciente “x”", "Buscar “x” en la lista"...
- * - `enterRunsAction`: a search box. No option starts highlighted and
- *   Enter never picks: it runs `actionOption` with the highlighted
- *   option's label, or else the typed text. Only a click picks.
+ * - `enterRunsAction`: a list's search box. It only filters, never opens
+ *   or picks a record: Enter runs `actionOption` with the highlighted
+ *   option's `filtro` (else the typed text), and so does a click on an
+ *   option. No option starts highlighted.
  * - With `name`, a hidden input carries the value and a bubbling `change`
  *   is dispatched on pick/clear, so it drops into a `FilterForm` like
  *   `./date-input.tsx` does. It also handles `FIELD_ERROR_EVENT`
@@ -54,6 +55,8 @@ export interface ComboboxOption {
    * label (`./sinonimo-hint.tsx`); on the selected `value`, the field's main text, with the label as the hint.
    */
   sinonimo?: string | null;
+  /** In a search box (`enterRunsAction`): the text the list is filtered by when this option is chosen. Defaults to `label`. */
+  filtro?: string;
 }
 
 export interface ComboboxActionOption {
@@ -84,9 +87,9 @@ export interface ComboboxProps {
   size?: "md" | "sm";
   actionOption?: ComboboxActionOption;
   /**
-   * Search-box behavior: no option starts highlighted, and Enter never picks -- it runs `actionOption` with the
-   * highlighted option's label (arrows or mouse), else the typed text. Only a click picks. Without it, Enter picks the
-   * first suggestion.
+   * List search-box behavior: it only filters, never picks -- Enter runs `actionOption` with the highlighted option's
+   * `filtro` (arrows or mouse), else the typed text, and a click on an option runs it with that option's. No option
+   * starts highlighted; `onChange` only ever gets `null` (the box cleared). Without it, Enter picks the first suggestion.
    */
   enterRunsAction?: boolean;
   /** Lay the list out `position: fixed` over the field outside a `<dialog>` too (inside one it always is): it escapes a scrolling container instead of being clipped. */
@@ -155,6 +158,10 @@ function usePosicionFlotante(controlRef: RefObject<HTMLDivElement | null>, abier
   }, [controlRef, abierta, forzada]);
   // A stale box from the previous opening is never used: the effect re-measures before paint.
   return abierta ? posicion : null;
+}
+
+function filtroDe(option: ComboboxOption): string {
+  return option.filtro ?? option.label;
 }
 
 export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, search, value, onChange, name, helperText, disabled, size = "md", actionOption, enterRunsAction = false, floating = false }: ComboboxProps) {
@@ -252,10 +259,24 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
   }
 
   function pick(option: ComboboxOption) {
+    if (enterRunsAction && actionOption) {
+      buscar(filtroDe(option));
+      return;
+    }
     setServerInvalid(false);
     onChange(option);
     setText(textoDe(option));
     setOpen(false);
+  }
+
+  /** Search-box mode: filter the list by `query` (never a pick). */
+  function buscar(query: string) {
+    if (!actionOption) return;
+    clearTimeout(debounceRef.current);
+    requestRef.current?.abort();
+    setOpen(false);
+    setText(query);
+    actionOption.onSelect(query);
   }
 
   function create() {
@@ -301,12 +322,7 @@ export function Combobox({ id, label, visibleLabel, hideLabel, placeholder, sear
           // query's) is searched by its name; otherwise the typed text is.
           event.preventDefault();
           const resaltada = open && status === "ready" && lastQuery === text.trim() ? options[activeIndex] : undefined;
-          const query = resaltada ? resaltada.label : text.trim();
-          clearTimeout(debounceRef.current);
-          requestRef.current?.abort();
-          setOpen(false);
-          setText(query);
-          actionOption.onSelect(query);
+          buscar(resaltada ? filtroDe(resaltada) : text.trim());
           return;
         }
         // Never submit the surrounding form from inside the autocomplete.

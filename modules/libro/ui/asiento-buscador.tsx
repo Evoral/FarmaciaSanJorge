@@ -28,6 +28,7 @@ export function AsientoBuscador({ listaHref, busquedaActual }: AsientoBuscadorPr
     return items.map((item) => ({
       value: item.id,
       label: `${item.pacienteTexto} · ${item.medicoTexto}`,
+      filtro: item.pacienteTexto,
       description: `Nº ${item.numeroCorrelativo} · ${formatFechaIso(item.fechaAsiento)}`,
     }));
   }, []);
@@ -39,13 +40,10 @@ export function AsientoBuscador({ listaHref, busquedaActual }: AsientoBuscadorPr
       hideLabel
       placeholder="Buscar por paciente o médico"
       search={search}
+      enterRunsAction
       value={busquedaActual ? { value: "", label: busquedaActual } : null}
       onChange={(option) => {
-        if (!option) {
-          if (busquedaActual) router.push(hrefConParam(listaHref, "texto", ""), { scroll: false });
-          return;
-        }
-        router.push(`/libro/${option.value}`);
+        if (!option && busquedaActual) router.push(hrefConParam(listaHref, "texto", ""), { scroll: false });
       }}
       actionOption={{
         label: (q) => (q ? `Filtrar la lista por “${q}”` : "Ver todos los asientos"),

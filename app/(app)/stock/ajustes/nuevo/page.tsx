@@ -166,7 +166,6 @@ async function DrogasParaAjuste({ q, catalogo, volverA }: { q: string; catalogo:
           label="Droga"
           placeholder="Escribí el nombre del insumo"
           busquedaActual={q || undefined}
-          alElegir={{ href: conRetornoAjuste(q ? `/stock/ajustes/nuevo?${new URLSearchParams({ q }).toString()}` : "/stock/ajustes/nuevo", volverA), param: "drogaId", valor: "id" }}
           alBuscar={{ href: conRetornoAjuste("/stock/ajustes/nuevo", volverA), param: "q", texto: "Ver todas las coincidencias de “{q}”", textoSinBusqueda: "Ver todas las drogas" }}
         />
       </div>

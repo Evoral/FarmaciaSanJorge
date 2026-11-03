@@ -115,7 +115,6 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
               label="Buscar unidad"
               placeholder="Buscar por código, nombre o símbolo"
               buscar={buscarUnidadesCatalogoAction}
-              detalleHref="/catalogos/unidades/{id}"
               listaHref={sinFiltroHref("q")}
               busquedaActual={params.q}
               textoVerTodos="Ver todas las unidades"

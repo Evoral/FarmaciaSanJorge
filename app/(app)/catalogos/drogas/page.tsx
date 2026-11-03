@@ -147,7 +147,6 @@ export default async function DrogasPage({ searchParams }: DrogasPageProps) {
               label="Buscar insumo"
               placeholder="Buscar insumo por nombre (droga, excipiente o material)"
               buscar={buscarDrogasCatalogoAction}
-              detalleHref="/catalogos/drogas/{id}"
               listaHref={sinFiltroHref("q")}
               busquedaActual={params.q}
               textoVerTodos="Ver todas las drogas"

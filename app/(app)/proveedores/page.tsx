@@ -97,7 +97,6 @@ export default async function ProveedoresPage({ searchParams }: ProveedoresPageP
               label="Buscar proveedor"
               placeholder="Buscar por razón social o CUIT"
               buscar={buscarProveedoresCatalogoAction}
-              detalleHref="/proveedores/{id}"
               listaHref={sinFiltroHref("q")}
               busquedaActual={params.q}
               textoVerTodos="Ver todos los proveedores"

@@ -14,7 +14,6 @@
 import { useActionState, useCallback, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ChevronRight, ListFilter, MessageCircle, SearchX, Users } from "lucide-react";
 import { buscarPacientesAction } from "./buscar-pacientes-action";
 import type { BuscarPacientesState, PacienteListItem } from "./buscar-pacientes-action";
@@ -41,7 +40,6 @@ export interface PacientesBuscadorProps {
 }
 
 export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtros, filtrosActivos, paginacion, vacio }: PacientesBuscadorProps) {
-  const router = useRouter();
   const initialState: BuscarPacientesState = { status: "idle", items: itemsIniciales, total: totalInicial };
   const [state, formAction, isPending] = useActionState(buscarPacientesAction, initialState);
   // Not reset on success: the applied search stays next to its results.
@@ -69,6 +67,7 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
       return result.items.map((p) => ({
         value: p.id,
         label: `${p.apellido}, ${p.nombre}`,
+        filtro: `${p.apellido} ${p.nombre}`,
         description: [p.dni ? `DNI ${p.dni}` : null, p.fechaBaja ? "Baja" : null].filter(Boolean).join(" · ") || undefined,
       }));
     },
@@ -93,13 +92,10 @@ export function PacientesBuscador({ itemsIniciales, totalInicial, estado, filtro
               hideLabel
               placeholder="Buscar por nombre, apellido o DNI"
               search={search}
+              enterRunsAction
               value={busquedaAplicada ? { value: "", label: busquedaAplicada } : null}
               onChange={(option) => {
-                if (!option) {
-                  if (busquedaAplicada) filtrarTabla("");
-                  return;
-                }
-                router.push(`/clientes/${option.value}`);
+                if (!option && busquedaAplicada) filtrarTabla("");
               }}
               actionOption={{
                 label: (q) => (q ? `Ver todas las coincidencias de “${q}”` : "Ver todos los clientes"),

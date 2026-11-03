@@ -101,7 +101,6 @@ export default async function MedicosPage({ searchParams }: MedicosPageProps) {
               label="Buscar médico"
               placeholder="Buscar por nombre, apellido o matrícula"
               buscar={buscarMedicosCatalogoAction}
-              detalleHref="/catalogos/medicos/{id}"
               listaHref={sinFiltroHref("q")}
               busquedaActual={params.q}
               textoVerTodos="Ver todos los médicos"
