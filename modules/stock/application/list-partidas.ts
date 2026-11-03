@@ -11,8 +11,8 @@ import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { uuid } from "@/shared/validation";
 import { esFechaIso } from "../domain/ajustes-listado";
-import { getDiasAlertaVencimiento, jornadaActualTenant, listPartidasHistorial } from "../infrastructure/partida-repository";
-import type { ListPartidasHistorialResult } from "../infrastructure/partida-repository";
+import { getDiasAlertaVencimiento, getStockDeDroga, jornadaActualTenant, listPartidasHistorial } from "../infrastructure/partida-repository";
+import type { ListPartidasHistorialResult, StockDeDroga } from "../infrastructure/partida-repository";
 import { tiposElaboracionDePartidas } from "../infrastructure/elaboracion-lote-repository";
 import type { TipoElaboracion } from "@/generated/prisma/enums";
 
@@ -44,6 +44,8 @@ export interface ListPartidasResultado extends ListPartidasHistorialResult {
   /** YYYY-MM-DD. */
   jornadaActual: string;
   diasAlertaVencimiento: number;
+  /** Filtered by one droga: its exact stock (físico and activo), unrounded; `null` otherwise. */
+  stockDroga: StockDeDroga | null;
 }
 
 export const listPartidasQuery = defineQuery({
@@ -69,6 +71,7 @@ export const listPartidasQuery = defineQuery({
       tiposElaboracion: Object.fromEntries(await tiposElaboracionDePartidas(tx, session.tenantId, result.items.map((p) => p.id))),
       jornadaActual: await jornadaActualTenant(tx, session.tenantId),
       diasAlertaVencimiento: await getDiasAlertaVencimiento(tx, session.tenantId),
+      stockDroga: input.drogaId ? await getStockDeDroga(tx, session.tenantId, input.drogaId) : null,
     };
   },
 });

@@ -21,6 +21,8 @@ import { FilterForm } from "@/shared/ui/filter-form";
 import { FilterMultiSelect } from "@/shared/ui/filter-multi-select";
 import { FilterDrawer } from "@/shared/ui/filter-drawer";
 import { DrogaBuscador } from "@/modules/stock/ui/droga-buscador";
+import { AYUDA_ACTIVO, AYUDA_DISPONIBLE } from "@/modules/stock/ui/ayuda-stock";
+import { InfoHint } from "@/shared/ui/info-hint";
 import { PageHeader } from "@/shared/ui/page-header";
 import { StatusSummary } from "@/shared/ui/status-summary";
 import { EmptyState } from "@/shared/ui/empty-state";
@@ -284,10 +286,20 @@ export default async function StockPage({ searchParams }: StockPageProps) {
                       Droga
                     </th>
                     <th scope="col" className="px-3 py-2 text-right">
-                      Disponible
+                      <span className="inline-flex items-center gap-1">
+                        Disponible
+                        <InfoHint label="Qué es Disponible" placement="bottom-end">
+                          {AYUDA_DISPONIBLE}
+                        </InfoHint>
+                      </span>
                     </th>
-                    <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell" title="Principio activo: cada lote por su pureza (una dilución al 1 % aporta el 1 %)">
-                      Activo
+                    <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
+                      <span className="inline-flex items-center gap-1">
+                        Activo
+                        <InfoHint label="Qué es Activo" placement="bottom-end">
+                          {AYUDA_ACTIVO}
+                        </InfoHint>
+                      </span>
                     </th>
                     <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
                       Mínimo

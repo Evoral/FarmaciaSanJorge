@@ -27,7 +27,7 @@ import { kardexMovimientos } from "@/modules/stock/application/kardex-movimiento
 import { NotFoundError } from "@/shared/errors";
 import { CorregirCostoForm } from "@/modules/stock/ui/corregir-costo-form";
 import { getCatalogoUnidades } from "@/modules/unidades/application/catalogo-unidades";
-import { formatCantidad, formatCantidadesFila } from "@/shared/format/cantidad";
+import { formatCantidad, formatCantidadesFila, formatNumero } from "@/shared/format/cantidad";
 import { Cantidad } from "@/shared/ui/cantidad";
 import { TIPO_MOVIMIENTO_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 import { PageHeader } from "@/shared/ui/page-header";
@@ -431,6 +431,29 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
                   {partida.recetasConReserva.length > 0 ? ` (receta ${partida.recetasConReserva.map((n) => `Nº ${n}`).join(", ")})` : null}
                 </p>
               ) : null}
+              {/* The figures above are rounded to a readable unit: the exact balance, in the droga's unidad base. */}
+              <dl className="summary-dl mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs">
+                <dt>Saldo exacto</dt>
+                <dd className="font-mono tabular-nums">
+                  {formatNumero(partida.cantidadDisponible, 4)} {partida.unidadBaseSimbolo}
+                </dd>
+                {partida.potenciaDeclarada !== null && !dec(partida.potenciaDeclarada).equals(100) ? (
+                  <>
+                    <dt>Principio activo</dt>
+                    <dd className="font-mono tabular-nums">
+                      {formatNumero(dec(partida.cantidadDisponible).times(partida.potenciaDeclarada).dividedBy(100), 4)} {partida.unidadBaseSimbolo}
+                    </dd>
+                  </>
+                ) : null}
+                {partida.cantidadReservada !== "0" ? (
+                  <>
+                    <dt>Reservado</dt>
+                    <dd className="font-mono tabular-nums">
+                      {formatNumero(partida.cantidadReservada, 4)} {partida.unidadBaseSimbolo}
+                    </dd>
+                  </>
+                ) : null}
+              </dl>
             </div>
             <div className="border-t border-zinc-100 p-5">
               <dl className="summary-dl">
