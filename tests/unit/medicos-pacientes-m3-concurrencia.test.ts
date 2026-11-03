@@ -112,6 +112,7 @@ vi.mock("@/modules/pacientes/infrastructure/paciente-repository", () => ({
   lockPacienteParaAccion: (...args: unknown[]) => lockPacienteMock(...args),
   getPacienteParaAccion: (...args: unknown[]) => getPacienteParaAccionMock(...args),
   existeCuil: (...args: unknown[]) => existeCuilMock(...args),
+  existeDni: async () => false,
   updatePacienteDatos: (...args: unknown[]) => updatePacienteDatosMock(...args),
   cambiarBajaPaciente: (...args: unknown[]) => cambiarBajaPacienteMock(...args),
 }));

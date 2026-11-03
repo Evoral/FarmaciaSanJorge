@@ -102,6 +102,7 @@ const insertPacienteMock = vi.fn(async (...a: unknown[]) => {
 });
 vi.mock("@/modules/pacientes/infrastructure/paciente-repository", () => ({
   existeCuil: async () => false,
+  existeDni: async () => false,
   insertPaciente: (...a: unknown[]) => insertPacienteMock(...a),
 }));
 

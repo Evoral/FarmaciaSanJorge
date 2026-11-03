@@ -13,7 +13,7 @@ import { defineCommand } from "@/shared/usecase";
 import { ConflictError, NotFoundError, ValidationError } from "@/shared/errors";
 import { nonEmptyString, uuid } from "@/shared/validation";
 import { cuilOpcional, dniOpcional, domicilioOpcional } from "../domain/paciente";
-import { existeCuil, getPacienteParaAccion, lockPacienteParaAccion, updatePacienteDatos } from "../infrastructure/paciente-repository";
+import { existeCuil, existeDni, getPacienteParaAccion, lockPacienteParaAccion, updatePacienteDatos } from "../infrastructure/paciente-repository";
 import type { PacienteParaAccion } from "../infrastructure/paciente-repository";
 
 const textoOpcional = z
@@ -120,6 +120,9 @@ export const editarPacienteCommand = defineCommand({
 
     if (input.cuil && input.cuil !== actual.cuil && (await existeCuil(tx, session.tenantId, input.cuil, input.id))) {
       throw new ValidationError("Ya existe un paciente con ese CUIL.");
+    }
+    if (input.dni && input.dni !== actual.dni && (await existeDni(tx, session.tenantId, input.dni, input.id))) {
+      throw new ValidationError("Ya existe un paciente con ese DNI.");
     }
 
     const nuevoValor = {

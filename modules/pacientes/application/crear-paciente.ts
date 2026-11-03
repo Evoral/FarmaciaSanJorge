@@ -14,7 +14,7 @@ import type { CommandHandlerArgs, CommandHandlerResult } from "@/shared/usecase"
 import { ValidationError } from "@/shared/errors";
 import { nonEmptyString } from "@/shared/validation";
 import { cuilOpcional, dniOpcional, domicilioOpcional } from "../domain/paciente";
-import { existeCuil, insertPaciente } from "../infrastructure/paciente-repository";
+import { existeCuil, existeDni, insertPaciente } from "../infrastructure/paciente-repository";
 
 const textoOpcional = z
   .string()
@@ -90,6 +90,9 @@ async function crearPacienteConConsentimiento(
 ): Promise<CommandHandlerResult<{ id: string }>> {
   if (input.cuil && (await existeCuil(tx, session.tenantId, input.cuil))) {
     throw new ValidationError("Ya existe un paciente con ese CUIL.");
+  }
+  if (input.dni && (await existeDni(tx, session.tenantId, input.dni))) {
+    throw new ValidationError("Ya existe un paciente con ese DNI.");
   }
 
   const nuevo = await insertPaciente(tx, {

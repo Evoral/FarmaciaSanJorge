@@ -27,7 +27,7 @@ vi.mock("@/modules/recetas/infrastructure/receta-repository", () => ({
   insertRecetaConItems: async () => ({ id: "99999999-9999-4999-a999-999999999999", numeroInterno: "77" }),
   getNombresParaResumen: async () => ({ drogas: new Map(), unidades: new Map() }),
 }));
-vi.mock("@/modules/pacientes/infrastructure/paciente-repository", () => ({ existeCuil: async () => false, insertPaciente: async () => ({ id: "33333333-3333-4333-a333-333333333333" }) }));
+vi.mock("@/modules/pacientes/infrastructure/paciente-repository", () => ({ existeCuil: async () => false, existeDni: async () => false, insertPaciente: async () => ({ id: "33333333-3333-4333-a333-333333333333" }) }));
 vi.mock("@/modules/medicos/infrastructure/medico-repository", () => ({ existeMatriculaVigente: async () => false, insertMedico: async () => ({ id: "44444444-4444-4444-a444-444444444444" }) }));
 
 const fetchMock = vi.fn();
