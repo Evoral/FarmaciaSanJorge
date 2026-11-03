@@ -15,6 +15,7 @@ import type { FiltroPagoReceta } from "../domain/pago";
 import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
 import { rangoDeJornadas } from "@/shared/time/jornada";
 import { busquedaDrogaLike, patron } from "@/shared/db/busqueda-droga";
+import { buscarPersonasPorNombre } from "@/shared/db/busqueda-persona";
 import { simboloParaMostrar } from "@/modules/elaboracion/domain/concentracion";
 
 // ============================================================================
@@ -871,6 +872,10 @@ export interface ListRecetasFilter {
   estado?: EstadoReceta;
   pacienteId?: string;
   medicoId?: string;
+  /** Free text: the paciente's nombre/apellido (shared persona rule), DNI or CUIL. */
+  paciente?: string;
+  /** Free text: the médico's nombre/apellido (shared persona rule) or matrícula. */
+  medico?: string;
   numeroInterno?: string;
   desde?: string; // fecha_prescripcion >=
   hasta?: string; // fecha_prescripcion <=
@@ -928,11 +933,23 @@ async function recetasConFichaConPreparacion(tx: Prisma.TransactionClient, tenan
   return new Set(rows.map((r) => r.receta_id));
 }
 
-function buildWhere(filter: ListRecetasFilter, zonaHoraria: string): Prisma.RecetaWhereInput {
+async function buildWhere(tx: Prisma.TransactionClient, filter: ListRecetasFilter, zonaHoraria: string): Promise<Prisma.RecetaWhereInput> {
   const where: Prisma.RecetaWhereInput = { tenantId: filter.tenantId };
+  const and: Prisma.RecetaWhereInput[] = [];
   if (filter.estado) where.estado = filter.estado;
   if (filter.pacienteId) where.pacienteId = filter.pacienteId;
   if (filter.medicoId) where.medicoId = filter.medicoId;
+  const paciente = filter.paciente?.trim();
+  if (paciente) {
+    const porNombre = await buscarPersonasPorNombre(tx, "paciente", filter.tenantId, paciente);
+    and.push({ OR: [{ pacienteId: { in: porNombre } }, { paciente: { dni: { contains: paciente } } }, { paciente: { cuil: { contains: paciente } } }] });
+  }
+  const medico = filter.medico?.trim();
+  if (medico) {
+    const porNombre = await buscarPersonasPorNombre(tx, "medico", filter.tenantId, medico);
+    and.push({ OR: [{ medicoId: { in: porNombre } }, { medico: { matricula: { contains: medico, mode: "insensitive" } } }] });
+  }
+  if (and.length > 0) where.AND = and;
   if (filter.pago) where.pagada = filter.pago === "pagadas";
   if (filter.numeroInterno && filter.numeroInterno.trim().length > 0) {
     const parsed = BigInt(filter.numeroInterno.trim().replace(/[^0-9]/g, "") || "-1");
@@ -957,7 +974,7 @@ function buildWhere(filter: ListRecetasFilter, zonaHoraria: string): Prisma.Rece
 
 export async function listRecetas(tx: Prisma.TransactionClient, filter: ListRecetasFilter): Promise<ListRecetasResult> {
   const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: filter.tenantId }, select: { zonaHoraria: true } });
-  const where = buildWhere(filter, tenant.zonaHoraria);
+  const where = await buildWhere(tx, filter, tenant.zonaHoraria);
   const skip = (filter.page - 1) * filter.pageSize;
 
   const rows = await tx.receta.findMany({
