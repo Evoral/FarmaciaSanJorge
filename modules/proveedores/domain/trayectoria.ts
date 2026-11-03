@@ -211,7 +211,7 @@ export interface PartidaCruda {
   costoUnitario: string | null;
 }
 
-export type TipoMovimientoValor = "INGRESO_COMPRA" | "INGRESO_INICIAL" | "EGRESO_PREPARACION" | "AJUSTE";
+export type TipoMovimientoValor = "INGRESO_COMPRA" | "INGRESO_INICIAL" | "INGRESO_ELABORACION" | "EGRESO_PREPARACION" | "EGRESO_ELABORACION" | "AJUSTE";
 
 export interface MovimientoCrudo {
   id: string;

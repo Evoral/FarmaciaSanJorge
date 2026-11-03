@@ -11,6 +11,7 @@
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
+import { can } from "@/shared/auth/authorize";
 import { NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { hrefVolverDePreparacion } from "../domain/toma";
@@ -44,6 +45,7 @@ export const getPreparacionParaPantallaQuery = defineQuery({
     const conReserva = preparacion.estado === "INICIADA" && (await listReservasDePreparacion(tx, session.tenantId, preparacion.id)).length > 0;
     return {
       ...datos,
+      puedeElaborarLote: can(session, "stock.lote.elaborar"),
       id: preparacion.id,
       estado: preparacion.estado,
       hrefVolver: hrefVolverDePreparacion(preparacion.estado, receta),

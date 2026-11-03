@@ -8,7 +8,7 @@ export type StockActionState =
   | { status: "idle" }
   | { status: "error"; message: string; fields?: string[] }
   | { status: "operador-required" }
-  | { status: "success"; message?: string; redirigirA?: string };
+  | { status: "success"; message?: string; redirigirA?: string; /** "Elaborar lote": the new partida. */ partidaId?: string };
 
 export const IDLE_STATE: StockActionState = { status: "idle" };
 

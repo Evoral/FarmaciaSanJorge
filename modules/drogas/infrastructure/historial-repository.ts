@@ -41,7 +41,7 @@
  * receta columns the shared DB dropped.
  */
 import type { Prisma } from "@/generated/prisma/client";
-import { ETIQUETA_SIN_PROVEEDOR } from "@/shared/labels/enum-labels";
+import { ETIQUETA_ELABORADO_EN_FARMACIA, ETIQUETA_SIN_PROVEEDOR } from "@/shared/labels/enum-labels";
 import { calcularPaginacion, filtrarPartidasDeLaDroga } from "../domain/historial";
 import type {
   AccesoHistorialDroga,
@@ -73,7 +73,7 @@ export async function readDroga(tx: Prisma.TransactionClient, tenantId: string, 
  */
 export async function readPartidasConConsumo(tx: Prisma.TransactionClient, tenantId: string, drogaId: string): Promise<PartidaOpcion[]> {
   const rows = await tx.$queryRaw<{ id: string; lote: string; fecha_vencimiento: Date | null; proveedor: string }[]>`
-    SELECT p.id, p.lote, p.fecha_vencimiento, coalesce(pv.razon_social, ${ETIQUETA_SIN_PROVEEDOR}) AS proveedor
+    SELECT p.id, p.lote, p.fecha_vencimiento, coalesce(pv.razon_social, CASE WHEN p.origen = 'ELABORACION_PROPIA' THEN ${ETIQUETA_ELABORADO_EN_FARMACIA} ELSE ${ETIQUETA_SIN_PROVEEDOR} END) AS proveedor
     FROM fsj.partida p
     LEFT JOIN fsj.proveedor pv ON pv.tenant_id = ${tenantId}::uuid AND pv.id = p.proveedor_id
     WHERE p.tenant_id = ${tenantId}::uuid
@@ -196,7 +196,7 @@ export async function readPartidasConsumidas(tx: Prisma.TransactionClient, tenan
       p.id AS partida_id,
       p.lote,
       p.fecha_vencimiento,
-      coalesce(pv.razon_social, ${ETIQUETA_SIN_PROVEEDOR}) AS proveedor,
+      coalesce(pv.razon_social, CASE WHEN p.origen = 'ELABORACION_PROPIA' THEN ${ETIQUETA_ELABORADO_EN_FARMACIA} ELSE ${ETIQUETA_SIN_PROVEEDOR} END) AS proveedor,
       sum(m.cantidad)::text AS cantidad
     FROM fsj.partida p
     JOIN fsj.movimiento_stock m ON m.tenant_id = ${tenantId}::uuid AND m.partida_id = p.id AND m.tipo = 'EGRESO_PREPARACION'

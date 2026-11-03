@@ -68,6 +68,12 @@ Lo único que SÍ corre en cada build/install es `prisma generate`, cableado com
    npm run db:migrate
    ```
    (`scripts/db-migrate.ts`: corre `prisma migrate deploy` forzando `DATABASE_URL=$DIRECT_URL` para ese comando puntual -- ver el comentario del script para el porqué).
+
+   **Hay dos bases**: `.env` (la por defecto) y `.env.prod`. `npm run db:migrate` sin más migra la de `.env`. Para migrar la de `.env.prod`, elegir el archivo con `DOTENV_CONFIG_PATH` (lo respeta `dotenv/config`) -- en PowerShell:
+   ```powershell
+   $env:DOTENV_CONFIG_PATH=".env.prod"; npm run db:migrate; Remove-Item Env:DOTENV_CONFIG_PATH
+   ```
+   Correr una vez por base. No setear `DIRECT_URL` a mano ni editar `.env`: se cambia el archivo entero.
 2. Primera vez sobre una base nueva únicamente, después de `db:migrate`:
    ```
    npm run db:bootstrap

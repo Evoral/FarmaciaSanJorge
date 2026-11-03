@@ -104,9 +104,11 @@ message.
 
 ### Requirement: R9 — Canonical name in outputs
 
-Libro recetario, libros contralor, fichas, etiquetas, PDFs, cotizaciones and stock listings/kardex SHALL keep the
-**canonical** `droga.nombre`. The droga (`droga_id`) MUST always be what is picked and stored; the synonym a droga
-was picked by is only shown in the data-entry screens (see **Nombre elegido al cargar**).
+Libro recetario, libros contralor, fichas, PDFs, cotizaciones and stock listings/kardex SHALL keep the
+canonical `droga.nombre`. The droga (`droga_id`) MUST always be what is picked and stored.
+
+Exception: the **etiqueta** of the preparado SHALL read the name the receta was loaded with (the componente's stored
+synonym when present, else the canonical name). Existing snapshot etiquetas retain their stored name.
 
 #### Scenario: Picking through a synonym
 
@@ -127,7 +129,8 @@ displays it (see **Nombre elegido al cargar**).
 - **WHEN** in the receta form the user types `acetam` and picks it
 - **THEN** the componente's field shows `Acetaminofén ≈ Paracetamol`
 - **AND** after saving, `/recetas/[id]`, its edit form and the preparaciones workspace show `Acetaminofén ≈ Paracetamol`
-- **AND** the ficha técnica, the libro recetario and the etiqueta read "Paracetamol"
+- **AND** the ficha técnica and the libro recetario read "Paracetamol"
+- **AND** the etiqueta of the preparado reads "Acetaminofén"
 
 #### Scenario: Ingreso de partidas
 
@@ -440,7 +443,8 @@ keeping the picked option as its value.
 | Receta componentes (alta, edición `/recetas/[id]/editar`, the `/preparaciones/recetas/[recetaId]` workspace form, PDF/QR import) | **Persisted** — the receta is edited later | `fsj.componente_item_receta.droga_alias_id` (migration 0069). `listDrogasParaReceta` returns the matched synonym's id + text; `DrogaPicker` keeps `{ drogaId, drogaAliasId }`. |
 | Receta read views: `/recetas/[id]`, the Pendientes "Ver" preview and the toma workspace (`ComponentesTabla`) | Shown from the stored synonym | `getRecetaConItems`, `listComponentesDePendientes`, the toma read. |
 | Ingreso de partidas (`/partidas/ingresar`, manual and factura import) | **Display only** | Combobox value. Partidas stay keyed by `droga_id` alone (no schema change). A factura line matched through a remembered synonym shows the invoice text with the hint. |
-| Libro recetario/contralor, ficha técnica, etiquetas, PDFs, cotizaciones, stock listings/kardex | Never | Canonical `droga.nombre` (R9). |
+| Etiqueta del preparado | Shown from the stored synonym (no hint) | `getPreparacionParaEtiqueta`: synonym text, else `droga.nombre` (R9 exception). |
+| Libro recetario/contralor, ficha técnica, PDFs, cotizaciones, stock listings/kardex | Never | Canonical `droga.nombre` (R9). |
 
 Rules for the stored synonym (`modules/recetas/application/sinonimos-componentes.ts`,
 used by `crearReceta`, `editarReceta`, `importarReceta`):

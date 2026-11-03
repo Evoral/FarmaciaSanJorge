@@ -15,6 +15,7 @@
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
+import { can } from "@/shared/auth/authorize";
 import { NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { cantidadCapsulas } from "../domain/insumo";
@@ -43,6 +44,7 @@ export const getConfirmacionDeFichaQuery = defineQuery({
     const forma = await getFormaDeItemDeFicha(tx, session.tenantId, ficha.id);
     return {
       ...datos,
+      puedeElaborarLote: can(session, "stock.lote.elaborar"),
       lineas: datos.lineas.map((linea) => ({ ...linea, reserva: borradores.get(linea.id) ?? null })),
       excipiente: { opciones: await listExcipientesParaToma(tx, session.tenantId), borrador: await getExcipienteBorrador(tx, session.tenantId, ficha.id) },
       insumos: { opciones: await listInsumosParaToma(tx, session.tenantId), borrador: await listInsumosBorrador(tx, session.tenantId, ficha.id), capsulas: forma ? cantidadCapsulas(forma) : null },

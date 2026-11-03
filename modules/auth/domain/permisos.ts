@@ -85,6 +85,8 @@ export const PERMISO_CATALOGO = {
   "stock.partida.potencia.corregir": "gestion",
   "stock.ajuste.registrar": "operativo",
   "stock.ajuste.autorizar": "operativo",
+  // Elaborate a lot or a dilución from partidas of its components (migration 0111, openspec/changes/lotes-elaborados).
+  "stock.lote.elaborar": "operativo",
   // Recetas, fichas, presupuestos, preparaciones, etiquetas.
   "recetas.crear": "operativo",
   "recetas.editar": "operativo",
@@ -231,6 +233,7 @@ export const PERMISOS_CON_PIN_CONFIGURABLES = [
   "drogas.reactivar",
   "stock.partida.ingresar",
   "stock.ajuste.registrar",
+  "stock.lote.elaborar",
   "recetas.crear",
   "recetas.editar",
   "fichas.generar",

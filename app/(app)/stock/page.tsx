@@ -287,6 +287,9 @@ export default async function StockPage({ searchParams }: StockPageProps) {
                     <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
                       Disponible
                     </th>
+                    <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell" title="Principio activo: cada lote por su pureza (una dilución al 1 % aporta el 1 %)">
+                      Activo
+                    </th>
                     <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
                       Mínimo
                     </th>
@@ -300,7 +303,9 @@ export default async function StockPage({ searchParams }: StockPageProps) {
                 </thead>
                 <tbody>
                   {stock.items.map((item) => {
-                    const [disponible, minimo] = formatCantidadesFila([item.stockDisponible, item.stockMinimo], { id: item.unidadId, simbolo: item.unidadSimbolo }, catalogo, modo);
+                    const [disponible, activo, minimo] = formatCantidadesFila([item.stockDisponible, item.stockActivo, item.stockMinimo], { id: item.unidadId, simbolo: item.unidadSimbolo }, catalogo, modo);
+                    // Físico and activo differ only with lots below 100 % (diluciones, a declared purity).
+                    const difiereActivo = item.stockActivo !== item.stockDisponible;
                     const partidasHref = `/partidas?drogaId=${item.drogaId}&saldo=1${modo === "base" ? "&unidades=base" : ""}`;
                     return (
                       <tr key={item.drogaId}>
@@ -315,6 +320,11 @@ export default async function StockPage({ searchParams }: StockPageProps) {
                             <span className={item.bajoMinimo ? "font-semibold text-red-700" : "font-mono text-zinc-700"}>
                               Disp: <Cantidad valor={disponible!} />
                             </span>
+                            {difiereActivo ? (
+                              <span className="font-mono text-zinc-500">
+                                · activo <Cantidad valor={activo!} />
+                              </span>
+                            ) : null}
                             {item.proximoVencimiento ? (
                               <span className="text-zinc-500 tabular-nums">· Vence {formatFecha(item.proximoVencimiento)}</span>
                             ) : null}
@@ -325,6 +335,9 @@ export default async function StockPage({ searchParams }: StockPageProps) {
                         </td>
                         <td className={`hidden px-3 py-2.5 text-right font-mono tabular-nums sm:table-cell ${item.bajoMinimo ? "font-semibold text-red-700" : "text-zinc-900"}`}>
                           <Cantidad valor={disponible!} />
+                        </td>
+                        <td className={`hidden px-3 py-2.5 text-right font-mono tabular-nums sm:table-cell ${item.bajoMinimo ? "font-semibold text-red-700" : difiereActivo ? "text-zinc-900" : "text-zinc-500"}`}>
+                          <Cantidad valor={activo!} />
                         </td>
                         <td className="hidden px-3 py-2.5 text-right font-mono text-zinc-500 tabular-nums sm:table-cell">
                           <Cantidad valor={minimo!} />

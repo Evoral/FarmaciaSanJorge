@@ -49,6 +49,7 @@ function elegible(id: string, fechaVencimiento: string, reanalizada: boolean): P
     reanalizada,
     fechaApertura: null,
     potenciaDeclarada: null,
+    esDilucion: false,
   };
 }
 

@@ -20,7 +20,7 @@
  * INSERT statement supplied).
  */
 import { listSinonimosVigentes } from "@/shared/db/busqueda-droga";
-import { ETIQUETA_SIN_PROVEEDOR } from "@/shared/labels/enum-labels";
+import { ETIQUETA_ELABORADO_EN_FARMACIA, ETIQUETA_SIN_PROVEEDOR } from "@/shared/labels/enum-labels";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import type { ClaseDroga, EstadoPreparacion, EstadoReceta, TipoInsumo, TipoMovimientoContralor } from "@/generated/prisma/enums";
@@ -375,6 +375,8 @@ export interface PartidaElegible {
   fechaApertura: string | null; // ISO instant
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
+  /** Migration 0111: elaborated in the farmacia as a dilución of the droga (P13 offers it for a dose below the balance). */
+  esDilucion: boolean;
 }
 
 /**
@@ -416,12 +418,14 @@ export async function listPartidasElegiblesDroga(
       reanalizada: boolean;
       fecha_apertura: string | null;
       potencia_declarada: string | null;
+      es_dilucion: boolean;
     }[]
   >`
-    SELECT p.id, p.lote, coalesce(pr.razon_social, ${ETIQUETA_SIN_PROVEEDOR}) AS proveedor_nombre, (p.cantidad_disponible - r.reservado)::text AS cantidad_disponible,
+    SELECT p.id, p.lote, coalesce(pr.razon_social, CASE WHEN p.origen = 'ELABORACION_PROPIA' THEN ${ETIQUETA_ELABORADO_EN_FARMACIA} ELSE ${ETIQUETA_SIN_PROVEEDOR} END) AS proveedor_nombre, (p.cantidad_disponible - r.reservado)::text AS cantidad_disponible,
       u.simbolo AS unidad_simbolo, p.fecha_vencimiento_vigente::text AS fecha_vencimiento,
       p.fecha_vencimiento_vigente IS DISTINCT FROM p.fecha_vencimiento AS reanalizada,
-      p.fecha_apertura::text, p.potencia_declarada::text
+      p.fecha_apertura::text, p.potencia_declarada::text,
+      EXISTS (SELECT 1 FROM fsj.elaboracion_lote el WHERE el.tenant_id = p.tenant_id AND el.partida_id = p.id AND el.tipo = 'DILUCION') AS es_dilucion
     FROM fsj.partida p
     LEFT JOIN fsj.proveedor pr ON pr.tenant_id = p.tenant_id AND pr.id = p.proveedor_id
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
@@ -440,6 +444,7 @@ export async function listPartidasElegiblesDroga(
     reanalizada: r.reanalizada,
     fechaApertura: r.fecha_apertura,
     potenciaDeclarada: r.potencia_declarada,
+    esDilucion: r.es_dilucion,
   }));
 }
 
@@ -985,6 +990,7 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
                   modoExpresion: true,
                   esPrincipioActivo: true,
                   droga: { select: { nombre: true, tipoControl: true } },
+                  drogaAlias: { select: { texto: true } },
                   unidadMedida: { select: { simbolo: true } },
                 },
               },
@@ -1026,7 +1032,8 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
     fraccionDosisPorUnidad: item.fraccionDosisPorUnidad.toString(),
     posologia: item.posologia,
     componentes: item.componentes.map((c) => ({
-      drogaNombre: c.droga.nombre,
+      // The patient's label reads the name the receta was loaded with (synonym, migration 0069); see sinonimos-droga R9.
+      drogaNombre: c.drogaAlias?.texto ?? c.droga.nombre,
       cantidad: c.cantidad === null ? null : c.cantidad.toString(),
       unidadSimbolo: c.unidadMedida.simbolo,
       modoExpresion: c.modoExpresion,

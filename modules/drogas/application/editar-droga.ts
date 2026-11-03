@@ -87,6 +87,7 @@ import {
 } from "../infrastructure/droga-repository";
 import { insertSinonimo, listSinonimosDeDroga, quitarSinonimo } from "../infrastructure/sinonimo-repository";
 import { registrarAperturaContralorEnTx, requiereAperturaContralorEnTx } from "@/modules/libro/application/registrar-apertura-contralor";
+import { aplicarFormulaEnTx, formulaInput, type FormulaInputCrudo } from "./guardar-formula";
 
 const editarDrogaInput = z.object({
   id: uuid,
@@ -101,6 +102,8 @@ const editarDrogaInput = z.object({
   sinonimosCargados: z.array(uuid).max(50).default([]),
   /** Required only when the edit makes the droga controlled with the contralor activo (R12); ignored otherwise. */
   saldoAperturaContralor: nonNegativeDecimalString.optional(),
+  /** openspec/changes/lotes-elaborados EL3: the fórmula as edited, `null` = none; omitted = untouched. */
+  formula: formulaInput.optional(),
   version: z.object({
     nombre: z.string(),
     unidadBaseId: z.string(),
@@ -126,6 +129,8 @@ export interface EditarDrogaInput {
   sinonimosCargados?: string[];
   /** The manual libro contralor's saldo (unidad base), see the alta. */
   saldoAperturaContralor?: string;
+  /** The fórmula as edited (`null` removes it); omitted = untouched. Saved in the same transaction. */
+  formula?: FormulaInputCrudo | null;
   version: { nombre: string; unidadBaseId: string; esControlada: boolean; tipoControl: string; clase: string; stockMinimo: string };
 }
 
@@ -257,6 +262,8 @@ export const editarDrogaCommand = defineCommand({
         });
       }
     }
+
+    if (input.formula !== undefined) await aplicarFormulaEnTx(tx, session, input.id, input.formula);
 
     const unidadBaseNueva = cambiaClasificacion ? unidadBaseId : actual.unidadBaseId;
     // Readable names for the audit row, taken NOW: later renames must not rewrite history.

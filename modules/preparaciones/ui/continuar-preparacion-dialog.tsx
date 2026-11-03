@@ -41,15 +41,20 @@ export function ContinuarPreparacionDialog({ objetivo, itemNombre }: ContinuarPr
   const tituloId = useId();
   const [contenido, setContenido] = useState<ConfirmacionDeFichaState | null>(null);
 
-  async function abrir() {
-    const apertura = ++aperturaRef.current;
-    setContenido(null);
-    dialogRef.current?.showModal();
+  async function leer() {
+    const apertura = aperturaRef.current;
     const resultado =
       "reservaDePreparacionId" in objetivo
         ? await getRecalculoDeReservaAction(objetivo.reservaDePreparacionId)
         : await getConfirmacionDeFichaAction(objetivo.fichaTecnicaId);
     if (aperturaRef.current === apertura) setContenido(resultado);
+  }
+
+  async function abrir() {
+    aperturaRef.current++;
+    setContenido(null);
+    dialogRef.current?.showModal();
+    await leer();
   }
 
   function cerrar() {
@@ -118,6 +123,8 @@ export function ContinuarPreparacionDialog({ objetivo, itemNombre }: ContinuarPr
                 datos={contenido.datos}
                 destino={objetivo}
                 extraActions={cancelar}
+                // A dilución elaborated from the form: read the lots again, the form keeps what was typed.
+                onRecargarDatos={() => void leer()}
                 onSuccess={(message) => {
                   if (message) toast(message);
                   cerrar();

@@ -41,7 +41,8 @@ import { TipoVencimientoSelect } from "./tipo-vencimiento-select";
 import type { DatosConfirmacion, LineaPantalla } from "@/modules/preparaciones/application/datos-confirmacion";
 import { requiereMotivoAperturaAdicional } from "@/modules/preparaciones/domain/apertura-adicional";
 import { repartirLinea, requiereElegirPartida } from "@/modules/preparaciones/domain/reparto-linea";
-import { evaluarPesada, precisionDeLinea, redondearABalanza, type EvaluacionPesada } from "@/modules/preparaciones/domain/pesada-real";
+import { bajoLaBalanza, evaluarPesada, precisionDeLinea, sugerenciaPesadaReal, type EvaluacionPesada } from "@/modules/preparaciones/domain/pesada-real";
+import { AvisoBajoLaBalanza } from "./aviso-bajo-la-balanza";
 import { ordenarParaConsumo } from "@/modules/stock/domain/reparto";
 import { Decimal } from "@/shared/decimal";
 import { numeroONull, numeroParaInput } from "@/shared/decimal/numero-ingresado";
@@ -59,6 +60,11 @@ export interface ConfirmarPreparacionFormProps {
   onSuccess?: (message: string | undefined) => void;
   /** E.g. the dialog's "Cancelar" (`type="button"`), next to the submit. */
   extraActions?: ReactNode;
+  /**
+   * For `datos` read by a dialog (not by the page, which `router.refresh()` updates): read them again, keeping what
+   * was typed, e.g. after a dilución is elaborated for a dose below the balance.
+   */
+  onRecargarDatos?: () => void;
 }
 
 /**
@@ -144,10 +150,15 @@ export function cantidadRealDesdeServidor(valor: Decimal | string | null | undef
   return numeroParaInput(d.times(factorAMg(unidad)).toString());
 }
 
-/** A non-manual línea's pesada real: the expected weight (mg for a mass), its balance-rounded prefill and, once typed, the tolerance check. */
+/**
+ * A non-manual línea's pesada real: the expected weight (mg for a mass), its prefill (balance-rounded, or exact below
+ * one division -- P13) and, once typed, the tolerance check.
+ */
 export interface PesadaDeLinea {
   esperada: Decimal;
   sugerida: string;
+  /** P13: the expected weight over the chosen lots is below one balance division -- offer a diluted lot or creating one. */
+  bajoLaBalanza: boolean;
   evaluacion: EvaluacionPesada | null;
 }
 
@@ -159,12 +170,12 @@ export function pesadaDeLinea(linea: LineaPantalla, plan: PlanDeLinea, real: str
   const esperadaEnUnidad = convertirCantidad(new Decimal(plan.totalFisico), linea.unidadStock, linea.unidad);
   const esperada = esperadaEnUnidad.times(factor);
   // Shown es-AR (comma decimals), like every typed number.
-  const sugerida = numeroParaInput(redondearABalanza(esperadaEnUnidad, precision).times(factor).toFixed());
+  const sugerida = numeroParaInput(sugerenciaPesadaReal(esperadaEnUnidad, precision).times(factor).toFixed());
   const valor = cantidadValida(real ?? sugerida);
-  return { esperada, sugerida, evaluacion: valor ? evaluarPesada(valor, esperada, datos.pesada.toleranciaPorcentaje, precisionAjustada) : null };
+  return { esperada, sugerida, bajoLaBalanza: bajoLaBalanza(esperadaEnUnidad, precision), evaluacion: valor ? evaluarPesada(valor, esperada, datos.pesada.toleranciaPorcentaje, precisionAjustada) : null };
 }
 
-export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActions }: ConfirmarPreparacionFormProps) {
+export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActions, onRecargarDatos }: ConfirmarPreparacionFormProps) {
   const recalcular = "reservaDePreparacionId" in destino;
   // Reserving or recalculating a reserva (nothing is descontado yet), vs confirming.
   const esReserva = !("preparacionId" in destino);
@@ -325,6 +336,20 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                     valor={reales[linea.id] ?? pesadas[indice]!.sugerida}
                     tolerancia={datos.pesada.toleranciaPorcentaje}
                     onChange={(valor) => setReales((prev) => ({ ...prev, [linea.id]: valor }))}
+                  />
+                ) : null}
+
+                {pesadas[indice]?.bajoLaBalanza ? (
+                  <AvisoBajoLaBalanza
+                    linea={linea}
+                    elegidas={elegidas[linea.id] ?? []}
+                    onUsar={(partidaId) => setElegidas((prev) => ({ ...prev, [linea.id]: [partidaId] }))}
+                    puedeElaborar={datos.puedeElaborarLote === true}
+                    onDilucionCreada={(partidaId) => {
+                      setElegidas((prev) => ({ ...prev, [linea.id]: [partidaId] }));
+                      // A page's data follows the dialog's refresh; a dialog's own data is read again.
+                      onRecargarDatos?.();
+                    }}
                   />
                 ) : null}
 

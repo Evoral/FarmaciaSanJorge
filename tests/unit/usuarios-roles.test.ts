@@ -241,6 +241,7 @@ const OPERATIVOS_APROBADOS: Permiso[] = [
   "stock.partida.ingresar",
   "stock.ajuste.registrar",
   "stock.ajuste.autorizar",
+  "stock.lote.elaborar",
   "recetas.crear",
   "recetas.editar",
   "recetas.anular",

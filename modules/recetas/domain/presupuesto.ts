@@ -80,13 +80,15 @@ export type Presupuesto =
 export function presupuestoItemDesdeCotizacion(indice: number, cotizacion: CotizacionCalculada): PresupuestoItem {
   if (cotizacion.drogasSinPrecio.length > 0) return { indice, ok: false, mensaje: mensajeSinCostoProveedor(cotizacion.drogasSinPrecio) };
   const lineas = cotizacion.detalle.lineas;
-  const hayProveedor = lineas.some((l) => l.fuente === "PROVEEDOR");
+  const hayProveedor = lineas.some((l) => l.fuente === "PROVEEDOR" || l.fuente === "FORMULA");
   // Only líneas that were really costed: not enrase manual, not a unit that could not be converted (0, no partidas, no faltante).
   const fuentes: FuenteCostoLinea[] = lineas
-    .filter((l) => !l.esEnraseManual && (l.fuente === "PROVEEDOR" || l.partidas.length > 0 || l.faltante !== null))
-    .map((l) =>
-      l.fuente === "PROVEEDOR" ? { drogaNombre: l.drogaNombre, fuente: "PROVEEDOR", proveedorNombre: l.costoProveedor?.proveedorNombre } : { drogaNombre: l.drogaNombre, fuente: "PARTIDAS" },
-    );
+    .filter((l) => !l.esEnraseManual && (l.fuente === "PROVEEDOR" || l.fuente === "FORMULA" || l.partidas.length > 0 || l.faltante !== null))
+    .map((l): FuenteCostoLinea => {
+      if (l.fuente === "PROVEEDOR") return { drogaNombre: l.drogaNombre, fuente: "PROVEEDOR", proveedorNombre: l.costoProveedor?.proveedorNombre };
+      if (l.fuente === "FORMULA") return { drogaNombre: l.drogaNombre, fuente: "FORMULA" };
+      return { drogaNombre: l.drogaNombre, fuente: "PARTIDAS" };
+    });
   return {
     indice,
     ok: true,

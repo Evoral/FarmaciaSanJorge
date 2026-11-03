@@ -15,6 +15,10 @@
  * A droga WITHOUT a costo de proveedor has NO price: the línea is not costed
  * and its droga is listed in `drogasSinPrecio`; the item then has no price at
  * all (callers refuse it -- never the precio mínimo over a partial cost).
+ * Exception (R38, openspec/changes/lotes-elaborados): a droga without one
+ * but with a fórmula whose components all have one is priced from it
+ * (`costoFormula`, fuente FORMULA); otherwise its components without one are
+ * named instead of the droga.
  * Partidas never price a línea any more.
  *
  * Partidas are still evaluated, but ONLY for stock: the `faltante` ("not
@@ -68,6 +72,22 @@ export interface LineaCosteoInput {
    * Chosen by the caller (application layer); this module only applies it.
    */
   costoProveedor?: CostoProveedorCosteo | null;
+  /** R38: without `costoProveedor`, the cost from the droga's fórmula (every component with a costo de proveedor). */
+  costoFormula?: CostoFormulaCosteo | null;
+  /** R27: the droga has a fórmula but these components have no costo de proveedor -- named instead of the droga. */
+  componentesSinCosto?: readonly string[];
+}
+
+/**
+ * R38: the cost a `FORMULA` línea is priced with -- what its fórmula's components cost from their costos de proveedor,
+ * per the droga's unidad base -- and what the snapshot keeps (R32). Chosen by the caller, like `costoProveedor`.
+ */
+export interface CostoFormulaCosteo {
+  /** The fórmula's quantity of the product (the droga's unidad base) the components are for. */
+  cantidadReferencia: string;
+  costoUnitario: string;
+  costoUnitarioConIva: string;
+  componentes: { drogaNombre: string; cantidad: string; unidadSimbolo: string; proveedorNombre: string; costoUnitarioConIva: string }[];
 }
 
 /**
@@ -93,8 +113,11 @@ export interface CostoProveedorCosteo {
   fechaPrecio: string;
 }
 
-/** Where a línea's cost came from (R25). `PARTIDAS` only in snapshots calculated before 2026-10-28 (R27). */
-export type FuenteCosto = "PROVEEDOR" | "PARTIDAS";
+/**
+ * Where a línea's cost came from: its costo de proveedor (R25) or, without one, its fórmula's components' (R38).
+ * `PARTIDAS` only in snapshots calculated before 2026-10-28 (R27).
+ */
+export type FuenteCosto = "PROVEEDOR" | "FORMULA" | "PARTIDAS";
 
 export interface PartidaUsadaDetalle {
   partidaId: string;
@@ -132,6 +155,8 @@ export interface LineaCotizacionDetalle {
   fuente?: FuenteCosto;
   /** Only on a `PROVEEDOR` línea: the costo de proveedor it was priced with (R32). */
   costoProveedor?: CostoProveedorCosteo;
+  /** Only on a `FORMULA` línea: the fórmula's cost it was priced with (R38). */
+  costoFormula?: CostoFormulaCosteo;
 }
 
 export interface CotizacionDetalle {
@@ -139,11 +164,12 @@ export interface CotizacionDetalle {
 }
 
 /** A línea of a stored detalle as the readers (UI) get it: `fuente` always present. */
-export interface LineaCotizacionLeida extends Omit<LineaCotizacionDetalle, "fuente" | "costoProveedor"> {
+export interface LineaCotizacionLeida extends Omit<LineaCotizacionDetalle, "fuente" | "costoProveedor" | "costoFormula"> {
   fuente: FuenteCosto;
   /** `false`: a snapshot calculated before costos de proveedor existed (no `fuente` stored); `fuente` is then `PARTIDAS` by rule. */
   fuenteRegistrada: boolean;
   costoProveedor: CostoProveedorCosteo | null;
+  costoFormula: CostoFormulaCosteo | null;
 }
 
 export interface CotizacionDetalleLeido {
@@ -161,6 +187,7 @@ export function leerDetalleCotizacion(detalle: CotizacionDetalle): CotizacionDet
       fuente: l.fuente ?? "PARTIDAS",
       fuenteRegistrada: l.fuente !== undefined,
       costoProveedor: l.fuente === "PROVEEDOR" ? (l.costoProveedor ?? null) : null,
+      costoFormula: l.fuente === "FORMULA" ? (l.costoFormula ?? null) : null,
     })),
   };
 }
@@ -181,7 +208,8 @@ export interface CotizacionCalculada {
   /** Always `false` since 2026-10-28 (no línea is costed from partidas, R27); kept for stored snapshots. */
   esIncompleta: boolean;
   /**
-   * Drogas of non-manual líneas without a costo de proveedor (R27), in línea order. Non-empty = the item has NO
+   * Drogas of non-manual líneas without a costo de proveedor (R27), in línea order -- for a droga with a fórmula, its
+   * components without one (`«componente» (componente de «droga»)`). Non-empty = the item has NO
    * price: callers must refuse it and never show or store `precioFinal`, which only covers the other líneas.
    */
   drogasSinPrecio: string[];
@@ -218,7 +246,8 @@ interface ConsumoSimulado {
 }
 
 /**
- * Costs ONE non-manual linea from its costo de proveedor (R25), or flags it `sinPrecio` when it has none (R27).
+ * Costs ONE non-manual linea from its costo de proveedor (R25) or, without one, from its fórmula (R38); flags it
+ * `sinPrecio` when it has neither (R27).
  * The partidas are ALWAYS evaluated, only for stock: the `faltante` and the simulated `consumo`.
  */
 function costearLinea(
@@ -261,6 +290,21 @@ function costearLinea(
   };
 
   const costoProveedor = linea.costoProveedor ?? null;
+  const costoFormula = linea.costoFormula ?? null;
+  if (!costoProveedor && costoFormula) {
+    // R38: the fórmula's cost, with its components' own IVA (no single alícuota: `alicuotaIva` stays absent).
+    return {
+      sinPrecio: false,
+      consumo,
+      detalle: {
+        ...base,
+        subtotal: requeridaStock.times(dec(costoFormula.costoUnitario)).toString(),
+        subtotalConIva: requeridaStock.times(dec(costoFormula.costoUnitarioConIva)).toString(),
+        fuente: "FORMULA",
+        costoFormula: { ...costoFormula, componentes: costoFormula.componentes.map((c) => ({ ...c })) },
+      },
+    };
+  }
   if (!costoProveedor) {
     // R27: no costo de proveedor, no price. Never stored: the callers refuse the whole item.
     return { sinPrecio: true, consumo, detalle: { ...base, subtotal: "0" } };
@@ -336,7 +380,10 @@ function costearItem(
     const { detalle, sinPrecio, consumo } = costearLinea(linea, partidasPorDroga(linea.drogaId), jornadaActual);
     costoInsumos = costoInsumos.plus(dec(detalle.subtotal));
     costoInsumosConIva = costoInsumosConIva.plus(dec(detalle.subtotalConIva ?? detalle.subtotal));
-    if (sinPrecio && !drogasSinPrecio.includes(linea.drogaNombre)) drogasSinPrecio.push(linea.drogaNombre);
+    if (sinPrecio) {
+      const nombres = linea.componentesSinCosto?.length ? linea.componentesSinCosto.map((c) => `${c} (componente de ${linea.drogaNombre})`) : [linea.drogaNombre];
+      for (const nombre of nombres) if (!drogasSinPrecio.includes(nombre)) drogasSinPrecio.push(nombre);
+    }
     detalleLineas.push(detalle);
     for (const usada of consumo) consumos.push({ drogaId: linea.drogaId, partidaId: usada.partidaId, cantidad: usada.cantidad });
   }
