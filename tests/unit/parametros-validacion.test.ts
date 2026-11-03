@@ -163,7 +163,7 @@ describe("editarDatosTenant zod schema: the 3 non-editable tenant fields are nev
     expect(result.success).toBe(true);
   });
 
-  it("accepts the cuit (editable until the first cierre diario, openspec/specs/cuit-farmacia/spec.md)", () => {
+  it("accepts the cuit (editable at any time, openspec/specs/cuit-farmacia/spec.md)", () => {
     expect(editarDatosTenantInput.safeParse({ ...baseInput, cuit: "30-12345678-9" }).success).toBe(true);
   });
 

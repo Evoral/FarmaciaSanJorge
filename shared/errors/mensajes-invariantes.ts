@@ -75,6 +75,7 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   "INV-IMMUTABLE": "Ese registro forma parte del historial y no se puede modificar ni eliminar.",
   "INV-T03": "Un registro no se puede pasar a otra farmacia.",
   "INV-PL-004": "Solo se pueden modificar los datos de la farmacia de la sesión actual.",
+  // Raised only by the 0105 trigger, dropped by 0115 (kept: the global test covers every migration).
   "INV-PL-005": "El CUIT de la farmacia ya no se puede cambiar: hay cierres diarios firmados que lo llevan.",
 
   // Libro recetario / contralor (M12)

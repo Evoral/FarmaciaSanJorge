@@ -3,7 +3,7 @@
  * fields fsj_app is granted UPDATE on: razonSocial, nombreFantasia,
  * domicilio, matriculaFarmacia (migration 0020) and the two phones printed on
  * the etiqueta, telefonoFijo / telefonoCelular (migration 0089), plus
- * `cuit` only until the first cierre diario is signed (migration 0105,
+ * `cuit` at any time (migrations 0105 and 0115,
  * openspec/specs/cuit-farmacia/spec.md). `zonaHoraria`,
  * `fechaBaja` and `fechaActivacionContralor` are NEVER accepted as input --
  * the zod schema below does not declare them at all (`.strict()` rejects
@@ -32,10 +32,9 @@
  */
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
-import { DomainError, NotFoundError } from "@/shared/errors";
-import { mensajeParaInvariante } from "@/shared/errors/mensajes-invariantes";
+import { NotFoundError } from "@/shared/errors";
 import { nonEmptyString } from "@/shared/validation";
-import { getTenantDetalle, tenantTieneCierreDiario, updateDatosEditablesTenant } from "../infrastructure/tenant-repository";
+import { getTenantDetalle, updateDatosEditablesTenant } from "../infrastructure/tenant-repository";
 
 /** Optional free-text field: empty/omitted clears the column to NULL (mirrors editar-usuario.ts's numeroMatricula convention). */
 const optionalText = z.string().trim().max(300).optional();
@@ -52,7 +51,7 @@ export const editarDatosTenantInput = z
     matriculaFarmacia: optionalText,
     telefonoFijo: optionalTelefono,
     telefonoCelular: optionalTelefono,
-    /** Omitted = unchanged (the form sends it only while no cierre diario is signed). */
+    /** Omitted = unchanged. */
     cuit: nonEmptyString.max(20).optional(),
   })
   .strict();
@@ -74,10 +73,6 @@ export const editarDatosTenantCommand = defineCommand({
     const telefonoFijoNuevo = input.telefonoFijo || null;
     const telefonoCelularNuevo = input.telefonoCelular || null;
     const cuitNuevo = input.cuit !== undefined && input.cuit !== actual.cuit ? input.cuit : undefined;
-    // App-level check for a clear message; the 0105 trigger is the backstop.
-    if (cuitNuevo !== undefined && (await tenantTieneCierreDiario(tx, session.tenantId))) {
-      throw new DomainError(mensajeParaInvariante("INV-PL-005"), { fields: ["cuit"] });
-    }
 
     await updateDatosEditablesTenant(tx, session.tenantId, {
       razonSocial: input.razonSocial,

@@ -1,6 +1,6 @@
 "use client";
 
-/** `/admin/configuracion/farmacia` edit form (FASE 3 point 3.10a). Only the editable fields -- see modules/farmacia/application/editar-datos-tenant.ts for why the other tenant fields are never even parsed as input. The CUIT field is rendered only while `cuitEditable` (openspec/specs/cuit-farmacia/spec.md). The page provides the surrounding panel. */
+/** `/admin/configuracion/farmacia` edit form (FASE 3 point 3.10a). Only the editable fields -- see modules/farmacia/application/editar-datos-tenant.ts for why the other tenant fields are never even parsed as input. The CUIT field is always editable, with a warning (openspec/specs/cuit-farmacia/spec.md R6). The page provides the surrounding panel. */
 import { editarDatosTenantAction } from "./actions";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 
@@ -13,7 +13,6 @@ export interface EditarDatosTenantFormProps {
     telefonoFijo: string | null;
     telefonoCelular: string | null;
     cuit: string;
-    cuitEditable: boolean;
   };
   disabled: boolean;
 }
@@ -34,14 +33,17 @@ export function EditarDatosTenantForm({ tenant, disabled }: EditarDatosTenantFor
           </label>
           <input id="tenant-nombre-fantasia" name="nombreFantasia" defaultValue={tenant.nombreFantasia ?? ""} disabled={disabled} className="input" />
         </div>
-        {tenant.cuitEditable ? (
-          <div className="field sm:col-span-2">
-            <label htmlFor="tenant-cuit" className="field-label">
-              CUIT <span className="font-normal text-zinc-500">(editable hasta firmar el primer cierre diario)</span>
-            </label>
-            <input id="tenant-cuit" name="cuit" defaultValue={tenant.cuit} required maxLength={20} disabled={disabled} className="input font-mono" />
+        <div className="field sm:col-span-2">
+          <label htmlFor="tenant-cuit" className="field-label">
+            CUIT
+          </label>
+          <input id="tenant-cuit" name="cuit" defaultValue={tenant.cuit} required maxLength={20} disabled={disabled} aria-describedby="tenant-cuit-aviso" className="input font-mono" />
+          <div id="tenant-cuit-aviso" role="note" className="alert alert-warn">
+            El CUIT identifica legalmente a la farmacia. Si lo cambiás, el CUIT nuevo aparece en todos los documentos,
+            incluso en los cierres, hojas del libro recetario y fichas ya firmados cuando se vuelvan a ver o imprimir. El
+            CUIT anterior queda registrado en la auditoría.
           </div>
-        ) : null}
+        </div>
         <div className="field sm:col-span-2">
           <label htmlFor="tenant-domicilio" className="field-label">
             Domicilio <span className="font-normal text-zinc-500">(opcional)</span>

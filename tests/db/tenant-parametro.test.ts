@@ -295,10 +295,9 @@ describe.skipIf(dbTestSkipReason() !== null)("0020_tenant_datos_editables migrat
     );
   });
 
-  // Migration 0105 granted cuit to fsj_app; its trigger only refuses the
-  // change once the tenant has a signed cierre diario (INV-PL-005,
-  // openspec/specs/cuit-farmacia/spec.md). A fresh tenant has none.
-  it("fsj_app UPDATE of cuit succeeds while the tenant has no cierre diario (migration 0105)", async () => {
+  // Migration 0105 granted cuit to fsj_app; 0115 dropped its trigger, so the
+  // CUIT changes at any time (openspec/specs/cuit-farmacia/spec.md).
+  it("fsj_app UPDATE of cuit succeeds (migrations 0105 and 0115)", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const tenantId = await insertTenant(tx, "0020b1");

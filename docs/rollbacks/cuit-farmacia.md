@@ -30,3 +30,21 @@ migration built from `prisma/rollbacks/0105_tenant_cuit_antes_primer_cierre.down
 - `app/(app)/admin/configuracion/farmacia/page.tsx`: the CUIT `DatoFijo` back to unconditional.
 - `shared/errors/mensajes-invariantes.ts`: `INV-PL-005`.
 - `tests/unit/parametros-validacion.test.ts`: `cuit` back in the non-editable list.
+
+## Change `cuit-farmacia-siempre-editable` (migration 0115)
+
+The CUIT became editable at any time (user decision 2026-11-03). To go back to "editable only before the first
+cierre diario" (and keep the rest of the feature):
+
+1. Deploy the reverted code **first**: the app check (`tenantTieneCierreDiario` in `editarDatosTenant`),
+   `cuitEditable`, the CUIT `DatoFijo`; `INV-PL-005` was never removed from `shared/errors/mensajes-invariantes.ts`.
+   It runs fine against the 0115 schema.
+2. Copy `prisma/rollbacks/0115_tenant_cuit_siempre_editable.down.sql` into a NEW migration folder (next free number,
+   a timestamp later than every existing one) and apply it. Never edit or delete the applied 0115 migration.
+3. `npm run typecheck`, `npm run lint`, `npm test`.
+
+What it loses: nothing stored. A CUIT changed after the first cierre keeps its value, and its audit rows stay.
+
+Files of this change: `prisma/migrations/20261103120000_0115_tenant_cuit_siempre_editable/` (keep it once applied),
+`prisma/rollbacks/0115_tenant_cuit_siempre_editable.down.sql`, and the hunks in the files listed above plus the
+warning in `modules/farmacia/ui/editar-datos-tenant-form.tsx`.
