@@ -322,7 +322,7 @@ Del paciente SHALL mapearse: DNI solo si el tipo de documento falta o es DNI; CU
 
 ### Requirement: Datos del médico
 
-Del médico, la matrícula `MP` SHALL dar provincial y `MN` nacional; otro tipo → se conserva el número, la jurisdicción queda vacía y se avisa. `lugarAtencion` se divide en dirección y teléfono como el pie del PDF; sin "Teléfono", todo va a la dirección.
+Del médico, la matrícula `MP` SHALL dar provincial y `MN` nacional; otro tipo → se conserva el número, la jurisdicción queda vacía y se avisa. `lugarAtencion` se divide en dirección, teléfono y email como el pie del PDF: `<email>/<teléfono>` se divide en email y teléfono; sin email y sin "Teléfono", todo sigue yendo a la dirección.
 
 #### Scenario: Tipo de matrícula desconocido
 
@@ -331,7 +331,7 @@ Del médico, la matrícula `MP` SHALL dar provincial y `MN` nacional; otro tipo 
 
 #### Scenario: lugarAtencion sin teléfono
 
-- **WHEN** `lugarAtencion` no trae "Teléfono"
+- **WHEN** `lugarAtencion` no trae email ni "Teléfono"
 - **THEN** todo va a la dirección
 
 ### Requirement: Diagnóstico
@@ -356,7 +356,7 @@ Código y descripción del diagnóstico SHALL combinarse **por campo** (el del n
 #### Scenario: P27–P39 — Cabecera
 
 - **WHEN** se mapea un JSON de RCTA
-- **THEN** la cabecera, el paciente (nombre nunca leído), el médico, la matrícula, la dirección y el teléfono, el diagnóstico y las fechas siguen las reglas de mapeo
+- **THEN** la cabecera, el paciente (nombre nunca leído), el médico, la matrícula, la dirección, el teléfono y el email, el diagnóstico y las fechas siguen las reglas de mapeo
 
 ### Requirement: Ítems
 
@@ -966,7 +966,7 @@ Configuración del lector:
 - **P15–P16** — 63 o 65 hexadecimales, basura, vacío, dos hashes distintos → inválido, sin consulta.
 - **P17** — Host ajeno en una URL con `esquema://` → inválido, sin consulta; `https:evil.com/<hash>` y `https:/evil.com/<hash>` → devuelven el hash.
 - **P18–P26** — Adaptador: 200 válido; 200 vacío, `null` o `{}`; solo 400 y 422 → QR no válido; 500 "Recipe does not exists" (y 404 con ese mismo cuerpo JSON) → QR no válido; el mismo texto sin `content-type` JSON → RCTA no disponible; cualquier otro 4xx (401, 403, 404 sin ese cuerpo, 405, 407, 408, 410, 421, 429, 451), otros 5xx, timeout, red y redirección → RCTA no disponible; no JSON, más de 64 KiB o esquema inválido → formato inesperado.
-- **P27–P39** — Mapeo de cabecera, paciente (nombre nunca leído), médico, matrícula, dirección y teléfono, diagnóstico y fechas.
+- **P27–P39** — Mapeo de cabecera, paciente (nombre nunca leído), médico, matrícula, dirección, teléfono y email, diagnóstico y fechas.
 - **P40–P45** — Ítems: varios elementos, texto de ítem con el parser compartido, avisos de datos no importados, renglones iniciales (con y sin unidad de dosis) y posteriores, sufijo "(ítem N)", domicilio (el primer renglón inicial del primer ítem, con o sin guion, es el domicilio del paciente, sin aviso), dato ausente.
 - **P45b** — Tope de avisos de la vista previa final: corte a 200 caracteres del texto citado (el mensaje conserva cierre, sugerencia y sufijo; sin partir un par sustituto) y tope de 600 del mensaje, máximo 50 avisos con prioridad (accionables del match, otras advertencias, informativos; 60 renglones no reconocidos más un paciente dado de baja conservan el aviso de la baja) y aviso `AVISOS_OMITIDOS`, sin mutar la entrada; con muchas drogas sin match y nombres enormes la vista previa del QR queda acotada.
 - **P46–P51** — Sin permiso no se consulta; código inválido no se consulta; receta ya cargada (permitida si la anterior está ANULADA); paciente existente o nuevo; ninguna transacción abierta durante la consulta.

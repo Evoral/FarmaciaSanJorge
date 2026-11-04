@@ -252,7 +252,7 @@ Del campo `N° Credencial:` SHALL tomarse solo `paciente.nroCredencial`; cobertu
 
 ### Requirement: Datos del médico del encabezado
 
-La especialidad del médico SHALL ser el texto después de `MÉDICO - ` (`MÉDICO - MEDICINA GENERAL`). `Matrícula Prov.:NNNN` / `MP NNNN` va a `medico.matricula` con `jurisdiccion = PROVINCIAL`; `Nac.` / `MN` → `NACIONAL`. La dirección y el teléfono del pie van a `medico.direccionRegistrada` y `medico.telefono`.
+La especialidad del médico SHALL ser el texto después de `MÉDICO - ` (`MÉDICO - MEDICINA GENERAL`). `Matrícula Prov.:NNNN` / `MP NNNN` va a `medico.matricula` con `jurisdiccion = PROVINCIAL`; `Nac.` / `MN` → `NACIONAL`. La dirección y el teléfono del pie van a `medico.direccionRegistrada` y `medico.telefono`; el pie también puede traer `<email>/<teléfono>`, en cuyo caso el email va a `medico.email` y el teléfono a `medico.telefono` (sin dirección).
 
 #### Scenario: Matrícula provincial
 
@@ -263,6 +263,11 @@ La especialidad del médico SHALL ser el texto después de `MÉDICO - ` (`MÉDIC
 
 - **WHEN** se parsea `MN 1234`
 - **THEN** la jurisdicción es `NACIONAL`
+
+#### Scenario: Pie con email y teléfono
+
+- **WHEN** el pie trae `delfimanzur10@gmail.com/2615742504`
+- **THEN** `medico.email` es `delfimanzur10@gmail.com`, `medico.telefono` es `2615742504` y `medico.direccionRegistrada` queda vacía
 
 ### Requirement: Diagnóstico del encabezado
 
@@ -575,7 +580,7 @@ La unidad SHALL buscarse por `simbolo` / `codigo` normalizado (`mg` → MILIGRAM
 
 ### Requirement: Paciente o médico existente
 
-Para un paciente o médico **existente** SHALL completarse solo los campos vacíos con datos del PDF; nunca se pisa un valor existente. Si hay diferencias (ej. otro teléfono) → advertencia informativa.
+Para un paciente o médico **existente** SHALL completarse solo los campos vacíos con datos del PDF (el email del médico incluido); nunca se pisa un valor existente. Si hay diferencias (ej. otro teléfono) → advertencia informativa.
 
 #### Scenario: P9 — Paciente existente
 
@@ -798,7 +803,7 @@ La confirmación (`recetas.importar`) valida además que "válida desde" no sea 
 | Nombre del médico (bloque superior) | `medico.nombre` / `apellido` | Ver "Separación de nombres". |
 | Especialidad (`MÉDICO - MEDICINA GENERAL`) | `medico.especialidad` | Texto después de `MÉDICO - ` / `MÉDICA - `. |
 | `Matrícula Prov.:NNNN` / `MP NNNN` | `medico.matricula` + `jurisdiccion = PROVINCIAL` | `Nac.` / `MN` → `NACIONAL`. |
-| Dirección y teléfono del pie | `medico.direccionRegistrada`, `medico.telefono` | |
+| Dirección, teléfono y email del pie | `medico.direccionRegistrada`, `medico.telefono`, `medico.email` | Reconoce "<dirección> Teléfono <número>" y "<email>/<teléfono>". |
 | `Diagnóstico: <código> - <descripción>` | `receta.diagnosticoCodigo`, `receta.diagnosticoDescripcion` | Código CIE-10. |
 | Primer renglón `- <domicilio>` del cuerpo | `receta.domicilioPaciente` | Ver "Domicilio del paciente". |
 
