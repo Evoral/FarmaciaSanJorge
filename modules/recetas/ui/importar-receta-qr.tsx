@@ -206,7 +206,7 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
 
   return (
     <section ref={panelRef} aria-labelledby="importar-qr-heading">
-      <div className="flex flex-col gap-3 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:gap-6">
+      <div className="flex flex-col gap-3 px-4 py-4 sm:px-5 @3xl:flex-row @3xl:items-center @3xl:gap-6">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <span className="tone-tile" data-tone={importando ? "success" : "neutral"} aria-hidden>
             <QrCode />
@@ -220,7 +220,7 @@ export function ImportarRecetaQr({ onLeida, onDescartar, importando, autoEnfocar
             </p>
           </div>
         </div>
-        <form ref={formRef} action={formAction} onSubmit={handleSubmit} className="flex w-full flex-wrap items-center gap-2 lg:w-[26rem] lg:flex-none">
+        <form ref={formRef} action={formAction} onSubmit={handleSubmit} className="flex w-full flex-wrap items-center gap-2 @3xl:w-[26rem] @3xl:flex-none">
           <label htmlFor={inputId} className="sr-only">
             QR o link de la receta
           </label>

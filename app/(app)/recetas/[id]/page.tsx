@@ -106,8 +106,8 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
             </div>
           ) : null}
 
-          <section aria-label="Paciente y médico" className="panel">
-            <div className="grid gap-5 p-5 sm:grid-cols-2">
+          <section aria-label="Paciente y médico" className="@container panel">
+            <div className="grid gap-5 p-5 @xl:grid-cols-2">
               <div className="person-block">
                 <Avatar name={paciente} />
                 <div className="min-w-0">
