@@ -160,6 +160,11 @@ export interface PesadaDeLinea {
   sugerida: string;
   /** P13: the expected weight over the chosen lots is below one balance division -- offer a diluted lot or creating one. */
   bajoLaBalanza: boolean;
+  /**
+   * Migration 0120: the droga asks to always suggest a diluted lot (above the balance too) and the plan draws from no
+   * dilución yet -- the same offer as `bajoLaBalanza`, worded as a suggestion. Never with `bajoLaBalanza`.
+   */
+  sugerirDilucion: boolean;
   evaluacion: EvaluacionPesada | null;
 }
 
@@ -173,7 +178,10 @@ export function pesadaDeLinea(linea: LineaPantalla, plan: PlanDeLinea, real: str
   // Shown es-AR (comma decimals), like every typed number.
   const sugerida = numeroParaInput(sugerenciaPesadaReal(esperadaEnUnidad, precision).times(factor).toFixed());
   const valor = cantidadValida(real ?? sugerida);
-  return { esperada, sugerida, bajoLaBalanza: bajoLaBalanza(esperadaEnUnidad, precision), evaluacion: valor ? evaluarPesada(valor, esperada, datos.pesada.toleranciaPorcentaje, precisionAjustada) : null };
+  const bajo = bajoLaBalanza(esperadaEnUnidad, precision);
+  const usaDilucion = plan.partes.some((parte) => linea.partidasElegibles.some((p) => p.id === parte.partidaId && p.esDilucion));
+  const sugerirDilucion = !bajo && linea.sugerirDilucion === true && !usaDilucion;
+  return { esperada, sugerida, bajoLaBalanza: bajo, sugerirDilucion, evaluacion: valor ? evaluarPesada(valor, esperada, datos.pesada.toleranciaPorcentaje, precisionAjustada) : null };
 }
 
 export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActions, onRecargarDatos }: ConfirmarPreparacionFormProps) {
@@ -341,9 +349,10 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                   />
                 ) : null}
 
-                {pesadas[indice]?.bajoLaBalanza ? (
+                {pesadas[indice]?.bajoLaBalanza || pesadas[indice]?.sugerirDilucion ? (
                   <AvisoBajoLaBalanza
                     linea={linea}
+                    sugerencia={!pesadas[indice]!.bajoLaBalanza}
                     elegidas={elegidas[linea.id] ?? []}
                     onUsar={(partidaId) => setElegidas((prev) => ({ ...prev, [linea.id]: [partidaId] }))}
                     puedeElaborar={datos.puedeElaborarLote === true}

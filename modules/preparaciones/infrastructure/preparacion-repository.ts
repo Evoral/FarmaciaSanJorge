@@ -305,6 +305,8 @@ export interface LineaParaPantalla {
    */
   cantidadPrescripta: { cantidad: string; simbolo: string } | null;
   orden: number;
+  /** Migration 0120 (`droga.sugerir_dilucion`): the pesada suggests a diluted lot even above the balance. Absent = no. */
+  sugerirDilucion?: boolean;
 }
 
 export async function getLineasParaPreparacion(tx: Prisma.TransactionClient, tenantId: string, fichaTecnicaId: string): Promise<LineaParaPantalla[]> {
@@ -320,7 +322,7 @@ export async function getLineasParaPreparacion(tx: Prisma.TransactionClient, ten
       esEnraseManual: true,
       orden: true,
       unidadMedida: { select: { simbolo: true, factorABase: true, tipoMagnitud: true } },
-      droga: { select: { unidadBase: { select: { id: true, simbolo: true, factorABase: true, tipoMagnitud: true } } } },
+      droga: { select: { sugerirDilucion: true, unidadBase: { select: { id: true, simbolo: true, factorABase: true, tipoMagnitud: true } } } },
     },
   });
   return rows.map((r) => {
@@ -342,6 +344,7 @@ export async function getLineasParaPreparacion(tx: Prisma.TransactionClient, ten
       esEnraseManual: r.esEnraseManual,
       cantidadPrescripta: null,
       orden: r.orden,
+      sugerirDilucion: r.droga.sugerirDilucion,
     };
     if (r.esEnraseManual || mismaMagnitud(linea.unidad, unidadStock)) return linea;
     // Weighed on the balance: the typed quantity is physical, in the stock unit -- what is reserved, descontado and

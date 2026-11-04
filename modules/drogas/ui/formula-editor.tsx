@@ -73,8 +73,8 @@ export function FormulaEditor({ opciones, inicial, drogaId, esComponenteDe, disa
     <fieldset className="field" disabled={disabled}>
       <input type="hidden" name="formulaEnviada" value="1" disabled={disabled} />
       <legend className="sr-only">Fórmula</legend>
-      <label className="flex items-center gap-2 text-[0.8125rem] font-medium text-zinc-900">
-        <input type="checkbox" name="tieneFormula" checked={tiene} disabled={disabled || bloqueada} onChange={(e) => setTiene(e.target.checked)} />
+      <label className="toggle-switch text-[0.8125rem] font-medium text-zinc-900">
+        <input type="checkbox" role="switch" name="tieneFormula" checked={tiene} disabled={disabled || bloqueada} onChange={(e) => setTiene(e.target.checked)} />
         Se elabora en la farmacia (tiene fórmula)
       </label>
       <p className="field-help">

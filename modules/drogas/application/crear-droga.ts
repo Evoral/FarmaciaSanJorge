@@ -42,6 +42,8 @@ const crearDrogaInput = z.object({
   tipoControl: z.enum(TIPOS_CONTROL).default("NINGUNO"),
   clase: z.enum(CLASES_DROGA).default("DROGA"),
   stockMinimo: nonNegativeDecimalString,
+  /** Migration 0120: the pesada always suggests a diluted lot of this droga. */
+  sugerirDilucion: z.boolean().default(false),
   sinonimos: z.array(z.string().max(SINONIMO_MAX_LARGO, `Como máximo ${SINONIMO_MAX_LARGO} caracteres.`)).max(20).default([]),
   /** Required only for a controlled droga with the contralor activo (R12); ignored otherwise. */
   saldoAperturaContralor: nonNegativeDecimalString.optional(),
@@ -57,6 +59,8 @@ export interface CrearDrogaInput {
   tipoControl?: string;
   clase?: string;
   stockMinimo: string;
+  /** "Sugerir lote diluido" (migration 0120); omitted = off. */
+  sugerirDilucion?: boolean;
   /** Other names of the droga, positional (entry `i` = form field `sinonimo-i`); blanks are skipped. */
   sinonimos?: string[];
   /** The manual libro contralor's saldo (unidad base): asked only for a controlled droga with the contralor activo. */
@@ -117,6 +121,7 @@ export const crearDrogaCommand = defineCommand({
       tipoControl: input.tipoControl,
       clase: input.clase,
       stockMinimo: input.stockMinimo.toString(),
+      sugerirDilucion: input.sugerirDilucion,
     });
 
     if (requiereApertura && input.saldoAperturaContralor !== undefined && input.tipoControl !== "NINGUNO") {
@@ -155,6 +160,7 @@ export const crearDrogaCommand = defineCommand({
           tipoControl: input.tipoControl,
           clase: input.clase,
           stockMinimo: input.stockMinimo.toString(),
+          sugerirDilucion: input.sugerirDilucion,
           ...(sinonimos.length > 0 ? { sinonimos: sinonimos.map((s) => s.texto) } : {}),
           ...(requiereApertura && input.saldoAperturaContralor !== undefined ? { saldoAperturaContralor: input.saldoAperturaContralor.toString() } : {}),
         },

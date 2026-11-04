@@ -679,6 +679,8 @@ model Droga {
   /// Migration 0063: DROGA | EXCIPIENTE | MATERIAL. Only a DROGA can be controlled (droga_clase_no_controlada_check). Column-level UPDATE grant.
   clase        ClaseDroga  @default(DROGA)
   stockMinimo  Decimal     @default(0) @map("stock_minimo") @db.Decimal
+  /// Migration 0120: the pesada always suggests a diluted lot of this droga, even when the balance can weigh the dose. Column-level UPDATE grant.
+  sugerirDilucion Boolean  @default(false) @map("sugerir_dilucion")
   fechaBaja    DateTime?   @map("fecha_baja") @db.Timestamptz(6)
   motivoBaja   String?     @map("motivo_baja")
   /// Migration 0058: when true, every NEW partida of this droga must declare potenciaDeclarada (app-level, modules/stock/application/ingresar-partida.ts). Column-level UPDATE grant for fsj_app.

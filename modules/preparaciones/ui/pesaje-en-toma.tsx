@@ -649,11 +649,12 @@ function FilasLinea({
         </tr>
       ) : null}
 
-      {pesada?.bajoLaBalanza ? (
+      {pesada?.bajoLaBalanza || pesada?.sugerirDilucion ? (
         <tr className={vencidas.length > 0 ? "border-b-0" : undefined}>
           <td colSpan={columnas} className="pb-3 pl-6 pr-3 pt-0.5">
             <AvisoBajoLaBalanza
               linea={linea}
+              sugerencia={!pesada.bajoLaBalanza}
               elegidas={lotes}
               onUsar={(partidaId) => setLotes(linea.id, [partidaId])}
               puedeElaborar={datos.puedeElaborarLote === true}

@@ -55,6 +55,8 @@ export interface DrogaFormProps {
     tipoControl: string;
     clase: string;
     stockMinimo: string;
+    /** Migration 0120: the pesada always suggests a diluted lot. */
+    sugerirDilucion: boolean;
     tienePartidas: boolean;
     /** Vigente synonyms, as typed. */
     sinonimos: readonly { id: string; texto: string }[];
@@ -344,6 +346,27 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
         </label>
         <NumeroInput id="stockMinimo" name="stockMinimo" defaultValue={numeroParaInput(droga?.stockMinimo ?? "0")} required disabled={disabled} className="input font-mono" />
         <p className="field-help">En principio activo: con lotes diluidos, la alerta compara el stock activo.</p>
+      </div>
+
+      <div className="field">
+        <input type="hidden" name="sugerirDilucionEnviado" value="1" disabled={disabled} />
+        <label htmlFor="sugerirDilucion" className="toggle-switch items-start text-[0.8125rem] font-medium text-zinc-900">
+          <input
+            key={altas}
+            id="sugerirDilucion"
+            name="sugerirDilucion"
+            type="checkbox"
+            role="switch"
+            className="mt-0.5"
+            defaultChecked={droga?.sugerirDilucion ?? false}
+            disabled={disabled}
+            aria-describedby="sugerirDilucion-ayuda"
+          />
+          Sugerir siempre un lote diluido
+        </label>
+        <p id="sugerirDilucion-ayuda" className="field-help">
+          Al pesarla, sugiere usar un lote diluido (o crear una dilución) para mayor precisión, aunque la balanza pueda pesar la dosis.
+        </p>
       </div>
 
       {formula ? (
