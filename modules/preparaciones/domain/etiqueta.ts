@@ -36,6 +36,9 @@ export interface ComponenteEtiqueta {
 export interface DatosEtiqueta {
   formaFarmaceutica: string;
   cantidadUnidades: number;
+  /** Decimal string: the ítem's "Cantidad de ... a preparar" (`item_receta.cantidad_total`), for forms not counted in units. */
+  cantidadTotal?: string | null;
+  unidadTotalSimbolo?: string | null;
   componentes: readonly ComponenteEtiqueta[];
   asientoNumeroCorrelativo: string | null;
   recetaNumeroInterno: string;
@@ -85,6 +88,8 @@ export interface ContenidoEtiqueta {
   /** Units per day ("2 cáp/día", `dosisEtiqueta`), or the posología as prescribed when it cannot be read; `null` when the receta has none. */
   dosis: string | null;
   cantidad: number;
+  /** "100 g": the cantidad a preparar of a form not counted in units (R11); printed instead of `cantidad` (then 1). */
+  cantidadTotal?: string;
   /** Forma label agreeing with `cantidad` ("Cápsulas", "Crema"). */
   forma: string;
   /** `null` when the vía cannot be derived from the forma. */
@@ -208,6 +213,16 @@ export const MOSTRAR_PACIENTE_EN_ETIQUETA = true;
 /** Forms counted in units ("60 Cápsulas"), the only ones whose unit can hold a fraction of a dose. */
 export const FORMAS_POR_UNIDAD: ReadonlySet<string> = new Set(["CAPSULA", "COMPRIMIDO", "OVULO", "SUPOSITORIO"]);
 
+/**
+ * R11: a form not counted in units (crema, jarabe, solución...) prints the "Cantidad de ... a preparar" as loaded in the
+ * receta ("100 g"), not a unit count; `null` for forms counted in units or when no total was loaded.
+ */
+export function cantidadTotalEtiqueta(forma: string, cantidadTotal: string | null | undefined, unidadTotalSimbolo: string | null | undefined): string | null {
+  if (FORMAS_POR_UNIDAD.has(forma) || !cantidadTotal || !dec(cantidadTotal).greaterThan(0)) return null;
+  const unidad = textoDeUnaLinea(unidadTotalSimbolo);
+  return unidad ? `${formatNumero(cantidadTotal)} ${unidad}` : formatNumero(cantidadTotal);
+}
+
 /** ASCII on purpose: the PDF's standard fonts (WinAnsi) have no "⅓". */
 const FRACCIONES_ETIQUETA: ReadonlyArray<{ valor: number; texto: string }> = [
   { valor: 0.5, texto: "1/2" },
@@ -301,6 +316,9 @@ export function formatearMedicoEtiqueta(datos: Pick<DatosEtiqueta, "medicoNombre
 
 export function armarContenidoEtiqueta(datos: DatosEtiqueta, opciones: OpcionesEtiqueta = {}): ContenidoEtiqueta {
   const dt = datos.directorTecnico;
+  const cantidadTotal = cantidadTotalEtiqueta(datos.formaFarmaceutica, datos.cantidadTotal, datos.unidadTotalSimbolo);
+  // With a cantidad total the forma and vía read in singular ("100 g" + "Crema" / "Uso externo").
+  const cantidad = cantidadTotal ? 1 : datos.cantidadUnidades;
   return {
     directorTecnico: dt ? { nombre: `${dt.nombre} ${dt.apellido}`.toLocaleUpperCase("es-AR"), matricula: dt.matricula } : null,
     domicilio: textoDeUnaLinea(datos.tenantDomicilio),
@@ -310,9 +328,10 @@ export function armarContenidoEtiqueta(datos: DatosEtiqueta, opciones: OpcionesE
     vence: formatearVenceEtiqueta(datos.fechaVencimiento, datos.tipoVencimiento),
     recetaNumero: numeroRecetaEtiqueta(datos),
     dosis: dosisEtiqueta(datos.formaFarmaceutica, datos.posologia, datos.fraccionDosisPorUnidad),
-    cantidad: datos.cantidadUnidades,
-    forma: formaSegunCantidad(datos.formaFarmaceutica, datos.cantidadUnidades),
-    via: viaDeAdministracion(datos.formaFarmaceutica, datos.cantidadUnidades),
+    cantidad,
+    ...(cantidadTotal ? { cantidadTotal } : {}),
+    forma: formaSegunCantidad(datos.formaFarmaceutica, cantidad),
+    via: viaDeAdministracion(datos.formaFarmaceutica, cantidad),
     fraccionDosis: fraccionDosisEtiqueta(datos.formaFarmaceutica, datos.fraccionDosisPorUnidad),
     conservacion: conservacionEtiqueta(datos.tipoVencimiento),
     medico: formatearMedicoEtiqueta(datos),
@@ -373,7 +392,9 @@ export function formatearContenidoEtiqueta(contenido: ContenidoEtiqueta): string
     contenido.vence,
     `Receta N ${contenido.recetaNumero}`,
     contenido.dosis ? `${PREFIJO_DOSIS}${contenido.dosis}` : null,
-    `${contenido.cantidad} ${contenido.forma}${contenido.via ? ` — ${contenido.via}` : ""}`,
+    contenido.cantidadTotal
+      ? `${PREFIJO_CANTIDAD_TOTAL}${contenido.cantidadTotal}${SEPARADOR_VIA}${contenido.forma}${contenido.via ? `${SEPARADOR_VIA}${contenido.via}` : ""}`
+      : `${contenido.cantidad} ${contenido.forma}${contenido.via ? ` — ${contenido.via}` : ""}`,
     contenido.fraccionDosis ? `${PREFIJO_FRACCION}${contenido.fraccionDosis}` : null,
     contenido.conservacion,
     contenido.paciente ? `Paciente ${contenido.paciente}` : null,
@@ -393,6 +414,8 @@ const PREFIJO_TELEFONO_FIJO = "Teléfono fijo ";
 const PREFIJO_CELULAR = "Celular ";
 const PREFIJO_DOSIS = "Dosis: ";
 const PREFIJO_FRACCION = "Por unidad: ";
+/** R11 quantity line: "Cantidad: 100 g — Crema — Uso externo" (a unit count line starts with digits, never with this). */
+const PREFIJO_CANTIDAD_TOTAL = "Cantidad: ";
 
 /**
  * The inverse of `formatearContenidoEtiqueta`: the persisted `etiqueta.contenido` snapshot back into the fields the
@@ -440,11 +463,26 @@ export function parsearContenidoEtiqueta(texto: unknown): ContenidoEtiqueta | nu
   if (lineas[i]?.startsWith(PREFIJO_DOSIS)) dosis = lineas[i++]!.slice(PREFIJO_DOSIS.length);
 
   const lineaCantidad = lineas[i++];
-  const cantidadMatch = lineaCantidad ? /^(\d+) (.+)$/.exec(lineaCantidad) : null;
-  if (!cantidadMatch) return null;
-  const [formaTexto, via] = cantidadMatch[2]!.includes(SEPARADOR_VIA)
-    ? [cantidadMatch[2]!.slice(0, cantidadMatch[2]!.indexOf(SEPARADOR_VIA)), cantidadMatch[2]!.slice(cantidadMatch[2]!.indexOf(SEPARADOR_VIA) + SEPARADOR_VIA.length)]
-    : [cantidadMatch[2]!, null];
+  let cantidad: number;
+  let cantidadTotal: string | null = null;
+  let formaTexto: string;
+  let via: string | null;
+  if (lineaCantidad?.startsWith(PREFIJO_CANTIDAD_TOTAL)) {
+    const partes = lineaCantidad.slice(PREFIJO_CANTIDAD_TOTAL.length).split(SEPARADOR_VIA);
+    if (partes.length < 2 || partes.length > 3 || !partes[0] || !partes[1]) return null;
+    cantidad = 1;
+    cantidadTotal = partes[0];
+    formaTexto = partes[1];
+    via = partes[2] ?? null;
+  } else {
+    const cantidadMatch = lineaCantidad ? /^(\d+) (.+)$/.exec(lineaCantidad) : null;
+    if (!cantidadMatch) return null;
+    cantidad = Number(cantidadMatch[1]);
+    const resto = cantidadMatch[2]!;
+    const corte = resto.indexOf(SEPARADOR_VIA);
+    formaTexto = corte < 0 ? resto : resto.slice(0, corte);
+    via = corte < 0 ? null : resto.slice(corte + SEPARADOR_VIA.length);
+  }
 
   let fraccionDosis: string | null = null;
   if (lineas[i]?.startsWith(PREFIJO_FRACCION)) fraccionDosis = lineas[i++]!.slice(PREFIJO_FRACCION.length);
@@ -464,7 +502,8 @@ export function parsearContenidoEtiqueta(texto: unknown): ContenidoEtiqueta | nu
     vence,
     recetaNumero,
     dosis,
-    cantidad: Number(cantidadMatch[1]),
+    cantidad,
+    ...(cantidadTotal ? { cantidadTotal } : {}),
     forma: formaTexto,
     via,
     fraccionDosis,

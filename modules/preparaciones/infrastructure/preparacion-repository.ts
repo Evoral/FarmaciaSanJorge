@@ -1029,6 +1029,8 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
               descripcion: true,
               formaFarmaceutica: true,
               cantidadUnidades: true,
+              cantidadTotal: true,
+              unidadTotal: { select: { simbolo: true } },
               fraccionDosisPorUnidad: true,
               posologia: true,
               componentes: {
@@ -1079,6 +1081,8 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
     itemDescripcion: item.descripcion,
     formaFarmaceutica: item.formaFarmaceutica,
     cantidadUnidades: item.cantidadUnidades,
+    cantidadTotal: item.cantidadTotal === null ? null : item.cantidadTotal.toString(),
+    unidadTotalSimbolo: item.unidadTotal?.simbolo ?? null,
     fraccionDosisPorUnidad: item.fraccionDosisPorUnidad.toString(),
     posologia: item.posologia,
     componentes: item.componentes.map((c) => ({
