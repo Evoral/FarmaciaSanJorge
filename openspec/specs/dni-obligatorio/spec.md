@@ -21,19 +21,6 @@ marking the DNI field ("Ingresá el DNI del paciente.") and keeping the rest of 
 - **WHEN** the user creates a paciente from `/clientes` or from the receta's paciente picker with the DNI empty
 - **THEN** no paciente is created and the DNI field is marked
 
-### Requirement: R4 — The receta import asks the DNI only for a new paciente
-
-The receta import (PDF/QR) is never blocked by a missing DNI: matching an existing paciente works without one. When it
-creates a new paciente and the document brings no DNI, the confirmation MUST show a mandatory DNI field (`pacienteDni`)
-and refuse to confirm without it. A typed DNI of another paciente is refused on that field.
-
-#### Scenario: Import of a new paciente whose document brings no DNI
-
-- **GIVEN** a receta read from a PDF/QR without DNI, whose paciente matches no existing one
-- **WHEN** the user confirms the import with the DNI field empty
-- **THEN** nothing is imported and the DNI field is marked
-- **AND** once the DNI is typed, the import creates the paciente with it
-
 ### Requirement: R2 — A DNI, once set, is never removed
 
 The edición of a paciente that has a DNI MUST refuse to clear it; it can be corrected. A paciente without a DNI can be
@@ -47,11 +34,29 @@ edited without adding one.
 
 ### Requirement: R3 — Every DNI is stored digits only
 
-A DNI typed for a paciente or a usuario (not a cuenta de sector, whose DNI is derived) SHALL be stripped of every
-non-digit character before it is validated (7 or 8 digits), compared for uniqueness and stored.
+A DNI typed for a paciente or a usuario SHALL be stripped of every non-digit character before it is validated (7 or 8 digits), compared for uniqueness and stored. A cuenta de sector's derived DNI is exempt (`openspec/specs/cuentas-de-sector/spec.md`). Existing usuario DNIs are not rewritten; the rule applies to every DNI typed from this change on.
 
-#### Scenario: Dotted DNI
+#### Scenario: Dotted DNI of a paciente
+
+- **GIVEN** a paciente with DNI 12345678
+- **WHEN** another paciente is created with DNI "12.345.678"
+- **THEN** it is refused as a duplicate DNI
+
+#### Scenario: Dotted DNI of a usuario
 
 - **GIVEN** a usuario of the farmacia with DNI 12345678
 - **WHEN** another usuario is created with DNI "12.345.678"
 - **THEN** it is refused as a duplicate DNI
+
+### Requirement: R4 — The receta import asks the DNI only for a new paciente
+
+The receta import (PDF/QR) is never blocked by a missing DNI: matching an existing paciente works without one. When it
+creates a new paciente and the document brings no DNI, the confirmation MUST show a mandatory DNI field (`pacienteDni`)
+and refuse to confirm without it. A typed DNI of another paciente is refused on that field.
+
+#### Scenario: Import of a new paciente whose document brings no DNI
+
+- **GIVEN** a receta read from a PDF/QR without DNI, whose paciente matches no existing one
+- **WHEN** the user confirms the import with the DNI field empty
+- **THEN** nothing is imported and the DNI field is marked
+- **AND** once the DNI is typed, the import creates the paciente with it

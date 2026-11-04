@@ -304,6 +304,7 @@ Del paciente SHALL mapearse: DNI solo si el tipo de documento falta o es DNI; CU
 
 - **WHEN** el JSON trae un documento de otro tipo
 - **THEN** el DNI queda vacío
+- **AND** si la importación crea un paciente nuevo, la confirmación pide el DNI como campo obligatorio (dni-obligatorio R4)
 
 #### Scenario: Fecha de nacimiento 0001-01-01
 

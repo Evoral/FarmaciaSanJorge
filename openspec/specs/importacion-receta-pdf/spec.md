@@ -534,7 +534,13 @@ El match SHALL normalizar: minúsculas, NFD, sin diacríticos, espacios colapsad
 
 ### Requirement: Match de paciente
 
-El paciente SHALL buscarse por CUIL; si no, por DNI, incluidos los dados de baja. Sin match → alta nueva al confirmar. Si el match está dado de baja → advertencia; el usuario decide (no se reactiva solo).
+El paciente SHALL buscarse por CUIL; si no, por DNI, incluidos los dados de baja. Sin match → alta nueva al confirmar: si el documento no trae DNI, se pide como campo obligatorio antes de confirmar (dni-obligatorio R4); un match nunca lo necesita. Si el match está dado de baja → advertencia; el usuario decide (no se reactiva solo).
+
+#### Scenario: Alta nueva sin DNI en el documento
+
+- **GIVEN** una receta en PDF cuyo paciente no coincide con ninguno existente y no incluye DNI
+- **WHEN** el usuario confirma la importación
+- **THEN** la confirmación pide el DNI como campo obligatorio antes de confirmar (dni-obligatorio R4)
 
 #### Scenario: Paciente dado de baja
 
@@ -834,7 +840,7 @@ Cuerpo `Rp./` (entre `Rp./` y `Diagnóstico:`). Cada renglón se clasifica con l
 
 | Entidad | Orden de búsqueda | Si no hay match |
 |---|---|---|
-| Paciente | CUIL; si no, DNI. Incluye dados de baja. | Alta nueva al confirmar. Si el match está dado de baja → advertencia; el usuario decide (no se reactiva solo). |
+| Paciente | CUIL; si no, DNI. Incluye dados de baja. | Alta nueva al confirmar: si el documento no trae DNI, se pide como campo obligatorio antes de confirmar (dni-obligatorio R4; un match nunca lo necesita). Si el match está dado de baja → advertencia; el usuario decide (no se reactiva solo). |
 | Médico | (`jurisdiccion`, `matricula`) entre vigentes. | Alta nueva al confirmar. |
 | Droga | `droga_alias.aliasNormalizado` (sinónimo vigente de droga vigente), luego `droga.nombre` normalizado. Solo vigentes y nunca de clase `MATERIAL` (cápsulas, envases: no se prescriben; tampoco aparecen en el buscador de drogas de la receta). | El usuario elige la droga en la vista previa; opción "recordar esta equivalencia" agrega el texto como **sinónimo** de esa droga (`openspec/specs/sinonimos-droga/spec.md`). |
 | Unidad | `simbolo` / `codigo` normalizado (`mg` → MILIGRAMO). | Advertencia; el usuario elige. |
