@@ -762,7 +762,7 @@ function CantidadExcipiente() {
   // One column with shared left/right edges (toggle, field, summary), so it reads the same on a desktop cell, a tablet
   // or a phone: 15rem (a definite width, so the table cell does not squeeze it), never wider than its container.
   return (
-    <div className="ml-auto flex w-60 max-w-full flex-col gap-1.5 text-left">
+    <div className="flex w-60 max-w-full flex-col gap-1.5 text-left md:ml-auto">
       {excipiente.unidades !== null ? (
         <div role="group" aria-label="Cómo se carga el excipiente" className="grid grid-cols-2 overflow-hidden rounded-md border border-zinc-400 text-sm">
           {[
@@ -845,9 +845,9 @@ function CantidadExcipiente() {
         {guardado?.estado === "error" ? (
           <p className="text-red-700 dark:text-red-300">{guardado.mensaje}</p>
         ) : guardado?.estado === "guardando" ? (
-          <p className="text-right">Guardando…</p>
+          <p className="md:text-right">Guardando…</p>
         ) : guardado?.estado === "guardado" ? (
-          <p className="text-right">Guardado</p>
+          <p className="md:text-right">Guardado</p>
         ) : null}
       </div>
     </div>
