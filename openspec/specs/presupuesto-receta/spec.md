@@ -367,6 +367,45 @@ regenerar.
 - **WHEN** abre el detalle de una receta
 - **THEN** tiene los accesos «Ficha técnica» y «Cotización»
 
+### Requirement: Ticket de cotización
+
+> Fuente: pedido del usuario (2026-11-04): «un botón de mandar a una impresora, con el mismo formato que la ficha técnica, para entregar a un cliente la cotización […] es para entregar a alguien que viene únicamente a preguntar el precio».
+
+El recuadro «Precio» SHALL ofrecer **«Imprimir cotización»**: un ticket para la impresora térmica de 80 mm, con la
+misma geometría que la ficha técnica (`shared/pdf/ticket.ts`). No guarda nada; el servidor recalcula el precio con el
+mismo borrador (nunca toma el del navegador) y requiere `cotizaciones.calcular`.
+
+Contenido, en orden; lo que no se cargó no se imprime:
+
+1. El nombre de la farmacia (nombre de fantasía o, sin él, la razón social).
+2. La fecha del día (zona horaria de la farmacia).
+3. Paciente y médico, con los nombres que muestra el formulario, si se cargaron.
+4. Cada ítem como su «Nombre del preparado» o, sin él, su forma farmacéutica («Crema»). Nunca las drogas.
+5. Con un ítem, su precio en el mismo renglón («Crema $ 5.000»). Con más de uno, los ítems uno por renglón y solo el
+   **total**: todavía no hay precio diferenciado por ítem para mostrar al cliente.
+
+El botón SHALL habilitarse solo con el precio completo y al día (todos los ítems con precio, sin cambios pendientes de
+recalcular). Si al imprimir el servidor no puede dar el precio de todos los ítems, se rechaza con el motivo: un total
+que deja un ítem afuera sería un precio equivocado en manos del cliente.
+
+#### Scenario: Un ítem con nombre del preparado
+
+- **GIVEN** una receta en carga con paciente, médico y un ítem «Crema antiacné» de $ 5.000
+- **WHEN** se imprime la cotización
+- **THEN** el ticket muestra la farmacia, la fecha, el paciente, el médico y «Crema antiacné $ 5.000»
+
+#### Scenario: Sin nombre del preparado ni paciente
+
+- **GIVEN** un solo ítem en cápsulas sin nombre del preparado y sin paciente ni médico
+- **WHEN** se imprime la cotización
+- **THEN** el ticket muestra la farmacia, la fecha y «Cápsula $ precio»
+
+#### Scenario: Dos ítems
+
+- **GIVEN** una receta en carga con dos ítems
+- **WHEN** se imprime la cotización
+- **THEN** cada ítem aparece en su renglón sin precio y al final «Total $ precio»
+
 ## Referencias
 
 > Se apoya en `openspec/specs/ficha-tecnica/spec.md` (cálculo de la ficha, V1–V9) y en la cotización existente (FASE 7.4, DP-09). Las notas **[ACLARACIÓN]** son deducciones de consistencia; no agregan requisitos.

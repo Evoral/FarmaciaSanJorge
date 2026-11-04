@@ -1372,7 +1372,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
         ) : null
       ) : (
         <aside className="split-aside flex flex-col gap-4" aria-label="Resumen y guardado">
-          {mostrarPrecio ? <PresupuestoPanel items={itemsParaEnvio()} pago={pagoPanel} /> : null}
+          {mostrarPrecio ? <PresupuestoPanel items={itemsParaEnvio()} pago={pagoPanel} cotizacion={{ paciente: pacienteResumen, medico: medicoResumen }} /> : null}
 
           <div className="panel">
             <div className="panel-header">
