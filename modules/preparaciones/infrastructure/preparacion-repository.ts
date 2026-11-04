@@ -20,6 +20,7 @@
  * INSERT statement supplied).
  */
 import { listSinonimosVigentes } from "@/shared/db/busqueda-droga";
+import { buscarPersonasPorNombre } from "@/shared/db/busqueda-persona";
 import { ETIQUETA_ELABORADO_EN_FARMACIA, ETIQUETA_SIN_PROVEEDOR } from "@/shared/labels/enum-labels";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
@@ -1216,7 +1217,104 @@ export interface PreparacionListItem {
   etiqueta: { impresa: boolean } | null;
 }
 
-export interface ListPreparacionesFilter {
+/**
+ * The /recetas filters every /preparaciones tab also offers (domain/listado.ts), on the receta behind each row.
+ * Same matching as /recetas' list (modules/recetas/infrastructure/receta-repository.ts#buildWhere).
+ */
+export interface FiltroRecetaPreparaciones {
+  /** Paciente name (every word, accent-insensitive), or part of its DNI / CUIL. */
+  paciente?: string;
+  /** Médico name (every word), or part of its matrícula (case-insensitive). */
+  medico?: string;
+  pago?: "pagadas" | "impagas";
+  /** `YYYY-MM-DD` on the receta's `fecha_ingreso`, as the tenant's calendar day (inclusive). */
+  ingresoDesde?: string;
+  ingresoHasta?: string;
+  /** `YYYY-MM-DD` on the receta's `fecha_prescripcion` (a date, inclusive). */
+  prescripcionDesde?: string;
+  prescripcionHasta?: string;
+}
+
+/** The paciente / médico ids whose name matches `paciente` / `medico` (shared/db/busqueda-persona.ts), read before the statement is built. */
+export interface PersonasDelFiltro {
+  pacienteIds?: readonly string[];
+  medicoIds?: readonly string[];
+}
+
+async function resolverPersonas(tx: Prisma.TransactionClient, tenantId: string, filter: FiltroRecetaPreparaciones): Promise<PersonasDelFiltro> {
+  const paciente = filter.paciente?.trim();
+  const medico = filter.medico?.trim();
+  return {
+    pacienteIds: paciente ? await buscarPersonasPorNombre(tx, "paciente", tenantId, paciente) : [],
+    medicoIds: medico ? await buscarPersonasPorNombre(tx, "medico", tenantId, medico) : [],
+  };
+}
+
+/**
+ * `FiltroRecetaPreparaciones` as SQL predicates (each starts with `AND`) on `r` (fsj.receta), `pa` (its paciente)
+ * and `tn` (its tenant); an absent filter is a no-op.
+ */
+function condicionesRecetaSql(filter: FiltroRecetaPreparaciones & PersonasDelFiltro): Prisma.Sql {
+  const paciente = filter.paciente?.trim() || null;
+  const medico = filter.medico?.trim() || null;
+  const pacienteIds = filter.pacienteIds && filter.pacienteIds.length > 0 ? [...filter.pacienteIds] : null;
+  const medicoIds = filter.medicoIds && filter.medicoIds.length > 0 ? [...filter.medicoIds] : null;
+  const pagada = filter.pago ? filter.pago === "pagadas" : null;
+  const ingresoDesde = filter.ingresoDesde ?? null;
+  const ingresoHasta = filter.ingresoHasta ?? null;
+  const prescripcionDesde = filter.prescripcionDesde ?? null;
+  const prescripcionHasta = filter.prescripcionHasta ?? null;
+  return Prisma.sql`
+        AND (
+          ${paciente}::text IS NULL
+          OR r.paciente_id = ANY(${pacienteIds}::uuid[])
+          OR strpos(pa.dni, ${paciente}::text) > 0
+          OR strpos(pa.cuil, ${paciente}::text) > 0
+        )
+        AND (
+          ${medico}::text IS NULL
+          OR r.medico_id = ANY(${medicoIds}::uuid[])
+          OR EXISTS (
+            SELECT 1 FROM fsj.medico m
+            WHERE m.tenant_id = r.tenant_id AND m.id = r.medico_id AND strpos(lower(m.matricula), lower(${medico}::text)) > 0
+          )
+        )
+        AND (${pagada}::boolean IS NULL OR r.pagada = ${pagada}::boolean)
+        AND (${ingresoDesde}::date IS NULL OR fsj.jornada_de(r.fecha_ingreso, tn.zona_horaria) >= ${ingresoDesde}::date)
+        AND (${ingresoHasta}::date IS NULL OR fsj.jornada_de(r.fecha_ingreso, tn.zona_horaria) <= ${ingresoHasta}::date)
+        AND (${prescripcionDesde}::date IS NULL OR r.fecha_prescripcion >= ${prescripcionDesde}::date)
+        AND (${prescripcionHasta}::date IS NULL OR r.fecha_prescripcion <= ${prescripcionHasta}::date)`;
+}
+
+/** `FiltroRecetaPreparaciones` (plus the receta Nº) as a Prisma filter on the receta, for the Prisma-built list. */
+function whereReceta(filter: FiltroRecetaPreparaciones & PersonasDelFiltro & { numeroInterno?: string }, zonaHoraria: string): Prisma.RecetaWhereInput | null {
+  const and: Prisma.RecetaWhereInput[] = [];
+  if (filter.numeroInterno) and.push({ numeroInterno: BigInt(filter.numeroInterno) });
+  const paciente = filter.paciente?.trim();
+  if (paciente) {
+    and.push({ OR: [{ pacienteId: { in: [...(filter.pacienteIds ?? [])] } }, { paciente: { dni: { contains: paciente } } }, { paciente: { cuil: { contains: paciente } } }] });
+  }
+  const medico = filter.medico?.trim();
+  if (medico) {
+    and.push({ OR: [{ medicoId: { in: [...(filter.medicoIds ?? [])] } }, { medico: { matricula: { contains: medico, mode: "insensitive" } } }] });
+  }
+  if (filter.pago) and.push({ pagada: filter.pago === "pagadas" });
+  if (filter.ingresoDesde || filter.ingresoHasta) {
+    const { desde, hastaExclusivo } = rangoDeJornadas(filter.ingresoDesde, filter.ingresoHasta, zonaHoraria);
+    and.push({ fechaIngreso: { ...(desde ? { gte: desde } : {}), ...(hastaExclusivo ? { lt: hastaExclusivo } : {}) } });
+  }
+  if (filter.prescripcionDesde || filter.prescripcionHasta) {
+    and.push({
+      fechaPrescripcion: {
+        ...(filter.prescripcionDesde ? { gte: new Date(`${filter.prescripcionDesde}T00:00:00Z`) } : {}),
+        ...(filter.prescripcionHasta ? { lte: new Date(`${filter.prescripcionHasta}T00:00:00Z`) } : {}),
+      },
+    });
+  }
+  return and.length > 0 ? { AND: and } : null;
+}
+
+export interface ListPreparacionesFilter extends FiltroRecetaPreparaciones {
   tenantId: string;
   estado?: EstadoPreparacion;
   /** Nº interno de la receta (digits). */
@@ -1230,19 +1328,18 @@ export interface ListPreparacionesFilter {
   pageSize: number;
 }
 
-export type FiltroComunPreparaciones = Pick<ListPreparacionesFilter, "tenantId" | "numeroInterno" | "desde" | "hasta">;
+export type FiltroComunPreparaciones = Omit<ListPreparacionesFilter, "estado" | "sinEtiquetaImpresa" | "page" | "pageSize"> & PersonasDelFiltro;
 
 async function zonaHorariaTenant(tx: Prisma.TransactionClient, tenantId: string): Promise<string> {
   const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { zonaHoraria: true } });
   return tenant.zonaHoraria;
 }
 
-/** The filters every tab shares (número, fechas) -- `zonaHoraria` turns the calendar days into instants. */
+/** The filters every tab shares (the receta's, the start date) -- `zonaHoraria` turns the calendar days into instants. */
 function whereComun(filter: FiltroComunPreparaciones, zonaHoraria: string): Prisma.PreparacionWhereInput {
   const where: Prisma.PreparacionWhereInput = { tenantId: filter.tenantId };
-  if (filter.numeroInterno) {
-    where.fichaTecnica = { itemReceta: { receta: { numeroInterno: BigInt(filter.numeroInterno) } } };
-  }
+  const receta = whereReceta(filter, zonaHoraria);
+  if (receta) where.fichaTecnica = { itemReceta: { receta } };
   if (filter.desde || filter.hasta) {
     const { desde, hastaExclusivo } = rangoDeJornadas(filter.desde, filter.hasta, zonaHoraria);
     where.iniciadaEn = { ...(desde ? { gte: desde } : {}), ...(hastaExclusivo ? { lt: hastaExclusivo } : {}) };
@@ -1275,7 +1372,7 @@ export async function listPreparaciones(
   filter: ListPreparacionesFilter,
 ): Promise<{ items: PreparacionListItem[]; total: number; zonaHoraria: string }> {
   const zonaHoraria = await zonaHorariaTenant(tx, filter.tenantId);
-  const comun = whereComun(filter, zonaHoraria);
+  const comun = whereComun({ ...filter, ...(await resolverPersonas(tx, filter.tenantId, filter)) }, zonaHoraria);
   const where = filter.estado ? await wherePestana(tx, filter.tenantId, comun, filter.estado, filter.sinEtiquetaImpresa ?? false) : comun;
   const skip = (filter.page - 1) * filter.pageSize;
 
@@ -1355,7 +1452,7 @@ export interface RecetaPendienteFila {
   pacienteApellido: string;
 }
 
-export interface ListRecetasPendientesFilter {
+export interface ListRecetasPendientesFilter extends FiltroRecetaPreparaciones, PersonasDelFiltro {
   tenantId: string;
   /** Nº interno de la receta (digits). */
   numeroInterno?: string;
@@ -1413,6 +1510,7 @@ export function listRecetasPendientesSql(filter: ListRecetasPendientesFilter): P
         AND (${numero}::bigint IS NULL OR r.numero_interno = ${numero}::bigint)
         AND (${desde}::date IS NULL OR fsj.jornada_de(r.fecha_ingreso, tn.zona_horaria) >= ${desde}::date)
         AND (${hasta}::date IS NULL OR fsj.jornada_de(r.fecha_ingreso, tn.zona_horaria) <= ${hasta}::date)
+        ${condicionesRecetaSql(filter)}
         AND EXISTS (
           SELECT 1
           FROM fsj.item_receta ir
@@ -1445,7 +1543,7 @@ export async function listRecetasPendientes(
   tx: Prisma.TransactionClient,
   filter: ListRecetasPendientesFilter,
 ): Promise<{ items: RecetaPendienteFila[]; total: number; zonaHoraria: string }> {
-  const rows = await tx.$queryRaw<ListRecetasPendientesRow[]>(listRecetasPendientesSql(filter));
+  const rows = await tx.$queryRaw<ListRecetasPendientesRow[]>(listRecetasPendientesSql({ ...filter, ...(await resolverPersonas(tx, filter.tenantId, filter)) }));
   if (!rows[0]) throw new Error(`listRecetasPendientes: no row for tenant ${filter.tenantId}`);
 
   return {
@@ -1674,7 +1772,7 @@ export interface ItemEnCurso {
   formaFarmaceutica: string;
 }
 
-export interface ListRecetasEnCursoFilter {
+export interface ListRecetasEnCursoFilter extends FiltroRecetaPreparaciones, PersonasDelFiltro {
   tenantId: string;
   /** Nº interno de la receta (digits). */
   numeroInterno?: string;
@@ -1767,6 +1865,7 @@ export function listRecetasEnCursoSql(filter: ListRecetasEnCursoFilter): Prisma.
         AND (${numero}::bigint IS NULL OR r.numero_interno = ${numero}::bigint)
         AND (${desde}::date IS NULL OR fsj.jornada_de(r.tomada_en, tn.zona_horaria) >= ${desde}::date)
         AND (${hasta}::date IS NULL OR fsj.jornada_de(r.tomada_en, tn.zona_horaria) <= ${hasta}::date)
+        ${condicionesRecetaSql(filter)}
     )
     SELECT
       t.total,
@@ -1799,7 +1898,7 @@ export async function listRecetasEnCurso(
   tx: Prisma.TransactionClient,
   filter: ListRecetasEnCursoFilter,
 ): Promise<{ items: RecetaEnCursoFila[]; total: number; zonaHoraria: string }> {
-  const rows = await tx.$queryRaw<ListRecetasEnCursoRow[]>(listRecetasEnCursoSql(filter));
+  const rows = await tx.$queryRaw<ListRecetasEnCursoRow[]>(listRecetasEnCursoSql({ ...filter, ...(await resolverPersonas(tx, filter.tenantId, filter)) }));
   if (!rows[0]) throw new Error(`listRecetasEnCurso: no row for tenant ${filter.tenantId}`);
 
   return {

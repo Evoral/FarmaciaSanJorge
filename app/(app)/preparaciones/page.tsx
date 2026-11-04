@@ -28,11 +28,13 @@
  * Confirming is NOT offered inline anywhere: it is irreversible and needs
  * the vencimiento choice and a re-authentication.
  *
- * Filters (server-side, modules/preparaciones/domain/listado.ts): Nº de
- * receta and a date range on every tab -- the receta's ingreso on
- * Pendientes, the toma on En curso, the preparación's start on the others --
- * and "Sin etiqueta impresa" on Confirmadas. No paciente filter: DP-24
- * forbids personal data in URLs.
+ * Filters (server-side, modules/preparaciones/domain/listado.ts): the same
+ * ones as /recetas on every tab (Nº, paciente, médico, pago, ingreso and
+ * prescripción ranges), plus the tab's own date range -- the receta's ingreso
+ * on Pendientes (so that tab has no second ingreso range), the toma on En
+ * curso, the preparación's start on the others -- and "Sin etiqueta impresa"
+ * on Confirmadas. The search fields size to the filter section (container
+ * query), not the viewport.
  *
  * Responsive: the tables keep their client forms (Ver, Tomar, Generar
  * etiqueta) in ONE place; on small screens secondary columns hide and
@@ -68,9 +70,10 @@ import { EtiquetaParaImprimir } from "@/modules/preparaciones/ui/etiqueta-para-i
 import { TomarRecetaForm } from "@/modules/preparaciones/ui/tomar-receta-form";
 import { VerRecetaPendienteDialog } from "@/modules/preparaciones/ui/ver-receta-pendiente-dialog";
 import { VerPreparacionDescartadaDialog } from "@/modules/preparaciones/ui/ver-preparacion-descartada-dialog";
+import { FILTROS_PAGO_RECETA, FILTRO_PAGO_RECETA_LABELS } from "@/modules/recetas/domain/pago";
 import { FORMA_FARMACEUTICA_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 import { formatFecha, formatFechaHora } from "@/shared/format/fecha";
-import { DateInput } from "@/shared/ui/date-input";
+import { DateRangeField } from "@/shared/ui/date-range-field";
 import { FilterForm } from "@/shared/ui/filter-form";
 import { FilterDrawer } from "@/shared/ui/filter-drawer";
 import { SearchField } from "@/shared/ui/search-field";
@@ -125,7 +128,20 @@ function isoToDisplay(value: string): string {
 export default async function PreparacionesPage({ searchParams }: PreparacionesPageProps) {
   const session = await requireSession();
   const filtros = parsearFiltrosPreparaciones(await searchParams);
-  const comunes = { numeroInterno: filtros.numero, desde: filtros.desde, hasta: filtros.hasta, page: filtros.page, pageSize: PAGE_SIZE };
+  const comunes = {
+    numeroInterno: filtros.numero,
+    desde: filtros.desde,
+    hasta: filtros.hasta,
+    paciente: filtros.paciente,
+    medico: filtros.medico,
+    pago: filtros.pago,
+    ingresoDesde: filtros.ingresoDesde,
+    ingresoHasta: filtros.ingresoHasta,
+    prescripcionDesde: filtros.prescripcionDesde,
+    prescripcionHasta: filtros.prescripcionHasta,
+    page: filtros.page,
+    pageSize: PAGE_SIZE,
+  };
   let lista: Lista;
   if (filtros.estado === "PENDIENTE") {
     lista = { pestana: "PENDIENTE", result: await listRecetasPendientes(comunes) };
@@ -140,14 +156,45 @@ export default async function PreparacionesPage({ searchParams }: PreparacionesP
   const puedeImprimirEtiqueta = can(session, "etiquetas.imprimir");
   const [tamanos, hoja]: [readonly EtiquetaTamano[], HojaEtiqueta] = esConfirmadas && puedeImprimirEtiqueta ? await Promise.all([listTamanosParaImprimir(), getHojaParaImprimir()]) : [[], HOJA_PREDETERMINADA];
   const etiquetaFechas = ETIQUETA_FECHAS[lista.pestana];
-  const hasActiveFilters = Boolean(filtros.numero || filtros.desde || filtros.hasta || filtros.sinEtiquetaImpresa);
+  const conIngreso = lista.pestana !== "PENDIENTE";
+  const activeDrawerFilters = [
+    filtros.desde,
+    filtros.hasta,
+    filtros.pago,
+    filtros.ingresoDesde,
+    filtros.ingresoHasta,
+    filtros.prescripcionDesde,
+    filtros.prescripcionHasta,
+    filtros.sinEtiquetaImpresa,
+  ].filter(Boolean).length;
+  const hasActiveFilters = Boolean(filtros.numero || filtros.paciente || filtros.medico) || activeDrawerFilters > 0;
 
   const chips: { key: string; label: string; value?: string; remove: Partial<FiltrosPreparaciones> }[] = [];
   if (filtros.numero) chips.push({ key: "numero", label: "Nº de receta", value: filtros.numero, remove: { numero: undefined } });
+  if (filtros.paciente) chips.push({ key: "paciente", label: "Paciente", value: filtros.paciente, remove: { paciente: undefined } });
+  if (filtros.medico) chips.push({ key: "medico", label: "Médico", value: filtros.medico, remove: { medico: undefined } });
+  if (filtros.pago) chips.push({ key: "pago", label: "Pago", value: FILTRO_PAGO_RECETA_LABELS[filtros.pago], remove: { pago: undefined } });
   if (filtros.desde) chips.push({ key: "desde", label: `${etiquetaFechas} desde`, value: isoToDisplay(filtros.desde), remove: { desde: undefined } });
   if (filtros.hasta) chips.push({ key: "hasta", label: `${etiquetaFechas} hasta`, value: isoToDisplay(filtros.hasta), remove: { hasta: undefined } });
+  if (filtros.ingresoDesde) chips.push({ key: "ingresoDesde", label: "Ingreso desde", value: isoToDisplay(filtros.ingresoDesde), remove: { ingresoDesde: undefined } });
+  if (filtros.ingresoHasta) chips.push({ key: "ingresoHasta", label: "Ingreso hasta", value: isoToDisplay(filtros.ingresoHasta), remove: { ingresoHasta: undefined } });
+  if (filtros.prescripcionDesde) chips.push({ key: "prescripcionDesde", label: "Prescripción desde", value: isoToDisplay(filtros.prescripcionDesde), remove: { prescripcionDesde: undefined } });
+  if (filtros.prescripcionHasta) chips.push({ key: "prescripcionHasta", label: "Prescripción hasta", value: isoToDisplay(filtros.prescripcionHasta), remove: { prescripcionHasta: undefined } });
   if (filtros.sinEtiquetaImpresa) chips.push({ key: "sinEtiqueta", label: "Sin etiqueta impresa", remove: { sinEtiquetaImpresa: false } });
-  const sinFiltrosHref = hrefPreparaciones(filtros, { numero: undefined, desde: undefined, hasta: undefined, sinEtiquetaImpresa: false, page: 1 });
+  const sinFiltrosHref = hrefPreparaciones(filtros, {
+    numero: undefined,
+    desde: undefined,
+    hasta: undefined,
+    paciente: undefined,
+    medico: undefined,
+    pago: undefined,
+    ingresoDesde: undefined,
+    ingresoHasta: undefined,
+    prescripcionDesde: undefined,
+    prescripcionHasta: undefined,
+    sinEtiquetaImpresa: false,
+    page: 1,
+  });
 
   const resumen =
     lista.pestana === "PENDIENTE"
@@ -210,7 +257,7 @@ export default async function PreparacionesPage({ searchParams }: PreparacionesP
         }))}
       />
 
-      <section aria-label="Búsqueda y filtros" className="mb-4">
+      <section aria-label="Búsqueda y filtros" className="@container mb-4">
         <FilterForm className="filter-bar" aria-label="Filtros de preparaciones" hasActiveFilters={false}>
           {filtros.estado !== PESTANA_PREPARACIONES_POR_DEFECTO ? <input type="hidden" name="estado" value={filtros.estado} /> : null}
           <SearchField
@@ -221,27 +268,54 @@ export default async function PreparacionesPage({ searchParams }: PreparacionesP
             defaultValue={filtros.numero ?? ""}
             placeholder="Buscar por Nº de receta"
             inputMode="numeric"
-            className="min-w-0 flex-1 md:w-64 md:flex-none"
+            className="min-w-0 flex-1 @4xl:w-56 @4xl:flex-none"
           />
-          <FilterDrawer activeCount={(filtros.desde ? 1 : 0) + (filtros.hasta ? 1 : 0) + (filtros.sinEtiquetaImpresa ? 1 : 0)}>
+          <SearchField
+            id="paciente"
+            name="paciente"
+            label="Paciente"
+            hideLabel
+            defaultValue={filtros.paciente ?? ""}
+            placeholder="Paciente o DNI"
+            inputMode="search"
+            className="min-w-0 flex-1 @4xl:w-56 @4xl:flex-none"
+          />
+          <SearchField
+            id="medico"
+            name="medico"
+            label="Médico"
+            hideLabel
+            defaultValue={filtros.medico ?? ""}
+            placeholder="Médico o matrícula"
+            inputMode="search"
+            className="min-w-0 flex-1 @4xl:w-56 @4xl:flex-none"
+          />
+          <FilterDrawer activeCount={activeDrawerFilters}>
             <div className="field">
-              <span id="fechas-label" className="field-label">
-                {etiquetaFechas}
-              </span>
-              <div className="range-field" role="group" aria-labelledby="fechas-label">
-                <label htmlFor="desde" className="sr-only">
-                  {etiquetaFechas} desde
-                </label>
-                <DateInput id="desde" name="desde" defaultValue={filtros.desde ?? ""} />
-                <span className="range-field-sep" aria-hidden>
-                  a
-                </span>
-                <label htmlFor="hasta" className="sr-only">
-                  {etiquetaFechas} hasta
-                </label>
-                <DateInput id="hasta" name="hasta" defaultValue={filtros.hasta ?? ""} />
-              </div>
+              <label htmlFor="pago" className="field-label">
+                Pago
+              </label>
+              <select id="pago" name="pago" defaultValue={filtros.pago ?? ""} className="input">
+                <option value="">Todas</option>
+                {FILTROS_PAGO_RECETA.map((valor) => (
+                  <option key={valor} value={valor}>
+                    {FILTRO_PAGO_RECETA_LABELS[valor]}
+                  </option>
+                ))}
+              </select>
             </div>
+            <DateRangeField id="fechas" label={etiquetaFechas} desdeName="desde" hastaName="hasta" desdeDefault={filtros.desde ?? ""} hastaDefault={filtros.hasta ?? ""} />
+            {conIngreso ? (
+              <DateRangeField id="ingreso" label="Ingreso" desdeName="ingresoDesde" hastaName="ingresoHasta" desdeDefault={filtros.ingresoDesde ?? ""} hastaDefault={filtros.ingresoHasta ?? ""} />
+            ) : null}
+            <DateRangeField
+              id="prescripcion"
+              label="Prescripción"
+              desdeName="prescripcionDesde"
+              hastaName="prescripcionHasta"
+              desdeDefault={filtros.prescripcionDesde ?? ""}
+              hastaDefault={filtros.prescripcionHasta ?? ""}
+            />
             {esConfirmadas ? (
               <label className="toggle-switch">
                 <input type="checkbox" role="switch" name="sinEtiqueta" value="1" defaultChecked={filtros.sinEtiquetaImpresa} />

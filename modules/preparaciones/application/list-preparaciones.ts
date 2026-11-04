@@ -10,12 +10,13 @@
  *
  * Filters are applied in the query (server-side): receta number, start
  * date range (the tenant's calendar days), and -- Confirmadas only --
- * "sin etiqueta impresa". The page of rows carries each one's etiqueta
+ * "sin etiqueta impresa", plus the /recetas filters on the receta
+ * (filtro-receta-input.ts). The page of rows carries each one's etiqueta
  * state from the same query.
- * No paciente filter (DP-24: no personal data in URLs).
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
+import { filtroReceta, filtroRecetaInput } from "./filtro-receta-input";
 import { listPreparaciones as listPreparacionesRepo } from "../infrastructure/preparacion-repository";
 import type { PreparacionListItem } from "../infrastructure/preparacion-repository";
 
@@ -29,6 +30,7 @@ const listPreparacionesInput = z.object({
   numeroInterno: z.string().trim().regex(/^\d{1,18}$/, "Debe ser un número de receta.").optional(),
   desde: isoDate.optional(),
   hasta: isoDate.optional(),
+  ...filtroRecetaInput,
   sinEtiquetaImpresa: z.boolean().default(false),
   page: z.number().int().positive().default(1),
   pageSize: z.number().int().positive().max(100).default(20),
@@ -55,6 +57,7 @@ export const listPreparacionesQuery = defineQuery({
       numeroInterno: input.numeroInterno,
       desde: input.desde,
       hasta: input.hasta,
+      ...filtroReceta(input),
       sinEtiquetaImpresa: input.sinEtiquetaImpresa,
     };
     const { items, total, zonaHoraria } = await listPreparacionesRepo(tx, { ...filtro, estado: input.estado, page: input.page, pageSize: input.pageSize });

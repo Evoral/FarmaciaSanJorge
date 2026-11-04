@@ -7,11 +7,12 @@
  * "Recetas en curso" count.
  *
  * Same permiso as the other lists (`preparaciones.iniciar`). Filters are
- * applied in the query: receta number and the toma's date range (the
- * tenant's calendar days). No paciente filter (DP-24).
+ * applied in the query: receta number, the toma's date range (the
+ * tenant's calendar days) and the /recetas filters (filtro-receta-input.ts).
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
+import { filtroReceta, filtroRecetaInput } from "./filtro-receta-input";
 import { listRecetasEnCurso as listRecetasEnCursoRepo } from "../infrastructure/preparacion-repository";
 import type { RecetaEnCursoFila } from "../infrastructure/preparacion-repository";
 
@@ -23,6 +24,7 @@ const listRecetasEnCursoInput = z.object({
   numeroInterno: z.string().trim().regex(/^\d{1,18}$/, "Debe ser un número de receta.").optional(),
   desde: isoDate.optional(),
   hasta: isoDate.optional(),
+  ...filtroRecetaInput,
   page: z.number().int().positive().default(1),
   pageSize: z.number().int().positive().max(100).default(20),
 });
@@ -48,6 +50,7 @@ export const listRecetasEnCursoQuery = defineQuery({
       numeroInterno: input.numeroInterno,
       desde: input.desde,
       hasta: input.hasta,
+      ...filtroReceta(input),
       page: input.page,
       pageSize: input.pageSize,
     });
