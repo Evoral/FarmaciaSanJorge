@@ -38,8 +38,13 @@ export function CoFirmaDt({ dts, idSuffix = "", operadorEsDt = false, titulo = "
           </p>
         </div>
       </div>
-      {/* items-end: a label that wraps to two lines must not push its input below the other one. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end">
+      {/*
+        items-end: a label that wraps to two lines must not push its input below the other one.
+        Container query: this renders in max-w-md dialogs and narrow columns; side by side only from @xl, where each
+        column (~280px) fits the select's placeholder.
+      */}
+      <div className="@container">
+      <div className="grid grid-cols-1 gap-4 @xl:grid-cols-2 @xl:items-end">
         <div className="field">
           <label htmlFor={dtId} className="field-label">
             Director Técnico
@@ -60,6 +65,7 @@ export function CoFirmaDt({ dts, idSuffix = "", operadorEsDt = false, titulo = "
           </label>
           <PasswordInput id={passwordId} name="dtPassword" autoComplete="off" required className="input" />
         </div>
+      </div>
       </div>
     </fieldset>
   );
