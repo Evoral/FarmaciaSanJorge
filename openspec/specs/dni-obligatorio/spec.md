@@ -48,6 +48,12 @@ A DNI typed for a paciente or a usuario SHALL be stripped of every non-digit cha
 - **WHEN** another usuario is created with DNI "12.345.678"
 - **THEN** it is refused as a duplicate DNI
 
+#### Scenario: DNI without 7 or 8 digits
+
+- **WHEN** a DNI that, once normalized, does not have 7 or 8 digits is submitted during the alta or edición of a paciente or usuario
+- **THEN** the operation is refused with "El DNI debe tener 7 u 8 dígitos." and the DNI field is marked
+- **AND** a cuenta de sector is exempt because its DNI is derived (`shared/validation/dni.ts`, `modules/usuarios/application/crear-usuario.ts`, `modules/usuarios/application/editar-usuario.ts`, `modules/pacientes/domain/paciente.ts`)
+
 ### Requirement: R4 — The receta import asks the DNI only for a new paciente
 
 The receta import (PDF/QR) is never blocked by a missing DNI: matching an existing paciente works without one. When it
