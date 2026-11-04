@@ -90,7 +90,8 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
             <span id="nuevo-periodo-label" className="field-label">
               Período
             </span>
-            <div className="range-field" role="group" aria-labelledby="nuevo-periodo-label">
+            {/* flex-wrap: two DateInputs (2 × 10.5rem) plus the separator need ~352px; a phone leaves ~303px here. */}
+            <div className="range-field flex-wrap" role="group" aria-labelledby="nuevo-periodo-label">
               <label htmlFor="periodoDesde" className="sr-only">
                 Período desde
               </label>
@@ -128,7 +129,7 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
         </div>
       ) : (
         <div className="split-layout">
-          <section aria-labelledby="elegibles-heading" className="list-panel min-w-0">
+          <section aria-labelledby="elegibles-heading" className="@container list-panel min-w-0">
             <div className="list-toolbar">
               <h2 id="elegibles-heading" className="font-medium text-zinc-900" aria-live="polite">
                 {elegibles.total} {elegibles.total === 1 ? "receta elegible" : "recetas elegibles"} del {formatFechaIso(periodoDesde)} al {formatFechaIso(periodoHasta)}
@@ -153,7 +154,7 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
                       <th scope="col" className="px-3 py-2">
                         Estado
                       </th>
-                      <th scope="col" className="hidden px-3 py-2 sm:table-cell">
+                      <th scope="col" className="hidden px-3 py-2 @xl:table-cell">
                         Ingreso
                       </th>
                     </tr>
@@ -175,7 +176,7 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
                           <td className="px-3 py-2.5">
                             <StatusBadge estado={r.estado} />
                           </td>
-                          <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums sm:table-cell">{formatFechaIso(r.fechaIngreso)}</td>
+                          <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums @xl:table-cell">{formatFechaIso(r.fechaIngreso)}</td>
                         </tr>
                       );
                     })}

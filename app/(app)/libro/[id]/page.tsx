@@ -87,8 +87,8 @@ export default async function AsientoPage({ params }: AsientoPageProps) {
 
       <div className="split-layout">
         <div className="flex min-w-0 flex-col gap-6">
-          <section aria-label="Datos del asiento" className="panel">
-            <dl className="grid gap-x-8 gap-y-4 p-5 text-sm sm:grid-cols-2">
+          <section aria-label="Datos del asiento" className="@container panel">
+            <dl className="grid gap-x-8 gap-y-4 p-5 text-sm @lg:grid-cols-2">
               <div>
                 <dt className="text-xs text-zinc-500">Paciente</dt>
                 <dd className="font-medium text-zinc-900">{asiento.pacienteTexto}</dd>
@@ -97,11 +97,11 @@ export default async function AsientoPage({ params }: AsientoPageProps) {
                 <dt className="text-xs text-zinc-500">Médico</dt>
                 <dd className="text-zinc-900">{asiento.medicoTexto}</dd>
               </div>
-              <div className="sm:col-span-2">
+              <div className="@lg:col-span-2">
                 <dt className="text-xs text-zinc-500">{asiento.itemLabels.length > 1 ? "Ítems de la receta" : "Ítem de la receta"}</dt>
                 <dd className={asiento.itemLabels.length > 0 ? "text-zinc-900" : "text-zinc-400"}>{asiento.itemLabels.length > 0 ? asiento.itemLabels.join(" | ") : "Sin dato"}</dd>
               </div>
-              <div className="sm:col-span-2">
+              <div className="@lg:col-span-2">
                 <dt className="text-xs text-zinc-500">Fórmula</dt>
                 <dd className="mt-1 whitespace-pre-wrap rounded-[var(--radius-md)] bg-zinc-50 px-3 py-2 font-mono text-[0.8125rem] leading-relaxed text-zinc-900">{asiento.formulaTexto}</dd>
               </div>

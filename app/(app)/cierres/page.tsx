@@ -177,7 +177,8 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
 
               <div className="list-region">
                 <span className="link-pending" aria-hidden />
-                <div className="list-panel">
+                {/* Container: with the firma aside the list column is ~320px at 1024px; the columns appear by its width, not the screen's. */}
+                <div className="@container list-panel">
                   <div className="list-toolbar">
                     <p role="status">
                       <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(asientos.total)}</span> {asientos.total === 1 ? "receta registrada" : "recetas registradas"} en el libro
@@ -195,19 +196,19 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
                       <table className="data-table">
                         <thead>
                           <tr>
-                            <th scope="col" className="hidden px-3 py-2 sm:table-cell">
+                            <th scope="col" className="hidden px-3 py-2 @xl:table-cell">
                               Nº
                             </th>
                             <th scope="col" className="px-3 py-2">
                               Paciente
                             </th>
-                            <th scope="col" className="hidden px-3 py-2 md:table-cell">
+                            <th scope="col" className="hidden px-3 py-2 @3xl:table-cell">
                               Médico
                             </th>
-                            <th scope="col" className="hidden px-3 py-2 lg:table-cell">
+                            <th scope="col" className="hidden px-3 py-2 @5xl:table-cell">
                               Fórmula
                             </th>
-                            <th scope="col" className="hidden px-3 py-2 sm:table-cell">
+                            <th scope="col" className="hidden px-3 py-2 @xl:table-cell">
                               Estado
                             </th>
                             {puedeVerLibro ? (
@@ -220,7 +221,7 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
                         <tbody>
                           {asientos.items.map((item) => (
                             <tr key={item.id}>
-                              <td className="hidden px-3 py-2.5 sm:table-cell">
+                              <td className="hidden px-3 py-2.5 @xl:table-cell">
                                 {puedeVerLibro ? (
                                   <Link href={`/libro/${item.id}`} className="font-mono font-semibold underline-offset-2 hover:underline">
                                     {item.numeroCorrelativo}
@@ -231,7 +232,7 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
                                 {item.esRectificativo ? <span className="block text-xs text-zinc-500">Rectifica Nº {item.asientoOriginalNumeroCorrelativo}</span> : null}
                               </td>
                               <td className="px-3 py-2.5 text-zinc-900">
-                                <div className="mb-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs text-zinc-500 sm:hidden">
+                                <div className="mb-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs text-zinc-500 @xl:hidden">
                                   {puedeVerLibro ? (
                                     <Link href={`/libro/${item.id}`} className="font-mono font-semibold underline-offset-2 hover:underline">
                                       Nº {item.numeroCorrelativo}
@@ -242,20 +243,20 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
                                   {item.esRectificativo ? <span>· Rectifica Nº {item.asientoOriginalNumeroCorrelativo}</span> : null}
                                 </div>
                                 <span className="block max-w-[16rem] break-words font-medium sm:font-normal">{item.pacienteTexto}</span>
-                                <span className="block max-w-[16rem] break-words text-xs text-zinc-500 md:hidden">{item.medicoTexto}</span>
-                                <span className="mt-1.5 block sm:hidden">
+                                <span className="block max-w-[16rem] break-words text-xs text-zinc-500 @3xl:hidden">{item.medicoTexto}</span>
+                                <span className="mt-1.5 block @xl:hidden">
                                   <ToneBadge tone={tonoEstadoAsiento(item.estadoVisual.kind)}>{etiquetaEstadoVisual(item.estadoVisual)}</ToneBadge>
                                 </span>
                               </td>
-                              <td className="hidden px-3 py-2.5 md:table-cell">
+                              <td className="hidden px-3 py-2.5 @3xl:table-cell">
                                 <span className="block max-w-[16rem] break-words">{item.medicoTexto}</span>
                               </td>
-                              <td className="hidden px-3 py-2.5 lg:table-cell">
+                              <td className="hidden px-3 py-2.5 @5xl:table-cell">
                                 <span className="block max-w-xs truncate" title={item.formulaTexto}>
                                   {item.formulaTexto}
                                 </span>
                               </td>
-                              <td className="hidden px-3 py-2.5 sm:table-cell">
+                              <td className="hidden px-3 py-2.5 @xl:table-cell">
                                 <ToneBadge tone={tonoEstadoAsiento(item.estadoVisual.kind)}>{etiquetaEstadoVisual(item.estadoVisual)}</ToneBadge>
                               </td>
                               {puedeVerLibro ? (

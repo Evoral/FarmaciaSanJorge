@@ -75,7 +75,7 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
 
       <div className="split-layout">
         <div className="flex min-w-0 flex-col gap-6">
-          <section aria-labelledby="recetario-heading" className="panel">
+          <section aria-labelledby="recetario-heading" className="@container panel">
             <div className="panel-header">
               <h2 id="recetario-heading" className="flex items-center gap-2">
                 Libro recetario <span className="tab-count">{cierre.asientosRecetario.length}</span>
@@ -91,16 +91,16 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
                       <th scope="col" className="px-3 py-2 sm:px-5">
                         Nº
                       </th>
-                      <th scope="col" className="hidden px-3 py-2 sm:table-cell">
+                      <th scope="col" className="hidden px-3 py-2 @xl:table-cell">
                         Estado
                       </th>
                       <th scope="col" className="px-3 py-2">
                         Paciente
                       </th>
-                      <th scope="col" className="hidden px-3 py-2 md:table-cell">
+                      <th scope="col" className="hidden px-3 py-2 @3xl:table-cell">
                         Médico
                       </th>
-                      <th scope="col" className="hidden px-5 py-2 lg:table-cell">
+                      <th scope="col" className="hidden px-5 py-2 @5xl:table-cell">
                         Fórmula
                       </th>
                     </tr>
@@ -109,18 +109,18 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
                     {cierre.asientosRecetario.map((a) => (
                       <tr key={a.numeroCorrelativo} className="align-top">
                         <td className="px-3 py-2.5 font-mono font-semibold text-zinc-900 tabular-nums sm:px-5">{a.numeroCorrelativo}</td>
-                        <td className="hidden px-3 py-2.5 sm:table-cell">
+                        <td className="hidden px-3 py-2.5 @xl:table-cell">
                           <ToneBadge tone="neutral">{a.estadoVisual}</ToneBadge>
                         </td>
                         <td className="px-3 py-2.5 text-zinc-900">
                           {a.pacienteTexto}
-                          <span className="block text-xs text-zinc-500 md:hidden">{a.medicoTexto}</span>
-                          <span className="mt-1 block sm:hidden">
+                          <span className="block text-xs text-zinc-500 @3xl:hidden">{a.medicoTexto}</span>
+                          <span className="mt-1 block @xl:hidden">
                             <ToneBadge tone="neutral">{a.estadoVisual}</ToneBadge>
                           </span>
                         </td>
-                        <td className="hidden px-3 py-2.5 md:table-cell">{a.medicoTexto}</td>
-                        <td className="hidden max-w-[36ch] px-5 py-2.5 text-zinc-700 lg:table-cell">{a.formulaTexto}</td>
+                        <td className="hidden px-3 py-2.5 @3xl:table-cell">{a.medicoTexto}</td>
+                        <td className="hidden max-w-[36ch] px-5 py-2.5 text-zinc-700 @5xl:table-cell">{a.formulaTexto}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -129,7 +129,7 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
             )}
           </section>
 
-          <section aria-labelledby="contralor-heading" className="panel">
+          <section aria-labelledby="contralor-heading" className="@container panel">
             <div className="panel-header">
               <h2 id="contralor-heading" className="flex items-center gap-2">
                 Libros contralor <span className="tab-count">{cierre.asientosContralor.length}</span>
@@ -142,22 +142,22 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th scope="col" className="hidden px-5 py-2 sm:table-cell">
+                      <th scope="col" className="hidden px-5 py-2 @xl:table-cell">
                         Nº
                       </th>
-                      <th scope="col" className="hidden px-3 py-2 md:table-cell">
+                      <th scope="col" className="hidden px-3 py-2 @3xl:table-cell">
                         Libro
                       </th>
                       <th scope="col" className="px-3 py-2">
                         Droga
                       </th>
-                      <th scope="col" className="hidden px-3 py-2 sm:table-cell">
+                      <th scope="col" className="hidden px-3 py-2 @xl:table-cell">
                         Movimiento
                       </th>
                       <th scope="col" className="px-3 py-2 text-right">
                         Cantidad
                       </th>
-                      <th scope="col" className="hidden px-5 py-2 text-right sm:table-cell">
+                      <th scope="col" className="hidden px-5 py-2 text-right @xl:table-cell">
                         Saldo
                       </th>
                     </tr>
@@ -165,29 +165,29 @@ export default async function CierreDetallePage({ params }: CierreDetallePagePro
                   <tbody>
                     {cierre.asientosContralor.map((a, i) => (
                       <tr key={`${a.tipoLibro}-${a.numeroCorrelativo}-${i}`}>
-                        <td className="hidden px-5 py-2.5 font-mono font-semibold text-zinc-900 tabular-nums sm:table-cell">{a.numeroCorrelativo}</td>
-                        <td className="hidden px-3 py-2.5 md:table-cell">{etiquetaDe(TIPO_LIBRO_LABELS, a.tipoLibro)}</td>
+                        <td className="hidden px-5 py-2.5 font-mono font-semibold text-zinc-900 tabular-nums @xl:table-cell">{a.numeroCorrelativo}</td>
+                        <td className="hidden px-3 py-2.5 @3xl:table-cell">{etiquetaDe(TIPO_LIBRO_LABELS, a.tipoLibro)}</td>
                         <td className="px-3 py-2.5 text-zinc-900">
-                          <span className="mb-0.5 block font-mono text-xs font-semibold text-zinc-900 tabular-nums sm:hidden">Nº {a.numeroCorrelativo}</span>
+                          <span className="mb-0.5 block font-mono text-xs font-semibold text-zinc-900 tabular-nums @xl:hidden">Nº {a.numeroCorrelativo}</span>
                           <span className="line-clamp-2 block max-w-xs break-words" title={a.drogaDescripcion}>
                             {a.drogaDescripcion}
                           </span>
                           {/* Phones: libro and movimiento travel under the droga. */}
-                          <span className="block text-xs text-zinc-500 md:hidden">
+                          <span className="block text-xs text-zinc-500 @3xl:hidden">
                             {etiquetaDe(TIPO_LIBRO_LABELS, a.tipoLibro)}
-                            <span className="sm:hidden"> · {etiquetaDe(TIPO_MOVIMIENTO_CONTRALOR_LABELS, a.tipoMovimiento)}</span>
+                            <span className="@xl:hidden"> · {etiquetaDe(TIPO_MOVIMIENTO_CONTRALOR_LABELS, a.tipoMovimiento)}</span>
                           </span>
                         </td>
-                        <td className="hidden px-3 py-2.5 sm:table-cell">
+                        <td className="hidden px-3 py-2.5 @xl:table-cell">
                           <ToneBadge tone="neutral">{etiquetaDe(TIPO_MOVIMIENTO_CONTRALOR_LABELS, a.tipoMovimiento)}</ToneBadge>
                         </td>
                         <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono tabular-nums">
                           {a.cantidad}
-                          <span className="mt-0.5 block font-sans text-xs text-zinc-500 sm:hidden">
+                          <span className="mt-0.5 block font-sans text-xs text-zinc-500 @xl:hidden">
                             Saldo: <span className="font-mono font-medium text-zinc-900">{a.saldoPosterior}</span>
                           </span>
                         </td>
-                        <td className="hidden whitespace-nowrap px-5 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums sm:table-cell">{a.saldoPosterior}</td>
+                        <td className="hidden whitespace-nowrap px-5 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums @xl:table-cell">{a.saldoPosterior}</td>
                       </tr>
                     ))}
                   </tbody>
