@@ -500,4 +500,81 @@ describe("confirmar-form -- pesadaDeLinea P13", () => {
     expect(resultado!.sugerida).toBe("150");
     expect(resultado!.bajoLaBalanza).toBe(false);
   });
+
+  describe("sugerirDilucion flag", () => {
+    const planEncimaDeBalanza = {
+      ok: true as const,
+      totalFisico: "0.15",
+      requiereMotivo: false,
+      partes: [{ partidaId: "p-1", cantidad: "0.15" }],
+    };
+    const partidaPura = { id: "p-1", esDilucion: false } as LineaPantalla["partidasElegibles"][number];
+    const partidaDiluida = { id: "p-dil", esDilucion: true } as LineaPantalla["partidasElegibles"][number];
+
+    it("is true when linea.sugerirDilucion is true, the dose is NOT below the balance, and no plan part comes from a partida with esDilucion", () => {
+      const linea: LineaPantalla = {
+        ...lineaBase,
+        sugerirDilucion: true,
+        partidasElegibles: [partidaPura],
+      };
+      const resultado = pesadaDeLinea(linea, planEncimaDeBalanza, undefined, datos);
+      expect(resultado).not.toBeNull();
+      expect(resultado!.bajoLaBalanza).toBe(false);
+      expect(resultado!.sugerirDilucion).toBe(true);
+    });
+
+    it("is false when the dose is below the balance (bajoLaBalanza true wins: never both true)", () => {
+      const planBajoBalanza = {
+        ok: true as const,
+        totalFisico: "0.00015",
+        requiereMotivo: false,
+        partes: [{ partidaId: "p-1", cantidad: "0.00015" }],
+      };
+      const linea: LineaPantalla = {
+        ...lineaBase,
+        sugerirDilucion: true,
+        partidasElegibles: [partidaPura],
+      };
+      const resultado = pesadaDeLinea(linea, planBajoBalanza, undefined, datos);
+      expect(resultado).not.toBeNull();
+      expect(resultado!.bajoLaBalanza).toBe(true);
+      expect(resultado!.sugerirDilucion).toBe(false);
+    });
+
+    it("is false when the plan draws from a dilución lot (a partida in linea.partidasElegibles with esDilucion true)", () => {
+      const planConDilucion = {
+        ok: true as const,
+        totalFisico: "0.15",
+        requiereMotivo: false,
+        partes: [{ partidaId: "p-dil", cantidad: "0.15" }],
+      };
+      const linea: LineaPantalla = {
+        ...lineaBase,
+        sugerirDilucion: true,
+        partidasElegibles: [partidaDiluida],
+      };
+      const resultado = pesadaDeLinea(linea, planConDilucion, undefined, datos);
+      expect(resultado).not.toBeNull();
+      expect(resultado!.bajoLaBalanza).toBe(false);
+      expect(resultado!.sugerirDilucion).toBe(false);
+    });
+
+    it("is false when linea.sugerirDilucion is false or absent", () => {
+      const lineaFalse: LineaPantalla = {
+        ...lineaBase,
+        sugerirDilucion: false,
+        partidasElegibles: [partidaPura],
+      };
+      const resFalse = pesadaDeLinea(lineaFalse, planEncimaDeBalanza, undefined, datos);
+      expect(resFalse!.sugerirDilucion).toBe(false);
+
+      const lineaAbsent: LineaPantalla = {
+        ...lineaBase,
+        sugerirDilucion: undefined,
+        partidasElegibles: [partidaPura],
+      };
+      const resAbsent = pesadaDeLinea(lineaAbsent, planEncimaDeBalanza, undefined, datos);
+      expect(resAbsent!.sugerirDilucion).toBe(false);
+    });
+  });
 });

@@ -473,4 +473,207 @@ describe("crearDrogaCommand / editarDrogaCommand formula handling", () => {
       }),
     );
   });
+
+  describe("sugerirDilucion flag in crearDrogaCommand & editarDrogaCommand", () => {
+    it("crearDrogaCommand: sugerirDilucion true reaches insertDroga and the CREAR audit valorNuevo; when omitted, both get false", async () => {
+      // 1. With sugerirDilucion true
+      await crearDrogaCommand.execute(
+        {
+          nombre: "Droga Diluible",
+          unidadBaseId: UNIDAD_ID,
+          stockMinimo: "0",
+          sugerirDilucion: true,
+        },
+        { session: fakeSession() },
+      );
+      expect(insertDrogaMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ sugerirDilucion: true }),
+      );
+      expect(auditRecordMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          accion: "CREAR",
+          valorNuevo: expect.objectContaining({ sugerirDilucion: true }),
+        }),
+      );
+
+      vi.clearAllMocks();
+
+      // 2. When omitted
+      await crearDrogaCommand.execute(
+        {
+          nombre: "Droga Sin Dilucion",
+          unidadBaseId: UNIDAD_ID,
+          stockMinimo: "0",
+        },
+        { session: fakeSession() },
+      );
+      expect(insertDrogaMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ sugerirDilucion: false }),
+      );
+      expect(auditRecordMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          accion: "CREAR",
+          valorNuevo: expect.objectContaining({ sugerirDilucion: false }),
+        }),
+      );
+    });
+
+    it("editarDrogaCommand: sugerirDilucion true/false reaches updateDrogaDatos and the audit (valorAnterior = stored, valorNuevo = new)", async () => {
+      // Stored is false, setting to true
+      getDrogaParaAccionMock.mockResolvedValueOnce({
+        id: DROGA_ID,
+        nombre: "Droga Existente",
+        unidadBaseId: UNIDAD_ID,
+        esControlada: false,
+        tipoControl: "NINGUNO",
+        clase: "DROGA",
+        stockMinimo: "0",
+        sugerirDilucion: false,
+        saldoAperturaContralor: null,
+        fechaBaja: null,
+        deBaja: false,
+        unidadBaseNombre: "Gramo",
+        unidadBaseSimbolo: "g",
+      });
+
+      await editarDrogaCommand.execute(
+        {
+          id: DROGA_ID,
+          nombre: "Droga Existente",
+          stockMinimo: "0",
+          sugerirDilucion: true,
+          version: {
+            nombre: "Droga Existente",
+            unidadBaseId: UNIDAD_ID,
+            esControlada: false,
+            tipoControl: "NINGUNO",
+            clase: "DROGA",
+            stockMinimo: "0",
+          },
+        },
+        { session: fakeSession() },
+      );
+
+      expect(updateDrogaDatosMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ sugerirDilucion: true }),
+        expect.anything(),
+      );
+      expect(auditRecordMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          accion: "MODIFICAR",
+          valorAnterior: expect.objectContaining({ sugerirDilucion: false }),
+          valorNuevo: expect.objectContaining({ sugerirDilucion: true }),
+        }),
+      );
+
+      vi.clearAllMocks();
+
+      // Stored is true, setting to false
+      getDrogaParaAccionMock.mockResolvedValueOnce({
+        id: DROGA_ID,
+        nombre: "Droga Existente",
+        unidadBaseId: UNIDAD_ID,
+        esControlada: false,
+        tipoControl: "NINGUNO",
+        clase: "DROGA",
+        stockMinimo: "0",
+        sugerirDilucion: true,
+        saldoAperturaContralor: null,
+        fechaBaja: null,
+        deBaja: false,
+        unidadBaseNombre: "Gramo",
+        unidadBaseSimbolo: "g",
+      });
+
+      await editarDrogaCommand.execute(
+        {
+          id: DROGA_ID,
+          nombre: "Droga Existente",
+          stockMinimo: "0",
+          sugerirDilucion: false,
+          version: {
+            nombre: "Droga Existente",
+            unidadBaseId: UNIDAD_ID,
+            esControlada: false,
+            tipoControl: "NINGUNO",
+            clase: "DROGA",
+            stockMinimo: "0",
+          },
+        },
+        { session: fakeSession() },
+      );
+
+      expect(updateDrogaDatosMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ sugerirDilucion: false }),
+        expect.anything(),
+      );
+      expect(auditRecordMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          accion: "MODIFICAR",
+          valorAnterior: expect.objectContaining({ sugerirDilucion: true }),
+          valorNuevo: expect.objectContaining({ sugerirDilucion: false }),
+        }),
+      );
+    });
+
+    it("editarDrogaCommand with sugerirDilucion omitted: updateDrogaDatos gets no sugerirDilucion key, and the audit valorNuevo keeps the stored value", async () => {
+      getDrogaParaAccionMock.mockResolvedValueOnce({
+        id: DROGA_ID,
+        nombre: "Droga Existente",
+        unidadBaseId: UNIDAD_ID,
+        esControlada: false,
+        tipoControl: "NINGUNO",
+        clase: "DROGA",
+        stockMinimo: "0",
+        sugerirDilucion: true,
+        saldoAperturaContralor: null,
+        fechaBaja: null,
+        deBaja: false,
+        unidadBaseNombre: "Gramo",
+        unidadBaseSimbolo: "g",
+      });
+
+      await editarDrogaCommand.execute(
+        {
+          id: DROGA_ID,
+          nombre: "Droga Existente",
+          stockMinimo: "0",
+          // sugerirDilucion omitted
+          version: {
+            nombre: "Droga Existente",
+            unidadBaseId: UNIDAD_ID,
+            esControlada: false,
+            tipoControl: "NINGUNO",
+            clase: "DROGA",
+            stockMinimo: "0",
+          },
+        },
+        { session: fakeSession() },
+      );
+
+      const updateCall = updateDrogaDatosMock.mock.calls[0];
+      expect(updateCall).toBeDefined();
+      const datosNuevos = updateCall[2];
+      expect(Object.prototype.hasOwnProperty.call(datosNuevos, "sugerirDilucion")).toBe(false);
+
+      expect(auditRecordMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          accion: "MODIFICAR",
+          valorAnterior: expect.objectContaining({ sugerirDilucion: true }),
+          valorNuevo: expect.objectContaining({ sugerirDilucion: true }),
+        }),
+      );
+    });
+  });
 });
