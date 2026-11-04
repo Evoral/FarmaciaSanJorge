@@ -268,7 +268,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
         }))}
       />
 
-      <section aria-label="Búsqueda y filtros" className="mb-4">
+      <section aria-label="Búsqueda y filtros" className="@container mb-4">
         {/* The estado and the summary's periodo are chosen above; these hidden fields keep them while the other filters change. */}
         <FilterForm className="filter-bar" aria-label="Filtros de recetas" hasActiveFilters={false}>
           <input type="hidden" name="estado" value={estadoValido ?? ""} />
@@ -281,7 +281,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
             defaultValue={params.numero ?? ""}
             placeholder="Buscar por Nº interno"
             inputMode="search"
-            className="min-w-0 flex-1 md:w-56 md:flex-none"
+            className="min-w-0 flex-1 @4xl:w-56 @4xl:flex-none"
           />
           <SearchField
             id="paciente"
@@ -291,7 +291,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
             defaultValue={params.paciente ?? ""}
             placeholder="Paciente o DNI"
             inputMode="search"
-            className="min-w-0 flex-1 md:w-56 md:flex-none"
+            className="min-w-0 flex-1 @4xl:w-56 @4xl:flex-none"
           />
           <SearchField
             id="medico"
@@ -301,7 +301,7 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
             defaultValue={params.medico ?? ""}
             placeholder="Médico o matrícula"
             inputMode="search"
-            className="min-w-0 flex-1 md:w-56 md:flex-none"
+            className="min-w-0 flex-1 @4xl:w-56 @4xl:flex-none"
           />
           <FilterDrawer activeCount={activeDrawerFilters}>
             <div className="field">
