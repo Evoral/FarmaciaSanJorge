@@ -8,6 +8,8 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
+import type { record } from "@/shared/audit";
+import type { generarEtiquetaEnTx as generarEtiquetaEnTxFn } from "@/modules/preparaciones/application/generar-etiqueta";
 import { DomainError } from "@/shared/errors";
 import {
   ensamblarDetallesReceta,
@@ -97,8 +99,9 @@ describe("validarConfirmacionIndividual (legacy single path, D8)", () => {
 // ----------------------------------------------------------------------------
 // confirmarReservasReceta: one asiento for every ítem it confirms.
 // ----------------------------------------------------------------------------
+const recordMock = vi.fn<typeof record>(async () => undefined);
 vi.mock("@/shared/audit", () => ({
-  record: vi.fn(async () => undefined),
+  record: (...args: Parameters<typeof record>) => recordMock(...args),
   TipoAccion: new Proxy({}, { get: (_t, prop) => String(prop) }),
 }));
 vi.mock("@/shared/db/transaction", () => ({
@@ -161,12 +164,12 @@ const confirmarDesdeReservasEnTx = vi.fn(async (_tx: unknown, _session: unknown,
 vi.mock("@/modules/preparaciones/application/confirmar-desde-reservas", () => ({
   confirmarDesdeReservasEnTx: (...args: [unknown, unknown, string]) => confirmarDesdeReservasEnTx(...args),
 }));
-const generarEtiquetaEnTx = vi.fn(async (_tx: unknown, _tenant: string, preparacionId: string) => {
+const generarEtiquetaEnTx = vi.fn<typeof generarEtiquetaEnTxFn>(async (_tx, _tenant, preparacionId) => {
   orden.push(`etiqueta:${preparacionId}`);
   return { id: `et-${preparacionId}`, preparacion: preparacionId };
 });
 vi.mock("@/modules/preparaciones/application/generar-etiqueta", () => ({
-  generarEtiquetaEnTx: (...args: [unknown, string, string]) => generarEtiquetaEnTx(...args),
+  generarEtiquetaEnTx: (...args: Parameters<typeof generarEtiquetaEnTxFn>) => generarEtiquetaEnTx(...args),
 }));
 
 const { confirmarReservasRecetaCommand } = await import("@/modules/preparaciones/application/confirmar-reservas-receta");
@@ -238,5 +241,65 @@ describe("confirmarReservasReceta: ONE asiento for the receta (D8)", () => {
     await expect(confirmarReservasRecetaCommand.execute({ recetaId: RECETA_ID }, { session })).rejects.toThrow("asiento Nº 12");
     expect(repo.insertAsientoRecetario).not.toHaveBeenCalled();
     expect(generarEtiquetaEnTx).not.toHaveBeenCalled();
+  });
+
+  describe("incluirExcipientes passing and audit", () => {
+    it("when true: passes true to generarEtiquetaEnTx and audits etiquetaConExcipientes: true", async () => {
+      await confirmarReservasRecetaCommand.execute(
+        { recetaId: RECETA_ID, incluirExcipientes: true },
+        { session }
+      );
+
+      expect(generarEtiquetaEnTx).toHaveBeenCalledWith(expect.anything(), TENANT_ID, "prep-1", true);
+      expect(generarEtiquetaEnTx).toHaveBeenCalledWith(expect.anything(), TENANT_ID, "prep-2", true);
+
+      expect(recordMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          entidad: "receta",
+          entidadId: RECETA_ID,
+          accion: "CONFIRMAR",
+          valorNuevo: expect.objectContaining({
+            etiquetaConExcipientes: true,
+          }),
+        })
+      );
+    });
+
+    it("when false: passes false to generarEtiquetaEnTx and audits etiquetaConExcipientes: false", async () => {
+      await confirmarReservasRecetaCommand.execute(
+        { recetaId: RECETA_ID, incluirExcipientes: false },
+        { session }
+      );
+
+      expect(generarEtiquetaEnTx).toHaveBeenCalledWith(expect.anything(), TENANT_ID, "prep-1", false);
+      expect(generarEtiquetaEnTx).toHaveBeenCalledWith(expect.anything(), TENANT_ID, "prep-2", false);
+
+      expect(recordMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          entidad: "receta",
+          entidadId: RECETA_ID,
+          accion: "CONFIRMAR",
+          valorNuevo: expect.objectContaining({
+            etiquetaConExcipientes: false,
+          }),
+        })
+      );
+    });
+
+    it("when undefined (missing): passes undefined to generarEtiquetaEnTx and audit does NOT have etiquetaConExcipientes", async () => {
+      await confirmarReservasRecetaCommand.execute(
+        { recetaId: RECETA_ID },
+        { session }
+      );
+
+      expect(generarEtiquetaEnTx).toHaveBeenCalledWith(expect.anything(), TENANT_ID, "prep-1", undefined);
+      expect(generarEtiquetaEnTx).toHaveBeenCalledWith(expect.anything(), TENANT_ID, "prep-2", undefined);
+
+      expect(recordMock).toHaveBeenCalledTimes(1);
+      const auditPayload = recordMock.mock.calls[0]![1];
+      expect(auditPayload.valorNuevo as Record<string, unknown>).not.toHaveProperty("etiquetaConExcipientes");
+    });
   });
 });

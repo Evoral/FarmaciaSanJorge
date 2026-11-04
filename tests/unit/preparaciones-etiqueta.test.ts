@@ -20,6 +20,8 @@ import {
   hrefEtiquetaPdf,
   formatearMedicoEtiqueta,
   formatearVenceEtiqueta,
+  lineasExcipientesRp,
+  MARCA_EXCIPIENTE,
   numeroRecetaEtiqueta,
   parsearContenidoEtiqueta,
   viaDeAdministracion,
@@ -140,6 +142,146 @@ describe("Rp/", () => {
     expect(tamanoFuenteRp(1)).toBeGreaterThan(tamanoFuenteRp(2));
     expect(tamanoFuenteRp(6)).toBeGreaterThan(tamanoFuenteRp(8));
     expect(tamanoFuenteRp(12)).toBeLessThan(tamanoFuenteRp(8));
+  });
+});
+
+describe("lineasExcipientesRp / armarContenidoEtiqueta ({ incluirExcipientes })", () => {
+  it("when off (or no opciones passed): rp is identical to before", () => {
+    const datosConExcipientes: DatosEtiqueta = {
+      ...DATOS,
+      componentes: [
+        componente({ drogaNombre: "Mazindol", cantidad: "2", esPrincipioActivo: true }),
+        componente({ drogaNombre: "Lactosa", cantidad: null, modoExpresion: "CSP" }),
+      ],
+      excipientes: ["Ludipress 0,795 g"],
+    };
+
+    const sinOpciones = armarContenidoEtiqueta(datosConExcipientes);
+    const conFalse = armarContenidoEtiqueta(datosConExcipientes, { incluirExcipientes: false });
+
+    expect(sinOpciones.rp).toEqual(["Mazindol 2 mg"]);
+    expect(conFalse.rp).toEqual(["Mazindol 2 mg"]);
+  });
+
+  it("when on: principios activos first, then excipientes with ' (excipiente)' keeping ordenarComponentes order", () => {
+    const datos: DatosEtiqueta = {
+      ...DATOS,
+      componentes: [
+        componente({ drogaNombre: "Zolpidem", cantidad: "10", unidadSimbolo: "mg", esPrincipioActivo: true }),
+        componente({ drogaNombre: "Amoxicilina", cantidad: "500", unidadSimbolo: "mg", esPrincipioActivo: true }),
+        componente({ drogaNombre: "Vaselina", cantidad: null, unidadSimbolo: "g", modoExpresion: "CSP" }),
+        componente({ drogaNombre: "Almidón", cantidad: "20", unidadSimbolo: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: false }),
+      ],
+      excipientes: ["Celulosa microcristalina 50 mg"],
+    };
+
+    const conExcipientes = armarContenidoEtiqueta(datos, { incluirExcipientes: true });
+
+    expect(conExcipientes.rp).toEqual([
+      "Amoxicilina 500 mg",
+      "Zolpidem 10 mg",
+      `Almidón 20 mg ${MARCA_EXCIPIENTE}`,
+      `Vaselina ${MARCA_EXCIPIENTE}`,
+      `Celulosa microcristalina 50 mg ${MARCA_EXCIPIENTE}`,
+    ]);
+  });
+
+  it("dedupe: a CSP componente 'Ludipress' + excipiente text 'Ludipress' -> one line", () => {
+    const datos: DatosEtiqueta = {
+      ...DATOS,
+      componentes: [
+        componente({ drogaNombre: "Mazindol", cantidad: "2", esPrincipioActivo: true }),
+        componente({ drogaNombre: "Ludipress", cantidad: null, modoExpresion: "CSP" }),
+      ],
+      excipientes: ["Ludipress"],
+    };
+
+    const lineas = lineasExcipientesRp(datos);
+    expect(lineas).toEqual([`Ludipress ${MARCA_EXCIPIENTE}`]);
+
+    const conExcipientes = armarContenidoEtiqueta(datos, { incluirExcipientes: true });
+    expect(conExcipientes.rp).toEqual(["Mazindol 2 mg", `Ludipress ${MARCA_EXCIPIENTE}`]);
+  });
+
+  it("fallback case (no componente flagged activo): non-CS/CSP stay unmarked in Rp/, only CS/CSP are added as excipientes", () => {
+    const datos: DatosEtiqueta = {
+      ...DATOS,
+      componentes: [
+        componente({ drogaNombre: "Ácido salicílico", cantidad: "2", unidadSimbolo: "g", modoExpresion: "TOTAL", esPrincipioActivo: false }),
+        componente({ drogaNombre: "Urea", cantidad: "5", unidadSimbolo: "g", modoExpresion: "TOTAL", esPrincipioActivo: false }),
+        componente({ drogaNombre: "Agua destilada", cantidad: null, unidadSimbolo: "ml", modoExpresion: "CS", esPrincipioActivo: false }),
+        componente({ drogaNombre: "Vaselina sólida", cantidad: null, unidadSimbolo: "g", modoExpresion: "CSP", esPrincipioActivo: false }),
+      ],
+      excipientes: ["Esencia de lavanda"],
+    };
+
+    expect(componentesRp(datos.componentes).map((c) => c.drogaNombre)).toEqual(["Ácido salicílico", "Urea"]);
+
+    const excipientes = lineasExcipientesRp(datos);
+    expect(excipientes).toEqual([
+      `Agua destilada ${MARCA_EXCIPIENTE}`,
+      `Vaselina sólida ${MARCA_EXCIPIENTE}`,
+      `Esencia de lavanda ${MARCA_EXCIPIENTE}`,
+    ]);
+
+    const conExcipientes = armarContenidoEtiqueta(datos, { incluirExcipientes: true });
+    expect(conExcipientes.rp).toEqual([
+      "Ácido salicílico 2 g",
+      "Urea 5 g",
+      `Agua destilada ${MARCA_EXCIPIENTE}`,
+      `Vaselina sólida ${MARCA_EXCIPIENTE}`,
+      `Esencia de lavanda ${MARCA_EXCIPIENTE}`,
+    ]);
+  });
+
+  it("blank and multi-space texts in excipientes are trimmed/collapsed or skipped", () => {
+    const datos: DatosEtiqueta = {
+      ...DATOS,
+      componentes: [componente({ drogaNombre: "Mazindol", cantidad: "2", esPrincipioActivo: true })],
+      excipientes: ["   ", "", "  Ludipress   0,795   g  ", "  Aerosil  200  "],
+    };
+
+    const lineas = lineasExcipientesRp(datos);
+    expect(lineas).toEqual([
+      `Ludipress 0,795 g ${MARCA_EXCIPIENTE}`,
+      `Aerosil 200 ${MARCA_EXCIPIENTE}`,
+    ]);
+  });
+
+  it("formatearContenidoEtiqueta + parsearContenidoEtiqueta round-trip with excipiente lines in rp", () => {
+    const datos: DatosEtiqueta = {
+      ...DATOS,
+      componentes: [
+        componente({ drogaNombre: "Mazindol", cantidad: "2", esPrincipioActivo: true }),
+        componente({ drogaNombre: "Lactosa", cantidad: null, modoExpresion: "CSP" }),
+      ],
+      excipientes: ["Aerosil 0,05 g"],
+    };
+
+    const contenido = armarContenidoEtiqueta(datos, { incluirExcipientes: true });
+    expect(contenido.rp).toEqual([
+      "Mazindol 2 mg",
+      `Lactosa ${MARCA_EXCIPIENTE}`,
+      `Aerosil 0,05 g ${MARCA_EXCIPIENTE}`,
+    ]);
+
+    const textoPersistido = formatearContenidoEtiqueta(contenido);
+    expect(textoPersistido).toContain(`Lactosa ${MARCA_EXCIPIENTE}`);
+    expect(textoPersistido).toContain(`Aerosil 0,05 g ${MARCA_EXCIPIENTE}`);
+
+    const parseado = parsearContenidoEtiqueta(textoPersistido);
+    expect(parseado).toEqual(contenido);
+  });
+
+  it("columnasRp still caps at 14 when rp includes excipiente lines", () => {
+    const activos = Array.from({ length: 8 }, (_, i) => `Activo ${i + 1} 10 mg`);
+    const excipientes = Array.from({ length: 8 }, (_, i) => `Excipiente ${i + 1} ${MARCA_EXCIPIENTE}`);
+    const rp = [...activos, ...excipientes];
+
+    const cols = columnasRp(rp);
+    expect(cols.map((c) => c.length)).toEqual([7, 7]);
+    expect(cols.flat().slice(0, 13)).toEqual(rp.slice(0, 13));
+    expect(cols[1]!.at(-1)).toBe("… y 3 más");
   });
 });
 
