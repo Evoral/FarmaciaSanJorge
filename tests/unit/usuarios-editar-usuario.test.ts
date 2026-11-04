@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 import { ValidationError } from "@/shared/errors";
+import { MENSAJE_DNI_INVALIDO } from "@/shared/validation/dni";
 
 const auditRecordMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
   void args;
@@ -265,5 +266,122 @@ describe("editarUsuario: person (persona física)", () => {
     expect((error as ValidationError).message).toBe("Ya existe un usuario con ese DNI en esta farmacia.");
     expect((error as ValidationError).fields).toEqual(["dni"]);
     expect(updateUsuarioDatosPersonalesMock).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("editarUsuario: DNI validación y normalización", () => {
+  const actualPersona = {
+    id: TARGET_ID,
+    estado: "ACTIVO",
+    esTecnico: false,
+    esSector: false,
+    roles: ["FARMACEUTICO"],
+    nombre: "Juan",
+    apellido: "Pérez",
+    email: "juan@example.com",
+    dni: "12345678",
+    numeroMatricula: "MP-100",
+  };
+
+  const actualSector = {
+    id: TARGET_ID,
+    estado: "ACTIVO",
+    esTecnico: false,
+    esSector: true,
+    roles: ["FARMACEUTICO"],
+    nombre: "Laboratorio",
+    apellido: "(Sector)",
+    email: "lab@farmacia.local",
+    dni: "SECTOR-LABORATORIO",
+    numeroMatricula: null,
+  };
+
+  it("a person edited with dni '30.123.456' is stored (and audited) as '30123456'", async () => {
+    loadUsuarioParaAccionMock.mockReset().mockResolvedValue(actualPersona);
+
+    await editarUsuarioCommand.execute(
+      {
+        id: TARGET_ID,
+        nombre: "Juan",
+        apellido: "Pérez",
+        dni: "30.123.456",
+        email: "juan@example.com",
+        version: {
+          nombre: "Juan",
+          apellido: "Pérez",
+          email: "juan@example.com",
+          dni: "12345678",
+          numeroMatricula: "MP-100",
+        },
+      },
+      { session: fakeSession() },
+    );
+
+    expect(updateUsuarioDatosPersonalesMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ dni: "30123456" }),
+      expect.anything(),
+    );
+    expect(auditRecordMock.mock.calls[0]![1]).toMatchObject({
+      accion: "MODIFICAR",
+      valorNuevo: expect.objectContaining({ dni: "30123456" }),
+    });
+  });
+
+  it("an invalid person DNI (e.g. '123') fails with MENSAJE_DNI_INVALIDO on field 'dni'", async () => {
+    loadUsuarioParaAccionMock.mockReset().mockResolvedValue(actualPersona);
+
+    const error = await editarUsuarioCommand
+      .execute(
+        {
+          id: TARGET_ID,
+          nombre: "Juan",
+          apellido: "Pérez",
+          dni: "123",
+          email: "juan@example.com",
+          version: {
+            nombre: "Juan",
+            apellido: "Pérez",
+            email: "juan@example.com",
+            dni: "12345678",
+            numeroMatricula: "MP-100",
+          },
+        },
+        { session: fakeSession() },
+      )
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).message).toContain(MENSAJE_DNI_INVALIDO);
+    expect((error as ValidationError).fields).toEqual(["dni"]);
+    expect(updateUsuarioDatosPersonalesMock).not.toHaveBeenCalled();
+  });
+
+  it("a cuenta de sector is unaffected (its identity is not normalized or validated as a DNI)", async () => {
+    loadUsuarioParaAccionMock.mockReset().mockResolvedValue(actualSector);
+
+    await editarUsuarioCommand.execute(
+      {
+        id: TARGET_ID,
+        nombre: "Sector Limpieza",
+        email: "limpieza@farmacia.local",
+        dni: "123",
+        version: {
+          nombre: "Laboratorio",
+          apellido: "(Sector)",
+          email: "lab@farmacia.local",
+          dni: "SECTOR-LABORATORIO",
+          numeroMatricula: null,
+        },
+      },
+      { session: fakeSession() },
+    );
+
+    expect(updateUsuarioDatosPersonalesMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ dni: "SECTOR-SECTOR-LIMPIEZA" }),
+      expect.anything(),
+    );
   });
 });

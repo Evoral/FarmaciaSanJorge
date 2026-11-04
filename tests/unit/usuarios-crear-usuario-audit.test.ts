@@ -21,6 +21,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ValidationError } from "@/shared/errors";
+import { MENSAJE_DNI_INVALIDO } from "@/shared/validation/dni";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 
 const auditRecordMock = vi.fn(async (...args: unknown[]): Promise<undefined> => {
@@ -209,5 +210,45 @@ describe("crearUsuario: temporary password", () => {
     expect(error).toBeInstanceOf(ValidationError);
     expect((error as ValidationError).fields).toEqual(["passwordTemporal"]);
     expect(insertUsuarioMock).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("crearUsuario: validación y normalización de DNI", () => {
+  const sectorCuenta = { nombre: "Laboratorio", email: "lab@farmacia.local", roles: ["FARMACEUTICO"], esSector: true };
+
+  it("a person created with dni '30.123.456' is stored (and audited) as '30123456'", async () => {
+    await crearUsuarioCommand.execute(
+      { ...persona, dni: "30.123.456", ...passwordFields },
+      { session: fakeSession() },
+    );
+    expect(insertUsuarioMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ dni: "30123456" }),
+    );
+    const [, crearCall] = (auditRecordMock.mock.calls as Array<[unknown, Record<string, unknown>]>)[0]!;
+    expect(crearCall).toMatchObject({
+      accion: "CREAR",
+      valorNuevo: expect.objectContaining({ dni: "30123456" }),
+    });
+  });
+
+  it("an invalid person DNI (e.g. '123') fails with MENSAJE_DNI_INVALIDO on field 'dni'", async () => {
+    const error = await crearUsuarioCommand
+      .execute({ ...persona, dni: "123", ...passwordFields }, { session: fakeSession() })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).message).toContain(MENSAJE_DNI_INVALIDO);
+    expect((error as ValidationError).fields).toEqual(["dni"]);
+    expect(insertUsuarioMock).not.toHaveBeenCalled();
+  });
+
+  it("a cuenta de sector is unaffected (its identity is not normalized or validated as a DNI)", async () => {
+    const sectorConDniInvalido = { ...sectorCuenta, dni: "123", passwordTemporal: PASSWORD_TEMPORAL, passwordTemporalRepeat: PASSWORD_TEMPORAL };
+    await crearUsuarioCommand.execute(sectorConDniInvalido, { session: fakeSession() });
+    expect(insertUsuarioMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ esSector: true, dni: "SECTOR-LABORATORIO" }),
+    );
   });
 });

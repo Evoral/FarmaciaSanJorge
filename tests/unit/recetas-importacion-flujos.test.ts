@@ -477,6 +477,30 @@ describe("recetas.importar -- confirmation", () => {
     expect(repo.completarPaciente).not.toHaveBeenCalled();
   });
 
+  it("existenteId null, no DNI in datos, no existing paciente throws ValidationError and no paciente is inserted", async () => {
+    repo.buscarPacientePorIdentificacion.mockResolvedValue(null);
+    const error = await importarRecetaCommand
+      .execute(payload({ paciente: { existenteId: null, datos: { nombre: "Ana", apellido: "Suárez", cuil: CUIL } } }), { session: CON_PERMISO })
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).message).toBe("Ingresá el DNI del paciente.");
+    expect((error as ValidationError).fields).toEqual(["pacienteDni"]);
+    expect(insertPacienteMock).not.toHaveBeenCalled();
+  });
+
+  it("existenteId null, the typed DNI belongs to an existing paciente throws ValidationError", async () => {
+    repo.buscarPacientePorIdentificacion.mockResolvedValue({ ...PACIENTE_EXISTENTE, dni: "30123456" });
+    const error = await importarRecetaCommand
+      .execute(payload({ paciente: { existenteId: null, datos: { nombre: "Ana", apellido: "Suárez", dni: "30123456", cuil: CUIL } } }), { session: CON_PERMISO })
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).message).toBe("Ya existe un paciente con ese DNI: volvé a leer la receta para usarlo.");
+    expect((error as ValidationError).fields).toEqual(["pacienteDni"]);
+    expect(insertPacienteMock).not.toHaveBeenCalled();
+  });
+
   it("nothing to complete -> no paciente audit row", async () => {
     repo.buscarPacientePorIdentificacion.mockResolvedValue({ ...PACIENTE_EXISTENTE, fechaNacimiento: "1990-01-01" });
     repo.completarPaciente.mockResolvedValue({});
