@@ -10,6 +10,7 @@
 import { useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Combobox, filtrarOpciones, type ComboboxOption } from "@/shared/ui/combobox";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { numeroParaInput } from "@/shared/decimal/numero-ingresado";
 
 export interface ComponenteOpcion {
@@ -89,14 +90,12 @@ export function FormulaEditor({ opciones, inicial, drogaId, esComponenteDe, disa
               Cantidad que rinde la fórmula
             </label>
             <div className="flex items-center gap-2">
-              <input
+              <NumeroInput
                 id="cantidadReferencia"
                 name="cantidadReferencia"
                 value={referencia}
-                onChange={(e) => setReferencia(e.target.value)}
+                onValueChange={(valor) => setReferencia(valor)}
                 required
-                inputMode="decimal"
-                autoComplete="off"
                 aria-describedby="cantidadReferencia-ayuda"
                 className="input font-mono"
               />
@@ -118,14 +117,12 @@ export function FormulaEditor({ opciones, inicial, drogaId, esComponenteDe, disa
                   <label htmlFor={id} className="min-w-0 flex-1 truncate text-[0.8125rem] text-zinc-800">
                     {fila.nombre}
                   </label>
-                  <input
+                  <NumeroInput
                     id={id}
                     name={id}
                     value={fila.cantidad}
-                    onChange={(e) => setFilas((actuales) => actuales.map((f) => (f.drogaId === fila.drogaId ? { ...f, cantidad: e.target.value } : f)))}
+                    onValueChange={(valor) => setFilas((actuales) => actuales.map((f) => (f.drogaId === fila.drogaId ? { ...f, cantidad: valor } : f)))}
                     required
-                    inputMode="decimal"
-                    autoComplete="off"
                     className="input w-32 font-mono"
                   />
                   <span className="w-8 text-xs text-zinc-500">{fila.simbolo}</span>

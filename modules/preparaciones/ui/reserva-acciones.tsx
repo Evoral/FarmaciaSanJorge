@@ -24,6 +24,7 @@ import { useId, useRef, useState } from "react";
 import { CircleAlert, TriangleAlert, X } from "lucide-react";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { toast } from "@/shared/ui/toast";
 import { CoFirmaDt, type CoFirmaDtOpcion } from "@/shared/ui/co-firma-dt";
 import type { HojaEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
@@ -257,7 +258,7 @@ export function PerdidaReservaDialog({ preparacionId, partidas, dts, operadorEsD
                 <label htmlFor={`${campoId}-cantidad`} className="field-label">
                   Cantidad perdida
                 </label>
-                <input id={`${campoId}-cantidad`} name="cantidad" type="text" inputMode="decimal" required className="input font-mono" />
+                <NumeroInput id={`${campoId}-cantidad`} name="cantidad" required className="input font-mono" />
                 <p className="field-help">En la misma unidad que la reserva.</p>
               </div>
               <div className="field">

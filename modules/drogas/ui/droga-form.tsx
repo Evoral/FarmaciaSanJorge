@@ -31,6 +31,7 @@ import { FormulaEditor, type ComponenteOpcion, type FormulaInicial } from "./for
 import { normalizarTexto } from "../domain/normalizar";
 import { SINONIMO_MAX_LARGO } from "../domain/sinonimo";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { toast } from "@/shared/ui/toast";
 import { CLASES_DROGA, CLASE_DROGA_LABELS, TIPOS_CONTROL, TIPO_CONTROL_LABELS, type ClaseDroga } from "@/modules/drogas/domain/droga";
 import { sugerirClase, type SugerenciaClase } from "@/modules/drogas/domain/sugerir-clase";
@@ -322,12 +323,11 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
           <label htmlFor="saldoAperturaContralor" className="field-label">
             Saldo de apertura del libro contralor
           </label>
-          <input
+          <NumeroInput
             id="saldoAperturaContralor"
             name="saldoAperturaContralor"
             required
             disabled={disabled}
-            inputMode="decimal"
             aria-describedby="saldo-apertura-ayuda"
             className="input font-mono"
           />
@@ -341,7 +341,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
         <label htmlFor="stockMinimo" className="field-label">
           Stock mínimo
         </label>
-        <input id="stockMinimo" name="stockMinimo" defaultValue={numeroParaInput(droga?.stockMinimo ?? "0")} required disabled={disabled} inputMode="decimal" className="input font-mono" />
+        <NumeroInput id="stockMinimo" name="stockMinimo" defaultValue={numeroParaInput(droga?.stockMinimo ?? "0")} required disabled={disabled} className="input font-mono" />
         <p className="field-help">En principio activo: con lotes diluidos, la alerta compara el stock activo.</p>
       </div>
 

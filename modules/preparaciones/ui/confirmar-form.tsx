@@ -32,6 +32,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { CircleAlert, Info, TriangleAlert } from "lucide-react";
 import { ToneBadge } from "@/shared/ui/status-badge";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { crearCatalogoUnidades, formatCantidadesFila, formatNumero, type CatalogoUnidades } from "@/shared/format/cantidad";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
@@ -305,15 +306,12 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                     <label htmlFor={`cantidadManual_${linea.id}`} className="field-label">
                       Cantidad real registrada ({linea.unidadSimbolo})
                     </label>
-                    <input
+                    <NumeroInput
                       id={`cantidadManual_${linea.id}`}
                       name={`cantidadManual_${linea.id}`}
-                      type="text"
-                      inputMode="decimal"
                       required
                       defaultValue={linea.reserva?.cantidadManual ? numeroParaInput(linea.reserva.cantidadManual) : undefined}
-                      onChange={(event) => {
-                        const valor = event.target.value;
+                      onValueChange={(valor) => {
                         setCantidadesManuales((prev) => ({ ...prev, [linea.id]: valor }));
                       }}
                       className="input font-mono"
@@ -582,13 +580,11 @@ function PesadaReal({
         <label htmlFor={campoId} className="field-label">
           Pesada real ({simboloDisplay})
         </label>
-        <input
+        <NumeroInput
           id={campoId}
-          type="text"
-          inputMode="decimal"
           required
           value={valor}
-          onChange={(event) => onChange(event.target.value)}
+          onValueChange={(valor) => onChange(valor)}
           aria-describedby={`${campoId}_ayuda`}
           className="input font-mono"
         />

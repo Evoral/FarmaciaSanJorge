@@ -34,6 +34,7 @@ import { crearProductoDesdeFacturaAction, importarFacturaCompraAction } from "./
 import { formatearComprobante } from "../domain/importacion-factura-compra";
 import type { VistaPreviaFactura } from "../domain/importacion-factura-compra";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { useOperador } from "@/shared/ui/operador";
 import { CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
 import { DateInput } from "@/shared/ui/date-input";
@@ -526,13 +527,12 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
                       <label htmlFor={`lineas.${i}.cantidadCompra`} className="field-label">
                         Cantidad
                       </label>
-                      <input
+                      <NumeroInput
                         id={`lineas.${i}.cantidadCompra`}
                         name={`lineas.${i}.cantidadCompra`}
                         required
-                        inputMode="decimal"
                         value={l.cantidad}
-                        onChange={(e) => actualizar(i, { cantidad: e.target.value })}
+                        onValueChange={(valor) => actualizar(i, { cantidad: valor })}
                         className="input font-mono"
                       />
                     </div>
@@ -561,13 +561,12 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
                       <label htmlFor={`lineas.${i}.precioUnitario`} className="field-label">
                         Precio por {unidades.find((u) => u.id === l.unidadCompraId)?.simbolo ?? "unidad"}
                       </label>
-                      <input
+                      <NumeroInput
                         id={`lineas.${i}.precioUnitario`}
                         name={`lineas.${i}.precioUnitario`}
                         required
-                        inputMode="decimal"
                         value={l.precioUnitario}
-                        onChange={(e) => actualizar(i, { precioUnitario: e.target.value })}
+                        onValueChange={(valor) => actualizar(i, { precioUnitario: valor })}
                         aria-describedby="precioUnitario-ayuda"
                         className="input font-mono"
                       />
@@ -576,12 +575,11 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
                       <label htmlFor={`lineas.${i}.potenciaDeclarada`} className="field-label">
                         Pureza (%)<span className="font-normal text-zinc-500"> (opc.)</span>
                       </label>
-                      <input
+                      <NumeroInput
                         id={`lineas.${i}.potenciaDeclarada`}
                         name={`lineas.${i}.potenciaDeclarada`}
-                        inputMode="decimal"
                         value={l.potenciaDeclarada}
-                        onChange={(e) => actualizar(i, { potenciaDeclarada: e.target.value })}
+                        onValueChange={(valor) => actualizar(i, { potenciaDeclarada: valor })}
                         className="input font-mono"
                       />
                     </div>

@@ -43,6 +43,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle, Plus, RotateCcw, Save, Trash2, TriangleAlert } from "lucide-react";
 import { ToneBadge } from "@/shared/ui/status-badge";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { RecordarSinonimoSwitch } from "@/shared/ui/recordar-sinonimo-switch";
 import { crearRecetaAction, domiciliosPacienteParaRecetaAction, editarRecetaAction, importarRecetaAction } from "./actions";
 import { IDLE_STATE } from "./action-state";
@@ -1034,14 +1035,12 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                     <label htmlFor={`item-${itemIdx}-duracion`} className="field-label">
                       Duración del tratamiento (días)
                     </label>
-                    <input
+                    <NumeroInput
                       id={`item-${itemIdx}-duracion`}
-                      type="number"
-                      min={1}
-                      step={1}
+                      inputMode="numeric"
                       value={item.duracionTratamientoDias}
-                      onChange={(e) => {
-                        const duracionTratamientoDias = e.target.value;
+                      onValueChange={(valor) => {
+                        const duracionTratamientoDias = valor;
                         // Manual alta: one cápsula/comprimido a day is the common case, so the duración fills the cantidad until the user types one.
                         const autocompletar = mode === "crear" && esFormaCapsular(item.formaFarmaceutica) && !item.cantidadUnidadesEditada && duracionTratamientoDias.trim().length > 0;
                         actualizarItem(itemIdx, autocompletar ? { duracionTratamientoDias, cantidadUnidades: duracionTratamientoDias } : { duracionTratamientoDias });
@@ -1056,7 +1055,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                     <label htmlFor={`item-${itemIdx}-cu`} className="field-label">
                       Cantidad de {UNIDAD_POR_FORMA[item.formaFarmaceutica] ?? "unidades"}
                     </label>
-                    <input id={`item-${itemIdx}-cu`} type="number" min={1} step={1} value={item.cantidadUnidades} onChange={(e) => actualizarItem(itemIdx, { cantidadUnidades: e.target.value, cantidadUnidadesEditada: true })} className="input" />
+                    <NumeroInput id={`item-${itemIdx}-cu`} inputMode="numeric" value={item.cantidadUnidades} onValueChange={(valor) => actualizarItem(itemIdx, { cantidadUnidades: valor, cantidadUnidadesEditada: true })} className="input" />
                   </div>
 
                   {esFormaCapsular(item.formaFarmaceutica) ? (
@@ -1086,7 +1085,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                         <label htmlFor={`item-${itemIdx}-total`} className="sr-only">
                           Cantidad de {FORMA_FARMACEUTICA_LABELS[item.formaFarmaceutica].toLowerCase()} a preparar
                         </label>
-                        <input id={`item-${itemIdx}-total`} type="text" inputMode="decimal" value={item.cantidadTotal} onChange={(e) => actualizarItem(itemIdx, { cantidadTotal: e.target.value })} className="input w-28 flex-none" />
+                        <NumeroInput id={`item-${itemIdx}-total`} value={item.cantidadTotal} onValueChange={(valor) => actualizarItem(itemIdx, { cantidadTotal: valor })} className="input w-28 flex-none" />
                         <label htmlFor={`item-${itemIdx}-unidad-total`} className="sr-only">
                           Unidad del total
                         </label>
@@ -1190,12 +1189,10 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                             <label htmlFor={`item-${itemIdx}-comp-${compIdx}-cant`} className="field-label">
                               {c.modoExpresion === "CONCENTRACION" ? "Valor" : "Cantidad"}
                             </label>
-                            <input
+                            <NumeroInput
                               id={`item-${itemIdx}-comp-${compIdx}-cant`}
-                              type="text"
-                              inputMode="decimal"
                               value={c.cantidad}
-                              onChange={(e) => actualizarComponente(itemIdx, compIdx, { cantidad: e.target.value })}
+                              onValueChange={(valor) => actualizarComponente(itemIdx, compIdx, { cantidad: valor })}
                               aria-label={`Componente ${compIdx + 1}: cantidad`}
                               className="input input-sm font-mono"
                             />

@@ -36,6 +36,7 @@ import { convertirCantidad } from "@/shared/decimal/convertir-unidad";
 import { formatNumero, formatStockEntero } from "@/shared/format/cantidad";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { AYUDA_NUMERO, numeroParaInput } from "@/shared/decimal/numero-ingresado";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { CoFirmaDt } from "@/shared/ui/co-firma-dt";
 import { toast } from "@/shared/ui/toast";
@@ -787,12 +788,10 @@ function CantidadExcipiente() {
         {unidades ? `Peso de un${unidades.singular.endsWith("a") ? "a" : ""} ${unidades.singular}` : "Peso total del preparado"}
       </label>
       <div className="relative">
-        <input
+        <NumeroInput
           id={id}
-          type="text"
-          inputMode="decimal"
           value={excipiente.cantidad}
-          onChange={(event) => excipiente.setCantidad(event.target.value)}
+          onValueChange={(valor) => excipiente.setCantidad(valor)}
           onBlur={() => guardar(CLAVE_EXCIPIENTE)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -971,12 +970,10 @@ function CantidadInsumo({ fila }: { fila: FilaInsumo }) {
   return (
     <div className="ml-auto flex flex-col items-end gap-1">
       <div className="flex items-center gap-1.5">
-        <input
+        <NumeroInput
           id={id}
-          type="text"
-          inputMode="decimal"
           value={fila.cantidad}
-          onChange={(event) => insumos.setCantidad(fila.clave, event.target.value)}
+          onValueChange={(valor) => insumos.setCantidad(fila.clave, valor)}
           onBlur={() => guardar(CLAVE_INSUMOS)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -1050,13 +1047,11 @@ function CantidadReal({ linea, pesada }: { linea: LineaPantalla; pesada: PesadaD
   return (
     <div className="flex flex-col items-start gap-1 md:ml-auto md:max-w-[11rem] md:items-end">
       <div className="flex items-center gap-1.5">
-        <input
+        <NumeroInput
           id={id}
           name={campo}
-          type="text"
-          inputMode="decimal"
           value={valor}
-          onChange={(event) => (linea.esEnraseManual ? setManual(linea.id, event.target.value) : setReal(linea.id, event.target.value))}
+          onValueChange={(valor) => (linea.esEnraseManual ? setManual(linea.id, valor) : setReal(linea.id, valor))}
           onBlur={() => guardar(linea.id)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {

@@ -3,6 +3,7 @@
 /** `/partidas/[id]`'s "corregir costo" form (FASE 5 point 5.5, DT/ADM). The page provides the surrounding panel. */
 import { corregirCostoPartidaAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { NumeroInput } from "@/shared/ui/numero-input";
 
 export interface CorregirCostoFormProps {
   partidaId: string;
@@ -17,7 +18,7 @@ export function CorregirCostoForm({ partidaId, costoUnitarioActual }: CorregirCo
         <label htmlFor="costoUnitarioNuevo" className="field-label">
           Costo unitario nuevo
         </label>
-        <input id="costoUnitarioNuevo" name="costoUnitarioNuevo" type="text" inputMode="decimal" required aria-describedby="costoUnitarioNuevo-ayuda" className="input font-mono" />
+        <NumeroInput id="costoUnitarioNuevo" name="costoUnitarioNuevo" required aria-describedby="costoUnitarioNuevo-ayuda" className="input font-mono" />
         <p id="costoUnitarioNuevo-ayuda" className="field-help">
           Actual: <span className="font-mono">{costoUnitarioActual}</span>
         </p>

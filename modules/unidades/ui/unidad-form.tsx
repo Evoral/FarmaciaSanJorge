@@ -9,6 +9,7 @@
 import { Globe } from "lucide-react";
 import { crearUnidadAction, editarUnidadAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { TIPOS_MAGNITUD, TIPO_MAGNITUD_LABELS } from "@/modules/unidades/domain/unidad";
 import { numeroParaInput } from "@/shared/decimal/numero-ingresado";
 
@@ -91,7 +92,7 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
             <label htmlFor="factorABase" className="field-label">
               Factor respecto de la unidad base
             </label>
-            <input id="factorABase" name="factorABase" defaultValue={numeroParaInput(unidad?.factorABase)} required disabled={classificacionDisabled} inputMode="decimal" className="input font-mono" />
+            <NumeroInput id="factorABase" name="factorABase" defaultValue={numeroParaInput(unidad?.factorABase)} required disabled={classificacionDisabled} className="input font-mono" />
           </div>
         </div>
         {classificacionDisabled && mode === "editar" ? (

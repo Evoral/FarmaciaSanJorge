@@ -24,6 +24,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CircleAlert, Plus, Wand2, X } from "lucide-react";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { FIELD_ERROR_EVENT, type FieldErrorEventDetail } from "@/shared/ui/field-errors";
 import { Combobox, type ComboboxOption } from "@/shared/ui/combobox";
 import { dec } from "@/shared/decimal";
@@ -599,17 +600,15 @@ function CantidadEnFormulario({
   const valido = cantidadValida(valor);
   return (
     <>
-      <input
+      <NumeroInput
         id={id}
         ref={visibleRef}
         value={valor}
-        onChange={(e) => {
+        onValueChange={(valor) => {
           setErrorDelServidor(false);
-          onChange(e.target.value);
+          onChange(valor);
         }}
         required={required}
-        inputMode="decimal"
-        autoComplete="off"
         aria-invalid={errorDelServidor || pendiente || undefined}
         className="input w-28 text-right font-mono"
       />

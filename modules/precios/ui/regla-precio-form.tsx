@@ -13,6 +13,7 @@ import { useState } from "react";
 import { Info, Plus, Trash2 } from "lucide-react";
 import { guardarReglaPrecioAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { numeroParaInput } from "@/shared/decimal/numero-ingresado";
 
 export interface ReglaPrecioFormProps {
@@ -64,16 +65,14 @@ export function ReglaPrecioForm({ vigente }: ReglaPrecioFormProps) {
             <label htmlFor="precioMinimo" className="field-label">
               Precio mínimo ($)
             </label>
-            <input
+            <NumeroInput
               id="precioMinimo"
               name="precioMinimo"
-              type="text"
-              inputMode="decimal"
               required
               placeholder="Ej: 20000"
               className="input font-mono"
               value={precioMinimo}
-              onChange={(e) => setPrecioMinimo(e.target.value)}
+              onValueChange={(valor) => setPrecioMinimo(valor)}
             />
             <p className="field-help">0 = sin precio mínimo.</p>
           </div>
@@ -103,16 +102,14 @@ export function ReglaPrecioForm({ vigente }: ReglaPrecioFormProps) {
                         <label htmlFor={`tramoCostoHasta-${fila.key}`} className="field-label">
                           Hasta ($, inclusive)
                         </label>
-                        <input
+                        <NumeroInput
                           id={`tramoCostoHasta-${fila.key}`}
                           name="tramoCostoHasta"
-                          type="text"
-                          inputMode="decimal"
                           required
                           placeholder="Ej: 100000"
                           className="input font-mono"
                           value={fila.costoHasta}
-                          onChange={(e) => actualizar(fila.key, { costoHasta: e.target.value })}
+                          onValueChange={(valor) => actualizar(fila.key, { costoHasta: valor })}
                         />
                       </div>
                     )}
@@ -120,16 +117,14 @@ export function ReglaPrecioForm({ vigente }: ReglaPrecioFormProps) {
                       <label htmlFor={`tramoMargen-${fila.key}`} className="field-label">
                         Margen (%)
                       </label>
-                      <input
+                      <NumeroInput
                         id={`tramoMargen-${fila.key}`}
                         name="tramoMargen"
-                        type="text"
-                        inputMode="decimal"
                         required
                         placeholder="Ej: 100"
                         className="input font-mono"
                         value={fila.margen}
-                        onChange={(e) => actualizar(fila.key, { margen: e.target.value })}
+                        onValueChange={(valor) => actualizar(fila.key, { margen: valor })}
                       />
                     </div>
                     {filas.length > 1 ? (

@@ -25,6 +25,7 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CircleAlert, Info } from "lucide-react";
 import { Combobox, filtrarOpciones, type ComboboxOption } from "@/shared/ui/combobox";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { DateInput } from "@/shared/ui/date-input";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { toast } from "@/shared/ui/toast";
@@ -245,14 +246,12 @@ export function CostoForm({ drogas, proveedores, unidades, jornadaActual, alicuo
           <label htmlFor="costo-precio" className="field-label">
             Precio sin IVA
           </label>
-          <input
+          <NumeroInput
             id="costo-precio"
             name="filas.0.precioInformado"
             required
-            inputMode="decimal"
-            autoComplete="off"
             value={precio}
-            onChange={(e) => setPrecio(e.target.value)}
+            onValueChange={(valor) => setPrecio(valor)}
             aria-describedby="costo-precio-ayuda"
             className="input font-mono"
           />
@@ -261,16 +260,14 @@ export function CostoForm({ drogas, proveedores, unidades, jornadaActual, alicuo
           <label htmlFor="costo-alicuota" className="field-label">
             Alícuota de IVA (%)
           </label>
-          <input
+          <NumeroInput
             id="costo-alicuota"
             name="filas.0.alicuotaIva"
             required
-            inputMode="decimal"
-            autoComplete="off"
             value={alicuota}
-            onChange={(e) => {
+            onValueChange={(valor) => {
               alicuotaEditada.current = true;
-              setAlicuota(e.target.value);
+              setAlicuota(valor);
             }}
             aria-describedby="costo-precio-ayuda"
             className="input font-mono"

@@ -4,6 +4,7 @@
 import { editarParametroAction } from "./actions";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 import { numeroParaInput } from "@/shared/decimal/numero-ingresado";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import type { ParametroOpcion } from "../domain/parametros-registry";
 
 export interface ParametroFormProps {
@@ -42,7 +43,7 @@ export function ParametroForm({ clave, label, descripcion, valor, opciones, disa
                 ))}
               </select>
             ) : (
-              <input id={inputId} name="valor" defaultValue={numeroParaInput(valor)} required disabled={disabled} className="input font-mono" />
+              <NumeroInput id={inputId} name="valor" defaultValue={numeroParaInput(valor)} required disabled={disabled} className="input font-mono" />
             )}
           </div>
         </ReauthAwareForm>

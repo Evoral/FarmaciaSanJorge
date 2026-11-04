@@ -9,6 +9,7 @@
 import { useState } from "react";
 import { Decimal } from "decimal.js";
 import { interpretarNumero } from "@/shared/decimal/numero-ingresado";
+import { NumeroInput } from "@/shared/ui/numero-input";
 
 export interface MedidaMmFieldProps {
   id: string;
@@ -34,14 +35,13 @@ export function MedidaMmField({ id, name, label, defaultValue, disabled }: Medid
       <label htmlFor={id} className="field-label">
         {label}
       </label>
-      <input
+      <NumeroInput
         id={id}
         name={name}
         defaultValue={defaultValue}
-        onChange={(event) => setValor(event.target.value)}
+        onValueChange={(valor) => setValor(valor)}
         required
         disabled={disabled}
-        inputMode="decimal"
         aria-describedby={`${id}-cm`}
         className="input font-mono"
       />

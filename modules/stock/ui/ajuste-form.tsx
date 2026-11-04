@@ -24,6 +24,7 @@
  */
 import { useRouter } from "next/navigation";
 import { CoFirmaDt } from "@/shared/ui/co-firma-dt";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { registrarAjusteAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { MOTIVOS_AJUSTE, MOTIVO_AJUSTE_LABELS } from "@/modules/stock/domain/partida";
@@ -117,7 +118,7 @@ export function AjusteForm({
                 Cantidad a descontar
               </label>
               <div className="flex min-w-0 items-center gap-2">
-                <input id="cantidad" name="cantidad" type="text" inputMode="decimal" required className="input min-w-0 w-full flex-1 font-mono" />
+                <NumeroInput id="cantidad" name="cantidad" required className="input min-w-0 w-full flex-1 font-mono" />
                 {unidadFija ? (
                   <>
                     <input type="hidden" name="unidadId" value={unidadFija.id} />
