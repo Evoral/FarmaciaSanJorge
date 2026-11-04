@@ -75,6 +75,10 @@ The ESLint config enforces most of these rules. Full rationale: `docs/architectu
   unless the spec states why not. Don't gate options by `mode !== "editar"` by default.
 - **A list's search box only filters.** Enter, the last row or a suggestion filter the list; it never opens a
   record or another page (`Combobox` with `enterRunsAction`, `shared/ui/buscador-navegable.tsx`). Records open from the list.
+- **Layouts respond to their container, not the viewport.** Inside a `.split-layout` column, aside, panel, dialog or card, use
+  `@container` + `@lg:`/`@3xl:`/`@5xl:` (not `md:`/`lg:`/`xl:`): at a 1366px screen the main column is ~600px. An `auto`
+  grid track next to `minmax(0,…fr)` ones collapses them to zero unless the container query guarantees the room.
+  Everything must work at 375px with no horizontal scroll.
 - **Adding something leaves the cursor in it.** Every "Agregar ..." button focuses the first field of what it added
   (`agregarYEnfocar` + `data-fila`, `shared/ui/enfocar-al-agregar.ts`): the user types right away, never clicks the new field first.
 - Reuse `shared/ui/` primitives (forms, filters, dialogs, pagination, toasts)
