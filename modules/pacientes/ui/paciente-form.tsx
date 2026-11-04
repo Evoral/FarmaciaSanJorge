@@ -49,7 +49,9 @@ export function PacienteForm({ mode, paciente, disabled }: PacienteFormProps) {
         </>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* Container query: in /clientes/[id] the form sits in the split-layout column (~280px wide at 1024px), too narrow for two DateInputs (10.5rem). */}
+      <div className="@container">
+      <div className="grid gap-4 @lg:grid-cols-2">
         <div className="field">
           <label htmlFor="nombre" className="field-label">
             Nombre
@@ -108,24 +110,25 @@ export function PacienteForm({ mode, paciente, disabled }: PacienteFormProps) {
           </label>
           <input id="sexo" name="sexo" defaultValue={paciente?.sexo ?? ""} disabled={disabled} autoComplete="off" className="input" />
         </div>
-        <div className="field sm:col-span-2">
+        <div className="field @lg:col-span-2">
           <label htmlFor="nroCredencial" className="field-label">
             Nº de credencial <span className="font-normal text-zinc-500">(obra social)</span>
           </label>
           <input id="nroCredencial" name="nroCredencial" defaultValue={paciente?.nroCredencial ?? ""} disabled={disabled} autoComplete="off" className="input font-mono" />
         </div>
-        <div className="field sm:col-span-2">
+        <div className="field @lg:col-span-2">
           <label htmlFor="domicilio" className="field-label">
             Domicilio receta <span className="font-normal text-zinc-500">(opcional; se actualiza solo con una receta importada que lo trae)</span>
           </label>
           <input id="domicilio" name="domicilio" defaultValue={paciente?.domicilio ?? ""} maxLength={MAX_DOMICILIO} disabled={disabled} autoComplete="off" className="input" />
         </div>
-        <div className="field sm:col-span-2">
+        <div className="field @lg:col-span-2">
           <label htmlFor="domicilioEntrega" className="field-label">
             Domicilio de entrega <span className="font-normal text-zinc-500">(opcional; vacío = domicilio receta)</span>
           </label>
           <input id="domicilioEntrega" name="domicilioEntrega" defaultValue={paciente?.domicilioEntrega ?? ""} maxLength={MAX_DOMICILIO} disabled={disabled} autoComplete="off" className="input" />
         </div>
+      </div>
       </div>
 
       <label htmlFor="aceptaRecordatoriosWhatsapp" className="choice-row toggle-switch items-start">

@@ -153,6 +153,8 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
 
   return (
     <SimpleForm
+      // Container: the form lives in the alta panel, a dialog and the split-layout column (~280px at 1024px).
+      className="@container"
       action={action}
       accion={mode === "crear" ? "drogas.crear" : "drogas.editar"}
       submitLabel={mode === "crear" ? "Crear insumo" : "Guardar cambios"}
@@ -240,7 +242,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
         </p>
       </fieldset>
 
-      <div className="field sm:max-w-[50%]">
+      <div className="field @lg:max-w-[50%]">
         <label htmlFor="clase" className="field-label">
           Clase
         </label>
@@ -268,7 +270,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 @lg:grid-cols-2">
         <div className="field">
           <label htmlFor="unidadBaseId" className="field-label">
             Unidad base
@@ -322,7 +324,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
       ) : null}
 
       {pideSaldoApertura ? (
-        <div className="field sm:max-w-[50%]">
+        <div className="field @lg:max-w-[50%]">
           <label htmlFor="saldoAperturaContralor" className="field-label">
             Saldo de apertura del libro contralor
           </label>
@@ -340,7 +342,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
         </div>
       ) : null}
 
-      <div className="field sm:max-w-[50%]">
+      <div className="field @lg:max-w-[50%]">
         <label htmlFor="stockMinimo" className="field-label">
           Stock mínimo
         </label>

@@ -396,7 +396,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
         </div>
         {/* A manual invoice has no totals read from a PDF. */}
         {manual ? null : (
-          <dl className="grid grid-cols-3 gap-4 text-sm">
+          <dl className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-4 text-sm">
             <div>
               <dt className="text-zinc-500">Subtotal (neto)</dt>
               <dd className="font-mono">{comprobante.subtotal === null ? "—" : formatearMonto(Number(comprobante.subtotal))}</dd>
@@ -430,7 +430,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
           const clase = drogas.find((d) => d.id === l.droga?.value)?.clase as ClaseDroga | undefined;
           const sugerencia = l.droga ? null : sugerirClase(l.drogaTexto);
           return (
-            <div key={manual ? l.codigo : i} data-fila="factura-linea" className={`flex flex-col gap-4 rounded border p-4 ${l.omitir ? "border-dashed border-zinc-200 bg-zinc-50" : "border-zinc-200"}`}>
+            <div key={manual ? l.codigo : i} data-fila="factura-linea" className={`@container flex flex-col gap-4 rounded border p-4 ${l.omitir ? "border-dashed border-zinc-200 bg-zinc-50" : "border-zinc-200"}`}>
               {manual ? (
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-medium text-zinc-900">Lote {i + 1}</p>
@@ -523,7 +523,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
                       </div>
                     </div>
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-5">
+                  <div className="grid gap-4 @sm:grid-cols-2 @xl:grid-cols-3 @3xl:grid-cols-5">
                     <div className="field">
                       <label htmlFor={`lineas.${i}.cantidadCompra`} className="field-label">
                         Cantidad

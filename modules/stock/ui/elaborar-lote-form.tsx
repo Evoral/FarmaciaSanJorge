@@ -508,6 +508,8 @@ function GrupoDeLotes({
       {partidas.length === 0 ? (
         <p className="px-3 py-2 text-xs text-zinc-500">Sin lotes disponibles: no tiene saldo libre sin vencer.</p>
       ) : (
+        // Scrolls inside the section: at 375px the dialog leaves ~300px and the "Usar" input alone needs 136px.
+        <div className="overflow-x-auto">
         <table className="data-table">
           <thead>
             <tr>
@@ -561,6 +563,7 @@ function GrupoDeLotes({
             })}
           </tbody>
         </table>
+        </div>
       )}
     </section>
   );

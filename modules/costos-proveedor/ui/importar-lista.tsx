@@ -109,9 +109,10 @@ function ImportarListaPaso({ proveedores, drogas, unidades, jornadaActual, unida
   if (vista) {
     return (
       <div className="flex flex-col gap-5">
-        <section aria-label="Archivo leído" className="panel">
-          <div className="panel-body flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <dl className="grid flex-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <section aria-label="Archivo leído" className="@container panel">
+          <div className="panel-body flex flex-col gap-4 @3xl:flex-row @3xl:items-end @3xl:justify-between">
+            {/* Four columns only from @5xl: next to the "Elegir otro archivo" button they need ~180px each (the hoja select). */}
+            <dl className="grid flex-1 gap-x-6 gap-y-3 text-sm @md:grid-cols-2 @5xl:grid-cols-4">
               <div>
                 <dt className="text-zinc-500">Proveedor</dt>
                 <dd className="font-medium text-zinc-900">{vista.proveedor.razonSocial}</dd>

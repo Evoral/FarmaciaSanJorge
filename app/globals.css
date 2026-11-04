@@ -2158,9 +2158,12 @@
     color: #fff;
   }
   @media (max-width: 639px) {
+    /* One line on phones: scrolls inside itself instead of widening the page (a 5-step trayectoria needs ~550px). */
     .stepper {
       flex-wrap: nowrap;
       gap: 0.375rem;
+      overflow-x: auto;
+      padding-bottom: 0.25rem;
     }
     .stepper > li {
       gap: 0.375rem;

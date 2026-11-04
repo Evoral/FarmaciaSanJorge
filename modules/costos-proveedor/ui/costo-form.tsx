@@ -174,6 +174,8 @@ export function CostoForm({ drogas, proveedores, unidades, jornadaActual, alicuo
 
   return (
     <SimpleForm
+      // Container: four columns need 4 × 10.5rem (the DateInput) plus gaps of the form itself, not of the screen.
+      className="@container"
       action={registrarConAviso}
       submitLabel={costoVigente ? "Guardar nuevo precio" : "Agregar costo"}
       pendingLabel="Guardando…"
@@ -241,7 +243,7 @@ export function CostoForm({ drogas, proveedores, unidades, jornadaActual, alicuo
         {vigente.tipo === "listo" && !costoVigente ? <p className="text-zinc-500">Todavía no hay un costo cargado para esta droga y este proveedor.</p> : null}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 @sm:grid-cols-2 @3xl:grid-cols-4">
         <div className="field">
           <label htmlFor="costo-precio" className="field-label">
             Precio sin IVA

@@ -85,7 +85,7 @@ export function FormulaEditor({ opciones, inicial, drogaId, esComponenteDe, disa
 
       {tiene ? (
         <div className="mt-2 flex flex-col gap-3 rounded-md border border-zinc-200 p-3">
-          <div className="field sm:max-w-[50%]">
+          <div className="field @lg:max-w-[50%]">
             <label htmlFor="cantidadReferencia" className="field-label">
               Cantidad que rinde la fórmula
             </label>
@@ -113,8 +113,9 @@ export function FormulaEditor({ opciones, inicial, drogaId, esComponenteDe, disa
             {filas.map((fila) => {
               const id = `componente_${fila.drogaId}`;
               return (
-                <div key={fila.drogaId} className="flex items-center gap-2">
-                  <label htmlFor={id} className="min-w-0 flex-1 truncate text-[0.8125rem] text-zinc-800">
+                <div key={fila.drogaId} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  {/* Own line when the form is narrow: the controls on its right take 216px. */}
+                  <label htmlFor={id} className="min-w-0 basis-full truncate text-[0.8125rem] text-zinc-800 @sm:basis-0 @sm:flex-1">
                     {fila.nombre}
                   </label>
                   <NumeroInput
