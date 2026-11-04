@@ -1020,6 +1020,7 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
       confirmadaEn: true,
       fechaVencimiento: true,
       tipoVencimiento: true,
+      excipienteTexto: true,
       preparadaPor: { select: { nombre: true, apellido: true } },
       fichaTecnica: {
         select: {
@@ -1065,6 +1066,8 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
     select: { razonSocial: true, nombreFantasia: true, matriculaFarmacia: true, domicilio: true, telefonoFijo: true, telefonoCelular: true, zonaHoraria: true },
   });
   const directorTecnico = await getDtTitularParaEtiqueta(tx, tenantId, jornadaDe(prep.confirmadaEn, tenant.zonaHoraria));
+  // What "Incluir excipientes en la etiqueta" adds besides the receta's own excipientes: as in the libro's fórmula (0110).
+  const adicionales = (await listInsumosDePreparacion(tx, tenantId, preparacionId)).filter((i) => i.tipo === "ADICIONAL" && i.clase === "EXCIPIENTE").map((i) => i.texto);
 
   const item = prep.fichaTecnica.itemReceta;
   const medico = item.receta.medico;
@@ -1105,9 +1108,20 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
     tenantTelefonoCelular: tenant.telefonoCelular,
     fechaVencimiento: prep.fechaVencimiento ? prep.fechaVencimiento.toISOString().slice(0, 10) : null, // @db.Date comes back as UTC midnight.
     tipoVencimiento: prep.tipoVencimiento,
+    excipientes: [...(prep.excipienteTexto ? [prep.excipienteTexto] : []), ...adicionales],
     recetaEstado: item.receta.estado,
     asientoSinEfecto: asiento.estado === "ANULADO" || asiento._count.rectificativos > 0,
   };
+}
+
+/**
+ * The tenant's default for "Incluir excipientes en la etiqueta" (`fsj.etiqueta_hoja.incluir_excipientes`, migration
+ * 0117), for an etiqueta generated without the toma's switch (`/preparaciones/[id]`). Read here, against the shared
+ * `tx`: modules only reach their own infrastructure/ (modules/etiqueta-tamanos owns the row). No row = off.
+ */
+export async function getIncluirExcipientesEnEtiqueta(tx: Prisma.TransactionClient, tenantId: string): Promise<boolean> {
+  const row = await tx.etiquetaHoja.findFirst({ where: { tenantId }, select: { incluirExcipientes: true } });
+  return row?.incluirExcipientes ?? false;
 }
 
 /**

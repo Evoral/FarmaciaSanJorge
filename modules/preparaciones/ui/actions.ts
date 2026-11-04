@@ -375,7 +375,9 @@ function mensajeReservasConfirmadas(items: number, numeroCorrelativo: string): s
 export async function confirmarReservasRecetaAction(_prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
   return conOperador(formData, async (): Promise<PreparacionActionState> => {
     try {
-      const confirmada = await confirmarReservasReceta(String(formData.get("recetaId") ?? ""), tiposVencimientoPorPreparacion(formData));
+      // The toma's "Incluir excipientes en la etiqueta" switch; a form without it takes the tenant's default.
+      const incluirExcipientes = formData.has("incluirExcipientes") ? formData.get("incluirExcipientes") === "1" : undefined;
+      const confirmada = await confirmarReservasReceta(String(formData.get("recetaId") ?? ""), tiposVencimientoPorPreparacion(formData), incluirExcipientes);
       revalidatePath("/preparaciones");
       // The receta moved to PREPARADA.
       revalidatePath("/recetas");

@@ -34,3 +34,17 @@ export async function upsertEtiquetaHoja(tx: Prisma.TransactionClient, tenantId:
   const { count } = await tx.etiquetaHoja.updateMany({ where: { tenantId }, data: { ...datos, updatedAt: new Date() } });
   if (count === 0) await tx.etiquetaHoja.create({ data: { tenantId, ...datos } });
 }
+
+/** Where the toma's "Incluir excipientes en la etiqueta" switch starts (migration 0117). A missing row reads off. */
+export async function getIncluirExcipientes(tx: Prisma.TransactionClient, tenantId: string): Promise<boolean> {
+  const row = await tx.etiquetaHoja.findFirst({ where: { tenantId }, select: { incluirExcipientes: true } });
+  return row?.incluirExcipientes ?? false;
+}
+
+/** A missing row is inserted with the default sheet. */
+export async function upsertIncluirExcipientes(tx: Prisma.TransactionClient, tenantId: string, incluirExcipientes: boolean): Promise<void> {
+  const { count } = await tx.etiquetaHoja.updateMany({ where: { tenantId }, data: { incluirExcipientes, updatedAt: new Date() } });
+  if (count > 0) return;
+  const hoja = HOJA_PREDETERMINADA;
+  await tx.etiquetaHoja.create({ data: { tenantId, anchoMm: hoja.anchoMm.toFixed(1), altoMm: hoja.altoMm.toFixed(1), margenMm: hoja.margenMm.toFixed(1), incluirExcipientes } });
+}

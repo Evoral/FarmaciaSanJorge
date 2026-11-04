@@ -55,6 +55,8 @@ import {
 const confirmarReservasRecetaInput = z.object({
   recetaId: uuid,
   tiposVencimiento: z.record(uuid, z.enum(TIPOS_VENCIMIENTO_PREPARADO)).default({}),
+  /** The "Incluir excipientes en la etiqueta" switch (migration 0117); missing = the tenant's default. */
+  incluirExcipientes: z.boolean().optional(),
 });
 
 export interface EtiquetaDeRecetaConfirmada {
@@ -140,7 +142,7 @@ export const confirmarReservasRecetaCommand = defineCommand({
     const etiquetas: (EtiquetaDeRecetaConfirmada & { numero: number })[] = [];
     for (const { numero, preparacionId } of aConfirmar) {
       try {
-        const etiqueta = await generarEtiquetaEnTx(tx, session.tenantId, preparacionId);
+        const etiqueta = await generarEtiquetaEnTx(tx, session.tenantId, preparacionId, input.incluirExcipientes);
         etiquetas.push({ numero, preparacionId, etiquetaId: etiqueta.id });
       } catch (error) {
         throw conNumeroDeItem(error, numero);
@@ -156,6 +158,7 @@ export const confirmarReservasRecetaCommand = defineCommand({
           asientoRecetarioId: asiento.id,
           asientoRecetario: `Nº ${asiento.numeroCorrelativo}`,
           numeroCorrelativo: asiento.numeroCorrelativo,
+          ...(input.incluirExcipientes === undefined ? {} : { etiquetaConExcipientes: input.incluirExcipientes }),
           preparaciones: etiquetas.map((e) => ({
             item: e.numero,
             preparacionId: e.preparacionId,
@@ -169,6 +172,10 @@ export const confirmarReservasRecetaCommand = defineCommand({
   },
 });
 
-export async function confirmarReservasReceta(recetaId: string, tiposVencimiento: Record<string, TipoVencimientoPreparado> = {}): Promise<RecetaConfirmada> {
-  return confirmarReservasRecetaCommand.execute({ recetaId, tiposVencimiento });
+export async function confirmarReservasReceta(
+  recetaId: string,
+  tiposVencimiento: Record<string, TipoVencimientoPreparado> = {},
+  incluirExcipientes?: boolean,
+): Promise<RecetaConfirmada> {
+  return confirmarReservasRecetaCommand.execute({ recetaId, tiposVencimiento, incluirExcipientes });
 }

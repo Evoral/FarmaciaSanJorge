@@ -241,6 +241,8 @@ export interface ConfirmacionDeEtiquetas {
   confirmar: (prevState: PreparacionActionState, formData: FormData) => Promise<PreparacionActionState>;
   /** The button stays disabled (and closed on load): its note on the page says why. */
   deshabilitado: boolean;
+  /** The page's "Incluir excipientes en la etiqueta" switch (migration 0117), sent with the confirmation. */
+  incluirExcipientes: boolean;
 }
 
 export interface SeleccionarEtiquetasDialogProps {
@@ -496,6 +498,7 @@ export function SeleccionarEtiquetasDialog({ etiquetas, tamanos, hoja, abrirAlMo
               }
             >
               <input type="hidden" name="recetaId" value={confirmacion.recetaId} />
+              <input type="hidden" name="incluirExcipientes" value={confirmacion.incluirExcipientes ? "1" : "0"} />
               {lista}
               {sinTamanos ? null : <AvisoTamanoReal />}
               <div role="note" className="alert alert-warn">

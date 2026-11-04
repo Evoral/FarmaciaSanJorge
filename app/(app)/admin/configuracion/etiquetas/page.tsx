@@ -4,7 +4,8 @@
  * height in mm) the farmacia prints on it, with how many of each fit per sheet
  * (openspec/specs/hoja-etiquetas/spec.md). The administrator keeps both; when printing, the
  * user picks one of the ACTIVE sizes that fit, and a cell on the sheet, in the print
- * dialog (Preparaciones). A new size is created in an inline panel (`?nueva=1`);
+ * dialog (Preparaciones). Also whether the toma's "Incluir excipientes en la etiqueta" switch starts on
+ * (migration 0117). A new size is created in an inline panel (`?nueva=1`);
  * each row opens its detail for edit / baja / reactivar.
  */
 import Link from "next/link";
@@ -12,11 +13,13 @@ import { ChevronRight, Pencil, Plus, Ruler, X } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getEtiquetaHoja } from "@/modules/etiqueta-tamanos/application/get-etiqueta-hoja";
+import { getIncluirExcipientes } from "@/modules/etiqueta-tamanos/application/get-incluir-excipientes";
 import { listEtiquetaTamanos } from "@/modules/etiqueta-tamanos/application/list-etiqueta-tamanos";
 import { entraEnHoja, formatearCapacidad, formatearHoja, grillaHoja } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import { formatearMedidas } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import { EtiquetaHojaForm } from "@/modules/etiqueta-tamanos/ui/etiqueta-hoja-form";
 import { EtiquetaTamanoForm } from "@/modules/etiqueta-tamanos/ui/etiqueta-tamano-form";
+import { IncluirExcipientesForm } from "@/modules/etiqueta-tamanos/ui/incluir-excipientes-form";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { PageHeader } from "@/shared/ui/page-header";
 import { ToneBadge } from "@/shared/ui/status-badge";
@@ -32,7 +35,7 @@ interface EtiquetasPageProps {
 export default async function EtiquetasPage({ searchParams }: EtiquetasPageProps) {
   const session = await requireSession();
   const params = await searchParams;
-  const [tamanos, hoja] = await Promise.all([listEtiquetaTamanos(), getEtiquetaHoja()]);
+  const [tamanos, hoja, incluirExcipientes] = await Promise.all([listEtiquetaTamanos(), getEtiquetaHoja(), getIncluirExcipientes()]);
   const puedeEditar = can(session, "config.editar");
 
   return (
@@ -72,6 +75,15 @@ export default async function EtiquetasPage({ searchParams }: EtiquetasPageProps
           <p className="font-mono tabular-nums text-zinc-800">{formatearHoja(hoja)}</p>
           <p className="text-sm text-zinc-600">El PDF de cada etiqueta es esta hoja entera, con la etiqueta en el lugar que se elige al imprimir. Se imprime siempre en tamaño real (100 %).</p>
           {puedeEditar && params.hoja ? <EtiquetaHojaForm hoja={hoja} disabled={!puedeEditar} volverA={LISTA_HREF} /> : null}
+        </div>
+      </section>
+
+      <section className="panel mb-6 max-w-3xl" aria-labelledby="contenido-heading">
+        <div className="panel-header">
+          <h2 id="contenido-heading">Contenido de la etiqueta</h2>
+        </div>
+        <div className="panel-body">
+          <IncluirExcipientesForm incluirExcipientes={incluirExcipientes} disabled={!puedeEditar} />
         </div>
       </section>
 

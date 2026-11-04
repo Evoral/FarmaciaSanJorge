@@ -11,7 +11,9 @@
  *     receta, contralor, etiquetas: modules/preparaciones/application/confirmar-reservas-receta.ts) from ONE dialog
  *     (./imprimir-etiqueta-dialog.tsx: per ítem its size, vencimiento and position; ONE "Imprimir" confirms and opens
  *     every etiqueta in one PDF). Once nothing is left to confirm it is the same dialog without the confirmation
- *     (reprint, one "Imprimir" per ítem). The page renders it at a FIXED place whatever the ítems' state, and the
+ *     (reprint, one "Imprimir" per ítem). While confirming, a boxed "Incluir excipientes en la etiqueta" switch sits on
+ *     its left (migration 0117: starts as the administrator chose; the etiquetas are generated with it, so a reprint
+ *     no longer offers it). The page renders it at a FIXED place whatever the ítems' state, and the
  *     dialog sits at a fixed place inside it, so it survives the refresh that follows the confirmation.
  *   - `PerdidaReservaDialog`: "Registrar pérdida" -- a loss (rotura, derrame) of a reserved partida during the work: an
  *     AJUSTE linked to the preparación, with the Director Técnico's co-firma in the same form (an ajuste always needs it),
@@ -91,6 +93,8 @@ export interface EtiquetasDeRecetaProps {
   mesesVencimiento: number;
   /** Open the confirmation dialog on load when it is enabled (the Confirmadas tab's "Imprimir", `?imprimir=1`). */
   abrirAlMontar?: boolean;
+  /** Where the "Incluir excipientes en la etiqueta" switch starts (`etiqueta_hoja.incluir_excipientes`, migration 0117). */
+  incluirExcipientesPredeterminado: boolean;
 }
 
 export function EtiquetasDeReceta({
@@ -106,7 +110,10 @@ export function EtiquetasDeReceta({
   aConfirmar,
   mesesVencimiento,
   abrirAlMontar = false,
+  incluirExcipientesPredeterminado,
 }: EtiquetasDeRecetaProps) {
+  const [incluirExcipientes, setIncluirExcipientes] = useState(incluirExcipientesPredeterminado);
+
   async function confirmar(prevState: PreparacionActionState, formData: FormData): Promise<PreparacionActionState> {
     const state = await confirmarReservasRecetaAction(prevState, formData);
     if (state.status === "success" && state.message) toast(state.message);
@@ -120,6 +127,15 @@ export function EtiquetasDeReceta({
   // re-renders the page with nothing left to confirm.
   return (
     <div className="panel flex flex-wrap items-center justify-end gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
+      {confirmando ? (
+        <label className="toggle-switch mr-auto min-h-0 items-start rounded-lg border border-zinc-200 px-3 py-2 text-[0.8125rem] text-zinc-700 dark:border-zinc-800">
+          <input type="checkbox" role="switch" className="mt-0.5" checked={incluirExcipientes} onChange={(e) => setIncluirExcipientes(e.target.checked)} />
+          <span>
+            Incluir excipientes en la etiqueta
+            <span className="mt-0.5 block text-xs text-zinc-500">Se agregan a la fórmula, aclarando que son excipientes.</span>
+          </span>
+        </label>
+      ) : null}
       {!confirmando ? null : todasReservadas && sinAlcance.length > 0 ? (
         <p className="text-sm text-red-700">Recalculá la reserva {sinAlcance.length === 1 ? `del ítem ${sinAlcance[0]}` : `de los ítems ${sinAlcance.join(", ")}`} para imprimir las etiquetas.</p>
       ) : todasReservadas ? (
@@ -137,7 +153,7 @@ export function EtiquetasDeReceta({
         abrirAlMontar={abrirAlMontar}
         confirmacion={
           confirmando
-            ? { recetaId, items: aConfirmar, mesesVencimiento, confirmar, deshabilitado: !todasReservadas || sinAlcance.length > 0 }
+            ? { recetaId, items: aConfirmar, mesesVencimiento, confirmar, deshabilitado: !todasReservadas || sinAlcance.length > 0, incluirExcipientes }
             : undefined
         }
       />

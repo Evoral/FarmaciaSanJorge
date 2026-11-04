@@ -1985,6 +1985,8 @@ model EtiquetaHoja {
   anchoMm   Decimal  @map("ancho_mm") @db.Decimal(4, 1)
   altoMm    Decimal  @map("alto_mm") @db.Decimal(4, 1)
   margenMm  Decimal  @map("margen_mm") @db.Decimal(4, 1)
+  /// 0117: the toma's "Incluir excipientes en la etiqueta" switch starts on (the user can still change it before printing).
+  incluirExcipientes Boolean @default(false) @map("incluir_excipientes")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("etiqueta_hoja")

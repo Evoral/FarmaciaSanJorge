@@ -115,6 +115,7 @@ import { EtiquetasDeReceta, LiberarReservaForm, PerdidaReservaDialog, Recalcular
 import { listDtParaPerdida } from "@/modules/preparaciones/application/list-dt-para-perdida";
 import { getHojaParaImprimir } from "@/modules/etiqueta-tamanos/application/get-hoja-para-imprimir";
 import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
+import { getIncluirExcipientesParaGenerar } from "@/modules/etiqueta-tamanos/application/get-incluir-excipientes";
 import { HOJA_PREDETERMINADA } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import { ItemDatos } from "@/modules/preparaciones/ui/item-datos";
 import { LineasFichaTabla } from "@/modules/preparaciones/ui/lineas-ficha-tabla";
@@ -208,6 +209,9 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
       ? [{ preparacionId: item.preparacion.id, numero: i + 1, nombre: nombreDeItem(item), noImprimible: item.preparacion.etiquetaNoImprimible }]
       : [],
   );
+  const puedeConfirmarEtiquetas = can(session, "preparaciones.confirmar") && can(session, "etiquetas.generar");
+  // Where the "Incluir excipientes en la etiqueta" switch starts: read only while there is something to confirm.
+  const incluirExcipientes = puedeConfirmarEtiquetas && confirmados < receta.items.length ? await getIncluirExcipientesParaGenerar() : false;
   const paciente = `${receta.pacienteNombre} ${receta.pacienteApellido}`;
   const diagnostico = [receta.diagnosticoCodigo, receta.diagnosticoDescripcion].filter(Boolean).join(" - ");
 
@@ -241,7 +245,7 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
           porConfirmar={receta.items.length - confirmados}
           todasReservadas={itemsSinReserva(estados).length === 0}
           sinAlcance={receta.items.flatMap((item, i) => (estados[i] === "RESERVADA" && item.preparacion && !item.preparacion.reservaAlcanza ? [i + 1] : []))}
-          puedeConfirmar={can(session, "preparaciones.confirmar") && can(session, "etiquetas.generar")}
+          puedeConfirmar={puedeConfirmarEtiquetas}
           puedeImprimir={puedeImprimirEtiquetas}
           tamanos={tamanos}
           hoja={hoja}
@@ -251,6 +255,7 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
           )}
           mesesVencimiento={receta.mesesVencimientoPreparado}
           abrirAlMontar={abrirImprimir}
+          incluirExcipientesPredeterminado={incluirExcipientes}
         />
       </div>
     </section>
