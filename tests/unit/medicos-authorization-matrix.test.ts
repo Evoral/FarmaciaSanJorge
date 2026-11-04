@@ -59,7 +59,7 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
       nombre: "N",
       apellido: "A",
       matricula: "MAT-1",
-      version: { nombre: "N", apellido: "A", matricula: "MAT-1", especialidad: null, telefono: null, direccionRegistrada: null },
+      version: { nombre: "N", apellido: "A", matricula: "MAT-1", matriculaJurisdiccion: "PROVINCIAL", especialidad: null, telefono: null, direccionRegistrada: null, email: null },
     },
   },
   { name: "medicos.baja", permiso: "medicos.gestionar", input: { id: TARGET_ID, motivo: "Motivo de prueba." } },

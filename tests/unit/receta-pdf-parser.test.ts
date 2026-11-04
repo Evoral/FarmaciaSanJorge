@@ -18,6 +18,7 @@ import {
   parsearDecimalEsAr,
   parsearFechaDdMmAaaa,
   parsearRecetaPdf,
+  leerContactoMedico,
   separarContactoMedico,
   separarNombre,
   urlVerificacionRcta,
@@ -69,6 +70,7 @@ interface OpcionesReceta {
   diagnostico?: string | null;
   links?: LinkLite[];
   registro?: string | null;
+  pieContacto?: string;
 }
 
 /** A synthetic RCTA receta shaped after the real layout (fictitious data). */
@@ -81,6 +83,7 @@ function recetaRcta(opciones: OpcionesReceta = {}): RecetaPdfInput {
     diagnostico = "Diagnóstico: E66.0 - OBESIDAD DEBIDA A EXCESO DE CALORIAS",
     links = [LINK_RCTA],
     registro = "RL-2024-100292307",
+    pieContacto = "San Martín 456 Ciudad Mendoza Teléfono 261 5550000",
   } = opciones;
 
   const items: TextItemLite[] = [];
@@ -108,7 +111,7 @@ function recetaRcta(opciones: OpcionesReceta = {}): RecetaPdfInput {
   items.push(...renglon("Dr. Martín Ríos", 315.3, 444.4), ...renglon("MEDICINA GENERAL", 305.8, 452.4), ...renglon("MP 5120", 329.5, 460.4));
   items.push(...renglon("Este documento ha sido firmado -electrónica o digitalmente según", 23.5, 471.2, 10.3), ...renglon("FIRMA Y SELLO", 315.3, 476.4));
   items.push(...renglon("MÉDICO - MEDICINA GENERAL", 163.7, 523.9), ...renglon("Martín Ríos", 199.2, 533.9));
-  items.push(...renglon("San Martín 456 Ciudad Mendoza Teléfono 261 5550000", 133.6, 543.9));
+  items.push(...renglon(pieContacto, 133.6, 543.9));
   if (registro) items.push(...renglon(registro, 195.5, 570.4, 8.2));
   items.push(...renglon("Ver Link", 51.5, 575.9));
 
@@ -159,7 +162,15 @@ describe("P1: RCTA receta (synthetic equivalent of the real sample)", () => {
       matriculaJurisdiccion: "PROVINCIAL",
       direccionRegistrada: "San Martín 456 Ciudad Mendoza",
       telefono: "261 5550000",
+      email: null,
     });
+  });
+
+  it("reads the médico email and teléfono from a footer with '<email>/<teléfono>', leaving dirección null", () => {
+    const { borrador: borradorConEmail } = parsearOk(recetaRcta({ pieContacto: "delfimanzur10@gmail.com/2615742504" }));
+    expect(borradorConEmail.medico.email).toBe("delfimanzur10@gmail.com");
+    expect(borradorConEmail.medico.telefono).toBe("2615742504");
+    expect(borradorConEmail.medico.direccionRegistrada).toBeNull();
   });
 
   it("builds ONE item with 6 POR_DOSIS principio-activo componentes, es-AR decimals included", () => {
@@ -469,6 +480,36 @@ describe("separarContactoMedico", () => {
   it("returns null when there is no phone", () => {
     expect(separarContactoMedico("San Martín 456 Ciudad Mendoza")).toBeNull();
     expect(separarContactoMedico("")).toBeNull();
+  });
+});
+
+describe("leerContactoMedico", () => {
+  it("a) delfimanzur10@gmail.com/2615742504 -> email and telefono, without direccion", () => {
+    expect(leerContactoMedico("delfimanzur10@gmail.com/2615742504")).toEqual({
+      direccion: null,
+      telefono: "2615742504",
+      email: "delfimanzur10@gmail.com",
+    });
+  });
+
+  it("b) San Martín 456 Ciudad Mendoza Teléfono 261 5550000 -> direccion and telefono, email: null", () => {
+    expect(leerContactoMedico("San Martín 456 Ciudad Mendoza Teléfono 261 5550000")).toEqual({
+      direccion: "San Martín 456 Ciudad Mendoza",
+      telefono: "261 5550000",
+      email: null,
+    });
+  });
+
+  it("c) a@b.com -> solo email", () => {
+    expect(leerContactoMedico("a@b.com")).toEqual({
+      direccion: null,
+      telefono: null,
+      email: "a@b.com",
+    });
+  });
+
+  it("d) San Martín 456 (sin email y sin Teléfono) -> null", () => {
+    expect(leerContactoMedico("San Martín 456")).toBeNull();
   });
 });
 

@@ -226,6 +226,15 @@ describe("P34-P37: médico", () => {
     expect(leer(conMedico({ lugarAtencion: "Calle Falsa 123 Ciudad", telefono: "261 4440000" })).borrador.medico.telefono).toBe("261 4440000");
     expect(leer(conMedico({ lugarAtencion: null })).borrador.medico.direccionRegistrada).toBeNull();
   });
+
+  it("lugarAtencion with 'delfimanzur10@gmail.com/2615742504' splits into email and telefono, without direccion", () => {
+    const borrador = leer(conMedico({ lugarAtencion: "delfimanzur10@gmail.com/2615742504" })).borrador;
+    expect(borrador.medico).toMatchObject({
+      email: "delfimanzur10@gmail.com",
+      telefono: "2615742504",
+      direccionRegistrada: null,
+    });
+  });
 });
 
 const conTexto = (prescripcion: string | null, cambios: Json = {}) => receta({ prescripcion: [{ ...ITEM, prescripcion, ...cambios }] });

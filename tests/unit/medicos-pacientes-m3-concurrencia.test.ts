@@ -60,6 +60,10 @@ const lockMedicoMock = vi.fn(async (...args: unknown[]) => {
   return true;
 });
 const getMedicoParaAccionMock = vi.fn();
+const insertMedicoMock = vi.fn(async (...args: unknown[]) => {
+  void args;
+  return { id: TARGET_ID };
+});
 const existeMatriculaVigenteMock = vi.fn(async (...args: unknown[]) => {
   void args;
   return false;
@@ -77,10 +81,12 @@ vi.mock("@/modules/medicos/infrastructure/medico-repository", () => ({
   lockMedicoParaAccion: (...args: unknown[]) => lockMedicoMock(...args),
   getMedicoParaAccion: (...args: unknown[]) => getMedicoParaAccionMock(...args),
   existeMatriculaVigente: (...args: unknown[]) => existeMatriculaVigenteMock(...args),
+  insertMedico: (...args: unknown[]) => insertMedicoMock(...args),
   updateMedicoDatos: (...args: unknown[]) => updateMedicoDatosMock(...args),
   cambiarBajaMedico: (...args: unknown[]) => cambiarBajaMedicoMock(...args),
 }));
 
+const { crearMedicoCommand } = await import("@/modules/medicos/application/crear-medico");
 const { editarMedicoCommand } = await import("@/modules/medicos/application/editar-medico");
 const { darDeBajaMedicoCommand } = await import("@/modules/medicos/application/dar-de-baja-medico");
 const { reactivarMedicoCommand } = await import("@/modules/medicos/application/reactivar-medico");
@@ -134,6 +140,7 @@ describe("médicos M3: lock-then-fresh-read", () => {
     especialidad: null,
     telefono: null,
     direccionRegistrada: null,
+    email: null,
     fechaBaja: null,
     motivoBaja: null,
   };
@@ -162,7 +169,7 @@ describe("médicos M3: lock-then-fresh-read", () => {
           apellido: "A",
           matricula: "MAT-1",
           matriculaJurisdiccion: "PROVINCIAL",
-          version: { nombre: "N", apellido: "A", matricula: "MAT-1", matriculaJurisdiccion: "PROVINCIAL", especialidad: null, telefono: null, direccionRegistrada: null },
+          version: { nombre: "N", apellido: "A", matricula: "MAT-1", matriculaJurisdiccion: "PROVINCIAL", especialidad: null, telefono: null, direccionRegistrada: null, email: null },
         },
         { session: fakeSession("medicos.gestionar") },
       );
@@ -188,7 +195,7 @@ describe("médicos M3: lock-then-fresh-read", () => {
         apellido: "A",
         matricula: "MAT-1",
         matriculaJurisdiccion: "PROVINCIAL",
-        version: { nombre: "N", apellido: "A", matricula: "MAT-1", matriculaJurisdiccion: "PROVINCIAL", especialidad: null, telefono: null, direccionRegistrada: null },
+        version: { nombre: "N", apellido: "A", matricula: "MAT-1", matriculaJurisdiccion: "PROVINCIAL", especialidad: null, telefono: null, direccionRegistrada: null, email: null },
       },
       { session: fakeSession("medicos.gestionar") },
     );
@@ -210,12 +217,68 @@ describe("médicos M3: lock-then-fresh-read", () => {
         apellido: "A",
         matricula: "MAT-1",
         matriculaJurisdiccion: "NACIONAL",
-        version: { nombre: "N", apellido: "A", matricula: "MAT-1", matriculaJurisdiccion: "PROVINCIAL", especialidad: null, telefono: null, direccionRegistrada: null },
+        version: { nombre: "N", apellido: "A", matricula: "MAT-1", matriculaJurisdiccion: "PROVINCIAL", especialidad: null, telefono: null, direccionRegistrada: null, email: null },
       },
       { session: fakeSession("medicos.gestionar") },
     );
 
     expect(existeMatriculaVigenteMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, "NACIONAL", "MAT-1", TARGET_ID);
+  });
+
+  it("crearMedico: stores the email when provided", async () => {
+    insertMedicoMock.mockResolvedValueOnce({ id: TARGET_ID });
+    await crearMedicoCommand.execute(
+      {
+        nombre: "Juan",
+        apellido: "Pérez",
+        matricula: "MAT-1",
+        matriculaJurisdiccion: "PROVINCIAL",
+        email: "juan.perez@example.com",
+      },
+      { session: fakeSession("medicos.gestionar") },
+    );
+    expect(insertMedicoMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        email: "juan.perez@example.com",
+      }),
+    );
+  });
+
+  it("editarMedico: detects conflict when version.email does not match the current value", async () => {
+    getMedicoParaAccionMock.mockImplementation(async () => {
+      medicoCallOrder.push("read");
+      return { ...vigente, email: "actual@example.com" };
+    });
+
+    let caught: unknown;
+    try {
+      await editarMedicoCommand.execute(
+        {
+          id: TARGET_ID,
+          nombre: "N",
+          apellido: "A",
+          matricula: "MAT-1",
+          matriculaJurisdiccion: "PROVINCIAL",
+          version: {
+            nombre: "N",
+            apellido: "A",
+            matricula: "MAT-1",
+            matriculaJurisdiccion: "PROVINCIAL",
+            especialidad: null,
+            telefono: null,
+            direccionRegistrada: null,
+            email: "distinto@example.com",
+          },
+        },
+        { session: fakeSession("medicos.gestionar") },
+      );
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(ConflictError);
+    expect(updateMedicoDatosMock).not.toHaveBeenCalled();
   });
 
   it("darDeBajaMedico: locks BEFORE reading the current state", async () => {
