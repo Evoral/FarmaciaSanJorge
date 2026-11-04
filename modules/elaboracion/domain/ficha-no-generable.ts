@@ -14,7 +14,7 @@ import { dec } from "@/shared/decimal";
 import type { LineaPesajeCalculada } from "./calcular-ficha-tecnica";
 
 /** `V1`..`V9` (openspec/specs/ficha-tecnica/spec.md; V3 was removed with the componentes' order, migration 0065) or a missing piece of configuration/data. */
-export type CodigoFichaNoGenerable = "V1" | "V2" | "V4" | "V5" | "V6" | "V7" | "V8" | "V9" | "SIN_UNIDAD_BASE" | "DATOS_INVALIDOS";
+export type CodigoFichaNoGenerable = "V1" | "V2" | "V4" | "V5" | "V6" | "V7" | "V8" | "V9" | "V10" | "V11" | "SIN_UNIDAD_BASE" | "DATOS_INVALIDOS";
 
 export const CODIGOS_FICHA_NO_GENERABLE: readonly CodigoFichaNoGenerable[] = [
   "V1",
@@ -25,6 +25,8 @@ export const CODIGOS_FICHA_NO_GENERABLE: readonly CodigoFichaNoGenerable[] = [
   "V7",
   "V8",
   "V9",
+  "V10",
+  "V11",
   "SIN_UNIDAD_BASE",
   "DATOS_INVALIDOS",
 ];
@@ -50,6 +52,8 @@ export interface LineaPesajeGuardada {
   cantidadAPesar: string | null;
   unidadMedidaId: string;
   esEnraseManual: boolean;
+  /** Migration 0112; null for lines that are not a concentration (and for every line saved before it). */
+  prescripcion?: string | null;
 }
 
 /** A decimal in canonical form ("3.000" and "3" agree), or "-" for `null`. */
@@ -57,8 +61,14 @@ function decimalCanonico(valor: { toString(): string } | null): string {
   return valor === null ? "-" : dec(valor.toString()).toString();
 }
 
-function claveLinea(drogaId: string, unidadMedidaId: string, esEnraseManual: boolean, cantidades: readonly ({ toString(): string } | null)[]): string {
-  return [drogaId, unidadMedidaId, String(esEnraseManual), ...cantidades.map(decimalCanonico)].join("|");
+function claveLinea(
+  drogaId: string,
+  unidadMedidaId: string,
+  esEnraseManual: boolean,
+  prescripcion: string | null | undefined,
+  cantidades: readonly ({ toString(): string } | null)[],
+): string {
+  return [drogaId, unidadMedidaId, String(esEnraseManual), prescripcion ?? "-", ...cantidades.map(decimalCanonico)].join("|");
 }
 
 /**
@@ -71,7 +81,7 @@ function claveLinea(drogaId: string, unidadMedidaId: string, esEnraseManual: boo
  */
 export function mismasLineasPesaje(calculadas: readonly LineaPesajeCalculada[], guardadas: readonly LineaPesajeGuardada[]): boolean {
   if (calculadas.length !== guardadas.length) return false;
-  const nuevas = calculadas.map((c) => claveLinea(c.drogaId, c.unidadMedida.id, c.esEnraseManual, [c.cantidadTeorica, c.excesoAplicado, c.cantidadAPesar])).sort();
-  const actuales = guardadas.map((g) => claveLinea(g.drogaId, g.unidadMedidaId, g.esEnraseManual, [g.cantidadTeorica, g.excesoAplicado, g.cantidadAPesar])).sort();
+  const nuevas = calculadas.map((c) => claveLinea(c.drogaId, c.unidadMedida.id, c.esEnraseManual, c.prescripcion, [c.cantidadTeorica, c.excesoAplicado, c.cantidadAPesar])).sort();
+  const actuales = guardadas.map((g) => claveLinea(g.drogaId, g.unidadMedidaId, g.esEnraseManual, g.prescripcion, [g.cantidadTeorica, g.excesoAplicado, g.cantidadAPesar])).sort();
   return nuevas.every((clave, i) => clave === actuales[i]);
 }

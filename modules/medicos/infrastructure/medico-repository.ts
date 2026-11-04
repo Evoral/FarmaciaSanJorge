@@ -8,10 +8,11 @@
  * this module's only column beyond migration 0007's original set.
  */
 import type { Prisma } from "@/generated/prisma/client";
+import { buscarPersonasPorNombre } from "@/shared/db/busqueda-persona";
 import type { JurisdiccionMatricula } from "../domain/medico";
 
 // ============================================================================
-// Listing (4.4: search by apellido/matrícula + soloVigentes + pagination)
+// Listing (4.4: search by nombre/apellido/matrícula + soloVigentes + pagination)
 // ============================================================================
 
 export interface ListMedicosFilter {
@@ -40,12 +41,14 @@ export interface ListMedicosResult {
   pageSize: number;
 }
 
-function buildWhere(filter: ListMedicosFilter): Prisma.MedicoWhereInput {
+async function buildWhere(tx: Prisma.TransactionClient, filter: ListMedicosFilter): Promise<Prisma.MedicoWhereInput> {
   const where: Prisma.MedicoWhereInput = { tenantId: filter.tenantId };
 
   if (filter.search && filter.search.trim().length > 0) {
     const term = filter.search.trim();
-    where.OR = [{ apellido: { contains: term, mode: "insensitive" } }, { matricula: { contains: term, mode: "insensitive" } }];
+    // Nombre and apellido: the shared persona rule (every word, any order, accent-insensitive).
+    const porNombre = await buscarPersonasPorNombre(tx, "medico", filter.tenantId, term);
+    where.OR = [{ id: { in: porNombre } }, { matricula: { contains: term, mode: "insensitive" } }];
   }
   if (filter.soloVigentes === true) where.fechaBaja = null;
   else if (filter.soloVigentes === false) where.fechaBaja = { not: null };
@@ -54,7 +57,7 @@ function buildWhere(filter: ListMedicosFilter): Prisma.MedicoWhereInput {
 }
 
 export async function listMedicos(tx: Prisma.TransactionClient, filter: ListMedicosFilter): Promise<ListMedicosResult> {
-  const where = buildWhere(filter);
+  const where = await buildWhere(tx, filter);
   const skip = (filter.page - 1) * filter.pageSize;
 
   const total = await tx.medico.count({ where });

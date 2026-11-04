@@ -37,11 +37,18 @@ export interface DrogaPickerProps {
   selectedLabel: string;
   /** The synonym the selected droga was picked by (shown as the field's text). */
   selectedSinonimo?: string | null;
+  /** That synonym's id: marks which of the droga's options is the current one. */
+  selectedSinonimoId?: string | null;
   onSelect: (droga: DrogaElegida | null) => void;
   disabled?: boolean;
 }
 
-export function DrogaPicker({ label, selectedId, selectedLabel, selectedSinonimo, onSelect, disabled }: DrogaPickerProps) {
+/** The option's value: the droga, plus the synonym it stands for. */
+function valorOpcion(d: Pick<DrogaOpcion, "id" | "sinonimoId">): string {
+  return d.sinonimoId ? `${d.id}|${d.sinonimoId}` : d.id;
+}
+
+export function DrogaPicker({ label, selectedId, selectedLabel, selectedSinonimo, selectedSinonimoId, onSelect, disabled }: DrogaPickerProps) {
   // The last results, to recover the picked droga's unidad base and synonym id.
   const resultados = useRef(new Map<string, DrogaOpcion>());
 
@@ -50,9 +57,10 @@ export function DrogaPicker({ label, selectedId, selectedLabel, selectedSinonimo
     formData.set("q", q);
     const result = await buscarDrogasParaRecetaAction({ status: "idle", items: [] }, formData);
     if (result.status === "error") throw new Error(result.message ?? "No se pudo buscar drogas.");
-    resultados.current = new Map(result.items.map((d) => [d.id, d]));
-    // The canonical name is the option's label; a synonym match adds a quiet hint (openspec/specs/sinonimos-droga/spec.md).
-    return result.items.map((d) => ({ value: d.id, label: d.nombre, description: d.unidadBaseSimbolo, sinonimo: d.sinonimo }));
+    // One option per name and per matching synonym, so a droga can appear twice: the value tells them apart.
+    resultados.current = new Map(result.items.map((d) => [valorOpcion(d), d]));
+    // The canonical name is the option's label; a synonym option adds it as a quiet hint (openspec/specs/sinonimos-droga/spec.md).
+    return result.items.map((d) => ({ value: valorOpcion(d), label: d.nombre, description: d.unidadBaseSimbolo, sinonimo: d.sinonimo }));
   }, []);
 
   return (
@@ -62,7 +70,11 @@ export function DrogaPicker({ label, selectedId, selectedLabel, selectedSinonimo
       placeholder="Buscar droga"
       size="sm"
       search={search}
-      value={selectedId ? { value: selectedId, label: selectedLabel, sinonimo: selectedSinonimo ?? null } : null}
+      value={
+        selectedId
+          ? { value: valorOpcion({ id: selectedId, sinonimoId: selectedSinonimoId ?? null }), label: selectedLabel, sinonimo: selectedSinonimo ?? null }
+          : null
+      }
       onChange={(option) => {
         if (!option) {
           onSelect(null);
@@ -70,14 +82,13 @@ export function DrogaPicker({ label, selectedId, selectedLabel, selectedSinonimo
         }
         const droga = resultados.current.get(option.value);
         if (!droga) return;
-        const porSinonimo = Boolean(option.sinonimo && droga.sinonimoId);
         onSelect({
           drogaId: droga.id,
           nombre: droga.nombre,
           unidadBaseId: droga.unidadBaseId,
           unidadBaseSimbolo: droga.unidadBaseSimbolo,
-          drogaAliasId: porSinonimo ? droga.sinonimoId : null,
-          sinonimo: porSinonimo ? droga.sinonimo : null,
+          drogaAliasId: droga.sinonimoId,
+          sinonimo: droga.sinonimo,
         });
       }}
       disabled={disabled}

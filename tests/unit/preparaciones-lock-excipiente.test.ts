@@ -61,6 +61,7 @@ describe("P3-02: planificarConsumoEnTx locks all partidas in one statement", () 
         unidadSimbolo: "g",
         unidadStock: UNIDAD_G,
         esEnraseManual: false,
+        cantidadPrescripta: null,
         esPrincipioActivo: true,
       },
     ]);

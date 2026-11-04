@@ -62,6 +62,13 @@ export interface DatosEtiqueta {
   fechaVencimiento: string | null;
   /** The tipo chosen at confirmation (`preparacion.tipo_vencimiento`, migration 0096); `null` before 0096. */
   tipoVencimiento: TipoVencimientoPreparado | null;
+  /** The excipiente used and the insumos adicionales of clase EXCIPIENTE, as the libro's fórmula writes them ("Ludipress 0,795 g"). */
+  excipientes?: readonly string[];
+}
+
+export interface OpcionesEtiqueta {
+  /** The toma's "Incluir excipientes en la etiqueta" switch (migration 0117): Rp/ also lists the excipientes. */
+  incluirExcipientes?: boolean;
 }
 
 export interface ContenidoEtiqueta {
@@ -151,6 +158,26 @@ export function componentesRp(componentes: readonly ComponenteEtiqueta[]): Compo
   const ordenados = ordenarComponentes(componentes);
   const activos = ordenados.filter((c) => c.esPrincipioActivo);
   return activos.length > 0 ? activos : ordenados.filter((c) => c.modoExpresion !== "CS" && c.modoExpresion !== "CSP");
+}
+
+/** How an excipiente reads on Rp/ when the switch is on (user decision 2026-11-03: the label declares it as such). */
+export const MARCA_EXCIPIENTE = "(excipiente)";
+
+/**
+ * The lines "Incluir excipientes en la etiqueta" adds after the principios activos, each marked "(excipiente)": the
+ * receta's componentes Rp/ leaves out (in `ordenarComponentes` order), then the excipiente used and the insumos
+ * adicionales of clase EXCIPIENTE. A line already listed is not repeated (a c.s.p. componente and the excipiente used
+ * that replaced it often read the same).
+ */
+export function lineasExcipientesRp(datos: Pick<DatosEtiqueta, "componentes" | "excipientes">): string[] {
+  const enRp = new Set(componentesRp(datos.componentes));
+  const lineas = [
+    ...ordenarComponentes(datos.componentes)
+      .filter((c) => !enRp.has(c))
+      .map(formatearLineaRp),
+    ...(datos.excipientes ?? []).map(textoDeUnaLinea).filter((t): t is string => t !== null),
+  ];
+  return [...new Set(lineas)].map((linea) => `${linea} ${MARCA_EXCIPIENTE}`);
 }
 
 /** Rp/ lines that fit in one column of the label. */
@@ -272,14 +299,14 @@ export function formatearMedicoEtiqueta(datos: Pick<DatosEtiqueta, "medicoNombre
   return `Médico: ${datos.medicoNombre} ${datos.medicoApellido}  -  MAT:${datos.medicoMatricula}`;
 }
 
-export function armarContenidoEtiqueta(datos: DatosEtiqueta): ContenidoEtiqueta {
+export function armarContenidoEtiqueta(datos: DatosEtiqueta, opciones: OpcionesEtiqueta = {}): ContenidoEtiqueta {
   const dt = datos.directorTecnico;
   return {
     directorTecnico: dt ? { nombre: `${dt.nombre} ${dt.apellido}`.toLocaleUpperCase("es-AR"), matricula: dt.matricula } : null,
     domicilio: textoDeUnaLinea(datos.tenantDomicilio),
     telefonoFijo: textoDeUnaLinea(datos.tenantTelefonoFijo),
     celular: textoDeUnaLinea(datos.tenantTelefonoCelular),
-    rp: componentesRp(datos.componentes).map(formatearLineaRp),
+    rp: [...componentesRp(datos.componentes).map(formatearLineaRp), ...(opciones.incluirExcipientes ? lineasExcipientesRp(datos) : [])],
     vence: formatearVenceEtiqueta(datos.fechaVencimiento, datos.tipoVencimiento),
     recetaNumero: numeroRecetaEtiqueta(datos),
     dosis: dosisEtiqueta(datos.formaFarmaceutica, datos.posologia, datos.fraccionDosisPorUnidad),

@@ -44,6 +44,8 @@ export async function GET(request: Request): Promise<Response> {
     resultado = await exportarRecetasXlsx({
       estado,
       numeroInterno: q.get("numero") || undefined,
+      paciente: q.get("paciente") || undefined,
+      medico: q.get("medico") || undefined,
       ingresoDesde: q.get("ingresoDesde") || undefined,
       ingresoHasta: q.get("ingresoHasta") || undefined,
       desde: q.get("desde") || undefined,

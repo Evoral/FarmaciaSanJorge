@@ -2,10 +2,9 @@
 
 /**
  * Generic list-search autocomplete for catalog-like lists: typing shows matching records (from a read-only Server
- * Action the page passes in), picking one opens its detail, and the last row applies the typed text as the list's
- * own search param instead. Clearing the box removes that search. One component for drogas, médicos, unidades...: the
- * page decides the source, the detail URL and the list URL. Without `detalleHref` (a report with no detail page),
- * picking a suggestion applies its label as the list's search.
+ * Action the page passes in) and every way out only filters the list -- Enter, the last row or a suggestion (by its
+ * label); a record is opened from the list itself, never from the box. Clearing the box removes that search. One
+ * component for drogas, médicos, unidades...: the page decides the source and the list URL.
  */
 import { ListFilter } from "lucide-react";
 import { useCallback } from "react";
@@ -28,8 +27,6 @@ export interface BuscadorNavegableProps {
   placeholder: string;
   /** Read-only Server Action: the term in, at most a handful of suggestions out. */
   buscar: (busqueda: string) => Promise<SugerenciaNavegable[]>;
-  /** Detail URL with `{id}` (e.g. "/catalogos/drogas/{id}"). Omitted: a pick filters the list by its label. */
-  detalleHref?: string;
   /** The list's URL without the search param (the other filters kept). */
   listaHref: string;
   /** Query param of the list's search. Defaults to "q". */
@@ -40,7 +37,7 @@ export interface BuscadorNavegableProps {
   textoVerTodos: string;
 }
 
-export function BuscadorNavegable({ id, label, placeholder, buscar, detalleHref, listaHref, param = "q", busquedaActual, textoVerTodos }: BuscadorNavegableProps) {
+export function BuscadorNavegable({ id, label, placeholder, buscar, listaHref, param = "q", busquedaActual, textoVerTodos }: BuscadorNavegableProps) {
   const router = useRouter();
 
   const search = useCallback(
@@ -58,14 +55,10 @@ export function BuscadorNavegable({ id, label, placeholder, buscar, detalleHref,
       hideLabel
       placeholder={placeholder}
       search={search}
+      enterRunsAction
       value={busquedaActual ? { value: "", label: busquedaActual } : null}
       onChange={(option) => {
-        if (!option) {
-          if (busquedaActual) router.push(hrefConParam(listaHref, param, ""), { scroll: false });
-          return;
-        }
-        if (detalleHref) router.push(detalleHref.replace("{id}", encodeURIComponent(option.value)));
-        else router.push(hrefConParam(listaHref, param, option.label), { scroll: false });
+        if (!option && busquedaActual) router.push(hrefConParam(listaHref, param, ""), { scroll: false });
       }}
       actionOption={{
         label: (q) => (q ? `Filtrar la lista por “${q}”` : textoVerTodos),

@@ -94,11 +94,13 @@ export interface DatosConfirmacion {
   dts: { id: string; label: string }[];
   /**
    * Only for the toma workspace's pesada en la ficha (./get-confirmacion-de-ficha.ts, migration 0092): the
-   * excipientes it may choose from and its saved draft (cantidad in the droga's unidad base).
+   * excipientes it may choose from and its saved draft (a weight in the droga's unidad base, of one unit or of the
+   * preparado), and the ítem's units (migration 0113): `null` when its forma is not counted by units (c.s.p. only).
    */
   excipiente?: {
     opciones: ExcipienteParaToma[];
-    borrador: { drogaId: string | null; cantidad: string | null } | null;
+    borrador: { drogaId: string | null; cantidad: string | null; porUnidad: boolean } | null;
+    unidades: { cantidad: string; dosis: string; singular: string; plural: string } | null;
   };
   /**
    * Same, migration 0110: the drogas of clase EXCIPIENTE or MATERIAL the material / insumos adicionales may choose

@@ -1,5 +1,5 @@
 /**
- * `/recetas`: listado con filtros por estado/pago/fechas (ingreso, prescripción)/número, server-side.
+ * `/recetas`: listado con filtros por estado/pago/fechas (ingreso, prescripción)/número/paciente/médico, server-side.
  * After creating a receta the form lands here (`?registrada=<id>`, plus the
  * automatic ficha/cotización notices as codes -- modules/recetas/domain/avisos-generacion.ts).
  *
@@ -47,14 +47,14 @@ const PAGE_SIZE = 20;
 const HREF_NUEVA_RECETA = "/recetas/nuevo";
 
 interface RecetasPageProps {
-  searchParams: Promise<{ estado?: string; numero?: string; pago?: string; desde?: string; hasta?: string; ingresoDesde?: string; ingresoHasta?: string; periodo?: string; page?: string; registrada?: string; aviso?: string | string[] }>;
+  searchParams: Promise<{ estado?: string; numero?: string; paciente?: string; medico?: string; pago?: string; desde?: string; hasta?: string; ingresoDesde?: string; ingresoHasta?: string; periodo?: string; page?: string; registrada?: string; aviso?: string | string[] }>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-type FilterParam = "estado" | "numero" | "pago" | "ingresoDesde" | "ingresoHasta" | "desde" | "hasta";
-const FILTER_PARAMS: readonly FilterParam[] = ["estado", "numero", "pago", "ingresoDesde", "ingresoHasta", "desde", "hasta"];
+type FilterParam = "estado" | "numero" | "paciente" | "medico" | "pago" | "ingresoDesde" | "ingresoHasta" | "desde" | "hasta";
+const FILTER_PARAMS: readonly FilterParam[] = ["estado", "numero", "paciente", "medico", "pago", "ingresoDesde", "ingresoHasta", "desde", "hasta"];
 
 /** `2026-09-01` -> `01/09/2026` (display only; anything else is shown as typed). */
 function isoToDisplay(value: string): string {
@@ -75,6 +75,8 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
     listRecetas({
       estado: estadoValido,
       numeroInterno: params.numero,
+      paciente: params.paciente,
+      medico: params.medico,
       pago,
       desde: params.desde,
       hasta: params.hasta,
@@ -142,6 +144,8 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
   const chips: { key: FilterParam; label: string; value: string }[] = [];
   if (estadoValido) chips.push({ key: "estado", label: "Estado", value: ESTADO_RECETA_LABELS[estadoValido] });
   if (params.numero) chips.push({ key: "numero", label: "Nº interno", value: params.numero });
+  if (params.paciente) chips.push({ key: "paciente", label: "Paciente", value: params.paciente });
+  if (params.medico) chips.push({ key: "medico", label: "Médico", value: params.medico });
   if (pago) chips.push({ key: "pago", label: "Pago", value: FILTRO_PAGO_RECETA_LABELS[pago] });
   if (params.ingresoDesde) chips.push({ key: "ingresoDesde", label: "Ingreso desde", value: isoToDisplay(params.ingresoDesde) });
   if (params.ingresoHasta) chips.push({ key: "ingresoHasta", label: "Ingreso hasta", value: isoToDisplay(params.ingresoHasta) });
@@ -277,7 +281,27 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
             defaultValue={params.numero ?? ""}
             placeholder="Buscar por Nº interno"
             inputMode="search"
-            className="min-w-0 flex-1 md:w-64 md:flex-none"
+            className="min-w-0 flex-1 md:w-56 md:flex-none"
+          />
+          <SearchField
+            id="paciente"
+            name="paciente"
+            label="Paciente"
+            hideLabel
+            defaultValue={params.paciente ?? ""}
+            placeholder="Paciente o DNI"
+            inputMode="search"
+            className="min-w-0 flex-1 md:w-56 md:flex-none"
+          />
+          <SearchField
+            id="medico"
+            name="medico"
+            label="Médico"
+            hideLabel
+            defaultValue={params.medico ?? ""}
+            placeholder="Médico o matrícula"
+            inputMode="search"
+            className="min-w-0 flex-1 md:w-56 md:flex-none"
           />
           <FilterDrawer activeCount={activeDrawerFilters}>
             <div className="field">

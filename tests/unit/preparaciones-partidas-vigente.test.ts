@@ -50,6 +50,8 @@ function elegible(id: string, fechaVencimiento: string, reanalizada: boolean): P
     fechaApertura: null,
     potenciaDeclarada: null,
     esDilucion: false,
+    elaborada: false,
+    nombreElaborado: null,
   };
 }
 

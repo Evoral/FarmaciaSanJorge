@@ -70,7 +70,9 @@ export async function validarInsumosEnTx(
     const droga = await getDrogaExcipiente(tx, tenantId, insumo.drogaId);
     const nombre = nombreTipoInsumo(insumo.tipo);
     if (!droga || !claseAdmitida(insumo.tipo, droga.clase)) {
-      throw new DomainError(insumo.tipo === "MATERIAL" ? "Elegí un material del listado." : "Elegí un excipiente o material del listado.");
+      throw new DomainError(
+        droga?.clase === "EXCIPIENTE" ? `Solo se admite un excipiente: ${droga.nombre} no puede ir como insumo.` : "Elegí un material del listado.",
+      );
     }
     if (!droga.vigente) throw new DomainError(`El ${nombre} ${droga.nombre} está dado de baja: elegí otro.`);
     if (insumo.cantidad && !insumo.cantidad.greaterThan(0)) throw new DomainError(`La cantidad del ${nombre} ${droga.nombre} debe ser mayor que 0.`);

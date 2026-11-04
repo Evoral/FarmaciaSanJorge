@@ -1,7 +1,8 @@
 /**
  * Insumos de la preparación (migration 0110, openspec/specs/insumos-preparacion/spec.md): next to the excipiente, the
  * "Material" (one droga of clase MATERIAL, e.g. the cápsula type) and any number of "insumos adicionales" (drogas of
- * clase EXCIPIENTE or MATERIAL). Pure rules shared by the toma workspace and the use cases. No I/O.
+ * clase MATERIAL: one excipiente per preparación for now, the c.s.p. rules only cover one). Pure rules shared by the
+ * toma workspace and the use cases. No I/O.
  */
 import { formatNumero } from "@/shared/format/cantidad";
 
@@ -10,9 +11,12 @@ export type TipoInsumo = (typeof TIPOS_INSUMO)[number];
 
 export type ClaseDroga = "DROGA" | "EXCIPIENTE" | "MATERIAL";
 
-/** I2/I6: MATERIAL takes a droga of clase MATERIAL; ADICIONAL one of clase EXCIPIENTE or MATERIAL; never a DROGA. */
-export function claseAdmitida(tipo: TipoInsumo, clase: ClaseDroga): boolean {
-  return tipo === "MATERIAL" ? clase === "MATERIAL" : clase === "EXCIPIENTE" || clase === "MATERIAL";
+/**
+ * I2/I6: MATERIAL and ADICIONAL take a droga of clase MATERIAL; never a DROGA, and never a second EXCIPIENTE (the
+ * excipiente is the preparación's own field, one for now).
+ */
+export function claseAdmitida(_tipo: TipoInsumo, clase: ClaseDroga): boolean {
+  return clase === "MATERIAL";
 }
 
 /** How the messages name an insumo of `tipo`. */

@@ -101,7 +101,6 @@ export default async function RepartidoresPage({ searchParams }: RepartidoresPag
               label="Buscar repartidor"
               placeholder="Buscar por nombre, apellido o teléfono"
               buscar={buscarRepartidoresCatalogoAction}
-              detalleHref={`${LISTA_HREF}/{id}`}
               listaHref={sinFiltroHref("q")}
               busquedaActual={params.q}
               textoVerTodos="Ver todos los repartidores"

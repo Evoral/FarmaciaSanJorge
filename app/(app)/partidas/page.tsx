@@ -34,6 +34,8 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
 import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
+import { AYUDA_ACTIVO, AYUDA_DISPONIBLE } from "@/modules/stock/ui/ayuda-stock";
+import { InfoHint } from "@/shared/ui/info-hint";
 
 const PAGE_SIZE = 20;
 const BASE_PATH = "/partidas";
@@ -201,6 +203,35 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
           <CircleAlert aria-hidden />
           <p>La fecha &quot;Desde&quot; no puede ser posterior a la fecha &quot;Hasta&quot;. Se muestran las partidas sin filtrar por fecha.</p>
         </div>
+      ) : null}
+
+      {result.stockDroga ? (
+        // Exact figures of the filtered droga (the stock table rounds them to a readable unit).
+        <section className="panel mb-4 p-4" aria-labelledby="stock-preciso-heading">
+          <h2 id="stock-preciso-heading" className="text-xs text-zinc-500">
+            Stock preciso de {drogaFiltrada?.nombre}
+          </h2>
+          <dl className="mt-2 grid grid-cols-2 gap-4 sm:max-w-md">
+            <div>
+              <dt className="inline-flex items-center gap-1 text-xs text-zinc-500">
+                Disponible
+                <InfoHint label="Qué es Disponible">{AYUDA_DISPONIBLE}</InfoHint>
+              </dt>
+              <dd className="font-mono text-2xl font-semibold text-zinc-900 tabular-nums">
+                {formatNumero(result.stockDroga.disponible, 4)} <span className="text-sm font-normal text-zinc-500">{result.stockDroga.unidadSimbolo}</span>
+              </dd>
+            </div>
+            <div>
+              <dt className="inline-flex items-center gap-1 text-xs text-zinc-500">
+                Activo
+                <InfoHint label="Qué es Activo">{AYUDA_ACTIVO}</InfoHint>
+              </dt>
+              <dd className="font-mono text-2xl font-semibold text-zinc-900 tabular-nums">
+                {formatNumero(result.stockDroga.activo, 4)} <span className="text-sm font-normal text-zinc-500">{result.stockDroga.unidadSimbolo}</span>
+              </dd>
+            </div>
+          </dl>
+        </section>
       ) : null}
 
       <div className="list-region">

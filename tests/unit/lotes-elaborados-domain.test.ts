@@ -7,13 +7,18 @@
 import { describe, it, expect } from "vitest";
 import { DomainError } from "@/shared/errors";
 import { dec } from "@/shared/decimal";
+import { formatNumero } from "@/shared/format/cantidad";
 import {
   costoUnitarioDeLote,
   potenciaDeDilucion,
   prefijoLoteElaborado,
   codigoLoteElaborado,
   validarElaboracion,
-  vencimientoMaximo,
+  vencimientoDelLote,
+  nombreSugeridoLote,
+  simboloEnFormulario,
+  aUnidadDeFormulario,
+  aUnidadBase,
   type ConsumoElaboracion,
   type ElaboracionInput,
 } from "@/modules/stock/domain/elaboracion-lote";
@@ -45,11 +50,12 @@ function consumo(overrides: Partial<ConsumoElaboracion>): ConsumoElaboracion {
     costoUnitario: "1000",
     potenciaDeclarada: null,
     fechaVencimiento: "2027-06-01",
+    drogaClase: "DROGA",
     ...overrides,
   };
 }
 
-const LACTOSA = consumo({ partidaId: "p-lac", lote: "LAC1", drogaId: "lactosa", drogaNombre: "Lactosa", cantidad: "99", cantidadDisponible: "500", costoUnitario: "10", fechaVencimiento: "2027-03-01" });
+const LACTOSA = consumo({ partidaId: "p-lac", lote: "LAC1", drogaId: "lactosa", drogaNombre: "Lactosa", cantidad: "99", cantidadDisponible: "500", costoUnitario: "10", fechaVencimiento: "2027-03-01", drogaClase: "EXCIPIENTE" });
 
 function dilucion(overrides: Partial<ElaboracionInput> = {}): ElaboracionInput {
   return {
@@ -57,7 +63,6 @@ function dilucion(overrides: Partial<ElaboracionInput> = {}): ElaboracionInput {
     drogaProducidaId: "droga-x",
     drogaProducidaRequiereVencimiento: true,
     cantidadProducida: "100",
-    fechaVencimiento: null,
     consumos: [consumo({}), LACTOSA],
     jornada: JORNADA,
     ...overrides,
@@ -105,9 +110,10 @@ describe("elaboracion-lote -- EL2 dilución", () => {
 
 describe("elaboracion-lote -- FORMULA lot", () => {
   it("has no potencia and never consumes its own droga", () => {
-    const formula = dilucion({ tipo: "FORMULA", drogaProducidaId: "jarabe", consumos: [LACTOSA] });
+    const drogaActiva = consumo({ drogaId: "materia-prima", drogaClase: "DROGA" });
+    const formula = dilucion({ tipo: "FORMULA", drogaProducidaId: "jarabe", consumos: [drogaActiva, LACTOSA] });
     expect(validarElaboracion(formula).potenciaDeclarada).toBeNull();
-    expect(campos(() => validarElaboracion({ ...formula, drogaProducidaId: "lactosa" }))).toEqual(["componentes"]);
+    expect(campos(() => validarElaboracion({ ...formula, drogaProducidaId: "materia-prima" }))).toEqual(["componentes"]);
   });
 });
 
@@ -119,20 +125,40 @@ describe("elaboracion-lote -- EL4 costo", () => {
 });
 
 describe("elaboracion-lote -- EL5 vencimiento", () => {
-  it("defaults to the earliest vencimiento consumed; non-expiring partidas do not bound it", () => {
-    expect(vencimientoMaximo([consumo({}), LACTOSA, consumo({ partidaId: "p-vidrio", fechaVencimiento: null })])).toBe("2027-03-01");
-    expect(validarElaboracion(dilucion()).fechaVencimiento).toBe("2027-03-01");
+  it("takes the earliest vencimiento among consumed DROGAs; excipientes/materials are ignored", () => {
+    const d1 = consumo({ partidaId: "p1", drogaClase: "DROGA", fechaVencimiento: "2027-06-01" });
+    const d2 = consumo({ partidaId: "p2", drogaClase: "DROGA", fechaVencimiento: "2027-04-01" });
+    const exc = consumo({ partidaId: "p-lac", drogaClase: "EXCIPIENTE", fechaVencimiento: "2027-01-01" });
+    const mat = consumo({ partidaId: "p-vidrio", drogaClase: "MATERIAL", fechaVencimiento: null });
+
+    expect(vencimientoDelLote([d1, d2, exc, mat])).toBe("2027-04-01");
+    expect(vencimientoDelLote([exc, mat])).toBeNull();
+    expect(vencimientoDelLote([consumo({ drogaClase: "DROGA", fechaVencimiento: null })])).toBeNull();
+
+    expect(validarElaboracion(dilucion({ consumos: [d1, d2, exc] })).fechaVencimiento).toBe("2027-04-01");
   });
 
-  it("accepts an earlier date and refuses a later one", () => {
-    expect(validarElaboracion(dilucion({ fechaVencimiento: "2027-01-15" })).fechaVencimiento).toBe("2027-01-15");
-    expect(campos(() => validarElaboracion(dilucion({ fechaVencimiento: "2027-05-01" })))).toEqual(["fechaVencimiento"]);
+  it("refuses when nothing DROGA is consumed and the product is a DROGA", () => {
+    const formulaDroga = dilucion({
+      tipo: "FORMULA",
+      drogaProducidaId: "jarabe",
+      drogaProducidaRequiereVencimiento: true,
+      consumos: [consumo({ drogaId: "azucar", drogaClase: "EXCIPIENTE", fechaVencimiento: "2027-03-01" })],
+    });
+    expect(() => validarElaboracion(formulaDroga)).toThrow(
+      "El lote toma el vencimiento de la droga activa que consume: indicá al menos un lote de una droga."
+    );
+    expect(campos(() => validarElaboracion(formulaDroga))).toEqual(["componentes"]);
   });
 
-  it("asks for a date when nothing consumed expires and the product is a DROGA", () => {
-    const sinVencimiento = [consumo({ fechaVencimiento: null }), { ...LACTOSA, fechaVencimiento: null }];
-    expect(campos(() => validarElaboracion(dilucion({ consumos: sinVencimiento })))).toEqual(["fechaVencimiento"]);
-    expect(validarElaboracion(dilucion({ consumos: sinVencimiento, drogaProducidaRequiereVencimiento: false })).fechaVencimiento).toBeNull();
+  it("accepts null fechaVencimiento when no DROGA is consumed and the product does not require vencimiento", () => {
+    const formulaMaterial = dilucion({
+      tipo: "FORMULA",
+      drogaProducidaId: "envase",
+      drogaProducidaRequiereVencimiento: false,
+      consumos: [consumo({ drogaId: "plastico", drogaClase: "MATERIAL", fechaVencimiento: null })],
+    });
+    expect(validarElaboracion(formulaMaterial).fechaVencimiento).toBeNull();
   });
 });
 
@@ -222,11 +248,64 @@ describe("pesada-real -- P13 dose below the balance", () => {
 });
 
 describe("elaboracion-lote -- prefijoLoteElaborado and codigoLoteElaborado (EL9)", () => {
-  it("formats the tipo's prefix and the next sequence number", () => {
-    expect(prefijoLoteElaborado("DILUCION", "2026-10-29")).toBe("DIL-20261029-");
-    expect(prefijoLoteElaborado("FORMULA", "2026-10-29")).toBe("ELA-20261029-");
-    expect(codigoLoteElaborado("DILUCION", "2026-10-29", 0)).toBe("DIL-20261029-1");
-    expect(codigoLoteElaborado("FORMULA", "2026-10-29", 4)).toBe("ELA-20261029-5");
+  it("formats the tipo's prefix and the next sequence number (FSJ-DIL-0001 / FSJ-ELA-0001)", () => {
+    expect(prefijoLoteElaborado("DILUCION")).toBe("FSJ-DIL-");
+    expect(prefijoLoteElaborado("FORMULA")).toBe("FSJ-ELA-");
+    expect(codigoLoteElaborado("DILUCION", 0)).toBe("FSJ-DIL-0001");
+    expect(codigoLoteElaborado("DILUCION", 3)).toBe("FSJ-DIL-0004");
+    expect(codigoLoteElaborado("FORMULA", 0)).toBe("FSJ-ELA-0001");
+    expect(codigoLoteElaborado("FORMULA", 4)).toBe("FSJ-ELA-0005");
+  });
+});
+
+describe("elaboracion-lote -- nombreSugeridoLote (0115)", () => {
+  it("suggests 1:N proportion for dilución when 100/potencia is an integer (within 0.5%)", () => {
+    expect(nombreSugeridoLote("Clonazepam", dec(1))).toBe("Clonazepam 1:100");
+    expect(nombreSugeridoLote("Clonazepam", dec("0.5"))).toBe("Clonazepam 1:200");
+  });
+
+  it("suggests percentage otherwise", () => {
+    expect(nombreSugeridoLote("Clonazepam", dec(3))).toBe("Clonazepam 3 %");
+  });
+
+  it("formats non-proportion percentages to 3 significant digits using formatNumero (comma decimal separator)", () => {
+    expect(formatNumero(dec("45.4545").toSignificantDigits(3))).toBe("45,5");
+    expect(formatNumero(dec("12.345").toSignificantDigits(3))).toBe("12,3");
+    expect(nombreSugeridoLote("Clonazepam", dec("45.4545"))).toBe("Clonazepam 45,5 %");
+    expect(nombreSugeridoLote("Clonazepam", dec("12.345"))).toBe("Clonazepam 12,3 %");
+  });
+
+  it("returns droga name when potencia is null or non-positive", () => {
+    expect(nombreSugeridoLote("Jarabe simple", null)).toBe("Jarabe simple");
+    expect(nombreSugeridoLote("Clonazepam", dec(0))).toBe("Clonazepam");
+  });
+});
+
+describe("elaboracion-lote -- unidad de formulario (form in mg)", () => {
+  it("simboloEnFormulario returns mg for mass units, passthrough otherwise", () => {
+    expect(simboloEnFormulario("mcg")).toBe("mg");
+    expect(simboloEnFormulario("mg")).toBe("mg");
+    expect(simboloEnFormulario("g")).toBe("mg");
+    expect(simboloEnFormulario("kg")).toBe("mg");
+    expect(simboloEnFormulario("mL")).toBe("mL");
+  });
+
+  it("converts between base unit and form unit for g (0.075 g <-> 75 mg)", () => {
+    expect(aUnidadDeFormulario("0.075", "g").toString()).toBe("75");
+    expect(aUnidadBase("75", "g").toString()).toBe("0.075");
+    expect(aUnidadBase(aUnidadDeFormulario("0.075", "g"), "g").toString()).toBe("0.075");
+    expect(aUnidadDeFormulario(aUnidadBase("75", "g"), "g").toString()).toBe("75");
+  });
+
+  it("converts kg and mcg and passes through mL", () => {
+    expect(aUnidadDeFormulario("0.001", "kg").toString()).toBe("1000");
+    expect(aUnidadBase("1000", "kg").toString()).toBe("0.001");
+
+    expect(aUnidadDeFormulario("500", "mcg").toString()).toBe("0.5");
+    expect(aUnidadBase("0.5", "mcg").toString()).toBe("500");
+
+    expect(aUnidadDeFormulario("150", "mL").toString()).toBe("150");
+    expect(aUnidadBase("150", "mL").toString()).toBe("150");
   });
 });
 
@@ -378,6 +457,7 @@ describe("confirmar-form -- pesadaDeLinea P13", () => {
     propuesta: null,
     stockInsuficiente: false,
     faltante: null,
+    cantidadPrescripta: null,
     requiereMotivo: false,
     bajoLaBalanza: true,
     orden: 1,

@@ -15,6 +15,10 @@ import { cerrarRelevamientoInicial } from "@/modules/stock/application/cerrar-re
 import { elaborarLote } from "@/modules/stock/application/elaborar-lote";
 import { datosParaElaborar, type DatosParaElaborar } from "@/modules/stock/application/datos-para-elaborar";
 import { listarCostosVigentes } from "@/modules/costos-proveedor/application/listar-costos-vigentes";
+import { getHojaParaImprimir } from "@/modules/etiqueta-tamanos/application/get-hoja-para-imprimir";
+import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
+import type { HojaEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
+import type { EtiquetaTamano } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import type { MotivoAjuste } from "@/modules/stock/domain/partida";
 import { PARAM_VOLVER_AJUSTE, retornoAjuste, retornoAjusteRegistrado } from "@/modules/stock/domain/ajustes-listado";
 import { conOperador } from "@/shared/auth/operador-context";
@@ -111,20 +115,20 @@ export async function registrarAjusteAction(_prevState: StockActionState, formDa
   });
 }
 
-export async function corregirCostoPartidaAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
-  try {
-    await corregirCostoPartida({
-      id: String(formData.get("id") ?? ""),
-      costoUnitarioNuevo: String(formData.get("costoUnitarioNuevo") ?? ""),
-      motivo: String(formData.get("motivo") ?? ""),
-    });
-    revalidatePath("/stock");
-    return { status: "success", message: "Costo corregido." };
-  } catch (error) {
-    return fromError(error, "No se pudo corregir el costo.");
-  }
-}
-
+export async function corregirCostoPartidaAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
+  try {
+    await corregirCostoPartida({
+      id: String(formData.get("id") ?? ""),
+      costoUnitarioNuevo: String(formData.get("costoUnitarioNuevo") ?? ""),
+      motivo: String(formData.get("motivo") ?? ""),
+    });
+    revalidatePath("/stock");
+    return { status: "success", message: "Costo corregido." };
+  } catch (error) {
+    return fromError(error, "No se pudo corregir el costo.");
+  }
+}
+
 export async function corregirPotenciaPartidaAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
   const id = String(formData.get("id") ?? "");
   try {
@@ -252,7 +256,8 @@ export async function elaborarLoteAction(_prevState: StockActionState, formData:
         drogaProducidaId: String(formData.get("drogaProducidaId") ?? ""),
         formulaId: opcional(formData, "formulaId"),
         cantidadProducida: String(formData.get("cantidadProducida") ?? ""),
-        fechaVencimiento: opcional(formData, "fechaVencimiento"),
+        nombre: String(formData.get("nombre") ?? ""),
+        aspecto: opcional(formData, "aspecto"),
         observacion: opcional(formData, "observacion"),
         consumos: consumosDelForm(formData),
       });
@@ -268,6 +273,16 @@ export async function elaborarLoteAction(_prevState: StockActionState, formData:
 export type DatosParaElaborarState = { status: "success"; datos: DatosParaElaborar } | { status: "error"; message: string };
 
 /** The "Elaborar lote" form's data for a produced droga, refetched when the user adds a component droga. Read-only. */
+/** The print dialog's sizes and sheet, for the "Imprimir etiqueta" offered once a lot is elaborated; `null` when the session may not print. */
+export async function opcionesEtiquetaLoteAction(): Promise<{ tamanos: EtiquetaTamano[]; hoja: HojaEtiqueta } | null> {
+  try {
+    const [tamanos, hoja] = await Promise.all([listTamanosParaImprimir(), getHojaParaImprimir()]);
+    return { tamanos: [...tamanos], hoja };
+  } catch {
+    return null;
+  }
+}
+
 export async function datosParaElaborarAction(drogaProducidaId: string, drogaIds: string[] = []): Promise<DatosParaElaborarState> {
   try {
     return { status: "success", datos: await datosParaElaborar({ drogaProducidaId: String(drogaProducidaId), drogaIds: drogaIds.map(String) }) };

@@ -37,7 +37,7 @@ export function MedicoPicker({ selectedId, selectedLabel, onSelect, disabled }: 
       id="medico-q"
       label="Médico"
       entidad="médico"
-      placeholder="Apellido o matrícula"
+      placeholder="Nombre, apellido o matrícula"
       search={search}
       selectedId={selectedId}
       selectedLabel={selectedLabel}

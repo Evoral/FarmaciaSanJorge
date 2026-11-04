@@ -4,6 +4,7 @@
 import { revalidatePath } from "next/cache";
 import { crearEtiquetaTamano } from "@/modules/etiqueta-tamanos/application/crear-etiqueta-tamano";
 import { editarEtiquetaHoja } from "@/modules/etiqueta-tamanos/application/editar-etiqueta-hoja";
+import { editarIncluirExcipientes } from "@/modules/etiqueta-tamanos/application/editar-incluir-excipientes";
 import { editarEtiquetaTamano } from "@/modules/etiqueta-tamanos/application/editar-etiqueta-tamano";
 import { darDeBajaEtiquetaTamano } from "@/modules/etiqueta-tamanos/application/dar-de-baja-etiqueta-tamano";
 import { reactivarEtiquetaTamano } from "@/modules/etiqueta-tamanos/application/reactivar-etiqueta-tamano";
@@ -58,6 +59,16 @@ export async function editarEtiquetaHojaAction(_prevState: EtiquetaTamanoActionS
     return { status: "success", message: "Hoja actualizada." };
   } catch (error) {
     return fromError(error, "No se pudo guardar la hoja.");
+  }
+}
+
+export async function editarIncluirExcipientesAction(_prevState: EtiquetaTamanoActionState, formData: FormData): Promise<EtiquetaTamanoActionState> {
+  try {
+    const { incluirExcipientes } = await editarIncluirExcipientes(formData.get("incluirExcipientes") === "on");
+    revalidatePath(LISTA_PATH);
+    return { status: "success", message: incluirExcipientes ? "Los excipientes se incluyen por defecto." : "Los excipientes no se incluyen por defecto." };
+  } catch (error) {
+    return fromError(error, "No se pudo guardar la opción.");
   }
 }
 

@@ -105,9 +105,15 @@ export function dibujarTabla(
   }
 }
 
-/** The stored fórmula text with each ítem on its own line (`Ítem 1: …` / `Ítem 2: …`, joined by " | " in the asiento). */
+/**
+ * The stored fórmula text one droga per line: ítems are joined by " | " in the asiento, their componentes by "; " and
+ * the cantidad y forma follows " — " (`formatearFormulaPrescripcion`). Display-only: the stored text (hashed) is untouched.
+ */
 export function formulaParaHoja(formulaTexto: string): string {
-  return formulaTexto.split(" | ").join("\n");
+  return formulaTexto
+    .split(" | ")
+    .flatMap((item) => item.split(" — ").flatMap((parte) => parte.split("; ")))
+    .join("\n");
 }
 
 /** The page indexes (0-based, both inclusive) of one jornada and the label its footer repeats. */

@@ -52,7 +52,7 @@ import { ConflictError, DomainError, ValidationError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { crearPacienteHandler, crearPacienteInput } from "@/modules/pacientes/application/crear-paciente";
 import { crearMedicoHandler, crearMedicoInput } from "@/modules/medicos/application/crear-medico";
-import { diagnosticoCodigoOpcional, domicilioPacienteOpcional, esFechaPrescripcionValida, esFechaPrescripcionVigente, esFechaValidaDesdeVigente, resumirItemsReceta, validarItemsReceta, validarOrigenHabilitado } from "../domain/receta";
+import { diagnosticoCodigoOpcional, domicilioPacienteOpcional, esFechaPrescripcionValida, esFechaPrescripcionVigente, esFechaValidaDesdeVigente, conUnidadBaseEnPorcentajes, resumirItemsReceta, validarConcentracionesReceta, validarCorduraConcentraciones, validarItemsReceta, validarOrigenHabilitado } from "../domain/receta";
 import type { ComponenteInput, ItemInput } from "../domain/receta";
 import { CODIGOS_EMISOR, esUrlVerificacionDeEmisor } from "../domain/receta-pdf-parser";
 import { limpiarSinonimo } from "@/modules/drogas/domain/sinonimo";
@@ -68,7 +68,7 @@ import {
   valoresACompletar,
 } from "../domain/importacion-receta";
 import type { FuenteImportacion } from "../domain/importacion-receta";
-import { clasificarDrogasDeReceta, getNombresParaResumen, insertRecetaConItems, jornadaActualTenant, unidadesInvalidas } from "../infrastructure/receta-repository";
+import { clasificarDrogasDeReceta, getMagnitudesDeUnidades, getNombresParaResumen, getUnidadesParaCordura, insertRecetaConItems, jornadaActualTenant, unidadesInvalidas } from "../infrastructure/receta-repository";
 import { validarSinonimosDeComponentes } from "./sinonimos-componentes";
 import {
   buscarMedicoVigentePorMatricula,
@@ -160,6 +160,7 @@ function toItemsInput(items: ImportarRecetaInput["items"]): ItemInput[] {
         cantidad: c.cantidad,
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
+        unidadReferenciaId: c.unidadReferenciaId ?? null,
         drogaAliasId: c.drogaAliasId ?? null,
       }),
     ),
@@ -278,11 +279,12 @@ export const importarRecetaCommand = defineCommand({
       throw new ValidationError("La receta está vencida: tiene más de un mes desde su prescripción.");
     }
 
-    const itemsDominio = toItemsInput(input.items);
+    let itemsDominio = toItemsInput(input.items);
     validarItemsReceta(itemsDominio);
 
     const drogaIds = [...itemsDominio.flatMap((item) => item.componentes.map((c) => c.drogaId)), ...input.equivalencias.map((e) => e.drogaId)];
     const drogas = await clasificarDrogasDeReceta(tx, session.tenantId, drogaIds);
+    itemsDominio = conUnidadBaseEnPorcentajes(itemsDominio, drogas.unidadesBase);
     if (drogas.invalidas.length > 0) {
       throw new ValidationError("Una o más drogas seleccionadas no existen o están dadas de baja.");
     }
@@ -290,12 +292,14 @@ export const importarRecetaCommand = defineCommand({
       throw new ValidationError(`Los materiales no se cargan como componentes de la receta: ${drogas.materiales.join(", ")}.`);
     }
     const unidadIds = [
-      ...itemsDominio.flatMap((item) => item.componentes.map((c) => c.unidadMedidaId)),
+      ...itemsDominio.flatMap((item) => item.componentes.flatMap((c) => (c.unidadReferenciaId ? [c.unidadMedidaId, c.unidadReferenciaId] : [c.unidadMedidaId]))),
       ...itemsDominio.flatMap((item) => (item.unidadTotalId ? [item.unidadTotalId] : [])),
     ];
     if ((await unidadesInvalidas(tx, unidadIds)).length > 0) {
       throw new ValidationError("Una o más unidades de medida seleccionadas no existen o están dadas de baja.");
     }
+    validarConcentracionesReceta(itemsDominio, await getMagnitudesDeUnidades(tx, unidadIds));
+    validarCorduraConcentraciones(itemsDominio, await getUnidadesParaCordura(tx, unidadIds));
 
     const paciente = await resolverPaciente(ctx, input.paciente, input.domicilioDelDocumento ? input.domicilioPaciente : null);
     const medico = await resolverMedico(ctx, input.medico);

@@ -5,6 +5,8 @@
  */
 import { Prisma } from "@/generated/prisma/client";
 import type { TipoElaboracion } from "@/generated/prisma/enums";
+import { jornadaDe } from "@/shared/time/jornada";
+import type { DatosEtiquetaLote } from "../domain/etiqueta-lote";
 
 /** Locks every partida in `partidaIds`, in id order (the order every multi-partida writer uses), in ONE statement. Returns the locked ids. */
 export async function lockPartidasParaElaborar(tx: Prisma.TransactionClient, tenantId: string, partidaIds: readonly string[]): Promise<string[]> {
@@ -24,6 +26,8 @@ export interface PartidaParaElaborar {
   drogaId: string;
   drogaNombre: string;
   drogaTipoControl: string;
+  /** `droga.clase`: only a `DROGA` sets the elaborated lot's vencimiento (EL5). */
+  drogaClase: string;
   unidadBaseSimbolo: string;
   /** `cantidad_disponible` minus what INICIADA preparaciones reserve (fsj.reserva_stock, 0071), never below 0. */
   cantidadDisponible: string;
@@ -41,6 +45,7 @@ interface PartidaParaElaborarRow {
   droga_id: string;
   droga_nombre: string;
   tipo_control: string;
+  droga_clase: string;
   unidad_base_simbolo: string;
   cantidad_disponible: string;
   costo_unitario: string;
@@ -53,6 +58,7 @@ interface PartidaParaElaborarRow {
 function selectPartidas(where: Prisma.Sql): Prisma.Sql {
   return Prisma.sql`
     SELECT p.id, p.lote, d.id AS droga_id, d.nombre AS droga_nombre, d.tipo_control::text AS tipo_control,
+      d.clase::text AS droga_clase,
       u.simbolo AS unidad_base_simbolo, greatest(p.cantidad_disponible - r.reservado, 0)::text AS cantidad_disponible,
       p.costo_unitario::text, p.potencia_declarada::text,
       p.fecha_vencimiento_vigente::text AS fecha_vencimiento, p.fecha_apertura::text
@@ -76,6 +82,7 @@ function aPartida(r: PartidaParaElaborarRow): PartidaParaElaborar {
     drogaId: r.droga_id,
     drogaNombre: r.droga_nombre,
     drogaTipoControl: r.tipo_control,
+    drogaClase: r.droga_clase,
     unidadBaseSimbolo: r.unidad_base_simbolo,
     cantidadDisponible: r.cantidad_disponible,
     costoUnitario: r.costo_unitario,
@@ -83,6 +90,24 @@ function aPartida(r: PartidaParaElaborarRow): PartidaParaElaborar {
     fechaVencimiento: r.fecha_vencimiento,
     fechaApertura: r.fecha_apertura,
   };
+}
+
+/** EL5 (migration 0114): the partida is a lot elaborated from a DROGA -- its vencimiento follows its drugs. */
+export async function loteSigueADrogas(tx: Prisma.TransactionClient, tenantId: string, partidaId: string): Promise<boolean> {
+  const [row] = await tx.$queryRaw<{ sigue: boolean }[]>(Prisma.sql`SELECT fsj.lote_sigue_a_drogas(${tenantId}::uuid, ${partidaId}::uuid) AS sigue`);
+  return row?.sigue === true;
+}
+
+/** EL5 (migration 0114): the lots that follow the partida's vencimiento (transitively) and still have saldo, by id (lock order). */
+export async function lotesElaboradosConSaldo(tx: Prisma.TransactionClient, tenantId: string, partidaId: string): Promise<string[]> {
+  const rows = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+    SELECT p.id
+    FROM fsj.lotes_elaborados_dependientes(${tenantId}::uuid, ${partidaId}::uuid) dep
+    JOIN fsj.partida p ON p.tenant_id = ${tenantId}::uuid AND p.id = dep.partida_id
+    WHERE p.cantidad_disponible > 0
+    ORDER BY p.id
+  `);
+  return rows.map((r) => r.id);
 }
 
 /** The partidas an elaboración consumes, read AFTER `lockPartidasParaElaborar` (a reserva is written only under the same lock). */
@@ -150,6 +175,8 @@ export interface NuevoLoteElaboradoInput {
   potenciaDeclarada: string | null;
   /** `YYYY-MM-DD`; `null` = does not expire (an insumo only, migration 0064). */
   fechaVencimiento: string | null;
+  nombre: string;
+  aspecto: string | null;
   observacion: string | null;
   usuarioId: string;
   /** PHYSICAL quantities, each droga's unidad base. */
@@ -184,6 +211,8 @@ export async function insertLoteElaborado(tx: Prisma.TransactionClient, input: N
       tipo: input.tipo,
       formulaId: input.formulaId,
       elaboradoPorId: input.usuarioId,
+      nombre: input.nombre,
+      aspecto: input.aspecto,
       observacion: input.observacion,
     },
     select: { id: true },
@@ -216,6 +245,9 @@ export async function insertLoteElaborado(tx: Prisma.TransactionClient, input: N
 
 export interface ElaboracionDePartida {
   tipo: TipoElaboracion;
+  /** The name printed on its etiqueta (migration 0115). */
+  nombre: string;
+  aspecto: string | null;
   /** Precargada from the droga's fórmula. */
   conFormula: boolean;
   elaboradoPorNombre: string;
@@ -229,9 +261,20 @@ export interface ElaboracionDePartida {
 /** The elaboración that PRODUCED `partidaId` (`null` for a bought or counted partida). */
 export async function getElaboracionDePartida(tx: Prisma.TransactionClient, tenantId: string, partidaId: string): Promise<ElaboracionDePartida | null> {
   const [cabecera] = await tx.$queryRaw<
-    { id: string; tipo: TipoElaboracion; con_formula: boolean; nombre: string; apellido: string; registrado_en: Date; observacion: string | null }[]
+    {
+      id: string;
+      tipo: TipoElaboracion;
+      lote_nombre: string;
+      aspecto: string | null;
+      con_formula: boolean;
+      nombre: string;
+      apellido: string;
+      registrado_en: Date;
+      observacion: string | null;
+    }[]
   >`
-    SELECT el.id, el.tipo::text AS tipo, el.formula_id IS NOT NULL AS con_formula, u.nombre, u.apellido, el.registrado_en, el.observacion
+    SELECT el.id, el.tipo::text AS tipo, el.nombre AS lote_nombre, el.aspecto, el.formula_id IS NOT NULL AS con_formula, u.nombre, u.apellido,
+      el.registrado_en, el.observacion
     FROM fsj.elaboracion_lote el
     JOIN fsj.usuario u ON u.id = el.elaborado_por_id
     WHERE el.tenant_id = ${tenantId}::uuid AND el.partida_id = ${partidaId}::uuid
@@ -250,6 +293,8 @@ export async function getElaboracionDePartida(tx: Prisma.TransactionClient, tena
   `;
   return {
     tipo: cabecera.tipo,
+    nombre: cabecera.lote_nombre,
+    aspecto: cabecera.aspecto,
     conFormula: cabecera.con_formula,
     elaboradoPorNombre: cabecera.nombre,
     elaboradoPorApellido: cabecera.apellido,
@@ -290,4 +335,78 @@ export async function tiposElaboracionDePartidas(tx: Prisma.TransactionClient, t
   if (partidaIds.length === 0) return new Map();
   const rows = await tx.elaboracionLote.findMany({ where: { tenantId, partidaId: { in: [...partidaIds] } }, select: { partidaId: true, tipo: true } });
   return new Map(rows.map((r) => [r.partidaId, r.tipo]));
+}
+
+/**
+ * The DT titular vigente on `jornada` (else the current titular), as the preparado's etiqueta prints him
+ * (modules/preparaciones/infrastructure/preparacion-repository.ts#getDtTitularParaEtiqueta: modules only reach their own
+ * infrastructure/, so the same query lives here).
+ */
+async function getDtTitularEn(tx: Prisma.TransactionClient, tenantId: string, jornada: string): Promise<DatosEtiquetaLote["directorTecnico"]> {
+  const fecha = new Date(`${jornada}T00:00:00.000Z`); // @db.Date columns compare as UTC midnight.
+  const select = { matricula: true, usuario: { select: { nombre: true, apellido: true } } } satisfies Prisma.DesignacionDirectorTecnicoSelect;
+  const dt =
+    (await tx.designacionDirectorTecnico.findFirst({
+      where: { tenantId, caracter: "TITULAR", vigenteDesde: { lte: fecha }, OR: [{ vigenteHasta: null }, { vigenteHasta: { gte: fecha } }] },
+      orderBy: [{ vigenteDesde: "desc" }],
+      select,
+    })) ??
+    (await tx.designacionDirectorTecnico.findFirst({
+      where: { tenantId, caracter: "TITULAR", vigenteHasta: null },
+      orderBy: [{ vigenteDesde: "desc" }],
+      select,
+    }));
+  return dt ? { nombre: dt.usuario.nombre, apellido: dt.usuario.apellido, matricula: dt.matricula } : null;
+}
+
+/**
+ * What an elaborated lot's etiqueta prints (`null` for a partida that was not elaborated). The lotes de origen are the
+ * PURCHASED (or counted) partidas of clase DROGA it comes from: a lot made from another elaborated lot is followed
+ * back to them -- the trazabilidad an inspection asks for.
+ */
+export async function getDatosEtiquetaLote(tx: Prisma.TransactionClient, tenantId: string, partidaId: string): Promise<DatosEtiquetaLote | null> {
+  const [lote] = await tx.$queryRaw<{ id: string; nombre: string; aspecto: string | null; lote: string; registrado_en: Date; fecha_vencimiento: string | null }[]>`
+    SELECT el.id, el.nombre, el.aspecto, p.lote, el.registrado_en, p.fecha_vencimiento_vigente::text AS fecha_vencimiento
+    FROM fsj.elaboracion_lote el
+    JOIN fsj.partida p ON p.tenant_id = el.tenant_id AND p.id = el.partida_id
+    WHERE el.tenant_id = ${tenantId}::uuid AND el.partida_id = ${partidaId}::uuid
+  `;
+  if (!lote) return null;
+
+  const origenes = await tx.$queryRaw<{ droga_nombre: string; lote: string }[]>`
+    WITH RECURSIVE consumida (partida_id) AS (
+      SELECT m.partida_id
+      FROM fsj.movimiento_stock m
+      WHERE m.tenant_id = ${tenantId}::uuid AND m.elaboracion_lote_id = ${lote.id}::uuid AND m.tipo::text = 'EGRESO_ELABORACION'
+      UNION
+      SELECT m.partida_id
+      FROM consumida c
+      JOIN fsj.elaboracion_lote el ON el.tenant_id = ${tenantId}::uuid AND el.partida_id = c.partida_id
+      JOIN fsj.movimiento_stock m ON m.tenant_id = el.tenant_id AND m.elaboracion_lote_id = el.id AND m.tipo::text = 'EGRESO_ELABORACION'
+    )
+    SELECT DISTINCT d.nombre AS droga_nombre, p.lote
+    FROM consumida c
+    JOIN fsj.partida p ON p.tenant_id = ${tenantId}::uuid AND p.id = c.partida_id
+    JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
+    WHERE d.clase = 'DROGA' AND p.origen::text <> 'ELABORACION_PROPIA'
+    ORDER BY d.nombre, p.lote
+  `;
+
+  const tenant = await tx.tenant.findUnique({
+    where: { id: tenantId },
+    select: { domicilio: true, telefonoFijo: true, telefonoCelular: true, zonaHoraria: true },
+  });
+  const elaboradoEl = jornadaDe(lote.registrado_en, tenant?.zonaHoraria);
+  return {
+    nombre: lote.nombre,
+    lote: lote.lote,
+    aspecto: lote.aspecto,
+    elaboradoEl,
+    fechaVencimiento: lote.fecha_vencimiento,
+    origenes: origenes.map((o) => ({ drogaNombre: o.droga_nombre, lote: o.lote })),
+    directorTecnico: await getDtTitularEn(tx, tenantId, elaboradoEl),
+    tenantDomicilio: tenant?.domicilio ?? null,
+    tenantTelefonoFijo: tenant?.telefonoFijo ?? null,
+    tenantTelefonoCelular: tenant?.telefonoCelular ?? null,
+  };
 }

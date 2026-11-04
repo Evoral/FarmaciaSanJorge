@@ -710,7 +710,7 @@ export async function planificarConsumoEnTx(
     let cantidadRequerida: Decimal;
     if (linea.esEnraseManual) {
       if (!elegido.cantidadManual) {
-        throw new DomainError(`La línea ${linea.orden + 1} (${linea.drogaNombre}) es de enrase manual: falta la cantidad real registrada.`, {
+        throw new DomainError(`La línea ${linea.orden + 1} (${linea.drogaNombre}) ${linea.cantidadPrescripta ? "se pesa en la balanza" : "es de enrase manual"}: falta la cantidad real registrada.`, {
           fields: [`cantidadManual_${linea.id}`],
         });
       }
@@ -821,7 +821,7 @@ export async function planificarConsumoEnTx(
     // that proposal (its candidates are every eligible partida, fresh) unless the user chose the lots (R25); a reserva
     // is compared with the current one.
     let esDesvio = false;
-    let todasElegibles: readonly PartidaConPotencia[] = usables;
+    let todasElegibles: readonly (PartidaConPotencia & { elaborada: boolean })[] = usables;
     if (porEleccion) {
       const propuestaCanonica = repartirLinea(usables, cantidadRequeridaStock, jornada, linea.esEnraseManual);
       esDesvio = !propuestaCanonica.ok || esDesvioPropuesta(propuestaCanonica.partes.map((p) => p.partidaId), usadas);

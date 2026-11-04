@@ -2,7 +2,8 @@
  * `listRecetas` (M09, FASE 6 point 6.6). Read-only, gated on `recetas.crear`
  * (see get-receta.ts's doc comment for why). Filters by estado, paciente,
  * médico, pago (pagadas / impagas, migration 0071), date ranges
- * (fecha_prescripcion and fecha_ingreso) and search by numero_interno.
+ * (fecha_prescripcion and fecha_ingreso) and search by numero_interno, paciente
+ * (nombre/apellido, DNI or CUIL) and médico (nombre/apellido or matrícula).
  * Pagination and filters entirely server-side (no client-side slicing).
  */
 import { z } from "zod";
@@ -23,6 +24,8 @@ const listRecetasInput = z.object({
   estado: z.enum(ESTADOS_RECETA).optional(),
   pacienteId: uuid.optional(),
   medicoId: uuid.optional(),
+  paciente: z.string().trim().max(100).optional(),
+  medico: z.string().trim().max(100).optional(),
   numeroInterno: z.string().trim().optional(),
   desde: isoDate.optional(),
   hasta: isoDate.optional(),
@@ -46,6 +49,8 @@ export const listRecetasQuery = defineQuery({
       estado: input.estado,
       pacienteId: input.pacienteId,
       medicoId: input.medicoId,
+      paciente: input.paciente,
+      medico: input.medico,
       numeroInterno: input.numeroInterno,
       desde: input.desde,
       hasta: input.hasta,

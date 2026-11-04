@@ -168,6 +168,7 @@ describe("construirDatosConfirmacion", () => {
         unidadStock: GRAMO,
         cantidadAPesar: "0.00015",
         esEnraseManual: false,
+        cantidadPrescripta: null,
         orden: 1,
         modoExpresion: "PORCENTAJE",
       },
@@ -180,6 +181,7 @@ describe("construirDatosConfirmacion", () => {
         unidadStock: GRAMO,
         cantidadAPesar: "0.05",
         esEnraseManual: false,
+        cantidadPrescripta: null,
         orden: 2,
         modoExpresion: "PORCENTAJE",
       },
@@ -192,6 +194,7 @@ describe("construirDatosConfirmacion", () => {
         unidadStock: GRAMO,
         cantidadAPesar: null,
         esEnraseManual: true,
+        cantidadPrescripta: null,
         orden: 3,
         modoExpresion: "PORCENTAJE",
       },
@@ -204,6 +207,7 @@ describe("construirDatosConfirmacion", () => {
         unidadStock: MILILITRO,
         cantidadAPesar: "0.0001",
         esEnraseManual: false,
+        cantidadPrescripta: null,
         orden: 4,
         modoExpresion: "PORCENTAJE",
       },
@@ -231,6 +235,7 @@ describe("construirDatosConfirmacion", () => {
         unidadStock: GRAMO,
         cantidadAPesar: "0.00015",
         esEnraseManual: false,
+        cantidadPrescripta: null,
         orden: 1,
         modoExpresion: "PORCENTAJE",
       },
@@ -282,6 +287,33 @@ describe("construirDatosConfirmacion", () => {
         const session = fakeSession(["preparaciones.iniciar"]);
         const res = await getConfirmacionDeFichaQuery.execute({ fichaTecnicaId: FICHA_ID }, { session });
         expect(res.puedeElaborarLote).toBe(false);
+      });
+
+      it("maps excipiente unidades using fraccionDosisPorUnidad and returns excipiente borrador with porUnidad", async () => {
+        getFormaDeItemDeFichaMock.mockResolvedValue({
+          formaFarmaceutica: "CAPSULA",
+          cantidadUnidades: 30,
+          fraccionDosisPorUnidad: "0.5",
+        });
+        getExcipienteBorradorMock.mockResolvedValue({
+          drogaId: "droga-excipiente-id",
+          cantidad: "0.8",
+          porUnidad: true,
+        });
+
+        const session = fakeSession(["preparaciones.iniciar"]);
+        const res = await getConfirmacionDeFichaQuery.execute({ fichaTecnicaId: FICHA_ID }, { session });
+        expect(res.excipiente?.unidades).toEqual({
+          cantidad: "30",
+          dosis: "15",
+          singular: "cápsula",
+          plural: "cápsulas",
+        });
+        expect(res.excipiente?.borrador).toEqual({
+          drogaId: "droga-excipiente-id",
+          cantidad: "0.8",
+          porUnidad: true,
+        });
       });
     });
 

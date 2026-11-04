@@ -3,8 +3,9 @@
 ## Purpose
 
 Next to the excipiente (`openspec/specs/excipiente-preparacion/spec.md`), the lab records the other insumos it used
--- the cápsula type, the frasco, an extra excipiente -- chosen from the catalog with their quantity, and their stock
-is real: reserved and descontado with the drogas, with exactly the excipiente's mechanics.
+-- the cápsula type, the frasco -- chosen from the catalog with their quantity, and their stock is real: reserved and
+descontado with the drogas, with exactly the excipiente's mechanics. One excipiente per preparación for now (user
+decision 2026-11-02: the c.s.p. rules of `excipiente-preparacion` E1b cover only one), so the insumos are materials.
 
 User decision 2026-10-29. Implemented by change `openspec/changes/insumos-preparacion/` (migration 0110). See `## Status`.
 
@@ -48,13 +49,18 @@ be ignored: nothing is reserved nor descontado for it and it never blocks "Marca
 ### Requirement: I3 — Agregar insumo
 
 An "Agregar insumo" button SHALL add rows, any number, each with a buscador of the vigente drogas of **clase
-EXCIPIENTE or MATERIAL** and its own quantity in that droga's unidad base. Each row can be removed while the ítem is
-not reserved.
+MATERIAL** (never a second excipiente: one per preparación for now) and its own quantity in that droga's unidad base, pre-filled with **1** (an added insumo is
+usually the envase; the user changes it otherwise). Each row can be removed while the ítem is not reserved.
 
 #### Scenario: Extra insumo
 
-- **WHEN** the user presses "Agregar insumo" and chooses a droga of clase EXCIPIENTE or MATERIAL
-- **THEN** a row with that droga and its quantity field (in its unidad base) is added
+- **WHEN** the user presses "Agregar insumo" and chooses a droga of clase MATERIAL
+- **THEN** a row with that droga and its quantity field (in its unidad base) is added, with quantity 1, editable
+
+#### Scenario: A second excipiente
+
+- **WHEN** the user searches a droga of clase EXCIPIENTE in an "Agregar insumo" row
+- **THEN** the buscador does not list it, and the server refuses it ("Solo se admite un excipiente")
 
 #### Scenario: Row removed
 
@@ -101,8 +107,8 @@ insumo") and the server refuses it.
 Each chosen insumo SHALL be **reserved with the drogas** at "Marcar como preparada", oldest lot first, automatic
 (abiertas, then FEFO; physical, no purity correction), over the stock not reserved by others; a shortfall refuses the
 reserva with what is missing. The preparación keeps each insumo's droga, quantity, kind and text
-(`fsj.insumo_preparacion`). The droga MUST be vigente and of the admitted clase (Material: MATERIAL; adicional:
-EXCIPIENTE or MATERIAL), and there is at most one material.
+(`fsj.insumo_preparacion`). The droga MUST be vigente and of the admitted clase (MATERIAL, both the Material and an
+adicional), and there is at most one material.
 
 #### Scenario: Insumo reserved
 
@@ -151,15 +157,16 @@ The buscadores do not offer a droga already used in another row.
 ### Requirement: I9 — Descontado at Imprimir etiquetas
 
 Each insumo SHALL be **descontado at "Imprimir etiquetas"**: EGRESO_PREPARACION over its reserved lots, in the same
-transaction as the líneas, never contralor. In the libro the material never appears; an insumo adicional of clase
-EXCIPIENTE is in the **fórmula** next to the excipiente utilizado ("Aerosil 0,5 g"); none is a detalle line.
+transaction as the líneas, never contralor. In the libro the material never appears; none is a detalle line. (A
+preparación from before the one-excipiente rule may hold an adicional of clase EXCIPIENTE: it stays in the
+**fórmula** next to the excipiente utilizado, "Aerosil 0,5 g".)
 
 #### Scenario: Receta printed
 
-- **WHEN** "Imprimir etiquetas" confirms a preparación with a material and an EXCIPIENTE adicional
+- **WHEN** "Imprimir etiquetas" confirms a preparación with a material and an adicional
 - **THEN** an EGRESO_PREPARACION over each one's reserved lots is written in the same transaction as the líneas
 - **AND** no contralor is written for them
-- **AND** the fórmula shows the adicional after the excipiente, and the material nowhere in the libro
+- **AND** neither appears in the libro
 
 ### Requirement: I10 — No línea de pesaje
 
@@ -235,6 +242,7 @@ Status: implemented 2026-10-29 (migration 0110), pending verification. Rollback:
 
 - Lot: always automatic, oldest first, like the excipiente.
 - Unit: the droga's unidad base, its symbol from the droga (materials are in `u`).
-- The libro's fórmula lists an EXCIPIENTE adicional as "Aerosil 0,5 g" (its quantity, no "c.s.p."), right after the
-  excipiente's "c.s.p." line; a MATERIAL adicional never appears.
+- One excipiente per preparación for now (2026-11-02): the adicionales are MATERIAL only. The DB (0110 triggers) and
+  the libro's fórmula still accept an EXCIPIENTE adicional ("Aerosil 0,5 g", right after the excipiente's "c.s.p."
+  line), for preparaciones recorded before the rule; a MATERIAL adicional never appears.
 - The draft is saved as a whole list (replace), not row by row.

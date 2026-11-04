@@ -15,7 +15,7 @@
  * be edited and each ítem's confirmation is started.
  *
  * En curso (URL key `estado=INICIADA`, kept so existing links work) lists
- * the taken recetas that still have ítems to confirm, with their progress
+ * the taken recetas that still have ítems to confirm, with their ítems
  * and who took them; "Abrir" goes back to the workspace -- also after the
  * browser tab was closed, since the toma is persisted.
  *
@@ -58,7 +58,7 @@ import {
   parsearFiltrosPreparaciones,
 } from "@/modules/preparaciones/domain/listado";
 import type { EstadoEtiqueta, FiltrosPreparaciones } from "@/modules/preparaciones/domain/listado";
-import { etiquetaProgreso, hrefImprimirEtiquetas, hrefToma, resumenItemsPendientes } from "@/modules/preparaciones/domain/toma";
+import { hrefImprimirEtiquetas, hrefToma, resumenItemsPendientes } from "@/modules/preparaciones/domain/toma";
 import { getHojaParaImprimir } from "@/modules/etiqueta-tamanos/application/get-hoja-para-imprimir";
 import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
 import { HOJA_PREDETERMINADA } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
@@ -407,22 +407,6 @@ function TablaPendientes({ result, puedeTomar }: { result: ListRecetasPendientes
   );
 }
 
-/** One segment per ítem (when they fit) plus the textual progress. */
-function Progreso({ confirmados, total }: { confirmados: number; total: number }) {
-  return (
-    <span className="flex flex-col gap-1.5">
-      {total > 0 && total <= 12 ? (
-        <span className="steps" aria-hidden>
-          {Array.from({ length: total }, (_, i) => (
-            <span key={i} data-done={i < confirmados || undefined} />
-          ))}
-        </span>
-      ) : null}
-      <span className="text-xs text-zinc-600">{etiquetaProgreso(confirmados, total)}</span>
-    </span>
-  );
-}
-
 function TablaEnCurso({ result }: { result: ListRecetasEnCursoOutput }) {
   return (
     <div className="table-wrap">
@@ -430,7 +414,7 @@ function TablaEnCurso({ result }: { result: ListRecetasEnCursoOutput }) {
         <thead>
           <tr>
             <Th>Receta Nº</Th>
-            <Th>Progreso</Th>
+            <Th>Ítems</Th>
             <Th className="hidden md:table-cell">Paciente</Th>
             <Th className="hidden lg:table-cell">Tomada por</Th>
             <Th className="hidden lg:table-cell">Tomada</Th>
@@ -446,9 +430,7 @@ function TablaEnCurso({ result }: { result: ListRecetasEnCursoOutput }) {
             return (
               <tr key={receta.recetaId}>
                 <CeldaReceta recetaId={receta.recetaId} numero={receta.recetaNumeroInterno} paciente={paciente} extra={`Tomada por ${receta.tomadaPorNombre}, ${tomada}`} />
-                <td className="px-2 py-2.5 sm:px-3">
-                  <Progreso confirmados={receta.itemsConfirmados} total={receta.totalItems} />
-                </td>
+                <td className="max-w-[10rem] px-2 py-2.5 text-zinc-700 sm:max-w-[32ch] sm:px-3">{resumenItemsPendientes(receta.items.map(nombreItem), receta.items.length)}</td>
                 <CeldaPaciente nombre={paciente} />
                 <td className="hidden px-3 py-2.5 lg:table-cell">
                   <span className="flex items-center gap-2">

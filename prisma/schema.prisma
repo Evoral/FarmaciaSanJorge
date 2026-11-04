@@ -250,6 +250,8 @@ enum ModoExpresion {
   POR_DOSIS
   CS
   CSP
+  /// Migration 0112: a concentration over the item's total ("5 %", "5 mg/mL").
+  CONCENTRACION
 
   @@map("modo_expresion")
   @@schema("fsj")
@@ -645,7 +647,8 @@ model UnidadMedida {
 
   drogas                Droga[]
   itemsRecetaTotal      ItemReceta[]
-  componentesItemReceta ComponenteItemReceta[]
+  componentesItemReceta ComponenteItemReceta[] @relation("ComponenteUnidadMedida")
+  componentesReferencia ComponenteItemReceta[] @relation("ComponenteUnidadReferencia")
   lineasPesaje          LineaPesaje[]
   asientosContralor     AsientoContralor[]
   costosProveedor       CostoProveedor[]
@@ -1040,22 +1043,25 @@ model ItemReceta {
 /// Tenant-scoped (M09) / openspec/specs/ficha-tecnica/spec.md "ComponenteItemReceta".
 /// modo_expresion REPLACES es_cantidad_suficiente (binding decision).
 model ComponenteItemReceta {
-  id                String        @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
-  tenantId          String        @map("tenant_id") @db.Uuid
-  itemRecetaId      String        @map("item_receta_id") @db.Uuid
-  drogaId           String        @map("droga_id") @db.Uuid
-  cantidad          Decimal?      @db.Decimal
-  unidadMedidaId    String        @map("unidad_medida_id") @db.Uuid
-  modoExpresion     ModoExpresion @map("modo_expresion")
+  id                 String        @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId           String        @map("tenant_id") @db.Uuid
+  itemRecetaId       String        @map("item_receta_id") @db.Uuid
+  drogaId            String        @map("droga_id") @db.Uuid
+  cantidad           Decimal?      @db.Decimal
+  unidadMedidaId     String        @map("unidad_medida_id") @db.Uuid
+  modoExpresion      ModoExpresion @map("modo_expresion")
   /// Snapshot written by the app on insert: true iff the droga's clase is DROGA (migration 0063); not kept in sync with later catalog changes.
-  esPrincipioActivo Boolean       @default(false) @map("es_principio_activo")
+  esPrincipioActivo  Boolean       @default(false) @map("es_principio_activo")
   /// Migration 0069: the synonym of the droga the componente was picked by (display only; NULL = canonical name). The SQL FK is composite (tenant_id, droga_alias_id, droga_id): same tenant AND same droga. May point to a synonym removed later.
-  drogaAliasId      String?       @map("droga_alias_id") @db.Uuid
+  drogaAliasId       String?       @map("droga_alias_id") @db.Uuid
+  /// Migration 0112: CONCENTRACION only -- the denominator of a "per unit" concentration (mg/mL -> mL); NULL = %.
+  unidadReferenciaId String?       @map("unidad_referencia_id") @db.Uuid
 
-  itemReceta   ItemReceta   @relation(fields: [itemRecetaId], references: [id])
-  droga        Droga        @relation(fields: [drogaId], references: [id])
-  unidadMedida UnidadMedida @relation(fields: [unidadMedidaId], references: [id])
-  drogaAlias   DrogaAlias?  @relation(fields: [drogaAliasId], references: [id])
+  itemReceta       ItemReceta    @relation(fields: [itemRecetaId], references: [id])
+  droga            Droga         @relation(fields: [drogaId], references: [id])
+  unidadMedida     UnidadMedida  @relation("ComponenteUnidadMedida", fields: [unidadMedidaId], references: [id])
+  unidadReferencia UnidadMedida? @relation("ComponenteUnidadReferencia", fields: [unidadReferenciaId], references: [id])
+  drogaAlias       DrogaAlias?   @relation(fields: [drogaAliasId], references: [id])
 
   @@unique([tenantId, id])
   /// Migration 0065: the componentes of an item (they have no order -- orden was dropped).
@@ -1103,6 +1109,8 @@ model LineaPesaje {
   unidadMedidaId  String   @map("unidad_medida_id") @db.Uuid
   esEnraseManual  Boolean  @default(false) @map("es_enrase_manual")
   orden           Int
+  /// Migration 0112: frozen text of a concentration line ("5 % × 30 mL"); NULL for every other line.
+  prescripcion    String?
 
   fichaTecnica FichaTecnica      @relation(fields: [fichaTecnicaId], references: [id])
   droga        Droga             @relation(fields: [drogaId], references: [id])
@@ -1226,6 +1234,8 @@ model Preparacion {
   /// 0092: the excipiente used (droga of clase EXCIPIENTE) and its quantity in the droga's unidad base; reserved and descontado with the preparación. Changes only while INICIADA (INV-P08).
   excipienteDrogaId  String?                   @map("excipiente_droga_id") @db.Uuid
   excipienteCantidad Decimal?                  @map("excipiente_cantidad") @db.Decimal
+  /// 0113: the excipiente in one unit (formas counted by units), NULL when typed as c.s.p.; excipienteCantidad is the total.
+  excipienteCantidadPorUnidad Decimal?         @map("excipiente_cantidad_por_unidad") @db.Decimal
 
   fichaTecnica       FichaTecnica        @relation(fields: [fichaTecnicaId], references: [id])
   iniciadaPor        Usuario             @relation("PreparacionIniciadaPor", fields: [iniciadaPorId], references: [id])
@@ -1283,6 +1293,8 @@ model ExcipienteBorrador {
   fichaTecnicaId   String   @map("ficha_tecnica_id") @db.Uuid
   drogaId          String?  @map("droga_id") @db.Uuid
   cantidad         Decimal? @db.Decimal
+  /// 0113: `cantidad` is one unit's weight (true) or the preparado's, c.s.p. (false).
+  porUnidad        Boolean  @default(false) @map("por_unidad")
   actualizadoPorId String   @map("actualizado_por_id") @db.Uuid
   actualizadoEn    DateTime @default(now()) @map("actualizado_en") @db.Timestamptz(6)
 
@@ -1378,6 +1390,10 @@ model ElaboracionLote {
   elaboradoPorId String          @map("elaborado_por_id") @db.Uuid
   registradoEn   DateTime        @default(now()) @map("registrado_en") @db.Timestamptz(6)
   observacion    String?
+  /// Migration 0115: printed on the lot's etiqueta ("Clonazepam 1:100").
+  nombre         String
+  /// Migration 0115: printed on the lot's etiqueta; NULL = none.
+  aspecto        String?
 
   @@unique([tenantId, id])
   @@unique([tenantId, partidaId], map: "elaboracion_lote_partida_key")
@@ -1969,6 +1985,8 @@ model EtiquetaHoja {
   anchoMm   Decimal  @map("ancho_mm") @db.Decimal(4, 1)
   altoMm    Decimal  @map("alto_mm") @db.Decimal(4, 1)
   margenMm  Decimal  @map("margen_mm") @db.Decimal(4, 1)
+  /// 0117: the toma's "Incluir excipientes en la etiqueta" switch starts on (the user can still change it before printing).
+  incluirExcipientes Boolean @default(false) @map("incluir_excipientes")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("etiqueta_hoja")

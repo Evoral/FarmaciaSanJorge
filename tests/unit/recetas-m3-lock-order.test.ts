@@ -103,6 +103,7 @@ const anularRecetaMock = vi.fn(async (...args: unknown[]) => {
   void args;
   return undefined;
 });
+const getUnidadesParaCorduraMock = vi.fn().mockResolvedValue(new Map());
 
 vi.mock("@/modules/recetas/infrastructure/receta-repository", () => ({
   lockRecetaParaAccion: (...args: unknown[]) => lockRecetaMock(...args),
@@ -116,6 +117,8 @@ vi.mock("@/modules/recetas/infrastructure/receta-repository", () => ({
   clasificarDrogasDeReceta: vi.fn(async () => ({ validas: new Map(), invalidas: [], materiales: [], principiosActivos: new Set() })),
     drogasInvalidas: (...args: unknown[]) => drogasInvalidasMock(...args),
   unidadesInvalidas: (...args: unknown[]) => unidadesInvalidasMock(...args),
+  getMagnitudesDeUnidades: vi.fn(async () => new Map()),
+  getUnidadesParaCordura: (...args: unknown[]) => getUnidadesParaCorduraMock(...args),
   getNombresParaResumen: async () => ({ drogas: new Map<string, string>(), unidades: new Map<string, string>() }),
   updateRecetaHeader: (...args: unknown[]) => updateRecetaHeaderMock(...args),
   reemplazarItemsReceta: (...args: unknown[]) => reemplazarItemsRecetaMock(...args),
@@ -222,6 +225,44 @@ describe("editar-receta: items that already have a ficha técnica", () => {
 
     await editar([{ ...itemValido, id: ITEM_1 }]);
     expect(reemplazarItemsRecetaMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses with V12 when a concentration component yields more than the total prepared", async () => {
+    getRecetaParaAccionMock.mockResolvedValue(recetaPendiente);
+    listItemIdsMock.mockResolvedValue([ITEM_1, ITEM_2]);
+    const UNIDAD_G = "66666666-6666-4666-a666-666666666661";
+    const UNIDAD_MG = "66666666-6666-4666-a666-666666666662";
+    const UNIDAD_ML = "66666666-6666-4666-a666-666666666663";
+    getUnidadesParaCorduraMock.mockResolvedValue(
+      new Map([
+        [UNIDAD_G, { tipoMagnitud: "MASA", factorABase: "1", simbolo: "g" }],
+        [UNIDAD_MG, { tipoMagnitud: "MASA", factorABase: "0.001", simbolo: "mg" }],
+        [UNIDAD_ML, { tipoMagnitud: "VOLUMEN", factorABase: "1", simbolo: "mL" }],
+      ]),
+    );
+
+    const itemV12 = {
+      id: ITEM_1,
+      formaFarmaceutica: "CREMA" as const,
+      cantidadUnidades: 1,
+      fraccionDosisPorUnidad: "1",
+      cantidadTotal: "30",
+      unidadTotalId: UNIDAD_G,
+      componentes: [
+        {
+          drogaId: DROGA_ID,
+          cantidad: "2.3",
+          unidadMedidaId: UNIDAD_ML,
+          unidadReferenciaId: UNIDAD_MG,
+          modoExpresion: "CONCENTRACION" as const,
+          esPrincipioActivo: true,
+        },
+      ],
+    };
+
+    await expect(editar([itemV12, { ...itemValido, id: ITEM_2 }])).rejects.toThrow(
+      "En el ítem 1, el componente 1 (2,3 mL/mg × 30 g) da 69.000 mL: más que todo el preparado. Revisá el valor y el «por».",
+    );
   });
 });
 

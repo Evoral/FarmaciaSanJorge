@@ -11,9 +11,10 @@
  * `modules/pacientes/domain/paciente.ts` (application layer).
  */
 import type { Prisma } from "@/generated/prisma/client";
+import { buscarPersonasPorNombre } from "@/shared/db/busqueda-persona";
 
 // ============================================================================
-// Listing (4.5: search by apellido/dni + soloVigentes + pagination). The
+// Listing (4.5: search by nombre/apellido/dni + soloVigentes + pagination). The
 // UI layer (app/(app)/pacientes/**) is responsible for NEVER
 // putting the `search` term in a URL/query string (DP-24) -- this function
 // itself is agnostic to how the caller obtained `search`.
@@ -44,12 +45,14 @@ export interface ListPacientesResult {
   pageSize: number;
 }
 
-function buildWhere(filter: ListPacientesFilter): Prisma.PacienteWhereInput {
+async function buildWhere(tx: Prisma.TransactionClient, filter: ListPacientesFilter): Promise<Prisma.PacienteWhereInput> {
   const where: Prisma.PacienteWhereInput = { tenantId: filter.tenantId };
 
   if (filter.search && filter.search.trim().length > 0) {
     const term = filter.search.trim();
-    where.OR = [{ apellido: { contains: term, mode: "insensitive" } }, { dni: { contains: term } }, { cuil: { contains: term } }];
+    // Nombre and apellido: the shared persona rule (every word, any order, accent-insensitive).
+    const porNombre = await buscarPersonasPorNombre(tx, "paciente", filter.tenantId, term);
+    where.OR = [{ id: { in: porNombre } }, { dni: { contains: term } }, { cuil: { contains: term } }];
   }
   if (filter.soloVigentes === true) where.fechaBaja = null;
   else if (filter.soloVigentes === false) where.fechaBaja = { not: null };
@@ -58,7 +61,7 @@ function buildWhere(filter: ListPacientesFilter): Prisma.PacienteWhereInput {
 }
 
 export async function listPacientes(tx: Prisma.TransactionClient, filter: ListPacientesFilter): Promise<ListPacientesResult> {
-  const where = buildWhere(filter);
+  const where = await buildWhere(tx, filter);
   const skip = (filter.page - 1) * filter.pageSize;
 
   const total = await tx.paciente.count({ where });

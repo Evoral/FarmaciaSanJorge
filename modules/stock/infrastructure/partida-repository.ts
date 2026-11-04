@@ -1182,6 +1182,25 @@ export async function alertasBajoMinimo(tx: Prisma.TransactionClient, tenantId: 
   }));
 }
 
+/** One droga's exact stock (`fsj.v_stock_droga`): físico and activo, in its unidad base. `null` if the droga does not exist. */
+export interface StockDeDroga {
+  disponible: string;
+  activo: string;
+  unidadSimbolo: string;
+}
+
+export async function getStockDeDroga(tx: Prisma.TransactionClient, tenantId: string, drogaId: string): Promise<StockDeDroga | null> {
+  const rows = await tx.$queryRaw<{ stock_disponible: string; stock_activo: string; simbolo: string }[]>`
+    SELECT coalesce(v.stock_disponible, 0)::text AS stock_disponible, coalesce(v.stock_activo, 0)::text AS stock_activo, u.simbolo
+    FROM fsj.droga d
+    JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
+    LEFT JOIN fsj.v_stock_droga v ON v.tenant_id = d.tenant_id AND v.droga_id = d.id
+    WHERE d.tenant_id = ${tenantId}::uuid AND d.id = ${drogaId}::uuid
+  `;
+  const row = rows[0];
+  return row ? { disponible: row.stock_disponible, activo: row.stock_activo, unidadSimbolo: row.simbolo } : null;
+}
+
 /** How many drogas `alertasBajoMinimo` above would list (keep them in sync): one aggregate for the app-wide banner. */
 export async function contarDrogasBajoMinimo(tx: Prisma.TransactionClient, tenantId: string): Promise<number> {
   const rows = await tx.$queryRaw<{ cantidad: number }[]>`

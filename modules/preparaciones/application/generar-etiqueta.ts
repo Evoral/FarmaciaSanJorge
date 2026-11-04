@@ -15,7 +15,7 @@ import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { armarContenidoEtiqueta, formatearContenidoEtiqueta, motivoEtiquetaNoImprimible } from "../domain/etiqueta";
-import { getPreparacionParaEtiqueta, getEtiquetaExistente, insertEtiqueta } from "../infrastructure/preparacion-repository";
+import { getPreparacionParaEtiqueta, getEtiquetaExistente, getIncluirExcipientesEnEtiqueta, insertEtiqueta } from "../infrastructure/preparacion-repository";
 
 const generarEtiquetaInput = z.object({ preparacionId: uuid });
 
@@ -49,12 +49,14 @@ export const generarEtiquetaCommand = defineCommand({
  * also run by `confirmarReservasReceta` (./confirmar-reservas-receta.ts) right
  * after it writes the receta's asiento (D8), in the SAME transaction. The caller
  * declares the permiso and the audit; `preparacion` is the audit's human
- * label.
+ * label. `incluirExcipientes` is the toma's switch (migration 0117); without it,
+ * the tenant's default.
  */
 export async function generarEtiquetaEnTx(
   tx: Prisma.TransactionClient,
   tenantId: string,
   preparacionId: string,
+  incluirExcipientes?: boolean,
 ): Promise<{ id: string; preparacion: string }> {
   const existente = await getEtiquetaExistente(tx, tenantId, preparacionId);
   if (existente) {
@@ -69,7 +71,8 @@ export async function generarEtiquetaEnTx(
   const motivo = motivoEtiquetaNoImprimible(datos);
   if (motivo) throw new DomainError(motivo);
 
-  const contenido = formatearContenidoEtiqueta(armarContenidoEtiqueta(datos));
+  const conExcipientes = incluirExcipientes ?? (await getIncluirExcipientesEnEtiqueta(tx, tenantId));
+  const contenido = formatearContenidoEtiqueta(armarContenidoEtiqueta(datos, { incluirExcipientes: conExcipientes }));
   const etiqueta = await insertEtiqueta(tx, tenantId, preparacionId, contenido);
   return {
     id: etiqueta.id,

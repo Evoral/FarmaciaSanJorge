@@ -61,24 +61,31 @@ export interface PartidaParaVencimiento {
   tieneSaldo: boolean;
   /** `YYYY-MM-DD`, `null` = does not expire. */
   fechaVencimientoVigente: string | null;
+  /** A lot elaborated from a DROGA (EL5, migration 0114): its vencimiento follows its drugs, it is never re-analysed itself. */
+  sigueASusDrogas: boolean;
+  /** A lot elaborated from it (transitively) still has saldo: it is still re-analysed or marked even with saldo 0. */
+  lotesElaboradosConSaldo: boolean;
 }
 
-export type RechazoReanalisis = "NO_ES_DROGA" | "SIN_SALDO" | "FECHA_NO_FUTURA";
+export type RechazoReanalisis = "NO_ES_DROGA" | "SIGUE_A_SUS_DROGAS" | "SIN_SALDO" | "FECHA_NO_FUTURA";
 
 /**
  * A reanálisis needs a DROGA partida (insumos keep their date), with saldo (saldo 0 = terminal: marked as vencida or
  * fully consumed), and a new date strictly after the jornada. No limit on how far or how many times: the analysis
- * decides. Allowed whether the partida is vencida, por vencer or still vigente.
+ * decides. Allowed whether the partida is vencida, por vencer or still vigente. An elaborated lot is never re-analysed:
+ * its drug is, and the lot follows (EL5); a drug used up in a lot still in use is re-analysed for that lot's sake.
  */
 export function rechazoReanalisis(partida: PartidaParaVencimiento, fechaReanalisis: string, jornadaActual: string): RechazoReanalisis | null {
   if (partida.drogaClase !== "DROGA" || partida.fechaVencimientoVigente === null) return "NO_ES_DROGA";
-  if (!partida.tieneSaldo) return "SIN_SALDO";
+  if (partida.sigueASusDrogas) return "SIGUE_A_SUS_DROGAS";
+  if (!partida.tieneSaldo && !partida.lotesElaboradosConSaldo) return "SIN_SALDO";
   if (fechaReanalisis <= jornadaActual) return "FECHA_NO_FUTURA";
   return null;
 }
 
 export const MENSAJES_RECHAZO_REANALISIS: Record<RechazoReanalisis, string> = {
   NO_ES_DROGA: "Solo se puede registrar un reanálisis en una partida de droga; los excipientes y materiales conservan su vencimiento.",
+  SIGUE_A_SUS_DROGAS: "Es un lote elaborado: su vencimiento sigue al de la droga con la que se hizo. Registrá el reanálisis en esa droga.",
   SIN_SALDO: "La partida no tiene saldo: ya fue marcada como vencida o se consumió por completo, y no admite reanálisis.",
   FECHA_NO_FUTURA: "La fecha de reanálisis debe ser posterior a la fecha actual.",
 };
@@ -88,11 +95,12 @@ export type RechazoMarcarVencida = "NO_ES_DROGA" | "SIN_SALDO" | "NO_VENCIDA";
 /**
  * "Marcar como vencida": only a DROGA partida whose vencimiento vigente already passed and that still has saldo. It
  * discounts the whole saldo (AJUSTE VENCIMIENTO); the partida is then terminal (saldo 0). A por vencer partida is not
- * marked: it waits for its date or gets a reanálisis.
+ * marked: it waits for its date or gets a reanálisis. The lots elaborated from it are discarded with it (EL5), so a drug
+ * used up in a lot still in use is marked for that lot's sake.
  */
 export function rechazoMarcarVencida(partida: PartidaParaVencimiento, jornadaActual: string): RechazoMarcarVencida | null {
   if (partida.drogaClase !== "DROGA" || partida.fechaVencimientoVigente === null) return "NO_ES_DROGA";
-  if (!partida.tieneSaldo) return "SIN_SALDO";
+  if (!partida.tieneSaldo && !partida.lotesElaboradosConSaldo) return "SIN_SALDO";
   if (!(partida.fechaVencimientoVigente < jornadaActual)) return "NO_VENCIDA";
   return null;
 }
@@ -105,6 +113,11 @@ export const MENSAJES_RECHAZO_MARCAR_VENCIDA: Record<RechazoMarcarVencida, strin
 
 /** Default observación of the VENCIMIENTO ajuste "marcar como vencida" registers. */
 export const OBSERVACION_MARCAR_VENCIDA = "Partida vencida: el Director Técnico la marcó como vencida y se descontó todo su saldo.";
+
+/** Observación of the VENCIMIENTO ajuste that discards a lot elaborated from a partida marked as vencida (EL5). */
+export function observacionLoteElaboradoVencido(loteDroga: string): string {
+  return `Lote elaborado descartado: el Director Técnico marcó como vencida la droga con la que se hizo (lote ${loteDroga}).`;
+}
 
 const textoOpcional = (max: number) =>
   z

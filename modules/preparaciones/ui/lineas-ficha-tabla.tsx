@@ -57,7 +57,10 @@ export function LineasFichaTabla({ lineas }: { lineas: readonly LineaDeFichaToma
           {lineas.map((linea) => (
             <Fragment key={linea.orden}>
               <tr>
-                <td className="px-2 py-2 font-medium text-zinc-900 sm:px-3">{linea.drogaNombre}</td>
+                <td className="px-2 py-2 font-medium text-zinc-900 sm:px-3">
+                  {linea.drogaNombre}
+                  {linea.prescripcion ? <span className="block text-xs font-normal text-zinc-500">{linea.prescripcion}</span> : null}
+                </td>
                 <td className="whitespace-nowrap px-2 py-2 text-right font-mono tabular-nums sm:px-3">
                   {linea.cantidadTeorica ? (
                     <CantidadFicha valor={linea.cantidadTeorica} simbolo={linea.unidadSimbolo} />

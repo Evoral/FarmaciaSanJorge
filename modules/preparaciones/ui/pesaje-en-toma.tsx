@@ -30,7 +30,7 @@
  * tolerance come from ./confirmar-form.tsx's pure helpers, so both flows compute the same.
  */
 import { createContext, useActionState, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { CircleAlert, FlaskConical, Info, Plus, TriangleAlert, X } from "lucide-react";
+import { CircleAlert, FlaskConical, Info, Plus, Trash2, TriangleAlert, X } from "lucide-react";
 import { Decimal } from "@/shared/decimal";
 import { convertirCantidad } from "@/shared/decimal/convertir-unidad";
 import { formatNumero, formatStockEntero } from "@/shared/format/cantidad";
@@ -47,6 +47,7 @@ import { estadoVencimientoPartida } from "@/modules/stock/domain/vencimiento-par
 import type { DatosConfirmacion, LineaPantalla } from "../application/datos-confirmacion";
 import type { LineaDeFichaToma } from "../application/get-toma-receta";
 import { precisionDeLinea, sugerenciaPesadaReal } from "../domain/pesada-real";
+import { cantidadExcipienteAPesar, pesoDeDrogas, textoDesglosePorUnidad, type ExcipienteAPesar, type LineaConPeso } from "../domain/excipiente-por-unidad";
 import { AvisoBajoLaBalanza } from "./aviso-bajo-la-balanza";
 import { cantidadRealDesdeServidor, cantidadRealParaServidor, cantidadValida, lotesPorDefecto, pesadaDeLinea, planDeLinea, type PesadaDeLinea, type PlanDeLinea } from "./confirmar-form";
 import { CantidadFicha, LotesVencidos, Vacio, conExceso } from "./lineas-ficha-tabla";
@@ -86,9 +87,15 @@ interface PesajeContexto {
     opciones: NonNullable<DatosConfirmacion["excipiente"]>["opciones"];
     drogaId: string | null;
     cantidad: string;
+    /** The ítem's units (migration 0113); `null` when its forma is not counted by units: c.s.p. only. */
+    unidades: NonNullable<DatosConfirmacion["excipiente"]>["unidades"];
+    /** `cantidad` is one unit's weight instead of the preparado's (c.s.p.). */
+    porUnidad: boolean;
     /** Chooses (or clears) the excipiente and saves it. */
     setDroga: (drogaId: string | null) => void;
     setCantidad: (valor: string) => void;
+    /** Switches between per unidad and c.s.p. and saves it. */
+    setPorUnidad: (porUnidad: boolean) => void;
   } | null;
   /** The material (always the first row) and the insumos adicionales (migration 0110). */
   insumos: {
@@ -173,6 +180,8 @@ export function PesajeProvider({ datos, children }: { datos: DatosConfirmacion; 
     return guardado && opcionesExcipiente.some((o) => o.id === guardado) ? guardado : null;
   });
   const [excipienteCantidad, setExcipienteCantidad] = useState(() => numeroParaInput(datos.excipiente?.borrador?.cantidad));
+  const unidadesExcipiente = datos.excipiente?.unidades ?? null;
+  const [excipientePorUnidad, setExcipientePorUnidad] = useState(() => unidadesExcipiente !== null && (datos.excipiente?.borrador?.porUnidad ?? false));
   const [filasInsumo, setFilasInsumo] = useState<FilaInsumo[]>(() => filasInsumoIniciales(datos.insumos));
   // New adicional rows' keys: never reused while the page lives.
   const siguienteAdicional = useRef(filasInsumo.length);
@@ -208,11 +217,17 @@ export function PesajeProvider({ datos, children }: { datos: DatosConfirmacion; 
           opciones: opcionesExcipiente,
           drogaId: excipienteId,
           cantidad: excipienteCantidad,
+          unidades: unidadesExcipiente,
+          porUnidad: excipientePorUnidad,
           setDroga: (drogaId) => {
             setExcipienteId(drogaId);
             guardar(CLAVE_EXCIPIENTE);
           },
           setCantidad: setExcipienteCantidad,
+          setPorUnidad: (porUnidad) => {
+            setExcipientePorUnidad(porUnidad);
+            guardar(CLAVE_EXCIPIENTE);
+          },
         }
       : null,
     insumos: datos.insumos
@@ -227,7 +242,8 @@ export function PesajeProvider({ datos, children }: { datos: DatosConfirmacion; 
           setCantidad: (clave, valor) => setFilasInsumo((prev) => prev.map((f) => (f.clave === clave ? { ...f, cantidad: valor } : f))),
           agregar: () => {
             const clave = `adicional-${siguienteAdicional.current++}`;
-            setFilasInsumo((prev) => [...prev, { clave, tipo: "ADICIONAL", drogaId: null, cantidad: "" }]);
+            // Pre-filled with 1: an added insumo is usually the envase (one unit); anything else is corrected by hand.
+            setFilasInsumo((prev) => [...prev, { clave, tipo: "ADICIONAL", drogaId: null, cantidad: "1" }]);
           },
           quitar: (clave) => {
             setFilasInsumo((prev) => prev.filter((f) => f.clave !== clave || f.tipo === "MATERIAL"));
@@ -257,6 +273,7 @@ export function PesajeProvider({ datos, children }: { datos: DatosConfirmacion; 
           fichaTecnicaId={datos.fichaTecnicaId}
           drogaId={excipienteId}
           cantidad={excipienteCantidad}
+          porUnidad={excipientePorUnidad}
           version={versiones[CLAVE_EXCIPIENTE] ?? 0}
           onEstado={onEstado}
         />
@@ -322,12 +339,14 @@ function BorradorExcipiente({
   fichaTecnicaId,
   drogaId,
   cantidad,
+  porUnidad,
   version,
   onEstado,
 }: {
   fichaTecnicaId: string;
   drogaId: string | null;
   cantidad: string;
+  porUnidad: boolean;
   version: number;
   onEstado: (clave: string, estado: EstadoGuardado, mensaje?: string) => void;
 }) {
@@ -350,6 +369,7 @@ function BorradorExcipiente({
       <input type="hidden" name="fichaTecnicaId" value={fichaTecnicaId} />
       <input type="hidden" name="excipienteDrogaId" value={drogaId ?? ""} />
       <input type="hidden" name="excipienteCantidad" value={drogaId ? cantidad : ""} />
+      {porUnidad ? <input type="hidden" name="excipientePorUnidad" value="on" /> : null}
     </form>
   );
 }
@@ -478,7 +498,10 @@ function FilasLinea({
   return (
     <>
       <tr className={`border-b-0 grid ${exceso ? "grid-cols-3" : "grid-cols-2"} gap-x-3 gap-y-2.5 px-3 pt-3 pb-2 md:table-row md:p-0`}>
-        <td className="col-span-full p-0 font-medium text-zinc-900 md:px-3 md:py-2">{linea.drogaNombre}</td>
+        <td className="col-span-full p-0 font-medium text-zinc-900 md:px-3 md:py-2">
+          {linea.drogaNombre}
+          {ficha?.prescripcion ? <span className="block text-xs font-normal text-zinc-500">{ficha.prescripcion}</span> : null}
+        </td>
         <td className="p-0 text-left font-mono tabular-nums md:whitespace-nowrap md:px-3 md:py-2 md:text-right">
           <span className="mb-0.5 block font-sans text-[11px] font-medium uppercase tracking-wider text-zinc-500 md:hidden">Teórica</span>
           {ficha?.cantidadTeorica ? (
@@ -495,7 +518,12 @@ function FilasLinea({
         ) : null}
         <td className="p-0 text-left font-mono font-semibold text-zinc-900 tabular-nums md:px-3 md:py-2 md:text-right">
           <span className="mb-0.5 block font-sans text-[11px] font-medium uppercase tracking-wider text-zinc-500 md:hidden">A pesar</span>
-          {linea.esEnraseManual ? (
+          {linea.cantidadPrescripta ? (
+            // Weighed on the balance (other magnitud than the stock): the prescription is a reference, never prefilled.
+            <span className="inline-block max-w-[12rem] font-sans text-xs font-normal text-zinc-500">
+              Receta pide {formatNumero(linea.cantidadPrescripta.cantidad)} {linea.cantidadPrescripta.simbolo}
+            </span>
+          ) : linea.esEnraseManual ? (
             <span className="inline-block max-w-[12rem] font-sans font-normal text-zinc-500">Enrase manual</span>
           ) : aPesar ? (
             <span className="whitespace-nowrap">
@@ -526,7 +554,8 @@ function FilasLinea({
             <tr key={partidaId} className={`block px-3 md:table-row md:px-0 ${ultimaFila ? "pb-3 pt-1 md:p-0" : "border-b-0 py-1 md:p-0"}`}>
               <td colSpan={columnas - 2} className={`block p-0 md:table-cell md:pl-6 md:pr-3 ${ultimaFila ? "md:pb-3 md:pt-0.5" : "md:py-0.5"}`}>
                 <div className="flex items-center gap-2 text-xs text-zinc-500">
-                  <label htmlFor={`partidas_${linea.id}_${k}`} className="shrink-0">
+                  {/* Fixed width, right-aligned: "Lote" and "y" leave every select on the same left edge. */}
+                  <label htmlFor={`partidas_${linea.id}_${k}`} className="w-7 shrink-0 text-right">
                     {k === 0 ? "Lote" : "y"}
                   </label>
                   <select
@@ -542,8 +571,8 @@ function FilasLinea({
                     ))}
                   </select>
                   {k > 0 ? (
-                    <button type="button" onClick={() => setLotes(linea.id, lotes.filter((_, i) => i !== k))} aria-label="Quitar este lote" className="btn btn-ghost btn-sm shrink-0">
-                      <X className="size-3.5" aria-hidden />
+                    <button type="button" onClick={() => setLotes(linea.id, lotes.filter((_, i) => i !== k))} aria-label="Quitar este lote" className="btn btn-danger-ghost btn-sm btn-icon shrink-0">
+                      <Trash2 className="size-3.5" aria-hidden />
                     </button>
                   ) : null}
                 </div>
@@ -607,9 +636,12 @@ function FilasLinea({
                 value={motivos[linea.id] ?? ""}
                 onChange={(event) => setMotivo(linea.id, event.target.value)}
                 onBlur={() => guardar(linea.id)}
+                aria-invalid={!motivos[linea.id]?.trim() || undefined}
                 className="input"
               />
-              <p className="field-help">Se abre una partida nueva aunque la que ya está abierta alcanza: indicá por qué.</p>
+              <p className={motivos[linea.id]?.trim() ? "field-help" : "field-help text-red-600"}>
+                Se abre una partida nueva aunque la que ya está abierta alcanza: indicá por qué.
+              </p>
             </div>
           </td>
         </tr>
@@ -693,19 +725,68 @@ function BuscadorExcipiente({ flotante = false }: { flotante?: boolean }) {
   );
 }
 
-/** The chosen excipiente's quantity (unidad base), saved when left or on Enter; nothing until one is chosen. */
+/**
+ * The excipiente to weigh (unidad base): the weight typed (the preparado's, or one unit's) minus the ficha's drogas, as the
+ * reserva computes it (`cantidadExcipienteAPesar`); `null` until a quantity is valid.
+ */
+function excipienteAPesar(excipiente: NonNullable<PesajeContexto["excipiente"]>, lineas: readonly LineaConPeso[]): ExcipienteAPesar | null {
+  const cantidad = cantidadValida(excipiente.cantidad);
+  const elegido = excipiente.opciones.find((o) => o.id === excipiente.drogaId);
+  if (cantidad === null || !elegido) return null;
+  return cantidadExcipienteAPesar({
+    cantidad,
+    unidades: excipiente.porUnidad ? excipiente.unidades : null,
+    pesoDrogas: pesoDeDrogas(lineas),
+    unidad: elegido.unidad,
+  });
+}
+
+/**
+ * The chosen excipiente's weight (unidad base), saved when left or on Enter; nothing until one is chosen. In a forma
+ * counted by units it is typed per unidad (one cápsula) or as c.s.p. (the preparado, migration 0113); below, the drogas subtracted and the
+ * excipiente to weigh.
+ */
 function CantidadExcipiente() {
-  const { excipiente, guardar, guardados } = usePesaje();
+  const { excipiente, guardar, guardados, datos } = usePesaje();
   const id = useId();
   if (!excipiente) return null;
   const elegido = excipiente.opciones.find((o) => o.id === excipiente.drogaId) ?? null;
   if (!elegido) return null;
   const guardado = guardados[CLAVE_EXCIPIENTE];
   const faltaCantidad = cantidadValida(excipiente.cantidad) === null;
+  const unidades = excipiente.porUnidad ? excipiente.unidades : null;
+  const aPesar = excipienteAPesar(excipiente, datos.lineas);
+  const simbolo = elegido.unidadSimbolo;
+  const sinStock = aPesar ? faltanteDeStock(elegido.disponible, aPesar.total) !== null : false;
 
+  // One column with shared left/right edges (toggle, field, summary), so it reads the same on a desktop cell, a tablet
+  // or a phone: 15rem (a definite width, so the table cell does not squeeze it), never wider than its container.
   return (
-    <div className="flex flex-col items-start gap-1 md:ml-auto md:max-w-[11rem] md:items-end">
-      <div className="flex items-center gap-1.5">
+    <div className="ml-auto flex w-60 max-w-full flex-col gap-1.5 text-left">
+      {excipiente.unidades !== null ? (
+        <div role="group" aria-label="Cómo se carga el excipiente" className="grid grid-cols-2 overflow-hidden rounded-md border border-zinc-400 text-sm">
+          {[
+            { valor: false, texto: "Total (c.s.p.)" },
+            { valor: true, texto: `Por ${excipiente.unidades.singular}` },
+          ].map((modo) => (
+            <button
+              key={modo.texto}
+              type="button"
+              aria-pressed={(unidades !== null) === modo.valor}
+              onClick={() => {
+                if ((unidades !== null) !== modo.valor) excipiente.setPorUnidad(modo.valor);
+              }}
+              className={(unidades !== null) === modo.valor ? "bg-zinc-900 px-2 py-1 text-center font-medium text-white" : "bg-white px-2 py-1 text-center text-zinc-700 hover:bg-zinc-50"}
+            >
+              {modo.texto}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <label htmlFor={id} className="text-xs font-medium text-zinc-700">
+        {unidades ? `Peso de un${unidades.singular.endsWith("a") ? "a" : ""} ${unidades.singular}` : "Peso total del preparado"}
+      </label>
+      <div className="relative">
         <input
           id={id}
           type="text"
@@ -719,18 +800,56 @@ function CantidadExcipiente() {
               guardar(CLAVE_EXCIPIENTE);
             }
           }}
-          aria-label={`Cantidad de ${elegido.nombre} (${elegido.unidadSimbolo})`}
-          aria-invalid={faltaCantidad || guardado?.estado === "error" ? true : undefined}
+          aria-label={`${unidades ? `Peso por ${unidades.singular}` : "Peso total del preparado"} (${simbolo}), ${elegido.nombre} c.s.p.`}
+          aria-invalid={faltaCantidad || sinStock || guardado?.estado === "error" ? true : undefined}
           aria-describedby={`${id}-ayuda`}
           title={AYUDA_NUMERO}
-          className="input h-8 w-24 py-0 text-right font-mono"
+          className="input h-8 w-full py-0 pr-9 text-right font-mono"
         />
-        <span className="w-6 text-xs text-zinc-500">{elegido.unidadSimbolo}</span>
+        <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs text-zinc-500">{simbolo}</span>
       </div>
-      <p id={`${id}-ayuda`} className="text-left text-xs text-zinc-500 md:text-right" aria-live="polite">
-        {faltaCantidad ? <span className="block text-amber-700 dark:text-amber-300">Ingresá la cantidad.</span> : null}
-        {guardado?.estado === "error" ? <span className="block text-red-700 dark:text-red-300">{guardado.mensaje}</span> : guardado?.estado === "guardando" ? <span className="block">Guardando…</span> : guardado?.estado === "guardado" ? <span className="block">Guardado</span> : null}
-      </p>
+      <div id={`${id}-ayuda`} className="text-xs text-zinc-500" aria-live="polite">
+        {sinStock ? <TextoSinStock disponible={elegido.disponible} simbolo={simbolo} /> : null}
+        {aPesar && aPesar.drogas !== null && aPesar.total.greaterThan(0) ? (
+          // The subtraction as two columns: concept on the left, value on the right edge of the field.
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+            <dt>Drogas</dt>
+            <dd className="text-right font-mono tabular-nums">
+              − {formatNumero((unidades ? aPesar.drogas.dividedBy(unidades.cantidad) : aPesar.drogas).toDecimalPlaces(6).toString())} {simbolo}
+              {unidades ? ` por ${unidades.singular}` : ""}
+            </dd>
+            <dt className="font-medium text-zinc-900">A pesar</dt>
+            <dd className="text-right font-mono font-medium tabular-nums text-zinc-900">
+              {formatNumero(aPesar.total.toString())} {simbolo}
+            </dd>
+            {unidades && aPesar.porUnidad ? (
+              <dd className="col-span-2 text-right">{textoDesglosePorUnidad(aPesar.porUnidad, simbolo, unidades.cantidad, unidades.plural)}</dd>
+            ) : null}
+          </dl>
+        ) : null}
+        {aPesar && aPesar.drogas === null ? (
+          <p>
+            Las drogas no están todas en peso: no se restan. A pesar:{" "}
+            <span className="font-mono font-medium text-zinc-900">
+              {formatNumero(aPesar.total.toString())} {simbolo}
+            </span>
+          </p>
+        ) : null}
+        {aPesar && aPesar.drogas !== null && !aPesar.total.greaterThan(0) ? (
+          <p className="text-amber-700 dark:text-amber-300">
+            El peso cargado no alcanza para las drogas ({formatNumero((unidades ? aPesar.drogas.dividedBy(unidades.cantidad) : aPesar.drogas).toDecimalPlaces(6).toString())} {simbolo}
+            {unidades ? ` por ${unidades.singular}` : ""}).
+          </p>
+        ) : null}
+        {faltaCantidad ? <p className="text-amber-700 dark:text-amber-300">Ingresá la cantidad.</p> : null}
+        {guardado?.estado === "error" ? (
+          <p className="text-red-700 dark:text-red-300">{guardado.mensaje}</p>
+        ) : guardado?.estado === "guardando" ? (
+          <p className="text-right">Guardando…</p>
+        ) : guardado?.estado === "guardado" ? (
+          <p className="text-right">Guardado</p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -787,37 +906,37 @@ function AgregarInsumo() {
 }
 
 /**
- * A row's buscador: the Material lists only drogas of clase MATERIAL, an adicional those of clase EXCIPIENTE or
- * MATERIAL, never one already used by another row or the excipiente. An adicional row can be removed (while not
+ * A row's buscador: the Material and an adicional list only drogas of clase MATERIAL (one excipiente for now: it has
+ * its own row), never one already used by another row or the excipiente. An adicional row can be removed (while not
  * reserved: once reserved the ficha is no longer editable).
  */
 function BuscadorInsumo({ fila, flotante = false }: { fila: FilaInsumo; flotante?: boolean }) {
   const { insumos, excipiente } = usePesaje();
   const todas = insumos?.opciones;
   const usadas = drogasUsadasPorOtras(insumos?.filas ?? [], fila.clave, excipiente?.drogaId ?? null);
-  // The Material: only clase MATERIAL; an adicional: EXCIPIENTE or MATERIAL. Stable while nothing else changes.
+  // Only clase MATERIAL. Stable while nothing else changes.
   const opciones = useMemo(() => {
     const excluidas = new Set(usadas.split(","));
-    return (todas ?? []).filter((o) => (fila.tipo === "ADICIONAL" || o.clase === "MATERIAL") && !excluidas.has(o.id));
-  }, [todas, fila.tipo, usadas]);
+    return (todas ?? []).filter((o) => o.clase === "MATERIAL" && !excluidas.has(o.id));
+  }, [todas, usadas]);
   const buscar = useMemo(() => filtrarOpciones(opciones.map((o) => ({ value: o.id, label: o.nombre, sinonimos: o.sinonimos }))), [opciones]);
   if (!insumos) return null;
   const elegido = insumos.opciones.find((o) => o.id === fila.drogaId) ?? null;
   const valor: ComboboxOption | null = elegido ? { value: elegido.id, label: elegido.nombre } : null;
   const esMaterial = fila.tipo === "MATERIAL";
-  const sinOpciones = esMaterial ? !insumos.opciones.some((o) => o.clase === "MATERIAL") : insumos.opciones.length === 0;
+  const sinOpciones = !insumos.opciones.some((o) => o.clase === "MATERIAL");
 
   return (
     <div className="flex items-start gap-2">
       <div className="min-w-0 flex-1">
         {sinOpciones ? (
-          <p className="text-xs text-zinc-500">{esMaterial ? "No hay materiales en el catálogo de drogas." : "No hay excipientes ni materiales en el catálogo de drogas."}</p>
+          <p className="text-xs text-zinc-500">No hay materiales en el catálogo de drogas.</p>
         ) : (
           <Combobox
             label={esMaterial ? "Material utilizado" : "Insumo adicional"}
             hideLabel
             size="sm"
-            placeholder={esMaterial ? (insumos.capsulas ? "Buscá el tipo de cápsula (opcional)" : "Buscá el material (opcional)") : "Buscá el excipiente o material"}
+            placeholder={esMaterial ? (insumos.capsulas ? "Buscá el tipo de cápsula (opcional)" : "Buscá el material (opcional)") : "Buscá el material (ej. el envase)"}
             floating={flotante}
             value={valor}
             onChange={(opcion) => insumos.setDroga(fila.clave, opcion ? opcion.value : null)}
@@ -826,8 +945,8 @@ function BuscadorInsumo({ fila, flotante = false }: { fila: FilaInsumo; flotante
         )}
       </div>
       {esMaterial ? null : (
-        <button type="button" onClick={() => insumos.quitar(fila.clave)} aria-label="Quitar este insumo" className="btn btn-ghost btn-sm">
-          <X className="size-3.5" aria-hidden />
+        <button type="button" onClick={() => insumos.quitar(fila.clave)} aria-label="Quitar este insumo" className="btn btn-danger-ghost btn-sm btn-icon">
+          <Trash2 className="size-3.5" aria-hidden />
         </button>
       )}
     </div>
@@ -846,6 +965,7 @@ function CantidadInsumo({ fila }: { fila: FilaInsumo }) {
   const elegido = insumos.opciones.find((o) => o.id === fila.drogaId) ?? null;
   if (!elegido && !(fila.tipo === "MATERIAL" && insumos.capsulas)) return null;
   const faltaCantidad = elegido !== null && cantidadValida(fila.cantidad) === null;
+  const sinStock = elegido !== null && faltanteDeStock(elegido.disponible, cantidadValida(fila.cantidad)) !== null;
   const etiqueta = elegido ? `${elegido.nombre} (${elegido.unidadSimbolo})` : "las cápsulas";
 
   return (
@@ -865,7 +985,7 @@ function CantidadInsumo({ fila }: { fila: FilaInsumo }) {
             }
           }}
           aria-label={`Cantidad de ${etiqueta}`}
-          aria-invalid={faltaCantidad ? true : undefined}
+          aria-invalid={faltaCantidad || sinStock ? true : undefined}
           aria-describedby={`${id}-ayuda`}
           title={AYUDA_NUMERO}
           className="input h-8 w-24 py-0 text-right font-mono"
@@ -874,16 +994,36 @@ function CantidadInsumo({ fila }: { fila: FilaInsumo }) {
       </div>
       <p id={`${id}-ayuda`} className="text-right text-xs text-zinc-500" aria-live="polite">
         {faltaCantidad ? <span className="block text-amber-700 dark:text-amber-300">Ingresá la cantidad.</span> : null}
+        {sinStock && elegido ? <TextoSinStock disponible={elegido.disponible} simbolo={elegido.unidadSimbolo} /> : null}
         {elegido ? null : <span className="block whitespace-nowrap">Elegí la cápsula para descontarla.</span>}
       </p>
     </div>
   );
 }
 
-/** "251138 · 5 kg disp." plus the purity (when the droga's lots declare one) and "abierta" / the date of a lot por vencer. */
+/** What `requerido` (unidad base) exceeds the droga's available stock by; `null` when covered or not typed yet. */
+function faltanteDeStock(disponible: string, requerido: Decimal | null): Decimal | null {
+  if (!requerido || !requerido.greaterThan(0)) return null;
+  const falta = requerido.minus(new Decimal(disponible));
+  return falta.greaterThan(0) ? falta : null;
+}
+
+function TextoSinStock({ disponible, simbolo }: { disponible: string; simbolo: string }) {
+  return (
+    <span className="block text-red-700 dark:text-red-300">
+      Stock insuficiente: hay {formatNumero(disponible)} {simbolo} disponibles.
+    </span>
+  );
+}
+
+/**
+ * "251138 · 5 kg disp." plus the purity (when the droga's lots declare one) and "abierta" / the date of a lot por vencer.
+ * An elaborated lot leads with the name the farmacéutico gave it ("Clonazepam 1:100 · FSJ-DIL-0001 · 9 g disp."): the
+ * name already tells its purity, which is left out.
+ */
 function etiquetaLote(p: LineaPantalla["partidasElegibles"][number], conPureza: boolean, datos: DatosConfirmacion): string {
-  const partes = [p.lote, `${formatStockEntero(p.cantidadDisponible, p.unidadSimbolo)} disp.`];
-  if (conPureza) partes.push(`Pureza ${p.potenciaDeclarada ? formatNumero(p.potenciaDeclarada) : "100"} %`);
+  const partes = [...(p.nombreElaborado ? [p.nombreElaborado] : []), p.lote, `${formatStockEntero(p.cantidadDisponible, p.unidadSimbolo)} disp.`];
+  if (conPureza && !p.nombreElaborado) partes.push(`Pureza ${p.potenciaDeclarada ? formatNumero(p.potenciaDeclarada) : "100"} %`);
   if (p.fechaApertura) partes.push("abierta");
   if (p.fechaVencimiento && estadoVencimientoPartida(p.fechaVencimiento, datos.jornadaActual, datos.diasAlertaVencimiento) === "POR_VENCER") {
     partes.push(`vence ${formatFechaIso(p.fechaVencimiento)}`);
@@ -950,12 +1090,18 @@ function CantidadReal({ linea, pesada }: { linea: LineaPantalla; pesada: PesadaD
  * re-authentication). Native `<dialog>` like ./continuar-preparacion-dialog.tsx; a click on the backdrop does not close it.
  */
 export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
-  const { datos, elegidas, reales, manuales, motivos, planes, pesadas, excipiente, insumos } = usePesaje();
+  const { datos, elegidas, reales, manuales, motivos, planes, pesadas, excipiente, insumos, setMotivo, guardar } = usePesaje();
   const excipienteElegido = excipiente?.opciones.find((o) => o.id === excipiente.drogaId) ?? null;
+  const aPesarExcipiente = excipiente ? excipienteAPesar(excipiente, datos.lineas) : null;
   const faltaExcipiente = excipienteElegido !== null && cantidadValida(excipiente?.cantidad) === null;
   // Material and insumos adicionales (migration 0110): a chosen one needs its quantity; a quantity alone is ignored.
   const filasInsumo = insumos?.filas ?? [];
   const insumoSinCantidad = (f: FilaInsumo) => f.drogaId !== null && cantidadValida(f.cantidad) === null;
+  // A chosen material / insumo / excipiente beyond its stock: warned in the ficha, refused here before the server does.
+  const insumoSinStock = (f: FilaInsumo) => {
+    const opcion = insumos?.opciones.find((o) => o.id === f.drogaId);
+    return opcion !== undefined && faltanteDeStock(opcion.disponible, cantidadValida(f.cantidad)) !== null;
+  };
   const dialogRef = useRef<HTMLDialogElement>(null);
   const tituloId = useId();
 
@@ -963,7 +1109,15 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
   const faltaManual = datos.lineas.some((l) => l.esEnraseManual && !manuales[l.id]?.trim());
   const sinLote = datos.lineas.some((l, i) => planes[i] === "elegir" || (l.partidasElegibles.length === 0 && !l.esEnraseManual));
   const requiereCoFirma = pesadas.some((p) => p?.evaluacion?.fueraDeTolerancia);
-  const bloqueada = lineasSinStock > 0 || faltaManual || sinLote || faltaExcipiente || filasInsumo.some(insumoSinCantidad);
+  // INV-S18: asked here as well (same draft as the ficha's field), red and blocking until typed.
+  const lineasConMotivo = datos.lineas.filter((_, i) => {
+    const plan = planes[i];
+    return plan !== null && plan !== undefined && plan !== "elegir" && plan.ok && plan.requiereMotivo;
+  });
+  const faltaMotivo = lineasConMotivo.some((l) => !motivos[l.id]?.trim());
+  const excipienteSinStock = excipienteElegido !== null && aPesarExcipiente !== null && faltanteDeStock(excipienteElegido.disponible, aPesarExcipiente.total) !== null;
+  const sinStockInsumo = excipienteSinStock || filasInsumo.some(insumoSinStock);
+  const bloqueada = lineasSinStock > 0 || faltaManual || sinLote || faltaExcipiente || filasInsumo.some(insumoSinCantidad) || faltaMotivo || sinStockInsumo;
   const loteDe = useMemo(() => new Map(datos.lineas.flatMap((l) => l.partidasElegibles.map((p) => [p.id, p.lote] as const))), [datos.lineas]);
   // No excipiente added in the ficha when the dialog opened: one more chance to add it here (same buscador, same draft).
   const [agregarExcipiente, setAgregarExcipiente] = useState(false);
@@ -971,8 +1125,12 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
   const [insumosFijos, setInsumosFijos] = useState<ReadonlySet<string>>(() => new Set());
   const faltaMaterialFijo = filasInsumo.some((f) => f.tipo === "MATERIAL" && insumosFijos.has(f.clave) && insumoSinCantidad(f));
   const faltaInsumoFijo = filasInsumo.some((f) => f.tipo === "ADICIONAL" && insumosFijos.has(f.clave) && insumoSinCantidad(f));
+  // Each opening mounts a fresh form: the native <dialog> stays mounted when closed, and so would the last submit's
+  // error (useActionState) -- a refusal about a cápsula already changed must not greet the next opening.
+  const [apertura, setApertura] = useState(0);
 
   function abrir() {
+    setApertura((n) => n + 1);
     setAgregarExcipiente(excipiente !== null && excipienteElegido === null && excipiente.opciones.length > 0);
     setInsumosFijos(new Set(filasInsumo.filter((f) => f.drogaId).map((f) => f.clave)));
     dialogRef.current?.showModal();
@@ -1017,16 +1175,17 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
             </div>
           ) : null}
           {/* An excipiente being added here shows its own "Ingresá la cantidad." next to the field. */}
-          {lineasSinStock > 0 || faltaManual || sinLote || (faltaExcipiente && !agregarExcipiente) || faltaMaterialFijo || faltaInsumoFijo ? (
+          {lineasSinStock > 0 || faltaManual || sinLote || (faltaExcipiente && !agregarExcipiente) || faltaMaterialFijo || faltaInsumoFijo || sinStockInsumo ? (
             <div role="alert" className="alert alert-danger">
               <CircleAlert aria-hidden />
               <p>
                 {lineasSinStock > 0 ? "Hay líneas sin stock suficiente en los lotes elegidos. " : null}
                 {sinLote ? "Hay líneas sin lote. " : null}
-                {faltaManual ? "Falta la cantidad real de una línea de enrase manual. " : null}
+                {faltaManual ? "Falta la cantidad real pesada de una línea. " : null}
                 {faltaExcipiente && !agregarExcipiente ? "Falta la cantidad del excipiente. " : null}
                 {faltaMaterialFijo ? "Falta la cantidad del material. " : null}
                 {faltaInsumoFijo ? "Falta la cantidad de un insumo. " : null}
+                {sinStockInsumo ? "No alcanza el stock del material, de un insumo o del excipiente. " : null}
                 Completalo en la ficha técnica.
               </p>
             </div>
@@ -1072,8 +1231,13 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
                   <span className="text-xs text-zinc-500">(lote más viejo, automático)</span>
                 </span>
                 <span className="font-mono font-semibold tabular-nums text-zinc-900">
-                  {cantidadValida(excipiente?.cantidad) ? `${formatNumero(cantidadValida(excipiente?.cantidad)!)} ${excipienteElegido.unidadSimbolo}` : "—"}
+                  {aPesarExcipiente && aPesarExcipiente.total.greaterThan(0) ? `${formatNumero(aPesarExcipiente.total.toString())} ${excipienteElegido.unidadSimbolo}` : "—"}
                 </span>
+                {excipiente?.porUnidad && excipiente.unidades && aPesarExcipiente?.porUnidad && aPesarExcipiente.total.greaterThan(0) ? (
+                  <span className="basis-full text-right text-xs text-zinc-500">
+                    {textoDesglosePorUnidad(aPesarExcipiente.porUnidad, excipienteElegido.unidadSimbolo, excipiente.unidades.cantidad, excipiente.unidades.plural)}
+                  </span>
+                ) : null}
               </li>
             ) : null}
             {filasInsumo.map((fila) =>
@@ -1094,6 +1258,7 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
           ) : null}
 
           <ReauthAwareForm
+            key={apertura}
             action={reservarStockAction}
             accion="preparaciones.confirmar"
             submitLabel="Marcar como preparada"
@@ -1112,7 +1277,6 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
           >
             <input type="hidden" name="fichaTecnicaId" value={datos.fichaTecnicaId} />
             {datos.lineas.map((linea, i) => {
-              const plan = planes[i];
               return (
                 <div key={linea.id} hidden>
                   <input type="hidden" name="lineaIds" value={linea.id} />
@@ -1124,9 +1288,6 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
                   ) : pesadas[i] ? (
                     <input type="hidden" name={`cantidadReal_${linea.id}`} value={cantidadRealParaServidor(reales[linea.id] ?? pesadas[i]!.sugerida, linea.unidad)} />
                   ) : null}
-                  {plan !== null && plan !== "elegir" && plan.ok && plan.requiereMotivo ? (
-                    <input type="hidden" name={`motivoApertura_${linea.id}`} value={motivos[linea.id] ?? ""} />
-                  ) : null}
                 </div>
               );
             })}
@@ -1134,6 +1295,7 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
               <div hidden>
                 <input type="hidden" name="excipienteDrogaId" value={excipienteElegido.id} />
                 <input type="hidden" name="excipienteCantidad" value={excipiente?.cantidad ?? ""} />
+                {excipiente?.porUnidad ? <input type="hidden" name="excipientePorUnidad" value="on" /> : null}
               </div>
             ) : null}
             {filasInsumo
@@ -1143,6 +1305,32 @@ export function MarcarPreparadaDialog({ itemNombre }: { itemNombre: string }) {
                   <CamposInsumo fila={f} />
                 </div>
               ))}
+            {lineasConMotivo.map((linea) => {
+              // Its own id: the ficha's field (still in the page behind the dialog) owns `motivoApertura_<id>`.
+              const id = `motivoAperturaDialogo_${linea.id}`;
+              const pendiente = !motivos[linea.id]?.trim();
+              return (
+                <div key={linea.id} className="field">
+                  <label htmlFor={id} className="field-label">
+                    Motivo de apertura adicional <span className="font-normal text-zinc-500">· {linea.drogaNombre}</span>
+                  </label>
+                  <input
+                    id={id}
+                    name={`motivoApertura_${linea.id}`}
+                    value={motivos[linea.id] ?? ""}
+                    onChange={(event) => setMotivo(linea.id, event.target.value)}
+                    onBlur={() => guardar(linea.id)}
+                    required
+                    aria-invalid={pendiente || undefined}
+                    aria-describedby={`${id}_ayuda`}
+                    className="input"
+                  />
+                  <p id={`${id}_ayuda`} className={pendiente ? "field-help text-red-600" : "field-help"}>
+                    Se abre una partida nueva aunque la que ya está abierta alcanza: indicá por qué.
+                  </p>
+                </div>
+              );
+            })}
             {requiereCoFirma ? <CoFirmaDt dts={datos.dts} titulo="Co-firma del Director Técnico (pesada fuera de tolerancia)" /> : null}
           </ReauthAwareForm>
         </div>

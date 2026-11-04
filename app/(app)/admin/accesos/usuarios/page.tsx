@@ -105,7 +105,6 @@ export default async function UsuariosPage({ searchParams }: UsuariosPageProps) 
               label="Buscar usuario"
               placeholder="Nombre, apellido, email o DNI"
               buscar={buscarUsuariosAction}
-              detalleHref="/admin/accesos/usuarios/{id}"
               listaHref={sinFiltroHref("q")}
               busquedaActual={params.q}
               textoVerTodos="Ver todos los usuarios"

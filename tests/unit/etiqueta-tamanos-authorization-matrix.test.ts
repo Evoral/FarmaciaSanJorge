@@ -42,6 +42,8 @@ await import("@/modules/etiqueta-tamanos/application/get-tamano-para-imprimir");
 await import("@/modules/etiqueta-tamanos/application/editar-etiqueta-hoja");
 await import("@/modules/etiqueta-tamanos/application/get-etiqueta-hoja");
 await import("@/modules/etiqueta-tamanos/application/get-hoja-para-imprimir");
+await import("@/modules/etiqueta-tamanos/application/editar-incluir-excipientes");
+await import("@/modules/etiqueta-tamanos/application/get-incluir-excipientes");
 
 const { listRegisteredUseCasesForTests } = await import("@/shared/usecase");
 
@@ -53,8 +55,8 @@ const SIZE_ID = "22222222-2222-4222-8222-222222222222";
 /** `config.*` is ADMINISTRADOR-only (migration 0046); `etiquetas.imprimir` is FARMACEUTICO + DIRECTOR_TECNICO (migrations 0002/0054). */
 const SEED_GRANTS: Record<Rol, readonly Permiso[]> = {
   ADMINISTRADOR: ["config.ver", "config.editar"],
-  DIRECTOR_TECNICO: ["etiquetas.imprimir"],
-  FARMACEUTICO: ["etiquetas.imprimir"],
+  DIRECTOR_TECNICO: ["etiquetas.imprimir", "etiquetas.generar"],
+  FARMACEUTICO: ["etiquetas.imprimir", "etiquetas.generar"],
   ATENCION_PUBLICO: [],
   SOLO_CONSULTA: [],
 };
@@ -71,6 +73,9 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
   { name: "etiquetaHoja.editar", permiso: "config.editar", input: { anchoMm: "210", altoMm: "297", margenMm: "5" } },
   { name: "etiquetaHoja.ver", permiso: "config.ver", input: {} },
   { name: "etiquetaHoja.paraImprimir", permiso: "etiquetas.imprimir", input: {} },
+  { name: "etiquetaHoja.incluirExcipientes.editar", permiso: "config.editar", input: { incluirExcipientes: true } },
+  { name: "etiquetaHoja.incluirExcipientes.ver", permiso: "config.ver", input: {} },
+  { name: "etiquetaHoja.incluirExcipientes.paraGenerar", permiso: "etiquetas.generar", input: {} },
 ];
 
 function sessionForRol(rol: Rol): AuthenticatedSession {

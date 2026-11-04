@@ -9,12 +9,15 @@
  *   - FORMULA: the product is another droga; it never consumes itself.
  *   - Costo: what the consumed partidas cost (their `costo_unitario`) over the cantidad producida (EL4). A missing costo
  *     de proveedor never blocks elaborating.
- *   - Vencimiento: never later than the earliest vencimiento vigente consumed (EL5); defaults to it.
+ *   - Vencimiento: not chosen. The lot follows its active drugs (EL5): it takes the earliest vencimiento vigente of
+ *     the consumed partidas of clase DROGA (insumos and excipientes do not bound it), and the database keeps it in
+ *     step with them afterwards -- a reanálisis of one moves it, marking one vencida discards it (migration 0114).
  *
  * Every quantity is PHYSICAL and in its droga's unidad base (a stock quantity); the produced cantidad is in the
  * produced droga's unidad base.
  */
 import { Decimal, dec } from "@/shared/decimal";
+import { formatNumero } from "@/shared/format/cantidad";
 import { DomainError } from "@/shared/errors";
 import { estaVencida } from "./reparto";
 
@@ -45,6 +48,8 @@ export interface ConsumoElaboracion {
   potenciaDeclarada: Decimal | string | null;
   /** The vencimiento VIGENTE, `YYYY-MM-DD`; `null` = does not expire. */
   fechaVencimiento: string | null;
+  /** The consumed droga's clase: only a `DROGA` (an active drug) sets the lot's vencimiento (EL5). */
+  drogaClase: string;
 }
 
 export interface ElaboracionInput {
@@ -54,8 +59,6 @@ export interface ElaboracionInput {
   drogaProducidaRequiereVencimiento: boolean;
   /** The produced droga's unidad base. */
   cantidadProducida: Decimal | string;
-  /** Requested vencimiento, `YYYY-MM-DD`; `null` = the default (`vencimientoMaximo`). */
-  fechaVencimiento: string | null;
   consumos: readonly ConsumoElaboracion[];
   /** `fsj.jornada_actual`, `YYYY-MM-DD`. */
   jornada: string;
@@ -81,21 +84,66 @@ export function activoConsumido(consumos: readonly ConsumoElaboracion[], drogaId
     .reduce((total, c) => total.plus(dec(c.cantidad).times(potenciaOCien(c.potenciaDeclarada)).dividedBy(CIEN)), dec(0));
 }
 
+/**
+ * EL9: the farmacia's sigla that opens every elaborated lot code. A constant while `fsj.parametro` only holds numeric
+ * values (modules/parametros/domain/parametros-registry.ts).
+ */
+export const SIGLA_LOTE_ELABORADO = "FSJ";
+
 const PREFIJO_POR_TIPO: Record<TipoElaboracion, string> = { DILUCION: "DIL", FORMULA: "ELA" };
 
-/** EL9: `DIL-20261029-` / `ELA-20261029-` -- the prefix of the lote codes of the jornada's elaborations of a tipo. */
-export function prefijoLoteElaborado(tipo: TipoElaboracion, jornada: string): string {
-  return `${PREFIJO_POR_TIPO[tipo]}-${jornada.replaceAll("-", "")}-`;
+/** EL9: `FSJ-DIL-` / `FSJ-ELA-` -- the prefix of the lote codes of a tipo's elaborations. */
+export function prefijoLoteElaborado(tipo: TipoElaboracion): string {
+  return `${SIGLA_LOTE_ELABORADO}-${PREFIJO_POR_TIPO[tipo]}-`;
 }
 
-/** EL9: the lote code the system assigns -- the prefix and the next number of the tipo in the jornada (`yaUsados` + 1). */
-export function codigoLoteElaborado(tipo: TipoElaboracion, jornada: string, yaUsados: number): string {
-  return `${prefijoLoteElaborado(tipo, jornada)}${yaUsados + 1}`;
+/** EL9: the lote code the system assigns -- the prefix and the tipo's next correlative, 4 digits, never restarted (`yaUsados` + 1). */
+export function codigoLoteElaborado(tipo: TipoElaboracion, yaUsados: number): string {
+  return `${prefijoLoteElaborado(tipo)}${String(yaUsados + 1).padStart(4, "0")}`;
+}
+
+/** The longest name and aspecto the etiqueta takes (migration 0115). */
+export const NOMBRE_LOTE_MAX = 120;
+
+/**
+ * The name the lot's etiqueta suggests (the user edits it): a dilución reads as its proportion, "Clonazepam 1:100" for
+ * 1 %, when 100 / potencia is a whole number (within 0.5 %); otherwise its percentage to 3 significant digits
+ * ("45,5 %", "0,455 %": the exact potencia is the partida's, not the name's). A fórmula lot, its droga.
+ */
+export function nombreSugeridoLote(drogaNombre: string, potenciaDilucion: Decimal | null): string {
+  if (potenciaDilucion === null || !potenciaDilucion.greaterThan(0)) return drogaNombre;
+  const proporcion = dec(100).dividedBy(potenciaDilucion);
+  const entera = proporcion.toDecimalPlaces(0);
+  if (entera.greaterThan(1) && proporcion.minus(entera).abs().lessThanOrEqualTo(entera.times("0.005"))) return `${drogaNombre} 1:${entera.toFixed()}`;
+  return `${drogaNombre} ${formatNumero(potenciaDilucion.toSignificantDigits(3))} %`;
 }
 
 /** A dilución's potencia (percent): the active consumed of its droga over the cantidad producida, rounded down. */
 export function potenciaDeDilucion(consumos: readonly ConsumoElaboracion[], drogaId: string, cantidadProducida: Decimal | string): Decimal {
   return activoConsumido(consumos, drogaId).dividedBy(dec(cantidadProducida)).times(CIEN).toDecimalPlaces(DECIMALES_POTENCIA, Decimal.ROUND_DOWN);
+}
+
+/**
+ * Milligrams per unit of each mass unit, by símbolo. The "Elaborar lote" form shows and takes every mass in mg (as the
+ * ficha técnica shows it); the command still gets each droga's unidad base.
+ */
+const MG_POR_SIMBOLO: Readonly<Record<string, string>> = { mcg: "0.001", mg: "1", g: "1000", kg: "1000000" };
+
+/** The unit the form uses for a droga of unidad base `simbolo`: mg for a mass, its own unit otherwise (mL). */
+export function simboloEnFormulario(simbolo: string): string {
+  return MG_POR_SIMBOLO[simbolo] === undefined ? simbolo : "mg";
+}
+
+/** A quantity in the droga's unidad base, in the form's unit. */
+export function aUnidadDeFormulario(valorBase: Decimal | string, simbolo: string): Decimal {
+  const mg = MG_POR_SIMBOLO[simbolo];
+  return mg === undefined ? dec(valorBase) : dec(valorBase).times(mg);
+}
+
+/** A quantity typed in the form's unit, in the droga's unidad base (what the command records). */
+export function aUnidadBase(valorFormulario: Decimal | string, simbolo: string): Decimal {
+  const mg = MG_POR_SIMBOLO[simbolo];
+  return mg === undefined ? dec(valorFormulario) : dec(valorFormulario).dividedBy(mg);
 }
 
 /** EL4: what the consumed partidas cost, per unit of the cantidad producida. */
@@ -104,17 +152,17 @@ export function costoUnitarioDeLote(consumos: readonly ConsumoElaboracion[], can
   return total.dividedBy(dec(cantidadProducida));
 }
 
-/** EL5: the earliest vencimiento vigente among the consumed partidas; `null` when none expires. */
-export function vencimientoMaximo(consumos: readonly ConsumoElaboracion[]): string | null {
+/** EL5: the lot's vencimiento -- the earliest vencimiento vigente among the consumed active drugs (clase DROGA); `null` when none. */
+export function vencimientoDelLote(consumos: readonly ConsumoElaboracion[]): string | null {
   return consumos.reduce<string | null>((minimo, c) => {
-    if (c.fechaVencimiento === null) return minimo;
+    if (c.drogaClase !== "DROGA" || c.fechaVencimiento === null) return minimo;
     return minimo === null || c.fechaVencimiento < minimo ? c.fechaVencimiento : minimo;
   }, null);
 }
 
 /**
  * Validates an elaboración and computes the produced partida (EL1-EL5). Throws `DomainError` with the offending
- * field(s): `cantidadProducida`, `componentes`, `cantidad_<partidaId>`, `fechaVencimiento`.
+ * field(s): `cantidadProducida`, `componentes`, `cantidad_<partidaId>`.
  */
 export function validarElaboracion(input: ElaboracionInput): LoteElaborado {
   const cantidadProducida = dec(input.cantidadProducida);
@@ -163,16 +211,10 @@ export function validarElaboracion(input: ElaboracionInput): LoteElaborado {
     throw new DomainError("Un lote elaborado no puede consumir la misma droga que produce.", { fields: ["componentes"] });
   }
 
-  const maximo = vencimientoMaximo(input.consumos);
-  const fechaVencimiento = input.fechaVencimiento ?? maximo;
-  if (maximo !== null && fechaVencimiento !== null && fechaVencimiento > maximo) {
-    throw new DomainError(`El lote no puede vencer después que sus componentes (el primero vence el ${maximo}).`, { fields: ["fechaVencimiento"] });
-  }
+  // No consumed lot is expired (checked above), so the lot's vencimiento is never past.
+  const fechaVencimiento = vencimientoDelLote(input.consumos);
   if (fechaVencimiento === null && input.drogaProducidaRequiereVencimiento) {
-    throw new DomainError("Indicá la fecha de vencimiento del lote.", { fields: ["fechaVencimiento"] });
-  }
-  if (fechaVencimiento !== null && fechaVencimiento < input.jornada) {
-    throw new DomainError("La fecha de vencimiento ya pasó.", { fields: ["fechaVencimiento"] });
+    throw new DomainError("El lote toma el vencimiento de la droga activa que consume: indicá al menos un lote de una droga.", { fields: ["componentes"] });
   }
 
   return { potenciaDeclarada, costoUnitario: costoUnitarioDeLote(input.consumos, cantidadProducida), fechaVencimiento };

@@ -52,7 +52,7 @@ vi.mock("@/modules/preparaciones/infrastructure/preparacion-repository", () => (
   updateRecetaEstado: vi.fn(async () => undefined),
   todosLosItemsConfirmados: vi.fn(async () => false),
   getLineasParaPreparacion: vi.fn(async () => [
-    { id: LINEA_ID, drogaId: "droga-1", drogaNombre: "Droga", cantidadAPesar: "10", unidadMedidaId: "u1", unidadSimbolo: "g", unidad: { factorABase: "1", tipoMagnitud: "MASA" }, unidadStock: { id: "u1", simbolo: "g", factorABase: "1", tipoMagnitud: "MASA" }, esEnraseManual: false, orden: 0 },
+    { id: LINEA_ID, drogaId: "droga-1", drogaNombre: "Droga", cantidadAPesar: "10", unidadMedidaId: "u1", unidadSimbolo: "g", unidad: { factorABase: "1", tipoMagnitud: "MASA" }, unidadStock: { id: "u1", simbolo: "g", factorABase: "1", tipoMagnitud: "MASA" }, esEnraseManual: false, cantidadPrescripta: null, orden: 0 },
   ]),
   listPartidasElegiblesDroga: vi.fn(async () => [{ id: PARTIDA_ID, lote: "L1", cantidadDisponible: "100", fechaVencimiento: "2099-12-31", fechaApertura: null }]),
   getRecetaContextoAsiento: vi.fn(async () => ({

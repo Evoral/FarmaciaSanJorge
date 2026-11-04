@@ -41,7 +41,9 @@ import { marcarEtiquetaImpresa } from "./marcar-etiqueta-impresa";
 import { armarContenidoEtiqueta, parsearContenidoEtiqueta } from "../domain/etiqueta";
 import { getLogoTenant } from "@/modules/farmacia/application/get-marca-tenant";
 import { logoParaPdf } from "@/shared/pdf/logo";
-import { buildEtiquetaPdf, buildEtiquetasPdf } from "../infrastructure/etiqueta-pdf";
+import { buildEtiquetaLotePdf, buildEtiquetaPdf, buildEtiquetasPdf } from "../infrastructure/etiqueta-pdf";
+import type { ContenidoEtiquetaLote } from "@/modules/stock/domain/etiqueta-lote";
+import type { LogoPdf } from "@/shared/pdf/logo";
 
 export interface EtiquetaPdfResult {
   preparacionId: string;
@@ -66,8 +68,11 @@ function leerCoordenada(valor: string | undefined): number {
   return Number(valor);
 }
 
-/** The size and the cell, resolved and checked against the sheet (R7): nothing is marked before every one passes. */
-async function resolverColocacion(hoja: HojaEtiqueta, opciones: OpcionesEtiquetaPdf): Promise<{ tamano: EtiquetaTamano; celda: Celda }> {
+/**
+ * The size and the cell, resolved and checked against the sheet (R7): nothing is marked before every one passes.
+ * Also an elaborated lot's etiqueta (modules/stock/application/imprimir-etiqueta-lote-pdf.ts).
+ */
+export async function resolverColocacion(hoja: HojaEtiqueta, opciones: OpcionesEtiquetaPdf): Promise<{ tamano: EtiquetaTamano; celda: Celda }> {
   const celda = { columna: leerCoordenada(opciones.columna), fila: leerCoordenada(opciones.fila) };
   let tamano;
   if (opciones.tamanoId) {
@@ -79,6 +84,11 @@ async function resolverColocacion(hoja: HojaEtiqueta, opciones: OpcionesEtiqueta
   }
   if (!celdaValida(grillaHoja(hoja, tamano), celda)) throw new ValidationError(CELDA_NO_VALIDA_MESSAGE);
   return { tamano, celda };
+}
+
+/** An elaborated lot's etiqueta (modules/stock/application/imprimir-etiqueta-lote-pdf.ts), drawn by the same engine. */
+export function renderEtiquetaLotePdf(contenido: ContenidoEtiquetaLote, tamano: EtiquetaTamano, hoja: HojaEtiqueta, celda: Celda, logo: LogoPdf | null): Promise<Buffer> {
+  return buildEtiquetaLotePdf(contenido, tamano, hoja, celda, logo);
 }
 
 export async function imprimirEtiquetaPdf(preparacionId: string, opciones: OpcionesEtiquetaPdf = {}): Promise<EtiquetaPdfResult> {

@@ -1,6 +1,6 @@
 "use server";
 
-/** Read-only suggestions for the `/catalogos/medicos` search: a thin wrapper over `listMedicos` (same `medicos.gestionar` permiso, same apellido/matrícula search). */
+/** Read-only suggestions for the `/catalogos/medicos` search: a thin wrapper over `listMedicos` (same `medicos.gestionar` permiso, same nombre/apellido/matrícula search). */
 import { listMedicos } from "@/modules/medicos/application/list-medicos";
 import { formatMatricula } from "@/modules/medicos/domain/medico";
 import type { SugerenciaNavegable } from "@/shared/ui/buscador-navegable";

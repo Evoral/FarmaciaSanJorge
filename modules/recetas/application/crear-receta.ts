@@ -31,6 +31,10 @@ import {
   esFechaPrescripcionVigente,
   esFechaValidaDesdeVigente,
   resumirItemsReceta,
+  conUnidadBaseEnPorcentajes,
+  unidadDeComponente,
+  validarConcentracionesReceta,
+  validarCorduraConcentraciones,
   validarItemsReceta,
   validarOrigenCargaManual,
 } from "../domain/receta";
@@ -38,6 +42,8 @@ import type { ComponenteInput, ItemInput } from "../domain/receta";
 import {
   clasificarDrogasDeReceta,
   getMedicoRefParaReceta,
+  getMagnitudesDeUnidades,
+  getUnidadesParaCordura,
   getNombresParaResumen,
   getPacienteRefParaReceta,
   buscarRecetaPorEnvio,
@@ -76,6 +82,8 @@ const componenteInput = z.object({
   cantidad: decimalOpcional,
   unidadMedidaId: uuid,
   modoExpresion: z.enum(MODOS_EXPRESION),
+  /** CONCENTRACION only (migration 0112): the denominator unit of "5 mg/mL"; null = %. */
+  unidadReferenciaId: uuid.nullable().optional(),
   /** The synonym of the droga it was picked by (migration 0069), validated by `validarSinonimosDeComponentes`. */
   drogaAliasId: uuid.nullable().optional(),
 });
@@ -143,6 +151,7 @@ function toItemsInput(items: CrearRecetaInput["items"]): ItemInput[] {
         cantidad: c.cantidad,
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
+        unidadReferenciaId: c.unidadReferenciaId ?? null,
         drogaAliasId: c.drogaAliasId ?? null,
       }),
     ),
@@ -184,11 +193,12 @@ export const crearRecetaCommand = defineCommand({
       throw new ValidationError("La receta está vencida: tiene más de un mes desde su prescripción.");
     }
 
-    const itemsDominio = toItemsInput(input.items);
+    let itemsDominio = toItemsInput(input.items);
     validarItemsReceta(itemsDominio);
 
     const drogaIds = itemsDominio.flatMap((item) => item.componentes.map((c) => c.drogaId));
     const drogas = await clasificarDrogasDeReceta(tx, session.tenantId, drogaIds);
+    itemsDominio = conUnidadBaseEnPorcentajes(itemsDominio, drogas.unidadesBase);
     if (drogas.invalidas.length > 0) {
       throw new ValidationError("Una o más drogas seleccionadas no existen o están dadas de baja.");
     }
@@ -198,13 +208,15 @@ export const crearRecetaCommand = defineCommand({
     const sinonimos = await validarSinonimosDeComponentes(tx, session.tenantId, itemsDominio.flatMap((item) => item.componentes));
 
     const unidadIds = [
-      ...itemsDominio.flatMap((item) => item.componentes.map((c) => c.unidadMedidaId)),
+      ...itemsDominio.flatMap((item) => item.componentes.flatMap((c) => (c.unidadReferenciaId ? [c.unidadMedidaId, c.unidadReferenciaId] : [c.unidadMedidaId]))),
       ...itemsDominio.flatMap((item) => (item.unidadTotalId ? [item.unidadTotalId] : [])),
     ];
     const unidadesMalas = await unidadesInvalidas(tx, unidadIds);
     if (unidadesMalas.length > 0) {
       throw new ValidationError("Una o más unidades de medida seleccionadas no existen o están dadas de baja.");
     }
+    validarConcentracionesReceta(itemsDominio, await getMagnitudesDeUnidades(tx, unidadIds));
+    validarCorduraConcentraciones(itemsDominio, await getUnidadesParaCordura(tx, unidadIds));
 
     const nueva = await insertRecetaConItems(tx, {
       tenantId: session.tenantId,
@@ -233,8 +245,9 @@ export const crearRecetaCommand = defineCommand({
         componentes: item.componentes.map((c) => ({
           drogaId: c.drogaId,
           cantidad: c.cantidad,
-          unidadMedidaId: c.unidadMedidaId,
+          unidadMedidaId: unidadDeComponente(c, drogas.unidadesBase),
           modoExpresion: c.modoExpresion,
+          unidadReferenciaId: c.unidadReferenciaId ?? null,
           esPrincipioActivo: drogas.principiosActivos.has(c.drogaId),
           drogaAliasId: c.drogaAliasId ?? null,
         })),

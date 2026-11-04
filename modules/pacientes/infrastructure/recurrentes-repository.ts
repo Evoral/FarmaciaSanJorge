@@ -25,6 +25,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
 import { inicioVentanaRecurrentes } from "../domain/recurrentes";
 import type { ItemRecurrenteCrudo, RecurrentesCrudos } from "../domain/recurrentes";
+import { simboloParaMostrar } from "@/modules/elaboracion/domain/concentracion";
 
 /** Columns of the tenant row this view needs: the time zone and the farmacia's name. */
 const SELECT_TENANT = { zonaHoraria: true, nombreFantasia: true, razonSocial: true } as const;
@@ -42,6 +43,7 @@ const SELECT_ITEM = {
       modoExpresion: true,
       droga: { select: { nombre: true } },
       unidadMedida: { select: { simbolo: true } },
+      unidadReferencia: { select: { simbolo: true } },
     },
   },
   receta: {
@@ -92,7 +94,7 @@ export async function getRecurrentesCrudos(tx: Prisma.TransactionClient, tenantI
         drogaNombre: c.droga.nombre,
         cantidad: c.cantidad === null ? null : c.cantidad.toString(),
         unidadMedidaId: c.unidadMedidaId,
-        unidadSimbolo: c.unidadMedida.simbolo,
+        unidadSimbolo: simboloParaMostrar(c.modoExpresion, c.unidadMedida.simbolo, c.unidadReferencia?.simbolo ?? null),
         modoExpresion: c.modoExpresion,
       })),
     ),

@@ -82,6 +82,8 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
   const [clase, setClase] = useState<ClaseDroga>((droga?.clase as ClaseDroga | undefined) ?? sugerencia?.clase ?? "DROGA");
   const [claseElegida, setClaseElegida] = useState(mode === "editar");
   const [nombre, setNombre] = useState(nombreDeArranque);
+  // Mirror of the unidad base select: the fórmula's cantidad de referencia shows its símbolo.
+  const [unidadBaseId, setUnidadBaseId] = useState(droga?.unidadBaseId ?? "");
   const [sinonimos, setSinonimos] = useState(() => filasCargadas(droga));
   const [siguienteKey, setSiguienteKey] = useState(0);
   const [tipoControl, setTipoControl] = useState(droga?.tipoControl ?? "NINGUNO");
@@ -125,6 +127,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
 
   function onSuccess(state: { message?: string; droga?: DrogaCreada }) {
     setNombre("");
+    setUnidadBaseId("");
     setSinonimos([]);
     setAltas((n) => n + 1);
     if (onCreada && state.droga) {
@@ -266,7 +269,15 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
           <label htmlFor="unidadBaseId" className="field-label">
             Unidad base
           </label>
-          <select id="unidadBaseId" name="unidadBaseId" defaultValue={droga?.unidadBaseId ?? ""} required disabled={clasificacionDisabled} className="input">
+          <select
+            id="unidadBaseId"
+            name="unidadBaseId"
+            defaultValue={droga?.unidadBaseId ?? ""}
+            onChange={(e) => setUnidadBaseId(e.target.value)}
+            required
+            disabled={clasificacionDisabled}
+            className="input"
+          >
             <option value="" disabled>
               Elegí una unidad
             </option>
@@ -342,6 +353,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
           drogaId={droga?.id}
           esComponenteDe={formula.esComponenteDe}
           disabled={disabled}
+          unidadSimbolo={unidades.find((u) => u.id === unidadBaseId)?.simbolo ?? null}
         />
       ) : null}
     </SimpleForm>

@@ -87,11 +87,26 @@ vi.mock("@/modules/recetas/infrastructure/importacion-repository", () => ({
   insertDrogaAlias: (...a: unknown[]) => repo.insertDrogaAlias(...a),
 }));
 
-const insertRecetaMock = vi.fn();
+
+
+const { UNIDAD_ID, DROGA_ID, getUnidadesParaCorduraMock, insertRecetaMock } = vi.hoisted(() => {
+  const UNIDAD_ID = "77777777-7777-4777-a777-777777777777";
+  const DROGA_ID = "55555555-5555-4555-a555-555555555555";
+  return {
+    UNIDAD_ID,
+    DROGA_ID,
+    getUnidadesParaCorduraMock: vi.fn().mockResolvedValue(
+      new Map([[UNIDAD_ID, { tipoMagnitud: "MASA", factorABase: "0.001", simbolo: "mg" }]]),
+    ),
+    insertRecetaMock: vi.fn(),
+  };
+});
 vi.mock("@/modules/recetas/infrastructure/receta-repository", () => ({
   clasificarDrogasDeReceta: async () => ({ invalidas: [], principiosActivos: new Set([DROGA_ID]), materiales: [] }),
   unidadesInvalidas: async () => [],
   jornadaActualTenant: async () => "2026-09-29",
+  getMagnitudesDeUnidades: async () => new Map([[UNIDAD_ID, "MASA"]]),
+  getUnidadesParaCordura: (...a: unknown[]) => getUnidadesParaCorduraMock(...a),
   insertRecetaConItems: (...a: unknown[]) => insertRecetaMock(...a),
   getNombresParaResumen: async () => ({ drogas: new Map([[DROGA_ID, "Cafeína"]]), unidades: new Map([[UNIDAD_ID, "mg"]]) }),
 }));
@@ -120,11 +135,11 @@ const { importarRecetaCommand, importarRecetaInput } = await import("@/modules/r
 
 const TENANT_ID = "11111111-1111-1111-1111-111111111111";
 const PACIENTE_ID = "22222222-2222-4222-a222-222222222222";
-const DROGA_ID = "55555555-5555-4555-a555-555555555555";
 const OTRA_DROGA_ID = "66666666-6666-4666-a666-666666666666";
-const UNIDAD_ID = "77777777-7777-4777-a777-777777777777";
 const CUIL = "27289991110"; // fictitious, valid check digit
 const HASH = "A".repeat(64);
+
+
 
 function session(permisos: string[]): AuthenticatedSession {
   return {
@@ -537,6 +552,43 @@ describe("recetas.importar -- confirmation", () => {
     await importarRecetaCommand.execute(payload({ items: [{ ...item, componentes: [componente] }] }), { session: CON_PERMISO });
     const guardado = insertRecetaMock.mock.calls[0]![1] as { items: { componentes: { esPrincipioActivo: boolean }[] }[] };
     expect(guardado.items[0]!.componentes[0]!.esPrincipioActivo).toBe(true);
+  });
+
+  it("refuses with V12 when a concentration component yields more than the total prepared", async () => {
+    repo.buscarPacientePorIdentificacion.mockResolvedValue(PACIENTE_EXISTENTE);
+    const UNIDAD_G = "66666666-6666-4666-a666-666666666661";
+    const UNIDAD_MG = "66666666-6666-4666-a666-666666666662";
+    const UNIDAD_ML = "66666666-6666-4666-a666-666666666663";
+    getUnidadesParaCorduraMock.mockResolvedValue(
+      new Map([
+        [UNIDAD_G, { tipoMagnitud: "MASA", factorABase: "1", simbolo: "g" }],
+        [UNIDAD_MG, { tipoMagnitud: "MASA", factorABase: "0.001", simbolo: "mg" }],
+        [UNIDAD_ML, { tipoMagnitud: "VOLUMEN", factorABase: "1", simbolo: "mL" }],
+      ]),
+    );
+
+    const itemV12 = {
+      formaFarmaceutica: "CREMA",
+      cantidadUnidades: 1,
+      fraccionDosisPorUnidad: "1",
+      cantidadTotal: "30",
+      unidadTotalId: UNIDAD_G,
+      componentes: [
+        {
+          drogaId: DROGA_ID,
+          cantidad: "2.3",
+          unidadMedidaId: UNIDAD_ML,
+          unidadReferenciaId: UNIDAD_MG,
+          modoExpresion: "CONCENTRACION",
+        },
+      ],
+    };
+
+    await expect(
+      importarRecetaCommand.execute(payload({ items: [itemV12] }), { session: CON_PERMISO }),
+    ).rejects.toThrow(
+      "En el ítem 1, el componente 1 (2,3 mL/mg × 30 g) da 69.000 mL: más que todo el preparado. Revisá el valor y el «por».",
+    );
   });
 });
 

@@ -23,10 +23,12 @@ export const MENSAJES_VALIDACION_FICHA: Readonly<Record<string, string>> = {
     "resultaría en una cantidad menor o igual a cero. Revisá las cantidades de los demás componentes o la cantidad " +
     "total del ítem antes de generar la ficha (esta receta se aceptó al alta porque esta validación solo puede " +
     "hacerse al generar la ficha técnica).",
-  V6: "Un componente TOTAL o POR_DOSIS requiere una cantidad mayor que 0.",
+  V6: "Un componente TOTAL, POR_DOSIS o de concentración requiere una cantidad mayor que 0.",
   V7: "Un componente CS o CSP no debe tener cantidad cargada.",
   V8: "La fracción de dosis por unidad debe ser mayor que 0 y menor o igual a 1.",
   V9: "La cantidad de unidades del ítem debe ser un número entero mayor que 0.",
+  V10: "Un componente expresado como concentración (% o por unidad) requiere un preparado que no sea cápsula ni comprimido, con la cantidad a preparar cargada en masa o volumen.",
+  V11: "La concentración no se puede calcular: el % requiere un componente en masa o volumen, y la unidad de referencia (el «por mL», «por g») tiene que ser de la misma magnitud que la cantidad a preparar.",
 };
 
 const MENSAJE_GENERICO = "El ítem tiene datos inválidos para generar la ficha técnica.";

@@ -297,7 +297,7 @@ be escaped.
 
 ### Requirement: Matched synonym and pickers
 
-When only a synonym matched, the matched synonym's text SHALL come back with the row. Each picker and list MUST
+When only a synonym matched, the matched synonym's text SHALL come back with the row (the receta componente picker is the exception, per **Nombre elegido al cargar**). Each picker and list MUST
 search as listed under **Search pickers**.
 
 #### Scenario: Match by synonym only
@@ -412,7 +412,7 @@ Messages (field `nombre` when creating/renaming, `sinonimo` when adding a synony
 
 | Picker / list | How |
 |---|---|
-| Receta componente (`DrogaPicker`) | `listDrogasParaReceta` (SQL fragment); name matches first. |
+| Receta componente (`DrogaPicker`) | `listDrogasParaReceta`: one option per name and per matching synonym; exact match first, then names, then synonyms. |
 | `/catalogos/drogas` list and its autocomplete | `listDrogas` (`buscarDrogasPorTexto` → `id IN`). Rows show their synonyms on a muted line. |
 | `/stock`, `/stock/ajustes`, ajuste nuevo, `/reportes/kardex` (`buscarDrogasStockAction`) | `listStockDrogasSql`; ajustes listing (`listAjustesSql`, also by lote); stock valorizado (`valorizado-repository.ts`). |
 | `/partidas/ingresar` + factura import combobox | `listDrogasOpciones` returns `sinonimos`; `filtrarOpciones` searches them client-side. |
@@ -470,3 +470,12 @@ synonym was remembered for and was not already picked by another synonym
 (a pick made in the picker wins: it is what the user saw). A text that is
 already the droga's own name is not a synonym, so those componentes keep the
 canonical name.
+
+The receta componente picker SHALL offer one option per droga name and one per matching vigente synonym, even when the synonym is contained in the name. An exact match (normalized) comes first, then names, then synonyms. Picking a synonym option stores it on the componente.
+
+#### Scenario: Synonym that is part of the name
+
+- **GIVEN** droga "Ac. Citronella" with synonym "Citronella"
+- **WHEN** the receta picker searches "citronella"
+- **THEN** it offers "Citronella ≈ Ac. Citronella" first and "Ac. Citronella" second
+- **AND** picking the first stores the synonym, the etiqueta reads "Citronella", the libro recetario "Ac. Citronella"

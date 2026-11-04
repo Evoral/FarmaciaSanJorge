@@ -22,6 +22,7 @@
  */
 import { Decimal, dec } from "@/shared/decimal";
 import { DomainError } from "@/shared/errors";
+import { cantidadDesdeConcentracion, problemaConcentracion, textoConcentracion } from "./concentracion";
 import { ordenarComponentes } from "./orden-componentes";
 
 export type TipoMagnitud = "MASA" | "VOLUMEN" | "UNIDADES";
@@ -36,6 +37,8 @@ export interface UnidadMedidaRef {
   id: string;
   tipoMagnitud: TipoMagnitud;
   factorABase: Decimal | string | number;
+  /** Only used to write a concentration line's `prescripcion` text ("5 % × 30 mL"). */
+  simbolo?: string;
 }
 
 /**
@@ -59,7 +62,7 @@ export type FormaFarmaceutica =
 
 const FORMAS_CAPSULARES: ReadonlySet<FormaFarmaceutica> = new Set(["CAPSULA", "COMPRIMIDO"]);
 
-export type ModoExpresion = "TOTAL" | "POR_DOSIS" | "CS" | "CSP";
+export type ModoExpresion = "TOTAL" | "POR_DOSIS" | "CS" | "CSP" | "CONCENTRACION";
 
 export interface ItemRecetaInput {
   formaFarmaceutica: FormaFarmaceutica;
@@ -77,6 +80,8 @@ export interface ComponenteInput {
   cantidad: Decimal | string | number | null;
   unidadMedida: UnidadMedidaRef;
   modoExpresion: ModoExpresion;
+  /** CONCENTRACION only (migration 0112): the denominator of a "per unit" concentration (mg/mL -> mL); null/omitted = %. */
+  unidadReferencia?: UnidadMedidaRef | null;
 }
 
 export interface ParametrosPesaje {
@@ -94,9 +99,11 @@ export interface LineaPesajeCalculada {
   esEnraseManual: boolean;
   /** 0-based position among the item's lines -- the componentes in `ordenarComponentes` order (they carry no stored order of their own). */
   orden: number;
+  /** A CONCENTRACION line's prescription and breakdown ("5 % × 30 mL", migration 0112); null/omitted for every other line. */
+  prescripcion?: string | null;
 }
 
-/** One of V1-V9 from the spec. `validationCode` is the exact `V<n>` token -- assert on it in tests, not on message text. */
+/** One of V1-V11 from the spec. `validationCode` is the exact `V<n>` token -- assert on it in tests, not on message text. */
 export class FichaTecnicaValidationError extends DomainError {
   constructor(
     public readonly validationCode: string,
@@ -117,7 +124,14 @@ function aBase(valor: Decimal, unidad: UnidadMedidaRef): Decimal {
 }
 
 /** R7 + R8 (no rounding -- see the module doc comment). */
-function calcularLineaNoManual(c: ComponenteInput, orden: number, teorica: Decimal, excesoPct: Decimal, unidadBase: UnidadMedidaRef): LineaPesajeCalculada {
+function calcularLineaNoManual(
+  c: ComponenteInput,
+  orden: number,
+  teorica: Decimal,
+  excesoPct: Decimal,
+  unidadBase: UnidadMedidaRef,
+  prescripcion: string | null = null,
+): LineaPesajeCalculada {
   return {
     drogaId: c.drogaId,
     drogaNombre: c.drogaNombre,
@@ -127,6 +141,7 @@ function calcularLineaNoManual(c: ComponenteInput, orden: number, teorica: Decim
     unidadMedida: unidadBase,
     esEnraseManual: false,
     orden,
+    prescripcion,
   };
 }
 
@@ -140,6 +155,7 @@ function calcularLineaManual(c: ComponenteInput, orden: number, unidadBase: Unid
     unidadMedida: unidadBase,
     esEnraseManual: true,
     orden,
+    prescripcion: null,
   };
 }
 
@@ -181,7 +197,7 @@ export function calcularFichaTecnica(
 
   // V6 / V7, per component.
   for (const c of ordenados) {
-    const requiereCantidad = c.modoExpresion === "TOTAL" || c.modoExpresion === "POR_DOSIS";
+    const requiereCantidad = c.modoExpresion === "TOTAL" || c.modoExpresion === "POR_DOSIS" || c.modoExpresion === "CONCENTRACION";
     if (requiereCantidad) {
       if (c.cantidad === null || dec(c.cantidad).lessThanOrEqualTo(0)) {
         fail("V6", `componente ${c.drogaId} (${c.modoExpresion}) requires cantidad > 0`);
@@ -204,10 +220,30 @@ export function calcularFichaTecnica(
     fail("V4", "CSP present on a non-capsular form requires cantidadTotal and unidadTotal");
   }
 
-  // R1 / R2 / R9: theoretical quantity (in base unit) for TOTAL / POR_DOSIS components.
-  const teoricaPorComponente = new Map<ComponenteInput, Decimal>();
+  // V10 / V11 -- a concentration needs a total in masa or volumen on a non-capsular forma (migration 0112).
   for (const c of ordenados) {
-    if (c.modoExpresion === "TOTAL") {
+    if (c.modoExpresion !== "CONCENTRACION") continue;
+    const total = item.cantidadTotal === null || esCapsular ? null : item.unidadTotal;
+    const problema = problemaConcentracion(c.unidadMedida, c.unidadReferencia ?? null, total);
+    if (problema === "SIN_TOTAL" || problema === "TOTAL_SIN_MAGNITUD") {
+      fail("V10", `CONCENTRACION component ${c.drogaId} requires a non-capsular forma with a total in masa or volumen`);
+    }
+    if (problema) {
+      fail("V11", `CONCENTRACION component ${c.drogaId}: ${problema}`);
+    }
+  }
+
+  // R1 / R2 / R9 / R10: theoretical quantity (in base unit) for TOTAL / POR_DOSIS / CONCENTRACION components.
+  const teoricaPorComponente = new Map<ComponenteInput, Decimal>();
+  const prescripcionPorComponente = new Map<ComponenteInput, string>();
+  for (const c of ordenados) {
+    if (c.modoExpresion === "CONCENTRACION") {
+      const referencia = c.unidadReferencia ?? null;
+      const totalEnBase = aBase(dec(item.cantidadTotal!), item.unidadTotal!);
+      teoricaPorComponente.set(c, cantidadDesdeConcentracion(c.cantidad!, c.unidadMedida, referencia, totalEnBase));
+      const literal = textoConcentracion(dec(c.cantidad!), c.unidadMedida.simbolo ?? "", referencia ? (referencia.simbolo ?? "") : null);
+      prescripcionPorComponente.set(c, `${literal} × ${dec(item.cantidadTotal!).toString()} ${item.unidadTotal!.simbolo ?? ""}`.trimEnd());
+    } else if (c.modoExpresion === "TOTAL") {
       teoricaPorComponente.set(c, aBase(dec(c.cantidad!), c.unidadMedida));
     } else if (c.modoExpresion === "POR_DOSIS") {
       const enUnidadPropia = dec(c.cantidad!).times(fraccion).times(item.cantidadUnidades);
@@ -228,9 +264,9 @@ export function calcularFichaTecnica(
       continue;
     }
 
-    if (c.modoExpresion === "TOTAL" || c.modoExpresion === "POR_DOSIS") {
+    if (c.modoExpresion === "TOTAL" || c.modoExpresion === "POR_DOSIS" || c.modoExpresion === "CONCENTRACION") {
       const teorica = teoricaPorComponente.get(c)!;
-      lineas.push(calcularLineaNoManual(c, orden, teorica, excesoPct, unidadBaseComponente));
+      lineas.push(calcularLineaNoManual(c, orden, teorica, excesoPct, unidadBaseComponente, prescripcionPorComponente.get(c) ?? null));
       continue;
     }
 

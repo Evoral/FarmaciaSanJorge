@@ -80,6 +80,7 @@ import { uuid } from "@/shared/validation";
 import type { ComponenteInput, ItemRecetaInput } from "../domain/calcular-ficha-tecnica";
 import { mismasLineasPesaje } from "../domain/ficha-no-generable";
 import { siguienteVersionFicha } from "../domain/version";
+import { unidadesDelItem } from "@/modules/preparaciones/domain/excipiente-por-unidad";
 import {
   lockItemRecetaParaFicha,
   getItemParaFicha,
@@ -88,6 +89,7 @@ import {
   getMaxVersionFicha,
   estadoPreparacionVivaDeItem,
   insertFichaConLineas,
+  trasladarBorradoresDeFicha,
 } from "../infrastructure/ficha-repository";
 import { calcularLineasFicha, type LineaFichaCalculada } from "./calcular-lineas-ficha";
 import type { ItemParaFicha } from "../infrastructure/ficha-repository";
@@ -166,6 +168,16 @@ export const generarFichaTecnicaCommand = defineCommand({
       generadaPorId: session.usuario.id,
       lineas,
     });
+    // Editing the receta must not lose what the toma workspace had typed for the previous version.
+    await trasladarBorradoresDeFicha(tx, {
+      tenantId: session.tenantId,
+      fichaNuevaId: nueva.id,
+      porUnidadValido: unidadesDelItem({
+        formaFarmaceutica: item.formaFarmaceutica,
+        cantidadUnidades: item.cantidadUnidades,
+        fraccionDosisPorUnidad: item.fraccionDosisPorUnidad.toString(),
+      }) !== null,
+    });
 
     return { output: { id: nueva.id, version: nueva.version, generada: true, lineas: aSalida(lineas) } };
   },
@@ -191,6 +203,7 @@ export async function calcularLineasDeItemEnTx(tx: Prisma.TransactionClient, ten
     cantidad: c.cantidad,
     unidadMedida: c.unidadMedida,
     modoExpresion: c.modoExpresion,
+    unidadReferencia: c.unidadReferencia,
   }));
   return calcularLineasFicha(tx, tenantId, itemInput, componentesInput);
 }

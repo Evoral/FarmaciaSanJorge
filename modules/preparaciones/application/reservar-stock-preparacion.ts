@@ -48,8 +48,11 @@ const reservarStockPreparacionInput = z.object({
   /** Only the líneas with something typed (enrase manual quantity, INV-S18 motivo); the partidas are the system's. */
   lineas: z.array(lineaEntradaInput).default([]),
   pesadaAutorizadaPorId: pesadaAutorizadaPorIdInput,
-  /** The excipiente used (migration 0092): a droga of clase EXCIPIENTE and its quantity in the droga's unidad base; reserved oldest lot first. */
-  excipiente: z.object({ drogaId: uuid, cantidad: decimalString }).optional(),
+  /**
+   * The excipiente used (migration 0092): a droga of clase EXCIPIENTE and a weight in the droga's unidad base, of one
+   * unit (`porUnidad`, migration 0113) or of the preparado (c.s.p.), the drogas subtracted; reserved oldest lot first.
+   */
+  excipiente: z.object({ drogaId: uuid, cantidad: decimalString, porUnidad: z.boolean().default(false) }).optional(),
   /** The material and insumos adicionales (migration 0110): only the ones with a droga chosen; reserved oldest lot first. */
   insumos: z.array(z.object({ tipo: z.enum(TIPOS_INSUMO), drogaId: uuid, cantidad: decimalString })).max(INSUMOS_MAX).default([]),
 });
@@ -57,7 +60,7 @@ const reservarStockPreparacionInput = z.object({
 export interface ReservarStockPreparacionInput extends CoFirmaPesadaInput {
   fichaTecnicaId: string;
   lineas?: LineaEntradaInput[];
-  excipiente?: { drogaId: string; cantidad: string };
+  excipiente?: { drogaId: string; cantidad: string; porUnidad?: boolean };
   insumos?: { tipo: TipoInsumo; drogaId: string; cantidad: string }[];
 }
 
@@ -86,7 +89,12 @@ export const reservarStockPreparacionCommand = defineCommand({
       });
 
       await insertReservas(tx, { tenantId: session.tenantId, preparacionId: iniciada.id, reservadaPorId: session.usuario.id, reservas: reservasDelPlan(plan) });
-      const excipiente = await reservarExcipienteEnTx(tx, session, { preparacionId: iniciada.id, excipiente: input.excipiente ?? null, jornada });
+      const excipiente = await reservarExcipienteEnTx(tx, session, {
+        preparacionId: iniciada.id,
+        fichaTecnicaId: input.fichaTecnicaId,
+        excipiente: input.excipiente ?? null,
+        jornada,
+      });
       const insumos = await reservarInsumosEnTx(tx, session, { preparacionId: iniciada.id, insumos: input.insumos, jornada });
 
       return {

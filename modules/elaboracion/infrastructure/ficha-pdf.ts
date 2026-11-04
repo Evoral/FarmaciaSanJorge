@@ -9,8 +9,9 @@
  * Content, kept to what the bench reads while preparing: the preparación's
  * name (only when the ítem has one), the paciente, the médico and their
  * matrícula, and the líneas de pesaje
- * as a plain droga / cantidad list; a small footer with the receta number
- * and ficha version for traceability. Black only, no shading: thermal
+ * as a plain droga / cantidad list, followed by the excipiente, the material
+ * (cápsulas, envases) and the adicionales; a small footer with the receta
+ * number. Black only, no shading: thermal
  * printers have no greys.
  *
  * A receipt roll has no page height, so the page is exactly as tall as its
@@ -19,7 +20,7 @@
  */
 import { renderPdf } from "@/shared/pdf/pdf-document";
 import { cantidadesFichaTecnica, formatCantidadExacta } from "@/shared/format/cantidad";
-import type { FichaParaImprimir, LineaImprimir } from "./ficha-repository";
+import type { FichaParaImprimir, InsumoImprimir, LineaImprimir } from "./ficha-repository";
 
 const PUNTOS_POR_MM = 72 / 25.4;
 const mm = (valor: number) => valor * PUNTOS_POR_MM;
@@ -57,6 +58,13 @@ function textoEquivalencia(linea: LineaImprimir): string | null {
   return info?.equivalencia ?? null;
 }
 
+/** The insumo's cantidad like a línea's (g / mg shown in the bench's unit), "" when it has none. */
+function textoCantidadInsumo(insumo: InsumoImprimir): string {
+  if (!insumo.cantidad) return "";
+  const info = cantidadesFichaTecnica(insumo.cantidad, insumo.unidadSimbolo);
+  return info ? `${info.principal} ${info.simboloPrincipal}` : formatCantidadExacta(insumo.cantidad, insumo.unidadSimbolo);
+}
+
 function separador(doc: PDFKit.PDFDocument, y: number): number {
   doc
     .moveTo(MARGEN_IZQUIERDO, y)
@@ -86,8 +94,16 @@ function dibujar(doc: PDFKit.PDFDocument, ficha: FichaParaImprimir): number {
   for (const linea of ficha.lineas) {
     const cantidad = textoCantidad(linea);
     doc.font("Helvetica").fontSize(10);
-    const altoDroga = doc.heightOfString(linea.drogaNombre, { width: ANCHO_DROGA });
+    let altoDroga = doc.heightOfString(linea.drogaNombre, { width: ANCHO_DROGA });
     doc.text(linea.drogaNombre, MARGEN_IZQUIERDO, y, { width: ANCHO_DROGA });
+    // A concentration line: the prescription and its breakdown ("5 % × 30 mL", migration 0112) under the droga.
+    if (linea.prescripcion) {
+      doc.fontSize(8);
+      const altoPrescripcion = doc.heightOfString(linea.prescripcion, { width: ANCHO_DROGA });
+      doc.text(linea.prescripcion, MARGEN_IZQUIERDO, y + altoDroga, { width: ANCHO_DROGA });
+      altoDroga += altoPrescripcion;
+      doc.fontSize(10);
+    }
     doc.font("Helvetica-Bold");
     const altoCantidad = doc.heightOfString(cantidad, { width: ANCHO_CANTIDAD, align: "right" });
     doc.text(cantidad, MARGEN_IZQUIERDO + ANCHO_DROGA + SEPARACION, y, { width: ANCHO_CANTIDAD, align: "right" });
@@ -103,8 +119,28 @@ function dibujar(doc: PDFKit.PDFDocument, ficha: FichaParaImprimir): number {
     y += Math.max(altoDroga, altoDerecha) + 5;
   }
 
+  for (const insumo of ficha.insumos) {
+    const cantidad = textoCantidadInsumo(insumo);
+    doc.font("Helvetica").fontSize(10);
+    const altoNombre = doc.heightOfString(insumo.nombre, { width: ANCHO_DROGA });
+    doc.text(insumo.nombre, MARGEN_IZQUIERDO, y, { width: ANCHO_DROGA });
+    doc.font("Helvetica-Bold");
+    const altoCantidad = cantidad ? doc.heightOfString(cantidad, { width: ANCHO_CANTIDAD, align: "right" }) : 0;
+    if (cantidad) doc.text(cantidad, MARGEN_IZQUIERDO + ANCHO_DROGA + SEPARACION, y, { width: ANCHO_CANTIDAD, align: "right" });
+    let altoDerecha = altoCantidad;
+    // An excipiente typed per unidad: "= 10 mg por cápsula" under its total, like a línea's equivalencia (migration 0113).
+    if (insumo.detalle) {
+      doc.font("Helvetica").fontSize(8);
+      const altoDetalle = doc.heightOfString(insumo.detalle, { width: ANCHO_CANTIDAD, align: "right" });
+      doc.text(insumo.detalle, MARGEN_IZQUIERDO + ANCHO_DROGA + SEPARACION, y + altoCantidad, { width: ANCHO_CANTIDAD, align: "right" });
+      altoDerecha += altoDetalle;
+      doc.font("Helvetica").fontSize(10);
+    }
+    y += Math.max(altoNombre, altoDerecha) + 5;
+  }
+
   y = separador(doc, y + 1);
-  doc.font("Helvetica").fontSize(8).text(`Receta Nº ${ficha.recetaNumeroInterno} · Ficha v${ficha.version}`, MARGEN_IZQUIERDO, y, { width: ANCHO_CONTENIDO });
+  doc.font("Helvetica").fontSize(8).text(`Receta Nº ${ficha.recetaNumeroInterno} · Ficha técnica`, MARGEN_IZQUIERDO, y, { width: ANCHO_CONTENIDO });
   return doc.y;
 }
 

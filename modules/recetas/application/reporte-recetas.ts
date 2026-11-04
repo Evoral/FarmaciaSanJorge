@@ -93,6 +93,9 @@ export async function listRecetasReporte(input: ListRecetasReporteInput): Promis
 
 const exportarRecetasInput = listRecetasReporteInput.omit({ page: true, pageSize: true }).extend({
   numeroInterno: z.string().trim().optional(),
+  /** The `/recetas` listado's paciente and médico searches (free text). */
+  paciente: z.string().trim().max(100).optional(),
+  medico: z.string().trim().max(100).optional(),
   /** fecha_prescripcion range (the `/recetas` listado's `desde`/`hasta`). */
   desde: isoDate.optional(),
   hasta: isoDate.optional(),
@@ -116,6 +119,8 @@ export const exportarRecetasQuery = defineQuery({
       tenantId: session.tenantId,
       estado: input.estado,
       numeroInterno: input.numeroInterno,
+      paciente: input.paciente,
+      medico: input.medico,
       ingresoDesde: input.ingresoDesde,
       ingresoHasta: input.ingresoHasta,
       desde: input.desde,
@@ -135,6 +140,9 @@ function resumenFiltroParaAuditoria(input: ExportarRecetasFiltro): string {
   // The listado's search box is free text: audit only the digits the query actually matches on, never what was typed (it could be a name).
   const numero = input.numeroInterno?.replace(/\D/g, "").slice(0, 19);
   if (numero) partes.push(`Nº interno: ${numero}`);
+  // Same reason: a paciente/médico search is a name or a document number; record only that it was applied.
+  if (input.paciente) partes.push("Paciente: filtrado");
+  if (input.medico) partes.push("Médico: filtrado");
   if (input.ingresoDesde || input.ingresoHasta) partes.push(`Fecha ingreso: ${input.ingresoDesde ?? "…"} a ${input.ingresoHasta ?? "…"}`);
   if (input.desde || input.hasta) partes.push(`Fecha prescripción: ${input.desde ?? "…"} a ${input.hasta ?? "…"}`);
   if (input.pago) partes.push(`Pago: ${FILTRO_PAGO_RECETA_LABELS[input.pago]}`);

@@ -546,6 +546,50 @@ impresa. The reprint keeps one "Imprimir" per ítem (R11).
 - **WHEN** the receta has nothing left to confirm and the user reprints
 - **THEN** each ítem has its own "Imprimir"
 
+### Requirement: R15 — Default for excipientes in etiqueta
+
+Each farmacia SHALL have an admin default: `fsj.etiqueta_hoja.incluir_excipientes` (migration 0117,
+`NOT NULL DEFAULT false`, default off). The administrator edits it in Configuración → Etiquetas under "Contenido
+de la etiqueta" (`config.editar`, re-auth). The command (`editarIncluirExcipientesCommand`) SHALL be audited with
+entity `etiqueta_hoja`, action `MODIFICAR`, `entidadId` = tenant ID, and before/after `incluirExcipientes`.
+
+#### Scenario: Tenant starts off
+
+- **GIVEN** a tenant created with `scripts/create-tenant.ts` or migration 0117 applied
+- **WHEN** the default setting is read
+- **THEN** `incluir_excipientes` is `false`
+
+#### Scenario: Admin edits the default setting
+
+- **GIVEN** a user with `config.editar` who provides valid re-authentication
+- **WHEN** the user saves the switch on in Configuración → Etiquetas
+- **THEN** `fsj.etiqueta_hoja.incluir_excipientes` is updated to `true`
+- **AND** the audit records entity `etiqueta_hoja`, action `MODIFICAR`, `entidadId` as the tenant id, and before/after values of `incluirExcipientes`
+
+### Requirement: R15 — Excipientes default reads and fallback
+
+The excipientes default SHALL be read with `config.ver` (admin screen) or `etiquetas.generar` (toma workspace).
+A missing `fsj.etiqueta_hoja` row SHALL read off (`false`); saving the setting inserts the row with the default
+sheet (A4 portrait 210 × 297 mm, margin 5 mm) and the chosen `incluir_excipientes` value.
+
+#### Scenario: Missing sheet row reads off
+
+- **GIVEN** a tenant without a `fsj.etiqueta_hoja` row
+- **WHEN** the default setting is read
+- **THEN** it returns `false`
+
+#### Scenario: First edit inserts row with default sheet
+
+- **GIVEN** a tenant without a `fsj.etiqueta_hoja` row
+- **WHEN** the administrator saves the excipientes setting
+- **THEN** the row is inserted with the default sheet (210 × 297 mm, margin 5 mm) and the chosen `incluir_excipientes`
+
+#### Scenario: Toma reads default with etiquetas.generar
+
+- **GIVEN** a user with `etiquetas.generar` and without `config.ver`
+- **WHEN** the user loads the toma workspace
+- **THEN** the setting is read through `getIncluirExcipientesParaGenerar`
+
 ## Status
 
 Status: implemented (2026-10-21), migration 0096 pending to apply (see Rollout). Plan: `docs/superpowers/plans/2026-10-21-hoja-etiquetas.md`.
@@ -597,6 +641,7 @@ migration 0066 (`fsj.etiqueta_tamano`, the configured label sizes).
 | R12 | `app/(app)/admin/configuracion/etiquetas/page.tsx`, `modules/etiqueta-tamanos/ui/` |
 | R13 | `modules/etiqueta-tamanos/application/` |
 | R14 | `SeleccionarEtiquetasDialog`; `GET /api/preparaciones/etiquetas/pdf`; `imprimirEtiquetasPdf`; `buildEtiquetasPdf` |
+| R15 | `modules/etiqueta-tamanos/application/get-incluir-excipientes.ts`, `editar-incluir-excipientes.ts`; `modules/etiqueta-tamanos/ui/incluir-excipientes-form.tsx`; `app/(app)/admin/configuracion/etiquetas/page.tsx`; `fsj.etiqueta_hoja.incluir_excipientes` (migration 0117) |
 
 ## Data model (migration 0096 — re-check numbering before applying)
 
@@ -641,6 +686,10 @@ recorded here.)
   (find with `rg ImprimirEtiquetaDialog|SeleccionarEtiquetasDialog`).
 - `scripts/create-tenant.ts`: seeds the sheet row.
 - `openspec/specs/etiqueta-preparado/spec.md`: one line pointing here for placement.
+- `modules/etiqueta-tamanos/application/get-incluir-excipientes.ts`, `editar-incluir-excipientes.ts`: get and edit the tenant default for including excipientes (migration 0117).
+- `modules/etiqueta-tamanos/ui/incluir-excipientes-form.tsx`: "Contenido de la etiqueta" form on `/admin/configuracion/etiquetas`.
+- `modules/etiqueta-tamanos/infrastructure/etiqueta-hoja-repository.ts`: `getIncluirExcipientes`, `upsertIncluirExcipientes`.
+- `prisma/migrations/20261103140000_0117_etiqueta_incluir_excipientes/migration.sql`: adds `incluir_excipientes` to `fsj.etiqueta_hoja`.
 
 ## Tests
 

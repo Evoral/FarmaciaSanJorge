@@ -141,8 +141,8 @@ describe("reglas puras", () => {
     for (const permiso of ["recetas.crear", "recetas.editar", "entregas.registrar"]) expect(porDefecto).not.toContain(permiso);
   });
 
-  it("fsj.seed_acciones_con_pin (migración 0077) siembra exactamente PERMISOS_CON_PIN_POR_DEFECTO", () => {
-    const sql = fs.readFileSync(path.resolve(__dirname, "../../prisma/migrations/20261013150000_0077_cuentas_de_sector/migration.sql"), "utf8");
+  it("fsj.seed_acciones_con_pin (migración 0116) siembra exactamente PERMISOS_CON_PIN_POR_DEFECTO", () => {
+    const sql = fs.readFileSync(path.resolve(__dirname, "../../prisma/migrations/20261102140000_0116_pin_elaborar_lote/migration.sql"), "utf8");
     const cuerpo = /v_codigos text\[\] := ARRAY\[([\s\S]*?)\];/.exec(sql);
     expect(cuerpo).not.toBeNull();
     const sembrados = [...cuerpo![1]!.matchAll(/'([a-z.]+)'/g)].map((m) => m[1]!);

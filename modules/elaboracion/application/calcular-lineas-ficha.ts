@@ -72,6 +72,8 @@ export interface ComponenteBorrador {
   cantidad: string | null;
   unidadMedidaId: string;
   modoExpresion: ModoExpresion;
+  /** CONCENTRACION only (migration 0112): the denominator unit of "5 mg/mL"; null/omitted = %. */
+  unidadReferenciaId?: string | null;
 }
 
 export interface FormulaBorrador {
@@ -96,7 +98,10 @@ export async function resolverFormulaBorrador(
   tenantId: string,
   formula: FormulaBorrador,
 ): Promise<{ item: ItemRecetaInput; componentes: ComponenteInput[] }> {
-  const unidadIds = [...formula.componentes.map((c) => c.unidadMedidaId), ...(formula.unidadTotalId ? [formula.unidadTotalId] : [])];
+  const unidadIds = [
+    ...formula.componentes.flatMap((c) => (c.unidadReferenciaId ? [c.unidadMedidaId, c.unidadReferenciaId] : [c.unidadMedidaId])),
+    ...(formula.unidadTotalId ? [formula.unidadTotalId] : []),
+  ];
   const unidades = await getUnidadesParaBorrador(tx, unidadIds);
   const drogas = await getDrogasParaBorrador(
     tx,
@@ -119,6 +124,7 @@ export async function resolverFormulaBorrador(
       cantidad: c.cantidad,
       unidadMedida: unidad(c.unidadMedidaId),
       modoExpresion: c.modoExpresion,
+      unidadReferencia: c.unidadReferenciaId ? unidad(c.unidadReferenciaId) : null,
     };
   });
 

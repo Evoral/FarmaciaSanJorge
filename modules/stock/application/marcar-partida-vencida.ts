@@ -15,6 +15,10 @@
  * INICIADA is not free: the ajuste refuses it with the recetas holding it
  * (release that reserva first).
  *
+ * The lots elaborated from it (EL5, migration 0114: their vencimiento follows it) are discarded the same way, in the
+ * same transaction; a reserva on one of them refuses the whole marking. A partida already used up is still marked
+ * while such a lot has saldo: only the lots are discounted then.
+ *
  * Same verify-then-internal-command shape as ./reanalizar-partida.ts: the
  * session's usuario IS the DT (own password, `verificarPasswordDtPartidaCommand`),
  * so `autorizado_por_id` = `registrado_por_id` = `session.usuario.id`.
@@ -25,9 +29,16 @@ import type { ExecuteOptions } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
 import { uuid } from "@/shared/validation";
 import { dec } from "@/shared/decimal";
-import { MENSAJES_RECHAZO_MARCAR_VENCIDA, OBSERVACION_MARCAR_VENCIDA, marcarVencidaCampos, rechazoMarcarVencida } from "../domain/vencimiento-partida";
+import {
+  MENSAJES_RECHAZO_MARCAR_VENCIDA,
+  OBSERVACION_MARCAR_VENCIDA,
+  marcarVencidaCampos,
+  observacionLoteElaboradoVencido,
+  rechazoMarcarVencida,
+} from "../domain/vencimiento-partida";
 import { getPartidaParaAccion, jornadaActualTenant, lockPartidaParaAccion } from "../infrastructure/partida-repository";
 import { esDtVigenteHoy } from "../infrastructure/co-firma-repository";
+import { lotesElaboradosConSaldo } from "../infrastructure/elaboracion-lote-repository";
 import { registrarAjusteEnTx } from "./registrar-ajuste";
 import { verificarPasswordDtPartidaCommand } from "./verificar-password-dt-partida";
 
@@ -60,27 +71,62 @@ const marcarPartidaVencidaInternalCommand = defineCommand({
     }
 
     const saldo = dec(partida.cantidadDisponible);
+    const lotesElaborados = await lotesElaboradosConSaldo(tx, session.tenantId, partida.id);
     const rechazo = rechazoMarcarVencida(
-      { drogaClase: partida.drogaClase, tieneSaldo: saldo.greaterThan(0), fechaVencimientoVigente: fechaIso(partida.fechaVencimientoVigente) },
+      {
+        drogaClase: partida.drogaClase,
+        tieneSaldo: saldo.greaterThan(0),
+        fechaVencimientoVigente: fechaIso(partida.fechaVencimientoVigente),
+        sigueASusDrogas: false,
+        lotesElaboradosConSaldo: lotesElaborados.length > 0,
+      },
       await jornadaActualTenant(tx, session.tenantId),
     );
     if (rechazo) throw new DomainError(MENSAJES_RECHAZO_MARCAR_VENCIDA[rechazo]);
 
     // The whole saldo, in the droga's unidad base (unidadId omitted), read after the lock above.
-    const ajuste = await registrarAjusteEnTx(tx, session, {
-      partidaId: partida.id,
-      cantidad: saldo,
-      motivoAjuste: "VENCIMIENTO",
-      observacion: input.observacion ?? OBSERVACION_MARCAR_VENCIDA,
-      autorizadoPorId: session.usuario.id,
-    });
+    const ajustes: Awaited<ReturnType<typeof registrarAjusteEnTx>>[] = [];
+    if (saldo.greaterThan(0)) {
+      ajustes.push(
+        await registrarAjusteEnTx(tx, session, {
+          partidaId: partida.id,
+          cantidad: saldo,
+          motivoAjuste: "VENCIMIENTO",
+          observacion: input.observacion ?? OBSERVACION_MARCAR_VENCIDA,
+          autorizadoPorId: session.usuario.id,
+        }),
+      );
+    }
+    // EL5: the lots elaborated from it go with it, each its whole saldo read after its own lock.
+    const lotesDescartados: string[] = [];
+    for (const id of lotesElaborados) {
+      await lockPartidaParaAccion(tx, session.tenantId, id);
+      const lote = await getPartidaParaAccion(tx, session.tenantId, id);
+      if (!lote || !dec(lote.cantidadDisponible).greaterThan(0)) continue;
+      ajustes.push(
+        await registrarAjusteEnTx(tx, session, {
+          partidaId: lote.id,
+          cantidad: dec(lote.cantidadDisponible),
+          motivoAjuste: "VENCIMIENTO",
+          observacion: observacionLoteElaboradoVencido(partida.lote),
+          autorizadoPorId: session.usuario.id,
+        }),
+      );
+      lotesDescartados.push(lote.lote);
+    }
+    const ajuste = ajustes[0];
+    if (!ajuste) throw new DomainError(MENSAJES_RECHAZO_MARCAR_VENCIDA.SIN_SALDO);
 
     return {
       output: { id: ajuste.id },
       audit: {
         entidadId: ajuste.id,
         motivo: "Partida marcada como vencida por el Director Técnico.",
-        valorNuevo: { ...ajuste.valorNuevo, fechaVencimientoVigente: fechaIso(partida.fechaVencimientoVigente) },
+        valorNuevo: {
+          ...ajuste.valorNuevo,
+          fechaVencimientoVigente: fechaIso(partida.fechaVencimientoVigente),
+          ...(lotesDescartados.length > 0 ? { lotesElaboradosDescartados: lotesDescartados } : {}),
+        },
         autorizadoPorId: session.usuario.id,
       },
     };

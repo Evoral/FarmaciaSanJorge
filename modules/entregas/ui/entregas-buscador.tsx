@@ -12,7 +12,6 @@
 import { useActionState, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ChevronRight, ListFilter, PackageCheck, SearchX } from "lucide-react";
 import { buscarEntregasAction } from "./buscar-entregas-action";
 import type { BuscarEntregasState } from "./buscar-entregas-action";
@@ -62,7 +61,6 @@ export interface EntregasBuscadorProps {
 
 export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion, filtros, controles, chips, mostrarPrecio = false }: EntregasBuscadorProps) {
   const hayFiltros = Object.values(filtros).some(Boolean);
-  const router = useRouter();
   const initialState: BuscarEntregasState = { status: "idle", items: itemsIniciales, total: totalInicial };
   const [state, formAction, isPending] = useActionState(buscarEntregasAction, initialState);
   // Not reset on success: the applied search stays next to its results.
@@ -126,13 +124,10 @@ export function EntregasBuscador({ itemsIniciales, totalInicial, paginacion, fil
             hideLabel
             placeholder="Buscar por apellido o nombre del paciente"
             search={search}
+            enterRunsAction
             value={busquedaAplicada ? { value: "", label: busquedaAplicada } : null}
             onChange={(option) => {
-              if (!option) {
-                if (busquedaAplicada) filtrarTabla("");
-                return;
-              }
-              router.push(`/entregas/${option.value}`);
+              if (!option && busquedaAplicada) filtrarTabla("");
             }}
             actionOption={{
               label: (q) => (q ? `Ver todas las coincidencias de “${q}”` : "Ver todas las recetas pendientes"),

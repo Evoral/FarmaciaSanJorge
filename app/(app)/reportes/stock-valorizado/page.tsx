@@ -138,8 +138,8 @@ export default async function StockValorizadoPage({ searchParams }: StockValoriz
           <div className="min-w-0 flex-1 md:w-80 md:flex-none">
             <BuscadorNavegable
               id="valorizado-buscar"
-              label="Buscar droga"
-              placeholder="Buscar droga por nombre"
+              label="Buscar insumo"
+              placeholder="Buscar insumo por nombre"
               buscar={buscarDrogasValorizadoAction}
               listaHref={sinFiltroHref("search")}
               param="search"

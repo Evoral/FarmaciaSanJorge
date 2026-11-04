@@ -32,7 +32,7 @@ export function KardexDrogaFiltro({ href, seleccion }: KardexDrogaFiltroProps) {
       id="kardex-droga"
       label="Droga"
       hideLabel
-      placeholder="Filtrar por droga"
+      placeholder="Filtrar por insumo"
       search={search}
       value={seleccion ? { value: seleccion.id, label: seleccion.nombre } : null}
       onChange={(option) => router.push(hrefConParam(href, "drogaId", option?.value ?? ""), { scroll: false })}

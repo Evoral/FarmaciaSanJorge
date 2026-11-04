@@ -28,7 +28,7 @@ import { NotFoundError } from "@/shared/errors";
 import { CorregirCostoForm } from "@/modules/stock/ui/corregir-costo-form";
 import { CorregirPotenciaForm } from "@/modules/stock/ui/corregir-potencia-form";
 import { getCatalogoUnidades } from "@/modules/unidades/application/catalogo-unidades";
-import { formatCantidad, formatCantidadesFila } from "@/shared/format/cantidad";
+import { formatCantidad, formatCantidadesFila, formatNumero } from "@/shared/format/cantidad";
 import { Cantidad } from "@/shared/ui/cantidad";
 import { TIPO_MOVIMIENTO_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 import { PageHeader } from "@/shared/ui/page-header";
@@ -41,6 +41,11 @@ import { formatFecha as formatFechaCalendario } from "@/shared/format/fecha";
 import { textoPorVencer } from "@/modules/stock/domain/vencimiento-partida";
 import { MarcarVencidaDialog, ReanalisisDialog } from "@/modules/stock/ui/acciones-dt-partida";
 import { ElaborarLoteDialog } from "@/modules/stock/ui/elaborar-lote-dialog";
+import { hrefEtiquetaLotePdf } from "@/modules/stock/domain/etiqueta-lote";
+import { ImprimirEtiquetaDialog } from "@/modules/preparaciones/ui/imprimir-etiqueta-dialog";
+import { getHojaParaImprimir } from "@/modules/etiqueta-tamanos/application/get-hoja-para-imprimir";
+import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
+import { HOJA_PREDETERMINADA } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 
 function formatFecha(fecha: Date): string {
   return new Intl.DateTimeFormat("es-AR", { timeZone: "UTC", dateStyle: "short", timeStyle: "short" }).format(fecha);
@@ -99,6 +104,9 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
   // A partida that can be consumed today can be diluted (EL1).
   const puedeDiluir = can(session, "stock.lote.elaborar") && esDroga && tieneSaldo && !vencida;
   const elaboracion = partida.elaboracion;
+  // An elaborated lot prints its frasco's etiqueta (also offered right after elaborating, in its dialog).
+  const puedeImprimirEtiqueta = elaboracion !== null && can(session, "etiquetas.imprimir");
+  const [tamanos, hoja] = puedeImprimirEtiqueta ? await Promise.all([listTamanosParaImprimir(), getHojaParaImprimir()]) : [[], HOJA_PREDETERMINADA];
 
   // Kardex page links keep any other query param of the page.
   function kardexPageHref(targetPage: number): string {
@@ -129,8 +137,16 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
           </>
         }
         actions={
-          puedeVerHistorial || puedeAjustar || puedeDiluir ? (
+          puedeVerHistorial || puedeAjustar || puedeDiluir || puedeImprimirEtiqueta ? (
             <>
+              {puedeImprimirEtiqueta ? (
+                <ImprimirEtiquetaDialog
+                  pdfUrl={hrefEtiquetaLotePdf(partida.id)}
+                  tamanos={tamanos}
+                  hoja={hoja}
+                  small={false}
+                />
+              ) : null}
               {puedeDiluir ? (
                 <ElaborarLoteDialog
                   label="Diluir"
@@ -425,6 +441,29 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
                   {partida.recetasConReserva.length > 0 ? ` (receta ${partida.recetasConReserva.map((n) => `Nº ${n}`).join(", ")})` : null}
                 </p>
               ) : null}
+              {/* The figures above are rounded to a readable unit: the exact balance, in the droga's unidad base. */}
+              <dl className="summary-dl mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs">
+                <dt>Saldo exacto</dt>
+                <dd className="font-mono tabular-nums">
+                  {formatNumero(partida.cantidadDisponible, 4)} {partida.unidadBaseSimbolo}
+                </dd>
+                {partida.potenciaDeclarada !== null && !dec(partida.potenciaDeclarada).equals(100) ? (
+                  <>
+                    <dt>Principio activo</dt>
+                    <dd className="font-mono tabular-nums">
+                      {formatNumero(dec(partida.cantidadDisponible).times(partida.potenciaDeclarada).dividedBy(100), 4)} {partida.unidadBaseSimbolo}
+                    </dd>
+                  </>
+                ) : null}
+                {partida.cantidadReservada !== "0" ? (
+                  <>
+                    <dt>Reservado</dt>
+                    <dd className="font-mono tabular-nums">
+                      {formatNumero(partida.cantidadReservada, 4)} {partida.unidadBaseSimbolo}
+                    </dd>
+                  </>
+                ) : null}
+              </dl>
             </div>
             <div className="border-t border-zinc-100 p-5">
               <dl className="summary-dl">

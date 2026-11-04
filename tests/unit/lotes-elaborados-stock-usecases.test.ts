@@ -135,6 +135,7 @@ describe("elaborarLoteCommand", () => {
           drogaId: DROGA_X_ID,
           drogaNombre: "Droga X",
           drogaTipoControl: "NINGUNO",
+          drogaClase: "DROGA",
           cantidadDisponible: "100",
           costoUnitario: "1000",
           potenciaDeclarada: null,
@@ -146,6 +147,7 @@ describe("elaborarLoteCommand", () => {
           drogaId: LACTOSA_ID,
           drogaNombre: "Lactosa",
           drogaTipoControl: "NINGUNO",
+          drogaClase: "EXCIPIENTE",
           cantidadDisponible: "500",
           costoUnitario: "10",
           potenciaDeclarada: null,
@@ -166,6 +168,7 @@ describe("elaborarLoteCommand", () => {
         tipo: "DILUCION",
         drogaProducidaId: DROGA_X_ID,
         cantidadProducida: "100",
+        nombre: "Droga X 1:100",
         consumos: [
           { partidaId: PARTIDA_X_ID, cantidad: "1" },
           { partidaId: PARTIDA_LAC_ID, cantidad: "99" },
@@ -189,6 +192,7 @@ describe("elaborarLoteCommand", () => {
           tipo: "DILUCION",
           drogaProducidaId: DROGA_X_ID,
           cantidadProducida: "100",
+          nombre: "Droga X 1:100",
           consumos: [
             { partidaId: PARTIDA_X_ID, cantidad: "1" },
             { partidaId: PARTIDA_LAC_ID, cantidad: "99" },
@@ -208,6 +212,7 @@ describe("elaborarLoteCommand", () => {
           drogaProducidaId: DROGA_X_ID,
           formulaId: FORMULA_ID,
           cantidadProducida: "100",
+          nombre: "Droga X 1:100",
           consumos: [
             { partidaId: PARTIDA_X_ID, cantidad: "1" },
             { partidaId: PARTIDA_LAC_ID, cantidad: "99" },
@@ -239,6 +244,7 @@ describe("elaborarLoteCommand", () => {
           drogaProducidaId: DROGA_X_ID,
           formulaId: FORMULA_ID,
           cantidadProducida: "100",
+          nombre: "Fórmula X",
           consumos: [
             { partidaId: PARTIDA_LAC_ID, cantidad: "99" },
           ],
@@ -266,6 +272,7 @@ describe("elaborarLoteCommand", () => {
           tipo: "DILUCION",
           drogaProducidaId: DROGA_X_ID,
           cantidadProducida: "100",
+          nombre: "Droga X 1:100",
           consumos: [
             { partidaId: PARTIDA_X_ID, cantidad: "1" },
             { partidaId: PARTIDA_LAC_ID, cantidad: "99" },
@@ -284,6 +291,7 @@ describe("elaborarLoteCommand", () => {
         drogaId: DROGA_X_ID,
         drogaNombre: "Droga X",
         drogaTipoControl: "ESTUPEFACIENTE",
+        drogaClase: "DROGA",
         cantidadDisponible: "100",
         costoUnitario: "1000",
         potenciaDeclarada: null,
@@ -295,6 +303,7 @@ describe("elaborarLoteCommand", () => {
         drogaId: LACTOSA_ID,
         drogaNombre: "Lactosa",
         drogaTipoControl: "NINGUNO",
+        drogaClase: "EXCIPIENTE",
         cantidadDisponible: "500",
         costoUnitario: "10",
         potenciaDeclarada: null,
@@ -308,6 +317,7 @@ describe("elaborarLoteCommand", () => {
           tipo: "DILUCION",
           drogaProducidaId: DROGA_X_ID,
           cantidadProducida: "100",
+          nombre: "Droga X 1:100",
           consumos: [
             { partidaId: PARTIDA_X_ID, cantidad: "1" },
             { partidaId: PARTIDA_LAC_ID, cantidad: "99" },
@@ -333,6 +343,7 @@ describe("elaborarLoteCommand", () => {
         tipo: "DILUCION",
         drogaProducidaId: DROGA_X_ID,
         cantidadProducida: "100",
+        nombre: "Droga X 1:100",
         consumos: [
           { partidaId: PARTIDA_X_ID, cantidad: "1" },
           { partidaId: PARTIDA_LAC_ID, cantidad: "99" },
@@ -343,7 +354,7 @@ describe("elaborarLoteCommand", () => {
     expect(res.partidaId).toBe("nueva-partida-id");
   });
 
-  it("EL9: the code is DIL-<jornada>-<next>, under the numbering lock, skipping one already taken", async () => {
+  it("EL9: the code is FSJ-DIL-000N, under the numbering lock, skipping one already taken", async () => {
     contarLotesConPrefijoMock.mockResolvedValueOnce(1);
     existePartidaLoteMock.mockResolvedValueOnce(true);
 
@@ -352,6 +363,7 @@ describe("elaborarLoteCommand", () => {
         tipo: "DILUCION",
         drogaProducidaId: DROGA_X_ID,
         cantidadProducida: "100",
+        nombre: "Droga X 1:100",
         consumos: [
           { partidaId: PARTIDA_X_ID, cantidad: "1" },
           { partidaId: PARTIDA_LAC_ID, cantidad: "99" },
@@ -361,16 +373,18 @@ describe("elaborarLoteCommand", () => {
     );
 
     expect(lockNumeracionLotesElaboradosMock).toHaveBeenCalled();
-    expect(contarLotesConPrefijoMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, "DIL-20261029-");
-    expect(insertLoteElaboradoMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ lote: "DIL-20261029-3" }));
+    expect(contarLotesConPrefijoMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, "FSJ-DIL-");
+    expect(insertLoteElaboradoMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ lote: "FSJ-DIL-0003" }));
   });
 
-  it("insertLoteElaborado receives the costo, potencia and default vencimiento from validarElaboracion", async () => {
+  it("insertLoteElaborado receives the costo, potencia, computed vencimiento, nombre and aspecto", async () => {
     await elaborarLoteCommand.execute(
       {
         tipo: "DILUCION",
         drogaProducidaId: DROGA_X_ID,
         cantidadProducida: "100",
+        nombre: "Droga X 1:100",
+        aspecto: "Polvo fino",
         consumos: [
           { partidaId: PARTIDA_X_ID, cantidad: "1" },
           { partidaId: PARTIDA_LAC_ID, cantidad: "99" },
@@ -385,22 +399,25 @@ describe("elaborarLoteCommand", () => {
         tenantId: TENANT_ID,
         tipo: "DILUCION",
         drogaId: DROGA_X_ID,
-        lote: "DIL-20261029-1",
+        lote: "FSJ-DIL-0001",
         cantidadProducida: "100",
         costoUnitario: "19.9", // (1 * 1000 + 99 * 10) / 100
         potenciaDeclarada: "1", // 1 / 100 * 100
-        fechaVencimiento: "2027-03-01", // earliest of 2027-06-01 and 2027-03-01
+        fechaVencimiento: "2027-06-01", // earliest DROGA vencimiento (lactosa is excipiente)
+        nombre: "Droga X 1:100",
+        aspecto: "Polvo fino",
         usuarioId: USUARIO_ID,
       }),
     );
   });
 
-  it("the audit holds the consumos", async () => {
+  it("the audit holds the consumos, nombre, aspecto and computed vencimiento", async () => {
     await elaborarLoteCommand.execute(
       {
         tipo: "DILUCION",
         drogaProducidaId: DROGA_X_ID,
         cantidadProducida: "100",
+        nombre: "Droga X 1:100",
         consumos: [
           { partidaId: PARTIDA_X_ID, cantidad: "1" },
           { partidaId: PARTIDA_LAC_ID, cantidad: "99" },
@@ -416,6 +433,10 @@ describe("elaborarLoteCommand", () => {
         entidadId: "nueva-partida-id",
         valorNuevo: expect.objectContaining({
           origen: "ELABORACION_PROPIA",
+          lote: "FSJ-DIL-0001",
+          nombre: "Droga X 1:100",
+          aspecto: null,
+          fechaVencimiento: "2027-06-01",
           consumos: [
             { droga: "Droga X", lote: "L-X", cantidad: "1" },
             { droga: "Lactosa", lote: "L-LAC", cantidad: "99" },
@@ -539,7 +560,7 @@ describe("datosParaElaborarQuery", () => {
       { drogaProducidaId: DROGA_X_ID, drogaIds: [] },
       { session: fakeSession() },
     );
-    expect(res.proximoLote).toEqual({ DILUCION: "DIL-20261029-4", FORMULA: "ELA-20261029-3" });
+    expect(res.proximoLote).toEqual({ DILUCION: "FSJ-DIL-0004", FORMULA: "FSJ-ELA-0003" });
   });
 
   it("contralorActivo is set", async () => {

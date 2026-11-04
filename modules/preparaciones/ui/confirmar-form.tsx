@@ -283,7 +283,11 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                   {linea.orden + 1}
                 </span>
                 <p className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-900">{linea.drogaNombre}</p>
-                {linea.esEnraseManual ? (
+                {linea.cantidadPrescripta ? (
+                  <p className="text-right text-xs text-zinc-500">
+                    Receta pide {formatNumero(linea.cantidadPrescripta.cantidad)} {linea.cantidadPrescripta.simbolo}
+                  </p>
+                ) : linea.esEnraseManual ? (
                   <ToneBadge tone="neutral">Enrase manual</ToneBadge>
                 ) : (
                   <p className="text-right text-xs text-zinc-500">
@@ -369,9 +373,10 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                         setMotivos((prev) => ({ ...prev, [linea.id]: valor }));
                       }}
                       aria-describedby={`motivoApertura_${linea.id}_ayuda`}
+                      aria-invalid={!motivos[linea.id]?.trim() || undefined}
                       className="input"
                     />
-                    <p id={`motivoApertura_${linea.id}_ayuda`} className="field-help">
+                    <p id={`motivoApertura_${linea.id}_ayuda`} className={motivos[linea.id]?.trim() ? "field-help" : "field-help text-red-600"}>
                       Se abre una partida nueva aunque la que ya está abierta alcanza: indicá por qué.
                     </p>
                   </div>

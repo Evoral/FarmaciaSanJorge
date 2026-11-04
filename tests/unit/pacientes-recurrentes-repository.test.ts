@@ -23,8 +23,8 @@ function fakeTx(opts: { nombreFantasia?: string | null } = {}) {
     formaFarmaceutica: "CAPSULA",
     duracionTratamientoDias: 30,
     componentes: [
-      { drogaId: "d1", cantidad: { toString: () => "3" }, unidadMedidaId: "u1", modoExpresion: "TOTAL", droga: { nombre: "Melatonina" }, unidadMedida: { simbolo: "mg" } },
-      { drogaId: "d2", cantidad: null, unidadMedidaId: "u1", modoExpresion: "CSP", droga: { nombre: "Lactosa" }, unidadMedida: { simbolo: "mg" } },
+      { drogaId: "d1", cantidad: { toString: () => "3" }, unidadMedidaId: "u1", modoExpresion: "TOTAL", droga: { nombre: "Melatonina" }, unidadMedida: { simbolo: "mg" }, unidadReferencia: null },
+      { drogaId: "d2", cantidad: null, unidadMedidaId: "u1", modoExpresion: "CSP", droga: { nombre: "Lactosa" }, unidadMedida: { simbolo: "mg" }, unidadReferencia: null },
     ],
     receta: {
       id: "r1",
@@ -114,7 +114,7 @@ describe("getRecurrentesCrudos", () => {
     const tx = fakeTx();
     await getRecurrentesCrudos(asTx(tx), TENANT, AHORA);
     const componentes = findManyArg(tx).select!.componentes as { orderBy: unknown; select: Record<string, unknown> };
-        expect(Object.keys(componentes.select).sort()).toEqual(["cantidad", "droga", "drogaId", "modoExpresion", "unidadMedida", "unidadMedidaId"]);
+        expect(Object.keys(componentes.select).sort()).toEqual(["cantidad", "droga", "drogaId", "modoExpresion", "unidadMedida", "unidadMedidaId", "unidadReferencia"]);
   });
 
   it("maps rows to the raw shape: decimal as string (null stays null), tenant zone and farmacia display name", async () => {

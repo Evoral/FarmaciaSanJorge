@@ -206,6 +206,74 @@ marked); it is part of the stored `contenido`, so an etiqueta generated before k
 - **WHEN** it is reprinted
 - **THEN** it prints without the mark
 
+### Requirement: R10 — Excipientes on the etiqueta
+
+The etiqueta SHALL optionally declare excipientes in "Rp/" to satisfy the legal obligation to declare them
+(optional per tenant). When on, "Rp/" lists the principios activos, then the excipientes suffixed ` (excipiente)`
+(`MARCA_EXCIPIENTE`): (a) componentes left out of Rp/ (in `ordenarComponentes` order), (b)
+`preparacion.excipiente_texto`, (c) ADICIONAL insumos of clase EXCIPIENTE. Identical lines appear once; the
+14-line Rp/ cap applies (`columnasRp`).
+
+#### Scenario: Switch on at confirmation
+
+- **GIVEN** a receta with an active drug and excipientes (a componente left out of Rp/, an excipiente used, or an adicional excipiente)
+- **WHEN** the user confirms the receta with "Incluir excipientes en la etiqueta" on
+- **THEN** "Rp/" prints the principios activos followed by the excipientes, each suffixed with " (excipiente)"
+- **AND** identical excipiente lines are listed once
+
+#### Scenario: 14-line Rp/ cap with excipientes
+
+- **GIVEN** a fórmula whose activos and excipientes exceed 14 lines in total
+- **WHEN** the etiqueta is generated with excipientes included
+- **THEN** the printed "Rp/" is capped at 14 lines, showing the first 13 lines and "… y N más" in the last slot
+
+#### Scenario: Switch off at confirmation
+
+- **WHEN** the user confirms the receta with "Incluir excipientes en la etiqueta" off
+- **THEN** Rp/ is the same as without the switch (componentesRp): no line is marked (excipiente)
+
+### Requirement: R10 — Toma workspace switch
+
+The toma workspace (`/preparaciones/recetas/[recetaId]`) SHALL show ONE switch "Incluir excipientes en la etiqueta",
+in a box on the left of the "Imprimir etiquetas" panel, ONLY while there are ítems to confirm. It starts at the
+tenant default and is sent with the confirmation (`incluirExcipientes` "1"/"0"; missing = tenant default). The
+confirmation's audit SHALL record `etiquetaConExcipientes` (only when the form sent the field).
+
+#### Scenario: Toma workspace with ítems to confirm
+
+- **GIVEN** a receta with ítems to confirm
+- **WHEN** the user opens the toma workspace (/preparaciones/recetas/[recetaId])
+- **THEN** the switch "Incluir excipientes en la etiqueta" is shown in a box on the left of the "Imprimir etiquetas" panel
+- **AND** it starts at the tenant default
+
+#### Scenario: Confirmation audit records setting when sent
+
+- **WHEN** the confirmation form sends `incluirExcipientes`
+- **THEN** the confirmation audit records `etiquetaConExcipientes` with that boolean value
+
+#### Scenario: Confirmation audit omits setting when missing
+
+- **WHEN** the confirmation form omits `incluirExcipientes`
+- **THEN** the confirmation audit does not record `etiquetaConExcipientes`
+
+### Requirement: R10 — Fixed snapshot and default outside toma
+
+The choice SHALL be fixed when the etiqueta is generated (stored as part of the `etiqueta.contenido` snapshot):
+reprints show the same content and do not offer the switch; changing the default never alters generated etiquetas.
+An etiqueta generated outside the toma (`/preparaciones/[id]`, `generarEtiqueta`) SHALL use the tenant default.
+
+#### Scenario: Reprint does not offer switch
+
+- **GIVEN** a receta with all ítems confirmed
+- **WHEN** the user opens the toma workspace or reprints an etiqueta
+- **THEN** the switch is not shown
+- **AND** the etiqueta prints with the content snapshot fixed at generation
+
+#### Scenario: Etiqueta generated outside the toma
+
+- **WHEN** an etiqueta is generated outside the toma (/preparaciones/[id], `generarEtiqueta`)
+- **THEN** it includes excipientes if and only if the tenant default is turned on
+
 ## Placement
 
 Placement on the printed page (the PDF is the sheet, the label goes in a chosen cell): `openspec/specs/hoja-etiquetas/spec.md`. This spec only governs what the label says and how it is laid out.
@@ -223,6 +291,7 @@ Placement on the printed page (the PDF is the sheet, the label goes in a chosen 
 | R8 | `getDtTitularParaEtiqueta` (preparacion-repository) |
 | R7 | `formatearContenidoEtiqueta`, `parsearContenidoEtiqueta` |
 | R9 | `formatearLineaRp` (`domain/etiqueta.ts`), `getPreparacionParaEtiqueta` |
+| R10 | `modules/preparaciones/domain/etiqueta.ts` (`MARCA_EXCIPIENTE`, `lineasExcipientesRp`, `OpcionesEtiqueta`, `armarContenidoEtiqueta`), `modules/preparaciones/application/generar-etiqueta.ts`, `confirmar-reservas-receta.ts`, `modules/preparaciones/infrastructure/preparacion-repository.ts` (`getPreparacionParaEtiqueta`, `getIncluirExcipientesEnEtiqueta`), `modules/preparaciones/ui/reserva-acciones.tsx` (`EtiquetasDeReceta`), `imprimir-etiqueta-dialog.tsx`, `actions.ts` (`confirmarReservasRecetaAction`) |
 
 ## Rollback
 

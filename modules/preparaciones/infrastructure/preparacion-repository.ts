@@ -25,13 +25,15 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import type { ClaseDroga, EstadoPreparacion, EstadoReceta, TipoInsumo, TipoMovimientoContralor } from "@/generated/prisma/enums";
 import { jornadaDe, rangoDeJornadas } from "@/shared/time/jornada";
-import type { UnidadDeConversion } from "@/shared/decimal/convertir-unidad";
-import type { UnidadFormato } from "@/shared/format/cantidad";
+import { mismaMagnitud, type UnidadDeConversion } from "@/shared/decimal/convertir-unidad";
+import { formatNumero, type UnidadFormato } from "@/shared/format/cantidad";
 import { ordenarComponentes } from "@/modules/elaboracion/domain/orden-componentes";
 import type { ModoExpresion } from "@/modules/recetas/domain/receta";
 import type { DatosEtiqueta } from "../domain/etiqueta";
 import type { ItemPrescripto } from "../domain/formula-prescripcion";
+import { textoDesglosePorUnidad, unidadesDelItem, type ItemDosificable } from "../domain/excipiente-por-unidad";
 import { parseMesesVencimientoPreparado, type TipoVencimientoPreparado } from "../domain/vencimiento";
+import { simboloParaMostrar } from "@/modules/elaboracion/domain/concentracion";
 
 const PLACEHOLDER_UUID = "00000000-0000-0000-0000-000000000000";
 const PLACEHOLDER_DATE = new Date(0);
@@ -296,6 +298,12 @@ export interface LineaParaPantalla {
    */
   unidadStock: UnidadDeConversion & { id: string; simbolo: string };
   esEnraseManual: boolean;
+  /**
+   * A línea weighed on the balance (openspec/specs/pesada-real/spec.md, "Línea en otra magnitud"): its unit can not be
+   * converted into the stock's (mL prescribed, stock in g: no density), so it works as a manual línea in the STOCK
+   * unit and this keeps what the ficha prescribed, shown as a reference only. `null` otherwise.
+   */
+  cantidadPrescripta: { cantidad: string; simbolo: string } | null;
   orden: number;
 }
 
@@ -315,23 +323,39 @@ export async function getLineasParaPreparacion(tx: Prisma.TransactionClient, ten
       droga: { select: { unidadBase: { select: { id: true, simbolo: true, factorABase: true, tipoMagnitud: true } } } },
     },
   });
-  return rows.map((r) => ({
-    id: r.id,
-    drogaId: r.drogaId,
-    drogaNombre: r.drogaNombre,
-    cantidadAPesar: r.cantidadAPesar ? r.cantidadAPesar.toString() : null,
-    unidadMedidaId: r.unidadMedidaId,
-    unidadSimbolo: r.unidadMedida.simbolo,
-    unidad: { factorABase: r.unidadMedida.factorABase.toString(), tipoMagnitud: r.unidadMedida.tipoMagnitud },
-    unidadStock: {
+  return rows.map((r) => {
+    const unidadStock = {
       id: r.droga.unidadBase.id,
       simbolo: r.droga.unidadBase.simbolo,
       factorABase: r.droga.unidadBase.factorABase.toString(),
       tipoMagnitud: r.droga.unidadBase.tipoMagnitud,
-    },
-    esEnraseManual: r.esEnraseManual,
-    orden: r.orden,
-  }));
+    };
+    const linea: LineaParaPantalla = {
+      id: r.id,
+      drogaId: r.drogaId,
+      drogaNombre: r.drogaNombre,
+      cantidadAPesar: r.cantidadAPesar ? r.cantidadAPesar.toString() : null,
+      unidadMedidaId: r.unidadMedidaId,
+      unidadSimbolo: r.unidadMedida.simbolo,
+      unidad: { factorABase: r.unidadMedida.factorABase.toString(), tipoMagnitud: r.unidadMedida.tipoMagnitud },
+      unidadStock,
+      esEnraseManual: r.esEnraseManual,
+      cantidadPrescripta: null,
+      orden: r.orden,
+    };
+    if (r.esEnraseManual || mismaMagnitud(linea.unidad, unidadStock)) return linea;
+    // Weighed on the balance: the typed quantity is physical, in the stock unit -- what is reserved, descontado and
+    // recorded in the libro's detalle (the fórmula keeps the prescription).
+    return {
+      ...linea,
+      cantidadAPesar: null,
+      unidadMedidaId: unidadStock.id,
+      unidadSimbolo: unidadStock.simbolo,
+      unidad: { factorABase: unidadStock.factorABase, tipoMagnitud: unidadStock.tipoMagnitud },
+      esEnraseManual: true,
+      cantidadPrescripta: linea.cantidadAPesar ? { cantidad: linea.cantidadAPesar, simbolo: linea.unidadSimbolo } : null,
+    };
+  });
 }
 
 /**
@@ -377,6 +401,10 @@ export interface PartidaElegible {
   potenciaDeclarada: string | null;
   /** Migration 0111: elaborated in the farmacia as a dilución of the droga (P13 offers it for a dose below the balance). */
   esDilucion: boolean;
+  /** Migration 0115: the name the farmacéutico gave an elaborated lot ("Clonazepam 1:100"); `null` for a bought one. */
+  nombreElaborado: string | null;
+  /** Origen ELABORACION_PROPIA (a dilución or a fórmula lot): outside INV-S18. */
+  elaborada: boolean;
 }
 
 /**
@@ -419,15 +447,19 @@ export async function listPartidasElegiblesDroga(
       fecha_apertura: string | null;
       potencia_declarada: string | null;
       es_dilucion: boolean;
+      nombre_elaborado: string | null;
+      elaborada: boolean;
     }[]
   >`
     SELECT p.id, p.lote, coalesce(pr.razon_social, CASE WHEN p.origen = 'ELABORACION_PROPIA' THEN ${ETIQUETA_ELABORADO_EN_FARMACIA} ELSE ${ETIQUETA_SIN_PROVEEDOR} END) AS proveedor_nombre, (p.cantidad_disponible - r.reservado)::text AS cantidad_disponible,
       u.simbolo AS unidad_simbolo, p.fecha_vencimiento_vigente::text AS fecha_vencimiento,
       p.fecha_vencimiento_vigente IS DISTINCT FROM p.fecha_vencimiento AS reanalizada,
       p.fecha_apertura::text, p.potencia_declarada::text,
-      EXISTS (SELECT 1 FROM fsj.elaboracion_lote el WHERE el.tenant_id = p.tenant_id AND el.partida_id = p.id AND el.tipo = 'DILUCION') AS es_dilucion
+      coalesce(el.tipo = 'DILUCION', false) AS es_dilucion, el.nombre AS nombre_elaborado,
+      p.origen = 'ELABORACION_PROPIA' AS elaborada
     FROM fsj.partida p
     LEFT JOIN fsj.proveedor pr ON pr.tenant_id = p.tenant_id AND pr.id = p.proveedor_id
+    LEFT JOIN fsj.elaboracion_lote el ON el.tenant_id = p.tenant_id AND el.partida_id = p.id
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
     JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
     ${reservadoPorOtrasSql(preparacionPropiaId)}
@@ -445,6 +477,8 @@ export async function listPartidasElegiblesDroga(
     fechaApertura: r.fecha_apertura,
     potenciaDeclarada: r.potencia_declarada,
     esDilucion: r.es_dilucion,
+    nombreElaborado: r.nombre_elaborado,
+    elaborada: r.elaborada,
   }));
 }
 
@@ -524,6 +558,8 @@ export interface PartidaFresca {
   fechaApertura: string | null;
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
+  /** Origen ELABORACION_PROPIA (a dilución or a fórmula lot): outside INV-S18. */
+  elaborada: boolean;
 }
 
 /**
@@ -548,10 +584,12 @@ export async function getPartidasFrescas(
       fecha_vencimiento: string | null;
       fecha_apertura: string | null;
       potencia_declarada: string | null;
+      elaborada: boolean;
     }[]
   >`
     SELECT p.id, p.droga_id, p.lote, greatest(p.cantidad_disponible - r.reservado, 0)::text AS cantidad_disponible,
-      p.fecha_vencimiento_vigente::text AS fecha_vencimiento, p.fecha_apertura::text, p.potencia_declarada::text
+      p.fecha_vencimiento_vigente::text AS fecha_vencimiento, p.fecha_apertura::text, p.potencia_declarada::text,
+      p.origen = 'ELABORACION_PROPIA' AS elaborada
     FROM fsj.partida p
     ${reservadoPorOtrasSql(preparacionPropiaId)}
     WHERE p.tenant_id = ${tenantId}::uuid AND p.id = ANY(${partidaIds as string[]}::uuid[])
@@ -564,6 +602,7 @@ export async function getPartidasFrescas(
     fechaVencimiento: r.fecha_vencimiento,
     fechaApertura: r.fecha_apertura,
     potenciaDeclarada: r.potencia_declarada,
+    elaborada: r.elaborada,
   }));
 }
 
@@ -767,7 +806,14 @@ export async function getItemPrescriptoDePreparacion(tx: Prisma.TransactionClien
       cantidadTotal: true,
       unidadTotal: { select: { simbolo: true } },
       componentes: {
-        select: { cantidad: true, modoExpresion: true, esPrincipioActivo: true, droga: { select: { nombre: true } }, unidadMedida: { select: { simbolo: true } } },
+        select: {
+          cantidad: true,
+          modoExpresion: true,
+          esPrincipioActivo: true,
+          droga: { select: { nombre: true } },
+          unidadMedida: { select: { simbolo: true } },
+          unidadReferencia: { select: { simbolo: true } },
+        },
       },
     },
   });
@@ -783,7 +829,7 @@ export async function getItemPrescriptoDePreparacion(tx: Prisma.TransactionClien
     componentes: item.componentes.map((c) => ({
       drogaNombre: c.droga.nombre,
       cantidad: c.cantidad === null ? null : c.cantidad.toString(),
-      unidadSimbolo: c.unidadMedida.simbolo,
+      unidadSimbolo: simboloParaMostrar(c.modoExpresion, c.unidadMedida.simbolo, c.unidadReferencia?.simbolo ?? null),
       modoExpresion: c.modoExpresion,
       esPrincipioActivo: c.esPrincipioActivo,
     })),
@@ -974,6 +1020,7 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
       confirmadaEn: true,
       fechaVencimiento: true,
       tipoVencimiento: true,
+      excipienteTexto: true,
       preparadaPor: { select: { nombre: true, apellido: true } },
       fichaTecnica: {
         select: {
@@ -992,6 +1039,7 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
                   droga: { select: { nombre: true, tipoControl: true } },
                   drogaAlias: { select: { texto: true } },
                   unidadMedida: { select: { simbolo: true } },
+                  unidadReferencia: { select: { simbolo: true } },
                 },
               },
               receta: {
@@ -1018,6 +1066,8 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
     select: { razonSocial: true, nombreFantasia: true, matriculaFarmacia: true, domicilio: true, telefonoFijo: true, telefonoCelular: true, zonaHoraria: true },
   });
   const directorTecnico = await getDtTitularParaEtiqueta(tx, tenantId, jornadaDe(prep.confirmadaEn, tenant.zonaHoraria));
+  // What "Incluir excipientes en la etiqueta" adds besides the receta's own excipientes: as in the libro's fórmula (0110).
+  const adicionales = (await listInsumosDePreparacion(tx, tenantId, preparacionId)).filter((i) => i.tipo === "ADICIONAL" && i.clase === "EXCIPIENTE").map((i) => i.texto);
 
   const item = prep.fichaTecnica.itemReceta;
   const medico = item.receta.medico;
@@ -1035,7 +1085,7 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
       // The patient's label reads the name the receta was loaded with (synonym, migration 0069); see sinonimos-droga R9.
       drogaNombre: c.drogaAlias?.texto ?? c.droga.nombre,
       cantidad: c.cantidad === null ? null : c.cantidad.toString(),
-      unidadSimbolo: c.unidadMedida.simbolo,
+      unidadSimbolo: simboloParaMostrar(c.modoExpresion, c.unidadMedida.simbolo, c.unidadReferencia?.simbolo ?? null),
       modoExpresion: c.modoExpresion,
       esPrincipioActivo: c.esPrincipioActivo,
       esPsicotropico: c.droga.tipoControl === "PSICOTROPICO",
@@ -1058,9 +1108,20 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
     tenantTelefonoCelular: tenant.telefonoCelular,
     fechaVencimiento: prep.fechaVencimiento ? prep.fechaVencimiento.toISOString().slice(0, 10) : null, // @db.Date comes back as UTC midnight.
     tipoVencimiento: prep.tipoVencimiento,
+    excipientes: [...(prep.excipienteTexto ? [prep.excipienteTexto] : []), ...adicionales],
     recetaEstado: item.receta.estado,
     asientoSinEfecto: asiento.estado === "ANULADO" || asiento._count.rectificativos > 0,
   };
+}
+
+/**
+ * The tenant's default for "Incluir excipientes en la etiqueta" (`fsj.etiqueta_hoja.incluir_excipientes`, migration
+ * 0117), for an etiqueta generated without the toma's switch (`/preparaciones/[id]`). Read here, against the shared
+ * `tx`: modules only reach their own infrastructure/ (modules/etiqueta-tamanos owns the row). No row = off.
+ */
+export async function getIncluirExcipientesEnEtiqueta(tx: Prisma.TransactionClient, tenantId: string): Promise<boolean> {
+  const row = await tx.etiquetaHoja.findFirst({ where: { tenantId }, select: { incluirExcipientes: true } });
+  return row?.incluirExcipientes ?? false;
 }
 
 /**
@@ -1524,6 +1585,7 @@ export interface ListComponentesDePendientesRow {
   sinonimo: string | null;
   cantidad: string | null;
   unidad_medida_simbolo: string;
+  unidad_referencia_simbolo: string | null;
   modo_expresion: ModoExpresion;
   es_principio_activo: boolean;
 }
@@ -1544,12 +1606,14 @@ export function listComponentesDePendientesSql(tenantId: string, itemIds: string
       da.texto AS sinonimo,
       c.cantidad::text AS cantidad,
       um.simbolo AS unidad_medida_simbolo,
+      ur.simbolo AS unidad_referencia_simbolo,
       c.modo_expresion::text AS modo_expresion,
       c.es_principio_activo
     FROM fsj.componente_item_receta c
     JOIN fsj.droga d ON d.tenant_id = c.tenant_id AND d.id = c.droga_id
     LEFT JOIN fsj.droga_alias da ON da.tenant_id = c.tenant_id AND da.id = c.droga_alias_id
     JOIN fsj.unidad_medida um ON um.id = c.unidad_medida_id
+    LEFT JOIN fsj.unidad_medida ur ON ur.id = c.unidad_referencia_id
     WHERE c.tenant_id = ${tenantId}::uuid AND c.item_receta_id = ANY(${itemIds}::uuid[])
   `;
 }
@@ -1570,7 +1634,7 @@ export async function listComponentesDePendientes(
       drogaNombre: row.droga_nombre,
       sinonimo: row.sinonimo,
       cantidad: row.cantidad,
-      unidadMedidaSimbolo: row.unidad_medida_simbolo,
+      unidadMedidaSimbolo: simboloParaMostrar(row.modo_expresion, row.unidad_medida_simbolo, row.unidad_referencia_simbolo),
       modoExpresion: row.modo_expresion,
       esPrincipioActivo: row.es_principio_activo,
     });
@@ -1594,6 +1658,13 @@ export interface RecetaEnCursoFila {
   tomadaEn: Date;
   totalItems: number;
   itemsConfirmados: number;
+  /** Every ítem of the receta, in load order (same order as the Pendientes list). */
+  items: ItemEnCurso[];
+}
+
+export interface ItemEnCurso {
+  itemDescripcion: string | null;
+  formaFarmaceutica: string;
 }
 
 export interface ListRecetasEnCursoFilter {
@@ -1620,6 +1691,7 @@ export interface ListRecetasEnCursoRow {
   tomada_en: Date | null;
   total_items: number | null;
   items_confirmados: number | null;
+  items: ItemEnCurso[] | null;
 }
 
 /**
@@ -1649,7 +1721,8 @@ export function listRecetasEnCursoSql(filter: ListRecetasEnCursoFilter): Prisma.
         u.nombre AS tomada_por_nombre,
         u.apellido AS tomada_por_apellido,
         avance.total_items,
-        avance.items_confirmados
+        avance.items_confirmados,
+        avance.items
       FROM fsj.receta r
       JOIN fsj.tenant tn ON tn.id = r.tenant_id
       JOIN fsj.paciente pa ON pa.tenant_id = r.tenant_id AND pa.id = r.paciente_id
@@ -1672,7 +1745,11 @@ export function listRecetasEnCursoSql(filter: ListRecetasEnCursoFilter): Prisma.
                   OR (p.estado = 'INICIADA' AND EXISTS (SELECT 1 FROM fsj.reserva_stock rs WHERE rs.tenant_id = p.tenant_id AND rs.preparacion_id = p.id))
                 )
             )
-          ))::int AS items_preparados
+          ))::int AS items_preparados,
+          json_agg(
+            json_build_object('itemDescripcion', ir.descripcion, 'formaFarmaceutica', ir.forma_farmaceutica::text)
+            ORDER BY ir.ctid
+          ) AS items
         FROM fsj.item_receta ir
         WHERE ir.tenant_id = r.tenant_id AND ir.receta_id = r.id
       ) avance
@@ -1695,7 +1772,8 @@ export function listRecetasEnCursoSql(filter: ListRecetasEnCursoFilter): Prisma.
       f.tomada_por_apellido,
       f.tomada_en,
       f.total_items,
-      f.items_confirmados
+      f.items_confirmados,
+      f.items
     FROM (
       SELECT
         (SELECT count(*)::int FROM filtradas) AS total,
@@ -1731,6 +1809,7 @@ export async function listRecetasEnCurso(
         tomadaEn: row.tomada_en!,
         totalItems: row.total_items!,
         itemsConfirmados: row.items_confirmados!,
+        items: row.items!,
       })),
   };
 }
@@ -1857,6 +1936,8 @@ export interface LineaDeFichaToma {
   unidadSimbolo: string;
   esEnraseManual: boolean;
   orden: number;
+  /** A concentration línea's prescription and breakdown ("5 % × 30 mL", migration 0112); null otherwise. */
+  prescripcion: string | null;
 }
 
 /** A toma línea with the units the automatic plan needs (línea unit and the droga's unidad base, R12). */
@@ -1976,6 +2057,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
           descripcion: true,
           formaFarmaceutica: true,
           cantidadUnidades: true,
+          fraccionDosisPorUnidad: true,
           cantidadTotal: true,
           unidadTotal: { select: { simbolo: true } },
           posologia: true,
@@ -1989,6 +2071,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
               droga: { select: { nombre: true } },
               drogaAlias: { select: { texto: true } },
               unidadMedida: { select: { simbolo: true } },
+              unidadReferencia: { select: { simbolo: true } },
             },
           },
           fichas: { orderBy: { version: "desc" }, take: 1, select: SELECT_FICHA_TOMA },
@@ -2006,11 +2089,21 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
       itemRecetaId: true,
       fichaTecnicaId: true,
       excipienteTexto: true,
+      excipienteDrogaId: true,
+      excipienteCantidad: true,
+      excipienteCantidadPorUnidad: true,
       etiqueta: { select: { id: true } },
       asientosRecetario: { where: { origen: "SISTEMA" }, take: 1, select: SELECT_ASIENTO_SIN_EFECTO },
       asientoPreparacion: { select: { asiento: { select: SELECT_ASIENTO_SIN_EFECTO } } },
     },
   });
+  const excipienteIds = [...new Set(preparaciones.flatMap((p) => (p.excipienteDrogaId ? [p.excipienteDrogaId] : [])))];
+  const drogasExcipiente = new Map(
+    (excipienteIds.length === 0
+      ? []
+      : await tx.droga.findMany({ where: { tenantId, id: { in: excipienteIds } }, select: { id: true, nombre: true, unidadBase: { select: { simbolo: true } } } })
+    ).map((d) => [d.id, { nombre: d.nombre, simbolo: d.unidadBase.simbolo }]),
+  );
   // A live preparación on an older ficha version (from before R20): its own ficha is what the ítem shows.
   const ultimaFichaIds = new Set(receta.items.flatMap((i) => (i.fichas[0] ? [i.fichas[0].id] : [])));
   const fichaIdsDePreparaciones = [...new Set(preparaciones.map((p) => p.fichaTecnicaId).filter((id) => !ultimaFichaIds.has(id)))];
@@ -2079,7 +2172,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
         fechaVencimiento: r.fecha_vencimiento,
       })),
       reservaAlcanza: propias.every((r) => r.alcanza),
-      excipiente: elegida.excipienteTexto,
+      excipiente: textoExcipienteUsado(elegida, receta.items.find((i) => i.id === itemId) ?? null, drogasExcipiente),
       insumos: confirmada ? [] : insumos.filter((i) => i.preparacionId === elegida.id).map((i) => ({ tipo: i.tipo, texto: i.texto })),
       etiquetaGenerada: confirmada && elegida.etiqueta !== null,
       asientoSinEfecto: confirmada && asiento !== undefined && (asiento.estado === "ANULADO" || asiento._count.rectificativos > 0),
@@ -2123,7 +2216,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
             drogaNombre: c.droga.nombre,
             sinonimo: c.drogaAlias?.texto ?? null,
             cantidad: c.cantidad ? c.cantidad.toString() : null,
-            unidadMedidaSimbolo: c.unidadMedida.simbolo,
+            unidadMedidaSimbolo: simboloParaMostrar(c.modoExpresion, c.unidadMedida.simbolo, c.unidadReferencia?.simbolo ?? null),
             modoExpresion: c.modoExpresion,
             esPrincipioActivo: c.esPrincipioActivo,
           })),
@@ -2151,6 +2244,7 @@ const SELECT_FICHA_TOMA = {
       cantidadAPesar: true,
       esEnraseManual: true,
       orden: true,
+      prescripcion: true,
       unidadMedida: { select: { simbolo: true, factorABase: true, tipoMagnitud: true } },
       droga: { select: { unidadBase: { select: { simbolo: true, factorABase: true, tipoMagnitud: true } } } },
     },
@@ -2172,6 +2266,7 @@ function fichaDeToma(ficha: Prisma.FichaTecnicaGetPayload<{ select: typeof SELEC
       unidadSimbolo: l.unidadMedida.simbolo,
       esEnraseManual: l.esEnraseManual,
       orden: l.orden,
+      prescripcion: l.prescripcion,
       unidad: { factorABase: l.unidadMedida.factorABase.toString(), tipoMagnitud: l.unidadMedida.tipoMagnitud },
       unidadStock: { simbolo: l.droga.unidadBase.simbolo, factorABase: l.droga.unidadBase.factorABase.toString(), tipoMagnitud: l.droga.unidadBase.tipoMagnitud },
     })),
@@ -2253,8 +2348,15 @@ export interface ExcipienteParaToma {
   id: string;
   nombre: string;
   unidadSimbolo: string;
+  /** The unidad base, to subtract the drogas' weight from the c.s.p. in the toma (only a MASA one). */
+  unidad: { factorABase: string; tipoMagnitud: string };
   /** Vigente synonyms: the buscador finds the excipiente by them too, like every droga buscador (`filtrarOpciones`). */
   sinonimos: string[];
+  /**
+   * The stock the reserva could draw from (unidad base): the not-vencido lots' balance minus what other INICIADA
+   * preparaciones reserved, so the ficha warns of a shortage before "Marcar como preparada" (like a droga's línea).
+   */
+  disponible: string;
 }
 
 /** A droga of clase EXCIPIENTE or MATERIAL the toma may choose as an insumo (migration 0110). */
@@ -2262,35 +2364,64 @@ export interface InsumoParaToma extends ExcipienteParaToma {
   clase: "EXCIPIENTE" | "MATERIAL";
 }
 
-/** The vigente drogas of `clases`, by name, with their vigente synonyms. */
-async function listDrogasParaToma(tx: Prisma.TransactionClient, tenantId: string, clases: ("EXCIPIENTE" | "MATERIAL")[]): Promise<InsumoParaToma[]> {
+/** Per droga, the balance of its lots not vencidos at `jornada`, minus what other INICIADA preparaciones reserved. */
+async function disponiblesPorDroga(tx: Prisma.TransactionClient, tenantId: string, drogaIds: readonly string[], jornada: string): Promise<Map<string, string>> {
+  if (drogaIds.length === 0) return new Map();
+  const rows = await tx.$queryRaw<{ droga_id: string; disponible: string }[]>`
+    SELECT p.droga_id, sum(greatest(p.cantidad_disponible - r.reservado, 0))::text AS disponible
+    FROM fsj.partida p
+    ${reservadoPorOtrasSql(null)}
+    WHERE p.tenant_id = ${tenantId}::uuid AND p.droga_id = ANY(${drogaIds as string[]}::uuid[])
+      AND (p.fecha_vencimiento_vigente IS NULL OR p.fecha_vencimiento_vigente >= ${jornada}::date)
+    GROUP BY p.droga_id
+  `;
+  return new Map(rows.map((r) => [r.droga_id, r.disponible]));
+}
+
+/** The vigente drogas of `clases`, by name, with their vigente synonyms and available stock at `jornada`. */
+async function listDrogasParaToma(tx: Prisma.TransactionClient, tenantId: string, clases: ("EXCIPIENTE" | "MATERIAL")[], jornada: string): Promise<InsumoParaToma[]> {
   const rows = await tx.droga.findMany({
     where: { tenantId, clase: { in: clases }, fechaBaja: null },
     orderBy: { nombre: "asc" },
-    select: { id: true, nombre: true, clase: true, unidadBase: { select: { simbolo: true } } },
+    select: { id: true, nombre: true, clase: true, unidadBase: { select: { simbolo: true, factorABase: true, tipoMagnitud: true } } },
   });
   const sinonimos = await listSinonimosVigentes(
     tx,
     tenantId,
     rows.map((r) => r.id),
   );
+  const disponibles = await disponiblesPorDroga(
+    tx,
+    tenantId,
+    rows.map((r) => r.id),
+    jornada,
+  );
   return rows.map((r) => ({
     id: r.id,
     nombre: r.nombre,
     clase: r.clase === "MATERIAL" ? "MATERIAL" : "EXCIPIENTE",
     unidadSimbolo: r.unidadBase.simbolo,
+    unidad: { factorABase: r.unidadBase.factorABase.toString(), tipoMagnitud: r.unidadBase.tipoMagnitud },
     sinonimos: sinonimos.get(r.id) ?? [],
+    disponible: disponibles.get(r.id) ?? "0",
   }));
 }
 
 /** The vigente drogas of clase EXCIPIENTE, by name, with their vigente synonyms. */
-export async function listExcipientesParaToma(tx: Prisma.TransactionClient, tenantId: string): Promise<ExcipienteParaToma[]> {
-  return (await listDrogasParaToma(tx, tenantId, ["EXCIPIENTE"])).map(({ id, nombre, unidadSimbolo, sinonimos }) => ({ id, nombre, unidadSimbolo, sinonimos }));
+export async function listExcipientesParaToma(tx: Prisma.TransactionClient, tenantId: string, jornada: string): Promise<ExcipienteParaToma[]> {
+  return (await listDrogasParaToma(tx, tenantId, ["EXCIPIENTE"], jornada)).map(({ id, nombre, unidadSimbolo, unidad, sinonimos, disponible }) => ({
+    id,
+    nombre,
+    unidadSimbolo,
+    unidad,
+    sinonimos,
+    disponible,
+  }));
 }
 
-/** The vigente drogas of clase EXCIPIENTE or MATERIAL (migration 0110); the Material row lists only the MATERIAL ones. */
-export async function listInsumosParaToma(tx: Prisma.TransactionClient, tenantId: string): Promise<InsumoParaToma[]> {
-  return listDrogasParaToma(tx, tenantId, ["EXCIPIENTE", "MATERIAL"]);
+/** The vigente drogas of clase MATERIAL (migration 0110): one excipiente per preparación for now, it has its own row. */
+export async function listInsumosParaToma(tx: Prisma.TransactionClient, tenantId: string, jornada: string): Promise<InsumoParaToma[]> {
+  return listDrogasParaToma(tx, tenantId, ["MATERIAL"], jornada);
 }
 
 /** One droga as an excipiente / insumo candidate (any clase, so the caller can refuse a wrong one); `null` when not this tenant's. */
@@ -2298,33 +2429,78 @@ export async function getDrogaExcipiente(
   tx: Prisma.TransactionClient,
   tenantId: string,
   drogaId: string,
-): Promise<{ id: string; nombre: string; clase: ClaseDroga; esExcipiente: boolean; vigente: boolean; unidadSimbolo: string } | null> {
+): Promise<{
+  id: string;
+  nombre: string;
+  clase: ClaseDroga;
+  esExcipiente: boolean;
+  vigente: boolean;
+  unidadSimbolo: string;
+  unidad: { factorABase: string; tipoMagnitud: string };
+} | null> {
   const droga = await tx.droga.findUnique({
     where: { id: drogaId, tenantId },
-    select: { id: true, nombre: true, clase: true, fechaBaja: true, unidadBase: { select: { simbolo: true } } },
+    select: { id: true, nombre: true, clase: true, fechaBaja: true, unidadBase: { select: { simbolo: true, factorABase: true, tipoMagnitud: true } } },
   });
   return droga
-    ? { id: droga.id, nombre: droga.nombre, clase: droga.clase, esExcipiente: droga.clase === "EXCIPIENTE", vigente: droga.fechaBaja === null, unidadSimbolo: droga.unidadBase.simbolo }
+    ? {
+        id: droga.id,
+        nombre: droga.nombre,
+        clase: droga.clase,
+        esExcipiente: droga.clase === "EXCIPIENTE",
+        vigente: droga.fechaBaja === null,
+        unidadSimbolo: droga.unidadBase.simbolo,
+        unidad: { factorABase: droga.unidadBase.factorABase.toString(), tipoMagnitud: droga.unidadBase.tipoMagnitud },
+      }
     : null;
 }
 
-/** The excipiente draft of a ficha (droga + quantity in its unidad base); `null` when none was saved. */
-export async function getExcipienteBorrador(
-  tx: Prisma.TransactionClient,
-  tenantId: string,
-  fichaTecnicaId: string,
-): Promise<{ drogaId: string | null; cantidad: string | null } | null> {
+/** A ficha's excipiente draft: droga + weight in its unidad base, of one unit or of the preparado (c.s.p., migration 0113). A type alias: it goes into the audit's JSON as is. */
+export type ExcipienteBorrador = {
+  drogaId: string | null;
+  cantidad: string | null;
+  porUnidad: boolean;
+};
+
+/**
+ * The excipiente used, as the screen shows it: the total, plus the breakdown when typed per unidad ("Ludipress
+ * 11,925 g (0,3975 g × 30 cápsulas)", migration 0113). The fórmula text alone (a preparación from before 0092) when
+ * there is no droga.
+ */
+function textoExcipienteUsado(
+  preparacion: {
+    excipienteTexto: string | null;
+    excipienteDrogaId: string | null;
+    excipienteCantidad: Prisma.Decimal | null;
+    excipienteCantidadPorUnidad: Prisma.Decimal | null;
+  },
+  item: { formaFarmaceutica: string; cantidadUnidades: number; fraccionDosisPorUnidad: Prisma.Decimal } | null,
+  drogas: Map<string, { nombre: string; simbolo: string }>,
+): string | null {
+  const droga = preparacion.excipienteDrogaId ? drogas.get(preparacion.excipienteDrogaId) : undefined;
+  if (!droga || !preparacion.excipienteCantidad) return preparacion.excipienteTexto;
+  const total = `${droga.nombre} ${formatNumero(preparacion.excipienteCantidad.toString())} ${droga.simbolo}`;
+  const porUnidad = preparacion.excipienteCantidadPorUnidad;
+  const unidades = item
+    ? unidadesDelItem({ formaFarmaceutica: item.formaFarmaceutica, cantidadUnidades: item.cantidadUnidades, fraccionDosisPorUnidad: item.fraccionDosisPorUnidad.toString() })
+    : null;
+  if (!porUnidad || !unidades) return total;
+  return `${total} (${textoDesglosePorUnidad(porUnidad.toString(), droga.simbolo, unidades.cantidad, unidades.plural)})`;
+}
+
+/** The excipiente draft of a ficha; `null` when none was saved. */
+export async function getExcipienteBorrador(tx: Prisma.TransactionClient, tenantId: string, fichaTecnicaId: string): Promise<ExcipienteBorrador | null> {
   const row = await tx.excipienteBorrador.findUnique({ where: { tenantId_fichaTecnicaId: { tenantId, fichaTecnicaId } } });
-  return row ? { drogaId: row.drogaId, cantidad: row.cantidad?.toString() ?? null } : null;
+  return row ? { drogaId: row.drogaId, cantidad: row.cantidad?.toString() ?? null, porUnidad: row.porUnidad } : null;
 }
 
 /** Creates or replaces a ficha's excipiente draft; returns the previous one for the audit. */
 export async function upsertExcipienteBorrador(
   tx: Prisma.TransactionClient,
-  input: { tenantId: string; fichaTecnicaId: string; drogaId: string | null; cantidad: string | null; actualizadoPorId: string },
-): Promise<{ drogaId: string | null; cantidad: string | null } | null> {
+  input: { tenantId: string; fichaTecnicaId: string; actualizadoPorId: string } & ExcipienteBorrador,
+): Promise<ExcipienteBorrador | null> {
   const anterior = await getExcipienteBorrador(tx, input.tenantId, input.fichaTecnicaId);
-  const data = { drogaId: input.drogaId, cantidad: input.cantidad, actualizadoPorId: input.actualizadoPorId, actualizadoEn: new Date() };
+  const data = { drogaId: input.drogaId, cantidad: input.cantidad, porUnidad: input.porUnidad, actualizadoPorId: input.actualizadoPorId, actualizadoEn: new Date() };
   await tx.excipienteBorrador.upsert({
     where: { tenantId_fichaTecnicaId: { tenantId: input.tenantId, fichaTecnicaId: input.fichaTecnicaId } },
     create: { tenantId: input.tenantId, fichaTecnicaId: input.fichaTecnicaId, ...data },
@@ -2346,16 +2522,24 @@ export async function getExcipienteDePreparacion(
   return { drogaId: droga.id, drogaNombre: droga.nombre, cantidad: preparacion.excipienteCantidad.toString(), unidadSimbolo: droga.unidadSimbolo };
 }
 
-/** Sets the preparación's excipiente (while INICIADA, INV-P08) and the text the fórmula carries ("Ludipress 12,5 g"). */
+/**
+ * Sets the preparación's excipiente (while INICIADA, INV-P08): the total, the quantity per dosis when typed so
+ * (migration 0113, `null` = c.s.p.) and the text the fórmula carries ("Ludipress 0,8 g" / "Ludipress").
+ */
 export async function setExcipienteEstructurado(
   tx: Prisma.TransactionClient,
   tenantId: string,
   preparacionId: string,
-  excipiente: { drogaId: string; cantidad: string; texto: string },
+  excipiente: { drogaId: string; cantidad: string; cantidadPorUnidad: string | null; texto: string },
 ): Promise<void> {
   await tx.preparacion.update({
     where: { id: preparacionId, tenantId },
-    data: { excipienteDrogaId: excipiente.drogaId, excipienteCantidad: excipiente.cantidad, excipienteTexto: excipiente.texto },
+    data: {
+      excipienteDrogaId: excipiente.drogaId,
+      excipienteCantidad: excipiente.cantidad,
+      excipienteCantidadPorUnidad: excipiente.cantidadPorUnidad,
+      excipienteTexto: excipiente.texto,
+    },
   });
 }
 
@@ -2458,12 +2642,14 @@ export async function getFormaDeItemDeFicha(
   tx: Prisma.TransactionClient,
   tenantId: string,
   fichaTecnicaId: string,
-): Promise<{ formaFarmaceutica: string; cantidadUnidades: number } | null> {
+): Promise<ItemDosificable | null> {
   const ficha = await tx.fichaTecnica.findUnique({
     where: { id: fichaTecnicaId, tenantId },
-    select: { itemReceta: { select: { formaFarmaceutica: true, cantidadUnidades: true } } },
+    select: { itemReceta: { select: { formaFarmaceutica: true, cantidadUnidades: true, fraccionDosisPorUnidad: true } } },
   });
-  return ficha ? { formaFarmaceutica: ficha.itemReceta.formaFarmaceutica, cantidadUnidades: ficha.itemReceta.cantidadUnidades } : null;
+  if (!ficha) return null;
+  const item = ficha.itemReceta;
+  return { formaFarmaceutica: item.formaFarmaceutica, cantidadUnidades: item.cantidadUnidades, fraccionDosisPorUnidad: item.fraccionDosisPorUnidad.toString() };
 }
 
 /** An insumo the preparación used (migration 0110). */
