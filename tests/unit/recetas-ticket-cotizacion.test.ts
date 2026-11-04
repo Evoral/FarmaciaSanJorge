@@ -273,6 +273,7 @@ describe("imprimirCotizacionPdf", () => {
   });
 
   it("passes getMarcaTenant()'s nombre as farmacia and returns a Buffer that starts with %PDF", async () => {
+    const executeSpy = vi.spyOn(getTicketCotizacionQuery, "execute");
     const pdf = await imprimirCotizacionPdf({
       paciente: "Juan Pérez",
       medico: "Dr. Gómez",
@@ -280,7 +281,12 @@ describe("imprimirCotizacionPdf", () => {
     });
 
     expect(getMarcaTenantMock).toHaveBeenCalledTimes(1);
+    // The name must reach the ticket, not just be read.
+    expect(executeSpy).toHaveBeenCalledWith(expect.objectContaining({ farmacia: "Farmacia Central" }));
+    const ticket = await executeSpy.mock.results[0]!.value;
+    expect(ticket.farmacia).toBe("Farmacia Central");
     expect(Buffer.isBuffer(pdf)).toBe(true);
     expect(pdf.subarray(0, 4).toString("utf-8")).toBe("%PDF");
+    executeSpy.mockRestore();
   });
 });
