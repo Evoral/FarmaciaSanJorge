@@ -369,38 +369,10 @@ regenerar.
 
 ### Requirement: Ticket de cotización
 
-The "Precio" panel SHALL offer **«Imprimir cotización»**: an 80 mm thermal ticket (`shared/pdf/ticket.ts`) showing farmacia, fecha, paciente, médico, and items with pricing (on the line for a single item, or only the total for multiple items). Nothing is saved; the server recomputes the price from the draft and requires `cotizaciones.calcular`. Printing is enabled only when the price is complete and up to date. If any ítem lacks a price when printing, the server MUST refuse the ticket.
-
-#### Scenario: Un ítem con nombre del preparado
-
-- **GIVEN** una receta en carga con paciente, médico y un ítem «Crema antiacné» de $ 5.000
-- **WHEN** se imprime la cotización
-- **THEN** el ticket muestra la farmacia, la fecha, el paciente, el médico y «Crema antiacné $ 5.000»
-
-#### Scenario: Sin nombre del preparado ni paciente
-
-- **GIVEN** un solo ítem en cápsulas sin nombre del preparado y sin paciente ni médico
-- **WHEN** se imprime la cotización
-- **THEN** el ticket muestra la farmacia, la fecha y «Cápsula $ precio»
-
-#### Scenario: Dos ítems
-
-- **GIVEN** una receta en carga con dos ítems
-- **WHEN** se imprime la cotización
-- **THEN** cada ítem aparece en su renglón sin precio y al final «Total $ precio»
-
-#### Scenario: Un ítem sin precio
-
-- **GIVEN** a receta draft where at least one ítem lacks a price or cannot be priced
-- **WHEN** printing the cotización is requested
-- **THEN** the server refuses to print with "No se puede imprimir la cotización: hay ítems sin precio. Revisá el recuadro Precio." (`MENSAJE_COTIZACION_INCOMPLETA`, `modules/recetas/domain/ticket-cotizacion.ts`)
-- **AND** if there is no applicable regla de precio, it refuses with the presupuesto's own message
-
-#### Scenario: Precio desactualizado
-
-- **GIVEN** a receta draft in the form where items were modified or the calculated price is incomplete
-- **WHEN** viewing the "Precio" panel
-- **THEN** "Imprimir cotización" is disabled while the price shown does not match the current form or is incomplete (`modules/recetas/ui/presupuesto-panel.tsx`, `puedeImprimir`)
+El recuadro «Precio» SHALL ofrecer **«Imprimir cotización»**: un ticket para la impresora térmica de 80 mm, con la
+misma geometría que la ficha técnica (`openspec/specs/impresion-ticket/spec.md`), para quien solo pregunta el precio.
+No guarda nada; el servidor recalcula el precio con el mismo borrador (nunca toma el del navegador) y requiere
+`cotizaciones.calcular`.
 
 #### Scenario: Datos fuera de la URL
 
@@ -416,9 +388,59 @@ The "Precio" panel SHALL offer **«Imprimir cotización»**: an 80 mm thermal ti
 - **WHEN** printing a cotización ticket is requested via `POST /api/recetas/cotizacion/pdf` or query `recetas.cotizacion.ticket` (`modules/recetas/application/imprimir-cotizacion-pdf.ts`)
 - **THEN** printing is refused with an authorization error
 
+### Requirement: Ticket de cotización — contenido
+
+El ticket SHALL imprimir, en orden y solo lo que se cargó: la farmacia (nombre de fantasía o, sin él, la razón
+social); la fecha del día (zona horaria de la farmacia); paciente y médico, con los nombres del formulario; cada ítem
+como su «Nombre del preparado» o, sin él, su forma farmacéutica («Crema»), nunca las drogas.
+
+#### Scenario: Un ítem con nombre del preparado
+
+- **GIVEN** una receta en carga con paciente, médico y un ítem «Crema antiacné» de $ 5.000
+- **WHEN** se imprime la cotización
+- **THEN** el ticket muestra la farmacia, la fecha, el paciente, el médico y «Crema antiacné $ 5.000»
+
+#### Scenario: Sin nombre del preparado ni paciente
+
+- **GIVEN** un solo ítem en cápsulas sin nombre del preparado y sin paciente ni médico
+- **WHEN** se imprime la cotización
+- **THEN** el ticket muestra la farmacia, la fecha y «Cápsula $ precio»
+
+### Requirement: Ticket de cotización — precio de uno o varios ítems
+
+Con un ítem, el ticket SHALL llevar su precio en el mismo renglón («Crema $ 5.000»). Con más de uno, SHALL listar los
+ítems uno por renglón y solo el **total**: todavía no hay precio diferenciado por ítem para mostrar al cliente.
+
+#### Scenario: Dos ítems
+
+- **GIVEN** una receta en carga con dos ítems
+- **WHEN** se imprime la cotización
+- **THEN** cada ítem aparece en su renglón sin precio y al final «Total $ precio»
+
+### Requirement: Ticket de cotización — solo con el precio completo
+
+El botón SHALL habilitarse solo con el precio completo y al día (todos los ítems con precio, sin cambios pendientes de
+recalcular). Si al imprimir el servidor no puede dar el precio de todos los ítems, MUST rechazarlo con el motivo: un
+total que deja un ítem afuera sería un precio equivocado en manos del cliente.
+
+#### Scenario: Un ítem sin precio
+
+- **GIVEN** a receta draft where at least one ítem lacks a price or cannot be priced
+- **WHEN** printing the cotización is requested
+- **THEN** the server refuses to print with "No se puede imprimir la cotización: hay ítems sin precio. Revisá el recuadro Precio." (`MENSAJE_COTIZACION_INCOMPLETA`, `modules/recetas/domain/ticket-cotizacion.ts`)
+- **AND** if there is no applicable regla de precio, it refuses with the presupuesto's own message
+
+#### Scenario: Precio desactualizado
+
+- **GIVEN** a receta draft in the form where items were modified or the calculated price is incomplete
+- **WHEN** viewing the "Precio" panel
+- **THEN** "Imprimir cotización" is disabled while the price shown does not match the current form or is incomplete (`modules/recetas/ui/presupuesto-panel.tsx`, `puedeImprimir`)
+
 ## Referencias
 
 > Se apoya en `openspec/specs/ficha-tecnica/spec.md` (cálculo de la ficha, V1–V9) y en la cotización existente (FASE 7.4, DP-09). Las notas **[ACLARACIÓN]** son deducciones de consistencia; no agregan requisitos.
+
+> Fuente del ticket de cotización: pedido del usuario (2026-11-04): «un botón de mandar a una impresora, con el mismo formato que la ficha técnica, para entregar a un cliente la cotización […] es para entregar a alguien que viene únicamente a preguntar el precio».
 
 ## Aclaraciones
 

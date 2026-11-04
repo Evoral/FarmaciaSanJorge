@@ -6,14 +6,26 @@ Document the geometry and layout rules for tickets printed on the laboratory's 8
 
 ## Requirements
 
-### Requirement: Geometry of the 80 mm thermal printer (POS80)
+### Requirement: Width of the 80 mm thermal printer (POS80)
 
-Thermal tickets for the POS80 printer SHALL use an 80 mm width with a 5 mm left margin (`MARGEN_IZQUIERDO`). Content SHALL end at 64 mm from the left edge (`ANCHO_CONTENIDO`) because the printer clipped anything past ~66 mm. Page height MUST equal content height, measured on a tall layout pass before rendering. Content SHALL render in solid black only without greys. This geometry is shared by the ficha técnica and cotización (`openspec/specs/presupuesto-receta/spec.md`).
+Thermal tickets for the POS80 printer SHALL use an 80 mm page with a 5 mm left margin (`MARGEN_IZQUIERDO`) and content
+ending 64 mm from the left edge (a 16 mm right margin, so `ANCHO_CONTENIDO` is 59 mm wide): the printer clipped
+anything past ~66 mm. Shared by the ficha técnica and the cotización (`openspec/specs/presupuesto-receta/spec.md`).
 
-#### Scenario: POS80 ticket geometry
+#### Scenario: Right-aligned amount stays printable
 
 - **WHEN** a ticket is rendered with `renderTicketPdf` (`shared/pdf/ticket.ts`)
-- **THEN** it uses an 80 mm page width, 5 mm left margin, 64 mm content width limit, single-page dynamic height matching the measured content, and pure black stroke/fill
+- **THEN** the page is 80 mm wide and every text, including right-aligned amounts, ends 64 mm from the left edge
+
+### Requirement: Height and color of a thermal ticket
+
+A receipt roll has no page height: the ticket SHALL be one page exactly as tall as its content (laid out once on a
+very tall page to measure it, then rendered at the measured height). It SHALL print in black only, with no greys.
+
+#### Scenario: Ticket as tall as its content
+
+- **WHEN** a ticket of any length is rendered with `renderTicketPdf`
+- **THEN** it is a single page whose height matches its content, in black only
 
 ### Requirement: Printed content and delivery of the ficha técnica
 
