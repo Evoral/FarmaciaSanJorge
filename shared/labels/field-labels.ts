@@ -47,6 +47,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   matricula: "Matrícula",
   matriculaJurisdiccion: "Jurisdicción de la matrícula",
   matriculaFarmacia: "Matrícula de la farmacia",
+  farmacia: "Farmacia",
   nombre: "Nombre",
   nombreFantasia: "Nombre de fantasía",
   nroCredencial: "Nº de credencial (obra social)",
