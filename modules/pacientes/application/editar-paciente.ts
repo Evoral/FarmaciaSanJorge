@@ -11,47 +11,20 @@
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { ConflictError, NotFoundError, ValidationError } from "@/shared/errors";
-import { nonEmptyString, uuid } from "@/shared/validation";
-import { cuilOpcional, dniOpcional, domicilioOpcional } from "../domain/paciente";
+import { uuid } from "@/shared/validation";
+import { domicilioOpcional } from "../domain/paciente";
 import { existeCuil, existeDni, getPacienteParaAccion, lockPacienteParaAccion, updatePacienteDatos } from "../infrastructure/paciente-repository";
 import type { PacienteParaAccion } from "../infrastructure/paciente-repository";
+import { crearPacienteInput } from "./crear-paciente";
 
-const textoOpcional = z
-  .string()
-  .trim()
-  .optional()
-  .nullable()
-  .transform((v) => (v && v.length > 0 ? v : null));
-
-const fechaOpcional = z
-  .string()
-  .trim()
-  .optional()
-  .nullable()
-  .transform((value, ctx) => {
-    if (!value || value.length === 0) return null;
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      ctx.addIssue({ code: "custom", message: "Fecha de nacimiento inválida." });
-      return z.NEVER;
-    }
-    return date;
-  });
-
-const editarPacienteInput = z.object({
+/**
+ * The alta's schema plus what only an edit carries: the fields' rules live once, in
+ * crear-paciente.ts, so the alta and the edición can never accept different data.
+ */
+const editarPacienteInput = crearPacienteInput.extend({
   id: uuid,
-  nombre: nonEmptyString,
-  apellido: nonEmptyString,
-  cuil: cuilOpcional,
-  dni: dniOpcional,
-  telefono: textoOpcional,
-  email: textoOpcional,
-  fechaNacimiento: fechaOpcional,
-  nroCredencial: textoOpcional,
-  sexo: textoOpcional,
   /** Required (no default): an omitted value must never silently revoke an existing consent. */
   aceptaRecordatoriosWhatsapp: z.boolean(),
-  domicilio: domicilioOpcional,
   domicilioEntrega: domicilioOpcional,
   version: z.object({
     nombre: z.string(),
