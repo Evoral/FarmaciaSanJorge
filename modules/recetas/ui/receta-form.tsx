@@ -589,6 +589,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
           especialidad: opcional(b.medico.especialidad),
           telefono: opcional(b.medico.telefono),
           direccionRegistrada: opcional(b.medico.direccionRegistrada),
+          email: opcional(b.medico.email),
         },
       },
       items: itemsParaEnvio(),
@@ -812,6 +813,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                 { etiqueta: "Especialidad", valor: importacion.borrador.medico.especialidad },
                 { etiqueta: "Teléfono", valor: importacion.borrador.medico.telefono },
                 { etiqueta: "Dirección", valor: importacion.borrador.medico.direccionRegistrada },
+                { etiqueta: "Email", valor: importacion.borrador.medico.email },
               ]}
             >
               {importacion.medico.existente ? null : (

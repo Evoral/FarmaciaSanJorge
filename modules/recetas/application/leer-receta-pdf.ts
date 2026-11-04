@@ -74,7 +74,7 @@ export function datosPacientePdf(borrador: BorradorReceta) {
 
 export function datosMedicoPdf(borrador: BorradorReceta) {
   const m = borrador.medico;
-  return { especialidad: m.especialidad, telefono: m.telefono, direccionRegistrada: m.direccionRegistrada };
+  return { especialidad: m.especialidad, telefono: m.telefono, direccionRegistrada: m.direccionRegistrada, email: m.email };
 }
 
 /** The match step (spec "Pieza 4"): duplicate check, paciente, médico, drogas, unidades. Shared by every source of recetas (`fuente` tags the preview). */

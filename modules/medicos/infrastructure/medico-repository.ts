@@ -85,6 +85,7 @@ export interface MedicoParaAccion {
   especialidad: string | null;
   telefono: string | null;
   direccionRegistrada: string | null;
+  email: string | null;
   fechaBaja: Date | null;
   motivoBaja: string | null;
 }
@@ -98,6 +99,7 @@ const SELECT_PARA_ACCION = {
   especialidad: true,
   telefono: true,
   direccionRegistrada: true,
+  email: true,
   fechaBaja: true,
   motivoBaja: true,
 } as const;
@@ -152,6 +154,7 @@ export interface NuevoMedicoInput {
   especialidad?: string | null;
   telefono?: string | null;
   direccionRegistrada?: string | null;
+  email?: string | null;
 }
 
 export async function insertMedico(tx: Prisma.TransactionClient, input: NuevoMedicoInput): Promise<{ id: string }> {
@@ -165,6 +168,7 @@ export async function insertMedico(tx: Prisma.TransactionClient, input: NuevoMed
       especialidad: input.especialidad ?? null,
       telefono: input.telefono ?? null,
       direccionRegistrada: input.direccionRegistrada ?? null,
+      email: input.email ?? null,
     },
     select: { id: true },
   });
@@ -179,6 +183,7 @@ export interface EditarMedicoInput {
   especialidad: string | null;
   telefono: string | null;
   direccionRegistrada: string | null;
+  email: string | null;
 }
 
 export interface EditarMedicoVersion {
@@ -189,6 +194,7 @@ export interface EditarMedicoVersion {
   especialidad: string | null;
   telefono: string | null;
   direccionRegistrada: string | null;
+  email: string | null;
 }
 
 export async function updateMedicoDatos(
@@ -208,6 +214,7 @@ export async function updateMedicoDatos(
       especialidad: version.especialidad,
       telefono: version.telefono,
       direccionRegistrada: version.direccionRegistrada,
+      email: version.email,
     },
     data: {
       nombre: input.nombre,
@@ -217,6 +224,7 @@ export async function updateMedicoDatos(
       especialidad: input.especialidad,
       telefono: input.telefono,
       direccionRegistrada: input.direccionRegistrada,
+      email: input.email,
     },
   });
   return result.count === 1;

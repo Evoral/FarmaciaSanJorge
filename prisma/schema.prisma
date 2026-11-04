@@ -768,6 +768,8 @@ model Medico {
   especialidad          String?
   telefono              String?
   direccionRegistrada   String?               @map("direccion_registrada")
+  /// Migration 0118.
+  email                 String?
   fechaBaja             DateTime?             @map("fecha_baja") @db.Timestamptz(6)
   /// FASE 4 point 4.4 / migration 0029 -- same convenience column as proveedor.motivoBaja (migration 0027).
   motivoBaja            String?               @map("motivo_baja")

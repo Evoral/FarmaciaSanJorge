@@ -236,7 +236,7 @@ async function resolverMedico(ctx: Contexto, input: ImportarRecetaInput["medico"
     return { id: alta.output.id, nombre: `${datos.apellido}, ${datos.nombre} — matrícula ${datos.matricula}` };
   }
 
-  const pdf = { especialidad: datos.especialidad, telefono: datos.telefono, direccionRegistrada: datos.direccionRegistrada };
+  const pdf = { especialidad: datos.especialidad, telefono: datos.telefono, direccionRegistrada: datos.direccionRegistrada, email: datos.email };
   const { completar } = calcularCompletado(CAMPOS_MEDICO_IMPORTABLES, existente, pdf);
   const escritos = await completarMedico(tx, session.tenantId, existente.id, valoresACompletar(completar, pdf));
   if (Object.keys(escritos).length > 0) {

@@ -94,6 +94,7 @@ export interface BorradorMedico {
   matriculaJurisdiccion: JurisdiccionMatriculaPdf | null;
   direccionRegistrada: string | null;
   telefono: string | null;
+  email: string | null;
 }
 
 export interface BorradorComponente {
@@ -637,6 +638,34 @@ export function separarContactoMedico(texto: string): { direccion: string; telef
   return m ? { direccion: colapsar(m[1]!), telefono: colapsar(m[2]!) } : null;
 }
 
+const RE_EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/;
+const RE_SOLO_TELEFONO = /^[\d\s()+-]*\d$/;
+const RE_SEPARADORES_EXTREMOS = /^[\s/|,;-]+|[\s/|,;-]+$/g;
+
+export interface ContactoMedico {
+  direccion: string | null;
+  telefono: string | null;
+  email: string | null;
+}
+
+/**
+ * The médico's contact as RCTA prints it (the PDF's footer, the QR's `lugarAtencion`): either
+ * "`<dirección>` Teléfono `<número>`" or "`<email>/<teléfono>`" (user, 2026-11-04). `null` when the text
+ * has neither an email nor a "Teléfono" label.
+ */
+export function leerContactoMedico(texto: string): ContactoMedico | null {
+  const email = RE_EMAIL.exec(texto)?.[0] ?? null;
+  if (email === null) {
+    const contacto = separarContactoMedico(texto);
+    return contacto ? { ...contacto, email: null } : null;
+  }
+  const resto = colapsar(texto.replace(email, " ").replace(RE_SEPARADORES_EXTREMOS, ""));
+  const conEtiqueta = resto ? separarContactoMedico(resto) : null;
+  if (conEtiqueta) return { ...conEtiqueta, email };
+  const esTelefono = RE_SOLO_TELEFONO.test(resto) && resto.replace(/\D/g, "").length >= 6;
+  return { direccion: esTelefono || !resto ? null : resto, telefono: esTelefono ? resto : null, email };
+}
+
 /** `true` if `uri` is an http(s) URL on `host` (or a subdomain) whose path starts with `prefijoPath`. */
 function esLinkDe(uri: string, host: string, prefijoPath: string): boolean {
   let url: URL;
@@ -845,10 +874,10 @@ function parsearRcta(ctx: ContextoParser): ResultadoParserReceta {
     });
   }
 
-  // --- Pie: dirección y teléfono del médico. ---
-  let contacto: ReturnType<typeof separarContactoMedico> = null;
+  // --- Pie: dirección, teléfono y email del médico. ---
+  let contacto: ContactoMedico | null = null;
   for (const texto of textosDe(renglones.slice(finCuerpo))) {
-    contacto = separarContactoMedico(texto);
+    contacto = leerContactoMedico(texto);
     if (contacto) break;
   }
 
@@ -859,6 +888,7 @@ function parsearRcta(ctx: ContextoParser): ResultadoParserReceta {
     matriculaJurisdiccion,
     direccionRegistrada: contacto?.direccion ?? null,
     telefono: contacto?.telefono ?? null,
+    email: contacto?.email ?? null,
   };
 
   if (items.length === 0) {

@@ -19,7 +19,7 @@ import {
   parsearFechaDdMmAaaa,
   RE_TOKEN_UNIDAD_DOSIS,
   separarBloquesCuerpo,
-  separarContactoMedico,
+  leerContactoMedico,
   urlVerificacionRcta,
   type AdvertenciaParser,
   type BorradorItem,
@@ -155,15 +155,16 @@ function mapearMedico(json: RecetaRctaJson, advertencias: AdvertenciaParser[]): 
   if (matricula === null) faltante("No se encontró la matrícula del médico.");
   else if (matriculaJurisdiccion === null) faltante("No se reconoció el tipo de matrícula del médico (MP o MN): elegí la jurisdicción.");
 
-  // "<dirección> Teléfono <número>" like the PDF's footer; without a phone the whole text is the dirección.
-  const contacto = m?.lugarAtencion ? separarContactoMedico(m.lugarAtencion) : null;
+  // "<dirección> Teléfono <número>" or "<email>/<teléfono>" like the PDF's footer; otherwise the whole text is the dirección.
+  const contacto = m?.lugarAtencion ? leerContactoMedico(m.lugarAtencion) : null;
   return {
     nombre,
     especialidad: m?.especialidad ?? null,
     matricula,
     matriculaJurisdiccion,
-    direccionRegistrada: contacto?.direccion ?? m?.lugarAtencion ?? null,
+    direccionRegistrada: contacto ? contacto.direccion : (m?.lugarAtencion ?? null),
     telefono: contacto?.telefono ?? m?.telefono ?? null,
+    email: contacto?.email ?? null,
   };
 }
 

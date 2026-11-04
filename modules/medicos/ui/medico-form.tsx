@@ -17,6 +17,7 @@ export interface MedicoFormProps {
     especialidad: string | null;
     telefono: string | null;
     direccionRegistrada: string | null;
+    email: string | null;
   };
   disabled: boolean;
 }
@@ -36,6 +37,7 @@ export function MedicoForm({ mode, medico, disabled }: MedicoFormProps) {
           <input type="hidden" name="versionEspecialidad" value={medico.especialidad ?? ""} />
           <input type="hidden" name="versionTelefono" value={medico.telefono ?? ""} />
           <input type="hidden" name="versionDireccionRegistrada" value={medico.direccionRegistrada ?? ""} />
+          <input type="hidden" name="versionEmail" value={medico.email ?? ""} />
         </>
       ) : null}
 
@@ -81,6 +83,12 @@ export function MedicoForm({ mode, medico, disabled }: MedicoFormProps) {
             Teléfono
           </label>
           <input id="telefono" name="telefono" type="tel" defaultValue={medico?.telefono ?? ""} disabled={disabled} className="input" />
+        </div>
+        <div className="field">
+          <label htmlFor="email" className="field-label">
+            Email
+          </label>
+          <input id="email" name="email" type="email" defaultValue={medico?.email ?? ""} disabled={disabled} className="input" />
         </div>
       </div>
 

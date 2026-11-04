@@ -22,7 +22,7 @@ import type { AdvertenciaParser, BorradorReceta } from "./receta-pdf-parser";
 export const CAMPOS_PACIENTE_IMPORTABLES = ["dni", "cuil", "sexo", "fechaNacimiento", "nroCredencial"] as const;
 export type CampoPacienteImportable = (typeof CAMPOS_PACIENTE_IMPORTABLES)[number];
 
-export const CAMPOS_MEDICO_IMPORTABLES = ["especialidad", "telefono", "direccionRegistrada"] as const;
+export const CAMPOS_MEDICO_IMPORTABLES = ["especialidad", "telefono", "direccionRegistrada", "email"] as const;
 export type CampoMedicoImportable = (typeof CAMPOS_MEDICO_IMPORTABLES)[number];
 
 export const ETIQUETAS_CAMPOS_IMPORTABLES: Readonly<Record<CampoPacienteImportable | CampoMedicoImportable | "nombre", string>> = {
@@ -34,6 +34,7 @@ export const ETIQUETAS_CAMPOS_IMPORTABLES: Readonly<Record<CampoPacienteImportab
   especialidad: "Especialidad",
   telefono: "Teléfono",
   direccionRegistrada: "Dirección",
+  email: "Email",
   nombre: "Nombre y apellido",
 };
 
