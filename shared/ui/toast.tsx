@@ -5,6 +5,9 @@
  * client component; mount ONE `<Toaster />` per page. Toasts are for
  * transient confirmations only: errors that need action stay inline.
  * Announced politely; auto-dismiss after 4 s (paused while hovered).
+ *
+ * A modal `<dialog>` sits in the top layer, above the page's `<Toaster />`: it mounts its own
+ * `<Toaster scope="..." />` and calls `toast(message, tone, scope)`; each Toaster shows only its scope's toasts.
  */
 import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,14 +18,15 @@ interface ToastItem {
   id: number;
   message: string;
   tone: ToastTone;
+  scope: string | undefined;
 }
 
 const DURATION_MS = 4000;
 const listeners = new Set<(item: ToastItem) => void>();
 let nextId = 1;
 
-export function toast(message: string, tone: ToastTone = "success") {
-  const item = { id: nextId++, message, tone };
+export function toast(message: string, tone: ToastTone = "success", scope?: string) {
+  const item = { id: nextId++, message, tone, scope };
   for (const listener of listeners) listener(item);
 }
 
@@ -37,16 +41,18 @@ export function ToastOnMount({ message, tone = "success" }: { message: string; t
   return null;
 }
 
-export function Toaster() {
+export function Toaster({ scope }: { scope?: string } = {}) {
   const [items, setItems] = useState<ToastItem[]>([]);
 
   useEffect(() => {
-    const add = (item: ToastItem) => setItems((current) => [...current.slice(-2), item]);
+    const add = (item: ToastItem) => {
+      if (item.scope === scope) setItems((current) => [...current.slice(-2), item]);
+    };
     listeners.add(add);
     return () => {
       listeners.delete(add);
     };
-  }, []);
+  }, [scope]);
 
   const dismiss = useCallback((id: number) => setItems((current) => current.filter((item) => item.id !== id)), []);
 
