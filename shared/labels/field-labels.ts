@@ -140,6 +140,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   precioMinimo: "Precio mínimo",
   simbolo: "Símbolo",
   stockMinimo: "Stock mínimo",
+  sugerirDilucion: "Sugerir lote diluido",
   saldoAperturaContralor: "Saldo de apertura del libro contralor",
   tipoControl: "Tipo de control",
   tipoMagnitud: "Magnitud",
