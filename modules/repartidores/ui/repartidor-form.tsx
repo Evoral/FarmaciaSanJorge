@@ -20,6 +20,7 @@ export function RepartidorForm({ mode, repartidor, disabled, volverA }: Repartid
 
   return (
     <SimpleForm
+      className="@container"
       action={action}
       submitLabel={mode === "crear" ? "Crear repartidor" : "Guardar cambios"}
       submitDisabled={disabled}
@@ -29,7 +30,7 @@ export function RepartidorForm({ mode, repartidor, disabled, volverA }: Repartid
     >
       {mode === "editar" && repartidor ? <input type="hidden" name="id" value={repartidor.id} /> : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 @lg:grid-cols-2">
         <div className="field">
           <label htmlFor="nombre" className="field-label">
             Nombre

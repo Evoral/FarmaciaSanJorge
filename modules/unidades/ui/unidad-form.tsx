@@ -42,7 +42,7 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
         <p>{GLOBAL_WARNING}</p>
       </div>
 
-      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear unidad" : "Guardar cambios"}>
+      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear unidad" : "Guardar cambios"} className="@container">
         {mode === "editar" && unidad ? (
           <>
             <input type="hidden" name="id" value={unidad.id} />
@@ -54,7 +54,7 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
           </>
         ) : null}
 
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="grid gap-4 @xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
           <div className="field">
             <label htmlFor="codigo" className="field-label">
               Código
@@ -75,7 +75,7 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 @lg:grid-cols-2">
           <div className="field">
             <label htmlFor="tipoMagnitud" className="field-label">
               Magnitud

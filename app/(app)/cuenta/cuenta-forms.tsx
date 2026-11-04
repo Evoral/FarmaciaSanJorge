@@ -71,7 +71,7 @@ function PinSection() {
       </div>
 
       <div className="panel-body flex flex-col gap-6">
-        <form ref={configurarFormRef} action={configurarFormAction} onSubmit={onConfigurarSubmit} noValidate className="flex flex-col gap-4">
+        <form ref={configurarFormRef} action={configurarFormAction} onSubmit={onConfigurarSubmit} noValidate className="@container flex flex-col gap-4">
           <div className="field">
             <label htmlFor="passwordActual" className="field-label">
               Contraseña actual
@@ -79,7 +79,7 @@ function PinSection() {
             <PasswordInput id="passwordActual" name="passwordActual" required autoComplete="current-password" className="input" />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 @lg:grid-cols-2">
             <NewPinFields />
           </div>
 

@@ -19,7 +19,7 @@ export function ProveedorForm({ mode, proveedor, disabled }: ProveedorFormProps)
   const action = mode === "crear" ? crearProveedorAction : editarProveedorAction;
 
   return (
-    <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear proveedor" : "Guardar cambios"}>
+    <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear proveedor" : "Guardar cambios"} className="@container">
       {mode === "editar" && proveedor ? (
         <>
           <input type="hidden" name="id" value={proveedor.id} />
@@ -28,7 +28,8 @@ export function ProveedorForm({ mode, proveedor, disabled }: ProveedorFormProps)
         </>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_14rem]">
+      {/* Container query: in /proveedores/[id] the form is ~280px wide at 1024px, and the 14rem CUIT track left Razón social ~38px. */}
+      <div className="grid gap-4 @lg:grid-cols-[minmax(0,1fr)_14rem]">
         <div className="field">
           <label htmlFor="razonSocial" className="field-label">
             Razón social

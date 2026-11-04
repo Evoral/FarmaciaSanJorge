@@ -32,7 +32,9 @@ export function LogoTenantForm({ logoSrc, disabled }: LogoTenantFormProps) {
   }
 
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+    // Container: in the farmacia settings this sits in the split-layout column (~280px at 1024px), too narrow for logo + file input side by side.
+    <div className="@container">
+    <div className="flex flex-col gap-4 @lg:flex-row @lg:items-start">
       <div className="flex shrink-0 flex-col items-center gap-1.5">
         <span className="flex size-20 items-center justify-center rounded-md border border-zinc-200 bg-white p-2">
           {/* `unoptimized`: the per-tenant image sits behind the session cookie, which the image optimizer would not send. */}
@@ -58,6 +60,7 @@ export function LogoTenantForm({ logoSrc, disabled }: LogoTenantFormProps) {
         </SimpleForm>
         {logoSrc ? <SimpleForm action={quitarLogoTenantAction} submitLabel="Quitar logo" pendingLabel="Quitando…" submitVariant="secondary" submitDisabled={disabled} /> : null}
       </div>
+    </div>
     </div>
   );
 }

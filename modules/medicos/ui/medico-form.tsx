@@ -26,7 +26,7 @@ export function MedicoForm({ mode, medico, disabled }: MedicoFormProps) {
   const action = mode === "crear" ? crearMedicoAction : editarMedicoAction;
 
   return (
-    <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear médico" : "Guardar cambios"}>
+    <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear médico" : "Guardar cambios"} className="@container">
       {mode === "editar" && medico ? (
         <>
           <input type="hidden" name="id" value={medico.id} />
@@ -41,7 +41,7 @@ export function MedicoForm({ mode, medico, disabled }: MedicoFormProps) {
         </>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 @lg:grid-cols-2">
         <div className="field">
           <label htmlFor="nombre" className="field-label">
             Nombre

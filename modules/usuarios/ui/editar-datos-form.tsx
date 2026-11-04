@@ -19,7 +19,7 @@ export interface EditarDatosFormProps {
 
 export function EditarDatosForm({ usuario, disabled }: EditarDatosFormProps) {
   return (
-    <ReauthAwareForm action={editarUsuarioAction} submitLabel="Guardar cambios" pendingLabel="Guardando…">
+    <ReauthAwareForm action={editarUsuarioAction} submitLabel="Guardar cambios" pendingLabel="Guardando…" className="@container">
       <input type="hidden" name="id" value={usuario.id} />
       <input type="hidden" name="versionNombre" value={usuario.nombre} />
       <input type="hidden" name="versionApellido" value={usuario.apellido} />
@@ -28,7 +28,7 @@ export function EditarDatosForm({ usuario, disabled }: EditarDatosFormProps) {
       <input type="hidden" name="versionNumeroMatricula" value={usuario.numeroMatricula ?? ""} />
 
       {usuario.esSector ? (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 @lg:grid-cols-2">
           <div className="field">
             <label htmlFor="edit-nombre" className="field-label">
               Nombre del sector
@@ -47,7 +47,7 @@ export function EditarDatosForm({ usuario, disabled }: EditarDatosFormProps) {
           </div>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 @lg:grid-cols-2">
           <div className="field">
             <label htmlFor="edit-nombre" className="field-label">
               Nombre
@@ -60,7 +60,7 @@ export function EditarDatosForm({ usuario, disabled }: EditarDatosFormProps) {
             </label>
             <input id="edit-apellido" name="apellido" defaultValue={usuario.apellido} required disabled={disabled} className="input" />
           </div>
-          <div className="field sm:col-span-2">
+          <div className="field @lg:col-span-2">
             <label htmlFor="edit-email" className="field-label">
               Email
             </label>

@@ -37,6 +37,7 @@ export function EtiquetaTamanoForm({ mode, tamano, hoja, disabled, volverA }: Et
 
   return (
     <ReauthAwareForm
+      className="@container"
       action={action}
       submitLabel={mode === "crear" ? "Crear tamaño" : "Guardar cambios"}
       submitDisabled={disabled}
@@ -53,7 +54,7 @@ export function EtiquetaTamanoForm({ mode, tamano, hoja, disabled, volverA }: Et
         <input id="nombre" name="nombre" defaultValue={tamano?.nombre ?? ""} required disabled={disabled} maxLength={NOMBRE_MAX_LENGTH} placeholder="Ej.: Rollo 100 × 42" className="input" />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 @lg:grid-cols-2">
         <MedidaMmField id="anchoMm" name="anchoMm" label="Ancho (mm)" defaultValue={medidaParaInput(tamano?.anchoMm)} disabled={disabled} />
         <MedidaMmField id="altoMm" name="altoMm" label="Alto (mm)" defaultValue={medidaParaInput(tamano?.altoMm)} disabled={disabled} />
       </div>
