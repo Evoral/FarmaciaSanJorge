@@ -369,24 +369,7 @@ regenerar.
 
 ### Requirement: Ticket de cotización
 
-> Fuente: pedido del usuario (2026-11-04): «un botón de mandar a una impresora, con el mismo formato que la ficha técnica, para entregar a un cliente la cotización […] es para entregar a alguien que viene únicamente a preguntar el precio».
-
-El recuadro «Precio» SHALL ofrecer **«Imprimir cotización»**: un ticket para la impresora térmica de 80 mm, con la
-misma geometría que la ficha técnica (`shared/pdf/ticket.ts`). No guarda nada; el servidor recalcula el precio con el
-mismo borrador (nunca toma el del navegador) y requiere `cotizaciones.calcular`.
-
-Contenido, en orden; lo que no se cargó no se imprime:
-
-1. El nombre de la farmacia (nombre de fantasía o, sin él, la razón social).
-2. La fecha del día (zona horaria de la farmacia).
-3. Paciente y médico, con los nombres que muestra el formulario, si se cargaron.
-4. Cada ítem como su «Nombre del preparado» o, sin él, su forma farmacéutica («Crema»). Nunca las drogas.
-5. Con un ítem, su precio en el mismo renglón («Crema $ 5.000»). Con más de uno, los ítems uno por renglón y solo el
-   **total**: todavía no hay precio diferenciado por ítem para mostrar al cliente.
-
-El botón SHALL habilitarse solo con el precio completo y al día (todos los ítems con precio, sin cambios pendientes de
-recalcular). Si al imprimir el servidor no puede dar el precio de todos los ítems, se rechaza con el motivo: un total
-que deja un ítem afuera sería un precio equivocado en manos del cliente.
+The "Precio" panel SHALL offer **«Imprimir cotización»**: an 80 mm thermal ticket (`shared/pdf/ticket.ts`) showing farmacia, fecha, paciente, médico, and items with pricing (on the line for a single item, or only the total for multiple items). Nothing is saved; the server recomputes the price from the draft and requires `cotizaciones.calcular`. Printing is enabled only when the price is complete and up to date. If any ítem lacks a price when printing, the server MUST refuse the ticket.
 
 #### Scenario: Un ítem con nombre del preparado
 
@@ -405,6 +388,33 @@ que deja un ítem afuera sería un precio equivocado en manos del cliente.
 - **GIVEN** una receta en carga con dos ítems
 - **WHEN** se imprime la cotización
 - **THEN** cada ítem aparece en su renglón sin precio y al final «Total $ precio»
+
+#### Scenario: Un ítem sin precio
+
+- **GIVEN** a receta draft where at least one ítem lacks a price or cannot be priced
+- **WHEN** printing the cotización is requested
+- **THEN** the server refuses to print with "No se puede imprimir la cotización: hay ítems sin precio. Revisá el recuadro Precio." (`MENSAJE_COTIZACION_INCOMPLETA`, `modules/recetas/domain/ticket-cotizacion.ts`)
+- **AND** if there is no applicable regla de precio, it refuses with the presupuesto's own message
+
+#### Scenario: Precio desactualizado
+
+- **GIVEN** a receta draft in the form where items were modified or the calculated price is incomplete
+- **WHEN** viewing the "Precio" panel
+- **THEN** "Imprimir cotización" is disabled while the price shown does not match the current form or is incomplete (`modules/recetas/ui/presupuesto-panel.tsx`, `puedeImprimir`)
+
+#### Scenario: Datos fuera de la URL
+
+- **GIVEN** a user printing a cotización ticket from the "Precio" panel
+- **WHEN** the browser submits `POST /api/recetas/cotizacion/pdf` (`app/api/recetas/cotizacion/pdf/route.ts`)
+- **THEN** the items, paciente and médico travel in the body
+- **AND** the URL carries no patient data
+- **AND** the PDF opens in a new tab and nothing is saved
+
+#### Scenario: Usuario sin permiso
+
+- **GIVEN** a user without the `cotizaciones.calcular` permission
+- **WHEN** printing a cotización ticket is requested via `POST /api/recetas/cotizacion/pdf` or query `recetas.cotizacion.ticket` (`modules/recetas/application/imprimir-cotizacion-pdf.ts`)
+- **THEN** printing is refused with an authorization error
 
 ## Referencias
 
