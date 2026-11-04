@@ -564,7 +564,7 @@ function FilasLinea({
                     id={`partidas_${linea.id}_${k}`}
                     value={partidaId}
                     onChange={(event) => setLotes(linea.id, lotes.map((id, i) => (i === k ? event.target.value : id)))}
-                    className="input h-8 w-full min-w-0 max-w-full flex-1 truncate py-0 font-mono text-xs sm:w-auto sm:flex-initial"
+                    className="input h-8 w-full min-w-0 max-w-full flex-1 truncate py-0 font-mono text-xs md:w-auto md:flex-initial"
                   >
                     {opciones.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -867,12 +867,13 @@ function FilasInsumos({ columnas }: { columnas: number }) {
   return (
     <>
       {insumos.filas.map((fila) => (
-        <tr key={fila.clave} className="border-b-0">
-          <td className="px-3 py-1.5 align-top font-medium text-zinc-900">{fila.tipo === "MATERIAL" ? "Material" : "Insumo"}</td>
-          <td colSpan={columnas - 2} className="px-3 py-1.5 align-top">
+        // Stacked card below md, like FilaExcipiente: a native table-row inside the block tbody overflows the phone width.
+        <tr key={fila.clave} className="block border-t border-zinc-200 px-3 py-3 md:table-row md:border-b-0 md:p-0">
+          <td className="block p-0 pb-1.5 align-top font-medium text-zinc-900 md:table-cell md:px-3 md:py-1.5">{fila.tipo === "MATERIAL" ? "Material" : "Insumo"}</td>
+          <td colSpan={columnas - 2} className="block p-0 align-top md:table-cell md:px-3 md:py-1.5">
             <BuscadorInsumo fila={fila} />
           </td>
-          <td className="px-3 py-1.5 text-right align-top">
+          <td className="block p-0 pt-2.5 text-left align-top md:table-cell md:px-3 md:py-1.5 md:text-right">
             <CantidadInsumo fila={fila} />
           </td>
         </tr>

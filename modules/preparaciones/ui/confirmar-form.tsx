@@ -446,9 +446,9 @@ function PlanLinea({ linea, plan, catalogo, datos }: { linea: LineaPantalla; pla
           const vencimiento = partida ? estadoVencimientoPartida(partida.fechaVencimiento, datos.jornadaActual, datos.diasAlertaVencimiento) : null;
           const cantidad = cantidades[i]!;
           return (
-            <li key={parte.partidaId} className="choice-row">
-              {/* Fixed column widths: every row of every línea lines up. */}
-              <span className="grid min-w-0 flex-1 gap-x-6 gap-y-1 sm:flex-none sm:grid-cols-[9rem_10rem_10rem]">
+            <li key={parte.partidaId} className="@container choice-row">
+              {/* Fixed column widths (512px) so every row lines up -- only when the row itself fits them plus the badges. */}
+              <span className="grid min-w-0 flex-1 gap-x-6 gap-y-1 @3xl:flex-none @3xl:grid-cols-[9rem_10rem_10rem]">
                 <span className="truncate">
                   <span className="text-zinc-500">Lote </span>
                   <span className="font-mono font-medium text-zinc-900">{partida?.lote ?? "—"}</span>
@@ -522,7 +522,7 @@ function ElegirLotes({
           const vencimiento = estadoVencimientoPartida(partida.fechaVencimiento, datos.jornadaActual, datos.diasAlertaVencimiento);
           return (
             <li key={partida.id}>
-              <label className="choice-row cursor-pointer">
+              <label className="@container choice-row cursor-pointer">
                 <input
                   type="checkbox"
                   name={`partidas_${linea.id}`}
@@ -533,7 +533,7 @@ function ElegirLotes({
                     onChange(marcada ? [...elegidas, partida.id] : elegidas.filter((id) => id !== partida.id));
                   }}
                 />
-                <span className="grid min-w-0 flex-1 gap-x-6 gap-y-1 sm:flex-none sm:grid-cols-[9rem_10rem_10rem]">
+                <span className="grid min-w-0 flex-1 gap-x-6 gap-y-1 @3xl:flex-none @3xl:grid-cols-[9rem_10rem_10rem]">
                   <span className="truncate">
                     <span className="text-zinc-500">Lote </span>
                     <span className="font-mono font-medium text-zinc-900">{partida.lote}</span>
