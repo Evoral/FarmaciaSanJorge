@@ -471,8 +471,9 @@ describe("recetas.importar -- confirmation", () => {
   });
 
   it("a new paciente is created through the pacientes module's own handler", async () => {
-    await importarRecetaCommand.execute(payload({ paciente: { existenteId: null, datos: { nombre: "Ana", apellido: "Suárez", cuil: CUIL } } }), { session: CON_PERMISO });
-    expect(insertPacienteMock).toHaveBeenCalledWith(FAKE_TX, expect.objectContaining({ nombre: "Ana", apellido: "Suárez", cuil: CUIL }));
+    repo.buscarPacientePorIdentificacion.mockResolvedValue(null);
+    await importarRecetaCommand.execute(payload({ paciente: { existenteId: null, datos: { nombre: "Ana", apellido: "Suárez", dni: "30123456", cuil: CUIL } } }), { session: CON_PERMISO });
+    expect(insertPacienteMock).toHaveBeenCalledWith(FAKE_TX, expect.objectContaining({ nombre: "Ana", apellido: "Suárez", dni: "30123456", cuil: CUIL }));
     expect(repo.completarPaciente).not.toHaveBeenCalled();
   });
 

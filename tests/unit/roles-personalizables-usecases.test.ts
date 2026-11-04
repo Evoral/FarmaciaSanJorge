@@ -275,7 +275,7 @@ describe("assigning roles (crearUsuario / cambiarRoles) is limited to the tenant
   it("an unknown role code is a validation error", async () => {
     await expect(cambiarRolesCommand.execute({ usuarioId: TARGET, roles: ["NO_EXISTE"] }, { session: GESTOR })).rejects.toBeInstanceOf(ValidationError);
     await expect(
-      crearUsuarioCommand.execute({ nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: ["NO_EXISTE"], passwordTemporal: "Temporal-Segura-2026", passwordTemporalRepeat: "Temporal-Segura-2026" }, { session: GESTOR }),
+      crearUsuarioCommand.execute({ nombre: "A", apellido: "B", email: "a@b.com", dni: "30123456", roles: ["NO_EXISTE"], passwordTemporal: "Temporal-Segura-2026", passwordTemporalRepeat: "Temporal-Segura-2026" }, { session: GESTOR }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
@@ -286,7 +286,7 @@ describe("assigning roles (crearUsuario / cambiarRoles) is limited to the tenant
   it("escalation: a non-admin cannot assign ADMINISTRADOR (or any role exceeding their permisos)", async () => {
     await expect(cambiarRolesCommand.execute({ usuarioId: TARGET, roles: ["ADMINISTRADOR"] }, { session: GESTOR })).rejects.toThrow(/No podés asignar el rol "Administrador"/);
     await expect(
-      crearUsuarioCommand.execute({ nombre: "A", apellido: "B", email: "a@b.com", dni: "1", roles: ["FARMACEUTICO"], passwordTemporal: "Temporal-Segura-2026", passwordTemporalRepeat: "Temporal-Segura-2026" }, { session: GESTOR }),
+      crearUsuarioCommand.execute({ nombre: "A", apellido: "B", email: "a@b.com", dni: "30123456", roles: ["FARMACEUTICO"], passwordTemporal: "Temporal-Segura-2026", passwordTemporalRepeat: "Temporal-Segura-2026" }, { session: GESTOR }),
     ).rejects.toBeInstanceOf(DomainError);
     expect(insertUsuarioRolMock).not.toHaveBeenCalled();
   });

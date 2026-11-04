@@ -78,19 +78,19 @@ beforeEach(() => {
 
 describe("crearPaciente -- consent", () => {
   it("defaults to NO consent when the field is absent", async () => {
-    await crearPacienteCommand.execute({ nombre: "N", apellido: "A" }, { session });
+    await crearPacienteCommand.execute({ nombre: "N", apellido: "A", dni: "30123456" }, { session });
     expect(insertPacienteMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ aceptaRecordatoriosWhatsapp: false }));
     expect(auditRecordMock.mock.calls[0]![1]).toMatchObject({ accion: "CREAR", valorNuevo: { aceptaRecordatoriosWhatsapp: false } });
   });
 
   it("persists and audits an explicit acceptance", async () => {
-    await crearPacienteCommand.execute({ nombre: "N", apellido: "A", aceptaRecordatoriosWhatsapp: true }, { session });
+    await crearPacienteCommand.execute({ nombre: "N", apellido: "A", dni: "30123456", aceptaRecordatoriosWhatsapp: true }, { session });
     expect(insertPacienteMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ aceptaRecordatoriosWhatsapp: true }));
     expect(auditRecordMock.mock.calls[0]![1]).toMatchObject({ valorNuevo: { aceptaRecordatoriosWhatsapp: true } });
   });
 
   it("rejects a non-boolean value", async () => {
-    await expect(crearPacienteCommand.execute({ nombre: "N", apellido: "A", aceptaRecordatoriosWhatsapp: "on" }, { session })).rejects.toThrow(/Datos inválidos/);
+    await expect(crearPacienteCommand.execute({ nombre: "N", apellido: "A", dni: "30123456", aceptaRecordatoriosWhatsapp: "on" }, { session })).rejects.toThrow(/Datos inválidos/);
     expect(insertPacienteMock).not.toHaveBeenCalled();
   });
 });
@@ -153,7 +153,7 @@ describe("crearPaciente -- consent cannot be recorded through the receta flow", 
 
   it("pacientes.crear-desde-receta persists FALSE even when the payload says true", async () => {
     const { crearPacienteDesdeRecetaCommand } = await import("@/modules/pacientes/application/crear-paciente-desde-receta");
-    await crearPacienteDesdeRecetaCommand.execute({ nombre: "N", apellido: "A", aceptaRecordatoriosWhatsapp: true }, { session: sessionRecetas });
+    await crearPacienteDesdeRecetaCommand.execute({ nombre: "N", apellido: "A", dni: "30123456", aceptaRecordatoriosWhatsapp: true }, { session: sessionRecetas });
     expect(insertPacienteMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ aceptaRecordatoriosWhatsapp: false }));
     expect(auditRecordMock.mock.calls[0]![1]).toMatchObject({ valorNuevo: { aceptaRecordatoriosWhatsapp: false } });
   });
@@ -167,7 +167,7 @@ describe("crearPaciente -- consent cannot be recorded through the receta flow", 
   });
 
   it("only pacientes.crear (permiso pacientes.gestionar) can persist true", async () => {
-    await crearPacienteCommand.execute({ nombre: "N", apellido: "A", aceptaRecordatoriosWhatsapp: true }, { session });
+    await crearPacienteCommand.execute({ nombre: "N", apellido: "A", dni: "30123456", aceptaRecordatoriosWhatsapp: true }, { session });
     expect(insertPacienteMock).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ aceptaRecordatoriosWhatsapp: true }));
   });
 });

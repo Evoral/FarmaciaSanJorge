@@ -87,7 +87,7 @@ beforeEach(() => {
 
 const PASSWORD_TEMPORAL = "Temporal-Segura-2026";
 const passwordFields = { passwordTemporal: PASSWORD_TEMPORAL, passwordTemporalRepeat: PASSWORD_TEMPORAL };
-const persona = { nombre: "Nueva", apellido: "Persona", email: "nueva@example.com", dni: "999", roles: ["FARMACEUTICO"] };
+const persona = { nombre: "Nueva", apellido: "Persona", email: "nueva@example.com", dni: "30123456", roles: ["FARMACEUTICO"] };
 
 describe("M1: crearUsuario audits CREAR + one ASIGNAR_ROL per initial role", () => {
   it("creating a user with 2 roles writes exactly 3 audit rows: 1 CREAR + 2 ASIGNAR_ROL, all for the new usuario, all in the same transaction", async () => {
