@@ -37,6 +37,7 @@ import { formatNumero, formatStockEntero } from "@/shared/format/cantidad";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { AYUDA_NUMERO, numeroParaInput } from "@/shared/decimal/numero-ingresado";
 import { NumeroInput } from "@/shared/ui/numero-input";
+import { agregarYEnfocar, filaDeLista } from "@/shared/ui/enfocar-al-agregar";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { CoFirmaDt } from "@/shared/ui/co-firma-dt";
 import { toast } from "@/shared/ui/toast";
@@ -615,7 +616,7 @@ function FilasLinea({
                 <span className="text-zinc-500">Se termina primero el lote abierto o el que vence antes, y el resto sale del otro.</span>
               ) : null}
               {libres.length > 0 ? (
-                <button type="button" onClick={() => setLotes(linea.id, [...lotes, libres[0]!.id])} className="btn btn-ghost btn-sm">
+                <button type="button" onClick={() => agregarYEnfocar(() => setLotes(linea.id, [...lotes, libres[0]!.id]), () => document.getElementById(`partidas_${linea.id}_${lotes.length}`))} className="btn btn-ghost btn-sm">
                   <Plus className="size-3.5" aria-hidden />
                   Agregar otro lote
                 </button>
@@ -892,7 +893,7 @@ function AgregarInsumo() {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
       {insumos.opciones.length > 0 ? (
-        <button type="button" onClick={insumos.agregar} className="btn btn-ghost btn-sm">
+        <button type="button" onClick={() => agregarYEnfocar(insumos.agregar, () => filaDeLista("insumo"))} className="btn btn-ghost btn-sm">
           <Plus className="size-3.5" aria-hidden />
           Agregar insumo
         </button>
@@ -926,7 +927,7 @@ function BuscadorInsumo({ fila, flotante = false }: { fila: FilaInsumo; flotante
   const sinOpciones = !insumos.opciones.some((o) => o.clase === "MATERIAL");
 
   return (
-    <div className="flex items-start gap-2">
+    <div data-fila="insumo" className="flex items-start gap-2">
       <div className="min-w-0 flex-1">
         {sinOpciones ? (
           <p className="text-xs text-zinc-500">No hay materiales en el catálogo de drogas.</p>

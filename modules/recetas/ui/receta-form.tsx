@@ -44,6 +44,7 @@ import Link from "next/link";
 import { AlertCircle, Plus, RotateCcw, Save, Trash2, TriangleAlert } from "lucide-react";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { NumeroInput } from "@/shared/ui/numero-input";
+import { agregarYEnfocar, filaDeLista } from "@/shared/ui/enfocar-al-agregar";
 import { RecordarSinonimoSwitch } from "@/shared/ui/recordar-sinonimo-switch";
 import { crearRecetaAction, domiciliosPacienteParaRecetaAction, editarRecetaAction, importarRecetaAction } from "./actions";
 import { IDLE_STATE } from "./action-state";
@@ -986,7 +987,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
           </div>
 
           {items.map((item, itemIdx) => (
-            <fieldset key={itemIdx} className="group-card" disabled={disabled}>
+            <fieldset key={itemIdx} data-fila="receta-item" className="group-card" disabled={disabled}>
               <legend className="sr-only">Ítem {itemIdx + 1}</legend>
               <div className="group-card-header">
                 <span className="index-badge" aria-hidden>
@@ -1120,7 +1121,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                   <ol>
                     {item.componentes.map((c, compIdx) => (
                       // pb-20: room below the row for the "Por" selector, which hangs under Unidad.
-                      <li key={compIdx}className={c.modoExpresion === "CONCENTRACION" && !esPorcentaje(c) ? "repeat-row pb-20" : "repeat-row"}>
+                      <li key={compIdx} data-fila={`receta-componente-${itemIdx}`} className={c.modoExpresion === "CONCENTRACION" && !esPorcentaje(c) ? "repeat-row pb-20" : "repeat-row"}>
                         {importacion && c.drogaTexto ? (
                           <p className="flex w-full flex-wrap items-center gap-2 text-xs text-zinc-600">
                             En la receta: «{c.drogaTexto}»
@@ -1276,7 +1277,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                     ))}
                   </ol>
 
-                  <button type="button" onClick={() => agregarComponente(itemIdx)} className="btn btn-ghost btn-sm mt-2">
+                  <button type="button" onClick={() => agregarYEnfocar(() => agregarComponente(itemIdx), () => filaDeLista(`receta-componente-${itemIdx}`))} className="btn btn-ghost btn-sm mt-2">
                     <Plus className="size-3.5" aria-hidden />
                     Agregar componente
                   </button>
@@ -1285,7 +1286,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
             </fieldset>
           ))}
 
-          <button type="button" onClick={agregarItem} disabled={disabled} className="add-row-button">
+          <button type="button" onClick={() => agregarYEnfocar(agregarItem, () => filaDeLista("receta-item")?.querySelector('[data-fila^="receta-componente-"]'))} disabled={disabled} className="add-row-button">
             <Plus className="size-4" aria-hidden />
             Agregar ítem
           </button>

@@ -14,6 +14,7 @@ import { Info, Plus, Trash2 } from "lucide-react";
 import { guardarReglaPrecioAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { NumeroInput } from "@/shared/ui/numero-input";
+import { agregarYEnfocar, filaDeLista } from "@/shared/ui/enfocar-al-agregar";
 import { numeroParaInput } from "@/shared/decimal/numero-ingresado";
 
 export interface ReglaPrecioFormProps {
@@ -85,7 +86,7 @@ export function ReglaPrecioForm({ vigente }: ReglaPrecioFormProps) {
                 const desde = i === 0 ? null : filas[i - 1]!.costoHasta.trim();
                 const rango = i === 0 ? "Desde $0" : `Más de $${desde || "…"}`;
                 return (
-                  <div key={fila.key} className="repeat-row">
+                  <div key={fila.key} data-fila="tramo" className="repeat-row">
                     <span className="flex w-36 items-center gap-2 pb-2 text-[0.8125rem] text-zinc-600">
                       <span className="index-badge" data-size="sm" aria-hidden>
                         {i + 1}
@@ -136,7 +137,7 @@ export function ReglaPrecioForm({ vigente }: ReglaPrecioFormProps) {
                 );
               })}
             </div>
-            <button type="button" className="add-row-button mt-3" onClick={agregar}>
+            <button type="button" className="add-row-button mt-3" onClick={() => agregarYEnfocar(agregar, () => filaDeLista("tramo", -2))}>
               <Plus className="size-4" aria-hidden />
               Agregar tramo
             </button>

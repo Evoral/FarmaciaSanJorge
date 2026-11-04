@@ -32,6 +32,7 @@ import { normalizarTexto } from "../domain/normalizar";
 import { SINONIMO_MAX_LARGO } from "../domain/sinonimo";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { NumeroInput } from "@/shared/ui/numero-input";
+import { agregarYEnfocar, filaDeLista } from "@/shared/ui/enfocar-al-agregar";
 import { toast } from "@/shared/ui/toast";
 import { CLASES_DROGA, CLASE_DROGA_LABELS, TIPOS_CONTROL, TIPO_CONTROL_LABELS, type ClaseDroga } from "@/modules/drogas/domain/droga";
 import { sugerirClase, type SugerenciaClase } from "@/modules/drogas/domain/sugerir-clase";
@@ -227,7 +228,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
             Hay cambios en otros nombres sin guardar: tocá «Guardar cambios».
           </p>
         ) : null}
-        <button type="button" onClick={agregarFila} disabled={disabled} className="btn btn-ghost btn-sm self-start">
+        <button type="button" onClick={() => agregarYEnfocar(agregarFila, () => filaDeLista("sinonimo"))} disabled={disabled} className="btn btn-ghost btn-sm self-start">
           <Plus className="size-4" aria-hidden />
           Agregar otro nombre
         </button>
@@ -432,7 +433,7 @@ function SinonimoFila({
       : null;
 
   return (
-    <div className="mb-2">
+    <div data-fila="sinonimo" className="mb-2">
       <div className="flex items-center gap-2">
         <label htmlFor={id} className="sr-only">
           Otro nombre {index + 1}

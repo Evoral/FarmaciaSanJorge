@@ -35,6 +35,7 @@ import { formatearComprobante } from "../domain/importacion-factura-compra";
 import type { VistaPreviaFactura } from "../domain/importacion-factura-compra";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { NumeroInput } from "@/shared/ui/numero-input";
+import { agregarYEnfocar, filaDeLista } from "@/shared/ui/enfocar-al-agregar";
 import { useOperador } from "@/shared/ui/operador";
 import { CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
 import { DateInput } from "@/shared/ui/date-input";
@@ -429,7 +430,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
           const clase = drogas.find((d) => d.id === l.droga?.value)?.clase as ClaseDroga | undefined;
           const sugerencia = l.droga ? null : sugerirClase(l.drogaTexto);
           return (
-            <div key={manual ? l.codigo : i} className={`flex flex-col gap-4 rounded border p-4 ${l.omitir ? "border-dashed border-zinc-200 bg-zinc-50" : "border-zinc-200"}`}>
+            <div key={manual ? l.codigo : i} data-fila="factura-linea" className={`flex flex-col gap-4 rounded border p-4 ${l.omitir ? "border-dashed border-zinc-200 bg-zinc-50" : "border-zinc-200"}`}>
               {manual ? (
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-medium text-zinc-900">Lote {i + 1}</p>
@@ -666,7 +667,7 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
           );
         })}
         {manual ? (
-          <button type="button" className="add-row-button" onClick={() => setLineas((actuales) => [...actuales, loteManual()])}>
+          <button type="button" className="add-row-button" onClick={() => agregarYEnfocar(() => setLineas((actuales) => [...actuales, loteManual()]), () => filaDeLista("factura-linea"))}>
             <Plus className="size-4" aria-hidden />
             Agregar lote
           </button>

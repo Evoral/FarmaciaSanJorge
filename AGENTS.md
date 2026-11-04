@@ -75,6 +75,8 @@ The ESLint config enforces most of these rules. Full rationale: `docs/architectu
   unless the spec states why not. Don't gate options by `mode !== "editar"` by default.
 - **A list's search box only filters.** Enter, the last row or a suggestion filter the list; it never opens a
   record or another page (`Combobox` with `enterRunsAction`, `shared/ui/buscador-navegable.tsx`). Records open from the list.
+- **Adding something leaves the cursor in it.** Every "Agregar ..." button focuses the first field of what it added
+  (`agregarYEnfocar` + `data-fila`, `shared/ui/enfocar-al-agregar.ts`): the user types right away, never clicks the new field first.
 - Reuse `shared/ui/` primitives (forms, filters, dialogs, pagination, toasts)
   and `shared/format/` before writing new ones.
 - **Shared sessions (cuentas de sector).** A Server Action that runs an acción
