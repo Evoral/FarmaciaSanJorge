@@ -66,7 +66,17 @@ export function PacienteForm({ mode, paciente, disabled }: PacienteFormProps) {
           <label htmlFor="dni" className="field-label">
             DNI
           </label>
-          <input id="dni" name="dni" defaultValue={paciente?.dni ?? ""} placeholder="12345678" disabled={disabled} autoComplete="off" className="input font-mono" />
+          {/* Mandatory on the alta and once set; a paciente loaded before the DNI became mandatory can still be edited without one. */}
+          <input
+            id="dni"
+            name="dni"
+            defaultValue={paciente?.dni ?? ""}
+            placeholder="12345678"
+            required={mode === "crear" || Boolean(paciente?.dni)}
+            disabled={disabled}
+            autoComplete="off"
+            className="input font-mono"
+          />
         </div>
         <div className="field">
           <label htmlFor="cuil" className="field-label">

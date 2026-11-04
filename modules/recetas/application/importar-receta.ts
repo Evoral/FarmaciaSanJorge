@@ -193,9 +193,15 @@ async function resolverPaciente(ctx: Contexto, input: ImportarRecetaInput["pacie
   const { tx, session } = ctx;
   const datos = input.datos;
   const existente = await buscarPacientePorIdentificacion(tx, session.tenantId, datos.cuil, datos.dni);
+  // A DNI typed for the alta (the document brought none) that belongs to another paciente: say so on the field.
+  if (input.existenteId === null && existente && datos.dni && existente.dni === datos.dni) {
+    throw new ValidationError("Ya existe un paciente con ese DNI: volvé a leer la receta para usarlo.", { fields: ["pacienteDni"] });
+  }
   if ((existente?.id ?? null) !== input.existenteId) throw new ConflictError(MENSAJE_CAMBIOS_DESDE_LECTURA);
 
   if (!existente) {
+    // The import never stops for a missing DNI, but a new paciente is never created without one (openspec/specs/dni-obligatorio/spec.md).
+    if (!datos.dni) throw new ValidationError("Ingresá el DNI del paciente.", { fields: ["pacienteDni"] });
     const alta = await crearPacienteHandler({ tx, session, input: { ...datos, domicilio } });
     await auditar(ctx, "paciente", alta.output.id, TipoAccion.CREAR, { valorNuevo: alta.audit!.valorNuevo! });
     return { id: alta.output.id, nombre: `${datos.nombre} ${datos.apellido}` };

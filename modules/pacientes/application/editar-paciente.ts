@@ -94,8 +94,12 @@ export const editarPacienteCommand = defineCommand({
     if (input.cuil && input.cuil !== actual.cuil && (await existeCuil(tx, session.tenantId, input.cuil, input.id))) {
       throw new ValidationError("Ya existe un paciente con ese CUIL.");
     }
+    // The DNI is what makes a paciente unique: once set it can be corrected, never removed.
+    if (actual.dni && !input.dni) {
+      throw new ValidationError("Ingresá el DNI del paciente.", { fields: ["dni"] });
+    }
     if (input.dni && input.dni !== actual.dni && (await existeDni(tx, session.tenantId, input.dni, input.id))) {
-      throw new ValidationError("Ya existe un paciente con ese DNI.");
+      throw new ValidationError("Ya existe un paciente con ese DNI.", { fields: ["dni"] });
     }
 
     const nuevoValor = {

@@ -12,13 +12,14 @@
  * so the permiso is declared, registered and tested on its own.
  */
 import { defineCommand, TipoAccion } from "@/shared/usecase";
-import { crearPacienteHandler, crearPacienteInput } from "./crear-paciente";
+import { altaPacienteInput, crearPacienteHandler } from "./crear-paciente";
 import type { CrearPacienteWireInput } from "./crear-paciente";
 
 export const crearPacienteDesdeRecetaCommand = defineCommand({
   name: "pacientes.crear-desde-receta",
   permiso: "recetas.crear",
-  input: crearPacienteInput,
+  /** A quick-create is still an alta: the DNI is mandatory (crear-paciente.ts's `altaPacienteInput`). */
+  input: altaPacienteInput,
   audit: { entidad: "paciente", accion: TipoAccion.CREAR },
   handler: crearPacienteHandler,
 });

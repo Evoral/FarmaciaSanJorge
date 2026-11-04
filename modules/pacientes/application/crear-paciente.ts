@@ -13,7 +13,7 @@ import { defineCommand, TipoAccion } from "@/shared/usecase";
 import type { CommandHandlerArgs, CommandHandlerResult } from "@/shared/usecase";
 import { ValidationError } from "@/shared/errors";
 import { nonEmptyString } from "@/shared/validation";
-import { cuilOpcional, dniOpcional, domicilioOpcional } from "../domain/paciente";
+import { cuilOpcional, dniObligatorio, dniOpcional, domicilioOpcional } from "../domain/paciente";
 import { existeCuil, existeDni, insertPaciente } from "../infrastructure/paciente-repository";
 
 const textoOpcional = z
@@ -57,6 +57,12 @@ export type CrearPacienteInput = z.infer<typeof crearPacienteInput>;
 export type CrearPacienteWireInput = z.input<typeof crearPacienteInput>;
 
 /**
+ * The alta of a new paciente by hand (the pacientes form and the receta's quick-create) requires the DNI: it is
+ * what makes the paciente unique. `crearPacienteInput` keeps it optional for the edición and the receta import.
+ */
+export const altaPacienteInput = crearPacienteInput.extend({ dni: dniObligatorio });
+
+/**
  * `pacientes.crear` (the pacientes form) is the ONLY entry point that can record
  * the consent for WhatsApp reminders (openspec/specs/pacientes-recurrentes/spec.md). It is
  * a separate schema ON PURPOSE: `crearPacienteInput` (also reused by the receta
@@ -65,7 +71,7 @@ export type CrearPacienteWireInput = z.input<typeof crearPacienteInput>;
  * `recetas.crear` cannot record an opt-in through the receta flow -- zod strips
  * the unknown key and the handler below stores `false`.
  */
-export const crearPacienteConConsentimientoInput = crearPacienteInput.extend({
+export const crearPacienteConConsentimientoInput = altaPacienteInput.extend({
   aceptaRecordatoriosWhatsapp: z.boolean().default(false),
   /** The domicilio de entrega is loaded from the ficha only (openspec/specs/domicilios/spec.md): the receta flow never sets it. */
   domicilioEntrega: domicilioOpcional,
@@ -92,7 +98,7 @@ async function crearPacienteConConsentimiento(
     throw new ValidationError("Ya existe un paciente con ese CUIL.");
   }
   if (input.dni && (await existeDni(tx, session.tenantId, input.dni))) {
-    throw new ValidationError("Ya existe un paciente con ese DNI.");
+    throw new ValidationError("Ya existe un paciente con ese DNI.", { fields: ["dni"] });
   }
 
   const nuevo = await insertPaciente(tx, {

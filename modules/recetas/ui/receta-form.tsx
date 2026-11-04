@@ -453,6 +453,8 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
     confirmado: !(borrador?.paciente.nombre?.requiereConfirmacion ?? false),
     // Never in the imported file: typed by the user, optional.
     telefono: "",
+    // Typed by the user only when the document brings none: a new paciente cannot be created without a DNI.
+    dni: "",
   }));
   const [medicoNuevo, setMedicoNuevo] = useState(() => ({
     nombre: borrador?.medico.nombre?.nombre ?? "",
@@ -573,7 +575,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
         datos: {
           nombre: paciente.existente ? paciente.existente.nombre : pacienteNuevo.nombre,
           apellido: paciente.existente ? paciente.existente.apellido : pacienteNuevo.apellido,
-          dni: opcional(b.paciente.dni),
+          dni: opcional(b.paciente.dni) ?? (paciente.existente ? undefined : pacienteNuevo.dni.trim() || undefined),
           cuil: opcional(b.paciente.cuil),
           sexo: opcional(b.paciente.sexo),
           fechaNacimiento: opcional(b.paciente.fechaNacimiento),
@@ -785,7 +787,25 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                     valor={pacienteNuevo}
                     onChange={(patch) => setPacienteNuevo((prev) => ({ ...prev, ...patch }))}
                   />
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-3 grid gap-3 @sm:grid-cols-2">
+                    {importacion.borrador.paciente.dni ? null : (
+                      // The document brings no DNI: the import goes on, but the new paciente needs one (openspec/specs/dni-obligatorio/spec.md).
+                      <div className="field">
+                        <label htmlFor={`${personaIdBase}-paciente-dni`} className="field-label">
+                          DNI
+                        </label>
+                        <input
+                          id={`${personaIdBase}-paciente-dni`}
+                          name="pacienteDni"
+                          inputMode="numeric"
+                          required
+                          autoComplete="off"
+                          value={pacienteNuevo.dni}
+                          onChange={(e) => setPacienteNuevo((prev) => ({ ...prev, dni: e.target.value }))}
+                          className="input font-mono"
+                        />
+                      </div>
+                    )}
                     <div className="field">
                       <label htmlFor={`${personaIdBase}-paciente-telefono`} className="field-label">
                         Teléfono (opcional)
@@ -802,7 +822,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                   </div>
                 </>
               )}
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="mt-3 grid gap-3 @sm:grid-cols-2">
                 {campoDomicilioPaciente}
                 {campoDomicilioEntrega}
               </div>
@@ -828,7 +848,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                     valor={medicoNuevo}
                     onChange={(patch) => setMedicoNuevo((prev) => ({ ...prev, ...patch }))}
                   />
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-3 grid gap-3 @sm:grid-cols-2">
                     <div className="field">
                       <label htmlFor={`${personaIdBase}-medico-matricula`} className="field-label">
                         Matrícula
@@ -866,7 +886,9 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
           </>
         ) : encabezadoOculto ? null : (
           <FormSection id={`${personaIdBase}-personas`} title="Paciente y médico" description="Escribí para buscar. Si no existe, lo creás desde la misma lista.">
-            <div className="grid gap-5 md:grid-cols-2">
+            {/* Container query for the same reason as "Datos de la receta": side by side only when the column itself is wide. */}
+            <div className="@container">
+            <div className="grid gap-5 @3xl:grid-cols-2">
               <PacientePicker
                 selectedId={pacienteId}
                 selectedLabel={pacienteLabel}
@@ -890,12 +912,20 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                 </>
               ) : null}
             </div>
+            </div>
           </FormSection>
         )}
 
         {encabezadoOculto ? null : (
           <FormSection id={`${personaIdBase}-datos`} title="Datos de la receta">
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[auto_minmax(0,1fr)_8rem_minmax(0,2fr)]">
+            {/*
+              Container query, not viewport: this column shares the screen with the app nav and the 22rem resumen aside,
+              so at xl viewports it is only ~600px wide. The `auto` track takes the fecha group's max-content (date +
+              validez toggle, ~27rem) and the fr tracks collapse to zero, overlapping Origen/CIE-10/Diagnóstico.
+              Four columns need ~57rem of the column itself.
+            */}
+            <div className="@container">
+            <div className="grid gap-4 @lg:grid-cols-2 @5xl:grid-cols-[auto_minmax(0,1fr)_8rem_minmax(0,2fr)]">
               <div className="flex flex-wrap items-end gap-4">
                 <div className="field">
                   <label htmlFor={fechaId} className="field-label">
@@ -975,6 +1005,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                   className="input w-full"
                 />
               </div>
+            </div>
             </div>
           </FormSection>
         )}
@@ -1430,7 +1461,7 @@ function NombreAConfirmar({ idBase, quien, nombreCompleto, requiereConfirmacion,
           En la receta: <strong className="text-zinc-900">{nombreCompleto}</strong>
         </p>
       ) : null}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 @sm:grid-cols-2">
         <div className="field">
           <label htmlFor={`${idBase}-nombre`} className="field-label">
             Nombre
