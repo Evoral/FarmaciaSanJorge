@@ -8,6 +8,8 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
+import type { listPartidasHistorial } from "@/modules/stock/infrastructure/partida-repository";
+import type { tiposElaboracionDePartidas } from "@/modules/stock/infrastructure/elaboracion-lote-repository";
 
 vi.mock("@/shared/audit", () => ({
   record: vi.fn(async () => undefined),
@@ -42,23 +44,26 @@ const getStockDeDrogaMock = vi.fn<
   unidadSimbolo: "g",
 }));
 
-const listPartidasHistorialMock = vi.fn(async () => ({
+const listPartidasHistorialMock = vi.fn<typeof listPartidasHistorial>(async () => ({
   items: [],
   total: 0,
   page: 1,
   pageSize: 20,
+  zonaHoraria: "America/Argentina/Buenos_Aires",
+  droga: null,
+  proveedores: [],
 }));
 
 vi.mock("@/modules/stock/infrastructure/partida-repository", () => ({
-  listPartidasHistorial: (...args: unknown[]) => listPartidasHistorialMock(...args),
+  listPartidasHistorial: (...args: Parameters<typeof listPartidasHistorial>) => listPartidasHistorialMock(...args),
   jornadaActualTenant: vi.fn(async () => "2026-11-03"),
   getDiasAlertaVencimiento: vi.fn(async () => 30),
   getStockDeDroga: (...args: unknown[]) => getStockDeDrogaMock(...(args as [unknown, string, string])),
 }));
 
-const tiposElaboracionDePartidasMock = vi.fn(async () => new Map<string, string>());
+const tiposElaboracionDePartidasMock = vi.fn<typeof tiposElaboracionDePartidas>(async () => new Map());
 vi.mock("@/modules/stock/infrastructure/elaboracion-lote-repository", () => ({
-  tiposElaboracionDePartidas: (...args: unknown[]) => tiposElaboracionDePartidasMock(...args),
+  tiposElaboracionDePartidas: (...args: Parameters<typeof tiposElaboracionDePartidas>) => tiposElaboracionDePartidasMock(...args),
 }));
 
 const { listPartidasQuery } = await import("@/modules/stock/application/list-partidas");
