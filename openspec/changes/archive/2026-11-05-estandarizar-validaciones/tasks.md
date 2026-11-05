@@ -56,9 +56,10 @@ Design: `design.md`. Behavior: `specs/fechas-entrada/spec.md`, `specs/importacio
 ## 8. Verify
 
 - [x] 8.1 `npm run typecheck`, `npm run lint`, `npm test` (CI is the gate; state what was not run)
-- [ ] 8.2 Manual (only if asked): `/preparaciones?desde=2026-02-30`, `/cierres/historial?fechaDesde=abc` show the listing without that filter; a factura manual stores despacho and país
+- [x] 8.2 Manual (only if asked): `/preparaciones?desde=2026-02-30`, `/cierres/historial?fechaDesde=abc` show the listing without that filter; a factura manual stores despacho and país
+  - Done 2026-11-05 on the dev server (test tenant), after the merge with origin. No error page, console or server error on `/preparaciones` (incl. `prescripcionDesde=2026-02-30`, `ingresoHasta=2026-13-01`), `/cierres/historial`, `/libro`, `/recetas`, `/auditoria`: the invalid date is dropped, the valid one keeps its chip. Factura manual B 9999-51105001 (Magel SA, lote `PRUEBA-DESPACHO-1`): the audit entry of the partida shows despacho `24001IC04123456X` and país `Alemania`; the form reset afterwards. Fields fit at 375 px. Not checked: the 201-character error (the input's `maxLength` stops it in the browser).
 
 ## 9. Archive
 
-- [ ] 9.1 Create `openspec/specs/fechas-entrada/spec.md` and `openspec/specs/importacion-factura-compra/spec.md` from the deltas, each with `## Purpose` and `## Code`
-- [ ] 9.2 Move the change to `openspec/changes/archive/YYYY-MM-DD-estandarizar-validaciones/`
+- [x] 9.1 Create `openspec/specs/fechas-entrada/spec.md` and `openspec/specs/importacion-factura-compra/spec.md` from the deltas, each with `## Purpose` and `## Code`
+- [x] 9.2 Move the change to `openspec/changes/archive/YYYY-MM-DD-estandarizar-validaciones/`

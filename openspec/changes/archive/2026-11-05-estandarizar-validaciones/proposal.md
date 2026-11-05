@@ -1,6 +1,6 @@
 # Propuesta — Estandarizar validaciones de entrada
 
-> **Estado:** propuesta aprobada por el usuario, pendiente de specs, diseño y tareas.
+> **Estado:** implementada y archivada (2026-11-05).
 > **Specs afectadas:** dos specs nuevas, `openspec/specs/fechas-entrada/spec.md` y
 > `openspec/specs/importacion-factura-compra/spec.md` (deltas en `specs/`). `importacion-receta-pdf` no cambia de
 > regla.
