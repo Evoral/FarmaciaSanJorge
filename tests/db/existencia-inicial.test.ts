@@ -127,14 +127,14 @@ describe.skipIf(dbTestSkipReason() !== null)("0100_existencia_inicial DB invaria
             [seed.tenantId, seed.dtId],
           );
           await tx.query(
-            `INSERT INTO fsj.cierre_diario (tenant_id, fecha, director_tecnico_id, designacion_id, matricula_dt, cantidad_asientos_recetario, cerrado_en)
-             VALUES ($1, '2026-06-01', $2, $3, $4, 0, now())`,
+            `INSERT INTO fsj.cierre_diario (tenant_id, fecha, director_tecnico_id, designacion_id, matricula_dt, cantidad_asientos, hash_lote, fuera_de_termino)
+             VALUES ($1, '2026-06-01', $2, $3, $4, 0, 'x', false)`,
             [seed.tenantId, seed.dtId, dtDesignacion.rows[0].id, dtDesignacion.rows[0].matricula],
           );
 
           // Set default dias_relevamiento_inicial to 30
           await tx.query(
-            `INSERT INTO fsj.parametro (tenant_id, clave, valor) VALUES ($1, 'dias_relevamiento_inicial', '30')
+            `INSERT INTO fsj.parametro (tenant_id, clave, tipo, valor) VALUES ($1, 'dias_relevamiento_inicial', 'NUMERO', '30')
              ON CONFLICT (tenant_id, clave) DO UPDATE SET valor = '30'`,
             [seed.tenantId],
           );
@@ -263,16 +263,17 @@ describe.skipIf(dbTestSkipReason() !== null)("0100_existencia_inicial DB invaria
         await inRollbackTx(tx, async () => {
           const seed = await seedBase(tx);
 
-          // Only setting date without user violates CHECK constraint 23514
+          // Only setting the user without the date violates the CHECK constraint (23514). The user must be a
+          // DT vigente: the BEFORE UPDATE trigger (INV-S26) runs before the CHECK and would raise P0001 otherwise.
           await expectDbRejection(
             tx,
             () =>
               tx.query(
                 `UPDATE fsj.tenant
-                 SET relevamiento_inicial_cerrado_en = now(),
-                     relevamiento_inicial_cerrado_por_id = NULL
+                 SET relevamiento_inicial_cerrado_en = NULL,
+                     relevamiento_inicial_cerrado_por_id = $2
                  WHERE id = $1`,
-                [seed.tenantId],
+                [seed.tenantId, seed.dtId],
               ),
             "23514",
           );

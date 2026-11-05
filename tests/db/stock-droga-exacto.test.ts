@@ -16,6 +16,7 @@ import { PrismaClient, type Prisma } from "@/generated/prisma/client";
 import { dbTestSkipReason, requireDbTestEnv } from "./env";
 import { insertTenant, insertDroga } from "./fixtures";
 import { getStockDeDroga } from "@/modules/stock/infrastructure/partida-repository";
+import { dec } from "@/shared/decimal";
 
 class RollbackSentinel extends Error {}
 
@@ -62,11 +63,9 @@ describe.skipIf(dbTestSkipReason() !== null)("DB tests: getStockDeDroga (partida
 
           // 1. Droga with no partidas: disponible "0", activo "0", and unit symbol
           const stock = await getStockDeDroga(tx, tenantId, drogaId);
-          expect(stock).toEqual({
-            disponible: "0",
-            activo: "0",
-            unidadSimbolo: simbolo,
-          });
+          // stock_activo (0111) is a weighted sum, so its numeric scale is not 0 ("0.000..."): compare it as a number.
+          expect(stock).toMatchObject({ disponible: "0", unidadSimbolo: simbolo });
+          expect(dec(stock!.activo).isZero()).toBe(true);
 
           // 2. Non-existent droga ID: null
           const nonExistentStock = await getStockDeDroga(tx, tenantId, randomUUID());

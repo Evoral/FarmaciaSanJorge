@@ -58,8 +58,8 @@ interface CostoOverrides {
 async function insertCosto(tx: Client, base: Base, overrides: CostoOverrides = {}): Promise<string> {
   const result = await tx.query(
     `INSERT INTO fsj.costo_proveedor
-       (tenant_id, droga_id, proveedor_id, precio_informado, unidad_precio_id, costo_unitario, fecha_precio, descripcion_proveedor, lista_precio_id, motivo, creado_por_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+       (tenant_id, droga_id, proveedor_id, precio_informado, unidad_precio_id, costo_unitario, fecha_precio, descripcion_proveedor, lista_precio_id, motivo, creado_por_id, alicuota_iva, precio_informado_con_iva, costo_unitario_con_iva)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 21, round($4::numeric * 1.21, 6), round($6::numeric * 1.21, 10)) RETURNING id`,
     [
       base.tenantId,
       overrides.drogaId ?? base.drogaId,
@@ -340,8 +340,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0079_costos_proveedor migration (f
             tx,
             () =>
               tx.query(
-                `INSERT INTO fsj.costo_proveedor (tenant_id, droga_id, proveedor_id, precio_informado, unidad_precio_id, costo_unitario, fecha_precio, creado_por_id)
-                 VALUES ($1, $2, $3, 1, $4, 1, '2026-10-01', $5)`,
+                `INSERT INTO fsj.costo_proveedor (tenant_id, droga_id, proveedor_id, precio_informado, unidad_precio_id, costo_unitario, fecha_precio, creado_por_id, alicuota_iva, precio_informado_con_iva, costo_unitario_con_iva)
+                 VALUES ($1, $2, $3, 1, $4, 1, '2026-10-01', $5, 21, 1.21, 1.21)`,
                 [a.tenantId, a.drogaId, a.proveedorId, randomUUID(), a.sistema],
               ),
             "23503",
@@ -476,8 +476,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0079_costos_proveedor migration (f
               scoped,
               () =>
                 scoped.query(
-                  `INSERT INTO fsj.costo_proveedor (tenant_id, droga_id, proveedor_id, precio_informado, unidad_precio_id, costo_unitario, fecha_precio, creado_por_id)
-                   VALUES ($1, $2, $3, 1, $4, 1, '2026-10-01', $5)`,
+                  `INSERT INTO fsj.costo_proveedor (tenant_id, droga_id, proveedor_id, precio_informado, unidad_precio_id, costo_unitario, fecha_precio, creado_por_id, alicuota_iva, precio_informado_con_iva, costo_unitario_con_iva)
+                   VALUES ($1, $2, $3, 1, $4, 1, '2026-10-01', $5, 21, 1.21, 1.21)`,
                   [a.tenantId, a.drogaId, a.proveedorId, a.unidadPrecioId, a.sistema],
                 ),
               "INV-U07",

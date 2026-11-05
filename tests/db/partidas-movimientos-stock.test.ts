@@ -440,13 +440,15 @@ describe.skipIf(dbTestSkipReason() !== null)("0008_partidas_movimientos_stock mi
           fechaVencimiento: FUTURO,
         });
 
+        // A linea_pesaje_id is given so the BEFORE INSERT trigger validar_egreso_excipiente (0092/0110, P0001) steps
+        // aside and the CHECK is what rejects the row. Row CHECKs run before the FK triggers, so the id may be random.
         await expectDbRejection(
           tx,
           () =>
             tx.query(
-              `INSERT INTO fsj.movimiento_stock (tenant_id, partida_id, tipo, cantidad, preparacion_id, registrado_por_id)
-               VALUES ($1, $2, 'EGRESO_PREPARACION', 0, $3, $4)`,
-              [tenantId, partidaId, randomUUID(), sistema],
+              `INSERT INTO fsj.movimiento_stock (tenant_id, partida_id, tipo, cantidad, preparacion_id, linea_pesaje_id, registrado_por_id)
+               VALUES ($1, $2, 'EGRESO_PREPARACION', 0, $3, $4, $5)`,
+              [tenantId, partidaId, randomUUID(), randomUUID(), sistema],
             ),
           "23514",
         );
@@ -623,13 +625,14 @@ describe.skipIf(dbTestSkipReason() !== null)("0008_partidas_movimientos_stock mi
           fechaVencimiento: FUTURO,
         });
 
+        // Same as INV-S07: a linea_pesaje_id keeps validar_egreso_excipiente (P0001) from firing before the CHECK.
         await expectDbRejection(
           tx,
           () =>
             tx.query(
-              `INSERT INTO fsj.movimiento_stock (tenant_id, partida_id, tipo, cantidad, registrado_por_id)
-               VALUES ($1, $2, 'EGRESO_PREPARACION', 1, $3)`,
-              [tenantId, partidaId, sistema],
+              `INSERT INTO fsj.movimiento_stock (tenant_id, partida_id, tipo, cantidad, linea_pesaje_id, registrado_por_id)
+               VALUES ($1, $2, 'EGRESO_PREPARACION', 1, $3, $4)`,
+              [tenantId, partidaId, randomUUID(), sistema],
             ),
           "23514",
         );

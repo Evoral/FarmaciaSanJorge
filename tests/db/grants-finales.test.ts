@@ -53,6 +53,14 @@ const LEGAL: Record<string, GrantRule> = {
   regla_precio_tramo: { insert: true, update: [] },
   // Migration 0074: reanalisis_partida -- append-only, immutable (same shape as cotizacion).
   reanalisis_partida: { insert: true, update: [] },
+  // Migration 0111: elaboracion_lote -- one elaboration (DILUCION/FORMULA), insert-only and immutable; never in the libro recetario.
+  elaboracion_lote: { insert: true, update: [] },
+  // Migration 0086: the copy of an entrega kept when it is anulada -- insert-only.
+  entrega_anulada: { insert: true, update: [] },
+  // Migration 0087: libro re-anchoring record -- insert-only.
+  libro_reanclaje: { insert: true, update: [] },
+  // Migration 0088: the real weighing of a pesaje -- insert-only.
+  pesada_real: { insert: true, update: [] },
   // Migration 0079: an imported supplier price list header -- append-only (same shape as reanalisis_partida).
   lista_precio_proveedor: { insert: true, update: [] },
 };
