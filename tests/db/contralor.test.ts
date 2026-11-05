@@ -426,6 +426,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0014_libro_recetario_contralor mig
         );
 
         await tx.query("SET LOCAL ROLE fsj_app");
+        await tx.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
         await expectDbRejection(
           tx,
           () => tx.query(`UPDATE fsj.asiento_contralor SET cantidad = 999 WHERE id = $1`, [apertura.rows[0].id]),

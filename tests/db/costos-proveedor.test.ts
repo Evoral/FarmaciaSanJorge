@@ -278,6 +278,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0079_costos_proveedor migration (f
           const id = await insertCosto(tx, base);
 
           await tx.query("SET LOCAL ROLE fsj_app");
+          await tx.query("SELECT set_config('app.tenant_id', $1, true)", [base.tenantId]);
           await expectDbRejection(tx, () => tx.query(`UPDATE fsj.costo_proveedor SET precio_informado = 1 WHERE id = $1`, [id]), "42501");
           await expectDbRejection(tx, () => tx.query(`DELETE FROM fsj.costo_proveedor WHERE id = $1`, [id]), "42501");
 
@@ -381,6 +382,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0079_costos_proveedor migration (f
           const base = await seedBase(tx, "lisgrants");
           const id = await insertLista(tx, base);
           await tx.query("SET LOCAL ROLE fsj_app");
+          await tx.query("SELECT set_config('app.tenant_id', $1, true)", [base.tenantId]);
           await expectDbRejection(tx, () => tx.query(`UPDATE fsj.lista_precio_proveedor SET nombre_archivo = 'x' WHERE id = $1`, [id]), "42501");
           await expectDbRejection(tx, () => tx.query(`DELETE FROM fsj.lista_precio_proveedor WHERE id = $1`, [id]), "42501");
           await expectDbRejection(tx, () => tx.query(`TRUNCATE fsj.lista_precio_proveedor`), "42501");

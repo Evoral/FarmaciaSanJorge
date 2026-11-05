@@ -80,6 +80,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0012_fichas_tecnicas_lineas_pesaje
         const lineaId = await insertLinea(tx, { tenantId, fichaTecnicaId: fichaId, drogaId, unidadMedidaId: unidadId });
 
         await tx.query("SET LOCAL ROLE fsj_app");
+        await tx.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
         await expectDbRejection(tx, () => tx.query(`UPDATE fsj.ficha_tecnica SET version = 99 WHERE id = $1`, [fichaId]), "42501");
         await expectDbRejection(tx, () => tx.query(`DELETE FROM fsj.linea_pesaje WHERE id = $1`, [lineaId]), "42501");
       }),

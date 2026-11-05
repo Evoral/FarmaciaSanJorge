@@ -178,6 +178,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0030_receta_edicion_delete_guard m
         const recetaId = await insertReceta(tx, { tenantId, pacienteId, medicoId, registradaPorId: sistema });
 
         await tx.query("SET LOCAL ROLE fsj_app");
+        await tx.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
         await expectDbRejection(tx, () => tx.query(`DELETE FROM fsj.receta WHERE id = $1`, [recetaId]), "42501");
       }),
     );

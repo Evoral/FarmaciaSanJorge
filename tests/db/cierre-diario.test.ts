@@ -135,6 +135,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
 
         // INV-C21 (migration 0075): sign the jornada the day after, still on time (INV-C18).
         await avanzarJornadas(tx);
+        await tx.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
         const cierre = await tx.query(`SELECT * FROM fsj.cierre_diario_firmar($1, $2, $3, $4, NULL, NULL)`, [
           tenantId,
           apertura.rows[0].fecha_asiento,
@@ -195,6 +196,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0015_cierre_diario migration (fsj 
         // INV-C19 guard is the one that fires for it.
         await setRelojPrueba(tx, "2026-06-17T12:00:00-03:00");
 
+        await tx.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
         await expectInvariantViolation(
           tx,
           () => tx.query(`SELECT fsj.cierre_diario_firmar($1, $2, $3, $4)`, [tenantId, fechaD1, dtId, designacionId]),

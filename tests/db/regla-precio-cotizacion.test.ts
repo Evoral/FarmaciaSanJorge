@@ -193,6 +193,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0031_regla_precio_cotizacion migra
           const id = await insertRegla(tx, tenantId, sistema, "100");
 
           await tx.query("SET LOCAL ROLE fsj_app");
+          await tx.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
           await expectDbRejection(tx, () => tx.query(`UPDATE fsj.regla_precio SET margen = 999 WHERE id = $1`, [id]), "42501");
           await expectDbRejection(tx, () => tx.query(`DELETE FROM fsj.regla_precio WHERE id = $1`, [id]), "42501");
 
@@ -310,6 +311,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0031_regla_precio_cotizacion migra
           await expectInvariantViolation(tx, () => tx.query(`DELETE FROM fsj.regla_precio_tramo WHERE id = $1`, [tramoId]), "INV-IMMUTABLE");
 
           await tx.query("SET LOCAL ROLE fsj_app");
+          await tx.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
           await expectDbRejection(tx, () => tx.query(`UPDATE fsj.regla_precio_tramo SET margen = 999 WHERE id = $1`, [tramoId]), "42501");
           await expectDbRejection(tx, () => tx.query(`DELETE FROM fsj.regla_precio_tramo WHERE id = $1`, [tramoId]), "42501");
         }),
@@ -370,6 +372,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0031_regla_precio_cotizacion migra
           const cotId = await insertCotizacion(tx, { tenantId, itemRecetaId, reglaPrecioId: reglaId, calculadaPorId: sistema });
 
           await tx.query("SET LOCAL ROLE fsj_app");
+          await tx.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
           await expectDbRejection(tx, () => tx.query(`UPDATE fsj.cotizacion SET precio_final = 999 WHERE id = $1`, [cotId]), "42501");
           await expectDbRejection(tx, () => tx.query(`DELETE FROM fsj.cotizacion WHERE id = $1`, [cotId]), "42501");
         }),

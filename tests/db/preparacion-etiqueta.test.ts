@@ -476,6 +476,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0013_preparacion_etiqueta migratio
         const preparacionId = await insertPreparacion(tx, { tenantId, fichaTecnicaId, iniciadaPorId: sistema });
 
         await tx.query("SET LOCAL ROLE fsj_app");
+        await tx.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
         await expectDbRejection(tx, () => tx.query(`DELETE FROM fsj.preparacion WHERE id = $1`, [preparacionId]), "42501");
       }),
     );

@@ -284,6 +284,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0008_partidas_movimientos_stock mi
         });
 
         await tx.query("SET LOCAL ROLE fsj_app");
+        await tx.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
         await expectDbRejection(
           tx,
           () => tx.query(`UPDATE fsj.partida SET cantidad_disponible = 1 WHERE id = $1`, [partidaId]),

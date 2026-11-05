@@ -552,6 +552,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0111 lotes elaborados DB invariant
     // asApp lacks UPDATE / DELETE grants
     await asApp(async (client) => {
       await inRollbackTx(client, async (tx) => {
+        await tx.query("SELECT set_config('app.tenant_id', $1, true)", [randomUUID()]);
         const fakeId = randomUUID();
         await expectDbRejection(
           tx,
