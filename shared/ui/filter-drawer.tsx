@@ -99,10 +99,12 @@ export interface FilterPopoverProps {
   label: string;
   /** Active filters inside, appended to the trigger. */
   activeCount?: number;
+  /** "end" opens the panel from the trigger's right edge, for a trigger that may sit near the container's edge. */
+  align?: "start" | "end";
   children: ReactNode;
 }
 
-export function FilterPopover({ label, activeCount = 0, children }: FilterPopoverProps) {
+export function FilterPopover({ label, activeCount = 0, align = "start", children }: FilterPopoverProps) {
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -145,7 +147,7 @@ export function FilterPopover({ label, activeCount = 0, children }: FilterPopove
         {activeCount > 0 ? <span className="count-pill">{activeCount}</span> : null}
         <ChevronDown aria-hidden />
       </button>
-      <div id={panelId} className="popover filter-popover-panel" data-open={open || undefined} role="group" aria-label={label}>
+      <div id={panelId} className={`popover filter-popover-panel${align === "end" ? " right-0 left-auto" : ""}`} data-open={open || undefined} role="group" aria-label={label}>
         {children}
       </div>
     </div>

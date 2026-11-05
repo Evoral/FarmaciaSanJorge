@@ -43,6 +43,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle, Plus, RotateCcw, Save, Trash2, TriangleAlert } from "lucide-react";
 import { ToneBadge } from "@/shared/ui/status-badge";
+import { NumeroInput } from "@/shared/ui/numero-input";
+import { agregarYEnfocar, filaDeLista } from "@/shared/ui/enfocar-al-agregar";
 import { RecordarSinonimoSwitch } from "@/shared/ui/recordar-sinonimo-switch";
 import { crearRecetaAction, domiciliosPacienteParaRecetaAction, editarRecetaAction, importarRecetaAction } from "./actions";
 import { IDLE_STATE } from "./action-state";
@@ -452,6 +454,8 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
     confirmado: !(borrador?.paciente.nombre?.requiereConfirmacion ?? false),
     // Never in the imported file: typed by the user, optional.
     telefono: "",
+    // Typed by the user only when the document brings none: a new paciente cannot be created without a DNI.
+    dni: "",
   }));
   const [medicoNuevo, setMedicoNuevo] = useState(() => ({
     nombre: borrador?.medico.nombre?.nombre ?? "",
@@ -572,7 +576,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
         datos: {
           nombre: paciente.existente ? paciente.existente.nombre : pacienteNuevo.nombre,
           apellido: paciente.existente ? paciente.existente.apellido : pacienteNuevo.apellido,
-          dni: opcional(b.paciente.dni),
+          dni: opcional(b.paciente.dni) ?? (paciente.existente ? undefined : pacienteNuevo.dni.trim() || undefined),
           cuil: opcional(b.paciente.cuil),
           sexo: opcional(b.paciente.sexo),
           fechaNacimiento: opcional(b.paciente.fechaNacimiento),
@@ -590,6 +594,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
           especialidad: opcional(b.medico.especialidad),
           telefono: opcional(b.medico.telefono),
           direccionRegistrada: opcional(b.medico.direccionRegistrada),
+          email: opcional(b.medico.email),
         },
       },
       items: itemsParaEnvio(),
@@ -783,7 +788,25 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                     valor={pacienteNuevo}
                     onChange={(patch) => setPacienteNuevo((prev) => ({ ...prev, ...patch }))}
                   />
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-3 grid gap-3 @sm:grid-cols-2">
+                    {importacion.borrador.paciente.dni ? null : (
+                      // The document brings no DNI: the import goes on, but the new paciente needs one (openspec/specs/dni-obligatorio/spec.md).
+                      <div className="field">
+                        <label htmlFor={`${personaIdBase}-paciente-dni`} className="field-label">
+                          DNI
+                        </label>
+                        <input
+                          id={`${personaIdBase}-paciente-dni`}
+                          name="pacienteDni"
+                          inputMode="numeric"
+                          required
+                          autoComplete="off"
+                          value={pacienteNuevo.dni}
+                          onChange={(e) => setPacienteNuevo((prev) => ({ ...prev, dni: e.target.value }))}
+                          className="input font-mono"
+                        />
+                      </div>
+                    )}
                     <div className="field">
                       <label htmlFor={`${personaIdBase}-paciente-telefono`} className="field-label">
                         Teléfono (opcional)
@@ -800,7 +823,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                   </div>
                 </>
               )}
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="mt-3 grid gap-3 @sm:grid-cols-2">
                 {campoDomicilioPaciente}
                 {campoDomicilioEntrega}
               </div>
@@ -813,6 +836,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                 { etiqueta: "Especialidad", valor: importacion.borrador.medico.especialidad },
                 { etiqueta: "Teléfono", valor: importacion.borrador.medico.telefono },
                 { etiqueta: "Dirección", valor: importacion.borrador.medico.direccionRegistrada },
+                { etiqueta: "Email", valor: importacion.borrador.medico.email },
               ]}
             >
               {importacion.medico.existente ? null : (
@@ -825,7 +849,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                     valor={medicoNuevo}
                     onChange={(patch) => setMedicoNuevo((prev) => ({ ...prev, ...patch }))}
                   />
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-3 grid gap-3 @sm:grid-cols-2">
                     <div className="field">
                       <label htmlFor={`${personaIdBase}-medico-matricula`} className="field-label">
                         Matrícula
@@ -863,7 +887,9 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
           </>
         ) : encabezadoOculto ? null : (
           <FormSection id={`${personaIdBase}-personas`} title="Paciente y médico" description="Escribí para buscar. Si no existe, lo creás desde la misma lista.">
-            <div className="grid gap-5 md:grid-cols-2">
+            {/* Container query for the same reason as "Datos de la receta": side by side only when the column itself is wide. */}
+            <div className="@container">
+            <div className="grid gap-5 @3xl:grid-cols-2">
               <PacientePicker
                 selectedId={pacienteId}
                 selectedLabel={pacienteLabel}
@@ -887,12 +913,20 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                 </>
               ) : null}
             </div>
+            </div>
           </FormSection>
         )}
 
         {encabezadoOculto ? null : (
           <FormSection id={`${personaIdBase}-datos`} title="Datos de la receta">
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[auto_minmax(0,1fr)_8rem_minmax(0,2fr)]">
+            {/*
+              Container query, not viewport: this column shares the screen with the app nav and the 22rem resumen aside,
+              so at xl viewports it is only ~600px wide. The `auto` track takes the fecha group's max-content (date +
+              validez toggle, ~27rem) and the fr tracks collapse to zero, overlapping Origen/CIE-10/Diagnóstico.
+              Four columns need ~57rem of the column itself.
+            */}
+            <div className="@container">
+            <div className="grid gap-4 @lg:grid-cols-2 @5xl:grid-cols-[auto_minmax(0,1fr)_8rem_minmax(0,2fr)]">
               <div className="flex flex-wrap items-end gap-4">
                 <div className="field">
                   <label htmlFor={fechaId} className="field-label">
@@ -973,6 +1007,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                 />
               </div>
             </div>
+            </div>
           </FormSection>
         )}
 
@@ -984,7 +1019,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
           </div>
 
           {items.map((item, itemIdx) => (
-            <fieldset key={itemIdx} className="group-card" disabled={disabled}>
+            <fieldset key={itemIdx} data-fila="receta-item" className="group-card" disabled={disabled}>
               <legend className="sr-only">Ítem {itemIdx + 1}</legend>
               <div className="group-card-header">
                 <span className="index-badge" aria-hidden>
@@ -1033,14 +1068,12 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                     <label htmlFor={`item-${itemIdx}-duracion`} className="field-label">
                       Duración del tratamiento (días)
                     </label>
-                    <input
+                    <NumeroInput
                       id={`item-${itemIdx}-duracion`}
-                      type="number"
-                      min={1}
-                      step={1}
+                      inputMode="numeric"
                       value={item.duracionTratamientoDias}
-                      onChange={(e) => {
-                        const duracionTratamientoDias = e.target.value;
+                      onValueChange={(valor) => {
+                        const duracionTratamientoDias = valor;
                         // Manual alta: one cápsula/comprimido a day is the common case, so the duración fills the cantidad until the user types one.
                         const autocompletar = mode === "crear" && esFormaCapsular(item.formaFarmaceutica) && !item.cantidadUnidadesEditada && duracionTratamientoDias.trim().length > 0;
                         actualizarItem(itemIdx, autocompletar ? { duracionTratamientoDias, cantidadUnidades: duracionTratamientoDias } : { duracionTratamientoDias });
@@ -1055,7 +1088,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                     <label htmlFor={`item-${itemIdx}-cu`} className="field-label">
                       Cantidad de {UNIDAD_POR_FORMA[item.formaFarmaceutica] ?? "unidades"}
                     </label>
-                    <input id={`item-${itemIdx}-cu`} type="number" min={1} step={1} value={item.cantidadUnidades} onChange={(e) => actualizarItem(itemIdx, { cantidadUnidades: e.target.value, cantidadUnidadesEditada: true })} className="input" />
+                    <NumeroInput id={`item-${itemIdx}-cu`} inputMode="numeric" value={item.cantidadUnidades} onValueChange={(valor) => actualizarItem(itemIdx, { cantidadUnidades: valor, cantidadUnidadesEditada: true })} className="input" />
                   </div>
 
                   {esFormaCapsular(item.formaFarmaceutica) ? (
@@ -1085,7 +1118,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                         <label htmlFor={`item-${itemIdx}-total`} className="sr-only">
                           Cantidad de {FORMA_FARMACEUTICA_LABELS[item.formaFarmaceutica].toLowerCase()} a preparar
                         </label>
-                        <input id={`item-${itemIdx}-total`} type="text" inputMode="decimal" value={item.cantidadTotal} onChange={(e) => actualizarItem(itemIdx, { cantidadTotal: e.target.value })} className="input w-28 flex-none" />
+                        <NumeroInput id={`item-${itemIdx}-total`} value={item.cantidadTotal} onValueChange={(valor) => actualizarItem(itemIdx, { cantidadTotal: valor })} className="input w-28 flex-none" />
                         <label htmlFor={`item-${itemIdx}-unidad-total`} className="sr-only">
                           Unidad del total
                         </label>
@@ -1120,7 +1153,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                   <ol>
                     {item.componentes.map((c, compIdx) => (
                       // pb-20: room below the row for the "Por" selector, which hangs under Unidad.
-                      <li key={compIdx}className={c.modoExpresion === "CONCENTRACION" && !esPorcentaje(c) ? "repeat-row pb-20" : "repeat-row"}>
+                      <li key={compIdx} data-fila={`receta-componente-${itemIdx}`} className={c.modoExpresion === "CONCENTRACION" && !esPorcentaje(c) ? "repeat-row pb-20" : "repeat-row"}>
                         {importacion && c.drogaTexto ? (
                           <p className="flex w-full flex-wrap items-center gap-2 text-xs text-zinc-600">
                             En la receta: «{c.drogaTexto}»
@@ -1189,12 +1222,10 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                             <label htmlFor={`item-${itemIdx}-comp-${compIdx}-cant`} className="field-label">
                               {c.modoExpresion === "CONCENTRACION" ? "Valor" : "Cantidad"}
                             </label>
-                            <input
+                            <NumeroInput
                               id={`item-${itemIdx}-comp-${compIdx}-cant`}
-                              type="text"
-                              inputMode="decimal"
                               value={c.cantidad}
-                              onChange={(e) => actualizarComponente(itemIdx, compIdx, { cantidad: e.target.value })}
+                              onValueChange={(valor) => actualizarComponente(itemIdx, compIdx, { cantidad: valor })}
                               aria-label={`Componente ${compIdx + 1}: cantidad`}
                               className="input input-sm font-mono"
                             />
@@ -1278,7 +1309,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                     ))}
                   </ol>
 
-                  <button type="button" onClick={() => agregarComponente(itemIdx)} className="btn btn-ghost btn-sm mt-2">
+                  <button type="button" onClick={() => agregarYEnfocar(() => agregarComponente(itemIdx), () => filaDeLista(`receta-componente-${itemIdx}`))} className="btn btn-ghost btn-sm mt-2">
                     <Plus className="size-3.5" aria-hidden />
                     Agregar componente
                   </button>
@@ -1287,7 +1318,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
             </fieldset>
           ))}
 
-          <button type="button" onClick={agregarItem} disabled={disabled} className="add-row-button">
+          <button type="button" onClick={() => agregarYEnfocar(agregarItem, () => filaDeLista("receta-item")?.querySelector('[data-fila^="receta-componente-"]'))} disabled={disabled} className="add-row-button">
             <Plus className="size-4" aria-hidden />
             Agregar ítem
           </button>
@@ -1342,7 +1373,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
         ) : null
       ) : (
         <aside className="split-aside flex flex-col gap-4" aria-label="Resumen y guardado">
-          {mostrarPrecio ? <PresupuestoPanel items={itemsParaEnvio()} pago={pagoPanel} /> : null}
+          {mostrarPrecio ? <PresupuestoPanel items={itemsParaEnvio()} pago={pagoPanel} cotizacion={{ paciente: pacienteResumen, medico: medicoResumen }} /> : null}
 
           <div className="panel">
             <div className="panel-header">
@@ -1431,7 +1462,7 @@ function NombreAConfirmar({ idBase, quien, nombreCompleto, requiereConfirmacion,
           En la receta: <strong className="text-zinc-900">{nombreCompleto}</strong>
         </p>
       ) : null}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 @sm:grid-cols-2">
         <div className="field">
           <label htmlFor={`${idBase}-nombre`} className="field-label">
             Nombre

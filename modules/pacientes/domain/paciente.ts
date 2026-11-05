@@ -15,6 +15,7 @@
  */
 import { z } from "zod";
 import { digitoVerificadorAfipValido } from "@/shared/validation/digito-verificador";
+import { dniValido, MENSAJE_DNI_INVALIDO, normalizarDni } from "@/shared/validation/dni";
 
 /** Strips every non-digit character (spaces, dashes, dots). */
 function soloDigitos(value: string): string {
@@ -49,9 +50,9 @@ export const cuilOpcional = z
 
 /**
  * Optional DNI: `undefined`/empty input -> `null`. Non-empty input must
- * normalize (strip dots/spaces) to exactly 7 or 8 digits -- historical
- * DNIs can be 7 digits, current ones are 8. No check-digit algorithm
- * exists for DNI (it is not an AFIP identifier).
+ * normalize (strip dots/spaces) to exactly 7 or 8 digits
+ * (shared/validation/dni.ts). Kept for the edición and the receta import,
+ * where a paciente loaded before the DNI became mandatory may still lack one.
  */
 export const dniOpcional = z
   .string()
@@ -60,9 +61,33 @@ export const dniOpcional = z
   .nullable()
   .transform((value, ctx) => {
     if (!value || value.length === 0) return null;
-    const digits = soloDigitos(value);
-    if (!/^[0-9]{7,8}$/.test(digits)) {
-      ctx.addIssue({ code: "custom", message: "El DNI debe tener 7 u 8 dígitos." });
+    const digits = normalizarDni(value);
+    if (!dniValido(digits)) {
+      ctx.addIssue({ code: "custom", message: MENSAJE_DNI_INVALIDO });
+      return z.NEVER;
+    }
+    return digits;
+  });
+
+/**
+ * Mandatory DNI for the alta of a new paciente (the pacientes form and the
+ * receta's quick-create): it is what tells two pacientes apart. Same
+ * normalization as `dniOpcional`; the wire shape stays optional so a missing
+ * field is reported on the field instead of as a type error.
+ */
+export const dniObligatorio = z
+  .string()
+  .trim()
+  .optional()
+  .nullable()
+  .transform((value, ctx) => {
+    if (!value || value.length === 0) {
+      ctx.addIssue({ code: "custom", message: "Ingresá el DNI del paciente." });
+      return z.NEVER;
+    }
+    const digits = normalizarDni(value);
+    if (!dniValido(digits)) {
+      ctx.addIssue({ code: "custom", message: MENSAJE_DNI_INVALIDO });
       return z.NEVER;
     }
     return digits;

@@ -191,6 +191,8 @@ export interface DrogaParaAccion {
   tipoControl: PrismaTipoControl;
   clase: PrismaClaseDroga;
   stockMinimo: string;
+  /** Migration 0120: the pesada always suggests a diluted lot. */
+  sugerirDilucion: boolean;
   fechaBaja: Date | null;
   motivoBaja: string | null;
 }
@@ -198,7 +200,7 @@ export interface DrogaParaAccion {
 export async function getDrogaParaAccion(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<DrogaParaAccion | null> {
   const row = await tx.droga.findUnique({
     where: { id, tenantId },
-    select: { id: true, nombre: true, unidadBaseId: true, densidad: true, esControlada: true, tipoControl: true, clase: true, stockMinimo: true, fechaBaja: true, motivoBaja: true },
+    select: { id: true, nombre: true, unidadBaseId: true, densidad: true, esControlada: true, tipoControl: true, clase: true, stockMinimo: true, sugerirDilucion: true, fechaBaja: true, motivoBaja: true },
   });
   if (!row) return null;
   return { ...row, densidad: row.densidad?.toString() ?? null, stockMinimo: row.stockMinimo.toString() };
@@ -280,6 +282,7 @@ export interface NuevaDrogaInput {
   tipoControl: PrismaTipoControl;
   clase: PrismaClaseDroga;
   stockMinimo: string;
+  sugerirDilucion: boolean;
 }
 
 export async function insertDroga(tx: Prisma.TransactionClient, input: NuevaDrogaInput): Promise<{ id: string }> {
@@ -292,6 +295,7 @@ export async function insertDroga(tx: Prisma.TransactionClient, input: NuevaDrog
       tipoControl: input.tipoControl,
       clase: input.clase,
       stockMinimo: input.stockMinimo,
+      sugerirDilucion: input.sugerirDilucion,
     },
     select: { id: true },
   });
@@ -303,6 +307,8 @@ export interface EditarDrogaInput {
   stockMinimo: string;
   /** Migration 0063: editable at any time (not part of DP-12's classification). */
   clase: PrismaClaseDroga;
+  /** Migration 0120: a preference, editable at any time; omitted = untouched. */
+  sugerirDilucion?: boolean;
   /** Present only when DP-12 allows the change (no partidas yet) -- see editar-droga.ts. */
   clasificacion?: { unidadBaseId: string; esControlada: boolean; tipoControl: PrismaTipoControl };
 }
@@ -332,6 +338,7 @@ export async function updateDrogaDatos(tx: Prisma.TransactionClient, tenantId: s
       nombre: input.nombre,
       clase: input.clase,
       stockMinimo: input.stockMinimo,
+      ...(input.sugerirDilucion !== undefined ? { sugerirDilucion: input.sugerirDilucion } : {}),
       ...(input.clasificacion
         ? { unidadBaseId: input.clasificacion.unidadBaseId, esControlada: input.clasificacion.esControlada, tipoControl: input.clasificacion.tipoControl }
         : {}),

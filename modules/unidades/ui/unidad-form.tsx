@@ -9,6 +9,7 @@
 import { Globe } from "lucide-react";
 import { crearUnidadAction, editarUnidadAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { TIPOS_MAGNITUD, TIPO_MAGNITUD_LABELS } from "@/modules/unidades/domain/unidad";
 import { numeroParaInput } from "@/shared/decimal/numero-ingresado";
 
@@ -41,7 +42,7 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
         <p>{GLOBAL_WARNING}</p>
       </div>
 
-      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear unidad" : "Guardar cambios"}>
+      <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear unidad" : "Guardar cambios"} className="@container">
         {mode === "editar" && unidad ? (
           <>
             <input type="hidden" name="id" value={unidad.id} />
@@ -53,7 +54,7 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
           </>
         ) : null}
 
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="grid gap-4 @xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
           <div className="field">
             <label htmlFor="codigo" className="field-label">
               Código
@@ -74,7 +75,7 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 @lg:grid-cols-2">
           <div className="field">
             <label htmlFor="tipoMagnitud" className="field-label">
               Magnitud
@@ -91,7 +92,7 @@ export function UnidadForm({ mode, unidad, disabled }: UnidadFormProps) {
             <label htmlFor="factorABase" className="field-label">
               Factor respecto de la unidad base
             </label>
-            <input id="factorABase" name="factorABase" defaultValue={numeroParaInput(unidad?.factorABase)} required disabled={classificacionDisabled} inputMode="decimal" className="input font-mono" />
+            <NumeroInput id="factorABase" name="factorABase" defaultValue={numeroParaInput(unidad?.factorABase)} required disabled={classificacionDisabled} className="input font-mono" />
           </div>
         </div>
         {classificacionDisabled && mode === "editar" ? (

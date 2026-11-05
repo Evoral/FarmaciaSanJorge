@@ -245,6 +245,8 @@ export function mapearRecetaMisrx(json: unknown, token: string): ResultadoLectur
         matriculaJurisdiccion,
         direccionRegistrada: textoDe(datos.medico_direccion),
         telefono: textoDe(datos.telefono_receta),
+        // MisRx's JSON carries no médico email.
+        email: null,
       },
       items,
     },

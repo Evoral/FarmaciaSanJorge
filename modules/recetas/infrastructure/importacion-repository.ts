@@ -143,7 +143,7 @@ export interface MedicoParaImportacion extends Record<CampoMedicoImportable, str
   matricula: string;
 }
 
-const SELECT_MEDICO = { id: true, nombre: true, apellido: true, matricula: true, especialidad: true, telefono: true, direccionRegistrada: true } as const;
+const SELECT_MEDICO = { id: true, nombre: true, apellido: true, matricula: true, especialidad: true, telefono: true, direccionRegistrada: true, email: true } as const;
 
 /** Spec: (jurisdicción, matrícula) among vigentes -- `matricula` already normalized (modules/medicos/domain/medico.ts). */
 export async function buscarMedicoVigentePorMatricula(

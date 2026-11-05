@@ -70,7 +70,7 @@ P1-02, P1-09, P1-10, P1-11, P2-01, P2-02 (configuración), P2-03, P4-04, P5-01b,
 6. P1-09: fallo explícito sin `app.tenant_id`.
 7. P5-01b: serializador de errores del logger.
 8. P5-06: `import "server-only"` en `infrastructure/` y `application/`.
-9. P1-02: columnas de `fsj.tenant` visibles para `fsj_app`.
+9. ~~P1-02: columnas de `fsj.tenant` visibles para `fsj_app`.~~ Resuelto en la migración 0119 (RLS sobre `fsj.tenant` + `fsj.listar_tenants_activos()` para los jobs). Cerrarlo cuando 0119 esté aplicada en ambas bases.
 10. P4-04 es opcional (el tope de 5000 filas ya protege). P1-11 es solo una convención para el futuro: no se renumeran migraciones aplicadas.
 
 ---

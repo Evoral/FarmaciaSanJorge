@@ -31,6 +31,8 @@ import { FormulaEditor, type ComponenteOpcion, type FormulaInicial } from "./for
 import { normalizarTexto } from "../domain/normalizar";
 import { SINONIMO_MAX_LARGO } from "../domain/sinonimo";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { NumeroInput } from "@/shared/ui/numero-input";
+import { agregarYEnfocar, filaDeLista } from "@/shared/ui/enfocar-al-agregar";
 import { toast } from "@/shared/ui/toast";
 import { CLASES_DROGA, CLASE_DROGA_LABELS, TIPOS_CONTROL, TIPO_CONTROL_LABELS, type ClaseDroga } from "@/modules/drogas/domain/droga";
 import { sugerirClase, type SugerenciaClase } from "@/modules/drogas/domain/sugerir-clase";
@@ -53,6 +55,8 @@ export interface DrogaFormProps {
     tipoControl: string;
     clase: string;
     stockMinimo: string;
+    /** Migration 0120: the pesada always suggests a diluted lot. */
+    sugerirDilucion: boolean;
     tienePartidas: boolean;
     /** Vigente synonyms, as typed. */
     sinonimos: readonly { id: string; texto: string }[];
@@ -149,6 +153,8 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
 
   return (
     <SimpleForm
+      // Container: the form lives in the alta panel, a dialog and the split-layout column (~280px at 1024px).
+      className="@container"
       action={action}
       accion={mode === "crear" ? "drogas.crear" : "drogas.editar"}
       submitLabel={mode === "crear" ? "Crear insumo" : "Guardar cambios"}
@@ -226,7 +232,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
             Hay cambios en otros nombres sin guardar: tocá «Guardar cambios».
           </p>
         ) : null}
-        <button type="button" onClick={agregarFila} disabled={disabled} className="btn btn-ghost btn-sm self-start">
+        <button type="button" onClick={() => agregarYEnfocar(agregarFila, () => filaDeLista("sinonimo"))} disabled={disabled} className="btn btn-ghost btn-sm self-start">
           <Plus className="size-4" aria-hidden />
           Agregar otro nombre
         </button>
@@ -236,7 +242,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
         </p>
       </fieldset>
 
-      <div className="field sm:max-w-[50%]">
+      <div className="field @lg:max-w-[50%]">
         <label htmlFor="clase" className="field-label">
           Clase
         </label>
@@ -264,7 +270,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 @lg:grid-cols-2">
         <div className="field">
           <label htmlFor="unidadBaseId" className="field-label">
             Unidad base
@@ -318,16 +324,15 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
       ) : null}
 
       {pideSaldoApertura ? (
-        <div className="field sm:max-w-[50%]">
+        <div className="field @lg:max-w-[50%]">
           <label htmlFor="saldoAperturaContralor" className="field-label">
             Saldo de apertura del libro contralor
           </label>
-          <input
+          <NumeroInput
             id="saldoAperturaContralor"
             name="saldoAperturaContralor"
             required
             disabled={disabled}
-            inputMode="decimal"
             aria-describedby="saldo-apertura-ayuda"
             className="input font-mono"
           />
@@ -337,12 +342,33 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
         </div>
       ) : null}
 
-      <div className="field sm:max-w-[50%]">
+      <div className="field @lg:max-w-[50%]">
         <label htmlFor="stockMinimo" className="field-label">
           Stock mínimo
         </label>
-        <input id="stockMinimo" name="stockMinimo" defaultValue={numeroParaInput(droga?.stockMinimo ?? "0")} required disabled={disabled} inputMode="decimal" className="input font-mono" />
+        <NumeroInput id="stockMinimo" name="stockMinimo" defaultValue={numeroParaInput(droga?.stockMinimo ?? "0")} required disabled={disabled} className="input font-mono" />
         <p className="field-help">En principio activo: con lotes diluidos, la alerta compara el stock activo.</p>
+      </div>
+
+      <div className="field">
+        <input type="hidden" name="sugerirDilucionEnviado" value="1" disabled={disabled} />
+        <label htmlFor="sugerirDilucion" className="toggle-switch items-start text-[0.8125rem] font-medium text-zinc-900">
+          <input
+            key={altas}
+            id="sugerirDilucion"
+            name="sugerirDilucion"
+            type="checkbox"
+            role="switch"
+            className="mt-0.5"
+            defaultChecked={droga?.sugerirDilucion ?? false}
+            disabled={disabled}
+            aria-describedby="sugerirDilucion-ayuda"
+          />
+          Sugerir siempre un lote diluido
+        </label>
+        <p id="sugerirDilucion-ayuda" className="field-help">
+          Al pesarla, sugiere usar un lote diluido (o crear una dilución) para mayor precisión, aunque la balanza pueda pesar la dosis.
+        </p>
       </div>
 
       {formula ? (
@@ -432,7 +458,7 @@ function SinonimoFila({
       : null;
 
   return (
-    <div className="mb-2">
+    <div data-fila="sinonimo" className="mb-2">
       <div className="flex items-center gap-2">
         <label htmlFor={id} className="sr-only">
           Otro nombre {index + 1}

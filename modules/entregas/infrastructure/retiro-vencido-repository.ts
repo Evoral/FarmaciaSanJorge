@@ -9,9 +9,9 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { record as auditRecord, TipoAccion } from "@/shared/audit";
 
-/** Every active tenant (`fecha_baja IS NULL`). Run it inside `withPlatformTransaction`: `fsj.tenant` is a global table. */
+/** Every active tenant (`fecha_baja IS NULL`). Run it inside `withPlatformTransaction`: `fsj.tenant` is RLS-scoped (0119), so the ids come from `fsj.listar_tenants_activos()`. */
 export async function listActiveTenantIds(tx: Prisma.TransactionClient): Promise<string[]> {
-  const rows = await tx.tenant.findMany({ where: { fechaBaja: null }, select: { id: true } });
+  const rows = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM fsj.listar_tenants_activos() AS id`;
   return rows.map((r) => r.id);
 }
 

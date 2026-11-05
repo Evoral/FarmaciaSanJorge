@@ -17,6 +17,7 @@ export interface MedicoFormProps {
     especialidad: string | null;
     telefono: string | null;
     direccionRegistrada: string | null;
+    email: string | null;
   };
   disabled: boolean;
 }
@@ -25,7 +26,7 @@ export function MedicoForm({ mode, medico, disabled }: MedicoFormProps) {
   const action = mode === "crear" ? crearMedicoAction : editarMedicoAction;
 
   return (
-    <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear médico" : "Guardar cambios"}>
+    <SimpleForm action={action} submitLabel={mode === "crear" ? "Crear médico" : "Guardar cambios"} className="@container">
       {mode === "editar" && medico ? (
         <>
           <input type="hidden" name="id" value={medico.id} />
@@ -36,10 +37,11 @@ export function MedicoForm({ mode, medico, disabled }: MedicoFormProps) {
           <input type="hidden" name="versionEspecialidad" value={medico.especialidad ?? ""} />
           <input type="hidden" name="versionTelefono" value={medico.telefono ?? ""} />
           <input type="hidden" name="versionDireccionRegistrada" value={medico.direccionRegistrada ?? ""} />
+          <input type="hidden" name="versionEmail" value={medico.email ?? ""} />
         </>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 @lg:grid-cols-2">
         <div className="field">
           <label htmlFor="nombre" className="field-label">
             Nombre
@@ -81,6 +83,12 @@ export function MedicoForm({ mode, medico, disabled }: MedicoFormProps) {
             Teléfono
           </label>
           <input id="telefono" name="telefono" type="tel" defaultValue={medico?.telefono ?? ""} disabled={disabled} className="input" />
+        </div>
+        <div className="field">
+          <label htmlFor="email" className="field-label">
+            Email
+          </label>
+          <input id="email" name="email" type="email" defaultValue={medico?.email ?? ""} disabled={disabled} className="input" />
         </div>
       </div>
 

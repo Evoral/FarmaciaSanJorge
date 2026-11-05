@@ -8,8 +8,12 @@
  * `itemsListosParaPresupuesto`) -- and on demand ("Recalcular"). A response
  * that arrives after a newer request was sent is ignored. Never blocks the
  * submit: it is information, not a gate.
+ *
+ * "Imprimir cotización" prints the 80 mm ticket for a client who only asks for the price ("Ticket de cotización"):
+ * only once the price shown is complete and up to date. The server recomputes it from the same draft.
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Printer } from "lucide-react";
 import { presupuestarRecetaAction } from "./actions";
 import type { PresupuestoState } from "./action-state";
 import { itemsListosParaPresupuesto } from "../domain/presupuesto";
@@ -46,7 +50,34 @@ function textoFuente(f: FuenteCostoLinea): string {
   return "costo de partidas";
 }
 
-export function PresupuestoPanel({ items, pago }: { items: ItemPresupuestable[]; pago?: PagoPanel }) {
+/** The names the form shows, printed on the ticket ("" when not loaded). */
+export interface DatosCotizacion {
+  paciente: string;
+  medico: string;
+}
+
+/**
+ * Posts the draft to the ticket's route in a new tab (the browser shows the PDF to print). A form of its own, outside
+ * the receta's `<form>` (forms can not nest), submitted within the click so no popup blocker stops the tab.
+ */
+function imprimirCotizacion(itemsJson: string, datos: DatosCotizacion) {
+  const form = document.createElement("form");
+  form.method = "post";
+  form.action = "/api/recetas/cotizacion/pdf";
+  form.target = "_blank";
+  for (const [name, value] of Object.entries({ itemsJson, paciente: datos.paciente, medico: datos.medico })) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value;
+    form.appendChild(input);
+  }
+  document.body.appendChild(form);
+  form.submit();
+  form.remove();
+}
+
+export function PresupuestoPanel({ items, pago, cotizacion }: { items: ItemPresupuestable[]; pago?: PagoPanel; cotizacion?: DatosCotizacion }) {
   const itemsJson = JSON.stringify(items);
   const listos = itemsListosParaPresupuesto(items);
   // The last answer, with the draft it was computed for: shown (marked as updating) until the next one arrives.
@@ -81,6 +112,8 @@ export function PresupuestoPanel({ items, pago }: { items: ItemPresupuestable[];
   }, [itemsJson, listos, calcular]);
 
   const totalVisible = listos && resultado?.status === "success" && resultado.presupuesto.ok ? resultado.presupuesto.total : null;
+  // Only a complete price for exactly what the form holds now: a stale or partial one would mislead the client.
+  const puedeImprimir = totalVisible !== null && ultimo?.json === itemsJson && resultado?.status === "success" && resultado.presupuesto.ok && resultado.presupuesto.totalCompleto;
 
   return (
     <section aria-labelledby="presupuesto-heading" aria-live="polite" className="card p-4">
@@ -164,6 +197,18 @@ export function PresupuestoPanel({ items, pago }: { items: ItemPresupuestable[];
           <p className="mt-2 text-xs text-zinc-500">Precio orientativo con el stock y la regla de precios de hoy; los ítems se cubren en orden con el mismo stock. No reserva stock ni guarda nada (otras recetas pendientes no se descuentan).</p>
         </>
       )}
+      {cotizacion ? (
+        <button
+          type="button"
+          onClick={() => imprimirCotizacion(itemsJson, cotizacion)}
+          disabled={!puedeImprimir}
+          title={puedeImprimir ? undefined : "Disponible cuando el precio de todos los ítems está calculado."}
+          className="btn btn-secondary btn-sm mt-3"
+        >
+          <Printer className="size-4" aria-hidden />
+          Imprimir cotización
+        </button>
+      ) : null}
       {pago ? <PagoSwitch pago={pago} total={totalVisible} /> : null}
     </section>
   );

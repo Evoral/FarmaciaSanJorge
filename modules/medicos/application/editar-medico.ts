@@ -24,6 +24,7 @@ const editarMedicoInput = z.object({
   especialidad: textoOpcional(),
   telefono: textoOpcional(),
   direccionRegistrada: textoOpcional(),
+  email: textoOpcional(),
   version: z.object({
     nombre: z.string(),
     apellido: z.string(),
@@ -32,6 +33,7 @@ const editarMedicoInput = z.object({
     especialidad: z.string().nullable(),
     telefono: z.string().nullable(),
     direccionRegistrada: z.string().nullable(),
+    email: z.string().nullable(),
   }),
 });
 
@@ -64,7 +66,8 @@ export const editarMedicoCommand = defineCommand({
       actual.matriculaJurisdiccion !== input.version.matriculaJurisdiccion ||
       actual.especialidad !== input.version.especialidad ||
       actual.telefono !== input.version.telefono ||
-      actual.direccionRegistrada !== input.version.direccionRegistrada
+      actual.direccionRegistrada !== input.version.direccionRegistrada ||
+      actual.email !== input.version.email
     ) {
       throw new ConflictError(CONCURRENCY_MESSAGE);
     }
@@ -82,6 +85,7 @@ export const editarMedicoCommand = defineCommand({
       especialidad: input.especialidad,
       telefono: input.telefono,
       direccionRegistrada: input.direccionRegistrada,
+      email: input.email,
     };
     const valorAnterior = {
       nombre: actual.nombre,
@@ -91,6 +95,7 @@ export const editarMedicoCommand = defineCommand({
       especialidad: actual.especialidad,
       telefono: actual.telefono,
       direccionRegistrada: actual.direccionRegistrada,
+      email: actual.email,
     };
 
     const updated = await updateMedicoDatos(tx, session.tenantId, { id: input.id, ...nuevoValor }, valorAnterior);

@@ -333,24 +333,22 @@ describe.skipIf(dbTestSkipReason() !== null)("0020_tenant_datos_editables migrat
   });
 
   // If trg_tenant_forbid_cross_tenant_update (migration 0020) were dropped,
-  // this UPDATE would succeed: razon_social IS a granted column, fsj.tenant
-  // has no tenant_id column and no RLS (it IS the tenant boundary), so
-  // nothing else in the schema would stop fsj_app from editing a tenant
-  // other than the one set on the current session. This is exactly the
-  // hole INV-PL-004 closes.
-  it("fsj_app UPDATE targeting a DIFFERENT tenant's row fails with INV-PL-004, even for an allowed column", async () => {
+  // Since 0119 the RLS policy on fsj.tenant hides the other tenant's row, so
+  // the UPDATE matches zero rows before trg_tenant_forbid_cross_tenant_update
+  // (INV-PL-004) could fire; the trigger stays as a second barrier.
+  it("fsj_app UPDATE targeting a DIFFERENT tenant's row changes nothing, even for an allowed column", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const tenantAId = await insertTenant(tx, "0020c-a");
         const tenantBId = await insertTenant(tx, "0020c-b");
         await tx.query("SET LOCAL ROLE fsj_app");
         await withTenant(tx, tenantAId, async (c) => {
-          await expectInvariantViolation(
-            c,
-            () => c.query(`UPDATE fsj.tenant SET razon_social = 'Hijacked' WHERE id = $1`, [tenantBId]),
-            "INV-PL-004",
-          );
+          const result = await c.query(`UPDATE fsj.tenant SET razon_social = 'Hijacked' WHERE id = $1`, [tenantBId]);
+          expect(result.rowCount).toBe(0);
         });
+        await tx.query("RESET ROLE");
+        const b = await tx.query(`SELECT razon_social FROM fsj.tenant WHERE id = $1`, [tenantBId]);
+        expect(b.rows[0].razon_social).not.toBe("Hijacked");
       }),
     );
   });
@@ -370,6 +368,49 @@ describe.skipIf(dbTestSkipReason() !== null)("0020_tenant_datos_editables migrat
         await tx.query(`UPDATE fsj.tenant SET razon_social = 'Owner edit' WHERE id = $1`, [tenantId]);
         const result = await tx.query(`SELECT razon_social FROM fsj.tenant WHERE id = $1`, [tenantId]);
         expect(result.rows[0].razon_social).toBe("Owner edit");
+      }),
+    );
+  });
+});
+
+// Security audit P1-02: before 0119 fsj_app could read every pharmacy's row.
+describe.skipIf(dbTestSkipReason() !== null)("0119_tenant_rls migration (fsj.tenant scoped to app.tenant_id)", () => {
+  it("fsj_app with tenant A set sees only tenant A's row, even with no WHERE", async () => {
+    await asOwner((client) =>
+      inRollbackTx(client, async (tx) => {
+        const tenantAId = await insertTenant(tx, "0119a-a");
+        await insertTenant(tx, "0119a-b");
+        await tx.query("SET LOCAL ROLE fsj_app");
+        await withTenant(tx, tenantAId, async (c) => {
+          const result = await c.query(`SELECT id, razon_social, cuit FROM fsj.tenant`);
+          expect(result.rows.map((r) => r.id)).toEqual([tenantAId]);
+        });
+      }),
+    );
+  });
+
+  it("fsj_app with no app.tenant_id sees no tenant row", async () => {
+    await asOwner((client) =>
+      inRollbackTx(client, async (tx) => {
+        await insertTenant(tx, "0119b");
+        await tx.query("SET LOCAL ROLE fsj_app");
+        const result = await tx.query(`SELECT count(*)::int AS n FROM fsj.tenant`);
+        expect(result.rows[0].n).toBe(0);
+      }),
+    );
+  });
+
+  it("fsj.listar_tenants_activos() gives fsj_app every active tenant id, without app.tenant_id, and skips tenants given de baja", async () => {
+    await asOwner((client) =>
+      inRollbackTx(client, async (tx) => {
+        const activoId = await insertTenant(tx, "0119c-a");
+        const bajaId = await insertTenant(tx, "0119c-b");
+        await tx.query(`UPDATE fsj.tenant SET fecha_baja = now() WHERE id = $1`, [bajaId]);
+        await tx.query("SET LOCAL ROLE fsj_app");
+        const result = await tx.query(`SELECT id FROM fsj.listar_tenants_activos() AS id`);
+        const ids = result.rows.map((r) => r.id as string);
+        expect(ids).toContain(activoId);
+        expect(ids).not.toContain(bajaId);
       }),
     );
   });

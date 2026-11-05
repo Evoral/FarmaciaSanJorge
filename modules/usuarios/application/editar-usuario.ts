@@ -20,6 +20,7 @@ import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { ConflictError, NotFoundError, ValidationError } from "@/shared/errors";
 import { email as emailSchema, nonEmptyString, textoOpcional, uuid } from "@/shared/validation";
+import { dniValido, MENSAJE_DNI_INVALIDO, normalizarDni } from "@/shared/validation/dni";
 import { identidadDeCuentaDeSector } from "../domain/cuenta-de-sector";
 import { loadUsuarioParaAccion, existeEmail, existeDni, updateUsuarioDatosPersonales } from "../infrastructure/usuario-repository";
 
@@ -65,13 +66,15 @@ export const editarUsuarioCommand = defineCommand({
       throw new ConflictError(CONCURRENCY_MESSAGE);
     }
 
-    const identidad = actual.esSector ? identidadDeCuentaDeSector(input.nombre) : { nombre: input.nombre, apellido: input.apellido, dni: input.dni };
+    // A person's DNI is stored digits only (shared/validation/dni.ts), so a dotted one collides with the plain one.
+    const identidad = actual.esSector ? identidadDeCuentaDeSector(input.nombre) : { nombre: input.nombre, apellido: input.apellido, dni: normalizarDni(input.dni) };
     if (!identidad) {
       throw new ValidationError("El nombre del sector debe tener al menos una letra o un número.", { fields: ["nombre"] });
     }
     if (!actual.esSector) {
       const vacios = (["apellido", "dni"] as const).filter((campo) => !identidad[campo]);
       if (vacios.length > 0) throw new ValidationError("Este campo no puede estar vacío.", { fields: [...vacios] });
+      if (!dniValido(identidad.dni)) throw new ValidationError(MENSAJE_DNI_INVALIDO, { fields: ["dni"] });
     }
 
     if (input.email !== actual.email && (await existeEmail(tx, input.email, input.id))) {

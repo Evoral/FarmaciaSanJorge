@@ -19,8 +19,8 @@ export interface EditarDatosTenantFormProps {
 
 export function EditarDatosTenantForm({ tenant, disabled }: EditarDatosTenantFormProps) {
   return (
-    <ReauthAwareForm action={editarDatosTenantAction} submitLabel="Guardar cambios" pendingLabel="Guardando…">
-      <div className="grid gap-4 sm:grid-cols-2">
+    <ReauthAwareForm action={editarDatosTenantAction} submitLabel="Guardar cambios" pendingLabel="Guardando…" className="@container">
+      <div className="grid gap-4 @lg:grid-cols-2">
         <div className="field">
           <label htmlFor="tenant-razon-social" className="field-label">
             Razón social
@@ -33,7 +33,7 @@ export function EditarDatosTenantForm({ tenant, disabled }: EditarDatosTenantFor
           </label>
           <input id="tenant-nombre-fantasia" name="nombreFantasia" defaultValue={tenant.nombreFantasia ?? ""} disabled={disabled} className="input" />
         </div>
-        <div className="field sm:col-span-2">
+        <div className="field @lg:col-span-2">
           <label htmlFor="tenant-cuit" className="field-label">
             CUIT
           </label>
@@ -44,7 +44,7 @@ export function EditarDatosTenantForm({ tenant, disabled }: EditarDatosTenantFor
             CUIT anterior queda registrado en la auditoría.
           </div>
         </div>
-        <div className="field sm:col-span-2">
+        <div className="field @lg:col-span-2">
           <label htmlFor="tenant-domicilio" className="field-label">
             Domicilio <span className="font-normal text-zinc-500">(opcional)</span>
           </label>

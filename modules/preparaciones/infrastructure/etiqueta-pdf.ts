@@ -259,7 +259,7 @@ function dibujarPanel(doc: Doc, c: ContenidoEtiqueta): void {
   }
 
   // Large green quantity, right-aligned so its digits always end at the same place.
-  const numero: Tramo[] = [{ texto: String(c.cantidad), fuente: "Helvetica" }];
+  const numero: Tramo[] = [{ texto: c.cantidadTotal ?? String(c.cantidad), fuente: "Helvetica" }];
   const finNumero = 189;
   const tamanoNumero = tamanoQueEntra(doc, numero, 33, finNumero - (PANEL_DIV_X + 3));
   linea(doc, numero, finNumero - anchoDe(doc, numero, tamanoNumero), 57.9 + (33 - tamanoNumero) * ALTURA_MAYUSCULA * 0.5, tamanoNumero, VERDE);

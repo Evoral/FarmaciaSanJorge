@@ -155,11 +155,11 @@ type UsuarioConPermisosRow = Prisma.UsuarioGetPayload<{ select: typeof USUARIO_C
 export interface SesionCompleta {
   sesion: SesionRow;
   usuario: UsuarioConPermisos;
-  /** `null` while the tenant is active (global table, no RLS). */
+  /** `null` while the tenant is active. */
   tenantFechaBaja: Date | null;
 }
 
-/** Single-round-trip replacement for `findSesionByTokenHash` + `loadUsuarioConPermisos` + `loadTenantFechaBaja`, inside an already tenant-scoped transaction. */
+/** Single-round-trip replacement for `findSesionByTokenHash` + `loadUsuarioConPermisos` + the tenant's `fecha_baja`, inside an already tenant-scoped transaction (fsj.tenant is RLS-scoped since 0119, so it must be the session's own tenant). */
 export async function findSesionCompletaByTokenHash(tx: Prisma.TransactionClient, tokenHash: string): Promise<SesionCompleta | null> {
   const fila = await tx.sesion.findUnique({
     where: { tokenHash },
@@ -223,12 +223,6 @@ export async function findSesionByTokenHash(tx: Prisma.TransactionClient, tokenH
     where: { tokenHash },
     select: SESION_ROW_SELECT,
   });
-}
-
-/** `fecha_baja` for the tenant (global table, no RLS) -- requireSession must reject a tenant given de baja. */
-export async function loadTenantFechaBaja(tx: Prisma.TransactionClient, tenantId: string): Promise<Date | null | undefined> {
-  const tenant = await tx.tenant.findUnique({ where: { id: tenantId }, select: { fechaBaja: true } });
-  return tenant?.fechaBaja;
 }
 
 /** Idle refresh: bumps `ultimo_uso_en` to `now`. Does NOT touch `expira_en` (fixed at creation, see migration 0004 comment) -- only `ultimo_uso_en`, `revocada_en`, `reautenticada_en` are grantable columns. */

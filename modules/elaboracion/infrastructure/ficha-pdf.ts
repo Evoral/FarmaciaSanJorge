@@ -1,7 +1,7 @@
 /**
  * PDF layout for a ficha técnica (M10, FASE 7 point 7.3), sized for the
- * lab's 80 mm thermal receipt printer (POS80; content kept inside what it
- * actually prints, see `MARGEN_DERECHO`). Pure
+ * lab's 80 mm thermal receipt printer (POS80; geometry shared with every
+ * ticket in `shared/pdf/ticket.ts`). Pure
  * rendering: takes the already-authorized, already-loaded `FichaParaImprimir`
  * (from `getFichaParaImprimir`, which is the ONLY place patient data is read)
  * and lays it out with `pdfkit` via `shared/pdf/pdf-document.ts#renderPdf`.
@@ -13,36 +13,14 @@
  * (cápsulas, envases) and the adicionales; a small footer with the receta
  * number. Black only, no shading: thermal
  * printers have no greys.
- *
- * A receipt roll has no page height, so the page is exactly as tall as its
- * content: the layout runs once on a very tall page to measure it, then
- * again on a page of the measured height.
  */
-import { renderPdf } from "@/shared/pdf/pdf-document";
+import { ANCHO_CONTENIDO, MARGEN, MARGEN_IZQUIERDO, mm, renderTicketPdf, separador } from "@/shared/pdf/ticket";
 import { cantidadesFichaTecnica, formatCantidadExacta } from "@/shared/format/cantidad";
 import type { FichaParaImprimir, InsumoImprimir, LineaImprimir } from "./ficha-repository";
 
-const PUNTOS_POR_MM = 72 / 25.4;
-const mm = (valor: number) => valor * PUNTOS_POR_MM;
-
-const ANCHO_PAGINA = mm(80);
-/** Top and bottom. */
-const MARGEN = mm(4);
-/** Left: 4 mm printed fine; 1 mm more for safety. */
-const MARGEN_IZQUIERDO = mm(5);
-/**
- * Right: the lab's printer clipped everything past ~66 mm from the left edge (a right-aligned "= 3.000 mg" ending
- * at 76 mm printed only "= 3 ."), so the content ends at 64 mm.
- */
-const MARGEN_DERECHO = mm(16);
-const ANCHO_CONTENIDO = ANCHO_PAGINA - MARGEN_IZQUIERDO - MARGEN_DERECHO;
 const ANCHO_CANTIDAD = mm(22);
 const SEPARACION = mm(2);
 const ANCHO_DROGA = ANCHO_CONTENIDO - ANCHO_CANTIDAD - SEPARACION;
-/** Measuring page: far taller than any ficha (PDF pages max out at 200 in). */
-const ALTO_MEDICION = mm(2000);
-/** Slack under the last line so pdfkit never wraps it onto a second page. */
-const HOLGURA = 4;
 
 function textoCantidad(linea: LineaImprimir): string {
   if (linea.esEnraseManual) return "Enrase manual";
@@ -63,16 +41,6 @@ function textoCantidadInsumo(insumo: InsumoImprimir): string {
   if (!insumo.cantidad) return "";
   const info = cantidadesFichaTecnica(insumo.cantidad, insumo.unidadSimbolo);
   return info ? `${info.principal} ${info.simboloPrincipal}` : formatCantidadExacta(insumo.cantidad, insumo.unidadSimbolo);
-}
-
-function separador(doc: PDFKit.PDFDocument, y: number): number {
-  doc
-    .moveTo(MARGEN_IZQUIERDO, y)
-    .lineTo(MARGEN_IZQUIERDO + ANCHO_CONTENIDO, y)
-    .lineWidth(0.75)
-    .strokeColor("black")
-    .stroke();
-  return y + 6;
 }
 
 /** Lays the ficha out from the top of the page; returns the y where the content ends. */
@@ -144,16 +112,6 @@ function dibujar(doc: PDFKit.PDFDocument, ficha: FichaParaImprimir): number {
   return doc.y;
 }
 
-function opciones(alto: number): PDFKit.PDFDocumentOptions {
-  return { size: [ANCHO_PAGINA, alto], margins: { top: MARGEN, bottom: MARGEN, left: MARGEN_IZQUIERDO, right: MARGEN_DERECHO } };
-}
-
 export async function buildFichaTecnicaPdf(ficha: FichaParaImprimir): Promise<Buffer> {
-  let fin = 0;
-  await renderPdf((doc) => {
-    fin = dibujar(doc, ficha);
-  }, opciones(ALTO_MEDICION));
-  return renderPdf((doc) => {
-    dibujar(doc, ficha);
-  }, opciones(fin + MARGEN + HOLGURA));
+  return renderTicketPdf((doc) => dibujar(doc, ficha));
 }

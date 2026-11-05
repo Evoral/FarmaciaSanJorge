@@ -291,8 +291,8 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
 
       <AvisosGeneracion exito={guardada ? "Receta actualizada." : undefined} avisos={avisos} />
 
-      <section aria-label="Resumen de la toma" className="panel mb-8">
-        <div className="grid gap-5 p-4 sm:p-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+      <section aria-label="Resumen de la toma" className="@container panel mb-8">
+        <div className="grid gap-5 p-4 sm:p-5 @xl:grid-cols-2 @4xl:grid-cols-3">
           <div className="person-block">
             <Avatar name={paciente} />
             <div className="min-w-0">

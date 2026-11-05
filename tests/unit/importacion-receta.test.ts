@@ -78,11 +78,29 @@ describe("P9: calcularCompletado (existing paciente/médico)", () => {
 
     const medico = calcularCompletado(
       CAMPOS_MEDICO_IMPORTABLES,
-      { especialidad: null, telefono: "261 4440000", direccionRegistrada: "San Martín 456" },
-      { especialidad: "MEDICINA GENERAL", telefono: "261 5550000", direccionRegistrada: null },
+      { especialidad: null, telefono: "261 4440000", direccionRegistrada: "San Martín 456", email: null },
+      { especialidad: "MEDICINA GENERAL", telefono: "261 5550000", direccionRegistrada: null, email: null },
     );
     expect(medico.completar).toEqual(["especialidad"]);
     expect(medico.diferencias).toEqual([{ campo: "telefono", actual: "261 4440000", pdf: "261 5550000" }]);
+  });
+
+  it("fills an empty email for an existing médico, or warns on difference", () => {
+    const completar = calcularCompletado(
+      CAMPOS_MEDICO_IMPORTABLES,
+      { especialidad: "MEDICINA GENERAL", telefono: "261 4440000", direccionRegistrada: "San Martín 456", email: null },
+      { especialidad: "MEDICINA GENERAL", telefono: "261 4440000", direccionRegistrada: "San Martín 456", email: "doc@example.com" },
+    );
+    expect(completar.completar).toEqual(["email"]);
+    expect(completar.diferencias).toEqual([]);
+
+    const dif = calcularCompletado(
+      CAMPOS_MEDICO_IMPORTABLES,
+      { especialidad: "MEDICINA GENERAL", telefono: "261 4440000", direccionRegistrada: "San Martín 456", email: "viejo@example.com" },
+      { especialidad: "MEDICINA GENERAL", telefono: "261 4440000", direccionRegistrada: "San Martín 456", email: "nuevo@example.com" },
+    );
+    expect(dif.completar).toEqual([]);
+    expect(dif.diferencias).toEqual([{ campo: "email", actual: "viejo@example.com", pdf: "nuevo@example.com" }]);
   });
 
   it("valoresACompletar only carries the fields to complete, trimmed", () => {

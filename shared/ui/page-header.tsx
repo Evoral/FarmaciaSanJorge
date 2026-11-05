@@ -23,30 +23,32 @@ export interface PageHeaderProps {
 
 export function PageHeader({ title, description, breadcrumbs, actions }: PageHeaderProps) {
   return (
-    <header className="page-header">
-      <div className="min-w-0">
-        {breadcrumbs && breadcrumbs.length > 0 ? (
-          <nav aria-label="Ruta de navegación" className="breadcrumbs mb-2">
-            <ol>
-              {breadcrumbs.map((crumb, i) => (
-                <li key={crumb.label} className="inline-flex items-center gap-1">
-                  {i > 0 ? <ChevronRight className="size-3 text-zinc-400" aria-hidden /> : null}
-                  {crumb.href ? (
-                    <Link href={crumb.href}>{crumb.label}</Link>
-                  ) : (
-                    <span aria-current={i === breadcrumbs.length - 1 ? "page" : undefined} className={i === breadcrumbs.length - 1 ? "text-zinc-700" : undefined}>
-                      {crumb.label}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </nav>
-        ) : null}
-        <h1 className="text-2xl font-semibold">{title}</h1>
-        {description ? <p className="mt-1 max-w-[65ch] text-sm text-zinc-600">{description}</p> : null}
+    <header className="page-header-wrap">
+      <div className="page-header">
+        <div className="min-w-0">
+          {breadcrumbs && breadcrumbs.length > 0 ? (
+            <nav aria-label="Ruta de navegación" className="breadcrumbs mb-2">
+              <ol>
+                {breadcrumbs.map((crumb, i) => (
+                  <li key={crumb.label} className="inline-flex items-center gap-1">
+                    {i > 0 ? <ChevronRight className="size-3 text-zinc-400" aria-hidden /> : null}
+                    {crumb.href ? (
+                      <Link href={crumb.href}>{crumb.label}</Link>
+                    ) : (
+                      <span aria-current={i === breadcrumbs.length - 1 ? "page" : undefined} className={i === breadcrumbs.length - 1 ? "text-zinc-700" : undefined}>
+                        {crumb.label}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </nav>
+          ) : null}
+          <h1 className="text-2xl font-semibold">{title}</h1>
+          {description ? <p className="mt-1 max-w-[65ch] text-sm text-zinc-600">{description}</p> : null}
+        </div>
+        {actions ? <div className="page-header-actions">{actions}</div> : null}
       </div>
-      {actions ? <div className="relative flex flex-wrap items-center gap-2">{actions}</div> : null}
     </header>
   );
 }

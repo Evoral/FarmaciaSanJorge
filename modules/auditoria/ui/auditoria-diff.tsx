@@ -112,9 +112,12 @@ export function AuditoriaDiff({ entidad, entidadId, valorAnterior, valorNuevo, z
             ) : null}
           </p>
           {userAgent ? <p className="break-words text-xs text-zinc-500 dark:text-zinc-400">Navegador: {userAgent}</p> : null}
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <JsonBlock label="Valor anterior" value={valorAnterior} />
-            <JsonBlock label="Valor nuevo" value={valorNuevo} />
+          {/* Container: the diff renders inside ~18-20rem table cells, where two side-by-side <pre> blocks get ~120px each. */}
+          <div className="@container">
+            <div className="flex flex-col gap-2 @xl:flex-row">
+              <JsonBlock label="Valor anterior" value={valorAnterior} />
+              <JsonBlock label="Valor nuevo" value={valorNuevo} />
+            </div>
           </div>
         </div>
       </details>

@@ -36,6 +36,8 @@ import { convertirCantidad } from "@/shared/decimal/convertir-unidad";
 import { formatNumero, formatStockEntero } from "@/shared/format/cantidad";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { AYUDA_NUMERO, numeroParaInput } from "@/shared/decimal/numero-ingresado";
+import { NumeroInput } from "@/shared/ui/numero-input";
+import { agregarYEnfocar, filaDeLista } from "@/shared/ui/enfocar-al-agregar";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { CoFirmaDt } from "@/shared/ui/co-firma-dt";
 import { toast } from "@/shared/ui/toast";
@@ -562,7 +564,7 @@ function FilasLinea({
                     id={`partidas_${linea.id}_${k}`}
                     value={partidaId}
                     onChange={(event) => setLotes(linea.id, lotes.map((id, i) => (i === k ? event.target.value : id)))}
-                    className="input h-8 w-full min-w-0 max-w-full flex-1 truncate py-0 font-mono text-xs sm:w-auto sm:flex-initial"
+                    className="input h-8 w-full min-w-0 max-w-full flex-1 truncate py-0 font-mono text-xs md:w-auto md:flex-initial"
                   >
                     {opciones.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -614,7 +616,7 @@ function FilasLinea({
                 <span className="text-zinc-500">Se termina primero el lote abierto o el que vence antes, y el resto sale del otro.</span>
               ) : null}
               {libres.length > 0 ? (
-                <button type="button" onClick={() => setLotes(linea.id, [...lotes, libres[0]!.id])} className="btn btn-ghost btn-sm">
+                <button type="button" onClick={() => agregarYEnfocar(() => setLotes(linea.id, [...lotes, libres[0]!.id]), () => document.getElementById(`partidas_${linea.id}_${lotes.length}`))} className="btn btn-ghost btn-sm">
                   <Plus className="size-3.5" aria-hidden />
                   Agregar otro lote
                 </button>
@@ -647,11 +649,12 @@ function FilasLinea({
         </tr>
       ) : null}
 
-      {pesada?.bajoLaBalanza ? (
+      {pesada?.bajoLaBalanza || pesada?.sugerirDilucion ? (
         <tr className={vencidas.length > 0 ? "border-b-0" : undefined}>
           <td colSpan={columnas} className="pb-3 pl-6 pr-3 pt-0.5">
             <AvisoBajoLaBalanza
               linea={linea}
+              sugerencia={!pesada.bajoLaBalanza}
               elegidas={lotes}
               onUsar={(partidaId) => setLotes(linea.id, [partidaId])}
               puedeElaborar={datos.puedeElaborarLote === true}
@@ -787,12 +790,10 @@ function CantidadExcipiente() {
         {unidades ? `Peso de un${unidades.singular.endsWith("a") ? "a" : ""} ${unidades.singular}` : "Peso total del preparado"}
       </label>
       <div className="relative">
-        <input
+        <NumeroInput
           id={id}
-          type="text"
-          inputMode="decimal"
           value={excipiente.cantidad}
-          onChange={(event) => excipiente.setCantidad(event.target.value)}
+          onValueChange={(valor) => excipiente.setCantidad(valor)}
           onBlur={() => guardar(CLAVE_EXCIPIENTE)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -866,12 +867,13 @@ function FilasInsumos({ columnas }: { columnas: number }) {
   return (
     <>
       {insumos.filas.map((fila) => (
-        <tr key={fila.clave} className="border-b-0">
-          <td className="px-3 py-1.5 align-top font-medium text-zinc-900">{fila.tipo === "MATERIAL" ? "Material" : "Insumo"}</td>
-          <td colSpan={columnas - 2} className="px-3 py-1.5 align-top">
+        // Stacked card below md, like FilaExcipiente: a native table-row inside the block tbody overflows the phone width.
+        <tr key={fila.clave} className="block border-t border-zinc-200 px-3 py-3 md:table-row md:border-b-0 md:p-0">
+          <td className="block p-0 pb-1.5 align-top font-medium text-zinc-900 md:table-cell md:px-3 md:py-1.5">{fila.tipo === "MATERIAL" ? "Material" : "Insumo"}</td>
+          <td colSpan={columnas - 2} className="block p-0 align-top md:table-cell md:px-3 md:py-1.5">
             <BuscadorInsumo fila={fila} />
           </td>
-          <td className="px-3 py-1.5 text-right align-top">
+          <td className="block p-0 pt-2.5 text-left align-top md:table-cell md:px-3 md:py-1.5 md:text-right">
             <CantidadInsumo fila={fila} />
           </td>
         </tr>
@@ -893,7 +895,7 @@ function AgregarInsumo() {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
       {insumos.opciones.length > 0 ? (
-        <button type="button" onClick={insumos.agregar} className="btn btn-ghost btn-sm">
+        <button type="button" onClick={() => agregarYEnfocar(insumos.agregar, () => filaDeLista("insumo"))} className="btn btn-ghost btn-sm">
           <Plus className="size-3.5" aria-hidden />
           Agregar insumo
         </button>
@@ -927,7 +929,7 @@ function BuscadorInsumo({ fila, flotante = false }: { fila: FilaInsumo; flotante
   const sinOpciones = !insumos.opciones.some((o) => o.clase === "MATERIAL");
 
   return (
-    <div className="flex items-start gap-2">
+    <div data-fila="insumo" className="flex items-start gap-2">
       <div className="min-w-0 flex-1">
         {sinOpciones ? (
           <p className="text-xs text-zinc-500">No hay materiales en el catálogo de drogas.</p>
@@ -971,12 +973,10 @@ function CantidadInsumo({ fila }: { fila: FilaInsumo }) {
   return (
     <div className="ml-auto flex flex-col items-end gap-1">
       <div className="flex items-center gap-1.5">
-        <input
+        <NumeroInput
           id={id}
-          type="text"
-          inputMode="decimal"
           value={fila.cantidad}
-          onChange={(event) => insumos.setCantidad(fila.clave, event.target.value)}
+          onValueChange={(valor) => insumos.setCantidad(fila.clave, valor)}
           onBlur={() => guardar(CLAVE_INSUMOS)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -1050,13 +1050,11 @@ function CantidadReal({ linea, pesada }: { linea: LineaPantalla; pesada: PesadaD
   return (
     <div className="flex flex-col items-start gap-1 md:ml-auto md:max-w-[11rem] md:items-end">
       <div className="flex items-center gap-1.5">
-        <input
+        <NumeroInput
           id={id}
           name={campo}
-          type="text"
-          inputMode="decimal"
           value={valor}
-          onChange={(event) => (linea.esEnraseManual ? setManual(linea.id, event.target.value) : setReal(linea.id, event.target.value))}
+          onValueChange={(valor) => (linea.esEnraseManual ? setManual(linea.id, valor) : setReal(linea.id, valor))}
           onBlur={() => guardar(linea.id)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {

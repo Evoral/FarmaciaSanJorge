@@ -10,6 +10,7 @@
 import { useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Combobox, filtrarOpciones, type ComboboxOption } from "@/shared/ui/combobox";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { numeroParaInput } from "@/shared/decimal/numero-ingresado";
 
 export interface ComponenteOpcion {
@@ -72,8 +73,8 @@ export function FormulaEditor({ opciones, inicial, drogaId, esComponenteDe, disa
     <fieldset className="field" disabled={disabled}>
       <input type="hidden" name="formulaEnviada" value="1" disabled={disabled} />
       <legend className="sr-only">Fórmula</legend>
-      <label className="flex items-center gap-2 text-[0.8125rem] font-medium text-zinc-900">
-        <input type="checkbox" name="tieneFormula" checked={tiene} disabled={disabled || bloqueada} onChange={(e) => setTiene(e.target.checked)} />
+      <label className="toggle-switch text-[0.8125rem] font-medium text-zinc-900">
+        <input type="checkbox" role="switch" name="tieneFormula" checked={tiene} disabled={disabled || bloqueada} onChange={(e) => setTiene(e.target.checked)} />
         Se elabora en la farmacia (tiene fórmula)
       </label>
       <p className="field-help">
@@ -84,19 +85,17 @@ export function FormulaEditor({ opciones, inicial, drogaId, esComponenteDe, disa
 
       {tiene ? (
         <div className="mt-2 flex flex-col gap-3 rounded-md border border-zinc-200 p-3">
-          <div className="field sm:max-w-[50%]">
+          <div className="field @lg:max-w-[50%]">
             <label htmlFor="cantidadReferencia" className="field-label">
               Cantidad que rinde la fórmula
             </label>
             <div className="flex items-center gap-2">
-              <input
+              <NumeroInput
                 id="cantidadReferencia"
                 name="cantidadReferencia"
                 value={referencia}
-                onChange={(e) => setReferencia(e.target.value)}
+                onValueChange={(valor) => setReferencia(valor)}
                 required
-                inputMode="decimal"
-                autoComplete="off"
                 aria-describedby="cantidadReferencia-ayuda"
                 className="input font-mono"
               />
@@ -114,18 +113,17 @@ export function FormulaEditor({ opciones, inicial, drogaId, esComponenteDe, disa
             {filas.map((fila) => {
               const id = `componente_${fila.drogaId}`;
               return (
-                <div key={fila.drogaId} className="flex items-center gap-2">
-                  <label htmlFor={id} className="min-w-0 flex-1 truncate text-[0.8125rem] text-zinc-800">
+                <div key={fila.drogaId} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  {/* Own line when the form is narrow: the controls on its right take 216px. */}
+                  <label htmlFor={id} className="min-w-0 basis-full truncate text-[0.8125rem] text-zinc-800 @sm:basis-0 @sm:flex-1">
                     {fila.nombre}
                   </label>
-                  <input
+                  <NumeroInput
                     id={id}
                     name={id}
                     value={fila.cantidad}
-                    onChange={(e) => setFilas((actuales) => actuales.map((f) => (f.drogaId === fila.drogaId ? { ...f, cantidad: e.target.value } : f)))}
+                    onValueChange={(valor) => setFilas((actuales) => actuales.map((f) => (f.drogaId === fila.drogaId ? { ...f, cantidad: valor } : f)))}
                     required
-                    inputMode="decimal"
-                    autoComplete="off"
                     className="input w-32 font-mono"
                   />
                   <span className="w-8 text-xs text-zinc-500">{fila.simbolo}</span>

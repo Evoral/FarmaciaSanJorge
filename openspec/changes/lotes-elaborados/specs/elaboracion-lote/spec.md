@@ -31,11 +31,41 @@ A dilución SHALL produce a partida of the SAME droga as its principal component
 
 A droga MAY have one fórmula: components (droga, cantidad, unidad) for a `cantidad_referencia` of the product. A component MUST NOT be the droga itself nor have its own fórmula. Elaborating with a fórmula SHALL precarga its components scaled to the cantidad to produce; the consumed quantities MAY differ.
 
+The droga form (alta/edición) SHALL offer switch "Se elabora en la farmacia (tiene fórmula)" below "Sugerir siempre un lote diluido". Precarga SHALL NOT fail silently.
+
 #### Scenario: Fórmula scaled
 
 - **GIVEN** a fórmula of 100 ml with 85 g of azúcar
 - **WHEN** 1000 ml are to be elaborated
 - **THEN** the precarga proposes 850 g of azúcar
+
+#### Scenario: Precargar without cantidad producida
+
+- **GIVEN** a droga with a fórmula in the "Elaborar lote" dialog (`modules/stock/ui/elaborar-lote-form.tsx`, `precargar`)
+- **WHEN** the user clicks "Precargar con la fórmula" without entering a cantidad producida
+- **THEN** nothing is filled
+- **AND** the toast "Cargá primero la cantidad producida (<unidad>): la fórmula se escala a ella." is displayed above the dialog via its scoped Toaster (`shared/ui/toast.tsx` `Toaster scope` / `toast(message, tone, scope)`)
+- **AND** the cursor is placed in the cantidad producida field
+
+#### Scenario: Precargar with a component without lots
+
+- **GIVEN** a droga with a fórmula where one component has no available lots in stock
+- **WHEN** the user clicks "Precargar con la fórmula" (`modules/stock/ui/elaborar-lote-form.tsx`, `precargar`) with a valid cantidad producida
+- **THEN** the other components are prefilled with their available lots in consumption order
+- **AND** the toast displays "No alcanza el stock para la fórmula: <droga> no tiene lotes disponibles. Se precargó lo disponible." above the dialog
+
+#### Scenario: Precargar with insufficient stock
+
+- **GIVEN** a droga with a fórmula where a component's available lots do not reach the scaled required active
+- **WHEN** the user clicks "Precargar con la fórmula" (`modules/stock/ui/elaborar-lote-form.tsx`, `precargar`) with a valid cantidad producida
+- **THEN** what is available is prefilled
+- **AND** the toast displays "No alcanza el stock para la fórmula: a <droga> le faltan <cantidad> de activo. Se precargó lo disponible." above the dialog
+
+#### Scenario: Fórmula switch present in alta and edición, together with "Sugerir siempre un lote diluido"
+
+- **WHEN** the droga form (`modules/drogas/ui/droga-form.tsx`) is opened in either alta or edición
+- **THEN** it displays the switch "Se elabora en la farmacia (tiene fórmula)" (`modules/drogas/ui/formula-editor.tsx`)
+- **AND** right above it, the switch "Sugerir siempre un lote diluido" (pesada-real P14) appears in both alta and edición
 
 ### Requirement: EL4 — Costo of the lot
 

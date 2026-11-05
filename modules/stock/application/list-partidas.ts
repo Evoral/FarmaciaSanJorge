@@ -2,7 +2,7 @@
  * `listPartidas` (`/partidas`, openspec/specs/historial-partidas/spec.md).
  * Read-only, `stock.ver`. Every partida of the tenant across all drogas
  * (insumos included), agotadas included by default -- it is a history.
- * Filters (droga, proveedor, lote, fecha de ingreso range, solo con saldo,
+ * Filters (droga, proveedor, lote, N° factura, fecha de ingreso range, solo con saldo,
  * solo vencidas) combine with AND; newest ingreso first. Plus the jornada and
  * the alert window, so each partida shows its expiry estado on its
  * vencimiento VIGENTE (same as `listPartidasDroga`).
@@ -10,6 +10,7 @@
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { fechaIso, uuid } from "@/shared/validation";
+import { parseBusquedaFactura } from "../domain/busqueda-factura";
 import { getDiasAlertaVencimiento, getStockDeDroga, jornadaActualTenant, listPartidasHistorial } from "../infrastructure/partida-repository";
 import type { ListPartidasHistorialResult, StockDeDroga } from "../infrastructure/partida-repository";
 import { tiposElaboracionDePartidas } from "../infrastructure/elaboracion-lote-repository";
@@ -20,6 +21,7 @@ const listPartidasInput = z
     drogaId: uuid.optional(),
     proveedorId: uuid.optional(),
     lote: z.string().trim().max(100).optional(),
+    factura: z.string().trim().max(40).optional(),
     desde: fechaIso.optional(),
     hasta: fechaIso.optional(),
     soloConSaldo: z.boolean().optional(),
@@ -55,6 +57,7 @@ export const listPartidasQuery = defineQuery({
       drogaId: input.drogaId,
       proveedorId: input.proveedorId,
       lote: input.lote || undefined,
+      factura: input.factura ? (parseBusquedaFactura(input.factura) ?? undefined) : undefined,
       desde: input.desde,
       hasta: input.hasta,
       soloConSaldo: input.soloConSaldo,

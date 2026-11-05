@@ -16,7 +16,8 @@
  * attached to the 11-digit number).
  */
 import { describe, it, expect } from "vitest";
-import { cuilOpcional, dniOpcional } from "@/modules/pacientes/domain/paciente";
+import { cuilOpcional, dniObligatorio, dniOpcional } from "@/modules/pacientes/domain/paciente";
+import { MENSAJE_DNI_INVALIDO } from "@/shared/validation/dni";
 
 describe("cuilOpcional (zod schema: optional, format + AFIP check digit)", () => {
   it("empty/omitted input normalizes to null (cuil stays optional)", () => {
@@ -94,5 +95,35 @@ describe("dniOpcional (zod schema: optional, 7-8 digits, no check digit)", () =>
 
     const tooLong = dniOpcional.safeParse("123456789");
     expect(tooLong.success).toBe(false);
+  });
+});
+
+describe("dniObligatorio (zod schema: mandatory, 7-8 digits)", () => {
+  it("missing, null and '' (also '   ') fail with 'Ingresá el DNI del paciente.'", () => {
+    for (const val of [undefined, null, "", "   "]) {
+      const res = dniObligatorio.safeParse(val);
+      expect(res.success).toBe(false);
+      if (!res.success) {
+        expect(res.error.issues[0]!.message).toBe("Ingresá el DNI del paciente.");
+      }
+    }
+  });
+
+  it("a malformed value fails with MENSAJE_DNI_INVALIDO", () => {
+    for (const val of ["123456", "123456789", "letras"]) {
+      const res = dniObligatorio.safeParse(val);
+      expect(res.success).toBe(false);
+      if (!res.success) {
+        expect(res.error.issues[0]!.message).toBe(MENSAJE_DNI_INVALIDO);
+      }
+    }
+  });
+
+  it("'12.345.678' parses to '12345678'", () => {
+    const res = dniObligatorio.safeParse("12.345.678");
+    expect(res.success).toBe(true);
+    if (res.success) {
+      expect(res.data).toBe("12345678");
+    }
   });
 });

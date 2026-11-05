@@ -274,6 +274,25 @@ An etiqueta generated outside the toma (`/preparaciones/[id]`, `generarEtiqueta`
 - **WHEN** an etiqueta is generated outside the toma (/preparaciones/[id], `generarEtiqueta`)
 - **THEN** it includes excipientes if and only if the tenant default is turned on
 
+### Requirement: R11 — Quantity of forms not counted in units
+
+A form not counted in units (crema, gel, jarabe, solución, suspensión...) SHALL print as its quantity the ítem's
+"Cantidad de ... a preparar" as loaded in the receta (`item_receta.cantidad_total` and its unit), with the forma and
+vía in singular. Forms counted in units (cápsulas, comprimidos, óvulos, supositorios), or a form with no cantidad
+total loaded, keep the unit count. The snapshot line reads "Cantidad: 100 g — Crema — Uso externo".
+
+#### Scenario: Crema with a cantidad a preparar
+
+- **GIVEN** a crema whose "Cantidad de crema a preparar" is 100 g
+- **WHEN** the etiqueta is printed
+- **THEN** the large quantity prints "100 g" with "Crema" and "Uso externo"
+
+#### Scenario: Cápsulas keep the unit count
+
+- **GIVEN** 30 cápsulas
+- **WHEN** the etiqueta is printed
+- **THEN** the large quantity prints "30" with "Cápsulas"
+
 ## Placement
 
 Placement on the printed page (the PDF is the sheet, the label goes in a chosen cell): `openspec/specs/hoja-etiquetas/spec.md`. This spec only governs what the label says and how it is laid out.
@@ -291,6 +310,7 @@ Placement on the printed page (the PDF is the sheet, the label goes in a chosen 
 | R8 | `getDtTitularParaEtiqueta` (preparacion-repository) |
 | R7 | `formatearContenidoEtiqueta`, `parsearContenidoEtiqueta` |
 | R9 | `formatearLineaRp` (`domain/etiqueta.ts`), `getPreparacionParaEtiqueta` |
+| R11 | `cantidadTotalEtiqueta`, `armarContenidoEtiqueta`, `formatearContenidoEtiqueta`, `parsearContenidoEtiqueta` (`domain/etiqueta.ts`), `getPreparacionParaEtiqueta`, `etiqueta-pdf.ts` (`dibujarPanel`) |
 | R10 | `modules/preparaciones/domain/etiqueta.ts` (`MARCA_EXCIPIENTE`, `lineasExcipientesRp`, `OpcionesEtiqueta`, `armarContenidoEtiqueta`), `modules/preparaciones/application/generar-etiqueta.ts`, `confirmar-reservas-receta.ts`, `modules/preparaciones/infrastructure/preparacion-repository.ts` (`getPreparacionParaEtiqueta`, `getIncluirExcipientesEnEtiqueta`), `modules/preparaciones/ui/reserva-acciones.tsx` (`EtiquetasDeReceta`), `imprimir-etiqueta-dialog.tsx`, `actions.ts` (`confirmarReservasRecetaAction`) |
 
 ## Rollback

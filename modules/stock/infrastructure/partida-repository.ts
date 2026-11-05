@@ -16,6 +16,7 @@ import { DIAS_ALERTA_VENCIMIENTO_PARTIDA_DEFAULT, type OrdenStockDrogas } from "
 import { rangoDeJornadas } from "@/shared/time/jornada";
 import { drogaCoincideSql, sinonimoCoincidenteSql } from "@/shared/db/busqueda-droga";
 import { ETIQUETA_ELABORADO_EN_FARMACIA, ETIQUETA_SIN_PROVEEDOR, etiquetaSinProveedor } from "@/shared/labels/enum-labels";
+import type { BusquedaFactura } from "../domain/busqueda-factura";
 
 // ============================================================================
 // jornada helper (fsj.jornada_actual(tenantId)) -- see migration 0014.
@@ -350,6 +351,8 @@ export interface ListPartidasHistorialFilter {
   proveedorId?: string;
   /** Case-insensitive "contains" on the lote. */
   lote?: string;
+  /** The supplier invoice the lot was imported from (`comprobante_compra`): numero "contains", puntoVenta exact when given. */
+  factura?: BusquedaFactura;
   /** YYYY-MM-DD jornada in the tenant's time zone (inclusive) -- `fecha_ingreso` is a timestamptz. */
   desde?: string;
   hasta?: string;
@@ -380,6 +383,12 @@ export async function listPartidasHistorial(tx: Prisma.TransactionClient, filter
   if (filter.drogaId) where.drogaId = filter.drogaId;
   if (filter.proveedorId) where.proveedorId = filter.proveedorId;
   if (filter.lote) where.lote = { contains: filter.lote, mode: "insensitive" };
+  if (filter.factura) {
+    where.comprobanteCompra = {
+      numero: { contains: filter.factura.numero },
+      ...(filter.factura.puntoVenta ? { puntoVenta: filter.factura.puntoVenta } : {}),
+    };
+  }
   if (filter.soloConSaldo) where.cantidadDisponible = { gt: 0 };
   if (filter.soloElaboradas) where.origen = "ELABORACION_PROPIA";
   if (filter.soloVencidas) {

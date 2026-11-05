@@ -12,6 +12,7 @@
  */
 import { useMemo, useRef, useState } from "react";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { DateInput } from "@/shared/ui/date-input";
 import { Combobox, filtrarOpciones, type ComboboxOption } from "@/shared/ui/combobox";
 import { numeroParaInput } from "@/shared/decimal/numero-ingresado";
@@ -104,7 +105,7 @@ export function ExistenciaInicialForm({ drogas, proveedores, unidades }: Existen
           <label htmlFor="potenciaDeclarada" className="field-label">
             Pureza <span className="font-normal text-zinc-400">(%, opcional)</span>
           </label>
-          <input id="potenciaDeclarada" name="potenciaDeclarada" inputMode="decimal" className="input font-mono" />
+          <NumeroInput id="potenciaDeclarada" name="potenciaDeclarada" className="input font-mono" />
         </div>
       </div>
 
@@ -113,7 +114,7 @@ export function ExistenciaInicialForm({ drogas, proveedores, unidades }: Existen
           <label htmlFor="cantidadCompra" className="field-label">
             Cantidad contada
           </label>
-          <input id="cantidadCompra" name="cantidadCompra" required inputMode="decimal" className="input font-mono" />
+          <NumeroInput id="cantidadCompra" name="cantidadCompra" required className="input font-mono" />
         </div>
         <div className="field">
           <label htmlFor="unidadCompraId" className="field-label">
@@ -134,13 +135,12 @@ export function ExistenciaInicialForm({ drogas, proveedores, unidades }: Existen
           <label htmlFor="costoUnitario" className="field-label">
             Costo por unidad base
           </label>
-          <input
+          <NumeroInput
             id="costoUnitario"
             name="costoUnitario"
             value={costo}
-            onChange={(e) => setCosto(e.target.value)}
+            onValueChange={(valor) => setCosto(valor)}
             required
-            inputMode="decimal"
             className="input font-mono"
           />
         </div>

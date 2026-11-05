@@ -114,7 +114,8 @@ export function PanelPersona({ titulo, existente, dadoDeBaja, completar, datos, 
             .join(" · ")}
         </p>
       )}
-      {children}
+      {/* Container for the children's @sm: grids: this panel sits in the split-layout main column (~290px wide at 1024px). */}
+      <div className="@container">{children}</div>
     </fieldset>
   );
 }

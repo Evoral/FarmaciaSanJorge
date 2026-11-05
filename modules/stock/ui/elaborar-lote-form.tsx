@@ -24,6 +24,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CircleAlert, Plus, Wand2, X } from "lucide-react";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { Toaster, toast } from "@/shared/ui/toast";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { FIELD_ERROR_EVENT, type FieldErrorEventDetail } from "@/shared/ui/field-errors";
 import { Combobox, type ComboboxOption } from "@/shared/ui/combobox";
 import { dec } from "@/shared/decimal";
@@ -48,6 +50,8 @@ import { datosParaElaborarAction, elaborarLoteAction } from "./actions";
 import { buscarDrogasStockAction } from "./buscar-drogas-stock-action";
 
 type Tipo = "DILUCION" | "FORMULA";
+
+const TOAST_SCOPE = "elaborar-lote";
 
 export interface ElaborarLoteFormProps {
   /** Opened for a droga (a partida's "Diluir", the pesaje's "crear dilución"): its data, already loaded. */
@@ -195,13 +199,27 @@ export function ElaborarLoteForm({ inicial, onElaborado, extraActions }: Elabora
   const bloqueadaPorContralor = datos?.contralorActivo === true && controlada;
 
   /** EL3: each component scaled to the cantidad producida, taken from its lots in consumption order (open first, then FEFO). */
+  // Every reason it can not fill (or fills only part) is toasted: a silent button leaves the user guessing.
   function precargar() {
-    if (!datos?.formula || !producida) return;
+    if (!datos?.formula) return;
+    if (!producida) {
+      toast(`Cargá primero la cantidad producida (${simboloProducido}): la fórmula se escala a ella.`, "error", TOAST_SCOPE);
+      document.getElementById("cantidadProducida")?.focus();
+      return;
+    }
     const nuevas: Record<string, string> = {};
+    const faltantes: string[] = [];
     for (const componente of escalarFormula({ drogaId: datos.droga.id, cantidadReferencia: datos.formula.cantidadReferencia, componentes: datos.formula.componentes }, producida)) {
+      const enFormula = datos.formula.componentes.find((c) => c.drogaId === componente.drogaId);
+      const simbolo = enFormula?.unidadBaseSimbolo ?? "";
+      const lotes = datos.partidasPorDroga[componente.drogaId] ?? [];
+      if (lotes.length === 0) {
+        faltantes.push(`${enFormula?.drogaNombre ?? "un componente"} no tiene lotes disponibles`);
+        continue;
+      }
       // The fórmula is in ACTIVE: each lot gives its active (quantity x its pureza), as on the ficha técnica.
       let resto = componente.cantidad;
-      for (const p of datos.partidasPorDroga[componente.drogaId] ?? []) {
+      for (const p of lotes) {
         if (!resto.greaterThan(0)) break;
         const pureza = dec(p.potenciaDeclarada ?? 100).dividedBy(100);
         if (!pureza.greaterThan(0)) continue;
@@ -211,8 +229,14 @@ export function ElaborarLoteForm({ inicial, onElaborado, extraActions }: Elabora
         nuevas[p.id] = numeroParaInput(aUnidadDeFormulario(toma, p.unidadBaseSimbolo).toDecimalPlaces(4).toFixed());
         resto = resto.minus(activo);
       }
+      if (resto.greaterThan(0)) {
+        faltantes.push(`a ${enFormula?.drogaNombre ?? "un componente"} le faltan ${textoEnFormulario(resto.toFixed(), simbolo)} de activo`);
+      }
     }
     setCantidades(nuevas);
+    if (faltantes.length > 0) {
+      toast(`No alcanza el stock para la fórmula: ${faltantes.join("; ")}. Se precargó lo disponible.`, "error", TOAST_SCOPE);
+    }
   }
 
   return (
@@ -230,6 +254,8 @@ export function ElaborarLoteForm({ inicial, onElaborado, extraActions }: Elabora
         if (state.partidaId) onElaborado(state.partidaId, state.message);
       }}
     >
+      {/* Its own Toaster: the modal dialog covers the page's. */}
+      <Toaster scope={TOAST_SCOPE} />
       <input type="hidden" name="tipo" value={tipo} />
       <input type="hidden" name="drogaProducidaId" value={droga?.value ?? ""} />
       {tipo === "FORMULA" && datos?.formula ? <input type="hidden" name="formulaId" value={datos.formula.id} /> : null}
@@ -301,7 +327,7 @@ export function ElaborarLoteForm({ inicial, onElaborado, extraActions }: Elabora
                   Fórmula: por cada {textoEnFormulario(datos.formula.cantidadReferencia, datos.droga.unidadBaseSimbolo)},{" "}
                   {datos.formula.componentes.map((c) => `${textoEnFormulario(c.cantidad, c.unidadBaseSimbolo)} de ${c.drogaNombre}`).join(", ")}.
                 </span>
-                <button type="button" onClick={precargar} disabled={!producida} className="btn btn-secondary btn-sm">
+                <button type="button" onClick={precargar} className="btn btn-secondary btn-sm">
                   <Wand2 className="size-4" aria-hidden />
                   Precargar con la fórmula
                 </button>
@@ -482,6 +508,8 @@ function GrupoDeLotes({
       {partidas.length === 0 ? (
         <p className="px-3 py-2 text-xs text-zinc-500">Sin lotes disponibles: no tiene saldo libre sin vencer.</p>
       ) : (
+        // Scrolls inside the section: at 375px the dialog leaves ~300px and the "Usar" input alone needs 136px.
+        <div className="overflow-x-auto">
         <table className="data-table">
           <thead>
             <tr>
@@ -535,6 +563,7 @@ function GrupoDeLotes({
             })}
           </tbody>
         </table>
+        </div>
       )}
     </section>
   );
@@ -599,17 +628,15 @@ function CantidadEnFormulario({
   const valido = cantidadValida(valor);
   return (
     <>
-      <input
+      <NumeroInput
         id={id}
         ref={visibleRef}
         value={valor}
-        onChange={(e) => {
+        onValueChange={(valor) => {
           setErrorDelServidor(false);
-          onChange(e.target.value);
+          onChange(valor);
         }}
         required={required}
-        inputMode="decimal"
-        autoComplete="off"
         aria-invalid={errorDelServidor || pendiente || undefined}
         className="input w-28 text-right font-mono"
       />

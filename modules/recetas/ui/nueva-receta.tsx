@@ -45,7 +45,8 @@ export function NuevaReceta({ unidades, puedePresupuestar, modoLectorFarmacia, t
           <h2>Importar una receta digital</h2>
           <p>Precarga el formulario. No se guarda nada hasta que confirmes.</p>
         </div>
-        <div className="divide-y divide-zinc-100">
+        {/* Container: the PDF/QR rows go side by side only when the panel itself fits the 26rem form plus readable text. */}
+        <div className="@container divide-y divide-zinc-100">
           <ImportarRecetaPdf key={`pdf-${lecturas.QR}`} importando={vistaPrevia?.fuente === "PDF"} onLeida={onLeida} onDescartar={onDescartar} />
           <ImportarRecetaQr key={`qr-${lecturas.PDF}`} importando={vistaPrevia?.fuente === "QR"} onLeida={onLeida} onDescartar={onDescartar} autoEnfocar={totalLecturas === 0}
             modoLectorFarmacia={modoLectorFarmacia}

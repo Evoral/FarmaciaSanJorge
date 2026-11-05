@@ -98,6 +98,8 @@ const editarDrogaInput = z.object({
   /** Migration 0063: omitted = keep the stored clase. */
   clase: z.enum(CLASES_DROGA).optional(),
   stockMinimo: nonNegativeDecimalString,
+  /** Migration 0120: a preference, not part of the version check; omitted = untouched. */
+  sugerirDilucion: z.boolean().optional(),
   sinonimos: z.array(z.string().max(SINONIMO_MAX_LARGO, `Como máximo ${SINONIMO_MAX_LARGO} caracteres.`)).max(50).optional(),
   sinonimosCargados: z.array(uuid).max(50).default([]),
   /** Required only when the edit makes the droga controlled with the contralor activo (R12); ignored otherwise. */
@@ -123,6 +125,8 @@ export interface EditarDrogaInput {
   tipoControl?: string;
   clase?: string;
   stockMinimo: string;
+  /** "Sugerir lote diluido" (migration 0120); omitted = untouched. */
+  sugerirDilucion?: boolean;
   /** The "Otros nombres" rows as edited, positional (row `i` = field `sinonimo-i`); omitted = synonyms untouched. */
   sinonimos?: string[];
   /** Ids of the synonyms the form showed when loaded. */
@@ -229,6 +233,7 @@ export const editarDrogaCommand = defineCommand({
         nombre: input.nombre,
         clase,
         stockMinimo: input.stockMinimo.toString(),
+        ...(input.sugerirDilucion !== undefined ? { sugerirDilucion: input.sugerirDilucion } : {}),
         ...(cambiaClasificacion ? { clasificacion: { unidadBaseId, esControlada, tipoControl } } : {}),
       },
       {
@@ -282,6 +287,7 @@ export const editarDrogaCommand = defineCommand({
           tipoControl: actual.tipoControl,
           clase: actual.clase,
           stockMinimo: actual.stockMinimo,
+          sugerirDilucion: actual.sugerirDilucion,
           ...(sinonimos ? { sinonimos: sinonimos.antes } : {}),
         },
         valorNuevo: {
@@ -292,6 +298,7 @@ export const editarDrogaCommand = defineCommand({
           tipoControl: cambiaClasificacion ? tipoControl : actual.tipoControl,
           clase,
           stockMinimo: input.stockMinimo.toString(),
+          sugerirDilucion: input.sugerirDilucion ?? actual.sugerirDilucion,
           ...(sinonimos ? { sinonimos: sinonimos.despues } : {}),
         },
       },

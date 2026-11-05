@@ -175,5 +175,88 @@ describe("Server Actions -- lotes-elaborados", () => {
         }),
       );
     });
+
+    it("crearDrogaAction sends sugerirDilucion true with 'sugerirDilucion'='on', false without it", async () => {
+      // With "sugerirDilucion"="on"
+      const formDataTrue = new FormData();
+      formDataTrue.set("nombre", "Nueva Droga");
+      formDataTrue.set("unidadBaseId", UNIDAD_ID);
+      formDataTrue.set("stockMinimo", "0");
+      formDataTrue.set("sugerirDilucion", "on");
+
+      await crearDrogaAction({ status: "idle" }, formDataTrue);
+
+      expect(crearDrogaMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sugerirDilucion: true,
+        }),
+      );
+
+      vi.clearAllMocks();
+
+      // Without "sugerirDilucion"
+      const formDataFalse = new FormData();
+      formDataFalse.set("nombre", "Nueva Droga");
+      formDataFalse.set("unidadBaseId", UNIDAD_ID);
+      formDataFalse.set("stockMinimo", "0");
+
+      await crearDrogaAction({ status: "idle" }, formDataFalse);
+
+      expect(crearDrogaMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sugerirDilucion: false,
+        }),
+      );
+    });
+
+    it("editarDrogaAction handles sugerirDilucionEnviado marker and sugerirDilucion switch", async () => {
+      // 1. With marker and no "sugerirDilucion" -> sends sugerirDilucion: false
+      const formDataFalse = new FormData();
+      formDataFalse.set("id", DROGA_ID);
+      formDataFalse.set("nombre", "Droga Editada");
+      formDataFalse.set("stockMinimo", "0");
+      formDataFalse.set("sugerirDilucionEnviado", "true");
+
+      await editarDrogaAction({ status: "idle" }, formDataFalse);
+
+      expect(editarDrogaMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sugerirDilucion: false,
+        }),
+      );
+
+      vi.clearAllMocks();
+
+      // 2. With marker and "sugerirDilucion"="on" -> sends sugerirDilucion: true
+      const formDataTrue = new FormData();
+      formDataTrue.set("id", DROGA_ID);
+      formDataTrue.set("nombre", "Droga Editada");
+      formDataTrue.set("stockMinimo", "0");
+      formDataTrue.set("sugerirDilucionEnviado", "true");
+      formDataTrue.set("sugerirDilucion", "on");
+
+      await editarDrogaAction({ status: "idle" }, formDataTrue);
+
+      expect(editarDrogaMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sugerirDilucion: true,
+        }),
+      );
+
+      vi.clearAllMocks();
+
+      // 3. Without marker -> the key is not sent at all
+      const formDataOmitted = new FormData();
+      formDataOmitted.set("id", DROGA_ID);
+      formDataOmitted.set("nombre", "Droga Editada");
+      formDataOmitted.set("stockMinimo", "0");
+
+      await editarDrogaAction({ status: "idle" }, formDataOmitted);
+
+      const call = editarDrogaMock.mock.calls[0];
+      expect(call).toBeDefined();
+      const payload = call[0];
+      expect(Object.prototype.hasOwnProperty.call(payload, "sugerirDilucion")).toBe(false);
+    });
   });
 });

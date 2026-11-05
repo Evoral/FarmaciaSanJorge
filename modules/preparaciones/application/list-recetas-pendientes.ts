@@ -7,9 +7,9 @@
  *
  * Same permiso as the other lists (`preparaciones.iniciar`: the queue is
  * only useful to whoever may take from it). Filters are applied in the
- * query (server-side): receta number and the receta's ingreso date range
- * (the tenant's calendar days). No paciente filter (DP-24: no personal
- * data in URLs).
+ * query (server-side): receta number, the receta's ingreso date range
+ * (the tenant's calendar days) and the /recetas filters
+ * (filtro-receta-input.ts; its ingreso range is not offered on this tab).
  *
  * Each row also carries what has to be prepared (the "Ver" preview): its
  * pending ítems with their cantidades/posología and componentes -- read for
@@ -18,6 +18,7 @@
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { fechaIso } from "@/shared/validation";
+import { filtroReceta, filtroRecetaInput } from "./filtro-receta-input";
 import {
   listComponentesDePendientes,
   listItemsPendientesDeRecetas,
@@ -41,6 +42,7 @@ const listRecetasPendientesInput = z.object({
   numeroInterno: z.string().trim().regex(/^\d{1,18}$/, "Debe ser un número de receta.").optional(),
   desde: fechaIso.optional(),
   hasta: fechaIso.optional(),
+  ...filtroRecetaInput,
   page: z.number().int().positive().default(1),
   pageSize: z.number().int().positive().max(100).default(20),
 });
@@ -66,6 +68,7 @@ export const listRecetasPendientesQuery = defineQuery({
       numeroInterno: input.numeroInterno,
       desde: input.desde,
       hasta: input.hasta,
+      ...filtroReceta(input),
       page: input.page,
       pageSize: input.pageSize,
     });

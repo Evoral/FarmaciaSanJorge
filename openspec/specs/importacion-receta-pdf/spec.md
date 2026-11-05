@@ -252,7 +252,7 @@ Del campo `N° Credencial:` SHALL tomarse solo `paciente.nroCredencial`; cobertu
 
 ### Requirement: Datos del médico del encabezado
 
-La especialidad del médico SHALL ser el texto después de `MÉDICO - ` (`MÉDICO - MEDICINA GENERAL`). `Matrícula Prov.:NNNN` / `MP NNNN` va a `medico.matricula` con `jurisdiccion = PROVINCIAL`; `Nac.` / `MN` → `NACIONAL`. La dirección y el teléfono del pie van a `medico.direccionRegistrada` y `medico.telefono`.
+La especialidad del médico SHALL ser el texto después de `MÉDICO - ` (`MÉDICO - MEDICINA GENERAL`). `Matrícula Prov.:NNNN` / `MP NNNN` va a `medico.matricula` con `jurisdiccion = PROVINCIAL`; `Nac.` / `MN` → `NACIONAL`. La dirección y el teléfono del pie van a `medico.direccionRegistrada` y `medico.telefono`; el pie también puede traer `<email>/<teléfono>`, en cuyo caso el email va a `medico.email` y el teléfono a `medico.telefono` (sin dirección).
 
 #### Scenario: Matrícula provincial
 
@@ -263,6 +263,11 @@ La especialidad del médico SHALL ser el texto después de `MÉDICO - ` (`MÉDIC
 
 - **WHEN** se parsea `MN 1234`
 - **THEN** la jurisdicción es `NACIONAL`
+
+#### Scenario: Pie con email y teléfono
+
+- **WHEN** el pie trae `delfimanzur10@gmail.com/2615742504`
+- **THEN** `medico.email` es `delfimanzur10@gmail.com`, `medico.telefono` es `2615742504` y `medico.direccionRegistrada` queda vacía
 
 ### Requirement: Diagnóstico del encabezado
 
@@ -529,7 +534,13 @@ El match SHALL normalizar: minúsculas, NFD, sin diacríticos, espacios colapsad
 
 ### Requirement: Match de paciente
 
-El paciente SHALL buscarse por CUIL; si no, por DNI, incluidos los dados de baja. Sin match → alta nueva al confirmar. Si el match está dado de baja → advertencia; el usuario decide (no se reactiva solo).
+El paciente SHALL buscarse por CUIL; si no, por DNI, incluidos los dados de baja. Sin match → alta nueva al confirmar: si el documento no trae DNI, se pide como campo obligatorio antes de confirmar (dni-obligatorio R4); un match nunca lo necesita. Si el match está dado de baja → advertencia; el usuario decide (no se reactiva solo).
+
+#### Scenario: Alta nueva sin DNI en el documento
+
+- **GIVEN** una receta en PDF cuyo paciente no coincide con ninguno existente y no incluye DNI
+- **WHEN** el usuario confirma la importación
+- **THEN** la confirmación pide el DNI como campo obligatorio antes de confirmar (dni-obligatorio R4)
 
 #### Scenario: Paciente dado de baja
 
@@ -575,7 +586,7 @@ La unidad SHALL buscarse por `simbolo` / `codigo` normalizado (`mg` → MILIGRAM
 
 ### Requirement: Paciente o médico existente
 
-Para un paciente o médico **existente** SHALL completarse solo los campos vacíos con datos del PDF; nunca se pisa un valor existente. Si hay diferencias (ej. otro teléfono) → advertencia informativa.
+Para un paciente o médico **existente** SHALL completarse solo los campos vacíos con datos del PDF (el email del médico incluido); nunca se pisa un valor existente. Si hay diferencias (ej. otro teléfono) → advertencia informativa.
 
 #### Scenario: P9 — Paciente existente
 
@@ -798,7 +809,7 @@ La confirmación (`recetas.importar`) valida además que "válida desde" no sea 
 | Nombre del médico (bloque superior) | `medico.nombre` / `apellido` | Ver "Separación de nombres". |
 | Especialidad (`MÉDICO - MEDICINA GENERAL`) | `medico.especialidad` | Texto después de `MÉDICO - ` / `MÉDICA - `. |
 | `Matrícula Prov.:NNNN` / `MP NNNN` | `medico.matricula` + `jurisdiccion = PROVINCIAL` | `Nac.` / `MN` → `NACIONAL`. |
-| Dirección y teléfono del pie | `medico.direccionRegistrada`, `medico.telefono` | |
+| Dirección, teléfono y email del pie | `medico.direccionRegistrada`, `medico.telefono`, `medico.email` | Reconoce "<dirección> Teléfono <número>" y "<email>/<teléfono>". |
 | `Diagnóstico: <código> - <descripción>` | `receta.diagnosticoCodigo`, `receta.diagnosticoDescripcion` | Código CIE-10. |
 | Primer renglón `- <domicilio>` del cuerpo | `receta.domicilioPaciente` | Ver "Domicilio del paciente". |
 
@@ -829,7 +840,7 @@ Cuerpo `Rp./` (entre `Rp./` y `Diagnóstico:`). Cada renglón se clasifica con l
 
 | Entidad | Orden de búsqueda | Si no hay match |
 |---|---|---|
-| Paciente | CUIL; si no, DNI. Incluye dados de baja. | Alta nueva al confirmar. Si el match está dado de baja → advertencia; el usuario decide (no se reactiva solo). |
+| Paciente | CUIL; si no, DNI. Incluye dados de baja. | Alta nueva al confirmar: si el documento no trae DNI, se pide como campo obligatorio antes de confirmar (dni-obligatorio R4; un match nunca lo necesita). Si el match está dado de baja → advertencia; el usuario decide (no se reactiva solo). |
 | Médico | (`jurisdiccion`, `matricula`) entre vigentes. | Alta nueva al confirmar. |
 | Droga | `droga_alias.aliasNormalizado` (sinónimo vigente de droga vigente), luego `droga.nombre` normalizado. Solo vigentes y nunca de clase `MATERIAL` (cápsulas, envases: no se prescriben; tampoco aparecen en el buscador de drogas de la receta). | El usuario elige la droga en la vista previa; opción "recordar esta equivalencia" agrega el texto como **sinónimo** de esa droga (`openspec/specs/sinonimos-droga/spec.md`). |
 | Unidad | `simbolo` / `codigo` normalizado (`mg` → MILIGRAMO). | Advertencia; el usuario elige. |

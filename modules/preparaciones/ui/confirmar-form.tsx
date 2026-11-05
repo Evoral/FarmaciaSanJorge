@@ -32,6 +32,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { CircleAlert, Info, TriangleAlert } from "lucide-react";
 import { ToneBadge } from "@/shared/ui/status-badge";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { crearCatalogoUnidades, formatCantidadesFila, formatNumero, type CatalogoUnidades } from "@/shared/format/cantidad";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
@@ -159,6 +160,11 @@ export interface PesadaDeLinea {
   sugerida: string;
   /** P13: the expected weight over the chosen lots is below one balance division -- offer a diluted lot or creating one. */
   bajoLaBalanza: boolean;
+  /**
+   * Migration 0120: the droga asks to always suggest a diluted lot (above the balance too) and the plan draws from no
+   * dilución yet -- the same offer as `bajoLaBalanza`, worded as a suggestion. Never with `bajoLaBalanza`.
+   */
+  sugerirDilucion: boolean;
   evaluacion: EvaluacionPesada | null;
 }
 
@@ -172,7 +178,10 @@ export function pesadaDeLinea(linea: LineaPantalla, plan: PlanDeLinea, real: str
   // Shown es-AR (comma decimals), like every typed number.
   const sugerida = numeroParaInput(sugerenciaPesadaReal(esperadaEnUnidad, precision).times(factor).toFixed());
   const valor = cantidadValida(real ?? sugerida);
-  return { esperada, sugerida, bajoLaBalanza: bajoLaBalanza(esperadaEnUnidad, precision), evaluacion: valor ? evaluarPesada(valor, esperada, datos.pesada.toleranciaPorcentaje, precisionAjustada) : null };
+  const bajo = bajoLaBalanza(esperadaEnUnidad, precision);
+  const usaDilucion = plan.partes.some((parte) => linea.partidasElegibles.some((p) => p.id === parte.partidaId && p.esDilucion));
+  const sugerirDilucion = !bajo && linea.sugerirDilucion === true && !usaDilucion;
+  return { esperada, sugerida, bajoLaBalanza: bajo, sugerirDilucion, evaluacion: valor ? evaluarPesada(valor, esperada, datos.pesada.toleranciaPorcentaje, precisionAjustada) : null };
 }
 
 export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActions, onRecargarDatos }: ConfirmarPreparacionFormProps) {
@@ -305,15 +314,12 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                     <label htmlFor={`cantidadManual_${linea.id}`} className="field-label">
                       Cantidad real registrada ({linea.unidadSimbolo})
                     </label>
-                    <input
+                    <NumeroInput
                       id={`cantidadManual_${linea.id}`}
                       name={`cantidadManual_${linea.id}`}
-                      type="text"
-                      inputMode="decimal"
                       required
                       defaultValue={linea.reserva?.cantidadManual ? numeroParaInput(linea.reserva.cantidadManual) : undefined}
-                      onChange={(event) => {
-                        const valor = event.target.value;
+                      onValueChange={(valor) => {
                         setCantidadesManuales((prev) => ({ ...prev, [linea.id]: valor }));
                       }}
                       className="input font-mono"
@@ -343,9 +349,10 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                   />
                 ) : null}
 
-                {pesadas[indice]?.bajoLaBalanza ? (
+                {pesadas[indice]?.bajoLaBalanza || pesadas[indice]?.sugerirDilucion ? (
                   <AvisoBajoLaBalanza
                     linea={linea}
+                    sugerencia={!pesadas[indice]!.bajoLaBalanza}
                     elegidas={elegidas[linea.id] ?? []}
                     onUsar={(partidaId) => setElegidas((prev) => ({ ...prev, [linea.id]: [partidaId] }))}
                     puedeElaborar={datos.puedeElaborarLote === true}
@@ -439,9 +446,9 @@ function PlanLinea({ linea, plan, catalogo, datos }: { linea: LineaPantalla; pla
           const vencimiento = partida ? estadoVencimientoPartida(partida.fechaVencimiento, datos.jornadaActual, datos.diasAlertaVencimiento) : null;
           const cantidad = cantidades[i]!;
           return (
-            <li key={parte.partidaId} className="choice-row">
-              {/* Fixed column widths: every row of every línea lines up. */}
-              <span className="grid min-w-0 flex-1 gap-x-6 gap-y-1 sm:flex-none sm:grid-cols-[9rem_10rem_10rem]">
+            <li key={parte.partidaId} className="@container choice-row">
+              {/* Fixed column widths (512px) so every row lines up -- only when the row itself fits them plus the badges. */}
+              <span className="grid min-w-0 flex-1 gap-x-6 gap-y-1 @3xl:flex-none @3xl:grid-cols-[9rem_10rem_10rem]">
                 <span className="truncate">
                   <span className="text-zinc-500">Lote </span>
                   <span className="font-mono font-medium text-zinc-900">{partida?.lote ?? "—"}</span>
@@ -515,7 +522,7 @@ function ElegirLotes({
           const vencimiento = estadoVencimientoPartida(partida.fechaVencimiento, datos.jornadaActual, datos.diasAlertaVencimiento);
           return (
             <li key={partida.id}>
-              <label className="choice-row cursor-pointer">
+              <label className="@container choice-row cursor-pointer">
                 <input
                   type="checkbox"
                   name={`partidas_${linea.id}`}
@@ -526,7 +533,7 @@ function ElegirLotes({
                     onChange(marcada ? [...elegidas, partida.id] : elegidas.filter((id) => id !== partida.id));
                   }}
                 />
-                <span className="grid min-w-0 flex-1 gap-x-6 gap-y-1 sm:flex-none sm:grid-cols-[9rem_10rem_10rem]">
+                <span className="grid min-w-0 flex-1 gap-x-6 gap-y-1 @3xl:flex-none @3xl:grid-cols-[9rem_10rem_10rem]">
                   <span className="truncate">
                     <span className="text-zinc-500">Lote </span>
                     <span className="font-mono font-medium text-zinc-900">{partida.lote}</span>
@@ -582,13 +589,11 @@ function PesadaReal({
         <label htmlFor={campoId} className="field-label">
           Pesada real ({simboloDisplay})
         </label>
-        <input
+        <NumeroInput
           id={campoId}
-          type="text"
-          inputMode="decimal"
           required
           value={valor}
-          onChange={(event) => onChange(event.target.value)}
+          onValueChange={(valor) => onChange(valor)}
           aria-describedby={`${campoId}_ayuda`}
           className="input font-mono"
         />

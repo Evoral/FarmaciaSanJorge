@@ -513,11 +513,11 @@ export async function registrarDestruccionDb(tx: Prisma.TransactionClient, tenan
 /**
  * Every active tenant (`fecha_baja IS NULL`) -- FASE 12 point 12.2's daily
  * job iterates this list. Runs inside `withPlatformTransaction` (no
- * `app.tenant_id` set): `fsj.tenant` is one of the few genuinely global
- * tables (plan §10), visible without RLS tenant scoping.
+ * `app.tenant_id` set): `fsj.tenant` is RLS-scoped since migration 0119, so
+ * the ids come from the SECURITY DEFINER `fsj.listar_tenants_activos()`.
  */
 export async function listActiveTenantIds(tx: Prisma.TransactionClient): Promise<string[]> {
-  const rows = await tx.tenant.findMany({ where: { fechaBaja: null }, select: { id: true } });
+  const rows = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM fsj.listar_tenants_activos() AS id`;
   return rows.map((r) => r.id);
 }
 

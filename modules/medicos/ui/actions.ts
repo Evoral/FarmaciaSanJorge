@@ -31,6 +31,7 @@ export async function crearMedicoAction(_prevState: MedicoActionState, formData:
       especialidad: optional(formData, "especialidad"),
       telefono: optional(formData, "telefono"),
       direccionRegistrada: optional(formData, "direccionRegistrada"),
+      email: optional(formData, "email"),
     });
     revalidatePath("/catalogos/medicos");
     return { status: "success", message: "Médico creado." };
@@ -50,6 +51,7 @@ export async function editarMedicoAction(_prevState: MedicoActionState, formData
       especialidad: optional(formData, "especialidad"),
       telefono: optional(formData, "telefono"),
       direccionRegistrada: optional(formData, "direccionRegistrada"),
+      email: optional(formData, "email"),
       version: {
         nombre: String(formData.get("versionNombre") ?? ""),
         apellido: String(formData.get("versionApellido") ?? ""),
@@ -58,6 +60,7 @@ export async function editarMedicoAction(_prevState: MedicoActionState, formData
         especialidad: formData.get("versionEspecialidad") ? String(formData.get("versionEspecialidad")) : null,
         telefono: formData.get("versionTelefono") ? String(formData.get("versionTelefono")) : null,
         direccionRegistrada: formData.get("versionDireccionRegistrada") ? String(formData.get("versionDireccionRegistrada")) : null,
+        email: formData.get("versionEmail") ? String(formData.get("versionEmail")) : null,
       },
     });
     revalidatePath("/catalogos/medicos");

@@ -66,6 +66,7 @@ export async function crearDrogaAction(_prevState: DrogaActionState, formData: F
         tipoControl: optionalField(formData, "tipoControl"),
         clase: optionalField(formData, "clase"),
         stockMinimo: String(formData.get("stockMinimo") ?? "0"),
+        sugerirDilucion: formData.has("sugerirDilucion"),
         saldoAperturaContralor: optionalField(formData, "saldoAperturaContralor"),
         sinonimos: sinonimosDelForm(formData),
         formula: formulaDelForm(formData) ?? null,
@@ -89,6 +90,8 @@ export async function editarDrogaAction(_prevState: DrogaActionState, formData: 
         tipoControl: optionalField(formData, "tipoControl"),
         clase: optionalField(formData, "clase"),
         stockMinimo: String(formData.get("stockMinimo") ?? "0"),
+        // An unchecked switch sends nothing: the marker says the form rendered it.
+        ...(formData.has("sugerirDilucionEnviado") ? { sugerirDilucion: formData.has("sugerirDilucion") } : {}),
         saldoAperturaContralor: optionalField(formData, "saldoAperturaContralor"),
         // The "Otros nombres" rows travel only when the form rendered them enabled (marker field).
         ...(formData.has("sinonimosEnviados")

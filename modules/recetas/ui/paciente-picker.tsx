@@ -94,9 +94,9 @@ function CrearPaciente({ prefill, onCreado, onCancel }: { prefill: string; onCre
           </div>
           <div className="field">
             <label htmlFor="paciente-dni" className="field-label">
-              DNI (opcional)
+              DNI
             </label>
-            <input id="paciente-dni" name="dni" inputMode="numeric" form={formId} defaultValue={numero} className="input" />
+            <input id="paciente-dni" name="dni" inputMode="numeric" required form={formId} defaultValue={numero} className="input" />
           </div>
           <div className="field">
             <label htmlFor="paciente-telefono" className="field-label">

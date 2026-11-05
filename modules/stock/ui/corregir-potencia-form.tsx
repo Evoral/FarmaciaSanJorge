@@ -3,6 +3,7 @@
 /** `/partidas/[id]`'s "corregir pureza" form (openspec/changes/corregir-potencia-partida/proposal.md). The page provides the surrounding panel. */
 import { corregirPotenciaPartidaAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { NumeroInput } from "@/shared/ui/numero-input";
 
 export interface CorregirPotenciaFormProps {
   partidaId: string;
@@ -17,11 +18,9 @@ export function CorregirPotenciaForm({ partidaId, potenciaActual }: CorregirPote
         <label htmlFor="potenciaDeclaradaNueva" className="field-label">
           Pureza nueva (%)
         </label>
-        <input
+        <NumeroInput
           id="potenciaDeclaradaNueva"
           name="potenciaDeclaradaNueva"
-          type="text"
-          inputMode="decimal"
           placeholder="100"
           aria-describedby="potenciaDeclaradaNueva-ayuda"
           className="input font-mono"

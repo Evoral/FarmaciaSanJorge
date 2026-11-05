@@ -31,6 +31,39 @@ When a non-manual MASA línea's physical weight is below one balance division, t
 - **WHEN** that lot is chosen
 - **THEN** the esperada is 0,15 g and P3 applies as usual
 
+### Requirement: P14 — Droga that always suggests a diluted lot
+
+When a droga sets "Sugerir siempre un lote diluido" (`fsj.droga.sugerir_dilucion`, `modules/drogas/ui/droga-form.tsx`), pesada (`modules/preparaciones/ui/confirmar-form.tsx`, `pesaje-en-toma.tsx`, `aviso-bajo-la-balanza.tsx`, `preparacion-repository.ts`) SHALL show an info alert ("Sugerencia: Usar lote diluido para mayor precisión") above the balance, offering diluted lots and "Crear dilución" (`stock.lote.elaborar`). P3 is unchanged. Rollback: `docs/rollbacks/droga-sugerir-dilucion.md`.
+
+#### Scenario: Suggestion above the balance
+
+- **GIVEN** a droga with "Sugerir siempre un lote diluido" enabled
+- **AND** a non-manual línea whose dose is above the balance division drawing from an undiluted lot
+- **WHEN** the pesaje is shown
+- **THEN** the pesada displays the info alert "Sugerencia: Usar lote diluido para mayor precisión" offering available diluted lots and "Crear dilución"
+- **AND** pesada real is prefilled with the expected physical weight and checked by P3
+
+#### Scenario: A diluted lot is chosen, so the suggestion disappears
+
+- **GIVEN** a línea showing the diluted lot suggestion
+- **WHEN** a diluted lot of the droga is chosen for the línea's plan
+- **THEN** the suggestion alert disappears
+
+#### Scenario: Below the balance, only P13's warning shows
+
+- **GIVEN** a droga with "Sugerir siempre un lote diluido" enabled
+- **AND** a línea whose dose is below one balance division
+- **WHEN** the pesaje is shown
+- **THEN** only P13's warning ("La dosis está por debajo de la balanza") is displayed
+- **AND** the P14 suggestion is not shown
+
+#### Scenario: Droga without the switch, so no suggestion
+
+- **GIVEN** a droga with "Sugerir siempre un lote diluido" disabled
+- **AND** a línea whose dose is above the balance division
+- **WHEN** the pesaje is shown
+- **THEN** no diluted lot suggestion is displayed
+
 ## MODIFIED Requirements
 
 ### Requirement: Triturados and diluciones

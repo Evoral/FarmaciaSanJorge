@@ -28,6 +28,7 @@ import type { UnidadOpcion } from "@/modules/drogas/ui/droga-form";
 import { NuevaDrogaDialog } from "@/modules/drogas/ui/nueva-droga-dialog";
 import { normalizarTexto } from "@/modules/drogas/domain/normalizar";
 import { Combobox, filtrarOpciones, type ComboboxOption } from "@/shared/ui/combobox";
+import { NumeroInput } from "@/shared/ui/numero-input";
 import { RecordarSinonimoSwitch } from "@/shared/ui/recordar-sinonimo-switch";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { ToneBadge, type BadgeTone } from "@/shared/ui/status-badge";
@@ -509,15 +510,13 @@ export function ImportarListaForm({ vista, drogas: drogasDelCatalogo, unidades, 
                         </td>
                         <td className="px-3 py-2.5">
                           {esPresentacion ? null : (
-                            <input
+                            <NumeroInput
                               aria-label={`Precio de la fila ${original.numeroFila}`}
                               className="input input-sm w-28 font-mono"
-                              inputMode="decimal"
-                              autoComplete="off"
                               aria-invalid={marcas?.has("precioInformado") || evaluacion.estado === "PRECIO_INVALIDO" ? true : undefined}
                               disabled={fila.omitida}
                               value={fila.precio}
-                              onChange={(e) => editar(i, { precio: e.target.value })}
+                              onValueChange={(valor) => editar(i, { precio: valor })}
                             />
                           )}
                         </td>

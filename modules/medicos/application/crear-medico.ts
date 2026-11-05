@@ -22,6 +22,7 @@ export const crearMedicoInput = z.object({
   especialidad: textoOpcional(),
   telefono: textoOpcional(),
   direccionRegistrada: textoOpcional(),
+  email: textoOpcional(),
 });
 
 export type CrearMedicoInput = z.infer<typeof crearMedicoInput>;
@@ -43,6 +44,7 @@ export async function crearMedicoHandler({ tx, session, input }: CommandHandlerA
     especialidad: input.especialidad,
     telefono: input.telefono,
     direccionRegistrada: input.direccionRegistrada,
+    email: input.email,
   });
 
   return {
@@ -57,6 +59,7 @@ export async function crearMedicoHandler({ tx, session, input }: CommandHandlerA
         especialidad: input.especialidad,
         telefono: input.telefono,
         direccionRegistrada: input.direccionRegistrada,
+        email: input.email,
       },
     },
   };

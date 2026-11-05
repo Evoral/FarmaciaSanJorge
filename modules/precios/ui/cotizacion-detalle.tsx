@@ -67,7 +67,7 @@ function CostoProveedorLinea({ linea }: { linea: LineaCotizacion }) {
         ) : null}
       </span>
       {costoPorUnidadLinea !== null ? (
-        <span className="font-mono tabular-nums md:whitespace-nowrap">
+        <span className="font-mono tabular-nums @3xl:whitespace-nowrap">
           {formatNumero(linea.cantidadRequerida ?? "0")} {linea.unidadSimbolo} × ${formatearCostoUnitario(costoPorUnidadLinea)} / {linea.unidadSimbolo} ={" "}
           <span className="text-zinc-900">${formatearMonto(linea.subtotal)}</span>
         </span>
@@ -102,7 +102,7 @@ function CostoFormulaLinea({ linea }: { linea: LineaCotizacion }) {
         </ul>
       ) : null}
       {costoPorUnidadLinea !== null ? (
-        <span className="font-mono tabular-nums md:whitespace-nowrap">
+        <span className="font-mono tabular-nums @3xl:whitespace-nowrap">
           {formatNumero(linea.cantidadRequerida ?? "0")} {linea.unidadSimbolo} × ${formatearCostoUnitario(costoPorUnidadLinea)} / {linea.unidadSimbolo} ={" "}
           <span className="text-zinc-900">${formatearMonto(linea.subtotal)}</span>
         </span>
@@ -131,7 +131,7 @@ function PartidasLinea({ linea }: { linea: LineaCotizacion }) {
     <ul className="flex flex-col gap-0.5 font-mono text-xs text-zinc-600 tabular-nums">
       {linea.partidas.map((p) => (
         // One line from md up; on phones it may only break before the "=".
-        <li key={p.partidaId} className="md:whitespace-nowrap">
+        <li key={p.partidaId} className="@3xl:whitespace-nowrap">
           <span className="whitespace-nowrap">
             {formatNumero(p.cantidad)} × ${formatearCostoUnitario(p.costoUnitario)}
           </span>{" "}
@@ -147,7 +147,7 @@ function PartidasLinea({ linea }: { linea: LineaCotizacion }) {
 export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionItemOutput }) {
   const hayProveedor = cotizacion.detalle.lineas.some((l) => l.fuente === "PROVEEDOR" || l.fuente === "FORMULA");
   return (
-    <section className="panel" aria-labelledby="cotizacion-vigente-heading">
+    <section className="@container panel" aria-labelledby="cotizacion-vigente-heading">
       <div className="panel-header flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 id="cotizacion-vigente-heading">Cotización vigente</h2>
@@ -163,7 +163,7 @@ export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionIt
         ) : null}
       </div>
 
-      <dl className="grid gap-5 border-b border-zinc-100 px-5 py-5 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
+      <dl className="grid gap-5 border-b border-zinc-100 px-5 py-5 @2xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <div>
           <dt className="text-xs text-zinc-500">Precio final</dt>
           <dd className="mt-1 font-mono text-3xl font-semibold tracking-tight text-zinc-900 tabular-nums">${formatearMonto(cotizacion.precioFinal)}</dd>
@@ -195,16 +195,16 @@ export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionIt
               <th scope="col" className="px-5 py-2">
                 Droga
               </th>
-              <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">
+              <th scope="col" className="hidden px-3 py-2 text-right @xl:table-cell">
                 Cantidad
               </th>
-              <th scope="col" className="hidden px-3 py-2 md:table-cell">
+              <th scope="col" className="hidden px-3 py-2 @3xl:table-cell">
                 {hayProveedor ? "Origen del costo" : "Partidas usadas"}
               </th>
               <th scope="col" className="px-3 py-2 text-right">
                 Subtotal
               </th>
-              <th scope="col" className="hidden px-5 py-2 text-right sm:table-cell">
+              <th scope="col" className="hidden px-5 py-2 text-right @xl:table-cell">
                 Faltante
               </th>
             </tr>
@@ -215,33 +215,33 @@ export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionIt
                 <td className="px-5 py-2.5">
                   <span className="block break-words font-medium text-zinc-900">{linea.drogaNombre}</span>
                   {/* Phones: the hidden columns travel under the droga. */}
-                  <span className="block text-xs text-zinc-600 sm:hidden">
+                  <span className="block text-xs text-zinc-600 @xl:hidden">
                     <CantidadLinea linea={linea} />
                   </span>
                   {linea.fuente === "PROVEEDOR" || linea.fuente === "FORMULA" ? (
                     // The faltante of a línea costed from a proveedor (or its fórmula's) is informational: it travels inside its note, not as a red alert.
-                    <span className="mt-1 block md:hidden">
+                    <span className="mt-1 block @3xl:hidden">
                       <OrigenCostoLinea linea={linea} />
                     </span>
                   ) : (
                     <>
                       {linea.faltante ? (
-                        <span className="block whitespace-nowrap text-xs font-medium text-red-700 sm:hidden">
+                        <span className="block whitespace-nowrap text-xs font-medium text-red-700 @xl:hidden">
                           Faltan {formatNumero(linea.faltante)} {linea.unidadSimbolo}
                         </span>
                       ) : null}
                       {linea.partidas.length > 0 ? (
-                        <span className="mt-1 block md:hidden">
+                        <span className="mt-1 block @3xl:hidden">
                           <OrigenCostoLinea linea={linea} />
                         </span>
                       ) : null}
                     </>
                   )}
                 </td>
-                <td className="hidden px-3 py-2.5 text-right sm:table-cell">
+                <td className="hidden px-3 py-2.5 text-right @xl:table-cell">
                   <CantidadLinea linea={linea} />
                 </td>
-                <td className="hidden px-3 py-2.5 md:table-cell">
+                <td className="hidden px-3 py-2.5 @3xl:table-cell">
                   <OrigenCostoLinea linea={linea} />
                 </td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-right font-mono font-medium text-zinc-900 tabular-nums">
@@ -258,7 +258,7 @@ export function CotizacionDetalleView({ cotizacion }: { cotizacion: CotizacionIt
                     <>${formatearMonto(linea.subtotal)}</>
                   )}
                 </td>
-                <td className="hidden whitespace-nowrap px-5 py-2.5 text-right font-mono tabular-nums sm:table-cell">
+                <td className="hidden whitespace-nowrap px-5 py-2.5 text-right font-mono tabular-nums @xl:table-cell">
                   {linea.faltante ? (
                     <span className={linea.fuente === "PROVEEDOR" || linea.fuente === "FORMULA" ? "text-zinc-600" : "font-medium text-red-700"}>{textoFaltante(linea)}</span>
                   ) : (

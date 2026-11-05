@@ -49,6 +49,7 @@ import { codigoRolAsignableSchema, ROLES_VEDADOS_A_SECTOR } from "../domain/role
 import { identidadDeCuentaDeSector } from "../domain/cuenta-de-sector";
 import { resolverRolesAAsignar } from "./roles-asignables";
 import { existeEmail, existeDni, insertUsuario, insertUsuarioRol } from "../infrastructure/usuario-repository";
+import { dniValido, MENSAJE_DNI_INVALIDO, normalizarDni } from "@/shared/validation/dni";
 
 const textoOpcional = z.string().trim().optional();
 
@@ -80,8 +81,11 @@ const crearUsuarioInput = z
       for (const campo of ["apellido", "dni"] as const) {
         if (!value[campo]) ctx.addIssue({ code: "custom", path: [campo], message: "Este campo no puede estar vacío." });
       }
+      if (value.dni && !dniValido(normalizarDni(value.dni))) ctx.addIssue({ code: "custom", path: ["dni"], message: MENSAJE_DNI_INVALIDO });
     }
-  });
+  })
+  // Stored digits only, like the paciente's: "12.345.678" and "12345678" must collide on usuario_tenant_dni_key.
+  .transform((value) => (value.esSector || !value.dni ? value : { ...value, dni: normalizarDni(value.dni) }));
 
 /** Pre-default wire shape: `esSector` may be omitted (= false). */
 export type CrearUsuarioInput = z.input<typeof crearUsuarioInput>;

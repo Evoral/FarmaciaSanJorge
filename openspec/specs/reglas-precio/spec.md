@@ -23,7 +23,7 @@ El precio final de una preparación SHALL calcularse con:
 ### Requirement: Costo de una preparación con IVA
 
 El costo SHALL ser el costo de insumos de **una** preparación (un ítem / una cotización), **con IVA**: cada línea
-suma su IVA (la alícuota de su costo de proveedor, o la de la farmacia si se costea con partidas) y el tramo y el piso
+suma su IVA (la alícuota de su costo de proveedor, o la de cada componente si se costea por fórmula) y el tramo y el piso
 se aplican sobre ese costo con IVA, así el precio al cliente lo incluye (`openspec/specs/costos-proveedor/spec.md`,
 R7a y R31).
 
@@ -45,17 +45,30 @@ aplican por ítem, nunca sobre el total de la receta.
 
 ### Requirement: Origen del costo por línea
 
-El origen del costo SHALL decidirse **por línea**: si la droga tiene un costo de proveedor utilizable, la línea
-cuesta toda su cantidad × ese costo (`openspec/specs/costos-proveedor/spec.md`, R25–R28); si no, cae al costo de las partidas en stock
-(abiertas primero, luego FEFO, mezcla). El costo de insumos es la suma de las líneas, sea cual sea su origen, y el
-tramo y el piso se aplican **una vez** sobre esa suma (R31).
+El origen del costo SHALL decidirse **por línea**: con un costo de proveedor utilizable, la línea cuesta toda su
+cantidad × ese costo, haya stock o no (`costos-proveedor` R25–R28); sin él, con una fórmula cuyos componentes lo
+tienen todos, se costea por la fórmula (R38, change `lotes-elaborados`). El tramo y el piso se aplican **una vez**
+sobre la suma de las líneas (R31).
 
 #### Scenario: Ítem con líneas de los dos orígenes
 
-- **GIVEN** un ítem con una droga que tiene un costo de proveedor utilizable y otra que no lo tiene
+- **GIVEN** un ítem con una droga que tiene un costo de proveedor utilizable y otra que se costea por su fórmula
 - **WHEN** se cotiza el ítem
-- **THEN** la primera línea cuesta toda su cantidad × el costo de proveedor y la segunda se costea con las partidas en stock
+- **THEN** la primera línea cuesta toda su cantidad × el costo de proveedor y la segunda toda su cantidad × el costo de su fórmula
 - **AND** el tramo y el piso se aplican una vez sobre la suma de las dos líneas
+
+### Requirement: Sin costo de proveedor no hay precio
+
+Las partidas en stock SHALL **no** poner precio: solo dan el faltante de stock. Una droga sin costo de proveedor ni
+fórmula costeable no tiene precio y el ítem entero queda sin cotizar, nunca con el piso sobre las otras líneas
+(`openspec/specs/costos-proveedor/spec.md`, R27).
+
+#### Scenario: Droga sin costo de proveedor, con stock
+
+- **GIVEN** un ítem con una droga sin costo de proveedor ni fórmula costeable, con partidas en stock
+- **WHEN** se cotiza el ítem
+- **THEN** la cotización se rechaza y no se guarda precio: las partidas no la costean
+- **AND** el piso no se aplica sobre las otras líneas
 
 ### Requirement: Tramos
 
@@ -66,7 +79,7 @@ es el tope del tramo anterior (exclusive) y el primero empieza en 0 (inclusive).
 #### Scenario: Costo 0 en el primer tramo
 
 - **GIVEN** los tramos «costo ≤ 100.000 → +100 %» y «costo > 100.000 → +70 %»
-- **WHEN** se cotiza un costo de 0 (todo enrase manual / sin stock)
+- **WHEN** se cotiza un costo de 0 (todo enrase manual o unidad no convertible)
 - **THEN** usa el tramo +100 %
 
 #### Scenario: Costo por encima del último tope
@@ -136,7 +149,7 @@ costo. 0 = sin piso.
 #### Scenario: RP5 — Costo 0
 
 - **GIVEN** piso 20.000 y el tramo «costo ≤ 100.000 → +100 %»
-- **WHEN** se cotiza un costo de 0 (todo enrase manual / sin stock)
+- **WHEN** se cotiza un costo de 0 (todo enrase manual o unidad no convertible)
 - **THEN** el precio del tramo es 0 y el precio final es el piso, 20.000 (piso aplicado)
 
 ### Requirement: Validación de los tramos
