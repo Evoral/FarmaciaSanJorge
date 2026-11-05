@@ -588,12 +588,17 @@ Los números mostrados SHALL viajar con la firma y se vuelven a comparar bajo el
 
 ### Requirement: INV-L26 — Tenant de la transacción
 
-`fsj.libro_configurar_numeracion` y `fsj.cierre_diario_firmar` SHALL rechazar un `p_tenant_id` distinto del tenant de la transacción (`fsj.current_tenant_id()`; `cierre_diario_firmar` desde la migración 0101). [BD] `fsj.verificar_cadena` empieza a contar desde `numero_inicial`.
+`fsj.libro_configurar_numeracion` y `fsj.cierre_diario_firmar` SHALL rechazar un `p_tenant_id` distinto del tenant de la transacción (`fsj.current_tenant_id()`; `cierre_diario_firmar` desde la migración 0101; fallan con SQLSTATE TN001 si falta `app.tenant_id` desde la migración 0122). [BD] `fsj.verificar_cadena` empieza a contar desde `numero_inicial`.
 
 #### Scenario: Tenant ajeno
 
 - **WHEN** se llama a `fsj.libro_configurar_numeracion` con un `p_tenant_id` distinto de `fsj.current_tenant_id()`
 - **THEN** se rechaza
+
+#### Scenario: Sin tenant en la transacción
+
+- **WHEN** se llama a `fsj.libro_configurar_numeracion` o `fsj.cierre_diario_firmar` sin `app.tenant_id` fijado
+- **THEN** falla con SQLSTATE TN001 (migración 0122)
 
 ### Requirement: Numeración — límite conocido
 
