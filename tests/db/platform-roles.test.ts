@@ -37,11 +37,10 @@ describe.skipIf(dbTestSkipReason() !== null)("platform roles migration (fsj sche
     );
   });
 
-  it("fsj.current_tenant_id() returns null without a setting", async () => {
+  it("fsj.current_tenant_id() raises TN001 without a setting", async () => {
     await asApp((client) =>
       inRollbackTx(client, async (tx) => {
-        const result = await tx.query("SELECT fsj.current_tenant_id() AS tenant_id");
-        expect(result.rows[0].tenant_id).toBeNull();
+        await expectDbRejection(tx, () => tx.query("SELECT fsj.current_tenant_id() AS tenant_id"), "TN001");
       }),
     );
   });

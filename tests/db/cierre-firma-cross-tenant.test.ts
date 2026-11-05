@@ -5,12 +5,12 @@
  * the caller's session tenant (fsj.current_tenant_id()) matches p_tenant_id.
  * When called as fsj_app with app.tenant_id = tenantA, passing p_tenant_id = tenantB
  * is rejected with P0001 ("is not the current tenant").
- * When called without an active tenant (current_tenant_id() is null), it is also rejected.
+ * When called without an active tenant (current_tenant_id() raises TN001), it is also rejected.
  */
 import { randomUUID } from "node:crypto";
 import { describe, it } from "vitest";
 import { dbTestSkipReason } from "./env";
-import { asApp, asOwner, inRollbackTx, withTenant, expectInvariantViolation } from "./helpers";
+import { asApp, asOwner, inRollbackTx, withTenant, expectInvariantViolation, expectDbRejection } from "./helpers";
 import { insertTenant, createSistemaUser, createUserWithRole, designarDt } from "./fixtures";
 
 describe.skipIf(dbTestSkipReason() !== null)("T1-01: cierre_diario_firmar cross-tenant guard (0101)", () => {
@@ -57,15 +57,15 @@ describe.skipIf(dbTestSkipReason() !== null)("T1-01: cierre_diario_firmar cross-
     );
   });
 
-  it("rejects fsj.cierre_diario_firmar when called as fsj_app without an active tenant session", async () => {
+  it("rejects fsj.cierre_diario_firmar with TN001 when called as fsj_app without an active tenant session", async () => {
     await asApp((client) =>
       inRollbackTx(client, async (tx) => {
         const dummyTenantId = randomUUID();
         const dummyDtId = randomUUID();
         const dummyDesignacionId = randomUUID();
 
-        // No withTenant -> current_tenant_id() is null
-        await expectInvariantViolation(
+        // No withTenant -> current_tenant_id() raises TN001
+        await expectDbRejection(
           tx,
           () =>
             tx.query(
@@ -77,7 +77,7 @@ describe.skipIf(dbTestSkipReason() !== null)("T1-01: cierre_diario_firmar cross-
               )`,
               [dummyTenantId, dummyDtId, dummyDesignacionId],
             ),
-          "is not the current tenant",
+          "TN001",
         );
       }),
     );

@@ -170,14 +170,22 @@ describe.skipIf(dbTestSkipReason() !== null)("fsj.sesion_resolve_tenant (migrati
     );
   });
 
-  it("fsj_app cannot call arbitrary SECURITY DEFINER-adjacent things -- EXECUTE is scoped to this one function, not a general RLS bypass (fsj_app still has NOBYPASSRLS)", async () => {
-    await asApp((client) =>
+  it("fsj_app direct SELECT on fsj.sesion without app.tenant_id set raises TN001 under RLS", async () => {
+    await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         // A direct SELECT on fsj.sesion (not through the function) without
-        // app.tenant_id set must still see nothing -- ordinary RLS, not
-        // touched by this migration.
-        const result = await tx.query(`SELECT count(*)::int AS n FROM fsj.sesion`);
-        expect(result.rows[0].n).toBe(0);
+        // app.tenant_id set raises TN001 under RLS.
+        const tenantId = await insertTenant(tx, "session-tn001");
+        const sistema = await createSistemaUser(tx, tenantId);
+        const { tokenHash } = rawTokenHash();
+        await insertSesion(tx, tenantId, sistema, tokenHash);
+
+        await tx.query("SET LOCAL ROLE fsj_app");
+        await expectDbRejection(
+          tx,
+          () => tx.query(`SELECT count(*)::int AS n FROM fsj.sesion`),
+          "TN001",
+        );
       }),
     );
   });

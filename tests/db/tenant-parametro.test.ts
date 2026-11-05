@@ -114,7 +114,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0001_tenant_parametro_multi_tenant
     );
   });
 
-  it("fsj.setup_tenant_table: no app.tenant_id set => zero rows visible under RLS (INV-T01)", async () => {
+  it("fsj.setup_tenant_table: no app.tenant_id set raises TN001 under RLS (INV-T01)", async () => {
     const tableName = `scratch_inv_t01b_${Date.now()}`;
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
@@ -130,8 +130,11 @@ describe.skipIf(dbTestSkipReason() !== null)("0001_tenant_parametro_multi_tenant
         await tx.query(`INSERT INTO fsj.${tableName} (tenant_id) VALUES ($1)`, [randomUUID()]);
 
         await tx.query("SET LOCAL ROLE fsj_app");
-        const result = await tx.query(`SELECT * FROM fsj.${tableName}`);
-        expect(result.rows).toHaveLength(0);
+        await expectDbRejection(
+          tx,
+          () => tx.query(`SELECT * FROM fsj.${tableName}`),
+          "TN001",
+        );
       }),
     );
   });
@@ -389,13 +392,16 @@ describe.skipIf(dbTestSkipReason() !== null)("0119_tenant_rls migration (fsj.ten
     );
   });
 
-  it("fsj_app with no app.tenant_id sees no tenant row", async () => {
+  it("fsj_app with no app.tenant_id raises TN001 when querying fsj.tenant", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         await insertTenant(tx, "0119b");
         await tx.query("SET LOCAL ROLE fsj_app");
-        const result = await tx.query(`SELECT count(*)::int AS n FROM fsj.tenant`);
-        expect(result.rows[0].n).toBe(0);
+        await expectDbRejection(
+          tx,
+          () => tx.query(`SELECT count(*)::int AS n FROM fsj.tenant`),
+          "TN001",
+        );
       }),
     );
   });

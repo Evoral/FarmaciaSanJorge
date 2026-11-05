@@ -344,7 +344,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0005_designacion_director_tecnico 
     );
   });
 
-  it("fsj.es_dt_vigente() with no app.tenant_id set returns false regardless of data (RLS)", async () => {
+  it("fsj.es_dt_vigente() with no app.tenant_id set raises TN001 under RLS", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const tenantId = await insertTenant(tx, "esdtnotenant");
@@ -357,8 +357,11 @@ describe.skipIf(dbTestSkipReason() !== null)("0005_designacion_director_tecnico 
         );
 
         await tx.query("SET LOCAL ROLE fsj_app");
-        const result = await tx.query(`SELECT fsj.es_dt_vigente($1, '2026-06-01') AS v`, [dt]);
-        expect(result.rows[0].v).toBe(false);
+        await expectDbRejection(
+          tx,
+          () => tx.query(`SELECT fsj.es_dt_vigente($1, '2026-06-01') AS v`, [dt]),
+          "TN001",
+        );
       }),
     );
   });

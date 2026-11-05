@@ -15,7 +15,7 @@ import { randomUUID, randomBytes, createHash } from "node:crypto";
 import { describe, it, expect } from "vitest";
 import type { Client } from "pg";
 import { dbTestSkipReason } from "./env";
-import { asOwner, asApp, inRollbackTx } from "./helpers";
+import { asOwner, asApp, inRollbackTx, expectDbRejection } from "./helpers";
 
 async function insertTenant(tx: Client, suffix: string): Promise<string> {
   const result = await tx.query(`INSERT INTO fsj.tenant (razon_social, cuit) VALUES ('Test', $1) RETURNING id`, [
@@ -167,11 +167,19 @@ describe.skipIf(dbTestSkipReason() !== null)("fsj.usuario_resolve_login (migrati
     );
   });
 
-  it("fsj_app still cannot SELECT fsj.usuario directly without app.tenant_id set -- the function is the ONE bootstrap exception, not a general RLS bypass", async () => {
-    await asApp((client) =>
+  it("fsj_app still cannot SELECT fsj.usuario directly without app.tenant_id set (raises TN001) -- the function is the ONE bootstrap exception, not a general RLS bypass", async () => {
+    await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
-        const result = await tx.query(`SELECT count(*)::int AS n FROM fsj.usuario`);
-        expect(result.rows[0].n).toBe(0);
+        const tenantId = await insertTenant(tx, "no-tenant-user");
+        const sistema = await createSistemaUser(tx, tenantId);
+        await createUsuario(tx, tenantId, sistema, "login-tn001");
+
+        await tx.query("SET LOCAL ROLE fsj_app");
+        await expectDbRejection(
+          tx,
+          () => tx.query(`SELECT count(*)::int AS n FROM fsj.usuario`),
+          "TN001",
+        );
       }),
     );
   });
