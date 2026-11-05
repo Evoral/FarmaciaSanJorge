@@ -4,11 +4,7 @@
  * `modules/libro/domain/filtros.ts`.
  */
 import { z } from "zod";
-
-const fechaIso = z
-  .string()
-  .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Debe tener el formato AAAA-MM-DD.");
+import { fechaIso } from "@/shared/validation";
 
 export { fechaIso };
 

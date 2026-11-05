@@ -15,6 +15,7 @@ import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { formatFechaIso } from "@/shared/format/fecha";
+import { filtroFechaIso } from "@/shared/validation";
 
 const PAGE_SIZE = 25;
 
@@ -30,11 +31,13 @@ const numberFormat = new Intl.NumberFormat("es-AR");
 export default async function LibroPage({ searchParams }: LibroPageProps) {
   const session = await requireSession();
   const params = await searchParams;
+  const fechaDesde = filtroFechaIso(params.fechaDesde);
+  const fechaHasta = filtroFechaIso(params.fechaHasta);
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
   const filtro = {
-    fechaDesde: params.fechaDesde || undefined,
-    fechaHasta: params.fechaHasta || undefined,
+    fechaDesde,
+    fechaHasta,
     numeroDesde: params.numeroDesde || undefined,
     numeroHasta: params.numeroHasta || undefined,
     estado: params.estado === "VIGENTE" || params.estado === "ANULADO" ? (params.estado as "VIGENTE" | "ANULADO") : undefined,
@@ -48,8 +51,8 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
 
   function pageHref(targetPage: number): string {
     const qs = new URLSearchParams();
-    if (params.fechaDesde) qs.set("fechaDesde", params.fechaDesde);
-    if (params.fechaHasta) qs.set("fechaHasta", params.fechaHasta);
+    if (fechaDesde) qs.set("fechaDesde", fechaDesde);
+    if (fechaHasta) qs.set("fechaHasta", fechaHasta);
     if (params.numeroDesde) qs.set("numeroDesde", params.numeroDesde);
     if (params.numeroHasta) qs.set("numeroHasta", params.numeroHasta);
     if (params.estado) qs.set("estado", params.estado);
@@ -60,8 +63,8 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
 
   function exportHref(kind: "xlsx" | "pdf"): string {
     const qs = new URLSearchParams();
-    if (params.fechaDesde) qs.set("fechaDesde", params.fechaDesde);
-    if (params.fechaHasta) qs.set("fechaHasta", params.fechaHasta);
+    if (fechaDesde) qs.set("fechaDesde", fechaDesde);
+    if (fechaHasta) qs.set("fechaHasta", fechaHasta);
     if (params.numeroDesde) qs.set("numeroDesde", params.numeroDesde);
     if (params.numeroHasta) qs.set("numeroHasta", params.numeroHasta);
     if (params.estado) qs.set("estado", params.estado);
@@ -79,8 +82,8 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
   const chips: { key: ParamLibro; label: string; value: string }[] = [];
   if (params.texto) chips.push({ key: "texto", label: "Paciente / médico", value: params.texto });
   if (params.estado) chips.push({ key: "estado", label: "Estado", value: params.estado === "ANULADO" ? "Anulado" : params.estado === "VIGENTE" ? "Vigente" : params.estado });
-  if (params.fechaDesde) chips.push({ key: "fechaDesde", label: "Desde", value: formatFechaIso(params.fechaDesde) });
-  if (params.fechaHasta) chips.push({ key: "fechaHasta", label: "Hasta", value: formatFechaIso(params.fechaHasta) });
+  if (fechaDesde) chips.push({ key: "fechaDesde", label: "Desde", value: formatFechaIso(fechaDesde) });
+  if (fechaHasta) chips.push({ key: "fechaHasta", label: "Hasta", value: formatFechaIso(fechaHasta) });
   if (params.numeroDesde) chips.push({ key: "numeroDesde", label: "Nº desde", value: params.numeroDesde });
   if (params.numeroHasta) chips.push({ key: "numeroHasta", label: "Nº hasta", value: params.numeroHasta });
   const hayFiltros = chips.length > 0;
@@ -136,14 +139,14 @@ export default async function LibroPage({ searchParams }: LibroPageProps) {
                 <label htmlFor="fechaDesde" className="sr-only">
                   Desde
                 </label>
-                <DateInput id="fechaDesde" name="fechaDesde" defaultValue={params.fechaDesde ?? ""} />
+                <DateInput id="fechaDesde" name="fechaDesde" defaultValue={fechaDesde ?? ""} />
                 <span className="range-field-sep" aria-hidden>
                   a
                 </span>
                 <label htmlFor="fechaHasta" className="sr-only">
                   Hasta
                 </label>
-                <DateInput id="fechaHasta" name="fechaHasta" defaultValue={params.fechaHasta ?? ""} />
+                <DateInput id="fechaHasta" name="fechaHasta" defaultValue={fechaHasta ?? ""} />
               </div>
             </div>
             <div className="field">

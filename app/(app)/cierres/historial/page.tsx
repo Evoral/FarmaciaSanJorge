@@ -22,6 +22,7 @@ import { Pagination } from "@/shared/ui/pagination";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { SectionTabs } from "../../section-tabs";
 import { gestionDtSections } from "../../nav-sections";
+import { filtroFechaIso } from "@/shared/validation";
 
 const PAGE_SIZE = 20;
 const BASE_HREF = "/cierres/historial";
@@ -40,28 +41,30 @@ export default async function HistorialCierresPage({ searchParams }: HistorialCi
     redirect("/");
   }
   const params = await searchParams;
+  const fechaDesde = filtroFechaIso(params.fechaDesde);
+  const fechaHasta = filtroFechaIso(params.fechaHasta);
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
   const puedeVerReporte = can(session, "cierres.reporte");
 
-  const historial = await listCierres({ fechaDesde: params.fechaDesde, fechaHasta: params.fechaHasta, page, pageSize: PAGE_SIZE });
+  const historial = await listCierres({ fechaDesde, fechaHasta, page, pageSize: PAGE_SIZE });
 
   function pageHref(targetPage: number): string {
     const qs = new URLSearchParams();
-    if (params.fechaDesde) qs.set("fechaDesde", params.fechaDesde);
-    if (params.fechaHasta) qs.set("fechaHasta", params.fechaHasta);
+    if (fechaDesde) qs.set("fechaDesde", fechaDesde);
+    if (fechaHasta) qs.set("fechaHasta", fechaHasta);
     qs.set("page", String(targetPage));
     return `${BASE_HREF}?${qs.toString()}`;
   }
 
   function sinFiltroHref(param: "fechaDesde" | "fechaHasta"): string {
     const qs = new URLSearchParams();
-    if (params.fechaDesde && param !== "fechaDesde") qs.set("fechaDesde", params.fechaDesde);
-    if (params.fechaHasta && param !== "fechaHasta") qs.set("fechaHasta", params.fechaHasta);
+    if (fechaDesde && param !== "fechaDesde") qs.set("fechaDesde", fechaDesde);
+    if (fechaHasta && param !== "fechaHasta") qs.set("fechaHasta", fechaHasta);
     const query = qs.toString();
     return query ? `${BASE_HREF}?${query}` : BASE_HREF;
   }
 
-  const hayFiltros = Boolean(params.fechaDesde || params.fechaHasta);
+  const hayFiltros = Boolean(fechaDesde || fechaHasta);
 
   return (
     <div className="page list-view">
@@ -91,31 +94,31 @@ export default async function HistorialCierresPage({ searchParams }: HistorialCi
               <label htmlFor="fechaDesde" className="sr-only">
                 Desde
               </label>
-              <DateInput id="fechaDesde" name="fechaDesde" defaultValue={params.fechaDesde ?? ""} />
+              <DateInput id="fechaDesde" name="fechaDesde" defaultValue={fechaDesde ?? ""} />
               <span className="range-field-sep" aria-hidden>
                 a
               </span>
               <label htmlFor="fechaHasta" className="sr-only">
                 Hasta
               </label>
-              <DateInput id="fechaHasta" name="fechaHasta" defaultValue={params.fechaHasta ?? ""} />
+              <DateInput id="fechaHasta" name="fechaHasta" defaultValue={fechaHasta ?? ""} />
             </div>
           </div>
         </FilterForm>
 
         {hayFiltros ? (
           <div className="filter-chips" role="group" aria-label="Filtros activos">
-            {params.fechaDesde ? (
+            {fechaDesde ? (
               <span className="chip">
-                Desde: <strong>{formatFechaIso(params.fechaDesde)}</strong>
+                Desde: <strong>{formatFechaIso(fechaDesde)}</strong>
                 <Link href={sinFiltroHref("fechaDesde")} scroll={false} className="chip-remove" aria-label="Quitar filtro Desde">
                   <X className="size-3" aria-hidden />
                 </Link>
               </span>
             ) : null}
-            {params.fechaHasta ? (
+            {fechaHasta ? (
               <span className="chip">
-                Hasta: <strong>{formatFechaIso(params.fechaHasta)}</strong>
+                Hasta: <strong>{formatFechaIso(fechaHasta)}</strong>
                 <Link href={sinFiltroHref("fechaHasta")} scroll={false} className="chip-remove" aria-label="Quitar filtro Hasta">
                   <X className="size-3" aria-hidden />
                 </Link>

@@ -8,12 +8,10 @@
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
+import { fechaIso } from "@/shared/validation";
 import { MOTIVOS_AJUSTE } from "../domain/partida";
-import { esFechaIso } from "../domain/ajustes-listado";
 import { listAjustes as listAjustesRepo } from "../infrastructure/partida-repository";
 import type { ListAjustesResult } from "../infrastructure/partida-repository";
-
-const fechaIso = z.string().refine(esFechaIso, { message: "Ingresá una fecha válida." });
 
 const listAjustesInput = z
   .object({

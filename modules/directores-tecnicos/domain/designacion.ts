@@ -6,10 +6,10 @@
  * ultimate source of truth for every INV-DT-XXX invariant; what lives here
  * is only:
  *   - the `CaracterDesignacion` union (mirrors `fsj.caracter_designacion_dt`),
- *   - a small local zod primitive for an ISO date string (`YYYY-MM-DD`,
- *     matching the `vigente_desde`/`vigente_hasta` `date` columns) --
- *     `shared/validation` has no date-string primitive yet (task
- *     instruction: add it locally here, do not edit shared/validation),
+ *   - nothing for the `vigente_desde`/`vigente_hasta` date strings themselves:
+ *     the use cases validate them with `shared/validation`'s `fechaIso`
+ *     (shape AND calendar existence), so an impossible date such as
+ *     2026-02-30 is a field error, never a DB error (spec fechas-entrada FE1),
  *   - a FAST, pre-DB pre-check mirroring the DB's own
  *     `designacion_dt_vigencia_check` CHECK constraint (vigente_hasta >=
  *     vigente_desde), so a malformed cese/designation shows a clear
@@ -17,8 +17,6 @@
  *     violation. This is a UX nicety, NOT a substitute for the DB
  *     constraint -- the DB still enforces it regardless of this check.
  */
-import { z } from "zod";
-
 export const CARACTERES_DESIGNACION = ["TITULAR", "SUPLENTE"] as const;
 export type CaracterDesignacion = (typeof CARACTERES_DESIGNACION)[number];
 
@@ -27,19 +25,6 @@ export const CARACTER_LABELS: Record<CaracterDesignacion, string> = {
   TITULAR: "Titular",
   SUPLENTE: "Suplente",
 };
-
-/**
- * ISO date string `YYYY-MM-DD`, for the `date`-only `vigente_desde` /
- * `vigente_hasta` columns. Deliberately just a shape check (regex), not a
- * full calendar-validity check (e.g. rejecting 2026-02-30) -- the DB
- * column is `date` typed and will itself reject an impossible calendar
- * date at the INSERT/UPDATE boundary; duplicating full calendar validation
- * here would be dead code that can drift from Postgres's own rules.
- */
-export const isoDate = z
-  .string()
-  .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha con formato AAAA-MM-DD.");
 
 /**
  * Mirrors `designacion_dt_vigencia_check` (migration 0005): when

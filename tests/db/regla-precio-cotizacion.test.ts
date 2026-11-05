@@ -523,8 +523,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0031_regla_precio_cotizacion migra
           );
           const insertCosto = (precio: string, costoUnitario: string, fechaPrecio: string, listaId: string | null) =>
             tx.query(
-              `INSERT INTO fsj.costo_proveedor (tenant_id, droga_id, proveedor_id, precio_informado, unidad_precio_id, costo_unitario, fecha_precio, lista_precio_id, creado_por_id)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+              `INSERT INTO fsj.costo_proveedor (tenant_id, droga_id, proveedor_id, precio_informado, unidad_precio_id, costo_unitario, fecha_precio, lista_precio_id, creado_por_id, alicuota_iva, precio_informado_con_iva, costo_unitario_con_iva)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 21, round($4::numeric * 1.21, 6), round($6::numeric * 1.21, 10)) RETURNING id`,
               [tenantId, drogaId, proveedorId, precio, unidadId, costoUnitario, fechaPrecio, listaId, sistema],
             );
           const v1 = await insertCosto("10", "10", "2026-09-01", null);

@@ -4,12 +4,8 @@
  * `modules/cierres/domain/filtros.ts`/`modules/libro/domain/filtros.ts`.
  */
 import { z } from "zod";
+import { fechaIso } from "@/shared/validation";
 import { ESTADOS_LOTE_ARCHIVO } from "./lote-archivo";
-
-export const fechaIso = z
-  .string()
-  .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Debe tener el formato AAAA-MM-DD.");
 
 const paginacion = {
   page: z.number().int().min(1).default(1),

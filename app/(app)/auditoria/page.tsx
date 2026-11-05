@@ -32,6 +32,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Avatar } from "@/shared/ui/avatar";
 import { ToneBadge } from "@/shared/ui/status-badge";
+import { filtroFechaIso } from "@/shared/validation";
 import { tonoAccion } from "@/modules/auditoria/ui/tono-accion";
 import { nombreDeUsuario } from "@/shared/format/usuario";
 
@@ -41,7 +42,6 @@ const ACCION_VALUES = Object.values(TipoAccion);
 const ENTIDAD_VALUES = Object.keys(ENTIDADES).sort((a, b) => etiquetaEntidad(a).localeCompare(etiquetaEntidad(b), "es"));
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 type FilterParam = "entidad" | "entidadId" | "usuarioId" | "accion" | "desde" | "hasta";
 
@@ -64,8 +64,8 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
   const entidadId = params.entidadId && UUID_PATTERN.test(params.entidadId) ? params.entidadId : undefined;
   const usuarioId = params.usuarioId && UUID_PATTERN.test(params.usuarioId) ? params.usuarioId : undefined;
   const accion = params.accion && (ACCION_VALUES as readonly string[]).includes(params.accion) ? (params.accion as TipoAccion) : undefined;
-  const desde = params.desde && ISO_DATE_PATTERN.test(params.desde) ? params.desde : undefined;
-  const hasta = params.hasta && ISO_DATE_PATTERN.test(params.hasta) ? params.hasta : undefined;
+  const desde = filtroFechaIso(params.desde);
+  const hasta = filtroFechaIso(params.hasta);
   const cursor = params.cursor || undefined;
 
   // ISO dates compare correctly as strings. Checked here so an inverted range shows a message instead of the use case's ValidationError.
@@ -97,8 +97,8 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
       entidadId: params.entidadId ?? "",
       usuarioId: usuarioId ?? "",
       accion: accion ?? "",
-      desde: params.desde ?? "",
-      hasta: params.hasta ?? "",
+      desde: desde ?? "",
+      hasta: hasta ?? "",
     };
     const qs = new URLSearchParams();
     for (const [key, value] of Object.entries({ ...actuales, ...cambios })) if (value) qs.set(key, value);
@@ -113,10 +113,10 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
   if (accion) chips.push({ key: "accion", label: "Acción", value: ACCION_LABELS[accion] ?? accion });
   if (entidad) chips.push({ key: "entidad", label: "Entidad", value: etiquetaEntidad(entidad) });
   if (params.entidadId) chips.push({ key: "entidadId", label: "ID", value: `${params.entidadId.slice(0, 8)}…` });
-  if (params.desde) chips.push({ key: "desde", label: "Desde", value: formatFechaIso(params.desde) });
-  if (params.hasta) chips.push({ key: "hasta", label: "Hasta", value: formatFechaIso(params.hasta) });
+  if (desde) chips.push({ key: "desde", label: "Desde", value: formatFechaIso(desde) });
+  if (hasta) chips.push({ key: "hasta", label: "Hasta", value: formatFechaIso(hasta) });
   const hasFilters = Boolean(usuarioId) || chips.length > 0;
-  const masFiltros = (entidad ? 1 : 0) + (params.entidadId ? 1 : 0) + (params.desde ? 1 : 0) + (params.hasta ? 1 : 0);
+  const masFiltros = (entidad ? 1 : 0) + (params.entidadId ? 1 : 0) + (desde ? 1 : 0) + (hasta ? 1 : 0);
 
   return (
     <>
@@ -185,14 +185,14 @@ export default async function AuditoriaPage({ searchParams }: AuditoriaPageProps
                     <label htmlFor="desde" className="sr-only">
                       Desde
                     </label>
-                    <DateInput id="desde" name="desde" defaultValue={params.desde ?? ""} />
+                    <DateInput id="desde" name="desde" defaultValue={desde ?? ""} />
                     <span className="range-field-sep" aria-hidden>
                       a
                     </span>
                     <label htmlFor="hasta" className="sr-only">
                       Hasta
                     </label>
-                    <DateInput id="hasta" name="hasta" defaultValue={params.hasta ?? ""} />
+                    <DateInput id="hasta" name="hasta" defaultValue={hasta ?? ""} />
                   </div>
                 </div>
               </FilterPopover>

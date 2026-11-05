@@ -31,14 +31,14 @@
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
-import { uuid, nonEmptyString } from "@/shared/validation";
-import { isoDate, validarRangoVigencia } from "../domain/designacion";
+import { fechaIso, uuid, nonEmptyString } from "@/shared/validation";
+import { validarRangoVigencia } from "../domain/designacion";
 import { getDesignacionParaCese, cesarDesignacion as cesarDesignacionRepo } from "../infrastructure/designacion-repository";
 
 /** Exported for tests/unit/directores-tecnicos-validacion.test.ts -- same convention as modules/farmacia/application/editar-datos-tenant.ts's `editarDatosTenantInput`. */
 export const cesarDesignacionInput = z.object({
   designacionId: uuid,
-  vigenteHasta: isoDate,
+  vigenteHasta: fechaIso,
   motivoCese: nonEmptyString,
 });
 

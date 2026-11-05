@@ -11,15 +11,9 @@
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { ConflictError, NotFoundError, ValidationError } from "@/shared/errors";
-import { nonEmptyString, uuid } from "@/shared/validation";
+import { nonEmptyString, textoOpcional, uuid } from "@/shared/validation";
 import { JURISDICCIONES_MATRICULA, jurisdiccionMatricula, matriculaString } from "../domain/medico";
 import { existeMatriculaVigente, getMedicoParaAccion, lockMedicoParaAccion, updateMedicoDatos } from "../infrastructure/medico-repository";
-
-const optionalField = z
-  .string()
-  .trim()
-  .optional()
-  .transform((v) => (v && v.length > 0 ? v : null));
 
 const editarMedicoInput = z.object({
   id: uuid,
@@ -27,10 +21,10 @@ const editarMedicoInput = z.object({
   apellido: nonEmptyString,
   matricula: matriculaString,
   matriculaJurisdiccion: jurisdiccionMatricula,
-  especialidad: optionalField,
-  telefono: optionalField,
-  direccionRegistrada: optionalField,
-  email: optionalField,
+  especialidad: textoOpcional(),
+  telefono: textoOpcional(),
+  direccionRegistrada: textoOpcional(),
+  email: textoOpcional(),
   version: z.object({
     nombre: z.string(),
     apellido: z.string(),

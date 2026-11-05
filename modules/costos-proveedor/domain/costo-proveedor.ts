@@ -26,7 +26,7 @@ import { z } from "zod";
 import { Decimal, dec } from "@/shared/decimal";
 import { convertirCantidad, mismaMagnitud, type UnidadDeConversion } from "@/shared/decimal/convertir-unidad";
 import { DomainError } from "@/shared/errors";
-import { decimalString, positiveDecimalString, uuid } from "@/shared/validation";
+import { decimalString, esFechaIso, positiveDecimalString, uuid } from "@/shared/validation";
 
 // ============================================================================
 // Unit conversion (R4, R5, R6)
@@ -131,14 +131,6 @@ export function calcularConIva(input: { precioInformado: Decimal | string; costo
 // Row validation (R3, R5, R8)
 // ============================================================================
 
-/** `YYYY-MM-DD` that is also a real calendar date (no 2026-02-31). */
-export function esFechaIsoReal(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const [year, month, day] = value.split("-").map(Number) as [number, number, number];
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
-}
-
 /** A price as typed: a plain decimal (no exponent, no hex) strictly greater than zero. Output: the canonical decimal string, exact (no rounding). */
 export const precioInformadoSchema = z
   .string()
@@ -153,7 +145,7 @@ export function fechaPrecioSchema(jornadaActual: string) {
   return z
     .string()
     .trim()
-    .refine(esFechaIsoReal, "La fecha del precio debe ser una fecha válida (AAAA-MM-DD).")
+    .refine(esFechaIso, "La fecha del precio debe ser una fecha válida (AAAA-MM-DD).")
     .refine((fecha) => fecha <= jornadaActual, "La fecha del precio no puede ser posterior a hoy.");
 }
 

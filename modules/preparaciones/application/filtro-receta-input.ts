@@ -5,17 +5,16 @@
  */
 import { z } from "zod";
 import { FILTROS_PAGO_RECETA } from "@/modules/recetas/domain/pago";
-
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha en formato AAAA-MM-DD.");
+import { fechaIso } from "@/shared/validation";
 
 export const filtroRecetaInput = {
   paciente: z.string().trim().max(100).optional(),
   medico: z.string().trim().max(100).optional(),
   pago: z.enum(FILTROS_PAGO_RECETA).optional(),
-  ingresoDesde: isoDate.optional(),
-  ingresoHasta: isoDate.optional(),
-  prescripcionDesde: isoDate.optional(),
-  prescripcionHasta: isoDate.optional(),
+  ingresoDesde: fechaIso.optional(),
+  ingresoHasta: fechaIso.optional(),
+  prescripcionDesde: fechaIso.optional(),
+  prescripcionHasta: fechaIso.optional(),
 };
 
 type FiltroRecetaInput = z.output<z.ZodObject<typeof filtroRecetaInput>>;

@@ -35,6 +35,7 @@ import { StatusSummary } from "@/shared/ui/status-summary";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
 import { Toaster } from "@/shared/ui/toast";
+import { filtroFechaIso } from "@/shared/validation";
 
 const PAGE_SIZE = 20;
 
@@ -65,6 +66,10 @@ function isoToDisplay(value: string): string {
 export default async function RecetasPage({ searchParams }: RecetasPageProps) {
   const session = await requireSession();
   const params = await searchParams;
+  const desde = filtroFechaIso(params.desde);
+  const hasta = filtroFechaIso(params.hasta);
+  const ingresoDesde = filtroFechaIso(params.ingresoDesde);
+  const ingresoHasta = filtroFechaIso(params.ingresoHasta);
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
   const estado = params.estado ?? "";
   const periodo = parsePeriodoResumen(params.periodo);
@@ -78,10 +83,10 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
       paciente: params.paciente,
       medico: params.medico,
       pago,
-      desde: params.desde,
-      hasta: params.hasta,
-      ingresoDesde: params.ingresoDesde,
-      ingresoHasta: params.ingresoHasta,
+      desde,
+      hasta,
+      ingresoDesde,
+      ingresoHasta,
       page,
       pageSize: PAGE_SIZE,
     }),
@@ -147,10 +152,10 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
   if (params.paciente) chips.push({ key: "paciente", label: "Paciente", value: params.paciente });
   if (params.medico) chips.push({ key: "medico", label: "Médico", value: params.medico });
   if (pago) chips.push({ key: "pago", label: "Pago", value: FILTRO_PAGO_RECETA_LABELS[pago] });
-  if (params.ingresoDesde) chips.push({ key: "ingresoDesde", label: "Ingreso desde", value: isoToDisplay(params.ingresoDesde) });
-  if (params.ingresoHasta) chips.push({ key: "ingresoHasta", label: "Ingreso hasta", value: isoToDisplay(params.ingresoHasta) });
-  if (params.desde) chips.push({ key: "desde", label: "Prescripción desde", value: isoToDisplay(params.desde) });
-  if (params.hasta) chips.push({ key: "hasta", label: "Prescripción hasta", value: isoToDisplay(params.hasta) });
+  if (ingresoDesde) chips.push({ key: "ingresoDesde", label: "Ingreso desde", value: isoToDisplay(ingresoDesde) });
+  if (ingresoHasta) chips.push({ key: "ingresoHasta", label: "Ingreso hasta", value: isoToDisplay(ingresoHasta) });
+  if (desde) chips.push({ key: "desde", label: "Prescripción desde", value: isoToDisplay(desde) });
+  if (hasta) chips.push({ key: "hasta", label: "Prescripción hasta", value: isoToDisplay(hasta) });
 
   const rows: RecetaRow[] = result.items.map((r) => ({
     id: r.id,
@@ -317,8 +322,8 @@ export default async function RecetasPage({ searchParams }: RecetasPageProps) {
                 ))}
               </select>
             </div>
-            <DateRangeField id="ingreso" label="Ingreso" desdeName="ingresoDesde" hastaName="ingresoHasta" desdeDefault={params.ingresoDesde ?? ""} hastaDefault={params.ingresoHasta ?? ""} />
-            <DateRangeField id="prescripcion" label="Prescripción" desdeName="desde" hastaName="hasta" desdeDefault={params.desde ?? ""} hastaDefault={params.hasta ?? ""} />
+            <DateRangeField id="ingreso" label="Ingreso" desdeName="ingresoDesde" hastaName="ingresoHasta" desdeDefault={ingresoDesde ?? ""} hastaDefault={ingresoHasta ?? ""} />
+            <DateRangeField id="prescripcion" label="Prescripción" desdeName="desde" hastaName="hasta" desdeDefault={desde ?? ""} hastaDefault={hasta ?? ""} />
           </FilterDrawer>
         </FilterForm>
 

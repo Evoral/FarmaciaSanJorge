@@ -17,6 +17,7 @@
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
+import { fechaIso } from "@/shared/validation";
 import { filtroReceta, filtroRecetaInput } from "./filtro-receta-input";
 import {
   listComponentesDePendientes,
@@ -37,12 +38,10 @@ export interface RecetaPendienteItem extends RecetaPendienteFila {
   items: ItemPendiente[];
 }
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha en formato AAAA-MM-DD.");
-
 const listRecetasPendientesInput = z.object({
   numeroInterno: z.string().trim().regex(/^\d{1,18}$/, "Debe ser un número de receta.").optional(),
-  desde: isoDate.optional(),
-  hasta: isoDate.optional(),
+  desde: fechaIso.optional(),
+  hasta: fechaIso.optional(),
   ...filtroRecetaInput,
   page: z.number().int().positive().default(1),
   pageSize: z.number().int().positive().max(100).default(20),

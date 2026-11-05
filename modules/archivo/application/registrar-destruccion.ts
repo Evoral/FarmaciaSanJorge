@@ -11,6 +11,7 @@
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import type { ExecuteOptions } from "@/shared/usecase";
+import { fechaIso } from "@/shared/validation";
 import { DomainError, NotFoundError, InvariantViolationError, mapDbError } from "@/shared/errors";
 import { puedeRegistrarDestruccion, validarRegistroDestruccion } from "../domain/lote-archivo";
 import { mensajeParaInvarianteArchivo } from "../domain/mensajes-invariantes";
@@ -19,7 +20,7 @@ import { verificarPasswordDestruccionCommand } from "./verificar-password-destru
 
 const registrarDestruccionInternalInput = z.object({
   id: z.string().uuid(),
-  fechaDestruccion: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe tener el formato AAAA-MM-DD."),
+  fechaDestruccion: fechaIso,
 });
 
 export interface RegistrarDestruccionInput {

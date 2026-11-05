@@ -16,6 +16,7 @@
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
+import { fechaIso } from "@/shared/validation";
 import { filtroReceta, filtroRecetaInput } from "./filtro-receta-input";
 import { listPreparaciones as listPreparacionesRepo } from "../infrastructure/preparacion-repository";
 import type { PreparacionListItem } from "../infrastructure/preparacion-repository";
@@ -23,13 +24,11 @@ import type { PreparacionListItem } from "../infrastructure/preparacion-reposito
 export type { PreparacionListItem };
 
 const ESTADOS = ["CONFIRMADA", "DESCARTADA"] as const;
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha en formato AAAA-MM-DD.");
-
 const listPreparacionesInput = z.object({
   estado: z.enum(ESTADOS).optional(),
   numeroInterno: z.string().trim().regex(/^\d{1,18}$/, "Debe ser un número de receta.").optional(),
-  desde: isoDate.optional(),
-  hasta: isoDate.optional(),
+  desde: fechaIso.optional(),
+  hasta: fechaIso.optional(),
   ...filtroRecetaInput,
   sinEtiquetaImpresa: z.boolean().default(false),
   page: z.number().int().positive().default(1),

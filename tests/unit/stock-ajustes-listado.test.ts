@@ -1,21 +1,6 @@
 /** Unit tests for `modules/stock/domain/ajustes-listado.ts`: `/stock/ajustes` filter parsing and link building. */
 import { describe, it, expect } from "vitest";
-import { ajustesSearchParams, esFechaIso, hayFiltrosAjustes, parseFiltrosAjustes, rangoAjustesInvalido } from "@/modules/stock/domain/ajustes-listado";
-
-describe("esFechaIso", () => {
-  it("accepts real calendar dates", () => {
-    expect(esFechaIso("2026-06-15")).toBe(true);
-    expect(esFechaIso("2028-02-29")).toBe(true);
-  });
-
-  it("rejects other formats and impossible dates", () => {
-    expect(esFechaIso("15/06/2026")).toBe(false);
-    expect(esFechaIso("2026-6-15")).toBe(false);
-    expect(esFechaIso("2026-02-30")).toBe(false);
-    expect(esFechaIso("2026-13-01")).toBe(false);
-    expect(esFechaIso("")).toBe(false);
-  });
-});
+import { ajustesSearchParams, hayFiltrosAjustes, parseFiltrosAjustes, rangoAjustesInvalido } from "@/modules/stock/domain/ajustes-listado";
 
 describe("parseFiltrosAjustes", () => {
   it("normalizes valid params", () => {

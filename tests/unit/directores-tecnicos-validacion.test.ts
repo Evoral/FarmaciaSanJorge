@@ -9,13 +9,14 @@
  */
 import { randomUUID } from "node:crypto";
 import { describe, it, expect } from "vitest";
-import { isoDate, validarRangoVigencia } from "@/modules/directores-tecnicos/domain/designacion";
+import { validarRangoVigencia } from "@/modules/directores-tecnicos/domain/designacion";
+import { fechaIso } from "@/shared/validation";
 import { designarDirectorTecnicoInput } from "@/modules/directores-tecnicos/application/designar-director-tecnico";
 import { cesarDesignacionInput } from "@/modules/directores-tecnicos/application/cesar-designacion";
 
-describe("domain/designacion: isoDate", () => {
+describe("shared/validation: fechaIso as the designacion date", () => {
   it.each(["2026-01-01", "2026-12-31", "2000-01-01"])("accepts %s", (valor) => {
-    expect(isoDate.safeParse(valor).success).toBe(true);
+    expect(fechaIso.safeParse(valor).success).toBe(true);
   });
 
   it.each([
@@ -25,8 +26,10 @@ describe("domain/designacion: isoDate", () => {
     ["", "empty"],
     ["not-a-date", "not a date shape at all"],
     ["2026-01-01T00:00:00Z", "carries a time component"],
+    ["2026-02-30", "well formed but not in the calendar"],
+    ["2026-13-01", "month out of range"],
   ])("rejects %s (%s)", (valor) => {
-    expect(isoDate.safeParse(valor).success).toBe(false);
+    expect(fechaIso.safeParse(valor).success).toBe(false);
   });
 });
 

@@ -17,6 +17,7 @@
  */
 import type { EstadoPreparacion } from "@/generated/prisma/enums";
 import { parseFiltroPagoReceta, type FiltroPagoReceta } from "@/modules/recetas/domain/pago";
+import { filtroFechaIso } from "@/shared/validation";
 
 /** A /preparaciones tab: the pending queue, the taken recetas (`INICIADA`, "En curso"), or the preparaciones in one estado. */
 export type PestanaPreparaciones = "PENDIENTE" | EstadoPreparacion;
@@ -60,11 +61,9 @@ function uno(valor: string | string[] | undefined): string | undefined {
   return v && v.trim().length > 0 ? v.trim() : undefined;
 }
 
-const FECHA = /^\d{4}-\d{2}-\d{2}$/;
-
+/** A real calendar date or nothing (spec fechas-entrada FE2). */
 function fecha(valor: string | string[] | undefined): string | undefined {
-  const v = uno(valor);
-  return v && FECHA.test(v) ? v : undefined;
+  return filtroFechaIso(uno(valor));
 }
 
 /** Free-text search, capped like /recetas' (100 characters). */

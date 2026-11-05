@@ -61,6 +61,7 @@ import { FORMAS_FARMACEUTICAS, MAX_DOMICILIO_PACIENTE, MODOS_EXPRESION, ORIGEN_R
 import { FORMA_FARMACEUTICA_LABELS, MODO_EXPRESION_LABELS } from "@/shared/labels/enum-labels";
 import type { FormaFarmaceutica, ModoExpresion, OrigenReceta } from "../domain/receta";
 import type { UnidadOpcion } from "../infrastructure/receta-repository";
+import type { ImportarRecetaWireInput } from "../application/importar-receta";
 import { jornadaDe } from "@/shared/time/jornada";
 import { DateInput } from "@/shared/ui/date-input";
 import { errorFieldsOf } from "@/shared/ui/form-parts";
@@ -552,7 +553,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   }
 
   /** `recetas.importar`'s input (application/importar-receta.ts) -- the server re-matches and re-validates all of it. */
-  function payloadImportacion() {
+  function payloadImportacion(): ImportarRecetaWireInput | null {
     if (!importacion) return null;
     const { paciente, medico } = importacion;
     const b = importacion.borrador;

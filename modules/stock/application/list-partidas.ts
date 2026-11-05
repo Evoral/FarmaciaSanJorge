@@ -9,15 +9,12 @@
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
-import { uuid } from "@/shared/validation";
-import { esFechaIso } from "../domain/ajustes-listado";
+import { fechaIso, uuid } from "@/shared/validation";
 import { parseBusquedaFactura } from "../domain/busqueda-factura";
 import { getDiasAlertaVencimiento, getStockDeDroga, jornadaActualTenant, listPartidasHistorial } from "../infrastructure/partida-repository";
 import type { ListPartidasHistorialResult, StockDeDroga } from "../infrastructure/partida-repository";
 import { tiposElaboracionDePartidas } from "../infrastructure/elaboracion-lote-repository";
 import type { TipoElaboracion } from "@/generated/prisma/enums";
-
-const fechaIso = z.string().refine(esFechaIso, { message: "Ingresá una fecha válida." });
 
 const listPartidasInput = z
   .object({

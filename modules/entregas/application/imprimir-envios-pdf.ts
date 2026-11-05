@@ -20,7 +20,7 @@ import { defineQuery } from "@/shared/usecase";
 import { can } from "@/shared/auth/authorize";
 import { NotFoundError } from "@/shared/errors";
 import { jornadaDe } from "@/shared/time/jornada";
-import { uuid } from "@/shared/validation";
+import { fechaIso, uuid } from "@/shared/validation";
 import { nombreArchivoHojaEnvios } from "../domain/hoja-envios";
 import {
   getFarmaciaParaHoja,
@@ -33,18 +33,9 @@ import { getLogoTenant } from "@/modules/farmacia/application/get-marca-tenant";
 import { logoParaPdf } from "@/shared/pdf/logo";
 import { buildEnviosPdf } from "../infrastructure/envios-pdf";
 
-const isoDate = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha en formato AAAA-MM-DD.")
-  .refine((value) => {
-    const [anio, mes, dia] = value.split("-").map(Number);
-    const fecha = new Date(Date.UTC(anio!, mes! - 1, dia!));
-    return fecha.getUTCFullYear() === anio && fecha.getUTCMonth() === mes! - 1 && fecha.getUTCDate() === dia;
-  }, "Debe ser una fecha que exista en el calendario.");
-
 export const imprimirEnviosPdfInput = z.object({
   repartidorId: uuid,
-  fecha: isoDate.optional(),
+  fecha: fechaIso.optional(),
 });
 
 export type ImprimirEnviosPdfInput = z.input<typeof imprimirEnviosPdfInput>;

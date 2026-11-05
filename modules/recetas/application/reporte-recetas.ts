@@ -22,6 +22,7 @@
  */
 import { z } from "zod";
 import { defineQuery, defineCommand, TipoAccion } from "@/shared/usecase";
+import { fechaIso } from "@/shared/validation";
 import { ESTADOS_RECETA } from "../domain/receta";
 import { FILTROS_PAGO_RECETA, FILTRO_PAGO_RECETA_LABELS } from "../domain/pago";
 import { countRecetasPorEstado, listRecetas, listRecetasPorEstado } from "../infrastructure/receta-repository";
@@ -31,8 +32,6 @@ export type { RecetaListItem };
 
 /** Hard ceiling on exported rows -- same discipline/value as `modules/libro/application/exportar-libro.ts#MAX_EXPORT_ROWS`. */
 export const MAX_EXPORT_ROWS = 5000;
-
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha en formato AAAA-MM-DD.");
 
 export interface ConteoPorEstado {
   estado: (typeof ESTADOS_RECETA)[number];
@@ -56,8 +55,8 @@ export async function reporteRecetasPorEstado(): Promise<ConteoPorEstado[]> {
 
 const listRecetasReporteInput = z.object({
   estado: z.enum(ESTADOS_RECETA).optional(),
-  ingresoDesde: isoDate.optional(),
-  ingresoHasta: isoDate.optional(),
+  ingresoDesde: fechaIso.optional(),
+  ingresoHasta: fechaIso.optional(),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(100).default(20),
 });
@@ -97,8 +96,8 @@ const exportarRecetasInput = listRecetasReporteInput.omit({ page: true, pageSize
   paciente: z.string().trim().max(100).optional(),
   medico: z.string().trim().max(100).optional(),
   /** fecha_prescripcion range (the `/recetas` listado's `desde`/`hasta`). */
-  desde: isoDate.optional(),
-  hasta: isoDate.optional(),
+  desde: fechaIso.optional(),
+  hasta: fechaIso.optional(),
   /** The `/recetas` listado's "Pago" filter (migration 0071). */
   pago: z.enum(FILTROS_PAGO_RECETA).optional(),
 });

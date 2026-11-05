@@ -10,7 +10,7 @@ import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import type { CommandHandlerArgs, CommandHandlerResult } from "@/shared/usecase";
 import { ValidationError } from "@/shared/errors";
-import { nonEmptyString } from "@/shared/validation";
+import { nonEmptyString, textoOpcional } from "@/shared/validation";
 import { jurisdiccionMatricula, matriculaString } from "../domain/medico";
 import { existeMatriculaVigente, insertMedico } from "../infrastructure/medico-repository";
 
@@ -19,10 +19,10 @@ export const crearMedicoInput = z.object({
   apellido: nonEmptyString,
   matricula: matriculaString,
   matriculaJurisdiccion: jurisdiccionMatricula,
-  especialidad: z.string().trim().optional().transform((v) => (v && v.length > 0 ? v : null)),
-  telefono: z.string().trim().optional().transform((v) => (v && v.length > 0 ? v : null)),
-  direccionRegistrada: z.string().trim().optional().transform((v) => (v && v.length > 0 ? v : null)),
-  email: z.string().trim().optional().transform((v) => (v && v.length > 0 ? v : null)),
+  especialidad: textoOpcional(),
+  telefono: textoOpcional(),
+  direccionRegistrada: textoOpcional(),
+  email: textoOpcional(),
 });
 
 export type CrearMedicoInput = z.infer<typeof crearMedicoInput>;

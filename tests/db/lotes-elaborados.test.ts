@@ -140,8 +140,8 @@ async function insertLoteElaboradoDb(
   const partidaId = resPartida.rows[0].id as string;
 
   const resElab = await tx.query(
-    `INSERT INTO fsj.elaboracion_lote (tenant_id, partida_id, tipo, formula_id, elaborado_por_id)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO fsj.elaboracion_lote (tenant_id, partida_id, tipo, formula_id, elaborado_por_id, nombre)
+     VALUES ($1, $2, $3, $4, $5, 'Lote de prueba')
      RETURNING id`,
     [params.tenantId, partidaId, params.tipo, params.formulaId ?? null, params.elaboradoPorId],
   );
@@ -235,6 +235,9 @@ describe.skipIf(dbTestSkipReason() !== null)("0111 lotes elaborados DB invariant
         expect(rDil.rows[0].proveedor_id).toBeNull();
         expect(Number(rDil.rows[0].cantidad_disponible)).toBe(100);
         expect(Number(rDil.rows[0].potencia_declarada)).toBe(1);
+
+        // Back to deferred: the next partidas are inserted before their INGRESO movements.
+        await tx.query("SET CONSTRAINTS ALL DEFERRED");
 
         // 2. FORMULA happy path: Jarabe simple from Azúcar and Agua
         const resForm = await tx.query(
@@ -364,8 +367,8 @@ describe.skipIf(dbTestSkipReason() !== null)("0111 lotes elaborados DB invariant
           tx,
           () =>
             tx.query(
-              `INSERT INTO fsj.elaboracion_lote (tenant_id, partida_id, tipo, formula_id, elaborado_por_id)
-               VALUES ($1, $2, 'DILUCION', $3, $4)`,
+              `INSERT INTO fsj.elaboracion_lote (tenant_id, partida_id, tipo, formula_id, elaborado_por_id, nombre)
+               VALUES ($1, $2, 'DILUCION', $3, $4, 'Lote de prueba')`,
               [seed.tenantId, partidaId, dummyFormulaId, seed.sistema],
             ),
           "23514", // check_violation

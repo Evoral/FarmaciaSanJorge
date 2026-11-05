@@ -30,10 +30,10 @@ import type { Prisma } from "@/generated/prisma/client";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { record as auditRecord } from "@/shared/audit";
 import { ConflictError, DomainError, ValidationError } from "@/shared/errors";
-import { nonEmptyString, uuid } from "@/shared/validation";
+import { fechaIso, nonEmptyString, uuid } from "@/shared/validation";
 import { normalizarTextoDroga } from "@/modules/recetas/domain/importacion-receta";
 import { limpiarSinonimo } from "@/modules/drogas/domain/sinonimo";
-import { isoDate, nonNegativeDecimalString, positiveDecimalString, potenciaDeclaradaString } from "../domain/partida";
+import { nonNegativeDecimalString, positiveDecimalString, potenciaDeclaradaString } from "../domain/partida";
 import { formatearComprobante, mensajeFacturaYaImportada } from "../domain/importacion-factura-compra";
 import { buscarComprobanteImportado, getDrogaAlias, insertComprobanteCompra, insertDrogaAlias } from "../infrastructure/factura-compra-repository";
 import { registrarPartidaCompra } from "./ingresar-partida";
@@ -53,7 +53,7 @@ const lineaInput = z.object({
   drogaId: uuid,
   lote: nonEmptyString,
   /** Optional for an insumo (migration 0064) -- checked in `registrarPartidaCompra`. */
-  fechaVencimiento: isoDate.optional(),
+  fechaVencimiento: fechaIso.optional(),
   cantidadCompra: positiveDecimalString,
   unidadCompraId: uuid,
   precioUnitario: nonNegativeDecimalString,
@@ -69,7 +69,7 @@ const importarFacturaCompraInput = z.object({
   letra: z.enum(["A", "B", "C", "M"]),
   puntoVenta: z.string().trim().regex(/^\d{1,5}$/, "Punto de venta inválido.").transform((v) => v.replace(/^0+(?=\d)/, "")),
   numero: z.string().trim().regex(/^\d{1,8}$/, "Número de comprobante inválido.").transform((v) => v.replace(/^0+(?=\d)/, "")),
-  fechaEmision: isoDate,
+  fechaEmision: fechaIso,
   cae: textoOpcional,
   subtotal: importeOpcional,
   iva: importeOpcional,

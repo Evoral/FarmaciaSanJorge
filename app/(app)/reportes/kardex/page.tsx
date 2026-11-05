@@ -22,10 +22,10 @@ import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import type { BadgeTone } from "@/shared/ui/status-badge";
+import { filtroFechaIso } from "@/shared/validation";
 
 const PAGE_SIZE = 30;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 type FilterParam = "drogaId" | "tipo" | "desde" | "hasta";
 
@@ -48,8 +48,8 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
   const tipo = params.tipo === "INGRESO_COMPRA" || params.tipo === "INGRESO_INICIAL" || params.tipo === "INGRESO_ELABORACION" || params.tipo === "EGRESO_PREPARACION" || params.tipo === "EGRESO_ELABORACION" || params.tipo === "AJUSTE" ? params.tipo : undefined;
   const drogaIdTexto = params.drogaId?.trim() ?? "";
   const drogaIdIncompleto = drogaIdTexto !== "" && !UUID_PATTERN.test(drogaIdTexto);
-  const desde = params.desde && ISO_DATE_PATTERN.test(params.desde) ? params.desde : undefined;
-  const hasta = params.hasta && ISO_DATE_PATTERN.test(params.hasta) ? params.hasta : undefined;
+  const desde = filtroFechaIso(params.desde);
+  const hasta = filtroFechaIso(params.hasta);
 
   const [result, { catalogo }] = await Promise.all([
     drogaIdIncompleto
@@ -60,7 +60,7 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
 
   /** The kardex URL with some params replaced ("" removes one); `page` always resets. */
   function filtersHref(cambios: Partial<Record<FilterParam, string>> = {}): string {
-    const actuales: Record<FilterParam, string> = { drogaId: params.drogaId ?? "", tipo: params.tipo ?? "", desde: params.desde ?? "", hasta: params.hasta ?? "" };
+    const actuales: Record<FilterParam, string> = { drogaId: params.drogaId ?? "", tipo: params.tipo ?? "", desde: desde ?? "", hasta: hasta ?? "" };
     const qs = new URLSearchParams();
     for (const [key, value] of Object.entries({ ...actuales, ...cambios })) if (value) qs.set(key, value);
     const query = qs.toString();
@@ -71,8 +71,8 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
     const qs = new URLSearchParams();
     if (params.drogaId) qs.set("drogaId", params.drogaId);
     if (params.tipo) qs.set("tipo", params.tipo);
-    if (params.desde) qs.set("desde", params.desde);
-    if (params.hasta) qs.set("hasta", params.hasta);
+    if (desde) qs.set("desde", desde);
+    if (hasta) qs.set("hasta", hasta);
     qs.set("page", String(targetPage));
     return `/reportes/kardex?${qs.toString()}`;
   }
@@ -81,8 +81,8 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
     const qs = new URLSearchParams();
     if (params.drogaId) qs.set("drogaId", params.drogaId);
     if (params.tipo) qs.set("tipo", params.tipo);
-    if (params.desde) qs.set("desde", params.desde);
-    if (params.hasta) qs.set("hasta", params.hasta);
+    if (desde) qs.set("desde", desde);
+    if (hasta) qs.set("hasta", hasta);
     return `/api/stock/kardex/export/xlsx?${qs.toString()}`;
   }
 
@@ -91,8 +91,8 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
 
   const chips: { key: FilterParam; label: string; value: string }[] = [];
   if (tipo) chips.push({ key: "tipo", label: "Tipo", value: etiquetaDe(TIPO_MOVIMIENTO_LABELS, tipo) });
-  if (params.desde) chips.push({ key: "desde", label: "Desde", value: formatFechaIso(params.desde) });
-  if (params.hasta) chips.push({ key: "hasta", label: "Hasta", value: formatFechaIso(params.hasta) });
+  if (desde) chips.push({ key: "desde", label: "Desde", value: formatFechaIso(desde) });
+  if (hasta) chips.push({ key: "hasta", label: "Hasta", value: formatFechaIso(hasta) });
   const hayFiltros = Boolean(drogaIdTexto) || chips.length > 0;
 
   return (
@@ -134,14 +134,14 @@ export default async function ReporteKardexPage({ searchParams }: ReporteKardexP
               <label htmlFor="desde" className="sr-only">
                 Desde
               </label>
-              <DateInput id="desde" name="desde" defaultValue={params.desde ?? ""} />
+              <DateInput id="desde" name="desde" defaultValue={desde ?? ""} />
               <span className="range-field-sep" aria-hidden>
                 a
               </span>
               <label htmlFor="hasta" className="sr-only">
                 Hasta
               </label>
-              <DateInput id="hasta" name="hasta" defaultValue={params.hasta ?? ""} />
+              <DateInput id="hasta" name="hasta" defaultValue={hasta ?? ""} />
             </div>
           </FilterForm>
         </div>

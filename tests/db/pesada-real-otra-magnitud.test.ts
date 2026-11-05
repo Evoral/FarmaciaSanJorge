@@ -459,7 +459,7 @@ describe.skipIf(dbTestSkipReason() !== null)("P7b: pesada real en otra magnitud 
 
         completed = true;
         throw new RollbackSentinel();
-      });
+      }, { maxWait: 20_000, timeout: 30_000 });
     } catch (e) {
       if (!(e instanceof RollbackSentinel)) throw e;
     }

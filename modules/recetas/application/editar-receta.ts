@@ -34,7 +34,7 @@
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { ConflictError, DomainError, NotFoundError, ValidationError } from "@/shared/errors";
-import { uuid } from "@/shared/validation";
+import { fechaIso, uuid } from "@/shared/validation";
 import {
   ORIGENES_RECETA,
   esEstadoEditable,
@@ -68,7 +68,7 @@ import {
   unidadesInvalidas,
   updateRecetaHeader,
 } from "../infrastructure/receta-repository";
-import { crearRecetaInput, isoDate, itemInput as itemInputAlta } from "./crear-receta";
+import { crearRecetaInput, itemInput as itemInputAlta } from "./crear-receta";
 import { aplicarCambioPago } from "./marcar-pago-receta";
 import { validarSinonimosDeComponentes } from "./sinonimos-componentes";
 
@@ -90,8 +90,8 @@ const editarRecetaInput = crearRecetaInput.omit({ pagada: true, envioId: true })
   version: z.object({
     pacienteId: uuid,
     medicoId: uuid,
-    fechaPrescripcion: isoDate,
-    fechaValidaDesde: isoDate.nullable().default(null),
+    fechaPrescripcion: fechaIso,
+    fechaValidaDesde: fechaIso.nullable().default(null),
     origen: z.enum(ORIGENES_RECETA),
     diagnosticoCodigo: z.string().nullable().default(null),
     diagnosticoDescripcion: z.string().nullable().default(null),
