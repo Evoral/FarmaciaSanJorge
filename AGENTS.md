@@ -55,6 +55,14 @@ one real Supabase project.
   if they take `p_tenant_id`, refuse it first when `IS DISTINCT FROM fsj.current_tenant_id()`.
   Never grant EXECUTE to PUBLIC; new `fsj` routines reach `fsj_app` by default privileges,
   so `REVOKE ... FROM fsj_app` the ones the app must not call (migration 0101).
+- Every new `fsj` table gets RLS `ENABLE` + `FORCE` and a policy. A read across tenants goes
+  through a `SECURITY DEFINER` function returning only the columns it needs (0119).
+- Every new FK gets an index on `(tenant_id, fk)`, except actor FKs to `usuario`.
+  `tests/db/catalogo-guardas.test.ts` checks both rules; add an exception there only after reading the queries.
+- `fsj.current_tenant_id()` raises `TN001` when no tenant is set. A trigger that asks
+  "is there a tenant?" uses `fsj.tenant_id_o_null()` (0122).
+- Every rejection of a public auth endpoint returns the same response and takes the same time
+  (`AUTH_POLICY.loginFallidoMinimoMs`); don't add work to a rejection path without checking that floor.
 - `DIRECT_URL` (owner, bypasses RLS) is never read by runtime code nor added to
   `shared/env.ts`; only `scripts/` and `prisma.config.ts` read it.
 
