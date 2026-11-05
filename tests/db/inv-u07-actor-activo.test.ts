@@ -395,6 +395,10 @@ describe.skipIf(dbTestSkipReason() !== null)("INV-U07 (migration 0023): actor co
             -- Deliberately excluded -- see migration 0023 header.
             excluded AS (
               SELECT 'registro_auditoria' AS table_name, 'autorizado_por_id' AS column_name
+              -- Copy of the original entrega's actor, who may be suspended by the time it is anulada (0123).
+              UNION ALL SELECT 'entrega_anulada', 'entregada_por_id'
+              -- fsj.tenant has no tenant_id for the generic function; INV-S26 already requires a DT vigente, hence ACTIVO (0123).
+              UNION ALL SELECT 'tenant', 'relevamiento_inicial_cerrado_por_id'
             ),
             extras AS (
               -- Explicit non-"*_por_id"-named actor columns this migration also covers.
