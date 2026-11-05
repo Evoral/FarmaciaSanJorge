@@ -66,7 +66,7 @@ P1-02, P1-09, P1-10, P1-11, P2-01, P2-02 (configuración), P2-03, P4-04, P5-01b,
 
    Confirmar cada uno contra las consultas reales antes de la migración.
 4. P2-03: payload opaco en `/api/health`.
-5. P2-01: latencia pareja en el login con email inexistente.
+5. ~~P2-01: latencia pareja en el login con email inexistente.~~ Resuelto: todo login rechazado responde tras `AUTH_POLICY.loginFallidoMinimoMs` (1 s). Sigue haciendo falta P2-02 (rate limit en `POST /login`), que queda como deuda hasta pasar a Vercel Pro.
 6. ~~P1-09: fallo explícito sin `app.tenant_id`.~~ Resuelto en la migración 0122: `fsj.current_tenant_id()` lanza `TN001` si no hay tenant. Cerrarlo cuando 0122 esté aplicada en ambas bases y `npm run test:db` pase.
 7. P5-01b: serializador de errores del logger.
 8. P5-06: `import "server-only"` en `infrastructure/` y `application/`.
