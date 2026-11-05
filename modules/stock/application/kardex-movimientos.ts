@@ -5,7 +5,7 @@
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
-import { uuid } from "@/shared/validation";
+import { fechaIso, uuid } from "@/shared/validation";
 import { kardexMovimientos as kardexMovimientosRepo } from "../infrastructure/partida-repository";
 import type { KardexResult } from "../infrastructure/partida-repository";
 
@@ -15,8 +15,8 @@ const kardexMovimientosInput = z.object({
   partidaId: uuid.optional(),
   drogaId: uuid.optional(),
   tipo: z.enum(TIPOS_MOVIMIENTO).optional(),
-  desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  desde: fechaIso.optional(),
+  hasta: fechaIso.optional(),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(100).default(20),
 });

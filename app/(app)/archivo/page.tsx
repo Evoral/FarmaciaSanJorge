@@ -16,6 +16,7 @@ import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { Toaster } from "@/shared/ui/toast";
+import { filtroFechaIso } from "@/shared/validation";
 
 const PAGE_SIZE = 20;
 
@@ -32,6 +33,8 @@ const numberFormat = new Intl.NumberFormat("es-AR");
 export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
   const session = await requireSession();
   const params = await searchParams;
+  const periodoDesde = filtroFechaIso(params.periodoDesde);
+  const periodoHasta = filtroFechaIso(params.periodoHasta);
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
   const estado = params.estado && esEstadoValido(params.estado) ? params.estado : undefined;
 
@@ -39,8 +42,8 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
 
   const resultado = await listLotesArchivo({
     estado,
-    periodoDesde: params.periodoDesde,
-    periodoHasta: params.periodoHasta,
+    periodoDesde,
+    periodoHasta,
     page,
     pageSize: PAGE_SIZE,
   });
@@ -48,8 +51,8 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
   function pageHref(targetPage: number): string {
     const qs = new URLSearchParams();
     if (estado) qs.set("estado", estado);
-    if (params.periodoDesde) qs.set("periodoDesde", params.periodoDesde);
-    if (params.periodoHasta) qs.set("periodoHasta", params.periodoHasta);
+    if (periodoDesde) qs.set("periodoDesde", periodoDesde);
+    if (periodoHasta) qs.set("periodoHasta", periodoHasta);
     qs.set("page", String(targetPage));
     return `/archivo?${qs.toString()}`;
   }
@@ -58,8 +61,8 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
   function estadoHref(nuevo: EstadoLoteArchivoValue | undefined): string {
     const qs = new URLSearchParams();
     if (nuevo) qs.set("estado", nuevo);
-    if (params.periodoDesde) qs.set("periodoDesde", params.periodoDesde);
-    if (params.periodoHasta) qs.set("periodoHasta", params.periodoHasta);
+    if (periodoDesde) qs.set("periodoDesde", periodoDesde);
+    if (periodoHasta) qs.set("periodoHasta", periodoHasta);
     const query = qs.toString();
     return query ? `/archivo?${query}` : "/archivo";
   }
@@ -67,13 +70,13 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
   function sinPeriodoHref(param: "periodoDesde" | "periodoHasta"): string {
     const qs = new URLSearchParams();
     if (estado) qs.set("estado", estado);
-    if (params.periodoDesde && param !== "periodoDesde") qs.set("periodoDesde", params.periodoDesde);
-    if (params.periodoHasta && param !== "periodoHasta") qs.set("periodoHasta", params.periodoHasta);
+    if (periodoDesde && param !== "periodoDesde") qs.set("periodoDesde", periodoDesde);
+    if (periodoHasta && param !== "periodoHasta") qs.set("periodoHasta", periodoHasta);
     const query = qs.toString();
     return query ? `/archivo?${query}` : "/archivo";
   }
 
-  const hayFiltros = Boolean(estado || params.periodoDesde || params.periodoHasta);
+  const hayFiltros = Boolean(estado || periodoDesde || periodoHasta);
 
   return (
     <div className="page list-view">
@@ -121,31 +124,31 @@ export default async function ArchivoPage({ searchParams }: ArchivoPageProps) {
               <label htmlFor="periodoDesde" className="sr-only">
                 Período desde
               </label>
-              <DateInput id="periodoDesde" name="periodoDesde" defaultValue={params.periodoDesde ?? ""} />
+              <DateInput id="periodoDesde" name="periodoDesde" defaultValue={periodoDesde ?? ""} />
               <span className="range-field-sep" aria-hidden>
                 a
               </span>
               <label htmlFor="periodoHasta" className="sr-only">
                 Período hasta
               </label>
-              <DateInput id="periodoHasta" name="periodoHasta" defaultValue={params.periodoHasta ?? ""} />
+              <DateInput id="periodoHasta" name="periodoHasta" defaultValue={periodoHasta ?? ""} />
             </div>
           </div>
         </FilterForm>
 
-        {params.periodoDesde || params.periodoHasta ? (
+        {periodoDesde || periodoHasta ? (
           <div className="filter-chips" role="group" aria-label="Filtros activos">
-            {params.periodoDesde ? (
+            {periodoDesde ? (
               <span className="chip">
-                Desde: <strong>{formatFechaIso(params.periodoDesde)}</strong>
+                Desde: <strong>{formatFechaIso(periodoDesde)}</strong>
                 <Link href={sinPeriodoHref("periodoDesde")} scroll={false} className="chip-remove" aria-label="Quitar filtro Desde">
                   <X className="size-3" aria-hidden />
                 </Link>
               </span>
             ) : null}
-            {params.periodoHasta ? (
+            {periodoHasta ? (
               <span className="chip">
-                Hasta: <strong>{formatFechaIso(params.periodoHasta)}</strong>
+                Hasta: <strong>{formatFechaIso(periodoHasta)}</strong>
                 <Link href={sinPeriodoHref("periodoHasta")} scroll={false} className="chip-remove" aria-label="Quitar filtro Hasta">
                   <X className="size-3" aria-hidden />
                 </Link>

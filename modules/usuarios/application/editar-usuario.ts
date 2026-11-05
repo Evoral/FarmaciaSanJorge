@@ -19,7 +19,7 @@
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { ConflictError, NotFoundError, ValidationError } from "@/shared/errors";
-import { email as emailSchema, nonEmptyString, uuid } from "@/shared/validation";
+import { email as emailSchema, nonEmptyString, textoOpcional, uuid } from "@/shared/validation";
 import { identidadDeCuentaDeSector } from "../domain/cuenta-de-sector";
 import { loadUsuarioParaAccion, existeEmail, existeDni, updateUsuarioDatosPersonales } from "../infrastructure/usuario-repository";
 
@@ -31,7 +31,7 @@ const editarUsuarioInput = z.object({
   email: emailSchema,
   /** Required for a person; ignored for a cuenta de sector (derived from `nombre`). */
   dni: z.string().trim().default(""),
-  numeroMatricula: z.string().trim().max(100).optional(),
+  numeroMatricula: textoOpcional(100),
   version: z.object({
     nombre: z.string(),
     apellido: z.string(),

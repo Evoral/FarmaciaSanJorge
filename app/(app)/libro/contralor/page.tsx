@@ -14,6 +14,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
 import { ToneBadge } from "@/shared/ui/status-badge";
+import { filtroFechaIso } from "@/shared/validation";
 
 const PAGE_SIZE = 25;
 
@@ -48,6 +49,8 @@ function Vacio({ label }: { label: string }) {
 export default async function ContralorPage({ searchParams }: ContralorPageProps) {
   const session = await requireSession();
   const params = await searchParams;
+  const fechaDesde = filtroFechaIso(params.fechaDesde);
+  const fechaHasta = filtroFechaIso(params.fechaHasta);
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
   const tipoLibro = params.tipoLibro === "PSICOTROPICO" || params.tipoLibro === "ESTUPEFACIENTE" ? params.tipoLibro : undefined;
@@ -55,8 +58,8 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
   const result = await listContralor({
     tipoLibro,
     drogaId: params.drogaId || undefined,
-    fechaDesde: params.fechaDesde || undefined,
-    fechaHasta: params.fechaHasta || undefined,
+    fechaDesde,
+    fechaHasta,
     page,
     pageSize: PAGE_SIZE,
   });
@@ -66,8 +69,8 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
     const qs = new URLSearchParams();
     if (params.tipoLibro) qs.set("tipoLibro", params.tipoLibro);
     if (params.drogaId) qs.set("drogaId", params.drogaId);
-    if (params.fechaDesde) qs.set("fechaDesde", params.fechaDesde);
-    if (params.fechaHasta) qs.set("fechaHasta", params.fechaHasta);
+    if (fechaDesde) qs.set("fechaDesde", fechaDesde);
+    if (fechaHasta) qs.set("fechaHasta", fechaHasta);
     qs.set("page", String(targetPage));
     return `/libro/contralor?${qs.toString()}`;
   }
@@ -76,8 +79,8 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
     const qs = new URLSearchParams();
     if (params.tipoLibro) qs.set("tipoLibro", params.tipoLibro);
     if (params.drogaId) qs.set("drogaId", params.drogaId);
-    if (params.fechaDesde) qs.set("fechaDesde", params.fechaDesde);
-    if (params.fechaHasta) qs.set("fechaHasta", params.fechaHasta);
+    if (fechaDesde) qs.set("fechaDesde", fechaDesde);
+    if (fechaHasta) qs.set("fechaHasta", fechaHasta);
     return `/api/libro/export/contralor/${kind}?${qs.toString()}`;
   }
 
@@ -92,8 +95,8 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
   const drogaActualNombre = result.items[0]?.drogaDescripcion ?? "Droga seleccionada";
   const chips: { key: ParamContralor; label: string; value: string }[] = [];
   if (params.tipoLibro) chips.push({ key: "tipoLibro", label: "Libro", value: TIPO_LIBRO_LABELS[params.tipoLibro] ?? params.tipoLibro });
-  if (params.fechaDesde) chips.push({ key: "fechaDesde", label: "Desde", value: formatFechaIso(params.fechaDesde) });
-  if (params.fechaHasta) chips.push({ key: "fechaHasta", label: "Hasta", value: formatFechaIso(params.fechaHasta) });
+  if (fechaDesde) chips.push({ key: "fechaDesde", label: "Desde", value: formatFechaIso(fechaDesde) });
+  if (fechaHasta) chips.push({ key: "fechaHasta", label: "Hasta", value: formatFechaIso(fechaHasta) });
   const hayFiltros = chips.length > 0 || Boolean(params.drogaId);
 
   return (
@@ -152,14 +155,14 @@ export default async function ContralorPage({ searchParams }: ContralorPageProps
               <label htmlFor="fechaDesde" className="sr-only">
                 Desde
               </label>
-              <DateInput id="fechaDesde" name="fechaDesde" defaultValue={params.fechaDesde ?? ""} />
+              <DateInput id="fechaDesde" name="fechaDesde" defaultValue={fechaDesde ?? ""} />
               <span className="range-field-sep" aria-hidden>
                 a
               </span>
               <label htmlFor="fechaHasta" className="sr-only">
                 Hasta
               </label>
-              <DateInput id="fechaHasta" name="fechaHasta" defaultValue={params.fechaHasta ?? ""} />
+              <DateInput id="fechaHasta" name="fechaHasta" defaultValue={fechaHasta ?? ""} />
             </div>
           </div>
         </FilterForm>

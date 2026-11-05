@@ -9,15 +9,15 @@
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
-import { nonEmptyString, uuid } from "@/shared/validation";
-import { isoDate, positiveDecimalString, nonNegativeDecimalString, potenciaDeclaradaString } from "../domain/partida";
+import { fechaIso, nonEmptyString, uuid } from "@/shared/validation";
+import { positiveDecimalString, nonNegativeDecimalString, potenciaDeclaradaString } from "../domain/partida";
 import { registrarPartidaCompra } from "./ingresar-partida";
 
 const ingresarExistenciaInicialInput = z.object({
   drogaId: uuid,
   proveedorId: uuid.optional(),
   lote: nonEmptyString,
-  fechaVencimiento: isoDate.optional(),
+  fechaVencimiento: fechaIso.optional(),
   cantidadCompra: positiveDecimalString,
   unidadCompraId: uuid,
   costoUnitario: nonNegativeDecimalString,

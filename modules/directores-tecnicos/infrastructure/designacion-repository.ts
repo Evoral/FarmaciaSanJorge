@@ -50,7 +50,7 @@ export interface NuevaDesignacionInput {
   caracter: CaracterDesignacion;
   matricula: string;
   expedienteDesignacion: string | null;
-  /** `YYYY-MM-DD` -- see domain/designacion.ts's `isoDate`. */
+  /** `YYYY-MM-DD` -- see shared/validation's `fechaIso`. */
   vigenteDesde: string;
   registradoPorId: string;
 }

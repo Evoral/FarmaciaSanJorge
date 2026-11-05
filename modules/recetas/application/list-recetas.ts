@@ -8,7 +8,7 @@
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
-import { uuid } from "@/shared/validation";
+import { fechaIso, uuid } from "@/shared/validation";
 import { inicioDeJornada, jornadaDe } from "@/shared/time/jornada";
 import { ESTADOS_RECETA } from "../domain/receta";
 import { FILTROS_PAGO_RECETA } from "../domain/pago";
@@ -18,8 +18,6 @@ import type { ListRecetasResult } from "../infrastructure/receta-repository";
 
 export type { ListRecetasResult };
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha en formato AAAA-MM-DD.");
-
 const listRecetasInput = z.object({
   estado: z.enum(ESTADOS_RECETA).optional(),
   pacienteId: uuid.optional(),
@@ -27,10 +25,10 @@ const listRecetasInput = z.object({
   paciente: z.string().trim().max(100).optional(),
   medico: z.string().trim().max(100).optional(),
   numeroInterno: z.string().trim().optional(),
-  desde: isoDate.optional(),
-  hasta: isoDate.optional(),
-  ingresoDesde: isoDate.optional(),
-  ingresoHasta: isoDate.optional(),
+  desde: fechaIso.optional(),
+  hasta: fechaIso.optional(),
+  ingresoDesde: fechaIso.optional(),
+  ingresoHasta: fechaIso.optional(),
   /** Migration 0071: only paid or unpaid recetas; omitted = all. */
   pago: z.enum(FILTROS_PAGO_RECETA).optional(),
   page: z.number().int().min(1).default(1),

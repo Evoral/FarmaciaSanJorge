@@ -16,6 +16,7 @@ import { StatusSummary } from "@/shared/ui/status-summary";
 import { StatusBadge, estadoTone } from "@/shared/ui/status-badge";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
+import { filtroFechaIso } from "@/shared/validation";
 
 const PAGE_SIZE = 25;
 
@@ -29,18 +30,20 @@ const numberFormat = new Intl.NumberFormat("es-AR");
 
 export default async function ReporteRecetasPage({ searchParams }: ReporteRecetasPageProps) {
   const params = await searchParams;
+  const ingresoDesde = filtroFechaIso(params.ingresoDesde);
+  const ingresoHasta = filtroFechaIso(params.ingresoHasta);
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
   const estado = params.estado && (ESTADOS_RECETA as readonly string[]).includes(params.estado) ? (params.estado as (typeof ESTADOS_RECETA)[number]) : undefined;
 
   const [conteos, result] = await Promise.all([
     reporteRecetasPorEstado(),
-    listRecetasReporte({ estado, ingresoDesde: params.ingresoDesde || undefined, ingresoHasta: params.ingresoHasta || undefined, page, pageSize: PAGE_SIZE }),
+    listRecetasReporte({ estado, ingresoDesde, ingresoHasta, page, pageSize: PAGE_SIZE }),
   ]);
   const totalRecetas = conteos.reduce((sum, c) => sum + c.cantidad, 0);
 
   /** The report's URL with some params replaced ("" removes one); `page` always resets. */
   function filtersHref(cambios: Partial<Record<FilterParam, string>>): string {
-    const actuales: Record<FilterParam, string> = { estado: params.estado ?? "", ingresoDesde: params.ingresoDesde ?? "", ingresoHasta: params.ingresoHasta ?? "" };
+    const actuales: Record<FilterParam, string> = { estado: params.estado ?? "", ingresoDesde: ingresoDesde ?? "", ingresoHasta: ingresoHasta ?? "" };
     const qs = new URLSearchParams();
     for (const [key, value] of Object.entries({ ...actuales, ...cambios })) if (value) qs.set(key, value);
     const query = qs.toString();
@@ -50,8 +53,8 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
   function pageHref(targetPage: number): string {
     const qs = new URLSearchParams();
     if (params.estado) qs.set("estado", params.estado);
-    if (params.ingresoDesde) qs.set("ingresoDesde", params.ingresoDesde);
-    if (params.ingresoHasta) qs.set("ingresoHasta", params.ingresoHasta);
+    if (ingresoDesde) qs.set("ingresoDesde", ingresoDesde);
+    if (ingresoHasta) qs.set("ingresoHasta", ingresoHasta);
     qs.set("page", String(targetPage));
     return `/reportes/recetas?${qs.toString()}`;
   }
@@ -59,14 +62,14 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
   function exportHref(): string {
     const qs = new URLSearchParams();
     if (params.estado) qs.set("estado", params.estado);
-    if (params.ingresoDesde) qs.set("ingresoDesde", params.ingresoDesde);
-    if (params.ingresoHasta) qs.set("ingresoHasta", params.ingresoHasta);
+    if (ingresoDesde) qs.set("ingresoDesde", ingresoDesde);
+    if (ingresoHasta) qs.set("ingresoHasta", ingresoHasta);
     return `/api/recetas/reporte/export/xlsx?${qs.toString()}`;
   }
 
   const chips: { key: FilterParam; label: string; value: string }[] = [];
-  if (params.ingresoDesde) chips.push({ key: "ingresoDesde", label: "Ingreso desde", value: formatFechaIso(params.ingresoDesde) });
-  if (params.ingresoHasta) chips.push({ key: "ingresoHasta", label: "Ingreso hasta", value: formatFechaIso(params.ingresoHasta) });
+  if (ingresoDesde) chips.push({ key: "ingresoDesde", label: "Ingreso desde", value: formatFechaIso(ingresoDesde) });
+  if (ingresoHasta) chips.push({ key: "ingresoHasta", label: "Ingreso hasta", value: formatFechaIso(ingresoHasta) });
   const hayFiltros = Boolean(estado) || chips.length > 0;
 
   return (
@@ -112,14 +115,14 @@ export default async function ReporteRecetasPage({ searchParams }: ReporteReceta
               <label htmlFor="ingresoDesde" className="sr-only">
                 Ingreso desde
               </label>
-              <DateInput id="ingresoDesde" name="ingresoDesde" defaultValue={params.ingresoDesde ?? ""} />
+              <DateInput id="ingresoDesde" name="ingresoDesde" defaultValue={ingresoDesde ?? ""} />
               <span className="range-field-sep" aria-hidden>
                 a
               </span>
               <label htmlFor="ingresoHasta" className="sr-only">
                 Ingreso hasta
               </label>
-              <DateInput id="ingresoHasta" name="ingresoHasta" defaultValue={params.ingresoHasta ?? ""} />
+              <DateInput id="ingresoHasta" name="ingresoHasta" defaultValue={ingresoHasta ?? ""} />
             </div>
           </div>
         </FilterForm>

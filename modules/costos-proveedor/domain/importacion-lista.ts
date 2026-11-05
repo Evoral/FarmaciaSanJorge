@@ -22,9 +22,10 @@
  */
 import { Decimal, dec } from "@/shared/decimal";
 import { formatFechaIso } from "@/shared/format/fecha";
+import { esFechaIso } from "@/shared/validation";
 import { resolverDroga } from "@/modules/recetas/domain/importacion-receta";
 import type { AliasDroga, ViaMatchDroga } from "@/modules/recetas/domain/importacion-receta";
-import { detectarDuplicados, esFechaIsoReal, planVersionar, unidadPrecioPorDefecto, validarFilaCosto } from "./costo-proveedor";
+import { detectarDuplicados, planVersionar, unidadPrecioPorDefecto, validarFilaCosto } from "./costo-proveedor";
 import type { TipoMagnitudCosto, UnidadParaCosto } from "./costo-proveedor";
 import type { FormatoLista } from "./archivo-lista";
 import type { FilaListaLeida } from "./parsers/lista-xlsx-crystal";
@@ -141,7 +142,7 @@ export interface EvaluacionFilaLista {
 
 /** R8 applied to the list's date (every row is dated with it): a real calendar day, not after the jornada. `null` when it is fine. */
 export function mensajeFechaListaInvalida(fechaLista: string, jornadaActual: string): string | null {
-  if (!esFechaIsoReal(fechaLista)) return "La fecha de la lista debe ser una fecha válida.";
+  if (!esFechaIso(fechaLista)) return "La fecha de la lista debe ser una fecha válida.";
   if (fechaLista > jornadaActual) return "La fecha de la lista no puede ser posterior a hoy.";
   return null;
 }

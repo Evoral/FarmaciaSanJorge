@@ -17,7 +17,7 @@ import { ChevronRight, CircleAlert, FlaskConical, History, PackagePlus, SearchX 
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listPartidas } from "@/modules/stock/application/list-partidas";
-import { esFechaIso } from "@/modules/stock/domain/ajustes-listado";
+import { filtroFechaIso } from "@/shared/validation";
 import { estadoVencimientoPartida } from "@/modules/stock/domain/vencimiento-partida";
 import { KardexDrogaFiltro } from "@/modules/stock/ui/kardex-droga-filtro";
 import { ElaborarLoteDialog } from "@/modules/stock/ui/elaborar-lote-dialog";
@@ -66,8 +66,8 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
   const drogaId = params.drogaId && UUID_PATTERN.test(params.drogaId) ? params.drogaId : "";
   const proveedorId = params.proveedorId && UUID_PATTERN.test(params.proveedorId) ? params.proveedorId : "";
   const q = params.q?.trim().slice(0, 100) ?? "";
-  const desde = params.desde && esFechaIso(params.desde) ? params.desde : "";
-  const hasta = params.hasta && esFechaIso(params.hasta) ? params.hasta : "";
+  const desde = filtroFechaIso(params.desde) ?? "";
+  const hasta = filtroFechaIso(params.hasta) ?? "";
   const soloConSaldo = params.saldo === "1";
   const soloVencidas = params.vencidas === "1";
   const soloElaboradas = params.elaborados === "1";

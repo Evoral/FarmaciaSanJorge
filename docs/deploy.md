@@ -63,6 +63,16 @@ Lo único que SÍ corre en cada build/install es `prisma generate`, cableado com
 
 **Procedimiento de migración (manual, rol owner, antes de promover un deploy):**
 
+0. Solo en un Postgres que **no** es Supabase (una base limpia propia), antes de `db:migrate`. Supabase ya trae el esquema `extensions` y el rol `authenticator`; en cualquier otro Postgres hay que crearlos a mano con el rol owner:
+   ```sql
+   CREATE SCHEMA IF NOT EXISTS extensions;                                   -- migración 0000
+   DO $$ BEGIN
+     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticator') THEN
+       CREATE ROLE authenticator NOLOGIN;                                    -- migración 0108
+     END IF;
+   END $$;
+   ```
+   Motivo: la migración 0000 instala las extensiones `WITH SCHEMA extensions` sin crear ese esquema, y la 0108 ejecuta `ALTER ROLE authenticator` sin verificar que el rol exista; sin estos dos objetos, `prisma migrate deploy` falla. Las migraciones ya aplicadas no se editan (Prisma compara checksums en las bases existentes) y una migración nueva no sirve, porque en una base limpia la 0108 corre antes que ella. **No se verificó contra un Postgres limpio real**: si el procedimiento falla, corregir este paso con lo que se observe.
 1. Desde una máquina/CI con `DIRECT_URL` apuntando al proyecto Supabase correcto (rol `postgres`, owner -- nunca `fsj_app`):
    ```
    npm run db:migrate

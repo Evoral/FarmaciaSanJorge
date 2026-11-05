@@ -77,8 +77,7 @@ export function puedeCambiarClasificacion(tienePartidas: boolean): boolean {
  * `droga_stock_minimo_check`. Not in `shared/validation` (that file only has
  * `decimalString`/`positiveDecimalString`, no `>= 0` variant) -- kept local
  * to this module rather than widening a shared primitive for one field, same
- * convention as `modules/directores-tecnicos/domain/designacion.ts`'s local
- * `isoDate`.
+ * convention as the other module-local primitives.
  */
 export const nonNegativeDecimalString = z
   .string()

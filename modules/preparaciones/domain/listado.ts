@@ -15,6 +15,7 @@
  * plus "sin etiqueta impresa" on the Confirmadas tab.
  */
 import type { EstadoPreparacion } from "@/generated/prisma/enums";
+import { filtroFechaIso } from "@/shared/validation";
 
 /** A /preparaciones tab: the pending queue, the taken recetas (`INICIADA`, "En curso"), or the preparaciones in one estado. */
 export type PestanaPreparaciones = "PENDIENTE" | EstadoPreparacion;
@@ -47,8 +48,6 @@ function uno(valor: string | string[] | undefined): string | undefined {
   return v && v.trim().length > 0 ? v.trim() : undefined;
 }
 
-const FECHA = /^\d{4}-\d{2}-\d{2}$/;
-
 /** Anything unknown or malformed is dropped (default tab: Pendientes). */
 export function parsearFiltrosPreparaciones(params: SearchParams): FiltrosPreparaciones {
   const estadoCrudo = uno(params.estado);
@@ -60,8 +59,8 @@ export function parsearFiltrosPreparaciones(params: SearchParams): FiltrosPrepar
   return {
     estado,
     numero: numero ? numero : undefined,
-    desde: desde && FECHA.test(desde) ? desde : undefined,
-    hasta: hasta && FECHA.test(hasta) ? hasta : undefined,
+    desde: filtroFechaIso(desde),
+    hasta: filtroFechaIso(hasta),
     sinEtiquetaImpresa: estado === "CONFIRMADA" && uno(params.sinEtiqueta) === "1",
     page: Number.isFinite(page) && page >= 1 ? page : 1,
   };

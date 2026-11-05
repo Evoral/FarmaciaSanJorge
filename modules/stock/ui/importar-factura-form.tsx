@@ -598,6 +598,37 @@ export function ImportarFacturaForm({ vistaPrevia, drogas: drogasIniciales, prov
                       />
                     </div>
                   </div>
+                  {/* A PDF lote shows what the PDF read under its title; a manual lote has nothing read, so it asks for them. */}
+                  {manual ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="field">
+                        <label htmlFor={`lineas.${i}.despachoImportacion`} className="field-label">
+                          Despacho de importación<span className="font-normal text-zinc-500"> (opc.)</span>
+                        </label>
+                        <input
+                          id={`lineas.${i}.despachoImportacion`}
+                          name={`lineas.${i}.despachoImportacion`}
+                          maxLength={200}
+                          value={l.despacho ?? ""}
+                          onChange={(e) => actualizar(i, { despacho: e.target.value || null })}
+                          className="input font-mono"
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`lineas.${i}.paisOrigen`} className="field-label">
+                          País de origen<span className="font-normal text-zinc-500"> (opc.)</span>
+                        </label>
+                        <input
+                          id={`lineas.${i}.paisOrigen`}
+                          name={`lineas.${i}.paisOrigen`}
+                          maxLength={200}
+                          value={l.paisOrigen ?? ""}
+                          onChange={(e) => actualizar(i, { paisOrigen: e.target.value || null })}
+                          className="input"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
                   {/* Always computed from the form's own cantidad x precio (never the PDF's importe): a scale error shows here at once. */}
                   <p className="text-sm text-zinc-600">
                     Importe del lote:{" "}

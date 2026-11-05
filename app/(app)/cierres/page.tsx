@@ -37,6 +37,7 @@ import { Pagination } from "@/shared/ui/pagination";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { SectionTabs } from "../section-tabs";
 import { gestionDtSections } from "../nav-sections";
+import { filtroFechaIso } from "@/shared/validation";
 
 const PAGE_SIZE = 25;
 
@@ -59,7 +60,7 @@ export default async function CierresPage({ searchParams }: CierresPageProps) {
   const puedeFirmar = can(session, "cierres.firmar");
   const puedeVerReporte = can(session, "cierres.reporte");
   const puedeVerLibro = can(session, "libro.ver");
-  const firmada = params.firmada && /^[0-9a-f-]{36}$/i.test(params.firmada) ? { id: params.firmada, fecha: /^\d{4}-\d{2}-\d{2}$/.test(params.fecha ?? "") ? params.fecha! : null } : null;
+  const firmada = params.firmada && /^[0-9a-f-]{36}$/i.test(params.firmada) ? { id: params.firmada, fecha: filtroFechaIso(params.fecha) ?? null } : null;
 
   // Print order (../domain/impresion.ts): right after signing, offer the oldest unprinted sheet if it is not this one.
   const sinImprimir = firmada ? await primerCierreSinImprimir() : null;

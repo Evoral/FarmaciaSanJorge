@@ -19,6 +19,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Avatar } from "@/shared/ui/avatar";
 import { Pagination } from "@/shared/ui/pagination";
+import { filtroFechaIso } from "@/shared/validation";
 
 const PAGE_SIZE = 50;
 const BASE_HREF = "/archivo/nuevo";
@@ -32,8 +33,8 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
   if (!can(session, "archivo.lotes.gestionar")) redirect("/archivo");
 
   const params = await searchParams;
-  const periodoDesde = params.periodoDesde ?? "";
-  const periodoHasta = params.periodoHasta ?? "";
+  const periodoDesde = filtroFechaIso(params.periodoDesde) ?? "";
+  const periodoHasta = filtroFechaIso(params.periodoHasta) ?? "";
   const ubicacion = params.ubicacion ?? "";
   const periodoCompleto = periodoDesde.length > 0 && periodoHasta.length > 0 && periodoHasta >= periodoDesde;
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
@@ -51,8 +52,8 @@ export default async function ArchivoNuevoPage({ searchParams }: ArchivoNuevoPag
 
   function pageHref(targetPage: number): string {
     const qs = new URLSearchParams();
-    if (params.periodoDesde) qs.set("periodoDesde", params.periodoDesde);
-    if (params.periodoHasta) qs.set("periodoHasta", params.periodoHasta);
+    if (periodoDesde) qs.set("periodoDesde", periodoDesde);
+    if (periodoHasta) qs.set("periodoHasta", periodoHasta);
     if (params.ubicacion) qs.set("ubicacion", params.ubicacion);
     qs.set("page", String(targetPage));
     return `${BASE_HREF}?${qs.toString()}`;

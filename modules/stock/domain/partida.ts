@@ -91,9 +91,6 @@ export const potenciaDeclaradaString = z
     return parsed;
   });
 
-/** `YYYY-MM-DD`, matching migration 0008's `fecha_vencimiento date`. */
-export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha con formato AAAA-MM-DD.");
-
 /**
  * Ingreso de partida (5.1): `fecha_vencimiento` must be STRICTLY in the
  * future, relative to the tenant's jornada -- not the DB's own CHECK (there

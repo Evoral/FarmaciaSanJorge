@@ -45,6 +45,10 @@ describe("parsearFiltrosPreparaciones", () => {
     expect(parsearFiltrosPreparaciones({ estado: "OTRO", page: "-2", numero: "abc" })).toMatchObject({ estado: "PENDIENTE", page: 1, numero: undefined });
   });
 
+  it("drops a date that does not exist in the calendar and keeps the other filters", () => {
+    expect(parsearFiltrosPreparaciones({ desde: "2026-02-30", hasta: "2026-03-10" })).toMatchObject({ desde: undefined, hasta: "2026-03-10" });
+  });
+
   it("'sin etiqueta impresa' only applies on Confirmadas", () => {
     expect(parsearFiltrosPreparaciones({ estado: "DESCARTADA", sinEtiqueta: "1" }).sinEtiquetaImpresa).toBe(false);
     expect(parsearFiltrosPreparaciones({ sinEtiqueta: "1" }).sinEtiquetaImpresa).toBe(false);

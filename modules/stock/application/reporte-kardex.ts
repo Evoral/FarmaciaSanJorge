@@ -9,7 +9,7 @@
  */
 import { z } from "zod";
 import { defineQuery, defineCommand, TipoAccion } from "@/shared/usecase";
-import { uuid } from "@/shared/validation";
+import { fechaIso, uuid } from "@/shared/validation";
 import { kardexMovimientos as kardexMovimientosRepo } from "../infrastructure/partida-repository";
 import type { KardexItem } from "../infrastructure/partida-repository";
 
@@ -25,8 +25,8 @@ const exportarKardexFiltro = z.object({
   partidaId: uuid.optional(),
   drogaId: uuid.optional(),
   tipo: z.enum(TIPOS_MOVIMIENTO).optional(),
-  desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  desde: fechaIso.optional(),
+  hasta: fechaIso.optional(),
 });
 
 export type ExportarKardexFiltroInput = z.input<typeof exportarKardexFiltro>;

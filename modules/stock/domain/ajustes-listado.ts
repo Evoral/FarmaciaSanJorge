@@ -5,6 +5,7 @@
  * (treated as "no filter") instead of failing the page, same as every other
  * list page in this app.
  */
+import { filtroFechaIso } from "@/shared/validation";
 import { esMotivoAjuste, type MotivoAjuste } from "./partida";
 
 export interface FiltrosAjustes {
@@ -18,22 +19,11 @@ export interface FiltrosAjustes {
 
 export type ParamsAjustes = Partial<Record<"q" | "motivo" | "desde" | "hasta", string>>;
 
-const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-/** `true` for a real calendar date in `YYYY-MM-DD` form (rejects e.g. `2026-02-30`). */
-export function esFechaIso(value: string): boolean {
-  const match = ISO_DATE_PATTERN.exec(value);
-  if (!match) return false;
-  const [, year, month, day] = match.map(Number) as [number, number, number, number];
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
-}
-
 export function parseFiltrosAjustes(params: ParamsAjustes): FiltrosAjustes {
   const q = params.q?.trim() || undefined;
   const motivo = params.motivo && esMotivoAjuste(params.motivo) ? params.motivo : undefined;
-  const desde = params.desde && esFechaIso(params.desde) ? params.desde : undefined;
-  const hasta = params.hasta && esFechaIso(params.hasta) ? params.hasta : undefined;
+  const desde = filtroFechaIso(params.desde);
+  const hasta = filtroFechaIso(params.hasta);
   return { q, motivo, desde, hasta };
 }
 

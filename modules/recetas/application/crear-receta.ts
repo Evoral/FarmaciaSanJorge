@@ -19,7 +19,7 @@ import { z } from "zod";
 import { interpretarNumero } from "@/shared/decimal/numero-ingresado";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
-import { uuid } from "@/shared/validation";
+import { fechaIso, uuid } from "@/shared/validation";
 import {
   FORMAS_FARMACEUTICAS,
   MODOS_EXPRESION,
@@ -102,14 +102,12 @@ export const itemInput = z.object({
   componentes: z.array(componenteInput).min(1, "Cada ítem debe tener al menos un componente."),
 });
 
-export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha en formato AAAA-MM-DD.");
-
 /** Shared with editar-receta.ts, which derives its own input from it (one header + ítem shape for both screens). */
 export const crearRecetaInput = z.object({
   pacienteId: uuid,
   medicoId: uuid,
-  fechaPrescripcion: isoDate,
-  fechaValidaDesde: isoDate.optional().nullable().transform((v) => v ?? null),
+  fechaPrescripcion: fechaIso,
+  fechaValidaDesde: fechaIso.optional().nullable().transform((v) => v ?? null),
   origen: z.enum(ORIGENES_RECETA),
   diagnosticoCodigo: diagnosticoCodigoOpcional,
   diagnosticoDescripcion: textoOpcional,

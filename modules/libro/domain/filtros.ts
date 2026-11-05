@@ -5,12 +5,7 @@
  * module's list-query input does (e.g. `modules/drogas/application/list-drogas.ts`).
  */
 import { z } from "zod";
-import { uuid } from "@/shared/validation";
-
-const fechaIso = z
-  .string()
-  .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Debe tener el formato AAAA-MM-DD.");
+import { fechaIso, uuid } from "@/shared/validation";
 
 /** `bigint` correlativo, accepted as a digit string (never `number`, to avoid precision loss for very large books). */
 const numeroCorrelativo = z

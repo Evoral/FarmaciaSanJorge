@@ -15,6 +15,7 @@ import { FilterForm } from "@/shared/ui/filter-form";
 import { PageHeader } from "@/shared/ui/page-header";
 import { Pagination } from "@/shared/ui/pagination";
 import { SearchField } from "@/shared/ui/search-field";
+import { filtroFechaIso } from "@/shared/validation";
 
 const PAGE_SIZE = 20;
 
@@ -33,10 +34,6 @@ function isoToDisplay(value: string): string {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
 }
 
-/** Only well-formed dates reach the query (anything else is ignored, like an unknown estado). */
-function validIso(value: string | undefined): string {
-  return value && ISO_DATE.test(value) ? value : "";
-}
 
 export default async function EntregasPage({ searchParams }: EntregasPageProps) {
   const session = await requireSession();
@@ -45,8 +42,9 @@ export default async function EntregasPage({ searchParams }: EntregasPageProps) 
 
   const estado = estadoFiltroEntregas(params.estado);
   const numero = (params.numero ?? "").trim();
-  const ingresoDesde = validIso(params.ingresoDesde);
-  const ingresoHasta = validIso(params.ingresoHasta);
+  // Only real calendar dates reach the query (anything else is ignored, like an unknown estado).
+  const ingresoDesde = filtroFechaIso(params.ingresoDesde) ?? "";
+  const ingresoHasta = filtroFechaIso(params.ingresoHasta) ?? "";
   const active: Record<FilterParam, string> = { numero, estado: estado ?? "", ingresoDesde, ingresoHasta };
 
   const [result, fechaHoy] = await Promise.all([

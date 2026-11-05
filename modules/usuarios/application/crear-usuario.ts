@@ -42,7 +42,7 @@ import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { record as auditRecord } from "@/shared/audit";
 import { ValidationError } from "@/shared/errors";
-import { email as emailSchema, nonEmptyString } from "@/shared/validation";
+import { email as emailSchema, nonEmptyString, textoOpcional as textoOpcionalONull } from "@/shared/validation";
 import { hashPassword } from "@/modules/auth/domain/password";
 import { passwordTemporalFields, refinarPasswordTemporal } from "./password-temporal";
 import { codigoRolAsignableSchema, ROLES_VEDADOS_A_SECTOR } from "../domain/roles";
@@ -62,7 +62,7 @@ const crearUsuarioInput = z
     email: emailSchema,
     /** Required for a person. Ignored for a cuenta de sector (derived). */
     dni: textoOpcional,
-    numeroMatricula: z.string().trim().max(100).optional(),
+    numeroMatricula: textoOpcionalONull(100),
     roles: z
       .array(codigoRolAsignableSchema)
       .min(1, "Elegí al menos un rol.")

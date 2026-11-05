@@ -14,7 +14,7 @@
  */
 import { z } from "zod";
 import { defineQuery, TipoAccion } from "@/shared/usecase";
-import { uuid } from "@/shared/validation";
+import { fechaIso, uuid } from "@/shared/validation";
 import { decodeCursor } from "../domain/cursor";
 import { rangoDeJornadas } from "@/shared/time/jornada";
 import { getZonaHorariaTenant, listRegistroAuditoria as listRegistroAuditoriaRepo } from "../infrastructure/auditoria-repository";
@@ -23,8 +23,6 @@ import type { AuditoriaListResult } from "../infrastructure/auditoria-repository
 /** `zonaHoraria`: the tenant's time zone, so the page formats dates in pharmacy time, not the server's (UTC on Vercel). */
 export type ListRegistroAuditoriaResult = AuditoriaListResult & { zonaHoraria: string };
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe ser una fecha en formato AAAA-MM-DD.");
-
 const listRegistroAuditoriaInput = z
   .object({
     entidad: z.string().trim().min(1).max(100).optional(),
@@ -32,8 +30,8 @@ const listRegistroAuditoriaInput = z
     usuarioId: uuid.optional(),
     accion: z.nativeEnum(TipoAccion).optional(),
     /** Calendar days (YYYY-MM-DD) in the tenant's time zone, both inclusive. */
-    desde: isoDate.optional(),
-    hasta: isoDate.optional(),
+    desde: fechaIso.optional(),
+    hasta: fechaIso.optional(),
     cursor: z.string().min(1).optional(),
     pageSize: z.number().int().min(1).max(100).default(50),
   })

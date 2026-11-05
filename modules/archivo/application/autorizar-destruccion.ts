@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import type { ExecuteOptions } from "@/shared/usecase";
+import { fechaIso } from "@/shared/validation";
 import { DomainError, NotFoundError, InvariantViolationError, mapDbError } from "@/shared/errors";
 import { puedeAutorizarDestruccion, validarAutorizacionDestruccion } from "../domain/lote-archivo";
 import { mensajeParaInvarianteArchivo } from "../domain/mensajes-invariantes";
@@ -16,7 +17,7 @@ import { verificarPasswordDestruccionCommand } from "./verificar-password-destru
 const autorizarDestruccionInternalInput = z.object({
   id: z.string().uuid(),
   expedienteAutorizacion: z.string().trim().min(1, "El número de expediente es obligatorio.").max(200),
-  fechaAutorizacion: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Debe tener el formato AAAA-MM-DD."),
+  fechaAutorizacion: fechaIso,
 });
 
 export interface AutorizarDestruccionInput {

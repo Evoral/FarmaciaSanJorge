@@ -10,7 +10,7 @@
  * clear Spanish messages and for the UI.
  */
 import { z } from "zod";
-import { isoDate } from "./partida";
+import { fechaIso } from "@/shared/validation";
 
 export type EstadoVencimientoPartida = "NO_VENCE" | "VIGENTE" | "POR_VENCER" | "VENCIDA";
 
@@ -129,7 +129,7 @@ const textoOpcional = (max: number) =>
 
 /** Reanálisis fields (the DT's password travels apart, never through this schema). */
 export const reanalisisCampos = z.object({
-  fechaReanalisis: isoDate,
+  fechaReanalisis: fechaIso,
   motivo: textoOpcional(500),
   respaldo: textoOpcional(200),
 });

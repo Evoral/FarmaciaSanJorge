@@ -7,6 +7,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { formatMatricula, jurisdiccionMatricula, matriculaString, normalizarMatricula } from "@/modules/medicos/domain/medico";
+import { crearMedicoInput } from "@/modules/medicos/application/crear-medico";
 
 describe("normalizarMatricula", () => {
   it("trims leading/trailing whitespace", () => {
@@ -55,5 +56,20 @@ describe("jurisdiccionMatricula (DP-23, migration 0049)", () => {
   it("formatMatricula uses the MP/MN shorthand", () => {
     expect(formatMatricula("PROVINCIAL", "1234")).toBe("MP 1234");
     expect(formatMatricula("NACIONAL", "98765")).toBe("MN 98765");
+  });
+});
+
+describe("crearMedicoInput: optional text", () => {
+  const base = { nombre: "Ana", apellido: "Pérez", matricula: "1234", matriculaJurisdiccion: "PROVINCIAL" as const };
+
+  it("stores null for null, empty and missing especialidad / telefono / direccionRegistrada", () => {
+    const vacios = crearMedicoInput.parse({ ...base, especialidad: null, telefono: "", direccionRegistrada: undefined });
+    expect(vacios.especialidad).toBeNull();
+    expect(vacios.telefono).toBeNull();
+    expect(vacios.direccionRegistrada).toBeNull();
+  });
+
+  it("keeps trimmed text", () => {
+    expect(crearMedicoInput.parse({ ...base, telefono: "  261 555 0000 " }).telefono).toBe("261 555 0000");
   });
 });

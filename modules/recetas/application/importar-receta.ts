@@ -49,7 +49,7 @@ import type { AuthenticatedSession } from "@/shared/auth/session";
 import type { Prisma } from "@/generated/prisma/client";
 import { record as auditRecord } from "@/shared/audit";
 import { ConflictError, DomainError, ValidationError } from "@/shared/errors";
-import { uuid } from "@/shared/validation";
+import { fechaIso, uuid } from "@/shared/validation";
 import { crearPacienteHandler, crearPacienteInput } from "@/modules/pacientes/application/crear-paciente";
 import { crearMedicoHandler, crearMedicoInput } from "@/modules/medicos/application/crear-medico";
 import { diagnosticoCodigoOpcional, domicilioPacienteOpcional, esFechaPrescripcionValida, esFechaPrescripcionVigente, esFechaValidaDesdeVigente, conUnidadBaseEnPorcentajes, resumirItemsReceta, validarConcentracionesReceta, validarCorduraConcentraciones, validarItemsReceta, validarOrigenHabilitado } from "../domain/receta";
@@ -80,7 +80,7 @@ import {
   getDrogaAlias,
   insertDrogaAlias,
 } from "../infrastructure/importacion-repository";
-import { isoDate, itemInput, textoOpcional } from "./crear-receta";
+import { itemInput, textoOpcional } from "./crear-receta";
 
 const urlVerificacionOpcional = z
   .string()
@@ -97,8 +97,8 @@ export const importarRecetaInput = z
     fuente: z.enum(FUENTES_IMPORTACION).default("PDF"),
     nroRecetaEmisor: z.string().trim().regex(/^\d{10,}$/, "Debe ser el número de receta del emisor (solo dígitos, al menos 10)."),
     urlVerificacion: urlVerificacionOpcional,
-    fechaPrescripcion: isoDate,
-    fechaValidaDesde: isoDate.optional().nullable().transform((v) => v ?? null),
+    fechaPrescripcion: fechaIso,
+    fechaValidaDesde: fechaIso.optional().nullable().transform((v) => v ?? null),
     diagnosticoCodigo: diagnosticoCodigoOpcional,
     diagnosticoDescripcion: textoOpcional,
     /** The patient's domicilio as printed on the receta (migration 0070) -- stored on the receta, never on the paciente. */

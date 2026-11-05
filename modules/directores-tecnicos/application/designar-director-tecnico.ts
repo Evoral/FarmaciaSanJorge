@@ -40,8 +40,8 @@
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, NotFoundError } from "@/shared/errors";
-import { uuid, nonEmptyString } from "@/shared/validation";
-import { CARACTERES_DESIGNACION, isoDate } from "../domain/designacion";
+import { fechaIso, uuid, nonEmptyString } from "@/shared/validation";
+import { CARACTERES_DESIGNACION } from "../domain/designacion";
 import { insertDesignacion, getUsuarioParaDesignar } from "../infrastructure/designacion-repository";
 
 /** Exported for tests/unit/directores-tecnicos-validacion.test.ts -- same convention as modules/farmacia/application/editar-datos-tenant.ts's `editarDatosTenantInput`. */
@@ -50,7 +50,7 @@ export const designarDirectorTecnicoInput = z.object({
   caracter: z.enum(CARACTERES_DESIGNACION),
   matricula: nonEmptyString,
   expedienteDesignacion: z.string().trim().max(200).optional(),
-  vigenteDesde: isoDate,
+  vigenteDesde: fechaIso,
 });
 
 export type DesignarDirectorTecnicoInput = z.infer<typeof designarDirectorTecnicoInput>;
