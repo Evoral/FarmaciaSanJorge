@@ -50,6 +50,18 @@ describe("mapDbError", () => {
     expect(mapped).toBeInstanceOf(AppError);
     expect(mapped.code).toBe("INTERNAL_ERROR");
   });
+
+  it("maps TN001 (query outside withTenantTransaction) to INTERNAL_ERROR and not InvariantViolationError", () => {
+    const pgError = {
+      code: "P2010",
+      message:
+        "Raw query failed. Code: `TN001`. Message: `fsj: app.tenant_id is not set (query outside withTenantTransaction)`",
+    };
+    const mapped = mapDbError(pgError);
+    expect(mapped).toBeInstanceOf(AppError);
+    expect(mapped).not.toBeInstanceOf(InvariantViolationError);
+    expect(mapped.code).toBe("INTERNAL_ERROR");
+  });
 });
 
 describe("toSafeError", () => {
@@ -79,5 +91,19 @@ describe("toSafeError", () => {
   it("always includes the request id for support correlation", () => {
     const safe = toSafeError(new Error("anything"), "req-abc");
     expect(safe.requestId).toBe("req-abc");
+  });
+
+  it("never leaks the raw TN001 message for a query outside withTenantTransaction", () => {
+    const raw = {
+      code: "P2010",
+      message:
+        "Raw query failed. Code: `TN001`. Message: `fsj: app.tenant_id is not set (query outside withTenantTransaction)`",
+    };
+    const safe = toSafeError(raw, "req-tn001");
+    expect(safe.code).toBe("INTERNAL_ERROR");
+    expect(safe.message).not.toContain("TN001");
+    expect(safe.message).not.toContain("tenant_id");
+    expect(safe.message).not.toContain("withTenantTransaction");
+    expect(safe.requestId).toBe("req-tn001");
   });
 });
