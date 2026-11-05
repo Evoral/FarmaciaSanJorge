@@ -158,6 +158,8 @@ Pendientes que la parte 1 derivó a esta:
 - Respuestas de error: no deben revelar stack traces, SQL ni datos de otros tenants.
 ```
 
+> Nota posterior (2026-11-05): desde la migración 0119 `fsj.tenant` tiene RLS (P1-02) y desde la 0122 una consulta sin `app.tenant_id` falla con `TN001` en lugar de devolver cero filas (P1-09). El texto de arriba refleja el estado al momento de la auditoría.
+
 ---
 
 ## Parte 3 — Integridad del dominio, transacciones y concurrencia

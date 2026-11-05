@@ -230,7 +230,7 @@ La auditoría se escribe **dentro de la misma transacción** que la operación.
 
 **Multi-tenant [DECISIÓN DEL USUARIO: se mantiene]** — diseño **[PROPUESTA TÉCNICA]**:
 - Tabla `tenant` (campos del diagrama). **Todas** las tablas de negocio llevan `tenant_id uuid NOT NULL`, incluidas las hijas que en el diagrama no lo tienen (Partida, ItemReceta, MovimientoStock, AsientoContralor, etc.). Motivo: INV-T02 solo se garantiza en BD con **FK compuestas** `(tenant_id, x_id) → padre(tenant_id, id)`, que exigen la columna en la hija. Cada tabla con `UNIQUE (tenant_id, id)`.
-- **INV-T01 [BD]**: Row Level Security (RLS) en todas las tablas de negocio con política `tenant_id = current_setting('app.tenant_id')::uuid`; `fsj_app` **sin** `BYPASSRLS`; `withTransaction` hace `SET LOCAL app.tenant_id` con el tenant **de la sesión** (nunca del input). Sin tenant seteado ⇒ la consulta no devuelve filas y el INSERT falla.
+- **INV-T01 [BD]**: Row Level Security (RLS) en todas las tablas de negocio con política `tenant_id = current_setting('app.tenant_id')::uuid`; `fsj_app` **sin** `BYPASSRLS`; `withTransaction` hace `SET LOCAL app.tenant_id` con el tenant **de la sesión** (nunca del input). Sin tenant seteado ⇒ la consulta falla con SQLSTATE `TN001` (migración 0122; antes devolvía cero filas).
 - **INV-T02 [BD]**: FK compuestas en toda relación entre entidades de negocio.
 - **INV-T03 [BD]**: trigger genérico `BEFORE UPDATE` que rechaza cambios de `tenant_id`; `fsj_app` sin UPDATE sobre la columna.
 - Catálogos **globales** (sin tenant, solo lectura para `fsj_app`): `rol`, `permiso`, `rol_permiso`. `unidad_medida`: DP-39 (global vs por tenant).
