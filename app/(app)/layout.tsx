@@ -26,6 +26,7 @@ import { getMarcaTenant, type MarcaTenantVista } from "@/modules/farmacia/applic
 import { getLogger } from "@/shared/logging/logger";
 import { OperadorProvider } from "@/modules/operadores/ui/operador-provider";
 import { AppShell } from "./app-shell";
+import { ayudaConfigurada } from "@/modules/ayuda/application/ayuda-configurada";
 import { SIDEBAR_COLLAPSED_COOKIE } from "./sidebar-state";
 import { accesosSections, catalogosSections, configuracionSections, firstSectionHref, gestionDtSections } from "./nav-sections";
 
@@ -262,8 +263,10 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
     });
   }
 
+  const ayudaDisponible = can(session, "ayuda.consultar") && ayudaConfigurada();
   const shell = (
     <AppShell
+      ayudaDisponible={ayudaDisponible}
       initialCollapsed={sidebarCollapsed}
       idleMinutes={session.sector ? AUTH_POLICY.sessionIdleMinutesSector : AUTH_POLICY.sessionIdleMinutes}
       nav={{

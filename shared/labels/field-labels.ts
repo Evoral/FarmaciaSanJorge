@@ -88,6 +88,9 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   drogaId: "Droga",
   drogaIds: "Drogas",
   dtUsuarioId: "Director Técnico",
+  consultaId: "Consulta de ayuda",
+  conversacionId: "Conversación",
+  entradaId: "Entrada de la guía",
   etiquetaId: "Etiqueta",
   tamanoId: "Tamaño de etiqueta",
   fichaTecnicaId: "Ficha técnica",
@@ -245,6 +248,15 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   motivoDemoraDetalle: "Detalle de la demora",
   observacion: "Observación",
   observaciones: "Observaciones",
+
+  // Chat de ayuda (CA1–CA14).
+  pregunta: "Pregunta",
+  respuesta: "Respuesta",
+  historial: "Historial",
+  contenido: "Contenido",
+  foco: "Entrada en foco",
+  resultado: "Resultado",
+  util: "Calificación útil",
 
   // List filters, pagination and report exports.
   accion: "Acción",

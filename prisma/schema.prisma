@@ -2002,3 +2002,22 @@ model EtiquetaHoja {
   @@map("etiqueta_hoja")
   @@schema("fsj")
 }
+
+/// Tenant-scoped (migration 0109, openspec/changes/chat-ayuda/design.md): help chat interaction log. Platform owner reviews via SQL; no in-app list use case. Append-only for fsj_app except for rating update on `util`. No relation declared (the FKs to fsj.tenant and fsj.usuario live in the DB, like EtiquetaHoja).
+model ConsultaAyuda {
+  id             String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  usuarioId      String   @map("usuario_id") @db.Uuid
+  conversacionId String   @map("conversacion_id") @db.Uuid
+  pregunta       String
+  respuesta      String?
+  entradaId      String?  @map("entrada_id")
+  resultado      String
+  util           Boolean?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, createdAt])
+  @@map("consulta_ayuda")
+  @@schema("fsj")
+}

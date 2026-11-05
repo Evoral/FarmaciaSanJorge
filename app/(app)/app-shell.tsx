@@ -13,6 +13,7 @@ import { useState } from "react";
 import { SidebarNav, type SidebarNavProps } from "./sidebar-nav";
 import { SIDEBAR_COLLAPSED_COOKIE } from "./sidebar-state";
 import { VigilanteInactividad } from "./vigilante-inactividad";
+import { ChatAyudaContainer } from "@/modules/ayuda/ui/chat-ayuda-container";
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
@@ -20,12 +21,14 @@ export function AppShell({
   nav,
   initialCollapsed,
   idleMinutes,
+  ayudaDisponible = false,
   children,
 }: {
   nav: Omit<SidebarNavProps, "collapsed" | "onCollapsedChange">;
   initialCollapsed: boolean;
   /** The session's idle timeout (longer for a cuenta de sector), for `VigilanteInactividad`. */
   idleMinutes: number;
+  ayudaDisponible?: boolean;
   children: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
@@ -42,6 +45,7 @@ export function AppShell({
       <VigilanteInactividad idleMinutes={idleMinutes} />
       <SidebarNav {...nav} collapsed={collapsed} onCollapsedChange={changeCollapsed} />
       {children}
+      {ayudaDisponible ? <ChatAyudaContainer /> : null}
     </div>
   );
 }
