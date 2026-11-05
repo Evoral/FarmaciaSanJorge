@@ -217,6 +217,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   formulaTexto: "Fórmula",
   lineas: "Líneas",
   lote: "Lote",
+  factura: "Nº de factura",
   modalidad: "Modalidad",
   numeroValeAdquisicion: "Nº de vale de adquisición",
   ubicacion: "Ubicación",
