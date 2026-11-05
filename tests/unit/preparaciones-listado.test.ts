@@ -148,7 +148,7 @@ describe("listPreparaciones (repository): filters in the query", () => {
     expect(args.where.AND).toEqual([
       {
         tenantId: "t1",
-        fichaTecnica: { itemReceta: { receta: { numeroInterno: BigInt(12) } } },
+        fichaTecnica: { itemReceta: { receta: { AND: [{ numeroInterno: BigInt(12) }] } } },
         // 00:00 in Mendoza (UTC-3) = 03:00 UTC; "hasta" is exclusive at the next day's start.
         iniciadaEn: { gte: new Date("2026-09-01T03:00:00.000Z"), lt: new Date("2026-10-01T03:00:00.000Z") },
       },

@@ -267,6 +267,8 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   etiquetaConExcipientes: "Etiqueta con excipientes",
   ingresoDesde: "Ingreso desde",
   ingresoHasta: "Ingreso hasta",
+  prescripcionDesde: "Prescripción desde",
+  prescripcionHasta: "Prescripción hasta",
   numeroDesde: "Nº desde",
   numeroHasta: "Nº hasta",
   orden: "Ordenar por",
