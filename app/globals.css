@@ -949,18 +949,36 @@
     animation: spin 700ms linear infinite;
   }
 
-  /* Page header. */
+  /* Page header: laid out by its own width (the main column), not the viewport. */
+  .page-header-wrap {
+    container-type: inline-size;
+    margin-bottom: 1.5rem;
+  }
   .page-header {
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    margin-bottom: 1.5rem;
   }
-  @media (min-width: 768px) {
+  .page-header-actions {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  @container (min-width: 40rem) {
     .page-header {
       flex-direction: row;
       align-items: flex-end;
       justify-content: space-between;
+    }
+  }
+  /* Two or more actions on a narrow header: compact buttons that sit side by side. */
+  @container (max-width: 47.99rem) {
+    .page-header-actions:has(> .btn ~ .btn) > .btn {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+      line-height: 1rem;
     }
   }
   .breadcrumbs ol {
