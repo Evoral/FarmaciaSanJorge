@@ -10,12 +10,12 @@ function panelClass(html: string): string {
 
 describe("FilterPopover align", () => {
   it("opens from the trigger's left edge by default", () => {
-    const html = renderToStaticMarkup(createElement(FilterPopover, { label: "Filtros" }, "x"));
+    const html = renderToStaticMarkup(createElement(FilterPopover, { label: "Filtros", children: "x" }));
     expect(panelClass(html)).toBe("popover filter-popover-panel");
   });
 
   it('opens from the right edge with align="end"', () => {
-    const html = renderToStaticMarkup(createElement(FilterPopover, { label: "Filtros", align: "end" }, "x"));
+    const html = renderToStaticMarkup(createElement(FilterPopover, { label: "Filtros", align: "end", children: "x" }));
     expect(panelClass(html)).toBe("popover filter-popover-panel right-0 left-auto");
   });
 });
