@@ -7,7 +7,7 @@
  * across unknown-email / wrong-password / inactive-user / locked-user, so
  * a caller can never learn which one happened.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const resolveLoginByEmailMock = vi.fn(async (...args: unknown[]): Promise<unknown> => {
   void args;
@@ -72,6 +72,7 @@ const TENANT_ID = "11111111-1111-1111-1111-111111111111";
 const USUARIO_ID = "22222222-2222-2222-2222-222222222222";
 
 beforeEach(() => {
+  vi.useFakeTimers();
   resolveLoginByEmailMock.mockReset();
   recordLoginSuccessMock.mockClear();
   recordLoginFailureMock.mockClear();
@@ -82,10 +83,16 @@ beforeEach(() => {
   withTenantTransactionMock.mockClear();
 });
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe("login: error-message uniformity (FASE 2 point 2.2 -- no enumeration vector)", () => {
   it("unknown email returns the generic message", async () => {
     resolveLoginByEmailMock.mockResolvedValue(null);
-    const result = await login("nobody@example.com", "whatever", null, null);
+    const p = login("nobody@example.com", "whatever", null, null);
+    await vi.runAllTimersAsync();
+    const result = await p;
     expect(result).toEqual({ ok: false, message: GENERIC_LOGIN_ERROR });
   });
 
@@ -99,7 +106,9 @@ describe("login: error-message uniformity (FASE 2 point 2.2 -- no enumeration ve
       bloqueadoHasta: null,
     });
     verifyPasswordMock.mockResolvedValue(false);
-    const result = await login("user@example.com", "wrong", null, null);
+    const p = login("user@example.com", "wrong", null, null);
+    await vi.runAllTimersAsync();
+    const result = await p;
     expect(result).toEqual({ ok: false, message: GENERIC_LOGIN_ERROR });
   });
 
@@ -113,7 +122,9 @@ describe("login: error-message uniformity (FASE 2 point 2.2 -- no enumeration ve
       bloqueadoHasta: null,
     });
     verifyPasswordMock.mockResolvedValue(true);
-    const result = await login("user@example.com", "correct", null, null);
+    const p = login("user@example.com", "correct", null, null);
+    await vi.runAllTimersAsync();
+    const result = await p;
     expect(result).toEqual({ ok: false, message: GENERIC_LOGIN_ERROR });
   });
 
@@ -127,7 +138,9 @@ describe("login: error-message uniformity (FASE 2 point 2.2 -- no enumeration ve
       bloqueadoHasta: new Date(Date.now() + 60_000),
     });
     verifyPasswordMock.mockResolvedValue(true);
-    const result = await login("user@example.com", "correct", null, null);
+    const p = login("user@example.com", "correct", null, null);
+    await vi.runAllTimersAsync();
+    const result = await p;
     expect(result).toEqual({ ok: false, message: GENERIC_LOGIN_ERROR });
   });
 });
@@ -135,7 +148,9 @@ describe("login: error-message uniformity (FASE 2 point 2.2 -- no enumeration ve
 describe("login: verifyPassword is ALWAYS called, even for an unknown email (timing defense)", () => {
   it("calls verifyPassword(null, password) for an unknown email", async () => {
     resolveLoginByEmailMock.mockResolvedValue(null);
-    await login("nobody@example.com", "whatever", null, null);
+    const p = login("nobody@example.com", "whatever", null, null);
+    await vi.runAllTimersAsync();
+    await p;
     expect(verifyPasswordMock).toHaveBeenCalledWith(null, "whatever");
   });
 });
@@ -208,7 +223,9 @@ describe("login: first pending step (openspec/specs/contrasena-temporal/spec.md)
     resolveLoginByEmailMock.mockResolvedValue(candidate);
     verifyPasswordMock.mockResolvedValue(false);
 
-    const result = await login("user@example.com", "wrong", null, null);
+    const p = login("user@example.com", "wrong", null, null);
+    await vi.runAllTimersAsync();
+    const result = await p;
 
     expect(result).toEqual({ ok: false, message: GENERIC_LOGIN_ERROR });
     expect(loadPasosPendientesMock).not.toHaveBeenCalled();
@@ -228,7 +245,9 @@ describe("login: lockout bookkeeping", () => {
     verifyPasswordMock.mockResolvedValue(false);
     recordLoginFailureMock.mockResolvedValueOnce(2);
 
-    await login("user@example.com", "wrong", null, null);
+    const p = login("user@example.com", "wrong", null, null);
+    await vi.runAllTimersAsync();
+    await p;
 
     expect(recordLoginFailureMock).toHaveBeenCalledWith(lastFakeTx, USUARIO_ID, { maxIntentos: 5, bloqueadoHasta: expect.any(Date) });
     expect(auditRecordMock).not.toHaveBeenCalled();
@@ -247,7 +266,9 @@ describe("login: lockout bookkeeping", () => {
     // The counter is incremented in SQL; the repository returns the new value.
     recordLoginFailureMock.mockResolvedValueOnce(5);
 
-    await login("user@example.com", "wrong", null, null);
+    const p = login("user@example.com", "wrong", null, null);
+    await vi.runAllTimersAsync();
+    await p;
 
     expect(recordLoginFailureMock).toHaveBeenCalledWith(lastFakeTx, USUARIO_ID, { maxIntentos: 5, bloqueadoHasta: expect.any(Date) });
     expect(auditRecordMock).toHaveBeenCalledTimes(1);
@@ -272,7 +293,9 @@ describe("login: lockout bookkeeping", () => {
     });
     verifyPasswordMock.mockResolvedValue(false);
 
-    await login("user@example.com", "wrong", null, null);
+    const p = login("user@example.com", "wrong", null, null);
+    await vi.runAllTimersAsync();
+    await p;
 
     expect(recordLoginFailureMock).not.toHaveBeenCalled();
   });

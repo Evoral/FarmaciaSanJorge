@@ -9,7 +9,7 @@
  * code path that consulted a PIN, these tests would fail with that thrown
  * error instead of the expected result.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 
 vi.mock("@/shared/audit", () => ({
@@ -116,10 +116,15 @@ const operadorSession: AuthenticatedSession = {
 };
 
 beforeEach(() => {
+  vi.useFakeTimers();
   verifyPasswordMock.mockReset().mockResolvedValue(false);
   resolveLoginByEmailMock.mockReset();
   resolveDtCandidatoMock.mockReset();
   recordCoFirmaFailureMock.mockClear();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("login() never reads a PIN, even from a candidate row that has one attached", () => {
@@ -129,7 +134,9 @@ describe("login() never reads a PIN, even from a candidate row that has one atta
     );
     verifyPasswordMock.mockResolvedValue(false);
     // "4829" looks exactly like a valid PIN -- login() must treat it as an ordinary wrong password, never consult pin_hash.
-    const result = await login("user@example.com", "4829", null, null);
+    const p = login("user@example.com", "4829", null, null);
+    await vi.runAllTimersAsync();
+    const result = await p;
     expect(result.ok).toBe(false);
   });
 
