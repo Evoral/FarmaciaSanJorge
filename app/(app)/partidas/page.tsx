@@ -3,7 +3,7 @@
  * tenant across all drogas (insumos included), agotadas included -- a history
  * to find a lote, its proveedor and its estado. Newest ingreso first.
  * Filters, all in the URL: droga (autocomplete, `drogaId`), lote (`q`),
- * proveedor (`proveedorId`), fecha de ingreso (`desde`/`hasta`), "Solo con
+ * proveedor (`proveedorId`), N° factura of an imported invoice (`factura`), fecha de ingreso (`desde`/`hasta`), "Solo con
  * saldo" (`saldo=1`), "Solo vencidas" (`vencidas=1`), "Solo elaborados"
  * (`elaborados=1`, lots elaborated in the farmacia, openspec/changes/lotes-elaborados); `unidades=base` is the
  * same display option as `/stock`'s "Unificar unidades".
@@ -26,9 +26,8 @@ import { formatCantidadesFila, formatNumero, type ModoCantidad } from "@/shared/
 import { formatFecha } from "@/shared/format/fecha";
 import { Cantidad } from "@/shared/ui/cantidad";
 import { DateInput } from "@/shared/ui/date-input";
-import { FilterDrawer } from "@/shared/ui/filter-drawer";
+import { FilterDrawer, FilterPopover } from "@/shared/ui/filter-drawer";
 import { FilterForm } from "@/shared/ui/filter-form";
-import { FilterMultiSelect } from "@/shared/ui/filter-multi-select";
 import { SearchField } from "@/shared/ui/search-field";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
@@ -46,6 +45,7 @@ interface HistorialPartidasPageProps {
     drogaId?: string;
     proveedorId?: string;
     q?: string;
+    factura?: string;
     desde?: string;
     hasta?: string;
     saldo?: string;
@@ -58,6 +58,12 @@ interface HistorialPartidasPageProps {
 
 const numberFormat = new Intl.NumberFormat("es-AR");
 
+const FILTROS_PARTIDAS = [
+  { name: "saldo", label: "Solo con saldo" },
+  { name: "vencidas", label: "Solo vencidas" },
+  { name: "elaborados", label: "Solo elaborados en la farmacia" },
+] as const;
+
 export default async function HistorialPartidasPage({ searchParams }: HistorialPartidasPageProps) {
   const session = await requireSession();
   const puedeIngresar = can(session, "stock.partida.ingresar");
@@ -66,6 +72,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
   const drogaId = params.drogaId && UUID_PATTERN.test(params.drogaId) ? params.drogaId : "";
   const proveedorId = params.proveedorId && UUID_PATTERN.test(params.proveedorId) ? params.proveedorId : "";
   const q = params.q?.trim().slice(0, 100) ?? "";
+  const factura = params.factura?.trim().slice(0, 40) ?? "";
   const desde = params.desde && esFechaIso(params.desde) ? params.desde : "";
   const hasta = params.hasta && esFechaIso(params.hasta) ? params.hasta : "";
   const soloConSaldo = params.saldo === "1";
@@ -81,6 +88,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
       drogaId: drogaId || undefined,
       proveedorId: proveedorId || undefined,
       lote: q || undefined,
+      factura: factura || undefined,
       // An inverted range is dropped (the alert below explains it) so the page still lists something.
       desde: rangoInvalido ? undefined : desde || undefined,
       hasta: rangoInvalido ? undefined : hasta || undefined,
@@ -98,6 +106,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
     const qs = new URLSearchParams();
     if (drogaId) qs.set("drogaId", drogaId);
     if (q) qs.set("q", q);
+    if (factura) qs.set("factura", factura);
     if (proveedorId) qs.set("proveedorId", proveedorId);
     if (desde) qs.set("desde", desde);
     if (hasta) qs.set("hasta", hasta);
@@ -115,7 +124,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
 
   const filtrosHref = query() ? `${BASE_PATH}?${query()}` : BASE_PATH;
   const drogaFiltrada = drogaId ? { id: drogaId, nombre: result.droga?.nombre ?? "Droga seleccionada" } : null;
-  const hayFiltrosForm = Boolean(q || proveedorId || desde || hasta || soloConSaldo || soloVencidas || soloElaboradas);
+  const hayFiltrosForm = Boolean(q || factura || proveedorId || desde || hasta || soloConSaldo || soloVencidas || soloElaboradas);
   const hayFiltros = hayFiltrosForm || Boolean(drogaId);
 
   return (
@@ -141,28 +150,32 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
         }
       />
 
-      <section aria-label="Filtros" className="mb-4">
-        <div className="filter-bar">
-          <div className="w-full min-w-0 md:w-80 md:flex-none">
+      <section aria-label="Filtros" className="@container mb-4">
+        <FilterForm className="filter-bar" aria-label="Filtros de partidas" hasActiveFilters={hayFiltrosForm}>
+          {/* The droga is chosen in the autocomplete (outside the form's own fields): keep it while the other filters change. */}
+          <input type="hidden" name="drogaId" value={drogaId} />
+          <div className="min-w-0 flex-1 basis-44 @3xl:w-80 @3xl:flex-none @3xl:basis-auto">
             <KardexDrogaFiltro href={filtrosHref} seleccion={drogaFiltrada} />
           </div>
-          <FilterForm className="flex w-full min-w-0 flex-wrap items-center gap-2.5 md:w-auto md:flex-1 md:items-end md:gap-3" aria-label="Filtros de partidas" hasActiveFilters={hayFiltrosForm}>
-            {/* The droga is chosen in the autocomplete; this keeps it while the other filters change. */}
-            <input type="hidden" name="drogaId" value={drogaId} />
-            <SearchField id="q" name="q" label="Lote" hideLabel defaultValue={q} placeholder="Buscar lote" className="min-w-[11rem] flex-1 md:w-56 md:flex-none" />
-            <FilterDrawer activeCount={(proveedorId ? 1 : 0) + (desde ? 1 : 0) + (hasta ? 1 : 0) + (soloConSaldo ? 1 : 0) + (soloVencidas ? 1 : 0) + (soloElaboradas ? 1 : 0)}>
-              <div className="field">
-                <label htmlFor="proveedorId" className="field-label">
-                  Proveedor
-                </label>
-                <select id="proveedorId" name="proveedorId" defaultValue={proveedorId} className="input">
-                  <option value="">Todos</option>
-                  {result.proveedores.map((proveedor) => (
-                    <option key={proveedor.id} value={proveedor.id}>
-                      {proveedor.razonSocial}
-                    </option>
-                  ))}
-                </select>
+          {/* One "Filtros" place: a popover on wide screens, the bottom sheet on phones. */}
+          <FilterDrawer activeCount={(proveedorId ? 1 : 0) + (factura ? 1 : 0) + (desde ? 1 : 0) + (hasta ? 1 : 0) + (soloConSaldo ? 1 : 0) + (soloVencidas ? 1 : 0) + (soloElaboradas ? 1 : 0)}>
+            <FilterPopover label="Filtros" align="end" activeCount={(proveedorId ? 1 : 0) + (factura ? 1 : 0) + (desde ? 1 : 0) + (hasta ? 1 : 0) + (soloConSaldo ? 1 : 0) + (soloVencidas ? 1 : 0) + (soloElaboradas ? 1 : 0)}>
+              {/* The invoice number sits beside the proveedor: together they find what came in one delivery. */}
+              <div className="flex items-end gap-2">
+                <div className="field min-w-0 flex-1">
+                  <label htmlFor="proveedorId" className="field-label">
+                    Proveedor
+                  </label>
+                  <select id="proveedorId" name="proveedorId" defaultValue={proveedorId} className="input w-full min-w-0 truncate">
+                    <option value="">Todos</option>
+                    {result.proveedores.map((proveedor) => (
+                      <option key={proveedor.id} value={proveedor.id}>
+                        {proveedor.razonSocial}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <SearchField id="factura" name="factura" label="N° factura" hideLabel defaultValue={factura} placeholder="N° factura" className="min-w-0 flex-1" />
               </div>
               <div className="field">
                 <span id="fecha-ingreso-label" className="field-label">
@@ -182,20 +195,23 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
                   <DateInput id="hasta" name="hasta" defaultValue={hasta} />
                 </div>
               </div>
-              <FilterMultiSelect
-                options={[
-                  { name: "saldo", label: "Solo con saldo", checked: soloConSaldo },
-                  { name: "vencidas", label: "Solo vencidas", checked: soloVencidas },
-                  { name: "elaborados", label: "Solo elaborados en la farmacia", checked: soloElaboradas },
-                ]}
-              />
-              <label className="toggle-switch">
-                <input type="checkbox" role="switch" name="unidades" value="base" defaultChecked={modo === "base"} data-preserve-on-clear="" />
-                Unificar unidades
-              </label>
-            </FilterDrawer>
-          </FilterForm>
-        </div>
+              <fieldset className="field">
+                <legend className="field-label mb-1.5">Mostrar</legend>
+                {FILTROS_PARTIDAS.map((filtro) => (
+                  <label key={filtro.name} className="filter-select-option">
+                    <input type="checkbox" name={filtro.name} value="1" defaultChecked={params[filtro.name] === "1"} />
+                    {filtro.label}
+                  </label>
+                ))}
+              </fieldset>
+            </FilterPopover>
+          </FilterDrawer>
+          <SearchField id="q" name="q" label="Lote" hideLabel defaultValue={q} placeholder="Buscar lote" className="min-w-0 flex-1 basis-44 @3xl:w-56 @3xl:flex-none @3xl:basis-auto" />
+          <label className="toggle-switch">
+            <input type="checkbox" role="switch" name="unidades" value="base" defaultChecked={modo === "base"} data-preserve-on-clear="" />
+            Unificar unidades
+          </label>
+        </FilterForm>
       </section>
 
       {rangoInvalido ? (
