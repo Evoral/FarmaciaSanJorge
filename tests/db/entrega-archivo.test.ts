@@ -153,7 +153,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0016_entrega_archivo migration (fs
     );
   });
 
-  it("fsj_app has no DELETE grant on entrega/lote_archivo_recetas", async () => {
+  it("fsj.entrega DELETE is guarded by INV-ENT-004 (0086) and lote_archivo_recetas has no DELETE grant", async () => {
     await asOwner((client) =>
       inRollbackTx(client, async (tx) => {
         const { tenantId, sistema, recetaId } = await seedReceta(tx, "nodelete");
@@ -166,7 +166,7 @@ describe.skipIf(dbTestSkipReason() !== null)("0016_entrega_archivo migration (fs
 
         await tx.query("SET LOCAL ROLE fsj_app");
         await tx.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
-        await expectDbRejection(tx, () => tx.query(`DELETE FROM fsj.entrega WHERE id = $1`, [entrega.rows[0].id]), "42501");
+        await expectInvariantViolation(tx, () => tx.query(`DELETE FROM fsj.entrega WHERE id = $1`, [entrega.rows[0].id]), "INV-ENT-004");
         await expectDbRejection(tx, () => tx.query(`DELETE FROM fsj.lote_archivo_recetas WHERE id = $1`, [loteId]), "42501");
       }),
     );
