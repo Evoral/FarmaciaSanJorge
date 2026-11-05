@@ -58,7 +58,7 @@ P1-02, P1-09, P1-10, P1-11, P2-01, P2-02 (configuración), P2-03, P4-04, P5-01b,
    - T3-03: orden de locks con excipiente;
    - T1-01: `cierre_diario_firmar` con otro tenant;
    - TRUNCATE rechazado.
-3. P1-10, índices de las FK que usa el código:
+3. ~~P1-10, índices de las FK que usa el código~~. Resuelto en la migración 0121 tras revisar cada FK contra las consultas reales (código y triggers): 9 índices, incluidos los asientos pendientes y los asientos por fecha. `asiento_recetario(cierre_diario_id)` se reemplazó por el índice parcial de pendientes. Cerrarlo cuando 0121 esté aplicada en ambas bases. Lista original:
    - `asiento_recetario(tenant_id, cierre_diario_id)`;
    - `movimiento_stock(tenant_id, preparacion_id)`;
    - `receta(tenant_id, medico_id)`;

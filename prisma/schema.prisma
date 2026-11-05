@@ -1008,6 +1008,9 @@ model Receta {
   @@unique([tenantId, numeroInterno])
   /// Migration 0051: Trayectoria del paciente -- a paciente's recetas, newest first.
   @@index([tenantId, pacienteId, fechaIngreso(sort: Desc)], map: "idx_receta_tenant_paciente_ingreso")
+  /// Migration 0121 (P1-10): the preparaciones list filtered by médico; conformar lote (recetas with no lote yet).
+  @@index([tenantId, medicoId], map: "idx_receta_tenant_medico")
+  @@index([tenantId, loteArchivoId], map: "idx_receta_tenant_lote_archivo")
   @@map("receta")
   @@schema("fsj")
 }
@@ -1711,6 +1714,9 @@ model AsientoRecetario {
 
   @@unique([tenantId, id])
   @@unique([tenantId, libroId, numeroCorrelativo])
+  /// Migration 0121 (P1-10): a day's asientos (cierre) and the libro's date-range search. The partial
+  /// idx_asiento_recetario_pendientes (unsigned asientos) lives only in that migration.
+  @@index([tenantId, fechaAsiento], map: "idx_asiento_recetario_tenant_fecha")
   @@map("asiento_recetario")
   @@schema("fsj")
 }
