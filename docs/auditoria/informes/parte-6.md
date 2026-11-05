@@ -67,7 +67,7 @@ P1-02, P1-09, P1-10, P1-11, P2-01, P2-02 (configuración), P2-03, P4-04, P5-01b,
    Confirmar cada uno contra las consultas reales antes de la migración.
 4. P2-03: payload opaco en `/api/health`.
 5. P2-01: latencia pareja en el login con email inexistente.
-6. P1-09: fallo explícito sin `app.tenant_id`.
+6. ~~P1-09: fallo explícito sin `app.tenant_id`.~~ Resuelto en la migración 0122: `fsj.current_tenant_id()` lanza `TN001` si no hay tenant. Cerrarlo cuando 0122 esté aplicada en ambas bases y `npm run test:db` pase.
 7. P5-01b: serializador de errores del logger.
 8. P5-06: `import "server-only"` en `infrastructure/` y `application/`.
 9. ~~P1-02: columnas de `fsj.tenant` visibles para `fsj_app`.~~ Resuelto en la migración 0119 (RLS sobre `fsj.tenant` + `fsj.listar_tenants_activos()` para los jobs). Cerrarlo cuando 0119 esté aplicada en ambas bases.

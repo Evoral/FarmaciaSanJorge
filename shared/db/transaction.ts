@@ -9,8 +9,11 @@
  *
  * `withPlatformTransaction` is the explicit escape hatch for the small set
  * of genuinely tenant-less operations (platform operator managing tenants
- * themselves, M00). It does NOT set app.tenant_id, so RLS will hide every
- * tenant-scoped row -- by design. Never use it to bypass tenant isolation.
+ * themselves, M00). It does NOT set app.tenant_id, so any tenant-scoped
+ * table it touches fails with SQLSTATE TN001 (migration 0122,
+ * fsj.current_tenant_id() raises when unset) -- by design. Read global data
+ * through SECURITY DEFINER functions (e.g. fsj.listar_tenants_activos()).
+ * Never use it to bypass tenant isolation.
  */
 import { Prisma } from "@/generated/prisma/client";
 import { getPrismaClient } from "@/shared/db/client";
