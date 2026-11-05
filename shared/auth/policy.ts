@@ -32,6 +32,9 @@ export const AUTH_POLICY = {
   /** DP-20 pending. Lockout duration once maxFailedLoginAttempts is reached. */
   lockoutMinutes: 15,
 
+  /** Security audit P2-01 (2026-11-05): every REJECTED login answers after at least this long, so an unknown email (no transaction) and a known one (transaction + writes) take the same time and timing cannot enumerate accounts. Must stay above the slowest rejected path (argon2 + the transaction, ~150-400 ms on Vercel). A successful login never waits. */
+  loginFallidoMinimoMs: 1000,
+
   /** Minimum password length for INV-AU-001 (titular-set passwords). User decision 2026-10-26: 8 (was 12). */
   minPasswordLength: 8,
 

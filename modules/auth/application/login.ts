@@ -26,6 +26,13 @@
  * unknown-email / wrong-password / inactive / locked, uniformly. See
  * `modules/auth/domain/login-policy.ts` for the decision table this
  * collapses.
+ *
+ * SAME TIME, NOT ONLY SAME MESSAGE (security audit P2-01): an unknown email
+ * returns right after argon2, a known one also runs a transaction (lockout
+ * counter, sometimes an audit row). That gap is measurable by averaging many
+ * attempts, so `login` pads every rejection -- and a thrown error -- to
+ * `AUTH_POLICY.loginFallidoMinimoMs` from the start. A fixed floor, not a
+ * random delay: random noise averages out.
  */
 import { generateOpaqueToken, hashToken } from "../domain/token";
 import { computeAbsoluteExpiry } from "../domain/session-policy";
@@ -51,6 +58,22 @@ export type LoginResult =
  * re-normalize, to keep the exact string it hashes/compares explicit.
  */
 export async function login(email: string, password: string, ip: string | null, userAgent: string | null): Promise<LoginResult> {
+  const inicio = Date.now();
+  let result: LoginResult | undefined;
+  try {
+    result = await intentarLogin(email, password, ip, userAgent);
+    return result;
+  } finally {
+    if (!result?.ok) await esperarHasta(inicio + AUTH_POLICY.loginFallidoMinimoMs);
+  }
+}
+
+async function esperarHasta(instante: number): Promise<void> {
+  const resto = instante - Date.now();
+  if (resto > 0) await new Promise((resolve) => setTimeout(resolve, resto));
+}
+
+async function intentarLogin(email: string, password: string, ip: string | null, userAgent: string | null): Promise<LoginResult> {
   const candidate = await resolveLoginByEmail(email);
 
   // ALWAYS run a real argon2 verification, even for an unknown email --
