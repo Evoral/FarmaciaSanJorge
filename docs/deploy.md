@@ -148,7 +148,7 @@ Tests: `tests/unit/retiro-vencido.test.ts` (cálculo de bordes de jornada) y `te
 
 Explícitamente fuera de alcance en este ciclo (FASE 14), por decisión del usuario:
 
-- **14.2 -- Rate limiting global**: no implementado. Sin mitigación a nivel de plataforma contra abuso/fuerza bruta más allá de lo que ya hace `shared/auth/policy.ts` (intentos/bloqueo por usuario, si aplica) -- revisar antes de exponer el sistema a tráfico no confiable.
+- **14.2 -- Rate limiting global**: no implementado a nivel de plataforma. A nivel de aplicación existen el bloqueo por usuario y el piso de tiempo en los logins rechazados (P2-01), en `shared/auth/policy.ts`. Falta P2-02: una regla de rate limit por IP en el Firewall de Vercel para `POST /login`, configurada en el dashboard. Es obligatoria antes de exponer el sistema a producción o a tráfico no confiable (el plan Hobby incluye 1 regla de rate limit por proyecto).
 - **14.3 -- Backups cifrados + prueba de restauración (DP-35)**: no implementado. Acción pendiente: confirmar el plan de Supabase contratado (PITR -- point-in-time recovery -- solo está disponible desde el plan Pro de Supabase en adelante; el plan Free no lo ofrece) y documentar/ejecutar al menos una prueba de restauración real antes de ir a producción con datos reales de pacientes.
 - **Tests de BD (`npm run test:db`) contra este cambio**: no corridos como parte de esta tarea (instrucción explícita del usuario). `shared/db/client.ts` cambió (pool `max: 3`) -- de bajo riesgo (no cambia comportamiento funcional, solo el tamaño del pool), pero conviene correr `npm run test:db` igual antes de mergear.
 - **E2E de regresión del flujo principal**: explícitamente salteado en este ciclo (decisión del usuario). Punto 14.6 del plan queda PENDIENTE.

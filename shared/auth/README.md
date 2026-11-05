@@ -24,6 +24,16 @@ Action received (`conOperador(formData, ...)`) to the use-case pipeline for the
 duration of the request; `operador.ts` is the facade over the verification in
 `modules/auth`; `operador-campos.ts` holds the form field names (client-safe).
 
+## Login
+
+`modules/auth/application/login.ts` handles authentication against policies in
+`shared/auth/policy.ts`:
+- Every rejection returns the same generic error message, and argon2 verification
+  always runs (using a dummy hash if the email does not exist) to prevent enumeration.
+- Accounts are temporarily locked out after `maxFailedLoginAttempts` failures.
+- Every rejection is padded to `loginFallidoMinimoMs` (P2-01) from the start, so
+  response times cannot differentiate existing accounts from unknown ones; successful logins do not wait.
+
 ## Pasos pendientes
 
 `openspec/specs/contrasena-temporal/spec.md`. The session carries `pasosPendientes`
