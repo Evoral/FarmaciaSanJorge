@@ -6,9 +6,9 @@
  */
 import { cookies } from "next/headers";
 import { getEnv } from "@/shared/env";
-import { SESSION_COOKIE_NAME, buildSessionCookieOptions } from "../domain/cookie-policy";
+import { SESSION_COOKIE_NAME, PLATAFORMA_COOKIE_NAME, buildSessionCookieOptions, buildPlataformaCookieOptions } from "../domain/cookie-policy";
 
-export { SESSION_COOKIE_NAME };
+export { SESSION_COOKIE_NAME, PLATAFORMA_COOKIE_NAME };
 
 function currentSessionCookieOptions() {
   return buildSessionCookieOptions(getEnv().NODE_ENV);
@@ -33,4 +33,21 @@ export async function writeSessionCookie(rawToken: string, expiraEn: Date): Prom
 export async function clearSessionCookie(): Promise<void> {
   const store = await cookies();
   store.delete(SESSION_COOKIE_NAME);
+}
+
+/** The platform session token, or `null`. Only present on `/plataforma` requests (the cookie's Path). */
+export async function readPlataformaCookie(): Promise<string | null> {
+  const store = await cookies();
+  return store.get(PLATAFORMA_COOKIE_NAME)?.value ?? null;
+}
+
+export async function writePlataformaCookie(rawToken: string, expiraEn: Date): Promise<void> {
+  const store = await cookies();
+  store.set(PLATAFORMA_COOKIE_NAME, rawToken, { ...buildPlataformaCookieOptions(getEnv().NODE_ENV), expires: expiraEn });
+}
+
+/** Expires the platform cookie. `delete(name)` would target Path=/ and miss it, so it is overwritten with the same Path and maxAge 0. */
+export async function clearPlataformaCookie(): Promise<void> {
+  const store = await cookies();
+  store.set(PLATAFORMA_COOKIE_NAME, "", { ...buildPlataformaCookieOptions(getEnv().NODE_ENV), maxAge: 0 });
 }

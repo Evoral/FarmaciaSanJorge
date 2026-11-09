@@ -44,7 +44,7 @@
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { SESSION_COOKIE_NAME } from "@/modules/auth/domain/cookie-policy";
+import { SESSION_COOKIE_NAME, PLATAFORMA_COOKIE_NAME, PLATAFORMA_PATH } from "@/modules/auth/domain/cookie-policy";
 
 /** Paths reachable without a session -- excluded from the redirect below. */
 const PUBLIC_PATHS = ["/login"];
@@ -85,7 +85,10 @@ export function proxy(request: NextRequest): NextResponse {
   const isDev = process.env.NODE_ENV === "development";
   const csp = buildContentSecurityPolicy(nonce, isDev);
 
-  if (!isPublicPath(pathname) && !request.cookies.has(SESSION_COOKIE_NAME)) {
+  // /plataforma carries its own cookie (Path=/plataforma, openspec/changes/plataforma-superadmin P5); everything else fsj_session.
+  const esPlataforma = pathname === PLATAFORMA_PATH || pathname.startsWith(`${PLATAFORMA_PATH}/`);
+  const cookieRequerida = esPlataforma ? PLATAFORMA_COOKIE_NAME : SESSION_COOKIE_NAME;
+  if (!isPublicPath(pathname) && !request.cookies.has(cookieRequerida)) {
     const response = NextResponse.redirect(new URL("/login", request.url));
     response.headers.set("Content-Security-Policy", csp);
     return response;

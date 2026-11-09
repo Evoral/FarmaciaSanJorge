@@ -23,3 +23,22 @@ export function buildSessionCookieOptions(nodeEnv: string): SessionCookieOptions
     path: "/",
   };
 }
+
+/**
+ * Platform (superadmin) session cookie (openspec/changes/plataforma-superadmin, spec P4). Scoped to `/plataforma`, so
+ * the browser never sends the platform token to a pharmacy route, and kept apart from `fsj_session` so one browser
+ * never holds both kinds (the login clears the other one).
+ */
+export const PLATAFORMA_COOKIE_NAME = "fsj_plataforma";
+export const PLATAFORMA_PATH = "/plataforma";
+
+export interface PlataformaCookieOptions {
+  httpOnly: true;
+  sameSite: "lax";
+  secure: boolean;
+  path: typeof PLATAFORMA_PATH;
+}
+
+export function buildPlataformaCookieOptions(nodeEnv: string): PlataformaCookieOptions {
+  return { httpOnly: true, sameSite: "lax", secure: nodeEnv === "production", path: PLATAFORMA_PATH };
+}

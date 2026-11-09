@@ -78,6 +78,9 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   // Raised only by the 0105 trigger, dropped by 0115 (kept: the global test covers every migration).
   "INV-PL-005": "El CUIT de la farmacia ya no se puede cambiar: hay cierres diarios firmados que lo llevan.",
 
+  // Plataforma (superadmin, migration 0124)
+  "INV-PLAT-AUTH": "Tu sesión de plataforma no es válida o expiró. Iniciá sesión nuevamente.",
+
   // Libro recetario / contralor (M12)
   "INV-L01": "Los asientos del libro no se pueden modificar: solo se pueden anular o rectificar, según corresponda.",
   "INV-L02": "La jornada del asiento ya está firmada: no se puede anular, corresponde un asiento rectificativo.",

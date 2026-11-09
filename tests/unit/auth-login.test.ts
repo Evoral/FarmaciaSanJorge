@@ -36,6 +36,14 @@ const insertSesionInTxMock = vi.fn(async (...args: unknown[]): Promise<unknown> 
   void args;
   return { id: "sesion-1" };
 });
+// Superadmin branch (migration 0124): no superadmin matches in these tests.
+vi.mock("@/modules/auth/infrastructure/superadmin-repository", () => ({
+  resolveSuperadminLoginByEmail: async () => null,
+  iniciarSesionPlataforma: async () => new Date(),
+  registrarLoginFallidoPlataforma: async () => 0,
+}));
+vi.mock("@/shared/audit/request-context", () => ({ getRequestContext: async () => ({ ip: null, userAgent: null, requestId: null }) }));
+
 vi.mock("@/modules/auth/infrastructure/session-repository", () => ({
   insertSesionInTx: (...args: unknown[]) => insertSesionInTxMock(...args),
 }));
