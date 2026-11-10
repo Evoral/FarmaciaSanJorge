@@ -201,6 +201,28 @@ $$;
 REVOKE ALL ON FUNCTION fsj.plataforma_crear_tenant(text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, numeric, numeric, numeric, numeric, numeric, text, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION fsj.plataforma_crear_tenant(text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, numeric, numeric, numeric, numeric, numeric, text, text) TO fsj_app;
 
+-- Before the alta: which fields already belong to someone, so the form marks them (spec P10). The CUIT is compared by
+-- digits; the email against both login tables. The unique constraints stay the backstop for the race.
+CREATE OR REPLACE FUNCTION fsj.plataforma_alta_conflictos(p_token_hash text, p_cuit text, p_admin_email text)
+RETURNS TABLE (cuit_en_uso boolean, email_en_uso boolean)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = fsj, extensions
+AS $$
+#variable_conflict use_column
+DECLARE
+  v_actor uuid := fsj.plataforma_actor(p_token_hash);
+BEGIN
+  RETURN QUERY SELECT
+    EXISTS (SELECT 1 FROM fsj.tenant t WHERE regexp_replace(t.cuit, '[^0-9]', '', 'g') = regexp_replace(p_cuit, '[^0-9]', '', 'g')),
+    EXISTS (SELECT 1 FROM fsj.usuario u WHERE u.email = p_admin_email::extensions.citext)
+      OR EXISTS (SELECT 1 FROM fsj.superadmin s WHERE s.email = p_admin_email::extensions.citext);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION fsj.plataforma_alta_conflictos(text, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION fsj.plataforma_alta_conflictos(text, text, text) TO fsj_app;
+
 -- Suspend (motivo required) or reactivate. A pharmacy with fecha_baja cannot change estado; the same estado is refused.
 CREATE OR REPLACE FUNCTION fsj.plataforma_cambiar_estado_tenant(
   p_token_hash  text,

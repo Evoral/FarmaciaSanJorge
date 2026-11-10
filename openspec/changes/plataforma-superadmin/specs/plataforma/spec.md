@@ -121,8 +121,8 @@ NOT read any tenant-scoped table.
 
 The alta form SHALL take the tenant's datos (razón social, CUIT, nombre de fantasía, domicilio, matrícula, zona
 horaria), its contacto (email, teléfono, nombre) and the first Administrador (email, nombre, apellido, DNI, temporary
-password >= 6 characters). On error the form MUST keep what was typed except the password, and mark the offending
-field.
+password >= 6 characters). On error the form MUST keep what was typed (the password stays only in the browser: the
+server never sends it back) and mark the offending field.
 
 #### Scenario: CUIT already used
 - **GIVEN** a pharmacy with CUIT 30-12345678-9

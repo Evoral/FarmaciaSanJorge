@@ -7,6 +7,7 @@ DROP FUNCTION IF EXISTS fsj.plataforma_auditoria_tenant(text, uuid, integer);
 DROP FUNCTION IF EXISTS fsj.plataforma_ver_tenant(text, uuid);
 DROP FUNCTION IF EXISTS fsj.plataforma_listar_tenants(text, text, integer, integer);
 DROP FUNCTION IF EXISTS fsj.plataforma_editar_contacto_tenant(text, uuid, text, text, text, text, text);
+DROP FUNCTION IF EXISTS fsj.plataforma_alta_conflictos(text, text, text);
 DROP FUNCTION IF EXISTS fsj.plataforma_cambiar_estado_tenant(text, uuid, fsj.estado_tenant, text, text, text);
 DROP FUNCTION IF EXISTS fsj.plataforma_crear_tenant(text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, numeric, numeric, numeric, numeric, numeric, text, text);
 DROP FUNCTION IF EXISTS fsj.crear_tenant_interno(text, text, text, text, text, text, text, text, text, text, text, text, text, text, text, numeric, numeric, numeric, numeric, numeric);

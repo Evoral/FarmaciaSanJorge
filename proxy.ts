@@ -85,10 +85,12 @@ export function proxy(request: NextRequest): NextResponse {
   const isDev = process.env.NODE_ENV === "development";
   const csp = buildContentSecurityPolicy(nonce, isDev);
 
-  // /plataforma carries its own cookie (Path=/plataforma, openspec/changes/plataforma-superadmin P5); everything else fsj_session.
+  // /plataforma carries its own cookie (Path=/plataforma, openspec/changes/plataforma-superadmin P5). A pharmacy session
+  // also lets it through: app/(plataforma)/layout.tsx answers notFound(), exactly like any unknown path, instead of a
+  // /login redirect that would tell a pharmacy user the panel exists.
   const esPlataforma = pathname === PLATAFORMA_PATH || pathname.startsWith(`${PLATAFORMA_PATH}/`);
-  const cookieRequerida = esPlataforma ? PLATAFORMA_COOKIE_NAME : SESSION_COOKIE_NAME;
-  if (!isPublicPath(pathname) && !request.cookies.has(cookieRequerida)) {
+  const tieneSesion = request.cookies.has(SESSION_COOKIE_NAME) || (esPlataforma && request.cookies.has(PLATAFORMA_COOKIE_NAME));
+  if (!isPublicPath(pathname) && !tieneSesion) {
     const response = NextResponse.redirect(new URL("/login", request.url));
     response.headers.set("Content-Security-Policy", csp);
     return response;

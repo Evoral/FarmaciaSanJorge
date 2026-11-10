@@ -75,22 +75,30 @@ test `tests/db/plataforma-alta-tenant.test.ts` not run.
 
 ## Stage 3 — The panel: list, detail, alta, suspend, contacto
 
-- [ ] 3.1 `modules/plataforma/application/define-plataforma.ts` + ESLint ignore entry + registry decision (`design.md` §3).
-- [ ] 3.2 Use cases `listarFarmacias`, `verFarmacia`, `auditoriaFarmacia`, `crearFarmacia`, `suspenderFarmacia`,
+- [x] 3.1 `modules/plataforma/application/define-plataforma.ts` + ESLint ignore entry + registry decision (`design.md` §3).
+- [x] 3.2 Use cases `listarFarmacias`, `verFarmacia`, `auditoriaFarmacia`, `crearFarmacia`, `suspenderFarmacia`,
   `reactivarFarmacia`, `editarContacto`, with their infrastructure wrappers and zod schemas (CUIT with the existing
   validator).
-- [ ] 3.3 `proxy.ts`: platform cookie on `/plataforma` paths.
-- [ ] 3.4 `app/(plataforma)/layout.tsx` (redirect / `notFound()`, P5) and shell with Cerrar sesión.
-- [ ] 3.5 Pages: list (search + pagination, saldo column shows 0 until stage 4), detail (datos, contacto, estado,
+- [x] 3.3 `proxy.ts`: platform cookie on `/plataforma` paths.
+- [x] 3.4 `app/(plataforma)/layout.tsx` (redirect / `notFound()`, P5) and shell with Cerrar sesión.
+- [x] 3.5 Pages: list (search + pagination, saldo column shows 0 until stage 4), detail (datos, contacto, estado,
   history), alta form, suspend / reactivate dialogs with motivo, edit contacto.
-- [ ] 3.6 Forms keep input on error and mark the field (`use-form-submit.ts`, `field-errors.ts`); the password field is
+- [x] 3.6 Forms keep input on error and mark the field (`use-form-submit.ts`, `field-errors.ts`); the password field is
   never re-filled.
-- [ ] 3.7 Unit tests: proxy cookie selection; use cases call `requireSuperAdmin` first (mock it to throw -> nothing else
+- [x] 3.7 Unit tests: proxy cookie selection; use cases call `requireSuperAdmin` first (mock it to throw -> nothing else
   runs).
 
 **Review gate 3:** every Server Action reaches a use case that calls `requireSuperAdmin` before anything; no page
 reads a tenant-scoped table; a pharmacy user on `/plataforma` gets the plain not-found page; UI copy in Spanish, reuses
 `shared/ui`.
+
+**Hand-off stage 3 (2026-11-09):** done; gate checked. Deviations: `definePlataforma` (one helper for commands and
+queries, no `audit` option: SQL audits); `parseInput` exported from `shared/usecase.ts` to reuse it; 0125 gained
+`fsj.plataforma_alta_conflictos` (pre-check for field errors; 0125 not applied anywhere yet); 3.3 was done in stage 1 and
+changed here so a pharmacy session also passes `/plataforma` (the layout answers `notFound()`, P5); the alta keeps the
+typed password on error (it never leaves the browser again; spec P10 updated) instead of clearing it. No platform
+registry for the use-case registry tests. NOT verified: no browser check (0124/0125 not applied, the pages call
+their functions), no DB test run.
 
 ## Stage 4 — Cuenta corriente (migration 0126)
 
