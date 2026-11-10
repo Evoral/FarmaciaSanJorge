@@ -378,3 +378,62 @@ export async function countDrogasFaltanCargar(
   `;
   return rows[0]?.count ?? 0;
 }
+
+export interface ProveedorMatchItem {
+  id: string;
+  razonSocial: string;
+  cuit: string;
+}
+
+export async function listProveedoresActivos(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+): Promise<ProveedorMatchItem[]> {
+  return tx.proveedor.findMany({
+    where: { tenantId, fechaBaja: null },
+    select: { id: true, razonSocial: true, cuit: true },
+    orderBy: { razonSocial: "asc" },
+  });
+}
+
+export interface UnidadMatchItem {
+  id: string;
+  codigo: string;
+  nombre: string;
+  simbolo: string;
+  tipoMagnitud: string;
+}
+
+export async function listUnidadesActivas(
+  tx: Prisma.TransactionClient,
+): Promise<UnidadMatchItem[]> {
+  return tx.unidadMedida.findMany({
+    where: { fechaBaja: null },
+    select: { id: true, codigo: true, nombre: true, simbolo: true, tipoMagnitud: true },
+    orderBy: { nombre: "asc" },
+  });
+}
+
+export async function createFilasRelevamiento(
+  tx: Prisma.TransactionClient,
+  filas: UpsertFilaRelevamientoInput[],
+): Promise<number> {
+  if (filas.length === 0) return 0;
+  const result = await tx.relevamientoFila.createMany({
+    data: filas.map((f) => ({
+      id: f.id,
+      tenantId: f.tenantId,
+      drogaId: f.drogaId ?? null,
+      lote: f.lote ?? null,
+      fechaVencimiento: f.fechaVencimiento ?? null,
+      cantidad: f.cantidad ?? null,
+      unidadMedidaId: f.unidadMedidaId ?? null,
+      potenciaDeclarada: f.potenciaDeclarada ?? null,
+      costoUnitario: f.costoUnitario ?? null,
+      proveedorId: f.proveedorId ?? null,
+      textoDroga: f.textoDroga ?? null,
+      creadoPorId: f.creadoPorId,
+    })),
+  });
+  return result.count;
+}

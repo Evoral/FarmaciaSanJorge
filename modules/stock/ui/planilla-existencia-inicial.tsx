@@ -11,7 +11,10 @@ import {
   useRef,
   useTransition,
   useMemo,
+  useActionState,
+  useEffect,
 } from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   Trash2,
@@ -21,6 +24,8 @@ import {
   Info,
   X,
   Loader2,
+  FileSpreadsheet,
+  Download,
 } from "lucide-react";
 import { Combobox, filtrarOpciones, type ComboboxOption } from "@/shared/ui/combobox";
 import { NumeroInput } from "@/shared/ui/numero-input";
@@ -32,6 +37,7 @@ import { Decimal } from "@/shared/decimal";
 import { agregarYEnfocar, filaDeLista } from "@/shared/ui/enfocar-al-agregar";
 import { markInvalidFields } from "@/shared/ui/field-errors";
 import { useOperador } from "@/shared/ui/operador";
+import { useFormSubmit } from "@/shared/ui/use-form-submit";
 import { CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
 import { formatFechaIso } from "@/shared/format/fecha";
 import { dec } from "@/shared/decimal";
@@ -42,11 +48,17 @@ import {
   corregirCantidadInicialAction,
   corregirDatosPartidaInicialAction,
   corregirCostoPartidaAction,
+  importarPlanillaExcelAction,
   type PasarAStockState,
 } from "./actions";
+import { IDLE_IMPORTAR_PLANILLA_EXCEL_STATE } from "./action-state";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { CoFirmaDt } from "@/shared/ui/co-firma-dt";
 import { claveGrupo } from "../domain/existencia-inicial";
+import type {
+  ImportarPlanillaExcelResultado,
+  CeldaNoReconocida,
+} from "../application/importar-planilla-excel";
 import type {
   FilaPlanillaConEstado,
   PartidaExistenciaInicialView,
@@ -143,6 +155,10 @@ export function PlanillaExistenciaInicial({
   const [resultadoPasar, setResultadoPasar] = useState<PasarAStockState | null>(null);
   const [isPendingPasar, startTransitionPasar] = useTransition();
   const operador = useOperador();
+
+  const importDialogRef = useRef<HTMLDialogElement>(null);
+  const [aperturaImport, setAperturaImport] = useState(0);
+  const [ultimoResultadoImport, setUltimoResultadoImport] = useState<ImportarPlanillaExcelResultado | null>(null);
 
   // Merge server refresh with local state
   if (initialFilas !== prevInitialFilas) {
@@ -487,7 +503,7 @@ export function PlanillaExistenciaInicial({
               </p>
             </div>
             {puedeEditar ? (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() =>
@@ -502,6 +518,25 @@ export function PlanillaExistenciaInicial({
                 </button>
                 <button
                   type="button"
+                  onClick={() => {
+                    setAperturaImport((n) => n + 1);
+                    importDialogRef.current?.showModal();
+                  }}
+                  className="btn btn-secondary btn-sm"
+                >
+                  <FileSpreadsheet className="size-4" aria-hidden />
+                  <span>Importar desde Excel</span>
+                </button>
+                <a
+                  href="/api/stock/existencia-inicial/plantilla/xlsx"
+                  download="plantilla-existencia-inicial.xlsx"
+                  className="btn btn-ghost btn-sm"
+                >
+                  <Download className="size-4" aria-hidden />
+                  <span>Descargar plantilla</span>
+                </a>
+                <button
+                  type="button"
                   onClick={() => dialogRef.current?.showModal()}
                   disabled={filasValidas.length === 0 || !puedePasarAStock}
                   className="btn btn-primary btn-sm"
@@ -512,6 +547,45 @@ export function PlanillaExistenciaInicial({
               </div>
             ) : null}
           </div>
+
+          {ultimoResultadoImport && ultimoResultadoImport.noReconocidos.length > 0 ? (
+            <div className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50/80 p-4 text-xs dark:border-amber-900/60 dark:bg-amber-950/30">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span className="font-semibold text-amber-900 dark:text-amber-200">
+                    Última importación: {ultimoResultadoImport.filasImportadas} fila{ultimoResultadoImport.filasImportadas === 1 ? "" : "s"} importada{ultimoResultadoImport.filasImportadas === 1 ? "" : "s"}, {ultimoResultadoImport.noReconocidos.length} celda{ultimoResultadoImport.noReconocidos.length === 1 ? "" : "s"} no reconocida{ultimoResultadoImport.noReconocidos.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setUltimoResultadoImport(null)}
+                  aria-label="Descartar aviso"
+                  className="btn btn-ghost btn-xs text-amber-800 dark:text-amber-300"
+                >
+                  <X className="size-3.5" aria-hidden />
+                </button>
+              </div>
+              <p className="text-zinc-600 dark:text-zinc-400">
+                Las siguientes celdas no se reconocieron y quedaron en blanco o con el texto leído para completar en la planilla:
+              </p>
+              <div className="max-h-48 overflow-y-auto divide-y divide-amber-200/60 dark:divide-amber-900/40">
+                {ultimoResultadoImport.noReconocidos.map((item, idx) => (
+                  <div key={idx} className="flex flex-wrap items-center justify-between gap-2 py-1">
+                    <span className="font-medium text-zinc-800 dark:text-zinc-200">
+                      Fila {item.fila} · {item.columna}:
+                    </span>
+                    <span className="text-zinc-600 dark:text-zinc-400 truncate max-w-xs" title={item.valor}>
+                      «{item.valor || "(vacío)"}»
+                    </span>
+                    <span className="text-amber-700 dark:text-amber-400">
+                      {item.motivo}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div className="@container w-full">
             {/* Desktop grid header (visible above @3xl, fits 768px container) */}
@@ -723,6 +797,41 @@ export function PlanillaExistenciaInicial({
         </div>
       </dialog>
 
+      {/* Importar desde Excel native dialog (R21) */}
+      <dialog
+        ref={importDialogRef}
+        className={DIALOG_CLASS}
+        onClose={() => setAperturaImport((n) => n + 1)}
+      >
+        <div key={aperturaImport} className="flex flex-col gap-4 p-5">
+          <div className="flex items-start justify-between gap-3 border-b border-zinc-200 pb-3 dark:border-zinc-800">
+            <div>
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                Importar planilla desde Excel
+              </h3>
+              <p className="text-xs text-zinc-500">
+                Cargá un archivo .xlsx con el relevamiento físico. Se agregará como filas a la planilla.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => importDialogRef.current?.close()}
+              aria-label="Cerrar diálogo"
+              className="btn btn-ghost btn-sm"
+            >
+              <X className="size-4" aria-hidden />
+            </button>
+          </div>
+
+          <ImportarExcelDialogForm
+            onImportado={(resultado) => {
+              setUltimoResultadoImport(resultado);
+            }}
+            onCerrar={() => importDialogRef.current?.close()}
+          />
+        </div>
+      </dialog>
+
       {/* Partidas ya pasadas a stock (R5) */}
       <section className="flex flex-col gap-3">
         <div>
@@ -862,6 +971,161 @@ export function PlanillaExistenciaInicial({
         )}
       </section>
     </div>
+  );
+}
+
+interface ImportarExcelDialogFormProps {
+  onImportado: (resultado: ImportarPlanillaExcelResultado) => void;
+  onCerrar: () => void;
+}
+
+function ImportarExcelDialogForm({ onImportado, onCerrar }: ImportarExcelDialogFormProps) {
+  const [state, formAction, isPending] = useActionState(
+    importarPlanillaExcelAction,
+    IDLE_IMPORTAR_PLANILLA_EXCEL_STATE,
+  );
+  const { onSubmit } = useFormSubmit(formAction, { estado: state });
+  const formRef = useRef<HTMLFormElement>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (state.status === "success") {
+      router.refresh();
+      onImportado(state.resultado);
+    }
+  }, [state, router, onImportado]);
+
+  if (state.status === "success") {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/30">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <h4 className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+              {state.message}
+            </h4>
+          </div>
+          <p className="text-xs text-emerald-800 dark:text-emerald-300">
+            Las filas ya se encuentran agregadas a la planilla y están visibles para todos los usuarios.
+          </p>
+        </div>
+
+        {state.resultado.noReconocidos.length > 0 ? (
+          <div className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3.5 dark:border-amber-900/60 dark:bg-amber-950/30">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <h5 className="text-xs font-semibold uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                Valores no reconocidos ({state.resultado.noReconocidos.length})
+              </h5>
+            </div>
+            <p className="text-xs text-amber-800 dark:text-amber-300">
+              Quedaron en blanco o con el texto leído para completar manualmente en la planilla:
+            </p>
+            <div className="max-h-56 overflow-y-auto divide-y divide-amber-200/60 text-xs dark:divide-amber-900/40">
+              {state.resultado.noReconocidos.map((item: CeldaNoReconocida, idx: number) => (
+                <div key={idx} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
+                  <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                    Fila {item.fila} ({item.columna}):
+                  </span>
+                  <span className="text-zinc-600 dark:text-zinc-400 truncate max-w-xs" title={item.valor}>
+                    «{item.valor || "(vacío)"}»
+                  </span>
+                  <span className="text-amber-700 dark:text-amber-400">
+                    {item.motivo}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="flex justify-end pt-2">
+          <button
+            type="button"
+            onClick={onCerrar}
+            className="btn btn-primary btn-sm"
+          >
+            Ver en la planilla
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <form ref={formRef} action={formAction} onSubmit={onSubmit} className="flex flex-col gap-4">
+      <div className="flex items-center justify-between rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-800/40 dark:text-zinc-400">
+        <div className="flex flex-col gap-0.5">
+          <span className="font-medium text-zinc-900 dark:text-zinc-100">
+            Plantilla modelo
+          </span>
+          <span>Podés descargar el archivo Excel con las columnas requeridas y ejemplos.</span>
+        </div>
+        <a
+          href="/api/stock/existencia-inicial/plantilla/xlsx"
+          download="plantilla-existencia-inicial.xlsx"
+          className="btn btn-secondary btn-sm shrink-0"
+        >
+          <Download className="size-4" aria-hidden />
+          <span>Descargar</span>
+        </a>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label
+          htmlFor="archivo-importar-excel"
+          className="text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400"
+        >
+          Archivo Excel (.xlsx) *
+        </label>
+        <input
+          id="archivo-importar-excel"
+          type="file"
+          name="archivo"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          required
+          disabled={isPending}
+          className="block w-full text-xs text-zinc-600 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-zinc-800 hover:file:bg-zinc-200 dark:text-zinc-400 dark:file:bg-zinc-800 dark:file:text-zinc-200 dark:hover:file:bg-zinc-700"
+        />
+        <p className="text-xs text-zinc-500">
+          Columnas mínimas requeridas: <strong>Droga</strong> y <strong>Cantidad</strong>. Máximo 1000 filas.
+        </p>
+      </div>
+
+      {state.status === "error" ? (
+        <div className="rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
+          <p className="font-medium">{state.message}</p>
+        </div>
+      ) : null}
+
+      <div className="flex items-center justify-end gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+        <button
+          type="button"
+          onClick={onCerrar}
+          disabled={isPending}
+          className="btn btn-secondary btn-sm"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          disabled={isPending}
+          className="btn btn-primary btn-sm"
+        >
+          {isPending ? (
+            <>
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+              <span>Importando…</span>
+            </>
+          ) : (
+            <>
+              <FileSpreadsheet className="size-4" aria-hidden />
+              <span>Importar planilla</span>
+            </>
+          )}
+        </button>
+      </div>
+    </form>
   );
 }
 

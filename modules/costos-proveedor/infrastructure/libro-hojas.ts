@@ -1,15 +1,14 @@
 /**
- * What every workbook reader of the supplier price list import hands the application layer
- * (openspec/specs/costos-proveedor/spec.md R14): `leer-xlsx.server.ts` (.xlsx, exceljs) and `leer-xls.server.ts` (.xls, the
- * BIFF8 reader written in this repo). The parser (`../domain/parsers/lista-xlsx-crystal.ts`) only sees this shape, so it
- * stays format-agnostic.
+ * Re-exports LibroHojas and sheet constants for costos-proveedor, delegating to shared/xlsx/libro-hojas.
  */
 import type { HojaLibro } from "../domain/importacion-lista";
 import type { FilaCruda } from "../domain/parsers/lista-xlsx-crystal";
+import {
+  MAX_COLUMNAS_HOJA,
+  MAX_FILAS_HOJA,
+} from "@/shared/xlsx/libro-hojas";
 
-/** A price list has a few thousand rows; far beyond that the sheet is not a list (and looping over it would cost). */
-export const MAX_FILAS_HOJA = 50_000;
-export const MAX_COLUMNAS_HOJA = 60;
+export { MAX_COLUMNAS_HOJA, MAX_FILAS_HOJA };
 
 export const MENSAJES_LECTURA_HOJA = {
   hojaInexistente: (nombre: string) => `La hoja «${nombre}» no existe en el archivo.`,

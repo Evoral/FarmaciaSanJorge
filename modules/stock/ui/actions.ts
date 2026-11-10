@@ -32,7 +32,8 @@ import { PARAM_VOLVER_AJUSTE, retornoAjuste, retornoAjusteRegistrado } from "@/m
 import { conOperador } from "@/shared/auth/operador-context";
 import { OperadorRequeridoError } from "@/shared/errors";
 import { actionError, actionErrorMessage } from "@/shared/ui/action-error";
-import type { LeerFacturaPdfState, StockActionState } from "./action-state";
+import { importarPlanillaExcel } from "@/modules/stock/application/importar-planilla-excel";
+import type { ImportarPlanillaExcelState, LeerFacturaPdfState, StockActionState } from "./action-state";
 
 function fromError(error: unknown, fallback: string): StockActionState {
   return actionError(error, fallback);
@@ -502,3 +503,30 @@ export async function corregirDatosPartidaInicialAction(
     }
   });
 }
+
+/** "Importar desde Excel" (R21): imports planilla rows from an .xlsx file. Not PIN-configurable. */
+export async function importarPlanillaExcelAction(
+  _prevState: ImportarPlanillaExcelState,
+  formData: FormData,
+): Promise<ImportarPlanillaExcelState> {
+  try {
+    const archivo = formData.get("archivo");
+    const resultado = await importarPlanillaExcel({ archivo });
+    revalidatePath("/partidas/existencia-inicial");
+    const mensaje =
+      resultado.filasImportadas === 1
+        ? "Se importó 1 fila a la planilla."
+        : `Se importaron ${resultado.filasImportadas} filas a la planilla.`;
+    return {
+      status: "success",
+      message: mensaje,
+      resultado,
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message: actionErrorMessage(error, "No se pudo importar la planilla desde Excel."),
+    };
+  }
+}
+

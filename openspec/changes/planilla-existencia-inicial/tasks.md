@@ -41,8 +41,8 @@ Design: `design.md`. Migrations are written by the agent and applied by the user
 
 ## 4. Delivery 4: Excel
 
-- [ ] 4.1 `importarPlanillaExcel` over `leer-xlsx.server.ts` (R21), with a downloadable template.
-- [ ] 4.2 Import control in the tab.
+- [x] 4.1 `importarPlanillaExcel` over `leer-xlsx.server.ts` (R21), with a downloadable template.
+- [x] 4.2 Import control in the tab.
 
 ## 5. Specs and archive
 

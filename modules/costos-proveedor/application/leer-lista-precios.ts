@@ -29,7 +29,7 @@ import { construirVistaPrevia, hojaPorDefecto, mensajeFechaListaInvalida, mensaj
 import type { HojaLibro, VistaPreviaLista } from "../domain/importacion-lista";
 import { parsearLista } from "../domain/parsers/parsear-lista";
 import type { ResultadoParseoLista } from "../domain/parsers/lista-xlsx-crystal";
-import { hashSha256, leerLibroXlsx } from "../infrastructure/leer-xlsx.server";
+import { hashSha256, leerLibroXlsx } from "@/shared/xlsx/leer-xlsx.server";
 import { leerLibroXls } from "../infrastructure/leer-xls.server";
 import {
   buscarListaPorHash,

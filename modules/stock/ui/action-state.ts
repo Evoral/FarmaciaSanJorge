@@ -1,4 +1,5 @@
 import type { VistaPreviaFactura } from "../domain/importacion-factura-compra";
+import type { ImportarPlanillaExcelResultado } from "../application/importar-planilla-excel";
 
 /**
  * Shared Server Action result shape for `/stock/**` (FASE 5). Own copy per module -- see modules/proveedores/ui/action-state.ts.
@@ -16,3 +17,17 @@ export const IDLE_STATE: StockActionState = { status: "idle" };
 export type LeerFacturaPdfState = { status: "idle" } | { status: "error"; message: string } | { status: "success"; vistaPrevia: VistaPreviaFactura };
 
 export const IDLE_LEER_FACTURA_STATE: LeerFacturaPdfState = { status: "idle" };
+
+/** Result of importing planilla de existencia inicial from Excel. */
+export type ImportarPlanillaExcelState =
+  | { status: "idle" }
+  | { status: "error"; message: string }
+  | {
+      status: "success";
+      message: string;
+      resultado: ImportarPlanillaExcelResultado;
+    };
+
+export const IDLE_IMPORTAR_PLANILLA_EXCEL_STATE: ImportarPlanillaExcelState = {
+  status: "idle",
+};
