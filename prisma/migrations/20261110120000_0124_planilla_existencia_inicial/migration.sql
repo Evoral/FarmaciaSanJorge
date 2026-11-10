@@ -184,7 +184,7 @@ BEGIN
 
   IF NEW.tipo::text = 'CORRECCION_INICIAL_RESTA' AND v_tipo_control IS NOT NULL AND v_tipo_control <> 'NINGUNO' THEN
     IF NEW.autorizado_por_id IS NULL OR NOT fsj.es_dt_vigente(NEW.autorizado_por_id, fsj.jornada_actual(NEW.tenant_id)) THEN
-      RAISE EXCEPTION 'INV-U05: CORRECCION_INICIAL_RESTA on controlled droga requires autorizado_por_id by a DT vigente',
+      RAISE EXCEPTION 'INV-U05: CORRECCION_INICIAL_RESTA on controlled droga requires autorizado_por_id by a DT vigente (got %)',
         NEW.autorizado_por_id
         USING ERRCODE = 'P0001';
     END IF;
