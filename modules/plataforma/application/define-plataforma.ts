@@ -1,5 +1,5 @@
 /**
- * The platform use-case pipeline (openspec/changes/plataforma-superadmin, spec P6):
+ * The platform use-case pipeline (openspec/specs/plataforma/spec.md P6):
  *
  *   requireSuperAdmin() -> zod -> withPlatformTransaction(handler) -> mapDbError
  *

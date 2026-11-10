@@ -75,7 +75,7 @@ const eslintConfig = defineConfig([
     // tenant -- and this file only exports that one job runner
     // (`runVencerRetirosJob`).
     // modules/plataforma/application/define-plataforma.ts: the superadmin pipeline (no tenant, no permisos; every
-    // platform SQL function re-validates the session and audits itself -- openspec/changes/plataforma-superadmin).
+    // platform SQL function re-validates the session and audits itself -- openspec/specs/plataforma/spec.md).
     ignores: [
       "modules/auth/**",
       "modules/archivo/application/actualizar-plazos.ts",

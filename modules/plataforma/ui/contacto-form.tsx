@@ -1,6 +1,6 @@
 "use client";
 
-/** "Editar contacto" of a pharmacy (openspec/changes/plataforma-superadmin P12). Same fields as the alta's Contacto. */
+/** "Editar contacto" of a pharmacy (openspec/specs/plataforma/spec.md P12). Same fields as the alta's Contacto. */
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { ContactoCampos, type ContactoValores } from "./contacto-campos";
 import { editarContactoFarmaciaAction } from "./actions";

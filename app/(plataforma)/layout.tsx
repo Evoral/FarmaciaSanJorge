@@ -1,5 +1,5 @@
 /**
- * `/plataforma/**` shell (openspec/changes/plataforma-superadmin P5). No valid platform session:
+ * `/plataforma/**` shell (openspec/specs/plataforma/spec.md P5). No valid platform session:
  *   - with a pharmacy session -> `notFound()`: a pharmacy user cannot tell the panel exists;
  *   - without one -> `/login`, like every other path.
  * This layout does NOT protect Server Actions: every platform use case calls `requireSuperAdmin()` itself (P6).

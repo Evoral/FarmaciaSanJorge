@@ -48,7 +48,7 @@ export async function loginAction(_prevState: LoginFormState, formData: FormData
     return { message: result.message };
   }
 
-  // One browser never holds both kinds of session (openspec/changes/plataforma-superadmin, D6).
+  // One browser never holds both kinds of session (openspec/specs/plataforma/spec.md, D6).
   // Outside any try/catch: redirect() works by throwing.
   if (result.tipo === "SUPERADMIN") {
     await clearSessionCookie();

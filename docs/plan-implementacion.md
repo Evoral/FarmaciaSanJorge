@@ -714,7 +714,7 @@ Ninguna obligatoria. Potenciales (fuera de alcance salvo decisión): email/SMS p
 - **3.8** Catálogo de roles/permisos (lectura; edición si DP-03).
 - **3.9** Designaciones DT (alta, cese, vigente hoy).
 - **3.10** Datos del tenant (farmacia) y parámetros.
-- **3.12** Consola de operador de plataforma: alta/baja de tenant + primer ADM con credencial (tras DP-37).
+- **3.12** Consola de operador de plataforma: alta/baja de tenant + primer ADM con credencial (tras DP-37). **HECHO** (2026-11-10): `/plataforma`, `openspec/specs/plataforma/spec.md` (alta y suspensión; la baja definitiva sigue fuera del panel).
 - **3.11** Visor de auditoría global.
 - DoD: matriz de autorización de admin 100% testeada; E2E ciclo de vida de usuario.
 
@@ -901,7 +901,7 @@ Cobertura de entidades (responsable / CRUD / permisos / auditoría / UI / tests)
 - **DP-33 RESUELTA** → spec §4: contralor activable por tenant (`fechaActivacionContralor`), registra APERTURA/INGRESO/EGRESO/AJUSTE con saldos, INV-L08 e INV-L11 a INV-L17.
 - **DP-34 RESUELTA** (2026-09-24): `ModalidadEntrega` = `RETIRO_PRESENCIAL`/`ENVIO` (ya seedeadas por migración 0016). "Firma recibida" = la constancia firmada por el paciente que el repartidor trae de vuelta JUNTO con la receta física original; `entregas.firma.confirmar` (`modules/entregas/application/confirmar-firma-recibida.ts`) registra ambas cosas y pasa la receta a ENTREGADA en una sola transacción atómica. Mientras la receta está ENVIADA_PEND_FIRMA, el 6.4 aislado (`registrarRecepcionFisica`) se rechaza (app-level, más INV-ENT-003 [BD] de refuerzo); INV-ENT-002 [BD] exige una fila `entrega` antes de permitir ENTREGADA (migración 0040).
 - **DP-35 RESUELTA (2026-09-25)**: hosting en **Vercel**, región `gru1` (São Paulo) -- misma región que el proyecto Supabase (`sa-east-1`), minimiza latencia app↔BD. **Sin operación offline**: la farmacia necesita conectividad a internet; no hay modo local/servidor en el sitio. Backups: diferidos (14.3, ver docs/deploy.md "Pendiente" -- plan/PITR de Supabase a confirmar). · FASE 14, docs/deploy.md.
-- **DP-37** **Operador de plataforma**: ¿quién da de alta tenants y su primer ADM? ¿Existe una consola de plataforma o se hace por CLI/soporte? ¿El operador puede ver algo de un tenant (no, recomendado)? · M00, 3.12.
+- **DP-37 RESUELTA** (2026-11-10, `openspec/specs/plataforma/spec.md`): superadmin fuera de todo tenant, consola `/plataforma`, alta solo por CLI, sin acceso a datos de negocio. Pregunta original -- **Operador de plataforma**: ¿quién da de alta tenants y su primer ADM? ¿Existe una consola de plataforma o se hace por CLI/soporte? ¿El operador puede ver algo de un tenant (no, recomendado)? · M00, 3.12.
 - **DP-38** **Libro rubricado** (consultar con la Asociación de Farmacias): ¿el comprobante del cierre se imprime y adhiere al libro o se asienta a mano? ¿Cuántos asientos por foja? ¿Los libros de contralor tienen su propio libro rubricado? ¿Qué se hace con fojas dañadas, ya que no se registran fojas inutilizadas? ¿Hace falta registrar folios en el sistema? · BLOQUEA M13b / 10.B.
 - **DP-39 RESUELTA**: `unidad_medida` es **catálogo GLOBAL** (sin `tenant_id`, sin RLS, compartido por todos los tenants). Consecuencia a tener presente: un alta o baja hecha por un ADM impacta a todos los tenants; INV-M04 (factor inmutable si la unidad fue usada) pasa a evaluarse sobre el uso en CUALQUIER tenant.
 - **DP-40 RESUELTA**: email **único global**; el login es solo email + contraseña, sin elegir tenant. El tenant se deduce del usuario y se fija en la sesión.

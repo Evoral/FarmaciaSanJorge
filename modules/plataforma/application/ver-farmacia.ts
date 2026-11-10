@@ -1,4 +1,4 @@
-/** `/plataforma/farmacias/[id]` (openspec/changes/plataforma-superadmin P9, P16): datos, platform history, cuenta corriente and saldo. `null` = no such pharmacy. */
+/** `/plataforma/farmacias/[id]` (openspec/specs/plataforma/spec.md P9, P16): datos, platform history, cuenta corriente and saldo. `null` = no such pharmacy. */
 import { z } from "zod";
 import { uuid } from "@/shared/validation";
 import { definePlataforma } from "./define-plataforma";

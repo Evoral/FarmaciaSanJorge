@@ -1,5 +1,5 @@
 /**
- * Cuenta corriente of a pharmacy (openspec/changes/plataforma-superadmin P13-P15): register a cargo, register a pago,
+ * Cuenta corriente of a pharmacy (openspec/specs/plataforma/spec.md P13-P15): register a cargo, register a pago,
  * anular either. Money is a Decimal from `positiveDecimalString` (decimal.js, never JS numbers), sent to SQL as a
  * 2-decimal string. The SQL functions re-check everything (fecha futura, duplicate cargo, anulado once) and audit.
  */

@@ -58,7 +58,7 @@ export const GENERIC_LOGIN_ERROR = "El email o la contraseña son incorrectos, o
 
 /**
  * `tipo` says which cookie the caller writes: a pharmacy usuario's `fsj_session`, or a superadmin's `fsj_plataforma`
- * (openspec/changes/plataforma-superadmin, spec P3). A rejection never says which kind the email was.
+ * (openspec/specs/plataforma/spec.md P3). A rejection never says which kind the email was.
  */
 export type LoginResult =
   | { ok: true; tipo: "USUARIO"; rawToken: string; expiraEn: Date; pasoPendiente: PasoPendiente | null }

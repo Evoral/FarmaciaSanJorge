@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Alta of a pharmacy (openspec/changes/plataforma-superadmin P10): its datos, contacto and first Administrador. On an
+ * Alta of a pharmacy (openspec/specs/plataforma/spec.md P10): its datos, contacto and first Administrador. On an
  * error nothing typed is lost and the offending field is marked (SimpleForm); on success it opens the new pharmacy.
  */
 import { useRouter } from "next/navigation";

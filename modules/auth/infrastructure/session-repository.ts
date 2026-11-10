@@ -157,7 +157,7 @@ export interface SesionCompleta {
   usuario: UsuarioConPermisos;
   /** `null` while the tenant is active. */
   tenantFechaBaja: Date | null;
-  /** Migration 0125: a SUSPENDIDO tenant's sessions are rejected (openspec/changes/plataforma-superadmin P11). */
+  /** Migration 0125: a SUSPENDIDO tenant's sessions are rejected (openspec/specs/plataforma/spec.md P11). */
   tenantEstado: "ACTIVO" | "SUSPENDIDO";
 }
 

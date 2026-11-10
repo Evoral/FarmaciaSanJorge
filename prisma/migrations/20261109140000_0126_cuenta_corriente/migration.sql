@@ -1,4 +1,4 @@
--- 0126 -- Cuenta corriente of each pharmacy with the platform (openspec/changes/plataforma-superadmin, stage 4; spec
+-- 0126 -- Cuenta corriente of each pharmacy with the platform (openspec/specs/plataforma/spec.md, stage 4; spec
 -- P13-P16).
 --
 --   1. fsj.plataforma_cargo (período, monto, concepto) and fsj.plataforma_pago (fecha, monto, medio, nota, envio_id).

@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * Server Actions for `/plataforma` (openspec/changes/plataforma-superadmin). Thin: each one reaches a use case, and
+ * Server Actions for `/plataforma` (openspec/specs/plataforma/spec.md). Thin: each one reaches a use case, and
  * every use case calls `requireSuperAdmin()` first (spec P6) -- the `/plataforma` layout does not protect actions.
  * They live under the `/plataforma` path, so the browser sends the `fsj_plataforma` cookie (Path=/plataforma).
  */

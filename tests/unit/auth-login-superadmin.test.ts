@@ -1,5 +1,5 @@
 /**
- * Superadmin branch of modules/auth/application/login.ts (openspec/changes/plataforma-superadmin, spec P3).
+ * Superadmin branch of modules/auth/application/login.ts (openspec/specs/plataforma/spec.md P3).
  * Proves: a superadmin is looked up only when no usuario matched; exactly one argon2 verification per attempt;
  * every rejection returns the same generic message as a usuario's; the wrong-password path counts the failure; the
  * success path opens a platform session and never a tenant transaction.

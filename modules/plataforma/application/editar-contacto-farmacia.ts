@@ -1,5 +1,5 @@
 /**
- * Edit the pharmacy's contacto (openspec/changes/plataforma-superadmin P12). Only the contacto: the tenant's own datos
+ * Edit the pharmacy's contacto (openspec/specs/plataforma/spec.md P12). Only the contacto: the tenant's own datos
  * belong to its Administrador (Configuración › Farmacia), which is why this edit offers less than the alta.
  */
 import { z } from "zod";

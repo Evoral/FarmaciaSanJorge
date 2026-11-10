@@ -1,5 +1,5 @@
 /**
- * The platform guard (openspec/changes/plataforma-superadmin, spec P6). Fails closed: a missing cookie, a dead
+ * The platform guard (openspec/specs/plataforma/spec.md P6). Fails closed: a missing cookie, a dead
  * session, an INACTIVO superadmin or ANY error (database down included) means "not a superadmin".
  *
  * `superAdminActual()` never throws (for the `/plataforma` layout, which decides between redirect and notFound);

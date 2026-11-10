@@ -52,6 +52,7 @@ don't read it whole). Cross-cutting platform code (M00) lives in `shared/`.
 | `repartidores` | — | Catalog of the people who carry the envíos (not usuarios) and the autocomplete source to pick one (`envios-repartidores`) |
 | `archivo` | M15 | Receta archive, retention periods, destruction |
 | `farmacia` | — | Tenant (pharmacy) data. No `domain/` layer |
+| `plataforma` | — | The superadmin panel `/plataforma`: pharmacies (list, alta, estado, contacto) and their cuenta corriente with the platform (`plataforma`). Outside every tenant: its pipeline is `definePlataforma`, not `defineCommand`. The superadmin login and sessions live in `auth` |
 | `parametros` | — | Tenant-configurable parameters |
 
 The dashboard and reports (M16) have no module of their own: the cards live in

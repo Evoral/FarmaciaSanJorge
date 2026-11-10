@@ -1,5 +1,5 @@
 /**
- * Public platform-session API (openspec/changes/plataforma-superadmin). Thin facade over modules/auth, like
+ * Public platform-session API (openspec/specs/plataforma/spec.md). Thin facade over modules/auth, like
  * `shared/auth/session.ts`, so `app/(plataforma)` and `modules/plataforma` import the guard from one place.
  */
 export { requireSuperAdmin, superAdminActual, logoutPlataforma } from "@/modules/auth/application/require-superadmin";

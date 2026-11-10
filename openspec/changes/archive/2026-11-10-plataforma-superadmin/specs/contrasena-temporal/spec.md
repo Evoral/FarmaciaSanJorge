@@ -2,11 +2,10 @@
 
 ### Requirement: Bootstrap del Administrador inicial de tenant
 
-El Administrador inicial de una farmacia MUST crearse con la contraseña temporal que escribe quien da de alta la farmacia
--- el script create-tenant (por argumento o consola) o el superadmin desde el alta de `/plataforma`
-(`openspec/specs/plataforma/spec.md` P10) -- en estado ACTIVO con debe_cambiar_password en true, sin generar códigos de
-activación. Ambos caminos MUST usar la misma función `fsj.crear_tenant_interno`. La contraseña temporal MUST cumplir la
-política de contraseña temporal (al menos 6 caracteres) y nunca se muestra, registra ni audita en claro.
+El Administrador inicial MUST crearse con la contraseña temporal (al menos 6 caracteres) que escribe quien da de alta
+la farmacia -- el script create-tenant o el superadmin en `/plataforma` (`plataforma` P10) -- en estado ACTIVO con
+debe_cambiar_password en true y sin códigos de activación; ambos caminos MUST usar `fsj.crear_tenant_interno`. La
+contraseña nunca se muestra, registra ni audita en claro.
 
 #### Scenario: Ejecución de create-tenant
 - **GIVEN** la ejecución del script create-tenant para inicializar una farmacia

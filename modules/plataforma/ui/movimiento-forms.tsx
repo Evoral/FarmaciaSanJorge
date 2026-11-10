@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Cuenta corriente forms of a pharmacy (openspec/changes/plataforma-superadmin P13-P15): register a cargo, register a
+ * Cuenta corriente forms of a pharmacy (openspec/specs/plataforma/spec.md P13-P15): register a cargo, register a
  * pago, anular a movimiento. Each keeps what was typed on an error and marks the field (SimpleForm).
  */
 import { useState } from "react";

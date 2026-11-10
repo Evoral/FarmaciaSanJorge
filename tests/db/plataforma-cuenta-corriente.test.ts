@@ -1,5 +1,5 @@
 /**
- * Migration 0126 (openspec/changes/plataforma-superadmin P13-P16): cargos and pagos are append-only, anulados once,
+ * Migration 0126 (openspec/specs/plataforma/spec.md P13-P16): cargos and pagos are append-only, anulados once,
  * the saldo ignores anulados, a repeated envio_id writes nothing, and a future fecha is refused.
  * Runs the platform functions as fsj_app with a real platform session created as owner.
  */

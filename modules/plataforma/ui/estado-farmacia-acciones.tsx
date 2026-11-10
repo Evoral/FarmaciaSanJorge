@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Suspend (motivo required) or reactivate a pharmacy (openspec/changes/plataforma-superadmin P11). A dada-de-baja
+ * Suspend (motivo required) or reactivate a pharmacy (openspec/specs/plataforma/spec.md P11). A dada-de-baja
  * pharmacy gets neither (the page does not render this component for it).
  */
 import { SimpleForm } from "@/shared/ui/simple-form";

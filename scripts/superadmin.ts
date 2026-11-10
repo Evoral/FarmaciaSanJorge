@@ -1,5 +1,5 @@
 /**
- * Platform-operator CLI for superadmins (openspec/changes/plataforma-superadmin, spec P2): the ONLY way to create a
+ * Platform-operator CLI for superadmins (openspec/specs/plataforma/spec.md P2): the ONLY way to create a
  * superadmin, reset its password, or deactivate / reactivate it. There is no screen for it on purpose: an alta by UI
  * would be an escalation path.
  *

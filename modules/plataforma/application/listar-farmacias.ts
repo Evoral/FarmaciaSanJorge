@@ -1,4 +1,4 @@
-/** `/plataforma` list (openspec/changes/plataforma-superadmin P8): paginated, searchable, with estado and saldo. */
+/** `/plataforma` list (openspec/specs/plataforma/spec.md P8): paginated, searchable, with estado and saldo. */
 import { z } from "zod";
 import { definePlataforma } from "./define-plataforma";
 import { PAGINA_FARMACIAS } from "../domain/farmacia";

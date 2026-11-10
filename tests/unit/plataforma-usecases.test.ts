@@ -1,5 +1,5 @@
 /**
- * modules/plataforma (openspec/changes/plataforma-superadmin P5, P6, P10): the guard runs before anything else, the
+ * modules/plataforma (openspec/specs/plataforma/spec.md P5, P6, P10): the guard runs before anything else, the
  * alta validates and maps conflicts to fields, the plaintext password never reaches the repository, and proxy.ts asks
  * for the platform cookie on /plataforma.
  */

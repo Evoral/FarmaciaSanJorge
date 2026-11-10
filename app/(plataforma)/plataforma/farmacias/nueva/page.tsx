@@ -1,4 +1,4 @@
-/** `/plataforma/farmacias/nueva`: alta of a pharmacy and its first Administrador (openspec/changes/plataforma-superadmin P10). */
+/** `/plataforma/farmacias/nueva`: alta of a pharmacy and its first Administrador (openspec/specs/plataforma/spec.md P10). */
 import { PageHeader } from "@/shared/ui/page-header";
 import { AltaFarmaciaForm } from "@/modules/plataforma/ui/alta-farmacia-form";
 

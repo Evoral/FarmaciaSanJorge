@@ -1,4 +1,4 @@
--- 0124 -- Superadmin identity, platform sessions and platform audit (openspec/changes/plataforma-superadmin, stage 1).
+-- 0124 -- Superadmin identity, platform sessions and platform audit (openspec/specs/plataforma/spec.md, stage 1).
 --
 -- The superadmin (platform operator, DP-37) is NOT a fsj.usuario: it has no tenant, so no tenant RLS policy ever
 -- reaches it and no policy "or is superadmin" is ever written (spec P1). Its three tables are closed to fsj_app:

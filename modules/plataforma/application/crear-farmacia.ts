@@ -1,5 +1,5 @@
 /**
- * Alta of a pharmacy from the panel (openspec/changes/plataforma-superadmin P10, P10a). One transaction through
+ * Alta of a pharmacy from the panel (openspec/specs/plataforma/spec.md P10, P10a). One transaction through
  * fsj.plataforma_crear_tenant -> fsj.crear_tenant_interno, the same function scripts/create-tenant.ts calls.
  *
  * Field errors first (CUIT shape and check digit, CUIT / admin email already in use), so the form marks the field; the

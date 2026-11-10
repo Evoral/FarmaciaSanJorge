@@ -1,5 +1,5 @@
 /**
- * Migrations 0124/0125 (openspec/changes/plataforma-superadmin, P2, P3, P10a, P11): the one alta function seeds what
+ * Migrations 0124/0125 (openspec/specs/plataforma/spec.md, P2, P3, P10a, P11): the one alta function seeds what
  * scripts/create-tenant.ts seeded, rolls back completely on failure, and stays out of fsj_app's reach; the platform
  * tables are closed to fsj_app; a bogus platform token is refused.
  */

@@ -127,10 +127,10 @@ NOT verified: 0124-0126 not applied, the two new DB tests not run, no browser ch
 
 ## Stage 5 — Docs, specs, archive
 
-- [ ] 5.1 `docs/rollbacks/plataforma-superadmin.md` (order, data loss of 0126's down, login revert with 0124's down).
-- [ ] 5.2 `modules/README.md`, `docs/architecture.md`, `shared/auth/README.md`, `AGENTS.md` (one line on seeds),
+- [x] 5.1 `docs/rollbacks/plataforma-superadmin.md` (order, data loss of 0126's down, login revert with 0124's down).
+- [x] 5.2 `modules/README.md`, `docs/architecture.md`, `shared/auth/README.md`, `AGENTS.md` (one line on seeds),
   DP-37 / 3.12 in `docs/plan-implementacion.md` marked resolved.
-- [ ] 5.3 `npm run specs:validate`.
-- [ ] 5.4 User's manual check (`design.md` §4 "Manual").
-- [ ] 5.5 Archive: merge `specs/plataforma` into `openspec/specs/plataforma/spec.md` and the `contrasena-temporal`
+- [x] 5.3 `npm run specs:validate`.
+- [ ] 5.4 User's manual check (pending: needs 0124-0126 applied) (`design.md` §4 "Manual").
+- [x] 5.5 Archive: merge `specs/plataforma` into `openspec/specs/plataforma/spec.md` and the `contrasena-temporal`
   delta into its spec; move to `changes/archive/YYYY-MM-DD-plataforma-superadmin/`.

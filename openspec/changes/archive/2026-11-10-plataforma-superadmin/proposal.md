@@ -1,8 +1,8 @@
 # Proposal — Plataforma: superadmin y consola de farmacias
 
-> **Status:** draft for review. User decision (2026-11-09): "armá el spec y comentame tus decisiones" -- every decision
-> below marked *(Claude)* is a default the user has not confirmed yet. Resolves DP-37 (operador de plataforma) and
-> plan point 3.12 (`docs/plan-implementacion.md`).
+> **Status:** approved and implemented (User decision 2026-11-09: "Sí, arrancá" on the decisions below; implementation by Claude
+> only). Every *(Claude)* decision was presented to the user before implementation. Resolves DP-37 and plan point 3.12.
+> Pending: the user's manual check after 0124-0126 are applied.
 
 ## Why
 

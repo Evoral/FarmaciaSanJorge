@@ -1,5 +1,5 @@
 /**
- * `/plataforma/farmacias/[id]` (openspec/changes/plataforma-superadmin P9, P11, P12): the pharmacy's datos, contacto,
+ * `/plataforma/farmacias/[id]` (openspec/specs/plataforma/spec.md P9, P11, P12): the pharmacy's datos, contacto,
  * estado and the platform's history of it. Reads only fsj.tenant and the platform tables (D11).
  */
 import { notFound } from "next/navigation";

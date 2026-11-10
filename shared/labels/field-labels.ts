@@ -35,7 +35,7 @@
 
 export const FIELD_LABELS: Readonly<Record<string, string>> = {
   // Identity, contact and registration data.
-  // Plataforma: alta of a pharmacy (openspec/changes/plataforma-superadmin P10).
+  // Plataforma: alta of a pharmacy (openspec/specs/plataforma/spec.md P10).
   zonaHoraria: "Zona horaria",
   contactoNombre: "Nombre de contacto",
   contactoEmail: "Email de contacto",

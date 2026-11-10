@@ -1,4 +1,4 @@
--- 0125 -- Pharmacy estado and contacto, one alta for script and panel, platform reads (openspec/changes/plataforma-superadmin,
+-- 0125 -- Pharmacy estado and contacto, one alta for script and panel, platform reads (openspec/specs/plataforma/spec.md,
 -- stage 2; spec P8-P12).
 --
 --   1. fsj.tenant.estado (ACTIVO / SUSPENDIDO) + contacto_* columns. fsj_app gets NO column grant on them: only the

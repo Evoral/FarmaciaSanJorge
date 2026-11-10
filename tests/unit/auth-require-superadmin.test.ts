@@ -1,5 +1,5 @@
 /**
- * modules/auth/application/require-superadmin.ts (openspec/changes/plataforma-superadmin, spec P6): the platform guard
+ * modules/auth/application/require-superadmin.ts (openspec/specs/plataforma/spec.md P6): the platform guard
  * fails closed -- no cookie, a dead session or ANY error means "not a superadmin".
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";

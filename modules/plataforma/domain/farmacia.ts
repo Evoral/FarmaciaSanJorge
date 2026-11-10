@@ -1,5 +1,5 @@
 /**
- * Pharmacy (tenant) as the platform sees it (openspec/changes/plataforma-superadmin, P8-P12). Pure: no I/O. The
+ * Pharmacy (tenant) as the platform sees it (openspec/specs/plataforma/spec.md, P8-P12). Pure: no I/O. The
  * platform only ever sees fsj.tenant's own columns, never a tenant-scoped table (D11).
  */
 export type EstadoFarmacia = "ACTIVO" | "SUSPENDIDO";

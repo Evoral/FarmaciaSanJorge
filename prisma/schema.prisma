@@ -45,7 +45,7 @@ enum EstadoUsuario {
   @@schema("fsj")
 }
 
-/// Migration 0125 (openspec/changes/plataforma-superadmin P11).
+/// Migration 0125 (openspec/specs/plataforma/spec.md P11).
 enum EstadoTenant {
   ACTIVO
   SUSPENDIDO
@@ -293,7 +293,7 @@ model Tenant {
   telefonoCelular                 String?   @map("telefono_celular") @db.VarChar(40)
   zonaHoraria                     String    @default("America/Argentina/Mendoza") @map("zona_horaria")
   fechaBaja                       DateTime? @map("fecha_baja") @db.Timestamptz(6)
-  /// Migration 0125 (openspec/changes/plataforma-superadmin P11): changed only by the platform functions.
+  /// Migration 0125 (openspec/specs/plataforma/spec.md P11): changed only by the platform functions.
   estado                          EstadoTenant @default(ACTIVO)
   contactoNombre                  String?   @map("contacto_nombre")
   contactoEmail                   String?   @map("contacto_email") @db.Citext

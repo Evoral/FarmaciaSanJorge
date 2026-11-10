@@ -25,7 +25,7 @@ export function buildSessionCookieOptions(nodeEnv: string): SessionCookieOptions
 }
 
 /**
- * Platform (superadmin) session cookie (openspec/changes/plataforma-superadmin, spec P4). Scoped to `/plataforma`, so
+ * Platform (superadmin) session cookie (openspec/specs/plataforma/spec.md P4). Scoped to `/plataforma`, so
  * the browser never sends the platform token to a pharmacy route, and kept apart from `fsj_session` so one browser
  * never holds both kinds (the login clears the other one).
  */

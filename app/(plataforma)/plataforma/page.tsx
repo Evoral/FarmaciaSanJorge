@@ -1,4 +1,4 @@
-/** `/plataforma`: the pharmacies, 25 per page, with search, estado and saldo (openspec/changes/plataforma-superadmin P8). */
+/** `/plataforma`: the pharmacies, 25 per page, with search, estado and saldo (openspec/specs/plataforma/spec.md P8). */
 import Link from "next/link";
 import { ChevronRight, Plus, SearchX, Store, X } from "lucide-react";
 import { listarFarmacias } from "@/modules/plataforma/application/listar-farmacias";

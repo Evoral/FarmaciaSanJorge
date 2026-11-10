@@ -1,4 +1,4 @@
-/** Suspend (motivo required) or reactivate a pharmacy (openspec/changes/plataforma-superadmin P11). */
+/** Suspend (motivo required) or reactivate a pharmacy (openspec/specs/plataforma/spec.md P11). */
 import { z } from "zod";
 import { uuid } from "@/shared/validation";
 import { definePlataforma } from "./define-plataforma";
