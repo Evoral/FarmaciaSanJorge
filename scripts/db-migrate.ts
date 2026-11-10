@@ -20,8 +20,9 @@ if (!directUrl) {
   process.exit(1);
 }
 
-// `npm run db:migrate -- resolve --rolled-back <migration>` clears a failed
-// migration (P3018/P3009) with the same owner connection. Only `resolve` is
+// `npx tsx scripts/db-migrate.ts resolve --rolled-back <migration>` clears a
+// failed migration (P3018/P3009) with the same owner connection. Call the
+// script directly: through `npm run ... --`, PowerShell's npm.ps1 drops the `--`. Only `resolve` is
 // forwarded: `reset` and `dev` must never run against the shared databases.
 const extra = process.argv.slice(2);
 if (extra.length > 0 && extra[0] !== "resolve") {
