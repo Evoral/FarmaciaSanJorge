@@ -20,7 +20,17 @@ if (!directUrl) {
   process.exit(1);
 }
 
-const result = spawnSync("npx", ["prisma", "migrate", "deploy"], {
+// `npm run db:migrate -- resolve --rolled-back <migration>` clears a failed
+// migration (P3018/P3009) with the same owner connection. Only `resolve` is
+// forwarded: `reset` and `dev` must never run against the shared databases.
+const extra = process.argv.slice(2);
+if (extra.length > 0 && extra[0] !== "resolve") {
+  console.error(`db-migrate failed: only "resolve" may be passed through, got "${extra[0]}".`);
+  process.exit(1);
+}
+const args = extra.length > 0 ? ["prisma", "migrate", ...extra] : ["prisma", "migrate", "deploy"];
+
+const result = spawnSync("npx", args, {
   stdio: "inherit",
   shell: process.platform === "win32",
   env: {
