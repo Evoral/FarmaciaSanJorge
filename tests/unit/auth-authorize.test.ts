@@ -24,7 +24,7 @@ describe("can", () => {
   });
 
   it("never throws (safe for UI hide/show checks)", () => {
-    expect(() => can(fakeSession([]), "tenants.crear")).not.toThrow();
+    expect(() => can(fakeSession([]), "auth.activar")).not.toThrow();
   });
 });
 

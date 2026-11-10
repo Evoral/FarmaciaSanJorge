@@ -25,9 +25,14 @@ const loadPasosPendientesMock = vi.fn(async (...args: unknown[]): Promise<unknow
   void args;
   return [];
 });
+const tenantPuedeIniciarSesionMock = vi.fn(async (...args: unknown[]): Promise<boolean> => {
+  void args;
+  return true;
+});
 vi.mock("@/modules/auth/infrastructure/usuario-repository", () => ({
   resolveLoginByEmail: (...args: unknown[]) => resolveLoginByEmailMock(...args),
   loadPasosPendientes: (...args: unknown[]) => loadPasosPendientesMock(...args),
+  tenantPuedeIniciarSesion: (...args: unknown[]) => tenantPuedeIniciarSesionMock(...args),
   recordLoginSuccess: (...args: unknown[]) => recordLoginSuccessMock(...args),
   recordLoginFailure: (...args: unknown[]) => recordLoginFailureMock(...args),
 }));

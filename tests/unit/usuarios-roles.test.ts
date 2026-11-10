@@ -277,7 +277,7 @@ describe("permiso categories (modules/auth/domain/permisos.ts#PERMISO_CATALOGO)"
   });
 
   it("sistema is exactly auth.activar and tenants.*, never assignable", () => {
-    expect([...PERMISOS_FUERA_DE_ROLES].sort()).toEqual(["auth.activar", "tenants.baja", "tenants.crear", "tenants.editar"]);
+    expect([...PERMISOS_FUERA_DE_ROLES].sort()).toEqual(["auth.activar"]);
   });
 
   it("ADMINISTRADOR's effective set = every consulta/gestion permiso: no operativo, no sistema, roles.gestionar included", () => {

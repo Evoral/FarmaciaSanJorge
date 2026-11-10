@@ -52,6 +52,7 @@ const recordLoginFailureMock = vi.fn(async (...args: unknown[]): Promise<undefin
 });
 vi.mock("@/modules/auth/infrastructure/usuario-repository", () => ({
   resolveLoginByEmail: (...args: unknown[]) => resolveLoginByEmailMock(...args),
+  tenantPuedeIniciarSesion: async () => true,
   recordLoginSuccess: (...args: unknown[]) => recordLoginSuccessMock(...args),
   recordLoginFailure: (...args: unknown[]) => recordLoginFailureMock(...args),
   // Success path of login() also derives the pending steps; irrelevant to this test.

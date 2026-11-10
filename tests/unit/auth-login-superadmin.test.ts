@@ -13,6 +13,7 @@ const resolveLoginByEmailMock = vi.fn(async (...args: unknown[]): Promise<unknow
 vi.mock("@/modules/auth/infrastructure/usuario-repository", () => ({
   resolveLoginByEmail: (...args: unknown[]) => resolveLoginByEmailMock(...args),
   loadPasosPendientes: async () => [],
+  tenantPuedeIniciarSesion: async () => true,
   recordLoginSuccess: async () => undefined,
   recordLoginFailure: async () => 0,
 }));

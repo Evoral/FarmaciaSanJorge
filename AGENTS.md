@@ -55,6 +55,8 @@ one real Supabase project.
   if they take `p_tenant_id`, refuse it first when `IS DISTINCT FROM fsj.current_tenant_id()`.
   Never grant EXECUTE to PUBLIC; new `fsj` routines reach `fsj_app` by default privileges,
   so `REVOKE ... FROM fsj_app` the ones the app must not call (migration 0101).
+  Exception: `fsj.plataforma_*` (superadmin, no tenant) take `p_tenant_id` without that check; they derive the actor
+  from the session token hash first (`fsj.plataforma_actor`, 0124).
 - Every new `fsj` table gets RLS `ENABLE` + `FORCE` and a policy. A read across tenants goes
   through a `SECURITY DEFINER` function returning only the columns it needs (0119).
 - Every new FK gets an index on `(tenant_id, fk)`, except actor FKs to `usuario`.

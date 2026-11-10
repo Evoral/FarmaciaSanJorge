@@ -38,7 +38,7 @@ import { generateOpaqueToken, hashToken } from "../domain/token";
 import { computeAbsoluteExpiry } from "../domain/session-policy";
 import { verifyPassword } from "../domain/password";
 import { decideLogin } from "../domain/login-policy";
-import { resolveLoginByEmail, recordLoginSuccess, recordLoginFailure, loadPasosPendientes } from "../infrastructure/usuario-repository";
+import { resolveLoginByEmail, recordLoginSuccess, recordLoginFailure, loadPasosPendientes, tenantPuedeIniciarSesion } from "../infrastructure/usuario-repository";
 import { insertSesionInTx } from "../infrastructure/session-repository";
 import {
   resolveSuperadminLoginByEmail,
@@ -115,6 +115,12 @@ async function intentarLogin(email: string, password: string, ip: string | null,
   });
 
   return withTenantTransaction(candidate.tenantId, async (tx) => {
+    // A SUSPENDIDO or dado-de-baja pharmacy gets no session (migration 0125, P11). Read only after a correct
+    // password, like loadPasosPendientes: the rejected paths keep doing the same work.
+    if (decision === "OK" && !(await tenantPuedeIniciarSesion(tx, candidate.tenantId))) {
+      return { ok: false, message: GENERIC_LOGIN_ERROR };
+    }
+
     if (decision === "OK") {
       await recordLoginSuccess(tx, candidate.usuarioId, now);
 

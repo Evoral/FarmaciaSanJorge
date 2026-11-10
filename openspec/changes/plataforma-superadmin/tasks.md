@@ -48,21 +48,30 @@ hidden prompt is duplicated from `create-tenant.ts`. NOT verified: 0124 not appl
 
 ## Stage 2 — Tenant estado, alta function, suspension in auth (migration 0125)
 
-- [ ] 2.1 Migration 0125: `estado`, `contacto_*`, `fsj.crear_tenant_interno` (REVOKE from `fsj_app`),
+- [x] 2.1 Migration 0125: `estado`, `contacto_*`, `fsj.crear_tenant_interno` (REVOKE from `fsj_app`),
   `fsj.plataforma_crear_tenant`, `fsj.plataforma_cambiar_estado_tenant`, `fsj.plataforma_editar_contacto_tenant`,
   `fsj.plataforma_listar_tenants`, `fsj.plataforma_ver_tenant`, `fsj.plataforma_auditoria_tenant`; removal of the
   `tenants.*` permisos (D18).
-- [ ] 2.2 Rollback `.down.sql`. `prisma/schema.prisma` gains `Tenant.estado` and `contacto*` + `npm run db:generate`.
-- [ ] 2.3 `modules/auth/domain/permisos.ts`: remove `tenants.crear/editar/baja`; fix `tests/unit/auth-authorize.test.ts`.
-- [ ] 2.4 `validateSession` rejects a non-ACTIVO tenant; `login()` refuses (generic message, no session) when the
+- [x] 2.2 Rollback `.down.sql`. `prisma/schema.prisma` gains `Tenant.estado` and `contacto*` + `npm run db:generate`.
+- [x] 2.3 `modules/auth/domain/permisos.ts`: remove `tenants.crear/editar/baja`; fix `tests/unit/auth-authorize.test.ts`.
+- [x] 2.4 `validateSession` rejects a non-ACTIVO tenant; `login()` refuses (generic message, no session) when the
   tenant is not ACTIVO, read only on the correct-password path (`design.md` §2 0125).
-- [ ] 2.5 `scripts/create-tenant.ts` calls `fsj.crear_tenant_interno` (same flags + optional `--contacto-*`).
-- [ ] 2.6 Tests: unit for 2.4; DB test that `crear_tenant_interno` creates the same rows as the old script did and
+- [x] 2.5 `scripts/create-tenant.ts` calls `fsj.crear_tenant_interno` (same flags + optional `--contacto-*`).
+- [x] 2.6 Tests: unit for 2.4; DB test that `crear_tenant_interno` creates the same rows as the old script did and
   rolls back fully on a duplicate admin email.
 
 **Review gate 2:** the seed list in `crear_tenant_interno` matches the old script line by line (diff both); jobs still
 process SUSPENDIDO tenants; a SUSPENDIDO tenant cannot log in or use an open session; the rejected login path did not
 gain a read.
+
+**Hand-off stage 2 (2026-11-09):** done; gate checked (parámetros diffed line by line against the old script: equal).
+Also: `INV-PLAT-*` messages; `AGENTS.md` records that `fsj.plataforma_*` skip the `p_tenant_id` refusal; list search
+escapes % / _ and compares CUIT by digits. `login()` now also refuses a dado-de-baja tenant before creating the session
+(it used to create one that validateSession rejected). **For stage 3:** unique violations raised inside
+`crear_tenant_interno` arrive through `$queryRaw` and mapDbError makes them INTERNAL_ERROR; `crearFarmacia` must
+check CUIT / admin email first (field errors) and map the race. Open: the tenant-usable rule lives in two places
+(login, validateSession); 0125 down reactivates suspended pharmacies. NOT verified: 0124/0125 not applied, the new DB
+test `tests/db/plataforma-alta-tenant.test.ts` not run.
 
 ## Stage 3 — The panel: list, detail, alta, suspend, contacto
 

@@ -80,6 +80,10 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
 
   // Plataforma (superadmin, migration 0124)
   "INV-PLAT-AUTH": "Tu sesión de plataforma no es válida o expiró. Iniciá sesión nuevamente.",
+  "INV-PLAT-TENANT": "La farmacia no existe.",
+  "INV-PLAT-BAJA": "La farmacia está dada de baja: no se puede suspender ni reactivar.",
+  "INV-PLAT-ESTADO": "La farmacia ya está en ese estado.",
+  "INV-PLAT-MOTIVO": "Indicá el motivo de la suspensión.",
 
   // Libro recetario / contralor (M12)
   "INV-L01": "Los asientos del libro no se pueden modificar: solo se pueden anular o rectificar, según corresponda.",
