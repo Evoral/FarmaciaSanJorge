@@ -1,11 +1,10 @@
 /**
- * Unit tests for `modules/stock/application/ingresar-existencia-inicial.ts`
- * and `modules/stock/application/cerrar-relevamiento-inicial.ts`
- * (openspec/specs/existencia-inicial/spec.md R2-R8).
+ * Unit tests for `modules/stock/application/cerrar-relevamiento-inicial.ts`
+ * (openspec/specs/existencia-inicial/spec.md R7).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AuthenticatedSession } from "@/shared/auth/session";
-import { MENSAJE_RELEVAMIENTO_CERRADO, type SaldoControlada } from "@/modules/stock/domain/existencia-inicial";
+import { type SaldoControlada } from "@/modules/stock/domain/existencia-inicial";
 
 const auditRecordMock = vi.fn(async () => undefined);
 vi.mock("@/shared/audit", () => ({
@@ -125,158 +124,7 @@ vi.mock("@/modules/stock/application/verificar-password-dt-partida", () => ({
   },
 }));
 
-const { ingresarExistenciaInicialCommand } = await import("@/modules/stock/application/ingresar-existencia-inicial");
 const { cerrarRelevamientoInicial } = await import("@/modules/stock/application/cerrar-relevamiento-inicial");
-
-describe("ingresarExistenciaInicialCommand", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    callOrder.length = 0;
-    relevamientoInicialAbiertoMock.mockImplementation(async () => {
-      callOrder.push("relevamientoInicialAbierto");
-      return true;
-    });
-    getFechaActivacionContralorMock.mockResolvedValue(null);
-    getDrogaParaIngresoMock.mockResolvedValue({
-      id: DROGA_ID,
-      nombre: "Droga Test",
-      clase: "DROGA",
-      unidadBaseId: UNIDAD_BASE_ID,
-      tipoControl: "NINGUNO",
-      fechaBaja: null,
-      requiereCorreccionPotencia: false,
-    });
-  });
-
-  it("takes the tenant FOR SHARE lock (lockTenantRelevamientoCompartido) BEFORE checking relevamientoInicialAbierto", async () => {
-    const session = makeSession(["stock.partida.ingresar"]);
-    await ingresarExistenciaInicialCommand.execute(
-      {
-        drogaId: DROGA_ID,
-        lote: "L-001",
-        fechaVencimiento: "2027-01-01",
-        cantidadCompra: "100",
-        unidadCompraId: UNIDAD_BASE_ID,
-        costoUnitario: "15.5",
-      },
-      { session },
-    );
-
-    expect(callOrder).toEqual(["lockTenantRelevamientoCompartido", "relevamientoInicialAbierto"]);
-    expect(lockTenantRelevamientoCompartidoMock).toHaveBeenCalledTimes(1);
-    expect(relevamientoInicialAbiertoMock).toHaveBeenCalledTimes(1);
-    expect(insertPartidaConIngresoMock).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        origen: "EXISTENCIA_INICIAL",
-        proveedorId: null,
-      }),
-    );
-  });
-
-  it("is rejected with DomainError when the relevamiento inicial window is closed", async () => {
-    relevamientoInicialAbiertoMock.mockImplementationOnce(async () => false);
-    const session = makeSession(["stock.partida.ingresar"]);
-
-    await expect(
-      ingresarExistenciaInicialCommand.execute(
-        {
-          drogaId: DROGA_ID,
-          lote: "L-001",
-          fechaVencimiento: "2027-01-01",
-          cantidadCompra: "100",
-          unidadCompraId: UNIDAD_BASE_ID,
-          costoUnitario: "15.5",
-        },
-        { session },
-      ),
-    ).rejects.toThrow(MENSAJE_RELEVAMIENTO_CERRADO);
-
-    expect(insertPartidaConIngresoMock).not.toHaveBeenCalled();
-  });
-
-  it("succeeds without proveedor (proveedorId = null)", async () => {
-    const session = makeSession(["stock.partida.ingresar"]);
-    const res = await ingresarExistenciaInicialCommand.execute(
-      {
-        drogaId: DROGA_ID,
-        lote: "L-SIN-PROV",
-        fechaVencimiento: "2027-01-01",
-        cantidadCompra: "50",
-        unidadCompraId: UNIDAD_BASE_ID,
-        costoUnitario: "20",
-      },
-      { session },
-    );
-
-    expect(res).toEqual({ id: "p-nueva" });
-    expect(getProveedorParaIngresoMock).not.toHaveBeenCalled();
-    expect(insertPartidaConIngresoMock).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        proveedorId: null,
-        origen: "EXISTENCIA_INICIAL",
-      }),
-    );
-  });
-
-  it("succeeds with proveedor when provided", async () => {
-    const session = makeSession(["stock.partida.ingresar"]);
-    const res = await ingresarExistenciaInicialCommand.execute(
-      {
-        drogaId: DROGA_ID,
-        proveedorId: PROVEEDOR_ID,
-        lote: "L-CON-PROV",
-        fechaVencimiento: "2027-01-01",
-        cantidadCompra: "75",
-        unidadCompraId: UNIDAD_BASE_ID,
-        costoUnitario: "18",
-      },
-      { session },
-    );
-
-    expect(res).toEqual({ id: "p-nueva" });
-    expect(getProveedorParaIngresoMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID, PROVEEDOR_ID);
-    expect(insertPartidaConIngresoMock).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        proveedorId: PROVEEDOR_ID,
-        origen: "EXISTENCIA_INICIAL",
-      }),
-    );
-  });
-
-  it("does NOT require numeroValeAdquisicion even for a controlled droga with active contralor digital", async () => {
-    // Controlled droga + contralor activo
-    getDrogaParaIngresoMock.mockResolvedValueOnce({
-      id: DROGA_ID,
-      nombre: "Morfina",
-      clase: "DROGA",
-      unidadBaseId: UNIDAD_BASE_ID,
-      tipoControl: "ESTUPEFACIENTE",
-      fechaBaja: null,
-      requiereCorreccionPotencia: false,
-    });
-    getFechaActivacionContralorMock.mockResolvedValueOnce(new Date("2026-01-01"));
-
-    const session = makeSession(["stock.partida.ingresar"]);
-    // input has no numeroValeAdquisicion
-    const res = await ingresarExistenciaInicialCommand.execute(
-      {
-        drogaId: DROGA_ID,
-        lote: "L-CTRL",
-        fechaVencimiento: "2027-01-01",
-        cantidadCompra: "10",
-        unidadCompraId: UNIDAD_BASE_ID,
-        costoUnitario: "100",
-      },
-      { session },
-    );
-
-    expect(res).toEqual({ id: "p-nueva" });
-    expect(insertPartidaConIngresoMock).toHaveBeenCalled();
-  });
-});
 
 describe("cerrarRelevamientoInicial", () => {
   beforeEach(() => {

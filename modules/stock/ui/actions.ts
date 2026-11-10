@@ -10,7 +10,6 @@ import { leerFacturaCompraPdf } from "@/modules/stock/application/leer-factura-c
 import { importarFacturaCompra } from "@/modules/stock/application/importar-factura-compra";
 import { registrarReanalisisPartida } from "@/modules/stock/application/reanalizar-partida";
 import { marcarPartidaVencida } from "@/modules/stock/application/marcar-partida-vencida";
-import { ingresarExistenciaInicial } from "@/modules/stock/application/ingresar-existencia-inicial";
 import { cerrarRelevamientoInicial } from "@/modules/stock/application/cerrar-relevamiento-inicial";
 import {
   guardarFilaRelevamiento,
@@ -22,7 +21,6 @@ import { pasarGrupoAStock } from "@/modules/stock/application/pasar-grupo-a-stoc
 import { claveGrupo } from "@/modules/stock/domain/existencia-inicial";
 import { elaborarLote } from "@/modules/stock/application/elaborar-lote";
 import { datosParaElaborar, type DatosParaElaborar } from "@/modules/stock/application/datos-para-elaborar";
-import { listarCostosVigentes } from "@/modules/costos-proveedor/application/listar-costos-vigentes";
 import { getHojaParaImprimir } from "@/modules/etiqueta-tamanos/application/get-hoja-para-imprimir";
 import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
 import type { HojaEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
@@ -200,30 +198,6 @@ export async function marcarPartidaVencidaAction(_prevState: StockActionState, f
   } catch (error) {
     return fromError(error, "No se pudo marcar la partida como vencida.");
   }
-}
-
-/** Existencia inicial (openspec/specs/existencia-inicial/spec.md R5): one counted envase per submit, the form resets for the next one. */
-export async function ingresarExistenciaInicialAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
-  return conOperador(formData, async (): Promise<StockActionState> => {
-    try {
-      await ingresarExistenciaInicial({
-        drogaId: String(formData.get("drogaId") ?? ""),
-        proveedorId: opcional(formData, "proveedorId"),
-        lote: String(formData.get("lote") ?? ""),
-        fechaVencimiento: opcional(formData, "fechaVencimiento"),
-        cantidadCompra: String(formData.get("cantidadCompra") ?? ""),
-        unidadCompraId: String(formData.get("unidadCompraId") ?? ""),
-        costoUnitario: String(formData.get("costoUnitario") ?? ""),
-        potenciaDeclarada: opcional(formData, "potenciaDeclarada"),
-      });
-      revalidatePath("/stock");
-      revalidatePath("/partidas");
-      revalidatePath("/partidas/existencia-inicial");
-      return { status: "success", message: "Existencia inicial cargada: la partida ya está en el stock." };
-    } catch (error) {
-      return fromError(error, "No se pudo cargar la existencia inicial.");
-    }
-  });
 }
 
 /** "Cerrar relevamiento" (R7): the use case verifies the DT's own password first. */
@@ -422,16 +396,6 @@ export async function pasarAStockAction(
 }
 
 
-
-/** R3: the droga's vigente costo de proveedor (that proveedor's when one is chosen), per unidad base, to prefill the alta. */
-export async function costoSugeridoExistenciaInicialAction(drogaId: string, proveedorId?: string): Promise<string | null> {
-  try {
-    const { items } = await listarCostosVigentes({ drogaId: String(drogaId), proveedorId: proveedorId ? String(proveedorId) : undefined, page: 1, pageSize: 1 });
-    return items[0]?.costoUnitario ?? null;
-  } catch {
-    return null;
-  }
-}
 
 /** The consumed lots of "Elaborar lote": one `cantidad_<partidaId>` field per lot, blanks skipped (the command reports a rejected one by that same name). */
 function consumosDelForm(formData: FormData): { partidaId: string; cantidad: string }[] {

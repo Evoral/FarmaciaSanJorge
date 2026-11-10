@@ -5,15 +5,15 @@
  * R5-R8, openspec/changes/planilla-existencia-inicial): whether existencia inicial can still be loaded
  * and until when, what was loaded per droga, the controlled drogas whose libro contralor does not
  * match their stock, and -- for the DT vigente only -- "Cerrar relevamiento" with their own password.
- * The existencia inicial form goes inside it (`children`). When closed, shows what was loaded
- * read-only (who closed it and when, or when the plazo ended) with no form and no close control.
+ * When closed, shows what was loaded read-only (who closed it and when, or when the plazo ended)
+ * with no close control.
  */
-import type { ReactNode } from "react";
 import { SimpleForm } from "@/shared/ui/simple-form";
 import { formatFecha, formatFechaIso } from "@/shared/format/fecha";
 import { formatCantidadExacta } from "@/shared/format/cantidad";
 import { cerrarRelevamientoInicialAction } from "./actions";
 import { PasswordInput } from "@/shared/ui/password-input";
+import type { DrogaFaltanCargarRaw } from "../application/get-planilla-relevamiento";
 
 export interface RelevamientoInicialPanelProps {
   abierto: boolean;
@@ -26,7 +26,8 @@ export interface RelevamientoInicialPanelProps {
   diferencias: readonly { drogaId: string; drogaNombre: string; unidadSimbolo: string; saldoContralor: string | null; stockFisico: string }[];
   puedeCerrar: boolean;
   zonaHoraria: string;
-  children?: ReactNode;
+  totalFilasPlanilla: number;
+  faltanCargar: readonly DrogaFaltanCargarRaw[];
 }
 
 export function RelevamientoInicialPanel({
@@ -39,7 +40,8 @@ export function RelevamientoInicialPanel({
   diferencias,
   puedeCerrar,
   zonaHoraria,
-  children,
+  totalFilasPlanilla,
+  faltanCargar,
 }: RelevamientoInicialPanelProps) {
   const partidas = cargadoPorDroga.reduce((total, d) => total + d.partidas, 0);
 
@@ -51,14 +53,16 @@ export function RelevamientoInicialPanel({
           {abierto ? (
             <>
               <p className="text-sm text-zinc-500">
-                Cargá cada envase que ya estaba en la farmacia al empezar a usar el sistema: lote, vencimiento y cantidad, como figuran en el envase. Se puede
-                hasta que el Director Técnico cierre el relevamiento
+                Cargá en la planilla cada envase que ya estaba en la farmacia al empezar a usar el sistema, con lote, vencimiento y cantidad como figuran en el envase. Los envases del mismo lote se suman en una sola partida al pasar a stock.
+              </p>
+              <p className="mt-1 text-sm text-zinc-500">
+                Se puede cargar hasta que el Director Técnico cierre el relevamiento
                 {fechaLimite ? `, como máximo hasta el ${formatFechaIso(fechaLimite)}` : " (el plazo empieza a correr con el primer cierre diario firmado)"}.
               </p>
               <p className="mt-1 text-sm text-zinc-500">
                 {partidas === 0
-                  ? "Todavía no se cargó ningún envase."
-                  : `Cargados: ${partidas === 1 ? "1 envase" : `${partidas} envases`} de ${cargadoPorDroga.length === 1 ? "1 droga" : `${cargadoPorDroga.length} drogas`}.`}
+                  ? "Todavía no se cargó ninguna partida."
+                  : `Cargadas: ${partidas === 1 ? "1 partida" : `${partidas} partidas`} de ${cargadoPorDroga.length === 1 ? "1 droga" : `${cargadoPorDroga.length} drogas`}.`}
               </p>
             </>
           ) : (
@@ -72,14 +76,12 @@ export function RelevamientoInicialPanel({
               </p>
               <p className="mt-1 text-sm text-zinc-500">
                 {partidas === 0
-                  ? "No se cargaron envases durante el relevamiento."
-                  : `Total cargado: ${partidas === 1 ? "1 envase" : `${partidas} envases`} de ${cargadoPorDroga.length === 1 ? "1 droga" : `${cargadoPorDroga.length} drogas`}.`}
+                  ? "No se cargaron partidas durante el relevamiento."
+                  : `Total cargado: ${partidas === 1 ? "1 partida" : `${partidas} partidas`} de ${cargadoPorDroga.length === 1 ? "1 droga" : `${cargadoPorDroga.length} drogas`}.`}
               </p>
             </>
           )}
         </div>
-
-        {abierto ? children : null}
 
         {!abierto && cargadoPorDroga.length > 0 ? (
           <div className="mt-2">
@@ -88,7 +90,7 @@ export function RelevamientoInicialPanel({
               {cargadoPorDroga.map((d) => (
                 <div key={d.drogaId} className="flex items-center justify-between py-2">
                   <span className="font-medium text-zinc-900">{d.drogaNombre}</span>
-                  <span className="text-zinc-600">{d.partidas === 1 ? "1 envase" : `${d.partidas} envases`}</span>
+                  <span className="text-zinc-600">{d.partidas === 1 ? "1 partida" : `${d.partidas} partidas`}</span>
                 </div>
               ))}
             </div>
@@ -113,10 +115,47 @@ export function RelevamientoInicialPanel({
         {abierto && puedeCerrar ? (
           <div className="border-t border-zinc-200 pt-4">
             <h3 className="text-sm font-semibold">Cerrar relevamiento</h3>
-            <p className="mb-2 text-sm text-zinc-500">
+            <p className="mb-3 text-sm text-zinc-500">
               Al cerrarlo ya no se puede cargar existencia inicial, y no se vuelve a abrir. Desde entonces el stock entra solo por compras.
             </p>
-            <SimpleForm action={cerrarRelevamientoInicialAction} submitLabel="Cerrar relevamiento" submitVariant="secondary" className="max-w-sm">
+
+            <SimpleForm
+              action={cerrarRelevamientoInicialAction}
+              submitLabel="Cerrar relevamiento"
+              submitVariant="secondary"
+              className="flex flex-col gap-4 max-w-md"
+            >
+              <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-zinc-800 dark:bg-zinc-800/50 flex flex-col gap-2">
+                <p className="text-xs text-zinc-700 dark:text-zinc-300">
+                  <span className="font-semibold text-zinc-900 dark:text-zinc-100">Cargado:</span>{" "}
+                  {partidas} partida{partidas === 1 ? "" : "s"} de {cargadoPorDroga.length} droga{cargadoPorDroga.length === 1 ? "" : "s"}.
+                </p>
+                {faltanCargar.length > 0 ? (
+                  <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                    <span className="font-medium text-zinc-800 dark:text-zinc-200">
+                      Faltan cargar ({faltanCargar.length}):
+                    </span>{" "}
+                    {faltanCargar.map((d) => d.nombre).join(", ")}
+                  </div>
+                ) : (
+                  <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                    No hay drogas pendientes en Faltan cargar.
+                  </p>
+                )}
+              </div>
+
+              {totalFilasPlanilla > 0 ? (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+                  <p className="font-medium">
+                    La planilla todavía tiene <span className="tabular-nums font-bold">{totalFilasPlanilla}</span> fila{totalFilasPlanilla === 1 ? "" : "s"} sin pasar a stock.
+                  </p>
+                  <label className="mt-2 flex items-center gap-2 cursor-pointer font-medium text-xs sm:text-sm">
+                    <input type="checkbox" name="descartarFilas" value="true" className="checkbox size-4" />
+                    Descartar las {totalFilasPlanilla} fila{totalFilasPlanilla === 1 ? "" : "s"} de la planilla
+                  </label>
+                </div>
+              ) : null}
+
               <div className="field">
                 <label htmlFor="relevamiento-password" className="field-label">
                   Tu contraseña (Director Técnico)

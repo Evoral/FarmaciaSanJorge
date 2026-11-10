@@ -21,10 +21,10 @@ Design: `design.md`. Migrations are written by the agent and applied by the user
 - [x] 2.6 Domain: `estadoFila`, `agruparFilas`, `conflictosGrupo`.
 - [x] 2.7 Repository and use cases: `guardarFilaRelevamiento`, `quitarFilaRelevamiento`, `getPlanillaRelevamiento`, `pasarGrupoAStock`.
 - [x] 2.8 Server Action for Pasar a stock under `conOperador`, up to 100 groups per press.
-- [ ] 2.9 `planilla-existencia-inicial.tsx`, its confirmation dialog and the list of what passed; retire `existencia-inicial-form.tsx` and `ingresarExistenciaInicial`.
-- [ ] 2.10 Faltan cargar (R16).
-- [ ] 2.11 Close: Faltan cargar, rows left, discard (R7).
-- [ ] 2.12 Banner `resumenRelevamiento` (R20).
+- [x] 2.9 `planilla-existencia-inicial.tsx`, its confirmation dialog and the list of what passed; retire `existencia-inicial-form.tsx` and `ingresarExistenciaInicial`.
+- [x] 2.10 Faltan cargar (R16).
+- [x] 2.11 Close: Faltan cargar, rows left, discard (R7).
+- [x] 2.12 Banner `resumenRelevamiento` (R20).
 - [x] 2.13 Labels, kardex, reports and SQL reads of the new tipos (`design.md`, Reads to revisit).
 - [ ] 2.14 Review by a different agent/vendor.
 

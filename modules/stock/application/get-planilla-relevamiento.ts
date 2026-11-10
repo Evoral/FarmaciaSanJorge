@@ -6,7 +6,7 @@
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
-import { dec } from "@/shared/decimal";
+import { dec, type Decimal } from "@/shared/decimal";
 import {
   estadoFila,
   claveGrupo,
@@ -19,15 +19,16 @@ import {
 import {
   getEstadoRelevamientoInicial,
 } from "../infrastructure/existencia-inicial-repository";
+import { jornadaActualTenant } from "../infrastructure/partida-repository";
 import {
   listDrogasFaltanCargar,
   listFilasRelevamiento,
   listPartidasCoincidentesFilas,
   listPartidasExistenciaInicial,
   type DrogaFaltanCargarRaw,
-  type PartidaExistenciaInicialRaw,
-  type RelevamientoFilaConDetalles,
 } from "../infrastructure/relevamiento-fila-repository";
+
+export type { DrogaFaltanCargarRaw };
 
 export interface FilaPlanillaConEstado {
   id: string;
@@ -37,8 +38,10 @@ export interface FilaPlanillaConEstado {
   lote: string | null;
   fechaVencimiento: string | null;
   cantidad: string | null;
+  cantidadBase: string | null;
   unidadMedidaId: string | null;
   unidadSimbolo: string | null;
+  unidadBaseSimbolo: string | null;
   potenciaDeclarada: string | null;
   costoUnitario: string | null;
   proveedorId: string | null;
@@ -73,6 +76,7 @@ export interface PartidaExistenciaInicialView {
 
 export interface PlanillaRelevamientoResultado {
   estado: EstadoRelevamientoInicial;
+  jornadaActual: string;
   filas: FilaPlanillaConEstado[];
   partidas: PartidaExistenciaInicialView[];
   faltanCargar: DrogaFaltanCargarRaw[];
@@ -92,13 +96,21 @@ export const getPlanillaRelevamientoQuery = defineQuery({
   permiso: "stock.ver",
   input: z.object({}),
   handler: async ({ tx, session }): Promise<PlanillaRelevamientoResultado> => {
-    const [estado, filasRaw, partidasRaw, faltanCargar, partidasCoincidentes] = await Promise.all([
+    const [estado, filasRaw, partidasRaw, faltanCargar, partidasCoincidentes, unidadesRaw, jornadaActual] = await Promise.all([
       getEstadoRelevamientoInicial(tx, session.tenantId),
       listFilasRelevamiento(tx, session.tenantId),
       listPartidasExistenciaInicial(tx, session.tenantId),
       listDrogasFaltanCargar(tx, session.tenantId),
       listPartidasCoincidentesFilas(tx, session.tenantId),
+      tx.unidadMedida.findMany({
+        select: { id: true, simbolo: true, tipoMagnitud: true, factorABase: true },
+      }),
+      jornadaActualTenant(tx, session.tenantId),
     ]);
+
+    const unidadMap = new Map(
+      unidadesRaw.map((u) => [u.id, { simbolo: u.simbolo, tipoMagnitud: u.tipoMagnitud, factorABase: dec(u.factorABase) }]),
+    );
 
     // Index existing partidas by (drogaId, lote, proveedorId)
     const partidaIndex = new Map<string, PartidaExistenteContexto>();
@@ -174,10 +186,20 @@ export const getPlanillaRelevamientoQuery = defineQuery({
       const filasDelGrupo = clave ? filasPorGrupo.get(clave) : undefined;
       const partidaExistente = clave ? partidaIndex.get(clave) : null;
 
+      const getFactorABase = (unidadMedidaId: string): Decimal | null => {
+        if (!r.droga_unidad_base_id) return null;
+        const baseU = unidadMap.get(r.droga_unidad_base_id);
+        const u = unidadMap.get(unidadMedidaId);
+        if (!baseU || !u) return null;
+        if (u.tipoMagnitud !== baseU.tipoMagnitud) return null;
+        return u.factorABase.gt(0) ? u.factorABase : null;
+      };
+
       const estado = estadoFila(inputFila, {
         droga: drogaContexto,
         filasDelGrupo,
         partidaExistente,
+        factorABase: getFactorABase,
       });
 
       if (estado.tipo === "incompleta") {
@@ -188,6 +210,28 @@ export const getPlanillaRelevamientoQuery = defineQuery({
         filasListas++;
       }
 
+      let cantidadBase: string | null = null;
+      if (r.cantidad && r.unidad_medida_id && r.droga_unidad_base_id) {
+        try {
+          const baseU = unidadMap.get(r.droga_unidad_base_id);
+          const u = unidadMap.get(r.unidad_medida_id);
+          if (
+            baseU &&
+            u &&
+            u.tipoMagnitud === baseU.tipoMagnitud &&
+            baseU.factorABase.gt(0) &&
+            u.factorABase.gt(0)
+          ) {
+            cantidadBase = dec(r.cantidad).mul(u.factorABase).div(baseU.factorABase).toString();
+          }
+        } catch {
+          cantidadBase = null;
+        }
+      }
+      const unidadBaseSimbolo = r.droga_unidad_base_id
+        ? (unidadMap.get(r.droga_unidad_base_id)?.simbolo ?? null)
+        : null;
+
       return {
         id: r.id,
         drogaId: r.droga_id,
@@ -196,8 +240,10 @@ export const getPlanillaRelevamientoQuery = defineQuery({
         lote: r.lote,
         fechaVencimiento: r.fecha_vencimiento,
         cantidad: r.cantidad,
+        cantidadBase,
         unidadMedidaId: r.unidad_medida_id,
         unidadSimbolo: r.unidad_simbolo,
+        unidadBaseSimbolo,
         potenciaDeclarada: r.potencia_declarada,
         costoUnitario: r.costo_unitario,
         proveedorId: r.proveedor_id,
@@ -238,6 +284,7 @@ export const getPlanillaRelevamientoQuery = defineQuery({
 
     return {
       estado,
+      jornadaActual,
       filas: filasConEstado,
       partidas: partidasView,
       faltanCargar,

@@ -22,6 +22,8 @@ Rows in `fsj.relevamiento_fila` (the draft planilla) will be dropped by the roll
 
 ## Files affected (delivery 2)
 
+Reverting the code of delivery 2 restores `modules/stock/application/ingresar-existencia-inicial.ts`, `modules/stock/ui/existencia-inicial-form.tsx`, and `ingresarExistenciaInicialAction` in `modules/stock/ui/actions.ts` (which were retired by this delivery).
+
 - `prisma/migrations/20261110120000_0124_planilla_existencia_inicial/`
 - `prisma/rollbacks/0124_planilla_existencia_inicial.down.sql`
 - `prisma/schema.prisma`: `RelevamientoFila`, `CORRECCION_INICIAL_SUMA`, `CORRECCION_INICIAL_RESTA`

@@ -7,6 +7,7 @@
  * planilla and the use cases decide on top of it.
  */
 import { dec, Decimal } from "@/shared/decimal";
+import { formatFechaIso } from "@/shared/format/fecha";
 
 /** `dias_relevamiento_inicial` default -- same fallback as `fsj.relevamiento_inicial_fecha_limite`. */
 export const DIAS_RELEVAMIENTO_INICIAL_DEFAULT = "30";
@@ -136,67 +137,8 @@ export function esFilaCompleta(
   return campoFaltanteFila(fila, droga, factorABase) === null;
 }
 
-/**
- * Groups rows by droga + trimmed lote + proveedor (R15).
- * Sums quantities in the droga's unidad base using the supplied conversion factor map or getter.
- */
-export interface GrupoFilas {
-  clave: string;
-  drogaId: string;
-  lote: string;
-  proveedorId: string | null;
-  filas: FilaPlanillaInput[];
-  cantidadTotalBase: Decimal;
-}
-
 export function claveGrupo(drogaId: string, lote: string, proveedorId: string | null | undefined): string {
   return `${drogaId}::${lote.trim()}::${proveedorId ?? ""}`;
-}
-
-export function agruparFilas(
-  filas: readonly FilaPlanillaInput[],
-  factorABase: Map<string, Decimal | null | undefined> | ((unidadMedidaId: string) => Decimal | null | undefined),
-): GrupoFilas[] {
-  const gruposMap = new Map<string, GrupoFilas>();
-
-  for (const fila of filas) {
-    if (!fila.drogaId || !fila.lote || fila.lote.trim() === "" || !fila.cantidad || !fila.unidadMedidaId) {
-      continue;
-    }
-
-    const factorRaw = typeof factorABase === "function" ? factorABase(fila.unidadMedidaId) : factorABase.get(fila.unidadMedidaId);
-    if (!factorRaw) {
-      continue;
-    }
-    const factor = dec(factorRaw);
-    if (factor.lte(0)) {
-      continue;
-    }
-
-    const loteTrimmed = fila.lote.trim();
-    const proveedorId = fila.proveedorId ?? null;
-    const clave = claveGrupo(fila.drogaId, loteTrimmed, proveedorId);
-
-    const cantidadBase = dec(fila.cantidad).mul(factor);
-
-    let grupo = gruposMap.get(clave);
-    if (!grupo) {
-      grupo = {
-        clave,
-        drogaId: fila.drogaId,
-        lote: loteTrimmed,
-        proveedorId,
-        filas: [],
-        cantidadTotalBase: dec(0),
-      };
-      gruposMap.set(clave, grupo);
-    }
-
-    grupo.filas.push(fila);
-    grupo.cantidadTotalBase = grupo.cantidadTotalBase.plus(cantidadBase);
-  }
-
-  return Array.from(gruposMap.values());
 }
 
 /**
@@ -228,8 +170,8 @@ export function conflictosGrupo(
     for (const f of filas) {
       const vf = f.fechaVencimiento?.trim() || null;
       if (vf !== vp) {
-        const descF = vf ?? "no vence";
-        const descP = vp ?? "no vence";
+        const descF = vf ? formatFechaIso(vf) : "no vence";
+        const descP = vp ? formatFechaIso(vp) : "no vence";
         const msg = `La fecha de vencimiento (${descF}) difiere de la partida en stock (${descP})`;
         if (!conflictos.includes(msg)) conflictos.push(msg);
       }
@@ -269,8 +211,8 @@ export function conflictosGrupo(
       const v1 = f1.fechaVencimiento?.trim() || null;
       const v2 = f2.fechaVencimiento?.trim() || null;
       if (v1 !== v2) {
-        const desc1 = v1 ?? "no vence";
-        const desc2 = v2 ?? "no vence";
+        const desc1 = v1 ? formatFechaIso(v1) : "no vence";
+        const desc2 = v2 ? formatFechaIso(v2) : "no vence";
         const msg = `Diferente vencimiento en el mismo lote (${desc1} vs ${desc2})`;
         if (!conflictos.includes(msg)) conflictos.push(msg);
       }

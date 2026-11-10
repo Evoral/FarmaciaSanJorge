@@ -31,8 +31,8 @@ remain valid (INV-L15 is unchanged).
 
 - `modules/stock/domain/existencia-inicial.ts`
 - `modules/stock/infrastructure/existencia-inicial-repository.ts`
-- `modules/stock/application/ingresar-existencia-inicial.ts`, `cerrar-relevamiento-inicial.ts`
-- `modules/stock/ui/existencia-inicial-form.tsx`, `relevamiento-inicial-panel.tsx`
+- `modules/stock/application/ingresar-existencia-inicial.ts` (removed by `planilla-existencia-inicial`, see `docs/rollbacks/planilla-existencia-inicial.md`), `cerrar-relevamiento-inicial.ts`
+- `modules/stock/ui/existencia-inicial-form.tsx` (removed by `planilla-existencia-inicial`, see `docs/rollbacks/planilla-existencia-inicial.md`), `relevamiento-inicial-panel.tsx`
 - `modules/libro/application/registrar-apertura-contralor.ts`
 - `modules/drogas/application/contralor-activo.ts`
 - `openspec/specs/existencia-inicial/spec.md`, `prisma/rollbacks/0100_existencia_inicial.down.sql` and this file (optional)
@@ -51,7 +51,7 @@ remain valid (INV-L15 is unchanged).
 - `shared/labels/enum-labels.ts`: `INGRESO_INICIAL`, `ORIGEN_PARTIDA_LABELS`, `ETIQUETA_SIN_PROVEEDOR`.
 - Kardex: `modules/stock/application/kardex-movimientos.ts`, `reporte-kardex.ts`, `app/(app)/reportes/kardex/page.tsx`,
   `app/api/stock/kardex/export/xlsx/route.ts`; `modules/proveedores/domain/trayectoria.ts` (`TipoMovimientoValor`).
-- `modules/stock/ui/actions.ts`: `ingresarExistenciaInicialAction`, `cerrarRelevamientoInicialAction`,
+- `modules/stock/ui/actions.ts`: `ingresarExistenciaInicialAction` (removed by `planilla-existencia-inicial`, see `docs/rollbacks/planilla-existencia-inicial.md`), `cerrarRelevamientoInicialAction`,
   `costoSugeridoExistenciaInicialAction`.
 - `app/(app)/partidas/ingresar/page.tsx`: the relevamiento panel; `app/(app)/partidas/[id]/page.tsx`: the origin.
 - `modules/parametros/domain/parametros-registry.ts` and `scripts/create-tenant.ts`: `dias_relevamiento_inicial`.

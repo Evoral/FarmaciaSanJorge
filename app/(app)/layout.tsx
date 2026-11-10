@@ -20,6 +20,7 @@ import { resumenJornadasPendientes } from "@/modules/cierres/application/list-jo
 import { resumenDestruccion } from "@/modules/archivo/application/resumen-destruccion";
 import { resumenVencimientosDrogas } from "@/modules/stock/application/vencimientos-drogas";
 import { resumenBajoMinimo } from "@/modules/stock/application/alertas-stock";
+import { resumenRelevamiento } from "@/modules/stock/application/resumen-relevamiento";
 import { resumenIntegridad, type LibroQuebrado } from "@/modules/libro/application/resumen-integridad";
 import { etiquetaLibro } from "@/modules/libro/domain/integridad";
 import { getMarcaTenant, type MarcaTenantVista } from "@/modules/farmacia/application/get-marca-tenant";
@@ -122,6 +123,16 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
       drogasBajoMinimo = await resumenBajoMinimo();
     } catch (error) {
       getLogger().error({ error }, "Failed to load stock bajo-minimo banner summary");
+    }
+  }
+
+  // Relevamiento inicial plazo banner (R20): fail-soft, gated on stock.ver (same as resumenRelevamientoQuery)
+  let bannerRelevamiento: Awaited<ReturnType<typeof resumenRelevamiento>> | null = null;
+  if (puedeVencimientos) {
+    try {
+      bannerRelevamiento = await resumenRelevamiento();
+    } catch (error) {
+      getLogger().error({ error }, "Failed to load relevamiento inicial banner summary");
     }
   }
   const vencimientosHref = seccionesGestionDt.some((seccion) => seccion.href === "/cierres/vencimientos") ? "/cierres/vencimientos" : "/stock?vencidas=1";
@@ -238,6 +249,23 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
       content: (
         <>
           <b className="font-semibold tabular-nums">{drogasBajoMinimo}</b> droga{drogasBajoMinimo === 1 ? "" : "s"} por debajo del stock mínimo
+        </>
+      ),
+    });
+  }
+  if (bannerRelevamiento && bannerRelevamiento.mostrar) {
+    const { diasRestantes = 0, faltanCargar = 0, filasPlanilla = 0 } = bannerRelevamiento;
+    avisos.push({
+      key: "relevamiento-inicial",
+      tone: diasRestantes <= 2 ? "danger" : "warn",
+      href: "/partidas/existencia-inicial",
+      linkLabel: "Ver existencia inicial",
+      content: (
+        <>
+          <b className="font-semibold tabular-nums">
+            {diasRestantes === 0 ? "Último día" : `Quedan ${diasRestantes} día${diasRestantes === 1 ? "" : "s"}`}
+          </b>{" "}
+          para el relevamiento inicial · <b className="font-semibold tabular-nums">{faltanCargar}</b> droga{faltanCargar === 1 ? "" : "s"} sin cargar · <b className="font-semibold tabular-nums">{filasPlanilla}</b> fila{filasPlanilla === 1 ? "" : "s"} en planilla
         </>
       ),
     });

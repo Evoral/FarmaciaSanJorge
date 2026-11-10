@@ -121,7 +121,6 @@ await import("@/modules/stock/application/list-dt-para-co-firma");
 await import("@/modules/stock/application/reanalizar-partida");
 await import("@/modules/stock/application/marcar-partida-vencida");
 await import("@/modules/stock/application/verificar-password-dt-partida");
-await import("@/modules/stock/application/ingresar-existencia-inicial");
 await import("@/modules/stock/application/cerrar-relevamiento-inicial");
 
 
