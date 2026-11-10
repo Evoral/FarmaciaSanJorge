@@ -14,6 +14,7 @@ import { formatCantidadExacta } from "@/shared/format/cantidad";
 import { cerrarRelevamientoInicialAction } from "./actions";
 import { PasswordInput } from "@/shared/ui/password-input";
 import type { DrogaFaltanCargarRaw } from "../application/get-planilla-relevamiento";
+import type { CorreccionesRelevamientoResult } from "../application/get-correcciones-relevamiento";
 
 export interface RelevamientoInicialPanelProps {
   abierto: boolean;
@@ -28,6 +29,7 @@ export interface RelevamientoInicialPanelProps {
   zonaHoraria: string;
   totalFilasPlanilla: number;
   faltanCargar: readonly DrogaFaltanCargarRaw[];
+  correcciones?: CorreccionesRelevamientoResult;
 }
 
 export function RelevamientoInicialPanel({
@@ -42,6 +44,7 @@ export function RelevamientoInicialPanel({
   zonaHoraria,
   totalFilasPlanilla,
   faltanCargar,
+  correcciones,
 }: RelevamientoInicialPanelProps) {
   const partidas = cargadoPorDroga.reduce((total, d) => total + d.partidas, 0);
 
@@ -155,6 +158,77 @@ export function RelevamientoInicialPanel({
                   </label>
                 </div>
               ) : null}
+
+              {/* Correcciones del relevamiento (R7) */}
+              <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-800/50 flex flex-col gap-2.5">
+                <p className="font-semibold text-zinc-900 dark:text-zinc-100">
+                  Correcciones realizadas
+                </p>
+                {(!correcciones || (correcciones.movimientos.length === 0 && correcciones.datos.length === 0)) ? (
+                  <p className="text-zinc-500">No se realizaron correcciones durante el relevamiento.</p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {correcciones.movimientos.length > 0 ? (
+                      <div>
+                        <p className="font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                          Correcciones de cantidad ({correcciones.movimientos.length}):
+                        </p>
+                        <ul className="divide-y divide-zinc-200 dark:divide-zinc-700">
+                          {correcciones.movimientos.map((m) => (
+                            <li key={m.id} className="py-1 flex flex-col gap-0.5">
+                              <div className="flex items-center justify-between font-mono">
+                                <span className="font-sans font-medium text-zinc-800 dark:text-zinc-200">
+                                  {m.drogaNombre} <span className="text-zinc-500 font-mono">(lote {m.lote})</span>
+                                </span>
+                                <span className={m.tipo === "CORRECCION_INICIAL_SUMA" ? "text-emerald-600 font-bold" : "text-amber-600 font-bold"}>
+                                  {m.tipo === "CORRECCION_INICIAL_SUMA" ? "+ " : "- "}
+                                  {m.cantidad} {m.unidadSimbolo}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                                <span>Por {m.registradoPor}{m.observacion ? ` · "${m.observacion}"` : ""}</span>
+                                <span>{formatFecha(m.registradoEn, zonaHoraria)}</span>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {correcciones.datos.length > 0 ? (
+                      <div className="mt-1">
+                        <p className="font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                          Correcciones de datos ({correcciones.datos.length}):
+                        </p>
+                        <ul className="divide-y divide-zinc-200 dark:divide-zinc-700">
+                          {correcciones.datos.map((d) => (
+                            <li key={d.id} className="py-1 flex flex-col gap-0.5">
+                              <span className="font-sans font-medium text-zinc-800 dark:text-zinc-200">
+                                {d.drogaNombre} <span className="text-zinc-500 font-mono">(lote actual {d.loteActual})</span>
+                              </span>
+                              <div className="text-[11px] text-zinc-600 dark:text-zinc-400">
+                                {d.loteAnterior !== d.loteNuevo && d.loteNuevo ? (
+                                  <span>Lote: &quot;{d.loteAnterior}&quot; &rarr; &quot;{d.loteNuevo}&quot; </span>
+                                ) : null}
+                                {d.fechaVencimientoAnterior !== d.fechaVencimientoNuevo ? (
+                                  <span>Vencimiento: {d.fechaVencimientoAnterior ?? "no vence"} &rarr; {d.fechaVencimientoNuevo ?? "no vence"} </span>
+                                ) : null}
+                                {d.proveedorAnterior !== d.proveedorNuevo ? (
+                                  <span>Proveedor: {d.proveedorAnterior ?? "sin proveedor"} &rarr; {d.proveedorNuevo ?? "sin proveedor"}</span>
+                                ) : null}
+                              </div>
+                              <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                                <span>Por {d.realizadoPor}</span>
+                                <span>{formatFecha(d.ocurridoEn, zonaHoraria)}</span>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
 
               <div className="field">
                 <label htmlFor="relevamiento-password" className="field-label">

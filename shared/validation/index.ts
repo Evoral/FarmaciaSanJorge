@@ -91,3 +91,9 @@ export const decimalString = z
 export const positiveDecimalString = decimalString.refine((value) => value.greaterThan(0), {
   message: "Debe ser mayor que cero.",
 });
+
+
+/** `decimalString` restricted to values >= 0. */
+export const nonNegativeDecimalString = decimalString.refine((value) => !value.isNegative(), {
+  message: "Debe ser cero o mayor.",
+});

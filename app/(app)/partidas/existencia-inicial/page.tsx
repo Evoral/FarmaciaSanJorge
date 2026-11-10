@@ -15,6 +15,9 @@ import { listProveedoresOpciones } from "@/modules/proveedores/application/list-
 import { listUnidadesVigentesParaDroga } from "@/modules/drogas/application/list-unidades-vigentes";
 import { getRelevamientoInicial } from "@/modules/stock/application/cerrar-relevamiento-inicial";
 import { getPlanillaRelevamiento } from "@/modules/stock/application/get-planilla-relevamiento";
+import { getCorreccionesRelevamiento } from "@/modules/stock/application/get-correcciones-relevamiento";
+import { listDtParaCoFirma } from "@/modules/stock/application/list-dt-para-co-firma";
+import { nombreDeUsuario } from "@/shared/format/usuario";
 import { RelevamientoInicialPanel } from "@/modules/stock/ui/relevamiento-inicial-panel";
 import { PlanillaExistenciaInicial } from "@/modules/stock/ui/planilla-existencia-inicial";
 import { PageHeader } from "@/shared/ui/page-header";
@@ -23,9 +26,10 @@ import { PartidasTabs } from "../partidas-tabs";
 export default async function ExistenciaInicialPage() {
   const session = await requireSession();
 
-  const [relevamiento, planilla] = await Promise.all([
+  const [relevamiento, planilla, correcciones] = await Promise.all([
     getRelevamientoInicial(),
     getPlanillaRelevamiento(),
+    getCorreccionesRelevamiento(),
   ]);
 
   const tienePartidas = relevamiento.cargadoPorDroga.length > 0 || planilla.partidas.length > 0;
@@ -35,14 +39,20 @@ export default async function ExistenciaInicialPage() {
 
   const puedeEditar = relevamiento.estado.abierto && can(session, "stock.relevamiento.editar");
   const puedePasarAStock = relevamiento.estado.abierto && can(session, "stock.partida.ingresar");
+  const puedeCorregirPartida = relevamiento.estado.abierto && can(session, "stock.partida.ingresar");
+  const puedeCorregirCosto = can(session, "stock.partida.costo.corregir");
 
-  const [drogas, proveedores, unidades] = relevamiento.estado.abierto
+  const [drogas, proveedores, unidades, dtsRaw] = relevamiento.estado.abierto
     ? await Promise.all([
         listDrogasOpciones(),
         listProveedoresOpciones(),
         listUnidadesVigentesParaDroga(),
+        listDtParaCoFirma(),
       ])
-    : [[], [], []];
+    : [[], [], [], []];
+
+  const dts = dtsRaw.map((dt) => ({ id: dt.usuarioId, label: nombreDeUsuario(dt) }));
+  const operadorEsDt = dtsRaw.some((dt) => dt.usuarioId === session.usuario.id);
 
   const opcionesDrogas = drogas.map((droga) => ({
     id: droga.id,
@@ -60,6 +70,7 @@ export default async function ExistenciaInicialPage() {
     label: `${unidad.nombre} (${unidad.simbolo})`,
     tipoMagnitud: unidad.tipoMagnitud,
     simbolo: unidad.simbolo,
+    factorABase: unidad.factorABase,
   }));
 
   return (
@@ -90,6 +101,7 @@ export default async function ExistenciaInicialPage() {
           zonaHoraria={relevamiento.zonaHoraria}
           totalFilasPlanilla={planilla.contadores.totalFilas}
           faltanCargar={planilla.faltanCargar}
+          correcciones={correcciones}
         />
 
         <PlanillaExistenciaInicial
@@ -101,6 +113,10 @@ export default async function ExistenciaInicialPage() {
           unidades={opcionesUnidades}
           puedeEditar={puedeEditar}
           puedePasarAStock={puedePasarAStock}
+          puedeCorregirPartida={puedeCorregirPartida}
+          puedeCorregirCosto={puedeCorregirCosto}
+          dts={dts}
+          operadorEsDt={operadorEsDt}
           jornadaActual={planilla.jornadaActual}
           abierto={relevamiento.estado.abierto}
         />

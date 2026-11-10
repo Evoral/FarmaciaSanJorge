@@ -26,7 +26,7 @@ because a corrección is not an ingreso.
 Copy the latest body of each function being replaced: `movimiento_stock_aplicar` and the ingreso validator were last
 redefined in 0111, `partida_validar_update` in 0074, `movimiento_stock_validar_contralor` in 0100.
 
-### Migration 0125 (delivery 3)
+### Migration 0127 (delivery 3)
 
 | Object | Purpose |
 |---|---|
@@ -52,7 +52,7 @@ movement.
 | `getPlanillaRelevamiento` | `stock.ver` | Rows with state, what passed, counters, Faltan cargar |
 | `pasarGrupoAStock` | `stock.partida.ingresar` | One group per transaction, called in a loop by the action |
 | `corregirCantidadInicial` | `stock.partida.ingresar` | `lockPartidaParaAccion`, fresh read, `deltaCorreccion`. Co-firma through `verificarCoFirmaDt` for a controlled RESTA, in the shape of `registrarAjusteStock` |
-| `corregirDatosPartidaInicial` | `stock.partida.ingresar` | Calls the 0125 function |
+| `corregirDatosPartidaInicial` | `stock.partida.ingresar` | Calls the 0127 function |
 | `importarPlanillaExcel` | `stock.relevamiento.editar` | `leer-xlsx.server.ts` and the row-state pattern of `importacion-lista.ts` |
 
 Pure domain in `domain/existencia-inicial.ts`: `estadoFila`, `agruparFilas`, `conflictosGrupo`, `deltaCorreccion`.
@@ -107,4 +107,4 @@ Sign and tipo are inferred from these lists:
 - `ALTER TYPE ... ADD VALUE` cannot be undone in a down migration without rebuilding the type. Handle it as the 0100
   rollback does.
 - `/partidas` and the libro must not break on `cantidad_inicial = 0`.
-- 0125 relaxes INV-S23, and 0124 touches the movement trigger: review by a different agent/vendor.
+- 0127 relaxes INV-S23, and 0124 touches the movement trigger: review by a different agent/vendor.

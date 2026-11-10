@@ -59,19 +59,23 @@ export interface PartidaExistenciaInicialView {
   drogaId: string;
   drogaNombre: string;
   drogaClase: string;
+  tipoControl: string | null;
+  unidadBaseId: string;
   unidadSimbolo: string;
   lote: string;
   proveedorId: string | null;
   proveedorRazonSocial: string | null;
   fechaIngreso: Date;
-  fechaVencimiento: string;
-  fechaVencimientoVigente: string;
+  fechaVencimiento: string | null;
+  fechaVencimientoVigente: string | null;
   cantidadInicial: string;
   cantidadDisponible: string;
   costoUnitario: string;
   sinCosto: boolean;
   potenciaDeclarada: string | null;
   fechaApertura: Date | null;
+  usada: boolean;
+  anulada: boolean;
 }
 
 export interface PlanillaRelevamientoResultado {
@@ -261,11 +265,14 @@ export const getPlanillaRelevamientoQuery = defineQuery({
     const partidasView: PartidaExistenciaInicialView[] = partidasRaw.map((p) => {
       const sinCosto = !p.costo_unitario || dec(p.costo_unitario).isZero();
       if (sinCosto) partidasSinCosto++;
+      const anulada = dec(p.cantidad_inicial).isZero();
       return {
         id: p.id,
         drogaId: p.droga_id,
         drogaNombre: p.droga_nombre,
         drogaClase: p.droga_clase,
+        tipoControl: p.tipo_control,
+        unidadBaseId: p.droga_unidad_base_id,
         unidadSimbolo: p.unidad_simbolo,
         lote: p.lote,
         proveedorId: p.proveedor_id,
@@ -279,6 +286,8 @@ export const getPlanillaRelevamientoQuery = defineQuery({
         sinCosto,
         potenciaDeclarada: p.potencia_declarada,
         fechaApertura: p.fecha_apertura,
+        usada: p.usada,
+        anulada,
       };
     });
 

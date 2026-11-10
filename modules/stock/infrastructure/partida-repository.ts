@@ -477,6 +477,7 @@ export interface PartidaParaAccion {
   drogaNombre: string;
   /** `droga.clase` (migration 0063): only a DROGA partida admits a reanálisis (migration 0074). */
   drogaClase: string;
+  tipoControl?: string | null;
   /** The droga unidad base -- every quantity of the partida is recorded in it. */
   unidadBaseId: string;
   unidadBaseSimbolo: string;
@@ -515,7 +516,7 @@ export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantI
       fechaApertura: true,
       potenciaDeclarada: true,
       origen: true,
-      droga: { select: { nombre: true, clase: true, unidadBaseId: true, unidadBase: { select: { simbolo: true } } } },
+      droga: { select: { nombre: true, clase: true, tipoControl: true, unidadBaseId: true, unidadBase: { select: { simbolo: true } } } },
       proveedor: { select: { razonSocial: true } },
     },
   });
@@ -538,6 +539,7 @@ export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantI
     fechaVencimientoVigente: row.fechaVencimientoVigente,
     fechaApertura: row.fechaApertura,
     potenciaDeclarada: row.potenciaDeclarada?.toString() ?? null,
+    tipoControl: row.droga.tipoControl,
     origen: row.origen,
   };
 }
@@ -791,6 +793,33 @@ export async function insertCorreccionInicialSuma(
       cantidad: input.cantidad,
       observacion: input.observacion ?? "Frasco adicional del relevamiento",
       registradoPorId: input.registradoPorId,
+    },
+    select: { id: true },
+  });
+}
+
+export interface NuevaCorreccionInicialRestaInput {
+  tenantId: string;
+  partidaId: string;
+  cantidad: string;
+  observacion?: string | null;
+  registradoPorId: string;
+  autorizadoPorId?: string | null;
+}
+
+export async function insertCorreccionInicialResta(
+  tx: Prisma.TransactionClient,
+  input: NuevaCorreccionInicialRestaInput,
+): Promise<{ id: string }> {
+  return tx.movimientoStock.create({
+    data: {
+      tenantId: input.tenantId,
+      partidaId: input.partidaId,
+      tipo: "CORRECCION_INICIAL_RESTA" as TipoMovimiento,
+      cantidad: input.cantidad,
+      observacion: input.observacion ?? null,
+      registradoPorId: input.registradoPorId,
+      autorizadoPorId: input.autorizadoPorId ?? null,
     },
     select: { id: true },
   });

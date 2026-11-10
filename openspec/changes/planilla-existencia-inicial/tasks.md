@@ -30,13 +30,13 @@ Design: `design.md`. Migrations are written by the agent and applied by the user
 
 ## 3. Delivery 3: corrections
 
-- [ ] 3.1 `prisma/migrations/<ts>_0125_corregir_datos_existencia_inicial/migration.sql` and its `.down.sql`; extend the rollback doc.
-- [ ] 3.2 User applies 0125 by hand, in the same deploy as the code.
-- [ ] 3.3 Domain: `deltaCorreccion`, "unused" rule.
-- [ ] 3.4 `corregirCantidadInicial`, with the co-firma for a controlled RESTA.
-- [ ] 3.5 `corregirDatosPartidaInicial`.
-- [ ] 3.6 Correction `<dialog>`; anulada state; corrections list in the close (R7).
-- [ ] 3.7 Confirm `/partidas`, the partida detail and the valorizado handle `cantidad_inicial = 0`.
+- [x] 3.1 `prisma/migrations/<ts>_0127_corregir_datos_existencia_inicial/migration.sql` and its `.down.sql`; extend the rollback doc.
+- [ ] 3.2 User applies 0127 by hand, in the same deploy as the code.
+- [x] 3.3 Domain: `deltaCorreccion`, "unused" rule.
+- [x] 3.4 `corregirCantidadInicial`, with the co-firma for a controlled RESTA.
+- [x] 3.5 `corregirDatosPartidaInicial`.
+- [x] 3.6 Correction `<dialog>`; anulada state; corrections list in the close (R7).
+- [x] 3.7 Confirm `/partidas`, the partida detail and the valorizado handle `cantidad_inicial = 0`.
 - [ ] 3.8 Review by a different agent/vendor.
 
 ## 4. Delivery 4: Excel

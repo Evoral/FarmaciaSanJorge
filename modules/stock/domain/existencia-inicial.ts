@@ -297,3 +297,70 @@ export function estadoFila(
     motivo: "Lista para pasar a stock",
   };
 }
+
+// ============================================================================
+// Corrections: pure domain (R17, R18)
+// ============================================================================
+
+export type TipoDeltaCorreccion = "SUMA" | "RESTA" | null;
+
+export interface DeltaCorreccionResultado {
+  tipo: TipoDeltaCorreccion;
+  cantidad: Decimal;
+}
+
+/**
+ * Computes the delta between current initial quantity and corrected initial quantity (R17).
+ * Returns { tipo: "SUMA" | "RESTA" | null, cantidad: Decimal }.
+ * Uses decimal.js, never JS numbers.
+ */
+export function deltaCorreccion(
+  cantidadInicialActual: string | Decimal,
+  cantidadCorrecta: string | Decimal,
+): DeltaCorreccionResultado {
+  const actual = dec(cantidadInicialActual);
+  const correcta = dec(cantidadCorrecta);
+
+  if (correcta.greaterThan(actual)) {
+    return {
+      tipo: "SUMA",
+      cantidad: correcta.minus(actual),
+    };
+  }
+
+  if (correcta.lessThan(actual)) {
+    return {
+      tipo: "RESTA",
+      cantidad: actual.minus(correcta),
+    };
+  }
+
+  return {
+    tipo: null,
+    cantidad: new Decimal(0),
+  };
+}
+
+export interface PartidaUsoContexto {
+  fechaApertura: Date | string | null;
+  tieneMovimientosNoIniciales: boolean;
+  tieneReservasActivas: boolean;
+  tieneReanalisis: boolean;
+}
+
+/**
+ * An existencia inicial partida is unused (R18) only while:
+ * - fecha_apertura IS NULL
+ * - no movimiento_stock other than INGRESO_INICIAL, CORRECCION_INICIAL_SUMA, CORRECCION_INICIAL_RESTA
+ * - no active reserva_stock in an INICIADA preparación
+ * - no reanalisis_partida records
+ * Once used, its lote, vencimiento and proveedor are frozen.
+ */
+export function esPartidaNoUsada(contexto: PartidaUsoContexto): boolean {
+  if (contexto.fechaApertura !== null && contexto.fechaApertura !== undefined) return false;
+  if (contexto.tieneMovimientosNoIniciales) return false;
+  if (contexto.tieneReservasActivas) return false;
+  if (contexto.tieneReanalisis) return false;
+  return true;
+}
+

@@ -27,7 +27,8 @@ import { NumeroInput } from "@/shared/ui/numero-input";
 import { DateInput } from "@/shared/ui/date-input";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { toast } from "@/shared/ui/toast";
-import { numeroParaInput } from "@/shared/decimal/numero-ingresado";
+import { interpretarNumero, numeroParaInput } from "@/shared/decimal/numero-ingresado";
+import { Decimal } from "@/shared/decimal";
 import { agregarYEnfocar, filaDeLista } from "@/shared/ui/enfocar-al-agregar";
 import { markInvalidFields } from "@/shared/ui/field-errors";
 import { useOperador } from "@/shared/ui/operador";
@@ -38,8 +39,13 @@ import {
   guardarFilaRelevamientoAction,
   quitarFilaRelevamientoAction,
   pasarAStockAction,
+  corregirCantidadInicialAction,
+  corregirDatosPartidaInicialAction,
+  corregirCostoPartidaAction,
   type PasarAStockState,
 } from "./actions";
+import { SimpleForm } from "@/shared/ui/simple-form";
+import { CoFirmaDt } from "@/shared/ui/co-firma-dt";
 import { claveGrupo } from "../domain/existencia-inicial";
 import type {
   FilaPlanillaConEstado,
@@ -54,6 +60,7 @@ export interface OpcionConMagnitud {
   clase?: string;
   sinonimos?: readonly string[];
   simbolo?: string;
+  factorABase?: string;
 }
 
 export interface OpcionSimple {
@@ -70,6 +77,10 @@ export interface PlanillaExistenciaInicialProps {
   unidades: OpcionConMagnitud[];
   puedeEditar: boolean;
   puedePasarAStock: boolean;
+  puedeCorregirPartida?: boolean;
+  puedeCorregirCosto?: boolean;
+  dts?: readonly { id: string; label: string }[];
+  operadorEsDt?: boolean;
   jornadaActual: string;
   abierto: boolean;
 }
@@ -89,6 +100,10 @@ export function PlanillaExistenciaInicial({
   unidades,
   puedeEditar,
   puedePasarAStock,
+  puedeCorregirPartida = false,
+  puedeCorregirCosto = false,
+  dts = [],
+  operadorEsDt = false,
   jornadaActual,
   abierto,
 }: PlanillaExistenciaInicialProps) {
@@ -96,6 +111,19 @@ export function PlanillaExistenciaInicial({
   const [filas, setFilas] = useState<FilaPlanillaConEstado[]>(initialFilas);
   const filasRef = useRef<FilaPlanillaConEstado[]>(initialFilas);
   filasRef.current = filas;
+
+  const [partidaACorregir, setPartidaACorregir] = useState<PartidaExistenciaInicialView | null>(null);
+  const dialogCorreccionRef = useRef<HTMLDialogElement>(null);
+
+  function abrirCorreccion(p: PartidaExistenciaInicialView) {
+    setPartidaACorregir(p);
+    dialogCorreccionRef.current?.showModal();
+  }
+
+  function cerrarCorreccion() {
+    dialogCorreccionRef.current?.close();
+    setPartidaACorregir(null);
+  }
 
   // Track ids created locally and not yet saved successfully
   const locallyCreatedUnsavedRef = useRef<Set<string>>(new Set());
@@ -721,14 +749,21 @@ export function PlanillaExistenciaInicial({
                   <th className="px-4 py-2.5">Vencimiento</th>
                   <th className="px-4 py-2.5 text-right">Inicial</th>
                   <th className="px-4 py-2.5 text-right">Disponible</th>
+                  <th className="px-4 py-2.5 text-center">Estado</th>
+                  {abierto && (puedeCorregirPartida || puedeCorregirCosto) ? (
+                    <th className="px-4 py-2.5 text-right">Acciones</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
                 {partidas.map((p) => (
                   <tr key={p.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30">
                     <td className="px-4 py-2.5 font-medium text-zinc-900 dark:text-zinc-100">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <span>{p.drogaNombre}</span>
+                        {p.anulada ? (
+                          <ToneBadge tone="neutral">Anulada</ToneBadge>
+                        ) : null}
                         {p.sinCosto ? (
                           <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
                             Sin costo
@@ -751,6 +786,22 @@ export function PlanillaExistenciaInicial({
                     <td className="px-4 py-2.5 text-right font-mono text-zinc-900 dark:text-zinc-100">
                       {p.cantidadDisponible} {p.unidadSimbolo}
                     </td>
+                    <td className="px-4 py-2.5 text-center">
+                      <ToneBadge tone={p.usada ? "warn" : "success"}>
+                        {p.usada ? "En uso" : "Sin uso"}
+                      </ToneBadge>
+                    </td>
+                    {abierto && (puedeCorregirPartida || puedeCorregirCosto) ? (
+                      <td className="px-4 py-2.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => abrirCorreccion(p)}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          Corregir
+                        </button>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
@@ -758,6 +809,28 @@ export function PlanillaExistenciaInicial({
           </div>
         )}
       </section>
+
+      {/* Dialog corrección de partida de existencia inicial (R17, R18) */}
+      <dialog
+        ref={dialogCorreccionRef}
+        onClose={cerrarCorreccion}
+        className={DIALOG_CLASS}
+        aria-labelledby="dialog-corregir-partida-titulo"
+      >
+        {partidaACorregir ? (
+          <DialogCorregirPartidaContent
+            partida={partidaACorregir}
+            drogas={drogas}
+            proveedores={proveedores}
+            unidades={unidades}
+            dts={dts}
+            operadorEsDt={operadorEsDt}
+            puedeCorregirCosto={puedeCorregirCosto}
+            puedeCorregirPartida={puedeCorregirPartida}
+            onClose={cerrarCorreccion}
+          />
+        ) : null}
+      </dialog>
 
       {/* Faltan cargar (R16) */}
       <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-800/20">
@@ -1151,3 +1224,342 @@ function EstadoFilaBadge({ estado }: { estado: FilaPlanillaConEstado["estado"] }
 
   return null;
 }
+
+function parseDecimalSeguro(texto: string): Decimal | null {
+  const interpretado = interpretarNumero(texto);
+  if (!interpretado.ok) return null;
+  try {
+    const d = new Decimal(interpretado.valor);
+    return d.isFinite() ? d : null;
+  } catch {
+    return null;
+  }
+}
+
+function DialogCorregirPartidaContent({
+  partida,
+  drogas,
+  proveedores,
+  unidades,
+  dts,
+  operadorEsDt,
+  puedeCorregirCosto,
+  puedeCorregirPartida,
+  onClose,
+}: {
+  partida: PartidaExistenciaInicialView;
+  drogas: OpcionConMagnitud[];
+  proveedores: OpcionSimple[];
+  unidades: OpcionConMagnitud[];
+  dts: readonly { id: string; label: string }[];
+  operadorEsDt?: boolean;
+  puedeCorregirCosto: boolean;
+  puedeCorregirPartida: boolean;
+  onClose: () => void;
+}) {
+  const [tab, setTab] = useState<"cantidad" | "datos" | "costo">("cantidad");
+  const [cantidadInput, setCantidadInput] = useState(partida.cantidadInicial);
+  const [unidadSeleccionadaId, setUnidadSeleccionadaId] = useState(partida.unidadBaseId);
+  const [proveedorSeleccionadoId, setProveedorSeleccionadoId] = useState(partida.proveedorId);
+
+  // Droga details
+  const droga = drogas.find((d) => d.id === partida.drogaId);
+  const unidadesCompatibles = useMemo(() => {
+    if (!droga?.tipoMagnitud) return unidades;
+    const compatibles = unidades.filter((u) => u.tipoMagnitud === droga.tipoMagnitud);
+    return compatibles.length > 0 ? compatibles : unidades;
+  }, [unidades, droga]);
+
+  // Co-firma needed when controlled droga is lowered
+  const esControlada = Boolean(partida.tipoControl && partida.tipoControl !== "NINGUNO");
+  const esBaja = useMemo(() => {
+    const parsed = parseDecimalSeguro(cantidadInput);
+    const cantidadInicialNum = parseDecimalSeguro(partida.cantidadInicial);
+    if (!parsed || !cantidadInicialNum) return false;
+
+    const unidadElegida = unidades.find((u) => u.id === unidadSeleccionadaId);
+    const unidadBase = unidades.find((u) => u.id === partida.unidadBaseId);
+    const factorElegida = unidadElegida?.factorABase
+      ? parseDecimalSeguro(unidadElegida.factorABase)
+      : unidadSeleccionadaId === partida.unidadBaseId
+        ? dec(1)
+        : null;
+    const factorBase = unidadBase?.factorABase
+      ? parseDecimalSeguro(unidadBase.factorABase)
+      : dec(1);
+
+    if (factorElegida && factorBase && !factorBase.isZero()) {
+      const cantidadEnBase = parsed.times(factorElegida).dividedBy(factorBase);
+      return cantidadEnBase.lessThan(cantidadInicialNum);
+    }
+    return parsed.lessThan(cantidadInicialNum);
+  }, [cantidadInput, partida.cantidadInicial, partida.unidadBaseId, unidadSeleccionadaId, unidades]);
+  const requiereCoFirma = esControlada && esBaja;
+
+  const fechaVencimientoIso = partida.fechaVencimiento
+    ? partida.fechaVencimiento.slice(0, 10)
+    : "";
+
+  return (
+    <div className="flex flex-col max-h-[85vh] overflow-hidden">
+      {/* Dialog header */}
+      <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+        <div>
+          <h2 id="dialog-corregir-partida-titulo" className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            Corregir partida de existencia inicial
+          </h2>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+            <span className="font-medium text-zinc-800 dark:text-zinc-200">{partida.drogaNombre}</span>
+            <span>·</span>
+            <span className="font-mono">Lote: {partida.lote}</span>
+            {partida.anulada ? (
+              <ToneBadge tone="neutral">Anulada</ToneBadge>
+            ) : null}
+            <ToneBadge tone={partida.usada ? "warn" : "success"}>
+              {partida.usada ? "En uso" : "Sin uso"}
+            </ToneBadge>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Cerrar diálogo"
+          className="btn btn-ghost btn-sm btn-icon"
+        >
+          <X className="size-4" aria-hidden />
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-zinc-200 px-6 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30">
+        {puedeCorregirPartida ? (
+          <button
+            type="button"
+            onClick={() => setTab("cantidad")}
+            className={`border-b-2 px-3 py-2.5 text-xs font-medium transition-colors ${
+              tab === "cantidad"
+                ? "border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400"
+                : "border-transparent text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
+            }`}
+          >
+            Cantidad inicial
+          </button>
+        ) : null}
+
+        {!partida.usada && puedeCorregirPartida ? (
+          <button
+            type="button"
+            onClick={() => setTab("datos")}
+            className={`border-b-2 px-3 py-2.5 text-xs font-medium transition-colors ${
+              tab === "datos"
+                ? "border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400"
+                : "border-transparent text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
+            }`}
+          >
+            Datos (lote, vencimiento, proveedor)
+          </button>
+        ) : null}
+
+        {puedeCorregirCosto ? (
+          <button
+            type="button"
+            onClick={() => setTab("costo")}
+            className={`border-b-2 px-3 py-2.5 text-xs font-medium transition-colors ${
+              tab === "costo"
+                ? "border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400"
+                : "border-transparent text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
+            }`}
+          >
+            Costo unitario
+          </button>
+        ) : null}
+      </div>
+
+      {/* Dialog content */}
+      <div className="overflow-y-auto p-6">
+        {tab === "cantidad" && puedeCorregirPartida ? (
+          <div className="flex flex-col gap-4">
+            <p className="text-xs text-zinc-500">
+              Ingresá la <strong>cantidad inicial correcta</strong> de la partida. La diferencia con la cantidad actual ({partida.cantidadInicial} {partida.unidadSimbolo}) se registrará como una corrección inicial (suma o resta). Se admite 0 para anular la partida.
+            </p>
+            <SimpleForm
+              action={corregirCantidadInicialAction}
+              accion="stock.partida.ingresar"
+              submitLabel="Guardar cantidad"
+              onSuccess={() => {
+                toast("Cantidad inicial corregida.");
+                onClose();
+              }}
+              className="flex flex-col gap-4"
+            >
+              <input type="hidden" name="partidaId" value={partida.id} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="field">
+                  <label htmlFor="correccion-cantidad" className="field-label">
+                    Cantidad inicial correcta
+                  </label>
+                  <NumeroInput
+                    id="correccion-cantidad"
+                    name="cantidad"
+                    value={cantidadInput}
+                    onValueChange={(val) => setCantidadInput(val)}
+                    required
+                    className="input font-mono"
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="correccion-unidadId" className="field-label">
+                    Unidad
+                  </label>
+                  <select
+                    id="correccion-unidadId"
+                    name="unidadId"
+                    value={unidadSeleccionadaId}
+                    onChange={(e) => setUnidadSeleccionadaId(e.target.value)}
+                    className="input"
+                  >
+                    {unidadesCompatibles.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="field">
+                <label htmlFor="correccion-observacion" className="field-label">
+                  Observación (opcional)
+                </label>
+                <textarea
+                  id="correccion-observacion"
+                  name="observacion"
+                  rows={2}
+                  placeholder="Motivo de la corrección..."
+                  className="input"
+                />
+              </div>
+
+              {requiereCoFirma ? (
+                <div className="pt-2">
+                  <CoFirmaDt dts={dts} operadorEsDt={operadorEsDt} />
+                </div>
+              ) : null}
+            </SimpleForm>
+          </div>
+        ) : null}
+
+        {tab === "datos" && !partida.usada && puedeCorregirPartida ? (
+          <div className="flex flex-col gap-4">
+            <p className="text-xs text-zinc-500">
+              Esta partida aún no ha sido utilizada. Podés corregir su lote, fecha de vencimiento y proveedor.
+            </p>
+            <SimpleForm
+              action={corregirDatosPartidaInicialAction}
+              accion="stock.partida.ingresar"
+              submitLabel="Guardar datos"
+              onSuccess={() => {
+                toast("Datos de la partida corregidos.");
+                onClose();
+              }}
+              className="flex flex-col gap-4"
+            >
+              <input type="hidden" name="partidaId" value={partida.id} />
+              <div className="field">
+                <label htmlFor="correccion-lote" className="field-label">
+                  Lote
+                </label>
+                <input
+                  type="text"
+                  id="correccion-lote"
+                  name="lote"
+                  defaultValue={partida.lote}
+                  required
+                  className="input font-mono"
+                />
+              </div>
+
+              <div className="field">
+                <label htmlFor="correccion-vencimiento" className="field-label">
+                  Fecha de vencimiento {partida.drogaClase === "DROGA" ? "(obligatoria)" : "(opcional)"}
+                </label>
+                <DateInput
+                  id="correccion-vencimiento"
+                  name="fechaVencimiento"
+                  defaultValue={fechaVencimientoIso}
+                  required={partida.drogaClase === "DROGA"}
+                />
+              </div>
+
+              <div className="field">
+                <label htmlFor="correccion-proveedorId" className="field-label">
+                  Proveedor (opcional)
+                </label>
+                <select
+                  id="correccion-proveedorId"
+                  name="proveedorId"
+                  value={proveedorSeleccionadoId ?? ""}
+                  onChange={(e) => setProveedorSeleccionadoId(e.target.value || null)}
+                  className="input"
+                >
+                  <option value="">Sin proveedor</option>
+                  {proveedores.map((pr) => (
+                    <option key={pr.id} value={pr.id}>
+                      {pr.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </SimpleForm>
+          </div>
+        ) : null}
+
+        {tab === "costo" && puedeCorregirCosto ? (
+          <div className="flex flex-col gap-4">
+            <p className="text-xs text-zinc-500">
+              Corregir el costo unitario por unidad base. Actual: <span className="font-mono font-medium">${partida.costoUnitario}</span>
+            </p>
+            <SimpleForm
+              action={corregirCostoPartidaAction}
+              accion="stock.partida.costo.corregir"
+              submitLabel="Guardar costo"
+              onSuccess={() => {
+                toast("Costo corregido.");
+                onClose();
+              }}
+              className="flex flex-col gap-4"
+            >
+              <input type="hidden" name="id" value={partida.id} />
+              <div className="field">
+                <label htmlFor="correccion-costoUnitarioNuevo" className="field-label">
+                  Costo unitario nuevo
+                </label>
+                <NumeroInput
+                  id="correccion-costoUnitarioNuevo"
+                  name="costoUnitarioNuevo"
+                  defaultValue={partida.costoUnitario}
+                  required
+                  className="input font-mono"
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="correccion-motivo-costo" className="field-label">
+                  Motivo de la corrección
+                </label>
+                <textarea
+                  id="correccion-motivo-costo"
+                  name="motivo"
+                  required
+                  rows={2}
+                  placeholder="Motivo de la corrección de costo..."
+                  className="input"
+                />
+              </div>
+            </SimpleForm>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+

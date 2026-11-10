@@ -52,19 +52,21 @@ export interface PartidaExistenciaInicialRaw {
   droga_id: string;
   droga_nombre: string;
   droga_clase: string;
+  tipo_control: string | null;
   droga_unidad_base_id: string;
   unidad_simbolo: string;
   lote: string;
   proveedor_id: string | null;
   proveedor_razon_social: string | null;
   fecha_ingreso: Date;
-  fecha_vencimiento: string;
-  fecha_vencimiento_vigente: string;
+  fecha_vencimiento: string | null;
+  fecha_vencimiento_vigente: string | null;
   cantidad_inicial: string;
   cantidad_disponible: string;
   costo_unitario: string;
   potencia_declarada: string | null;
   fecha_apertura: Date | null;
+  usada: boolean;
 }
 
 export interface DrogaFaltanCargarRaw {
@@ -256,13 +258,32 @@ export async function listPartidasExistenciaInicial(
 ): Promise<PartidaExistenciaInicialRaw[]> {
   return tx.$queryRaw<PartidaExistenciaInicialRaw[]>`
     SELECT p.id::text, p.droga_id::text, d.nombre::text AS droga_nombre,
-           d.clase::text AS droga_clase, d.unidad_base_id::text AS droga_unidad_base_id,
+           d.clase::text AS droga_clase, d.tipo_control::text AS tipo_control,
+           d.unidad_base_id::text AS droga_unidad_base_id,
            u.simbolo::text AS unidad_simbolo,
            p.lote, p.proveedor_id::text, pr.razon_social::text AS proveedor_razon_social,
            p.fecha_ingreso, p.fecha_vencimiento::text, p.fecha_vencimiento_vigente::text,
            p.cantidad_inicial::text, p.cantidad_disponible::text,
            p.costo_unitario::text, p.potencia_declarada::text,
-           p.fecha_apertura
+           p.fecha_apertura,
+           (
+             p.fecha_apertura IS NOT NULL
+             OR EXISTS (
+               SELECT 1 FROM fsj.movimiento_stock m
+               WHERE m.tenant_id = p.tenant_id AND m.partida_id = p.id
+                 AND m.tipo::text NOT IN ('INGRESO_INICIAL', 'CORRECCION_INICIAL_SUMA', 'CORRECCION_INICIAL_RESTA')
+             )
+             OR EXISTS (
+               SELECT 1 FROM fsj.reserva_stock rs
+               JOIN fsj.preparacion prep ON prep.tenant_id = rs.tenant_id AND prep.id = rs.preparacion_id
+               WHERE rs.tenant_id = p.tenant_id AND rs.partida_id = p.id
+                 AND prep.estado = 'INICIADA'
+             )
+             OR EXISTS (
+               SELECT 1 FROM fsj.reanalisis_partida rp
+               WHERE rp.tenant_id = p.tenant_id AND rp.partida_id = p.id
+             )
+           ) AS usada
     FROM fsj.partida p
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
     JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id

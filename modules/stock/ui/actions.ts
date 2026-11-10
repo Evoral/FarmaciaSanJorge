@@ -18,6 +18,8 @@ import {
 import { quitarFilaRelevamiento } from "@/modules/stock/application/quitar-fila-relevamiento";
 import { getPlanillaRelevamiento } from "@/modules/stock/application/get-planilla-relevamiento";
 import { pasarGrupoAStock } from "@/modules/stock/application/pasar-grupo-a-stock";
+import { corregirCantidadInicial } from "@/modules/stock/application/corregir-cantidad-inicial";
+import { corregirDatosPartidaInicial } from "@/modules/stock/application/corregir-datos-partida-inicial";
 import { claveGrupo } from "@/modules/stock/domain/existencia-inicial";
 import { elaborarLote } from "@/modules/stock/application/elaborar-lote";
 import { datosParaElaborar, type DatosParaElaborar } from "@/modules/stock/application/datos-para-elaborar";
@@ -449,4 +451,54 @@ export async function datosParaElaborarAction(drogaProducidaId: string, drogaIds
   } catch (error) {
     return { status: "error", message: actionErrorMessage(error, "No se pudieron cargar los lotes para elaborar.") };
   }
+}
+
+/** "Corregir cantidad inicial" (R17): adjusts initial quantity under conOperador. */
+export async function corregirCantidadInicialAction(
+  _prevState: StockActionState,
+  formData: FormData,
+): Promise<StockActionState> {
+  return conOperador(formData, async (): Promise<StockActionState> => {
+    const partidaId = String(formData.get("partidaId") ?? "");
+    try {
+      await corregirCantidadInicial({
+        partidaId,
+        cantidad: String(formData.get("cantidad") ?? ""),
+        unidadId: String(formData.get("unidadId") ?? ""),
+        observacion: opcional(formData, "observacion"),
+        dtUsuarioId: opcional(formData, "dtUsuarioId"),
+        dtPassword: opcional(formData, "dtPassword"),
+      });
+      revalidatePath("/partidas/existencia-inicial");
+      revalidatePath("/stock");
+      revalidatePath(`/partidas/${partidaId}`);
+      return { status: "success", message: "Cantidad inicial corregida." };
+    } catch (error) {
+      return fromError(error, "No se pudo corregir la cantidad inicial.");
+    }
+  });
+}
+
+/** "Corregir datos de partida inicial" (R18): adjusts lote, vencimiento, proveedor of an unused partida under conOperador. */
+export async function corregirDatosPartidaInicialAction(
+  _prevState: StockActionState,
+  formData: FormData,
+): Promise<StockActionState> {
+  return conOperador(formData, async (): Promise<StockActionState> => {
+    const partidaId = String(formData.get("partidaId") ?? "");
+    try {
+      await corregirDatosPartidaInicial({
+        partidaId,
+        lote: String(formData.get("lote") ?? ""),
+        fechaVencimiento: opcional(formData, "fechaVencimiento") ?? null,
+        proveedorId: opcional(formData, "proveedorId") ?? null,
+      });
+      revalidatePath("/partidas/existencia-inicial");
+      revalidatePath("/stock");
+      revalidatePath(`/partidas/${partidaId}`);
+      return { status: "success", message: "Datos de la partida inicial corregidos." };
+    } catch (error) {
+      return fromError(error, "No se pudieron corregir los datos de la partida.");
+    }
+  });
 }

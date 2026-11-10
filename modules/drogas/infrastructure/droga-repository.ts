@@ -370,15 +370,22 @@ export interface UnidadOpcion {
   nombre: string;
   simbolo: string;
   tipoMagnitud: string;
+  factorABase?: string;
 }
 
 export async function listUnidadesVigentes(tx: Prisma.TransactionClient): Promise<UnidadOpcion[]> {
   const rows = await tx.unidadMedida.findMany({
     where: { fechaBaja: null },
     orderBy: [{ tipoMagnitud: "asc" }, { nombre: "asc" }],
-    select: { id: true, nombre: true, simbolo: true, tipoMagnitud: true },
+    select: { id: true, nombre: true, simbolo: true, tipoMagnitud: true, factorABase: true },
   });
-  return rows;
+  return rows.map((r) => ({
+    id: r.id,
+    nombre: r.nombre,
+    simbolo: r.simbolo,
+    tipoMagnitud: r.tipoMagnitud,
+    factorABase: r.factorABase.toString(),
+  }));
 }
 
 export interface DrogaOpcion {
