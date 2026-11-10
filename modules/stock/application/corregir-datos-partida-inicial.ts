@@ -8,7 +8,6 @@ import { z } from "zod";
 import { defineCommand, TipoAccion, type ExecuteOptions } from "@/shared/usecase";
 import { fechaIso, nonEmptyString, uuid } from "@/shared/validation";
 import { AppError, DomainError, NotFoundError, ValidationError } from "@/shared/errors";
-import { formatFechaIso } from "@/shared/format/fecha";
 import { MENSAJE_RELEVAMIENTO_CERRADO } from "../domain/existencia-inicial";
 import {
   lockTenantRelevamientoCompartido,
@@ -137,9 +136,8 @@ export const corregirDatosPartidaInicialCommand = defineCommand<
           entidadId: input.partidaId,
           valorAnterior: {
             lote: result.lote_anterior,
-            fechaVencimiento: result.fecha_vencimiento_anterior
-              ? formatFechaIso(result.fecha_vencimiento_anterior)
-              : null,
+            // ISO, like valorNuevo: the close compares both and formats them for display.
+            fechaVencimiento: result.fecha_vencimiento_anterior ?? null,
             proveedorId: result.proveedor_id_anterior,
           },
           valorNuevo: {

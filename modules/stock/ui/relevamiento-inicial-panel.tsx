@@ -211,7 +211,7 @@ export function RelevamientoInicialPanel({
                                   <span>Lote: &quot;{d.loteAnterior}&quot; &rarr; &quot;{d.loteNuevo}&quot; </span>
                                 ) : null}
                                 {d.fechaVencimientoAnterior !== d.fechaVencimientoNuevo ? (
-                                  <span>Vencimiento: {d.fechaVencimientoAnterior ?? "no vence"} &rarr; {d.fechaVencimientoNuevo ?? "no vence"} </span>
+                                  <span>Vencimiento: {d.fechaVencimientoAnterior ? formatFechaIso(d.fechaVencimientoAnterior) : "no vence"} &rarr; {d.fechaVencimientoNuevo ? formatFechaIso(d.fechaVencimientoNuevo) : "no vence"} </span>
                                 ) : null}
                                 {d.proveedorAnterior !== d.proveedorNuevo ? (
                                   <span>Proveedor: {d.proveedorAnterior ?? "sin proveedor"} &rarr; {d.proveedorNuevo ?? "sin proveedor"}</span>
