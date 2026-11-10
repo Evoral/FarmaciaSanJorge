@@ -63,7 +63,7 @@ Four deliveries, in order (`tasks.md`):
 
 1. The tab, the panel out of "Nuevo ingreso", expired bottles allowed. No migration.
 2. Planilla, Pasar a stock, Faltan cargar, the alert, the close's new checks. Migration 0124.
-3. Correcting what already passed. Migration 0125.
+3. Correcting what already passed. Migration 0127.
 4. Import from Excel into the planilla.
 
 Delta spec: `specs/existencia-inicial/spec.md`.

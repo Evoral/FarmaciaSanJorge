@@ -1013,7 +1013,13 @@ La activación SHALL exigir cargar el saldo de apertura de cada droga controlada
 
 ### Requirement: INV-L08 — Asiento contralor por movimiento (reemplaza la versión anterior)
 
-Si el tenant tiene `fechaActivacionContralor`, todo `MovimientoStock` posterior a esa fecha sobre una droga con `esControlada = true` SHALL generar un `AsientoContralor` dentro de la misma transacción. [BD+APP]
+Si el tenant tiene `fechaActivacionContralor`, todo `MovimientoStock` posterior a esa fecha sobre una droga con `esControlada = true` SHALL generar un `AsientoContralor` dentro de la misma transacción. [BD+APP] Quedan exentos los movimientos de existencia inicial y sus correcciones (`INGRESO_INICIAL`, `CORRECCION_INICIAL_SUMA`, `CORRECCION_INICIAL_RESTA`, migración 0124), cuyo stock físico ya fue contabilizado en el asiento `APERTURA`.
+
+#### Scenario: Movimientos de existencia inicial y correcciones exentos
+
+- **GIVEN** un tenant con `fechaActivacionContralor` y una droga controlada
+- **WHEN** se registra un `MovimientoStock` de tipo `INGRESO_INICIAL`, `CORRECCION_INICIAL_SUMA` o `CORRECCION_INICIAL_RESTA`
+- **THEN** no genera `AsientoContralor`
 
 #### Scenario: Movimiento posterior a la activación
 

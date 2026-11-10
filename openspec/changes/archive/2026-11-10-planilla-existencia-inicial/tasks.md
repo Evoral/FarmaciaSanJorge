@@ -16,7 +16,7 @@ Design: `design.md`. Migrations are written by the agent and applied by the user
 - [x] 2.1 `prisma/migrations/<ts>_0124_planilla_existencia_inicial/migration.sql` per `design.md` (confirm 0124 is still free).
 - [x] 2.2 `prisma/schema.prisma` (`RelevamientoFila`, the two `TipoMovimiento` values) + `npm run db:generate`.
 - [x] 2.3 `prisma/rollbacks/0124_planilla_existencia_inicial.down.sql` and `docs/rollbacks/planilla-existencia-inicial.md`.
-- [ ] 2.4 User applies 0124 by hand, in the same deploy as the code.
+- [ ] 2.4 User applies 0124 by hand (applied to desarrollo; prod pending).
 - [x] 2.5 Permiso `stock.relevamiento.editar` in `modules/auth/domain/permisos.ts`.
 - [x] 2.6 Domain: `estadoFila`, `agruparFilas`, `conflictosGrupo`.
 - [x] 2.7 Repository and use cases: `guardarFilaRelevamiento`, `quitarFilaRelevamiento`, `getPlanillaRelevamiento`, `pasarGrupoAStock`.
@@ -26,18 +26,18 @@ Design: `design.md`. Migrations are written by the agent and applied by the user
 - [x] 2.11 Close: Faltan cargar, rows left, discard (R7).
 - [x] 2.12 Banner `resumenRelevamiento` (R20).
 - [x] 2.13 Labels, kardex, reports and SQL reads of the new tipos (`design.md`, Reads to revisit).
-- [ ] 2.14 Review by a different agent/vendor.
+- [x] 2.14 Review by a different agent/vendor.
 
 ## 3. Delivery 3: corrections
 
 - [x] 3.1 `prisma/migrations/<ts>_0127_corregir_datos_existencia_inicial/migration.sql` and its `.down.sql`; extend the rollback doc.
-- [ ] 3.2 User applies 0127 by hand, in the same deploy as the code.
+- [ ] 3.2 User applies 0127 by hand (applied to desarrollo; prod pending).
 - [x] 3.3 Domain: `deltaCorreccion`, "unused" rule.
 - [x] 3.4 `corregirCantidadInicial`, with the co-firma for a controlled RESTA.
 - [x] 3.5 `corregirDatosPartidaInicial`.
 - [x] 3.6 Correction `<dialog>`; anulada state; corrections list in the close (R7).
 - [x] 3.7 Confirm `/partidas`, the partida detail and the valorizado handle `cantidad_inicial = 0`.
-- [ ] 3.8 Review by a different agent/vendor.
+- [x] 3.8 Review by a different agent/vendor.
 
 ## 4. Delivery 4: Excel
 
@@ -46,6 +46,6 @@ Design: `design.md`. Migrations are written by the agent and applied by the user
 
 ## 5. Specs and archive
 
-- [ ] 5.1 On archive, merge the delta into `openspec/specs/existencia-inicial/spec.md`; rewrite its Purpose ("every envase becomes a partida" is now "every lote"), Vocabulary, Enforcement and Decisions.
-- [ ] 5.2 Update `openspec/specs/libro-recetario-y-contralor/spec.md` where it says only `INGRESO_INICIAL` is exempt.
-- [ ] 5.3 `npm run specs:validate`.
+- [x] 5.1 On archive, merge the delta into `openspec/specs/existencia-inicial/spec.md`; rewrite its Purpose ("every envase becomes a partida" is now "every lote"), Vocabulary, Enforcement and Decisions.
+- [x] 5.2 Update `openspec/specs/libro-recetario-y-contralor/spec.md` where it says only `INGRESO_INICIAL` is exempt.
+- [x] 5.3 `npm run specs:validate`.

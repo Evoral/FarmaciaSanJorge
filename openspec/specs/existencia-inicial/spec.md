@@ -3,8 +3,8 @@
 ## Purpose
 
 The day a pharmacy starts using the system it already has stock on its shelves.
-After loading the drogas, it must **relevar** that stock: every physical envase
-becomes a partida, so it can be consumed with lote, vencimiento and potencia like
+After loading the drogas, it must **relevar** that stock: every lote becomes a partida;
+envases of one lote add up, so it can be consumed with lote, vencimiento and potencia like
 any other (INV-S01: stock only exists as partidas; there is no stock number on the
 droga).
 
@@ -14,7 +14,7 @@ demand a vale de adquisición (INV-L16) the pharmacy does not have. So existing
 stock enters through its own door: a partida of origin **existencia inicial**,
 allowed only while the tenant's **relevamiento inicial** is open.
 
-Implemented 2026-10-23 (see Status).
+Implemented 2026-10-23 (migrations 0100, 0124 and 0127; see Status).
 
 ## Requirements
 
@@ -67,49 +67,65 @@ relevamiento.
 
 ### Requirement: R3 — Data read from the envase
 
-The data of a partida de existencia inicial SHALL be read from the physical envase: droga, **lote** (required),
-**fecha de vencimiento** (required for a `DROGA`, optional for an insumo, same as today,
-trg_partida_validar_vencimiento), **cantidad** counted (required, > 0, in the droga's unidad base), **potencia
-declarada** (same rule as a purchase: required when the droga demands it).
+The data of a partida de existencia inicial SHALL be read from the physical envases of the lote: droga, **lote**
+(required), **fecha de vencimiento** (required for a `DROGA`, optional for an insumo), **cantidad** counted
+(required, > 0, the total of the lote's envases, in any unit of the droga's magnitude), and **potencia declarada**
+(required when the droga demands it). Unlike a purchase, the vencimiento MAY be today or a past date to account
+for expired stock on the shelf.
 
 #### Scenario: Cantidad zero
 
-- **WHEN** an envase is loaded with cantidad 0
-- **THEN** it is refused
+- **WHEN** a row is completed with cantidad 0
+- **THEN** it is not complete and cannot pass to stock
 
 #### Scenario: DROGA without fecha de vencimiento
 
 - **GIVEN** a droga whose `clase` is `DROGA`
-- **WHEN** an envase of it is loaded without fecha de vencimiento
-- **THEN** it is refused
+- **WHEN** a row of it has no fecha de vencimiento
+- **THEN** it is not complete and cannot pass to stock
 
 #### Scenario: Insumo without fecha de vencimiento
 
 - **GIVEN** an insumo
-- **WHEN** an envase of it is loaded without fecha de vencimiento
+- **WHEN** a row of it has no fecha de vencimiento
 - **THEN** the partida can be created
+
+#### Scenario: Expired bottle on the shelf
+
+- **GIVEN** a bottle whose vencimiento is before the jornada actual
+- **WHEN** its row passes to stock
+- **THEN** the partida is created
+- **AND** it is not available for preparaciones (INV-S10) and shows among the vencidas con saldo
 
 ### Requirement: R3 — Costo unitario and proveedor
 
-The data of a partida de existencia inicial SHALL also include **costo unitario** (required, ≥ 0; prefilled with
-the droga's vigente costo de proveedor when there is one, `modules/costos-proveedor`) and **proveedor**
-(optional).
+The data of a row SHALL include an optional **costo unitario** (≥ 0, prefilled with the droga's vigente costo de
+proveedor when there is one) and an optional **proveedor**. A row with no costo passes with the vigente costo, or with
+0 when there is none; a partida de existencia inicial with costo 0 is counted as "sin costo" and is fixed through the
+existing costo correction.
 
 #### Scenario: Droga with a vigente costo de proveedor
 
 - **GIVEN** a droga with a vigente costo de proveedor
-- **WHEN** the user loads an envase of it
+- **WHEN** the user picks it in a row
 - **THEN** the costo unitario is prefilled with that costo
 
 #### Scenario: Negative costo unitario
 
-- **WHEN** an envase is loaded with a costo unitario below 0
+- **WHEN** a row has a costo unitario below 0
 - **THEN** it is refused
 
 #### Scenario: Envase without proveedor
 
-- **WHEN** an envase is loaded without a proveedor
-- **THEN** the partida can be created
+- **WHEN** a row without proveedor passes to stock
+- **THEN** the partida is created without proveedor
+
+#### Scenario: No costo and no vigente costo
+
+- **GIVEN** a droga with no vigente costo de proveedor
+- **WHEN** a row of it with no costo passes to stock
+- **THEN** the partida is created with costo 0
+- **AND** the tab counts it as "sin costo"
 
 ### Requirement: R4 — Proveedor nullable only for existencia inicial
 
@@ -136,50 +152,71 @@ NULL proveedor (partial unique index), alongside today's `(tenant, droga, provee
 
 ### Requirement: R5 — Use case
 
-Creating one SHALL be a `defineCommand` use case, permiso `stock.partida.ingresar` (same as a manual alta,
-PIN-configurable: `conOperador`), audited (`partida`, CREAR, with `origen`), running the manual alta's own rules
-(`registrarPartidaCompra` with `origen`).
+Passing to stock SHALL be a `defineCommand` use case per group of rows, permiso `stock.partida.ingresar`
+(PIN-configurable: `conOperador`, verified once per press), audited (`partida`, CREAR or MODIFICAR, with `origen`),
+running the manual alta's own rules (`registrarPartidaCompra` with `origen`) when it creates the partida. Saving or
+removing a planilla row SHALL use the permiso `stock.relevamiento.editar`, which is not PIN-configurable: a row does
+not touch stock.
 
 #### Scenario: Envase loaded
 
 - **GIVEN** a user with the permiso `stock.partida.ingresar` and the relevamiento abierto
-- **WHEN** the user loads an envase
+- **WHEN** the user passes a complete group of rows that creates a partida
 - **THEN** the partida is created through `registrarPartidaCompra` with `origen`
 - **AND** it is audited as `partida`, CREAR, with `origen`
 
 #### Scenario: User without the permiso
 
 - **GIVEN** a user without the permiso `stock.partida.ingresar`
-- **WHEN** the user tries to load an envase
+- **WHEN** the user tries to pass rows to stock
 - **THEN** it is refused
+
+#### Scenario: Row edited on a shared session
+
+- **GIVEN** a cuenta de sector with PIN required for `stock.partida.ingresar`
+- **WHEN** a row of the planilla is saved
+- **THEN** no PIN is asked
 
 ### Requirement: R5 — Existencia inicial panel
 
-Its UI SHALL be an "Existencia inicial" panel at the top of `/partidas/ingresar`, shown only while the
-relevamiento is abierto: one envase per submit (the manual alta is an invoice of several lotes, which existing
-stock does not have); it keeps every field on error and clears them on success for the next envase.
+The UI SHALL be a tab **Existencia inicial** at `/partidas/existencia-inicial`, next to the list of partidas, with the
+state of the relevamiento, the planilla, what already passed to stock and, for the DT vigente, the close. `/partidas/ingresar`
+SHALL NOT show anything of the relevamiento. The tab is shown while the relevamiento is abierto or when the tenant has
+a partida de existencia inicial; once the relevamiento ends it is read-only and states who closed it and when.
 
 #### Scenario: Relevamiento abierto
 
 - **GIVEN** the relevamiento is abierto
-- **WHEN** a user opens `/partidas/ingresar`
-- **THEN** the "Existencia inicial" panel is shown at the top
+- **WHEN** a user opens `/partidas`
+- **THEN** the tab "Existencia inicial" is shown
+
+#### Scenario: Relevamiento cerrado, with partidas loaded
+
+- **GIVEN** the relevamiento is cerrado and the tenant has partidas de existencia inicial
+- **WHEN** a user opens the tab
+- **THEN** what was loaded is shown read-only, with who closed it and when
 
 #### Scenario: Relevamiento cerrado
 
-- **GIVEN** the relevamiento is cerrado
+- **GIVEN** the relevamiento is cerrado and the tenant has no partida de existencia inicial
+- **WHEN** a user opens `/partidas`
+- **THEN** the tab is not shown
+
+#### Scenario: Purchase page
+
+- **GIVEN** the relevamiento is abierto
 - **WHEN** a user opens `/partidas/ingresar`
-- **THEN** the "Existencia inicial" panel is not shown
+- **THEN** only the purchase forms are shown
 
 #### Scenario: Submit with an error
 
-- **WHEN** the user submits an envase and the alta fails
-- **THEN** every field keeps what the user entered
+- **WHEN** saving a row or passing it to stock fails
+- **THEN** every field of the row keeps what the user entered and the offending one is marked
 
 #### Scenario: Submit that succeeds
 
-- **WHEN** the user submits an envase and the alta succeeds
-- **THEN** the fields are cleared for the next envase
+- **WHEN** a row passes to stock
+- **THEN** it leaves the planilla and appears among what already passed
 
 ### Requirement: R6 — When the relevamiento is abierto
 
@@ -242,15 +279,15 @@ days); a DT close never reopens.
 
 ### Requirement: R7 — Cerrar relevamiento
 
-**Cerrar relevamiento** SHALL be done only by the **DT vigente**, themselves, confirming with their own password
-(same pattern as the reanálisis, `verificarPasswordDtPartidaCommand`). Irreversible
-(`tenant.relevamiento_inicial_cerrado_en` / `_por_id`, set once, no reopen). Audited (`tenant`, MODIFICAR, with
-the number of drogas and partidas loaded). The panel shows, before confirming, how many envases and drogas were
-loaded.
+**Cerrar relevamiento** SHALL be done only by the **DT vigente**, confirming with their own password
+(`verificarPasswordDtPartidaCommand`). Irreversible (`tenant.relevamiento_inicial_cerrado_en` / `_por_id`, set once,
+no reopen). Audited (`tenant`, MODIFICAR). Before confirming, the tab SHALL show summary counts, the drogas of
+Faltan cargar and every correction made. The close SHALL be refused while the planilla has rows, unless the DT
+explicitly discards them in that same confirmation.
 
 #### Scenario: The DT closes the relevamiento
 
-- **GIVEN** the DT vigente, with the permiso `stock.ajuste.autorizar`, and the relevamiento abierto
+- **GIVEN** the DT vigente, with the permiso `stock.ajuste.autorizar`, the relevamiento abierto and an empty planilla
 - **WHEN** the DT confirms the close with their own password
 - **THEN** `tenant.relevamiento_inicial_cerrado_en` / `_por_id` are set
 - **AND** it is audited as `tenant`, MODIFICAR, with the number of drogas and partidas loaded
@@ -258,8 +295,26 @@ loaded.
 #### Scenario: Before confirming
 
 - **GIVEN** the DT vigente and the relevamiento abierto
-- **WHEN** the DT opens the close in the panel
-- **THEN** the panel shows how many envases and drogas were loaded
+- **WHEN** the DT opens the close
+- **THEN** the tab shows how many partidas and drogas were loaded, the drogas of Faltan cargar and the corrections made
+
+#### Scenario: Drogas still missing
+
+- **GIVEN** drogas listed in Faltan cargar
+- **WHEN** the DT confirms the close
+- **THEN** the close is allowed
+
+#### Scenario: Rows left in the planilla
+
+- **GIVEN** a planilla with rows
+- **WHEN** the DT confirms the close without discarding them
+- **THEN** the close is refused
+
+#### Scenario: Rows discarded on close
+
+- **GIVEN** a planilla with rows
+- **WHEN** the DT confirms the close and discards them
+- **THEN** the rows are removed in the same transaction and the number discarded is audited
 
 #### Scenario: A user who is not the DT vigente
 
@@ -275,15 +330,22 @@ loaded.
 
 ### Requirement: R8 — No contralor asiento for an INGRESO_INICIAL
 
-**Controlled drogas, contralor digital activo** (`tenant.fecha_activacion_contralor` not NULL): an
-`INGRESO_INICIAL` MUST **never** generate a contralor asiento; the droga's `APERTURA` asiento (INV-L15, saldo of
-the manual libro) already accounts for that physical stock.
+**Controlled drogas, contralor digital activo** (`tenant.fecha_activacion_contralor` not NULL): an `INGRESO_INICIAL`
+or a corrección inicial MUST **never** generate a contralor asiento; the droga's `APERTURA` asiento (INV-L15, saldo of
+the manual libro) already accounts for that physical stock, and a correction is not a movement of goods.
 
 #### Scenario: Existencia inicial of a controlled droga
 
 - **GIVEN** the contralor digital activo and a controlled droga
 - **WHEN** a partida de existencia inicial of that droga is created
 - **THEN** its `INGRESO_INICIAL` generates no contralor asiento
+
+#### Scenario: Corrección of a controlled droga
+
+- **GIVEN** the contralor digital activo and a controlled droga
+- **WHEN** a partida de existencia inicial of that droga is corrected
+- **THEN** the correction generates no contralor asiento
+- **AND** the close still compares the contralor saldo with the physical stock (R8)
 
 ### Requirement: R8 — Close refused while contralor and physical stock differ
 
@@ -320,9 +382,10 @@ physically open already; the motivo can say so.
 
 ### Requirement: R10 — Reports distinguish the origin
 
-Reports SHALL distinguish the origin: the kardex labels the movement "Existencia inicial"; the stock valorizado
-includes these partidas (they have costo); the proveedor trayectoria and purchase-based views list only partidas
-with a proveedor; the partida detail shows "Origen: existencia inicial".
+Reports SHALL distinguish the origin: the kardex labels the ingreso "Existencia inicial" and each correction "Existencia
+inicial (suma)" or "Existencia inicial (resta)"; the stock valorizado includes these partidas; the
+proveedor trayectoria and purchase-based views list only partidas with a proveedor; the partida detail shows "Origen:
+existencia inicial".
 
 #### Scenario: Partida de existencia inicial in the reports
 
@@ -332,6 +395,12 @@ with a proveedor; the partida detail shows "Origen: existencia inicial".
 - **AND** the stock valorizado includes it
 - **AND** the proveedor trayectoria and purchase-based views do not list it
 - **AND** its partida detail shows "Origen: existencia inicial"
+
+#### Scenario: Corrected partida in the kardex
+
+- **GIVEN** a partida with an `INGRESO_INICIAL` of 100 and a suma of 400
+- **WHEN** the kardex is opened
+- **THEN** it shows both movements, the `INGRESO_INICIAL` still at 100 and the suma labeled "Existencia inicial (suma)"
 
 ### Requirement: R11 — Differences after the close
 
@@ -387,44 +456,378 @@ and R8 has no saldo to compare. With the contralor manual, the field is not show
 - **WHEN** a user gives alta to a controlled droga or edits a droga into controlada
 - **THEN** the saldo de apertura field is not shown
 
+### Requirement: R13 — Planilla
+
+The planilla SHALL be an editable draft of rows with droga, lote, vencimiento, cantidad, unidad, potencia, costo and
+proveedor, all optional while being typed, one row per droga + lote. Rows SHALL be saved as they are typed, stay until
+passed or removed, and be shared by every user of the tenant. A row SHALL have no effect on stock. "Agregar fila" and
+Enter on the last field add a row and leave the cursor in its first field.
+
+#### Scenario: Half-done row
+
+- **WHEN** a user types a droga and a lote and leaves
+- **THEN** the row is kept and appears when anyone opens the tab
+
+#### Scenario: Stock untouched
+
+- **GIVEN** a complete row that was not passed
+- **WHEN** the stock is read
+- **THEN** the row counts for nothing
+
+#### Scenario: Removing a row
+
+- **WHEN** a user removes a row
+- **THEN** it disappears, with no trace in stock or kardex
+
+#### Scenario: Rows while the relevamiento is cerrado
+
+- **GIVEN** the relevamiento is cerrado
+- **WHEN** a row is inserted or updated
+- **THEN** the DB refuses it
+
+### Requirement: R14 — State of a row
+
+Each row SHALL show its state: **lista**, **incompleta** (naming what is missing), **se suma** (to another row or to a
+partida already in stock) or **en conflicto** (naming the difference).
+
+#### Scenario: Missing field
+
+- **WHEN** a row has a droga but no lote
+- **THEN** it is shown as incompleta, naming the lote
+
+#### Scenario: Same lote in two rows
+
+- **GIVEN** two complete rows with the same droga, lote and proveedor and equal data
+- **WHEN** the planilla is shown
+- **THEN** both are shown as se suma
+
+#### Scenario: Different vencimiento in the same lote
+
+- **GIVEN** two rows with the same droga, lote and proveedor and different vencimiento
+- **WHEN** the planilla is shown
+- **THEN** both are shown as en conflicto, naming the vencimiento
+
+### Requirement: R15 — Pasar a stock
+
+Pasar a stock SHALL process every complete row, grouped by droga + lote + proveedor, adding their quantities in the
+droga's unidad base. It MAY be pressed as many times as needed while the relevamiento is abierto. Each group SHALL run
+in its own transaction, in which its rows are removed from the planilla, so a retry never duplicates. Before running,
+a dialog SHALL show the rows, the resulting partidas, those without costo and those expired.
+
+#### Scenario: New lote
+
+- **GIVEN** a complete row with no partida for its droga, lote and proveedor
+- **WHEN** Pasar a stock runs
+- **THEN** a partida de origen `EXISTENCIA_INICIAL` is created with one `INGRESO_INICIAL`
+- **AND** the row leaves the planilla
+
+#### Scenario: Two rows of one lote
+
+- **GIVEN** two complete rows of one group, 100 g and 50 g
+- **WHEN** Pasar a stock runs
+- **THEN** one partida is created with one `INGRESO_INICIAL` of 150 g
+
+#### Scenario: Lote already passed
+
+- **GIVEN** a partida de existencia inicial for that droga, lote and proveedor and the relevamiento abierto
+- **WHEN** a complete row of that group passes
+- **THEN** no new partida is created
+- **AND** a `CORRECCION_INICIAL_SUMA` adds the row's quantity to that partida
+
+#### Scenario: Incomplete rows
+
+- **GIVEN** complete and incomplete rows
+- **WHEN** Pasar a stock runs
+- **THEN** the incomplete rows stay in the planilla, untouched
+
+#### Scenario: One group fails
+
+- **GIVEN** a group whose alta fails
+- **WHEN** Pasar a stock runs
+- **THEN** the other groups pass
+- **AND** the failed rows stay in the planilla with the reason
+
+#### Scenario: Relevamiento ended
+
+- **GIVEN** the relevamiento is cerrado
+- **WHEN** Pasar a stock runs
+- **THEN** it is refused and the rows stay as they are
+
+### Requirement: R15 — Rows that cannot pass
+
+A group SHALL NOT pass while it is en conflicto: its rows, or the partida it would add to, differ in vencimiento, or in
+a potencia or costo the row states. A blank potencia or costo in a row is not a difference. A group whose droga, lote
+and proveedor match a partida that is not of origen `EXISTENCIA_INICIAL` SHALL NOT pass.
+
+#### Scenario: Vencimiento differs from the partida
+
+- **GIVEN** a partida de existencia inicial with a vencimiento
+- **WHEN** a row of its group states another vencimiento
+- **THEN** the row does not pass and shows both dates
+
+#### Scenario: Blank costo
+
+- **GIVEN** a partida de existencia inicial with a costo
+- **WHEN** a row of its group with no costo passes
+- **THEN** it adds to the partida and the costo stays
+
+#### Scenario: Same lote as a purchase
+
+- **GIVEN** a `COMPRA` partida of the same droga, proveedor and lote
+- **WHEN** a row of that group is passed
+- **THEN** the row does not pass and says that lote already entered as a purchase
+
+### Requirement: R16 — Faltan cargar
+
+The tab SHALL list the active drogas with no partida de existencia inicial and no row in the planilla, including those
+with stock from a purchase, since older stock may remain on the shelf. The list SHALL be computed, informative, and
+block nothing.
+
+#### Scenario: Droga with only purchases
+
+- **GIVEN** an active droga with a `COMPRA` partida and no existencia inicial
+- **WHEN** the tab is opened
+- **THEN** the droga is listed in Faltan cargar
+
+#### Scenario: Droga already counted
+
+- **GIVEN** a droga with a partida de existencia inicial
+- **WHEN** the tab is opened
+- **THEN** the droga is not listed
+
+### Requirement: R17 — Correction of the cantidad
+
+While the relevamiento is abierto, a user with the permiso `stock.partida.ingresar` SHALL be able to correct the
+cantidad of a partida de existencia inicial, used or not, by typing the **correct cantidad inicial**. The system SHALL
+write the difference as a `CORRECCION_INICIAL_SUMA` or `CORRECCION_INICIAL_RESTA`, with an optional observación and
+never an `AJUSTE`. The `cantidad_disponible` MUST stay at or above the quantity reserved.
+
+#### Scenario: Correction upward after use
+
+- **GIVEN** a partida of 100 g with 20 g consumed
+- **WHEN** the user corrects the cantidad inicial to 500 g
+- **THEN** a `CORRECCION_INICIAL_SUMA` of 400 g is written
+- **AND** the disponible is 480 g and the `INGRESO_INICIAL` still reads 100 g
+
+#### Scenario: Correction downward
+
+- **GIVEN** a partida of 500 g of a non-controlled droga, unused
+- **WHEN** the user corrects its cantidad inicial to 100 g
+- **THEN** a `CORRECCION_INICIAL_RESTA` of 400 g is written, with no DT
+
+#### Scenario: Below what is reserved or consumed
+
+- **GIVEN** a partida with 80 g disponible and 30 g reserved
+- **WHEN** the correction would leave less than 30 g disponible
+- **THEN** it is refused, stating the minimum
+
+#### Scenario: Taken to zero
+
+- **GIVEN** an unused partida loaded under the wrong droga
+- **WHEN** the user corrects its cantidad inicial to 0
+- **THEN** the partida stays with cantidad 0, shown as anulada, and the stock is loaded under the right droga
+
+### Requirement: R17 — Controlled drogas need the DT to go down
+
+A `CORRECCION_INICIAL_RESTA` on a droga with `tipo_control` other than `NINGUNO` MUST carry the co-firma of a DT
+vigente (`verificarCoFirmaDt`). The DB SHALL refuse it otherwise. A `CORRECCION_INICIAL_SUMA` needs no co-firma.
+
+#### Scenario: Controlled droga lowered without DT
+
+- **GIVEN** a controlled droga
+- **WHEN** a `CORRECCION_INICIAL_RESTA` is inserted with no DT vigente as autorizado
+- **THEN** the DB refuses it
+
+#### Scenario: Controlled droga raised
+
+- **GIVEN** a controlled droga
+- **WHEN** its cantidad inicial is corrected upward
+- **THEN** no co-firma is asked
+
+### Requirement: R17 — Cantidad inicial is the total entered
+
+`partida.cantidad_inicial` SHALL be the total entered: the `INGRESO_INICIAL` plus its sumas minus its restas. It MUST
+change only through the movement trigger, together with `cantidad_disponible`, only for origen `EXISTENCIA_INICIAL`.
+Only for that origen MAY it reach 0.
+
+#### Scenario: Direct update
+
+- **WHEN** `cantidad_inicial` is updated outside a movement
+- **THEN** the DB refuses it
+
+#### Scenario: Partida of a purchase
+
+- **GIVEN** a `COMPRA` partida
+- **WHEN** a corrección inicial is inserted on it
+- **THEN** the DB refuses it
+
+### Requirement: R18 — Correction of the data of an unused partida
+
+While the relevamiento is abierto, the lote, vencimiento and proveedor of a partida de existencia inicial SHALL be
+editable only while it is **unused**: no movement other than its ingreso and corrections, no reserva, no reanálisis and
+no `fecha_apertura`. Once used they are frozen, because they may be in the libro recetario. The droga is never
+editable. Audited with old and new values. INV-S23 is relaxed only for this path.
+
+#### Scenario: Lote mistyped on an unused partida
+
+- **GIVEN** an unused partida de existencia inicial
+- **WHEN** the user corrects its lote
+- **THEN** the lote changes and the change is audited
+
+#### Scenario: Vencimiento of an unused partida
+
+- **GIVEN** an unused partida de existencia inicial
+- **WHEN** the user corrects its vencimiento
+- **THEN** `fecha_vencimiento` and `fecha_vencimiento_vigente` both take the new date
+
+#### Scenario: Partida already used
+
+- **GIVEN** a partida de existencia inicial with an `EGRESO_PREPARACION`
+- **WHEN** its lote or vencimiento is changed
+- **THEN** it is refused, and the form offers only the cantidad and the costo
+
+#### Scenario: Colliding lote
+
+- **GIVEN** another partida with the droga, proveedor and new lote
+- **WHEN** the lote is corrected
+- **THEN** it is refused with a message naming the lote
+
+### Requirement: R19 — Corrections end with the relevamiento
+
+Every correction of R17 and R18 MUST be refused when the relevamiento is not abierto, whether the DT closed it or the
+plazo ran out. The DB SHALL enforce it with `fsj.relevamiento_inicial_abierto`.
+
+#### Scenario: Closed by the DT
+
+- **GIVEN** a relevamiento closed by the DT
+- **WHEN** a corrección inicial is inserted
+- **THEN** the DB refuses it
+
+#### Scenario: Plazo ran out
+
+- **GIVEN** a relevamiento past its plazo and not closed by the DT
+- **WHEN** the data of a partida de existencia inicial is corrected
+- **THEN** the DB refuses it
+
+### Requirement: R20 — Plazo alert
+
+From seven days before `fsj.relevamiento_inicial_fecha_limite`, every user with `stock.ver` SHALL see an app-wide
+banner stating the days left, the drogas of Faltan cargar and the rows in the planilla. Computed, not a job.
+
+#### Scenario: Seven days before the limit
+
+- **GIVEN** a relevamiento abierto whose fecha límite is seven days after the jornada actual
+- **WHEN** a user opens any page
+- **THEN** the banner is shown
+
+#### Scenario: No signed cierre yet
+
+- **GIVEN** a tenant with no signed cierre diario
+- **WHEN** a user opens any page
+- **THEN** no banner is shown
+
+#### Scenario: Relevamiento closed
+
+- **GIVEN** the relevamiento is cerrado
+- **WHEN** a user opens any page
+- **THEN** no banner is shown
+
+### Requirement: R21 — Import from Excel
+
+The tab SHALL import an `.xlsx` into the planilla as ordinary rows, matching each droga by name or sinónimo. A row whose
+droga or unidad is not recognized SHALL stay as an incompleta row keeping what was read. Importing SHALL NOT touch stock.
+
+#### Scenario: Recognized rows
+
+- **WHEN** a file with known drogas is imported
+- **THEN** its rows appear in the planilla with their state, and nothing passes to stock
+
+#### Scenario: Unknown droga
+
+- **WHEN** a row names a droga that is not recognized
+- **THEN** it stays incompleta, showing the text read so the user can pick the droga
+
 ## Status
 
-Status: implemented 2026-10-23 (migration 0100). Rollback:
-`docs/rollbacks/existencia-inicial.md`. Extends DP-21b (a new positive movement
+Status: implemented 2026-10-23 (migration 0100), expanded 2026-11-10 (migrations 0124 and 0127). Rollbacks:
+`docs/rollbacks/existencia-inicial.md` and `docs/rollbacks/planilla-existencia-inicial.md`. Extends DP-21b (a new positive movement
 type besides `INGRESO_COMPRA`). New invariants: INV-S24 (window), INV-S25
 (origen ↔ ingreso type), INV-S26 (close once, by the DT).
 
 ## Vocabulary
 
 - **Partida de existencia inicial**: a partida whose `origen = EXISTENCIA_INICIAL`,
-  created from a physical envase counted during the relevamiento. Its only
-  ingreso is an `INGRESO_INICIAL` movement.
+  created from counted stock during the relevamiento. Its initial ingreso is an
+  `INGRESO_INICIAL` movement, and it may receive initial corrections (`CORRECCION_INICIAL_SUMA`
+  or `CORRECCION_INICIAL_RESTA`).
 - **Relevamiento inicial**: the tenant-level window during which partidas de
-  existencia inicial can be created. **Abierto** or **cerrado**; once cerrado it
+  existencia inicial can be created and corrected. **Abierto** or **cerrado**; once cerrado it
   never reopens.
 - **Plazo del relevamiento**: `dias_relevamiento_inicial` (tenant parameter,
-  default 30, **at most 90** -- three months) counted from the jornada of the
+  default 30, **at most 90** — three months) counted from the jornada of the
   tenant's **first signed cierre diario**.
+- **Planilla**: an editable draft table (`fsj.relevamiento_fila`) shared across
+  users of the tenant where counted stock is staged before passing to stock, having
+  no effect on stock while in draft.
+- **Fila**: a single row in the planilla, showing its state: **lista**, **incompleta**
+  (naming what is missing), **se suma** (to another row or to an existing partida) or
+  **en conflicto** (naming the discrepancy).
+- **Pasar a stock**: operation that processes complete, conflict-free planilla rows,
+  grouping them by droga + lote + proveedor, summing their quantities in the droga's
+  unidad base, creating or adding to partidas de existencia inicial, and removing
+  the processed rows from the planilla.
+- **Faltan cargar**: informative list of active drogas in the catalog that have no
+  partida de existencia inicial and no row in the planilla.
+- **Corrección inicial**: an in-window adjustment to a partida de existencia inicial:
+  either correcting its `cantidad_inicial` via `CORRECCION_INICIAL_SUMA` or
+  `CORRECCION_INICIAL_RESTA` (never an `AJUSTE`), or modifying the lote, vencimiento,
+  or proveedor of an unused partida.
+- **Anulada**: a partida de existencia inicial whose `cantidad_inicial` was corrected
+  down to 0 (e.g. loaded under the wrong droga); it stays with saldo 0 for audit and
+  traceability and is shown as anulada.
 
 ## Enforcement
 
 | # | Enforced in |
 |---|---|
-| R1 | New enum `origen_partida`, column `partida.origen`; enum value `tipo_movimiento.INGRESO_INICIAL`; `fsj.movimiento_stock_aplicar` (the DP-21b sign check: only `INGRESO_COMPRA` and `INGRESO_INICIAL` add saldo, one ingreso per partida). |
-| R2 | App: the new use case (R4). DB: insert trigger on `partida` re-checks the window for `origen = EXISTENCIA_INICIAL`. |
-| R3 | zod schema of the use case; DB checks. |
-| R4 | Migration. Every read that assumes `partida.proveedor` exists (Prisma type becomes optional) shows "Sin proveedor (existencia inicial)". |
-| R5 | `modules/stock/application/ingresar-existencia-inicial.ts`, `modules/stock/ui/existencia-inicial-form.tsx`, `relevamiento-inicial-panel.tsx`. |
-| R6 | Domain function `relevamientoAbierto(...)` (pure); DB function used by the R2 trigger. |
-| R7 | App: permiso `stock.ajuste.autorizar` + `esDtVigenteHoy`. DB: the two columns are write-once. |
-| R8 | Contralor asiento trigger (skip `INGRESO_INICIAL`); the close use case. |
-| R9 | No change. |
-| R10 | `kardex-movimientos.ts`, `reporte-valorizado.ts`, `trayectoria-repository.ts`, `/partidas/[id]`. |
-| R11 | No change. |
-| R12 | `modules/drogas` alta/edit use cases + the shared droga form; the contralor repository inserts the APERTURA inside the use case's tenant transaction. |
+| R1 | New enum `origen_partida`, column `partida.origen`; enum values `tipo_movimiento.INGRESO_INICIAL`, `CORRECCION_INICIAL_SUMA`, `CORRECCION_INICIAL_RESTA` (migration 0124); `fsj.movimiento_stock_aplicar`. |
+| R2 | App: `modules/stock/application/pasar-grupo-a-stock.ts`. DB: trigger `trg_partida_validar_relevamiento_inicial` on `partida` (migration 0100). |
+| R3 | Domain `modules/stock/domain/planilla-existencia-inicial.ts`; `modules/stock/application/guardar-fila-relevamiento.ts`; DB checks on `partida`. |
+| R4 | Migration 0100 (`proveedor_id IS NOT NULL OR origen = 'EXISTENCIA_INICIAL'`). Every read that assumes `partida.proveedor` exists shows "Sin proveedor (existencia inicial)". |
+| R5 | `modules/stock/application/pasar-grupo-a-stock.ts`, `modules/stock/application/guardar-fila-relevamiento.ts`, `modules/stock/application/quitar-fila-relevamiento.ts`, `modules/stock/ui/planilla-existencia-inicial.tsx`, `modules/stock/ui/relevamiento-inicial-panel.tsx`. |
+| R6 | Domain function `relevamientoInicialAbierto` (pure); DB function `fsj.relevamiento_inicial_abierto` (migration 0100). |
+| R7 | App: `modules/stock/application/cerrar-relevamiento-inicial.ts`, `modules/stock/application/get-correcciones-relevamiento.ts`, `modules/stock/ui/relevamiento-inicial-panel.tsx`. DB: `tenant.relevamiento_inicial_cerrado_en` / `_por_id` write-once (migration 0100). |
+| R8 | Contralor trigger `fsj.movimiento_stock_validar_contralor` (exempts `INGRESO_INICIAL`, `CORRECCION_INICIAL_SUMA`, `CORRECCION_INICIAL_RESTA`, migration 0124); close use case `cerrar-relevamiento-inicial.ts`. |
+| R9 | No change: `fecha_apertura` stays NULL until first `EGRESO_PREPARACION`. |
+| R10 | `modules/stock/application/reporte-kardex.ts`, `modules/stock/application/reporte-valorizado.ts`, `modules/stock/infrastructure/trayectoria-repository.ts`, `/partidas/[id]`. |
+| R11 | No change: post-close differences follow `AJUSTE DIFERENCIA_ARQUEO` or DP-21b. |
+| R12 | `modules/drogas` alta/edit use cases + the shared droga form; contralor repository inserts `APERTURA`. |
+| R13 | Table `fsj.relevamiento_fila` (migration 0124); `modules/stock/application/guardar-fila-relevamiento.ts`, `modules/stock/application/quitar-fila-relevamiento.ts`, `modules/stock/application/get-planilla-relevamiento.ts`, `modules/stock/ui/planilla-existencia-inicial.tsx`. |
+| R14 | Domain `modules/stock/domain/planilla-existencia-inicial.ts` (`estadoFila`, `agruparFilas`, `conflictosGrupo`); `modules/stock/application/get-planilla-relevamiento.ts`, `modules/stock/ui/planilla-existencia-inicial.tsx`. |
+| R15 | `modules/stock/application/pasar-grupo-a-stock.ts`, `modules/stock/ui/planilla-existencia-inicial.tsx`, migration 0124. |
+| R16 | `modules/stock/application/get-planilla-relevamiento.ts`, `modules/stock/ui/planilla-existencia-inicial.tsx`. |
+| R17 | `modules/stock/application/corregir-cantidad-inicial.ts`, `modules/stock/application/get-correcciones-relevamiento.ts`, `modules/stock/ui/planilla-existencia-inicial.tsx`, migration 0124 (`trg_partida_cantidad_inicial`, `fsj.movimiento_stock_validar_cofirma_dt`). |
+| R18 | `modules/stock/application/corregir-datos-partida-inicial.ts`, `modules/stock/ui/planilla-existencia-inicial.tsx`, migration 0127 (`fsj.corregir_datos_partida_inicial`). |
+| R19 | DB triggers `fsj.relevamiento_inicial_abierto` enforced in `movimiento_stock_aplicar` and `fsj.corregir_datos_partida_inicial` (migrations 0124 and 0127); `corregir-cantidad-inicial.ts`, `corregir-datos-partida-inicial.ts`. |
+| R20 | `modules/stock/application/resumen-relevamiento.ts`, `modules/stock/ui/relevamiento-inicial-panel.tsx`. |
+| R21 | `modules/stock/application/importar-planilla-excel.ts`, `modules/stock/application/plantilla-existencia-inicial.ts`, `modules/stock/ui/planilla-existencia-inicial.tsx`. |
 
 ## Decisions
 
+- **Every lote becomes a partida; envases of one lote add up.** A physical stock intake
+  frequently counts multiple bottles or packages of the same lot. Instead of creating distinct
+  partidas per bottle, rows of the same lote, vencimiento, and proveedor sum into one partida (or
+  add to an existing one via `CORRECCION_INICIAL_SUMA`).
+- **Draft planilla before stock.** Staging counted rows in an uncommitted table (`fsj.relevamiento_fila`)
+  lets operators type data concurrently, leave rows incomplete, and resolve conflicts before any
+  movement touches stock or generates audit noise.
+- **Corrections as initial movements, never AJUSTE.** Adjustments made while the window is open
+  update `cantidad_inicial` and `cantidad_disponible` through `CORRECCION_INICIAL_SUMA` / `CORRECCION_INICIAL_RESTA`
+  (never `AJUSTE`), preserving true origin semantics and leaving `AJUSTE` for operational losses/surpluses post-close.
+- **Unused partidas allow metadata corrections.** Mistakes in typing lote, vencimiento, or proveedor
+  on an unused partida can be corrected in place without an annulment, using migration 0127
+  (`fsj.corregir_datos_partida_inicial`). Once consumed or reserved, metadata freezes to preserve the
+  libro recetario chain.
 - **Partidas, not a stock number.** Every egreso consumes a partida and the libro
   recetario prints its lote; FEFO, INV-S10 (vencimiento vigente), potencia and the
   valorizado all read the partida. A per-droga "stock inicial" could not be
@@ -445,6 +848,9 @@ type besides `INGRESO_COMPRA`). New invariants: INV-S24 (window), INV-S25
   relevamiento: every movement after activation already wrote its asiento.
 - **Already-open envases: no mark.** Tracking "opened before the system" adds a
   field and a UI choice for a case that only matters to INV-S18's motivo prompt.
+- **Import from Excel stages draft rows.** Importing an `.xlsx` never touches stock directly;
+  it populates the planilla with rows (evaluating recognized drogas and units) so the team reviews
+  and confirms before passing to stock.
 
 ## Implementation notes
 
