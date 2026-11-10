@@ -87,6 +87,8 @@ export const PERMISO_CATALOGO = {
   "stock.ajuste.autorizar": "operativo",
   // Elaborate a lot or a dilución from partidas of its components (migration 0111, openspec/changes/lotes-elaborados).
   "stock.lote.elaborar": "operativo",
+  // Edit and save draft rows in the planilla de existencia inicial (migration 0124, openspec/changes/planilla-existencia-inicial). Not a PIN action.
+  "stock.relevamiento.editar": "operativo",
   // Recetas, fichas, presupuestos, preparaciones, etiquetas.
   "recetas.crear": "operativo",
   "recetas.editar": "operativo",

@@ -144,7 +144,7 @@ export async function registrarPartidaCompra(
         fields: [campo("fechaVencimiento")],
       });
     }
-  } else if (!esFechaVencimientoFutura(input.fechaVencimiento, jornadaActual)) {
+  } else if (origen === "COMPRA" && !esFechaVencimientoFutura(input.fechaVencimiento, jornadaActual)) {
     throw new ValidationError("La fecha de vencimiento debe ser posterior a la fecha actual.", { fields: [campo("fechaVencimiento")] });
   }
 

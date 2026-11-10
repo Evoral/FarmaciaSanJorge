@@ -39,7 +39,7 @@ export async function GET(request: Request): Promise<Response> {
     resultado = await exportarKardexXlsx({
       partidaId: q.get("partidaId") || undefined,
       drogaId: q.get("drogaId") || undefined,
-      tipo: (q.get("tipo") as "INGRESO_COMPRA" | "INGRESO_INICIAL" | "INGRESO_ELABORACION" | "EGRESO_PREPARACION" | "EGRESO_ELABORACION" | "AJUSTE" | null) || undefined,
+      tipo: (q.get("tipo") as "INGRESO_COMPRA" | "INGRESO_INICIAL" | "INGRESO_ELABORACION" | "EGRESO_PREPARACION" | "EGRESO_ELABORACION" | "AJUSTE" | "CORRECCION_INICIAL_SUMA" | "CORRECCION_INICIAL_RESTA" | null) || undefined,
       desde: q.get("desde") || undefined,
       hasta: q.get("hasta") || undefined,
     });

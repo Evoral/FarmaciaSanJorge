@@ -32,6 +32,9 @@ type FilterParam = "drogaId" | "tipo" | "desde" | "hasta";
 const TONO_TIPO: Record<string, BadgeTone> = {
   INGRESO_COMPRA: "success",
   INGRESO_INICIAL: "success",
+  INGRESO_ELABORACION: "success",
+  CORRECCION_INICIAL_SUMA: "success",
+  CORRECCION_INICIAL_RESTA: "warn",
   EGRESO_PREPARACION: "neutral",
   AJUSTE: "warn",
 };
@@ -45,7 +48,7 @@ const numberFormat = new Intl.NumberFormat("es-AR");
 export default async function ReporteKardexPage({ searchParams }: ReporteKardexPageProps) {
   const params = await searchParams;
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
-  const tipo = params.tipo === "INGRESO_COMPRA" || params.tipo === "INGRESO_INICIAL" || params.tipo === "INGRESO_ELABORACION" || params.tipo === "EGRESO_PREPARACION" || params.tipo === "EGRESO_ELABORACION" || params.tipo === "AJUSTE" ? params.tipo : undefined;
+  const tipo = params.tipo === "INGRESO_COMPRA" || params.tipo === "INGRESO_INICIAL" || params.tipo === "INGRESO_ELABORACION" || params.tipo === "EGRESO_PREPARACION" || params.tipo === "EGRESO_ELABORACION" || params.tipo === "AJUSTE" || params.tipo === "CORRECCION_INICIAL_SUMA" || params.tipo === "CORRECCION_INICIAL_RESTA" ? params.tipo : undefined;
   const drogaIdTexto = params.drogaId?.trim() ?? "";
   const drogaIdIncompleto = drogaIdTexto !== "" && !UUID_PATTERN.test(drogaIdTexto);
   const desde = filtroFechaIso(params.desde);

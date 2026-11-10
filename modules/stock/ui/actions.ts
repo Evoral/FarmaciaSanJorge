@@ -12,6 +12,14 @@ import { registrarReanalisisPartida } from "@/modules/stock/application/reanaliz
 import { marcarPartidaVencida } from "@/modules/stock/application/marcar-partida-vencida";
 import { ingresarExistenciaInicial } from "@/modules/stock/application/ingresar-existencia-inicial";
 import { cerrarRelevamientoInicial } from "@/modules/stock/application/cerrar-relevamiento-inicial";
+import {
+  guardarFilaRelevamiento,
+  type GuardarFilaRelevamientoInput,
+} from "@/modules/stock/application/guardar-fila-relevamiento";
+import { quitarFilaRelevamiento } from "@/modules/stock/application/quitar-fila-relevamiento";
+import { getPlanillaRelevamiento } from "@/modules/stock/application/get-planilla-relevamiento";
+import { pasarGrupoAStock } from "@/modules/stock/application/pasar-grupo-a-stock";
+import { claveGrupo } from "@/modules/stock/domain/existencia-inicial";
 import { elaborarLote } from "@/modules/stock/application/elaborar-lote";
 import { datosParaElaborar, type DatosParaElaborar } from "@/modules/stock/application/datos-para-elaborar";
 import { listarCostosVigentes } from "@/modules/costos-proveedor/application/listar-costos-vigentes";
@@ -22,6 +30,7 @@ import type { EtiquetaTamano } from "@/modules/etiqueta-tamanos/domain/etiqueta-
 import type { MotivoAjuste } from "@/modules/stock/domain/partida";
 import { PARAM_VOLVER_AJUSTE, retornoAjuste, retornoAjusteRegistrado } from "@/modules/stock/domain/ajustes-listado";
 import { conOperador } from "@/shared/auth/operador-context";
+import { OperadorRequeridoError } from "@/shared/errors";
 import { actionError, actionErrorMessage } from "@/shared/ui/action-error";
 import type { LeerFacturaPdfState, StockActionState } from "./action-state";
 
@@ -209,6 +218,7 @@ export async function ingresarExistenciaInicialAction(_prevState: StockActionSta
       });
       revalidatePath("/stock");
       revalidatePath("/partidas");
+      revalidatePath("/partidas/existencia-inicial");
       return { status: "success", message: "Existencia inicial cargada: la partida ya está en el stock." };
     } catch (error) {
       return fromError(error, "No se pudo cargar la existencia inicial.");
@@ -219,13 +229,199 @@ export async function ingresarExistenciaInicialAction(_prevState: StockActionSta
 /** "Cerrar relevamiento" (R7): the use case verifies the DT's own password first. */
 export async function cerrarRelevamientoInicialAction(_prevState: StockActionState, formData: FormData): Promise<StockActionState> {
   try {
-    await cerrarRelevamientoInicial({ password: String(formData.get("password") ?? "") });
-    revalidatePath("/partidas/ingresar");
+    const descartarFilasRaw = formData.get("descartarFilas");
+    const descartarFilas =
+      descartarFilasRaw === "true" || descartarFilasRaw === "1" || descartarFilasRaw === "on";
+    await cerrarRelevamientoInicial({
+      password: String(formData.get("password") ?? ""),
+      descartarFilas,
+    });
+    revalidatePath("/partidas/existencia-inicial");
+    revalidatePath("/partidas");
     return { status: "success", message: "Relevamiento inicial cerrado: desde ahora el stock entra solo por compras." };
   } catch (error) {
     return fromError(error, "No se pudo cerrar el relevamiento inicial.");
   }
 }
+
+/** Guarda o actualiza una fila borrador de la planilla de relevamiento (permiso `stock.relevamiento.editar`). */
+export async function guardarFilaRelevamientoAction(
+  arg1: StockActionState | GuardarFilaRelevamientoInput,
+  arg2?: FormData,
+): Promise<StockActionState> {
+  try {
+    let input: GuardarFilaRelevamientoInput;
+    if (arg2 instanceof FormData) {
+      input = {
+        id: String(arg2.get("id") ?? ""),
+        drogaId: opcional(arg2, "drogaId"),
+        lote: opcional(arg2, "lote"),
+        fechaVencimiento: opcional(arg2, "fechaVencimiento"),
+        cantidad: opcional(arg2, "cantidad"),
+        unidadMedidaId: opcional(arg2, "unidadMedidaId"),
+        potenciaDeclarada: opcional(arg2, "potenciaDeclarada"),
+        costoUnitario: opcional(arg2, "costoUnitario"),
+        proveedorId: opcional(arg2, "proveedorId"),
+        textoDroga: opcional(arg2, "textoDroga"),
+      };
+    } else {
+      input = arg1 as GuardarFilaRelevamientoInput;
+    }
+    await guardarFilaRelevamiento(input);
+    revalidatePath("/partidas/existencia-inicial");
+    return { status: "success", message: "Fila guardada." };
+  } catch (error) {
+    return fromError(error, "No se pudo guardar la fila.");
+  }
+}
+
+/** Elimina una fila de la planilla de relevamiento (permiso `stock.relevamiento.editar`). */
+export async function quitarFilaRelevamientoAction(
+  arg1: StockActionState | string | { id: string },
+  arg2?: FormData,
+): Promise<StockActionState> {
+  try {
+    let id: string;
+    if (arg2 instanceof FormData) {
+      id = String(arg2.get("id") ?? "");
+    } else if (typeof arg1 === "string") {
+      id = arg1;
+    } else if (arg1 && typeof arg1 === "object" && "id" in arg1) {
+      id = arg1.id;
+    } else {
+      id = "";
+    }
+    await quitarFilaRelevamiento({ id });
+    revalidatePath("/partidas/existencia-inicial");
+    return { status: "success", message: "Fila eliminada." };
+  } catch (error) {
+    return fromError(error, "No se pudo quitar la fila.");
+  }
+}
+
+export interface PasarAStockResultadoGrupo {
+  grupoClave: string;
+  drogaNombre?: string;
+  lote?: string;
+  ok: boolean;
+  partidaId?: string;
+  error?: string;
+}
+
+export type PasarAStockState =
+  | {
+      status: "idle";
+    }
+  | {
+      status: "success";
+      pasados: number;
+      fallidos: number;
+      restantes: number;
+      resultados: PasarAStockResultadoGrupo[];
+      message: string;
+    }
+  | {
+      status: "error";
+      message: string;
+    }
+  | {
+      status: "operador-required";
+    };
+
+/**
+ * Pasa hasta 100 grupos de filas completas a stock en transacciones individuales (R15).
+ * Ejecuta bajo `conOperador` ya que `stock.partida.ingresar` es PIN-configurable.
+ */
+export async function pasarAStockAction(
+  _prevState: StockActionState | PasarAStockState,
+  formData: FormData,
+): Promise<PasarAStockState> {
+  return conOperador(formData, async (): Promise<PasarAStockState> => {
+    try {
+      const planilla = await getPlanillaRelevamiento();
+      const filasValidas = planilla.filas.filter(
+        (f) => f.estado.tipo === "lista" || f.estado.tipo === "se_suma",
+      );
+
+      const gruposMap = new Map<string, { drogaNombre: string; lote: string; filaIds: string[] }>();
+      for (const f of filasValidas) {
+        if (!f.drogaId || !f.lote) continue;
+        const clave = claveGrupo(f.drogaId, f.lote, f.proveedorId);
+        let g = gruposMap.get(clave);
+        if (!g) {
+          g = { drogaNombre: f.drogaNombre ?? "Droga", lote: f.lote, filaIds: [] };
+          gruposMap.set(clave, g);
+        }
+        g.filaIds.push(f.id);
+      }
+
+      const todosLosGrupos = Array.from(gruposMap.entries());
+      const gruposAProcesar = todosLosGrupos.slice(0, 100);
+      const restantes = todosLosGrupos.length - gruposAProcesar.length;
+
+      const resultados: PasarAStockResultadoGrupo[] = [];
+      let pasados = 0;
+      let fallidos = 0;
+
+      for (const [clave, grupo] of gruposAProcesar) {
+        try {
+          const res = await pasarGrupoAStock({ filaIds: grupo.filaIds });
+          pasados++;
+          resultados.push({
+            grupoClave: clave,
+            drogaNombre: grupo.drogaNombre,
+            lote: grupo.lote,
+            ok: true,
+            partidaId: res.partidaId,
+          });
+        } catch (err) {
+          if (err instanceof OperadorRequeridoError) {
+            return {
+              status: "error",
+              message: actionErrorMessage(err, "No se pudo pasar a stock."),
+            };
+          }
+          fallidos++;
+          resultados.push({
+            grupoClave: clave,
+            drogaNombre: grupo.drogaNombre,
+            lote: grupo.lote,
+            ok: false,
+            error: actionErrorMessage(err, "No se pudo pasar a stock."),
+          });
+        }
+      }
+
+      revalidatePath("/stock");
+      revalidatePath("/partidas");
+      revalidatePath("/partidas/existencia-inicial");
+
+      let message = `Se procesaron ${pasados + fallidos} grupos: ${pasados} pasados a stock.`;
+      if (fallidos > 0) {
+        message += ` ${fallidos} con error.`;
+      }
+      if (restantes > 0) {
+        message += ` Quedan ${restantes} grupo(s) pendientes.`;
+      }
+
+      return {
+        status: "success",
+        pasados,
+        fallidos,
+        restantes,
+        resultados,
+        message,
+      };
+    } catch (error) {
+      return {
+        status: "error",
+        message: actionErrorMessage(error, "No se pudo pasar a stock."),
+      };
+    }
+  });
+}
+
+
 
 /** R3: the droga's vigente costo de proveedor (that proveedor's when one is chosen), per unidad base, to prefill the alta. */
 export async function costoSugeridoExistenciaInicialAction(drogaId: string, proveedorId?: string): Promise<string | null> {

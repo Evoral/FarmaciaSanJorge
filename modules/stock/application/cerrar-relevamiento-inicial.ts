@@ -21,9 +21,15 @@ import {
   getEstadoRelevamientoInicial,
   listSaldosControladas,
   lockTenantRelevamiento,
+  relevamientoInicialAbierto,
+  tienePartidasExistenciaInicial,
   type ExistenciaInicialPorDroga,
 } from "../infrastructure/existencia-inicial-repository";
-import { getFechaActivacionContralor } from "../infrastructure/partida-repository";
+import {
+  countFilasRelevamiento,
+  deleteAllFilasRelevamiento,
+} from "../infrastructure/relevamiento-fila-repository";
+import { getFechaActivacionContralor, getZonaHorariaTenant } from "../infrastructure/partida-repository";
 import { esDtVigenteHoy } from "../infrastructure/co-firma-repository";
 import { verificarPasswordDtPartidaCommand } from "./verificar-password-dt-partida";
 
@@ -35,6 +41,8 @@ export interface RelevamientoInicialResult {
   diferenciasControladas: SaldoControlada[];
   /** The session's usuario is the DT vigente today: the only one who sees the close action. */
   puedeCerrar: boolean;
+  /** IANA zone of the pharmacy (timestamptz values are shown as its calendar day). */
+  zonaHoraria: string;
 }
 
 async function diferenciasSiContralorActivo(tx: Parameters<typeof listSaldosControladas>[0], tenantId: string) {
@@ -51,7 +59,8 @@ export const getRelevamientoInicialQuery = defineQuery({
     const cargadoPorDroga = await contarExistenciaInicialPorDroga(tx, session.tenantId);
     const { contralorActivo, diferencias } = await diferenciasSiContralorActivo(tx, session.tenantId);
     const puedeCerrar = estado.abierto && (await esDtVigenteHoy(tx, session.tenantId, session.usuario.id));
-    return { estado, cargadoPorDroga, contralorActivo, diferenciasControladas: diferencias, puedeCerrar };
+    const zonaHoraria = await getZonaHorariaTenant(tx, session.tenantId);
+    return { estado, cargadoPorDroga, contralorActivo, diferenciasControladas: diferencias, puedeCerrar, zonaHoraria };
   },
 });
 
@@ -59,18 +68,37 @@ export async function getRelevamientoInicial(): Promise<RelevamientoInicialResul
   return getRelevamientoInicialQuery.execute({});
 }
 
+/** Whether the "Existencia inicial" tab should be shown on /partidas (spec R5: open OR has partidas). */
+export const debeMostrarTabExistenciaInicialQuery = defineQuery({
+  name: "stock.relevamiento_inicial.mostrar_tab",
+  permiso: "stock.ver",
+  input: z.object({}),
+  handler: async ({ tx, session }): Promise<boolean> => {
+    if (await relevamientoInicialAbierto(tx, session.tenantId)) return true;
+    return tienePartidasExistenciaInicial(tx, session.tenantId);
+  },
+});
+
+export async function debeMostrarTabExistenciaInicial(): Promise<boolean> {
+  return debeMostrarTabExistenciaInicialQuery.execute({});
+}
+
 function describirDiferencia(d: SaldoControlada): string {
   const saldo = d.saldoContralor === null ? "sin apertura" : formatCantidadExacta(d.saldoContralor, d.unidadSimbolo);
   return `${d.drogaNombre}: contralor ${saldo}, stock ${formatCantidadExacta(d.stockFisico, d.unidadSimbolo)}`;
 }
 
+const cerrarRelevamientoInicialInput = z.object({
+  descartarFilas: z.boolean().default(false),
+});
+
 /** NOT exported -- reachable only through `cerrarRelevamientoInicial`, below. */
 const cerrarRelevamientoInicialInternalCommand = defineCommand({
   name: "stock.relevamiento_inicial.cerrar",
   permiso: "stock.ajuste.autorizar",
-  input: z.object({}),
+  input: cerrarRelevamientoInicialInput,
   audit: { entidad: "tenant", accion: TipoAccion.MODIFICAR },
-  handler: async ({ tx, session }) => {
+  handler: async ({ tx, session, input }) => {
     await lockTenantRelevamiento(tx, session.tenantId);
     if (!(await esDtVigenteHoy(tx, session.tenantId, session.usuario.id))) {
       throw new DomainError("Solo el Director Técnico vigente (titular o suplente) puede cerrar el relevamiento inicial.");
@@ -86,6 +114,16 @@ const cerrarRelevamientoInicialInternalCommand = defineCommand({
       );
     }
 
+    const cantFilas = await countFilasRelevamiento(tx, session.tenantId);
+    if (cantFilas > 0) {
+      if (!input.descartarFilas) {
+        throw new DomainError(
+          `Quedan ${cantFilas} fila${cantFilas === 1 ? "" : "s"} en la planilla. Pasalas a stock o confirmá descartarlas para cerrar.`,
+        );
+      }
+      await deleteAllFilasRelevamiento(tx, session.tenantId);
+    }
+
     const cargado = await contarExistenciaInicialPorDroga(tx, session.tenantId);
     const cerradoEn = await updateCerrarRelevamiento(tx, session.tenantId, session.usuario.id);
     return {
@@ -97,14 +135,21 @@ const cerrarRelevamientoInicialInternalCommand = defineCommand({
           relevamientoInicialCerradoEn: cerradoEn.toISOString(),
           drogas: cargado.length,
           partidas: cargado.reduce((total, d) => total + d.partidas, 0),
+          ...(cantFilas > 0 && input.descartarFilas ? { filasDescartadas: cantFilas } : {}),
         },
       },
     };
   },
 });
 
-export async function cerrarRelevamientoInicial(input: { password: string }, options?: ExecuteOptions): Promise<{ cerradoEn: Date }> {
+export async function cerrarRelevamientoInicial(
+  input: { password: string; descartarFilas?: boolean },
+  options?: ExecuteOptions,
+): Promise<{ cerradoEn: Date }> {
   const verificacion = await verificarPasswordDtPartidaCommand.execute({ password: input.password }, options);
   if (!verificacion.ok) throw new DomainError(verificacion.message, { fields: ["password"] });
-  return cerrarRelevamientoInicialInternalCommand.execute({}, options);
+  return cerrarRelevamientoInicialInternalCommand.execute(
+    { descartarFilas: input.descartarFilas ?? false },
+    options,
+  );
 }

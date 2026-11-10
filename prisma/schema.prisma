@@ -144,6 +144,10 @@ enum TipoMovimiento {
   INGRESO_ELABORACION
   /// Migration 0111: a component consumed by an elaboración (fsj.elaboracion_lote). Subtracts; refused on an expired partida (INV-S10).
   EGRESO_ELABORACION
+  /// Migration 0124: quantity correction upward of an EXISTENCIA_INICIAL partida.
+  CORRECCION_INICIAL_SUMA
+  /// Migration 0124: quantity correction downward of an EXISTENCIA_INICIAL partida.
+  CORRECCION_INICIAL_RESTA
 
   @@map("tipo_movimiento")
   @@schema("fsj")
@@ -1367,6 +1371,31 @@ model InsumoBorrador {
 /// Tenant-scoped (migration 0090, openspec/specs/pesada-real/spec.md "Pesada en la ficha"). The draft of a línea de pesaje's
 /// weighing, saved from the toma workspace while the lab weighs: the lots in the order they are used and the typed
 /// quantities (línea unit). Never stock/libro/contralor: the reserva re-validates it.
+/// Migration 0124 (openspec/changes/planilla-existencia-inicial): editable draft row of the planilla de existencia inicial.
+model RelevamientoFila {
+  id                 String    @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  drogaId            String?   @map("droga_id") @db.Uuid
+  lote               String?
+  fechaVencimiento   DateTime? @map("fecha_vencimiento") @db.Date
+  cantidad           Decimal?  @db.Decimal
+  unidadMedidaId     String?   @map("unidad_medida_id") @db.Uuid
+  potenciaDeclarada  Decimal?  @map("potencia_declarada") @db.Decimal
+  costoUnitario      Decimal?  @map("costo_unitario") @db.Decimal
+  proveedorId        String?   @map("proveedor_id") @db.Uuid
+  textoDroga         String?   @map("texto_droga")
+  creadoPorId        String    @map("creado_por_id") @db.Uuid
+  creadoEn           DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
+  actualizadoEn      DateTime  @default(now()) @map("actualizado_en") @db.Timestamptz(6)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, drogaId])
+  @@index([tenantId, proveedorId])
+  @@index([tenantId, unidadMedidaId])
+  @@map("relevamiento_fila")
+  @@schema("fsj")
+}
+
 model PesadaBorrador {
   id                      String   @id @default(dbgenerated("extensions.gen_random_uuid()")) @db.Uuid
   tenantId                String   @map("tenant_id") @db.Uuid

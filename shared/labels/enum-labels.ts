@@ -93,6 +93,8 @@ export const TIPO_MOVIMIENTO_LABELS: Readonly<Record<TipoMovimiento, string>> = 
   INGRESO_INICIAL: "Existencia inicial",
   INGRESO_ELABORACION: "Ingreso por elaboración",
   EGRESO_ELABORACION: "Egreso por elaboración",
+  CORRECCION_INICIAL_SUMA: "Existencia inicial (suma)",
+  CORRECCION_INICIAL_RESTA: "Existencia inicial (resta)",
 };
 
 /** Partida origin (openspec/specs/existencia-inicial/spec.md, openspec/changes/lotes-elaborados). */

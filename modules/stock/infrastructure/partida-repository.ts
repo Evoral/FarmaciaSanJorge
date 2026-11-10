@@ -602,7 +602,7 @@ export interface DrogaParaIngreso {
   unidadBaseId: string;
   tipoControl: string;
   /** Migration 0063: only a DROGA requires fecha_vencimiento (0064). */
-  clase: string;
+  clase: "DROGA" | "EXCIPIENTE" | "MATERIAL";
   fechaBaja: Date | null;
 }
 
@@ -771,6 +771,31 @@ export interface NuevoAjusteInput {
   preparacionId?: string | null;
 }
 
+export interface NuevaCorreccionInicialSumaInput {
+  tenantId: string;
+  partidaId: string;
+  cantidad: string;
+  observacion?: string;
+  registradoPorId: string;
+}
+
+export async function insertCorreccionInicialSuma(
+  tx: Prisma.TransactionClient,
+  input: NuevaCorreccionInicialSumaInput,
+): Promise<{ id: string }> {
+  return tx.movimientoStock.create({
+    data: {
+      tenantId: input.tenantId,
+      partidaId: input.partidaId,
+      tipo: "CORRECCION_INICIAL_SUMA" as TipoMovimiento,
+      cantidad: input.cantidad,
+      observacion: input.observacion ?? "Frasco adicional del relevamiento",
+      registradoPorId: input.registradoPorId,
+    },
+    select: { id: true },
+  });
+}
+
 export async function insertAjuste(tx: Prisma.TransactionClient, input: NuevoAjusteInput): Promise<{ id: string }> {
   return tx.movimientoStock.create({
     data: {
@@ -918,7 +943,7 @@ export interface KardexResult {
   pageSize: number;
 }
 
-async function getZonaHorariaTenant(tx: Prisma.TransactionClient, tenantId: string): Promise<string> {
+export async function getZonaHorariaTenant(tx: Prisma.TransactionClient, tenantId: string): Promise<string> {
   const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { zonaHoraria: true } });
   return tenant.zonaHoraria;
 }

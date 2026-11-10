@@ -9,7 +9,16 @@ import { fechaIso, uuid } from "@/shared/validation";
 import { kardexMovimientos as kardexMovimientosRepo } from "../infrastructure/partida-repository";
 import type { KardexResult } from "../infrastructure/partida-repository";
 
-const TIPOS_MOVIMIENTO = ["INGRESO_COMPRA", "INGRESO_INICIAL", "INGRESO_ELABORACION", "EGRESO_PREPARACION", "EGRESO_ELABORACION", "AJUSTE"] as const;
+const TIPOS_MOVIMIENTO = [
+  "INGRESO_COMPRA",
+  "INGRESO_INICIAL",
+  "INGRESO_ELABORACION",
+  "EGRESO_PREPARACION",
+  "EGRESO_ELABORACION",
+  "AJUSTE",
+  "CORRECCION_INICIAL_SUMA",
+  "CORRECCION_INICIAL_RESTA",
+] as const;
 
 const kardexMovimientosInput = z.object({
   partidaId: uuid.optional(),

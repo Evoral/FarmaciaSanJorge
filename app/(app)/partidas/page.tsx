@@ -17,6 +17,8 @@ import { ChevronRight, CircleAlert, FlaskConical, History, PackagePlus, SearchX 
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listPartidas } from "@/modules/stock/application/list-partidas";
+import { debeMostrarTabExistenciaInicial } from "@/modules/stock/application/cerrar-relevamiento-inicial";
+import { PartidasTabs } from "./partidas-tabs";
 import { filtroFechaIso } from "@/shared/validation";
 import { estadoVencimientoPartida } from "@/modules/stock/domain/vencimiento-partida";
 import { KardexDrogaFiltro } from "@/modules/stock/ui/kardex-droga-filtro";
@@ -83,7 +85,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
   // Checked here so an inverted range shows a message instead of the use case's ValidationError.
   const rangoInvalido = Boolean(desde && hasta && desde > hasta);
 
-  const [result, { catalogo }] = await Promise.all([
+  const [result, { catalogo }, mostrarExistenciaInicial] = await Promise.all([
     listPartidas({
       drogaId: drogaId || undefined,
       proveedorId: proveedorId || undefined,
@@ -99,6 +101,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
       pageSize: PAGE_SIZE,
     }),
     getCatalogoUnidades(),
+    debeMostrarTabExistenciaInicial(),
   ]);
 
   /** The normalized filters as a query string, plus `page` when given. */
@@ -149,6 +152,8 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
           ) : null
         }
       />
+
+      <PartidasTabs mostrarExistenciaInicial={mostrarExistenciaInicial} />
 
       <section aria-label="Filtros" className="@container mb-4">
         <FilterForm className="filter-bar" aria-label="Filtros de partidas" hasActiveFilters={hayFiltrosForm}>

@@ -12,6 +12,16 @@ export async function relevamientoInicialAbierto(tx: Prisma.TransactionClient, t
   return rows[0]?.abierto ?? false;
 }
 
+/** Whether the tenant has loaded at least one partida with origen EXISTENCIA_INICIAL (spec R5). */
+export async function tienePartidasExistenciaInicial(tx: Prisma.TransactionClient, tenantId: string): Promise<boolean> {
+  const rows = await tx.$queryRaw<{ tiene: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM fsj.partida WHERE tenant_id = ${tenantId}::uuid AND origen = 'EXISTENCIA_INICIAL'
+    ) AS tiene
+  `;
+  return rows[0]?.tiene ?? false;
+}
+
 export async function getEstadoRelevamientoInicial(tx: Prisma.TransactionClient, tenantId: string): Promise<EstadoRelevamientoInicial> {
   const rows = await tx.$queryRaw<{ abierto: boolean; cerrado_en: Date | null; cerrado_por: string | null; fecha_limite: string | null }[]>`
     SELECT fsj.relevamiento_inicial_abierto(t.id) AS abierto,
@@ -62,7 +72,7 @@ export async function contarExistenciaInicialPorDroga(tx: Prisma.TransactionClie
     SELECT d.id AS droga_id, d.nombre::text AS nombre, count(*)::int AS partidas
     FROM fsj.partida p
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
-    WHERE p.tenant_id = ${tenantId}::uuid AND p.origen = 'EXISTENCIA_INICIAL'
+    WHERE p.tenant_id = ${tenantId}::uuid AND p.origen = 'EXISTENCIA_INICIAL' AND p.cantidad_inicial > 0
     GROUP BY d.id, d.nombre
     ORDER BY d.nombre
   `;
