@@ -4,7 +4,7 @@
  * function that receives the session token hash and re-validates it (spec P6).
  */
 import type { Prisma } from "@/generated/prisma/client";
-import type { EstadoFarmacia, EventoPlataforma, FarmaciaDetalle, FarmaciaListada } from "../domain/farmacia";
+import type { EstadoFarmacia, EventoPlataforma, FarmaciaDetalle, FarmaciaListada, MedioPago, MovimientoCuenta } from "../domain/farmacia";
 
 export interface Meta {
   ip: string | null;
@@ -139,6 +139,70 @@ export async function editarContactoFarmacia(
   meta: Meta,
 ): Promise<void> {
   await tx.$executeRaw`SELECT fsj.plataforma_editar_contacto_tenant(${tokenHash}, ${tenantId}::uuid, ${contacto.nombre}, ${contacto.email}, ${contacto.telefono}, ${meta.ip}, ${meta.requestId})`;
+}
+
+export async function cuentaCorriente(tx: Prisma.TransactionClient, tokenHash: string, tenantId: string): Promise<{ movimientos: MovimientoCuenta[]; saldo: string }> {
+  const rows = await tx.$queryRaw<
+    {
+      tipo: "CARGO" | "PAGO";
+      id: string;
+      fecha: string;
+      descripcion: string | null;
+      medio: MedioPago | null;
+      monto: string;
+      creado_en: Date;
+      creado_por: string;
+      anulado_en: Date | null;
+      anulado_por: string | null;
+      motivo_anulacion: string | null;
+      saldo: string;
+    }[]
+  >`SELECT tipo, id, fecha::text AS fecha, descripcion, medio, monto::text AS monto, creado_en, creado_por, anulado_en, anulado_por, motivo_anulacion,
+           saldo::text AS saldo
+    FROM fsj.plataforma_cuenta_corriente(${tokenHash}, ${tenantId}::uuid)`;
+  return {
+    // Every row carries the same saldo; no movements means 0 (P16).
+    saldo: rows[0]?.saldo ?? "0.00",
+    movimientos: rows.map((r) => ({
+      tipo: r.tipo,
+      id: r.id,
+      fecha: r.fecha,
+      descripcion: r.descripcion,
+      medio: r.medio,
+      monto: r.monto,
+      creadoEn: r.creado_en,
+      creadoPor: r.creado_por,
+      anulacion: r.anulado_en ? { en: r.anulado_en, por: r.anulado_por ?? "", motivo: r.motivo_anulacion ?? "" } : null,
+    })),
+  };
+}
+
+/** `monto` is a decimal string with 2 decimals; `periodo` an ISO date (any day of the month). */
+export async function registrarCargo(
+  tx: Prisma.TransactionClient,
+  tokenHash: string,
+  cargo: { tenantId: string; periodo: string; monto: string; concepto: string },
+  meta: Meta,
+): Promise<string> {
+  const rows = await tx.$queryRaw<{ id: string }[]>`
+    SELECT fsj.plataforma_registrar_cargo(${tokenHash}, ${cargo.tenantId}::uuid, ${cargo.periodo}::date, ${cargo.monto}::numeric, ${cargo.concepto}, ${meta.ip}, ${meta.requestId}) AS id`;
+  return rows[0]!.id;
+}
+
+export async function registrarPago(
+  tx: Prisma.TransactionClient,
+  tokenHash: string,
+  pago: { tenantId: string; fecha: string; monto: string; medio: MedioPago; nota: string | null; envioId: string },
+  meta: Meta,
+): Promise<string> {
+  const rows = await tx.$queryRaw<{ id: string }[]>`
+    SELECT fsj.plataforma_registrar_pago(${tokenHash}, ${pago.tenantId}::uuid, ${pago.fecha}::date, ${pago.monto}::numeric,
+      ${pago.medio}::fsj.medio_pago_plataforma, ${pago.nota}, ${pago.envioId}::uuid, ${meta.ip}, ${meta.requestId}) AS id`;
+  return rows[0]!.id;
+}
+
+export async function anularMovimiento(tx: Prisma.TransactionClient, tokenHash: string, tipo: "CARGO" | "PAGO", id: string, motivo: string, meta: Meta): Promise<void> {
+  await tx.$executeRaw`SELECT fsj.plataforma_anular_movimiento(${tokenHash}, ${tipo}, ${id}::uuid, ${motivo}, ${meta.ip}, ${meta.requestId})`;
 }
 
 /** Which field a unique violation raised by the alta belongs to (the race the pre-check cannot close), or `null`. */

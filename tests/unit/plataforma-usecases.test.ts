@@ -30,6 +30,16 @@ const repo = {
   }),
   cambiarEstadoFarmacia: vi.fn(async () => undefined),
   editarContactoFarmacia: vi.fn(async () => undefined),
+  cuentaCorriente: vi.fn(async () => ({ movimientos: [], saldo: "0.00" })),
+  registrarCargo: vi.fn(async (...args: unknown[]) => {
+    void args;
+    return "c-1";
+  }),
+  registrarPago: vi.fn(async (...args: unknown[]) => {
+    void args;
+    return "p-1";
+  }),
+  anularMovimiento: vi.fn(async () => undefined),
 };
 vi.mock("@/modules/plataforma/infrastructure/plataforma-repository", async () => {
   const actual = await vi.importActual<typeof import("@/modules/plataforma/infrastructure/plataforma-repository")>("@/modules/plataforma/infrastructure/plataforma-repository");
@@ -41,6 +51,7 @@ const { verFarmacia } = await import("@/modules/plataforma/application/ver-farma
 const { crearFarmacia } = await import("@/modules/plataforma/application/crear-farmacia");
 const { cambiarEstadoFarmacia } = await import("@/modules/plataforma/application/cambiar-estado-farmacia");
 const { editarContactoFarmacia } = await import("@/modules/plataforma/application/editar-contacto-farmacia");
+const { registrarCargo, registrarPago, anularMovimiento } = await import("@/modules/plataforma/application/cuenta-corriente");
 const { AuthenticationError, ValidationError } = await import("@/shared/errors");
 const { proxy } = await import("@/proxy");
 
@@ -68,6 +79,9 @@ describe("platform use cases: requireSuperAdmin is the first gate", () => {
     ["crearFarmacia", () => crearFarmacia(ALTA)],
     ["cambiarEstadoFarmacia", () => cambiarEstadoFarmacia({ id: ID, estado: "SUSPENDIDO", motivo: "falta de pago" })],
     ["editarContactoFarmacia", () => editarContactoFarmacia({ id: ID, contactoNombre: "X" })],
+    ["registrarCargo", () => registrarCargo({ tenantId: ID, periodo: "2026-11", monto: "1000", concepto: "Abono" })],
+    ["registrarPago", () => registrarPago({ tenantId: ID, fecha: "2026-01-01", monto: "1000", medio: "EFECTIVO", envioId: ID })],
+    ["anularMovimiento", () => anularMovimiento({ tipo: "PAGO", id: ID, motivo: "error" })],
   ];
 
   it.each(llamadas)("%s: without a superadmin nothing else runs", async (_nombre, llamar) => {
@@ -124,6 +138,42 @@ describe("cambiarEstadoFarmacia", () => {
     await expect(cambiarEstadoFarmacia({ id: ID, estado: "SUSPENDIDO", motivo: "  " })).rejects.toMatchObject({ fields: ["motivo"] });
     await cambiarEstadoFarmacia({ id: ID, estado: "ACTIVO" });
     expect(repo.cambiarEstadoFarmacia).toHaveBeenCalledWith({ __platform: true }, "hash-del-token", ID, "ACTIVO", null, { ip: null, requestId: "req" });
+  });
+});
+
+describe("cuenta corriente (P13-P15)", () => {
+  it("a cargo: the month becomes its first day, the monto a 2-decimal string (es-AR input)", async () => {
+    await registrarCargo({ tenantId: ID, periodo: "2026-11", monto: "12.500,5", concepto: " Abono mensual " });
+    expect(repo.registrarCargo.mock.calls[0]![2]).toEqual({ tenantId: ID, periodo: "2026-11-01", monto: "12500.50", concepto: "Abono mensual" });
+  });
+
+  it("a monto with 3 decimals, zero or negative is refused on the monto field", async () => {
+    for (const monto of ["10,555", "0", "-5"]) {
+      await expect(registrarCargo({ tenantId: ID, periodo: "2026-11", monto, concepto: "Abono" })).rejects.toMatchObject({ fields: ["monto"] });
+    }
+    expect(repo.registrarCargo).not.toHaveBeenCalled();
+  });
+
+  it("a duplicate cargo (INV-PLAT-CARGO-DUPLICADO from the DB) marks período and concepto", async () => {
+    repo.registrarCargo.mockRejectedValueOnce(new Error("INV-PLAT-CARGO-DUPLICADO: ya hay un cargo con ese período y concepto"));
+    await expect(registrarCargo({ tenantId: ID, periodo: "2026-11", monto: "1", concepto: "Abono" })).rejects.toMatchObject({ fields: ["periodo", "concepto"] });
+  });
+
+  it("a pago dated after today in Buenos Aires is refused, even at 23:30 local", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-10T02:30:00Z")); // 23:30 of 2026-11-09 in Buenos Aires
+    try {
+      await expect(registrarPago({ tenantId: ID, fecha: "2026-11-10", monto: "1", medio: "EFECTIVO", envioId: ID })).rejects.toMatchObject({ fields: ["fecha"] });
+      await registrarPago({ tenantId: ID, fecha: "2026-11-09", monto: "1", medio: "EFECTIVO", envioId: ID });
+      expect(repo.registrarPago).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("anular needs a motivo", async () => {
+    await expect(anularMovimiento({ tipo: "CARGO", id: ID, motivo: " " })).rejects.toMatchObject({ fields: ["motivo"] });
+    expect(repo.anularMovimiento).not.toHaveBeenCalled();
   });
 });
 

@@ -4,15 +4,25 @@
  */
 import { notFound } from "next/navigation";
 import { verFarmacia } from "@/modules/plataforma/application/ver-farmacia";
-import { ACCION_PLATAFORMA_LABEL, ESTADO_FARMACIA_LABEL } from "@/modules/plataforma/domain/farmacia";
+import { ACCION_PLATAFORMA_LABEL, ESTADO_FARMACIA_LABEL, MEDIO_PAGO_LABEL, ZONA_PLATAFORMA } from "@/modules/plataforma/domain/farmacia";
 import { ContactoForm } from "@/modules/plataforma/ui/contacto-form";
 import { EstadoFarmaciaAcciones } from "@/modules/plataforma/ui/estado-farmacia-acciones";
+import { AnularMovimiento, CargoForm, PagoForm } from "@/modules/plataforma/ui/movimiento-forms";
 import { PageHeader } from "@/shared/ui/page-header";
 import { ToneBadge } from "@/shared/ui/status-badge";
-import { formatFecha, formatFechaHora } from "@/shared/format/fecha";
+import { formatFecha, formatFechaHora, formatFechaIso } from "@/shared/format/fecha";
+import { formatearMonto } from "@/shared/format/monto";
+import { dec } from "@/shared/decimal";
+import { jornadaDe } from "@/shared/time/jornada";
 import { uuid } from "@/shared/validation";
 
-const ZONA_PLATAFORMA = "America/Argentina/Buenos_Aires";
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+/** "2026-11-01" -> "noviembre 2026". */
+function periodoLabel(iso: string): string {
+  const [anio, mes] = iso.split("-");
+  return `${MESES[Number(mes) - 1] ?? mes} ${anio}`;
+}
 
 interface FarmaciaPageProps {
   params: Promise<{ id: string }>;
@@ -24,8 +34,10 @@ export default async function FarmaciaPage({ params }: FarmaciaPageProps) {
 
   const detalle = await verFarmacia(id);
   if (!detalle) notFound();
-  const { farmacia, historial } = detalle;
+  const { farmacia, historial, cuenta } = detalle;
   const dadaDeBaja = farmacia.fechaBaja !== null;
+  const saldoDeudor = dec(cuenta.saldo).greaterThan(0);
+  const hoy = jornadaDe(new Date(), ZONA_PLATAFORMA);
 
   return (
     <>
@@ -90,6 +102,81 @@ export default async function FarmaciaPage({ params }: FarmaciaPageProps) {
                 id={farmacia.id}
                 valores={{ contactoNombre: farmacia.contactoNombre, contactoEmail: farmacia.contactoEmail, contactoTelefono: farmacia.contactoTelefono }}
               />
+            </div>
+          </section>
+
+          <section className="panel" aria-labelledby="cuenta-heading">
+            <div className="panel-header flex items-center justify-between gap-3">
+              <h2 id="cuenta-heading">Cuenta corriente</h2>
+              <p className={`text-sm font-semibold tabular-nums ${saldoDeudor ? "text-amber-700" : "text-zinc-900"}`}>Saldo $ {formatearMonto(cuenta.saldo)}</p>
+            </div>
+            <div className="panel-body flex flex-col gap-6">
+              {cuenta.movimientos.length === 0 ? (
+                <p className="text-[0.8125rem] text-zinc-600">Todavía no hay cargos ni pagos.</p>
+              ) : (
+                <div className="table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th scope="col" className="px-3 py-2">
+                          Fecha
+                        </th>
+                        <th scope="col" className="px-3 py-2">
+                          Movimiento
+                        </th>
+                        <th scope="col" className="px-3 py-2 text-right">
+                          Cargo
+                        </th>
+                        <th scope="col" className="px-3 py-2 text-right">
+                          Pago
+                        </th>
+                        <th scope="col" className="px-3 py-2">
+                          <span className="sr-only">Acciones</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cuenta.movimientos.map((movimiento) => {
+                        const anulado = movimiento.anulacion !== null;
+                        const tachado = anulado ? "line-through text-zinc-400" : "";
+                        return (
+                          <tr key={`${movimiento.tipo}-${movimiento.id}`}>
+                            <td className={`whitespace-nowrap px-3 py-2.5 tabular-nums ${tachado}`}>
+                              {movimiento.tipo === "CARGO" ? periodoLabel(movimiento.fecha) : formatFechaIso(movimiento.fecha)}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <span className={tachado}>
+                                {movimiento.tipo === "CARGO" ? movimiento.descripcion : `Pago${movimiento.medio ? ` · ${MEDIO_PAGO_LABEL[movimiento.medio]}` : ""}`}
+                              </span>
+                              {movimiento.tipo === "PAGO" && movimiento.descripcion ? <span className={`block text-[0.8125rem] text-zinc-500 ${tachado}`}>{movimiento.descripcion}</span> : null}
+                              <span className="block text-[0.75rem] text-zinc-500">Registró {movimiento.creadoPor}</span>
+                              {movimiento.anulacion ? (
+                                <span className="block text-[0.75rem] text-zinc-600">
+                                  Anulado por {movimiento.anulacion.por} el {formatFechaHora(movimiento.anulacion.en, ZONA_PLATAFORMA)}: {movimiento.anulacion.motivo}
+                                </span>
+                              ) : null}
+                            </td>
+                            <td className={`whitespace-nowrap px-3 py-2.5 text-right tabular-nums ${tachado}`}>{movimiento.tipo === "CARGO" ? formatearMonto(movimiento.monto) : ""}</td>
+                            <td className={`whitespace-nowrap px-3 py-2.5 text-right tabular-nums ${tachado}`}>{movimiento.tipo === "PAGO" ? formatearMonto(movimiento.monto) : ""}</td>
+                            <td className="px-3 py-2.5 text-right">{anulado ? null : <AnularMovimiento tipo={movimiento.tipo} id={movimiento.id} />}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="grid gap-6 @container">
+                <div>
+                  <h3 className="mb-3 text-sm font-semibold text-zinc-900">Registrar cargo</h3>
+                  <CargoForm tenantId={farmacia.id} periodoActual={hoy.slice(0, 7)} />
+                </div>
+                <div>
+                  <h3 className="mb-3 text-sm font-semibold text-zinc-900">Registrar pago</h3>
+                  <PagoForm tenantId={farmacia.id} hoy={hoy} />
+                </div>
+              </div>
             </div>
           </section>
 

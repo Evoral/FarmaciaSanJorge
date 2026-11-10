@@ -102,20 +102,28 @@ their functions), no DB test run.
 
 ## Stage 4 — Cuenta corriente (migration 0126)
 
-- [ ] 4.1 Migration 0126: `fsj.medio_pago_plataforma`, `fsj.plataforma_cargo`, `fsj.plataforma_pago`, unique index,
+- [x] 4.1 Migration 0126: `fsj.medio_pago_plataforma`, `fsj.plataforma_cargo`, `fsj.plataforma_pago`, unique index,
   anulación-only update trigger, delete / truncate triggers, functions (registrar, anular, cuenta corriente, saldo),
   `plataforma_listar_tenants` replaced to return the real saldo.
-- [ ] 4.2 Rollback `.down.sql`.
-- [ ] 4.3 `mapDbError`: friendly message for `plataforma_cargo_unico`; `INV-PLAT-FECHA-FUTURA` mapped to the fecha field.
-- [ ] 4.4 Use cases `cuentaCorriente`, `registrarCargo`, `registrarPago` (`envio_id` per form instance), `anularCargo`,
+- [x] 4.2 Rollback `.down.sql`.
+- [x] 4.3 `mapDbError`: friendly message for `plataforma_cargo_unico`; `INV-PLAT-FECHA-FUTURA` mapped to the fecha field.
+- [x] 4.4 Use cases `cuentaCorriente`, `registrarCargo`, `registrarPago` (`envio_id` per form instance), `anularCargo`,
   `anularPago`; money only through `shared/decimal` and `decimalString`.
-- [ ] 4.5 UI in the detail: saldo, movements list (anulados struck through with who / when / motivo), cargo form, pago
+- [x] 4.5 UI in the detail: saldo, movements list (anulados struck through with who / when / motivo), cargo form, pago
   form, anular dialog with motivo.
-- [ ] 4.6 Tests: zod (fecha futura in AR timezone at 23:30 local, monto with 3 decimals refused); DB: anular twice
+- [x] 4.6 Tests: zod (fecha futura in AR timezone at 23:30 local, monto with 3 decimals refused); DB: anular twice
   refused, DELETE refused, UPDATE of monto refused, saldo with anulados.
 
 **Review gate 4:** no JS `number` arithmetic on money; saldo never stored; a repeated `envio_id` writes nothing and
 audits nothing; anulación audited.
+
+**Hand-off stage 4 (2026-11-09):** done; gate checked. Deviations: one `fsj.plataforma_anular_movimiento(tipo, id)` for
+cargos and pagos instead of two functions; `fsj.plataforma_saldo` for callers without movements; the duplicate cargo
+is caught inside SQL as `INV-PLAT-CARGO-DUPLICADO` (no mapDbError constraint entry needed) and mapped to the período /
+concepto fields; `fsj.superadmin` added to `REFERENCIAS_SIN_INDICE` in `tests/db/catalogo-guardas.test.ts` (actor
+columns, never deleted). Open from the review: `<input type="month">` is a plain text box in some browsers; TS judges
+"today" with the real clock while the DB honours the test clock; the list computes saldo with per-row subqueries.
+NOT verified: 0124-0126 not applied, the two new DB tests not run, no browser check.
 
 ## Stage 5 — Docs, specs, archive
 

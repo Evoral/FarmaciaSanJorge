@@ -83,7 +83,13 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   "INV-PLAT-TENANT": "La farmacia no existe.",
   "INV-PLAT-BAJA": "La farmacia está dada de baja: no se puede suspender ni reactivar.",
   "INV-PLAT-ESTADO": "La farmacia ya está en ese estado.",
-  "INV-PLAT-MOTIVO": "Indicá el motivo de la suspensión.",
+  "INV-PLAT-MOTIVO": "Indicá el motivo.",
+  "INV-PLAT-CARGO-DUPLICADO": "Ya hay un cargo con ese período y concepto.",
+  "INV-PLAT-FECHA-FUTURA": "La fecha del pago no puede ser posterior a hoy.",
+  "INV-PLAT-ENVIO": "Ese pago ya se registró para otra farmacia. Recargá la página y volvé a intentarlo.",
+  "INV-PLAT-ANULADO": "Ese movimiento ya está anulado.",
+  "INV-PLAT-MOVIMIENTO": "El movimiento no existe.",
+  "INV-PLAT-INMUTABLE": "Un cargo o un pago no se puede modificar: solo anular.",
 
   // Libro recetario / contralor (M12)
   "INV-L01": "Los asientos del libro no se pueden modificar: solo se pueden anular o rectificar, según corresponda.",

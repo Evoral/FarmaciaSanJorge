@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import { crearFarmacia } from "../application/crear-farmacia";
 import { cambiarEstadoFarmacia } from "../application/cambiar-estado-farmacia";
 import { editarContactoFarmacia } from "../application/editar-contacto-farmacia";
+import { anularMovimiento, registrarCargo, registrarPago } from "../application/cuenta-corriente";
 import { clearPlataformaCookie, logoutPlataforma, PLATAFORMA_PATH } from "@/shared/auth/plataforma";
 import { logErrorForDiagnostics } from "@/shared/errors";
 import { actionError } from "@/shared/ui/action-error";
@@ -71,6 +72,45 @@ export async function editarContactoFarmaciaAction(_prev: PlataformaActionState,
     return { status: "success", message: "Contacto actualizado." };
   } catch (error) {
     return actionError(error, "No se pudo guardar el contacto.");
+  }
+}
+
+export async function registrarCargoAction(_prev: PlataformaActionState, formData: FormData): Promise<PlataformaActionState> {
+  try {
+    await registrarCargo({ tenantId: texto(formData, "tenantId"), periodo: texto(formData, "periodo"), monto: texto(formData, "monto"), concepto: texto(formData, "concepto") });
+    revalidatePath(PLATAFORMA_PATH, "layout");
+    return { status: "success", message: "Cargo registrado." };
+  } catch (error) {
+    return actionError(error, "No se pudo registrar el cargo.");
+  }
+}
+
+/** `envioId` is generated once per form instance (renewed after a success): a repeated submit creates nothing (P14). */
+export async function registrarPagoAction(_prev: PlataformaActionState, formData: FormData): Promise<PlataformaActionState> {
+  try {
+    await registrarPago({
+      tenantId: texto(formData, "tenantId"),
+      fecha: texto(formData, "fecha"),
+      monto: texto(formData, "monto"),
+      medio: texto(formData, "medio"),
+      nota: texto(formData, "nota"),
+      envioId: texto(formData, "envioId"),
+    });
+    revalidatePath(PLATAFORMA_PATH, "layout");
+    return { status: "success", message: "Pago registrado." };
+  } catch (error) {
+    return actionError(error, "No se pudo registrar el pago.");
+  }
+}
+
+export async function anularMovimientoAction(_prev: PlataformaActionState, formData: FormData): Promise<PlataformaActionState> {
+  const tipo = texto(formData, "tipo");
+  try {
+    await anularMovimiento({ tipo, id: texto(formData, "id"), motivo: texto(formData, "motivo") });
+    revalidatePath(PLATAFORMA_PATH, "layout");
+    return { status: "success", message: tipo === "PAGO" ? "Pago anulado." : "Cargo anulado." };
+  } catch (error) {
+    return actionError(error, "No se pudo anular el movimiento.");
   }
 }
 
