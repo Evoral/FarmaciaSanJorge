@@ -332,6 +332,7 @@ describe("corregir-costo-partida: lock BEFORE the fresh optimistic-version read"
     lockPartidaMock.mockClear();
     getPartidaParaAccionMock.mockReset();
     updateCostoPartidaMock.mockClear().mockResolvedValue(true);
+    getDrogaParaIngresoMock.mockReset().mockResolvedValue({ id: DROGA_ID, unidadBaseId: UNIDAD_BASE_ID, nombre: "Cafeína", tipoControl: "NINGUNO", fechaBaja: null });
   });
 
   it("locks BEFORE reading, then updates using the FRESH costoUnitario as the optimistic version", async () => {
@@ -369,6 +370,43 @@ describe("corregir-costo-partida: lock BEFORE the fresh optimistic-version read"
       caught = error;
     }
     expect(caught).toBeInstanceOf(ConflictError);
+  });
+
+  it("converts a costo typed per kg to the unidad base and audits what was typed", async () => {
+    getPartidaParaAccionMock.mockResolvedValue(partidaVigente);
+    convertirUnidadMock.mockImplementationOnce(async (...args: unknown[]) => {
+      const [, valor, origen, destino] = args as [unknown, string, string, string];
+      return String((Number(valor) * Number(UNIDADES_TEST.get(origen)!.factor)) / Number(UNIDADES_TEST.get(destino)!.factor));
+    });
+
+    const result = await corregirCostoPartidaCommand.execute(
+      { id: PARTIDA_ID, costoUnitarioNuevo: "50000", unidadId: KG_ID, motivo: "Precio por kg de la factura." },
+      { session: fakeSession("stock.partida.costo.corregir") },
+    );
+
+    expect(updateCostoPartidaMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ costoUnitarioAnterior: "10", costoUnitarioNuevo: "50" }),
+    );
+    expect(result).toEqual({ id: PARTIDA_ID, costoUnitario: "50" });
+  });
+
+  it.each([
+    ["of another magnitude", UNIDAD_U_ID],
+    ["dada de baja", MG_BAJA_ID],
+  ])("refuses a unit %s on the unidadId field, without updating", async (_caso, unidadId) => {
+    getPartidaParaAccionMock.mockResolvedValue(partidaVigente);
+
+    const error = await corregirCostoPartidaCommand
+      .execute(
+        { id: PARTIDA_ID, costoUnitarioNuevo: "50000", unidadId, motivo: "Precio de la factura." },
+        { session: fakeSession("stock.partida.costo.corregir") },
+      )
+      .then(() => null, (e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).fields).toEqual(["unidadId"]);
+    expect(updateCostoPartidaMock).not.toHaveBeenCalled();
   });
 });
 
