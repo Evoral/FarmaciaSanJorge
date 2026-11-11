@@ -1,0 +1,20 @@
+# Version updates only. Security alerts and security updates are enabled in
+# repo Settings -> Code security, and still open PRs for majors ignored here.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      # Majors (Next, Prisma, React...) break APIs: upgrade them by hand.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
