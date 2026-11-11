@@ -399,6 +399,12 @@ describe.skipIf(dbTestSkipReason() !== null)("INV-U07 (migration 0023): actor co
               UNION ALL SELECT 'entrega_anulada', 'entregada_por_id'
               -- fsj.tenant has no tenant_id for the generic function; INV-S26 already requires a DT vigente, hence ACTIVO (0123).
               UNION ALL SELECT 'tenant', 'relevamiento_inicial_cerrado_por_id'
+              -- Reference fsj.superadmin, not fsj.usuario: INV-U07 does not apply; the actor comes
+              -- from the superadmin session token (fsj.plataforma_actor, 0124/0126).
+              UNION ALL SELECT 'plataforma_cargo', 'creado_por_id'
+              UNION ALL SELECT 'plataforma_cargo', 'anulado_por_id'
+              UNION ALL SELECT 'plataforma_pago', 'creado_por_id'
+              UNION ALL SELECT 'plataforma_pago', 'anulado_por_id'
             ),
             extras AS (
               -- Explicit non-"*_por_id"-named actor columns this migration also covers.

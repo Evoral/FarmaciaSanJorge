@@ -110,6 +110,8 @@ const EXPECTED_ROL_PERMISOS: Record<string, string[]> = {
     "stock.partida.costo.corregir",
     "stock.partida.potencia.corregir",
     "stock.partida.ingresar",
+    // Migration 0124 (planilla de existencia inicial): operativo for DT and FARMACEUTICO.
+    "stock.relevamiento.editar",
     "stock.valorizado.ver",
     "stock.ver",
     "usuarios.auditoria.ver",
@@ -147,6 +149,7 @@ const EXPECTED_ROL_PERMISOS: Record<string, string[]> = {
     "reportes.ver",
     "stock.ajuste.registrar",
     "stock.partida.ingresar",
+    "stock.relevamiento.editar",
     "stock.valorizado.ver",
     "stock.ver",
   ].sort(),
