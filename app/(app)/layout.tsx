@@ -21,8 +21,9 @@ import { resumenDestruccion } from "@/modules/archivo/application/resumen-destru
 import { resumenVencimientosDrogas } from "@/modules/stock/application/vencimientos-drogas";
 import { resumenBajoMinimo } from "@/modules/stock/application/alertas-stock";
 import { resumenRelevamiento } from "@/modules/stock/application/resumen-relevamiento";
-import { resumenIntegridad, type LibroQuebrado } from "@/modules/libro/application/resumen-integridad";
-import { etiquetaLibro } from "@/modules/libro/domain/integridad";
+import { resumenIntegridadConVerificacion, type LibroQuebrado } from "@/modules/libro/application/resumen-integridad";
+import { registrarIncidentesIntegridad } from "@/modules/libro/application/registrar-incidentes-integridad";
+import { etiquetaLibro, type VerificacionLibro } from "@/modules/libro/domain/integridad";
 import { getMarcaTenant, type MarcaTenantVista } from "@/modules/farmacia/application/get-marca-tenant";
 import { getLogger } from "@/shared/logging/logger";
 import { OperadorProvider } from "@/modules/operadores/ui/operador-provider";
@@ -166,13 +167,20 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
   // Broken hash chain of a libro: same fail-soft discipline, gated on the permiso the query enforces (`libro.ver`).
   // The result is cached in memory (resumen-integridad.ts), so this is not a full chain walk per navigation.
   let librosQuebrados: LibroQuebrado[] = [];
+  let verificacionLibros: VerificacionLibro[] | null = null;
   if (can(session, "libro.ver")) {
     try {
-      librosQuebrados = await resumenIntegridad();
+      const resumen = await resumenIntegridadConVerificacion();
+      librosQuebrados = resumen.quebrados;
+      verificacionLibros = resumen.verificacion;
     } catch (error) {
       getLogger().error({ error }, "Failed to load libro integridad banner summary");
     }
   }
+  // Only a real verification (cache miss) is registered as integrity incidents. The banner value is already fixed above,
+  // and the wrapper never throws (Next control-flow errors aside), so nothing here can change what the user sees.
+  // Not `after()`: it throws with `cookies()` in a Server Component (the command reads the session cookie).
+  if (verificacionLibros) await registrarIncidentesIntegridad(verificacionLibros);
 
   // The tenant's name and logo for the navbar (openspec/specs/logo-farmacia/spec.md). Fail-soft: without it the navbar shows
   // the generic logo and no farmacia name.

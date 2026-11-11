@@ -108,6 +108,8 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   id: "Identificador",
   itemRecetaId: "Ítem de la receta",
   libroId: "Libro",
+  libros: "Libros",
+  quiebre: "Asiento con quiebre",
   lineaPesajeId: "Línea de pesaje",
   medicoId: "Médico",
   pacienteId: "Paciente",

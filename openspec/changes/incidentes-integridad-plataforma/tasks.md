@@ -51,27 +51,27 @@ Depends on: nothing. Verification for the unit: `npm run typecheck`, `npm run li
 
 Depends on: A. Verification for the unit: `npm run typecheck`, `npm run lint`, `npm test`, `FSJ_DB_TESTS=yes npm run test:db` for any repository test.
 
-- [ ] B.1 (RED) `tests/unit/resumen-integridad.test.ts`: on a miss `resumenIntegridadConVerificacion()` returns `verificacion` listing every open libro
+- [x] B.1 (RED) `tests/unit/resumen-integridad.test.ts`: on a miss `resumenIntegridadConVerificacion()` returns `verificacion` listing every open libro
   (OK ones with `quiebre: null`); on a hit `verificacion` is `null` and `quebrados` is identical; `resumenIntegridad()` keeps returning `LibroQuebrado[]`;
   invalidation forces a miss. Spec: libro "Resultado en memoria vigente", "Reanclaje exitoso".
-- [ ] B.2 GREEN: `modules/libro/domain/integridad.ts` add `VerificacionLibro` (`libroId`, `tipo`, `quiebre: string | null`); `modules/libro/application/resumen-integridad.ts`
+- [x] B.2 GREEN: `modules/libro/domain/integridad.ts` add `VerificacionLibro` (`libroId`, `tipo`, `quiebre: string | null`); `modules/libro/application/resumen-integridad.ts`
   returns `{ quebrados, verificacion }` from the query (D2) and exports `resumenIntegridadConVerificacion()`; the query stays read-only.
-- [ ] B.3 (RED) `tests/unit/registrar-incidentes-integridad.test.ts`: use case declares `permiso: "libro.ver"` and `audit: { skip: true, reason }`; throws `AuthorizationError`
+- [x] B.3 (RED) `tests/unit/registrar-incidentes-integridad.test.ts`: use case declares `permiso: "libro.ver"` and `audit: { skip: true, reason }`; throws `AuthorizationError`
   without the permiso; one repository call per libro; output lists only `ABIERTO` transitions; wrapper logs `error` with exactly `{ tenantId, libroTipo, quiebre, incidenteId }`
   after commit; no `error` on `REPETIDO`; a thrown error becomes `warn` and resolves; a Next control-flow error is rethrown; a logger that throws does not propagate;
   input max 10 libros. Specs: libro "Detección repetida", "La base falla al registrar", "Usuario sin libro.ver", "Registro sin actor", "Se abre un incidente", "Detección repetida" (log).
-- [ ] B.4 GREEN: `modules/libro/infrastructure/incidente-integridad-repository.ts` with `registrarVerificacionLibro(tx, libroId, quiebre)` calling `fsj.libro_incidente_registrar`
+- [x] B.4 GREEN: `modules/libro/infrastructure/incidente-integridad-repository.ts` with `registrarVerificacionLibro(tx, libroId, quiebre)` calling `fsj.libro_incidente_registrar`
   (follow the raw-query style of `libro_reanclaje` repository); `modules/libro/application/registrar-incidentes-integridad.ts` with the `defineCommand`
   `libro.integridad.registrarIncidentes` and the fail-soft wrapper `registrarIncidentesIntegridad`.
   GOTCHA: `catch (e) { unstable_rethrow(e); ... }` first, because `requireSession()` reads `cookies()` (precedent: `require-superadmin.ts`, f7a2975).
   GOTCHA: every logger call, including `getLogger()` itself, sits inside its own `try` (`shared/usecase.ts:288` shows `getLogger()` can throw).
   Log `error` only after commit, from the command output; never pass asiento or patient data.
-- [ ] B.5 GOTCHA labels: add `libros` and `quiebre` to `shared/labels/field-labels.ts` (`libroId` already exists) or `tests/unit/usecase-registry-all-modules.test.ts` fails.
+- [x] B.5 GOTCHA labels: add `libros` and `quiebre` to `shared/labels/field-labels.ts` (`libroId` already exists) or `tests/unit/usecase-registry-all-modules.test.ts` fails.
   Confirm the registry test also sees the new use case (non-empty permiso, `AuthorizationError` without it).
-- [ ] B.6 Wire `app/(app)/layout.tsx`: use `resumenIntegridadConVerificacion()`, assign the banner value first, then `if (verificacion) await registrarIncidentesIntegridad(verificacion)`;
+- [x] B.6 Wire `app/(app)/layout.tsx`: use `resumenIntegridadConVerificacion()`, assign the banner value first, then `if (verificacion) await registrarIncidentesIntegridad(verificacion)`;
   only for users with `libro.ver` (same gate as the banner). Do NOT use `after()` (it throws with `cookies()` in Server Components, design D1). Banner text, cache and behavior unchanged.
-- [ ] B.7 DB test for the repository wrapper if not already covered by A.1 (call through `withTenantTransaction` with a test session); skip if A.1 exercises the same SQL path.
-- [ ] B.8 Verify: `npm run typecheck && npm run lint && npm test`; `FSJ_DB_TESTS=yes npm run test:db`. Lint must pass the architecture boundaries (the app layout reaches the module only via `application/`).
+- [x] B.7 DB test for the repository wrapper if not already covered by A.1 (call through `withTenantTransaction` with a test session); skip if A.1 exercises the same SQL path.
+- [x] B.8 Verify: `npm run typecheck && npm run lint && npm test`; `FSJ_DB_TESTS=yes npm run test:db`. Lint must pass the architecture boundaries (the app layout reaches the module only via `application/`).
 
 ## Unit C. Platform side: repository, use cases, badge, detail section (commit `feat(plataforma): show libro integrity incidents to the superadmin`)
 
