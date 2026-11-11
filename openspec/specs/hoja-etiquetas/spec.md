@@ -288,9 +288,9 @@ The size commands SHALL hold the sheet row `FOR SHARE` and the sheet edit holds 
 ### Requirement: R6 — PDF page is the sheet
 
 The PDF page SHALL be the sheet (`ancho_mm × alto_mm`, margin 0 in pdfkit). The etiqueta SHALL fill its whole cell:
-the fixed 100 × 42 mm design stretched on each axis to the configured size (2026-11-11; it used to keep the design's
-proportion, so a 60 × 15 size printed about 36 × 15). Letters, icons and the logo keep their proportions; only the
-fields' places spread. The rest of the sheet is blank. Still exactly one page.
+the fixed 100 × 42 mm design stretched on each axis to the configured size (`buildEtiquetaPdf`, `buildEtiquetasPdf`,
+`buildEtiquetaLotePdf`). Letters, icons and the logo keep their proportions; only the fields' places spread. The
+rest of the sheet is blank. Still exactly one page.
 
 #### Scenario: 60 × 40 size on A4
 
@@ -639,7 +639,7 @@ migration 0066 (`fsj.etiqueta_tamano`, the configured label sizes).
 | R3 | `grillaHoja(hoja, tamano)` |
 | R4 | `posicionCelda` |
 | R5 | `crear/editar/reactivar-etiqueta-tamano.ts`, `editar-etiqueta-hoja.ts` |
-| R6 | `buildEtiquetaPdf`, `colocarEtiqueta` (stretch to the cell), `compensacionX` (`etiqueta-pdf.ts`) |
+| R6 | `buildEtiquetaPdf`, `buildEtiquetasPdf`, `buildEtiquetaLotePdf`, `colocarEtiqueta` (stretch to the cell), `compensacionX` (`etiqueta-pdf.ts`) |
 | R7 | `app/api/preparaciones/[id]/etiqueta/pdf/route.ts`, `imprimirEtiquetaPdf`, `hrefEtiquetaPdf` |
 | R8 | `modules/preparaciones/ui/` (new `PosicionEnHoja` component) |
 | R9 | same |
