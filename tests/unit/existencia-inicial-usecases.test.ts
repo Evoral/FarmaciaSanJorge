@@ -76,6 +76,12 @@ vi.mock("@/modules/stock/infrastructure/existencia-inicial-repository", () => ({
   cerrarRelevamientoInicial: updateCerrarRelevamientoMock,
 }));
 
+// The close counts the planilla's pending rows (none here) before closing.
+vi.mock("@/modules/stock/infrastructure/relevamiento-fila-repository", () => ({
+  countFilasRelevamiento: vi.fn(async () => 0),
+  deleteAllFilasRelevamiento: vi.fn(async () => undefined),
+}));
+
 const getDrogaParaIngresoMock = vi.fn(async () => ({
   id: DROGA_ID,
   nombre: "Droga Test",
