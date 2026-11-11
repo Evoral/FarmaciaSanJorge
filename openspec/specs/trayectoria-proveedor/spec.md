@@ -483,7 +483,8 @@ spec that satisfies the extra requirements).
   corregido", without the amounts. The rows are filtered IN SQL to the audit rows
   (entidad `partida`, accion MODIFICAR) whose diff carries `costoUnitario`
   (`corregirCostoPartida` writes `{ costoUnitario }` in both `valor_anterior`
-  and `valor_nuevo`; `jsonb_exists(...)` on either), with one LATERAL per
+  and `valor_nuevo`, plus `costoIngresado`/`unidadIngresada` in `valor_nuevo` when
+  the costo was typed per another unidad; `jsonb_exists(...)` on either), with one LATERAL per
   partida reading at most 21 rows (newest first, through 0003's
   `idx_registro_auditoria_entidad`): the card shows the latest 20 and, when the
   21st exists, "Hay más correcciones de costo anteriores". Explicit columns (no

@@ -146,6 +146,25 @@ vigente costo used for a row without costo is already per unidad base and is not
 - **WHEN** the group passes to stock
 - **THEN** the rows are not en conflicto and the partida's costo is $ 0,05 per mg
 
+### Requirement: R3c — Costo correction per a chosen unidad
+
+The costo correction of any partida (its page and this tab, `corregir-costo-partida.ts`) SHALL accept the costo per a
+vigente unidad of the droga's magnitude, the unidad base by default, convert it like R3b and show the value per unidad
+base it will store before saving. A unidad of another magnitude or dada de baja SHALL be refused on that field. The
+audit SHALL keep the costo and unidad typed besides the stored costo.
+
+#### Scenario: Correction typed per kg
+
+- **GIVEN** a partida of a droga whose unidad base is g
+- **WHEN** its costo is corrected to $ 50.000 per kg
+- **THEN** the partida's costo is $ 50 per g
+- **AND** the audit keeps $ 50.000 and kg
+
+#### Scenario: Unidad of another magnitude
+
+- **WHEN** a costo correction names a unidad of another magnitude
+- **THEN** it is refused on the unidad and the costo stays
+
 ### Requirement: R4 — Proveedor nullable only for existencia inicial
 
 Proveedor SHALL be nullable **only** for `origen = EXISTENCIA_INICIAL` (check `proveedor_id IS NOT NULL OR origen =
