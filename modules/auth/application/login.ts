@@ -38,18 +38,31 @@ import { generateOpaqueToken, hashToken } from "../domain/token";
 import { computeAbsoluteExpiry } from "../domain/session-policy";
 import { verifyPassword } from "../domain/password";
 import { decideLogin } from "../domain/login-policy";
-import { resolveLoginByEmail, recordLoginSuccess, recordLoginFailure, loadPasosPendientes } from "../infrastructure/usuario-repository";
+import { resolveLoginByEmail, recordLoginSuccess, recordLoginFailure, loadPasosPendientes, tenantPuedeIniciarSesion } from "../infrastructure/usuario-repository";
 import { insertSesionInTx } from "../infrastructure/session-repository";
+import {
+  resolveSuperadminLoginByEmail,
+  iniciarSesionPlataforma,
+  registrarLoginFallidoPlataforma,
+  type SuperadminLoginCandidate,
+} from "../infrastructure/superadmin-repository";
 import { record as auditRecord, TipoAccion } from "@/shared/audit";
-import { withTenantTransaction } from "@/shared/db/transaction";
+import { getRequestContext } from "@/shared/audit/request-context";
+import { withPlatformTransaction, withTenantTransaction } from "@/shared/db/transaction";
+import { InvariantViolationError } from "@/shared/errors";
 import { AUTH_POLICY } from "@/shared/auth/policy";
 import type { PasoPendiente } from "@/shared/auth/pasos";
 
 /** The single, generic message for EVERY rejected login attempt (see module doc comment) -- never branch UI copy on the internal `LoginDecision`. */
 export const GENERIC_LOGIN_ERROR = "El email o la contraseña son incorrectos, o la cuenta no puede iniciar sesión en este momento.";
 
+/**
+ * `tipo` says which cookie the caller writes: a pharmacy usuario's `fsj_session`, or a superadmin's `fsj_plataforma`
+ * (openspec/specs/plataforma/spec.md P3). A rejection never says which kind the email was.
+ */
 export type LoginResult =
-  | { ok: true; rawToken: string; expiraEn: Date; pasoPendiente: PasoPendiente | null }
+  | { ok: true; tipo: "USUARIO"; rawToken: string; expiraEn: Date; pasoPendiente: PasoPendiente | null }
+  | { ok: true; tipo: "SUPERADMIN"; rawToken: string; expiraEn: Date }
   | { ok: false; message: string };
 
 /**
@@ -75,11 +88,18 @@ async function esperarHasta(instante: number): Promise<void> {
 
 async function intentarLogin(email: string, password: string, ip: string | null, userAgent: string | null): Promise<LoginResult> {
   const candidate = await resolveLoginByEmail(email);
+  // An email is unique across usuario and superadmin (migration 0124), so a superadmin is looked up only when no
+  // usuario matched. The extra round trip happens only on that path; the rejection floor above hides it.
+  const superadmin = candidate ? null : await resolveSuperadminLoginByEmail(email);
 
   // ALWAYS run a real argon2 verification, even for an unknown email --
   // verifyPassword(null, ...) falls back to a dummy hash internally, so
   // this branch's timing is indistinguishable from the "found" branch's.
-  const passwordMatches = await verifyPassword(candidate?.passwordHash ?? null, password);
+  const passwordMatches = await verifyPassword(candidate?.passwordHash ?? superadmin?.passwordHash ?? null, password);
+
+  if (superadmin) {
+    return loginSuperadmin(superadmin, passwordMatches, ip, userAgent);
+  }
 
   if (!candidate) {
     return { ok: false, message: GENERIC_LOGIN_ERROR };
@@ -95,6 +115,12 @@ async function intentarLogin(email: string, password: string, ip: string | null,
   });
 
   return withTenantTransaction(candidate.tenantId, async (tx) => {
+    // A SUSPENDIDO or dado-de-baja pharmacy gets no session (migration 0125, P11). Read only after a correct
+    // password, like loadPasosPendientes: the rejected paths keep doing the same work.
+    if (decision === "OK" && !(await tenantPuedeIniciarSesion(tx, candidate.tenantId))) {
+      return { ok: false, message: GENERIC_LOGIN_ERROR };
+    }
+
     if (decision === "OK") {
       await recordLoginSuccess(tx, candidate.usuarioId, now);
 
@@ -107,7 +133,7 @@ async function intentarLogin(email: string, password: string, ip: string | null,
       // no hint about the account's state).
       const [pasoPendiente = null] = await loadPasosPendientes(tx, candidate.usuarioId);
 
-      return { ok: true, rawToken, expiraEn, pasoPendiente };
+      return { ok: true, tipo: "USUARIO", rawToken, expiraEn, pasoPendiente };
     }
 
     // Only a WRONG PASSWORD for an otherwise-live account counts toward
@@ -139,4 +165,45 @@ async function intentarLogin(email: string, password: string, ip: string | null,
 
     return { ok: false, message: GENERIC_LOGIN_ERROR };
   });
+}
+
+/**
+ * Superadmin branch: same decision table and lockout as a usuario, written through the platform functions (the
+ * superadmin has no tenant). Lockout and success are audited in `fsj.plataforma_auditoria` by those functions.
+ */
+async function loginSuperadmin(
+  superadmin: SuperadminLoginCandidate,
+  passwordMatches: boolean,
+  ip: string | null,
+  userAgent: string | null,
+): Promise<LoginResult> {
+  const now = new Date();
+  const decision = decideLogin({ found: true, estado: superadmin.estado, bloqueadoHasta: superadmin.bloqueadoHasta, passwordMatches, now });
+  const { requestId } = await getRequestContext();
+  const meta = { ip, userAgent, requestId };
+
+  if (decision === "OK") {
+    const rawToken = generateOpaqueToken();
+    try {
+      const expiraEn = await withPlatformTransaction((tx) => iniciarSesionPlataforma(tx, superadmin.superadminId, hashToken(rawToken), meta));
+      return { ok: true, tipo: "SUPERADMIN", rawToken, expiraEn };
+    } catch (error) {
+      // INV-PLAT-AUTH: set INACTIVO or locked between the resolver read and this call.
+      if (error instanceof InvariantViolationError) return { ok: false, message: GENERIC_LOGIN_ERROR };
+      throw error;
+    }
+  }
+
+  if (decision === "WRONG_PASSWORD") {
+    await withPlatformTransaction((tx) =>
+      registrarLoginFallidoPlataforma(
+        tx,
+        superadmin.superadminId,
+        { maxIntentos: AUTH_POLICY.maxFailedLoginAttempts, bloqueadoHasta: new Date(now.getTime() + AUTH_POLICY.lockoutMinutes * 60 * 1000) },
+        meta,
+      ),
+    );
+  }
+
+  return { ok: false, message: GENERIC_LOGIN_ERROR };
 }

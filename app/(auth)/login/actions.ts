@@ -16,7 +16,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { email as emailSchema, nonEmptyString } from "@/shared/validation";
 import { login } from "@/modules/auth/application/login";
-import { writeSessionCookie } from "@/shared/auth/session";
+import { writeSessionCookie, clearSessionCookie } from "@/shared/auth/session";
+import { writePlataformaCookie, clearPlataformaCookie, PLATAFORMA_PATH } from "@/shared/auth/plataforma";
 import { rutaDelPaso } from "@/shared/auth/pasos";
 
 export interface LoginFormState {
@@ -47,7 +48,15 @@ export async function loginAction(_prevState: LoginFormState, formData: FormData
     return { message: result.message };
   }
 
-  await writeSessionCookie(result.rawToken, result.expiraEn);
+  // One browser never holds both kinds of session (openspec/specs/plataforma/spec.md, D6).
   // Outside any try/catch: redirect() works by throwing.
+  if (result.tipo === "SUPERADMIN") {
+    await clearSessionCookie();
+    await writePlataformaCookie(result.rawToken, result.expiraEn);
+    redirect(PLATAFORMA_PATH);
+  }
+
+  await clearPlataformaCookie();
+  await writeSessionCookie(result.rawToken, result.expiraEn);
   redirect(result.pasoPendiente ? rutaDelPaso(result.pasoPendiente) : "/");
 }

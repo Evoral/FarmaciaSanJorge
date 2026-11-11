@@ -74,7 +74,14 @@ const eslintConfig = defineConfig([
     // RV2) is the same case -- no session, secret-protected, iterates every
     // tenant -- and this file only exports that one job runner
     // (`runVencerRetirosJob`).
-    ignores: ["modules/auth/**", "modules/archivo/application/actualizar-plazos.ts", "modules/entregas/application/vencer-retiros.ts"],
+    // modules/plataforma/application/define-plataforma.ts: the superadmin pipeline (no tenant, no permisos; every
+    // platform SQL function re-validates the session and audits itself -- openspec/specs/plataforma/spec.md).
+    ignores: [
+      "modules/auth/**",
+      "modules/archivo/application/actualizar-plazos.ts",
+      "modules/entregas/application/vencer-retiros.ts",
+      "modules/plataforma/application/define-plataforma.ts",
+    ],
     rules: {
       "no-restricted-imports": [
         "error",

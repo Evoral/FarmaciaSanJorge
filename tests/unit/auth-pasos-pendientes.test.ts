@@ -127,12 +127,20 @@ describe("validateSession pasosPendientes", () => {
         reautenticadaEn: null,
       },
       usuario: { id: "u-1", tenantId: "tenant-1", email: "a@b.c", nombre: "A", apellido: "B", permisos: new Set(), ...usuario },
-      tenantFechaBaja: null,
+      tenantFechaBaja: null, tenantEstado: "ACTIVO",
     };
   }
 
   beforeEach(() => {
     findSesionCompletaMock.mockReset();
+  });
+
+  it("P11 (migration 0125): a session of a SUSPENDIDO pharmacy is rejected", async () => {
+    const usuario = { estado: "ACTIVO", debeCambiarPassword: false, tienePin: true, esSector: false, esTecnico: false };
+    findSesionCompletaMock.mockResolvedValue({ ...completa(usuario), tenantEstado: "SUSPENDIDO" });
+    expect(await validateSession("raw-token", now)).toBeNull();
+    findSesionCompletaMock.mockResolvedValue(completa(usuario));
+    expect(await validateSession("raw-token", now)).not.toBeNull();
   });
 
   it("CT6: a cuenta de sector without PIN has no pending steps", async () => {

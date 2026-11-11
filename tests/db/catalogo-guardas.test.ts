@@ -22,9 +22,10 @@ const TABLAS_SIN_RLS = ["permiso", "unidad_medida"];
 /**
  * Parents whose FKs never need a child-side index: a usuario is never deleted
  * (actor columns such as `registrado_por_id` are never filtered by), and the two
- * global catalogs are never deleted either.
+ * global catalogs are never deleted either. A superadmin (0124) is never deleted either (forbid_delete) and its actor
+ * columns (creado_por_id / anulado_por_id of cargos and pagos, 0126) are never filtered by.
  */
-const REFERENCIAS_SIN_INDICE = ["fsj.usuario", "fsj.unidad_medida", "fsj.permiso"];
+const REFERENCIAS_SIN_INDICE = ["fsj.usuario", "fsj.unidad_medida", "fsj.permiso", "fsj.superadmin"];
 
 /**
  * FKs reviewed in migration 0121 and left without an index: no query filters the

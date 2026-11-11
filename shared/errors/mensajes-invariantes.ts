@@ -79,6 +79,19 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   // Raised only by the 0105 trigger, dropped by 0115 (kept: the global test covers every migration).
   "INV-PL-005": "El CUIT de la farmacia ya no se puede cambiar: hay cierres diarios firmados que lo llevan.",
 
+  // Plataforma (superadmin, migration 0124)
+  "INV-PLAT-AUTH": "Tu sesión de plataforma no es válida o expiró. Iniciá sesión nuevamente.",
+  "INV-PLAT-TENANT": "La farmacia no existe.",
+  "INV-PLAT-BAJA": "La farmacia está dada de baja: no se puede suspender ni reactivar.",
+  "INV-PLAT-ESTADO": "La farmacia ya está en ese estado.",
+  "INV-PLAT-MOTIVO": "Indicá el motivo.",
+  "INV-PLAT-CARGO-DUPLICADO": "Ya hay un cargo con ese período y concepto.",
+  "INV-PLAT-FECHA-FUTURA": "La fecha del pago no puede ser posterior a hoy.",
+  "INV-PLAT-ENVIO": "Ese pago ya se registró para otra farmacia. Recargá la página y volvé a intentarlo.",
+  "INV-PLAT-ANULADO": "Ese movimiento ya está anulado.",
+  "INV-PLAT-MOVIMIENTO": "El movimiento no existe.",
+  "INV-PLAT-INMUTABLE": "Un cargo o un pago no se puede modificar: solo anular.",
+
   // Libro recetario / contralor (M12)
   "INV-L01": "Los asientos del libro no se pueden modificar: solo se pueden anular o rectificar, según corresponda.",
   "INV-L02": "La jornada del asiento ya está firmada: no se puede anular, corresponde un asiento rectificativo.",

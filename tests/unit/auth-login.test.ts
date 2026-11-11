@@ -25,9 +25,14 @@ const loadPasosPendientesMock = vi.fn(async (...args: unknown[]): Promise<unknow
   void args;
   return [];
 });
+const tenantPuedeIniciarSesionMock = vi.fn(async (...args: unknown[]): Promise<boolean> => {
+  void args;
+  return true;
+});
 vi.mock("@/modules/auth/infrastructure/usuario-repository", () => ({
   resolveLoginByEmail: (...args: unknown[]) => resolveLoginByEmailMock(...args),
   loadPasosPendientes: (...args: unknown[]) => loadPasosPendientesMock(...args),
+  tenantPuedeIniciarSesion: (...args: unknown[]) => tenantPuedeIniciarSesionMock(...args),
   recordLoginSuccess: (...args: unknown[]) => recordLoginSuccessMock(...args),
   recordLoginFailure: (...args: unknown[]) => recordLoginFailureMock(...args),
 }));
@@ -36,6 +41,14 @@ const insertSesionInTxMock = vi.fn(async (...args: unknown[]): Promise<unknown> 
   void args;
   return { id: "sesion-1" };
 });
+// Superadmin branch (migration 0124): no superadmin matches in these tests.
+vi.mock("@/modules/auth/infrastructure/superadmin-repository", () => ({
+  resolveSuperadminLoginByEmail: async () => null,
+  iniciarSesionPlataforma: async () => new Date(),
+  registrarLoginFallidoPlataforma: async () => 0,
+}));
+vi.mock("@/shared/audit/request-context", () => ({ getRequestContext: async () => ({ ip: null, userAgent: null, requestId: null }) }));
+
 vi.mock("@/modules/auth/infrastructure/session-repository", () => ({
   insertSesionInTx: (...args: unknown[]) => insertSesionInTxMock(...args),
 }));

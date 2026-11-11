@@ -16,6 +16,7 @@
     "test:e2e": "playwright test",
     "db:bootstrap": "tsx scripts/db-bootstrap.ts",
     "db:create-tenant": "tsx scripts/create-tenant.ts",
+    "db:superadmin": "tsx scripts/superadmin.ts",
     "db:migrate": "tsx scripts/db-migrate.ts",
     "db:migrate:dev": "prisma migrate dev",
     "db:generate": "prisma generate",

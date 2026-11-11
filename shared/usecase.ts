@@ -227,7 +227,7 @@ export function resetUsecaseRegistryForTests(): void {
  * an issue (`issue.path[0]`), which match the submitted form controls'
  * `name`s, so the UI can mark exactly those fields (shared/ui/field-errors.ts).
  */
-function parseInput<TInput>(schema: z.ZodType<TInput>, rawInput: unknown): TInput {
+export function parseInput<TInput>(schema: z.ZodType<TInput>, rawInput: unknown): TInput {
   const result = schema.safeParse(rawInput);
   if (!result.success) {
     const issues = result.error.issues.map((issue) => {

@@ -117,6 +117,12 @@ export async function recordLoginFailure(tx: Prisma.TransactionClient, usuarioId
   return rows[0]?.intentos_fallidos ?? 0;
 }
 
+/** `true` when the session's own tenant is ACTIVO and not dado de baja (migration 0125). Inside its tenant transaction (fsj.tenant is RLS-scoped). */
+export async function tenantPuedeIniciarSesion(tx: Prisma.TransactionClient, tenantId: string): Promise<boolean> {
+  const tenant = await tx.tenant.findUnique({ where: { id: tenantId }, select: { estado: true, fechaBaja: true } });
+  return tenant !== null && tenant.estado === "ACTIVO" && tenant.fechaBaja === null;
+}
+
 export interface UsuarioEmailRow {
   id: string;
   email: string;

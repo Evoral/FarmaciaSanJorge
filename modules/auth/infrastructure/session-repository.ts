@@ -157,6 +157,8 @@ export interface SesionCompleta {
   usuario: UsuarioConPermisos;
   /** `null` while the tenant is active. */
   tenantFechaBaja: Date | null;
+  /** Migration 0125: a SUSPENDIDO tenant's sessions are rejected (openspec/specs/plataforma/spec.md P11). */
+  tenantEstado: "ACTIVO" | "SUSPENDIDO";
 }
 
 /** Single-round-trip replacement for `findSesionByTokenHash` + `loadUsuarioConPermisos` + the tenant's `fecha_baja`, inside an already tenant-scoped transaction (fsj.tenant is RLS-scoped since 0119, so it must be the session's own tenant). */
@@ -165,13 +167,13 @@ export async function findSesionCompletaByTokenHash(tx: Prisma.TransactionClient
     where: { tokenHash },
     select: {
       ...SESION_ROW_SELECT,
-      usuario: { select: { ...USUARIO_CON_PERMISOS_SELECT, tenant: { select: { fechaBaja: true } } } },
+      usuario: { select: { ...USUARIO_CON_PERMISOS_SELECT, tenant: { select: { fechaBaja: true, estado: true } } } },
     },
   });
   if (!fila) return null;
 
   const { usuario, ...sesion } = fila;
-  return { sesion, usuario: toUsuarioConPermisos(usuario), tenantFechaBaja: usuario.tenant.fechaBaja };
+  return { sesion, usuario: toUsuarioConPermisos(usuario), tenantFechaBaja: usuario.tenant.fechaBaja, tenantEstado: usuario.tenant.estado };
 }
 
 function toUsuarioConPermisos(usuario: UsuarioConPermisosRow): UsuarioConPermisos {

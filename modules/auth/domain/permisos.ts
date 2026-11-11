@@ -114,11 +114,7 @@ export const PERMISO_CATALOGO = {
   "cierres.folio.corregir": "operativo",
   "libros.crear": "operativo",
   "libros.cerrar": "operativo",
-  // Platform operator (outside any tenant).
-  "tenants.crear": "sistema",
-  "tenants.editar": "sistema",
-  "tenants.baja": "sistema",
-  // Entregas, archivo.
+  // Entregas, archivo. (The platform operator has no permisos: it is a superadmin, outside every tenant -- migration 0125.)
   "entregas.registrar": "operativo",
   "archivo.lotes.gestionar": "operativo",
   "archivo.destruccion.gestionar": "operativo",

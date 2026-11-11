@@ -34,6 +34,15 @@ duration of the request; `operador.ts` is the facade over the verification in
 - Every rejection is padded to `loginFallidoMinimoMs` (P2-01) from the start, so
   response times cannot differentiate existing accounts from unknown ones; successful logins do not wait.
 
+## Platform sessions (superadmin)
+
+`openspec/specs/plataforma/spec.md`. A superadmin is not a usuario: no tenant, no permisos, no pending steps.
+`login()` looks it up only when no usuario has the email (`fsj.superadmin_resolve_login`, same rejection floor). Its
+session is `fsj.superadmin_sesion` and its cookie `fsj_plataforma` (`Path=/plataforma`); logging in as one kind clears
+the cookie of the other kind. `plataforma.ts` re-exports `requireSuperAdmin()` (throws `AuthenticationError`) and
+`superAdminActual()` (never throws, for the layout); both fail closed, and the lifecycle (15 min idle, 8 h absolute) is
+checked only in SQL. Every `fsj.plataforma_*` function validates the token hash again.
+
 ## Pasos pendientes
 
 `openspec/specs/contrasena-temporal/spec.md`. The session carries `pasosPendientes`

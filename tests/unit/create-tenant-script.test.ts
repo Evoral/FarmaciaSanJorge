@@ -8,16 +8,18 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const source = readFileSync(resolve(__dirname, "../../scripts/create-tenant.ts"), "utf8");
+// Since migration 0125 the inserts live in fsj.crear_tenant_interno, shared with the /plataforma alta.
+const altaSql = readFileSync(resolve(__dirname, "../../prisma/migrations/20261109130000_0125_tenant_estado_y_alta/migration.sql"), "utf8");
 
 describe("scripts/create-tenant.ts (CT1)", () => {
   it("creates the first admin ACTIVO with an argon2id temporary password that must be changed", () => {
-    expect(source).toContain("debe_cambiar_password");
+    expect(source).toContain("fsj.crear_tenant_interno(");
     expect(source).toContain("hashPassword(");
     // The operator types a TEMPORARY password: the 6-character rule, not the full policy of a password the usuario chooses.
     expect(source).toContain("validateTemporaryPassword(");
     expect(source).not.toContain("validatePassword(");
-    expect(source).toMatch(/INSERT INTO fsj\.usuario[^`]*'ACTIVO', false/);
     expect(source).toContain("--admin-password-temporal");
+    expect(altaSql).toMatch(/INSERT INTO fsj\.usuario \([^)]*debe_cambiar_password\)[^;]*'ACTIVO', false,[^;]*p_admin_password_hash, true\)/);
   });
 
   it("no longer issues an activation credential", () => {
