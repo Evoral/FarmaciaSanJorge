@@ -25,7 +25,7 @@ session. The platform does NOT scan tenants.
 
 ## Scope
 
-- New tenant table `fsj.libro_incidente_integridad` (migration 0128): `libro_id`, `primer_quiebre_numero`,
+- New tenant table `fsj.libro_incidente_integridad` (migration 0129): `libro_id`, `primer_quiebre_numero`,
   `detectado_en`, `ultima_deteccion_en`, `detecciones`, `resuelto_en`. Partial unique index on open incidents
   `(tenant_id, libro_id) WHERE resuelto_en IS NULL`; RLS ENABLE + FORCE + policy; index `(tenant_id, libro_id)`.
 - Fail-soft `defineCommand` (`libro.integridad.registrarIncidentes`), called only on a cache miss of
@@ -64,7 +64,7 @@ session. The platform does NOT scan tenants.
 
 | Area | Impact |
 |---|---|
-| `prisma/migrations/0128_*`, `prisma/rollbacks/0128_*.down.sql` | New |
+| `prisma/migrations/0129_*`, `prisma/rollbacks/0129_*.down.sql` | New |
 | `modules/libro/{application,infrastructure}` | New command + repository |
 | `app/(app)/layout.tsx` | Calls the command on cache miss |
 | `modules/plataforma/*`, `app/plataforma/**` | New query, badge, section |

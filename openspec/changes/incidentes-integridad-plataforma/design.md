@@ -38,9 +38,9 @@ layout.tsx            resumen-integridad.ts        registrar-incidentes-integrid
 | D6 | List badge | Same function as the detail, called for the page's tenant ids with `p_solo_abiertos = true`, inside `listarFarmaciasQuery`'s transaction. Adds `incidentesAbiertos: number` to `FarmaciaListada`. | Adding a column to `plataforma_listar_tenants` | Spec P8 says the badge comes from `fsj.plataforma_incidentes_integridad`. Changing the return type would also force a `DROP FUNCTION`. |
 | D7 | Logging | `error` on `ABIERTO`, with `{ tenantId, libroTipo, quiebre, incidenteId }`. Failures are logged at `warn` with `{ err }`. No asiento content is ever passed, so no new redaction paths are needed. | | Spec "log estructurado al abrir". |
 
-## Database — migration `20261111120000_0128_libro_incidente_integridad`
+## Database — migration `20261111130000_0129_libro_incidente_integridad`
 
-0128 is free: 0127 is the highest, and 0124 is used twice. At implementation, take the next free number and a timestamp
+0129 was used (the proposal assumed 0128, but a teammate's `0128_consumo_linea_otra_magnitud` took it): 0127 was the highest in the repo, and 0124 is used twice. At implementation, take the next free number and a timestamp
 later than every existing migration.
 
 ```sql
@@ -79,8 +79,8 @@ CREATE TABLE fsj.libro_incidente_integridad (
 
 | File | Action | Purpose |
 |---|---|---|
-| `prisma/migrations/20261111120000_0128_libro_incidente_integridad/migration.sql` | Create | Table, indexes, grants, triggers, both functions |
-| `prisma/rollbacks/0128_libro_incidente_integridad.down.sql` | Create | Drop the two functions, the trigger function and the table |
+| `prisma/migrations/20261111130000_0129_libro_incidente_integridad/migration.sql` | Create | Table, indexes, grants, triggers, both functions |
+| `prisma/rollbacks/0129_libro_incidente_integridad.down.sql` | Create | Drop the two functions, the trigger function and the table |
 | `modules/libro/domain/integridad.ts` | Modify | `VerificacionLibro` type |
 | `modules/libro/application/resumen-integridad.ts` | Modify | D2 |
 | `modules/libro/application/registrar-incidentes-integridad.ts` | Create | Command and fail-soft wrapper (D4, D5) |

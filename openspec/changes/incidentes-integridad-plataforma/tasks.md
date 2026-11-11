@@ -9,7 +9,7 @@ specs are merged into `openspec/specs/` at archive (unit D), not before.
 Parallelism: A -> B and A -> C are the only hard dependencies. B and C touch disjoint files and could run in parallel, but
 there is a single writer, so run them sequentially (B first: it produces the data that C displays).
 
-## Unit A. Migration 0128 + DB tests (commit `feat(libro): persist integrity incidents table and functions`)
+## Unit A. Migration 0129 + DB tests (commit `feat(libro): persist integrity incidents table and functions`)
 
 Depends on: nothing. Verification for the unit: `npm run typecheck`, `npm run lint`, `npm test`, and `FSJ_DB_TESTS=yes npm run test:db`.
 
@@ -25,7 +25,7 @@ Depends on: nothing. Verification for the unit: `npm run typecheck`, `npm run li
   covered by review of the advisory lock and the partial unique index, and say so in the apply report.
 - [x] A.2 (DEVIATION: built as `20261111130000_0129_libro_incidente_integridad`, not 0128, because the dev DB already holds a teammate's unpushed `20261111120000_0128_consumo_linea_otra_magnitud`; the down file is `0129_...`. Every later "0128" in this change means 0129.) Take the next free migration number and a timestamp later than every existing migration (design assumes `0128`, previous
   highest `0127`; `0124` is used twice, do not trust the count). Create
-  `prisma/migrations/20261111120000_0128_libro_incidente_integridad/migration.sql`: table with FK `(tenant_id, libro_id)` to
+  `prisma/migrations/20261111130000_0129_libro_incidente_integridad/migration.sql`: table with FK `(tenant_id, libro_id)` to
   `fsj.libro_rubricado (tenant_id, id)` and the CHECKs; `SELECT fsj.setup_tenant_table(...)` (RLS ENABLE + FORCE, `tenant_isolation`,
   tenant_id trigger); indexes `uq_libro_incidente_integridad_abierto` (partial unique) and `libro_incidente_integridad_libro_idx`
   `(tenant_id, libro_id, detectado_en DESC)`; grants (defaults give SELECT/INSERT only per migration 0000) plus
@@ -39,7 +39,7 @@ Depends on: nothing. Verification for the unit: `npm run typecheck`, `npm run li
   SECURITY DEFINER, `SET search_path = fsj, extensions`, `fsj.plataforma_actor(p_token_hash)` as the first statement, joins
   `libro_rubricado` only for `tipo`, order open first then `detectado_en DESC`; `REVOKE ALL FROM PUBLIC; GRANT EXECUTE TO fsj_app`. It does NOT
   take a `p_tenant_id` single arg, so the AGENTS.md `p_tenant_id` rule (refuse when different from current tenant) does not apply; it follows the `fsj.plataforma_*` exception.
-- [x] A.5 `prisma/rollbacks/0128_libro_incidente_integridad.down.sql`: drop both functions (explicit signatures), `fsj.libro_incidente_validar()`,
+- [x] A.5 `prisma/rollbacks/0129_libro_incidente_integridad.down.sql`: drop both functions (explicit signatures), `fsj.libro_incidente_validar()`,
   then the table.
 - [x] A.6 GOTCHA `INV-L27`: confirm the code is still free (`rg "INV-L27"`); add its Spanish message to `shared/errors/mensajes-invariantes.ts`
   in this same commit, otherwise `tests/unit/mensajes-invariantes-global.test.ts` fails. If a different code is taken, update design/spec references.
@@ -92,15 +92,15 @@ Depends on: A (function exists). Independent of B at code level. Verification fo
   A `INV-PLAT-AUTH` from the function redirects to `/login` as in the existing platform pages (P18 "Superadmin session dead").
 - [x] C.6 Verify: `npm run typecheck && npm run lint && npm test && npm run build`. Manual check (not automated, say so in the report): `/plataforma` at 375px and ~1366px with an open incident, a resolved-only farmacia, and a suspended farmacia.
 
-## Unit D. Docs, spec merge readiness, archive (commit `docs(rollbacks): incidentes-integridad-plataforma`)
+## Unit D. Docs and spec merge readiness (commit `docs(libro): rollback guide for incidentes-integridad-plataforma`)
 
 Depends on: A, B, C. Verification for the unit: `npm run specs:validate`, `npm run lint`.
 
-- [ ] D.1 `docs/rollbacks/incidentes-integridad-plataforma.md`: order (1) deploy code without the layout call and without the plataforma UI (the banner never depended on the table),
-  (2) apply `0128_libro_incidente_integridad.down.sql` as a new forward migration, (3) what is lost (incident history; export as owner first).
-- [ ] D.2 Check `modules/README.md` (module map) and `shared/auth/README.md`/`shared/audit/README.md` for text that the new command or the P9 exception contradicts; update only where stale. Update the `libro` and `plataforma` code links in the specs' `## Code` sections at merge time.
-- [ ] D.3 Resolve design open question: align spec P18 wording with the function's actual output (it also returns incident `id` and `tenant_id`; the spec text already lists them, confirm the proposal's "only tipo, número..." line is not copied anywhere normative).
-- [ ] D.4 `npm run specs:validate` on the change deltas.
+- [x] D.1 `docs/rollbacks/incidentes-integridad-plataforma.md`: order (1) deploy code without the layout call and without the plataforma UI (the banner never depended on the table),
+  (2) apply `0129_libro_incidente_integridad.down.sql` as a new forward migration, (3) what is lost (incident history; export as owner first).
+- [x] D.2 Check `modules/README.md` (module map) and `shared/auth/README.md`/`shared/audit/README.md` for text that the new command or the P9 exception contradicts; update only where stale. Update the `libro` and `plataforma` code links in the specs' `## Code` sections at merge time.
+- [x] D.3 Resolve design open question: align spec P18 wording with the function's actual output (it also returns incident `id` and `tenant_id`; the spec text already lists them, confirm the proposal's "only tipo, número..." line is not copied anywhere normative).
+- [x] D.4 `npm run specs:validate` on the change deltas.
 - [ ] D.5 Full gate: `npm run typecheck`, `npm run lint`, `npm test`, `FSJ_DB_TESTS=yes npm run test:db`, `npm run build`. State what was not verified (concurrency test, manual UI).
 
 ## Archive

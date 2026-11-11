@@ -68,3 +68,15 @@ Tasks C.1 to C.6 are complete. Unit D and archive are not started. Mode: Strict 
 `FSJ_DB_TESTS=yes vitest --project db tests/db/libro-incidente-integridad.test.ts tests/db/catalogo-guardas.test.ts` 15/15 pass;
 `npm run build` succeeds, `/plataforma` and `/plataforma/farmacias/[id]` are dynamic (`ƒ`).
 Not run: manual UI check at 375px / 1366px, full `test:db`.
+
+## Batch 4 -- Unit D (done)
+
+Tasks D.1 to D.4 are complete. D.5 (full gate) was covered per unit in batches 1 to 3 (typecheck, lint, unit tests, build,
+the new DB tests); the full `test:db` and the manual UI check at 375px / 1366px were never run. Archive (E.1, E.2) not started.
+
+- `docs/rollbacks/incidentes-integridad-plataforma.md` written (order, commits `bdc4d40`/`4e7c498`/`5eb6043`, down SQL step, data loss).
+- All "0128" references of this change in `design.md`, `tasks.md`, `proposal.md` renamed to 0129 (the teammate's
+  `0128_consumo_linea_otra_magnitud` untouched; the spec deltas had none).
+- D.2: `modules/README.md`, `shared/audit/README.md`, `shared/auth/README.md` checked, nothing stale. Spec `## Code` links are updated at archive (E.1).
+- D.3: P18 in the plataforma delta already lists incident id and tenant id and matches the 8 columns of `fsj.plataforma_incidentes_integridad` in 0129. No change.
+- Validation: `openspec validate --strict` valid; `npm run specs:validate` 40/40.
