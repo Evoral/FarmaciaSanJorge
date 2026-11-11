@@ -142,7 +142,7 @@ function iconoWhatsapp(doc: Doc, x: number, y: number, t: number): void {
 }
 
 /** Gap between the two Rp/ columns (`columnasRp`). */
-const SEPARACION_COLUMNAS_RP = 1.5;
+const SEPARACION_COLUMNAS_RP = 4;
 
 /** Rp/ line pitch, as a multiple of the font size (the real label: 6.9 pt for 6.4 pt type). */
 const INTERLINEA_RP = 1.08;
@@ -202,25 +202,33 @@ function dibujarBanda(doc: Doc, c: DatosBanda, logo: LogoPdf | null): void {
 function dibujarRp(doc: Doc, c: ContenidoEtiqueta): void {
   linea(doc, [{ texto: "Rp/", fuente: "Helvetica" }], 13.5, 43.7, 6.5, NEGRO);
 
-  const x = 21.4;
-  const ancho = PANEL_DIV_X - 2.5 - x;
-  const arriba = 50;
-  const abajo = PIE_Y - 3.6;
+  // The fórmula uses the whole blank area: from just inside the frame to just short of the panel's rule,
+  // from under the "Rp/" mark down to just above the footer's rule.
+  const x = BORDE + 5;
+  const ancho = PANEL_DIV_X - 2 - x;
+  const arriba = 49.5;
+  const abajo = PIE_Y - 2;
   const columnas = columnasRp(c.rp);
   if (columnas.length === 0) return;
-  // One font size for the whole Rp/, driven by the rows of the tallest column
-  // and shrunk until the widest line fits its column and every row fits the panel.
+  // One font size for the whole Rp/, driven by the rows of the tallest column. Each column is as wide as its own
+  // widest line (one long line no longer squeezes the other column), and the size shrinks until both columns side
+  // by side fit the width and every row fits the height.
   const filas = Math.max(...columnas.map((col) => col.length));
   const fuente: Fuente = c.rp.length <= 2 ? "Helvetica-Bold" : "Helvetica";
-  const anchoColumna = (ancho - SEPARACION_COLUMNAS_RP * (columnas.length - 1)) / columnas.length;
+  const disponible = ancho - SEPARACION_COLUMNAS_RP * (columnas.length - 1);
   let tamano = tamanoFuenteRp(filas);
-  const masAncha = Math.max(...columnas.flat().map((l) => anchoDe(doc, [{ texto: l, fuente }], tamano)));
-  if (masAncha > anchoColumna) tamano = (tamano * anchoColumna) / masAncha;
+  const anchos = columnas.map((col) => Math.max(...col.map((l) => anchoDe(doc, [{ texto: l, fuente }], tamano))));
+  const total = anchos.reduce((suma, a) => suma + a, 0);
+  if (total > disponible) tamano = (tamano * disponible) / total;
   if (tamano * INTERLINEA_RP * filas > abajo - arriba) tamano = (abajo - arriba) / (filas * INTERLINEA_RP);
+  // Widths at the final size; the width left over is shared equally among the columns.
+  const escala = tamano / tamanoFuenteRp(filas);
+  const sobrante = Math.max(0, disponible - total * escala) / columnas.length;
   const primeraY = arriba + (abajo - arriba - tamano * INTERLINEA_RP * filas) / 2;
+  let colX = x;
   columnas.forEach((col, i) => {
-    const colX = x + i * (anchoColumna + SEPARACION_COLUMNAS_RP);
     col.forEach((l, fila) => linea(doc, [{ texto: l, fuente }], colX, primeraY + fila * tamano * INTERLINEA_RP, tamano, NEGRO));
+    colX += anchos[i]! * escala + sobrante + SEPARACION_COLUMNAS_RP;
   });
 }
 
