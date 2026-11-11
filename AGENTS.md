@@ -137,6 +137,7 @@ The ESLint config enforces most of these rules. Full rationale: `docs/architectu
 | Auditing | `shared/audit/README.md` |
 | DB roles, RLS, tenancy, Supabase setup | `docs/architecture.md`, `README.md` |
 | Deploy | `docs/deploy.md` |
+| Dependency updates (Dependabot) | `docs/dependencies.md` |
 | Reverting a shipped feature | `docs/rollbacks/<feature>.md` |
 | Original plan (modules `M00`–`M16`, invariants `INV-*`, pending decisions `DP-*`) | `docs/plan-implementacion.md` — search, don't read |
 | Ideas and changes not yet archived | `openspec/changes/<change>/` — not a source of truth until archived |
