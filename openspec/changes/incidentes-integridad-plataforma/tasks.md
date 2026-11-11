@@ -13,7 +13,7 @@ there is a single writer, so run them sequentially (B first: it produces the dat
 
 Depends on: nothing. Verification for the unit: `npm run typecheck`, `npm run lint`, `npm test`, and `FSJ_DB_TESTS=yes npm run test:db`.
 
-- [ ] A.1 (RED) `tests/db/libro-incidente-integridad.test.ts`: write the cases first. Each transition of `fsj.libro_incidente_registrar`
+- [x] A.1 (RED) `tests/db/libro-incidente-integridad.test.ts`: write the cases first. Each transition of `fsj.libro_incidente_registrar`
   (`ABIERTO`, `REPETIDO`, number moved = close + open, `CERRADO`, `SIN_CAMBIO`); a second open row for the same libro fails on the
   partial unique index; `fsj_app` cannot DELETE, cannot UPDATE `libro_id` or `primer_quiebre_numero`, cannot touch a resolved row
   (`INV-L27`); `detecciones` cannot decrease; INSERT with `resuelto_en` set is rejected; another tenant sees no rows (RLS); no tenant
@@ -23,7 +23,7 @@ Depends on: nothing. Verification for the unit: `npm run typecheck`, `npm run li
   exitoso", "Reanclaje y luego otro quiebre", "Otro tenant"; plataforma P18 scenarios. Files: `tests/db/libro-incidente-integridad.test.ts`.
   Note: true two-transaction concurrency ("Detecciones simultáneas") may not fit the rolled-back harness; if not, record it as
   covered by review of the advisory lock and the partial unique index, and say so in the apply report.
-- [ ] A.2 Take the next free migration number and a timestamp later than every existing migration (design assumes `0128`, previous
+- [x] A.2 (DEVIATION: built as `20261111130000_0129_libro_incidente_integridad`, not 0128, because the dev DB already holds a teammate's unpushed `20261111120000_0128_consumo_linea_otra_magnitud`; the down file is `0129_...`. Every later "0128" in this change means 0129.) Take the next free migration number and a timestamp later than every existing migration (design assumes `0128`, previous
   highest `0127`; `0124` is used twice, do not trust the count). Create
   `prisma/migrations/20261111120000_0128_libro_incidente_integridad/migration.sql`: table with FK `(tenant_id, libro_id)` to
   `fsj.libro_rubricado (tenant_id, id)` and the CHECKs; `SELECT fsj.setup_tenant_table(...)` (RLS ENABLE + FORCE, `tenant_isolation`,
@@ -31,21 +31,21 @@ Depends on: nothing. Verification for the unit: `npm run typecheck`, `npm run li
   `(tenant_id, libro_id, detectado_en DESC)`; grants (defaults give SELECT/INSERT only per migration 0000) plus
   `GRANT UPDATE (ultima_deteccion_en, detecciones, resuelto_en)`, never DELETE; `fsj.forbid_delete()` trigger;
   `fsj.libro_incidente_validar()` BEFORE INSERT OR UPDATE raising `INV-L27`.
-- [ ] A.3 Same migration: `fsj.libro_incidente_registrar(p_libro_id uuid, p_quiebre bigint)` returns `(transicion text, incidente_id uuid)`,
+- [x] A.3 Same migration: `fsj.libro_incidente_registrar(p_libro_id uuid, p_quiebre bigint)` returns `(transicion text, incidente_id uuid)`,
   plpgsql, SECURITY INVOKER, `SET search_path = fsj, extensions`, `pg_advisory_xact_lock(hashtextextended('libro_incidente:' || p_libro_id, 0))`
   first, tenant from `fsj.current_tenant_id()`; `REVOKE ALL FROM PUBLIC` (fsj_app reaches it through 0101 default privileges; confirm
   this is intended since INVOKER + RLS makes it safe).
-- [ ] A.4 Same migration: `fsj.plataforma_incidentes_integridad(p_token_hash text, p_tenant_ids uuid[], p_solo_abiertos boolean, p_limit integer)`,
+- [x] A.4 Same migration: `fsj.plataforma_incidentes_integridad(p_token_hash text, p_tenant_ids uuid[], p_solo_abiertos boolean, p_limit integer)`,
   SECURITY DEFINER, `SET search_path = fsj, extensions`, `fsj.plataforma_actor(p_token_hash)` as the first statement, joins
   `libro_rubricado` only for `tipo`, order open first then `detectado_en DESC`; `REVOKE ALL FROM PUBLIC; GRANT EXECUTE TO fsj_app`. It does NOT
   take a `p_tenant_id` single arg, so the AGENTS.md `p_tenant_id` rule (refuse when different from current tenant) does not apply; it follows the `fsj.plataforma_*` exception.
-- [ ] A.5 `prisma/rollbacks/0128_libro_incidente_integridad.down.sql`: drop both functions (explicit signatures), `fsj.libro_incidente_validar()`,
+- [x] A.5 `prisma/rollbacks/0128_libro_incidente_integridad.down.sql`: drop both functions (explicit signatures), `fsj.libro_incidente_validar()`,
   then the table.
-- [ ] A.6 GOTCHA `INV-L27`: confirm the code is still free (`rg "INV-L27"`); add its Spanish message to `shared/errors/mensajes-invariantes.ts`
+- [x] A.6 GOTCHA `INV-L27`: confirm the code is still free (`rg "INV-L27"`); add its Spanish message to `shared/errors/mensajes-invariantes.ts`
   in this same commit, otherwise `tests/unit/mensajes-invariantes-global.test.ts` fails. If a different code is taken, update design/spec references.
-- [ ] A.7 Check `tests/db/catalogo-guardas.test.ts` passes unchanged (RLS FORCE + policy, FK index on `(tenant_id, fk)`); do not add exceptions.
-- [ ] A.8 Apply the migration to the dev DB per `docs/deploy.md` (never `migrate reset`); re-run `npm run db:generate` only if Prisma schema changed (no Prisma model is added, so it should not).
-- [ ] A.9 Verify: `FSJ_DB_TESTS=yes npm run test:db` green for the new file and `catalogo-guardas`; `npm test` green. Note the known dev-DB drift (teammate's migrations 0109/0121/0122) if db tests fail for unrelated reasons.
+- [x] A.7 Check `tests/db/catalogo-guardas.test.ts` passes unchanged (RLS FORCE + policy, FK index on `(tenant_id, fk)`); do not add exceptions.
+- [x] A.8 Apply the migration to the dev DB per `docs/deploy.md` (never `migrate reset`); re-run `npm run db:generate` only if Prisma schema changed (no Prisma model is added, so it should not).
+- [x] A.9 Verify: `FSJ_DB_TESTS=yes npm run test:db` green for the new file and `catalogo-guardas`; `npm test` green. Note the known dev-DB drift (teammate's migrations 0109/0121/0122) if db tests fail for unrelated reasons.
 
 ## Unit B. Libro side: verification payload, registration command, layout wiring (commit `feat(libro): register integrity incidents on verification miss`)
 

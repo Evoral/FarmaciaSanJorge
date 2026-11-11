@@ -112,6 +112,7 @@ export const MENSAJES_INVARIANTES: Readonly<Record<string, string>> = {
   "INV-L23": "El detalle o las preparaciones de un asiento ya registrado no se pueden modificar.",
   "INV-L25": "El asiento del libro recetario debe incluir las preparaciones confirmadas de los ítems de su receta. Contactá al administrador.",
   "INV-L26": "La numeración del libro ya quedó fija con el primer cierre firmado: no se puede cambiar.",
+  "INV-L27": "El registro de un incidente de integridad del libro no se puede modificar de esa forma.",
   "INV-LIB-001": "Los datos ya cargados de un libro rubricado no se pueden modificar.",
 
   // Precios

@@ -59,6 +59,8 @@ const LEGAL: Record<string, GrantRule> = {
   entrega_anulada: { insert: true, update: [] },
   // Migration 0087: libro re-anchoring record -- insert-only.
   libro_reanclaje: { insert: true, update: [] },
+  // Migration 0129: libro integrity incidents -- never deleted; UPDATE only the detection counters and the close.
+  libro_incidente_integridad: { insert: true, update: ["detecciones", "resuelto_en", "ultima_deteccion_en"] },
   // Migration 0088: the real weighing of a pesaje -- insert-only.
   pesada_real: { insert: true, update: [] },
   // Migration 0079: an imported supplier price list header -- append-only (same shape as reanalisis_partida).
