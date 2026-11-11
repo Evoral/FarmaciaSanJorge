@@ -598,7 +598,7 @@ export function PlanillaExistenciaInicial({
               <div className="min-w-0 truncate">Cantidad</div>
               <div className="min-w-0 truncate">Unidad</div>
               <div className="min-w-0 truncate">Pureza (%)</div>
-              <div className="min-w-0 truncate">Costo</div>
+              <div className="min-w-0 truncate" title="Precio de una unidad de la fila (ej. $ por kg)">Costo por unidad</div>
               <div className="min-w-0 truncate">Proveedor</div>
               <div className="min-w-0 truncate">Estado</div>
               <div></div>
@@ -1364,12 +1364,13 @@ function FilaPlanillaItem({
       {/* 7. Costo */}
       <div className="flex flex-col gap-1 @3xl:contents">
         <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400 @3xl:hidden">
-          Costo unitario
+          Costo por {fila.unidadSimbolo || "unidad"}
         </label>
         <NumeroInput
           name="costoUnitario"
           value={fila.costoUnitario ? numeroParaInput(fila.costoUnitario) : ""}
-          placeholder="$"
+          placeholder={fila.unidadSimbolo ? `$ / ${fila.unidadSimbolo}` : "$"}
+          aria-label={`Costo por ${fila.unidadSimbolo || "unidad"}`}
           disabled={!puedeEditar}
           onValueChange={(val) => onUpdateFila({ costoUnitario: val || null })}
           onBlur={triggerBlurSave}

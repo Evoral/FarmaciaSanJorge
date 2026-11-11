@@ -130,7 +130,18 @@ export const pasarGrupoAStockCommand = defineCommand({
       primeraProveedorId,
     );
 
-    // 7. Check for conflicts within group and against existing partida
+    // 7. A row's costo is typed per ITS unit (the price of a kg, as on the
+    // invoice), but partida.costo_unitario is per the droga's unidad base:
+    // divide by the same fsj.convertir factor the invoice import uses
+    // (registrarPartidaCompra's porUnidadCompra) before comparing or storing.
+    const costoBasePorFila = new Map<string, string>();
+    for (const f of filas) {
+      if (!f.costo_unitario || f.costo_unitario.trim() === "") continue;
+      const factor = await convertirUnidad(tx, "1", f.unidad_medida_id!, droga.unidadBaseId);
+      costoBasePorFila.set(f.id, dec(f.costo_unitario.trim()).dividedBy(factor).toDecimalPlaces(6).toString());
+    }
+
+    // Check for conflicts within group and against existing partida
     const filasInput: FilaPlanillaInput[] = filas.map((f) => ({
       id: f.id,
       drogaId: f.droga_id,
@@ -139,7 +150,7 @@ export const pasarGrupoAStockCommand = defineCommand({
       cantidad: f.cantidad,
       unidadMedidaId: f.unidad_medida_id,
       potenciaDeclarada: f.potencia_declarada,
-      costoUnitario: f.costo_unitario,
+      costoUnitario: costoBasePorFila.get(f.id) ?? null,
       proveedorId: f.proveedor_id,
     }));
 
@@ -180,10 +191,10 @@ export const pasarGrupoAStockCommand = defineCommand({
 
     if (!partidaExistente) {
       // Resolve costo: row costo -> vigente costo sugerido -> "0"
-      const filaConCosto = filas.find((f) => f.costo_unitario && f.costo_unitario.trim() !== "");
+      const filaConCosto = filas.find((f) => costoBasePorFila.has(f.id));
       let costoFinal: string;
-      if (filaConCosto && filaConCosto.costo_unitario) {
-        costoFinal = filaConCosto.costo_unitario.trim();
+      if (filaConCosto) {
+        costoFinal = costoBasePorFila.get(filaConCosto.id)!;
       } else {
         const sugerido = await getCostoVigenteSugerido(
           tx,
