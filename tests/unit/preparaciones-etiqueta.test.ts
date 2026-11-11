@@ -28,7 +28,7 @@ import {
   VENCE_ETIQUETA,
 } from "@/modules/preparaciones/domain/etiqueta";
 import type { ComponenteEtiqueta, DatosEtiqueta } from "@/modules/preparaciones/domain/etiqueta";
-import { buildEtiquetaPdf, colocarEtiqueta, tamanoFuenteRp } from "@/modules/preparaciones/infrastructure/etiqueta-pdf";
+import { AREA_RP, buildEtiquetaPdf, colocarEtiqueta, distribuirColumnasRp, tamanoFuenteRp } from "@/modules/preparaciones/infrastructure/etiqueta-pdf";
 
 function componente(overrides: Partial<ComponenteEtiqueta>): ComponenteEtiqueta {
   return { drogaNombre: "Droga", cantidad: "1", unidadSimbolo: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: false, ...overrides };
@@ -142,6 +142,36 @@ describe("Rp/", () => {
     expect(tamanoFuenteRp(1)).toBeGreaterThan(tamanoFuenteRp(2));
     expect(tamanoFuenteRp(6)).toBeGreaterThan(tamanoFuenteRp(8));
     expect(tamanoFuenteRp(12)).toBeLessThan(tamanoFuenteRp(8));
+  });
+
+  describe("distribuirColumnasRp (R12)", () => {
+    const anchoArea = AREA_RP.derecha - AREA_RP.x;
+
+    it("a long line in one column does not squeeze the other: each column is as wide as its widest line", () => {
+      const larga = anchoArea * 0.7;
+      const corta = anchoArea * 0.4;
+      const { tamano, xs } = distribuirColumnasRp([larga, corta], 7);
+      const escala = tamano / tamanoFuenteRp(7);
+      // Both columns side by side fill the width exactly (no leftover once the size shrank to fit).
+      expect(xs[1]! + corta * escala).toBeCloseTo(AREA_RP.derecha, 5);
+      // Larger than two equal halves would allow (the long line in half the width).
+      const mitad = anchoArea / 2;
+      expect(tamano).toBeGreaterThan((tamanoFuenteRp(7) * mitad) / larga);
+    });
+
+    it("starts at the area's left edge and keeps every row inside its height", () => {
+      const { tamano, xs, primeraY } = distribuirColumnasRp([anchoArea * 0.3, anchoArea * 0.3], 14);
+      expect(xs[0]).toBe(AREA_RP.x);
+      expect(primeraY).toBeGreaterThanOrEqual(AREA_RP.arriba);
+      expect(primeraY + tamano * 1.08 * 14).toBeLessThanOrEqual(AREA_RP.abajo + 1e-9);
+    });
+
+    it("narrow columns keep the base size and share the leftover width", () => {
+      const angosta = anchoArea * 0.1;
+      const { tamano, xs } = distribuirColumnasRp([angosta, angosta], 7);
+      expect(tamano).toBe(tamanoFuenteRp(7));
+      expect(xs[1]!).toBeGreaterThan(AREA_RP.x + anchoArea / 2 - 1);
+    });
   });
 });
 

@@ -199,36 +199,55 @@ function dibujarBanda(doc: Doc, c: DatosBanda, logo: LogoPdf | null): void {
   }
 }
 
+/**
+ * The fórmula's area (design-space points): from just inside the frame to just short of the panel's rule, from under
+ * the "Rp/" mark down to just above the footer's rule.
+ */
+export const AREA_RP = { x: BORDE + 5, derecha: PANEL_DIV_X - 2, arriba: 49.5, abajo: PIE_Y - 2 } as const;
+
+/** Where the Rp/ columns go: one font size for all of them, the left edge of each and where the first row starts. */
+export interface DistribucionRp {
+  tamano: number;
+  xs: number[];
+  primeraY: number;
+}
+
+/**
+ * Lays out the Rp/ columns in `AREA_RP`. `anchosBase` is each column's widest line measured at
+ * `tamanoFuenteRp(filas)`. Each column is as wide as its own widest line (one long line does not squeeze the other
+ * column); the size shrinks until the columns side by side fit the width and every row fits the height, and the
+ * width left over is shared equally among the columns.
+ */
+export function distribuirColumnasRp(anchosBase: readonly number[], filas: number): DistribucionRp {
+  const { x, derecha, arriba, abajo } = AREA_RP;
+  const base = tamanoFuenteRp(filas);
+  const disponible = derecha - x - SEPARACION_COLUMNAS_RP * (anchosBase.length - 1);
+  const total = anchosBase.reduce((suma, a) => suma + a, 0);
+  let tamano = total > disponible ? (base * disponible) / total : base;
+  if (tamano * INTERLINEA_RP * filas > abajo - arriba) tamano = (abajo - arriba) / (filas * INTERLINEA_RP);
+  const escala = tamano / base;
+  const sobrante = Math.max(0, disponible - total * escala) / anchosBase.length;
+  const xs: number[] = [];
+  let colX = x;
+  for (const ancho of anchosBase) {
+    xs.push(colX);
+    colX += ancho * escala + sobrante + SEPARACION_COLUMNAS_RP;
+  }
+  return { tamano, xs, primeraY: arriba + (abajo - arriba - tamano * INTERLINEA_RP * filas) / 2 };
+}
+
 function dibujarRp(doc: Doc, c: ContenidoEtiqueta): void {
   linea(doc, [{ texto: "Rp/", fuente: "Helvetica" }], 13.5, 43.7, 6.5, NEGRO);
 
-  // The fórmula uses the whole blank area: from just inside the frame to just short of the panel's rule,
-  // from under the "Rp/" mark down to just above the footer's rule.
-  const x = BORDE + 5;
-  const ancho = PANEL_DIV_X - 2 - x;
-  const arriba = 49.5;
-  const abajo = PIE_Y - 2;
   const columnas = columnasRp(c.rp);
   if (columnas.length === 0) return;
-  // One font size for the whole Rp/, driven by the rows of the tallest column. Each column is as wide as its own
-  // widest line (one long line no longer squeezes the other column), and the size shrinks until both columns side
-  // by side fit the width and every row fits the height.
   const filas = Math.max(...columnas.map((col) => col.length));
   const fuente: Fuente = c.rp.length <= 2 ? "Helvetica-Bold" : "Helvetica";
-  const disponible = ancho - SEPARACION_COLUMNAS_RP * (columnas.length - 1);
-  let tamano = tamanoFuenteRp(filas);
-  const anchos = columnas.map((col) => Math.max(...col.map((l) => anchoDe(doc, [{ texto: l, fuente }], tamano))));
-  const total = anchos.reduce((suma, a) => suma + a, 0);
-  if (total > disponible) tamano = (tamano * disponible) / total;
-  if (tamano * INTERLINEA_RP * filas > abajo - arriba) tamano = (abajo - arriba) / (filas * INTERLINEA_RP);
-  // Widths at the final size; the width left over is shared equally among the columns.
-  const escala = tamano / tamanoFuenteRp(filas);
-  const sobrante = Math.max(0, disponible - total * escala) / columnas.length;
-  const primeraY = arriba + (abajo - arriba - tamano * INTERLINEA_RP * filas) / 2;
-  let colX = x;
+  const base = tamanoFuenteRp(filas);
+  const anchos = columnas.map((col) => Math.max(...col.map((l) => anchoDe(doc, [{ texto: l, fuente }], base))));
+  const { tamano, xs, primeraY } = distribuirColumnasRp(anchos, filas);
   columnas.forEach((col, i) => {
-    col.forEach((l, fila) => linea(doc, [{ texto: l, fuente }], colX, primeraY + fila * tamano * INTERLINEA_RP, tamano, NEGRO));
-    colX += anchos[i]! * escala + sobrante + SEPARACION_COLUMNAS_RP;
+    col.forEach((l, fila) => linea(doc, [{ texto: l, fuente }], xs[i]!, primeraY + fila * tamano * INTERLINEA_RP, tamano, NEGRO));
   });
 }
 
