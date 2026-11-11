@@ -30,6 +30,11 @@ export default defineConfig({
         test: {
           name: "unit",
           environment: "node",
+          // No unit test does I/O beyond reading the source tree, yet under a
+          // loaded machine (antivirus scanning on Windows, the whole suite in
+          // parallel) the tree walkers and first heavy imports run past
+          // Vitest's 5 s default -- a different test each run.
+          testTimeout: 20_000,
           include: ["tests/unit/**/*.test.ts", "shared/**/*.test.ts", "modules/**/*.test.ts"],
           exclude: ["tests/db/**", "node_modules/**"],
         },
