@@ -4,7 +4,7 @@
  * function that receives the session token hash and re-validates it (spec P6).
  */
 import type { Prisma } from "@/generated/prisma/client";
-import type { EstadoFarmacia, EventoPlataforma, FarmaciaDetalle, FarmaciaListada, MedioPago, MovimientoCuenta } from "../domain/farmacia";
+import type { EstadoFarmacia, EventoPlataforma, FarmaciaDetalle, FarmaciaListada, IncidenteIntegridad, MedioPago, MovimientoCuenta } from "../domain/farmacia";
 
 export interface Meta {
   ip: string | null;
@@ -15,7 +15,7 @@ export async function listarFarmacias(
   tx: Prisma.TransactionClient,
   tokenHash: string,
   filtro: { busqueda: string | null; limit: number; offset: number },
-): Promise<{ items: FarmaciaListada[]; total: number }> {
+): Promise<{ items: Omit<FarmaciaListada, "incidentesAbiertos">[]; total: number }> {
   const rows = await tx.$queryRaw<
     { id: string; razon_social: string; nombre_fantasia: string | null; cuit: string; estado: EstadoFarmacia; fecha_baja: Date | null; saldo: string; total: bigint }[]
   >`SELECT id, razon_social, nombre_fantasia, cuit, estado::text AS estado, fecha_baja, saldo::text AS saldo, total
@@ -32,6 +32,42 @@ export async function listarFarmacias(
       saldo: r.saldo,
     })),
   };
+}
+
+/**
+ * Integrity incidents of the given pharmacies (migration 0129, spec P18), open first. The only platform read of
+ * libro_incidente_integridad. `soloAbiertos` is the list's badge lookup.
+ */
+export async function incidentesIntegridad(
+  tx: Prisma.TransactionClient,
+  tokenHash: string,
+  tenantIds: string[],
+  soloAbiertos: boolean,
+  limit: number,
+): Promise<IncidenteIntegridad[]> {
+  const rows = await tx.$queryRaw<
+    {
+      id: string;
+      tenant_id: string;
+      libro_tipo: string;
+      primer_quiebre_numero: bigint;
+      detectado_en: Date;
+      ultima_deteccion_en: Date;
+      detecciones: number;
+      resuelto_en: Date | null;
+    }[]
+  >`SELECT id, tenant_id, libro_tipo, primer_quiebre_numero, detectado_en, ultima_deteccion_en, detecciones, resuelto_en
+    FROM fsj.plataforma_incidentes_integridad(${tokenHash}, ${tenantIds}::uuid[], ${soloAbiertos}, ${limit}::int)`;
+  return rows.map((r) => ({
+    id: r.id,
+    tenantId: r.tenant_id,
+    libroTipo: r.libro_tipo,
+    primerQuiebreNumero: r.primer_quiebre_numero.toString(),
+    detectadoEn: r.detectado_en,
+    ultimaDeteccionEn: r.ultima_deteccion_en,
+    detecciones: r.detecciones,
+    resueltoEn: r.resuelto_en,
+  }));
 }
 
 export async function verFarmacia(tx: Prisma.TransactionClient, tokenHash: string, tenantId: string): Promise<FarmaciaDetalle | null> {

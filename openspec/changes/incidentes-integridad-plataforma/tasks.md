@@ -77,20 +77,20 @@ Depends on: A. Verification for the unit: `npm run typecheck`, `npm run lint`, `
 
 Depends on: A (function exists). Independent of B at code level. Verification for the unit: `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`.
 
-- [ ] C.1 (RED) `tests/unit/plataforma-usecases.test.ts`: list maps open-incident counts to `FarmaciaListada.incidentesAbiertos` (0 when only resolved, a SUSPENDIDO farmacia keeps both estado and count);
+- [x] C.1 (RED) `tests/unit/plataforma-usecases.test.ts`: list maps open-incident counts to `FarmaciaListada.incidentesAbiertos` (0 when only resolved, a SUSPENDIDO farmacia keeps both estado and count);
   detail use case includes up to 50 incidents, open first; unknown tenant id still "not found"; the incidents call receives the session token hash. Specs: P8 scenarios, P17, P18 "Unknown tenant id", P19 "Suspended pharmacy".
-- [ ] C.2 GREEN: `modules/plataforma/domain/farmacia.ts` add `IncidenteIntegridad` and `FarmaciaListada.incidentesAbiertos: number`;
+- [x] C.2 GREEN: `modules/plataforma/domain/farmacia.ts` add `IncidenteIntegridad` and `FarmaciaListada.incidentesAbiertos: number`;
   `modules/plataforma/infrastructure/plataforma-repository.ts` add `incidentesIntegridad(tx, tokenHash, tenantIds, soloAbiertos, limit)`;
   use cases `listar-farmacias` (one call per page with `p_solo_abiertos = true`, same transaction as the list) and `ver-farmacia` (limit 50) via `definePlataforma`, guarded by `requireSuperAdmin()`.
   No `plataforma_auditoria` row is written (P19). The function is not added to `plataforma_listar_tenants` (no return-type change).
-- [ ] C.3 `modules/plataforma/ui/incidentes-integridad.tsx`: presentational section ("Integridad del libro"); `<ol>` list, not a table; each item shows libro tipo via `etiquetaLibro`,
+- [x] C.3 `modules/plataforma/ui/incidentes-integridad.tsx`: presentational section ("Integridad del libro"); `<ol>` list, not a table; each item shows libro tipo via `etiquetaLibro`,
   número, first and last detection, detecciones, estado (ABIERTO, or RESUELTO with date); empty state plus the `field-help` limitation note (incidents appear only when a pharmacy user with `libro.ver` navigates; absence is not proof of integrity). No write controls (P19).
   Layout rules: use `@container` + `@lg:`/`@3xl:` (not `md:`/`lg:`), no horizontal scroll at 375px.
-- [ ] C.4 `app/(plataforma)/plataforma/page.tsx`: danger `ToneBadge` "Integridad" in the Estado cell (`flex-wrap`), linking to `/plataforma/farmacias/[id]#integridad`, shown only when `incidentesAbiertos > 0`.
+- [x] C.4 `app/(plataforma)/plataforma/page.tsx`: danger `ToneBadge` "Integridad" in the Estado cell (`flex-wrap`), linking to `/plataforma/farmacias/[id]#integridad`, shown only when `incidentesAbiertos > 0`.
   `app/(plataforma)/plataforma/farmacias/[id]/page.tsx`: render the section as the first panel of the main column with `id="integridad"`.
-- [ ] C.5 GOTCHA `unstable_rethrow`: any catch in the new plataforma code path that can wrap `requireSuperAdmin()`/`cookies()` calls `unstable_rethrow(e)` first, so `/plataforma` is not prerendered/failed at build (f7a2975).
+- [x] C.5 GOTCHA `unstable_rethrow`: any catch in the new plataforma code path that can wrap `requireSuperAdmin()`/`cookies()` calls `unstable_rethrow(e)` first, so `/plataforma` is not prerendered/failed at build (f7a2975).
   A `INV-PLAT-AUTH` from the function redirects to `/login` as in the existing platform pages (P18 "Superadmin session dead").
-- [ ] C.6 Verify: `npm run typecheck && npm run lint && npm test && npm run build`. Manual check (not automated, say so in the report): `/plataforma` at 375px and ~1366px with an open incident, a resolved-only farmacia, and a suspended farmacia.
+- [x] C.6 Verify: `npm run typecheck && npm run lint && npm test && npm run build`. Manual check (not automated, say so in the report): `/plataforma` at 375px and ~1366px with an open incident, a resolved-only farmacia, and a suspended farmacia.
 
 ## Unit D. Docs, spec merge readiness, archive (commit `docs(rollbacks): incidentes-integridad-plataforma`)
 

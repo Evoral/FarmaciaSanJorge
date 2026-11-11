@@ -43,3 +43,28 @@ Tasks B.1 to B.8 are complete. Units C and D are not started. Mode: Strict TDD, 
 (after `npm install`, which installed `@google/genai`; the 3 previously unloadable files now run);
 `FSJ_DB_TESTS=yes vitest --project db tests/db/libro-incidente-integridad.test.ts` 13/13 pass.
 Not run: full `test:db`, `build`, manual UI.
+
+## Batch 3 -- Unit C (done)
+
+Tasks C.1 to C.6 are complete. Unit D and archive are not started. Mode: Strict TDD, `size:exception` single PR.
+
+### TDD Cycle Evidence
+
+| Task | RED | GREEN | REFACTOR |
+|---|---|---|---|
+| C.1/C.2 use cases | `tests/unit/plataforma-usecases.test.ts`: 2 of the new cases failed (the function was never called) | 27/27 pass | none needed |
+| C.3/C.4 UI (section, badge, pages) | no unit seam (Server Components / presentational); covered by typecheck, lint boundaries and `next build` | pass | -- |
+| C.5 | no new `catch` was added in the platform path, so no `unstable_rethrow` is needed; `definePlataforma` is untouched | -- | -- |
+
+### Decisions
+- Repository `listarFarmacias` now returns `Omit<FarmaciaListada, "incidentesAbiertos">`; the `listar-farmacias` use case adds the count from a single `incidentesIntegridad(..., soloAbiertos=true, 200)` call (skipped on an empty page), in the same platform transaction.
+- Detail returns `{ farmacia, historial, cuenta, incidentes }` (limit 50, `soloAbiertos=false`), asked only after the farmacia exists, so an unknown id stays "not found".
+- `IncidenteIntegridad.primerQuiebreNumero` is a string (bigint from `$queryRaw`).
+- Section reuses `etiquetaLibro` from `modules/libro/domain/integridad` (lint accepts the cross-module domain import).
+- Badge links to `#integridad` with an aria-label; wrapper `flex-wrap`.
+
+### Verification
+`npm run typecheck` clean; `npm run lint` 0 errors (291 pre-existing warnings); `npm test` 252 files / 4180 tests pass;
+`FSJ_DB_TESTS=yes vitest --project db tests/db/libro-incidente-integridad.test.ts tests/db/catalogo-guardas.test.ts` 15/15 pass;
+`npm run build` succeeds, `/plataforma` and `/plataforma/farmacias/[id]` are dynamic (`ƒ`).
+Not run: manual UI check at 375px / 1366px, full `test:db`.
