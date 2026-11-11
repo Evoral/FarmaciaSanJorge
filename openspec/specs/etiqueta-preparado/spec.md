@@ -40,20 +40,27 @@ domicilio and the two phones (☎ fijo, WhatsApp celular).
 ### Requirement: R1 — Layout: Rp/, the right column and the footer
 
 Below the R1 top band, the etiqueta SHALL show "Rp/" with the fórmula on the left; on the right the paciente,
-"Receta N:", "Dosis:", the quantity as a large green number with its forma / vía / fracción de dosis, "Vence:" and
+"N° <número>", "Dosis:", the quantity as a large green number with its forma / vía / fracción de dosis, "Vence:" and
 the storage note in red; the médico in the footer.
 
 #### Scenario: Body of the etiqueta
 
 - **WHEN** the etiqueta is printed
 - **THEN** "Rp/" and the fórmula are on the left
-- **AND** the paciente, "Receta N:", "Dosis:", the quantity as a large green number with its forma / vía / fracción de dosis, "Vence:" and the storage note in red are on the right
+- **AND** the paciente, "N° <número>", "Dosis:", the quantity as a large green number with its forma / vía / fracción de dosis, "Vence:" and the storage note in red are on the right
 - **AND** the médico is in the footer
 
 ### Requirement: R2 — Fixed places
 
 Every field SHALL have a fixed place. A missing field leaves its place blank and never moves another one; a long
-text shrinks to fit its place (the dosis wraps up to 4 lines in its column).
+text shrinks to fit its place (the dosis wraps up to 4 lines in its column). Exception (2026-11-11): the forma / vía /
+fracción lines present are centered, as a block, on the large quantity's height.
+
+#### Scenario: Forma alone beside the quantity
+
+- **GIVEN** a solución with no vía nor fracción line
+- **WHEN** the etiqueta is printed
+- **THEN** "Solución" is centered on the height of the large quantity, not at the top of its place
 
 #### Scenario: Missing field
 

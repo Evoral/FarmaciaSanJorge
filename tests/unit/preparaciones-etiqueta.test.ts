@@ -28,7 +28,7 @@ import {
   VENCE_ETIQUETA,
 } from "@/modules/preparaciones/domain/etiqueta";
 import type { ComponenteEtiqueta, DatosEtiqueta } from "@/modules/preparaciones/domain/etiqueta";
-import { AREA_RP, buildEtiquetaPdf, colocarEtiqueta, distribuirColumnasRp, tamanoFuenteRp } from "@/modules/preparaciones/infrastructure/etiqueta-pdf";
+import { AREA_RP, bloqueFormaY, buildEtiquetaPdf, colocarEtiqueta, distribuirColumnasRp, tamanoFuenteRp } from "@/modules/preparaciones/infrastructure/etiqueta-pdf";
 
 function componente(overrides: Partial<ComponenteEtiqueta>): ComponenteEtiqueta {
   return { drogaNombre: "Droga", cantidad: "1", unidadSimbolo: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: false, ...overrides };
@@ -142,6 +142,25 @@ describe("Rp/", () => {
     expect(tamanoFuenteRp(1)).toBeGreaterThan(tamanoFuenteRp(2));
     expect(tamanoFuenteRp(6)).toBeGreaterThan(tamanoFuenteRp(8));
     expect(tamanoFuenteRp(12)).toBeLessThan(tamanoFuenteRp(8));
+  });
+
+  describe("bloqueFormaY (R2 exception)", () => {
+    const capa = 7.8 * 0.718;
+    const centroDe = (lineas: number) => {
+      const { primeraY, paso } = bloqueFormaY(lineas);
+      return primeraY + ((lineas - 1) * paso + capa) / 2;
+    };
+
+    it("one, two or three forma lines share the same middle: the quantity's", () => {
+      const numero = 57.9 + (33 * 0.718) / 2;
+      expect(centroDe(1)).toBeCloseTo(numero, 5);
+      expect(centroDe(2)).toBeCloseTo(numero, 5);
+      expect(centroDe(3)).toBeCloseTo(numero, 5);
+    });
+
+    it("a lone forma line sits lower than the first of three", () => {
+      expect(bloqueFormaY(1).primeraY).toBeGreaterThan(bloqueFormaY(3).primeraY);
+    });
   });
 
   describe("distribuirColumnasRp (R12)", () => {

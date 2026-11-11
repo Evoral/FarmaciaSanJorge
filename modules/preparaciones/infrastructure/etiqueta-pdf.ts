@@ -273,12 +273,25 @@ function envolver(doc: Doc, valor: string, tamano: number, ancho: number, maxLin
   }
 }
 
+/** The large green quantity: its cap top at full size and that size (it shrinks around the same middle). */
+const NUMERO_Y = 57.9;
+const TAMANO_NUMERO = 33;
+const TAMANO_FORMA = 7.8;
+const PASO_FORMA = 8.2;
+
+/** Cap top of the first forma / vía / fracción line and the line pitch: the `lineas` lines centered on the quantity's middle. */
+export function bloqueFormaY(lineas: number): { primeraY: number; paso: number } {
+  const centro = NUMERO_Y + (TAMANO_NUMERO * ALTURA_MAYUSCULA) / 2;
+  const alto = (Math.max(lineas, 1) - 1) * PASO_FORMA + TAMANO_FORMA * ALTURA_MAYUSCULA;
+  return { primeraY: centro - alto / 2, paso: PASO_FORMA };
+}
+
 function dibujarPanel(doc: Doc, c: ContenidoEtiqueta): void {
   const xIzquierda = 145.2;
   const xDerecha = 232.6;
 
   if (c.paciente) texto(doc, `Paciente:${c.paciente}`, xIzquierda, 45, 6.5, xDerecha - 3 - xIzquierda);
-  texto(doc, `Receta N:${c.recetaNumero}`, xDerecha, 44.7, 6.5, DERECHA - xDerecha);
+  texto(doc, `N° ${c.recetaNumero}`, xDerecha, 44.7, 6.5, DERECHA - xDerecha);
   if (c.dosis) {
     // "Dosis: ..." in its column under the receta number, wrapped down to the storage note.
     const { lineas, tamano } = envolver(doc, `Dosis: ${c.dosis}`, 6.5, DERECHA - xDerecha, 4);
@@ -288,15 +301,16 @@ function dibujarPanel(doc: Doc, c: ContenidoEtiqueta): void {
   // Large green quantity, right-aligned so its digits always end at the same place.
   const numero: Tramo[] = [{ texto: c.cantidadTotal ?? String(c.cantidad), fuente: "Helvetica" }];
   const finNumero = 189;
-  const tamanoNumero = tamanoQueEntra(doc, numero, 33, finNumero - (PANEL_DIV_X + 3));
-  linea(doc, numero, finNumero - anchoDe(doc, numero, tamanoNumero), 57.9 + (33 - tamanoNumero) * ALTURA_MAYUSCULA * 0.5, tamanoNumero, VERDE);
+  const tamanoNumero = tamanoQueEntra(doc, numero, TAMANO_NUMERO, finNumero - (PANEL_DIV_X + 3));
+  linea(doc, numero, finNumero - anchoDe(doc, numero, tamanoNumero), NUMERO_Y + (TAMANO_NUMERO - tamanoNumero) * ALTURA_MAYUSCULA * 0.5, tamanoNumero, VERDE);
 
-  // Forma / vía / fracción: three fixed lines, centered on one axis.
+  // Forma / vía / fracción: the lines present, centered on one axis and, as a block, on the quantity's height
+  // (a lone "Solución" sits beside the number, not above it).
   const centroForma = 210.2;
   const anchoForma = 2 * (xDerecha - 3 - centroForma);
-  texto(doc, c.forma, centroForma, 59.2, 7.8, anchoForma, NEGRO, true);
-  if (c.via) texto(doc, c.via, centroForma, 67.3, 7.8, anchoForma, NEGRO, true);
-  if (c.fraccionDosis) texto(doc, c.fraccionDosis, centroForma, 75.6, 7.8, anchoForma, NEGRO, true);
+  const lineasForma = [c.forma, c.via, c.fraccionDosis].filter((l): l is string => Boolean(l));
+  const { primeraY, paso } = bloqueFormaY(lineasForma.length);
+  lineasForma.forEach((l, i) => texto(doc, l, centroForma, primeraY + i * paso, TAMANO_FORMA, anchoForma, NEGRO, true));
 
   texto(doc, c.vence, xIzquierda, 93, 6.4, 45);
   texto(doc, c.conservacion, 223.8, 94, 5, 2 * (DERECHA - 223.8), ROJO, true);
