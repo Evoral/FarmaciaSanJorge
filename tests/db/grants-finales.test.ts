@@ -88,6 +88,8 @@ const PROTEGIDAS_NO_LEGALES = [
   // table) -- mutable via the vigente_hasta "close" write, same shape as
   // designacion_director_tecnico's cese above.
   "regla_precio",
+  // Migration 0124 (superadmin): append-only platform audit, not a pharmacy legal record.
+  "plataforma_auditoria",
   "unidad_medida",
   "usuario",
   "usuario_estado_historial",
