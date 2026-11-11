@@ -466,11 +466,16 @@ function contenido(pdf: Buffer): string {
   return textos.join("\n");
 }
 
-/** Where the page content moves its origin to draw the design: its first `q` + `1 0 0 1 x y cm`, then the uniform scale (pdfkit omits it when it is 1). */
-function colocacionEnElPdf(pdf: Buffer): { x: number; y: number; escala: number } {
-  const match = /\nq\n1 0 0 1 (-?[\d.]+) (-?[\d.]+) cm\n(?:([\d.]+) 0 0 [\d.]+ 0 0 cm\n)?/.exec(contenido(pdf));
+/** Where the page content moves its origin to draw the design: its first `q` + `1 0 0 1 x y cm`, then the scale on each axis (pdfkit omits it when it is 1). */
+function colocacionEnElPdf(pdf: Buffer): { x: number; y: number; escalaX: number; escalaY: number } {
+  const match = /\nq\n1 0 0 1 (-?[\d.]+) (-?[\d.]+) cm\n(?:([\d.]+) 0 0 ([\d.]+) 0 0 cm\n)?/.exec(contenido(pdf));
   if (!match) throw new Error("no translate found in the page content");
-  return { x: Number(match[1]), y: Number(match[2]), escala: match[3] === undefined ? 1 : Number(match[3]) };
+  return {
+    x: Number(match[1]),
+    y: Number(match[2]),
+    escalaX: match[3] === undefined ? 1 : Number(match[3]),
+    escalaY: match[4] === undefined ? 1 : Number(match[4]),
+  };
 }
 
 describe("buildEtiquetaPdf -- the page is the sheet (R6)", () => {
@@ -498,7 +503,8 @@ describe("buildEtiquetaPdf -- the page is the sheet (R6)", () => {
 describe("colocarEtiqueta / buildEtiquetaPdf -- the etiqueta lands in the chosen cell (R4, R6)", () => {
   it("the 100 x 42 mm size is the design itself: scale 1 at the cell's corner", () => {
     const colocacion = colocarEtiqueta(ESTANDAR, A4, { columna: 1, fila: 1 });
-    expect(colocacion.escala).toBeCloseTo(1, 9);
+    expect(colocacion.escalaX).toBeCloseTo(1, 9);
+    expect(colocacion.escalaY).toBeCloseTo(1, 9);
     expect(colocacion.x).toBeCloseTo(5 * PT_POR_MM, 6);
     expect(colocacion.y).toBeCloseTo(5 * PT_POR_MM, 6);
   });
@@ -510,27 +516,31 @@ describe("colocarEtiqueta / buildEtiquetaPdf -- the etiqueta lands in the chosen
     expect(otra.y - origen.y).toBeCloseTo(3 * 42 * PT_POR_MM, 6);
   });
 
-  it("a smaller size is scaled uniformly and centered inside its cell", () => {
-    const tamano = { anchoMm: 50, altoMm: 30 };
-    const colocacion = colocarEtiqueta(tamano, A4, { columna: 3, fila: 2 });
-    const esquina = posicionCelda(A4, tamano, { columna: 3, fila: 2 });
-    const escala = Math.min(50 / 100, 30 / 42);
-    expect(colocacion.escala).toBeCloseTo(escala, 9);
-    // 50 x 30 is limited by its width (50 / 100): the design is centered vertically in the cell.
+  it.each([
+    { anchoMm: 50, altoMm: 30 },
+    { anchoMm: 60, altoMm: 15 },
+  ])("a size with another proportion fills its whole cell: %j", (tamano) => {
+    const colocacion = colocarEtiqueta(tamano, A4, { columna: 1, fila: 2 });
+    const esquina = posicionCelda(A4, tamano, { columna: 1, fila: 2 });
     expect(colocacion.x).toBeCloseTo(esquina.xMm * PT_POR_MM, 6);
-    expect(colocacion.y).toBeCloseTo(esquina.yMm * PT_POR_MM + (30 * PT_POR_MM - 42 * PT_POR_MM * escala) / 2, 6);
+    expect(colocacion.y).toBeCloseTo(esquina.yMm * PT_POR_MM, 6);
+    // The 100 x 42 design, scaled, measures exactly the configured size.
+    expect(100 * colocacion.escalaX).toBeCloseTo(tamano.anchoMm, 9);
+    expect(42 * colocacion.escalaY).toBeCloseTo(tamano.altoMm, 9);
   });
 
   it.each([
     [{ columna: 1, fila: 1 }, ESTANDAR],
     [{ columna: 2, fila: 6 }, ESTANDAR],
     [{ columna: 3, fila: 2 }, { anchoMm: 50, altoMm: 30 }],
+    [{ columna: 2, fila: 5 }, { anchoMm: 60, altoMm: 15 }],
   ])("the rendered page content is translated to the cell %j of %j", async (celda, tamano) => {
     const esperada = colocarEtiqueta(tamano, A4, celda);
     const real = colocacionEnElPdf(await pdfEnHoja(tamano, celda));
     expect(real.x).toBeCloseTo(esperada.x, 4);
     expect(real.y).toBeCloseTo(esperada.y, 4);
-    expect(real.escala).toBeCloseTo(esperada.escala, 4);
+    expect(real.escalaX).toBeCloseTo(esperada.escalaX, 4);
+    expect(real.escalaY).toBeCloseTo(esperada.escalaY, 4);
   });
 
   it("defaults to column 1, row 1", async () => {

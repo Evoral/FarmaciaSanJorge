@@ -16,9 +16,10 @@
  * `modules/elaboracion/infrastructure/ficha-pdf.ts` (pdfkit, standard
  * fonts). The real label uses Arial Narrow: Helvetica (Arial's metrics) is
  * drawn horizontally condensed (`ANGOSTO`) to match it. The layout is drawn
- * in a FIXED design space (100 × 42 mm) and scaled uniformly, centered, onto
+ * in a FIXED design space (100 × 42 mm) and stretched on each axis to fill
  * the label size the caller chooses (one of the sizes the administrator
- * configured -- modules/etiqueta-tamanos); the layout is not re-flowed per size.
+ * configured -- modules/etiqueta-tamanos); glyphs, icons and the logo are
+ * compensated so they keep their proportions, only the fields' places spread.
  * The PDF page is the SHEET the farmacia prints on (modules/etiqueta-tamanos, spec
  * openspec/specs/hoja-etiquetas/spec.md R6), not the label: the label is drawn inside the cell
  * (columna, fila) of the sheet's grid the user picked and the rest of the page stays
@@ -79,8 +80,24 @@ interface Tramo {
   escala?: number;
 }
 
+/**
+ * Horizontal compensation per document while an etiqueta is drawn: the design is stretched to fill its cell
+ * (`escalaX` ≠ `escalaY`), so every glyph, icon and the logo are drawn `escalaY / escalaX` as wide in design space to
+ * keep their proportions on paper. 1 (absent) for a cell with the design's own proportion.
+ */
+const compensacionX = new WeakMap<Doc, number>();
+
+function compX(doc: Doc): number {
+  return compensacionX.get(doc) ?? 1;
+}
+
+/** Horizontal scale of a glyph in design space: Arial Narrow's width, compensated for the cell's stretch. */
+function angosto(doc: Doc): number {
+  return ANGOSTO * compX(doc);
+}
+
 function anchoDe(doc: Doc, tramos: readonly Tramo[], tamano: number): number {
-  return tramos.reduce((total, t) => total + doc.font(t.fuente).fontSize(tamano * (t.escala ?? 1)).widthOfString(t.texto) * ANGOSTO, 0);
+  return tramos.reduce((total, t) => total + doc.font(t.fuente).fontSize(tamano * (t.escala ?? 1)).widthOfString(t.texto) * angosto(doc), 0);
 }
 
 /** Largest size <= `tamano` at which `tramos` fit in `ancho`. */
@@ -96,10 +113,10 @@ function linea(doc: Doc, tramos: readonly Tramo[], x: number, y: number, tamano:
   for (const t of tramos) {
     const tam = tamano * (t.escala ?? 1);
     doc.save();
-    doc.translate(cursor, base - tam * ALTURA_MAYUSCULA).scale(ANGOSTO, 1);
+    doc.translate(cursor, base - tam * ALTURA_MAYUSCULA).scale(angosto(doc), 1);
     doc.font(t.fuente).fontSize(tam).fillColor(color).text(t.texto, 0, 0, { lineBreak: false });
     doc.restore();
-    cursor += doc.font(t.fuente).fontSize(tam).widthOfString(t.texto) * ANGOSTO;
+    cursor += doc.font(t.fuente).fontSize(tam).widthOfString(t.texto) * angosto(doc);
   }
 }
 
@@ -110,13 +127,37 @@ function texto(doc: Doc, valor: string, x: number, y: number, tamano: number, an
   linea(doc, tramos, centro ? x - anchoDe(doc, tramos, tam) / 2 : x, y, tam, color);
 }
 
+/** A horizontal or vertical rule; a vertical one is thinned by the stretch so both keep the same thickness on paper. */
 function regla(doc: Doc, x1: number, y1: number, x2: number, y2: number, grosor: number): void {
-  doc.moveTo(x1, y1).lineTo(x2, y2).lineWidth(grosor).strokeColor(NEGRO).stroke();
+  doc
+    .moveTo(x1, y1)
+    .lineTo(x2, y2)
+    .lineWidth(x1 === x2 ? grosor * compX(doc) : grosor)
+    .strokeColor(NEGRO)
+    .stroke();
+}
+
+/** Rounded rectangle whose corners stay round on paper: the corner's horizontal radius is compensated for the stretch. */
+function rectanguloRedondeado(doc: Doc, x: number, y: number, ancho: number, alto: number, radio: number): Doc {
+  const rx = radio * compX(doc);
+  const ry = radio;
+  const k = 0.5523; // cubic Bézier approximation of a quarter ellipse
+  return doc
+    .moveTo(x + rx, y)
+    .lineTo(x + ancho - rx, y)
+    .bezierCurveTo(x + ancho - rx + rx * k, y, x + ancho, y + ry - ry * k, x + ancho, y + ry)
+    .lineTo(x + ancho, y + alto - ry)
+    .bezierCurveTo(x + ancho, y + alto - ry + ry * k, x + ancho - rx + rx * k, y + alto, x + ancho - rx, y + alto)
+    .lineTo(x + rx, y + alto)
+    .bezierCurveTo(x + rx - rx * k, y + alto, x, y + alto - ry + ry * k, x, y + alto - ry)
+    .lineTo(x, y + ry)
+    .bezierCurveTo(x, y + ry - ry * k, x + rx - rx * k, y, x + rx, y)
+    .closePath();
 }
 
 /** Classic telephone (☎) in a `t`-point square at (x, y). */
 function iconoTelefono(doc: Doc, x: number, y: number, t: number): void {
-  doc.save().translate(x, y).scale(t / 10);
+  doc.save().translate(x, y).scale((t / 10) * compX(doc), t / 10);
   // Handset over the body.
   doc.path("M0.3 3.2 C0.3 1.2 2.6 0.4 5 0.4 C7.4 0.4 9.7 1.2 9.7 3.2 L9.7 4 L7.2 4 L7.2 3 C6.5 2.6 3.5 2.6 2.8 3 L2.8 4 L0.3 4 Z").fill(VERDE_TELEFONO);
   doc.path("M3.2 3.6 L6.8 3.6 L9.2 8.2 C9.3 9.2 8.8 9.6 8 9.6 L2 9.6 C1.2 9.6 0.7 9.2 0.8 8.2 Z").fill(VERDE_TELEFONO);
@@ -127,7 +168,7 @@ function iconoTelefono(doc: Doc, x: number, y: number, t: number): void {
 
 /** WhatsApp bubble in a `t`-point square at (x, y). */
 function iconoWhatsapp(doc: Doc, x: number, y: number, t: number): void {
-  doc.save().translate(x, y).scale(t / 10);
+  doc.save().translate(x, y).scale((t / 10) * compX(doc), t / 10);
   doc.circle(5.2, 4.8, 4.6).fill(VERDE_WHATSAPP);
   doc.path("M0.6 9.8 L1.6 6.4 L3.6 8.6 Z").fill(VERDE_WHATSAPP);
   // Handset (Material "phone" glyph, 24-unit box) in white.
@@ -165,9 +206,14 @@ type DatosBanda = Pick<ContenidoEtiqueta, "directorTecnico" | "domicilio" | "tel
 
 function dibujarBanda(doc: Doc, c: DatosBanda, logo: LogoPdf | null): void {
   if (logo) {
-    const alto = Math.min(LOGO_ANCHO_MAX / logo.proporcion, LOGO_ALTO_MAX);
-    const ancho = alto * logo.proporcion;
-    doc.image(logo.imagen, 20.5, (BORDE + BANDA_Y - alto) / 2, { width: ancho, height: alto });
+    // Its width in design space is compensated for the stretch (it keeps its proportion on paper); a logo made
+    // narrower by the stretch stays centered where it would be without it.
+    const k = compX(doc);
+    const alto = Math.min(LOGO_ANCHO_MAX / (logo.proporcion * k), LOGO_ALTO_MAX);
+    const ancho = alto * logo.proporcion * k;
+    const anchoSinCompensar = Math.min(LOGO_ANCHO_MAX / logo.proporcion, LOGO_ALTO_MAX) * logo.proporcion;
+    const x = 20.5 + Math.max(0, (anchoSinCompensar - ancho) / 2);
+    doc.image(logo.imagen, x, (BORDE + BANDA_Y - alto) / 2, { width: ancho, height: alto });
   }
 
   const x = 124;
@@ -320,28 +366,41 @@ function dibujarPie(doc: Doc, c: ContenidoEtiqueta): void {
   texto(doc, c.medico, DW / 2, 105.5, 6.4, DW - 2 * (BORDE + 14), NEGRO, true);
 }
 
-/** Where the design lands on the page, in points: the origin of the (scaled) design space and its uniform scale. */
+/** Where the design lands on the page, in points: the origin of the design space (the cell's corner) and its scale on each axis. */
 export interface ColocacionEtiqueta {
   x: number;
   y: number;
-  escala: number;
+  escalaX: number;
+  escalaY: number;
 }
 
 /**
- * R4 + R6: the design is scaled uniformly and centered inside the cell (columna, fila) of the grid of `tamano` on `hoja`,
- * whose top-left corner is `posicionCelda` (exact in mm, the grid is anchored at the sheet's margin).
+ * R4 + R6: the design fills the cell (columna, fila) of the grid of `tamano` on `hoja` -- whose top-left corner is
+ * `posicionCelda` (exact in mm, the grid is anchored at the sheet's margin) -- stretched on each axis to the size the
+ * administrator configured (a 60 × 15 mm size prints 60 × 15 mm). Glyphs, icons and the logo keep their proportions
+ * (`compensacionX`); only the places of the fields spread.
  */
 export function colocarEtiqueta(tamano: TamanoEtiqueta, hoja: HojaEtiqueta, celda: Celda): ColocacionEtiqueta {
-  const ancho = tamano.anchoMm * PT_POR_MM;
-  const alto = tamano.altoMm * PT_POR_MM;
-  const escala = Math.min(ancho / DW, alto / DH);
   const { xMm, yMm } = posicionCelda(hoja, tamano, celda);
-  return { x: xMm * PT_POR_MM + (ancho - DW * escala) / 2, y: yMm * PT_POR_MM + (alto - DH * escala) / 2, escala };
+  return { x: xMm * PT_POR_MM, y: yMm * PT_POR_MM, escalaX: (tamano.anchoMm * PT_POR_MM) / DW, escalaY: (tamano.altoMm * PT_POR_MM) / DH };
+}
+
+/** Runs `dibujar` in the design space placed by `colocacion`, with the stretch's horizontal compensation on. */
+function enCelda(doc: Doc, colocacion: ColocacionEtiqueta, dibujar: () => void): void {
+  doc.save();
+  doc.translate(colocacion.x, colocacion.y).scale(colocacion.escalaX, colocacion.escalaY);
+  compensacionX.set(doc, colocacion.escalaY / colocacion.escalaX);
+  try {
+    dibujar();
+  } finally {
+    compensacionX.delete(doc);
+    doc.restore();
+  }
 }
 
 /** Frame and rules, shared by both etiquetas. */
 function dibujarMarco(doc: Doc): void {
-  doc.roundedRect(BORDE, BORDE, DW - 2 * BORDE, DH - 2 * BORDE, 12).lineWidth(1.1).strokeColor(NEGRO).stroke();
+  rectanguloRedondeado(doc, BORDE, BORDE, DW - 2 * BORDE, DH - 2 * BORDE, 12).lineWidth(1.1).strokeColor(NEGRO).stroke();
   regla(doc, BANDA_DIV_X, 8.6, BANDA_DIV_X, 37.8, 1);
   regla(doc, REGLA_MARGEN, BANDA_Y, DW - REGLA_MARGEN, BANDA_Y, 1.6);
   regla(doc, PANEL_DIV_X, 43.4, PANEL_DIV_X, 99.6, 1.2);
@@ -350,16 +409,13 @@ function dibujarMarco(doc: Doc): void {
 
 /** Draws one etiqueta on the current page, its design space placed by `colocacion`. */
 function dibujarEtiqueta(doc: PDFKit.PDFDocument, contenido: ContenidoEtiqueta, colocacion: ColocacionEtiqueta, logo: LogoPdf | null): void {
-  doc.save();
-  doc.translate(colocacion.x, colocacion.y).scale(colocacion.escala);
-
-  dibujarMarco(doc);
-  dibujarBanda(doc, contenido, logo);
-  dibujarRp(doc, contenido);
-  dibujarPanel(doc, contenido);
-  dibujarPie(doc, contenido);
-
-  doc.restore();
+  enCelda(doc, colocacion, () => {
+    dibujarMarco(doc);
+    dibujarBanda(doc, contenido, logo);
+    dibujarRp(doc, contenido);
+    dibujarPanel(doc, contenido);
+    dibujarPie(doc, contenido);
+  });
 }
 
 /** Renders the sheet (`hoja`, mm) as ONE page with the etiqueta of `tamano` (mm) drawn in the cell `celda` (1-based). The caller checks that the cell is in the grid (`celdaValida`). */
@@ -455,15 +511,13 @@ export function buildEtiquetaLotePdf(
   const pagina: [number, number] = [hoja.anchoMm * PT_POR_MM, hoja.altoMm * PT_POR_MM];
   const colocacion = colocarEtiqueta(tamano, hoja, celda);
   return renderPdf(
-    (doc) => {
-      doc.save();
-      doc.translate(colocacion.x, colocacion.y).scale(colocacion.escala);
-      dibujarMarco(doc);
-      dibujarBanda(doc, contenido, logo);
-      dibujarNombreLote(doc, contenido.nombre);
-      dibujarPanelLote(doc, contenido);
-      doc.restore();
-    },
+    (doc) =>
+      enCelda(doc, colocacion, () => {
+        dibujarMarco(doc);
+        dibujarBanda(doc, contenido, logo);
+        dibujarNombreLote(doc, contenido.nombre);
+        dibujarPanelLote(doc, contenido);
+      }),
     { size: pagina, margin: 0 },
   );
 }
