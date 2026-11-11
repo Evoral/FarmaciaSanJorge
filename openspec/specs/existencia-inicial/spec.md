@@ -127,6 +127,25 @@ existing costo correction.
 - **THEN** the partida is created with costo 0
 - **AND** the tab counts it as "sin costo"
 
+### Requirement: R3b — Costo per the row's unidad
+
+The costo unitario of a row SHALL be the price of ONE unit of the row's own unidad (a kg for a row in kg, as on the
+invoice). Pasar a stock SHALL divide it by the `fsj.convertir` factor to the unidad base, rounded to 6 decimals like
+the invoice import, and store that as the partida's costo; costo conflicts (R15) compare these converted values. The
+vigente costo used for a row without costo is already per unidad base and is not converted.
+
+#### Scenario: Costo typed per kg for a droga measured in mg
+
+- **GIVEN** a droga whose unidad base is mg
+- **WHEN** a row of 2 kg with a costo unitario of $ 50.000 passes to stock
+- **THEN** the partida is created with 2.000.000 mg and a costo of $ 0,05 per mg
+
+#### Scenario: Same price typed in different units
+
+- **GIVEN** two rows of the same group, one of 1 kg at $ 50.000 and one of 500 g at $ 50
+- **WHEN** the group passes to stock
+- **THEN** the rows are not en conflicto and the partida's costo is $ 0,05 per mg
+
 ### Requirement: R4 — Proveedor nullable only for existencia inicial
 
 Proveedor SHALL be nullable **only** for `origen = EXISTENCIA_INICIAL` (check `proveedor_id IS NOT NULL OR origen =
@@ -556,7 +575,8 @@ a dialog SHALL show the rows, the resulting partidas, those without costo and th
 ### Requirement: R15 — Rows that cannot pass
 
 A group SHALL NOT pass while it is en conflicto: its rows, or the partida it would add to, differ in vencimiento, or in
-a potencia or costo the row states. A blank potencia or costo in a row is not a difference. A group whose droga, lote
+a potencia or costo the row states (the costo converted to the unidad base, R3). A blank potencia or costo in a row is
+not a difference. A group whose droga, lote
 and proveedor match a partida that is not of origen `EXISTENCIA_INICIAL` SHALL NOT pass.
 
 #### Scenario: Vencimiento differs from the partida
