@@ -122,6 +122,7 @@ await import("@/modules/stock/application/reanalizar-partida");
 await import("@/modules/stock/application/marcar-partida-vencida");
 await import("@/modules/stock/application/verificar-password-dt-partida");
 await import("@/modules/stock/application/cerrar-relevamiento-inicial");
+await import("@/modules/stock/application/pasar-grupo-a-stock");
 
 
 const { listRegisteredUseCasesForTests } = await import("@/shared/usecase");
@@ -202,14 +203,12 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
     },
   },
   {
-    name: "stock.partida.existencia_inicial",
+    // The existencia inicial alta: the planilla's "Pasar a stock" (it replaced
+    // the one-partida stock.partida.existencia_inicial command).
+    name: "stock.partida.pasar_grupo_a_stock",
     permiso: "stock.partida.ingresar",
     input: {
-      drogaId: DROGA_ID,
-      lote: "L1",
-      cantidadCompra: "5",
-      unidadCompraId: UNIDAD_ID,
-      costoUnitario: "10",
+      filaIds: [DROGA_ID],
     },
   },
   {
@@ -294,7 +293,7 @@ describe("FASE 5 (stock) authorization matrix -- DIRECTOR_TECNICO without a vige
 });
 
 describe("FASE 5 (stock) PIN requirement on cuenta de sector", () => {
-  it("stock.partida.ingresar (used by stock.partida.existencia_inicial) is PIN-configurable", () => {
+  it("stock.partida.ingresar (used by stock.partida.pasar_grupo_a_stock) is PIN-configurable", () => {
     expect(PERMISOS_CON_PIN_CONFIGURABLES).toContain("stock.partida.ingresar");
   });
 
