@@ -81,8 +81,13 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
     throw error;
   }
 
-  const [kardex, { catalogo }] = await Promise.all([kardexMovimientos({ partidaId: id, page, pageSize: KARDEX_PAGE_SIZE }), getCatalogoUnidades()]);
+  const [kardex, { catalogo, unidades }] = await Promise.all([kardexMovimientos({ partidaId: id, page, pageSize: KARDEX_PAGE_SIZE }), getCatalogoUnidades()]);
   const unidad = { id: partida.unidadBaseId, simbolo: partida.unidadBaseSimbolo };
+  // The costo correction can be typed per any vigente unit of the droga's magnitude (the price of a kg).
+  const magnitudBase = unidades.find((u) => u.id === partida.unidadBaseId)?.tipoMagnitud;
+  const unidadesCosto = unidades
+    .filter((u) => u.tipoMagnitud === magnitudBase && (u.vigente || u.id === partida.unidadBaseId))
+    .map((u) => ({ id: u.id, simbolo: u.simbolo, factorABase: u.factorABase }));
   // Saldo and cantidad inicial side by side: one unit for both (and for the part reserved by preparaciones, migration 0071).
   const [disponible, inicial, reservada] = formatCantidadesFila([partida.cantidadDisponible, partida.cantidadInicial, partida.cantidadReservada], unidad, catalogo);
   const puedeCorregirCosto = can(session, "stock.partida.costo.corregir");
@@ -498,7 +503,7 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
                 <h2 id="corregir-costo-heading">Corregir costo</h2>
               </div>
               <div className="panel-body">
-                <CorregirCostoForm partidaId={partida.id} costoUnitarioActual={partida.costoUnitario} />
+                <CorregirCostoForm partidaId={partida.id} costoUnitarioActual={partida.costoUnitario} unidadBaseId={partida.unidadBaseId} unidades={unidadesCosto} />
               </div>
             </section>
           ) : null}

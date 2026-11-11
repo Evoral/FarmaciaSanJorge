@@ -3,26 +3,21 @@
 /** `/partidas/[id]`'s "corregir costo" form (FASE 5 point 5.5, DT/ADM). The page provides the surrounding panel. */
 import { corregirCostoPartidaAction } from "./actions";
 import { SimpleForm } from "@/shared/ui/simple-form";
-import { NumeroInput } from "@/shared/ui/numero-input";
+import { CostoPorUnidadField, type UnidadCosto } from "./costo-por-unidad-field";
 
 export interface CorregirCostoFormProps {
   partidaId: string;
   costoUnitarioActual: string;
+  unidadBaseId: string;
+  /** Vigente units of the droga's magnitude. */
+  unidades: readonly UnidadCosto[];
 }
 
-export function CorregirCostoForm({ partidaId, costoUnitarioActual }: CorregirCostoFormProps) {
+export function CorregirCostoForm({ partidaId, costoUnitarioActual, unidadBaseId, unidades }: CorregirCostoFormProps) {
   return (
     <SimpleForm action={corregirCostoPartidaAction} submitLabel="Guardar corrección">
       <input type="hidden" name="id" value={partidaId} />
-      <div className="field">
-        <label htmlFor="costoUnitarioNuevo" className="field-label">
-          Costo unitario nuevo
-        </label>
-        <NumeroInput id="costoUnitarioNuevo" name="costoUnitarioNuevo" required aria-describedby="costoUnitarioNuevo-ayuda" className="input font-mono" />
-        <p id="costoUnitarioNuevo-ayuda" className="field-help">
-          Actual: <span className="font-mono">{costoUnitarioActual}</span>
-        </p>
-      </div>
+      <CostoPorUnidadField unidades={unidades} unidadBaseId={unidadBaseId} costoActual={costoUnitarioActual} />
       <div className="field">
         <label htmlFor="motivo" className="field-label">
           Motivo de la corrección

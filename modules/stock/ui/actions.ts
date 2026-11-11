@@ -130,6 +130,7 @@ export async function corregirCostoPartidaAction(_prevState: StockActionState, f
     await corregirCostoPartida({
       id: String(formData.get("id") ?? ""),
       costoUnitarioNuevo: String(formData.get("costoUnitarioNuevo") ?? ""),
+      unidadId: String(formData.get("unidadId") ?? "") || undefined,
       motivo: String(formData.get("motivo") ?? ""),
     });
     revalidatePath("/stock");

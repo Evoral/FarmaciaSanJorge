@@ -53,6 +53,7 @@ import {
 } from "./actions";
 import { IDLE_IMPORTAR_PLANILLA_EXCEL_STATE } from "./action-state";
 import { SimpleForm } from "@/shared/ui/simple-form";
+import { CostoPorUnidadField } from "./costo-por-unidad-field";
 import { CoFirmaDt } from "@/shared/ui/co-firma-dt";
 import { claveGrupo } from "../domain/existencia-inicial";
 import type {
@@ -1534,6 +1535,13 @@ function DialogCorregirPartidaContent({
     const compatibles = unidades.filter((u) => u.tipoMagnitud === droga.tipoMagnitud);
     return compatibles.length > 0 ? compatibles : unidades;
   }, [unidades, droga]);
+  const unidadesCosto = useMemo(
+    () =>
+      unidadesCompatibles
+        .filter((u) => u.factorABase)
+        .map((u) => ({ id: u.id, simbolo: u.simbolo ?? u.label, factorABase: u.factorABase! })),
+    [unidadesCompatibles],
+  );
 
   // Co-firma needed when controlled droga is lowered
   const esControlada = Boolean(partida.tipoControl && partida.tipoControl !== "NINGUNO");
@@ -1782,7 +1790,7 @@ function DialogCorregirPartidaContent({
         {tab === "costo" && puedeCorregirCosto ? (
           <div className="flex flex-col gap-4">
             <p className="text-xs text-zinc-500">
-              Corregir el costo unitario por unidad base. Actual: <span className="font-mono font-medium">${partida.costoUnitario}</span>
+              Corregí el costo unitario. Podés escribirlo por la unidad en que lo compraste (por ejemplo $ / kg): se guarda convertido a {partida.unidadSimbolo}.
             </p>
             <SimpleForm
               action={corregirCostoPartidaAction}
@@ -1795,18 +1803,11 @@ function DialogCorregirPartidaContent({
               className="flex flex-col gap-4"
             >
               <input type="hidden" name="id" value={partida.id} />
-              <div className="field">
-                <label htmlFor="correccion-costoUnitarioNuevo" className="field-label">
-                  Costo unitario nuevo
-                </label>
-                <NumeroInput
-                  id="correccion-costoUnitarioNuevo"
-                  name="costoUnitarioNuevo"
-                  defaultValue={partida.costoUnitario}
-                  required
-                  className="input font-mono"
-                />
-              </div>
+              <CostoPorUnidadField
+                unidades={unidadesCosto}
+                unidadBaseId={partida.unidadBaseId}
+                costoActual={partida.costoUnitario}
+              />
               <div className="field">
                 <label htmlFor="correccion-motivo-costo" className="field-label">
                   Motivo de la corrección
