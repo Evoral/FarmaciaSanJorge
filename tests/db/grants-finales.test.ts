@@ -88,8 +88,13 @@ const PROTEGIDAS_NO_LEGALES = [
   // table) -- mutable via the vigente_hasta "close" write, same shape as
   // designacion_director_tecnico's cese above.
   "regla_precio",
-  // Migration 0124 (superadmin): append-only platform audit, not a pharmacy legal record.
+  // Superadmin platform tables, not pharmacy legal records. 0124: plataforma_auditoria is append-only
+  // (forbid_update_delete), superadmin is forbid_delete. 0126: plataforma_cargo/plataforma_pago are
+  // forbid_delete and only "anular" may update them.
   "plataforma_auditoria",
+  "plataforma_cargo",
+  "plataforma_pago",
+  "superadmin",
   "unidad_medida",
   "usuario",
   "usuario_estado_historial",
