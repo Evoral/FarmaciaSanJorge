@@ -320,7 +320,8 @@ dos sentidos.
 | `gestion` | Administración y datos maestros: usuarios, roles, configuración, catálogos, precios, designación de DT. | ADMINISTRADOR siempre; otros roles según la configuración. |
 | `sistema` | `auth.activar` (titular de una credencial, sin sesión) y `tenants.*` (operador de plataforma). | Ningún rol, nunca. |
 
-Permisos `operativo`: `stock.partida.ingresar`, `stock.ajuste.registrar`, `stock.ajuste.autorizar`, `recetas.crear`,
+Permisos `operativo`: `stock.partida.ingresar`, `stock.ajuste.registrar`, `stock.ajuste.autorizar`, `stock.lote.elaborar`,
+`stock.relevamiento.editar`, `recetas.crear`,
 `recetas.editar`, `recetas.anular`, `fichas.generar`, `cotizaciones.calcular`, `preparaciones.iniciar`,
 `preparaciones.descartar`, `preparaciones.confirmar`, `etiquetas.generar`, `libro.anulacion.solicitar`,
 `libro.anulacion.autorizar`, `cierres.firmar`, `cierres.folio.corregir`, `libros.crear`,
@@ -329,6 +330,8 @@ Permisos `operativo`: `stock.partida.ingresar`, `stock.ajuste.registrar`, `stock
 
 Criterios de clasificación que vale la pena mencionar:
 
+- `stock.relevamiento.editar` es **operativo**: carga y quita filas de la planilla de existencia inicial, trabajo del
+  mostrador como `stock.partida.ingresar`; no es PIN-configurable porque una fila no mueve stock.
 - `stock.partida.costo.corregir` es **gestión**: corrige el costo (dinero) de una partida, no su cantidad, así que no hay
   movimiento de stock. Además el ADMINISTRADOR ya lo tenía.
 - `dt.designar` / `dt.cesar` son **gestión**: registran quién es el DT; no son actos del circuito.
