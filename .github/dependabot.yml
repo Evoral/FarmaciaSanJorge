@@ -1,0 +1,33 @@
+# Routine (non-urgent) version updates, once a month. Maintenance guide:
+# docs/dependencies.md.
+#
+# Security updates are NOT scheduled here: they are enabled in repo
+# Settings -> Code security and open a PR as soon as an advisory matches,
+# including for majors ignored below (update-types only affects version updates).
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      time: "09:00"
+      timezone: "America/Argentina/Buenos_Aires"
+    open-pull-requests-limit: 5
+    groups:
+      # First match wins: DB packages get their own PR because CI does not run
+      # the DB tests; that PR needs `npm run test:db` locally before merging.
+      database:
+        patterns: ["prisma", "@prisma/*", "pg", "@types/pg"]
+        update-types: ["minor", "patch"]
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      # Majors (Next, Prisma, React...) break APIs: upgrade them by hand.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      time: "09:00"
+      timezone: "America/Argentina/Buenos_Aires"

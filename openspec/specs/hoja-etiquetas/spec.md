@@ -287,15 +287,22 @@ The size commands SHALL hold the sheet row `FOR SHARE` and the sheet edit holds 
 
 ### Requirement: R6 — PDF page is the sheet
 
-The PDF page SHALL be the sheet (`ancho_mm × alto_mm`, margin 0 in pdfkit). The etiqueta is drawn inside its cell
-exactly as today inside its page: the fixed 100 × 42 mm design scaled uniformly and centered in the cell. The rest
-of the sheet is blank. Still exactly one page.
+The PDF page SHALL be the sheet (`ancho_mm × alto_mm`, margin 0 in pdfkit). The etiqueta SHALL fill its whole cell:
+the fixed 100 × 42 mm design stretched on each axis to the configured size (`buildEtiquetaPdf`, `buildEtiquetasPdf`,
+`buildEtiquetaLotePdf`). Letters, icons and the logo keep their proportions; only the fields' places spread. The
+rest of the sheet is blank. Still exactly one page.
 
 #### Scenario: 60 × 40 size on A4
 
 - **GIVEN** the sheet 210 × 297 mm and a 60 × 40 mm size
 - **WHEN** an etiqueta is printed
-- **THEN** the PDF is one 210 × 297 mm page with the 100 × 42 design scaled uniformly and centered in the chosen cell, the rest blank
+- **THEN** the PDF is one 210 × 297 mm page with the etiqueta filling the chosen 60 × 40 mm cell, the rest blank
+
+#### Scenario: Long and thin size
+
+- **GIVEN** a 60 × 15 mm size
+- **WHEN** an etiqueta is printed
+- **THEN** the etiqueta measures 60 × 15 mm and its letters are not stretched
 
 ### Requirement: Orientation from the page size
 
@@ -632,7 +639,7 @@ migration 0066 (`fsj.etiqueta_tamano`, the configured label sizes).
 | R3 | `grillaHoja(hoja, tamano)` |
 | R4 | `posicionCelda` |
 | R5 | `crear/editar/reactivar-etiqueta-tamano.ts`, `editar-etiqueta-hoja.ts` |
-| R6 | `buildEtiquetaPdf` |
+| R6 | `buildEtiquetaPdf`, `buildEtiquetasPdf`, `buildEtiquetaLotePdf`, `colocarEtiqueta` (stretch to the cell), `compensacionX` (`etiqueta-pdf.ts`) |
 | R7 | `app/api/preparaciones/[id]/etiqueta/pdf/route.ts`, `imprimirEtiquetaPdf`, `hrefEtiquetaPdf` |
 | R8 | `modules/preparaciones/ui/` (new `PosicionEnHoja` component) |
 | R9 | same |

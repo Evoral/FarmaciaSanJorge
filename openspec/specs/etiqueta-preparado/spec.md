@@ -40,20 +40,27 @@ domicilio and the two phones (☎ fijo, WhatsApp celular).
 ### Requirement: R1 — Layout: Rp/, the right column and the footer
 
 Below the R1 top band, the etiqueta SHALL show "Rp/" with the fórmula on the left; on the right the paciente,
-"Receta N:", "Dosis:", the quantity as a large green number with its forma / vía / fracción de dosis, "Vence:" and
+"N° <número>", "Dosis:", the quantity as a large green number with its forma / vía / fracción de dosis, "Vence:" and
 the storage note in red; the médico in the footer.
 
 #### Scenario: Body of the etiqueta
 
 - **WHEN** the etiqueta is printed
 - **THEN** "Rp/" and the fórmula are on the left
-- **AND** the paciente, "Receta N:", "Dosis:", the quantity as a large green number with its forma / vía / fracción de dosis, "Vence:" and the storage note in red are on the right
+- **AND** the paciente, "N° <número>", "Dosis:", the quantity as a large green number with its forma / vía / fracción de dosis, "Vence:" and the storage note in red are on the right
 - **AND** the médico is in the footer
 
 ### Requirement: R2 — Fixed places
 
 Every field SHALL have a fixed place. A missing field leaves its place blank and never moves another one; a long
-text shrinks to fit its place (the dosis wraps up to 4 lines in its column).
+text shrinks to fit its place (the dosis wraps up to 4 lines in its column). Exception (2026-11-11): the forma / vía /
+fracción lines present are centered, as a block, on the large quantity's height.
+
+#### Scenario: Forma alone beside the quantity
+
+- **GIVEN** a solución with no vía nor fracción line
+- **WHEN** the etiqueta is printed
+- **THEN** "Solución" is centered on the height of the large quantity, not at the top of its place
 
 #### Scenario: Missing field
 
@@ -293,6 +300,30 @@ total loaded, keep the unit count. The snapshot line reads "Cantidad: 100 g — 
 - **WHEN** the etiqueta is printed
 - **THEN** the large quantity prints "30" with "Cápsulas"
 
+### Requirement: R12 — Rp/ fills its blank area
+
+The fórmula SHALL use the whole blank area left of the panel, with a minimal margin to the frame and the rules (user
+decision, 2026-11-11). With two columns (`columnasRp`), each column SHALL be as wide as its own widest line; the one
+font size SHALL shrink only as needed for the columns to fit the width and the rows to fit the height.
+
+#### Scenario: One long line among many drugs
+
+- **GIVEN** a fórmula in two columns where one line is much longer than the rest
+- **WHEN** the etiqueta is printed
+- **THEN** the column with the long line is wider than the other one
+- **AND** the font is larger than if both columns had half the width each
+
+#### Scenario: Minimal margin
+
+- **WHEN** the etiqueta is printed
+- **THEN** the fórmula starts just inside the frame and reaches just short of the panel's rule and the footer's rule
+
+#### Scenario: Short columns
+
+- **GIVEN** columns narrower than the area
+- **WHEN** the etiqueta is printed
+- **THEN** the font keeps its size for the number of rows and the width left over is shared equally among the columns
+
 ## Placement
 
 Placement on the printed page (the PDF is the sheet, the label goes in a chosen cell): `openspec/specs/hoja-etiquetas/spec.md`. This spec only governs what the label says and how it is laid out.
@@ -312,6 +343,7 @@ Placement on the printed page (the PDF is the sheet, the label goes in a chosen 
 | R9 | `formatearLineaRp` (`domain/etiqueta.ts`), `getPreparacionParaEtiqueta` |
 | R11 | `cantidadTotalEtiqueta`, `armarContenidoEtiqueta`, `formatearContenidoEtiqueta`, `parsearContenidoEtiqueta` (`domain/etiqueta.ts`), `getPreparacionParaEtiqueta`, `etiqueta-pdf.ts` (`dibujarPanel`) |
 | R10 | `modules/preparaciones/domain/etiqueta.ts` (`MARCA_EXCIPIENTE`, `lineasExcipientesRp`, `OpcionesEtiqueta`, `armarContenidoEtiqueta`), `modules/preparaciones/application/generar-etiqueta.ts`, `confirmar-reservas-receta.ts`, `modules/preparaciones/infrastructure/preparacion-repository.ts` (`getPreparacionParaEtiqueta`, `getIncluirExcipientesEnEtiqueta`), `modules/preparaciones/ui/reserva-acciones.tsx` (`EtiquetasDeReceta`), `imprimir-etiqueta-dialog.tsx`, `actions.ts` (`confirmarReservasRecetaAction`) |
+| R12 | `etiqueta-pdf.ts` (`AREA_RP`, `distribuirColumnasRp`, `dibujarRp`) |
 
 ## Rollback
 

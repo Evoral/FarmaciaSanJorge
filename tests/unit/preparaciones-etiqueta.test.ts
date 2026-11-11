@@ -28,7 +28,17 @@ import {
   VENCE_ETIQUETA,
 } from "@/modules/preparaciones/domain/etiqueta";
 import type { ComponenteEtiqueta, DatosEtiqueta } from "@/modules/preparaciones/domain/etiqueta";
-import { buildEtiquetaPdf, colocarEtiqueta, tamanoFuenteRp } from "@/modules/preparaciones/infrastructure/etiqueta-pdf";
+import {
+  AREA_RP,
+  bloqueFormaY,
+  buildEtiquetaLotePdf,
+  buildEtiquetaPdf,
+  buildEtiquetasPdf,
+  colocarEtiqueta,
+  distribuirColumnasRp,
+  tamanoFuenteRp,
+} from "@/modules/preparaciones/infrastructure/etiqueta-pdf";
+import { armarContenidoEtiquetaLote, type DatosEtiquetaLote } from "@/modules/stock/domain/etiqueta-lote";
 
 function componente(overrides: Partial<ComponenteEtiqueta>): ComponenteEtiqueta {
   return { drogaNombre: "Droga", cantidad: "1", unidadSimbolo: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: false, ...overrides };
@@ -142,6 +152,55 @@ describe("Rp/", () => {
     expect(tamanoFuenteRp(1)).toBeGreaterThan(tamanoFuenteRp(2));
     expect(tamanoFuenteRp(6)).toBeGreaterThan(tamanoFuenteRp(8));
     expect(tamanoFuenteRp(12)).toBeLessThan(tamanoFuenteRp(8));
+  });
+
+  describe("bloqueFormaY (R2 exception)", () => {
+    const capa = 7.8 * 0.718;
+    const centroDe = (lineas: number) => {
+      const { primeraY, paso } = bloqueFormaY(lineas);
+      return primeraY + ((lineas - 1) * paso + capa) / 2;
+    };
+
+    it("one, two or three forma lines share the same middle: the quantity's", () => {
+      const numero = 57.9 + (33 * 0.718) / 2;
+      expect(centroDe(1)).toBeCloseTo(numero, 5);
+      expect(centroDe(2)).toBeCloseTo(numero, 5);
+      expect(centroDe(3)).toBeCloseTo(numero, 5);
+    });
+
+    it("a lone forma line sits lower than the first of three", () => {
+      expect(bloqueFormaY(1).primeraY).toBeGreaterThan(bloqueFormaY(3).primeraY);
+    });
+  });
+
+  describe("distribuirColumnasRp (R12)", () => {
+    const anchoArea = AREA_RP.derecha - AREA_RP.x;
+
+    it("a long line in one column does not squeeze the other: each column is as wide as its widest line", () => {
+      const larga = anchoArea * 0.7;
+      const corta = anchoArea * 0.4;
+      const { tamano, xs } = distribuirColumnasRp([larga, corta], 7);
+      const escala = tamano / tamanoFuenteRp(7);
+      // Both columns side by side fill the width exactly (no leftover once the size shrank to fit).
+      expect(xs[1]! + corta * escala).toBeCloseTo(AREA_RP.derecha, 5);
+      // Larger than two equal halves would allow (the long line in half the width).
+      const mitad = anchoArea / 2;
+      expect(tamano).toBeGreaterThan((tamanoFuenteRp(7) * mitad) / larga);
+    });
+
+    it("starts at the area's left edge and keeps every row inside its height", () => {
+      const { tamano, xs, primeraY } = distribuirColumnasRp([anchoArea * 0.3, anchoArea * 0.3], 14);
+      expect(xs[0]).toBe(AREA_RP.x);
+      expect(primeraY).toBeGreaterThanOrEqual(AREA_RP.arriba);
+      expect(primeraY + tamano * 1.08 * 14).toBeLessThanOrEqual(AREA_RP.abajo + 1e-9);
+    });
+
+    it("narrow columns keep the base size and share the leftover width", () => {
+      const angosta = anchoArea * 0.1;
+      const { tamano, xs } = distribuirColumnasRp([angosta, angosta], 7);
+      expect(tamano).toBe(tamanoFuenteRp(7));
+      expect(xs[1]!).toBeGreaterThan(AREA_RP.x + anchoArea / 2 - 1);
+    });
   });
 });
 
@@ -417,11 +476,43 @@ function contenido(pdf: Buffer): string {
   return textos.join("\n");
 }
 
-/** Where the page content moves its origin to draw the design: its first `q` + `1 0 0 1 x y cm`, then the uniform scale (pdfkit omits it when it is 1). */
-function colocacionEnElPdf(pdf: Buffer): { x: number; y: number; escala: number } {
-  const match = /\nq\n1 0 0 1 (-?[\d.]+) (-?[\d.]+) cm\n(?:([\d.]+) 0 0 [\d.]+ 0 0 cm\n)?/.exec(contenido(pdf));
+/** Where the page content moves its origin to draw the design: its first `q` + `1 0 0 1 x y cm`, then the scale on each axis (pdfkit omits it when it is 1). */
+function colocacionEnElPdf(pdf: Buffer): { x: number; y: number; escalaX: number; escalaY: number } {
+  const match = /\nq\n1 0 0 1 (-?[\d.]+) (-?[\d.]+) cm\n(?:([\d.]+) 0 0 ([\d.]+) 0 0 cm\n)?/.exec(contenido(pdf));
   if (!match) throw new Error("no translate found in the page content");
-  return { x: Number(match[1]), y: Number(match[2]), escala: match[3] === undefined ? 1 : Number(match[3]) };
+  return {
+    x: Number(match[1]),
+    y: Number(match[2]),
+    escalaX: match[3] === undefined ? 1 : Number(match[3]),
+    escalaY: match[4] === undefined ? 1 : Number(match[4]),
+  };
+}
+
+function colocacionesEnElPdf(pdf: Buffer): { x: number; y: number; escalaX: number; escalaY: number }[] {
+  const colocaciones: { x: number; y: number; escalaX: number; escalaY: number }[] = [];
+  const lineas = contenido(pdf).split("\n");
+  let depth = 0;
+  for (let i = 0; i < lineas.length; i++) {
+    const l = lineas[i]!.trim();
+    if (l === "q") {
+      if (depth === 0) {
+        const rest = lineas.slice(i + 1, i + 5).join("\n");
+        const m = /^1 0 0 1 (-?[\d.]+) (-?[\d.]+) cm(?:\r?\n([\d.]+) 0 0 ([\d.]+) 0 0 cm)?/.exec(rest);
+        if (m) {
+          colocaciones.push({
+            x: Number(m[1]),
+            y: Number(m[2]),
+            escalaX: m[3] === undefined ? 1 : Number(m[3]),
+            escalaY: m[4] === undefined ? 1 : Number(m[4]),
+          });
+        }
+      }
+      depth++;
+    } else if (l === "Q") {
+      depth = Math.max(0, depth - 1);
+    }
+  }
+  return colocaciones;
 }
 
 describe("buildEtiquetaPdf -- the page is the sheet (R6)", () => {
@@ -449,7 +540,8 @@ describe("buildEtiquetaPdf -- the page is the sheet (R6)", () => {
 describe("colocarEtiqueta / buildEtiquetaPdf -- the etiqueta lands in the chosen cell (R4, R6)", () => {
   it("the 100 x 42 mm size is the design itself: scale 1 at the cell's corner", () => {
     const colocacion = colocarEtiqueta(ESTANDAR, A4, { columna: 1, fila: 1 });
-    expect(colocacion.escala).toBeCloseTo(1, 9);
+    expect(colocacion.escalaX).toBeCloseTo(1, 9);
+    expect(colocacion.escalaY).toBeCloseTo(1, 9);
     expect(colocacion.x).toBeCloseTo(5 * PT_POR_MM, 6);
     expect(colocacion.y).toBeCloseTo(5 * PT_POR_MM, 6);
   });
@@ -461,27 +553,31 @@ describe("colocarEtiqueta / buildEtiquetaPdf -- the etiqueta lands in the chosen
     expect(otra.y - origen.y).toBeCloseTo(3 * 42 * PT_POR_MM, 6);
   });
 
-  it("a smaller size is scaled uniformly and centered inside its cell", () => {
-    const tamano = { anchoMm: 50, altoMm: 30 };
-    const colocacion = colocarEtiqueta(tamano, A4, { columna: 3, fila: 2 });
-    const esquina = posicionCelda(A4, tamano, { columna: 3, fila: 2 });
-    const escala = Math.min(50 / 100, 30 / 42);
-    expect(colocacion.escala).toBeCloseTo(escala, 9);
-    // 50 x 30 is limited by its width (50 / 100): the design is centered vertically in the cell.
+  it.each([
+    { anchoMm: 50, altoMm: 30 },
+    { anchoMm: 60, altoMm: 15 },
+  ])("a size with another proportion fills its whole cell: %j", (tamano) => {
+    const colocacion = colocarEtiqueta(tamano, A4, { columna: 1, fila: 2 });
+    const esquina = posicionCelda(A4, tamano, { columna: 1, fila: 2 });
     expect(colocacion.x).toBeCloseTo(esquina.xMm * PT_POR_MM, 6);
-    expect(colocacion.y).toBeCloseTo(esquina.yMm * PT_POR_MM + (30 * PT_POR_MM - 42 * PT_POR_MM * escala) / 2, 6);
+    expect(colocacion.y).toBeCloseTo(esquina.yMm * PT_POR_MM, 6);
+    // The 100 x 42 design, scaled, measures exactly the configured size.
+    expect(100 * colocacion.escalaX).toBeCloseTo(tamano.anchoMm, 9);
+    expect(42 * colocacion.escalaY).toBeCloseTo(tamano.altoMm, 9);
   });
 
   it.each([
     [{ columna: 1, fila: 1 }, ESTANDAR],
     [{ columna: 2, fila: 6 }, ESTANDAR],
     [{ columna: 3, fila: 2 }, { anchoMm: 50, altoMm: 30 }],
+    [{ columna: 2, fila: 5 }, { anchoMm: 60, altoMm: 15 }],
   ])("the rendered page content is translated to the cell %j of %j", async (celda, tamano) => {
     const esperada = colocarEtiqueta(tamano, A4, celda);
     const real = colocacionEnElPdf(await pdfEnHoja(tamano, celda));
     expect(real.x).toBeCloseTo(esperada.x, 4);
     expect(real.y).toBeCloseTo(esperada.y, 4);
-    expect(real.escala).toBeCloseTo(esperada.escala, 4);
+    expect(real.escalaX).toBeCloseTo(esperada.escalaX, 4);
+    expect(real.escalaY).toBeCloseTo(esperada.escalaY, 4);
   });
 
   it("defaults to column 1, row 1", async () => {
@@ -498,5 +594,91 @@ describe("hrefEtiquetaPdf", () => {
 
   it("encodes both ids", () => {
     expect(hrefEtiquetaPdf("a/b", "c&d", { columna: 1, fila: 1 })).toBe("/api/preparaciones/a%2Fb/etiqueta/pdf?tamano=c%26d&columna=1&fila=1");
+  });
+});
+
+describe("buildEtiquetaLotePdf -- fills its cell on the sheet", () => {
+  const DATOS_LOTE: DatosEtiquetaLote = {
+    nombre: "Clonazepam 1:100",
+    lote: "FSJ-DIL-0001",
+    aspecto: "Polvo blanco homogéneo",
+    elaboradoEl: "2026-11-01",
+    fechaVencimiento: "2027-05-01",
+    origenes: [{ drogaNombre: "Clonazepam", lote: "L123" }],
+    directorTecnico: { nombre: "María", apellido: "López", matricula: "3310" },
+    tenantDomicilio: "Av. San Martín 1234, Mendoza",
+    tenantTelefonoFijo: "(0263) 4428850",
+    tenantTelefonoCelular: null,
+  };
+
+  it("fills a 60 x 15 cell with non-uniform scale (escalaX !== escalaY)", async () => {
+    const tamano = { anchoMm: 60, altoMm: 15 };
+    const celda = { columna: 1, fila: 2 };
+    const pdf = await buildEtiquetaLotePdf(armarContenidoEtiquetaLote(DATOS_LOTE), tamano, A4, celda);
+    const colocacion = colocacionEnElPdf(pdf);
+    const esperada = colocarEtiqueta(tamano, A4, celda);
+    expect(colocacion.x).toBeCloseTo(esperada.x, 4);
+    expect(colocacion.y).toBeCloseTo(esperada.y, 4);
+    expect(colocacion.escalaX).toBeCloseTo(esperada.escalaX, 4);
+    expect(colocacion.escalaY).toBeCloseTo(esperada.escalaY, 4);
+    expect(colocacion.escalaX).not.toBeCloseTo(colocacion.escalaY, 2);
+  });
+});
+
+describe("buildEtiquetasPdf -- multiple sizes on one sheet", () => {
+  it("renders two labels with different proportions on one sheet without overlap", async () => {
+    const tamano1 = ESTANDAR;
+    const celda1 = { columna: 1, fila: 1 };
+    const tamano2 = { anchoMm: 60, altoMm: 15 };
+    const celda2 = { columna: 1, fila: 4 };
+
+    const contenido1 = armarContenidoEtiqueta(DATOS);
+    const contenido2 = armarContenidoEtiqueta({ ...DATOS, formaFarmaceutica: "SOLUCION", cantidadUnidades: 1 });
+
+    const pdf = await buildEtiquetasPdf(
+      [
+        { contenido: contenido1, tamano: tamano1, celda: celda1 },
+        { contenido: contenido2, tamano: tamano2, celda: celda2 },
+      ],
+      A4,
+    );
+
+    expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
+
+    const colocaciones = colocacionesEnElPdf(pdf);
+    expect(colocaciones).toHaveLength(2);
+
+    const esperada1 = colocarEtiqueta(tamano1, A4, celda1);
+    expect(colocaciones[0]!.x).toBeCloseTo(esperada1.x, 4);
+    expect(colocaciones[0]!.y).toBeCloseTo(esperada1.y, 4);
+    expect(colocaciones[0]!.escalaX).toBeCloseTo(esperada1.escalaX, 4);
+    expect(colocaciones[0]!.escalaY).toBeCloseTo(esperada1.escalaY, 4);
+
+    const esperada2 = colocarEtiqueta(tamano2, A4, celda2);
+    expect(colocaciones[1]!.x).toBeCloseTo(esperada2.x, 4);
+    expect(colocaciones[1]!.y).toBeCloseTo(esperada2.y, 4);
+    expect(colocaciones[1]!.escalaX).toBeCloseTo(esperada2.escalaX, 4);
+    expect(colocaciones[1]!.escalaY).toBeCloseTo(esperada2.escalaY, 4);
+    expect(colocaciones[1]!.escalaX).not.toBeCloseTo(colocaciones[1]!.escalaY, 2);
+  });
+});
+
+describe("receta number representation in PDF vs snapshot text", () => {
+  it("printed PDF stream contains 'N° <numero>' encoded in WinAnsi hex, not 'Receta N:', while formatearContenidoEtiqueta persists 'Receta N '", async () => {
+    const contenidoEtiqueta = armarContenidoEtiqueta(DATOS);
+    expect(contenidoEtiqueta.recetaNumero).toBe("1520");
+
+    const textoPersistido = formatearContenidoEtiqueta(contenidoEtiqueta);
+    expect(textoPersistido).toContain("Receta N 1520");
+    expect(textoPersistido).not.toContain("N° 1520");
+
+    const pdf = await buildEtiquetaPdf(contenidoEtiqueta, ESTANDAR, A4);
+    const stream = contenido(pdf);
+
+    // "N° 1520": N (0x4e), ° (0xb0 in WinAnsi), space (0x20), 1 (0x31), 5 (0x35), 2 (0x32), 0 (0x30)
+    expect(stream).toContain("<4eb02031353230>");
+
+    expect(stream).not.toContain("Receta N:");
+    expect(stream).not.toContain("526563657461204e3a");
   });
 });
