@@ -28,7 +28,17 @@ import {
   VENCE_ETIQUETA,
 } from "@/modules/preparaciones/domain/etiqueta";
 import type { ComponenteEtiqueta, DatosEtiqueta } from "@/modules/preparaciones/domain/etiqueta";
-import { AREA_RP, bloqueFormaY, buildEtiquetaPdf, colocarEtiqueta, distribuirColumnasRp, tamanoFuenteRp } from "@/modules/preparaciones/infrastructure/etiqueta-pdf";
+import {
+  AREA_RP,
+  bloqueFormaY,
+  buildEtiquetaLotePdf,
+  buildEtiquetaPdf,
+  buildEtiquetasPdf,
+  colocarEtiqueta,
+  distribuirColumnasRp,
+  tamanoFuenteRp,
+} from "@/modules/preparaciones/infrastructure/etiqueta-pdf";
+import { armarContenidoEtiquetaLote, type DatosEtiquetaLote } from "@/modules/stock/domain/etiqueta-lote";
 
 function componente(overrides: Partial<ComponenteEtiqueta>): ComponenteEtiqueta {
   return { drogaNombre: "Droga", cantidad: "1", unidadSimbolo: "mg", modoExpresion: "POR_DOSIS", esPrincipioActivo: false, ...overrides };
@@ -478,6 +488,33 @@ function colocacionEnElPdf(pdf: Buffer): { x: number; y: number; escalaX: number
   };
 }
 
+function colocacionesEnElPdf(pdf: Buffer): { x: number; y: number; escalaX: number; escalaY: number }[] {
+  const colocaciones: { x: number; y: number; escalaX: number; escalaY: number }[] = [];
+  const lineas = contenido(pdf).split("\n");
+  let depth = 0;
+  for (let i = 0; i < lineas.length; i++) {
+    const l = lineas[i]!.trim();
+    if (l === "q") {
+      if (depth === 0) {
+        const rest = lineas.slice(i + 1, i + 5).join("\n");
+        const m = /^1 0 0 1 (-?[\d.]+) (-?[\d.]+) cm(?:\r?\n([\d.]+) 0 0 ([\d.]+) 0 0 cm)?/.exec(rest);
+        if (m) {
+          colocaciones.push({
+            x: Number(m[1]),
+            y: Number(m[2]),
+            escalaX: m[3] === undefined ? 1 : Number(m[3]),
+            escalaY: m[4] === undefined ? 1 : Number(m[4]),
+          });
+        }
+      }
+      depth++;
+    } else if (l === "Q") {
+      depth = Math.max(0, depth - 1);
+    }
+  }
+  return colocaciones;
+}
+
 describe("buildEtiquetaPdf -- the page is the sheet (R6)", () => {
   it("is the A4 sheet (210 x 297 mm), not the label size", async () => {
     const box = mediaBox(await pdfEnHoja());
@@ -557,5 +594,91 @@ describe("hrefEtiquetaPdf", () => {
 
   it("encodes both ids", () => {
     expect(hrefEtiquetaPdf("a/b", "c&d", { columna: 1, fila: 1 })).toBe("/api/preparaciones/a%2Fb/etiqueta/pdf?tamano=c%26d&columna=1&fila=1");
+  });
+});
+
+describe("buildEtiquetaLotePdf -- fills its cell on the sheet", () => {
+  const DATOS_LOTE: DatosEtiquetaLote = {
+    nombre: "Clonazepam 1:100",
+    lote: "FSJ-DIL-0001",
+    aspecto: "Polvo blanco homogéneo",
+    elaboradoEl: "2026-11-01",
+    fechaVencimiento: "2027-05-01",
+    origenes: [{ drogaNombre: "Clonazepam", lote: "L123" }],
+    directorTecnico: { nombre: "María", apellido: "López", matricula: "3310" },
+    tenantDomicilio: "Av. San Martín 1234, Mendoza",
+    tenantTelefonoFijo: "(0263) 4428850",
+    tenantTelefonoCelular: null,
+  };
+
+  it("fills a 60 x 15 cell with non-uniform scale (escalaX !== escalaY)", async () => {
+    const tamano = { anchoMm: 60, altoMm: 15 };
+    const celda = { columna: 1, fila: 2 };
+    const pdf = await buildEtiquetaLotePdf(armarContenidoEtiquetaLote(DATOS_LOTE), tamano, A4, celda);
+    const colocacion = colocacionEnElPdf(pdf);
+    const esperada = colocarEtiqueta(tamano, A4, celda);
+    expect(colocacion.x).toBeCloseTo(esperada.x, 4);
+    expect(colocacion.y).toBeCloseTo(esperada.y, 4);
+    expect(colocacion.escalaX).toBeCloseTo(esperada.escalaX, 4);
+    expect(colocacion.escalaY).toBeCloseTo(esperada.escalaY, 4);
+    expect(colocacion.escalaX).not.toBeCloseTo(colocacion.escalaY, 2);
+  });
+});
+
+describe("buildEtiquetasPdf -- multiple sizes on one sheet", () => {
+  it("renders two labels with different proportions on one sheet without overlap", async () => {
+    const tamano1 = ESTANDAR;
+    const celda1 = { columna: 1, fila: 1 };
+    const tamano2 = { anchoMm: 60, altoMm: 15 };
+    const celda2 = { columna: 1, fila: 4 };
+
+    const contenido1 = armarContenidoEtiqueta(DATOS);
+    const contenido2 = armarContenidoEtiqueta({ ...DATOS, formaFarmaceutica: "SOLUCION", cantidadUnidades: 1 });
+
+    const pdf = await buildEtiquetasPdf(
+      [
+        { contenido: contenido1, tamano: tamano1, celda: celda1 },
+        { contenido: contenido2, tamano: tamano2, celda: celda2 },
+      ],
+      A4,
+    );
+
+    expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
+
+    const colocaciones = colocacionesEnElPdf(pdf);
+    expect(colocaciones).toHaveLength(2);
+
+    const esperada1 = colocarEtiqueta(tamano1, A4, celda1);
+    expect(colocaciones[0]!.x).toBeCloseTo(esperada1.x, 4);
+    expect(colocaciones[0]!.y).toBeCloseTo(esperada1.y, 4);
+    expect(colocaciones[0]!.escalaX).toBeCloseTo(esperada1.escalaX, 4);
+    expect(colocaciones[0]!.escalaY).toBeCloseTo(esperada1.escalaY, 4);
+
+    const esperada2 = colocarEtiqueta(tamano2, A4, celda2);
+    expect(colocaciones[1]!.x).toBeCloseTo(esperada2.x, 4);
+    expect(colocaciones[1]!.y).toBeCloseTo(esperada2.y, 4);
+    expect(colocaciones[1]!.escalaX).toBeCloseTo(esperada2.escalaX, 4);
+    expect(colocaciones[1]!.escalaY).toBeCloseTo(esperada2.escalaY, 4);
+    expect(colocaciones[1]!.escalaX).not.toBeCloseTo(colocaciones[1]!.escalaY, 2);
+  });
+});
+
+describe("receta number representation in PDF vs snapshot text", () => {
+  it("printed PDF stream contains 'N° <numero>' encoded in WinAnsi hex, not 'Receta N:', while formatearContenidoEtiqueta persists 'Receta N '", async () => {
+    const contenidoEtiqueta = armarContenidoEtiqueta(DATOS);
+    expect(contenidoEtiqueta.recetaNumero).toBe("1520");
+
+    const textoPersistido = formatearContenidoEtiqueta(contenidoEtiqueta);
+    expect(textoPersistido).toContain("Receta N 1520");
+    expect(textoPersistido).not.toContain("N° 1520");
+
+    const pdf = await buildEtiquetaPdf(contenidoEtiqueta, ESTANDAR, A4);
+    const stream = contenido(pdf);
+
+    // "N° 1520": N (0x4e), ° (0xb0 in WinAnsi), space (0x20), 1 (0x31), 5 (0x35), 2 (0x32), 0 (0x30)
+    expect(stream).toContain("<4eb02031353230>");
+
+    expect(stream).not.toContain("Receta N:");
+    expect(stream).not.toContain("526563657461204e3a");
   });
 });
