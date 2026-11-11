@@ -10,6 +10,7 @@
  * This is the first gate, not the only one: every platform SQL function validates the token hash again.
  */
 import { cache } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { AuthenticationError } from "@/shared/errors";
 import { withPlatformTransaction } from "@/shared/db/transaction";
 import { getLogger } from "@/shared/logging/logger";
@@ -27,6 +28,9 @@ export const superAdminActual = cache(async function superAdminActual(): Promise
     const identidad = await withPlatformTransaction((tx) => validarSesionPlataforma(tx, tokenHash));
     return identidad ? { ...identidad, tokenHash } : null;
   } catch (error) {
+    // `cookies()` signals "this route is dynamic" by throwing during prerender; swallowing it makes
+    // `next build` prerender /plataforma and crash on the logger's env parse. Let Next's own errors through.
+    unstable_rethrow(error);
     getLogger().error({ err: error }, "plataforma: session validation failed, treated as no session");
     return null;
   }
