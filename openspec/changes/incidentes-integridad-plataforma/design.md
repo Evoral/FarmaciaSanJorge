@@ -112,6 +112,14 @@ CREATE TABLE fsj.libro_incidente_integridad (
 2. Apply the `.down.sql` as a new forward migration: `DROP FUNCTION fsj.plataforma_incidentes_integridad(...)`, `fsj.libro_incidente_registrar(...)`, `DROP TABLE fsj.libro_incidente_integridad` (policy, triggers, indexes go with it), `DROP FUNCTION fsj.libro_incidente_validar()`.
 3. What is lost: the incident history. Export it as owner first if it is needed.
 
+## Residual risks
+
+- **Stale verification can reopen a closed incident.** A slow verification that started before a re-anchor can register a quiebre after the incident was closed. It self-heals: the next cache miss verifies again and closes it.
+- **`fsj_app` can write the incident columns inside its own tenant.** INSERT/UPDATE of the non-identity columns is possible directly; RLS holds the tenant boundary. Accepted: the incident is never the source of truth for integrity (`fsj.verificar_cadena` is), and the banner does not read it.
+- **Badge lookup limit.** `INCIDENTES_LISTA_LIMITE` is 200 while the real maximum is 75 (25 rows per page x 3 open libros).
+- **Failed registration retries.** The wrapper drops the cached summary when the registration fails, so the next navigation verifies and registers again.
+- **Migration 0130.** `plataforma_incidentes_integridad` was declared `STABLE` in 0129 but calls the volatile `fsj.plataforma_actor`; 0130 re-declares it `VOLATILE` (0129 is applied, its checksum stays).
+
 ## Open questions
 
 - [ ] Spec P18 lists the returned fields as "only libro tipo, número, dates, count, estado". The function also returns `id` and `tenant_id`: identifiers needed for row keys and for grouping the badge, not tenant content. Align the spec wording.

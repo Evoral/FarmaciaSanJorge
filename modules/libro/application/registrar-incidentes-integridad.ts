@@ -8,6 +8,7 @@ import { z } from "zod";
 import { unstable_rethrow } from "next/navigation";
 import { defineCommand } from "@/shared/usecase";
 import { getLogger } from "@/shared/logging/logger";
+import { invalidarResumenIntegridad } from "./resumen-integridad";
 import type { VerificacionLibro } from "../domain/integridad";
 import { registrarVerificacionLibro } from "../infrastructure/incidente-integridad-repository";
 
@@ -64,7 +65,7 @@ function logSeguro(nivel: "error" | "warn", campos: Record<string, unknown>, men
 }
 
 /**
- * Fail-soft entry for the layout. Any failure becomes a `warn` and resolves; Next's control-flow errors (`cookies()`
+ * Fail-soft entry for the layout. Any failure becomes a `warn`, drops the cached summary (so the next navigation retries) and resolves; Next's control-flow errors (`cookies()`
  * during prerender, redirects) are rethrown first, as `requireSession()` inside the command reads cookies
  * (precedent: modules/auth/application/require-superadmin.ts). The `error` line is logged only after the commit, and
  * only for an incident that was just opened.
@@ -81,6 +82,8 @@ export async function registrarIncidentesIntegridad(verificacion: readonly Verif
     }
   } catch (error) {
     unstable_rethrow(error);
+    // The verification was cached before the registration ran: drop it so the next navigation verifies (and registers) again.
+    invalidarResumenIntegridad();
     logSeguro("warn", { err: error }, "Could not register libro integrity incidents");
   }
 }

@@ -45,6 +45,7 @@ export interface IncidenteIntegridad {
 /** Incidents shown in the detail section (P17). */
 export const INCIDENTES_DETALLE_LIMITE = 50;
 /** Upper bound for the list's open-incident lookup (the function clamps to 200). */
+// Real max is 75 (PAGINA_FARMACIAS 25 x 3 open libros): see design.md, Residual risks.
 export const INCIDENTES_LISTA_LIMITE = 200;
 
 export interface FarmaciaDetalle {

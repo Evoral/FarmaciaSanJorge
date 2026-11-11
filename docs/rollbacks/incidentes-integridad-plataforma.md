@@ -16,7 +16,10 @@ code + a new forward migration built from `prisma/rollbacks/0129_libro_incidente
 1. Deploy the reverted code **first** (the two commits below). The old code never calls
    `fsj.libro_incidente_registrar` nor `fsj.plataforma_incidentes_integridad`, so it runs fine against the 0129 schema.
 2. Export the incident history if it matters (see above).
-3. Copy `prisma/rollbacks/0129_libro_incidente_integridad.down.sql` into a NEW migration folder (next free number, a
+3. Revert **0130 first**: copy `prisma/rollbacks/0130_plataforma_incidentes_volatile.down.sql` (puts
+   `fsj.plataforma_incidentes_integridad` back to `STABLE`) into a NEW migration folder and apply it. It must run before
+   the 0129 down (which drops that function); once 0129 is reverted it is moot.
+   Then copy `prisma/rollbacks/0129_libro_incidente_integridad.down.sql` into a NEW migration folder (next free number, a
    timestamp later than every existing one) and apply it. Never edit or delete the applied 0129 migration. It drops
    both functions, the table (policy, triggers, indexes go with it) and `fsj.libro_incidente_validar()`.
    For the second database (`.env.prod`) use the exact command in `docs/deploy.md` §4.
@@ -34,17 +37,17 @@ it only logs a warning) and `/plataforma` would error on the missing function.
 
 ## New files (delete on rollback)
 
-- `modules/libro/application/registrar-incidentes-integridad.ts`
+- `modules/libro/application/registrar-incidentes-integridad.ts`, `modules/libro/application/cargar-aviso-integridad.ts`, `tests/unit/cargar-aviso-integridad.test.ts`
 - `modules/libro/infrastructure/incidente-integridad-repository.ts`
 - `modules/plataforma/ui/incidentes-integridad.tsx`
 - `tests/db/libro-incidente-integridad.test.ts`, `tests/unit/registrar-incidentes-integridad.test.ts`,
   `tests/unit/resumen-integridad.test.ts`
-- `prisma/rollbacks/0129_libro_incidente_integridad.down.sql` and this file (optional)
-- `prisma/migrations/20261111130000_0129_libro_incidente_integridad/` (keep it once applied)
+- `prisma/rollbacks/0129_libro_incidente_integridad.down.sql`, `prisma/rollbacks/0130_plataforma_incidentes_volatile.down.sql` and this file (optional)
+- `prisma/migrations/20261111130000_0129_libro_incidente_integridad/` and `prisma/migrations/20261111140000_0130_plataforma_incidentes_volatile/` (keep them once applied)
 
 ## Edited files (revert the incident hunks)
 
-- `app/(app)/layout.tsx`: back to `resumenIntegridad()` with no registration call.
+- `app/(app)/layout.tsx`: back to `resumenIntegridad()` with no registration call (drop `cargarAvisoIntegridad`).
 - `app/(plataforma)/plataforma/page.tsx`: the "Integridad" badge. `app/(plataforma)/plataforma/farmacias/[id]/page.tsx`:
   the `#integridad` section.
 - `modules/libro/application/resumen-integridad.ts`, `modules/libro/domain/integridad.ts`: `resumenIntegridadConVerificacion`

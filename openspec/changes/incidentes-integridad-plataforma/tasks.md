@@ -122,3 +122,11 @@ Depends on: A, B, C. Verification for the unit: `npm run specs:validate`, `npm r
 - Chained PRs recommended: Yes by the size rule, but the user commits straight to `master` with no PRs; the equivalent is the four ordered work-unit commits above, each CI-green.
 - Decision needed before apply: Yes (the Review Workload Guard fires on `ask-on-risk`): confirm that the four-unit commit sequence on `master` replaces chained PRs, or record a `size:exception`. `chain_strategy` is not applicable without PRs.
 - Suggested slice boundaries: A | B | C | D. Apply one unit per batch; A must land first; B before C so the data exists when the UI is checked manually.
+
+## Review fixes
+
+- [x] F.1 Migration 0130 (`plataforma_incidentes_integridad` VOLATILE) + down + DB test on `provolatile`.
+- [x] F.2 Registration failure invalidates the summary cache (unit tested).
+- [x] F.3 `cargarAvisoIntegridad` extracted from the layout and unit tested.
+- [x] F.4 Test title aligned with what it asserts.
+- [x] F.5 Residual risks in design.md; limit comment; rollback doc mentions 0130.

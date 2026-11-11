@@ -246,6 +246,17 @@ describe.skipIf(dbTestSkipReason() !== null)("0129 libro_incidente_integridad", 
       return e;
     }
 
+    it("is VOLATILE (0130): it calls fsj.plataforma_actor, which may UPDATE the session", async () => {
+      await asOwner((client) =>
+        inRollbackTx(client, async (tx) => {
+          const { rows } = await tx.query(
+            `SELECT provolatile FROM pg_proc WHERE oid = 'fsj.plataforma_incidentes_integridad(text,uuid[],boolean,integer)'::regprocedure`,
+          );
+          expect(rows[0].provolatile).toBe("v");
+        }),
+      );
+    });
+
     it("returns open first, only the eight listed columns, and filters solo_abiertos", async () => {
       await asOwner((client) =>
         inRollbackTx(client, async (tx) => {

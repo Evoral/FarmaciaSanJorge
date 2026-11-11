@@ -80,3 +80,10 @@ the new DB tests); the full `test:db` and the manual UI check at 375px / 1366px 
 - D.2: `modules/README.md`, `shared/audit/README.md`, `shared/auth/README.md` checked, nothing stale. Spec `## Code` links are updated at archive (E.1).
 - D.3: P18 in the plataforma delta already lists incident id and tenant id and matches the 8 columns of `fsj.plataforma_incidentes_integridad` in 0129. No change.
 - Validation: `openspec validate --strict` valid; `npm run specs:validate` 40/40.
+
+## Review fixes (done)
+
+From two fresh reviews: migration `20261111140000_0130_plataforma_incidentes_volatile` (applied with `npm run db:migrate`, only 0130 was pending);
+`registrarIncidentesIntegridad` calls `invalidarResumenIntegridad()` on failure; the layout's integrity block now lives in
+`modules/libro/application/cargar-aviso-integridad.ts` (new test `tests/unit/cargar-aviso-integridad.test.ts`); the command test title no
+longer claims an audit assertion (the registry does not expose `audit`); design.md has "Residual risks".

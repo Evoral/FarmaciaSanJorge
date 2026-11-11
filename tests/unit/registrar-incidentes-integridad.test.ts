@@ -42,6 +42,11 @@ vi.mock("@/modules/libro/infrastructure/incidente-integridad-repository", () => 
   registrarVerificacionLibro: (...args: unknown[]) => registrarVerificacionLibro(...args),
 }));
 
+const invalidarResumenIntegridad = vi.fn();
+vi.mock("@/modules/libro/application/resumen-integridad", () => ({
+  invalidarResumenIntegridad: () => invalidarResumenIntegridad(),
+}));
+
 const logger = { error: vi.fn(), warn: vi.fn() };
 const getLoggerMock = vi.fn(() => logger);
 vi.mock("@/shared/logging/logger", () => ({ getLogger: () => getLoggerMock() }));
@@ -55,6 +60,7 @@ beforeEach(() => {
   registrarVerificacionLibro.mockReset();
   logger.error.mockReset();
   logger.warn.mockReset();
+  invalidarResumenIntegridad.mockReset();
   getLoggerMock.mockReset();
   getLoggerMock.mockImplementation(() => logger);
   requireSessionMock.mockReset();
@@ -63,7 +69,7 @@ beforeEach(() => {
 });
 
 describe("libro.integridad.registrarIncidentes (command)", () => {
-  it("declares permiso libro.ver and an explicit audit skip with a reason", () => {
+  it("declares permiso libro.ver and registers as a command", () => {
     expect(registrarIncidentesIntegridadCommand.name).toBe("libro.integridad.registrarIncidentes");
     expect(registrarIncidentesIntegridadCommand.permiso).toBe("libro.ver");
     const entry = listRegisteredUseCasesForTests().find((e) => e.name === "libro.integridad.registrarIncidentes");
@@ -157,6 +163,33 @@ describe("registrarIncidentesIntegridad (fail-soft wrapper)", () => {
     expect(logger.error).not.toHaveBeenCalled();
   });
 
+  it("invalidates the summary cache when the registration fails, so the next navigation retries", async () => {
+    registrarVerificacionLibro.mockRejectedValue(new Error("db down"));
+
+    await registrarIncidentesIntegridad(verificacion);
+
+    expect(invalidarResumenIntegridad).toHaveBeenCalledTimes(1);
+  });
+
+  it("invalidates the cache even when the logger is unavailable", async () => {
+    registrarVerificacionLibro.mockRejectedValue(new Error("db down"));
+    getLoggerMock.mockImplementation(() => {
+      throw new Error("logger env not configured");
+    });
+
+    await registrarIncidentesIntegridad(verificacion);
+
+    expect(invalidarResumenIntegridad).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not invalidate the cache after a successful registration", async () => {
+    registrarVerificacionLibro.mockResolvedValue({ transicion: "SIN_CAMBIO", incidenteId: null });
+
+    await registrarIncidentesIntegridad(verificacion);
+
+    expect(invalidarResumenIntegridad).not.toHaveBeenCalled();
+  });
+
   it("rethrows a Next control-flow error (never swallows it)", async () => {
     let nextError: unknown;
     try {
@@ -168,6 +201,7 @@ describe("registrarIncidentesIntegridad (fail-soft wrapper)", () => {
 
     await expect(registrarIncidentesIntegridad(verificacion)).rejects.toBe(nextError);
     expect(logger.warn).not.toHaveBeenCalled();
+    expect(invalidarResumenIntegridad).not.toHaveBeenCalled();
   });
 
   it("does not propagate when the logger itself throws (getLogger throws)", async () => {
