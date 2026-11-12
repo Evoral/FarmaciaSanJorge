@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { verFarmacia } from "@/modules/plataforma/application/ver-farmacia";
 import { ACCION_PLATAFORMA_LABEL, ESTADO_FARMACIA_LABEL, MEDIO_PAGO_LABEL, ZONA_PLATAFORMA } from "@/modules/plataforma/domain/farmacia";
 import { ContactoForm } from "@/modules/plataforma/ui/contacto-form";
+import { IncidentesIntegridad } from "@/modules/plataforma/ui/incidentes-integridad";
 import { EstadoFarmaciaAcciones } from "@/modules/plataforma/ui/estado-farmacia-acciones";
 import { AnularMovimiento, CargoForm, PagoForm } from "@/modules/plataforma/ui/movimiento-forms";
 import { PageHeader } from "@/shared/ui/page-header";
@@ -34,7 +35,7 @@ export default async function FarmaciaPage({ params }: FarmaciaPageProps) {
 
   const detalle = await verFarmacia(id);
   if (!detalle) notFound();
-  const { farmacia, historial, cuenta } = detalle;
+  const { farmacia, historial, cuenta, incidentes } = detalle;
   const dadaDeBaja = farmacia.fechaBaja !== null;
   const saldoDeudor = dec(cuenta.saldo).greaterThan(0);
   const hoy = jornadaDe(new Date(), ZONA_PLATAFORMA);
@@ -62,6 +63,8 @@ export default async function FarmaciaPage({ params }: FarmaciaPageProps) {
 
       <div className="split-layout">
         <div className="flex min-w-0 flex-col gap-6">
+          <IncidentesIntegridad incidentes={incidentes} />
+
           <section className="panel" aria-labelledby="datos-heading">
             <div className="panel-header">
               <h2 id="datos-heading">Datos</h2>

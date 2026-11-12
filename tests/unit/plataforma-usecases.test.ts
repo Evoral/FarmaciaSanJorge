@@ -40,6 +40,10 @@ const repo = {
     return "p-1";
   }),
   anularMovimiento: vi.fn(async () => undefined),
+  incidentesIntegridad: vi.fn(async (...args: unknown[]): Promise<unknown[]> => {
+    void args;
+    return [];
+  }),
 };
 vi.mock("@/modules/plataforma/infrastructure/plataforma-repository", async () => {
   const actual = await vi.importActual<typeof import("@/modules/plataforma/infrastructure/plataforma-repository")>("@/modules/plataforma/infrastructure/plataforma-repository");
@@ -94,6 +98,79 @@ describe("platform use cases: requireSuperAdmin is the first gate", () => {
   it("every repository call gets the session's token hash", async () => {
     await listarFarmacias({ busqueda: "uno", pagina: 2 });
     expect(repo.listarFarmacias).toHaveBeenCalledWith({ __platform: true }, "hash-del-token", { busqueda: "uno", limit: 25, offset: 25 });
+  });
+});
+
+const FARMACIA_BASE = { nombreFantasia: null, cuit: "30-71234567-1", dadaDeBaja: false, saldo: "0.00" };
+function incidente(over: Record<string, unknown>) {
+  return {
+    id: "i-1",
+    tenantId: ID,
+    libroTipo: "RECETARIO",
+    primerQuiebreNumero: "120",
+    detectadoEn: new Date("2026-11-01T10:00:00Z"),
+    ultimaDeteccionEn: new Date("2026-11-02T10:00:00Z"),
+    detecciones: 3,
+    resueltoEn: null,
+    ...over,
+  };
+}
+
+describe("integrity incidents in the list (P8, P18)", () => {
+  const OTRO = "22222222-2222-4222-8222-222222222222";
+  const SUSPENDIDA = "33333333-3333-4333-8333-333333333333";
+
+  it("asks once for the open incidents of the page's pharmacies and maps the counts (0 when none)", async () => {
+    repo.listarFarmacias.mockResolvedValueOnce({
+      total: 3,
+      items: [
+        { ...FARMACIA_BASE, id: ID, razonSocial: "Uno", estado: "ACTIVO" },
+        { ...FARMACIA_BASE, id: OTRO, razonSocial: "Dos", estado: "ACTIVO" },
+        { ...FARMACIA_BASE, id: SUSPENDIDA, razonSocial: "Tres", estado: "SUSPENDIDO" },
+      ],
+    } as never);
+    repo.incidentesIntegridad.mockResolvedValueOnce([
+      incidente({ id: "i-1", tenantId: ID }),
+      incidente({ id: "i-2", tenantId: ID, libroTipo: "PSICOTROPICO" }),
+      incidente({ id: "i-3", tenantId: SUSPENDIDA }),
+    ]);
+
+    const result = await listarFarmacias({});
+
+    expect(repo.incidentesIntegridad).toHaveBeenCalledTimes(1);
+    expect(repo.incidentesIntegridad).toHaveBeenCalledWith({ __platform: true }, "hash-del-token", [ID, OTRO, SUSPENDIDA], true, expect.any(Number));
+    expect(result.items.map((f) => [f.id, f.incidentesAbiertos])).toEqual([
+      [ID, 2],
+      [OTRO, 0],
+      [SUSPENDIDA, 1],
+    ]);
+    expect(result.items[2]!.estado).toBe("SUSPENDIDO");
+  });
+
+  it("does not call the function when the page is empty", async () => {
+    await listarFarmacias({});
+    expect(repo.incidentesIntegridad).not.toHaveBeenCalled();
+  });
+});
+
+describe("integrity incidents in the detail (P17, P18)", () => {
+  const FARMACIA = { id: ID, razonSocial: "Uno" };
+
+  it("includes up to 50 incidents of the pharmacy, with the session's token hash", async () => {
+    repo.verFarmacia.mockResolvedValueOnce(FARMACIA as never);
+    const lista = [incidente({ id: "i-abierto" }), incidente({ id: "i-resuelto", resueltoEn: new Date("2026-11-03T10:00:00Z") })];
+    repo.incidentesIntegridad.mockResolvedValueOnce(lista);
+
+    const detalle = await verFarmacia(ID);
+
+    expect(repo.incidentesIntegridad).toHaveBeenCalledWith({ __platform: true }, "hash-del-token", [ID], false, 50);
+    expect(detalle?.incidentes).toEqual(lista);
+  });
+
+  it("an unknown tenant id is still not found and asks for no incidents", async () => {
+    repo.verFarmacia.mockResolvedValueOnce(null as never);
+    expect(await verFarmacia(ID)).toBeNull();
+    expect(repo.incidentesIntegridad).not.toHaveBeenCalled();
   });
 });
 

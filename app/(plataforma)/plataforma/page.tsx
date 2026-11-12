@@ -117,11 +117,18 @@ export default async function PlataformaPage({ searchParams }: PlataformaPagePro
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 font-mono">{farmacia.cuit}</td>
                       <td className="px-3 py-2.5">
-                        {farmacia.dadaDeBaja ? (
-                          <ToneBadge tone="neutral">Dada de baja</ToneBadge>
-                        ) : (
-                          <ToneBadge tone={farmacia.estado === "ACTIVO" ? "success" : "danger"}>{ESTADO_FARMACIA_LABEL[farmacia.estado]}</ToneBadge>
-                        )}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {farmacia.dadaDeBaja ? (
+                            <ToneBadge tone="neutral">Dada de baja</ToneBadge>
+                          ) : (
+                            <ToneBadge tone={farmacia.estado === "ACTIVO" ? "success" : "danger"}>{ESTADO_FARMACIA_LABEL[farmacia.estado]}</ToneBadge>
+                          )}
+                          {farmacia.incidentesAbiertos > 0 ? (
+                            <Link href={`/plataforma/farmacias/${farmacia.id}#integridad`} aria-label={`Ver incidentes de integridad de ${farmacia.razonSocial}`}>
+                              <ToneBadge tone="danger">Integridad</ToneBadge>
+                            </Link>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{formatearMonto(farmacia.saldo)}</td>
                       <td className="px-3 py-2.5 text-right">

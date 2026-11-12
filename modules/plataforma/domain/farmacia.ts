@@ -21,7 +21,32 @@ export interface FarmaciaListada {
   dadaDeBaja: boolean;
   /** Decimal as a string ("0.00"); positive = the pharmacy owes. */
   saldo: string;
+  /** Open integrity incidents of its libros (P8); 0 when none or all resolved. */
+  incidentesAbiertos: number;
 }
+
+/**
+ * One integrity incident of a libro as the platform sees it (P17/P18): identifiers, libro tipo, the broken asiento
+ * number, dates and counter. Never asiento content.
+ */
+export interface IncidenteIntegridad {
+  id: string;
+  tenantId: string;
+  libroTipo: string;
+  /** First broken asiento number (bigint as a string). */
+  primerQuiebreNumero: string;
+  detectadoEn: Date;
+  ultimaDeteccionEn: Date;
+  detecciones: number;
+  /** `null` while the incident is open. */
+  resueltoEn: Date | null;
+}
+
+/** Incidents shown in the detail section (P17). */
+export const INCIDENTES_DETALLE_LIMITE = 50;
+/** Upper bound for the list's open-incident lookup (the function clamps to 200). */
+// Real max is 75 (PAGINA_FARMACIAS 25 x 3 open libros): see design.md, Residual risks.
+export const INCIDENTES_LISTA_LIMITE = 200;
 
 export interface FarmaciaDetalle {
   id: string;

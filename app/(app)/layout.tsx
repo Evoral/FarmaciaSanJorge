@@ -21,7 +21,7 @@ import { resumenDestruccion } from "@/modules/archivo/application/resumen-destru
 import { resumenVencimientosDrogas } from "@/modules/stock/application/vencimientos-drogas";
 import { resumenBajoMinimo } from "@/modules/stock/application/alertas-stock";
 import { resumenRelevamiento } from "@/modules/stock/application/resumen-relevamiento";
-import { resumenIntegridad, type LibroQuebrado } from "@/modules/libro/application/resumen-integridad";
+import { cargarAvisoIntegridad } from "@/modules/libro/application/cargar-aviso-integridad";
 import { etiquetaLibro } from "@/modules/libro/domain/integridad";
 import { getMarcaTenant, type MarcaTenantVista } from "@/modules/farmacia/application/get-marca-tenant";
 import { getLogger } from "@/shared/logging/logger";
@@ -163,16 +163,9 @@ export default async function AppLayout({ children, modal }: { children: ReactNo
     can(session, "cierres.reporte") ||
     can(session, "reportes.auditoria");
 
-  // Broken hash chain of a libro: same fail-soft discipline, gated on the permiso the query enforces (`libro.ver`).
-  // The result is cached in memory (resumen-integridad.ts), so this is not a full chain walk per navigation.
-  let librosQuebrados: LibroQuebrado[] = [];
-  if (can(session, "libro.ver")) {
-    try {
-      librosQuebrados = await resumenIntegridad();
-    } catch (error) {
-      getLogger().error({ error }, "Failed to load libro integridad banner summary");
-    }
-  }
+  // Broken hash chain of a libro: fail-soft, gated on `libro.ver`; a real verification is also registered as incidents
+  // (modules/libro/application/cargar-aviso-integridad.ts).
+  const librosQuebrados = await cargarAvisoIntegridad(session);
 
   // The tenant's name and logo for the navbar (openspec/specs/logo-farmacia/spec.md). Fail-soft: without it the navbar shows
   // the generic logo and no farmacia name.
