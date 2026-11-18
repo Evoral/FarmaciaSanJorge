@@ -1,8 +1,8 @@
 /**
  * `listarCostosVigentes` -- the "Vigentes" tab of `/costos-proveedor`
  * (openspec/specs/costos-proveedor/spec.md, "Interface"): one vigente costo per
- * (droga, proveedor), by droga name then proveedor, filtered by proveedor
- * and/or droga, paginated. Gated on `stock.valorizado.ver` (R35: the permiso
+ * (droga, proveedor), by droga name then proveedor, filtered by proveedor,
+ * droga, fecha del precio, origen and "sin actualizar" (R39), paginated. Gated on `stock.valorizado.ver` (R35: the permiso
  * that gates money everywhere else).
  *
  * Also hands back what the screen needs and a client must not guess: the
@@ -16,7 +16,8 @@
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
 import { can } from "@/shared/auth/authorize";
-import { uuid } from "@/shared/validation";
+import { fechaIso, uuid } from "@/shared/validation";
+import { fechaLimiteDesactualizado } from "../domain/presentacion";
 import {
   getAlicuotaIvaPorDefecto,
   getContextoTemporal,
@@ -29,9 +30,19 @@ import type { CostoProveedorListItem } from "../infrastructure/costo-proveedor-r
 /** Rows per page of the "Vigentes" list. */
 export const PAGE_SIZE_COSTOS_VIGENTES = 20;
 
+/** Values of the origen filter (R39); the page parses its searchParam against this list. */
+export const ORIGENES_COSTO = ["todos", "manual", "lista"] as const;
+export type OrigenCostoFiltro = (typeof ORIGENES_COSTO)[number];
+
 const listarCostosVigentesInput = z.object({
   proveedorId: uuid.optional(),
   drogaId: uuid.optional(),
+  /** R39: inclusive range on the fecha del precio. */
+  fechaDesde: fechaIso.optional(),
+  fechaHasta: fechaIso.optional(),
+  origen: z.enum(ORIGENES_COSTO).default("todos"),
+  /** R39: only the prices not updated in a year. */
+  soloDesactualizados: z.boolean().default(false),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(100).default(PAGE_SIZE_COSTOS_VIGENTES),
 });
@@ -41,6 +52,8 @@ export type ListarCostosVigentesInput = z.input<typeof listarCostosVigentesInput
 export interface CostosVigentesResultado {
   items: CostoProveedorListItem[];
   total: number;
+  /** R39: vigentes matching the other filters whose price was not updated in a year. */
+  totalDesactualizados: number;
   page: number;
   pageSize: number;
   /** `YYYY-MM-DD`: the pharmacy's today, to age each price. */
@@ -60,7 +73,11 @@ export const listarCostosVigentesQuery = defineQuery({
   input: listarCostosVigentesInput,
   handler: async ({ tx, session, input }): Promise<CostosVigentesResultado> => {
     const contexto = await getContextoTemporal(tx, session.tenantId);
-    const lista = await listCostosVigentes(tx, session.tenantId, input);
+    const lista = await listCostosVigentes(tx, session.tenantId, {
+      ...input,
+      origen: input.origen === "todos" ? undefined : input.origen,
+      limiteDesactualizado: fechaLimiteDesactualizado(contexto.jornadaActual),
+    });
     const droga = input.drogaId ? (await getDrogasParaCosto(tx, session.tenantId, [input.drogaId])).get(input.drogaId) : undefined;
     const proveedor = input.proveedorId ? await getProveedorParaCosto(tx, session.tenantId, input.proveedorId) : null;
     return {

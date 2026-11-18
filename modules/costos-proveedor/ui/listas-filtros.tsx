@@ -6,23 +6,29 @@
  * (`proveedor`: an opaque uuid, no personal data) and drops `page`. Same source as the "Vigentes" filter
  * (`buscarProveedoresCatalogoAction`, which also lists the ones "(baja)": their lists stay consultable).
  *
+ * R39 adds the fecha de la lista range (`desde`, `hasta`), plain GET fields of the same form.
+ *
  * The page re-keys this component with the filter in force, so a link that changes the URL from outside
  * ("Limpiar") never leaves a stale selection in the box.
  */
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Combobox, type ComboboxOption } from "@/shared/ui/combobox";
+import { DateRangeField } from "@/shared/ui/date-range-field";
 import { FilterForm } from "@/shared/ui/filter-form";
 import { buscarProveedoresCatalogoAction } from "@/modules/proveedores/ui/buscar-proveedores-catalogo-action";
 
 export interface ListasFiltrosProps {
   /** The proveedor filter in force, when it resolves to one of the tenant's proveedores. */
   proveedor: { id: string; razonSocial: string } | null;
+  /** `YYYY-MM-DD` or "" (R39). */
+  fechaDesde: string;
+  fechaHasta: string;
   /** The filter is in the URL: shows "Limpiar". */
   hayFiltros: boolean;
 }
 
-export function ListasFiltros({ proveedor, hayFiltros }: ListasFiltrosProps) {
+export function ListasFiltros({ proveedor, fechaDesde, fechaHasta, hayFiltros }: ListasFiltrosProps) {
   const [proveedorOpcion, setProveedorOpcion] = useState<ComboboxOption | null>(proveedor ? { value: proveedor.id, label: proveedor.razonSocial } : null);
 
   const buscarProveedores = useCallback(async (consulta: string): Promise<readonly ComboboxOption[]> => {
@@ -31,9 +37,9 @@ export function ListasFiltros({ proveedor, hayFiltros }: ListasFiltrosProps) {
   }, []);
 
   return (
-    <div className="filter-bar items-end">
+    <div className="filter-bar items-end @container">
       <FilterForm className="flex min-w-0 flex-1 flex-wrap items-end gap-3" aria-label="Filtros de listas importadas" hasActiveFilters={false}>
-        <div className="min-w-0 flex-1 md:w-72 md:flex-none">
+        <div className="min-w-0 flex-1 @3xl:w-72 @3xl:flex-none">
           <Combobox
             id="filtro-proveedor-listas"
             label="Proveedor"
@@ -45,6 +51,7 @@ export function ListasFiltros({ proveedor, hayFiltros }: ListasFiltrosProps) {
             onChange={setProveedorOpcion}
           />
         </div>
+        <DateRangeField id="filtro-fecha-lista" label="Fecha de la lista" desdeName="desde" hastaName="hasta" desdeDefault={fechaDesde} hastaDefault={fechaHasta} />
       </FilterForm>
       {hayFiltros ? (
         <Link href="/costos-proveedor/listas" scroll={false} className="btn btn-ghost btn-sm">

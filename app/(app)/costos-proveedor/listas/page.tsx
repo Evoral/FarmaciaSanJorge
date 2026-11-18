@@ -4,8 +4,8 @@
  * were read and how many became a new price, and who registered it and when. Lists are append-only: nothing is
  * edited or deleted here.
  *
- * `searchParams` is untrusted and ONLY ever reads `proveedor` (an opaque uuid, parsed with `uuid.safeParse`) and
- * `page` (a plain integer). Access is the layout's `stock.valorizado.ver` guard (R35); the "Importar lista" tab
+ * `searchParams` is untrusted and ONLY ever reads `proveedor` (an opaque uuid, parsed with `uuid.safeParse`),
+ * `desde` / `hasta` (the fecha de la lista, `fechaIso`, R39) and `page` (a plain integer). Access is the layout's `stock.valorizado.ver` guard (R35); the "Importar lista" tab
  * is shown with `costos.proveedor.gestionar`.
  */
 import Link from "next/link";
@@ -19,10 +19,10 @@ import { formatFechaHora, formatFechaIso } from "@/shared/format/fecha";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { PageHeader } from "@/shared/ui/page-header";
 import { Pagination } from "@/shared/ui/pagination";
-import { uuid } from "@/shared/validation";
+import { fechaIso, uuid } from "@/shared/validation";
 
 interface ListasPageProps {
-  searchParams: Promise<{ proveedor?: string | string[]; page?: string | string[] }>;
+  searchParams: Promise<{ proveedor?: string | string[]; desde?: string | string[]; hasta?: string | string[]; page?: string | string[] }>;
 }
 
 const numberFormat = new Intl.NumberFormat("es-AR");
@@ -32,6 +32,11 @@ function primerValor(valor: string | string[] | undefined): string | undefined {
   return Array.isArray(valor) ? valor[0] : valor;
 }
 
+function fechaValida(valor: string | string[] | undefined): string | undefined {
+  const parsed = fechaIso.safeParse(primerValor(valor));
+  return parsed.success ? parsed.data : undefined;
+}
+
 export default async function ListasImportadasPage({ searchParams }: ListasPageProps) {
   const session = await requireSession();
   const puedeGestionar = can(session, "costos.proveedor.gestionar");
@@ -39,16 +44,20 @@ export default async function ListasImportadasPage({ searchParams }: ListasPageP
   const query = await searchParams;
   const candidato = primerValor(query.proveedor);
   const proveedorId = candidato !== undefined && uuid.safeParse(candidato).success ? candidato : undefined;
+  const fechaDesde = fechaValida(query.desde);
+  const fechaHasta = fechaValida(query.hasta);
   // Clamped into the use case's accepted range (a huge digit string parses to Infinity).
   const parsedPage = Number.parseInt(primerValor(query.page) ?? "1", 10);
   const page = Number.isFinite(parsedPage) ? Math.min(PAGE_MAX, Math.max(1, parsedPage)) : 1;
 
-  const { items, total, zonaHoraria, proveedorFiltro } = await listarListasPrecio({ proveedorId, page, pageSize: PAGE_SIZE_LISTAS_PRECIO });
-  const hayFiltros = proveedorId !== undefined;
+  const { items, total, zonaHoraria, proveedorFiltro } = await listarListasPrecio({ proveedorId, fechaDesde, fechaHasta, page, pageSize: PAGE_SIZE_LISTAS_PRECIO });
+  const hayFiltros = proveedorId !== undefined || fechaDesde !== undefined || fechaHasta !== undefined;
 
   function pageHref(destino: number): string {
     const params = new URLSearchParams();
     if (proveedorId) params.set("proveedor", proveedorId);
+    if (fechaDesde) params.set("desde", fechaDesde);
+    if (fechaHasta) params.set("hasta", fechaHasta);
     params.set("page", String(destino));
     return `/costos-proveedor/listas?${params.toString()}`;
   }
@@ -64,7 +73,13 @@ export default async function ListasImportadasPage({ searchParams }: ListasPageP
       <CostosTabs activa="listas" puedeGestionar={puedeGestionar} />
 
       <section aria-label="Filtros" className="mb-4">
-        <ListasFiltros key={proveedorFiltro?.id ?? ""} proveedor={proveedorFiltro} hayFiltros={hayFiltros} />
+        <ListasFiltros
+          key={`${proveedorFiltro?.id ?? ""}|${fechaDesde ?? ""}|${fechaHasta ?? ""}`}
+          proveedor={proveedorFiltro}
+          fechaDesde={fechaDesde ?? ""}
+          fechaHasta={fechaHasta ?? ""}
+          hayFiltros={hayFiltros}
+        />
       </section>
 
       <div className="list-region">
