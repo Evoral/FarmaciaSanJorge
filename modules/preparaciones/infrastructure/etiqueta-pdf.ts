@@ -412,7 +412,8 @@ function dibujarEtiqueta(doc: PDFKit.PDFDocument, contenido: ContenidoEtiqueta, 
   enCelda(doc, colocacion, () => {
     if (colorFondo) {
       doc.save();
-      doc.rect(0, 0, DW, DH).fillColor(colorFondo).fill();
+      // Same rounded shape as the marco: a plain rect shows past its corners and outer edge.
+      rectanguloRedondeado(doc, BORDE, BORDE, DW - 2 * BORDE, DH - 2 * BORDE, 12).fillColor(colorFondo).fill();
       doc.restore();
     }
     dibujarMarco(doc);
