@@ -2042,6 +2042,10 @@ model EtiquetaHoja {
   margenMm  Decimal  @map("margen_mm") @db.Decimal(4, 1)
   /// 0117: the toma's "Incluir excipientes en la etiqueta" switch starts on (the user can still change it before printing).
   incluirExcipientes Boolean @default(false) @map("incluir_excipientes")
+  /// 0130: the set of formas farmacéuticas whose etiqueta prints with the red background.
+  formasFondoRojo FormaFarmaceutica[] @default([]) @map("formas_fondo_rojo")
+  /// 0130: the single red tone chosen for all red etiquetas.
+  tonoFondoRojo String @default("pastel") @map("tono_fondo_rojo")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("etiqueta_hoja")

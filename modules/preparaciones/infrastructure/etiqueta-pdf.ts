@@ -408,8 +408,13 @@ function dibujarMarco(doc: Doc): void {
 }
 
 /** Draws one etiqueta on the current page, its design space placed by `colocacion`. */
-function dibujarEtiqueta(doc: PDFKit.PDFDocument, contenido: ContenidoEtiqueta, colocacion: ColocacionEtiqueta, logo: LogoPdf | null): void {
+function dibujarEtiqueta(doc: PDFKit.PDFDocument, contenido: ContenidoEtiqueta, colocacion: ColocacionEtiqueta, logo: LogoPdf | null, colorFondo?: string | null): void {
   enCelda(doc, colocacion, () => {
+    if (colorFondo) {
+      doc.save();
+      doc.rect(0, 0, DW, DH).fillColor(colorFondo).fill();
+      doc.restore();
+    }
     dibujarMarco(doc);
     dibujarBanda(doc, contenido, logo);
     dibujarRp(doc, contenido);
@@ -425,8 +430,9 @@ export function buildEtiquetaPdf(
   hoja: HojaEtiqueta,
   celda: Celda = { columna: 1, fila: 1 },
   logo: LogoPdf | null = null,
+  colorFondo?: string | null,
 ): Promise<Buffer> {
-  return buildEtiquetasPdf([{ contenido, tamano, celda }], hoja, logo);
+  return buildEtiquetasPdf([{ contenido, tamano, celda, colorFondo }], hoja, logo);
 }
 
 /** One etiqueta of a multi-etiqueta print: what, at which size, in which cell. */
@@ -434,6 +440,7 @@ export interface EtiquetaEnHoja {
   contenido: ContenidoEtiqueta;
   tamano: TamanoEtiqueta;
   celda: Celda;
+  colorFondo?: string | null;
 }
 
 interface Rectangulo {
@@ -469,7 +476,7 @@ export function buildEtiquetasPdf(etiquetas: readonly EtiquetaEnHoja[], hoja: Ho
           ocupados = [];
         }
         ocupados.push(rectangulo);
-        dibujarEtiqueta(doc, etiqueta.contenido, colocarEtiqueta(etiqueta.tamano, hoja, etiqueta.celda), logo);
+        dibujarEtiqueta(doc, etiqueta.contenido, colocarEtiqueta(etiqueta.tamano, hoja, etiqueta.celda), logo, etiqueta.colorFondo);
       }
     },
     { size: pagina, margin: 0 },

@@ -32,13 +32,26 @@ export interface EtiquetaParaImprimirProps {
   /** `"secondary"` + `small` in table rows, `"primary"` on the preparación screen. */
   variant?: "primary" | "secondary";
   small?: boolean;
+  /** Optional hex background color for the etiqueta (migration 0130). */
+  colorFondo?: string | null;
 }
 
-export function EtiquetaParaImprimir({ preparacionId, generada, impresa = false, puedeGenerar, puedeImprimir, tamanos, hoja, variant = "secondary", small = true }: EtiquetaParaImprimirProps) {
+export function EtiquetaParaImprimir({ preparacionId, generada, impresa = false, puedeGenerar, puedeImprimir, tamanos, hoja, variant = "secondary", small = true, colorFondo }: EtiquetaParaImprimirProps) {
   const [recienGenerada, setRecienGenerada] = useState(false);
 
   if (generada) {
-    return puedeImprimir ? <ImprimirEtiquetaDialog preparacionId={preparacionId} tamanos={tamanos} hoja={hoja} variant={variant} small={small} abrirAlMontar={recienGenerada} reimprimir={impresa} /> : null;
+    return puedeImprimir ? (
+      <ImprimirEtiquetaDialog
+        preparacionId={preparacionId}
+        tamanos={tamanos}
+        hoja={hoja}
+        variant={variant}
+        small={small}
+        abrirAlMontar={recienGenerada}
+        reimprimir={impresa}
+        colorFondo={colorFondo}
+      />
+    ) : null;
   }
   if (!puedeGenerar) return null;
 

@@ -35,6 +35,8 @@ export interface PosicionEnHojaProps {
   etiqueta?: string;
   /** A smaller drawing, for rows of a list. */
   compacto?: boolean;
+  /** Optional hex background color for the chosen cell (0130, configurable red tone). */
+  colorFondo?: string | null;
 }
 
 /** Drawing width, by the sheet's orientation: portrait sheets are narrower than landscape ones. */
@@ -44,7 +46,7 @@ function anchoDelDibujo(hoja: HojaEtiqueta, compacto: boolean): string {
   return apaisada ? "20rem" : "14rem";
 }
 
-export function PosicionEnHoja({ hoja, tamano, celda, onChange, etiqueta = "Posición en la hoja", compacto = false }: PosicionEnHojaProps) {
+export function PosicionEnHoja({ hoja, tamano, celda, onChange, etiqueta = "Posición en la hoja", compacto = false, colorFondo }: PosicionEnHojaProps) {
   const grillaRef = useRef<HTMLDivElement>(null);
   const grilla = grillaHoja(hoja, tamano);
   const elegida = conservarCelda(grilla, celda);
@@ -94,6 +96,7 @@ export function PosicionEnHoja({ hoja, tamano, celda, onChange, etiqueta = "Posi
         >
           {celdas.map((c) => {
             const marcada = c.columna === elegida.columna && c.fila === elegida.fila;
+            const tieneFondo = marcada && !!colorFondo;
             return (
               <button
                 key={`${c.columna}-${c.fila}`}
@@ -104,9 +107,12 @@ export function PosicionEnHoja({ hoja, tamano, celda, onChange, etiqueta = "Posi
                 data-celda={`${c.columna}-${c.fila}`}
                 tabIndex={marcada ? 0 : -1}
                 onClick={() => elegir(c, false)}
+                style={tieneFondo ? { backgroundColor: colorFondo, borderColor: colorFondo } : undefined}
                 className={`min-h-0 min-w-0 border p-0 outline-offset-1 ${
                   marcada
-                    ? "border-primary bg-primary"
+                    ? tieneFondo
+                      ? "ring-2 ring-zinc-800/60 shadow-xs"
+                      : "border-primary bg-primary"
                     : "border-zinc-300 bg-white hover:bg-emerald-50 dark:border-zinc-600 dark:bg-zinc-950 dark:hover:bg-zinc-800"
                 }`}
               />

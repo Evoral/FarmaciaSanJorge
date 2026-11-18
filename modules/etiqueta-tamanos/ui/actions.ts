@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { crearEtiquetaTamano } from "@/modules/etiqueta-tamanos/application/crear-etiqueta-tamano";
 import { editarEtiquetaHoja } from "@/modules/etiqueta-tamanos/application/editar-etiqueta-hoja";
 import { editarIncluirExcipientes } from "@/modules/etiqueta-tamanos/application/editar-incluir-excipientes";
+import { editarFondoEtiqueta } from "@/modules/etiqueta-tamanos/application/editar-fondo-etiqueta";
 import { editarEtiquetaTamano } from "@/modules/etiqueta-tamanos/application/editar-etiqueta-tamano";
 import { darDeBajaEtiquetaTamano } from "@/modules/etiqueta-tamanos/application/dar-de-baja-etiqueta-tamano";
 import { reactivarEtiquetaTamano } from "@/modules/etiqueta-tamanos/application/reactivar-etiqueta-tamano";
@@ -69,6 +70,18 @@ export async function editarIncluirExcipientesAction(_prevState: EtiquetaTamanoA
     return { status: "success", message: incluirExcipientes ? "Los excipientes se incluyen por defecto." : "Los excipientes no se incluyen por defecto." };
   } catch (error) {
     return fromError(error, "No se pudo guardar la opción.");
+  }
+}
+
+export async function editarFondoEtiquetaAction(_prevState: EtiquetaTamanoActionState, formData: FormData): Promise<EtiquetaTamanoActionState> {
+  try {
+    const formasFondoRojo = formData.getAll("formasFondoRojo").map(String);
+    const tonoFondoRojo = String(formData.get("tonoFondoRojo") ?? "");
+    await editarFondoEtiqueta({ formasFondoRojo, tonoFondoRojo });
+    revalidatePath(LISTA_PATH);
+    return { status: "success", message: "Configuración de fondo rojo guardada." };
+  } catch (error) {
+    return fromError(error, "No se pudo guardar la configuración de fondo.");
   }
 }
 

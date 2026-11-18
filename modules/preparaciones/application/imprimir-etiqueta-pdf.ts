@@ -32,6 +32,8 @@
 import { getHojaParaImprimir } from "@/modules/etiqueta-tamanos/application/get-hoja-para-imprimir";
 import { getTamanoParaImprimir } from "@/modules/etiqueta-tamanos/application/get-tamano-para-imprimir";
 import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
+import { getFondoEtiquetaParaImprimir } from "@/modules/etiqueta-tamanos/application/get-fondo-etiqueta";
+import { colorFondoEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-fondo";
 import { celdaValida, entraEnHoja, grillaHoja } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import type { Celda, HojaEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import type { EtiquetaTamano } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
@@ -98,7 +100,16 @@ export async function imprimirEtiquetaPdf(preparacionId: string, opciones: Opcio
   const datos = await getEtiquetaParaImprimir(preparacionId);
   await marcarEtiquetaImpresa(datos.etiquetaId);
   const logo = logoParaPdf(await getLogoTenant());
-  const pdf = await buildEtiquetaPdf(parsearContenidoEtiqueta(datos.contenido) ?? armarContenidoEtiqueta(datos), tamano, hoja, celda, logo);
+  const fondo = await getFondoEtiquetaParaImprimir();
+  const colorFondo = colorFondoEtiqueta(datos.formaFarmaceutica, fondo);
+  const pdf = await buildEtiquetaPdf(
+    parsearContenidoEtiqueta(datos.contenido) ?? armarContenidoEtiqueta(datos),
+    tamano,
+    hoja,
+    celda,
+    logo,
+    colorFondo,
+  );
   return { preparacionId, pdf };
 }
 
@@ -119,18 +130,25 @@ const MAX_ETIQUETAS = 50;
 export async function imprimirEtiquetasPdf(pedidas: readonly EtiquetaPedida[]): Promise<Buffer> {
   if (pedidas.length === 0 || pedidas.length > MAX_ETIQUETAS) throw new ValidationError(SIN_ETIQUETAS_MESSAGE);
   const hoja = await getHojaParaImprimir();
+  const fondo = await getFondoEtiquetaParaImprimir();
 
   const etiquetas = [];
   for (const pedida of pedidas) {
     const { tamano, celda } = await resolverColocacion(hoja, pedida);
     const datos = await getEtiquetaParaImprimir(pedida.preparacionId);
-    etiquetas.push({ datos, tamano, celda });
+    const colorFondo = colorFondoEtiqueta(datos.formaFarmaceutica, fondo);
+    etiquetas.push({ datos, tamano, celda, colorFondo });
   }
   for (const { datos } of etiquetas) await marcarEtiquetaImpresa(datos.etiquetaId);
 
   const logo = logoParaPdf(await getLogoTenant());
   return buildEtiquetasPdf(
-    etiquetas.map(({ datos, tamano, celda }) => ({ contenido: parsearContenidoEtiqueta(datos.contenido) ?? armarContenidoEtiqueta(datos), tamano, celda })),
+    etiquetas.map(({ datos, tamano, celda, colorFondo }) => ({
+      contenido: parsearContenidoEtiqueta(datos.contenido) ?? armarContenidoEtiqueta(datos),
+      tamano,
+      celda,
+      colorFondo,
+    })),
     hoja,
     logo,
   );

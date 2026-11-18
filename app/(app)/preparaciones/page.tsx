@@ -63,6 +63,8 @@ import type { EstadoEtiqueta, FiltrosPreparaciones } from "@/modules/preparacion
 import { hrefImprimirEtiquetas, hrefToma, resumenItemsPendientes } from "@/modules/preparaciones/domain/toma";
 import { getHojaParaImprimir } from "@/modules/etiqueta-tamanos/application/get-hoja-para-imprimir";
 import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
+import { getFondoEtiquetaParaImprimir } from "@/modules/etiqueta-tamanos/application/get-fondo-etiqueta";
+import { colorFondoEtiqueta, type FondoEtiquetaConfig } from "@/modules/etiqueta-tamanos/domain/etiqueta-fondo";
 import { HOJA_PREDETERMINADA } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import type { HojaEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import type { EtiquetaTamano } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
@@ -154,7 +156,10 @@ export default async function PreparacionesPage({ searchParams }: PreparacionesP
   const esConfirmadas = filtros.estado === "CONFIRMADA";
   // The sizes and the sheet of the "Seleccionar tamaño y posición" dialog are read ONCE for the whole table (only when someone can print).
   const puedeImprimirEtiqueta = can(session, "etiquetas.imprimir");
-  const [tamanos, hoja]: [readonly EtiquetaTamano[], HojaEtiqueta] = esConfirmadas && puedeImprimirEtiqueta ? await Promise.all([listTamanosParaImprimir(), getHojaParaImprimir()]) : [[], HOJA_PREDETERMINADA];
+  const [tamanos, hoja, fondoConfig] =
+    esConfirmadas && puedeImprimirEtiqueta
+      ? await Promise.all([listTamanosParaImprimir(), getHojaParaImprimir(), getFondoEtiquetaParaImprimir()])
+      : [[], HOJA_PREDETERMINADA, null];
   const etiquetaFechas = ETIQUETA_FECHAS[lista.pestana];
   const conIngreso = lista.pestana !== "PENDIENTE";
   const activeDrawerFilters = [
@@ -374,6 +379,7 @@ export default async function PreparacionesPage({ searchParams }: PreparacionesP
               puedeImprimirEtiqueta={puedeImprimirEtiqueta}
               tamanos={tamanos}
               hoja={hoja}
+              fondoConfig={fondoConfig}
             />
           )}
 
@@ -537,6 +543,7 @@ function TablaPreparaciones({
   puedeImprimirEtiqueta,
   tamanos,
   hoja,
+  fondoConfig,
 }: {
   result: ListPreparacionesOutput;
   esConfirmadas: boolean;
@@ -544,6 +551,7 @@ function TablaPreparaciones({
   puedeImprimirEtiqueta: boolean;
   tamanos: readonly EtiquetaTamano[];
   hoja: HojaEtiqueta;
+  fondoConfig: FondoEtiquetaConfig | null;
 }) {
   return (
     <div className="table-wrap">
@@ -616,6 +624,7 @@ function TablaPreparaciones({
                       puedeImprimirEtiqueta={puedeImprimirEtiqueta}
                       tamanos={tamanos}
                       hoja={hoja}
+                      fondoConfig={fondoConfig}
                     />
                   </div>
                 </td>
@@ -634,6 +643,7 @@ function AccionFila({
   puedeImprimirEtiqueta,
   tamanos,
   hoja,
+  fondoConfig,
   zonaHoraria,
 }: {
   preparacion: PreparacionListItem;
@@ -642,6 +652,7 @@ function AccionFila({
   puedeImprimirEtiqueta: boolean;
   tamanos: readonly EtiquetaTamano[];
   hoja: HojaEtiqueta;
+  fondoConfig: FondoEtiquetaConfig | null;
 }) {
   // Confirmadas lists only INICIADA preparaciones that hold a reserva (R26): marked as preparada, not printed yet.
   if (preparacion.estado === "INICIADA") {
@@ -679,6 +690,7 @@ function AccionFila({
     );
   }
   // One step: generates the etiqueta when missing, then opens the size dialog.
+  const colorFondo = colorFondoEtiqueta(preparacion.formaFarmaceutica, fondoConfig);
   return (
     <EtiquetaParaImprimir
       preparacionId={preparacion.id}
@@ -688,6 +700,7 @@ function AccionFila({
       puedeImprimir={puedeImprimirEtiqueta}
       tamanos={tamanos}
       hoja={hoja}
+      colorFondo={colorFondo}
     />
   );
 }

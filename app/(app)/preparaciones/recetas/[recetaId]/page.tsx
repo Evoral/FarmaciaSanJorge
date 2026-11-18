@@ -116,6 +116,8 @@ import { listDtParaPerdida } from "@/modules/preparaciones/application/list-dt-p
 import { getHojaParaImprimir } from "@/modules/etiqueta-tamanos/application/get-hoja-para-imprimir";
 import { listTamanosParaImprimir } from "@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir";
 import { getIncluirExcipientesParaGenerar } from "@/modules/etiqueta-tamanos/application/get-incluir-excipientes";
+import { getFondoEtiquetaParaImprimir } from "@/modules/etiqueta-tamanos/application/get-fondo-etiqueta";
+import { colorFondoEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-fondo";
 import { HOJA_PREDETERMINADA } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import { ItemDatos } from "@/modules/preparaciones/ui/item-datos";
 import { LineasFichaTabla } from "@/modules/preparaciones/ui/lineas-ficha-tabla";
@@ -202,11 +204,22 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
   const confirmados = estados.filter((estado) => estado === "CONFIRMADA").length;
   const puedeImprimirEtiquetas = can(session, "etiquetas.imprimir");
   // The "Seleccionar etiquetas" dialog's sizes and sheet: read only when an ítem may need them.
-  const [tamanos, hoja] = puedeImprimirEtiquetas && receta.items.some((item) => item.preparacion !== null) ? await Promise.all([listTamanosParaImprimir(), getHojaParaImprimir()]) : [[], HOJA_PREDETERMINADA];
+  const [tamanos, hoja, fondoConfig] =
+    puedeImprimirEtiquetas && receta.items.some((item) => item.preparacion !== null)
+      ? await Promise.all([listTamanosParaImprimir(), getHojaParaImprimir(), getFondoEtiquetaParaImprimir()])
+      : [[], HOJA_PREDETERMINADA, null];
   // Its rows: the confirmed ítems with their etiqueta, in ítem order; one no longer printable is listed with its reason (R22).
   const etiquetas = receta.items.flatMap((item, i) =>
     estados[i] === "CONFIRMADA" && item.preparacion?.etiquetaGenerada
-      ? [{ preparacionId: item.preparacion.id, numero: i + 1, nombre: nombreDeItem(item), noImprimible: item.preparacion.etiquetaNoImprimible }]
+      ? [
+          {
+            preparacionId: item.preparacion.id,
+            numero: i + 1,
+            nombre: nombreDeItem(item),
+            noImprimible: item.preparacion.etiquetaNoImprimible,
+            colorFondo: colorFondoEtiqueta(item.formaFarmaceutica, fondoConfig),
+          },
+        ]
       : [],
   );
   const puedeConfirmarEtiquetas = can(session, "preparaciones.confirmar") && can(session, "etiquetas.generar");
@@ -251,7 +264,16 @@ export default async function TomaRecetaPage({ params, searchParams }: TomaRecet
           hoja={hoja}
           etiquetas={etiquetas}
           aConfirmar={receta.items.flatMap((item, i) =>
-            estados[i] === "RESERVADA" && item.preparacion ? [{ preparacionId: item.preparacion.id, numero: i + 1, nombre: nombreDeItem(item) }] : [],
+            estados[i] === "RESERVADA" && item.preparacion
+              ? [
+                  {
+                    preparacionId: item.preparacion.id,
+                    numero: i + 1,
+                    nombre: nombreDeItem(item),
+                    colorFondo: colorFondoEtiqueta(item.formaFarmaceutica, fondoConfig),
+                  },
+                ]
+              : [],
           )}
           mesesVencimiento={receta.mesesVencimientoPreparado}
           abrirAlMontar={abrirImprimir}
