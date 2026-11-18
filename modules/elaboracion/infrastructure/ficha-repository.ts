@@ -109,6 +109,7 @@ export async function getComponentesParaFicha(tx: Prisma.TransactionClient, tena
       cantidad: true,
       modoExpresion: true,
       droga: { select: { nombre: true } },
+      drogaAlias: { select: { texto: true } },
       unidadMedida: { select: { id: true, tipoMagnitud: true, factorABase: true, simbolo: true } },
       unidadReferencia: { select: { id: true, tipoMagnitud: true, factorABase: true, simbolo: true } },
     },
@@ -116,7 +117,8 @@ export async function getComponentesParaFicha(tx: Prisma.TransactionClient, tena
 
   return rows.map((r) => ({
     drogaId: r.drogaId,
-    drogaNombre: r.droga.nombre,
+    // The ficha reads the name the receta was loaded with (synonym, migration 0069), like the etiqueta.
+    drogaNombre: r.drogaAlias?.texto ?? r.droga.nombre,
     cantidad: r.cantidad ? r.cantidad.toString() : null,
     unidadMedida: unidadRef(r.unidadMedida),
     modoExpresion: r.modoExpresion as ModoExpresion,
@@ -175,6 +177,13 @@ export async function getDrogasParaBorrador(
   if (ids.length === 0) return new Map();
   const rows = await tx.droga.findMany({ where: { tenantId, id: { in: [...new Set(ids)] } }, select: { id: true, nombre: true, fechaBaja: true } });
   return new Map(rows.map((r) => [r.id, { nombre: r.nombre, vigente: r.fechaBaja === null }]));
+}
+
+/** The synonym texts a draft's componentes were picked by (`droga_alias`, migration 0069), by id. */
+export async function getSinonimosParaBorrador(tx: Prisma.TransactionClient, tenantId: string, ids: readonly string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const rows = await tx.drogaAlias.findMany({ where: { tenantId, id: { in: [...new Set(ids)] } }, select: { id: true, texto: true } });
+  return new Map(rows.map((r) => [r.id, r.texto]));
 }
 
 /**

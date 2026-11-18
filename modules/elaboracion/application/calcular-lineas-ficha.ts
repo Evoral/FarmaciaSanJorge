@@ -15,7 +15,7 @@ import { calcularFichaTecnica, FichaTecnicaValidationError } from "../domain/cal
 import type { ComponenteInput, FormaFarmaceutica, ItemRecetaInput, LineaPesajeCalculada, ModoExpresion, TipoMagnitud, UnidadMedidaRef } from "../domain/calcular-ficha-tecnica";
 import { FichaNoGenerableError, esCodigoFichaNoGenerable } from "../domain/ficha-no-generable";
 import { mensajeParaCodigoValidacion } from "../domain/mensajes-validacion";
-import { getDrogasParaBorrador, getParametrosPesaje, getUnidadesBase, getUnidadesParaBorrador } from "../infrastructure/ficha-repository";
+import { getDrogasParaBorrador, getParametrosPesaje, getSinonimosParaBorrador, getUnidadesBase, getUnidadesParaBorrador } from "../infrastructure/ficha-repository";
 import type { UnidadBase } from "../infrastructure/ficha-repository";
 
 export interface LineaFichaCalculada extends LineaPesajeCalculada {
@@ -74,6 +74,8 @@ export interface ComponenteBorrador {
   modoExpresion: ModoExpresion;
   /** CONCENTRACION only (migration 0112): the denominator unit of "5 mg/mL"; null/omitted = %. */
   unidadReferenciaId?: string | null;
+  /** The synonym the receta componente was picked by: the ficha shows it, like the saved one does. */
+  drogaAliasId?: string | null;
 }
 
 export interface FormulaBorrador {
@@ -108,6 +110,11 @@ export async function resolverFormulaBorrador(
     tenantId,
     formula.componentes.map((c) => c.drogaId),
   );
+  const sinonimos = await getSinonimosParaBorrador(
+    tx,
+    tenantId,
+    formula.componentes.flatMap((c) => (c.drogaAliasId ? [c.drogaAliasId] : [])),
+  );
 
   const unidad = (id: string): UnidadMedidaRef => {
     const u = unidades.get(id);
@@ -120,7 +127,7 @@ export async function resolverFormulaBorrador(
     if (!droga || !droga.vigente) throw new FichaNoGenerableError("DATOS_INVALIDOS", MENSAJE_REFERENCIAS_INVALIDAS);
     return {
       drogaId: c.drogaId,
-      drogaNombre: droga.nombre,
+      drogaNombre: (c.drogaAliasId ? sinonimos.get(c.drogaAliasId) : undefined) ?? droga.nombre,
       cantidad: c.cantidad,
       unidadMedida: unidad(c.unidadMedidaId),
       modoExpresion: c.modoExpresion,
