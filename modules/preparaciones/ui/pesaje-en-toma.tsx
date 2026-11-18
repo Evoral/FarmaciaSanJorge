@@ -762,10 +762,36 @@ function CantidadExcipiente() {
   const simbolo = elegido.unidadSimbolo;
   const sinStock = aPesar ? faltanteDeStock(elegido.disponible, aPesar.total) !== null : false;
 
-  // One column with shared left/right edges (toggle, field, summary), so it reads the same on a desktop cell, a tablet
-  // or a phone: 15rem (a definite width, so the table cell does not squeeze it), never wider than its container.
+  // One column with shared left/right edges (field, toggle, summary), so it reads the same on a desktop cell, a tablet
+  // or a phone: 18rem (a definite width, so the table cell does not squeeze it), never wider than its container. The
+  // field comes first, its label beside it, so it lines up with the excipiente's buscador in the same row.
   return (
-    <div className="flex w-60 max-w-full flex-col gap-1.5 text-left md:ml-auto">
+    <div className="flex w-72 max-w-full flex-col gap-1.5 text-left md:ml-auto">
+      <div className="flex items-center gap-2">
+        <label htmlFor={id} className="shrink-0 whitespace-nowrap text-xs font-medium text-zinc-700">
+          {unidades ? `Peso de un${unidades.singular.endsWith("a") ? "a" : ""} ${unidades.singular}` : "Peso total del preparado"}
+        </label>
+        <div className="relative min-w-0 flex-1">
+          <NumeroInput
+            id={id}
+            value={excipiente.cantidad}
+            onValueChange={(valor) => excipiente.setCantidad(valor)}
+            onBlur={() => guardar(CLAVE_EXCIPIENTE)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                guardar(CLAVE_EXCIPIENTE);
+              }
+            }}
+            aria-label={`${unidades ? `Peso por ${unidades.singular}` : "Peso total del preparado"} (${simbolo}), ${elegido.nombre} c.s.p.`}
+            aria-invalid={faltaCantidad || sinStock || guardado?.estado === "error" ? true : undefined}
+            aria-describedby={`${id}-ayuda`}
+            title={AYUDA_NUMERO}
+            className="input input-sm w-full pr-9 text-right font-mono"
+          />
+          <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs text-zinc-500">{simbolo}</span>
+        </div>
+      </div>
       {excipiente.unidades !== null ? (
         <div role="group" aria-label="Cómo se carga el excipiente" className="grid grid-cols-2 overflow-hidden rounded-md border border-zinc-400 text-sm">
           {[
@@ -786,29 +812,6 @@ function CantidadExcipiente() {
           ))}
         </div>
       ) : null}
-      <label htmlFor={id} className="text-xs font-medium text-zinc-700">
-        {unidades ? `Peso de un${unidades.singular.endsWith("a") ? "a" : ""} ${unidades.singular}` : "Peso total del preparado"}
-      </label>
-      <div className="relative">
-        <NumeroInput
-          id={id}
-          value={excipiente.cantidad}
-          onValueChange={(valor) => excipiente.setCantidad(valor)}
-          onBlur={() => guardar(CLAVE_EXCIPIENTE)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              guardar(CLAVE_EXCIPIENTE);
-            }
-          }}
-          aria-label={`${unidades ? `Peso por ${unidades.singular}` : "Peso total del preparado"} (${simbolo}), ${elegido.nombre} c.s.p.`}
-          aria-invalid={faltaCantidad || sinStock || guardado?.estado === "error" ? true : undefined}
-          aria-describedby={`${id}-ayuda`}
-          title={AYUDA_NUMERO}
-          className="input h-8 w-full py-0 pr-9 text-right font-mono"
-        />
-        <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs text-zinc-500">{simbolo}</span>
-      </div>
       <div id={`${id}-ayuda`} className="text-xs text-zinc-500" aria-live="polite">
         {sinStock ? <TextoSinStock disponible={elegido.disponible} simbolo={simbolo} /> : null}
         {aPesar && aPesar.drogas !== null && aPesar.total.greaterThan(0) ? (
