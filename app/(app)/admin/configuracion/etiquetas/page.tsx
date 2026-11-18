@@ -58,6 +58,21 @@ export default async function EtiquetasPage({ searchParams }: EtiquetasPageProps
 
       <SectionTabs ariaLabel="Secciones de configuración" links={configuracionSections(session)} />
 
+      {/* Right under the header's "Nuevo tamaño" button, so the form is in view after clicking it. */}
+      {puedeEditar && params.nueva ? (
+        <section className="panel mb-6 max-w-3xl" aria-labelledby="nuevo-tamano-heading">
+          <div className="panel-header flex items-center justify-between gap-3">
+            <h2 id="nuevo-tamano-heading">Nuevo tamaño</h2>
+            <Link href={LISTA_HREF} className="btn btn-ghost btn-sm btn-icon" aria-label="Cerrar el alta de tamaño">
+              <X className="size-4" aria-hidden />
+            </Link>
+          </div>
+          <div className="panel-body">
+            <EtiquetaTamanoForm mode="crear" hoja={hoja} disabled={!puedeEditar} volverA={LISTA_HREF} />
+          </div>
+        </section>
+      ) : null}
+
       <section className="panel mb-6 max-w-3xl" aria-labelledby="hoja-heading">
         <div className="panel-header flex items-center justify-between gap-3">
           <h2 id="hoja-heading">Hoja de impresión</h2>
@@ -101,20 +116,6 @@ export default async function EtiquetasPage({ searchParams }: EtiquetasPageProps
           />
         </div>
       </section>
-
-      {puedeEditar && params.nueva ? (
-        <section className="panel mb-6 max-w-3xl" aria-labelledby="nuevo-tamano-heading">
-          <div className="panel-header flex items-center justify-between gap-3">
-            <h2 id="nuevo-tamano-heading">Nuevo tamaño</h2>
-            <Link href={LISTA_HREF} className="btn btn-ghost btn-sm btn-icon" aria-label="Cerrar el alta de tamaño">
-              <X className="size-4" aria-hidden />
-            </Link>
-          </div>
-          <div className="panel-body">
-            <EtiquetaTamanoForm mode="crear" hoja={hoja} disabled={!puedeEditar} volverA={LISTA_HREF} />
-          </div>
-        </section>
-      ) : null}
 
       <div className="list-panel">
         {tamanos.length === 0 ? (
