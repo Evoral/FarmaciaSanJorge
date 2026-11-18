@@ -780,7 +780,7 @@ export async function getCostosProveedorVigentesDeDrogas(tx: Prisma.TransactionC
 
 export interface ListSinCostoFilter {
   search?: string;
-  tipo: "droga" | "material" | "todos";
+  tipo: "droga" | "excipiente" | "material" | "todos";
   page: number;
   pageSize: number;
 }
@@ -799,8 +799,10 @@ export interface ListSinCostoResult {
   pageSize: number;
 }
 
+const CLASE_POR_TIPO = { droga: "DROGA", excipiente: "EXCIPIENTE", material: "MATERIAL" } as const;
+
 /**
- * The "Sin precio" tab: drogas and materiales of the tenant without a vigente costo de proveedor.
+ * The "Sin precio" tab: drogas, excipientes and materiales of the tenant without a vigente costo de proveedor.
  * Single query with NOT EXISTS against vigente costs, paginated and ordered by name.
  */
 export async function listSinCosto(
@@ -812,12 +814,7 @@ export async function listSinCosto(
   const skip = (filter.page - 1) * filter.pageSize;
   const pageSize = filter.pageSize;
 
-  const claseSql =
-    filter.tipo === "droga"
-      ? Prisma.sql`AND d.clase = 'DROGA'`
-      : filter.tipo === "material"
-        ? Prisma.sql`AND d.clase = 'MATERIAL'`
-        : Prisma.empty;
+  const claseSql = filter.tipo === "todos" ? Prisma.empty : Prisma.sql`AND d.clase = ${CLASE_POR_TIPO[filter.tipo]}::fsj.clase_droga`;
 
   const rows = await tx.$queryRaw<{
     id: string;

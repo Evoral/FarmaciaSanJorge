@@ -2,17 +2,18 @@
 
 /**
  * Filters of the "Sin precio" list: text search (nombre or sinónimo) and
- * tipo (todos, droga, material) inside an auto-applying `FilterForm`.
+ * tipo (todos, droga, excipiente, material) inside an auto-applying `FilterForm`.
  *
  * A search input debounces typing and never opens a record directly.
  * Responsive with container queries (@container).
  */
 import Link from "next/link";
 import { FilterForm } from "@/shared/ui/filter-form";
+import type { TipoItemSinCosto } from "../application/listar-sin-costo";
 
 export interface SinPrecioFiltrosProps {
   busqueda?: string;
-  tipo: "droga" | "material" | "todos";
+  tipo: TipoItemSinCosto;
   hayFiltros: boolean;
 }
 
@@ -40,6 +41,7 @@ export function SinPrecioFiltros({ busqueda, tipo, hayFiltros }: SinPrecioFiltro
           <select id="filtro-tipo" name="tipo" defaultValue={tipo} className="input w-full">
             <option value="todos">Todos los tipos</option>
             <option value="droga">Drogas</option>
+            <option value="excipiente">Excipientes</option>
             <option value="material">Materiales</option>
           </select>
         </div>

@@ -626,35 +626,41 @@ proveedor and droga as Combobox (UI rollout rule), pagination. "Agregar costo" b
 - **WHEN** the user picks a proveedor in its Combobox filter
 - **THEN** only that proveedor's vigentes are listed, paginated
 
-### Requirement: Sin precio tab
+### Requirement: R38 — Sin precio tab
 
-**Sin precio** (`/costos-proveedor/sin-precio`) SHALL list the drogas and materiales of the tenant without any
-vigente costo de proveedor (`vigente_hasta IS NULL`), excluding those dadas de baja. Gated on `stock.valorizado.ver`.
-Columns: nombre, tipo, unidad. Filterable by text and tipo (droga, material, todos), paginated and ordered by name.
-With `costos.proveedor.gestionar`, each row links to `/costos-proveedor/nuevo?droga=<id>`.
-Empty state: "Todos los ítems tienen precio."
+**Sin precio** (`/costos-proveedor/sin-precio`) SHALL list the drogas, excipientes and materiales of the tenant
+without any vigente costo de proveedor (`vigente_hasta IS NULL`), excluding those dadas de baja, gated on
+`stock.valorizado.ver`, filterable by text and tipo, paginated and ordered by name. With
+`costos.proveedor.gestionar`, each row links to `/costos-proveedor/nuevo?droga=<id>`.
 
 #### Scenario: Item without vigente cost is listed
 
-- **GIVEN** an active droga or material without a vigente costo de proveedor
+- **GIVEN** an active droga, excipiente or material without a vigente costo de proveedor
 - **WHEN** a user with `stock.valorizado.ver` consults the "Sin precio" section
-- **THEN** the item appears in the list with its name, tipo and unidad base
+- **THEN** the item appears in the list with its nombre, tipo and unidad base
 
 #### Scenario: Item with vigente cost is excluded
 
-- **GIVEN** a droga or material with a vigente costo de proveedor
+- **GIVEN** a droga, excipiente or material with a vigente costo de proveedor
 - **WHEN** the "Sin precio" list is retrieved
 - **THEN** the item is excluded from the list
+
+#### Scenario: Filtering by tipo
+
+- **GIVEN** the tipo filter offers todos, droga, excipiente and material
+- **WHEN** the user picks "Excipientes" in the tipo filter
+- **THEN** only excipientes without a vigente costo are listed
 
 #### Scenario: Linking to alta prefilled with gestionar permission
 
 - **GIVEN** a user with `costos.proveedor.gestionar`
-- **WHEN** the user views a row in "Sin precio"
-- **THEN** the row links to `/costos-proveedor/nuevo` with that item prefilled
+- **WHEN** the user opens "Agregar costo" from a row in "Sin precio"
+- **THEN** `/costos-proveedor/nuevo?droga=<id>` opens with that droga selected and no proveedor
+- **AND** the droga can still be changed, unlike the fixed pair of "Editar" (`?droga=&proveedor=`)
 
 #### Scenario: All items have price
 
-- **GIVEN** a tenant where every active droga and material has a vigente costo
+- **GIVEN** a tenant where every active droga, excipiente and material has a vigente costo
 - **WHEN** the "Sin precio" section is consulted without filters
 - **THEN** the empty state "Todos los ítems tienen precio." is displayed
 
@@ -801,7 +807,7 @@ Kept here because the new rules are defined against it.
 | R35 | Queries. |
 | R36 | `PERMISO_CATALOGO`, migration 0079, `tests/db/auth-permisos.test.ts`. |
 | R37 | — |
-| Sin precio tab | `costos-proveedor.listar-sin-costo` (`modules/costos-proveedor/application/listar-sin-costo.ts`) + UI `app/(app)/costos-proveedor/sin-precio/page.tsx`. |
+| R38 | `costos-proveedor.listar-sin-costo` (`modules/costos-proveedor/application/listar-sin-costo.ts`) + UI `app/(app)/costos-proveedor/sin-precio/page.tsx`. |
 
 ## Data model (migration 0079)
 

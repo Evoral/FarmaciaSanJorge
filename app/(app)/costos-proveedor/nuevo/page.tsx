@@ -4,6 +4,8 @@
  * "Editar" and "Cambiar el precio" open it with `?droga=&proveedor=` (opaque uuids): the pair is
  * fixed and the vigente costo prefills the form. The pair, not a costo id, identifies the entry:
  * saving replaces the vigente version, so an id would be stale right after.
+ * "Sin precio" (R38) opens it with `?droga=` alone: that droga comes selected (still editable) and
+ * the proveedor is picked in the form.
  *
  * Needs `costos.proveedor.gestionar` (R36) on top of the layout's `stock.valorizado.ver`; the
  * command checks it again. The pickers read the existing catalogs (`listDrogasOpciones`,
@@ -114,7 +116,8 @@ export default async function NuevoCostoPage({ searchParams }: NuevoCostoPagePro
             jornadaActual={contexto.jornadaActual}
             alicuotaIvaPorDefecto={contexto.alicuotaIvaPorDefecto}
             inicial={{
-              droga: parElegido ? { id: droga.id, nombre: droga.nombre } : null,
+              // A droga alone (from "Sin precio", R38) comes selected but not fixed: `parFijo` needs both.
+              droga: droga ? { id: droga.id, nombre: droga.nombre } : null,
               proveedor: parElegido ? { id: proveedor.id, razonSocial: proveedor.razonSocial } : null,
               vigente,
             }}

@@ -1,13 +1,13 @@
 /**
  * `/costos-proveedor/sin-precio` -- "Sin precio" (openspec/specs/costos-proveedor/spec.md R38):
- * lists drogas and materiales of the tenant without any vigente costo de proveedor.
+ * lists drogas, excipientes and materiales of the tenant without any vigente costo de proveedor.
  *
  * Gated on `stock.valorizado.ver` (layout guard).
  * When the user has `costos.proveedor.gestionar`, each row links to `/costos-proveedor/nuevo?droga=<id>`.
  */
 import Link from "next/link";
 import { CheckCircle2, Plus, SearchX } from "lucide-react";
-import { listarSinCosto, PAGE_SIZE_SIN_COSTO } from "@/modules/costos-proveedor/application/listar-sin-costo";
+import { listarSinCosto, PAGE_SIZE_SIN_COSTO, TIPOS_ITEM_SIN_COSTO, type TipoItemSinCosto } from "@/modules/costos-proveedor/application/listar-sin-costo";
 import { CostosTabs } from "@/modules/costos-proveedor/ui/costos-tabs";
 import { SinPrecioFiltros } from "@/modules/costos-proveedor/ui/sin-precio-filtros";
 import { CLASE_DROGA_LABELS, type ClaseDroga } from "@/modules/drogas/domain/droga";
@@ -31,7 +31,7 @@ export default async function CostosSinPrecioPage({ searchParams }: SinPrecioPag
   const query = await searchParams;
   const search = primerValor(query.q)?.trim() || undefined;
   const tipoParam = primerValor(query.tipo);
-  const tipo = tipoParam === "droga" || tipoParam === "material" ? tipoParam : "todos";
+  const tipo: TipoItemSinCosto = TIPOS_ITEM_SIN_COSTO.find((t) => t === tipoParam) ?? "todos";
 
   const parsedPage = Number.parseInt(primerValor(query.page) ?? "1", 10);
   const page = Number.isFinite(parsedPage) ? Math.min(PAGE_MAX, Math.max(1, parsedPage)) : 1;
@@ -53,7 +53,7 @@ export default async function CostosSinPrecioPage({ searchParams }: SinPrecioPag
       <PageHeader
         breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Costos de proveedores", href: "/costos-proveedor" }, { label: "Sin precio" }]}
         title="Costos de proveedores"
-        description="Drogas y materiales que no tienen ningún precio de referencia vigente cargado."
+        description="Drogas, excipientes y materiales que no tienen ningún precio de referencia vigente cargado."
         actions={
           puedeGestionar ? (
             <Link href="/costos-proveedor/nuevo" className="btn btn-primary">
@@ -96,7 +96,7 @@ export default async function CostosSinPrecioPage({ searchParams }: SinPrecioPag
               <EmptyState
                 icon={<CheckCircle2 className="size-5 text-emerald-600" />}
                 title="Todos los ítems tienen precio."
-                description="Todas las drogas y materiales del catálogo tienen al menos un costo de proveedor vigente."
+                description="Todas las drogas, excipientes y materiales del catálogo tienen al menos un costo de proveedor vigente."
               />
             )
           ) : items.length === 0 ? (

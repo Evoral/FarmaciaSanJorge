@@ -1,7 +1,7 @@
 /**
  * `listarSinCosto` -- the "Sin precio" tab of `/costos-proveedor`
- * (openspec/specs/costos-proveedor/spec.md R38): lists drogas and materiales
- * of the tenant without any vigente costo de proveedor.
+ * (openspec/specs/costos-proveedor/spec.md R38): lists drogas, excipientes and
+ * materiales of the tenant without any vigente costo de proveedor.
  *
  * Gated on `stock.valorizado.ver` (R35: the permiso that gates money everywhere else).
  * Hands back `puedeGestionar` (`costos.proveedor.gestionar`) so the UI knows whether
@@ -16,7 +16,10 @@ import type { ItemSinCosto } from "../infrastructure/costo-proveedor-repository"
 /** Rows per page of the "Sin precio" list. */
 export const PAGE_SIZE_SIN_COSTO = 20;
 
-const tipoItemSchema = z.enum(["droga", "material", "todos"]);
+/** Values of the tipo filter; the page parses its searchParam against this list. */
+export const TIPOS_ITEM_SIN_COSTO = ["todos", "droga", "excipiente", "material"] as const;
+
+const tipoItemSchema = z.enum(TIPOS_ITEM_SIN_COSTO);
 export type TipoItemSinCosto = z.infer<typeof tipoItemSchema>;
 
 const listarSinCostoInput = z.object({
