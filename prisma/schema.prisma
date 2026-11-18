@@ -1081,6 +1081,8 @@ model ComponenteItemReceta {
   drogaAliasId       String?       @map("droga_alias_id") @db.Uuid
   /// Migration 0112: CONCENTRACION only -- the denominator of a "per unit" concentration (mg/mL -> mL); NULL = %.
   unidadReferenciaId String?       @map("unidad_referencia_id") @db.Uuid
+  /// Migration 0129: 0-based load order within the item, written by the app; NULL = loaded before 0129 (old display rule).
+  posicion           Int?          @db.SmallInt
 
   itemReceta       ItemReceta    @relation(fields: [itemRecetaId], references: [id])
   droga            Droga         @relation(fields: [drogaId], references: [id])
@@ -1089,7 +1091,7 @@ model ComponenteItemReceta {
   drogaAlias       DrogaAlias?   @relation(fields: [drogaAliasId], references: [id])
 
   @@unique([tenantId, id])
-  /// Migration 0065: the componentes of an item (they have no order -- orden was dropped).
+  /// Migration 0065: the componentes of an item (orden was dropped; 0129 stores the load order as `posicion`).
   @@index([tenantId, itemRecetaId], map: "idx_componente_item_receta_tenant_item")
   @@index([tenantId, drogaAliasId], map: "idx_componente_item_receta_droga_alias")
   @@map("componente_item_receta")

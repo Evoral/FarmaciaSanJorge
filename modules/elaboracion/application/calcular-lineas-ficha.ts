@@ -122,7 +122,8 @@ export async function resolverFormulaBorrador(
     return u.ref;
   };
 
-  const componentes: ComponenteInput[] = formula.componentes.map((c) => {
+  // An unsaved draft's (or a fórmula's) componentes are in their form order: that is their posicion (0129).
+  const componentes: ComponenteInput[] = formula.componentes.map((c, posicion) => {
     const droga = drogas.get(c.drogaId);
     if (!droga || !droga.vigente) throw new FichaNoGenerableError("DATOS_INVALIDOS", MENSAJE_REFERENCIAS_INVALIDAS);
     return {
@@ -132,6 +133,7 @@ export async function resolverFormulaBorrador(
       unidadMedida: unidad(c.unidadMedidaId),
       modoExpresion: c.modoExpresion,
       unidadReferencia: c.unidadReferenciaId ? unidad(c.unidadReferenciaId) : null,
+      posicion,
     };
   });
 

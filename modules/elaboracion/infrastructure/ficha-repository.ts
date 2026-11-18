@@ -93,6 +93,8 @@ export interface ComponenteParaFicha {
   unidadMedida: UnidadMedidaRef;
   modoExpresion: ModoExpresion;
   unidadReferencia: UnidadMedidaRef | null;
+  /** 0-based load order (migration 0129); null = loaded before it. */
+  posicion: number | null;
 }
 
 /** The calculator's view of a unidad_medida row (símbolo included: a concentration line's text uses it). */
@@ -108,6 +110,7 @@ export async function getComponentesParaFicha(tx: Prisma.TransactionClient, tena
       drogaId: true,
       cantidad: true,
       modoExpresion: true,
+      posicion: true,
       droga: { select: { nombre: true } },
       drogaAlias: { select: { texto: true } },
       unidadMedida: { select: { id: true, tipoMagnitud: true, factorABase: true, simbolo: true } },
@@ -122,6 +125,7 @@ export async function getComponentesParaFicha(tx: Prisma.TransactionClient, tena
     cantidad: r.cantidad ? r.cantidad.toString() : null,
     unidadMedida: unidadRef(r.unidadMedida),
     modoExpresion: r.modoExpresion as ModoExpresion,
+    posicion: r.posicion,
     unidadReferencia: r.unidadReferencia ? unidadRef(r.unidadReferencia) : null,
   }));
 }

@@ -31,6 +31,8 @@ export interface ComponentePrescripto {
   unidadSimbolo: string;
   modoExpresion: ModoExpresion;
   esPrincipioActivo: boolean;
+  /** 0-based load order (migration 0129); null = loaded before it. */
+  posicion?: number | null;
 }
 
 export interface ItemPrescripto {

@@ -82,6 +82,8 @@ export interface ComponenteInput {
   modoExpresion: ModoExpresion;
   /** CONCENTRACION only (migration 0112): the denominator of a "per unit" concentration (mg/mL -> mL); null/omitted = %. */
   unidadReferencia?: UnidadMedidaRef | null;
+  /** 0-based load order (migration 0129, `ordenarComponentes`); null = loaded before it. */
+  posicion?: number | null;
 }
 
 export interface ParametrosPesaje {
@@ -97,7 +99,7 @@ export interface LineaPesajeCalculada {
   /** Always the BASE unit of the line's magnitude (spec: "unidad base de la magnitud"), never the unit the component was declared in. */
   unidadMedida: UnidadMedidaRef;
   esEnraseManual: boolean;
-  /** 0-based position among the item's lines -- the componentes in `ordenarComponentes` order (they carry no stored order of their own). */
+  /** 0-based position among the item's lines -- the componentes in `ordenarComponentes` order (their load order, 0129). */
   orden: number;
   /** A CONCENTRACION line's prescription and breakdown ("5 % × 30 mL", migration 0112); null/omitted for every other line. */
   prescripcion?: string | null;

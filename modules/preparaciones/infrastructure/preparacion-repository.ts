@@ -814,6 +814,7 @@ export async function getItemPrescriptoDePreparacion(tx: Prisma.TransactionClien
           cantidad: true,
           modoExpresion: true,
           esPrincipioActivo: true,
+          posicion: true,
           droga: { select: { nombre: true } },
           unidadMedida: { select: { simbolo: true } },
           unidadReferencia: { select: { simbolo: true } },
@@ -836,6 +837,7 @@ export async function getItemPrescriptoDePreparacion(tx: Prisma.TransactionClien
       unidadSimbolo: simboloParaMostrar(c.modoExpresion, c.unidadMedida.simbolo, c.unidadReferencia?.simbolo ?? null),
       modoExpresion: c.modoExpresion,
       esPrincipioActivo: c.esPrincipioActivo,
+      posicion: c.posicion,
     })),
     excipiente: prep.excipienteTexto,
     adicionales,
@@ -1042,6 +1044,7 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
                   cantidad: true,
                   modoExpresion: true,
                   esPrincipioActivo: true,
+                  posicion: true,
                   droga: { select: { nombre: true, tipoControl: true } },
                   drogaAlias: { select: { texto: true } },
                   unidadMedida: { select: { simbolo: true } },
@@ -1097,6 +1100,7 @@ export async function getPreparacionParaEtiqueta(tx: Prisma.TransactionClient, t
       modoExpresion: c.modoExpresion,
       esPrincipioActivo: c.esPrincipioActivo,
       esPsicotropico: c.droga.tipoControl === "PSICOTROPICO",
+      posicion: c.posicion,
     })),
     recetaNumeroInterno: item.receta.numeroInterno.toString(),
     medicoNombre: medico.nombre,
@@ -1680,6 +1684,8 @@ export interface ComponenteDePendiente {
   unidadMedidaSimbolo: string;
   modoExpresion: ModoExpresion;
   esPrincipioActivo: boolean;
+  /** 0-based load order (migration 0129); null = loaded before it. */
+  posicion: number | null;
 }
 
 /** One row of `listComponentesDePendientesSql`. */
@@ -1693,6 +1699,7 @@ export interface ListComponentesDePendientesRow {
   unidad_referencia_simbolo: string | null;
   modo_expresion: ModoExpresion;
   es_principio_activo: boolean;
+  posicion: number | null;
 }
 
 /**
@@ -1713,7 +1720,8 @@ export function listComponentesDePendientesSql(tenantId: string, itemIds: string
       um.simbolo AS unidad_medida_simbolo,
       ur.simbolo AS unidad_referencia_simbolo,
       c.modo_expresion::text AS modo_expresion,
-      c.es_principio_activo
+      c.es_principio_activo,
+      c.posicion
     FROM fsj.componente_item_receta c
     JOIN fsj.droga d ON d.tenant_id = c.tenant_id AND d.id = c.droga_id
     LEFT JOIN fsj.droga_alias da ON da.tenant_id = c.tenant_id AND da.id = c.droga_alias_id
@@ -1742,6 +1750,7 @@ export async function listComponentesDePendientes(
       unidadMedidaSimbolo: simboloParaMostrar(row.modo_expresion, row.unidad_medida_simbolo, row.unidad_referencia_simbolo),
       modoExpresion: row.modo_expresion,
       esPrincipioActivo: row.es_principio_activo,
+      posicion: row.posicion,
     });
     porItem.set(row.item_receta_id, componentes);
   }
@@ -2174,6 +2183,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
               cantidad: true,
               modoExpresion: true,
               esPrincipioActivo: true,
+              posicion: true,
               droga: { select: { nombre: true } },
               drogaAlias: { select: { texto: true } },
               unidadMedida: { select: { simbolo: true } },
@@ -2325,6 +2335,7 @@ export async function getRecetaDeToma(tx: Prisma.TransactionClient, tenantId: st
             unidadMedidaSimbolo: simboloParaMostrar(c.modoExpresion, c.unidadMedida.simbolo, c.unidadReferencia?.simbolo ?? null),
             modoExpresion: c.modoExpresion,
             esPrincipioActivo: c.esPrincipioActivo,
+            posicion: c.posicion,
           })),
         ),
         ficha: ficha ? fichaDeToma(ficha) : null,
