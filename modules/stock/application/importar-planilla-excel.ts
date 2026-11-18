@@ -15,6 +15,7 @@ import { listDrogasParaMatchingEnTx } from "@/modules/drogas/application/list-dr
 import { validarArchivoXlsx } from "@/shared/xlsx/validar-archivo-xlsx";
 import { leerLibroXlsx } from "@/shared/xlsx/leer-xlsx.server";
 import type { CeldaCruda } from "@/shared/xlsx/libro-hojas";
+import { fechaFinDeMes } from "@/shared/time/vencimiento-lote";
 import { MENSAJE_RELEVAMIENTO_CERRADO } from "../domain/existencia-inicial";
 import {
   lockTenantRelevamientoCompartido,
@@ -59,6 +60,16 @@ function parsearFechaExcel(celda: unknown): { ok: true; fechaIso: string; date: 
   if (typeof celda === "string" || typeof celda === "number") {
     const texto = String(celda).trim();
     if (!texto) return { ok: false };
+
+    // mm/aaaa (lots expire by month): the day is filled in by the caller (end of month).
+    const matchMy = /^(\d{1,2})[/.-](\d{4})$/.exec(texto);
+    if (matchMy) {
+      const m = parseInt(matchMy[1]!, 10);
+      const y = parseInt(matchMy[2]!, 10);
+      if (m < 1 || m > 12 || y < 1900 || y > 2100) return { ok: false };
+      const iso = `${y}-${String(m).padStart(2, "0")}-01`;
+      return { ok: true, fechaIso: iso, date: new Date(iso) };
+    }
 
     // dd/mm/aaaa or d/m/yyyy
     const matchDmy = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(texto);
@@ -258,13 +269,14 @@ export const importarPlanillaExcelCommand = defineCommand({
         if (textoVenc !== "") {
           const parsed = parsearFechaExcel(rawVenc);
           if (parsed.ok) {
-            fechaVencimiento = parsed.date;
+            // A lot's vencimiento has month precision: stored as that month's last day (shared/time/vencimiento-lote.ts).
+            fechaVencimiento = fechaFinDeMes(parsed.date);
           } else {
             noReconocidos.push({
               fila: filaExcel,
               columna: "Vencimiento",
               valor: textoVenc,
-              motivo: "Fecha no válida (usar dd/mm/aaaa)",
+              motivo: "Fecha no válida (usar mm/aaaa)",
             });
           }
         }

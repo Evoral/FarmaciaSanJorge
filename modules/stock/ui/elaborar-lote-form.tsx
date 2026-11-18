@@ -31,7 +31,7 @@ import { Combobox, type ComboboxOption } from "@/shared/ui/combobox";
 import { dec } from "@/shared/decimal";
 import { interpretarNumero, numeroParaInput } from "@/shared/decimal/numero-ingresado";
 import { formatNumero } from "@/shared/format/cantidad";
-import { formatFecha } from "@/shared/format/fecha";
+import { formatVencimientoLote } from "@/shared/format/fecha";
 import { escalarFormula } from "@/modules/drogas/domain/formula";
 import {
   MENSAJE_CONTRALOR_ELABORACION,
@@ -314,7 +314,7 @@ export function ElaborarLoteForm({ inicial, onElaborado, extraActions }: Elabora
             <div className="field">
               <span className="field-label">Vencimiento</span>
               <p className="py-1.5 text-[0.8125rem] font-semibold text-zinc-900">
-                {vencimiento ? formatFecha(new Date(`${vencimiento}T00:00:00Z`)) : "—"}
+                {vencimiento ? formatVencimientoLote(vencimiento) : "—"}
               </p>
               <p className="field-help">El de la droga activa que vence primero. Sigue sus reanálisis y se descarta con ella.</p>
             </div>
@@ -542,7 +542,7 @@ function GrupoDeLotes({
                     </span>
                   </td>
                   <td className="hidden whitespace-nowrap px-3 py-1.5 tabular-nums sm:table-cell">
-                    {p.fechaVencimiento ? formatFecha(new Date(`${p.fechaVencimiento}T00:00:00Z`)) : "No vence"}
+                    {p.fechaVencimiento ? formatVencimientoLote(p.fechaVencimiento) : "No vence"}
                   </td>
                   <td className="whitespace-nowrap px-3 py-1.5 text-right font-mono tabular-nums">
                     {textoEnFormulario(p.cantidadDisponible, p.unidadBaseSimbolo)}

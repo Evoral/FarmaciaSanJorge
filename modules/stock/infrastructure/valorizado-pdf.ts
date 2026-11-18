@@ -6,6 +6,7 @@
  */
 import { renderPdf } from "@/shared/pdf/pdf-document";
 import type { ValorizadoItem, ValorizadoSubtotal } from "./valorizado-repository";
+import { formatVencimientoLote } from "@/shared/format/fecha";
 
 const MARGIN = 40;
 const PAGE_HEIGHT = 842; // A4 in points
@@ -71,7 +72,7 @@ export function buildValorizadoPdf(items: ValorizadoItem[], options: ValorizadoP
 
       const y = doc.y;
       let x = x0;
-      const values = [item.drogaNombre, item.lote, item.fechaVencimiento ?? "No vence", `${item.cantidadDisponible} ${item.unidadSimbolo}`, item.costoUnitario, item.valor];
+      const values = [item.drogaNombre, item.lote, item.fechaVencimiento ? formatVencimientoLote(item.fechaVencimiento) : "No vence", `${item.cantidadDisponible} ${item.unidadSimbolo}`, item.costoUnitario, item.valor];
       for (let i = 0; i < COLS.length; i++) {
         doc.text(values[i], x, y, { width: COLS[i].width, height: ROW_HEIGHT, ellipsis: true, lineBreak: false });
         x += COLS[i].width;

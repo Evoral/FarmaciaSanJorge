@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError } from "@/shared/errors";
-import { fechaIso, uuid } from "@/shared/validation";
+import { fechaVencimientoLote, uuid } from "@/shared/validation";
 import { nonNegativeDecimalString, positiveDecimalString, potenciaDeclaradaString } from "../domain/partida";
 import { dec } from "@/shared/decimal";
 import { MENSAJE_RELEVAMIENTO_CERRADO } from "../domain/existencia-inicial";
@@ -20,7 +20,7 @@ const guardarFilaRelevamientoInput = z.object({
   id: uuid,
   drogaId: uuid.optional().nullable(),
   lote: z.string().trim().optional().nullable(),
-  fechaVencimiento: fechaIso.optional().nullable(),
+  fechaVencimiento: fechaVencimientoLote.optional().nullable(),
   cantidad: positiveDecimalString.optional().nullable(),
   unidadMedidaId: uuid.optional().nullable(),
   potenciaDeclarada: potenciaDeclaradaString.optional().nullable(),

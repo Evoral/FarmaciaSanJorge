@@ -39,7 +39,7 @@ import { markInvalidFields } from "@/shared/ui/field-errors";
 import { useOperador } from "@/shared/ui/operador";
 import { useFormSubmit } from "@/shared/ui/use-form-submit";
 import { CAMPO_OPERADOR_PIN } from "@/shared/auth/operador-campos";
-import { formatFechaIso } from "@/shared/format/fecha";
+import { formatVencimientoLote } from "@/shared/format/fecha";
 import { dec } from "@/shared/decimal";
 import {
   guardarFilaRelevamientoAction,
@@ -743,7 +743,7 @@ export function PlanillaExistenciaInicial({
                       {g.fechaVencimiento ? (
                         <>
                           <span>·</span>
-                          <span>Vto: {formatFechaIso(g.fechaVencimiento)}</span>
+                          <span>Vto: {formatVencimientoLote(g.fechaVencimiento)}</span>
                         </>
                       ) : null}
                     </div>
@@ -888,7 +888,7 @@ export function PlanillaExistenciaInicial({
                       {p.proveedorRazonSocial ?? "Sin proveedor"}
                     </td>
                     <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400">
-                      {p.fechaVencimiento ? formatFechaIso(p.fechaVencimiento) : "No vence"}
+                      {p.fechaVencimiento ? formatVencimientoLote(p.fechaVencimiento) : "No vence"}
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono text-zinc-900 dark:text-zinc-100">
                       {p.cantidadInicial} {p.unidadSimbolo}
@@ -1290,6 +1290,7 @@ function FilaPlanillaItem({
         <div className="min-w-0" onBlur={triggerBlurSave} onKeyDown={(e) => handleKeyDown(e, false)}>
           <DateInput
             name="fechaVencimiento"
+            precision="month"
             value={fila.fechaVencimiento ?? ""}
             disabled={!puedeEditar}
             onValueChange={(val) => {
@@ -1759,6 +1760,7 @@ function DialogCorregirPartidaContent({
                 <DateInput
                   id="correccion-vencimiento"
                   name="fechaVencimiento"
+                  precision="month"
                   defaultValue={fechaVencimientoIso}
                   required={partida.drogaClase === "DROGA"}
                 />

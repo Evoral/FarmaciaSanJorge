@@ -16,7 +16,7 @@
  *
  * No free-text field and no paciente data is ever logged from here.
  */
-import { formatFecha } from "@/shared/format/fecha";
+import { formatVencimientoLote } from "@/shared/format/fecha";
 import { uuid } from "@/shared/validation";
 
 // ============================================================================
@@ -220,7 +220,7 @@ export function partidasRestantes(disponibles: readonly PartidaOpcion[], ids: re
 
 /** `Lote <lote> · <proveedor> · vence dd/mm/aaaa` (insumos without vencimiento: "sin vencimiento"). */
 export function etiquetaPartidaOpcion(partida: PartidaOpcion): string {
-  const vencimiento = partida.fechaVencimiento ? `vence ${formatFecha(partida.fechaVencimiento)}` : "sin vencimiento";
+  const vencimiento = partida.fechaVencimiento ? `vence ${formatVencimientoLote(partida.fechaVencimiento)}` : "sin vencimiento";
   return `Lote ${partida.lote} · ${partida.proveedor} · ${vencimiento}`;
 }
 

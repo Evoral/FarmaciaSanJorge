@@ -23,7 +23,7 @@ import { ArrowUpRight } from "lucide-react";
 import { MOTIVO_AJUSTE_LABELS } from "@/modules/stock/domain/partida";
 import { formatCantidad, formatCantidadesFila } from "@/shared/format/cantidad";
 import type { CatalogoUnidades } from "@/shared/format/cantidad";
-import { formatFecha, formatFechaHora } from "@/shared/format/fecha";
+import { formatFecha, formatFechaHora, formatVencimientoLote } from "@/shared/format/fecha";
 import { formatearCostoUnitario } from "@/shared/format/monto";
 import { TIPO_MOVIMIENTO_LABELS, etiquetaDe } from "@/shared/labels/enum-labels";
 import { Cantidad } from "@/shared/ui/cantidad";
@@ -245,7 +245,7 @@ export function TrayectoriaPartidaCeldas({ partida, acceso, zonaHoraria, catalog
         </span>
         <span className="sr-only">, disponible</span> <Cantidad valor={disponible} />
       </td>
-      <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono tabular-nums sm:table-cell">{partida.fechaVencimiento ? formatFecha(partida.fechaVencimiento) : "No vence"}</td>
+      <td className="hidden whitespace-nowrap px-3 py-2.5 font-mono tabular-nums sm:table-cell">{partida.fechaVencimiento ? formatVencimientoLote(partida.fechaVencimiento) : "No vence"}</td>
       <td className="px-3 py-2.5">
         <StatusBadge estado={partida.estado} />
       </td>
@@ -276,7 +276,7 @@ export function TrayectoriaPartidaDetalle({ partida, acceso, zonaHoraria, catalo
           <Dato etiqueta="Saldo disponible">
             <Cantidad valor={disponible} />
           </Dato>
-          <Dato etiqueta="Vencimiento">{partida.fechaVencimiento ? formatFecha(partida.fechaVencimiento) : "No vence"}</Dato>
+          <Dato etiqueta="Vencimiento">{partida.fechaVencimiento ? formatVencimientoLote(partida.fechaVencimiento) : "No vence"}</Dato>
           <Dato etiqueta="Apertura">{partida.fechaApertura ? formatFecha(partida.fechaApertura, zonaHoraria) : "Cerrada"}</Dato>
         </dl>
         {acceso.linkPartida ? (

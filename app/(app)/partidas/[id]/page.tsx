@@ -37,7 +37,7 @@ import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
 import { Pagination } from "@/shared/ui/pagination";
 import { Toaster } from "@/shared/ui/toast";
 import { dec } from "@/shared/decimal";
-import { formatFecha as formatFechaCalendario } from "@/shared/format/fecha";
+import { formatVencimientoLote } from "@/shared/format/fecha";
 import { textoPorVencer } from "@/modules/stock/domain/vencimiento-partida";
 import { MarcarVencidaDialog, ReanalisisDialog } from "@/modules/stock/ui/acciones-dt-partida";
 import { ElaborarLoteDialog } from "@/modules/stock/ui/elaborar-lote-dialog";
@@ -210,7 +210,7 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
           <TriangleAlert aria-hidden />
           <div className="flex flex-1 flex-wrap items-center justify-between gap-3">
             <p>
-              <strong>{textoPorVencer(vigenteIso, partida.jornadaActual)}</strong> ({formatFechaCalendario(partida.fechaVencimientoVigente!)}).
+              <strong>{textoPorVencer(vigenteIso, partida.jornadaActual)}</strong> ({formatVencimientoLote(partida.fechaVencimientoVigente!)}).
               {esDroga ? " Al vencer queda bloqueada hasta que el Director Técnico registre un reanálisis o la marque como vencida." : null}
             </p>
             {dtPuedeActuar ? <ReanalisisDialog partidaId={partida.id} partidaNombre={partidaNombre} jornadaActual={partida.jornadaActual} destacado /> : null}
@@ -401,10 +401,10 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
                       {partida.reanalisis.map((r) => (
                         <tr key={r.id}>
                           <td className="hidden whitespace-nowrap px-5 py-2.5 tabular-nums md:table-cell">{formatFecha(r.registradoEn)}</td>
-                          <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums text-zinc-600 sm:table-cell">{formatFechaCalendario(r.fechaVencimientoAnterior)}</td>
+                          <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums text-zinc-600 sm:table-cell">{formatVencimientoLote(r.fechaVencimientoAnterior)}</td>
                           <td className="px-3 py-2.5">
-                            <span className="block whitespace-nowrap font-medium tabular-nums text-zinc-900">{formatFechaCalendario(r.fechaReanalisis)}</span>
-                            <span className="block whitespace-nowrap text-xs tabular-nums text-zinc-500 sm:hidden">antes {formatFechaCalendario(r.fechaVencimientoAnterior)}</span>
+                            <span className="block whitespace-nowrap font-medium tabular-nums text-zinc-900">{formatVencimientoLote(r.fechaReanalisis)}</span>
+                            <span className="block whitespace-nowrap text-xs tabular-nums text-zinc-500 sm:hidden">antes {formatVencimientoLote(r.fechaVencimientoAnterior)}</span>
                             <span className="block whitespace-nowrap text-xs tabular-nums text-zinc-500 md:hidden">{formatFecha(r.registradoEn)}</span>
                           </td>
                           <td className="max-w-[32ch] break-words px-3 py-2.5 text-zinc-700">
@@ -478,7 +478,7 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
                 <dd className="font-mono tabular-nums">{partida.potenciaDeclarada !== null ? `${partida.potenciaDeclarada} %` : "No declarada (100 %)"}</dd>
                 <dt>{reanalizada ? "Vencimiento vigente" : "Vencimiento"}</dt>
                 <dd className="flex flex-wrap items-center justify-end gap-1.5 tabular-nums">
-                  {partida.fechaVencimientoVigente ? formatFechaCalendario(partida.fechaVencimientoVigente) : "No vence"}
+                  {partida.fechaVencimientoVigente ? formatVencimientoLote(partida.fechaVencimientoVigente) : "No vence"}
                   {tieneSaldo && vencida ? <StatusBadge estado="VENCIDA" /> : null}
                   {tieneSaldo && porVencer ? <StatusBadge estado="POR_VENCER" /> : null}
                   {reanalizada ? <ToneBadge tone="neutral">Reanalizada</ToneBadge> : null}
@@ -486,7 +486,7 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
                 {reanalizada && partida.fechaVencimiento ? (
                   <>
                     <dt>Vencimiento original</dt>
-                    <dd className="tabular-nums text-zinc-600">{formatFechaCalendario(partida.fechaVencimiento)}</dd>
+                    <dd className="tabular-nums text-zinc-600">{formatVencimientoLote(partida.fechaVencimiento)}</dd>
                   </>
                 ) : null}
                 <dt>Ingreso</dt>

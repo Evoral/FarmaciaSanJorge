@@ -25,7 +25,7 @@ import { KardexDrogaFiltro } from "@/modules/stock/ui/kardex-droga-filtro";
 import { ElaborarLoteDialog } from "@/modules/stock/ui/elaborar-lote-dialog";
 import { getCatalogoUnidades } from "@/modules/unidades/application/catalogo-unidades";
 import { formatCantidadesFila, formatNumero, type ModoCantidad } from "@/shared/format/cantidad";
-import { formatFecha } from "@/shared/format/fecha";
+import { formatFecha, formatVencimientoLote } from "@/shared/format/fecha";
 import { Cantidad } from "@/shared/ui/cantidad";
 import { DateInput } from "@/shared/ui/date-input";
 import { FilterDrawer, FilterPopover } from "@/shared/ui/filter-drawer";
@@ -351,7 +351,7 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
                             {partida.proveedorRazonSocial}
                             <span className="sm:hidden">
                               {" · "}
-                              {partida.fechaVencimientoVigente ? <span className="tabular-nums">Vto. {formatFecha(partida.fechaVencimientoVigente)}</span> : "No vence"}
+                              {partida.fechaVencimientoVigente ? <span className="tabular-nums">Vto. {formatVencimientoLote(partida.fechaVencimientoVigente)}</span> : "No vence"}
                             </span>
                           </span>
                         </td>
@@ -365,9 +365,9 @@ export default async function HistorialPartidasPage({ searchParams }: HistorialP
                         <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums sm:table-cell">{formatFecha(partida.fechaIngreso, result.zonaHoraria)}</td>
                         {/* The vencimiento VIGENTE (openspec/specs/reanalisis-partida/spec.md): a reanálisis may have moved it from the original date. */}
                         <td className="hidden whitespace-nowrap px-2 py-2.5 tabular-nums sm:table-cell sm:px-3">
-                          {partida.fechaVencimientoVigente ? formatFecha(partida.fechaVencimientoVigente) : "No vence"}
+                          {partida.fechaVencimientoVigente ? formatVencimientoLote(partida.fechaVencimientoVigente) : "No vence"}
                           {reanalizada ? (
-                            <span className="block text-xs text-zinc-500" title={partida.fechaVencimiento ? `Vencimiento original: ${formatFecha(partida.fechaVencimiento)}` : undefined}>
+                            <span className="block text-xs text-zinc-500" title={partida.fechaVencimiento ? `Vencimiento original: ${formatVencimientoLote(partida.fechaVencimiento)}` : undefined}>
                               Reanalizada
                             </span>
                           ) : null}

@@ -31,16 +31,13 @@ import { conRetornoAjuste, retornoAjuste, type RetornoAjuste } from "@/modules/s
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { nombreDeUsuario } from "@/shared/format/usuario";
+import { formatVencimientoLote } from "@/shared/format/fecha";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SELECCION_PAGE_SIZE = 20;
 
 interface NuevoAjustePageProps {
   searchParams: Promise<{ partidaId?: string; drogaId?: string; q?: string; volverA?: string }>;
-}
-
-function formatFecha(fecha: Date): string {
-  return new Intl.DateTimeFormat("es-AR", { timeZone: "UTC" }).format(fecha);
 }
 
 /** The trail of the list the flow returns to. */
@@ -233,7 +230,7 @@ async function PartidasConSaldo({ drogaId, pasoUnoHref, catalogo, volverA }: { d
                     <span className="font-mono font-semibold text-zinc-900">{partida.lote}</span>
                   </span>
                   <span className="block line-clamp-2 text-xs text-zinc-500 sm:truncate">
-                    {partida.proveedorRazonSocial} · {partida.fechaVencimientoVigente ? <>vence <span className="tabular-nums">{formatFecha(partida.fechaVencimientoVigente)}</span></> : "no vence"}
+                    {partida.proveedorRazonSocial} · {partida.fechaVencimientoVigente ? <>vence <span className="tabular-nums">{formatVencimientoLote(partida.fechaVencimientoVigente)}</span></> : "no vence"}
                   </span>
                 </span>
                 <span className="flex-none text-right leading-tight">

@@ -34,7 +34,7 @@ import { CircleAlert, FlaskConical, Info, Plus, Trash2, TriangleAlert, X } from 
 import { Decimal } from "@/shared/decimal";
 import { convertirCantidad } from "@/shared/decimal/convertir-unidad";
 import { formatNumero, formatStockEntero } from "@/shared/format/cantidad";
-import { formatFechaIso } from "@/shared/format/fecha";
+import { formatVencimientoLote } from "@/shared/format/fecha";
 import { AYUDA_NUMERO, numeroParaInput } from "@/shared/decimal/numero-ingresado";
 import { NumeroInput } from "@/shared/ui/numero-input";
 import { agregarYEnfocar, filaDeLista } from "@/shared/ui/enfocar-al-agregar";
@@ -1026,7 +1026,7 @@ function etiquetaLote(p: LineaPantalla["partidasElegibles"][number], conPureza: 
   if (conPureza && !p.nombreElaborado) partes.push(`Pureza ${p.potenciaDeclarada ? formatNumero(p.potenciaDeclarada) : "100"} %`);
   if (p.fechaApertura) partes.push("abierta");
   if (p.fechaVencimiento && estadoVencimientoPartida(p.fechaVencimiento, datos.jornadaActual, datos.diasAlertaVencimiento) === "POR_VENCER") {
-    partes.push(`vence ${formatFechaIso(p.fechaVencimiento)}`);
+    partes.push(`vence ${formatVencimientoLote(p.fechaVencimiento)}`);
   }
   return partes.join(" · ");
 }

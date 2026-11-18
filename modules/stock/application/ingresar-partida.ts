@@ -31,7 +31,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { AuthenticatedSession } from "@/shared/auth/session";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError, NotFoundError, ValidationError } from "@/shared/errors";
-import { fechaIso, nonEmptyString, uuid } from "@/shared/validation";
+import { fechaVencimientoLote, nonEmptyString, uuid } from "@/shared/validation";
 import {
   positiveDecimalString,
   nonNegativeDecimalString,
@@ -59,7 +59,7 @@ const ingresarPartidaInput = z.object({
   proveedorId: uuid,
   lote: nonEmptyString,
   /** Migration 0064: optional for an insumo (does not expire); required for a DROGA -- checked in `registrarPartidaCompra`. */
-  fechaVencimiento: fechaIso.optional(),
+  fechaVencimiento: fechaVencimientoLote.optional(),
   cantidadCompra: positiveDecimalString,
   unidadCompraId: uuid,
   costoUnitario: nonNegativeDecimalString,
