@@ -195,7 +195,9 @@ export function calcularFichaTecnica(
     fail("V9", `cantidadUnidades must be a positive integer, got ${item.cantidadUnidades}`);
   }
 
-  const ordenados = ordenarComponentes(componentes);
+  // Load order (0129), except that the ficha always weighs the CSP last: it is the enrase (user decision, 2026-11-18).
+  const porCarga = ordenarComponentes(componentes);
+  const ordenados = [...porCarga.filter((c) => c.modoExpresion !== "CSP"), ...porCarga.filter((c) => c.modoExpresion === "CSP")];
 
   // V6 / V7, per component.
   for (const c of ordenados) {
