@@ -3,9 +3,8 @@
 /**
  * "Posición en la hoja" (openspec/specs/hoja-etiquetas/spec.md R8, R9): the cell of the sheet an
  * etiqueta is printed in. A clickable grid drawn in the SHEET's proportions with one cell per
- * position that fits (the grid is anchored at the sheet's margin, cells touch, leftover space goes
- * to the right and bottom -- the same geometry as `posicionCelda`, so what the user sees is what
- * prints), the summary "N columnas × M filas · K etiquetas por hoja" and the chosen position as text.
+ * position that fits (each cell placed by `posicionCelda`, the leftover room shared out symmetrically,
+ * so what the user sees is what prints), the summary "N columnas × M filas · K etiquetas por hoja" and the chosen position as text.
  *
  * Accessible radio group: every cell is a radio labelled "Columna c, fila f" with a roving tab
  * stop (the chosen cell is the one in the tab order), the arrow keys move the selection (and the
@@ -15,7 +14,7 @@
  * changes; a stale cell is drawn as 1 / 1 here too. Plain numbers only (no Prisma `Decimal`).
  */
 import { useRef, type KeyboardEvent } from "react";
-import { celdaValida, conservarCelda, formatearCelda, grillaHoja, resumenGrilla } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
+import { celdaValida, conservarCelda, formatearCelda, grillaHoja, posicionCelda, resumenGrilla } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import type { Celda, HojaEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import type { TamanoEtiqueta } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 
@@ -84,19 +83,18 @@ export function PosicionEnHoja({ hoja, tamano, celda, onChange, etiqueta = "Posi
           role="radiogroup"
           aria-label={etiqueta}
           onKeyDown={alPresionarTecla}
-          className="absolute grid"
-          style={{
-            left: porcentaje(hoja.margenMm, hoja.anchoMm),
-            top: porcentaje(hoja.margenMm, hoja.altoMm),
-            width: porcentaje(grilla.columnas * tamano.anchoMm, hoja.anchoMm),
-            height: porcentaje(grilla.filas * tamano.altoMm, hoja.altoMm),
-            gridTemplateColumns: `repeat(${grilla.columnas}, minmax(0, 1fr))`,
-            gridTemplateRows: `repeat(${grilla.filas}, minmax(0, 1fr))`,
-          }}
+          className="absolute inset-0"
         >
           {celdas.map((c) => {
             const marcada = c.columna === elegida.columna && c.fila === elegida.fila;
             const tieneFondo = marcada && !!colorFondo;
+            const { xMm, yMm } = posicionCelda(hoja, tamano, c);
+            const lugar = {
+              left: porcentaje(xMm, hoja.anchoMm),
+              top: porcentaje(yMm, hoja.altoMm),
+              width: porcentaje(tamano.anchoMm, hoja.anchoMm),
+              height: porcentaje(tamano.altoMm, hoja.altoMm),
+            };
             return (
               <button
                 key={`${c.columna}-${c.fila}`}
@@ -107,8 +105,8 @@ export function PosicionEnHoja({ hoja, tamano, celda, onChange, etiqueta = "Posi
                 data-celda={`${c.columna}-${c.fila}`}
                 tabIndex={marcada ? 0 : -1}
                 onClick={() => elegir(c, false)}
-                style={tieneFondo ? { backgroundColor: colorFondo, borderColor: colorFondo } : undefined}
-                className={`min-h-0 min-w-0 border p-0 outline-offset-1 ${
+                style={tieneFondo ? { ...lugar, backgroundColor: colorFondo, borderColor: colorFondo } : lugar}
+                className={`absolute min-h-0 min-w-0 border p-0 outline-offset-1 ${
                   marcada
                     ? tieneFondo
                       ? "ring-2 ring-zinc-800/60 shadow-xs"
