@@ -12,6 +12,8 @@
  *
  * R39 adds the fecha del precio range (`desde`, `hasta`), the origen (`manual` / `lista`) and
  * "Sin actualizar hace más de un año" (`desactualizados=1`), all plain GET fields of the same form.
+ * They live in a `FilterDrawer`: inline on wide screens, a "Filtros" sheet on phones (two date
+ * inputs side by side don't fit 375px).
  *
  * The page re-keys this component with the filters in force, so a link that changes the
  * URL from outside ("Limpiar") never leaves a stale selection in the boxes.
@@ -20,6 +22,7 @@ import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Combobox, type ComboboxOption } from "@/shared/ui/combobox";
 import { DateRangeField } from "@/shared/ui/date-range-field";
+import { FilterDrawer } from "@/shared/ui/filter-drawer";
 import { FilterForm } from "@/shared/ui/filter-form";
 import type { OrigenCostoFiltro } from "../application/listar-costos-vigentes";
 import { buscarDrogasCatalogoAction } from "@/modules/drogas/ui/buscar-drogas-catalogo-action";
@@ -55,10 +58,10 @@ export function CostosFiltros({ droga, proveedor, fechaDesde, fechaHasta, origen
   return (
     <div className="filter-bar items-end @container">
       <FilterForm className="flex min-w-0 flex-1 flex-wrap items-end gap-3" aria-label="Filtros de costos de proveedores" hasActiveFilters={false}>
-        <div className="min-w-0 flex-1 @3xl:w-72 @3xl:flex-none">
+        <div className="min-w-0 flex-[1_1_14rem] @3xl:w-72 @3xl:flex-none">
           <Combobox id="filtro-droga" label="Insumo" hideLabel placeholder="Filtrar por insumo" name="droga" search={buscarDrogas} value={drogaOpcion} onChange={setDrogaOpcion} />
         </div>
-        <div className="min-w-0 flex-1 @3xl:w-72 @3xl:flex-none">
+        <div className="min-w-0 flex-[1_1_14rem] @3xl:w-72 @3xl:flex-none">
           <Combobox
             id="filtro-proveedor"
             label="Proveedor"
@@ -70,21 +73,23 @@ export function CostosFiltros({ droga, proveedor, fechaDesde, fechaHasta, origen
             onChange={setProveedorOpcion}
           />
         </div>
-        <DateRangeField id="filtro-fecha-precio" label="Fecha del precio" desdeName="desde" hastaName="hasta" desdeDefault={fechaDesde} hastaDefault={fechaHasta} />
-        <div className="field w-full @lg:w-44">
-          <label htmlFor="filtro-origen" className="field-label">
-            Origen
+        <FilterDrawer activeCount={(fechaDesde || fechaHasta ? 1 : 0) + (origen !== "todos" ? 1 : 0) + (soloDesactualizados ? 1 : 0)}>
+          <DateRangeField id="filtro-fecha-precio" label="Fecha del precio" desdeName="desde" hastaName="hasta" desdeDefault={fechaDesde} hastaDefault={fechaHasta} />
+          <div className="field @lg:w-44">
+            <label htmlFor="filtro-origen" className="field-label">
+              Origen
+            </label>
+            <select id="filtro-origen" name="origen" defaultValue={origen} className="input w-full">
+              <option value="todos">Todos</option>
+              <option value="manual">Carga manual</option>
+              <option value="lista">Lista importada</option>
+            </select>
+          </div>
+          <label className="toggle-switch">
+            <input type="checkbox" role="switch" name="desactualizados" value="1" defaultChecked={soloDesactualizados} />
+            Sin actualizar hace más de un año
           </label>
-          <select id="filtro-origen" name="origen" defaultValue={origen} className="input w-full">
-            <option value="todos">Todos</option>
-            <option value="manual">Carga manual</option>
-            <option value="lista">Lista importada</option>
-          </select>
-        </div>
-        <label className="toggle-switch">
-          <input type="checkbox" role="switch" name="desactualizados" value="1" defaultChecked={soloDesactualizados} />
-          Sin actualizar hace más de un año
-        </label>
+        </FilterDrawer>
       </FilterForm>
       {hayFiltros ? (
         <Link href="/costos-proveedor" scroll={false} className="btn btn-ghost btn-sm">
