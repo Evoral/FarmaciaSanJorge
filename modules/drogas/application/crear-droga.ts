@@ -149,7 +149,7 @@ export const crearDrogaCommand = defineCommand({
     if (input.formula) await aplicarFormulaEnTx(tx, session, nueva.id, input.formula);
 
     return {
-      output: { id: nueva.id, nombre: input.nombre, unidadBaseId: input.unidadBaseId, sinonimos: sinonimos.map((s) => s.texto) },
+      output: { id: nueva.id, nombre: input.nombre, unidadBaseId: input.unidadBaseId, clase: input.clase, sinonimos: sinonimos.map((s) => s.texto) },
       audit: {
         entidadId: nueva.id,
         valorNuevo: {
@@ -170,6 +170,6 @@ export const crearDrogaCommand = defineCommand({
 });
 
 /** `nombre` as stored (trimmed); `sinonimos` = the other names registered with it, as stored (for the success message). */
-export async function crearDroga(input: CrearDrogaInput): Promise<{ id: string; nombre: string; unidadBaseId: string; sinonimos: string[] }> {
+export async function crearDroga(input: CrearDrogaInput): Promise<{ id: string; nombre: string; unidadBaseId: string; clase: string; sinonimos: string[] }> {
   return crearDrogaCommand.execute(input);
 }

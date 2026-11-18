@@ -30,7 +30,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { record as auditRecord } from "@/shared/audit";
 import { ConflictError, DomainError, ValidationError } from "@/shared/errors";
-import { fechaIso, nonEmptyString, uuid } from "@/shared/validation";
+import { fechaIso, fechaVencimientoLote, nonEmptyString, uuid } from "@/shared/validation";
 import { normalizarTextoDroga } from "@/modules/recetas/domain/importacion-receta";
 import { limpiarSinonimo } from "@/modules/drogas/domain/sinonimo";
 import { nonNegativeDecimalString, positiveDecimalString, potenciaDeclaradaString } from "../domain/partida";
@@ -53,7 +53,7 @@ const lineaInput = z.object({
   drogaId: uuid,
   lote: nonEmptyString,
   /** Optional for an insumo (migration 0064) -- checked in `registrarPartidaCompra`. */
-  fechaVencimiento: fechaIso.optional(),
+  fechaVencimiento: fechaVencimientoLote.optional(),
   cantidadCompra: positiveDecimalString,
   unidadCompraId: uuid,
   precioUnitario: nonNegativeDecimalString,
@@ -68,7 +68,14 @@ const importarFacturaCompraInput = z.object({
   proveedorId: uuid,
   letra: z.enum(["A", "B", "C", "M"]),
   puntoVenta: z.string().trim().regex(/^\d{1,5}$/, "Punto de venta inválido.").transform((v) => v.replace(/^0+(?=\d)/, "")),
-  numero: z.string().trim().regex(/^\d{1,8}$/, "Número de comprobante inválido.").transform((v) => v.replace(/^0+(?=\d)/, "")),
+  // The supplier's own number, any length or shape (migration 0128); an all-digit one loses its leading zeros so the
+  // UNIQUE key still catches "00012345" vs "12345".
+  numero: z
+    .string()
+    .trim()
+    .min(1, "Ingresá el número de comprobante.")
+    .max(30, "Como máximo 30 caracteres.")
+    .transform((v) => (/^\d+$/.test(v) ? v.replace(/^0+(?=\d)/, "") : v)),
   fechaEmision: fechaIso,
   cae: textoOpcional,
   subtotal: importeOpcional,

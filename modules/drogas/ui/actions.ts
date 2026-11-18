@@ -73,7 +73,7 @@ export async function crearDrogaAction(_prevState: DrogaActionState, formData: F
       });
       revalidatePath("/catalogos/drogas");
       const otros = creada.sinonimos.length > 0 ? ` con ${creada.sinonimos.length === 1 ? "otro nombre" : "otros nombres"}: ${listaNombres(creada.sinonimos)}` : "";
-      return { status: "success", message: `Insumo creado${otros}.`, droga: { id: creada.id, nombre: creada.nombre, unidadBaseId: creada.unidadBaseId } };
+      return { status: "success", message: `Insumo creado${otros}.`, droga: { id: creada.id, nombre: creada.nombre, unidadBaseId: creada.unidadBaseId, clase: creada.clase } };
     } catch (error) {
       return fromError(error, "No se pudo crear el insumo.");
     }

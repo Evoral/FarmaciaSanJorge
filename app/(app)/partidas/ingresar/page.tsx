@@ -9,8 +9,10 @@ import { can } from "@/shared/auth/authorize";
 import { listDrogasOpciones } from "@/modules/drogas/application/list-drogas-opciones";
 import { listProveedoresOpciones } from "@/modules/proveedores/application/list-proveedores-opciones";
 import { listUnidadesVigentesParaDroga } from "@/modules/drogas/application/list-unidades-vigentes";
+import { contralorActivoParaAltaDroga } from "@/modules/drogas/application/contralor-activo";
 import { IngresarPartida } from "@/modules/stock/ui/ingresar-partida";
 import { PageHeader } from "@/shared/ui/page-header";
+import { Toaster } from "@/shared/ui/toast";
 
 export default async function IngresarPartidaPage() {
   const session = await requireSession();
@@ -18,10 +20,13 @@ export default async function IngresarPartidaPage() {
     redirect("/partidas");
   }
 
-  const [drogas, proveedores, unidades] = await Promise.all([
+  // "Crear «…»" on a lote: the same alta as /catalogos/drogas, only with `drogas.crear`.
+  const puedeCrearProducto = can(session, "drogas.crear");
+  const [drogas, proveedores, unidades, contralorActivo] = await Promise.all([
     listDrogasOpciones(),
     listProveedoresOpciones(),
     listUnidadesVigentesParaDroga(),
+    puedeCrearProducto ? contralorActivoParaAltaDroga() : Promise.resolve(false),
   ]);
   const opcionesDrogas = drogas.map((droga) => ({ id: droga.id, label: droga.nombre, tipoMagnitud: droga.tipoMagnitud, clase: droga.clase, sinonimos: droga.sinonimos }));
   const opcionesProveedores = proveedores.map((proveedor) => ({ id: proveedor.id, label: proveedor.razonSocial }));
@@ -35,8 +40,17 @@ export default async function IngresarPartidaPage() {
         description="Cargá la factura del proveedor a mano o importá su PDF: cada lote se suma al stock como una partida nueva."
       />
       <div className="flex max-w-4xl flex-col gap-6">
-        <IngresarPartida drogas={opcionesDrogas} proveedores={opcionesProveedores} puedeCrearProducto={can(session, "drogas.crear")} unidades={opcionesUnidades} />
+        <IngresarPartida
+          drogas={opcionesDrogas}
+          proveedores={opcionesProveedores}
+          puedeCrearProducto={puedeCrearProducto}
+          unidades={opcionesUnidades}
+          unidadesAltaDroga={unidades}
+          contralorActivo={contralorActivo}
+        />
       </div>
+      {/* The droga alta raises its confirmation as a toast. */}
+      <Toaster />
     </div>
   );
 }

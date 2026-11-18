@@ -32,6 +32,7 @@
 import Decimal from "decimal.js";
 import type { TextoPdf, TextoPdfItem } from "@/shared/pdf/extraer-texto-pdf.server";
 import { MAX_PDF_BYTES } from "@/modules/recetas/domain/archivo-receta-pdf";
+import { finDeMes } from "@/shared/time/vencimiento-lote";
 
 /** Same limit as the receta import: next.config.ts's Server Actions `bodySizeLimit` is sized for it. */
 export const MAX_FACTURA_PDF_BYTES = MAX_PDF_BYTES;
@@ -185,8 +186,9 @@ function leerFilaLote(texto: string): LoteLeido | null {
   if (!lote) return null;
   const despacho = /Desp\.?:\s*(.*?)\s+L(?:ote)?:/i.exec(texto)?.[1]?.trim() || null;
   const origen = /Orig(?:en)?\.?:\s*(.*?)(?=\s+\w+\.?:|$)/i.exec(texto)?.[1]?.trim() || null;
-  const vto = /V(?:to|enc)\.?:\s*(\d{2}\/\d{2}\/\d{4})/i.exec(texto)?.[1];
-  return { lote: lote[1]!, despacho, paisOrigen: origen, fechaVencimiento: vto ? fechaIso(vto) : null };
+  // dd/mm/aaaa or mm/aaaa; either way the lot expires by month (shared/time/vencimiento-lote.ts).
+  const vto = /V(?:to|enc)\.?:\s*(?:\d{2}\/)?(\d{2})\/(\d{4})/i.exec(texto);
+  return { lote: lote[1]!, despacho, paisOrigen: origen, fechaVencimiento: vto ? finDeMes(`${vto[2]}-${vto[1]}`) : null };
 }
 
 /** Product row: code first, then description, unit, cantidad, precio, importe (the last three numeric). */
@@ -284,7 +286,7 @@ export function parsearFacturaCompraPdf(input: TextoPdf): ResultadoParserFactura
   const primera = input.pages[0] ?? [];
   const todos = input.pages.flat();
 
-  const nroComprobante = valorADerecha(primera, (s) => /^Factura:?$/i.test(s), (s) => /^\d{1,5}-\d{1,8}$/.test(s));
+  const nroComprobante = valorADerecha(primera, (s) => /^Factura:?$/i.test(s), (s) => /^\d{1,5}-\d+$/.test(s));
   if (!nroComprobante) return { ok: false, error: { mensaje: "No parece una factura de compra: no se encontró el número de comprobante." } };
   const [puntoVenta, numero] = nroComprobante.split("-").map(sinCerosIzquierda) as [string, string];
 

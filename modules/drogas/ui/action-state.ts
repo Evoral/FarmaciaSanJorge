@@ -14,6 +14,8 @@ export interface DrogaCreada {
   id: string;
   nombre: string;
   unidadBaseId: string;
+  /** DROGA | EXCIPIENTE | MATERIAL (migration 0063): whether its lots must expire. */
+  clase: string;
 }
 
 export const IDLE_STATE: DrogaActionState = { status: "idle" };
