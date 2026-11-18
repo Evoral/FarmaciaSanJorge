@@ -4,14 +4,12 @@
  * run directly, bypassing global setup, still skips safely instead of
  * throwing on a missing connection).
  *
- * IMPORTANT: there is only ONE Supabase database (the real one) -- no
- * separate test project exists yet. DB tests run against DATABASE_URL /
- * DIRECT_URL, the exact same connection strings the app uses. Safety
- * comes entirely from `tests/db/helpers.ts#inRollbackTx` (every test runs
- * inside a transaction that is ALWAYS rolled back) and from
- * `global-setup.ts` never running a destructive/migrating command.
- * Revisit before production go-live: provision a dedicated test/staging
- * Supabase project instead of testing against the real one.
+ * DB tests run against DATABASE_URL / DIRECT_URL of the env file in
+ * DOTENV_CONFIG_PATH: `.env.desarrollo`, the local Supabase Postgres
+ * (docs/local-db.md), which is also the developer's dev database. Safety
+ * comes from `tests/db/helpers.ts#inRollbackTx` (every test runs inside a
+ * transaction that is ALWAYS rolled back) and from `global-setup.ts`
+ * never running a destructive/migrating command.
  *
  * Vitest does not read .env on its own (unlike Next.js), so it is loaded
  * here -- this module is imported by global-setup and by every db test
@@ -31,8 +29,9 @@ export function dbTestSkipReason(): string | null {
   if (!DATABASE_URL || !DIRECT_URL || FSJ_DB_TESTS !== "yes") {
     return (
       "DB tests skipped: DATABASE_URL, DIRECT_URL and FSJ_DB_TESTS=yes must all be set to run " +
-      "tests/db. These tests run against the REAL database inside transactions that are always " +
-      "rolled back (see tests/db/helpers.ts#inRollbackTx). See .env.example."
+      "tests/db. These tests run against the local dev database (DOTENV_CONFIG_PATH=.env.desarrollo) " +
+      "inside transactions that are always rolled back (see tests/db/helpers.ts#inRollbackTx). " +
+      "See docs/local-db.md."
     );
   }
 

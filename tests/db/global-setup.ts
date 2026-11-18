@@ -2,17 +2,16 @@
  * Vitest globalSetup for the `db` project. Runs once before all tests/db/**
  * test files.
  *
- * IMPORTANT -- READ BEFORE CHANGING THIS FILE: there is only ONE Supabase
- * database (DATABASE_URL/DIRECT_URL, the same one the app uses) -- no
- * separate test project exists yet. This file MUST NEVER run
+ * IMPORTANT -- READ BEFORE CHANGING THIS FILE: the target database
+ * (DATABASE_URL/DIRECT_URL of .env.desarrollo, the local Supabase
+ * Postgres) is also the developer's dev database. This file MUST NEVER run
  * `prisma migrate reset`, `db push --force-reset`, `DROP`, `TRUNCATE`, or
  * any other destructive/mutating command. It only VERIFIES that
  * migrations are already applied (read-only) and fails loudly if they are
  * not; it never auto-migrates. All actual safety against leaving data
  * behind comes from `tests/db/helpers.ts#inRollbackTx`, which every DB
  * test uses to wrap its work in a transaction that is always rolled back.
- * Revisit before production go-live: provision a dedicated test/staging
- * Supabase project instead of testing against the real one.
+ * See docs/local-db.md.
  *
  * - Missing/incomplete env (`DATABASE_URL`, `DIRECT_URL`, `FSJ_DB_TESTS=yes`)
  *   => log a clear message and return without error, so
@@ -43,11 +42,10 @@ export default async function globalSetup(): Promise<void> {
   }
 
   console.log(
-    "\n[tests/db] Running against the REAL database (DATABASE_URL/DIRECT_URL) -- there is no " +
-      "separate test project yet. Every test MUST wrap its work in inRollbackTx() " +
+    `\n[tests/db] Running against ${new URL(process.env.DIRECT_URL!).host} (DATABASE_URL/DIRECT_URL), ` +
+      "which also holds dev data. Every test MUST wrap its work in inRollbackTx() " +
       "(tests/db/helpers.ts) so nothing persists. This setup step is READ-ONLY: it never runs " +
-      "migrate reset or any destructive command, only `prisma migrate status`. Revisit before " +
-      "production go-live: provision a dedicated test/staging Supabase project.\n",
+      "migrate reset or any destructive command.\n",
   );
 
   console.log("[tests/db] Verifying migrations are applied (read-only query on _prisma_migrations)...\n");
@@ -75,7 +73,7 @@ export default async function globalSetup(): Promise<void> {
     throw new Error(
       `[tests/db] Migrations are not applied on the target database (missing: ${missing.join(", ")}). ` +
         "Run `npm run db:migrate` first -- this test harness deliberately never auto-migrates, " +
-        "because there is only one (real) database and auto-migrating it from a test run is not acceptable.",
+        "because the user applies every migration by hand and a test run must never change the schema.",
     );
   }
 

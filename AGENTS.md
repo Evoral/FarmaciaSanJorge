@@ -33,9 +33,10 @@ Prisma 7 + Postgres (Supabase, schema `fsj`), zod 4, decimal.js, Tailwind 4.
 Migrating the second database (`.env.prod`): exact command in `docs/deploy.md` §4
 (`DOTENV_CONFIG_PATH`); quote it verbatim, don't improvise one.
 
-CI (`.github/workflows/ci.yml`) runs typecheck → lint → test → build. Never run
-`prisma migrate reset` or any destructive DB command: dev and tests share the
-one real Supabase project.
+CI (`.github/workflows/ci.yml`) runs typecheck → lint → test → build.
+`.env.desarrollo` is a local Supabase Postgres in Docker (dev + DB tests, `npm run db:local:start`,
+`docs/local-db.md`); `.env.prod` is hosted. Never run `prisma migrate reset`, `supabase db reset`,
+`supabase stop --no-backup` or any destructive DB command: the local DB holds the user's dev data.
 
 ## Architecture (non-negotiable)
 

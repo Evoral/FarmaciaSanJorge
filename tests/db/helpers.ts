@@ -4,13 +4,12 @@
  * triggers), independent of whether the app code that would normally sit
  * on top of it has any bugs.
  *
- * SAFETY: there is only one Supabase database (DATABASE_URL/DIRECT_URL,
- * the same one the app uses) -- no separate test project exists yet.
+ * SAFETY: the target database (DATABASE_URL/DIRECT_URL of .env.desarrollo,
+ * the local Supabase Postgres, docs/local-db.md) also holds dev data.
  * `inRollbackTx` is the safety net: every DB test MUST do all of its work
  * inside it, so nothing -- not even DDL -- ever survives past the test
  * (Postgres DDL is transactional, so `CREATE TABLE` inside a rolled-back
- * transaction leaves zero trace). Revisit before production go-live:
- * provision a dedicated test/staging Supabase project instead.
+ * transaction leaves zero trace).
  *
  * THE ABORTED-TRANSACTION RULE (read this before writing a test that
  * expects a query to fail):

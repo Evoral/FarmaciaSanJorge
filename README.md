@@ -2,9 +2,15 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Database setup (Supabase)
 
-There is **one** Supabase project for everything (dev and DB tests both run
-against it -- there is no separate test project yet, see note below). Never
-point it at a local/Docker/embedded Postgres.
+Two databases, one per env file:
+
+- `.env.desarrollo`: a **local** Supabase Postgres in Docker, used by
+  `npm run dev:desarrollo` and `npm run test:db`. Setup and commands:
+  `docs/local-db.md`.
+- `.env.prod`: the hosted Supabase project. Steps below.
+
+Don't point either at a plain Postgres image: the migrations rely on
+Supabase's roles and `extensions` schema (`docs/deploy.md` §4, step 0).
 
 1. Create the Supabase project. From its connection settings, copy:
    - the **pooler** connection string (Supavisor, transaction mode, port `6543`) into `DATABASE_URL`
@@ -13,18 +19,22 @@ point it at a local/Docker/embedded Postgres.
 2. Pick a strong password for the `fsj_app` runtime role and put it in `FSJ_APP_DB_PASSWORD` (used only by `db:bootstrap`, never committed).
 3. **Important**: in the Supabase dashboard, do **not** add `fsj` to *Data API > Exposed schemas*. The app schema must stay unreachable from PostgREST/Supabase Auth -- see `docs/architecture.md`. Leave the Data API disabled: migration 0108 points PostgREST at the empty schema `pgrst_no_exposed_schemas`, which silences the `schema "pg_pgrst_no_exposed_schemas" does not exist` log noise Supabase produces otherwise. From then on the dashboard's *Exposed schemas* setting has no effect (see `docs/rollbacks/postgrest-schema-vacio.md` to undo it).
 
-### DB tests run against the real database (temporary)
+### DB tests
 
-`npm run test:db` (`tests/db/**`) currently runs against `DATABASE_URL`/
-`DIRECT_URL` -- the same project as the app, because there is no dedicated
-test/staging Supabase project yet. This is safe only because:
+`npm run test:db` (`tests/db/**`) runs against `DATABASE_URL`/`DIRECT_URL`
+of the env file it is given -- the local database:
+
+```powershell
+$env:DOTENV_CONFIG_PATH=".env.desarrollo"; $env:FSJ_DB_TESTS="yes"; npm run test:db; Remove-Item Env:DOTENV_CONFIG_PATH, Env:FSJ_DB_TESTS
+```
+
+The local database also holds your dev data, so the suite keeps its safety rules:
 
 - Every DB test wraps its work in `inRollbackTx()` (`tests/db/helpers.ts`), which always issues `ROLLBACK` -- nothing it does (inserts, `CREATE TABLE`, `GRANT`, anything) survives the test.
 - `tests/db/global-setup.ts` never runs `prisma migrate reset` or any destructive command; it only checks (read-only) that migrations are applied and fails loudly if they aren't.
 - The suite requires explicit opt-in: `FSJ_DB_TESTS=yes`. Without it, `npm run test:db` skips cleanly.
 
-**Revisit before production go-live**: provision a dedicated test/staging
-Supabase project and point `tests/db` at it instead of the real database.
+Never run `test:db` with `.env.prod`.
 
 ### E2E tests (Playwright)
 
