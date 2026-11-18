@@ -6,7 +6,7 @@
  */
 import { TabNav } from "@/shared/ui/tab-nav";
 
-export type TabCostos = "vigentes" | "importar" | "listas";
+export type TabCostos = "vigentes" | "sin-precio" | "importar" | "listas";
 
 export function CostosTabs({ activa, puedeGestionar }: { activa: TabCostos; puedeGestionar: boolean }) {
   return (
@@ -14,6 +14,7 @@ export function CostosTabs({ activa, puedeGestionar }: { activa: TabCostos; pued
       label="Secciones de costos de proveedores"
       items={[
         { key: "vigentes", label: "Vigentes", href: "/costos-proveedor", active: activa === "vigentes" },
+        { key: "sin-precio", label: "Sin precio", href: "/costos-proveedor/sin-precio", active: activa === "sin-precio" },
         ...(puedeGestionar ? [{ key: "importar", label: "Importar lista", href: "/costos-proveedor/importar", active: activa === "importar" }] : []),
         { key: "listas", label: "Listas importadas", href: "/costos-proveedor/listas", active: activa === "listas" },
       ]}

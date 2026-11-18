@@ -608,7 +608,7 @@ consistent with `openspec/specs/reglas-precio/spec.md` ("no hay ocultamiento del
 ### Requirement: Section and tabs
 
 The sidebar SHALL show "Gestión › Costos de proveedores" (right below "Proveedores"), route `/costos-proveedor`,
-with the tabs **Vigentes**, **Importar lista**, **Listas importadas** and the **Historial** of a pair.
+with the tabs **Vigentes**, **Sin precio**, **Importar lista**, **Listas importadas** and the **Historial** of a pair.
 
 #### Scenario: Opening the section
 
@@ -625,6 +625,38 @@ proveedor and droga as Combobox (UI rollout rule), pagination. "Agregar costo" b
 
 - **WHEN** the user picks a proveedor in its Combobox filter
 - **THEN** only that proveedor's vigentes are listed, paginated
+
+### Requirement: Sin precio tab
+
+**Sin precio** (`/costos-proveedor/sin-precio`) SHALL list the drogas and materiales of the tenant without any
+vigente costo de proveedor (`vigente_hasta IS NULL`), excluding those dadas de baja. Gated on `stock.valorizado.ver`.
+Columns: nombre, tipo, unidad. Filterable by text and tipo (droga, material, todos), paginated and ordered by name.
+With `costos.proveedor.gestionar`, each row links to `/costos-proveedor/nuevo?droga=<id>`.
+Empty state: "Todos los ítems tienen precio."
+
+#### Scenario: Item without vigente cost is listed
+
+- **GIVEN** an active droga or material without a vigente costo de proveedor
+- **WHEN** a user with `stock.valorizado.ver` consults the "Sin precio" section
+- **THEN** the item appears in the list with its name, tipo and unidad base
+
+#### Scenario: Item with vigente cost is excluded
+
+- **GIVEN** a droga or material with a vigente costo de proveedor
+- **WHEN** the "Sin precio" list is retrieved
+- **THEN** the item is excluded from the list
+
+#### Scenario: Linking to alta prefilled with gestionar permission
+
+- **GIVEN** a user with `costos.proveedor.gestionar`
+- **WHEN** the user views a row in "Sin precio"
+- **THEN** the row links to `/costos-proveedor/nuevo` with that item prefilled
+
+#### Scenario: All items have price
+
+- **GIVEN** a tenant where every active droga and material has a vigente costo
+- **WHEN** the "Sin precio" section is consulted without filters
+- **THEN** the empty state "Todos los ítems tienen precio." is displayed
 
 ### Requirement: Importar lista and Listas importadas tabs
 
@@ -769,6 +801,7 @@ Kept here because the new rules are defined against it.
 | R35 | Queries. |
 | R36 | `PERMISO_CATALOGO`, migration 0079, `tests/db/auth-permisos.test.ts`. |
 | R37 | — |
+| Sin precio tab | `costos-proveedor.listar-sin-costo` (`modules/costos-proveedor/application/listar-sin-costo.ts`) + UI `app/(app)/costos-proveedor/sin-precio/page.tsx`. |
 
 ## Data model (migration 0079)
 

@@ -15,7 +15,8 @@
  * Dates (`fecha_precio`, `fecha_lista`) cross this boundary as `YYYY-MM-DD`
  * strings; money/quantities as decimal strings (never `number`).
  */
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
+import { drogaCoincideSql } from "@/shared/db/busqueda-droga";
 import type { AliasDroga } from "@/modules/recetas/domain/importacion-receta";
 import { ALICUOTA_IVA_POR_DEFECTO, parsearAlicuotaIva } from "../domain/costo-proveedor";
 import type { DrogaParaLista, UnidadParaLista, VigenteParaLista } from "../domain/importacion-lista";
@@ -771,4 +772,106 @@ export async function getCostosProveedorVigentesDeDrogas(tx: Prisma.TransactionC
     fechaPrecio: isoDate(row.fechaPrecio),
     vigenteDesde: row.vigenteDesde,
   }));
+}
+
+// ============================================================================
+// Sin precio (R38)
+// ============================================================================
+
+export interface ListSinCostoFilter {
+  search?: string;
+  tipo: "droga" | "material" | "todos";
+  page: number;
+  pageSize: number;
+}
+
+export interface ItemSinCosto {
+  id: string;
+  nombre: string;
+  clase: string;
+  unidadBaseSimbolo: string;
+}
+
+export interface ListSinCostoResult {
+  items: ItemSinCosto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * The "Sin precio" tab: drogas and materiales of the tenant without a vigente costo de proveedor.
+ * Single query with NOT EXISTS against vigente costs, paginated and ordered by name.
+ */
+export async function listSinCosto(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  filter: ListSinCostoFilter,
+): Promise<ListSinCostoResult> {
+  const search = filter.search?.trim() || null;
+  const skip = (filter.page - 1) * filter.pageSize;
+  const pageSize = filter.pageSize;
+
+  const claseSql =
+    filter.tipo === "droga"
+      ? Prisma.sql`AND d.clase = 'DROGA'`
+      : filter.tipo === "material"
+        ? Prisma.sql`AND d.clase = 'MATERIAL'`
+        : Prisma.empty;
+
+  const rows = await tx.$queryRaw<{
+    id: string;
+    nombre: string;
+    clase: string;
+    unidad_base_simbolo: string;
+  }[]>`
+    SELECT
+      d.id::text AS id,
+      d.nombre::text AS nombre,
+      d.clase::text AS clase,
+      u.simbolo::text AS unidad_base_simbolo
+    FROM fsj.droga d
+    JOIN fsj.unidad_medida u ON u.id = d.unidad_base_id
+    WHERE d.tenant_id = ${tenantId}::uuid
+      AND d.fecha_baja IS NULL
+      ${claseSql}
+      AND ${drogaCoincideSql("d", search)}
+      AND NOT EXISTS (
+        SELECT 1
+        FROM fsj.costo_proveedor cp
+        WHERE cp.tenant_id = d.tenant_id
+          AND cp.droga_id = d.id
+          AND cp.vigente_hasta IS NULL
+      )
+    ORDER BY d.nombre ASC, d.id ASC
+    LIMIT ${pageSize} OFFSET ${skip}
+  `;
+
+  const totalRows = await tx.$queryRaw<{ total: bigint }[]>`
+    SELECT count(*)::bigint AS total
+    FROM fsj.droga d
+    WHERE d.tenant_id = ${tenantId}::uuid
+      AND d.fecha_baja IS NULL
+      ${claseSql}
+      AND ${drogaCoincideSql("d", search)}
+      AND NOT EXISTS (
+        SELECT 1
+        FROM fsj.costo_proveedor cp
+        WHERE cp.tenant_id = d.tenant_id
+          AND cp.droga_id = d.id
+          AND cp.vigente_hasta IS NULL
+      )
+  `;
+
+  return {
+    items: rows.map((r) => ({
+      id: r.id,
+      nombre: r.nombre,
+      clase: r.clase,
+      unidadBaseSimbolo: r.unidad_base_simbolo,
+    })),
+    total: Number(totalRows[0]?.total ?? BigInt(0)),
+    page: filter.page,
+    pageSize: filter.pageSize,
+  };
 }
