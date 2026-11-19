@@ -664,6 +664,35 @@ without any vigente costo de proveedor (`vigente_hasta IS NULL`), excluding thos
 - **WHEN** the "Sin precio" section is consulted without filters
 - **THEN** the empty state "Todos los ítems tienen precio." is displayed
 
+### Requirement: R39 — Date and origen filters
+
+**Vigentes** (`/costos-proveedor`) SHALL filter by `fecha del precio` inclusive range (`fechaDesde`..`fechaHasta`),
+`origen` (`todos`, `manual`, `lista`) and `soloDesactualizados` ("sin actualizar hace más de un año").
+**Listas importadas** (`/costos-proveedor/listas`) SHALL filter by `fecha de la lista` inclusive range. Filter bars
+use `FilterDrawer` and container queries to stay usable at 375 px.
+
+#### Scenario: Filtering vigentes by origen and fecha range
+
+- **WHEN** Vigentes is filtered with `origen = "manual"` and `fechaDesde`..`fechaHasta`
+- **THEN** only manual vigentes within that inclusive `fecha_precio` range are returned
+
+#### Scenario: Filtering listas importadas by fecha range
+
+- **WHEN** Listas importadas is filtered with `fechaDesde`..`fechaHasta`
+- **THEN** only listas within that inclusive `fecha_lista` range are returned
+
+### Requirement: R39 — Stale-price mark
+
+A vigente price SHALL be marked stale when `fecha_precio <= fechaLimiteDesactualizado(jornadaActual)` (one year
+before `jornadaActual`, 29 Feb → 28 Feb). Stale rows show a red dot and red age; the toolbar counts them
+(`totalDesactualizados`) and links to the `soloDesactualizados` filter.
+
+#### Scenario: Price updated exactly one year ago is marked stale
+
+- **GIVEN** `jornadaActual` is `2026-11-18` and a vigente costo has `fecha_precio` `2025-11-18`
+- **WHEN** Vigentes is listed
+- **THEN** `precioDesactualizado` is `true`, the row shows a red dot and red age, and `soloDesactualizados` includes it
+
 ### Requirement: Importar lista and Listas importadas tabs
 
 **Importar lista** (`/costos-proveedor/importar`) SHALL implement R13–R23. **Listas importadas**
@@ -845,7 +874,8 @@ Audit entities `costo_proveedor` and `lista_precio_proveedor` (labels in
 
 - `modules/costos-proveedor/domain/`: `costo-proveedor.ts` (validation,
   `calcularCostoUnidadBase`, `unidadPrecioPorDefecto`, `planVersionar`,
-  `elegirCostoProveedor`), `importacion-lista.ts` (preview types and states),
+  `elegirCostoProveedor`), `presentacion.ts` (`fechaLimiteDesactualizado`,
+  `precioDesactualizado`), `importacion-lista.ts` (preview types and states),
   `archivo-lista.ts` (file validation + format detection), `parsers/lista-xlsx-crystal.ts`.
 - `modules/costos-proveedor/infrastructure/`: `costo-proveedor-repository.ts`,
   `leer-xlsx.server.ts`, `leer-xls.server.ts` (BIFF8), `libro-hojas.ts` (the

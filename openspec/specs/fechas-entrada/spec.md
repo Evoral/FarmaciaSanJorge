@@ -56,23 +56,31 @@ A listing filtered by date through the URL SHALL drop a filter date that is malf
 
 A form that receives a date that does not exist in the calendar SHALL refuse it, keep the rest of the user's input and mark that date field with "Debe ser una fecha que exista en el calendario." It SHALL NOT save anything and SHALL NOT show a generic error.
 
-#### Scenario: Invoice lote with an impossible expiry date
+#### Scenario: Invoice fecha de emisión with an impossible date
 
-- **GIVEN** a factura with one lote whose fecha de vencimiento arrives as `2027-06-31`
+- **GIVEN** a factura whose fecha de emisión arrives as `2027-06-31`
 - **WHEN** the user confirms the factura
 - **THEN** nothing is stored
-- **AND** the lote's fecha de vencimiento field shows "Debe ser una fecha que exista en el calendario."
+- **AND** the fecha de emisión field shows "Debe ser una fecha que exista en el calendario."
+- **AND** every other field keeps what the user typed
+
+#### Scenario: Lot vencimiento with an impossible month
+
+- **GIVEN** a lote whose fecha de vencimiento arrives as `2027-13`
+- **WHEN** the form or use case validates it with `fechaVencimientoLote`
+- **THEN** nothing is stored
+- **AND** the lote's fecha de vencimiento field shows "Debe ser un mes que exista en el calendario."
 - **AND** every other field keeps what the user typed
 
 ## Enforcement
 
-- `shared/validation/index.ts`: `esFechaIso` (shape + UTC round trip), `fechaIso` (zod: shape message with `abort`, then the calendar message) and `filtroFechaIso` (page helper: the date or `undefined`).
-- Use cases validate with `fechaIso`, so a caller that skips the page helper gets a `ValidationError`, never a Postgres `date` cast error.
+- `shared/validation/index.ts`: `esFechaIso` (shape + UTC round trip), `fechaIso` (zod: shape message with `abort`, then the calendar message), `fechaVencimientoLote` (accepts `AAAA-MM` or `AAAA-MM-DD`, normalizes via `finDeMes` to the month's last day and checks `esFechaIso` with `"Debe ser un mes que exista en el calendario."`) and `filtroFechaIso` (page helper: the date or `undefined`).
+- Use cases validate with `fechaIso` (or `fechaVencimientoLote` for lot vencimientos), so a caller that skips the page helper gets a `ValidationError`, never a Postgres `date` cast error.
 - Not covered: `shared/ui/date-input.tsx#isValidIso` (client component, own year bounds); `auditoria/domain/presentacion.ts` and `recetas/domain/receta-rcta-json.ts` parse text, they do not validate input.
 
 ## Code
 
-- `shared/validation/index.ts`: `esFechaIso`, `fechaIso`, `filtroFechaIso`.
+- `shared/validation/index.ts`: `esFechaIso`, `fechaIso`, `fechaVencimientoLote`, `filtroFechaIso`; `shared/time/vencimiento-lote.ts` (`finDeMes`).
 - Use case and domain schemas: `modules/{stock,costos-proveedor,recetas,directores-tecnicos,entregas,auditoria,preparaciones,cierres,libro,archivo}` (`fechaIso`); `modules/preparaciones/application/filtro-receta-input.ts`; `modules/preparaciones/domain/listado.ts`, `modules/stock/domain/ajustes-listado.ts`.
 - Listing pages: `app/(app)/{entregas,auditoria,reportes/kardex,reportes/recetas,cierres,cierres/historial,cierres/reporte,libro,libro/contralor,archivo,archivo/nuevo,recetas,partidas}/page.tsx` (`filtroFechaIso`); `/preparaciones` and `/stock/ajustes` through their domain parsers.
 - Tests: `tests/unit/validation.test.ts`, `preparaciones-listado.test.ts`, `stock-ajustes-listado.test.ts`, `directores-tecnicos-validacion.test.ts`.

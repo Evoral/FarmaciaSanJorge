@@ -70,6 +70,24 @@ times. Allowed whether the partida is vencida, por vencer or vigente, as long as
 - **WHEN** a reanálisis is recorded for it
 - **THEN** the DB refuses it (INV-S22)
 
+### Requirement: R3 — Month precision for lot vencimientos
+
+A lot's vencimiento (original and reanálisis) SHALL be entered and shown as `mm/aaaa` and stored as that month's last
+day (`fechaVencimientoLote` / `finDeMes` / `formatVencimientoLote`). R3 "strictly after the jornada actual" compares
+the stored end-of-month date, so a reanálisis in the jornada's own month is accepted and the previous month is refused.
+
+#### Scenario: Reanálisis in the jornada's own month
+
+- **GIVEN** the jornada actual is `2026-06-15`
+- **WHEN** the DT enters `06/2026` as the new reanálisis date
+- **THEN** it is normalized to `2026-06-30` (> `2026-06-15`) and accepted
+
+#### Scenario: Reanálisis in the previous month
+
+- **GIVEN** the jornada actual is `2026-06-15`
+- **WHEN** the DT enters `05/2026` as the new reanálisis date
+- **THEN** it is normalized to `2026-05-31` (< `2026-06-15`) and refused
+
 ### Requirement: R4 — Original date never overwritten; append-only history
 
 The original `fecha_vencimiento` MUST **never** be overwritten. Each reanálisis is an immutable, append-only row
@@ -318,8 +336,8 @@ expiry is now its **vencimiento vigente**, not always the printed date.
 
 ## Vocabulary
 
-- **Vencimiento original**: `partida.fecha_vencimiento`, the date printed on the
-  lot. Never changes.
+- **Vencimiento original**: `partida.fecha_vencimiento`, the month printed on the
+  lot (entered and shown as `mm/aaaa`, stored as that month's last day). Never changes.
 - **Fecha de reanálisis**: the new date a reanálisis sets.
 - **Vencimiento vigente**: the date of the latest reanálisis, else the original
   date (`partida.fecha_vencimiento_vigente`). Every expiry rule uses this one.
@@ -385,8 +403,10 @@ expiry is now its **vencimiento vigente**, not always the printed date.
 - Migration: `prisma/migrations/20261012090000_0074_reanalisis_partida/migration.sql`;
   rollback `prisma/rollbacks/0074_reanalisis_partida.down.sql`.
 - Domain: `modules/stock/domain/vencimiento-partida.ts` (estado, por vencer
-  text, reanálisis / marcar vencida rules, zod fields); `reparto.ts` documents
-  that `fechaVencimiento` is the vigente date.
+  text, reanálisis / marcar vencida rules, `reanalisisCampos` using
+  `fechaVencimientoLote`); `reparto.ts` documents that `fechaVencimiento` is
+  the vigente date; `shared/time/vencimiento-lote.ts` (`finDeMes` /
+  `fechaFinDeMes`), `shared/format/fecha.ts` (`formatVencimientoLote`).
 - Application: `reanalizar-partida.ts`, `marcar-partida-vencida.ts`,
   `verificar-password-dt-partida.ts`, `dias-alerta-vencimiento.ts`,
   `get-partida.ts`, `list-partidas-droga.ts` (`modules/stock/application/`).

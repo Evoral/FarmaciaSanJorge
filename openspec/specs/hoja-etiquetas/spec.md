@@ -614,6 +614,25 @@ sheet (A4 portrait 210 × 297 mm, margin 5 mm) and the chosen `incluir_excipient
 - **WHEN** the user loads the toma workspace
 - **THEN** the setting is read through `getIncluirExcipientesParaGenerar`
 
+### Requirement: R16 — Red background for configured formas farmacéuticas
+
+`/admin/configuracion/etiquetas` (`config.editar`, re-auth, audited on `etiqueta_hoja`) SHALL configure which `formas
+farmacéuticas` print on a red background (`formas_fondo_rojo`, default `[]`) and ONE of 5 fixed red tones (`pastel`,
+`tenue`, `suave`, `medio`, `intenso`; default `pastel`, >= 4.5:1 contrast; migration 0130). `colorFondoEtiqueta`
+resolves it per etiqueta so one sheet mixes red and white; the PDF fills each rounded marco (`rectanguloRedondeado`).
+
+#### Scenario: Configured forma prints with the chosen red tone
+
+- **GIVEN** `CREMA` configured in `formas_fondo_rojo` and `tono_fondo_rojo` set to `"suave"`
+- **WHEN** a sheet PDF is generated with one `CREMA` etiqueta and one `CAPSULAS` etiqueta
+- **THEN** the `CREMA` etiqueta fills its rounded marco with `#fca5a5` and the `CAPSULAS` etiqueta stays white
+
+#### Scenario: Missing sheet row defaults to no red formas
+
+- **GIVEN** a tenant without a `fsj.etiqueta_hoja` row
+- **WHEN** `getFondoEtiquetaParaImprimir` or `getFondoEtiqueta` is read
+- **THEN** `formasFondoRojo` is `[]` and `tonoFondoRojo` is `"pastel"`
+
 ## Status
 
 Status: implemented (2026-10-21), migration 0096 pending to apply (see Rollout). Plan: `docs/superpowers/plans/2026-10-21-hoja-etiquetas.md`.
@@ -666,6 +685,7 @@ migration 0066 (`fsj.etiqueta_tamano`, the configured label sizes).
 | R13 | `modules/etiqueta-tamanos/application/` |
 | R14 | `SeleccionarEtiquetasDialog`; `GET /api/preparaciones/etiquetas/pdf`; `imprimirEtiquetasPdf`; `buildEtiquetasPdf` |
 | R15 | `modules/etiqueta-tamanos/application/get-incluir-excipientes.ts`, `editar-incluir-excipientes.ts`; `modules/etiqueta-tamanos/ui/incluir-excipientes-form.tsx`; `app/(app)/admin/configuracion/etiquetas/page.tsx`; `fsj.etiqueta_hoja.incluir_excipientes` (migration 0117) |
+| R16 | `modules/etiqueta-tamanos/domain/etiqueta-fondo.ts` (`colorFondoEtiqueta`, `TONOS_FONDO_ROJO`), `application/{get,editar}-fondo-etiqueta.ts`, `ui/fondo-etiqueta-form.tsx`; `modules/preparaciones/infrastructure/etiqueta-pdf.ts` (`dibujarEtiqueta` rounded marco fill); `fsj.etiqueta_hoja.{formas_fondo_rojo,tono_fondo_rojo}` (migration 0130) |
 
 ## Data model (migration 0096 — re-check numbering before applying)
 

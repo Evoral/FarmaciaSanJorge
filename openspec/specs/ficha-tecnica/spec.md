@@ -69,34 +69,35 @@ catálogo (`true` si es `DROGA`; migración 0063).
 - **WHEN** se guarda una receta con un componente cuya droga no es de clase `DROGA`
 - **THEN** su `esPrincipioActivo` es `false`
 
-### Requirement: Componentes sin orden
+### Requirement: Orden de los componentes
 
-Los componentes de un ítem **no tienen orden** (migración 0065: a la farmacia no le importa). Donde se listan o se
-calculan SHALL ordenarse con una sola regla: primero los que tienen cantidad (TOTAL, POR_DOSIS), después CS y al
-final CSP; a igualdad, por nombre de droga (`modules/elaboracion/domain/orden-componentes.ts`).
+`fsj.componente_item_receta.posicion` (migración 0129) SHALL guardar el orden de carga (base 0) al guardar un ítem
+(alta, edición e importación; sin control para reordenar). `ordenarComponentes`
+(`modules/elaboracion/domain/orden-componentes.ts`) SHALL ordenar por `posicion` en todos los lectores. Las filas
+anteriores a la 0129 (sin `posicion`) conservan la regla previa: cantidad → CS → CSP, y a igualdad nombre de droga.
 
-#### Scenario: Listado de los componentes de T4
+#### Scenario: Componentes cargados con posicion
 
-- **GIVEN** el ítem de T4: Sulfato de zinc TOTAL, Jarabe simple CS, Sorbitol CSP
-- **WHEN** se listan sus componentes
-- **THEN** el orden es Sulfato de zinc, Jarabe simple, Sorbitol
+- **GIVEN** un ítem cargado en este orden: Jarabe simple CS (pos 0), Sulfato de zinc TOTAL (pos 1), Sorbitol CSP (pos 2)
+- **WHEN** se listan sus componentes con `ordenarComponentes`
+- **THEN** el orden es Jarabe simple, Sulfato de zinc, Sorbitol
 
-#### Scenario: Dos componentes con cantidad
+#### Scenario: Filas anteriores a la migración 0129
 
-- **GIVEN** dos componentes TOTAL o POR_DOSIS
-- **WHEN** se listan o se calculan
-- **THEN** van por nombre de droga
+- **GIVEN** un ítem con `posicion` nula en sus componentes (Sulfato de zinc TOTAL, Jarabe simple CS, Sorbitol CSP)
+- **WHEN** se listan sus componentes con `ordenarComponentes`
+- **THEN** el orden es Sulfato de zinc, Jarabe simple, Sorbitol (y a igualdad de modo, por nombre de droga)
 
 ### Requirement: Orden de las líneas de salida
 
-El `orden` de cada `LineaPesaje` de salida SHALL ser la posición de la línea: la de su componente según la regla de
-orden de los componentes (cantidad, CS, CSP; luego nombre de droga).
+El `orden` de cada `LineaPesaje` de salida SHALL seguir el orden de carga (`ordenarComponentes`), **excepto que el CSP
+queda siempre al final** porque es el enrase (decisión del usuario, 2026-11-18; `calcularFichaTecnica`).
 
-#### Scenario: Líneas de T4
+#### Scenario: Líneas de la ficha con CSP cargado antes
 
-- **GIVEN** el ítem de T4
-- **WHEN** se calculan sus líneas
-- **THEN** Sulfato de zinc, Jarabe simple y Sorbitol quedan en ese orden
+- **GIVEN** un ítem cargado como Sorbitol CSP (pos 0), Sulfato de zinc TOTAL (pos 1), Agua CS (pos 2)
+- **WHEN** se calculan sus líneas de ficha técnica
+- **THEN** Sulfato de zinc y Agua quedan en su orden de carga y Sorbitol (CSP) queda al final
 
 ### Requirement: Parámetros de pesaje
 
@@ -578,7 +579,7 @@ calcularFichaTecnica(
 
 `esPrincipioActivo` no lo carga el usuario: al guardar la receta se copia de la clase de la droga en el catálogo (`true` si es `DROGA`; migración 0063).
 
-Los componentes de un ítem **no tienen orden** (migración 0065: a la farmacia no le importa). Donde se listan o se calculan se ordenan con una sola regla: primero los que tienen cantidad (TOTAL, POR_DOSIS), después CS y al final CSP; a igualdad, por nombre de droga (`modules/elaboracion/domain/orden-componentes.ts`).
+Los componentes de un ítem guardan su orden de carga en `posicion` (migración 0129; sin control para reordenar). Donde se listan se ordenan con `ordenarComponentes` (`modules/elaboracion/domain/orden-componentes.ts`): por `posicion` (y las filas anteriores a la 0129 conservan cantidad → CS → CSP → nombre de droga). En la ficha técnica (`calcularFichaTecnica`), el CSP queda siempre al final porque es el enrase.
 
 ### Enum ModoExpresion
 
@@ -605,7 +606,7 @@ CSP        cantidad suficiente para completar cantidadTotal ("vaselina csp 30")
 | cantidadAPesar | Decimal \| null | activo con exceso, sin redondear (R8) |
 | unidadMedida | UnidadMedida | unidad base de la magnitud |
 | esEnraseManual | Boolean | true = la cantidad la registra el farmacéutico al preparar |
-| orden | Integer | posición de la línea: la de su componente según la regla de orden de arriba |
+| orden | Integer | posición de la línea: orden de carga (`ordenarComponentes`) con el CSP al final |
 
 ## Validaciones (devuelven error, no generan ficha)
 
@@ -620,7 +621,7 @@ Las validaciones V1, V2 y V4–V9 son los requirements de igual ID. V3 ya no exi
 - Las líneas generadas se persisten congeladas. Un cambio posterior en Droga o UnidadMedida no las recalcula.
 - Una línea con `esEnraseManual = true` recibe su cantidad real al confirmar la preparación. Esa cantidad se guarda en el `MovimientoStock` (EGRESO_PREPARACION) y en `DetalleAsiento`, no en `LineaPesaje`.
 - Para líneas no manuales, el egreso de stock es exactamente `cantidadAPesar`, salvo que se registre la pesada real (`openspec/specs/pesada-real/spec.md`, migración 0088): entonces es la pesada real. Para líneas manuales, es la cantidad registrada por el farmacéutico.
-- `orden` de salida sigue la regla de orden de los componentes (cantidad, CS, CSP; luego nombre de droga).
+- `orden` de salida sigue el orden de carga (`ordenarComponentes`), dejando siempre el CSP al final.
 
 **Versiones, vigencia y preparación** (2026-10-15, `openspec/specs/reserva-stock-preparacion/spec.md` R18-R20):
 

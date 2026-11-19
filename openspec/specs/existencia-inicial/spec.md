@@ -67,11 +67,10 @@ relevamiento.
 
 ### Requirement: R3 — Data read from the envase
 
-The data of a partida de existencia inicial SHALL be read from the physical envases of the lote: droga, **lote**
-(required), **fecha de vencimiento** (required for a `DROGA`, optional for an insumo), **cantidad** counted
-(required, > 0, the total of the lote's envases, in any unit of the droga's magnitude), and **potencia declarada**
-(required when the droga demands it). Unlike a purchase, the vencimiento MAY be today or a past date to account
-for expired stock on the shelf.
+Each partida SHALL read from its envases: droga, **lote** (required), **fecha de vencimiento** (`mm/aaaa`, stored as
+that month's last day via `fechaVencimientoLote`; required for `DROGA`, optional for insumo), **cantidad** (> 0, in
+any unit of the droga's magnitude) and **potencia declarada** (when required). Unlike a purchase, the vencimiento MAY
+be today or past.
 
 #### Scenario: Cantidad zero
 
@@ -775,6 +774,8 @@ banner stating the days left, the drogas of Faltan cargar and the rows in the pl
 
 The tab SHALL import an `.xlsx` into the planilla as ordinary rows, matching each droga by name or sinónimo. A row whose
 droga or unidad is not recognized SHALL stay as an incompleta row keeping what was read. Importing SHALL NOT touch stock.
+A fecha de vencimiento SHALL accept `mm/aaaa` (and normalize any full date `dd/mm/aaaa` or Excel date to its month's
+last day via `fechaFinDeMes`); an invalid date keeps the row incompleta with `"Fecha no válida (usar mm/aaaa)"`.
 
 #### Scenario: Recognized rows
 
@@ -785,6 +786,13 @@ droga or unidad is not recognized SHALL stay as an incompleta row keeping what w
 
 - **WHEN** a row names a droga that is not recognized
 - **THEN** it stays incompleta, showing the text read so the user can pick the droga
+
+#### Scenario: Vencimiento by month or invalid date
+
+- **WHEN** a row carries vencimiento `06/2027` or `15/06/2027`
+- **THEN** both normalize to `2027-06-30`
+- **WHEN** a row carries an invalid vencimiento
+- **THEN** it stays incompleta with `"Fecha no válida (usar mm/aaaa)"`
 
 ## Status
 
