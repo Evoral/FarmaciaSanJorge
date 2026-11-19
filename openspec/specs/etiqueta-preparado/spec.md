@@ -54,7 +54,14 @@ the storage note in red; the médico in the footer.
 
 Every field SHALL have a fixed place. A missing field leaves its place blank and never moves another one; a long
 text shrinks to fit its place (the dosis wraps up to 4 lines in its column). Exception (2026-11-11): the forma / vía /
-fracción lines present are centered, as a block, on the large quantity's height.
+fracción lines present are centered, as a block, on the large quantity's height. Exception (2026-11-18): the R13
+wide design's info column is stacked.
+
+#### Scenario: Wide design without dosis
+
+- **GIVEN** the R13 wide design and a preparación without dosis
+- **WHEN** the etiqueta is printed
+- **THEN** the paciente / vencimiento column is stacked from the top and the paciente grows into the room left
 
 #### Scenario: Forma alone beside the quantity
 
@@ -138,7 +145,8 @@ for forms counted in units (cápsulas, comprimidos, óvulos, supositorios).
 
 ### Requirement: R5 — Paciente printed
 
-The paciente SHALL be printed ("Paciente:" + the asiento's paciente text).
+The paciente SHALL be printed ("Paciente:" + the asiento's paciente text). The compact designs (R13) print the
+paciente without the "Paciente:" label.
 
 #### Scenario: Asiento with a paciente
 
@@ -148,12 +156,24 @@ The paciente SHALL be printed ("Paciente:" + the asiento's paciente text).
 ### Requirement: R6 — Médico line
 
 The médico SHALL print as "Médico: Nombre Apellido  -  MAT:número", without the MP/MN prefix (as on the real label).
+On every layout (`lineaPrioritaria` + `variantesMedico`), when the full line would shrink below 5 design points to fit
+its width, it SHALL fall back to "Nombre Apellido  -  MAT:número"; if still below 5 pt, it SHALL print
+"Nombre Apellido" only, shrunk to fit (user decision 2026-11-18: "que el médico se vea aunque sea un dato matrícula o
+nombre"). The médico is never dropped.
 
 #### Scenario: Médico with an MP matrícula
 
 - **GIVEN** a médico with an MP matrícula
 - **WHEN** the etiqueta is printed
 - **THEN** the footer prints "Médico: Nombre Apellido  -  MAT:número" without "MP"
+
+#### Scenario: Fallback when space is tight
+
+- **GIVEN** a label size where the full médico line would shrink below 5 design points
+- **WHEN** the etiqueta is printed
+- **THEN** it prints "Nombre Apellido  -  MAT:número" without the "Médico:" label
+- **AND** if that still shrinks below 5 pt, it prints "Nombre Apellido" only, shrunk to fit
+- **AND** the médico is never dropped
 
 ### Requirement: R8 — Director técnico is the titular
 
@@ -302,9 +322,10 @@ total loaded, keep the unit count. The snapshot line reads "Cantidad: 100 g — 
 
 ### Requirement: R12 — Rp/ fills its blank area
 
-The fórmula SHALL use the whole blank area left of the panel, with a minimal margin to the frame and the rules (user
-decision, 2026-11-11). With two columns (`columnasRp`), each column SHALL be as wide as its own widest line; the one
-font size SHALL shrink only as needed for the columns to fit the width and the rows to fit the height.
+The fórmula SHALL use the blank area left of the panel with a minimal margin (user decision, 2026-11-11). The Rp/ block
+is CENTERED in its area on every layout: leftover width is shared equally before, between and after columns
+(`distribuirColumnasRp`, n+1 equal gaps); vertical centering is unchanged. With two columns (`columnasRp`), each
+column SHALL be as wide as its own widest line; the one font size shrinks only as needed to fit width and height.
 
 #### Scenario: One long line among many drugs
 
@@ -320,9 +341,70 @@ font size SHALL shrink only as needed for the columns to fit the width and the r
 
 #### Scenario: Short columns
 
-- **GIVEN** columns narrower than the area
+- **GIVEN** one or two short lines
 - **WHEN** the etiqueta is printed
-- **THEN** the font keeps its size for the number of rows and the width left over is shared equally among the columns
+- **THEN** the block sits centered horizontally and vertically in the area
+
+#### Scenario: Wide fórmula
+
+- **GIVEN** a fórmula as wide as the area
+- **WHEN** the etiqueta is printed
+- **THEN** it keeps no side gap
+
+### Requirement: R13 — Compact designs for very wide or very tall sizes
+
+The design SHALL be chosen by aspect ratio (ancho/alto) closest on a log scale (`disposicionCompacta`): classic 100 × 42
+(2.38), WIDE 100 × 25 (4, ratio ≥ 3.09), or TALL 50 × 60 (0.83, ratio ≤ 1.41) (user decision 2026-11-18). Standard
+proportions (80 × 30, 100 × 42) and elaborated lots keep classic design. No field is dropped; domicilio and phones
+shrink first. WIDE and TALL designs adapt layout and hierarchy to fit extreme dimensions while preserving readability.
+
+#### Scenario: 60 × 15 → wide
+
+- **GIVEN** a 60 × 15 label size (aspect ratio 4.0 ≥ 3.09)
+- **WHEN** the etiqueta is printed
+- **THEN** it selects the WIDE compact design (100 × 25 mm)
+- **AND** the top band shows the logo, the DT name bold and large with " - MAT. x" (DT label drops before name shrinks; matrícula never drops), and domicilio + "Tel. … · Cel. …" in one small line
+- **AND** Rp/ sits on the left beside its mark
+- **AND** the panel shows the large green quantity with forma/vía/fracción, the paciente without "Paciente:" in up to two large lines, "Vence: …" bold and large with "N° x" small on the same baseline, dosis (up to 2 lines), and storage note in red at the bottom
+- **AND** the médico runs across the whole footer
+
+#### Scenario: 40 × 60 → tall
+
+- **GIVEN** a 40 × 60 label size (aspect ratio 0.67 ≤ 1.41)
+- **WHEN** the etiqueta is printed
+- **THEN** it selects the TALL compact design (50 × 60 mm)
+- **AND** everything is stacked and centered: logo, DT name bold on its own line, "Director Técnico · MAT. x" under it, domicilio, phones
+- **AND** Rp/ spans across the full width
+- **AND** paciente (bold, no "Paciente:"), "N° x · Vence: …", quantity with its forma, dosis, and storage note are stacked
+- **AND** the médico is in the footer
+
+#### Scenario: 80 × 30 → classic
+
+- **GIVEN** an 80 × 30 label size (aspect ratio 2.67)
+- **WHEN** the etiqueta is printed
+- **THEN** it keeps the classic 100 × 42 design
+
+#### Scenario: Paciente with a comma in two lines
+
+- **GIVEN** a WIDE compact design and a paciente with a comma ("Martínez, Sofía")
+- **WHEN** the etiqueta is printed
+- **THEN** the paciente is split at the comma into two lines ("Martínez," / "Sofía") without the "Paciente:" label
+- **AND** it is printed as large as the room allows (max 10 pt)
+
+#### Scenario: No DT name drop of matrícula
+
+- **GIVEN** a compact design where space for the director técnico is constrained
+- **WHEN** the line shrinks below 5 design points
+- **THEN** the "Director Técnico" label drops to keep the name legible
+- **AND** the matrícula is never dropped
+
+#### Scenario: Médico fallback on wide
+
+- **GIVEN** a WIDE compact design where the full médico line would shrink below 5 design points
+- **WHEN** the etiqueta is printed
+- **THEN** it prints "Nombre Apellido  -  MAT:número" across the whole footer
+- **AND** if still below 5 pt, it prints "Nombre Apellido" only, shrunk to fit
+- **AND** the médico is never dropped
 
 ## Placement
 
@@ -332,18 +414,19 @@ Placement on the printed page (the PDF is the sheet, the label goes in a chosen 
 
 | # | Code |
 |---|---|
-| R1 | `modules/preparaciones/infrastructure/etiqueta-pdf.ts` |
+| R1 | `modules/preparaciones/infrastructure/etiqueta-pdf.ts`, `etiqueta-pdf-trazos.ts` |
 | R2 | same |
 | R3 | `modules/farmacia` |
 | R4 | `modules/preparaciones/domain/etiqueta.ts` (`fraccionDosisEtiqueta`) |
 | R5 | `MOSTRAR_PACIENTE_EN_ETIQUETA` |
-| R6 | `formatearMedicoEtiqueta` |
+| R6 | `formatearMedicoEtiqueta`, `modules/preparaciones/infrastructure/etiqueta-pdf-trazos.ts` (`variantesMedico`, `lineaPrioritaria`) |
 | R8 | `getDtTitularParaEtiqueta` (preparacion-repository) |
 | R7 | `formatearContenidoEtiqueta`, `parsearContenidoEtiqueta` |
 | R9 | `formatearLineaRp` (`domain/etiqueta.ts`), `getPreparacionParaEtiqueta` |
 | R11 | `cantidadTotalEtiqueta`, `armarContenidoEtiqueta`, `formatearContenidoEtiqueta`, `parsearContenidoEtiqueta` (`domain/etiqueta.ts`), `getPreparacionParaEtiqueta`, `etiqueta-pdf.ts` (`dibujarPanel`) |
 | R10 | `modules/preparaciones/domain/etiqueta.ts` (`MARCA_EXCIPIENTE`, `lineasExcipientesRp`, `OpcionesEtiqueta`, `armarContenidoEtiqueta`), `modules/preparaciones/application/generar-etiqueta.ts`, `confirmar-reservas-receta.ts`, `modules/preparaciones/infrastructure/preparacion-repository.ts` (`getPreparacionParaEtiqueta`, `getIncluirExcipientesEnEtiqueta`), `modules/preparaciones/ui/reserva-acciones.tsx` (`EtiquetasDeReceta`), `imprimir-etiqueta-dialog.tsx`, `actions.ts` (`confirmarReservasRecetaAction`) |
-| R12 | `etiqueta-pdf.ts` (`AREA_RP`, `distribuirColumnasRp`, `dibujarRp`) |
+| R12 | `modules/preparaciones/infrastructure/etiqueta-pdf-trazos.ts` (`distribuirColumnasRp`, `dibujarFormula`), `etiqueta-pdf.ts` (`AREA_RP`, `distribuirColumnasRp`, `dibujarRp`) |
+| R13 | `modules/preparaciones/infrastructure/etiqueta-pdf-compacta.ts` (`disposicionCompacta`, `dibujarApaisada`, `dibujarAlta`, `lineasPaciente`, `variantesDt`), `etiqueta-pdf.ts` (`dibujarEtiqueta` picks the design, `colocarEtiqueta` takes the design space) |
 
 ## Rollback
 
