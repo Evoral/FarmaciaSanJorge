@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { palabrasBusquedaPersona } from "@/shared/db/busqueda-persona";
+import { describe, it, expect, vi } from "vitest";
+import type { Prisma } from "@/generated/prisma/client";
+import { buscarPersonasPorNombre, palabrasBusquedaPersona } from "@/shared/db/busqueda-persona";
 
 describe("palabrasBusquedaPersona (shared/db/busqueda-persona)", () => {
   describe("empty and blank inputs", () => {
@@ -82,5 +83,45 @@ describe("palabrasBusquedaPersona (shared/db/busqueda-persona)", () => {
       expect(palabrasBusquedaPersona("% _ \\")).toEqual(["\\%", "\\_", "\\\\"]);
       expect(palabrasBusquedaPersona("foo%bar_baz\\qux")).toEqual(["foo\\%bar\\_baz\\\\qux"]);
     });
+  });
+});
+
+describe("buscarPersonasPorNombre (shared/db/busqueda-persona, 56870c1)", () => {
+  it("returns [] without querying when the input has only punctuation or spaces", async () => {
+    const queryRaw = vi.fn();
+    const tx = { $queryRaw: queryRaw } as unknown as Prisma.TransactionClient;
+
+    await expect(buscarPersonasPorNombre(tx, "paciente", "tenant-1", ", . - ! _ % \\")).resolves.toEqual([]);
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+
+  it("strips punctuation from terms and queries regexp_replace normalized apellido+nombre+apellido", async () => {
+    const queryRaw = vi.fn(async () => [{ id: "pac-1" }]);
+    const tx = { $queryRaw: queryRaw } as unknown as Prisma.TransactionClient;
+
+    const ids = await buscarPersonasPorNombre(tx, "medico", "tenant-1", "Dr. Pérez-Gómez, Juan");
+
+    expect(ids).toEqual(["pac-1"]);
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    const [, ...values] = queryRaw.mock.calls[0]!;
+    // Punctuation/wildcards are stripped into clean alphanumeric terms: Dr, Pérez, Gómez, Juan.
+    const serializedValues = JSON.stringify(values);
+    expect(serializedValues).toContain("regexp_replace(fsj.normalizar_nombre");
+    expect(serializedValues).toContain('"Dr"');
+    expect(serializedValues).toContain('"Pérez"');
+    expect(serializedValues).toContain('"Gómez"');
+    expect(serializedValues).toContain('"Juan"');
+  });
+
+  it("keeps joined queries like 'delafuente' as a single term", async () => {
+    const queryRaw = vi.fn(async () => [{ id: "pac-2" }]);
+    const tx = { $queryRaw: queryRaw } as unknown as Prisma.TransactionClient;
+
+    const ids = await buscarPersonasPorNombre(tx, "paciente", "tenant-1", "delafuente");
+
+    expect(ids).toEqual(["pac-2"]);
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    const [, ...values] = queryRaw.mock.calls[0]!;
+    expect(JSON.stringify(values)).toContain('"delafuente"');
   });
 });

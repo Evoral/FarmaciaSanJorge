@@ -475,7 +475,8 @@ describe("ingresar-partida: converts the purchased quantity to the droga's unida
           drogaId: DROGA_ID,
           proveedorId: PROVEEDOR_ID,
           lote: "L1",
-          fechaVencimiento: "2026-06-15",
+          // Lot vencimientos normalize to end-of-month, so "2026-05-15" -> "2026-05-31" (<= jornada "2026-06-15").
+          fechaVencimiento: "2026-05-15",
           cantidadCompra: "5",
           unidadCompraId: UNIDAD_COMPRA_ID,
           costoUnitario: "10",
@@ -532,6 +533,49 @@ describe("ingresar-partida: converts the purchased quantity to the droga's unida
     );
 
     expect(insertPartidaConIngresoMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("normalizes fechaVencimiento to end of month before comparing against jornadaActual", async () => {
+    jornadaActualTenantMock.mockResolvedValue("2026-06-15");
+
+    await ingresarPartidaCommand.execute(
+      {
+        drogaId: DROGA_ID,
+        proveedorId: PROVEEDOR_ID,
+        lote: "L1",
+        fechaVencimiento: "2026-06",
+        cantidadCompra: "5",
+        unidadCompraId: UNIDAD_COMPRA_ID,
+        costoUnitario: "10",
+      },
+      { session: fakeSession("stock.partida.ingresar") },
+    );
+
+    expect(insertPartidaConIngresoMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ fechaVencimiento: "2026-06-30" }),
+    );
+  });
+
+  it("rejects fechaVencimiento whose end-of-month equals jornadaActual", async () => {
+    jornadaActualTenantMock.mockResolvedValue("2026-06-30");
+
+    await expect(
+      ingresarPartidaCommand.execute(
+        {
+          drogaId: DROGA_ID,
+          proveedorId: PROVEEDOR_ID,
+          lote: "L1",
+          fechaVencimiento: "2026-06-15",
+          cantidadCompra: "5",
+          unidadCompraId: UNIDAD_COMPRA_ID,
+          costoUnitario: "10",
+        },
+        { session: fakeSession("stock.partida.ingresar") },
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    expect(insertPartidaConIngresoMock).not.toHaveBeenCalled();
   });
 });
 

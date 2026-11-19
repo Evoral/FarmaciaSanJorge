@@ -82,8 +82,8 @@ describe("filtrarPartidasDeLaDroga / partidasSeleccionadas / partidasRestantes",
 });
 
 describe("etiquetaPartidaOpcion", () => {
-  it("shows lote, proveedor and the vencimiento as dd/mm/aaaa (a Postgres date is UTC midnight)", () => {
-    expect(etiquetaPartidaOpcion(opcionA)).toBe("Lote A-1 · Droguería Sur · vence 31/01/2027");
+  it("shows lote, proveedor and the vencimiento as mm/aaaa", () => {
+    expect(etiquetaPartidaOpcion(opcionA)).toBe("Lote A-1 · Droguería Sur · vence 01/2027");
   });
 
   it("says 'sin vencimiento' for an insumo that does not expire", () => {

@@ -6,6 +6,7 @@
  * not fit, or a cell that is not an integer or is outside the grid aborts without marking.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import PDFDocument from "pdfkit";
 import { NotFoundError, ValidationError } from "@/shared/errors";
 import type { DatosEtiqueta } from "@/modules/preparaciones/domain/etiqueta";
 
@@ -54,6 +55,10 @@ vi.mock("@/modules/preparaciones/application/marcar-etiqueta-impresa", () => ({ 
 vi.mock("@/modules/etiqueta-tamanos/application/get-tamano-para-imprimir", () => ({ getTamanoParaImprimir: (arg: string) => getTamanoParaImprimirMock(arg) }));
 vi.mock("@/modules/etiqueta-tamanos/application/list-tamanos-para-imprimir", () => ({ listTamanosParaImprimir: () => listTamanosParaImprimirMock() }));
 vi.mock("@/modules/etiqueta-tamanos/application/get-hoja-para-imprimir", () => ({ getHojaParaImprimir: () => getHojaParaImprimirMock() }));
+const getFondoEtiquetaParaImprimirMock = vi.fn(async () => ({ formasFondoRojo: [] as string[], tonoFondoRojo: "pastel" }));
+vi.mock("@/modules/etiqueta-tamanos/application/get-fondo-etiqueta", () => ({
+  getFondoEtiquetaParaImprimir: () => getFondoEtiquetaParaImprimirMock(),
+}));
 
 const { imprimirEtiquetaPdf, CELDA_NO_VALIDA_MESSAGE, TAMANO_NO_ENTRA_MESSAGE } = await import("@/modules/preparaciones/application/imprimir-etiqueta-pdf");
 
@@ -74,6 +79,7 @@ beforeEach(() => {
   getHojaParaImprimirMock.mockResolvedValue(A4);
   getTamanoParaImprimirMock.mockResolvedValue(ESTANDAR);
   listTamanosParaImprimirMock.mockResolvedValue([ESTANDAR]);
+  getFondoEtiquetaParaImprimirMock.mockReset().mockResolvedValue({ formasFondoRojo: [], tonoFondoRojo: "pastel" });
 });
 
 describe("imprimirEtiquetaPdf -- the sheet and the chosen size", () => {
@@ -159,5 +165,32 @@ describe("imprimirEtiquetaPdf -- the cell (R7)", () => {
     await expect(imprimirEtiquetaPdf(PREPARACION_ID, { tamanoId: TAMANO_ID, columna: "3" })).resolves.toBeDefined();
     getTamanoParaImprimirMock.mockResolvedValue(ESTANDAR);
     await expect(imprimirEtiquetaPdf(PREPARACION_ID, { tamanoId: TAMANO_ID, columna: "3" })).rejects.toBeInstanceOf(ValidationError);
+  });
+});
+
+describe("imprimirEtiquetaPdf -- red background follows rounded marco (7327ef6 + df03a84)", () => {
+  it("fills the rounded marco shape with the configured red tone when forma matches", async () => {
+    getFondoEtiquetaParaImprimirMock.mockResolvedValue({ formasFondoRojo: ["CAPSULA"], tonoFondoRojo: "medio" });
+    const bezierSpy = vi.spyOn(PDFDocument.prototype, "bezierCurveTo");
+    const fillColorSpy = vi.spyOn(PDFDocument.prototype, "fillColor");
+
+    await imprimirEtiquetaPdf(PREPARACION_ID, { tamanoId: TAMANO_ID });
+
+    expect(fillColorSpy).toHaveBeenCalledWith("#f87171");
+    // 4 bezierCurveTo calls for the rounded background fill + 4 for the rounded marco stroke.
+    expect(bezierSpy.mock.calls.length).toBeGreaterThanOrEqual(8);
+
+    bezierSpy.mockRestore();
+    fillColorSpy.mockRestore();
+  });
+
+  it("does not fill with red tone when forma is not configured", async () => {
+    getFondoEtiquetaParaImprimirMock.mockResolvedValue({ formasFondoRojo: ["CREMA"], tonoFondoRojo: "medio" });
+    const fillColorSpy = vi.spyOn(PDFDocument.prototype, "fillColor");
+
+    await imprimirEtiquetaPdf(PREPARACION_ID, { tamanoId: TAMANO_ID });
+
+    expect(fillColorSpy).not.toHaveBeenCalledWith("#f87171");
+    fillColorSpy.mockRestore();
   });
 });

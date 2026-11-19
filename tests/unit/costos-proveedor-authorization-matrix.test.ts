@@ -34,6 +34,7 @@ await import("@/modules/costos-proveedor/application/dar-de-baja-costo-proveedor
 await import("@/modules/costos-proveedor/application/leer-lista-precios");
 await import("@/modules/costos-proveedor/application/importar-lista-precios");
 await import("@/modules/costos-proveedor/application/listar-listas-precio");
+await import("@/modules/costos-proveedor/application/listar-sin-costo");
 
 const { listRegisteredUseCasesForTests } = await import("@/shared/usecase");
 
@@ -79,6 +80,7 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
     },
   },
   { name: "costos-proveedor.listar-listas", permiso: "stock.valorizado.ver", input: {} },
+  { name: "costos-proveedor.listar-sin-costo", permiso: "stock.valorizado.ver", input: {} },
 ];
 
 function sessionForRol(rol: Rol): AuthenticatedSession {
