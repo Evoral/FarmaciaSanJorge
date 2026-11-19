@@ -5,14 +5,16 @@
  * used to quote cotizaciones; the real cost of every partida is untouched.
  *
  * `searchParams` is untrusted and ONLY ever reads `droga` and `proveedor` (opaque uuids,
- * parsed with `uuid.safeParse`) and `page` (a plain integer). Access is the layout's
+ * parsed with `uuid.safeParse`), `desde` / `hasta` (`fechaIso`), `origen` (a fixed list),
+ * `desactualizados` (`1`) and `page` (a plain integer). R39: a red dot marks every price not
+ * updated in a year, and the toolbar counts them with a link to that filter. Access is the layout's
  * `stock.valorizado.ver` guard; the write actions are shown with `puedeGestionar`
  * (`costos.proveedor.gestionar`) and enforced again by the use cases.
  */
 import Link from "next/link";
 import { CircleDollarSign, Plus, SearchX } from "lucide-react";
-import { listarCostosVigentes, PAGE_SIZE_COSTOS_VIGENTES } from "@/modules/costos-proveedor/application/listar-costos-vigentes";
-import { antiguedadDias, etiquetaAntiguedad, etiquetaPrecio } from "@/modules/costos-proveedor/domain/presentacion";
+import { listarCostosVigentes, ORIGENES_COSTO, PAGE_SIZE_COSTOS_VIGENTES, type OrigenCostoFiltro } from "@/modules/costos-proveedor/application/listar-costos-vigentes";
+import { antiguedadDias, etiquetaAntiguedad, etiquetaPrecio, precioDesactualizado } from "@/modules/costos-proveedor/domain/presentacion";
 import { CostoAcciones } from "@/modules/costos-proveedor/ui/costo-acciones";
 import { CostosFiltros } from "@/modules/costos-proveedor/ui/costos-filtros";
 import { CostosTabs } from "@/modules/costos-proveedor/ui/costos-tabs";
@@ -23,10 +25,18 @@ import { EmptyState } from "@/shared/ui/empty-state";
 import { PageHeader } from "@/shared/ui/page-header";
 import { Pagination } from "@/shared/ui/pagination";
 import { ToneBadge } from "@/shared/ui/status-badge";
-import { uuid } from "@/shared/validation";
+import { fechaIso, uuid } from "@/shared/validation";
 
 interface CostosProveedorPageProps {
-  searchParams: Promise<{ droga?: string | string[]; proveedor?: string | string[]; page?: string | string[] }>;
+  searchParams: Promise<{
+    droga?: string | string[];
+    proveedor?: string | string[];
+    desde?: string | string[];
+    hasta?: string | string[];
+    origen?: string | string[];
+    desactualizados?: string | string[];
+    page?: string | string[];
+  }>;
 }
 
 const numberFormat = new Intl.NumberFormat("es-AR");
@@ -41,24 +51,55 @@ function idValido(valor: string | string[] | undefined): string | undefined {
   return candidato !== undefined && uuid.safeParse(candidato).success ? candidato : undefined;
 }
 
+function fechaValida(valor: string | string[] | undefined): string | undefined {
+  const parsed = fechaIso.safeParse(primerValor(valor));
+  return parsed.success ? parsed.data : undefined;
+}
+
+const MENSAJE_DESACTUALIZADO = "Precio sin actualizar hace más de un año";
+
 export default async function CostosProveedorPage({ searchParams }: CostosProveedorPageProps) {
   const query = await searchParams;
   const drogaId = idValido(query.droga);
   const proveedorId = idValido(query.proveedor);
+  const fechaDesde = fechaValida(query.desde);
+  const fechaHasta = fechaValida(query.hasta);
+  const origenParam = primerValor(query.origen);
+  const origen: OrigenCostoFiltro = ORIGENES_COSTO.find((o) => o === origenParam) ?? "todos";
+  const soloDesactualizados = primerValor(query.desactualizados) === "1";
   // Clamped into the use case's accepted range (a huge digit string parses to Infinity).
   const parsedPage = Number.parseInt(primerValor(query.page) ?? "1", 10);
   const page = Number.isFinite(parsedPage) ? Math.min(PAGE_MAX, Math.max(1, parsedPage)) : 1;
 
-  const resultado = await listarCostosVigentes({ drogaId, proveedorId, page, pageSize: PAGE_SIZE_COSTOS_VIGENTES });
-  const { items, total, jornadaActual, puedeGestionar, drogaFiltro, proveedorFiltro } = resultado;
-  const hayFiltros = drogaId !== undefined || proveedorId !== undefined;
+  const resultado = await listarCostosVigentes({
+    drogaId,
+    proveedorId,
+    fechaDesde,
+    fechaHasta,
+    origen,
+    soloDesactualizados,
+    page,
+    pageSize: PAGE_SIZE_COSTOS_VIGENTES,
+  });
+  const { items, total, totalDesactualizados, jornadaActual, puedeGestionar, drogaFiltro, proveedorFiltro } = resultado;
+  const hayFiltros =
+    drogaId !== undefined || proveedorId !== undefined || fechaDesde !== undefined || fechaHasta !== undefined || origen !== "todos" || soloDesactualizados;
 
-  function pageHref(destino: number): string {
+  function filtrosHref(cambios: { page?: number; desactualizados?: boolean }): string {
     const params = new URLSearchParams();
     if (drogaId) params.set("droga", drogaId);
     if (proveedorId) params.set("proveedor", proveedorId);
-    params.set("page", String(destino));
-    return `/costos-proveedor?${params.toString()}`;
+    if (fechaDesde) params.set("desde", fechaDesde);
+    if (fechaHasta) params.set("hasta", fechaHasta);
+    if (origen !== "todos") params.set("origen", origen);
+    if (cambios.desactualizados ?? soloDesactualizados) params.set("desactualizados", "1");
+    if (cambios.page !== undefined) params.set("page", String(cambios.page));
+    const consulta = params.toString();
+    return consulta ? `/costos-proveedor?${consulta}` : "/costos-proveedor";
+  }
+
+  function pageHref(destino: number): string {
+    return filtrosHref({ page: destino });
   }
 
   return (
@@ -80,7 +121,16 @@ export default async function CostosProveedorPage({ searchParams }: CostosProvee
       <CostosTabs activa="vigentes" puedeGestionar={puedeGestionar} />
 
       <section aria-label="Filtros" className="mb-4">
-        <CostosFiltros key={`${drogaFiltro?.id ?? ""}|${proveedorFiltro?.id ?? ""}`} droga={drogaFiltro} proveedor={proveedorFiltro} hayFiltros={hayFiltros} />
+        <CostosFiltros
+          key={`${drogaFiltro?.id ?? ""}|${proveedorFiltro?.id ?? ""}|${fechaDesde ?? ""}|${fechaHasta ?? ""}|${origen}|${soloDesactualizados}`}
+          droga={drogaFiltro}
+          proveedor={proveedorFiltro}
+          fechaDesde={fechaDesde ?? ""}
+          fechaHasta={fechaHasta ?? ""}
+          origen={origen}
+          soloDesactualizados={soloDesactualizados}
+          hayFiltros={hayFiltros}
+        />
       </section>
 
       <div className="list-region">
@@ -90,6 +140,12 @@ export default async function CostosProveedorPage({ searchParams }: CostosProvee
             <p role="status">
               <span className="font-semibold text-zinc-900 tabular-nums">{numberFormat.format(total)}</span> {total === 1 ? "costo vigente" : "costos vigentes"}
             </p>
+            {totalDesactualizados > 0 && !soloDesactualizados ? (
+              <Link href={filtrosHref({ desactualizados: true })} scroll={false} className="inline-flex items-center gap-1.5 text-sm text-red-700 underline-offset-2 hover:underline">
+                <span className="size-2 rounded-full bg-red-600" aria-hidden />
+                <span className="tabular-nums">{numberFormat.format(totalDesactualizados)}</span> sin actualizar hace más de un año
+              </Link>
+            ) : null}
           </div>
 
           {total === 0 ? (
@@ -161,9 +217,15 @@ export default async function CostosProveedorPage({ searchParams }: CostosProvee
                 <tbody>
                   {items.map((costo) => {
                     const etiqueta = `${costo.drogaNombre} · ${costo.proveedorRazonSocial}`;
+                    const desactualizado = precioDesactualizado(costo.fechaPrecio, jornadaActual);
                     return (
                       <tr key={costo.id}>
                         <td className="px-2 py-2.5 font-medium text-zinc-900 sm:px-3">
+                          {desactualizado ? (
+                            <span className="mr-1.5 inline-block size-2 rounded-full bg-red-600 align-middle" title={MENSAJE_DESACTUALIZADO}>
+                              <span className="sr-only">{MENSAJE_DESACTUALIZADO}: </span>
+                            </span>
+                          ) : null}
                           {costo.drogaNombre}
                           <span className="block text-xs font-normal text-zinc-600 sm:hidden">
                             {costo.proveedorRazonSocial}
@@ -196,7 +258,9 @@ export default async function CostosProveedorPage({ searchParams }: CostosProvee
                         </td>
                         <td className="hidden whitespace-nowrap px-3 py-2.5 sm:table-cell">
                           {formatFechaIso(costo.fechaPrecio)}
-                          <span className="block text-xs text-zinc-500">{etiquetaAntiguedad(antiguedadDias(costo.fechaPrecio, jornadaActual))}</span>
+                          <span className={`block text-xs ${desactualizado ? "font-medium text-red-700" : "text-zinc-500"}`}>
+                            {etiquetaAntiguedad(antiguedadDias(costo.fechaPrecio, jornadaActual))}
+                          </span>
                         </td>
                         <td className="hidden px-3 py-2.5 lg:table-cell">
                           {costo.listaNombreArchivo ? <span className="break-all">{costo.listaNombreArchivo}</span> : <span className="text-zinc-500">Manual</span>}

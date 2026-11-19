@@ -1,0 +1,49 @@
+# Local Supabase stack for development and DB tests (docs/local-db.md).
+# The app only uses Postgres (Prisma + its own auth), so every other
+# Supabase service is disabled: the stack is a single container (~200 MB).
+# Ports use the 573xx range so this stack can run next to other projects'.
+project_id = "farmacia-san-jorge"
+
+[api]
+enabled = false
+port = 57321
+
+[db]
+port = 57322
+shadow_port = 57320
+# Same major version as the hosted Supabase projects.
+major_version = 17
+
+[db.pooler]
+enabled = false
+
+[db.migrations]
+# Migrations are owned by Prisma (prisma/migrations), not by the Supabase CLI.
+enabled = false
+
+[db.seed]
+enabled = false
+
+[realtime]
+enabled = false
+
+[studio]
+enabled = false
+port = 57323
+
+[local_smtp]
+enabled = false
+port = 57324
+
+[storage]
+enabled = false
+
+[auth]
+enabled = false
+
+[edge_runtime]
+enabled = false
+
+[analytics]
+enabled = false
+port = 57327

@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { registrarAjusteStock } from "@/modules/stock/application/registrar-ajuste";
 import { corregirCostoPartida } from "@/modules/stock/application/corregir-costo-partida";
 import { corregirPotenciaPartida } from "@/modules/stock/application/corregir-potencia-partida";
-import { crearDroga } from "@/modules/drogas/application/crear-droga";
 import { leerFacturaCompraPdf } from "@/modules/stock/application/leer-factura-compra-pdf";
 import { importarFacturaCompra } from "@/modules/stock/application/importar-factura-compra";
 import { registrarReanalisisPartida } from "@/modules/stock/application/reanalizar-partida";
@@ -58,36 +57,6 @@ export async function importarFacturaCompraAction(_prevState: StockActionState, 
       return { status: "success", message: partidas === 1 ? "Factura registrada: 1 partida ingresada." : `Factura registrada: ${partidas} partidas ingresadas.` };
     } catch (error) {
       return fromError(error, "No se pudo importar la factura.");
-    }
-  });
-}
-
-export type CrearProductoFacturaState =
-  | { status: "success"; id: string }
-  | { status: "error"; message: string; fields?: string[] }
-  | { status: "operador-required" };
-
-/**
- * "Crear «texto de la factura»" from the invoice import: alta of a droga or
- * insumo (migration 0063) without leaving the form. Called directly (not a
- * form submit -- it lives inside the import form). `drogas.crear` is
- * checked by the command itself; the form only offers it when allowed.
- * `drogas.crear` can require the operador's PIN on a cuenta de sector, so the
- * fields travel as `FormData` through `conOperador`.
- */
-export async function crearProductoDesdeFacturaAction(formData: FormData): Promise<CrearProductoFacturaState> {
-  return conOperador(formData, async (): Promise<CrearProductoFacturaState> => {
-    try {
-      const { id } = await crearDroga({
-        nombre: String(formData.get("nombre") ?? ""),
-        unidadBaseId: String(formData.get("unidadBaseId") ?? ""),
-        clase: String(formData.get("clase") ?? ""),
-        stockMinimo: "0",
-      });
-      revalidatePath("/catalogos/drogas");
-      return { status: "success", id };
-    } catch (error) {
-      return actionError(error, "No se pudo crear el producto.");
     }
   });
 }

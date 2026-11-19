@@ -114,7 +114,16 @@ describe("getRecurrentesCrudos", () => {
     const tx = fakeTx();
     await getRecurrentesCrudos(asTx(tx), TENANT, AHORA);
     const componentes = findManyArg(tx).select!.componentes as { orderBy: unknown; select: Record<string, unknown> };
-        expect(Object.keys(componentes.select).sort()).toEqual(["cantidad", "droga", "drogaId", "modoExpresion", "unidadMedida", "unidadMedidaId", "unidadReferencia"]);
+    expect(Object.keys(componentes.select).sort()).toEqual([
+      "cantidad",
+      "droga",
+      "drogaId",
+      "modoExpresion",
+      "posicion",
+      "unidadMedida",
+      "unidadMedidaId",
+      "unidadReferencia",
+    ]);
   });
 
   it("maps rows to the raw shape: decimal as string (null stays null), tenant zone and farmacia display name", async () => {

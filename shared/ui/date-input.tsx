@@ -24,6 +24,8 @@
  *   has written the new value; a half-typed date never does. That is what
  *   `./filter-form.tsx` auto-applies on. Server Action forms ignore it
  *   (nothing listens for `change` on a hidden input there).
+ * - `precision="month"` (a lot's vencimiento, shared/time/vencimiento-lote.ts): typed as `mm/aaaa`, the calendar
+ *   opens on the months, and the value is the month's LAST day (`YYYY-MM-DD`), so the form contract is unchanged.
  * - The calendar is portalled to `document.body`, or into the field's own
  *   `<dialog>` when it sits in one: a `showModal()` dialog lives in the top
  *   layer and makes everything outside it inert, so a popover on `body`
@@ -33,6 +35,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { jornadaDe } from "@/shared/time/jornada";
+import { finDeMes } from "@/shared/time/vencimiento-lote";
 import { FIELD_ERROR_EVENT, type FieldErrorEventDetail } from "./field-errors";
 
 export interface DateInputProps {
@@ -50,6 +53,8 @@ export interface DateInputProps {
   min?: string;
   /** Inclusive ISO upper bound. */
   max?: string;
+  /** `month`: month and year only, the value is the month's last day (see the module doc comment). */
+  precision?: "day" | "month";
 }
 
 type View = "days" | "months" | "years";
@@ -64,7 +69,8 @@ const POPOVER_MAX_HEIGHT = 340;
 const GAP = 6;
 const KEY_DAY_DELTAS: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
 
-export function DateInput({ id, name, defaultValue = "", value, onValueChange, required, disabled, min, max }: DateInputProps) {
+export function DateInput({ id, name, defaultValue = "", value, onValueChange, required, disabled, min, max, precision = "day" }: DateInputProps) {
+  const mensual = precision === "month";
   const generatedId = useId();
   const fieldId = id ?? generatedId;
   const calendarId = `${fieldId}-calendar`;
@@ -100,11 +106,13 @@ export function DateInput({ id, name, defaultValue = "", value, onValueChange, r
 
   const error =
     draft !== null
-      ? "Ingresá una fecha válida (dd/mm/aaaa)."
+      ? mensual
+        ? "Ingresá un mes válido (mm/aaaa)."
+        : "Ingresá una fecha válida (dd/mm/aaaa)."
       : iso && min && iso < min
-        ? `La fecha no puede ser anterior al ${formatDisplay(min)}.`
+        ? `La fecha no puede ser anterior al ${formatDisplay(min, false)}.`
         : iso && max && iso > max
-          ? `La fecha no puede ser posterior al ${formatDisplay(max)}.`
+          ? `La fecha no puede ser posterior al ${formatDisplay(max, false)}.`
           : "";
 
   useEffect(() => {
@@ -188,7 +196,7 @@ export function DateInput({ id, name, defaultValue = "", value, onValueChange, r
     setPortalTarget(target);
     setPosition(computePosition(rootRef.current, target));
     setCursor(clampIso(isValidIso(iso) ? iso : today, min, max));
-    setView("days");
+    setView(mensual ? "months" : "days");
     focusDayRef.current = true;
     setOpen(true);
   }
@@ -237,7 +245,7 @@ export function DateInput({ id, name, defaultValue = "", value, onValueChange, r
     moveCursor(next);
   }
 
-  const text = draft ?? formatDisplay(iso);
+  const text = draft ?? formatDisplay(iso, mensual);
 
   return (
     <div ref={rootRef} className="date-input">
@@ -248,8 +256,8 @@ export function DateInput({ id, name, defaultValue = "", value, onValueChange, r
         role="combobox"
         inputMode="numeric"
         autoComplete="off"
-        placeholder="dd/mm/aaaa"
-        maxLength={10}
+        placeholder={mensual ? "mm/aaaa" : "dd/mm/aaaa"}
+        maxLength={mensual ? 7 : 10}
         value={text}
         required={required}
         disabled={disabled}
@@ -260,8 +268,8 @@ export function DateInput({ id, name, defaultValue = "", value, onValueChange, r
         aria-keyshortcuts="Alt+ArrowDown"
         className="input"
         onChange={(event) => {
-          const masked = maskTyping(event.target.value);
-          const parsed = parseDisplay(masked);
+          const masked = maskTyping(event.target.value, mensual);
+          const parsed = parseDisplay(masked, mensual);
           setShowError(false);
           setDraft(parsed || masked === "" ? null : masked);
           setIso(parsed ?? "", parsed !== null || masked === "");
@@ -288,7 +296,7 @@ export function DateInput({ id, name, defaultValue = "", value, onValueChange, r
               ref={calendarRef}
               id={calendarId}
               role="dialog"
-              aria-label="Elegir fecha"
+              aria-label={mensual ? "Elegir mes" : "Elegir fecha"}
               className="calendar"
               style={{ left: position.left, top: position.top, bottom: position.bottom }}
               onKeyDown={(event) => {
@@ -303,7 +311,7 @@ export function DateInput({ id, name, defaultValue = "", value, onValueChange, r
                 if (next) setOpen(false);
               }}
             >
-              <CalendarBody view={view} setView={changeView} cursor={cursor} selected={iso} min={min} max={max} onMove={moveCursor} onSelect={select} onGridKeyDown={onGridKeyDown} />
+              <CalendarBody view={view} setView={changeView} cursor={cursor} selected={iso} min={min} max={max} mensual={mensual} onMove={moveCursor} onSelect={select} onGridKeyDown={onGridKeyDown} />
             </div>,
             portalTarget,
           )
@@ -319,6 +327,7 @@ function CalendarBody({
   selected,
   min,
   max,
+  mensual,
   onMove,
   onSelect,
   onGridKeyDown,
@@ -329,6 +338,8 @@ function CalendarBody({
   selected: string;
   min?: string;
   max?: string;
+  /** Month precision: picking a month selects its last day. */
+  mensual: boolean;
   /** `focus` = move keyboard focus to the new cursor cell (false for the header arrows). */
   onMove: (iso: string, focus?: boolean) => void;
   onSelect: (iso: string) => void;
@@ -411,8 +422,12 @@ function CalendarBody({
                 className="calendar-day"
                 data-focus={index + 1 === month || undefined}
                 aria-pressed={selected.slice(0, 7) === first.slice(0, 7)}
-                disabled={(min !== undefined && last < min) || (max !== undefined && first > max)}
+                disabled={(min !== undefined && last < min) || (max !== undefined && (mensual ? last : first) > max)}
                 onClick={() => {
+                  if (mensual) {
+                    onSelect(last);
+                    return;
+                  }
                   onMove(toIso(year, index + 1, Math.min(day, daysInMonth(year, index + 1))));
                   setView("days");
                 }}
@@ -447,9 +462,15 @@ function CalendarBody({
         <button type="button" className="calendar-link" onClick={() => onSelect("")}>
           Borrar
         </button>
-        <button type="button" className="calendar-link" disabled={!todayInRange} onClick={() => onSelect(today)}>
-          Hoy
-        </button>
+        {mensual ? (
+          <button type="button" className="calendar-link" disabled={!isInRange(finDeMes(today), min, max)} onClick={() => onSelect(finDeMes(today))}>
+            Este mes
+          </button>
+        ) : (
+          <button type="button" className="calendar-link" disabled={!todayInRange} onClick={() => onSelect(today)}>
+            Hoy
+          </button>
+        )}
       </div>
     </>
   );
@@ -558,10 +579,10 @@ function monthWeeks(year: number, month: number): (string | null)[][] {
   return weeks;
 }
 
-function formatDisplay(iso: string): string {
+function formatDisplay(iso: string, mensual: boolean): string {
   if (!isValidIso(iso)) return "";
   const [year, month, day] = parts(iso);
-  return `${pad(day)}/${pad(month)}/${year}`;
+  return mensual ? `${pad(month)}/${year}` : `${pad(day)}/${pad(month)}/${year}`;
 }
 
 function longLabel(iso: string): string {
@@ -569,15 +590,25 @@ function longLabel(iso: string): string {
   return `${day} de ${MONTHS[month - 1]!.toLowerCase()} de ${year}`;
 }
 
-/** Digits only, slashes auto-inserted: "25092026" -> "25/09/2026". */
-function maskTyping(raw: string): string {
+/** Digits only, slashes auto-inserted: "25092026" -> "25/09/2026" (by month: "092026" -> "09/2026"). */
+function maskTyping(raw: string, mensual: boolean): string {
+  if (mensual) {
+    const digits = raw.replace(/\D/g, "").slice(0, 6);
+    return digits.length <= 2 ? digits : `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  }
   const digits = raw.replace(/\D/g, "").slice(0, 8);
   if (digits.length <= 2) return digits;
   if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
 }
 
-function parseDisplay(text: string): string | null {
+function parseDisplay(text: string, mensual: boolean): string | null {
+  if (mensual) {
+    const mes = /^(\d{2})\/(\d{4})$/.exec(text);
+    if (!mes) return null;
+    const iso = finDeMes(`${mes[2]}-${mes[1]}`);
+    return isValidIso(iso) ? iso : null;
+  }
   const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(text);
   if (!match) return null;
   const iso = `${match[3]}-${match[2]}-${match[1]}`;

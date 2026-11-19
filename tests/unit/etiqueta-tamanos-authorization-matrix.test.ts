@@ -44,6 +44,8 @@ await import("@/modules/etiqueta-tamanos/application/get-etiqueta-hoja");
 await import("@/modules/etiqueta-tamanos/application/get-hoja-para-imprimir");
 await import("@/modules/etiqueta-tamanos/application/editar-incluir-excipientes");
 await import("@/modules/etiqueta-tamanos/application/get-incluir-excipientes");
+await import("@/modules/etiqueta-tamanos/application/editar-fondo-etiqueta");
+await import("@/modules/etiqueta-tamanos/application/get-fondo-etiqueta");
 
 const { listRegisteredUseCasesForTests } = await import("@/shared/usecase");
 
@@ -76,6 +78,9 @@ const CASES: ReadonlyArray<{ name: string; permiso: Permiso; input: unknown }> =
   { name: "etiquetaHoja.incluirExcipientes.editar", permiso: "config.editar", input: { incluirExcipientes: true } },
   { name: "etiquetaHoja.incluirExcipientes.ver", permiso: "config.ver", input: {} },
   { name: "etiquetaHoja.incluirExcipientes.paraGenerar", permiso: "etiquetas.generar", input: {} },
+  { name: "etiquetaHoja.fondo.editar", permiso: "config.editar", input: { formasFondoRojo: ["CREMA"], tonoFondoRojo: "pastel" } },
+  { name: "etiquetaHoja.fondo.ver", permiso: "config.ver", input: {} },
+  { name: "etiquetaHoja.fondo.paraImprimir", permiso: "etiquetas.imprimir", input: {} },
 ];
 
 function sessionForRol(rol: Rol): AuthenticatedSession {

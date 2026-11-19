@@ -132,22 +132,56 @@ describe("entraEnHoja / camposQueNoEntran / tamanosQueNoEntran (R5)", () => {
 describe("posicionCelda (R4)", () => {
   const tamano = ETIQUETA_TAMANO_PREDETERMINADO; // 100 x 42
 
-  it("column 1, row 1 starts at the margin", () => {
-    expect(posicionCelda(A4, tamano, { columna: 1, fila: 1 })).toEqual({ xMm: 5, yMm: 5 });
+  it("100 x 42 on A4 / 5 mm: columns keep the 5 mm margin, rows share equal gaps (45/7 mm)", () => {
+    const pos = posicionCelda(A4, tamano, { columna: 1, fila: 1 });
+    expect(pos.xMm).toBeCloseTo(5, 9);
+    expect(pos.yMm).toBeCloseTo(45 / 7, 9);
   });
 
-  it("each step moves by one label, cells touch", () => {
-    expect(posicionCelda(A4, tamano, { columna: 2, fila: 1 })).toEqual({ xMm: 105, yMm: 5 });
-    expect(posicionCelda(A4, tamano, { columna: 1, fila: 2 })).toEqual({ xMm: 5, yMm: 47 });
-    expect(posicionCelda(A4, tamano, { columna: 2, fila: 6 })).toEqual({ xMm: 105, yMm: 215 });
+  it("100 x 42 on A4 / 5 mm: columns touch at 5 and 105, rows step by 42 + 45/7 mm", () => {
+    const col2Fila1 = posicionCelda(A4, tamano, { columna: 2, fila: 1 });
+    expect(col2Fila1.xMm).toBeCloseTo(105, 9);
+    expect(col2Fila1.yMm).toBeCloseTo(45 / 7, 9);
+
+    const col1Fila2 = posicionCelda(A4, tamano, { columna: 1, fila: 2 });
+    expect(col1Fila2.xMm).toBeCloseTo(5, 9);
+    expect(col1Fila2.yMm).toBeCloseTo(42 + (2 * 45) / 7, 9);
+
+    const col2Fila6 = posicionCelda(A4, tamano, { columna: 2, fila: 6 });
+    expect(col2Fila6.xMm).toBeCloseTo(105, 9);
+    expect(col2Fila6.yMm).toBeCloseTo(5 * 42 + (6 * 45) / 7, 9);
   });
 
-  it("is exact with decimal measures", () => {
-    expect(posicionCelda({ anchoMm: 210, altoMm: 297, margenMm: 4.5 }, { anchoMm: 66.7, altoMm: 29.3 }, { columna: 3, fila: 3 })).toEqual({ xMm: 137.9, yMm: 63.1 });
+  it("is exact with decimal measures (margin 4.5, 66.7 x 29.3, cell 3/3)", () => {
+    const pos = posicionCelda({ anchoMm: 210, altoMm: 297, margenMm: 4.5 }, { anchoMm: 66.7, altoMm: 29.3 }, { columna: 3, fila: 3 });
+    expect(pos.xMm).toBeCloseTo(138.8, 9);
+    expect(pos.yMm).toBeCloseTo(69.175, 9);
   });
 
-  it("a margin of 0 puts the first cell at the corner", () => {
-    expect(posicionCelda({ anchoMm: 210, altoMm: 297, margenMm: 0 }, tamano, { columna: 1, fila: 1 })).toEqual({ xMm: 0, yMm: 0 });
+  it("a margin of 0 shares the leftover room symmetrically around and between cells", () => {
+    const pos = posicionCelda({ anchoMm: 210, altoMm: 297, margenMm: 0 }, tamano, { columna: 1, fila: 1 });
+    expect(pos.xMm).toBeCloseTo(10 / 3, 9);
+    expect(pos.yMm).toBeCloseTo(0.375, 9);
+  });
+
+  it("repartoEje uses equal gaps when they reach the margin (60 x 40 and 80 x 30 on A4)", () => {
+    expect(grillaHoja(A4, { anchoMm: 60, altoMm: 40 })).toEqual({ columnas: 3, filas: 7 });
+    expect(posicionCelda(A4, { anchoMm: 60, altoMm: 40 }, { columna: 3, fila: 1 }).xMm).toBeCloseTo(142.5, 9);
+
+    expect(grillaHoja(A4, { anchoMm: 80, altoMm: 30 })).toEqual({ columnas: 2, filas: 9 });
+    expect(posicionCelda(A4, { anchoMm: 80, altoMm: 30 }, { columna: 1, fila: 1 }).xMm).toBeCloseTo(50 / 3, 9);
+    expect(posicionCelda(A4, { anchoMm: 80, altoMm: 30 }, { columna: 2, fila: 1 }).xMm).toBeCloseTo(340 / 3, 9);
+  });
+
+  it("repartoEje pins the margin at the edges when equal gaps would be smaller (60 x 40 and 60 x 15 on A4)", () => {
+    expect(posicionCelda(A4, { anchoMm: 60, altoMm: 40 }, { columna: 1, fila: 1 }).yMm).toBeCloseTo(5, 9);
+    expect(posicionCelda(A4, { anchoMm: 60, altoMm: 40 }, { columna: 1, fila: 2 }).yMm).toBeCloseTo(5 + 40 + 7 / 6, 9);
+    expect(posicionCelda(A4, { anchoMm: 60, altoMm: 40 }, { columna: 1, fila: 7 }).yMm).toBeCloseTo(252, 9);
+
+    expect(grillaHoja(A4, { anchoMm: 60, altoMm: 15 })).toEqual({ columnas: 3, filas: 19 });
+    expect(posicionCelda(A4, { anchoMm: 60, altoMm: 15 }, { columna: 1, fila: 1 }).yMm).toBeCloseTo(5, 9);
+    expect(posicionCelda(A4, { anchoMm: 60, altoMm: 15 }, { columna: 1, fila: 2 }).yMm).toBeCloseTo(5 + 15 + 1 / 9, 9);
+    expect(posicionCelda(A4, { anchoMm: 60, altoMm: 15 }, { columna: 1, fila: 19 }).yMm).toBeCloseTo(277, 9);
   });
 });
 

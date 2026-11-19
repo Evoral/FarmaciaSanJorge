@@ -20,7 +20,7 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { formatCantidad } from "@/shared/format/cantidad";
 import type { CatalogoUnidades } from "@/shared/format/cantidad";
-import { formatFecha, formatFechaHora } from "@/shared/format/fecha";
+import { formatFechaHora, formatVencimientoLote } from "@/shared/format/fecha";
 import { Cantidad } from "@/shared/ui/cantidad";
 import { StatusBadge } from "@/shared/ui/status-badge";
 import type { AccesoHistorialDroga, DrogaHistorial, RecetaHistorial } from "../domain/historial";
@@ -106,7 +106,7 @@ export function HistorialRecetaDetalle({ receta, droga, acceso, catalogo }: Hist
                   </td>
                   <td className="hidden px-3 py-2 sm:table-cell">{partida.proveedor}</td>
                   <td className="hidden whitespace-nowrap px-3 py-2 font-mono tabular-nums sm:table-cell">
-                    {partida.fechaVencimiento ? formatFecha(partida.fechaVencimiento) : "No vence"}
+                    {partida.fechaVencimiento ? formatVencimientoLote(partida.fechaVencimiento) : "No vence"}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">
                     <Cantidad valor={formatCantidad(partida.cantidad, unidad, catalogo)} />

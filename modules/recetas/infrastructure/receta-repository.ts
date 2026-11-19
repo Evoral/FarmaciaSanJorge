@@ -314,11 +314,13 @@ async function insertComponentes(
   itemRecetaId: string,
   componentes: NuevoComponenteInput[],
 ): Promise<void> {
-  for (const c of componentes) {
+  // `posicion` = the form's row order: the etiqueta and the ficha list the componentes as they were loaded (0129).
+  for (const [posicion, c] of componentes.entries()) {
     await tx.componenteItemReceta.create({
       data: {
         tenantId,
         itemRecetaId,
+        posicion,
         drogaId: c.drogaId,
         cantidad: c.cantidad,
         unidadMedidaId: c.unidadMedidaId,
@@ -486,7 +488,7 @@ export interface ItemDetalle {
   observaciones: string | null;
   posologia: string | null;
   duracionTratamientoDias: number | null;
-  /** In `ordenarComponentes` order (componentes have no stored order). */
+  /** In `ordenarComponentes` order (their load order, migration 0129). */
   componentes: ComponenteDetalle[];
   /**
    * D2 REVISED (FASE 9, per-item rule, 2026-09-23): "PENDIENTE" (no
@@ -653,6 +655,7 @@ export async function getRecetaConItems(tx: Prisma.TransactionClient, tenantId: 
           unidadReferenciaId: c.unidadReferenciaId,
           unidadReferenciaSimbolo: c.unidadReferencia?.simbolo ?? null,
           esPrincipioActivo: c.esPrincipioActivo,
+          posicion: c.posicion,
         })),
       ),
     })),

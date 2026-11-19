@@ -13,6 +13,8 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { HOJA_PREDETERMINADA } from "../domain/etiqueta-hoja";
 import type { HojaEtiqueta } from "../domain/etiqueta-hoja";
+import { FONDO_ETIQUETA_PREDETERMINADO, TONO_FONDO_ROJO_PREDETERMINADO, esTonoFondoRojoValido } from "../domain/etiqueta-fondo";
+import type { FondoEtiquetaConfig } from "../domain/etiqueta-fondo";
 
 export async function getEtiquetaHoja(tx: Prisma.TransactionClient, tenantId: string): Promise<HojaEtiqueta> {
   const row = await tx.etiquetaHoja.findFirst({ where: { tenantId }, select: { anchoMm: true, altoMm: true, margenMm: true } });
@@ -47,4 +49,42 @@ export async function upsertIncluirExcipientes(tx: Prisma.TransactionClient, ten
   if (count > 0) return;
   const hoja = HOJA_PREDETERMINADA;
   await tx.etiquetaHoja.create({ data: { tenantId, anchoMm: hoja.anchoMm.toFixed(1), altoMm: hoja.altoMm.toFixed(1), margenMm: hoja.margenMm.toFixed(1), incluirExcipientes } });
+}
+
+/** Configurable red background for the etiqueta (migration 0130). A missing row reads the default (none, pastel). */
+export async function getFondoEtiqueta(tx: Prisma.TransactionClient, tenantId: string): Promise<FondoEtiquetaConfig> {
+  const row = await tx.etiquetaHoja.findFirst({
+    where: { tenantId },
+    select: { formasFondoRojo: true, tonoFondoRojo: true },
+  });
+  if (!row) return { ...FONDO_ETIQUETA_PREDETERMINADO };
+  const tono = esTonoFondoRojoValido(row.tonoFondoRojo) ? row.tonoFondoRojo : TONO_FONDO_ROJO_PREDETERMINADO;
+  return {
+    formasFondoRojo: row.formasFondoRojo,
+    tonoFondoRojo: tono,
+  };
+}
+
+/** A missing row is inserted with the default sheet and the provided background configuration. */
+export async function upsertFondoEtiqueta(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  config: FondoEtiquetaConfig,
+): Promise<void> {
+  const { count } = await tx.etiquetaHoja.updateMany({
+    where: { tenantId },
+    data: { formasFondoRojo: config.formasFondoRojo, tonoFondoRojo: config.tonoFondoRojo, updatedAt: new Date() },
+  });
+  if (count > 0) return;
+  const hoja = HOJA_PREDETERMINADA;
+  await tx.etiquetaHoja.create({
+    data: {
+      tenantId,
+      anchoMm: hoja.anchoMm.toFixed(1),
+      altoMm: hoja.altoMm.toFixed(1),
+      margenMm: hoja.margenMm.toFixed(1),
+      formasFondoRojo: config.formasFondoRojo,
+      tonoFondoRojo: config.tonoFondoRojo,
+    },
+  });
 }

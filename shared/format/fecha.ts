@@ -19,6 +19,16 @@ export function formatFechaIso(iso: string): string {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : iso;
 }
 
+/**
+ * A lot's vencimiento as mm/aaaa: lots expire by month (shared/time/vencimiento-lote.ts). Takes the `date` column
+ * (UTC midnight) or its `YYYY-MM-DD`; anything else is returned unchanged.
+ */
+export function formatVencimientoLote(fecha: Date | string): string {
+  const iso = typeof fecha === "string" ? fecha : fecha.toISOString().slice(0, 10);
+  const match = /^(\d{4})-(\d{2})(?:-\d{2})?$/.exec(iso);
+  return match ? `${match[2]}/${match[1]}` : iso;
+}
+
 /** An instant as dd/mm/aaaa hh:mm (24 h), in the farmacia's zona horaria. */
 export function formatFechaHora(fecha: Date, timeZone: string): string {
   const partes = new Intl.DateTimeFormat("es-AR", {

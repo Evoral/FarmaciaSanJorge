@@ -62,3 +62,4 @@ scripts/datos-demo/
 # Local secrets and Supabase CLI state, never pushed
 /claves/
 /supabase/.temp/
+/supabase/.branches/

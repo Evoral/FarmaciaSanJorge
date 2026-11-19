@@ -608,7 +608,7 @@ consistent with `openspec/specs/reglas-precio/spec.md` ("no hay ocultamiento del
 ### Requirement: Section and tabs
 
 The sidebar SHALL show "Gestión › Costos de proveedores" (right below "Proveedores"), route `/costos-proveedor`,
-with the tabs **Vigentes**, **Importar lista**, **Listas importadas** and the **Historial** of a pair.
+with the tabs **Vigentes**, **Sin precio**, **Importar lista**, **Listas importadas** and the **Historial** of a pair.
 
 #### Scenario: Opening the section
 
@@ -625,6 +625,73 @@ proveedor and droga as Combobox (UI rollout rule), pagination. "Agregar costo" b
 
 - **WHEN** the user picks a proveedor in its Combobox filter
 - **THEN** only that proveedor's vigentes are listed, paginated
+
+### Requirement: R38 — Sin precio tab
+
+**Sin precio** (`/costos-proveedor/sin-precio`) SHALL list the drogas, excipientes and materiales of the tenant
+without any vigente costo de proveedor (`vigente_hasta IS NULL`), excluding those dadas de baja, gated on
+`stock.valorizado.ver`, filterable by text and tipo, paginated and ordered by name. With
+`costos.proveedor.gestionar`, each row links to `/costos-proveedor/nuevo?droga=<id>`.
+
+#### Scenario: Item without vigente cost is listed
+
+- **GIVEN** an active droga, excipiente or material without a vigente costo de proveedor
+- **WHEN** a user with `stock.valorizado.ver` consults the "Sin precio" section
+- **THEN** the item appears in the list with its nombre, tipo and unidad base
+
+#### Scenario: Item with vigente cost is excluded
+
+- **GIVEN** a droga, excipiente or material with a vigente costo de proveedor
+- **WHEN** the "Sin precio" list is retrieved
+- **THEN** the item is excluded from the list
+
+#### Scenario: Filtering by tipo
+
+- **GIVEN** the tipo filter offers todos, droga, excipiente and material
+- **WHEN** the user picks "Excipientes" in the tipo filter
+- **THEN** only excipientes without a vigente costo are listed
+
+#### Scenario: Linking to alta prefilled with gestionar permission
+
+- **GIVEN** a user with `costos.proveedor.gestionar`
+- **WHEN** the user opens "Agregar costo" from a row in "Sin precio"
+- **THEN** `/costos-proveedor/nuevo?droga=<id>` opens with that droga selected and no proveedor
+- **AND** the droga can still be changed, unlike the fixed pair of "Editar" (`?droga=&proveedor=`)
+
+#### Scenario: All items have price
+
+- **GIVEN** a tenant where every active droga, excipiente and material has a vigente costo
+- **WHEN** the "Sin precio" section is consulted without filters
+- **THEN** the empty state "Todos los ítems tienen precio." is displayed
+
+### Requirement: R39 — Date and origen filters
+
+**Vigentes** (`/costos-proveedor`) SHALL filter by `fecha del precio` inclusive range (`fechaDesde`..`fechaHasta`),
+`origen` (`todos`, `manual`, `lista`) and `soloDesactualizados` ("sin actualizar hace más de un año").
+**Listas importadas** (`/costos-proveedor/listas`) SHALL filter by `fecha de la lista` inclusive range. Filter bars
+use `FilterDrawer` and container queries to stay usable at 375 px.
+
+#### Scenario: Filtering vigentes by origen and fecha range
+
+- **WHEN** Vigentes is filtered with `origen = "manual"` and `fechaDesde`..`fechaHasta`
+- **THEN** only manual vigentes within that inclusive `fecha_precio` range are returned
+
+#### Scenario: Filtering listas importadas by fecha range
+
+- **WHEN** Listas importadas is filtered with `fechaDesde`..`fechaHasta`
+- **THEN** only listas within that inclusive `fecha_lista` range are returned
+
+### Requirement: R39 — Stale-price mark
+
+A vigente price SHALL be marked stale when `fecha_precio <= fechaLimiteDesactualizado(jornadaActual)` (one year
+before `jornadaActual`, 29 Feb → 28 Feb). Stale rows show a red dot and red age; the toolbar counts them
+(`totalDesactualizados`) and links to the `soloDesactualizados` filter.
+
+#### Scenario: Price updated exactly one year ago is marked stale
+
+- **GIVEN** `jornadaActual` is `2026-11-18` and a vigente costo has `fecha_precio` `2025-11-18`
+- **WHEN** Vigentes is listed
+- **THEN** `precioDesactualizado` is `true`, the row shows a red dot and red age, and `soloDesactualizados` includes it
 
 ### Requirement: Importar lista and Listas importadas tabs
 
@@ -769,6 +836,7 @@ Kept here because the new rules are defined against it.
 | R35 | Queries. |
 | R36 | `PERMISO_CATALOGO`, migration 0079, `tests/db/auth-permisos.test.ts`. |
 | R37 | — |
+| R38 | `costos-proveedor.listar-sin-costo` (`modules/costos-proveedor/application/listar-sin-costo.ts`) + UI `app/(app)/costos-proveedor/sin-precio/page.tsx`. |
 
 ## Data model (migration 0079)
 
@@ -806,7 +874,8 @@ Audit entities `costo_proveedor` and `lista_precio_proveedor` (labels in
 
 - `modules/costos-proveedor/domain/`: `costo-proveedor.ts` (validation,
   `calcularCostoUnidadBase`, `unidadPrecioPorDefecto`, `planVersionar`,
-  `elegirCostoProveedor`), `importacion-lista.ts` (preview types and states),
+  `elegirCostoProveedor`), `presentacion.ts` (`fechaLimiteDesactualizado`,
+  `precioDesactualizado`), `importacion-lista.ts` (preview types and states),
   `archivo-lista.ts` (file validation + format detection), `parsers/lista-xlsx-crystal.ts`.
 - `modules/costos-proveedor/infrastructure/`: `costo-proveedor-repository.ts`,
   `leer-xlsx.server.ts`, `leer-xls.server.ts` (BIFF8), `libro-hojas.ts` (the

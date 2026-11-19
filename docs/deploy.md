@@ -82,7 +82,7 @@ Lo único que SÍ corre en cada build/install es `prisma generate`, cableado com
    ```
    (`scripts/db-migrate.ts`: corre `prisma migrate deploy` forzando `DATABASE_URL=$DIRECT_URL` para ese comando puntual -- ver el comentario del script para el porqué).
 
-   **Hay dos bases**, una por archivo: `.env.desarrollo` y `.env.prod` (no hay `.env`). El script lee el archivo con `dotenv/config`, que sin `DOTENV_CONFIG_PATH` busca `.env`: como no existe, `npm run db:migrate` a secas falla con "DIRECT_URL is required". Elegir siempre el archivo -- en PowerShell:
+   **Hay dos bases**, una por archivo: `.env.desarrollo` (Postgres local en Docker, `docs/local-db.md`; levantarla antes con `npm run db:local:start`) y `.env.prod` (no hay `.env`). El script lee el archivo con `dotenv/config`, que sin `DOTENV_CONFIG_PATH` busca `.env`: como no existe, `npm run db:migrate` a secas falla con "DIRECT_URL is required". Elegir siempre el archivo -- en PowerShell:
    ```powershell
    $env:DOTENV_CONFIG_PATH=".env.desarrollo"; npm run db:migrate; Remove-Item Env:DOTENV_CONFIG_PATH
    ```

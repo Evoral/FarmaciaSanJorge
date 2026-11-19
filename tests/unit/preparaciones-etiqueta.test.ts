@@ -38,6 +38,8 @@ import {
   distribuirColumnasRp,
   tamanoFuenteRp,
 } from "@/modules/preparaciones/infrastructure/etiqueta-pdf";
+import { disposicionCompacta } from "@/modules/preparaciones/infrastructure/etiqueta-pdf-compacta";
+import { variantesMedico } from "@/modules/preparaciones/infrastructure/etiqueta-pdf-trazos";
 import { armarContenidoEtiquetaLote, type DatosEtiquetaLote } from "@/modules/stock/domain/etiqueta-lote";
 
 function componente(overrides: Partial<ComponenteEtiqueta>): ComponenteEtiqueta {
@@ -188,11 +190,26 @@ describe("Rp/", () => {
       expect(tamano).toBeGreaterThan((tamanoFuenteRp(7) * mitad) / larga);
     });
 
-    it("starts at the area's left edge and keeps every row inside its height", () => {
-      const { tamano, xs, primeraY } = distribuirColumnasRp([anchoArea * 0.3, anchoArea * 0.3], 14);
-      expect(xs[0]).toBe(AREA_RP.x);
+    it("centers the block horizontally (n+1 equal gaps) and keeps every row inside its height", () => {
+      const anchoCol = anchoArea * 0.3;
+      const { tamano, xs, primeraY } = distribuirColumnasRp([anchoCol, anchoCol], 14);
+      const escala = tamano / tamanoFuenteRp(14);
+      const gapIzquierdo = xs[0]! - AREA_RP.x;
+      const gapDerecho = AREA_RP.derecha - (xs[1]! + anchoCol * escala);
+      expect(gapIzquierdo).toBeGreaterThan(0);
+      expect(gapIzquierdo).toBeCloseTo(gapDerecho, 9);
       expect(primeraY).toBeGreaterThanOrEqual(AREA_RP.arriba);
       expect(primeraY + tamano * 1.08 * 14).toBeLessThanOrEqual(AREA_RP.abajo + 1e-9);
+    });
+
+    it("centers a single short column horizontally (left gap equals right gap)", () => {
+      const anchoCol = anchoArea * 0.2;
+      const { tamano, xs } = distribuirColumnasRp([anchoCol], 3);
+      const escala = tamano / tamanoFuenteRp(3);
+      const gapIzquierdo = xs[0]! - AREA_RP.x;
+      const gapDerecho = AREA_RP.derecha - (xs[0]! + anchoCol * escala);
+      expect(gapIzquierdo).toBeGreaterThan(0);
+      expect(gapIzquierdo).toBeCloseTo(gapDerecho, 9);
     });
 
     it("narrow columns keep the base size and share the leftover width", () => {
@@ -543,14 +560,14 @@ describe("colocarEtiqueta / buildEtiquetaPdf -- the etiqueta lands in the chosen
     expect(colocacion.escalaX).toBeCloseTo(1, 9);
     expect(colocacion.escalaY).toBeCloseTo(1, 9);
     expect(colocacion.x).toBeCloseTo(5 * PT_POR_MM, 6);
-    expect(colocacion.y).toBeCloseTo(5 * PT_POR_MM, 6);
+    expect(colocacion.y).toBeCloseTo((45 / 7) * PT_POR_MM, 6);
   });
 
-  it("each cell moves the design by exactly one label size in mm", () => {
+  it("each cell moves the design by one cell pitch in mm (including the symmetric y gap)", () => {
     const origen = colocarEtiqueta(ESTANDAR, A4, { columna: 1, fila: 1 });
     const otra = colocarEtiqueta(ESTANDAR, A4, { columna: 2, fila: 4 });
     expect(otra.x - origen.x).toBeCloseTo(100 * PT_POR_MM, 6);
-    expect(otra.y - origen.y).toBeCloseTo(3 * 42 * PT_POR_MM, 6);
+    expect(otra.y - origen.y).toBeCloseTo(3 * (42 + 45 / 7) * PT_POR_MM, 6);
   });
 
   it.each([
@@ -572,7 +589,7 @@ describe("colocarEtiqueta / buildEtiquetaPdf -- the etiqueta lands in the chosen
     [{ columna: 3, fila: 2 }, { anchoMm: 50, altoMm: 30 }],
     [{ columna: 2, fila: 5 }, { anchoMm: 60, altoMm: 15 }],
   ])("the rendered page content is translated to the cell %j of %j", async (celda, tamano) => {
-    const esperada = colocarEtiqueta(tamano, A4, celda);
+    const esperada = colocarEtiqueta(tamano, A4, celda, disposicionCompacta(tamano) ?? undefined);
     const real = colocacionEnElPdf(await pdfEnHoja(tamano, celda));
     expect(real.x).toBeCloseTo(esperada.x, 4);
     expect(real.y).toBeCloseTo(esperada.y, 4);
@@ -583,7 +600,7 @@ describe("colocarEtiqueta / buildEtiquetaPdf -- the etiqueta lands in the chosen
   it("defaults to column 1, row 1", async () => {
     const real = colocacionEnElPdf(await pdfEnHoja());
     expect(real.x).toBeCloseTo(5 * PT_POR_MM, 4);
-    expect(real.y).toBeCloseTo(5 * PT_POR_MM, 4);
+    expect(real.y).toBeCloseTo((45 / 7) * PT_POR_MM, 4);
   });
 });
 
@@ -654,12 +671,77 @@ describe("buildEtiquetasPdf -- multiple sizes on one sheet", () => {
     expect(colocaciones[0]!.escalaX).toBeCloseTo(esperada1.escalaX, 4);
     expect(colocaciones[0]!.escalaY).toBeCloseTo(esperada1.escalaY, 4);
 
-    const esperada2 = colocarEtiqueta(tamano2, A4, celda2);
+    const esperada2 = colocarEtiqueta(tamano2, A4, celda2, disposicionCompacta(tamano2)!);
     expect(colocaciones[1]!.x).toBeCloseTo(esperada2.x, 4);
     expect(colocaciones[1]!.y).toBeCloseTo(esperada2.y, 4);
-    expect(colocaciones[1]!.escalaX).toBeCloseTo(esperada2.escalaX, 4);
-    expect(colocaciones[1]!.escalaY).toBeCloseTo(esperada2.escalaY, 4);
-    expect(colocaciones[1]!.escalaX).not.toBeCloseTo(colocaciones[1]!.escalaY, 2);
+    expect(colocaciones[1]!.escalaX).toBeCloseTo(60 / 100, 4);
+    expect(colocaciones[1]!.escalaY).toBeCloseTo(15 / 25, 4);
+  });
+});
+
+describe("disposicionCompacta (R13)", () => {
+  it("picks wide (100 x 25) for wide sizes, tall (50 x 60) for tall sizes, and null (classic) in between", () => {
+    const wide60x15 = disposicionCompacta({ anchoMm: 60, altoMm: 15 });
+    expect(wide60x15).not.toBeNull();
+    expect(wide60x15!.ancho / wide60x15!.alto).toBeCloseTo(100 / 25, 9);
+
+    const wide80x25 = disposicionCompacta({ anchoMm: 80, altoMm: 25 });
+    expect(wide80x25).not.toBeNull();
+    expect(wide80x25!.ancho / wide80x25!.alto).toBeCloseTo(100 / 25, 9);
+
+    const tall40x60 = disposicionCompacta({ anchoMm: 40, altoMm: 60 });
+    expect(tall40x60).not.toBeNull();
+    expect(tall40x60!.ancho / tall40x60!.alto).toBeCloseTo(50 / 60, 9);
+
+    expect(disposicionCompacta({ anchoMm: 100, altoMm: 42 })).toBeNull();
+    expect(disposicionCompacta({ anchoMm: 80, altoMm: 30 })).toBeNull();
+    expect(disposicionCompacta({ anchoMm: 70, altoMm: 25 })).toBeNull();
+    expect(disposicionCompacta({ anchoMm: 50, altoMm: 30 })).toBeNull();
+  });
+
+  it("switches at the log-proportion midpoints (~3.09 wide/classic, ~1.41 classic/tall)", () => {
+    expect(disposicionCompacta({ anchoMm: 30.8, altoMm: 10 })).toBeNull();
+    const wide = disposicionCompacta({ anchoMm: 30.9, altoMm: 10 });
+    expect(wide).not.toBeNull();
+    expect(wide!.ancho / wide!.alto).toBeCloseTo(100 / 25, 9);
+
+    const tall = disposicionCompacta({ anchoMm: 14, altoMm: 10 });
+    expect(tall).not.toBeNull();
+    expect(tall!.ancho / tall!.alto).toBeCloseTo(50 / 60, 9);
+    expect(disposicionCompacta({ anchoMm: 14.2, altoMm: 10 })).toBeNull();
+  });
+});
+
+describe("variantesMedico", () => {
+  it("falls back from full médico line to without label to name only", () => {
+    const textos = variantesMedico("Médico: Ana Pérez  -  MAT:123").map((v) => v.map((t) => t.texto).join(""));
+    expect(textos).toEqual(["Médico: Ana Pérez  -  MAT:123", "Ana Pérez  -  MAT:123", "Ana Pérez"]);
+  });
+});
+
+describe("buildEtiquetaPdf -- 60 x 15 compact wide layout", () => {
+  const TAMANO_COMPACTO = { anchoMm: 60, altoMm: 15 };
+
+  it("renders one page with all fields present", async () => {
+    const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta(DATOS), TAMANO_COMPACTO, A4);
+    expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
+  });
+
+  it("renders one page without paciente, dosis or DT", async () => {
+    const contenidoSinOpcionales = { ...armarContenidoEtiqueta(DATOS), paciente: null, dosis: null, directorTecnico: null };
+    const pdf = await buildEtiquetaPdf(contenidoSinOpcionales, TAMANO_COMPACTO, A4);
+    expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
+  });
+
+  it("renders one page with a very long médico", async () => {
+    const contenidoMedicoLargo = armarContenidoEtiqueta({
+      ...DATOS,
+      medicoNombre: "Maximiliano Alejandro",
+      medicoApellido: "Bustamante Villavicencio de los Ríos",
+      medicoMatricula: "123456789",
+    });
+    const pdf = await buildEtiquetaPdf(contenidoMedicoLargo, TAMANO_COMPACTO, A4);
+    expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
   });
 });
 

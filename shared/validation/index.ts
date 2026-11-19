@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { interpretarNumero } from "@/shared/decimal/numero-ingresado";
+import { finDeMes } from "@/shared/time/vencimiento-lote";
 
 /** A non-empty, trimmed string. */
 export const nonEmptyString = z
@@ -35,6 +36,17 @@ export const fechaIso = z
   // `abort`: a malformed value gets the shape message only, not the calendar one too.
   .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Debe ser una fecha en formato AAAA-MM-DD.", abort: true })
   .refine(esFechaIso, "Debe ser una fecha que exista en el calendario.");
+
+/**
+ * A lot's vencimiento: `YYYY-MM` or any `YYYY-MM-DD` of the month, normalized to the month's last day
+ * (shared/time/vencimiento-lote.ts). Output stays a `YYYY-MM-DD` string, like `fechaIso`.
+ */
+export const fechaVencimientoLote = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}(-\d{2})?$/, { message: "Debe ser un mes en formato AAAA-MM.", abort: true })
+  .transform(finDeMes)
+  .refine(esFechaIso, "Debe ser un mes que exista en el calendario.");
 
 /** For pages reading a date from `searchParams`: the date when valid, else `undefined` (filter ignored, FE2). */
 export function filtroFechaIso(value: string | undefined): string | undefined {

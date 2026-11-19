@@ -2,9 +2,11 @@
  * THE persona search rule, shared by every paciente and médico search (the
  * clientes list, the médicos catalog, the receta's pickers and the envíos
  * list): a persona matches when EVERY word of the query is a substring of its
- * nombre or of its apellido, in any order, ignoring accents and case
- * (`fsj.normalizar_nombre`, migration 0067). "juan perez", "Pérez Juan" and
- * "perez" all find Juan Pérez.
+ * nombre and apellido, in any order, ignoring accents, case, spaces and
+ * punctuation (`fsj.normalizar_nombre`, migration 0067, plus only letters and
+ * digits on both sides). "juan perez", "Pérez, Juan", "PEREZ juan", "perez" and
+ * "delafuente" (for De La Fuente) all find their persona: as many matches as
+ * the query allows.
  *
  * Why in `shared/` (like ./busqueda-droga.ts): pacientes are searched from
  * pacientes, recetas and entregas, and a module may not import another
@@ -31,14 +33,14 @@ export function palabrasBusquedaPersona(busqueda: string | null | undefined): st
  * or apellido match every word of `busqueda`. For Prisma-built queries: filter them with `id: { in: ids }`.
  */
 export async function buscarPersonasPorNombre(tx: Prisma.TransactionClient, tabla: TablaPersona, tenantId: string, busqueda: string): Promise<string[]> {
-  const palabras = palabrasBusquedaPersona(busqueda);
-  if (palabras.length === 0) return [];
-  const condiciones = palabras.map(
-    (palabra) => Prisma.sql`(
-      fsj.normalizar_nombre(p.nombre) LIKE ('%' || fsj.normalizar_nombre(${palabra}::text) || '%')
-      OR fsj.normalizar_nombre(p.apellido) LIKE ('%' || fsj.normalizar_nombre(${palabra}::text) || '%')
-    )`,
-  );
+  // Commas, dots, hyphens... separate words too ("Pérez,Juan", "Dr. Pérez"); a term keeps letters and digits only, so
+  // no LIKE wildcard survives and a query of punctuation alone searches nothing.
+  const terminos = palabrasBusquedaPersona(busqueda).flatMap((palabra) => palabra.split(/[^\p{L}\p{N}]+/u).filter(Boolean));
+  if (terminos.length === 0) return [];
+  // "apellido nombre apellido" without spaces or punctuation: a term may sit in either, or across them in either
+  // order ("delafuente", "juanperez", "perezjuan").
+  const persona = Prisma.sql`regexp_replace(fsj.normalizar_nombre(coalesce(p.apellido, '') || coalesce(p.nombre, '') || coalesce(p.apellido, '')), '[^[:alnum:]]', '', 'g')`;
+  const condiciones = terminos.map((termino) => Prisma.sql`${persona} LIKE ('%' || fsj.normalizar_nombre(${termino}::text) || '%')`);
   const rows = await tx.$queryRaw<{ id: string }[]>`
     SELECT p.id FROM fsj.${Prisma.raw(tabla)} p
     WHERE p.tenant_id = ${tenantId}::uuid

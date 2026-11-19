@@ -138,7 +138,7 @@ export function ReanalisisDialog({ partidaId, partidaNombre, jornadaActual, dest
             <label htmlFor={`${campoId}-fecha`} className="field-label">
               Fecha de reanálisis
             </label>
-            <DateInput id={`${campoId}-fecha`} name="fechaReanalisis" required min={diaSiguiente(jornadaActual)} />
+            <DateInput id={`${campoId}-fecha`} name="fechaReanalisis" precision="month" required min={diaSiguiente(jornadaActual)} />
             <p className="field-help">Nuevo vencimiento vigente; posterior a hoy.</p>
           </div>
           <div className="field">

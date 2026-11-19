@@ -14,12 +14,14 @@ import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getEtiquetaHoja } from "@/modules/etiqueta-tamanos/application/get-etiqueta-hoja";
 import { getIncluirExcipientes } from "@/modules/etiqueta-tamanos/application/get-incluir-excipientes";
+import { getFondoEtiqueta } from "@/modules/etiqueta-tamanos/application/get-fondo-etiqueta";
 import { listEtiquetaTamanos } from "@/modules/etiqueta-tamanos/application/list-etiqueta-tamanos";
 import { entraEnHoja, formatearCapacidad, formatearHoja, grillaHoja } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import { formatearMedidas } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
 import { EtiquetaHojaForm } from "@/modules/etiqueta-tamanos/ui/etiqueta-hoja-form";
 import { EtiquetaTamanoForm } from "@/modules/etiqueta-tamanos/ui/etiqueta-tamano-form";
 import { IncluirExcipientesForm } from "@/modules/etiqueta-tamanos/ui/incluir-excipientes-form";
+import { FondoEtiquetaForm } from "@/modules/etiqueta-tamanos/ui/fondo-etiqueta-form";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { PageHeader } from "@/shared/ui/page-header";
 import { ToneBadge } from "@/shared/ui/status-badge";
@@ -35,7 +37,7 @@ interface EtiquetasPageProps {
 export default async function EtiquetasPage({ searchParams }: EtiquetasPageProps) {
   const session = await requireSession();
   const params = await searchParams;
-  const [tamanos, hoja, incluirExcipientes] = await Promise.all([listEtiquetaTamanos(), getEtiquetaHoja(), getIncluirExcipientes()]);
+  const [tamanos, hoja, incluirExcipientes, fondoEtiqueta] = await Promise.all([listEtiquetaTamanos(), getEtiquetaHoja(), getIncluirExcipientes(), getFondoEtiqueta()]);
   const puedeEditar = can(session, "config.editar");
 
   return (
@@ -55,6 +57,21 @@ export default async function EtiquetasPage({ searchParams }: EtiquetasPageProps
       />
 
       <SectionTabs ariaLabel="Secciones de configuración" links={configuracionSections(session)} />
+
+      {/* Right under the header's "Nuevo tamaño" button, so the form is in view after clicking it. */}
+      {puedeEditar && params.nueva ? (
+        <section className="panel mb-6 max-w-3xl" aria-labelledby="nuevo-tamano-heading">
+          <div className="panel-header flex items-center justify-between gap-3">
+            <h2 id="nuevo-tamano-heading">Nuevo tamaño</h2>
+            <Link href={LISTA_HREF} className="btn btn-ghost btn-sm btn-icon" aria-label="Cerrar el alta de tamaño">
+              <X className="size-4" aria-hidden />
+            </Link>
+          </div>
+          <div className="panel-body">
+            <EtiquetaTamanoForm mode="crear" hoja={hoja} disabled={!puedeEditar} volverA={LISTA_HREF} />
+          </div>
+        </section>
+      ) : null}
 
       <section className="panel mb-6 max-w-3xl" aria-labelledby="hoja-heading">
         <div className="panel-header flex items-center justify-between gap-3">
@@ -87,19 +104,18 @@ export default async function EtiquetasPage({ searchParams }: EtiquetasPageProps
         </div>
       </section>
 
-      {puedeEditar && params.nueva ? (
-        <section className="panel mb-6 max-w-3xl" aria-labelledby="nuevo-tamano-heading">
-          <div className="panel-header flex items-center justify-between gap-3">
-            <h2 id="nuevo-tamano-heading">Nuevo tamaño</h2>
-            <Link href={LISTA_HREF} className="btn btn-ghost btn-sm btn-icon" aria-label="Cerrar el alta de tamaño">
-              <X className="size-4" aria-hidden />
-            </Link>
-          </div>
-          <div className="panel-body">
-            <EtiquetaTamanoForm mode="crear" hoja={hoja} disabled={!puedeEditar} volverA={LISTA_HREF} />
-          </div>
-        </section>
-      ) : null}
+      <section className="panel mb-6 max-w-3xl" aria-labelledby="fondo-heading">
+        <div className="panel-header">
+          <h2 id="fondo-heading">Fondo rojo de la etiqueta</h2>
+        </div>
+        <div className="panel-body">
+          <FondoEtiquetaForm
+            formasFondoRojo={fondoEtiqueta.formasFondoRojo}
+            tonoFondoRojo={fondoEtiqueta.tonoFondoRojo}
+            disabled={!puedeEditar}
+          />
+        </div>
+      </section>
 
       <div className="list-panel">
         {tamanos.length === 0 ? (

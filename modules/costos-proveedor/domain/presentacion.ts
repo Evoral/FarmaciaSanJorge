@@ -24,6 +24,22 @@ export function antiguedadDias(fechaPrecio: string, jornadaActual: string): numb
   return Math.max(0, Math.round((diaEnMs(jornadaActual) - diaEnMs(fechaPrecio)) / MS_POR_DIA));
 }
 
+/**
+ * R39: the same calendar day one year before `jornadaActual` (a 29 February falls back to the 28th). A vigente
+ * price dated on or before it has not been updated in a year.
+ */
+export function fechaLimiteDesactualizado(jornadaActual: string): string {
+  const [year, month, day] = jornadaActual.split("-").map(Number) as [number, number, number];
+  const ultimoDiaDelMes = new Date(Date.UTC(year - 1, month, 0)).getUTCDate();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${year - 1}-${pad(month)}-${pad(Math.min(day, ultimoDiaDelMes))}`;
+}
+
+/** R39: the price was not updated in a year (both `YYYY-MM-DD`, so they compare as strings). */
+export function precioDesactualizado(fechaPrecio: string, jornadaActual: string): boolean {
+  return fechaPrecio <= fechaLimiteDesactualizado(jornadaActual);
+}
+
 /** "hoy", "hace 1 día", "hace 12 días", "hace 3 meses", "hace 2 años": the age shown next to a price's date. */
 export function etiquetaAntiguedad(dias: number): string {
   if (dias <= 0) return "hoy";

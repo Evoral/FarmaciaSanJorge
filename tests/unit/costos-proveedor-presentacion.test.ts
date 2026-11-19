@@ -1,6 +1,13 @@
 /** Presentation rules of "Costos de proveedores": the age of a price, the state of each version, the price label. */
 import { describe, it, expect } from "vitest";
-import { antiguedadDias, clasificarVersiones, etiquetaAntiguedad, etiquetaPrecio } from "@/modules/costos-proveedor/domain/presentacion";
+import {
+  antiguedadDias,
+  clasificarVersiones,
+  etiquetaAntiguedad,
+  etiquetaPrecio,
+  fechaLimiteDesactualizado,
+  precioDesactualizado,
+} from "@/modules/costos-proveedor/domain/presentacion";
 
 describe("antiguedadDias / etiquetaAntiguedad", () => {
   it("counts whole days between the price date and the jornada actual", () => {
@@ -54,5 +61,19 @@ describe("etiquetaPrecio", () => {
     expect(etiquetaPrecio("40898", "kg")).toBe("$ 40.898,00 / kg");
     expect(etiquetaPrecio("40898.5", "kg")).toBe("$ 40.898,50 / kg");
     expect(etiquetaPrecio("12.3456", "L")).toBe("$ 12,35 / L");
+  });
+});
+
+describe("fechaLimiteDesactualizado / precioDesactualizado (39d36b9)", () => {
+  it("computes the cutoff one year before jornadaActual, clamping Feb 29 to Feb 28", () => {
+    expect(fechaLimiteDesactualizado("2026-11-18")).toBe("2025-11-18");
+    expect(fechaLimiteDesactualizado("2024-02-29")).toBe("2023-02-28");
+    expect(fechaLimiteDesactualizado("2025-02-28")).toBe("2024-02-28");
+  });
+
+  it("marks prices on or before the 1-year cutoff as desactualizados", () => {
+    expect(precioDesactualizado("2025-11-18", "2026-11-18")).toBe(true);
+    expect(precioDesactualizado("2025-11-17", "2026-11-18")).toBe(true);
+    expect(precioDesactualizado("2025-11-19", "2026-11-18")).toBe(false);
   });
 });

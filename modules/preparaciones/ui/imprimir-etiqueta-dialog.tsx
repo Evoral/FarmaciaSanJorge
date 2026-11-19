@@ -125,6 +125,8 @@ export interface ImprimirEtiquetaDialogProps {
   abrirAlMontar?: boolean;
   /** The etiqueta was already printed: the button reads "Reimprimir", at the same fixed width as "Imprimir etiqueta". */
   reimprimir?: boolean;
+  /** Optional hex background color for the etiqueta (migration 0130). */
+  colorFondo?: string | null;
 }
 
 export function ImprimirEtiquetaDialog({
@@ -136,6 +138,7 @@ export function ImprimirEtiquetaDialog({
   small = true,
   abrirAlMontar = false,
   reimprimir = false,
+  colorFondo,
 }: ImprimirEtiquetaDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cierrePorFondo = useCierrePorFondo(dialogRef);
@@ -198,8 +201,18 @@ export function ImprimirEtiquetaDialog({
                 </select>
               </div>
               <div className="field">
-                <span className="field-label">Posición en la hoja</span>
-                <PosicionEnHoja hoja={hoja} tamano={tamano} celda={celda} onChange={setCeldaElegida} />
+                <span className="field-label flex items-center gap-1.5">
+                  Posición en la hoja
+                  {colorFondo ? (
+                    <span
+                      className="inline-block size-3 shrink-0 rounded-full border border-zinc-300"
+                      style={{ backgroundColor: colorFondo }}
+                      title="Etiqueta con fondo de color"
+                      aria-label="Etiqueta con fondo de color"
+                    />
+                  ) : null}
+                </span>
+                <PosicionEnHoja hoja={hoja} tamano={tamano} celda={celda} onChange={setCeldaElegida} colorFondo={colorFondo} />
               </div>
             </div>
           ) : (
@@ -229,13 +242,15 @@ export interface EtiquetaDeItemParaImprimir {
   nombre: string;
   /** Why it can no longer be printed (asiento sin efecto, receta ANULADA -- spec R22); listed disabled with this reason. */
   noImprimible?: string | null;
+  /** Optional hex background color for the etiqueta (migration 0130). */
+  colorFondo?: string | null;
 }
 
 /** The confirmation the dialog runs first, while the receta still has ítems to confirm (./reserva-acciones.tsx). */
 export interface ConfirmacionDeEtiquetas {
   recetaId: string;
   /** The ítems to confirm (reserved), in ítem order: one tipo de vencimiento selector each (openspec/specs/vencimiento-preparado/spec.md R10). */
-  items: readonly { preparacionId: string; numero: number; nombre: string }[];
+  items: readonly { preparacionId: string; numero: number; nombre: string; colorFondo?: string | null }[];
   /** `meses_vencimiento_preparado`, shown in the `ESTANDAR` option. */
   mesesVencimiento: number;
   confirmar: (prevState: PreparacionActionState, formData: FormData) => Promise<PreparacionActionState>;
@@ -388,7 +403,7 @@ export function SeleccionarEtiquetasDialog({ etiquetas, tamanos, hoja, abrirAlMo
   // reprint its own "Imprimir".
   const lista = (
     <ul className="flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800">
-      {filas.map(({ preparacionId, numero, nombre, noImprimible }) => {
+      {filas.map(({ preparacionId, numero, nombre, noImprimible, colorFondo }) => {
         const selectId = `${campoId}-${preparacionId}`;
         if (noImprimible) {
           return (
@@ -405,9 +420,19 @@ export function SeleccionarEtiquetasDialog({ etiquetas, tamanos, hoja, abrirAlMo
         return (
           <li key={preparacionId} className="flex flex-col gap-3 py-3">
             <div className="flex items-center justify-between gap-3">
-              <p className="min-w-0 truncate text-sm font-medium">
-                Ítem {numero}: {nombre}
-              </p>
+              <div className="flex min-w-0 items-center gap-2">
+                <p className="min-w-0 truncate text-sm font-medium">
+                  Ítem {numero}: {nombre}
+                </p>
+                {colorFondo ? (
+                  <span
+                    className="inline-block size-3 shrink-0 rounded-full border border-zinc-300"
+                    style={{ backgroundColor: colorFondo }}
+                    title="Etiqueta con fondo de color"
+                    aria-label="Etiqueta con fondo de color"
+                  />
+                ) : null}
+              </div>
               {impresas.has(preparacionId) ? (
                 <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-700">
                   <CircleCheck className="size-3.5" aria-hidden />
@@ -431,13 +456,24 @@ export function SeleccionarEtiquetasDialog({ etiquetas, tamanos, hoja, abrirAlMo
             ) : null}
             {fila ? (
               <div className="field">
-                <span className="field-label">Posición en la hoja</span>
+                <span className="field-label flex items-center gap-1.5">
+                  Posición en la hoja
+                  {colorFondo ? (
+                    <span
+                      className="inline-block size-3 shrink-0 rounded-full border border-zinc-300"
+                      style={{ backgroundColor: colorFondo }}
+                      title="Etiqueta con fondo de color"
+                      aria-label="Etiqueta con fondo de color"
+                    />
+                  ) : null}
+                </span>
                 <PosicionEnHoja
                   hoja={hoja}
                   tamano={fila.tamano}
                   celda={fila.celda}
                   onChange={(celda) => setCeldas((anteriores) => ({ ...anteriores, [preparacionId]: celda }))}
                   etiqueta={`Posición en la hoja de la etiqueta del ítem ${numero}`}
+                  colorFondo={colorFondo}
                 />
               </div>
             ) : null}

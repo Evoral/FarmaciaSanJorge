@@ -31,6 +31,8 @@ export interface ComponenteEtiqueta {
   esPrincipioActivo: boolean;
   /** The droga's current `tipo_control` is PSICOTROPICO: its Rp/ line reads "Droga (ps)" (user decision, 2026-10-22). */
   esPsicotropico?: boolean;
+  /** 0-based load order (migration 0129): the Rp/ lists the componentes as the receta was loaded; null = before it. */
+  posicion?: number | null;
 }
 
 export interface DatosEtiqueta {

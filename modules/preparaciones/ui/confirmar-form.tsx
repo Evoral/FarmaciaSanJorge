@@ -34,7 +34,7 @@ import { CircleAlert, Info, TriangleAlert } from "lucide-react";
 import { ToneBadge } from "@/shared/ui/status-badge";
 import { NumeroInput } from "@/shared/ui/numero-input";
 import { crearCatalogoUnidades, formatCantidadesFila, formatNumero, type CatalogoUnidades } from "@/shared/format/cantidad";
-import { formatFechaIso } from "@/shared/format/fecha";
+import { formatVencimientoLote } from "@/shared/format/fecha";
 import { ReauthAwareForm } from "@/modules/auth/ui/reauth-aware-form";
 import { CoFirmaDt } from "@/shared/ui/co-firma-dt";
 import { confirmarPreparacionAction, recalcularReservaStockAction, reservarStockAction } from "./actions";
@@ -455,7 +455,7 @@ function PlanLinea({ linea, plan, catalogo, datos }: { linea: LineaPantalla; pla
                 </span>
                 <span className="flex justify-between gap-2 tabular-nums">
                   <span className="text-zinc-500">Vence</span>
-                  <span className="text-zinc-900">{partida?.fechaVencimiento ? formatFechaIso(partida.fechaVencimiento) : "No vence"}</span>
+                  <span className="text-zinc-900">{partida?.fechaVencimiento ? formatVencimientoLote(partida.fechaVencimiento) : "No vence"}</span>
                 </span>
                 <span className="flex justify-between gap-2 tabular-nums" title={cantidad.exacto}>
                   <span className="text-zinc-500">Tomar</span>
@@ -540,7 +540,7 @@ function ElegirLotes({
                   </span>
                   <span className="flex justify-between gap-2 tabular-nums">
                     <span className="text-zinc-500">Vence</span>
-                    <span className="text-zinc-900">{partida.fechaVencimiento ? formatFechaIso(partida.fechaVencimiento) : "No vence"}</span>
+                    <span className="text-zinc-900">{partida.fechaVencimiento ? formatVencimientoLote(partida.fechaVencimiento) : "No vence"}</span>
                   </span>
                   <span className="flex justify-between gap-2 tabular-nums" title={disponible.exacto}>
                     <span className="text-zinc-500">Disponible</span>

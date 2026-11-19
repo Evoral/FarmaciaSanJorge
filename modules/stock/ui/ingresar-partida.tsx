@@ -13,7 +13,7 @@ import { ImportarFacturaPdf } from "./importar-factura-pdf";
 import { ImportarFacturaForm, VISTA_PREVIA_MANUAL, type ImportarFacturaFormProps } from "./importar-factura-form";
 import type { VistaPreviaFactura } from "../domain/importacion-factura-compra";
 
-export function IngresarPartida(props: Pick<ImportarFacturaFormProps, "drogas" | "proveedores" | "unidades" | "puedeCrearProducto">) {
+export function IngresarPartida(props: Pick<ImportarFacturaFormProps, "drogas" | "proveedores" | "unidades" | "puedeCrearProducto" | "unidadesAltaDroga" | "contralorActivo">) {
   const [vistaPrevia, setVistaPrevia] = useState<VistaPreviaFactura | null>(null);
   const [lecturas, setLecturas] = useState(0);
 

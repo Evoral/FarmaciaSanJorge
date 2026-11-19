@@ -1,7 +1,7 @@
 /**
  * `listarListasPrecio` -- the "Listas importadas" tab of `/costos-proveedor`
  * (openspec/specs/costos-proveedor/spec.md, "Interface" 3): every imported supplier price list, newest
- * first, optionally filtered by proveedor, paginated. Gated on `stock.valorizado.ver` (R35: the
+ * first, optionally filtered by proveedor and fecha de la lista (R39), paginated. Gated on `stock.valorizado.ver` (R35: the
  * permiso that gates money everywhere else; consulting is not the same as importing).
  *
  * Also hands back what the screen needs and a client must not guess: the pharmacy's time zone (the
@@ -10,7 +10,7 @@
  */
 import { z } from "zod";
 import { defineQuery } from "@/shared/usecase";
-import { uuid } from "@/shared/validation";
+import { fechaIso, uuid } from "@/shared/validation";
 import { getContextoTemporal, getProveedorParaCosto, listListasPrecio } from "../infrastructure/costo-proveedor-repository";
 import type { ListaPrecioListItem } from "../infrastructure/costo-proveedor-repository";
 
@@ -19,6 +19,9 @@ export const PAGE_SIZE_LISTAS_PRECIO = 20;
 
 const listarListasPrecioInput = z.object({
   proveedorId: uuid.optional(),
+  /** R39: inclusive range on the fecha de la lista. */
+  fechaDesde: fechaIso.optional(),
+  fechaHasta: fechaIso.optional(),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(100).default(PAGE_SIZE_LISTAS_PRECIO),
 });

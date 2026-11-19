@@ -261,7 +261,7 @@ pieces are reused.
 ### Requirement: Partida options
 
 The options SHALL be the droga's partidas that have at least one EGRESO_PREPARACION, labelled
-`Lote <lote> · <proveedor> · vence dd/mm/aaaa` (insumos without vencimiento: "sin vencimiento"), ordered by
+`Lote <lote> · <proveedor> · vence mm/aaaa` (insumos without vencimiento: "sin vencimiento"), ordered by
 `fecha_ingreso DESC`.
 
 #### Scenario: Partida never consumed

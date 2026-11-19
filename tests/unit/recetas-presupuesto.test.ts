@@ -49,6 +49,7 @@ const fichaRepo = {
     [D_SIN_PRECIO_1, { nombre: "Droga Sin Costo", vigente: true }],
     [D_SIN_PRECIO_2, { nombre: "Droga Tambien Sin Costo", vigente: true }],
   ])),
+  getSinonimosParaBorrador: vi.fn(async () => new Map()),
   insertFichaConLineas: vi.fn(),
 };
 vi.mock("@/modules/elaboracion/infrastructure/ficha-repository", () => fichaRepo);

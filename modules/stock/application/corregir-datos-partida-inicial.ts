@@ -6,7 +6,7 @@
  */
 import { z } from "zod";
 import { defineCommand, TipoAccion, type ExecuteOptions } from "@/shared/usecase";
-import { fechaIso, nonEmptyString, uuid } from "@/shared/validation";
+import { fechaVencimientoLote, nonEmptyString, uuid } from "@/shared/validation";
 import { AppError, DomainError, NotFoundError, ValidationError } from "@/shared/errors";
 import { MENSAJE_RELEVAMIENTO_CERRADO } from "../domain/existencia-inicial";
 import {
@@ -21,7 +21,7 @@ import {
 export const corregirDatosPartidaInicialInput = z.object({
   partidaId: uuid,
   lote: nonEmptyString,
-  fechaVencimiento: fechaIso.optional().nullable(),
+  fechaVencimiento: fechaVencimientoLote.optional().nullable(),
   proveedorId: uuid.optional().nullable(),
 });
 

@@ -39,13 +39,49 @@ Each lote of a factura manual (loaded by hand, without a PDF) SHALL offer Despac
 - **WHEN** the user leaves despacho and país empty and confirms the factura
 - **THEN** the lote's partida stores no despacho and no país de origen
 
+### Requirement: FC3 — Free supplier comprobante number
+
+The comprobante `numero` SHALL accept any non-blank supplier text of at most 30 characters (migration 0128). When
+`numero` consists only of digits, leading zeros SHALL be stripped before persistence so the UNIQUE key `(tenant,
+proveedor, letra, punto_venta, numero)` still catches repeated imports; alphanumeric numbers keep their exact text.
+
+#### Scenario: Long or alphanumeric supplier number
+
+- **GIVEN** a factura with `numero` `"000500152596"` or `"FC-0012-A"`
+- **WHEN** the user confirms the factura
+- **THEN** `"000500152596"` is normalized to `"500152596"` and `"FC-0012-A"` is stored as `"FC-0012-A"`
+
+### Requirement: FC4 — Creating a missing droga reuses NuevaDrogaDialog
+
+When a factura line cannot match an existing droga, "Crear «…»" SHALL open the shared `NuevaDrogaDialog` (same
+`DrogaForm` as `/catalogos/drogas`) outside the invoice form instead of a separate inline alta.
+
+#### Scenario: Creating a droga from an invoice line
+
+- **GIVEN** an unmatched invoice line
+- **WHEN** the user clicks "Crear «…»" and completes the dialog
+- **THEN** the droga is created through `crearDroga` and selected in that line
+
+### Requirement: FC5 — Invoice lote vencimiento by month
+
+Invoice lote vencimientos SHALL be read and edited by month and year (`mm/aaaa`, stored as that month's last day).
+The PDF parser accepts `dd/mm/aaaa` or `mm/aaaa` and normalizes via `finDeMes`; the form and use case validate via
+`fechaVencimientoLote`.
+
+#### Scenario: PDF lote with dd/mm/aaaa or mm/aaaa
+
+- **GIVEN** an invoice PDF with a lote printing `Vto: 15/06/2027` or `Vto: 06/2027`
+- **WHEN** the PDF is parsed
+- **THEN** the lote's vencimiento is normalized to `2027-06-30`
+
 ## Enforcement
 
 - `importarFacturaCompra` validates both fields per lote (`textoOpcional`: trimmed, max 200, empty = null) and `registrarPartidaCompra` writes them on insert; `partida.despacho_importacion` / `pais_origen` are insert-only for `fsj_app`.
+- `importarFacturaCompra` validates `numero` (non-empty, max 30, leading zeros stripped only when `/^\d+$/`) matching DB `comprobante_compra_numero_check` (migration 0128), and `fechaVencimiento` per lote via `fechaVencimientoLote`.
 - The field errors mark `lineas.<i>.despachoImportacion` / `lineas.<i>.paisOrigen` in the form.
 
 ## Code
 
-- `modules/stock/application/importar-factura-compra.ts` (`lineaInput`), `modules/stock/application/ingresar-partida.ts` (`registrarPartidaCompra`).
-- `modules/stock/ui/importar-factura-form.tsx` (manual branch of each lote), `modules/stock/ui/ingresar-partida.tsx`, `app/(app)/partidas/ingresar/page.tsx`.
-- `prisma/migrations/*_0062_*` (columns).
+- `modules/stock/application/importar-factura-compra.ts` (`lineaInput`, `importarFacturaCompraInput`), `modules/stock/application/ingresar-partida.ts` (`registrarPartidaCompra`), `modules/stock/domain/factura-compra-pdf-parser.ts`.
+- `modules/stock/ui/importar-factura-form.tsx` (manual branch of each lote, `NuevaDrogaDialog`), `modules/stock/ui/ingresar-partida.tsx`, `app/(app)/partidas/ingresar/page.tsx`.
+- `prisma/migrations/*_0062_*` (columns), `prisma/migrations/*_0128_comprobante_numero_libre*` (comprobante number check).

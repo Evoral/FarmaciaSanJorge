@@ -8,8 +8,8 @@ const serverOnlyAlias = { "server-only": path.resolve(__dirname, "node_modules/n
 
 // Two projects, run independently:
 // - `unit`: fast, no I/O, safe to run always (npm test / CI unit job).
-// - `db`: hits the ONE real Supabase database, every test inside a
-//   rolled-back transaction. Sequential, long timeouts, opt-in via
+// - `db`: hits the local dev database (.env.desarrollo, docs/local-db.md),
+//   every test inside a rolled-back transaction. Sequential, long timeouts, opt-in via
 //   FSJ_DB_TESTS=yes (SKIPPED otherwise) -- see tests/db/global-setup.ts.
 export default defineConfig({
   resolve: {

@@ -793,7 +793,7 @@ La exportación PDF de `/libro` SHALL ser una consulta, no la hoja oficial: no m
 
 ### Requirement: Fórmula de la prescripción
 
-Fórmula de la prescripción (2026-10-16). La fórmula de cada ítem en el asiento SHALL ser la de la receta tal como vino, nunca recortada: **todos** sus componentes (drogas controladas o no y excipientes) con la cantidad prescripta, después el excipiente utilizado como "c.s.p." y al final cantidad y forma, con la fracción de dosis si la hay.
+Fórmula de la prescripción (2026-10-16). La fórmula de cada ítem en el asiento SHALL ser la de la receta tal como vino, nunca recortada: **todos** sus componentes (drogas controladas o no y excipientes, en su orden de carga vía `ordenarComponentes`) con la cantidad prescripta, después el excipiente utilizado como "c.s.p." y al final cantidad y forma, con la fracción de dosis si la hay.
 
 #### Scenario: Cápsulas con fracción de dosis
 

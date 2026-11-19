@@ -9,7 +9,7 @@
  * with no close control.
  */
 import { SimpleForm } from "@/shared/ui/simple-form";
-import { formatFecha, formatFechaIso } from "@/shared/format/fecha";
+import { formatFecha, formatFechaIso, formatVencimientoLote } from "@/shared/format/fecha";
 import { formatCantidadExacta } from "@/shared/format/cantidad";
 import { cerrarRelevamientoInicialAction } from "./actions";
 import { PasswordInput } from "@/shared/ui/password-input";
@@ -211,7 +211,7 @@ export function RelevamientoInicialPanel({
                                   <span>Lote: &quot;{d.loteAnterior}&quot; &rarr; &quot;{d.loteNuevo}&quot; </span>
                                 ) : null}
                                 {d.fechaVencimientoAnterior !== d.fechaVencimientoNuevo ? (
-                                  <span>Vencimiento: {d.fechaVencimientoAnterior ? formatFechaIso(d.fechaVencimientoAnterior) : "no vence"} &rarr; {d.fechaVencimientoNuevo ? formatFechaIso(d.fechaVencimientoNuevo) : "no vence"} </span>
+                                  <span>Vencimiento: {d.fechaVencimientoAnterior ? formatVencimientoLote(d.fechaVencimientoAnterior) : "no vence"} &rarr; {d.fechaVencimientoNuevo ? formatVencimientoLote(d.fechaVencimientoNuevo) : "no vence"} </span>
                                 ) : null}
                                 {d.proveedorAnterior !== d.proveedorNuevo ? (
                                   <span>Proveedor: {d.proveedorAnterior ?? "sin proveedor"} &rarr; {d.proveedorNuevo ?? "sin proveedor"}</span>

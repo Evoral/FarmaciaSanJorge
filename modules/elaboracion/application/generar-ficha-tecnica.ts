@@ -204,6 +204,7 @@ export async function calcularLineasDeItemEnTx(tx: Prisma.TransactionClient, ten
     unidadMedida: c.unidadMedida,
     modoExpresion: c.modoExpresion,
     unidadReferencia: c.unidadReferencia,
+    posicion: c.posicion,
   }));
   return calcularLineasFicha(tx, tenantId, itemInput, componentesInput);
 }

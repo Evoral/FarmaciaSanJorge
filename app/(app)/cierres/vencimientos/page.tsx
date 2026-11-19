@@ -20,7 +20,7 @@ import { diasHastaVencimiento, textoPorVencer } from "@/modules/stock/domain/ven
 import { MarcarVencidaDialog, ReanalisisDialog } from "@/modules/stock/ui/acciones-dt-partida";
 import { getCatalogoUnidades } from "@/modules/unidades/application/catalogo-unidades";
 import { formatCantidad } from "@/shared/format/cantidad";
-import { formatFecha } from "@/shared/format/fecha";
+import { formatVencimientoLote } from "@/shared/format/fecha";
 import { Cantidad } from "@/shared/ui/cantidad";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
@@ -167,23 +167,23 @@ function TablaVencimientos({ filas, vencida, catalogo, jornadaActual, dtPuedeAct
                   </span>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:hidden">
                     <ToneBadge tone={vencida ? "danger" : "warn"}>{badgeTexto}</ToneBadge>
-                    <span className="text-zinc-600 tabular-nums">Vto. {formatFecha(fila.fechaVencimiento)}</span>
+                    <span className="text-zinc-600 tabular-nums">Vto. {formatVencimientoLote(fila.fechaVencimiento)}</span>
                     <span className="font-mono font-medium text-zinc-900 tabular-nums">
                       · <Cantidad valor={saldo} />
                     </span>
                     {fila.reanalizada ? (
                       <span className="text-zinc-500">
-                        · Reanalizada (orig. <span className="tabular-nums">{formatFecha(fila.fechaVencimientoOriginal)}</span>)
+                        · Reanalizada (orig. <span className="tabular-nums">{formatVencimientoLote(fila.fechaVencimientoOriginal)}</span>)
                       </span>
                     ) : null}
                   </div>
                 </td>
                 <td className="hidden px-3 py-2.5 text-zinc-700 lg:table-cell">{fila.proveedorRazonSocial}</td>
                 <td className="hidden px-3 py-2.5 sm:table-cell">
-                  <span className="block whitespace-nowrap font-medium tabular-nums text-zinc-900">{formatFecha(fila.fechaVencimiento)}</span>
+                  <span className="block whitespace-nowrap font-medium tabular-nums text-zinc-900">{formatVencimientoLote(fila.fechaVencimiento)}</span>
                   {fila.reanalizada ? (
                     <span className="block text-xs text-zinc-500">
-                      Reanalizada · original <span className="tabular-nums">{formatFecha(fila.fechaVencimientoOriginal)}</span>
+                      Reanalizada · original <span className="tabular-nums">{formatVencimientoLote(fila.fechaVencimientoOriginal)}</span>
                     </span>
                   ) : null}
                   <span className="mt-1 block">

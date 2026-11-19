@@ -106,7 +106,7 @@ async function readItems(tx: Prisma.TransactionClient, tenantId: string, recetaI
       descripcion: true,
       formaFarmaceutica: true,
       cantidadUnidades: true,
-      componentes: { select: { modoExpresion: true, droga: { select: { nombre: true } } } },
+      componentes: { select: { modoExpresion: true, posicion: true, droga: { select: { nombre: true } } } },
     },
   });
   return rows.map((r) => ({
@@ -115,7 +115,7 @@ async function readItems(tx: Prisma.TransactionClient, tenantId: string, recetaI
     descripcion: r.descripcion,
     formaFarmaceutica: r.formaFarmaceutica,
     cantidadUnidades: r.cantidadUnidades,
-    drogas: ordenarComponentes(r.componentes.map((c) => ({ modoExpresion: c.modoExpresion, drogaNombre: c.droga.nombre }))).map((c) => c.drogaNombre),
+    drogas: ordenarComponentes(r.componentes.map((c) => ({ modoExpresion: c.modoExpresion, drogaNombre: c.droga.nombre, posicion: c.posicion }))).map((c) => c.drogaNombre),
   }));
 }
 

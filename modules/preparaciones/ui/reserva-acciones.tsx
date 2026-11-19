@@ -89,7 +89,7 @@ export interface EtiquetasDeRecetaProps {
   /** The confirmed ítems that have their etiqueta, in ítem order: the dialog's rows. */
   etiquetas: readonly EtiquetaDeItemParaImprimir[];
   /** The ítems "Imprimir etiquetas" confirms (reserved), in ítem order: one tipo de vencimiento selector each (openspec/specs/vencimiento-preparado/spec.md R10). */
-  aConfirmar: readonly { preparacionId: string; numero: number; nombre: string }[];
+  aConfirmar: readonly { preparacionId: string; numero: number; nombre: string; colorFondo?: string | null }[];
   /** `meses_vencimiento_preparado`, shown in the `ESTANDAR` option. */
   mesesVencimiento: number;
   /** Open the confirmation dialog on load when it is enabled (the Confirmadas tab's "Imprimir", `?imprimir=1`). */

@@ -74,8 +74,8 @@ and its (lack of) audit are untouched.
 
 ### Requirement: Exact cell position
 
-A cell's position in the PDF MUST be exact in millimetres; anything that adds a silent offset is a bug (the grid
-drifting from the printed result is an anti-goal).
+A cell's position in the PDF MUST be exact in millimetres: the position may be a fraction of a tenth, still exact;
+anything that adds a silent offset is a bug (the grid drifting from the printed result is an anti-goal).
 
 #### Scenario: Cell printed
 
@@ -178,22 +178,32 @@ with float division, so an exact fit (200 / 100 = 2) never rounds down.
 
 ### Requirement: R4 — Cell position
 
-A cell (columna c, fila f) SHALL be 1-based, reading order left→right, top→bottom. Its top-left corner is `(margen
-+ (c−1)·ancho_etiqueta, margen + (f−1)·alto_etiqueta)`. The grid is anchored at the top-left margin, not centered on
-the sheet; leftover space goes to the right and bottom. Cells touch (no gap): the etiqueta's own rounded border is
-the cutting guide.
+A cell (columna c, fila f) SHALL be 1-based, reading order left→right, top→bottom. Cells no longer anchor at the
+margin and touch (user decision 2026-11-18). On each axis, room left by the n etiquetas (sheet − n·size) SHALL be
+shared symmetrically: all spaces equal while each is at least the sheet's configured margin (5 mm as seeded; the
+user chose it over a fixed 6 mm floor); otherwise outer spaces are the margin and the rest is shared equally between etiquetas. Grid count (R3)
+is unchanged.
 
-#### Scenario: Column 3, row 2
+#### Scenario: 60 × 40 size on A4 (column 3, row 2)
 
-- **GIVEN** the sheet 210 × 297 mm, margin 5 mm, and a 60 × 40 mm size
+- **GIVEN** the sheet A4 210 × 297 mm, margin 5 mm, and a 60 × 40 mm size (3 × 7)
 - **WHEN** the user picks column 3, row 2
-- **THEN** the etiqueta's top-left corner is at (5 + 2·60, 5 + 1·40) = (125, 45) mm
-- **AND** the leftover 20 mm to the right and 7 mm at the bottom stay blank
+- **THEN** x = 7.5 + 2·67.5 = 142.5 mm (horizontal: 30 mm left over, 4 equal gaps of 7.5)
+- **AND** y = 5 + 41.17 ≈ 46.17 mm (vertical: 17 mm left over, 8 equal gaps would be 2.125 < 5, so 5 mm at top and bottom and 7/6 ≈ 1.17 mm between rows)
 
-#### Scenario: Adjacent cells
+#### Scenario: 100 × 42 size on A4
 
-- **WHEN** etiquetas are printed in column 1 and column 2 of the same row
-- **THEN** they touch, with no gap
+- **GIVEN** the sheet A4 210 × 297 mm, margin 5 mm, and a 100 × 42 mm size (2 × 6)
+- **WHEN** cell positions are computed
+- **THEN** the two columns sit at x = 5 and 105 mm and touch (10 mm left over: 5 mm at each edge, 0 between)
+- **AND** rows are 6.43 mm apart and from the edges (45 mm / 7)
+
+#### Scenario: 60 × 15 size on A4
+
+- **GIVEN** the sheet A4 210 × 297 mm, margin 5 mm, and a 60 × 15 mm size (3 × 19)
+- **WHEN** cell positions are computed
+- **THEN** columns sit at 7.5, 75 and 142.5 mm
+- **AND** rows are 5 mm from the edges and ≈0.11 mm apart
 
 ### Requirement: No rotation of the etiqueta
 
@@ -287,10 +297,11 @@ The size commands SHALL hold the sheet row `FOR SHARE` and the sheet edit holds 
 
 ### Requirement: R6 — PDF page is the sheet
 
-The PDF page SHALL be the sheet (`ancho_mm × alto_mm`, margin 0 in pdfkit). The etiqueta SHALL fill its whole cell:
-the fixed 100 × 42 mm design stretched on each axis to the configured size (`buildEtiquetaPdf`, `buildEtiquetasPdf`,
-`buildEtiquetaLotePdf`). Letters, icons and the logo keep their proportions; only the fields' places spread. The
-rest of the sheet is blank. Still exactly one page.
+The PDF page SHALL be the sheet (`ancho_mm × alto_mm`, margin 0 in pdfkit). The etiqueta SHALL fill its whole cell
+with the design whose proportion is closest to the size (classic 100 × 42, wide 100 × 25 or tall 50 × 60 — see
+`openspec/specs/etiqueta-preparado/spec.md` R13), stretched on each axis; the lot's etiqueta always uses the classic
+one. Letters, icons and the logo keep their proportions; only the fields' places spread. The rest of the sheet is
+blank. Still exactly one page.
 
 #### Scenario: 60 × 40 size on A4
 
@@ -302,7 +313,7 @@ rest of the sheet is blank. Still exactly one page.
 
 - **GIVEN** a 60 × 15 mm size
 - **WHEN** an etiqueta is printed
-- **THEN** the etiqueta measures 60 × 15 mm and its letters are not stretched
+- **THEN** the etiqueta prints the wide compact design, measures 60 × 15 mm and its letters are not stretched
 
 ### Requirement: Orientation from the page size
 
@@ -360,15 +371,21 @@ a `VALIDATION_ERROR`, resolved before marking impresa.
 ### Requirement: R8 — Print dialog
 
 The print dialog SHALL show the size select, then a clickable grid drawn in the sheet's proportions with one cell
-per position that fits, the summary "N columnas × M filas · K etiquetas por hoja" and the chosen position as text
-("Columna 3, fila 2"). Default selection: column 1, row 1. Changing the size keeps the chosen cell if it still
-fits, else falls back to 1/1.
+per position that fits (each cell placed with `posicionCelda`, using the same symmetric spacing as the PDF, so what
+the user picks is what prints), the summary "N columnas × M filas · K etiquetas por hoja" and the chosen position
+as text ("Columna 3, fila 2"). Default selection: column 1, row 1. Changing the size keeps the chosen cell if it
+still fits, else falls back to 1/1.
 
 #### Scenario: Dialog opened
 
 - **GIVEN** the seeded A4 / 5 mm sheet and a 100 × 42 mm size
 - **WHEN** the print dialog opens
 - **THEN** the grid has 2 × 6 cells, the summary reads "2 columnas × 6 filas · 12 etiquetas por hoja" and column 1, row 1 is selected
+
+#### Scenario: Grid cell placement matches PDF
+
+- **WHEN** the grid drawing places each cell
+- **THEN** it places each cell with `posicionCelda` (same symmetric spacing as the PDF), so what the user picks is what prints
 
 #### Scenario: Size changed, cell still fits
 
@@ -597,6 +614,25 @@ sheet (A4 portrait 210 × 297 mm, margin 5 mm) and the chosen `incluir_excipient
 - **WHEN** the user loads the toma workspace
 - **THEN** the setting is read through `getIncluirExcipientesParaGenerar`
 
+### Requirement: R16 — Red background for configured formas farmacéuticas
+
+`/admin/configuracion/etiquetas` (`config.editar`, re-auth, audited on `etiqueta_hoja`) SHALL configure which `formas
+farmacéuticas` print on a red background (`formas_fondo_rojo`, default `[]`) and ONE of 5 fixed red tones (`pastel`,
+`tenue`, `suave`, `medio`, `intenso`; default `pastel`, >= 4.5:1 contrast; migration 0130). `colorFondoEtiqueta`
+resolves it per etiqueta so one sheet mixes red and white; the PDF fills each rounded marco (`rectanguloRedondeado`).
+
+#### Scenario: Configured forma prints with the chosen red tone
+
+- **GIVEN** `CREMA` configured in `formas_fondo_rojo` and `tono_fondo_rojo` set to `"suave"`
+- **WHEN** a sheet PDF is generated with one `CREMA` etiqueta and one `CAPSULAS` etiqueta
+- **THEN** the `CREMA` etiqueta fills its rounded marco with `#fca5a5` and the `CAPSULAS` etiqueta stays white
+
+#### Scenario: Missing sheet row defaults to no red formas
+
+- **GIVEN** a tenant without a `fsj.etiqueta_hoja` row
+- **WHEN** `getFondoEtiquetaParaImprimir` or `getFondoEtiqueta` is read
+- **THEN** `formasFondoRojo` is `[]` and `tonoFondoRojo` is `"pastel"`
+
 ## Status
 
 Status: implemented (2026-10-21), migration 0096 pending to apply (see Rollout). Plan: `docs/superpowers/plans/2026-10-21-hoja-etiquetas.md`.
@@ -637,11 +673,11 @@ migration 0066 (`fsj.etiqueta_tamano`, the configured label sizes).
 | R1 | `fsj.etiqueta_hoja` (migration 0096), `modules/etiqueta-tamanos` |
 | R2 | `domain/etiqueta-hoja.ts`, DB `CHECK`s |
 | R3 | `grillaHoja(hoja, tamano)` |
-| R4 | `posicionCelda` |
+| R4 | `posicionCelda`, `repartoEje` |
 | R5 | `crear/editar/reactivar-etiqueta-tamano.ts`, `editar-etiqueta-hoja.ts` |
-| R6 | `buildEtiquetaPdf`, `buildEtiquetasPdf`, `buildEtiquetaLotePdf`, `colocarEtiqueta` (stretch to the cell), `compensacionX` (`etiqueta-pdf.ts`) |
+| R6 | `buildEtiquetaPdf`, `buildEtiquetasPdf`, `buildEtiquetaLotePdf`, `colocarEtiqueta` (stretch to the cell) in `etiqueta-pdf.ts`, `disposicionCompacta` (`etiqueta-pdf-compacta.ts`), `enCelda`/compensación in `etiqueta-pdf-trazos.ts` |
 | R7 | `app/api/preparaciones/[id]/etiqueta/pdf/route.ts`, `imprimirEtiquetaPdf`, `hrefEtiquetaPdf` |
-| R8 | `modules/preparaciones/ui/` (new `PosicionEnHoja` component) |
+| R8 | `PosicionEnHoja` (`posicion-en-hoja.tsx`) |
 | R9 | same |
 | R10 | same |
 | R11 | `SeleccionarEtiquetasDialog` |
@@ -649,6 +685,7 @@ migration 0066 (`fsj.etiqueta_tamano`, the configured label sizes).
 | R13 | `modules/etiqueta-tamanos/application/` |
 | R14 | `SeleccionarEtiquetasDialog`; `GET /api/preparaciones/etiquetas/pdf`; `imprimirEtiquetasPdf`; `buildEtiquetasPdf` |
 | R15 | `modules/etiqueta-tamanos/application/get-incluir-excipientes.ts`, `editar-incluir-excipientes.ts`; `modules/etiqueta-tamanos/ui/incluir-excipientes-form.tsx`; `app/(app)/admin/configuracion/etiquetas/page.tsx`; `fsj.etiqueta_hoja.incluir_excipientes` (migration 0117) |
+| R16 | `modules/etiqueta-tamanos/domain/etiqueta-fondo.ts` (`colorFondoEtiqueta`, `TONOS_FONDO_ROJO`), `application/{get,editar}-fondo-etiqueta.ts`, `ui/fondo-etiqueta-form.tsx`; `modules/preparaciones/infrastructure/etiqueta-pdf.ts` (`dibujarEtiqueta` rounded marco fill); `fsj.etiqueta_hoja.{formas_fondo_rojo,tono_fondo_rojo}` (migration 0130) |
 
 ## Data model (migration 0096 — re-check numbering before applying)
 
@@ -677,7 +714,7 @@ recorded here.)
 ## Code touched
 
 - `modules/etiqueta-tamanos/domain/`: new `etiqueta-hoja.ts` (types, limits,
-  `grillaHoja`, `posicionCelda`, `celdaValida`, `tamanosQueNoEntran`, formatting
+  `grillaHoja`, `posicionCelda`, `repartoEje` (symmetric spacing), `celdaValida`, `tamanosQueNoEntran`, formatting
   "A4 vertical" when 210 × 297 / "A4 horizontal" when 297 × 210, else the measures).
   Header comment of `etiqueta-tamano.ts` updated (a size is the label inside the sheet).
 - `modules/etiqueta-tamanos/{application,infrastructure,ui}`: get/editar sheet,
@@ -724,8 +761,8 @@ forced. One sheet per farmacia is enough (they only print etiquetas on A4).
 ## Calls made without explicit confirmation (veto any)
 
 1. Default margin 5 mm (most printers cannot print the outer few mm).
-2. Cells touch, no gap; the label's own border is the cutting guide.
-3. Grid anchored top-left at the margin, not centered on the sheet.
+2. Cells touch, no gap; the label's own border is the cutting guide (superseded on 2026-11-18 by the symmetric spacing).
+3. Grid anchored top-left at the margin, not centered on the sheet (superseded on 2026-11-18 by the symmetric spacing).
 4. No rotation of the etiqueta to fit more per sheet.
 5. Dedicated `fsj.etiqueta_hoja` table instead of `fsj.parametro` keys.
 6. R11: inside the open toma dialog, the next untouched ítem defaults to the next

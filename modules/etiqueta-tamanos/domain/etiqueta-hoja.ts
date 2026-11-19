@@ -105,13 +105,27 @@ export function tamanosQueNoEntran<T extends TamanoEtiqueta>(hoja: HojaEtiqueta,
   return tamanos.filter((tamano) => !entraEnHoja(hoja, tamano));
 }
 
-/** R4: top-left corner of the cell on the sheet, in mm: `(margen + (c - 1) * ancho_etiqueta, margen + (f - 1) * alto_etiqueta)`. The grid is anchored at the margin and the cells touch. */
+/** R4: top-left corner of the cell on the sheet, in mm. The leftover room is shared out symmetrically around and between the cells, never less than the margin at the edges (`repartoEje`). */
 export function posicionCelda(hoja: HojaEtiqueta, tamano: TamanoEtiqueta, celda: Celda): { xMm: number; yMm: number } {
   const margen = decimas(hoja.margenMm);
-  return {
-    xMm: (margen + (celda.columna - 1) * decimas(tamano.anchoMm)) / 10,
-    yMm: (margen + (celda.fila - 1) * decimas(tamano.altoMm)) / 10,
-  };
+  const grilla = grillaHoja(hoja, tamano);
+  const x = repartoEje(decimas(hoja.anchoMm), margen, decimas(tamano.anchoMm), grilla.columnas);
+  const y = repartoEje(decimas(hoja.altoMm), margen, decimas(tamano.altoMm), grilla.filas);
+  return { xMm: (x.inicio + (celda.columna - 1) * x.paso) / 10, yMm: (y.inicio + (celda.fila - 1) * y.paso) / 10 };
+}
+
+/**
+ * R3 (user decision, 2026-11-18): the room the `n` etiquetas leave on one axis of the sheet is shared out symmetrically
+ * -- space, etiqueta, space, etiqueta, space -- all spaces equal while each is at least the sheet's margin; otherwise
+ * both outer spaces are the margin and the rest goes equally between the etiquetas. Tenths of a mm in, tenths out
+ * (the result may be fractional: it only places the drawing, the grid's count stays integer).
+ */
+function repartoEje(total: number, margen: number, medida: number, n: number): { inicio: number; paso: number } {
+  if (n < 1) return { inicio: margen, paso: medida };
+  const sobra = total - n * medida;
+  const parejo = sobra / (n + 1);
+  if (parejo >= margen) return { inicio: parejo, paso: medida + parejo };
+  return { inicio: margen, paso: medida + (sobra - 2 * margen) / (n - 1) };
 }
 
 /** `true` for an integer cell inside the grid (1-based). */

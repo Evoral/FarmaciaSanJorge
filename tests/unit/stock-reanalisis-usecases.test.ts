@@ -458,7 +458,7 @@ describe("registrarReanalisisPartida", () => {
       expect.objectContaining({
         tenantId: TENANT_ID,
         partidaId: PARTIDA_ID,
-        fechaReanalisis: "2027-01-15",
+        fechaReanalisis: "2027-01-31",
         motivo: "Reanálisis semestral",
         respaldo: "Certificado QC-456",
         registradoPorId: DT_ID,
@@ -478,7 +478,7 @@ describe("registrarReanalisisPartida", () => {
         valorAnterior: { fechaVencimientoVigente: "2026-05-01" },
         valorNuevo: expect.objectContaining({
           partidaId: PARTIDA_ID,
-          fechaReanalisis: "2027-01-15",
+          fechaReanalisis: "2027-01-31",
           respaldo: "Certificado QC-456",
         }),
       }),
@@ -488,12 +488,27 @@ describe("registrarReanalisisPartida", () => {
   it("rejects with ValidationError when fechaReanalisis is not strictly in the future", async () => {
     await expect(
       registrarReanalisisPartida(
-        { partidaId: PARTIDA_ID, fechaReanalisis: JORNADA, password: "password-dt" },
+        // Lot dates normalize to end-of-month; "2026-05-15" -> "2026-05-31" (<= JORNADA "2026-06-15").
+        { partidaId: PARTIDA_ID, fechaReanalisis: "2026-05-15", password: "password-dt" },
         { session: fakeDtSession() },
       ),
     ).rejects.toBeInstanceOf(ValidationError);
 
     expect(insertReanalisisMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts fechaReanalisis in the same month as jornada when end-of-month is strictly after jornada", async () => {
+    await registrarReanalisisPartida(
+      { partidaId: PARTIDA_ID, fechaReanalisis: "2026-06", password: "password-dt" },
+      { session: fakeDtSession() },
+    );
+
+    expect(insertReanalisisMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        fechaReanalisis: "2026-06-30",
+      }),
+    );
   });
 
   it("rejects with DomainError when partida has saldo 0 (terminal state)", async () => {

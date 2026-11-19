@@ -31,3 +31,7 @@ the three pages that render the dialogs, the admin Etiquetas page and
 
 The PDF is the etiqueta itself again (page = chosen size, or 100 × 42 mm when a
 link names no size). Sizes that only made sense on a sheet are still valid sizes.
+
+## Symmetric spacing (2026-11-18)
+
+Code only, no schema; revert commit `160068c` (domain + preview together) to go back to touching cells anchored at the margin.

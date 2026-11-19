@@ -16,3 +16,8 @@ reverted as code + a new forward migration built from
 
 1. Deploy the reverted code **first**: it does not read the phone columns, which are nullable.
 2. Copy `prisma/rollbacks/0089_tenant_telefonos.down.sql` into a NEW migration and apply it.
+
+## Compact designs and centered Rp/ (2026-11-18)
+
+Code only, no schema. Revert commit `a1d6905`. Stored `etiqueta.contenido` is unaffected (layout only: `etiqueta-pdf-compacta.ts`, `etiqueta-pdf-trazos.ts`, `etiqueta-pdf.ts`).
+

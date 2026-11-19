@@ -51,7 +51,7 @@ export function EtiquetaTamanoForm({ mode, tamano, hoja, disabled, volverA }: Et
         <label htmlFor="nombre" className="field-label">
           Nombre
         </label>
-        <input id="nombre" name="nombre" defaultValue={tamano?.nombre ?? ""} required disabled={disabled} maxLength={NOMBRE_MAX_LENGTH} placeholder="Ej.: Rollo 100 × 42" className="input" />
+        <input id="nombre" name="nombre" defaultValue={tamano?.nombre ?? ""} required disabled={disabled} autoFocus={mode === "crear"} maxLength={NOMBRE_MAX_LENGTH} placeholder="Ej.: Rollo 100 × 42" className="input" />
       </div>
 
       <div className="grid gap-4 @lg:grid-cols-2">

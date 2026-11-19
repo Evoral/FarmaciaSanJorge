@@ -28,6 +28,7 @@ import { StatusSummary } from "@/shared/ui/status-summary";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { Pagination } from "@/shared/ui/pagination";
 import { ToneBadge } from "@/shared/ui/status-badge";
+import { formatVencimientoLote } from "@/shared/format/fecha";
 
 const PAGE_SIZE = 20;
 
@@ -44,10 +45,6 @@ type FiltroName = (typeof FILTROS)[number]["name"];
 
 interface StockPageProps {
   searchParams: Promise<Partial<Record<FiltroName | "q" | "orden" | "unidades" | "page", string>>>;
-}
-
-function formatFecha(iso: string): string {
-  return new Intl.DateTimeFormat("es-AR", { timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
 }
 
 const numberFormat = new Intl.NumberFormat("es-AR");
@@ -337,11 +334,11 @@ export default async function StockPage({ searchParams }: StockPageProps) {
                               </span>
                             ) : null}
                             {item.proximoVencimiento ? (
-                              <span className="text-zinc-500 tabular-nums">· Vence {formatFecha(item.proximoVencimiento)}</span>
+                              <span className="text-zinc-500 tabular-nums">· Vence {formatVencimientoLote(item.proximoVencimiento)}</span>
                             ) : null}
                           </div>
                           {item.proximoVencimiento ? (
-                            <span className="hidden text-xs text-zinc-500 tabular-nums sm:block md:hidden">Vence {formatFecha(item.proximoVencimiento)}</span>
+                            <span className="hidden text-xs text-zinc-500 tabular-nums sm:block md:hidden">Vence {formatVencimientoLote(item.proximoVencimiento)}</span>
                           ) : null}
                         </td>
                         <td className={`hidden px-3 py-2.5 text-right font-mono tabular-nums sm:table-cell ${item.bajoMinimo ? "font-semibold text-red-700" : "text-zinc-900"}`}>
@@ -355,7 +352,7 @@ export default async function StockPage({ searchParams }: StockPageProps) {
                         </td>
                         <td className="hidden whitespace-nowrap px-3 py-2.5 tabular-nums md:table-cell">
                           {item.proximoVencimiento ? (
-                            formatFecha(item.proximoVencimiento)
+                            formatVencimientoLote(item.proximoVencimiento)
                           ) : (
                             <span className="text-zinc-400">
                               -<span className="sr-only">Sin vencimientos</span>
