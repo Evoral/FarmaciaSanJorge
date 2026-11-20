@@ -11,6 +11,7 @@ import { Ban, Calculator, ExternalLink, FileText, Lock, Pencil, RotateCcw, Steth
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getReceta } from "@/modules/recetas/application/get-receta";
+import { getResumenPagoReceta } from "@/modules/recetas/application/get-resumen-pago-receta";
 import { ORIGEN_RECETA_LABELS, esEstadoEditable, esEstadoTerminal, puedeAnular } from "@/modules/recetas/domain/receta";
 import { etiquetaPago, puedeCambiarPago, puedeDesmarcarPago } from "@/modules/recetas/domain/pago";
 import { anularRecetaAction } from "@/modules/recetas/ui/actions";
@@ -25,6 +26,7 @@ import { AnularEntregaForm } from "@/modules/entregas/ui/anular-entrega-form";
 import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
 import { ESTADO_RECETA_LABELS, FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
 import { ComponentesTabla } from "@/modules/recetas/ui/componentes-tabla";
+import { formatNumero } from "@/shared/format/cantidad";
 import { formatFecha, formatFechaHora } from "@/shared/format/fecha";
 import { PageHeader } from "@/shared/ui/page-header";
 import { Avatar } from "@/shared/ui/avatar";
@@ -67,6 +69,8 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
   const puedeVerLibro = can(session, "libro.ver");
   const puedeVerFichas = can(session, "fichas.generar") || can(session, "fichas.imprimir");
   const puedeVerCotizacion = can(session, "cotizaciones.calcular") || can(session, "cotizaciones.ver");
+  const puedeVerCosto = can(session, "cotizaciones.costo.ver");
+  const resumenPago = puedeVerCotizacion || puedeVerCosto ? await getResumenPagoReceta(receta.id) : null;
 
   const paciente = `${receta.pacienteNombre} ${receta.pacienteApellido}`;
   const diagnostico = [receta.diagnosticoCodigo, receta.diagnosticoDescripcion].filter(Boolean).join(" - ");
@@ -264,6 +268,37 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
                 <p className="text-xs text-zinc-500">
                   Registrado por {receta.pagadaPorNombre} el {formatFechaHora(receta.pagadaEn, receta.zonaHoraria)}.
                 </p>
+              ) : null}
+              {resumenPago?.costo || resumenPago?.precio ? (
+                <dl className="summary-dl border-t border-zinc-100 pt-3">
+                  {resumenPago.costo ? (
+                    <>
+                      <dt>Costo con IVA</dt>
+                      <dd className="tabular-nums">
+                        {resumenPago.costo.total !== null ? (
+                          `$${formatNumero(resumenPago.costo.total, 2)}`
+                        ) : (
+                          <span className="text-xs text-amber-700 dark:text-amber-400">
+                            {resumenPago.costo.avisos.join(" ") || "No se pudo calcular el costo."}
+                          </span>
+                        )}
+                      </dd>
+                    </>
+                  ) : null}
+                  {resumenPago.precio ? (
+                    <>
+                      <dt>Precio</dt>
+                      <dd className="tabular-nums">
+                        {resumenPago.precio.total !== null ? `$${formatNumero(resumenPago.precio.total, 2)}` : <span className="text-zinc-500">Sin cotizar</span>}
+                        {resumenPago.precio.total !== null && resumenPago.precio.itemsSinCotizar.length > 0 ? (
+                          <span className="ml-1.5 text-xs text-zinc-500">
+                            ({resumenPago.precio.itemsSinCotizar.map((n) => `Ítem ${n}`).join(", ")} sin cotizar)
+                          </span>
+                        ) : null}
+                      </dd>
+                    </>
+                  ) : null}
+                </dl>
               ) : null}
             </div>
           </section>

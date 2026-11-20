@@ -35,14 +35,15 @@ export function armarTicketCotizacion(datos: DatosTicketCotizacion): TicketCotiz
   const { presupuesto } = datos;
   if (!presupuesto.ok) throw new DomainError(presupuesto.mensaje);
   // A total that leaves an ítem out would be a wrong price in the client's hand.
-  if (!presupuesto.totalCompleto) throw new DomainError(MENSAJE_COTIZACION_INCOMPLETA);
+  if (!presupuesto.totalCompleto || presupuesto.total === undefined) throw new DomainError(MENSAJE_COTIZACION_INCOMPLETA);
+  const total = presupuesto.total;
   const unico = datos.items.length === 1;
   return {
     farmacia: datos.farmacia,
     fecha: datos.fecha,
     paciente: datos.paciente,
     medico: datos.medico,
-    renglones: datos.items.map((texto) => ({ texto, precio: unico ? presupuesto.total : null })),
-    total: unico ? null : presupuesto.total,
+    renglones: datos.items.map((texto) => ({ texto, precio: unico ? total : null })),
+    total: unico ? null : total,
   };
 }

@@ -22,12 +22,13 @@ import type { UnidadOpcion } from "../infrastructure/receta-repository";
 export interface NuevaRecetaProps {
   unidades: UnidadOpcion[];
   puedePresupuestar: boolean;
+  puedeVerCosto?: boolean;
   /** The farmacia's modo del lector for the QR panel. */
   modoLectorFarmacia: ModoLectorQr;
   tenantId: string;
 }
 
-export function NuevaReceta({ unidades, puedePresupuestar, modoLectorFarmacia, tenantId }: NuevaRecetaProps) {
+export function NuevaReceta({ unidades, puedePresupuestar, puedeVerCosto = false, modoLectorFarmacia, tenantId }: NuevaRecetaProps) {
   const [vistaPrevia, setVistaPrevia] = useState<VistaPreviaImportacion | null>(null);
   const [lecturas, setLecturas] = useState<Record<FuenteImportacion, number>>({ PDF: 0, QR: 0 });
 
@@ -55,9 +56,9 @@ export function NuevaReceta({ unidades, puedePresupuestar, modoLectorFarmacia, t
         </div>
       </div>
       {vistaPrevia ? (
-        <RecetaForm key={totalLecturas} mode="importar" vistaPrevia={vistaPrevia} unidades={unidades} disabled={false} puedePresupuestar={puedePresupuestar} />
+        <RecetaForm key={totalLecturas} mode="importar" vistaPrevia={vistaPrevia} unidades={unidades} disabled={false} puedePresupuestar={puedePresupuestar} puedeVerCosto={puedeVerCosto} />
       ) : (
-        <RecetaForm mode="crear" unidades={unidades} disabled={false} puedePresupuestar={puedePresupuestar} />
+        <RecetaForm mode="crear" unidades={unidades} disabled={false} puedePresupuestar={puedePresupuestar} puedeVerCosto={puedeVerCosto} />
       )}
     </div>
   );

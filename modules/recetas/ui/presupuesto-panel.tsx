@@ -16,7 +16,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { Printer } from "lucide-react";
 import { presupuestarRecetaAction } from "./actions";
 import type { PresupuestoState } from "./action-state";
-import { itemsListosParaPresupuesto } from "../domain/presupuesto";
+import { MENSAJE_SIN_REGLA_PRECIO, itemsListosParaPresupuesto } from "../domain/presupuesto";
 import type { FuenteCostoLinea, ItemPresupuestable } from "../domain/presupuesto";
 import { formatNumero } from "@/shared/format/cantidad";
 import { PagoSwitch, type PagoPanel } from "./pago-switch";
@@ -77,7 +77,19 @@ function imprimirCotizacion(itemsJson: string, datos: DatosCotizacion) {
   form.remove();
 }
 
-export function PresupuestoPanel({ items, pago, cotizacion }: { items: ItemPresupuestable[]; pago?: PagoPanel; cotizacion?: DatosCotizacion }) {
+export function PresupuestoPanel({
+  items,
+  pago,
+  cotizacion,
+  puedeVerPrecio = true,
+  puedeVerCosto = false,
+}: {
+  items: ItemPresupuestable[];
+  pago?: PagoPanel;
+  cotizacion?: DatosCotizacion;
+  puedeVerPrecio?: boolean;
+  puedeVerCosto?: boolean;
+}) {
   const itemsJson = JSON.stringify(items);
   const listos = itemsListosParaPresupuesto(items);
   // The last answer, with the draft it was computed for: shown (marked as updating) until the next one arrives.
@@ -93,7 +105,7 @@ export function PresupuestoPanel({ items, pago, cotizacion }: { items: ItemPresu
     try {
       respuesta = await presupuestarRecetaAction(json);
     } catch {
-      respuesta = { status: "error", message: "No se pudo calcular el precio." };
+      respuesta = { status: "error", message: "No se pudo calcular el presupuesto." };
     }
     // A newer request was sent meanwhile: this answer is stale.
     if (solicitud !== ultimaSolicitud.current) return;
@@ -111,15 +123,16 @@ export function PresupuestoPanel({ items, pago, cotizacion }: { items: ItemPresu
     return () => clearTimeout(timer);
   }, [itemsJson, listos, calcular]);
 
-  const totalVisible = listos && resultado?.status === "success" && resultado.presupuesto.ok ? resultado.presupuesto.total : null;
+  const totalVisible = listos && resultado?.status === "success" && resultado.presupuesto.ok && resultado.presupuesto.total !== undefined ? resultado.presupuesto.total : null;
   // Only a complete price for exactly what the form holds now: a stale or partial one would mislead the client.
   const puedeImprimir = totalVisible !== null && ultimo?.json === itemsJson && resultado?.status === "success" && resultado.presupuesto.ok && resultado.presupuesto.totalCompleto;
+  const titulo = puedeVerCosto && puedeVerPrecio ? "Costo y precio" : puedeVerCosto ? "Costo con IVA" : "Precio";
 
   return (
     <section aria-labelledby="presupuesto-heading" aria-live="polite" className="card p-4">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 id="presupuesto-heading" className="text-lg font-medium">
-          Precio
+          {titulo}
         </h2>
         <button type="button" onClick={() => void calcular(itemsJson)} disabled={!listos || (calculando && ultimo?.json === itemsJson)} className="btn btn-secondary btn-sm">
           {listos && calculando ? "Calculando…" : "Recalcular"}
@@ -128,9 +141,11 @@ export function PresupuestoPanel({ items, pago, cotizacion }: { items: ItemPresu
       {listos && ultimo !== null && ultimo.json !== itemsJson ? <p className="mb-1 text-xs text-zinc-500">Actualizando con los últimos cambios…</p> : null}
 
       {!listos ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">Completá la droga, la unidad y la cantidad de cada componente para ver el precio.</p>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Completá la droga, la unidad y la cantidad de cada componente para ver el {puedeVerPrecio ? "precio" : "costo"}.
+        </p>
       ) : resultado === null ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">Calculando el precio…</p>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">Calculando…</p>
       ) : resultado.status === "error" ? (
         <p role="alert" className="text-sm text-red-600">
           {resultado.message}
@@ -141,6 +156,11 @@ export function PresupuestoPanel({ items, pago, cotizacion }: { items: ItemPresu
         </p>
       ) : (
         <>
+          {resultado.presupuesto.sinReglaPrecio ? (
+            <p role="status" className="mb-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+              {MENSAJE_SIN_REGLA_PRECIO}
+            </p>
+          ) : null}
           {resultado.presupuesto.faltantesReceta.length > 0 ? (
             // Stock shared by the receta's items: the most important warning here, never a block.
             <div role="alert" className="mb-3 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
@@ -153,17 +173,37 @@ export function PresupuestoPanel({ items, pago, cotizacion }: { items: ItemPresu
               </ul>
             </div>
           ) : null}
-          <p className="mb-2 text-2xl font-semibold">
-            {precio(resultado.presupuesto.total)}
-            {!resultado.presupuesto.totalCompleto ? <span className="ml-2 text-sm font-normal text-zinc-600 dark:text-zinc-400">(sin los ítems que no se pudieron calcular)</span> : null}
-          </p>
+          <div className="mb-2 flex flex-col gap-0.5">
+            {resultado.presupuesto.totalCostoConIva !== undefined ? (
+              <p className="text-sm text-zinc-700 dark:text-zinc-300">
+                Costo con IVA: <span className="font-semibold tabular-nums">{precio(resultado.presupuesto.totalCostoConIva)}</span>
+                {resultado.presupuesto.total === undefined && !resultado.presupuesto.totalCompleto ? (
+                  <span className="ml-2 text-xs font-normal text-zinc-600 dark:text-zinc-400">(sin los ítems que no se pudieron calcular)</span>
+                ) : null}
+              </p>
+            ) : null}
+            {resultado.presupuesto.total !== undefined ? (
+              <p className="text-2xl font-semibold tabular-nums">
+                {resultado.presupuesto.totalCostoConIva !== undefined ? <span className="mr-1.5 text-base font-medium text-zinc-700 dark:text-zinc-300">Precio:</span> : null}
+                {precio(resultado.presupuesto.total)}
+                {!resultado.presupuesto.totalCompleto ? <span className="ml-2 text-sm font-normal text-zinc-600 dark:text-zinc-400">(sin los ítems que no se pudieron calcular)</span> : null}
+              </p>
+            ) : null}
+          </div>
           <ul className="flex flex-col gap-1 text-sm">
             {resultado.presupuesto.items.map((item) => (
               <li key={item.indice} className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">Ítem {item.indice}:</span>
                 {item.ok ? (
                   <>
-                    <span>{precio(item.precioFinal)}</span>
+                    {item.costoConIva !== undefined ? (
+                      <span className="flex flex-col text-xs leading-tight tabular-nums">
+                        <span className="text-zinc-600 dark:text-zinc-400">Costo con IVA: {precio(item.costoConIva)}</span>
+                        {item.precioFinal !== undefined ? <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Precio: {precio(item.precioFinal)}</span> : null}
+                      </span>
+                    ) : item.precioFinal !== undefined ? (
+                      <span className="tabular-nums">{precio(item.precioFinal)}</span>
+                    ) : null}
                     {item.esParcial ? <Badge>Parcial: {item.enraseManual.join(", ")} se completa al preparar</Badge> : null}
                     {item.faltantes.map((f) =>
                       proveedorDe(item.fuentes, f.drogaNombre) !== undefined ? (

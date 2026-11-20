@@ -7,7 +7,7 @@
  * enough to price" check. No I/O.
  */
 import { Decimal, dec, isPositive } from "@/shared/decimal";
-import { mensajeSinCostoProveedor, type CotizacionCalculada, type FuenteCosto } from "@/modules/precios/domain/calcular-cotizacion";
+import { mensajeSinCostoProveedor, type CostoCalculado, type CotizacionCalculada, type FuenteCosto } from "@/modules/precios/domain/calcular-cotizacion";
 import { numeroONull } from "@/shared/decimal/numero-ingresado";
 
 /**
@@ -46,8 +46,10 @@ export type PresupuestoItem =
       /** 1-based, same numbering as the form ("Ítem 1"). */
       indice: number;
       ok: true;
-      precioFinal: string;
-      costoInsumos: string;
+      /** Omitted when the user lacks `cotizaciones.calcular` or no regla de precio is configured. */
+      precioFinal?: string;
+      /** Cost WITH IVA (what the regla de precio prices on, R7a). Omitted when the user lacks `cotizaciones.costo.ver`. Never sent to the browser without it. */
+      costoConIva?: string;
       /** Some excipiente is completed at preparation time (manual enrase): priced without it. */
       esParcial: boolean;
       enraseManual: string[];
@@ -66,9 +68,13 @@ export type PresupuestoItem =
 export type Presupuesto =
   | {
       ok: true;
-      /** Sum of the items that could be priced. */
-      total: string;
-      /** `false` when some item could not be priced (its message says why): the total leaves it out. */
+      /** Sum of the items that could be priced; omitted without `cotizaciones.calcular` or without a regla de precio. */
+      total?: string;
+      /** Sum of the items' `costoConIva`; omitted without `cotizaciones.costo.ver`. */
+      totalCostoConIva?: string;
+      /** `true` when `cotizaciones.costo.ver` is active and no regla de precio is configured: costs are shown alongside a notice. */
+      sinReglaPrecio?: boolean;
+      /** `false` when some item could not be calculated (its message says why): the totals leave it out. */
       totalCompleto: boolean;
       items: PresupuestoItem[];
       /** Drogas whose combined demand across the receta exceeds the eligible stock. */
@@ -76,8 +82,17 @@ export type Presupuesto =
     }
   | { ok: false; mensaje: string };
 
-/** One item's in-memory cotización -> its presupuesto line. A droga without costo de proveedor: no price, only why (R27). */
-export function presupuestoItemDesdeCotizacion(indice: number, cotizacion: CotizacionCalculada): PresupuestoItem {
+export interface OpcionesPresupuesto {
+  incluirPrecio: boolean;
+  incluirCosto: boolean;
+}
+
+/** One item's in-memory cotización (or cost) -> its presupuesto line. A droga without costo de proveedor: no cost/price, only why (R27). */
+export function presupuestoItemDesdeCotizacion(
+  indice: number,
+  cotizacion: CostoCalculado | CotizacionCalculada,
+  opciones: OpcionesPresupuesto = { incluirPrecio: true, incluirCosto: false },
+): PresupuestoItem {
   if (cotizacion.drogasSinPrecio.length > 0) return { indice, ok: false, mensaje: mensajeSinCostoProveedor(cotizacion.drogasSinPrecio) };
   const lineas = cotizacion.detalle.lineas;
   const hayProveedor = lineas.some((l) => l.fuente === "PROVEEDOR" || l.fuente === "FORMULA");
@@ -92,8 +107,8 @@ export function presupuestoItemDesdeCotizacion(indice: number, cotizacion: Cotiz
   return {
     indice,
     ok: true,
-    precioFinal: cotizacion.precioFinal.toString(),
-    costoInsumos: cotizacion.costoInsumos.toString(),
+    ...(opciones.incluirPrecio && "precioFinal" in cotizacion ? { precioFinal: cotizacion.precioFinal.toString() } : {}),
+    ...(opciones.incluirCosto ? { costoConIva: cotizacion.costoInsumosConIva.toString() } : {}),
     esParcial: cotizacion.esParcial,
     enraseManual: lineas.filter((l) => l.esEnraseManual).map((l) => l.drogaNombre),
     esIncompleta: cotizacion.esIncompleta,
@@ -104,9 +119,28 @@ export function presupuestoItemDesdeCotizacion(indice: number, cotizacion: Cotiz
   };
 }
 
-export function armarPresupuesto(items: PresupuestoItem[], faltantesReceta: FaltanteStockReceta[] = []): Presupuesto {
-  const total = items.reduce((suma, item) => (item.ok ? suma.plus(dec(item.precioFinal)) : suma), new Decimal(0));
-  return { ok: true, total: total.toString(), totalCompleto: items.every((i) => i.ok), items, faltantesReceta };
+export function armarPresupuesto(
+  items: PresupuestoItem[],
+  faltantesReceta: FaltanteStockReceta[] = [],
+  opciones: { incluirPrecio?: boolean; incluirCosto?: boolean; sinReglaPrecio?: boolean } = {},
+): Presupuesto {
+  const incluirPrecio = (opciones.incluirPrecio ?? items.some((i) => i.ok && i.precioFinal !== undefined)) && !opciones.sinReglaPrecio;
+  const incluirCosto = opciones.incluirCosto ?? items.some((i) => i.ok && i.costoConIva !== undefined);
+  const total = incluirPrecio
+    ? items.reduce((suma, item) => (item.ok && item.precioFinal !== undefined ? suma.plus(dec(item.precioFinal)) : suma), new Decimal(0)).toString()
+    : undefined;
+  const totalCostoConIva = incluirCosto
+    ? items.reduce((suma, item) => (item.ok && item.costoConIva !== undefined ? suma.plus(dec(item.costoConIva)) : suma), new Decimal(0)).toString()
+    : undefined;
+  return {
+    ok: true,
+    ...(total !== undefined ? { total } : {}),
+    ...(totalCostoConIva !== undefined ? { totalCostoConIva } : {}),
+    ...(opciones.sinReglaPrecio ? { sinReglaPrecio: true } : {}),
+    totalCompleto: items.every((i) => i.ok),
+    items,
+    faltantesReceta,
+  };
 }
 
 /**
@@ -126,7 +160,7 @@ function cantidadEsAr(valor: Decimal): string {
  * the items' faltantes IS the receta's shortage (demand - eligible stock),
  * so the eligible stock is demand - shortage.
  */
-export function faltantesDeReceta(cotizaciones: readonly CotizacionCalculada[]): FaltanteStockReceta[] {
+export function faltantesDeReceta(cotizaciones: readonly Pick<CostoCalculado, "detalle">[]): FaltanteStockReceta[] {
   const porDroga = new Map<string, { drogaNombre: string; unidadSimbolo: string; requerida: Decimal; faltante: Decimal }>();
   for (const cotizacion of cotizaciones) {
     for (const linea of cotizacion.detalle.lineas) {
