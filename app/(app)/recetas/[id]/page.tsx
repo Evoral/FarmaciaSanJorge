@@ -168,21 +168,11 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
                       ) : null}
                     </p>
                   </div>
-                  {puedeVerFichas || puedeVerCotizacion ? (
-                    <div className="flex flex-wrap gap-1">
-                      {puedeVerFichas ? (
-                        <Link href={`/recetas/${receta.id}/items/${item.id}/ficha-tecnica`} className="btn btn-ghost btn-sm">
-                          <FileText className="size-3.5" aria-hidden />
-                          Ficha técnica
-                        </Link>
-                      ) : null}
-                      {puedeVerCotizacion ? (
-                        <Link href={`/recetas/${receta.id}/items/${item.id}/cotizacion`} className="btn btn-ghost btn-sm">
-                          <Calculator className="size-3.5" aria-hidden />
-                          Cotización
-                        </Link>
-                      ) : null}
-                    </div>
+                  {puedeVerFichas ? (
+                    <Link href={`/recetas/${receta.id}/items/${item.id}/ficha-tecnica`} className="btn btn-ghost btn-sm">
+                      <FileText className="size-3.5" aria-hidden />
+                      Ficha técnica
+                    </Link>
                   ) : null}
                 </div>
                 <div className="flex flex-col gap-3 p-4">
@@ -209,52 +199,21 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
               </article>
             ))}
           </section>
-        </div>
-
-        <aside className="split-aside flex flex-col gap-4" aria-label="Datos de la receta">
-          <section className="panel" aria-labelledby="datos-heading">
-            <div className="panel-header">
-              <h2 id="datos-heading">Datos</h2>
-            </div>
-            <div className="panel-body">
-              <dl className="summary-dl">
-                <dt>Estado</dt>
-                <dd>{ESTADO_RECETA_LABELS[receta.estado]}</dd>
-                <dt>Origen</dt>
-                <dd>{ORIGEN_RECETA_LABELS[receta.origen]}</dd>
-                {receta.emisor ? (
-                  <>
-                    <dt>Emisor</dt>
-                    <dd title={`${receta.emisor} Nº ${receta.nroRecetaEmisor ?? ""}`}>
-                      {receta.emisor} Nº {receta.nroRecetaEmisor}
-                    </dd>
-                  </>
-                ) : null}
-                <dt>Prescripción</dt>
-                <dd className="tabular-nums">{formatFecha(receta.fechaPrescripcion)}</dd>
-                <dt>Ingreso</dt>
-                <dd className="tabular-nums">{formatFecha(receta.fechaIngreso)}</dd>
-                <dt>Registrada por</dt>
-                <dd title={receta.registradaPorNombre}>{receta.registradaPorNombre}</dd>
-              </dl>
-              {receta.emisor && urlVerificacion ? (
-                <a href={urlVerificacion} target="_blank" rel="noopener noreferrer" className="link-button mt-3">
-                  <ExternalLink className="size-3.5" aria-hidden />
-                  Verificar en el emisor
-                </a>
-              ) : null}
-              {diagnostico ? (
-                <div className="mt-4 border-t border-zinc-100 pt-3 text-sm">
-                  <p className="text-xs text-zinc-500">Diagnóstico</p>
-                  <p className="text-zinc-900">{diagnostico}</p>
-                </div>
-              ) : null}
-            </div>
-          </section>
 
           <section className="panel" aria-labelledby="pago-heading">
-            <div className="panel-header">
+            <div className="panel-header flex flex-wrap items-center gap-2">
               <h2 id="pago-heading">Pago</h2>
+              {puedeVerCotizacion ? (
+                // The cotización detail is per item: one link each, numbered like the Ítems list above.
+                <div className="flex flex-wrap gap-1">
+                  {receta.items.map((item, idx) => (
+                    <Link key={item.id} href={`/recetas/${receta.id}/items/${item.id}/cotizacion`} className="btn btn-ghost btn-sm">
+                      <Calculator className="size-3.5" aria-hidden />
+                      {receta.items.length === 1 ? "Ver cotización" : `Cotización ítem ${idx + 1}`}
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
             </div>
             <div className="panel-body flex flex-col gap-3 text-sm">
               {puedeMarcarPago ? (
@@ -299,6 +258,48 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
                     </>
                   ) : null}
                 </dl>
+              ) : null}
+            </div>
+          </section>
+        </div>
+
+        <aside className="split-aside flex flex-col gap-4" aria-label="Datos de la receta">
+          <section className="panel" aria-labelledby="datos-heading">
+            <div className="panel-header">
+              <h2 id="datos-heading">Datos</h2>
+            </div>
+            <div className="panel-body">
+              <dl className="summary-dl">
+                <dt>Estado</dt>
+                <dd>{ESTADO_RECETA_LABELS[receta.estado]}</dd>
+                <dt>Origen</dt>
+                <dd>{ORIGEN_RECETA_LABELS[receta.origen]}</dd>
+                {receta.emisor ? (
+                  <>
+                    <dt>Emisor</dt>
+                    <dd title={`${receta.emisor} Nº ${receta.nroRecetaEmisor ?? ""}`}>
+                      {receta.emisor} Nº {receta.nroRecetaEmisor}
+                    </dd>
+                  </>
+                ) : null}
+                <dt>Prescripción</dt>
+                <dd className="tabular-nums">{formatFecha(receta.fechaPrescripcion)}</dd>
+                <dt>Ingreso</dt>
+                <dd className="tabular-nums">{formatFecha(receta.fechaIngreso)}</dd>
+                <dt>Registrada por</dt>
+                <dd title={receta.registradaPorNombre}>{receta.registradaPorNombre}</dd>
+              </dl>
+              {receta.emisor && urlVerificacion ? (
+                <a href={urlVerificacion} target="_blank" rel="noopener noreferrer" className="link-button mt-3">
+                  <ExternalLink className="size-3.5" aria-hidden />
+                  Verificar en el emisor
+                </a>
+              ) : null}
+              {diagnostico ? (
+                <div className="mt-4 border-t border-zinc-100 pt-3 text-sm">
+                  <p className="text-xs text-zinc-500">Diagnóstico</p>
+                  <p className="text-zinc-900">{diagnostico}</p>
+                </div>
               ) : null}
             </div>
           </section>
