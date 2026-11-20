@@ -190,6 +190,18 @@ El detalle de la receta SHALL mostrar "Pagada" (con quién y cuándo) o "Impaga"
 - **THEN** la receta queda pagada sin otro paso
 - **AND** el detalle muestra "Pagada" con quién y cuándo
 
+### Requirement: P5 — Ubicación del recuadro Pago en el detalle
+
+Desde 2026-11-20 el recuadro «Pago» del detalle SHALL estar en la columna principal, debajo de los ítems, con el acceso
+a la cotización junto a su título. El costo con IVA y el precio que muestra están en
+`openspec/specs/presupuesto-receta/spec.md` («Costo en el detalle», «Precio en el detalle»).
+
+#### Scenario: Recuadro debajo de los ítems
+
+- **GIVEN** un usuario con `cotizaciones.ver` y una receta de un ítem
+- **WHEN** abre el detalle
+- **THEN** el recuadro «Pago» aparece debajo de los ítems, con «Ver cotización» junto a su título
+
 ### Requirement: P5 — Switch bloqueado en una receta entregada y pagada
 
 En el detalle, una receta `ENTREGADA` y pagada SHALL mostrar el switch "Pagada" bloqueado.

@@ -337,6 +337,9 @@ Criterios de clasificación que vale la pena mencionar:
 - `dt.designar` / `dt.cesar` son **gestión**: registran quién es el DT; no son actos del circuito.
 - `cierres.imprimir`, `etiquetas.imprimir`, `fichas.imprimir` son **consulta** (imprimir lo ya generado).
 - `cotizaciones.calcular` es **operativo** (por decisión explícita), `cotizaciones.ver` es consulta.
+- `cotizaciones.costo.ver` es **consulta** (migración 0131): ver el costo con IVA de una receta junto a su presupuesto
+  (`openspec/specs/presupuesto-receta/spec.md`). No está en ningún rol predefinido salvo ADMINISTRADOR (por categoría);
+  se otorga desde el editor de roles.
 - Todo `usuarios.*` es **gestión**, incluidas las lecturas (`usuarios.listar`, `usuarios.ver`, `usuarios.auditoria.ver`).
 
 ## Modelo de datos
