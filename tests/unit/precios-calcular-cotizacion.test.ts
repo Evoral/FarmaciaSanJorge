@@ -6,7 +6,12 @@
  */
 import { describe, it, expect } from "vitest";
 import { Decimal } from "decimal.js";
-import { calcularCotizacion, calcularCotizacionesAcumuladas, mensajeSinCostoProveedor } from "@/modules/precios/domain/calcular-cotizacion";
+import {
+  calcularCotizacion,
+  calcularCotizacionesAcumuladas,
+  calcularCostosAcumulados,
+  mensajeSinCostoProveedor,
+} from "@/modules/precios/domain/calcular-cotizacion";
 import type { CostoProveedorCosteo, LineaCosteoInput, PartidaCosteo } from "@/modules/precios/domain/calcular-cotizacion";
 import type { ReglasPrecio } from "@/modules/precios/domain/regla-precio";
 
@@ -304,5 +309,104 @@ describe("mensajeSinCostoProveedor", () => {
 
   it("formats plural message with joined names for several drogas without price", () => {
     expect(mensajeSinCostoProveedor(["Urea", "Mazindol"])).toBe("No se puede dar el precio: Urea, Mazindol no tienen precio cargado en costos de proveedor.");
+  });
+});
+
+describe("calcularCostosAcumulados (costing split from pricing)", () => {
+  it("produces identical costs (costoInsumos, costoInsumosConIva, drogasSinPrecio, detalle) to calcularCotizacionesAcumuladas, but without price", () => {
+    const linea1 = linea({
+      drogaId: "droga-1",
+      drogaNombre: "Urea",
+      cantidadAPesar: "10",
+      costoProveedor: costo({ costoUnitario: "5", costoUnitarioConIva: "6.05", alicuotaIva: "21" }),
+    });
+    const linea2 = linea({
+      drogaId: "droga-2",
+      drogaNombre: "Mazindol",
+      cantidadAPesar: "2",
+      costoProveedor: costo({ costoUnitario: "50", costoUnitarioConIva: "50", alicuotaIva: "0" }),
+    });
+    const items = [[linea1], [linea2]];
+    const partidasMap: Record<string, PartidaCosteo[]> = {
+      "droga-1": [partida({ id: "P1", cantidadDisponible: "100", costoUnitario: "5" })],
+      "droga-2": [partida({ id: "P2", cantidadDisponible: "100", costoUnitario: "50" })],
+    };
+
+    const costos = calcularCostosAcumulados(items, (id) => partidasMap[id] ?? [], HOY);
+    const cotizaciones = calcularCotizacionesAcumuladas(items, (id) => partidasMap[id] ?? [], HOY, REGLAS_EJEMPLO);
+
+    expect(costos).toHaveLength(2);
+    expect(cotizaciones).toHaveLength(2);
+
+    for (let i = 0; i < items.length; i++) {
+      const c = costos[i]!;
+      const cot = cotizaciones[i]!;
+
+      expect(c.costoInsumos.toString()).toBe(cot.costoInsumos.toString());
+      expect(c.costoInsumosConIva.toString()).toBe(cot.costoInsumosConIva.toString());
+      expect(c.drogasSinPrecio).toEqual(cot.drogasSinPrecio);
+      expect(c.esParcial).toBe(cot.esParcial);
+      expect(c.esIncompleta).toBe(cot.esIncompleta);
+      expect(c.detalle).toEqual(cot.detalle);
+
+      // Price properties must NOT exist on CostoCalculado
+      expect(c).not.toHaveProperty("precioFinal");
+      expect(c).not.toHaveProperty("margenAplicado");
+      expect(c).not.toHaveProperty("tramoAplicado");
+      expect(c).not.toHaveProperty("precioMinimoAplicado");
+
+      // Price properties DO exist on CotizacionCalculada
+      expect(cot).toHaveProperty("precioFinal");
+      expect(cot).toHaveProperty("margenAplicado");
+      expect(cot).toHaveProperty("tramoAplicado");
+      expect(cot).toHaveProperty("precioMinimoAplicado");
+    }
+  });
+
+  it("handles drogasSinPrecio identically between costs and cotizaciones", () => {
+    const lineaSinCosto = linea({
+      drogaId: "droga-sin-costo",
+      drogaNombre: "Droga Sin Costo",
+      costoProveedor: null,
+    });
+    const items = [[lineaSinCosto]];
+
+    const [costoRes] = calcularCostosAcumulados(items, () => [], HOY);
+    const [cotizacionRes] = calcularCotizacionesAcumuladas(items, () => [], HOY, REGLAS_EJEMPLO);
+
+    expect(costoRes!.drogasSinPrecio).toEqual(["Droga Sin Costo"]);
+    expect(cotizacionRes!.drogasSinPrecio).toEqual(["Droga Sin Costo"]);
+    expect(costoRes!.costoInsumos.toString()).toBe("0");
+    expect(costoRes!.costoInsumosConIva.toString()).toBe("0");
+    expect(cotizacionRes!.costoInsumos.toString()).toBe("0");
+    expect(cotizacionRes!.costoInsumosConIva.toString()).toBe("0");
+    expect(costoRes).not.toHaveProperty("precioFinal");
+  });
+
+  it("regression: calcularCotizacion and calcularCotizacionesAcumuladas calculate exact same price and margins as before separation", () => {
+    const lineaConIva = linea({
+      cantidadAPesar: "1000",
+      costoProveedor: costo({ costoUnitario: "10", costoUnitarioConIva: "12.1", alicuotaIva: "21" }),
+    });
+    const partidas = [partida({ cantidadDisponible: "10000", costoUnitario: "10" })];
+
+    const simple = calcularCotizacion([lineaConIva], () => partidas, HOY, REGLAS_EJEMPLO);
+    const [acum] = calcularCotizacionesAcumuladas([[lineaConIva]], () => partidas, HOY, REGLAS_EJEMPLO);
+
+    // Cost with IVA = 1000 * 12.1 = 12100.
+    // REGLAS_EJEMPLO: tramo <= 100000 -> 100%, floor 20000 -> 12100 * 2 = 24200.
+    expect(simple.costoInsumos.toString()).toBe("10000");
+    expect(simple.costoInsumosConIva.toString()).toBe("12100");
+    expect(simple.precioFinal.toString()).toBe("24200");
+    expect(simple.margenAplicado.toString()).toBe("100");
+    expect(simple.tramoAplicado).toBe(0);
+    expect(simple.precioMinimoAplicado).toBe(false);
+
+    expect(acum!.costoInsumos.toString()).toBe(simple.costoInsumos.toString());
+    expect(acum!.costoInsumosConIva.toString()).toBe(simple.costoInsumosConIva.toString());
+    expect(acum!.precioFinal.toString()).toBe(simple.precioFinal.toString());
+    expect(acum!.margenAplicado.toString()).toBe(simple.margenAplicado.toString());
+    expect(acum!.tramoAplicado).toBe(simple.tramoAplicado);
+    expect(acum!.precioMinimoAplicado).toBe(simple.precioMinimoAplicado);
   });
 });

@@ -18,10 +18,9 @@ const FAKE_TX = { __fakeTx: true };
 vi.mock("@/shared/db/transaction", () => ({
   withTenantTransaction: async (_tenantId: string, fn: (tx: unknown) => unknown) => fn(FAKE_TX),
 }));
+const requireSessionMock = vi.fn();
 vi.mock("@/shared/auth/session", () => ({
-  requireSession: vi.fn(async () => {
-    throw new Error("inject a session via execute(input, { session })");
-  }),
+  requireSession: (...args: unknown[]) => requireSessionMock(...args),
   requireRecentReauth: vi.fn(),
 }));
 
@@ -99,10 +98,14 @@ vi.mock("@/modules/costos-proveedor/infrastructure/costo-proveedor-repository", 
 const getReglaVigente = vi.fn();
 vi.mock("@/modules/precios/infrastructure/regla-precio-repository", () => ({ getReglaVigente: (...a: unknown[]) => getReglaVigente(...a) }));
 
-const { presupuestarRecetaQuery } = await import("@/modules/recetas/application/presupuestar-receta");
-const { armarPresupuesto, itemsListosParaPresupuesto } = await import("@/modules/recetas/domain/presupuesto");
+const { presupuestarReceta, presupuestarRecetaQuery } = await import("@/modules/recetas/application/presupuestar-receta");
+const { armarPresupuesto, itemsListosParaPresupuesto, presupuestoItemDesdeCotizacion, MENSAJE_SIN_REGLA_PRECIO } = await import(
+  "@/modules/recetas/domain/presupuesto"
+);
+const { Decimal } = await import("@/shared/decimal");
+import type { CotizacionCalculada } from "@/modules/precios/domain/calcular-cotizacion";
 
-const SESSION: AuthenticatedSession = {
+const SESSION_SOLO_CALCULAR: AuthenticatedSession = {
   usuario: { id: "u-1", email: "u@example.com", nombre: "N", apellido: "A" },
   tenantId: "11111111-1111-1111-1111-111111111111",
   sesionId: "s1",
@@ -110,18 +113,33 @@ const SESSION: AuthenticatedSession = {
   reautenticadaEn: new Date(),
 };
 
+const SESSION_SOLO_COSTO: AuthenticatedSession = {
+  ...SESSION_SOLO_CALCULAR,
+  permisos: new Set(["cotizaciones.costo.ver"]) as AuthenticatedSession["permisos"],
+};
+
+const SESSION_CON_COSTO: AuthenticatedSession = {
+  ...SESSION_SOLO_CALCULAR,
+  permisos: new Set(["cotizaciones.calcular", "cotizaciones.costo.ver"]) as AuthenticatedSession["permisos"],
+};
+
+const SESSION_SIN_PERMISOS: AuthenticatedSession = {
+  ...SESSION_SOLO_CALCULAR,
+  permisos: new Set() as AuthenticatedSession["permisos"],
+};
+
 const cremaUrea = {
-  formaFarmaceutica: "CREMA",
+  formaFarmaceutica: "CREMA" as const,
   cantidadUnidades: 1,
   fraccionDosisPorUnidad: "1",
   cantidadTotal: null,
   unidadTotalId: null,
-  componentes: [{ drogaId: D_UREA, cantidad: "10", unidadMedidaId: U_G, modoExpresion: "TOTAL", esPrincipioActivo: true }],
+  componentes: [{ drogaId: D_UREA, cantidad: "10", unidadMedidaId: U_G, modoExpresion: "TOTAL" as const, esPrincipioActivo: true }],
 };
 
 /** openspec/specs/ficha-tecnica/spec.md T3: cápsulas with a CSP excipiente -> manual enrase. */
 const capsulasMazindol = {
-  formaFarmaceutica: "CAPSULA",
+  formaFarmaceutica: "CAPSULA" as const,
   cantidadUnidades: 30,
   fraccionDosisPorUnidad: "1",
   cantidadTotal: null,
@@ -132,11 +150,12 @@ const capsulasMazindol = {
   ],
 };
 
-async function presupuestar(items: unknown[]) {
-  return presupuestarRecetaQuery.execute({ items }, { session: SESSION });
+async function presupuestar(items: unknown[], session: AuthenticatedSession = SESSION_CON_COSTO) {
+  return presupuestarRecetaQuery.execute({ items }, { session });
 }
 
 beforeEach(() => {
+  requireSessionMock.mockReset().mockResolvedValue(SESSION_CON_COSTO);
   getReglaVigente.mockReset().mockResolvedValue({
     id: "r1",
     precioMinimo: "0",
@@ -192,9 +211,9 @@ describe("recetas.presupuestar", () => {
     partidas.set(D_UREA, [{ id: "p-urea", cantidadDisponible: "15000", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "0.002" }]);
     const p = await presupuestar([cremaUrea, cremaUrea]);
     if (!p.ok) throw new Error("expected ok");
-    expect(p.items[0]).toMatchObject({ ok: true, costoInsumos: "20", esIncompleta: false });
+    expect(p.items[0]).toMatchObject({ ok: true, costoConIva: "20", esIncompleta: false });
     // 15000 mg = 15 g for two items of 10 g: the second misses 5 g, reported in g (the línea's unit).
-    expect(p.items[1]).toMatchObject({ ok: true, costoInsumos: "20", esIncompleta: false, faltantes: [{ drogaNombre: "Urea", cantidad: "5", unidadSimbolo: "g" }] });
+    expect(p.items[1]).toMatchObject({ ok: true, costoConIva: "20", esIncompleta: false, faltantes: [{ drogaNombre: "Urea", cantidad: "5", unidadSimbolo: "g" }] });
   });
 
   it("prices a normal item: 10 g of urea at $2/g, margen 50% -> $30", async () => {
@@ -202,13 +221,14 @@ describe("recetas.presupuestar", () => {
     expect(p).toEqual({
       ok: true,
       total: "30",
+      totalCostoConIva: "20",
       totalCompleto: true,
       items: [
         {
           indice: 1,
           ok: true,
           precioFinal: "30",
-          costoInsumos: "20",
+          costoConIva: "20",
           esParcial: false,
           enraseManual: [],
           esIncompleta: false,
@@ -225,8 +245,8 @@ describe("recetas.presupuestar", () => {
     partidas.set(D_UREA, [{ id: "p-urea", cantidadDisponible: "15", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "2" }]);
     const p = await presupuestar([cremaUrea, cremaUrea]);
     if (!p.ok) throw new Error(p.mensaje);
-    expect(p.items[0]).toMatchObject({ ok: true, esIncompleta: false, costoInsumos: "20", precioFinal: "30", faltantes: [] });
-    expect(p.items[1]).toMatchObject({ ok: true, esIncompleta: false, faltantes: [{ drogaNombre: "Urea", cantidad: "5", unidadSimbolo: "g" }], costoInsumos: "20", precioFinal: "30" });
+    expect(p.items[0]).toMatchObject({ ok: true, esIncompleta: false, costoConIva: "20", precioFinal: "30", faltantes: [] });
+    expect(p.items[1]).toMatchObject({ ok: true, esIncompleta: false, faltantes: [{ drogaNombre: "Urea", cantidad: "5", unidadSimbolo: "g" }], costoConIva: "20", precioFinal: "30" });
     expect(p.faltantesReceta).toEqual([
       {
         drogaNombre: "Urea",
@@ -255,7 +275,7 @@ describe("recetas.presupuestar", () => {
     const p = await presupuestar([cremaUrea, cremaUrea]);
     if (!p.ok) throw new Error(p.mensaje);
     // Both items cost $20 from costo de proveedor
-    expect(p.items.map((i) => (i.ok ? i.costoInsumos : null))).toEqual(["20", "20"]);
+    expect(p.items.map((i) => (i.ok ? i.costoConIva : null))).toEqual(["20", "20"]);
     // Total stock was 17 g for 20 g demand: item 1 takes 10 (2 left in first partida), item 2 takes 2 + 5 = 7 (faltante: 3)
     expect(p.items[0]).toMatchObject({ ok: true, faltantes: [] });
     expect(p.items[1]).toMatchObject({ ok: true, faltantes: [{ drogaNombre: "Urea", cantidad: "3", unidadSimbolo: "g" }] });
@@ -266,7 +286,7 @@ describe("recetas.presupuestar", () => {
     if (!p.ok) throw new Error(p.mensaje);
     const [item] = p.items;
     // 3 mg x 30 = 0.09 g of mazindol at $100/g = $9; +50% = $13.5.
-    expect(item).toMatchObject({ ok: true, esParcial: true, enraseManual: ["Lactosa"], costoInsumos: "9", precioFinal: "13.5" });
+    expect(item).toMatchObject({ ok: true, esParcial: true, enraseManual: ["Lactosa"], costoConIva: "9", precioFinal: "13.5" });
   });
 
   it("not enough stock is priced with costo de proveedor, informational faltante recorded, esIncompleta false", async () => {
@@ -299,7 +319,7 @@ describe("recetas.presupuestar", () => {
 
   it("without a price rule: one clear message, nothing priced", async () => {
     getReglaVigente.mockResolvedValue(null);
-    expect(await presupuestar([cremaUrea])).toEqual({ ok: false, mensaje: expect.stringContaining("No hay regla de precios configurada") });
+    expect(await presupuestar([cremaUrea], SESSION_SOLO_CALCULAR)).toEqual({ ok: false, mensaje: expect.stringContaining("No hay regla de precios configurada") });
   });
 
   it("an invalid item gets a message instead of a price (not a throw); the others are still priced", async () => {
@@ -391,21 +411,212 @@ describe("recetas.presupuestar", () => {
     expect(cotizacionRepo.insertCotizacion).not.toHaveBeenCalled();
   });
 
-  it("requires cotizaciones.calcular", async () => {
-    await expect(presupuestarRecetaQuery.execute({ items: [cremaUrea] }, { session: { ...SESSION, permisos: new Set() as AuthenticatedSession["permisos"] } })).rejects.toBeInstanceOf(
+  it("requires cotizaciones.calcular or cotizaciones.costo.ver", async () => {
+    await expect(presupuestarRecetaQuery.execute({ items: [cremaUrea] }, { session: SESSION_SIN_PERMISOS })).rejects.toBeInstanceOf(
       AuthorizationError,
     );
   });
 });
 
+describe("presupuestarReceta usecase permission matrix and rule handling", () => {
+  it("solo cotizaciones.calcular -> precio sin costo", async () => {
+    requireSessionMock.mockResolvedValue(SESSION_SOLO_CALCULAR);
+    const p = await presupuestarReceta({ items: [cremaUrea] });
+    expect(p.ok).toBe(true);
+    if (!p.ok) throw new Error(p.mensaje);
+    expect(p.total).toBe("30");
+    expect(p).not.toHaveProperty("totalCostoConIva");
+    expect(p.items[0]).toHaveProperty("precioFinal", "30");
+    expect(p.items[0]).not.toHaveProperty("costoConIva");
+  });
+
+  it("solo cotizaciones.costo.ver -> costo sin precio", async () => {
+    requireSessionMock.mockResolvedValue(SESSION_SOLO_COSTO);
+    const p = await presupuestarReceta({ items: [cremaUrea] });
+    expect(p.ok).toBe(true);
+    if (!p.ok) throw new Error(p.mensaje);
+    expect(p).not.toHaveProperty("total");
+    expect(p.totalCostoConIva).toBe("20");
+    expect(p.items[0]).not.toHaveProperty("precioFinal");
+    expect(p.items[0]).toHaveProperty("costoConIva", "20");
+  });
+
+  it("ambos permisos -> tanto precio como costo", async () => {
+    requireSessionMock.mockResolvedValue(SESSION_CON_COSTO);
+    const p = await presupuestarReceta({ items: [cremaUrea] });
+    expect(p.ok).toBe(true);
+    if (!p.ok) throw new Error(p.mensaje);
+    expect(p.total).toBe("30");
+    expect(p.totalCostoConIva).toBe("20");
+    expect(p.items[0]).toHaveProperty("precioFinal", "30");
+    expect(p.items[0]).toHaveProperty("costoConIva", "20");
+  });
+
+  it("ninguno de los permisos -> rechaza con AuthorizationError", async () => {
+    requireSessionMock.mockResolvedValue(SESSION_SIN_PERMISOS);
+    await expect(presupuestarReceta({ items: [cremaUrea] })).rejects.toBeInstanceOf(AuthorizationError);
+  });
+
+  it("sin regla de precio vigente y solo cotizaciones.calcular -> ok:false con MENSAJE_SIN_REGLA_PRECIO", async () => {
+    getReglaVigente.mockResolvedValue(null);
+    requireSessionMock.mockResolvedValue(SESSION_SOLO_CALCULAR);
+    const p = await presupuestarReceta({ items: [cremaUrea] });
+    expect(p).toEqual({ ok: false, mensaje: MENSAJE_SIN_REGLA_PRECIO });
+  });
+
+  it("sin regla de precio vigente y con cotizaciones.costo.ver -> ok:true, costos, sin total y con sinReglaPrecio: true", async () => {
+    getReglaVigente.mockResolvedValue(null);
+    requireSessionMock.mockResolvedValue(SESSION_SOLO_COSTO);
+    const p = await presupuestarReceta({ items: [cremaUrea] });
+    expect(p.ok).toBe(true);
+    if (!p.ok) throw new Error(p.mensaje);
+    expect(p).not.toHaveProperty("total");
+    expect(p.totalCostoConIva).toBe("20");
+    expect(p.sinReglaPrecio).toBe(true);
+    expect(p.items[0]).not.toHaveProperty("precioFinal");
+    expect(p.items[0]).toHaveProperty("costoConIva", "20");
+  });
+});
+
 describe("domain/presupuesto", () => {
-  it("armarPresupuesto sums only the priced items", () => {
-    const p = armarPresupuesto([
-      { indice: 1, ok: true, precioFinal: "10.5", costoInsumos: "7", esParcial: false, enraseManual: [], esIncompleta: false, faltantes: [] },
-      { indice: 2, ok: false, mensaje: "x" },
-      { indice: 3, ok: true, precioFinal: "0.25", costoInsumos: "1", esParcial: false, enraseManual: [], esIncompleta: false, faltantes: [] },
-    ]);
-    expect(p).toMatchObject({ ok: true, total: "10.75", totalCompleto: false });
+  const cotizacionBase: CotizacionCalculada = {
+    costoInsumos: new Decimal("100"),
+    costoInsumosConIva: new Decimal("121"),
+    margenAplicado: new Decimal("50"),
+    tramoAplicado: 0,
+    precioMinimoAplicado: false,
+    precioFinal: new Decimal("181.5"),
+    esParcial: false,
+    esIncompleta: false,
+    drogasSinPrecio: [],
+    detalle: {
+      lineas: [
+        {
+          drogaId: "d-1",
+          drogaNombre: "Urea",
+          unidadSimbolo: "g",
+          orden: 0,
+          cantidadRequerida: "10",
+          subtotal: "100",
+          fuente: "PROVEEDOR",
+          esEnraseManual: false,
+          faltante: null,
+          partidas: [],
+        },
+      ],
+    },
+  };
+
+  describe("presupuestoItemDesdeCotizacion", () => {
+    it("incluirCosto: false e incluirPrecio: true -> precioFinal presente, costoConIva ausente (no solo undefined)", () => {
+      const item = presupuestoItemDesdeCotizacion(1, cotizacionBase, { incluirPrecio: true, incluirCosto: false });
+      expect(item.ok).toBe(true);
+      if (!item.ok) throw new Error(item.mensaje);
+      expect(item.precioFinal).toBe("181.5");
+      expect(item).toHaveProperty("precioFinal");
+      expect(item).not.toHaveProperty("costoConIva");
+    });
+
+    it("incluirCosto: true e incluirPrecio: false -> costoConIva presente, precioFinal ausente", () => {
+      const item = presupuestoItemDesdeCotizacion(1, cotizacionBase, { incluirPrecio: false, incluirCosto: true });
+      expect(item.ok).toBe(true);
+      if (!item.ok) throw new Error(item.mensaje);
+      expect(item.costoConIva).toBe("121");
+      expect(item).toHaveProperty("costoConIva");
+      expect(item).not.toHaveProperty("precioFinal");
+    });
+
+    it("incluirCosto: true e incluirPrecio: true -> ambos presentes", () => {
+      const item = presupuestoItemDesdeCotizacion(1, cotizacionBase, { incluirPrecio: true, incluirCosto: true });
+      expect(item.ok).toBe(true);
+      if (!item.ok) throw new Error(item.mensaje);
+      expect(item).toHaveProperty("precioFinal", "181.5");
+      expect(item).toHaveProperty("costoConIva", "121");
+    });
+
+    it("incluirCosto: false e incluirPrecio: false -> ninguno presente", () => {
+      const item = presupuestoItemDesdeCotizacion(1, cotizacionBase, { incluirPrecio: false, incluirCosto: false });
+      expect(item.ok).toBe(true);
+      if (!item.ok) throw new Error(item.mensaje);
+      expect(item).not.toHaveProperty("precioFinal");
+      expect(item).not.toHaveProperty("costoConIva");
+    });
+
+    it("costoConIva usa costoInsumosConIva (con IVA), nunca el neto costoInsumos", () => {
+      const item = presupuestoItemDesdeCotizacion(1, cotizacionBase, { incluirPrecio: false, incluirCosto: true });
+      expect(item.ok).toBe(true);
+      if (!item.ok) throw new Error(item.mensaje);
+      expect(item.costoConIva).toBe("121");
+      expect(item.costoConIva).not.toBe("100");
+    });
+
+    it("un ítem con drogasSinPrecio devuelve ok:false con mensaje y sin costo ni precio", () => {
+      const cotSinPrecio: CotizacionCalculada = {
+        ...cotizacionBase,
+        drogasSinPrecio: ["Droga Sin Costo"],
+      };
+      const item = presupuestoItemDesdeCotizacion(1, cotSinPrecio, { incluirPrecio: true, incluirCosto: true });
+      expect(item.ok).toBe(false);
+      expect(item).toEqual({
+        indice: 1,
+        ok: false,
+        mensaje: expect.stringContaining("Droga Sin Costo"),
+      });
+      expect(item).not.toHaveProperty("precioFinal");
+      expect(item).not.toHaveProperty("costoConIva");
+    });
+  });
+
+  describe("armarPresupuesto", () => {
+    it("totalCostoConIva suma solo los ítems ok", () => {
+      const p = armarPresupuesto(
+        [
+          { indice: 1, ok: true, precioFinal: "10.5", costoConIva: "7", esParcial: false, enraseManual: [], esIncompleta: false, faltantes: [] },
+          { indice: 2, ok: false, mensaje: "x" },
+          { indice: 3, ok: true, precioFinal: "0.25", costoConIva: "1", esParcial: false, enraseManual: [], esIncompleta: false, faltantes: [] },
+        ],
+        [],
+        { incluirPrecio: true, incluirCosto: true },
+      );
+      expect(p).toMatchObject({ ok: true, total: "10.75", totalCostoConIva: "8", totalCompleto: false });
+    });
+
+    it("con sinReglaPrecio: no hay total, sí hay totalCostoConIva, y está sinReglaPrecio: true", () => {
+      const p = armarPresupuesto(
+        [
+          { indice: 1, ok: true, costoConIva: "7", esParcial: false, enraseManual: [], esIncompleta: false, faltantes: [] },
+          { indice: 2, ok: true, costoConIva: "3", esParcial: false, enraseManual: [], esIncompleta: false, faltantes: [] },
+        ],
+        [],
+        { incluirCosto: true, sinReglaPrecio: true },
+      );
+      expect(p.ok).toBe(true);
+      if (!p.ok) throw new Error(p.mensaje);
+      expect(p).not.toHaveProperty("total");
+      expect(p.totalCostoConIva).toBe("10");
+      expect(p.sinReglaPrecio).toBe(true);
+      expect(p.totalCompleto).toBe(true);
+    });
+
+    it("totalCompleto es false si algún ítem falló", () => {
+      const p = armarPresupuesto([
+        { indice: 1, ok: true, costoConIva: "7", esParcial: false, enraseManual: [], esIncompleta: false, faltantes: [] },
+        { indice: 2, ok: false, mensaje: "error" },
+      ]);
+      expect(p.ok).toBe(true);
+      if (!p.ok) throw new Error(p.mensaje);
+      expect(p.totalCompleto).toBe(false);
+    });
+
+    it("totalCompleto es true si todos los ítems fueron exitosos", () => {
+      const p = armarPresupuesto([
+        { indice: 1, ok: true, costoConIva: "7", esParcial: false, enraseManual: [], esIncompleta: false, faltantes: [] },
+        { indice: 2, ok: true, costoConIva: "3", esParcial: false, enraseManual: [], esIncompleta: false, faltantes: [] },
+      ]);
+      expect(p.ok).toBe(true);
+      if (!p.ok) throw new Error(p.mensaje);
+      expect(p.totalCompleto).toBe(true);
+    });
   });
 
   it("itemsListosParaPresupuesto: only a complete draft is priced", () => {

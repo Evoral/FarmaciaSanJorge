@@ -151,6 +151,28 @@ describe("armarTicketCotizacion", () => {
       }),
     ).toThrow(new DomainError(MENSAJE_COTIZACION_INCOMPLETA));
   });
+
+  it("presupuesto without total (costo-only or no price rule) -> DomainError MENSAJE_COTIZACION_INCOMPLETA", () => {
+    const presupuestoSinTotal: Presupuesto = {
+      ok: true,
+      totalCompleto: true,
+      totalCostoConIva: "5000",
+      sinReglaPrecio: true,
+      items: [],
+      faltantesReceta: [],
+    };
+
+    expect(() =>
+      armarTicketCotizacion({
+        farmacia: "Farmacia San Jorge",
+        fecha: "04/11/2026",
+        paciente: null,
+        medico: null,
+        items: ["Crema"],
+        presupuesto: presupuestoSinTotal,
+      }),
+    ).toThrow(new DomainError(MENSAJE_COTIZACION_INCOMPLETA));
+  });
 });
 
 describe("getTicketCotizacionQuery", () => {
