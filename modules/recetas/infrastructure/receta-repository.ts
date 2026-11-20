@@ -9,7 +9,7 @@
  * here that duplicates a check exists purely to produce a clear Spanish
  * message before the DB rejects it.
  */
-import { Prisma } from "@/generated/prisma/client";
+import { Prisma, type TipoMagnitud } from "@/generated/prisma/client";
 import type { EstadoReceta, FormaFarmaceutica, ModoExpresion, OrigenReceta, UnidadParaCordura } from "../domain/receta";
 import type { FiltroPagoReceta } from "../domain/pago";
 import { MODO_LECTOR_QR_POR_DEFECTO, parseModoLectorQr, type ModoLectorQr } from "../domain/modo-lector-qr";
@@ -1141,4 +1141,127 @@ export async function listRecetasPorEstado(
     page: filter.page,
     pageSize: filter.pageSize,
   };
+}
+
+export interface ItemParaResumenPago {
+  id: string;
+  formaFarmaceutica: FormaFarmaceutica;
+  cantidadUnidades: number;
+  fraccionDosisPorUnidad: string;
+  cantidadTotal: string | null;
+  unidadTotalId: string | null;
+  componentes: {
+    drogaId: string;
+    cantidad: string | null;
+    unidadMedidaId: string;
+    modoExpresion: ModoExpresion;
+    unidadReferenciaId: string | null;
+    drogaAliasId: string | null;
+  }[];
+  ultimaCotizacion: {
+    /** With IVA; falls back to `costoInsumos` for a cotización calculated before migration 0107 (stored no IVA). */
+    costoConIva: string;
+    precioFinal: string;
+  } | null;
+  ultimaFichaLineas:
+    | {
+        drogaId: string;
+        drogaNombre: string;
+        unidadSimbolo: string;
+        unidad: { factorABase: string; tipoMagnitud: TipoMagnitud };
+        cantidadAPesar: string | null;
+        esEnraseManual: boolean;
+        orden: number;
+      }[]
+    | null;
+}
+
+/**
+ * Reads each item of `recetaId` with its latest cotización (`max(calculadaEn)`) and, when unquoted,
+ * its latest ficha lines + formula components so the caller can cost it on the fly.
+ */
+export async function getItemsParaResumenPago(tx: Prisma.TransactionClient, tenantId: string, recetaId: string): Promise<ItemParaResumenPago[] | null> {
+  const receta = await tx.receta.findUnique({
+    where: { id: recetaId, tenantId },
+    select: {
+      // Same item order as `getReceta` (no orderBy): the "Ítem N" numbers must match the detail page.
+      items: {
+        select: {
+          id: true,
+          formaFarmaceutica: true,
+          cantidadUnidades: true,
+          fraccionDosisPorUnidad: true,
+          cantidadTotal: true,
+          unidadTotalId: true,
+          componentes: {
+            orderBy: [{ posicion: "asc" }, { id: "asc" }],
+            select: {
+              drogaId: true,
+              cantidad: true,
+              unidadMedidaId: true,
+              modoExpresion: true,
+              unidadReferenciaId: true,
+              drogaAliasId: true,
+            },
+          },
+          cotizaciones: {
+            orderBy: { calculadaEn: "desc" },
+            take: 1,
+            select: { costoInsumos: true, costoInsumosConIva: true, precioFinal: true },
+          },
+          fichas: {
+            orderBy: { version: "desc" },
+            take: 1,
+            select: {
+              lineas: {
+                orderBy: { orden: "asc" },
+                select: {
+                  drogaId: true,
+                  drogaNombre: true,
+                  cantidadAPesar: true,
+                  esEnraseManual: true,
+                  orden: true,
+                  unidadMedida: { select: { simbolo: true, factorABase: true, tipoMagnitud: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!receta) return null;
+
+  return receta.items.map((item) => {
+    const cot = item.cotizaciones[0];
+    const ficha = item.fichas[0];
+    return {
+      id: item.id,
+      formaFarmaceutica: item.formaFarmaceutica,
+      cantidadUnidades: item.cantidadUnidades,
+      fraccionDosisPorUnidad: item.fraccionDosisPorUnidad.toString(),
+      cantidadTotal: item.cantidadTotal ? item.cantidadTotal.toString() : null,
+      unidadTotalId: item.unidadTotalId,
+      componentes: item.componentes.map((c) => ({
+        drogaId: c.drogaId,
+        cantidad: c.cantidad ? c.cantidad.toString() : null,
+        unidadMedidaId: c.unidadMedidaId,
+        modoExpresion: c.modoExpresion,
+        unidadReferenciaId: c.unidadReferenciaId,
+        drogaAliasId: c.drogaAliasId,
+      })),
+      ultimaCotizacion: cot ? { costoConIva: (cot.costoInsumosConIva ?? cot.costoInsumos).toString(), precioFinal: cot.precioFinal.toString() } : null,
+      ultimaFichaLineas: ficha
+        ? ficha.lineas.map((l) => ({
+            drogaId: l.drogaId,
+            drogaNombre: l.drogaNombre,
+            unidadSimbolo: l.unidadMedida.simbolo,
+            unidad: { factorABase: l.unidadMedida.factorABase.toString(), tipoMagnitud: l.unidadMedida.tipoMagnitud },
+            cantidadAPesar: l.cantidadAPesar ? l.cantidadAPesar.toString() : null,
+            esEnraseManual: l.esEnraseManual,
+            orden: l.orden,
+          }))
+        : null,
+    };
+  });
 }

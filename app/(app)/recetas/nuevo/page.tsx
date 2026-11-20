@@ -23,6 +23,7 @@ export default async function NuevaRecetaPage() {
       <NuevaReceta
         unidades={unidades}
         puedePresupuestar={can(session, "cotizaciones.calcular")}
+        puedeVerCosto={can(session, "cotizaciones.costo.ver")}
         modoLectorFarmacia={modoLectorFarmacia}
         tenantId={session.tenantId}
       />

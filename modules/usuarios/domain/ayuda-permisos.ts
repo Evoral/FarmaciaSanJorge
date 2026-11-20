@@ -58,6 +58,7 @@ const AYUDA_PERMISO: Readonly<Record<PermisoAsignable, string>> = {
   "fichas.imprimir": "Imprimir fichas técnicas ya generadas.",
   "cotizaciones.calcular": "Calcular el presupuesto de una receta para el paciente.",
   "cotizaciones.ver": "Ver presupuestos ya calculados.",
+  "cotizaciones.costo.ver": "Ver el costo de insumos de una receta junto a su presupuesto.",
   "preparaciones.iniciar": "Empezar a preparar una receta: reserva el stock que se va a usar.",
   "preparaciones.descartar": "Cancelar una preparación en curso y liberar el stock reservado.",
   "preparaciones.confirmar": "Dar por terminada una preparación: descuenta el stock y la asienta en el libro recetario.",

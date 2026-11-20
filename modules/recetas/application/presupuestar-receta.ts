@@ -23,11 +23,24 @@
  */
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
+import { can } from "@/shared/auth/authorize";
+import { requireSession } from "@/shared/auth/session";
 import { defineQuery } from "@/shared/usecase";
 import { DomainError, ValidationError } from "@/shared/errors";
 import { calcularLineasFicha, resolverFormulaBorrador } from "@/modules/elaboracion/application/calcular-lineas-ficha";
-import { cargarReglaPrecioVigente, cotizarItemsAcumulado, type LineaACostear } from "@/modules/precios/application/cotizar-lineas";
-import { MENSAJE_SIN_REGLA_PRECIO, armarPresupuesto, faltantesDeReceta, presupuestoItemDesdeCotizacion } from "../domain/presupuesto";
+import {
+  cargarReglaPrecioVigente,
+  costearItemsAcumulado,
+  cotizarItemsAcumulado,
+  type LineaACostear,
+} from "@/modules/precios/application/cotizar-lineas";
+import {
+  MENSAJE_SIN_REGLA_PRECIO,
+  armarPresupuesto,
+  faltantesDeReceta,
+  presupuestoItemDesdeCotizacion,
+  type OpcionesPresupuesto,
+} from "../domain/presupuesto";
 import type { Presupuesto, PresupuestoItem } from "../domain/presupuesto";
 import { itemInput } from "./crear-receta";
 
@@ -70,9 +83,14 @@ async function lineasDelItem(tx: Prisma.TransactionClient, tenantId: string, ite
   }));
 }
 
-export async function presupuestar(tx: Prisma.TransactionClient, tenantId: string, items: readonly ItemBorrador[]): Promise<Presupuesto> {
+export async function presupuestar(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  items: readonly ItemBorrador[],
+  opciones: OpcionesPresupuesto = { incluirPrecio: true, incluirCosto: false },
+): Promise<Presupuesto> {
   const regla = await cargarReglaPrecioVigente(tx, tenantId);
-  if (!regla) return { ok: false, mensaje: MENSAJE_SIN_REGLA_PRECIO };
+  if (!regla && !opciones.incluirCosto) return { ok: false, mensaje: MENSAJE_SIN_REGLA_PRECIO };
 
   // 1. Each item's ficha lines; an item that cannot be computed gets its message.
   const porItem: ({ ok: true; lineas: LineaACostear[] } | { ok: false; mensaje: string })[] = [];
@@ -87,26 +105,50 @@ export async function presupuestar(tx: Prisma.TransactionClient, tenantId: strin
   }
 
   // 2. The computable items costed together, in order, against the same stock.
-  const cotizaciones = await cotizarItemsAcumulado(
-    tx,
-    tenantId,
-    porItem.flatMap((p) => (p.ok ? [p.lineas] : [])),
-    regla,
-  );
+  const lineasPorItem = porItem.flatMap((p) => (p.ok ? [p.lineas] : []));
+  const sinReglaPrecio = regla === null;
+  const cotizaciones = regla ? await cotizarItemsAcumulado(tx, tenantId, lineasPorItem, regla) : await costearItemsAcumulado(tx, tenantId, lineasPorItem);
+
   let siguiente = 0;
+  const itemOpciones: OpcionesPresupuesto = {
+    incluirPrecio: opciones.incluirPrecio && !sinReglaPrecio,
+    incluirCosto: opciones.incluirCosto,
+  };
   const resultado: PresupuestoItem[] = porItem.map((p, i) =>
-    p.ok ? presupuestoItemDesdeCotizacion(i + 1, cotizaciones[siguiente++]!) : { indice: i + 1, ok: false, mensaje: p.mensaje },
+    p.ok ? presupuestoItemDesdeCotizacion(i + 1, cotizaciones[siguiente++]!, itemOpciones) : { indice: i + 1, ok: false, mensaje: p.mensaje },
   );
-  return armarPresupuesto(resultado, faltantesDeReceta(cotizaciones));
+  return armarPresupuesto(resultado, faltantesDeReceta(cotizaciones), {
+    incluirPrecio: itemOpciones.incluirPrecio,
+    incluirCosto: itemOpciones.incluirCosto,
+    sinReglaPrecio,
+  });
 }
 
 export const presupuestarRecetaQuery = defineQuery({
   name: "recetas.presupuestar",
   permiso: "cotizaciones.calcular",
   input: presupuestarRecetaInput,
-  handler: async ({ tx, session, input }): Promise<Presupuesto> => presupuestar(tx, session.tenantId, input.items),
+  handler: async ({ tx, session, input }): Promise<Presupuesto> =>
+    presupuestar(tx, session.tenantId, input.items, {
+      incluirPrecio: true,
+      incluirCosto: can(session, "cotizaciones.costo.ver"),
+    }),
+});
+
+export const presupuestarCostoRecetaQuery = defineQuery({
+  name: "recetas.presupuestarCosto",
+  permiso: "cotizaciones.costo.ver",
+  input: presupuestarRecetaInput,
+  handler: async ({ tx, session, input }): Promise<Presupuesto> =>
+    presupuestar(tx, session.tenantId, input.items, {
+      incluirPrecio: can(session, "cotizaciones.calcular"),
+      incluirCosto: true,
+    }),
 });
 
 export async function presupuestarReceta(input: PresupuestarRecetaWireInput): Promise<Presupuesto> {
-  return presupuestarRecetaQuery.execute(input);
+  const session = await requireSession();
+  // Neither permiso: the first query runs and its pipeline rejects the session.
+  const query = !can(session, "cotizaciones.calcular") && can(session, "cotizaciones.costo.ver") ? presupuestarCostoRecetaQuery : presupuestarRecetaQuery;
+  return query.execute(input);
 }

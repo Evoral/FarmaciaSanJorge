@@ -11,6 +11,7 @@ import { Ban, Calculator, ExternalLink, FileText, Lock, Pencil, RotateCcw, Steth
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { getReceta } from "@/modules/recetas/application/get-receta";
+import { getResumenPagoReceta } from "@/modules/recetas/application/get-resumen-pago-receta";
 import { ORIGEN_RECETA_LABELS, esEstadoEditable, esEstadoTerminal, puedeAnular } from "@/modules/recetas/domain/receta";
 import { etiquetaPago, puedeCambiarPago, puedeDesmarcarPago } from "@/modules/recetas/domain/pago";
 import { anularRecetaAction } from "@/modules/recetas/ui/actions";
@@ -25,6 +26,7 @@ import { AnularEntregaForm } from "@/modules/entregas/ui/anular-entrega-form";
 import { StatusBadge, ToneBadge } from "@/shared/ui/status-badge";
 import { ESTADO_RECETA_LABELS, FORMA_FARMACEUTICA_LABELS } from "@/shared/labels/enum-labels";
 import { ComponentesTabla } from "@/modules/recetas/ui/componentes-tabla";
+import { formatNumero } from "@/shared/format/cantidad";
 import { formatFecha, formatFechaHora } from "@/shared/format/fecha";
 import { PageHeader } from "@/shared/ui/page-header";
 import { Avatar } from "@/shared/ui/avatar";
@@ -67,6 +69,8 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
   const puedeVerLibro = can(session, "libro.ver");
   const puedeVerFichas = can(session, "fichas.generar") || can(session, "fichas.imprimir");
   const puedeVerCotizacion = can(session, "cotizaciones.calcular") || can(session, "cotizaciones.ver");
+  const puedeVerCosto = can(session, "cotizaciones.costo.ver");
+  const resumenPago = puedeVerCotizacion || puedeVerCosto ? await getResumenPagoReceta(receta.id) : null;
 
   const paciente = `${receta.pacienteNombre} ${receta.pacienteApellido}`;
   const diagnostico = [receta.diagnosticoCodigo, receta.diagnosticoDescripcion].filter(Boolean).join(" - ");
@@ -164,21 +168,11 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
                       ) : null}
                     </p>
                   </div>
-                  {puedeVerFichas || puedeVerCotizacion ? (
-                    <div className="flex flex-wrap gap-1">
-                      {puedeVerFichas ? (
-                        <Link href={`/recetas/${receta.id}/items/${item.id}/ficha-tecnica`} className="btn btn-ghost btn-sm">
-                          <FileText className="size-3.5" aria-hidden />
-                          Ficha técnica
-                        </Link>
-                      ) : null}
-                      {puedeVerCotizacion ? (
-                        <Link href={`/recetas/${receta.id}/items/${item.id}/cotizacion`} className="btn btn-ghost btn-sm">
-                          <Calculator className="size-3.5" aria-hidden />
-                          Cotización
-                        </Link>
-                      ) : null}
-                    </div>
+                  {puedeVerFichas ? (
+                    <Link href={`/recetas/${receta.id}/items/${item.id}/ficha-tecnica`} className="btn btn-ghost btn-sm">
+                      <FileText className="size-3.5" aria-hidden />
+                      Ficha técnica
+                    </Link>
                   ) : null}
                 </div>
                 <div className="flex flex-col gap-3 p-4">
@@ -204,6 +198,68 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
                 </div>
               </article>
             ))}
+          </section>
+
+          <section className="panel" aria-labelledby="pago-heading">
+            <div className="panel-header flex flex-wrap items-center gap-2">
+              <h2 id="pago-heading">Pago</h2>
+              {puedeVerCotizacion ? (
+                // The cotización detail is per item: one link each, numbered like the Ítems list above.
+                <div className="flex flex-wrap gap-1">
+                  {receta.items.map((item, idx) => (
+                    <Link key={item.id} href={`/recetas/${receta.id}/items/${item.id}/cotizacion`} className="btn btn-ghost btn-sm">
+                      <Calculator className="size-3.5" aria-hidden />
+                      {receta.items.length === 1 ? "Ver cotización" : `Cotización ítem ${idx + 1}`}
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="panel-body flex flex-col gap-3 text-sm">
+              {puedeMarcarPago ? (
+                <PagoRecetaForm recetaId={receta.id} pagada={receta.pagada} puedeDesmarcar={puedeDesmarcarPago(receta.estado)} />
+              ) : (
+                <p className="text-zinc-900">
+                  <ToneBadge tone={receta.pagada ? "success" : "warn"}>{etiquetaPago(receta.pagada)}</ToneBadge>
+                </p>
+              )}
+              {receta.pagada && receta.pagadaEn ? (
+                <p className="text-xs text-zinc-500">
+                  Registrado por {receta.pagadaPorNombre} el {formatFechaHora(receta.pagadaEn, receta.zonaHoraria)}.
+                </p>
+              ) : null}
+              {resumenPago?.costo || resumenPago?.precio ? (
+                <dl className="summary-dl border-t border-zinc-100 pt-3">
+                  {resumenPago.costo ? (
+                    <>
+                      <dt>Costo con IVA</dt>
+                      <dd className="tabular-nums">
+                        {resumenPago.costo.total !== null ? (
+                          `$${formatNumero(resumenPago.costo.total, 2)}`
+                        ) : (
+                          <span className="text-xs text-amber-700 dark:text-amber-400">
+                            {resumenPago.costo.avisos.join(" ") || "No se pudo calcular el costo."}
+                          </span>
+                        )}
+                      </dd>
+                    </>
+                  ) : null}
+                  {resumenPago.precio ? (
+                    <>
+                      <dt>Precio</dt>
+                      <dd className="tabular-nums">
+                        {resumenPago.precio.total !== null ? `$${formatNumero(resumenPago.precio.total, 2)}` : <span className="text-zinc-500">Sin cotizar</span>}
+                        {resumenPago.precio.total !== null && resumenPago.precio.itemsSinCotizar.length > 0 ? (
+                          <span className="ml-1.5 text-xs text-zinc-500">
+                            ({resumenPago.precio.itemsSinCotizar.map((n) => `Ítem ${n}`).join(", ")} sin cotizar)
+                          </span>
+                        ) : null}
+                      </dd>
+                    </>
+                  ) : null}
+                </dl>
+              ) : null}
+            </div>
           </section>
         </div>
 
@@ -244,26 +300,6 @@ export default async function RecetaDetallePage({ params, searchParams }: Receta
                   <p className="text-xs text-zinc-500">Diagnóstico</p>
                   <p className="text-zinc-900">{diagnostico}</p>
                 </div>
-              ) : null}
-            </div>
-          </section>
-
-          <section className="panel" aria-labelledby="pago-heading">
-            <div className="panel-header">
-              <h2 id="pago-heading">Pago</h2>
-            </div>
-            <div className="panel-body flex flex-col gap-3 text-sm">
-              {puedeMarcarPago ? (
-                <PagoRecetaForm recetaId={receta.id} pagada={receta.pagada} puedeDesmarcar={puedeDesmarcarPago(receta.estado)} />
-              ) : (
-                <p className="text-zinc-900">
-                  <ToneBadge tone={receta.pagada ? "success" : "warn"}>{etiquetaPago(receta.pagada)}</ToneBadge>
-                </p>
-              )}
-              {receta.pagada && receta.pagadaEn ? (
-                <p className="text-xs text-zinc-500">
-                  Registrado por {receta.pagadaPorNombre} el {formatFechaHora(receta.pagadaEn, receta.zonaHoraria)}.
-                </p>
               ) : null}
             </div>
           </section>

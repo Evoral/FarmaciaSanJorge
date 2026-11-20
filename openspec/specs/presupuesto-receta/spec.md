@@ -31,13 +31,41 @@ Mientras se carga una receta (alta manual, importación desde PDF y edición de 
 ### Requirement: Permiso de `recetas.presupuestar`
 
 La consulta `recetas.presupuestar` SHALL requerir `cotizaciones.calcular` (las mismas personas que cotizan un ítem
-guardado).
+guardado) o `cotizaciones.costo.ver` (revisado 2026-11-20). Con `cotizaciones.calcular` la respuesta trae el precio;
+con `cotizaciones.costo.ver`, el costo con IVA. Con los dos, ambos.
 
 #### Scenario: Usuario sin el permiso
 
-- **GIVEN** un usuario sin `cotizaciones.calcular`
+- **GIVEN** un usuario sin `cotizaciones.calcular` ni `cotizaciones.costo.ver`
 - **WHEN** se pide `recetas.presupuestar`
 - **THEN** se rechaza
+
+### Requirement: Costo con IVA en el presupuesto
+
+Para quien tiene `cotizaciones.costo.ver` (permiso de consulta, migración 0131; se otorga por rol desde el editor de
+roles), el presupuesto SHALL mostrar el **costo con IVA** de cada ítem y del total: la misma base sobre la que la regla
+de precio calcula el precio (R7a), para estudiar y comparar reglas. El costo neto (sin IVA) no se muestra. Sin el
+permiso, el servidor SHALL omitir el costo de la respuesta (no basta con ocultarlo en la pantalla).
+
+#### Scenario: Costo y precio
+
+- **GIVEN** un usuario con `cotizaciones.costo.ver` y `cotizaciones.calcular`, y una regla de precio vigente
+- **WHEN** presupuesta una receta
+- **THEN** ve «Costo con IVA» y debajo el precio, por ítem y en el total
+
+#### Scenario: Sin el permiso de costo
+
+- **GIVEN** un usuario con `cotizaciones.calcular` y sin `cotizaciones.costo.ver`
+- **WHEN** presupuesta una receta
+- **THEN** la respuesta no incluye ningún costo
+- **AND** ve solo el precio
+
+#### Scenario: Ítem con una droga sin costo
+
+- **GIVEN** un usuario con `cotizaciones.costo.ver` y un ítem con una droga sin costo de proveedor
+- **WHEN** presupuesta la receta
+- **THEN** ese ítem muestra el aviso con las drogas sin costo y ni costo ni precio
+- **AND** el total indica que no incluye ese ítem
 
 ### Requirement: Entrada del presupuesto
 
@@ -159,13 +187,21 @@ reparto), de modo que el presupuesto y la cotización posterior aplican las mism
 ### Requirement: Sin regla de precio vigente
 
 Sin regla de precio vigente, el resultado SHALL ser un único mensaje: «No hay regla de precios configurada». No se
-calcula nada.
+calcula nada. Excepción (2026-11-20): con `cotizaciones.costo.ver` el costo se calcula igual (el costeo no depende de
+la regla) y se muestran solo los costos, con ese mensaje como aviso.
 
 #### Scenario: PR4 — Sin regla de precio
 
-- **GIVEN** que no hay regla de precio vigente
+- **GIVEN** que no hay regla de precio vigente y un usuario sin `cotizaciones.costo.ver`
 - **WHEN** se presupuesta una receta
 - **THEN** se muestra un mensaje único, sin precios
+
+#### Scenario: Sin regla de precio, con permiso de costo
+
+- **GIVEN** que no hay regla de precio vigente y un usuario con `cotizaciones.costo.ver`
+- **WHEN** se presupuesta una receta
+- **THEN** ve el costo con IVA de cada ítem y el total de costos, sin precio
+- **AND** ve el aviso «No hay regla de precios configurada»
 
 ### Requirement: Ítem calculable
 
@@ -196,7 +232,7 @@ mostrar un mensaje en lugar del precio. No interrumpe el resto.
 ### Requirement: Total del presupuesto
 
 El total SHALL ser la suma de los ítems calculables. Si alguno no se pudo calcular, se indica que el total no lo
-incluye.
+incluye. Con `cotizaciones.costo.ver` hay además un total de costo con IVA, con la misma regla.
 
 #### Scenario: Un ítem no calculable
 
@@ -224,14 +260,22 @@ nivel receta: «Falta stock de Cafeína para toda la receta: se necesitan 3 g y 
 
 ### Requirement: Panel Presupuesto
 
-Un panel «Presupuesto» SHALL mostrarse junto al botón de confirmar, en el alta manual y en la importación. Se oculta
-sin `cotizaciones.calcular`.
+Un panel «Presupuesto» SHALL mostrarse junto al botón de confirmar, en el alta manual, en la importación y en la
+edición. Se muestra con `cotizaciones.calcular` o `cotizaciones.costo.ver`, y se oculta sin ninguno de los dos. Su
+título dice lo que muestra: «Precio», «Costo con IVA» o «Costo y precio». «Imprimir cotización» solo aparece con
+`cotizaciones.calcular`.
 
 #### Scenario: Sin permiso
 
-- **GIVEN** un usuario sin `cotizaciones.calcular`
+- **GIVEN** un usuario sin `cotizaciones.calcular` ni `cotizaciones.costo.ver`
 - **WHEN** carga una receta
 - **THEN** no ve el panel «Presupuesto»
+
+#### Scenario: Solo permiso de costo
+
+- **GIVEN** un usuario con `cotizaciones.costo.ver` y sin `cotizaciones.calcular`
+- **WHEN** carga una receta
+- **THEN** ve el panel titulado «Costo con IVA», sin precio ni «Imprimir cotización»
 
 ### Requirement: Recálculo automático
 
@@ -359,13 +403,47 @@ contenido de un ítem existente sigue permitido.
 ### Requirement: Edición — accesos manuales
 
 Los accesos manuales «Ficha técnica» y «Cotización» del detalle SHALL mantenerse para revisar, imprimir o
-regenerar.
+regenerar. «Ficha técnica» está en cada ítem; los accesos a la cotización están junto al título del recuadro «Pago»
+(revisado 2026-11-20): «Ver cotización» si la receta tiene un ítem, «Cotización ítem N» por ítem si tiene varios.
 
 #### Scenario: Regenerar desde el detalle
 
 - **GIVEN** un usuario con permiso para ver fichas y cotizaciones
 - **WHEN** abre el detalle de una receta
-- **THEN** tiene los accesos «Ficha técnica» y «Cotización»
+- **THEN** tiene «Ficha técnica» en cada ítem y el acceso a la cotización en el recuadro «Pago»
+
+### Requirement: Costo en el detalle
+
+Con `cotizaciones.costo.ver`, el recuadro «Pago» del detalle de la receta (debajo de los ítems) SHALL mostrar el
+**costo con IVA** total (consultas `recetas.resumenPago.*`, `modules/recetas/application/get-resumen-pago-receta.ts`).
+Un ítem con cotización guardada usa el costo de su cotización vigente (una anterior a la migración 0107 usa el costo
+que tiene); un ítem sin cotización se costea en el momento. Sin el permiso, el servidor omite el costo.
+
+#### Scenario: Ítem sin cotización por falta de regla
+
+- **GIVEN** un usuario con `cotizaciones.costo.ver` y `cotizaciones.ver`, y una receta guardada sin regla de precio
+  vigente (sin cotización)
+- **WHEN** abre el detalle
+- **THEN** ve el costo con IVA calculado en el momento
+- **AND** el precio figura «Sin cotizar»
+
+#### Scenario: Droga sin costo
+
+- **GIVEN** un usuario con `cotizaciones.costo.ver` y un ítem sin cotización con una droga sin costo de proveedor
+- **WHEN** abre el detalle
+- **THEN** ve el aviso con las drogas sin costo y ninguna cifra de costo
+
+### Requirement: Precio en el detalle
+
+Con `cotizaciones.calcular` o `cotizaciones.ver`, el recuadro «Pago» SHALL mostrar el **precio** total de las
+cotizaciones vigentes (INV-R06), indicando los ítems sin cotizar, o «Sin cotizar» si ninguno tiene cotización. Sin
+esos permisos, el servidor omite el precio.
+
+#### Scenario: Un ítem sin cotizar
+
+- **GIVEN** un usuario con `cotizaciones.ver` y una receta con el ítem 1 cotizado y el ítem 2 sin cotizar
+- **WHEN** abre el detalle
+- **THEN** ve el precio del ítem 1 con la aclaración «Ítem 2 sin cotizar»
 
 ### Requirement: Ticket de cotización
 
@@ -439,6 +517,8 @@ total que deja un ítem afuera sería un precio equivocado en manos del cliente.
 ## Referencias
 
 > Se apoya en `openspec/specs/ficha-tecnica/spec.md` (cálculo de la ficha, V1–V9) y en la cotización existente (FASE 7.4, DP-09). Las notas **[ACLARACIÓN]** son deducciones de consistencia; no agregan requisitos.
+
+> Fuente del costo en el presupuesto: pedido del usuario (2026-11-20): un permiso por rol para ver el costo de la receta en el mismo panel que la cotización, «de esta manera vamos estudiando y comparando las reglas de precios». Solo el costo con IVA, aclarado en pantalla (decisión del usuario).
 
 > Fuente del ticket de cotización: pedido del usuario (2026-11-04): «un botón de mandar a una impresora, con el mismo formato que la ficha técnica, para entregar a un cliente la cotización […] es para entregar a alguien que viene únicamente a preguntar el precio».
 

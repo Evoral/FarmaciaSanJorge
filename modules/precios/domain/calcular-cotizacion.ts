@@ -192,18 +192,11 @@ export function leerDetalleCotizacion(detalle: CotizacionDetalle): CotizacionDet
   };
 }
 
-export interface CotizacionCalculada {
+export interface CostoCalculado {
   /** Net of IVA. */
   costoInsumos: Decimal;
   /** R7a: with each línea's IVA -- what the price is calculated on (tramo + precio mínimo). */
   costoInsumosConIva: Decimal;
-  /** The markup of the tramo `costoInsumosConIva` fell into (regla-precio.ts#calcularPrecioFinal). */
-  margenAplicado: Decimal;
-  /** 0-based index of that tramo in the regla's `tramos`. */
-  tramoAplicado: number;
-  /** The tramo price was below the regla's `precioMinimo`, so the floor was used. */
-  precioMinimoAplicado: boolean;
-  precioFinal: Decimal;
   esParcial: boolean;
   /** Always `false` since 2026-10-28 (no línea is costed from partidas, R27); kept for stored snapshots. */
   esIncompleta: boolean;
@@ -214,6 +207,16 @@ export interface CotizacionCalculada {
    */
   drogasSinPrecio: string[];
   detalle: CotizacionDetalle;
+}
+
+export interface CotizacionCalculada extends CostoCalculado {
+  /** The markup of the tramo `costoInsumosConIva` fell into (regla-precio.ts#calcularPrecioFinal). */
+  margenAplicado: Decimal;
+  /** 0-based index of that tramo in the regla's `tramos`. */
+  tramoAplicado: number;
+  /** The tramo price was below the regla's `precioMinimo`, so the floor was used. */
+  precioMinimoAplicado: boolean;
+  precioFinal: Decimal;
 }
 
 /** What is shown instead of a price when some droga has no costo de proveedor (R27). */
@@ -327,13 +330,12 @@ function costearLinea(
   };
 }
 
-/** `calcularCotizacion` plus what each línea would take from the partidas (including `PROVEEDOR` líneas, whose detalle lists none): the cumulative presupuesto needs it. */
-function costearItem(
+/** Costing of ONE item without applying a regla de precio: shared by `calcularCotizacion` and cost-only callers. */
+function costearItemSinPrecio(
   lineas: readonly LineaCosteoInput[],
   partidasPorDroga: (drogaId: string) => readonly PartidaDisponible[],
   jornadaActual: string,
-  reglas: ReglasPrecio,
-): { cotizacion: CotizacionCalculada; consumos: ConsumoSimulado[] } {
+): { costo: CostoCalculado; consumos: ConsumoSimulado[] } {
   let costoInsumos = new Decimal(0);
   let costoInsumosConIva = new Decimal(0);
   let esParcial = false;
@@ -388,23 +390,28 @@ function costearItem(
     for (const usada of consumo) consumos.push({ drogaId: linea.drogaId, partidaId: usada.partidaId, cantidad: usada.cantidad });
   }
 
-  // R31 + R7a: the price is calculated on the cost WITH IVA.
-  const precio = calcularPrecioFinal(costoInsumosConIva, reglas);
-
   return {
     consumos,
-    cotizacion: {
+    costo: {
       costoInsumos,
       costoInsumosConIva,
-      margenAplicado: precio.margenAplicado,
-      tramoAplicado: precio.tramoAplicado,
-      precioMinimoAplicado: precio.precioMinimoAplicado,
-      precioFinal: precio.precioFinal,
       esParcial,
       esIncompleta: false,
       drogasSinPrecio,
       detalle: { lineas: detalleLineas },
     },
+  };
+}
+
+/** R31 + R7a: applies `reglas` to an item's `CostoCalculado` (calculated on `costoInsumosConIva`). */
+function aplicarReglaPrecio(costo: CostoCalculado, reglas: ReglasPrecio): CotizacionCalculada {
+  const precio = calcularPrecioFinal(costo.costoInsumosConIva, reglas);
+  return {
+    ...costo,
+    margenAplicado: precio.margenAplicado,
+    tramoAplicado: precio.tramoAplicado,
+    precioMinimoAplicado: precio.precioMinimoAplicado,
+    precioFinal: precio.precioFinal,
   };
 }
 
@@ -420,7 +427,7 @@ export function calcularCotizacion(
   jornadaActual: string,
   reglas: ReglasPrecio,
 ): CotizacionCalculada {
-  return costearItem(lineas, partidasPorDroga, jornadaActual, reglas).cotizacion;
+  return aplicarReglaPrecio(costearItemSinPrecio(lineas, partidasPorDroga, jornadaActual).costo, reglas);
 }
 
 // ============================================================================
@@ -433,6 +440,45 @@ export function calcularCotizacion(
  * as ABIERTA for the next item -- and as the most recently opened one.
  */
 const APERTURA_SIMULADA = "9999-12-31T23:59:59.999Z";
+
+function simularItemsAcumulados(
+  items: readonly (readonly LineaCosteoInput[])[],
+  partidasPorDroga: (drogaId: string) => readonly PartidaDisponible[],
+  jornadaActual: string,
+): CostoCalculado[] {
+  const saldos = new Map<string, PartidaDisponible[]>();
+  const partidasDe = (drogaId: string): PartidaDisponible[] => {
+    let partidas = saldos.get(drogaId);
+    if (!partidas) {
+      partidas = partidasPorDroga(drogaId).map((p) => ({ ...p }));
+      saldos.set(drogaId, partidas);
+    }
+    return partidas;
+  };
+
+  return items.map((lineas) => {
+    const { costo, consumos } = costearItemSinPrecio(lineas, partidasDe, jornadaActual);
+    for (const consumo of consumos) {
+      const partida = partidasDe(consumo.drogaId).find((p) => p.id === consumo.partidaId);
+      if (!partida) continue;
+      partida.cantidadDisponible = dec(partida.cantidadDisponible).minus(dec(consumo.cantidad)).toString();
+      if (partida.fechaApertura === null) partida.fechaApertura = APERTURA_SIMULADA;
+    }
+    return costo;
+  });
+}
+
+/**
+ * Costs the items of one receta in order against the same stock, without applying any regla de precio.
+ * Used when no regla is configured (or only the cost is needed).
+ */
+export function calcularCostosAcumulados(
+  items: readonly (readonly LineaCosteoInput[])[],
+  partidasPorDroga: (drogaId: string) => readonly PartidaDisponible[],
+  jornadaActual: string,
+): CostoCalculado[] {
+  return simularItemsAcumulados(items, partidasPorDroga, jornadaActual);
+}
 
 /**
  * Costs the items of one receta in order, each against what the previous
@@ -456,24 +502,5 @@ export function calcularCotizacionesAcumuladas(
   jornadaActual: string,
   reglas: ReglasPrecio,
 ): CotizacionCalculada[] {
-  const saldos = new Map<string, PartidaDisponible[]>();
-  const partidasDe = (drogaId: string): PartidaDisponible[] => {
-    let partidas = saldos.get(drogaId);
-    if (!partidas) {
-      partidas = partidasPorDroga(drogaId).map((p) => ({ ...p }));
-      saldos.set(drogaId, partidas);
-    }
-    return partidas;
-  };
-
-  return items.map((lineas) => {
-    const { cotizacion, consumos } = costearItem(lineas, partidasDe, jornadaActual, reglas);
-    for (const consumo of consumos) {
-      const partida = partidasDe(consumo.drogaId).find((p) => p.id === consumo.partidaId);
-      if (!partida) continue;
-      partida.cantidadDisponible = dec(partida.cantidadDisponible).minus(dec(consumo.cantidad)).toString();
-      if (partida.fechaApertura === null) partida.fechaApertura = APERTURA_SIMULADA;
-    }
-    return cotizacion;
-  });
+  return simularItemsAcumulados(items, partidasPorDroga, jornadaActual).map((costo) => aplicarReglaPrecio(costo, reglas));
 }

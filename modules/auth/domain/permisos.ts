@@ -97,6 +97,7 @@ export const PERMISO_CATALOGO = {
   "fichas.imprimir": "consulta",
   "cotizaciones.calcular": "operativo",
   "cotizaciones.ver": "consulta",
+  "cotizaciones.costo.ver": "consulta",
   "preparaciones.iniciar": "operativo",
   "preparaciones.descartar": "operativo",
   "preparaciones.confirmar": "operativo",

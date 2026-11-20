@@ -352,6 +352,8 @@ export interface RecetaFormProps {
   vistaPrevia?: VistaPreviaImportacion;
   /** `cotizaciones.calcular`: show the live price in every mode (openspec/specs/presupuesto-receta/spec.md). */
   puedePresupuestar?: boolean;
+  /** `cotizaciones.costo.ver`: show the live costo de insumos in every mode. */
+  puedeVerCosto?: boolean;
   /** `editar` mode only: where to come back after saving when the form is embedded in another screen (an internal /preparaciones path, re-validated by the action -- domain/avisos-generacion.ts#retornoDeEdicion). */
   volverA?: string;
   /** `editar` mode only: paciente, médico and the receta's data are shown read-only by the embedding screen -- not rendered here, submitted unchanged. */
@@ -402,7 +404,7 @@ const ACCIONES_POR_MODO = {
   editar: ["recetas.editar", "fichas.generar"],
 } as const;
 
-export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaPrevia, puedePresupuestar = false, volverA, encabezadoFijo = false, onBorradorChange }: RecetaFormProps) {
+export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaPrevia, puedePresupuestar = false, puedeVerCosto = false, volverA, encabezadoFijo = false, onBorradorChange }: RecetaFormProps) {
   const importacion = mode === "importar" ? (vistaPrevia ?? null) : null;
   const action = mode === "crear" ? crearRecetaAction : mode === "editar" ? editarRecetaAction : importarRecetaAction;
   const [state, formAction, isPending] = useActionState(action, IDLE_STATE);
@@ -663,8 +665,8 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
   const cancelarHref = mode !== "editar" ? "/recetas" : !volverA && recetaId ? `/recetas/${recetaId}` : null;
   // `crear` reads "pagada" from the form; `importar` sends it inside `importacionJson`; `editar` sends a hidden "true"/"false" (an unchecked box would read as "leave it").
   const pagoPanel = { pagada, onChange: setPagada, disabled, name: mode === "crear" ? "pagada" : undefined };
-  // With the price panel, the paid switch lives inside it (it needs the total); otherwise it stays in the resumen.
-  const mostrarPrecio = puedePresupuestar;
+  // With the presupuesto panel, the paid switch lives inside it (it needs the total); otherwise it stays in the resumen.
+  const mostrarPrecio = puedePresupuestar || puedeVerCosto;
   const errorVisible = clientError ?? (state.status === "error" && state !== errorDescartado ? state.message : null);
 
   /**
@@ -1373,7 +1375,15 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
         ) : null
       ) : (
         <aside className="split-aside flex flex-col gap-4" aria-label="Resumen y guardado">
-          {mostrarPrecio ? <PresupuestoPanel items={itemsParaEnvio()} pago={pagoPanel} cotizacion={{ paciente: pacienteResumen, medico: medicoResumen }} /> : null}
+          {mostrarPrecio ? (
+            <PresupuestoPanel
+              items={itemsParaEnvio()}
+              pago={pagoPanel}
+              cotizacion={puedePresupuestar ? { paciente: pacienteResumen, medico: medicoResumen } : undefined}
+              puedeVerPrecio={puedePresupuestar}
+              puedeVerCosto={puedeVerCosto}
+            />
+          ) : null}
 
           <div className="panel">
             <div className="panel-header">

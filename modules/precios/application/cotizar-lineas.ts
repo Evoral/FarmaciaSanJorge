@@ -20,8 +20,8 @@
  */
 import type { Prisma } from "@/generated/prisma/client";
 import { DomainError } from "@/shared/errors";
-import { calcularCotizacion, calcularCotizacionesAcumuladas, mensajeSinCostoProveedor } from "../domain/calcular-cotizacion";
-import type { CotizacionCalculada, LineaCosteoInput, PartidaCosteo } from "../domain/calcular-cotizacion";
+import { calcularCostosAcumulados, calcularCotizacion, calcularCotizacionesAcumuladas, mensajeSinCostoProveedor } from "../domain/calcular-cotizacion";
+import type { CostoCalculado, CotizacionCalculada, LineaCosteoInput, PartidaCosteo } from "../domain/calcular-cotizacion";
 import { costosParaCotizar, type CostosParaCotizar } from "@/modules/costos-proveedor/application/costos-proveedor-para-cotizar";
 import type { ReglasPrecio } from "../domain/regla-precio";
 import { getPartidasElegiblesDeDroga, getUnidadesBaseDeDrogas, jornadaActualTenant } from "../infrastructure/cotizacion-repository";
@@ -93,6 +93,38 @@ export async function cotizarLineas(
   return cotizacion;
 }
 
+async function cargarInsumosParaCosteo(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  items: readonly (readonly LineaACostear[])[],
+): Promise<{
+  jornadaActual: string;
+  partidas: Map<string, PartidaCosteo[]>;
+  itemsConUnidad: LineaCosteoInput[][];
+}> {
+  const jornadaActual = await jornadaActualTenant(tx, tenantId);
+  const partidas = new Map<string, PartidaCosteo[]>();
+  const drogaIds = [...new Set(items.flatMap((lineas) => lineas.filter((l) => !l.esEnraseManual).map((l) => l.drogaId)))];
+  for (const drogaId of drogaIds) partidas.set(drogaId, await getPartidasElegiblesDeDroga(tx, tenantId, drogaId));
+  const costos = await costosParaCotizar(tx, tenantId, drogaIds);
+  const itemsConUnidad: LineaCosteoInput[][] = [];
+  for (const lineas of items) itemsConUnidad.push(await conUnidadStock(tx, tenantId, lineas, costos));
+  return { jornadaActual, partidas, itemsConUnidad };
+}
+
+/**
+ * Several items of ONE receta costed against the same stock, in order
+ * (`calcularCostosAcumulados`), without applying any regla de precio.
+ */
+export async function costearItemsAcumulado(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  items: readonly (readonly LineaACostear[])[],
+): Promise<CostoCalculado[]> {
+  const { jornadaActual, partidas, itemsConUnidad } = await cargarInsumosParaCosteo(tx, tenantId, items);
+  return calcularCostosAcumulados(itemsConUnidad, (drogaId) => partidas.get(drogaId) ?? [], jornadaActual);
+}
+
 /**
  * Several items of ONE receta costed against the same stock, in order
  * (`calcularCotizacionesAcumuladas`): used by the receta presupuesto so two
@@ -108,12 +140,6 @@ export async function cotizarItemsAcumulado(
   items: readonly (readonly LineaACostear[])[],
   reglas: ReglasPrecio,
 ): Promise<CotizacionCalculada[]> {
-  const jornadaActual = await jornadaActualTenant(tx, tenantId);
-  const partidas = new Map<string, PartidaCosteo[]>();
-  const drogaIds = [...new Set(items.flatMap((lineas) => lineas.filter((l) => !l.esEnraseManual).map((l) => l.drogaId)))];
-  for (const drogaId of drogaIds) partidas.set(drogaId, await getPartidasElegiblesDeDroga(tx, tenantId, drogaId));
-  const costos = await costosParaCotizar(tx, tenantId, drogaIds);
-  const itemsConUnidad: LineaCosteoInput[][] = [];
-  for (const lineas of items) itemsConUnidad.push(await conUnidadStock(tx, tenantId, lineas, costos));
+  const { jornadaActual, partidas, itemsConUnidad } = await cargarInsumosParaCosteo(tx, tenantId, items);
   return calcularCotizacionesAcumuladas(itemsConUnidad, (drogaId) => partidas.get(drogaId) ?? [], jornadaActual, reglas);
 }
