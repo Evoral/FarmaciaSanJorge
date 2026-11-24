@@ -267,6 +267,22 @@ describe("cotizacion -- ACTIVIDAD line (UI9)", () => {
     const res = calcularCotizacion([baseLinea], () => gramOnly, JORNADA, reglas);
     expect(res.drogasSinPrecio).toEqual(["Vitamina D3"]);
   });
+
+  it("reports the full faltante for a MASA line of a marked droga when only U.I. lots exist", () => {
+    const masaLinea: LineaCosteoInput = {
+      ...baseLinea,
+      unidadSimbolo: "g",
+      cantidadAPesar: "5",
+      unidad: UNIDAD_GRAMO,
+    };
+    const uiOnly: PartidaCosteo[] = [
+      { id: "p-ui", cantidadDisponible: "10", fechaVencimiento: "2027-01-01", fechaApertura: null, costoUnitario: "100", actividadDeclarada: "100000" },
+    ];
+    const res = calcularCotizacion([masaLinea], () => uiOnly, JORNADA, reglas);
+    expect(res.drogasSinPrecio).toEqual([]);
+    expect(res.detalle.lineas[0]!.faltante).toBe("5");
+    expect(res.detalle.lineas[0]!.subtotal).toBe("500");
+  });
 });
 
 describe("etiqueta Rp/ and libro formula in U.I. (UI10)", () => {

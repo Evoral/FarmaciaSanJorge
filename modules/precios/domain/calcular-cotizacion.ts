@@ -315,14 +315,16 @@ function costearLinea(
     }
   } else {
     // Partidas are in the droga's unidad base: split in it, report the faltante back in the línea's unit.
+    // Non-ACTIVIDAD lines only draw from non-U.I. lots (UI6).
+    const partidasNoUi = partidas.filter((p) => p.actividadDeclarada === null || p.actividadDeclarada === undefined);
     requeridaStock = convertirCantidad(requerida, linea.unidad, linea.unidadStock);
 
-    const disponible = totalDisponibleElegible(partidas, jornadaActual);
+    const disponible = totalDisponibleElegible(partidasNoUi, jornadaActual);
     const aPedir = Decimal.min(requeridaStock, disponible);
     faltante = convertirCantidad(requeridaStock.minus(aPedir), linea.unidadStock, linea.unidad);
 
     if (aPedir.greaterThan(0)) {
-      const resultado = proponerReparto(partidas, aPedir, jornadaActual);
+      const resultado = proponerReparto(partidasNoUi, aPedir, jornadaActual);
       // aPedir is, by construction, <= the eligible total -- proponerReparto
       // always succeeds (ok: true) in that case; a `false` here would mean
       // this function's own eligibility math disagrees with
