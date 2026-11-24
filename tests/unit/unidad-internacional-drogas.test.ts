@@ -13,7 +13,6 @@ const {
   UNIDAD_MASA_ID,
   UNIDAD_VOLUMEN_ID,
   DROGA_ID,
-  unidadTipoMagnitud,
   auditRecordMock,
   withTenantTransactionMock,
   insertDrogaMock,

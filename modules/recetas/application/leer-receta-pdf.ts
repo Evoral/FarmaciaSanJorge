@@ -154,7 +154,7 @@ export async function construirVistaPrevia(
         drogaAliasId: droga?.aliasId ?? null,
         sinonimo: droga?.sinonimo ?? null,
         unidadMedidaId: unidad?.id ?? null,
-        seDosificaEnUi: droga ? (seDosificaEnUiPorId.get(droga.drogaId) ?? false) : false,
+        ...(droga && seDosificaEnUiPorId.get(droga.drogaId) ? { seDosificaEnUi: true } : {}),
       };
     }),
   );

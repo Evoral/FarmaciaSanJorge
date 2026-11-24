@@ -159,6 +159,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   simbolo: "Símbolo",
   stockMinimo: "Stock mínimo",
   sugerirDilucion: "Sugerir lote diluido",
+  seDosificaEnUi: "Se dosifica en U.I.",
   saldoAperturaContralor: "Saldo de apertura del libro contralor",
   tipoControl: "Tipo de control",
   tipoMagnitud: "Magnitud",
