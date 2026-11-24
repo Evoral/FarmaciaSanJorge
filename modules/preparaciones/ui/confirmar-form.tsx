@@ -466,7 +466,11 @@ function PlanLinea({ linea, plan, catalogo, datos }: { linea: LineaPantalla; pla
                 {vencimiento === "POR_VENCER" && partida?.fechaVencimiento ? <ToneBadge tone="warn">{textoPorVencer(partida.fechaVencimiento, datos.jornadaActual)}</ToneBadge> : null}
                 {partida?.reanalizada ? <ToneBadge tone="neutral">Reanalizada</ToneBadge> : null}
                 {partida?.fechaApertura ? <ToneBadge tone="neutral">Abierta</ToneBadge> : null}
-                {partida?.potenciaDeclarada && !linea.esEnraseManual ? <ToneBadge tone="neutral">Pureza {formatNumero(partida.potenciaDeclarada)} %</ToneBadge> : null}
+                {!linea.esEnraseManual && partida?.actividadDeclarada != null ? (
+                  <ToneBadge tone="neutral">{formatNumero(partida.actividadDeclarada)} U.I./g</ToneBadge>
+                ) : partida?.potenciaDeclarada && !linea.esEnraseManual ? (
+                  <ToneBadge tone="neutral">Pureza {formatNumero(partida.potenciaDeclarada)} %</ToneBadge>
+                ) : null}
               </span>
             </li>
           );
@@ -548,7 +552,11 @@ function ElegirLotes({
                   </span>
                 </span>
                 <span className="flex min-w-0 flex-1 flex-wrap justify-end gap-1.5">
-                  <ToneBadge tone="neutral">Pureza {partida.potenciaDeclarada ? formatNumero(partida.potenciaDeclarada) : "100"} %</ToneBadge>
+                  <ToneBadge tone="neutral">
+                    {partida.actividadDeclarada != null
+                      ? `${formatNumero(partida.actividadDeclarada)} U.I./g`
+                      : `Pureza ${partida.potenciaDeclarada ? formatNumero(partida.potenciaDeclarada) : "100"} %`}
+                  </ToneBadge>
                   {partida.fechaApertura ? <ToneBadge tone="neutral">Abierta</ToneBadge> : null}
                   {vencimiento === "POR_VENCER" && partida.fechaVencimiento ? <ToneBadge tone="warn">{textoPorVencer(partida.fechaVencimiento, datos.jornadaActual)}</ToneBadge> : null}
                 </span>

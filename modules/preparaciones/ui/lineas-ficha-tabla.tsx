@@ -105,7 +105,7 @@ function FilasPartidas({ linea, columnas }: { linea: LineaDeFichaToma; columnas:
   const partidas = todas.filter((p) => !p.vencida);
   const vencidas = todas.filter((p) => p.vencida);
 
-  if (!partidas.some((p) => p.potenciaDeclarada !== null)) {
+  if (!partidas.some((p) => p.potenciaDeclarada !== null || p.actividadDeclarada != null)) {
     return (
       <tr>
         <td colSpan={columnas} className="px-3 pb-3 pt-0">
@@ -132,8 +132,15 @@ function FilasPartidas({ linea, columnas }: { linea: LineaDeFichaToma; columnas:
         return (
           <tr key={p.id} className={ultima ? undefined : "border-b-0"}>
             <td colSpan={columnas - 1} className={`pl-6 pr-3 text-xs text-zinc-500 ${padding}`}>
-              <LoteConStock partida={p} /> · Pureza{" "}
-              {p.potenciaDeclarada !== null ? <span className="font-mono text-zinc-700">{formatNumero(p.potenciaDeclarada)} %</span> : <span className="font-mono text-zinc-400">100 %</span>}
+              <LoteConStock partida={p} /> ·{" "}
+              {p.actividadDeclarada != null ? (
+                <span className="font-mono text-zinc-700">{formatNumero(p.actividadDeclarada)} U.I./g</span>
+              ) : (
+                <>
+                  Pureza{" "}
+                  {p.potenciaDeclarada !== null ? <span className="font-mono text-zinc-700">{formatNumero(p.potenciaDeclarada)} %</span> : <span className="font-mono text-zinc-400">100 %</span>}
+                </>
+              )}
             </td>
             <td className={`whitespace-nowrap px-3 text-right font-mono font-medium text-zinc-900 tabular-nums ${padding}`}>
               <CantidadFicha valor={p.cantidadAPesar} simbolo={linea.unidadSimbolo} classNameSimbolo="font-normal text-zinc-500" />

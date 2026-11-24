@@ -403,6 +403,8 @@ export interface PartidaElegible {
   fechaApertura: string | null; // ISO instant
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
+  /** Migration 0133: declared activity (U.I./g), `null` for gram lots. */
+  actividadDeclarada?: string | null;
   /** Migration 0111: elaborated in the farmacia as a dilución of the droga (P13 offers it for a dose below the balance). */
   esDilucion: boolean;
   /** Migration 0115: the name the farmacéutico gave an elaborated lot ("Clonazepam 1:100"); `null` for a bought one. */
@@ -450,6 +452,7 @@ export async function listPartidasElegiblesDroga(
       reanalizada: boolean;
       fecha_apertura: string | null;
       potencia_declarada: string | null;
+      actividad_declarada: string | null;
       es_dilucion: boolean;
       nombre_elaborado: string | null;
       elaborada: boolean;
@@ -458,7 +461,7 @@ export async function listPartidasElegiblesDroga(
     SELECT p.id, p.lote, coalesce(pr.razon_social, CASE WHEN p.origen = 'ELABORACION_PROPIA' THEN ${ETIQUETA_ELABORADO_EN_FARMACIA} ELSE ${ETIQUETA_SIN_PROVEEDOR} END) AS proveedor_nombre, (p.cantidad_disponible - r.reservado)::text AS cantidad_disponible,
       u.simbolo AS unidad_simbolo, p.fecha_vencimiento_vigente::text AS fecha_vencimiento,
       p.fecha_vencimiento_vigente IS DISTINCT FROM p.fecha_vencimiento AS reanalizada,
-      p.fecha_apertura::text, p.potencia_declarada::text,
+      p.fecha_apertura::text, p.potencia_declarada::text, p.actividad_declarada::text,
       coalesce(el.tipo = 'DILUCION', false) AS es_dilucion, el.nombre AS nombre_elaborado,
       p.origen = 'ELABORACION_PROPIA' AS elaborada
     FROM fsj.partida p
@@ -480,6 +483,7 @@ export async function listPartidasElegiblesDroga(
     reanalizada: r.reanalizada,
     fechaApertura: r.fecha_apertura,
     potenciaDeclarada: r.potencia_declarada,
+    actividadDeclarada: r.actividad_declarada,
     esDilucion: r.es_dilucion,
     nombreElaborado: r.nombre_elaborado,
     elaborada: r.elaborada,
@@ -562,6 +566,8 @@ export interface PartidaFresca {
   fechaApertura: string | null;
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
+  /** Migration 0133: declared activity (U.I./g), `null` for gram lots. */
+  actividadDeclarada?: string | null;
   /** Origen ELABORACION_PROPIA (a dilución or a fórmula lot): outside INV-S18. */
   elaborada: boolean;
 }

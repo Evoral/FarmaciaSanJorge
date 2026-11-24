@@ -136,7 +136,13 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
               ? `${partida.proveedorId ? ` de ${partida.proveedorRazonSocial}` : ""} · existencia inicial`
               : partida.origen === "ELABORACION_PROPIA"
                 ? elaboracion?.tipo === "DILUCION"
-                  ? ` · dilución elaborada en la farmacia${partida.potenciaDeclarada !== null ? ` al ${partida.potenciaDeclarada} %` : ""}`
+                  ? ` · dilución elaborada en la farmacia${
+                      partida.actividadDeclarada !== null
+                        ? ` de ${formatNumero(partida.actividadDeclarada, 6)} U.I./g`
+                        : partida.potenciaDeclarada !== null
+                          ? ` al ${formatNumero(partida.potenciaDeclarada, 6)} %`
+                          : ""
+                    }`
                   : " · elaborado en la farmacia"
                 : ` de ${partida.proveedorRazonSocial}`}
           </>
@@ -256,7 +262,13 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
                           </Link>
                         </td>
                         <td className="px-3 py-2.5">{c.drogaNombre}</td>
-                        <td className="hidden px-3 py-2.5 font-mono tabular-nums sm:table-cell">{c.potenciaDeclarada !== null ? `${c.potenciaDeclarada} %` : "100 %"}</td>
+                        <td className="hidden px-3 py-2.5 font-mono tabular-nums sm:table-cell">
+                          {c.actividadDeclarada !== null
+                            ? `${formatNumero(c.actividadDeclarada, 6)} U.I./g`
+                            : c.potenciaDeclarada !== null
+                              ? `${formatNumero(c.potenciaDeclarada, 6)} %`
+                              : "100 %"}
+                        </td>
                         <td className="whitespace-nowrap px-5 py-2.5 text-right font-mono tabular-nums">
                           <Cantidad valor={formatCantidad(c.cantidad, { id: c.unidadId, simbolo: c.unidadSimbolo }, catalogo)} />
                         </td>
@@ -474,8 +486,14 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
               <dl className="summary-dl">
                 <dt>Costo unitario</dt>
                 <dd className="font-mono tabular-nums">{partida.costoUnitario}</dd>
-                <dt>Pureza</dt>
-                <dd className="font-mono tabular-nums">{partida.potenciaDeclarada !== null ? `${partida.potenciaDeclarada} %` : "No declarada (100 %)"}</dd>
+                <dt>{partida.actividadDeclarada !== null ? "Actividad" : "Pureza"}</dt>
+                <dd className="font-mono tabular-nums">
+                  {partida.actividadDeclarada !== null
+                    ? `${formatNumero(partida.actividadDeclarada, 6)} U.I./g`
+                    : partida.potenciaDeclarada !== null
+                      ? `${formatNumero(partida.potenciaDeclarada, 6)} %`
+                      : "No declarada (100 %)"}
+                </dd>
                 <dt>{reanalizada ? "Vencimiento vigente" : "Vencimiento"}</dt>
                 <dd className="flex flex-wrap items-center justify-end gap-1.5 tabular-nums">
                   {partida.fechaVencimientoVigente ? formatVencimientoLote(partida.fechaVencimientoVigente) : "No vence"}

@@ -482,7 +482,7 @@ function FilasLinea({
   const pesada = pesadas[indice] ?? null;
   const lotes = elegidas[linea.id] ?? [];
   const partidas = ordenarParaConsumo(linea.partidasElegibles, datos.jornadaActual);
-  const conPureza = !linea.esEnraseManual && partidas.some((p) => p.potenciaDeclarada !== null);
+  const conPureza = !linea.esEnraseManual && partidas.some((p) => p.potenciaDeclarada !== null || p.actividadDeclarada != null);
   const sinStock = plan !== null && plan !== "elegir" && !plan.ok;
   const libres = partidas.filter((p) => !lotes.includes(p.id));
   const precision = precisionDeLinea(linea.unidad, datos.pesada.precisionBalanza);
@@ -1026,7 +1026,13 @@ function TextoSinStock({ disponible, simbolo }: { disponible: string; simbolo: s
  */
 function etiquetaLote(p: LineaPantalla["partidasElegibles"][number], conPureza: boolean, datos: DatosConfirmacion): string {
   const partes = [...(p.nombreElaborado ? [p.nombreElaborado] : []), p.lote, `${formatStockEntero(p.cantidadDisponible, p.unidadSimbolo)} disp.`];
-  if (conPureza && !p.nombreElaborado) partes.push(`Pureza ${p.potenciaDeclarada ? formatNumero(p.potenciaDeclarada) : "100"} %`);
+  if (conPureza && !p.nombreElaborado) {
+    partes.push(
+      p.actividadDeclarada != null
+        ? `${formatNumero(p.actividadDeclarada)} U.I./g`
+        : `Pureza ${p.potenciaDeclarada ? formatNumero(p.potenciaDeclarada) : "100"} %`,
+    );
+  }
   if (p.fechaApertura) partes.push("abierta");
   if (p.fechaVencimiento && estadoVencimientoPartida(p.fechaVencimiento, datos.jornadaActual, datos.diasAlertaVencimiento) === "POR_VENCER") {
     partes.push(`vence ${formatVencimientoLote(p.fechaVencimiento)}`);

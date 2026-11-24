@@ -43,6 +43,8 @@ export interface PartidaParaPesar {
   proveedorNombre: string;
   /** Percent; `null` = not declared (100%). */
   potenciaDeclarada: string | null;
+  /** Migration 0133: U.I./g; `null` for gram lots. */
+  actividadDeclarada?: string | null;
   /** In the droga's unidad base (`unidadSimbolo`), NOT the línea's unit. */
   cantidadDisponible: string;
   /** Símbolo of the droga's unidad base. */
@@ -111,6 +113,7 @@ export function partidasDeLinea(partidasPorDroga: PartidasPorDroga, linea: Linea
     lote: p.lote,
     proveedorNombre: p.proveedorNombre,
     potenciaDeclarada: p.potenciaDeclarada,
+    actividadDeclarada: p.actividadDeclarada ?? null,
     cantidadDisponible: p.cantidadDisponible,
     unidadSimbolo: p.unidadSimbolo,
     cantidadAPesar: fisicoParaActivo(activo, p.potenciaDeclarada).toString(),
