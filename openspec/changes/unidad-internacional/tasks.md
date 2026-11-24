@@ -18,7 +18,7 @@ The user applies migrations by hand; the implementer writes them and never runs 
 - [x] 2.2 Droga alta/edit (shared form): "Se dosifica en U.I." for clase DROGA; use case + repository
 
 ## 3. Recetas and ficha
-- [ ] 3.1 `modules/recetas`: U.I. componentes only for marked drogas, modes TOTAL / POR_DOSIS / CONCENTRACION with
+- [x] 3.1 `modules/recetas`: U.I. componentes only for marked drogas, modes TOTAL / POR_DOSIS / CONCENTRACION with
       referencia (zod + domain); field error on the componente, form keeps input
 - [ ] 3.2 Receta import (PDF/QR): map "UI", "U.I.", "UI." to `UNIDAD_INTERNACIONAL`
 - [ ] 3.3 `modules/elaboracion`: U.I. línea; keep `MAGNITUDES_CONCENTRACION` without ACTIVIDAD; R4/R5 scenarios

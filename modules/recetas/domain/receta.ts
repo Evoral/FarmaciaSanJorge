@@ -309,8 +309,8 @@ export type ReglaReceta = "V1" | "V2" | "V4" | "V6" | "V7" | "V8" | "V9" | "V10"
 export class ReglaRecetaError extends ValidationError {
   readonly regla: ReglaReceta;
 
-  constructor(regla: ReglaReceta, message: string) {
-    super(message);
+  constructor(regla: ReglaReceta, message: string, options?: { fields?: string[] }) {
+    super(message, options);
     this.regla = regla;
   }
 }
@@ -457,12 +457,61 @@ export function validarConcentracionesReceta(items: readonly ItemInput[], magnit
         throw new ReglaRecetaError("V10", `En el ítem ${n}, la concentración del componente ${m} requiere la cantidad a preparar en masa o volumen (g, mL…).`);
       }
       if (problema === "PORCENTAJE_SIN_MAGNITUD") {
-        throw new ReglaRecetaError("V11", `En el ítem ${n}, el componente ${m} expresado en % tiene que estar en una unidad de masa o volumen.`);
+        throw new ReglaRecetaError(
+          "V11",
+          `En el ítem ${n}, el componente ${m} expresado en % tiene que estar en una unidad de masa o volumen.`,
+          { fields: [`item-${itemIdx}-comp-${compIdx}-unidad`] },
+        );
       }
       if (problema === "REFERENCIA_OTRA_MAGNITUD") {
         throw new ReglaRecetaError(
           "V11",
           `En el ítem ${n}, la concentración del componente ${m} tiene que ser «por» una unidad de la misma magnitud que la cantidad a preparar.`,
+        );
+      }
+    });
+  });
+}
+
+export interface DrogaParaValidarUi {
+  nombre: string;
+  seDosificaEnUi: boolean;
+}
+
+/**
+ * UI3 (openspec/changes/unidad-internacional): a componente in U.I. (`ACTIVIDAD`) is allowed only for a droga with
+ * `seDosificaEnUi`, and only in TOTAL, POR_DOSIS, or CONCENTRACION with a referencia (never as %, never in CS/CSP).
+ * Marks the offending componente's unit field so the form keeps every other value.
+ */
+export function validarComponentesUi(
+  items: readonly ItemInput[],
+  magnitudes: ReadonlyMap<string, string>,
+  drogas: ReadonlyMap<string, DrogaParaValidarUi>,
+): void {
+  items.forEach((item, itemIdx) => {
+    const n = itemIdx + 1;
+    item.componentes.forEach((c, compIdx) => {
+      if (magnitudes.get(c.unidadMedidaId) !== "ACTIVIDAD") return;
+      const m = compIdx + 1;
+      const fields = [`item-${itemIdx}-comp-${compIdx}-unidad`];
+      if (c.modoExpresion === "CS" || c.modoExpresion === "CSP") {
+        throw new ValidationError(
+          `En el ítem ${n}, el componente ${m} (${c.modoExpresion}) no puede expresarse en U.I.`,
+          { fields },
+        );
+      }
+      if (c.modoExpresion === "CONCENTRACION" && !c.unidadReferenciaId) {
+        throw new ReglaRecetaError(
+          "V11",
+          `En el ítem ${n}, el componente ${m} en U.I. debe expresar la concentración «por» una unidad (por ejemplo U.I./g), no como %.`,
+          { fields },
+        );
+      }
+      const droga = drogas.get(c.drogaId);
+      if (droga && !droga.seDosificaEnUi) {
+        throw new ValidationError(
+          `En el ítem ${n}, el componente ${m} (${droga.nombre}) no admite U.I.: habilitá «Se dosifica en U.I.» en el catálogo de drogas.`,
+          { fields },
         );
       }
     });
@@ -481,6 +530,7 @@ export interface UnidadParaCordura {
  * por mg" in a crema of 30 g asks 69.000 mL. Compared in each magnitude's base unit (g, mL), so a volume against a
  * mass is read at 1 g/mL: a rough bound, enough to catch a wrong value or a wrong «por». Run after
  * `validarConcentracionesReceta` (the magnitudes are already valid); unknown ids are left to the "unidad inválida" check.
+ * `ACTIVIDAD` (U.I.) has no fixed conversion to mass/volume (D2), so it is skipped here.
  */
 export function validarCorduraConcentraciones(items: readonly ItemInput[], unidades: ReadonlyMap<string, UnidadParaCordura>): void {
   items.forEach((item, itemIdx) => {
@@ -493,6 +543,7 @@ export function validarCorduraConcentraciones(items: readonly ItemInput[], unida
       const unidad = unidades.get(c.unidadMedidaId);
       const referencia = c.unidadReferenciaId ? unidades.get(c.unidadReferenciaId) : null;
       if (!unidad || referencia === undefined) return;
+      if (unidad.tipoMagnitud === "ACTIVIDAD") return;
       const cantidadEnBase = cantidadDesdeConcentracion(c.cantidad, unidad, referencia, totalEnBase);
       if (!cantidadEnBase.greaterThan(totalEnBase)) return;
       const prescripta = textoConcentracion(formatNumero(c.cantidad), unidad.simbolo, referencia?.simbolo ?? null);

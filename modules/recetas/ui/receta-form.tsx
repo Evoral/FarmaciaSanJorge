@@ -84,6 +84,8 @@ interface ComponenteState {
   unidadReferenciaId?: string;
   /** The picked droga's unidad base: a % is always in it (its magnitude says whether it is weighed or measured). */
   unidadBaseId?: string;
+  /** Migration 0133: true when the picked droga accepts U.I. in recetas. */
+  seDosificaEnUi?: boolean;
   /** `importar` mode: the drug name as printed on the receta. */
   drogaTexto?: string;
   /** `importar` mode: the catalog had no match -- the user picks it and may remember the equivalence. */
@@ -1126,7 +1128,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                         </label>
                         <select id={`item-${itemIdx}-unidad-total`} value={item.unidadTotalId} onChange={(e) => actualizarItem(itemIdx, { unidadTotalId: e.target.value, componentes: referenciasSegunTotal(item.componentes, e.target.value, unidades) })} className="input min-w-0 flex-1">
                           <option value="">Sin unidad</option>
-                          <OpcionesUnidad unidades={unidades} />
+                          <OpcionesUnidad unidades={unidades.filter((u) => u.tipoMagnitud !== "ACTIVIDAD")} />
                         </select>
                       </div>
                     </div>
@@ -1174,17 +1176,24 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                             selectedLabel={c.drogaNombre}
                             selectedSinonimo={c.sinonimo}
                             selectedSinonimoId={c.drogaAliasId}
-                            onSelect={(droga) =>
+                            onSelect={(droga) => {
                               // A new pick (or a clear) always replaces the synonym: it belongs to the droga it was picked with.
+                              const esUiActual = magnitudDe(c.unidadMedidaId, unidades) === "ACTIVIDAD";
+                              const unidadMedidaId = droga
+                                ? esPorcentaje(c) || (esUiActual && !droga.seDosificaEnUi)
+                                  ? droga.unidadBaseId
+                                  : c.unidadMedidaId || droga.unidadBaseId
+                                : "";
                               actualizarComponente(itemIdx, compIdx, {
                                 drogaId: droga?.drogaId ?? "",
                                 drogaNombre: droga?.nombre ?? "",
                                 drogaAliasId: droga?.drogaAliasId ?? null,
                                 sinonimo: droga?.sinonimo ?? null,
                                 unidadBaseId: droga?.unidadBaseId,
-                                unidadMedidaId: droga ? (esPorcentaje(c) ? droga.unidadBaseId : c.unidadMedidaId || droga.unidadBaseId) : "",
-                              })
-                            }
+                                seDosificaEnUi: droga?.seDosificaEnUi ?? false,
+                                unidadMedidaId,
+                              });
+                            }}
                           />
                         </div>
 
@@ -1199,12 +1208,21 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                               const modoExpresion = e.target.value as ModoExpresion;
                               const cantidad = modoExpresion === "CS" || modoExpresion === "CSP" ? "" : c.cantidad;
                               // Concentración starts as the usual "mg por mL"; leaving it drops the "por" unit.
+                              const esUiActual = magnitudDe(c.unidadMedidaId, unidades) === "ACTIVIDAD";
                               const patchUnidades =
                                 modoExpresion === "CONCENTRACION" && c.modoExpresion !== "CONCENTRACION"
-                                  ? { unidadMedidaId: unidadMgId || c.unidadMedidaId, unidadReferenciaId: referenciaPorDefecto(item.unidadTotalId, unidades, unidadesTotal.mililitroId) }
-                                  : modoExpresion !== "CONCENTRACION"
-                                    ? { unidadReferenciaId: "" }
-                                    : {};
+                                  ? {
+                                      unidadMedidaId: esUiActual ? c.unidadMedidaId : unidadMgId || c.unidadMedidaId,
+                                      unidadReferenciaId: referenciaPorDefecto(item.unidadTotalId, unidades, unidadesTotal.mililitroId),
+                                    }
+                                  : modoExpresion === "CS" || modoExpresion === "CSP"
+                                    ? {
+                                        unidadReferenciaId: "",
+                                        ...(esUiActual ? { unidadMedidaId: c.unidadBaseId ?? "" } : {}),
+                                      }
+                                    : modoExpresion !== "CONCENTRACION"
+                                      ? { unidadReferenciaId: "" }
+                                      : {};
                               actualizarComponente(itemIdx, compIdx, { modoExpresion, cantidad, ...patchUnidades });
                             }}
                             aria-label={`Componente ${compIdx + 1}: modo de expresión`}
@@ -1242,6 +1260,7 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                             </label>
                             <select
                               id={`item-${itemIdx}-comp-${compIdx}-unidad`}
+                              name={`item-${itemIdx}-comp-${compIdx}-unidad`}
                               value={esPorcentaje(c) ? PORCENTAJE : c.unidadMedidaId}
                               onChange={(e) =>
                                 actualizarComponente(
@@ -1260,7 +1279,13 @@ export function RecetaForm({ mode, unidades, disabled, recetaId, inicial, vistaP
                             >
                               <option value="">Elegir unidad</option>
                               {c.modoExpresion === "CONCENTRACION" ? <option value={PORCENTAJE}>% del total</option> : null}
-                              <OpcionesUnidad unidades={unidades} />
+                              <OpcionesUnidad
+                                unidades={unidades.filter(
+                                  (u) =>
+                                    u.tipoMagnitud !== "ACTIVIDAD" ||
+                                    ((c.seDosificaEnUi ?? false) && c.modoExpresion !== "CS" && c.modoExpresion !== "CSP"),
+                                )}
+                              />
                             </select>
                           </div>
 
