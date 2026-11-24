@@ -136,6 +136,7 @@ export async function construirVistaPrevia(
     await listUnidadesVigentesParaMatch(tx),
   ];
   const nombrePorId = new Map(drogas.map((d) => [d.id, d.nombre]));
+  const seDosificaEnUiPorId = new Map(drogas.map((d) => [d.id, d.seDosificaEnUi ?? false]));
   const componentes: ComponenteVistaPrevia[][] = borrador.items.map((item) =>
     item.componentes.map((c) => {
       const droga = resolverDroga(c.drogaTexto, aliases, drogas);
@@ -153,6 +154,7 @@ export async function construirVistaPrevia(
         drogaAliasId: droga?.aliasId ?? null,
         sinonimo: droga?.sinonimo ?? null,
         unidadMedidaId: unidad?.id ?? null,
+        seDosificaEnUi: droga ? (seDosificaEnUiPorId.get(droga.drogaId) ?? false) : false,
       };
     }),
   );

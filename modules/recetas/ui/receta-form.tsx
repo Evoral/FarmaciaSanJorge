@@ -386,6 +386,7 @@ function itemsDesdeVistaPrevia(vista: VistaPreviaImportacion, defaults: Unidades
         cantidad: c.cantidad,
         unidadMedidaId: match?.unidadMedidaId ?? "",
         modoExpresion: c.modoExpresion,
+        seDosificaEnUi: match?.seDosificaEnUi ?? false,
         drogaTexto: c.drogaTexto,
         sinMatch: !match?.drogaId,
         recordar: false,

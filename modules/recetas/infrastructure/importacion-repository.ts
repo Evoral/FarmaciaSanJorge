@@ -180,7 +180,7 @@ export async function completarMedico(
 
 /** Every vigente, prescribable droga of the tenant (id + nombre; MATERIAL rows are never prescribed) -- the catalog is small; normalized comparison happens in the domain. */
 export async function listDrogasVigentesParaMatch(tx: Prisma.TransactionClient, tenantId: string): Promise<DrogaCandidata[]> {
-  return tx.droga.findMany({ where: { tenantId, fechaBaja: null, clase: { not: "MATERIAL" } }, select: { id: true, nombre: true } });
+  return tx.droga.findMany({ where: { tenantId, fechaBaja: null, clase: { not: "MATERIAL" } }, select: { id: true, nombre: true, seDosificaEnUi: true } });
 }
 
 /** Vigente synonyms among `aliasesNormalizados` whose droga is still vigente and prescribable (not MATERIAL). */

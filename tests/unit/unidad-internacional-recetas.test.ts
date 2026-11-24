@@ -12,6 +12,8 @@ import {
   type UnidadParaCordura,
 } from "@/modules/recetas/domain/receta";
 import { crearRecetaInput } from "@/modules/recetas/application/crear-receta";
+import { resolverUnidad, type UnidadCandidata } from "@/modules/recetas/domain/importacion-receta";
+import { parsearCuerpo } from "@/modules/recetas/domain/receta-pdf-parser";
 
 const DROGA_UI_ID = "11111111-1111-4111-8111-111111111111";
 const DROGA_MASA_ID = "22222222-2222-4222-8222-222222222222";
@@ -151,5 +153,29 @@ describe("recetas U.I. validation (UI3)", () => {
       ],
     });
     expect(parsed.success).toBe(false);
+  });
+});
+
+describe("receta import U.I. mapping (task 3.2)", () => {
+  const UNIDADES: UnidadCandidata[] = [
+    { id: UNIDAD_G_ID, codigo: "GRAMO", simbolo: "g" },
+    { id: UNIDAD_UI_ID, codigo: "UNIDAD_INTERNACIONAL", simbolo: "U.I." },
+  ];
+
+  it("maps UI, U.I., UI. (case-insensitive) to UNIDAD_INTERNACIONAL", () => {
+    for (const token of ["UI", "ui", "U.I.", "u.i.", "UI.", "ui."]) {
+      expect(resolverUnidad(token, UNIDADES)?.id).toBe(UNIDAD_UI_ID);
+    }
+  });
+
+  it("parses U.I., UI., and UI component lines in PDF text", () => {
+    const parsed = parsearCuerpo([
+      "Vitamina D3 50000 U.I.",
+      "Vitamina A 10000 UI.",
+      "Vitamina E 400 ui",
+      "30 cápsulas",
+    ]);
+    const unidades = parsed.item.componentes.map((c) => c.unidadTexto);
+    expect(unidades).toEqual(["U.I.", "UI.", "ui"]);
   });
 });
