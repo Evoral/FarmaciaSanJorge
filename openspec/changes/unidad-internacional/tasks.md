@@ -32,23 +32,23 @@ The user applies migrations by hand; the implementer writes them and never runs 
 
 ## 5. Preparaciones
 - [x] 5.1 `potencia.ts`: tagged factor (PORCENTAJE / ACTIVIDAD); % path unchanged
-- [ ] 5.2 `reparto-linea.ts` + callers: no `convertirCantidad` for ACTIVIDAD líneas; candidate partidas by kind
-- [ ] 5.3 Cantidad manual por falta de equivalencia (UI7): reserva dialog, toma, confirmation, detail; highlighted;
+- [x] 5.2 `reparto-linea.ts` + callers: no `convertirCantidad` for ACTIVIDAD líneas; candidate partidas by kind
+- [x] 5.3 Cantidad manual por falta de equivalencia (UI7): reserva dialog, toma, confirmation, detail; highlighted;
       `equivalencia_manual` on reserva and movements
-- [ ] 5.4 `pesada-real.ts`: precision of an ACTIVIDAD línea from the droga's unidad base; `cantidad_real` readers
-- [ ] 5.5 Excipiente notice when an ACTIVIDAD línea blocks `pesoDeDrogas` (UI8)
+- [x] 5.4 `pesada-real.ts`: precision of an ACTIVIDAD línea from the droga's unidad base; `cantidad_real` readers
+- [x] 5.5 Excipiente notice when an ACTIVIDAD línea blocks `pesoDeDrogas` (UI8)
 
 ## 6. Precios
-- [ ] 6.1 `calcular-cotizacion.ts`: ACTIVIDAD línea costed through the first U.I. partida (FEFO); else sin precio
+- [x] 6.1 `calcular-cotizacion.ts`: ACTIVIDAD línea costed through the first U.I. partida (FEFO); else sin precio
 
 ## 7. Specs and tests
-- [ ] 7.1 Unit tests: `actividad.ts`, `potencia.ts` ACTIVIDAD path, reparto with two U.I. lots, cotización sin precio,
+- [x] 7.1 Unit tests: `actividad.ts`, `potencia.ts` ACTIVIDAD path, reparto with two U.I. lots, cotización sin precio,
       receta validation, ficha R4 with U.I.
-- [ ] 7.2 DB tests (`tests/db`): INV-S12 for %, U.I., enrase manual, equivalencia manual, mixed (refused); partida
+- [x] 7.2 DB tests (`tests/db`): INV-S12 for %, U.I., enrase manual, equivalencia manual, mixed (refused); partida
       CHECKs and triggers
-- [ ] 7.3 Etiqueta and libro scenarios (UI10)
-- [ ] 7.4 `npm run specs:validate`
+- [x] 7.3 Etiqueta and libro scenarios (UI10)
+- [x] 7.4 `npm run specs:validate`
 
 ## 8. Verification (local, CI is off)
-- [ ] 8.1 `npm run typecheck`, `npm run lint`, `npm test`
-- [ ] 8.2 State what was NOT verified (browser flows are checked by the user)
+- [x] 8.1 `npm run typecheck`, `npm run lint`, `npm test`
+- [x] 8.2 State what was NOT verified (browser flows are checked by the user)

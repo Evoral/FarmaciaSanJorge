@@ -215,6 +215,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   cantidad: "Cantidad",
   cantidadCompra: "Cantidad comprada",
   cantidadManual: "Cantidad real registrada",
+  equivalenciaManual: "Cantidad manual por falta de equivalencia",
   cantidadReal: "Cantidad real pesada",
   // Lotes elaborados (openspec/changes/lotes-elaborados)
   cantidadProducida: "Cantidad producida",

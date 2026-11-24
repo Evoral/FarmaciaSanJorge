@@ -134,7 +134,7 @@ export function reservasDelPlan(plan: readonly LineaPlanificada[]): ReservaDePre
       partidaId,
       cantidad: (split.find((parte) => parte.partidaId === partidaId)?.cantidad ?? 0).toString(),
       cantidadManual: esManual && elegido.cantidadManual ? elegido.cantidadManual.toString() : null,
-      equivalenciaManual: esEquivalenciaManual,
+      ...(esEquivalenciaManual ? { equivalenciaManual: true } : {}),
       motivoAperturaAdicional: elegido.motivoAperturaAdicional ?? null,
       cantidadReal: !esManual && elegido.cantidadReal ? elegido.cantidadReal.toString() : null,
       pesadaAutorizadaPorId: elegido.pesadaAutorizadaPorId ?? null,
