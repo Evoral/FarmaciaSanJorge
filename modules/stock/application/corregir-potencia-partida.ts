@@ -73,7 +73,7 @@ export const corregirPotenciaPartidaCommand = defineCommand({
     const partida = await getPartidaParaAccion(tx, session.tenantId, input.id);
     if (!partida) throw new NotFoundError("Partida no encontrada.");
 
-    const esUi = partida.actividadDeclarada !== null;
+    const esUi = partida.actividadDeclarada != null;
     const campoObjetivo = esUi ? "actividadDeclaradaNueva" : "potenciaDeclaradaNueva";
 
     // Guard: cannot correct purity/activity if the partida is currently reserved in an in-progress preparation
@@ -109,7 +109,7 @@ export const corregirPotenciaPartidaCommand = defineCommand({
       }
 
       return {
-        output: { id: input.id, potenciaDeclarada: null, actividadDeclarada: actividadNueva },
+        output: { id: input.id, potenciaDeclarada: null as string | null, actividadDeclarada: actividadNueva as string | null },
         audit: {
           entidadId: input.id,
           valorAnterior: { actividadDeclarada: actividadAnterior },
@@ -137,7 +137,7 @@ export const corregirPotenciaPartidaCommand = defineCommand({
     }
 
     return {
-      output: { id: input.id, potenciaDeclarada: potenciaNueva, actividadDeclarada: null },
+      output: { id: input.id, potenciaDeclarada: potenciaNueva, actividadDeclarada: null as string | null },
       audit: {
         entidadId: input.id,
         valorAnterior: { potenciaDeclarada: potenciaAnterior },

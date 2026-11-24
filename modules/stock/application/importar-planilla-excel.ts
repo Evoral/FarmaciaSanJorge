@@ -33,7 +33,7 @@ const MAX_FILAS_IMPORTACION = 1000;
 
 export interface CeldaNoReconocida {
   fila: number;
-  columna: "Droga" | "Lote" | "Vencimiento" | "Cantidad" | "Unidad" | "Potencia" | "Costo" | "Proveedor";
+  columna: "Droga" | "Lote" | "Vencimiento" | "Cantidad" | "Unidad" | "Potencia" | "U.I./g" | "Costo" | "Proveedor";
   valor: string;
   motivo: string;
 }

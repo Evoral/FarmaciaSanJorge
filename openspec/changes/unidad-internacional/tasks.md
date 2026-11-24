@@ -25,10 +25,10 @@ The user applies migrations by hand; the implementer writes them and never runs 
 
 ## 4. Stock
 - [x] 4.1 `modules/stock/domain/actividad.ts`: parse "X U.I. cada Y <masa>" ↔ U.I./g (decimal.js)
-- [ ] 4.2 Partida input "en gramos / en U.I." in every creation path: `ingresar-partida`, `importar-factura-compra`,
+- [x] 4.2 Partida input "en gramos / en U.I." in every creation path: `ingresar-partida`, `importar-factura-compra`,
       `guardar-fila-relevamiento`, `importar-planilla-excel`, `pasar-grupo-a-stock`, `elaborar-lote` (dilución)
-- [ ] 4.3 `corregir-potencia-partida`: correct `actividad_declarada`; panel shows % or U.I./g
-- [ ] 4.4 Partida detail and lists show "100 U.I./g" for U.I. lots
+- [x] 4.3 `corregir-potencia-partida`: correct `actividad_declarada`; panel shows % or U.I./g
+- [x] 4.4 Partida detail and lists show "100 U.I./g" for U.I. lots
 
 ## 5. Preparaciones
 - [x] 5.1 `potencia.ts`: tagged factor (PORCENTAJE / ACTIVIDAD); % path unchanged

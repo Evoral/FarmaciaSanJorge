@@ -431,8 +431,6 @@ export async function listPartidasHistorial(tx: Prisma.TransactionClient, filter
       fechaVencimiento: true,
       fechaVencimientoVigente: true,
       fechaApertura: true,
-      potenciaDeclarada: true,
-      actividadDeclarada: true,
       origen: true,
       potenciaDeclarada: true,
       actividadDeclarada: true,
