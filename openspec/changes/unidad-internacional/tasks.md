@@ -15,7 +15,7 @@ The user applies migrations by hand; the implementer writes them and never runs 
 
 ## 2. Catalog and drogas
 - [x] 2.1 Add `"ACTIVIDAD"` to every `TipoMagnitud` union and `unidadesBase` resolver
-- [ ] 2.2 Droga alta/edit (shared form): "Se dosifica en U.I." for clase DROGA; use case + repository
+- [x] 2.2 Droga alta/edit (shared form): "Se dosifica en U.I." for clase DROGA; use case + repository
 
 ## 3. Recetas and ficha
 - [ ] 3.1 `modules/recetas`: U.I. componentes only for marked drogas, modes TOTAL / POR_DOSIS / CONCENTRACION with

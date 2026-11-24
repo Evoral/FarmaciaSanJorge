@@ -67,8 +67,12 @@ import { nonEmptyString, uuid } from "@/shared/validation";
 import {
   CLASES_DROGA,
   MENSAJE_INSUMO_CONTROLADO,
+  MENSAJE_UI_PARTIDAS_EN_STOCK,
+  MENSAJE_UI_REQUIERE_MASA,
+  MENSAJE_UI_SOLO_DROGA,
   TIPOS_CONTROL,
   claseValida,
+  seDosificaEnUiValida,
   tipoControlValido,
   puedeCambiarClasificacion,
   nonNegativeDecimalString,
@@ -83,6 +87,7 @@ import {
   getEtiquetasUnidades,
   lockDrogaParaAccion,
   tieneAlgunaPartida,
+  tienePartidaUiConStock,
   updateDrogaDatos,
 } from "../infrastructure/droga-repository";
 import { insertSinonimo, listSinonimosDeDroga, quitarSinonimo } from "../infrastructure/sinonimo-repository";
@@ -100,6 +105,8 @@ const editarDrogaInput = z.object({
   stockMinimo: nonNegativeDecimalString,
   /** Migration 0120: a preference, not part of the version check; omitted = untouched. */
   sugerirDilucion: z.boolean().optional(),
+  /** Migration 0133: omitted = untouched. */
+  seDosificaEnUi: z.boolean().optional(),
   sinonimos: z.array(z.string().max(SINONIMO_MAX_LARGO, `Como máximo ${SINONIMO_MAX_LARGO} caracteres.`)).max(50).optional(),
   sinonimosCargados: z.array(uuid).max(50).default([]),
   /** Required only when the edit makes the droga controlled with the contralor activo (R12); ignored otherwise. */
@@ -127,6 +134,8 @@ export interface EditarDrogaInput {
   stockMinimo: string;
   /** "Sugerir lote diluido" (migration 0120); omitted = untouched. */
   sugerirDilucion?: boolean;
+  /** "Se dosifica en U.I." (migration 0133); omitted = untouched. */
+  seDosificaEnUi?: boolean;
   /** The "Otros nombres" rows as edited, positional (row `i` = field `sinonimo-i`); omitted = synonyms untouched. */
   sinonimos?: string[];
   /** Ids of the synonyms the form showed when loaded. */
@@ -178,6 +187,22 @@ export const editarDrogaCommand = defineCommand({
     }
     const clase = input.clase ?? (actual.clase as ClaseDroga);
     if (!claseValida(clase, tipoControl)) throw new ValidationError(MENSAJE_INSUMO_CONTROLADO, { fields: ["clase", "tipoControl"] });
+
+    const seDosificaEnUi = input.seDosificaEnUi ?? actual.seDosificaEnUi;
+    if (!seDosificaEnUiValida(seDosificaEnUi, clase)) {
+      throw new ValidationError(MENSAJE_UI_SOLO_DROGA, { fields: ["seDosificaEnUi", "clase"] });
+    }
+    if (seDosificaEnUi) {
+      const unidad = await tx.unidadMedida.findUnique({ where: { id: unidadBaseId }, select: { tipoMagnitud: true } });
+      if (unidad?.tipoMagnitud !== "MASA") {
+        throw new ValidationError(MENSAJE_UI_REQUIERE_MASA, { fields: ["seDosificaEnUi", "unidadBaseId"] });
+      }
+    }
+    if (actual.seDosificaEnUi && !seDosificaEnUi) {
+      if (await tienePartidaUiConStock(tx, session.tenantId, input.id)) {
+        throw new ValidationError(MENSAJE_UI_PARTIDAS_EN_STOCK, { fields: ["seDosificaEnUi"] });
+      }
+    }
 
     const sinonimos = input.sinonimos ? await planificarSinonimos(tx, session.tenantId, input.id, input.nombre, input.sinonimos, input.sinonimosCargados) : null;
     const auditarSinonimo = (entidadId: string, accion: TipoAccion, valores: { valorAnterior?: Prisma.InputJsonValue; valorNuevo: Prisma.InputJsonValue }) =>
@@ -234,6 +259,7 @@ export const editarDrogaCommand = defineCommand({
         clase,
         stockMinimo: input.stockMinimo.toString(),
         ...(input.sugerirDilucion !== undefined ? { sugerirDilucion: input.sugerirDilucion } : {}),
+        ...(input.seDosificaEnUi !== undefined ? { seDosificaEnUi: input.seDosificaEnUi } : {}),
         ...(cambiaClasificacion ? { clasificacion: { unidadBaseId, esControlada, tipoControl } } : {}),
       },
       {
@@ -288,6 +314,7 @@ export const editarDrogaCommand = defineCommand({
           clase: actual.clase,
           stockMinimo: actual.stockMinimo,
           sugerirDilucion: actual.sugerirDilucion,
+          seDosificaEnUi: actual.seDosificaEnUi,
           ...(sinonimos ? { sinonimos: sinonimos.antes } : {}),
         },
         valorNuevo: {
@@ -299,6 +326,7 @@ export const editarDrogaCommand = defineCommand({
           clase,
           stockMinimo: input.stockMinimo.toString(),
           sugerirDilucion: input.sugerirDilucion ?? actual.sugerirDilucion,
+          seDosificaEnUi,
           ...(sinonimos ? { sinonimos: sinonimos.despues } : {}),
         },
       },

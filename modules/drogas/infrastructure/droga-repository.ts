@@ -193,6 +193,8 @@ export interface DrogaParaAccion {
   stockMinimo: string;
   /** Migration 0120: the pesada always suggests a diluted lot. */
   sugerirDilucion: boolean;
+  /** Migration 0133: accepts U.I. in recetas and U.I./g partidas. */
+  seDosificaEnUi: boolean;
   fechaBaja: Date | null;
   motivoBaja: string | null;
 }
@@ -200,7 +202,7 @@ export interface DrogaParaAccion {
 export async function getDrogaParaAccion(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<DrogaParaAccion | null> {
   const row = await tx.droga.findUnique({
     where: { id, tenantId },
-    select: { id: true, nombre: true, unidadBaseId: true, densidad: true, esControlada: true, tipoControl: true, clase: true, stockMinimo: true, sugerirDilucion: true, fechaBaja: true, motivoBaja: true },
+    select: { id: true, nombre: true, unidadBaseId: true, densidad: true, esControlada: true, tipoControl: true, clase: true, stockMinimo: true, sugerirDilucion: true, seDosificaEnUi: true, fechaBaja: true, motivoBaja: true },
   });
   if (!row) return null;
   return { ...row, densidad: row.densidad?.toString() ?? null, stockMinimo: row.stockMinimo.toString() };
@@ -250,6 +252,15 @@ export async function tieneAlgunaPartida(tx: Prisma.TransactionClient, tenantId:
   return row !== null;
 }
 
+/** Migration 0133: `se_dosifica_en_ui` cannot be unset while a U.I. partida has `cantidad_disponible > 0`. */
+export async function tienePartidaUiConStock(tx: Prisma.TransactionClient, tenantId: string, drogaId: string): Promise<boolean> {
+  const row = await tx.partida.findFirst({
+    where: { tenantId, drogaId, actividadDeclarada: { not: null }, cantidadDisponible: { gt: 0 } },
+    select: { id: true },
+  });
+  return row !== null;
+}
+
 /**
  * M1/M3 (review findings): locks the target droga row (`SELECT ... FOR
  * UPDATE`) BEFORE any caller reads its current state -- same discipline as
@@ -283,6 +294,7 @@ export interface NuevaDrogaInput {
   clase: PrismaClaseDroga;
   stockMinimo: string;
   sugerirDilucion: boolean;
+  seDosificaEnUi: boolean;
 }
 
 export async function insertDroga(tx: Prisma.TransactionClient, input: NuevaDrogaInput): Promise<{ id: string }> {
@@ -296,6 +308,7 @@ export async function insertDroga(tx: Prisma.TransactionClient, input: NuevaDrog
       clase: input.clase,
       stockMinimo: input.stockMinimo,
       sugerirDilucion: input.sugerirDilucion,
+      seDosificaEnUi: input.seDosificaEnUi,
     },
     select: { id: true },
   });
@@ -309,6 +322,8 @@ export interface EditarDrogaInput {
   clase: PrismaClaseDroga;
   /** Migration 0120: a preference, editable at any time; omitted = untouched. */
   sugerirDilucion?: boolean;
+  /** Migration 0133: editable while no U.I. partida has stock; omitted = untouched. */
+  seDosificaEnUi?: boolean;
   /** Present only when DP-12 allows the change (no partidas yet) -- see editar-droga.ts. */
   clasificacion?: { unidadBaseId: string; esControlada: boolean; tipoControl: PrismaTipoControl };
 }
@@ -339,6 +354,7 @@ export async function updateDrogaDatos(tx: Prisma.TransactionClient, tenantId: s
       clase: input.clase,
       stockMinimo: input.stockMinimo,
       ...(input.sugerirDilucion !== undefined ? { sugerirDilucion: input.sugerirDilucion } : {}),
+      ...(input.seDosificaEnUi !== undefined ? { seDosificaEnUi: input.seDosificaEnUi } : {}),
       ...(input.clasificacion
         ? { unidadBaseId: input.clasificacion.unidadBaseId, esControlada: input.clasificacion.esControlada, tipoControl: input.clasificacion.tipoControl }
         : {}),
@@ -397,6 +413,8 @@ export interface DrogaOpcion {
   /** Símbolo of the unidad base: the unit a fórmula component's quantity is typed in. */
   unidadBaseSimbolo: string;
   clase: PrismaClaseDroga;
+  /** Migration 0133: true when recetas and partidas can use U.I. for this droga. */
+  seDosificaEnUi: boolean;
   /** Vigente synonyms, as typed: client-filtered pickers search them too (openspec/specs/sinonimos-droga/spec.md). */
   sinonimos: string[];
 }
@@ -406,7 +424,7 @@ export async function listDrogasOpciones(tx: Prisma.TransactionClient, tenantId:
   const rows = await tx.droga.findMany({
     where: { tenantId, fechaBaja: null },
     orderBy: [{ nombre: "asc" }],
-    select: { id: true, nombre: true, unidadBaseId: true, clase: true, unidadBase: { select: { tipoMagnitud: true, simbolo: true } } },
+    select: { id: true, nombre: true, unidadBaseId: true, clase: true, seDosificaEnUi: true, unidadBase: { select: { tipoMagnitud: true, simbolo: true } } },
   });
   const sinonimos = await listSinonimosVigentes(tx, tenantId);
   return rows.map((row) => ({
@@ -416,6 +434,7 @@ export async function listDrogasOpciones(tx: Prisma.TransactionClient, tenantId:
     tipoMagnitud: row.unidadBase.tipoMagnitud,
     unidadBaseSimbolo: row.unidadBase.simbolo,
     clase: row.clase,
+    seDosificaEnUi: row.seDosificaEnUi,
     sinonimos: sinonimos.get(row.id) ?? [],
   }));
 }

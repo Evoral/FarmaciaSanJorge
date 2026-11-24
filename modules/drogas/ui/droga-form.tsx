@@ -57,6 +57,8 @@ export interface DrogaFormProps {
     stockMinimo: string;
     /** Migration 0120: the pesada always suggests a diluted lot. */
     sugerirDilucion: boolean;
+    /** Migration 0133: accepts U.I. in recetas and U.I./g partidas. */
+    seDosificaEnUi?: boolean;
     tienePartidas: boolean;
     /** Vigente synonyms, as typed. */
     sinonimos: readonly { id: string; texto: string }[];
@@ -91,6 +93,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
   const [sinonimos, setSinonimos] = useState(() => filasCargadas(droga));
   const [siguienteKey, setSiguienteKey] = useState(0);
   const [tipoControl, setTipoControl] = useState(droga?.tipoControl ?? "NINGUNO");
+  const [seDosificaEnUi, setSeDosificaEnUi] = useState(droga?.seDosificaEnUi ?? false);
   // Bumped after each alta so the fórmula section starts empty for the next one.
   const [altas, setAltas] = useState(0);
   const avisoId = useId();
@@ -132,6 +135,7 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
   function onSuccess(state: { message?: string; droga?: DrogaCreada }) {
     setNombre("");
     setUnidadBaseId("");
+    setSeDosificaEnUi(false);
     setSinonimos([]);
     setAltas((n) => n + 1);
     if (onCreada && state.droga) {
@@ -349,6 +353,29 @@ export function DrogaForm({ mode, unidades, droga, disabled, volverA, nombreInic
         <NumeroInput id="stockMinimo" name="stockMinimo" defaultValue={numeroParaInput(droga?.stockMinimo ?? "0")} required disabled={disabled} className="input font-mono" />
         <p className="field-help">En principio activo: con lotes diluidos, la alerta compara el stock activo.</p>
       </div>
+
+      <input type="hidden" name="seDosificaEnUiEnviado" value="1" disabled={disabled} />
+      {clase === "DROGA" ? (
+        <div className="field">
+          <label htmlFor="seDosificaEnUi" className="toggle-switch items-start text-[0.8125rem] font-medium text-zinc-900">
+            <input
+              id="seDosificaEnUi"
+              name="seDosificaEnUi"
+              type="checkbox"
+              role="switch"
+              className="mt-0.5"
+              checked={seDosificaEnUi}
+              onChange={(e) => setSeDosificaEnUi(e.target.checked)}
+              disabled={disabled}
+              aria-describedby="seDosificaEnUi-ayuda"
+            />
+            Se dosifica en U.I.
+          </label>
+          <p id="seDosificaEnUi-ayuda" className="field-help">
+            Permite prescribir en unidades internacionales (U.I.) y cargar partidas en U.I./g. Requiere unidad base de masa (g, mg).
+          </p>
+        </div>
+      ) : null}
 
       <div className="field">
         <input type="hidden" name="sugerirDilucionEnviado" value="1" disabled={disabled} />
