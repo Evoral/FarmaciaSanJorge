@@ -92,6 +92,19 @@ describe("recetas U.I. validation (UI3)", () => {
     );
   });
 
+  it("fails closed when the droga is missing from the drogas map", () => {
+    const items = [
+      cremaItem([{ drogaId: "99999999-9999-4999-8999-999999999999", cantidad: "1000", unidadMedidaId: UNIDAD_UI_ID, modoExpresion: "TOTAL" }]),
+    ];
+
+    expect(() => validarComponentesUi(items, MAGNITUDES, DROGAS)).toThrowError(
+      expect.objectContaining({
+        constructor: ValidationError,
+        fields: ["item-0-comp-0-unidad"],
+      }),
+    );
+  });
+
   it("refuses U.I. in CS and CSP", () => {
     for (const modoExpresion of ["CS", "CSP"] as const) {
       const items = [

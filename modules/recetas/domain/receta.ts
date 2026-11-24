@@ -508,9 +508,10 @@ export function validarComponentesUi(
         );
       }
       const droga = drogas.get(c.drogaId);
-      if (droga && !droga.seDosificaEnUi) {
+      if (!droga || !droga.seDosificaEnUi) {
+        const etiquetaDroga = droga ? ` (${droga.nombre})` : "";
         throw new ValidationError(
-          `En el ítem ${n}, el componente ${m} (${droga.nombre}) no admite U.I.: habilitá «Se dosifica en U.I.» en el catálogo de drogas.`,
+          `En el ítem ${n}, el componente ${m}${etiquetaDroga} no admite U.I.: habilitá «Se dosifica en U.I.» en el catálogo de drogas.`,
           { fields },
         );
       }
