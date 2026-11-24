@@ -113,12 +113,12 @@ enum CaracterDesignacionDt {
   @@schema("fsj")
 }
 
-/// DP-07 PARCIALMENTE RESUELTA: only the unambiguous magnitudes are
-/// modeled. See migration 0006 header.
+/// DP-07 PARCIALMENTE RESUELTA: MASA, VOLUMEN, UNIDADES (0006) + ACTIVIDAD (0132, U.I.).
 enum TipoMagnitud {
   MASA
   VOLUMEN
   UNIDADES
+  ACTIVIDAD
 
   @@map("tipo_magnitud")
   @@schema("fsj")
@@ -699,6 +699,8 @@ model Droga {
   stockMinimo  Decimal     @default(0) @map("stock_minimo") @db.Decimal
   /// Migration 0120: the pesada always suggests a diluted lot of this droga, even when the balance can weigh the dose. Column-level UPDATE grant.
   sugerirDilucion Boolean  @default(false) @map("sugerir_dilucion")
+  /// Migration 0133: when true (only clase = DROGA, unidad_base of MASA), accepts U.I. in recetas and U.I./g partidas. Cannot unset while a U.I. partida has stock > 0. Column-level UPDATE grant.
+  seDosificaEnUi  Boolean  @default(false) @map("se_dosifica_en_ui")
   fechaBaja    DateTime?   @map("fecha_baja") @db.Timestamptz(6)
   motivoBaja   String?     @map("motivo_baja")
 
@@ -857,8 +859,10 @@ model Partida {
   /// INV-S16/S17: read-only from the app's perspective -- see migration 0008.
   fechaApertura           DateTime?     @map("fecha_apertura") @db.Timestamptz(6)
   motivoAperturaAdicional String?       @map("motivo_apertura_adicional")
-  /// Migration 0058: the lot's declared purity, in percent (0 < p <= 100, partida_potencia_declarada_check). NULL = 100% (no correction). Insert-only (no UPDATE grant).
+  /// Migration 0058: the lot's declared purity, in percent (0 < p <= 100, partida_potencia_declarada_check). NULL = 100% (no correction). Column-level UPDATE grant (0111).
   potenciaDeclarada       Decimal?      @map("potencia_declarada") @db.Decimal
+  /// Migration 0133: declared activity of the lot in U.I. per gram of physical lot (> 0). Exclusive with potenciaDeclarada; requires droga.seDosificaEnUi; kind (NULL vs NOT NULL) immutable after insert. Column-level UPDATE grant.
+  actividadDeclarada      Decimal?      @map("actividad_declarada") @db.Decimal
   /// Migration 0062: the supplier invoice the lot was imported from (NULL = manual alta). Insert-only.
   comprobanteCompraId     String?       @map("comprobante_compra_id") @db.Uuid
   /// Migration 0062: import traceability printed under the lot on the invoice. Insert-only.
@@ -932,6 +936,10 @@ model MovimientoStock {
   lineaPesajeId         String?        @map("linea_pesaje_id") @db.Uuid
   /// Migration 0058: snapshot of the purity (percent) used to compute this EGRESO_PREPARACION's physical quantity (100 = partida without declared purity). NULL for every other movement and for manual-enrase lines (no correction).
   potenciaAplicada      Decimal?       @map("potencia_aplicada") @db.Decimal
+  /// Migration 0133: snapshot of the activity (U.I./g) used to compute this EGRESO_PREPARACION's physical quantity. Exclusive with potenciaAplicada; NULL for non-U.I. movements and manual lines.
+  actividadAplicada     Decimal?       @map("actividad_aplicada") @db.Decimal
+  /// Migration 0133: true when this EGRESO_PREPARACION was weighed as a manual quantity due to missing U.I.<->mass equivalence on a seDosificaEnUi droga.
+  equivalenciaManual    Boolean        @default(false) @map("equivalencia_manual")
   /// Migration 0111: the elaboración an INGRESO_ELABORACION / EGRESO_ELABORACION belongs to; NULL for every other tipo.
   elaboracionLoteId     String?        @map("elaboracion_lote_id") @db.Uuid
 
@@ -1292,8 +1300,10 @@ model ReservaStock {
   partidaId               String   @map("partida_id") @db.Uuid
   /// Physical quantity the split takes from this partida; 0 = chosen but not needed by the split.
   cantidad                Decimal  @db.Decimal
-  /// Enrase manual líneas only (repeated on every row of the línea).
+  /// Enrase manual líneas only (repeated on every row of the línea), or equivalenciaManual líneas (0133).
   cantidadManual          Decimal? @map("cantidad_manual") @db.Decimal
+  /// Migration 0133: true when a non-enrase-manual línea is weighed manually (reusing cantidadManual) because no convertible partida exists.
+  equivalenciaManual      Boolean  @default(false) @map("equivalencia_manual")
   /// INV-S18 motivo of the línea (repeated on every row of the línea).
   motivoAperturaAdicional String?  @map("motivo_apertura_adicional")
   /// Migration 0088: non-manual líneas, the real weighed (physical) quantity in the línea's unit (repeated on every row of the línea).
