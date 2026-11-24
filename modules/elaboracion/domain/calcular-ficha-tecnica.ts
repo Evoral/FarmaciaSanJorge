@@ -22,7 +22,6 @@
  */
 import { Decimal, dec } from "@/shared/decimal";
 import { DomainError } from "@/shared/errors";
-import { formatNumero } from "@/shared/format/cantidad";
 import { cantidadDesdeConcentracion, problemaConcentracion, textoConcentracion } from "./concentracion";
 import { ordenarComponentes } from "./orden-componentes";
 
@@ -246,8 +245,8 @@ export function calcularFichaTecnica(
       const referencia = c.unidadReferencia ?? null;
       const totalEnBase = aBase(dec(item.cantidadTotal!), item.unidadTotal!);
       teoricaPorComponente.set(c, cantidadDesdeConcentracion(c.cantidad!, c.unidadMedida, referencia, totalEnBase));
-      const literal = textoConcentracion(formatNumero(dec(c.cantidad!)), c.unidadMedida.simbolo ?? "", referencia ? (referencia.simbolo ?? "") : null);
-      prescripcionPorComponente.set(c, `${literal} × ${formatNumero(dec(item.cantidadTotal!))} ${item.unidadTotal!.simbolo ?? ""}`.trimEnd());
+      const literal = textoConcentracion(dec(c.cantidad!), c.unidadMedida.simbolo ?? "", referencia ? (referencia.simbolo ?? "") : null);
+      prescripcionPorComponente.set(c, `${literal} × ${dec(item.cantidadTotal!).toString()} ${item.unidadTotal!.simbolo ?? ""}`.trimEnd());
     } else if (c.modoExpresion === "TOTAL") {
       teoricaPorComponente.set(c, aBase(dec(c.cantidad!), c.unidadMedida));
     } else if (c.modoExpresion === "POR_DOSIS") {

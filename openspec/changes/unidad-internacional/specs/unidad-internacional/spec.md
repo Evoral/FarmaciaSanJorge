@@ -43,7 +43,7 @@ A componente of a marked droga SHALL be loadable in U.I. as TOTAL, POR_DOSIS or 
 #### Scenario: Crema con concentración en U.I.
 - **GIVEN** a crema with total 50 g
 - **WHEN** a marked droga is loaded as CONCENTRACION 10.000 U.I./g
-- **THEN** the ficha's línea is 500.000 U.I. and its prescripción reads "10.000 U.I./g × 50 g"
+- **THEN** the ficha's línea is 500.000 U.I. and its prescripción reads "10000 U.I./g × 50 g"
 
 #### Scenario: Droga no marcada
 - **WHEN** a componente of an unmarked droga is loaded in U.I.

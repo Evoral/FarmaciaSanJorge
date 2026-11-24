@@ -15,6 +15,7 @@ import {
   type UnidadMedidaRef,
 } from "./calcular-ficha-tecnica";
 import { MAGNITUDES_CONCENTRACION } from "./concentracion";
+import { mismasLineasPesaje } from "./ficha-no-generable";
 
 // Mirrors the seed data in prisma/migrations/.../0006_unidades_medida.
 const GRAMO: UnidadMedidaRef = { id: "gramo", tipoMagnitud: "MASA", factorABase: 1, simbolo: "g" };
@@ -403,7 +404,7 @@ describe("calcularFichaTecnica -- U.I. (UI3 / R9)", () => {
     expect(lactosa.cantidadAPesar).toBeNull();
   });
 
-  it("UI3: crema 50 g con concentración 10.000 U.I./g -> 500.000 U.I. + exceso and prescripción '10.000 U.I./g × 50 g'", () => {
+  it("UI3: crema 50 g con concentración 10.000 U.I./g -> 500.000 U.I. + exceso and prescripción '10000 U.I./g × 50 g'", () => {
     const lineas = calcularFichaTecnica(
       item({ formaFarmaceutica: "CREMA", cantidadTotal: 50, unidadTotal: GRAMO }),
       [
@@ -426,11 +427,34 @@ describe("calcularFichaTecnica -- U.I. (UI3 / R9)", () => {
     expect(vitA.unidadMedida.id).toBe("ui");
     expect(vitA.cantidadTeorica!.toString()).toBe("500000");
     expect(vitA.cantidadAPesar!.toString()).toBe("525000");
-    expect(vitA.prescripcion).toBe("10.000 U.I./g × 50 g");
+    expect(vitA.prescripcion).toBe("10000 U.I./g × 50 g");
 
     // R4: mixed magnitudes (ACTIVIDAD vs MASA) -> CSP is manual.
     expect(cremaBase.esEnraseManual).toBe(true);
     expect(cremaBase.cantidadAPesar).toBeNull();
+  });
+
+  it("keeps a stored '0.5 % × 30 mL' concentration ficha current (mismasLineasPesaje / claveLinea)", () => {
+    const calculadas = calcularFichaTecnica(
+      item({ formaFarmaceutica: "SOLUCION", cantidadTotal: 30, unidadTotal: { ...MILILITRO, simbolo: "mL" } }),
+      [componente({ drogaId: "activo", cantidad: "0.5", unidadMedida: GRAMO, modoExpresion: "CONCENTRACION" })],
+      SIN_EXCESO,
+      UNIDADES_BASE,
+    );
+    expect(calculadas[0]!.prescripcion).toBe("0.5 % × 30 mL");
+    expect(
+      mismasLineasPesaje(calculadas, [
+        {
+          drogaId: "activo",
+          cantidadTeorica: "0.15",
+          excesoAplicado: "0",
+          cantidadAPesar: "0.15",
+          unidadMedidaId: GRAMO.id,
+          esEnraseManual: false,
+          prescripcion: "0.5 % × 30 mL",
+        },
+      ]),
+    ).toBe(true);
   });
 
   it("R9: crema 50 g con Vitamina A 500.000 U.I. TOTAL -> Vitamina A en U.I. y Crema base enrase manual (R4)", () => {
