@@ -38,6 +38,7 @@ import {
   NOMBRE_LOTE_MAX,
   aUnidadBase,
   aUnidadDeFormulario,
+  actividadDeDilucion,
   costoUnitarioDeLote,
   nombreSugeridoLote,
   potenciaDeDilucion,
@@ -170,6 +171,7 @@ export function ElaborarLoteForm({ inicial, onElaborado, extraActions }: Elabora
         cantidadDisponible: p.cantidadDisponible,
         costoUnitario: p.costoUnitario ?? "0",
         potenciaDeclarada: p.potenciaDeclarada,
+        actividadDeclarada: p.actividadDeclarada,
         fechaVencimiento: p.fechaVencimiento,
         drogaClase: p.drogaClase,
       },
@@ -190,11 +192,24 @@ export function ElaborarLoteForm({ inicial, onElaborado, extraActions }: Elabora
   // Red until it is filled: with lots in different units (mL and mg) nothing can be summed and it must be typed.
   const producidaPendiente = consumos.length > 0 && producida === null;
   const unidadesUsadas = [...new Set(consumos.map((c) => simboloDe(c.partidaId)))];
-  const potencia = datos && tipo === "DILUCION" && producida && consumos.some((c) => c.drogaId === datos.droga.id) ? potenciaDeDilucion(consumos, datos.droga.id, producida) : null;
+  const consumosDrogaProducida = datos ? consumos.filter((c) => c.drogaId === datos.droga.id) : [];
+  const dilucionEnUi = tipo === "DILUCION" && consumosDrogaProducida.some((c) => c.actividadDeclarada != null);
+  const dilucionMezclada =
+    tipo === "DILUCION" &&
+    consumosDrogaProducida.some((c) => c.actividadDeclarada != null) &&
+    consumosDrogaProducida.some((c) => c.actividadDeclarada == null);
+  const potencia =
+    datos && tipo === "DILUCION" && producida && consumosDrogaProducida.length > 0 && !dilucionEnUi
+      ? potenciaDeDilucion(consumos, datos.droga.id, producida)
+      : null;
+  const actividad =
+    datos && tipo === "DILUCION" && producida && consumosDrogaProducida.length > 0 && dilucionEnUi && !dilucionMezclada
+      ? actividadDeDilucion(consumos, datos.droga.id, producida)
+      : null;
   const conCosto = consumos.length > 0 && consumos.every((c) => partidasVisibles.find((p) => p.id === c.partidaId)?.costoUnitario !== null);
   const costo = conCosto && producida ? costoUnitarioDeLote(consumos, producida) : null;
   const vencimiento = vencimientoDelLote(consumos);
-  const nombre = nombreEditado ?? (datos ? nombreSugeridoLote(datos.droga.nombre, potencia) : "");
+  const nombre = nombreEditado ?? (datos ? nombreSugeridoLote(datos.droga.nombre, potencia, actividad) : "");
   const controlada = datos !== null && (datos.droga.tipoControl !== "NINGUNO" || consumos.some((c) => partidasVisibles.find((p) => p.id === c.partidaId)?.drogaTipoControl !== "NINGUNO"));
   const bloqueadaPorContralor = datos?.contralorActivo === true && controlada;
 
@@ -451,8 +466,16 @@ export function ElaborarLoteForm({ inicial, onElaborado, extraActions }: Elabora
           <dl className="summary-dl rounded-md border border-zinc-200 p-3" aria-live="polite">
             {tipo === "DILUCION" ? (
               <>
-                <dt>Concentración resultante</dt>
-                <dd className="font-mono tabular-nums">{potencia ? `${formatNumero(potencia, 6)} %` : "-"}</dd>
+                <dt>{dilucionEnUi ? "Actividad resultante" : "Concentración resultante"}</dt>
+                <dd className="font-mono tabular-nums">
+                  {dilucionMezclada
+                    ? "No se pueden mezclar lotes en U.I. y en gramos"
+                    : actividad
+                      ? `${formatNumero(actividad, 6)} U.I./g`
+                      : potencia
+                        ? `${formatNumero(potencia, 6)} %`
+                        : "-"}
+                </dd>
               </>
             ) : null}
             {costo ? (
@@ -537,7 +560,11 @@ function GrupoDeLotes({
                       {p.lote}
                     </label>
                     <span className="block text-xs text-zinc-500">
-                      {p.potenciaDeclarada !== null ? `Pureza ${formatNumero(p.potenciaDeclarada, 6)} %` : "Pureza 100 %"}
+                      {p.actividadDeclarada !== null
+                        ? `${formatNumero(p.actividadDeclarada, 6)} U.I./g`
+                        : p.potenciaDeclarada !== null
+                          ? `Pureza ${formatNumero(p.potenciaDeclarada, 6)} %`
+                          : "Pureza 100 %"}
                       {p.fechaApertura ? " · abierta" : ""}
                     </span>
                   </td>

@@ -97,6 +97,7 @@ export const elaborarLoteCommand = defineCommand({
         cantidadDisponible: p.cantidadDisponible,
         costoUnitario: p.costoUnitario,
         potenciaDeclarada: p.potenciaDeclarada,
+        actividadDeclarada: p.actividadDeclarada,
         fechaVencimiento: p.fechaVencimiento,
         drogaClase: p.drogaClase,
       };
@@ -125,6 +126,7 @@ export const elaborarLoteCommand = defineCommand({
       cantidadProducida: input.cantidadProducida.toString(),
       costoUnitario: lote.costoUnitario.toString(),
       potenciaDeclarada: lote.potenciaDeclarada?.toString() ?? null,
+      actividadDeclarada: lote.actividadDeclarada?.toString() ?? null,
       fechaVencimiento: lote.fechaVencimiento,
       nombre: input.nombre,
       aspecto: input.aspecto || null,
@@ -147,6 +149,7 @@ export const elaborarLoteCommand = defineCommand({
           aspecto: input.aspecto || null,
           cantidadProducida: `${input.cantidadProducida.toString()} ${droga.unidadBaseSimbolo}`,
           potenciaDeclarada: lote.potenciaDeclarada?.toString() ?? null,
+          actividadDeclarada: lote.actividadDeclarada?.toString() ?? null,
           costoUnitario: lote.costoUnitario.toString(),
           fechaVencimiento: lote.fechaVencimiento,
           consumos: consumos.map((c) => ({ droga: c.drogaNombre, lote: c.lote, cantidad: c.cantidad.toString() })),

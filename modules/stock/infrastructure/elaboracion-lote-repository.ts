@@ -33,6 +33,7 @@ export interface PartidaParaElaborar {
   cantidadDisponible: string;
   costoUnitario: string;
   potenciaDeclarada: string | null;
+  actividadDeclarada: string | null;
   /** Vencimiento VIGENTE, `YYYY-MM-DD`; `null` = does not expire. */
   fechaVencimiento: string | null;
   /** ISO-8601, `null` = never opened. */
@@ -50,6 +51,7 @@ interface PartidaParaElaborarRow {
   cantidad_disponible: string;
   costo_unitario: string;
   potencia_declarada: string | null;
+  actividad_declarada: string | null;
   fecha_vencimiento: string | null;
   fecha_apertura: string | null;
 }
@@ -60,7 +62,7 @@ function selectPartidas(where: Prisma.Sql): Prisma.Sql {
     SELECT p.id, p.lote, d.id AS droga_id, d.nombre AS droga_nombre, d.tipo_control::text AS tipo_control,
       d.clase::text AS droga_clase,
       u.simbolo AS unidad_base_simbolo, greatest(p.cantidad_disponible - r.reservado, 0)::text AS cantidad_disponible,
-      p.costo_unitario::text, p.potencia_declarada::text,
+      p.costo_unitario::text, p.potencia_declarada::text, p.actividad_declarada::text,
       p.fecha_vencimiento_vigente::text AS fecha_vencimiento, p.fecha_apertura::text
     FROM fsj.partida p
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
@@ -87,6 +89,7 @@ function aPartida(r: PartidaParaElaborarRow): PartidaParaElaborar {
     cantidadDisponible: r.cantidad_disponible,
     costoUnitario: r.costo_unitario,
     potenciaDeclarada: r.potencia_declarada,
+    actividadDeclarada: r.actividad_declarada,
     fechaVencimiento: r.fecha_vencimiento,
     fechaApertura: r.fecha_apertura,
   };
@@ -173,6 +176,7 @@ export interface NuevoLoteElaboradoInput {
   cantidadProducida: string;
   costoUnitario: string;
   potenciaDeclarada: string | null;
+  actividadDeclarada?: string | null;
   /** `YYYY-MM-DD`; `null` = does not expire (an insumo only, migration 0064). */
   fechaVencimiento: string | null;
   nombre: string;
@@ -199,6 +203,7 @@ export async function insertLoteElaborado(tx: Prisma.TransactionClient, input: N
       cantidadInicial: input.cantidadProducida,
       fechaVencimiento: input.fechaVencimiento ? new Date(`${input.fechaVencimiento}T00:00:00Z`) : null,
       potenciaDeclarada: input.potenciaDeclarada,
+      actividadDeclarada: input.actividadDeclarada ?? null,
       origen: "ELABORACION_PROPIA",
     },
     select: { id: true },
@@ -255,7 +260,7 @@ export interface ElaboracionDePartida {
   registradoEn: Date;
   observacion: string | null;
   /** The partidas it consumed, each quantity in its droga's unidad base. */
-  consumos: { partidaId: string; lote: string; drogaNombre: string; cantidad: string; unidadId: string; unidadSimbolo: string; potenciaDeclarada: string | null }[];
+  consumos: { partidaId: string; lote: string; drogaNombre: string; cantidad: string; unidadId: string; unidadSimbolo: string; potenciaDeclarada: string | null; actividadDeclarada: string | null }[];
 }
 
 /** The elaboración that PRODUCED `partidaId` (`null` for a bought or counted partida). */
@@ -281,9 +286,9 @@ export async function getElaboracionDePartida(tx: Prisma.TransactionClient, tena
   `;
   if (!cabecera) return null;
   const consumos = await tx.$queryRaw<
-    { partida_id: string; lote: string; droga_nombre: string; cantidad: string; unidad_id: string; unidad_simbolo: string; potencia_declarada: string | null }[]
+    { partida_id: string; lote: string; droga_nombre: string; cantidad: string; unidad_id: string; unidad_simbolo: string; potencia_declarada: string | null; actividad_declarada: string | null }[]
   >`
-    SELECT m.partida_id, p.lote, d.nombre AS droga_nombre, m.cantidad::text AS cantidad, u.id AS unidad_id, u.simbolo AS unidad_simbolo, p.potencia_declarada::text
+    SELECT m.partida_id, p.lote, d.nombre AS droga_nombre, m.cantidad::text AS cantidad, u.id AS unidad_id, u.simbolo AS unidad_simbolo, p.potencia_declarada::text, p.actividad_declarada::text
     FROM fsj.movimiento_stock m
     JOIN fsj.partida p ON p.tenant_id = m.tenant_id AND p.id = m.partida_id
     JOIN fsj.droga d ON d.tenant_id = p.tenant_id AND d.id = p.droga_id
@@ -308,6 +313,7 @@ export async function getElaboracionDePartida(tx: Prisma.TransactionClient, tena
       unidadId: c.unidad_id,
       unidadSimbolo: c.unidad_simbolo,
       potenciaDeclarada: c.potencia_declarada,
+      actividadDeclarada: c.actividad_declarada,
     })),
   };
 }
