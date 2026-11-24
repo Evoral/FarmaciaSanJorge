@@ -773,6 +773,21 @@ export async function planificarConsumoEnTx(
       );
     }
     const usables = frescas.filter((p) => !estaVencida(p.fechaVencimiento, jornada));
+    if (esEquivalenciaManual && linea.cantidadAPesar && (esActividad || mismaMagnitud(linea.unidad, linea.unidadStock))) {
+      const compatibles = partidasCompatiblesConLinea(usables, linea.unidad.tipoMagnitud);
+      if (compatibles.length > 0) {
+        const activoRequerido = esActividad
+          ? dec(linea.cantidadAPesar)
+          : convertirCantidad(dec(linea.cantidadAPesar), linea.unidad, linea.unidadStock);
+        const checkCompatible = repartirLinea(compatibles, activoRequerido, jornada, false, linea.unidadStock);
+        if (checkCompatible.ok) {
+          throw new DomainError(
+            `La línea ${linea.orden + 1} (${linea.drogaNombre}): Hay stock con equivalencia: la línea se calcula con el lote.`,
+            { fields: [`cantidadManual_${linea.id}`] },
+          );
+        }
+      }
+    }
     const candidatas = esEquivalenciaManual ? usables : partidasCompatiblesConLinea(usables, linea.unidad.tipoMagnitud);
 
     // The lots the user checked (openspec/specs/pesada-real/spec.md: the form pre-checks the automatic plan's): the split runs
