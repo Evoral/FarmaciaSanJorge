@@ -45,15 +45,20 @@
  */
 import { Decimal, dec } from "@/shared/decimal";
 import { convertirCantidad, mismaMagnitud, type UnidadDeConversion } from "@/shared/decimal/convertir-unidad";
-import { estaVencida, proponerReparto } from "@/modules/stock/domain/reparto";
+import { estaVencida, ordenarParaConsumo, proponerReparto } from "@/modules/stock/domain/reparto";
 import type { PartidaDisponible } from "@/modules/stock/domain/reparto";
+import { fisicoParaActivo, proponerRepartoActivo } from "@/modules/preparaciones/domain/potencia";
 import { calcularPrecioFinal } from "./regla-precio";
 import type { ReglasPrecio } from "./regla-precio";
 
 /** A partida as the repository reads it. `costoUnitario` no longer prices anything (R27): only the stock matters here. */
 export interface PartidaCosteo extends PartidaDisponible {
   costoUnitario: Decimal | string;
+  /** Migration 0133: declared activity (U.I./g), `null` for gram lots. */
+  actividadDeclarada?: string | null;
 }
+
+type PartidaParaCosteo = PartidaDisponible & { actividadDeclarada?: string | null; potenciaDeclarada?: string | null };
 
 export interface LineaCosteoInput {
   drogaId: string;
@@ -255,30 +260,80 @@ interface ConsumoSimulado {
  */
 function costearLinea(
   linea: LineaCosteoInput,
-  partidas: readonly PartidaDisponible[],
+  partidas: readonly PartidaParaCosteo[],
   jornadaActual: string,
 ): { detalle: LineaCotizacionDetalle; sinPrecio: boolean; consumo: { partidaId: string; cantidad: string }[] } {
   const requerida = dec(linea.cantidadAPesar as Decimal | string);
-  // Partidas are in the droga's unidad base: split in it, report the faltante back in the línea's unit.
-  const requeridaStock = convertirCantidad(requerida, linea.unidad, linea.unidadStock);
 
-  const disponible = totalDisponibleElegible(partidas, jornadaActual);
-  const aPedir = Decimal.min(requeridaStock, disponible);
-  const faltante = convertirCantidad(requeridaStock.minus(aPedir), linea.unidadStock, linea.unidad);
-
+  let requeridaStock: Decimal;
+  let faltante: Decimal;
   let consumo: { partidaId: string; cantidad: string }[] = [];
-  if (aPedir.greaterThan(0)) {
-    const resultado = proponerReparto(partidas, aPedir, jornadaActual);
-    // aPedir is, by construction, <= the eligible total -- proponerReparto
-    // always succeeds (ok: true) in that case; a `false` here would mean
-    // this function's own eligibility math disagrees with
-    // proponerReparto's, which is a bug worth surfacing loudly.
-    if (!resultado.ok) {
-      throw new Error(
-        `calcularCotizacion: proponerReparto rejected a request (${aPedir.toString()}) that should have been fully coverable by the eligible total (${disponible.toString()}) -- this indicates totalDisponibleElegible and proponerReparto's internal eligibility filter have drifted apart.`,
-      );
+
+  if (linea.unidad.tipoMagnitud === "ACTIVIDAD") {
+    // UI9: cost through the first U.I. partida in FEFO order; without one, sinPrecio (R27) and faltante in U.I.
+    const uiPartidas = ordenarParaConsumo(
+      partidas.filter((p) => p.actividadDeclarada !== null && p.actividadDeclarada !== undefined),
+      jornadaActual,
+    );
+    if (uiPartidas.length === 0) {
+      return {
+        sinPrecio: true,
+        consumo: [],
+        detalle: {
+          orden: linea.orden,
+          drogaId: linea.drogaId,
+          drogaNombre: linea.drogaNombre,
+          unidadSimbolo: linea.unidadSimbolo,
+          esEnraseManual: false,
+          cantidadRequerida: requerida.toString(),
+          partidas: [],
+          faltante: requerida.toFixed(),
+          subtotal: "0",
+        },
+      };
     }
-    consumo = resultado.lineas.map((l) => ({ partidaId: l.partidaId, cantidad: l.cantidad.toString() }));
+    const primera = uiPartidas[0]!;
+    requeridaStock = fisicoParaActivo(
+      requerida,
+      { tipo: "ACTIVIDAD", uiPorGramo: primera.actividadDeclarada! },
+      linea.unidadStock,
+    );
+    const conPotencia = uiPartidas.map((p) => ({ ...p, potenciaDeclarada: p.potenciaDeclarada ?? null }));
+    const repartoUi = proponerRepartoActivo(conPotencia, requerida, jornadaActual, linea.unidadStock);
+    if (repartoUi.ok) {
+      faltante = dec(0);
+      consumo = repartoUi.lineas.map((l) => ({ partidaId: l.partidaId, cantidad: l.cantidad.toString() }));
+    } else {
+      faltante = repartoUi.faltante;
+      const cubierto = requerida.minus(faltante);
+      if (cubierto.greaterThan(0)) {
+        const parcial = proponerRepartoActivo(conPotencia, cubierto, jornadaActual, linea.unidadStock);
+        if (parcial.ok) {
+          consumo = parcial.lineas.map((l) => ({ partidaId: l.partidaId, cantidad: l.cantidad.toString() }));
+        }
+      }
+    }
+  } else {
+    // Partidas are in the droga's unidad base: split in it, report the faltante back in the línea's unit.
+    requeridaStock = convertirCantidad(requerida, linea.unidad, linea.unidadStock);
+
+    const disponible = totalDisponibleElegible(partidas, jornadaActual);
+    const aPedir = Decimal.min(requeridaStock, disponible);
+    faltante = convertirCantidad(requeridaStock.minus(aPedir), linea.unidadStock, linea.unidad);
+
+    if (aPedir.greaterThan(0)) {
+      const resultado = proponerReparto(partidas, aPedir, jornadaActual);
+      // aPedir is, by construction, <= the eligible total -- proponerReparto
+      // always succeeds (ok: true) in that case; a `false` here would mean
+      // this function's own eligibility math disagrees with
+      // proponerReparto's, which is a bug worth surfacing loudly.
+      if (!resultado.ok) {
+        throw new Error(
+          `calcularCotizacion: proponerReparto rejected a request (${aPedir.toString()}) that should have been fully coverable by the eligible total (${disponible.toString()}) -- this indicates totalDisponibleElegible and proponerReparto's internal eligibility filter have drifted apart.`,
+        );
+      }
+      consumo = resultado.lineas.map((l) => ({ partidaId: l.partidaId, cantidad: l.cantidad.toString() }));
+    }
   }
 
   const base = {
@@ -361,7 +416,7 @@ function costearItemSinPrecio(
       continue;
     }
 
-    if (!mismaMagnitud(linea.unidad, linea.unidadStock)) {
+    if (linea.unidad.tipoMagnitud !== "ACTIVIDAD" && !mismaMagnitud(linea.unidad, linea.unidadStock)) {
       // Not convertible into the droga's unidad base (no density conversion): not costed, like a manual línea.
       esParcial = true;
       detalleLineas.push({
