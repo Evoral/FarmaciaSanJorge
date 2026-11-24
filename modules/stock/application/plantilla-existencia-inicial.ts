@@ -100,11 +100,13 @@ export const generarPlantillaExistenciaInicialQuery = defineQuery({
       },
       {
         campo: "Potencia",
-        detalle: "Porcentaje de potencia declarada (0 a 100). Opcional, con coma o punto decimal.",
+        detalle:
+          "Porcentaje de potencia declarada (0 a 100). Opcional en drogas comunes; para drogas dosificadas en U.I., indicá Potencia (ej: 100 para gramos) o U.I./g.",
       },
       {
         campo: "U.I./g",
-        detalle: "Actividad en U.I. por gramo (ej: 100 o 1000 U.I. cada 10 g), solo para drogas dosificadas en U.I. Excluyente con Potencia.",
+        detalle:
+          "Actividad en U.I. por gramo (ej: 100 o 1000 U.I. cada 10 g), solo para drogas dosificadas en U.I. Excluyente con Potencia; uno de los dos es obligatorio para esas drogas.",
       },
       {
         campo: "Costo",

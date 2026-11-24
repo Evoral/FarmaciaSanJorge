@@ -18,6 +18,9 @@ export const DIAS_RELEVAMIENTO_INICIAL_MAX = 90;
 export const MENSAJE_RELEVAMIENTO_CERRADO =
   "El relevamiento inicial está cerrado: ya no se puede cargar existencia inicial. Una diferencia de stock se corrige con un ajuste por diferencia de arqueo.";
 
+export const MENSAJE_RELEVAMIENTO_UI_REQUERIDO =
+  "Para una droga que se dosifica en U.I. indicá Potencia (%) (ej. 100 para gramos) o U.I./g.";
+
 export interface EstadoRelevamientoInicial {
   abierto: boolean;
   /** When the DT closed it, `null` when it was not closed by the DT (still open, or past its plazo). */
@@ -135,6 +138,9 @@ export function campoFaltanteFila(
   }
   if (droga && !droga.seDosificaEnUi && tieneActividad) {
     return { campo: "actividadDeclarada", motivo: "Esta droga no se dosifica en U.I." };
+  }
+  if (droga && droga.seDosificaEnUi && !tienePotencia && !tieneActividad) {
+    return { campo: "actividadDeclarada", motivo: MENSAJE_RELEVAMIENTO_UI_REQUERIDO };
   }
 
   return null;

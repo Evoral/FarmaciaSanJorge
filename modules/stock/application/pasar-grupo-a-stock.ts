@@ -222,7 +222,7 @@ export const pasarGrupoAStockCommand = defineCommand({
         cantidadCompra: totalCantidadBase.toFixed(),
         unidadCompraId: droga.unidadBaseId,
         costo: { porUnidadBase: costoFinal },
-        tipoIngreso: droga.seDosificaEnUi ? (actividad ? "UI" : "GRAMOS") : undefined,
+        tipoIngreso: droga.seDosificaEnUi ? (actividad ? "UI" : potencia ? "GRAMOS" : undefined) : undefined,
         potenciaDeclarada: actividad ? undefined : (potencia ?? undefined),
         actividadDeclarada: actividad ?? undefined,
       });

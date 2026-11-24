@@ -14,7 +14,10 @@ import {
   potenciaDeclaradaString,
 } from "../domain/partida";
 import { dec } from "@/shared/decimal";
-import { MENSAJE_RELEVAMIENTO_CERRADO } from "../domain/existencia-inicial";
+import {
+  MENSAJE_RELEVAMIENTO_CERRADO,
+  MENSAJE_RELEVAMIENTO_UI_REQUERIDO,
+} from "../domain/existencia-inicial";
 import { getDrogaParaIngreso } from "../infrastructure/partida-repository";
 import { upsertFilaRelevamiento } from "../infrastructure/relevamiento-fila-repository";
 import {
@@ -55,10 +58,15 @@ export const guardarFilaRelevamientoCommand = defineCommand({
         fields: ["actividadDeclarada", "potenciaDeclarada"],
       });
     }
-    if (input.actividadDeclarada && input.drogaId) {
+    if (input.drogaId) {
       const droga = await getDrogaParaIngreso(tx, session.tenantId, input.drogaId);
-      if (droga && !droga.seDosificaEnUi) {
+      if (droga && !droga.seDosificaEnUi && input.actividadDeclarada) {
         throw new ValidationError("Esta droga no se dosifica en U.I.", { fields: ["actividadDeclarada"] });
+      }
+      if (droga && droga.seDosificaEnUi && !input.potenciaDeclarada && !input.actividadDeclarada) {
+        throw new ValidationError(MENSAJE_RELEVAMIENTO_UI_REQUERIDO, {
+          fields: ["actividadDeclarada", "potenciaDeclarada"],
+        });
       }
     }
 

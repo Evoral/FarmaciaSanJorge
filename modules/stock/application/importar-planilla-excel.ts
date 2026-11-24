@@ -16,7 +16,10 @@ import { validarArchivoXlsx } from "@/shared/xlsx/validar-archivo-xlsx";
 import { leerLibroXlsx } from "@/shared/xlsx/leer-xlsx.server";
 import type { CeldaCruda } from "@/shared/xlsx/libro-hojas";
 import { fechaFinDeMes } from "@/shared/time/vencimiento-lote";
-import { MENSAJE_RELEVAMIENTO_CERRADO } from "../domain/existencia-inicial";
+import {
+  MENSAJE_RELEVAMIENTO_CERRADO,
+  MENSAJE_RELEVAMIENTO_UI_REQUERIDO,
+} from "../domain/existencia-inicial";
 import { parsearActividadOValor } from "../domain/partida";
 import {
   lockTenantRelevamientoCompartido,
@@ -468,6 +471,15 @@ export const importarPlanillaExcelCommand = defineCommand({
             motivo: "Actividad inválida",
           });
         }
+      }
+
+      if (drogaMatch && drogaMatch.seDosificaEnUi && potenciaDeclarada === null && actividadDeclarada === null) {
+        noReconocidos.push({
+          fila: filaExcel,
+          columna: "U.I./g",
+          valor: "",
+          motivo: MENSAJE_RELEVAMIENTO_UI_REQUERIDO,
+        });
       }
 
       // 7. Costo
