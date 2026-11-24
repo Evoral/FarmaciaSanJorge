@@ -14,9 +14,10 @@ import {
   type ParametrosPesaje,
   type UnidadMedidaRef,
 } from "./calcular-ficha-tecnica";
+import { MAGNITUDES_CONCENTRACION } from "./concentracion";
 
 // Mirrors the seed data in prisma/migrations/.../0006_unidades_medida.
-const GRAMO: UnidadMedidaRef = { id: "gramo", tipoMagnitud: "MASA", factorABase: 1 };
+const GRAMO: UnidadMedidaRef = { id: "gramo", tipoMagnitud: "MASA", factorABase: 1, simbolo: "g" };
 const MILIGRAMO: UnidadMedidaRef = { id: "miligramo", tipoMagnitud: "MASA", factorABase: 0.001 };
 const MILILITRO: UnidadMedidaRef = { id: "mililitro", tipoMagnitud: "VOLUMEN", factorABase: 1 };
 const UNIDAD: UnidadMedidaRef = { id: "unidad", tipoMagnitud: "UNIDADES", factorABase: 1 };
@@ -371,6 +372,85 @@ describe("calcularFichaTecnica -- R3/R7/R8 interplay", () => {
     );
 
     expect(lineas[0]!.cantidadAPesar!.toString()).toBe("10.123456");
+  });
+});
+
+describe("calcularFichaTecnica -- U.I. (UI3 / R9)", () => {
+  it("keeps MAGNITUDES_CONCENTRACION without ACTIVIDAD", () => {
+    expect(MAGNITUDES_CONCENTRACION.has("ACTIVIDAD")).toBe(false);
+  });
+
+  it("UI3: cápsulas de vitamina D3 50.000 U.I. POR_DOSIS -> 1.500.000 U.I. + exceso, CSP manual (R5)", () => {
+    const lineas = calcularFichaTecnica(
+      item({ formaFarmaceutica: "CAPSULA", cantidadUnidades: 30, fraccionDosisPorUnidad: 1 }),
+      [
+        componente({ drogaId: "vit-d3", cantidad: 50000, unidadMedida: UI, modoExpresion: "POR_DOSIS" }),
+        componente({ drogaId: "lactosa", unidadMedida: GRAMO, modoExpresion: "CSP" }),
+      ],
+      { excesoPesadaPorcentaje: 5 },
+      UNIDADES_BASE,
+    );
+
+    const vitD = lineas.find((l) => l.drogaId === "vit-d3")!;
+    const lactosa = lineas.find((l) => l.drogaId === "lactosa")!;
+
+    expect(vitD.unidadMedida.id).toBe("ui");
+    expect(vitD.cantidadTeorica!.toString()).toBe("1500000");
+    expect(vitD.cantidadAPesar!.toString()).toBe("1575000");
+    expect(vitD.esEnraseManual).toBe(false);
+
+    expect(lactosa.esEnraseManual).toBe(true);
+    expect(lactosa.cantidadAPesar).toBeNull();
+  });
+
+  it("UI3: crema 50 g con concentración 10.000 U.I./g -> 500.000 U.I. + exceso and prescripción '10.000 U.I./g × 50 g'", () => {
+    const lineas = calcularFichaTecnica(
+      item({ formaFarmaceutica: "CREMA", cantidadTotal: 50, unidadTotal: GRAMO }),
+      [
+        componente({
+          drogaId: "vit-a",
+          cantidad: 10000,
+          unidadMedida: UI,
+          modoExpresion: "CONCENTRACION",
+          unidadReferencia: GRAMO,
+        }),
+        componente({ drogaId: "crema-base", unidadMedida: GRAMO, modoExpresion: "CSP" }),
+      ],
+      { excesoPesadaPorcentaje: 5 },
+      UNIDADES_BASE,
+    );
+
+    const vitA = lineas.find((l) => l.drogaId === "vit-a")!;
+    const cremaBase = lineas.find((l) => l.drogaId === "crema-base")!;
+
+    expect(vitA.unidadMedida.id).toBe("ui");
+    expect(vitA.cantidadTeorica!.toString()).toBe("500000");
+    expect(vitA.cantidadAPesar!.toString()).toBe("525000");
+    expect(vitA.prescripcion).toBe("10.000 U.I./g × 50 g");
+
+    // R4: mixed magnitudes (ACTIVIDAD vs MASA) -> CSP is manual.
+    expect(cremaBase.esEnraseManual).toBe(true);
+    expect(cremaBase.cantidadAPesar).toBeNull();
+  });
+
+  it("R9: crema 50 g con Vitamina A 500.000 U.I. TOTAL -> Vitamina A en U.I. y Crema base enrase manual (R4)", () => {
+    const lineas = calcularFichaTecnica(
+      item({ formaFarmaceutica: "CREMA", cantidadTotal: 50, unidadTotal: GRAMO }),
+      [
+        componente({ drogaId: "vit-a", cantidad: 500000, unidadMedida: UI, modoExpresion: "TOTAL" }),
+        componente({ drogaId: "crema-base", unidadMedida: GRAMO, modoExpresion: "CSP" }),
+      ],
+      SIN_EXCESO,
+      UNIDADES_BASE,
+    );
+
+    const vitA = lineas.find((l) => l.drogaId === "vit-a")!;
+    const cremaBase = lineas.find((l) => l.drogaId === "crema-base")!;
+
+    expect(vitA.unidadMedida.id).toBe("ui");
+    expect(vitA.cantidadAPesar!.toString()).toBe("500000");
+    expect(cremaBase.esEnraseManual).toBe(true);
+    expect(cremaBase.cantidadAPesar).toBeNull();
   });
 });
 

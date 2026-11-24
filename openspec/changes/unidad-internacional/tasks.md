@@ -21,7 +21,7 @@ The user applies migrations by hand; the implementer writes them and never runs 
 - [x] 3.1 `modules/recetas`: U.I. componentes only for marked drogas, modes TOTAL / POR_DOSIS / CONCENTRACION with
       referencia (zod + domain); field error on the componente, form keeps input
 - [x] 3.2 Receta import (PDF/QR): map "UI", "U.I.", "UI." to `UNIDAD_INTERNACIONAL`
-- [ ] 3.3 `modules/elaboracion`: U.I. línea; keep `MAGNITUDES_CONCENTRACION` without ACTIVIDAD; R4/R5 scenarios
+- [x] 3.3 `modules/elaboracion`: U.I. línea; keep `MAGNITUDES_CONCENTRACION` without ACTIVIDAD; R4/R5 scenarios
 
 ## 4. Stock
 - [x] 4.1 `modules/stock/domain/actividad.ts`: parse "X U.I. cada Y <masa>" ↔ U.I./g (decimal.js)
