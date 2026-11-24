@@ -1117,6 +1117,7 @@ async function main(): Promise<void> {
           MASA: { id: gramoId, simbolo: "g", tipoMagnitud: "MASA", factorABase: "1" },
           VOLUMEN: { id: mililitroId, simbolo: "mL", tipoMagnitud: "VOLUMEN", factorABase: "1" },
           UNIDADES: { id: unidadId, simbolo: "u", tipoMagnitud: "UNIDADES", factorABase: "1" },
+          ACTIVIDAD: { id: "unidad-internacional", simbolo: "U.I.", tipoMagnitud: "ACTIVIDAD", factorABase: "1" },
         };
         const lineasCalculadas: LineaPesajeCalculada[] = calcularFichaTecnica(
           itemDominio,

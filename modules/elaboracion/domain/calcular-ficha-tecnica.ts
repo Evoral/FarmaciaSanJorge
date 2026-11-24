@@ -25,7 +25,7 @@ import { DomainError } from "@/shared/errors";
 import { cantidadDesdeConcentracion, problemaConcentracion, textoConcentracion } from "./concentracion";
 import { ordenarComponentes } from "./orden-componentes";
 
-export type TipoMagnitud = "MASA" | "VOLUMEN" | "UNIDADES";
+export type TipoMagnitud = "MASA" | "VOLUMEN" | "UNIDADES" | "ACTIVIDAD";
 
 /**
  * The subset of UnidadMedida fields the calculator needs. `factorABase` is
