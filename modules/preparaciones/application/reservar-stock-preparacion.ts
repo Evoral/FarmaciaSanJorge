@@ -126,29 +126,32 @@ export const reservarStockPreparacionCommand = defineCommand({
  * `registrarPerdidaReserva`.
  */
 export function reservasDelPlan(plan: readonly LineaPlanificada[]): ReservaDePreparacion[] {
-  return plan.flatMap(({ linea, elegido, split }) =>
-    elegido.partidaIds.map((partidaId) => ({
+  return plan.flatMap(({ linea, elegido, split }) => {
+    const esEquivalenciaManual = Boolean(!linea.esEnraseManual && elegido.equivalenciaManual);
+    const esManual = linea.esEnraseManual || esEquivalenciaManual;
+    return elegido.partidaIds.map((partidaId) => ({
       lineaPesajeId: linea.id,
       partidaId,
       cantidad: (split.find((parte) => parte.partidaId === partidaId)?.cantidad ?? 0).toString(),
-      cantidadManual: linea.esEnraseManual && elegido.cantidadManual ? elegido.cantidadManual.toString() : null,
+      cantidadManual: esManual && elegido.cantidadManual ? elegido.cantidadManual.toString() : null,
+      equivalenciaManual: esEquivalenciaManual,
       motivoAperturaAdicional: elegido.motivoAperturaAdicional ?? null,
-      cantidadReal: !linea.esEnraseManual && elegido.cantidadReal ? elegido.cantidadReal.toString() : null,
+      cantidadReal: !esManual && elegido.cantidadReal ? elegido.cantidadReal.toString() : null,
       pesadaAutorizadaPorId: elegido.pesadaAutorizadaPorId ?? null,
-    })),
-  );
+    }));
+  });
 }
 
 /**
  * What the audit records of the pesadas reales (openspec/specs/pesada-real/spec.md): per línea weighed for real, the expected
- * and real weight (línea unit) and, outside the tolerance, the DT who co-signed. Omitted when there is none.
+ * and real weight (línea unit, or unidadStock for ACTIVIDAD) and, outside the tolerance, the DT who co-signed. Omitted when there is none.
  */
 export function pesadasDelPlan(plan: readonly LineaPlanificada[]): { pesadasReales?: { droga: string; esperada: string; real: string; autorizadoPorId: string | null }[] } {
-  const pesadas = plan.flatMap(({ linea, pesada }) =>
-    pesada
-      ? [{ droga: linea.drogaNombre, esperada: `${pesada.esperada.toString()} ${linea.unidadSimbolo}`, real: `${pesada.real.toString()} ${linea.unidadSimbolo}`, autorizadoPorId: pesada.autorizadoPorId }]
-      : [],
-  );
+  const pesadas = plan.flatMap(({ linea, pesada }) => {
+    if (!pesada) return [];
+    const simbolo = linea.unidad.tipoMagnitud === "ACTIVIDAD" ? linea.unidadStock.simbolo : linea.unidadSimbolo;
+    return [{ droga: linea.drogaNombre, esperada: `${pesada.esperada.toString()} ${simbolo}`, real: `${pesada.real.toString()} ${simbolo}`, autorizadoPorId: pesada.autorizadoPorId }];
+  });
   return pesadas.length > 0 ? { pesadasReales: pesadas } : {};
 }
 

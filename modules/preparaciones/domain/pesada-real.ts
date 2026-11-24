@@ -14,6 +14,17 @@
  */
 import { Decimal, dec } from "@/shared/decimal";
 
+/**
+ * The unit a línea's pesada real is weighed and stored in: the línea's unit for MASA/VOLUMEN/UNIDADES,
+ * or the droga's unidad base (MASA) for ACTIVIDAD líneas (which are weighed in grams on the balance).
+ */
+export function unidadDePesada<U extends { tipoMagnitud: string; factorABase: Decimal | string }>(
+  unidadLinea: U,
+  unidadStock: U,
+): U {
+  return unidadLinea.tipoMagnitud === "ACTIVIDAD" ? unidadStock : unidadLinea;
+}
+
 /** `precision_balanza` (GRAMO) in a línea's unit, or `null` when the línea is not weighed on the balance (not MASA). */
 export function precisionDeLinea(unidad: { tipoMagnitud: string; factorABase: Decimal | string }, precisionBalanzaGramos: Decimal | string): Decimal | null {
   if (unidad.tipoMagnitud !== "MASA") return null;

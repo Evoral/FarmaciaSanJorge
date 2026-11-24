@@ -29,7 +29,13 @@ export const getRecalculoDeReservaQuery = defineQuery({
 
     const porLinea = new Map<string, EntradaReservada>();
     for (const r of reservas) {
-      const entrada = porLinea.get(r.lineaPesajeId) ?? { cantidadManual: r.cantidadManual, motivoAperturaAdicional: r.motivoAperturaAdicional, partidaIds: [], cantidadReal: r.cantidadReal };
+      const entrada = porLinea.get(r.lineaPesajeId) ?? {
+        cantidadManual: r.cantidadManual,
+        equivalenciaManual: r.equivalenciaManual,
+        motivoAperturaAdicional: r.motivoAperturaAdicional,
+        partidaIds: [],
+        cantidadReal: r.cantidadReal,
+      };
       if (dec(r.cantidad).greaterThan(0)) entrada.partidaIds.push(r.partidaId);
       porLinea.set(r.lineaPesajeId, entrada);
     }

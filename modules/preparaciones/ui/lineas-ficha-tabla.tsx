@@ -143,7 +143,11 @@ function FilasPartidas({ linea, columnas }: { linea: LineaDeFichaToma; columnas:
               )}
             </td>
             <td className={`whitespace-nowrap px-3 text-right font-mono font-medium text-zinc-900 tabular-nums ${padding}`}>
-              <CantidadFicha valor={p.cantidadAPesar} simbolo={linea.unidadSimbolo} classNameSimbolo="font-normal text-zinc-500" />
+              {p.cantidadAPesar ? (
+                <CantidadFicha valor={p.cantidadAPesar} simbolo={p.cantidadAPesarSimbolo ?? linea.unidadSimbolo} classNameSimbolo="font-normal text-zinc-500" />
+              ) : (
+                <span className="font-sans text-xs font-normal text-zinc-400">Sin equivalencia U.I.</span>
+              )}
             </td>
           </tr>
         );

@@ -26,8 +26,8 @@ import { dec } from "@/shared/decimal";
 import { convertirCantidad, mismaMagnitud } from "@/shared/decimal/convertir-unidad";
 import { estaVencida } from "@/modules/stock/domain/reparto";
 import { requiereMotivoAperturaAdicional } from "../domain/apertura-adicional";
-import { repartirLinea } from "../domain/reparto-linea";
-import { bajoLaBalanza, precisionDeLinea } from "../domain/pesada-real";
+import { partidasCompatiblesConLinea, repartirLinea } from "../domain/reparto-linea";
+import { bajoLaBalanza, precisionDeLinea, unidadDePesada } from "../domain/pesada-real";
 import type { UnidadFormato } from "@/shared/format/cantidad";
 import { diasAlertaVencimientoEnTx } from "@/modules/stock/application/dias-alerta-vencimiento";
 import { listDtParaCoFirmaEnTx } from "@/modules/stock/application/list-dt-para-co-firma";
@@ -62,6 +62,12 @@ export interface LineaPantalla extends LineaParaPantalla {
    * creating one. Which lots are chosen can change it: the form's live flag is `PesadaDeLinea.bajoLaBalanza`.
    */
   bajoLaBalanza: boolean;
+  /**
+   * Migration 0133 (UI7): true for a `se_dosifica_en_ui` droga when no compatible partida exists for the línea's
+   * magnitude (e.g. U.I. línea with only gram lots, or mass línea with only U.I. lots), so the línea asks for a
+   * manual physical quantity.
+   */
+  sinEquivalencia?: boolean;
   /** Recalculating a reserva (./get-recalculo-de-reserva.ts): its current entrada; before any reserva: the pesada en borrador (migration 0090). Prefills the form. */
   reserva?: EntradaReservada | null;
 }
@@ -69,10 +75,11 @@ export interface LineaPantalla extends LineaParaPantalla {
 /** A línea's current reserva entrada (migration 0071), as plain values. */
 export interface EntradaReservada {
   cantidadManual: string | null;
+  equivalenciaManual?: boolean;
   motivoAperturaAdicional: string | null;
   /** The partidas the reserva draws from (cantidad > 0): the form pre-checks them. */
   partidaIds: string[];
-  /** Non-manual línea: the reserva's pesada real (línea unit), to prefill the field (openspec/specs/pesada-real/spec.md). */
+  /** Non-manual línea: the reserva's pesada real (línea unit, or unidadStock for ACTIVIDAD), to prefill the field (openspec/specs/pesada-real/spec.md). */
   cantidadReal: string | null;
 }
 
@@ -130,18 +137,37 @@ export async function construirDatosConfirmacion(
     const partidasElegibles = (await listPartidasElegiblesDroga(tx, tenantId, linea.drogaId, preparacionPropiaId)).filter(
       (p) => !estaVencida(p.fechaVencimiento, jornada),
     );
+    const esActividad = linea.unidad.tipoMagnitud === "ACTIVIDAD";
     const dosisBajoLaBalanza =
-      !linea.esEnraseManual && linea.cantidadAPesar !== null && bajoLaBalanza(linea.cantidadAPesar, precisionDeLinea(linea.unidad, pesada.precisionBalanza));
-    const sinPlan = { ...linea, partidasElegibles, propuesta: null, stockInsuficiente: false, faltante: null, requiereMotivo: false, bajoLaBalanza: dosisBajoLaBalanza };
+      !linea.esEnraseManual &&
+      !esActividad &&
+      linea.cantidadAPesar !== null &&
+      bajoLaBalanza(linea.cantidadAPesar, precisionDeLinea(unidadDePesada(linea.unidad, linea.unidadStock), pesada.precisionBalanza));
+    const sinPlan = {
+      ...linea,
+      partidasElegibles,
+      propuesta: null,
+      stockInsuficiente: false,
+      faltante: null,
+      requiereMotivo: false,
+      bajoLaBalanza: dosisBajoLaBalanza,
+      sinEquivalencia: false,
+    };
 
-    // A línea whose unit can not be converted into the droga's unidad base gets no plan: the server refuses it with its own message.
-    if (linea.esEnraseManual || !linea.cantidadAPesar || !mismaMagnitud(linea.unidad, linea.unidadStock)) {
+    // A línea whose unit can not be converted into the droga's unidad base (excluding ACTIVIDAD, which splits via U.I./g) gets no plan.
+    if (linea.esEnraseManual || !linea.cantidadAPesar || (!esActividad && !mismaMagnitud(linea.unidad, linea.unidadStock))) {
       lineas.push(sinPlan);
       continue;
     }
 
-    const requeridaStock = convertirCantidad(dec(linea.cantidadAPesar), linea.unidad, linea.unidadStock);
-    const resultado = repartirLinea(partidasElegibles, requeridaStock, jornada, false);
+    const partidasCompatibles = partidasCompatiblesConLinea(partidasElegibles, linea.unidad.tipoMagnitud);
+    if (linea.seDosificaEnUi && partidasCompatibles.length === 0) {
+      lineas.push({ ...sinPlan, sinEquivalencia: true });
+      continue;
+    }
+
+    const requerida = esActividad ? dec(linea.cantidadAPesar) : convertirCantidad(dec(linea.cantidadAPesar), linea.unidad, linea.unidadStock);
+    const resultado = repartirLinea(partidasCompatibles, requerida, jornada, false, linea.unidadStock);
 
     if (resultado.ok) {
       const usadas = new Set(resultado.partes.map((p) => p.partidaId));
@@ -149,13 +175,14 @@ export async function construirDatosConfirmacion(
         ...sinPlan,
         propuesta: resultado.partes.map((p) => ({ partidaId: p.partidaId, cantidad: p.cantidad.toString() })),
         requiereMotivo: requiereMotivoAperturaAdicional(
-          partidasElegibles.map((p) => ({ ...p, elegida: usadas.has(p.id) })),
-          requeridaStock,
+          partidasCompatibles.map((p) => ({ ...p, elegida: usadas.has(p.id) })),
+          requerida,
           jornada,
+          linea.unidadStock,
         ),
       });
     } else {
-      const faltante = convertirCantidad(resultado.faltante, linea.unidadStock, linea.unidad);
+      const faltante = esActividad ? resultado.faltante : convertirCantidad(resultado.faltante, linea.unidadStock, linea.unidad);
       lineas.push({ ...sinPlan, stockInsuficiente: true, faltante: faltante.toFixed() });
     }
   }

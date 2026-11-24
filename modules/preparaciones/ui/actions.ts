@@ -105,12 +105,15 @@ function parseEntradas(formData: FormData): LineaEntradaInput[] {
   return formData.getAll("lineaIds").map((valor) => {
     const lineaPesajeId = String(valor);
     const cantidadManualRaw = formData.get(`cantidadManual_${lineaPesajeId}`);
+    const eqManualRaw = formData.get(`equivalenciaManual_${lineaPesajeId}`);
+    const equivalenciaManual = eqManualRaw === "true" ? true : eqManualRaw === "false" ? false : undefined;
     const motivoRaw = formData.get(`motivoApertura_${lineaPesajeId}`);
     const partidaIds = formData.getAll(`partidas_${lineaPesajeId}`).map(String);
     const cantidadRealRaw = formData.get(`cantidadReal_${lineaPesajeId}`);
     return {
       lineaPesajeId,
       cantidadManual: cantidadManualRaw ? String(cantidadManualRaw) : undefined,
+      equivalenciaManual,
       motivoAperturaAdicional: motivoRaw && String(motivoRaw).trim().length > 0 ? String(motivoRaw) : undefined,
       partidaIds: partidaIds.length > 0 ? partidaIds : undefined,
       cantidadReal: cantidadRealRaw && String(cantidadRealRaw).trim().length > 0 ? String(cantidadRealRaw).trim() : undefined,

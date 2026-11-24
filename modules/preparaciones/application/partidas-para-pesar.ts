@@ -31,8 +31,8 @@ import { MENSAJE_VENCIDA_REQUIERE_DT, estadoVencimientoPartida, textoPorVencer }
 import { diasAlertaVencimientoEnTx } from "@/modules/stock/application/dias-alerta-vencimiento";
 import { dec } from "@/shared/decimal";
 import { convertirCantidad, mismaMagnitud, type UnidadDeConversion } from "@/shared/decimal/convertir-unidad";
-import { fisicoParaActivo } from "../domain/potencia";
-import { repartirLinea } from "../domain/reparto-linea";
+import { factorDePartida, fisicoParaActivo } from "../domain/potencia";
+import { esPartidaCompatibleConLinea, partidasCompatiblesConLinea, repartirLinea } from "../domain/reparto-linea";
 import { jornadaActualTenant, listPartidasElegiblesDroga } from "../infrastructure/preparacion-repository";
 import type { PartidaElegible } from "../infrastructure/preparacion-repository";
 
@@ -49,8 +49,10 @@ export interface PartidaParaPesar {
   cantidadDisponible: string;
   /** Símbolo of the droga's unidad base. */
   unidadSimbolo: string;
-  /** PHYSICAL weight of THIS partida for the whole línea, in the LÍNEA's unit: cantidadAPesar x 100 / potencia. */
+  /** PHYSICAL weight of THIS partida for the whole línea, in the LÍNEA's unit (or `unidadSimbolo` for ACTIVIDAD); empty when incompatible. */
   cantidadAPesar: string;
+  /** Símbolo of `cantidadAPesar` (`unidadSimbolo` for ACTIVIDAD, otherwise the línea's unit). */
+  cantidadAPesarSimbolo?: string;
   /** Vencida (vencimiento vigente < jornada): NOT available until the DT acts; listed only to explain why. */
   vencida: boolean;
   /** Compact expiry warning ("Vence en 5 días", or the vencida message); `null` when nothing to warn. */
@@ -64,6 +66,8 @@ export interface LineaPesable {
   drogaId: string;
   cantidadAPesar: string | null;
   esEnraseManual: boolean;
+  unidad?: UnidadDeConversion;
+  unidadStock?: UnidadDeConversion;
 }
 
 /** Each droga's candidate partidas, in consumption order, plus its vencidas with saldo (blocked), and the expiry context. */
@@ -108,19 +112,28 @@ export function partidasDeLinea(partidasPorDroga: PartidasPorDroga, linea: Linea
   if (linea.esEnraseManual || activo === null) return null;
   const { jornada, diasAlerta } = partidasPorDroga;
   const deDroga = partidasPorDroga.porDroga.get(linea.drogaId);
-  const aPesar = (p: PartidaElegible, vencida: boolean): PartidaParaPesar => ({
-    id: p.id,
-    lote: p.lote,
-    proveedorNombre: p.proveedorNombre,
-    potenciaDeclarada: p.potenciaDeclarada,
-    actividadDeclarada: p.actividadDeclarada ?? null,
-    cantidadDisponible: p.cantidadDisponible,
-    unidadSimbolo: p.unidadSimbolo,
-    cantidadAPesar: fisicoParaActivo(activo, p.potenciaDeclarada).toString(),
-    vencida,
-    avisoVencimiento: avisoVencimiento(p, jornada, diasAlerta),
-    asignada: null,
-  });
+  const tipoMagnitud = linea.unidad?.tipoMagnitud ?? "MASA";
+  const esActividad = tipoMagnitud === "ACTIVIDAD";
+  const aPesar = (p: PartidaElegible, vencida: boolean): PartidaParaPesar => {
+    const compatible = esPartidaCompatibleConLinea(p, tipoMagnitud);
+    const peso = compatible
+      ? fisicoParaActivo(activo, factorDePartida(p), esActividad ? linea.unidadStock : undefined).toString()
+      : "";
+    return {
+      id: p.id,
+      lote: p.lote,
+      proveedorNombre: p.proveedorNombre,
+      potenciaDeclarada: p.potenciaDeclarada,
+      actividadDeclarada: p.actividadDeclarada ?? null,
+      cantidadDisponible: p.cantidadDisponible,
+      unidadSimbolo: p.unidadSimbolo,
+      cantidadAPesar: peso,
+      cantidadAPesarSimbolo: esActividad ? p.unidadSimbolo : undefined,
+      vencida,
+      avisoVencimiento: avisoVencimiento(p, jornada, diasAlerta),
+      asignada: null,
+    };
+  };
   return [...(deDroga?.consumo ?? []).map((p) => aPesar(p, false)), ...(deDroga?.vencidas ?? []).map((p) => aPesar(p, true))];
 }
 
@@ -144,13 +157,20 @@ export interface AsignacionDeLinea {
  */
 export function asignacionDeLinea(partidasPorDroga: PartidasPorDroga, linea: LineaConUnidades): AsignacionDeLinea | null {
   const partidas = partidasDeLinea(partidasPorDroga, linea);
-  if (partidas === null || linea.cantidadAPesar === null || !mismaMagnitud(linea.unidad, linea.unidadStock)) return null;
-  const consumo = partidasPorDroga.porDroga.get(linea.drogaId)?.consumo ?? [];
-  const requeridaStock = convertirCantidad(dec(linea.cantidadAPesar), linea.unidad, linea.unidadStock);
-  const resultado = repartirLinea(consumo, requeridaStock, partidasPorDroga.jornada, false);
+  const esActividad = linea.unidad.tipoMagnitud === "ACTIVIDAD";
+  if (partidas === null || linea.cantidadAPesar === null || (!esActividad && !mismaMagnitud(linea.unidad, linea.unidadStock))) return null;
+  const consumo = partidasCompatiblesConLinea(partidasPorDroga.porDroga.get(linea.drogaId)?.consumo ?? [], linea.unidad.tipoMagnitud);
+  const requerida = esActividad ? dec(linea.cantidadAPesar) : convertirCantidad(dec(linea.cantidadAPesar), linea.unidad, linea.unidadStock);
+  const resultado = repartirLinea(consumo, requerida, partidasPorDroga.jornada, false, linea.unidadStock);
   if (!resultado.ok) {
-    return { partidas, faltante: convertirCantidad(resultado.faltante, linea.unidadStock, linea.unidad).toFixed() };
+    const faltante = esActividad ? resultado.faltante : convertirCantidad(resultado.faltante, linea.unidadStock, linea.unidad);
+    return { partidas, faltante: faltante.toFixed() };
   }
-  const porPartida = new Map(resultado.partes.map((parte) => [parte.partidaId, convertirCantidad(parte.cantidad, linea.unidadStock, linea.unidad).toString()]));
+  const porPartida = new Map(
+    resultado.partes.map((parte) => [
+      parte.partidaId,
+      (esActividad ? parte.cantidad : convertirCantidad(parte.cantidad, linea.unidadStock, linea.unidad)).toString(),
+    ]),
+  );
   return { partidas: partidas.map((p) => ({ ...p, asignada: porPartida.get(p.id) ?? null })), faltante: null };
 }
