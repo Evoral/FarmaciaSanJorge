@@ -1406,6 +1406,8 @@ model RelevamientoFila {
   cantidad           Decimal?  @db.Decimal
   unidadMedidaId     String?   @map("unidad_medida_id") @db.Uuid
   potenciaDeclarada  Decimal?  @map("potencia_declarada") @db.Decimal
+  /// 0134. Declared activity (U.I./g), exclusive with potenciaDeclarada.
+  actividadDeclarada Decimal?  @map("actividad_declarada") @db.Decimal
   costoUnitario      Decimal?  @map("costo_unitario") @db.Decimal
   proveedorId        String?   @map("proveedor_id") @db.Uuid
   textoDroga         String?   @map("texto_droga")
