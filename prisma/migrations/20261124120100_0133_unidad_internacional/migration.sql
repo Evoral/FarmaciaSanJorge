@@ -101,7 +101,8 @@ AS $$
 DECLARE
   v_se_dosifica_en_ui boolean;
 BEGIN
-  IF NEW.actividad_declarada IS NOT NULL THEN
+  IF NEW.actividad_declarada IS NOT NULL
+     AND (TG_OP = 'INSERT' OR NEW.actividad_declarada IS DISTINCT FROM OLD.actividad_declarada) THEN
     SELECT se_dosifica_en_ui INTO v_se_dosifica_en_ui
     FROM fsj.droga
     WHERE tenant_id = NEW.tenant_id AND id = NEW.droga_id;
@@ -164,6 +165,7 @@ DECLARE
   v_unidad_linea      uuid;
   v_magnitud_linea    fsj.tipo_magnitud;
   v_unidad_stock      uuid;
+  v_factor_stock      numeric;
   v_unidad_gramo      uuid;
   v_cantidad_stock    numeric;
   v_real              numeric;
@@ -173,30 +175,40 @@ DECLARE
   v_sum_ui            numeric;
   v_max_actividad     numeric;
   v_missing_actividad boolean;
+  v_any_actividad     boolean;
+  v_eq_manual_factor  boolean;
   v_any_eq_manual     boolean;
   v_all_eq_manual     boolean;
   v_mov_count         bigint;
   v_tolerancia        constant numeric := 0.0001;
   v_tolerancia_ui     numeric;
 BEGIN
-  SELECT l.es_enrase_manual, l.cantidad_a_pesar, l.unidad_medida_id, u.tipo_magnitud, d.unidad_base_id
-    INTO v_manual, v_cantidad, v_unidad_linea, v_magnitud_linea, v_unidad_stock
+  SELECT l.es_enrase_manual, l.cantidad_a_pesar, l.unidad_medida_id, u.tipo_magnitud, d.unidad_base_id, us.factor_a_base
+    INTO v_manual, v_cantidad, v_unidad_linea, v_magnitud_linea, v_unidad_stock, v_factor_stock
   FROM fsj.linea_pesaje l
   JOIN fsj.unidad_medida u ON u.id = l.unidad_medida_id
   JOIN fsj.droga d ON d.tenant_id = l.tenant_id AND d.id = l.droga_id
+  JOIN fsj.unidad_medida us ON us.id = d.unidad_base_id
   WHERE l.tenant_id = p_tenant_id AND l.id = p_linea_pesaje_id;
 
   SELECT coalesce(sum(cantidad), 0),
          coalesce(sum(cantidad * coalesce(potencia_aplicada, 100) / 100), 0),
+         coalesce(bool_or(actividad_aplicada IS NOT NULL), false),
+         coalesce(bool_or(equivalencia_manual AND (potencia_aplicada IS NOT NULL OR actividad_aplicada IS NOT NULL)), false),
          coalesce(bool_or(equivalencia_manual), false),
          coalesce(bool_and(equivalencia_manual), true),
          count(*)
-    INTO v_sum, v_sum_activo, v_any_eq_manual, v_all_eq_manual, v_mov_count
+    INTO v_sum, v_sum_activo, v_any_actividad, v_eq_manual_factor, v_any_eq_manual, v_all_eq_manual, v_mov_count
   FROM fsj.movimiento_stock
   WHERE tenant_id = p_tenant_id AND linea_pesaje_id = p_linea_pesaje_id AND tipo = 'EGRESO_PREPARACION';
 
   IF v_mov_count > 0 AND v_any_eq_manual AND NOT v_all_eq_manual THEN
     RAISE EXCEPTION 'INV-S12: linea_pesaje % cannot mix equivalencia_manual and computed movements', p_linea_pesaje_id
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  IF v_eq_manual_factor THEN
+    RAISE EXCEPTION 'INV-S12: linea_pesaje % equivalencia_manual movements cannot carry potencia_aplicada or actividad_aplicada', p_linea_pesaje_id
       USING ERRCODE = 'P0001';
   END IF;
 
@@ -206,6 +218,11 @@ BEGIN
         USING ERRCODE = 'P0001';
     END IF;
     RETURN;
+  END IF;
+
+  IF v_magnitud_linea <> 'ACTIVIDAD' AND v_any_actividad THEN
+    RAISE EXCEPTION 'INV-S12: non-ACTIVIDAD linea_pesaje % cannot consume a movement with actividad_aplicada', p_linea_pesaje_id
+      USING ERRCODE = 'P0001';
   END IF;
 
   SELECT cantidad_real INTO v_real
@@ -252,7 +269,7 @@ BEGIN
         USING ERRCODE = 'P0001';
     END IF;
 
-    v_tolerancia_ui := v_tolerancia * coalesce(v_max_actividad, 0);
+    v_tolerancia_ui := v_tolerancia * v_factor_stock * coalesce(v_max_actividad, 0);
     IF v_sum_ui < v_cantidad OR (v_sum_ui - v_cantidad) >= v_tolerancia_ui THEN
       RAISE EXCEPTION 'INV-S12: linea_pesaje % active UI consumption must equal cantidad_a_pesar % UI (found % UI, tolerance %)', p_linea_pesaje_id, v_cantidad, v_sum_ui, v_tolerancia_ui
         USING ERRCODE = 'P0001';
