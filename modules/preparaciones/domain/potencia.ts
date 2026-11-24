@@ -132,8 +132,8 @@ export interface RepartoActivoLinea {
   cantidad: Decimal;
   /** Active ingredient this consumption contributes. */
   activo: Decimal;
-  /** The potencia applied (percent, 100 when the partida declares none) -- `movimiento_stock.potencia_aplicada`. */
-  potenciaAplicada: Decimal;
+  /** The potencia applied (percent, 100 when the partida declares none), or null when the lot is in ACTIVIDAD -- `movimiento_stock.potencia_aplicada`. */
+  potenciaAplicada: Decimal | null;
   /** The activity applied (U.I./g) when the lot is in ACTIVIDAD -- `movimiento_stock.actividad_aplicada`. */
   actividadAplicada: Decimal | null;
 }
@@ -183,7 +183,7 @@ export function proponerRepartoActivo(
       partidaId: partida.id,
       cantidad,
       activo,
-      potenciaAplicada: factor.tipo === "PORCENTAJE" ? dec(factor.valor) : dec(POTENCIA_SIN_CORRECCION),
+      potenciaAplicada: factor.tipo === "PORCENTAJE" ? dec(factor.valor) : null,
       actividadAplicada: factor.tipo === "ACTIVIDAD" ? dec(factor.uiPorGramo) : null,
     });
     totalFisico = totalFisico.plus(cantidad);
