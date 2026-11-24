@@ -511,10 +511,16 @@ export default async function PartidaDetallePage({ params, searchParams }: Parti
           {puedeCorregirPotencia ? (
             <section className="panel" aria-labelledby="corregir-potencia-heading">
               <div className="panel-header">
-                <h2 id="corregir-potencia-heading">Corregir pureza</h2>
+                <h2 id="corregir-potencia-heading">
+                  {partida.actividadDeclarada !== null ? "Corregir actividad (U.I./g)" : "Corregir pureza"}
+                </h2>
               </div>
               <div className="panel-body">
-                <CorregirPotenciaForm partidaId={partida.id} potenciaActual={partida.potenciaDeclarada} />
+                <CorregirPotenciaForm
+                  partidaId={partida.id}
+                  potenciaActual={partida.potenciaDeclarada}
+                  actividadActual={partida.actividadDeclarada}
+                />
               </div>
             </section>
           ) : null}

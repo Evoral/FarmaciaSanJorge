@@ -15,10 +15,12 @@ import { ConflictError, DomainError, NotFoundError } from "@/shared/errors";
 import { uuid, nonEmptyString } from "@/shared/validation";
 import { interpretarNumero } from "@/shared/decimal/numero-ingresado";
 import { Decimal, dec } from "@/shared/decimal";
+import { actividadDeclaradaString } from "../domain/partida";
 import {
   lockPartidaParaAccion,
   getPartidaParaAccion,
   getReservadoEnPreparacion,
+  updateActividadPartida,
   updatePotenciaPartida,
 } from "../infrastructure/partida-repository";
 
@@ -47,12 +49,15 @@ export const corregirPotenciaPartidaInput = z.object({
       }
       return parsed.equals(100) ? null : parsed.toString();
     }),
+  /** New declared activity (U.I./g) for a U.I. lot (> 0). Accepts number or "X U.I. cada Y g". */
+  actividadDeclaradaNueva: actividadDeclaradaString.optional(),
   motivo: nonEmptyString,
 });
 
 export interface CorregirPotenciaPartidaInput {
   id: string;
   potenciaDeclaradaNueva?: string | null;
+  actividadDeclaradaNueva?: string;
   motivo: string;
 }
 
@@ -68,13 +73,54 @@ export const corregirPotenciaPartidaCommand = defineCommand({
     const partida = await getPartidaParaAccion(tx, session.tenantId, input.id);
     if (!partida) throw new NotFoundError("Partida no encontrada.");
 
-    // Guard: cannot correct purity if the partida is currently reserved in an in-progress preparation
+    const esUi = partida.actividadDeclarada !== null;
+    const campoObjetivo = esUi ? "actividadDeclaradaNueva" : "potenciaDeclaradaNueva";
+
+    // Guard: cannot correct purity/activity if the partida is currently reserved in an in-progress preparation
     const reservado = await getReservadoEnPreparacion(tx, session.tenantId, input.id);
     if (dec(reservado.cantidad).greaterThan(0)) {
       throw new DomainError(
-        "No se puede corregir la pureza: la partida tiene reservas activas en preparaciones en curso. Confirmá o descartá las preparaciones antes de corregir la pureza.",
-        { fields: ["potenciaDeclaradaNueva"] },
+        esUi
+          ? "No se puede corregir la actividad: la partida tiene reservas activas en preparaciones en curso. Confirmá o descartá las preparaciones antes de corregir la actividad."
+          : "No se puede corregir la pureza: la partida tiene reservas activas en preparaciones en curso. Confirmá o descartá las preparaciones antes de corregir la pureza.",
+        { fields: [campoObjetivo] },
       );
+    }
+
+    if (esUi) {
+      if (input.potenciaDeclaradaNueva !== null && input.potenciaDeclaradaNueva !== undefined) {
+        throw new DomainError("No se puede cambiar una partida en U.I. a gramos (%).", { fields: ["actividadDeclaradaNueva"] });
+      }
+      if (!input.actividadDeclaradaNueva) {
+        throw new DomainError("Ingresá la actividad nueva (U.I./g).", { fields: ["actividadDeclaradaNueva"] });
+      }
+
+      const actividadNueva = input.actividadDeclaradaNueva.toString();
+      const actividadAnterior = partida.actividadDeclarada!;
+
+      const updated = await updateActividadPartida(tx, {
+        tenantId: session.tenantId,
+        id: input.id,
+        actividadNueva,
+        actividadAnterior,
+      });
+      if (!updated) {
+        throw new ConflictError("La partida fue modificada por otra operación. Volvé a intentarlo.");
+      }
+
+      return {
+        output: { id: input.id, potenciaDeclarada: null, actividadDeclarada: actividadNueva },
+        audit: {
+          entidadId: input.id,
+          valorAnterior: { actividadDeclarada: actividadAnterior },
+          valorNuevo: { actividadDeclarada: actividadNueva },
+          motivo: input.motivo,
+        },
+      };
+    }
+
+    if (input.actividadDeclaradaNueva !== undefined) {
+      throw new DomainError("No se puede cambiar una partida en gramos a U.I.", { fields: ["potenciaDeclaradaNueva"] });
     }
 
     const potenciaNueva = input.potenciaDeclaradaNueva;
@@ -91,7 +137,7 @@ export const corregirPotenciaPartidaCommand = defineCommand({
     }
 
     return {
-      output: { id: input.id, potenciaDeclarada: potenciaNueva },
+      output: { id: input.id, potenciaDeclarada: potenciaNueva, actividadDeclarada: null },
       audit: {
         entidadId: input.id,
         valorAnterior: { potenciaDeclarada: potenciaAnterior },
@@ -102,6 +148,8 @@ export const corregirPotenciaPartidaCommand = defineCommand({
   },
 });
 
-export async function corregirPotenciaPartida(input: CorregirPotenciaPartidaInput): Promise<{ id: string; potenciaDeclarada: string | null }> {
+export async function corregirPotenciaPartida(
+  input: CorregirPotenciaPartidaInput,
+): Promise<{ id: string; potenciaDeclarada: string | null; actividadDeclarada: string | null }> {
   return corregirPotenciaPartidaCommand.execute(input);
 }
