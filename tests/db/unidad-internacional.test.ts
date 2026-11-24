@@ -190,6 +190,18 @@ describe.skipIf(dbTestSkipReason() !== null)("Unidad Internacional (0132/0133): 
           `UPDATE fsj.partida SET actividad_declarada = 2000 WHERE tenant_id = $1 AND id = $2`,
           [tenantId, pUi.rows[0]!.id],
         );
+
+        // Item 1: after unmarking droga (at balance 0), a stock movement updating cantidad_disponible still succeeds
+        await tx.query(
+          `UPDATE fsj.droga SET se_dosifica_en_ui = false WHERE tenant_id = $1 AND id = $2`,
+          [tenantId, drogaConUi],
+        );
+        const sistema = await createSistemaUser(tx, tenantId);
+        await tx.query(
+          `INSERT INTO fsj.movimiento_stock (tenant_id, partida_id, tipo, cantidad, registrado_por_id)
+           VALUES ($1, $2, 'INGRESO_COMPRA', 5, $3)`,
+          [tenantId, pUi.rows[0]!.id, sistema],
+        );
       }),
     );
   });
@@ -373,6 +385,89 @@ describe.skipIf(dbTestSkipReason() !== null)("Unidad Internacional (0132/0133): 
           () => tx.query(`SELECT fsj.linea_pesaje_validar_consumo($1, $2)`, [tenantId, lineaMixed]),
           "cannot mix equivalencia_manual and computed movements",
         );
+
+        // 6. Item 2: non-ACTIVIDAD linea consuming a U.I. movement (actividad_aplicada NOT NULL) -> refused
+        const lineaMassWithUi = await insertLinea(tx, {
+          tenantId,
+          fichaTecnicaId: fichaId,
+          drogaId: drogaPctId,
+          unidadMedidaId: unidadGramo,
+          cantidadAPesar: 5,
+          orden: 5,
+        });
+        await tx.query(
+          `INSERT INTO fsj.movimiento_stock
+             (tenant_id, partida_id, tipo, cantidad, preparacion_id, linea_pesaje_id, actividad_aplicada, registrado_por_id)
+           VALUES ($1, $2, 'EGRESO_PREPARACION', 5, $3, $4, 100000, $5)`,
+          [tenantId, pUiA, prepId, lineaMassWithUi, sistema],
+        );
+        await expectInvariantViolation(
+          tx,
+          () => tx.query(`SELECT fsj.linea_pesaje_validar_consumo($1, $2)`, [tenantId, lineaMassWithUi]),
+          "cannot consume a movement with actividad_aplicada",
+        );
+
+        // 7. Item 2: equivalencia_manual = true with potencia_aplicada or actividad_aplicada NOT NULL -> refused
+        const lineaEqWithFactor = await insertLinea(tx, {
+          tenantId,
+          fichaTecnicaId: fichaId,
+          drogaId: drogaUiId,
+          unidadMedidaId: unidadUi,
+          cantidadAPesar: 1000,
+          orden: 6,
+        });
+        await tx.query(
+          `INSERT INTO fsj.movimiento_stock
+             (tenant_id, partida_id, tipo, cantidad, preparacion_id, linea_pesaje_id, equivalencia_manual, actividad_aplicada, registrado_por_id)
+           VALUES ($1, $2, 'EGRESO_PREPARACION', 1, $3, $4, true, 100000, $5)`,
+          [tenantId, pUiA, prepId, lineaEqWithFactor, sistema],
+        );
+        await expectInvariantViolation(
+          tx,
+          () => tx.query(`SELECT fsj.linea_pesaje_validar_consumo($1, $2)`, [tenantId, lineaEqWithFactor]),
+          "equivalencia_manual movements cannot carry",
+        );
+
+        // 8. Item 4: droga in KILOGRAMO scales U.I. tolerance by factor_a_base (1000)
+        // Required: 150 UI; lot at 1000 UI/g -> 0.00015 kg, rounded UP to 4 decimals = 0.0002 kg = 200 UI (overshoot = 50 UI < 0.0001 * 1000 * 1000 = 100 UI).
+        const unidadKg = (await tx.query<{ id: string }>(`SELECT id FROM fsj.unidad_medida WHERE codigo = 'KILOGRAMO'`)).rows[0]!.id;
+        const drogaKgId = (
+          await tx.query<{ id: string }>(
+            `INSERT INTO fsj.droga (tenant_id, nombre, unidad_base_id, clase, se_dosifica_en_ui)
+             VALUES ($1, 'Vitamina Kg', $2, 'DROGA', true)
+             RETURNING id`,
+            [tenantId, unidadKg],
+          )
+        ).rows[0]!.id;
+        const pKg = (
+          await tx.query<{ id: string }>(
+            `INSERT INTO fsj.partida
+               (tenant_id, droga_id, proveedor_id, lote, costo_unitario, cantidad_inicial, fecha_vencimiento, actividad_declarada)
+             VALUES ($1, $2, $3, 'L-KG', 10, 1, '2099-12-31', 1000)
+             RETURNING id`,
+            [tenantId, drogaKgId, proveedorId],
+          )
+        ).rows[0]!.id;
+        await tx.query(
+          `INSERT INTO fsj.movimiento_stock (tenant_id, partida_id, tipo, cantidad, registrado_por_id)
+           VALUES ($1, $2, 'INGRESO_COMPRA', 1, $3)`,
+          [tenantId, pKg, sistema],
+        );
+        const lineaKg = await insertLinea(tx, {
+          tenantId,
+          fichaTecnicaId: fichaId,
+          drogaId: drogaKgId,
+          unidadMedidaId: unidadUi,
+          cantidadAPesar: 150,
+          orden: 7,
+        });
+        await tx.query(
+          `INSERT INTO fsj.movimiento_stock
+             (tenant_id, partida_id, tipo, cantidad, preparacion_id, linea_pesaje_id, actividad_aplicada, registrado_por_id)
+           VALUES ($1, $2, 'EGRESO_PREPARACION', 0.0002, $3, $4, 1000, $5)`,
+          [tenantId, pKg, prepId, lineaKg, sistema],
+        );
+        await tx.query(`SELECT fsj.linea_pesaje_validar_consumo($1, $2)`, [tenantId, lineaKg]);
       }),
     );
   });

@@ -73,10 +73,12 @@ describe("potencia tagged factor (5.1)", () => {
       expect(res.lineas[0]!.partidaId).toBe("partida-a");
       expect(res.lineas[0]!.cantidad.toFixed()).toBe("3");
       expect(res.lineas[0]!.activo.toFixed()).toBe("300000");
+      expect(res.lineas[0]!.potenciaAplicada).toBeNull();
       expect(res.lineas[0]!.actividadAplicada?.toFixed()).toBe("100000");
       expect(res.lineas[1]!.partidaId).toBe("partida-b");
       expect(res.lineas[1]!.cantidad.toFixed()).toBe("5");
       expect(res.lineas[1]!.activo.toFixed()).toBe("200000");
+      expect(res.lineas[1]!.potenciaAplicada).toBeNull();
       expect(res.lineas[1]!.actividadAplicada?.toFixed()).toBe("40000");
     }
   });
