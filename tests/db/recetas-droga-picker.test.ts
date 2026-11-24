@@ -183,6 +183,7 @@ describe.skipIf(dbTestSkipReason() !== null)("DB tests: listDrogasParaReceta (mo
             nombre: "Ac. Citronella",
             unidadBaseId: unidadId,
             unidadBaseSimbolo: "x",
+            seDosificaEnUi: false,
             sinonimo: "Citronella",
             sinonimoId: sinonimoCitronellaId,
           });
@@ -193,6 +194,7 @@ describe.skipIf(dbTestSkipReason() !== null)("DB tests: listDrogasParaReceta (mo
             nombre: "Ac. Citronella",
             unidadBaseId: unidadId,
             unidadBaseSimbolo: "x",
+            seDosificaEnUi: false,
             sinonimo: null,
             sinonimoId: null,
           });

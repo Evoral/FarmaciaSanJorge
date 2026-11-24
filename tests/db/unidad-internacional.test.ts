@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { dbTestSkipReason } from "./env";
-import { asOwner, expectInvariantViolation, inRollbackTx } from "./helpers";
+import { asOwner, expectInvariantViolation, inRollbackTx, inSavepoint } from "./helpers";
 import {
   createSistemaUser,
   insertDroga,
@@ -62,13 +62,15 @@ describe.skipIf(dbTestSkipReason() !== null)("Unidad Internacional (0132/0133): 
         const proveedorId = await insertProveedor(tx, tenantId);
 
         // EXCIPIENTE cannot be marked se_dosifica_en_ui
-        await expect(
-          tx.query(
-            `INSERT INTO fsj.droga (tenant_id, nombre, unidad_base_id, clase, se_dosifica_en_ui)
-             VALUES ($1, 'Excipiente UI', $2, 'EXCIPIENTE', true)`,
-            [tenantId, unidadGramo],
-          ),
-        ).rejects.toThrow(/droga_se_dosifica_en_ui_clase_check/);
+        await inSavepoint(tx, async () => {
+          await expect(
+            tx.query(
+              `INSERT INTO fsj.droga (tenant_id, nombre, unidad_base_id, clase, se_dosifica_en_ui)
+               VALUES ($1, 'Excipiente UI', $2, 'EXCIPIENTE', true)`,
+              [tenantId, unidadGramo],
+            ),
+          ).rejects.toThrow(/droga_se_dosifica_en_ui_clase_check/);
+        });
 
         // VOLUMEN unidad_base cannot be marked se_dosifica_en_ui
         await expectInvariantViolation(
@@ -148,24 +150,28 @@ describe.skipIf(dbTestSkipReason() !== null)("Unidad Internacional (0132/0133): 
         );
 
         // actividad_declarada <= 0 rejected
-        await expect(
-          tx.query(
-            `INSERT INTO fsj.partida
-               (tenant_id, droga_id, proveedor_id, lote, costo_unitario, cantidad_inicial, fecha_vencimiento, actividad_declarada)
-             VALUES ($1, $2, $3, 'L-ERR-2', 100, 10, '2099-12-31', 0)`,
-            [tenantId, drogaConUi, proveedorId],
-          ),
-        ).rejects.toThrow(/partida_actividad_declarada_check/);
+        await inSavepoint(tx, async () => {
+          await expect(
+            tx.query(
+              `INSERT INTO fsj.partida
+                 (tenant_id, droga_id, proveedor_id, lote, costo_unitario, cantidad_inicial, fecha_vencimiento, actividad_declarada)
+               VALUES ($1, $2, $3, 'L-ERR-2', 100, 10, '2099-12-31', 0)`,
+              [tenantId, drogaConUi, proveedorId],
+            ),
+          ).rejects.toThrow(/partida_actividad_declarada_check/);
+        });
 
         // Both potencia_declarada and actividad_declarada rejected
-        await expect(
-          tx.query(
-            `INSERT INTO fsj.partida
-               (tenant_id, droga_id, proveedor_id, lote, costo_unitario, cantidad_inicial, fecha_vencimiento, potencia_declarada, actividad_declarada)
-             VALUES ($1, $2, $3, 'L-ERR-3', 100, 10, '2099-12-31', 95, 1000)`,
-            [tenantId, drogaConUi, proveedorId],
-          ),
-        ).rejects.toThrow(/partida_potencia_o_actividad_check/);
+        await inSavepoint(tx, async () => {
+          await expect(
+            tx.query(
+              `INSERT INTO fsj.partida
+                 (tenant_id, droga_id, proveedor_id, lote, costo_unitario, cantidad_inicial, fecha_vencimiento, potencia_declarada, actividad_declarada)
+               VALUES ($1, $2, $3, 'L-ERR-3', 100, 10, '2099-12-31', 95, 1000)`,
+              [tenantId, drogaConUi, proveedorId],
+            ),
+          ).rejects.toThrow(/partida_potencia_o_actividad_check/);
+        });
 
         // Kind (NULL vs NOT NULL) is immutable after insert
         const pUi = await tx.query<{ id: string }>(
