@@ -245,7 +245,8 @@ de R3 usa `cantidadTeorica` de los activos.
 ### Requirement: R9 — Conversión de unidades
 
 La conversión de unidades SHALL hacerse solo dentro de la misma `tipoMagnitud`, usando `UnidadMedida.factorABase`.
-Nunca peso ↔ volumen.
+Nunca peso ↔ volumen, y nunca `ACTIVIDAD` (U.I.) ↔ otra magnitud: el paso de U.I. a gramos es de la partida
+(`openspec/specs/unidad-internacional/spec.md` UI6), nunca de la ficha.
 
 #### Scenario: T5 — Conversión
 
@@ -257,6 +258,12 @@ Nunca peso ↔ volumen.
 - **GIVEN** el jarabe de T4: Sulfato de zinc en MILIGRAMO y total en MILILITRO
 - **WHEN** se calcula el CSP
 - **THEN** no se convierte peso a volumen: el CSP es enrase manual (R4)
+
+#### Scenario: Activo en U.I. en una crema
+
+- **GIVEN** CREMA · total 50 GRAMO, con Vitamina A 500.000 U.I. TOTAL y Crema base null GRAMO CSP
+- **WHEN** se calcula la ficha
+- **THEN** Vitamina A queda en 500.000 U.I. y Crema base es enrase manual (R4)
 
 ### Requirement: V1 — Ítem sin componentes
 
@@ -521,6 +528,23 @@ la cantidad registrada al confirmar (> 0). The consumption (`movimiento_stock`) 
 #### Scenario: Línea manual sin cantidad
 
 - **WHEN** se confirma una línea manual con cantidad registrada 0
+- **THEN** no cumple INV-S12
+
+### Requirement: INV-S12 — Consumo en U.I. y cantidad manual por equivalencia
+
+A línea in U.I. SHALL be compared in active terms: the grams of each movement times its `actividad_aplicada`. A
+línea weighed as cantidad manual por falta de equivalencia (`equivalencia_manual`, unidad-internacional UI7) SHALL be
+consumed like a manual línea; one línea never mixes manual and computed movements (migration 0133).
+
+#### Scenario: Línea en U.I.
+
+- **GIVEN** una línea de 500.000 U.I. consumida con 3 g a 100.000 U.I./g y 5 g a 40.000 U.I./g
+- **WHEN** se controla el consumo
+- **THEN** cumple INV-S12 (500.000 U.I. activas)
+
+#### Scenario: Línea con movimientos manuales y calculados
+
+- **WHEN** una línea tiene un movimiento con `equivalencia_manual` y otro sin
 - **THEN** no cumple INV-S12
 
 ### Requirement: No hacer

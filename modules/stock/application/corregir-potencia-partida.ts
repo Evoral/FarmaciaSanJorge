@@ -1,5 +1,5 @@
 /**
- * `corregirPotenciaPartida` (openspec/changes/corregir-potencia-partida/proposal.md).
+ * `corregirPotenciaPartida` (openspec/specs/corregir-potencia-partida/spec.md).
  * Allows correcting the declared purity (`potencia_declarada`, percent) of an existing
  * lot. Affects ONLY future preparations; past consumptions already took an immutable
  * snapshot (`movimiento_stock.potencia_aplicada`) and remain unaffected.

@@ -479,7 +479,7 @@ export interface DrogaParaValidarUi {
 }
 
 /**
- * UI3 (openspec/changes/unidad-internacional): a componente in U.I. (`ACTIVIDAD`) is allowed only for a droga with
+ * UI3 (openspec/specs/unidad-internacional/spec.md): a componente in U.I. (`ACTIVIDAD`) is allowed only for a droga with
  * `seDosificaEnUi`, and only in TOTAL, POR_DOSIS, or CONCENTRACION with a referencia (never as %, never in CS/CSP).
  * Marks the offending componente's unit field so the form keeps every other value.
  */

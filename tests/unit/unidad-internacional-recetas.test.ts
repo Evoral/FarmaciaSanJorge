@@ -1,5 +1,5 @@
 /**
- * Unit tests for U.I. validation in recetas (openspec/changes/unidad-internacional, UI3 / task 3.1).
+ * Unit tests for U.I. validation in recetas (openspec/specs/unidad-internacional/spec.md, UI3 / task 3.1).
  */
 import { describe, it, expect } from "vitest";
 import { ValidationError } from "@/shared/errors";

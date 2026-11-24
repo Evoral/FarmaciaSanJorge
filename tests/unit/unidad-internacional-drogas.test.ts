@@ -1,5 +1,5 @@
 /**
- * Unit tests for `seDosificaEnUi` (openspec/changes/unidad-internacional, UI2 / task 2.2):
+ * Unit tests for `seDosificaEnUi` (openspec/specs/unidad-internacional/spec.md, UI2 / task 2.2):
  * crearDrogaCommand, editarDrogaCommand, and domain rules.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";

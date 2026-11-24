@@ -1,5 +1,5 @@
 /**
- * DB tests for migrations 0132 & 0133 (openspec/changes/unidad-internacional):
+ * DB tests for migrations 0132 & 0133 (openspec/specs/unidad-internacional/spec.md):
  *   - UNIDAD_INTERNACIONAL seed & ACTIVIDAD magnitude
  *   - droga.se_dosifica_en_ui CHECKs and trigger
  *   - partida.actividad_declarada CHECKs and trigger

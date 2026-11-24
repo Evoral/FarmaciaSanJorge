@@ -1,6 +1,6 @@
 # Rollback: Corregir pureza de una partida
 
-Spec: `openspec/changes/corregir-potencia-partida/specs/corregir-potencia-partida/spec.md`. The feature has a **schema change** (migration
+Spec: `openspec/specs/corregir-potencia-partida/spec.md`. The feature has a **schema change** (migration
 `prisma/migrations/20261030120000_0111_corregir_potencia_partida`), so it is reverted as code + a new forward
 migration built from `prisma/rollbacks/0111_corregir_potencia_partida.down.sql`.
 

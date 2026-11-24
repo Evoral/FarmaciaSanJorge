@@ -1,6 +1,6 @@
 # Rollback: Unidades internacionales (U.I.)
 
-Spec: `openspec/changes/unidad-internacional/specs/unidad-internacional/spec.md` (UI1–UI10) and `openspec/changes/unidad-internacional/specs/ficha-tecnica/spec.md` (R9, INV-S12).
+Spec: `openspec/specs/unidad-internacional/spec.md` (UI1–UI10) and `openspec/specs/ficha-tecnica/spec.md` (R9, INV-S12).
 The feature has **two schema migrations** (`0132_tipo_magnitud_actividad` and `0133_unidad_internacional`), so it is reverted as code + new forward migration(s) built from `prisma/rollbacks/0133_unidad_internacional.down.sql` (and optionally `prisma/rollbacks/0132_tipo_magnitud_actividad.down.sql`, which only guards that no `ACTIVIDAD` unit remains).
 
 ## What the down migration loses
