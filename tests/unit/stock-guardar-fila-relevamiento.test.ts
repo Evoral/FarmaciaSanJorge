@@ -60,7 +60,7 @@ beforeEach(() => {
 });
 
 describe("guardarFilaRelevamiento -- se_dosifica_en_ui", () => {
-  it("refuses a se_dosifica_en_ui droga row when both potenciaDeclarada and actividadDeclarada are empty", async () => {
+  it("accepts a draft row of a se_dosifica_en_ui droga when both potenciaDeclarada and actividadDeclarada are empty", async () => {
     getDrogaParaIngresoMock.mockResolvedValueOnce({
       id: DROGA_ID,
       nombre: "Vitamina D3",
@@ -71,16 +71,20 @@ describe("guardarFilaRelevamiento -- se_dosifica_en_ui", () => {
       fechaBaja: null,
     });
 
-    await expect(
-      guardarFilaRelevamientoCommand.execute(
-        { id: FILA_ID, drogaId: DROGA_ID, potenciaDeclarada: null, actividadDeclarada: null },
-        { session: SESSION },
-      ),
-    ).rejects.toMatchObject({
-      name: "ValidationError",
-      fields: ["actividadDeclarada", "potenciaDeclarada"],
-    });
-    expect(upsertFilaRelevamientoMock).not.toHaveBeenCalled();
+    await guardarFilaRelevamientoCommand.execute(
+      { id: FILA_ID, drogaId: DROGA_ID, potenciaDeclarada: null, actividadDeclarada: null },
+      { session: SESSION },
+    );
+
+    expect(upsertFilaRelevamientoMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        id: FILA_ID,
+        drogaId: DROGA_ID,
+        potenciaDeclarada: null,
+        actividadDeclarada: null,
+      }),
+    );
   });
 
   it("accepts potenciaDeclarada = 100 as explicit gram lot for a se_dosifica_en_ui droga", async () => {
