@@ -20,8 +20,9 @@ const GRAMO: UnidadMedidaRef = { id: "gramo", tipoMagnitud: "MASA", factorABase:
 const MILIGRAMO: UnidadMedidaRef = { id: "miligramo", tipoMagnitud: "MASA", factorABase: 0.001 };
 const MILILITRO: UnidadMedidaRef = { id: "mililitro", tipoMagnitud: "VOLUMEN", factorABase: 1 };
 const UNIDAD: UnidadMedidaRef = { id: "unidad", tipoMagnitud: "UNIDADES", factorABase: 1 };
+const UI: UnidadMedidaRef = { id: "ui", tipoMagnitud: "ACTIVIDAD", factorABase: 1, simbolo: "U.I." };
 
-const UNIDADES_BASE = { MASA: GRAMO, VOLUMEN: MILILITRO, UNIDADES: UNIDAD };
+const UNIDADES_BASE = { MASA: GRAMO, VOLUMEN: MILILITRO, UNIDADES: UNIDAD, ACTIVIDAD: UI };
 
 const SIN_EXCESO: ParametrosPesaje = { excesoPesadaPorcentaje: 0 };
 

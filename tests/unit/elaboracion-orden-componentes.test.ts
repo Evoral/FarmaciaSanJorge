@@ -10,6 +10,7 @@ const GRAMO: UnidadMedidaRef = {
 };
 const ML: UnidadMedidaRef = { id: "u-ml", tipoMagnitud: "VOLUMEN", factorABase: "1", simbolo: "mL" };
 const UNIDAD: UnidadMedidaRef = { id: "u-u", tipoMagnitud: "UNIDADES", factorABase: "1", simbolo: "u" };
+const UI: UnidadMedidaRef = { id: "u-ui", tipoMagnitud: "ACTIVIDAD", factorABase: "1", simbolo: "U.I." };
 
 describe("ordenarComponentes (modules/elaboracion/domain/orden-componentes)", () => {
   it("sorts by posicion (load order) regardless of modoExpresion", () => {
@@ -70,7 +71,7 @@ describe("calcularFichaTecnica -- CSP always last (07ebae6)", () => {
         { drogaId: "d-a", drogaNombre: "Alcanfor", cantidad: "1", unidadMedida: GRAMO, modoExpresion: "TOTAL", posicion: 2 },
       ],
       { excesoPesadaPorcentaje: "0" },
-      { MASA: GRAMO, VOLUMEN: ML, UNIDADES: UNIDAD },
+      { MASA: GRAMO, VOLUMEN: ML, UNIDADES: UNIDAD, ACTIVIDAD: UI },
     );
 
     expect(lineas.map((l) => ({ nombre: l.drogaNombre, orden: l.orden }))).toEqual([
