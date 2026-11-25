@@ -47,6 +47,12 @@ and never name a method.
 6. Run `npm run typecheck`: it lists every registry still missing the method. Nothing else changes: not the carrier,
    the `conOperador` sites, `resolverActor`, the logger, the audit writer or the field markers.
 
+Per-farmacia enablement needs no step: a method with `siempreHabilitado: false` is off until an Administrador switches
+it on in `/admin/configuracion/pin` (`fsj.metodo_verificacion_habilitado`, migration 0136), the section lists it by
+itself, and `verificarOperadorEnTx` rejects it (audited `DESHABILITADO`) while it is off. The set travels with the
+session (`session.sector.metodosHabilitados`, `loadMetodosHabilitados`; absent means only the always-on methods) and
+the layout hands it to the dialog. A method that is on by default would need a seed in `fsj.crear_tenant_interno`.
+
 ## Login
 
 `modules/auth/application/login.ts` handles authentication against policies in

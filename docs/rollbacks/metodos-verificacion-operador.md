@@ -15,3 +15,18 @@ catalog.
 - Exported names that callers and tests rely on (`CAMPO_OPERADOR_PIN`, `MENSAJE_OPERADOR_RECHAZADO`,
   `loadPinHashesDeOperadores`, `loadPinHashesDeOtros`, `assertPinDisponible`) are unchanged, so a partial revert does
   not break an import.
+
+## Slice 1: per-farmacia enablement (migration 0136)
+
+An Administrador can switch OPTIONAL verification methods on and off; the server rejects a method the farmacia has not
+enabled. No optional method exists yet, so production behavior is unchanged: the admin section is hidden and the PIN
+(always on, code) never needs a row.
+
+- Schema: `fsj.metodo_verificacion_habilitado (tenant_id, metodo)`, migration
+  `20261125150000_0136_metodo_verificacion_habilitado`, down script
+  `prisma/rollbacks/20261125150000_0136_metodo_verificacion_habilitado.down.sql` (drops the table). The number was
+  planned as 0132; `origin/master` took 0132-0135 first, so recheck it before applying anywhere.
+- Order: revert the code of the slice first (the session loader, the verifier gate, the use cases and the admin section
+  read the table), then apply the down script as a NEW forward migration.
+- What is lost: which optional methods each farmacia had on. Nothing else: the PIN and every audit row stay.
+- Reverting only the code leaves an unused table that nothing reads, which is harmless.

@@ -72,23 +72,23 @@ Branch `feat/mvo-1-config-por-farmacia` -> targets `feat/mvo-0-registro-unico`.
 Start: PR 1. End: an Administrador can enable/disable optional methods; the server rejects disabled methods. No optional method exists yet (admin section renders only when one is optional), so production behavior is unchanged.
 
 Commit E — `feat(auth): per-farmacia method enablement table and server gate`
-- [ ] 2.1 Verify the next free migration number by listing `prisma/migrations/` (latest seen 0131; duplicates exist at 0124/0129/0130; recheck before creating). Create `prisma/migrations/<timestamp>_0132_metodo_verificacion_habilitado/migration.sql`: table `fsj.metodo_verificacion_habilitado (tenant_id, metodo text CHECK (metodo ~ '^[A-Z][A-Z_]{1,29}$' AND metodo <> 'PIN'), PK (tenant_id, metodo))`, `fsj.setup_tenant_table` (RLS ENABLE + FORCE + policy), `GRANT DELETE`, `REVOKE UPDATE`. No seed, no `crear_tenant_interno` replacement (D7). Prisma model + `npm run db:generate`.
-- [ ] 2.2 `prisma/rollbacks/<timestamp>_0132_metodo_verificacion_habilitado.down.sql` (drop table; follow the newest rollback naming and mirror the migration folder name). Append the 0132 section to `docs/rollbacks/metodos-verificacion-operador.md` (code first, then down).
-- [ ] 2.3 `loadMetodosHabilitados` in infrastructure, seeded with `siempreHabilitado` methods; `SesionDeSector.metodosHabilitados` (optional, absent = always-on only, fail-closed) filled where `loadPermisosConPin` is (D8).
-- [ ] 2.4 `verificar-operador.ts`: gate before scanning; a disabled method is rejected with the generic message and audited with internal reason `DESHABILITADO` (S9).
-- [ ] 2.5 Tests: unit gate with a mocked optional registry entry (no real optional method yet): disabled -> rejected + audited, enabled -> proceeds, absent set -> PIN only; DB: RLS/grants of the new table in `tests/db/` (opt-in `npm run test:db`), `tests/db/catalogo-guardas.test.ts` passes without adding an exception (PK leads with `tenant_id`).
+- [x] 2.1 Verify the next free migration number by listing `prisma/migrations/` (latest seen on this branch 0131, but `origin/master` already holds 0132-0135, so the number is **0136** and the folder timestamp must sort after `20261125120000`; duplicates exist at 0124/0129/0130; recheck before creating). Create `prisma/migrations/<timestamp>_0136_metodo_verificacion_habilitado/migration.sql`: table `fsj.metodo_verificacion_habilitado (tenant_id, metodo text CHECK (metodo ~ '^[A-Z][A-Z_]{1,29}$' AND metodo <> 'PIN'), PK (tenant_id, metodo))`, `fsj.setup_tenant_table` (RLS ENABLE + FORCE + policy), `GRANT DELETE`, `REVOKE UPDATE`. No seed, no `crear_tenant_interno` replacement (D7). Prisma model + `npm run db:generate`.
+- [x] 2.2 `prisma/rollbacks/<timestamp>_0136_metodo_verificacion_habilitado.down.sql` (drop table; follow the newest rollback naming and mirror the migration folder name). Append the 0136 section to `docs/rollbacks/metodos-verificacion-operador.md` (code first, then down).
+- [x] 2.3 `loadMetodosHabilitados` in infrastructure, seeded with `siempreHabilitado` methods; `SesionDeSector.metodosHabilitados` (optional, absent = always-on only, fail-closed) filled where `loadPermisosConPin` is (D8).
+- [x] 2.4 `verificar-operador.ts`: gate before scanning; a disabled method is rejected with the generic message and audited with internal reason `DESHABILITADO` (S9).
+- [x] 2.5 Tests: unit gate with a mocked optional registry entry (no real optional method yet): disabled -> rejected + audited, enabled -> proceeds, absent set -> PIN only; DB: RLS/grants of the new table in `tests/db/` (opt-in `npm run test:db`), `tests/db/catalogo-guardas.test.ts` passes without adding an exception (PK leads with `tenant_id`).
 
 Commit F — `feat(operadores): admin section to enable verification methods`
-- [ ] 2.6 `modules/operadores/application`: `operadores.metodosVerificacion.configurar` (`config.editar`, audit `metodo_verificacion`/MODIFICAR, `entidadId` = tenant, before/after + activados/desactivados, delete+insert) and its list query (same permiso as `list-acciones-con-pin`). PIN cannot be disabled (rejected). Register both use cases wherever existing ones are (permiso catalog, `ayuda-permisos.ts`).
-- [ ] 2.7 `app/(app)/admin/configuracion/pin/*`: «Métodos de verificación» section, rendered only when a non-always-on method exists; `layout.tsx` passes `metodos={[...session.sector.metodosHabilitados]}` to `OperadorProvider`.
-- [ ] 2.8 `modules/auditoria/domain/presentacion.ts`: label for `metodo_verificacion`.
-- [ ] 2.9 Tests: configure command (permission, PIN rejected, audit before/after, no-op), list query.
+- [x] 2.6 `modules/operadores/application`: `operadores.metodosVerificacion.configurar` (`config.editar`, audit `metodo_verificacion`/MODIFICAR, `entidadId` = tenant, before/after + activados/desactivados, delete+insert) and its list query (same permiso as `list-acciones-con-pin`). PIN cannot be disabled (rejected). Register both use cases wherever existing ones are (permiso catalog, `ayuda-permisos.ts`).
+- [x] 2.7 `app/(app)/admin/configuracion/pin/*`: «Métodos de verificación» section, rendered only when a non-always-on method exists; `layout.tsx` passes `metodos={[...session.sector.metodosHabilitados]}` to `OperadorProvider`.
+- [x] 2.8 `modules/auditoria/domain/presentacion.ts`: label for `metodo_verificacion`.
+- [x] 2.9 Tests: configure command (permission, PIN rejected, audit before/after, no-op), list query.
 
 Commit G — `refactor(ui): method-neutral verification copy`
 - [ ] 2.10 User-facing copy becomes «Verificación» (headings, help, dialog title text stays «¿Quién realiza esta acción?»). Route, `accion_con_pin`, `PERMISOS_CON_PIN_*`, `configurar-pin` keep their names. Update only strings; grep for tests asserting old copy and update them in this commit.
 
 Done criteria PR 2: CI green; `catalogo-guardas` unchanged; PIN-only farmacia sees today's dialog and the admin section is hidden.
-Not verified locally: `test:db` unless run (state it). Rollback: code revert, then 0132 down (docs).
+Not verified locally: `test:db` unless run (state it). Rollback: code revert, then 0136 down (docs).
 
 ---
 
@@ -98,7 +98,7 @@ Branch `feat/mvo-2a-huella-servidor` -> targets `feat/mvo-1-config-por-farmacia`
 Start: PR 2. End: HUELLA exists in the catalog and server registry, credentials can be registered/removed through use cases, identification works end to end server side. No UI yet; HUELLA is off by default and has no UI to enable until 2b adds its client entry, so the typecheck-forced client entry lands here as a stub (see 3.6).
 
 Commit H — `feat(auth): credencial_operador table and generic code-credential source`
-- [ ] 3.1 Next free migration number (re-list `prisma/migrations/`; expected 0133, but 0132 may have been taken by another branch): `<timestamp>_0133_credencial_operador/migration.sql`: `(tenant_id, usuario_id, metodo CHECK (same, <> 'PIN'), hash NOT NULL, creado_en, actualizado_en, PK (tenant_id, usuario_id, metodo), FK (tenant_id, usuario_id) -> usuario (tenant_id, id))`, `setup_tenant_table`, `GRANT UPDATE (hash, actualizado_en), DELETE`. Prisma model; `.down.sql` in `prisma/rollbacks/`; append the 0133 section (revert code, then 0133.down, then 0132.down) to `docs/rollbacks/metodos-verificacion-operador.md`.
+- [ ] 3.1 Next free migration number (re-list `prisma/migrations/`; expected 0137, planned when 0136 was the slice 1 number; recheck, newer `master` migrations may have taken it): `<timestamp>_0137_credencial_operador/migration.sql`: `(tenant_id, usuario_id, metodo CHECK (same, <> 'PIN'), hash NOT NULL, creado_en, actualizado_en, PK (tenant_id, usuario_id, metodo), FK (tenant_id, usuario_id) -> usuario (tenant_id, id))`, `setup_tenant_table`, `GRANT UPDATE (hash, actualizado_en), DELETE`. Prisma model; `.down.sql` in `prisma/rollbacks/`; append the 0137 section (revert code, then 0137.down, then 0136.down) to `docs/rollbacks/metodos-verificacion-operador.md`.
 - [ ] 3.2 `modules/auth/infrastructure/credencial-operador-repository.ts`: `candidatos` (uses `OPERADOR_ELEGIBLE` + credential row), `hashesDeOtros` with advisory lock `hashtext('fsj.credencial:' || metodo || ':' || tenant)`; hash with `hashPassword` (argon2id, D3).
 - [ ] 3.3 DB tests: table RLS/FORCE, grants (no UPDATE on other columns), cross-tenant isolation; `tests/db/catalogo-guardas.test.ts` unchanged and green.
 
@@ -110,7 +110,7 @@ Commit I — `feat(auth): HUELLA method in the catalog and server registry`
 - [ ] 3.8 Tests (unit, test first): identification, AMBIGUA, S7 (suspended / `debeCambiarPassword` / cuenta de sector excluded); uniqueness with lock, per-method and cross-method (same text as PIN of another accepted; same as own PIN accepted); disabled method rejected and audited `DESHABILITADO`; short code rejected as failed identification; deshabilitar+rehabilitar keeps credentials; logger redacts `huella` / `operadorHuella` at three levels; audit never contains code or hash (registrar, eliminar, rejection); sector account rejected for register/remove; disabled method rejects registration but not removal; admin remove leaves PIN untouched and PIN reset leaves huella untouched.
 
 Done criteria PR 3: CI green; guard tests from slice 0 still unchanged; typecheck forces no other file to change (proves the extension claim).
-Not verified locally: `test:db` unless run. Rollback: code revert, 0133.down.
+Not verified locally: `test:db` unless run. Rollback: code revert, 0137.down.
 
 ---
 
@@ -162,7 +162,7 @@ Order: merge PR 4 into PR 3's branch, then PR 3 into PR 2's, PR 2 into PR 1's, P
 - [ ] 6.1 `npm run typecheck`
 - [ ] 6.2 `npm run lint` (architecture boundaries)
 - [ ] 6.3 `npm test`
-- [ ] 6.4 `npm run test:db` with `FSJ_DB_TESTS=yes` (local DB; never reset it). Includes `catalogo-guardas`, the 0132/0133 table tests and `auth-pin`.
+- [ ] 6.4 `npm run test:db` with `FSJ_DB_TESTS=yes` (local DB; never reset it). Includes `catalogo-guardas`, the 0136/0137 table tests and `auth-pin`.
 - [ ] 6.5 `npm run specs:validate`
 - [ ] 6.6 Migrations: re-list `prisma/migrations/` and confirm numbers are still free and ordered after any newer `master` migration; apply to the dev DB; the second DB (`.env.prod`) is migrated only via the exact `docs/deploy.md` §4 command, at release.
 - [ ] 6.7 Manual: PIN-only farmacia sees today's dialog and no admin methods section (P-PIN parity); wrong PIN keeps the form and marks the PIN field; enable huella in admin and audit shows before/after; enroll in «Mi cuenta» (min 6, duplicate rejected without revealing the owner, replace, remove); cuenta de sector sees no panel; dialog opens on huella with focus, real wedge reader + Enter runs the action, audit shows `HUELLA` and no code; PIN one click away; disable huella then re-enable: same code works; disabled method rejected server-side; Admin removes a huella from Usuarios detalle, PIN intact; 375px, no horizontal scroll; check app logs for the code.

@@ -17,6 +17,12 @@ export interface AuthenticatedUsuario {
 export interface SesionDeSector {
   /** The acciones this farmacia asks an empleado's PIN for (`fsj.accion_con_pin`), loaded with the session. */
   permisosConPin: ReadonlySet<Permiso>;
+  /**
+   * The verification methods this farmacia accepts (`fsj.metodo_verificacion_habilitado` plus the always-on ones),
+   * loaded with the session. Optional: absent means only the always-on methods (fail-closed), so fixtures that omit it
+   * keep working and nothing optional is ever accepted by accident.
+   */
+  metodosHabilitados?: ReadonlySet<MetodoVerificacion>;
 }
 
 /** Where a verified empleado is acting from: the cuenta de sector whose session carried the request. */

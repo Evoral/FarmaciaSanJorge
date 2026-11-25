@@ -24,6 +24,7 @@ import {
   resolveSessionTenant,
   findSesionCompletaByTokenHash,
   loadPermisosConPin,
+  loadMetodosHabilitados,
   touchSesion,
 } from "../infrastructure/session-repository";
 import { withTenantTransaction } from "@/shared/db/transaction";
@@ -58,7 +59,7 @@ export async function validateSession(rawToken: string, now: Date = new Date()):
       permisos: usuario.permisos,
       reautenticadaEn: sesion.reautenticadaEn,
       // A cuenta de sector (openspec/specs/cuentas-de-sector/spec.md) carries which acciones ask an empleado's PIN.
-      sector: usuario.esSector ? { permisosConPin: await loadPermisosConPin(tx, tenantId) } : null,
+      sector: usuario.esSector ? { permisosConPin: await loadPermisosConPin(tx, tenantId), metodosHabilitados: await loadMetodosHabilitados(tx, tenantId) } : null,
       pasosPendientes: derivarPasosPendientes({
         debeCambiarPassword: usuario.debeCambiarPassword,
         tienePin: usuario.tienePin,
