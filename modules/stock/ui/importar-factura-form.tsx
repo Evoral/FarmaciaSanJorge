@@ -623,7 +623,7 @@ export function ImportarFacturaForm({
                                 }}
                                 className="input"
                               >
-                                <option value="">Elegí cómo ingresa…</option>
+                                <option value="">Elegí…</option>
                                 <option value="GRAMOS">En gramos (pureza %)</option>
                                 <option value="UI">En U.I.</option>
                               </select>
