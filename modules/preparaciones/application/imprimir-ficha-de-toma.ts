@@ -75,86 +75,86 @@ export async function getFichaYPesadaDeTomaEnTx(
   tenantId: string,
   fichaId: string,
 ): Promise<{ ficha: FichaParaImprimir; pesada: Map<number, PesadaDeLineaImprimir> }> {
-    const ficha = await getFichaParaImprimirEnTx(tx, tenantId, fichaId);
-    const lineas = (await getLineasParaPreparacion(tx, tenantId, fichaId)).filter(esLineaPesable);
-    const preparacion = await getPreparacionVivaDeFicha(tx, tenantId, fichaId);
-    const pesada = new Map<number, PesadaDeLineaImprimir>();
-    const poner = (linea: LineaParaPantalla, valor: PesadaDeLineaImprimir | null) => {
-      if (valor) pesada.set(linea.orden, valor);
-    };
+  const ficha = await getFichaParaImprimirEnTx(tx, tenantId, fichaId);
+  const lineas = (await getLineasParaPreparacion(tx, tenantId, fichaId)).filter(esLineaPesable);
+  const preparacion = await getPreparacionVivaDeFicha(tx, tenantId, fichaId);
+  const pesada = new Map<number, PesadaDeLineaImprimir>();
+  const poner = (linea: LineaParaPantalla, valor: PesadaDeLineaImprimir | null) => {
+    if (valor) pesada.set(linea.orden, valor);
+  };
 
-    if (preparacion?.estado === "CONFIRMADA") {
-      const porLinea = agrupar(await listEgresosDeLineasDePreparacion(tx, tenantId, preparacion.id), (e) => e.lineaPesajeId);
-      for (const linea of lineas) {
-        const egresos = porLinea.get(linea.id) ?? [];
-        if (egresos.some((e) => e.equivalenciaManual)) {
-          const total = egresos.reduce((suma, e) => suma.plus(e.cantidad), dec(0));
-          poner(linea, { tipo: "MANUAL", cantidad: total.toString(), unidadSimbolo: linea.unidadStock.simbolo });
-          continue;
-        }
-        poner(
-          linea,
-          pesadaPorLotes(
-            egresos.map((e) => ({ lote: e.lote, cantidad: e.cantidad, unidadSimbolo: e.unidadSimbolo, factor: textoFactorLote(e.potenciaAplicada, e.actividadAplicada) })),
-          ),
-        );
-      }
-      return { ficha, pesada };
-    }
-
-    if (preparacion) {
-      const reservas = await listReservasDePreparacion(tx, tenantId, preparacion.id);
-      const partidas = new Map(
-        (await getPartidasFrescas(tx, tenantId, [...new Set(reservas.map((r) => r.partidaId))], preparacion.id)).map((p) => [p.id, p]),
-      );
-      const porLinea = agrupar(reservas, (r) => r.lineaPesajeId);
-      for (const linea of lineas) {
-        const deLinea = porLinea.get(linea.id) ?? [];
-        const manual = deLinea.find((r) => r.equivalenciaManual);
-        if (manual) {
-          poner(linea, { tipo: "MANUAL", cantidad: manual.cantidadManual, unidadSimbolo: linea.unidadStock.simbolo });
-          continue;
-        }
-        const lotes: LotePesadaImprimir[] = [];
-        for (const r of deLinea) {
-          const p = partidas.get(r.partidaId);
-          if (p) lotes.push({ lote: p.lote, cantidad: r.cantidad, unidadSimbolo: linea.unidadStock.simbolo, factor: textoFactorLote(p.potenciaDeclarada, p.actividadDeclarada) });
-        }
-        poner(linea, pesadaPorLotes(lotes));
-      }
-      return { ficha, pesada };
-    }
-
-    const borradores = await getBorradoresDeFicha(tx, tenantId, fichaId);
-    const partidasPorDroga = await cargarPartidasPorDroga(tx, tenantId, lineas.map((l) => l.drogaId));
+  if (preparacion?.estado === "CONFIRMADA") {
+    const porLinea = agrupar(await listEgresosDeLineasDePreparacion(tx, tenantId, preparacion.id), (e) => e.lineaPesajeId);
     for (const linea of lineas) {
-      const tipoMagnitud = linea.unidad.tipoMagnitud;
-      const esActividad = tipoMagnitud === "ACTIVIDAD";
-      const compatibles = partidasCompatiblesConLinea(partidasPorDroga.porDroga.get(linea.drogaId)?.consumo ?? [], tipoMagnitud);
-      const borrador = borradores.get(linea.id);
-      if (linea.seDosificaEnUi && compatibles.length === 0) {
-        poner(linea, { tipo: "MANUAL", cantidad: borrador?.cantidadManual ?? null, unidadSimbolo: linea.unidadStock.simbolo });
+      const egresos = porLinea.get(linea.id) ?? [];
+      if (egresos.some((e) => e.equivalenciaManual)) {
+        const total = egresos.reduce((suma, e) => suma.plus(e.cantidad), dec(0));
+        poner(linea, { tipo: "MANUAL", cantidad: total.toString(), unidadSimbolo: linea.unidadStock.simbolo });
         continue;
       }
-      if (!esActividad && !mismaMagnitud(linea.unidad, linea.unidadStock)) continue;
-      const requerida = esActividad ? dec(linea.cantidadAPesar!) : convertirCantidad(dec(linea.cantidadAPesar!), linea.unidad, linea.unidadStock);
-      // The lots chosen in the draft (still in consumption order) when they cover the línea, else the automatic split.
-      const elegidas = compatibles.filter((p) => borrador?.partidaIds.includes(p.id));
-      const porEleccion = elegidas.length > 0 ? repartirLinea(elegidas, requerida, partidasPorDroga.jornada, false, linea.unidadStock) : null;
-      const reparto = porEleccion?.ok ? porEleccion : repartirLinea(compatibles, requerida, partidasPorDroga.jornada, false, linea.unidadStock);
-      if (!reparto.ok) continue;
-      const porId = new Map(compatibles.map((p) => [p.id, p]));
       poner(
         linea,
         pesadaPorLotes(
-          reparto.partes.map((parte) => {
-            const p = porId.get(parte.partidaId)!;
-            return { lote: p.lote, cantidad: parte.cantidad.toString(), unidadSimbolo: linea.unidadStock.simbolo, factor: textoFactorLote(p.potenciaDeclarada, p.actividadDeclarada) };
-          }),
+          egresos.map((e) => ({ lote: e.lote, cantidad: e.cantidad, unidadSimbolo: e.unidadSimbolo, factor: textoFactorLote(e.potenciaAplicada, e.actividadAplicada) })),
         ),
       );
     }
     return { ficha, pesada };
+  }
+
+  if (preparacion) {
+    const reservas = await listReservasDePreparacion(tx, tenantId, preparacion.id);
+    const partidas = new Map(
+      (await getPartidasFrescas(tx, tenantId, [...new Set(reservas.map((r) => r.partidaId))], preparacion.id)).map((p) => [p.id, p]),
+    );
+    const porLinea = agrupar(reservas, (r) => r.lineaPesajeId);
+    for (const linea of lineas) {
+      const deLinea = porLinea.get(linea.id) ?? [];
+      const manual = deLinea.find((r) => r.equivalenciaManual);
+      if (manual) {
+        poner(linea, { tipo: "MANUAL", cantidad: manual.cantidadManual, unidadSimbolo: linea.unidadStock.simbolo });
+        continue;
+      }
+      const lotes: LotePesadaImprimir[] = [];
+      for (const r of deLinea) {
+        const p = partidas.get(r.partidaId);
+        if (p) lotes.push({ lote: p.lote, cantidad: r.cantidad, unidadSimbolo: linea.unidadStock.simbolo, factor: textoFactorLote(p.potenciaDeclarada, p.actividadDeclarada) });
+      }
+      poner(linea, pesadaPorLotes(lotes));
+    }
+    return { ficha, pesada };
+  }
+
+  const borradores = await getBorradoresDeFicha(tx, tenantId, fichaId);
+  const partidasPorDroga = await cargarPartidasPorDroga(tx, tenantId, lineas.map((l) => l.drogaId));
+  for (const linea of lineas) {
+    const tipoMagnitud = linea.unidad.tipoMagnitud;
+    const esActividad = tipoMagnitud === "ACTIVIDAD";
+    const compatibles = partidasCompatiblesConLinea(partidasPorDroga.porDroga.get(linea.drogaId)?.consumo ?? [], tipoMagnitud);
+    const borrador = borradores.get(linea.id);
+    if (linea.seDosificaEnUi && compatibles.length === 0) {
+      poner(linea, { tipo: "MANUAL", cantidad: borrador?.cantidadManual ?? null, unidadSimbolo: linea.unidadStock.simbolo });
+      continue;
+    }
+    if (!esActividad && !mismaMagnitud(linea.unidad, linea.unidadStock)) continue;
+    const requerida = esActividad ? dec(linea.cantidadAPesar!) : convertirCantidad(dec(linea.cantidadAPesar!), linea.unidad, linea.unidadStock);
+    // The lots chosen in the draft (still in consumption order) when they cover the línea, else the automatic split.
+    const elegidas = compatibles.filter((p) => borrador?.partidaIds.includes(p.id));
+    const porEleccion = elegidas.length > 0 ? repartirLinea(elegidas, requerida, partidasPorDroga.jornada, false, linea.unidadStock) : null;
+    const reparto = porEleccion?.ok ? porEleccion : repartirLinea(compatibles, requerida, partidasPorDroga.jornada, false, linea.unidadStock);
+    if (!reparto.ok) continue;
+    const porId = new Map(compatibles.map((p) => [p.id, p]));
+    poner(
+      linea,
+      pesadaPorLotes(
+        reparto.partes.map((parte) => {
+          const p = porId.get(parte.partidaId)!;
+          return { lote: p.lote, cantidad: parte.cantidad.toString(), unidadSimbolo: linea.unidadStock.simbolo, factor: textoFactorLote(p.potenciaDeclarada, p.actividadDeclarada) };
+        }),
+      ),
+    );
+  }
+  return { ficha, pesada };
 }
 
 /** The PDF the toma workspace's "Imprimir ficha técnica" opens (app/api/preparaciones/fichas/[id]/pdf/route.ts). */
