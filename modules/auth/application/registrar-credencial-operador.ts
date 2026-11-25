@@ -20,11 +20,11 @@
 import { z } from "zod";
 import { defineCommand } from "@/shared/usecase";
 import { DomainError, ValidationError } from "@/shared/errors";
-import { hashPassword, verifyPassword } from "../domain/password";
+import { hashPassword } from "../domain/password";
 import { METODOS, METODOS_CON_CREDENCIAL_PROPIA, metodoHabilitado } from "../domain/verificacion-identidad";
 import { loadMetodosHabilitados } from "../infrastructure/session-repository";
 import { upsertCredencialOperador } from "../infrastructure/credencial-operador-repository";
-import { loadEsSoloAdministrador, loadUsuarioParaPassword } from "../infrastructure/usuario-repository";
+import { assertEmpleadoGestionaSuCredencial } from "./empleado-gestiona-su-credencial";
 import { assertCodigoDisponible } from "./identificacion-por-codigo";
 import { entradaDe } from "./metodos-verificacion";
 
@@ -53,23 +53,14 @@ export const registrarCredencialOperadorCommand = defineCommand({
     }
     const codigo = codigoValido.data;
 
-    const usuario = await loadUsuarioParaPassword(tx, session.usuario.id);
-    if (!usuario) {
-      // Should be unreachable (the session's own usuario row always exists), but never trust it silently.
-      throw new DomainError(`No se pudo registrar el método ${etiqueta}.`);
-    }
-    if (session.sector || usuario.esSector) {
-      throw new DomainError(`Las cuentas de sector no administran el método ${etiqueta}: lo hace cada empleado desde su cuenta.`);
-    }
-    if (await loadEsSoloAdministrador(tx, session.usuario.id)) {
-      throw new DomainError(`El Administrador no usa el método ${etiqueta}.`);
-    }
+    await assertEmpleadoGestionaSuCredencial(tx, session, {
+      noSePudo: `No se pudo registrar el método ${etiqueta}.`,
+      sector: `Las cuentas de sector no administran el método ${etiqueta}: lo hace cada empleado desde su cuenta.`,
+      administrador: `El Administrador no usa el método ${etiqueta}.`,
+      passwordActual: input.passwordActual,
+    });
     if (!metodoHabilitado(metodo, await loadMetodosHabilitados(tx, session.tenantId))) {
       throw new DomainError(`El método ${etiqueta} no está habilitado en la farmacia.`);
-    }
-
-    if (!(await verifyPassword(usuario.passwordHash, input.passwordActual))) {
-      throw new DomainError("La contraseña actual no es correcta.");
     }
 
     await assertCodigoDisponible(enrolamiento.fuente, tx, session.tenantId, session.usuario.id, codigo, { mensaje: enrolamiento.noDisponible, campo: enrolamiento.clave });

@@ -16,7 +16,7 @@ import { defineCommand } from "@/shared/usecase";
 import { DomainError } from "@/shared/errors";
 import { METODOS, METODOS_CON_CREDENCIAL_PROPIA, type MetodoVerificacion } from "../domain/verificacion-identidad";
 import { deleteCredencialOperador } from "../infrastructure/credencial-operador-repository";
-import { loadUsuarioParaPassword } from "../infrastructure/usuario-repository";
+import { assertEmpleadoGestionaSuCredencial } from "./empleado-gestiona-su-credencial";
 
 /** Deletes the credential and says whether there was one. */
 export async function eliminarCredencialDeOperadorEnTx(tx: Prisma.TransactionClient, tenantId: string, usuarioId: string, metodo: MetodoVerificacion): Promise<boolean> {
@@ -34,14 +34,10 @@ export const eliminarCredencialOperadorCommand = defineCommand({
   audit: { entidad: "usuario", accion: "MODIFICAR" },
   handler: async ({ tx, session, input }) => {
     const etiqueta = METODOS[input.metodo].etiqueta;
-    const usuario = await loadUsuarioParaPassword(tx, session.usuario.id);
-    if (!usuario) {
-      // Should be unreachable (the session's own usuario row always exists), but never trust it silently.
-      throw new DomainError(`No se pudo eliminar el método ${etiqueta}.`);
-    }
-    if (session.sector || usuario.esSector) {
-      throw new DomainError(`Las cuentas de sector no administran el método ${etiqueta}: lo hace cada empleado desde su cuenta.`);
-    }
+    await assertEmpleadoGestionaSuCredencial(tx, session, {
+      noSePudo: `No se pudo eliminar el método ${etiqueta}.`,
+      sector: `Las cuentas de sector no administran el método ${etiqueta}: lo hace cada empleado desde su cuenta.`,
+    });
     if (!(await eliminarCredencialDeOperadorEnTx(tx, session.tenantId, session.usuario.id, input.metodo))) {
       throw new DomainError(`No tenés el método ${etiqueta} configurado.`);
     }
