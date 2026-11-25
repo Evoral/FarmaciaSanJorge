@@ -1557,19 +1557,37 @@ async function main(): Promise<void> {
       );
       const recFutId = recetaRes.rows[0]!.id;
 
-      await client.query(
+      const itemFutRes = await client.query<{ id: string }>(
         `INSERT INTO fsj.item_receta (
            tenant_id, receta_id, descripcion, forma_farmaceutica, cantidad_unidades,
            fraccion_dosis_por_unidad, cantidad_total, unidad_total_id
          )
-         VALUES ($1, $2, $3, $4::fsj.forma_farmaceutica, 1, '1', $5::numeric, $6)`,
+         VALUES ($1, $2, $3, $4::fsj.forma_farmaceutica, 1, '1', $5::numeric, $6)
+         RETURNING id`,
         [tenantId, recFutId, formula.descripcion, formula.forma, formula.cantidadTotal, formula.unidadTotalId],
       );
+      const itemFutId = itemFutRes.rows[0]!.id;
+
+      // V1 (migration 0011): every item_receta needs at least one componente_item_receta.
+      for (let i = 0; i < formula.componentes.length; i++) {
+        const c = formula.componentes[i]!;
+        await client.query(
+          `INSERT INTO fsj.componente_item_receta (
+             tenant_id, item_receta_id, droga_id, cantidad, unidad_medida_id,
+             modo_expresion, es_principio_activo, posicion
+           )
+           VALUES ($1, $2, $3, $4::numeric, $5, 'TOTAL', $6, $7)`,
+          [tenantId, itemFutId, c.drogaId, c.cantidad, c.unidadId, c.esPa, i],
+        );
+      }
 
       counts.porEstado["PENDIENTE_PREPARACION"] = (counts.porEstado["PENDIENTE_PREPARACION"] ?? 0) + 1;
     }
 
     if (isDryRun) {
+      // Deferred constraint triggers (V1, INV-U02...) only fire at COMMIT; force them now
+      // so the dry run fails exactly where a real run would.
+      await client.query("SET CONSTRAINTS ALL IMMEDIATE");
       await client.query("ROLLBACK");
       console.log("\n=======================================================");
       console.log("dry run: rolled back");
