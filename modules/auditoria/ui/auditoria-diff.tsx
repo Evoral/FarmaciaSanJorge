@@ -11,7 +11,13 @@
  * injection and never puts a value into an `href`, inline `style`, or any
  * other markup/URL/CSS sink. Server component: `<details>` needs no JS.
  */
+import { METODOS } from "@/modules/auth/domain/verificacion-identidad";
 import { calcularCambios } from "../domain/presentacion";
+
+/** The catalog label of a verification method (`PIN` -> "PIN"); an unknown code (a method removed later) is shown as stored. */
+function etiquetaDeMetodo(codigo: string): string {
+  return Object.hasOwn(METODOS, codigo) ? METODOS[codigo as keyof typeof METODOS].etiqueta : codigo;
+}
 
 function formatJson(value: unknown): string {
   if (value === null || value === undefined) return "—";
@@ -90,7 +96,7 @@ export function AuditoriaDiff({ entidad, entidadId, valorAnterior, valorNuevo, z
       {terminal ? (
         <p className="text-xs text-zinc-600 dark:text-zinc-400">
           Realizado desde la cuenta de sector <span className="font-medium">{terminal}</span>
-          {verificacion ? ` · identificado con ${verificacion}` : null}
+          {verificacion ? ` · identificado con ${etiquetaDeMetodo(verificacion)}` : null}
         </p>
       ) : null}
 
