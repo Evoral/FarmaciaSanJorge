@@ -40,6 +40,7 @@ export async function replaceAccionesConPin(tx: Prisma.TransactionClient, tenant
 
 /** The optional verification methods the farmacia has switched on (`fsj.metodo_verificacion_habilitado`, migration 0136), in catalog order. */
 export async function getMetodosHabilitados(tx: Prisma.TransactionClient, tenantId: string): Promise<MetodoVerificacion[]> {
+  if (METODOS_OPCIONALES.length === 0) return [];
   const filas = await tx.metodoVerificacionHabilitado.findMany({ where: { tenantId }, select: { metodo: true } });
   const guardados = new Set(filas.map((fila) => fila.metodo));
   return METODOS_OPCIONALES.filter((metodo) => guardados.has(metodo));

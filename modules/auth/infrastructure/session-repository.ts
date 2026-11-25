@@ -218,8 +218,10 @@ export async function loadPermisosConPin(tx: Prisma.TransactionClient, tenantId:
  * offers as optional is ignored.
  */
 export async function loadMetodosHabilitados(tx: Prisma.TransactionClient, tenantId: string): Promise<ReadonlySet<MetodoVerificacion>> {
-  const filas = await tx.metodoVerificacionHabilitado.findMany({ where: { tenantId }, select: { metodo: true } });
   const habilitados = new Set<MetodoVerificacion>(METODOS_SIEMPRE_HABILITADOS);
+  // Nothing stored can matter while no method is optional: skip the query on the per-request path.
+  if (METODOS_OPCIONALES.length === 0) return habilitados;
+  const filas = await tx.metodoVerificacionHabilitado.findMany({ where: { tenantId }, select: { metodo: true } });
   for (const fila of filas) {
     const metodo = METODOS_OPCIONALES.find((opcional) => opcional === fila.metodo);
     if (metodo) habilitados.add(metodo);
