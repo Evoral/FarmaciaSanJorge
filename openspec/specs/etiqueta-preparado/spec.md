@@ -363,6 +363,18 @@ externo" as vía. The fondo rojo configuration (hoja-etiquetas R16) SHALL list b
 - **WHEN** the etiqueta of a 100 mL solución de uso externo is printed
 - **THEN** it reads "100 mL", "Solución", "Uso externo" on the red background, and a solución de uso interno prints white
 
+### Requirement: R12 — Rp/ condensed before it shrinks
+
+When the width, not the height, limits the fórmula's size, its type SHALL first get narrower (at most 15 % narrower,
+`CONDENSACION_MINIMA_RP`) so it grows toward what the free height allows. Every drug stays on one line; a fórmula that
+already fits, or one limited by its height, is not condensed (user decision, 2026-11-25).
+
+#### Scenario: Long line with free height
+
+- **GIVEN** a 100 × 42 mm etiqueta whose fórmula has one long drug line and half the area's height free
+- **WHEN** the etiqueta is printed
+- **THEN** the fórmula's type is narrower and larger than without condensing, and each drug is still on one line
+
 ### Requirement: R13 — Compact designs for very wide or very tall sizes
 
 The design SHALL be chosen by aspect ratio (ancho/alto) closest on a log scale (`disposicionCompacta`): classic 100 × 42

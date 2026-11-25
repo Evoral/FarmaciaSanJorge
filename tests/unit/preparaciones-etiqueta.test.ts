@@ -39,7 +39,7 @@ import {
   tamanoFuenteRp,
 } from "@/modules/preparaciones/infrastructure/etiqueta-pdf";
 import { disposicionCompacta } from "@/modules/preparaciones/infrastructure/etiqueta-pdf-compacta";
-import { variantesMedico } from "@/modules/preparaciones/infrastructure/etiqueta-pdf-trazos";
+import { CONDENSACION_MINIMA_RP, variantesMedico } from "@/modules/preparaciones/infrastructure/etiqueta-pdf-trazos";
 import { armarContenidoEtiquetaLote, type DatosEtiquetaLote } from "@/modules/stock/domain/etiqueta-lote";
 
 function componente(overrides: Partial<ComponenteEtiqueta>): ComponenteEtiqueta {
@@ -187,8 +187,8 @@ describe("Rp/", () => {
     it("a long line in one column does not squeeze the other: each column is as wide as its widest line", () => {
       const larga = anchoArea * 0.7;
       const corta = anchoArea * 0.4;
-      const { tamano, xs } = distribuirColumnasRp([larga, corta], 7);
-      const escala = tamano / tamanoFuenteRp(7);
+      const { tamano, xs, condensacion } = distribuirColumnasRp([larga, corta], 7);
+      const escala = (tamano / tamanoFuenteRp(7)) * condensacion;
       // Both columns side by side fill the width exactly (no leftover once the size shrank to fit).
       expect(xs[1]! + corta * escala).toBeCloseTo(AREA_RP.derecha, 5);
       // Larger than two equal halves would allow (the long line in half the width).
@@ -198,8 +198,8 @@ describe("Rp/", () => {
 
     it("centers the block horizontally (n+1 equal gaps) and keeps every row inside its height", () => {
       const anchoCol = anchoArea * 0.3;
-      const { tamano, xs, primeraY } = distribuirColumnasRp([anchoCol, anchoCol], 14);
-      const escala = tamano / tamanoFuenteRp(14);
+      const { tamano, xs, primeraY, condensacion } = distribuirColumnasRp([anchoCol, anchoCol], 14);
+      const escala = (tamano / tamanoFuenteRp(14)) * condensacion;
       const gapIzquierdo = xs[0]! - AREA_RP.x;
       const gapDerecho = AREA_RP.derecha - (xs[1]! + anchoCol * escala);
       expect(gapIzquierdo).toBeGreaterThan(0);
@@ -210,8 +210,8 @@ describe("Rp/", () => {
 
     it("centers a single short column horizontally (left gap equals right gap)", () => {
       const anchoCol = anchoArea * 0.2;
-      const { tamano, xs } = distribuirColumnasRp([anchoCol], 3);
-      const escala = tamano / tamanoFuenteRp(3);
+      const { tamano, xs, condensacion } = distribuirColumnasRp([anchoCol], 3);
+      const escala = (tamano / tamanoFuenteRp(3)) * condensacion;
       const gapIzquierdo = xs[0]! - AREA_RP.x;
       const gapDerecho = AREA_RP.derecha - (xs[0]! + anchoCol * escala);
       expect(gapIzquierdo).toBeGreaterThan(0);
@@ -220,9 +220,26 @@ describe("Rp/", () => {
 
     it("narrow columns keep the base size and share the leftover width", () => {
       const angosta = anchoArea * 0.1;
-      const { tamano, xs } = distribuirColumnasRp([angosta, angosta], 7);
+      const { tamano, xs, condensacion } = distribuirColumnasRp([angosta, angosta], 7);
       expect(tamano).toBe(tamanoFuenteRp(7));
+      expect(condensacion).toBe(1);
       expect(xs[1]!).toBeGreaterThan(AREA_RP.x + anchoArea / 2 - 1);
+    });
+
+    it("a fórmula limited by its width condenses the type (never below the floor) and grows into the free height", () => {
+      // Wider than the area at the base size, with only 5 rows: the height has room left.
+      const ancha = anchoArea * 0.8;
+      const sinCondensar = (tamanoFuenteRp(5) * (anchoArea - 4)) / (2 * ancha);
+      const { tamano, condensacion, primeraY } = distribuirColumnasRp([ancha, ancha], 5);
+      expect(condensacion).toBeLessThan(1);
+      expect(condensacion).toBeGreaterThanOrEqual(CONDENSACION_MINIMA_RP);
+      expect(tamano).toBeGreaterThan(sinCondensar);
+      expect(primeraY + tamano * 1.08 * 5).toBeLessThanOrEqual(AREA_RP.abajo + 1e-9);
+    });
+
+    it("does not condense when the height, not the width, limits the size", () => {
+      const { condensacion } = distribuirColumnasRp([anchoArea * 0.3, anchoArea * 0.3], 14);
+      expect(condensacion).toBe(1);
     });
   });
 });
