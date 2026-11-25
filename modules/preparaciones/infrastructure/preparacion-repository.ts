@@ -2869,3 +2869,52 @@ export async function listInsumosDePreparacion(tx: Prisma.TransactionClient, ten
       : [];
   });
 }
+
+/** The ficha's live preparación (CONFIRMADA first, else INICIADA) for the toma workspace's print; `null` when there is none. */
+export async function getPreparacionVivaDeFicha(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  fichaTecnicaId: string,
+): Promise<{ id: string; estado: "INICIADA" | "CONFIRMADA" } | null> {
+  const rows = await tx.preparacion.findMany({
+    where: { tenantId, fichaTecnicaId, estado: { in: ["INICIADA", "CONFIRMADA"] } },
+    select: { id: true, estado: true },
+  });
+  const viva = rows.find((r) => r.estado === "CONFIRMADA") ?? rows[0];
+  return viva ? { id: viva.id, estado: viva.estado as "INICIADA" | "CONFIRMADA" } : null;
+}
+
+/** A confirmed preparación's EGRESO_PREPARACION per línea de pesaje: lot, physical quantity (droga's unidad base) and the factor applied. */
+export interface EgresoDeLineaPesaje {
+  lineaPesajeId: string;
+  lote: string;
+  cantidad: string;
+  unidadSimbolo: string;
+  potenciaAplicada: string | null;
+  actividadAplicada: string | null;
+  equivalenciaManual: boolean;
+}
+
+export async function listEgresosDeLineasDePreparacion(tx: Prisma.TransactionClient, tenantId: string, preparacionId: string): Promise<EgresoDeLineaPesaje[]> {
+  const rows = await tx.movimientoStock.findMany({
+    where: { tenantId, preparacionId, tipo: "EGRESO_PREPARACION", lineaPesajeId: { not: null } },
+    orderBy: [{ registradoEn: "asc" }, { id: "asc" }],
+    select: {
+      lineaPesajeId: true,
+      cantidad: true,
+      potenciaAplicada: true,
+      actividadAplicada: true,
+      equivalenciaManual: true,
+      partida: { select: { lote: true, droga: { select: { unidadBase: { select: { simbolo: true } } } } } },
+    },
+  });
+  return rows.map((r) => ({
+    lineaPesajeId: r.lineaPesajeId!,
+    lote: r.partida.lote,
+    cantidad: r.cantidad.abs().toString(),
+    unidadSimbolo: r.partida.droga.unidadBase.simbolo,
+    potenciaAplicada: r.potenciaAplicada?.toString() ?? null,
+    actividadAplicada: r.actividadAplicada?.toString() ?? null,
+    equivalenciaManual: r.equivalenciaManual,
+  }));
+}

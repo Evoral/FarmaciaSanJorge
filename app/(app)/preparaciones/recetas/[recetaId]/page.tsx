@@ -441,7 +441,7 @@ function ItemToma({
   const nombre = nombreDeItem(item);
   const preparacion = item.preparacion;
   // In the actions bar, just left of the ítem's main action (Marcar como preparada, Liberar reserva, Ver preparación).
-  const imprimirFicha = puedeImprimirFicha && ficha ? <ImprimirFichaLink fichaTecnicaId={ficha.id} /> : null;
+  const imprimirFicha = puedeImprimirFicha && ficha ? <ImprimirFichaLink fichaTecnicaId={ficha.id} href={`/api/preparaciones/fichas/${ficha.id}/pdf`} /> : null;
 
   const tarjeta = (
     <article className="group-card" aria-labelledby={`item-toma-${item.id}`}>

@@ -173,3 +173,15 @@ weighed.
 #### Scenario: Libro recetario
 - **WHEN** the asiento of that preparación is written
 - **THEN** its fórmula reads "Vitamina D3 50.000 U.I."
+
+### Requirement: UI11 — Ficha impresa desde la toma
+
+The ficha printed from the toma workspace SHALL print, for each línea corrected by its lot (U.I., or purity below
+100 %), the mass to weigh from each lot with the lot's factor, and the prescribed amount as a secondary line. The lots
+are the preparación's movements, else its reservas, else the draft's chosen lots, else the automatic split. With no lot
+of the línea's kind it prints "Cantidad manual". The stored ficha does not change.
+
+#### Scenario: Dos lotes en U.I.
+- **GIVEN** a línea of 500.000 U.I. split as in UI6
+- **WHEN** the ficha is printed from the toma
+- **THEN** it reads "(500.000 U.I.)", then "Lote A (100.000 U.I./g) 3 g" and "Lote B (40.000 U.I./g) 5 g"
