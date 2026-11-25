@@ -91,7 +91,10 @@ function OperadorPrompt({ error, metodos, onConfirm, onCancel }: OperadorPromptP
   const tituloId = useId();
   const campoId = useId();
   const ofrecidos = ordenarPorPrioridad(metodos);
-  const [metodo, setMetodo] = useState<MetodoVerificacion>(ofrecidos[0]!);
+  // The empleado's pick, kept only while it is still offered: if `metodos` changes with the dialog open, the selection
+  // falls back to the first offered method instead of pointing at one that is gone.
+  const [elegido, setElegido] = useState<MetodoVerificacion | null>(null);
+  const metodo = elegido && ofrecidos.includes(elegido) ? elegido : ofrecidos[0]!;
   const [valores, setValores] = useState<Record<string, string>>({});
   const { Campo } = METODOS_EN_DIALOGO[metodo];
   const claves = METODOS[metodo].claves as readonly string[];
@@ -133,7 +136,7 @@ function OperadorPrompt({ error, metodos, onConfirm, onCancel }: OperadorPromptP
             <h2 id={tituloId} className="text-lg font-semibold">
               ¿Quién realiza esta acción?
             </h2>
-            <p className="text-sm text-zinc-600">Ingresá tu PIN. La acción queda registrada a tu nombre.</p>
+            <p className="text-sm text-zinc-600">{METODOS_EN_DIALOGO[metodo].ayuda}</p>
           </div>
         </div>
 
@@ -141,7 +144,7 @@ function OperadorPrompt({ error, metodos, onConfirm, onCancel }: OperadorPromptP
         {ofrecidos.length > 1 ? (
           <div className="flex gap-2">
             {ofrecidos.map((opcion) => (
-              <button key={opcion} type="button" aria-pressed={opcion === metodo} onClick={() => setMetodo(opcion)} className="btn btn-secondary">
+              <button key={opcion} type="button" aria-pressed={opcion === metodo} onClick={() => setElegido(opcion)} className="btn btn-secondary">
                 {METODOS[opcion].etiqueta}
               </button>
             ))}
