@@ -246,7 +246,10 @@ enum FormaFarmaceutica {
   GEL
   UNGUENTO
   JARABE
-  SOLUCION
+  /// Migration 0135: the former SOLUCION (renamed; every solución loaded before it was for internal use).
+  SOLUCION_USO_INTERNO
+  /// Migration 0135.
+  SOLUCION_USO_EXTERNO
   SUSPENSION
   POLVO
   OVULO

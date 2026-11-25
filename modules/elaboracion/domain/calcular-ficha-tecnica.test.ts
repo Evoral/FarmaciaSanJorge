@@ -436,7 +436,7 @@ describe("calcularFichaTecnica -- U.I. (UI3 / R9)", () => {
 
   it("keeps a stored '0.5 % × 30 mL' concentration ficha current (mismasLineasPesaje / claveLinea)", () => {
     const calculadas = calcularFichaTecnica(
-      item({ formaFarmaceutica: "SOLUCION", cantidadTotal: 30, unidadTotal: { ...MILILITRO, simbolo: "mL" } }),
+      item({ formaFarmaceutica: "SOLUCION_USO_INTERNO", cantidadTotal: 30, unidadTotal: { ...MILILITRO, simbolo: "mL" } }),
       [componente({ drogaId: "activo", cantidad: "0.5", unidadMedida: GRAMO, modoExpresion: "CONCENTRACION" })],
       SIN_EXCESO,
       UNIDADES_BASE,

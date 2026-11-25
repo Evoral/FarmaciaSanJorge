@@ -81,9 +81,15 @@ describe("viaDeAdministracion", () => {
     expect(viaDeAdministracion("SUPOSITORIO", 1)).toBe("Rectal");
   });
 
-  it("is empty for the ambiguous formas", () => {
-    expect(viaDeAdministracion("SOLUCION", 1)).toBeNull();
+  it("is empty for the ambiguous forma", () => {
     expect(viaDeAdministracion("SUSPENSION", 1)).toBeNull();
+  });
+
+  it("a solución says its use on the vía line and reads just Solución as forma", () => {
+    expect(viaDeAdministracion("SOLUCION_USO_INTERNO", 1)).toBe("Uso interno");
+    expect(viaDeAdministracion("SOLUCION_USO_EXTERNO", 1)).toBe("Uso externo");
+    expect(formaSegunCantidad("SOLUCION_USO_EXTERNO", 1)).toBe("Solución");
+    expect(formaSegunCantidad("SOLUCION_USO_INTERNO", 2)).toBe("Soluciones");
   });
 
   it("the forma label agrees with the quantity", () => {
@@ -462,7 +468,7 @@ describe("buildEtiquetaPdf", () => {
 
   it("stays one page with many Rp/ lines, no vía, no DT and no domicilio", async () => {
     const muchos = Array.from({ length: 12 }, (_, i) => componente({ drogaNombre: `Droga con un nombre bastante largo ${i + 1}`, esPrincipioActivo: true }));
-    const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta({ ...DATOS, formaFarmaceutica: "SOLUCION", cantidadUnidades: 1, componentes: muchos, directorTecnico: null, tenantDomicilio: null }), ESTANDAR, A4);
+    const pdf = await buildEtiquetaPdf(armarContenidoEtiqueta({ ...DATOS, formaFarmaceutica: "SUSPENSION", cantidadUnidades: 1, componentes: muchos, directorTecnico: null, tenantDomicilio: null }), ESTANDAR, A4);
     expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
   });
 
@@ -650,7 +656,7 @@ describe("buildEtiquetasPdf -- multiple sizes on one sheet", () => {
     const celda2 = { columna: 1, fila: 4 };
 
     const contenido1 = armarContenidoEtiqueta(DATOS);
-    const contenido2 = armarContenidoEtiqueta({ ...DATOS, formaFarmaceutica: "SOLUCION", cantidadUnidades: 1 });
+    const contenido2 = armarContenidoEtiqueta({ ...DATOS, formaFarmaceutica: "SUSPENSION", cantidadUnidades: 1 });
 
     const pdf = await buildEtiquetasPdf(
       [

@@ -112,7 +112,7 @@ describe("excipiente por unidad domain: unidadesDelItem", () => {
     }
   });
 
-  it("returns null for non-unit formas such as CREMA or SOLUCION", () => {
+  it("returns null for non-unit formas such as CREMA or SOLUCION_USO_INTERNO", () => {
     expect(
       unidadesDelItem({
         formaFarmaceutica: "CREMA",

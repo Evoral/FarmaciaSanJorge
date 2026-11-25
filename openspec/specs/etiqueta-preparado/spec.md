@@ -65,9 +65,9 @@ wide design's info column is stacked.
 
 #### Scenario: Forma alone beside the quantity
 
-- **GIVEN** a solución with no vía nor fracción line
+- **GIVEN** a suspensión with no vía nor fracción line
 - **WHEN** the etiqueta is printed
-- **THEN** "Solución" is centered on the height of the large quantity, not at the top of its place
+- **THEN** "Suspensión" is centered on the height of the large quantity, not at the top of its place
 
 #### Scenario: Missing field
 
@@ -350,6 +350,18 @@ column SHALL be as wide as its own widest line; the one font size shrinks only a
 - **GIVEN** a fórmula as wide as the area
 - **WHEN** the etiqueta is printed
 - **THEN** it keeps no side gap
+
+### Requirement: R14 — Solución de uso interno o externo
+
+A solución SHALL be loaded as "Solución uso interno" or "Solución uso externo"; every solución loaded before
+2026-11-25 is uso interno (migration 0135). Its etiqueta SHALL read "Solución" as forma and "Uso interno" / "Uso
+externo" as vía. The fondo rojo configuration (hoja-etiquetas R16) SHALL list both formas separately.
+
+#### Scenario: Solución de uso externo en rojo
+
+- **GIVEN** "Solución uso externo" configured to print on a red background
+- **WHEN** the etiqueta of a 100 mL solución de uso externo is printed
+- **THEN** it reads "100 mL", "Solución", "Uso externo" on the red background, and a solución de uso interno prints white
 
 ### Requirement: R13 — Compact designs for very wide or very tall sizes
 
