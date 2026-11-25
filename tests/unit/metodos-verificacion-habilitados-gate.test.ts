@@ -36,12 +36,14 @@ const identificarMock = vi.fn(async (...args: unknown[]): Promise<unknown> => {
   void args;
   return { ok: true, usuarioId: "33333333-3333-4333-a333-333333333333" };
 });
+const MENSAJE_FAKE = "No se pudo identificar al empleado. Volvé a usar el método de prueba.";
 vi.mock("@/modules/auth/application/metodos-verificacion", async () => {
   const { z } = await import("zod");
   const entrada = (metodo: string, clave: string) => ({
     prueba: z.object({ metodo: z.literal(metodo), [clave]: z.string().min(1) }),
     identificador: { metodo, identificar: (...args: unknown[]) => identificarMock(...args) },
     rechazo: { NO_RECONOCIDA: "no reconocida", AMBIGUA: "ambigua" },
+    rechazoGenerico: metodo === "FAKE" ? MENSAJE_FAKE : "No se pudo identificar al empleado. Volvé a ingresar el PIN.",
   });
   return { entradaDe: (metodo: string) => (metodo === "FAKE" ? entrada("FAKE", "codigo") : entrada("PIN", "pin")) };
 });
@@ -52,7 +54,7 @@ Object.assign(METODOS, { FAKE: { metodo: FAKE, etiqueta: "Fake", claves: ["codig
 (METODOS_VERIFICACION as MetodoVerificacion[]).push(FAKE);
 (METODOS_OPCIONALES as MetodoVerificacion[]).push(FAKE);
 
-const { verificarOperadorEnTx, MENSAJE_OPERADOR_RECHAZADO } = await import("@/modules/auth/application/verificar-operador");
+const { verificarOperadorEnTx } = await import("@/modules/auth/application/verificar-operador");
 const { loadMetodosHabilitados } = await import("@/modules/auth/infrastructure/session-repository");
 
 const TENANT_ID = "11111111-1111-1111-1111-111111111111";
@@ -107,10 +109,10 @@ describe("metodoHabilitado", () => {
 });
 
 describe("verificarOperadorEnTx: server gate", () => {
-  it("rejects a disabled optional method (absent set) with the generic message, audited as DESHABILITADO, before scanning anything", async () => {
+  it("rejects a disabled optional method (absent set) with the method's own generic message, audited as DESHABILITADO, before scanning anything", async () => {
     const resultado = await verificarOperadorEnTx(TX, sector(), credencialFake);
 
-    expect(resultado).toEqual({ ok: false, message: MENSAJE_OPERADOR_RECHAZADO });
+    expect(resultado).toEqual({ ok: false, message: MENSAJE_FAKE });
     expect(identificarMock).not.toHaveBeenCalled();
     expect(loadUsuarioConPermisosMock).not.toHaveBeenCalled();
     expect(auditRecordMock).toHaveBeenCalledTimes(1);
@@ -123,7 +125,7 @@ describe("verificarOperadorEnTx: server gate", () => {
 
   it("rejects it too when the set exists but lacks the method", async () => {
     const resultado = await verificarOperadorEnTx(TX, sector(new Set(["PIN"])), credencialFake);
-    expect(resultado).toEqual({ ok: false, message: MENSAJE_OPERADOR_RECHAZADO });
+    expect(resultado).toEqual({ ok: false, message: MENSAJE_FAKE });
     expect(identificarMock).not.toHaveBeenCalled();
   });
 

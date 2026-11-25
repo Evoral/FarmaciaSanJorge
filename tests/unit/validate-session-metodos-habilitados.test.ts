@@ -1,7 +1,7 @@
 /**
  * `validateSession` and the enabled verification methods of a cuenta de sector
  * (openspec/changes/metodos-verificacion-operador): the sector carries `metodosHabilitados`, a non-sector session does
- * not, and no query runs while no optional method exists (the per-request hot path).
+ * not, and its optional methods come from one query.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -88,11 +88,13 @@ describe("validateSession: metodosHabilitados", () => {
     expect(metodosFindMany).not.toHaveBeenCalled();
   });
 
-  it("runs no methods query while no optional method exists", async () => {
-    expect(METODOS_OPCIONALES).toHaveLength(0);
+  it("reads the farmacia's enabled optional methods with the sector session: one query, and only registry methods count", async () => {
+    expect(METODOS_OPCIONALES).toContain("HUELLA");
+    metodosFindMany.mockResolvedValueOnce([{ metodo: "HUELLA" }, { metodo: "ROSTRO" }]);
     findSesionCompletaMock.mockResolvedValue(completa(true));
-    await validateSession("raw-token", now);
+    const session = await validateSession("raw-token", now);
     expect(accionesFindMany).toHaveBeenCalledTimes(1);
-    expect(metodosFindMany).not.toHaveBeenCalled();
+    expect(metodosFindMany).toHaveBeenCalledTimes(1);
+    expect([...(session?.sector?.metodosHabilitados ?? [])].sort()).toEqual([...METODOS_SIEMPRE_HABILITADOS, "HUELLA"].sort());
   });
 });

@@ -10,6 +10,7 @@
 import type { ReactNode, Ref } from "react";
 import { AUTH_POLICY } from "@/shared/auth/policy";
 import type { MetodoVerificacion } from "@/modules/auth/domain/verificacion-identidad";
+import { HUELLA_LONGITUD_MAXIMA, HUELLA_LONGITUD_MINIMA } from "@/modules/auth/domain/verificacion-identidad";
 import { PasswordInput } from "@/shared/ui/password-input";
 
 export interface CampoDeMetodoProps {
@@ -45,6 +46,30 @@ export const METODOS_EN_DIALOGO: { [M in MetodoVerificacion]: MetodoEnDialogo } 
           inputMode="numeric"
           pattern={`\\d{${AUTH_POLICY.pinLength}}`}
           maxLength={AUTH_POLICY.pinLength}
+          required
+          autoComplete="off"
+          className="input"
+        />
+      </div>
+    ),
+  },
+  // Minimal entry (slice 2a): the wedge reader types the code into the focused field and presses Enter. Focus handling,
+  // method switch defaults and polish land with the dialog work of slice 2b.
+  HUELLA: {
+    prioridad: 10,
+    ayuda: "Pasá tu huella por el lector. La acción queda registrada a tu nombre.",
+    Campo: ({ id, ref, valores, onChange }) => (
+      <div className="field">
+        <label htmlFor={id} className="field-label">
+          Huella
+        </label>
+        <PasswordInput
+          ref={ref}
+          id={id}
+          value={valores.huella ?? ""}
+          onChange={(event) => onChange("huella", event.target.value)}
+          minLength={HUELLA_LONGITUD_MINIMA}
+          maxLength={HUELLA_LONGITUD_MAXIMA}
           required
           autoComplete="off"
           className="input"

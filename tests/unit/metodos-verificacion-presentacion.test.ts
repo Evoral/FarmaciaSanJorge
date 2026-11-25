@@ -39,6 +39,20 @@ describe("logger redaction per method", () => {
   }
 });
 
+describe("logger redaction of the huella", () => {
+  it("redacts the huella proof key and its form field by name, at three levels", () => {
+    for (const nombre of ["huella", "operadorHuella"]) {
+      const line = captureLogLine((log) => log.info({ [nombre]: "H-884213", a: { [nombre]: "H-884213" }, b: { c: { [nombre]: "H-884213" } } }, "x"));
+      expect(JSON.stringify(line)).not.toContain("H-884213");
+    }
+  });
+
+  it("does not hide a permiso or droga code: the key is huella, not codigo", () => {
+    const line = captureLogLine((log) => log.info({ codigo: "recetas.crear" }, "x"));
+    expect(line.codigo).toBe("recetas.crear");
+  });
+});
+
 describe("audit label of the verification method", () => {
   const render = (verificacion: string) =>
     renderToStaticMarkup(
@@ -54,6 +68,10 @@ describe("audit label of the verification method", () => {
 
   it("keeps the PIN reading as before", () => {
     expect(render("PIN")).toContain("identificado con PIN");
+  });
+
+  it("reads the huella as «identificado con huella»", () => {
+    expect(render("HUELLA")).toContain("identificado con huella");
   });
 
   it("shows an unknown method code as stored", () => {
