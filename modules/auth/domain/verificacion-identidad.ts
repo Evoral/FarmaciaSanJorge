@@ -1,21 +1,46 @@
 /**
  * How an empleado proves who they are when acting from a cuenta de sector
- * (openspec/specs/cuentas-de-sector/spec.md). Pure contract -- no I/O.
+ * (openspec/specs/cuentas-de-sector/spec.md). Pure contract -- no I/O, no zod.
  *
- * Today the only method is the PIN (`./pin.ts`). The pipeline
- * (shared/usecase.ts), the audit trail and every command only know this
- * contract: a new method (WebAuthn, fingerprint, Face ID) is one more
- * variant of `PruebaDeIdentidad` plus one more `IdentificadorDeEmpleado`
- * registered in ../application/verificar-operador.ts.
+ * The method catalog (`METODOS`) is the single source every other layer derives from: the carrier field names
+ * (shared/auth/operador-campos.ts), the logger redaction, the form plumbing and the audit label. The server registry
+ * (../application/metodos-verificacion.ts) and the client one (modules/operadores/ui/metodos-en-dialogo.tsx) are
+ * mapped types over `MetodoVerificacion`, so a method missing from any of them fails the typecheck. Adding a method:
+ * "Adding a verification method" in shared/auth/README.md.
  */
-export const METODOS_VERIFICACION = ["PIN"] as const;
-
-export type MetodoVerificacion = (typeof METODOS_VERIFICACION)[number];
 
 /** What the empleado presents, discriminated by `metodo`. */
 export type PruebaDeIdentidad = { metodo: "PIN"; pin: string };
 
+export type MetodoVerificacion = PruebaDeIdentidad["metodo"];
+
+export const METODOS_VERIFICACION = ["PIN"] as const satisfies readonly MetodoVerificacion[];
+
+/** The method used when a request names none (what a PIN-only form sends). */
+export const METODO_POR_DEFECTO: MetodoVerificacion = "PIN";
+
 export type PruebaDe<M extends MetodoVerificacion> = Extract<PruebaDeIdentidad, { metodo: M }>;
+
+/** The keys of a method's proof (everything but `metodo`). */
+export type ClaveDePrueba<M extends MetodoVerificacion> = Exclude<keyof PruebaDe<M>, "metodo">;
+
+/** Where a method's enrolled secret lives: `usuario.pin_hash` or the generic per-method credential table. */
+export type AlmacenDeMetodo = "USUARIO_PIN" | "CREDENCIAL_OPERADOR";
+
+export interface DescripcionDeMetodo<M extends MetodoVerificacion> {
+  readonly metodo: M;
+  /** Shown in the dialog, the admin section and the audit trail. */
+  readonly etiqueta: string;
+  /** Every proof key is secret: each one is a form field and a redacted log key. */
+  readonly claves: readonly ClaveDePrueba<M>[];
+  /** An always-on method cannot be disabled by a farmacia. */
+  readonly siempreHabilitado: boolean;
+  readonly almacen: AlmacenDeMetodo;
+}
+
+export const METODOS: { [M in MetodoVerificacion]: DescripcionDeMetodo<M> } = {
+  PIN: { metodo: "PIN", etiqueta: "PIN", claves: ["pin"], siempreHabilitado: true, almacen: "USUARIO_PIN" },
+};
 
 /**
  * Why a proof identified nobody: `NO_RECONOCIDA` = it matches no eligible empleado; `AMBIGUA` = it matches more than one
