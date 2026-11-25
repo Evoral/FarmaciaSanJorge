@@ -46,8 +46,19 @@ export async function getMetodosHabilitados(tx: Prisma.TransactionClient, tenant
   return METODOS_OPCIONALES.filter((metodo) => guardados.has(metodo));
 }
 
-/** Replaces the farmacia's set of optional methods (delete + insert: a pair has nothing to update, see migration 0136's grants). */
+/**
+ * Serializes the saves of a farmacia's set of optional methods: a transaction-scoped advisory lock per tenant. Two
+ * Administradores saving at once would otherwise both delete, then both insert the same pair and one would fail on the
+ * primary key (23505) instead of waiting. Taken BEFORE the "before" read of the audit too (the command calls it first),
+ * so the audit's before/after of the second save describes what the first one left. Re-entrant within a transaction.
+ */
+export async function lockMetodosHabilitados(tx: Prisma.TransactionClient, tenantId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('fsj.metodos:' || ${tenantId}::text))`;
+}
+
+/** Replaces the farmacia's set of optional methods (delete + insert: a pair has nothing to update, see migration 0136's grants). Touches ONLY that table: the enrolled credentials stay (they are ignored while a method is off). */
 export async function replaceMetodosHabilitados(tx: Prisma.TransactionClient, tenantId: string, metodos: readonly MetodoVerificacion[]): Promise<void> {
+  await lockMetodosHabilitados(tx, tenantId);
   await tx.metodoVerificacionHabilitado.deleteMany({ where: { tenantId } });
   if (metodos.length > 0) {
     await tx.metodoVerificacionHabilitado.createMany({ data: metodos.map((metodo) => ({ tenantId, metodo })) });

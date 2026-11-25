@@ -31,11 +31,15 @@ const getMetodosHabilitadosMock = vi.fn(async (...args: unknown[]): Promise<stri
   void args;
   return [];
 });
+const lockMetodosHabilitadosMock = vi.fn(async (...args: unknown[]): Promise<void> => {
+  void args;
+});
 const replaceMetodosHabilitadosMock = vi.fn(async (...args: unknown[]): Promise<void> => {
   void args;
 });
 vi.mock("@/modules/operadores/infrastructure/operadores-repository", () => ({
   getMetodosHabilitados: (...args: unknown[]) => getMetodosHabilitadosMock(...args),
+  lockMetodosHabilitados: (...args: unknown[]) => lockMetodosHabilitadosMock(...args),
   replaceMetodosHabilitados: (...args: unknown[]) => replaceMetodosHabilitadosMock(...args),
 }));
 
@@ -64,6 +68,7 @@ beforeEach(() => {
   auditRecordMock.mockClear();
   getMetodosHabilitadosMock.mockReset().mockResolvedValue([]);
   replaceMetodosHabilitadosMock.mockClear();
+  lockMetodosHabilitadosMock.mockClear();
 });
 
 describe("helpers", () => {
@@ -113,6 +118,15 @@ describe("operadores.metodosVerificacion.configurar", () => {
       valorAnterior: { metodos: [] },
       valorNuevo: { metodos: [FAKE], activados: [FAKE], desactivados: [] },
     });
+  });
+
+  it("takes the per-farmacia lock BEFORE reading the set and writing it, so two concurrent saves are serialized", async () => {
+    await configurarMetodosVerificacionCommand.execute({ metodos: [FAKE] }, { session: sesion(["config.editar"]) });
+
+    expect(lockMetodosHabilitadosMock).toHaveBeenCalledWith(expect.anything(), TENANT_ID);
+    const orden = (mock: { mock: { invocationCallOrder: number[] } }) => mock.mock.invocationCallOrder[0]!;
+    expect(orden(lockMetodosHabilitadosMock)).toBeLessThan(orden(getMetodosHabilitadosMock));
+    expect(orden(getMetodosHabilitadosMock)).toBeLessThan(orden(replaceMetodosHabilitadosMock));
   });
 
   it("audits what was switched off", async () => {

@@ -15,7 +15,7 @@ import { defineCommand, TipoAccion } from "@/shared/usecase";
 import { DomainError } from "@/shared/errors";
 import { METODOS, METODOS_VERIFICACION, type MetodoVerificacion } from "@/modules/auth/domain/verificacion-identidad";
 import { diferenciaMetodos, ordenarMetodos } from "../domain/metodos-verificacion";
-import { getMetodosHabilitados, replaceMetodosHabilitados } from "../infrastructure/operadores-repository";
+import { getMetodosHabilitados, lockMetodosHabilitados, replaceMetodosHabilitados } from "../infrastructure/operadores-repository";
 
 const configurarMetodosVerificacionInput = z.object({
   metodos: z
@@ -31,6 +31,9 @@ export const configurarMetodosVerificacionCommand = defineCommand({
   input: configurarMetodosVerificacionInput,
   audit: { entidad: "metodo_verificacion", accion: TipoAccion.MODIFICAR },
   handler: async ({ tx, session, input }) => {
+    // Two Administradores saving at once are serialized here, BEFORE the "before" read: the audit of the second one then
+    // describes what the first one left, and the delete + insert below cannot collide on the primary key.
+    await lockMetodosHabilitados(tx, session.tenantId);
     const antes = await getMetodosHabilitados(tx, session.tenantId);
     const despues = ordenarMetodos(input.metodos);
     const { activados, desactivados } = diferenciaMetodos(antes, despues);
