@@ -5,6 +5,7 @@
  * (openspec/specs/hoja-etiquetas/spec.md R4, R6).
  */
 import { inflateSync } from "node:zlib";
+import PDFDocument from "pdfkit";
 import { describe, it, expect } from "vitest";
 import { HOJA_PREDETERMINADA, posicionCelda } from "@/modules/etiqueta-tamanos/domain/etiqueta-hoja";
 import { ETIQUETA_TAMANO_PREDETERMINADO } from "@/modules/etiqueta-tamanos/domain/etiqueta-tamano";
@@ -39,7 +40,7 @@ import {
   tamanoFuenteRp,
 } from "@/modules/preparaciones/infrastructure/etiqueta-pdf";
 import { disposicionCompacta } from "@/modules/preparaciones/infrastructure/etiqueta-pdf-compacta";
-import { CONDENSACION_MINIMA_RP, variantesMedico } from "@/modules/preparaciones/infrastructure/etiqueta-pdf-trazos";
+import { compX, CONDENSACION_MINIMA_RP, dibujarFormula, enCelda, variantesMedico } from "@/modules/preparaciones/infrastructure/etiqueta-pdf-trazos";
 import { armarContenidoEtiquetaLote, type DatosEtiquetaLote } from "@/modules/stock/domain/etiqueta-lote";
 
 function componente(overrides: Partial<ComponenteEtiqueta>): ComponenteEtiqueta {
@@ -410,6 +411,23 @@ describe("armarContenidoEtiqueta / formatearContenidoEtiqueta", () => {
     });
   });
 
+  it("100 mL external solución produces forma 'Solución' and vía 'Uso externo'", () => {
+    const contenido = armarContenidoEtiqueta({
+      ...DATOS,
+      formaFarmaceutica: "SOLUCION_USO_EXTERNO",
+      cantidadUnidades: 1,
+      cantidadTotal: "100",
+      unidadTotalSimbolo: "mL",
+      fraccionDosisPorUnidad: "1",
+    });
+    expect(contenido).toMatchObject({
+      cantidad: 1,
+      cantidadTotal: "100 mL",
+      forma: "Solución",
+      via: "Uso externo",
+    });
+  });
+
   it("médico: as on the farmacia's label", () => {
     expect(formatearMedicoEtiqueta(DATOS)).toBe("Médico: Ana Gómez  -  MAT:4521");
   });
@@ -765,6 +783,40 @@ describe("buildEtiquetaPdf -- 60 x 15 compact wide layout", () => {
     });
     const pdf = await buildEtiquetaPdf(contenidoMedicoLargo, TAMANO_COMPACTO, A4);
     expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
+  });
+
+  it("renders one page with a long fórmula in both compact wide (60 x 15) and tall (40 x 60) designs", async () => {
+    const contenidoFormulaLarga = armarContenidoEtiqueta({
+      ...DATOS,
+      componentes: [
+        componente({ drogaNombre: "Ácido Hialurónico de Muy Alto Peso Molecular", cantidad: "250", unidadSimbolo: "mg", esPrincipioActivo: true }),
+        componente({ drogaNombre: "Colágeno Hidrolizado Marino Concentrado", cantidad: "500", unidadSimbolo: "mg", esPrincipioActivo: true }),
+      ],
+    });
+
+    const pdfWide = await buildEtiquetaPdf(contenidoFormulaLarga, TAMANO_COMPACTO, A4);
+    expect(pdfWide.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
+
+    const pdfTall = await buildEtiquetaPdf(contenidoFormulaLarga, { anchoMm: 40, altoMm: 60 }, A4);
+    expect(pdfTall.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
+  });
+
+  it("dibujarFormula restores the cell's horizontal compensation afterwards", () => {
+    const doc = new PDFDocument({ size: "A4" });
+    const rpLargo = ["Ácido Hialurónico de Muy Alto Peso Molecular 250 mg"];
+
+    expect(compX(doc)).toBe(1);
+    dibujarFormula(doc, rpLargo, AREA_RP);
+    expect(compX(doc)).toBe(1);
+
+    enCelda(doc, { x: 10, y: 10, escalaX: 0.6, escalaY: 0.9 }, () => {
+      const esperado = 0.9 / 0.6;
+      expect(compX(doc)).toBeCloseTo(esperado, 9);
+      dibujarFormula(doc, rpLargo, AREA_RP);
+      expect(compX(doc)).toBeCloseTo(esperado, 9);
+    });
+    expect(compX(doc)).toBe(1);
+    doc.end();
   });
 });
 

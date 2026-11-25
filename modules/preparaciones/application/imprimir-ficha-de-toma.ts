@@ -12,6 +12,7 @@
  * `fichas.imprimir`, like the ficha's own print route (modules/elaboracion).
  */
 import { z } from "zod";
+import type { Prisma } from "@/generated/prisma/client";
 import { defineQuery } from "@/shared/usecase";
 import { uuid } from "@/shared/validation";
 import { dec } from "@/shared/decimal";
@@ -62,11 +63,21 @@ export const imprimirFichaDeTomaQuery = defineQuery({
   name: "preparaciones.toma.imprimirFicha",
   permiso: "fichas.imprimir",
   input: imprimirFichaDeTomaInput,
-  handler: async ({ tx, session, input }): Promise<{ ficha: FichaParaImprimir; pesada: Map<number, PesadaDeLineaImprimir> }> => {
-    const tenantId = session.tenantId;
-    const ficha = await getFichaParaImprimirEnTx(tx, tenantId, input.fichaId);
-    const lineas = (await getLineasParaPreparacion(tx, tenantId, input.fichaId)).filter(esLineaPesable);
-    const preparacion = await getPreparacionVivaDeFicha(tx, tenantId, input.fichaId);
+  handler: async ({ tx, session, input }) => getFichaYPesadaDeTomaEnTx(tx, session.tenantId, input.fichaId),
+});
+
+/**
+ * Same read inside the caller's transaction (not a use case: the caller already authorized `fichas.imprimir`).
+ * Exported so DB tests can exercise it inside a rolled-back transaction.
+ */
+export async function getFichaYPesadaDeTomaEnTx(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  fichaId: string,
+): Promise<{ ficha: FichaParaImprimir; pesada: Map<number, PesadaDeLineaImprimir> }> {
+    const ficha = await getFichaParaImprimirEnTx(tx, tenantId, fichaId);
+    const lineas = (await getLineasParaPreparacion(tx, tenantId, fichaId)).filter(esLineaPesable);
+    const preparacion = await getPreparacionVivaDeFicha(tx, tenantId, fichaId);
     const pesada = new Map<number, PesadaDeLineaImprimir>();
     const poner = (linea: LineaParaPantalla, valor: PesadaDeLineaImprimir | null) => {
       if (valor) pesada.set(linea.orden, valor);
@@ -114,7 +125,7 @@ export const imprimirFichaDeTomaQuery = defineQuery({
       return { ficha, pesada };
     }
 
-    const borradores = await getBorradoresDeFicha(tx, tenantId, input.fichaId);
+    const borradores = await getBorradoresDeFicha(tx, tenantId, fichaId);
     const partidasPorDroga = await cargarPartidasPorDroga(tx, tenantId, lineas.map((l) => l.drogaId));
     for (const linea of lineas) {
       const tipoMagnitud = linea.unidad.tipoMagnitud;
@@ -144,8 +155,7 @@ export const imprimirFichaDeTomaQuery = defineQuery({
       );
     }
     return { ficha, pesada };
-  },
-});
+}
 
 /** The PDF the toma workspace's "Imprimir ficha técnica" opens (app/api/preparaciones/fichas/[id]/pdf/route.ts). */
 export async function imprimirFichaDeTomaPdf(fichaId: string): Promise<FichaTecnicaPdfResult> {
