@@ -41,8 +41,8 @@ import { confirmarPreparacionAction, recalcularReservaStockAction, reservarStock
 import { TipoVencimientoSelect } from "./tipo-vencimiento-select";
 import type { DatosConfirmacion, LineaPantalla } from "@/modules/preparaciones/application/datos-confirmacion";
 import { requiereMotivoAperturaAdicional } from "@/modules/preparaciones/domain/apertura-adicional";
-import { repartirLinea, requiereElegirPartida } from "@/modules/preparaciones/domain/reparto-linea";
-import { bajoLaBalanza, evaluarPesada, precisionDeLinea, sugerenciaPesadaReal, type EvaluacionPesada } from "@/modules/preparaciones/domain/pesada-real";
+import { partidasCompatiblesConLinea, repartirLinea, requiereElegirPartida } from "@/modules/preparaciones/domain/reparto-linea";
+import { bajoLaBalanza, evaluarPesada, precisionDeLinea, sugerenciaPesadaReal, unidadDePesada, type EvaluacionPesada } from "@/modules/preparaciones/domain/pesada-real";
 import { AvisoBajoLaBalanza } from "./aviso-bajo-la-balanza";
 import { ordenarParaConsumo } from "@/modules/stock/domain/reparto";
 import { Decimal } from "@/shared/decimal";
@@ -92,39 +92,59 @@ export function cantidadValida(texto: string | undefined): Decimal | null {
  * converted into the droga's unidad base, no purity correction) -- exactly what the server will do. `"elegir"` = no
  * lot checked while the droga has some.
  */
-export function planDeLinea(linea: LineaPantalla, cantidadManual: string | undefined, elegidas: readonly string[], jornada: string): PlanDeLinea {
-  const candidatas = linea.partidasElegibles.filter((p) => elegidas.includes(p.id));
-  if (candidatas.length === 0 && linea.partidasElegibles.length > 0) return "elegir";
-  if (!mismaMagnitud(linea.unidad, linea.unidadStock)) return null;
-  let requeridaStock: Decimal;
-  if (linea.esEnraseManual) {
+export function planDeLinea(
+  linea: LineaPantalla,
+  cantidadManual: string | undefined,
+  elegidas: readonly string[],
+  jornada: string,
+  equivalenciaManual = false,
+): PlanDeLinea {
+  const esManual = linea.esEnraseManual || equivalenciaManual;
+  const esActividad = linea.unidad.tipoMagnitud === "ACTIVIDAD";
+  const elegiblesDisponibles = esManual ? linea.partidasElegibles : partidasCompatiblesConLinea(linea.partidasElegibles, linea.unidad.tipoMagnitud);
+  const candidatas = elegiblesDisponibles.filter((p) => elegidas.includes(p.id));
+  if (candidatas.length === 0 && elegiblesDisponibles.length > 0) return "elegir";
+  if (!esActividad && !equivalenciaManual && !mismaMagnitud(linea.unidad, linea.unidadStock)) return null;
+  let requerida: Decimal;
+  if (esManual) {
     const cantidad = cantidadValida(cantidadManual);
     if (!cantidad) return null;
-    requeridaStock = convertirCantidad(cantidad, linea.unidad, linea.unidadStock);
+    requerida = equivalenciaManual ? cantidad : convertirCantidad(cantidad, linea.unidad, linea.unidadStock);
   } else {
     if (!linea.cantidadAPesar) return null;
-    requeridaStock = convertirCantidad(new Decimal(linea.cantidadAPesar), linea.unidad, linea.unidadStock);
+    requerida = esActividad ? new Decimal(linea.cantidadAPesar) : convertirCantidad(new Decimal(linea.cantidadAPesar), linea.unidad, linea.unidadStock);
   }
-  const resultado = repartirLinea(candidatas, requeridaStock, jornada, linea.esEnraseManual);
-  if (!resultado.ok) return { ok: false, faltante: convertirCantidad(resultado.faltante, linea.unidadStock, linea.unidad).toFixed() };
+  const resultado = repartirLinea(candidatas, requerida, jornada, esManual, linea.unidadStock);
+  if (!resultado.ok) {
+    const faltante = esActividad || equivalenciaManual ? resultado.faltante : convertirCantidad(resultado.faltante, linea.unidadStock, linea.unidad);
+    return { ok: false, faltante: faltante.toFixed() };
+  }
   const usadas = new Set(resultado.partes.map((p) => p.partidaId));
   return {
     ok: true,
     partes: resultado.partes.map((p) => ({ partidaId: p.partidaId, cantidad: p.cantidad.toString() })),
     totalFisico: resultado.totalFisico.toString(),
     requiereMotivo: requiereMotivoAperturaAdicional(
-      linea.partidasElegibles.map((p) => ({ ...p, potenciaDeclarada: linea.esEnraseManual ? null : p.potenciaDeclarada, elegida: usadas.has(p.id) })),
-      requeridaStock,
+      elegiblesDisponibles.map((p) => ({
+        ...p,
+        potenciaDeclarada: esManual ? null : p.potenciaDeclarada,
+        actividadDeclarada: esManual ? null : p.actividadDeclarada,
+        elegida: usadas.has(p.id),
+      })),
+      requerida,
       jornada,
+      linea.unidadStock,
     ),
   };
 }
 
-/** The lots pre-checked for a línea: the current reserva's, else the automatic plan's, else the first one to consume (oldest). */
+/** The lots pre-checked for a línea: the current reserva's, else the automatic plan's, else the first compatible one to consume (oldest). */
 export function lotesPorDefecto(linea: LineaPantalla, jornada: string): string[] {
   if (linea.reserva?.partidaIds.length) return linea.reserva.partidaIds;
   if (linea.propuesta?.length) return linea.propuesta.map((p) => p.partidaId);
-  const primera = ordenarParaConsumo(linea.partidasElegibles, jornada).find((p) => new Decimal(p.cantidadDisponible).greaterThan(0));
+  const compatibles = partidasCompatiblesConLinea(linea.partidasElegibles, linea.unidad.tipoMagnitud);
+  const pool = compatibles.length > 0 ? compatibles : linea.partidasElegibles;
+  const primera = ordenarParaConsumo(pool, jornada).find((p) => new Decimal(p.cantidadDisponible).greaterThan(0));
   return primera ? [primera.id] : [];
 }
 
@@ -168,12 +188,20 @@ export interface PesadaDeLinea {
   evaluacion: EvaluacionPesada | null;
 }
 
-export function pesadaDeLinea(linea: LineaPantalla, plan: PlanDeLinea, real: string | undefined, datos: DatosConfirmacion): PesadaDeLinea | null {
-  if (linea.esEnraseManual || plan === null || plan === "elegir" || !plan.ok) return null;
-  const factor = factorAMg(linea.unidad);
-  const precision = precisionDeLinea(linea.unidad, datos.pesada.precisionBalanza);
+export function pesadaDeLinea(
+  linea: LineaPantalla,
+  plan: PlanDeLinea,
+  real: string | undefined,
+  datos: DatosConfirmacion,
+  equivalenciaManual = false,
+): PesadaDeLinea | null {
+  if (linea.esEnraseManual || equivalenciaManual || plan === null || plan === "elegir" || !plan.ok) return null;
+  const unidadPesada = unidadDePesada(linea.unidad, linea.unidadStock);
+  const esActividad = linea.unidad.tipoMagnitud === "ACTIVIDAD";
+  const factor = factorAMg(unidadPesada);
+  const precision = precisionDeLinea(unidadPesada, datos.pesada.precisionBalanza);
   const precisionAjustada = precision ? precision.times(factor) : null;
-  const esperadaEnUnidad = convertirCantidad(new Decimal(plan.totalFisico), linea.unidadStock, linea.unidad);
+  const esperadaEnUnidad = esActividad ? new Decimal(plan.totalFisico) : convertirCantidad(new Decimal(plan.totalFisico), linea.unidadStock, linea.unidad);
   const esperada = esperadaEnUnidad.times(factor);
   // Shown es-AR (comma decimals), like every typed number.
   const sugerida = numeroParaInput(sugerenciaPesadaReal(esperadaEnUnidad, precision).times(factor).toFixed());
@@ -194,6 +222,9 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
   const [cantidadesManuales, setCantidadesManuales] = useState<Record<string, string>>(() =>
     Object.fromEntries(datos.lineas.flatMap((l) => (l.reserva?.cantidadManual ? [[l.id, numeroParaInput(l.reserva.cantidadManual)]] : []))),
   );
+  const [equivalenciaManuales, setEquivalenciaManuales] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(datos.lineas.map((l) => [l.id, Boolean(l.reserva?.equivalenciaManual ?? l.sinEquivalencia)])),
+  );
   const [motivos, setMotivos] = useState<Record<string, string>>(() =>
     Object.fromEntries(datos.lineas.flatMap((l) => (l.reserva?.motivoAperturaAdicional ? [[l.id, l.reserva.motivoAperturaAdicional]] : []))),
   );
@@ -205,15 +236,17 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
   const [reales, setReales] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       datos.lineas.flatMap((l) =>
-        l.reserva?.cantidadReal ? [[l.id, cantidadRealDesdeServidor(l.reserva.cantidadReal, l.unidad)]] : [],
+        l.reserva?.cantidadReal ? [[l.id, cantidadRealDesdeServidor(l.reserva.cantidadReal, unidadDePesada(l.unidad, l.unidadStock))]] : [],
       ),
     ),
   );
 
   // Stock amounts are DISPLAYED in a readable unit of the droga's chain (e.g. 999.999,55 mg -> 1.000 g, 2 decimals).
   const catalogo = useMemo(() => crearCatalogoUnidades(datos.unidades), [datos.unidades]);
-  const planes = datos.lineas.map((linea) => planDeLinea(linea, cantidadesManuales[linea.id], elegidas[linea.id] ?? [], datos.jornadaActual));
-  const pesadas = datos.lineas.map((linea, i) => pesadaDeLinea(linea, planes[i]!, reales[linea.id], datos));
+  const planes = datos.lineas.map((linea) =>
+    planDeLinea(linea, cantidadesManuales[linea.id], elegidas[linea.id] ?? [], datos.jornadaActual, Boolean(equivalenciaManuales[linea.id])),
+  );
+  const pesadas = datos.lineas.map((linea, i) => pesadaDeLinea(linea, planes[i]!, reales[linea.id], datos, Boolean(equivalenciaManuales[linea.id])));
   const requiereCoFirma = pesadas.some((p) => p?.evaluacion?.fueraDeTolerancia);
 
   const lineasSinStock = planes.filter((plan) => plan !== null && plan !== "elegir" && !plan.ok).length;
@@ -281,9 +314,16 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
 
         {datos.lineas.map((linea, indice) => {
           const plan = planes[indice]!;
+          const esEquivalenciaManual = Boolean(equivalenciaManuales[linea.id]);
+          const esManual = linea.esEnraseManual || esEquivalenciaManual;
+          const simboloManual = esEquivalenciaManual ? linea.unidadStock.simbolo : linea.unidadSimbolo;
+          const permiteToggleManual = Boolean(linea.seDosificaEnUi && !linea.esEnraseManual && !linea.sinEquivalencia);
           return (
-            <fieldset key={linea.id} className="group-card" data-alerta={(plan !== null && plan !== "elegir" && !plan.ok) || undefined}>
+            <fieldset key={linea.id} className="group-card" data-alerta={(plan !== null && plan !== "elegir" && !plan.ok) || esEquivalenciaManual || undefined}>
               <input type="hidden" name="lineaIds" value={linea.id} />
+              {linea.seDosificaEnUi && !linea.esEnraseManual ? (
+                <input type="hidden" name={`equivalenciaManual_${linea.id}`} value={esEquivalenciaManual ? "true" : "false"} />
+              ) : null}
               <legend className="sr-only">
                 Línea {linea.orden + 1}: {linea.drogaNombre}
               </legend>
@@ -292,6 +332,7 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                   {linea.orden + 1}
                 </span>
                 <p className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-900">{linea.drogaNombre}</p>
+                {esEquivalenciaManual ? <ToneBadge tone="warn">Cantidad manual (sin equivalencia U.I.)</ToneBadge> : null}
                 {linea.cantidadPrescripta ? (
                   <p className="text-right text-xs text-zinc-500">
                     Receta pide {formatNumero(linea.cantidadPrescripta.cantidad)} {linea.cantidadPrescripta.simbolo}
@@ -309,10 +350,35 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
               </div>
 
               <div className="flex flex-col gap-4 p-4">
-                {linea.esEnraseManual ? (
+                {esEquivalenciaManual ? (
+                  <div role="note" className="alert alert-warn">
+                    <TriangleAlert aria-hidden />
+                    <div className="flex flex-1 flex-wrap items-center justify-between gap-2">
+                      <p>
+                        {linea.sinEquivalencia
+                          ? "Cantidad manual: sin lote con equivalencia U.I. compatible. Ingresá la cantidad física a pesar para revisión."
+                          : "Cantidad manual: sin equivalencia U.I. automática. Revisá la cantidad física a pesar."}
+                      </p>
+                      {permiteToggleManual ? (
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => {
+                            setEquivalenciaManuales((prev) => ({ ...prev, [linea.id]: false }));
+                            setElegidas((prev) => ({ ...prev, [linea.id]: lotesPorDefecto({ ...linea, reserva: null }, datos.jornadaActual) }));
+                          }}
+                        >
+                          Volver al cálculo automático
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+
+                {esManual ? (
                   <div className="field max-w-xs">
                     <label htmlFor={`cantidadManual_${linea.id}`} className="field-label">
-                      Cantidad real registrada ({linea.unidadSimbolo})
+                      Cantidad real registrada ({simboloManual})
                     </label>
                     <NumeroInput
                       id={`cantidadManual_${linea.id}`}
@@ -330,6 +396,7 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                 {linea.partidasElegibles.length > 0 ? (
                   <ElegirLotes
                     linea={linea}
+                    esManual={esManual}
                     elegidas={elegidas[linea.id] ?? []}
                     onChange={(ids) => setElegidas((prev) => ({ ...prev, [linea.id]: ids }))}
                     catalogo={catalogo}
@@ -337,7 +404,19 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
                   />
                 ) : null}
 
-                <PlanLinea linea={linea} plan={plan} catalogo={catalogo} datos={datos} />
+                <PlanLinea
+                  linea={linea}
+                  plan={plan}
+                  esManual={esManual}
+                  esEquivalenciaManual={esEquivalenciaManual}
+                  onUsarManual={
+                    permiteToggleManual && !esEquivalenciaManual
+                      ? () => setEquivalenciaManuales((prev) => ({ ...prev, [linea.id]: true }))
+                      : undefined
+                  }
+                  catalogo={catalogo}
+                  datos={datos}
+                />
 
                 {pesadas[indice] ? (
                   <PesadaReal
@@ -405,10 +484,26 @@ export function ConfirmarPreparacionForm({ datos, destino, onSuccess, extraActio
 }
 
 /** The línea's automatic plan, read-only: one row per partida to take from (lote, vence, pureza, cantidad), or the faltante. */
-function PlanLinea({ linea, plan, catalogo, datos }: { linea: LineaPantalla; plan: PlanDeLinea; catalogo: CatalogoUnidades; datos: DatosConfirmacion }) {
+function PlanLinea({
+  linea,
+  plan,
+  esManual,
+  esEquivalenciaManual,
+  onUsarManual,
+  catalogo,
+  datos,
+}: {
+  linea: LineaPantalla;
+  plan: PlanDeLinea;
+  esManual: boolean;
+  esEquivalenciaManual: boolean;
+  onUsarManual?: () => void;
+  catalogo: CatalogoUnidades;
+  datos: DatosConfirmacion;
+}) {
   if (plan === "elegir") return <p className="text-xs text-zinc-500">Elegí el lote del que vas a pesar para ver cuánto tomar.</p>;
   if (plan === null) {
-    if (linea.esEnraseManual) return <p className="text-xs text-zinc-500">Ingresá la cantidad real para ver de qué partidas se toma.</p>;
+    if (esManual) return <p className="text-xs text-zinc-500">Ingresá la cantidad real para ver de qué partidas se toma.</p>;
     return (
       <div className="alert alert-danger">
         <CircleAlert aria-hidden />
@@ -417,16 +512,24 @@ function PlanLinea({ linea, plan, catalogo, datos }: { linea: LineaPantalla; pla
     );
   }
   if (!plan.ok) {
+    const simboloFaltante = esEquivalenciaManual ? linea.unidadStock.simbolo : linea.unidadSimbolo;
     return (
       <div className="alert alert-danger">
         <CircleAlert aria-hidden />
-        <p>
-          Stock insuficiente: faltan{" "}
-          <strong className="font-mono">
-            {formatNumero(plan.faltante)} {linea.unidadSimbolo}
-          </strong>
-          .
-        </p>
+        <div className="flex flex-1 flex-wrap items-center justify-between gap-2">
+          <p>
+            Stock insuficiente: faltan{" "}
+            <strong className="font-mono">
+              {formatNumero(plan.faltante)} {simboloFaltante}
+            </strong>
+            .
+          </p>
+          {onUsarManual ? (
+            <button type="button" className="btn btn-secondary btn-sm" onClick={onUsarManual}>
+              Usar cantidad manual
+            </button>
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -466,7 +569,11 @@ function PlanLinea({ linea, plan, catalogo, datos }: { linea: LineaPantalla; pla
                 {vencimiento === "POR_VENCER" && partida?.fechaVencimiento ? <ToneBadge tone="warn">{textoPorVencer(partida.fechaVencimiento, datos.jornadaActual)}</ToneBadge> : null}
                 {partida?.reanalizada ? <ToneBadge tone="neutral">Reanalizada</ToneBadge> : null}
                 {partida?.fechaApertura ? <ToneBadge tone="neutral">Abierta</ToneBadge> : null}
-                {partida?.potenciaDeclarada && !linea.esEnraseManual ? <ToneBadge tone="neutral">Pureza {formatNumero(partida.potenciaDeclarada)} %</ToneBadge> : null}
+                {!linea.esEnraseManual && partida?.actividadDeclarada != null ? (
+                  <ToneBadge tone="neutral">{formatNumero(partida.actividadDeclarada)} U.I./g</ToneBadge>
+                ) : partida?.potenciaDeclarada && !linea.esEnraseManual ? (
+                  <ToneBadge tone="neutral">Pureza {formatNumero(partida.potenciaDeclarada)} %</ToneBadge>
+                ) : null}
               </span>
             </li>
           );
@@ -483,18 +590,21 @@ function PlanLinea({ linea, plan, catalogo, datos }: { linea: LineaPantalla; pla
  */
 function ElegirLotes({
   linea,
+  esManual,
   elegidas,
   onChange,
   catalogo,
   datos,
 }: {
   linea: LineaPantalla;
+  esManual: boolean;
   elegidas: readonly string[];
   onChange: (ids: string[]) => void;
   catalogo: CatalogoUnidades;
   datos: DatosConfirmacion;
 }) {
-  const partidas = ordenarParaConsumo(linea.partidasElegibles, datos.jornadaActual);
+  const candidatas = esManual ? linea.partidasElegibles : partidasCompatiblesConLinea(linea.partidasElegibles, linea.unidad.tipoMagnitud);
+  const partidas = ordenarParaConsumo(candidatas, datos.jornadaActual);
   const disponibles = formatCantidadesFila(
     partidas.map((p) => p.cantidadDisponible),
     linea.unidadStock,
@@ -503,7 +613,7 @@ function ElegirLotes({
   const ayudaId = `partidas_${linea.id}_ayuda`;
   return (
     <div className="flex flex-col gap-2" role="group" aria-describedby={ayudaId}>
-      {requiereElegirPartida(linea.partidasElegibles, linea.esEnraseManual) ? (
+      {requiereElegirPartida(candidatas, esManual) ? (
         <div role="note" className="alert alert-warn">
           <TriangleAlert aria-hidden />
           <p id={ayudaId}>
@@ -548,7 +658,11 @@ function ElegirLotes({
                   </span>
                 </span>
                 <span className="flex min-w-0 flex-1 flex-wrap justify-end gap-1.5">
-                  <ToneBadge tone="neutral">Pureza {partida.potenciaDeclarada ? formatNumero(partida.potenciaDeclarada) : "100"} %</ToneBadge>
+                  <ToneBadge tone="neutral">
+                    {partida.actividadDeclarada != null
+                      ? `${formatNumero(partida.actividadDeclarada)} U.I./g`
+                      : `Pureza ${partida.potenciaDeclarada ? formatNumero(partida.potenciaDeclarada) : "100"} %`}
+                  </ToneBadge>
                   {partida.fechaApertura ? <ToneBadge tone="neutral">Abierta</ToneBadge> : null}
                   {vencimiento === "POR_VENCER" && partida.fechaVencimiento ? <ToneBadge tone="warn">{textoPorVencer(partida.fechaVencimiento, datos.jornadaActual)}</ToneBadge> : null}
                 </span>
@@ -581,7 +695,8 @@ function PesadaReal({
 }) {
   const campoId = `cantidadReal_${linea.id}`;
   const evaluacion = pesada.evaluacion;
-  const esMasa = linea.unidad.tipoMagnitud === "MASA";
+  const unidadPesada = unidadDePesada(linea.unidad, linea.unidadStock);
+  const esMasa = unidadPesada.tipoMagnitud === "MASA";
   const simboloDisplay = esMasa ? "mg" : linea.unidadSimbolo;
   return (
     <div className="flex flex-col gap-2">
@@ -597,7 +712,7 @@ function PesadaReal({
           aria-describedby={`${campoId}_ayuda`}
           className="input font-mono"
         />
-        <input type="hidden" name={campoId} value={cantidadRealParaServidor(valor, linea.unidad)} />
+        <input type="hidden" name={campoId} value={cantidadRealParaServidor(valor, unidadPesada)} />
         <p id={`${campoId}_ayuda`} className="field-help">
           Esperada {formatNumero(pesada.esperada.toString())} {simboloDisplay}
           {evaluacion ? ` · desvío ${evaluacion.desvioPorcentaje.greaterThan(0) ? "+" : ""}${formatNumero(evaluacion.desvioPorcentaje.toString())} %` : null}

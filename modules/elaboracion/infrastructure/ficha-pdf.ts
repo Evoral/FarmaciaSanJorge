@@ -13,6 +13,10 @@
  * (cápsulas, envases) and the adicionales; a small footer with the receta
  * number. Black only, no shading: thermal
  * printers have no greys.
+ *
+ * Printed from the toma workspace, a `PesadaImprimir` (built by modules/preparaciones from the preparación's lots)
+ * replaces a corrected línea's active cantidad (U.I., or a lot below 100 % purity) with what the bench weighs from each
+ * lot; the prescribed amount stays as a secondary line. The stored ficha never changes.
  */
 import { ANCHO_CONTENIDO, MARGEN, MARGEN_IZQUIERDO, mm, renderTicketPdf, separador } from "@/shared/pdf/ticket";
 import { cantidadesFichaTecnica, formatCantidadExacta } from "@/shared/format/cantidad";
@@ -21,6 +25,22 @@ import type { FichaParaImprimir, InsumoImprimir, LineaImprimir } from "./ficha-r
 const ANCHO_CANTIDAD = mm(22);
 const SEPARACION = mm(2);
 const ANCHO_DROGA = ANCHO_CONTENIDO - ANCHO_CANTIDAD - SEPARACION;
+
+/** One lot a línea is weighed from: physical quantity in `unidadSimbolo`, `factor` "100.000 U.I./g" / "98 %" (`null` = none). */
+export interface LotePesadaImprimir {
+  lote: string;
+  cantidad: string;
+  unidadSimbolo: string;
+  factor: string | null;
+}
+
+/** What the bench weighs for one línea: from its lots, or a cantidad manual (no U.I.<->mass equivalence; `null` = to fill in by hand). */
+export type PesadaDeLineaImprimir =
+  | { tipo: "LOTES"; lotes: LotePesadaImprimir[] }
+  | { tipo: "MANUAL"; cantidad: string | null; unidadSimbolo: string };
+
+/** By línea `orden`; a línea missing from the map prints its active cantidad, as the stored ficha does. */
+export type PesadaImprimir = ReadonlyMap<number, PesadaDeLineaImprimir>;
 
 function textoCantidad(linea: LineaImprimir): string {
   if (linea.esEnraseManual) return "Enrase manual";
@@ -43,8 +63,58 @@ function textoCantidadInsumo(insumo: InsumoImprimir): string {
   return info ? `${info.principal} ${info.simboloPrincipal}` : formatCantidadExacta(insumo.cantidad, insumo.unidadSimbolo);
 }
 
+/** "5.000 mg" (+ "= 5 g") for a mass, the exact value otherwise. */
+function textosMasa(cantidad: string, simbolo: string): { principal: string; equivalencia: string | null } {
+  const info = cantidadesFichaTecnica(cantidad, simbolo);
+  return info ? { principal: `${info.principal} ${info.simboloPrincipal}`, equivalencia: info.equivalencia } : { principal: formatCantidadExacta(cantidad, simbolo), equivalencia: null };
+}
+
+/** A sub-row under a línea: small text on the left, the bold quantity (and its equivalence) on the right. Returns the next y. */
+function filaPesada(doc: PDFKit.PDFDocument, y: number, izquierda: string, derecha: string, equivalencia: string | null): number {
+  doc.font("Helvetica").fontSize(8);
+  const altoIzquierda = doc.heightOfString(izquierda, { width: ANCHO_DROGA });
+  doc.text(izquierda, MARGEN_IZQUIERDO, y + 1, { width: ANCHO_DROGA });
+  doc.font("Helvetica-Bold").fontSize(10);
+  let altoDerecha = doc.heightOfString(derecha, { width: ANCHO_CANTIDAD, align: "right" });
+  doc.text(derecha, MARGEN_IZQUIERDO + ANCHO_DROGA + SEPARACION, y, { width: ANCHO_CANTIDAD, align: "right" });
+  if (equivalencia) {
+    doc.font("Helvetica").fontSize(8);
+    const alto = doc.heightOfString(equivalencia, { width: ANCHO_CANTIDAD, align: "right" });
+    doc.text(equivalencia, MARGEN_IZQUIERDO + ANCHO_DROGA + SEPARACION, y + altoDerecha, { width: ANCHO_CANTIDAD, align: "right" });
+    altoDerecha += alto;
+  }
+  doc.font("Helvetica").fontSize(10);
+  return y + Math.max(altoIzquierda + 1, altoDerecha) + 2;
+}
+
+/** A línea weighed from its lots: droga, prescripción and "(500.000 U.I.)" on the left, then one row per lot. Returns the next y. */
+function dibujarLineaConPesada(doc: PDFKit.PDFDocument, y: number, linea: LineaImprimir, pesada: PesadaDeLineaImprimir): number {
+  doc.font("Helvetica").fontSize(10);
+  const altoDroga = doc.heightOfString(linea.drogaNombre, { width: ANCHO_CONTENIDO });
+  doc.text(linea.drogaNombre, MARGEN_IZQUIERDO, y, { width: ANCHO_CONTENIDO });
+  y += altoDroga;
+  const secundarias = [linea.prescripcion, `(${textoCantidad(linea)})`].filter((t): t is string => Boolean(t));
+  doc.fontSize(8);
+  for (const texto of secundarias) {
+    const alto = doc.heightOfString(texto, { width: ANCHO_CONTENIDO });
+    doc.text(texto, MARGEN_IZQUIERDO, y, { width: ANCHO_CONTENIDO });
+    y += alto;
+  }
+  y += 2;
+  if (pesada.tipo === "MANUAL") {
+    const textos = pesada.cantidad ? textosMasa(pesada.cantidad, pesada.unidadSimbolo) : { principal: `______ ${pesada.unidadSimbolo}`, equivalencia: null };
+    y = filaPesada(doc, y, "Cantidad manual", textos.principal, textos.equivalencia);
+  } else {
+    for (const lote of pesada.lotes) {
+      const textos = textosMasa(lote.cantidad, lote.unidadSimbolo);
+      y = filaPesada(doc, y, lote.factor ? `Lote ${lote.lote} (${lote.factor})` : `Lote ${lote.lote}`, textos.principal, textos.equivalencia);
+    }
+  }
+  return y + 3;
+}
+
 /** Lays the ficha out from the top of the page; returns the y where the content ends. */
-function dibujar(doc: PDFKit.PDFDocument, ficha: FichaParaImprimir): number {
+function dibujar(doc: PDFKit.PDFDocument, ficha: FichaParaImprimir, pesada?: PesadaImprimir): number {
   doc.fillColor("black");
   let y = MARGEN;
 
@@ -60,6 +130,11 @@ function dibujar(doc: PDFKit.PDFDocument, ficha: FichaParaImprimir): number {
   y = separador(doc, doc.y + 6);
 
   for (const linea of ficha.lineas) {
+    const pesadaLinea = linea.esEnraseManual ? undefined : pesada?.get(linea.orden);
+    if (pesadaLinea) {
+      y = dibujarLineaConPesada(doc, y, linea, pesadaLinea);
+      continue;
+    }
     const cantidad = textoCantidad(linea);
     doc.font("Helvetica").fontSize(10);
     let altoDroga = doc.heightOfString(linea.drogaNombre, { width: ANCHO_DROGA });
@@ -112,6 +187,6 @@ function dibujar(doc: PDFKit.PDFDocument, ficha: FichaParaImprimir): number {
   return doc.y;
 }
 
-export async function buildFichaTecnicaPdf(ficha: FichaParaImprimir): Promise<Buffer> {
-  return renderTicketPdf((doc) => dibujar(doc, ficha));
+export async function buildFichaTecnicaPdf(ficha: FichaParaImprimir, pesada?: PesadaImprimir): Promise<Buffer> {
+  return renderTicketPdf((doc) => dibujar(doc, ficha, pesada));
 }

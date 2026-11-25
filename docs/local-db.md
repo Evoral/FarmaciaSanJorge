@@ -41,7 +41,7 @@ Docker Desktop must be running.
 | 1. Start the DB | `npm run db:local:start` |
 | 2. Dev server | `npm run dev:desarrollo` |
 | Apply new migrations | `$env:DOTENV_CONFIG_PATH=".env.desarrollo"; npm run db:migrate; Remove-Item Env:DOTENV_CONFIG_PATH` |
-| DB tests | `$env:DOTENV_CONFIG_PATH=".env.desarrollo"; npm run test:db; Remove-Item Env:DOTENV_CONFIG_PATH` |
+| DB tests | `$env:DOTENV_CONFIG_PATH=".env.desarrollo"; $env:FSJ_DB_TESTS="yes"; npm run test:db; Remove-Item Env:DOTENV_CONFIG_PATH, Env:FSJ_DB_TESTS` |
 | Done for the day | `npm run db:local:stop` |
 
 ### Why `DOTENV_CONFIG_PATH`

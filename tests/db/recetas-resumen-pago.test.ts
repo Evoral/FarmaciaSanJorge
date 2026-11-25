@@ -111,7 +111,7 @@ describe.skipIf(dbTestSkipReason() !== null)("DB tests: getItemsParaResumenPago 
           // Insert 3 items in order
           const item1Id = await insertItemReceta(c, { tenantId, recetaId, formaFarmaceutica: "CREMA" });
           const item2Id = await insertItemReceta(c, { tenantId, recetaId, formaFarmaceutica: "CAPSULA" });
-          const item3Id = await insertItemReceta(c, { tenantId, recetaId, formaFarmaceutica: "PAPEL" });
+          const item3Id = await insertItemReceta(c, { tenantId, recetaId, formaFarmaceutica: "POLVO" });
 
           // Item 1: pre-0107 cotización without IVA (costo_insumos_con_iva IS NULL)
           await insertCotizacionTest(c, {

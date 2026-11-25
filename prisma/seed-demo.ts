@@ -941,7 +941,7 @@ async function main(): Promise<void> {
       if (tipo === "ALC_SOL") {
         return {
           descripcion: "Solución Alcohólica de Ácido Salicílico 2%",
-          forma: "SOLUCION",
+          forma: "SOLUCION_USO_INTERNO",
           cantidadTotal: "100.000",
           unidadTotalId: mililitroId,
           componentes: [
@@ -1095,8 +1095,8 @@ async function main(): Promise<void> {
           cantidadTotal: formula.cantidadTotal,
           unidadTotal: {
             id: formula.unidadTotalId,
-            simbolo: formula.forma === "SOLUCION" ? "mL" : formula.forma === "CAPSULA" ? "u" : "g",
-            tipoMagnitud: formula.forma === "SOLUCION" ? "VOLUMEN" : formula.forma === "CAPSULA" ? "UNIDADES" : "MASA",
+            simbolo: formula.forma === "SOLUCION_USO_INTERNO" ? "mL" : formula.forma === "CAPSULA" ? "u" : "g",
+            tipoMagnitud: formula.forma === "SOLUCION_USO_INTERNO" ? "VOLUMEN" : formula.forma === "CAPSULA" ? "UNIDADES" : "MASA",
             factorABase: "1",
           },
         };
@@ -1117,6 +1117,7 @@ async function main(): Promise<void> {
           MASA: { id: gramoId, simbolo: "g", tipoMagnitud: "MASA", factorABase: "1" },
           VOLUMEN: { id: mililitroId, simbolo: "mL", tipoMagnitud: "VOLUMEN", factorABase: "1" },
           UNIDADES: { id: unidadId, simbolo: "u", tipoMagnitud: "UNIDADES", factorABase: "1" },
+          ACTIVIDAD: { id: "unidad-internacional", simbolo: "U.I.", tipoMagnitud: "ACTIVIDAD", factorABase: "1" },
         };
         const lineasCalculadas: LineaPesajeCalculada[] = calcularFichaTecnica(
           itemDominio,

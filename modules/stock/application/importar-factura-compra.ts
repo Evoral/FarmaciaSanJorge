@@ -33,7 +33,13 @@ import { ConflictError, DomainError, ValidationError } from "@/shared/errors";
 import { fechaIso, fechaVencimientoLote, nonEmptyString, uuid } from "@/shared/validation";
 import { normalizarTextoDroga } from "@/modules/recetas/domain/importacion-receta";
 import { limpiarSinonimo } from "@/modules/drogas/domain/sinonimo";
-import { nonNegativeDecimalString, positiveDecimalString, potenciaDeclaradaString } from "../domain/partida";
+import {
+  actividadDeclaradaString,
+  nonNegativeDecimalString,
+  positiveDecimalString,
+  potenciaDeclaradaString,
+  TIPOS_INGRESO_PARTIDA,
+} from "../domain/partida";
 import { formatearComprobante, mensajeFacturaYaImportada } from "../domain/importacion-factura-compra";
 import { buscarComprobanteImportado, getDrogaAlias, insertComprobanteCompra, insertDrogaAlias } from "../infrastructure/factura-compra-repository";
 import { registrarPartidaCompra } from "./ingresar-partida";
@@ -57,7 +63,9 @@ const lineaInput = z.object({
   cantidadCompra: positiveDecimalString,
   unidadCompraId: uuid,
   precioUnitario: nonNegativeDecimalString,
+  tipoIngreso: z.enum(TIPOS_INGRESO_PARTIDA).optional(),
   potenciaDeclarada: potenciaDeclaradaString.optional(),
+  actividadDeclarada: actividadDeclaradaString.optional(),
   numeroValeAdquisicion: z.string().trim().min(1).optional(),
   despachoImportacion: textoOpcional,
   paisOrigen: textoOpcional,
@@ -140,7 +148,9 @@ export const importarFacturaCompraCommand = defineCommand({
           unidadCompraId: linea.unidadCompraId,
           costo: { porUnidadCompra: linea.precioUnitario.toString() },
           numeroValeAdquisicion: linea.numeroValeAdquisicion,
+          tipoIngreso: linea.tipoIngreso,
           potenciaDeclarada: linea.potenciaDeclarada?.toString(),
+          actividadDeclarada: linea.actividadDeclarada?.toString(),
           comprobanteCompraId: nuevo.id,
           despachoImportacion: linea.despachoImportacion,
           paisOrigen: linea.paisOrigen,

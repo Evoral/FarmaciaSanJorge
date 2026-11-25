@@ -28,7 +28,14 @@ export default async function IngresarPartidaPage() {
     listUnidadesVigentesParaDroga(),
     puedeCrearProducto ? contralorActivoParaAltaDroga() : Promise.resolve(false),
   ]);
-  const opcionesDrogas = drogas.map((droga) => ({ id: droga.id, label: droga.nombre, tipoMagnitud: droga.tipoMagnitud, clase: droga.clase, sinonimos: droga.sinonimos }));
+  const opcionesDrogas = drogas.map((droga) => ({
+    id: droga.id,
+    label: droga.nombre,
+    tipoMagnitud: droga.tipoMagnitud,
+    clase: droga.clase,
+    seDosificaEnUi: droga.seDosificaEnUi,
+    sinonimos: droga.sinonimos,
+  }));
   const opcionesProveedores = proveedores.map((proveedor) => ({ id: proveedor.id, label: proveedor.razonSocial }));
   const opcionesUnidades = unidades.map((unidad) => ({ id: unidad.id, label: `${unidad.nombre} (${unidad.simbolo})`, tipoMagnitud: unidad.tipoMagnitud, simbolo: unidad.simbolo }));
 

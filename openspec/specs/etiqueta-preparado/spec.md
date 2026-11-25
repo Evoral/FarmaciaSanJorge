@@ -65,9 +65,9 @@ wide design's info column is stacked.
 
 #### Scenario: Forma alone beside the quantity
 
-- **GIVEN** a solución with no vía nor fracción line
+- **GIVEN** a suspensión with no vía nor fracción line
 - **WHEN** the etiqueta is printed
-- **THEN** "Solución" is centered on the height of the large quantity, not at the top of its place
+- **THEN** "Suspensión" is centered on the height of the large quantity, not at the top of its place
 
 #### Scenario: Missing field
 
@@ -350,6 +350,30 @@ column SHALL be as wide as its own widest line; the one font size shrinks only a
 - **GIVEN** a fórmula as wide as the area
 - **WHEN** the etiqueta is printed
 - **THEN** it keeps no side gap
+
+### Requirement: R14 — Solución de uso interno o externo
+
+A solución SHALL be loaded as "Solución uso interno" or "Solución uso externo"; every solución loaded before
+2026-11-25 is uso interno (migration 0135). Its etiqueta SHALL read "Solución" as forma and "Uso interno" / "Uso
+externo" as vía. The fondo rojo configuration (hoja-etiquetas R16) SHALL list both formas separately.
+
+#### Scenario: Solución de uso externo en rojo
+
+- **GIVEN** "Solución uso externo" configured to print on a red background
+- **WHEN** the etiqueta of a 100 mL solución de uso externo is printed
+- **THEN** it reads "100 mL", "Solución", "Uso externo" on the red background, and a solución de uso interno prints white
+
+### Requirement: R12 — Rp/ condensed before it shrinks
+
+When the width, not the height, limits the fórmula's size, its type SHALL first get narrower (at most 15 % narrower,
+`CONDENSACION_MINIMA_RP`) so it grows toward what the free height allows. Every drug stays on one line; a fórmula that
+already fits, or one limited by its height, is not condensed (user decision, 2026-11-25).
+
+#### Scenario: Long line with free height
+
+- **GIVEN** a 100 × 42 mm etiqueta whose fórmula has one long drug line and half the area's height free
+- **WHEN** the etiqueta is printed
+- **THEN** the fórmula's type is narrower and larger than without condensing, and each drug is still on one line
 
 ### Requirement: R13 — Compact designs for very wide or very tall sizes
 

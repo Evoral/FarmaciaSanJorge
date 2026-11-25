@@ -47,6 +47,8 @@ import { NuevaDrogaDialog } from "@/modules/drogas/ui/nueva-droga-dialog";
 import type { UnidadOpcion } from "@/modules/drogas/ui/droga-form";
 import type { DrogaCreada } from "@/modules/drogas/ui/action-state";
 import { numeroONull, numeroParaInput } from "@/shared/decimal/numero-ingresado";
+import { formatNumero } from "@/shared/format/cantidad";
+import { parsearActividadOValor } from "../domain/partida";
 
 const LETRAS = ["A", "B", "C", "M"] as const;
 
@@ -60,6 +62,8 @@ export interface OpcionConMagnitud extends OpcionSimple {
   tipoMagnitud: string;
   /** Drogas only (migration 0063): DROGA | EXCIPIENTE | MATERIAL. */
   clase?: string;
+  /** Drogas only (migration 0133): accepts U.I. intake. */
+  seDosificaEnUi?: boolean;
   /** Units only: "kg", "mL"... */
   simbolo?: string;
   /** Drogas only: vigente synonyms, also searched by the picker (openspec/specs/sinonimos-droga/spec.md). */
@@ -89,7 +93,9 @@ interface LineaEditable {
   precioUnitario: string;
   lote: string;
   fechaVencimiento: string;
+  tipoIngreso: "" | "GRAMOS" | "UI";
   potenciaDeclarada: string;
+  actividadDeclarada: string;
   numeroValeAdquisicion: string;
   recordar: boolean;
   /** "No ingresar al stock": the lote is not sent. */
@@ -115,7 +121,9 @@ function loteManual(): LineaEditable {
     precioUnitario: "",
     lote: "",
     fechaVencimiento: "",
+    tipoIngreso: "",
     potenciaDeclarada: "",
+    actividadDeclarada: "",
     numeroValeAdquisicion: "",
     recordar: false,
     omitir: false,
@@ -187,7 +195,9 @@ export function ImportarFacturaForm({
       precioUnitario: numeroParaInput(l.precioUnitario),
       lote: l.lote,
       fechaVencimiento: l.fechaVencimiento ?? "",
+      tipoIngreso: "",
       potenciaDeclarada: "",
+      actividadDeclarada: "",
       numeroValeAdquisicion: "",
       recordar: true,
       omitir: false,
@@ -225,7 +235,14 @@ export function ImportarFacturaForm({
       actuales.map((l) => {
         if (l.codigo !== codigo) return l;
         const unidadValida = unidades.some((u) => u.id === l.unidadCompraId && u.tipoMagnitud === magnitud);
-        return { ...l, droga, matcheada: false, unidadCompraId: unidadValida ? l.unidadCompraId : "" };
+        const cambioDroga = l.droga?.value !== droga?.value;
+        return {
+          ...l,
+          droga,
+          matcheada: false,
+          unidadCompraId: unidadValida ? l.unidadCompraId : "",
+          ...(cambioDroga ? { tipoIngreso: "", potenciaDeclarada: "", actividadDeclarada: "" } : {}),
+        };
       }),
     );
   }
@@ -276,18 +293,23 @@ export function ImportarFacturaForm({
       subtotal: comprobante.subtotal,
       iva: comprobante.iva,
       total: comprobante.total,
-      lineas: activas.map((l) => ({
-        drogaId: l.droga?.value ?? "",
-        lote: l.lote,
-        fechaVencimiento: l.fechaVencimiento || undefined,
-        cantidadCompra: l.cantidad,
-        unidadCompraId: l.unidadCompraId,
-        precioUnitario: l.precioUnitario,
-        potenciaDeclarada: l.potenciaDeclarada.trim() || undefined,
-        numeroValeAdquisicion: l.numeroValeAdquisicion.trim() || undefined,
-        despachoImportacion: l.despacho,
-        paisOrigen: l.paisOrigen,
-      })),
+      lineas: activas.map((l) => {
+        const esUi = drogas.find((d) => d.id === l.droga?.value)?.seDosificaEnUi === true;
+        return {
+          drogaId: l.droga?.value ?? "",
+          lote: l.lote,
+          fechaVencimiento: l.fechaVencimiento || undefined,
+          cantidadCompra: l.cantidad,
+          unidadCompraId: l.unidadCompraId,
+          precioUnitario: l.precioUnitario,
+          tipoIngreso: esUi ? (l.tipoIngreso || undefined) : undefined,
+          potenciaDeclarada: esUi && l.tipoIngreso === "UI" ? undefined : l.potenciaDeclarada.trim() || undefined,
+          actividadDeclarada: esUi && l.tipoIngreso === "UI" ? l.actividadDeclarada.trim() || undefined : undefined,
+          numeroValeAdquisicion: l.numeroValeAdquisicion.trim() || undefined,
+          despachoImportacion: l.despacho,
+          paisOrigen: l.paisOrigen,
+        };
+      }),
       equivalencias: [...equivalencias].map(([aliasTexto, drogaId]) => ({ aliasTexto, drogaId })),
     };
   }
@@ -496,66 +518,145 @@ export function ImportarFacturaForm({
                       </div>
                     </div>
                     <div className="grid gap-4 @sm:grid-cols-2 @xl:grid-cols-3 @3xl:grid-cols-5">
-                      <div className="field">
-                        <label htmlFor={`lineas.${i}.cantidadCompra`} className="field-label">
-                          Cantidad
-                        </label>
-                        <NumeroInput
-                          id={`lineas.${i}.cantidadCompra`}
-                          name={`lineas.${i}.cantidadCompra`}
-                          required
-                          value={l.cantidad}
-                          onValueChange={(valor) => actualizar(i, { cantidad: valor })}
-                          className="input font-mono"
-                        />
-                      </div>
-                      <div className="field">
-                        <label htmlFor={`lineas.${i}.unidadCompraId`} className="field-label">
-                          Unidad
-                        </label>
-                        <select
-                          id={`lineas.${i}.unidadCompraId`}
-                          name={`lineas.${i}.unidadCompraId`}
-                          required
-                          disabled={magnitud === null}
-                          value={l.unidadCompraId}
-                          onChange={(e) => actualizar(i, { unidadCompraId: e.target.value })}
-                          className="input"
-                        >
-                          <option value="">{magnitud === null ? "Elegí la droga" : l.unidadTexto ? `Unidad (${l.unidadTexto})` : "Unidad"}</option>
-                          {unidadesDeLaDroga.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="field">
-                        <label htmlFor={`lineas.${i}.precioUnitario`} className="field-label">
-                          Precio por {unidades.find((u) => u.id === l.unidadCompraId)?.simbolo ?? "unidad"}
-                        </label>
-                        <NumeroInput
-                          id={`lineas.${i}.precioUnitario`}
-                          name={`lineas.${i}.precioUnitario`}
-                          required
-                          value={l.precioUnitario}
-                          onValueChange={(valor) => actualizar(i, { precioUnitario: valor })}
-                          aria-describedby="precioUnitario-ayuda"
-                          className="input font-mono"
-                        />
-                      </div>
-                      <div className="field">
-                        <label htmlFor={`lineas.${i}.potenciaDeclarada`} className="field-label">
-                          Pureza (%)<span className="font-normal text-zinc-500"> (opc.)</span>
-                        </label>
-                        <NumeroInput
-                          id={`lineas.${i}.potenciaDeclarada`}
-                          name={`lineas.${i}.potenciaDeclarada`}
-                          value={l.potenciaDeclarada}
-                          onValueChange={(valor) => actualizar(i, { potenciaDeclarada: valor })}
-                          className="input font-mono"
-                        />
-                      </div>
+                      {(() => {
+                        // A droga dosed in U.I. asks HOW the lot comes in first, then the certificate's figure, then how much powder
+                        // entered: the DOM order is the visual and tab order. Unmarked drogas keep the original order.
+                        const esDrogaUi = drogas.find((d) => d.id === l.droga?.value)?.seDosificaEnUi === true;
+                        const campoCantidad = (
+                          <div className="field">
+                            <label htmlFor={`lineas.${i}.cantidadCompra`} className="field-label">
+                              Cantidad
+                            </label>
+                            <NumeroInput
+                              id={`lineas.${i}.cantidadCompra`}
+                              name={`lineas.${i}.cantidadCompra`}
+                              required
+                              value={l.cantidad}
+                              onValueChange={(valor) => actualizar(i, { cantidad: valor })}
+                              className="input font-mono"
+                            />
+                          </div>
+                        );
+                        const campoUnidad = (
+                          <div className="field">
+                            <label htmlFor={`lineas.${i}.unidadCompraId`} className="field-label">
+                              Unidad
+                            </label>
+                            <select
+                              id={`lineas.${i}.unidadCompraId`}
+                              name={`lineas.${i}.unidadCompraId`}
+                              required
+                              disabled={magnitud === null}
+                              value={l.unidadCompraId}
+                              onChange={(e) => actualizar(i, { unidadCompraId: e.target.value })}
+                              className="input"
+                            >
+                              <option value="">{magnitud === null ? "Elegí la droga" : l.unidadTexto ? `Unidad (${l.unidadTexto})` : "Unidad"}</option>
+                              {unidadesDeLaDroga.map((u) => (
+                                <option key={u.id} value={u.id}>
+                                  {u.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                        const campoPrecio = (
+                          <div className="field">
+                            <label htmlFor={`lineas.${i}.precioUnitario`} className="field-label">
+                              Precio por {unidades.find((u) => u.id === l.unidadCompraId)?.simbolo ?? "unidad"}
+                            </label>
+                            <NumeroInput
+                              id={`lineas.${i}.precioUnitario`}
+                              name={`lineas.${i}.precioUnitario`}
+                              required
+                              value={l.precioUnitario}
+                              onValueChange={(valor) => actualizar(i, { precioUnitario: valor })}
+                              aria-describedby="precioUnitario-ayuda"
+                              className="input font-mono"
+                            />
+                            {esDrogaUi && l.tipoIngreso === "UI" ? <p className="field-help">Precio del polvo por unidad de compra, no por U.I.</p> : null}
+                          </div>
+                        );
+                        const campoPureza = (
+                          <div className="field">
+                            <label htmlFor={`lineas.${i}.potenciaDeclarada`} className="field-label">
+                              Pureza (%)<span className="font-normal text-zinc-500"> (opc.)</span>
+                            </label>
+                            <NumeroInput
+                              id={`lineas.${i}.potenciaDeclarada`}
+                              name={`lineas.${i}.potenciaDeclarada`}
+                              value={l.potenciaDeclarada}
+                              onValueChange={(valor) => actualizar(i, { potenciaDeclarada: valor })}
+                              className="input font-mono"
+                            />
+                          </div>
+                        );
+                        if (!esDrogaUi) {
+                          return (
+                            <>
+                              {campoCantidad}
+                              {campoUnidad}
+                              {campoPrecio}
+                              {campoPureza}
+                            </>
+                          );
+                        }
+                        const actividadParsed = l.actividadDeclarada.trim() ? parsearActividadOValor(l.actividadDeclarada) : null;
+                        return (
+                          <>
+                            <div className="field">
+                              <label htmlFor={`lineas.${i}.tipoIngreso`} className="field-label">
+                                Cómo ingresa
+                              </label>
+                              <select
+                                id={`lineas.${i}.tipoIngreso`}
+                                name={`lineas.${i}.tipoIngreso`}
+                                required
+                                value={l.tipoIngreso}
+                                onChange={(e) => {
+                                  const valor = e.target.value as "" | "GRAMOS" | "UI";
+                                  actualizar(i, {
+                                    tipoIngreso: valor,
+                                    potenciaDeclarada: valor === "UI" ? "" : l.potenciaDeclarada,
+                                    actividadDeclarada: valor === "GRAMOS" ? "" : l.actividadDeclarada,
+                                  });
+                                }}
+                                className="input"
+                              >
+                                <option value="">Elegí…</option>
+                                <option value="GRAMOS">En gramos (pureza %)</option>
+                                <option value="UI">En U.I.</option>
+                              </select>
+                            </div>
+                            {l.tipoIngreso === "UI" ? (
+                              <div className="field">
+                                <label htmlFor={`lineas.${i}.actividadDeclarada`} className="field-label">
+                                  Actividad (U.I.)
+                                </label>
+                                <input
+                                  id={`lineas.${i}.actividadDeclarada`}
+                                  name={`lineas.${i}.actividadDeclarada`}
+                                  required
+                                  placeholder="ej. 1000 U.I. cada 10 g"
+                                  value={l.actividadDeclarada}
+                                  onChange={(e) => actualizar(i, { actividadDeclarada: e.target.value })}
+                                  className="input font-mono"
+                                />
+                                {actividadParsed ? (
+                                  <p className="field-help font-mono">
+                                    {actividadParsed.ok ? `= ${formatNumero(actividadParsed.uiPorGramo)} U.I./g` : actividadParsed.mensaje}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ) : l.tipoIngreso === "GRAMOS" ? (
+                              campoPureza
+                            ) : null}
+                            {campoCantidad}
+                            {campoUnidad}
+                            {campoPrecio}
+                          </>
+                        );
+                      })()}
                       <div className="field">
                         <label htmlFor={`lineas.${i}.numeroValeAdquisicion`} className="field-label">
                           Vale<span className="font-normal text-zinc-500"> (controladas)</span>

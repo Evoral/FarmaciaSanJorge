@@ -46,7 +46,8 @@ vi.mock("@/modules/stock/infrastructure/relevamiento-fila-repository", () => ({
 
 vi.mock("@/modules/drogas/application/list-drogas-para-matching", () => ({
   listDrogasParaMatchingEnTx: vi.fn(async () => [
-    { id: "d-1", nombre: "Paracetamol", nombreNormalizado: "paracetamol", sinonimos: [] },
+    { id: "d-1", nombre: "Paracetamol", nombreNormalizado: "paracetamol", seDosificaEnUi: false, sinonimos: [] },
+    { id: "d-ui", nombre: "Vitamina D3", nombreNormalizado: "vitamina d3", seDosificaEnUi: true, sinonimos: [] },
   ]),
 }));
 
@@ -98,6 +99,26 @@ describe("importarPlanillaExcel -- lot vencimiento normalization", () => {
         fila: 2,
         columna: "Vencimiento",
         valor: "13/2027",
+      }),
+    ]);
+  });
+
+  it("refuses a se_dosifica_en_ui droga row when both Potencia and U.I./g are empty, and accepts either one", async () => {
+    leerHojaMock.mockReturnValue([
+      ["Droga", "Lote", "Vencimiento", "Cantidad", "Unidad", "Potencia", "U.I./g"],
+      ["Vitamina D3", "L1", "12/2027", 10, "g", null, null],
+      ["Vitamina D3", "L2", "12/2027", 10, "g", 100, null],
+      ["Vitamina D3", "L3", "12/2027", 10, "g", null, "1000 U.I. cada 10 g"],
+    ]);
+
+    const res = await importarPlanillaExcelCommand.execute({ archivo: {} }, { session: SESSION });
+
+    expect(res.filasImportadas).toBe(3);
+    expect(res.noReconocidos).toEqual([
+      expect.objectContaining({
+        fila: 2,
+        columna: "U.I./g",
+        motivo: expect.stringContaining("se dosifica en U.I."),
       }),
     ]);
   });

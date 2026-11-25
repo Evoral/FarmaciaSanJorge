@@ -44,7 +44,13 @@ function makeSession(): AuthenticatedSession {
   };
 }
 
-function fila(id: string, cantidad: string, unidadId: string, costo: string | null) {
+function fila(
+  id: string,
+  cantidad: string,
+  unidadId: string,
+  costo: string | null,
+  extras: { potencia_declarada?: string | null; actividad_declarada?: string | null } = {},
+) {
   return {
     id,
     droga_id: DROGA_ID,
@@ -52,7 +58,8 @@ function fila(id: string, cantidad: string, unidadId: string, costo: string | nu
     fecha_vencimiento: "2027-12-31",
     cantidad,
     unidad_medida_id: unidadId,
-    potencia_declarada: null,
+    potencia_declarada: extras.potencia_declarada ?? null,
+    actividad_declarada: extras.actividad_declarada ?? null,
     costo_unitario: costo,
     proveedor_id: null,
   };
@@ -72,15 +79,18 @@ vi.mock("@/modules/stock/infrastructure/existencia-inicial-repository", () => ({
   relevamientoInicialAbierto: vi.fn(async () => true),
 }));
 
+const getDrogaParaIngresoMock = vi.fn(async () => ({
+  id: DROGA_ID,
+  nombre: "Droga Test",
+  unidadBaseId: MG_ID,
+  tipoControl: "NINGUNO",
+  clase: "DROGA",
+  seDosificaEnUi: false,
+  fechaBaja: null,
+}));
+
 vi.mock("@/modules/stock/infrastructure/partida-repository", () => ({
-  getDrogaParaIngreso: vi.fn(async () => ({
-    id: DROGA_ID,
-    nombre: "Droga Test",
-    unidadBaseId: MG_ID,
-    tipoControl: "NINGUNO",
-    clase: "DROGA",
-    fechaBaja: null,
-  })),
+  getDrogaParaIngreso: getDrogaParaIngresoMock,
   convertirUnidad: vi.fn(async (_tx: unknown, valor: string, origen: string, destino: string) =>
     new Decimal(valor).times(FACTOR_A_MG[origen]!).dividedBy(FACTOR_A_MG[destino]!).toString(),
   ),
@@ -142,5 +152,56 @@ describe("pasarGrupoAStock costo", () => {
       pasarGrupoAStockCommand.execute({ filaIds: [FILA_1] }, { session: makeSession() }),
     ).rejects.toThrow(/costo unitario/);
     expect(registrarPartidaCompraMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a se_dosifica_en_ui droga row with both potencia and actividad empty (no default to GRAMOS)", async () => {
+    getDrogaParaIngresoMock.mockResolvedValueOnce({
+      id: DROGA_ID,
+      nombre: "Vitamina D3",
+      unidadBaseId: MG_ID,
+      tipoControl: "NINGUNO",
+      clase: "DROGA",
+      seDosificaEnUi: true,
+      fechaBaja: null,
+    });
+    lockFilasRelevamientoMock.mockResolvedValueOnce([fila(FILA_1, "1", KG_ID, "50000")]);
+
+    await expect(
+      pasarGrupoAStockCommand.execute({ filaIds: [FILA_1] }, { session: makeSession() }),
+    ).rejects.toThrow(/se dosifica en U\.I\./);
+    expect(registrarPartidaCompraMock).not.toHaveBeenCalled();
+  });
+
+  it("passes tipoIngreso GRAMOS when a se_dosifica_en_ui row declares potencia 100, and UI when it declares actividad", async () => {
+    getDrogaParaIngresoMock.mockResolvedValue({
+      id: DROGA_ID,
+      nombre: "Vitamina D3",
+      unidadBaseId: MG_ID,
+      tipoControl: "NINGUNO",
+      clase: "DROGA",
+      seDosificaEnUi: true,
+      fechaBaja: null,
+    });
+    lockFilasRelevamientoMock.mockResolvedValueOnce([
+      fila(FILA_1, "1", KG_ID, "50000", { potencia_declarada: "100" }),
+    ]);
+
+    await pasarGrupoAStockCommand.execute({ filaIds: [FILA_1] }, { session: makeSession() });
+    expect(registrarPartidaCompraMock).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ tipoIngreso: "GRAMOS", potenciaDeclarada: "100", actividadDeclarada: undefined }),
+    );
+
+    lockFilasRelevamientoMock.mockResolvedValueOnce([
+      fila(FILA_1, "1", KG_ID, "50000", { actividad_declarada: "100" }),
+    ]);
+
+    await pasarGrupoAStockCommand.execute({ filaIds: [FILA_1] }, { session: makeSession() });
+    expect(registrarPartidaCompraMock).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ tipoIngreso: "UI", potenciaDeclarada: undefined, actividadDeclarada: "100" }),
+    );
   });
 });

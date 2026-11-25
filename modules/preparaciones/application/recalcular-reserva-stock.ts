@@ -72,6 +72,7 @@ export function entradasDeReserva(reservas: readonly ReservaDePreparacion[], env
     porLinea.set(r.lineaPesajeId, {
       lineaPesajeId: r.lineaPesajeId,
       cantidadManual: actual?.cantidadManual ?? (r.cantidadManual ? dec(r.cantidadManual) : undefined),
+      equivalenciaManual: actual?.equivalenciaManual ?? r.equivalenciaManual,
       motivoAperturaAdicional: actual?.motivoAperturaAdicional ?? r.motivoAperturaAdicional ?? undefined,
       partidaIds,
       cantidadReal: actual?.cantidadReal ?? (r.cantidadReal ? dec(r.cantidadReal) : undefined),
@@ -79,9 +80,12 @@ export function entradasDeReserva(reservas: readonly ReservaDePreparacion[], env
   }
   for (const e of enviadas) {
     const actual = porLinea.get(e.lineaPesajeId);
+    const equivalenciaManual = e.equivalenciaManual ?? actual?.equivalenciaManual;
     porLinea.set(e.lineaPesajeId, {
       lineaPesajeId: e.lineaPesajeId,
-      cantidadManual: e.cantidadManual ?? actual?.cantidadManual,
+      // Switching back from equivalenciaManual to computed clears the old cantidadManual.
+      cantidadManual: e.equivalenciaManual === false ? undefined : (e.cantidadManual ?? actual?.cantidadManual),
+      equivalenciaManual,
       motivoAperturaAdicional: e.motivoAperturaAdicional ?? actual?.motivoAperturaAdicional,
       partidaIds: e.partidaIds && e.partidaIds.length > 0 ? e.partidaIds : actual?.partidaIds,
       cantidadReal: e.cantidadReal ?? actual?.cantidadReal,

@@ -59,6 +59,7 @@ export default async function ExistenciaInicialPage() {
     label: droga.nombre,
     tipoMagnitud: droga.tipoMagnitud,
     clase: droga.clase,
+    seDosificaEnUi: droga.seDosificaEnUi,
     sinonimos: droga.sinonimos,
   }));
   const opcionesProveedores = proveedores.map((proveedor) => ({

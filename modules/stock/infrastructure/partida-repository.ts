@@ -12,6 +12,7 @@
  */
 import { Prisma } from "@/generated/prisma/client";
 import type { OrigenPartida, TipoMovimiento, MotivoAjuste as PrismaMotivoAjuste } from "@/generated/prisma/enums";
+import { DomainError } from "@/shared/errors";
 import { DIAS_ALERTA_VENCIMIENTO_PARTIDA_DEFAULT, type OrdenStockDrogas } from "../domain/partida";
 import { rangoDeJornadas } from "@/shared/time/jornada";
 import { drogaCoincideSql, sinonimoCoincidenteSql } from "@/shared/db/busqueda-droga";
@@ -237,6 +238,8 @@ export interface PartidaListItem {
   /** The vencimiento VIGENTE (migration 0074): the latest reanálisis, else `fechaVencimiento`. Every expiry decision uses this one. */
   fechaVencimientoVigente: Date | null;
   fechaApertura: Date | null;
+  potenciaDeclarada: string | null;
+  actividadDeclarada: string | null;
 }
 
 export interface ListPartidasDrogaFilter {
@@ -287,6 +290,8 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
       fechaVencimiento: true,
       fechaVencimientoVigente: true,
       fechaApertura: true,
+      potenciaDeclarada: true,
+      actividadDeclarada: true,
       origen: true,
       proveedor: { select: { razonSocial: true } },
     },
@@ -309,6 +314,8 @@ export async function listPartidasDeDroga(tx: Prisma.TransactionClient, filter: 
       fechaVencimiento: row.fechaVencimiento,
       fechaVencimientoVigente: row.fechaVencimientoVigente,
       fechaApertura: row.fechaApertura,
+      potenciaDeclarada: row.potenciaDeclarada?.toString() ?? null,
+      actividadDeclarada: row.actividadDeclarada?.toString() ?? null,
     })),
     total,
     page: filter.page,
@@ -343,6 +350,8 @@ export interface PartidaHistorialItem {
   origen: OrigenPartida;
   /** Migration 0058: declared purity (percent), `null` = 100 %. A dilución's is its concentration. */
   potenciaDeclarada: string | null;
+  /** Migration 0133: declared activity (U.I./g), exclusive with `potenciaDeclarada`. */
+  actividadDeclarada: string | null;
 }
 
 export interface ListPartidasHistorialFilter {
@@ -424,6 +433,7 @@ export async function listPartidasHistorial(tx: Prisma.TransactionClient, filter
       fechaApertura: true,
       origen: true,
       potenciaDeclarada: true,
+      actividadDeclarada: true,
       droga: { select: { nombre: true, unidadBaseId: true, unidadBase: { select: { simbolo: true } } } },
       proveedor: { select: { razonSocial: true } },
     },
@@ -455,6 +465,7 @@ export async function listPartidasHistorial(tx: Prisma.TransactionClient, filter
       fechaApertura: row.fechaApertura,
       origen: row.origen,
       potenciaDeclarada: row.potenciaDeclarada?.toString() ?? null,
+      actividadDeclarada: row.actividadDeclarada?.toString() ?? null,
     })),
     total,
     page: filter.page,
@@ -495,6 +506,9 @@ export interface PartidaParaAccion {
   fechaApertura: Date | null;
   /** Migration 0058: declared purity (percent), `null` = 100%. */
   potenciaDeclarada: string | null;
+  /** Migration 0133: declared activity (U.I./g), exclusive with `potenciaDeclarada`. */
+  actividadDeclarada: string | null;
+  seDosificaEnUi: boolean;
   /** Migration 0100: COMPRA or EXISTENCIA_INICIAL (openspec/specs/existencia-inicial/spec.md R10); 0111: ELABORACION_PROPIA. */
   origen: OrigenPartida;
 }
@@ -515,8 +529,9 @@ export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantI
       fechaVencimientoVigente: true,
       fechaApertura: true,
       potenciaDeclarada: true,
+      actividadDeclarada: true,
       origen: true,
-      droga: { select: { nombre: true, clase: true, tipoControl: true, unidadBaseId: true, unidadBase: { select: { simbolo: true } } } },
+      droga: { select: { nombre: true, clase: true, tipoControl: true, seDosificaEnUi: true, unidadBaseId: true, unidadBase: { select: { simbolo: true } } } },
       proveedor: { select: { razonSocial: true } },
     },
   });
@@ -539,6 +554,8 @@ export async function getPartidaParaAccion(tx: Prisma.TransactionClient, tenantI
     fechaVencimientoVigente: row.fechaVencimientoVigente,
     fechaApertura: row.fechaApertura,
     potenciaDeclarada: row.potenciaDeclarada?.toString() ?? null,
+    actividadDeclarada: row.actividadDeclarada?.toString() ?? null,
+    seDosificaEnUi: row.droga.seDosificaEnUi,
     tipoControl: row.droga.tipoControl,
     origen: row.origen,
   };
@@ -584,6 +601,8 @@ export interface NuevaPartidaInput {
   numeroValeAdquisicion: string | null;
   /** Migration 0058: the lot's purity (%), `null` = 100%. */
   potenciaDeclarada: string | null;
+  /** Migration 0133: the lot's declared activity (U.I./g), exclusive with `potenciaDeclarada`. */
+  actividadDeclarada?: string | null;
   /** Migration 0062: set only by the invoice import (`null` for a manual alta). */
   comprobanteCompraId?: string | null;
   despachoImportacion?: string | null;
@@ -605,13 +624,14 @@ export interface DrogaParaIngreso {
   tipoControl: string;
   /** Migration 0063: only a DROGA requires fecha_vencimiento (0064). */
   clase: "DROGA" | "EXCIPIENTE" | "MATERIAL";
+  seDosificaEnUi: boolean;
   fechaBaja: Date | null;
 }
 
 export async function getDrogaParaIngreso(tx: Prisma.TransactionClient, tenantId: string, drogaId: string): Promise<DrogaParaIngreso | null> {
   const row = await tx.droga.findUnique({
     where: { id: drogaId, tenantId },
-    select: { id: true, nombre: true, unidadBaseId: true, tipoControl: true, clase: true, fechaBaja: true },
+    select: { id: true, nombre: true, unidadBaseId: true, tipoControl: true, clase: true, seDosificaEnUi: true, fechaBaja: true },
   });
   return row;
 }
@@ -675,24 +695,72 @@ export async function getFechaActivacionContralor(tx: Prisma.TransactionClient, 
  * this atomic by COMMIT time (both succeed, or the whole transaction rolls
  * back), not the ordering of these two statements.
  */
+function textoErrorDb(e: unknown): string {
+  if (!(e instanceof Error)) return "";
+  const metaCause = (e as { meta?: { driverAdapterError?: { cause?: { message?: string } } } }).meta?.driverAdapterError?.cause?.message;
+  return [e.message, metaCause].filter(Boolean).join(" ");
+}
+
+/**
+ * Maps DB CHECKs (`partida_potencia_o_actividad_check`, `partida_actividad_declarada_check`,
+ * `relevamiento_fila_*`) and `trg_partida_validar_actividad` refusals to a `DomainError`
+ * with Spanish copy and the offending field(s). Rethrows anything else.
+ */
+export function mapPartidaActividadDbError(
+  e: unknown,
+  fields: { actividad?: string; potencia?: string } = {},
+): never {
+  const actividadField = fields.actividad ?? "actividadDeclarada";
+  const potenciaField = fields.potencia ?? "potenciaDeclarada";
+  const msg = textoErrorDb(e);
+
+  if (msg.includes("partida_potencia_o_actividad_check") || msg.includes("relevamiento_fila_potencia_o_actividad_check")) {
+    throw new DomainError("Una partida no puede tener pureza (%) y actividad (U.I./g) al mismo tiempo.", {
+      fields: [actividadField, potenciaField],
+    });
+  }
+  if (msg.includes("partida_actividad_declarada_check") || msg.includes("relevamiento_fila_actividad_declarada_check")) {
+    throw new DomainError("La actividad (U.I./g) debe ser mayor que cero.", {
+      fields: [actividadField],
+    });
+  }
+  if (msg.includes("cannot set actividad_declarada because droga")) {
+    throw new DomainError("Esta droga no se dosifica en U.I.", {
+      fields: [actividadField],
+    });
+  }
+  if (msg.includes("cannot switch between gram lot and U.I. lot after intake")) {
+    throw new DomainError("No se puede cambiar el tipo de partida (gramos vs. U.I.) después del ingreso.", {
+      fields: [actividadField],
+    });
+  }
+  throw e;
+}
+
 export async function insertPartidaConIngreso(tx: Prisma.TransactionClient, input: NuevaPartidaInput): Promise<{ id: string; movimientoId: string }> {
-  const partida = await tx.partida.create({
-    data: {
-      tenantId: input.tenantId,
-      drogaId: input.drogaId,
-      proveedorId: input.proveedorId,
-      lote: input.lote,
-      costoUnitario: input.costoUnitario,
-      cantidadInicial: input.cantidadInicialBase,
-      fechaVencimiento: input.fechaVencimiento ? new Date(`${input.fechaVencimiento}T00:00:00Z`) : null,
-      potenciaDeclarada: input.potenciaDeclarada,
-      comprobanteCompraId: input.comprobanteCompraId ?? null,
-      despachoImportacion: input.despachoImportacion ?? null,
-      paisOrigen: input.paisOrigen ?? null,
-      origen: input.origen ?? "COMPRA",
-    },
-    select: { id: true },
-  });
+  let partida: { id: string };
+  try {
+    partida = await tx.partida.create({
+      data: {
+        tenantId: input.tenantId,
+        drogaId: input.drogaId,
+        proveedorId: input.proveedorId,
+        lote: input.lote,
+        costoUnitario: input.costoUnitario,
+        cantidadInicial: input.cantidadInicialBase,
+        fechaVencimiento: input.fechaVencimiento ? new Date(`${input.fechaVencimiento}T00:00:00Z`) : null,
+        potenciaDeclarada: input.potenciaDeclarada,
+        actividadDeclarada: input.actividadDeclarada ?? null,
+        comprobanteCompraId: input.comprobanteCompraId ?? null,
+        despachoImportacion: input.despachoImportacion ?? null,
+        paisOrigen: input.paisOrigen ?? null,
+        origen: input.origen ?? "COMPRA",
+      },
+      select: { id: true },
+    });
+  } catch (e) {
+    mapPartidaActividadDbError(e);
+  }
 
   const movimiento = await tx.movimientoStock.create({
     data: {
@@ -918,17 +986,50 @@ export interface CorregirPotenciaInput {
  * NULL = 100% (no correction).
  */
 export async function updatePotenciaPartida(tx: Prisma.TransactionClient, input: CorregirPotenciaInput): Promise<boolean> {
-  const result = await tx.partida.updateMany({
-    where: {
-      id: input.id,
-      tenantId: input.tenantId,
-      potenciaDeclarada: input.potenciaAnterior !== null ? new Prisma.Decimal(input.potenciaAnterior) : null,
-    },
-    data: {
-      potenciaDeclarada: input.potenciaNueva !== null ? new Prisma.Decimal(input.potenciaNueva) : null,
-    },
-  });
-  return result.count === 1;
+  try {
+    const result = await tx.partida.updateMany({
+      where: {
+        id: input.id,
+        tenantId: input.tenantId,
+        potenciaDeclarada: input.potenciaAnterior !== null ? new Prisma.Decimal(input.potenciaAnterior) : null,
+      },
+      data: {
+        potenciaDeclarada: input.potenciaNueva !== null ? new Prisma.Decimal(input.potenciaNueva) : null,
+      },
+    });
+    return result.count === 1;
+  } catch (e) {
+    mapPartidaActividadDbError(e, { potencia: "potenciaDeclaradaNueva" });
+  }
+}
+
+export interface CorregirActividadInput {
+  tenantId: string;
+  id: string;
+  actividadNueva: string;
+  actividadAnterior: string;
+}
+
+/**
+ * Updates `partida.actividad_declarada` (U.I./g) with optimistic concurrency against `actividadAnterior`.
+ * Never switches a lot's kind (trigger `trg_partida_validar_actividad` also enforces this).
+ */
+export async function updateActividadPartida(tx: Prisma.TransactionClient, input: CorregirActividadInput): Promise<boolean> {
+  try {
+    const result = await tx.partida.updateMany({
+      where: {
+        id: input.id,
+        tenantId: input.tenantId,
+        actividadDeclarada: new Prisma.Decimal(input.actividadAnterior),
+      },
+      data: {
+        actividadDeclarada: new Prisma.Decimal(input.actividadNueva),
+      },
+    });
+    return result.count === 1;
+  } catch (e) {
+    mapPartidaActividadDbError(e, { actividad: "actividadDeclaradaNueva" });
+  }
 }
 
 // ============================================================================

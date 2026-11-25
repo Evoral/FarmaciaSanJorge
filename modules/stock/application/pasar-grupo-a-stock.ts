@@ -98,6 +98,7 @@ export const pasarGrupoAStockCommand = defineCommand({
       nombre: droga.nombre,
       clase: droga.clase,
       unidadBaseId: droga.unidadBaseId,
+      seDosificaEnUi: droga.seDosificaEnUi,
     };
 
     // 5. Verify completeness of all rows in group
@@ -111,6 +112,7 @@ export const pasarGrupoAStockCommand = defineCommand({
           cantidad: f.cantidad,
           unidadMedidaId: f.unidad_medida_id,
           potenciaDeclarada: f.potencia_declarada,
+          actividadDeclarada: f.actividad_declarada,
           costoUnitario: f.costo_unitario,
           proveedorId: f.proveedor_id,
         },
@@ -150,6 +152,7 @@ export const pasarGrupoAStockCommand = defineCommand({
       cantidad: f.cantidad,
       unidadMedidaId: f.unidad_medida_id,
       potenciaDeclarada: f.potencia_declarada,
+      actividadDeclarada: f.actividad_declarada,
       costoUnitario: costoBasePorFila.get(f.id) ?? null,
       proveedorId: f.proveedor_id,
     }));
@@ -165,6 +168,7 @@ export const pasarGrupoAStockCommand = defineCommand({
             origen: partidaExistente.origen,
             fechaVencimiento: partidaExistente.fechaVencimiento,
             potenciaDeclarada: partidaExistente.potenciaDeclarada,
+            actividadDeclarada: partidaExistente.actividadDeclarada,
             costoUnitario: partidaExistente.costoUnitario,
           }
         : null,
@@ -207,6 +211,7 @@ export const pasarGrupoAStockCommand = defineCommand({
 
       const vencimiento = filas.find((f) => f.fecha_vencimiento)?.fecha_vencimiento ?? null;
       const potencia = filas.find((f) => f.potencia_declarada)?.potencia_declarada ?? null;
+      const actividad = filas.find((f) => f.actividad_declarada)?.actividad_declarada ?? null;
 
       const resultadoAlta = await registrarPartidaCompra(tx, session, {
         origen: "EXISTENCIA_INICIAL",
@@ -217,7 +222,9 @@ export const pasarGrupoAStockCommand = defineCommand({
         cantidadCompra: totalCantidadBase.toFixed(),
         unidadCompraId: droga.unidadBaseId,
         costo: { porUnidadBase: costoFinal },
-        potenciaDeclarada: potencia ?? undefined,
+        tipoIngreso: droga.seDosificaEnUi ? (actividad ? "UI" : potencia ? "GRAMOS" : undefined) : undefined,
+        potenciaDeclarada: actividad ? undefined : (potencia ?? undefined),
+        actividadDeclarada: actividad ?? undefined,
       });
 
       partidaId = resultadoAlta.id;

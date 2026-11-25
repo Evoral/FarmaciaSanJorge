@@ -244,27 +244,42 @@ export interface AreaRp {
   abajo: number;
 }
 
+/**
+ * R12: how much narrower than its usual width the fórmula's type may get when the width, not the height, limits its
+ * size (a long drug line with room left below): the type grows taller instead, every drug still on one line.
+ */
+export const CONDENSACION_MINIMA_RP = 0.85;
+
 /** Where the Rp/ columns go: one font size for all of them, the left edge of each and where the first row starts. */
 export interface DistribucionRp {
   tamano: number;
   xs: number[];
   primeraY: number;
+  /** Extra horizontal scale of the glyphs: 1 = none, down to `CONDENSACION_MINIMA_RP`. */
+  condensacion: number;
 }
 
 /**
  * Lays out the Rp/ columns in `area`. `anchosBase` is each column's widest line measured at `tamanoFuenteRp(filas)`.
  * Each column is as wide as its own widest line (one long line does not squeeze the other column); the size shrinks
- * until the columns side by side fit the width and every row fits the height. The block is centered both ways: the
- * width left over is shared equally before, between and after the columns (a short fórmula sits in the middle).
+ * until the columns side by side fit the width and every row fits the height. When the width is what limits it and the
+ * height has room, the glyphs are first condensed (down to `CONDENSACION_MINIMA_RP`) so the size can grow toward what
+ * the height allows. The block is centered both ways: the width left over is shared equally before, between and after
+ * the columns (a short fórmula sits in the middle).
  */
 export function distribuirColumnasRp(anchosBase: readonly number[], filas: number, area: AreaRp): DistribucionRp {
   const { x, derecha, arriba, abajo } = area;
   const base = tamanoFuenteRp(filas);
   const disponible = derecha - x - SEPARACION_COLUMNAS_RP * (anchosBase.length - 1);
   const total = anchosBase.reduce((suma, a) => suma + a, 0);
-  let tamano = total > disponible ? (base * disponible) / total : base;
-  if (tamano * INTERLINEA_RP * filas > abajo - arriba) tamano = (abajo - arriba) / (filas * INTERLINEA_RP);
-  const escala = tamano / base;
+  const topeAlto = (abajo - arriba) / (filas * INTERLINEA_RP);
+  // The size the rows and the height allow; condensing only helps to reach it, never beyond.
+  const objetivo = Math.min(base, topeAlto);
+  const condensacion = total > 0 ? Math.min(1, Math.max(CONDENSACION_MINIMA_RP, (disponible * base) / (total * objetivo))) : 1;
+  const totalCondensado = total * condensacion;
+  let tamano = totalCondensado > disponible ? (base * disponible) / totalCondensado : base;
+  if (tamano > topeAlto) tamano = topeAlto;
+  const escala = (tamano / base) * condensacion;
   const hueco = Math.max(0, disponible - total * escala) / (anchosBase.length + 1);
   const xs: number[] = [];
   let colX = x + hueco;
@@ -272,7 +287,7 @@ export function distribuirColumnasRp(anchosBase: readonly number[], filas: numbe
     xs.push(colX);
     colX += ancho * escala + hueco + SEPARACION_COLUMNAS_RP;
   }
-  return { tamano, xs, primeraY: arriba + (abajo - arriba - tamano * INTERLINEA_RP * filas) / 2 };
+  return { tamano, xs, primeraY: arriba + (abajo - arriba - tamano * INTERLINEA_RP * filas) / 2, condensacion };
 }
 
 /** The fórmula in `area`: one or two columns (`columnasRp`), bold when it is one or two drugs. */
@@ -283,8 +298,15 @@ export function dibujarFormula(doc: Doc, rp: readonly string[], area: AreaRp): v
   const fuente: Fuente = rp.length <= 2 ? "Helvetica-Bold" : "Helvetica";
   const base = tamanoFuenteRp(filas);
   const anchos = columnas.map((col) => Math.max(...col.map((l) => anchoDe(doc, [{ texto: l, fuente }], base))));
-  const { tamano, xs, primeraY } = distribuirColumnasRp(anchos, filas, area);
-  columnas.forEach((col, i) => {
-    col.forEach((l, fila) => linea(doc, [{ texto: l, fuente }], xs[i]!, primeraY + fila * tamano * INTERLINEA_RP, tamano, NEGRO));
-  });
+  const { tamano, xs, primeraY, condensacion } = distribuirColumnasRp(anchos, filas, area);
+  const previa = compensacionX.get(doc);
+  compensacionX.set(doc, (previa ?? 1) * condensacion);
+  try {
+    columnas.forEach((col, i) => {
+      col.forEach((l, fila) => linea(doc, [{ texto: l, fuente }], xs[i]!, primeraY + fila * tamano * INTERLINEA_RP, tamano, NEGRO));
+    });
+  } finally {
+    if (previa === undefined) compensacionX.delete(doc);
+    else compensacionX.set(doc, previa);
+  }
 }

@@ -7,8 +7,10 @@
  */
 import { z } from "zod";
 import { Decimal } from "decimal.js";
+import { DomainError, ValidationError } from "@/shared/errors";
 import { interpretarNumero } from "@/shared/decimal/numero-ingresado";
 import { CADENAS_CONVERTIBLES, UNIDADES_PRACTICAS } from "@/shared/format/cantidad";
+import { parsearActividad } from "./actividad";
 
 // ============================================================================
 // motivo_ajuste (5.4, DP-21b: every AJUSTE subtracts)
@@ -90,6 +92,100 @@ export const potenciaDeclaradaString = z
     }
     return parsed;
   });
+
+export const TIPOS_INGRESO_PARTIDA = ["GRAMOS", "UI"] as const;
+export type TipoIngresoPartida = (typeof TIPOS_INGRESO_PARTIDA)[number];
+
+/**
+ * Parses a positive U.I./g activity either as a plain positive number (`"100"`)
+ * or as a certificate expression (`"1000 U.I. cada 10 g"`, `"10 g cada 1000 U.I."`, `"100 U.I./g"`).
+ */
+export function parsearActividadOValor(raw: string): { ok: true; uiPorGramo: Decimal } | { ok: false; mensaje: string } {
+  const limpio = raw.trim();
+  if (!limpio) {
+    return { ok: false, mensaje: "Ingresá la actividad (ej. 1000 U.I. cada 10 g)." };
+  }
+  const numero = interpretarNumero(limpio);
+  if (numero.ok) {
+    const parsed = new Decimal(numero.valor);
+    if (!parsed.isFinite() || !parsed.greaterThan(0)) {
+      return { ok: false, mensaje: "La actividad (U.I./g) debe ser mayor que cero." };
+    }
+    return { ok: true, uiPorGramo: parsed };
+  }
+  return parsearActividad(limpio);
+}
+
+/** `partida.actividad_declarada` (migration 0133's `partida_actividad_declarada_check`): U.I. per gram, > 0. */
+export const actividadDeclaradaString = z
+  .string()
+  .trim()
+  .min(1, "Ingresá la actividad (ej. 1000 U.I. cada 10 g).")
+  .transform((value, ctx) => {
+    const res = parsearActividadOValor(value);
+    if (!res.ok) {
+      ctx.addIssue({ code: "custom", message: res.mensaje });
+      return z.NEVER;
+    }
+    return res.uiPorGramo;
+  });
+
+/**
+ * Validates the intake kind ("GRAMOS" vs "UI") and exclusivity between `potenciaDeclarada` and `actividadDeclarada`
+ * (UI4, proposal D4):
+ * - Marked droga (`seDosificaEnUi`): `tipoIngreso` is required (no default).
+ *   - "UI": `actividadDeclarada` required, `potenciaDeclarada` must be absent.
+ *   - "GRAMOS": `actividadDeclarada` must be absent, `potenciaDeclarada` optional.
+ * - Unmarked droga: `tipoIngreso === "UI"` and `actividadDeclarada` are refused.
+ */
+export function validarTipoIngresoPartida(
+  params: {
+    seDosificaEnUi: boolean;
+    tipoIngreso?: TipoIngresoPartida | null;
+    potenciaDeclarada?: string | null;
+    actividadDeclarada?: string | null;
+  },
+  campo: (nombre: string) => string = (n) => n,
+): void {
+  const tienePotencia = Boolean(params.potenciaDeclarada && params.potenciaDeclarada.trim() !== "");
+  const tieneActividad = Boolean(params.actividadDeclarada && params.actividadDeclarada.trim() !== "");
+
+  if (tienePotencia && tieneActividad) {
+    throw new DomainError("Una partida no puede tener pureza (%) y actividad (U.I./g) al mismo tiempo.", {
+      fields: [campo("actividadDeclarada"), campo("potenciaDeclarada")],
+    });
+  }
+
+  if (!params.seDosificaEnUi) {
+    if (params.tipoIngreso === "UI" || tieneActividad) {
+      throw new ValidationError("Esta droga no se dosifica en U.I.", { fields: [campo("actividadDeclarada")] });
+    }
+    return;
+  }
+
+  if (!params.tipoIngreso) {
+    throw new ValidationError("Elegí si la partida ingresa en gramos o en U.I.", { fields: [campo("tipoIngreso")] });
+  }
+
+  if (params.tipoIngreso === "UI") {
+    if (!tieneActividad) {
+      throw new ValidationError("Ingresá la actividad en U.I. (ej. 1000 U.I. cada 10 g).", {
+        fields: [campo("actividadDeclarada")],
+      });
+    }
+    if (tienePotencia) {
+      throw new ValidationError("Una partida en U.I. no lleva pureza en porcentaje.", {
+        fields: [campo("potenciaDeclarada")],
+      });
+    }
+  } else {
+    if (tieneActividad) {
+      throw new ValidationError("Una partida en gramos no lleva actividad en U.I.", {
+        fields: [campo("actividadDeclarada")],
+      });
+    }
+  }
+}
 
 /**
  * Ingreso de partida (5.1): `fecha_vencimiento` must be STRICTLY in the

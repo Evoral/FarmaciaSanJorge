@@ -52,7 +52,7 @@ import { ConflictError, DomainError, ValidationError } from "@/shared/errors";
 import { fechaIso, uuid } from "@/shared/validation";
 import { crearPacienteHandler, crearPacienteInput } from "@/modules/pacientes/application/crear-paciente";
 import { crearMedicoHandler, crearMedicoInput } from "@/modules/medicos/application/crear-medico";
-import { diagnosticoCodigoOpcional, domicilioPacienteOpcional, esFechaPrescripcionValida, esFechaPrescripcionVigente, esFechaValidaDesdeVigente, conUnidadBaseEnPorcentajes, resumirItemsReceta, validarConcentracionesReceta, validarCorduraConcentraciones, validarItemsReceta, validarOrigenHabilitado } from "../domain/receta";
+import { diagnosticoCodigoOpcional, domicilioPacienteOpcional, esFechaPrescripcionValida, esFechaPrescripcionVigente, esFechaValidaDesdeVigente, conUnidadBaseEnPorcentajes, resumirItemsReceta, validarComponentesUi, validarConcentracionesReceta, validarCorduraConcentraciones, validarItemsReceta, validarOrigenHabilitado } from "../domain/receta";
 import type { ComponenteInput, ItemInput } from "../domain/receta";
 import { CODIGOS_EMISOR, esUrlVerificacionDeEmisor } from "../domain/receta-pdf-parser";
 import { limpiarSinonimo } from "@/modules/drogas/domain/sinonimo";
@@ -304,7 +304,9 @@ export const importarRecetaCommand = defineCommand({
     if ((await unidadesInvalidas(tx, unidadIds)).length > 0) {
       throw new ValidationError("Una o más unidades de medida seleccionadas no existen o están dadas de baja.");
     }
-    validarConcentracionesReceta(itemsDominio, await getMagnitudesDeUnidades(tx, unidadIds));
+    const magnitudes = await getMagnitudesDeUnidades(tx, unidadIds);
+    validarConcentracionesReceta(itemsDominio, magnitudes);
+    validarComponentesUi(itemsDominio, magnitudes, drogas.drogasUi);
     validarCorduraConcentraciones(itemsDominio, await getUnidadesParaCordura(tx, unidadIds));
 
     const paciente = await resolverPaciente(ctx, input.paciente, input.domicilioDelDocumento ? input.domicilioPaciente : null);

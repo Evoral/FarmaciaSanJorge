@@ -41,6 +41,7 @@ export function inicialDesdeReceta(receta: RecetaDetalle): RecetaFormInicial {
         unidadMedidaId: c.unidadMedidaId,
         modoExpresion: c.modoExpresion,
         unidadReferenciaId: c.unidadReferenciaId ?? "",
+        seDosificaEnUi: c.seDosificaEnUi,
       })),
     })),
   };

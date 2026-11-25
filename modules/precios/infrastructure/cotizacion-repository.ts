@@ -115,7 +115,7 @@ export async function getUltimaFichaConLineas(tx: Prisma.TransactionClient, tena
 export async function getPartidasElegiblesDeDroga(tx: Prisma.TransactionClient, tenantId: string, drogaId: string): Promise<PartidaCosteo[]> {
   const rows = await tx.partida.findMany({
     where: { tenantId, drogaId, cantidadDisponible: { gt: 0 } },
-    select: { id: true, cantidadDisponible: true, fechaVencimientoVigente: true, fechaApertura: true, costoUnitario: true },
+    select: { id: true, cantidadDisponible: true, fechaVencimientoVigente: true, fechaApertura: true, costoUnitario: true, actividadDeclarada: true },
   });
   return rows.map((p) => ({
     id: p.id,
@@ -124,6 +124,7 @@ export async function getPartidasElegiblesDeDroga(tx: Prisma.TransactionClient, 
     fechaVencimiento: p.fechaVencimientoVigente?.toISOString().slice(0, 10) ?? null,
     fechaApertura: p.fechaApertura ? p.fechaApertura.toISOString() : null,
     costoUnitario: p.costoUnitario.toString(),
+    actividadDeclarada: p.actividadDeclarada ? p.actividadDeclarada.toString() : null,
   }));
 }
 

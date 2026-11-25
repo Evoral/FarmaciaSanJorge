@@ -24,6 +24,8 @@ export interface DrogaElegida {
   nombre: string;
   unidadBaseId: string;
   unidadBaseSimbolo: string;
+  /** Migration 0133: true when the droga accepts U.I. in recetas. */
+  seDosificaEnUi: boolean;
   /** The synonym the droga was picked by, or `null` when picked by its name. */
   drogaAliasId: string | null;
   sinonimo: string | null;
@@ -87,6 +89,7 @@ export function DrogaPicker({ label, selectedId, selectedLabel, selectedSinonimo
           nombre: droga.nombre,
           unidadBaseId: droga.unidadBaseId,
           unidadBaseSimbolo: droga.unidadBaseSimbolo,
+          seDosificaEnUi: droga.seDosificaEnUi,
           drogaAliasId: droga.sinonimoId,
           sinonimo: droga.sinonimo,
         });

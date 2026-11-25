@@ -129,3 +129,14 @@ export function textoExcipientePorUnidad(cantidadPorUnidad: Decimal | string, un
 export function textoDesglosePorUnidad(cantidadPorUnidad: Decimal | string, unidadSimbolo: string, unidades: Decimal | string, plural: string): string {
   return `${formatNumero(dec(cantidadPorUnidad).toString())} ${unidadSimbolo} × ${formatNumero(dec(unidades).toString())} ${plural}`;
 }
+
+/**
+ * Notice shown when `pesoDeDrogas` is `null` because at least one línea is prescribed in U.I. (`ACTIVIDAD`, UI8):
+ * the U.I. drug's weight is not subtracted from the excipiente.
+ */
+export function avisoExcipienteUi(lineas: readonly { drogaNombre: string; unidad: { tipoMagnitud: string } }[]): string | null {
+  const ui = lineas.filter((l) => l.unidad.tipoMagnitud === "ACTIVIDAD").map((l) => l.drogaNombre);
+  if (ui.length === 0) return null;
+  if (ui.length === 1) return `El peso de ${ui[0]} (U.I.) no está descontado del excipiente.`;
+  return `El peso de ${ui.join(", ")} (U.I.) no está descontado del excipiente.`;
+}

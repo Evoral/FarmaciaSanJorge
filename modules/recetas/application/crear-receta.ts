@@ -33,6 +33,7 @@ import {
   resumirItemsReceta,
   conUnidadBaseEnPorcentajes,
   unidadDeComponente,
+  validarComponentesUi,
   validarConcentracionesReceta,
   validarCorduraConcentraciones,
   validarItemsReceta,
@@ -77,16 +78,25 @@ const decimalOpcional = z
     return numero.valor;
   });
 
-const componenteInput = z.object({
-  drogaId: uuid,
-  cantidad: decimalOpcional,
-  unidadMedidaId: uuid,
-  modoExpresion: z.enum(MODOS_EXPRESION),
-  /** CONCENTRACION only (migration 0112): the denominator unit of "5 mg/mL"; null = %. */
-  unidadReferenciaId: uuid.nullable().optional(),
-  /** The synonym of the droga it was picked by (migration 0069), validated by `validarSinonimosDeComponentes`. */
-  drogaAliasId: uuid.nullable().optional(),
-});
+const componenteInput = z
+  .object({
+    drogaId: uuid,
+    cantidad: decimalOpcional,
+    unidadMedidaId: uuid,
+    modoExpresion: z.enum(MODOS_EXPRESION),
+    /** CONCENTRACION only (migration 0112): the denominator unit of "5 mg/mL"; null = %. */
+    unidadReferenciaId: uuid.nullable().optional(),
+    /** The synonym of the droga it was picked by (migration 0069), validated by `validarSinonimosDeComponentes`. */
+    drogaAliasId: uuid.nullable().optional(),
+  })
+  .superRefine((c, ctx) => {
+    if ((c.modoExpresion === "CS" || c.modoExpresion === "CSP") && c.cantidad !== null) {
+      ctx.addIssue({ code: "custom", message: `Un componente ${c.modoExpresion} no debe tener cantidad.`, path: ["cantidad"] });
+    }
+    if (c.modoExpresion !== "CONCENTRACION" && c.unidadReferenciaId) {
+      ctx.addIssue({ code: "custom", message: "Solo una concentración lleva unidad de referencia.", path: ["unidadReferenciaId"] });
+    }
+  });
 
 /** One ítem of the receta (with its componentes) -- shared with importar-receta.ts. */
 export const itemInput = z.object({
@@ -213,7 +223,9 @@ export const crearRecetaCommand = defineCommand({
     if (unidadesMalas.length > 0) {
       throw new ValidationError("Una o más unidades de medida seleccionadas no existen o están dadas de baja.");
     }
-    validarConcentracionesReceta(itemsDominio, await getMagnitudesDeUnidades(tx, unidadIds));
+    const magnitudes = await getMagnitudesDeUnidades(tx, unidadIds);
+    validarConcentracionesReceta(itemsDominio, magnitudes);
+    validarComponentesUi(itemsDominio, magnitudes, drogas.drogasUi);
     validarCorduraConcentraciones(itemsDominio, await getUnidadesParaCordura(tx, unidadIds));
 
     const nueva = await insertRecetaConItems(tx, {

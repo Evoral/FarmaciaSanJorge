@@ -3,8 +3,9 @@
  * but decimals (./preparacion.ts pulls `shared/errors`, which is server-only). Re-exported by ./preparacion.ts.
  */
 import { Decimal } from "@/shared/decimal";
+import type { UnidadDeConversion } from "@/shared/decimal/convertir-unidad";
 import type { PartidaDisponible } from "@/modules/stock/domain/reparto";
-import { activoDesdeFisico } from "./potencia";
+import { activoDesdeFisico, factorDePartida } from "./potencia";
 
 // ============================================================================
 // INV-S18 [PROPUESTA TÉCNICA -- openspec/specs/libro-recetario-y-contralor/spec.md
@@ -25,6 +26,8 @@ export interface PartidaConEstadoApertura extends PartidaDisponible {
   elegida: boolean;
   /** `partida.potencia_declarada` (percent, `null`/omitted = 100%). When given, balances are compared in ACTIVE terms (domain/potencia.ts). */
   potenciaDeclarada?: string | null;
+  /** `partida.actividad_declarada` (U.I./g, `null`/omitted = gram lot). */
+  actividadDeclarada?: string | null;
   /**
    * A lot elaborated in the farmacia (dilución or fórmula, origen ELABORACION_PROPIA). It is outside INV-S18 on both
    * sides: it is opened precisely to weigh what a pure lot can not, so opening it needs no motivo, and its balance
@@ -39,18 +42,19 @@ export interface PartidaConEstadoApertura extends PartidaDisponible {
  * vencidas, per INV-S10) alone had enough balance to cover `cantidadRequerida`.
  * In that case the caller must collect a `motivoAperturaAdicional`.
  * `cantidadRequerida` and the balances are compared in ACTIVE terms when the
- * partidas carry `potenciaDeclarada` (pass none for manual-enrase lines).
+ * partidas carry `potenciaDeclarada` or `actividadDeclarada` (pass none for manual-enrase lines).
  */
 export function requiereMotivoAperturaAdicional(
   partidas: readonly PartidaConEstadoApertura[],
   cantidadRequerida: Decimal,
   jornadaActual: string,
+  unidadStock?: UnidadDeConversion,
 ): boolean {
   const vigentes = (p: PartidaConEstadoApertura) => p.fechaVencimiento === null || p.fechaVencimiento >= jornadaActual;
 
   const saldoAbiertasVigentes = partidas
     .filter((p) => !p.elaborada && p.fechaApertura !== null && vigentes(p))
-    .reduce((acc, p) => acc.plus(activoDesdeFisico(p.cantidadDisponible, p.potenciaDeclarada)), new Decimal(0));
+    .reduce((acc, p) => acc.plus(activoDesdeFisico(p.cantidadDisponible, factorDePartida(p), unidadStock)), new Decimal(0));
 
   if (saldoAbiertasVigentes.lessThan(cantidadRequerida)) {
     // The already-open supply alone would NOT have covered the requirement
