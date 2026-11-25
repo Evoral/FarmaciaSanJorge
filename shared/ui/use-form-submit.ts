@@ -55,7 +55,7 @@
  * In an individual session none of this ever triggers.
  */
 import { startTransition, useCallback, useEffect, useRef, type FormEvent } from "react";
-import { CAMPOS_DE_PRUEBA_OPERADOR, esCampoDeOperador } from "@/shared/auth/operador-campos";
+import { aplicarCamposDeOperador, CAMPOS_DE_PRUEBA_OPERADOR, esCampoDeOperador } from "@/shared/auth/operador-campos";
 import { clearInvalidFields } from "./field-errors";
 import { useOperador } from "./operador";
 
@@ -105,7 +105,7 @@ export function useFormSubmit(formAction: (payload: FormData) => void, opciones?
     (formData: FormData, error?: string) => {
       void operador.pedir(error).then((campos) => {
         if (!campos) return;
-        for (const [nombre, valor] of Object.entries(campos)) formData.set(nombre, valor);
+        aplicarCamposDeOperador(formData, campos);
         enviar(formData);
       });
     },

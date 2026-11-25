@@ -34,6 +34,16 @@ describe("registry", () => {
     }
   });
 
+  it("ties every catalog method's proof keys to its zod proof schema", () => {
+    for (const metodo of METODOS_VERIFICACION) {
+      const prueba: Record<string, string> = { metodo };
+      for (const clave of METODOS[metodo].claves) prueba[clave] = "1234";
+      const parsed = REGISTRO[metodo].prueba.safeParse(prueba);
+      expect(parsed.success, `proof of ${metodo} built from METODOS.claves`).toBe(true);
+      if (parsed.success) expect(parsed.data).toEqual(prueba);
+    }
+  });
+
   it("keeps the PIN proof schema and rejection messages exactly as before", () => {
     const { prueba, rechazo } = REGISTRO.PIN;
     expect(prueba.safeParse({ metodo: "PIN", pin: "4829" }).success).toBe(true);

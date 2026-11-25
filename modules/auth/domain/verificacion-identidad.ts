@@ -14,8 +14,6 @@ export type PruebaDeIdentidad = { metodo: "PIN"; pin: string };
 
 export type MetodoVerificacion = PruebaDeIdentidad["metodo"];
 
-export const METODOS_VERIFICACION = ["PIN"] as const satisfies readonly MetodoVerificacion[];
-
 /** The method used when a request names none (what a PIN-only form sends). */
 export const METODO_POR_DEFECTO: MetodoVerificacion = "PIN";
 
@@ -41,6 +39,9 @@ export interface DescripcionDeMetodo<M extends MetodoVerificacion> {
 export const METODOS: { [M in MetodoVerificacion]: DescripcionDeMetodo<M> } = {
   PIN: { metodo: "PIN", etiqueta: "PIN", claves: ["pin"], siempreHabilitado: true, almacen: "USUARIO_PIN" },
 };
+
+/** Every method, derived from the catalog keys: `METODOS` is a mapped type, so a method missing there fails the typecheck. */
+export const METODOS_VERIFICACION = Object.keys(METODOS) as readonly MetodoVerificacion[];
 
 /**
  * Why a proof identified nobody: `NO_RECONOCIDA` = it matches no eligible empleado; `AMBIGUA` = it matches more than one

@@ -35,8 +35,8 @@ variant, label, proof keys, always-on flag, storage), the server registry
 rejection field marker, the logger redaction and the audit label derive from the catalog through `operador-campos.ts`
 and never name a method.
 
-1. Domain: add the proof variant to `PruebaDeIdentidad`, the code to `METODOS_VERIFICACION` and its `METODOS` entry
-   (label, keys, `almacen`).
+1. Domain: add the proof variant to `PruebaDeIdentidad`, and its `METODOS` entry (label, keys,
+   `almacen`); `METODOS_VERIFICACION` is derived from the `METODOS` keys.
 2. Server: add the `REGISTRO` entry. A code method uses `identificadorPorCodigo` with a `FuenteDeCodigos`; any other
    method writes its own `IdentificadorDeEmpleado`.
 3. Client: add the `METODOS_EN_DIALOGO` entry (component + `prioridad`).
