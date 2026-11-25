@@ -22,9 +22,9 @@ export default async function PinPorAccionPage() {
   return (
     <>
       <PageHeader
-        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Configuración" }, { label: "PIN por acción" }]}
-        title="PIN por acción"
-        description="En las cuentas de sector (una sesión compartida por puesto de trabajo), elegí qué acciones exigen que el empleado se identifique con su PIN."
+        breadcrumbs={[{ label: "Inicio", href: "/" }, { label: "Configuración" }, { label: "Verificación por acción" }]}
+        title="Verificación por acción"
+        description="En las cuentas de sector (una sesión compartida por puesto de trabajo), elegí qué acciones exigen que el empleado se identifique (con su PIN o con otro método habilitado)."
       />
 
       <SectionTabs ariaLabel="Secciones de configuración" links={configuracionSections(session)} />
@@ -32,8 +32,8 @@ export default async function PinPorAccionPage() {
       <p role="note" className="alert alert-info mb-4 max-w-4xl">
         <Info aria-hidden />
         <span>
-          Una acción <b>con PIN</b> queda registrada a nombre del empleado que lo ingresó, y solo se permite si ese empleado tiene el permiso en sus propios roles. Una acción{" "}
-          <b>sin PIN</b> queda a nombre de la cuenta del sector. No cambia nada para quien entra con su usuario personal.
+          Una acción <b>con verificación</b> queda registrada a nombre del empleado que se identificó, y solo se permite si ese empleado tiene el permiso en sus propios roles. Una acción{" "}
+          <b>sin verificación</b> queda a nombre de la cuenta del sector. No cambia nada para quien entra con su usuario personal.
         </span>
       </p>
 

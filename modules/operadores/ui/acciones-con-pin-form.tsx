@@ -51,7 +51,7 @@ export function AccionesConPinForm({ acciones, disabled = false }: AccionesConPi
           <div className="group-card-header justify-between">
             <h3 className="flex items-center gap-2 text-[0.8125rem] font-semibold text-zinc-900">
               {grupo.etiqueta}
-              <span className="font-mono text-xs font-normal tabular-nums text-zinc-500" title="Acciones que piden PIN">
+              <span className="font-mono text-xs font-normal tabular-nums text-zinc-500" title="Acciones que piden verificación">
                 {grupo.items.filter((accion) => conPin.has(accion.codigo)).length}/{grupo.items.length}
               </span>
             </h3>
@@ -69,7 +69,7 @@ export function AccionesConPinForm({ acciones, disabled = false }: AccionesConPi
                     checked={conPin.has(accion.codigo)}
                     disabled={disabled}
                     onChange={(event) => cambiar(accion.codigo, event.target.checked)}
-                    aria-label={`${accion.descripcion}: pide PIN`}
+                    aria-label={`${accion.descripcion}: pide verificación`}
                   />
                 </label>
               </li>
