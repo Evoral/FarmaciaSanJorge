@@ -12,7 +12,7 @@ type PermisoAsignable = { [K in Permiso]: (typeof PERMISO_CATALOGO)[K] extends "
 const AYUDA_PERMISO: Readonly<Record<PermisoAsignable, string>> = {
   "auth.login": "Entrar al sistema con usuario y contraseña. Todos los roles lo incluyen.",
   "auth.logout": "Salir del sistema. Todos los roles lo incluyen.",
-  "auth.password.cambiar": "Cambiar la propia contraseña. Todos los roles lo incluyen.",
+  "auth.password.cambiar": "Cambiar la propia contraseña y administrar el propio PIN y la propia huella. Todos los roles lo incluyen.",
   "usuarios.listar": "Ver la lista de usuarios de la farmacia.",
   "usuarios.ver": "Abrir la ficha de un usuario con sus datos y roles.",
   "usuarios.crear": "Dar de alta un usuario nuevo.",
@@ -21,7 +21,7 @@ const AYUDA_PERMISO: Readonly<Record<PermisoAsignable, string>> = {
   "usuarios.suspender": "Bloquear temporalmente el acceso de un usuario sin darlo de baja.",
   "usuarios.reactivar": "Devolverle el acceso a un usuario suspendido.",
   "usuarios.baja": "Dar de baja definitiva a un usuario. Su historial se conserva.",
-  "usuarios.credencial.restablecer": "Asignar una contraseña temporal nueva (por ejemplo, si el usuario olvidó la contraseña) o borrar su PIN para que configure uno nuevo al ingresar.",
+  "usuarios.credencial.restablecer": "Asignar una contraseña temporal nueva (por ejemplo, si el usuario olvidó la contraseña), borrar su PIN para que configure uno nuevo al ingresar o quitar su huella (el Administrador no puede registrarla ni ver su código).",
   "usuarios.auditoria.ver": "Ver el historial de cambios hechos sobre los usuarios: altas, bajas, cambios de roles.",
   "dt.designar": "Nombrar al Director Técnico de la farmacia.",
   "dt.cesar": "Terminar la designación del Director Técnico actual.",
