@@ -82,6 +82,8 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   passwordActual: "Contraseña actual",
   pin: "PIN",
   pinRepeat: "Repetir PIN",
+  credencial: "Credencial",
+  enrolada: "Enrolada",
   roles: "Roles",
   rolCodigo: "Rol",
   rolId: "Rol",

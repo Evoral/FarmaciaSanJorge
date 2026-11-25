@@ -68,7 +68,8 @@ export const REGISTRO: { [M in MetodoVerificacion]: EntradaServidor<M> } = {
     rechazoGenerico: "No se pudo identificar al empleado. Volvé a pasar la huella.",
     enrolamiento: {
       clave: "huella",
-      codigo: z.string().min(HUELLA_LONGITUD_MINIMA, `El código de la huella debe tener al menos ${HUELLA_LONGITUD_MINIMA} caracteres.`).max(HUELLA_LONGITUD_MAXIMA, `El código de la huella no puede superar los ${HUELLA_LONGITUD_MAXIMA} caracteres.`),
+      // `error` covers a missing or non-string code, which zod would otherwise report in its default English.
+      codigo: z.string({ error: "Ingresá el código de la huella." }).min(HUELLA_LONGITUD_MINIMA, `El código de la huella debe tener al menos ${HUELLA_LONGITUD_MINIMA} caracteres.`).max(HUELLA_LONGITUD_MAXIMA, `El código de la huella no puede superar los ${HUELLA_LONGITUD_MAXIMA} caracteres.`),
       fuente: fuenteHuella,
       noDisponible: "Ese código no se puede usar. Probá con otro.",
     },

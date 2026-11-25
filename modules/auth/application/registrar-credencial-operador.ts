@@ -59,6 +59,9 @@ export const registrarCredencialOperadorCommand = defineCommand({
       administrador: `El Administrador no usa el método ${etiqueta}.`,
       passwordActual: input.passwordActual,
     });
+    // Benign TOCTOU: the enabled methods are read here WITHOUT the `fsj.metodos:` advisory lock that toggling takes. If an
+    // Administrador switches the method off right after this check, the credential is still stored but ignored while the
+    // method is off (identification checks enablement), and works again when it is switched back on.
     if (!metodoHabilitado(metodo, await loadMetodosHabilitados(tx, session.tenantId))) {
       throw new DomainError(`El método ${etiqueta} no está habilitado en la farmacia.`);
     }
