@@ -27,7 +27,7 @@ duration of the request; `operador.ts` is the facade over the verification in
 ## Adding a verification method
 
 `openspec/specs/cuentas-de-sector/spec.md`. How an empleado proves who they are on a shared session is a closed
-catalog (`MetodoVerificacion`, today the PIN). Three registries are mapped types over it, so a method missing from any
+catalog (`MetodoVerificacion`, today the PIN and the huella). Three registries are mapped types over it, so a method missing from any
 of them fails `npm run typecheck`: the domain catalog (`modules/auth/domain/verificacion-identidad.ts`: proof
 variant, label, proof keys, always-on flag, storage), the server registry
 (`modules/auth/application/metodos-verificacion.ts`) and the client registry
@@ -37,15 +37,32 @@ and never name a method.
 
 1. Domain: add the proof variant to `PruebaDeIdentidad`, and its `METODOS` entry (label, keys,
    `almacen`); `METODOS_VERIFICACION` is derived from the `METODOS` keys.
-2. Server: add the `REGISTRO` entry. A code method uses `identificadorPorCodigo` with a `FuenteDeCodigos`; any other
-   method writes its own `IdentificadorDeEmpleado`.
+2. Server: add the `REGISTRO` entry: the proof schema (only shape and a loose bound: a code shorter than the method's
+   minimum must be a failed, audited identification, not a malformed proof), the `identificador`, the two `rechazo`
+   texts and `rechazoGenerico` (what the terminal is told for every other rejection of the method: disabled, malformed,
+   identified but not eligible; the PIN's is the historical text). A code method uses `identificadorPorCodigo(metodo,
+   clave, fuente, { longitudMinima })`; for `almacen: "CREDENCIAL_OPERADOR"` the source is `fuenteDeCredencial(metodo)`
+   (`identificador-credencial.ts`, over `fsj.credencial_operador`: no migration, no repository code) and the entry also
+   carries `enrolamiento` (proof key, the zod rules of an enrolled code, the source, the "not available" text). Any
+   other method writes its own `IdentificadorDeEmpleado`.
 3. Client: add the `METODOS_EN_DIALOGO` entry (component + `prioridad`).
-4. Enrollment: a code method reuses the generic credential use cases and panel; any other method writes its own.
+4. Enrollment: a code method with `almacen: "CREDENCIAL_OPERADOR"` reuses the generic use cases
+   (`auth.credencialOperador.registrar` / `.eliminar`, `usuarios.credencialOperador.eliminar`), which read the
+   method's `enrolamiento` and are keyed by `METODOS_CON_CREDENCIAL_PROPIA` (derived from the catalog). The code travels
+   in the input under the proof key (`huella`), which the logger redacts. The «Mi cuenta» panel and its Server Actions
+   are per method (the field names differ); any other method writes its own use cases.
 5. A two-step method (WebAuthn) implements `iniciar`. Add one `iniciarVerificacionAction(metodo)` in
    `modules/operadores/ui/actions.ts` that calls it and stores the challenge server-side, single-use. Its `Campo` fetches
    the challenge on mount and puts the signed assertion into its proof keys; the verifier checks it inside `identificar`.
 6. Run `npm run typecheck`: it lists every registry still missing the method. Nothing else changes: not the carrier,
    the `conOperador` sites, `resolverActor`, the logger, the audit writer or the field markers.
+
+What the typecheck does NOT tell you (found adding the huella): a test that treats a method name as "unknown" (the guard
+rows of `cuentas-de-sector-verificar-operador.test.ts` used `HUELLA` before it existed); a test that extends the catalog
+in memory with a fake optional method (`operadores-metodos-verificacion.test.ts`) once a real one exists; the sentence of
+the audit label (`auditoria-diff.tsx` lowercases a word label: «identificado con huella», the acronym PIN stays); the
+`ayuda-permisos.ts` text of `auth.password.cambiar` and `usuarios.credencial.restablecer`; and the stored `metodo` must
+match `^[A-Z][A-Z_]{1,29}` (the CHECK of 0136 and 0137).
 
 Per-farmacia enablement needs no step: a method with `siempreHabilitado: false` is off until an Administrador switches
 it on in `/admin/configuracion/pin` (`fsj.metodo_verificacion_habilitado`, migration 0136), the section lists it by
