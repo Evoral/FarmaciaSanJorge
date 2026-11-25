@@ -85,7 +85,7 @@ Commit F — `feat(operadores): admin section to enable verification methods`
 - [x] 2.9 Tests: configure command (permission, PIN rejected, audit before/after, no-op), list query.
 
 Commit G — `refactor(ui): method-neutral verification copy`
-- [ ] 2.10 User-facing copy becomes «Verificación» (headings, help, dialog title text stays «¿Quién realiza esta acción?»). Route, `accion_con_pin`, `PERMISOS_CON_PIN_*`, `configurar-pin` keep their names. Update only strings; grep for tests asserting old copy and update them in this commit.
+- [x] 2.10 User-facing copy becomes «Verificación» (headings, help, dialog title text stays «¿Quién realiza esta acción?»). Route, `accion_con_pin`, `PERMISOS_CON_PIN_*`, `configurar-pin` keep their names. Update only strings; grep for tests asserting old copy and update them in this commit.
 
 Done criteria PR 2: CI green; `catalogo-guardas` unchanged; PIN-only farmacia sees today's dialog and the admin section is hidden.
 Not verified locally: `test:db` unless run (state it). Rollback: code revert, then 0136 down (docs).
