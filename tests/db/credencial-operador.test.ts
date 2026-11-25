@@ -6,10 +6,26 @@
  * (usuario, method), a composite FK to the usuario of its own tenant, and fsj_app may only replace the hash (no other
  * column), insert and delete. See tests/db/helpers.ts for the rollback safety model.
  */
-import { describe, it, expect } from "vitest";
-import { dbTestSkipReason } from "./env";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import type { Client } from "pg";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient, type Prisma } from "@/generated/prisma/client";
+import { upsertCredencialOperador } from "@/modules/auth/infrastructure/credencial-operador-repository";
+import { dbTestSkipReason, requireDbTestEnv } from "./env";
 import { asOwner, inRollbackTx, withTenant, expectDbRejection } from "./helpers";
 import { createSistemaUser, createUserWithRole, insertTenant } from "./fixtures";
+
+class RollbackSentinel extends Error {}
+
+/** Lets the pg-based fixtures run on a Prisma transaction (same pattern as tests/db/excipiente-por-unidad.test.ts). */
+function fixtureClient(tx: Prisma.TransactionClient): Client {
+  const facade = {
+    query: async (sql: string, params: unknown[] = []) => ({
+      rows: await tx.$queryRawUnsafe<Record<string, unknown>[]>(sql, ...params),
+    }),
+  };
+  return facade as unknown as Client;
+}
 
 async function tenantConUsuario(tx: Parameters<typeof insertTenant>[0], suffix: string): Promise<{ tenantId: string; usuarioId: string }> {
   const tenantId = await insertTenant(tx, suffix);
@@ -114,5 +130,73 @@ describe.skipIf(dbTestSkipReason() !== null)("0137_credencial_operador (fsj sche
       );
       expect(rows[0]!.def).toContain("(tenant_id, usuario_id, metodo)");
     });
+  });
+
+  it("fsj_app has SELECT, INSERT and DELETE, and UPDATE only on hash and actualizado_en", async () => {
+    await asOwner(async (client) => {
+      const tabla = await client.query(
+        `SELECT has_table_privilege('fsj_app', 'fsj.credencial_operador', 'SELECT') AS sel,
+                has_table_privilege('fsj_app', 'fsj.credencial_operador', 'INSERT') AS ins,
+                has_table_privilege('fsj_app', 'fsj.credencial_operador', 'DELETE') AS del,
+                has_table_privilege('fsj_app', 'fsj.credencial_operador', 'UPDATE') AS upd`,
+      );
+      expect(tabla.rows[0]).toEqual({ sel: true, ins: true, del: true, upd: false });
+
+      const { rows } = await client.query(
+        `SELECT a.attname AS columna, has_column_privilege('fsj_app', 'fsj.credencial_operador', a.attname, 'UPDATE') AS puede
+           FROM pg_attribute a
+          WHERE a.attrelid = 'fsj.credencial_operador'::regclass AND a.attnum > 0 AND NOT a.attisdropped
+          ORDER BY a.attname`,
+      );
+      const actualizables = rows.filter((r) => r.puede).map((r) => r.columna as string);
+      expect(actualizables).toEqual(["actualizado_en", "hash"]);
+    });
+  });
+});
+
+describe.skipIf(dbTestSkipReason() !== null)("0137_credencial_operador: the Prisma repository under fsj_app", () => {
+  let prisma: PrismaClient;
+
+  beforeAll(() => {
+    if (dbTestSkipReason() !== null) return;
+    const { directUrl } = requireDbTestEnv();
+    prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: directUrl, max: 1 }) });
+  });
+
+  afterAll(async () => {
+    await prisma?.$disconnect();
+  });
+
+  it("upsertCredencialOperador inserts then updates the hash with only the grants fsj_app has", async () => {
+    let completed = false;
+    try {
+      await prisma.$transaction(
+        async (tx) => {
+          const { tenantId, usuarioId } = await tenantConUsuario(fixtureClient(tx), "co-prisma");
+          await tx.$executeRawUnsafe("SET LOCAL ROLE fsj_app");
+          await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
+
+          const primera = await upsertCredencialOperador(tx, tenantId, usuarioId, "HUELLA", "hash-1", new Date("2026-11-01T10:00:00Z"));
+          expect(primera).toEqual({ existia: false });
+
+          const segunda = await upsertCredencialOperador(tx, tenantId, usuarioId, "HUELLA", "hash-2", new Date("2026-11-02T10:00:00Z"));
+          expect(segunda).toEqual({ existia: true });
+
+          const filas = await tx.credencialOperador.findMany({ where: { tenantId, usuarioId }, select: { hash: true, creadoEn: true, actualizadoEn: true } });
+          expect(filas).toHaveLength(1);
+          expect(filas[0]!.hash).toBe("hash-2");
+          // The replace never touches creado_en (fsj_app has no UPDATE on it).
+          expect(filas[0]!.creadoEn.toISOString()).toBe("2026-11-01T10:00:00.000Z");
+          expect(filas[0]!.actualizadoEn.toISOString()).toBe("2026-11-02T10:00:00.000Z");
+
+          completed = true;
+          throw new RollbackSentinel();
+        },
+        { maxWait: 20_000, timeout: 25_000 },
+      );
+    } catch (e) {
+      if (!(e instanceof RollbackSentinel)) throw e;
+    }
+    expect(completed).toBe(true);
   });
 });
