@@ -38,7 +38,8 @@ and never name a method.
 1. Domain: add the proof variant to `PruebaDeIdentidad`, and its `METODOS` entry (label, keys,
    `almacen`); `METODOS_VERIFICACION` is derived from the `METODOS` keys.
 2. Server: add the `REGISTRO` entry: the proof schema (only shape and a loose bound: a code shorter than the method's
-   minimum must be a failed, audited identification, not a malformed proof), the `identificador`, the two `rechazo`
+   minimum must be a failed, audited identification, not a malformed proof; a malformed or unknown-method proof gets
+   the generic rejection and is NOT audited, only a disabled method or a failed identification is), the `identificador`, the two `rechazo`
    texts and `rechazoGenerico` (what the terminal is told for every other rejection of the method: disabled, malformed,
    identified but not eligible; the PIN's is the historical text). A code method uses `identificadorPorCodigo(metodo,
    clave, fuente, { longitudMinima })`; for `almacen: "CREDENCIAL_OPERADOR"` the source is `fuenteDeCredencial(metodo)`
