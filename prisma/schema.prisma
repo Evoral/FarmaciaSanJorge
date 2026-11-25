@@ -415,6 +415,25 @@ model MetodoVerificacionHabilitado {
   @@schema("fsj")
 }
 
+/// The secret code of an OPTIONAL operador verification method, one per (usuario, method) (migration 0137): today the
+/// huella a keyboard-wedge reader types, stored as an argon2id hash like the PIN (which stays in usuario.pin_hash).
+/// Never the code. Uniqueness per farmacia and method is checked by the app under an advisory lock, not by a constraint.
+model CredencialOperador {
+  tenantId      String   @map("tenant_id") @db.Uuid
+  usuarioId     String   @map("usuario_id") @db.Uuid
+  metodo        String
+  hash          String
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  actualizadoEn DateTime @default(now()) @map("actualizado_en") @db.Timestamptz(6)
+
+  /// Composite FK (tenant_id, usuario_id): a credential only belongs to a usuario of its own tenant.
+  usuario Usuario @relation(fields: [tenantId, usuarioId], references: [tenantId, id], map: "credencial_operador_usuario_fkey")
+
+  @@id([tenantId, usuarioId, metodo])
+  @@map("credencial_operador")
+  @@schema("fsj")
+}
+
 /// Tenant-scoped role -> permission pair (M03, per tenant since migration 0054).
 model RolPermiso {
   tenantId  String @map("tenant_id") @db.Uuid
@@ -470,6 +489,7 @@ model Usuario {
 
   rolesAsignados                UsuarioRol[]                 @relation("UsuarioRolUsuario")
   rolesAsignadosPorMi           UsuarioRol[]                 @relation("UsuarioRolAsignadoPor")
+  credencialesOperador          CredencialOperador[]
   historialEstados              UsuarioEstadoHistorial[]     @relation("HistorialUsuario")
   historialEstadosCambiadoPorMi UsuarioEstadoHistorial[]     @relation("HistorialCambiadoPor")
   registrosAuditoria            RegistroAuditoria[]          @relation("AuditoriaUsuario")

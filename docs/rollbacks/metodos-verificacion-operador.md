@@ -30,3 +30,25 @@ enabled. No optional method exists yet, so production behavior is unchanged: the
   read the table), then apply the down script as a NEW forward migration.
 - What is lost: which optional methods each farmacia had on. Nothing else: the PIN and every audit row stay.
 - Reverting only the code leaves an unused table that nothing reads, which is harmless.
+
+## Slice 2a: huella on the server (migration 0137)
+
+HUELLA exists in the method catalog and the server registry, the credential table exists and three use cases manage
+the codes (own register/replace, own remove, Administrador remove). There is no UI yet and the method is off in every
+farmacia, so production behavior is unchanged until an Administrador enables it and the UI of slice 2b ships.
+
+- Schema: `fsj.credencial_operador (tenant_id, usuario_id, metodo, hash, creado_en, actualizado_en)`, migration
+  `20261125160000_0137_credencial_operador`, down script
+  `prisma/rollbacks/20261125160000_0137_credencial_operador.down.sql` (drops the table). Recheck the number before
+  applying anywhere: `origin/master` already took 0132-0135 once.
+- Order: revert the code of the slice first (the verifier registry, the three use cases and the repository read the
+  table), then apply the 0137 down script as a NEW forward migration, then the 0136 one (slice 1). No FK between the
+  two tables.
+- What is lost: every enrolled huella. The empleados must enrol again if the feature comes back. The PIN
+  (`usuario.pin_hash`) and every audit row stay.
+- Reverting only the code leaves an unused table that nothing reads, which is harmless. Reverting the code but leaving
+  the HUELLA row of `fsj.metodo_verificacion_habilitado` is also harmless: with no HUELLA in the catalog,
+  `loadMetodosHabilitados` ignores a method it does not know.
+- The slice also changes two behaviors outside the huella (revert with the code): the verifier takes the generic
+  rejection message from the method's registry entry (the PIN text is byte-identical), and
+  `replaceMetodosHabilitados` serializes concurrent saves of a farmacia with an advisory lock.
