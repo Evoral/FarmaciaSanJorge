@@ -104,6 +104,7 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = {
   entradaId: "Entrada de la guía",
   etiquetaId: "Etiqueta",
   tamanoId: "Tamaño de etiqueta",
+  fichaId: "Ficha técnica",
   fichaTecnicaId: "Ficha técnica",
   id: "Identificador",
   itemRecetaId: "Ítem de la receta",
