@@ -49,6 +49,7 @@ export const ENTIDADES: Readonly<Record<string, EntidadInfo>> = {
   lista_precio_proveedor: { nombre: "lista de precios de proveedor", articulo: "la" },
   lote_archivo_recetas: { nombre: "lote de archivo", articulo: "el" },
   medico: { nombre: "médico", articulo: "el" },
+  metodo_verificacion: { nombre: "configuración de métodos de verificación", articulo: "la" },
   movimiento_stock: { nombre: "movimiento de stock", articulo: "el" },
   operador: { nombre: "identificación de empleado en cuenta de sector", articulo: "la" },
   paciente: { nombre: "paciente", articulo: "el" },

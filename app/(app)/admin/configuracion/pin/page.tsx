@@ -7,14 +7,17 @@ import { Info } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
 import { can } from "@/shared/auth/authorize";
 import { listAccionesConPin } from "@/modules/operadores/application/list-acciones-con-pin";
+import { listMetodosVerificacion } from "@/modules/operadores/application/list-metodos-verificacion";
 import { AccionesConPinForm } from "@/modules/operadores/ui/acciones-con-pin-form";
+import { MetodosVerificacionForm } from "@/modules/operadores/ui/metodos-verificacion-form";
 import { PageHeader } from "@/shared/ui/page-header";
 import { configuracionSections } from "../../../nav-sections";
 import { SectionTabs } from "../../../section-tabs";
 
 export default async function PinPorAccionPage() {
   const session = await requireSession();
-  const acciones = await listAccionesConPin();
+  const [acciones, metodos] = await Promise.all([listAccionesConPin(), listMetodosVerificacion()]);
+  const puedeEditar = can(session, "config.editar");
 
   return (
     <>
@@ -35,8 +38,21 @@ export default async function PinPorAccionPage() {
       </p>
 
       <div className="max-w-4xl">
-        <AccionesConPinForm acciones={acciones} disabled={!can(session, "config.editar")} />
+        <AccionesConPinForm acciones={acciones} disabled={!puedeEditar} />
       </div>
+
+      {/* Rendered only while a method other than the always-on PIN exists: a PIN-only farmacia sees the screen as it always was. */}
+      {metodos.length > 0 ? (
+        <section aria-labelledby="metodos-verificacion" className="mt-8 max-w-4xl">
+          <h2 id="metodos-verificacion" className="mb-1 text-base font-semibold">
+            Métodos de verificación
+          </h2>
+          <p className="mb-3 text-sm text-zinc-600">
+            Además del PIN, que siempre está disponible, elegí con qué otros métodos puede identificarse un empleado. Si apagás uno, se conservan las credenciales ya cargadas.
+          </p>
+          <MetodosVerificacionForm metodos={metodos} disabled={!puedeEditar} />
+        </section>
+      ) : null}
     </>
   );
 }

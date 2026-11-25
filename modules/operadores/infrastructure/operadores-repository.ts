@@ -1,6 +1,6 @@
 /**
  * Prisma-backed access for `modules/operadores` (openspec/specs/cuentas-de-sector/spec.md):
- * `fsj.accion_con_pin` (migration 0077). Every function runs inside an already-open tenant transaction.
+ * `fsj.accion_con_pin` (migration 0077) and `fsj.metodo_verificacion_habilitado` (0136). Every function runs inside an already-open tenant transaction.
  *
  * `fsj.accion_con_pin` is also read by the session loader
  * (modules/auth/infrastructure/session-repository.ts#loadPermisosConPin),
@@ -8,6 +8,7 @@
  */
 import type { Prisma } from "@/generated/prisma/client";
 import { PERMISOS_CON_PIN_CONFIGURABLES, esPermisoConPinConfigurable, type Permiso } from "@/modules/auth/domain/permisos";
+import { METODOS_OPCIONALES, type MetodoVerificacion } from "@/modules/auth/domain/verificacion-identidad";
 import type { AccionConPin } from "../domain/acciones-con-pin";
 
 /** Every configurable acción, in catalog order, with whether this farmacia asks a PIN for it. */
@@ -34,5 +35,20 @@ export async function replaceAccionesConPin(tx: Prisma.TransactionClient, tenant
   await tx.accionConPin.deleteMany({ where: { tenantId } });
   if (permisos.length > 0) {
     await tx.accionConPin.createMany({ data: permisos.map((permiso) => ({ tenantId, permisoId: permiso.id })) });
+  }
+}
+
+/** The optional verification methods the farmacia has switched on (`fsj.metodo_verificacion_habilitado`, migration 0136), in catalog order. */
+export async function getMetodosHabilitados(tx: Prisma.TransactionClient, tenantId: string): Promise<MetodoVerificacion[]> {
+  const filas = await tx.metodoVerificacionHabilitado.findMany({ where: { tenantId }, select: { metodo: true } });
+  const guardados = new Set(filas.map((fila) => fila.metodo));
+  return METODOS_OPCIONALES.filter((metodo) => guardados.has(metodo));
+}
+
+/** Replaces the farmacia's set of optional methods (delete + insert: a pair has nothing to update, see migration 0136's grants). */
+export async function replaceMetodosHabilitados(tx: Prisma.TransactionClient, tenantId: string, metodos: readonly MetodoVerificacion[]): Promise<void> {
+  await tx.metodoVerificacionHabilitado.deleteMany({ where: { tenantId } });
+  if (metodos.length > 0) {
+    await tx.metodoVerificacionHabilitado.createMany({ data: metodos.map((metodo) => ({ tenantId, metodo })) });
   }
 }

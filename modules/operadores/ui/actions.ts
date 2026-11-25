@@ -4,6 +4,8 @@
 import { revalidatePath } from "next/cache";
 import { configurarAccionesConPin } from "@/modules/operadores/application/configurar-acciones-con-pin";
 import type { ConfigurarAccionesConPinInput } from "@/modules/operadores/application/configurar-acciones-con-pin";
+import { configurarMetodosVerificacion } from "@/modules/operadores/application/configurar-metodos-verificacion";
+import type { ConfigurarMetodosVerificacionInput } from "@/modules/operadores/application/configurar-metodos-verificacion";
 import { StepUpRequiredError } from "@/shared/errors";
 import { actionError } from "@/shared/ui/action-error";
 import type { AccionesConPinActionState } from "./action-state";
@@ -12,6 +14,18 @@ export async function configurarAccionesConPinAction(_prevState: AccionesConPinA
   try {
     // Passed through raw: the command only accepts configurable acciones (zod).
     await configurarAccionesConPin({ acciones: formData.getAll("acciones").map(String) as ConfigurarAccionesConPinInput["acciones"] });
+    revalidatePath("/admin/configuracion/pin");
+    return { status: "success", message: "Configuración guardada. Rige desde la próxima acción de cada cuenta de sector." };
+  } catch (error) {
+    if (error instanceof StepUpRequiredError) return { status: "reauth-required" };
+    return actionError(error, "No se pudo guardar la configuración.");
+  }
+}
+
+export async function configurarMetodosVerificacionAction(_prevState: AccionesConPinActionState, formData: FormData): Promise<AccionesConPinActionState> {
+  try {
+    // Passed through raw: the command only accepts the optional methods (zod).
+    await configurarMetodosVerificacion({ metodos: formData.getAll("metodos").map(String) as ConfigurarMetodosVerificacionInput["metodos"] });
     revalidatePath("/admin/configuracion/pin");
     return { status: "success", message: "Configuración guardada. Rige desde la próxima acción de cada cuenta de sector." };
   } catch (error) {
