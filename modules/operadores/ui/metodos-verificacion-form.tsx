@@ -47,7 +47,7 @@ export function MetodosVerificacionForm({ metodos, disabled = false }: MetodosVe
               checked={activos.has(metodo.metodo)}
               disabled={disabled}
               onChange={(event) => cambiar(metodo.metodo, event.target.checked)}
-              aria-label={`${metodo.etiqueta}: habilitado`}
+              aria-label={metodo.etiqueta}
             />
           </label>
           {METODOS_EN_DIALOGO[metodo.metodo].notaDeConfiguracion ? (

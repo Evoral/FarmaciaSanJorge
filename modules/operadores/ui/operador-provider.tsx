@@ -199,7 +199,7 @@ function OperadorPrompt({ error, metodoInicial, metodos, onConfirm, onCancel }: 
                   setValores({});
                   setEditado(true);
                 }}
-                className="btn btn-secondary"
+                className="btn btn-secondary aria-pressed:border-zinc-900 aria-pressed:bg-zinc-900 aria-pressed:text-white"
               >
                 {METODOS[opcion].etiqueta}
               </button>
