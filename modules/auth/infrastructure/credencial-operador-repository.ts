@@ -48,3 +48,9 @@ export async function deleteCredencialOperador(tx: Prisma.TransactionClient, ten
   const { count } = await tx.credencialOperador.deleteMany({ where: { tenantId, usuarioId, metodo } });
   return count > 0;
 }
+
+/** The methods for which the usuario holds a credential (never the hashes): what «Mi cuenta» and Usuarios › detalle show. */
+export async function loadMetodosConCredencial(tx: Prisma.TransactionClient, tenantId: string, usuarioId: string): Promise<string[]> {
+  const filas = await tx.credencialOperador.findMany({ where: { tenantId, usuarioId }, select: { metodo: true } });
+  return filas.map((fila) => fila.metodo);
+}

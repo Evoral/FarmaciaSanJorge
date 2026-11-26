@@ -112,6 +112,21 @@ export function markInvalidFields(form: HTMLFormElement, fields: readonly string
 }
 
 /**
+ * Empties and focuses the uncontrolled control called `name`, when the error result's `fields` name it. For a secret that
+ * must not be edited after a rejection, e.g. a scanned code: the reader's next scan would otherwise append to it.
+ * Returns whether it cleared something. It sets the value programmatically (no `input` event), so a mark placed by
+ * `markInvalidFields` stays until the user edits the field.
+ */
+export function clearRejectedField(form: Pick<HTMLFormElement, "elements">, fields: readonly string[] | undefined, name: string): boolean {
+  if (!fields?.includes(name)) return false;
+  const control = form.elements.namedItem(name) as (HTMLInputElement & { focus(): void }) | null;
+  if (!control) return false;
+  control.value = "";
+  control.focus();
+  return true;
+}
+
+/**
  * Marks `fields` on the form behind `formRef` whenever a new error result
  * arrives. Pass the latest action state's fields (`errorFieldsOf(state)` from
  * `./form-parts.tsx`): every action result is a fresh array, so the effect

@@ -10,7 +10,8 @@
 import type { ReactNode, Ref } from "react";
 import { AUTH_POLICY } from "@/shared/auth/policy";
 import type { MetodoVerificacion } from "@/modules/auth/domain/verificacion-identidad";
-import { HUELLA_LONGITUD_MAXIMA, HUELLA_LONGITUD_MINIMA } from "@/modules/auth/domain/verificacion-identidad";
+import { HUELLA_LONGITUD_MAXIMA } from "@/modules/auth/domain/verificacion-identidad";
+import { CodigoLectorInput } from "@/shared/ui/codigo-lector-input";
 import { PasswordInput } from "@/shared/ui/password-input";
 
 export interface CampoDeMetodoProps {
@@ -19,13 +20,22 @@ export interface CampoDeMetodoProps {
   /** What was typed so far, by proof key. */
   valores: Record<string, string>;
   onChange(clave: string, valor: string): void;
+  /** The server just rejected this method's proof and the empleado has not touched the field since: mark it (`aria-invalid`). */
+  invalido: boolean;
 }
 
 export interface MetodoEnDialogo {
   /** The dialog opens on the enabled method with the highest priority. */
   prioridad: number;
+  /**
+   * A keyboard-wedge reader method: it may send Enter twice, so after answering the dialog lingers a moment and swallows
+   * further submits (`./operador-provider.tsx`). Leave it out for a typed method (the PIN), whose dialog closes at once.
+   */
+  lector?: true;
   /** The line under the dialog title while this method is selected. */
   ayuda: string;
+  /** Shown under the method's switch in the farmacia configuration (`./metodos-verificacion-form.tsx`): how it works and what to set up. */
+  notaDeConfiguracion?: string;
   Campo(props: CampoDeMetodoProps): ReactNode;
 }
 
@@ -33,7 +43,7 @@ export const METODOS_EN_DIALOGO: { [M in MetodoVerificacion]: MetodoEnDialogo } 
   PIN: {
     prioridad: 0,
     ayuda: "Ingresá tu PIN. La acción queda registrada a tu nombre.",
-    Campo: ({ id, ref, valores, onChange }) => (
+    Campo: ({ id, ref, valores, onChange, invalido }) => (
       <div className="field">
         <label htmlFor={id} className="field-label">
           PIN
@@ -48,31 +58,34 @@ export const METODOS_EN_DIALOGO: { [M in MetodoVerificacion]: MetodoEnDialogo } 
           maxLength={AUTH_POLICY.pinLength}
           required
           autoComplete="off"
+          aria-invalid={invalido || undefined}
           className="input"
         />
       </div>
     ),
   },
-  // Minimal entry (slice 2a): the wedge reader types the code into the focused field and presses Enter. Focus handling,
-  // method switch defaults and polish land with the dialog work of slice 2b.
+  // The wedge reader types the code into the focused field and presses Enter, which submits the form. The field is masked
+  // and opts out of autofill and password managers (`CodigoLectorInput`). A rejected code is cleared with the rest of the
+  // dialog's state (a mis-scan: there is nothing to fix by editing it) and the field is marked.
   HUELLA: {
     prioridad: 10,
+    lector: true,
     ayuda: "Pasá tu huella por el lector. La acción queda registrada a tu nombre.",
-    Campo: ({ id, ref, valores, onChange }) => (
+    notaDeConfiguracion:
+      "El lector funciona como un teclado: escribe un código y termina con Enter (igual que el lector de QR). Configuralo para que agregue Enter al final y no agregue prefijo. Cada empleado enrola su huella desde Mi cuenta. El código es un secreto fijo: quien lo conozca puede identificarse como esa persona, por eso se guarda solo como hash, igual que el PIN.",
+    Campo: ({ id, ref, valores, onChange, invalido }) => (
       <div className="field">
         <label htmlFor={id} className="field-label">
           Huella
         </label>
-        <PasswordInput
+        <CodigoLectorInput
           ref={ref}
           id={id}
           value={valores.huella ?? ""}
           onChange={(event) => onChange("huella", event.target.value)}
-          minLength={HUELLA_LONGITUD_MINIMA}
           maxLength={HUELLA_LONGITUD_MAXIMA}
           required
-          autoComplete="off"
-          className="input"
+          aria-invalid={invalido || undefined}
         />
       </div>
     ),

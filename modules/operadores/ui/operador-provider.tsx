@@ -24,8 +24,18 @@ import { METODOS, METODOS_VERIFICACION, METODO_POR_DEFECTO, type MetodoVerificac
 import { OperadorContextProvider, type CamposDeOperador, type OperadorContextValue } from "@/shared/ui/operador";
 import { METODOS_EN_DIALOGO } from "./metodos-en-dialogo";
 
+/**
+ * How long the answered prompt of a reader method (`lector` in the registry) stays mounted, so a reader's second Enter
+ * lands on it (and is swallowed) and not on the page behind it. The PIN dialog closes immediately, as it always did.
+ */
+const MS_HASTA_CERRAR = 300;
+
 interface Pedido {
+  /** One per request: the prompt of a retry after a rejection is a new one (a lingering answered prompt keeps its id, so answering does not remount it). */
+  id: number;
   error?: string;
+  /** Set when the request is a retry after a rejection: the dialog reopens on the method that was just rejected. */
+  metodoInicial?: MetodoVerificacion;
   resolver: (campos: CamposDeOperador | null) => void;
 }
 
@@ -42,11 +52,29 @@ const METODOS_POR_DEFECTO: readonly MetodoVerificacion[] = [METODO_POR_DEFECTO];
 export function OperadorProvider({ permisosConPin, metodos = METODOS_POR_DEFECTO, children }: OperadorProviderProps) {
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const pedidoRef = useRef<Pedido | null>(null);
+  // The method of the last proof sent, so a rejection reopens the dialog on it instead of on the default method.
+  const ultimoMetodoRef = useRef<MetodoVerificacion | undefined>(undefined);
+  const siguienteIdRef = useRef(0);
 
   const responder = useCallback((campos: CamposDeOperador | null) => {
-    pedidoRef.current?.resolver(campos);
+    const actual = pedidoRef.current;
+    if (!actual) return; // already answered: a second Enter from the reader is a no-op
     pedidoRef.current = null;
-    setPedido(null);
+    if (!campos) {
+      actual.resolver(null);
+      setPedido(null);
+      return;
+    }
+    const metodo = METODOS_VERIFICACION.find((candidato) => candidato === campos[CAMPO_OPERADOR_METODO]);
+    if (metodo) ultimoMetodoRef.current = metodo;
+    actual.resolver(campos);
+    if (!metodo || METODOS_EN_DIALOGO[metodo].lector !== true) {
+      setPedido(null);
+      return;
+    }
+    // A reader method: keep the answered prompt mounted for a moment (see MS_HASTA_CERRAR); its form swallows the
+    // reader's second Enter. A newer request replaces it before then.
+    window.setTimeout(() => setPedido((visible) => (visible === actual ? null : visible)), MS_HASTA_CERRAR);
   }, []);
 
   const value = useMemo<OperadorContextValue>(() => {
@@ -57,7 +85,7 @@ export function OperadorProvider({ permisosConPin, metodos = METODOS_POR_DEFECTO
         new Promise((resolver) => {
           // One prompt at a time: a newer request supersedes a pending one.
           pedidoRef.current?.resolver(null);
-          const nuevo: Pedido = { error, resolver };
+          const nuevo: Pedido = { id: siguienteIdRef.current++, error, resolver, metodoInicial: error ? ultimoMetodoRef.current : undefined };
           pedidoRef.current = nuevo;
           setPedido(nuevo);
         }),
@@ -67,13 +95,24 @@ export function OperadorProvider({ permisosConPin, metodos = METODOS_POR_DEFECTO
   return (
     <OperadorContextProvider value={value}>
       {children}
-      {pedido ? <OperadorPrompt error={pedido.error} metodos={metodos} onConfirm={responder} onCancel={() => responder(null)} /> : null}
+      {pedido ? (
+        // A new request (a retry after a rejection) is a new prompt: its state (typed code, selected method) starts clean.
+        <OperadorPrompt
+          key={pedido.id}
+          error={pedido.error}
+          metodoInicial={pedido.metodoInicial}
+          metodos={metodos}
+          onConfirm={responder}
+          onCancel={() => responder(null)}
+        />
+      ) : null}
     </OperadorContextProvider>
   );
 }
 
 interface OperadorPromptProps {
   error?: string;
+  metodoInicial?: MetodoVerificacion;
   metodos: readonly MetodoVerificacion[];
   onConfirm: (campos: CamposDeOperador) => void;
   onCancel: () => void;
@@ -85,15 +124,19 @@ function ordenarPorPrioridad(metodos: readonly MetodoVerificacion[]): MetodoVeri
   return (conocidos.length > 0 ? conocidos : [METODO_POR_DEFECTO]).sort((a, b) => METODOS_EN_DIALOGO[b].prioridad - METODOS_EN_DIALOGO[a].prioridad);
 }
 
-function OperadorPrompt({ error, metodos, onConfirm, onCancel }: OperadorPromptProps) {
+function OperadorPrompt({ error, metodoInicial, metodos, onConfirm, onCancel }: OperadorPromptProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const campoRef = useRef<HTMLInputElement>(null);
+  // Set synchronously by the first accepted submit: a second one (a reader's repeated Enter) never reaches `onConfirm`.
+  const respondido = useRef(false);
   const tituloId = useId();
   const campoId = useId();
   const ofrecidos = ordenarPorPrioridad(metodos);
   // The empleado's pick, kept only while it is still offered: if `metodos` changes with the dialog open, the selection
   // falls back to the first offered method instead of pointing at one that is gone.
-  const [elegido, setElegido] = useState<MetodoVerificacion | null>(null);
+  const [elegido, setElegido] = useState<MetodoVerificacion | null>(metodoInicial ?? null);
+  // The rejection mark stays until the empleado edits the field or switches method.
+  const [editado, setEditado] = useState(false);
   const metodo = elegido && ofrecidos.includes(elegido) ? elegido : ofrecidos[0]!;
   const [valores, setValores] = useState<Record<string, string>>({});
   const { Campo } = METODOS_EN_DIALOGO[metodo];
@@ -113,7 +156,8 @@ function OperadorPrompt({ error, metodos, onConfirm, onCancel }: OperadorPromptP
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
-    if (!completo) return;
+    if (!completo || respondido.current) return;
+    respondido.current = true;
     const campos: CamposDeOperador = { [CAMPO_OPERADOR_METODO]: metodo };
     for (const clave of claves) campos[campoDeOperador(clave)] = valores[clave]!;
     onConfirm(campos);
@@ -144,7 +188,19 @@ function OperadorPrompt({ error, metodos, onConfirm, onCancel }: OperadorPromptP
         {ofrecidos.length > 1 ? (
           <div className="flex gap-2">
             {ofrecidos.map((opcion) => (
-              <button key={opcion} type="button" aria-pressed={opcion === metodo} onClick={() => setElegido(opcion)} className="btn btn-secondary">
+              <button
+                key={opcion}
+                type="button"
+                aria-pressed={opcion === metodo}
+                onClick={() => {
+                  if (opcion === metodo) return;
+                  setElegido(opcion);
+                  // The secret typed for the method being left must not linger, hidden, in this state.
+                  setValores({});
+                  setEditado(true);
+                }}
+                className="btn btn-secondary"
+              >
                 {METODOS[opcion].etiqueta}
               </button>
             ))}
@@ -155,7 +211,11 @@ function OperadorPrompt({ error, metodos, onConfirm, onCancel }: OperadorPromptP
           id={campoId}
           ref={campoRef}
           valores={valores}
-          onChange={(clave, valor) => setValores((actuales) => ({ ...actuales, [clave]: valor }))}
+          onChange={(clave, valor) => {
+            setValores((actuales) => ({ ...actuales, [clave]: valor }));
+            setEditado(true);
+          }}
+          invalido={Boolean(error) && !editado}
         />
 
         {error ? (

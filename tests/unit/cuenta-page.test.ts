@@ -1,6 +1,8 @@
 /**
  * Unit tests for `app/(app)/cuenta/page.tsx` (commit 9b2d5db):
  * A cuenta de sector (session.sector) sees only a note and no password or PIN forms.
+ * The huella panel (openspec/changes/metodos-verificacion-operador) is offered only to an individual, non-admin-only
+ * session while the farmacia has the huella enabled; its state is read once per render.
  */
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -12,11 +14,16 @@ vi.mock("@/shared/auth/session", () => ({
   requireSession: (...args: unknown[]) => requireSessionMock(...args),
 }));
 
-const cuentaFormsMock = vi.fn(({ mostrarPin }: { mostrarPin: boolean }) =>
+const estadoCredencialesMock = vi.fn();
+vi.mock("@/modules/auth/application/estado-credenciales-operador", () => ({
+  estadoCredencialesOperador: (...args: unknown[]) => estadoCredencialesMock(...args),
+}));
+
+const cuentaFormsMock = vi.fn(({ mostrarPin }: { mostrarPin: boolean; huella?: { enrolada: boolean } | null }) =>
   createElement("div", { "data-testid": "cuenta-forms", "data-mostrar-pin": String(mostrarPin) }, "FORMULARIO_DE_CUENTA"),
 );
 vi.mock("@/app/(app)/cuenta/cuenta-forms", () => ({
-  CuentaForms: (props: { mostrarPin: boolean }) => cuentaFormsMock(props),
+  CuentaForms: (props: { mostrarPin: boolean; huella?: { enrolada: boolean } | null }) => cuentaFormsMock(props),
 }));
 
 const { default: CuentaPage } = await import("@/app/(app)/cuenta/page");
@@ -31,6 +38,8 @@ const baseSession: AuthenticatedSession = {
 
 beforeEach(() => {
   cuentaFormsMock.mockClear();
+  estadoCredencialesMock.mockReset();
+  estadoCredencialesMock.mockResolvedValue([{ metodo: "HUELLA", etiqueta: "Huella", habilitado: false, enrolada: false }]);
 });
 
 describe("CuentaPage (/cuenta)", () => {
@@ -53,6 +62,8 @@ describe("CuentaPage (/cuenta)", () => {
     // Does NOT render CuentaForms
     expect(cuentaFormsMock).not.toHaveBeenCalled();
     expect(html).not.toContain("FORMULARIO_DE_CUENTA");
+    // No huella panel for a cuenta de sector: its state is not even read.
+    expect(estadoCredencialesMock).not.toHaveBeenCalled();
   });
 
   it("for a personal session (regular user): renders CuentaForms with mostrarPin = true", async () => {
@@ -88,5 +99,33 @@ describe("CuentaPage (/cuenta)", () => {
     // Renders CuentaForms with PIN disabled
     expect(cuentaFormsMock).toHaveBeenCalledWith(expect.objectContaining({ mostrarPin: false }));
     expect(html).toContain('data-mostrar-pin="false"');
+  });
+
+  it("offers no huella panel while the farmacia has the huella disabled", async () => {
+    requireSessionMock.mockResolvedValue({ ...baseSession, sector: undefined, soloAdministrador: false });
+
+    renderToStaticMarkup(await CuentaPage());
+
+    expect(cuentaFormsMock).toHaveBeenCalledWith(expect.objectContaining({ huella: null }));
+  });
+
+  it("offers the huella panel, with whether one is enrolled, when the huella is enabled", async () => {
+    requireSessionMock.mockResolvedValue({ ...baseSession, sector: undefined, soloAdministrador: false });
+    estadoCredencialesMock.mockResolvedValue([{ metodo: "HUELLA", etiqueta: "Huella", habilitado: true, enrolada: true }]);
+
+    const html = renderToStaticMarkup(await CuentaPage());
+
+    expect(cuentaFormsMock).toHaveBeenCalledWith(expect.objectContaining({ huella: { enrolada: true } }));
+    expect(html).toContain("Tu contraseña, tu PIN y tu huella para confirmar acciones.");
+  });
+
+  it("never offers the huella panel to an Administrador-only session (it never acts as an operador)", async () => {
+    requireSessionMock.mockResolvedValue({ ...baseSession, sector: undefined, soloAdministrador: true });
+    estadoCredencialesMock.mockResolvedValue([{ metodo: "HUELLA", etiqueta: "Huella", habilitado: true, enrolada: false }]);
+
+    renderToStaticMarkup(await CuentaPage());
+
+    expect(cuentaFormsMock).toHaveBeenCalledWith(expect.objectContaining({ huella: null }));
+    expect(estadoCredencialesMock).not.toHaveBeenCalled();
   });
 });

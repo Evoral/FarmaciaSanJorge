@@ -109,7 +109,11 @@ dialog (client registry) -> {operadorMetodo, operador<Clave>…} -> use-form-sub
   today's dialog unchanged.
 - The selected method's input is focused on open and on switch. The wedge's Enter submits the native form.
 - The main form's data survives because `use-form-submit` resubmits the stored `FormData`. The rejected secret is
-  cleared, as it is today.
+  cleared, as it is today: the PIN dialog already emptied the code on reopen (the prompt remounts with empty state), so the
+  scenario "El código rechazado se vacía para volver a leer" is not a PIN behavior change. Mi cuenta now empties a
+  rejected huella too (its form is uncontrolled and would otherwise keep the code, so the reader's next scan would append to it).
+- Only reader methods (`lector: true` in the client registry) keep the answered dialog mounted for 300 ms, swallowing the
+  reader's second Enter; the PIN dialog closes at once, as before.
 - `use-form-submit`, `form-parts.tsx:140` and `planilla-existencia-inicial.tsx:480` use `esCampoDeOperador`. On
   success, `use-form-submit` deletes every `CAMPOS_DE_PRUEBA_OPERADOR` field.
 - Logger: `enTresNiveles([...existing, ...CLAVES_Y_CAMPOS_DE_PRUEBA])`. The literal `operadorPin` becomes derived.

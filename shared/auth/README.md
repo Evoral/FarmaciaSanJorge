@@ -46,12 +46,19 @@ and never name a method.
    (`identificador-credencial.ts`, over `fsj.credencial_operador`: no migration, no repository code) and the entry also
    carries `enrolamiento` (proof key, the zod rules of an enrolled code, the source, the "not available" text). Any
    other method writes its own `IdentificadorDeEmpleado`.
-3. Client: add the `METODOS_EN_DIALOGO` entry (component + `prioridad`).
+3. Client: add the `METODOS_EN_DIALOGO` entry (`Campo` + `prioridad` + `ayuda`, optionally `notaDeConfiguracion`, shown under
+   the method's switch in the farmacia configuration). `Campo` receives `invalido` (mark the control after a rejection).
+   A keyboard-wedge reader method sets `lector: true`: after answering, the dialog stays mounted for a moment and its form
+   swallows further submits, so a reader's second Enter cannot reach the page behind it. A typed method (the PIN) omits
+   the flag and its dialog closes immediately. A scanned secret uses `shared/ui/codigo-lector-input.tsx` (masked text, no password
+   manager), not `<input type="password">` (browsers offer to save it).
 4. Enrollment: a code method with `almacen: "CREDENCIAL_OPERADOR"` reuses the generic use cases
    (`auth.credencialOperador.registrar` / `.eliminar`, `usuarios.credencialOperador.eliminar`), which read the
    method's `enrolamiento` and are keyed by `METODOS_CON_CREDENCIAL_PROPIA` (derived from the catalog). The code travels
-   in the input under the proof key (`huella`), which the logger redacts. The «Mi cuenta» panel and its Server Actions
-   are per method (the field names differ); any other method writes its own use cases.
+   in the input under the proof key (`huella`), which the logger redacts. The «Mi cuenta» panel (`app/(app)/cuenta`), its
+   Server Actions and the Usuarios › detalle section are per method (the field names differ): the page learns whether
+   the method is on and enrolled from `auth.credencialOperador.estado` (generic over `METODOS_CON_CREDENCIAL_PROPIA`),
+   the Administrador's view from `UsuarioDetalle.credencialesOperador`. Any other method writes its own use cases.
 5. A two-step method (WebAuthn) implements `iniciar`. Add one `iniciarVerificacionAction(metodo)` in
    `modules/operadores/ui/actions.ts` that calls it and stores the challenge server-side, single-use. Its `Campo` fetches
    the challenge on mount and puts the signed assertion into its proof keys; the verifier checks it inside `identificar`.
@@ -62,6 +69,7 @@ What the typecheck does NOT tell you (found adding the huella): a test that trea
 rows of `cuentas-de-sector-verificar-operador.test.ts` used `HUELLA` before it existed); a test that extends the catalog
 in memory with a fake optional method (`operadores-metodos-verificacion.test.ts`) once a real one exists; the sentence of
 the audit label (`auditoria-diff.tsx` lowercases a word label: «identificado con huella», the acronym PIN stays); the
+panel copy in «Mi cuenta» and Usuarios › detalle (no registry carries it); the
 `ayuda-permisos.ts` text of `auth.password.cambiar` and `usuarios.credencial.restablecer`; and the stored `metodo` must
 match `^[A-Z][A-Z_]{1,29}` (the CHECK of 0136 and 0137).
 

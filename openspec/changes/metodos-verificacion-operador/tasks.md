@@ -120,16 +120,16 @@ Branch `feat/mvo-2b-huella-ui` -> targets `feat/mvo-2a-huella-servidor`.
 Start: PR 3. End: the full feature is usable.
 
 Commit J — `feat(cuenta): huella panel in Mi cuenta`
-- [ ] 4.1 `app/(app)/cuenta/*`: huella panel (enroll/replace/remove, wedge input + Enter, min-6 message, current password), hidden for cuentas de sector; uses `useFormSubmit`, `field-errors`, `@container` layout, works at 375px (AGENTS.md conventions). Server Actions stay thin and call the credential use cases.
-- [ ] 4.2 Panel visible only when HUELLA is enabled in the farmacia (registering while disabled is rejected server-side).
+- [x] 4.1 `app/(app)/cuenta/*`: huella panel (enroll/replace/remove, wedge input + Enter, min-6 message, current password), hidden for cuentas de sector; uses `useFormSubmit`, `field-errors`, `@container` layout, works at 375px (AGENTS.md conventions). Server Actions stay thin and call the credential use cases.
+- [x] 4.2 Panel visible only when HUELLA is enabled in the farmacia (registering while disabled is rejected server-side).
 
 Commit K — `feat(usuarios): remove a huella from Usuarios detalle`
-- [ ] 4.3 `Usuarios › detalle`: huella section shows only enrolled yes/no and a remove button (confirm dialog; unmounted/`key`ed form per the `<dialog>` convention); no enroll, no code.
+- [x] 4.3 `Usuarios › detalle`: huella section shows only enrolled yes/no and a remove button (confirm dialog; unmounted/`key`ed form per the `<dialog>` convention); no enroll, no code.
 
 Commit L — `feat(operadores): huella in the verification dialog and enablement toggle`
-- [ ] 4.4 Final `METODOS_EN_DIALOGO.HUELLA`: focus on open and on switch, Enter submits the native form, opens on huella when enabled, PIN one click away, method switch only with more than one method, reopens on the last method used after a rejection, rejected secret cleared, rest of the form kept (D5, "Client").
-- [ ] 4.5 Admin section now renders the HUELLA toggle (already generic from slice 1; verify copy and the disabled-keeps-codes note). Update the reader note (suffix/prefix config, static-secret security note) in the admin section help.
-- [ ] 4.6 `docs/rollbacks/metodos-verificacion-operador.md`: UI revert note; final ordering confirmed.
+- [x] 4.4 Final `METODOS_EN_DIALOGO.HUELLA`: focus on open and on switch, Enter submits the native form, opens on huella when enabled, PIN one click away, method switch only with more than one method, reopens on the last method used after a rejection, rejected secret cleared, rest of the form kept (D5, "Client").
+- [x] 4.5 Admin section now renders the HUELLA toggle (already generic from slice 1; verify copy and the disabled-keeps-codes note). Update the reader note (suffix/prefix config, static-secret security note) in the admin section help.
+- [x] 4.6 `docs/rollbacks/metodos-verificacion-operador.md`: UI revert note; final ordering confirmed.
 
 Done criteria PR 4: CI green. Manual (list in section 6): real wedge reader, dialog defaults and focus, 375px, `Enter` submit.
 Not verified locally: everything browser/hardware-related unless done (state it). Rollback: revert PR 4 (UI only).

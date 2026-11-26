@@ -5,10 +5,14 @@
  * have no PIN, so the PIN panel is only offered to the rest of the usuarios. A
  * cuenta de sector has neither: no PIN and it never changes its own password
  * (the Administrador sets it from Usuarios; openspec/specs/cuentas-de-sector/spec.md).
+ * The huella panel (openspec/changes/metodos-verificacion-operador) is offered under the same conditions as the PIN
+ * (an Administrador-only usuario never acts as an operador) and only while the farmacia has the huella enabled.
  */
 import { Info } from "lucide-react";
 import { requireSession } from "@/shared/auth/session";
+import { estadoCredencialesOperador } from "@/modules/auth/application/estado-credenciales-operador";
 import { PageHeader } from "@/shared/ui/page-header";
+import { Toaster } from "@/shared/ui/toast";
 import { CuentaForms } from "./cuenta-forms";
 
 export default async function CuentaPage() {
@@ -31,16 +35,18 @@ export default async function CuentaPage() {
   }
 
   const mostrarPin = !session.soloAdministrador;
+  const huella = mostrarPin ? ((await estadoCredencialesOperador()).find((estado) => estado.metodo === "HUELLA" && estado.habilitado) ?? null) : null;
 
   return (
     <div className="page">
+      <Toaster />
       <PageHeader
         breadcrumbs={breadcrumbs}
         title="Mi cuenta"
-        description={mostrarPin ? "Tu contraseña y tu PIN para confirmar acciones." : "Tu contraseña para confirmar acciones."}
+        description={huella ? "Tu contraseña, tu PIN y tu huella para confirmar acciones." : mostrarPin ? "Tu contraseña y tu PIN para confirmar acciones." : "Tu contraseña para confirmar acciones."}
       />
 
-      <CuentaForms mostrarPin={mostrarPin} />
+      <CuentaForms mostrarPin={mostrarPin} huella={huella ? { enrolada: huella.enrolada } : null} />
     </div>
   );
 }

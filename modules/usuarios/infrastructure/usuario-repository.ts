@@ -139,6 +139,8 @@ export interface UsuarioDetalle {
   pinBloqueado: boolean;
   /** Every role is the locked ADMINISTRADOR (`esSoloAdministrador`): such a usuario has no PIN. */
   soloAdministrador: boolean;
+  /** The verification methods (other than the PIN) for which the usuario holds a code, e.g. `HUELLA`. Names only: the hash never leaves modules/auth. */
+  credencialesOperador: string[];
 }
 
 /**
@@ -168,6 +170,7 @@ export async function getUsuarioDetalle(tx: Prisma.TransactionClient, tenantId: 
       esSector: true,
       pinHash: true,
       pinBloqueado: true,
+      credencialesOperador: { select: { metodo: true } },
       rolesAsignados: { select: { rol: { select: { codigo: true, esAdministrador: true } } } },
     },
   });
@@ -190,6 +193,7 @@ export async function getUsuarioDetalle(tx: Prisma.TransactionClient, tenantId: 
     pinConfigurado: row.pinHash !== null,
     pinBloqueado: row.pinBloqueado,
     soloAdministrador: esSoloAdministrador(row.rolesAsignados.map((asignacion) => asignacion.rol)),
+    credencialesOperador: row.credencialesOperador.map((credencial) => credencial.metodo),
   };
 }
 
